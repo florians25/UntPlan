@@ -267,6 +267,7 @@ public sealed class Schuldatei
     public List<KommentarKategorie> KommentarKategorien { get; set; } = new();
     public List<Ansicht> Ansichten { get; set; } = new();
     public List<StundentafelZeile> Stundentafel { get; set; } = new();
+    public List<StundenplanFormat> Formate { get; set; } = new();
     public int NaechsteId { get; set; } = 1;
 
     public int NeueId() => NaechsteId++;

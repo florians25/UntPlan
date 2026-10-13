@@ -14,5 +14,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <ProjectReference Include="..\UntPlan.Core\UntPlan.Core.csproj" />
+    <Using Include="System.Drawing" />
+    <Using Include="System.Windows.Forms" />
   </ItemGroup>
 </Project>
