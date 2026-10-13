@@ -43,7 +43,7 @@ Die Bedienung ist im **[Benutzerhandbuch](docs/HANDBUCH.md)** beschrieben.
 
 Die GitHub-Actions-Pipeline erzeugt bei jedem Push drei Artefakte:
 
-- `UntPlan-Setup-x.y.z.exe`: Installer mit Startmenü-Eintrag und Dateiverknüpfung `.untplan`.
+- `UntPlan-Setup-x.y.z.exe`: Installer mit Startmenü-Eintrag und Dateiverknüpfung `.up`.
 - `UntPlan-portabel`: eine einzelne `UntPlan.exe`, die ohne installiertes .NET läuft.
 - `UntPlan-Portal`: der Portal-Referenzserver.
 
@@ -68,7 +68,7 @@ dotnet run --project src/UntPlan.Portal            # Portal unter http://localho
 
 `UntPlan.exe --selbsttest=<Ordner>` öffnet mit der Beispielschule nacheinander alle Fenster. Dabei entstehen Bildschirmfotos und ein Protokoll. Die CI nutzt diesen Modus als Oberflächentest.
 
-Schuldateien (`*.untplan`) sind JSON-Dateien. Beim Speichern wird eine Sicherung `*.bak` angelegt.
+Schuldateien (`*.up`) sind JSON-Dateien. Beim Speichern wird eine Sicherung `*.bak` angelegt.
 
 ## Hinweis
 

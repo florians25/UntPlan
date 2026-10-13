@@ -40,7 +40,7 @@ In der Anwendung erreichen Sie die passende Hilfeseite jederzeit mit **F1**.
 *Datei → Neu*: Geben Sie den Schulnamen ein und wählen Sie die NRW-Schulform. UntPlan übernimmt dabei die NRW-Ferien und Feiertage sowie den NRW-Fächerkatalog (inkl. Bereitschaft BER).
 *Datei → Beispielschule öffnen* lädt ein vollständiges Gymnasium zum Ausprobieren.
 
-Eine Schuldatei (`*.untplan`) enthält alle Daten eines Schuljahres. Beim Speichern legt UntPlan automatisch eine Sicherung `*.bak` an.
+Eine Schuldatei (`*.up`) enthält alle Daten eines Schuljahres. Beim Speichern legt UntPlan automatisch eine Sicherung `*.bak` an.
 Jede Änderung lässt sich mit **Strg+Z** rückgängig machen (50 Schritte).
 
 ---

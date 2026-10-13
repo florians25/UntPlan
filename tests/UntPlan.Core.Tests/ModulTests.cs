@@ -38,9 +38,9 @@ public class VertretungTests
         var d = Testdaten.Verplant();
         var tag = Testdaten.Unterrichtstag(d);
         var ix = new DatenIndex(d);
-        var plan = Vertretungen.Tagesplan(d, ix, tag);
-        var lehrer = plan.Where(x => !Vertretungen.IstBereitschaft(ix, x.Unterricht)).SelectMany(x => x.Unterricht.LehrerIds).GroupBy(l => l).OrderByDescending(g => g.Count()).First().Key;
-        var stunden = plan.Count(x => x.Unterricht.Zeilen.Any(z => z.LehrerId == lehrer) && !Vertretungen.IstBereitschaft(ix, x.Unterricht));
+        var plan = Tagesplan.Regulaer(d, tag);
+        var lehrer = plan.Where(x => !Vertretungen.IstBereitschaft(ix, x.Unterricht) && x.LehrerId.HasValue).GroupBy(x => x.LehrerId!.Value).OrderByDescending(g => g.Count()).First().Key;
+        var stunden = plan.Count(x => x.LehrerId == lehrer && !Vertretungen.IstBereitschaft(ix, x.Unterricht));
         d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = lehrer, Von = tag, Bis = tag });
         Vertretungen.Aktualisieren(d, tag);
         var offen = d.Vertretungen.Where(v => v.Datum == tag && v.Offen).ToList();
@@ -65,20 +65,21 @@ public class VertretungTests
         // Einen Tag mit Bereitschaftsstunde suchen
         foreach (var tag in Kalender.Tage(d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrVon.AddDays(30)).Where(t => Kalender.IstUnterrichtstag(d, t)))
         {
-            var plan = Vertretungen.Tagesplan(d, ix, tag);
+            var plan = Tagesplan.Regulaer(d, tag);
             var ber = plan.FirstOrDefault(x => Vertretungen.IstBereitschaft(ix, x.Unterricht));
             if (ber is null) continue;
-            var stunde = ber.Planstunde.Stunde;
-            var bereit = ber.Unterricht.LehrerIds.First();
-            var opfer = plan.Where(x => x.Planstunde.Stunde == stunde && !Vertretungen.IstBereitschaft(ix, x.Unterricht) && x.Unterricht.Zeilen.Count == 1)
-                .Select(x => x.Unterricht.Zeilen[0].LehrerId).OfType<int>().FirstOrDefault(l => l != bereit);
+            var stunde = ber.Stunde;
+            var bereit = ber.LehrerId!.Value;
+            var opfer = plan.Where(x => x.Stunde == stunde && !Vertretungen.IstBereitschaft(ix, x.Unterricht) && x.Unterricht.Zeilen.Count == 1)
+                .Select(x => x.LehrerId).OfType<int>().FirstOrDefault(l => l != bereit);
             if (opfer == 0) continue;
             d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = opfer, Von = tag, Bis = tag });
             Vertretungen.Aktualisieren(d, tag);
             var v = d.Vertretungen.First(x => x.Datum == tag && x.Stunde == stunde && x.LehrerId == opfer);
             var kand = VertretungsVorschlag.Berechnen(d, v);
             Assert.NotEmpty(kand);
-            Assert.All(kand, k => Assert.Null(Vertretungen.LehrerBelegt(d, ix, k.Lehrer.Id, tag, stunde, plan, v)));
+            var tp = Tagesplan.Berechnen(d, tag);
+            Assert.All(kand, k => Assert.Null(Vertretungen.LehrerBelegt(d, tp, k.Lehrer.Id, stunde, v)));
             Assert.Equal(bereit, kand[0].Lehrer.Id);
             Assert.False(kand[0].Mehrarbeit);
 

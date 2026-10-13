@@ -265,7 +265,7 @@ public static class VergleichDialog
 {
     public static void Zeigen(IWin32Window owner)
     {
-        using var ofd = new OpenFileDialog { Filter = "UntPlan-Schuldatei (*.untplan)|*.untplan", Title = "Vergleichsdatei wählen" };
+        using var ofd = new OpenFileDialog { Filter = Core.Dokument.DateiFilter, Title = "Vergleichsdatei wählen" };
         if (ofd.ShowDialog(owner) != DialogResult.OK) return;
         var andere = Dokument.Laden(ofd.FileName).Daten;
         var d = AppZustand.D;

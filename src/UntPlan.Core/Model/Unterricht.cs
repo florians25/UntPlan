@@ -18,6 +18,8 @@ public sealed class Kopplungszeile
     /// <summary>Abweichender Wert dieser Zeile (Wertrechnung), null = Wochenstunden × Faktor.</summary>
     public decimal? Wert { get; set; }
     public string Zeilentext { get; set; } = "";
+    /// <summary>Zeilen-Unterrichtsgruppe (z. B. Woche A), null = wie Unterricht.</summary>
+    public int? UGruppeId { get; set; }
 
     /// <summary>Gewünschter Raum: Fachraum vor Stammraum.</summary>
     [JsonIgnore] public int? Wunschraum => FachraumId ?? StammraumId;
@@ -26,7 +28,7 @@ public sealed class Kopplungszeile
     public Kopplungszeile Kopie() => new()
     {
         LehrerId = LehrerId, FachId = FachId, KlassenIds = new List<int>(KlassenIds), FachraumId = FachraumId,
-        FachraumgruppeId = FachraumgruppeId, StammraumId = StammraumId, StammraumgruppeId = StammraumgruppeId, Wert = Wert, Zeilentext = Zeilentext,
+        FachraumgruppeId = FachraumgruppeId, StammraumId = StammraumId, StammraumgruppeId = StammraumgruppeId, Wert = Wert, Zeilentext = Zeilentext, UGruppeId = UGruppeId,
     };
 }
 
@@ -64,6 +66,10 @@ public sealed class Unterricht
     public DateOnly? VonDatum { get; set; }
     public DateOnly? BisDatum { get; set; }
     public Periodizitaet Periodizitaet { get; set; }
+    /// <summary>Unterrichtsgruppe (Woche A/B/…, Semester), null = jede Woche.</summary>
+    public int? UGruppeId { get; set; }
+    /// <summary>Betreuung kann übernommen werden von (automatische Betreuung bei Absenz).</summary>
+    public int? BetreuungLehrerId { get; set; }
     // Wertrechnung
     public decimal? WerteFaktor { get; set; }
     public Zeitwuensche Zeitwuensche { get; set; } = new();
@@ -103,6 +109,7 @@ public sealed class Unterricht
         Block = Block, Schuelergruppe = Schuelergruppe, Text = Text, Statistik = Statistik, Fix = Fix, Ignorieren = Ignorieren,
         MehrmalsProTag = MehrmalsProTag, Band = Band, Kursname = Kursname, MaxSchueler = MaxSchueler, VonDatum = VonDatum,
         BisDatum = BisDatum, Periodizitaet = Periodizitaet, WerteFaktor = WerteFaktor, Zeitwuensche = Zeitwuensche.Kopie(),
+        UGruppeId = UGruppeId, BetreuungLehrerId = BetreuungLehrerId, Kommentar = Kommentar,
     };
 
     public bool GiltAm(DateOnly datum, int schulwoche)
@@ -134,11 +141,35 @@ public sealed class Planstunde
     public Planstunde Kopie() => new() { UnterrichtId = UnterrichtId, Tag = Tag, Stunde = Stunde, Raeume = new List<int?>(Raeume), Fixiert = Fixiert };
 }
 
-/// <summary>Periode (Mehrwochenstundenplan): ab einem Datum gilt ein eigener Stundenplan.</summary>
+/// <summary>
+/// Periode (Periodenstundenplan): ab einem Datum gilt ein eigener Unterricht und Stundenplan. Eine neue Periode ist
+/// eine Kopie ihrer Mutterperiode. An einem Tag gilt die innerste (zuletzt beginnende) Periode, die das Datum abdeckt.
+/// </summary>
 public sealed class Periode
 {
     public int Id { get; set; }
     public string Name { get; set; } = "";
+    public string Langname { get; set; } = "";
     public DateOnly Von { get; set; }
+    /// <summary>Ende (null = bis Schuljahresende bzw. bis zur nächsten Periode).</summary>
+    public DateOnly? Bis { get; set; }
+    public int? MutterId { get; set; }
+    /// <summary>Fixierte Periode: keine Änderungen zulässig.</summary>
+    public bool Fixiert { get; set; }
+    public int Farbe { get; set; }
+    /// <summary>Unterricht dieser Periode (null nur in älteren Dateien vor der Umstellung).</summary>
+    public List<Unterricht>? Unterrichte { get; set; }
     public List<Planstunde> Plan { get; set; } = new();
+    public List<Pausenaufsicht>? Pausenaufsichten { get; set; }
+
+    public bool Deckt(DateOnly datum) => datum >= Von && (Bis is null || datum <= Bis.Value);
+
+    /// <summary>Kopie als Tochterperiode (Unterricht, Stundenplan und Pausenaufsichten werden übernommen).</summary>
+    public Periode Kopie(int neueId, string name, DateOnly von, DateOnly? bis) => new()
+    {
+        Id = neueId, Name = name, Langname = name, Von = von, Bis = bis, MutterId = Id,
+        Unterrichte = (Unterrichte ?? new()).Select(u => u.Kopie(u.Id)).ToList(),
+        Plan = Plan.Select(p => p.Kopie()).ToList(),
+        Pausenaufsichten = (Pausenaufsichten ?? new()).Select(a => new Pausenaufsicht { GangId = a.GangId, Tag = a.Tag, NachStunde = a.NachStunde, LehrerId = a.LehrerId, Teil = a.Teil, Datum = a.Datum, UGruppeId = a.UGruppeId }).ToList(),
+    };
 }

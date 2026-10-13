@@ -129,7 +129,14 @@ public static class Kalender
     }
 
     public static bool IstUnterrichtstag(Schuldatei d, DateOnly datum) =>
-        TagIndex(d, datum) >= 0 && FerienAm(d, datum) is null && datum >= d.Einstellungen.SchuljahrVon.AddDays(-7) && datum <= d.Einstellungen.SchuljahrBis.AddDays(7);
+        TagIndex(d, datum) >= 0 && FerienAm(d, datum) is null && datum >= d.Einstellungen.SchuljahrVon.AddDays(-7) && datum <= d.Einstellungen.SchuljahrBis.AddDays(7)
+        && !d.Kalender.Any(k => k.Datum == datum && (k.Unterrichtsfrei || k.Feiertag));
+
+    /// <summary>Kalendereintrag eines Tages (unterrichtsfrei, Stunden frei, Notiz) oder null.</summary>
+    public static Kalendertag? KalendertagAm(Schuldatei d, DateOnly datum) => d.Kalender.FirstOrDefault(k => k.Datum == datum);
+
+    /// <summary>Zwischengespeicherte Berechnungen verwerfen (nach Änderungen an Ferien oder Schuljahr).</summary>
+    public static void CacheLeeren() => _wochenCache = (null, 0, default, new());
 
     public static DateOnly Montag(DateOnly datum) => datum.AddDays(-(((int)datum.DayOfWeek + 6) % 7));
 
@@ -141,7 +148,72 @@ public static class Kalender
         return Math.Max(1, w);
     }
 
-    public static string WochenTyp(Schuldatei d, DateOnly datum) => Schulwoche(d, datum) % 2 == 1 ? "A" : "B";
+    /// <summary>
+    /// Wochenbuchstabe (A, B, C …) laut Wochenperiodizität. Reine Ferienwochen zählen nicht mit;
+    /// "Woche danach" in den Ferien setzt den Zyklus zurück.
+    /// </summary>
+    public static string WochenTyp(Schuldatei d, DateOnly datum) => ((char)('A' + WochenIndex(d, datum))).ToString();
+
+    /// <summary>0-basierter Index der Woche im Wochenzyklus (0 = A).</summary>
+    public static int WochenIndex(Schuldatei d, DateOnly datum)
+    {
+        var n = Math.Clamp(d.Einstellungen.Wochenperiodizitaet, 1, 16);
+        if (n == 1) return 0;
+        var start = Montag(d.Einstellungen.SchuljahrVon);
+        var ziel = Montag(datum);
+        var idx = string.IsNullOrEmpty(d.Einstellungen.ErsteSchulwoche) ? 0 : char.ToUpperInvariant(d.Einstellungen.ErsteSchulwoche[0]) - 'A';
+        idx = ((idx % n) + n) % n;
+        if (ziel <= start) return idx;
+        var cache = _wochenCache;
+        if (cache.Datei == d && cache.N == n && cache.Start == start && cache.Werte.TryGetValue(ziel, out var c)) return c;
+        if (cache.Datei != d || cache.N != n || cache.Start != start) _wochenCache = cache = (d, n, start, new Dictionary<DateOnly, int>());
+        for (var w = start.AddDays(7); w <= ziel; w = w.AddDays(7))
+        {
+            // Ferienwoche: kein Unterrichtstag in der Woche → zählt nicht
+            var unterricht = Enumerable.Range(0, 7).Select(i => w.AddDays(i - 7)).Any(t => IstUnterrichtstag(d, t));
+            if (unterricht) idx = (idx + 1) % n;
+            var reset = d.Ferien.FirstOrDefault(f => !string.IsNullOrEmpty(f.WocheDanach) && Montag(f.Bis.AddDays(1)) <= w && Montag(f.Bis.AddDays(1)) > w.AddDays(-7));
+            if (reset != null) idx = ((char.ToUpperInvariant(reset.WocheDanach[0]) - 'A') % n + n) % n;
+        }
+        cache.Werte[ziel] = idx;
+        return idx;
+    }
+
+    private static (Schuldatei? Datei, int N, DateOnly Start, Dictionary<DateOnly, int> Werte) _wochenCache = (null, 0, default, new());
+
+    /// <summary>Ist die Unterrichtsgruppe an diesem Tag aktiv?</summary>
+    public static bool UGruppeAktiv(Schuldatei d, UGruppe g, DateOnly datum)
+    {
+        if (g.Von.HasValue && datum < g.Von.Value) return false;
+        if (g.Bis.HasValue && datum > g.Bis.Value) return false;
+        if (g.Unterbrechungen.Any(u => datum >= u.Von && datum <= u.Bis)) return false;
+        if (string.IsNullOrWhiteSpace(g.Wochen)) return true;
+        return g.Wochen.ToUpperInvariant().Contains(WochenTyp(d, datum));
+    }
+
+    /// <summary>Findet der Unterricht an diesem Tag statt (Befristung, A/B-Woche, Unterrichtsgruppe, Klassen-Befristung)?</summary>
+    public static bool UnterrichtAktiv(Schuldatei d, Unterricht u, DateOnly datum)
+    {
+        if (u.Ignorieren) return false;
+        if (u.VonDatum.HasValue && datum < u.VonDatum.Value) return false;
+        if (u.BisDatum.HasValue && datum > u.BisDatum.Value) return false;
+        if (u.Periodizitaet == Periodizitaet.AWoche && WochenIndex(d, datum) % 2 != 0) return false;
+        if (u.Periodizitaet == Periodizitaet.BWoche && WochenIndex(d, datum) % 2 != 1) return false;
+        if (u.UGruppeId is int g && d.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug && !UGruppeAktiv(d, ug, datum)) return false;
+        return true;
+    }
+
+    /// <summary>Findet die Kopplungszeile an diesem Tag statt (Zeilen-Unterrichtsgruppe)?</summary>
+    public static bool ZeileAktiv(Schuldatei d, Kopplungszeile z, DateOnly datum) =>
+        z.UGruppeId is not int g || d.UGruppen.FirstOrDefault(x => x.Id == g) is not { } ug || UGruppeAktiv(d, ug, datum);
+
+    /// <summary>Anteil der Unterrichtswochen, in denen eine Unterrichtsgruppe aktiv ist (Faktor).</summary>
+    public static decimal UGruppeFaktor(Schuldatei d, UGruppe g)
+    {
+        var tage = Tage(d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis).Where(t => IstUnterrichtstag(d, t)).ToList();
+        if (tage.Count == 0) return 1;
+        return Math.Round((decimal)tage.Count(t => UGruppeAktiv(d, g, t)) / tage.Count, 3);
+    }
 
     public static DateOnly NaechsterUnterrichtstag(Schuldatei d, DateOnly datum, int richtung = 1)
     {

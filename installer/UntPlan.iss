@@ -39,6 +39,7 @@ Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\UntPlan.exe"; Tasks: desktopicon
 
 [Registry]
+Root: HKA; Subkey: "Software\Classes\.up"; ValueType: string; ValueName: ""; ValueData: "UntPlan.Schuldatei"; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.untplan"; ValueType: string; ValueName: ""; ValueData: "UntPlan.Schuldatei"; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\UntPlan.Schuldatei"; ValueType: string; ValueName: ""; ValueData: "UntPlan Schuldatei"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\UntPlan.Schuldatei\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\UntPlan.exe,0"

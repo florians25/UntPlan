@@ -213,7 +213,7 @@ public sealed partial class HauptFenster : Form
             E("Hilfe (F1)", "hilfe", () => HilfeFenster.Zeigen("")),
             E("Handbuch: Erste Schritte", "hilfe", () => HilfeFenster.Zeigen("Eingabeassistent")),
             null,
-            E("Über UntPlan", "info", () => Ui.Info("UntPlan 1.0\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.untplan) gespeichert.", "Über UntPlan")),
+            E("Über UntPlan", "info", () => Ui.Info("UntPlan 1.0\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.", "Über UntPlan")),
         }));
         g = Gruppe(start, "Module");
         g.Eintraege.Add(E("Vertretungsplanung", "vertretung", () => Oeffnen<VertretungenFenster>("vertr", () => new VertretungenFenster()), true));
@@ -461,7 +461,7 @@ public sealed partial class HauptFenster : Form
     public void Oeffnen()
     {
         if (!Verwerfen()) return;
-        using var ofd = new OpenFileDialog { Filter = "UntPlan-Schuldatei (*.untplan)|*.untplan|Alle Dateien|*.*", Title = "Schuldatei öffnen" };
+        using var ofd = new OpenFileDialog { Filter = Dokument.DateiFilter, Title = "Schuldatei öffnen" };
         if (ofd.ShowDialog(this) == DialogResult.OK) DateiLaden(ofd.FileName);
     }
 
@@ -488,7 +488,7 @@ public sealed partial class HauptFenster : Form
         var pfad = doc.Pfad;
         if (pfad is null || unter)
         {
-            using var sfd = new SaveFileDialog { Filter = "UntPlan-Schuldatei (*.untplan)|*.untplan", FileName = string.IsNullOrWhiteSpace(doc.Daten.Einstellungen.Schulname) ? "Schule.untplan" : doc.Daten.Einstellungen.Schulname + ".untplan" };
+            using var sfd = new SaveFileDialog { Filter = Dokument.SpeicherFilter, FileName = string.IsNullOrWhiteSpace(doc.Daten.Einstellungen.Schulname) ? "Schule" + Dokument.Dateiendung : doc.Daten.Einstellungen.Schulname + Dokument.Dateiendung };
             if (sfd.ShowDialog(this) != DialogResult.OK) return false;
             pfad = sfd.FileName;
         }
@@ -627,7 +627,7 @@ public sealed partial class HauptFenster : Form
     {
         var a = AuswahlDialog.Element(this, ElementTyp.Abteilung, "Abteilung wählen");
         if (a is null) return;
-        using var sfd = new SaveFileDialog { Filter = "UntPlan-Schuldatei (*.untplan)|*.untplan", FileName = $"Abteilung_{a.Kurzname}.untplan" };
+        using var sfd = new SaveFileDialog { Filter = Dokument.SpeicherFilter, FileName = $"Abteilung_{a.Kurzname}{Dokument.Dateiendung}" };
         if (sfd.ShowDialog(this) != DialogResult.OK) return;
         new Dokument(Core.Module.Abteilungen.Exportieren(AppZustand.D, a.Id)).Speichern(sfd.FileName);
         Ui.Info("Die Abteilungsdatei wurde erstellt. Unterrichte anderer Abteilungen sind darin fixiert.");
@@ -637,7 +637,7 @@ public sealed partial class HauptFenster : Form
     {
         var a = AuswahlDialog.Element(this, ElementTyp.Abteilung, "Abteilung wählen");
         if (a is null) return;
-        using var ofd = new OpenFileDialog { Filter = "UntPlan-Schuldatei (*.untplan)|*.untplan" };
+        using var ofd = new OpenFileDialog { Filter = Dokument.SpeicherFilter };
         if (ofd.ShowDialog(this) != DialogResult.OK) return;
         var teil = Dokument.Laden(ofd.FileName).Daten;
         var n = 0;

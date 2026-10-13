@@ -71,6 +71,8 @@ public sealed class Ferien
     public DateOnly Von { get; set; }
     public DateOnly Bis { get; set; }
     public bool Feiertag { get; set; }
+    /// <summary>Wochenbuchstabe der ersten Woche nach den Ferien (A, B, …), leer = Zyklus läuft weiter.</summary>
+    public string WocheDanach { get; set; } = "";
 }
 
 public sealed class Einstellungen
@@ -86,6 +88,8 @@ public sealed class Einstellungen
     public DateOnly SchuljahrBis { get; set; } = new(2027, 7, 16);
     /// <summary>Wochenperiodizität (A/B-Wochen) aktiv.</summary>
     public int Wochenperiodizitaet { get; set; } = 1;
+    /// <summary>Buchstabe der ersten Schulwoche (A, B, …).</summary>
+    public string ErsteSchulwoche { get; set; } = "A";
     public bool TagesgenaueWertrechnung { get; set; }
     /// <summary>NRW: Mehrarbeit vergütungsfähig, wenn im Kalendermonat mehr als diese Anzahl Stunden.</summary>
     public int Mehrarbeitsgrenze { get; set; } = 3;
@@ -107,95 +111,7 @@ public sealed class PortalEinstellungen
     public int Revision { get; set; }
 }
 
-public enum AbwesenheitsArt
-{
-    Lehrer,
-    Klasse,
-    Raum,
-}
-
-public sealed class Abwesenheit
-{
-    public int Id { get; set; }
-    public AbwesenheitsArt Art { get; set; }
-    public int ElementId { get; set; }
-    public DateOnly Von { get; set; }
-    public DateOnly Bis { get; set; }
-    public int StundeVon { get; set; } = 1;
-    public int StundeBis { get; set; } = 99;
-    public int? GrundId { get; set; }
-    public string Text { get; set; } = "";
-    /// <summary>Begleitende Lehrer (z. B. Klassenfahrt) – gelten ebenfalls als abwesend.</summary>
-    public List<int> BegleitLehrerIds { get; set; } = new();
-
-    public bool Deckt(DateOnly datum, int stunde)
-    {
-        if (datum < Von || datum > Bis) return false;
-        var von = datum == Von ? StundeVon : 1;
-        var bis = datum == Bis ? StundeBis : 99;
-        return stunde >= von && stunde <= bis;
-    }
-}
-
-public enum VertretungsArt
-{
-    Vertretung,
-    Entfall,
-    Raumvertretung,
-    Verlegung,
-    StattVertretung,
-    Betreuung,
-    Sondereinsatz,
-    Freisetzung,
-    Tausch,
-    Pausenaufsicht,
-    Klausur,
-}
-
-public sealed class Vertretung
-{
-    /// <summary>Vertretungsnummer.</summary>
-    public int Id { get; set; }
-    public DateOnly Datum { get; set; }
-    public int Stunde { get; set; }
-    public VertretungsArt Art { get; set; }
-    public int? UnterrichtId { get; set; }
-    public int ZeilenIndex { get; set; }
-    /// <summary>Ursprünglicher (abwesender) Lehrer.</summary>
-    public int? LehrerId { get; set; }
-    public int? VertreterId { get; set; }
-    public int? FachId { get; set; }
-    public int? VertretungsfachId { get; set; }
-    public List<int> KlassenIds { get; set; } = new();
-    public int? RaumId { get; set; }
-    public int? VertretungsraumId { get; set; }
-    public string Text { get; set; } = "";
-    public string Grund { get; set; } = "";
-    /// <summary>Zählt als Mehrarbeit (nicht bei Bereitschaft/Freisetzung).</summary>
-    public bool Mehrarbeit { get; set; }
-    public DateOnly? NachDatum { get; set; }
-    public int? NachStunde { get; set; }
-    /// <summary>Pausenaufsicht-Vertretung: Gang.</summary>
-    public int? GangId { get; set; }
-    public DateTime Erstellt { get; set; } = DateTime.Now;
-
-    [JsonIgnore] public bool Offen => Art == VertretungsArt.Vertretung && VertreterId == null;
-}
-
-public sealed class Pausenaufsicht
-{
-    public int GangId { get; set; }
-    public int Tag { get; set; }
-    public int NachStunde { get; set; }
-    public int LehrerId { get; set; }
-}
-
-public sealed class Tagestext
-{
-    public DateOnly Datum { get; set; }
-    public string Text { get; set; } = "";
-    public bool NurLehrer { get; set; }
-}
+// Abwesenheiten, Vertretungen, Veranstaltungen usw.: siehe Vertretungsmodell.cs
 
 public sealed class Kommentar
 {
@@ -238,7 +154,7 @@ public sealed class KommentarKategorie
     public int Farbe { get; set; }
 }
 
-/// <summary>Wurzelobjekt einer UntPlan-Schuldatei (*.untplan).</summary>
+/// <summary>Wurzelobjekt einer UntPlan-Schuldatei (*.up).</summary>
 public sealed class Schuldatei
 {
     public const int AktuelleVersion = 1;
@@ -255,14 +171,24 @@ public sealed class Schuldatei
     public List<Abteilung> Abteilungen { get; set; } = new();
     public List<Abwesenheitsgrund> Abwesenheitsgruende { get; set; } = new();
     public List<Schueler> Schueler { get; set; } = new();
-    public List<Unterricht> Unterrichte { get; set; } = new();
+    /// <summary>Nur ältere Dateien: Unterricht vor der Umstellung auf Perioden (wird beim Laden übernommen).</summary>
+    [JsonPropertyName("Unterrichte")] public List<Unterricht>? UnterrichteAlt { get; set; }
     public List<Periode> Perioden { get; set; } = new();
+    public List<UGruppe> UGruppen { get; set; } = new();
     public int AktivePeriodeId { get; set; }
     public Dictionary<string, int> Gewichtung { get; set; } = new();
     public List<Abwesenheit> Abwesenheiten { get; set; } = new();
     public List<Vertretung> Vertretungen { get; set; } = new();
-    public List<Pausenaufsicht> Pausenaufsichten { get; set; } = new();
+    /// <summary>Nur ältere Dateien (Pausenaufsichten vor der Umstellung auf Perioden).</summary>
+    [JsonPropertyName("Pausenaufsichten")] public List<Pausenaufsicht>? PausenaufsichtenAlt { get; set; }
+    public List<Aufsichtsbedarf> Aufsichtsbedarf { get; set; } = new();
     public List<Tagestext> Tagestexte { get; set; } = new();
+    public List<Kalendertag> Kalender { get; set; } = new();
+    public List<Veranstaltung> Veranstaltungen { get; set; } = new();
+    public List<Vormerkung> Vormerkungen { get; set; } = new();
+    public List<Klausur> Klausuren { get; set; } = new();
+    public List<Bereitschaftsbedarf> Bereitschaftsbedarf { get; set; } = new();
+    public VertretungsEinstellungen Vertretungseinstellungen { get; set; } = new();
     public List<Kommentar> Kommentare { get; set; } = new();
     public List<KommentarKategorie> KommentarKategorien { get; set; } = new();
     public List<Ansicht> Ansichten { get; set; } = new();
@@ -285,11 +211,18 @@ public sealed class Schuldatei
     /// <summary>Stundenplan der aktiven Periode.</summary>
     [JsonIgnore] public List<Planstunde> Stundenplan => AktivePeriode.Plan;
 
-    /// <summary>Periode, die an einem Datum gilt.</summary>
+    /// <summary>Unterricht der aktiven Periode.</summary>
+    [JsonIgnore] public List<Unterricht> Unterrichte => AktivePeriode.Unterrichte ??= new();
+
+    /// <summary>Pausenaufsichten der aktiven Periode.</summary>
+    [JsonIgnore] public List<Pausenaufsicht> Pausenaufsichten => AktivePeriode.Pausenaufsichten ??= new();
+
+    /// <summary>Periode, die an einem Datum gilt (innerste, d. h. zuletzt beginnende Periode, die das Datum abdeckt).</summary>
     public Periode PeriodeAm(DateOnly datum)
     {
-        var p = Perioden.Where(x => x.Von <= datum).OrderByDescending(x => x.Von).FirstOrDefault();
-        return p ?? AktivePeriode;
+        var p = Perioden.Where(x => x.Deckt(datum)).OrderByDescending(x => x.Von).ThenByDescending(x => x.Id).FirstOrDefault()
+                ?? Perioden.Where(x => x.Von <= datum).OrderByDescending(x => x.Von).FirstOrDefault();
+        return p ?? Perioden.OrderBy(x => x.Von).FirstOrDefault() ?? AktivePeriode;
     }
 
     public IEnumerable<Element> AlleElemente(ElementTyp typ) => typ switch

@@ -140,7 +140,7 @@ public static class Stammdaten
         d.Unterrichte.RemoveAll(u => u.Id == unterrichtId);
         foreach (var p in d.Perioden) p.Plan.RemoveAll(x => x.UnterrichtId == unterrichtId);
         foreach (var s in d.Schueler) s.KurswahlIds.Remove(unterrichtId);
-        d.Vertretungen.RemoveAll(v => v.UnterrichtId == unterrichtId && Vertretungsplanung.Vertretungen.IstAutomatisch(v));
+        d.Vertretungen.RemoveAll(v => v.UnterrichtId == unterrichtId && Vertretungsplanung.Vertretungen.IstAbgeleitet(v));
     }
 
     /// <summary>Elemente in Anzeigereihenfolge (Lehrer und Fächer alphabetisch, sonst Eingabereihenfolge).</summary>

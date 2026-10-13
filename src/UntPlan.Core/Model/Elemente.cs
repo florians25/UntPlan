@@ -57,6 +57,8 @@ public sealed class Raum : Element
     public int? GangId { get; set; }
     public string Stockwerk { get; set; } = "";
     public string Raumart { get; set; } = "Klassenraum";
+    /// <summary>Nächstgelegene Gänge (Pausenaufsicht), Komma-Liste mit Platzhaltern * und ?.</summary>
+    public string Gaenge { get; set; } = "";
 
     public static string GewichtText(int g) => g switch
     {
@@ -94,6 +96,8 @@ public sealed class Klasse : Element
     public DateOnly? VonDatum { get; set; }
     public DateOnly? BisDatum { get; set; }
     public int MaxNachmittage { get; set; }
+    /// <summary>Klassenzeitraster der Vertretungsplanung (Schlüssel Tag*100+Stunde), überschreibt den globalen.</summary>
+    public Dictionary<int, VertretungsRegel> VertretungsZeitraster { get; set; } = new();
 
     [JsonIgnore] public int Schuelerzahl => SchuelerMaennlich + SchuelerWeiblich;
 }
@@ -138,6 +142,14 @@ public sealed class Lehrer : Element
     public bool KeineAufsicht { get; set; }
     /// <summary>Wertkorrektur / Übertrag aus Vorjahr (Wertrechnung).</summary>
     public decimal Wertkorrektur { get; set; }
+    /// <summary>Sperrvermerk 0–9 für Vertretungen (9 = absolutes Vertretungsverbot).</summary>
+    public int Sperrvermerk { get; set; }
+    /// <summary>Maximale Pausenaufsichtsminuten pro Woche (0 = keine Aufsicht).</summary>
+    public int PausenaufsichtMaxMinuten { get; set; } = 60;
+    public int BereitschaftenMax { get; set; } = 2;
+    public List<Wertkorrektur> Wertkorrekturen { get; set; } = new();
+    /// <summary>Name in einer anderen Schule (MultiUser, externe Elemente).</summary>
+    public string ExtName { get; set; } = "";
     public DateOnly? Eintritt { get; set; }
     public DateOnly? Austritt { get; set; }
 
@@ -164,6 +176,15 @@ public sealed class Fach : Element
     public bool KeinNachmittag { get; set; }
     /// <summary>(B) Bereitschaftsstunde – Unterricht in diesem Fach ist eine Vertretungsbereitschaft.</summary>
     public bool Bereitschaft { get; set; }
+    /// <summary>Bereitschaftsstunden zählen zum Deputat (Ist-Wert).</summary>
+    public bool BereitschaftImDeputat { get; set; }
+    /// <summary>Entfälle dieses Faches zählen nicht.</summary>
+    public bool EntfallNichtZaehlen { get; set; }
+    /// <summary>Unterricht dieses Faches wird nicht vertreten (automatisch Entfall).</summary>
+    public bool KeineVertretung { get; set; }
+    public bool NichtDrucken { get; set; }
+    /// <summary>(P) Keine Pausenaufsicht vor bzw. nach diesem Fach.</summary>
+    public bool KeinePausenaufsicht { get; set; }
     /// <summary>Doppelstunden-Vorgabe für neue Unterrichte (z. B. Sport 1-1).</summary>
     public Bereich Doppelstunden { get; set; }
 }
@@ -174,6 +195,8 @@ public sealed class Gang : Element
     public override ElementTyp Typ => ElementTyp.Gang;
     /// <summary>Anzahl Aufsichten je Pause in diesem Bereich.</summary>
     public int Bedarf { get; set; } = 1;
+    public bool NurMaennlich { get; set; }
+    public bool NurWeiblich { get; set; }
 }
 
 public sealed class Abteilung : Element
@@ -189,6 +212,12 @@ public sealed class Abwesenheitsgrund : Element
     public bool Statistikrelevant { get; set; } = true;
     /// <summary>Grund nicht veröffentlichen (z. B. Krankheit – Datenschutz).</summary>
     public bool Vertraulich { get; set; }
+    /// <summary>Entfälle mit diesem Grund zählen negativ für den Lehrer.</summary>
+    public bool EntfallZaehlen { get; set; }
+    /// <summary>Freisetzungen (abwesende Klasse) mit diesem Grund zählen nicht negativ.</summary>
+    public bool FreisetzungNichtZaehlen { get; set; }
+    /// <summary>Nicht im Absenzkopf des Vertretungsplans drucken.</summary>
+    public bool NichtImAbsenzkopf { get; set; }
 }
 
 public sealed class Schueler : Element

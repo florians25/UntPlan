@@ -147,14 +147,11 @@ public static class Export
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'");
         foreach (var datum in Kalender.Tage(von, bis).Where(t => Kalender.IstUnterrichtstag(d, t)))
         {
-            foreach (var (p, u) in Vertretungen.Tagesplan(d, ix, datum).Where(x => x.Unterricht.LehrerIds.Contains(lehrerId)))
-            {
-                var v = d.Vertretungen.FirstOrDefault(x => x.Datum == datum && x.Stunde == p.Stunde && x.UnterrichtId == u.Id && x.LehrerId == lehrerId);
-                if (v != null && v.Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung || v?.VertreterId is int vid && vid != lehrerId) continue;
-                Ereignis(datum, p.Stunde, $"{ix.KFach(u.HauptfachId)} {ix.KKlassen(u.KlassenIds)}", ix.KRaum(p.Raeume.FirstOrDefault(r => r.HasValue)));
-            }
-            foreach (var v in d.Vertretungen.Where(v => v.Datum == datum && v.VertreterId == lehrerId && v.LehrerId != lehrerId))
-                Ereignis(datum, v.Stunde, $"Vertretung {ix.KFach(v.VertretungsfachId ?? v.FachId)} {ix.KKlassen(v.KlassenIds)}", ix.KRaum(v.VertretungsraumId ?? v.RaumId));
+            var tp = Tagesplan.Berechnen(d, datum);
+            foreach (var e in tp.VonLehrer(lehrerId).Where(e => e.Status != TagesStatus.Zusaetzlich && e.Vertretung is null))
+                Ereignis(datum, e.Stunde, $"{ix.KFach(e.FachId)} {ix.KKlassen(e.KlassenIds)}", ix.KRaum(e.RaumIds.Cast<int?>().FirstOrDefault()));
+            foreach (var v in d.Vertretungen.Where(v => v.Datum == datum && v.VertreterId == lehrerId && !v.IstEntfall && v.Art != VertretungsArt.Pausenaufsicht))
+                Ereignis(datum, v.Stunde, $"{Vertretungsplan.ArtText(v.Art)} {ix.KFach(v.VertretungsfachId ?? v.FachId)} {ix.KKlassen(v.KlassenIds)}", ix.KRaum(v.VertretungsraumId ?? v.RaumId));
         }
         sb.Append("END:VCALENDAR\r\n");
         return sb.ToString();

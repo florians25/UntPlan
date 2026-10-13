@@ -15,12 +15,16 @@ public enum AenderungsArt
 }
 
 /// <summary>
-/// Geöffnete Schuldatei: Laden/Speichern (*.untplan, JSON), Änderungen mit Rückgängig/Wiederholen,
+/// Geöffnete Schuldatei: Laden/Speichern (*.up, JSON), Änderungen mit Rückgängig/Wiederholen,
 /// Änderungsbenachrichtigung für alle offenen Fenster.
 /// </summary>
 public sealed class Dokument
 {
-    public const string Dateiendung = ".untplan";
+    public const string Dateiendung = ".up";
+    /// <summary>Frühere Dateiendung (wird weiterhin gelesen).</summary>
+    public const string DateiendungAlt = ".untplan";
+    public const string DateiFilter = "UntPlan-Schuldatei (*.up)|*.up|Ältere Schuldatei (*.untplan)|*.untplan|Alle Dateien|*.*";
+    public const string SpeicherFilter = "UntPlan-Schuldatei (*.up)|*.up";
     private const int MaxUndo = 50;
 
     private readonly LinkedList<(string Text, byte[] Stand)> _undo = new();
@@ -101,6 +105,7 @@ public sealed class Dokument
     public void Melden(AenderungsArt art)
     {
         _index = null;
+        Kalender.CacheLeeren();
         IstGeaendert = true;
         Geaendert?.Invoke(art);
     }
@@ -141,6 +146,27 @@ public sealed class Dokument
         z.Zeiten.Sort((a, b) => a.Nr.CompareTo(b.Nr));
         if (d.Perioden.Count == 0) d.Perioden.Add(new Periode { Id = d.NeueId(), Name = "Periode 1", Von = d.Einstellungen.SchuljahrVon });
         if (d.Perioden.All(p => p.Id != d.AktivePeriodeId)) d.AktivePeriodeId = d.Perioden[0].Id;
+        // Umstellung älterer Dateien: Unterricht und Pausenaufsichten gehören zur Periode
+        var erste = true;
+        foreach (var p in d.Perioden.OrderBy(p => p.Von))
+        {
+            if (p.Unterrichte is null)
+                p.Unterrichte = d.UnterrichteAlt is null ? new() : erste ? d.UnterrichteAlt : d.UnterrichteAlt.Select(u => u.Kopie(u.Id)).ToList();
+            if (p.Pausenaufsichten is null)
+                p.Pausenaufsichten = d.PausenaufsichtenAlt is null ? new() : d.PausenaufsichtenAlt.Select(a => new Pausenaufsicht { GangId = a.GangId, Tag = a.Tag, NachStunde = a.NachStunde, LehrerId = a.LehrerId, Teil = a.Teil }).ToList();
+            if (string.IsNullOrEmpty(p.Langname)) p.Langname = p.Name;
+            erste = false;
+        }
+        d.UnterrichteAlt = null;
+        d.PausenaufsichtenAlt = null;
+        foreach (var t in d.Tagestexte.Where(t => t.NurLehrer && t.Art == TagestextArt.Alle)) t.Art = TagestextArt.NurLehrer;
+        foreach (var v in d.Vertretungen.Where(v => v.Quelle == VertretungsQuelle.Absenz && v.AbwesenheitId is null))
+        {
+            // Zeilen aus älteren Dateien: Herkunft bestimmen
+            if (v.UnterrichtId is null && v.Art != VertretungsArt.Pausenaufsicht) v.Quelle = VertretungsQuelle.Manuell;
+            else if (v.Art is VertretungsArt.Verlegung or VertretungsArt.Tausch) v.Quelle = VertretungsQuelle.Verlegung;
+            if (v.VertreterId.HasValue && v.Art != VertretungsArt.Raumvertretung) v.Bearbeitet = true;
+        }
         if (d.KommentarKategorien.Count == 0)
         {
             int[] farben = { unchecked((int)0xFFE53935), unchecked((int)0xFFFB8C00), unchecked((int)0xFFFDD835), unchecked((int)0xFF43A047),
@@ -158,10 +184,13 @@ public sealed class Dokument
             d.Raumgruppen.Select(x => x.Id), d.Gaenge.Select(x => x.Id), d.Abteilungen.Select(x => x.Id), d.Abwesenheitsgruende.Select(x => x.Id),
             d.Schueler.Select(x => x.Id), d.Unterrichte.Select(x => x.Id), d.Perioden.Select(x => x.Id), d.Abwesenheiten.Select(x => x.Id),
             d.Vertretungen.Select(x => x.Id), d.Kommentare.Select(x => x.Id), d.Ferien.Select(x => x.Id),
+            d.Perioden.SelectMany(p => p.Unterrichte ?? new()).Select(x => x.Id), d.Veranstaltungen.Select(x => x.Id), d.Vormerkungen.Select(x => x.Id),
+            d.Klausuren.Select(x => x.Id), d.UGruppen.Select(x => x.Id), d.Vertretungen.Select(x => x.VerlegungsId ?? 0),
         }.SelectMany(x => x).DefaultIfEmpty(0).Max();
         if (d.NaechsteId <= maxId) d.NaechsteId = maxId + 1;
-        foreach (var u in d.Unterrichte)
-            foreach (var p in d.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id))
-                while (p.Raeume.Count < u.Zeilen.Count) p.Raeume.Add(null);
+        foreach (var per in d.Perioden)
+            foreach (var u in per.Unterrichte!)
+                foreach (var p in per.Plan.Where(p => p.UnterrichtId == u.Id))
+                    while (p.Raeume.Count < u.Zeilen.Count) p.Raeume.Add(null);
     }
 }

@@ -13,7 +13,7 @@ public static class Handbuch
                 "UntPlan ist eine Windows-Anwendung für Stundenplanung und Vertretungsplanung an Schulen in Nordrhein-Westfalen.\n" +
                 "Die Bedienung folgt dem bekannten Aufbau: Menüband (Ribbon) mit den Registerkarten Start, Dateneingabe, Planung, Stundenpläne, Kursplanung, Vertretungsplanung und Module; " +
                 "darunter der Arbeitsbereich mit beliebig vielen Fenstern (Stammdaten, Zeitwünsche, Unterricht, Stundenpläne …).\n" +
-                "Alle Daten einer Schule werden in einer Datei *.untplan gespeichert. Beim Speichern wird automatisch eine Sicherung *.bak angelegt.\n" +
+                "Alle Daten einer Schule werden in einer Datei *.up gespeichert. Beim Speichern wird automatisch eine Sicherung *.bak angelegt.\n" +
                 "Tipp: Über Datei | Beispielschule öffnen erhalten Sie ein vollständiges NRW-Gymnasium (Klassen 5–7, EF mit Kursbändern, Bereitschaften) zum Ausprobieren.",
                 "Start", "Begrüßung"),
             new("Eingabeassistent",
