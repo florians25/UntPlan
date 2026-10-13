@@ -22,6 +22,29 @@ public static class PlanungsKonfliktDialog
     }
 }
 
+/// <summary>Frage mit Meldungstext und mehreren Optionen (Optionsfelder), z. B. "Kollision in Zielstunde".</summary>
+public static class OptionenDialog
+{
+    public static int? Fragen(IWin32Window owner, string titel, string meldung, IReadOnlyList<string> optionen, int vorgabe = 0)
+    {
+        var hoehe = 140 + optionen.Count * 24;
+        using var d = new Dialog(titel, 520, Math.Max(220, hoehe + 60));
+        var text = new TextBox { Text = meldung.Replace("\n", Environment.NewLine), Left = 12, Top = 10, Width = 496, Height = 110, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, BackColor = d.BackColor };
+        d.Controls.Add(text);
+        var grp = new GroupBox { Text = "Optionen", Left = 12, Top = 126, Width = 496, Height = 28 + optionen.Count * 24 };
+        var knoepfe = new List<RadioButton>();
+        for (var i = 0; i < optionen.Count; i++)
+        {
+            var r = new RadioButton { Text = optionen[i], Left = 12, Top = 20 + i * 24, Width = 470, Checked = i == vorgabe };
+            grp.Controls.Add(r);
+            knoepfe.Add(r);
+        }
+        d.Controls.Add(grp);
+        if (d.ShowDialog(owner) != DialogResult.OK) return null;
+        return knoepfe.FindIndex(k => k.Checked);
+    }
+}
+
 /// <summary>Raumzuordnungsdialog: links die Räume laut Unterricht, rechts mögliche (freie bzw. auch besetzte) Räume.</summary>
 public static class RaumZuordnenDialog
 {

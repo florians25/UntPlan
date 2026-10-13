@@ -28,6 +28,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private readonly ToolStripButton _wochenansicht;
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 105 };
     private bool _laden;
+    private Action? _planGroesse;
 
     public static StundenplanFenster Neu(ElementTyp typ, int? id, bool gross)
     {
@@ -115,7 +116,11 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             var stunde = int.Parse(t[2]);
             var uid = int.Parse(t[3]);
             var zeile = int.Parse(t[4]);
-            Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uid, zeile < 0 ? null : zeile, datum, stunde, AppZustand.Benutzer));
+            var laenge = t.Length > 5 && int.TryParse(t[5], out var l5) ? Math.Max(1, l5) : 1;
+            Aendern(laenge > 1 ? $"Entfall ({laenge} Stunden)" : "Entfall", AenderungsArt.Vertretung, d =>
+            {
+                for (var i = 0; i < laenge; i++) Vertretungen.Entfallen(d, uid, zeile < 0 ? null : zeile, datum, stunde + i, AppZustand.Benutzer);
+            });
             Neuaufbau(false);
         };
         var poolMenue = new ContextMenuStrip();
@@ -128,11 +133,25 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             _typ = t;
             _id = i;
             _plan.Format = FormatHolen();
+            _planGroesse?.Invoke();
             Neuaufbau(false);
         };
 
         var mitte = new Panel { Dock = DockStyle.Fill };
-        mitte.Controls.Add(_plan);
+        // Plan scrollt senkrecht, wenn die Zellen für alle Werte untereinander höher sein müssen als das Fenster
+        var planRahmen = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        _plan.Dock = DockStyle.None;
+        planRahmen.Controls.Add(_plan);
+        void PlanGroesse()
+        {
+            var breite = planRahmen.ClientSize.Width;
+            var hoehe = Math.Max(planRahmen.ClientSize.Height, _plan.BenoetigteHoehe);
+            if (hoehe > planRahmen.ClientSize.Height) breite = planRahmen.Width - SystemInformation.VerticalScrollBarWidth - 2;
+            _plan.SetBounds(0, planRahmen.AutoScrollPosition.Y, Math.Max(100, breite), hoehe);
+        }
+        planRahmen.Resize += (_, _) => PlanGroesse();
+        _planGroesse = PlanGroesse;
+        mitte.Controls.Add(planRahmen);
         mitte.Controls.Add(_pool);
         Controls.Add(mitte);
         Controls.Add(_reiter);
@@ -557,46 +576,60 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var vonStunde = int.Parse(t[2]);
         var uid = int.Parse(t[3]);
         int? zeile = int.Parse(t[4]) is var z && z >= 0 ? z : null;
+        var laenge = t.Length > 5 && int.TryParse(t[5], out var l5) ? Math.Max(1, l5) : 1;
         if (von == ziel && vonStunde == stunde) return;
+        if (stunde + laenge - 1 > D.Zeitraster.StundenProTag) { Ui.Info("Der Block passt an dieser Position nicht mehr in den Tag."); return; }
+        var tpVon = Tagesplan.Berechnen(D, von);
         var tp = Tagesplan.Berechnen(D, ziel);
-        var quelle = Tagesplan.Berechnen(D, von).Stunde(vonStunde).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == uid).ToList();
-        var lehrer = quelle.SelectMany(e => e.Regel?.LehrerId is int l ? new[] { l } : e.LehrerIds.ToArray()).Distinct().ToList();
-        var klassen = quelle.SelectMany(e => e.KlassenIds).Distinct().ToList();
-        var status = Vertretungen.Feldstatus(D, tp, lehrer, klassen, stunde, uid, null);
-        if (quelle.Any(e => e.Regel?.Planstunde.Fixiert == true || e.Vertretung?.Fixiert == true) && !Ui.Frage("Die Stunde ist fixiert. Trotzdem verlegen?")) return;
-        var tauschMit = status == Feldstatus.TauschMoeglich ? tp.Stunde(stunde).FirstOrDefault(e => e.Findetstatt && e.Unterricht != null && (e.LehrerIds.Intersect(lehrer).Any() || e.KlassenIds.Intersect(klassen).Any())) : null;
-        var tauschen = false;
-        if (tauschMit != null)
+        // Quelle und Ziel je Blockstunde
+        var schritte = new List<(int Von, int Nach, List<TagesEintrag> Quelle, Feldstatus Status, List<TagesEintrag> Hindernisse)>();
+        for (var i = 0; i < laenge; i++)
         {
-            var w = PlanungsKonfliktDialog.Fragen(this, "Stundentausch", $"Mit {Ix.KFach(tauschMit.FachId)} {Ix.KKlassen(tauschMit.KlassenIds)} ({string.Join(",", tauschMit.LehrerIds.Select(Ix.KLehrer))}) tauschen oder nur verlegen (Kollision)?", "Stunden tauschen", "Nur verlegen");
-            if (w is null) return;
-            tauschen = w == 0;
+            var q = tpVon.Stunde(vonStunde + i).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == uid && (zeile is null || (e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex) == zeile)).ToList();
+            if (q.Count == 0) continue;
+            var lehrer = q.SelectMany(e => e.Regel?.LehrerId is int l ? new[] { l } : e.LehrerIds.ToArray()).Distinct().ToList();
+            var klassen = q.SelectMany(e => e.KlassenIds).Distinct().ToList();
+            var st = Vertretungen.Feldstatus(D, tp, lehrer, klassen, stunde + i, uid, null);
+            var hindernisse = tp.Stunde(stunde + i).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) != uid && (e.LehrerIds.Intersect(lehrer).Any() || e.KlassenIds.Intersect(klassen).Any())).ToList();
+            schritte.Add((vonStunde + i, stunde + i, q, st, hindernisse));
         }
-        else if (status == Feldstatus.Kollision)
+        if (schritte.Count == 0) return;
+        if (schritte.Any(x => x.Quelle.Any(e => e.Regel?.Planstunde.Fixiert == true || e.Vertretung?.Fixiert == true)) && !Ui.Frage("Die Stunde ist fixiert. Trotzdem verlegen?")) return;
+        var konflikte = schritte.Where(x => x.Hindernisse.Count > 0).ToList();
+        var tauschen = false;
+        var verdraengen = false;
+        if (konflikte.Count > 0)
         {
-            var w = PlanungsKonfliktDialog.Fragen(this, "Verlegung mit Verdrängung", "An der Zielposition findet bereits Unterricht statt.", "Behindernden Unterricht verdrängen (vormerken)", "Kollision erzeugen");
-            if (w is null) return;
-            if (w == 0)
+            var text = string.Join(Environment.NewLine + Environment.NewLine, konflikte.Select(k =>
+                $"Am {ziel:d.M.} in der {k.Nach}. Stunde: Kollision in Zielstunde{Environment.NewLine}" +
+                string.Join(Environment.NewLine, k.Hindernisse.Select(h => $"Unt. {h.Unterricht?.Id.ToString() ?? "V" + h.Vertretung?.Id}: {string.Join(",", h.LehrerIds.Select(Ix.KLehrer))}, {Ix.KKlassen(h.KlassenIds)} {Ix.KFach(h.FachId)}"))));
+            var tauschMoeglich = laenge == 1 && konflikte.Count == 1 && konflikte[0].Status == Feldstatus.TauschMoeglich && konflikte[0].Hindernisse.All(h => h.Unterricht != null) && konflikte[0].Hindernisse.Select(h => h.Unterricht!.Id).Distinct().Count() == 1;
+            var optionen = new List<string> { "Unterricht nicht verplanen.", "Behindernden Unterricht verdrängen (vormerken)", "Kollision erzeugen" };
+            if (tauschMoeglich) optionen.Add("Stunden tauschen");
+            var w = OptionenDialog.Fragen(this, "Frage", text, optionen, tauschMoeglich ? 3 : 0);
+            if (w is null or 0) return;
+            verdraengen = w == 1;
+            tauschen = w == 3;
+        }
+        if (schritte.Any(x => x.Status == Feldstatus.VorgabeVerletzt) && !Ui.Frage("Ein beteiligter Lehrer ist zu diesem Zeitpunkt abwesend. Trotzdem verlegen? (Es entsteht eine offene Vertretung.)")) return;
+        Aendern(tauschen ? "Stundentausch" : laenge > 1 ? $"Block verlegen ({laenge} Stunden)" : verdraengen ? "Verlegung mit Verdrängung" : "Stundenverlegung", AenderungsArt.Vertretung, d =>
+        {
+            if (tauschen)
             {
-                Aendern("Verlegung mit Verdrängung", AenderungsArt.Vertretung, d =>
-                {
-                    foreach (var h in tp.Stunde(stunde).Where(e => e.Findetstatt && e.Unterricht != null && e.Unterricht.Id != uid && (e.LehrerIds.Intersect(lehrer).Any() || e.KlassenIds.Intersect(klassen).Any())).ToList())
-                    {
-                        Vertretungen.Entfallen(d, h.Unterricht!.Id, null, ziel, stunde, AppZustand.Benutzer);
-                        var v = d.Vertretungen.LastOrDefault(x => x.Datum == ziel && x.Stunde == stunde && x.UnterrichtId == h.Unterricht.Id);
-                        if (v != null) { Vertretungen.AlsVormerkung(d, v, AppZustand.Benutzer).Quelle = VormerkungsQuelle.Verdraengung; }
-                    }
-                    Vertretungen.Verlegen(d, uid, zeile, von, vonStunde, ziel, stunde, VertretungsArt.Verlegung, AppZustand.Benutzer);
-                });
-                Neuaufbau(false);
+                Vertretungen.Tauschen(d, uid, von, vonStunde, konflikte[0].Hindernisse[0].Unterricht!.Id, ziel, stunde, AppZustand.Benutzer);
                 return;
             }
-        }
-        if (status == Feldstatus.VorgabeVerletzt && !Ui.Frage("Ein beteiligter Lehrer ist zu diesem Zeitpunkt abwesend. Trotzdem verlegen? (Es entsteht eine offene Vertretung.)")) return;
-        Aendern(tauschen ? "Stundentausch" : "Stundenverlegung", AenderungsArt.Vertretung, d =>
-        {
-            if (tauschen) Vertretungen.Tauschen(d, uid, von, vonStunde, tauschMit!.Unterricht!.Id, ziel, stunde, AppZustand.Benutzer);
-            else Vertretungen.Verlegen(d, uid, zeile, von, vonStunde, ziel, stunde, VertretungsArt.Verlegung, AppZustand.Benutzer);
+            if (verdraengen)
+                foreach (var k in konflikte)
+                    foreach (var h in k.Hindernisse.Where(h => h.Unterricht != null).Select(h => h.Unterricht!.Id).Distinct())
+                    {
+                        Vertretungen.Entfallen(d, h, null, ziel, k.Nach, AppZustand.Benutzer);
+                        var v = d.Vertretungen.LastOrDefault(x => x.Datum == ziel && x.Stunde == k.Nach && x.UnterrichtId == h);
+                        if (v != null) Vertretungen.AlsVormerkung(d, v, AppZustand.Benutzer).Quelle = VormerkungsQuelle.Verdraengung;
+                    }
+            // bei Verschiebung innerhalb desselben Tages in Richtung der eigenen Stunden: Reihenfolge so wählen, dass nichts überschrieben wird
+            var reihe = von == ziel && stunde > vonStunde ? schritte.AsEnumerable().Reverse() : schritte;
+            foreach (var sch in reihe) Vertretungen.Verlegen(d, uid, zeile, von, sch.Von, ziel, sch.Nach, VertretungsArt.Verlegung, AppZustand.Benutzer);
         });
         Neuaufbau(false);
     }
@@ -787,10 +820,12 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             d.Formate.Add(f);
         });
         _plan.Format = f;
+        _planGroesse?.Invoke();
         Neuaufbau(false);
         foreach (var w in AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().Where(w => w != this && w._typ == f.Typ && w._gross == f.Gross))
         {
             w._plan.Format = f;
+            w._planGroesse?.Invoke();
             w._plan.Invalidate();
         }
     }

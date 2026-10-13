@@ -6,3 +6,4 @@ artifacts/
 .vs/
 TestResults/
 portal-data/
+.claude/worktrees/
