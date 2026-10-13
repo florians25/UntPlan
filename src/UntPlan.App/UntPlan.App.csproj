@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Klassische Windows-Desktopanwendung (Windows Forms). Die FrameworkReference erlaubt
+       zusätzlich das Kompilieren auf Linux/macOS (CI, Tests); ausgeführt wird unter Windows. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>UntPlan.App</RootNamespace>
+    <AssemblyName>UntPlan</AssemblyName>
+    <ApplicationIcon>..\..\build\untplan.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyTitle>UntPlan – Stunden- und Vertretungsplanung</AssemblyTitle>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <ProjectReference Include="..\UntPlan.Core\UntPlan.Core.csproj" />
+  </ItemGroup>
+</Project>
