@@ -9,7 +9,7 @@ using UntPlan.Core.Planung;
 namespace UntPlan.App;
 
 /// <summary>Hauptfenster: Menüband (Ribbon), Schnellzugriff, MDI-Arbeitsbereich, Eingabeassistent, Statuszeile.</summary>
-public sealed class HauptFenster : Form
+public sealed partial class HauptFenster : Form
 {
     private readonly Ribbon _ribbon = new();
     private readonly ToolStrip _schnell = new();

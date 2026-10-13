@@ -76,8 +76,12 @@ public static class Ui
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
     }
 
+    /// <summary>Im Selbsttest werden Fehler protokolliert statt angezeigt (keine blockierenden Meldungsfenster).</summary>
+    public static List<string>? FehlerProtokoll { get; set; }
+
     public static void Fehler(Exception ex)
     {
+        if (FehlerProtokoll != null) { FehlerProtokoll.Add(ex.ToString()); return; }
         var text = ex is InvalidOperationException or FormatException or InvalidDataException ? ex.Message : ex.ToString();
         MessageBox.Show(text, "UntPlan", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }

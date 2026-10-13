@@ -179,14 +179,17 @@ public static class Planungsdienst
         var ix = new DatenIndex(d);
         if (!ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) return new();
         var klassen = u.KlassenIds.ToHashSet();
-        var basis = Bewertung.Kennzahlen(d).Bewertung;
+        var basisKennzahlen = Bewertung.Kennzahlen(d);
+        var basis = basisKennzahlen.Bewertung;
         var res = new List<Tauschvorschlag>();
         var kandidaten = d.Stundenplan.Where(q => q != p && !q.Fixiert && q.UnterrichtId != p.UnterrichtId &&
             ix.Unterrichte.TryGetValue(q.UnterrichtId, out var o) && o.KlassenIds.Any(klassen.Contains)).ToList();
         foreach (var q in kandidaten)
         {
             var plan = d.Stundenplan.Select(x => x == p ? Mit(x, q.Tag, q.Stunde) : x == q ? Mit(x, p.Tag, p.Stunde) : x).ToList();
-            var k = Bewertung.Kennzahlen(d, plan).Bewertung;
+            var kz = Bewertung.Kennzahlen(d, plan);
+            if (kz.Kollisionen > basisKennzahlen.Kollisionen) continue; // nur kollisionsfreie Tausche anbieten
+            var k = kz.Bewertung;
             var o = ix.Unterrichte[q.UnterrichtId];
             res.Add(new Tauschvorschlag(p, q, basis - k,
                 $"{ix.UnterrichtText(u)} ({Tagname(d, p.Tag)} {p.Stunde}.) ⇄ {ix.UnterrichtText(o)} ({Tagname(d, q.Tag)} {q.Stunde}.)"));

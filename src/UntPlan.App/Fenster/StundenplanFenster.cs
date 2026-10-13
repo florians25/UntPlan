@@ -135,7 +135,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     private StundenplanFormat FormatHolen()
     {
-        var name = $"{Ui.TypName(_typ)}nplan{(_gross ? " groß" : "")}".Replace("Klassennplan", "Klassenplan").Replace("Lehrernplan", "Lehrerplan").Replace("Raumnplan", "Raumplan").Replace("Fachnplan", "Fachplan");
+        var basis = _typ switch { ElementTyp.Klasse => "Klassenplan", ElementTyp.Lehrer => "Lehrerplan", ElementTyp.Raum => "Raumplan", ElementTyp.Fach => "Fachplan", _ => "Stundenplan" };
+        var name = basis + (_gross ? " groß" : "");
         var f = D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Gross == _gross);
         return f ?? new StundenplanFormat { Name = name, Typ = _typ, Gross = _gross, Schriftgroesse = _gross ? 10 : 9 };
     }
@@ -195,7 +196,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _laden = false;
         var el = Ix.Element(_typ, _id);
         var fmtName = _plan.Format.Name.Length > 0 ? _plan.Format.Name : FormatHolen().Name;
-        Text = el is null ? $"Stundenplan ({fmtName})" : $"{el.Kurzname} – {Ui.TypName(_typ)} {(el is Lehrer l ? l.VollerName : el.Langname)} Stundenplan ({fmtName})";
+        Text = el is null ? $"Stundenplan ({fmtName})" : $"{el.Kurzname} – {(el is Lehrer l ? l.VollerName : el.Langname)} ({fmtName})";
         _plan.Typ = _typ;
         _plan.ElementId = _id;
         if (_plan.Ausgewaehlt != null && !D.Stundenplan.Contains(_plan.Ausgewaehlt)) _plan.Ausgewaehlt = null;
@@ -377,6 +378,17 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             _plan.Ausgewaehlt = neu;
             Neuaufbau(false);
         }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        // Entf = entplanen, F = fixieren (nicht während einer Texteingabe)
+        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.None)
+        {
+            if (e.KeyCode == Keys.Delete) { Entplanen(); e.Handled = true; }
+            else if (e.KeyCode == Keys.F) { Fixieren(); e.Handled = true; }
+        }
+        base.OnKeyDown(e);
     }
 
     private void Fixieren()

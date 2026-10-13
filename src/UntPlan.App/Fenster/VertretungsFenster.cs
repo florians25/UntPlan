@@ -24,6 +24,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private readonly Label _info = new() { Dock = DockStyle.Top, Height = 22, Padding = new Padding(6, 4, 0, 0), BackColor = Ui.Kopf };
     private readonly TabControl _unten = new() { Dock = DockStyle.Fill };
     private bool _laedt;
+    private bool _neuerTag;
 
     private DateOnly Datum => DateOnly.FromDateTime(_datum.Value);
 
@@ -154,6 +155,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var texte = D.Tagestexte.Where(t => t.Datum == datum).ToList();
         _tagestext.Text = string.Join(Environment.NewLine, texte.Where(t => !t.NurLehrer).Select(t => t.Text));
         _lehrertext.Text = string.Join(Environment.NewLine, texte.Where(t => t.NurLehrer).Select(t => t.Text));
+        _neuerTag = true;
         Neuaufbau();
     }
 
@@ -161,7 +163,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         if (IsDisposed) return;
         _laedt = true;
-        var markiert = Aktuelle().Select(v => v.Id).ToHashSet();
+        var markiert = _neuerTag ? new HashSet<int>() : Aktuelle().Select(v => v.Id).ToHashSet();
+        _neuerTag = false;
         _g.Rows.Clear();
         var datum = Datum;
         var liste = Vertretungen.Am(D, datum).Where(v => _filter.SelectedIndex switch
@@ -182,6 +185,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 v.Art == VertretungsArt.Verlegung && v.NachDatum.HasValue ? $"→ {Format.Datum(v.NachDatum.Value)} {v.NachStunde}. Std. {v.Text}".Trim() : v.Text);
             _g.Rows[r].Tag = v;
             if (markiert.Contains(v.Id)) _g.Rows[r].Selected = true;
+        }
+        if (markiert.Count == 0 && _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Vertretung { Offen: true }) is { } offen)
+        {
+            _g.ClearSelection();
+            _g.CurrentCell = offen.Cells[1];
+            offen.Selected = true;
         }
         var alle = Vertretungen.Am(D, datum);
         var abwL = D.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && datum >= a.Von && datum <= a.Bis).Select(a => Ix.KLehrer(a.ElementId)).Distinct().ToList();
@@ -223,7 +232,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (Aktuelle1() is not { } v || v.Art is VertretungsArt.Pausenaufsicht or VertretungsArt.Freisetzung) return;
         foreach (var k in VertretungsVorschlag.Berechnen(D, v))
         {
-            var r = _vorschlag.Rows.Add(k.Lehrer.Kurzname, k.Punkte.ToString("0"), k.Bereitschaft ? "✔" : "", k.Freigesetzt ? "✔" : "", k.KenntKlasse ? "✔" : "", k.Fachlehrer ? "✔" : "",
+            var r = _vorschlag.Rows.Add(k.Lehrer.Kurzname, k.Punkte.ToString("0"), k.Bereitschaft ? "x" : "", k.Freigesetzt ? "x" : "", k.KenntKlasse ? "x" : "", k.Fachlehrer ? "x" : "",
                 k.Lage, k.ZaehlerWoche, k.ZaehlerMonat, k.ZaehlerJahr, k.Saldo.ToString("+0;-0;0"), string.Join(", ", k.Kriterien));
             _vorschlag.Rows[r].Tag = k;
             if (k.Bereitschaft || k.Freigesetzt) _vorschlag.Rows[r].DefaultCellStyle.BackColor = Color.FromArgb(220, 245, 220);
@@ -990,6 +999,7 @@ public sealed class MonitorFenster : Form
         _timer.Tick += (_, _) => { _seite++; _takt++; Invalidate(); };
         _timer.Start();
         FormClosed += (_, _) => _timer.Dispose();
+        Load += (_, _) => { WindowState = FormWindowState.Normal; Bounds = Screen.FromControl(this).Bounds; };
     }
 
     protected override void OnPaint(PaintEventArgs e)

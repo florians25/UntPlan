@@ -370,7 +370,7 @@ public sealed class KursplanungFenster : MdiFenster
         foreach (var s in Schueler)
         {
             var werte = new object[kurse.Count + 2];
-            werte[0] = $"{s.Langname}, {s.Vorname}".Trim(' ', ',');
+            werte[0] = $"{(s.Langname.Length > 0 ? s.Langname : s.Kurzname)}, {s.Vorname}".Trim(' ', ',');
             werte[1] = s.KurswahlIds.Count(id => kurse.Any(k => k.Id == id));
             for (var i = 0; i < kurse.Count; i++) werte[i + 2] = s.KurswahlIds.Contains(kurse[i].Id);
             var r = _wahlen.Rows.Add(werte);

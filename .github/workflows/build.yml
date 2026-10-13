@@ -1,0 +1,65 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master, 'claude/**' ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Tests
+        run: dotnet test tests/UntPlan.Core.Tests -c Release
+
+      - name: Windows-Anwendung veröffentlichen (eine EXE, ohne .NET-Installation lauffähig)
+        run: >
+          dotnet publish src/UntPlan.App -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -o artifacts/UntPlan
+
+      - name: Selbsttest der Oberfläche (alle Fenster öffnen, Bildschirmfotos)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/selbsttest" -PassThru
+          if (-not $p.WaitForExit(600000)) { $p.Kill(); throw "Selbsttest hat nicht beendet" }
+          Get-Content artifacts/selbsttest/selbsttest.log
+          if (Select-String -Path artifacts/selbsttest/selbsttest.log -Pattern "^FEHLER") { throw "Selbsttest fehlgeschlagen" }
+
+      - name: Portal-Referenzserver veröffentlichen
+        run: dotnet publish src/UntPlan.Portal -c Release -o artifacts/UntPlan.Portal
+
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc /DQuelle="$PWD\artifacts\UntPlan" /O"$PWD\artifacts" installer\UntPlan.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UntPlan-Setup
+          path: artifacts/UntPlan-Setup-*.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UntPlan-portabel
+          path: artifacts/UntPlan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UntPlan-Portal
+          path: artifacts/UntPlan.Portal
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Selbsttest-Bildschirmfotos
+          path: artifacts/selbsttest

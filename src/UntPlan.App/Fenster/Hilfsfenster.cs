@@ -31,7 +31,7 @@ public sealed class Eingabeassistent : Panel
         void Kopf(string t) => _flow.Controls.Add(new Label { Text = t, AutoSize = false, Width = 200, Height = 22, Font = Ui.SchriftFett, ForeColor = Ui.Blau, Margin = new Padding(0, 8, 0, 0) });
         void Schritt(string t, bool erledigt, Action a)
         {
-            var l = new LinkLabel { Text = (erledigt ? "✔ " : "○ ") + t, AutoSize = false, Width = 205, Height = 20, LinkColor = Color.FromArgb(30, 60, 140), ActiveLinkColor = Color.OrangeRed, LinkBehavior = LinkBehavior.HoverUnderline, Margin = new Padding(6, 0, 0, 0) };
+            var l = new LinkLabel { Text = (erledigt ? "● " : "○ ") + t, AutoSize = false, Width = 205, Height = 20, LinkColor = Color.FromArgb(30, 60, 140), ActiveLinkColor = Color.OrangeRed, LinkBehavior = LinkBehavior.HoverUnderline, Margin = new Padding(6, 0, 0, 0) };
             l.LinkClicked += (_, _) => a();
             _flow.Controls.Add(l);
         }

@@ -14,7 +14,7 @@ public static class Handbuch
                 "Die Bedienung folgt dem bekannten Aufbau: Menüband (Ribbon) mit den Registerkarten Start, Dateneingabe, Planung, Stundenpläne, Kursplanung, Vertretungsplanung und Module; " +
                 "darunter der Arbeitsbereich mit beliebig vielen Fenstern (Stammdaten, Zeitwünsche, Unterricht, Stundenpläne …).\n" +
                 "Alle Daten einer Schule werden in einer Datei *.untplan gespeichert. Beim Speichern wird automatisch eine Sicherung *.bak angelegt.\n" +
-                "Tipp: Über Datei | Beispieldatei öffnen erhalten Sie ein vollständiges NRW-Gymnasium (Klassen 5–7, EF mit Kursbändern, Bereitschaften) zum Ausprobieren.",
+                "Tipp: Über Datei | Beispielschule öffnen erhalten Sie ein vollständiges NRW-Gymnasium (Klassen 5–7, EF mit Kursbändern, Bereitschaften) zum Ausprobieren.",
                 "Start", "Begrüßung"),
             new("Eingabeassistent",
                 "Der Eingabeassistent (Start | Assistent) führt Schritt für Schritt durch die Ersteingabe: Schuldaten → Zeitraster → Ferien → Räume → Klassen → Lehrer → Fächer → Unterricht → Optimierung → Stundenpläne.\n" +

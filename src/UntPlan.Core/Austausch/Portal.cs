@@ -106,9 +106,9 @@ public static class Portal
         foreach (var m in meldungen)
         {
             var l = d.Lehrer.FirstOrDefault(x => x.Kurzname.Equals(m.LehrerKuerzel ?? m.Absender, StringComparison.OrdinalIgnoreCase));
-            if (m.Typ == "abwesenheit" && l != null && DateOnly.TryParse(m.Von, out var von))
+            if (m.Typ == "abwesenheit" && l != null && DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var von))
             {
-                var bis = DateOnly.TryParse(m.Bis, out var b) ? b : von;
+                var bis = DateOnly.TryParse(m.Bis, System.Globalization.CultureInfo.InvariantCulture, out var b) ? b : von;
                 var grund = d.Abwesenheitsgruende.FirstOrDefault(g => g.Langname.Equals(m.Grund ?? "Krankheit", StringComparison.OrdinalIgnoreCase) || g.Kurzname.Equals(m.Grund ?? "K", StringComparison.OrdinalIgnoreCase));
                 d.Abwesenheiten.Add(new Abwesenheit
                 {
@@ -119,7 +119,7 @@ public static class Portal
             }
             else if (m.Typ == "nachricht" && !string.IsNullOrWhiteSpace(m.Text))
             {
-                d.Tagestexte.Add(new Tagestext { Datum = DateOnly.TryParse(m.Von, out var dt) ? dt : DateOnly.FromDateTime(DateTime.Today), Text = $"{m.Text} – {m.Absender}", NurLehrer = true });
+                d.Tagestexte.Add(new Tagestext { Datum = DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var dt) ? dt : DateOnly.FromDateTime(DateTime.Today), Text = $"{m.Text} – {m.Absender}", NurLehrer = true });
                 ok.Add(m.Id);
             }
             else nein.Add(m.Id);

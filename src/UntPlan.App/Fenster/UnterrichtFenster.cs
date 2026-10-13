@@ -527,7 +527,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         g.Columns.Add("F", "Fachlehrer");
         g.Columns.Add("K", "Kennt Klasse");
         g.Columns.Add("R", "Freies Deputat");
-        foreach (var x in liste) { var r = g.Rows.Add(x.Lehrer.Kurzname, x.Lehrer.Langname, x.Fach ? "✓" : "", x.KenntKlasse ? "✓" : "", Format.Zahl(x.Frei)); g.Rows[r].Tag = x.Lehrer; }
+        foreach (var x in liste) { var r = g.Rows.Add(x.Lehrer.Kurzname, x.Lehrer.Langname, x.Fach ? "x" : "", x.KenntKlasse ? "x" : "", Format.Zahl(x.Frei)); g.Rows[r].Tag = x.Lehrer; }
         dlg.Controls.Add(g);
         if (dlg.ShowDialog(this) != DialogResult.OK || g.CurrentRow?.Tag is not Lehrer l) return;
         var idx = t.Index;

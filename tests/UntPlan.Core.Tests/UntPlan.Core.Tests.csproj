@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\UntPlan.Core\UntPlan.Core.csproj" />
+    <ProjectReference Include="..\..\src\UntPlan.Portal\UntPlan.Portal.csproj" />
   </ItemGroup>
 </Project>

@@ -44,7 +44,7 @@ public static class RaumZuordnenDialog
         foreach (var (n, w) in new[] { ("Rm", 60), ("Kap", 40), ("Ausw.-Rm", 70), ("Besetzt", 150), ("Raumgruppe", 80), ("Wunsch", 50) }) rechts.Columns.Add(n, n);
         var besetzte = new CheckBox { Text = "Auch besetzte Räume anzeigen", Left = 380, Top = 6, Width = 240 };
         d.Controls.Add(new Label { Text = "Auswahl des Unterrichts", Left = 10, Top = 10, Width = 300 });
-        var zuordnen = new Button { Text = "✓ Raum zuordnen", Left = 380, Top = 340, Width = 130, Height = 26 };
+        var zuordnen = new Button { Text = "Raum zuordnen", Left = 380, Top = 340, Width = 130, Height = 26 };
         var loeschen = new Button { Text = "✕ Raum löschen", Left = 516, Top = 340, Width = 130, Height = 26 };
         d.Controls.AddRange(new Control[] { links, rechts, besetzte, zuordnen, loeschen });
         var geaendert = false;
@@ -67,7 +67,7 @@ public static class RaumZuordnenDialog
                 if (!frei && !besetzte.Checked) continue;
                 var gruppe = string.Join(",", doc.Daten.Raumgruppen.Where(g => g.RaumIds.Contains(raum.Id)).Select(g => g.Kurzname));
                 var r = rechts.Rows.Add(raum.Kurzname, raum.Kapazitaet == 0 ? "" : raum.Kapazitaet.ToString(), ix.KRaum(raum.AusweichraumId),
-                    belegt is null ? (raum.Zeitwuensche.Gesperrt(p.Tag, p.Stunde) ? "gesperrt" : "") : ix.UnterrichtText(ix.Unterrichte[belegt.UnterrichtId]), gruppe, wunsch ? "✓" : "");
+                    belegt is null ? (raum.Zeitwuensche.Gesperrt(p.Tag, p.Stunde) ? "gesperrt" : "") : ix.UnterrichtText(ix.Unterrichte[belegt.UnterrichtId]), gruppe, wunsch ? "x" : "");
                 rechts.Rows[r].Tag = (raum, belegt);
                 if (!frei) rechts.Rows[r].DefaultCellStyle.BackColor = Color.FromArgb(255, 235, 235);
                 else if (wunsch) rechts.Rows[r].DefaultCellStyle.BackColor = Color.FromArgb(225, 248, 225);

@@ -161,7 +161,7 @@ public sealed class Ribbon : Control
                     if (aktiv) g.DrawImage(img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 4, 32, 32);
                     else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 4, Color.Transparent);
                     var tr = new Rectangle(it.Bounds.X, it.Bounds.Y + 38, it.Bounds.Width, 30);
-                    TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak);
+                    TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
                     if (it.Menue != null) DreieckUnten(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Bottom - 6, farbe);
                 }
                 else
@@ -169,7 +169,7 @@ public sealed class Ribbon : Control
                     var img = Symbole.Get(it.Symbol, 16);
                     if (aktiv) g.DrawImage(img, it.Bounds.X + 3, it.Bounds.Y + 3, 16, 16);
                     else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + 3, it.Bounds.Y + 3, Color.Transparent);
-                    TextRenderer.DrawText(g, it.Text, Font, new Rectangle(it.Bounds.X + 22, it.Bounds.Y, it.Bounds.Width - 22, it.Bounds.Height), farbe, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+                    TextRenderer.DrawText(g, it.Text, Font, new Rectangle(it.Bounds.X + 22, it.Bounds.Y, it.Bounds.Width - 22, it.Bounds.Height), farbe, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix);
                     if (it.Menue != null) DreieckUnten(g, it.Bounds.Right - 6, it.Bounds.Y + 11, farbe);
                 }
             }

@@ -87,7 +87,7 @@ public sealed class DiagnoseFenster : MdiFenster
             g.Rows.Add(gruppe.Key, "", gruppe.Sum(p => p.Faelle.Count));
             foreach (var p in gruppe)
             {
-                var r = g.Rows.Add("   " + p.Titel, new string('★', Math.Clamp(p.Gewicht, 0, 5)), p.Faelle.Count);
+                var r = g.Rows.Add("   " + p.Titel, p.Gewicht, p.Faelle.Count);
                 g.Rows[r].Tag = p;
                 if (p.Faelle.Count == 0) g.Rows[r].DefaultCellStyle.ForeColor = Color.Gray;
                 else if (p.Gewicht >= 5) g.Rows[r].DefaultCellStyle.ForeColor = Color.DarkRed;
