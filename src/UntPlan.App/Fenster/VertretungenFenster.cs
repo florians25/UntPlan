@@ -89,7 +89,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2;
         foreach (var (name, kopf, breite, lesbar) in Spalten)
         {
-            var c = _g.Columns[_g.Columns.Add(name, kopf)];
+            DataGridViewColumn c = name switch
+            {
+                "Vertreter" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, new[] { "+", "-", "???", "---" }.Concat(Stammdaten.Sortiert(D.Lehrer).Select(l => l.Kurzname))),
+                "NFach" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, Stammdaten.Sortiert(D.Faecher).Select(f => f.Kurzname)),
+                _ => new DataGridViewTextBoxColumn { Name = name, HeaderText = kopf },
+            };
+            _g.Columns.Add(c);
             c.Width = breite;
             c.ReadOnly = lesbar;
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
@@ -99,6 +105,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellFormatting += Formatieren;
         _g.EditingControlShowing += EditorZeigen;
+        Steuerelemente.SuchKombi.Aktivieren(_g, VertreterStil);
         _g.SelectionChanged += (_, _) => { if (!_laedt) Gewaehlt(); };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && _g.Columns[e.ColumnIndex].ReadOnly) VorschlagOeffnen(); };
         _g.KeyPress += TastenDruck;
@@ -330,6 +337,19 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _g.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = "Kollision: " + k;
         }
         if (name == "Nr" && v.Bearbeitet) e.CellStyle.Font = Ui.SchriftFett;
+    }
+
+    /// <summary>Auswahlliste "Vertreter": belegte bzw. abwesende Lehrer rot, Bereitschaft/freigesetzt grün, Langname als Zusatz.</summary>
+    private Steuerelemente.ListenStil? VertreterStil(DataGridViewCell zelle, string text)
+    {
+        if (zelle.OwningColumn.Name != "Vertreter") return D.Faecher.FirstOrDefault(f => f.Kurzname == text) is { } fa ? new(Color.White, Color.Black, fa.Langname) : null;
+        if (zelle.OwningRow.Tag is not Vertretung v) return null;
+        var l = D.Lehrer.FirstOrDefault(x => x.Kurzname == text);
+        if (l is null) return text switch { "+" => new(Color.White, Color.Black, "Vertr. o. Lehrkraft"), "-" => new(Color.White, Color.Black, "Entfall"), _ => null };
+        var tp = Plan(v.Datum);
+        if (Vertretungen.LehrerBelegt(D, tp, l.Id, v.Stunde, v) is { } grund) return new(Color.FromArgb(225, 40, 40), Color.White, $"{l.VollerName} – {grund}");
+        if (Vertretungen.HatBereitschaft(D, tp, l.Id, v.Stunde) || Vertretungen.IstFreigesetzt(D, tp, l.Id, v.Stunde)) return new(Color.FromArgb(200, 240, 200), Color.Black, l.VollerName);
+        return new(Color.White, Color.Black, l.VollerName);
     }
 
     private void EditorZeigen(object? sender, DataGridViewEditingControlShowingEventArgs e)

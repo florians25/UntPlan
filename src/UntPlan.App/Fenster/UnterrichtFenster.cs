@@ -82,10 +82,13 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.CurrentCellChanged += (_, _) => FormularFuellen();
         _grid.CellMouseDown += CellMouseDown;
         _grid.DataError += (_, e) => e.ThrowException = false;
-        _grid.CurrentCellDirtyStateChanged += (_, _) =>
+        Steuerelemente.SuchKombi.Aktivieren(_grid, (zelle, text) =>
         {
-            if (_grid.IsCurrentCellDirty && _grid.CurrentCell is DataGridViewComboBoxCell) { _grid.CommitEdit(DataGridViewDataErrorContexts.Commit); _grid.EndEdit(); }
-        };
+            // Langname als Zusatz in der Auswahlliste
+            var typ = zelle.OwningColumn.Name switch { "Fach" => ElementTyp.Fach, "Lehrer" => ElementTyp.Lehrer, _ => ElementTyp.Raum };
+            var el = D.AlleElemente(typ).FirstOrDefault(x => x.Kurzname == text);
+            return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el is Lehrer l ? l.VollerName : el.Langname);
+        });
         _grid.CellDoubleClick += (_, e) =>
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Klassen" || _grid.Rows[e.RowIndex].Tag is not ZeilenTag zt) return;

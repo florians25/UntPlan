@@ -91,34 +91,110 @@ public static class ElementListe
 /// <summary>Sondereinsatz anlegen, Unterricht einer Stunde ändern und Raum einer Stunde zuordnen (Planungsdialog).</summary>
 public static class SondereinsatzDialog
 {
+    /// <summary>
+    /// Sondereinsätze: oben Datum, Stunde von/bis und Schaltflächen Klassen, Lehrer, Klassenkonferenz; darunter eine Tabelle,
+    /// in der mehrere Sondereinsätze direkt eingegeben werden (unten immer eine leere Zeile).
+    /// </summary>
     public static void Neu(IWin32Window owner, DateOnly datum, int stunde, int[] klassen, int[] lehrer)
     {
         var d = AppZustand.D;
-        using var f = new Dialog("Sondereinsatz", 470, 330);
-        var y = 14;
-        var dat = Ui.Zeile(f, "Datum:", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd, dd.MM.yyyy", Value = datum.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 150);
-        var von = Ui.Zeile(f, "Stunde von:", ElementListe.Stunde(stunde), ref y, 140, 56);
+        var ix = AppZustand.Doc.Index;
+        using var f = new Dialog("Sondereinsätze", 860, 380);
+        f.FormBorderStyle = FormBorderStyle.Sizable;
+        f.MinimumSize = new Size(700, 300);
+        f.Controls.Add(new Label { Text = "Datum", Left = 12, Top = 10, AutoSize = true });
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 12, Top = 30, Width = 120, Value = datum.ToDateTime(TimeOnly.MinValue) };
+        f.Controls.Add(new Label { Text = "Stunde von", Left = 150, Top = 10, AutoSize = true });
+        var von = ElementListe.Stunde(stunde);
+        von.SetBounds(150, 30, 60, 23);
+        f.Controls.Add(new Label { Text = "Stunde bis", Left = 220, Top = 10, AutoSize = true });
         var bis = ElementListe.Stunde(stunde);
-        bis.Left = von.Right + 40;
-        bis.Top = von.Top;
-        f.Controls.Add(new Label { Text = "bis", Left = von.Right + 10, Top = von.Top + 3, AutoSize = true });
-        f.Controls.Add(bis);
-        var kl = Ui.Zeile(f, "Klasse(n):", new ElementWahl(ElementTyp.Klasse, klassen), ref y, 140, 290);
-        var le = Ui.Zeile(f, "Lehrer:", new ElementWahl(ElementTyp.Lehrer, lehrer), ref y, 140, 290);
-        var fa = Ui.Zeile(f, "Fach:", ElementListe.Combo(ElementTyp.Fach, null), ref y, 140, 290);
-        var ra = Ui.Zeile(f, "Raum:", ElementListe.Combo(ElementTyp.Raum, null), ref y, 140, 290);
-        var gr = Ui.Zeile(f, "Schülergruppe:", new TextBox(), ref y, 140, 150);
-        var tx = Ui.Zeile(f, "Text:", new TextBox(), ref y, 140, 290);
-        f.Controls.Add(new Label
+        bis.SetBounds(220, 30, 60, 23);
+        var bKl = new Button { Text = "Klassen", Left = 300, Top = 28, Width = 120, Height = 26 };
+        var bLe = new Button { Text = "Lehrer", Left = 426, Top = 28, Width = 120, Height = 26 };
+        var bKk = new Button { Text = "Klassenkonferenz", Left = 552, Top = 28, Width = 130, Height = 26 };
+        f.Controls.AddRange(new Control[] { dat, von, bis, bKl, bLe, bKk });
+        var g = new DataGridView { Left = 12, Top = 66, Width = 836, Height = 260, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        Ui.RasterGestalten(g, true);
+        g.AllowUserToAddRows = true;
+        g.AllowUserToDeleteRows = true;
+        foreach (var (n, k, w) in new[] { ("D", "Datum", 90), ("SV", "Stunde von", 75), ("SB", "Stunde bis", 75), ("L", "Lehrer", 110), ("K", "Klassen", 110) })
+            g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = w });
+        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("F", "Fach", 80, Stammdaten.Sortiert(d.Faecher).Select(x => x.Kurzname)));
+        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("R", "Raum", 80, Stammdaten.Sortiert(d.Raeume).Select(x => x.Kurzname)));
+        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "G", HeaderText = "Schülergruppe", Width = 95 });
+        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        Steuerelemente.SuchKombi.Aktivieren(g);
+        f.Controls.Add(g);
+        g.DefaultValuesNeeded += (_, e) =>
         {
-            Text = "Kollidierender Unterricht der Lehrer wird laut Vertretungszeitraster vertreten bzw. entfällt, Unterricht der Klassen entfällt.",
-            Left = 12, Top = y, Width = 440, Height = 32, ForeColor = Color.DimGray,
-        });
+            e.Row.Cells["D"].Value = Format.Datum(DateOnly.FromDateTime(dat.Value));
+            e.Row.Cells["SV"].Value = ((int)von.Value).ToString();
+            e.Row.Cells["SB"].Value = ((int)Math.Max(von.Value, bis.Value)).ToString();
+            e.Row.Cells["F"].Value = "";
+            e.Row.Cells["R"].Value = "";
+        };
+        int Zeile()
+        {
+            if (g.CurrentRow is { IsNewRow: false } r) return r.Index;
+            var i = g.Rows.Add(Format.Datum(DateOnly.FromDateTime(dat.Value)), ((int)von.Value).ToString(), ((int)Math.Max(von.Value, bis.Value)).ToString(), "", "", "", "", "", "");
+            g.CurrentCell = g.Rows[i].Cells["L"];
+            return i;
+        }
+        List<int> Ids(ElementTyp typ, object? v) => (v?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(k => d.AlleElemente(typ).FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList();
+        bKl.Click += (_, _) =>
+        {
+            var i = Zeile();
+            var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassen des Sondereinsatzes", Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value));
+            if (w != null) g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname));
+        };
+        bLe.Click += (_, _) =>
+        {
+            var i = Zeile();
+            var w = AuswahlDialog.Mehrere(f, ElementTyp.Lehrer, "Lehrer des Sondereinsatzes", Ids(ElementTyp.Lehrer, g.Rows[i].Cells["L"].Value));
+            if (w != null) g.Rows[i].Cells["L"].Value = string.Join(",", w.Select(x => x.Kurzname));
+        };
+        bKk.Click += (_, _) =>
+        {
+            // Klassenkonferenz: alle Lehrer, die die gewählten Klassen unterrichten
+            var i = Zeile();
+            var kl = Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value);
+            if (kl.Count == 0)
+            {
+                var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassenkonferenz für Klasse(n)", Array.Empty<int>());
+                if (w is null || w.Count == 0) return;
+                kl = w.Select(x => x.Id).ToList();
+                g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname));
+            }
+            var lehrerIds = d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.KlassenIds.Intersect(kl).Any() && z.LehrerId.HasValue).Select(z => z.LehrerId!.Value)
+                .Concat(d.Klassen.Where(k => kl.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds)).Distinct();
+            g.Rows[i].Cells["L"].Value = string.Join(",", lehrerIds.Select(ix.KLehrer).OrderBy(x => x));
+            if (string.IsNullOrWhiteSpace(g.Rows[i].Cells["T"].Value?.ToString())) g.Rows[i].Cells["T"].Value = "Klassenkonferenz " + ix.KKlassen(kl);
+        };
+        if (klassen.Length > 0 || lehrer.Length > 0)
+            g.Rows.Add(Format.Datum(datum), stunde.ToString(), stunde.ToString(), string.Join(",", lehrer.Select(ix.KLehrer)), ix.KKlassen(klassen), "", "", "", "");
         if (f.ShowDialog(owner) != DialogResult.OK) return;
-        if (kl.Ids.Count == 0 && le.Ids.Count == 0) { Ui.Info("Bitte mindestens eine Klasse oder einen Lehrer angeben."); return; }
-        var datumNeu = DateOnly.FromDateTime(dat.Value);
-        Ausfuehren("Sondereinsatz", x => Vertretungen.Sondereinsatz(x, datumNeu, (int)von.Value, (int)Math.Max(von.Value, bis.Value), kl.Ids, le.Ids,
-            ElementListe.Id(fa), ElementListe.Id(ra), tx.Text, gr.Text, null, AppZustand.Benutzer));
+        g.EndEdit();
+        var eintraege = new List<(DateOnly Datum, int Von, int Bis, List<int> L, List<int> K, int? F, int? R, string G, string T)>();
+        foreach (DataGridViewRow r in g.Rows)
+        {
+            if (r.IsNewRow) continue;
+            var l = Ids(ElementTyp.Lehrer, r.Cells["L"].Value);
+            var k = Ids(ElementTyp.Klasse, r.Cells["K"].Value);
+            if (l.Count == 0 && k.Count == 0) continue;
+            var dd = Ui.DatumLesen(r.Cells["D"].Value?.ToString() ?? "", DateOnly.FromDateTime(dat.Value));
+            var sv = int.TryParse(r.Cells["SV"].Value?.ToString(), out var a1) ? a1 : (int)von.Value;
+            var sb = int.TryParse(r.Cells["SB"].Value?.ToString(), out var a2) ? Math.Max(sv, a2) : sv;
+            var fach = d.Faecher.FirstOrDefault(x => x.Kurzname == r.Cells["F"].Value?.ToString())?.Id;
+            var raum = d.Raeume.FirstOrDefault(x => x.Kurzname == r.Cells["R"].Value?.ToString())?.Id;
+            eintraege.Add((dd, sv, sb, l, k, fach, raum, r.Cells["G"].Value?.ToString() ?? "", r.Cells["T"].Value?.ToString() ?? ""));
+        }
+        if (eintraege.Count == 0) { Ui.Info("Es wurde kein Sondereinsatz eingegeben (Lehrer oder Klassen fehlen)."); return; }
+        Ausfuehren(eintraege.Count > 1 ? $"Sondereinsätze ({eintraege.Count})" : "Sondereinsatz", x =>
+        {
+            foreach (var e in eintraege) Vertretungen.Sondereinsatz(x, e.Datum, e.Von, e.Bis, e.K, e.L, e.F, e.R, e.T, e.G, null, AppZustand.Benutzer);
+        });
     }
 
     public static void StundeAendern(IWin32Window owner, int uid, int zeile, DateOnly datum, int stunde)

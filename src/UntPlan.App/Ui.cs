@@ -111,6 +111,29 @@ public static class Ui
         return f.ShowDialog() == DialogResult.OK ? t.Text : null;
     }
 
+    /// <summary>
+    /// Datumseingabe in Listen: "30.08.", "30.8.21", "30.08.2021", "Mo 30.08.21", "+2" (Tage ab Vorgabe), "h" (heute),
+    /// "" (Vorgabe). Fehlendes Jahr: das Jahr, in dem das Datum innerhalb des Schuljahres liegt.
+    /// </summary>
+    public static DateOnly DatumLesen(string text, DateOnly vorgabe)
+    {
+        var t = text.Trim();
+        if (t.Length == 0) return vorgabe;
+        if (t.Equals("h", StringComparison.OrdinalIgnoreCase) || t.Equals("heute", StringComparison.OrdinalIgnoreCase)) return DateOnly.FromDateTime(DateTime.Today);
+        if ((t[0] is '+' or '-') && int.TryParse(t, out var tage)) return vorgabe.AddDays(tage);
+        t = new string(t.SkipWhile(c => !char.IsDigit(c)).ToArray()).TrimEnd('.');
+        var teile = t.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (teile.Length < 2 || !int.TryParse(teile[0], out var tag) || !int.TryParse(teile[1], out var monat)) throw new FormatException();
+        int jahr;
+        if (teile.Length >= 3 && int.TryParse(teile[2], out var j)) jahr = j < 100 ? 2000 + j : j;
+        else
+        {
+            var sj = AppZustand.D.Einstellungen.SchuljahrVon;
+            jahr = monat >= sj.Month ? sj.Year : sj.Year + 1;
+        }
+        return new DateOnly(jahr, monat, tag);
+    }
+
     public static string ElementName(Element e) => e switch
     {
         Lehrer l => $"{l.Kurzname} – {l.Langname}{(l.Vorname.Length > 0 ? ", " + l.Vorname : "")}",

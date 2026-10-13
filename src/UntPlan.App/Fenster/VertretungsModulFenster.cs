@@ -126,13 +126,32 @@ public sealed class AbwesenheitenFenster : MdiFenster
         ts.Items.Add(new ToolStripLabel("Zeitraum:"));
         ts.Items.Add(_zeitraum);
         ts.Items.Add(Knopf("Veranstaltungen", "klassen", () => HauptFenster.Oeffnen("veranst", () => new VeranstaltungenFenster()), false));
-        Ui.RasterGestalten(_g, false);
-        _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        foreach (var (n, k, b) in new[] { ("Nr", "Abs-Nr.", 55), ("E", "Name", 70), ("V", "Von", 82), ("SV", "Std.", 38), ("B", "Bis", 82), ("SB", "Std.", 38), ("G", "Absenzgrund", 100), ("Beg", "Begleitlehrer", 100), ("O", "offen", 45), ("T", "Text", 200) })
-            _g.Columns[_g.Columns.Add(n, k)].Width = b;
-        _g.Columns["T"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Bearbeiten(); else if (e.RowIndex < 0) Neu(); };
-        _g.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete) Loeschen(); if (e.KeyCode == Keys.Insert) Neu(); };
+        // direkte Eingabe in der Liste: unten steht immer eine leere Zeile für die nächste Absenz
+        Ui.RasterGestalten(_g, true);
+        _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        _g.MultiSelect = true;
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "Abs-Nr.", Width = 55, ReadOnly = true });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Name", 80, Array.Empty<string>()));
+        foreach (var (n, k, b) in new[] { ("V", "Von", 88), ("SV", "ab St.", 45), ("B", "Bis", 88), ("SB", "bis St.", 45) })
+            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 90, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Beg", HeaderText = "Begleitlehrer", Width = 100 });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 200, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
+        Steuerelemente.SuchKombi.Aktivieren(_g, (zelle, text) =>
+        {
+            Element? el = zelle.OwningColumn.Name == "G" ? D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname == text) : D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname == text);
+            return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el is Lehrer l ? l.VollerName : el.Langname);
+        });
+        _g.CellEndEdit += ZelleGeaendert;
+        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0 && _g.Rows[e.RowIndex].Tag is Abwesenheit) Bearbeiten(); };
+        _g.KeyDown += (_, e) =>
+        {
+            if (_g.IsCurrentCellInEditMode) return;
+            if (e.KeyCode == Keys.Delete && e.Modifiers == Keys.Control) { Loeschen(); e.Handled = true; }
+            if (e.KeyCode == Keys.Insert) Neu();
+        };
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         cm.Items.Add("Neue Absenz…", Symbole.Get("neu"), (_, _) => Neu());
         cm.Items.Add("Bearbeiten…", Symbole.Get("einstellungen"), (_, _) => Bearbeiten());
@@ -156,9 +175,23 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private AbwesenheitsArt Art => (AbwesenheitsArt)Math.Max(0, _tabs.SelectedIndex);
 
+    private ElementTyp Typ => Art switch { AbwesenheitsArt.Lehrer => ElementTyp.Lehrer, AbwesenheitsArt.Klasse => ElementTyp.Klasse, _ => ElementTyp.Raum };
+    private bool _laedt;
+
     private void Neuaufbau()
     {
+        if (_g.IsCurrentCellInEditMode) return;
+        var zelle = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 1, (_g.CurrentRow?.Tag as Abwesenheit)?.Id);
+        _laedt = true;
         _g.Rows.Clear();
+        var namen = (DataGridViewComboBoxColumn)_g.Columns["E"]!;
+        namen.Items.Clear();
+        namen.Items.Add("");
+        foreach (var el in Stammdaten.Sortiert(D, Typ)) namen.Items.Add(el.Kurzname);
+        var gruende = (DataGridViewComboBoxColumn)_g.Columns["G"]!;
+        gruende.Items.Clear();
+        gruende.Items.Add("");
+        foreach (var gr in D.Abwesenheitsgruende) gruende.Items.Add(gr.Kurzname);
         var heute = AppZustand.Datum;
         var (von, bis) = _zeitraum.SelectedIndex switch
         {
@@ -172,18 +205,87 @@ public sealed class AbwesenheitenFenster : MdiFenster
         foreach (var a in D.Abwesenheiten.Where(a => a.Art == Art && a.Bis >= von && a.Von <= bis).OrderBy(a => Ix.K(typ, a.ElementId), StringComparer.Create(Format.De, true)).ThenBy(a => a.Von))
         {
             var offen = D.Vertretungen.Count(v => v.AbwesenheitId == a.Id && v.Offen);
+            var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "";
             var r = _g.Rows.Add(a.Id, Ix.K(typ, a.ElementId), $"{Planungsdienst.TageKurz[((int)a.Von.DayOfWeek + 6) % 7]} {a.Von:dd.MM.yy}", a.StundeVon,
-                $"{Planungsdienst.TageKurz[((int)a.Bis.DayOfWeek + 6) % 7]} {a.Bis:dd.MM.yy}", a.StundeBis >= 99 ? "" : a.StundeBis.ToString(), Vertretungen.GrundText(D, Ix, a),
+                $"{Planungsdienst.TageKurz[((int)a.Bis.DayOfWeek + 6) % 7]} {a.Bis:dd.MM.yy}", a.StundeBis >= 99 ? "" : a.StundeBis.ToString(), grund,
                 string.Join(", ", a.BegleitLehrerIds.Select(Ix.KLehrer)), offen == 0 ? "" : offen.ToString(), a.Text);
             _g.Rows[r].Tag = a;
             if (offen > 0) _g.Rows[r].Cells["O"].Style.ForeColor = Color.Firebrick;
         }
+        // leere Eingabezeile
+        var neu = _g.Rows.Add("", "", "", "", "", "", "", "", "", "");
+        _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 236);
+        _g.Rows[neu].Cells["Nr"].Value = "neu";
+        _laedt = false;
+        var ziel = zelle.Item3 is int id ? _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit ab && ab.Id == id)?.Index ?? zelle.Item1 : zelle.Item1;
+        if (ziel >= 0 && ziel < _g.Rows.Count && zelle.Item2 >= 0 && zelle.Item2 < _g.Columns.Count && _g.Columns[zelle.Item2].Visible)
+            _g.CurrentCell = _g.Rows[ziel].Cells[zelle.Item2];
         _tabs.TabPages[0].Text = $"Lehrer ({D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Lehrer && a.Bis >= von && a.Von <= bis)})";
         _tabs.TabPages[1].Text = $"Klassen ({D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Klasse && a.Bis >= von && a.Von <= bis)})";
         _tabs.TabPages[2].Text = $"Räume ({D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Raum && a.Bis >= von && a.Von <= bis)})";
     }
 
-    private List<Abwesenheit> Markierte() => _g.SelectedRows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Abwesenheit>().ToList();
+    private List<Abwesenheit> Markierte() => _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Abwesenheit>().Distinct().ToList();
+
+    /// <summary>Direkte Eingabe: geänderte Zelle übernehmen bzw. aus der leeren Zeile eine neue Absenz anlegen.</summary>
+    private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (_laedt || e.RowIndex < 0) return;
+        var zeile = _g.Rows[e.RowIndex];
+        var wert = zeile.Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
+        var alt = zeile.Tag as Abwesenheit;
+        var a = alt is null ? new Abwesenheit { Art = Art, Von = AppZustand.Datum, Bis = AppZustand.Datum, Benutzer = AppZustand.Benutzer } : Kopie(alt);
+        var name = _g.Columns[e.ColumnIndex].Name;
+        try
+        {
+            switch (name)
+            {
+                case "E":
+                    var el = D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
+                    if (el is null) { if (alt != null) BeginInvoke(Neuaufbau); return; }
+                    a.ElementId = el.Id;
+                    break;
+                case "V":
+                    a.Von = Ui.DatumLesen(wert, a.Von);
+                    if (a.Bis < a.Von || alt is null) a.Bis = a.Von;
+                    break;
+                case "B":
+                    a.Bis = Ui.DatumLesen(wert, a.Bis);
+                    if (a.Bis < a.Von) a.Von = a.Bis;
+                    break;
+                case "SV": a.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, D.Zeitraster.StundenProTag); break;
+                case "SB": a.StundeBis = wert.Length == 0 ? 99 : Math.Clamp(int.Parse(wert), 1, 99); break;
+                case "G": a.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+                case "Beg":
+                    a.BegleitLehrerIds = wert.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(k => D.Lehrer.FirstOrDefault(l => l.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList();
+                    break;
+                case "T": a.Text = wert; break;
+                default: return;
+            }
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException) { Ui.Info($"Die Eingabe \"{wert}\" ist ungültig."); BeginInvoke(Neuaufbau); return; }
+        if (alt is null)
+        {
+            // neue Zeile: erst anlegen, wenn ein Element gewählt ist; andere Felder der Zeile mitnehmen
+            if (a.ElementId == 0)
+            {
+                var k = zeile.Cells["E"].Value?.ToString() ?? "";
+                var el = D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase));
+                if (el is null) return;
+                a.ElementId = el.Id;
+            }
+            Speichern(new[] { a }, Array.Empty<Abwesenheit>(), "Absenz eingeben");
+            // weiter in derselben Zeile (Spalte "Von") bzw. in der neuen leeren Zeile
+            BeginInvoke(() =>
+            {
+                var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit ab && ab.ElementId == a.ElementId && ab.Von == a.Von && ab.Id == a.Id);
+                if (r != null && name == "E") _g.CurrentCell = r.Cells["V"];
+            });
+            return;
+        }
+        Speichern(new[] { a }, new[] { alt }, "Absenz geändert");
+    }
 
     private static Abwesenheit Kopie(Abwesenheit a) => new()
     {
@@ -280,11 +382,17 @@ public sealed class VeranstaltungenFenster : MdiFenster
         ts.Items.Add(Knopf("Neue Veranstaltung", "neu", Neu, false));
         ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
-        Ui.RasterGestalten(_g, false);
-        _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        foreach (var (n, k, b) in new[] { ("Nr", "Nr.", 45), ("T", "Veranstaltung", 160), ("V", "Von", 80), ("SV", "Std.", 38), ("B", "Bis", 80), ("SB", "Std.", 38), ("K", "Klassen", 100), ("L", "Lehrer", 100), ("R", "Räume", 80), ("G", "Grund", 80), ("Z", "zählt", 45) })
-            _g.Columns[_g.Columns.Add(n, k)].Width = b;
-        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Bearbeiten(); };
+        // direkte Eingabe; Klassen/Lehrer/Räume als Kurznamen mit Komma, unten immer eine leere Zeile
+        Ui.RasterGestalten(_g, true);
+        _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        foreach (var (n, k, b) in new[] { ("Nr", "Nr.", 45), ("T", "Veranstaltung", 160), ("V", "Von", 88), ("SV", "ab St.", 45), ("B", "Bis", 88), ("SB", "bis St.", 45), ("K", "Klassen", 100), ("L", "Lehrer", 100), ("R", "Räume", 80) })
+            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, ReadOnly = n == "Nr", SortMode = DataGridViewColumnSortMode.NotSortable });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 80, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Z", HeaderText = "zählt", Width = 45 });
+        Steuerelemente.SuchKombi.Aktivieren(_g);
+        _g.CellEndEdit += ZelleGeaendert;
+        _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex].Name == "Z") _g.EndEdit(); };
+        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0) Bearbeiten(); };
         Controls.Add(_g);
         Controls.Add(ts);
         Neuaufbau();
@@ -293,16 +401,70 @@ public sealed class VeranstaltungenFenster : MdiFenster
     protected override bool EigeneAenderungenAnzeigen => true;
     protected override void Aktualisieren(AenderungsArt art) => Neuaufbau();
 
+    private bool _laedt;
+
     private void Neuaufbau()
     {
+        if (_g.IsCurrentCellInEditMode) return;
+        var pos = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 1);
+        _laedt = true;
         _g.Rows.Clear();
         foreach (var v in D.Veranstaltungen.OrderBy(v => v.Von))
         {
             var r = _g.Rows.Add(v.Id, v.Text, Format.Datum(v.Von), v.StundeVon, Format.Datum(v.Bis), v.StundeBis >= 99 ? "" : v.StundeBis.ToString(), Ix.KKlassen(v.KlassenIds),
-                string.Join(",", v.LehrerIds.Select(Ix.KLehrer)), string.Join(",", v.RaumIds.Select(Ix.KRaum)), Vertretungen.GrundText(D, v.GrundId), v.Zaehlen ? "ja" : "");
+                string.Join(",", v.LehrerIds.Select(Ix.KLehrer)), string.Join(",", v.RaumIds.Select(Ix.KRaum)), D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Zaehlen);
             _g.Rows[r].Tag = v;
             if (v.Bis < AppZustand.Datum) _g.Rows[r].DefaultCellStyle.ForeColor = Color.Gray;
         }
+        var neu = _g.Rows.Add("neu", "", "", "", "", "", "", "", "", "", false);
+        _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 236);
+        _laedt = false;
+        if (pos.Item1 >= 0 && pos.Item1 < _g.Rows.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[Math.Clamp(pos.Item2, 0, _g.Columns.Count - 1)];
+    }
+
+    private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (_laedt || e.RowIndex < 0) return;
+        var zeile = _g.Rows[e.RowIndex];
+        var alt = zeile.Tag as Veranstaltung;
+        var v = alt is null ? new Veranstaltung { Von = AppZustand.Datum, Bis = AppZustand.Datum } : Kopie(alt);
+        var wert = zeile.Cells[e.ColumnIndex].Value is bool bw ? (bw ? "1" : "") : zeile.Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
+        try
+        {
+            switch (_g.Columns[e.ColumnIndex].Name)
+            {
+                case "T": v.Text = wert; break;
+                case "V": v.Von = Ui.DatumLesen(wert, v.Von); if (v.Bis < v.Von || alt is null) v.Bis = v.Von; break;
+                case "B": v.Bis = Ui.DatumLesen(wert, v.Bis); if (v.Bis < v.Von) v.Von = v.Bis; break;
+                case "SV": v.StundeVon = wert.Length == 0 ? 1 : int.Parse(wert); break;
+                case "SB": v.StundeBis = wert.Length == 0 ? 99 : int.Parse(wert); break;
+                case "K": v.KlassenIds = Kurznamen(ElementTyp.Klasse, wert); break;
+                case "L": v.LehrerIds = Kurznamen(ElementTyp.Lehrer, wert); break;
+                case "R": v.RaumIds = Kurznamen(ElementTyp.Raum, wert); break;
+                case "G": v.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+                case "Z": v.Zaehlen = wert == "1"; break;
+                default: return;
+            }
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException) { Ui.Info($"Die Eingabe \"{wert}\" ist ungültig."); BeginInvoke(Neuaufbau); return; }
+        if (alt is null && string.IsNullOrWhiteSpace(v.Text) && v.KlassenIds.Count == 0 && v.LehrerIds.Count == 0) return;
+        if (alt is null && string.IsNullOrWhiteSpace(v.Text)) v.Text = "Veranstaltung";
+        Aendern(alt is null ? "Veranstaltung" : "Veranstaltung geändert", AenderungsArt.Vertretung, d =>
+        {
+            if (alt != null) d.Veranstaltungen.RemoveAll(x => x.Id == alt.Id);
+            else v.Id = d.NeueId();
+            d.Veranstaltungen.Add(v);
+            Vertretungen.Aktualisieren(d, alt is null || v.Von < alt.Von ? v.Von : alt.Von, alt is null || v.Bis > alt.Bis ? v.Bis : alt.Bis);
+        });
+    }
+
+    internal static List<int> Kurznamen(ElementTyp typ, string text)
+    {
+        var alle = AppZustand.D.AlleElemente(typ).ToList();
+        var res = new List<int>();
+        foreach (var k in text.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            res.Add(alle.FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id ?? throw new FormatException($"{Ui.TypName(typ)} {k} unbekannt"));
+        return res.Distinct().ToList();
     }
 
     private static Veranstaltung Kopie(Veranstaltung v) => System.Text.Json.JsonSerializer.Deserialize<Veranstaltung>(System.Text.Json.JsonSerializer.Serialize(v))!;
@@ -334,7 +496,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
 
     private void Loeschen()
     {
-        var liste = _g.SelectedRows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Veranstaltung>().ToList();
+        var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Veranstaltung>().Distinct().ToList();
         if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Veranstaltung(en) löschen?")) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
         Aendern("Veranstaltung löschen", AenderungsArt.Vertretung, d =>
@@ -361,11 +523,16 @@ public sealed class KlausurenFenster : MdiFenster
         ts.Items.Add(Knopf("Neue Klausur", "neu", () => KlausurDialog.Neu(this, AppZustand.Datum, 1, null), false));
         ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
-        Ui.RasterGestalten(_g, false);
-        _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        foreach (var (n, k, b) in new[] { ("N", "Name", 150), ("D", "Datum", 90), ("S", "Stunden", 60), ("K", "Klassen", 110), ("L", "Aufsicht", 110), ("R", "Räume", 90), ("E", "Unterr. entfällt", 95), ("A", "aktiv", 45), ("T", "Text", 160) })
-            _g.Columns[_g.Columns.Add(n, k)].Width = b;
-        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Bearbeiten(); };
+        Ui.RasterGestalten(_g, true);
+        _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        foreach (var (n, k, b) in new[] { ("N", "Name", 150), ("D", "Datum", 95), ("S", "Stunden", 60), ("K", "Klassen", 110), ("L", "Aufsicht", 110), ("R", "Räume", 90) })
+            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "E", HeaderText = "Unterr. entfällt", Width = 95 });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "A", HeaderText = "aktiv", Width = 45 });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 160, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _g.CellEndEdit += ZelleGeaendert;
+        _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _g.EndEdit(); };
+        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0 && _g.Rows[e.RowIndex].Tag is Klausur) Bearbeiten(); };
         Controls.Add(_g);
         Controls.Add(ts);
         Neuaufbau();
@@ -374,15 +541,64 @@ public sealed class KlausurenFenster : MdiFenster
     protected override bool EigeneAenderungenAnzeigen => true;
     protected override void Aktualisieren(AenderungsArt art) => Neuaufbau();
 
+    private bool _laedt;
+
     private void Neuaufbau()
     {
+        if (_g.IsCurrentCellInEditMode) return;
+        var pos = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 0);
+        _laedt = true;
         _g.Rows.Clear();
         foreach (var k in D.Klausuren.OrderBy(k => k.Datum).ThenBy(k => k.StundeVon))
         {
             var r = _g.Rows.Add(k.Name, $"{Planungsdienst.TageKurz[((int)k.Datum.DayOfWeek + 6) % 7]} {Format.Datum(k.Datum)}", k.StundeVon == k.StundeBis ? k.StundeVon.ToString() : $"{k.StundeVon}-{k.StundeBis}",
-                Ix.KKlassen(k.KlassenIds), string.Join(",", k.LehrerIds.Select(Ix.KLehrer)), string.Join(",", k.RaumIds.Select(Ix.KRaum)), k.UnterrichtEntfaellt ? "ja" : "", k.Aktiv ? "ja" : "", k.Text);
+                Ix.KKlassen(k.KlassenIds), string.Join(",", k.LehrerIds.Select(Ix.KLehrer)), string.Join(",", k.RaumIds.Select(Ix.KRaum)), k.UnterrichtEntfaellt, k.Aktiv, k.Text);
             _g.Rows[r].Tag = k;
         }
+        var neu = _g.Rows.Add("", "", "", "", "", "", true, true, "");
+        _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 236);
+        _laedt = false;
+        if (pos.Item1 >= 0 && pos.Item1 < _g.Rows.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[Math.Clamp(pos.Item2, 0, _g.Columns.Count - 1)];
+    }
+
+    private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (_laedt || e.RowIndex < 0) return;
+        var zeile = _g.Rows[e.RowIndex];
+        var alt = zeile.Tag as Klausur;
+        var k = alt is null ? new Klausur { Datum = AppZustand.Datum, Name = "Klausur" } : System.Text.Json.JsonSerializer.Deserialize<Klausur>(System.Text.Json.JsonSerializer.Serialize(alt))!;
+        var roh = zeile.Cells[e.ColumnIndex].Value;
+        var wert = roh is bool b ? (b ? "1" : "") : roh?.ToString()?.Trim() ?? "";
+        try
+        {
+            switch (_g.Columns[e.ColumnIndex].Name)
+            {
+                case "N": k.Name = wert.Length == 0 ? "Klausur" : wert; break;
+                case "D": k.Datum = Ui.DatumLesen(wert, k.Datum); break;
+                case "S":
+                    var b2 = Bereich.Parse(wert.Replace('-', '-'));
+                    k.StundeVon = Math.Max(1, b2.Min);
+                    k.StundeBis = Math.Max(k.StundeVon, b2.Max);
+                    break;
+                case "K": k.KlassenIds = VeranstaltungenFenster.Kurznamen(ElementTyp.Klasse, wert); break;
+                case "L": k.LehrerIds = VeranstaltungenFenster.Kurznamen(ElementTyp.Lehrer, wert); break;
+                case "R": k.RaumIds = VeranstaltungenFenster.Kurznamen(ElementTyp.Raum, wert); break;
+                case "E": k.UnterrichtEntfaellt = wert == "1"; break;
+                case "A": k.Aktiv = wert == "1"; break;
+                case "T": k.Text = wert; break;
+                default: return;
+            }
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException) { Ui.Info($"Die Eingabe \"{wert}\" ist ungültig."); BeginInvoke(Neuaufbau); return; }
+        if (alt is null && k.KlassenIds.Count == 0 && _g.Columns[e.ColumnIndex].Name is not ("K" or "N")) return;
+        Aendern(alt is null ? "Klausur anlegen" : "Klausur geändert", AenderungsArt.Vertretung, d =>
+        {
+            if (alt != null) d.Klausuren.RemoveAll(x => x.Id == alt.Id);
+            else k.Id = d.NeueId();
+            d.Klausuren.Add(k);
+            Vertretungen.Aktualisieren(d, k.Datum);
+            if (alt != null && alt.Datum != k.Datum) Vertretungen.Aktualisieren(d, alt.Datum);
+        });
     }
 
     private void Bearbeiten()
@@ -401,7 +617,7 @@ public sealed class KlausurenFenster : MdiFenster
 
     private void Loeschen()
     {
-        var liste = _g.SelectedRows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Klausur>().ToList();
+        var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Klausur>().Distinct().ToList();
         if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Klausur(en) löschen?")) return;
         var ids = liste.Select(k => k.Id).ToHashSet();
         Aendern("Klausur löschen", AenderungsArt.Vertretung, d =>
