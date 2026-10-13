@@ -2,33 +2,49 @@ using System.Drawing.Drawing2D;
 using UntPlan.Core;
 using UntPlan.Core.Model;
 using UntPlan.Core.Planung;
+using UntPlan.Core.Vertretungsplanung;
 
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
-/// Gezeichneter Einzel-Stundenplan eines Elements. Unterstützt manuelles Planen per Drag &amp; Drop:
-/// grün = kollisionsfrei, rot = kollisionsfrei aber Vorgabe verletzt, violett = kein Raum frei,
-/// grün hinterlegte Stunde = Tausch möglich, nicht gefärbt = Kollision.
+/// Gezeichneter Einzel-Stundenplan eines Elements.
+/// Regelplan: manuelles Planen per Drag &amp; Drop (Doppelstunden und Blöcke werden als Ganzes gezogen, Mehrfachauswahl mit Strg),
+/// Farben: grün = kollisionsfrei, rot = Vorgabe verletzt, violett = kein Raum frei, grün hinterlegte Stunde = Tausch möglich.
+/// Tagesaktueller Plan (Vertretungsmodus): Änderungen rot, Entfälle durchgestrichen, Verlegen und Tauschen per Drag &amp; Drop.
 /// </summary>
 public sealed class PlanAnsicht : Control
 {
     public ElementTyp Typ { get; set; } = ElementTyp.Klasse;
     public int ElementId { get; set; }
     public StundenplanFormat Format { get; set; } = new();
-    /// <summary>Montag der angezeigten Woche (Vertretungen werden eingeblendet) oder null für den Regelplan.</summary>
-    public DateOnly? Woche { get; set; }
+    /// <summary>Montag der angezeigten Woche (tagesaktueller Plan mit Vertretungen) oder null für den Regelplan.</summary>
+    public DateOnly? Woche
+    {
+        get => _woche;
+        set { _woche = value; TageNeu(); }
+    }
+    public bool Tagesmodus => _woche.HasValue;
     public Planstunde? Ausgewaehlt { get; set; }
+    /// <summary>Zusätzlich markierte Stunden (Strg+Klick) – werden gemeinsam verschoben.</summary>
+    public List<Planstunde> Mehrfach { get; } = new();
+    /// <summary>Gewählte Stunde im tagesaktuellen Plan.</summary>
+    public (DateOnly Datum, TagesEintrag Eintrag)? TagesAuswahl { get; private set; }
     public bool Bearbeitbar { get; set; } = true;
 
     public event Action<Planstunde?>? AuswahlGeaendert;
+    public event Action<DateOnly, TagesEintrag?>? TagesAuswahlGeaendert;
     public event Action<string, int, int>? Abgelegt;
     public event Action<Planstunde>? Doppelklick;
     public event Action<Point, Planstunde?>? Kontext;
+    public event Action<Point, DateOnly, int, TagesEintrag?>? TagesKontext;
 
+    private DateOnly? _woche;
+    private readonly Dictionary<int, Tagesplan> _tage = new();
     private Feldstatus[,]? _status;
     private (int Tag, int Stunde)? _hover;
     private Point _down;
     private Planstunde? _downStunde;
+    private (DateOnly, TagesEintrag)? _downEintrag;
     private readonly ToolTip _tip = new() { InitialDelay = 500 };
     private string _letzterTip = "";
 
@@ -48,6 +64,18 @@ public sealed class PlanAnsicht : Control
 
     private int Tage => D.Zeitraster.TageProWoche;
     private int Stunden => D.Zeitraster.StundenProTag;
+
+    /// <summary>Tagesaktuelle Pläne neu berechnen (nach Änderungen).</summary>
+    public void TageNeu()
+    {
+        _tage.Clear();
+        if (_woche is DateOnly w)
+            for (var t = 0; t < Tage; t++)
+                _tage[t] = Tagesplan.Berechnen(D, w.AddDays(t));
+        Invalidate();
+    }
+
+    public DateOnly? DatumVon(int tag) => _woche?.AddDays(tag);
 
     private RectangleF Zelle(Rectangle bounds, int tag, int stunde)
     {
@@ -70,6 +98,21 @@ public sealed class PlanAnsicht : Control
     public List<Planstunde> StundenAm(int tag, int stunde) =>
         Ix.PlanVon(Typ, ElementId).Where(p => p.Tag == tag && p.Stunde == stunde).ToList();
 
+    /// <summary>Einträge des Elements im tagesaktuellen Plan (inkl. Entfälle zur Anzeige).</summary>
+    public List<TagesEintrag> EintraegeAm(int tag, int stunde)
+    {
+        if (!_tage.TryGetValue(tag, out var tp)) return new();
+        return tp.Stunde(stunde).Where(e => Typ switch
+        {
+            ElementTyp.Klasse => e.KlassenIds.Contains(ElementId) || (e.Regel?.KlassenIds.Contains(ElementId) ?? false),
+            ElementTyp.Lehrer => e.LehrerIds.Contains(ElementId) || e.Regel?.LehrerId == ElementId,
+            ElementTyp.Raum => e.RaumIds.Contains(ElementId) || e.Regel?.RaumId == ElementId,
+            ElementTyp.Fach => e.FachId == ElementId || e.Regel?.FachId == ElementId,
+            _ => false,
+        }).GroupBy(e => (e.Unterricht?.Id ?? -(e.Vertretung?.Id ?? 0), Typ == ElementTyp.Lehrer || Typ == ElementTyp.Raum ? (e.Regel?.ZeilenIndex ?? 0) : 0, e.Status == TagesStatus.Entfall))
+          .Select(g => g.First()).OrderBy(e => e.Status == TagesStatus.Entfall).ToList();
+    }
+
     private Planstunde? StundeBei(Point p)
     {
         var t = Treffer(p);
@@ -81,29 +124,50 @@ public sealed class PlanAnsicht : Control
         return liste[Math.Clamp(i, 0, liste.Count - 1)];
     }
 
+    private (DateOnly Datum, TagesEintrag Eintrag)? EintragBei(Point p)
+    {
+        var t = Treffer(p);
+        if (t is null || _woche is null) return null;
+        var liste = EintraegeAm(t.Value.Tag, t.Value.Stunde);
+        if (liste.Count == 0) return null;
+        var r = Zelle(ClientRectangle, t.Value.Tag, t.Value.Stunde);
+        var i = liste.Count == 1 ? 0 : (int)((p.Y - r.Y) / (r.Height / liste.Count));
+        return (_woche.Value.AddDays(t.Value.Tag), liste[Math.Clamp(i, 0, liste.Count - 1)]);
+    }
+
+    /// <summary>Stunden des Blocks (Doppelstunde, Block) einer Planstunde: benachbarte Stunden desselben Unterrichts am selben Tag.</summary>
+    public static List<Planstunde> Block(Planstunde p)
+    {
+        var gleiche = D.Stundenplan.Where(x => x.UnterrichtId == p.UnterrichtId && x.Tag == p.Tag).ToList();
+        var res = new List<Planstunde> { p };
+        for (var s = p.Stunde - 1; gleiche.FirstOrDefault(x => x.Stunde == s) is { } x; s--) res.Insert(0, x);
+        for (var s = p.Stunde + 1; gleiche.FirstOrDefault(x => x.Stunde == s) is { } x; s++) res.Add(x);
+        return res;
+    }
+
     protected override void OnPaint(PaintEventArgs e) => Zeichnen(e.Graphics, ClientRectangle, false);
 
     public void Zeichnen(Graphics g, Rectangle bounds, bool druck)
     {
+        if (Tagesmodus && _tage.Count != Tage) TageNeu();
         g.SmoothingMode = SmoothingMode.None;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         g.FillRectangle(Brushes.White, bounds);
         var zr = D.Zeitraster;
-        using var kopfBrush = new SolidBrush(Color.FromArgb(232, 237, 245));
         using var linie = new Pen(Color.FromArgb(160, 170, 185));
         using var duenn = new Pen(Color.FromArgb(210, 216, 226));
-        // Tageskopf
         for (var t = 0; t < Tage; t++)
         {
             var r = Zelle(bounds, t, 1);
             var kopf = new RectangleF(r.X, bounds.Y, r.Width, KopfHoehe);
-            var heute = Woche.HasValue && Woche.Value.AddDays(t) == DateOnly.FromDateTime(DateTime.Today);
-            using (var b = new SolidBrush(heute ? Color.FromArgb(255, 210, 200) : Color.FromArgb(232, 237, 245))) g.FillRectangle(b, kopf);
-            var text = Planungsdienst.Tagname(D, t, r.Width > 70) + (Woche.HasValue && r.Width > 90 ? " " + Woche.Value.AddDays(t).ToString("dd.MM.") : "");
+            var datum = _woche?.AddDays(t);
+            var heute = datum == DateOnly.FromDateTime(DateTime.Today);
+            var gewaehlt = datum.HasValue && datum == AppZustand.Datum && AppZustand.Vertretungsmodus;
+            using (var b = new SolidBrush(gewaehlt ? Ui.BlauHell : heute ? Color.FromArgb(255, 210, 200) : Ui.Kopf)) g.FillRectangle(b, kopf);
+            var text = Planungsdienst.Tagname(D, t, r.Width > 70) + (datum.HasValue && r.Width > 60 ? " " + datum.Value.ToString("dd.MM.") : "");
             TextRenderer.DrawText(g, text, Ui.SchriftFett, Rectangle.Round(kopf), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
         }
-        // Stundenkopf
         for (var s = 1; s <= Stunden; s++)
         {
             var r = Zelle(bounds, 0, s);
@@ -112,22 +176,24 @@ public sealed class PlanAnsicht : Control
             using (var b = new SolidBrush(nachm ? Color.FromArgb(230, 245, 248) : Color.FromArgb(242, 244, 248))) g.FillRectangle(b, kopf);
             var z = zr.Zeit(s);
             var text = Format.ZeitenAnzeigen && z != null && r.Height > 26 ? $"{zr.StundenLabel(s)}\n{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}" : zr.StundenLabel(s);
-            TextRenderer.DrawText(g, text, r.Height > 26 ? Ui.SchriftKlein : Ui.SchriftKlein, Rectangle.Round(kopf), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, text, Ui.SchriftKlein, Rectangle.Round(kopf), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
         }
-        // Zellen
-        var plan = Ix.PlanVon(Typ, ElementId).ToList();
+        var plan = Tagesmodus ? new List<Planstunde>() : Ix.PlanVon(Typ, ElementId).ToList();
         var el = Ix.Element(Typ, ElementId);
         for (var t = 0; t < Tage; t++)
         {
-            var ferien = Woche.HasValue ? Kalender.FerienAm(D, Woche.Value.AddDays(t)) : null;
+            var datum = _woche?.AddDays(t);
+            var ferien = datum.HasValue ? Kalender.FerienAm(D, datum.Value) : null;
+            var kt = datum.HasValue ? Kalender.KalendertagAm(D, datum.Value) : null;
             for (var s = 1; s <= Stunden; s++)
             {
                 var r = Zelle(bounds, t, s);
                 var hint = Color.White;
+                var frei = kt?.StundeFrei(s) == true;
                 if (!zr.Verfuegbar(t, s)) hint = Color.FromArgb(225, 225, 225);
-                else if (ferien != null) hint = Color.FromArgb(255, 248, 220);
-                else if (!druck && _status is null && el != null && Format.DragDropZeitwunschFarben)
+                else if (ferien != null || frei) hint = Color.FromArgb(255, 248, 220);
+                else if (!druck && _status is null && el != null && Format.DragDropZeitwunschFarben && !Tagesmodus)
                 {
                     var w = el.Zeitwuensche.Get(t, s);
                     if (w != 0) hint = Color.FromArgb(70, Ui.ZeitwunschFarbe(w));
@@ -144,15 +210,27 @@ public sealed class PlanAnsicht : Control
                     };
                 }
                 using (var b = new SolidBrush(hint)) g.FillRectangle(b, r);
-                var stunden = plan.Where(p => p.Tag == t && p.Stunde == s).ToList();
-                var kollision = stunden.Select(p => Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId)).Where(u => u != null)
-                    .Select(u => string.IsNullOrWhiteSpace(u!.Band) ? "#" + u.Id : u.Band).Distinct().Count() > 1 && Typ != ElementTyp.Fach;
-                for (var i = 0; i < stunden.Count; i++)
+                if (Tagesmodus)
                 {
-                    var teil = new RectangleF(r.X + 1, r.Y + 1 + i * (r.Height - 1) / stunden.Count, r.Width - 2, (r.Height - 1) / stunden.Count - 1);
-                    StundeZeichnen(g, teil, stunden[i], Woche?.AddDays(t), druck, kollision);
+                    var eintraege = EintraegeAm(t, s);
+                    for (var i = 0; i < eintraege.Count; i++)
+                    {
+                        var teil = new RectangleF(r.X + 1, r.Y + 1 + i * (r.Height - 1) / eintraege.Count, r.Width - 2, (r.Height - 1) / eintraege.Count - 1);
+                        EintragZeichnen(g, teil, eintraege[i], datum!.Value, druck);
+                    }
+                    if (frei && s == 1) TextRenderer.DrawText(g, "frei", Ui.SchriftKlein, Rectangle.Round(r), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
                 }
-                if (Woche.HasValue) ZusatzVertretungen(g, r, Woche.Value.AddDays(t), s, stunden.Count);
+                else
+                {
+                    var stunden = plan.Where(p => p.Tag == t && p.Stunde == s).ToList();
+                    var kollision = stunden.Select(p => Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId)).Where(u => u != null)
+                        .Select(u => string.IsNullOrWhiteSpace(u!.Band) ? "#" + u.Id : u.Band).Distinct().Count() > 1 && Typ != ElementTyp.Fach && !AbWochenGetrennt(stunden);
+                    for (var i = 0; i < stunden.Count; i++)
+                    {
+                        var teil = new RectangleF(r.X + 1, r.Y + 1 + i * (r.Height - 1) / stunden.Count, r.Width - 2, (r.Height - 1) / stunden.Count - 1);
+                        StundeZeichnen(g, teil, stunden[i], druck, kollision);
+                    }
+                }
                 if (ferien != null && s == 1) TextRenderer.DrawText(g, ferien.Kurzname, Ui.SchriftKlein, Rectangle.Round(r), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
                 g.DrawRectangle(duenn, r.X, r.Y, r.Width, r.Height);
                 if (!druck && _hover.HasValue && _hover.Value.Tag == t && _hover.Value.Stunde == s)
@@ -162,15 +240,37 @@ public sealed class PlanAnsicht : Control
         g.DrawRectangle(linie, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
     }
 
-    private Color Farbe(Unterricht u, int zeile)
+    /// <summary>Stunden verschiedener Unterrichtsgruppen (A/B-Woche) im selben Feld sind keine Kollision.</summary>
+    private static bool AbWochenGetrennt(List<Planstunde> stunden)
     {
-        var z = u.Zeilen.ElementAtOrDefault(zeile) ?? u.Zeilen.FirstOrDefault();
-        if (z is null) return Color.FromArgb(230, 230, 240);
+        if (stunden.Count < 2) return false;
+        var gruppen = stunden.Select(p => Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId)).Where(u => u != null).Select(u => WochenMaske(u!)).ToList();
+        for (var i = 0; i < gruppen.Count; i++)
+            for (var j = i + 1; j < gruppen.Count; j++)
+                if ((gruppen[i] & gruppen[j]) != 0) return false;
+        return true;
+    }
+
+    /// <summary>Bitmaske der Wochen (A=1, B=2, …), in denen ein Unterricht stattfindet.</summary>
+    public static int WochenMaske(Unterricht u)
+    {
+        var n = Math.Clamp(D.Einstellungen.Wochenperiodizitaet, 1, 16);
+        var alle = (1 << n) - 1;
+        if (u.Periodizitaet == Periodizitaet.AWoche) return 1;
+        if (u.Periodizitaet == Periodizitaet.BWoche) return 2;
+        if (u.UGruppeId is int g && D.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug && !string.IsNullOrWhiteSpace(ug.Wochen))
+            return ug.Wochen.ToUpperInvariant().Where(char.IsLetter).Aggregate(0, (m, c) => m | (1 << (c - 'A'))) & alle;
+        return alle;
+    }
+
+    private Color Farbe(Unterricht? u, int zeile, int? fachId = null)
+    {
+        var z = u?.Zeilen.ElementAtOrDefault(zeile) ?? u?.Zeilen.FirstOrDefault();
         Element? e = Format.Farbe switch
         {
-            FarbeNach.Fach => z.FachId.HasValue ? Ix.Faecher.GetValueOrDefault(z.FachId.Value) : null,
-            FarbeNach.Lehrer => z.LehrerId.HasValue ? Ix.Lehrer.GetValueOrDefault(z.LehrerId.Value) : null,
-            FarbeNach.Klasse => z.KlassenIds.Count > 0 ? Ix.Klassen.GetValueOrDefault(z.KlassenIds[0]) : null,
+            FarbeNach.Fach => (z?.FachId ?? fachId) is int f ? Ix.Faecher.GetValueOrDefault(f) : null,
+            FarbeNach.Lehrer => z?.LehrerId is int l ? Ix.Lehrer.GetValueOrDefault(l) : null,
+            FarbeNach.Klasse => z?.KlassenIds.Count > 0 ? Ix.Klassen.GetValueOrDefault(z.KlassenIds[0]) : null,
             _ => null,
         };
         return Ui.Farbe(e?.Hintergrund ?? 0, Color.FromArgb(225, 232, 245));
@@ -183,10 +283,9 @@ public sealed class PlanAnsicht : Control
         return e is null ? "?" : Format.Langname && e.Langname.Length > 0 ? e.Langname : e.Kurzname;
     }
 
-    private void StundeZeichnen(Graphics g, RectangleF r, Planstunde p, DateOnly? datum, bool druck, bool kollision)
+    private void StundeZeichnen(Graphics g, RectangleF r, Planstunde p, bool druck, bool kollision)
     {
         if (!Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) return;
-        // Zeilen dieses Elements (bei Kopplungen nur die relevanten)
         var zeilen = Enumerable.Range(0, u.Zeilen.Count).Where(i => Typ switch
         {
             ElementTyp.Klasse => u.Zeilen[i].KlassenIds.Contains(ElementId),
@@ -197,110 +296,115 @@ public sealed class PlanAnsicht : Control
         }).ToList();
         if (zeilen.Count == 0) zeilen.Add(0);
         var farbe = Farbe(u, zeilen[0]);
-        var vertretung = datum.HasValue ? D.Vertretungen.FirstOrDefault(v => v.Datum == datum && v.Stunde == p.Stunde && v.UnterrichtId == u.Id && zeilen.Contains(v.ZeilenIndex)) : null;
-        var entfall = vertretung?.Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung or VertretungsArt.Verlegung;
-        if (entfall) farbe = Color.FromArgb(235, 235, 235);
         using (var b = new SolidBrush(farbe)) g.FillRectangle(b, r);
         var text = Ui.Textfarbe(farbe);
-        var gewaehlt = !druck && p == Ausgewaehlt;
-        var schrift = new Font("Segoe UI", Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
-        var klein = new Font("Segoe UI", Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
-        try
+        var gewaehlt = !druck && (p == Ausgewaehlt || Mehrfach.Contains(p));
+        using var schrift = new Font("Segoe UI", Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
+        using var klein = new Font("Segoe UI", Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
+        var ug = u.UGruppeId is int ugid ? D.UGruppen.FirstOrDefault(x => x.Id == ugid)?.Kurzname : u.Periodizitaet switch { Periodizitaet.AWoche => "A", Periodizitaet.BWoche => "B", _ => null };
+        if (Format.Standardformat || Format.Felder.Count == 0)
         {
-            if (Format.Standardformat || Format.Felder.Count == 0)
+            var z = u.Zeilen[zeilen[0]];
+            var kopf = (p.Fixiert ? "*" : "") + Kurz(ElementTyp.Fach, z.FachId) + (u.Kursname.Length > 0 && r.Width > 60 ? " " + u.Kursname : "") + (ug != null ? $" ({ug})" : "");
+            var info = Typ switch
             {
-                var z = u.Zeilen[zeilen[0]];
-                var kopf = (p.Fixiert ? "*" : "") + Kurz(ElementTyp.Fach, z.FachId) + (u.Kursname.Length > 0 && r.Width > 60 ? " " + u.Kursname : "");
-                var info = Typ switch
+                ElementTyp.Klasse => string.Join(",", zeilen.Select(i => Kurz(ElementTyp.Lehrer, u.Zeilen[i].LehrerId) + ZeilenGruppe(u.Zeilen[i]))),
+                ElementTyp.Lehrer => Ix.KKlassen(u.Zeilen[zeilen[0]].KlassenIds),
+                ElementTyp.Raum => Ix.KKlassen(u.KlassenIds) + " " + string.Join(",", zeilen.Select(i => Kurz(ElementTyp.Lehrer, u.Zeilen[i].LehrerId))),
+                _ => Ix.KKlassen(u.KlassenIds) + " " + Kurz(ElementTyp.Lehrer, z.LehrerId),
+            };
+            var raum = Typ == ElementTyp.Raum ? "" : string.Join(",", zeilen.Select(i => Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))).Where(x => x.Length > 0));
+            if (Format.Gross && u.Zeilen.Count > 1 && r.Height > 40)
+            {
+                var y = r.Y + 1;
+                var zh = (r.Height - 2) / u.Zeilen.Count;
+                for (var i = 0; i < u.Zeilen.Count; i++)
                 {
-                    ElementTyp.Klasse => string.Join(",", zeilen.Select(i => Kurz(ElementTyp.Lehrer, u.Zeilen[i].LehrerId))),
-                    ElementTyp.Lehrer => Ix.KKlassen(u.Zeilen[zeilen[0]].KlassenIds),
-                    ElementTyp.Raum => Ix.KKlassen(u.KlassenIds) + " " + string.Join(",", zeilen.Select(i => Kurz(ElementTyp.Lehrer, u.Zeilen[i].LehrerId))),
-                    _ => Ix.KKlassen(u.KlassenIds) + " " + Kurz(ElementTyp.Lehrer, z.LehrerId),
-                };
-                var raum = Typ == ElementTyp.Raum ? "" : string.Join(",", zeilen.Select(i => Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))).Where(x => x.Length > 0));
-                if (vertretung != null)
-                {
-                    if (vertretung.VertreterId.HasValue && vertretung.VertreterId != z.LehrerId && Typ != ElementTyp.Lehrer) info = "+" + Kurz(ElementTyp.Lehrer, vertretung.VertreterId);
-                    if (vertretung.VertretungsraumId.HasValue) raum = Kurz(ElementTyp.Raum, vertretung.VertretungsraumId);
+                    var zz = u.Zeilen[i];
+                    var zeileText = $"{(p.Fixiert && i == 0 ? "*" : "")}{Kurz(ElementTyp.Fach, zz.FachId)} {Kurz(ElementTyp.Lehrer, zz.LehrerId)} {Ix.KKlassen(zz.KlassenIds)} {Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))}{ZeilenGruppe(zz)}";
+                    TextRenderer.DrawText(g, zeileText, klein, new Rectangle((int)r.X + 2, (int)y, (int)r.Width - 3, (int)zh), text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                    y += zh;
                 }
-                var zweizeilig = r.Height >= 26;
-                if (Format.Gross && u.Zeilen.Count > 1 && r.Height > 40)
-                {
-                    // Großes Format: alle Kopplungszeilen
-                    var y = r.Y + 1;
-                    var zh = (r.Height - 2) / u.Zeilen.Count;
-                    for (var i = 0; i < u.Zeilen.Count; i++)
-                    {
-                        var zz = u.Zeilen[i];
-                        var zeileText = $"{(p.Fixiert && i == 0 ? "*" : "")}{Kurz(ElementTyp.Fach, zz.FachId)} {Kurz(ElementTyp.Lehrer, zz.LehrerId)} {Ix.KKlassen(zz.KlassenIds)} {Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))}";
-                        TextRenderer.DrawText(g, zeileText, klein, new Rectangle((int)r.X + 2, (int)y, (int)r.Width - 3, (int)zh), text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-                        y += zh;
-                    }
-                }
-                else if (zweizeilig)
-                {
-                    TextRenderer.DrawText(g, kopf, schrift, new Rectangle((int)r.X + 2, (int)r.Y + 1, (int)r.Width - 3, (int)(r.Height / 2)), text, TextFormatFlags.Left | TextFormatFlags.Bottom | TextFormatFlags.EndEllipsis);
-                    var unten = (info + " " + raum).Trim();
-                    TextRenderer.DrawText(g, unten, klein, new Rectangle((int)r.X + 2, (int)(r.Y + r.Height / 2), (int)r.Width - 3, (int)(r.Height / 2)), vertretung?.VertreterId != null ? Color.DarkRed : text, TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.EndEllipsis);
-                }
-                else
-                    TextRenderer.DrawText(g, kopf + " " + info, klein, Rectangle.Round(r), text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            }
+            else if (r.Height >= 26)
+            {
+                TextRenderer.DrawText(g, kopf, schrift, new Rectangle((int)r.X + 2, (int)r.Y + 1, (int)r.Width - 3, (int)(r.Height / 2)), text, TextFormatFlags.Left | TextFormatFlags.Bottom | TextFormatFlags.EndEllipsis);
+                TextRenderer.DrawText(g, (info + " " + raum).Trim(), klein, new Rectangle((int)r.X + 2, (int)(r.Y + r.Height / 2), (int)r.Width - 3, (int)(r.Height / 2)), text, TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.EndEllipsis);
             }
             else
+                TextRenderer.DrawText(g, kopf + " " + info, klein, Rectangle.Round(r), text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+        else
+        {
+            foreach (var f in Format.Felder)
             {
-                foreach (var f in Format.Felder)
+                var zi = Math.Clamp(f.Zeile - 1, 0, u.Zeilen.Count - 1);
+                var z = u.Zeilen[zi];
+                var wert = f.Art switch
                 {
-                    var zi = Math.Clamp(f.Zeile - 1, 0, u.Zeilen.Count - 1);
-                    var z = u.Zeilen[zi];
-                    var wert = f.Art switch
-                    {
-                        StundenFeldArt.Fach => (p.Fixiert && zi == 0 ? "*" : "") + Kurz(ElementTyp.Fach, z.FachId),
-                        StundenFeldArt.Lehrer => Kurz(ElementTyp.Lehrer, z.LehrerId),
-                        StundenFeldArt.Klasse => Ix.KKlassen(z.KlassenIds),
-                        StundenFeldArt.Raum => Kurz(ElementTyp.Raum, p.RaumFuerZeile(zi)),
-                        StundenFeldArt.UNr => u.Id.ToString(),
-                        StundenFeldArt.Text => u.Text,
-                        StundenFeldArt.Gruppe => u.Schuelergruppe,
-                        StundenFeldArt.Kurs => u.Kursname,
-                        _ => D.Zeitraster.Zeit(p.Stunde)?.Beginn.ToString("H:mm") ?? "",
-                    };
-                    var fr = new RectangleF(r.X + f.X * r.Width, r.Y + f.Y * r.Height, f.B * r.Width, f.H * r.Height);
-                    using var ff = new Font("Segoe UI", Math.Max(5.5f, Math.Min(Format.Schriftgroesse * f.SchriftProzent / 100f, fr.Height / 1.6f)), f.Fett ? FontStyle.Bold : FontStyle.Regular);
-                    TextRenderer.DrawText(g, wert, ff, Rectangle.Round(fr), text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-                }
+                    StundenFeldArt.Fach => (p.Fixiert && zi == 0 ? "*" : "") + Kurz(ElementTyp.Fach, z.FachId),
+                    StundenFeldArt.Lehrer => Kurz(ElementTyp.Lehrer, z.LehrerId),
+                    StundenFeldArt.Klasse => Ix.KKlassen(z.KlassenIds),
+                    StundenFeldArt.Raum => Kurz(ElementTyp.Raum, p.RaumFuerZeile(zi)),
+                    StundenFeldArt.UNr => u.Id.ToString(),
+                    StundenFeldArt.Text => u.Text,
+                    StundenFeldArt.Gruppe => u.Schuelergruppe,
+                    StundenFeldArt.Kurs => u.Kursname,
+                    _ => D.Zeitraster.Zeit(p.Stunde)?.Beginn.ToString("H:mm") ?? "",
+                };
+                var fr = new RectangleF(r.X + f.X * r.Width, r.Y + f.Y * r.Height, f.B * r.Width, f.H * r.Height);
+                using var ff = new Font("Segoe UI", Math.Max(5.5f, Math.Min(Format.Schriftgroesse * f.SchriftProzent / 100f, fr.Height / 1.6f)), f.Fett ? FontStyle.Bold : FontStyle.Regular);
+                TextRenderer.DrawText(g, wert, ff, Rectangle.Round(fr), text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             }
         }
-        finally
-        {
-            schrift.Dispose();
-            klein.Dispose();
-        }
-        if (entfall)
-            using (var pen = new Pen(Color.FromArgb(200, 60, 60), 1.5f)) g.DrawLine(pen, r.Left + 2, r.Bottom - 3, r.Right - 2, r.Top + 3);
         if (kollision)
             using (var pen = new Pen(Color.Red, 2)) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
         if (gewaehlt)
-            using (var pen = new Pen(Color.FromArgb(255, 140, 0), 2.5f)) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+            using (var pen = new Pen(Color.FromArgb(255, 140, 0), 2.5f) { DashStyle = Mehrfach.Contains(p) && p != Ausgewaehlt ? DashStyle.Dash : DashStyle.Solid }) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
     }
 
-    /// <summary>Vertretungen, die der Lehrer zusätzlich übernimmt (nur in der Wochenansicht).</summary>
-    private void ZusatzVertretungen(Graphics g, RectangleF r, DateOnly datum, int stunde, int belegt)
+    private static string ZeilenGruppe(Kopplungszeile z) =>
+        z.UGruppeId is int g && D.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug ? $"({ug.Kurzname})" : "";
+
+    private void EintragZeichnen(Graphics g, RectangleF r, TagesEintrag e, DateOnly datum, bool druck)
     {
-        if (Typ != ElementTyp.Lehrer && Typ != ElementTyp.Raum) return;
-        var zusatz = D.Vertretungen.Where(v => v.Datum == datum && v.Stunde == stunde &&
-            (Typ == ElementTyp.Lehrer ? v.VertreterId == ElementId && v.LehrerId != ElementId : v.VertretungsraumId == ElementId)).ToList();
-        if (zusatz.Count == 0) return;
-        var h = r.Height / (belegt + zusatz.Count);
-        var y = r.Y + belegt * h;
-        foreach (var v in zusatz)
+        var geaendert = e.Vertretung != null && e.Vertretung.Art != VertretungsArt.Raumvertretung || e.Status == TagesStatus.Zusaetzlich;
+        var entfall = e.Status == TagesStatus.Entfall;
+        var farbe = entfall ? Color.FromArgb(238, 238, 238) : Farbe(e.Unterricht, e.Regel?.ZeilenIndex ?? 0, e.FachId);
+        using (var b = new SolidBrush(farbe)) g.FillRectangle(b, r);
+        var textfarbe = geaendert || e.Vertretung?.Art == VertretungsArt.Raumvertretung ? Color.FromArgb(200, 0, 0) : Ui.Textfarbe(farbe);
+        if (entfall) textfarbe = Color.Gray;
+        using var schrift = new Font("Segoe UI", Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
+        using var klein = new Font("Segoe UI", Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
+        var v = e.Vertretung;
+        var fach = Kurz(ElementTyp.Fach, e.FachId ?? e.Regel?.FachId);
+        var stern = e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true ? "*" : "";
+        var lehrer = e.Status == TagesStatus.Offen ? "???" : string.Join(",", e.LehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
+        if (v?.Art == VertretungsArt.VertretungOhneLehrer) lehrer = "+";
+        var info = Typ switch
         {
-            var rr = new RectangleF(r.X + 1, y + 1, r.Width - 2, h - 2);
-            using (var b = new SolidBrush(Color.FromArgb(255, 225, 225))) g.FillRectangle(b, rr);
-            using (var p = new Pen(Color.Red)) g.DrawRectangle(p, rr.X, rr.Y, rr.Width, rr.Height);
-            TextRenderer.DrawText(g, $"{Ix.KFach(v.VertretungsfachId ?? v.FachId)} {Ix.KKlassen(v.KlassenIds)} ({Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art)})", Ui.SchriftKlein, Rectangle.Round(rr), Color.DarkRed, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-            y += h;
+            ElementTyp.Lehrer => Ix.KKlassen(e.KlassenIds),
+            ElementTyp.Raum => (Ix.KKlassen(e.KlassenIds) + " " + lehrer).Trim(),
+            _ => lehrer,
+        };
+        if (entfall) info = v?.NachDatum.HasValue == true ? $"→ {Planungsdienst.TageKurz[((int)v.NachDatum.Value.DayOfWeek + 6) % 7]} {v.NachStunde}." : Core.Vertretungsplanung.Vertretungsplan.ArtText(v!.Art);
+        var raum = Typ == ElementTyp.Raum ? "" : string.Join(",", e.RaumIds.Select(x => Kurz(ElementTyp.Raum, x)));
+        var kopf = stern + fach;
+        if (v != null && !entfall && v.Art is not (VertretungsArt.Vertretung or VertretungsArt.Raumvertretung)) kopf += r.Width > 70 ? " " + Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art) : "";
+        if (r.Height >= 26)
+        {
+            TextRenderer.DrawText(g, kopf, schrift, new Rectangle((int)r.X + 2, (int)r.Y + 1, (int)r.Width - 3, (int)(r.Height / 2)), textfarbe, TextFormatFlags.Left | TextFormatFlags.Bottom | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, (info + " " + raum).Trim(), klein, new Rectangle((int)r.X + 2, (int)(r.Y + r.Height / 2), (int)r.Width - 3, (int)(r.Height / 2)), textfarbe, TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.EndEllipsis);
         }
+        else TextRenderer.DrawText(g, kopf + " " + info + " " + raum, klein, Rectangle.Round(r), textfarbe, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        if (entfall)
+            using (var pen = new Pen(Color.FromArgb(200, 60, 60), 1.5f)) g.DrawLine(pen, r.Left + 2, r.Bottom - 3, r.Right - 2, r.Top + 3);
+        if (e.Status == TagesStatus.Offen)
+            using (var pen = new Pen(Color.Red, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+        if (e.Status == TagesStatus.Zusaetzlich)
+            using (var pen = new Pen(Color.Red, 1.5f)) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+        if (!druck && TagesAuswahl is { } ta && ta.Datum == datum && ta.Eintrag == e)
+            using (var pen = new Pen(Color.FromArgb(255, 140, 0), 2.5f)) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -310,11 +414,34 @@ public sealed class PlanAnsicht : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         Focus();
+        if (Tagesmodus)
+        {
+            var te = EintragBei(e.Location);
+            var h = Treffer(e.Location);
+            if (h is { } hh && _woche is DateOnly w) AppZustand.DatumSetzen(w.AddDays(hh.Tag));
+            TagesAuswahl = te;
+            Invalidate();
+            if (te is { } x) TagesAuswahlGeaendert?.Invoke(x.Datum, x.Eintrag);
+            else if (h is { } h2 && _woche is DateOnly w2) TagesAuswahlGeaendert?.Invoke(w2.AddDays(h2.Tag), null);
+            if (e.Button == MouseButtons.Left) { _down = e.Location; _downEintrag = te; }
+            else if (e.Button == MouseButtons.Right && h is { } h3 && _woche is DateOnly w3) TagesKontext?.Invoke(e.Location, w3.AddDays(h3.Tag), h3.Stunde, te?.Eintrag);
+            return;
+        }
         var p = StundeBei(e.Location);
         if (e.Button == MouseButtons.Left)
         {
             _down = e.Location;
             _downStunde = p;
+            if ((ModifierKeys & Keys.Control) != 0 && p != null)
+            {
+                if (Ausgewaehlt != null && !Mehrfach.Contains(Ausgewaehlt)) Mehrfach.Add(Ausgewaehlt);
+                if (!Mehrfach.Remove(p)) Mehrfach.Add(p);
+                Ausgewaehlt = p;
+                Invalidate();
+                AuswahlGeaendert?.Invoke(p);
+                return;
+            }
+            if (!Mehrfach.Contains(p!)) Mehrfach.Clear();
             if (p != Ausgewaehlt)
             {
                 Ausgewaehlt = p;
@@ -324,29 +451,45 @@ public sealed class PlanAnsicht : Control
         }
         else if (e.Button == MouseButtons.Right)
         {
-            if (p != null && p != Ausgewaehlt) { Ausgewaehlt = p; Invalidate(); AuswahlGeaendert?.Invoke(p); }
+            if (p != null && p != Ausgewaehlt && !Mehrfach.Contains(p)) { Ausgewaehlt = p; Mehrfach.Clear(); Invalidate(); AuswahlGeaendert?.Invoke(p); }
             Kontext?.Invoke(e.Location, p);
         }
     }
 
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
-        if (StundeBei(e.Location) is { } p) Doppelklick?.Invoke(p);
+        if (!Tagesmodus && StundeBei(e.Location) is { } p) Doppelklick?.Invoke(p);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        if (e.Button == MouseButtons.Left && _downStunde != null && Bearbeitbar && Woche is null &&
-            (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4))
+        var weit = Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4;
+        if (e.Button == MouseButtons.Left && weit && Bearbeitbar)
         {
-            var p = _downStunde;
-            _downStunde = null;
-            var idx = D.Stundenplan.IndexOf(p);
-            if (idx >= 0) DoDragDrop("plan:" + idx, DragDropEffects.Move);
-            return;
+            if (Tagesmodus && _downEintrag is { } de && de.Item2.Findetstatt)
+            {
+                _downEintrag = null;
+                var uid = de.Item2.Unterricht?.Id ?? de.Item2.Vertretung?.UnterrichtId;
+                if (uid is null) return;
+                var zeile = Typ == ElementTyp.Lehrer ? (de.Item2.Regel?.ZeilenIndex ?? de.Item2.Vertretung?.ZeilenIndex ?? 0) : -1;
+                DoDragDrop($"tag:{de.Item1:yyyyMMdd}:{de.Item2.Stunde}:{uid}:{zeile}", DragDropEffects.Move);
+                return;
+            }
+            if (!Tagesmodus && _downStunde != null)
+            {
+                var p = _downStunde;
+                _downStunde = null;
+                var mitgezogen = Mehrfach.Count > 1 && Mehrfach.Contains(p) ? Mehrfach.ToList() : Block(p);
+                var idx = D.Stundenplan.IndexOf(p);
+                if (idx < 0) return;
+                var alle = mitgezogen.Select(x => D.Stundenplan.IndexOf(x)).Where(i => i >= 0);
+                DoDragDrop($"plan:{idx};{string.Join(",", alle)}", DragDropEffects.Move);
+                return;
+            }
         }
-        var s = StundeBei(e.Location);
-        var tip = s is null ? "" : Lupentext(s);
+        string tip;
+        if (Tagesmodus) tip = EintragBei(e.Location) is { } te ? TagesLupentext(te.Eintrag) : "";
+        else tip = StundeBei(e.Location) is { } s ? Lupentext(s) : "";
         if (tip != _letzterTip)
         {
             _letzterTip = tip;
@@ -357,34 +500,95 @@ public sealed class PlanAnsicht : Control
     public static string Lupentext(Planstunde p)
     {
         if (!Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) return "";
-        var zeilen = u.Zeilen.Select((z, i) => $"{Ix.KFach(z.FachId)}  {Ix.KLehrer(z.LehrerId)}  {Ix.KKlassen(z.KlassenIds)}  {Ix.KRaum(p.RaumFuerZeile(i))}");
+        var zeilen = u.Zeilen.Select((z, i) => $"{Ix.KFach(z.FachId)}  {Ix.KLehrer(z.LehrerId)}  {Ix.KKlassen(z.KlassenIds)}  {Ix.KRaum(p.RaumFuerZeile(i))}{ZeilenGruppe(z)}");
         return $"U-Nr. {u.Id}{(p.Fixiert ? " (fixiert)" : "")}\n{string.Join("\n", zeilen)}";
     }
 
-    private Unterricht? DragUnterricht(DragEventArgs e, out Planstunde? quelle)
+    public static string TagesLupentext(TagesEintrag e)
     {
-        quelle = null;
-        if (e.Data?.GetData(DataFormats.Text) is not string s) return null;
-        if (s.StartsWith("plan:") && int.TryParse(s[5..], out var idx) && idx < D.Stundenplan.Count)
-        {
-            quelle = D.Stundenplan[idx];
-            return Ix.Unterrichte.GetValueOrDefault(quelle.UnterrichtId);
-        }
-        if (s.StartsWith("unterricht:") && int.TryParse(s[11..], out var uid)) return Ix.Unterrichte.GetValueOrDefault(uid);
-        return null;
+        var v = e.Vertretung;
+        var basis = $"{Ix.KFach(e.FachId)}  {string.Join(",", e.LehrerIds.Select(Ix.KLehrer))}  {Ix.KKlassen(e.KlassenIds)}  {string.Join(",", e.RaumIds.Select(Ix.KRaum))}";
+        if (v is null) return (e.Unterricht != null ? $"U-Nr. {e.Unterricht.Id}\n" : "") + basis;
+        return $"Vtr-Nr. {v.Id}: {Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art)}\n{basis}" +
+               (v.LehrerId.HasValue ? $"\n(Lehrer) {Ix.KLehrer(v.LehrerId)}" : "") + (string.IsNullOrEmpty(v.Text) ? "" : "\n" + v.Text);
+    }
+
+    /// <summary>Gezogene Stunden: primäre Planstunde und alle mitgezogenen (Block bzw. Mehrfachauswahl).</summary>
+    public static (Planstunde? Primaer, List<Planstunde> Alle) PlanDaten(string s)
+    {
+        if (!s.StartsWith("plan:")) return (null, new());
+        var teile = s[5..].Split(';');
+        if (!int.TryParse(teile[0], out var idx) || idx >= D.Stundenplan.Count) return (null, new());
+        var alle = teile.Length > 1 ? teile[1].Split(',').Select(x => int.TryParse(x, out var i) && i < D.Stundenplan.Count ? D.Stundenplan[i] : null).OfType<Planstunde>().ToList() : new();
+        if (alle.Count == 0) alle.Add(D.Stundenplan[idx]);
+        return (D.Stundenplan[idx], alle);
     }
 
     protected override void OnDragEnter(DragEventArgs e)
     {
-        var u = DragUnterricht(e, out var quelle);
-        if (u is null || !Bearbeitbar || Woche.HasValue) { e.Effect = DragDropEffects.None; return; }
-        e.Effect = DragDropEffects.Move;
+        if (!Bearbeitbar || e.Data?.GetData(DataFormats.Text) is not string s) { e.Effect = DragDropEffects.None; return; }
         _status = new Feldstatus[Tage, Stunden];
-        var ignorieren = quelle is null ? null : new List<Planstunde> { quelle };
-        for (var t = 0; t < Tage; t++)
-            for (var s = 1; s <= Stunden; s++)
-                _status[t, s - 1] = Planungsdienst.Status(D, Ix, u, t, s, 1, ignorieren);
+        if (Tagesmodus)
+        {
+            if (!s.StartsWith("tag:") && !s.StartsWith("vormerkung:")) { _status = null; e.Effect = DragDropEffects.None; return; }
+            var (lehrer, klassen, uid, raum) = TagesDragDaten(s);
+            for (var t = 0; t < Tage; t++)
+                for (var st = 1; st <= Stunden; st++)
+                    _status[t, st - 1] = _tage.TryGetValue(t, out var tp) ? Vertretungen.Feldstatus(D, tp, lehrer, klassen, st, uid, raum) : Feldstatus.Kollision;
+        }
+        else if (s.StartsWith("plan:"))
+        {
+            var (prim, alle) = PlanDaten(s);
+            if (prim is null) { _status = null; e.Effect = DragDropEffects.None; return; }
+            for (var t = 0; t < Tage; t++)
+                for (var st = 1; st <= Stunden; st++)
+                    _status[t, st - 1] = Kombiniert(alle.Select(x => (x, x.Tag - prim.Tag + t, x.Stunde - prim.Stunde + st)).ToList(), alle);
+        }
+        else if (s.StartsWith("unterricht:"))
+        {
+            var uids = s[11..].Split(',').Select(x => int.TryParse(x, out var i) ? Ix.Unterrichte.GetValueOrDefault(i) : null).OfType<Unterricht>().ToList();
+            if (uids.Count == 0) { _status = null; e.Effect = DragDropEffects.None; return; }
+            var laenge = uids[0].Bloecke().FirstOrDefault(b => b > 0);
+            for (var t = 0; t < Tage; t++)
+                for (var st = 1; st <= Stunden; st++)
+                    _status[t, st - 1] = uids.Select(u => Planungsdienst.Status(D, Ix, u, t, st, Math.Max(1, uids.Count == 1 ? laenge : 1))).Max(Schwere) is var m ? AusSchwere(m) : Feldstatus.Frei;
+        }
+        else { _status = null; e.Effect = DragDropEffects.None; return; }
+        e.Effect = DragDropEffects.Move;
         Invalidate();
+    }
+
+    private static int Schwere(Feldstatus f) => f switch { Feldstatus.Frei => 0, Feldstatus.KeinRaum => 1, Feldstatus.VorgabeVerletzt => 2, Feldstatus.TauschMoeglich => 3, _ => 4 };
+    private static Feldstatus AusSchwere(int s) => s switch { 0 => Feldstatus.Frei, 1 => Feldstatus.KeinRaum, 2 => Feldstatus.VorgabeVerletzt, 3 => Feldstatus.TauschMoeglich, _ => Feldstatus.Kollision };
+
+    private Feldstatus Kombiniert(List<(Planstunde P, int Tag, int Stunde)> ziele, List<Planstunde> ignorieren)
+    {
+        var schlimmste = 0;
+        foreach (var (p, t, s) in ziele)
+        {
+            if (t < 0 || t >= Tage || s < 1 || s > Stunden) return Feldstatus.Kollision;
+            if (!Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) continue;
+            var f = Planungsdienst.Status(D, Ix, u, t, s, 1, ignorieren);
+            if (f == Feldstatus.TauschMoeglich && ziele.Count > 1) f = Feldstatus.Kollision;
+            schlimmste = Math.Max(schlimmste, Schwere(f));
+        }
+        return AusSchwere(schlimmste);
+    }
+
+    private (List<int> Lehrer, List<int> Klassen, int Uid, int? Raum) TagesDragDaten(string s)
+    {
+        if (s.StartsWith("vormerkung:") && int.TryParse(s[11..], out var vid) && D.Vormerkungen.FirstOrDefault(x => x.Id == vid) is { } vm)
+            return (vm.LehrerIds, vm.KlassenIds, -1, vm.RaumId);
+        var t = s.Split(':');
+        if (t.Length < 5) return (new(), new(), -1, null);
+        var datum = DateOnly.ParseExact(t[1], "yyyyMMdd");
+        var stunde = int.Parse(t[2]);
+        var uid = int.Parse(t[3]);
+        var zeile = int.Parse(t[4]);
+        var tp = Tagesplan.Berechnen(D, datum);
+        var e = tp.Stunde(stunde).Where(x => x.Findetstatt && (x.Unterricht?.Id ?? x.Vertretung?.UnterrichtId) == uid && (zeile < 0 || (x.Regel?.ZeilenIndex ?? x.Vertretung?.ZeilenIndex) == zeile)).ToList();
+        var lehrer = e.SelectMany(x => x.Regel?.LehrerId is int l ? new[] { l } : x.LehrerIds.ToArray()).Distinct().ToList();
+        return (lehrer, e.SelectMany(x => x.KlassenIds).Distinct().ToList(), uid, e.SelectMany(x => x.RaumIds).Cast<int?>().FirstOrDefault());
     }
 
     protected override void OnDragOver(DragEventArgs e)
@@ -414,5 +618,13 @@ public sealed class PlanAnsicht : Control
         Invalidate();
         if (h is null || e.Data?.GetData(DataFormats.Text) is not string s) return;
         Abgelegt?.Invoke(s, h.Value.Tag, h.Value.Stunde);
+    }
+
+    public void AuswahlLeeren()
+    {
+        Ausgewaehlt = null;
+        Mehrfach.Clear();
+        TagesAuswahl = null;
+        Invalidate();
     }
 }

@@ -76,10 +76,21 @@ public sealed partial class HauptFenster
         Schritt("13_Zeitraster", () => new ZeitrasterDialog().Show(this), 0);
         Schritt("14_Einstellungen", () => new EinstellungenDialog().Show(this), 0);
         Schritt("15_Ferien", () => Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), 0);
-        Schritt("16_Vertretungen", () => Max(Oeffnen<VertretungenFenster>("vertr", () => new VertretungenFenster())), 5);
-        Schritt("17_Abwesenheiten", () => Max(Oeffnen<AbwesenheitenFenster>("abw", () => new AbwesenheitenFenster())), 5);
-        Schritt("18_Pausenaufsichten", () => Max(Oeffnen<PausenaufsichtFenster>("pause", () => new PausenaufsichtFenster())), 5);
-        Schritt("19_Statistik", () => Max(Oeffnen<StatistikFenster>("stat", () => new StatistikFenster())), 5);
+        Schritt("16_Vertretungsmodus", VertretungsmodusUmschalten, -1, false);
+        Schritt("17_Vertretungen", () => Max(FensterOeffnen("vertr")!), -1);
+        Schritt("18_Vertretungsvorschlag", () =>
+        {
+            var offen = AppZustand.D.Vertretungen.Where(v => v.Datum == AppZustand.Datum).OrderByDescending(v => v.Offen).FirstOrDefault();
+            AppZustand.VertretungWaehlen(offen);
+            Max(FensterOeffnen("vorschlag")!);
+        }, -1);
+        Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
+        Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
+        Schritt("19b_Pausenaufsichten", () => Max(FensterOeffnen("pause")!), -1);
+        Schritt("19c_Statistik", () => Max(FensterOeffnen("stat")!), -1);
+        Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
+        Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
+        Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
         Schritt("20_Wertrechnung", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(0))), 6);
         Schritt("21_Unterrichtsmatrix", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(1))), 6);
         Schritt("22_Stundentafel", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(2))), 6);

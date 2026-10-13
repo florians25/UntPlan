@@ -59,6 +59,7 @@ public sealed partial class HauptFenster : Form
             if (c is MdiClient mdi) mdi.BackColor = Ui.MdiHintergrund;
 
         RibbonAufbauen();
+        ModusVorbereiten();
         AppZustand.DokumentGewechselt += DokumentAnmelden;
         DokumentAnmelden();
 
@@ -216,7 +217,7 @@ public sealed partial class HauptFenster : Form
             E("Über UntPlan", "info", () => Ui.Info("UntPlan 1.0\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.", "Über UntPlan")),
         }));
         g = Gruppe(start, "Module");
-        g.Eintraege.Add(E("Vertretungsplanung", "vertretung", () => Oeffnen<VertretungenFenster>("vertr", () => new VertretungenFenster()), true));
+        g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretung", Klick = VertretungsmodusUmschalten, Gross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
         g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan));
         g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => Oeffnen<PausenaufsichtFenster>("pause", () => new PausenaufsichtFenster())));
         g.Eintraege.Add(E("Kalender / Ferien", "kalender", () => Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));
@@ -229,7 +230,7 @@ public sealed partial class HauptFenster : Form
             E("Stundenpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Klasse)),
             E("Lehrerpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Lehrer)),
             E("Raumpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Raum)),
-            E("Vertretungsplan…", "vertretung", () => Oeffnen<VertretungenFenster>("vertr", () => new VertretungenFenster())),
+            E("Vertretungsplan (HTML)…", "vertretung", () => VertretungenFenster.HtmlAusgabe(AppZustand.Datum, 2, false)),
         }));
         g.Eintraege.Add(E("Element-Rollup", "rollup", () => ElementRollup.Zeigen()));
         g.Eintraege.Add(E("Vergleichsmodus", "suchen", () => VergleichDialog.Zeigen(this)));
@@ -268,7 +269,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Kommentare", "kommentar", () => Oeffnen<KommentarUebersicht>("komm", () => new KommentarUebersicht())));
         g.Eintraege.Add(E("Import/Export", "import", null, menue: ImportExportMenue()));
 
-        var planung = _ribbon.Seite("Planung");
+        var planung = _ribbon.Seite("Planung", () => !AppZustand.Vertretungsmodus);
         g = Gruppe(planung, "Manuelles Planen");
         g.Eintraege.Add(E("Planen", "planen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false), true, hinweis: "Stundenplan öffnen und Stunden per Drag & Drop verplanen"));
         g.Eintraege.Add(E("Tauschvorschläge", "tausch", () => StundenplanFenster.AktivesOderNeu()?.TauschvorschlaegeZeigen(), true));
@@ -304,27 +305,15 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Info-Stundenplan (HTML)", "html", InfoStundenplan, true));
         g.Eintraege.Add(E("iCalendar", "kalender", ICalExport, true));
 
-        var kurs = _ribbon.Seite("Kursplanung");
+        var kurs = _ribbon.Seite("Kursplanung", () => !AppZustand.Vertretungsmodus);
         g = Gruppe(kurs, "Kursplanung");
         g.Eintraege.Add(E("Kurse & Bänder", "kurs", () => Oeffnen<KursplanungFenster>("kurs", () => new KursplanungFenster()), true));
         g.Eintraege.Add(E("Schüler", "schueler", () => Oeffnen<StammdatenFenster>("st:Schueler", () => new StammdatenFenster(ElementTyp.Schueler)), true));
         g.Eintraege.Add(E("Schüler importieren", "import", ImportSchueler, true));
 
-        var vp = _ribbon.Seite("Vertretungsplanung");
-        g = Gruppe(vp, "Vertretungsplanung");
-        g.Eintraege.Add(E("Vertretungen", "vertretung", () => Oeffnen<VertretungenFenster>("vertr", () => new VertretungenFenster()), true));
-        g.Eintraege.Add(E("Abwesenheiten", "abwesenheit", () => Oeffnen<AbwesenheitenFenster>("abw", () => new AbwesenheitenFenster()), true));
-        g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => Oeffnen<PausenaufsichtFenster>("pause", () => new PausenaufsichtFenster()), true));
-        g = Gruppe(vp, "Ausgabe");
-        g.Eintraege.Add(E("Vertretungsplan (HTML)", "html", () => VertretungenFenster.HtmlAusgabe(DateOnly.FromDateTime(DateTime.Today), 2, false), true));
-        g.Eintraege.Add(E("Monitor", "monitor", () => new MonitorFenster().Show(), true));
-        g.Eintraege.Add(E("Statistik", "statistik", () => Oeffnen<StatistikFenster>("stat", () => new StatistikFenster()), true));
-        g = Gruppe(vp, "Stammdaten");
-        g.Eintraege.Add(E("Abwesenheitsgründe", "abwesenheit", () => Oeffnen<StammdatenFenster>("st:Grund", () => new StammdatenFenster(ElementTyp.Abwesenheitsgrund))));
-        g.Eintraege.Add(E("Gänge", "pausenaufsicht", () => Oeffnen<StammdatenFenster>("st:Gang", () => new StammdatenFenster(ElementTyp.Gang))));
-        g.Eintraege.Add(E("Vertretungsgewichtung", "gewichtung", () => new EinstellungenDialog("Vertretungsplanung").ShowDialog(this)));
+        VertretungsSeiteAufbauen();
 
-        var module = _ribbon.Seite("Module");
+        var module = _ribbon.Seite("Module", () => !AppZustand.Vertretungsmodus);
         g = Gruppe(module, "Unterrichtsplanung und Wertrechnung");
         g.Eintraege.Add(E("Lehrer Soll/Ist", "wertrechnung", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(0)), true));
         g.Eintraege.Add(E("Unterrichts-Matrix", "uebersicht", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(1)), true));
@@ -419,7 +408,7 @@ public sealed partial class HauptFenster : Form
         foreach (var f in MdiChildren) f.Close();
     }
 
-    private void AssistentUmschalten()
+    public void AssistentUmschalten()
     {
         _assistent.Visible = !_assistent.Visible;
         _assistentSplitter.Visible = _assistent.Visible;
@@ -455,7 +444,7 @@ public sealed partial class HauptFenster : Form
         if (!Verwerfen()) return;
         AlleSchliessen();
         AppZustand.Setzen(new Dokument(Demo.Beispielschule()));
-        StandardFenster();
+        if (AppZustand.Vertretungsmodus) VertretungsStandardFenster(); else StandardFenster();
     }
 
     public void Oeffnen()
@@ -474,7 +463,7 @@ public sealed partial class HauptFenster : Form
             AppZustand.Setzen(d);
             AppZustand.Einstellungen.Merken(pfad);
             ZuletztAktualisieren();
-            StandardFenster();
+            if (AppZustand.Vertretungsmodus) VertretungsStandardFenster(); else StandardFenster();
         }
         catch (Exception ex)
         {
@@ -522,6 +511,15 @@ public sealed partial class HauptFenster : Form
                 return true;
             case Keys.Control | Keys.Y when ActiveMdiChild?.ActiveControl is not TextBoxBase:
                 AppZustand.Doc.Wiederholen();
+                return true;
+            case Keys.Control | Keys.T:
+                VertretungsFensterOeffnen("vertr");
+                return true;
+            case Keys.Control | Keys.M when AppZustand.Vertretungsmodus:
+                VertretungsFensterOeffnen("abw");
+                return true;
+            case Keys.Control | Keys.G when AppZustand.Vertretungsmodus:
+                VertretungsFensterOeffnen("vorschlag");
                 return true;
             case Keys.F1 when ActiveMdiChild is null:
                 HilfeFenster.Zeigen("");

@@ -12,13 +12,20 @@ public static class Ui
     public static readonly Font SchriftKlein = new("Segoe UI", 8f);
     public static readonly Font SchriftGross = new("Segoe UI", 11f, FontStyle.Bold);
 
-    public static readonly Color Blau = Color.FromArgb(43, 87, 154);
-    public static readonly Color BlauHell = Color.FromArgb(205, 224, 247);
-    public static readonly Color BlauSehrHell = Color.FromArgb(232, 241, 252);
-    public static readonly Color Titel = Color.FromArgb(91, 125, 177);
-    public static readonly Color MdiHintergrund = Color.FromArgb(171, 182, 198);
+    /// <summary>Vertretungsmodus aktiv: Oberfläche in Grün (wie ein eigenes Programm innerhalb von UntPlan).</summary>
+    public static bool Vertretungsmodus { get; set; }
+
+    // Eigenes Farbschema "Petrol" (Stundenplanmodus) bzw. "Grün" (Vertretungsmodus)
+    public static Color Blau => Vertretungsmodus ? Color.FromArgb(46, 112, 64) : Color.FromArgb(18, 94, 122);
+    public static Color BlauHell => Vertretungsmodus ? Color.FromArgb(206, 234, 208) : Color.FromArgb(201, 228, 236);
+    public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(234, 246, 235) : Color.FromArgb(232, 243, 247);
+    public static Color Titel => Vertretungsmodus ? Color.FromArgb(78, 140, 92) : Color.FromArgb(52, 122, 148);
+    public static Color MdiHintergrund => Vertretungsmodus ? Color.FromArgb(150, 186, 156) : Color.FromArgb(176, 190, 197);
+    public static Color Kopf => Vertretungsmodus ? Color.FromArgb(238, 246, 238) : Color.FromArgb(240, 245, 247);
+    public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(232, 242, 233) : Color.FromArgb(236, 241, 243);
+    public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 238, 216) : Color.FromArgb(214, 234, 240);
+    public static Color HoverRand => Vertretungsmodus ? Color.FromArgb(120, 190, 130) : Color.FromArgb(110, 178, 200);
     public static readonly Color Rasterlinie = Color.FromArgb(208, 215, 229);
-    public static readonly Color Kopf = Color.FromArgb(241, 244, 249);
     public static readonly Color ZeileAktiv = Color.FromArgb(253, 222, 176);
     public static readonly Color Erste = Color.FromArgb(252, 228, 188);
     public static readonly Color Gruen = Color.FromArgb(120, 220, 120);

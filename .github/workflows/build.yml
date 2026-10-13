@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -23,7 +26,7 @@ jobs:
         run: >
           dotnet publish src/UntPlan.App -c Release -r win-x64 --self-contained
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
-          -o artifacts/UntPlan
+          -p:Version=1.0.${{ github.run_number }} -o artifacts/UntPlan
 
       - name: Selbsttest der Oberfläche (alle Fenster öffnen, Bildschirmfotos)
         shell: pwsh
@@ -41,7 +44,30 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          & $iscc /DQuelle="$PWD\artifacts\UntPlan" /O"$PWD\artifacts" installer\UntPlan.iss
+          & $iscc /DQuelle="$PWD\artifacts\UntPlan" /DAppVersion="1.0.${{ github.run_number }}" /O"$PWD\artifacts" installer\UntPlan.iss
+
+      - name: Portable Version packen
+        shell: pwsh
+        run: Compress-Archive -Path artifacts/UntPlan/* -DestinationPath artifacts/UntPlan-portabel.zip
+
+      - name: Release mit Setup-EXE veröffentlichen
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: UntPlan 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            UntPlan – Stunden- und Vertretungsplanung für Schulen in NRW.
+
+            **Installation:** `UntPlan-Setup-*.exe` herunterladen und ausführen (Windows 10/11, 64 Bit, keine .NET-Installation nötig).
+            Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
+
+            Stand: ${{ github.ref_name }} @ ${{ github.sha }}
+          files: |
+            artifacts/UntPlan-Setup-*.exe
+            artifacts/UntPlan-portabel.zip
 
       - uses: actions/upload-artifact@v4
         with:

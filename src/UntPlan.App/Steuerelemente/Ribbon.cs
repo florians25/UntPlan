@@ -13,6 +13,10 @@ public sealed class RibbonEintrag
     public string Hinweis { get; init; } = "";
     public Func<bool>? Aktiviert { get; init; }
     public Keys Tastenkuerzel { get; init; }
+    /// <summary>Umschalter: eingedrückt darstellen (z. B. Vertretungsmodus aktiv).</summary>
+    public Func<bool>? Gedrueckt { get; init; }
+    /// <summary>Datumsfeld mit Pfeilen (Planungsdatum).</summary>
+    public bool IstDatum { get; init; }
     internal Rectangle Bounds;
     internal Rectangle PfeilBounds;
 }
@@ -28,6 +32,9 @@ public sealed class RibbonSeite
 {
     public string Text { get; init; } = "";
     public List<RibbonGruppe> Gruppen { get; } = new();
+    /// <summary>Nur unter dieser Bedingung sichtbar (z. B. Registerkarte nur im Vertretungsmodus).</summary>
+    public Func<bool>? Sichtbar { get; init; }
+    public bool IstSichtbar => Sichtbar?.Invoke() ?? true;
     internal Rectangle TabBounds;
 }
 
@@ -54,9 +61,9 @@ public sealed class Ribbon : Control
         Font = Ui.Schrift;
     }
 
-    public RibbonSeite Seite(string text)
+    public RibbonSeite Seite(string text, Func<bool>? sichtbar = null)
     {
-        var s = new RibbonSeite { Text = text };
+        var s = new RibbonSeite { Text = text, Sichtbar = sichtbar };
         Seiten.Add(s);
         return s;
     }
@@ -66,8 +73,11 @@ public sealed class Ribbon : Control
         var x = 4;
         _dateiBounds = new Rectangle(x, 2, (int)g.MeasureString("Datei", Font).Width + 24, TabHoehe - 2);
         x = _dateiBounds.Right + 2;
+        if (!(Seiten.ElementAtOrDefault(AktiveSeite)?.IstSichtbar ?? false))
+            AktiveSeite = Math.Max(0, Seiten.FindIndex(x => x.IstSichtbar));
         foreach (var s in Seiten)
         {
+            if (!s.IstSichtbar) { s.TabBounds = Rectangle.Empty; continue; }
             var w = (int)g.MeasureString(s.Text, Font).Width + 18;
             s.TabBounds = new Rectangle(x, 2, w, TabHoehe - 2);
             x += w + 1;
@@ -93,7 +103,7 @@ public sealed class Ribbon : Control
                 }
                 else
                 {
-                    var w = (int)g.MeasureString(e.Text, Font).Width + 26 + (e.Menue != null ? 10 : 0);
+                    var w = e.IstDatum ? 136 : (int)g.MeasureString(e.Text, Font).Width + 26 + (e.Menue != null ? 10 : 0);
                     spaltenBreite = Math.Max(spaltenBreite, w);
                     e.Bounds = new Rectangle(x, y + zeile * 23, w, 22);
                     e.PfeilBounds = e.Menue != null && e.Klick != null ? new Rectangle(e.Bounds.Right - 12, e.Bounds.Y, 12, 22) : Rectangle.Empty;
@@ -116,15 +126,16 @@ public sealed class Ribbon : Control
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         Layout2(g);
-        using (var b = new SolidBrush(Color.FromArgb(238, 241, 246))) g.FillRectangle(b, 0, 0, Width, TabHoehe);
-        using (var b = new LinearGradientBrush(new Rectangle(0, TabHoehe, Width, Inhalt), Color.White, Color.FromArgb(244, 246, 249), 90f)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt);
+        using (var b = new SolidBrush(Ui.RibbonTab)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
+        using (var b = new LinearGradientBrush(new Rectangle(0, TabHoehe, Width, Inhalt), Color.White, Ui.BlauSehrHell, 90f)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt);
         using (var p = new Pen(Color.FromArgb(198, 205, 216))) { g.DrawLine(p, 0, TabHoehe, Width, TabHoehe); g.DrawLine(p, 0, Height - 1, Width, Height - 1); }
         // Datei-Tab
-        using (var b = new SolidBrush(_hoverDatei ? Color.FromArgb(62, 109, 181) : Ui.Blau)) g.FillRectangle(b, _dateiBounds);
+        using (var b = new SolidBrush(_hoverDatei ? Ui.Titel : Ui.Blau)) g.FillRectangle(b, _dateiBounds);
         TextRenderer.DrawText(g, "Datei", Font, _dateiBounds, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         for (var i = 0; i < Seiten.Count; i++)
         {
             var s = Seiten[i];
+            if (!s.IstSichtbar) continue;
             var aktiv = i == AktiveSeite;
             if (aktiv)
             {
@@ -133,7 +144,7 @@ public sealed class Ribbon : Control
                 g.DrawLines(p, new[] { new Point(s.TabBounds.X, s.TabBounds.Bottom), new Point(s.TabBounds.X, s.TabBounds.Y), new Point(s.TabBounds.Right, s.TabBounds.Y), new Point(s.TabBounds.Right, s.TabBounds.Bottom) });
             }
             else if (_hoverTab == s)
-                using (var b = new SolidBrush(Color.FromArgb(225, 233, 245))) g.FillRectangle(b, s.TabBounds);
+                using (var b = new SolidBrush(Ui.Hover)) g.FillRectangle(b, s.TabBounds);
             TextRenderer.DrawText(g, s.Text, Font, s.TabBounds, aktiv ? Ui.Blau : Color.FromArgb(50, 50, 50), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
@@ -146,13 +157,19 @@ public sealed class Ribbon : Control
             foreach (var it in gr.Eintraege)
             {
                 var aktiv = it.Aktiviert?.Invoke() ?? true;
-                if (it == _hover && aktiv)
+                var gedrueckt = it.Gedrueckt?.Invoke() == true;
+                if ((it == _hover && aktiv) || gedrueckt)
                 {
                     using var path = Ui.AbgerundetesRechteck(it.Bounds, 3);
-                    using var b = new SolidBrush(Color.FromArgb(205, 226, 252));
-                    using var p = new Pen(Color.FromArgb(146, 192, 248));
+                    using var b = new SolidBrush(gedrueckt ? Ui.BlauHell : Ui.Hover);
+                    using var p = new Pen(Ui.HoverRand);
                     g.FillPath(b, path);
                     g.DrawPath(p, path);
+                }
+                if (it.IstDatum)
+                {
+                    DatumZeichnen(g, it);
+                    continue;
                 }
                 var farbe = aktiv ? Color.FromArgb(30, 30, 30) : Color.FromArgb(160, 160, 160);
                 if (it.Gross)
@@ -176,6 +193,36 @@ public sealed class Ribbon : Control
         }
     }
 
+    private static Rectangle DatumLinks(RibbonEintrag it) => new(it.Bounds.Right - 34, it.Bounds.Y + 3, 16, 16);
+    private static Rectangle DatumRechts(RibbonEintrag it) => new(it.Bounds.Right - 17, it.Bounds.Y + 3, 16, 16);
+
+    private void DatumZeichnen(Graphics g, RibbonEintrag it)
+    {
+        var box = new Rectangle(it.Bounds.X + 2, it.Bounds.Y + 2, it.Bounds.Width - 4, 18);
+        g.FillRectangle(Brushes.White, box);
+        using (var p = new Pen(Ui.HoverRand)) g.DrawRectangle(p, box);
+        var datum = AppZustand.Datum;
+        TextRenderer.DrawText(g, $"{Core.Planung.Planungsdienst.TageKurz[((int)datum.DayOfWeek + 6) % 7]} {datum:dd.MM.yyyy}", Font, new Rectangle(box.X + 3, box.Y, box.Width - 38, box.Height), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+        using var b = new SolidBrush(Ui.Blau);
+        var l = DatumLinks(it);
+        var r = DatumRechts(it);
+        g.FillPolygon(b, new[] { new Point(l.X + 10, l.Y + 4), new Point(l.X + 10, l.Y + 12), new Point(l.X + 5, l.Y + 8) });
+        g.FillPolygon(b, new[] { new Point(r.X + 6, r.Y + 4), new Point(r.X + 6, r.Y + 12), new Point(r.X + 11, r.Y + 8) });
+    }
+
+    private void DatumWaehlen(RibbonEintrag it, Point p)
+    {
+        var d = AppZustand.D;
+        if (DatumLinks(it).Contains(p)) { AppZustand.DatumSetzen(Core.Kalender.NaechsterUnterrichtstag(d, AppZustand.Datum, -1)); Invalidate(); return; }
+        if (DatumRechts(it).Contains(p)) { AppZustand.DatumSetzen(Core.Kalender.NaechsterUnterrichtstag(d, AppZustand.Datum)); Invalidate(); return; }
+        var kal = new MonthCalendar { MaxSelectionCount = 1, SelectionStart = AppZustand.Datum.ToDateTime(TimeOnly.MinValue), ShowToday = true };
+        var host = new ToolStripControlHost(kal) { Margin = Padding.Empty, Padding = Padding.Empty };
+        var dd = new ToolStripDropDown { Padding = Padding.Empty };
+        dd.Items.Add(host);
+        kal.DateSelected += (_, e) => { AppZustand.DatumSetzen(DateOnly.FromDateTime(e.Start)); dd.Close(); Invalidate(); };
+        dd.Show(this, new Point(it.Bounds.X, it.Bounds.Bottom));
+    }
+
     private static void DreieckUnten(Graphics g, int x, int y, Color c)
     {
         using var b = new SolidBrush(c);
@@ -187,7 +234,7 @@ public sealed class Ribbon : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         var h = Sichtbare().FirstOrDefault(x => x.Bounds.Contains(e.Location));
-        var t = Seiten.FirstOrDefault(s => s.TabBounds.Contains(e.Location));
+        var t = Seiten.FirstOrDefault(s => s.IstSichtbar && s.TabBounds.Contains(e.Location));
         var d = _dateiBounds.Contains(e.Location);
         if (h != _hover || t != _hoverTab || d != _hoverDatei)
         {
@@ -217,9 +264,10 @@ public sealed class Ribbon : Control
             return;
         }
         for (var i = 0; i < Seiten.Count; i++)
-            if (Seiten[i].TabBounds.Contains(e.Location)) { AktiveSeite = i; Invalidate(); return; }
+            if (Seiten[i].IstSichtbar && Seiten[i].TabBounds.Contains(e.Location)) { AktiveSeite = i; Invalidate(); return; }
         var it = Sichtbare().FirstOrDefault(x => x.Bounds.Contains(e.Location));
         if (it is null || !(it.Aktiviert?.Invoke() ?? true)) return;
+        if (it.IstDatum) { DatumWaehlen(it, e.Location); return; }
         var pfeil = it.Menue != null && (it.Klick is null || it.PfeilBounds.Contains(e.Location));
         if (pfeil) MenueZeigen(it.Menue!, new Point(it.Bounds.X, it.Bounds.Bottom));
         else it.Klick?.Invoke();
@@ -227,7 +275,10 @@ public sealed class Ribbon : Control
 
     protected override void OnMouseWheel(MouseEventArgs e)
     {
-        AktiveSeite = Math.Clamp(AktiveSeite + (e.Delta > 0 ? -1 : 1), 0, Seiten.Count - 1);
+        var sichtbar = Enumerable.Range(0, Seiten.Count).Where(i => Seiten[i].IstSichtbar).ToList();
+        var pos = sichtbar.IndexOf(AktiveSeite);
+        if (pos < 0) return;
+        AktiveSeite = sichtbar[Math.Clamp(pos + (e.Delta > 0 ? -1 : 1), 0, sichtbar.Count - 1)];
         Invalidate();
     }
 
@@ -235,7 +286,7 @@ public sealed class Ribbon : Control
         eintraege.Select(x =>
         {
             if (x is null) return (ToolStripItem)new ToolStripSeparator();
-            var mi = new ToolStripMenuItem(x.Text, string.IsNullOrEmpty(x.Symbol) ? null : Symbole.Get(x.Symbol, 16)) { ShortcutKeys = x.Tastenkuerzel };
+            var mi = new ToolStripMenuItem(x.Text, string.IsNullOrEmpty(x.Symbol) ? null : Symbole.Get(x.Symbol, 16)) { ShortcutKeys = x.Tastenkuerzel, Checked = x.Gedrueckt?.Invoke() == true };
             if (x.Menue != null) mi.DropDownItems.AddRange(MenueEintraege(x.Menue));
             if (x.Klick != null) mi.Click += (_, _) => x.Klick();
             if (x.Aktiviert != null) mi.Enabled = x.Aktiviert();

@@ -137,7 +137,9 @@ public static class Zaehlung
                 {
                     res.Freisetzungen++;
                     var statt = e.StattVertretungNeutral && d.Vertretungen.Any(x => x.Datum == v.Datum && x.Stunde == v.Stunde && x.VertreterId == l.Id && x.Art == VertretungsArt.StattVertretung);
-                    Zeile("F", -wert, e.FreisetzungenZaehlen && grund?.FreisetzungNichtZaehlen != true && !statt && fach?.EntfallNichtZaehlen != true);
+                    // selbst abwesend: die Freisetzung ist keine Minderleistung
+                    var selbstAbwesend = Absenzen.LehrerAbwesend(d, l.Id, v.Datum, v.Stunde);
+                    Zeile("F", -wert, e.FreisetzungenZaehlen && grund?.FreisetzungNichtZaehlen != true && !statt && !selbstAbwesend && fach?.EntfallNichtZaehlen != true);
                     continue;
                 }
                 if (v.Art == VertretungsArt.BereitschaftEntfaellt) continue;

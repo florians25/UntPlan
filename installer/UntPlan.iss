@@ -3,7 +3,9 @@
   #define Quelle "..\artifacts\UntPlan"
 #endif
 #define AppName "UntPlan"
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+  #define AppVersion "1.0.0"
+#endif
 
 [Setup]
 AppId={{6E5B2C1A-6A0E-4F7B-9C55-2B7E0D4A9F11}

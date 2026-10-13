@@ -11,19 +11,27 @@ namespace UntPlan.App.Fenster;
 /// </summary>
 public sealed class Eingabeassistent : Panel
 {
+    private readonly Label _titel;
     private readonly FlowLayoutPanel _flow = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(6) };
 
     public Eingabeassistent()
     {
         BackColor = Color.FromArgb(236, 241, 249);
-        var titel = new Label { Text = "UntPlan Eingabeassistent", Dock = DockStyle.Top, Height = 26, Font = Ui.SchriftFett, ForeColor = Color.White, BackColor = Ui.Titel, Padding = new Padding(6, 5, 0, 0) };
+        _titel = new Label { Text = "UntPlan Eingabeassistent", Dock = DockStyle.Top, Height = 26, Font = Ui.SchriftFett, ForeColor = Color.White, BackColor = Ui.Titel, Padding = new Padding(6, 5, 0, 0) };
+        var schliessen = new Label { Text = "✕", Dock = DockStyle.Right, Width = 24, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White, Cursor = Cursors.Hand };
+        new ToolTip().SetToolTip(schliessen, "Eingabeassistent ausblenden (wieder einblenden: Start → Einstellungen → Eingabeassistent)");
+        schliessen.Click += (_, _) => AppZustand.Haupt?.AssistentUmschalten();
+        schliessen.MouseEnter += (_, _) => schliessen.BackColor = Color.FromArgb(200, 60, 60);
+        schliessen.MouseLeave += (_, _) => schliessen.BackColor = Color.Transparent;
+        _titel.Controls.Add(schliessen);
         Controls.Add(_flow);
-        Controls.Add(titel);
+        Controls.Add(_titel);
         Aktualisieren();
     }
 
     public void Aktualisieren()
     {
+        _titel.BackColor = Ui.Titel;
         if (AppZustand.Haupt is null) return;
         var d = AppZustand.D;
         _flow.SuspendLayout();
@@ -36,6 +44,30 @@ public sealed class Eingabeassistent : Panel
             _flow.Controls.Add(l);
         }
         var h = AppZustand.Haupt;
+        if (AppZustand.Vertretungsmodus)
+        {
+            var datum = AppZustand.Datum;
+            Kopf("Vertretungsplanung – " + Format.Datum(datum));
+            Schritt("Planungsdatum wählen (Kalender)", true, () => h.VertretungsFensterOeffnen("kal"));
+            Schritt("Absenzen eingeben (Strg+M)", d.Abwesenheiten.Any(a => datum >= a.Von && datum <= a.Bis), () => h.VertretungsFensterOeffnen("abw"));
+            Schritt("Veranstaltungen", d.Veranstaltungen.Any(v => datum >= v.Von && datum <= v.Bis), () => h.VertretungsFensterOeffnen("veranst"));
+            Schritt("Klausuren", d.Klausuren.Any(k => k.Datum == datum), () => h.VertretungsFensterOeffnen("klaus"));
+            Kopf("Vertretungen bearbeiten");
+            Schritt("Vertretungen (Strg+T)", !d.Vertretungen.Any(v => v.Datum == datum && v.Offen), () => h.VertretungsFensterOeffnen("vertr"));
+            Schritt("Vertretungsvorschlag (Strg+G)", false, () => h.VertretungsFensterOeffnen("vorschlag"));
+            Schritt("Vormerkungen", d.Vormerkungen.All(v => v.Offen == 0), () => h.VertretungsFensterOeffnen("vorm"));
+            Schritt("Bereitschaften", false, () => h.VertretungsFensterOeffnen("bereit"));
+            Schritt("Pausenaufsichten", false, () => h.VertretungsFensterOeffnen("pause"));
+            Kopf("Ausgabe");
+            Schritt("Nachrichten zum Tag", d.Tagestexte.Any(t => t.GiltAm(datum)), () => Dialoge.TagestextDialog.Zeigen(h, datum));
+            Schritt("Vertretungsplan (HTML)", false, () => VertretungenFenster.HtmlAusgabe(datum, 2, false));
+            Schritt("Vertretungsstatistik / Abrechnung", false, () => h.VertretungsFensterOeffnen("stat"));
+            Kopf("Einstellungen");
+            Schritt("Einstellungen Vertretungsplanung", true, () => Dialoge.VertretungsEinstellungenDialog.Zeigen(h));
+            Schritt("Zurück zur Stundenplanung", false, h.VertretungsmodusUmschalten);
+            _flow.ResumeLayout();
+            return;
+        }
         Kopf("Festlegen des Schuljahres und der Unterrichtszeiten");
         Schritt("Eingabe des Schuljahres", d.Einstellungen.Schulname.Length > 0, () => new EinstellungenDialog().ShowDialog(h));
         Schritt("Eingabe von Ferien und Feiertagen", d.Ferien.Count > 0, () => HauptFenster.Oeffnen("ferien", () => new FerienFenster()));
