@@ -142,7 +142,39 @@ public sealed class PlanModell
             Unterrichte.Add(u);
         }
         UnterrichtBloecke = Unterrichte.Select(_ => new List<int>()).ToArray();
+        _maske = Unterrichte.Select(u => Kalender.WochenMaske(d, u)).ToArray();
+        _wochen = Math.Clamp(d.Einstellungen.Wochenperiodizitaet, 1, 16);
     }
+
+    private readonly int[] _maske = Array.Empty<int>();
+    private readonly int _wochen = 1;
+
+    private int Maske(int bi) => Bloecke[bi].Mitglieder.Aggregate(0, (m, ui) => m | _maske[ui]);
+
+    /// <summary>
+    /// Anzahl gleichzeitiger Gruppen in einer Zelle unter Berücksichtigung der Wochen (A/B): Unterrichte, die nie in derselben
+    /// Woche stattfinden, kollidieren nicht. Bei Klassen zählen Unterrichte desselben Bandes als eine Gruppe.
+    /// </summary>
+    internal int Gleichzeitig(List<int> zelle, bool klasse)
+    {
+        if (zelle.Count < 2) return zelle.Count;
+        var max = 0;
+        for (var w = 0; w < _wochen; w++)
+        {
+            var bit = 1 << w;
+            var keys = new HashSet<string>();
+            foreach (var bi in zelle)
+            {
+                if ((Maske(bi) & bit) == 0) continue;
+                var bd = klasse ? Unterrichte[Bloecke[bi].Mitglieder[0]].Band : "";
+                keys.Add(string.IsNullOrWhiteSpace(bd) ? "#" + bi : bd.Trim());
+            }
+            max = Math.Max(max, keys.Count);
+        }
+        return max;
+    }
+
+    internal bool Kollidiert(int e, int c) => Raster[e * C + c].Count > 1 && Gleichzeitig(Raster[e * C + c], e >= NL) > 1;
 
     public bool IstPlanbar(Unterricht u)
     {
@@ -373,7 +405,7 @@ public sealed class PlanModell
                 if (art == Tageszeit.Nachmittag) nachm = true; else vorm = true;
                 if (zelle.Count > 1)
                 {
-                    var gruppen = istLehrer ? zelle.Count : Gruppen(zelle);
+                    var gruppen = Gleichzeitig(zelle, !istLehrer);
                     if (gruppen > 1)
                         V(istLehrer ? VerstossArt.Lehrerkollision : VerstossArt.Klassenkollision, t, s + 1, Hart * (gruppen - 1),
                             $"{gruppen} Unterrichte gleichzeitig", Unterrichte[Bloecke[zelle[1]].Mitglieder[0]].Id);
@@ -504,17 +536,6 @@ public sealed class PlanModell
     }
 
     /// <summary>Anzahl unterschiedlicher Gruppen in einer Zelle (Unterrichte desselben Bandes zählen als eine Gruppe).</summary>
-    private int Gruppen(List<int> zelle)
-    {
-        var keys = new HashSet<string>();
-        foreach (var bi in zelle)
-        {
-            var bd = Unterrichte[Bloecke[bi].Mitglieder[0]].Band;
-            keys.Add(string.IsNullOrWhiteSpace(bd) ? "#" + bi : bd.Trim());
-        }
-        return keys.Count;
-    }
-
     private bool _sperrAlleinZeitraster(int t, int s) => !_d.Zeitraster.Verfuegbar(t, s + 1);
 
     /// <summary>Kosten eines Unterrichts: Fach mehrmals pro Tag, Doppelstunden, Blöcke, Verteilung.</summary>

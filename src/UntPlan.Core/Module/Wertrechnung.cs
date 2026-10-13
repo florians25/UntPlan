@@ -67,6 +67,46 @@ public static class Wertrechnung
             .ToList();
     }
 
+    /// <summary>
+    /// Automatische Unterrichtszuordnung: Kopplungszeilen ohne Lehrer erhalten den geeignetsten Lehrer – Lehrbefähigung
+    /// (bzw. unterrichtet das Fach bereits), freies Deputat reicht, Klassenlehrer bzw. Lehrer, der die Klasse schon kennt, bevorzugt;
+    /// bei Gleichstand der Lehrer mit dem meisten freien Deputat. Große Unterrichte werden zuerst vergeben.
+    /// </summary>
+    public static List<(Unterricht U, int Zeile, Lehrer Lehrer)> AutomatischZuordnen(Schuldatei d, IEnumerable<Unterricht>? nur = null, bool deputatUeberschreiten = false)
+    {
+        var ix = new DatenIndex(d);
+        var lehrer = d.Lehrer.Where(l => !l.Ignorieren).ToList();
+        var frei = lehrer.ToDictionary(l => l.Id, l => l.Soll - Ist(d, ix, l));
+        var faecherVon = lehrer.ToDictionary(l => l.Id, l => l.FaecherIds.Concat(d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.LehrerId == l.Id && z.FachId.HasValue).Select(z => z.FachId!.Value)).ToHashSet());
+        var klassenVon = lehrer.ToDictionary(l => l.Id, l => d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.LehrerId == l.Id).SelectMany(z => z.KlassenIds).ToHashSet());
+        var ergebnis = new List<(Unterricht, int, Lehrer)>();
+        var offen = (nur ?? d.Unterrichte).Where(u => !u.Ignorieren)
+            .SelectMany(u => u.Zeilen.Select((z, i) => (U: u, Z: z, I: i)))
+            .Where(x => x.Z.LehrerId is null && x.Z.FachId.HasValue)
+            .OrderByDescending(x => Wert(d, ix, x.U, x.Z)).ToList();
+        foreach (var (u, z, i) in offen)
+        {
+            var wert = Wert(d, ix, u, z);
+            var klassenlehrer = d.Klassen.Where(k => z.KlassenIds.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds).ToHashSet();
+            // gleichzeitig gekoppelte Zeilen dürfen nicht denselben Lehrer erhalten
+            var belegt = u.Zeilen.Where(x => x != z && x.LehrerId.HasValue).Select(x => x.LehrerId!.Value).ToHashSet();
+            var best = lehrer
+                .Where(l => !belegt.Contains(l.Id) && faecherVon[l.Id].Contains(z.FachId!.Value) && (deputatUeberschreiten || frei[l.Id] >= wert))
+                .OrderByDescending(l => klassenlehrer.Contains(l.Id))
+                .ThenByDescending(l => klassenVon[l.Id].Overlaps(z.KlassenIds))
+                .ThenByDescending(l => frei[l.Id])
+                .ThenBy(l => l.Kurzname, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (best is null) continue;
+            z.LehrerId = best.Id;
+            if (z.StammraumId is null && z.KlassenIds.Count == 0) z.StammraumId = best.StammraumId;
+            frei[best.Id] -= wert;
+            klassenVon[best.Id].UnionWith(z.KlassenIds);
+            ergebnis.Add((u, i, best));
+        }
+        return ergebnis;
+    }
+
     public sealed record StundentafelAbgleich(Klasse Klasse, Fach Fach, decimal Soll, decimal Ist);
 
     public static List<StundentafelAbgleich> Stundentafel(Schuldatei d)

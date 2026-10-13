@@ -66,6 +66,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Zeitwünsche des Unterrichts", "zeitwunsch", () => { if (Aktuell() is { } u) ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, u.U.Id); }));
         ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => { if (_elementId.HasValue) StundenplanFenster.Neu(_sicht, _elementId, false); }));
         ts.Items.Add(Knopf("Lehrervorschlag", "lehrer", Lehrervorschlag));
+        ts.Items.Add(Knopf("Automatische Unterrichtszuordnung (Lehrer für Zeilen ohne Lehrer)", "optimierung", AutomatischZuordnen));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true)));
@@ -81,6 +82,19 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.CurrentCellChanged += (_, _) => FormularFuellen();
         _grid.CellMouseDown += CellMouseDown;
         _grid.DataError += (_, e) => e.ThrowException = false;
+        _grid.CurrentCellDirtyStateChanged += (_, _) =>
+        {
+            if (_grid.IsCurrentCellDirty && _grid.CurrentCell is DataGridViewComboBoxCell) { _grid.CommitEdit(DataGridViewDataErrorContexts.Commit); _grid.EndEdit(); }
+        };
+        _grid.CellDoubleClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Klassen" || _grid.Rows[e.RowIndex].Tag is not ZeilenTag zt) return;
+            var z = zt.U.Zeilen.ElementAtOrDefault(zt.Index);
+            var w = AuswahlDialog.Mehrere(this, ElementTyp.Klasse, "Klassen des Unterrichts", z?.KlassenIds ?? new List<int>());
+            if (w is null) return;
+            _grid[e.ColumnIndex, e.RowIndex].Value = string.Join(",", w.Select(k => k.Kurzname));
+            CellEndEdit(this, new DataGridViewCellEventArgs(e.ColumnIndex, e.RowIndex));
+        };
         _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.EndEdit(); };
         _grid.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZelleLeeren(); e.Handled = true; } };
 
@@ -251,7 +265,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.Columns.Clear();
         foreach (var s in _spalten.Where(s => _sichtbar.Contains(s.Key)).OrderBy(s => _sichtbar.IndexOf(s.Key)))
         {
-            DataGridViewColumn c = s.Bool ? new DataGridViewCheckBoxColumn() : new DataGridViewTextBoxColumn();
+            DataGridViewColumn c = s.Bool ? new DataGridViewCheckBoxColumn() : AuswahlListe(s.Key) is { } liste ? KombiSpalte(liste) : new DataGridViewTextBoxColumn();
             c.Name = s.Key;
             c.HeaderText = s.Titel;
             c.Width = s.Breite;
@@ -285,6 +299,30 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                     break;
                 }
         FormularFuellen();
+    }
+
+    /// <summary>Auswahllisten (Dropdowns) für Fach, Lehrer und Räume.</summary>
+    private List<string>? AuswahlListe(string key)
+    {
+        IEnumerable<string>? q = key switch
+        {
+            "Fach" => Stammdaten.Sortiert(D.Faecher).Select(x => x.Kurzname),
+            "Lehrer" => Stammdaten.Sortiert(D.Lehrer).Select(x => x.Kurzname),
+            "Fachraum" or "Stammraum" => Stammdaten.Sortiert(D.Raeume).Select(x => x.Kurzname).Concat(Stammdaten.Sortiert(D.Raumgruppen).Select(x => x.Kurzname)),
+            _ => null,
+        };
+        return q is null ? null : new[] { "" }.Concat(q).Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    private static DataGridViewComboBoxColumn KombiSpalte(List<string> werte)
+    {
+        var c = new DataGridViewComboBoxColumn
+        {
+            DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox, DisplayStyleForCurrentCellOnly = true, FlatStyle = FlatStyle.Flat,
+            MaxDropDownItems = 20, AutoComplete = true,
+        };
+        c.Items.AddRange(werte.Cast<object>().ToArray());
+        return c;
     }
 
     private void ZeileAnlegen(Unterricht u, int i)
@@ -510,6 +548,21 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             a.Spalten = neu;
         });
         Neuaufbau();
+    }
+
+    private void AutomatischZuordnen()
+    {
+        var nurAnzeige = _sicht != ElementTyp.Unterricht && Ui.Frage("Nur die Unterrichte dieser Ansicht zuordnen?\n(Nein = alle Unterrichte der Schule)");
+        var ids = nurAnzeige ? Unterrichte().Select(u => u.Id).ToHashSet() : null;
+        var offen = D.Unterrichte.Where(u => ids is null || ids.Contains(u.Id)).Sum(u => u.Zeilen.Count(z => z.LehrerId is null && z.FachId.HasValue));
+        if (offen == 0) { Ui.Info("Alle Kopplungszeilen haben bereits einen Lehrer."); return; }
+        var ueber = Ui.Frage($"{offen} Kopplungszeilen ohne Lehrer.\n\nDarf das Deputat (Soll) eines Lehrers dabei überschritten werden?");
+        List<(Unterricht U, int Zeile, Lehrer Lehrer)> erg = new();
+        if (!Aendern("Automatische Unterrichtszuordnung", AenderungsArt.Unterricht, d =>
+            erg = Core.Module.Wertrechnung.AutomatischZuordnen(d, ids is null ? null : d.Unterrichte.Where(u => ids.Contains(u.Id)), ueber))) return;
+        Neuaufbau();
+        var liste = string.Join("\n", erg.Take(25).Select(x => $"U{x.U.Id} {Ix.UnterrichtText(x.U)} → {x.Lehrer.Kurzname}"));
+        Ui.Info($"{erg.Count} von {offen} Zeilen wurde ein Lehrer zugeordnet (Lehrbefähigung, freies Deputat, Klassenlehrer/kennt Klasse).\n\n{liste}{(erg.Count > 25 ? "\n…" : "")}", "Automatische Unterrichtszuordnung");
     }
 
     private void Lehrervorschlag()

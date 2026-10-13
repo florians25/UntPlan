@@ -393,7 +393,7 @@ public static class Optimierer
             var c = b.Tag * m.S + b.Stunde + j;
             foreach (var e in b.Entitaeten)
             {
-                if (m.Raster[e * m.C + c].Count > 1) return true;
+                if (m.Kollidiert(e, c)) return true;
             }
         }
         return b.Entitaeten.Any(e => GesperrtFuer(m, e, b));

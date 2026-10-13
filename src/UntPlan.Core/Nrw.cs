@@ -152,6 +152,24 @@ public static class Kalender
     /// Wochenbuchstabe (A, B, C …) laut Wochenperiodizität. Reine Ferienwochen zählen nicht mit;
     /// "Woche danach" in den Ferien setzt den Zyklus zurück.
     /// </summary>
+    /// <summary>Bitmaske der Wochen (A=1, B=2, C=4 …), in denen ein Unterricht stattfindet (Periodizität bzw. Unterrichtsgruppe).</summary>
+    public static int WochenMaske(Schuldatei d, Unterricht u)
+    {
+        var n = Math.Clamp(d.Einstellungen.Wochenperiodizitaet, 1, 16);
+        var alle = (1 << n) - 1;
+        if (u.Periodizitaet == Periodizitaet.AWoche) return 1;
+        if (u.Periodizitaet == Periodizitaet.BWoche) return 2;
+        if (u.UGruppeId is int g && d.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug && !string.IsNullOrWhiteSpace(ug.Wochen))
+        {
+            var m = ug.Wochen.ToUpperInvariant().Where(c => c is >= 'A' and <= 'P').Aggregate(0, (x, c) => x | (1 << (c - 'A'))) & alle;
+            return m == 0 ? alle : m;
+        }
+        return alle;
+    }
+
+    /// <summary>Finden zwei Unterrichte in mindestens einer gemeinsamen Woche statt?</summary>
+    public static bool GleicheWoche(Schuldatei d, Unterricht a, Unterricht b) => (WochenMaske(d, a) & WochenMaske(d, b)) != 0;
+
     public static string WochenTyp(Schuldatei d, DateOnly datum) => ((char)('A' + WochenIndex(d, datum))).ToString();
 
     /// <summary>0-basierter Index der Woche im Wochenzyklus (0 = A).</summary>

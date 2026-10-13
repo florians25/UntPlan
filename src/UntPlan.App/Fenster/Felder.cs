@@ -162,6 +162,9 @@ public static class Felder
                 l.Add(F("AufsichtenMin", "Aufsichten min", FeldArt.Ganzzahl, e => ((Lehrer)e).AufsichtenMin, (e, v) => ((Lehrer)e).AufsichtenMin = (int)v!, "Pausenaufsicht"));
                 l.Add(F("AufsichtenMax", "Aufsichten max", FeldArt.Ganzzahl, e => ((Lehrer)e).AufsichtenMax, (e, v) => ((Lehrer)e).AufsichtenMax = (int)v!, "Pausenaufsicht"));
                 l.Add(F("KeineAufsicht", "Keine Aufsicht", FeldArt.Bool, e => ((Lehrer)e).KeineAufsicht, (e, v) => ((Lehrer)e).KeineAufsicht = (bool)v!, "Pausenaufsicht"));
+                l.Add(F("PaMaxMinuten", "Aufs. max. Minuten", FeldArt.Ganzzahl, e => ((Lehrer)e).PausenaufsichtMaxMinuten, (e, v) => ((Lehrer)e).PausenaufsichtMaxMinuten = (int)v!, "Pausenaufsicht"));
+                l.Add(F("Sperrvermerk", "Sperrvermerk (0-9)", FeldArt.Ganzzahl, e => ((Lehrer)e).Sperrvermerk, (e, v) => ((Lehrer)e).Sperrvermerk = Math.Clamp((int)v!, 0, 9), "Vertretungsplanung"));
+                l.Add(F("BereitschaftenMax", "Bereitschaften max", FeldArt.Ganzzahl, e => ((Lehrer)e).BereitschaftenMax, (e, v) => ((Lehrer)e).BereitschaftenMax = (int)v!, "Vertretungsplanung"));
                 break;
             case ElementTyp.Fach:
                 l.AddRange(Gemeinsam());
@@ -173,6 +176,11 @@ public static class Felder
                 l.Add(F("Randstunde", "(R) Randstunde", FeldArt.Bool, e => ((Fach)e).Randstunde, (e, v) => ((Fach)e).Randstunde = (bool)v!, "Unterricht"));
                 l.Add(F("KeinNachmittag", "(N) kein Nachm.", FeldArt.Bool, e => ((Fach)e).KeinNachmittag, (e, v) => ((Fach)e).KeinNachmittag = (bool)v!, "Unterricht"));
                 l.Add(F("Bereitschaft", "(B) Bereitschaft", FeldArt.Bool, e => ((Fach)e).Bereitschaft, (e, v) => ((Fach)e).Bereitschaft = (bool)v!, "Vertretungsplanung"));
+                l.Add(F("BereitschaftImDeputat", "Bereitsch. im Deputat", FeldArt.Bool, e => ((Fach)e).BereitschaftImDeputat, (e, v) => ((Fach)e).BereitschaftImDeputat = (bool)v!, "Vertretungsplanung"));
+                l.Add(F("EntfallNichtZaehlen", "Entfall nicht zählen", FeldArt.Bool, e => ((Fach)e).EntfallNichtZaehlen, (e, v) => ((Fach)e).EntfallNichtZaehlen = (bool)v!, "Vertretungsplanung"));
+                l.Add(F("KeineVertretung", "Keine Vertretung", FeldArt.Bool, e => ((Fach)e).KeineVertretung, (e, v) => ((Fach)e).KeineVertretung = (bool)v!, "Vertretungsplanung"));
+                l.Add(F("NichtDrucken", "Nicht drucken", FeldArt.Bool, e => ((Fach)e).NichtDrucken, (e, v) => ((Fach)e).NichtDrucken = (bool)v!, "Vertretungsplanung"));
+                l.Add(F("KeinePausenaufsicht", "Keine Pausenaufsicht", FeldArt.Bool, e => ((Fach)e).KeinePausenaufsicht, (e, v) => ((Fach)e).KeinePausenaufsicht = (bool)v!, "Pausenaufsicht"));
                 l.Add(T("Fachgruppe", "Fachgruppe", e => ((Fach)e).Fachgruppe, (e, v) => ((Fach)e).Fachgruppe = (string)v!));
                 l.Add(F("WerteFaktor", "Werte-Faktor", FeldArt.Dezimal, e => ((Fach)e).WerteFaktor, (e, v) => ((Fach)e).WerteFaktor = (decimal)v!, "Werte"));
                 l.First(f => f.Schluessel == "Hintergrund").GetType();
@@ -180,6 +188,8 @@ public static class Felder
             case ElementTyp.Gang:
                 l.AddRange(Gemeinsam().Take(3));
                 l.Add(F("Bedarf", "Aufsichten je Pause", FeldArt.Ganzzahl, e => ((Gang)e).Bedarf, (e, v) => ((Gang)e).Bedarf = (int)v!, "Allgemein", true, 110));
+                l.Add(F("NurMaennlich", "nur männlich", FeldArt.Bool, e => ((Gang)e).NurMaennlich, (e, v) => ((Gang)e).NurMaennlich = (bool)v!, "Allgemein"));
+                l.Add(F("NurWeiblich", "nur weiblich", FeldArt.Bool, e => ((Gang)e).NurWeiblich, (e, v) => ((Gang)e).NurWeiblich = (bool)v!, "Allgemein"));
                 break;
             case ElementTyp.Abteilung:
                 l.AddRange(Gemeinsam().Take(3));
@@ -189,6 +199,10 @@ public static class Felder
                 l.AddRange(Gemeinsam().Take(3));
                 l.Add(F("Statistikrelevant", "Statistik", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Statistikrelevant, (e, v) => ((Abwesenheitsgrund)e).Statistikrelevant = (bool)v!, "Allgemein", true));
                 l.Add(F("Vertraulich", "Vertraulich", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Vertraulich, (e, v) => ((Abwesenheitsgrund)e).Vertraulich = (bool)v!, "Allgemein", true));
+                l.Add(F("EntfallZaehlen", "Entfall zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).EntfallZaehlen, (e, v) => ((Abwesenheitsgrund)e).EntfallZaehlen = (bool)v!, "Allgemein", true));
+                l.Add(F("FreisetzungNichtZaehlen", "Freisetzung nicht zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen, (e, v) => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen = (bool)v!, "Allgemein", true));
+                l.Add(F("NichtImAbsenzkopf", "nicht im Kopf", FeldArt.Bool, e => ((Abwesenheitsgrund)e).NichtImAbsenzkopf, (e, v) => ((Abwesenheitsgrund)e).NichtImAbsenzkopf = (bool)v!, "Allgemein"));
+                l.Add(F("Hintergrund", "Farbe", FeldArt.Farbe, e => e.Hintergrund, (e, v) => e.Hintergrund = (int)v!, "Allgemein", false, 50));
                 break;
             case ElementTyp.Schueler:
                 l.Add(T("Kurzname", "Nachname", e => e.Kurzname, null, std: true, breite: 90));

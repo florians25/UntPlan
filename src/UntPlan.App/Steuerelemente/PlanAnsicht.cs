@@ -252,16 +252,7 @@ public sealed class PlanAnsicht : Control
     }
 
     /// <summary>Bitmaske der Wochen (A=1, B=2, …), in denen ein Unterricht stattfindet.</summary>
-    public static int WochenMaske(Unterricht u)
-    {
-        var n = Math.Clamp(D.Einstellungen.Wochenperiodizitaet, 1, 16);
-        var alle = (1 << n) - 1;
-        if (u.Periodizitaet == Periodizitaet.AWoche) return 1;
-        if (u.Periodizitaet == Periodizitaet.BWoche) return 2;
-        if (u.UGruppeId is int g && D.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug && !string.IsNullOrWhiteSpace(ug.Wochen))
-            return ug.Wochen.ToUpperInvariant().Where(char.IsLetter).Aggregate(0, (m, c) => m | (1 << (c - 'A'))) & alle;
-        return alle;
-    }
+    public static int WochenMaske(Unterricht u) => Kalender.WochenMaske(D, u);
 
     private Color Farbe(Unterricht? u, int zeile, int? fachId = null)
     {

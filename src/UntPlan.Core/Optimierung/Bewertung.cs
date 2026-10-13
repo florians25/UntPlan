@@ -93,9 +93,16 @@ public static class Bewertung
                 }
             }
         }
+        var wochen = Math.Clamp(d.Einstellungen.Wochenperiodizitaet, 1, 16);
         foreach (var ((raumId, tag, stunde), ids) in belegung)
-            if (ids.Count > 1)
-                sink(new Verstoss(VerstossArt.Raumkollision, ElementTyp.Raum, raumId, ids[1], tag, stunde, PlanModell.Hart * (ids.Count - 1), $"Raum {ix.KRaum(raumId)} {ids.Count}× belegt"));
+        {
+            if (ids.Count < 2) continue;
+            // A-/B-Woche: Unterrichte verschiedener Wochen dürfen denselben Raum nutzen
+            var masken = ids.Select(id => Kalender.WochenMaske(d, ix.Unterrichte[id])).ToList();
+            var n = Enumerable.Range(0, wochen).Max(w => masken.Count(m => (m & (1 << w)) != 0));
+            if (n > 1)
+                sink(new Verstoss(VerstossArt.Raumkollision, ElementTyp.Raum, raumId, ids[1], tag, stunde, PlanModell.Hart * (n - 1), $"Raum {ix.KRaum(raumId)} {n}× belegt"));
+        }
     }
 
     public static string ArtText(VerstossArt a) => a switch

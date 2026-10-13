@@ -38,6 +38,7 @@ public static class Planungsdienst
             if (ignorieren != null && ignorieren.Contains(p)) continue;
             if (!ix.Unterrichte.TryGetValue(p.UnterrichtId, out var o)) continue;
             if (!string.IsNullOrWhiteSpace(u.Band) && u.Band == o.Band) continue;
+            if (!Kalender.GleicheWoche(d, u, o)) continue; // A-/B-Woche: keine Kollision
             var gemeinsameL = o.LehrerIds.Where(lehrer.Contains).ToList();
             var gemeinsameK = o.KlassenIds.Where(klassen.Contains).ToList();
             if (gemeinsameL.Count > 0) res.Add(new Hindernis(p, o, $"Lehrer {string.Join(",", gemeinsameL.Select(ix.KLehrer))}"));
