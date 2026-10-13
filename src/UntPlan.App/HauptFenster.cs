@@ -268,6 +268,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Eingabeassistent", "assistent", AssistentUmschalten, true));
         g.Eintraege.Add(E("Kommentare", "kommentar", () => Oeffnen<KommentarUebersicht>("komm", () => new KommentarUebersicht())));
         g.Eintraege.Add(E("Import/Export", "import", null, menue: ImportExportMenue()));
+        g.Eintraege.Add(E("BAL-Import", "import", BalImportieren, hinweis: "Stundenplan aus einer WILLI2-BAL-Datei übernehmen"));
 
         var planung = _ribbon.Seite("Planung", () => !AppZustand.Vertretungsmodus);
         g = Gruppe(planung, "Manuelles Planen");
@@ -343,6 +344,7 @@ public sealed partial class HauptFenster : Form
         E("Schild-NRW: Klassen importieren (CSV)…", "import", () => CsvImport("Klassen")),
         E("Schüler importieren (CSV)…", "import", ImportSchueler),
         E("GPU-Dateien importieren (Umstieg)…", "import", GpuImport),
+        E("BAL-Datei (WILLI2) importieren…", "import", BalImportieren),
         null,
         E("GPU-Dateien exportieren…", "export", GpuExport),
         E("Info-Stundenplan (HTML)…", "html", InfoStundenplan),
@@ -580,6 +582,37 @@ public sealed partial class HauptFenster : Form
         ImportBericht? b = null;
         AppZustand.Doc.Aendern("GPU-Import", AenderungsArt.Alles, d => b = Import.Gpu(d, dateien!));
         Ui.Info($"GPU-Import: {b}");
+    }
+
+    /// <summary>BAL-Datei (WILLI2-Stundenplan) importieren: Zeitraster, Stammdaten, Unterricht mit Kopplungen, Stundenplan, Aufsichten.</summary>
+    public void BalImportieren()
+    {
+        using var ofd = new OpenFileDialog { Filter = "BAL-Dateien (*.bal)|*.bal;*.BAL|Alle Dateien|*.*", Title = "BAL-Datei (WILLI2) importieren" };
+        if (ofd.ShowDialog(this) != DialogResult.OK) return;
+        var text = BalImport.DateiLesen(ofd.FileName);
+        if (!BalImport.IstBal(text) && !Ui.Frage("Die Datei sieht nicht wie eine WILLI2-BAL-Datei aus. Trotzdem importieren?")) return;
+        var o = new BalOptionen();
+        using (var f = new Dialog("BAL-Import", 420, 250))
+        {
+            var y = 14;
+            var cz = Ui.Zeile(f, "", new CheckBox { Text = "Zeitraster (Tage, Stundenzeiten, Pausen)", Checked = true, AutoSize = true }, ref y, 10);
+            var cs = Ui.Zeile(f, "", new CheckBox { Text = "Stammdaten (Lehrer, Klassen, Fächer, Räume, Gänge)", Checked = true, AutoSize = true }, ref y, 10);
+            var cw = Ui.Zeile(f, "", new CheckBox { Text = "Verfügbarkeiten / freie Tage der Lehrer", Checked = true, AutoSize = true }, ref y, 10);
+            var cu = Ui.Zeile(f, "", new CheckBox { Text = "Vorhandenen Unterricht der aktiven Periode ersetzen", Checked = true, AutoSize = true }, ref y, 10);
+            var cp = Ui.Zeile(f, "", new CheckBox { Text = "Stundenplan übernehmen", Checked = true, AutoSize = true }, ref y, 10);
+            var ca = Ui.Zeile(f, "", new CheckBox { Text = "Pausenaufsichten übernehmen", Checked = true, AutoSize = true }, ref y, 10);
+            if (f.ShowDialog(this) != DialogResult.OK) return;
+            o = new BalOptionen { Zeitraster = cz.Checked, Stammdaten = cs.Checked, Zeitwuensche = cw.Checked, UnterrichtErsetzen = cu.Checked, Stundenplan = cp.Checked, Pausenaufsichten = ca.Checked };
+        }
+        ImportBericht? b = null;
+        try
+        {
+            using (new WarteCursor())
+                AppZustand.Doc.Aendern("BAL-Import", AenderungsArt.Alles, d => b = BalImport.Importieren(d, text, o));
+        }
+        catch (Exception ex) { Ui.Fehler(ex); return; }
+        Ui.Info($"BAL-Import: {b}", "BAL-Import");
+        if (AppZustand.Vertretungsmodus) VertretungsStandardFenster(); else StandardFenster();
     }
 
     private void GpuExport()
