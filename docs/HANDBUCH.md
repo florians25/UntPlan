@@ -18,6 +18,7 @@ In der Anwendung erreichen Sie die passende Hilfeseite jederzeit mit **F1**.
 9. [Module](#9-module)
 10. [Import, Export und WebPortal](#10-import-export-und-webportal)
 11. [Tastenkürzel](#11-tastenkürzel)
+12. [MultiUser](#12-multiuser)
 
 ---
 
@@ -388,3 +389,52 @@ Die Schnittstelle ist in [SYNC_API.md](SYNC_API.md) beschrieben.
 | F | markierte Stunde fixieren / Fixierung lösen |
 | Doppelklick auf Kurzname | Umbenennen |
 | Strg+Ziehen eines Feldes | Feld aus der Rasteransicht entfernen |
+
+---
+
+## 12. MultiUser
+
+Im MultiUser-Betrieb arbeiten mehrere Planer gleichzeitig mit denselben Daten. Statt in einer Datei `*.up` liegen alle Daten in einer gemeinsamen Datenbank, gegliedert nach **Schule → Schuljahr (JJJJ/JJJJ) → Version** (Nummer und Bezeichnung). Alle Arbeitsplätze müssen dieselbe UntPlan-Version verwenden.
+
+### Einrichtung (MultiUser-Assistent)
+
+| Schritt | Inhalt |
+|---|---|
+| 1. Datenbanksystem | **SQLite** (Datei, z. B. auf einem Netzlaufwerk – für kleine Schulen), **Microsoft SQL Server / Express**, **MySQL / MariaDB** oder **Microsoft Access** (nur Windows, ACE-Treiber erforderlich) |
+| 2. Verbindung | Datei bzw. Server, Port, Datenbank, Datenbank-Benutzer und -Passwort; bei SQL Server wahlweise Windows-Authentifizierung. **Verbindung testen** prüft die Angaben; „Datenbank anlegen, falls sie noch nicht existiert" erstellt eine leere Datenbank. |
+| 3. Datenbank einrichten | Beim ersten Verbinden legt UntPlan alle Tabellen an (versioniertes Schema). Hier stellen Sie auch die **automatische Abmeldung** nach X Minuten Inaktivität ein. |
+| 4. Administrator-Passwort | Der Benutzer **Administrator** (Gruppe Administrator) wird ohne Passwort angelegt und kann nicht gelöscht werden. Vergeben Sie sofort ein Passwort. |
+| 5. Erste Version | Optional wird die geöffnete Schuldatei als erste Version hochgeladen (Schulnummer, Schuljahr, Versionsnummer, Bezeichnung). |
+
+Die Verbindungsdaten werden je Windows-Benutzer in `%APPDATA%\UntPlan\multiuser.json` gespeichert; das Datenbank-Passwort ist mit Windows-DPAPI verschlüsselt.
+
+### Anmelden
+
+Im Anmeldedialog wählen Sie **Schulnummer**, **Schuljahr** und **Version** und geben **Benutzer** und **Passwort** ein. Über den Eintrag **&lt;Neu&gt;** legen Sie eine neue Schule, ein neues Schuljahr oder eine neue Version an (Recht „Schule/Schuljahr/Version anlegen" nötig; eine neue Version entsteht als Kopie der letzten Version oder aus der geöffneten Schuldatei). Mit **Passwort ändern** ändern Sie Ihr eigenes Passwort. Benutzer ohne Passwort werden nach der Anmeldung zur Vergabe aufgefordert.
+
+Anmeldung über die Befehlszeile: `UntPlan.exe DB~123456~2024-2025~1 /user=Meier /pw=geheim`.
+
+### Arbeiten im MultiUser-Betrieb
+
+- **Kein Speichern nötig:** Jede Änderung wird sofort einzeln in die Datenbank geschrieben.
+- **Gleichzeitige Änderungen:** Der erste Schreiber gewinnt. Hat ein anderer Benutzer die Daten inzwischen geändert, erscheint „Die Änderung konnte nicht durchgeführt werden, da ein anderer Benutzer die Daten inzwischen geändert hat." – die Daten werden neu geladen, die Eingabe ist zu wiederholen.
+- **Fremde Änderungen** werden etwa alle 10 Sekunden erkannt und automatisch angezeigt; **Neuanzeige** lädt sofort neu.
+- **Exklusivbetrieb** ist nur möglich, wenn kein anderer Benutzer an der Version angemeldet ist. Er wird für Datenimport, Schuldaten/Zeitraster, Perioden, Ferien und den Wechsel in ein neues Schuljahr empfohlen. Während des Exklusivbetriebs kann sich niemand sonst anmelden.
+- **Datei in Datenbank speichern** schreibt die geöffneten Daten oder eine `*.up`-Datei als neue Version bzw. überschreibt eine vorhandene Version. **Version als Datei exportieren** erzeugt eine Schuldatei (z. B. zur Sicherung).
+- **Automatische Abmeldung:** Nach der eingestellten Zeit ohne Aktivität fragt UntPlan „Sitzung beenden?" und meldet nach 10 Sekunden ab.
+
+### Benutzerverwaltung
+
+Die Benutzerverwaltung (Recht „Benutzerverwaltung") hat drei Karteikarten:
+
+| Karteikarte | Inhalt |
+|---|---|
+| Benutzer | Name, Gruppe, letztes Login, Abteilung (Einschränkung auf eine Abteilung), Passwort setzen/löschen |
+| Gruppen und Rechte | Ja/Nein-Rechte: Schule/Schuljahr/Version anlegen, Administrator, Benutzerverwaltung, Optimierung, Drucken, Vertretungsstatistik, Web-Export, Datenimport/-export, Info-Stundenplan. Stufen *Keine / Nur lesen / Ansichten bearbeiten / Bearbeiten* für Stundenplan, Stammdaten, Besondere Daten, Unterricht, Perioden, Vertretungsplanung, Absenzen, Kursplanung und Anrechnungen. Vorgegeben sind die Gruppen Administrator, Stundenplaner, Vertretungsplaner und Info. |
+| Einschränkungen | Je Gruppe: Schule, Schuljahr, Version, Periode, Abteilung, Nur lesen. Leere Felder gelten für alle; hat eine Gruppe Einschränkungen, ist die Anmeldung nur an passenden Versionen möglich. |
+
+Änderungen, für die das Recht fehlt, werden nicht gespeichert; die Daten werden neu geladen.
+
+### Angemeldete Benutzer und Nachrichten
+
+**Angemeldete Benutzer** zeigt alle Sitzungen mit Rechner, Version, Anmeldezeit, letzter Aktivität und aktueller Tätigkeit (aktives Fenster). Sie können eine **Nachricht an alle** oder an einen Benutzer senden; sie erscheint beim Empfänger innerhalb von 10 Sekunden. Administratoren können Benutzer **abmelden**.
