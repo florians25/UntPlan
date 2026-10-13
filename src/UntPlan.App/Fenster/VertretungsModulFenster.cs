@@ -344,6 +344,13 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private void Speichern(IReadOnlyList<Abwesenheit> neu, IReadOnlyList<Abwesenheit> alt, string text)
     {
+        // Hinweis: eingeplante Vertreter, die durch die neue Absenz abwesend werden
+        var betroffen = neu.SelectMany(a => Vertretungen.BetroffeneVertreter(D, a)).Distinct().ToList();
+        if (betroffen.Count > 0)
+            BeginInvoke(() => Ui.Info("Achtung: Folgende Vertretungen waren bereits mit einer Lehrkraft geplant, die nun abwesend ist. " +
+                "Sie sind wieder offen und müssen neu vertreten werden:\n\n" +
+                string.Join("\n", betroffen.Take(20).Select(v => $"Vtr-Nr. {v.Id}: {Planungsdienst.TageKurz[((int)v.Datum.DayOfWeek + 6) % 7]} {Format.Datum(v.Datum)}, {v.Stunde}. Std., {Ix.KKlassen(v.NeueKlassenIds)} {Ix.KFach(v.FachId)} – Vertreter {Ix.KLehrer(v.VertreterId)}")) +
+                (betroffen.Count > 20 ? $"\n… und {betroffen.Count - 20} weitere" : ""), "Vertreter abwesend"));
         var altIds = alt.Select(a => a.Id).ToHashSet();
         Aendern(text, AenderungsArt.Vertretung, d =>
         {

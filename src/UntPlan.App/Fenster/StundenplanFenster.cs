@@ -164,8 +164,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         AppZustand.StundeGewaehlt += StundeGewaehlt;
         AppZustand.DatumGewechselt += DatumGewechselt;
         AppZustand.ModusGewechselt += ModusAnwenden;
+        AppZustand.VertretungGewaehlt += VertretungGewaehlt;
         FormClosed += (_, _) =>
         {
+            AppZustand.VertretungGewaehlt -= VertretungGewaehlt;
             AppZustand.ElementGewaehlt -= ElementGewaehlt;
             AppZustand.StundeGewaehlt -= StundeGewaehlt;
             AppZustand.DatumGewechselt -= DatumGewechselt;
@@ -216,14 +218,22 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>Stundenplan-Synchronisation: andere Pläne zeigen die Elemente der aktivierten Stunde.</summary>
+    /// <summary>Position dieses Fensters unter den geöffneten Plänen desselben Typs (1. Lehrerplan, 2. Lehrerplan …).</summary>
+    private int FensterIndex(object? quelle) =>
+        Math.Max(0, AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().Where(f => f != quelle && f._typ == _typ && !f._reiter.Visible).ToList().IndexOf(this));
+
+    private static int? Wahl(IReadOnlyList<int> ids, int index) => ids.Count == 0 ? null : ids[index % ids.Count];
+
+    /// <summary>Stundenplan-Synchronisation: andere Pläne zeigen die Elemente der aktivierten Stunde (bei mehreren Plänen desselben Typs der Reihe nach).</summary>
     private void StundeGewaehlt(Unterricht u, Planstunde? p, object quelle)
     {
         if (quelle == this || !_sync.Checked || _reiter.Visible) return;
+        var k = FensterIndex(quelle);
         int? neu = _typ switch
         {
-            ElementTyp.Lehrer => u.LehrerIds.Cast<int?>().FirstOrDefault(),
-            ElementTyp.Klasse => u.KlassenIds.Cast<int?>().FirstOrDefault(),
-            ElementTyp.Raum => p?.Raeume.FirstOrDefault(r => r.HasValue),
+            ElementTyp.Lehrer => Wahl(u.LehrerIds.ToList(), k),
+            ElementTyp.Klasse => Wahl(u.KlassenIds.ToList(), k),
+            ElementTyp.Raum => Wahl(p?.Raeume.Where(r => r.HasValue).Select(r => r!.Value).ToList() ?? u.Zeilen.Where(z => z.FachraumId.HasValue).Select(z => z.FachraumId!.Value).ToList(), k),
             ElementTyp.Fach => u.HauptfachId,
             _ => null,
         };
@@ -232,6 +242,35 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         Neuaufbau();
         _plan.Ausgewaehlt = p;
         LupeFuellen(p);
+    }
+
+    /// <summary>Gewählte Vertretung: Klassenplan der Klasse, Lehrerpläne von (Lehrer) und Vertreter, Raumplan – tagesaktuell zur Woche der Vertretung.</summary>
+    private void VertretungGewaehlt(Vertretung? v)
+    {
+        if (v is null || IsDisposed || !_sync.Checked || _reiter.Visible || ContainsFocus) return;
+        var k = FensterIndex(null);
+        int? neu = _typ switch
+        {
+            ElementTyp.Klasse => Wahl(v.NeueKlassenIds.ToList(), k),
+            ElementTyp.Lehrer => Wahl(new[] { v.LehrerId, v.VertreterId }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList(), k),
+            ElementTyp.Raum => Wahl(new[] { v.VertretungsraumId, v.RaumId }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList(), k),
+            ElementTyp.Fach => v.VertretungsfachId ?? v.FachId,
+            _ => null,
+        };
+        var wocheAnders = _plan.Woche.HasValue && Kalender.Montag(v.Datum) != _plan.Woche;
+        if (wocheAnders)
+        {
+            _laden = true;
+            _datum.Value = v.Datum.ToDateTime(TimeOnly.MinValue);
+            _laden = false;
+        }
+        if (neu is int n && n != _id)
+        {
+            _id = n;
+            Neuaufbau();
+        }
+        if (wocheAnders) WocheSetzen();
+        else _plan.Invalidate();
     }
 
     protected override void Aktualisieren(AenderungsArt art)

@@ -79,8 +79,58 @@ public static class Ui
         g.ReadOnly = !editierbar;
         g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         g.EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2;
+        // ein Klick genügt, um in ein änderbares Feld zu wechseln (Strg/Umschalt-Klick bleibt Mehrfachauswahl)
+        g.CellClick += (_, e) =>
+        {
+            if (g.ReadOnly || e.RowIndex < 0 || e.ColumnIndex < 0 || Control.ModifierKeys != Keys.None || g.IsCurrentCellInEditMode) return;
+            var zelle = g.Rows[e.RowIndex].Cells[e.ColumnIndex];
+            if (zelle.ReadOnly || g.Columns[e.ColumnIndex].ReadOnly || zelle is DataGridViewCheckBoxCell || zelle is DataGridViewButtonCell) return;
+            if (g.SelectedCells.Count > 1 && g.SelectionMode != DataGridViewSelectionMode.FullRowSelect) return;
+            g.BeginEdit(zelle is not DataGridViewComboBoxCell);
+            if (zelle is DataGridViewComboBoxCell && g.EditingControl is ComboBox cb) cb.DroppedDown = true;
+        };
         g.CellBorderStyle = DataGridViewCellBorderStyle.Single;
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
+    }
+
+    /// <summary>
+    /// Direktsuche in allen Auswahllisten eines Fensters: Listen ohne freie Eingabe werden zu Listen mit Suche
+    /// (tippen ergänzt den passenden Eintrag); beim Verlassen wird auf einen gültigen Eintrag zurückgesetzt.
+    /// </summary>
+    public static void SucheAktivieren(Control wurzel)
+    {
+        foreach (Control c in wurzel.Controls)
+        {
+            if (c is ComboBox cb) Suchliste(cb);
+            if (c is ToolStrip ts)
+                foreach (var item in ts.Items.OfType<ToolStripComboBox>()) Suchliste(item.ComboBox);
+            if (c.HasChildren && c is not DataGridView) SucheAktivieren(c);
+        }
+    }
+
+    public static void Suchliste(ComboBox cb)
+    {
+        if (cb.DropDownStyle != ComboBoxStyle.DropDownList || cb.Tag as string == "suche" || cb.DrawMode != DrawMode.Normal) return;
+        cb.Tag ??= "suche";
+        var letzter = cb.SelectedIndex;
+        cb.DropDownStyle = ComboBoxStyle.DropDown;
+        cb.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        cb.AutoCompleteSource = AutoCompleteSource.ListItems;
+        if (letzter >= 0 && letzter < cb.Items.Count) cb.SelectedIndex = letzter;
+        cb.Enter += (_, _) => letzter = cb.SelectedIndex;
+        cb.SelectedIndexChanged += (_, _) => { if (cb.SelectedIndex >= 0) letzter = cb.SelectedIndex; };
+        void Pruefen()
+        {
+            var text = cb.Text.Trim();
+            var namen = cb.Items.Cast<object>().Select(cb.GetItemText).ToList();
+            var i = namen.FindIndex(n => n.Equals(text, StringComparison.OrdinalIgnoreCase));
+            if (i < 0 && text.Length > 0) i = namen.FindIndex(n => n.StartsWith(text, StringComparison.OrdinalIgnoreCase));
+            if (i < 0 && text.Length > 0) i = namen.FindIndex(n => n.Contains(text, StringComparison.OrdinalIgnoreCase));
+            if (i < 0) i = letzter;
+            if (i >= 0 && i < cb.Items.Count) { if (cb.SelectedIndex != i) cb.SelectedIndex = i; else cb.Text = namen[i]; }
+        }
+        cb.Validating += (_, _) => Pruefen();
+        cb.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Pruefen(); e.SuppressKeyPress = true; } };
     }
 
     /// <summary>Im Selbsttest werden Fehler protokolliert statt angezeigt (keine blockierenden Meldungsfenster).</summary>

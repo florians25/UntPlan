@@ -102,6 +102,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             if (!lesbar) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
         _g.Columns["Text"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        // mehrere Klassen untereinander (Zeilenhöhe passt sich an)
+        _g.Columns["Klassen"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellFormatting += Formatieren;
         _g.EditingControlShowing += EditorZeigen;
@@ -306,7 +310,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         string Pos(DateOnly? d, int? s) => d is DateOnly dd ? $"{Planungsdienst.TageKurz[((int)dd.DayOfWeek + 6) % 7]}-{dd:dd.MM.} / {s}" : "";
         return new object?[]
         {
-            v.Id, Vertretungsplan.ArtText(D, v.Art), $"{tag} {v.Datum:dd.MM.}", Vertretungsplan.StundeText(v), Ix.KKlassen(v.NeueKlassenIds),
+            v.Id, Vertretungsplan.ArtText(D, v.Art), $"{tag} {v.Datum:dd.MM.}", Vertretungsplan.StundeText(v), Ix.KKlassen(v.NeueKlassenIds).Replace(",", ", "),
             Ix.KLehrer(v.LehrerId), vertreter, Ix.KFach(v.FachId), v.IstEntfall ? "" : Ix.KFach(v.VertretungsfachId ?? v.FachId),
             v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Ix.KRaum(v.RaumId), raumNeu,
             Pos(v.VonDatum, v.VonStunde), Pos(v.NachDatum, v.NachStunde), v.Grund, v.Statistik, v.Text, v.Mehrarbeit ? "x" : "",
@@ -318,11 +322,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (e.RowIndex < 0 || e.CellStyle is null || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
         var name = _g.Columns[e.ColumnIndex].Name;
         if (D.Vertretungseinstellungen.Farben.TryGetValue(v.Art.ToString(), out var farbe) && name == "Art") e.CellStyle.BackColor = Ui.Farbe(farbe, Color.White);
-        if (v.Offen)
-        {
-            if (name is "Vertreter" or "Art") { e.CellStyle.BackColor = Color.FromArgb(255, 205, 205); e.CellStyle.ForeColor = Color.DarkRed; }
-            e.CellStyle.Font = Ui.SchriftFett;
-        }
+        // offene Vertretung: nur rotes "???" beim Vertreter
+        if (v.Offen && name == "Vertreter") e.CellStyle.ForeColor = Color.Red;
         else if (v.IstEntfall)
         {
             e.CellStyle.ForeColor = Color.DimGray;

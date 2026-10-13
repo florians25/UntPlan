@@ -80,6 +80,12 @@ public class MdiFenster : Form
         }
     }
 
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        Ui.SucheAktivieren(this);
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.KeyCode == Keys.F1)

@@ -27,6 +27,12 @@ public class Dialog : Form
         Controls.Add(Ok);
         Controls.Add(Abbrechen);
     }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        Ui.SucheAktivieren(this);
+    }
 }
 
 public static class KurznameDialog

@@ -79,7 +79,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.CellClick += CellClick;
         _grid.CellFormatting += CellFormatting;
         _grid.EditingControlShowing += EditingControlShowing;
-        _grid.CurrentCellChanged += (_, _) => FormularFuellen();
+        _grid.CurrentCellChanged += (_, _) =>
+        {
+            FormularFuellen();
+            // gewählter Unterricht wirkt auf die geöffneten Stundenpläne (Synchronisation)
+            if (!_laden && Aktuell() is { } zt) AppZustand.StundeWaehlen(zt.U, null, this);
+        };
         _grid.CellMouseDown += CellMouseDown;
         _grid.DataError += (_, e) => e.ThrowException = false;
         Steuerelemente.SuchKombi.Aktivieren(_grid, (zelle, text) =>

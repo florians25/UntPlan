@@ -687,6 +687,22 @@ public static class Vertretungen
         VertretungsArt.Teilvertretung, VertretungsArt.Lehrertausch, VertretungsArt.Bereitschaftsvertretung, VertretungsArt.SondereinsatzVormerkung, VertretungsArt.Klausur,
     };
 
+    /// <summary>
+    /// Vertretungen, deren eingeplanter Vertreter durch die Absenz abwesend wird (Lehrer-Absenz bzw. Begleitlehrer einer
+    /// Klassen-Absenz). Diese werden bei der Neuberechnung wieder offen – der Planer muss informiert werden.
+    /// </summary>
+    public static List<Vertretung> BetroffeneVertreter(Schuldatei d, Abwesenheit a)
+    {
+        var lehrer = a.Art switch
+        {
+            AbwesenheitsArt.Lehrer => new HashSet<int> { a.ElementId },
+            AbwesenheitsArt.Klasse => a.BegleitLehrerIds.ToHashSet(),
+            _ => new HashSet<int>(),
+        };
+        return d.Vertretungen.Where(v => v.VertreterId is int l && lehrer.Contains(l) && v.LehrerId != l && !v.IstEntfall && a.Deckt(v.Datum, v.Stunde))
+            .OrderBy(v => v.Datum).ThenBy(v => v.Stunde).ToList();
+    }
+
     /// <summary>Anzahl gehaltener Vertretungen im Zeitraum (für Höchstwerte pro Woche/Monat).</summary>
     public static int Zaehler(Schuldatei d, int lehrerId, DateOnly von, DateOnly bis) =>
         d.Vertretungen.Count(v => v.VertreterId == lehrerId && v.Datum >= von && v.Datum <= bis && v.VertreterId != v.LehrerId &&
