@@ -106,6 +106,8 @@ public static class BegruessungDialog
         var rechts = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16) };
         f.Controls.Add(rechts);
         f.Controls.Add(links);
+        f.Icon = Icon.FromHandle(Symbole.Get("logo", 32).GetHicon());
+        f.ShowIcon = true;
         var y = 14;
         void Navi(string text, string symbol, bool kopf = false)
         {
@@ -120,7 +122,9 @@ public static class BegruessungDialog
         y += 10;
         Navi("Hilfe & Neuigkeiten", "", true);
         Navi("Handbuch / Hilfe (F1)", "hilfe");
-        rechts.Controls.Add(new Label { Text = "Stundenplan erstellen", Left = 16, Top = 14, Width = 400, Font = Ui.SchriftGross });
+        // Programmlogo oben rechts
+        rechts.Controls.Add(new PictureBox { Image = Symbole.Get("logo", 48), SizeMode = PictureBoxSizeMode.CenterImage, Left = 408, Top = 8, Width = 48, Height = 48 });
+        rechts.Controls.Add(new Label { Text = "Stundenplan erstellen", Left = 16, Top = 14, Width = 380, Font = Ui.SchriftGross });
         rechts.Controls.Add(new Label { Text = "UntPlan unterstützt Sie bei Stundenplanerstellung, Vertretungsplanung, Pausenaufsichten, Kursplanung und Wertrechnung – mit NRW-Voreinstellungen (Schulformen, Pflichtstunden, Ferien, Feiertage).\n\nDer Eingabeassistent führt Sie durch die Eingabe der wichtigsten Daten.", Left = 16, Top = 46, Width = 440, Height = 100 });
         Button Knopf(string text, string symbol, int top)
         {
