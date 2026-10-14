@@ -88,8 +88,9 @@ public sealed class Tagesplan
         var zusaetzlich = new List<Vertretung>();
         foreach (var v in vertretungen)
         {
-            if (v.UnterrichtId is int uid && v.Art is not (VertretungsArt.Verlegung or VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung
-                    or VertretungsArt.Klausur or VertretungsArt.Veranstaltung) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
+            // Sondereinsatz zu einem regulären Unterricht („Stunde ändern“, andere Lehrkraft) ersetzt diesen Unterricht
+            if (v.UnterrichtId is int uid && v.Art is not (VertretungsArt.Verlegung or VertretungsArt.SondereinsatzVormerkung
+                    or VertretungsArt.Klausur or VertretungsArt.Veranstaltung) && !(v.Art == VertretungsArt.Sondereinsatz && v.LehrerId is null) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
             {
                 var key = (uid, v.ZeilenIndex, v.Stunde);
                 if (!zuRegel.TryGetValue(key, out var l)) zuRegel[key] = l = new();
@@ -147,6 +148,8 @@ public sealed class Tagesplan
         if (v.VertretungsKlassenIds != null) e.KlassenIds = v.VertretungsKlassenIds.ToList();
         if (v.VertretungsfachId.HasValue) e.FachId = v.VertretungsfachId;
         if (v.VertretungsraumId.HasValue) e.RaumIds = new List<int> { v.VertretungsraumId.Value };
+        // Raum verdrängt bzw. Raum gelöscht: die Stunde belegt keinen Raum mehr
+        else if (v.RaumVerdraengt || (v.Art == VertretungsArt.Raumvertretung && v.Quelle == VertretungsQuelle.Manuell && v.ZusatzraumIds.Count == 0)) e.RaumIds = new List<int>();
         e.RaumIds.AddRange(v.ZusatzraumIds);
         switch (v.Art)
         {

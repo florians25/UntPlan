@@ -139,10 +139,17 @@ public sealed class Vertretung
     public DateTime Erstellt { get; set; } = DateTime.Now;
     public DateTime Geaendert { get; set; } = DateTime.Now;
     public string Benutzer { get; set; } = "";
+    /// <summary>
+    /// Der Raum wurde für einen anderen Unterricht freigegeben („Raum ohne Kollision verplanen“): Die Stunde hat keinen
+    /// Raum mehr, bis ein Ersatzraum eingetragen ist (offene Raumvertretung „???“).
+    /// </summary>
+    public bool RaumVerdraengt { get; set; }
+    /// <summary>Herkunft aus UntPlanWeb (Kennung der übernommenen Stundenplanänderung), sonst leer.</summary>
+    public string WebId { get; set; } = "";
 
     [JsonIgnore] public bool Offen => (Art is VertretungsArt.Vertretung or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Pausenaufsicht) && VertreterId == null;
     /// <summary>Raumvertretung wegen gesperrtem Raum, für die noch kein Ersatzraum eingetragen ist (offen wie eine fehlende Lehrkraft).</summary>
-    [JsonIgnore] public bool RaumOffen => Art == VertretungsArt.Raumvertretung && VertretungsraumId == null && Quelle != VertretungsQuelle.Manuell;
+    [JsonIgnore] public bool RaumOffen => VertretungsraumId == null && ((Art == VertretungsArt.Raumvertretung && Quelle != VertretungsQuelle.Manuell) || (RaumVerdraengt && !IstEntfall));
     /// <summary>Offen im Sinne der Liste: Lehrkraft oder Raum fehlt.</summary>
     [JsonIgnore] public bool OffenOderRaumOffen => Offen || RaumOffen;
     [JsonIgnore] public bool IstEntfall => Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung or VertretungsArt.BereitschaftEntfaellt;
@@ -300,6 +307,10 @@ public sealed class Klausur
     /// <summary>Kollidierender Unterricht der Klassen entfällt.</summary>
     public bool UnterrichtEntfaellt { get; set; } = true;
     public bool Aktiv { get; set; } = true;
+    /// <summary>Aus UntPlanWeb übernommene Prüfung (Kennung der Rückmeldung): nur Lehrkraft und Raum änderbar, keine Verlegung.</summary>
+    public string WebId { get; set; } = "";
+
+    [JsonIgnore] public bool Importiert => !string.IsNullOrEmpty(WebId);
 }
 
 /// <summary>Bedarf an Bereitschaften je Tag und Stunde (Bereitschaftsplanung).</summary>

@@ -125,6 +125,26 @@ public sealed class PortalEinstellungen
     public bool SchuelerExportieren { get; set; }
     /// <summary>Letzter erfolgreicher Export bzw. Import je Teil (stammdaten, unterricht, vertretungen, absenzen).</summary>
     public Dictionary<string, DateTime> LetzteUebertragung { get; set; } = new();
+    /// <summary>Stundenplanänderungen aus UntPlanWeb: Pausenaufsichten vor Prüfungen außer Betracht lassen.</summary>
+    public bool PausenaufsichtVorPruefungIgnorieren { get; set; }
+    /// <summary>Stundenplanänderungen aus UntPlanWeb: Pausenaufsichten nach Prüfungen außer Betracht lassen.</summary>
+    public bool PausenaufsichtNachPruefungIgnorieren { get; set; } = true;
+    /// <summary>Für wie viele Tage in die Zukunft Stundenplanänderungen standardmäßig importiert werden.</summary>
+    public int StplAenderungenTage { get; set; } = 14;
+    /// <summary>Bereits übernommene bzw. ignorierte Stundenplanänderungen aus UntPlanWeb (werden nicht erneut importiert).</summary>
+    public List<StplAenderungsEintrag> StplAenderungen { get; set; } = new();
+}
+
+/// <summary>Bearbeitete Stundenplanänderung aus UntPlanWeb (Buchung, Aktivität, Prüfung).</summary>
+public sealed class StplAenderungsEintrag
+{
+    public string Id { get; set; } = "";
+    /// <summary>true = übernommen, false = ignoriert.</summary>
+    public bool Uebernommen { get; set; }
+    public DateTime Zeitpunkt { get; set; } = DateTime.Now;
+    public string Benutzer { get; set; } = "";
+    /// <summary>Die Rückmeldung selbst (für die Anzeige „Bereits durchgeführte/ignorierte Änderungen“).</summary>
+    public UntPlan.Web.Contracts.WebRueckmeldung Meldung { get; set; } = new();
 }
 
 // Abwesenheiten, Vertretungen, Veranstaltungen usw.: siehe Vertretungsmodell.cs
