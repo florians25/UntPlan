@@ -20,7 +20,7 @@ public static class Ui
     public static Color BlauHell => Vertretungsmodus ? Color.FromArgb(206, 234, 208) : Color.FromArgb(201, 228, 236);
     public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(234, 246, 235) : Color.FromArgb(232, 243, 247);
     public static Color Titel => Vertretungsmodus ? Color.FromArgb(78, 140, 92) : Color.FromArgb(52, 122, 148);
-    public static Color MdiHintergrund => Vertretungsmodus ? Color.FromArgb(150, 186, 156) : Color.FromArgb(176, 190, 197);
+    public static Color MdiHintergrund => Vertretungsmodus ? Color.FromArgb(168, 220, 202) : Color.FromArgb(176, 190, 197);
     public static Color Kopf => Vertretungsmodus ? Color.FromArgb(238, 246, 238) : Color.FromArgb(240, 245, 247);
     public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(232, 242, 233) : Color.FromArgb(236, 241, 243);
     public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 238, 216) : Color.FromArgb(214, 234, 240);
