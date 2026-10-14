@@ -7,52 +7,100 @@ UntPlan beim nächsten Datenaustausch ab.
 
 ![Stundenplan](docs/bilder/stundenplan.png)
 
+## Oberfläche
+
+Aufbau und Bedienung folgen dem gewohnten WebUntis-Prinzip, mit eigener Gestaltung (eigene Linien-Icons aus Bootstrap Icons,
+Systemschrift, keine fremden Grafiken):
+
+- **Navigation links:** weiße Leiste mit Logo, Schulname und Schuljahr-Pille; Menüpunkte mit Linien-Icons, aktiver Punkt orange
+  mit Balken. Bereiche wie *Stundenplan*, *Unterricht*, *Klassenbuch*, *Melden & Buchen* und *Administration* öffnen ein Untermenü
+  mit rundem Zurück-Knopf. Unten Benutzer mit Avatar, *Abmelden* und *Einklappen* (nur Symbole). Auf dem Telefon klappt die
+  Navigation über das Menüsymbol in der Kopfleiste aus.
+- **Inhalt** auf hellgrauem Grund mit weißen Bereichen, Pillen-Knöpfen, Reitern mit oranger Unterstreichung, Filterleisten über Listen,
+  Dialogen und Hinweisen unten mittig. Alle Farben und Maße als CSS-Variablen (`wwwroot/css/app.css`), Druckansichten bleiben erhalten.
+
+| Anmeldung | Stundendetails | Telefon: Menü |
+|---|---|---|
+| ![Anmeldung](docs/bilder/anmeldung.png) | ![Stundendetails](docs/bilder/stundendetails.png) | ![Menü auf dem Telefon](docs/bilder/menue-telefon.png) |
+
 ## Funktionen
 
-- **Heute:** der nächste Unterrichtstag mit Änderungen, Pausenaufsichten, Nachrichten, Terminen und eigenen Meldungen.
+Seiten (je nach Rolle):
+
+| Bereich | Seiten |
+|---|---|
+| **Heute** | nächster Unterrichtstag mit Stunden, Nachrichten zum Tag, Mitteilungen, Prüfungen, Hausaufgaben bzw. offene Stunden, Termine, eigene Meldungen |
+| **Übersicht** | Kennzahlen, Änderungen dieser und der nächsten Woche im eigenen Plan, anstehende Prüfungen und Hausaufgaben |
+| **Mitteilungen** | Posteingang, Gesendet, neue Mitteilung (Liste links, Lesebereich rechts) |
+| **Stundenplan** | Mein Stundenplan, Klasse, Lehrkraft, Raum, Tag - Klassen, Tag - Lehrkräfte, Tag - Räume, Vertretungsplan (Klassenkonten: Mein Stundenplan, Weitere Stundenpläne) |
+| **Unterricht** | Meine Unterrichte (Periode, Termine, Räume, CSV), Offene Stunden (ohne Lehrstoff, zum Nachtragen), Prüfungen |
+| **Klassenbuch** | Übersicht (Woche, Fehlzeiten, Vermerke, Lehrstoff), Klassenbucheinträge, Hausaufgaben, Abwesenheiten, Fehlzeiten, Berichte |
+| **Melden & Buchen** | Abwesenheit melden, Raum buchen, Prüfung eintragen, Meine Meldungen |
+| **Administration** | Übersicht & Synchronisation, Benutzer, Rückmeldungen, Nachrichten zum Tag, Monitore, Protokoll |
+
+Im Einzelnen:
+
 - **Stundenpläne** für Klassen, Lehrkräfte und Räume:
   - Raster nach Unterrichtsstunden mit Uhrzeiten und Jetzt-Linie; gleichzeitige Stunden stehen nebeneinander.
     Pausenzeilen (mit Aufsichten) nur dort, wo in der Woche wirklich eine Pause mit Aufsicht liegt.
-  - Leicht abgerundete Stundenkarten mit Beginn/Ende, Akzentbalken in der Fachfarbe aus UntPlan und den bekannten Kennzeichen:
-    Änderungen grün hinterlegt, geänderte Werte als grüne Kürzelbox, offene Vertretungen mit durchgestrichenem alten Wert,
-    Entfall rot und durchgestrichen, Prüfungen gelb.
-  - Ferien, Feiertage und freie Tage als blaue Fläche mit Schloss; Elementwahl mit Vor/Zurück (auch Alt+←/→), Woche mittig, „Heute“.
-  - Marker oben rechts (Entfall, Prüfung, Änderung, Zusatzstunde) und Infozeichen bei Zusatztext.
-  - Veranstaltungen als grüne Zusatzkarten; Teilnahmen mehrerer Lehrkräfte werden zusammengefasst.
-  - Aus den Stundendetails direkt eine Klausur eintragen oder einen freien Raum buchen; beides erscheint sofort auf der Karte
-    („Klausur (vorgemerkt)“ bzw. „Raumänderung (vorgemerkt)“).
-  - Bereitschaften, Raumbuchungen und Vormerkungen; Druck, Mobilansicht mit Tagesauswahl.
+  - Weiße Stundenkarten mit Beginn/Ende, Akzentbalken in der Fachfarbe aus UntPlan und den bekannten Kennzeichen:
+    Änderungen grün hinterlegt, geänderte Werte als grüne Kürzelbox, Entfall rot und durchgestrichen, Prüfungen gelb.
+  - **Vertretung ohne Lehrkraft** („+++“ in UntPlan): Änderung, bei der die bisherige Lehrkraft durchgestrichen in der grünen Plakette steht
+    (kein „???“ oder „+++“); ohne eigenen Vertretungstext steht „Vertr. o. Lehrkraft“ als Text.
+  - **Kopplungen**: mehrere Lehrkräfte desselben Unterrichts in einer Stunde stehen auf einer Karte (Fächer, Lehrkräfte, Räume zusammengefasst).
+  - **Fachwechsel**: die ursprüngliche Stunde erscheint als Entfall, die neue Stunde als grüne Karte daneben.
+  - **Veranstaltungen** als grüne Zusatzkarten mit Klassen, teilnehmenden Lehrkräften (gekürzt „BEC, BRA, FIS +12“, vollständig in den Details)
+    und Raum; Veranstaltungen mit Raum stehen auch im Raumplan und in *Tag - Räume*.
+  - Ferien, Feiertage und freie Tage als hellblaue Fläche mit Schloss; Elementwahl mit Vor/Zurück (auch Alt+←/→), Woche mittig, „Heute“, Legende.
+  - Stundendetails mit den Reitern *Klassenbuch* (Schülerkacheln, Lehrstoff, Hausaufgaben, Einträge, Abwesende) und *Details*;
+    von dort eine Prüfung eintragen oder einen freien Raum buchen („vorgemerkt“, bis UntPlan übernimmt).
+  - Bereitschaften, Raumbuchungen und Vormerkungen; Druck, Telefonansicht mit Tagesauswahl.
 - **Tagesübersicht** (Kollegium): alle Klassen, Lehrkräfte oder Räume eines Tages auf einen Blick.
-- **Vertretungsplan** als Schüler- oder Lehrerversion:
-  - Die Schülerversion zeigt keine Abwesenheitsgründe und weder Bereitschaften noch Aufsichten.
-  - Aufeinanderfolgende Stunden werden zusammengefasst („3–4“).
+- **Vertretungsplan** als Schüler- oder Lehrerversion; die Schülerversion zeigt keine Abwesenheitsgründe, Bereitschaften oder Aufsichten.
+  Aufeinanderfolgende Stunden werden zusammengefasst („3–4“).
 - **Monitore:** Vertretungsplan für Info-Bildschirme über einen geheimen Link (ohne Anmeldung), mit Uhr, automatischem Bildlauf und minütlicher Aktualisierung.
-- **Melden & Buchen** (Lehrkräfte):
-  - Abwesenheit melden, freien Raum buchen, Klausur eintragen. Buchbar sind nur Räume, die in UntPlan in den Stammdaten
-    als „buchbar (Web)“ markiert sind (ältere Pakete ohne Kennzeichen: alle Räume).
-  - Die Meldungen gehen als Rückmeldungen an UntPlan; Buchungen erscheinen sofort als „vorgemerkt“.
+- **Melden & Buchen** (Lehrkräfte): Abwesenheit melden, freien Raum buchen (nur Räume „buchbar (Web)“), Prüfung eintragen. Die Meldungen gehen
+  als Rückmeldungen an UntPlan; Buchungen erscheinen sofort als „vorgemerkt“.
 - **Klassenbuch:**
-  - Wochenübersicht je Klasse: Inhalt, Hausaufgabe, Anwesenheitsprüfung und Fehlende je Stunde, Vermerke je Tag.
-  - Anwesenheit in den Stundendetails: alle anwesend vorbelegt, Klick schaltet auf „fehlt“ oder „verspätet“ (mit Minuten).
-    Dafür überträgt UntPlan die Schülerliste (UntPlanWeb → Einstellungen → „Schülerliste übertragen“).
-  - Fehlzeitenverwaltung: Summen je Schüler (Stunden, Tage, entschuldigt, unentschuldigt, offen, Verspätungen),
-    Entschuldigen durch Klassenleitung oder Schulleitung, ganze Fehltage (z. B. Krankmeldung) in einem Schritt eintragen.
-  - Vermerke (Lob, Ordnungsmaßnahme, Elterngespräch …) zur Klasse oder zu einzelnen Schülern.
-  - Unterrichtsinhalt, Hausaufgabe mit Fälligkeit und interne Notiz je Stunde, Liste der eigenen Stunden ohne Eintrag.
-  - Klassenkonten sehen Hausaufgaben und Inhalte, aber keine Fehlzeiten, Notizen oder Vermerke.
+  - Wochenübersicht je Klasse mit Lehrstoff, Hausaufgabe, Anwesenheitsprüfung und Fehlenden je Stunde, Vermerke je Tag.
+  - Anwesenheit in den Stundendetails (alle anwesend vorbelegt, abwesend/verspätet). Dafür überträgt UntPlan die Schülerliste.
+  - **Abwesenheiten:** Liste der Schülerabwesenheiten mit Filter (Zeitraum, Klasse, Status), Entschuldigen durch Klassenleitung bzw. Schulleitung,
+    CSV; Reiter *Meine Abwesenheiten* mit den eigenen Abwesenheitsmeldungen der Lehrkraft.
+  - **Fehlzeiten:** Summen je Schüler (Stunden, Tage, entschuldigt, unentschuldigt, offen, Verspätungen), ganze Fehltage in einem Schritt.
+  - **Klassenbucheinträge:** Vermerke (Lob, Ordnungsmaßnahme, Elterngespräch …) über alle oder eine Klasse, mit Filter nach Art.
+  - **Hausaufgaben** nach Fälligkeit, Filter nach Klasse und Lehrkraft; Klassenkonten zusätzlich mit Reiter *Lehrstoff*.
+  - **Berichte:** Fehlzeitenbericht (je Klasse oder alle) und Lehrstoffbericht einer Klasse – Vorschau, Druck und CSV.
+  - Klassenkonten sehen Hausaufgaben und Lehrstoff, aber keine Fehlzeiten, Notizen oder Vermerke.
+- **Prüfungen:** Klausuren aus UntPlan und in UntPlanWeb vorgemerkte Prüfungen, Filter nach Zeitraum, Klasse und Lehrkraft, CSV.
 - **Mitteilungen** zwischen Kollegium, Schulleitung und Klassen (Gruppen, Klassen, einzelne Benutzer).
 - **Kalenderabo (iCal)** des eigenen Stundenplans inkl. Vertretungen.
-- **Administration:**
-  - Verbindung mit UntPlan (Schul-ID, API-Schlüssel), Paket-Upload als Datei.
-  - Benutzer, auch automatisch aus den Stammdaten mit Startpasswörtern als CSV.
-  - Rückmeldungen, Nachrichten zum Tag, Monitore, Protokoll.
-
+- **Administration:** Verbindung mit UntPlan (Schul-ID, API-Schlüssel), Paket-Upload, Benutzer (auch automatisch aus den Stammdaten),
+  Rückmeldungen, Nachrichten zum Tag, Monitore, Protokoll.
 - **Mobil-App:** [UntPlanMobile](../mobile/README.md) bringt Stundenplan, Klassenbuch und Mitteilungen als installierbare
   App aufs Telefon. Sie läuft als eigener Container (Port 8081) und holt ihre Daten über die JSON-API von UntPlanWeb.
 
-| Lehrerplan | Übersicht | Vertretungsplan |
+| Heute | Übersicht | Lehrerplan |
 |---|---|---|
-| ![Lehrerplan](docs/bilder/lehrerplan.png) | ![Übersicht](docs/bilder/heute.png) | ![Vertretungsplan](docs/bilder/vertretungsplan.png) |
+| ![Heute](docs/bilder/heute.png) | ![Übersicht](docs/bilder/uebersicht.png) | ![Lehrerplan](docs/bilder/lehrerplan.png) |
+
+| Vertretungsplan | Tag - Räume | Abwesenheiten |
+|---|---|---|
+| ![Vertretungsplan](docs/bilder/vertretungsplan.png) | ![Tag - Räume](docs/bilder/tagesuebersicht.png) | ![Abwesenheiten](docs/bilder/abwesenheiten.png) |
+
+### Weitere Endpunkte der App-Schnittstelle
+
+Zusätzlich zu Plan, Vertretungen, Klassenbuch und Mitteilungen (alle unter `/api/app`, Anmeldung per Sitzungscookie):
+
+| Aufruf | Zweck |
+|---|---|
+| `GET /api/app/unterricht?lehrer=&klasse=` | Unterrichte der gültigen Periode (Kollegium) |
+| `GET /api/app/pruefungen?von=&bis=&klasse=&lehrer=` | Prüfungen (Klassenkonten: nur eigene Klasse) |
+| `GET /api/app/hausaufgaben?von=&bis=&klasse=&lehrer=` | Hausaufgaben nach Fälligkeit |
+| `GET /api/app/klassenbucheintraege?von=&bis=&klasse=&art=` | Vermerke über alle oder eine Klasse |
+| `GET /api/app/abwesenheiten?von=&bis=&klasse=&status=` | Schülerabwesenheiten, Stunden eines Tages zusammengefasst |
+| `GET /api/app/berichte/fehlzeiten?klasse=&von=&bis=&format=csv` | Fehlzeitenbericht (JSON oder CSV) |
+| `GET /api/app/berichte/lehrstoff?klasse=&von=&bis=&format=csv` | Lehrstoffbericht (JSON oder CSV) |
+| `GET /api/app/klassenbuch/offen?tage=` | eigene Stunden ohne Lehrstoff (Standard 14 Tage) |
 
 ## Installation mit Docker
 
@@ -152,7 +200,7 @@ dotnet test tests/UntPlanWeb.Tests           # inkl. Ende-zu-Ende-Test mit dem E
 Aufbau:
 
 - `src/UntPlanWeb`: ASP.NET Core 8 (Minimal-APIs) mit SQLite und eigenen Migrationen.
-- `wwwroot`: Oberfläche ohne Build-Schritt auf Basis von Bootstrap 5.3 und Bootstrap Icons (lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module.
+- `wwwroot`: Oberfläche ohne Build-Schritt im WebUntis-Stil (eigenes `css/app.css` mit CSS-Variablen über Bootstrap 5.3, Bootstrap Icons lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module je Seite unter `js/ansichten`.
 - `demo/beispiel-paket.json`: Beispielpaket, mit UntPlan.Core aus der Beispielschule erzeugt.
 
 UntPlanWeb gehört nicht zur Desktop-Solution `UntPlan.sln` und hat einen eigenen CI-Ablauf (`.github/workflows/web.yml`).
