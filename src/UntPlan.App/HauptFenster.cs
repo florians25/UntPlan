@@ -121,7 +121,9 @@ public sealed partial class HauptFenster : Form
         var d = AppZustand.D;
         var name = AppZustand.Doc.Pfad is null ? "Unbenannt" : Path.GetFileName(AppZustand.Doc.Pfad);
         if (MultiUser.MultiUserSitzung.Aktiv) name = "MultiUser " + MultiUser.MultiUserSitzung.Titel;
-        _titelLabel.Text = $"{(AppZustand.Vertretungsmodus ? "Vertretungsplanung" : "Stundenplanung")}  ·  {d.Einstellungen.Schulname}  ·  {d.AktivePeriode.Name}";
+        // kein Text oben rechts (wie Untis); Modus, Schule und Periode stehen im Fenstertitel
+        _titelLabel.Text = "";
+        _titelLabel.Visible = false;
         Text = $"UntPlan – {name}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")} – {d.Einstellungen.Schulname} – Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year % 100:00}";
         _statusMitte.Text = $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}";
         _statusRechts.Text = $"{d.AktivePeriode.Name} · {d.Klassen.Count} Klassen · {d.Lehrer.Count} Lehrer · {d.Unterrichte.Count} Unterrichte";

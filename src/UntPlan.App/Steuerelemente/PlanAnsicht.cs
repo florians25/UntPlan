@@ -520,9 +520,11 @@ public sealed class PlanAnsicht : Control
     }
 
     /// <summary>Texte einer Stunde untereinander; reicht die Höhe nicht, werden die unteren Zeilen zusammengefasst.</summary>
-    private void TextZeilen(Graphics g, RectangleF r, IReadOnlyList<string> zeilen, Color farbe)
+    /// <param name="durchgestrichen">Anzahl der (nicht leeren) Zeilen von oben, die einzeln durchgestrichen werden (Entfall).</param>
+    private void TextZeilen(Graphics g, RectangleF r, IReadOnlyList<string> zeilen, Color farbe, int durchgestrichen = 0)
     {
         var liste = zeilen.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList();
+        durchgestrichen = Math.Min(durchgestrichen, liste.Count);
         if (liste.Count == 0) return;
         var maxZeilen = Math.Max(1, (int)((r.Height - 2) / 11));
         while (liste.Count > maxZeilen && liste.Count > 1)
@@ -534,11 +536,14 @@ public sealed class PlanAnsicht : Control
         var groesse = Math.Max(6f, Math.Min(Format.Schriftgroesse, zh / 1.55f));
         using var fett = new Font("Segoe UI", groesse, FontStyle.Bold);
         using var normal = new Font("Segoe UI", Math.Max(6f, groesse - 0.5f));
+        using var fettWeg = new Font("Segoe UI", groesse, FontStyle.Bold | FontStyle.Strikeout);
+        using var normalWeg = new Font("Segoe UI", Math.Max(6f, groesse - 0.5f), FontStyle.Strikeout);
         var y = r.Y + 1 + Math.Max(0, (r.Height - 2 - zh * liste.Count) / 2);
         var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
         for (var i = 0; i < liste.Count; i++)
         {
-            TextRenderer.DrawText(g, liste[i], i == 0 ? fett : normal, new Rectangle((int)r.X + 1, (int)y, (int)r.Width - 2, (int)Math.Ceiling(zh)), farbe, flags);
+            var weg = i < durchgestrichen;
+            TextRenderer.DrawText(g, liste[i], i == 0 ? (weg ? fettWeg : fett) : (weg ? normalWeg : normal), new Rectangle((int)r.X + 1, (int)y, (int)r.Width - 2, (int)Math.Ceiling(zh)), farbe, flags);
             y += zh;
         }
     }
@@ -571,18 +576,32 @@ public sealed class PlanAnsicht : Control
             ElementTyp.Raum => (Ix.KKlassen(e.KlassenIds) + " " + lehrer).Trim(),
             _ => lehrer,
         };
-        if (entfall) info = v?.NachDatum.HasValue == true ? $"→ {Planungsdienst.TageKurz[((int)v.NachDatum.Value.DayOfWeek + 6) % 7]} {v.NachStunde}." : Core.Vertretungsplanung.Vertretungsplan.ArtText(v!.Art);
         var raum = Typ == ElementTyp.Raum ? "" : string.Join(",", e.RaumIds.Select(x => Kurz(ElementTyp.Raum, x)));
-        var kopf = stern + fach;
-        if (v != null && !entfall && v.Art is not (VertretungsArt.Vertretung or VertretungsArt.Raumvertretung)) kopf += r.Width > 70 ? " " + Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art) : "";
-        var zeilenTexte = new List<string> { kopf };
-        if (Typ == ElementTyp.Raum) { zeilenTexte.Add(Ix.KKlassen(e.KlassenIds)); zeilenTexte.Add(entfall ? info : lehrer); }
-        else zeilenTexte.Add(info);
-        if (!entfall && v?.LehrerId is int alt && !e.LehrerIds.Contains(alt) && r.Height > 44) zeilenTexte.Add($"({Kurz(ElementTyp.Lehrer, alt)})");
-        zeilenTexte.Add(raum);
-        TextZeilen(g, r, zeilenTexte, textfarbe);
         if (entfall)
-            using (var pen = new Pen(Color.FromArgb(200, 60, 60), 1.5f)) g.DrawLine(pen, r.Left + 2, r.Bottom - 3, r.Right - 2, r.Top + 3);
+        {
+            // Entfall wie in Untis: alle Werte einzeln durchgestrichen (kein Schrägbalken), ggf. Ziel der Verlegung darunter
+            var urLehrer = string.Join(",", (e.LehrerIds.Count > 0 ? e.LehrerIds : v?.LehrerId is int ul ? new List<int> { ul } : new List<int>()).Select(l => Kurz(ElementTyp.Lehrer, l)));
+            var werte = Typ switch
+            {
+                ElementTyp.Lehrer => new List<string> { stern + fach, Ix.KKlassen(e.KlassenIds), raum },
+                ElementTyp.Raum => new List<string> { stern + fach, Ix.KKlassen(e.KlassenIds), urLehrer },
+                _ => new List<string> { stern + fach, urLehrer, raum },
+            };
+            var anzahl = werte.Count(x => !string.IsNullOrWhiteSpace(x));
+            if (v?.NachDatum.HasValue == true) werte.Add($"→ {Planungsdienst.TageKurz[((int)v.NachDatum.Value.DayOfWeek + 6) % 7]} {v.NachStunde}.");
+            TextZeilen(g, r, werte, textfarbe, anzahl);
+        }
+        else
+        {
+            var kopf = stern + fach;
+            if (v != null && v.Art is not (VertretungsArt.Vertretung or VertretungsArt.Raumvertretung)) kopf += r.Width > 70 ? " " + Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art) : "";
+            var zeilenTexte = new List<string> { kopf };
+            if (Typ == ElementTyp.Raum) { zeilenTexte.Add(Ix.KKlassen(e.KlassenIds)); zeilenTexte.Add(lehrer); }
+            else zeilenTexte.Add(info);
+            if (v?.LehrerId is int alt && !e.LehrerIds.Contains(alt) && r.Height > 44) zeilenTexte.Add($"({Kurz(ElementTyp.Lehrer, alt)})");
+            zeilenTexte.Add(raum);
+            TextZeilen(g, r, zeilenTexte, textfarbe);
+        }
         if (e.Status == TagesStatus.Offen)
             using (var pen = new Pen(Color.Red, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
         if (e.Status == TagesStatus.Zusaetzlich)

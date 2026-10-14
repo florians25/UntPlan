@@ -59,7 +59,11 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             if (typ != ElementTyp.Raum) ts.Items.Add(Knopf("Unterricht", "unterricht", () => UnterrichtFenster.Zeigen(_typ, _aktuell?.Id)));
             ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => StundenplanFenster.Neu(_typ, _aktuell?.Id, false)));
         }
-        if (typ == ElementTyp.Fach) ts.Items.Add(Knopf("Fachfarben auf Standard setzen", "farbe", FachfarbenStandard, false));
+        if (typ == ElementTyp.Fach)
+        {
+            ts.Items.Add(Knopf("Fachfarben auf Standard setzen", "farbe", FachfarbenStandard, false));
+            ts.Items.Add(Knopf("Farbe löschen (markierte Fächer, sonst alle)", "loeschen", () => FarbenLoeschen(true), false));
+        }
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true)));
@@ -669,6 +673,24 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         });
     }
 
+    /// <summary>Farbe der markierten Elemente (ohne Markierung: aller Fächer) entfernen – das Element hat danach keine Farbe mehr.</summary>
+    private void FarbenLoeschen(bool alleOhneAuswahl)
+    {
+        var markiert = _grid.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Element>()
+            .Concat(_grid.SelectedRows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Element>()).Distinct().ToList();
+        if (markiert.Count == 0 && alleOhneAuswahl)
+        {
+            if (!Ui.Frage($"Die Farben aller {D.Faecher.Count} Fächer löschen? Die Fächer haben danach keine Farbe mehr.")) return;
+            markiert = D.Faecher.Cast<Element>().ToList();
+        }
+        if (markiert.Count == 0) return;
+        Aendern(markiert.Count == 1 ? "Farbe gelöscht" : "Farben gelöscht", AenderungsArt.Stammdaten, _ =>
+        {
+            foreach (var el in markiert) { el.Hintergrund = 0; el.Vordergrund = 0; }
+        });
+        Neuaufbau();
+    }
+
     private void Sortieren()
     {
         var a = D.Ansichten.FirstOrDefault(x => x.Fenster == FensterSchluessel && x.Name == _ansichtName);
@@ -737,6 +759,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         cm.Items.Add("Sortieren…", Symbole.Get("sortieren"), (_, _) => Sortieren());
         cm.Items.Add("Felder der Ansicht…", Symbole.Get("uebersicht"), (_, _) => FelderDialog());
         cm.Items.Add("Spalte ausblenden", null, (_, _) => SpalteAusblenden(_grid.Columns[e.ColumnIndex].Name));
+        if (((Feld)_grid.Columns[e.ColumnIndex].Tag!).Art == FeldArt.Farbe || _typ == ElementTyp.Fach)
+            cm.Items.Add("Farbe löschen", Symbole.Get("loeschen"), (_, _) => FarbenLoeschen(false));
         cm.Items.Add(new ToolStripSeparator());
         cm.Items.Add("Spaltenbreite anpassen", null, (_, _) => _grid.AutoResizeColumn(e.ColumnIndex, DataGridViewAutoSizeColumnMode.AllCells));
         cm.Items.Add("Alle Spalten anpassen", null, (_, _) => _grid.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells));
