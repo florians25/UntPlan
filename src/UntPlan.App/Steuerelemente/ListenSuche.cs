@@ -30,6 +30,9 @@ public static class ListenSuche
         return null;
     }
 
+    /// <summary>Wird die Auswahlliste schon von der Listensuche betreut (eigene Breitenberechnung mit Stil)?</summary>
+    public static bool IstEingerichtet(ComboBox cb) => Zustaende.TryGetValue(cb, out _);
+
     public static void Einrichten(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
     {
         langname ??= Langname;
@@ -50,7 +53,7 @@ public static class ListenSuche
         if (auswahl >= 0 && auswahl < cb.Items.Count && cb.SelectedIndex != auswahl) cb.SelectedIndex = auswahl;
         cb.AutoCompleteMode = AutoCompleteMode.None;
         cb.DrawMode = DrawMode.OwnerDrawFixed;
-        cb.ItemHeight = Math.Max(cb.ItemHeight, 17);
+        cb.ItemHeight = Math.Max(cb.ItemHeight, 19);
         cb.IntegralHeight = false;
         cb.DrawItem += Zeichnen;
         cb.DropDown += (_, _) =>
@@ -113,20 +116,33 @@ public static class ListenSuche
         ListeMarkieren(cb, z.Markiert);
     }
 
-    private static void Breite(ComboBox cb, Zustand z)
+    private static void Breite(ComboBox cb, Zustand z) => BreiteSetzen(cb, z.Stil, z.Langname);
+
+    /// <summary>
+    /// Liste so breit öffnen, dass Kurz- und Langname vollständig lesbar sind (auch in schmalen Tabellenspalten),
+    /// höchstens bis zum Bildschirmrand.
+    /// </summary>
+    public static void BreiteSetzen(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
     {
+        if (cb.IsDisposed || !cb.IsHandleCreated) return;
         var breite = cb.Width;
+        var mitLang = false;
         using var g = cb.CreateGraphics();
+        using var fett = new Font(cb.Font, FontStyle.Bold);
+        var kurzMax = 0;
+        var langMax = 0;
         foreach (var o in cb.Items)
         {
             var t = cb.GetItemText(o) ?? "";
-            var zusatz = z.Stil?.Invoke(t)?.Zusatz ?? z.Langname?.Invoke(t);
-            var w = TextRenderer.MeasureText(g, t, cb.Font).Width + (string.IsNullOrEmpty(zusatz) ? 0 : TextRenderer.MeasureText(g, zusatz, cb.Font).Width + 24) + 28;
-            breite = Math.Max(breite, Math.Min(460, w));
+            var zusatz = stil?.Invoke(t)?.Zusatz ?? langname?.Invoke(t);
+            kurzMax = Math.Max(kurzMax, TextRenderer.MeasureText(g, t, fett).Width);
+            if (!string.IsNullOrEmpty(zusatz)) { mitLang = true; langMax = Math.Max(langMax, TextRenderer.MeasureText(g, zusatz, cb.Font).Width); }
         }
-        // mit Langnamen immer breit genug öffnen (auch in schmalen Tabellenspalten)
-        if (cb.Items.Cast<object>().Any(o => !string.IsNullOrEmpty(z.Stil?.Invoke(cb.GetItemText(o) ?? "")?.Zusatz ?? z.Langname?.Invoke(cb.GetItemText(o) ?? "")))) breite = Math.Max(breite, 220);
-        cb.DropDownWidth = Math.Max(cb.Width, breite);
+        var w = kurzMax + (mitLang ? langMax + 30 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
+        breite = Math.Max(breite, w);
+        if (mitLang) breite = Math.Max(breite, 260);
+        var platz = Screen.FromControl(cb).WorkingArea.Right - cb.PointToScreen(Point.Empty).X - 4;
+        cb.DropDownWidth = Math.Max(cb.Width, Math.Min(breite, Math.Max(cb.Width, Math.Min(platz, 720))));
     }
 
     /// <summary>Listenhöhe so wählen, dass die Liste unter dem Feld Platz hat (Windows öffnet sonst nach oben).</summary>
@@ -168,6 +184,21 @@ public static class ListenSuche
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
     }
 
+    private static readonly ConditionalWeakTable<ComboBox, StrongBox<int>> KurzSpalten = new();
+
+    /// <summary>Breite der Kurzname-Spalte (längster Kurzname, fett) – damit die Langnamen bündig untereinander stehen.</summary>
+    private static int KurzSpalte(ComboBox cb, Font fett)
+    {
+        var box = KurzSpalten.GetValue(cb, _ => new StrongBox<int>(-1));
+        if (box.Value < 0 || cb.DroppedDown == false)
+        {
+            var max = 0;
+            foreach (var o in cb.Items) max = Math.Max(max, TextRenderer.MeasureText(cb.GetItemText(o) ?? "", fett).Width);
+            box.Value = Math.Min(max + 10, 160);
+        }
+        return box.Value;
+    }
+
     private static void Zeichnen(object? sender, DrawItemEventArgs e)
     {
         if (sender is not ComboBox cb || e.Index < 0 || e.Index >= cb.Items.Count) return;
@@ -181,11 +212,12 @@ public static class ListenSuche
         using (var b = new SolidBrush(hinter)) e.Graphics.FillRectangle(b, e.Bounds);
         var r = e.Bounds;
         // Kurzname in fester Spalte, damit die Langnamen bündig stehen
-        var kurzBreite = string.IsNullOrEmpty(zusatz) ? r.Width - 4 : Math.Min(Math.Max(56, TextRenderer.MeasureText(e.Graphics, text, cb.Font).Width + 8), r.Width / 2);
-        TextRenderer.DrawText(e.Graphics, text, cb.Font, new Rectangle(r.X + 3, r.Y, kurzBreite, r.Height), vorder, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        using var fett = new Font(cb.Font, FontStyle.Bold);
+        var kurzBreite = string.IsNullOrEmpty(zusatz) ? r.Width - 4 : Math.Min(Math.Max(64, KurzSpalte(cb, fett)), r.Width / 2);
+        TextRenderer.DrawText(e.Graphics, text, string.IsNullOrEmpty(zusatz) ? cb.Font : fett, new Rectangle(r.X + 4, r.Y, kurzBreite, r.Height), vorder, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         if (!string.IsNullOrEmpty(zusatz))
-            TextRenderer.DrawText(e.Graphics, zusatz, cb.Font, new Rectangle(r.X + 6 + kurzBreite, r.Y, r.Width - kurzBreite - 8, r.Height),
-                ausgewaehlt ? vorder : Color.FromArgb(105, 110, 120), TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            TextRenderer.DrawText(e.Graphics, zusatz, cb.Font, new Rectangle(r.X + 10 + kurzBreite, r.Y, r.Width - kurzBreite - 12, r.Height),
+                ausgewaehlt ? vorder : Color.FromArgb(55, 62, 72), TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         if ((e.State & DrawItemState.Focus) != 0) e.DrawFocusRectangle();
     }
 }

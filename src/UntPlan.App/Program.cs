@@ -18,6 +18,7 @@ internal static class Program
         Thread.CurrentThread.CurrentUICulture = de;
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
+        Steuerelemente.Auswahlbreite.Einschalten();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => Ui.Fehler(e.Exception);

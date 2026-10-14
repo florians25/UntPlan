@@ -215,7 +215,8 @@ public static class Symbole
         {
             _g = g;
             _s = groesse / 32f;
-            _rand = MathF.Max(1, MathF.Floor(_s + 0.5f));
+            // Saum um Formen/Linien: bei kleinen Symbolen (16–20 px) nur ein halber Pixel, sonst wirken sie zu fett
+            _rand = groesse <= 20 ? 0.5f : groesse <= 24 ? 0.75f : MathF.Max(1, MathF.Floor(_s + 0.5f));
         }
 
         public void Ausfuehren(string definition)
@@ -252,7 +253,8 @@ public static class Symbole
         private float F(float v) => MathF.Floor(v * _s + 0.5f);
 
         /// <summary>Strichstärke in Pixeln (mindestens 1 px, ganzzahlig – keine Haarlinien).</summary>
-        private float Lb(float breite) => MathF.Max(1, MathF.Floor(breite * _s + 0.5f));
+        // Linienstärke: bei 16 px etwas schlanker und in halben Pixeln, damit kleine Symbole nicht klobig wirken
+        private float Lb(float breite) => _s <= 0.625f ? MathF.Max(1, MathF.Round(breite * _s * 0.8f * 2) / 2) : MathF.Max(1, MathF.Floor(breite * _s + 0.5f));
 
         /// <summary>Linienkoordinate so runden, dass der Strich genau Pixel deckt.</summary>
         private static float L(float v, float s, float lb) => (int)lb % 2 == 1 ? MathF.Floor(v * s) + 0.5f : MathF.Floor(v * s + 0.5f);
