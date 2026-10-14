@@ -120,24 +120,20 @@ public static class Ui
     }
 
     /// <summary>Durchschaltknöpfe ◄ ► für eine Auswahlliste (vorheriges/nächstes Element, am Ende wieder von vorn).</summary>
-    public static Button[] Durchschalter(ComboBox cb, int hoehe = 23)
+    public static Control[] Durchschalter(ComboBox cb)
     {
-        Button Knopf(string text, int richtung, string hinweis)
-        {
-            var b = new Button { Text = text, Width = 24, Height = hoehe, FlatStyle = FlatStyle.Flat, Margin = new Padding(1, 1, 0, 0), Font = SchriftKlein, TabStop = false, BackColor = Color.White };
-            b.FlatAppearance.BorderColor = Rasterlinie;
-            new ToolTip().SetToolTip(b, hinweis);
-            b.Click += (_, _) => Schalten(cb, richtung);
-            return b;
-        }
-        return new[] { Knopf("◄", -1, "Vorheriges Element"), Knopf("►", +1, "Nächstes Element") };
+        var zurueck = new Steuerelemente.PfeilKnopf(Steuerelemente.PfeilKnopf.Art.Links, "Vorheriges Element");
+        var vor = new Steuerelemente.PfeilKnopf(Steuerelemente.PfeilKnopf.Art.Rechts, "Nächstes Element");
+        zurueck.Click += (_, _) => Schalten(cb, -1);
+        vor.Click += (_, _) => Schalten(cb, +1);
+        return new Control[] { zurueck, vor };
     }
 
-    /// <summary>Durchschaltknöpfe ◄ ► für eine Auswahlliste in einer Werkzeugleiste.</summary>
+    /// <summary>Durchschaltknöpfe ‹ › für eine Auswahlliste in einer Werkzeugleiste.</summary>
     public static ToolStripItem[] Durchschalter(ToolStripComboBox cb) => new ToolStripItem[]
     {
-        new ToolStripButton("◄", null, (_, _) => Schalten(cb.ComboBox, -1)) { ToolTipText = "Vorheriges Element", DisplayStyle = ToolStripItemDisplayStyle.Text },
-        new ToolStripButton("►", null, (_, _) => Schalten(cb.ComboBox, +1)) { ToolTipText = "Nächstes Element", DisplayStyle = ToolStripItemDisplayStyle.Text },
+        new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(false), (_, _) => Schalten(cb.ComboBox, -1)) { ToolTipText = "Vorheriges Element", DisplayStyle = ToolStripItemDisplayStyle.Image },
+        new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(true), (_, _) => Schalten(cb.ComboBox, +1)) { ToolTipText = "Nächstes Element", DisplayStyle = ToolStripItemDisplayStyle.Image },
     };
 
     public static void Schalten(ComboBox cb, int richtung)

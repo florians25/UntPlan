@@ -743,7 +743,10 @@ public sealed class Kandidat
     public bool Mehrarbeit => !Bereitschaft && !Freigesetzt;
 }
 
-public sealed record Betreuungskandidat(Lehrer Lehrer, string Klassen, string Fach, string Raum, string Gang, bool Kopplung, decimal Zaehler);
+/// <summary>Lehrkraft, die die Klasse neben ihrem eigenen Unterricht mitbetreuen kann.</summary>
+/// <param name="Naehe">0 = gekoppelt, 1 = gleicher Gang, 2 = gleiches Stockwerk, 3 = sonst.</param>
+public sealed record Betreuungskandidat(Lehrer Lehrer, string Klassen, string Fach, string Raum, string Gang, bool Kopplung, decimal Zaehler,
+    int Naehe = 3, string NaeheText = "", int BetreuungenHeute = 0, bool KenntKlasse = false);
 
 public sealed record Raumkandidat(Raum Raum, bool Ausweichraum, bool AusweichStammraum, string? BesetztDurch, string Raumgruppen, string Gang, int KapazitaetDifferenz);
 
@@ -868,23 +871,39 @@ public static class VertretungsVorschlag
     }
 
     /// <summary>Betreuungsvorschlag: Lehrer, die zur Stunde selbst unterrichten.</summary>
+    /// <summary>
+    /// Betreuungsvorschlag: Lehrkräfte mit eigenem Unterricht zur selben Stunde.
+    /// Sortiert nach Nähe (gekoppelt, gleicher Gang, gleiches Stockwerk), dann danach, ob sie die Klasse kennen,
+    /// nach Betreuungen am selben Tag und nach dem Vertretungszähler.
+    /// </summary>
     public static List<Betreuungskandidat> Betreuungen(Schuldatei d, Vertretung v)
     {
         var tp = Tagesplan.Berechnen(d, v.Datum);
         var ix = new DatenIndex(d);
         var (zVon, zBis) = Zaehlung.Zeitraum(d, v.Datum);
+        var raumId = v.VertretungsraumId ?? v.RaumId;
+        var eigenerRaum = raumId is int rid ? ix.Raeume.GetValueOrDefault(rid) : null;
+        var klassen = v.NeueKlassenIds.ToHashSet();
+        var heute = d.Vertretungen.Where(x => x.Datum == v.Datum && x.Mitbetreuung && x.VertreterId.HasValue).GroupBy(x => x.VertreterId!.Value).ToDictionary(g => g.Key, g => g.Count());
+        var kennt = d.Unterrichte.Where(u => u.KlassenIds.Any(klassen.Contains)).SelectMany(u => u.Zeilen.Select(z => z.LehrerId)).Where(x => x.HasValue).Select(x => x!.Value).ToHashSet();
         var res = new List<Betreuungskandidat>();
         foreach (var e in tp.Stunde(v.Stunde).Where(e => e.Findetstatt && e.LehrerIds.Count > 0 && e.Vertretung != v && !Vertretungen.IstBereitschaftsfach(d, e.FachId)))
             foreach (var l in e.LehrerIds.Where(l => l != v.LehrerId && !Absenzen.LehrerAbwesend(d, l, v.Datum, v.Stunde)))
             {
                 if (res.Any(r => r.Lehrer.Id == l) || !ix.Lehrer.TryGetValue(l, out var le)) continue;
                 var raum = e.RaumIds.FirstOrDefault();
-                var gang = raum != 0 && ix.Raeume.TryGetValue(raum, out var r) && r.GangId is int g ? ix.K(ElementTyp.Gang, g) : "";
-                var kopplung = e.Unterricht?.Id == v.UnterrichtId;
+                var r = raum != 0 ? ix.Raeume.GetValueOrDefault(raum) : null;
+                var gang = r?.GangId is int g ? ix.K(ElementTyp.Gang, g) : "";
+                var kopplung = e.Unterricht?.Id == v.UnterrichtId && v.UnterrichtId.HasValue;
+                var (naehe, text) =
+                    kopplung ? (0, "gekoppelt") :
+                    r != null && eigenerRaum != null && r.GangId.HasValue && r.GangId == eigenerRaum.GangId ? (1, "gleicher Gang") :
+                    r != null && eigenerRaum != null && r.Stockwerk.Length > 0 && r.Stockwerk == eigenerRaum.Stockwerk ? (2, "gleiches Stockwerk") :
+                    (3, "");
                 res.Add(new Betreuungskandidat(le, ix.KKlassen(e.KlassenIds), ix.KFach(e.FachId), raum == 0 ? "" : ix.KRaum(raum), gang, kopplung,
-                    Zaehlung.Lehrer(d, le, zVon, zBis).Summe));
+                    Zaehlung.Lehrer(d, le, zVon, zBis).Summe, naehe, text, heute.GetValueOrDefault(l), kennt.Contains(l)));
             }
-        return res.OrderByDescending(r => r.Kopplung).ThenBy(r => r.Zaehler).ToList();
+        return res.OrderBy(r => r.Naehe).ThenByDescending(r => r.KenntKlasse).ThenBy(r => r.BetreuungenHeute).ThenBy(r => r.Zaehler).ToList();
     }
 
     /// <summary>Raumvorschlag: freie Räume (optional auch besetzte) für die Stunde(n).</summary>

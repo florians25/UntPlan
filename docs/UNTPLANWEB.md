@@ -43,6 +43,17 @@ Authentifizierung: `Authorization: Bearer <API-Schlüssel der Schule>`, nur übe
 | GET | `api/v1/schulen/{schule}/rueckmeldungen` | offene `WebRueckmeldung[]` |
 | POST | `api/v1/schulen/{schule}/rueckmeldungen/quittieren` | `string[]` Ids → übernommen |
 
+**Rückmeldungen** (`WebRueckmeldung.typ`, Konstanten in `WebRueckmeldungsTypen`):
+
+| Typ | Übernahme in UntPlan |
+|---|---|
+| `absenz` | Lehrer-Absenz (`lehrer`, `von`, `bis`, `stundeVon`, `stundeBis`, `grund`) |
+| `nachricht` | Tagestext für das Kollegium |
+| `raumbuchung` | Vertretungszeile der Art *Raumbuchung* je Stunde (`lehrer`, `von`, `stundeVon/Bis`, `raum` bzw. `raeume`, `klassen`, `titel`); abgelehnt, wenn der Raum belegt ist |
+| `klausur` | Klausur (`titel`, `von`, `stundeVon/Bis`, `klassen`, `lehrer` + `weitereLehrer` als Aufsicht, `raeume`); der Unterricht der Klassen entfällt |
+
+Unbekannte Kurznamen oder ein Tag ohne Unterricht führen zur Ablehnung; abgelehnte Rückmeldungen werden nicht quittiert.
+
 **Teilpakete:** `WebPaket.teile` nennt die übertragenen Teile (`WebTeile`). Ist die Liste leer, ist das Paket vollständig.
 
 | Teil | JSON-Felder |

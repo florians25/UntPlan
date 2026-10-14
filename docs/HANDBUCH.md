@@ -45,6 +45,10 @@ In der Anwendung erreichen Sie die passende Hilfeseite jederzeit mit **F1**.
 Eine Schuldatei (`*.up`) enthält alle Daten eines Schuljahres. Beim Speichern legt UntPlan automatisch eine Sicherung `*.bak` an.
 Jede Änderung lässt sich mit **Strg+Z** rückgängig machen (50 Schritte).
 
+**Automatisch speichern:** Unter *Einstellungen → Diverses* legen Sie das Intervall fest (Standard 10 Minuten, 0 = aus). Geänderte Daten werden dann in die geöffnete Datei gespeichert. Eine Datei ohne Namen landet als Wiederherstellungskopie im Benutzerordner (`%APPDATA%\UntPlan\Wiederherstellung`).
+
+**Fensteranordnungen:** *Start → Fensteranordnungen* bzw. im Vertretungsmodus *Modus → Eigene Fensteranordnungen* speichert die aktuelle Anordnung unter einem Namen. Von dort laden und löschen Sie gespeicherte Anordnungen auch wieder. UntPlan öffnet beim Start den zuletzt benutzten Modus; abschaltbar unter *Einstellungen → Diverses*.
+
 ### Stundenplanung und Vertretungsplanung
 
 UntPlan arbeitet in zwei Modi, die Sie unten im Menüband (*Modus*) oder mit **Strg+M** umschalten:
@@ -310,6 +314,7 @@ In der **Übersicht** (Raumplan quer) verlegen Sie Räume per Drag & Drop.
 - **Auswahl:** oben im Fenster. Mit **Synchronisation** folgt der Plan der Auswahl in anderen Fenstern.
 - **Woche:** Mit *Woche* sehen Sie den Plan einer bestimmten Kalenderwoche mit eingetragenen Vertretungen.
 - **Stundenlupe:** zeigt unten alle Details der markierten Stunde.
+- **Eigene Stundenplanformate:** Die Auswahl in der Werkzeugleiste wechselt zwischen den Formaten der Planart. Über das Zahnrad legen Sie neue Formate an (als Kopie), bearbeiten, benennen sie um oder löschen sie. Jedes Fenster merkt sich das zuletzt gewählte Format.
 - **Formate:** In den *Stundenplaneinstellungen* legen Sie Schriftgröße, Farben, Zeitanzeige und die angezeigten Felder fest. Im Grafik-Editor *Stpl-Stunde* positionieren Sie die Felder einer Stunde frei, mit Hilfslinien.
 - **Ausgabe:** Druck (mit Druckauswahl mehrerer Elemente), HTML für die Homepage, Info-Stundenplan (alle Pläne als Webseiten), iCal-Kalender je Lehrer.
 
@@ -327,6 +332,7 @@ In der **Übersicht** (Raumplan quer) verlegen Sie Räume per Drag & Drop.
 
 - **Klassenabwesenheit:** Begleitlehrer gelten ebenfalls als abwesend. Der Unterricht der Klasse wird zur **Freisetzung**; die freigesetzten Lehrer stehen für Vertretungen zur Verfügung (Minusstunden).
 - Mit dem Speichern erzeugt UntPlan sofort die **offenen Vertretungen** (rot `???`, nicht fett).
+- **Datumsfelder** in Tabellen (Absenzen, Veranstaltungen, Klausuren, Tagestexte, Ferien, Unterrichtsgruppen) haben eine Datumsauswahl mit Kalender. Eintippen ist weiterhin möglich, z. B. `14.10.`, `h` für heute oder `+3`.
 - **Direkteingabe:** Am Ende der Liste steht immer eine leere Zeile *neu*. Tippen Sie dort Lehrer, Datum und Stunden ein, ohne einen Dialog zu öffnen. Das gilt ebenso für **Veranstaltungen**, **Klausuren** und **Tagestexte**.
 - **Hinweis bei geplanten Vertretern:** Wird ein Lehrer abwesend, der bereits als Vertreter eingeteilt ist, meldet UntPlan die betroffenen Vertretungen. Diese werden wieder offen.
 - Mit **Teilen**, **Kopieren** und **Zusammenfassen** bearbeiten Sie mehrere Abwesenheiten auf einmal.
@@ -364,7 +370,9 @@ In der Auswahlliste *Vertreter* sind belegte Lehrer rot und Lehrer mit Bereitsch
 - **Drag & Drop im Tagesplan:** Beim Ziehen fragt UntPlan, ob nur die Stunde oder der ganze Block verlegt werden soll und wie mit Kollisionen umzugehen ist (Tauschen, Verdrängen, Kollision zulassen).
 - **Ansichten:** Klasse, Lehrer, Druck und Pausenaufsichten.
 - **Filter:** *Offene Vertretungen*, *Kollisionen*.
-- **Tasten:** `+` setzt *Vertretung ohne Lehrkraft*, `-` setzt *Entfall*.
+- **Tasten:** `+` setzt *Vertretung ohne Lehrkraft*, `-` setzt *Entfall*, **F3** springt zur nächsten offenen Vertretung (Umschalt+F3 zur vorherigen).
+- **Flüssige Auswahl:** Beim Blättern mit den Pfeiltasten werden die Stundenpläne erst aufgebaut, wenn die Auswahl stehen bleibt. Mit *Weiter zur nächsten offenen* im Vertretungsvorschlag wählt UntPlan nach jedem Zuweisen automatisch die nächste offene Vertretung.
+- **Betreuungen:** Der Reiter *Betreuungen* sortiert nach Nähe: gekoppelt, gleicher Gang, gleiches Stockwerk. Danach zählt, ob die Lehrkraft die Klasse kennt, wie viele Betreuungen sie heute schon hat und ihr Vertretungszähler. *Nur in der Nähe* blendet weiter entfernte Lehrkräfte aus.
 
 - **Bereitschaft:** Lehrer mit Bereitschaftsstunde stehen grün ganz oben; ihre Vertretung ist keine Mehrarbeit.
 - **statt-Vertretung:** Ein freigesetzter Lehrer vertritt.
@@ -427,7 +435,15 @@ Weitere Berichte:
 
 ### Vertretungsplan ausgeben
 
-- **Druck:** Datei → Drucken im Vertretungsfenster.
+![Aushang](bilder/27a_Druck_Klassen.png)
+
+- **Druck (Aushang):** *Vertretungsplan drucken* im Vertretungsfenster, eine Seite je Tag.
+  - **Kopf:** Schule, Schuljahr, Adresse, Druckzeitpunkt.
+  - **Titel:** z. B. „Vertretungsplan Klassen am: 24.9. / Donnerstag“.
+  - **Kästen:** Nachrichten zum Tag, blockierte Räume, abwesende Klassen bzw. Lehrer.
+  - **Tabelle:** Klasse(n), Stunde, Vertreter, Abwesend (durchgestrichen), Fach, Raum, Bemerkungen und Hinweise (z. B. Bereitschaft, Raumänderung, verlegt von …). Gruppen sind durch Linien getrennt.
+  - **Optionen vor der Seitenansicht:** Klassen- oder Lehrerversion, Schriftart und -größe, Hoch-/Querformat und welche Kästen erscheinen.
+- **Liste drucken:** druckt die Tabelle so, wie sie angezeigt wird (mit eigenem Spaltenformat).
 - **HTML:** Schüler- und Lehrerversion, die Lehrerversion mit abwesenden Lehrern und Pausenaufsichten.
 - **Monitor:** Vollbild für Info-Bildschirme mit heute und dem nächsten Schultag, automatischem Seitenwechsel und Aktualisierung. ESC beendet.
 
@@ -513,6 +529,8 @@ Exportieren Sie eine Abteilungsdatei, planen Sie die Abteilung getrennt und füh
 | Unterricht* | Perioden mit Unterricht und Stundenplan, Pausenaufsichten |
 | Vertretungen* | tagesaktuelle Pläne, Vertretungen, Absenzen, Termine, Nachrichten zum Tag |
 | Absenzen* (Import) | Krankmeldungen und Nachrichten aus UntPlanWeb |
+| Buchungen* (Import) | Raumbuchungen aus UntPlanWeb, je Stunde eine Zeile der Art *Raumbuchung*; nur wenn der Raum frei ist |
+| Klausuren* (Import) | Klausuren aus UntPlanWeb mit Klassen, Aufsichten und Räumen; der Unterricht der Klassen entfällt |
 
 - Jeder Teil lässt sich einzeln exportieren; UntPlanWeb ersetzt nur die übertragenen Teile. *Alles exportieren* überträgt alles.
 - Mit * markierte Daten gelten ab heute oder ab dem aktivierten Anfangsdatum.

@@ -102,8 +102,11 @@ public static class VertretungsplanDruck
             var schule = d.Einstellungen.Schulname.ToUpperInvariant();
             var hk = kopfFett.GetHeight(g);
             g.DrawString(schule, kopfFett, Brushes.Black, r.Left, y);
-            using (var mitte = new StringFormat { Alignment = StringAlignment.Center })
-                g.DrawString($"Schuljahr {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}", kopfNormal, Brushes.Black, new RectangleF(r.Left, y + 1, r.Width, hk), mitte);
+            // Schuljahr mittig, bei langem Schulnamen rechts daneben
+            var sj = $"Schuljahr {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";
+            var sjBreite = g.MeasureString(sj, kopfNormal).Width;
+            var sjX = Math.Max(r.Left + r.Width / 2f - sjBreite / 2, r.Left + g.MeasureString(schule, kopfFett).Width + 24);
+            g.DrawString(sj, kopfNormal, Brushes.Black, sjX, y + 1);
             using (var rechts = new StringFormat { Alignment = StringAlignment.Far })
             {
                 g.DrawString($"UntPlan {DateTime.Now.Year}", kopfFett, Brushes.Black, new RectangleF(r.Left, y, r.Width, hk), rechts);
@@ -173,6 +176,13 @@ public static class VertretungsplanDruck
                 {
                     var f = i == 0 ? fett : i == 3 && z.Durchgestrichen ? durch : normal;
                     g.DrawString(werte[i], f, Brushes.Black, new RectangleF(xs[i] + 1, y, xs[i + 1] - xs[i] - 2, zh), keinUmbruch);
+                    if (i == 3 && z.Durchgestrichen && werte[i].Length > 0)
+                    {
+                        // Durchstreichen selbst zeichnen (nicht jede Schriftart unterstützt es)
+                        var w = Math.Min(g.MeasureString(werte[i], f).Width, xs[i + 1] - xs[i] - 2);
+                        using var strich = new Pen(Color.Black, 1.4f);
+                        g.DrawLine(strich, xs[i] + 3, y + zh / 2 + 1, xs[i] + w - 1, y + zh / 2 - 1);
+                    }
                 }
                 y += zh;
                 var gruppenEnde = zeileNr + 1 >= tag.Zeilen.Count || tag.Zeilen[zeileNr + 1].Element != z.Element;

@@ -22,8 +22,8 @@ public sealed class FerienFenster : MdiFenster
         Ui.RasterGestalten(_liste);
         _liste.Columns.Add("K", "Name");
         _liste.Columns.Add("L", "Langname");
-        _liste.Columns.Add("V", "von");
-        _liste.Columns.Add("B", "bis");
+        _liste.Columns.Add(Steuerelemente.DatumSpalte.Neu("V", "von", 108));
+        _liste.Columns.Add(Steuerelemente.DatumSpalte.Neu("B", "bis", 108));
         _liste.Columns.Add(new DataGridViewCheckBoxColumn { Name = "F", HeaderText = "Feiertag", Width = 55 });
         _liste.Columns[1].Width = 150;
         _liste.CellEndEdit += CellEndEdit;

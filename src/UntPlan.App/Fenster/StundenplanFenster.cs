@@ -53,8 +53,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var ts = Werkzeugleiste();
         ts.Items.Add(_auswahl);
         _auswahl.SelectedIndexChanged += (_, _) => { if (!_laden && _auswahl.SelectedItem is Eintrag e) { _id = e.E.Id; Neuaufbau(); } };
-        ts.Items.Add(Knopf("Vorheriges Element", "zurueck", () => Blaettern(-1)));
-        ts.Items.Add(Knopf("Nächstes Element", "vor", () => Blaettern(1)));
+        ts.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(false), (_, _) => Blaettern(-1)) { ToolTipText = "Vorheriges Element", DisplayStyle = ToolStripItemDisplayStyle.Image });
+        ts.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(true), (_, _) => Blaettern(1)) { ToolTipText = "Nächstes Element", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_format);
         _format.SelectedIndexChanged += (_, _) => { if (!_laden && _format.SelectedItem is string n) FormatWaehlen(n); };

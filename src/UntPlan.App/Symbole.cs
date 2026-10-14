@@ -137,10 +137,10 @@ public static class Symbole
         ["schloss"] = "L 10 15 10 11 gr w3.5 & A 10 5 12 12 180 180 gr w3.5 & L 22 11 22 15 gr w3.5; R 6 13 20 16 2 y; E 14 17 4 4 dk!; R 15 19 2 5 dk!",
 
         // Navigation und Allgemeines
-        ["plus"] = "L 16 6 16 26 g w5 h & L 6 16 26 16 g w5 h",
-        ["minus"] = "L 6 16 26 16 r w5 h",
-        ["vor"] = "P 10 5 25 16 10 27 b",
-        ["zurueck"] = "P 22 5 7 16 22 27 b",
+        ["plus"] = "E 3 3 26 26 g; L 16 9 16 23 w w3.5 h & L 9 16 23 16 w w3.5 h",
+        ["minus"] = "E 3 3 26 26 r; L 9 16 23 16 w w3.5 h",
+        ["vor"] = "E 3 3 26 26 b; L 13 9 20 16 w w3.5 h & L 20 16 13 23 w w3.5 h",
+        ["zurueck"] = "E 3 3 26 26 b; L 19 9 12 16 w w3.5 h & L 12 16 19 23 w w3.5 h",
         ["info"] = "R 3 3 26 26 6 b; E 14 7 4 4 w!; R 14 13 4 12 w!",
         ["hilfe"] = "E 2 2 28 28 pe; A 11 7 10 10 180 270 w w3.5; L 16 17 16 19 w w3.5; E 14 21.5 4 4 w!",
         ["monitor"] = "R 13 22 6 5 gr & R 9 26 14 3 1 gr; R 2 4 28 19 2 dk; R 4 6 24 15 hb!",

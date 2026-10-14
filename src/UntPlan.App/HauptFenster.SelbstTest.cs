@@ -122,6 +122,22 @@ public sealed partial class HauptFenster
             bilder[0].Save(Path.Combine(ordner, "27a_Druck_Klassen.png"));
             Druck.VertretungsplanDruck.Bilder(tag, tag, true)[0].Save(Path.Combine(ordner, "27b_Druck_Lehrer.png"));
         }, -1);
+        Schritt("27c_Symbole", () =>
+        {
+            var namen = Symbole.Namen;
+            using var bmp = new Bitmap(10 * 110, ((namen.Count + 9) / 10) * 64 + 10);
+            using var g = Graphics.FromImage(bmp);
+            g.Clear(Color.White);
+            for (var i = 0; i < namen.Count; i++)
+            {
+                var x = i % 10 * 110 + 10;
+                var y = i / 10 * 64 + 6;
+                g.DrawImage(Symbole.Get(namen[i], 32), x + 30, y);
+                g.DrawImage(Symbole.Get(namen[i], 16), x + 70, y + 8);
+                TextRenderer.DrawText(g, namen[i], Ui.SchriftKlein, new Rectangle(x - 5, y + 36, 105, 16), Color.Black, TextFormatFlags.HorizontalCenter);
+            }
+            bmp.Save(Path.Combine(ordner, "27c_Symbole_Uebersicht.png"));
+        }, -1);
         Schritt("28_Speichern_Laden", () =>
         {
             var pfad = Path.Combine(ordner, "beispiel" + Dokument.Dateiendung);

@@ -29,6 +29,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private readonly TextBox _nr = new() { Width = 60 };
     private readonly Label _status = new() { AutoSize = true, ForeColor = Color.DimGray, Padding = new Padding(12, 5, 0, 0) };
     private readonly Dictionary<DateOnly, Tagesplan> _plaene = new();
+    private readonly System.Windows.Forms.Timer _auswahlTimer = new() { Interval = 140 };
     private bool _laedt;
     private bool _sync = true;
 
@@ -46,6 +47,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen, false));
+        ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", TextImageRelation = TextImageRelation.TextBeforeImage });
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Entfall (-)", "entfall", Entfall, false));
         ts.Items.Add(Knopf("Vertr. o. Lehrkraft (+)", "planen", OhneLehrkraft, false));
@@ -123,13 +125,22 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.CellFormatting += Formatieren;
         _g.EditingControlShowing += EditorZeigen;
         Steuerelemente.SuchKombi.Aktivieren(_g, VertreterStil);
-        _g.SelectionChanged += (_, _) => { if (!_laedt) Gewaehlt(); };
+        // Auswahl verzögert weitergeben: beim schnellen Blättern mit den Pfeiltasten werden die Pläne erst nach dem Anhalten aufgebaut
+        _auswahlTimer.Tick += (_, _) => { _auswahlTimer.Stop(); if (!IsDisposed) Gewaehlt(); };
+        _g.SelectionChanged += (_, _) =>
+        {
+            if (_laedt) return;
+            if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
+            _auswahlTimer.Stop();
+            _auswahlTimer.Start();
+        };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && _g.Columns[e.ColumnIndex].ReadOnly) VorschlagOeffnen(); };
         _g.KeyPress += TastenDruck;
         _g.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Delete && !_g.IsCurrentCellInEditMode) { Zuruecksetzen(); e.Handled = true; }
             if (e.KeyCode == Keys.Enter && !_g.IsCurrentCellInEditMode) { VorschlagOeffnen(); e.Handled = true; }
+            if (e.KeyCode == Keys.F3) { NaechsteOffene(e.Shift ? -1 : 1); e.Handled = true; }
         };
         _g.MouseDown += (_, e) =>
         {
@@ -436,6 +447,26 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _laedt = false;
     }
 
+    /// <summary>Zur nächsten (bzw. vorherigen) offenen Vertretung springen, am Ende wieder von vorn.</summary>
+    public bool NaechsteOffene(int richtung = 1)
+    {
+        var zeilen = _g.Rows.Cast<DataGridViewRow>().ToList();
+        if (zeilen.Count == 0) return false;
+        var start = _g.CurrentRow?.Index ?? -1;
+        for (var i = 1; i <= zeilen.Count; i++)
+        {
+            var r = zeilen[((start + richtung * i) % zeilen.Count + zeilen.Count) % zeilen.Count];
+            if (r.Tag is not Vertretung { Offen: true }) continue;
+            _g.ClearSelection();
+            r.Selected = true;
+            _g.CurrentCell = r.Cells[Math.Max(0, _g.CurrentCell?.ColumnIndex ?? 0)];
+            _auswahlTimer.Stop();
+            Gewaehlt();
+            return true;
+        }
+        return false;
+    }
+
     private void Springen(int nr)
     {
         var v = D.Vertretungen.FirstOrDefault(x => x.Id == nr);
@@ -720,6 +751,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private readonly ToolStripButton _block = new("Stundenblock") { CheckOnClick = true, ToolTipText = "Vorschlag für alle Stunden des Blocks (Doppelstunde)" };
     private readonly ToolStripButton _alle = new("Alle Lehrer") { CheckOnClick = true, ToolTipText = "Auch gesperrte und weit entfernte Lehrer anzeigen" };
     private readonly ToolStripButton _besetzt = new("Auch besetzte Räume") { CheckOnClick = true };
+    private readonly ToolStripButton _weiter = new("Weiter zur nächsten offenen") { CheckOnClick = true, Checked = true, ToolTipText = "Nach dem Zuweisen automatisch die nächste offene Vertretung wählen" };
+    private readonly ToolStripButton _nahe = new("Nur in der Nähe") { CheckOnClick = true, ToolTipText = "Nur gekoppelte Lehrkräfte, gleicher Gang oder gleiches Stockwerk" };
     private readonly ToolStripButton _dauer = new("Dauervertretung") { CheckOnClick = true, ToolTipText = "Vertreter für alle Stunden dieses Unterrichts während der Absenz übernehmen" };
     private Vertretung? _v;
 
@@ -737,6 +770,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_block);
         ts.Items.Add(_dauer);
+        ts.Items.Add(_weiter);
         ts.Items.Add(_alle);
         ts.Items.Add(Knopf("Einstellungen Vertretungsvorschlag", "gewichtung", () => { if (VertretungsEinstellungenDialog.Zeigen(this, 2)) Neuaufbau(); }));
         _block.CheckedChanged += (_, _) => Neuaufbau();
@@ -767,8 +801,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Ui.RasterGestalten(_betreuung, false);
         _betreuung.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _betreuung.MultiSelect = false;
-        foreach (var (n, k, b) in new[] { ("L", "Lehrer", 70), ("K", "Klasse(n)", 90), ("F", "Fach", 60), ("R", "Raum", 60), ("G", "Gang", 60), ("Ko", "Kopplung", 60), ("Z", "Zähler", 55) })
+        foreach (var (n, k, b) in new[] { ("L", "Lehrer", 70), ("N", "Nähe", 110), ("K", "Klasse(n)", 90), ("F", "Fach", 55), ("R", "Raum", 60), ("G", "Gang", 55), ("KK", "kennt Kl.", 60), ("H", "Betr. heute", 70), ("Z", "Zähler", 55) })
             _betreuung.Columns[_betreuung.Columns.Add(n, k)].Width = b;
+        _betreuung.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Betreuung(); e.Handled = true; } };
         _betreuung.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Betreuung(); };
 
         Ui.RasterGestalten(_raeume, false);
@@ -784,7 +819,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var s1 = new TabPage("Vertretungsvorschläge");
         s1.Controls.Add(split);
         var s2 = new TabPage("Betreuungen");
+        var betrLeiste = Werkzeugleiste();
+        betrLeiste.Items.Add(Knopf("Betreuung übernehmen (Doppelklick, Enter)", "planen", Betreuung, false));
+        betrLeiste.Items.Add(_nahe);
+        betrLeiste.Items.Add(new ToolStripLabel("grün = gekoppelt bzw. gleicher Gang") { ForeColor = Color.DimGray });
+        _nahe.CheckedChanged += (_, _) => Neuaufbau();
         s2.Controls.Add(_betreuung);
+        s2.Controls.Add(betrLeiste);
         var raumLeiste = Werkzeugleiste();
         raumLeiste.Items.Add(Knopf("Raum übernehmen", "raumzuordnen", Raum, false));
         raumLeiste.Items.Add(_besetzt);
@@ -808,6 +849,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     {
         if (_v != null) _v = D.Vertretungen.FirstOrDefault(x => x.Id == _v.Id);
         Neuaufbau();
+        // nach dem Zuweisen direkt zur nächsten offenen Vertretung
+        if (_weiter.Checked && _v is { Offen: false })
+            BeginInvoke(() => AppZustand.Haupt.MdiChildren.OfType<VertretungenFenster>().FirstOrDefault()?.NaechsteOffene());
     }
 
     private void Gewaehlt(Vertretung? v)
@@ -855,8 +899,12 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         if (v.Offen)
             foreach (var vz in VertretungsVorschlag.Vorziehungen(D, v))
                 _vorziehung.Rows[_vorziehung.Rows.Add(vz.Beschreibung)].Tag = vz;
-        foreach (var b in VertretungsVorschlag.Betreuungen(D, v))
-            _betreuung.Rows[_betreuung.Rows.Add(b.Lehrer.Kurzname, b.Klassen, b.Fach, b.Raum, b.Gang, b.Kopplung ? "ja" : "", b.Zaehler.ToString("0.#"))].Tag = b;
+        foreach (var b in VertretungsVorschlag.Betreuungen(D, v).Where(b => !_nahe.Checked || b.Naehe <= 2))
+        {
+            var r = _betreuung.Rows.Add(b.Lehrer.Kurzname, b.NaeheText, b.Klassen, b.Fach, b.Raum, b.Gang, b.KenntKlasse ? "ja" : "", b.BetreuungenHeute > 0 ? b.BetreuungenHeute.ToString() : "", b.Zaehler.ToString("0.#"));
+            _betreuung.Rows[r].Tag = b;
+            if (b.Naehe <= 1) _betreuung.Rows[r].DefaultCellStyle.BackColor = b.Naehe == 0 ? Color.FromArgb(205, 238, 205) : Color.FromArgb(228, 246, 228);
+        }
         _tabs.TabPages[0].Text = $"Vertretungsvorschläge ({_vorschlag.Rows.Count})";
         _tabs.TabPages[1].Text = $"Betreuungen ({_betreuung.Rows.Count})";
         foreach (var r in VertretungsVorschlag.Raeume(D, v, _besetzt.Checked, _block.Checked))

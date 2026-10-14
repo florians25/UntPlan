@@ -38,10 +38,11 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         Padding = new Padding(0);
         BackColor = Color.Transparent;
         _von.Margin = _bis.Margin = new Padding(2, 2, 2, 0);
-        var zurueck = Knopf("◄", -1, "Zurück");
-        var vor = Knopf("►", +1, "Vor");
-        var leiste = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.None, AutoSize = true, BackColor = Color.Transparent, Renderer = new ToolStripProfessionalRenderer { RoundedEdges = false }, Padding = new Padding(0), Margin = new Padding(4, 0, 0, 0) };
-        _art.Image = Symbole.Get("kalender", 16);
+        var zurueck = new PfeilKnopf(PfeilKnopf.Art.Links, "Zurück");
+        var vor = new PfeilKnopf(PfeilKnopf.Art.Rechts, "Vor");
+        zurueck.Click += (_, _) => Blaettern(-1);
+        vor.Click += (_, _) => Blaettern(+1);
+        var kalender = new PfeilKnopf(PfeilKnopf.Art.Kalender, "Zeitraum: Tag, Woche oder Von-Bis") { Margin = new Padding(6, 2, 0, 0) };
         foreach (var a in Enum.GetValues<Zeitraumart>())
         {
             var art = a;
@@ -49,21 +50,22 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
             it.Click += (_, _) => ArtSetzen(art);
             _art.DropDownItems.Add(it);
         }
-        leiste.Items.Add(_art);
-        Controls.AddRange(new Control[] { zurueck, _von, _wochentag, _strich, _bis, vor, leiste });
+        var menue = new ContextMenuStrip { Font = Ui.Schrift };
+        kalender.Click += (_, _) =>
+        {
+            menue.Items.Clear();
+            foreach (ToolStripMenuItem it in _art.DropDownItems.Cast<ToolStripMenuItem>().ToList())
+            {
+                var art = (Zeitraumart)_art.DropDownItems.IndexOf(it);
+                menue.Items.Add(new ToolStripMenuItem(it.Text, null, (_, _) => ArtSetzen(art)) { Checked = art == Art });
+            }
+            menue.Show(kalender, new Point(0, kalender.Height));
+        };
+        Controls.AddRange(new Control[] { zurueck, _von, _wochentag, _strich, _bis, vor, kalender });
         _von.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(true); };
         _bis.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(false); };
         var gespeichert = AppZustand.Einstellungen.Zeitraumarten.TryGetValue(schluessel, out var g) && Enum.TryParse<Zeitraumart>(g, out var z) ? z : Zeitraumart.Tag;
         ArtSetzen(gespeichert, false);
-    }
-
-    private Button Knopf(string text, int richtung, string hinweis)
-    {
-        var b = new Button { Text = text, Width = 22, Height = 23, FlatStyle = FlatStyle.Flat, Margin = new Padding(1, 2, 0, 0), Font = Ui.SchriftKlein, TabStop = false, BackColor = Color.White };
-        b.FlatAppearance.BorderColor = Ui.Rasterlinie;
-        new ToolTip().SetToolTip(b, hinweis);
-        b.Click += (_, _) => Blaettern(richtung);
-        return b;
     }
 
     public void ArtSetzen(Zeitraumart art, bool merken = true)

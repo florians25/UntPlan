@@ -206,11 +206,14 @@ public sealed class Ribbon : Control
         using (var p = new Pen(Ui.HoverRand)) g.DrawRectangle(p, box);
         var datum = AppZustand.Datum;
         TextRenderer.DrawText(g, $"{Core.Planung.Planungsdienst.TageKurz[((int)datum.DayOfWeek + 6) % 7]} {datum:dd.MM.yyyy}", Font, new Rectangle(box.X + 3, box.Y, box.Width - 38, box.Height), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
-        using var b = new SolidBrush(Ui.Blau);
         var l = DatumLinks(it);
         var r = DatumRechts(it);
-        g.FillPolygon(b, new[] { new Point(l.X + 10, l.Y + 4), new Point(l.X + 10, l.Y + 12), new Point(l.X + 5, l.Y + 8) });
-        g.FillPolygon(b, new[] { new Point(r.X + 6, r.Y + 4), new Point(r.X + 6, r.Y + 12), new Point(r.X + 11, r.Y + 8) });
+        var modus = g.SmoothingMode;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var p2 = new Pen(Ui.Blau, 2f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round, LineJoin = System.Drawing.Drawing2D.LineJoin.Round };
+        g.DrawLines(p2, new[] { new PointF(l.X + 10, l.Y + 4), new PointF(l.X + 6, l.Y + 8), new PointF(l.X + 10, l.Y + 12) });
+        g.DrawLines(p2, new[] { new PointF(r.X + 6, r.Y + 4), new PointF(r.X + 10, r.Y + 8), new PointF(r.X + 6, r.Y + 12) });
+        g.SmoothingMode = modus;
     }
 
     private void DatumWaehlen(RibbonEintrag it, Point p)

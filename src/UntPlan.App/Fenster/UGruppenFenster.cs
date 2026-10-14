@@ -44,8 +44,8 @@ public sealed class UGruppenFenster : MdiFenster
         _laedt = true;
         _g.Columns.Clear();
         _g.Rows.Clear();
-        foreach (var (n, k, w) in new[] { ("N", "Name", 70), ("L", "Langname", 130), ("V", "von", 80), ("B", "bis", 80) })
-            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
+        foreach (var (n, k, w) in new[] { ("N", "Name", 70), ("L", "Langname", 130), ("V", "von", 104), ("B", "bis", 104) })
+            _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, w) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
         for (var w = 0; w < Wochen; w++) _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "W" + w, HeaderText = ((char)('A' + w)).ToString(), Width = 28 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "F", HeaderText = "Faktor", Width = 55, ReadOnly = true });
         _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "X", HeaderText = "Fix", Width = 35 });

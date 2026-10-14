@@ -68,7 +68,7 @@ public sealed class KalenderFenster : MdiFenster
         art.Items.AddRange(Arten);
         _texte.Columns.Add(art);
         _texte.Columns[_texte.Columns.Add("E", "Elemente")].Width = 90;
-        _texte.Columns[_texte.Columns.Add("G", "Gültig bis")].Width = 80;
+        _texte.Columns.Add(Steuerelemente.DatumSpalte.Neu("G", "Gültig bis", 108));
         _texte.Columns[_texte.Columns.Add("X", "Tagestext")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
         _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Portal", Width = 50 });
         Steuerelemente.SuchKombi.Aktivieren(_texte);
@@ -242,8 +242,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.MultiSelect = true;
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "Abs-Nr.", Width = 55, ReadOnly = true });
         _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Name", 80, Array.Empty<string>()));
-        foreach (var (n, k, b) in new[] { ("V", "Von", 88), ("SV", "ab St.", 45), ("B", "Bis", 88), ("SB", "bis St.", 45) })
-            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b });
+        foreach (var (n, k, b) in new[] { ("V", "Von", 108), ("SV", "ab St.", 45), ("B", "Bis", 108), ("SB", "bis St.", 45) })
+            _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b });
         _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 90, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Beg", HeaderText = "Begleitlehrer", Width = 100 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true });
@@ -506,8 +506,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         // direkte Eingabe; Klassen/Lehrer/Räume als Kurznamen mit Komma, unten immer eine leere Zeile
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
-        foreach (var (n, k, b) in new[] { ("Nr", "Nr.", 45), ("T", "Veranstaltung", 160), ("V", "Von", 88), ("SV", "ab St.", 45), ("B", "Bis", 88), ("SB", "bis St.", 45), ("K", "Klassen", 100), ("L", "Lehrer", 100), ("R", "Räume", 80) })
-            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, ReadOnly = n == "Nr", SortMode = DataGridViewColumnSortMode.NotSortable });
+        foreach (var (n, k, b) in new[] { ("Nr", "Nr.", 45), ("T", "Veranstaltung", 160), ("V", "Von", 108), ("SV", "ab St.", 45), ("B", "Bis", 108), ("SB", "bis St.", 45), ("K", "Klassen", 100), ("L", "Lehrer", 100), ("R", "Räume", 80) })
+            _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, ReadOnly = n == "Nr", SortMode = DataGridViewColumnSortMode.NotSortable });
         _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 80, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
         _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Z", HeaderText = "zählt", Width = 45 });
         Steuerelemente.SuchKombi.Aktivieren(_g);
@@ -687,8 +687,8 @@ public sealed class KlausurenFenster : MdiFenster
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
-        foreach (var (n, k, b) in new[] { ("N", "Name", 150), ("D", "Datum", 95), ("S", "Stunden", 60), ("K", "Klassen", 110), ("L", "Aufsicht", 110), ("R", "Räume", 90) })
-            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, SortMode = DataGridViewColumnSortMode.NotSortable });
+        foreach (var (n, k, b) in new[] { ("N", "Name", 150), ("D", "Datum", 108), ("S", "Stunden", 60), ("K", "Klassen", 110), ("L", "Aufsicht", 110), ("R", "Räume", 90) })
+            _g.Columns.Add(n == "D" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, SortMode = DataGridViewColumnSortMode.NotSortable });
         _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "E", HeaderText = "Unterr. entfällt", Width = 95 });
         _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "A", HeaderText = "aktiv", Width = 45 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 160, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
