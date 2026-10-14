@@ -316,6 +316,8 @@ public sealed class Veranstaltung
     public List<int> KlassenteilIds { get; set; } = new();
     /// <summary>Tageweise aus der Veranstaltung entfernte Lehrkräfte (Absenz) und ihre Ersatzlehrkräfte.</summary>
     public List<VeranstaltungsErsatz> Ersatz { get; set; } = new();
+    /// <summary>Tageweise zusätzlich eingetragene Lehrkräfte (im Vertretungsfenster hinzugefügt, nicht als Ersatz).</summary>
+    public List<VeranstaltungsZusatz> Zusatz { get; set; } = new();
 
     public bool Deckt(DateOnly datum, int stunde)
     {
@@ -331,7 +333,7 @@ public sealed class Veranstaltung
     /// <summary>Nimmt die Lehrkraft an diesem Tag teil (eingetragen und nicht entfernt, oder als Ersatz eingetragen)?</summary>
     public bool NimmtTeil(int lehrerId, DateOnly datum) =>
         (LehrerIds.Contains(lehrerId) && !Ersatz.Any(e => e.Datum == datum && e.LehrerId == lehrerId)) ||
-        Ersatz.Any(e => e.Datum == datum && e.ErsatzId == lehrerId);
+        Ersatz.Any(e => e.Datum == datum && e.ErsatzId == lehrerId) || Zusatz.Any(z => z.Datum == datum && z.LehrerId == lehrerId);
 
     /// <summary>Teilnehmende Lehrkräfte an diesem Tag (in der Reihenfolge der Eingabe, Ersatzlehrkräfte an der Stelle der entfernten).</summary>
     public List<int> LehrerAm(DateOnly datum)
@@ -343,11 +345,19 @@ public sealed class Veranstaltung
             if (e is null) res.Add(l);
             else if (e.ErsatzId is int ers) res.Add(ers);
         }
+        res.AddRange(Zusatz.Where(z => z.Datum == datum).Select(z => z.LehrerId));
         return res.Distinct().ToList();
     }
 
     /// <summary>Entfernte Lehrkräfte an diesem Tag ohne Ersatz (offene Plätze, „?“).</summary>
     public List<int> OffenAm(DateOnly datum) => Ersatz.Where(e => e.Datum == datum && e.ErsatzId is null && LehrerIds.Contains(e.LehrerId)).Select(e => e.LehrerId).ToList();
+}
+
+/// <summary>Eine Lehrkraft nimmt an einem Tag zusätzlich an einer Veranstaltung teil.</summary>
+public sealed class VeranstaltungsZusatz
+{
+    public DateOnly Datum { get; set; }
+    public int LehrerId { get; set; }
 }
 
 /// <summary>Eine Lehrkraft wurde an einem Tag aus einer Veranstaltung entfernt (z. B. wegen Krankheit); optional mit Ersatzlehrkraft.</summary>

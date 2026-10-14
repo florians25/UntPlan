@@ -171,6 +171,8 @@ public sealed class Vertretungsdruck
     public bool AbwesendeKlassen { get; set; } = true;
     public bool AbwesendeLehrer { get; set; } = true;
     public bool Querformat { get; set; }
+    /// <summary>Seitenlayout „Nur neue Vertretungen“: nur in dieser Arbeitssitzung angelegte oder geänderte Vertretungen drucken.</summary>
+    public bool NurNeue { get; set; }
 }
 
 public sealed class Tabellenformat

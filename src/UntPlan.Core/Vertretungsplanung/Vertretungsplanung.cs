@@ -69,6 +69,7 @@ public static class Vertretungen
                 VeranstaltungsLogik.Bereinigen(d, va, datum);
                 // je Stunde eine Zeile je teilnehmender Lehrkraft; entfernte Lehrkräfte erscheinen als Platz „?“ (offen) bzw. mit Ersatzlehrkraft
                 var plaetze = va.LehrerIds.Select(l => va.Ersatz.FirstOrDefault(e => e.Datum == datum && e.LehrerId == l) is { } e ? (Lehrer: e.ErsatzId, Fuer: (int?)l) : (Lehrer: (int?)l, Fuer: null))
+                    .Concat(va.Zusatz.Where(z => z.Datum == datum).Select(z => (Lehrer: (int?)z.LehrerId, Fuer: (int?)null)))
                     .DistinctBy(p => p.Fuer.HasValue ? $"E{p.Fuer}" : $"L{p.Lehrer}").ToList();
                 if (plaetze.Count == 0) plaetze.Add((null, null));
                 for (var s = 1; s <= d.Zeitraster.StundenProTag; s++)
@@ -219,6 +220,27 @@ public static class Vertretungen
                 continue;
             }
             benoetigt.Remove(b);
+            var vorher = Inhalt(v);
+            Abgleichen(v, b);
+            // Kennzeichen „Neue Vertretung“: auch eine durch die Neuberechnung geänderte Zeile gilt in dieser Sitzung als geändert
+            if (Inhalt(v) != vorher) v.Geaendert = DateTime.Now;
+        }
+        foreach (var b in benoetigt)
+        {
+            b.Id = d.NeueId();
+            d.Vertretungen.Add(b);
+        }
+        OffenWennVertreterAbwesend(d, datum);
+    }
+
+    /// <summary>Inhalt einer Zeile, der für das Kennzeichen „Neue Vertretung“ zählt.</summary>
+    private static string Inhalt(Vertretung v) =>
+        $"{v.Art}|{v.VertreterId}|{v.LehrerId}|{v.VertretungsraumId}|{v.RaumId}|{v.FachId}|{v.Text}|{string.Join(",", v.KlassenIds)}|{string.Join(",", v.ZusatzraumIds)}|{v.Mitbetreuung}";
+
+    /// <summary>Vorhandene abgeleitete Zeile an die neu berechnete angleichen (bearbeitete Zeilen behalten Vertreter, Raum und Text).</summary>
+    private static void Abgleichen(Vertretung v, Vertretung b)
+    {
+        {
             v.GrundId = b.GrundId;
             v.Grund = b.Grund;
             v.AbwesenheitId = b.AbwesenheitId;
@@ -238,7 +260,7 @@ public static class Vertretungen
                 v.Schuelergruppe = b.Schuelergruppe;
                 v.Wert = b.Wert;
                 if (!v.Bearbeitet) v.Text = b.Text;
-                continue;
+                return;
             }
             if (!v.Bearbeitet)
             {
@@ -254,13 +276,11 @@ public static class Vertretungen
                 v.FachId = b.FachId;
             }
         }
-        foreach (var b in benoetigt)
-        {
-            b.Id = d.NeueId();
-            d.Vertretungen.Add(b);
-        }
+    }
 
-        // Eingesetzte Vertreter, die inzwischen selbst abwesend sind → wieder offen
+    /// <summary>Eingesetzte Vertreter, die inzwischen selbst abwesend sind → wieder offen.</summary>
+    private static void OffenWennVertreterAbwesend(Schuldatei d, DateOnly datum)
+    {
         foreach (var v in d.Vertretungen.Where(v => v.Datum == datum && v.VertreterId.HasValue && v.Art is VertretungsArt.Vertretung or VertretungsArt.StattVertretung
                      or VertretungsArt.Betreuung or VertretungsArt.Teilvertretung or VertretungsArt.Lehrertausch or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Pausenaufsicht))
         {
@@ -372,9 +392,21 @@ public static class Vertretungen
     private static void Markieren(Vertretung v, string benutzer)
     {
         v.Bearbeitet = true;
+        AlsGeaendertMarkieren(v, benutzer);
+    }
+
+    /// <summary>Kennzeichen „Neue Vertretung“ setzen: die Zeile wurde in dieser Arbeitssitzung geändert (auch Text, Fixierung …).</summary>
+    public static void AlsGeaendertMarkieren(Vertretung v, string benutzer = "")
+    {
         v.Geaendert = DateTime.Now;
         if (!string.IsNullOrEmpty(benutzer)) v.Benutzer = benutzer;
     }
+
+    /// <summary>
+    /// Kennzeichen „Neue Vertretung“ (wie in Untis): in der aktuellen Arbeitssitzung – seit dem Öffnen der Datei – neu angelegt
+    /// oder geändert. Reine Unterrichtszeilen (Nr. 0) sind nie neu.
+    /// </summary>
+    public static bool IstNeu(Vertretung v, DateTime sitzungsbeginn) => v.Id != 0 && (v.Erstellt >= sitzungsbeginn || v.Geaendert >= sitzungsbeginn);
 
     /// <summary>
     /// Vertreter einsetzen. "+" = Vertretung ohne Lehrkraft, "-" = Entfall, null = wieder offen.

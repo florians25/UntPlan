@@ -92,6 +92,21 @@ public sealed partial class HauptFenster
         Schritt("15_Ferien", () => Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), 0);
         Schritt("16_Vertretungsmodus", VertretungsmodusUmschalten, -1, false);
         Schritt("17_Vertretungen", () => Max(FensterOeffnen("vertr")!), -1);
+        Schritt("17a_Vertretungen_Eingabe_Offene", () =>
+        {
+            // Vertreter und Text unter dem Filter „Offene Vertretungen“ eingeben: Zeile bleibt bis zum Zeilenwechsel, Fokus bleibt
+            var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            log.Add("INFO  " + f.SelbsttestBearbeiten(() => Warten(400)));
+        }, -1);
+        Schritt("17b_Stundenplan_Zeitbereich", () =>
+        {
+            // Zeitbereich „Periode“ im Vertretungsmodus (Regelplan nur zur Ansicht), danach wieder „Woche“
+            var sp = Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false));
+            sp.SelbsttestZeitbereich(false);
+            Warten(300);
+            sp.SelbsttestZeitbereich(true);
+        }, -1);
         Schritt("18_Vertretungsvorschlag", () =>
         {
             var offen = AppZustand.D.Vertretungen.Where(v => v.Datum == AppZustand.Datum).OrderByDescending(v => v.Offen).FirstOrDefault();
