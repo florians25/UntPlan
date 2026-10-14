@@ -4,9 +4,13 @@ namespace UntPlan.App;
 
 internal static class Program
 {
+    /// <summary>Befehlszeile (z. B. MultiUser-Anmeldung "DB~Schule~2024-2025~1 /user=… /pw=…").</summary>
+    public static string[] Argumente { get; private set; } = Array.Empty<string>();
+
     [STAThread]
     private static void Main(string[] args)
     {
+        Argumente = args;
         var de = CultureInfo.GetCultureInfo("de-DE");
         CultureInfo.DefaultThreadCurrentCulture = de;
         CultureInfo.DefaultThreadCurrentUICulture = de;

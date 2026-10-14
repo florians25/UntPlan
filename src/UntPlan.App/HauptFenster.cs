@@ -63,8 +63,10 @@ public sealed partial class HauptFenster : Form
         AppZustand.DokumentGewechselt += DokumentAnmelden;
         DokumentAnmelden();
 
+        MultiUser.MultiUserSitzung.ZustandGeaendert += () => { if (!IsDisposed) BeginInvoke(() => DokGeaendert(AenderungsArt.Einstellungen)); };
         Shown += (_, _) =>
         {
+            if (Program.Argumente.Any(a => a.Contains('~')) && MultiUser.MultiUserMenue.Befehlszeile(this, Program.Argumente)) return;
             if (datei != null) DateiLaden(datei);
             else if (AppZustand.Einstellungen.BegruessungZeigen) BegruessungDialog.Zeigen(this);
         };
@@ -97,7 +99,8 @@ public sealed partial class HauptFenster : Form
     {
         var d = AppZustand.D;
         var name = AppZustand.Doc.Pfad is null ? "Unbenannt" : Path.GetFileName(AppZustand.Doc.Pfad);
-        Text = $"UntPlan – {name}{(AppZustand.Doc.IstGeaendert ? " *" : "")} – {d.Einstellungen.Schulname} – Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year % 100:00}";
+        if (MultiUser.MultiUserSitzung.Aktiv) name = "MultiUser " + MultiUser.MultiUserSitzung.Titel;
+        Text = $"UntPlan – {name}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")} – {d.Einstellungen.Schulname} – Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year % 100:00}";
         _statusMitte.Text = $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}";
         _statusRechts.Text = $"{d.AktivePeriode.Name} · {d.Klassen.Count} Klassen · {d.Lehrer.Count} Lehrer · {d.Unterrichte.Count} Unterrichte";
         _ribbon.Invalidate();
@@ -171,6 +174,7 @@ public sealed partial class HauptFenster : Form
             null,
             E("Import/Export", "import", null, menue: ImportExportMenue()),
             E("Web-Portal…", "web", () => new PortalDialog().ShowDialog(this)),
+            E("MultiUser (Datenbank)", "datenbank", null, menue: MultiUserMenue()),
             null,
             E("Drucken…", "drucken", () => Drucken(false), taste: Keys.Control | Keys.P),
             E("Seitenansicht…", "vorschau", () => Drucken(true)),
@@ -222,6 +226,7 @@ public sealed partial class HauptFenster : Form
             null,
             E("Über UntPlan", "info", () => Ui.Info("UntPlan 1.0\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.", "Über UntPlan")),
         }));
+        g.Eintraege.Add(E("MultiUser", "datenbank", null, true, MultiUserMenue(), hinweis: "Gemeinsame Datenbank für mehrere Benutzer (SQLite, SQL Server, MySQL, Access)"));
         g = Gruppe(start, "Module");
         g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretung", Klick = VertretungsmodusUmschalten, Gross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
         g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan));
@@ -344,6 +349,9 @@ public sealed partial class HauptFenster : Form
         return g;
     }
 
+    private List<RibbonEintrag?> MultiUserMenue() =>
+        MultiUser.MultiUserMenue.Eintraege(this).Select(x => (RibbonEintrag?)E(x.Text, x.Symbol, x.Klick)).ToList();
+
     private List<RibbonEintrag?> ImportExportMenue() => new()
     {
         E("Schild-NRW: Lehrer importieren (CSV)…", "import", () => CsvImport("Lehrer")),
@@ -430,6 +438,8 @@ public sealed partial class HauptFenster : Form
 
     private bool Verwerfen()
     {
+        // im MultiUser-Betrieb wird jede Änderung sofort in die Datenbank geschrieben
+        if (MultiUser.MultiUserSitzung.Aktiv) return true;
         if (!AppZustand.Doc.IstGeaendert) return true;
         var r = MessageBox.Show("Die Schuldatei wurde geändert. Änderungen speichern?", "UntPlan", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
         if (r == DialogResult.Cancel) return false;
@@ -481,6 +491,12 @@ public sealed partial class HauptFenster : Form
 
     public bool Speichern(bool unter = false)
     {
+        if (MultiUser.MultiUserSitzung.Aktiv)
+        {
+            if (unter) MultiUser.MultiUserMenue.AlsDateiExportieren(this);
+            else Ui.Info("Im MultiUser-Betrieb wird jede Änderung sofort in der Datenbank gespeichert.\nÜber \"Speichern unter\" können Sie die Version als Datei exportieren.", "MultiUser");
+            return true;
+        }
         var doc = AppZustand.Doc;
         var pfad = doc.Pfad;
         if (pfad is null || unter)
