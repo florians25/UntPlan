@@ -73,6 +73,14 @@ public sealed partial class HauptFenster
         g.Eintraege.Add(E("Klassenplan", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false)));
         g.Eintraege.Add(E("Lehrerplan", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false)));
         g.Eintraege.Add(E("Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false)));
+        g.Eintraege.Add(E("Kleine Pläne", "uebersicht", () => KleinePlaeneOeffnen(), menue: new()
+        {
+            E("Kleine Pläne nebeneinander", "uebersicht", () => KleinePlaeneOeffnen()),
+            null,
+            E("Kleiner Klassenplan", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false, true)),
+            E("Kleiner Lehrerplan", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false, true)),
+            E("Kleiner Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false, true)),
+        }, hinweis: "Kompakte Stundenpläne (nur Fachkürzel, Pausenzeilen) nebeneinander – folgen über die Fensterverknüpfung der gewählten Vertretung"));
 
         g = Gruppe(vp, "Einstellungen");
         g.Eintraege.Add(E("Vertretungsformate", "uebersicht", null, menue: new()
@@ -115,6 +123,40 @@ public sealed partial class HauptFenster
         var le = StundenplanFenster.Neu(ElementTyp.Lehrer, v?.LehrerId, false);
         kl.Bounds = new Rectangle(0, 0, mdi.Width / 2, mdi.Height);
         le.Bounds = new Rectangle(mdi.Width / 2, 0, mdi.Width - mdi.Width / 2, mdi.Height);
+    }
+
+    /// <summary>
+    /// Kleine Stundenpläne nebeneinander am rechten Rand (wie Untis-Fensteranordnungen der Vertretungsplanung): Klasse und Lehrkraft
+    /// der gewählten Vertretung (bzw. abwesende Lehrkraft), Vertreter und Raum. Über die Fensterverknüpfung folgen sie der Auswahl.
+    /// </summary>
+    public List<StundenplanFenster> KleinePlaeneOeffnen()
+    {
+        if (!AppZustand.Vertretungsmodus) VertretungsmodusUmschalten();
+        var d = AppZustand.D;
+        var v = AppZustand.AktiveVertretung;
+        var abwesend = d.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && AppZustand.Datum >= a.Von && AppZustand.Datum <= a.Bis).Select(a => a.ElementId).ToList();
+        var lehrer = Stammdaten.Sortiert(d, ElementTyp.Lehrer).Select(e => e.Id).ToList();
+        var erster = v?.LehrerId ?? abwesend.FirstOrDefault(lehrer.Contains);
+        if (erster == 0) erster = lehrer.FirstOrDefault();
+        var zweiter = v?.VertreterId is int vt && vt != erster ? vt : lehrer.FirstOrDefault(l => l != erster);
+        var plaene = new (ElementTyp Typ, int? Id)[]
+        {
+            (ElementTyp.Klasse, v?.NeueKlassenIds.FirstOrDefault() is int k && k != 0 ? k : null),
+            (ElementTyp.Lehrer, erster),
+            (ElementTyp.Lehrer, zweiter),
+            (ElementTyp.Raum, v?.VertretungsraumId ?? v?.RaumId),
+        };
+        var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+        var res = new List<StundenplanFenster>();
+        var x = Math.Max(0, mdi.Width - plaene.Length * 196);
+        foreach (var (typ, id) in plaene)
+        {
+            var f = StundenplanFenster.Neu(typ, id is int i && i != 0 ? i : null, false, true);
+            f.Location = new Point(x, 0);
+            x += f.Width;
+            res.Add(f);
+        }
+        return res;
     }
 
     private void VertretungsformatOeffnen(string ansicht)
@@ -165,7 +207,7 @@ public sealed partial class HauptFenster
                 case "u": return Oeffnen(schluessel, () => new UnterrichtFenster(typ));
                 case "sp" when teile.Length >= 4 && int.TryParse(teile[2], out var id):
                     var vorhanden = AppZustand.D.AlleElemente(typ).Any(e => e.Id == id) ? id : (int?)null;
-                    return StundenplanFenster.Neu(typ, vorhanden, teile[3] == "1");
+                    return StundenplanFenster.Neu(typ, vorhanden, teile[3] == "1", teile.Length >= 5 && teile[4] == "k");
             }
         }
         return null;

@@ -80,6 +80,26 @@ public static class AppZustand
         finally { (AuswahlKlassen, AuswahlLehrer, AuswahlRaeume, AuswahlDatum) = (null, null, null, null); }
     }
 
+    /// <summary>
+    /// Fensterverknüpfung: Element einer Art zur gewählten Stunde (Elemente der angeklickten Zeile haben Vorrang). Gehört das bisher
+    /// angezeigte Element zur Stunde, bleibt es (null = kein passendes Element, Fenster bleibt unverändert).
+    /// </summary>
+    public static int? ElementDerStunde(ElementTyp typ, Unterricht u, Planstunde? p, int? aktuell)
+    {
+        IEnumerable<int> ids = typ switch
+        {
+            ElementTyp.Klasse => AuswahlKlassen is { Count: > 0 } k ? k : u.KlassenIds,
+            ElementTyp.Lehrer => AuswahlLehrer is { Count: > 0 } l ? l : u.LehrerIds,
+            ElementTyp.Raum => AuswahlRaeume is { Count: > 0 } r ? r : p?.Raeume.Where(x => x.HasValue).Select(x => x!.Value) ?? Enumerable.Empty<int>(),
+            ElementTyp.Fach => u.FachIds,
+            ElementTyp.Unterricht => new[] { u.Id },
+            _ => Enumerable.Empty<int>(),
+        };
+        var liste = ids.Distinct().ToList();
+        if (aktuell is int a && liste.Contains(a)) return a;
+        return liste.Count > 0 ? liste[0] : null;
+    }
+
     public static IReadOnlyList<int>? AuswahlKlassen { get; private set; }
     public static IReadOnlyList<int>? AuswahlLehrer { get; private set; }
     public static IReadOnlyList<int>? AuswahlRaeume { get; private set; }

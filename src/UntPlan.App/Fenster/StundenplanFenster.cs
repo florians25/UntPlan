@@ -26,13 +26,19 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private readonly ToolStripButton _alleElemente;
     private readonly ToolStripButton _sync;
     private readonly ToolStripButton _wochenansicht;
+    private readonly ToolStripButton _kleinKnopf;
+    private readonly ToolStripButton _lupeKnopf;
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 105 };
+    private readonly ToolStrip _leiste;
     private bool _laden;
+    private bool _klein;
     private Action? _planGroesse;
+    /// <summary>Werkzeugleisten-Einträge, die auch im kleinen Stundenplan sichtbar bleiben.</summary>
+    private readonly List<ToolStripItem> _kleinSichtbar = new();
 
-    public static StundenplanFenster Neu(ElementTyp typ, int? id, bool gross)
+    public static StundenplanFenster Neu(ElementTyp typ, int? id, bool gross, bool klein = false)
     {
-        var f = new StundenplanFenster(typ, id ?? Stammdaten.Sortiert(AppZustand.D, typ).FirstOrDefault()?.Id ?? 0, gross);
+        var f = new StundenplanFenster(typ, id ?? Stammdaten.Sortiert(AppZustand.D, typ).FirstOrDefault()?.Id ?? 0, gross, klein);
         f.Show();
         return f;
     }
@@ -40,30 +46,71 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     public static StundenplanFenster? AktivesOderNeu() =>
         AppZustand.Haupt.ActiveMdiChild as StundenplanFenster ?? AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().FirstOrDefault() ?? Neu(ElementTyp.Klasse, null, false);
 
-    public StundenplanFenster(ElementTyp typ, int id, bool gross)
+    /// <summary>Kleiner Stundenplan (schmale Zellen nur mit Fachkürzel, Pausenzeilen), z. B. mehrere nebeneinander in der Vertretungsplanung.</summary>
+    public bool Klein => _klein;
+    public ElementTyp Typ => _typ;
+    public int ElementId => _id;
+    /// <summary>Gezeichneter Plan (für Selbsttest und Synchronisation).</summary>
+    internal PlanAnsicht Plan => _plan;
+
+    public StundenplanFenster(ElementTyp typ, int id, bool gross, bool klein = false)
     {
         _typ = typ;
         _id = id;
         _gross = gross;
+        _klein = klein;
         HilfeThema = "Stundenpläne";
         Icon = SymbolIcon("stundenplan");
-        Size = gross ? new Size(820, 640) : new Size(560, 520);
+        Size = klein ? new Size(196, 330) : gross ? new Size(820, 640) : new Size(560, 520);
         Positionieren();
 
         var ts = Werkzeugleiste();
+        _leiste = ts;
         ts.Items.Add(_auswahl);
-        _auswahl.SelectedIndexChanged += (_, _) => { if (!_laden && _auswahl.SelectedItem is Eintrag e) { _id = e.E.Id; Neuaufbau(); } };
+        _kleinSichtbar.Add(_auswahl);
+        _auswahl.SelectedIndexChanged += (_, _) =>
+        {
+            if (_laden || _auswahl.SelectedItem is not Eintrag e) return;
+            _id = e.E.Id;
+            Neuaufbau();
+            // Fensterverknüpfung: andere Fenster (Stammdaten, Unterricht, Zeitwünsche, Pläne desselben Typs) folgen
+            if (Verknuepft) AppZustand.Waehlen(_typ, _id, this);
+        };
         ts.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(false), (_, _) => Blaettern(-1)) { ToolTipText = "Vorheriges Element", DisplayStyle = ToolStripItemDisplayStyle.Image });
+        _kleinSichtbar.Add(ts.Items[^1]);
         ts.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(true), (_, _) => Blaettern(1)) { ToolTipText = "Nächstes Element", DisplayStyle = ToolStripItemDisplayStyle.Image });
+        _kleinSichtbar.Add(ts.Items[^1]);
+        // Fensterverknüpfung (Untis-Kettensymbol): Plan folgt dem gewählten Element bzw. der gewählten Stunde anderer Fenster
+        Verknuepft = AppZustand.Einstellungen.StundenplanSynchronisieren;
+        _sync = Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
+        ts.Items.Add(_sync);
+        _kleinSichtbar.Add(_sync);
+        _kleinKnopf = new ToolStripButton("klein") { CheckOnClick = true, Checked = klein, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Kleiner Stundenplan (nur Fachkürzel, Pausenzeilen) – z. B. mehrere nebeneinander in der Vertretungsplanung" };
+        _kleinKnopf.CheckedChanged += (_, _) => { if (!_laden) KleinSetzen(_kleinKnopf.Checked); };
+        ts.Items.Add(_kleinKnopf);
+        _kleinSichtbar.Add(_kleinKnopf);
+        _lupeKnopf = new ToolStripButton("Lupe") { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Stundenplanlupe unter dem Plan ein-/ausblenden" };
+        _lupeKnopf.CheckedChanged += (_, _) => { if (!_laden) LupeUmschalten(_lupeKnopf.Checked); };
+        ts.Items.Add(_lupeKnopf);
+        _kleinSichtbar.Add(_lupeKnopf);
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_format);
         _format.SelectedIndexChanged += (_, _) => { if (!_laden && _format.SelectedItem is string n) FormatWaehlen(n); };
         var formate = new ToolStripDropDownButton(Symbole.Get("einstellungen", 16)) { ToolTipText = "Stundenplanformate", DisplayStyle = ToolStripItemDisplayStyle.Image };
         formate.DropDownItems.Add("Format bearbeiten…", Symbole.Get("einstellungen", 16), (_, _) => Einstellungen());
+        var einzel = new ToolStripMenuItem("Einzelstunden (Doppelstunden nicht zusammenfassen)");
+        einzel.Click += (_, _) => { var f = Kopie(_plan.Format); f.Einzelstunden = !f.Einzelstunden; FormatSpeichern(f, f.Name); };
+        var pausen = new ToolStripMenuItem("Pausen anzeigen");
+        pausen.Click += (_, _) => { var f = Kopie(_plan.Format); f.PausenAnzeigen = !f.PausenAnzeigen; FormatSpeichern(f, f.Name); };
+        formate.DropDownItems.Add(einzel);
+        formate.DropDownItems.Add(pausen);
+        formate.DropDownOpening += (_, _) => { einzel.Checked = _plan.Format.Einzelstunden; pausen.Checked = _plan.Format.PausenAnzeigen; };
+        formate.DropDownItems.Add(new ToolStripSeparator());
         formate.DropDownItems.Add("Neues Format (Kopie)…", Symbole.Get("neu", 16), (_, _) => FormatNeu());
         formate.DropDownItems.Add("Format umbenennen…", null, (_, _) => FormatUmbenennen());
         formate.DropDownItems.Add("Format löschen", Symbole.Get("loeschen", 16), (_, _) => FormatLoeschen());
         ts.Items.Add(formate);
+        _kleinSichtbar.Add(formate);
         _alleElemente = new ToolStripButton(Symbole.Get("uebersicht")) { ToolTipText = "Alle Elemente im Unterricht", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
         _alleElemente.CheckedChanged += (_, _) => { _reiter.Visible = _alleElemente.Checked; ReiterAufbauen(); };
         ts.Items.Add(_alleElemente);
@@ -71,8 +118,6 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Raum zuordnen", "raumzuordnen", RaumZuordnen));
         ts.Items.Add(Knopf("Tauschvorschläge", "tausch", TauschvorschlaegeZeigen));
         ts.Items.Add(Knopf("Stunde entplanen", "loeschen", Entplanen));
-        _sync = new ToolStripButton(Symbole.Get("vertretung")) { ToolTipText = "Stundenplan-Synchronisation", CheckOnClick = true, Checked = AppZustand.Einstellungen.StundenplanSynchronisieren, DisplayStyle = ToolStripItemDisplayStyle.Image };
-        ts.Items.Add(_sync);
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true)));
@@ -181,16 +226,18 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         void PlanGroesse()
         {
             // nur blättern, wenn die Zellen tatsächlich mehr Platz brauchen (sonst füllt der Plan das Fenster ohne Rollbalken)
+            // kleiner Plan: immer an das Fenster angepasst; sonst Mindestgrößen laut Format (Zellengröße) bzw. Schriftgröße
             var innen = planRahmen.Height - 2;
-            var blaettern = _plan.BenoetigteHoehe > innen;
-            if (planRahmen.AutoScroll != blaettern)
+            var blaettern = !_klein && _plan.BenoetigteHoehe > innen;
+            var quer = !_klein && _plan.BenoetigteBreite > planRahmen.Width - (blaettern ? SystemInformation.VerticalScrollBarWidth : 0) - 2;
+            if (planRahmen.AutoScroll != (blaettern || quer))
             {
-                planRahmen.AutoScroll = blaettern;
-                if (!blaettern) planRahmen.AutoScrollPosition = Point.Empty;
+                planRahmen.AutoScroll = blaettern || quer;
+                if (!blaettern && !quer) planRahmen.AutoScrollPosition = Point.Empty;
             }
-            var breite = blaettern ? planRahmen.Width - SystemInformation.VerticalScrollBarWidth - 2 : planRahmen.Width;
-            var hoehe = blaettern ? _plan.BenoetigteHoehe : planRahmen.Height;
-            _plan.SetBounds(0, blaettern ? planRahmen.AutoScrollPosition.Y : 0, Math.Max(100, breite), hoehe);
+            var breite = quer ? _plan.BenoetigteBreite : blaettern ? planRahmen.Width - SystemInformation.VerticalScrollBarWidth - 2 : planRahmen.Width;
+            var hoehe = blaettern ? _plan.BenoetigteHoehe : planRahmen.Height - (quer ? SystemInformation.HorizontalScrollBarHeight + 2 : 0);
+            _plan.SetBounds(quer ? planRahmen.AutoScrollPosition.X : 0, blaettern ? planRahmen.AutoScrollPosition.Y : 0, Math.Max(_klein ? 60 : 100, breite), Math.Max(60, hoehe));
         }
         planRahmen.Resize += (_, _) => PlanGroesse();
         _planGroesse = PlanGroesse;
@@ -201,6 +248,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         Controls.Add(_lupe);
         Controls.Add(_detail);
         Controls.Add(ts);
+        KleinAnwenden();
+        if (klein) Height = KleineHoehe();
         ModusAnwenden();
         Neuaufbau();
         AppZustand.ElementGewaehlt += ElementGewaehlt;
@@ -247,17 +296,62 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         public override string ToString() => E.Kurzname;
     }
 
-    private string FormatSchluessel => _typ + (_gross ? " groß" : "");
+    private string FormatSchluessel => _typ + (_klein ? " klein" : _gross ? " groß" : "");
 
-    private string StandardName => (_typ switch { ElementTyp.Klasse => "Klassenplan", ElementTyp.Lehrer => "Lehrerplan", ElementTyp.Raum => "Raumplan", ElementTyp.Fach => "Fachplan", _ => "Stundenplan" }) + (_gross ? " groß" : "");
+    private string StandardName => (_typ switch { ElementTyp.Klasse => "Klassenplan", ElementTyp.Lehrer => "Lehrerplan", ElementTyp.Raum => "Raumplan", ElementTyp.Fach => "Fachplan", _ => "Stundenplan" }) + (_klein ? " klein" : _gross ? " groß" : "");
 
-    /// <summary>Gewähltes Format (eigenes Format nach Name, sonst das erste passende bzw. ein Standardformat).</summary>
+    /// <summary>Gewähltes Format (eigenes Format nach Name, sonst das erste passende bzw. ein Standardformat); kleine Pläne nur mit kleinen Formaten.</summary>
     private StundenplanFormat FormatHolen()
     {
         AppZustand.Einstellungen.Stundenplanformate.TryGetValue(FormatSchluessel, out var gewaehlt);
         var name = _formatName ?? gewaehlt;
-        var f = (name is null ? null : D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Name == name)) ?? D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Gross == _gross);
-        return f ?? new StundenplanFormat { Name = StandardName, Typ = _typ, Gross = _gross, Schriftgroesse = _gross ? 10 : 9 };
+        var f = (name is null ? null : D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Name == name && x.Klein == _klein)) ??
+                D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Klein == _klein && (_klein || x.Gross == _gross));
+        return f ?? (_klein ? StundenplanFormat.KleinesFormat(_typ, StandardName) : new StundenplanFormat { Name = StandardName, Typ = _typ, Gross = _gross, Schriftgroesse = _gross ? 10 : 9 });
+    }
+
+    /// <summary>Zwischen normalem und kleinem Stundenplan umschalten (Fenstergröße, Werkzeugleiste, Format).</summary>
+    public void KleinSetzen(bool klein)
+    {
+        if (_klein == klein) return;
+        _klein = klein;
+        _formatName = null;
+        _plan.Format = FormatHolen();
+        FormateFuellen();
+        if (WindowState == FormWindowState.Normal)
+            Size = klein ? new Size(196, KleineHoehe()) : _gross ? new Size(820, 640) : new Size(560, 520);
+        KleinAnwenden();
+        Neuaufbau(false);
+    }
+
+    /// <summary>Passende Fensterhöhe des kleinen Plans (Plan ohne Blättern, Werkzeugleiste, Titel, ggf. Lupe).</summary>
+    private int KleineHoehe() => _plan.BenoetigteHoehe + 26 + 27 + (_lupe.Visible ? _lupe.Height : 0) + 10;
+
+    /// <summary>Sichtbarkeit der Bereiche: Der kleine Plan zeigt nur Werkzeugleiste (Element, Blättern, Verknüpfung) und Plan, optional die Lupe.</summary>
+    private void KleinAnwenden()
+    {
+        _laden = true;
+        _kleinKnopf.Checked = _klein;
+        _laden = false;
+        foreach (ToolStripItem it in _leiste.Items) it.Visible = !_klein || _kleinSichtbar.Contains(it);
+        _auswahl.Width = _klein ? 62 : 100;
+        _detail.Visible = !_klein;
+        _pool.Visible = !_klein;
+        if (_klein) _reiter.Visible = false;
+        else _reiter.Visible = _alleElemente.Checked;
+        LupeUmschalten(_klein ? _plan.Format.StundenplanlupeAnzeigen : true);
+        _planGroesse?.Invoke();
+    }
+
+    private void LupeUmschalten(bool sichtbar)
+    {
+        _laden = true;
+        _lupeKnopf.Checked = sichtbar;
+        _laden = false;
+        if (_lupe.Visible == sichtbar) return;
+        _lupe.Visible = sichtbar;
+        if (_klein && WindowState == FormWindowState.Normal) Height = Math.Max(200, Height + (sichtbar ? _lupe.Height : -_lupe.Height));
+        _planGroesse?.Invoke();
     }
 
     private string? _formatName;
@@ -268,7 +362,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         _laden = true;
         _format.Items.Clear();
-        var namen = D.Formate.Where(x => x.Typ == _typ).Select(x => x.Name).Where(n => n.Length > 0).Distinct().ToList();
+        var namen = D.Formate.Where(x => x.Typ == _typ && x.Klein == _klein).Select(x => x.Name).Where(n => n.Length > 0).Distinct().ToList();
         if (!namen.Contains(_plan.Format.Name)) namen.Insert(0, _plan.Format.Name);
         foreach (var n in namen) _format.Items.Add(n);
         _format.SelectedItem = _plan.Format.Name;
@@ -326,8 +420,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     private void ElementGewaehlt(ElementTyp typ, int id, object quelle)
     {
-        if (quelle == this || typ != _typ || _reiter.Visible) return;
+        if (quelle == this || typ != _typ || _reiter.Visible || !Verknuepft || IsDisposed || id == _id) return;
         _id = id;
+        _plan.MarkierterUnterricht = null;
         Neuaufbau();
     }
 
@@ -341,7 +436,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Stundenplan-Synchronisation: andere Pläne zeigen die Elemente der aktivierten Stunde (bei mehreren Plänen desselben Typs der Reihe nach).</summary>
     private void StundeGewaehlt(Unterricht u, Planstunde? p, object quelle)
     {
-        if (quelle == this || !_sync.Checked || _reiter.Visible) return;
+        if (quelle == this || !Verknuepft || _reiter.Visible || IsDisposed) return;
         var k = FensterIndex(quelle);
         // Elemente der angeklickten Zeile haben Vorrang (z. B. Lehrerplan → Klasse dieser Lehrkraft)
         int? neu = _typ switch
@@ -359,15 +454,24 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             _id = neu.Value;
             Neuaufbau();
         }
+        // dieselbe Stunde markieren; ohne Stunde (Auswahl im Unterrichtsfenster) alle Stunden des Unterrichts gestrichelt
+        _plan.MarkierterUnterricht = u.Id;
         if (_plan.Tagesmodus && datum is DateOnly dt && p != null) _plan.TagesAuswaehlen(dt, p.Stunde, u.Id);
-        else if (p != null) { _plan.Ausgewaehlt = p; _plan.Invalidate(); }
+        else if (_plan.Tagesmodus && p != null) _plan.TagesAuswaehlen(AppZustand.Datum, p.Stunde, u.Id);
+        else if (p != null)
+        {
+            _plan.Mehrfach.Clear();
+            _plan.Ausgewaehlt = D.Stundenplan.Contains(p) ? p : D.Stundenplan.FirstOrDefault(x => x.UnterrichtId == p.UnterrichtId && x.Tag == p.Tag && x.Stunde == p.Stunde);
+        }
+        else _plan.Ausgewaehlt = null;
+        _plan.Invalidate();
         if (neu is not null) LupeFuellen(p);
     }
 
     /// <summary>Gewählte Vertretung: Klassenplan der Klasse, Lehrerpläne von (Lehrer) und Vertreter, Raumplan – tagesaktuell zur Woche der Vertretung.</summary>
     private void VertretungGewaehlt(Vertretung? v)
     {
-        if (v is null || IsDisposed || !_sync.Checked || _reiter.Visible || ContainsFocus) return;
+        if (v is null || IsDisposed || !Verknuepft || _reiter.Visible || ContainsFocus) return;
         var k = FensterIndex(null);
         int? neu = _typ switch
         {
@@ -390,6 +494,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             Neuaufbau();
         }
         if (wocheAnders) WocheSetzen();
+        // gewählte Vertretung im Plan markieren (dieselbe Stunde wie im Vertretungsfenster)
+        _plan.MarkierterUnterricht = v.UnterrichtId;
+        if (_plan.Tagesmodus) _plan.TagesAuswaehlen(v.Datum, v.Stunde, v.UnterrichtId ?? 0, v.Id);
         else _plan.Invalidate();
     }
 
@@ -429,12 +536,11 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _laden = false;
         var el = Ix.Element(_typ, _id);
         var fmtName = _plan.Format.Name.Length > 0 ? _plan.Format.Name : FormatHolen().Name;
-        Text = el is null ? $"Stundenplan ({fmtName})" : $"{el.Kurzname} – {(el is Lehrer l ? l.VollerName : el.Langname)} ({fmtName})";
-        Tag = $"sp:{_typ}:{_id}:{(_gross ? 1 : 0)}";
+        Text = el is null ? $"Stundenplan ({fmtName})" : _klein ? $"{el.Kurzname} – {(el is Lehrer lk ? lk.VollerName : el.Langname)}" : $"{el.Kurzname} – {(el is Lehrer l ? l.VollerName : el.Langname)} ({fmtName})";
+        Tag = $"sp:{_typ}:{_id}:{(_gross ? 1 : 0)}" + (_klein ? ":k" : "");
         _plan.Typ = _typ;
         _plan.ElementId = _id;
-        if (_plan.Ausgewaehlt != null && !D.Stundenplan.Contains(_plan.Ausgewaehlt)) _plan.Ausgewaehlt = null;
-        _plan.Mehrfach.RemoveAll(x => !D.Stundenplan.Contains(x));
+        _plan.AuswahlAktualisieren();
         if (_plan.Tagesmodus) _plan.TageNeu();
         _plan.Invalidate();
         DetailAktualisieren();
@@ -562,8 +668,26 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         }
     }
 
+    /// <summary>Stunde wählen wie per Mausklick (markiert sie und meldet sie an die verknüpften Fenster) – für Selbsttest und Tastatur.</summary>
+    internal void StundeAnklicken(Planstunde p)
+    {
+        _plan.Mehrfach.Clear();
+        _plan.Ausgewaehlt = p;
+        _plan.Invalidate();
+        AuswahlGeaendert(p);
+    }
+
+    /// <summary>Format nur für die Anzeige setzen (ohne Speichern), z. B. Einzelstunden mit Pausen im Selbsttest.</summary>
+    internal void FormatAnzeigen(StundenplanFormat f)
+    {
+        _plan.Format = f;
+        _planGroesse?.Invoke();
+        _plan.Invalidate();
+    }
+
     private void AuswahlGeaendert(Planstunde? p)
     {
+        _plan.MarkierterUnterricht = p?.UnterrichtId;
         LupeFuellen(p);
         ReiterAufbauen();
         if (p == null || !Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) return;
@@ -651,32 +775,52 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             var dt = tag - prim.Tag;
             var ds = stunde - prim.Stunde;
             if (dt == 0 && ds == 0) return;
-            if (alle.Count > 1) { MehrereVerschieben(alle, dt, ds); return; }
+            var idx = D.Stundenplan.IndexOf(prim);
+            // eine Stunde bzw. ein ganzer Block eines Unterrichts: geprüfter Tausch mit dem Unterricht am Ziel (wie in Untis)
+            var erzwingen = false;
+            var tauschGrund = "";
+            if (alle.All(x => x.UnterrichtId == prim.UnterrichtId && x.Tag == prim.Tag))
+            {
+                var start = alle.Min(x => x.Stunde) + ds;
+                var tausch = Planungsdienst.TauschPruefen(D, Ix, alle, tag, start, out tauschGrund);
+                if (tausch != null)
+                {
+                    var wahl = PlanungsKonfliktDialog.Fragen(this, $"Stunden tauschen – Unterricht {prim.UnterrichtId} {Ix.UnterrichtText(Ix.Unterrichte[prim.UnterrichtId])}",
+                        tausch.Beschreibung + (tausch.Partner.Count > tausch.Laenge ? $"\n(mit {tausch.Partner.Count} parallelen Stunden des Bandes)" : ""), "Stunden tauschen", "Kollision erzeugen");
+                    if (wahl is null) return;
+                    if (wahl == 0)
+                    {
+                        var idxs = alle.Select(x => D.Stundenplan.IndexOf(x)).Where(i => i >= 0).ToList();
+                        Aendern(tausch.Laenge > 1 ? $"Block tauschen ({tausch.Laenge} Stunden)" : "Stunden tauschen", AenderungsArt.Stundenplan, d =>
+                        {
+                            var t = Planungsdienst.TauschPruefen(d, new DatenIndex(d), idxs.Select(i => d.Stundenplan[i]).ToList(), tag, start, out var g);
+                            if (t is null) throw new InvalidOperationException(g);
+                            Planungsdienst.Tauschen(d, t);
+                        });
+                        _plan.Ausgewaehlt = D.Stundenplan.ElementAtOrDefault(idx);
+                        Neuaufbau(false);
+                        return;
+                    }
+                    erzwingen = true;
+                }
+            }
+            if (alle.Count > 1) { MehrereVerschieben(alle, dt, ds, erzwingen); return; }
             var p = prim;
-            var idx = D.Stundenplan.IndexOf(p);
             var u = Ix.Unterrichte[p.UnterrichtId];
             var status = Planungsdienst.Status(D, Ix, u, tag, stunde, 1, new[] { p });
-            var tauschen = false;
             var entplanen = false;
             if (p.Fixiert && !Ui.Frage("Die Stunde ist fixiert. Trotzdem verschieben?")) return;
-            if (status == Feldstatus.TauschMoeglich)
-            {
-                var h = Planungsdienst.Hindernisse(D, Ix, u, tag, stunde, new[] { p }).First();
-                var wahl = PlanungsKonfliktDialog.Fragen(this, $"Stunde tauschen – Unterricht {u.Id} {Ix.UnterrichtText(u)}",
-                    $"Behindernder Unterricht: {h.Unterricht.Id} ({Ix.UnterrichtText(h.Unterricht)}, {h.Grund})", "Stunden tauschen", "Kollision erzeugen");
-                if (wahl is null) return;
-                tauschen = wahl == 0;
-            }
-            else if (status == Feldstatus.Kollision)
+            if (!erzwingen && status is Feldstatus.Kollision or Feldstatus.TauschMoeglich)
             {
                 var h = Planungsdienst.Hindernisse(D, Ix, u, tag, stunde, new[] { p });
                 var wahl = PlanungsKonfliktDialog.Fragen(this, $"Block speichern – Unterricht {u.Id} {Ix.UnterrichtText(u)}",
-                    $"Anzahl behindernder Unterrichte: {h.Count}\n" + string.Join("\n", h.Select(x => $"U-Nr. {x.Unterricht.Id}: {Ix.UnterrichtText(x.Unterricht)} ({x.Grund})")),
+                    $"Anzahl behindernder Unterrichte: {h.Count}\n" + string.Join("\n", h.Select(x => $"U-Nr. {x.Unterricht.Id}: {Ix.UnterrichtText(x.Unterricht)} ({x.Grund})")) +
+                    (tauschGrund.Length > 0 && h.Count > 0 ? $"\n\nKein Tausch möglich: {tauschGrund}" : ""),
                     "Block speichern (behindernder Unterricht wird entplant)", "Kollision erzeugen");
                 if (wahl is null) return;
                 entplanen = wahl == 0;
             }
-            Aendern(tauschen ? "Stunden tauschen" : "Stunde verschieben", AenderungsArt.Stundenplan, d => Planungsdienst.Verschieben(d, d.Stundenplan[idx], tag, stunde, tauschen, entplanen));
+            Aendern("Stunde verschieben", AenderungsArt.Stundenplan, d => Planungsdienst.Verschieben(d, d.Stundenplan[idx], tag, stunde, false, entplanen));
             _plan.Ausgewaehlt = D.Stundenplan.ElementAtOrDefault(idx);
             Neuaufbau(false);
         }
@@ -735,7 +879,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>Mehrere markierte Stunden (oder einen Block) gemeinsam um denselben Abstand verschieben.</summary>
-    private void MehrereVerschieben(List<Planstunde> alle, int dt, int ds)
+    private void MehrereVerschieben(List<Planstunde> alle, int dt, int ds, bool kollisionErzeugen = false)
     {
         var konflikte = new List<string>();
         foreach (var p in alle)
@@ -747,7 +891,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         }
         if (alle.Any(p => p.Fixiert) && !Ui.Frage("Unter den Stunden sind fixierte Stunden. Trotzdem verschieben?")) return;
         var entplanen = false;
-        if (konflikte.Count > 0)
+        if (konflikte.Count > 0 && !kollisionErzeugen)
         {
             var wahl = PlanungsKonfliktDialog.Fragen(this, $"{alle.Count} Stunden verschieben", string.Join("\n", konflikte.Distinct()), "Verschieben (behindernder Unterricht wird entplant)", "Kollision erzeugen");
             if (wahl is null) return;
@@ -1076,7 +1220,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private void Einstellungen()
     {
         var alt = _plan.Format.Name;
-        var f = StundenplanEinstellungenDialog.Zeigen(this, Kopie(_plan.Format));
+        var f = StundenplanEinstellungenDialog.Zeigen(this, Kopie(_plan.Format), _typ, _id);
         if (f != null) FormatSpeichern(f, alt);
     }
 
@@ -1091,6 +1235,13 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _formatName = f.Name;
         AppZustand.Einstellungen.Stundenplanformate[FormatSchluessel] = f.Name;
         _plan.Format = f;
+        if (f.Klein != _klein)
+        {
+            // „Kleiner Stundenplan“ im Format umgeschaltet: Fenster passt sich an
+            _klein = f.Klein;
+            AppZustand.Einstellungen.Stundenplanformate[FormatSchluessel] = f.Name;
+            KleinAnwenden();
+        }
         FormateFuellen();
         _planGroesse?.Invoke();
         Neuaufbau(false);

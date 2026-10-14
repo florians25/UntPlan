@@ -55,6 +55,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             ts.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(true), (_, _) => Blaettern(1)) { ToolTipText = "Nächstes Element", DisplayStyle = ToolStripItemDisplayStyle.Image });
             ts.Items.Add(new ToolStripSeparator());
         }
+        ts.Items.Add(VerknuepfenKnopf());
         ts.Items.Add(Knopf("Neuer Unterricht", "neu", NeuerUnterricht));
         ts.Items.Add(Knopf("Unterricht löschen", "loeschen", Loeschen));
         ts.Items.Add(Knopf("Kopplungszeile hinzufügen", "plus", KopplungszeileNeu));
@@ -128,7 +129,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         };
         Neuaufbau();
         AppZustand.ElementGewaehlt += ElementGewaehlt;
-        FormClosed += (_, _) => AppZustand.ElementGewaehlt -= ElementGewaehlt;
+        AppZustand.StundeGewaehlt += StundeGewaehlt;
+        FormClosed += (_, _) =>
+        {
+            AppZustand.ElementGewaehlt -= ElementGewaehlt;
+            AppZustand.StundeGewaehlt -= StundeGewaehlt;
+        };
     }
 
     private sealed record ElementEintrag(Element E)
@@ -138,7 +144,41 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private void ElementGewaehlt(ElementTyp typ, int id, object quelle)
     {
-        if (quelle != this && typ == _sicht && _sicht != ElementTyp.Unterricht) ElementSetzen(id);
+        if (quelle != this && typ == _sicht && _sicht != ElementTyp.Unterricht && Verknuepft && !IsDisposed && id != _elementId) ElementSetzen(id);
+    }
+
+    /// <summary>
+    /// Fensterverknüpfung: Stunde im Stundenplan gewählt – das Fenster zeigt das passende Element (Klasse bzw. Lehrkraft der Stunde)
+    /// und markiert den Unterricht. Die Markierung meldet nichts zurück (keine Rückkopplung zwischen den Fenstern).
+    /// </summary>
+    private void StundeGewaehlt(Unterricht u, Planstunde? p, object quelle)
+    {
+        if (quelle == this || !Verknuepft || IsDisposed) return;
+        if (_sicht != ElementTyp.Unterricht && AppZustand.ElementDerStunde(_sicht, u, p, _elementId) is int id && id != _elementId) ElementSetzen(id);
+        UnterrichtMarkieren(u.Id);
+    }
+
+    /// <summary>Zeile eines Unterrichts zur aktuellen Zeile machen, ohne die Auswahl an andere Fenster zu melden.</summary>
+    private void UnterrichtMarkieren(int unterrichtId)
+    {
+        if (Aktuell() is { } akt && akt.U.Id == unterrichtId) return;
+        foreach (DataGridViewRow r in _grid.Rows)
+        {
+            if (r.Tag is not ZeilenTag zt || zt.U.Id != unterrichtId || zt.Index != 0) continue;
+            var spalte = Math.Clamp(_grid.CurrentCell?.ColumnIndex ?? 0, 0, Math.Max(0, _grid.Columns.Count - 1));
+            if (_grid.Columns.Count == 0 || !_grid.Columns[spalte].Visible) spalte = _grid.Columns.Cast<DataGridViewColumn>().FirstOrDefault(c => c.Visible)?.Index ?? 0;
+            _laden = true;
+            try
+            {
+                _grid.ClearSelection();
+                _grid.CurrentCell = r.Cells[spalte];
+                r.Selected = true;
+            }
+            catch (InvalidOperationException) { }
+            finally { _laden = false; }
+            FormularFuellen();
+            return;
+        }
     }
 
     public void ElementSetzen(int id)
@@ -303,14 +343,18 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.Rows[leer].DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 240);
         _grid.ResumeLayout();
         _summe.Text = $"Wst: {summeWst}   Nvpl.: {summeNv}";
-        _laden = false;
-        if (tag != null)
-            foreach (DataGridViewRow r in _grid.Rows)
-                if (r.Tag is ZeilenTag zt && zt.U.Id == tag.U.Id && zt.Index == tag.Index && spalte < _grid.Columns.Count)
-                {
-                    _grid.CurrentCell = r.Cells[spalte];
-                    break;
-                }
+        // bisherige Zeile wiederherstellen, ohne die Auswahl erneut an andere Fenster zu melden (Rückkopplung)
+        try
+        {
+            if (tag != null)
+                foreach (DataGridViewRow r in _grid.Rows)
+                    if (r.Tag is ZeilenTag zt && zt.U.Id == tag.U.Id && zt.Index == tag.Index && spalte < _grid.Columns.Count)
+                    {
+                        _grid.CurrentCell = r.Cells[spalte];
+                        break;
+                    }
+        }
+        finally { _laden = false; }
         FormularFuellen();
     }
 

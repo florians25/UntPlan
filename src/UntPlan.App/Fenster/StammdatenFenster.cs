@@ -43,6 +43,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         var ts = Werkzeugleiste();
         ts.Items.Add(_auswahl);
         _auswahl.SelectedIndexChanged += (_, _) => { if (!_laden && _auswahl.SelectedItem is ElementEintrag ee) ZeileWaehlen(ee.Element); };
+        ts.Items.Add(VerknuepfenKnopf());
         ts.Items.Add(Knopf("Normalform anzeigen", "normalform", Normalform));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Neu", "neu", NeuesElement));
@@ -115,7 +116,12 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
 
         AnsichtLaden(D.Ansichten.FirstOrDefault(a => a.Fenster == FensterSchluessel)?.Name ?? "Standard");
         AppZustand.ElementGewaehlt += ElementGewaehlt;
-        FormClosed += (_, _) => AppZustand.ElementGewaehlt -= ElementGewaehlt;
+        AppZustand.StundeGewaehlt += StundeGewaehlt;
+        FormClosed += (_, _) =>
+        {
+            AppZustand.ElementGewaehlt -= ElementGewaehlt;
+            AppZustand.StundeGewaehlt -= StundeGewaehlt;
+        };
     }
 
     private sealed record ElementEintrag(Element Element)
@@ -125,7 +131,16 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
 
     private void ElementGewaehlt(ElementTyp typ, int id, object quelle)
     {
-        if (quelle == this || typ != _typ || !Visible) return;
+        if (quelle == this || typ != _typ || !Visible || !Verknuepft || IsDisposed) return;
+        var e = D.AlleElemente(_typ).FirstOrDefault(x => x.Id == id);
+        if (e != null && e != _aktuell) ZeileWaehlen(e, melden: false);
+    }
+
+    /// <summary>Fensterverknüpfung: Stunde im Stundenplan bzw. Unterricht gewählt – Klasse, Lehrkraft, Raum bzw. Fach dieser Stunde zeigen.</summary>
+    private void StundeGewaehlt(Unterricht u, Planstunde? p, object quelle)
+    {
+        if (quelle == this || !Visible || !Verknuepft || IsDisposed || _typ is not (ElementTyp.Klasse or ElementTyp.Lehrer or ElementTyp.Raum or ElementTyp.Fach)) return;
+        if (AppZustand.ElementDerStunde(_typ, u, p, _aktuell?.Id) is not int id || id == _aktuell?.Id) return;
         var e = D.AlleElemente(_typ).FirstOrDefault(x => x.Id == id);
         if (e != null) ZeileWaehlen(e, melden: false);
     }
