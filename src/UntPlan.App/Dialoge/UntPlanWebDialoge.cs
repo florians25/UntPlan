@@ -6,124 +6,221 @@ using UntPlan.Web.Contracts;
 namespace UntPlan.App.Dialoge;
 
 /// <summary>
-/// Datenaustausch mit UntPlanWeb.
+/// Fenster „UntPlanWeb“ (wie „WebUntis“ in Untis):
 /// <list type="bullet">
-/// <item>Export: Stammdaten, Unterricht (mit Stundenplan und Pausenaufsichten) und Vertretungen, jeweils einzeln oder alles.</item>
-/// <item>Import: Absenzen bzw. Krankmeldungen und Nachrichten.</item>
-/// <item>Ein Anfangsdatum kann für die mit * markierten Daten aktiviert werden.</item>
+/// <item>Oben links „Einstellungen“ und der Exportstatus, oben rechts Schulname, Server:Port und Schul-ID.</item>
+/// <item>Reiter „UntPlanWeb“ mit der Gruppe „UntPlanWeb Import/Export“: Anfangsdatum für die mit * markierten Daten,
+/// Export von Stammdaten, Unterricht* und Vertretungen*, Import von Stpl.-Änderungen* (Buchungen, Prüfungen …),
+/// Absenzen* (Krankmeldungen, Nachrichten), Studenten* (Schüler-Fehlzeiten aus dem Klassenbuch) und Kurse
+/// (Klassenbuch je Unterricht: Lehrstoff, Hausaufgaben).</item>
+/// <item>Fortschritt, Ergebnis und Übertragungsfehler erscheinen in der Statuszeile unter den Zeilen.</item>
 /// </list>
-/// Übertragungsfehler werden oben im Dialog angezeigt.
 /// </summary>
 public sealed class UntPlanWebDialog : Dialog
 {
-    private readonly Panel _fehler = new() { Left = 10, Top = 92, Width = 640, Height = 82, BackColor = Color.White, Visible = false };
-    private readonly Label _fehlerTitel = new() { Left = 36, Top = 8, Width = 590, Height = 18, Font = Ui.SchriftFett };
-    private readonly Label _fehlerText = new() { Left = 36, Top = 28, Width = 590, Height = 32 };
-    private readonly Label _status = new() { Left = 140, Top = 14, Width = 500, Height = 64, ForeColor = Color.DimGray };
-    private readonly CheckBox _anfangAktiv = new() { Text = "Anfangsdatum für Daten, die mit * markiert sind, aktivieren.", Left = 14, Top = 14, AutoSize = true };
-    private readonly DateTimePicker _anfang = new() { Format = DateTimePickerFormat.Short, Left = 14, Top = 38, Width = 120 };
-    private readonly List<(Label Datum, Label Zuletzt, string Teil, bool Export)> _zeilen = new();
-    private bool _laeuft;
-    private readonly TabControl _tabs;
-    private readonly ProgressBar _fortschritt = new() { Left = 14, Width = 580, Height = 14, Visible = false, Style = ProgressBarStyle.Continuous };
-    private readonly Label _schritt = new() { Left = 14, Width = 580, Height = 18, ForeColor = Color.DimGray, Visible = false };
+    // Untis-Optik des Fensters „WebUntis“: hellgrüner Hintergrund, hervorgehobene Knöpfe grün
+    internal static readonly Color Hintergrund = Color.FromArgb(227, 239, 219);
+    internal static readonly Color KnopfGruen = Color.FromArgb(198, 224, 180);
+    internal static readonly Color KnopfAktiv = Color.FromArgb(169, 208, 142);
+    internal static readonly Color RandGruen = Color.FromArgb(84, 130, 53);
+    internal static readonly Color RandGrau = Color.FromArgb(173, 173, 173);
 
-    /// <summary>Fortschritt anzeigen (Wert 0–100 und Text des Arbeitsschritts).</summary>
-    private void Fortschritt(int wert, string text)
-    {
-        _fortschritt.Visible = _schritt.Visible = true;
-        _fortschritt.Value = Math.Clamp(wert, 0, 100);
-        _schritt.Text = text;
-        _fortschritt.Refresh();
-        _schritt.Refresh();
-    }
+    /// <summary>Teil-Schlüssel der Importzeilen (Export: WebTeile).</summary>
+    internal const string Stpl = "stpl-aenderungen";
+    internal const string Absenzen = "absenzen";
+    internal const string Studenten = "studenten";
+    internal const string Kurse = "kurse";
+
+    private readonly GroupBox _links = new() { Left = 12, Top = 4, Width = 336, Height = 126 };
+    private readonly GroupBox _rechts = new() { Left = 356, Top = 4, Width = 332, Height = 126 };
+    private readonly Label _exportStatus = new() { Left = 6, Top = 92, Width = 324, Height = 20, TextAlign = ContentAlignment.MiddleCenter };
+    private readonly Label _server = new() { Left = 16, Top = 34, Width = 300, Height = 20 };
+    private readonly Label _benutzer = new() { Left = 16, Top = 60, Width = 300, Height = 20 };
+    private readonly CheckBox _anfangAktiv = new() { Text = "Anfangsdatum für Daten, die mit * markiert sind, aktivieren.", Left = 14, Top = 22, AutoSize = true };
+    private readonly ComboBox _datumWahl = new() { Left = 16, Top = 46, Width = 170, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly DateTimePicker _anfang = new() { Format = DateTimePickerFormat.Short, Left = 194, Top = 46, Width = 110 };
+    private readonly List<Zeile> _zeilen = new();
+    private readonly List<(string Text, DateOnly Datum)> _datumVorgaben = new();
+    private readonly ToolTip _tipp = new() { AutoPopDelay = 15000 };
+    private readonly Panel _meldung = new() { Left = 12, Top = 308, Width = 640, Height = 64, Visible = false };
+    private readonly ProgressBar _fortschritt = new() { Left = 2, Top = 2, Width = 636, Height = 12, Style = ProgressBarStyle.Continuous };
+    private readonly Label _meldungTitel = new() { Left = 24, Top = 0, Width = 612, Height = 18, Font = Ui.SchriftFett, ForeColor = Color.FromArgb(180, 30, 30) };
+    private readonly Label _meldungText = new() { Left = 2, Top = 19, Width = 636, Height = 28, ForeColor = Color.DimGray };
+    private readonly LinkLabel _meldungLink = new() { Text = "Verbindungseinstellungen prüfen", Left = 0, Top = 47, AutoSize = true, Visible = false };
+    private bool _fehler;
+    private bool _laeuft;
+    private bool _fuellen;
+    private static string? _schulnameServer;
+
+    private sealed record Zeile(string Teil, bool Export, Label Titel, Label Datum, UntisKnopf Knopf);
 
     private static Schuldatei D => AppZustand.D;
-    /// <summary>Zeile „Stpl.-Änderungen*“: Import aller Buchungen, Prüfungen, … über das Fenster „Stundenplanänderungen aus UntPlanWeb“.</summary>
-    private const string Stpl = "stpl-aenderungen";
     private static PortalEinstellungen P => AppZustand.D.Einstellungen.Portal;
 
-    public UntPlanWebDialog() : base("UntPlanWeb – Datenaustausch", 660, 544)
+    public UntPlanWebDialog() : base("UntPlanWeb", 700, 566)
     {
-        Ok.Text = "Schließen";
-        Ok.DialogResult = DialogResult.OK;
+        BackColor = Hintergrund;
+        KeyPreview = true;
+        Ok.Visible = false;
         Abbrechen.Visible = false;
-        var einstellungen = new Button { Text = "Einstellungen…", Left = 14, Top = 14, Width = 112, Height = 28 };
-        einstellungen.Click += (_, _) => { if (new UntPlanWebEinstellungenDialog().ShowDialog(this) == DialogResult.OK) Anzeigen(); };
-        var oben = new GroupBox { Left = 10, Top = 4, Width = 640, Height = 84 };
-        oben.Controls.Add(einstellungen);
-        oben.Controls.Add(_status);
-        Controls.Add(oben);
+        AcceptButton = null;
+        KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape && !_laeuft) { e.Handled = true; Close(); } };
 
-        // Fehlerhinweis (rote Leiste links)
-        _fehler.Paint += (_, e) =>
-        {
-            using var rot = new SolidBrush(Color.FromArgb(200, 40, 40));
-            e.Graphics.FillRectangle(rot, 0, 0, 5, _fehler.Height);
-            using var rahmen = new Pen(Color.FromArgb(225, 225, 225));
-            e.Graphics.DrawRectangle(rahmen, 0, 0, _fehler.Width - 1, _fehler.Height - 1);
-            using var kreis = new SolidBrush(Color.FromArgb(210, 50, 40));
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            e.Graphics.FillEllipse(kreis, 12, 8, 18, 18);
-            using var weiss = new Pen(Color.White, 2f);
-            e.Graphics.DrawLine(weiss, 17, 13, 25, 21);
-            e.Graphics.DrawLine(weiss, 25, 13, 17, 21);
-        };
-        var link = new LinkLabel { Text = "Verbindungseinstellungen prüfen", Left = 36, Top = 60, AutoSize = true };
-        link.LinkClicked += (_, _) => { if (new UntPlanWebEinstellungenDialog().ShowDialog(this) == DialogResult.OK) Anzeigen(); };
-        _fehler.Controls.AddRange(new Control[] { _fehlerTitel, _fehlerText, link });
-        Controls.Add(_fehler);
+        // ---------------------------------------------------------------- oben links: Einstellungen und Exportstatus
+        var einstellungen = new UntisKnopf("Einstellungen", dauerhaftGruen: true) { Left = 22, Top = 22, Width = 130, Height = 26 };
+        einstellungen.Click += (_, _) => EinstellungenOeffnen();
+        _tipp.SetToolTip(einstellungen, "Verbindung zu UntPlanWeb (Server, Port, Schul-ID, API-Schlüssel) und Exportoptionen");
+        _links.Controls.Add(einstellungen);
+        _links.Controls.Add(_exportStatus);
+        Controls.Add(_links);
 
-        _tabs = new TabControl { Left = 10, Top = 94, Width = 640, Height = 400 };
-        var tabs = _tabs;
-        var seite = new TabPage("UntPlanWeb") { BackColor = Color.White };
+        // ---------------------------------------------------------------- oben rechts: Schule, Server:Port, Schul-ID
+        _rechts.Controls.Add(_server);
+        _rechts.Controls.Add(_benutzer);
+        Controls.Add(_rechts);
+
+        // ---------------------------------------------------------------- Reiter „UntPlanWeb“
+        var tabs = new TabControl { Left = 4, Top = 138, Width = 692, Height = 424 };
+        var seite = new TabPage("UntPlanWeb") { BackColor = Hintergrund, UseVisualStyleBackColor = false };
         tabs.TabPages.Add(seite);
-        seite.Controls.Add(_anfangAktiv);
-        seite.Controls.Add(_anfang);
+        Controls.Add(tabs);
+        var gruppe = new GroupBox { Text = "UntPlanWeb Import/Export", Left = 8, Top = 6, Width = 664, Height = 382 };
+        seite.Controls.Add(gruppe);
+
+        gruppe.Controls.Add(_anfangAktiv);
+        gruppe.Controls.Add(_datumWahl);
+        gruppe.Controls.Add(_anfang);
+        _tipp.SetToolTip(_datumWahl, "Anfangsdatum aus Vorgaben wählen (Tagesdatum, nächster Montag, Schuljahresbeginn, Periodenbeginn)");
         _anfangAktiv.CheckedChanged += (_, _) => AnfangGeaendert();
         _anfang.ValueChanged += (_, _) => AnfangGeaendert();
-        var y = 74;
-        void Zeile(string titel, string teil, bool export)
+        _datumWahl.SelectedIndexChanged += (_, _) => DatumGewaehlt();
+
+        var y = 82;
+        Zeile Neu(string titel, string teil, bool export, string tipp)
         {
-            seite.Controls.Add(new Label { Text = titel, Left = 14, Top = y + 4, Width = 140 });
-            var datum = new Label { Left = 160, Top = y + 4, Width = 170, Font = Ui.SchriftFett };
-            var zuletzt = new Label { Left = 336, Top = y + 4, Width = 150, ForeColor = Color.DimGray, Font = Ui.SchriftKlein };
-            var knopf = new Button { Text = export ? "Exportieren" : "Importieren", Left = export ? 494 : 520, Top = y, Width = 100, Height = 25 };
-            knopf.Click += async (_, _) => await Ausfuehren(teil, export);
-            seite.Controls.AddRange(new Control[] { datum, zuletzt, knopf });
-            _zeilen.Add((datum, zuletzt, teil, export));
-            y += 30;
+            var t = new Label { Text = titel, Left = 14, Top = y + 5, Width = 132, Height = 18 };
+            var d = new Label { Left = 148, Top = y + 5, Width = 260, Height = 18, Font = Ui.SchriftFett };
+            var k = new UntisKnopf(export ? "Exportieren" : "Importieren") { Left = export ? 434 : 542, Top = y, Width = 104, Height = 26 };
+            k.Click += async (_, _) => await Ausfuehren(teil, export);
+            _tipp.SetToolTip(t, tipp);
+            gruppe.Controls.AddRange(new Control[] { t, d, k });
+            var z = new Zeile(teil, export, t, d, k);
+            _zeilen.Add(z);
+            y += 32;
+            return z;
         }
-        Zeile("Stammdaten", WebTeile.Stammdaten, true);
-        Zeile("Unterricht*", WebTeile.Unterricht, true);
-        Zeile("Vertretungen*", WebTeile.Vertretungen, true);
-        Zeile("Stpl.-Änderungen*", Stpl, false);
-        var info = new Label { Text = "i", Left = 470, Top = y - 26, Width = 16, Height = 16, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.SteelBlue, Font = Ui.SchriftFett, BorderStyle = BorderStyle.FixedSingle };
-        new ToolTip().SetToolTip(info, "Raumänderungen, zusätzliche Unterrichte (Buchungen) und Prüfungen aus UntPlanWeb im Fenster „Stundenplanänderungen aus UntPlanWeb“ prüfen und übernehmen.");
-        seite.Controls.Add(info);
-        Zeile("Absenzen*", "absenzen", false);
-        var alles = new Button { Text = "Alles exportieren", Left = 474, Top = y + 8, Width = 120, Height = 25 };
-        alles.Click += async (_, _) => await Ausfuehren("", true);
-        seite.Controls.Add(alles);
-        seite.Controls.Add(new Label
+        Neu("Stammdaten", WebTeile.Stammdaten, true, "Schule, Zeitraster, Klassen, Lehrkräfte, Räume, Fächer, Gänge, Ferien (und Schüler, falls freigegeben)");
+        Neu("Unterricht*", WebTeile.Unterricht, true, "Perioden mit Unterricht und Stundenplan sowie Pausenaufsichten");
+        var vertretungen = Neu("Vertretungen*", WebTeile.Vertretungen, true, "Tagesaktuelle Pläne, Vertretungen, Absenzen, Termine und Tagestexte");
+        var stpl = Neu("Stpl.-Änderungen*", Stpl, false, "Raumänderungen, Buchungen (zusätzliche Unterrichte) und Prüfungen aus UntPlanWeb");
+        stpl.Datum.Font = Ui.Schrift;
+        stpl.Datum.Width = 230;
+        var info = new InfoSymbol { Left = 410, Top = stpl.Titel.Top - 1 };
+        _tipp.SetToolTip(info, "Raumänderungen, zusätzliche Unterrichte (Buchungen) und Prüfungen, die Lehrkräfte in UntPlanWeb\nerfasst haben, im Fenster „Stundenplanänderungen aus UntPlanWeb“ prüfen und übernehmen.\nBereits übernommene oder ignorierte Änderungen werden nicht erneut importiert.");
+        gruppe.Controls.Add(info);
+        Neu("Absenzen*", Absenzen, false, "Krankmeldungen bzw. Abwesenheitsmeldungen der Lehrkräfte und Nachrichten aus UntPlanWeb");
+        var studenten = Neu("Studenten*", Studenten, false, "Im Klassenbuch von UntPlanWeb erfasste Fehlzeiten der Schülerinnen und Schüler\nals Schülerabwesenheiten übernehmen (Doppelklick: Schülerabwesenheiten anzeigen)");
+        var kurse = Neu("Kurse", Kurse, false, "Klassenbuch je Unterricht (Lehrstoff, Hausaufgaben) aus UntPlanWeb übernehmen\n(Doppelklick: Klassenbuch anzeigen)");
+        Anzeigefenster(studenten.Titel, "Schülerabwesenheiten anzeigen…", () => { using var f = new SchuelerAbwesenheitenDialog(); f.ShowDialog(this); });
+        Anzeigefenster(kurse.Titel, "Klassenbuch (UntPlanWeb) anzeigen…", () => { using var f = new KlassenbuchDialog(); f.ShowDialog(this); });
+
+        // ---------------------------------------------------------------- Statuszeile (Fortschritt, Ergebnis, Fehler)
+        _meldung.Paint += (_, e) =>
         {
-            Text = "Unterricht enthält Stundenplan und Pausenaufsichten; Vertretungen enthalten tagesaktuelle Pläne, Absenzen, Termine und Nachrichten zum Tag.",
-            Left = 14, Top = y + 40, Width = 590, Height = 32, ForeColor = Color.DimGray,
-        });
-        // Fortschrittsanzeige unter den Zeilen
-        _schritt.Top = y + 78;
-        _fortschritt.Top = y + 98;
-        seite.Controls.Add(_schritt);
-        seite.Controls.Add(_fortschritt);
-        Controls.Add(tabs);
+            if (!_fehler) return;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var kreis = new SolidBrush(Color.FromArgb(210, 50, 40));
+            e.Graphics.FillEllipse(kreis, 3, 1, 16, 16);
+            using var weiss = new Pen(Color.White, 2f);
+            e.Graphics.DrawLine(weiss, 7, 5, 15, 13);
+            e.Graphics.DrawLine(weiss, 15, 5, 7, 13);
+        };
+        _meldungLink.LinkClicked += (_, _) => EinstellungenOeffnen();
+        _meldung.Controls.AddRange(new Control[] { _fortschritt, _meldungTitel, _meldungText, _meldungLink });
+        gruppe.Controls.Add(_meldung);
+
+        Anzeigen();
+        // wie in Untis ist der aktive Knopf hervorgehoben – zu Beginn „Vertretungen exportieren“ (häufigste Aktion)
+        ActiveControl = vertretungen.Knopf;
+    }
+
+    /// <summary>Kontextmenü und Doppelklick auf der Zeilenbeschriftung öffnen das Anzeigefenster der importierten Daten.</summary>
+    private static void Anzeigefenster(Label titel, string text, Action oeffnen)
+    {
+        var menue = new ContextMenuStrip();
+        menue.Items.Add(text, null, (_, _) => oeffnen());
+        titel.ContextMenuStrip = menue;
+        titel.DoubleClick += (_, _) => oeffnen();
+    }
+
+    protected override async void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        // Schulname laut UntPlanWeb (wie Untis den Schulnamen aus WebUntis zeigt); ohne Server bleibt der Name der Schuldatei
+        if (Ui.FehlerProtokoll != null || string.IsNullOrWhiteSpace(P.Adresse)) return;
+        var name = await UntPlanWebExport.SchulnameAsync(P);
+        if (name is null || IsDisposed) return;
+        _schulnameServer = name;
         Anzeigen();
     }
 
-    private DateOnly Start => P.AnfangsdatumAktiv && P.Anfangsdatum is DateOnly a ? a : AppZustand.Vertretungsmodus ? AppZustand.Datum : DateOnly.FromDateTime(DateTime.Today);
+    private void EinstellungenOeffnen()
+    {
+        if (_laeuft) return;
+        using var d = new UntPlanWebEinstellungenDialog();
+        if (d.ShowDialog(this) != DialogResult.OK) return;
+        _schulnameServer = null;
+        FehlerZeigen(null);
+        Anzeigen();
+    }
+
+    // ------------------------------------------------------------------------------------------ Datumsangaben
+
+    private static DateOnly Heute => AppZustand.Vertretungsmodus ? AppZustand.Datum : DateOnly.FromDateTime(DateTime.Today);
+
+    /// <summary>Anfangsdatum der mit * markierten Daten: Tagesdatum bzw. das gewählte Anfangsdatum, wenn aktiviert.</summary>
+    private static DateOnly Start => P.AnfangsdatumAktiv && P.Anfangsdatum is DateOnly a ? a : Heute;
+
+    /// <summary>
+    /// „ab“-Datum einer Zeile: Stammdaten und Kurse ab Schuljahresbeginn, Studenten* ab Schuljahresbeginn bzw. dem
+    /// Anfangsdatum (wenn aktiviert), die übrigen mit * markierten ab Tagesdatum bzw. Anfangsdatum.
+    /// </summary>
+    internal static DateOnly AbDatum(string teil) => teil switch
+    {
+        WebTeile.Stammdaten or Kurse => D.Einstellungen.SchuljahrVon,
+        Studenten => P.AnfangsdatumAktiv && P.Anfangsdatum is DateOnly a ? a : D.Einstellungen.SchuljahrVon,
+        _ => Start,
+    };
+
+    private void DatumVorgabenFuellen()
+    {
+        _datumVorgaben.Clear();
+        var heute = DateOnly.FromDateTime(DateTime.Today);
+        _datumVorgaben.Add(("Tagesdatum", heute));
+        if (AppZustand.Vertretungsmodus && AppZustand.Datum != heute) _datumVorgaben.Add(("Vertretungsdatum", AppZustand.Datum));
+        var bisMontag = ((int)DayOfWeek.Monday - (int)heute.DayOfWeek + 7) % 7;
+        _datumVorgaben.Add(("Nächster Montag", heute.AddDays(bisMontag == 0 ? 7 : bisMontag)));
+        _datumVorgaben.Add(("Schuljahresbeginn", D.Einstellungen.SchuljahrVon));
+        foreach (var p in D.Perioden.OrderBy(p => p.Von))
+            _datumVorgaben.Add(($"Periode {p.Name}", p.Von));
+        _datumWahl.Items.Clear();
+        _datumWahl.Items.Add("Datum wählen...");
+        foreach (var (text, datum) in _datumVorgaben) _datumWahl.Items.Add($"{text} ({datum:d.M.yyyy})");
+    }
+
+    private void DatumGewaehlt()
+    {
+        if (_fuellen || _datumWahl.SelectedIndex <= 0) return;
+        var datum = _datumVorgaben[_datumWahl.SelectedIndex - 1].Datum;
+        _fuellen = true;
+        try { _anfang.Value = datum.ToDateTime(TimeOnly.MinValue); }
+        finally { _fuellen = false; }
+        AnfangGeaendert();
+    }
 
     private void AnfangGeaendert()
     {
-        if (_laeuft) return;
+        if (_fuellen) return;
         var aktiv = _anfangAktiv.Checked;
         var datum = DateOnly.FromDateTime(_anfang.Value);
         if (P.AnfangsdatumAktiv != aktiv || P.Anfangsdatum != datum)
@@ -131,23 +228,60 @@ public sealed class UntPlanWebDialog : Dialog
         Anzeigen();
     }
 
+    // ------------------------------------------------------------------------------------------ Anzeige
+
     private void Anzeigen()
     {
-        _laeuft = true;
-        _anfangAktiv.Checked = P.AnfangsdatumAktiv;
-        _anfang.Value = (P.Anfangsdatum ?? DateOnly.FromDateTime(DateTime.Today)).ToDateTime(TimeOnly.MinValue);
-        _anfang.Enabled = P.AnfangsdatumAktiv;
-        _laeuft = false;
-        _status.Text = string.IsNullOrWhiteSpace(P.Adresse)
-            ? "Noch keine Verbindung eingerichtet. Bitte unter „Einstellungen“ Server, Schul-ID und API-Schlüssel eintragen."
-            : $"Server: {P.Adresse}\nSchul-ID: {P.SchulId}\nRevision: {P.Revision}" + (P.LetzteSynchronisation is DateTime t ? $" · zuletzt übertragen {t:dd.MM.yyyy HH:mm}" : "");
-        foreach (var (datum, zuletzt, teil, export) in _zeilen)
+        _fuellen = true;
+        try
         {
-            var ab = teil == WebTeile.Stammdaten ? D.Einstellungen.SchuljahrVon : Start;
-            datum.Text = teil == Stpl ? "Import aller Buchungen, Prüfungen, …" : $"{(export ? "Export" : "Import")} ab {ab:d.M.yyyy}";
-            if (teil == Stpl) datum.Font = Ui.Schrift;
-            zuletzt.Text = P.LetzteUebertragung.TryGetValue(teil, out var z) ? $"zuletzt {z:dd.MM. HH:mm}" : "";
+            var aktiv = P.AnfangsdatumAktiv;
+            _anfangAktiv.Checked = aktiv;
+            _anfang.Value = (P.Anfangsdatum ?? Heute).ToDateTime(TimeOnly.MinValue);
+            _anfang.Enabled = _datumWahl.Enabled = aktiv && !_laeuft;
+            if (_datumWahl.Items.Count == 0) DatumVorgabenFuellen();
+            _datumWahl.SelectedIndex = 0;
         }
+        finally { _fuellen = false; }
+
+        var eingerichtet = !string.IsNullOrWhiteSpace(P.Adresse);
+        _exportStatus.Text = eingerichtet ? "Unterrichtsexport aktiv." : "Keine Verbindung eingerichtet.";
+        _tipp.SetToolTip(_exportStatus, eingerichtet
+            ? $"Revision {P.Revision}" + (P.LetzteSynchronisation is DateTime t ? $", zuletzt übertragen am {t:dd.MM.yyyy} um {t:HH:mm}" : ", noch nicht übertragen")
+            : "Bitte unter „Einstellungen“ Server, Port, Schul-ID und API-Schlüssel eintragen.");
+        _rechts.Text = _schulnameServer ?? (D.Einstellungen.Schulname.Length > 0 ? D.Einstellungen.Schulname : "UntPlanWeb");
+        if (eingerichtet && Uri.TryCreate(P.Adresse, UriKind.Absolute, out var uri))
+        {
+            _server.Text = $"{uri.Host}:{uri.Port}";
+            _tipp.SetToolTip(_server, P.Adresse);
+        }
+        else _server.Text = eingerichtet ? P.Adresse : "";
+        _benutzer.Text = eingerichtet ? P.SchulId : "";
+
+        foreach (var z in _zeilen)
+        {
+            z.Datum.Text = z.Teil == Stpl ? "Import aller Buchungen, Prüfungen, ..." : $"{(z.Export ? "Export" : "Import")} ab {AbDatum(z.Teil):d.M.yyyy}";
+            var art = z.Export ? "exportiert" : "importiert";
+            var zuletzt = P.LetzteUebertragung.TryGetValue(z.Teil, out var zl) ? $"Zuletzt {art}: {zl:dd.MM.yyyy HH:mm}" : $"Noch nicht {art}";
+            _tipp.SetToolTip(z.Knopf, zuletzt);
+            _tipp.SetToolTip(z.Datum, zuletzt);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------ Statuszeile
+
+    /// <summary>Fortschritt anzeigen (Wert 0–100 und Text des Arbeitsschritts).</summary>
+    private void Fortschritt(int wert, string text)
+    {
+        _fehler = false;
+        _meldung.Visible = true;
+        _fortschritt.Visible = true;
+        _fortschritt.Value = Math.Clamp(wert, 0, 100);
+        _meldungTitel.Visible = _meldungLink.Visible = false;
+        _meldungText.ForeColor = Color.DimGray;
+        _meldungText.Text = text;
+        _meldung.Invalidate();
+        _meldung.Refresh();
     }
 
     /// <summary>Fehlerhinweis anzeigen (auch für den Selbsttest).</summary>
@@ -155,20 +289,37 @@ public sealed class UntPlanWebDialog : Dialog
 
     private void FehlerZeigen(string? titel, string text = "")
     {
-        var sichtbar = titel != null;
-        if (_fehler.Visible != sichtbar)
+        if (titel is null)
         {
-            _fehler.Visible = sichtbar;
-            _tabs.Top = sichtbar ? 180 : 94;
-            ClientSize = new Size(ClientSize.Width, sichtbar ? 630 : 544);
+            if (_fehler) _meldung.Visible = false;
+            _fehler = false;
+            return;
         }
-        _fehlerTitel.Text = titel ?? "";
-        _fehlerText.Text = text;
-        _fehler.Invalidate();
+        _fehler = true;
+        _meldung.Visible = true;
+        _fortschritt.Visible = false;
+        _meldungTitel.Visible = _meldungLink.Visible = true;
+        _meldungTitel.Text = titel;
+        _meldungText.ForeColor = Color.Black;
+        _meldungText.Text = text;
+        _tipp.SetToolTip(_meldungText, text);
+        _meldung.Invalidate();
+    }
+
+    // ------------------------------------------------------------------------------------------ Export / Import
+
+    private void Sperren(bool gesperrt)
+    {
+        _laeuft = gesperrt;
+        foreach (var z in _zeilen) z.Knopf.Enabled = !gesperrt;
+        _links.Enabled = _anfangAktiv.Enabled = !gesperrt;
+        _anfang.Enabled = _datumWahl.Enabled = !gesperrt && P.AnfangsdatumAktiv;
+        UseWaitCursor = gesperrt;
     }
 
     private async Task Ausfuehren(string teil, bool export)
     {
+        if (_laeuft) return;
         if (teil == Stpl)
         {
             using (var f = new StundenplanAenderungenDialog()) f.ShowDialog(this);
@@ -177,21 +328,24 @@ public sealed class UntPlanWebDialog : Dialog
         }
         if (string.IsNullOrWhiteSpace(P.Adresse))
         {
-            FehlerZeigen("Keine Verbindung eingerichtet", "Bitte zuerst unter „Einstellungen“ Server, Schul-ID und API-Schlüssel eintragen.");
+            FehlerZeigen("Keine Verbindung eingerichtet", "Bitte zuerst unter „Einstellungen“ Server, Port, Schul-ID und API-Schlüssel eintragen.");
             return;
         }
-        UseWaitCursor = true;
-        Enabled = false;
+        Sperren(true);
+        Action? danach = null;
         try
         {
-            if (export) await Exportieren(teil);
-            else await Importieren(teil);
             FehlerZeigen(null);
+            if (export) await Exportieren(teil);
+            else danach = teil switch
+            {
+                Studenten => await StudentenImportieren(),
+                Kurse => await KurseImportieren(),
+                _ => await AbsenzenImportieren(),
+            };
         }
         catch (Exception ex)
         {
-            _fortschritt.Visible = false;
-            _schritt.Text = "Abgebrochen.";
             var text = ex is HttpRequestException or TaskCanceledException
                 ? "Es konnte keine Verbindung zum Server hergestellt werden. Überprüfen Sie Ihre Internetverbindung, die Verbindungseinstellungen und gegebenenfalls den Status des UntPlanWeb-Servers."
                 : ex.Message;
@@ -199,10 +353,10 @@ public sealed class UntPlanWebDialog : Dialog
         }
         finally
         {
-            Enabled = true;
-            UseWaitCursor = false;
+            Sperren(false);
             Anzeigen();
         }
+        danach?.Invoke();
     }
 
     /// <summary>
@@ -218,19 +372,23 @@ public sealed class UntPlanWebDialog : Dialog
         return $"An UntPlanWeb übertragen ({(teil.Length == 0 ? "alles" : teil)}, Revision {P.Revision}) um {DateTime.Now:HH:mm}";
     }
 
+    private static string TeilName(string teil) => teil switch
+    {
+        WebTeile.Stammdaten => "Stammdaten", WebTeile.Unterricht => "Unterricht", WebTeile.Vertretungen => "Vertretungen", "" => "Alle Daten", _ => teil,
+    };
+
     private async Task Exportieren(string teil)
     {
         // Unterricht und Vertretungen beziehen sich auf die Stammdaten: diese immer mitsenden
         var teile = teil.Length == 0 ? Array.Empty<string>() : new[] { WebTeile.Stammdaten, teil }.Distinct().ToArray();
-        var was = teil.Length == 0 ? "alle Daten" : teil;
-        Fortschritt(10, $"Daten werden zusammengestellt ({was}) …");
+        Fortschritt(10, $"{TeilName(teil)}: Daten werden zusammengestellt …");
         var d0 = D;
         var start = Start;
         var optionen = WebExportOptionen.Aus(P, teile);
         var paket = await Task.Run(() => UntPlanWebExport.PaketErstellen(d0, start, optionen));
-        Fortschritt(45, $"Übertragung an {P.Adresse} … ({paket.Tage.Count} Tage, {paket.Vertretungen.Count} Vertretungen)");
+        Fortschritt(45, $"{TeilName(teil)}: Übertragung an {P.Adresse} … ({paket.Tage.Count} Tage, {paket.Vertretungen.Count} Vertretungen)");
         var a = await UntPlanWebExport.HochladenAsync(P, paket);
-        Fortschritt(100, $"Fertig: an UntPlanWeb übertragen (Revision {a.Revision}) um {DateTime.Now:HH:mm}.");
+        Fortschritt(100, $"{TeilName(teil)}: an UntPlanWeb übertragen (Revision {a.Revision}) um {DateTime.Now:HH:mm}.");
         var jetzt = DateTime.Now;
         AppZustand.Doc.Aendern("UntPlanWeb-Übertragung", AenderungsArt.Einstellungen, d =>
         {
@@ -241,28 +399,134 @@ public sealed class UntPlanWebDialog : Dialog
         });
     }
 
-    private async Task Importieren(string teil)
+    /// <summary>Absenzen*: Krankmeldungen und Nachrichten über die Rückmeldungen übernehmen.</summary>
+    private async Task<Action?> AbsenzenImportieren()
     {
         var start = Start;
-        var typen = teil == "absenzen" ? new[] { WebRueckmeldungsTypen.Absenz, WebRueckmeldungsTypen.Nachricht } : new[] { teil };
-        Fortschritt(20, "Rückmeldungen werden abgeholt …");
+        var typen = new[] { WebRueckmeldungsTypen.Absenz, WebRueckmeldungsTypen.Nachricht };
+        Fortschritt(20, "Absenzen: Rückmeldungen werden abgeholt …");
         var liste = (await UntPlanWebExport.RueckmeldungenAsync(P))
             .Where(m => typen.Contains(m.Typ) && (!DateOnly.TryParse(m.Bis ?? m.Von, out var bis) || bis >= start)).ToList();
-        var was = teil switch { WebRueckmeldungsTypen.Raumbuchung => "Buchungen", WebRueckmeldungsTypen.Klausur => "Klausuren", _ => "Absenzen oder Nachrichten" };
-        if (liste.Count == 0) { Fortschritt(100, $"Keine neuen {was}."); return; }
-        Fortschritt(60, $"{liste.Count} {was} werden übernommen …");
-        List<string> ok = new(), nein = new();
         var jetzt = DateTime.Now;
+        if (liste.Count == 0)
+        {
+            Fortschritt(100, "Absenzen: keine neuen Absenzen oder Nachrichten.");
+            AppZustand.Doc.Aendern("UntPlanWeb-Absenzen", AenderungsArt.Einstellungen, d => d.Einstellungen.Portal.LetzteUebertragung[Absenzen] = jetzt);
+            return null;
+        }
+        Fortschritt(60, $"Absenzen: {liste.Count} Meldungen werden übernommen …");
+        List<string> ok = new(), nein = new();
         AppZustand.Doc.Aendern("UntPlanWeb-Rückmeldungen", AenderungsArt.Vertretung, d =>
         {
             (ok, nein) = UntPlanWebExport.Uebernehmen(d, liste);
             var tage = d.Abwesenheiten.Where(a => a.Text.Contains("Portal-Meldung")).SelectMany(a => Kalender.Tage(a.Von, a.Bis)).Distinct().ToList();
             foreach (var t in tage.Where(t => Kalender.IstUnterrichtstag(d, t))) Core.Vertretungsplanung.Vertretungen.Aktualisieren(d, t);
-            d.Einstellungen.Portal.LetzteUebertragung[teil] = jetzt;
+            d.Einstellungen.Portal.LetzteUebertragung[Absenzen] = jetzt;
         });
         await UntPlanWebExport.QuittierenAsync(P, ok);
-        Fortschritt(100, $"Fertig: {ok.Count} {was} übernommen.");
-        Ui.Info($"{ok.Count} {was} übernommen{(nein.Count > 0 ? $", {nein.Count} abgelehnt (unbekannte Elemente, kein Unterrichtstag oder Raum belegt)" : "")}.", "UntPlanWeb");
+        var text = $"{ok.Count} Absenzen oder Nachrichten übernommen{(nein.Count > 0 ? $", {nein.Count} abgelehnt (unbekannte Elemente oder kein Unterrichtstag)" : "")}.";
+        Fortschritt(100, "Absenzen: " + text);
+        return () => Ui.Info(text, "UntPlanWeb");
+    }
+
+    /// <summary>Studenten*: Schüler-Fehlzeiten aus dem Klassenbuch als Schülerabwesenheiten übernehmen (ohne Doppelimport).</summary>
+    private async Task<Action?> StudentenImportieren()
+    {
+        var ab = AbDatum(Studenten);
+        Fortschritt(20, $"Studenten: Fehlzeiten ab {ab:d.M.yyyy} werden abgeholt …");
+        var liste = await UntPlanWebExport.FehlzeitenAsync(P, ab);
+        Fortschritt(60, $"Studenten: {liste.Count} Fehlzeiten werden abgeglichen …");
+        WebImportErgebnis? e = null;
+        var jetzt = DateTime.Now;
+        AppZustand.Doc.Aendern("UntPlanWeb-Fehlzeiten", AenderungsArt.Vertretung, d =>
+        {
+            e = UntPlanWebExport.FehlzeitenUebernehmen(d, liste, ab);
+            d.Einstellungen.Portal.LetzteUebertragung[Studenten] = jetzt;
+        });
+        Fortschritt(100, $"Studenten: Schülerabwesenheiten übernommen – {e}.");
+        if (D.SchuelerAbwesenheiten.Count == 0) return null;
+        return () => { using var f = new SchuelerAbwesenheitenDialog(); f.ShowDialog(this); };
+    }
+
+    /// <summary>Kurse: Klassenbuch je Unterricht (Lehrstoff, Hausaufgaben) übernehmen (ohne Doppelimport).</summary>
+    private async Task<Action?> KurseImportieren()
+    {
+        var ab = AbDatum(Kurse);
+        Fortschritt(20, $"Kurse: Klassenbuch ab {ab:d.M.yyyy} wird abgeholt …");
+        var liste = await UntPlanWebExport.KlassenbuchAsync(P, ab);
+        Fortschritt(60, $"Kurse: {liste.Count} Klassenbucheinträge werden abgeglichen …");
+        WebImportErgebnis? e = null;
+        var jetzt = DateTime.Now;
+        AppZustand.Doc.Aendern("UntPlanWeb-Klassenbuch", AenderungsArt.Vertretung, d =>
+        {
+            e = UntPlanWebExport.KlassenbuchUebernehmen(d, liste, ab);
+            d.Einstellungen.Portal.LetzteUebertragung[Kurse] = jetzt;
+        });
+        Fortschritt(100, $"Kurse: Klassenbuch übernommen – {e}.");
+        if (D.Klassenbuch.Count == 0) return null;
+        return () => { using var f = new KlassenbuchDialog(); f.ShowDialog(this); };
+    }
+
+    // ------------------------------------------------------------------------------------------ Steuerelemente
+
+    /// <summary>Knopf in Untis-Optik: weiß mit grauem Rand, unter der Maus bzw. aktiv grün mit dunkelgrünem Rand.</summary>
+    internal sealed class UntisKnopf : Button
+    {
+        private readonly bool _dauerhaftGruen;
+        private bool _maus;
+
+        public UntisKnopf(string text, bool dauerhaftGruen = false)
+        {
+            Text = text;
+            _dauerhaftGruen = dauerhaftGruen;
+            FlatStyle = FlatStyle.Flat;
+            UseVisualStyleBackColor = false;
+            FlatAppearance.MouseOverBackColor = KnopfAktiv;
+            FlatAppearance.MouseDownBackColor = Color.FromArgb(150, 196, 120);
+            Faerben();
+        }
+
+        private void Faerben()
+        {
+            var aktiv = Enabled && (_maus || Focused);
+            var farbe = aktiv ? KnopfAktiv : _dauerhaftGruen ? KnopfGruen : Color.White;
+            var rand = aktiv || _dauerhaftGruen ? RandGruen : RandGrau;
+            var breite = aktiv ? 2 : 1;
+            if (BackColor != farbe) BackColor = farbe;
+            if (FlatAppearance.BorderColor != rand) FlatAppearance.BorderColor = rand;
+            if (FlatAppearance.BorderSize != breite) FlatAppearance.BorderSize = breite;
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { _maus = true; Faerben(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { _maus = false; Faerben(); base.OnMouseLeave(e); }
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Faerben(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Faerben(); }
+        protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Faerben(); }
+    }
+
+    /// <summary>Blaues ⓘ-Symbol (Hinweis mit Tooltip).</summary>
+    private sealed class InfoSymbol : Control
+    {
+        public InfoSymbol()
+        {
+            SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+            BackColor = Color.Transparent;
+            Size = new Size(18, 18);
+            Cursor = Cursors.Help;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var blau = Color.FromArgb(0, 102, 204);
+            using var stift = new Pen(blau, 1.3f);
+            g.DrawEllipse(stift, 1.5f, 1.5f, Width - 4f, Height - 4f);
+            using var pinsel = new SolidBrush(blau);
+            var mx = (Width - 1) / 2f;
+            g.FillEllipse(pinsel, mx - 1.1f, 4.2f, 2.2f, 2.2f);
+            g.FillRectangle(pinsel, mx - 1f, 7.5f, 2f, 6f);
+        }
     }
 }
 

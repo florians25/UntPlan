@@ -117,6 +117,8 @@ Die Schnittstelle (Schema `untplanweb/1`) ist in `src/UntPlan.Web.Contracts` def
 | `PUT /api/v1/schulen/{schulId}/untplanweb` | Paket übertragen (ganz oder nur einzelne Teile); veraltete Revision → 409 |
 | `GET /api/v1/schulen/{schulId}/rueckmeldungen` | offene Rückmeldungen abholen |
 | `POST /api/v1/schulen/{schulId}/rueckmeldungen/quittieren` | übernommene Rückmeldungen quittieren (`["id", …]`) |
+| `GET /api/v1/schulen/{schulId}/fehlzeiten?ab=…&bis=…` | im Klassenbuch erfasste Schüler-Fehlzeiten (UntPlan: Import „Studenten*“) |
+| `GET /api/v1/schulen/{schulId}/klassenbuch?ab=…&bis=…` | Lehrstoff und Hausaufgaben je Stunde, ohne interne Notizen (UntPlan: Import „Kurse“) |
 
 Die Authentifizierung erfolgt über `Authorization: Bearer <API-Schlüssel>`.
 

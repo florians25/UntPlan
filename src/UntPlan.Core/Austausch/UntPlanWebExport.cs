@@ -35,6 +35,13 @@ public sealed class WebExportOptionen
     };
 }
 
+/// <summary>Ergebnis eines Klassenbuch-Imports aus UntPlanWeb (Studenten*, Kurse).</summary>
+public sealed record WebImportErgebnis(int Neu, int Geaendert, int Entfernt, int Abgelehnt)
+{
+    public override string ToString() =>
+        $"{Neu} neu, {Geaendert} geändert" + (Entfernt > 0 ? $", {Entfernt} entfernt" : "") + (Abgelehnt > 0 ? $", {Abgelehnt} abgelehnt (unbekannte Schüler oder ungültiges Datum)" : "");
+}
+
 /// <summary>
 /// Export an UntPlanWeb (Schema untplanweb/1, Verträge in UntPlan.Web.Contracts): erzeugt das vollständige Paket, schreibt
 /// es als Datei oder überträgt es per HTTPS; holt Rückmeldungen (Krankmeldungen, Nachrichten) und übernimmt sie.
@@ -226,6 +233,20 @@ public static class UntPlanWebExport
         };
     }
 
+    /// <summary>Schulname laut UntPlanWeb (Status-Endpunkt, ohne Anmeldung); null, wenn der Server nicht erreichbar ist.</summary>
+    public static async Task<string?> SchulnameAsync(PortalEinstellungen p, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(p.Adresse)) return null;
+        try
+        {
+            using var c = Client(p);
+            c.Timeout = TimeSpan.FromSeconds(8);
+            var status = await c.GetFromJsonAsync<JsonElement>(UntPlanWebSchema.Pfade.Status, ct);
+            return status.TryGetProperty("schule", out var s) && s.ValueKind == JsonValueKind.String && s.GetString() is { Length: > 0 } name ? name : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or UriFormatException) { return null; }
+    }
+
     public static async Task<List<WebRueckmeldung>> RueckmeldungenAsync(PortalEinstellungen p, CancellationToken ct = default)
     {
         using var c = Client(p);
@@ -237,6 +258,111 @@ public static class UntPlanWebExport
         using var c = Client(p);
         using var r = await c.PostAsJsonAsync(UntPlanWebSchema.Pfade.Quittieren(p.SchulId), ids.ToArray(), UntPlanWebSchema.Json, ct);
         r.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Im Klassenbuch erfasste Schüler-Fehlzeiten ab einem Datum abholen (Import „Studenten*“).</summary>
+    public static async Task<List<WebFehlzeit>> FehlzeitenAsync(PortalEinstellungen p, DateOnly ab, DateOnly? bis = null, CancellationToken ct = default)
+    {
+        using var c = Client(p);
+        return await c.GetFromJsonAsync<List<WebFehlzeit>>(UntPlanWebSchema.Pfade.Fehlzeiten(p.SchulId, D(ab), bis is DateOnly b ? D(b) : null), UntPlanWebSchema.Json, ct) ?? new();
+    }
+
+    /// <summary>Klassenbuch (Lehrstoff, Hausaufgaben je Unterricht) ab einem Datum abholen (Import „Kurse“).</summary>
+    public static async Task<List<WebKlassenbucheintrag>> KlassenbuchAsync(PortalEinstellungen p, DateOnly ab, DateOnly? bis = null, CancellationToken ct = default)
+    {
+        using var c = Client(p);
+        return await c.GetFromJsonAsync<List<WebKlassenbucheintrag>>(UntPlanWebSchema.Pfade.Klassenbuch(p.SchulId, D(ab), bis is DateOnly b ? D(b) : null), UntPlanWebSchema.Json, ct) ?? new();
+    }
+
+    private static DateOnly? Datum(string? text) =>
+        DateOnly.TryParseExact(text ?? "", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+
+    /// <summary>
+    /// Fehlzeiten als Schülerabwesenheiten übernehmen, ohne Doppelimport. Abgleich über Datum, Stunde und Schüler-Id (auf dem
+    /// Server eindeutig; die Server-Id ändert sich, wenn eine Lehrkraft die Anwesenheit erneut speichert):
+    /// <list type="bullet">
+    /// <item>Neue Fehlzeiten werden angelegt, bekannte aktualisiert (z. B. entschuldigt).</item>
+    /// <item>Im abgefragten Zeitraum auf dem Server gelöschte Fehlzeiten werden entfernt.</item>
+    /// <item>Abgelehnt werden Fehlzeiten unbekannter Schülerinnen/Schüler oder mit ungültigem Datum.</item>
+    /// </list>
+    /// </summary>
+    public static WebImportErgebnis FehlzeitenUebernehmen(Schuldatei d, IEnumerable<WebFehlzeit> liste, DateOnly ab, DateOnly? bis = null)
+    {
+        var vorhanden = d.SchuelerAbwesenheiten.GroupBy(a => (a.Datum, a.Stunde, a.SchuelerId)).ToDictionary(g => g.Key, g => g.First());
+        var schueler = d.Schueler.ToDictionary(x => x.Id);
+        var klassen = d.Klassen.ToDictionary(k => k.Id, k => k.Kurzname);
+        var gemeldet = new HashSet<SchuelerAbwesenheit>(ReferenceEqualityComparer.Instance);
+        int neu = 0, geaendert = 0, abgelehnt = 0;
+        foreach (var f in liste)
+        {
+            if (Datum(f.Datum) is not DateOnly datum || !schueler.TryGetValue(f.SchuelerId, out var sch)) { abgelehnt++; continue; }
+            var name = f.Schueler.Length > 0 ? f.Schueler : $"{(sch.Langname.Length > 0 ? sch.Langname : sch.Kurzname)}, {sch.Vorname}";
+            var klasse = f.Klasse.Length > 0 ? f.Klasse : sch.KlasseId is int k ? klassen.GetValueOrDefault(k, "") : "";
+            var verspaetet = f.Art == "verspaetet";
+            var minuten = verspaetet ? f.Minuten : 0;
+            var status = f.Status is "entschuldigt" or "unentschuldigt" ? f.Status : "offen";
+            int? unterricht = f.Unterricht > 0 ? f.Unterricht : null;
+            if (vorhanden.TryGetValue((datum, f.Stunde, f.SchuelerId), out var a))
+            {
+                if (gemeldet.Contains(a)) continue; // doppelt geliefert
+                gemeldet.Add(a);
+                if (a.WebId == f.Id && a.Verspaetet == verspaetet && a.Minuten == minuten && a.Status == status && a.Bemerkung == f.Bemerkung &&
+                    a.Fach == f.Fach && a.Lehrer == f.Lehrer && a.Klasse == klasse && a.UnterrichtId == unterricht && a.Name == name) continue;
+                geaendert++;
+            }
+            else
+            {
+                a = new SchuelerAbwesenheit { SchuelerId = f.SchuelerId, Datum = datum, Stunde = f.Stunde };
+                d.SchuelerAbwesenheiten.Add(a);
+                vorhanden[(datum, f.Stunde, f.SchuelerId)] = a;
+                gemeldet.Add(a);
+                neu++;
+            }
+            a.WebId = f.Id; a.Name = name; a.Klasse = klasse; a.UnterrichtId = unterricht; a.Fach = f.Fach;
+            a.Verspaetet = verspaetet; a.Minuten = minuten; a.Status = status; a.Bemerkung = f.Bemerkung; a.Lehrer = f.Lehrer; a.Importiert = DateTime.Now;
+        }
+        var ende = bis ?? ab.AddDays(370); // Server liefert ohne „bis“ ein Jahr ab „ab“
+        var entfernt = d.SchuelerAbwesenheiten.RemoveAll(a => a.Datum >= ab && a.Datum <= ende && !gemeldet.Contains(a));
+        d.SchuelerAbwesenheiten.Sort((x, y) => (x.Datum, x.Stunde, x.Klasse, x.Name).CompareTo((y.Datum, y.Stunde, y.Klasse, y.Name)));
+        return new WebImportErgebnis(neu, geaendert, entfernt, abgelehnt);
+    }
+
+    /// <summary>
+    /// Klassenbuch (Lehrstoff, Hausaufgaben) übernehmen – Abgleich über die Server-Id wie bei den Fehlzeiten; im abgefragten
+    /// Zeitraum auf dem Server gelöschte Einträge werden entfernt.
+    /// </summary>
+    public static WebImportErgebnis KlassenbuchUebernehmen(Schuldatei d, IEnumerable<WebKlassenbucheintrag> liste, DateOnly ab, DateOnly? bis = null)
+    {
+        var vorhanden = d.Klassenbuch.GroupBy(a => a.WebId).ToDictionary(g => g.Key, g => g.First());
+        var gemeldet = new HashSet<int>();
+        int neu = 0, geaendert = 0, abgelehnt = 0;
+        foreach (var k in liste)
+        {
+            gemeldet.Add(k.Id);
+            if (Datum(k.Datum) is not DateOnly datum) { abgelehnt++; continue; }
+            var faellig = Datum(k.Faellig);
+            int? unterricht = k.Unterricht > 0 ? k.Unterricht : null;
+            if (vorhanden.TryGetValue(k.Id, out var e))
+            {
+                if (e.Datum == datum && e.Stunde == k.Stunde && e.Geaendert == k.Geaendert && e.Lehrstoff == k.Lehrstoff && e.Hausaufgabe == k.Hausaufgabe &&
+                    e.Faellig == faellig && e.Lehrer == k.Lehrer && e.Fach == k.Fach && e.UnterrichtId == unterricht && e.AnwesenheitGeprueft == (k.Anwesenheit != null) &&
+                    e.Klassen.SequenceEqual(k.Klassen)) continue;
+                geaendert++;
+            }
+            else
+            {
+                e = new KlassenbuchEintrag { WebId = k.Id };
+                d.Klassenbuch.Add(e);
+                vorhanden[k.Id] = e;
+                neu++;
+            }
+            e.Datum = datum; e.Stunde = k.Stunde; e.UnterrichtId = unterricht; e.Klassen = k.Klassen.ToList(); e.Fach = k.Fach; e.Lehrer = k.Lehrer;
+            e.Lehrstoff = k.Lehrstoff; e.Hausaufgabe = k.Hausaufgabe; e.Faellig = faellig; e.AnwesenheitGeprueft = k.Anwesenheit != null; e.Geaendert = k.Geaendert;
+        }
+        var ende = bis ?? ab.AddDays(370); // Server liefert ohne „bis“ ein Jahr ab „ab“
+        var entfernt = d.Klassenbuch.RemoveAll(e => e.Datum >= ab && e.Datum <= ende && !gemeldet.Contains(e.WebId));
+        d.Klassenbuch.Sort((x, y) => (x.Datum, x.Stunde, x.Fach).CompareTo((y.Datum, y.Stunde, y.Fach)));
+        return new WebImportErgebnis(neu, geaendert, entfernt, abgelehnt);
     }
 
     /// <summary>

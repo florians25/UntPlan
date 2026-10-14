@@ -137,11 +137,33 @@ public sealed partial class HauptFenster
         Schritt("25a_Optimierung", () => new OptimierungDialog().Show(this), 2);
         Schritt("25b_Bereitschaftsplanung", () => Max(FensterOeffnen("bereitplan")!), 2);
         Schritt("25c_Unterrichtsgruppen", () => Max(FensterOeffnen("ugruppen")!), 2);
-        Schritt("25d_UntPlanWeb", () =>
+        Schritt("25d_UntPlanWeb", () => new UntPlanWebDialog().Show(this), 0);
+        Schritt("25d1_UntPlanWeb_Fehler", () =>
         {
             var w = new UntPlanWebDialog();
             w.Show(this);
             w.FehlerAnzeigen("UntPlanWeb-Übertragungsfehler!", "Es konnte keine Verbindung zum Server hergestellt werden. Überprüfen Sie Ihre Internetverbindung, die Verbindungseinstellungen und gegebenenfalls den Status des UntPlanWeb-Servers.");
+        }, 0);
+        Schritt("25d3_Schuelerabwesenheiten", () =>
+        {
+            var sch = AppZustand.D.Schueler.Take(4).ToList();
+            var klasse = sch.FirstOrDefault()?.KlasseId is int k ? AppZustand.D.Klassen.First(x => x.Id == k).Kurzname : "";
+            new SchuelerAbwesenheitenDialog(sch.SelectMany((x, i) => Enumerable.Range(1, i == 3 ? 1 : 2).Select(st => new SchuelerAbwesenheit
+            {
+                WebId = i * 10 + st, SchuelerId = x.Id, Klasse = klasse, Datum = tag, Stunde = st + i, Fach = "M", Lehrer = AppZustand.D.Lehrer[0].Kurzname,
+                Verspaetet = i == 3, Minuten = i == 3 ? 10 : 0, Status = i == 0 ? "entschuldigt" : i == 1 ? "unentschuldigt" : "offen", Bemerkung = i == 0 ? "Arzttermin" : "",
+            }))).Show(this);
+        }, 0);
+        Schritt("25d4_Klassenbuch", () =>
+        {
+            var lehrer = AppZustand.D.Lehrer[0].Kurzname;
+            var klasse = AppZustand.D.Klassen[0].Kurzname;
+            new KlassenbuchDialog(new[]
+            {
+                new KlassenbuchEintrag { WebId = 1, Datum = tag, Stunde = 1, Klassen = { klasse }, Fach = "M", Lehrer = lehrer, Lehrstoff = "Bruchrechnung: Erweitern und Kürzen", Hausaufgabe = "S. 12 Nr. 3", Faellig = tag.AddDays(2), AnwesenheitGeprueft = true },
+                new KlassenbuchEintrag { WebId = 2, Datum = tag, Stunde = 2, Klassen = { klasse }, Fach = "D", Lehrer = lehrer, Lehrstoff = "Gedichtanalyse", AnwesenheitGeprueft = true },
+                new KlassenbuchEintrag { WebId = 3, Datum = tag.AddDays(-1), Stunde = 3, Klassen = { klasse }, Fach = "E", Lehrer = lehrer, Lehrstoff = "Simple past", Hausaufgabe = "Vokabeln Unit 2" },
+            }).Show(this);
         }, 0);
         Schritt("25d2_UntPlanWeb_Einstellungen", () => new UntPlanWebEinstellungenDialog().Show(this), 0);
         Schritt("25e_Raumzuordnung", () => RaumZuordnenDialog.Zeigen(this, AppZustand.D.Stundenplan.FirstOrDefault(p => Core.Planung.Planungsdienst.BlockVon(AppZustand.D, p).Count > 1) ?? AppZustand.D.Stundenplan[0], false), 2);

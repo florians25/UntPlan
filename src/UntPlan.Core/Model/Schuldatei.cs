@@ -123,7 +123,7 @@ public sealed class PortalEinstellungen
     public bool Absenzgruende { get; set; }
     /// <summary>Schülerliste (Vorname, Name, Klasse) für Klassenbuch und Fehlzeiten übertragen.</summary>
     public bool SchuelerExportieren { get; set; }
-    /// <summary>Letzter erfolgreicher Export bzw. Import je Teil (stammdaten, unterricht, vertretungen, absenzen).</summary>
+    /// <summary>Letzter erfolgreicher Export bzw. Import je Teil (stammdaten, unterricht, vertretungen, absenzen, studenten, kurse).</summary>
     public Dictionary<string, DateTime> LetzteUebertragung { get; set; } = new();
     /// <summary>Stundenplanänderungen aus UntPlanWeb: Pausenaufsichten vor Prüfungen außer Betracht lassen.</summary>
     public bool PausenaufsichtVorPruefungIgnorieren { get; set; }
@@ -214,6 +214,10 @@ public sealed class Schuldatei
     public int AktivePeriodeId { get; set; }
     public Dictionary<string, int> Gewichtung { get; set; } = new();
     public List<Abwesenheit> Abwesenheiten { get; set; } = new();
+    /// <summary>Schülerabwesenheiten (Fehlzeiten aus dem Klassenbuch von UntPlanWeb, Import „Studenten*“).</summary>
+    public List<SchuelerAbwesenheit> SchuelerAbwesenheiten { get; set; } = new();
+    /// <summary>Klassenbuch je Unterricht (Lehrstoff, Hausaufgaben) aus UntPlanWeb, Import „Kurse“ – nur lesend.</summary>
+    public List<KlassenbuchEintrag> Klassenbuch { get; set; } = new();
     public List<Vertretung> Vertretungen { get; set; } = new();
     /// <summary>Nur ältere Dateien (Pausenaufsichten vor der Umstellung auf Perioden).</summary>
     [JsonPropertyName("Pausenaufsichten")] public List<Pausenaufsicht>? PausenaufsichtenAlt { get; set; }
