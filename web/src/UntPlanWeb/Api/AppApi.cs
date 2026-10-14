@@ -127,7 +127,7 @@ public static class AppApi
         {
             var b = Ich(c);
             var s = p.Aktuell;
-            if (s is null) return Results.Json(new { klassen = Array.Empty<object>(), lehrer = Array.Empty<object>(), raeume = Array.Empty<object>(), faecher = Array.Empty<object>(), stunden = Array.Empty<object>() });
+            if (s is null) return Results.Json(new { klassen = Array.Empty<object>(), lehrer = Array.Empty<object>(), raeume = Array.Empty<object>(), faecher = Array.Empty<object>(), stunden = Array.Empty<object>(), ferien = Array.Empty<object>() });
             var de = StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true);
             return Results.Json(new
             {
@@ -137,6 +137,8 @@ public static class AppApi
                 raeume = s.Paket.Elemente.Raeume.OrderBy(r => r.Kurz, de).Select(r => new { kurz = r.Kurz, name = r.Name }),
                 faecher = s.Paket.Elemente.Faecher.Select(f => new { kurz = f.Kurz, name = f.Name, farbe = f.Farbe }),
                 stunden = s.Paket.Zeitraster.Stunden,
+                // Ferien und Feiertage mit Zeitraum (z. B. für die Ferienfelder in UntPlanMobile)
+                ferien = s.Paket.Ferien.Select(f => new { name = f.Name, von = f.Von, bis = f.Bis, feiertag = f.Feiertag }),
             });
         });
 
