@@ -43,6 +43,17 @@ Authentifizierung: `Authorization: Bearer <API-Schlüssel der Schule>`, nur übe
 | GET | `api/v1/schulen/{schule}/rueckmeldungen` | offene `WebRueckmeldung[]` |
 | POST | `api/v1/schulen/{schule}/rueckmeldungen/quittieren` | `string[]` Ids → übernommen |
 
+**Teilpakete:** `WebPaket.teile` nennt die übertragenen Teile (`WebTeile`). Ist die Liste leer, ist das Paket vollständig.
+
+| Teil | JSON-Felder |
+|---|---|
+| `stammdaten` | `schule`, `zeitraster`, `elemente`, `ferien` |
+| `unterricht` | `perioden`, `pausenaufsichten` |
+| `vertretungen` | `tage`, `vertretungen`, `absenzen`, `termine`, `tagestexte`, `von`, `bis` |
+
+UntPlanWeb ersetzt nur die Felder der übertragenen Teile und behält die übrigen vom letzten Stand (`WebTeile.Felder`).
+UntPlan sendet `stammdaten` immer mit, wenn Unterricht oder Vertretungen übertragen werden.
+
 Der Referenzserver `src/UntPlan.Portal` implementiert diese Endpunkte (zusätzlich zum älteren Schema `untplan-sync/1`,
 siehe `SYNC_API.md`) und dient UntPlanWeb als Vorlage und für Tests (`tests/UntPlan.Core.Tests/UntPlanWebTests.cs`).
 
@@ -58,8 +69,11 @@ siehe `SYNC_API.md`) und dient UntPlanWeb als Vorlage und für Tests (`tests/Unt
 
 ## In UntPlan
 
-*Datei → UntPlanWeb*: „An UntPlanWeb übertragen“, „Rückmeldungen abholen und übernehmen“, „Paket als Datei exportieren
-(JSON)“ und „Verbindung einstellen…“ (Adresse, Schul-Id, API-Schlüssel – gemeinsam mit dem Web-Portal).
+*Datei → UntPlanWeb*:
+
+* **Datenaustausch:** Stammdaten, Unterricht und Vertretungen einzeln oder alles exportieren, Absenzen und Nachrichten importieren, optional ab einem Anfangsdatum; Übertragungsfehler werden im Dialog angezeigt.
+* **Paket als Datei exportieren (JSON).**
+* **Einstellungen:** Schul-ID, Server, Port, https, API-Schlüssel, Verbindung prüfen sowie die Exportoptionen.
 
 ## Empfehlungen für das UntPlanWeb-Repository
 
