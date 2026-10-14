@@ -64,6 +64,8 @@ public enum VertretungsArt
     Veranstaltung,
     SondereinsatzVormerkung,
     Vormerkung,
+    /// <summary>Raumbuchung (z. B. aus UntPlanWeb): Lehrer bucht einen Raum zu einer Stunde.</summary>
+    Raumbuchung,
 }
 
 /// <summary>Woraus eine Vertretungszeile entstanden ist.</summary>

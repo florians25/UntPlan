@@ -66,7 +66,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Nachrichten zum Tag", "kommentar", () => TagestextDialog.Zeigen(this, AppZustand.Datum)));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Vertretungsplan (HTML)", "html", () => HtmlAusgabe(DateOnly.FromDateTime(_von.Value), Math.Max(1, (int)(_bis.Value - _von.Value).TotalDays + 1), _ansicht.SelectedIndex is 1 or 3)));
-        ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
+        ts.Items.Add(Knopf("Vertretungsplan drucken (Aushang)", "drucken", () => Drucken(true)));
+        ts.Items.Add(Knopf("Liste drucken (wie angezeigt)", "vorschau", () => ListenDruck.DruckenTabelle(this, Text, _g, true)));
         ts.Items.Add(Knopf("Einstellungen", "einstellungen", () => VertretungsEinstellungenDialog.Zeigen(this)));
 
         // Kopf wie im Vertretungsfenster üblich: Element, Zeitraum (Tag/Woche/Von-Bis), Ansicht einschränken
@@ -700,23 +701,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         HauptFenster.Starten(pfad);
     }
 
-    public void Drucken(bool vorschau)
-    {
-        var lehrer = _ansicht.SelectedIndex is 1 or 3;
-        var zeilen = new List<string[]>();
-        foreach (var t in Kalender.Tage(Von, Bis).Where(t => Kalender.IstUnterrichtstag(D, t)))
-        {
-            var z = Vertretungsplan.Zeilen(D, t);
-            if (lehrer) z = z.OrderBy(x => x.Vertreter == "---" || x.Vertreter == "+" ? x.Lehrer : x.Vertreter).ThenBy(x => x.Stunde).ToList();
-            if (Von != Bis) zeilen.Add(new[] { $"{Planungsdienst.TageLang[((int)t.DayOfWeek + 6) % 7]}, {Format.Datum(t)}", "", "", "", "", "", "", "" });
-            zeilen.AddRange(z.Select(x => lehrer
-                ? new[] { x.Vertreter, x.Stunde.ToString(), x.Klassen, x.Lehrer, x.NeuesFach, x.NeuerRaum, x.Art, x.Text }
-                : new[] { x.Klassen, x.Stunde.ToString(), x.Lehrer, x.Vertreter, x.NeuesFach, x.NeuerRaum, x.Art, x.Text }));
-        }
-        var kopf = lehrer ? new[] { "Vertreter", "Std.", "Klasse(n)", "(Lehrer)", "Fach", "Raum", "Art", "Text" } : new[] { "Klasse(n)", "Std.", "(Lehrer)", "Vertreter", "Fach", "Raum", "Art", "Text" };
-        ListenDruck.Drucken(this, $"{D.Einstellungen.Vertretungsplantitel} – {Format.Datum(Von)}{(Von == Bis ? "" : " bis " + Format.Datum(Bis))}",
-            kopf, new[] { 90, 40, 70, 70, 55, 55, 100, 250 }, zeilen, vorschau);
-    }
+    /// <summary>Aushang des Vertretungsplans (Klassen- bzw. Lehrerversion je nach Ansicht).</summary>
+    public void Drucken(bool vorschau) => Druck.VertretungsplanDruck.Drucken(this, Von, Bis, _ansicht.SelectedIndex is 1 or 3, vorschau);
 }
 
 /// <summary>

@@ -29,7 +29,7 @@ public sealed class UntPlanWebDialog : Dialog
     private static Schuldatei D => AppZustand.D;
     private static PortalEinstellungen P => AppZustand.D.Einstellungen.Portal;
 
-    public UntPlanWebDialog() : base("UntPlanWeb – Datenaustausch", 660, 434)
+    public UntPlanWebDialog() : base("UntPlanWeb – Datenaustausch", 660, 494)
     {
         Ok.Text = "Schließen";
         Ok.DialogResult = DialogResult.OK;
@@ -60,7 +60,7 @@ public sealed class UntPlanWebDialog : Dialog
         _fehler.Controls.AddRange(new Control[] { _fehlerTitel, _fehlerText, link });
         Controls.Add(_fehler);
 
-        _tabs = new TabControl { Left = 10, Top = 94, Width = 640, Height = 290 };
+        _tabs = new TabControl { Left = 10, Top = 94, Width = 640, Height = 350 };
         var tabs = _tabs;
         var seite = new TabPage("UntPlanWeb") { BackColor = Color.White };
         tabs.TabPages.Add(seite);
@@ -84,6 +84,8 @@ public sealed class UntPlanWebDialog : Dialog
         Zeile("Unterricht*", WebTeile.Unterricht, true);
         Zeile("Vertretungen*", WebTeile.Vertretungen, true);
         Zeile("Absenzen*", "absenzen", false);
+        Zeile("Buchungen*", WebRueckmeldungsTypen.Raumbuchung, false);
+        Zeile("Klausuren*", WebRueckmeldungsTypen.Klausur, false);
         var alles = new Button { Text = "Alles exportieren", Left = 474, Top = y + 8, Width = 120, Height = 25 };
         alles.Click += async (_, _) => await Ausfuehren("", true);
         seite.Controls.Add(alles);
@@ -136,7 +138,7 @@ public sealed class UntPlanWebDialog : Dialog
         {
             _fehler.Visible = sichtbar;
             _tabs.Top = sichtbar ? 180 : 94;
-            ClientSize = new Size(ClientSize.Width, sichtbar ? 520 : 434);
+            ClientSize = new Size(ClientSize.Width, sichtbar ? 580 : 494);
         }
         _fehlerTitel.Text = titel ?? "";
         _fehlerText.Text = text;
@@ -155,7 +157,7 @@ public sealed class UntPlanWebDialog : Dialog
         try
         {
             if (export) await Exportieren(teil);
-            else await Importieren();
+            else await Importieren(teil);
             FehlerZeigen(null);
         }
         catch (Exception ex)
@@ -189,12 +191,14 @@ public sealed class UntPlanWebDialog : Dialog
         });
     }
 
-    private async Task Importieren()
+    private async Task Importieren(string teil)
     {
         var start = Start;
+        var typen = teil == "absenzen" ? new[] { WebRueckmeldungsTypen.Absenz, WebRueckmeldungsTypen.Nachricht } : new[] { teil };
         var liste = (await UntPlanWebExport.RueckmeldungenAsync(P))
-            .Where(m => !DateOnly.TryParse(m.Bis ?? m.Von, out var bis) || bis >= start).ToList();
-        if (liste.Count == 0) { Ui.Info("Keine neuen Absenzen oder Nachrichten.", "UntPlanWeb"); return; }
+            .Where(m => typen.Contains(m.Typ) && (!DateOnly.TryParse(m.Bis ?? m.Von, out var bis) || bis >= start)).ToList();
+        var was = teil switch { WebRueckmeldungsTypen.Raumbuchung => "Buchungen", WebRueckmeldungsTypen.Klausur => "Klausuren", _ => "Absenzen oder Nachrichten" };
+        if (liste.Count == 0) { Ui.Info($"Keine neuen {was}.", "UntPlanWeb"); return; }
         List<string> ok = new(), nein = new();
         var jetzt = DateTime.Now;
         AppZustand.Doc.Aendern("UntPlanWeb-Rückmeldungen", AenderungsArt.Vertretung, d =>
@@ -202,10 +206,10 @@ public sealed class UntPlanWebDialog : Dialog
             (ok, nein) = UntPlanWebExport.Uebernehmen(d, liste);
             var tage = d.Abwesenheiten.Where(a => a.Text.Contains("Portal-Meldung")).SelectMany(a => Kalender.Tage(a.Von, a.Bis)).Distinct().ToList();
             foreach (var t in tage.Where(t => Kalender.IstUnterrichtstag(d, t))) Core.Vertretungsplanung.Vertretungen.Aktualisieren(d, t);
-            d.Einstellungen.Portal.LetzteUebertragung["absenzen"] = jetzt;
+            d.Einstellungen.Portal.LetzteUebertragung[teil] = jetzt;
         });
         await UntPlanWebExport.QuittierenAsync(P, ok);
-        Ui.Info($"{ok.Count} Rückmeldungen übernommen{(nein.Count > 0 ? $", {nein.Count} nicht zuordenbar" : "")}.", "UntPlanWeb");
+        Ui.Info($"{ok.Count} {was} übernommen{(nein.Count > 0 ? $", {nein.Count} abgelehnt (unbekannte Elemente, kein Unterrichtstag oder Raum belegt)" : "")}.", "UntPlanWeb");
     }
 }
 

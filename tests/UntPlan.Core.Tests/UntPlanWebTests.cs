@@ -65,6 +65,36 @@ public class UntPlanWebTests
     }
 
     [Fact]
+    public void BuchungenUndKlausurenWerdenUebernommen()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var tp = Vertretungsplanung.Tagesplan.Berechnen(d, tag);
+        var freierRaum = d.Raeume.First(r => !tp.Stunde(1).Any(e => e.RaumIds.Contains(r.Id)));
+        var belegt = tp.Stunde(1).First(e => e.RaumIds.Count > 0).RaumIds[0];
+        var klasse = d.Klassen[0];
+        var lehrer = d.Lehrer[0];
+        var liste = new List<WebRueckmeldung>
+        {
+            new() { Id = "b1", Typ = WebRueckmeldungsTypen.Raumbuchung, Lehrer = lehrer.Kurzname, Von = tag.ToString("yyyy-MM-dd"), StundeVon = 1, StundeBis = 1, Raum = freierRaum.Kurzname, Titel = "Elternsprechtag" },
+            new() { Id = "b2", Typ = WebRueckmeldungsTypen.Raumbuchung, Lehrer = lehrer.Kurzname, Von = tag.ToString("yyyy-MM-dd"), StundeVon = 1, StundeBis = 1, Raum = d.Raeume.First(r => r.Id == belegt).Kurzname },
+            new() { Id = "k1", Typ = WebRueckmeldungsTypen.Klausur, Lehrer = lehrer.Kurzname, Von = tag.ToString("yyyy-MM-dd"), StundeVon = 2, StundeBis = 3, Klassen = { klasse.Kurzname }, Titel = "Mathe-Klausur" },
+            new() { Id = "k2", Typ = WebRueckmeldungsTypen.Klausur, Von = tag.ToString("yyyy-MM-dd"), Klassen = { "GIBTSNICHT" } },
+        };
+        var (ok, nein) = UntPlanWebExport.Uebernehmen(d, liste);
+        Assert.Equal(new[] { "b1", "k1" }, ok);
+        Assert.Equal(new[] { "b2", "k2" }, nein);
+        var buchung = Assert.Single(d.Vertretungen, v => v.Art == VertretungsArt.Raumbuchung);
+        Assert.Equal(freierRaum.Id, buchung.VertretungsraumId);
+        Assert.Equal(lehrer.Id, buchung.VertreterId);
+        var k = Assert.Single(d.Klausuren);
+        Assert.Equal("Mathe-Klausur", k.Name);
+        Assert.Equal(3, k.StundeBis);
+        // Unterricht der Klasse entfällt während der Klausur
+        Assert.Contains(d.Vertretungen, v => v.KlausurId == k.Id && v.Datum == tag);
+    }
+
+    [Fact]
     public async Task UebertragungUndRueckmeldungen()
     {
         var ordner = Path.Combine(Path.GetTempPath(), "untplan_web_" + Guid.NewGuid().ToString("N"));

@@ -56,7 +56,14 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Vorheriges Element", "zurueck", () => Blaettern(-1)));
         ts.Items.Add(Knopf("Nächstes Element", "vor", () => Blaettern(1)));
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Stundenplan-Einstellungen", "einstellungen", Einstellungen));
+        ts.Items.Add(_format);
+        _format.SelectedIndexChanged += (_, _) => { if (!_laden && _format.SelectedItem is string n) FormatWaehlen(n); };
+        var formate = new ToolStripDropDownButton(Symbole.Get("einstellungen", 16)) { ToolTipText = "Stundenplanformate", DisplayStyle = ToolStripItemDisplayStyle.Image };
+        formate.DropDownItems.Add("Format bearbeiten…", Symbole.Get("einstellungen", 16), (_, _) => Einstellungen());
+        formate.DropDownItems.Add("Neues Format (Kopie)…", Symbole.Get("neu", 16), (_, _) => FormatNeu());
+        formate.DropDownItems.Add("Format umbenennen…", null, (_, _) => FormatUmbenennen());
+        formate.DropDownItems.Add("Format löschen", Symbole.Get("loeschen", 16), (_, _) => FormatLoeschen());
+        ts.Items.Add(formate);
         _alleElemente = new ToolStripButton(Symbole.Get("uebersicht")) { ToolTipText = "Alle Elemente im Unterricht", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
         _alleElemente.CheckedChanged += (_, _) => { _reiter.Visible = _alleElemente.Checked; ReiterAufbauen(); };
         ts.Items.Add(_alleElemente);
@@ -80,6 +87,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Änderungen rückgängig (gewählte Stunde)", "rueckgaengig", AenderungenRueckgaengig));
 
         _plan.Format = FormatHolen();
+        FormateFuellen();
         _plan.AuswahlGeaendert += AuswahlGeaendert;
         _plan.Abgelegt += Abgelegt;
         _plan.Doppelklick += p => { var u = Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId); if (u != null) UnterrichtFenster.Zeigen(_typ is ElementTyp.Raum ? ElementTyp.Unterricht : _typ, _typ is ElementTyp.Raum ? null : _id); };
@@ -132,7 +140,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             if (_laden || _reiter.SelectedTab?.Tag is not (ElementTyp t, int i)) return;
             _typ = t;
             _id = i;
+            _formatName = null;
             _plan.Format = FormatHolen();
+            FormateFuellen();
             _planGroesse?.Invoke();
             Neuaufbau(false);
         };
@@ -211,12 +221,81 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         public override string ToString() => E.Kurzname;
     }
 
+    private string FormatSchluessel => _typ + (_gross ? " groß" : "");
+
+    private string StandardName => (_typ switch { ElementTyp.Klasse => "Klassenplan", ElementTyp.Lehrer => "Lehrerplan", ElementTyp.Raum => "Raumplan", ElementTyp.Fach => "Fachplan", _ => "Stundenplan" }) + (_gross ? " groß" : "");
+
+    /// <summary>Gewähltes Format (eigenes Format nach Name, sonst das erste passende bzw. ein Standardformat).</summary>
     private StundenplanFormat FormatHolen()
     {
-        var basis = _typ switch { ElementTyp.Klasse => "Klassenplan", ElementTyp.Lehrer => "Lehrerplan", ElementTyp.Raum => "Raumplan", ElementTyp.Fach => "Fachplan", _ => "Stundenplan" };
-        var name = basis + (_gross ? " groß" : "");
-        var f = D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Gross == _gross);
-        return f ?? new StundenplanFormat { Name = name, Typ = _typ, Gross = _gross, Schriftgroesse = _gross ? 10 : 9 };
+        AppZustand.Einstellungen.Stundenplanformate.TryGetValue(FormatSchluessel, out var gewaehlt);
+        var name = _formatName ?? gewaehlt;
+        var f = (name is null ? null : D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Name == name)) ?? D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Gross == _gross);
+        return f ?? new StundenplanFormat { Name = StandardName, Typ = _typ, Gross = _gross, Schriftgroesse = _gross ? 10 : 9 };
+    }
+
+    private string? _formatName;
+    private readonly ToolStripComboBox _format = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 130, ToolTipText = "Stundenplanformat" };
+
+    /// <summary>Auswahl der Formate dieser Planart füllen.</summary>
+    private void FormateFuellen()
+    {
+        _laden = true;
+        _format.Items.Clear();
+        var namen = D.Formate.Where(x => x.Typ == _typ).Select(x => x.Name).Where(n => n.Length > 0).Distinct().ToList();
+        if (!namen.Contains(_plan.Format.Name)) namen.Insert(0, _plan.Format.Name);
+        foreach (var n in namen) _format.Items.Add(n);
+        _format.SelectedItem = _plan.Format.Name;
+        _laden = false;
+    }
+
+    private void FormatWaehlen(string name)
+    {
+        _formatName = name;
+        AppZustand.Einstellungen.Stundenplanformate[FormatSchluessel] = name;
+        AppZustand.Einstellungen.Speichern();
+        _plan.Format = FormatHolen();
+        _planGroesse?.Invoke();
+        Neuaufbau(false);
+    }
+
+    private void FormatNeu()
+    {
+        var name = Ui.Eingabe("Name des neuen Stundenplanformats (Kopie des aktuellen Formats):", "Neues Stundenplanformat", _plan.Format.Name + " 2");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        name = name.Trim();
+        if (D.Formate.Any(x => x.Typ == _typ && x.Name == name)) { Ui.Info($"Das Format \"{name}\" gibt es bereits."); return; }
+        var f = Kopie(_plan.Format);
+        f.Name = name;
+        f.Typ = _typ;
+        Aendern("Neues Stundenplanformat", AenderungsArt.Einstellungen, d => d.Formate.Add(f));
+        FormatWaehlen(name);
+        FormateFuellen();
+        Einstellungen();
+    }
+
+    private void FormatUmbenennen()
+    {
+        var alt = _plan.Format.Name;
+        var name = Ui.Eingabe("Neuer Name des Stundenplanformats:", "Format umbenennen", alt);
+        if (string.IsNullOrWhiteSpace(name) || name.Trim() == alt) return;
+        var f = Kopie(_plan.Format);
+        f.Name = name.Trim();
+        FormatSpeichern(f, alt);
+    }
+
+    private void FormatLoeschen()
+    {
+        var name = _plan.Format.Name;
+        if (!D.Formate.Any(x => x.Typ == _typ && x.Name == name)) { Ui.Info("Das Standardformat ist nicht gespeichert und kann nicht gelöscht werden."); return; }
+        if (!Ui.Frage($"Stundenplanformat \"{name}\" löschen?")) return;
+        Aendern("Stundenplanformat löschen", AenderungsArt.Einstellungen, d => d.Formate.RemoveAll(x => x.Typ == _typ && x.Name == name));
+        _formatName = null;
+        AppZustand.Einstellungen.Stundenplanformate.Remove(FormatSchluessel);
+        _plan.Format = FormatHolen();
+        FormateFuellen();
+        _planGroesse?.Invoke();
+        Neuaufbau(false);
     }
 
     private void ElementGewaehlt(ElementTyp typ, int id, object quelle)
@@ -826,7 +905,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         cm.Items.Add("Stundenplan-Einstellungen…", Symbole.Get("einstellungen"), (_, _) => Einstellungen());
         var std = new ToolStripMenuItem("Stpl-Stunde: Standardformat") { Checked = _plan.Format.Standardformat };
-        std.Click += (_, _) => { var f = Kopie(_plan.Format); f.Standardformat = !f.Standardformat; FormatSpeichern(f); };
+        std.Click += (_, _) => { var f = Kopie(_plan.Format); f.Standardformat = !f.Standardformat; FormatSpeichern(f, f.Name); };
         cm.Items.Add(std);
         cm.Items.Add(new ToolStripSeparator());
         if (_plan.Tagesmodus) return;
@@ -856,21 +935,26 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     private void Einstellungen()
     {
+        var alt = _plan.Format.Name;
         var f = StundenplanEinstellungenDialog.Zeigen(this, Kopie(_plan.Format));
-        if (f != null) FormatSpeichern(f);
+        if (f != null) FormatSpeichern(f, alt);
     }
 
-    private void FormatSpeichern(StundenplanFormat f)
+    /// <summary>Format speichern; ersetzt das Format gleichen (bzw. bisherigen) Namens dieser Planart.</summary>
+    private void FormatSpeichern(StundenplanFormat f, string alterName)
     {
         Aendern("Stundenplan-Format", AenderungsArt.Einstellungen, d =>
         {
-            d.Formate.RemoveAll(x => x.Typ == f.Typ && x.Gross == f.Gross);
+            d.Formate.RemoveAll(x => x.Typ == f.Typ && (x.Name == alterName || x.Name == f.Name || (x.Name.Length == 0 && x.Gross == f.Gross)));
             d.Formate.Add(f);
         });
+        _formatName = f.Name;
+        AppZustand.Einstellungen.Stundenplanformate[FormatSchluessel] = f.Name;
         _plan.Format = f;
+        FormateFuellen();
         _planGroesse?.Invoke();
         Neuaufbau(false);
-        foreach (var w in AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().Where(w => w != this && w._typ == f.Typ && w._gross == f.Gross))
+        foreach (var w in AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().Where(w => w != this && w._typ == f.Typ && (w._plan.Format.Name == alterName || w._plan.Format.Name == f.Name)))
         {
             w._plan.Format = f;
             w._planGroesse?.Invoke();

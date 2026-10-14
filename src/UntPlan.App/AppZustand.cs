@@ -75,6 +75,15 @@ public sealed class Benutzereinstellungen
 {
     public List<string> ZuletztGeoeffnet { get; set; } = new();
     public bool BegruessungZeigen { get; set; } = true;
+    /// <summary>Automatisch speichern alle n Minuten (0 = aus).</summary>
+    public int AutoSpeichernMinuten { get; set; } = 10;
+    /// <summary>Beim letzten Beenden war der Vertretungsmodus aktiv.</summary>
+    public bool LetzterModusVertretung { get; set; }
+    public bool ModusMerken { get; set; } = true;
+    /// <summary>Zuletzt gewähltes Stundenplanformat je Planart ("Klasse", "Klasse groß" …).</summary>
+    public Dictionary<string, string> Stundenplanformate { get; set; } = new();
+    /// <summary>Benannte, vom Benutzer gespeicherte Fensteranordnungen.</summary>
+    public Dictionary<string, Fensteranordnung> Fensteranordnungen { get; set; } = new();
     public bool AssistentZeigen { get; set; } = true;
     public bool StundenplanSynchronisieren { get; set; } = true;
     public int[] Zeitwunschfarben { get; set; } = Array.Empty<int>();
@@ -91,6 +100,8 @@ public sealed class Benutzereinstellungen
     public Dictionary<string, List<Tabellenspalte>> Tabellenlayouts { get; set; } = new();
     /// <summary>Gewählte Zeitraumart (Tag, Woche, Von-Bis) je Fenster.</summary>
     public Dictionary<string, string> Zeitraumarten { get; set; } = new();
+    /// <summary>Einstellungen des Vertretungsplan-Drucks (Aushang).</summary>
+    public Vertretungsdruck Vertretungsdruck { get; set; } = new();
 
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 
@@ -119,6 +130,17 @@ public sealed class Benutzereinstellungen
     }
 }
 
+public sealed class Vertretungsdruck
+{
+    public string Schriftart { get; set; } = "Comic Sans MS";
+    public float Schriftgroesse { get; set; } = 11f;
+    public bool Nachrichten { get; set; } = true;
+    public bool BlockierteRaeume { get; set; } = true;
+    public bool AbwesendeKlassen { get; set; } = true;
+    public bool AbwesendeLehrer { get; set; } = true;
+    public bool Querformat { get; set; }
+}
+
 public sealed class Tabellenformat
 {
     public string Name { get; set; } = "";
@@ -137,6 +159,12 @@ public sealed class Tabellenspalte
     public int Ausrichtung { get; set; }
     /// <summary>Spalte bleibt beim waagerechten Blättern stehen.</summary>
     public bool Fixiert { get; set; }
+}
+
+public sealed class Fensteranordnung
+{
+    public bool Vertretungsmodus { get; set; }
+    public List<FensterPosition> Fenster { get; set; } = new();
 }
 
 public sealed class FensterPosition

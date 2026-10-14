@@ -222,7 +222,7 @@ public sealed record WebAufsicht(string Gang, int Tag, int NachStunde, string Le
 public sealed record WebRueckmeldung
 {
     public string Id { get; init; } = "";
-    /// <summary>absenz (Krankmeldung einer Lehrkraft), nachricht, raumbuchung</summary>
+    /// <summary>absenz (Krankmeldung einer Lehrkraft), nachricht, raumbuchung, klausur</summary>
     public string Typ { get; init; } = "";
     public DateTime Erstellt { get; init; }
     public string Absender { get; init; } = "";
@@ -234,6 +234,23 @@ public sealed record WebRueckmeldung
     public string? Raum { get; init; }
     public string? Grund { get; init; }
     public string? Text { get; init; }
+    /// <summary>Titel (Klausur: Name, Raumbuchung: Anlass).</summary>
+    public string? Titel { get; init; }
+    /// <summary>Beteiligte Klassen (Kurznamen), z. B. bei Klausur oder Raumbuchung.</summary>
+    public List<string> Klassen { get; init; } = new();
+    /// <summary>Räume (Kurznamen); bei einer Raumbuchung genügt Raum.</summary>
+    public List<string> Raeume { get; init; } = new();
+    /// <summary>Weitere Lehrkräfte (z. B. Klausuraufsichten).</summary>
+    public List<string> WeitereLehrer { get; init; } = new();
+}
+
+/// <summary>Arten der Rückmeldungen.</summary>
+public static class WebRueckmeldungsTypen
+{
+    public const string Absenz = "absenz";
+    public const string Nachricht = "nachricht";
+    public const string Raumbuchung = "raumbuchung";
+    public const string Klausur = "klausur";
 }
 
 public sealed record WebAntwort(bool Ok, int Revision, string? Meldung);

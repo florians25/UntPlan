@@ -87,6 +87,7 @@ public sealed partial class HauptFenster
             E("Pausenaufsichten", "pausenaufsicht", () => VertretungsformatOeffnen("Pausenaufsichten")),
             null,
             E("Standardanordnung der Fenster", "uebersicht", () => VertretungsStandardFenster()),
+            E("Eigene Fensteranordnungen…", "uebersicht", FensteranordnungMenue),
         }));
         g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan));
         g.Eintraege.Add(E("Einstellungen", "einstellungen", () => VertretungsEinstellungenDialog.Zeigen(this), menue: new()
@@ -224,6 +225,13 @@ public sealed partial class HauptFenster
 
     private void LayoutMerken(string gruppe)
     {
+        AppZustand.Einstellungen.Fenstergruppen[gruppe] = LayoutAufnehmen();
+        AppZustand.Einstellungen.Speichern();
+    }
+
+    /// <summary>Positionen aller geöffneten (wiederherstellbaren) Fenster.</summary>
+    internal List<FensterPosition> LayoutAufnehmen()
+    {
         var liste = new List<FensterPosition>();
         foreach (var f in MdiChildren)
         {
@@ -231,13 +239,16 @@ public sealed partial class HauptFenster
             var b = f.WindowState == FormWindowState.Normal ? f.Bounds : f.RestoreBounds;
             liste.Add(new FensterPosition { Schluessel = s, X = b.X, Y = b.Y, B = b.Width, H = b.Height, Maximiert = f.WindowState == FormWindowState.Maximized });
         }
-        AppZustand.Einstellungen.Fenstergruppen[gruppe] = liste;
-        AppZustand.Einstellungen.Speichern();
+        return liste;
     }
 
-    private bool LayoutWiederherstellen(string gruppe)
+    private bool LayoutWiederherstellen(string gruppe) =>
+        AppZustand.Einstellungen.Fenstergruppen.TryGetValue(gruppe, out var liste) && LayoutOeffnen(liste);
+
+    /// <summary>Fenster laut Positionsliste öffnen und anordnen.</summary>
+    internal bool LayoutOeffnen(List<FensterPosition> liste)
     {
-        if (!AppZustand.Einstellungen.Fenstergruppen.TryGetValue(gruppe, out var liste) || liste.Count == 0) return false;
+        if (liste.Count == 0) return false;
         var n = 0;
         foreach (var p in liste)
         {

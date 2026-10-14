@@ -215,10 +215,73 @@ public static class UntPlanWebExport
         r.EnsureSuccessStatusCode();
     }
 
-    /// <summary>Rückmeldungen übernehmen: Krankmeldungen als Lehrer-Absenzen, Nachrichten als Tagestext für das Kollegium.</summary>
+    /// <summary>
+    /// Rückmeldungen übernehmen:
+    /// <list type="bullet">
+    /// <item>Krankmeldungen als Lehrer-Absenzen.</item>
+    /// <item>Nachrichten als Tagestext für das Kollegium.</item>
+    /// <item>Raumbuchungen als Vertretungszeilen der Art Raumbuchung, je Stunde eine.</item>
+    /// <item>Klausuren in die Klausurliste.</item>
+    /// </list>
+    /// Abgelehnt werden Rückmeldungen mit unbekannten Elementen, ungültigem Datum oder (bei Raumbuchungen) belegtem Raum.
+    /// Betroffene Tage werden neu berechnet.
+    /// </summary>
     public static (List<string> Uebernommen, List<string> Abgelehnt) Uebernehmen(Schuldatei d, IEnumerable<WebRueckmeldung> liste)
     {
-        var meldungen = liste.Select(m => new Portal.Meldung(m.Id, m.Typ == "absenz" ? "abwesenheit" : m.Typ, m.Erstellt, m.Absender, m.Lehrer, m.Von, m.Bis, m.StundeVon, m.StundeBis, m.Grund, m.Text));
-        return Portal.MeldungenUebernehmen(d, meldungen);
+        var ok = new List<string>();
+        var nein = new List<string>();
+        var tage = new HashSet<DateOnly>();
+        var rest = new List<WebRueckmeldung>();
+        var ix = new DatenIndex(d);
+        int? Id(ElementTyp t, string? k) => string.IsNullOrWhiteSpace(k) ? null : d.AlleElemente(t).FirstOrDefault(e => e.Kurzname.Equals(k.Trim(), StringComparison.OrdinalIgnoreCase))?.Id;
+        List<int>? Ids(ElementTyp t, IEnumerable<string> namen)
+        {
+            var res = new List<int>();
+            foreach (var n in namen.Where(n => !string.IsNullOrWhiteSpace(n)))
+            {
+                if (Id(t, n) is not int i) return null;
+                res.Add(i);
+            }
+            return res.Distinct().ToList();
+        }
+        foreach (var m in liste)
+        {
+            if (m.Typ is not (WebRueckmeldungsTypen.Raumbuchung or WebRueckmeldungsTypen.Klausur)) { rest.Add(m); continue; }
+            if (!DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var datum) || !Kalender.IstUnterrichtstag(d, datum)) { nein.Add(m.Id); continue; }
+            var von = Math.Clamp(m.StundeVon ?? 1, 1, d.Zeitraster.StundenProTag);
+            var bis = Math.Clamp(m.StundeBis ?? von, von, d.Zeitraster.StundenProTag);
+            var klassen = Ids(ElementTyp.Klasse, m.Klassen);
+            var raeume = Ids(ElementTyp.Raum, m.Raeume.Append(m.Raum ?? "").Where(x => x.Length > 0));
+            var lehrer = Ids(ElementTyp.Lehrer, new[] { m.Lehrer ?? "" }.Concat(m.WeitereLehrer));
+            if (klassen is null || raeume is null || lehrer is null) { nein.Add(m.Id); continue; }
+            if (m.Typ == WebRueckmeldungsTypen.Raumbuchung)
+            {
+                if (raeume.Count == 0) { nein.Add(m.Id); continue; }
+                // Raum muss in allen Stunden frei sein (kein Unterricht, keine andere Buchung)
+                var tp = Tagesplan.Berechnen(d, datum);
+                if (Enumerable.Range(von, bis - von + 1).Any(s => tp.Stunde(s).Any(e => e.Findetstatt && e.RaumIds.Contains(raeume[0])))) { nein.Add(m.Id); continue; }
+                for (var s = von; s <= bis; s++)
+                    d.Vertretungen.Add(new Vertretung
+                    {
+                        Id = d.NeueId(), Datum = datum, Stunde = s, Art = VertretungsArt.Raumbuchung, Quelle = VertretungsQuelle.Manuell, Bearbeitet = true,
+                        VertreterId = lehrer.FirstOrDefault() is int l and > 0 ? l : null, KlassenIds = klassen, VertretungsraumId = raeume[0], ZusatzraumIds = raeume.Skip(1).ToList(),
+                        Text = string.Join(" – ", new[] { m.Titel, m.Text }.Where(x => !string.IsNullOrWhiteSpace(x))), Benutzer = "UntPlanWeb " + m.Absender,
+                    });
+            }
+            else
+            {
+                d.Klausuren.Add(new Klausur
+                {
+                    Id = d.NeueId(), Name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim(), Text = m.Text ?? "", Datum = datum, StundeVon = von, StundeBis = bis,
+                    KlassenIds = klassen, LehrerIds = lehrer, RaumIds = raeume, UnterrichtEntfaellt = true,
+                });
+                tage.Add(datum);
+            }
+            ok.Add(m.Id);
+        }
+        var meldungen = rest.Select(m => new Portal.Meldung(m.Id, m.Typ == WebRueckmeldungsTypen.Absenz ? "abwesenheit" : m.Typ, m.Erstellt, m.Absender, m.Lehrer, m.Von, m.Bis, m.StundeVon, m.StundeBis, m.Grund, m.Text));
+        var (ok2, nein2) = Portal.MeldungenUebernehmen(d, meldungen);
+        foreach (var t in tage) Vertretungen.Aktualisieren(d, t);
+        return (ok.Concat(ok2).ToList(), nein.Concat(nein2).ToList());
     }
 }

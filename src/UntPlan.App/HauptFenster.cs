@@ -64,6 +64,7 @@ public sealed partial class HauptFenster : Form
 
         RibbonAufbauen();
         ModusVorbereiten();
+        KomfortVorbereiten();
         AppZustand.DokumentGewechselt += DokumentAnmelden;
         DokumentAnmelden();
 
@@ -73,6 +74,7 @@ public sealed partial class HauptFenster : Form
             if (Program.Argumente.Any(a => a.Contains('~')) && MultiUser.MultiUserMenue.Befehlszeile(this, Program.Argumente)) return;
             if (datei != null) DateiLaden(datei);
             else if (AppZustand.Einstellungen.BegruessungZeigen) BegruessungDialog.Zeigen(this);
+            ModusWiederherstellen();
         };
     }
 
@@ -258,6 +260,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Vergleichsmodus", "suchen", () => VergleichDialog.Zeigen(this)));
         g = Gruppe(start, "Fenster");
         g.Eintraege.Add(E("Standard-Fenstergruppe", "uebersicht", StandardFenster));
+        g.Eintraege.Add(E("Fensteranordnungen", "uebersicht", FensteranordnungMenue, hinweis: "Eigene Fensteranordnungen speichern, laden und löschen"));
         g.Eintraege.Add(E("Überlappend", "uebersicht", () => LayoutMdi(MdiLayout.Cascade)));
         g.Eintraege.Add(E("Nebeneinander", "uebersicht", () => LayoutMdi(MdiLayout.TileVertical)));
         g.Eintraege.Add(E("Untereinander", "uebersicht", () => LayoutMdi(MdiLayout.TileHorizontal)));

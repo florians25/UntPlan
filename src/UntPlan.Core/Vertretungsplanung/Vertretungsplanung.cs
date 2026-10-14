@@ -1034,7 +1034,8 @@ public static class VertretungsVorschlag
 }
 
 public sealed record PlanZeile(DateOnly Datum, int Stunde, string Klassen, string Lehrer, string Vertreter, string Fach, string NeuesFach, string Raum, string NeuerRaum,
-    string Art, string Text, IReadOnlyList<int> KlassenIds, int? LehrerId, int? VertreterId, string VertrVon = "", string Nach = "", string Grund = "", int Id = 0);
+    string Art, string Text, IReadOnlyList<int> KlassenIds, int? LehrerId, int? VertreterId, string VertrVon = "", string Nach = "", string Grund = "", int Id = 0,
+    string Gruppe = "", string Bemerkung = "", VertretungsArt ArtWert = VertretungsArt.Vertretung);
 
 /// <summary>Ausgabe des Vertretungsplans (Aushang, Monitor, HTML, Portal).</summary>
 public static class Vertretungsplan
@@ -1063,12 +1064,45 @@ public static class Vertretungsplan
         VertretungsArt.Veranstaltung => "Veranst.",
         VertretungsArt.SondereinsatzVormerkung => "Sondereins. zu Vormerkung",
         VertretungsArt.Vormerkung => "Vormerkung",
+        VertretungsArt.Raumbuchung => "Raumbuchung",
         _ => a.ToString(),
     };
 
     /// <summary>Bezeichnung laut Einstellungen ("Farben und Bezeichnungen"), sonst Standard.</summary>
     public static string ArtText(Schuldatei d, VertretungsArt a) =>
         d.Vertretungseinstellungen.Bezeichnungen.TryGetValue(a.ToString(), out var t) && !string.IsNullOrWhiteSpace(t) ? t : ArtText(a);
+
+    /// <summary>Bemerkung für den Aushang: Art der Änderung in Worten (z. B. Bereitschaft, Raumänderung, verlegt von …) und Vertretungstext.</summary>
+    public static string Bemerkung(Schuldatei d, Vertretung v)
+    {
+        string Tag(DateOnly t, int? s) => $"{Planung.Planungsdienst.TageKurz[((int)t.DayOfWeek + 6) % 7]} {t:d.M.}{(s is int x ? $" {x}. Std." : "")}";
+        var art = v.Art switch
+        {
+            VertretungsArt.Bereitschaftsvertretung => "Bereitschaft",
+            VertretungsArt.Entfall => "Entfall",
+            VertretungsArt.Freisetzung => "Freisetzung",
+            VertretungsArt.BereitschaftEntfaellt => "",
+            VertretungsArt.Raumvertretung => "Raumänderung",
+            VertretungsArt.Verlegung when v.VonDatum is DateOnly von => $"verlegt von {Tag(von, v.VonStunde)}",
+            VertretungsArt.Verlegung => "Verlegung",
+            VertretungsArt.Betreuung => "Betreuung",
+            VertretungsArt.StattVertretung => "statt-Vertretung",
+            VertretungsArt.Sondereinsatz => "Sondereinsatz",
+            VertretungsArt.Klausur => "Klausur",
+            VertretungsArt.Pausenaufsicht => "Pausenaufsicht",
+            VertretungsArt.VertretungOhneLehrer => "ohne Lehrkraft",
+            VertretungsArt.EigenverantwortlichesArbeiten => "EVA",
+            VertretungsArt.Tausch or VertretungsArt.Lehrertausch => "Tausch",
+            VertretungsArt.Veranstaltung => "Veranstaltung",
+            VertretungsArt.Raumbuchung => "Raumbuchung",
+            _ => "",
+        };
+        if (v.NachDatum is DateOnly nach && v.IstEntfall) art = $"verlegt auf {Tag(nach, v.NachStunde)}";
+        // ein freier Text ersetzt die Standardbemerkung nicht, sondern ergänzt sie
+        if (string.IsNullOrWhiteSpace(v.Text)) return art;
+        if (art.Length == 0 || v.Text.Contains(art, StringComparison.CurrentCultureIgnoreCase)) return v.Text;
+        return $"{art} – {v.Text}";
+    }
 
     public static string StundeText(Vertretung v) => v.Art == VertretungsArt.Pausenaufsicht ? $"{v.Stunde}/{v.Stunde + 1}" : v.Stunde.ToString();
 
@@ -1090,7 +1124,8 @@ public static class Vertretungsplan
                 ArtText(d, v.Art), v.Text, v.NeueKlassenIds, v.LehrerId, v.VertreterId,
                 v.VonDatum.HasValue ? $"{Planung.Planungsdienst.TageKurz[((int)v.VonDatum.Value.DayOfWeek + 6) % 7]}-{v.VonDatum:dd.MM.} / {v.VonStunde}" : "",
                 v.NachDatum.HasValue ? $"{Planung.Planungsdienst.TageKurz[((int)v.NachDatum.Value.DayOfWeek + 6) % 7]}-{v.NachDatum:dd.MM.} / {v.NachStunde}" : "",
-                d.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId) is { Vertraulich: true } ? "" : v.Grund, v.Id))
+                d.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId) is { Vertraulich: true } ? "" : v.Grund, v.Id,
+                v.Schuelergruppe, Bemerkung(d, v), v.Art))
             .OrderBy(z => z.Klassen, StringComparer.Create(Format.De, true)).ThenBy(z => z.Stunde).ToList();
     }
 }

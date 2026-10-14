@@ -27,7 +27,8 @@ public sealed class SchulKonfiguration
 }
 
 public sealed record Meldung(string Id, string Typ, DateTime Erstellt, string Absender, string? LehrerKuerzel, string? Von, string? Bis,
-    int? StundeVon, int? StundeBis, string? Grund, string? Text, bool Quittiert = false);
+    int? StundeVon, int? StundeBis, string? Grund, string? Text, bool Quittiert = false,
+    string? Titel = null, List<string>? Klassen = null, List<string>? Raeume = null, List<string>? WeitereLehrer = null);
 
 /// <summary>
 /// Referenzimplementierung des WebPortals: speichert den von UntPlan hochgeladenen Stand (Snapshot) je Schule,
@@ -130,6 +131,7 @@ public static class PortalServer
             {
                 Id = m.Id, Typ = m.Typ == "abwesenheit" ? "absenz" : m.Typ, Erstellt = m.Erstellt, Absender = m.Absender, Lehrer = m.LehrerKuerzel,
                 Von = m.Von, Bis = m.Bis, StundeVon = m.StundeVon, StundeBis = m.StundeBis, Grund = m.Grund, Text = m.Text,
+                Titel = m.Titel, Klassen = m.Klassen ?? new(), Raeume = m.Raeume ?? new(), WeitereLehrer = m.WeitereLehrer ?? new(),
             });
             return Results.Json(liste, UntPlan.Web.Contracts.UntPlanWebSchema.Json);
         });
@@ -153,9 +155,12 @@ public static class PortalServer
             var kuerzel = (Wert("kuerzel") ?? "").Trim();
             if (kuerzel.Length == 0 || !DateOnly.TryParse(Wert("von"), System.Globalization.CultureInfo.InvariantCulture, out var von)) return Fehler(400, "Kürzel und Datum erforderlich");
             var bis = DateOnly.TryParse(Wert("bis"), System.Globalization.CultureInfo.InvariantCulture, out var b) && b >= von ? b : von;
-            var typ = Wert("typ") is "nachricht" ? "nachricht" : "abwesenheit";
+            var typ = Wert("typ") switch { "nachricht" => "nachricht", "raumbuchung" => "raumbuchung", "klausur" => "klausur", _ => "abwesenheit" };
+            List<string> Liste(string k) => (Wert(k) ?? "").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
             var m = new Meldung(Guid.NewGuid().ToString("N"), typ, DateTime.Now, kuerzel, kuerzel, von.ToString("yyyy-MM-dd"), bis.ToString("yyyy-MM-dd"),
-                int.TryParse(Wert("stundeVon"), out var sv) ? sv : null, int.TryParse(Wert("stundeBis"), out var sb) ? sb : null, Wert("grund") ?? "Krankheit", Wert("text"));
+                int.TryParse(Wert("stundeVon"), out var sv) ? sv : null, int.TryParse(Wert("stundeBis"), out var sb) ? sb : null,
+                typ == "abwesenheit" ? Wert("grund") ?? "Krankheit" : Wert("grund"), Wert("text"),
+                Titel: Wert("titel"), Klassen: Liste("klassen"), Raeume: Liste("raeume").Concat(Liste("raum")).Distinct().ToList(), WeitereLehrer: Liste("aufsichten"));
             speicher.MeldungHinzufuegen(id, m);
             return form != null ? Results.Redirect($"/{id}/meldung?ok=1") : Results.Json(new { ok = true, id = m.Id }, Json);
         });

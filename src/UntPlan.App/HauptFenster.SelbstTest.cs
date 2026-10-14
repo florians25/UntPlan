@@ -116,6 +116,12 @@ public sealed partial class HauptFenster
             var m = new MonitorFenster();
             m.Show(this);
         });
+        Schritt("27a_Vertretungsplan_Druck", () =>
+        {
+            var bilder = Druck.VertretungsplanDruck.Bilder(tag, tag, false);
+            bilder[0].Save(Path.Combine(ordner, "27a_Druck_Klassen.png"));
+            Druck.VertretungsplanDruck.Bilder(tag, tag, true)[0].Save(Path.Combine(ordner, "27b_Druck_Lehrer.png"));
+        }, -1);
         Schritt("28_Speichern_Laden", () =>
         {
             var pfad = Path.Combine(ordner, "beispiel" + Dokument.Dateiendung);

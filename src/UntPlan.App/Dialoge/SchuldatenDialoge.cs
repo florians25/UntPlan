@@ -279,6 +279,10 @@ public sealed class EinstellungenDialog : Dialog
         b.CheckedChanged += (_, _) => { AppZustand.Einstellungen.BegruessungZeigen = b.Checked; AppZustand.Einstellungen.Speichern(); };
         var s = Ui.Zeile(_seite, "Stundenpläne synchronisieren (Voreinstellung)", new CheckBox { Checked = AppZustand.Einstellungen.StundenplanSynchronisieren }, ref y, 260);
         s.CheckedChanged += (_, _) => { AppZustand.Einstellungen.StundenplanSynchronisieren = s.Checked; AppZustand.Einstellungen.Speichern(); };
+        var a = Ui.Zeile(_seite, "Automatisch speichern alle … Minuten (0 = aus)", new NumericUpDown { Minimum = 0, Maximum = 120, Value = Math.Clamp(AppZustand.Einstellungen.AutoSpeichernMinuten, 0, 120) }, ref y, 260, 60);
+        a.ValueChanged += (_, _) => { AppZustand.Einstellungen.AutoSpeichernMinuten = (int)a.Value; AppZustand.Einstellungen.Speichern(); AppZustand.Haupt.AutoSpeichernEinstellen(); };
+        var m = Ui.Zeile(_seite, "Beim Start den zuletzt benutzten Modus öffnen", new CheckBox { Checked = AppZustand.Einstellungen.ModusMerken }, ref y, 260);
+        m.CheckedChanged += (_, _) => { AppZustand.Einstellungen.ModusMerken = m.Checked; AppZustand.Einstellungen.Speichern(); };
     }
 }
 
