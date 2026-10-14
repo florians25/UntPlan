@@ -1,6 +1,6 @@
 // Tagesübersicht für das Kollegium: alle Klassen, Lehrkräfte oder Räume eines Tages.
 import { e, icon, holen, heuteIso, plusTage, datumLang, lade } from '../ui.js';
-import { tagesGitter, legende, kartenBinden } from '../plangitter.js';
+import { tagesGitter, kartenBinden } from '../plangitter.js';
 
 const TYPEN = { klasse: 'Klassen', lehrer: 'Lehrkräfte', raum: 'Räume' };
 
@@ -48,8 +48,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
         <span class="badge ${k.tagesaktuell ? 'text-bg-success' : 'text-bg-secondary'}">${k.tagesaktuell ? 'tagesaktuell' : 'Regelplan'}</span></div>
       ${k.hinweise.map(h => `<div class="alert alert-warning py-2 small mb-2">${e(h)}</div>`).join('')}
       ${k.frei ? `<div class="alert alert-secondary">${e(k.freiGrund || 'Unterrichtsfrei')}</div>`
-        : sicht.zeilen.length ? html : '<div class="alert alert-secondary">Keine Einträge.</div>'}
-      ${legende(false)}`;
+        : sicht.zeilen.length ? html : '<div class="alert alert-secondary">Keine Einträge.</div>'}`;
     kartenBinden(inhalt, karten, kontext);
   };
   zeichnen('');

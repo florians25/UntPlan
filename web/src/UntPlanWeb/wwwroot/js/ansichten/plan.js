@@ -1,6 +1,6 @@
 // Stundenpläne (Klasse, Lehrkraft, Raum) als Wochenraster nach Uhrzeit.
 import { e, icon, holen, heuteIso, plusTage, montag, datumKurz, lade } from '../ui.js';
-import { wochenGitter, tagAuswahl, legende, kartenBinden } from '../plangitter.js';
+import { wochenGitter, tagAuswahl, kartenBinden } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
 
 const TYPEN = { klasse: 'Klasse', lehrer: 'Lehrkraft', raum: 'Raum' };
@@ -74,8 +74,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
         <span class="text-body-secondary small">${erster ? `${datumKurz(erster.datum)} – ${datumKurz(letzter.datum)}${letzter.datum.slice(0, 4)}` : ''}${plan.woche ? ` · ${e(plan.woche)}-Woche` : ''}</span>
       </div>
       ${tagAuswahl(plan, gewaehlt)}
-      ${wochenGitter(plan, { gewaehlterTag: gewaehlt })}
-      ${legende(typ === 'lehrer')}`;
+      ${wochenGitter(plan, { gewaehlterTag: gewaehlt })}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext);
   };

@@ -119,7 +119,7 @@
 .std .lbl { display: inline-block; padding: 0 3px; background: #1d9a5c; color: #fff; font-weight: 700; line-height: 15px; font-size: 12px; }
 .z1 .lbl { font-size: 13.5px; line-height: 17px; }
 .std .lbl.offen { background: #e5484d; }
-.std .lbl.weg { text-decoration: line-through; }
+.std .lbl.weg { text-decoration: line-through; text-decoration-thickness: 1.5px; }
 .std .mks { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .std .info { position: absolute; right: 8px; bottom: 8px; width: 12px; height: 12px; border-radius: 50%; background: #7d8a94; color: #fff; font: italic 700 9px/12px Georgia, serif; text-align: center; }
 .std.vergangen { background: #f3f5f7; }
@@ -141,28 +141,23 @@
 .std.klausur { background: #fdf3d4; box-shadow: 0 2px 6px rgba(31, 41, 55, .12); }
 .std.bereitschaft { background: #f3f5f7; outline: 1px dashed #9aa5ad; outline-offset: -1px; }
 .std.bereitschaft::before { background: #2fc6d8; }
-.std.veranstaltung { background: #fff; }
-.std.veranstaltung::before { background: #c45ce0; }
+.std.veranstaltung { background: #dcf5e8; box-shadow: 0 2px 6px rgba(31, 41, 55, .14); }
 .std.vorgemerkt { background: #fff; outline: 1px dashed #8d99a3; outline-offset: -1px; }
 .std.vorgemerkt::before { background: #8d99a3; }
 
-/* Pausenaufsicht auf der Linie zwischen zwei Stunden */
+/* Pausenzeile mit Aufsichten (trennt Blöcke) */
+.tt-pause { position: absolute; left: 0; right: 0; background: #e6eaee; border-top: 1px solid #dde2e7; }
 .aufsicht {
-  position: absolute; left: 6px; right: 6px; z-index: 4; height: 22px; display: flex; align-items: center;
-  background: #fff; color: var(--tt-text); border-radius: 2px; padding: 0 6px 0 14px; overflow: hidden; white-space: nowrap;
-  font-size: 11.5px; font-weight: 600; box-shadow: 0 1px 4px rgba(31, 41, 55, .16);
+  position: absolute; z-index: 4; display: flex; align-items: center; gap: 6px;
+  background: #fff; color: var(--tt-text); padding: 0 8px 0 18px; overflow: hidden; white-space: nowrap;
+  font-size: 12px; font-weight: 600; border-radius: 1px;
 }
-.aufsicht::before { content: ""; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: #8c7ac0; }
-.aufsicht.vertreten { color: #8a96a0; text-decoration: line-through; }
+.aufsicht span { overflow: hidden; text-overflow: ellipsis; }
+.aufsicht::before { content: ""; position: absolute; left: 8px; top: 5px; bottom: 5px; width: 3px; border-radius: 2px; background: #c3cbd2; }
+.aufsicht.vertreten { background: #fde3e3; }
+.aufsicht.vertreten span { text-decoration: line-through; }
 .aufsicht.vertretung { background: #dcf5e8; }
-
-/* Schwebende Legende */
-.tt-legende-huelle { position: sticky; bottom: 14px; z-index: 20; display: flex; justify-content: center; margin-top: 12px; pointer-events: none; }
-.tt-legende { pointer-events: auto; display: flex; gap: 8px; background: #fff; border-radius: 999px; padding: 6px; box-shadow: 0 6px 20px rgba(39, 52, 60, .2); }
-.tt-legende span { display: inline-flex; align-items: center; gap: 7px; background: #5f6c75; color: #fff; font-size: 13.5px; font-weight: 600; padding: 5px 13px; border-radius: 999px; }
-.tt-legende .mk-quadrat, .tt-legende .mk-kreis, .tt-legende .mk-dreieck { width: 15px; height: 15px; }
-.tt-legende .mk-quadrat { outline: 1.5px solid #fff; outline-offset: -1px; }
-.tt-legende .mk-kreis { outline: 1.5px solid #fff; outline-offset: -1px; }
+.aufsicht .mk-plus { order: 2; margin-left: auto; }
 
 /* Tagesauswahl (Mobil) */
 .tt-tagwahl { display: none; }
@@ -230,7 +225,6 @@
   .tt-tagwahl { display: flex; }
   .tt { grid-template-columns: 58px 1fr; }
   .tt .tt-tag:not(.gewaehlt), .tt .tt-spalte:not(.gewaehlt), .tt .tt-leiste:not(.gewaehlt) { display: none; }
-  .tt-legende span { font-size: 12px; padding: 4px 10px; }
   .elementwahl .wahl-menue { width: calc(100vw - 2rem); }
   .monitor { padding: .75rem 0; font-size: 1rem; }
 }
