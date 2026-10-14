@@ -15,10 +15,14 @@ public static class Auswahlbreite
     {
         if (_aktiv) return;
         _aktiv = true;
-        Application.Idle += (_, _) =>
-        {
-            foreach (Form f in Application.OpenForms) Erfassen(f);
-        };
+        Application.Idle += (_, _) => AlleErfassen();
+    }
+
+    /// <summary>Alle offenen Fenster sofort erfassen (sonst beim nächsten Leerlauf).</summary>
+    public static void AlleErfassen()
+    {
+        if (!_aktiv) return;
+        foreach (Form f in Application.OpenForms) Erfassen(f);
     }
 
     private static void OhneHover(DataGridViewComboBoxColumn c)

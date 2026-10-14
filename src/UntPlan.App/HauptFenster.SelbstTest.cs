@@ -54,6 +54,7 @@ public sealed partial class HauptFenster
                 Warten(900);
                 Foto(Path.Combine(ordner, name + ".png"));
                 // Tabellenzellen dürfen beim Überfahren mit der Maus ihr Aussehen nicht ändern
+                Steuerelemente.Auswahlbreite.AlleErfassen();
                 var hover = Application.OpenForms.Cast<Form>().Where(f => f.Visible && f != this).SelectMany(HoverPruefen).ToList();
                 if (hover.Count > 0) log.Add($"FEHLER {name}: Zellen reagieren auf Hover: {string.Join(", ", hover)}");
                 if (Ui.FehlerProtokoll is { Count: > 0 } fp)
