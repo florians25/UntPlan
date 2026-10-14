@@ -41,10 +41,7 @@ public sealed partial class HauptFenster
             E("Vertretungen (Strg+T)", "vertretung", () => VertretungsFensterOeffnen("vertr")),
             E("Vertretungsvorschlag (Strg+G)", "planen", () => VertretungsFensterOeffnen("vorschlag")),
             null,
-            E("Automatik: bester Vorschlag", "optimierung", () => Automatik(AutomatikMethode.BesterVorschlag)),
-            E("Automatik: Bereitschaft und Freigesetzte zuerst", "optimierung", () => Automatik(AutomatikMethode.BereitschaftUndFreigesetzteZuerst)),
-            E("Automatik: Vorziehungen zuerst", "optimierung", () => Automatik(AutomatikMethode.VorziehungenZuerst)),
-            E("Automatik: nur Pausenaufsichten", "pausenaufsicht", () => Automatik(AutomatikMethode.Pausenaufsichten)),
+            E("Vertretungsautomatik…", "optimierung", () => VertretungsautomatikDialog.Zeigen(this, AppZustand.Datum, AppZustand.Datum)),
         }));
         g.Eintraege.Add(E("Ausgabe", "drucken", () => { if (VertretungsFensterOeffnen("vertr") is IDruckbar dr) dr.Drucken(true); }, true, new()
         {
@@ -125,15 +122,6 @@ public sealed partial class HauptFenster
         AppZustand.Einstellungen.Vertretungsansicht = ansicht;
         AppZustand.Einstellungen.Speichern();
         if (VertretungsFensterOeffnen("vertr") is VertretungenFenster vf) vf.AnsichtSetzen(ansicht);
-    }
-
-    private void Automatik(AutomatikMethode m)
-    {
-        var n = 0;
-        using (new WarteCursor())
-            AppZustand.Doc.Aendern("Vertretungsautomatik", AenderungsArt.Vertretung, d => n = VertretungsVorschlag.Automatisch(d, AppZustand.Datum, m, AppZustand.Benutzer));
-        var offen = AppZustand.D.Vertretungen.Count(v => v.Datum == AppZustand.Datum && v.Offen);
-        Ui.Info($"{n} Vertretungen am {Format.Datum(AppZustand.Datum)} wurden bearbeitet.{(offen > 0 ? $"\n{offen} sind weiterhin offen." : "")}", "Vertretungsautomatik");
     }
 
     /// <summary>Fenster der Vertretungsplanung über ihren Schlüssel öffnen (schaltet bei Bedarf in den Vertretungsmodus).</summary>
