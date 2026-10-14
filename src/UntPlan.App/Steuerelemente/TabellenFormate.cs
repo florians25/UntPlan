@@ -73,8 +73,35 @@ public static class TabellenFormate
         g.ColumnHeaderMouseClick += (_, e) =>
         {
             if (e.Button != MouseButtons.Right) return;
-            Menue(g, z).Show(g, g.PointToClient(Cursor.Position));
+            Menue(g, z, e.ColumnIndex).Show(g, g.PointToClient(Cursor.Position));
         };
+        // Strg+E: Spalten an die optimale Breite (Überschrift und Inhalt), Strg+F: an die Breite des Inhalts anpassen
+        g.KeyDown += (_, e) =>
+        {
+            if (g.IsCurrentCellInEditMode || e.Modifiers != Keys.Control) return;
+            if (e.KeyCode == Keys.E) { BreiteAnpassen(g, z, DataGridViewAutoSizeColumnMode.AllCells); e.Handled = e.SuppressKeyPress = true; }
+            else if (e.KeyCode == Keys.F) { BreiteAnpassen(g, z, DataGridViewAutoSizeColumnMode.AllCellsExceptHeader); e.Handled = e.SuppressKeyPress = true; }
+        };
+    }
+
+    /// <summary>Alle sichtbaren Spalten (bzw. eine Spalte) automatisch verbreitern bzw. verschmälern und die Anordnung merken.</summary>
+    private static void BreiteAnpassen(DataGridView g, Zustand z, DataGridViewAutoSizeColumnMode modus, DataGridViewColumn? nur = null)
+    {
+        foreach (var c in g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible && c.AutoSizeMode != DataGridViewAutoSizeColumnMode.Fill && (nur is null || c == nur)))
+        {
+            var breite = c.GetPreferredWidth(modus, true);
+            if (modus == DataGridViewAutoSizeColumnMode.AllCellsExceptHeader && breite < 24) breite = 24;
+            c.Width = Math.Max(c.MinimumWidth, breite);
+        }
+        Merken(g, z);
+    }
+
+    /// <summary>Spalte vom Programm aus ein- bzw. ausblenden und als Benutzereinstellung merken (z. B. Dialog „Felder der Ansicht“).</summary>
+    public static void SpalteSichtbar(DataGridView g, DataGridViewColumn c, bool sichtbar)
+    {
+        if (!Zustaende.TryGetValue(g, out var z)) { c.Visible = sichtbar; return; }
+        if (c.Visible == sichtbar && (sichtbar ? !VomBenutzerVerborgen.Contains(c) : VomBenutzerVerborgen.Contains(c))) return;
+        Sichtbarkeit(g, z, c, sichtbar);
     }
 
     /// <summary>Menü „Spalten ein-/ausblenden, Format …“ einer Tabelle an einer Bildschirmposition zeigen.</summary>
@@ -248,9 +275,18 @@ public static class TabellenFormate
         Setzen(g, z, std);
     }
 
-    private static ContextMenuStrip Menue(DataGridView g, Zustand z)
+    private static ContextMenuStrip Menue(DataGridView g, Zustand z, int spalte = -1)
     {
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
+        // automatische Justierung der Spaltenbreite (wie Untis: Rechtsklick auf die Titelzeile)
+        if (spalte >= 0 && spalte < g.Columns.Count)
+        {
+            var col = g.Columns[spalte];
+            cm.Items.Add("Spaltenbreite anpassen", null, (_, _) => BreiteAnpassen(g, z, DataGridViewAutoSizeColumnMode.ColumnHeader, col));
+        }
+        cm.Items.Add(new ToolStripMenuItem("Alle Spalten anpassen", null, (_, _) => BreiteAnpassen(g, z, DataGridViewAutoSizeColumnMode.AllCells)) { ShortcutKeyDisplayString = "Strg+E" });
+        cm.Items.Add(new ToolStripMenuItem("Alle Spalten an Inhalt anpassen", null, (_, _) => BreiteAnpassen(g, z, DataGridViewAutoSizeColumnMode.AllCellsExceptHeader)) { ShortcutKeyDisplayString = "Strg+F" });
+        cm.Items.Add(new ToolStripSeparator());
         var spalten = new ToolStripMenuItem("Spalten ein-/ausblenden", Symbole.Get("rollup"));
         foreach (var c in g.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex))
         {
@@ -267,11 +303,6 @@ public static class TabellenFormate
         spalten.DropDown.Closing += (_, e) => { if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked) e.Cancel = true; };
         cm.Items.Add(spalten);
         cm.Items.Add("Spalten anpassen…", Symbole.Get("normalform"), (_, _) => Anpassen(g, z));
-        cm.Items.Add("Spaltenbreiten an Inhalt anpassen", null, (_, _) =>
-        {
-            g.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
-            Merken(g, z);
-        });
         cm.Items.Add(new ToolStripSeparator());
         var e = AppZustand.Einstellungen;
         e.AktiveTabellenformate.TryGetValue(z.Schluessel, out var aktiv);

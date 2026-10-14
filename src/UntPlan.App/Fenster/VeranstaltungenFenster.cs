@@ -48,8 +48,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.MultiSelect = true;
         foreach (var (n, k, b) in new[]
         {
-            ("Nr", "VA-Nr.", 50), ("K", "Klasse", 70), ("KT", "Kl-Teil", 60), ("L", "Lehrer", 80), ("R", "Raum", 55), ("V", "Von TT.MM.", 100), ("SV", "ab St.", 42),
-            ("B", "Bis TT.MM.", 100), ("SB", "bis St.", 42),
+            ("Nr", "VA-Nr.", 50), ("K", "Klasse", 70), ("KT", "Kl-Teil", 60), ("L", "Lehrer", 80), ("R", "Raum", 55), ("V", "Von TT.MM.", 100), ("SV", "ab St.", 48),
+            ("B", "Bis TT.MM.", 100), ("SB", "bis St.", 48),
         })
             _g.Columns.Add(n is "V" or "B" ? DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, ReadOnly = n == "Nr" });
         _g.Columns.Add(SuchKombi.Spalte("G", "Grund", 60, D.Abwesenheitsgruende.Select(x => x.Kurzname)));

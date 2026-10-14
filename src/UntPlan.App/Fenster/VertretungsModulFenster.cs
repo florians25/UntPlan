@@ -206,6 +206,7 @@ public sealed class KalenderFenster : MdiFenster
         });
     }
 }
+
 /// <summary>Klausuren (Prüfungen) mit Aufsichten; kollidierender Unterricht der Klassen entfällt.</summary>
 public sealed class KlausurenFenster : MdiFenster
 {
