@@ -235,6 +235,8 @@ setInterval(async () => {
 
 async function route() {
   if (!sitzung?.benutzer || sitzung.benutzer.passwortAendern) return;
+  // offene Dialoge schließen (z. B. Zurück-Taste im Browser)
+  document.querySelectorAll('.modal.show').forEach(m => bootstrap.Modal.getInstance(m)?.hide());
   const teile = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   let name = teile[0] || 'heute';
   if (!ANSICHTEN[name] || (!navPunkte().some(p => p.id === name) && name !== 'profil')) name = 'heute';

@@ -12,10 +12,15 @@ UntPlan beim nächsten Datenaustausch ab.
 - **Heute:** der nächste Unterrichtstag mit Änderungen, Pausenaufsichten, Nachrichten, Terminen und eigenen Meldungen.
 - **Stundenpläne** für Klassen, Lehrkräfte und Räume:
   - Raster nach Unterrichtsstunden mit Uhrzeiten und Jetzt-Linie; gleichzeitige Stunden stehen nebeneinander.
-  - Stundenkarten mit den bekannten Kennzeichen: Änderungen grün hinterlegt, geänderte Werte als grüne Kürzelbox,
-    offene Vertretungen als „???“, Entfall rot und durchgestrichen, Prüfungen gelb.
+    Pausenzeilen (mit Aufsichten) nur dort, wo in der Woche wirklich eine Pause mit Aufsicht liegt.
+  - Leicht abgerundete Stundenkarten mit Beginn/Ende, Akzentbalken in der Fachfarbe aus UntPlan und den bekannten Kennzeichen:
+    Änderungen grün hinterlegt, geänderte Werte als grüne Kürzelbox, offene Vertretungen mit durchgestrichenem alten Wert,
+    Entfall rot und durchgestrichen, Prüfungen gelb.
+  - Ferien, Feiertage und freie Tage als blaue Fläche mit Schloss; Elementwahl mit Vor/Zurück (auch Alt+←/→), Woche mittig, „Heute“.
   - Marker oben rechts (Entfall, Prüfung, Änderung, Zusatzstunde) und Infozeichen bei Zusatztext.
-  - Veranstaltungen: ganztägige als Leiste über dem Tag, stundenweise als eigene Karte; Teilnahmen mehrerer Lehrkräfte werden zusammengefasst.
+  - Veranstaltungen als grüne Zusatzkarten; Teilnahmen mehrerer Lehrkräfte werden zusammengefasst.
+  - Aus den Stundendetails direkt eine Klausur eintragen oder einen freien Raum buchen; beides erscheint sofort auf der Karte
+    („Klausur (vorgemerkt)“ bzw. „Raumänderung (vorgemerkt)“).
   - Bereitschaften, Raumbuchungen und Vormerkungen; Druck, Mobilansicht mit Tagesauswahl.
 - **Tagesübersicht** (Kollegium): alle Klassen, Lehrkräfte oder Räume eines Tages auf einen Blick.
 - **Vertretungsplan** als Schüler- oder Lehrerversion:
@@ -23,11 +28,18 @@ UntPlan beim nächsten Datenaustausch ab.
   - Aufeinanderfolgende Stunden werden zusammengefasst („3–4“).
 - **Monitore:** Vertretungsplan für Info-Bildschirme über einen geheimen Link (ohne Anmeldung), mit Uhr, automatischem Bildlauf und minütlicher Aktualisierung.
 - **Melden & Buchen** (Lehrkräfte):
-  - Abwesenheit melden, freien Raum buchen, Klausur eintragen.
+  - Abwesenheit melden, freien Raum buchen, Klausur eintragen. Buchbar sind nur Räume, die in UntPlan in den Stammdaten
+    als „buchbar (Web)“ markiert sind (ältere Pakete ohne Kennzeichen: alle Räume).
   - Die Meldungen gehen als Rückmeldungen an UntPlan; Buchungen erscheinen sofort als „vorgemerkt“.
 - **Klassenbuch:**
-  - Unterrichtsinhalt, Hausaufgabe mit Fälligkeit und interne Notiz je Stunde, Liste der Stunden ohne Eintrag.
-  - Klassenkonten sehen Hausaufgaben und Inhalte.
+  - Wochenübersicht je Klasse: Inhalt, Hausaufgabe, Anwesenheitsprüfung und Fehlende je Stunde, Vermerke je Tag.
+  - Anwesenheit in den Stundendetails: alle anwesend vorbelegt, Klick schaltet auf „fehlt“ oder „verspätet“ (mit Minuten).
+    Dafür überträgt UntPlan die Schülerliste (UntPlanWeb → Einstellungen → „Schülerliste übertragen“).
+  - Fehlzeitenverwaltung: Summen je Schüler (Stunden, Tage, entschuldigt, unentschuldigt, offen, Verspätungen),
+    Entschuldigen durch Klassenleitung oder Schulleitung, ganze Fehltage (z. B. Krankmeldung) in einem Schritt eintragen.
+  - Vermerke (Lob, Ordnungsmaßnahme, Elterngespräch …) zur Klasse oder zu einzelnen Schülern.
+  - Unterrichtsinhalt, Hausaufgabe mit Fälligkeit und interne Notiz je Stunde, Liste der eigenen Stunden ohne Eintrag.
+  - Klassenkonten sehen Hausaufgaben und Inhalte, aber keine Fehlzeiten, Notizen oder Vermerke.
 - **Mitteilungen** zwischen Kollegium, Schulleitung und Klassen (Gruppen, Klassen, einzelne Benutzer).
 - **Kalenderabo (iCal)** des eigenen Stundenplans inkl. Vertretungen.
 - **Administration:**
