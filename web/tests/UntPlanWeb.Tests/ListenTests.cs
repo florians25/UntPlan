@@ -94,7 +94,7 @@ public class FachpunktTests
     }
 
     [Fact]
-    public async Task Veranstaltung_mit_Raum_steht_auf_der_Karte()
+    public async Task Veranstaltung_mit_Raum_und_allen_Lehrkraeften_steht_auf_der_Karte()
     {
         await using var s = await Testserver.StartenAsync();
         var c = await s.AlsAsync("admin");
@@ -103,6 +103,9 @@ public class FachpunktTests
         var k = Karten(plan, "2026-10-14", 7).Single(x => x["text"]!.GetValue<string>() == "Lehrerkonferenz");
         Assert.Equal("veranstaltung", k["status"]!.GetValue<string>());
         Assert.Contains(k["raeume"]!.AsArray(), r => r!["k"]!.GetValue<string>() == "EDV2");
+        // alle teilnehmenden Lehrkräfte der Veranstaltung (22), nicht nur MUE
+        Assert.Equal(22, k["lehrer"]!.AsArray().Count);
+        Assert.Contains(k["lehrer"]!.AsArray(), l => l!["k"]!.GetValue<string>() == "LAN");
         var raum = await Testserver.HolenAsync(c, "/api/app/plan?typ=raum&element=EDV2&datum=2026-10-14");
         Assert.Contains(Karten(raum, "2026-10-14", 7), x => x["text"]!.GetValue<string>() == "Lehrerkonferenz");
         var tag = await Testserver.HolenAsync(c, "/api/app/tag?typ=raum&datum=2026-10-14");

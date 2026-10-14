@@ -64,6 +64,8 @@ public static class AppApi
                 eingerichtet = !bd.Keiner,
                 schule = new { name = e.Schulname.Length > 0 ? e.Schulname : p.Aktuell?.Paket.Schule.Name ?? "", schulId = b?.IstAdmin == true ? e.SchulId : null },
                 paket = p.Aktuell is { } s ? new { vorhanden = true, revision = s.Paket.Revision, empfangen = s.Empfangen } : null,
+                // Schuljahr für die Schuljahr-Pille in der Navigation
+                schuljahr = p.Aktuell is { } sj && sj.Paket.Schule.SchuljahrVon.Length >= 4 ? new { von = sj.Paket.Schule.SchuljahrVon, bis = sj.Paket.Schule.SchuljahrBis } : null,
                 benutzer = b is null ? null : new
                 {
                     b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Element, b.Kollegium, admin = b.IstAdmin, nachrichten = b.DarfNachrichten,

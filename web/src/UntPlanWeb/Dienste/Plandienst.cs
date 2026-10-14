@@ -184,7 +184,7 @@ public sealed class Plandienst
         return Zusammenfassen(einzel, zeiten);
     }
 
-    /// <summary>Veranstaltungskarte um Räume (und Klassen) der zugehörigen Veranstaltung aus den Terminen ergänzen.</summary>
+    /// <summary>Veranstaltungskarte um Räume, Lehrkräfte (und Klassen) der zugehörigen Veranstaltung aus den Terminen ergänzen.</summary>
     private static Karte MitTermin(Stand s, DateOnly d, Karte k)
     {
         var t = s.Paket.Termine.FirstOrDefault(x => x.Art != "klausur" && Ci.Equals(x.Titel.Trim(), k.Text.Trim()) &&
@@ -192,7 +192,9 @@ public sealed class Plandienst
         if (t is null) return k;
         var raeume = k.Raeume.Concat(t.Raeume.Where(r => !k.Raeume.Any(w => Ci.Equals(w.K, r))).Select(r => new Wert(r))).ToList();
         var klassen = k.Klassen.Count > 0 ? k.Klassen : t.Klassen.Select(x => new Wert(x)).ToList();
-        return k with { Raeume = raeume, Klassen = klassen };
+        // alle teilnehmenden Lehrkräfte der Veranstaltung (nicht nur die des angezeigten Plans)
+        var lehrer = k.Lehrer.Concat(t.Lehrer.Where(l => !k.Lehrer.Any(w => Ci.Equals(w.K, l))).Select(l => new Wert(l))).ToList();
+        return k with { Raeume = raeume, Klassen = klassen, Lehrer = lehrer };
     }
 
     /// <summary>
@@ -206,7 +208,7 @@ public sealed class Plandienst
             .Where(e => e.Klassen.Count + e.Lehrer.Count + e.Raeume.Count > 0 && !vorhanden.Any(k => k.Status == "veranstaltung" && Ci.Equals(k.Text, e.Titel)))
             .Select(e => new Karte(Iso(d), e.Von, e.Bis, zeiten.TryGetValue(e.Von, out var a) ? a.Beginn : "", zeiten.TryGetValue(e.Bis, out var b) ? b.Ende : "",
                 "veranstaltung", "", null, "", "", e.Klassen.Select(x => new Wert(x)).ToList(),
-                e.Lehrer.Count > 8 ? new List<Wert>() : e.Lehrer.Select(x => new Wert(x)).ToList(), e.Raeume.Select(x => new Wert(x)).ToList(),
+                e.Lehrer.Select(x => new Wert(x)).ToList(), e.Raeume.Select(x => new Wert(x)).ToList(),
                 "Veranstaltung", e.Titel, null, null, ""))
             .ToList();
     }
