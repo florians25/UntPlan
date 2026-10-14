@@ -285,10 +285,10 @@ public static class AppApi
             PlanErlaubt(b, Elementtyp.Klasse, klasse);
             return Results.Json(kb.Hausaufgaben(klasse).Select(e => e with { Notiz = "" }));
         });
-        api.MapGet("/klassenbuch/offen", (HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        api.MapGet("/klassenbuch/offen", (int? tage, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = Ich(c);
-            return Results.Json(b.LehrerKuerzel is string l && p.Aktuell is { } s ? kb.OffeneStunden(s, l) : new List<object>());
+            return Results.Json(b.LehrerKuerzel is string l && p.Aktuell is { } s ? kb.OffeneStunden(s, l, tage ?? 14) : new List<object>());
         });
 
         api.MapGet("/klassenbuch/woche", (string klasse, string? datum, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
@@ -330,6 +330,74 @@ public static class AppApi
         {
             if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
             return Results.Json(Klassenbuchdienst.Schueler(Paket(p), new[] { klasse }));
+        });
+
+        // ---------------------------------------------------------------- Listen wie in WebUntis (Unterricht, Prüfungen, Hausaufgaben, Einträge, Abwesenheiten, Berichte)
+
+        DateOnly Von(string? s, DateOnly vorgabe) => DateOnly.TryParse(s, out var d) ? d : vorgabe;
+        static string? Leer(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        static void NurKollegium(Benutzer b) { if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium."); }
+
+        api.MapGet("/unterricht", (string? lehrer, string? klasse, string? datum, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            NurKollegium(b);
+            var le = Leer(lehrer) ?? (Leer(klasse) is null ? b.LehrerKuerzel : null);
+            return Results.Json(l.Unterrichte(Paket(p), Datum(datum, uhr), le, Leer(klasse)));
+        });
+
+        api.MapGet("/pruefungen", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Paketdienst p, Listendienst l, Rueckmeldungsdienst r, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            // Klassenkonten: nur die eigene Klasse, keine Filter nach Lehrkräften
+            var k = b.Kollegium ? Leer(klasse) : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
+            return Results.Json(l.Pruefungen(Paket(p), r.OffeneKlausuren(), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null));
+        });
+
+        api.MapGet("/hausaufgaben", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Listendienst l, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            var k = b.Kollegium ? Leer(klasse) : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
+            var liste = l.Hausaufgaben(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(60)), k, b.Kollegium ? Leer(lehrer) : null);
+            return Results.Json(b.Kollegium ? liste : liste.Select(e => e with { Notiz = "" }).ToList());
+        });
+
+        api.MapGet("/klassenbucheintraege", (string? von, string? bis, string? klasse, string? art, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            NurKollegium(b);
+            return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, eintraege = l.Vermerke(Paket(p), Von(von, uhr.Heute.AddDays(-30)), Von(bis, uhr.Heute), Leer(klasse), Leer(art)) });
+        });
+
+        api.MapGet("/abwesenheiten", (string? von, string? bis, string? klasse, string? status, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            NurKollegium(b);
+            return Results.Json(l.Abwesenheiten(Paket(p), b, Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute), Leer(klasse), Leer(status)));
+        });
+
+        api.MapGet("/berichte/fehlzeiten", (string? von, string? bis, string? klasse, string? format, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            NurKollegium(b);
+            var v = Von(von, uhr.Heute.AddDays(-90));
+            var bi = Von(bis, uhr.Heute);
+            var liste = l.Fehlzeitenbericht(Paket(p), v, bi, Leer(klasse));
+            return format == "csv"
+                ? Results.File(Listendienst.FehlzeitenCsv(liste), "text/csv; charset=utf-8", $"fehlzeiten-{Leer(klasse) ?? "alle"}-{v:yyyy-MM-dd}-{bi:yyyy-MM-dd}.csv")
+                : Results.Json(new { von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste });
+        });
+
+        api.MapGet("/berichte/lehrstoff", (string klasse, string? von, string? bis, string? format, HttpContext c, Listendienst l, Klassenbuchdienst kb, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            NurKollegium(b);
+            var v = Von(von, uhr.Heute.AddDays(-28));
+            var bi = Von(bis, uhr.Heute);
+            var liste = kb.Klasse(klasse ?? "", v, bi).OrderBy(e => e.Datum).ThenBy(e => e.Stunde).ToList();
+            return format == "csv"
+                ? Results.File(Listendienst.LehrstoffCsv(liste), "text/csv; charset=utf-8", $"lehrstoff-{klasse}-{v:yyyy-MM-dd}-{bi:yyyy-MM-dd}.csv")
+                : Results.Json(new { von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste });
         });
 
         // ---------------------------------------------------------------- Profil, Kalender, Monitor

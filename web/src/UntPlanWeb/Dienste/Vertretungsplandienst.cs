@@ -96,13 +96,15 @@ public sealed class Vertretungsplandienst
                 var a when a.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) => "klausur",
                 _ => "geaendert",
             };
-            var neuLehrer = v.Vertreter is "---" ? "" : v.Vertreter;
+            // Vertretung ohne Lehrkraft („+++“): keine neue Lehrkraft, die bisherige steht durchgestrichen
+            var ohneLehrer = v.Vertreter is "+" or "+++";
+            var neuLehrer = v.Vertreter is "---" || ohneLehrer ? "" : v.Vertreter;
             var lehrerAlt = v.Lehrer.Length > 0 && !Ci.Equals(v.Lehrer, neuLehrer) ? v.Lehrer : null;
             var neuRaum = v.NeuerRaum;
             var raumAlt = v.Raum.Length > 0 && !Ci.Equals(v.Raum, neuRaum) ? v.Raum : null;
             var fachAlt = v.Fach.Length > 0 && v.NeuesFach.Length > 0 && !Ci.Equals(v.Fach, v.NeuesFach) ? v.Fach : null;
             // Schülerversion: keine Angaben, wer fehlt – nur, wer vertritt
-            if (!kollegium && status != "entfall") lehrerAlt = null;
+            if (!kollegium && status != "entfall" && !ohneLehrer) lehrerAlt = null;
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,
                 neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, v.Text, v.VertrVon, v.Nach, status);
         }).ToList();
