@@ -60,52 +60,52 @@ public static class RaumZuordnenDialog
     private static int _umfang = 1;
     private static bool _nurFrei;
 
-    public static bool Zeigen(IWin32Window owner, Planstunde p)
+    public static bool Zeigen(IWin32Window owner, Planstunde p, bool modal = true)
     {
         var doc = AppZustand.Doc;
         var ix = doc.Index;
         var u = ix.Unterrichte[p.UnterrichtId];
         var idx = doc.Daten.Stundenplan.IndexOf(p);
-        using var d = new Dialog("Raum zuordnen / löschen", 1040, 600);
+        var d = new Dialog("Raum zuordnen / löschen", 1220, 640);
         d.Ok.Text = "Schließen";
         d.Abbrechen.Visible = false;
         d.MinimumSize = new Size(900, 480);
         d.FormBorderStyle = FormBorderStyle.Sizable;
         var geaendert = false;
 
-        var info = new Label { Left = 10, Top = 10, Width = 470, Height = 52, BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(4), BackColor = Color.White };
-        var umfang = new GroupBox { Text = "Anwenden auf", Left = 500, Top = 4, Width = 230, Height = 88 };
+        var info = new Label { Left = 10, Top = 10, Width = 500, Height = 60, BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(4), BackColor = Color.White };
+        var umfang = new GroupBox { Text = "Anwenden auf", Left = 556, Top = 4, Width = 230, Height = 88 };
         var rbs = new[] { "Unterrichtsstunde", "Stundenblock", "Alle Stunden eines Unterr." }
             .Select((t, i) => new RadioButton { Text = t, Left = 10, Top = 18 + i * 22, Width = 210, Checked = i == _umfang }).ToArray();
         umfang.Controls.AddRange(rbs);
-        var lang = new CheckBox { Text = "Langname anzeigen", Left = 744, Top = 12, AutoSize = true };
-        var nurFrei = new CheckBox { Text = "Nur freie Räume", Left = 744, Top = 34, AutoSize = true, Checked = _nurFrei };
-        var nurWunsch = new CheckBox { Text = "Nur Wunschräume / Raumgruppe", Left = 744, Top = 56, AutoSize = true };
-        var nurKap = new CheckBox { Text = "Nur ausreichende Kapazität", Left = 744, Top = 78, AutoSize = true };
-        var suche = new TextBox { Left = 590, Top = 100, Width = 140, PlaceholderText = "Raum suchen…" };
+        var lang = new CheckBox { Text = "Langname anzeigen", Left = 800, Top = 12, AutoSize = true };
+        var nurFrei = new CheckBox { Text = "Nur freie Räume", Left = 800, Top = 34, AutoSize = true, Checked = _nurFrei };
+        var nurWunsch = new CheckBox { Text = "Nur Wunschräume / Raumgruppe", Left = 800, Top = 56, AutoSize = true };
+        var nurKap = new CheckBox { Text = "Nur ausreichende Kapazität", Left = 800, Top = 78, AutoSize = true };
+        var suche = new TextBox { Left = 700, Top = 100, Width = 180, PlaceholderText = "Raum suchen…" };
 
         d.Controls.Add(new Label { Text = "Auswahl derzeitiger Unterricht:", Left = 10, Top = 104, AutoSize = true });
-        var links = new DataGridView { Left = 10, Top = 124, Width = 470, Height = 380, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
+        var links = new DataGridView { Left = 10, Top = 128, Width = 500, Height = 420, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
         Ui.RasterGestalten(links, false);
         links.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         links.MultiSelect = false;
         links.RowHeadersVisible = false;
-        foreach (var (n, k, w) in new[] { ("U", "Unt.", 40), ("L", "Lehrer", 60), ("F", "Fach", 50), ("R", "Raum", 64), ("K", "Klasse(n)", 100), ("W", "Wunschraum", 80), ("G", "Eff. U-Gruppe", 76) })
+        foreach (var (n, k, w) in new[] { ("U", "Unt.", 40), ("L", "Lehrer", 60), ("F", "Fach", 50), ("R", "Raum", 64), ("K", "Klasse(n)", 110), ("W", "Wunschraum", 84), ("G", "U-Gruppe", 76) })
             links.Columns[links.Columns.Add(n, k)].Width = w;
 
-        var pfeil = new Button { Text = "←", Left = 486, Top = 200, Width = 34, Height = 34, Font = new Font(Ui.Schrift.FontFamily, 13, FontStyle.Bold) };
-        var loeschen = new Button { Text = "✕", Left = 486, Top = 240, Width = 34, Height = 34, ForeColor = Color.Firebrick, Font = new Font(Ui.Schrift.FontFamily, 11, FontStyle.Bold) };
+        var pfeil = new Button { Text = "←", Left = 516, Top = 220, Width = 34, Height = 34, Font = new Font(Ui.Schrift.FontFamily, 13, FontStyle.Bold) };
+        var loeschen = new Button { Image = Symbole.Get("loeschen", 16), Left = 516, Top = 260, Width = 34, Height = 34 };
         var tip = new ToolTip();
         tip.SetToolTip(pfeil, "Markierten Raum zuordnen (Doppelklick)");
         tip.SetToolTip(loeschen, "Raum der markierten Zeile löschen (Entf)");
 
-        d.Controls.Add(new Label { Text = "Mögliche Räume:", Left = 526, Top = 104, AutoSize = true });
-        var rechts = new DataGridView { Left = 526, Top = 124, Width = 504, Height = 380, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        d.Controls.Add(new Label { Text = "Mögliche Räume:", Left = 556, Top = 104, AutoSize = true });
+        var rechts = new DataGridView { Left = 556, Top = 128, Width = 654, Height = 420, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(rechts, false);
         rechts.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         rechts.MultiSelect = false;
         rechts.RowHeadersVisible = false;
-        foreach (var (n, k, w) in new[] { ("Rm", "Rm.", 64), ("Kap", "Kap.", 38), ("AR", "Ausw.-Rm.", 62), ("SR", "Stammr.", 52), ("B", "Besetzt", 52), ("BD", "Besetzt durch", 140), ("RG", "Raumgruppe", 80), ("Ga", "Gang", 50), ("St", "Wo.-Bel.", 52), ("SF", "Std.frei", 52), ("KD", "Kap.Diff.", 56) })
+        foreach (var (n, k, w) in new[] { ("Rm", "Rm.", 64), ("Kap", "Kap.", 38), ("AR", "Ausw.-Rm.", 62), ("SR", "Stammr.", 52), ("B", "Besetzt", 52), ("BD", "Besetzt durch", 118), ("RG", "Raumgruppe", 80), ("Ga", "Gang", 50), ("St", "Wo.-Bel.", 52), ("SF", "Std.frei", 52), ("KD", "Kap.Diff.", 56) })
         {
             var c = rechts.Columns[rechts.Columns.Add(n, k)];
             c.Width = w;
@@ -114,10 +114,22 @@ public static class RaumZuordnenDialog
         }
         var legende = new Label
         {
-            Text = "grün = Wunschraum bzw. Raumgruppe · ✔ = besetzt (in mindestens einer Stunde) · grau = gesperrt · Std.frei = freie Stunden von den betroffenen Stunden",
-            Left = 10, Top = 512, Width = 900, Height = 18, ForeColor = Color.DimGray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom,
+            Text = "grün = Wunschraum bzw. Raumgruppe · rot = besetzt (in mindestens einer Stunde) · grau = gesperrt · Std.frei = freie Stunden von den betroffenen Stunden",
+            Left = 10, Top = 556, Width = 1000, Height = 18, ForeColor = Color.DimGray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom,
         };
         d.Controls.AddRange(new Control[] { info, umfang, lang, nurFrei, nurWunsch, nurKap, suche, links, pfeil, loeschen, rechts, legende });
+        // Häkchen selbst zeichnen (unabhängig von der Schriftart)
+        rechts.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Value as string != "✔" || e.Graphics is null) return;
+            e.PaintBackground(e.CellBounds, true);
+            var r = e.CellBounds;
+            var m = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
+            using var pen = new Pen(rechts.Columns[e.ColumnIndex].Name == "B" ? Color.ForestGreen : Color.SteelBlue, 2.2f);
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            e.Graphics.DrawLines(pen, new[] { new Point(m.X - 5, m.Y), new Point(m.X - 1, m.Y + 4), new Point(m.X + 6, m.Y - 4) });
+            e.Handled = true;
+        };
 
         int Umfang() => Array.FindIndex(rbs, r => r.Checked);
         Planstunde Aktuell() => doc.Daten.Stundenplan[idx];
@@ -233,7 +245,12 @@ public static class RaumZuordnenDialog
         pfeil.Click += (_, _) => Zuordnen();
         loeschen.Click += (_, _) => Loeschen();
         Alles();
-        d.ShowDialog(owner);
+        if (!modal)
+        {
+            d.Show(owner);
+            return false;
+        }
+        using (d) d.ShowDialog(owner);
         return geaendert;
     }
 }

@@ -487,6 +487,10 @@ public sealed class AbwesenheitenFenster : MdiFenster
 public sealed class VeranstaltungenFenster : MdiFenster
 {
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly TextBox _nr = new() { Width = 60 };
+    private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
 
     public VeranstaltungenFenster()
     {
@@ -510,9 +514,47 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex].Name == "Z") _g.EndEdit(); };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0) Bearbeiten(); };
+        _von.Value = _bis.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
+        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Veranstaltungen");
+        _zeitraum.Geaendert += () => { if (!_laedt) Neuaufbau(); };
+        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 56, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        var gruppe = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), MinimumSize = new Size(0, 50) };
+        gruppe.Controls.Add(_zeitraum);
+        _zeitraum.Location = new Point(6, 18);
+        kopf.Controls.Add(gruppe);
+        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 30, Padding = new Padding(4, 3, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        unten.Controls.Add(new Label { Text = "VA-Nr.:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+        unten.Controls.Add(_nr);
+        _nr.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode != Keys.Enter || !int.TryParse(_nr.Text, out var nr)) return;
+            e.SuppressKeyPress = true;
+            if (D.Veranstaltungen.FirstOrDefault(x => x.Id == nr) is not { } va) { Ui.Info($"Die Veranstaltung Nr. {nr} gibt es nicht."); return; }
+            if (va.Bis < DateOnly.FromDateTime(_von.Value) || va.Von > DateOnly.FromDateTime(_bis.Value))
+            {
+                _zeitraum.ArtSetzen(Steuerelemente.Zeitraumart.VonBis);
+                _laedt = true;
+                _von.Value = va.Von.ToDateTime(TimeOnly.MinValue);
+                _bis.Value = va.Bis.ToDateTime(TimeOnly.MinValue);
+                _laedt = false;
+                Neuaufbau();
+            }
+            foreach (DataGridViewRow r in _g.Rows) if (r.Tag is Veranstaltung x && x.Id == nr) _g.CurrentCell = r.Cells[1];
+        };
+        _g.SelectionChanged += (_, _) => { if (!_laedt && !_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Veranstaltung)?.Id.ToString() ?? ""; };
         Controls.Add(_g);
+        Controls.Add(kopf);
+        Controls.Add(unten);
         Controls.Add(ts);
+        AppZustand.DatumGewechselt += DatumGewechselt;
+        FormClosed += (_, _) => AppZustand.DatumGewechselt -= DatumGewechselt;
         Neuaufbau();
+    }
+
+    private void DatumGewechselt(DateOnly datum)
+    {
+        if (IsDisposed || _zeitraum.Art == Steuerelemente.Zeitraumart.VonBis) return;
+        _von.Value = datum.ToDateTime(TimeOnly.MinValue);
     }
 
     protected override bool EigeneAenderungenAnzeigen => true;
@@ -526,7 +568,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
         var pos = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 1);
         _laedt = true;
         _g.Rows.Clear();
-        foreach (var v in D.Veranstaltungen.OrderBy(v => v.Von))
+        var von = DateOnly.FromDateTime(_von.Value);
+        var bis = DateOnly.FromDateTime(_bis.Value);
+        foreach (var v in D.Veranstaltungen.Where(v => v.Bis >= von && v.Von <= bis).OrderBy(v => v.Von))
         {
             var r = _g.Rows.Add(v.Id, v.Text, Format.Datum(v.Von), v.StundeVon, Format.Datum(v.Bis), v.StundeBis >= 99 ? "" : v.StundeBis.ToString(), Ix.KKlassen(v.KlassenIds),
                 string.Join(",", v.LehrerIds.Select(Ix.KLehrer)), string.Join(",", v.RaumIds.Select(Ix.KRaum)), D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Zaehlen);
@@ -544,7 +588,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         if (_laedt || e.RowIndex < 0) return;
         var zeile = _g.Rows[e.RowIndex];
         var alt = zeile.Tag as Veranstaltung;
-        var v = alt is null ? new Veranstaltung { Von = AppZustand.Datum, Bis = AppZustand.Datum } : Kopie(alt);
+        var start = DateOnly.FromDateTime(_von.Value);
+        var v = alt is null ? new Veranstaltung { Von = start, Bis = start } : Kopie(alt);
         var wert = zeile.Cells[e.ColumnIndex].Value is bool bw ? (bw ? "1" : "") : zeile.Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
         try
         {

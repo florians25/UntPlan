@@ -139,15 +139,22 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
         var mitte = new Panel { Dock = DockStyle.Fill };
         // Plan scrollt senkrecht, wenn die Zellen für alle Werte untereinander höher sein müssen als das Fenster
-        var planRahmen = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        var planRahmen = new Panel { Dock = DockStyle.Fill };
         _plan.Dock = DockStyle.None;
         planRahmen.Controls.Add(_plan);
         void PlanGroesse()
         {
-            var breite = planRahmen.ClientSize.Width;
-            var hoehe = Math.Max(planRahmen.ClientSize.Height, _plan.BenoetigteHoehe);
-            if (hoehe > planRahmen.ClientSize.Height) breite = planRahmen.Width - SystemInformation.VerticalScrollBarWidth - 2;
-            _plan.SetBounds(0, planRahmen.AutoScrollPosition.Y, Math.Max(100, breite), hoehe);
+            // nur blättern, wenn die Zellen tatsächlich mehr Platz brauchen (sonst füllt der Plan das Fenster ohne Rollbalken)
+            var innen = planRahmen.Height - 2;
+            var blaettern = _plan.BenoetigteHoehe > innen;
+            if (planRahmen.AutoScroll != blaettern)
+            {
+                planRahmen.AutoScroll = blaettern;
+                if (!blaettern) planRahmen.AutoScrollPosition = Point.Empty;
+            }
+            var breite = blaettern ? planRahmen.Width - SystemInformation.VerticalScrollBarWidth - 2 : planRahmen.Width;
+            var hoehe = blaettern ? _plan.BenoetigteHoehe : planRahmen.Height;
+            _plan.SetBounds(0, blaettern ? planRahmen.AutoScrollPosition.Y : 0, Math.Max(100, breite), hoehe);
         }
         planRahmen.Resize += (_, _) => PlanGroesse();
         _planGroesse = PlanGroesse;

@@ -107,7 +107,18 @@ public static class PortalServer
             if (paket?.Schema != UntPlan.Web.Contracts.UntPlanWebSchema.Schema) return Fehler(400, $"Schema {UntPlan.Web.Contracts.UntPlanWebSchema.Schema} erwartet");
             var bisher = speicher.WebRevision(id);
             if (paket.Revision <= bisher) return Fehler(409, $"Veraltete Revision {paket.Revision} (aktuell {bisher})");
-            speicher.WebPaketSpeichern(id, JsonSerializer.Serialize(paket, UntPlan.Web.Contracts.UntPlanWebSchema.Json), paket.Revision);
+            var json = JsonSerializer.Serialize(paket, UntPlan.Web.Contracts.UntPlanWebSchema.Json);
+            // Teilpaket: nur die übertragenen Teile ersetzen, die übrigen vom bisherigen Stand übernehmen
+            if (paket.Teile.Count > 0 && speicher.WebPaket(id) is { } alt && JsonNode.Parse(json) is JsonObject neu)
+            {
+                foreach (var (teil, felder) in UntPlan.Web.Contracts.WebTeile.Felder)
+                {
+                    if (paket.Teile.Contains(teil)) continue;
+                    foreach (var f in felder) neu[f] = alt[f]?.DeepClone();
+                }
+                json = neu.ToJsonString();
+            }
+            speicher.WebPaketSpeichern(id, json, paket.Revision);
             return Results.Json(new UntPlan.Web.Contracts.WebAntwort(true, paket.Revision, null), UntPlan.Web.Contracts.UntPlanWebSchema.Json);
         });
 
@@ -263,6 +274,12 @@ public static class PortalServer
         {
             var p = Pfad(schule, "untplanweb.revision");
             return File.Exists(p) && int.TryParse(File.ReadAllText(p), out var r) ? r : 0;
+        }
+
+        public JsonObject? WebPaket(string schule)
+        {
+            var p = Pfad(schule, "untplanweb.json");
+            return File.Exists(p) ? JsonNode.Parse(File.ReadAllText(p)) as JsonObject : null;
         }
 
         public void WebPaketSpeichern(string schule, string json, int revision)

@@ -23,6 +23,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private readonly CheckBox _kollisionen = new() { Text = "Kollisionen", AutoSize = true };
     private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
     private readonly CheckBox _veranstaltungen = new() { Text = "Veranstaltungszeilen", AutoSize = true };
+    private readonly GroupBox _elementGruppe;
+    private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
     private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
     private readonly TextBox _nr = new() { Width = 60 };
     private readonly Label _status = new() { AutoSize = true, ForeColor = Color.DimGray, Padding = new Padding(12, 5, 0, 0) };
@@ -67,18 +69,23 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
         ts.Items.Add(Knopf("Einstellungen", "einstellungen", () => VertretungsEinstellungenDialog.Zeigen(this)));
 
-        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 30, Padding = new Padding(4, 3, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        filter.Controls.Add(new Label { Text = "Element:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
-        filter.Controls.Add(_element);
-        filter.Controls.AddRange(Ui.Durchschalter(_element));
-        filter.Controls.Add(new Label { Text = "  Von", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
-        filter.Controls.Add(_von);
-        filter.Controls.Add(new Label { Text = "Bis", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
-        filter.Controls.Add(_bis);
-        filter.Controls.Add(_offen);
-        filter.Controls.Add(_kollisionen);
-        filter.Controls.Add(_veranstaltungen);
-        _offen.Padding = _kollisionen.Padding = _veranstaltungen.Padding = new Padding(8, 3, 0, 0);
+        // Kopf wie im Vertretungsfenster üblich: Element, Zeitraum (Tag/Woche/Von-Bis), Ansicht einschränken
+        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 58, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        GroupBox Gruppe(string text, params Control[] inhalt)
+        {
+            var g = new GroupBox { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), Margin = new Padding(2, 0, 6, 0), MinimumSize = new Size(0, 52) };
+            var fl = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0), Padding = new Padding(0, 2, 0, 0) };
+            fl.Controls.AddRange(inhalt);
+            g.Controls.Add(fl);
+            return g;
+        }
+        _elementGruppe = Gruppe("Klasse(n)", new Control[] { _element }.Concat(Ui.Durchschalter(_element)).ToArray());
+        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen");
+        _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Lehrer" : "Klasse(n)";
+        filter.Controls.Add(_elementGruppe);
+        filter.Controls.Add(Gruppe("Von-Bis", _zeitraum));
+        _offen.Padding = _kollisionen.Padding = _veranstaltungen.Padding = new Padding(2, 4, 6, 0);
+        filter.Controls.Add(Gruppe("Ansicht einschränken auf …", _offen, _kollisionen, _veranstaltungen));
         new ToolTip().SetToolTip(_veranstaltungen, "Zeilen der Veranstaltungen selbst (Teilnahme der Lehrer) zeigen. Ohne Haken erscheinen nur die Freisetzungen, Entfälle und Vertretungen.");
 
         var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 30, Padding = new Padding(4, 3, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
@@ -136,8 +143,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Kontextmenue(e.Location);
         };
 
-        _von.ValueChanged += (_, _) => { if (_bis.Value < _von.Value) _bis.Value = _von.Value; ZeitraumGeaendert(); };
-        _bis.ValueChanged += (_, _) => { if (_bis.Value < _von.Value) _von.Value = _bis.Value; ZeitraumGeaendert(); };
+        _zeitraum.Geaendert += ZeitraumGeaendert;
         _offen.CheckedChanged += (_, _) => Neuaufbau();
         _kollisionen.CheckedChanged += (_, _) => Neuaufbau();
         _element.SelectedIndexChanged += (_, _) => { if (!_laedt) Neuaufbau(); };
@@ -148,6 +154,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             AppZustand.Einstellungen.Speichern();
             Text = "Vertretungen / " + Ansichten[_ansicht.SelectedIndex].Replace(" - ", " – ");
             ElementeFuellen();
+            _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Lehrer" : "Klasse(n)";
             Neuaufbau();
         };
         _nr.KeyDown += (_, e) =>

@@ -113,6 +113,16 @@ public sealed class PortalEinstellungen
     public int TageVoraus { get; set; } = 7;
     public DateTime? LetzteSynchronisation { get; set; }
     public int Revision { get; set; }
+    /// <summary>Anfangsdatum für Unterricht, Vertretungen und Absenzen aktivieren (sonst ab heute).</summary>
+    public bool AnfangsdatumAktiv { get; set; }
+    public DateOnly? Anfangsdatum { get; set; }
+    public bool IgnoriertenUnterrichtUebertragen { get; set; }
+    public bool FerienNichtExportieren { get; set; }
+    public bool LehrerEmail { get; set; }
+    public bool LehrerAbsenzen { get; set; } = true;
+    public bool Absenzgruende { get; set; }
+    /// <summary>Letzter erfolgreicher Export bzw. Import je Teil (stammdaten, unterricht, vertretungen, absenzen).</summary>
+    public Dictionary<string, DateTime> LetzteUebertragung { get; set; } = new();
 }
 
 // Abwesenheiten, Vertretungen, Veranstaltungen usw.: siehe Vertretungsmodell.cs

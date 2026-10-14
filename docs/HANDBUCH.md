@@ -258,11 +258,42 @@ Wird auf eine belegte Stunde gezogen, fragt UntPlan nach **Tauschen** oder **Ver
 
 ### Raumzuordnung
 
-*Raum zuordnen* listet alle Räume mit ihrem Status (frei, belegt, Ausweichraum, Raumgruppe). Ist der gewählte Raum belegt, haben Sie drei Möglichkeiten:
+![Raum zuordnen](bilder/25e_Raumzuordnung.png)
+
+*Raum zuordnen / löschen* zeigt links die Kopplungszeilen des Unterrichts und rechts alle möglichen Räume.
+
+**Anwenden auf:** die markierte Unterrichtsstunde, den ganzen Stundenblock oder alle Stunden des Unterrichts.
+
+**Spalten der Raumliste:**
+
+| Spalte | Bedeutung |
+|---|---|
+| Kap. | Kapazität des Raums |
+| Ausw.-Rm. | Ausweichraum des Wunschraums |
+| Stammr. | Stammraum einer beteiligten Klasse |
+| Besetzt / Besetzt durch | belegt durch anderen Unterricht; A/B-Wochen werden beachtet |
+| Raumgruppe, Gang | Zuordnung des Raums |
+| Wo.-Bel. | Belegung des Raums in der Woche |
+| Std.frei | in wie vielen der betroffenen Stunden der Raum frei ist |
+| Kap.Diff. | Kapazität minus Schülerzahl der Klassen |
+
+**Farben:** grün = Wunschraum bzw. Raumgruppe, rot = besetzt, grau = gesperrt.
+
+**Filter:**
+
+- nur freie Räume
+- nur Wunschräume
+- nur ausreichende Kapazität
+- Suchfeld
+- Langnamen anzeigen
+
+**Bedienung:** Doppelklick, Enter oder ← ordnet den Raum zu; das Löschsymbol bzw. Entf entfernt ihn.
+
+Ist der gewählte Raum belegt, haben Sie drei Möglichkeiten:
 
 - **Verdrängen:** Der andere Unterricht verliert den Raum.
-- **Kollision zulassen.**
 - **Räume tauschen.**
+- **Kollision zulassen.**
 
 In der **Übersicht** (Raumplan quer) verlegen Sie Räume per Drag & Drop.
 
@@ -273,6 +304,9 @@ In der **Übersicht** (Raumplan quer) verlegen Sie Räume per Drag & Drop.
 ## 7. Stundenpläne
 
 - **Planarten:** Klassen-, Lehrer-, Raum- und Fachpläne, jeweils normal oder groß.
+- **Blöcke:** Doppelstunden und Blöcke erscheinen als ein Feld. Laufen mehrere Blöcke gleichzeitig, stehen sie nebeneinander; mehrere Einzelstunden derselben Stunde stehen untereinander.
+- **Vertretungsmodus:** Die Pläne sind kompakter und passen ohne Blättern auf die Seite.
+- **Durchschalten:** ◄ ► neben der Elementauswahl wechselt zum vorherigen bzw. nächsten Element.
 - **Auswahl:** oben im Fenster. Mit **Synchronisation** folgt der Plan der Auswahl in anderen Fenstern.
 - **Woche:** Mit *Woche* sehen Sie den Plan einer bestimmten Kalenderwoche mit eingetragenen Vertretungen.
 - **Stundenlupe:** zeigt unten alle Details der markierten Stunde.
@@ -300,6 +334,15 @@ In der **Übersicht** (Raumplan quer) verlegen Sie Räume per Drag & Drop.
 ### Vertretungsfenster
 
 ![Vertretungen](bilder/16_Vertretungen.png)
+
+**Kopfbereich:**
+
+- **Klasse(n)** bzw. **Lehrer:** Auswahl mit „(alle)“ und ◄ ►.
+- **Von-Bis:** Datum mit Wochentag und ◄ ►. Über die Kalenderschaltfläche wählen Sie **Tag**, **Woche** oder **Von-Bis**.
+- **Ansicht einschränken auf …:** offene Vertretungen, Kollisionen, Veranstaltungszeilen.
+- **Vtr-Nr.** (unten): zeigt die Nummer der markierten Vertretung. Eine eingetippte Nummer springt zu dieser Vertretung.
+
+Bei Veranstaltungen zeigt die Liste nur die Freisetzungen, Entfälle und Vertretungen. Die Zeilen der Veranstaltung selbst blendet *Veranstaltungszeilen* ein.
 
 Arbeitsablauf:
 
@@ -362,7 +405,7 @@ Rechts steht die Übersicht aller Lehrer mit Soll, Ist, Anzahl und Pausenaufsich
 ### Kalender, Veranstaltungen, Klausuren, Bereitschaften
 
 - **Kalender:** Wochenübersicht mit der Anzahl der Abwesenheiten und Vertretungen je Tag. Auf der zweiten Karteikarte bearbeiten Sie die Tagestexte direkt.
-- **Veranstaltungen** (Exkursionen, Konferenzen, Projekttage) und **Klausuren** werden in der Liste direkt eingetragen. Beteiligte Klassen, Lehrer und Räume gelten in diesem Zeitraum als abwesend bzw. belegt.
+- **Veranstaltungen** (Exkursionen, Konferenzen, Projekttage) und **Klausuren** werden in der Liste direkt eingetragen. Das Veranstaltungsfenster zeigt den gewählten Zeitraum (Tag, Woche, Von-Bis); *VA-Nr.* springt zu einer Veranstaltung. Beteiligte Klassen, Lehrer und Räume gelten in diesem Zeitraum als abwesend bzw. belegt.
 - **Sondereinsätze:** Raster mit Klassen und Lehrern, dazu eine Schaltfläche für eine Klassenkonferenz.
 - **Bereitschaften:** zeigt, wer am gewählten Tag in welcher Stunde Bereitschaft hat und ob diese schon für eine Vertretung verbraucht ist.
 - **Vormerkungen:** Ziehen Sie eine Vormerkung in den Tagesplan, um sie zu verplanen.
@@ -436,7 +479,8 @@ Perioden sind verschiedene Stundenpläne für Abschnitte des Schuljahres, z. B. 
 
 - **Bedarf einer Stunde:** links wählen. **Bedarf für alle Vormittagsstunden setzen** füllt die übliche Grundversorgung auf einmal.
 - **Lehrervorschlag:** listet freie Lehrer mit Punkten, Bereitschaften pro Woche, freien Stunden und Lage (Hohlstunde, Tagesrand). Ein Doppelklick teilt den Lehrer ein.
-- **Fehlende Bereitschaften automatisch besetzen** verteilt den offenen Bedarf gleichmäßig. Dabei werden Zeitwünsche und die Wertrechnung beachtet.
+- **Fehlende Bereitschaften automatisch besetzen** verteilt den offenen Bedarf gleichmäßig.
+- **Bereitschaften nur als Doppelstunden verplanen:** Die Automatik besetzt dann immer zwei aufeinanderfolgende Stunden mit demselben Lehrer, bevorzugt zwei Stunden mit offenem Bedarf. Dabei werden Zeitwünsche und die Wertrechnung beachtet.
 
 ### Unterrichtsgruppen (A/B-Wochen)
 
@@ -459,11 +503,23 @@ Exportieren Sie eine Abteilungsdatei, planen Sie die Abteilung getrennt und füh
 
 **BAL-Import:** *Dateneingabe → BAL-Import* (oder *Import/Export*) übernimmt einen Stundenplan aus einer WILLI2-BAL-Datei. Wahlweise werden Zeitraster, Stammdaten, Zeitwünsche, Unterricht, Stundenplan und Pausenaufsichten übernommen. Fehlende Elemente werden angelegt.
 
-**UntPlanWeb** (Menü *Datei → UntPlanWeb*): Hier bereiten Sie die Veröffentlichung für das Online-Portal UntPlanWeb vor.
+**UntPlanWeb** (Menü *Datei → UntPlanWeb → Datenaustausch*):
 
-- **Übertragen** sendet Stundenpläne, Vertretungen, Tagestexte und Ferien als Paket an den Server. Personenbezogene Felder lassen sich in den Datenschutzoptionen ausblenden.
-- **Rückmeldungen** holt Krankmeldungen und Hinweise aus dem Portal ab.
-- **Paket als Datei exportieren** erzeugt das Paket offline als JSON-Datei.
+![UntPlanWeb](bilder/25d_UntPlanWeb.png)
+
+| Zeile | Inhalt |
+|---|---|
+| Stammdaten | Schule, Zeitraster, Klassen, Lehrer, Räume, Fächer, Ferien |
+| Unterricht* | Perioden mit Unterricht und Stundenplan, Pausenaufsichten |
+| Vertretungen* | tagesaktuelle Pläne, Vertretungen, Absenzen, Termine, Nachrichten zum Tag |
+| Absenzen* (Import) | Krankmeldungen und Nachrichten aus UntPlanWeb |
+
+- Jeder Teil lässt sich einzeln exportieren; UntPlanWeb ersetzt nur die übertragenen Teile. *Alles exportieren* überträgt alles.
+- Mit * markierte Daten gelten ab heute oder ab dem aktivierten Anfangsdatum.
+- Schlägt die Übertragung fehl, erscheint oben ein Hinweis mit dem Grund und einem Link zu den Verbindungseinstellungen.
+- **Einstellungen:** Schul-ID, Server, Port, https, API-Schlüssel, Tage voraus und *Verbindung prüfen*.
+- **Optionen:** ignorierten Unterricht übertragen, Ferien nicht als Stammdaten exportieren, E-Mail-Adressen, Lehrer-Absenzen, Absenzgründe (vertrauliche Gründe nie).
+- *Paket als Datei exportieren* erzeugt das Paket offline als JSON-Datei.
 - Schema und Schnittstelle stehen in [UNTPLANWEB.md](UNTPLANWEB.md).
 
 **WebPortal** (*Module → Web-Portal*): Tragen Sie Adresse, Schul-ID und API-Schlüssel ein. **Synchronisieren** lädt Stundenplan, Vertretungen, Tagestexte und Ferien hoch und übernimmt Krankmeldungen aus dem Portal als Abwesenheiten.
@@ -542,15 +598,18 @@ Die Benutzerverwaltung (Recht „Benutzerverwaltung") hat drei Karteikarten:
 ## 13. Bedienung: Tabellen, Suche, Formate
 
 - **Ein Klick genügt:** Ein Klick in ein änderbares Tabellenfeld startet die Bearbeitung.
-- **Suche in Auswahllisten:** In allen Auswahllisten (Lehrer, Klassen, Räume, Fächer, Ansichten usw.) können Sie tippen. Die Liste springt auf den ersten passenden Eintrag; dabei wird auch innerhalb der Namen gesucht. Enter oder Verlassen des Feldes übernimmt den Eintrag.
-- **Eigene Tabellenformate:** Ein Rechtsklick auf einen Spaltenkopf öffnet das Formatmenü.
-  - Spalten ein- und ausblenden.
-  - Spalten mit der Maus verschieben und in der Breite ändern.
-  - Die aktuelle Anordnung unter einem Namen speichern.
-  - Zwischen eigenen Formaten und dem Standardformat wechseln.
-  - Ein Format löschen.
+- **Suche in Auswahllisten:** In allen Auswahllisten, auch in Tabellen, können Sie tippen. Die Liste öffnet sich und markiert den besten Treffer; es gibt keine zusätzliche Vorschlagsliste.
+  - Gesucht wird im Kurz- und im Langnamen.
+  - Enter oder Verlassen des Feldes übernimmt den Eintrag.
+  - Neben dem Kurznamen steht grau der Langname.
+  - Die Liste öffnet immer nach unten.
+- **Spaltenformatierung:** Ein Rechtsklick auf einen Spaltenkopf öffnet das Formatmenü.
+  - **Spalten ein-/ausblenden** über eine Liste, die beim Anklicken offen bleibt.
+  - **Spalten anpassen…** öffnet einen Dialog: Zeigen, Reihenfolge (▲ ▼), eigene Überschrift, Breite, Ausrichtung, Fixieren (bleibt beim waagerechten Blättern stehen).
+  - **Spaltenbreiten an Inhalt anpassen.**
+  - **Tabellenformat:** eigene Formate speichern, wechseln, löschen; Standard wiederherstellen.
 
-  Das zuletzt gewählte Format gilt beim nächsten Öffnen wieder.
+  Jede Änderung, auch Verschieben und Verbreitern mit der Maus, wird sofort gemerkt und gilt nach jedem Neuaufbau und beim nächsten Öffnen. Ausgeblendete Spalten bleiben ausgeblendet.
 - **Druckformat-Editor:** Vor der Seitenansicht einer Liste öffnet sich das *Druckformular*. Dort legen Sie fest:
   - Überschrift, Fußzeile und Summenzeile.
   - Schriftgröße und Hoch- oder Querformat.

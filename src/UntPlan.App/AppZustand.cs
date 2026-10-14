@@ -89,6 +89,8 @@ public sealed class Benutzereinstellungen
     public Dictionary<string, string> AktiveTabellenformate { get; set; } = new();
     /// <summary>Aktuelle (automatisch gemerkte) Spaltenanordnung je Tabelle.</summary>
     public Dictionary<string, List<Tabellenspalte>> Tabellenlayouts { get; set; } = new();
+    /// <summary>Gewählte Zeitraumart (Tag, Woche, Von-Bis) je Fenster.</summary>
+    public Dictionary<string, string> Zeitraumarten { get; set; } = new();
 
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 

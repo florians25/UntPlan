@@ -45,6 +45,26 @@ public class UntPlanWebTests
     }
 
     [Fact]
+    public void TeilpaketeEnthaltenNurDieGewaehltenTeile()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var stamm = UntPlanWebExport.PaketErstellen(d, tag, WebExportOptionen.Aus(d.Einstellungen.Portal, WebTeile.Stammdaten));
+        Assert.Equal(new[] { WebTeile.Stammdaten }, stamm.Teile);
+        Assert.NotEmpty(stamm.Elemente.Klassen);
+        Assert.Empty(stamm.Perioden);
+        Assert.Empty(stamm.Tage);
+        var vertr = UntPlanWebExport.PaketErstellen(d, tag, WebExportOptionen.Aus(d.Einstellungen.Portal, WebTeile.Vertretungen));
+        Assert.Empty(vertr.Perioden);
+        Assert.NotEmpty(vertr.Tage);
+        d.Einstellungen.Portal.FerienNichtExportieren = true;
+        var unt = UntPlanWebExport.PaketErstellen(d, tag, WebExportOptionen.Aus(d.Einstellungen.Portal, WebTeile.Stammdaten, WebTeile.Unterricht));
+        Assert.NotEmpty(unt.Perioden);
+        Assert.Empty(unt.Ferien);
+        Assert.Empty(unt.Tage);
+    }
+
+    [Fact]
     public async Task UebertragungUndRueckmeldungen()
     {
         var ordner = Path.Combine(Path.GetTempPath(), "untplan_web_" + Guid.NewGuid().ToString("N"));

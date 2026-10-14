@@ -102,6 +102,14 @@ public sealed partial class HauptFenster
         Schritt("25a_Optimierung", () => new OptimierungDialog().Show(this), 2);
         Schritt("25b_Bereitschaftsplanung", () => Max(FensterOeffnen("bereitplan")!), 2);
         Schritt("25c_Unterrichtsgruppen", () => Max(FensterOeffnen("ugruppen")!), 2);
+        Schritt("25d_UntPlanWeb", () =>
+        {
+            var w = new UntPlanWebDialog();
+            w.Show(this);
+            w.FehlerAnzeigen("UntPlanWeb-Übertragungsfehler!", "Es konnte keine Verbindung zum Server hergestellt werden. Überprüfen Sie Ihre Internetverbindung, die Verbindungseinstellungen und gegebenenfalls den Status des UntPlanWeb-Servers.");
+        }, 0);
+        Schritt("25d2_UntPlanWeb_Einstellungen", () => new UntPlanWebEinstellungenDialog().Show(this), 0);
+        Schritt("25e_Raumzuordnung", () => RaumZuordnenDialog.Zeigen(this, AppZustand.D.Stundenplan.FirstOrDefault(p => Core.Planung.Planungsdienst.BlockVon(AppZustand.D, p).Count > 1) ?? AppZustand.D.Stundenplan[0], false), 2);
         Schritt("26_Kommentare", () => Max(new KommentarUebersicht()).Show(), 1);
         Schritt("27_Monitor", () =>
         {

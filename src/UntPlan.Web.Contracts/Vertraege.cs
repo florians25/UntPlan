@@ -29,6 +29,21 @@ public static class UntPlanWebSchema
     };
 }
 
+public static class WebTeile
+{
+    public const string Stammdaten = "stammdaten";
+    public const string Unterricht = "unterricht";
+    public const string Vertretungen = "vertretungen";
+
+    /// <summary>JSON-Eigenschaften des Pakets je Teil (für das Zusammenführen auf dem Server).</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> Felder = new Dictionary<string, string[]>
+    {
+        [Stammdaten] = new[] { "schule", "zeitraster", "elemente", "ferien" },
+        [Unterricht] = new[] { "perioden", "pausenaufsichten" },
+        [Vertretungen] = new[] { "tage", "vertretungen", "absenzen", "termine", "tagestexte", "von", "bis" },
+    };
+}
+
 public sealed record WebPaket
 {
     public string Schema { get; init; } = UntPlanWebSchema.Schema;
@@ -48,6 +63,12 @@ public sealed record WebPaket
     public List<WebTagestext> Tagestexte { get; init; } = new();
     public List<WebFerien> Ferien { get; init; } = new();
     public List<WebAufsicht> Pausenaufsichten { get; init; } = new();
+    /// <summary>
+    /// Übertragene Teile: "stammdaten" (Schule, Zeitraster, Elemente, Ferien), "unterricht" (Perioden mit Unterricht und
+    /// Stundenplan, Pausenaufsichten), "vertretungen" (Tage, Vertretungen, Absenzen, Termine, Tagestexte).
+    /// Leer = vollständiges Paket. UntPlanWeb ersetzt nur die übertragenen Teile und behält die übrigen.
+    /// </summary>
+    public List<string> Teile { get; init; } = new();
     /// <summary>Übertragener Zeitraum der tagesaktuellen Daten.</summary>
     public string Von { get; init; } = "";
     public string Bis { get; init; } = "";

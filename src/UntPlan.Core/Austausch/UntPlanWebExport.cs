@@ -18,6 +18,19 @@ public sealed class WebExportOptionen
     public bool LehrerAbsenzen { get; set; } = true;
     /// <summary>Absenzgründe übertragen (vertrauliche Gründe nie).</summary>
     public bool Absenzgruende { get; set; }
+    /// <summary>Zu übertragende Teile (WebTeile); leer = alles.</summary>
+    public HashSet<string> Teile { get; set; } = new();
+    public bool IgnoriertenUnterricht { get; set; }
+    public bool Ferien { get; set; } = true;
+
+    public bool Mit(string teil) => Teile.Count == 0 || Teile.Contains(teil);
+
+    /// <summary>Optionen aus den UntPlanWeb-Einstellungen der Schuldatei.</summary>
+    public static WebExportOptionen Aus(PortalEinstellungen p, params string[] teile) => new()
+    {
+        TageVoraus = Math.Max(1, p.TageVoraus), LehrerEmail = p.LehrerEmail, LehrerAbsenzen = p.LehrerAbsenzen, Absenzgruende = p.Absenzgruende,
+        IgnoriertenUnterricht = p.IgnoriertenUnterrichtUebertragen, Ferien = !p.FerienNichtExportieren, Teile = teile.ToHashSet(),
+    };
 }
 
 /// <summary>
@@ -41,7 +54,9 @@ public static class UntPlanWebExport
 
         var tage = new List<WebTag>();
         var vertretungen = new List<WebVertretung>();
-        foreach (var t in Kalender.Tage(von, bis))
+        var mitVertretungen = o.Mit(WebTeile.Vertretungen);
+        var mitUnterricht = o.Mit(WebTeile.Unterricht);
+        foreach (var t in mitVertretungen ? Kalender.Tage(von, bis) : Enumerable.Empty<DateOnly>())
         {
             var unterrichtstag = Kalender.IstUnterrichtstag(d, t);
             var tag = new WebTag { Datum = D(t), Woche = Kalender.WochenTyp(d, t), Unterrichtstag = unterrichtstag };
@@ -79,6 +94,7 @@ public static class UntPlanWebExport
             Erzeugt = DateTime.Now,
             Revision = d.Einstellungen.Portal.Revision + 1,
             Programmversion = typeof(UntPlanWebExport).Assembly.GetName().Version?.ToString() ?? "1.0",
+            Teile = o.Teile.Count == 0 ? new List<string>() : o.Teile.OrderBy(x => x).ToList(),
             Von = D(von),
             Bis = D(bis),
             Schule = new WebSchule
@@ -108,10 +124,10 @@ public static class UntPlanWebExport
                 Faecher = d.Faecher.Select(f => new WebElement { Id = f.Id, Kurz = f.Kurzname, Name = f.Langname, Farbe = Farbe(f.Hintergrund) }).ToList(),
                 Gaenge = d.Gaenge.Select(g => new WebElement { Id = g.Id, Kurz = g.Kurzname, Name = g.Langname }).ToList(),
             },
-            Perioden = d.Perioden.OrderBy(p => p.Von).Select(p => new WebPeriode
+            Perioden = !mitUnterricht ? new List<WebPeriode>() : d.Perioden.OrderBy(p => p.Von).Select(p => new WebPeriode
             {
                 Id = p.Id, Name = p.Name, Von = D(p.Von), Bis = D(Module.Perioden.Ende(d, p)), MutterId = p.MutterId,
-                Unterricht = (p.Unterrichte ?? new()).Where(u => !u.Ignorieren).Select(u => new WebUnterricht(u.Id, u.Wochenstunden,
+                Unterricht = (p.Unterrichte ?? new()).Where(u => o.IgnoriertenUnterricht || !u.Ignorieren).Select(u => new WebUnterricht(u.Id, u.Wochenstunden,
                     u.Zeilen.Select(z => new WebZeile(K(ElementTyp.Fach, z.FachId), K(ElementTyp.Lehrer, z.LehrerId), Kl(z.KlassenIds), z.Zeilentext)).ToList(),
                     u.Periodizitaet switch { Periodizitaet.AWoche => "A", Periodizitaet.BWoche => "B", _ => u.UGruppeId is int g ? d.UGruppen.FirstOrDefault(x => x.Id == g)?.Wochen ?? "" : "" },
                     u.Kursname, u.Text)).ToList(),
@@ -119,13 +135,13 @@ public static class UntPlanWebExport
             }).ToList(),
             Tage = tage,
             Vertretungen = vertretungen,
-            Absenzen = d.Abwesenheiten.Where(a => a.Bis >= von && a.Von <= bis && (o.LehrerAbsenzen || a.Art != AbwesenheitsArt.Lehrer)).Select(a => new WebAbsenz
+            Absenzen = !mitVertretungen ? new List<WebAbsenz>() : d.Abwesenheiten.Where(a => a.Bis >= von && a.Von <= bis && (o.LehrerAbsenzen || a.Art != AbwesenheitsArt.Lehrer)).Select(a => new WebAbsenz
             {
                 Art = a.Art switch { AbwesenheitsArt.Lehrer => "lehrer", AbwesenheitsArt.Klasse => "klasse", _ => "raum" },
                 Element = ix.K(a.Art switch { AbwesenheitsArt.Lehrer => ElementTyp.Lehrer, AbwesenheitsArt.Klasse => ElementTyp.Klasse, _ => ElementTyp.Raum }, a.ElementId),
                 Von = D(a.Von), Bis = D(a.Bis), StundeVon = a.StundeVon, StundeBis = Math.Min(a.StundeBis, d.Zeitraster.StundenProTag), Grund = Grund(a.GrundId),
             }).ToList(),
-            Termine = d.Veranstaltungen.Where(v => v.Bis >= von && v.Von <= bis).Select(v => new WebTermin
+            Termine = !mitVertretungen ? new List<WebTermin>() : d.Veranstaltungen.Where(v => v.Bis >= von && v.Von <= bis).Select(v => new WebTermin
                 {
                     Art = "veranstaltung", Titel = v.Text, Von = D(v.Von), Bis = D(v.Bis), StundeVon = v.StundeVon, StundeBis = Math.Min(v.StundeBis, d.Zeitraster.StundenProTag),
                     Klassen = Kl(v.KlassenIds), Lehrer = v.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = v.RaumIds.Select(ix.KRaum).ToList(),
@@ -135,7 +151,7 @@ public static class UntPlanWebExport
                     Art = "klausur", Titel = k.Name, Von = D(k.Datum), Bis = D(k.Datum), StundeVon = k.StundeVon, StundeBis = k.StundeBis,
                     Klassen = Kl(k.KlassenIds), Lehrer = k.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = k.RaumIds.Select(ix.KRaum).ToList(),
                 })).ToList(),
-            Tagestexte = d.Tagestexte.Where(t => t.Portal && t.Datum.AddDays(Math.Max(1, t.GueltigTage)) > von && t.Datum <= bis).Select(t =>
+            Tagestexte = !mitVertretungen ? new List<WebTagestext>() : d.Tagestexte.Where(t => t.Portal && t.Datum.AddDays(Math.Max(1, t.GueltigTage)) > von && t.Datum <= bis).Select(t =>
             {
                 var art = t.NurLehrer ? TagestextArt.NurLehrer : t.Art;
                 var typ = art == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
@@ -143,8 +159,8 @@ public static class UntPlanWebExport
                     art switch { TagestextArt.Klassen => "klassen", TagestextArt.Lehrer => "lehrer", TagestextArt.NurLehrer => "kollegium", _ => "alle" },
                     t.ElementIds.Select(id => ix.K(typ, id)).ToList());
             }).ToList(),
-            Ferien = d.Ferien.Select(f => new WebFerien(f.Langname.Length > 0 ? f.Langname : f.Kurzname, D(f.Von), D(f.Bis), f.Feiertag)).ToList(),
-            Pausenaufsichten = d.Pausenaufsichten.Where(a => a.Datum is null).Select(a => new WebAufsicht(ix.K(ElementTyp.Gang, a.GangId), a.Tag, a.NachStunde, ix.KLehrer(a.LehrerId),
+            Ferien = !o.Ferien ? new List<WebFerien>() : d.Ferien.Select(f => new WebFerien(f.Langname.Length > 0 ? f.Langname : f.Kurzname, D(f.Von), D(f.Bis), f.Feiertag)).ToList(),
+            Pausenaufsichten = !mitUnterricht ? new List<WebAufsicht>() : d.Pausenaufsichten.Where(a => a.Datum is null).Select(a => new WebAufsicht(ix.K(ElementTyp.Gang, a.GangId), a.Tag, a.NachStunde, ix.KLehrer(a.LehrerId),
                 a.UGruppeId is int g ? d.UGruppen.FirstOrDefault(x => x.Id == g)?.Wochen ?? "" : "")).ToList(),
         };
     }
@@ -168,6 +184,22 @@ public static class UntPlanWebExport
         using var r = await c.PutAsJsonAsync(UntPlanWebSchema.Pfade.Paket(p.SchulId), paket, UntPlanWebSchema.Json, ct);
         if (!r.IsSuccessStatusCode) throw new InvalidOperationException($"UntPlanWeb antwortet mit HTTP {(int)r.StatusCode}");
         return (await r.Content.ReadFromJsonAsync<WebAntwort>(UntPlanWebSchema.Json, ct))!;
+    }
+
+    /// <summary>Verbindung und Berechtigung prüfen (Abruf der Rückmeldungen ohne Übernahme).</summary>
+    public static async Task<string> VerbindungPruefenAsync(PortalEinstellungen p, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(p.Adresse)) throw new InvalidOperationException("Keine Serveradresse eingetragen.");
+        using var c = Client(p);
+        c.Timeout = TimeSpan.FromSeconds(15);
+        using var r = await c.GetAsync(UntPlanWebSchema.Pfade.Rueckmeldungen(p.SchulId), ct);
+        return (int)r.StatusCode switch
+        {
+            >= 200 and < 300 => "Verbindung erfolgreich.",
+            401 or 403 => throw new InvalidOperationException("Der Server lehnt die Anmeldung ab (Schul-ID oder API-Schlüssel falsch)."),
+            404 => throw new InvalidOperationException("Die Schule ist auf dem Server nicht bekannt (Schul-ID prüfen)."),
+            var x => throw new InvalidOperationException($"Der Server antwortet mit HTTP {x}."),
+        };
     }
 
     public static async Task<List<WebRueckmeldung>> RueckmeldungenAsync(PortalEinstellungen p, CancellationToken ct = default)
