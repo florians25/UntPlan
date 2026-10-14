@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3F0D790B-2DD7-4FDD-A39B-5FB0BFE0AF90}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UntPlanMobile", "src\UntPlanMobile\UntPlanMobile.csproj", "{C8ED5F2F-F503-4DB2-933C-EEFA9BD518AB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D7A0E6B6-5FE9-4367-8BA1-838CB53E6944}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UntPlanMobile.Tests", "tests\UntPlanMobile.Tests\UntPlanMobile.Tests.csproj", "{C36392E0-0EA0-4A6A-9EAF-698E7F0DBC49}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C8ED5F2F-F503-4DB2-933C-EEFA9BD518AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8ED5F2F-F503-4DB2-933C-EEFA9BD518AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8ED5F2F-F503-4DB2-933C-EEFA9BD518AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8ED5F2F-F503-4DB2-933C-EEFA9BD518AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C36392E0-0EA0-4A6A-9EAF-698E7F0DBC49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C36392E0-0EA0-4A6A-9EAF-698E7F0DBC49}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C36392E0-0EA0-4A6A-9EAF-698E7F0DBC49}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C36392E0-0EA0-4A6A-9EAF-698E7F0DBC49}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C8ED5F2F-F503-4DB2-933C-EEFA9BD518AB} = {3F0D790B-2DD7-4FDD-A39B-5FB0BFE0AF90}
+		{C36392E0-0EA0-4A6A-9EAF-698E7F0DBC49} = {D7A0E6B6-5FE9-4367-8BA1-838CB53E6944}
+	EndGlobalSection
+EndGlobal

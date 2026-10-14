@@ -1,0 +1,3509 @@
+/* =====================================================================
+   Stundenplan PWA — Mobile
+   Werte (Raster, Farben, Abstände) sind aus den Screenshots vermessen:
+   Referenzgerät 402 x 874 CSS-px (iPhone @3x = 1206 x 2622).
+   ===================================================================== */
+
+/* ---------- Tokens ---------- */
+:root{
+  /* Flächen */
+  --c-bar:            #ffffff;
+  --c-grid-top:       #f2f4f7;
+  --c-grid-bottom:    #e7e9ef;
+  /* Eine Stärke und eine Farbe für alle Rasterlinien. */
+  --c-line:           #ccd3d9;
+  --c-line-soft:      var(--c-line);
+  /* Fläche für Listen und Eingabefelder in den Mitteilungen. */
+  --c-surface:        #ffffff;
+  --c-chip:           #eef1f4;
+  --c-col-line:       #dcdee2;
+
+  /* Text */
+  --c-ink:            #253746;
+  --c-ink-2:          #48606f;
+  --c-muted:          #6b7a85;
+  --c-gutter:         #65717a;
+
+  /* Karten */
+  --card-bg:          #ffffff;
+  --card-bg-past:     #f2f4f6;
+  --shadow-past:      0 1px 2px rgba(31,47,61,.23), 0 2px 5px rgba(31,47,61,.21);
+  --card-accent:      #bfc7d2;
+  --card-radius:      3px;
+  /* Linke Kante der Plakette. Der Fließtext rückt davon noch einmal um das
+     Polster der Plakette ein, damit beides bündig steht. Werte aus dem
+     Muster: Balken bei 3 px, Text bei 12,5 px. */
+  --card-pad-left:    11.5px;
+  --card-pad-top:     4.5px;
+  --card-pad-edge:    4px;      /* rechts und unten */
+  --bar-left:         4px;      /* alles von der Außenkante gemessen */
+  --bar-top:          4.7px;
+
+  /* Am Muster ausgemessen: Fläche #e3fff2, Rahmen #019169. */
+  --chg-bg:           #e3fff2;
+  --chg-accent:       #cde5df;
+  --chg-border:       #019169;
+
+  --cnc-bg:           #fff3f2;
+  --cnc-accent:       #f0c3ce;
+  --cnc-border:       #e00047;
+
+  --exam-bg:          #fff6d5;
+  --exam-border:      #a1512c;
+
+  --evt-bg:           #dffef5;
+  --evt-accent:       #cfeee4;
+
+  --hol-bg:           #d5ebfe;
+  --hol-line:         #b3d6f6;
+  --hol-ink:          #2b3f52;
+
+  /* Untis-Farbtöne (aus der Vorlage abgenommen) */
+  --u-orange:         #f07c00;   /* Untis-Orange — Akzent der Oberfläche */
+  --u-orange-soft:    #fff1e2;
+  --u-orange-ink:     #a85400;
+  --u-green:          #0b7d65;   /* Plaketten und Änderungen im Plan */
+  --u-green-soft:     #dcfff3;
+  --u-blue:           #d5ebfe;   /* Ferien */
+  --u-ink:            #2b3f52;
+  --u-ink-2:          #5d727f;
+  --u-slate:          #5f7180;   /* Eckklammern */
+  --u-magenta:        #d379e9;   /* Aufsicht */
+  --u-cyan:           #01ffff;   /* Bereitschaft mit abwesender Lehrkraft */
+  --u-red:            #f40041;   /* Abwesenheit */
+
+  /* Akzente */
+  --green:            var(--u-green);
+  --green-ink:        #ffffff;
+  --today:            #ef5a2a;
+  --nowline:          #e65d35;
+  --absent:           var(--u-red);
+
+  /* Raster */
+  --gutter-w:         45px;
+  --day-gap:          3px;      /* Luft zwischen den Tagesspalten */
+  --ppm:              1.2704;      /* px pro Minute — ergibt 57,17px je 45-Min-Stunde */
+  --grid-pad-top:     15px;
+  --grid-pad-bottom:  120px;
+
+  /* Chrome */
+  --tabbar-h:         62px;
+  --sat:              env(safe-area-inset-top, 0px);
+  --sab:              env(safe-area-inset-bottom, 0px);
+  --kb:               0px;          /* Höhe der eingeblendeten Tastatur */
+
+  --strike:           1px;       /* Stärke aller Durchstreichungen */
+
+  /* Am Muster gemessen: ein knapper, weicher Schatten dicht unter der
+     Kachel — keine ausladende Wolke. Die alten Werte (32 % auf 3px, 26 %
+     auf 18px Weichzeichnung) legten einen grauen Saum um jede Kachel, der
+     bei eng stehenden Karten wie eine Umrandung wirkte. */
+  --shadow-card:      0 1px 2px rgba(31,47,61,.30), 0 2px 6px rgba(31,47,61,.29);
+  --shadow-bar:       0 6px 28px rgba(31,47,61,.16);
+  --shadow-sheet:     0 -8px 40px rgba(21,33,44,.22);
+
+  --ease:             cubic-bezier(.22,.61,.36,1);
+}
+
+/* ---------- Reset ---------- */
+*,*::before,*::after{ box-sizing:border-box; }
+
+/* Klassen wie .row setzen display und heben damit hidden auf — deshalb
+   hier ausdrücklich. Sonst blieben ausgeblendete Zeilen sichtbar. */
+[hidden]{ display:none !important; }
+
+/* Keine sichtbaren Rollbalken — gerollt wird mit dem Finger, und auf dem
+   Rechner stören die grauen Streifen die abgemessenen Breiten. Die
+   Bedienbarkeit bleibt: Tastatur, Rad und Wischen wirken unverändert. */
+*{ scrollbar-width:none; -ms-overflow-style:none; }
+*::-webkit-scrollbar{ width:0; height:0; display:none; }
+/* Die Seite selbst scrollt nie. Ohne das schiebt iOS beim Tippen in ein
+   Eingabefeld das ganze Fenster hoch, und vom Sheet bleibt weiße Fläche. */
+html,body{ height:100%; overflow:hidden; position:fixed; inset:0; width:100%; }
+body{
+  margin:0;
+  /* Kein Textmarkieren, kein Lupen-Popup, kein Gummiband am Rand — das
+     unterscheidet eine App von einer Webseite. */
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  overscroll-behavior:none;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:15px;
+  color:var(--c-ink);
+  background:var(--c-bar);
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior-y:none;
+}
+button{
+  font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer;
+  touch-action:manipulation;          /* kein Doppeltipp-Zoom */
+}
+input, textarea, [contenteditable]{ -webkit-user-select:text; user-select:text; }
+input{ font:inherit; }
+h1,h2,h3,p,ul{ margin:0; }
+ul{ padding:0; list-style:none; }
+
+.ico{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; display:block; }
+
+/* Symbole aus der Untis-Sammlung.
+   Sie sind anders gebaut als die selbst gezeichneten: reine Füllflächen
+   ohne Konturlinie. Deshalb müssen die Vorgaben von `.ico` — Kontur an,
+   Füllung aus — hier genau umgekehrt stehen, sonst bliebe die Fläche
+   unsichtbar und der Umriss erschiene doppelt. */
+.uic{
+  width:22px; height:22px; display:block;
+  fill:currentColor; stroke:none;
+}
+.tab .uic{ width:24px; height:24px; }
+/* Trägt ein Element beide Klassen, gewinnt die Füllung: `.ico` steht
+   weiter oben in der Datei und würde sonst Kontur und leere Fläche
+   erzwingen. */
+.uic.ico{ fill:currentColor; stroke:none; }
+
+/* =====================================================================
+   App-Gerüst
+   ===================================================================== */
+.app{
+  position:fixed; inset:0;
+  display:flex; flex-direction:column;
+  background:var(--c-bar);
+}
+
+/* ---------- Topbar ---------- */
+.topbar{
+  flex:0 0 auto;
+  padding:calc(var(--sat) + 13px) 12px 0;
+  display:grid;
+  grid-template-columns:44px 1fr auto;
+  align-items:center;
+  gap:8px;
+  background:var(--c-bar);
+}
+.icon-btn{
+  width:44px; height:44px;
+  display:grid; place-items:center;
+  border-radius:999px;
+  color:var(--c-ink-2);
+  transition:background .15s var(--ease), transform .12s var(--ease);
+}
+.icon-btn:active{ transform:scale(.92); }
+.icon-btn--solo{ background:#f1f3f5; }
+
+.topbar__actions{
+  display:flex; align-items:center;
+  background:#f1f3f5;
+  border-radius:999px;
+  padding:0 2px;
+}
+.topbar__actions .icon-btn{ width:42px; height:44px; }
+
+.topbar__title{
+  display:flex; align-items:center; justify-content:center; gap:5px;
+  font-size:17.5px; font-weight:500; letter-spacing:-.005em;
+  color:#5d727f;
+  min-width:0;
+  padding:6px 4px;
+}
+.topbar__title > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ico--chev{ width:16px; height:16px; stroke-width:2.2; flex:0 0 auto; }
+
+/* =====================================================================
+   Screens
+   ===================================================================== */
+.screen{ display:none; flex:1 1 auto; min-height:0; }
+.screen.is-active{ display:flex; flex-direction:column; }
+
+/* ---------- Wochenkopf ---------- */
+.weekhead{
+  position:relative;
+  flex:0 0 auto;
+  display:grid;
+  grid-template-columns:var(--gutter-w) 1fr;
+  align-items:end;
+  padding:2px 0 6px;
+  background:var(--c-bar);
+}
+.weekhead__kw{ padding-left:6px; line-height:1.05; }
+.weekhead__kw-no{ display:block; font-size:11px; font-weight:600; color:var(--c-ink-2); }
+.weekhead__month{ display:block; margin-top:3px; font-size:17px; font-weight:700; color:var(--c-ink); letter-spacing:-.01em; }
+
+/* Der Streifen ragt über drei Wochen; die Spalte wird deshalb selbst zum
+   Rahmen und schneidet ab, was links neben der Woche liegt. */
+.weekhead__days{
+  overflow:hidden;
+  display:block;
+  min-width:0;
+}
+/* Ladebalken direkt unter den Tagen. Er läuft von links nach rechts und
+   erscheint erst, wenn das Laden wirklich dauert. */
+.loadbar{
+  position:absolute; left:0; right:0; bottom:-1px; height:2.5px;
+  overflow:hidden; pointer-events:none;
+  opacity:0; transition:opacity .18s var(--ease);
+}
+.loadbar.is-on{ opacity:1; }
+.loadbar span{
+  display:block; width:40%; height:100%;
+  background:var(--u-orange); border-radius:2px;
+  transform:translateX(-100%);
+}
+.loadbar.is-on span{ animation:laden 1.1s var(--ease) infinite; }
+@keyframes laden{
+  0%   { transform:translateX(-100%); }
+  100% { transform:translateX(250%); }
+}
+@media (prefers-reduced-motion: reduce){
+  .loadbar.is-on span{ animation:none; transform:none; width:100%; opacity:.6; }
+}
+
+.weekhead__strip{
+  display:grid;
+  will-change:transform;
+  transition:transform .38s cubic-bezier(.32,.72,0,1);
+}
+.weekhead__strip.is-dragging{ transition:none; }
+
+
+.dayhead{ text-align:center; line-height:1.05; }
+.dayhead__name{ display:block; font-size:12px; font-weight:500; color:var(--c-ink-2); }
+.dayhead__num{ display:block; margin-top:3px; font-size:16px; font-weight:700; color:var(--c-ink); letter-spacing:-.02em; }
+.dayhead.is-today .dayhead__name,
+.dayhead.is-today .dayhead__num{ color:var(--today); }
+.dayhead{ padding:2px 0 3px; border-radius:9px; transition:background .15s var(--ease); }
+.dayhead.is-picked{ background:var(--u-orange-soft); }
+.dayhead.is-picked .dayhead__num{ color:var(--u-orange-ink); }
+
+/* ---------- Rasterfläche ---------- */
+.gridscroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  touch-action:pan-y;                 /* waagerechte Gesten gehören der App */
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  background:linear-gradient(180deg,var(--c-grid-top) 0%,var(--c-grid-bottom) 100%);
+  background-attachment:local;
+}
+.gridpane{
+  position:relative;
+  padding-top:var(--grid-pad-top);
+  padding-bottom:calc(var(--grid-pad-bottom) + var(--sab));
+  transition:transform .38s cubic-bezier(.32,.72,0,1);
+  will-change:transform;
+}
+/* Während des Wischens folgt der Streifen dem Finger, ohne Nachlauf. */
+.gridpane.is-dragging{ transition:none; }
+
+.grid{ position:relative; }
+
+/* Zeitspalte */
+.slotrow{
+  position:absolute; left:var(--gutter-w); right:0;
+  border-top:1px solid var(--c-line);
+  pointer-events:none;
+}
+/* Pausenzeilen tragen dieselbe Linie wie die Stundenzeilen — der
+   Unterschied liegt allein in der Höhe des Abschnitts. */
+
+/* Startzeit steht unter ihrer Linie … */
+.slotrow__time{
+  position:absolute; left:calc(8px - var(--gutter-w)); top:2px;
+  font-size:11.5px; font-weight:500; color:var(--c-gutter);
+  letter-spacing:.01em; line-height:1;
+}
+/* … die Endzeit vor einer Pause darüber. */
+.slotrow--pause .slotrow__time{ top:auto; bottom:3px; }
+
+.slotrow__no{
+  position:absolute; left:calc(14px - var(--gutter-w)); top:22px;
+  font-size:15px; font-weight:400; color:var(--c-ink-2);
+  letter-spacing:-.01em; line-height:1;
+}
+
+/* Jetzt-Linie */
+.nowline{
+  position:absolute;
+  background:var(--nowline);
+  z-index:6; pointer-events:none;
+}
+.nowline--week{ height:1.5px; }
+.nowline--today{ height:3px; border-radius:1.5px; margin-top:-0.75px; }
+
+/* =====================================================================
+   Karten
+   ===================================================================== */
+/* Rahmen ab der Zeitspalte; alles, was darüber hinausragt, wird
+   abgeschnitten. Darin der Streifen, der beim Wischen wandert. */
+.colclip{ position:absolute; left:var(--gutter-w); top:0; bottom:0; overflow:hidden; }
+.colstrip{
+  position:absolute; inset:0;
+  will-change:transform;
+  transition:transform .38s cubic-bezier(.32,.72,0,1);
+}
+/* Während der Finger liegt: kein Übergang, und der Streifen bekommt eine
+   eigene Ebene. So schiebt der Browser beim Ziehen nur noch eine fertige
+   Fläche und zeichnet nichts neu — das ist es, was eine langsame Bewegung
+   flüssig aussehen lässt. */
+.colstrip.is-dragging{
+  transition:none;
+  will-change:transform;
+  backface-visibility:hidden;
+}
+.weekhead__strip.is-dragging{ will-change:transform; backface-visibility:hidden; }
+/* Außerhalb der Bewegung wieder freigeben — eine dauerhaft eigene Ebene
+   kostet Speicher und bringt dann nichts. */
+.colstrip:not(.is-dragging){ will-change:auto; }
+/* Während der Geste bleibt der Streifen eine Schicht für sich — dann muss
+   der Browser beim Ziehen nichts neu zeichnen. */
+.colstrip.is-dragging .card,
+.colstrip.is-dragging .daycol{ transition:none; }
+/* Kein overflow:hidden hier — das schnitt die Schatten der Kacheln an
+   den Spaltenrändern ab. Die Breite allein genügt als Sicherung. */
+.daycol{ position:absolute; top:0; bottom:0; }
+.daycol .card{ max-width:100%; }
+
+.card{
+  position:absolute;
+  display:flex; flex-direction:column;
+  /* Alle Maße zählen ab der Außenkante. Gerahmte Kacheln ziehen ihre
+     Rahmenstärke ab, damit Balken und Text überall gleich sitzen. */
+  --bw:0px;
+  padding:calc(var(--card-pad-top) - var(--bw))
+          calc(var(--card-pad-edge) - var(--bw))
+          calc(var(--card-pad-edge) - var(--bw))
+          calc(var(--card-pad-left) - var(--bw));
+  border-radius:var(--card-radius);
+  background:var(--card-bg);
+  box-shadow:var(--shadow-card);
+  overflow:hidden;
+  text-align:left;
+  width:100%;
+  z-index:2;
+}
+.card::before{
+  content:"";
+  position:absolute;
+  left:calc(var(--bar-left) - var(--bw));
+  top:calc(var(--bar-top) - var(--bw));
+  bottom:calc(var(--card-pad-edge) - var(--bw));
+  width:4px; min-width:4px; border-radius:2px;
+  background:var(--bar, var(--card-accent));
+}
+
+/* Alle Zeilen gleich groß; nur die erste ist fett. Maße aus der Vorlage
+   abgenommen: Versalhöhe 9 px, Zeilenabstand 14,5 px. */
+.card__line{
+  padding-left:1.5px;
+  font-size:12.4px; line-height:14.3px;
+  color:var(--c-ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.card__line--primary{
+  /* Eine Spur weniger fett als zuvor: Mit 700 stach die erste Zeile im
+     Vergleich zum Vorbild zu stark heraus, dort ist sie nur halbfett. */
+  font-weight:600;
+}
+.card__line--badge{
+  padding-left:0;
+  /* Eine Spur Luft nach unten: Der Kasten reicht optisch bis an die
+     Zeilenkante, dadurch rückte die nächste Zeile dichter heran als bei
+     zwei gewöhnlichen Zeilen. */
+  padding-bottom:1px;
+}
+
+/* grün hinterlegter Wert = das, was sich geändert hat */
+.badge{
+  display:inline-block;
+  /* Der Kasten beginnt dort, wo auch die Textzeilen beginnen, und ist so
+     hoch wie eine Zeile. Nachgemessen am Vorbild (Maßstab 3): Die Schrift
+     steht mittig im Kasten — oben wie unten knapp drei Punkte Luft — und
+     seitlich bleiben gut zweieinviertel Punkte. Ohne das obere Polster saß
+     unsere Schrift einen Gerätepunkt zu hoch. Dieselben Werte gelten für
+     das oberste Label wie für das am Raum. */
+  padding:0.33px 2.27px 0;
+  margin-left:0;
+  border-radius:2px;
+  background:var(--green);
+  color:var(--green-ink);
+  font-weight:500;
+  /* Gleiche Größe wie der Zeilentext. Kleiner gesetzt fiel das Kürzel im
+     Kasten gegen die Zeilen darunter ab; im Vorbild ist es genauso groß.
+     Wird eine Zeile dadurch zu lang, kürzt sie sich als Ganzes. */
+  font-size:inherit;
+  line-height:inherit;
+  /* Die Plakette kürzt sich nicht selbst. Mit `max-width:100%` und eigener
+     Ellipse wurde aus „Online“ auf einer schmalen Kachel ein „Onli…“,
+     obwohl daneben noch Platz war. Gekürzt wird — wenn überhaupt — die
+     ganze Zeile am Kachelrand. */
+  max-width:none;
+  overflow:visible; text-overflow:clip; white-space:nowrap;
+  vertical-align:baseline;
+}
+/* Kopplungen — mehrere Kürzel in einer Zeile
+   ---------------------------------------------------------------------
+   Die Plaketten sehen aus wie auf jeder anderen Kachel — gleiche Größe,
+   gleiches Polster, gleiche Farbe. Nur eines ist anders: Sie dürfen sich
+   nicht selbst kürzen. `.badge` steht sonst auf `max-width:100%` mit
+   eigener Ellipse und schrumpft zu „K…“ zusammen, während der Rest der
+   Zeile weiterläuft. Gekürzt wird die ganze Zeile auf einmal, wie bei
+   jeder anderen Kartenzeile auch. */
+.card__line--kopp .badge{
+  max-width:none;
+  overflow:visible;
+  text-overflow:clip;
+}
+/* Ein Kürzel bleibt mit seinem Komma zusammen. */
+.tok{ white-space:nowrap; }
+.tok i{ font-style:normal; }
+
+/* Im Detailfenster steht die Kopplung in voller Länge und darf umbrechen.
+   Die Kürzel sind durch „|“ getrennt. Wer fehlt, steht durchgestrichen da —
+   aber in derselben Farbe wie die übrigen, nicht blasser: Es ist eine
+   Angabe wie jede andere und soll nicht zurücktreten. */
+.dline--kopp{ white-space:normal; }
+.dline--kopp s{ text-decoration-thickness:var(--strike); }
+
+/* Wegfallender Wert — etwa eine noch offene Vertretung */
+/* Eine Stärke für alle Durchstreichungen — Plakette, Kachel, Detail. */
+.badge--removed{ text-decoration:line-through; text-decoration-thickness:var(--strike); }
+/* Das oberste Label trägt dieselbe Stärke wie die Zeile selbst — nicht
+   mehr. Mit 700 stand das Kürzel im Kasten fetter da als derselbe Wert auf
+   einer Kachel ohne Label; im Vorbild ist beides gleich. */
+.card__line--primary .badge{ font-weight:inherit; }
+
+/* Info-Punkt und das Kürzungszeichen sitzen auf demselben hellen,
+   abgerundeten Feld — wie in der Vorlage (Screenshots 2/3/4). Der Info-
+   Punkt ist eine graue Scheibe mit weißem "i", das Kürzungszeichen drei
+   graue Punkte. Maße am Muster abgenommen. */
+.card__cut,
+.card__info{
+  /* So weit in die Ecke, wie der Rundungsradius es zulässt — jedes Pixel
+     dort ist eines mehr für den Text daneben. */
+  position:absolute; right:2px; bottom:2px;
+  /* Eine Spur kleiner als zuvor — Form und Farbe bleiben. */
+  width:14.5px; height:14.5px;
+  display:grid; place-items:center;
+  border-radius:4px;
+  background:#f2f4f6;                 /* helles Feld */
+  z-index:4;
+}
+.card__cut svg{ width:11px; height:11px; display:block; }
+.card__cut circle{ fill:#838d9d; }     /* drei graue Punkte, mittig */
+
+/* Info: graue Scheibe mit weißem "i" auf dem Feld (Screenshot 2/4).
+   Nur wenn der Punkt die letzte Zeile erreicht, wird rechts Platz gemacht —
+   dann kürzt sich der Raum (oder das Vertretungslabel) mit …, sonst nicht. */
+/* Rückfall, solange nichts zu messen ist: Begrenzt wird die Breite, nicht
+   das Polster rechts. `overflow:hidden` schneidet an der Polsterkante ab —
+   ein Polster verschöbe die Schnittstelle also gar nicht, und eine
+   Plakette liefe weiter unter das Zeichen. */
+.card.pad-last .card__line--last{ max-width:calc(100% - 16px); }
+
+/* Das Kürzungszeichen liegt mitten in der Fläche der Kachel, deshalb nimmt
+   es auf einer Vertretung deren Grün an — ein graues Kästchen sah dort aus
+   wie hineingefallen. Gewählt ist derselbe Ton wie beim Menüzeichen der
+   Aufsichtspille: dunkelgrünes Feld, weiße Punkte. Zwei Zeichen, die im
+   selben Plan nebeneinander stehen, sollen nicht in zwei verschiedenen
+   Grüns erscheinen.
+
+   Es ist außerdem eine Spur eckiger als die runde Info-Scheibe: Drei
+   Punkte sind kein Symbol, sondern ein Hinweis auf abgeschnittenen Text,
+   und der darf kantiger wirken.
+
+   Der Info-Punkt bleibt dagegen überall grau. Er ist ein eigenständiges
+   Zeichen mit fester Bedeutung — färbte er sich mit der Kachel um, wäre
+   er nicht mehr auf einen Blick derselbe. */
+.card__cut{ border-radius:3px; }
+/* Dieselben Werte wie eine Plakette: `--green` und `--green-ink` sind je
+   Modus belegt, im Hellen dunkelgrün mit weißen Punkten, im Dunkeln der
+   helle Ton mit dunklen Punkten. Damit trägt das Zeichen automatisch die
+   Farbe, die auf derselben Kachel auch die Plaketten haben — ein fester
+   Wert hätte im Dunkeln daneben gelegen. */
+.card--change .card__cut,
+/* Auch im Plan der abwesenden Lehrkraft. Die Kachel ist dort durchsichtig
+   und trägt Eckklammern statt grüner Fläche — sie hat deshalb kein
+   `card--change` mehr, und das Zeichen wäre grau geblieben. Vertretung
+   ist es trotzdem: Die Stunde läuft, nur ohne sie. */
+.card--released .card__cut{ background:var(--green); }
+.card--change .card__cut circle,
+.card--released .card__cut circle{ fill:var(--green-ink); }
+.card__info{
+  color:#fff; font-size:7.5px; font-weight:700; font-style:normal;
+  line-height:1;
+}
+.card__info::before{
+  content:""; position:absolute; inset:2.3px;
+  border-radius:50%; background:#828e9b;
+}
+/* das "i" liegt über der Scheibe */
+.card__info span{ position:relative; z-index:1; }
+
+/* ---- Zustände ---- */
+/* Vergangene Stunden
+   ---------------------------------------------------------------------
+   Reguläre Stunden treten allein über die Fläche zurück.
+
+   Farbige Kacheln — Vertretung und Entfall — verlieren jeweils die Hälfte
+   ihrer Kennzeichnung: im Hellen den Rahmen, im Dunklen die farbige
+   Fläche. Übrig bleibt genau so viel, dass man die Art noch erkennt.
+   Künftige Stunden bleiben unangetastet. */
+/* Vergangene Stunden tragen einen flachen, dünnen Schatten — gerade so
+   viel, dass sie sich vom Raster abheben, ohne zu schweben. */
+.card.is-past{ background:var(--card-bg-past); box-shadow:var(--shadow-past); }
+.card.is-past::before{ opacity:.7; }
+/* Auch die Schrift tritt zurück — leicht, nicht bis zur Unleserlichkeit.
+   Zurückgenommen wird über die **Farbe**, nicht über `opacity`: Die wirkt
+   auf die ganze Zeile samt Plakette, und ein Kind kann sie nicht wieder
+   aufheben. Die Plakette behält so ihre volle Kraft; sie trägt den Kern
+   der Aussage. */
+.card.is-past .card__line{ color:var(--c-ink-2); }
+.card.is-past .card__line--primary{ color:var(--c-ink-2); }
+
+.card--change.is-past,
+.card--cancelled.is-past{
+  border:0; --bw:0px;
+  box-shadow:var(--shadow-past);
+}
+.card--change.is-past   { background:var(--chg-bg); }
+.card--cancelled.is-past{ background:var(--cnc-bg); }
+
+/* Vergangene GS und AK treten genauso zurück wie eine vergangene Vertretung:
+   Der Rahmen fällt weg, die farbige Fläche bleibt, und ein flacher Schatten
+   hebt die Kachel vom Raster ab. AK und GS teilen sich hier die Klasse
+   `card--gs`; `card--absence` steht der Vollständigkeit halber daneben. */
+.card--gs.is-past,
+.card--absence.is-past{
+  border:0; --bw:0px;
+  box-shadow:var(--shadow-past);
+  background:var(--chg-bg);
+}
+
+.card--change{
+  background:var(--chg-bg);
+  border:2px solid var(--chg-border);
+  --bw:2px;
+}
+/* Der Balken links steht allein für die Fachfarbe — Art der Stunde
+   erkennt man an Fläche und Rahmen, nicht am Balken. */
+
+.card--cancelled{
+  background:var(--cnc-bg);
+  border:2px solid var(--cnc-border);
+  box-shadow:none;
+  --bw:2px;
+  /* Der Balken behält die Fachfarbe, sofern eine hinterlegt ist — sie kommt
+     als Stilangabe an der Kachel. Ohne Farbe fällt er wie überall auf
+     `--card-accent` zurück. */
+}
+/* Der Text bleibt voll schwarz — erkennbar ist der Entfall am Rahmen und
+   am Strich, nicht an blasser Schrift. */
+.card--cancelled .card__line{ text-decoration:line-through; text-decoration-thickness:var(--strike); color:var(--c-ink); }
+.card--cancelled .badge{ background:transparent; color:var(--c-ink-2); padding-left:0; margin-left:0; }
+
+.card--exam{
+  background:var(--exam-bg); box-shadow:none;
+  border:2px solid var(--exam-border);
+  --bw:2px;
+}
+
+.card--event{
+  background:var(--evt-bg);
+  border:1.5px solid #7fd4b6;
+  box-shadow:none;
+  padding:3.5px 3.5px 3.5px 13.5px;
+}
+.card--event .card__line--primary{ color:#00654c; }
+
+.card.is-highlight{ border-width:2.5px; --bw:2.5px; }
+
+/* Parallelspalten */
+.card.is-half-left { width:calc(50% - 1px); left:0; }
+.card.is-half-right{ width:calc(50% - 1px); right:0; }
+
+/* Parallele Stunden: eine Karte normal, daneben eine schmale Karte mit der Anzahl */
+/* Der Balken links ist überall gleich stark — nur der Innenabstand
+   schrumpft, wenn eine Zählkarte danebensteht. */
+.card.has-count{ padding-left:calc(var(--card-pad-left) - var(--bw) - 2px); padding-right:3px; }
+
+.parcount{
+  position:absolute; right:0;
+  width:12px;
+  border-radius:3px;
+  /* Nicht ganz weiß: Auf dem hellen Raster verschwand die farblose
+     Zählkarte fast, ihr Rand war nur am Schatten zu ahnen. Ein Hauch
+     Grau genügt, damit sie als eigene Fläche lesbar ist — mehr würde
+     sie zur Aussage machen, und das ist sie nicht. */
+  background:#f4f6f7;
+  color:#3f5666;
+  display:grid; place-items:center;
+  font-size:11px; font-weight:700;
+  box-shadow:var(--shadow-card);
+  z-index:3;
+  transition:transform .12s var(--ease);
+}
+.parcount:active{ transform:scale(.94); }
+/* Vergangenes tritt zurück — aber nur die farblose Zählerkarte. Steckt
+   eine Vertretung oder ein Entfall dahinter, bleibt sie kräftig: Ihre
+   Farbe ist die Aussage, und die soll auch nachmittags noch ins Auge
+   fallen. */
+.parcount.is-past:not(.parcount--change):not(.parcount--cancel){
+  opacity:.55;
+  box-shadow:none;
+}
+.parcount--change{ background:var(--chg-bg); color:#00654c; box-shadow:none; border:1.5px solid var(--chg-border); }
+.parcount--cancel{ background:var(--cnc-border); color:#fff; box-shadow:none; border:0; border-radius:3px; }
+
+/* Eckklammern: die Stunde läuft, aber ohne die betrachtete Lehrkraft */
+.card--released{
+  background:transparent;
+  box-shadow:none;
+  border-radius:0;
+  border:0;
+}
+/* Der Text bleibt normal — durchgestrichen ist allein das Kürzel der
+   abwesenden Lehrkraft in der Plakette. Der Balken bleibt grau; hellblau
+   ist er nur bei einer Bereitschaft mit abwesender Lehrkraft. */
+/* Eine freigegebene Stunde bleibt durchsichtig, auch wenn sie vorbei ist:
+   Sie hat nie zu meinem Plan gehört, und ein gedämpfter Grund ließe sie
+   wie vergangenen eigenen Unterricht aussehen. */
+.card--released.is-past{
+  background:transparent;
+  box-shadow:none;
+  border:0;
+}
+.card--released .card__line{ text-decoration:none; }
+.card--released .card__line .badge--removed{ text-decoration:line-through; text-decoration-thickness:var(--strike); }
+.corners{ position:absolute; inset:0; pointer-events:none; }
+.corners i{
+  position:absolute; width:13px; height:13px;
+  border:1.8px solid var(--u-slate);
+}
+/* Etwas eckiger als zuvor (4 statt 7 px), damit die Eckklammern dieselbe
+   knappe Rundung tragen wie die gewöhnlichen Stundenkacheln. */
+.corners i:nth-child(1){ top:0; left:0;  border-right:0; border-bottom:0; border-radius:4px 0 0 0; }
+.corners i:nth-child(2){ top:0; right:0; border-left:0;  border-bottom:0; border-radius:0 4px 0 0; }
+.corners i:nth-child(3){ bottom:0; left:0;  border-right:0; border-top:0; border-radius:0 0 0 4px; }
+.corners i:nth-child(4){ bottom:0; right:0; border-left:0;  border-top:0; border-radius:0 0 4px 0; }
+
+/* Aufsicht — kurze Kachel wie eine normale Stunde: gleiche Rundung, gleicher
+   schmaler Balken (nur magenta), nur niedriger. Keine Pille mehr. */
+.card--supervision{
+  /* Die Pille ist nur gut 20 Pixel hoch. Mit dem Innenabstand der großen
+     Kacheln rutschte der Text nach unten aus dem Feld heraus — er stand zu
+     tief und wurde unten abgeschnitten. Hier zählt jede Zeile: kein
+     Abstand oben und unten, senkrecht zentriert. */
+  min-height:0;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  /* Rechts nur so viel Luft, wie der Rand braucht. Der Platz für das
+     Menüzeichen wird erst frei gemacht, wenn es wirklich eines gibt —
+     sonst wurde einer gewöhnlichen Aufsicht ihr Name gekürzt („Einfahr…“),
+     obwohl daneben Platz leer stand. */
+  padding:0 3px 0 10.5px;
+  overflow:visible;
+}
+/* Vertretung oder abgegebene Aufsicht: jetzt steht rechts das Zeichen,
+   also bekommt es seinen Platz — aber nur so viel, wie es wirklich
+   braucht, damit auch hier möglichst viel vom Namen stehen bleibt. */
+.card--supervision.is-sub,
+.card--supervision.is-absent{ padding-right:20px; }
+.card--supervision .card__line{
+  font-weight:600;
+  line-height:1;
+  padding:0; margin:0;
+  /* Ohne `min-width:0` weigert sich ein Flex-Element zu schrumpfen: Der
+     Name wuchs über die Kachel hinaus und ragte — weil die Pille nach
+     außen offen ist — über die Trennlinie in die Nachbarspalte. Jetzt
+     schrumpft die Zeile und kürzt sich selbst mit „…“. */
+  min-width:0; flex:0 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.card--supervision::before{ background:var(--u-magenta); }
+.card--supervision .card__times{ display:none; }
+/* Die Pille sitzt in einer 20-Minuten-Lücke, mit knapp anderthalb Pixeln
+   Luft zu den Kacheln darüber und darunter. Der Schatten der großen
+   Karten streut 6 px weit und legte sich als dunkler Streifen an deren
+   Kanten. Hier trägt sie einen eigenen, flacheren: nah an der Kante,
+   deutlich genug, dass die Pille auf dem Raster aufliegt, aber zu kurz,
+   um in den Spalt zu greifen. */
+.card--supervision{
+  box-shadow:0 -1px 2px rgba(31,47,61,.10), 0 1px 3px rgba(31,47,61,.20);
+}
+
+/* Aufsichtsvertretung und abgegebene Aufsicht sehen gleich aus: grüne
+   Füllung mit grünem Rand, solange sie bevorsteht — wie jede andere
+   Vertretung. Ist sie vorbei, bleibt nur der Rand auf gewöhnlichem Grund.
+
+   Der Balken links ist in **beiden** Fällen magenta. Er sagt, dass es eine
+   Aufsicht ist, nicht was mit ihr geschehen ist. Er steht hier ausdrücklich
+   noch einmal, damit ihn keine spätere Regel für Entfall oder Vertretung
+   umfärbt. */
+/* Die eingesprungene Aufsicht ist grün gefüllt wie jede andere Vertretung;
+   ist sie vorbei, bleibt nur der Rand. */
+.card--supervision.is-sub{
+  background:var(--chg-bg);
+  border:1.5px solid var(--chg-border);
+}
+/* Vergangene Aufsichtsvertretung: derselbe Weg wie bei einer vergangenen
+   Stunde — der Rahmen fällt weg, die Fläche bleibt. Nicht abblenden: Die
+   übrigen Kacheln tun das auch nicht, und eine halbdurchsichtige Pille
+   zwischen kräftigen Karten sähe nach einem Fehler aus. */
+.card--supervision.is-sub.is-past{
+  border:0; --bw:0px;
+  background:var(--chg-bg);
+}
+/* Im Dunkeln ist es genau umgekehrt, und zwar aus demselben Grund wie bei
+   den Kacheln: Dort bleibt bei einer vergangenen Vertretung der farbige
+   Rand stehen und die Fläche wird neutral. Eine grün gefüllte Pille sähe
+   im Dunkeln aus, als stünde sie noch bevor — auf dunklem Grund trägt die
+   Fläche mehr Gewicht als im Hellen, der Rand weniger. */
+.is-dark .card--supervision.is-sub.is-past{
+  background:var(--card-bg-past);
+  border:1.5px solid var(--chg-border);
+}
+
+/* Die abgegebene Aufsicht wird durchsichtig — dieselbe Sprache wie bei
+   jeder anderen Stunde, die ohne einen selbst läuft: keine Fläche, dafür
+   Eckklammern. Balken und Menüzeichen behalten ihre Farbe, denn sie sagen,
+   *was* dort stattfindet, nicht ob man selbst dabei ist. */
+/* Kein Rahmen — auch kein unsichtbarer. Die Eckklammern liegen innerhalb
+   des Rahmens (`inset:0` misst ab der Innenkante). Ein durchsichtiger
+   1,5-px-Rahmen rückte sie deshalb links und rechts nach innen, und die
+   Pille stand schmaler da als die Stunden darüber und darunter. Ohne
+   Rahmen sitzen die Klammern an der Außenkante — genau wie bei jeder
+   freigegebenen Stunde und bei der Bereitschaft der abwesenden Lehrkraft. */
+.card--supervision.is-absent{
+  background:transparent;
+  border:0;
+  --bw:0px;
+  box-shadow:none;
+}
+.card--supervision.is-sub::before,
+.card--supervision.is-absent::before{ background:var(--u-magenta); }
+/* Der Aufsichtsort wird nicht durchgestrichen: Die Aufsicht findet statt,
+   nur eben ohne mich. Durchgestrichen wäre die Aussage, dass dort niemand
+   ist — das sagen Eckklammern und Durchsichtigkeit bereits. */
+.card--supervision.is-absent .card__line{ color:var(--c-ink-2); }
+
+/* Das Menüzeichen steht bei einer Vertretung immer auf Grün — es ist der
+   Hinweis, dass hier etwas zu sehen ist. */
+.card--supervision .sup-menu{
+  /* Etwas eckiger und ein wenig breiter als hoch — wie das Menüzeichen im
+     Muster. Der rechte Abstand ist größer, damit zwischen dem Zeichen und
+     einer daneben liegenden Stunde eine Lücke bleibt. */
+  position:absolute; right:3px; top:50%; transform:translateY(-50%);
+  width:15px; height:13px;
+  display:grid; place-items:center;
+  border-radius:3px;
+  background:var(--u-green);
+}
+.card--supervision.is-sub .sup-menu,
+.card--supervision.is-absent .sup-menu{ background:var(--u-green); }
+.card--supervision .sup-menu svg{ width:11px; height:11px; display:block; }
+.card--supervision .sup-menu circle{ fill:#fff; }
+/* Beim Abwesenden steht dasselbe Zeichen — die Aufsicht findet ja statt,
+   nur ohne einen selbst. Platz dafür ist durch den Innenabstand rechts
+   ohnehin frei. */
+.card--supervision.is-absent .sup-menu{ display:grid; }
+
+.card--standby{
+  /* Verfügungsstunden liegen jetzt auf demselben Feld wie normale Kacheln,
+     nur mit gestricheltem Rand statt Schatten. */
+  background:var(--card-bg);
+  box-shadow:none;
+  border:2px dashed var(--u-slate);
+  border-radius:5px;
+  align-items:center; justify-content:center;
+  padding:6px 5px;
+}
+/* Vergangene Verfügung: derselbe Grund wie bei den übrigen vergangenen
+   Kacheln, der gestrichelte Rand tritt zurück. Ein Schatten kommt hier
+   nicht dazu — die Kachel trägt ohnehin keinen. */
+/* Ist die Bereitschaft vorbei, wird die Kachel durchsichtig. Der
+   gestrichelte Rahmen bleibt — er kennzeichnet die Bereitschaft, unabhängig
+   davon, ob sie noch aussteht. */
+.card--standby.is-past{
+  background:transparent;
+  border-color:var(--u-slate-soft, #b7c2cb);
+  box-shadow:none;
+}
+.card--standby.is-past .card__line{ color:var(--c-muted); }
+
+/* Auf der Kachel wird die Aufzählung gekürzt, im Detail steht sie ganz. */
+.card--gs .card__line{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.card--standby::before{ display:none; }
+.card--standby .card__line{
+  font-size:12.5px; font-weight:400;
+  color:var(--u-ink-2);
+  text-align:center; white-space:normal;
+}
+
+/* Bereitschaft, bei der die Lehrkraft abwesend ist: fester Rahmen mit
+   Eckklammern und hellblauem Balken links. */
+.card--standby.is-absent{
+  border:0;
+  border-radius:var(--card-radius);
+  background:transparent;
+  align-items:flex-start; justify-content:flex-start;
+  --bw:0px;
+  padding:var(--card-pad-top) var(--card-pad-edge) var(--card-pad-edge) var(--card-pad-left);
+}
+.card--standby.is-absent::before{
+  display:block;
+  background:var(--u-cyan);
+  top:var(--bar-top); bottom:var(--card-pad-edge); left:var(--bar-left); width:4px; border-radius:2px;
+}
+.card--standby.is-absent .card__line{
+  text-align:left; font-size:11.5px; color:var(--c-ink);
+}
+.card--standby.is-absent .card__line--primary{ font-weight:600; }
+/* Vergangen und abwesend: Die Kachel bleibt durchsichtig, sie wird nicht
+   blass. `.card--standby.is-past` legt sonst die Füllung der vergangenen
+   Kacheln darunter — dann sähe eine Bereitschaft, die man gar nicht hält,
+   am Nachmittag aus wie eine gehaltene. Der Text tritt zurück, der
+   Hintergrund bleibt offen. */
+.card--standby.is-absent.is-past{
+  background:transparent;
+  border-color:transparent;
+}
+.card--standby.is-absent.is-past .card__line{ color:var(--c-muted); }
+
+/* Abwesenheit (AK) und Freisetzung (GS) als eigene Felder */
+.card--absence{
+  background:#ffe9ed;
+  border:2px solid var(--cnc-border);
+  box-shadow:none;
+  padding:6px 6px 6px 9px;
+}
+.card--absence::before{ display:none; }
+.card--absence .card__line{ color:#98213c; }
+.card--gs{
+  background:var(--chg-bg);
+  border:2px solid var(--chg-border);
+  box-shadow:none;
+  --bw:2px;
+}
+.card--gs .card__line--primary{ color:var(--c-ink); }
+.card--gs .card__line{ color:var(--c-ink); }
+/* Klassenabwesenheit: kein roter Rahmen, nur gekennzeichnet und gedimmt */
+.card--class-absent{ background:#f6f2f3; box-shadow:none; opacity:.85; }
+.card--class-absent .card__line{ color:#7d8b95; text-decoration:line-through; text-decoration-thickness:var(--strike); text-decoration-color:#c3ccd3; }
+
+/* Ferien und Feiertage: blaues Feld über den ganzen Tag, keine Stunden */
+.card--holiday .card__line{ text-align:center; }
+.card--holiday{
+  background:var(--u-blue);
+  border:0; box-shadow:none; border-radius:6px;
+  align-items:center; justify-content:center;
+  padding:0 3px;
+}
+.card--holiday::before{ display:none; }
+.holiday-inner{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:8px;
+  width:100%; height:100%;
+}
+.card--holiday{ overflow:hidden; }
+/* Lange Namen (Herbstferien, Weihnachtsferien) trennen statt mitten im Wort umbrechen */
+.holiday-name{ font-weight:700; -webkit-hyphens:auto; hyphens:auto; }
+.holiday-range{ font-weight:400; font-size:11.5px !important; margin-top:6px; }
+.card--holiday{ cursor:default; pointer-events:none; }
+.card--holiday .card__line{
+  color:var(--u-ink);
+  font-size:13px; font-weight:600;
+  text-align:center;
+  width:100%;
+  padding-left:0; padding-right:0;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  hyphens:auto;
+  line-height:1.25;
+  max-width:100%;
+}
+.holiday-mark{
+  width:17px; height:17px;
+  color:var(--u-ink);
+  flex:0 0 auto;
+}
+.holiday-mark svg{ width:17px; height:17px; display:block; fill:none; stroke:currentColor; stroke-width:2; }
+
+/* Veranstaltung, AK und GS liegen vor den verdrängten Stunden */
+.card.is-priority{ z-index:5; }
+
+/* Abwesenheits-Band */
+.absband{
+  position:absolute;
+  width:12px; border-radius:6px;
+  background:var(--absent);
+  color:#fff;
+  display:grid; place-items:center;
+  font-size:12px; font-weight:600;
+  z-index:4;
+}
+
+/* =====================================================================
+   Tabbar
+   ===================================================================== */
+.tabbar{
+  backdrop-filter:saturate(180%) blur(22px);
+  -webkit-backdrop-filter:saturate(180%) blur(22px);
+  position:fixed;
+  left:14px; right:14px;
+  /* Tiefer gesetzt: Auf einem Gerät mit Home-Indikator lässt der volle
+     Sicherheitsabstand die Leiste hoch über dem Rand schweben. Sie rückt
+     deshalb 20 Punkte in diesen Abstand hinein — die Beschriftung sitzt
+     mittig in der Pille und bleibt dadurch klar über dem Indikator. Wo es
+     keinen Sicherheitsabstand gibt, bleiben drei Punkte zum Rand. */
+  bottom:max(3px, calc(var(--sab) - 20px));
+  height:var(--tabbar-h);
+  display:grid; grid-template-columns:repeat(4,1fr);
+  align-items:center;
+  background:color-mix(in srgb, var(--c-bar) 72%, transparent);
+  border:1px solid color-mix(in srgb, var(--c-ink) 8%, transparent);
+  border-radius:999px;
+  box-shadow:var(--shadow-bar);
+  z-index:40;
+}
+.tab{
+  position:relative;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:3px; height:100%;
+  color:var(--c-ink);
+  font-size:11.5px; font-weight:500;
+  border-radius:999px;
+  transition:transform .12s var(--ease);
+}
+.tab:active{ transform:scale(.92); }
+.tab .ico{ width:24px; height:24px; stroke-width:1.6; }
+.tab .tabnum{ font-size:7.4px; font-weight:700; fill:currentColor; stroke:none; font-family:inherit; }
+.tab.is-active::before{
+  content:""; position:absolute; inset:4px 6px;
+  border-radius:999px; background:#eceff2; z-index:-1;
+}
+.tab__dot{
+  position:absolute; top:9px; right:calc(50% - 20px);
+  width:8px; height:8px; border-radius:50%;
+  background:var(--absent); border:1.5px solid #fff;
+}
+
+/* =====================================================================
+   Weitere Screens
+   ===================================================================== */
+.screen--start,.screen--msg,.screen--profile,.screen--list{ overflow-y:auto; -webkit-overflow-scrolling:touch; background:#f5f6f8; }
+
+/* ---------- Milchglas auf Start-, Profil- und Listenseite ----------
+   Die Flächen liegen auf einem weichen Verlauf und lassen ihn durch —
+   dieselbe Sprache wie die Leiste unten und die Auswahlfenster. */
+.screen--start,.screen--profile,.screen--list{
+  /* Ruhiger, gleichmäßiger Grund wie in der Vorlage. */
+  background:#eceef1;
+}
+/* Auf diesen Seiten trägt auch die Kopfleiste denselben Grund — sonst
+   reißt oben eine sichtbare Kante zwischen Leiste und Inhalt. */
+body:has(.screen--start.is-active) .topbar,
+body:has(.screen--profile.is-active) .topbar,
+body:has(.screen--list.is-active) .topbar,
+body.has-plain-top .topbar{ background:#eceef1; }
+.screen--start .rows,
+.screen--profile .rows,
+.screen--start .daycard,
+.screen--list .lstcard{
+  background:#fff;
+  border:0;
+  box-shadow:0 1px 2px rgba(21,33,44,.05), 0 10px 26px rgba(21,33,44,.08);
+}
+.profpop{
+  background:rgba(255,255,255,.78);
+  backdrop-filter:saturate(180%) blur(26px);
+  -webkit-backdrop-filter:saturate(180%) blur(26px);
+  border:1px solid rgba(255,255,255,.55);
+}
+
+/* ---------- Profilwechsel ---------- */
+.profpop{
+  position:fixed; z-index:60;
+  top:calc(var(--sat) + 8px); left:10px;
+  width:min(320px, calc(100vw - 20px));
+  max-height:min(70vh, 560px); overflow-y:auto;
+  background:var(--c-bar); border-radius:18px;
+  box-shadow:0 14px 44px rgba(21,33,44,.28);
+  padding:14px 6px 8px;
+}
+.profpop[hidden]{ display:none; }
+.profpop__title{ margin:0 0 6px 14px; font-size:14.5px; color:#8b9aa5; }
+.profpop__hint{ margin:10px 14px 14px; font-size:14.5px; color:#8b9aa5; }
+
+.profrow{
+  display:grid; grid-template-columns:30px 1fr 30px; align-items:center; gap:8px;
+  width:100%; text-align:left; padding:11px 10px; border-radius:12px;
+}
+.profrow__mark{ display:grid; place-items:center; color:var(--c-ink); }
+.profrow__mark svg{ width:19px; height:19px; fill:none; stroke:currentColor;
+  stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.profrow__main b{ display:block; font-size:17px; font-weight:400; color:var(--c-ink); line-height:1.25; }
+.profrow__main span{ display:block; font-size:14px; color:#8b9aa5; margin-top:2px; }
+.profrow__del{ display:grid; place-items:center; color:#c3ccd3; }
+.profrow__del svg{ width:16px; height:16px; fill:none; stroke:currentColor;
+  stroke-width:1.9; stroke-linecap:round; }
+.profrow.is-on .profrow__main b{ font-weight:600; }
+
+
+/* ---------- Listen: Termine, Abwesenheiten, Klassenleitung ---------- */
+.lsthead{
+  position:sticky; top:0; z-index:2;
+  display:grid; grid-template-columns:44px 1fr 44px; align-items:center; gap:8px;
+  padding:calc(var(--sat) + 10px) 14px 12px;
+  /* Derselbe Grund wie die Seite — kein Balken oben. */
+  background:#eceef1; border-bottom:0;
+}
+.lsthead__right{ display:flex; align-items:center; gap:8px; justify-self:end; }
+.lstsearch{
+  display:none; align-items:center; gap:8px;
+  height:44px; padding:0 16px; border-radius:22px;
+  background:var(--c-bar); box-shadow:0 1px 3px rgba(21,33,44,.10);
+}
+.lstsearch .ico{ width:19px; height:19px; color:#8b9aa5; }
+.lstsearch input{
+  border:0; background:none; outline:none;
+  font-size:16px; color:var(--c-ink); width:180px;
+}
+.lstsearch input::placeholder{ color:#8b9aa5; }
+/* Auf breiten Geräten steht das Suchfeld offen daneben. */
+@media (min-width:820px){ .lstsearch{ display:flex; } }
+
+.lsthead__when{ text-align:center; line-height:1.2; }
+.lsthead__when b{ display:block; font-size:16px; font-weight:600; color:var(--c-ink-2); }
+.lsthead__when span{ display:block; font-size:13px; color:#8b9aa5; margin-top:2px; }
+.lstbody{ padding:14px 14px calc(var(--sab) + 90px); }
+
+/* Filter als eigene Seite, wie in der Vorlage: Titel, dann Zeilen mit
+   Beschriftung links, Wert rechts. */
+.lstfilter{ padding:0 0 8px; }
+.lstfilter[hidden]{ display:none !important; }
+.lstfilter__title{
+  margin:0; padding:10px 0 14px; text-align:center;
+  font-size:16px; font-weight:600; color:var(--c-ink-2);
+}
+.frow{
+  display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px;
+  width:100%; text-align:left;
+  padding:18px 16px; border-top:1px solid #e3e6ea;
+  background:transparent;
+}
+.frow:last-of-type{ border-bottom:1px solid #e3e6ea; }
+.frow__lab{ font-size:17px; color:var(--c-ink); }
+.frow__val{ font-size:15px; color:#8b9aa5; }
+.frow--toggle{ grid-template-columns:1fr auto; }
+.frow--sub{ padding:14px 26px; border-top:0; }
+.frow--sub.is-on .frow__lab{ color:var(--u-orange-ink); font-weight:600; }
+.frow__pick[hidden]{ display:none !important; }
+.frow__pick{ border-bottom:1px solid #e3e6ea; }
+/* Reihe mit den eigenen Klassen. */
+.lstfilter__row{ display:flex; flex-wrap:wrap; gap:7px; padding:14px 16px; }
+.lstfilter__row[hidden]{ display:none !important; }
+.lstchip{
+  padding:7px 13px; border-radius:999px;
+  background:#fff; color:var(--c-ink-2);
+  font-size:14px; border:1px solid rgba(21,33,44,.08);
+}
+.lstchip.is-on{ background:var(--u-orange); color:#fff; border-color:transparent; font-weight:600; }
+
+.lst__group{
+  font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  color:#8b9aa5; margin:18px 4px 8px;
+}
+.lst__group:first-child{ margin-top:2px; }
+
+.lstcard{
+  background:var(--c-bar); border-radius:14px; padding:14px 16px; margin-bottom:12px;
+  box-shadow:0 1px 3px rgba(21,33,44,.10);
+}
+.lstcard b{ display:block; font-size:19px; font-weight:400; color:var(--c-ink); }
+.lstcard__sub{ margin:3px 0 0; font-size:14px; color:#8b9aa5; }
+.lstcard__sm{ color:#8b9aa5; font-size:14px; }
+.lstcard__line{
+  display:flex; align-items:center; gap:7px;
+  margin:7px 0 0; font-size:15px; color:var(--c-ink-2);
+}
+.lstcard__ico{
+  width:17px; height:17px; flex:0 0 17px; color:#9aa7b1;
+  fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;
+}
+.lstcard__stand--ok  { color:#157d68; } .lstcard__stand--ok .lstcard__ico  { color:#157d68; }
+.lstcard__stand--no  { color:#c0113a; } .lstcard__stand--no .lstcard__ico  { color:#c0113a; }
+.lstcard__stand--open{ color:#8b9aa5; }
+
+.lstcard__acts{ display:flex; gap:8px; margin-top:12px; }
+.lstbtn{
+  flex:1 1 0; padding:9px 12px; border-radius:11px;
+  background:#eef1f4; color:var(--c-ink-2); font-size:14.5px; font-weight:600;
+}
+.lstbtn--ok{ background:var(--u-green); color:#fff; }
+.lstbtn:active{ transform:scale(.98); }
+
+.lst__empty{ text-align:center; padding:64px 12px; color:var(--c-muted); }
+.lst__emptyIco{
+  display:grid; place-items:center; width:78px; height:78px; margin:0 auto 22px;
+  border-radius:50%; background:rgba(255,255,255,.7);
+}
+.lst__emptyIco svg{
+  width:38px; height:38px; color:#8b9aa5;
+  fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;
+}
+.lst__empty b{ display:block; font-size:19px; font-weight:700; color:var(--c-ink); margin-bottom:6px; }
+.lst__empty span{ font-size:15px; }
+
+.row__main{ display:block; text-align:left; }
+.row__main b{ display:block; font-weight:400; }
+.row__main i{ display:block; font-style:normal; font-size:13.5px; color:#8b9aa5; margin-top:2px; }
+.pad{ padding:calc(var(--sat) + 6px) 18px calc(var(--tabbar-h) + var(--sab) + 44px); }
+.h1{ font-size:28px; font-weight:700; letter-spacing:-.02em; margin-bottom:2px; }
+.sub{ color:var(--c-muted); font-size:14px; margin-bottom:18px; }
+
+.panel{ margin-bottom:22px; }
+.panel__head{ font-size:12.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--c-muted); margin-bottom:9px; }
+.stack{ display:flex; flex-direction:column; gap:9px; }
+
+.tile{
+  display:grid; grid-template-columns:52px 1fr auto; align-items:center; gap:12px;
+  background:var(--c-bar); border-radius:14px; padding:12px 14px;
+  box-shadow:var(--shadow-card);
+  text-align:left; width:100%;
+}
+.tile__time{ font-size:13px; font-weight:700; color:var(--c-ink-2); line-height:1.25; }
+.tile__time small{ display:block; font-weight:500; color:var(--c-muted); }
+.tile__main b{ display:block; font-size:15px; font-weight:600; }
+.tile__main span{ display:block; font-size:13px; color:var(--c-muted); }
+.tile__flag{ font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; }
+.flag--change{ background:var(--chg-bg); color:#006b51; }
+.flag--cancel{ background:var(--cnc-bg); color:#b03030; }
+.flag--exam{ background:var(--exam-bg); color:#8a4626; }
+.flag--event{ background:var(--evt-bg); color:#006b51; }
+
+.empty{ background:var(--c-bar); border-radius:14px; padding:18px 16px; color:var(--c-muted); font-size:14px; box-shadow:var(--shadow-card); }
+
+.msg{ background:var(--c-bar); border-radius:14px; padding:14px; box-shadow:var(--shadow-card); }
+.msg h3{ font-size:15px; font-weight:600; margin-bottom:3px; }
+.msg time{ font-size:12px; color:var(--c-muted); }
+.msg p{ font-size:14px; color:var(--c-ink-2); margin-top:6px; line-height:1.45; }
+.msg.is-unread{ border-left:3px solid var(--green); }
+
+.profile-card{ display:flex; align-items:center; gap:14px; background:var(--c-bar); border-radius:16px; padding:16px; box-shadow:var(--shadow-card); margin-bottom:20px; }
+.avatar{ width:54px; height:54px; border-radius:50%; background:var(--u-orange); color:#fff; display:grid; place-items:center; font-weight:700; font-size:19px; }
+.profile-name{ font-size:17px; font-weight:600; }
+.profile-role{ font-size:13px; color:var(--c-muted); }
+
+.rows{ background:var(--c-bar); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-card); margin-bottom:16px; }
+.row{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:14px 15px; font-size:15px; text-align:left; border-bottom:1px solid #eef0f2; }
+.row:last-child{ border-bottom:0; }
+.row__hint{ font-size:13px; color:var(--c-muted); }
+.row--switch input{ position:absolute; opacity:0; pointer-events:none; }
+.switch{ width:44px; height:26px; border-radius:999px; background:#d6dade; position:relative; transition:background .18s var(--ease); flex:0 0 auto; }
+.switch::after{ content:""; position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:transform .18s var(--ease); }
+.row--switch input:checked ~ .switch{ background:var(--u-orange); }
+.row--switch input:checked ~ .switch::after{ transform:translateX(18px); }
+.legalnote{ font-size:12px; color:var(--c-muted); text-align:center; line-height:1.5; }
+
+/* =====================================================================
+   Sheets
+   ===================================================================== */
+.scrim{ position:fixed; inset:0; background:rgba(20,30,40,.36); z-index:50; opacity:0; transition:opacity .22s var(--ease); pointer-events:none; }
+.scrim[hidden]{ display:none !important; }
+.scrim.is-open{ pointer-events:auto; }
+.scrim.is-open{ opacity:1; }
+
+.sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:51;
+  max-height:88vh;
+  display:flex; flex-direction:column;
+  /* Liquid-Glass: milchig-durchscheinend mit Unschärfe dahinter. */
+  background:color-mix(in srgb, var(--c-bar) 80%, transparent);
+  backdrop-filter:saturate(180%) blur(28px);
+  -webkit-backdrop-filter:saturate(180%) blur(28px);
+  border-radius:22px 22px 0 0;
+  box-shadow:var(--shadow-sheet), inset 0 1px 0 rgba(255,255,255,.16);
+  padding-bottom:calc(var(--sab) + 12px + var(--kb));
+  transform:translateY(100%);
+  /* Das Detailfenster wird gesondert behandelt, siehe unten. */
+  transition:transform .28s var(--ease);
+}
+/* Ohne diese Zeile gewinnt display:flex gegen das hidden-Attribut: das
+   Sheet bleibt im Layout, liegt unsichtbar über der Seite und schluckt
+   jeden Fingertipp. */
+.sheet[hidden]{ display:none !important; }
+.sheet{ pointer-events:none; }
+.sheet.is-open{ transform:translateY(0); pointer-events:auto; }
+.sheet__grab{ width:38px; height:4px; border-radius:2px; background:#d3d8dd; margin:9px auto 6px; flex:0 0 auto; }
+.sheet__title{ font-size:19px; font-weight:700; padding:4px 18px 12px; }
+
+/* Auswahl — Aufbau nach Vorlage: Kategorien, dann Liste, Suche unten */
+/* Die Suchleiste sitzt oben, also darf das Sheet stehen bleiben; nur der
+   Boden weicht der Tastatur, damit die Liste nicht dahinter verschwindet. */
+.sheet--picker{
+  /* Das Suchfeld sitzt oben — die Tastatur legt sich einfach VOR das
+     untere Blatt, statt es hochzuschieben. Feste Höhe/Position. */
+  height:86vh;
+  bottom:0;
+  max-height:92vh;
+  padding-bottom:calc(var(--sab) + 6px);
+  transition:transform .28s var(--ease);
+}
+
+.pk__top{
+  flex:0 0 auto;
+  display:grid; grid-template-columns:44px 1fr 44px;
+  align-items:center; gap:8px;
+  padding:12px 14px 10px;
+}
+.pk__title{ text-align:center; font-size:17px; font-weight:600; color:#5d727f; }
+
+.pk__body{
+  position:relative;
+  flex:1 1 auto; min-height:0;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:0 4px 8px;
+  overscroll-behavior:contain;
+}
+.pk__level[hidden]{ display:none; }
+
+.pk__mine{
+  display:grid; grid-template-columns:52px 1fr; align-items:center; gap:14px;
+  width:100%; padding:8px 14px 14px; text-align:left;
+  font-size:20px; color:var(--c-ink);
+}
+.pk__ava{
+  width:52px; height:52px; border-radius:50%;
+  background:#8b9aa5; color:#fff;
+  display:grid; place-items:center;
+}
+/* Das runde Feld trug bisher ein Konturzeichen. Das Untis-Symbol ist eine
+   Füllfläche — mit den alten Vorgaben bliebe es unsichtbar. */
+.pk__ava svg{ width:27px; height:27px; fill:currentColor; stroke:none; }
+
+.pk__section{ padding:4px 18px 8px; font-size:14px; color:#8b9aa5; }
+
+.pk__row{
+  display:grid; grid-template-columns:34px 1fr 20px; align-items:center; gap:16px;
+  width:100%; padding:15px 18px; text-align:left;
+  font-size:19px; color:var(--c-ink);
+  border-radius:12px;
+}
+.pk__row > .ico{ width:30px; height:30px; stroke-width:1.5; color:#5d727f; }
+.ico--chev2{ width:20px !important; height:20px !important; color:#9aa7b1; stroke-width:2; }
+
+.picker-letter{
+  position:sticky; top:0; z-index:2;
+  padding:9px 16px 6px;
+  font-size:13px; font-weight:700; color:var(--c-muted);
+  background:var(--c-bar);
+}
+
+/* Buchstabenleiste am rechten Rand */
+.pk__index{
+  position:absolute; top:118px; right:2px; bottom:12px;
+  display:flex; flex-direction:column; justify-content:center; gap:1px;
+  padding:0 4px;
+  z-index:6;
+}
+.pk__index[hidden]{ display:none; }
+.pk__index button{
+  font-size:10.5px; font-weight:600; color:#8b9aa5;
+  line-height:1.25; padding:0 2px;
+}
+.pk__index button:active{ color:var(--u-orange); }
+
+.pk__count{ padding:6px 16px 2px; font-size:12.5px; color:var(--c-muted); }
+.picker-item{
+  display:grid; grid-template-columns:42px 1fr auto; align-items:center; gap:13px;
+  width:100%; padding:9px 14px; border-radius:12px; text-align:left;
+}
+.picker-item__mark{ width:20px; height:20px; color:var(--u-orange); }
+.picker-item__mark svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+.picker-item__ava{
+  width:42px; height:42px; border-radius:50%;
+  background:#8b9aa5; color:#fff;
+  display:grid; place-items:center;
+  font-size:13px; font-weight:700; letter-spacing:.02em;
+}
+.picker-item__main b{ display:block; font-size:19px; font-weight:400; color:var(--c-ink); }
+.picker-item__chip{
+  display:inline-block; margin-top:4px; margin-right:6px;
+  padding:3px 10px; border-radius:999px;
+  /* Im Hellen etwas kräftiger — die Plakette war kaum vom Grund zu
+     unterscheiden. */
+  background:#d3dae0; color:#40525e;
+  font-size:12.5px;
+}
+/* Die Klassenleitung steht als eigene Plakette daneben. */
+.picker-item__chip--kl{ background:#d3dae0; color:#40525e; }
+/* Der gewählte Plan wird nicht mehr hinterlegt — nur der Haken rechts
+   zeigt ihn an. */
+.picker-item.is-active{ background:transparent; }
+/* Auch Kreis und Beschriftung bleiben unauffällig — kenntlich ist der
+   gewählte Plan allein am Haken. */
+
+/* Suchleiste oben, direkt unter der Kopfzeile — so wie in der Vorlage. */
+.pk__search{
+  flex:0 0 auto;
+  display:grid; grid-template-columns:1fr 48px; align-items:center; gap:10px;
+  padding:0 14px 10px;
+  background:transparent;
+}
+/* Der Knopf daneben ist so hoch wie das Suchfeld — sonst wirkt er verloren. */
+#pickerClear{ width:48px; height:48px; border-radius:50%; background:#f1f3f5; }
+.searchwrap{
+  display:flex; align-items:center; gap:9px;
+  padding:13px 15px;
+  background:#f1f3f5; border-radius:999px;
+  color:var(--c-muted);
+}
+.searchwrap input{ flex:1; border:0; background:none; outline:none; font-size:17px; color:var(--c-ink); min-width:0; }
+.searchwrap .ico{ width:21px; height:21px; }
+.searchwrap input::-webkit-search-cancel-button{ display:none; }
+.searchwrap__clear{
+  width:21px; height:21px; flex:0 0 auto;
+  color:#8b9aa5;
+}
+.searchwrap__clear[hidden]{ display:none; }
+.searchwrap__clear svg{ width:21px; height:21px; display:block; }
+
+/* Detail — Aufbau nach Vorlage: Kopf mit Datum, dann die Stunde, dann Zeilen */
+/* Auf Tablets wird die Auswahl zu einem mittigen Fenster. */
+@media (min-width:700px){
+  .sheet--picker{
+    left:50%; right:auto; bottom:auto; top:50%;
+    transform:translate(-50%,-46%) scale(.98);
+    width:min(520px, 92vw);
+    height:min(80vh, 820px);
+    border-radius:20px;
+    opacity:0;
+    transition:transform .26s var(--ease), opacity .2s var(--ease);
+  }
+  .sheet--picker.is-open{ transform:translate(-50%,-50%) scale(1); opacity:1; }
+}
+
+/* Detailfenster: am Handy ein hohes Blatt, das von ganz unten hochfährt und
+   relativ weit nach oben reicht. Feste Höhe, damit es bei Entfall genauso
+   lang ist wie bei einer vollen Stunde. Am iPad ein mittiges Modal. */
+.sheet--detail{
+  height:90vh;
+  max-height:90vh;
+  padding-top:14px;
+  padding-bottom:calc(var(--sab) + 12px);
+  /* Das Detailfenster bleibt blickdicht — kein Durchscheinen. */
+  background:var(--c-bar);
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+
+@media (min-width:700px){
+  .sheet--detail{
+    left:50%; right:auto; bottom:auto; top:50%;
+    /* Auf dem Tablet darf das Fenster deutlich breiter stehen: Mit 470
+       Punkten wirkte es dort wie ein Telefonfenster mitten auf einer
+       großen Fläche, und Zeilen wie „FIS4A | FU1_FIS4A_LN" brachen um. */
+    width:min(680px, 92vw);
+    /* Feste Höhe — unabhängig vom Inhalt (Entfall, volle Stunde …). */
+    height:min(74vh, 760px);
+    max-height:min(74vh, 760px);
+    border-radius:20px;
+    padding-top:14px; padding-bottom:12px;
+    transform:translate(-50%, -46%) scale(.98);
+    opacity:0;
+    transition:transform .26s var(--ease), opacity .2s var(--ease);
+  }
+  .sheet--detail.is-open{ transform:translate(-50%, -50%) scale(1); opacity:1; pointer-events:auto; }
+}
+
+/* Untermenü der drei Punkte — mit Kopfzeile „Im Stundenplan anzeigen" und
+   milchigem Glas-Hintergrund. */
+.dmenu{
+  position:absolute; top:58px; right:14px; z-index:6;
+  min-width:230px; max-width:78vw;
+  background:color-mix(in srgb, var(--c-bar) 78%, transparent);
+  backdrop-filter:saturate(180%) blur(24px);
+  -webkit-backdrop-filter:saturate(180%) blur(24px);
+  border-radius:18px;
+  box-shadow:0 12px 40px rgba(21,33,44,.28), 0 0 0 1px rgba(255,255,255,.14) inset;
+  padding:8px;
+  overflow:hidden;
+}
+.dmenu[hidden]{ display:none; }
+.dmenu__head{ padding:8px 12px 6px; font-size:14px; color:var(--c-muted); }
+.dmenu button{
+  display:grid; grid-template-columns:26px 1fr; align-items:center; gap:12px;
+  width:100%; padding:12px 12px; border-radius:12px;
+  font-size:19px; text-align:left; color:var(--c-ink);
+}
+.dmenu .ico{ width:24px; height:24px; color:var(--c-ink-2); }
+.dmenu small{ display:block; font-size:12px; color:#8b9aa5; }
+.dmenu__empty{ padding:12px 10px; font-size:14px; color:var(--c-muted); }
+
+.detail__top{
+  flex:0 0 auto;
+  display:grid; grid-template-columns:44px 1fr 44px;
+  align-items:center; gap:8px;
+  padding:2px 14px 14px;
+}
+.rndbtn{
+  width:44px; height:44px;
+  display:grid; place-items:center;
+  border-radius:50%;
+  background:#f1f3f5;
+  color:var(--c-ink-2);
+  transition:transform .12s var(--ease);
+}
+.rndbtn:active{ transform:scale(.92); }
+/* Ohne das gewinnt die Klasse gegen [hidden] und der Knopf bleibt stehen —
+   im Klassenbuch standen dadurch Haken und Besen gleichzeitig da. */
+.rndbtn[hidden]{ display:none; }
+.rndbtn .ico{ width:21px; height:21px; }
+
+.detail__when{ text-align:center; line-height:1.2; }
+.detail__when b{ display:block; font-size:15px; font-weight:600; color:#5d727f; }
+.detail__when span{ display:block; font-size:12.5px; color:#8b9aa5; margin-top:1px; }
+
+/* Im Stundendetail sind die runden Schaltflächen und die Kopfzeile eine
+   Spur größer als sonst in der App — dort wird getippt, nicht gelesen. */
+.sheet--detail .detail__top,
+.sheet--detail .dsub__top{ grid-template-columns:48px 1fr 48px; }
+.sheet--detail .rndbtn{ width:48px; height:48px; }
+.sheet--detail .rndbtn .ico{ width:23px; height:23px; }
+.sheet--detail .detail__when b{ font-size:16.5px; }
+
+/* Bei einem Block lässt sich die Zeitangabe antippen — dann erscheint ein
+   Pfeil, wie bei der Auswahl der Klasse. */
+.detail__when{ border-radius:12px; padding:4px 8px; }
+.detail__when.is-pick b::after{
+  content:""; display:inline-block; vertical-align:2px; margin-left:7px;
+  width:0; height:0;
+  border-left:4.5px solid transparent; border-right:4.5px solid transparent;
+  border-top:5px solid currentColor; opacity:.7;
+}
+
+/* Die Auswahl der Einzelstunde */
+.dpart{
+  position:absolute; z-index:8;
+  top:64px; left:50%; transform:translateX(-50%);
+  min-width:200px; max-width:calc(100% - 36px);
+  background:var(--c-bar); border-radius:16px;
+  box-shadow:0 10px 34px rgba(21,33,44,.26);
+  padding:6px;
+}
+.dpart[hidden]{ display:none; }
+.dpart button{
+  display:block; width:100%; text-align:left;
+  padding:11px 14px; border-radius:11px;
+}
+.dpart button b{ display:block; font-size:16px; font-weight:500; color:var(--c-ink); }
+.dpart button span{ display:block; font-size:14px; color:#8b9aa5; margin-top:2px; }
+.dpart button.is-on b{ color:var(--u-orange-ink); font-weight:600; }
+.dpart button.is-on span{ color:var(--u-orange-ink); opacity:.75; }
+.sheet--detail .detail__when span{ font-size:14px; }
+
+.detail{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0; }
+
+.dhead{ padding:6px 18px 20px; }
+.dhead.is-off{ background:#dcdfe4; padding-bottom:26px; }
+
+.dtitle{
+  font-size:20px; font-weight:400; letter-spacing:-.01em;
+  color:var(--c-ink); line-height:1.25;
+  overflow-wrap:anywhere;
+}
+.dtitle i{ font-style:normal; color:#b7c1c9; padding:0 4px; }
+.dline{ font-size:15.5px; color:var(--c-ink); margin-top:11px; }
+.dline--big{ font-size:20px; }
+.dline--muted{ color:#5d727f; }
+/* Der alte Wert steht durchgestrichen da, aber in derselben Farbe wie der
+   Rest: Es ist eine Angabe wie jede andere und soll nicht zurücktreten.
+   Im Dunkeln fiel das Grau ohnehin fast mit dem Hintergrund zusammen. */
+.dline s{ color:inherit; text-decoration-thickness:var(--strike); }
+.dline .arrow{ color:#93a0aa; padding:0 5px; }
+.dline .sep{ color:#b3bdc5; padding:0 7px; font-weight:300; }
+
+/* Volle Leiste statt Plakette — wie in der Vorlage */
+.dbanner{
+  background:#fe0000; color:#fff;
+  text-align:center;
+  padding:9px 12px;
+  font-size:13.5px; font-weight:600; letter-spacing:.06em;
+}
+
+/* Plakette neben der Klasse im Detailkopf, etwa bei einer Veranstaltung.
+   Die Überschrift ist 20 px groß; ohne eigene Schriftgröße, Zeilenhöhe und
+   mittige Ausrichtung säße die Plakette schief. */
+.dpill{
+  display:inline-flex; align-items:center;
+  margin-left:10px; vertical-align:middle;
+  height:24px; padding:0 12px; border-radius:999px;
+  background:#5d727f; color:#fff;
+  font-size:12.5px; font-weight:600; line-height:1;
+  letter-spacing:.02em; text-transform:uppercase;
+  white-space:nowrap;
+}
+
+.detail__sep{ height:1px; background:#e8ebee; }
+
+.drows{ display:flex; flex-direction:column; padding:0 18px; }
+/* Die Zeilen sind Schaltflächen — Schrift und Trefferfläche entsprechend
+   großzügig, wie in der Vorlage. */
+/* Beim Tippen wird nichts hinterlegt: Die kurze helle Fläche unter dem
+   Finger brachte nichts — auf dem Telefon sieht man sie unter der eigenen
+   Hand kaum, und wenn ein Fenster aufgeht, blieb sie stehen. Zeilen und
+   Knöpfe in allen Menüs reagieren deshalb ohne Hintergrund. */
+.drow2{
+  display:grid; grid-template-columns:34px 1fr auto;
+  align-items:center; gap:16px;
+  padding:16px 0;
+  text-align:left; width:100%;
+  border-radius:12px;
+}
+.drow2__ico{ color:#8b9aa5; }
+.drow2__ico .ico{ width:27px; height:27px; stroke-width:1.5; }
+/* Ohne min-width:0 wächst eine Rasterspalte mit ihrem Inhalt — ein langer
+   Lehrstoff hätte die Zeile auseinandergezogen, statt gekürzt zu werden. */
+.drow2__main{ min-width:0; }
+/* Nur lesbare Zeile: kein Antippen, kein Pfeil. */
+.drow2.is-readonly{ pointer-events:none; }
+.drow2__main b{
+  display:block; font-size:17px; font-weight:400; color:var(--c-ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.drow2__main span{
+  display:block; font-size:15px; color:#7d8b95; margin-top:3px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.drow2__end{ display:flex; align-items:center; gap:12px; color:#b7c1c9; }
+.drow2__count{
+  min-width:30px; height:30px; padding:0 9px;
+  border-radius:999px; background:#8b9aa5; color:#fff;
+  display:grid; place-items:center; font-size:15px; font-weight:500;
+}
+.drow2__end .ico{ width:25px; height:25px; stroke-width:1.8; color:#8b9aa5; }
+.drow2__count.is-red{ background:transparent; color:#e0113f; position:relative; }
+.drow2__count.is-checked{ position:relative; }
+.drow2__count.is-checked::after{
+  content:""; position:absolute; top:-4px; right:-4px;
+  width:14px; height:14px; border-radius:50%;
+  background:var(--u-green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m7 12.5 3 3 7-7' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/11px no-repeat;
+  box-shadow:0 0 0 2px var(--c-bar);
+}
+.drow2__done{ color:var(--u-green) !important; }
+.dtoggle{
+  width:52px; height:31px; border-radius:999px; background:#d6dade; position:relative;
+  transition:background-color .16s var(--ease);
+}
+.dtoggle::after{
+  content:""; position:absolute; top:2px; left:2px;
+  width:27px; height:27px; border-radius:50%; background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.2);
+  transition:transform .16s var(--ease);
+}
+.dtoggle.is-on{ background:var(--u-orange); }
+.dtoggle.is-on::after{ transform:translateX(21px); }
+
+.detail__nav{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 18px 4px; border-top:1px solid #eef0f2; flex:0 0 auto; }
+.navbtn{ display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; border-radius:12px; background:#f1f3f5; font-size:14px; font-weight:600; color:var(--c-ink-2); }
+.navbtn:disabled{ opacity:.4; }
+.navbtn .ico{ width:18px; height:18px; }
+
+/* Menü — Aufbau nach Muster: eine Reihe „Gehe zu Datum", darunter der
+   Abschnitt „Ansicht" mit Haken bei der laufenden Ansicht, dann „Legende". */
+.menu-list{ padding:6px; }
+.menu-item{
+  display:flex; align-items:center; gap:12px;
+  width:100%; padding:11px 12px; border-radius:11px;
+  font-size:16px; text-align:left; color:var(--c-ink);
+}
+.menu-item__ico{
+  width:24px; height:24px; flex:0 0 auto;
+  display:grid; place-items:center; color:var(--c-ink-2);
+}
+.menu-item__ico .ico{ width:22px; height:22px; }
+.menu-item__label{ flex:1 1 auto; min-width:0; }
+
+/* Haken links vom Zeichen — nur bei der laufenden Ansicht sichtbar, sonst
+   hält die Spalte bloß den Platz, damit die Zeichen bündig stehen. */
+.menu-item__check{
+  width:20px; flex:0 0 auto;
+  display:grid; place-items:center;
+  color:var(--u-orange); opacity:0;
+}
+.menu-item__check svg{
+  width:18px; height:18px; fill:none; stroke:currentColor;
+  stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round;
+}
+.menu-item--view.is-active .menu-item__check{ opacity:1; }
+.menu-item--view.is-active .menu-item__label{ font-weight:600; }
+
+/* Feine Trennlinie und stiller Abschnittstitel zwischen den Gruppen. */
+.menu-sep{ height:1px; margin:5px 12px; background:rgba(120,132,143,.24); }
+.menu-section{ padding:7px 14px 3px; font-size:13px; color:var(--c-muted); }
+
+/* Kalender */
+.cal__head{ display:flex; align-items:center; justify-content:space-between; padding:2px 18px 10px; font-size:16px; font-weight:700; }
+.calnav{ width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:#f1f3f5; color:var(--c-ink-2); }
+/* Gewählt wird die Woche, nicht der Tag — deshalb ist die Zeile das
+   anfassbare Element. Links die Wochennummer, dann Mo bis So. */
+.cal__dow{
+  display:grid; grid-template-columns:34px repeat(7,1fr);
+  padding:0 14px; font-size:11.5px; font-weight:600;
+  color:var(--c-muted); text-align:center;
+}
+.cal__dow .cal__kw{ font-size:10.5px; letter-spacing:.04em; }
+.cal__grid{ display:flex; flex-direction:column; gap:2px; padding:4px 14px 10px; }
+
+.calweek{
+  display:grid; grid-template-columns:34px repeat(7,1fr);
+  align-items:center;
+  border-radius:12px; padding:2px 0;
+  transition:background-color .14s var(--ease);
+}
+.calweek__kw{
+  font-size:11.5px; font-weight:600; color:#9aa7b1;
+  display:grid; place-items:center;
+}
+.calday{
+  aspect-ratio:1; display:grid; place-items:center;
+  font-size:14.5px; color:var(--c-ink);
+}
+.calday.is-out{ color:#c2c9cf; }
+.calday.is-weekend{ color:#b3bdc5; }
+.calday.is-out.is-weekend{ color:#d8dde1; }
+.calday.is-today{
+  color:#fff; font-weight:700;
+  background:var(--today); border-radius:50%;
+  width:28px; height:28px; aspect-ratio:auto;
+  justify-self:center; align-self:center;
+}
+
+/* Die gewählte Woche liegt als ein durchgehendes Feld unter der Zeile. */
+.calweek.is-selected{ background:var(--u-orange-soft); }
+.calweek.is-selected .calday{ color:var(--u-orange-ink); font-weight:600; }
+.calweek.is-selected .calday.is-out{ color:#e0b394; }
+.calweek.is-selected .calweek__kw{ color:var(--u-orange-ink); }
+.calweek.is-selected .calday.is-today{ color:#fff; }
+
+/* Die laufende Woche bekommt einen zarten Umriss, auch wenn eine andere
+   gewählt ist. */
+.calweek.is-current:not(.is-selected){ box-shadow:inset 0 0 0 1.5px #e6e9ec; }
+.cal__today{ margin:2px 18px 4px; padding:13px; border-radius:12px; background:var(--u-orange); color:#fff; font-weight:600; font-size:15px; }
+
+/* Legende */
+.legend{ padding:0 18px 8px; display:flex; flex-direction:column; gap:14px; }
+.legend li{ display:grid; grid-template-columns:34px 1fr; gap:12px; align-items:center; }
+.legend b{ display:block; font-size:15px; font-weight:600; }
+.legend span{ display:block; font-size:13px; color:var(--c-muted); }
+.sw{ width:34px; height:34px; border-radius:8px; display:block; box-shadow:var(--shadow-card); }
+.sw--normal{ background:var(--card-bg); }
+.sw--change{ background:var(--chg-bg); border:1.5px solid var(--chg-border); }
+.sw--cancel{ background:var(--cnc-bg); }
+.sw--exam{ background:var(--exam-bg); border:2px solid var(--exam-border); box-shadow:none; }
+.sw--event{ background:var(--evt-bg); }
+.sw--absent{ background:var(--absent); }
+
+/* Wochen-Hinweis beim Wischen */
+.week-hint{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%) scale(.9);
+  background:rgba(37,55,70,.9); color:#fff;
+  padding:9px 16px; border-radius:999px;
+  font-size:14px; font-weight:600;
+  opacity:0; pointer-events:none;
+  transition:opacity .18s var(--ease), transform .18s var(--ease);
+  z-index:30;
+}
+.week-hint.is-on{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+/* Toast */
+.toast{
+  position:fixed; left:50%; bottom:calc(var(--tabbar-h) + var(--sab) + 34px);
+  transform:translateX(-50%) translateY(10px);
+  background:#253746; color:#fff;
+  padding:11px 18px; border-radius:999px;
+  font-size:14px; z-index:60;
+  opacity:0; transition:opacity .2s var(--ease), transform .2s var(--ease);
+  pointer-events:none;
+}
+.toast.is-on{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* Fokus */
+:focus-visible{ outline:2.5px solid var(--u-orange); outline-offset:2px; border-radius:6px; }
+
+@media (prefers-reduced-motion:reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+/* Kartenzeiten (optional, Profil-Schalter) */
+body.show-card-times .card__times{ display:flex; }
+.card__times{ display:none; position:absolute; right:7px; top:6px; bottom:6px; flex-direction:column; justify-content:space-between; align-items:flex-end; font-size:9.5px; color:#93a0aa; font-weight:600; }
+
+/* =====================================================================
+   Anmeldung — eigener Bildschirm der PWA
+   ===================================================================== */
+.login{
+  position:fixed; inset:0; z-index:80;
+  display:flex; align-items:center; justify-content:center;
+  padding:calc(var(--sat) + 24px) 22px calc(var(--sab) + var(--kb) + 24px);
+  background:linear-gradient(180deg,#ffffff 0%,#eef2f6 100%);
+  overflow-y:auto;
+}
+.login[hidden]{ display:none; }
+.login__box{ width:100%; max-width:360px; }
+.login__mark{
+  width:56px; height:56px; border-radius:16px;
+  background:var(--u-orange); color:#fff;
+  display:grid; place-items:center;
+  margin-bottom:20px;
+}
+.login__mark svg{ width:30px; height:30px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; }
+.login h1{ font-size:27px; font-weight:700; letter-spacing:-.02em; }
+.login p{ font-size:14.5px; color:var(--c-muted); margin:5px 0 26px; }
+
+.field{ display:block; margin-bottom:14px; }
+.field span{ display:block; font-size:12.5px; font-weight:600; color:var(--c-ink-2); margin-bottom:6px; }
+.field input{
+  width:100%; padding:13px 14px;
+  border:1.5px solid #dde2e7; border-radius:12px;
+  background:var(--c-bar); font-size:16px; color:var(--c-ink);
+  outline:none;
+  transition:border-color .15s var(--ease);
+}
+.field input:focus{ border-color:var(--u-orange); }
+
+.login__error{
+  margin:2px 0 12px; padding:10px 12px;
+  border-radius:10px; background:#ffe9ec; color:#a01a34;
+  font-size:13.5px;
+}
+.login__error[hidden]{ display:none; }
+
+.login__submit{
+  width:100%; padding:15px;
+  border-radius:12px;
+  background:var(--u-orange); color:#fff;
+  font-size:16px; font-weight:600;
+  transition:transform .12s var(--ease), opacity .15s var(--ease);
+}
+.login__submit:active{ transform:scale(.98); }
+.login__submit:disabled{ opacity:.55; }
+
+/* =====================================================================
+   Klassenbuch — Unteransicht im Stundendetail
+   ===================================================================== */
+.dsub{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  background:var(--c-bar);
+  border-radius:20px;
+  z-index:5;
+}
+.dsub[hidden]{ display:none; }
+.dsub__top{
+  flex:0 0 auto;
+  display:grid; grid-template-columns:44px 1fr 44px;
+  align-items:center; gap:8px;
+  padding:14px 14px 12px;
+  border-bottom:1px solid #eef0f2;
+}
+.dsub__body{
+  flex:1 1 auto; min-height:0;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:14px 18px calc(var(--sab) + 14px);
+}
+.dsub__area{
+  width:100%; min-height:220px;
+  border:0; outline:none; resize:none;
+  font-family:inherit;
+  font-size:16px; line-height:1.5; color:var(--c-ink);
+  background:none;
+}
+.dsub__area::placeholder{ color:#9aa7b1; }
+
+.dsub__seg{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:3px;
+  background:#eff1f4; border-radius:999px; padding:3px;
+  margin-bottom:12px;
+}
+.dsub__seg button{ padding:11px 2px; font-size:15.5px; font-weight:600; color:var(--c-ink-2); border-radius:999px; }
+.dsub__seg button.is-active{ background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); color:var(--c-ink); }
+
+.dsub__hint{
+  background:#f1f3f5; color:var(--c-ink-2);
+  font-size:15px; padding:12px 15px; border-radius:10px;
+  margin-bottom:16px;
+}
+.dsub__empty{ text-align:center; padding:40px 10px; color:var(--c-muted); }
+.dsub__empty b{ display:block; font-size:20px; font-weight:700; color:var(--c-ink); margin:14px 0 6px; }
+.dsub__empty span{ font-size:15px; }
+.dsub__empty svg{ width:44px; height:44px; fill:none; stroke:#9aa7b1; stroke-width:1.5; }
+.dsub__empty-ico svg{ width:28px; height:28px; }
+
+/* Vertretungstext: schlicht linksbündig, wie in der Vorlage. */
+.dsub__read{ padding-top:6px; }
+
+.dsub__list{ display:flex; flex-direction:column; gap:9px; margin-bottom:14px; }
+.dsub__item{
+  display:grid; grid-template-columns:1fr 32px; align-items:start; gap:10px;
+  background:#f5f7f9; border-radius:12px; padding:14px 15px;
+  font-size:16.5px; line-height:1.45;
+}
+.dsub__item-main b{ display:block; font-weight:400; color:var(--c-ink); }
+.dsub__item-main span{ display:block; font-size:14px; color:#8b9aa5; margin-top:3px; }
+.dsub__item.is-done .dsub__item-main b{ color:#8b9aa5; text-decoration:line-through; }
+
+.dsub__empty-ico{
+  display:grid; place-items:center;
+  width:58px; height:58px; margin:0 auto 14px;
+  border-radius:50%; background:#eef1f4; color:#8b9aa5;
+}
+.dsub__empty-ico svg{ width:28px; height:28px; fill:none; stroke:currentColor;
+  stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.dsub__item button{ color:#9aa7b1; }
+.dsub__item button svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+.dsub__add{
+  display:flex; align-items:center; gap:10px;
+  width:100%; padding:15px 16px;
+  border:1.5px dashed #cfd6dc; border-radius:12px;
+  color:var(--u-orange-ink); font-size:16.5px; font-weight:600;
+}
+.dsub__add svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; }
+
+/* Vertretungstext in der Unteransicht */
+.dsub__read{ font-size:16px; line-height:1.5; color:var(--c-ink); }
+
+/* Anwesenheitskontrolle — Aufbau nach der Vorlage
+   ---------------------------------------------------------------------
+   Kein Strich zwischen den Namen: getrennt wird nur nach Anfangsbuchstaben,
+   und der Strich sitzt unter dem Buchstaben. */
+.att{ display:flex; flex-direction:column; }
+
+/* Band unter der Filterleiste — über die volle Breite des Fensters. */
+.att__band{
+  margin:0 -18px 4px;
+  background:#f2f3f5; color:var(--c-ink);
+  font-size:15px; text-align:center;
+  padding:12px 16px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.att__band-ok{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2.2;
+  stroke-linecap:round; stroke-linejoin:round; }
+
+.att__letter{
+  padding:16px 2px 9px;
+  font-size:15px; font-weight:400; color:#5d727f;
+  border-bottom:1px solid #e4e7ea;
+}
+
+.att__row{
+  position:relative; overflow:hidden;
+  border-radius:14px;
+}
+.att__inner{
+  display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:14px;
+  padding:13px 2px;
+  background:var(--c-bar);
+  transition:transform .22s var(--ease);
+}
+.att__row.is-swiping .att__inner{ transition:none; }
+
+/* Die farbige Pille wächst aus der Kante, aus der gewischt wird. */
+.att__swipe{
+  position:absolute; top:5px; bottom:5px; width:0;
+  border-radius:999px; overflow:hidden;
+  display:grid; place-items:center;
+  pointer-events:none;
+}
+.att__band--todo{ color:var(--c-ink-2); }
+
+/* Vor der Freigabe lässt sich nichts eintragen. */
+.att.is-locked .att__mark,
+.att.is-locked .att__acts button{ opacity:.45; }
+
+/* Entschuldigte Zeilen sind gesetzt: das Symbol bleibt farbig, der Rest
+   tritt zurück, und ein Schloss zeigt, dass hier nichts zu ändern ist. */
+.att__row.is-locked .att__acts{ opacity:.35; pointer-events:none; }
+.att__row.is-locked .att__mark{ pointer-events:none; }
+.att__row.is-locked .att__tag{ color:#8b9aa5; }
+.att__row.is-locked .att__main b::after{
+  content:"";
+  display:inline-block; vertical-align:-2px; margin-left:7px;
+  width:12px; height:13px;
+  background:currentColor; opacity:.4;
+  -webkit-mask:var(--lock) center/contain no-repeat;
+          mask:var(--lock) center/contain no-repeat;
+}
+:root{
+  --lock:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 10.5h14v9.5H5z' fill='black'/><path d='M8.4 10.5V7.8a3.6 3.6 0 0 1 7.2 0v2.7' fill='none' stroke='black' stroke-width='2'/></svg>");
+}
+
+.att__swipe--in { left:0;  background:#157d68; }
+.att__swipe--in.is-late{ background:#eaa53c; }
+.att__swipe--out{ right:0; background:#e00047; }
+.att__swipe svg{
+  width:27px; height:27px; min-width:27px;
+  fill:none; stroke:#fff; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
+}
+.att__row.is-armed .att__swipe svg{ transform:scale(1.12); transition:transform .12s var(--ease); }
+
+/* Zustand links im Kreis */
+.att__mark{ width:34px; height:34px; display:grid; place-items:center; color:#c3ccd3; }
+.att__mark svg{ width:30px; height:30px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.att__mark:active{ transform:scale(.9); }
+.att__row.is-present .att__mark{ color:#157d68; }
+.att__row.is-absent  .att__mark{ color:#d10f51; }
+.att__row.is-late    .att__mark{ color:#eaa53c; }
+
+/* Name und Zusatzzeilen — die Zusatzzeilen stehen gedeckt, nicht farbig. */
+.att__main{ min-width:0; }
+.att__main b{
+  display:block; font-size:17px; font-weight:400; color:var(--c-ink); line-height:1.25;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.att__tag{ display:block; font-size:15px; margin-top:3px; color:var(--c-ink-2); }
+.att__note{ display:block; font-size:15px; margin-top:2px; color:#8b9aa5; }
+/* Hinweis, dass jemand schon in einer früheren Stunde gefehlt hat. */
+.att__before{ display:block; font-size:14px; margin-top:2px; color:#8b9aa5; }
+/* Entschuldigt oder nicht — steht als Wort da, nicht nur als Farbe. */
+.att__state{ display:block; font-size:14px; margin-top:2px; }
+.att__state--ok{ color:#157d68; }
+.att__state--no{ color:#c0113a; }
+
+.att__index{
+  position:absolute; top:150px; right:4px; bottom:14px;
+  display:flex; flex-direction:column; justify-content:center; gap:1px;
+  z-index:6;
+}
+.att__index button{ font-size:11.5px; font-weight:600; color:#8b9aa5; line-height:1.3; padding:0 3px; }
+.att__index button:active{ color:var(--u-orange); }
+
+/* Vermerk und Uhr rechts — kräftig, wie in der Vorlage */
+.att__acts{ display:flex; gap:10px; padding-right:14px; }
+.att__acts button{
+  width:40px; height:40px; border-radius:11px;
+  color:#24323c; display:grid; place-items:center;
+}
+.att__acts button svg{ width:26px; height:26px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+
+/* Fehlt jemand, steht die Zahl auf rotem Feld — sofort sichtbar. */
+.drow2__count.is-red{ background:#e00047; color:#fff; }
+
+/* =====================================================================
+   Abwesenheit bearbeiten — eigenes Fenster über der Schülerliste
+   ===================================================================== */
+.dabs{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  background:var(--c-bar);
+  border-radius:20px;
+  z-index:8;
+}
+.dabs[hidden]{ display:none; }
+
+.dabs__top{
+  flex:0 0 auto;
+  display:grid; grid-template-columns:48px 1fr auto;
+  align-items:center; gap:8px;
+  padding:14px 14px 12px;
+}
+.dabs__title{ text-align:center; font-size:17px; font-weight:600; color:var(--c-ink-2); }
+.dabs__acts{ display:flex; align-items:center; gap:8px; }
+.rndbtn--ok{ color:var(--u-green); }
+
+/* Der grüne Streifen unter der Kopfzeile wie in der Vorlage. */
+.dabs__bar{ flex:0 0 auto; height:5px; background:var(--u-green); }
+
+.dabs__body{
+  flex:1 1 auto; min-height:0;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:18px 18px calc(var(--sab) + 18px);
+}
+
+.dabs__who{
+  display:grid; grid-template-columns:56px 1fr; align-items:center; gap:14px;
+  padding-bottom:18px; border-bottom:1px solid #eef0f2; margin-bottom:18px;
+}
+.dabs__ava{
+  width:56px; height:56px; border-radius:50%;
+  background:#8b9aa5; color:#fff;
+  display:grid; place-items:center; font-size:18px; font-weight:600;
+}
+.dabs__id b{ display:block; font-size:21px; font-weight:400; color:var(--c-ink); line-height:1.2; }
+.dabs__chip{
+  display:inline-block; margin-top:6px;
+  padding:3px 11px; border-radius:8px;
+  background:#e7ebee; color:#5d727f; font-size:14px;
+}
+
+.dabs__lab{
+  display:block;
+  font-size:12.5px; font-weight:600; letter-spacing:.06em;
+  color:#8b9aa5; text-transform:uppercase;
+  margin-bottom:8px;
+}
+.dabs__grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+.dabs__fields{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.dabs__pill{
+  -webkit-appearance:none; appearance:none;
+  border:0; outline:none;
+  background:#eef0f3; color:var(--c-ink);
+  border-radius:999px; padding:9px 15px;
+  font-family:inherit; font-size:16.5px; line-height:1.2;
+  min-height:40px;
+}
+.dabs__pill:focus{ background:#e3e7ec; }
+/* Auf dem iPad zeigt das System selbst ein Rad zur Auswahl — das kleine
+   Symbol des Browsers tritt dahinter zurück. */
+.dabs__pill::-webkit-calendar-picker-indicator{ opacity:.4; margin-left:6px; }
+.dabs__pill::-webkit-date-and-time-value{ text-align:left; }
+
+.dabs__sel{
+  display:grid; grid-template-columns:1fr 24px; align-items:center; gap:10px;
+  width:100%; text-align:left;
+  background:#f1f3f5; border-radius:12px;
+  padding:15px 14px 15px 16px;
+  font-size:17px; color:var(--c-ink);
+  margin-bottom:20px;
+}
+.dabs__sel .is-empty{ color:#9aa7b1; }
+.dabs__sel .ico{ width:22px; height:22px; color:#9aa7b1; }
+
+.dabs__area{
+  width:100%; min-height:130px;
+  border:0; outline:none; resize:none;
+  background:#f1f3f5; border-radius:12px;
+  padding:14px 16px; margin-bottom:22px;
+  font-family:inherit; font-size:17px; line-height:1.5; color:var(--c-ink);
+}
+.dabs__area::placeholder{ color:#9aa7b1; }
+
+.dabs__switch{
+  display:grid; grid-template-columns:1fr auto; align-items:center; gap:14px;
+  font-size:17px; color:var(--c-ink);
+  padding:6px 0 4px;
+}
+
+/* Der Balken zeigt den erfassten Zustand: gelb verspätet, grün abwesend. */
+.dabs__bar{ background:#c7ced4; }
+.dabs.is-absent .dabs__bar{ background:var(--u-green); }
+.dabs.is-late   .dabs__bar{ background:#eaa53c; }
+
+/* =====================================================================
+   Eingabefenster — Hausaufgabe, Klassenbucheintrag, Bemerkung
+   ===================================================================== */
+.dform{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  background:var(--c-bar); border-radius:20px;
+  z-index:9;
+}
+.dform[hidden]{ display:none; }
+.dform__top{
+  flex:0 0 auto;
+  display:grid; grid-template-columns:48px 1fr 48px;
+  align-items:center; gap:8px;
+  padding:14px 14px 12px;
+  border-bottom:1px solid #eceff1;
+}
+.dform__title{ text-align:center; font-size:17px; font-weight:600; color:var(--c-ink-2); }
+.rndbtn--go{ color:var(--u-orange); }
+
+.dform__body{
+  flex:1 1 auto; min-height:0;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:6px 18px calc(var(--sab) + 18px);
+}
+
+.dform__row{
+  display:grid; align-items:center; gap:4px 12px;
+  width:100%; text-align:left;
+  padding:14px 0;
+  border-bottom:1px solid #eceff1;
+}
+/* Beschriftung oben, Eingabe darunter, Pfeil rechts über beide Zeilen. */
+.dform__row--nav{ grid-template-columns:1fr 22px; }
+.dform__row--nav .dform__lab{ grid-column:1; grid-row:1; }
+.dform__row--nav .dform__in { grid-column:1; grid-row:2; }
+.dform__row--nav .dform__val{ grid-column:1; grid-row:2; }
+.dform__row--nav .dform__chev{ grid-column:2; grid-row:1 / span 2; }
+
+.dform__row--val{ grid-template-columns:1fr auto; }
+.dform__lab{ font-size:15px; color:var(--c-ink-2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dform__row{ min-width:0; }
+.dform__lab--big{ font-size:17px; color:var(--c-ink); }
+.dform__chev{ width:22px; height:22px; color:#9aa7b1; align-self:center; justify-self:end;
+  fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.dform__val{ font-size:17px; color:var(--c-ink); margin-top:2px; }
+.dform__val.is-empty{ color:#9aa7b1; }
+
+.dform__in{
+  width:100%;
+  border:0; outline:none; resize:none; overflow:hidden;
+  background:transparent; padding:0; margin-top:2px;
+  font-family:inherit; font-size:17px; line-height:1.4; color:var(--c-ink);
+}
+.dform__in::placeholder{ color:#9aa7b1; }
+
+.dform__block{ padding:16px 0 4px; }
+.dform__area{
+  width:100%; min-height:56px;
+  border:0; outline:none; resize:none; overflow:hidden;
+  background:transparent; padding:0;
+  font-family:inherit; font-size:17px; line-height:1.45; color:var(--c-ink);
+}
+.dform__area::placeholder{ color:#9aa7b1; }
+
+.dform__hint{
+  display:flex; align-items:flex-start; gap:8px;
+  font-size:13.5px; line-height:1.4; color:#8b9aa5;
+  padding:0 0 16px; border-bottom:1px solid #eceff1;
+}
+.dform__hint svg{ width:16px; height:16px; margin-top:1px; flex:0 0 16px;
+  fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; }
+
+.dform__date{
+  -webkit-appearance:none; appearance:none; border:0; outline:none;
+  background:transparent; font-family:inherit; font-size:17px; color:var(--c-ink);
+  text-align:right;
+}
+
+/* Auswahlliste der Abwesenheitsgründe */
+.dabs__pick{
+  position:absolute; z-index:9;
+  left:18px; right:18px; top:50%;
+  overflow-y:auto;
+  background:var(--c-bar);
+  border-radius:16px;
+  box-shadow:0 10px 34px rgba(21,33,44,.26);
+  padding:6px;
+}
+.dabs__pick[hidden]{ display:none; }
+.dabs__pick button{
+  display:block; width:100%; text-align:left;
+  padding:14px 14px; border-radius:11px;
+  font-size:17px; color:var(--c-ink);
+}
+.dabs__pick button.is-on{ color:var(--u-orange-ink); font-weight:600; }
+
+/* =====================================================================
+   Dunkles Erscheinungsbild
+   ---------------------------------------------------------------------
+   Werte aus den Musterbildern abgenommen: Grund schwarz, Kacheln in einem
+   gedeckten Blaugrau, Änderungen in kräftigem Grün, Ferien in Blau.
+   ===================================================================== */
+
+/* =====================================================================
+   Dunkles Erscheinungsbild
+   ---------------------------------------------------------------------
+   Gesteuert über die Klasse .is-dark auf <html>. Gesetzt wird sie von
+   assets/js/app.js — entweder nach der Systemeinstellung oder nach der
+   Wahl im Profil.
+   ===================================================================== */
+
+  html.is-dark {
+    /* Werte am Muster abgenommen: Grund #1c1c1e, Leiste schwarz,
+       Kachel #5e7382, Balken #bfc7ce, Änderung #035641,
+       Plakette #22c0a1, Ferien #6a82bf. */
+    --c-bg:            #1c1c1e;
+    --c-bar:           #000000;
+    --c-surface:       #1c1c1e;
+    --c-chip:          #2a2a2e;
+    --c-grid-top:      #1c1c1e;
+    --c-grid-bottom:   #1c1c1e;
+    --c-line:          #34343a;
+    --c-line-soft:     #34343a;
+    --c-col-line:      #2a2a2f;
+
+    --c-ink:           #f2f4f6;
+    --c-ink-2:         #c9d1d8;
+    --c-muted:         #8d949c;
+    --c-gutter:        #9aa1a8;
+
+    --card-bg:         #5e7382;
+    --card-bg-past:    #323d45;   /* deutlich dunkler als eine laufende Stunde */
+    --shadow-past:     0 1px 2px rgba(0,0,0,.34), 0 2px 5px rgba(0,0,0,.24);
+    --card-accent:     #bfc7ce;
+
+    --u-green:         #22c0a1;
+    --u-green-soft:    #035641;
+    --u-green-ink:     #05201a;
+    --u-blue:          #6a82bf;
+    --u-cyan:          #3ee6ff;
+    /* Fehlte hier als einzige der Kennfarben. Auf dunklem Grund wirkt das
+       helle Lila aus dem Grundblock blass und ging neben dem hellgrauen
+       Balken der übrigen Kacheln unter — der Akzentbalken der Aufsicht war
+       dadurch kaum als solcher zu erkennen. */
+    --u-magenta:       #e08cff;
+
+    /* Ränder und Flächen am Muster gemessen: Grün #035641 mit Rand #30bd9e,
+       Entfall #81012f mit Rand #e43b66. */
+    --chg-bg:          #005840;
+    --chg-border:      #20c0a2;
+    --chg-accent:      #0a7a5e;
+
+    --cnc-bg:          #81012f;
+    --cnc-border:      #df0047;
+
+    --exam-bg:         #4a3f22;
+    --exam-border:     #c9a227;
+    --evt-bg:          #054035;
+
+    --green:           #22c0a1;      /* Plakettenfläche */
+    --green-ink:       #05201a;      /* Plakettenschrift */
+
+    --shadow-card:     none;      /* im Dunkeln tragen die Kacheln keinen Schatten */
+    --shadow-sheet:    0 -8px 40px rgba(0,0,0,.7);
+    --shadow-bar:      0 2px 12px rgba(0,0,0,.6);
+  }
+
+  html.is-dark body { background:var(--c-bg); color:var(--c-ink); }
+
+  .is-dark .topbar,
+  .is-dark .weekhead,
+  .is-dark .tabbar,
+  .is-dark .screen--start,
+  .is-dark .screen--msg,
+  .is-dark .screen--profile { background:var(--c-bar); }
+  /* Sheets bleiben auch im Dunkeln milchig-durchscheinend (Liquid Glass). */
+  .is-dark .sheet { background:color-mix(in srgb, var(--c-bar) 66%, transparent); }
+  .is-dark .screen--start,
+  .is-dark .screen--msg,
+  .is-dark .screen--profile { background:var(--c-bg); }
+
+  .is-dark .rndbtn,
+  .is-dark .searchwrap,
+  .is-dark .dsub__seg,
+  .is-dark .dsub__hint,
+  .is-dark .att__btns button,
+  .is-dark .btn,
+  .is-dark .topbar__actions,
+  .is-dark .dayswitch__back { background:#1c1c1e; color:var(--c-ink-2); }
+  .is-dark #btnSwitchEntity,
+  .is-dark #pickerClear,
+  .is-dark #pickerBack { background:#1c1c1e; color:var(--c-ink-2); }
+  .is-dark /* Im Detail liegt der Grund schon auf #1c1c1e — die Knöpfe brauchen einen
+     eigenen,
+  .is-dark etwas helleren Kreis,
+  .is-dark sonst verschwinden sie. */
+  #dsubBack,
+  .is-dark #dsubSave,
+  .is-dark #detailClose,
+  .is-dark #detailMenu { background:#2a2a2e; color:var(--c-ink-2); }
+  .is-dark /* Die Planauswahl oben ist blanker Text — keine hellere Fläche darunter. */
+  #btnEntityPicker,
+  .is-dark .topbar__title { background:transparent; }
+  /* Im Hellen steht der Name auf weißem Grund, im Dunkeln auf schwarzem.
+     Derselbe gedeckte Ton wirkt dort deutlich matter, als er soll —
+     deshalb ein paar Stufen heller. Zweitrangig bleibt er trotzdem: Der
+     Wochentag daneben steht weiter kräftiger da. */
+  .is-dark .topbar__title { color:#93a6b2; }
+  .is-dark .tab.is-active::before { background:#232326; }
+  .is-dark .tabbar { background:#111114; box-shadow:0 -1px 0 #232327, var(--shadow-sheet); }
+  .is-dark .tab { color:var(--c-ink-2); }
+  .is-dark .tab.is-active { color:var(--c-ink); }
+  .is-dark .dsub__seg button.is-active { background:#3a3a3e; color:var(--c-ink); }
+  /* Die Zählerkarte trägt die Farbe dessen, was hinter ihr steckt: Grün
+     bei einer Vertretung, Rot beim Entfall. Nur die gewöhnliche Stunde
+     bleibt farblos — im Hellen weiß, im Dunkeln entsprechend das Grau der
+     Karten. Weiß stach dort als heller Balken heraus. */
+  /* Die farblose Zählerkarte steht im Dunkeln immer im dunkleren Ton der
+     vergangenen Kacheln — auch für künftige Stunden. Sie ist ein Hinweis am
+     Rand, kein Eintrag: Im helleren Grau der laufenden Karten drängte sie
+     sich neben die Stunden, denen sie eigentlich nur zuarbeitet. */
+  .is-dark .parcount {
+    box-shadow:none;
+    background:var(--card-bg-past);
+    color:var(--c-ink);
+  }
+  /* Auf dem dunkelgrünen Feld war die dunkelgrüne Zahl kaum zu lesen. */
+  /* Grün und Rot in voller Kraft — im Dunkeln der kräftige Rand-, nicht der
+     gedämpfte Flächenton. Mit `--chg-bg` wirkte der Streifen wie eine
+     vergangene Stunde, obwohl die Vertretung noch bevorsteht. */
+  .is-dark .parcount--change {
+    background:var(--chg-border);
+    color:#eafff7;
+  }
+  /* `.is-dark .parcount` ist genauer als `.parcount--cancel` und hat dem
+     Entfall-Zähler sein Rot genommen. Hier steht es wieder. */
+  .is-dark .parcount--cancel {
+    background:var(--cnc-border);
+    color:#fff;
+  }
+  /* Info und Kürzungszeichen liegen im Dunkeln als dunkles Feld mit hellen
+     Punkten auf der Karte (Vorlage Screenshot 1). */
+  /* Dasselbe Feld wie bei den zweifarbigen Zeichen — sie stehen in
+     derselben Ecke und dürfen nicht in zwei Dunkelheiten erscheinen. */
+  .is-dark .card__cut,
+  .is-dark .card__info { background:var(--tt-ic-bg); }
+  .is-dark .card__cut circle { fill:var(--tt-ic-fg); }
+  /* Auf einer Vertretung gilt die Plakettenfarbe, nicht das dunkle Feld.
+     Die Regel darüber ist genauso genau und stünde weiter unten — sie
+     würde sonst gewinnen und dem Zeichen sein Grün nehmen. `--green` und
+     `--green-ink` sind im Dunkeln bereits umbelegt, hier steht deshalb
+     kein fester Wert. */
+  /* Zweifarbige Kachelzeichen umkehren: dunkles Feld, helle Zeichnung. */
+  /* Im Dunkeln bleibt das Feld dunkel und die Zeichnung gedämpft.
+     Vorher war es nur halb durchsichtig und die Zeichnung fast weiß —
+     auf einer dunklen Kachel wurde daraus ein heller Fleck, der mehr
+     Aufmerksamkeit zog als der Text daneben. Ein Zeichen in der Ecke ist
+     ein Hinweis, keine Überschrift. */
+     Geschrieben als `html.is-dark`, nicht als `.is-dark`: Die Vorgabe
+     steht in `:root`, also am selben Element. Bei gleicher Genauigkeit
+     gewänne die weiter unten stehende Regel — und das ist `:root`. Mit
+     dem Elementnamen davor zählt die Regel eine Stufe genauer und setzt
+     sich durch, unabhängig von der Reihenfolge. */
+  html.is-dark{ --tt-ic-bg:#2b3138; --tt-ic-fg:#9aa6b2; }
+
+  .is-dark .card--change .card__cut,
+  .is-dark .card--released .card__cut{ background:var(--green); }
+  .is-dark .card--change .card__cut circle,
+  .is-dark .card--released .card__cut circle{ fill:var(--green-ink); }
+  .is-dark .card__info::before { background:var(--tt-ic-fg); }
+  .is-dark .card__info { color:var(--tt-ic-bg); }
+  .is-dark .corners i { border-color:#8d949c; }
+  .is-dark .searchwrap input { color:var(--c-ink); }
+  .is-dark .dtoggle { background:#3a3a3c; }
+  .is-dark .dtoggle::after { background:#f2f4f6; }
+
+  .is-dark .card { color:var(--c-ink); }
+
+  .is-dark .card__line { color:#f4f6f8; }
+  .is-dark .card--cancelled { background:var(--cnc-bg); }
+
+  /* Im Dunklen bleibt bei vergangenen farbigen Stunden der Rahmen und die
+     Fläche wird neutral. */
+  .is-dark .card--released.is-past{ background:transparent; box-shadow:none; }
+  .is-dark .dpill { background:#4a5560; }
+  .is-dark .card--standby.is-past{
+    background:transparent;
+    border-color:#4a5560;
+  }
+  /* Diese Regel steht im Stylesheet nach der hellen Fassung und ist gleich
+     genau — sie hat der abwesenden Bereitschaft die Durchsichtigkeit wieder
+     genommen. Hier bekommt sie sie zurück. */
+  .is-dark .card--standby.is-absent.is-past{
+    background:transparent;
+    border-color:transparent;
+  }
+  .is-dark .card--change.is-past,
+  .is-dark .card--cancelled.is-past{
+    background:var(--card-bg-past);
+    --bw:2px;
+  }
+  .is-dark .card--change.is-past   { border:2px solid var(--chg-border); }
+  .is-dark .card--cancelled.is-past{ border:2px solid var(--cnc-border); }
+  /* Vergangene GS/AK im Dunkeln — wie eine vergangene Vertretung: neutrale
+     Fläche, aber der grüne Rand bleibt als Kennzeichen stehen. */
+  .is-dark .card--gs.is-past,
+  .is-dark .card--absence.is-past{
+    background:var(--card-bg-past);
+    --bw:2px;
+    border:2px solid var(--chg-border);
+  }
+  /* Durchgestrichener Text bleibt reinweiß und damit gut lesbar. */
+  .is-dark .card--cancelled .card__line { color:#ffffff; }
+  .is-dark .card--cancelled .card__line s,
+  .is-dark .card--cancelled .badge { color:#ffffff; }
+  .is-dark .card--change { background:var(--chg-bg); }
+  .is-dark .card--change .card__line { color:#eafff8; }
+  /* Dunkle Schrift auf dem blauen Band. */
+  .is-dark .card--holiday .card__line { color:#161a24; }
+  .is-dark .card--holiday .holiday-mark { color:#161a24; }
+  .is-dark .card.is-highlight { border-color:#22c0a1; }
+  .is-dark .card--gs .card__line,
+  .is-dark .card--gs .card__line--primary { color:#eafff8; }
+  .is-dark .card--released { background:transparent; }
+  /* Der gestrichelte Rahmen soll sich im Dunkeln vom Feld abheben. */
+  .is-dark .card--standby { border-color:#c3ccd4; }
+  .is-dark .card--standby .card__line { color:#cfd6dc; }
+
+  .is-dark .slotrow { border-top-color:var(--c-line); }
+  .is-dark .daycol { border-color:var(--c-col-line); }
+  .is-dark .dayhead__name { color:var(--c-muted); }
+  .is-dark .dayhead__num { color:var(--c-ink); }
+
+  .is-dark .dsub,
+  .is-dark .sheet--detail,
+  /* Auch das Schreibfenster bleibt blickdicht — sonst schimmert die Liste
+     dahinter durch die Zeilen. */
+  .is-dark .sheet--write { background:var(--c-surface); }
+  .is-dark .dmenu { background:color-mix(in srgb, var(--c-surface) 74%, transparent); }
+  .is-dark .dhead.is-off { background:#2a2a2e; }
+  .is-dark /* Trennlinien im Detail bleiben dezent — sonst zerschneiden sie die Liste. */
+  .drow2 + .drow2 { border-top-color:#2c2c31; }
+  .is-dark .detail__sep { background:#2c2c31; }
+  .is-dark .dsub__top { border-bottom-color:#2c2c31; }
+  .is-dark .drow2__count { background:#5d6870; color:#0d1114; }
+  .is-dark .att__inner { background:var(--c-surface); }
+  .is-dark .att__letter { border-bottom-color:#2c2c31; }
+  .is-dark .att__band { background:#1c1c1e; color:var(--c-ink); }
+  .is-dark .att__acts button { color:#cfd6db; }
+  .is-dark .att__before { color:#8b959e; }
+  .is-dark .att__state--ok { color:#3fd0ac; }
+  .is-dark .att__state--no { color:#ff6f8f; }
+  .is-dark .dsub__item { background:#2a2a2e; }
+  .is-dark .dsub__area { color:var(--c-ink); }
+
+  .is-dark .picker-item__ava { background:#5b656e; }
+  .is-dark .picker-letter { background:var(--c-bar); color:var(--c-muted); }
+  .is-dark .chip { background:#2a2a2e; color:#b9c1c8; }
+  .is-dark .msgrow { background:#141416; border-bottom-color:var(--c-line); }
+  .is-dark .msgrow__ava { background:#5b656e; }
+  .is-dark .rows--flat .row--user { background:#101012; box-shadow:none; border:1px solid var(--c-line); }
+  .is-dark .daycard{ background:#101012; box-shadow:none; border:1px solid var(--c-line); }
+  .is-dark .nextnone{ background:#33393f; }
+  .is-dark .daycard__num, .is-dark .daycard__mon{ color:#f6efe6; }
+  .is-dark .daycard__tag{ background:#6a82bf; color:#101425; }
+  .is-dark .schoolname{ color:#c2ccd4; }
+  .is-dark .profile-card,
+  .is-dark .rows,
+  .is-dark .tile,
+  .is-dark .msg,
+  .is-dark .empty {
+    background:#101012; box-shadow:none; border:1px solid var(--c-line);
+  }
+  .is-dark .tile__main b,
+  .is-dark .tile b { color:var(--c-ink); }
+  .is-dark .eyebrow { color:var(--c-muted); }
+  .is-dark .flag--change,
+  .is-dark .flag--event { background:#0a5a48; color:#8ff0d4; }
+  .is-dark .flag--cancel { background:#5a2f3a; color:#ffb3c1; }
+  .is-dark .flag--exam { background:#4a3f22; color:#f0d99a; }
+  .is-dark .profile-name { color:var(--c-ink); }
+  .is-dark .row { border-bottom-color:var(--c-line); }
+  .is-dark .msg { background:#101012; border-color:var(--c-line); }
+  .is-dark .screen h1,
+  .is-dark .screen h2 { color:var(--c-ink); }
+  .is-dark .startcard,
+  .is-dark .nextcard,
+  .is-dark .card--next { background:#101012; border:1px solid var(--c-line); box-shadow:none; }
+  .is-dark .cal,
+  .is-dark .calday { color:var(--c-ink); }
+  .is-dark .calday.is-out { color:var(--c-muted); }
+  .is-dark .pk__index button { color:var(--c-muted); }
+  .is-dark .empty,
+  .is-dark .legalnote { color:var(--c-muted); }
+  .is-dark .toast { background:#2a2a2e; color:var(--c-ink); }
+  .is-dark .picker-item__chip { background:#2a2a2e; color:#b9c1c8; }
+  .is-dark .picker-item__chip--kl { background:#2a2a2e; color:#b9c1c8; }
+  .is-dark .screen--list { background:#141416; }
+  .is-dark .lsthead { background:var(--c-surface); border-bottom-color:#2c2c31; }
+  .is-dark .lstcard { background:var(--c-surface); }
+  .is-dark .lstbtn { background:#2a2a2e; color:#cfd6db; }
+  .is-dark .frow { border-top-color:#2c2c31; }
+  .is-dark .frow:last-of-type,
+  .is-dark .frow__pick { border-bottom-color:#2c2c31; }
+  .is-dark .lst__emptyIco { background:rgba(42,42,46,.7); }
+  .is-dark .lstchip { background:#2a2a2e; color:#cfd6db; border-color:rgba(255,255,255,.08); }
+  .is-dark .lstsearch { background:var(--c-surface); box-shadow:none; }
+  /* Im Dunklen dasselbe Prinzip, nur mit dunklen Scheiben. */
+  .is-dark .screen--start,
+  .is-dark .screen--profile,
+  .is-dark .screen--list{ background:#131416; }
+  .is-dark body:has(.screen--start.is-active) .topbar,
+  .is-dark body:has(.screen--profile.is-active) .topbar,
+  .is-dark body:has(.screen--list.is-active) .topbar,
+  .is-dark body.has-plain-top .topbar{ background:#131416; }
+  .is-dark .screen--start .rows,
+  .is-dark .screen--profile .rows,
+  .is-dark .screen--start .daycard,
+  .is-dark .screen--list .lstcard{
+    background:#1e1f22; border:0;
+    box-shadow:0 8px 26px rgba(0,0,0,.34);
+  }
+  .is-dark .lsthead{ background:#131416; border-bottom:0; }
+  .is-dark .profpop{
+    background:rgba(28,28,30,.78);
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .is-dark .pk__row:active,
+  .is-dark .pk__search { background:transparent; }
+
+  .is-dark .login { background:linear-gradient(180deg,#111114 0%, #000 100%); }
+  .is-dark .field input { background:#1c1c1e; border-color:#3a3a3c; color:var(--c-ink); }
+
+  .is-dark .nowline { background:#ff6b3d; }
+
+  .is-dark .dabs { background:var(--c-surface); }
+  .is-dark .dabs__who { border-bottom-color:#2c2c31; }
+  .is-dark .dabs__ava { background:#5b656e; }
+  .is-dark .dabs__chip { background:#2a2a2e; color:#b9c1c8; }
+  .is-dark .dabs__pill,
+  .is-dark .dabs__sel,
+  .is-dark .dabs__area { background:#2a2a2e; color:var(--c-ink); }
+  .is-dark .dabs__pick { background:#1c1c1e; }
+  .is-dark .dabs__pick button { color:var(--c-ink); }
+  .is-dark .drow2__count.is-red { background:#e00047; color:#fff; }
+
+  .is-dark .calweek.is-current:not(.is-selected) { box-shadow:inset 0 0 0 1.5px #33333a; }
+  .is-dark .calday.is-out { color:#4d545b; }
+  .is-dark .calday.is-weekend { color:#6b747c; }
+  .is-dark .calday.is-out.is-weekend { color:#41474d; }
+
+  .is-dark .dform { background:var(--c-surface); }
+  .is-dark .dform__top,
+  .is-dark .dform__row,
+  .is-dark .dform__hint { border-bottom-color:#2c2c31; }
+  .is-dark .dform__in,
+  .is-dark .dform__area,
+  .is-dark .dform__date,
+  .is-dark .dform__val { color:var(--c-ink); }
+  .is-dark .dsub__empty-ico { background:#2a2a2e; }
+  .is-dark .dabs__bar { background:#3a3a40; }
+  .is-dark .dpart { background:#1c1c1e; }
+  .is-dark .dpart button:active,
+
+
+/* =====================================================================
+   Profil und Mitteilungen — Aufbau nach Vorlage
+   ===================================================================== */
+.rows--flat{ background:none; border:0; box-shadow:none; margin-bottom:22px; }
+.rows--flat .row--user{
+  background:var(--c-bar); border-radius:16px;
+  display:grid; grid-template-columns:52px 1fr 24px; align-items:center; gap:14px;
+  padding:14px 16px; width:100%;
+  box-shadow:var(--shadow-card);
+}
+.row--user__main b{ display:block; font-size:19px; font-weight:400; color:var(--c-ink); }
+.chip{
+  display:inline-block; margin-top:5px;
+  padding:3px 11px; border-radius:999px;
+  background:#e7ebee; color:#5d727f; font-size:13px;
+}
+.ico--updown{ width:22px; height:22px; color:var(--c-muted); stroke-width:2; fill:none; stroke:currentColor; }
+
+.row{ display:grid; grid-template-columns:30px 1fr auto auto; align-items:center; gap:13px; }
+.row__ico .ico{ width:23px; height:23px; color:var(--c-muted); fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+/* Füllzeichen wiegen bei gleicher Größe deutlich schwerer als Konturzeichen:
+   Statt eines Strichs von knapp zwei Pixeln steht dort eine geschlossene
+   Fläche. In den Zeilen der Startseite wirkten sie dadurch wie Schaltflächen
+   und zogen den Blick von der Beschriftung weg. Sie werden deshalb eine
+   Spur kleiner gesetzt und blasser gefärbt — so wiegen sie ungefähr so viel
+   wie die Konturzeichen daneben. */
+.row__ico .uic{
+  width:20px; height:20px;
+  fill:color-mix(in srgb, var(--c-muted) 82%, transparent);
+  stroke:none;
+}
+.row--switch{ grid-template-columns:30px 1fr auto; }
+.row--nav .ico--chev2{ color:var(--c-muted); }
+
+/* Mitteilungen */
+.msghead{
+  display:grid; grid-template-columns:44px 1fr auto;
+  align-items:center; gap:8px;
+  /* Diese Zeile ist auf dem Mitteilungsbildschirm die oberste: Die Leiste
+     der App entfällt dort, und der Kontoknopf sitzt links in dieser Zeile.
+     Vorher stand beides untereinander — der Sicherheitsabstand zählte
+     zweimal, und dazwischen blieb ein leerer schwarzer Streifen, über dem
+     der Hintergrund wechselte. */
+  padding:calc(var(--sat) + 13px) 14px 6px;
+}
+/* Solange die Mitteilungen offen sind, trägt diese Zeile den Kopf. */
+body.is-msgtop .topbar{ display:none; }
+/* Am Tablet sitzen die Reiter oben in der Mitte — dort ist kein Platz für
+   einen zweiten Titel. */
+@media (min-width:820px){
+  .msghead__title{ display:none; }
+}
+/* Die Plätze stehen fest, auch wenn der Zurückknopf fehlt: Ohne feste
+   Spalten rutschten Titel und Knöpfe nach links und lagen übereinander. */
+/* Links der Kontoknopf und, wenn eine Mitteilung offen ist, der Pfeil
+   zurück — beide in derselben Zelle. */
+.msghead__left{ grid-column:1; display:flex; align-items:center; gap:8px; }
+.msghead__title{
+  grid-column:2; text-align:center;
+  font-size:19px; font-weight:600; color:var(--c-ink-2);
+}
+.msghead__acts{ grid-column:3; display:flex; align-items:center; gap:8px; }
+.msghead .rndbtn[hidden]{ display:none; }
+.msgtabs{ display:flex; gap:22px; padding:6px 18px 10px; }
+.msgtabs button{ font-size:17px; font-weight:600; color:var(--c-muted); }
+.msgtabs button.is-active{ color:var(--c-ink); }
+.msglist{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.msgrow{
+  display:grid; grid-template-columns:52px 1fr auto; align-items:start; gap:13px;
+  /* Eine Karte je Mitteilung, nicht eine Zeile mit Trennlinie — so steht es
+     im Vorbild. */
+  margin:8px 14px; padding:14px 16px;
+  background:var(--c-chip); border-radius:14px;
+  width:calc(100% - 28px); text-align:left;
+}
+.msgrow__ava{
+  width:52px; height:52px; border-radius:50%;
+  background:#8b9aa5; color:#fff;
+  display:grid; place-items:center; font-size:17px; font-weight:600;
+}
+.msgrow__main b{ display:block; font-size:17px; font-weight:400; color:var(--c-ink); }
+.msgrow__main span{ display:block; font-size:15px; color:var(--c-ink-2); margin-top:1px; }
+.msgrow__main em{
+  display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
+  overflow:hidden;
+  font-size:15px; color:var(--c-muted); font-style:normal;
+}
+.msgrow__main b, .msgrow__main span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.msgrow__date{ font-size:14px; color:var(--c-muted); white-space:nowrap; }
+.msgrow.is-unread .msgrow__main b{ font-weight:700; }
+
+/* ---------- Abwesend oder verspätet im Fehlzeit-Fenster ---------- */
+.dabs__art{
+  display:flex; gap:6px; margin:10px 0 4px;
+  padding:3px; border-radius:11px; background:var(--c-chip);
+}
+.dabs__art button{
+  flex:1 1 0; padding:8px 10px; border-radius:9px;
+  font-size:14.5px; font-weight:600; color:var(--c-ink-2);
+}
+.dabs__art button.is-on{ background:var(--c-surface); color:var(--c-ink); }
+
+/* Hinweis, wenn das Fenster nur zum Lesen offen steht. */
+.dabs__lesen{
+  margin:2px 0 10px; padding:9px 12px;
+  border-radius:10px; background:var(--c-chip);
+  font-size:13.5px; color:var(--c-ink-2);
+}
+.dabs__art button:disabled, .dabs__sel:disabled{ opacity:.55; }
+
+/* ---------- Suche in den Mitteilungen ---------- */
+.msgfind{ padding:0 16px 8px; }
+.msgfind input{
+  width:100%; padding:10px 14px;
+  border:0; border-radius:999px;
+  background:var(--c-chip); color:var(--c-ink); font-size:16px;
+  outline:none;
+}
+.msgfind[hidden]{ display:none; }
+
+/* ---------- Leere Liste: Zeichen, Überschrift, Nebensatz ---------- */
+.msgempty{ text-align:center; padding:70px 24px; }
+.msgempty__ico{
+  display:grid; place-items:center; width:74px; height:74px; margin:0 auto 20px;
+  border-radius:50%; background:var(--c-chip);
+}
+.msgempty__ico svg{
+  width:34px; height:34px; color:var(--c-muted);
+  fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;
+}
+.msgempty b{ display:block; font-size:21px; font-weight:600; color:var(--c-ink); }
+.msgempty span{ display:block; margin-top:8px; font-size:15.5px; color:var(--c-muted); }
+
+/* ---------- Eine gelesene Mitteilung ---------- */
+.msgread{
+  flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:4px 20px calc(var(--sab) + 24px);
+}
+.msgread[hidden]{ display:none; }
+.msgread__head{
+  display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+  font-size:15px; color:var(--c-muted);
+}
+.msgread__from b{ color:var(--c-ink); font-weight:600; }
+.msgread__subject{ margin:10px 0 18px; font-size:21px; font-weight:600; color:var(--c-ink); }
+.msgread__body{ font-size:16px; line-height:1.5; color:var(--c-ink); white-space:normal; }
+.msgread__body a{ color:var(--u-orange); text-decoration:none; word-break:break-word; }
+.msgread__to{ margin-top:18px; font-size:14px; color:var(--c-muted); }
+.msgread__file{
+  display:flex; align-items:center; gap:10px;
+  margin-top:12px; padding:11px 13px;
+  border:1px solid var(--c-line); border-radius:12px;
+  font-size:15px; color:var(--c-ink); text-decoration:none;
+}
+.msgread__file .ico{ width:18px; height:18px; }
+.msgread__file em{ margin-left:auto; font-style:normal; color:var(--c-muted); font-size:13.5px; }
+.msgread__acts{ display:flex; gap:10px; margin-top:26px; }
+
+/* ---------- Mitteilung schreiben ---------- */
+.sheet--write{
+  height:auto; max-height:88vh;
+  padding:0 0 calc(var(--sab) + 10px);
+  background:var(--c-bar);
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+  display:flex; flex-direction:column;
+}
+@media (min-width:700px){
+  .sheet--write{
+    left:50%; right:auto; bottom:auto; top:50%;
+    width:min(680px, 92vw);
+    height:min(74vh, 760px); max-height:min(74vh, 760px);
+    border-radius:20px;
+    transform:translate(-50%, -46%) scale(.98); opacity:0;
+    transition:transform .26s var(--ease), opacity .2s var(--ease);
+  }
+  .sheet--write.is-open{ transform:translate(-50%, -50%) scale(1); opacity:1; pointer-events:auto; }
+}
+.write__top{
+  display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
+  gap:10px; padding:12px 14px;
+}
+.write__title{ text-align:center; font-size:17px; font-weight:600; color:var(--c-ink); }
+.write__pane{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
+.write__pane[hidden]{ display:none; }
+.write__to{
+  display:flex; align-items:center; gap:12px;
+  width:100%; padding:14px 18px; text-align:left;
+  border-top:1px solid var(--c-line-soft); border-bottom:1px solid var(--c-line-soft);
+}
+.write__toLab{ font-size:16px; color:var(--c-ink-2); }
+.write__toVal{
+  flex:1 1 auto; font-size:16px; color:var(--c-ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.write__to .ico{ width:20px; height:20px; color:var(--c-muted); }
+.write__subject, .write__body, .write__find{
+  width:100%; border:0; outline:none; background:transparent;
+  color:var(--c-ink); font-family:inherit;
+}
+.write__subject{ padding:16px 18px 4px; font-size:20px; font-weight:600; }
+.write__body{ flex:1 1 auto; padding:6px 18px 10px; font-size:16px; line-height:1.45; resize:none; }
+.write__files{ display:flex; flex-wrap:wrap; gap:6px; padding:0 18px; }
+.write__tools{
+  display:flex; align-items:center; justify-content:flex-end; gap:10px;
+  padding:10px 18px 4px;
+}
+.write__clip{
+  display:grid; place-items:center; width:42px; height:42px;
+  border-radius:999px; background:var(--c-chip); cursor:pointer;
+}
+.write__clip .ico{ width:20px; height:20px; color:var(--c-ink-2); }
+.write__draft{
+  padding:9px 16px; border-radius:11px;
+  background:var(--c-chip); color:var(--c-ink-2); font-size:14.5px; font-weight:600;
+}
+.write__find{
+  padding:12px 18px; font-size:16px;
+  border-bottom:1px solid var(--c-line-soft);
+}
+.write__chosen{ display:flex; flex-wrap:wrap; gap:6px; padding:10px 18px 0; }
+.write__hits{ flex:1 1 auto; overflow-y:auto; padding:8px 0 0; }
+.write__hint{ padding:16px 18px; font-size:14.5px; color:var(--c-muted); }
+.write__ok{
+  margin:10px 18px 0; padding:13px; border-radius:12px;
+  background:var(--u-orange); color:#fff; font-size:16px; font-weight:600;
+}
+.msgchip{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 8px 5px 11px; border-radius:999px;
+  background:var(--c-chip); color:var(--c-ink); font-size:14.5px;
+}
+.msgchip button{ font-size:17px; line-height:1; color:var(--c-muted); }
+.msghit{
+  display:flex; align-items:center; gap:12px;
+  width:100%; text-align:left; padding:10px 18px;
+}
+.msghit__ava{
+  flex:0 0 38px; width:38px; height:38px; border-radius:50%;
+  background:#8b9aa5; color:#fff;
+  display:grid; place-items:center; font-size:14px; font-weight:600;
+}
+/* Name über Zusatz, beides beschnitten statt umbrechend. */
+.msghit > span:last-child{ display:flex; flex-direction:column; min-width:0; }
+.msghit b{ font-size:15.5px; font-weight:600; color:var(--c-ink); }
+.msghit b, .msghit span span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.msghit span span{ font-size:13.5px; color:var(--c-muted); }
+
+/* ---------- Abwesend oder verspätet im Fehlzeit-Fenster ---------- */
+.dabs__art{
+  display:flex; gap:6px; margin:10px 0 4px;
+  padding:3px; border-radius:11px; background:var(--c-chip);
+}
+.dabs__art button{
+  flex:1 1 0; padding:8px 10px; border-radius:9px;
+  font-size:14.5px; font-weight:600; color:var(--c-ink-2);
+}
+.dabs__art button.is-on{ background:var(--c-surface); color:var(--c-ink); }
+
+/* Hinweis, wenn das Fenster nur zum Lesen offen steht. */
+.dabs__lesen{
+  margin:2px 0 10px; padding:9px 12px;
+  border-radius:10px; background:var(--c-chip);
+  font-size:13.5px; color:var(--c-ink-2);
+}
+.dabs__art button:disabled, .dabs__sel:disabled{ opacity:.55; }
+
+/* ---------- Suche in den Mitteilungen ---------- */
+.msgfind{ padding:0 16px 8px; }
+.msgfind input{
+  width:100%; padding:10px 13px;
+  border:1.5px solid var(--c-line); border-radius:11px;
+  background:var(--c-surface); color:var(--c-ink); font-size:16px;
+  outline:none;
+}
+.msgfind[hidden]{ display:none; }
+
+
+
+
+/* =====================================================================
+   Tablet: die Reiter wandern nach oben in die Kopfzeile
+   ===================================================================== */
+@media (min-width:820px){
+  .tabbar{
+    left:50%; right:auto; transform:translateX(-50%);
+    top:calc(var(--sat) + 6px); bottom:auto;
+    width:auto; height:46px;
+    grid-auto-flow:column; grid-template-columns:none;
+    gap:4px; padding:0 6px;
+  }
+  .tab{ flex-direction:row; gap:8px; padding:0 18px; font-size:16px; }
+  .tab .ico{ display:none; }
+  .tab > span{ font-size:16px; }
+  .tab.is-active{ color:var(--u-orange); }
+  .tab.is-active::before{ background:color-mix(in srgb, var(--c-ink) 10%, transparent); }
+  .tab__dot{ top:6px; right:8px; }
+
+  /* Auf dem Tablet steht alles in einer Zeile: links der Wechsel-Knopf,
+     mittig die Reiter, rechts die beiden Knöpfe. Der Plan-Titel rutscht
+     in eine zweite Zeile darunter. */
+  .topbar{
+    padding-top:calc(var(--sat) + 6px);
+    grid-template-areas:"l c r" ". t .";
+    /* Erste Zeile so hoch wie die Reiterleiste, damit die runden Knöpfe
+       links und rechts auf deren Höhe sitzen und nicht darüber. */
+    grid-template-rows:46px auto;
+    align-items:center;
+    row-gap:12px;                       /* Planauswahl steht etwas tiefer */
+  }
+  .topbar .icon-btn,
+  .topbar__actions{ align-self:center; }
+
+  /* Außerhalb des Stundenplans gibt es keine Planauswahl — dann fällt die
+     zweite Zeile weg, statt als leere Fläche stehen zu bleiben. */
+  body.has-plain-top .topbar{ grid-template-rows:46px 0; row-gap:0; padding-bottom:0; }
+  body.has-plain-top .topbar__title{ height:0; overflow:hidden; }
+
+  /* Die Liste bringt ihre Kopfzeile selbst mit — sonst schöbe der
+     Seitenabstand die Knöpfe unter die Reiterleiste. */
+  .screen.screen--list{ padding-top:0; }   /* muss die Regel für .screen schlagen */
+
+  /* Dasselbe in der Kopfzeile der Listen. */
+  .lsthead{
+    grid-template-columns:44px 1fr auto;
+    grid-template-rows:46px;
+    align-items:center;
+    padding-top:calc(var(--sat) + 6px);
+    padding-bottom:10px;
+  }
+  /* Der Titel steht unter der Reiterleiste, nicht daneben. */
+  .lsthead{ grid-template-rows:46px auto; }
+  .lsthead__when{ grid-column:1 / -1; grid-row:2; padding-top:6px; }
+  .lsthead #lstBack{ grid-column:1; grid-row:1; }
+  .lsthead__right{ grid-column:3; grid-row:1; }
+  #btnSwitchEntity{ grid-area:l; }
+  .topbar__actions{ grid-area:r; }
+  .topbar__title{ grid-area:t; justify-self:center; }
+
+  .tabbar{ top:calc(var(--sat) + 6px); z-index:42; }
+  .gridpane{ padding-bottom:calc(24px + var(--sab)); }
+
+  /* Start, Mitteilungen und Profil beginnen unter der schwebenden
+     Reiterleiste — knapp darunter, nicht mit einer leeren Fläche. */
+  /* Der Inhalt beginnt knapp unter der Reiterleiste. Die 97 px, mit denen
+     die Seite ohnehin startet, reichen dafür — ein zusätzlicher Abstand
+     ergäbe die leere Fläche, die vorher da war. */
+  .screen{ padding-top:6px; }
+
+  /* Der Inhalt läuft nicht über die ganze Breite, sondern in einer
+     Spalte in der Mitte — wie in der Vorlage. */
+  .screen--start .pad,
+  .screen--profile .pad,
+  .screen--msg .pad,
+  .lstbody,
+  .lstfilter{
+    max-width:760px; margin-left:auto; margin-right:auto; width:100%;
+  }
+  .schoolname{ margin-top:0; }
+  /* .pad bringt seinen Sicherheitsabstand selbst mit (Handy); auf dem iPad
+     übernimmt das schon .screen, sonst zählt der Rand doppelt. */
+  .pad{ padding-top:8px; }
+
+  /* Der Stundenplan hängt dagegen an der Titelzeile — er wird höher
+     gezogen, damit über dem Raster keine leere Fläche steht. */
+  .screen--plan{ padding-top:calc(var(--sat) + 10px); }
+}
+
+/* =====================================================================
+   Startseite nach Vorlage
+   ===================================================================== */
+.schoolname{
+  margin:16px 0 20px;
+  /* Passt sich der Länge an: kurze Namen groß, lange schrumpfen mit. */
+  font-size:clamp(25px, 8.6vw, 34px);
+  line-height:1.08; font-weight:800;
+  letter-spacing:-.022em;
+  color:var(--c-ink-2);
+  text-wrap:balance;
+}
+.daycard{
+  display:grid; grid-template-columns:92px 1fr; gap:14px;
+  background:var(--c-bar);
+  border-radius:22px;
+  padding:16px 16px 14px;
+  box-shadow:var(--shadow-card);
+  margin-bottom:24px;
+}
+.daycard__left{ min-width:0; }
+.daycard__wd{ display:block; font-size:15px; color:var(--c-ink-2); }
+.daycard__num{ display:block; font-size:42px; font-weight:700; line-height:1.05; color:var(--u-orange); }
+.daycard__mon{ display:block; font-size:17px; font-weight:600; color:var(--u-orange); }
+.daycard__tag{
+  display:inline-block; margin-top:10px;
+  padding:5px 10px; border-radius:7px;
+  background:#d7e4f7; color:#20364f;
+  font-size:14.5px; font-weight:600; white-space:nowrap;
+}
+.daycard__right{ min-width:0; }
+
+.nextnone{
+  background:var(--c-surface);
+  border-radius:14px;
+  padding:18px 14px;
+  text-align:center;
+}
+.nextnone .ico{ width:32px; height:32px; color:var(--c-ink-2); fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.nextnone b{ display:block; margin-top:8px; font-size:16px; color:var(--c-ink); }
+.nextnone span{ display:block; margin-top:3px; font-size:14.5px; color:var(--c-ink-2); }
+
+.nextday{ font-size:15px; font-weight:600; color:var(--c-ink-2); margin:4px 0 8px; }
+.nextday:first-child{ margin-top:0; }
+.nextday span{ color:var(--c-muted); font-weight:400; }
+.nextday span::before{ content:"| "; }
+.nextrow{
+  display:grid; grid-template-columns:4px 1fr auto; gap:10px;
+  align-items:stretch;
+  width:100%; text-align:left;
+  padding:3px 6px 5px 0;
+  margin-bottom:10px;
+  border-radius:8px;
+  transition:transform .1s var(--ease);
+}
+.nextrow:active{ transform:scale(.985); }
+.nextrow:last-child{ margin-bottom:0; }
+.nextrow__bar{ background:var(--card-accent); border-radius:999px; }
+.nextrow__main{ min-width:0; }
+.nextrow__main span{
+  display:block; font-size:15px; color:var(--c-ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.nextrow__main span:first-child{ font-weight:600; }
+/* Zeiten rechtsbündig: Beginn oben, Ende unten — wie in der Vorlage. */
+.nextrow__times{
+  display:flex; flex-direction:column; justify-content:space-between;
+  text-align:right; min-width:52px;
+}
+.nextrow__times span{ font-size:14.5px; color:var(--c-ink-2); }
+.nextrow.is-off{
+  background:var(--cnc-bg);
+  border:1.5px solid var(--cnc-border);
+  padding:4px 8px;
+}
+.nextrow.is-off .nextrow__main span{ text-decoration:line-through; text-decoration-thickness:var(--strike); }
+
+/* Der Wechsel-Knopf sitzt oben bündig — direkt unter der Statusleiste,
+   nicht mehr eingerückt. */
+.screen--start .rndbtn{ margin-top:0; margin-bottom:4px; }
+
+/* =====================================================================
+   Umschalter im Detailfenster
+   ---------------------------------------------------------------------
+   Liegen mehrere Stunden zur selben Zeit — eine Kopplung, zwei Kurse
+   nebeneinander, eine Veranstaltung neben dem Unterricht —, führt eine
+   Leiste über dem Inhalt zu jeder von ihnen. Ohne sie war nur die Karte
+   zu sehen, die man zufällig getroffen hat.
+   ===================================================================== */
+.dtabs{
+  display:flex; gap:0; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  background:var(--c-bg-2, #eef1f4);
+  border-bottom:1px solid var(--c-line, #e3e8ec);
+  scrollbar-width:none;
+}
+.dtabs::-webkit-scrollbar{ display:none; }
+.dtabs__t{
+  flex:0 0 auto; appearance:none; border:0; background:none;
+  padding:13px 18px 11px; font:600 15px/1.2 inherit;
+  color:var(--c-muted); white-space:nowrap; cursor:pointer;
+  border-bottom:3px solid transparent;
+}
+.dtabs__t.is-on{ color:var(--c-ink); border-bottom-color:var(--c-ink); }
+.dtabs__t:active{ opacity:.7; }
+/* Dasselbe Grau wie die Kacheln — die Leiste gehört zum Plan, nicht zum
+   Fensterrahmen.
+
+   Ohne Medienabfrage: Den Dunkelmodus schaltet die App selbst über die
+   Klasse `.is-dark` auf <html>. In einer `prefers-color-scheme`-Abfrage
+   hätten diese Regeln nur gegriffen, wenn zusätzlich das Betriebssystem
+   auf Dunkel steht — bei manuell umgeschalteter App also gar nicht. */
+.is-dark .dtabs{ background:var(--card-bg); border-bottom-color:rgba(0,0,0,.25); }
+.is-dark .dtabs__t{ color:rgba(255,255,255,.62); }
+.is-dark .dtabs__t.is-on{ color:#fff; border-bottom-color:#fff; }
+
+
+/* Aufsichtspille im Dunkelmodus — dieselben Farben wie im Hellen. Ohne
+   diese Zeilen greifen die allgemeinen Dunkelregeln für Karten und färben
+   Balken und Menüzeichen um. */
+.is-dark .card--supervision::before,
+.is-dark .card--supervision.is-sub::before,
+.is-dark .card--supervision.is-absent::before{ background:var(--u-magenta); }
+/* Wie im Hellen über `--green` und `--green-ink`: Beide sind je Modus
+   belegt, sodass die Punkte im Dunkeln dunkel auf hellem Grün stehen —
+   genau wie beim Kürzungszeichen auf den Kacheln. */
+.is-dark .card--supervision .sup-menu{ background:var(--green); }
+.is-dark .card--supervision .sup-menu circle{ fill:var(--green-ink); }
+
+/* =====================================================================
+   Aufsichtspille — Akzentbalken und Menüzeichen festgeschrieben
+   ---------------------------------------------------------------------
+   Diese Regeln stehen bewusst am Ende der Datei und mit zwei Klassen, damit
+   keine spätere Regel für Entfall, Vertretung oder Dunkelmodus sie noch
+   umfärbt. Der Balken ist lila, weil er sagt: Das hier ist eine Aufsicht.
+   Was mit ihr geschehen ist, sagen Rand und Menüzeichen — beide grün, in
+   der Sicht der einspringenden wie der abwesenden Lehrkraft.
+
+   Die Pille ist nur gut 20 Pixel hoch. Der Balken bekommt deshalb eigene
+   Ränder oben und unten; mit dem Abstand der großen Kacheln bliebe von ihm
+   kaum etwas übrig.
+   ===================================================================== */
+.card--supervision.is-absent::before,
+.card--supervision.is-sub::before,
+.card--supervision::before{
+  background:var(--u-magenta) !important;
+  display:block !important;
+  top:3px !important;
+  bottom:3px !important;
+  width:4px !important; min-width:4px !important;
+  border-radius:2px !important;
+  opacity:1 !important;
+}
+/* Fläche und Punkte über `--green` und `--green-ink` statt über
+   `--u-green` und festem Weiß. Beide Werte sind je Modus belegt, und
+   genau dieselben trägt das Kürzungszeichen auf den Kacheln. Nur so
+   sehen die beiden „…“ im selben Plan gleich aus: im Hellen dunkelgrün
+   mit weißen Punkten, im Dunkeln der helle Ton mit dunklen. Mit festem
+   Weiß standen im Dunkeln helle Punkte hier und dunkle dort. */
+.card--supervision.is-absent .sup-menu,
+.card--supervision.is-sub .sup-menu,
+.card--supervision .sup-menu{
+  display:grid !important;
+  background:var(--green) !important;
+  opacity:1 !important;
+}
+.card--supervision .sup-menu circle{ fill:var(--green-ink) !important; }
+
+/* =====================================================================
+   Schatten nur dort, wo eine Fläche liegt
+   ---------------------------------------------------------------------
+   Durchsichtige Kacheln — abgegebene Stunden, abgegebene Aufsichten,
+   vergangene Bereitschaften — trugen weiterhin den Schatten der gefüllten
+   Karten. Er lag dann frei auf dem Hintergrund und sah aus wie ein
+   verrutschter Rahmen. Ohne Fläche kein Schatten.
+   ===================================================================== */
+/* Kacheln mit Fläche behalten ihren Schatten — auch wenn sie aneinander
+   stoßen. Ohne Fläche wirkt er dagegen wie ein verrutschter Rahmen. */
+.card--released,
+.card--standby.is-past,
+.card--supervision.is-absent{ box-shadow:none; }
+
+/* Die Zählkarte ist ein schmaler Streifen, kein Blatt Papier. */
+.parcount{ box-shadow:none; }
+
+
+
+/* =====================================================================
+   Menü als Klappmenü am Knopf
+   ---------------------------------------------------------------------
+   Das Menü fuhr wie ein Blatt von unten herein. Es gehört aber zum
+   Drei-Punkt-Knopf oben rechts — von dort soll es aufklappen, wie in der
+   Vorlage. Die übrigen Blätter (Auswahl, Detail, Formulare) bleiben
+   unverändert; nur dieses eine wird umgesetzt.
+   ===================================================================== */
+@media (min-width: 0px) {
+  /* Das Menü klappt vom Drei-Punkt-Knopf oben rechts auf — mit einer
+     Sprechblasen-Spitze zu ihm hin, wie in der Vorlage. Es ist milchig
+     durchscheinend mit kräftiger Unschärfe dahinter (Liquid Glass) und
+     trägt statt einer harten Kante nur einen weichen Schatten und eine
+     hauchdünne Lichtkante. */
+  #sheetMenu{
+    position:fixed;
+    left:auto;
+    right:10px;
+    bottom:auto;
+    top:calc(env(safe-area-inset-top, 0px) + 58px);
+    width:min(284px, calc(100vw - 20px));
+    max-height:min(74vh, 580px);
+    border-radius:20px;
+    padding:6px;
+    overflow:visible;
+    background:color-mix(in srgb, var(--c-bar) 68%, transparent);
+    backdrop-filter:saturate(200%) blur(34px);
+    -webkit-backdrop-filter:saturate(200%) blur(34px);
+    box-shadow:
+      0 14px 44px rgba(21,33,44,.24),
+      0 3px 12px rgba(21,33,44,.14),
+      inset 0 0 0 .5px rgba(255,255,255,.55);
+    transform-origin:top right;
+    transform:translateY(-6px) scale(.94);
+    opacity:0;
+    transition:transform .2s var(--ease), opacity .16s var(--ease);
+  }
+  #sheetMenu.is-open{
+    transform:none;
+    opacity:1;
+  }
+  /* Die Spitze: ein kleines Dreieck aus demselben Glas, das nach oben zum
+     Knopf zeigt. Es trägt dieselbe Unschärfe, damit die Kante nicht bricht. */
+  #sheetMenu::before{
+    content:"";
+    position:absolute;
+    top:-8px; right:16px;
+    width:22px; height:12px;
+    background:color-mix(in srgb, var(--c-bar) 68%, transparent);
+    backdrop-filter:saturate(200%) blur(34px);
+    -webkit-backdrop-filter:saturate(200%) blur(34px);
+    clip-path:polygon(50% 0, 100% 100%, 0 100%);
+  }
+  /* Der Ziehgriff und der Titel gehören zum Blatt von unten, nicht zum
+     Klappmenü — falls sie doch einmal mitkommen, bleiben sie verborgen. */
+  #sheetMenu .sheet__grab{ display:none; }
+  #sheetMenu .sheet__title{ padding:12px 16px 8px; font-size:15px; color:var(--c-muted); }
+}
+
+/* Dunkelmodus: dunkles Glas mit gedämpfter Lichtkante — Weiß auf Weiß wäre
+   hier zu hart. */
+.is-dark #sheetMenu{
+  background:color-mix(in srgb, var(--c-surface) 60%, transparent);
+  box-shadow:
+    0 14px 44px rgba(0,0,0,.6),
+    0 3px 12px rgba(0,0,0,.4),
+    inset 0 0 0 .5px rgba(255,255,255,.12);
+}
+.is-dark #sheetMenu::before{
+  background:color-mix(in srgb, var(--c-surface) 60%, transparent);
+}
+.is-dark .menu-sep{ background:rgba(255,255,255,.14); }
+
+/* =====================================================================
+   Liquid Glass — die kleinen Flächen in Menüs und Blättern
+   ---------------------------------------------------------------------
+   Die großen Flächen tragen es längst: Blatt, Klappmenü, Profilfeld,
+   Leiste. Darin saßen aber deckend gefüllte Knöpfe — auf Glas wirkt so
+   ein Feld wie aufgeklebt, weil es das einzige ist, durch das nichts
+   hindurchscheint.
+
+   Im Dunkeln war das schnell gelöst: Ein Hauch Weiß auf dunklem Grund
+   liest sich sofort als Scheibe. Im Hellen nicht. Dort sitzt der Knopf
+   auf einem ohnehin fast weißen Blatt — eine weiße Glasfläche darauf ist
+   schlicht unsichtbar. Helles Glas braucht deshalb drei Dinge, die
+   dunkles nicht braucht:
+
+     · einen leichten Farbstich zum Grund hin, damit die Fläche überhaupt
+       vom Blatt abhebt,
+     · eine helle Kante **oben** und eine dunkle **unten** — das ist es,
+       was eine Scheibe von einem grauen Rechteck unterscheidet: Sie fängt
+       das Licht an der Oberkante und wirft unten einen Rand,
+     · einen ganz flachen Schlagschatten, damit sie aufliegt.
+
+   Alles davon steckt in den Variablen unten und ist je Modus belegt, statt
+   jede Regel doppelt zu schreiben.
+   ===================================================================== */
+
+:root{
+  /* Fläche: im Hellen ein Hauch Tinte in viel Weiß — nicht reines Weiß,
+     sonst verschwindet der Knopf auf dem Blatt. */
+  --glass-fill: color-mix(in srgb, var(--c-ink) 7%, rgba(255,255,255,.66));
+  --glass-fill-on: color-mix(in srgb, var(--c-ink) 13%, rgba(255,255,255,.72));
+  --glass-top:  rgba(255,255,255,.85);   /* Lichtkante oben  */
+  --glass-bot:  rgba(31,47,61,.11);      /* Schattenkante unten */
+  --glass-lift: 0 1px 2px rgba(31,47,61,.07);
+  --glass-blur: saturate(190%) blur(22px);
+}
+/* Auch hier der Elementname davor — aus demselben Grund wie oben: Die
+   Vorgaben stehen in `:root` am selben Element. */
+html.is-dark{
+  --glass-fill: rgba(255,255,255,.10);
+  --glass-fill-on: rgba(255,255,255,.17);
+  --glass-top:  rgba(255,255,255,.18);
+  --glass-bot:  rgba(0,0,0,.30);
+  --glass-lift: 0 1px 2px rgba(0,0,0,.28);
+}
+
+.rndbtn,
+.calnav,
+.lstbtn:not(.lstbtn--ok),
+.lst__emptyIco{
+  background:var(--glass-fill);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:inset 0 .5px 0 var(--glass-top),
+             inset 0 -.5px 0 var(--glass-bot),
+             var(--glass-lift);
+}
+.rndbtn:active,
+.calnav:active,
+.lstbtn:not(.lstbtn--ok):active{
+  background:var(--glass-fill-on);
+  box-shadow:inset 0 .5px 0 var(--glass-top),
+             inset 0 -.5px 0 var(--glass-bot);
+}
+
+/* Der grüne Knopf bleibt voll gefüllt: Er ist die Aussage der Zeile und
+   darf nicht mit dem Hintergrund verschwimmen. */
+
+/* Angetipptes im Menü: kein grauer Kasten, sondern eine Aufhellung des
+   Glases — so bleibt die Durchsicht erhalten. */
+/* Kein Hinterlegen beim Tippen — siehe Hinweis bei `.drow2`. */
+
+/* Trennlinien im Menü dünner und heller — auf Glas wirkt eine kräftige
+   Linie wie ein Schnitt durch die Scheibe. */
+.menu-sep{ height:.5px; background:var(--glass-bot); }
+
+/* Die großen Glasflächen bekommen dieselbe doppelte Kante. Bisher trugen
+   sie nur eine helle Linie ringsum; die untere Kante fehlte, und damit
+   der Eindruck von Dicke. */
+#sheetMenu,
+.dmenu,
+.profpop{
+  box-shadow:0 14px 44px rgba(21,33,44,.22),
+             0 3px 12px rgba(21,33,44,.13),
+             inset 0 .5px 0 var(--glass-top),
+             inset 0 -.5px 0 var(--glass-bot);
+}
+
+/* Die Rückmeldung unten: dunkles Glas statt deckendem Blau. */
+.toast{
+  background:color-mix(in srgb, #253746 76%, transparent);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  box-shadow:0 8px 26px rgba(21,33,44,.28),
+             inset 0 .5px 0 rgba(255,255,255,.26),
+             inset 0 -.5px 0 rgba(0,0,0,.3);
+}
+
+/* Geräte ohne Unschärfe bekommen eine deckendere Fläche — sonst stünde
+   der Text auf durchscheinendem Grund und wäre schwer zu lesen. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .rndbtn, .calnav, .lstbtn:not(.lstbtn--ok), .lst__emptyIco{
+    background:color-mix(in srgb, var(--c-ink) 8%, var(--c-bar));
+  }
+  .toast{ background:#253746; }
+}
+
+/* Zwischenüberschrift der Schülerliste bei einer Kopplung: Sie trägt
+   einen Klassennamen statt eines einzelnen Buchstabens und braucht
+   deshalb etwas mehr Platz — sonst stünde „HP12A" gequetscht dort, wo
+   sonst ein „M" steht. */
+.att__letter--class{
+  font-size:13px; letter-spacing:.02em;
+  padding-left:2px;
+}
+
+/* Hinweis über der Schülerliste, wenn eine ganze Klasse abwesend ist.
+   Ihre Kinder fehlen in der Liste — ohne diese Zeile sähe die verkürzte
+   Liste nach einem Fehler aus. Zurückhaltend gesetzt: Es ist eine
+   Erklärung, keine Warnung. */
+.att__gone{
+  margin:2px 14px 8px;
+  padding:8px 12px;
+  border-radius:11px;
+  background:var(--glass-fill);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:inset 0 .5px 0 var(--glass-top),
+             inset 0 -.5px 0 var(--glass-bot);
+  font-size:13.5px; font-weight:600; color:var(--c-ink-2);
+}
+
+/* =====================================================================
+   Liquid Glass — die Knöpfe in der Kopfleiste
+   ---------------------------------------------------------------------
+   Der Knopf zum Planwechsel links und die Gruppe rechts mit Info und den
+   drei Punkten waren als einzige Flächen dort noch deckend auf #f1f3f5
+   gesetzt. Unter ihnen liegt der Plan, und der ist beim Rollen in
+   Bewegung — gerade dort lohnt die Durchsicht am meisten: Man sieht, dass
+   etwas darunter weiterläuft, statt zwei blinde Flecken zu haben.
+
+   Dieselben Variablen wie in Menüs und Blättern, also je Modus richtig
+   belegt. Der Dunkelmodus hatte für diese beiden Knöpfe eigene feste
+   Werte; sie werden hier überschrieben, weil die Variablen das schon
+   erledigen.
+   ===================================================================== */
+
+.icon-btn--solo,
+.topbar__actions{
+  background:var(--glass-fill);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:inset 0 .5px 0 var(--glass-top),
+             inset 0 -.5px 0 var(--glass-bot),
+             var(--glass-lift);
+}
+
+/* Antippen hellt das Glas auf, statt einen grauen Kreis zu legen. Die
+   Gruppe rechts behält dabei ihre eigene Fläche — der Kreis liegt darin,
+   nicht darüber. */
+
+.topbar__actions .icon-btn{ background:transparent; }
+.topbar__actions 
+
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .icon-btn--solo, .topbar__actions{
+    background:color-mix(in srgb, var(--c-ink) 8%, var(--c-bar));
+  }
+}
+
+/* =====================================================================
+   Zeichen in der Ecke der Kachel
+   ---------------------------------------------------------------------
+   Info und Hausaufgaben sind zweifarbig: ein helles Feld mit dunkler
+   Zeichnung darauf. Beide Farben stehen als Variablen in der Datei, damit
+   der Dunkelmodus sie vertauschen kann — dort liegt ein dunkles Feld mit
+   heller Zeichnung, genau wie beim Kürzungszeichen daneben.
+   ===================================================================== */
+
+:root{
+  --tt-ic-bg: #f3f5f7;
+  --tt-ic-fg: #8a96a1;
+}
+
+.card__ecke{
+  position:absolute; right:2px; bottom:2px;
+  display:flex; align-items:center; gap:2px;
+  z-index:2;
+}
+.card__ic{ display:block; width:15px; height:15px; }
+/* Zweifarbig über zwei geerbte Eigenschaften.
+   Auf den Inhalt, den <use> klont, greift kein Selektor aus dem
+   Stylesheet durch — eine Klasse am Symbol bringt also nichts, und eine
+   Variable im fill-Attribut wird verworfen, weil Präsentationsattribute
+   keine Variablen kennen. Beides hatte ich versucht, beides blieb wirkungslos.
+
+   Vererbt wird dagegen alles. Die Fläche hat gar keine Angabe und nimmt
+   `fill`; die Zeichnung trägt `currentColor` und nimmt `color`. Zwei
+   Eigenschaften, zwei Farben. */
+.ticon{
+  display:block; width:100%; height:100%;
+  fill:var(--tt-ic-bg);
+  color:var(--tt-ic-fg);
+}
+
+/* Die beiden Zeichen kennen nur zwei Zustände: hell und dunkel. Ich hatte
+   sie auf einer Vertretung grün und auf einem Entfall rötlich eingefärbt,
+   damit sie sich in die Kachel einfügen — das war falsch gedacht. Sie
+   gehören nicht zur Aussage der Kachel, sie hängen nur daran; ein
+   mitgefärbtes Zeichen sähe aus, als sagte es etwas über die Änderung.
+   Es bleibt in jeder Kachel dasselbe, allein Hell und Dunkel wechseln. */
+
+/* Zwischenüberschrift in den Unterlisten. Gebraucht bei den Hausaufgaben:
+   Was heute fällig ist, stammt aus einer anderen Stunde und lässt sich
+   von hier aus nicht ändern — das muss man sehen, bevor man vergeblich
+   danach greift. */
+.dsub__gruppe{
+  padding:12px 16px 6px;
+  font-size:13.5px; font-weight:700; color:var(--c-muted);
+  letter-spacing:.01em;
+}
+/* Fremde Einträge: kein Löschknopf, zurückgenommene Schrift. */
+.dsub__item.is-fremd{ opacity:.82; }
+.dsub__item.is-fremd .dsub__item-main{ padding-right:12px; }
+
+/* Die Farben der zweifarbigen Zeichen im Dunkeln noch einmal unmittelbar
+   am Element. Über die Variable allein hat es nicht gegriffen, und ich
+   habe die Ursache nicht sicher eingekreist — mögliche Kandidaten sind
+   die Auflösung der Variable im geklonten <use>-Inhalt oder eine Regel,
+   die ich übersehen habe. Feste Werte an einer genaueren, weiter unten
+   stehenden Regel sind davon unabhängig: Sie gewinnen in jedem Fall.
+
+   Die Variablen bleiben oben stehen, damit es nur eine Stelle zum Ändern
+   gibt; hier stehen dieselben Werte noch einmal. */
+html.is-dark .ticon{
+  fill:#2b3138;
+  color:#9aa6b2;
+}
+/* Der gezeichnete Info-Punkt und das Kürzungszeichen daneben ebenso. */
+html.is-dark .card__cut,
+html.is-dark .card__info{ background:#2b3138; }
+html.is-dark .card__cut circle{ fill:#9aa6b2; }
+html.is-dark .card__info::before{ background:#9aa6b2; }
+/* Auf einer Vertretung behält das Kürzungszeichen sein Grün. */
+html.is-dark .card--change .card__cut,
+html.is-dark .card--released .card__cut{ background:var(--green); }
+html.is-dark .card--change .card__cut circle,
+html.is-dark .card--released .card__cut circle{ fill:var(--green-ink); }
+
+/* Umschalter mit drei Möglichkeiten in einer Zeile. Er sitzt rechts, wo
+   sonst der Schalter oder der Pfeil steht, und ist so breit wie nötig.
+   Das Feld dahinter ist dieselbe Glasfläche wie bei den übrigen kleinen
+   Bedienelementen. */
+.row--seg{ grid-template-columns:auto 1fr auto; align-items:center; }
+.seg{
+  display:inline-flex; gap:2px; padding:2px;
+  border-radius:999px;
+  background:var(--glass-fill);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:inset 0 .5px 0 var(--glass-top), inset 0 -.5px 0 var(--glass-bot);
+}
+.seg button{
+  padding:5px 11px; border-radius:999px;
+  font-size:13.5px; font-weight:600; color:var(--c-ink-2);
+  white-space:nowrap;
+}
+.seg button.is-on{
+  background:var(--c-surface);
+  color:var(--c-ink);
+  box-shadow:0 1px 2px rgba(31,47,61,.14);
+}
+html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
+
+/* Eintrag in der Unterliste ohne Löschknopf — bei Schüler*innen gibt es
+   keinen. Ohne diese Regel bliebe rechts der leere Platz stehen, den der
+   Knopf sonst einnimmt. */
+.dsub__item:not(:has(> button)) .dsub__item-main{ padding-right:14px; }
+
+/* Klassendienst unter dem Namen — Klassensprecherin, Ordnungsdienst.
+   Zurückgenommen gesetzt: Es ist eine Zusatzangabe, keine Meldung. Die
+   Anwesenheit bleibt die Aussage der Zeile, der Dienst steht daneben. */
+.att__duty{
+  display:block;
+  margin-top:1px;
+  font-size:12.5px; font-weight:600;
+  color:var(--c-muted);
+}
+
+/* =====================================================================
+   Tablet: alle Fenster so breit wie das Detailfenster
+   ---------------------------------------------------------------------
+   Am Telefon fahren die Blätter von unten herein und nehmen die ganze
+   Breite — das bleibt so. Am Tablet wirkte das verloren: ein schmales
+   Blatt am unteren Rand einer großen Fläche. Auswahl, Kalender, Legende
+   und die übrigen Fenster stehen dort deshalb mittig und genau so breit
+   wie das Detailfenster.
+
+   Das Klappmenü der drei Punkte bleibt außen vor: Es hängt an seinem
+   Knopf und wäre als mittiges Fenster von 680 Punkten kein Menü mehr.
+   ===================================================================== */
+@media (min-width:700px){
+  .sheet:not(.sheet--menu){
+    left:50%; right:auto; bottom:auto; top:50%;
+    width:min(680px, 92vw);
+    max-height:min(80vh, 840px);
+    border-radius:20px;
+    padding-bottom:calc(14px + var(--kb));
+    transform:translate(-50%, -46%) scale(.98);
+    opacity:0;
+    transition:transform .26s var(--ease), opacity .2s var(--ease);
+  }
+  .sheet:not(.sheet--menu).is-open{
+    transform:translate(-50%, -50%) scale(1);
+    opacity:1; pointer-events:auto;
+  }
+  /* Der Ziehgriff gehört zum Blatt von unten; ein mittiges Fenster zieht
+     man nicht nach unten weg. */
+  .sheet:not(.sheet--menu) .sheet__grab{ display:none; }
+}

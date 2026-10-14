@@ -1,0 +1,11 @@
+**/bin
+**/obj
+.git
+artifacts
+installer
+docs
+tests
+web
+mobile/tests
+mobile/docs
+src

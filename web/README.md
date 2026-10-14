@@ -47,6 +47,9 @@ UntPlan beim nächsten Datenaustausch ab.
   - Benutzer, auch automatisch aus den Stammdaten mit Startpasswörtern als CSV.
   - Rückmeldungen, Nachrichten zum Tag, Monitore, Protokoll.
 
+- **Mobil-App:** [UntPlanMobile](../mobile/README.md) bringt Stundenplan, Klassenbuch und Mitteilungen als installierbare
+  App aufs Telefon. Sie läuft als eigener Container (Port 8081) und holt ihre Daten über die JSON-API von UntPlanWeb.
+
 | Lehrerplan | Übersicht | Vertretungsplan |
 |---|---|---|
 | ![Lehrerplan](docs/bilder/lehrerplan.png) | ![Übersicht](docs/bilder/heute.png) | ![Vertretungsplan](docs/bilder/vertretungsplan.png) |

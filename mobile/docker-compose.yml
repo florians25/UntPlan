@@ -1,0 +1,43 @@
+# UntPlanMobile mit UntPlanWeb – einfache Installation (HTTP).
+#   docker compose up -d
+# UntPlanWeb:    http://<server>:8080  (Einrichtung, Administration, Datenaustausch mit UntPlan)
+# UntPlanMobile: http://<server>:8081  (App fürs Telefon, Anmeldung mit dem Konto von UntPlanWeb)
+# Für die Installation als App auf dem Telefon ist HTTPS nötig (z. B. über einen Reverse-Proxy, siehe README).
+
+services:
+  untplanweb:
+    image: ghcr.io/florians25/untplanweb:latest
+    # Selbst bauen statt das fertige Image zu laden:
+    # build: { context: .., dockerfile: web/Dockerfile }
+    container_name: untplanweb
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANWEB_ZEITZONE: Europe/Berlin
+      # Optional – sonst über den Einrichtungsassistenten im Browser:
+      # UNTPLANWEB_ADMIN_PASSWORT: "bitte-aendern"
+      # Zum Ausprobieren mit Beispieldaten:
+      # UNTPLANWEB_DEMO: "1"
+    volumes:
+      - untplanweb-daten:/data
+
+  untplanmobile:
+    image: ghcr.io/florians25/untplanmobile:latest
+    # Selbst bauen statt das fertige Image zu laden:
+    # build: { context: .., dockerfile: mobile/Dockerfile }
+    container_name: untplanmobile
+    restart: unless-stopped
+    depends_on:
+      - untplanweb
+    ports:
+      - "8081:8081"
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANMOBILE_ZEITZONE: Europe/Berlin
+      # Adresse von UntPlanWeb aus Sicht des Containers (Dienstname im Compose-Netz)
+      UNTPLANWEB_URL: http://untplanweb:8080
+
+volumes:
+  untplanweb-daten:

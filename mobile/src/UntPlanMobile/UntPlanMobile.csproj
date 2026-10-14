@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>UntPlanMobile</RootNamespace>
+    <AssemblyName>UntPlanMobile</AssemblyName>
+    <Version>1.0.0</Version>
+    <Product>UntPlanMobile</Product>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- App-Hülle und Service Worker: der Server setzt Startdaten und Fassung ein -->
+    <Content Include="Vorlagen\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

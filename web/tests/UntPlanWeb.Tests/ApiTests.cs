@@ -162,6 +162,19 @@ public class PlanTests
     }
 
     [Fact]
+    public async Task Elemente_enthalten_Ferien_mit_Zeitraum()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var c = await s.AlsAsync("admin");
+        var elemente = await Testserver.HolenAsync(c, "/api/app/elemente");
+        var herbst = elemente["ferien"]!.AsArray().Single(f => f!["name"]!.GetValue<string>() == "Herbstferien")!;
+        Assert.Equal("2026-10-17", herbst["von"]!.GetValue<string>());
+        Assert.Equal("2026-10-31", herbst["bis"]!.GetValue<string>());
+        Assert.False(herbst["feiertag"]!.GetValue<bool>());
+        Assert.NotNull(elemente["klassen"]);
+    }
+
+    [Fact]
     public async Task Freisetzung_der_Klasse_ist_Entfall_und_steht_im_Tageskopf()
     {
         await using var s = await Testserver.StartenAsync();

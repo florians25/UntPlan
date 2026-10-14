@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!-- UntPlanMobile – App-Hülle. Der Server setzt Symbolsammlung, Startdaten (TT_BOOT) und Fassung ein. -->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>__TITEL__</title>
+
+<meta name="description" content="UntPlanMobile – Stundenplan, Vertretungen, Klassenbuch und Mitteilungen aus UntPlanWeb">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- iOS Standalone -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="UntPlanMobile">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="icon" href="assets/icons/icon-192.png" sizes="192x192">
+<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+
+<link rel="stylesheet" href="assets/css/app.css?v=__FASSUNG__">
+</head>
+
+<body>
+
+<!-- Symbolsammlung von Untis. Sie steht einmal am Anfang der Seite und
+     wird überall mit <use href="#ic-name"> abgerufen — eine eingebettete
+     Sammlung statt einer externen Datei, weil externe <use>-Verweise in
+     Safari unzuverlässig sind. -->
+<!--SYMBOLE-->
+
+
+<div class="app" id="app">
+
+  <!-- Profilwechsel — hängt am Personensymbol oben links -->
+  <div class="profpop" id="profPop" hidden>
+    <p class="profpop__title">Profil wechseln</p>
+    <div class="profpop__list" id="profList"></div>
+  </div>
+
+  <!-- ==================== TOPBAR ==================== -->
+  <header class="topbar" id="topbar">
+    <button class="icon-btn icon-btn--solo" id="btnSwitchEntity" aria-label="Ansicht wechseln">
+      <svg viewBox="0 0 24 24" class="ico" aria-hidden="true">
+        <circle cx="9.8" cy="6.5" r="3"/>
+        <path d="M4.3 17.2c0-3 2.5-4.9 5.5-4.9"/>
+        <path d="M15.3 12.8v7.2M13.4 18.1l1.9 1.9 1.9-1.9"/>
+        <path d="M19.9 20V12.8M18 14.7l1.9-1.9 1.9 1.9"/>
+      </svg>
+    </button>
+
+    <button class="topbar__title" id="btnEntityPicker" aria-haspopup="dialog">
+      <span id="entityLabel">–</span>
+      <svg viewBox="0 0 24 24" class="ico ico--chev" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+
+    <div class="topbar__actions" id="topbarActions">
+      <button class="icon-btn" id="btnInfo" aria-label="Information" hidden>
+        <svg viewBox="0 0 24 24" class="ico" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.6"/>
+          <path d="M12 11.2v5.4"/>
+          <circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btnMenu" aria-label="Menü">
+        <svg viewBox="0 0 24 24" class="ico" aria-hidden="true">
+          <circle cx="12" cy="5.2" r="1.5" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="12"  r="1.5" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="18.8" r="1.5" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== SCREEN: STUNDENPLAN ==================== -->
+  <main class="screen screen--plan is-active" id="screenPlan">
+
+    <div class="weekhead" id="weekhead">
+      <div class="weekhead__kw">
+        <span class="weekhead__kw-no" id="kwNo">KW –</span>
+        <span class="weekhead__month" id="kwMonth">–</span>
+      </div>
+      <div class="weekhead__days" id="weekDays"><!-- js --></div>
+      <div class="loadbar" id="loadBar" aria-hidden="true"><span></span></div>
+    </div>
+
+    <div class="dayswitch" id="dayswitch" hidden>
+      <button class="dayswitch__nav" id="dayPrev" aria-label="Vorheriger Tag">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg>
+      </button>
+      <span id="dayswitchLabel">–</span>
+      <button class="dayswitch__nav" id="dayNext" aria-label="Nächster Tag">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m10 6 6 6-6 6"/></svg>
+      </button>
+      <button class="dayswitch__back" id="dayBack">Woche</button>
+    </div>
+
+    <div class="gridscroll" id="gridScroll">
+      <div class="gridpane" id="gridPane"><!-- js --></div>
+    </div>
+
+    <div class="week-hint" id="weekHint" aria-hidden="true"></div>
+  </main>
+
+  <!-- ==================== SCREEN: START ==================== -->
+  <main class="screen screen--start" id="screenStart">
+    <div class="pad">
+      <button class="rndbtn" id="btnSwitchEntity2" aria-label="Plan wechseln">
+        <svg viewBox="0 0 24 24" class="ico"><circle cx="10" cy="7.5" r="3"/><path d="M4.5 19c.6-3.2 2.9-5 5.5-5"/><path d="M16 12v7M13.4 16.4 16 19l2.6-2.6"/></svg>
+      </button>
+
+      <h1 class="schoolname" id="startSchool">UntPlanMobile</h1>
+
+      <section class="daycard">
+        <div class="daycard__left">
+          <span class="daycard__wd" id="startWeekday">–</span>
+          <span class="daycard__num" id="startDayNum">–</span>
+          <span class="daycard__mon" id="startMonth">–</span>
+          <span class="daycard__tag" id="startTag" hidden></span>
+        </div>
+        <div class="daycard__right" id="startNext"></div>
+      </section>
+
+      <div class="rows">
+        <button class="row row--nav" id="btnAppointments">
+          <span class="row__ico"><svg class="uic ico"><use href="#ic-exam-planner"></use></svg></span>
+          <span>Meine Termine</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+        <button class="row row--nav" id="btnAbsences">
+          <span class="row__ico"><svg class="uic ico"><use href="#ic-absences"></use></svg></span>
+          <span class="row__main"><b>Meine Abwesenheiten</b><i id="absSub"></i></span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+        <button class="row row--nav" id="btnClassLead" hidden>
+          <span class="row__ico"><svg class="uic ico"><use href="#ic-shared-classentity"></use></svg></span>
+          <span class="row__main"><b>Klassenleitung</b><i id="clSub"></i></span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==================== SCREEN: LISTE (Termine, Abwesenheiten) ========= -->
+  <main class="screen screen--list" id="screenList">
+    <header class="lsthead">
+      <button class="rndbtn" id="lstBack" aria-label="Zurück">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg>
+      </button>
+      <div class="lsthead__when">
+        <b id="lstTitle">–</b><span id="lstRange">–</span>
+      </div>
+      <div class="lsthead__right">
+        <button class="rndbtn" id="lstFilter" aria-label="Filter">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M3.6 5h16.8l-6.4 7.6v5.6l-4 2v-7.6z"/></svg>
+        </button>
+        <label class="lstsearch">
+          <svg viewBox="0 0 24 24" class="ico"><circle cx="10.8" cy="10.8" r="6.4"/><path d="m15.6 15.6 4 4"/></svg>
+          <input type="search" id="lstSearch" placeholder="Suchen" enterkeyhint="search">
+        </label>
+      </div>
+    </header>
+    <!-- Filter als eigene Seite, wie in der Vorlage -->
+    <div class="lstfilter" id="lstFilterBar" hidden>
+      <p class="lstfilter__title">Filter</p>
+      <button class="frow" id="fRange">
+        <span class="frow__lab">Startzeitraum</span>
+        <span class="frow__val" id="fRangeVal">Aktuelles Schuljahr</span>
+        <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+      </button>
+      <div class="frow frow--toggle" id="fOpenRow">
+        <span class="frow__lab">Nicht entschuldigte</span>
+        <span class="dtoggle" id="fOpenTog"></span>
+      </div>
+      <div class="frow__pick" id="fRangePick" hidden></div>
+      <div class="lstfilter__row" id="lstClassRow" hidden></div>
+    </div>
+    <div class="lstbody" id="lstBody"></div>
+  </main>
+
+  <!-- ==================== SCREEN: MITTEILUNGEN ==================== -->
+  <main class="screen screen--msg" id="screenMsg">
+    <header class="msghead">
+      <span class="msghead__left" id="msgHeadLeft">
+        <button class="rndbtn" id="msgBack" aria-label="Zurück" hidden>
+          <svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg>
+        </button>
+      </span>
+      <span class="msghead__title">Mitteilungen</span>
+      <span class="msghead__acts">
+        <button class="rndbtn" id="msgSearch" aria-label="Suchen">
+          <svg viewBox="0 0 24 24" class="ico"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4 4"/></svg>
+        </button>
+        <button class="rndbtn" id="msgNew" aria-label="Neue Mitteilung">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </span>
+    </header>
+
+    <div class="msgfind" id="msgFind" hidden>
+      <input type="search" id="msgQuery" placeholder="Inhalt oder Person suchen"
+             autocapitalize="none" autocorrect="off" enterkeyhint="search">
+    </div>
+
+    <nav class="msgtabs" id="msgTabs">
+      <button class="is-active" data-box="in">Posteingang</button>
+      <button data-box="out">Gesendet</button>
+      <button data-box="draft" hidden>Entwürfe</button>
+    </nav>
+
+    <div id="msgList" class="msglist"></div>
+
+    <!-- Eine geöffnete Mitteilung füllt die Seite, wie im Vorbild. -->
+    <article id="msgRead" class="msgread" hidden></article>
+  </main>
+
+  <!-- ==================== SCREEN: PROFIL ==================== -->
+  <main class="screen screen--profile" id="screenProfile">
+    <div class="pad">
+      <h1 class="h1" id="profileFullName">Profil</h1>
+
+      <!-- Konto: Bild, Kennung, Rolle. Der Doppelpfeil rechts sagt, dass
+           sich hier umschalten lässt — das ist im Vorbild der einzige
+           Hinweis darauf. -->
+      <div class="rows rows--flat">
+        <button class="row row--user" id="btnSwitchAccount">
+          <span class="avatar" id="profileAvatar">SF</span>
+          <span class="row--user__main">
+            <b id="profileName">–</b>
+            <span class="chip" id="profileRole">–</span>
+          </span>
+          <svg viewBox="0 0 24 24" class="ico ico--updown" aria-hidden="true"><path d="m8 10 4-4 4 4M8 14l4 4 4-4"/></svg>
+        </button>
+      </div>
+
+      <!-- Zum eigenen Konto -->
+      <div class="rows">
+        <button class="row row--nav" id="btnContact">
+          <span class="row__ico"><svg class="uic ico"><use href="#ic-my-data"></use></svg></span>
+          <span>Kontaktdaten</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+        <button class="row row--nav" id="btnPassword">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><rect x="4.6" y="10.4" width="14.8" height="9.4" rx="2"/><path d="M8.2 10.4V7.8a3.8 3.8 0 0 1 7.6 0v2.6"/><path d="M12 14v2.4"/></svg></span>
+          <span>Passwort ändern</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <!-- Erscheinungsbild: drei Möglichkeiten, alle sichtbar.
+           Vorher stand dort eine Zeile, die bei jedem Tippen zum nächsten
+           Wert sprang — man musste sie dreimal drücken, um zu sehen, was
+           es überhaupt gibt, und landete womöglich wieder am Anfang. -->
+      <div class="rows">
+        <div class="row row--seg">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="8.4"/><path d="M12 3.6a8.4 8.4 0 0 1 0 16.8z" fill="currentColor" stroke="none"/></svg></span>
+          <span>Erscheinungsbild</span>
+          <span class="seg" id="themeSeg" role="group" aria-label="Erscheinungsbild">
+            <button type="button" data-theme="auto">Auto</button>
+            <button type="button" data-theme="light">Hell</button>
+            <button type="button" data-theme="dark">Dunkel</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- Einstellungen der App -->
+      <div class="rows">
+        <label class="row row--switch">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg></span>
+          <span>Zeiten auf den Karten</span>
+          <input type="checkbox" id="optCardTimes">
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+        <label class="row row--switch">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg></span>
+          <span>Langnamen im Detail</span>
+          <input type="checkbox" id="optLongNames" checked>
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+        <label class="row row--switch">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><rect x="4.4" y="4.4" width="15.2" height="15.2" rx="2.4"/><path d="m7.6 16.4 8.8-8.8"/></svg></span>
+          <span>Entfallene Stunden anzeigen</span>
+          <input type="checkbox" id="optShowCancelled" checked>
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+        <button class="row row--nav" id="btnInstall" hidden>
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><path d="M14.6 3.4h1.2a2.2 2.2 0 0 1 2.2 2.2v13a2.2 2.2 0 0 1-2.2 2.2H8.2A2.2 2.2 0 0 1 6 18.6v-13a2.2 2.2 0 0 1 2.2-2.2h1.2"/><path d="M12 4v7.6M9.2 9.2 12 12l2.8-2.8"/><path d="M10.6 18.2h2.8"/></svg></span>
+          <span>App installieren</span>
+          <span class="row__hint">Zum Homescreen</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+        <button class="row row--nav" id="btnRefresh">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><path d="M19.9 14.9A8.2 8.2 0 1 1 19.6 8.4"/><path d="M20.4 3.9v4.9h-4.9"/></svg></span>
+          <span>Daten aktualisieren</span>
+          <span class="row__hint" id="lastSync">–</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <!-- Über die App -->
+      <div class="rows">
+        <button class="row row--nav" id="btnNews">
+          <span class="row__ico"><svg class="uic ico"><use href="#ic-admin-messages"></use></svg></span>
+          <span>Was gibt es Neues</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+        <button class="row row--nav" id="btnRate">
+          <span class="row__ico"><svg class="uic ico"><use href="#ic-examinations"></use></svg></span>
+          <span>App bewerten</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+        <button class="row row--nav" id="btnAbout">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.4M12 7.9v.1"/></svg></span>
+          <span>Über</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <div class="rows" hidden>
+        <button class="row row--nav" id="btnAddProfile">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><circle cx="10" cy="7.6" r="3.2"/><path d="M3.8 18.4c0-3.2 2.8-5.2 6.2-5.2 1 0 1.9.2 2.7.5"/><path d="M18 14v6M15 17h6"/></svg></span>
+          <span>Weiteres Profil anmelden</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <!-- Abmelden steht allein, wie im Vorbild: Es ist kein Punkt unter
+           anderen, sondern der Ausgang. -->
+      <div class="rows">
+        <button class="row row--nav" id="btnLogout">
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><path d="M12.6 4.4H6.9a1.6 1.6 0 0 0-1.6 1.6v12a1.6 1.6 0 0 0 1.6 1.6h5.7"/><path d="M13.6 12h7.2M18 8.8l3.2 3.2-3.2 3.2"/></svg></span>
+          <span>Abmelden</span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <p class="legalnote">UntPlanMobile · offlinefähig · Daten aus UntPlanWeb werden lokal zwischengespeichert.<br>
+        Fassung <span id="buildStamp">–</span></p>
+    </div>
+  </main>
+
+  <!-- ==================== BOTTOM NAV ==================== -->
+  <nav class="tabbar" id="tabbar" role="tablist">
+    <button class="tab" data-screen="start" role="tab">
+      <svg class="uic ico" aria-hidden="true"><use href="#ic-navigation-dashboard"></use></svg>
+      <span>Start</span>
+    </button>
+    <button class="tab is-active" data-screen="plan" role="tab" aria-selected="true">
+      <svg viewBox="0 0 24 24" class="ico" aria-hidden="true">
+        <rect x="4.2" y="5.4" width="15.6" height="14.2" rx="2.2"/>
+        <path d="M4.2 9.4h15.6M8.3 3.7v2.6M15.7 3.7v2.6"/>
+        <text x="12" y="17.6" class="tabnum" text-anchor="middle">11</text>
+      </svg>
+      <span>Stundenplan</span>
+    </button>
+    <button class="tab" data-screen="msg" role="tab">
+      <svg class="uic ico" aria-hidden="true"><use href="#ic-admin-messages"></use></svg>
+      <span>Mitteilungen</span>
+      <i class="tab__dot" id="msgDot" hidden></i>
+    </button>
+    <button class="tab" data-screen="profile" role="tab">
+      <svg class="uic ico" aria-hidden="true"><use href="#ic-my-data"></use></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ==================== SHEET: ENTITY PICKER ==================== -->
+<div class="scrim" id="scrimPicker" hidden></div>
+<section class="sheet sheet--picker" id="sheetPicker" role="dialog" aria-modal="true" aria-label="Stundenplan auswählen" hidden>
+  <div class="pk__top">
+    <button class="rndbtn" id="pickerBack" aria-label="Zurück">
+      <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <span class="pk__title" id="pickerTitle">Stundenplan auswählen</span>
+    <span></span>
+  </div>
+
+  <div class="pk__search">
+    <label class="searchwrap">
+      <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4 4"/></svg>
+      <input type="search" id="pickerSearch" placeholder="Stundenplan suchen" autocomplete="off" enterkeyhint="search">
+      <button class="searchwrap__clear" id="pickerWipe" aria-label="Eingabe löschen" hidden>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"/><path d="m9 9 6 6M15 9l-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </label>
+    <button class="rndbtn" id="pickerClear" aria-label="Auswahl schließen">
+      <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+
+  <div class="pk__body" id="pickerBody">
+    <!-- Ebene 1: Kategorien -->
+    <div class="pk__level" id="pickerRoot">
+      <button class="pk__mine" data-type="mine" data-id="me">
+        <span class="pk__ava">
+          <svg class="uic"><use href="#ic-my-timetable"></use></svg>
+        </span>
+        <span id="pickerMineLabel">Mein Stundenplan</span>
+      </button>
+
+      <div class="pk__section">Stundenpläne</div>
+      <button class="pk__row" data-open="class">
+        <svg class="uic ico"><use href="#ic-shared-classentity"></use></svg>
+        <span>Klassen</span>
+        <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+      </button>
+      <button class="pk__row" data-open="teacher">
+        <svg class="uic ico"><use href="#ic-shared-teacherentity"></use></svg>
+        <span>Lehrkräfte</span>
+        <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+      </button>
+      <button class="pk__row" data-open="room">
+        <svg class="uic ico"><use href="#ic-shared-roomentity"></use></svg>
+        <span>Räume</span>
+        <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <!-- Ebene 2: Liste -->
+    <div class="pk__level" id="pickerList" hidden></div>
+  </div>
+
+  <!-- Buchstabenleiste: außerhalb des Scrollbereichs, damit sie stehen bleibt -->
+  <div class="pk__index" id="pickerIndex" hidden></div>
+
+</section>
+
+<!-- ==================== SHEET: LESSON DETAIL ==================== -->
+<div class="scrim" id="scrimDetail" hidden></div>
+<section class="sheet sheet--detail" id="sheetDetail" role="dialog" aria-modal="true" aria-label="Stundendetails" hidden>
+  <div class="detail__top">
+    <button class="rndbtn" id="detailClose" aria-label="Schließen">
+      <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <button class="detail__when" id="detailWhen" type="button">
+      <b id="detailDate">–</b>
+      <span id="detailTime">–</span>
+    </button>
+    <div class="dpart" id="detailPart" hidden></div>
+    <div class="dmenu" id="detailMenuPop" hidden></div>
+    <button class="rndbtn" id="detailMenu" aria-label="Mehr" aria-haspopup="menu">
+      <svg viewBox="0 0 24 24" class="ico">
+        <circle cx="12" cy="5.2" r="1.5" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="12"  r="1.5" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="18.8" r="1.5" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+  </div>
+  <!-- Umschalter zwischen den Stunden, die zur selben Zeit liegen -->
+  <div class="dtabs" id="detailTabs" role="tablist" hidden></div>
+  <div class="detail" id="detailBody"></div>
+
+  <!-- Klassenbuch-Unteransicht -->
+  <div class="dsub" id="detailSub" hidden>
+    <div class="dsub__top">
+      <button class="rndbtn" id="dsubBack" aria-label="Zurück">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg>
+      </button>
+      <div class="detail__when"><b id="dsubTitle">–</b><span id="dsubWhen">–</span></div>
+      <button class="rndbtn" id="dsubSave" aria-label="Speichern" hidden>
+        <svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
+      </button>
+      <button class="rndbtn" id="dsubAddTop" aria-label="Neuer Eintrag" hidden>
+        <svg viewBox="0 0 24 24" class="ico"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="dsub__body" id="dsubBody"></div>
+  </div>
+
+  <!-- Abwesenheit einer Schülerin / eines Schülers -->
+  <div class="dabs" id="detailAbs" hidden>
+    <div class="dabs__top">
+      <button class="rndbtn" id="dabsClose" aria-label="Schließen">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+      <span class="dabs__title">Abwesenheit bearbeiten</span>
+      <span class="dabs__acts">
+        <button class="rndbtn" id="dabsDelete" aria-label="Abwesenheit löschen">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M5.5 7h13M9.5 7V5.2h5V7M7 7l.9 12.3h8.2L17 7"/><path d="M10.4 10.4v6M13.6 10.4v6"/></svg>
+        </button>
+        <button class="rndbtn rndbtn--ok" id="dabsSave" aria-label="Speichern">
+          <svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
+        </button>
+      </span>
+    </div>
+    <div class="dabs__bar" aria-hidden="true"></div>
+    <div class="dabs__body" id="dabsBody"></div>
+
+    <!-- Auswahl des Abwesenheitsgrunds -->
+    <div class="dabs__pick" id="dabsPick" hidden></div>
+  </div>
+
+  <!-- Eingabefenster: Hausaufgabe, Klassenbucheintrag, Bemerkung, Notizen -->
+  <div class="dform" id="detailForm" hidden>
+    <div class="dform__top">
+      <button class="rndbtn" id="dformClose" aria-label="Schließen">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+      <span class="dform__title" id="dformTitle"></span>
+      <button class="rndbtn rndbtn--go" id="dformSave" aria-label="Speichern">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
+      </button>
+    </div>
+    <div class="dform__body" id="dformBody"></div>
+    <div class="dabs__pick" id="dformPick" hidden></div>
+  </div>
+</section>
+
+<!-- ==================== SHEET: MENU ==================== -->
+<div class="scrim" id="scrimMenu" hidden></div>
+<section class="sheet sheet--menu" id="sheetMenu" role="dialog" aria-modal="true" aria-label="Menü" hidden>
+  <div class="menu-list">
+    <button class="menu-item" data-act="reload">
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20.4 4v4.4H16"/></svg></span>
+      <span class="menu-item__label">Aktualisieren</span>
+    </button>
+
+    <div class="menu-sep" role="separator"></div>
+
+    <button class="menu-item" data-act="pickweek">
+      <span class="menu-item__ico"><svg class="uic ico" aria-hidden="true"><use href="#ic-my-timetable"></use></svg></span>
+      <span class="menu-item__label">Gehe zu Datum</span>
+    </button>
+
+    <div class="menu-sep" role="separator"></div>
+    <p class="menu-section">Ansicht</p>
+
+    <button class="menu-item menu-item--view" data-act="view-day">
+      <span class="menu-item__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></svg></span>
+      <span class="menu-item__ico"><svg class="uic ico" aria-hidden="true"><use href="#ic-classes-daily"></use></svg></span>
+      <span class="menu-item__label">Tag</span>
+    </button>
+    <button class="menu-item menu-item--view" data-act="view-week">
+      <span class="menu-item__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></svg></span>
+      <span class="menu-item__ico"><svg class="uic ico" aria-hidden="true"><use href="#ic-navigation-timetable"></use></svg></span>
+      <span class="menu-item__label">Woche</span>
+    </button>
+
+    <div class="menu-sep" role="separator"></div>
+
+    <button class="menu-item" data-act="legend">
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M9.8 9.6a2.2 2.2 0 1 1 3 2.05c-.7.3-1 .8-1 1.55v.4"/><circle cx="11.8" cy="16.4" r=".95" fill="currentColor" stroke="none"/></svg></span>
+      <span class="menu-item__label">Legende</span>
+    </button>
+  </div>
+</section>
+
+<!-- ==================== SHEET: WEEK PICKER ==================== -->
+<div class="scrim" id="scrimWeek" hidden></div>
+<section class="sheet sheet--week" id="sheetWeek" role="dialog" aria-modal="true" aria-label="Woche wählen" hidden>
+  <div class="sheet__grab"></div>
+  <div class="cal__head">
+    <button class="calnav" id="calPrev" aria-label="Vorheriger Monat"><svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg></button>
+    <span id="calMonth">–</span>
+    <button class="calnav" id="calNext" aria-label="Nächster Monat"><svg viewBox="0 0 24 24" class="ico"><path d="m10 6 6 6-6 6"/></svg></button>
+  </div>
+  <div class="cal__dow"><span class="cal__kw">KW</span><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+  <div class="cal__grid" id="calGrid"></div>
+  <button class="cal__today" id="calToday">Zur aktuellen Woche</button>
+</section>
+
+<!-- ==================== SHEET: LEGENDE ==================== -->
+<div class="scrim" id="scrimLegend" hidden></div>
+<section class="sheet sheet--legend" id="sheetLegend" role="dialog" aria-modal="true" aria-label="Legende" hidden>
+  <div class="sheet__grab"></div>
+  <h2 class="sheet__title">Legende</h2>
+  <ul class="legend">
+    <li><i class="sw sw--normal"></i><div><b>Regulär</b><span>Findet wie geplant statt</span></div></li>
+    <li><i class="sw sw--change"></i><div><b>Vertretung / Änderung</b><span>Grün markiert ist das, was sich geändert hat</span></div></li>
+    <li><i class="sw sw--cancel"></i><div><b>Entfall</b><span>Durchgestrichen, findet nicht statt</span></div></li>
+    <li><i class="sw sw--exam"></i><div><b>Klausur / Prüfung</b><span>Leistungsnachweis in dieser Stunde</span></div></li>
+    <li><i class="sw sw--event"></i><div><b>Termin</b><span>Ganztägig, betrifft mehrere Klassen</span></div></li>
+    <li><i class="sw sw--absent"></i><div><b>Abwesenheit</b><span>Klasse oder Lehrkraft ist abwesend</span></div></li>
+  </ul>
+</section>
+
+<!-- ==================== MITTEILUNG SCHREIBEN ==================== -->
+<div class="scrim" id="scrimWrite" hidden></div>
+<section class="sheet sheet--write" id="sheetWrite" role="dialog" aria-modal="true" aria-label="Neue Mitteilung" hidden>
+  <header class="write__top">
+    <button class="rndbtn" id="msgClose" aria-label="Schließen">
+      <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <span class="write__title" id="msgWriteTitle">Mitteilung</span>
+    <button class="rndbtn" id="msgSend" aria-label="Senden">
+      <svg viewBox="0 0 24 24" class="ico"><path d="M20.5 3.5 3.8 10.2l6.4 2.6 2.6 6.4z"/><path d="M10.2 12.8 20.5 3.5"/></svg>
+    </button>
+  </header>
+
+  <!-- Verfassen -->
+  <div class="write__pane" id="msgPaneWrite">
+    <button class="write__to" id="msgToRow" type="button">
+      <span class="write__toLab">An</span>
+      <span class="write__toVal" id="msgTo"></span>
+      <svg viewBox="0 0 24 24" class="ico"><path d="m10 6 6 6-6 6"/></svg>
+    </button>
+    <input type="text" id="msgSubject" class="write__subject" placeholder="Betreff">
+    <textarea id="msgBody" class="write__body" placeholder="Text hier eingeben"></textarea>
+    <div class="write__files" id="msgFiles"></div>
+    <div class="write__tools">
+      <label class="write__clip" aria-label="Anhang" hidden>
+        <svg viewBox="0 0 24 24" class="ico"><path d="M20 11.5 12 19.4a4.6 4.6 0 0 1-6.5-6.5l8.4-8.3a3 3 0 1 1 4.3 4.3l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1l7.6-7.6"/></svg>
+        <input type="file" id="msgAttach" multiple hidden>
+      </label>
+      <button class="write__draft" id="msgDraft" type="button" hidden>Entwurf</button>
+    </div>
+  </div>
+
+  <!-- Empfänger wählen -->
+  <div class="write__pane" id="msgPaneTo" hidden>
+    <input type="search" id="msgRecQuery" class="write__find"
+           placeholder="Person oder Liste suchen" autocapitalize="none" autocorrect="off">
+    <div class="write__chosen" id="msgChosen"></div>
+    <div class="write__hits" id="msgRecHits"></div>
+    <button class="write__ok" id="msgToDone" type="button">Fertig</button>
+  </div>
+</section>
+
+<!-- ==================== ANMELDUNG ==================== -->
+<section class="login" id="login" hidden>
+  <div class="login__box">
+    <span class="login__mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><rect x="3.4" y="5" width="17.2" height="15.4" rx="2.8"/><path d="M3.4 9.6h17.2M8 3.4v3.4M16 3.4v3.4"/></svg>
+    </span>
+    <h1>UntPlanMobile</h1>
+    <p>Bitte mit dem Konto von UntPlanWeb anmelden.</p>
+
+    <label class="field">
+      <span>Benutzername</span>
+      <input type="text" id="loginUser" autocomplete="username" autocapitalize="none"
+             autocorrect="off" spellcheck="false" enterkeyhint="next">
+    </label>
+
+    <label class="field">
+      <span>Passwort</span>
+      <input type="password" id="loginPass" autocomplete="current-password" enterkeyhint="go">
+    </label>
+
+    <p class="login__error" id="loginError" hidden></p>
+
+    <button class="login__submit" id="loginSubmit">Anmelden</button>
+  </div>
+</section>
+
+<div class="toast" id="toast" hidden></div>
+
+<script nonce="__NONCE__">
+/* Vom Server mitgelieferte Livedaten — das Raster ist damit sofort gefüllt. */
+window.TT_BOOT = __BOOT__;
+window.TT_FASSUNG = "__FASSUNG__";
+</script>
+<script src="assets/js/data.js?v=__FASSUNG__"></script>
+<script src="assets/js/api-db.js?v=__FASSUNG__"></script>
+<script src="assets/js/app.js?v=__FASSUNG__"></script>
+</body>
+</html>
