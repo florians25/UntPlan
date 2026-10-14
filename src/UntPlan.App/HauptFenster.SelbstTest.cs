@@ -53,6 +53,9 @@ public sealed partial class HauptFenster
                 aktion();
                 Warten(900);
                 Foto(Path.Combine(ordner, name + ".png"));
+                // Tabellenzellen dürfen beim Überfahren mit der Maus ihr Aussehen nicht ändern
+                var hover = Application.OpenForms.Cast<Form>().Where(f => f.Visible && f != this).SelectMany(HoverPruefen).ToList();
+                if (hover.Count > 0) log.Add($"FEHLER {name}: Zellen reagieren auf Hover: {string.Join(", ", hover)}");
                 if (Ui.FehlerProtokoll is { Count: > 0 } fp)
                 {
                     log.Add($"FEHLER {name}: {string.Join(Environment.NewLine, fp)}");
@@ -152,6 +155,12 @@ public sealed partial class HauptFenster
             sp.SelbsttestZeitbereich(false);
             Warten(300);
             sp.SelbsttestZeitbereich(true);
+        }, -1);
+        Schritt("17b1_Stundenplan_Zeitbereich_Tag", () =>
+        {
+            // Zeitbereich „Tag“: nur der gewählte Tag über die ganze Breite
+            var sp = Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false));
+            sp.SelbsttestZeitbereich(true, true);
         }, -1);
         Schritt("18_Vertretungsvorschlag", () =>
         {
@@ -295,6 +304,52 @@ public sealed partial class HauptFenster
         });
         File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();
+    }
+
+    /// <summary>Simuliert das Überfahren jeder sichtbaren Zelle (eine nicht aktuelle Zeile und die Kopfzeile) und meldet Zellen, deren Aussehen sich dabei ändert.</summary>
+    internal static List<string> HoverPruefen(Control wurzel)
+    {
+        var res = new List<string>();
+        var bewegen = typeof(Control).GetMethod("OnMouseMove", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var verlassen = typeof(Control).GetMethod("OnMouseLeave", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => Alle(k).Prepend(k));
+        foreach (var g in Alle(wurzel).OfType<DataGridView>().Where(g => g.Visible && g.Width > 20 && g.Height > 20).ToList())
+        {
+            if (g.IsCurrentCellInEditMode) continue;
+            var zeile = Math.Max(0, g.FirstDisplayedScrollingRowIndex);
+            if (g.Rows.Count > 1 && g.CurrentCell?.RowIndex == zeile) zeile++;
+            Bitmap Ausschnitt(Rectangle r)
+            {
+                using var b = new Bitmap(g.Width, g.Height);
+                g.DrawToBitmap(b, new Rectangle(0, 0, g.Width, g.Height));
+                return b.Clone(r, b.PixelFormat);
+            }
+            static bool Gleich(Bitmap a, Bitmap b)
+            {
+                for (var x = 0; x < a.Width; x++)
+                    for (var y = 0; y < a.Height; y++)
+                        if (a.GetPixel(x, y) != b.GetPixel(x, y)) return false;
+                return true;
+            }
+            foreach (var z in new[] { -1, g.Rows.Count > 0 ? zeile : -2 }.Where(z => z >= -1))
+                foreach (var c in g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible))
+                {
+                    var r = g.GetCellDisplayRectangle(c.Index, z, true);
+                    if (r.Width < 6 || r.Height < 6) continue;
+                    try
+                    {
+                        verlassen.Invoke(g, new object[] { EventArgs.Empty });
+                        g.Update();
+                        using var vorher = Ausschnitt(r);
+                        bewegen.Invoke(g, new object[] { new MouseEventArgs(MouseButtons.None, 0, r.X + r.Width / 2, r.Y + r.Height / 2, 0) });
+                        g.Update();
+                        using var waehrend = Ausschnitt(r);
+                        if (!Gleich(vorher, waehrend)) res.Add($"{wurzel.GetType().Name}/{g.Name}/{c.Name}{(z < 0 ? " (Kopf)" : "")}");
+                    }
+                    finally { verlassen.Invoke(g, new object[] { EventArgs.Empty }); }
+                }
+        }
+        return res;
     }
 
     private static void Warten(int ms)

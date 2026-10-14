@@ -27,6 +27,27 @@ public static class Auswahlbreite
         c.DisplayStyleForCurrentCellOnly = false;
     }
 
+    /// <summary>Kontrollkästchen in Tabellen immer im Normalzustand zeichnen – wie Untis ohne Hervorhebung beim Überfahren.</summary>
+    private static void KontrollkaestchenOhneHover(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.Handled || e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || sender is not DataGridView g ||
+            g.Rows[e.RowIndex].Cells[e.ColumnIndex] is not DataGridViewCheckBoxCell) return;
+        e.Paint(e.ClipBounds, e.PaintParts & ~DataGridViewPaintParts.ContentForeground);
+        if ((e.PaintParts & DataGridViewPaintParts.ContentForeground) != 0)
+        {
+            var zustand = e.FormattedValue switch
+            {
+                true or CheckState.Checked => System.Windows.Forms.VisualStyles.CheckBoxState.CheckedNormal,
+                CheckState.Indeterminate => System.Windows.Forms.VisualStyles.CheckBoxState.MixedNormal,
+                _ => System.Windows.Forms.VisualStyles.CheckBoxState.UncheckedNormal,
+            };
+            var groesse = CheckBoxRenderer.GetGlyphSize(e.Graphics, zustand);
+            var r = e.CellBounds;
+            CheckBoxRenderer.DrawCheckBox(e.Graphics, new Point(r.X + (r.Width - groesse.Width) / 2, r.Y + (r.Height - groesse.Height) / 2), zustand);
+        }
+        e.Handled = true;
+    }
+
     private static void Erfassen(Control c)
     {
         if (Erfasst.TryGetValue(c, out _)) return;
@@ -41,6 +62,7 @@ public static class Auswahlbreite
                 // Auswahlspalten wie Untis ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
+                g.CellPainting += KontrollkaestchenOhneHover;
                 break;
             case ToolStrip ts:
                 foreach (var item in ts.Items.OfType<ToolStripComboBox>()) Erfassen(item.ComboBox);

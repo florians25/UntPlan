@@ -790,7 +790,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private static readonly Color PausenFarbe = Color.FromArgb(160, 236, 246);
 
     /// <summary>
-    /// Darstellung wie in Untis: alle Werte in schwarzer Schrift; offene Felder „???“ rot (nicht fett), „---“ beim Vertreter rot,
+    /// Darstellung wie in Untis: alle Werte in schwarzer Schrift; offene Felder „???“ rot (nicht fett), „---“ (Entfall) schwarz,
     /// Art in der Farbe der Vertretungsart, Pausenaufsicht türkis, Kollision gelb mit rotem Rahmen und roter Vtr-Nr.
     /// </summary>
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -803,8 +803,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // offene Vertretung: rotes "???" beim Vertreter bzw. Raum – auch in markierten Zeilen
         var offen = (v.Offen && name == "Vertreter") || (v.RaumOffen && name == "NRaum") ||
                     (name == "Vertreter" && v.Art == VertretungsArt.Veranstaltung && _gruppen.TryGetValue(v.Id, out var vg) && vg.Any(x => x.VeranstaltungOffen));
-        var entfall = name == "Vertreter" && (v.IstEntfall && v.Art != VertretungsArt.Freisetzung || v.Art == VertretungsArt.Vormerkung);
-        if (offen || entfall) e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Red;
+        if (offen) e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Red;
         if (Kollision(v) is { } k)
         {
             // Kollision: Feld gelb hinterlegt und rot umrandet (siehe KollisionZeichnen), Vertretungsnummer rot

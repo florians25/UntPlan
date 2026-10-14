@@ -524,26 +524,61 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private ToolStripMenuItem ZeitbereichMenue()
     {
         var woche = _plan.Woche.HasValue;
-        var m = new ToolStripMenuItem("Zeitbereich: " + (woche ? "Woche" : "Periode"));
-        var w = new ToolStripMenuItem("Woche – tagesaktuell mit Vertretungen") { Checked = woche };
-        w.Click += (_, _) => _wochenansicht.Checked = true;
+        var tag = woche && _nurTag;
+        var m = new ToolStripMenuItem("Zeitbereich: " + (tag ? "Tag" : woche ? "Woche" : "Periode"));
+        var t = new ToolStripMenuItem("Tag – nur der gewählte Tag, tagesaktuell") { Checked = tag };
+        t.Click += (_, _) => ZeitbereichSetzen(true, true);
+        var w = new ToolStripMenuItem("Woche – tagesaktuell mit Vertretungen") { Checked = woche && !tag };
+        w.Click += (_, _) => ZeitbereichSetzen(true, false);
         var p = new ToolStripMenuItem($"Periode – Regelplan ({D.AktivePeriode.Name})") { Checked = !woche };
-        p.Click += (_, _) => _wochenansicht.Checked = false;
+        p.Click += (_, _) => ZeitbereichSetzen(false, false);
+        m.DropDownItems.Add(t);
         m.DropDownItems.Add(w);
         m.DropDownItems.Add(p);
         if (woche)
         {
             m.DropDownItems.Add(new ToolStripSeparator());
+            if (tag)
+            {
+                m.DropDownItems.Add("Vorheriger Tag", null, (_, _) => TagBlaettern(-1));
+                m.DropDownItems.Add("Nächster Tag", null, (_, _) => TagBlaettern(1));
+            }
             m.DropDownItems.Add("Vorherige Woche", null, (_, _) => WocheBlaettern(-7));
             m.DropDownItems.Add("Nächste Woche", null, (_, _) => WocheBlaettern(7));
         }
         return m;
     }
 
-    /// <summary>Selbsttest: Zeitbereich umschalten (Woche bzw. Periode) und prüfen.</summary>
-    internal void SelbsttestZeitbereich(bool woche)
+    /// <summary>Zeitbereich „Tag“: nur der gewählte Tag über die ganze Fensterbreite.</summary>
+    private bool _nurTag;
+
+    private void ZeitbereichSetzen(bool woche, bool tag)
     {
-        _wochenansicht.Checked = woche;
+        _nurTag = tag;
+        if (_wochenansicht.Checked != woche) _wochenansicht.Checked = woche; // ruft WocheSetzen auf
+        else WocheSetzen();
+    }
+
+    /// <summary>Zum vorherigen bzw. nächsten Schultag der Woche blättern.</summary>
+    private void TagBlaettern(int richtung)
+    {
+        var ziel = DateOnly.FromDateTime(_datum.Value);
+        for (var i = 0; i < 14; i++)
+        {
+            ziel = ziel.AddDays(richtung);
+            if (ziel < D.Einstellungen.SchuljahrVon || ziel > D.Einstellungen.SchuljahrBis) return;
+            if (Kalender.TagIndex(D, ziel) >= 0) break; // Wochenende überspringen, Ferien werden angezeigt
+        }
+        _datum.Value = ziel.ToDateTime(TimeOnly.MinValue);
+    }
+
+    /// <summary>Selbsttest: Zeitbereich umschalten (Woche bzw. Periode) und prüfen.</summary>
+    internal void SelbsttestZeitbereich(bool woche, bool tag = false)
+    {
+        ZeitbereichSetzen(woche, tag);
+        if (tag && _plan.NurTag is null) throw new InvalidOperationException("Zeitbereich „Tag“ zeigt nicht nur einen Tag.");
+        if (!tag && _plan.NurTag is not null) throw new InvalidOperationException("Zeitbereich zeigt noch nur einen Tag.");
+        if (tag) return;
         if (_plan.Woche.HasValue != woche) throw new InvalidOperationException("Zeitbereich wurde nicht umgeschaltet.");
         if (ZeitbereichMenue().Text != "Zeitbereich: " + (woche ? "Woche" : "Periode")) throw new InvalidOperationException("Kontextmenü Zeitbereich zeigt den falschen Zustand.");
     }
@@ -558,6 +593,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private void WocheSetzen()
     {
         _plan.Woche = _wochenansicht.Checked ? Kalender.Montag(DateOnly.FromDateTime(_datum.Value)) : null;
+        _plan.NurTag = _nurTag && _wochenansicht.Checked ? Kalender.TagIndex(D, DateOnly.FromDateTime(_datum.Value)) : null;
         _plan.AuswahlLeeren();
         LupeSpalten(_plan.Tagesmodus);
         _lupe.Rows.Clear();

@@ -25,6 +25,15 @@ public sealed class PlanAnsicht : Control
     }
     public bool Tagesmodus => _woche.HasValue;
 
+    /// <summary>Zeitbereich „Tag“ wie in Untis: nur dieser Wochentag (Index) wird über die ganze Breite gezeigt, null = alle Tage.</summary>
+    public int? NurTag
+    {
+        get => _nurTag;
+        set { _nurTag = value is int t && t >= 0 && t < Tage ? t : null; Invalidate(); }
+    }
+    private int? _nurTag;
+    private int SichtbareTage => _nurTag.HasValue ? 1 : Tage;
+
     /// <summary>
     /// Gewählte Stunde. Die Auswahl wird zusätzlich über Unterricht, Tag und Stunde gemerkt, damit sie nach dem Neuladen der Daten
     /// (Rückgängig, Änderungen in anderen Fenstern) wieder gefunden wird.
@@ -181,11 +190,13 @@ public sealed class PlanAnsicht : Control
     private RectangleF Zelle(Rectangle bounds, int tag, int stunde)
     {
         var pausen = Pausen;
-        var w = (bounds.Width - KopfBreite - 1) / (float)Tage;
+        var w = (bounds.Width - KopfBreite - 1) / (float)SichtbareTage;
         var h = Math.Max(4f, (bounds.Height - KopfHoehe - 1 - pausen.Count * PausenHoehe) / (float)Stunden);
         var vor = 0;
         foreach (var p in pausen) if (p.NachStunde < stunde) vor++;
-        return new RectangleF(bounds.X + KopfBreite + tag * w, bounds.Y + KopfHoehe + (stunde - 1) * h + vor * PausenHoehe, w, h);
+        // Zeitbereich „Tag“: die übrigen Tage liegen außerhalb des sichtbaren Bereichs (gleiche Größe, damit Schriften gleich bleiben)
+        var x = _nurTag is int nt ? (tag == nt ? bounds.X + KopfBreite : bounds.X - 100000f) : bounds.X + KopfBreite + tag * w;
+        return new RectangleF(x, bounds.Y + KopfHoehe + (stunde - 1) * h + vor * PausenHoehe, w, h);
     }
 
     /// <summary>Zeile einer Pause (über die ganze Breite, unmittelbar vor der Stunde nach der Pause).</summary>
@@ -198,8 +209,9 @@ public sealed class PlanAnsicht : Control
     private (int Tag, int Stunde)? Treffer(Point p)
     {
         if (p.X < KopfBreite || p.Y < KopfHoehe) return null;
-        var w = (Width - KopfBreite - 1) / (float)Tage;
+        var w = (Width - KopfBreite - 1) / (float)SichtbareTage;
         var t = (int)((p.X - KopfBreite) / w);
+        if (_nurTag is int nt) t = t == 0 ? nt : -1;
         if (t < 0 || t >= Tage) return null;
         for (var s = 1; s <= Stunden; s++)
         {
@@ -814,7 +826,7 @@ public sealed class PlanAnsicht : Control
         (int)Math.Ceiling(Format.Schriftgroesse * (AppZustand.Vertretungsmodus ? (Format.Gross ? 3.6f : 2.8f) : Format.Gross ? 6.4f : 5.0f)));
 
     /// <summary>Mindestbreite laut Format (Zellenbreite je Tag), 0 = an die Fensterbreite anpassen.</summary>
-    public int BenoetigteBreite => Format.ZellenBreite > 0 ? KopfBreite + Tage * Format.ZellenBreite + 2 : 0;
+    public int BenoetigteBreite => Format.ZellenBreite > 0 ? KopfBreite + SichtbareTage * Format.ZellenBreite + 2 : 0;
 
     private static string ZeilenGruppe(Kopplungszeile z) =>
         z.UGruppeId is int g && D.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug ? $"({ug.Kurzname})" : "";
