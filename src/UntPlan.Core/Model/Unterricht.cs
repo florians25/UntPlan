@@ -68,6 +68,8 @@ public sealed class Unterricht
     public Periodizitaet Periodizitaet { get; set; }
     /// <summary>Unterrichtsgruppe (Woche A/B/…, Semester), null = jede Woche.</summary>
     public int? UGruppeId { get; set; }
+    /// <summary>Keine Vertretungsplanung: fehlt die Lehrkraft, entfällt die Stunde automatisch.</summary>
+    public bool KeineVertretung { get; set; }
     /// <summary>Betreuung kann übernommen werden von (automatische Betreuung bei Absenz).</summary>
     public int? BetreuungLehrerId { get; set; }
     // Wertrechnung
@@ -107,7 +109,7 @@ public sealed class Unterricht
     {
         Id = neueId, Wochenstunden = Wochenstunden, Zeilen = Zeilen.Select(z => z.Kopie()).ToList(), Doppelstunden = Doppelstunden,
         Block = Block, Schuelergruppe = Schuelergruppe, Text = Text, Statistik = Statistik, Fix = Fix, Ignorieren = Ignorieren,
-        MehrmalsProTag = MehrmalsProTag, Band = Band, Kursname = Kursname, MaxSchueler = MaxSchueler, VonDatum = VonDatum,
+        MehrmalsProTag = MehrmalsProTag, KeineVertretung = KeineVertretung, Band = Band, Kursname = Kursname, MaxSchueler = MaxSchueler, VonDatum = VonDatum,
         BisDatum = BisDatum, Periodizitaet = Periodizitaet, WerteFaktor = WerteFaktor, Zeitwuensche = Zeitwuensche.Kopie(),
         UGruppeId = UGruppeId, BetreuungLehrerId = BetreuungLehrerId, Kommentar = Kommentar,
     };

@@ -112,6 +112,7 @@ public static class Felder
                 l.Add(F("Gang", "Gänge", FeldArt.Element, e => ((Raum)e).GangId, (e, v) => ((Raum)e).GangId = (int?)v, "Pausenaufsicht", true, 55, ElementTyp.Gang));
                 l.Add(T("Stockwerk", "Stockwerk", e => ((Raum)e).Stockwerk, (e, v) => ((Raum)e).Stockwerk = (string)v!));
                 l.Add(T("Raumart", "Raumart", e => ((Raum)e).Raumart, (e, v) => ((Raum)e).Raumart = (string)v!));
+                l.Add(F("Buchbar", "buchbar (Web)", FeldArt.Bool, e => ((Raum)e).Buchbar, (e, v) => ((Raum)e).Buchbar = (bool)v!, "Allgemein", true, 70));
                 break;
             case ElementTyp.Raumgruppe:
                 l.AddRange(Gemeinsam().Take(3));

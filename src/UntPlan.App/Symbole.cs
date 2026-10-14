@@ -33,7 +33,9 @@ public static class Symbole
         ["dk"] = 0x2D333C,  // Dunkel (Zeichenstriche)
         ["b"] = 0x2F6FC0,   // Blau
         ["hb"] = 0xC4DAF5,  // Hellblau
-        ["pe"] = 0x125E7A,  // Petrol (Hausfarbe)
+        ["pe"] = 0x125E7A,  // Petrol
+        ["nv"] = 0x1D4F73,  // Dunkelblau (Hausfarbe, Logo)
+        ["mi"] = 0x5FBF96,  // Mint (Logo-Akzent)
         ["hpe"] = 0xB5DCE6, // Hellpetrol
         ["g"] = 0x2E8048,   // Grün
         ["lg"] = 0x2E7040,  // Logo-Grün (Hausfarbe)
@@ -146,8 +148,10 @@ public static class Symbole
         ["monitor"] = "R 13 22 6 5 gr & R 9 26 14 3 1 gr; R 2 4 28 19 2 dk; R 4 6 24 15 hb!",
 
         // Programmlogo: Stundenplanraster in U-Form mit grünem Haken
-        ["logo"] = "R 1 1 30 30 7 pe; R 5 5 6 6 1.5 w!; R 5 13 6 6 1.5 w!; R 5 21 6 6 1.5 w!; R 13 21 6 6 1.5 w!; R 21 5 6 6 1.5 w!; R 21 13 6 6 1.5 w!; E 19 19 13 13 w!; E 20.5 20.5 10 10 lg!; L 22.6 25.6 24.6 27.6 27.8 24 w w2",
-        ["logo@16"] = "R 2 2 28 28 5 pe; R 6 6 6 6 w!; R 6 14 6 6 w!; R 6 22 6 6 w!; R 14 22 4 6 w!; R 22 6 4 6 w!; R 22 14 4 4 w!; E 18 18 14 14 w!; E 20 20 10 10 lg!",
+        ["farbe"] = "E 3 5 26 22 hbr; E 8 10 5 5 r!; E 15 8 5 5 b!; E 21 11 5 5 g!; E 8 17 5 5 y!; E 17 18 6 5 w",
+        // Logo (gleich in UntPlan und UntPlanWeb): „U“ aus Rasterbalken, grünes Feld als Planeintrag
+        ["logo"] = "R 1 1 30 30 6 nv; R 8 7 5 15 w!; R 19 7 5 15 w!; R 8 18 16 7 3 w!; R 14 7 4 4 1 mi!",
+        ["logo@16"] = "R 1 1 30 30 5 nv; R 7 6 6 16 w!; R 19 6 6 16 w!; R 7 17 18 8 3 w!; R 14 6 4 5 mi!",
     };
 
     /// <summary>Alle definierten Symbolnamen (ohne Kleinvarianten).</summary>

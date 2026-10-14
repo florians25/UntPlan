@@ -203,7 +203,20 @@ public class MdiFenster : Form
         Ui.SucheAktivieren(this);
         // eigene Tabellenformate für alle Tabellen des Fensters
         var n = 0;
-        foreach (var g in Tabellen(this)) Steuerelemente.TabellenFormate.Aktivieren(g, $"{GetType().Name}/{(string.IsNullOrEmpty(g.Name) ? (n++).ToString() : g.Name)}");
+        var tabellen = Tabellen(this).ToList();
+        foreach (var g in tabellen) Steuerelemente.TabellenFormate.Aktivieren(g, $"{GetType().Name}/{(string.IsNullOrEmpty(g.Name) ? (n++).ToString() : g.Name)}");
+        // Knopf „Spalten“ rechts in der Werkzeugleiste: Spalten ein-/ausblenden und Anordnung für die Haupttabelle
+        if (tabellen.Count > 0 && Controls.OfType<ToolStrip>().FirstOrDefault(t => t is not MenuStrip && t.Dock == DockStyle.Top) is { } leiste)
+        {
+            var haupt = tabellen.OrderByDescending(t => t.Width * t.Height).First();
+            var knopf = new ToolStripButton("Spalten", Symbole.Get("rollup"))
+            {
+                Alignment = ToolStripItemAlignment.Right, ToolTipText = "Spalten ein- und ausblenden, Reihenfolge und Tabellenformate (auch per Rechtsklick auf die Spaltenköpfe)",
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+            };
+            knopf.Click += (_, _) => Steuerelemente.TabellenFormate.MenueZeigen(haupt, leiste.PointToScreen(new Point(knopf.Bounds.Left, knopf.Bounds.Bottom)));
+            leiste.Items.Add(knopf);
+        }
     }
 
     private static IEnumerable<DataGridView> Tabellen(Control c)

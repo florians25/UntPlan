@@ -23,6 +23,9 @@ public static class TabellenFormate
         public bool Anwenden;
         public bool AnwendenGeplant;
         public bool SpeichernGeplant;
+        /// <summary>Benutzer zieht/ändert gerade Spalten (zwischen MouseDown und MouseUp).</summary>
+        public bool Ziehen;
+        public bool Geaendert;
     }
 
     private static readonly Dictionary<DataGridView, Zustand> Zustaende = new();
@@ -41,11 +44,25 @@ public static class TabellenFormate
         else g.HandleCreated += (_, _) => Neuaufgebaut(g, z);
         // Spalten werden manchmal neu aufgebaut: Format nach dem Aufbau erneut anwenden
         g.ColumnAdded += (_, _) => AnwendenPlanen(g, z);
+        // Änderungen durch den Benutzer (Spalte verschieben, Breite ziehen) erkennen und nach dem Loslassen speichern
+        g.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { z.Ziehen = true; z.Geaendert = false; } };
+        g.MouseUp += (_, _) =>
+        {
+            if (z.Ziehen && z.Geaendert) SpeichernPlanen(g, z);
+            z.Ziehen = z.Geaendert = false;
+        };
         g.ColumnWidthChanged += (_, e) =>
         {
-            if (!z.Anwenden && e.Column.AutoSizeMode != DataGridViewAutoSizeColumnMode.Fill && Control.MouseButtons == MouseButtons.Left) SpeichernPlanen(g, z);
+            if (z.Anwenden || e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.Fill) return;
+            if (z.Ziehen) z.Geaendert = true;
         };
-        g.ColumnDisplayIndexChanged += (_, _) => { if (!z.Anwenden && Control.MouseButtons == MouseButtons.Left) SpeichernPlanen(g, z); };
+        g.ColumnDisplayIndexChanged += (_, _) =>
+        {
+            if (z.Anwenden) return;
+            if (z.Ziehen) z.Geaendert = true;
+            // Verschieben per Ziehen endet manchmal ohne MouseUp an der Tabelle
+            if (Control.MouseButtons == MouseButtons.None && z.Ziehen) SpeichernPlanen(g, z);
+        };
         // vom Programm wieder eingeblendete, aber vom Benutzer ausgeblendete Spalten verborgen halten
         g.ColumnStateChanged += (_, e) =>
         {
@@ -58,6 +75,13 @@ public static class TabellenFormate
             if (e.Button != MouseButtons.Right) return;
             Menue(g, z).Show(g, g.PointToClient(Cursor.Position));
         };
+    }
+
+    /// <summary>Menü „Spalten ein-/ausblenden, Format …“ einer Tabelle an einer Bildschirmposition zeigen.</summary>
+    public static void MenueZeigen(DataGridView g, Point bildschirm)
+    {
+        if (!Zustaende.TryGetValue(g, out var z)) return;
+        Menue(g, z).Show(bildschirm);
     }
 
     /// <summary>Eindeutiger Name einer Spalte (Name, sonst Überschrift, sonst Position).</summary>

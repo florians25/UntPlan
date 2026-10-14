@@ -97,51 +97,95 @@ public sealed class Eingabeassistent : Panel
 }
 
 /// <summary>Begrüßungsbildschirm beim ersten Start.</summary>
+/// <summary>
+/// Startbildschirm: zuletzt geöffnete Schuldateien, neue Datei, Öffnen, Beispielschule.
+/// Wird angezeigt, wenn beim Start keine Datei geladen wird (oder über Datei → Startbildschirm).
+/// </summary>
 public static class BegruessungDialog
 {
+    private static readonly Color Dunkel = Color.FromArgb(29, 79, 115);
+
     public static void Zeigen(IWin32Window owner)
     {
-        using var f = new Form { Text = "Willkommen bei UntPlan", Font = Ui.Schrift, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(680, 380), ShowInTaskbar = false, BackColor = Color.White };
-        var links = new Panel { Dock = DockStyle.Left, Width = 190, BackColor = Color.FromArgb(240, 244, 250) };
-        var rechts = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16) };
+        using var f = new Form
+        {
+            Text = "UntPlan", Font = Ui.Schrift, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
+            StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(780, 450), ShowInTaskbar = false, BackColor = Color.White,
+        };
+        f.Icon = Icon.FromHandle(Symbole.Get("logo", 32).GetHicon());
+
+        // linke Spalte: Logo, Name, Version
+        var links = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = Dunkel };
+        links.Controls.Add(new PictureBox { Image = Symbole.Get("logo", 64), SizeMode = PictureBoxSizeMode.Zoom, Left = 28, Top = 34, Width = 56, Height = 56 });
+        links.Controls.Add(new Label { Text = "UntPlan", ForeColor = Color.White, Font = new Font(Ui.Schrift.FontFamily, 20f, FontStyle.Bold), Left = 26, Top = 100, AutoSize = true });
+        links.Controls.Add(new Label { Text = "Stunden- und Vertretungsplanung", ForeColor = Color.FromArgb(200, 218, 232), Left = 28, Top = 142, Width = 210 });
+        var version = typeof(BegruessungDialog).Assembly.GetName().Version;
+        links.Controls.Add(new Label { Text = $"Version {version?.ToString(3)}", ForeColor = Color.FromArgb(160, 188, 210), Left = 28, Top = 410, Width = 200 });
+
+        var rechts = new Panel { Dock = DockStyle.Fill, Padding = new Padding(28, 26, 28, 18) };
         f.Controls.Add(rechts);
         f.Controls.Add(links);
-        f.Icon = Icon.FromHandle(Symbole.Get("logo", 32).GetHicon());
-        f.ShowIcon = true;
-        var y = 14;
-        void Navi(string text, string symbol, bool kopf = false)
+
+        rechts.Controls.Add(new Label { Text = "Zuletzt geöffnet", Font = Ui.SchriftFett, Left = 28, Top = 26, AutoSize = true });
+        var liste = new ListView
         {
-            if (kopf) { links.Controls.Add(new Label { Text = text, Left = 10, Top = y, Width = 170, ForeColor = Color.Gray }); y += 24; return; }
-            links.Controls.Add(new Label { Image = Symbole.Get(symbol, 16), ImageAlign = ContentAlignment.MiddleLeft, Text = "      " + text, Left = 10, Top = y, Width = 170, Height = 22 });
-            y += 26;
+            Left = 28, Top = 52, Width = 474, Height = 236, View = View.Details, FullRowSelect = true, HeaderStyle = ColumnHeaderStyle.None,
+            BorderStyle = BorderStyle.FixedSingle, MultiSelect = false, Font = Ui.Schrift,
+        };
+        liste.Columns.Add("Datei", 300);
+        liste.Columns.Add("Geändert", 150);
+        foreach (var pfad in AppZustand.Einstellungen.ZuletztGeoeffnet.Where(File.Exists).Take(9))
+        {
+            var it = new ListViewItem(new[] { Path.GetFileNameWithoutExtension(pfad), File.GetLastWriteTime(pfad).ToString("dd.MM.yyyy HH:mm") }) { Tag = pfad, ToolTipText = pfad };
+            liste.Items.Add(it);
         }
-        Navi("Erste Schritte", "", true);
-        Navi("Willkommen bei UntPlan", "info");
-        Navi("Stundenplan erstellen", "assistent");
-        Navi("Demo-Datei öffnen", "klassen");
-        y += 10;
-        Navi("Hilfe & Neuigkeiten", "", true);
-        Navi("Handbuch / Hilfe (F1)", "hilfe");
-        // Programmlogo oben rechts
-        rechts.Controls.Add(new PictureBox { Image = Symbole.Get("logo", 48), SizeMode = PictureBoxSizeMode.CenterImage, Left = 408, Top = 8, Width = 48, Height = 48 });
-        rechts.Controls.Add(new Label { Text = "Stundenplan erstellen", Left = 16, Top = 14, Width = 380, Font = Ui.SchriftGross });
-        rechts.Controls.Add(new Label { Text = "UntPlan unterstützt Sie bei Stundenplanerstellung, Vertretungsplanung, Pausenaufsichten, Kursplanung und Wertrechnung – mit NRW-Voreinstellungen (Schulformen, Pflichtstunden, Ferien, Feiertage).\n\nDer Eingabeassistent führt Sie durch die Eingabe der wichtigsten Daten.", Left = 16, Top = 46, Width = 440, Height = 100 });
-        Button Knopf(string text, string symbol, int top)
+        liste.ShowItemToolTips = true;
+        if (liste.Items.Count == 0) liste.Items.Add(new ListViewItem("Noch keine Dateien geöffnet") { ForeColor = Color.Gray });
+        else liste.Items[0].Selected = true;
+        rechts.Controls.Add(liste);
+        var pfadLabel = new Label { Left = 28, Top = 292, Width = 474, ForeColor = Color.Gray, AutoEllipsis = true };
+        rechts.Controls.Add(pfadLabel);
+        liste.SelectedIndexChanged += (_, _) => pfadLabel.Text = liste.SelectedItems.Count > 0 ? liste.SelectedItems[0].Tag as string ?? "" : "";
+        pfadLabel.Text = liste.SelectedItems.Count > 0 ? liste.SelectedItems[0].Tag as string ?? "" : "";
+
+        Button Knopf(string text, int left, bool haupt = false)
         {
-            var b = new Button { Text = "   " + text, Image = Symbole.Get(symbol, 32), ImageAlign = ContentAlignment.MiddleLeft, TextAlign = ContentAlignment.MiddleLeft, Left = 16, Top = top, Width = 440, Height = 52, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(232, 243, 255) };
-            b.FlatAppearance.BorderColor = Color.FromArgb(180, 205, 240);
+            var b = new Button { Text = text, Left = left, Top = 322, Width = 150, Height = 30, FlatStyle = FlatStyle.Flat, BackColor = haupt ? Dunkel : Color.White, ForeColor = haupt ? Color.White : Color.Black };
+            b.FlatAppearance.BorderColor = haupt ? Dunkel : Color.FromArgb(190, 198, 206);
             rechts.Controls.Add(b);
             return b;
         }
-        var neu = Knopf("Neue Schuldatei anlegen und den Eingabeassistenten starten", "assistent", 156);
-        var demo = Knopf("Beispielschule öffnen (NRW-Gymnasium mit Daten)", "klassen", 214);
-        var oeffnen = Knopf("Vorhandene Schuldatei öffnen", "oeffnen", 272);
-        var nichtMehr = new CheckBox { Text = "Beim Start nicht mehr anzeigen", Left = 16, Top = 336, Width = 260, Checked = !AppZustand.Einstellungen.BegruessungZeigen };
-        rechts.Controls.Add(nichtMehr);
+        var offen = Knopf("Öffnen", 28, true);
+        var durchsuchen = Knopf("Andere Datei…", 190);
+        var neu = Knopf("Neue Schuldatei…", 352);
+        var demo = new LinkLabel { Text = "Beispielschule öffnen", Left = 28, Top = 362, AutoSize = true, LinkColor = Dunkel };
+        rechts.Controls.Add(demo);
+
+        var automatisch = new CheckBox { Text = "Zuletzt geöffnete Datei beim Start automatisch laden", Left = 28, Top = 392, Width = 474, Checked = AppZustand.Einstellungen.LetzteDateiLaden };
+        var anzeigen = new CheckBox { Text = "Startbildschirm anzeigen, wenn keine Datei geladen wird", Left = 28, Top = 414, Width = 474, Checked = AppZustand.Einstellungen.BegruessungZeigen };
+        rechts.Controls.Add(automatisch);
+        rechts.Controls.Add(anzeigen);
+
+        void Laden()
+        {
+            if (liste.SelectedItems.Count == 0 || liste.SelectedItems[0].Tag is not string pfad) return;
+            f.Close();
+            AppZustand.Haupt.DateiLaden(pfad);
+        }
+        offen.Enabled = liste.Items.Count > 0 && liste.Items[0].Tag is string;
+        offen.Click += (_, _) => Laden();
+        liste.DoubleClick += (_, _) => Laden();
+        liste.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) Laden(); };
+        durchsuchen.Click += (_, _) => { f.Close(); AppZustand.Haupt.Oeffnen(); };
         neu.Click += (_, _) => { f.Close(); AppZustand.Haupt.Neu(); };
-        demo.Click += (_, _) => { f.Close(); AppZustand.Haupt.BeispielOeffnen(); };
-        oeffnen.Click += (_, _) => { f.Close(); AppZustand.Haupt.Oeffnen(); };
-        f.FormClosed += (_, _) => { AppZustand.Einstellungen.BegruessungZeigen = !nichtMehr.Checked; AppZustand.Einstellungen.Speichern(); };
+        demo.LinkClicked += (_, _) => { f.Close(); AppZustand.Haupt.BeispielOeffnen(); };
+        f.FormClosed += (_, _) =>
+        {
+            AppZustand.Einstellungen.BegruessungZeigen = anzeigen.Checked;
+            AppZustand.Einstellungen.LetzteDateiLaden = automatisch.Checked;
+            AppZustand.Einstellungen.Speichern();
+        };
+        f.AcceptButton = offen;
         f.ShowDialog(owner);
     }
 }

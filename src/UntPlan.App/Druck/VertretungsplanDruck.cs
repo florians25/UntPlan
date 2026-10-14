@@ -221,7 +221,7 @@ public static class VertretungsplanDruck
             var stunde = z.ArtWert == VertretungsArt.Pausenaufsicht ? $"{z.Stunde}/{z.Stunde + 1}" : z.Stunde.ToString();
             if (!lehrer) return new Zeile(z.Klassen, stunde, vertreter, abwesend, abwesend.Length > 0, fach, raum, z.Bemerkung);
             // Lehrerversion: Gruppe = tatsächlich eingesetzte Lehrkraft (bei Entfall die eigentliche Lehrkraft)
-            var person = vertreter is "---" or "+" or "???" || vertreter.Length == 0 ? z.Lehrer : vertreter;
+            var person = vertreter is "---" or "+" or "+++" or "???" || vertreter.Length == 0 ? z.Lehrer : vertreter;
             var weg = z.Lehrer.Length > 0 && z.Lehrer != person ? z.Lehrer : "";
             return new Zeile(person, stunde, z.Klassen, weg, weg.Length > 0, fach, raum, z.Bemerkung);
         });

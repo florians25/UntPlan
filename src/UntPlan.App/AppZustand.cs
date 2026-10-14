@@ -90,6 +90,8 @@ public sealed class Benutzereinstellungen
 {
     public List<string> ZuletztGeoeffnet { get; set; } = new();
     public bool BegruessungZeigen { get; set; } = true;
+    /// <summary>Beim Start die zuletzt geöffnete Schuldatei laden.</summary>
+    public bool LetzteDateiLaden { get; set; } = true;
     /// <summary>Automatisch speichern alle n Minuten (0 = aus).</summary>
     public int AutoSpeichernMinuten { get; set; } = 10;
     /// <summary>Beim letzten Beenden war der Vertretungsmodus aktiv.</summary>
@@ -97,6 +99,8 @@ public sealed class Benutzereinstellungen
     public bool ModusMerken { get; set; } = true;
     /// <summary>Zuletzt gewähltes Stundenplanformat je Planart ("Klasse", "Klasse groß" …).</summary>
     public Dictionary<string, string> Stundenplanformate { get; set; } = new();
+    /// <summary>Fenster-Schnellknöpfe 1–8 oben rechts (Nummer → Anordnung).</summary>
+    public Dictionary<int, Fensteranordnung> Schnellanordnungen { get; set; } = new();
     /// <summary>Benannte, vom Benutzer gespeicherte Fensteranordnungen.</summary>
     public Dictionary<string, Fensteranordnung> Fensteranordnungen { get; set; } = new();
     public bool AssistentZeigen { get; set; } = true;
@@ -178,6 +182,7 @@ public sealed class Tabellenspalte
 
 public sealed class Fensteranordnung
 {
+    public string Name { get; set; } = "";
     public bool Vertretungsmodus { get; set; }
     public List<FensterPosition> Fenster { get; set; } = new();
 }

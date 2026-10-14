@@ -275,8 +275,10 @@ public sealed class EinstellungenDialog : Dialog
     private void SeiteDiverses()
     {
         var y = 8;
-        var b = Ui.Zeile(_seite, "Begrüßungsbildschirm beim Start", new CheckBox { Checked = AppZustand.Einstellungen.BegruessungZeigen }, ref y, 260);
+        var b = Ui.Zeile(_seite, "Startbildschirm beim Start", new CheckBox { Checked = AppZustand.Einstellungen.BegruessungZeigen }, ref y, 260);
         b.CheckedChanged += (_, _) => { AppZustand.Einstellungen.BegruessungZeigen = b.Checked; AppZustand.Einstellungen.Speichern(); };
+        var ld = Ui.Zeile(_seite, "Zuletzt geöffnete Datei beim Start laden", new CheckBox { Checked = AppZustand.Einstellungen.LetzteDateiLaden }, ref y, 260);
+        ld.CheckedChanged += (_, _) => { AppZustand.Einstellungen.LetzteDateiLaden = ld.Checked; AppZustand.Einstellungen.Speichern(); };
         var s = Ui.Zeile(_seite, "Stundenpläne synchronisieren (Voreinstellung)", new CheckBox { Checked = AppZustand.Einstellungen.StundenplanSynchronisieren }, ref y, 260);
         s.CheckedChanged += (_, _) => { AppZustand.Einstellungen.StundenplanSynchronisieren = s.Checked; AppZustand.Einstellungen.Speichern(); };
         var a = Ui.Zeile(_seite, "Automatisch speichern alle … Minuten (0 = aus)", new NumericUpDown { Minimum = 0, Maximum = 120, Value = Math.Clamp(AppZustand.Einstellungen.AutoSpeichernMinuten, 0, 120) }, ref y, 260, 60);

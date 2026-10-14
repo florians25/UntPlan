@@ -747,7 +747,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             var lehrer = q.SelectMany(e => e.Regel?.LehrerId is int l ? new[] { l } : e.LehrerIds.ToArray()).Distinct().ToList();
             var klassen = q.SelectMany(e => e.KlassenIds).Distinct().ToList();
             var st = Vertretungen.Feldstatus(D, tp, lehrer, klassen, stunde + i, uid, null);
-            var hindernisse = tp.Stunde(stunde + i).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) != uid && (e.LehrerIds.Intersect(lehrer).Any() || e.KlassenIds.Intersect(klassen).Any())).ToList();
+            // Bereitschaftsstunden sind kein Hindernis: die Lehrkraft steht dann ohnehin zur Verfügung
+            var hindernisse = tp.Stunde(stunde + i).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) != uid && !Vertretungen.IstBereitschaftsfach(D, e.FachId)
+                && (e.LehrerIds.Intersect(lehrer).Any() || e.KlassenIds.Intersect(klassen).Any())).ToList();
             schritte.Add((vonStunde + i, stunde + i, q, st, hindernisse));
         }
         if (schritte.Count == 0) return;

@@ -39,6 +39,20 @@ public static class Nrw
         ["GK"] = ("Grundkurs", 3), ["LK"] = ("Leistungskurs", 5), ["ZK"] = ("Zusatzkurs", 3), ["VTF"] = ("Vertiefungskurs", 2), ["PJK"] = ("Projektkurs", 2),
     };
 
+    /// <summary>Ruhige Ersatzpalette für Fächer, die nicht im Katalog stehen.</summary>
+    private static readonly uint[] Ersatzfarben =
+    {
+        0xFF90CAF9, 0xFFA5D6A7, 0xFFFFCC80, 0xFFCE93D8, 0xFF80CBC4, 0xFFEF9A9A, 0xFFB0BEC5, 0xFFFFF59D, 0xFFBCAAA4, 0xFF9FA8DA, 0xFFF48FB1, 0xFFC5E1A5,
+    };
+
+    /// <summary>Standardfarbe eines Fachs (Katalogfarbe, sonst Ersatzpalette nach Position).</summary>
+    public static int StandardFachfarbe(string kurzname, int position)
+    {
+        foreach (var f in Faecherkatalog)
+            if (string.Equals(f.K, kurzname, StringComparison.OrdinalIgnoreCase)) return unchecked((int)f.Farbe);
+        return unchecked((int)Ersatzfarben[((position % Ersatzfarben.Length) + Ersatzfarben.Length) % Ersatzfarben.Length]);
+    }
+
     public static readonly (string K, string Name, uint Farbe, bool Haupt, string? Raumart)[] Faecherkatalog =
     {
         ("D", "Deutsch", 0xFFF28B82, true, null), ("M", "Mathematik", 0xFF7BAAF7, true, null), ("E", "Englisch", 0xFF81C995, true, null),

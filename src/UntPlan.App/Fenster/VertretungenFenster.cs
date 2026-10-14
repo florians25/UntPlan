@@ -20,6 +20,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly CheckBox _offen = new() { Text = "Offene Vertretungen", AutoSize = true };
+    /// <summary>Bei Filter „Offene Vertretungen“: gerade bearbeitete Zeilen bleiben sichtbar, bis eine andere Zeile gewählt wird.</summary>
+    private readonly HashSet<int> _behalten = new();
     private readonly CheckBox _kollisionen = new() { Text = "Kollisionen", AutoSize = true };
     private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
     private readonly CheckBox _veranstaltungen = new() { Text = "Veranstaltungszeilen", AutoSize = true };
@@ -49,8 +51,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen, false));
         ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", TextImageRelation = TextImageRelation.TextBeforeImage });
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Entfall (-)", "entfall", Entfall, false));
-        ts.Items.Add(Knopf("Vertr. o. Lehrkraft (+)", "planen", OhneLehrkraft, false));
+        ts.Items.Add(new ToolStripButton("X", null, (_, _) => Entfall())
+        {
+            ToolTipText = "Entfall (-) – erneut klicken hebt den Entfall auf", Font = new Font(Ui.Schrift, FontStyle.Bold), ForeColor = Color.FromArgb(200, 30, 30),
+            DisplayStyle = ToolStripItemDisplayStyle.Text, AutoSize = false, Width = 26,
+        });
+        ts.Items.Add(Knopf("Vertr. o. Lehrkraft (+++)", "planen", OhneLehrkraft, false));
         ts.Items.Add(Knopf("Vertretung teilen", "tausch", Teilen));
         ts.Items.Add(Knopf("Raum zuordnen", "raumzuordnen", RaumZuordnen));
         ts.Items.Add(Knopf("Sondereinsatz", "neu", () => SondereinsatzDialog.Neu(this, AppZustand.Datum, Aktuelle().FirstOrDefault()?.Stunde ?? 1, Array.Empty<int>(), Array.Empty<int>())));
@@ -106,7 +112,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             DataGridViewColumn c = name switch
             {
-                "Vertreter" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, new[] { "+", "-", "???", "---" }.Concat(Stammdaten.Sortiert(D.Lehrer).Select(l => l.Kurzname))),
+                "Vertreter" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, new[] { "+++", "---", "???" }.Concat(Stammdaten.Sortiert(D.Lehrer).Select(l => l.Kurzname))),
+                "NRaum" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, new[] { "???" }.Concat(Stammdaten.Sortiert(D.Raeume).Select(r => r.Kurzname))),
                 "NFach" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, Stammdaten.Sortiert(D.Faecher).Select(f => f.Kurzname)),
                 _ => new DataGridViewTextBoxColumn { Name = name, HeaderText = kopf },
             };
@@ -116,6 +123,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
             if (!lesbar) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
+        // Reihenfolge wie im Original: (Lehrer) Vertreter (Raum) Raum (Fach) Fach Vertr. von (Le.) nach Text
+        var reihenfolge = new[] { "Nr", "Art", "Datum", "Std", "Klassen", "Lehrer", "Vertreter", "Raum", "NRaum", "Fach", "NFach", "Von", "Nach", "Text", "Grund", "Kz", "Mehr" };
+        for (var i = 0; i < reihenfolge.Length; i++) _g.Columns[reihenfolge[i]]!.DisplayIndex = i;
         // Vertretungstext füllt die Restbreite, wird aber nie schmaler als 240 Pixel (sonst waagerecht blättern)
         _g.Columns["Text"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
         _g.Columns["Text"]!.MinimumWidth = 240;
@@ -133,6 +143,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.SelectionChanged += (_, _) =>
         {
             if (_laedt) return;
+            if (_behalten.Count > 0 && _g.CurrentRow?.Tag is Vertretung cur && !_behalten.Contains(cur.Id))
+            {
+                _behalten.Clear();
+                BeginInvoke(Neuaufbau);
+            }
             if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
             _auswahlTimer.Stop();
             _auswahlTimer.Start();
@@ -159,7 +174,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         };
 
         _zeitraum.Geaendert += ZeitraumGeaendert;
-        _offen.CheckedChanged += (_, _) => Neuaufbau();
+        _offen.CheckedChanged += (_, _) => { _behalten.Clear(); Neuaufbau(); };
         _kollisionen.CheckedChanged += (_, _) => Neuaufbau();
         _element.SelectedIndexChanged += (_, _) => { if (!_laedt) Neuaufbau(); };
         _veranstaltungen.CheckedChanged += (_, _) => Neuaufbau();
@@ -289,7 +304,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var pausen = _ansicht.SelectedIndex == 4;
         if (pausen != (v.Art == VertretungsArt.Pausenaufsicht)) return false;
-        if (_offen.Checked && !v.Offen) return false;
+        if (_offen.Checked && !v.OffenOderRaumOffen && !_behalten.Contains(v.Id)) return false;
         if (_kollisionen.Checked && Kollision(v) is null) return false;
         if (!_veranstaltungen.Checked && v.Art == VertretungsArt.Veranstaltung) return false;
         if (_element.SelectedItem is Eintrag { Id: int id })
@@ -328,7 +343,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _laedt = false;
         if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
         var alle = Vertretungen.ImZeitraum(D, Von, Bis);
-        var offen = alle.Count(v => v.Offen);
+        var offen = alle.Count(v => v.OffenOderRaumOffen);
         var koll = alle.Count(v => Kollision(v) != null);
         _status.Text = $"{_g.Rows.Count} Zeilen · {offen} offen · {koll} Kollisionen";
         _status.ForeColor = offen > 0 || koll > 0 ? Color.Firebrick : Color.DarkGreen;
@@ -338,9 +353,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private object?[] Werte(Vertretung v)
     {
         var tag = Planungsdienst.TageKurz[((int)v.Datum.DayOfWeek + 6) % 7];
-        var vertreter = v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+"
+        var vertreter = v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++"
             : v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.VertreterId is int l ? Ix.KLehrer(l) : v.Offen ? "???" : "";
-        var raumNeu = v.IstEntfall ? "" : v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId)
+        var raumNeu = v.IstEntfall ? "" : v.RaumOffen ? "???" : v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId)
             : string.Join(",", new[] { v.VertretungsraumId ?? v.RaumId }.Concat(v.ZusatzraumIds.Cast<int?>()).Where(x => x.HasValue).Select(x => Ix.KRaum(x)));
         string Pos(DateOnly? d, int? s) => d is DateOnly dd ? $"{Planungsdienst.TageKurz[((int)dd.DayOfWeek + 6) % 7]}-{dd:dd.MM.} / {s}" : "";
         return new object?[]
@@ -357,8 +372,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (e.RowIndex < 0 || e.CellStyle is null || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
         var name = _g.Columns[e.ColumnIndex].Name;
         if (D.Vertretungseinstellungen.Farben.TryGetValue(v.Art.ToString(), out var farbe) && name == "Art") e.CellStyle.BackColor = Ui.Farbe(farbe, Color.White);
-        // offene Vertretung: nur rotes "???" beim Vertreter
-        if (v.Offen && name == "Vertreter") e.CellStyle.ForeColor = Color.Red;
+        // offene Vertretung: rotes "???" beim Vertreter bzw. Raum – auch in markierten Zeilen
+        if ((v.Offen && name == "Vertreter") || (v.RaumOffen && name == "NRaum"))
+        {
+            e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Red;
+            e.CellStyle.Font = Ui.SchriftFett;
+        }
         else if (v.IstEntfall)
         {
             e.CellStyle.ForeColor = Color.DimGray;
@@ -378,14 +397,29 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Auswahlliste "Vertreter": belegte bzw. abwesende Lehrer rot, Bereitschaft/freigesetzt grün, Langname als Zusatz.</summary>
     private Steuerelemente.ListenStil? VertreterStil(DataGridViewCell zelle, string text)
     {
+        if (zelle.OwningColumn.Name == "NRaum") return RaumStil(zelle, text);
         if (zelle.OwningColumn.Name != "Vertreter") return D.Faecher.FirstOrDefault(f => f.Kurzname == text) is { } fa ? new(Color.White, Color.Black, fa.Langname) : null;
         if (zelle.OwningRow.Tag is not Vertretung v) return null;
         var l = D.Lehrer.FirstOrDefault(x => x.Kurzname == text);
-        if (l is null) return text switch { "+" => new(Color.White, Color.Black, "Vertr. o. Lehrkraft"), "-" => new(Color.White, Color.Black, "Entfall"), _ => null };
+        if (l is null) return text switch { "+++" => new(Color.White, Color.Black, "Vertr. o. Lehrkraft"), "---" => new(Color.White, Color.Black, "Entfall"), _ => null };
         var tp = Plan(v.Datum);
         if (Vertretungen.LehrerBelegt(D, tp, l.Id, v.Stunde, v) is { } grund) return new(Color.FromArgb(225, 40, 40), Color.White, $"{l.VollerName} – {grund}");
         if (Vertretungen.HatBereitschaft(D, tp, l.Id, v.Stunde) || Vertretungen.IstFreigesetzt(D, tp, l.Id, v.Stunde)) return new(Color.FromArgb(200, 240, 200), Color.Black, l.VollerName);
         return new(Color.White, Color.Black, l.VollerName);
+    }
+
+    /// <summary>Auswahlliste "Raum": belegte bzw. gesperrte Räume rot, freie grün, Langname als Zusatz.</summary>
+    private Steuerelemente.ListenStil? RaumStil(DataGridViewCell zelle, string text)
+    {
+        if (zelle.OwningRow.Tag is not Vertretung v) return null;
+        var r = D.Raeume.FirstOrDefault(x => x.Kurzname == text);
+        if (r is null) return null;
+        var gesperrt = Absenzen.RaumGesperrt(D, r.Id, v.Datum, v.Stunde);
+        var belegt = Plan(v.Datum).Stunde(v.Stunde).Any(x => x.Findetstatt && x.RaumIds.Contains(r.Id) && x.Vertretung != v);
+        var name = r.Langname.Length > 0 && r.Langname != r.Kurzname ? r.Langname : "";
+        return gesperrt ? new(Color.FromArgb(225, 40, 40), Color.White, (name + " – gesperrt").Trim(' ', '–'))
+            : belegt ? new(Color.FromArgb(255, 205, 205), Color.Black, (name + " – belegt").Trim(' ', '–'))
+            : new(Color.FromArgb(200, 240, 200), Color.Black, name);
     }
 
     private void EditorZeigen(object? sender, DataGridViewEditingControlShowingEventArgs e)
@@ -400,7 +434,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         var quelle = new AutoCompleteStringCollection();
         quelle.AddRange(D.AlleElemente(typ.Value).Where(x => !x.Ignorieren).Select(x => x.Kurzname).ToArray());
-        if (typ == ElementTyp.Lehrer) quelle.AddRange(new[] { "+", "-" });
+        if (typ == ElementTyp.Lehrer) quelle.AddRange(new[] { "+++", "---" });
         t.AutoCompleteCustomSource = quelle;
         t.AutoCompleteSource = AutoCompleteSource.CustomSource;
         t.AutoCompleteMode = AutoCompleteMode.Append;
@@ -459,7 +493,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         for (var i = 1; i <= zeilen.Count; i++)
         {
             var r = zeilen[((start + richtung * i) % zeilen.Count + zeilen.Count) % zeilen.Count];
-            if (r.Tag is not Vertretung { Offen: true }) continue;
+            if (r.Tag is not Vertretung { OffenOderRaumOffen: true }) continue;
             _g.ClearSelection();
             r.Selected = true;
             _g.CurrentCell = r.Cells[Math.Max(0, _g.CurrentCell?.ColumnIndex ?? 0)];
@@ -501,7 +535,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         switch (spalte)
         {
             case "Vertreter":
-                if (wert == "+") { OhneLehrkraft(); return; }
+                if (wert is "+" or "+++") { OhneLehrkraft(); return; }
                 if (wert is "-" or "---") { Entfall(); return; }
                 if (wert is "" or "???") { Ausfuehren("Vertreter entfernt", new[] { id }, (d, x) => Vertretungen.VertreterSetzen(d, x, null, false, AppZustand.Benutzer)); return; }
                 var l = D.Lehrer.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
@@ -514,6 +548,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 Ausfuehren("Vertretungsfach", new[] { id }, (d, x) => { x.VertretungsfachId = f?.Id; x.Bearbeitet = true; });
                 return;
             case "NRaum":
+                if (wert == "???") wert = "";
                 var r = wert.Length == 0 ? null : D.Raeume.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
                 if (wert.Length > 0 && r is null) { Ui.Info($"Der Raum '{wert}' ist nicht bekannt."); BeginInvoke(Neuaufbau); return; }
                 Ausfuehren("Vertretungsraum", new[] { id }, (d, x) =>
@@ -537,6 +572,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private void Ausfuehren(string text, IReadOnlyCollection<int> ids, Action<Schuldatei, Vertretung> aktion)
     {
         if (ids.Count == 0) return;
+        if (_offen.Checked) _behalten.UnionWith(ids);
         Aendern(ids.Count > 1 ? $"{text} ({ids.Count} Stunden)" : text, AenderungsArt.Vertretung, d =>
         {
             foreach (var v in d.Vertretungen.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList()) aktion(d, v);
@@ -641,10 +677,17 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     private void Loeschen()
     {
-        var liste = Aktuelle();
-        if (liste.Count == 0) return;
-        var abgeleitet = liste.Count(Vertretungen.IstAbgeleitet);
-        if (!Ui.Frage($"{liste.Count} Vertretung(en) löschen?" + (abgeleitet > 0 ? $"\n\n{abgeleitet} Zeile(n) stammen aus Absenzen/Veranstaltungen und werden wieder als offen angelegt, solange die Ursache besteht." : ""))) return;
+        // Vertretungen aus Absenzen/Veranstaltungen lassen sich nicht löschen (Entfall bzw. Absenz ändern)
+        var alle = Aktuelle();
+        var liste = alle.Where(v => !Vertretungen.IstAbgeleitet(v)).ToList();
+        if (liste.Count == 0)
+        {
+            if (alle.Count > 0) Ui.Info("Vertretungen, die aus einer Absenz oder Veranstaltung entstehen, können nicht gelöscht werden.\n\n" +
+                "Mit X (Entfall) entfällt die Stunde, mit „Zurücksetzen“ wird sie wieder offen. Soll sie ganz verschwinden, die Absenz ändern.", "Vertretung löschen");
+            return;
+        }
+        var nicht = alle.Count - liste.Count;
+        if (!Ui.Frage($"{liste.Count} Vertretung(en) löschen?" + (nicht > 0 ? $"\n\n{nicht} Zeile(n) aus Absenzen/Veranstaltungen bleiben erhalten." : ""))) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
         Aendern("Vertretungen löschen", AenderungsArt.Vertretung, d =>
         {
@@ -694,7 +737,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 }
             if (schnell.DropDownItems.Count > 0) cm.Items.Add(schnell);
             cm.Items.Add(new ToolStripSeparator());
-            cm.Items.Add($"Entfall{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("entfall"), (_, _) => Entfall());
+            if (liste.All(v => v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt))
+                cm.Items.Add("Entfall rückgängig machen", Symbole.Get("rueckgaengig"), (_, _) => Entfall());
+            else
+                cm.Items.Add($"Entfall{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("entfall"), (_, _) => Entfall());
             cm.Items.Add($"Vertr. o. Lehrkraft{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("planen"), (_, _) => OhneLehrkraft());
             cm.Items.Add("Vertretung teilen", Symbole.Get("tausch"), (_, _) => Teilen());
             cm.Items.Add("Raum zuordnen / löschen…", Symbole.Get("raumzuordnen"), (_, _) => RaumZuordnen());

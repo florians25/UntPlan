@@ -517,7 +517,7 @@ public sealed class PlanAnsicht : Control
         var fach = Kurz(ElementTyp.Fach, e.FachId ?? e.Regel?.FachId);
         var stern = e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true ? "*" : "";
         var lehrer = e.Status == TagesStatus.Offen ? "???" : string.Join(",", e.LehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
-        if (v?.Art == VertretungsArt.VertretungOhneLehrer) lehrer = "+";
+        if (v?.Art == VertretungsArt.VertretungOhneLehrer) lehrer = "+++";
         var info = Typ switch
         {
             ElementTyp.Lehrer => Ix.KKlassen(e.KlassenIds),

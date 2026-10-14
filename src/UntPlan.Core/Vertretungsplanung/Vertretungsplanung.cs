@@ -138,7 +138,7 @@ public static class Vertretungen
                 basis.Grund = GrundText(d, basis.GrundId);
                 // Bereitschaften werden nie vertreten: fehlt die Lehrkraft, entfällt die Bereitschaft
                 if (bereit) basis.Art = VertretungsArt.BereitschaftEntfaellt;
-                else if (fach?.KeineVertretung == true) basis.Art = VertretungsArt.Entfall;
+                else if (fach?.KeineVertretung == true || u.KeineVertretung) basis.Art = VertretungsArt.Entfall;
                 else if (u.BetreuungLehrerId is int b && b != l && !Absenzen.LehrerAbwesend(d, b, datum, r.Stunde))
                 {
                     basis.Art = VertretungsArt.Betreuung;
@@ -1148,7 +1148,7 @@ public static class Vertretungsplan
             .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue)
             .Select(v => new PlanZeile(
                 v.Datum, v.Stunde, ix.KKlassen(v.NeueKlassenIds), ix.KLehrer(v.LehrerId),
-                v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+" :
+                v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++" :
                 v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : "???",
                 ix.KFach(v.FachId), ix.KFach(v.VertretungsfachId ?? v.FachId),
                 v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) : ix.KRaum(v.RaumId),

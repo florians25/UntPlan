@@ -14,6 +14,7 @@ public sealed partial class HauptFenster
     {
         _autoSpeichern.Tick += (_, _) => AutoSpeichern();
         AutoSpeichernEinstellen();
+        SchnellanordnungenAufbauen();
         FormClosed += (_, _) =>
         {
             _autoSpeichern.Stop();
@@ -69,6 +70,89 @@ public sealed partial class HauptFenster
         {
             _statusLinks.Text = "Automatisches Speichern fehlgeschlagen: " + ex.Message;
         }
+    }
+
+    private readonly ToolStripButton[] _schnellAnordnung = new ToolStripButton[8];
+
+    /// <summary>
+    /// Fenster-Schnellknöpfe 1–8 rechts in der obersten Leiste (wie Fenstergruppen): Klick stellt die gespeicherte
+    /// Anordnung her, Rechtsklick speichert die aktuelle Anordnung unter dieser Nummer.
+    /// </summary>
+    private void SchnellanordnungenAufbauen()
+    {
+        // rechtsbündige Elemente werden von rechts nach links angeordnet: 8 zuerst einfügen
+        var pos = _schnell.Items.IndexOf(_titelLabel);
+        for (var n = 8; n >= 1; n--)
+        {
+            var nr = n;
+            var b = new ToolStripButton { Alignment = ToolStripItemAlignment.Right, DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 24, Margin = new Padding(0, 1, 0, 2) };
+            b.MouseUp += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Right) SchnellanordnungSpeichern(nr);
+                else if (e.Button == MouseButtons.Left) SchnellanordnungOeffnen(nr);
+            };
+            _schnellAnordnung[nr - 1] = b;
+            _schnell.Items.Insert(pos + 1, b);
+        }
+        _schnell.Items.Insert(pos + 1, new ToolStripSeparator { Alignment = ToolStripItemAlignment.Right });
+        SchnellanordnungenAnzeigen();
+    }
+
+    private void SchnellanordnungenAnzeigen()
+    {
+        var e = AppZustand.Einstellungen;
+        for (var n = 1; n <= 8; n++)
+        {
+            var b = _schnellAnordnung[n - 1];
+            if (b is null) continue;
+            var belegt = e.Schnellanordnungen.TryGetValue(n, out var a);
+            b.Image = SchnellBild(n, belegt);
+            b.ToolTipText = belegt
+                ? $"{n}: {(a!.Name.Length > 0 ? a.Name : "Fensteranordnung")} ({(a.Vertretungsmodus ? "Vertretungsplanung" : "Stundenplanung")}, {a.Fenster.Count} Fenster)\nKlick: öffnen · Rechtsklick: aktuelle Anordnung hier speichern"
+                : $"{n}: frei\nRechtsklick: aktuelle Fensteranordnung hier speichern";
+        }
+    }
+
+    /// <summary>Kleines Fenstersymbol mit Nummer (hell = frei).</summary>
+    private static Bitmap SchnellBild(int n, bool belegt)
+    {
+        var bmp = new Bitmap(18, 16);
+        using var g = Graphics.FromImage(bmp);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        var rahmen = belegt ? Color.White : Color.FromArgb(150, 255, 255, 255);
+        using (var b = new SolidBrush(belegt ? Color.FromArgb(70, 255, 255, 255) : Color.Transparent)) g.FillRectangle(b, 1, 1, 15, 13);
+        using (var p = new Pen(rahmen)) { g.DrawRectangle(p, 1, 1, 15, 13); g.DrawLine(p, 1, 4, 16, 4); }
+        using var f = new Font("Segoe UI", 7f, FontStyle.Bold, GraphicsUnit.Pixel);
+        using var t = new SolidBrush(rahmen);
+        var s = n.ToString();
+        var gr = g.MeasureString(s, f);
+        g.DrawString(s, f, t, 9 - gr.Width / 2, 9.5f - gr.Height / 2);
+        return bmp;
+    }
+
+    private void SchnellanordnungSpeichern(int n)
+    {
+        var e = AppZustand.Einstellungen;
+        var vorschlag = e.Schnellanordnungen.TryGetValue(n, out var alt) && alt.Name.Length > 0 ? alt.Name : AppZustand.Vertretungsmodus ? "Vertretungsplanung" : "Stundenplanung";
+        var name = Ui.Eingabe($"Aktuelle Fensteranordnung unter Nummer {n} speichern – Bezeichnung:", "Fenster-Schnellknopf", vorschlag);
+        if (name is null) return;
+        e.Schnellanordnungen[n] = new Fensteranordnung { Name = name.Trim(), Vertretungsmodus = AppZustand.Vertretungsmodus, Fenster = LayoutAufnehmen() };
+        e.Speichern();
+        SchnellanordnungenAnzeigen();
+        _statusLinks.Text = $"Fensteranordnung {n} gespeichert.";
+    }
+
+    private void SchnellanordnungOeffnen(int n)
+    {
+        if (!AppZustand.Einstellungen.Schnellanordnungen.TryGetValue(n, out var a))
+        {
+            _statusLinks.Text = $"Schnellknopf {n} ist noch frei – Rechtsklick speichert die aktuelle Fensteranordnung.";
+            return;
+        }
+        if (a.Vertretungsmodus != AppZustand.Vertretungsmodus) VertretungsmodusUmschalten();
+        AlleSchliessen();
+        LayoutOeffnen(a.Fenster);
     }
 
     /// <summary>Menü der benannten Fensteranordnungen (speichern, laden, löschen).</summary>

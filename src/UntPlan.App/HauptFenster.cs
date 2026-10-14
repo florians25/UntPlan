@@ -74,6 +74,7 @@ public sealed partial class HauptFenster : Form
         {
             if (Program.Argumente.Any(a => a.Contains('~')) && MultiUser.MultiUserMenue.Befehlszeile(this, Program.Argumente)) return;
             if (datei != null) DateiLaden(datei);
+            else if (AppZustand.Einstellungen.LetzteDateiLaden && AppZustand.Einstellungen.ZuletztGeoeffnet.FirstOrDefault(File.Exists) is { } letzte) DateiLaden(letzte);
             else if (AppZustand.Einstellungen.BegruessungZeigen) BegruessungDialog.Zeigen(this);
             ModusWiederherstellen();
         };
@@ -261,7 +262,7 @@ public sealed partial class HauptFenster : Form
             E("Ferien", "ferien", () => Oeffnen<FerienFenster>("ferien", () => new FerienFenster())),
             null,
             E("Eingabeassistent ein/aus", "assistent", AssistentUmschalten),
-            E("Begrüßungsbildschirm", "info", () => BegruessungDialog.Zeigen(this)),
+            E("Startbildschirm", "info", () => BegruessungDialog.Zeigen(this)),
         }));
         g.Eintraege.Add(E("Hilfethemen", "hilfe", null, true, new()
         {

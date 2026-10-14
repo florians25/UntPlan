@@ -255,10 +255,14 @@ public sealed class AbwesenheitenFenster : MdiFenster
             return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el is Lehrer l ? l.VollerName : el.Langname);
         });
         _g.CellEndEdit += ZelleGeaendert;
+        _g.RowValidated += (_, e) => { if (e.RowIndex == _entwurfZeile) EntwurfUebernehmen(); };
+        FormClosing += (_, _) => { if (_g.IsCurrentCellInEditMode) _g.EndEdit(); if (_entwurf != null) EntwurfUebernehmen(); };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0 && _g.Rows[e.RowIndex].Tag is Abwesenheit) Bearbeiten(); };
         _g.KeyDown += (_, e) =>
         {
             if (_g.IsCurrentCellInEditMode) return;
+            if (e.KeyCode == Keys.Escape && _entwurf != null) { EntwurfVerwerfen(); e.Handled = true; return; }
+            if (e.KeyCode == Keys.Enter && _entwurf != null && e.Modifiers == Keys.Control) { _g.EndEdit(); EntwurfUebernehmen(); e.Handled = true; return; }
             if (e.KeyCode == Keys.Delete && e.Modifiers == Keys.Control) { Loeschen(); e.Handled = true; }
             if (e.KeyCode == Keys.Insert) Neu();
         };
@@ -291,6 +295,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private void Neuaufbau()
     {
         if (_g.IsCurrentCellInEditMode) return;
+        // offener Entwurf: neu aufbauen erst nach dem Übernehmen, sonst gingen die Eingaben verloren
+        if (_entwurf != null) return;
         var zelle = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 1, (_g.CurrentRow?.Tag as Abwesenheit)?.Id);
         _laedt = true;
         _g.Rows.Clear();
@@ -316,8 +322,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
         {
             var offen = D.Vertretungen.Count(v => v.AbwesenheitId == a.Id && v.Offen);
             var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "";
-            var r = _g.Rows.Add(a.Id, Ix.K(typ, a.ElementId), $"{Planungsdienst.TageKurz[((int)a.Von.DayOfWeek + 6) % 7]} {a.Von:dd.MM.yy}", a.StundeVon,
-                $"{Planungsdienst.TageKurz[((int)a.Bis.DayOfWeek + 6) % 7]} {a.Bis:dd.MM.yy}", a.StundeBis >= 99 ? "" : a.StundeBis.ToString(), grund,
+            var r = _g.Rows.Add(a.Id, Ix.K(typ, a.ElementId), Tag(a.Von), a.StundeVon,
+                Tag(a.Bis), Math.Min(a.StundeBis, LetzteStunde).ToString(), grund,
                 string.Join(", ", a.BegleitLehrerIds.Select(Ix.KLehrer)), offen == 0 ? "" : offen.ToString(), a.Text);
             _g.Rows[r].Tag = a;
             if (offen > 0) _g.Rows[r].Cells["O"].Style.ForeColor = Color.Firebrick;
@@ -337,14 +343,33 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private List<Abwesenheit> Markierte() => _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Abwesenheit>().Distinct().ToList();
 
-    /// <summary>Direkte Eingabe: geänderte Zelle übernehmen bzw. aus der leeren Zeile eine neue Absenz anlegen.</summary>
+    // Entwurf der gerade bearbeiteten Zeile: Änderungen werden erst beim Verlassen der Zeile übernommen,
+    // damit z. B. eine stundenweise Absenz nicht schon nach der ersten Eingabe Vertretungen auslöst.
+    private Abwesenheit? _entwurf;
+    private Abwesenheit? _entwurfAlt;
+    private int _entwurfZeile = -1;
+
+    private int LetzteStunde => Math.Max(1, D.Zeitraster.StundenProTag);
+
+    private static string Tag(DateOnly d) => $"{Planungsdienst.TageKurz[((int)d.DayOfWeek + 6) % 7]} {d:dd.MM.yy}";
+
+    /// <summary>Direkte Eingabe: geänderte Zelle in den Entwurf der Zeile übernehmen (gespeichert wird beim Zeilenwechsel).</summary>
     private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)
     {
         if (_laedt || e.RowIndex < 0) return;
         var zeile = _g.Rows[e.RowIndex];
         var wert = zeile.Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
         var alt = zeile.Tag as Abwesenheit;
-        var a = alt is null ? new Abwesenheit { Art = Art, Von = AppZustand.Datum, Bis = AppZustand.Datum, Benutzer = AppZustand.Benutzer } : Kopie(alt);
+        if (_entwurfZeile != e.RowIndex)
+        {
+            if (_entwurf != null) EntwurfUebernehmen();
+            _entwurfAlt = alt;
+            _entwurf = alt is null
+                ? new Abwesenheit { Art = Art, Von = AppZustand.Datum, Bis = AppZustand.Datum, StundeVon = 1, StundeBis = LetzteStunde, Benutzer = AppZustand.Benutzer }
+                : Kopie(alt);
+            _entwurfZeile = e.RowIndex;
+        }
+        var a = _entwurf!;
         var name = _g.Columns[e.ColumnIndex].Name;
         try
         {
@@ -352,8 +377,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
             {
                 case "E":
                     var el = D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
-                    if (el is null) { if (alt != null) BeginInvoke(Neuaufbau); return; }
-                    a.ElementId = el.Id;
+                    a.ElementId = el?.Id ?? 0;
                     break;
                 case "V":
                     a.Von = Ui.DatumLesen(wert, a.Von);
@@ -363,8 +387,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
                     a.Bis = Ui.DatumLesen(wert, a.Bis);
                     if (a.Bis < a.Von) a.Von = a.Bis;
                     break;
-                case "SV": a.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, D.Zeitraster.StundenProTag); break;
-                case "SB": a.StundeBis = wert.Length == 0 ? 99 : Math.Clamp(int.Parse(wert), 1, 99); break;
+                case "SV": a.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, LetzteStunde); break;
+                case "SB": a.StundeBis = wert.Length == 0 ? LetzteStunde : Math.Clamp(int.Parse(wert), 1, LetzteStunde); break;
                 case "G": a.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
                 case "Beg":
                     a.BegleitLehrerIds = wert.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
@@ -374,27 +398,53 @@ public sealed class AbwesenheitenFenster : MdiFenster
                 default: return;
             }
         }
-        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException) { Ui.Info($"Die Eingabe \"{wert}\" ist ungültig."); BeginInvoke(Neuaufbau); return; }
-        if (alt is null)
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException)
         {
-            // neue Zeile: erst anlegen, wenn ein Element gewählt ist; andere Felder der Zeile mitnehmen
-            if (a.ElementId == 0)
-            {
-                var k = zeile.Cells["E"].Value?.ToString() ?? "";
-                var el = D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase));
-                if (el is null) return;
-                a.ElementId = el.Id;
-            }
-            Speichern(new[] { a }, Array.Empty<Abwesenheit>(), "Absenz eingeben");
-            // weiter in derselben Zeile (Spalte "Von") bzw. in der neuen leeren Zeile
-            BeginInvoke(() =>
-            {
-                var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit ab && ab.ElementId == a.ElementId && ab.Von == a.Von && ab.Id == a.Id);
-                if (r != null && name == "E") _g.CurrentCell = r.Cells["V"];
-            });
+            Ui.Info($"Die Eingabe \"{wert}\" ist ungültig.");
+        }
+        EntwurfAnzeigen(zeile, a);
+    }
+
+    /// <summary>Entwurf in der Zeile anzeigen (normalisierte Werte, Kennzeichnung „nicht gespeichert“).</summary>
+    private void EntwurfAnzeigen(DataGridViewRow zeile, Abwesenheit a)
+    {
+        _laedt = true;
+        if (a.ElementId != 0) zeile.Cells["E"].Value = Ix.K(Typ, a.ElementId);
+        zeile.Cells["V"].Value = Tag(a.Von);
+        zeile.Cells["B"].Value = Tag(a.Bis);
+        zeile.Cells["SV"].Value = a.StundeVon.ToString();
+        zeile.Cells["SB"].Value = Math.Min(a.StundeBis, LetzteStunde).ToString();
+        zeile.Cells["Nr"].Value = zeile.Tag is Abwesenheit ab ? $"{ab.Id} *" : "neu *";
+        zeile.DefaultCellStyle.BackColor = Color.FromArgb(255, 248, 214);
+        _laedt = false;
+    }
+
+    /// <summary>Zeile verlassen: Entwurf speichern (neue Absenz nur mit gewähltem Element).</summary>
+    private void EntwurfUebernehmen()
+    {
+        if (_entwurf is null) return;
+        var a = _entwurf;
+        var alt = _entwurfAlt;
+        _entwurf = null;
+        _entwurfAlt = null;
+        _entwurfZeile = -1;
+        if (a.ElementId == 0)
+        {
+            // ohne Element keine Absenz – Eingaben verwerfen
+            BeginInvoke(Neuaufbau);
             return;
         }
-        Speichern(new[] { a }, new[] { alt }, "Absenz geändert");
+        if (a.StundeBis >= LetzteStunde) a.StundeBis = 99;
+        BeginInvoke(() => Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, alt is null ? "Absenz eingeben" : "Absenz geändert"));
+    }
+
+    private void EntwurfVerwerfen()
+    {
+        if (_entwurf is null) return;
+        _entwurf = null;
+        _entwurfAlt = null;
+        _entwurfZeile = -1;
+        Neuaufbau();
     }
 
     private static Abwesenheit Kopie(Abwesenheit a) => new()

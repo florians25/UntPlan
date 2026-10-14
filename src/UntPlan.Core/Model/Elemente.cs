@@ -57,6 +57,8 @@ public sealed class Raum : Element
     public int? GangId { get; set; }
     public string Stockwerk { get; set; } = "";
     public string Raumart { get; set; } = "Klassenraum";
+    /// <summary>In UntPlanWeb von Lehrkräften buchbar.</summary>
+    public bool Buchbar { get; set; }
     /// <summary>Nächstgelegene Gänge (Pausenaufsicht), Komma-Liste mit Platzhaltern * und ?.</summary>
     public string Gaenge { get; set; } = "";
 

@@ -59,6 +59,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             if (typ != ElementTyp.Raum) ts.Items.Add(Knopf("Unterricht", "unterricht", () => UnterrichtFenster.Zeigen(_typ, _aktuell?.Id)));
             ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => StundenplanFenster.Neu(_typ, _aktuell?.Id, false)));
         }
+        if (typ == ElementTyp.Fach) ts.Items.Add(Knopf("Fachfarben auf Standard setzen", "farbe", FachfarbenStandard, false));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true)));
@@ -651,6 +652,21 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _ansichtName = name;
         _ansichtGeaendert = false;
         AnsichtBoxFuellen();
+    }
+
+    /// <summary>Alle Fächer auf die Standardfarben setzen (Katalogfarbe bzw. ruhige Palette).</summary>
+    private void FachfarbenStandard()
+    {
+        if (!Ui.Frage($"Die Farben aller {D.Faecher.Count} Fächer auf die Standardfarben setzen? Eigene Farben gehen dabei verloren.")) return;
+        Aendern("Fachfarben auf Standard", AenderungsArt.Stammdaten, d =>
+        {
+            var i = 0;
+            foreach (var f in d.Faecher.OrderBy(x => x.Sortierung).ThenBy(x => x.Kurzname))
+            {
+                f.Hintergrund = Nrw.StandardFachfarbe(f.Kurzname, i++);
+                f.Vordergrund = 0;
+            }
+        });
     }
 
     private void Sortieren()

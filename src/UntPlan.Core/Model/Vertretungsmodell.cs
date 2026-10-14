@@ -141,6 +141,10 @@ public sealed class Vertretung
     public string Benutzer { get; set; } = "";
 
     [JsonIgnore] public bool Offen => (Art is VertretungsArt.Vertretung or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Pausenaufsicht) && VertreterId == null;
+    /// <summary>Raumvertretung wegen gesperrtem Raum, für die noch kein Ersatzraum eingetragen ist (offen wie eine fehlende Lehrkraft).</summary>
+    [JsonIgnore] public bool RaumOffen => Art == VertretungsArt.Raumvertretung && VertretungsraumId == null && Quelle != VertretungsQuelle.Manuell;
+    /// <summary>Offen im Sinne der Liste: Lehrkraft oder Raum fehlt.</summary>
+    [JsonIgnore] public bool OffenOderRaumOffen => Offen || RaumOffen;
     [JsonIgnore] public bool IstEntfall => Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung or VertretungsArt.BereitschaftEntfaellt;
     [JsonIgnore] public IReadOnlyList<int> NeueKlassenIds => VertretungsKlassenIds ?? KlassenIds;
 }
