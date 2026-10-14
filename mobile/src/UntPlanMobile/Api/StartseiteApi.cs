@@ -42,7 +42,7 @@ public static class StartseiteApi
                     var klassen = k.GeleiteteKlassen();
                     var offen = 0;
                     if (klassen.Count is > 0 and <= 3)
-                        foreach (var kl in klassen) offen += (await FehlzeitenAsync(c, web, kl.Kurz, heute.AddDays(-60), heute)).Count(f => f.Status == "pending");
+                        foreach (var kl in klassen) offen += (await FehlzeitenAsync(c, web, k, kl.Kurz, heute.AddDays(-60), heute)).Count(f => f.Status == "pending");
                     return Results.Json(new
                     {
                         ok = true,
@@ -139,7 +139,7 @@ public static class StartseiteApi
                     var klassen = p.Text("scope", "mine") == "all" ? geleitet : gewaehlt.Count > 0 ? gewaehlt : geleitet.Take(1).ToList();
                     var gruppen = new Dictionary<string, List<object>> { ["pending"] = new(), ["approved"] = new(), ["rejected"] = new() };
                     foreach (var kl in klassen)
-                        foreach (var f in await FehlzeitenAsync(c, web, kl.Kurz, von, bis))
+                        foreach (var f in await FehlzeitenAsync(c, web, k, kl.Kurz, von, bis))
                             gruppen[f.Status].Add(f.Karte);
                     return Results.Json(new { ok = true, to = Iso(bis), groups = gruppen, classes = geleitet.Select(x => new { id = x.Kurz, name = x.Kurz }) });
                 }
@@ -166,7 +166,7 @@ public static class StartseiteApi
         .Where(m => m["typ"]?.GetValue<string>() == "absenz").ToList();
 
     /// <summary>Fehlzeiten einer Klasse, je Schüler*in und Tag zu einer Karte zusammengefasst.</summary>
-    private static async Task<List<(string Status, object Karte)>> FehlzeitenAsync(HttpContext c, UntPlanWebVerbindung web, string klasse, DateOnly von, DateOnly bis)
+    private static async Task<List<(string Status, object Karte)>> FehlzeitenAsync(HttpContext c, UntPlanWebVerbindung web, Konto k, string klasse, DateOnly von, DateOnly bis)
     {
         JsonNode? j;
         try { j = await web.GetAsync(c, $"api/app/klassenbuch/fehlzeiten?klasse={Uri.EscapeDataString(klasse)}&von={Iso(von)}&bis={Iso(bis)}"); }
@@ -187,6 +187,8 @@ public static class StartseiteApi
                 name = namen.GetValueOrDefault(g.Key.Sid, "?"),
                 from = g.Key.Datum,
                 to = g.Key.Datum,
+                timeFrom = Zeit(k, stunden[0], false),
+                timeTo = Zeit(k, stunden[^1], true),
                 lessons = Stunden(stunden[0], stunden[^1]),
                 art = g.Key.Art == "verspaetet" ? $"Verspätet ({minuten} min)" : "Abwesend",
                 reason = "",
