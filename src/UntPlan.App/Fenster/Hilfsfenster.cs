@@ -303,42 +303,6 @@ public sealed class KommentarUebersicht : MdiFenster
     }
 }
 
-/// <summary>Element-Rollup: Elemente per Drag &amp; Drop in Felder ziehen (z. B. Räume in das Feld "Raum").</summary>
-public sealed class ElementRollup : Form
-{
-    private static ElementRollup? _instanz;
-    private readonly ComboBox _typ = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly ListBox _liste = new() { Dock = DockStyle.Fill, IntegralHeight = false };
-
-    public static void Zeigen()
-    {
-        if (_instanz is null || _instanz.IsDisposed) { _instanz = new ElementRollup(); _instanz.Show(AppZustand.Haupt); }
-        _instanz.Activate();
-    }
-
-    private ElementRollup()
-    {
-        Text = "Element-Rollup";
-        Font = Ui.Schrift;
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
-        Size = new Size(200, 420);
-        StartPosition = FormStartPosition.Manual;
-        Location = new Point(AppZustand.Haupt.Right - 260, AppZustand.Haupt.Top + 180);
-        _typ.Items.AddRange(new object[] { "Klassen", "Lehrer", "Räume", "Fächer", "Raumgruppen" });
-        _typ.SelectedIndexChanged += (_, _) => Fuellen();
-        _liste.MouseDown += (_, e) => { if (_liste.SelectedItem is string s && e.Button == MouseButtons.Left) _liste.DoDragDrop(s.Split(' ')[0], DragDropEffects.Copy); };
-        Controls.Add(_liste);
-        Controls.Add(_typ);
-        _typ.SelectedIndex = 2;
-    }
-
-    private void Fuellen()
-    {
-        var typ = _typ.SelectedIndex switch { 0 => ElementTyp.Klasse, 1 => ElementTyp.Lehrer, 2 => ElementTyp.Raum, 3 => ElementTyp.Fach, _ => ElementTyp.Raumgruppe };
-        _liste.Items.Clear();
-        foreach (var e in Stammdaten.Sortiert(AppZustand.D, typ)) _liste.Items.Add($"{e.Kurzname}  {e.Langname}");
-    }
-}
 
 /// <summary>Vergleichsmodus: aktuellen Stundenplan mit einer gespeicherten Datei vergleichen.</summary>
 public static class VergleichDialog

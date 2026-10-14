@@ -20,6 +20,8 @@ public sealed class Kopplungszeile
     public string Zeilentext { get; set; } = "";
     /// <summary>Zeilen-Unterrichtsgruppe (z. B. Woche A), null = wie Unterricht.</summary>
     public int? UGruppeId { get; set; }
+    /// <summary>Schülergruppe dieser Kopplungszeile (z. B. „SportK_1a1b_Rub“), leer = wie Unterricht.</summary>
+    public string Schuelergruppe { get; set; } = "";
 
     /// <summary>Gewünschter Raum: Fachraum vor Stammraum.</summary>
     [JsonIgnore] public int? Wunschraum => FachraumId ?? StammraumId;
@@ -29,6 +31,7 @@ public sealed class Kopplungszeile
     {
         LehrerId = LehrerId, FachId = FachId, KlassenIds = new List<int>(KlassenIds), FachraumId = FachraumId,
         FachraumgruppeId = FachraumgruppeId, StammraumId = StammraumId, StammraumgruppeId = StammraumgruppeId, Wert = Wert, Zeilentext = Zeilentext, UGruppeId = UGruppeId,
+        Schuelergruppe = Schuelergruppe,
     };
 }
 

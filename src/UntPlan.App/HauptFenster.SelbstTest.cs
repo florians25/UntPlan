@@ -28,6 +28,14 @@ public sealed partial class HauptFenster
         d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = krank.Id, Von = tag, Bis = tag, GrundId = d.Abwesenheitsgruende.FirstOrDefault()?.Id });
         if (d.Klassen.FirstOrDefault(k => k.Jahrgang == "7") is { } fahrt)
             d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Klasse, ElementId = fahrt.Id, Von = tag, Bis = tag, Text = "Exkursion" });
+        // Veranstaltung (Sportwoche) mit einer wegen Krankheit entfernten Lehrkraft: Vertreter „…,?“ und rotes ??? im Veranstaltungsfenster
+        if (d.Klassen.FirstOrDefault(k => k.Jahrgang == "5") is { } sportKlasse)
+        {
+            var vaLehrer = d.Lehrer.Where(l => l.Id != krank.Id).Take(2).Select(l => l.Id).Append(krank.Id).ToList();
+            var va = new Veranstaltung { Id = d.NeueId(), Von = tag, Bis = tag, StundeVon = 1, StundeBis = 99, KlassenIds = new() { sportKlasse.Id }, LehrerIds = vaLehrer, Text = "Sportwoche" };
+            d.Veranstaltungen.Add(va);
+            va.Ersatz.Add(new VeranstaltungsErsatz { Datum = tag, LehrerId = krank.Id, AbwesenheitId = d.Abwesenheiten[0].Id });
+        }
         Core.Module.Pausenaufsichten.Optimieren(d);
         d.Tagestexte.Add(new Tagestext { Datum = tag, Text = "Heute 7. Stunde Lehrerkonferenz – Unterricht endet nach der 6. Stunde." });
         AppZustand.Setzen(new Dokument(d));

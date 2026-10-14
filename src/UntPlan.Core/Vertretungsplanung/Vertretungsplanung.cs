@@ -65,17 +65,25 @@ public static class Vertretungen
                             ZusatzraumIds = k.RaumIds.Skip(1).ToList(), Text = string.IsNullOrEmpty(k.Text) ? k.Name : $"{k.Name} {k.Text}".Trim(),
                         });
             foreach (var va in d.Veranstaltungen.Where(v => datum >= v.Von && datum <= v.Bis))
+            {
+                VeranstaltungsLogik.Bereinigen(d, va, datum);
+                // je Stunde eine Zeile je teilnehmender Lehrkraft; entfernte Lehrkräfte erscheinen als Platz „?“ (offen) bzw. mit Ersatzlehrkraft
+                var plaetze = va.LehrerIds.Select(l => va.Ersatz.FirstOrDefault(e => e.Datum == datum && e.LehrerId == l) is { } e ? (Lehrer: e.ErsatzId, Fuer: (int?)l) : (Lehrer: (int?)l, Fuer: null))
+                    .DistinctBy(p => p.Fuer.HasValue ? $"E{p.Fuer}" : $"L{p.Lehrer}").ToList();
+                if (plaetze.Count == 0) plaetze.Add((null, null));
                 for (var s = 1; s <= d.Zeitraster.StundenProTag; s++)
                 {
                     if (!va.Deckt(datum, s) || !d.Zeitraster.Verfuegbar(tag, s)) continue;
-                    foreach (var l in va.LehrerIds.DefaultIfEmpty(-1))
+                    foreach (var (l, fuer) in plaetze)
                         benoetigt.Add(new Vertretung
                         {
                             Datum = datum, Stunde = s, Art = VertretungsArt.Veranstaltung, Quelle = VertretungsQuelle.Veranstaltung, VeranstaltungId = va.Id,
-                            VertreterId = l < 0 ? null : l, KlassenIds = va.KlassenIds.ToList(), VertretungsraumId = va.RaumIds.Cast<int?>().FirstOrDefault(),
+                            VertreterId = l, ErsatzFuerLehrerId = fuer, LehrerId = fuer ?? l, KlassenIds = va.AlleKlassenIds.ToList(),
+                            VertretungsraumId = va.RaumIds.Cast<int?>().FirstOrDefault(), ZusatzraumIds = va.RaumIds.Skip(1).ToList(),
                             GrundId = va.GrundId, Grund = GrundText(d, va.GrundId), Text = va.Text, Schuelergruppe = va.Schuelergruppe, Wert = va.Wert,
                         });
                 }
+            }
         }
 
         foreach (var r in regel)
@@ -110,7 +118,7 @@ public static class Vertretungen
                 benoetigt.Add(basis);
                 continue;
             }
-            // Klassen abwesend → Freisetzung (bzw. Entfall, wenn der Lehrer an derselben Veranstaltung teilnimmt)
+            // Klassen abwesend → Freisetzung (bzw. Unterricht findet als Veranstaltung statt, wenn die Lehrkraft an derselben Veranstaltung teilnimmt)
             if (r.KlassenIds.Count > 0 && r.KlassenIds.All(k => Absenzen.KlasseAbwesend(d, k, datum, r.Stunde)))
             {
                 var abw = Absenzen.Klasse(d, r.KlassenIds[0], datum, r.Stunde);
@@ -122,7 +130,8 @@ public static class Vertretungen
                 basis.GrundId = abw?.GrundId ?? va?.GrundId;
                 basis.Grund = GrundText(d, basis.GrundId) is { Length: > 0 } g ? g : "Klasse abw.";
                 basis.Text = abw?.Text ?? va?.Text ?? "";
-                basis.Art = va != null && r.LehrerId is int vl && va.LehrerIds.Contains(vl) ? VertretungsArt.Entfall : VertretungsArt.Freisetzung;
+                basis.InVeranstaltung = va != null && r.LehrerId is int vl && va.NimmtTeil(vl, datum) && Absenzen.Lehrer(d, vl, datum, r.Stunde) is null;
+                basis.Art = basis.InVeranstaltung ? VertretungsArt.Entfall : VertretungsArt.Freisetzung;
                 benoetigt.Add(basis);
                 continue;
             }
@@ -131,6 +140,19 @@ public static class Vertretungen
             {
                 var abw = Absenzen.Lehrer(d, l, datum, r.Stunde);
                 var va = abw is null ? Absenzen.VeranstaltungLehrer(d, l, datum, r.Stunde) : null;
+                // Kl-Teil bzw. Schülergruppe: der Unterricht der Lehrkraft mit (einem Teil) dieser Klassen findet als Veranstaltung statt
+                if (va != null && VeranstaltungsLogik.UnterrichtInVeranstaltung(va, r))
+                {
+                    basis.Quelle = VertretungsQuelle.Veranstaltung;
+                    basis.VeranstaltungId = va.Id;
+                    basis.GrundId = va.GrundId;
+                    basis.Grund = GrundText(d, va.GrundId);
+                    basis.Text = va.Text;
+                    basis.Art = bereit ? VertretungsArt.BereitschaftEntfaellt : VertretungsArt.Entfall;
+                    basis.InVeranstaltung = !bereit;
+                    benoetigt.Add(basis);
+                    continue;
+                }
                 basis.Quelle = va != null ? VertretungsQuelle.Veranstaltung : VertretungsQuelle.Absenz;
                 basis.AbwesenheitId = abw?.Id;
                 basis.VeranstaltungId = va?.Id;
@@ -203,6 +225,21 @@ public static class Vertretungen
             v.VeranstaltungId = b.VeranstaltungId;
             v.KlausurId = b.KlausurId;
             v.Quelle = b.Quelle;
+            v.InVeranstaltung = b.InVeranstaltung;
+            v.ErsatzFuerLehrerId = b.ErsatzFuerLehrerId;
+            // Zeilen der Veranstaltung selbst folgen immer der Veranstaltung (Lehrkräfte, Klassen, Räume)
+            if (v.Art == VertretungsArt.Veranstaltung && b.Art == VertretungsArt.Veranstaltung)
+            {
+                v.VertreterId = b.VertreterId;
+                v.LehrerId = b.LehrerId;
+                v.KlassenIds = b.KlassenIds;
+                v.VertretungsraumId = b.VertretungsraumId;
+                v.ZusatzraumIds = b.ZusatzraumIds;
+                v.Schuelergruppe = b.Schuelergruppe;
+                v.Wert = b.Wert;
+                if (!v.Bearbeitet) v.Text = b.Text;
+                continue;
+            }
             if (!v.Bearbeitet)
             {
                 v.Art = b.Art;
@@ -228,7 +265,7 @@ public static class Vertretungen
                      or VertretungsArt.Betreuung or VertretungsArt.Teilvertretung or VertretungsArt.Lehrertausch or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Pausenaufsicht))
         {
             var stunde = v.Art == VertretungsArt.Pausenaufsicht ? v.Stunde + 1 : v.Stunde;
-            if (v.VertreterId == v.LehrerId) continue;
+            if (v.VertreterId == v.LehrerId || v.Fixiert) continue;
             if (Absenzen.LehrerAbwesend(d, v.VertreterId!.Value, datum, stunde))
             {
                 v.VertreterId = null;
@@ -249,7 +286,7 @@ public static class Vertretungen
         v.GangId.HasValue ? $"P{v.GangId}/{v.Stunde}/{v.LehrerId}" :
         v.UnterrichtId is int u ? $"U{u}/{v.ZeilenIndex}/{v.Stunde}" :
         v.KlausurId is int k ? $"K{k}/{v.Stunde}/{v.VertreterId}" :
-        v.VeranstaltungId is int va ? $"V{va}/{v.Stunde}/{v.VertreterId}" : null;
+        v.VeranstaltungId is int va ? (v.ErsatzFuerLehrerId is int f ? $"V{va}/{v.Stunde}/E{f}" : $"V{va}/{v.Stunde}/{v.VertreterId}") : null;
 
     public static List<Vertretung> Am(Schuldatei d, DateOnly datum) =>
         d.Vertretungen.Where(v => v.Datum == datum).OrderBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
@@ -260,6 +297,20 @@ public static class Vertretungen
     /// <summary>Ist der Lehrer zu dieser Stunde gebunden? Liefert den Grund oder null.</summary>
     public static string? LehrerBelegt(Schuldatei d, Tagesplan tp, int lehrerId, int stunde, Vertretung? ausser = null)
     {
+        // Zeile einer Veranstaltung: die Teilnahme an genau dieser Veranstaltung ist keine Abwesenheit
+        if (ausser is { Art: VertretungsArt.Veranstaltung, VeranstaltungId: int vaId })
+        {
+            if (Absenzen.Lehrer(d, lehrerId, tp.Datum, stunde) != null) return "abwesend";
+            if (d.Veranstaltungen.Any(x => x.Id != vaId && x.Deckt(tp.Datum, stunde) && x.NimmtTeil(lehrerId, tp.Datum))) return "andere Veranstaltung";
+            foreach (var e in tp.Stunde(stunde))
+            {
+                if (!e.Findetstatt || !e.LehrerIds.Contains(lehrerId) || e.Vertretung?.VeranstaltungId == vaId) continue;
+                if (e.Status == TagesStatus.Regulaer && IstBereitschaftsfach(d, e.FachId)) continue;
+                if (e.Vertretung?.Mitbetreuung == true) continue;
+                return e.Status == TagesStatus.Regulaer ? "eigener Unterricht" : "vertritt bereits";
+            }
+            return null;
+        }
         if (Absenzen.LehrerAbwesend(d, lehrerId, tp.Datum, stunde)) return "abwesend";
         foreach (var e in tp.Stunde(stunde))
         {
@@ -336,7 +387,7 @@ public static class Vertretungen
         {
             v.VertreterId = null;
             v.Mitbetreuung = false;
-            if (v.Art is not (VertretungsArt.Pausenaufsicht or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Raumvertretung)) v.Art = VertretungsArt.Vertretung;
+            if (v.Art is not (VertretungsArt.Pausenaufsicht or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Raumvertretung or VertretungsArt.Verlegt)) v.Art = VertretungsArt.Vertretung;
             v.Mehrarbeit = false;
             return;
         }
@@ -349,8 +400,9 @@ public static class Vertretungen
         var bereit = HatBereitschaft(d, tp, l, stunde);
         var frei = IstFreigesetzt(d, tp, l, stunde);
         if (v.Art is VertretungsArt.Pausenaufsicht or VertretungsArt.Raumvertretung or VertretungsArt.Sondereinsatz or VertretungsArt.Klausur
-            or VertretungsArt.Veranstaltung or VertretungsArt.Verlegung or VertretungsArt.Tausch or VertretungsArt.UnterrichtGeaendert or VertretungsArt.SondereinsatzVormerkung) { }
-        else if (v.LehrerId == l && Absenzen.LehrerAbwesend(d, l, v.Datum, stunde)) v.Art = VertretungsArt.TrotzAbsenz;
+            or VertretungsArt.Veranstaltung or VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch or VertretungsArt.UnterrichtGeaendert or VertretungsArt.SondereinsatzVormerkung) { }
+        // Lehrkraft ist selbst absent und wird ausnahmsweise trotzdem eingesetzt („Trotzdem verplanen“)
+        else if (Absenzen.Lehrer(d, l, v.Datum, stunde) != null || (v.LehrerId == l && Absenzen.LehrerAbwesend(d, l, v.Datum, stunde))) v.Art = VertretungsArt.TrotzAbsenz;
         else if (mitbetreuung) v.Art = VertretungsArt.Betreuung;
         else if (frei) v.Art = VertretungsArt.StattVertretung;
         else if (v.Art == VertretungsArt.Bereitschaftsvertretung) { }
@@ -399,6 +451,50 @@ public static class Vertretungen
         v.Mehrarbeit = false;
     }
 
+    /// <summary>
+    /// Blockvertretung (Option „Stundenblock“): Vertreter für alle offenen Stunden des Blocks (Doppelstunde) eintragen.
+    /// Liefert die bearbeiteten Vertretungen.
+    /// </summary>
+    public static List<Vertretung> Blockvertretung(Schuldatei d, Vertretung v, int lehrerId, string benutzer = "")
+    {
+        var res = new List<Vertretung>();
+        foreach (var x in VertretungsVorschlag.Block(d, v).Where(x => x == v || x.Offen))
+        {
+            VertreterSetzen(d, x, lehrerId, false, benutzer);
+            res.Add(x);
+        }
+        return res;
+    }
+
+    /// <summary>
+    /// Dauervertretung: dieselbe Stunde (gleicher Wochentag, gleiche Stunde – mit <paramref name="block"/> der ganze Stundenblock)
+    /// dieses Unterrichts wird in allen Folgewochen der Absenz mit derselben Lehrkraft vertreten. Vertretungen der Folgewochen werden
+    /// dazu erzeugt. Wochen, in denen die Lehrkraft nicht frei ist, werden übersprungen.
+    /// </summary>
+    public static (List<Vertretung> Gesetzt, List<Vertretung> Uebersprungen) Dauervertretung(Schuldatei d, Vertretung v, int lehrerId, bool block = false, string benutzer = "")
+    {
+        var gesetzt = new List<Vertretung>();
+        var weg = new List<Vertretung>();
+        var stunden = (block ? VertretungsVorschlag.Block(d, v) : new List<Vertretung> { v }).Select(x => x.Stunde).ToHashSet();
+        var abw = v.AbwesenheitId is int aid ? d.Abwesenheiten.FirstOrDefault(a => a.Id == aid) : null;
+        var ende = abw?.Bis ?? (v.LehrerId is int ol
+            ? d.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == ol && a.Deckt(v.Datum, v.Stunde)).Select(a => a.Bis).DefaultIfEmpty(v.Datum).Max()
+            : v.Datum);
+        if (ende > v.Datum) Aktualisieren(d, v.Datum.AddDays(1), ende);
+        var kandidaten = d.Vertretungen.Where(x => x.UnterrichtId == v.UnterrichtId && v.UnterrichtId.HasValue && x.ZeilenIndex == v.ZeilenIndex &&
+                x.Datum >= v.Datum && x.Datum <= ende && x.Datum.DayOfWeek == v.Datum.DayOfWeek && stunden.Contains(x.Stunde) &&
+                (x == v || x.Offen) && (abw is null ? x.LehrerId == v.LehrerId : x.AbwesenheitId == abw.Id))
+            .OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList();
+        if (!kandidaten.Contains(v)) kandidaten.Insert(0, v);
+        foreach (var x in kandidaten)
+        {
+            if (x != v && LehrerBelegt(d, Tagesplan.Berechnen(d, x.Datum), lehrerId, x.Stunde, x) != null) { weg.Add(x); continue; }
+            VertreterSetzen(d, x, lehrerId, false, benutzer);
+            gesetzt.Add(x);
+        }
+        return (gesetzt, weg);
+    }
+
     /// <summary>Vertretung teilen: weitere Zeile für dieselbe Stunde (z. B. unterschiedliche Klassen).</summary>
     public static Vertretung Teilen(Schuldatei d, Vertretung v, string benutzer = "")
     {
@@ -432,7 +528,7 @@ public static class Vertretungen
         {
             var zeile = e.Regel?.ZeilenIndex ?? e.Vertretung!.ZeilenIndex;
             // bereits verlegte Stunde erneut verschieben
-            if (e.Status == TagesStatus.Zusaetzlich && e.Vertretung is { Art: VertretungsArt.Verlegung or VertretungsArt.Tausch } ziel)
+            if (e.Status == TagesStatus.Zusaetzlich && e.Vertretung is { Art: VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch } ziel)
             {
                 var quelle = ziel.VerlegungsId is int vid ? d.Vertretungen.FirstOrDefault(x => x != ziel && x.VerlegungsId == vid) : null;
                 if (quelle != null && quelle.Datum == nachDatum && quelle.Stunde == nachStunde)
@@ -444,6 +540,7 @@ public static class Vertretungen
                 ziel.Datum = nachDatum;
                 ziel.Stunde = nachStunde;
                 ziel.VertreterId = ZielLehrer(d, tpNach, ziel.LehrerId, nachStunde);
+                if (ziel.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt) ziel.Art = ziel.VertreterId is null ? VertretungsArt.Verlegt : VertretungsArt.Verlegung;
                 ziel.VertretungsraumId = ZielRaum(tpNach, nachStunde, ziel.VertretungsraumId ?? ziel.RaumId, e.Unterricht, zeile, d);
                 if (quelle != null) { quelle.NachDatum = nachDatum; quelle.NachStunde = nachStunde; }
                 Markieren(ziel, benutzer);
@@ -476,6 +573,8 @@ public static class Vertretungen
             };
             z.VertreterId = ZielLehrer(d, tpNach, lehrer, nachStunde) ?? (vertreterVorher is int vv && LehrerBelegt(d, tpNach, vv, nachStunde) is null ? vv : null);
             z.VertretungsraumId = ZielRaum(tpNach, nachStunde, q.VertretungsraumId ?? q.RaumId, e.Unterricht, zeile, d);
+            // Lehrkraft ist an der Zielposition nicht verfügbar: „verlegt“ – offene Vertretung
+            if (z.VertreterId is null && zielArt == VertretungsArt.Verlegung) z.Art = VertretungsArt.Verlegt;
             d.Vertretungen.Add(z);
         }
     }
@@ -1031,7 +1130,7 @@ public static class VertretungsVorschlag
     {
         Vertretungen.Aktualisieren(d, datum);
         var anzahl = 0;
-        foreach (var v in d.Vertretungen.Where(v => v.Datum == datum && v.Offen).OrderBy(v => v.Stunde).ToList())
+        foreach (var v in d.Vertretungen.Where(v => v.Datum == datum && v.Offen && !v.Fixiert && !v.VeranstaltungOffen).OrderBy(v => v.Stunde).ToList())
         {
             if (!v.Offen) continue;
             if (v.Art == VertretungsArt.Pausenaufsicht)
@@ -1083,10 +1182,10 @@ public static class Vertretungsplan
         VertretungsArt.Tausch => "Tausch",
         VertretungsArt.Pausenaufsicht => "Pausenaufsicht",
         VertretungsArt.Klausur => "Klausur",
-        VertretungsArt.VertretungOhneLehrer => "Vertr. o. Lehrkraft",
-        VertretungsArt.Bereitschaftsvertretung => "Bereitschaftsvtr.",
+        VertretungsArt.VertretungOhneLehrer => "Vtr. ohne Lehrer",
+        VertretungsArt.Bereitschaftsvertretung => "Bereitschaftsvertretung",
         VertretungsArt.BereitschaftEntfaellt => "Bereitschaft entfällt",
-        VertretungsArt.EigenverantwortlichesArbeiten => "eigenverantw. Arbeiten",
+        VertretungsArt.EigenverantwortlichesArbeiten => "eigenverantwortliches Arbeiten",
         VertretungsArt.Lehrertausch => "Lehrertausch",
         VertretungsArt.Teilvertretung => "Teil-Vtr.",
         VertretungsArt.TrotzAbsenz => "Trotz Absenz",
@@ -1095,6 +1194,8 @@ public static class Vertretungsplan
         VertretungsArt.SondereinsatzVormerkung => "Sondereins. zu Vormerkung",
         VertretungsArt.Vormerkung => "Vormerkung",
         VertretungsArt.Raumbuchung => "Raumbuchung",
+        VertretungsArt.Verlegt => "verlegt",
+        VertretungsArt.Unterricht => "Unterricht",
         _ => a.ToString(),
     };
 
@@ -1115,6 +1216,7 @@ public static class Vertretungsplan
             VertretungsArt.Raumvertretung => "Raumänderung",
             VertretungsArt.Verlegung when v.VonDatum is DateOnly von => $"verlegt von {Tag(von, v.VonStunde)}",
             VertretungsArt.Verlegung => "Verlegung",
+            VertretungsArt.Verlegt when v.VonDatum is DateOnly von2 => $"verlegt von {Tag(von2, v.VonStunde)}",
             VertretungsArt.Betreuung => "Betreuung",
             VertretungsArt.StattVertretung => "statt-Vertretung",
             VertretungsArt.Sondereinsatz => "Sondereinsatz",

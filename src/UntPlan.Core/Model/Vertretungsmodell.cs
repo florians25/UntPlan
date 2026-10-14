@@ -66,6 +66,10 @@ public enum VertretungsArt
     Vormerkung,
     /// <summary>Raumbuchung (z. B. aus UntPlanWeb): Lehrer bucht einen Raum zu einer Stunde.</summary>
     Raumbuchung,
+    /// <summary>„verlegt“: durch die Verlegung einer Unterrichtsstunde entstandene (offene) Vertretung.</summary>
+    Verlegt,
+    /// <summary>„Unterricht“: regulär stattfindender Unterricht (nur Anzeige im Vertretungsfenster, wird nicht gespeichert).</summary>
+    Unterricht,
 }
 
 /// <summary>Woraus eine Vertretungszeile entstanden ist.</summary>
@@ -136,6 +140,15 @@ public sealed class Vertretung
     /// <summary>Abweichender Wert für die Zählung (null = Standard).</summary>
     public decimal? Wert { get; set; }
     public string Schuelergruppe { get; set; } = "";
+    /// <summary>Beschreibung (Spalte „Beschr.“), z. B. aus den vordefinierten Beschreibungen.</summary>
+    public string Beschreibung { get; set; } = "";
+    /// <summary>
+    /// Veranstaltung: Platz einer Lehrkraft, die wegen einer Absenz aus der Veranstaltung entfernt wurde („?“ beim Vertreter).
+    /// VertreterId ist die eingetragene Ersatzlehrkraft oder null (offen).
+    /// </summary>
+    public int? ErsatzFuerLehrerId { get; set; }
+    /// <summary>Unterricht findet als Veranstaltung statt (Lehrkraft und Klasse nehmen gemeinsam teil) – wird in der Liste nicht gezeigt.</summary>
+    public bool InVeranstaltung { get; set; }
     public DateTime Erstellt { get; set; } = DateTime.Now;
     public DateTime Geaendert { get; set; } = DateTime.Now;
     public string Benutzer { get; set; } = "";
@@ -147,7 +160,10 @@ public sealed class Vertretung
     /// <summary>Herkunft aus UntPlanWeb (Kennung der übernommenen Stundenplanänderung), sonst leer.</summary>
     public string WebId { get; set; } = "";
 
-    [JsonIgnore] public bool Offen => (Art is VertretungsArt.Vertretung or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Pausenaufsicht) && VertreterId == null;
+    [JsonIgnore] public bool Offen => ((Art is VertretungsArt.Vertretung or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Pausenaufsicht or VertretungsArt.Verlegt) && VertreterId == null) ||
+                                      VeranstaltungOffen;
+    /// <summary>Veranstaltung, aus der eine Lehrkraft entfernt wurde und für die noch keine Ersatzlehrkraft eingetragen ist.</summary>
+    [JsonIgnore] public bool VeranstaltungOffen => Art == VertretungsArt.Veranstaltung && ErsatzFuerLehrerId.HasValue && VertreterId == null;
     /// <summary>Raumvertretung wegen gesperrtem Raum, für die noch kein Ersatzraum eingetragen ist (offen wie eine fehlende Lehrkraft).</summary>
     [JsonIgnore] public bool RaumOffen => VertretungsraumId == null && ((Art == VertretungsArt.Raumvertretung && Quelle != VertretungsQuelle.Manuell) || (RaumVerdraengt && !IstEntfall));
     /// <summary>Offen im Sinne der Liste: Lehrkraft oder Raum fehlt.</summary>
@@ -249,6 +265,13 @@ public sealed class Veranstaltung
     /// <summary>Zusätzliche Stunden der Lehrer zählen positiv.</summary>
     public bool Zaehlen { get; set; }
     public decimal? Wert { get; set; }
+    /// <summary>
+    /// Klassen, von denen nur ein Teil teilnimmt (Spalte „Kl-Teil“): der reguläre Unterricht dieser Klassen findet parallel statt.
+    /// Klassen in <see cref="KlassenIds"/> (Spalte „Klasse“) sind dagegen abwesend, ihr kollidierender Unterricht entfällt.
+    /// </summary>
+    public List<int> KlassenteilIds { get; set; } = new();
+    /// <summary>Tageweise aus der Veranstaltung entfernte Lehrkräfte (Absenz) und ihre Ersatzlehrkräfte.</summary>
+    public List<VeranstaltungsErsatz> Ersatz { get; set; } = new();
 
     public bool Deckt(DateOnly datum, int stunde)
     {
@@ -257,6 +280,42 @@ public sealed class Veranstaltung
         var bis = datum == Bis ? StundeBis : 99;
         return stunde >= von && stunde <= bis;
     }
+
+    /// <summary>Alle beteiligten Klassen (Klasse und Kl-Teil).</summary>
+    [JsonIgnore] public IEnumerable<int> AlleKlassenIds => KlassenIds.Concat(KlassenteilIds).Distinct();
+
+    /// <summary>Nimmt die Lehrkraft an diesem Tag teil (eingetragen und nicht entfernt, oder als Ersatz eingetragen)?</summary>
+    public bool NimmtTeil(int lehrerId, DateOnly datum) =>
+        (LehrerIds.Contains(lehrerId) && !Ersatz.Any(e => e.Datum == datum && e.LehrerId == lehrerId)) ||
+        Ersatz.Any(e => e.Datum == datum && e.ErsatzId == lehrerId);
+
+    /// <summary>Teilnehmende Lehrkräfte an diesem Tag (in der Reihenfolge der Eingabe, Ersatzlehrkräfte an der Stelle der entfernten).</summary>
+    public List<int> LehrerAm(DateOnly datum)
+    {
+        var res = new List<int>();
+        foreach (var l in LehrerIds)
+        {
+            var e = Ersatz.FirstOrDefault(x => x.Datum == datum && x.LehrerId == l);
+            if (e is null) res.Add(l);
+            else if (e.ErsatzId is int ers) res.Add(ers);
+        }
+        return res.Distinct().ToList();
+    }
+
+    /// <summary>Entfernte Lehrkräfte an diesem Tag ohne Ersatz (offene Plätze, „?“).</summary>
+    public List<int> OffenAm(DateOnly datum) => Ersatz.Where(e => e.Datum == datum && e.ErsatzId is null && LehrerIds.Contains(e.LehrerId)).Select(e => e.LehrerId).ToList();
+}
+
+/// <summary>Eine Lehrkraft wurde an einem Tag aus einer Veranstaltung entfernt (z. B. wegen Krankheit); optional mit Ersatzlehrkraft.</summary>
+public sealed class VeranstaltungsErsatz
+{
+    public DateOnly Datum { get; set; }
+    /// <summary>Entfernte Lehrkraft.</summary>
+    public int LehrerId { get; set; }
+    /// <summary>Ersatzlehrkraft, null = noch offen („???“).</summary>
+    public int? ErsatzId { get; set; }
+    /// <summary>Absenz, wegen der die Lehrkraft entfernt wurde.</summary>
+    public int? AbwesenheitId { get; set; }
 }
 
 public enum VormerkungsQuelle

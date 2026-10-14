@@ -169,7 +169,7 @@ public sealed class Dokument
         {
             // Zeilen aus älteren Dateien: Herkunft bestimmen
             if (v.UnterrichtId is null && v.Art != VertretungsArt.Pausenaufsicht) v.Quelle = VertretungsQuelle.Manuell;
-            else if (v.Art is VertretungsArt.Verlegung or VertretungsArt.Tausch) v.Quelle = VertretungsQuelle.Verlegung;
+            else if (v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch) v.Quelle = VertretungsQuelle.Verlegung;
             if (v.VertreterId.HasValue && v.Art != VertretungsArt.Raumvertretung) v.Bearbeitet = true;
         }
         if (d.KommentarKategorien.Count == 0)

@@ -126,6 +126,14 @@ public sealed class Benutzereinstellungen
     /// <summary>Dialog „Raum zuordnen / löschen“: Auto-resize beim Öffnen deaktivieren (gemerkte Größe verwenden).</summary>
     public bool RaumDialogAutoResizeAus { get; set; }
     public Size RaumDialogGroesse { get; set; }
+    /// <summary>Absenzfenster: Veranstaltungen zur Information mit anzeigen.</summary>
+    public bool AbsenzenVeranstaltungenZeigen { get; set; }
+    /// <summary>Vertretungsfenster „Felder der Ansicht“ je Ansicht: Feld → "a" (aktiv), "d" (drucken), "L" (Langname).</summary>
+    public Dictionary<string, Dictionary<string, string>> VertretungsFelder { get; set; } = new();
+    /// <summary>Vertretungsfenster: ausgeblendete Vertretungsarten je Ansicht.</summary>
+    public Dictionary<string, List<string>> VertretungsArtenAus { get; set; } = new();
+    /// <summary>Vertretungsfenster: regulär stattfindenden Unterricht mit anzeigen (Art „Unterricht“).</summary>
+    public bool VertretungenUnterrichtZeigen { get; set; }
 
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 

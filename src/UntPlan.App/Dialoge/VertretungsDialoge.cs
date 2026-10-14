@@ -327,7 +327,7 @@ public static class VeranstaltungDialog
     public static bool Zeigen(IWin32Window owner, Veranstaltung v)
     {
         var d = AppZustand.D;
-        using var f = new Dialog("Veranstaltung", 480, 360);
+        using var f = new Dialog("Veranstaltung", 480, 392);
         var y = 14;
         var tx = Ui.Zeile(f, "Bezeichnung:", new TextBox { Text = v.Text }, ref y, 140, 300);
         var von = Ui.Zeile(f, "von:", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = v.Von.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 110);
@@ -343,7 +343,8 @@ public static class VeranstaltungDialog
         f.Controls.Add(new Label { Text = "bis Std.", Left = bis.Right + 12, Top = bis.Top + 3, AutoSize = true });
         f.Controls.Add(sb);
         von.ValueChanged += (_, _) => { if (bis.Value < von.Value) bis.Value = von.Value; };
-        var kl = Ui.Zeile(f, "Klassen:", new ElementWahl(ElementTyp.Klasse, v.KlassenIds), ref y, 140, 300);
+        var kl = Ui.Zeile(f, "Klasse (entfällt):", new ElementWahl(ElementTyp.Klasse, v.KlassenIds), ref y, 140, 300);
+        var kt = Ui.Zeile(f, "Kl-Teil (parallel):", new ElementWahl(ElementTyp.Klasse, v.KlassenteilIds), ref y, 140, 300);
         var le = Ui.Zeile(f, "Lehrer:", new ElementWahl(ElementTyp.Lehrer, v.LehrerIds), ref y, 140, 300);
         var ra = Ui.Zeile(f, "Räume:", new ElementWahl(ElementTyp.Raum, v.RaumIds), ref y, 140, 300);
         var gr = Ui.Zeile(f, "Absenzgrund:", ElementListe.Combo(ElementTyp.Abwesenheitsgrund, v.GrundId), ref y, 140, 300);
@@ -356,6 +357,7 @@ public static class VeranstaltungDialog
         v.StundeVon = (int)sv.Value;
         v.StundeBis = (int)sb.Value >= d.Zeitraster.StundenProTag ? 99 : (int)sb.Value;
         v.KlassenIds = kl.Ids;
+        v.KlassenteilIds = kt.Ids.Except(v.KlassenIds).ToList();
         v.LehrerIds = le.Ids;
         v.RaumIds = ra.Ids;
         v.GrundId = ElementListe.Id(gr);
