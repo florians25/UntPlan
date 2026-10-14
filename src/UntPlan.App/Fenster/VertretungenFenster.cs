@@ -542,6 +542,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // Unterricht, der als Veranstaltung stattfindet, erscheint nur in der Zeile der Veranstaltung
         if (v.InVeranstaltung) return false;
         if (!ArtSichtbar(v.Art)) return false;
+        // Bereitschaften und Unterricht, der nicht vertreten wird, stehen nicht in der Vertretungsliste
+        if (Vertretungen.NichtInListe(D, v) && !behalten) return false;
         if (_element.SelectedItem is Eintrag { Id: int id } && !behalten)
         {
             var treffer = _ansicht.SelectedIndex is 1 or 3

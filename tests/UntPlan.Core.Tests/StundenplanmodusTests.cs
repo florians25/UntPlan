@@ -119,6 +119,30 @@ public class BereitschaftsplanungTests
         // auch „Entfall umschalten“ macht daraus keine offene Vertretung
         Vertretungsplanung.Vertretungen.EntfallUmschalten(d, v);
         Assert.Equal(VertretungsArt.BereitschaftEntfaellt, v.Art);
+        // Bereitschaften stehen nicht in der Vertretungsliste
+        Assert.True(Vertretungsplanung.Vertretungen.NichtInListe(d, v));
+    }
+
+    [Fact]
+    public void UnterrichtOhneVertretungStehtNichtInDerListe()
+    {
+        var d = Demo.Beispielschule();
+        d.AktivePeriode.Plan = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 2 })[0].Plan;
+        var tag = Enumerable.Range(0, 14).Select(i => d.Einstellungen.SchuljahrVon.AddDays(i)).First(t => Kalender.IstUnterrichtstag(d, t));
+        var ti = Kalender.TagIndex(d, tag);
+        var ix = new DatenIndex(d);
+        var l = d.Lehrer.First(x => ix.PlanVon(ElementTyp.Lehrer, x.Id).Count(p => p.Tag == ti) >= 2);
+        var stunden = ix.PlanVon(ElementTyp.Lehrer, l.Id).Where(p => p.Tag == ti).ToList();
+        var ohne = d.Unterrichte.First(u => u.Id == stunden[0].UnterrichtId);
+        ohne.KeineVertretung = true;
+        d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = l.Id, Von = tag, Bis = tag });
+        Vertretungsplanung.Vertretungen.Aktualisieren(d, tag);
+        var heute = d.Vertretungen.Where(x => x.Datum == tag && x.LehrerId == l.Id).ToList();
+        var entfall = heute.Where(x => x.UnterrichtId == ohne.Id).ToList();
+        Assert.NotEmpty(entfall);
+        Assert.All(entfall, x => Assert.True(Vertretungsplanung.Vertretungen.NichtInListe(d, x)));
+        // zu vertretender Unterricht bleibt in der Liste
+        Assert.Contains(heute, x => x.UnterrichtId != ohne.Id && !Vertretungsplanung.Vertretungen.NichtInListe(d, x));
     }
 
     [Fact]

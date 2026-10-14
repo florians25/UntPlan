@@ -21,6 +21,20 @@ public static class Vertretungen
 
     public static bool IstBereitschaftsfach(Schuldatei d, int? fachId) => fachId is int f && d.Faecher.FirstOrDefault(x => x.Id == f) is { Bereitschaft: true };
 
+    /// <summary>
+    /// Erscheint nicht in der Vertretungsliste: Bereitschaften (werden nie vertreten) und Unterricht, der nicht vertreten wird
+    /// (Unterricht/Fach „keine Vertretung“ → automatischer Entfall, solange nicht von Hand bearbeitet).
+    /// </summary>
+    public static bool NichtInListe(Schuldatei d, Vertretung v)
+    {
+        if (v.Art == VertretungsArt.BereitschaftEntfaellt) return true;
+        if (v.Art is VertretungsArt.Unterricht or VertretungsArt.Entfall && IstBereitschaftsfach(d, v.FachId)) return true;
+        if (v.Art != VertretungsArt.Entfall || v.Bearbeitet || v.Quelle == VertretungsQuelle.Manuell || v.KlausurId.HasValue) return false;
+        var fach = v.FachId is int f ? d.Faecher.FirstOrDefault(x => x.Id == f) : null;
+        var u = v.UnterrichtId is int uid ? d.Unterrichte.FirstOrDefault(x => x.Id == uid) : null;
+        return fach?.KeineVertretung == true || u?.KeineVertretung == true;
+    }
+
     /// <summary>Vertretungszeitraster: Regel für eine Stunde (Klassenzeitraster vor globalem Zeitraster).</summary>
     public static VertretungsRegel Regel(Schuldatei d, IEnumerable<int> klassenIds, int tag, int stunde)
     {
