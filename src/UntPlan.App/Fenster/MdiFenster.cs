@@ -160,6 +160,18 @@ public class MdiFenster : Form
             Padding = Padding.Empty;
         }
         Ui.SucheAktivieren(this);
+        // eigene Tabellenformate für alle Tabellen des Fensters
+        var n = 0;
+        foreach (var g in Tabellen(this)) Steuerelemente.TabellenFormate.Aktivieren(g, $"{GetType().Name}/{(string.IsNullOrEmpty(g.Name) ? (n++).ToString() : g.Name)}");
+    }
+
+    private static IEnumerable<DataGridView> Tabellen(Control c)
+    {
+        foreach (Control x in c.Controls)
+        {
+            if (x is DataGridView g) yield return g;
+            else foreach (var y in Tabellen(x)) yield return y;
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

@@ -81,6 +81,12 @@ public sealed class Benutzereinstellungen
     /// <summary>Fensteranordnung je Modus (Stundenplan / Vertretung): Schlüssel und Position.</summary>
     public Dictionary<string, List<FensterPosition>> Fenstergruppen { get; set; } = new();
     public string Vertretungsansicht { get; set; } = "Klasse - Standard";
+    /// <summary>Druckformulare je Liste.</summary>
+    public Dictionary<string, ListenDruck.Layout> Drucklayouts { get; set; } = new();
+    /// <summary>Eigene Tabellenformate je Tabelle (Schlüssel = Fenster/Tabelle).</summary>
+    public Dictionary<string, List<Tabellenformat>> Tabellenformate { get; set; } = new();
+    /// <summary>Zuletzt gewähltes Tabellenformat je Tabelle.</summary>
+    public Dictionary<string, string> AktiveTabellenformate { get; set; } = new();
 
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 
@@ -107,6 +113,20 @@ public sealed class Benutzereinstellungen
         if (ZuletztGeoeffnet.Count > 10) ZuletztGeoeffnet.RemoveAt(10);
         Speichern();
     }
+}
+
+public sealed class Tabellenformat
+{
+    public string Name { get; set; } = "";
+    public List<Tabellenspalte> Spalten { get; set; } = new();
+}
+
+public sealed class Tabellenspalte
+{
+    public string Name { get; set; } = "";
+    public bool Sichtbar { get; set; } = true;
+    public int Breite { get; set; }
+    public int Position { get; set; }
 }
 
 public sealed class FensterPosition
