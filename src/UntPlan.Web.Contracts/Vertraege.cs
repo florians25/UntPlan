@@ -100,10 +100,22 @@ public sealed record WebElemente
 {
     public List<WebKlasse> Klassen { get; init; } = new();
     public List<WebLehrer> Lehrer { get; init; } = new();
-    public List<WebElement> Raeume { get; init; } = new();
+    public List<WebRaum> Raeume { get; init; } = new();
     public List<WebElement> Faecher { get; init; } = new();
     public List<WebElement> Gaenge { get; init; } = new();
+    /// <summary>Schülerinnen und Schüler (nur wenn in UntPlan freigegeben) – für Klassenbuch und Fehlzeiten.</summary>
+    public List<WebSchueler> Schueler { get; init; } = new();
 }
+
+public sealed record WebRaum : WebElement
+{
+    /// <summary>In UntPlanWeb von Lehrkräften buchbar (Stammdaten in UntPlan).</summary>
+    public bool Buchbar { get; init; }
+    public string Raumart { get; init; } = "";
+    public int Kapazitaet { get; init; }
+}
+
+public sealed record WebSchueler(int Id, string Vorname, string Name, string Klasse);
 
 public record WebElement
 {

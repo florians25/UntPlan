@@ -142,6 +142,7 @@ public sealed class Plandienst
     {
         var zeiten = s.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr);
         var einzel = new List<Karte>();
+        var vorgemerkt = new List<(Rohstunde R, Karte K)>();
         foreach (var r in Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()))
         {
             WebVertretung? v = r.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vx) ? vx : null;
@@ -153,7 +154,22 @@ public sealed class Plandienst
                 _ => false,
             };
             if (!betrifft) continue;
-            einzel.Add(KarteBauen(s, d, typ, kurz, r, v, zeiten));
+            var k = KarteBauen(s, d, typ, kurz, r, v, zeiten);
+            if (r.Status == "vorgemerkt") vorgemerkt.Add((r, k));
+            else einzel.Add(k);
+        }
+        // Vorgemerkte Klausuren und Raumbuchungen zu einer Unterrichtsstunde (gleiche Stunde, gemeinsame Klasse) direkt auf die Stundenkarte legen
+        foreach (var (r, k) in vorgemerkt)
+        {
+            var i = r.Klassen.Count == 0 ? -1 : einzel.FindIndex(x => x.Von == r.Stunde && x.Unterricht.HasValue && x.Status is not ("entfall" or "abwesend")
+                                                                      && x.Klassen.Any(w => Enthaelt(r.Klassen, w.K)));
+            if (i < 0) { einzel.Add(k); continue; }
+            var ziel = einzel[i];
+            var raeume = r.Raeume.Count == 0 ? ziel.Raeume
+                : r.Raeume.Select(x => ziel.Raeume.Any(w => Ci.Equals(w.K, x)) ? new Wert(x) : new Wert(x, ziel.Raeume.FirstOrDefault()?.K ?? "", true)).ToList();
+            einzel[i] = r.Art == "Klausur"
+                ? ziel with { Status = "klausur", Art = "Klausur (vorgemerkt)", Text = r.Text, Raeume = raeume }
+                : ziel with { Status = ziel.Status == "regulaer" ? "geaendert" : ziel.Status, Art = "Raumänderung (vorgemerkt)", Raeume = raeume, Text = r.Text.Length > 0 && r.Text != "Raumbuchung" ? r.Text : ziel.Text };
         }
         // Teilnahmen mehrerer Lehrkräfte an derselben Veranstaltung: eine Karte mit allen Beteiligten
         var veranstaltungen = einzel.Where(k => k.Status == "veranstaltung").GroupBy(k => (k.Von, k.Text))

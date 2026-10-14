@@ -121,6 +121,8 @@ public sealed class PortalEinstellungen
     public bool LehrerEmail { get; set; }
     public bool LehrerAbsenzen { get; set; } = true;
     public bool Absenzgruende { get; set; }
+    /// <summary>Schülerliste (Vorname, Name, Klasse) für Klassenbuch und Fehlzeiten übertragen.</summary>
+    public bool SchuelerExportieren { get; set; }
     /// <summary>Letzter erfolgreicher Export bzw. Import je Teil (stammdaten, unterricht, vertretungen, absenzen).</summary>
     public Dictionary<string, DateTime> LetzteUebertragung { get; set; } = new();
 }

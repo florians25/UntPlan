@@ -22,6 +22,8 @@ public sealed class WebExportOptionen
     public HashSet<string> Teile { get; set; } = new();
     public bool IgnoriertenUnterricht { get; set; }
     public bool Ferien { get; set; } = true;
+    /// <summary>Schülerliste übertragen (Klassenbuch, Fehlzeiten).</summary>
+    public bool Schueler { get; set; }
 
     public bool Mit(string teil) => Teile.Count == 0 || Teile.Contains(teil);
 
@@ -29,7 +31,7 @@ public sealed class WebExportOptionen
     public static WebExportOptionen Aus(PortalEinstellungen p, params string[] teile) => new()
     {
         TageVoraus = Math.Max(1, p.TageVoraus), LehrerEmail = p.LehrerEmail, LehrerAbsenzen = p.LehrerAbsenzen, Absenzgruende = p.Absenzgruende,
-        IgnoriertenUnterricht = p.IgnoriertenUnterrichtUebertragen, Ferien = !p.FerienNichtExportieren, Teile = teile.ToHashSet(),
+        IgnoriertenUnterricht = p.IgnoriertenUnterrichtUebertragen, Ferien = !p.FerienNichtExportieren, Schueler = p.SchuelerExportieren, Teile = teile.ToHashSet(),
     };
 }
 
@@ -120,7 +122,12 @@ public static class UntPlanWebExport
                     Id = l.Id, Kurz = l.Kurzname, Name = l.Langname, Vorname = l.Vorname, Farbe = Farbe(l.Hintergrund),
                     Email = o.LehrerEmail && l.Email.Length > 0 ? l.Email : null, Faecher = l.FaecherIds.Select(f => ix.KFach(f)).ToList(),
                 }).ToList(),
-                Raeume = d.Raeume.Where(r => !r.Ignorieren).Select(r => new WebElement { Id = r.Id, Kurz = r.Kurzname, Name = r.Langname, Farbe = Farbe(r.Hintergrund) }).ToList(),
+                Raeume = d.Raeume.Where(r => !r.Ignorieren).Select(r => new WebRaum
+                {
+                    Id = r.Id, Kurz = r.Kurzname, Name = r.Langname, Farbe = Farbe(r.Hintergrund), Buchbar = r.Buchbar, Raumart = r.Raumart, Kapazitaet = r.Kapazitaet,
+                }).ToList(),
+                Schueler = !o.Schueler ? new List<WebSchueler>() : d.Schueler.Where(x => !x.Ignorieren && x.KlasseId.HasValue)
+                    .Select(x => new WebSchueler(x.Id, x.Vorname, x.Langname.Length > 0 ? x.Langname : x.Kurzname, K(ElementTyp.Klasse, x.KlasseId))).ToList(),
                 Faecher = d.Faecher.Select(f => new WebElement { Id = f.Id, Kurz = f.Kurzname, Name = f.Langname, Farbe = Farbe(f.Hintergrund) }).ToList(),
                 Gaenge = d.Gaenge.Select(g => new WebElement { Id = g.Id, Kurz = g.Kurzname, Name = g.Langname }).ToList(),
             },

@@ -118,7 +118,7 @@ public sealed class Stand
     public Dictionary<string, WebElement> Faecher { get; }
     public Dictionary<string, WebKlasse> Klassen { get; }
     public Dictionary<string, WebLehrer> Lehrer { get; }
-    public Dictionary<string, WebElement> Raeume { get; }
+    public Dictionary<string, WebRaum> Raeume { get; }
     public Dictionary<string, WebElement> Gaenge { get; }
     public DateOnly SchuljahrVon { get; }
     public DateOnly SchuljahrBis { get; }

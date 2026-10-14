@@ -25,11 +25,23 @@ public sealed class UntPlanWebDialog : Dialog
     private readonly List<(Label Datum, Label Zuletzt, string Teil, bool Export)> _zeilen = new();
     private bool _laeuft;
     private readonly TabControl _tabs;
+    private readonly ProgressBar _fortschritt = new() { Left = 14, Width = 580, Height = 14, Visible = false, Style = ProgressBarStyle.Continuous };
+    private readonly Label _schritt = new() { Left = 14, Width = 580, Height = 18, ForeColor = Color.DimGray, Visible = false };
+
+    /// <summary>Fortschritt anzeigen (Wert 0–100 und Text des Arbeitsschritts).</summary>
+    private void Fortschritt(int wert, string text)
+    {
+        _fortschritt.Visible = _schritt.Visible = true;
+        _fortschritt.Value = Math.Clamp(wert, 0, 100);
+        _schritt.Text = text;
+        _fortschritt.Refresh();
+        _schritt.Refresh();
+    }
 
     private static Schuldatei D => AppZustand.D;
     private static PortalEinstellungen P => AppZustand.D.Einstellungen.Portal;
 
-    public UntPlanWebDialog() : base("UntPlanWeb – Datenaustausch", 660, 494)
+    public UntPlanWebDialog() : base("UntPlanWeb – Datenaustausch", 660, 544)
     {
         Ok.Text = "Schließen";
         Ok.DialogResult = DialogResult.OK;
@@ -60,7 +72,7 @@ public sealed class UntPlanWebDialog : Dialog
         _fehler.Controls.AddRange(new Control[] { _fehlerTitel, _fehlerText, link });
         Controls.Add(_fehler);
 
-        _tabs = new TabControl { Left = 10, Top = 94, Width = 640, Height = 350 };
+        _tabs = new TabControl { Left = 10, Top = 94, Width = 640, Height = 400 };
         var tabs = _tabs;
         var seite = new TabPage("UntPlanWeb") { BackColor = Color.White };
         tabs.TabPages.Add(seite);
@@ -94,6 +106,11 @@ public sealed class UntPlanWebDialog : Dialog
             Text = "Unterricht enthält Stundenplan und Pausenaufsichten; Vertretungen enthalten tagesaktuelle Pläne, Absenzen, Termine und Nachrichten zum Tag.",
             Left = 14, Top = y + 40, Width = 590, Height = 32, ForeColor = Color.DimGray,
         });
+        // Fortschrittsanzeige unter den Zeilen
+        _schritt.Top = y + 78;
+        _fortschritt.Top = y + 98;
+        seite.Controls.Add(_schritt);
+        seite.Controls.Add(_fortschritt);
         Controls.Add(tabs);
         Anzeigen();
     }
@@ -138,7 +155,7 @@ public sealed class UntPlanWebDialog : Dialog
         {
             _fehler.Visible = sichtbar;
             _tabs.Top = sichtbar ? 180 : 94;
-            ClientSize = new Size(ClientSize.Width, sichtbar ? 580 : 494);
+            ClientSize = new Size(ClientSize.Width, sichtbar ? 630 : 544);
         }
         _fehlerTitel.Text = titel ?? "";
         _fehlerText.Text = text;
@@ -162,6 +179,8 @@ public sealed class UntPlanWebDialog : Dialog
         }
         catch (Exception ex)
         {
+            _fortschritt.Visible = false;
+            _schritt.Text = "Abgebrochen.";
             var text = ex is HttpRequestException or TaskCanceledException
                 ? "Es konnte keine Verbindung zum Server hergestellt werden. Überprüfen Sie Ihre Internetverbindung, die Verbindungseinstellungen und gegebenenfalls den Status des UntPlanWeb-Servers."
                 : ex.Message;
@@ -192,8 +211,15 @@ public sealed class UntPlanWebDialog : Dialog
     {
         // Unterricht und Vertretungen beziehen sich auf die Stammdaten: diese immer mitsenden
         var teile = teil.Length == 0 ? Array.Empty<string>() : new[] { WebTeile.Stammdaten, teil }.Distinct().ToArray();
-        var paket = UntPlanWebExport.PaketErstellen(D, Start, WebExportOptionen.Aus(P, teile));
+        var was = teil.Length == 0 ? "alle Daten" : teil;
+        Fortschritt(10, $"Daten werden zusammengestellt ({was}) …");
+        var d0 = D;
+        var start = Start;
+        var optionen = WebExportOptionen.Aus(P, teile);
+        var paket = await Task.Run(() => UntPlanWebExport.PaketErstellen(d0, start, optionen));
+        Fortschritt(45, $"Übertragung an {P.Adresse} … ({paket.Tage.Count} Tage, {paket.Vertretungen.Count} Vertretungen)");
         var a = await UntPlanWebExport.HochladenAsync(P, paket);
+        Fortschritt(100, $"Fertig: an UntPlanWeb übertragen (Revision {a.Revision}) um {DateTime.Now:HH:mm}.");
         var jetzt = DateTime.Now;
         AppZustand.Doc.Aendern("UntPlanWeb-Übertragung", AenderungsArt.Einstellungen, d =>
         {
@@ -208,10 +234,12 @@ public sealed class UntPlanWebDialog : Dialog
     {
         var start = Start;
         var typen = teil == "absenzen" ? new[] { WebRueckmeldungsTypen.Absenz, WebRueckmeldungsTypen.Nachricht } : new[] { teil };
+        Fortschritt(20, "Rückmeldungen werden abgeholt …");
         var liste = (await UntPlanWebExport.RueckmeldungenAsync(P))
             .Where(m => typen.Contains(m.Typ) && (!DateOnly.TryParse(m.Bis ?? m.Von, out var bis) || bis >= start)).ToList();
         var was = teil switch { WebRueckmeldungsTypen.Raumbuchung => "Buchungen", WebRueckmeldungsTypen.Klausur => "Klausuren", _ => "Absenzen oder Nachrichten" };
-        if (liste.Count == 0) { Ui.Info($"Keine neuen {was}.", "UntPlanWeb"); return; }
+        if (liste.Count == 0) { Fortschritt(100, $"Keine neuen {was}."); return; }
+        Fortschritt(60, $"{liste.Count} {was} werden übernommen …");
         List<string> ok = new(), nein = new();
         var jetzt = DateTime.Now;
         AppZustand.Doc.Aendern("UntPlanWeb-Rückmeldungen", AenderungsArt.Vertretung, d =>
@@ -222,6 +250,7 @@ public sealed class UntPlanWebDialog : Dialog
             d.Einstellungen.Portal.LetzteUebertragung[teil] = jetzt;
         });
         await UntPlanWebExport.QuittierenAsync(P, ok);
+        Fortschritt(100, $"Fertig: {ok.Count} {was} übernommen.");
         Ui.Info($"{ok.Count} {was} übernommen{(nein.Count > 0 ? $", {nein.Count} abgelehnt (unbekannte Elemente, kein Unterrichtstag oder Raum belegt)" : "")}.", "UntPlanWeb");
     }
 }
@@ -273,6 +302,7 @@ public sealed class UntPlanWebEinstellungenDialog : Dialog
         var email = Option("E-Mail-Adressen der Lehrkräfte übertragen", p.LehrerEmail);
         var absenzen = Option("Lehrer-Absenzen übertragen (ohne Grund)", p.LehrerAbsenzen);
         var gruende = Option("Absenzgründe übertragen (außer vertrauliche)", p.Absenzgruende);
+        var schueler = Option("Schülerliste übertragen (Klassenbuch, Fehlzeiten)", p.SchuelerExportieren);
         rechts.Controls.Add(new Label
         {
             Text = "Personenbezogene Daten werden nur übertragen, wenn sie hier ausdrücklich freigegeben sind.",
@@ -314,6 +344,7 @@ public sealed class UntPlanWebEinstellungenDialog : Dialog
             e.LehrerEmail = email.Checked;
             e.LehrerAbsenzen = absenzen.Checked;
             e.Absenzgruende = gruende.Checked;
+            e.SchuelerExportieren = schueler.Checked;
         });
     }
 }
