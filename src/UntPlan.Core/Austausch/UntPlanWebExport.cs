@@ -1,0 +1,192 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using UntPlan.Core.Model;
+using UntPlan.Core.Vertretungsplanung;
+using UntPlan.Web.Contracts;
+
+namespace UntPlan.Core.Austausch;
+
+/// <summary>Datenschutz- und Umfangsoptionen für den Export an UntPlanWeb.</summary>
+public sealed class WebExportOptionen
+{
+    public int TageVoraus { get; set; } = 14;
+    public int TageZurueck { get; set; } = 7;
+    /// <summary>E-Mail-Adressen der Lehrkräfte übertragen.</summary>
+    public bool LehrerEmail { get; set; }
+    /// <summary>Lehrer-Absenzen übertragen (nur Zeitraum, ohne Grund).</summary>
+    public bool LehrerAbsenzen { get; set; } = true;
+    /// <summary>Absenzgründe übertragen (vertrauliche Gründe nie).</summary>
+    public bool Absenzgruende { get; set; }
+}
+
+/// <summary>
+/// Export an UntPlanWeb (Schema untplanweb/1, Verträge in UntPlan.Web.Contracts): erzeugt das vollständige Paket, schreibt
+/// es als Datei oder überträgt es per HTTPS; holt Rückmeldungen (Krankmeldungen, Nachrichten) und übernimmt sie.
+/// </summary>
+public static class UntPlanWebExport
+{
+    private static string D(DateOnly d) => d.ToString("yyyy-MM-dd");
+
+    private static string Farbe(int argb) => argb == 0 ? "" : $"#{argb & 0xFFFFFF:X6}";
+
+    public static WebPaket PaketErstellen(Schuldatei d, DateOnly ab, WebExportOptionen? o = null)
+    {
+        o ??= new WebExportOptionen();
+        var ix = new DatenIndex(d);
+        var von = ab.AddDays(-Math.Max(0, o.TageZurueck));
+        var bis = ab.AddDays(Math.Max(1, o.TageVoraus));
+        string K(ElementTyp t, int? id) => id is int i ? ix.K(t, i) : "";
+        List<string> Kl(IEnumerable<int> ids) => ids.Select(i => ix.K(ElementTyp.Klasse, i)).Where(x => x.Length > 0).ToList();
+
+        var tage = new List<WebTag>();
+        var vertretungen = new List<WebVertretung>();
+        foreach (var t in Kalender.Tage(von, bis))
+        {
+            var unterrichtstag = Kalender.IstUnterrichtstag(d, t);
+            var tag = new WebTag { Datum = D(t), Woche = Kalender.WochenTyp(d, t), Unterrichtstag = unterrichtstag };
+            if (unterrichtstag)
+            {
+                var tp = Tagesplan.Berechnen(d, t);
+                foreach (var e in tp.Eintraege.OrderBy(e => e.Stunde))
+                    tag.Stunden.Add(new WebStunde
+                    {
+                        Stunde = e.Stunde, Unterricht = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId, Fach = K(ElementTyp.Fach, e.FachId),
+                        Klassen = Kl(e.KlassenIds), Lehrer = e.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = e.RaumIds.Select(ix.KRaum).ToList(),
+                        Status = e.Status switch
+                        {
+                            TagesStatus.Vertreten => "vertreten", TagesStatus.Offen => "offen", TagesStatus.Entfall => "entfall",
+                            TagesStatus.Zusaetzlich => "zusaetzlich", TagesStatus.Frei => "frei", _ => "regulaer",
+                        },
+                        Vertretung = e.Vertretung?.Id, Text = e.Vertretung?.Text ?? "",
+                    });
+                foreach (var z in Vertretungsplan.Zeilen(d, t))
+                    vertretungen.Add(new WebVertretung
+                    {
+                        Id = z.Id, Datum = D(t), Stunde = z.Stunde, Art = z.Art, Klassen = Kl(z.KlassenIds), Lehrer = z.Lehrer, Vertreter = z.Vertreter,
+                        Fach = z.Fach, NeuesFach = z.NeuesFach, Raum = z.Raum, NeuerRaum = z.NeuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = z.Text,
+                        NurLehrer = z.Art == Vertretungsplan.ArtText(d, VertretungsArt.Pausenaufsicht),
+                    });
+            }
+            tage.Add(tag);
+        }
+
+        var gruende = d.Abwesenheitsgruende.ToDictionary(g => g.Id);
+        string? Grund(int? id) => o.Absenzgruende && id is int g && gruende.TryGetValue(g, out var x) && !x.Vertraulich ? (x.Langname.Length > 0 ? x.Langname : x.Kurzname) : null;
+
+        return new WebPaket
+        {
+            Erzeugt = DateTime.Now,
+            Revision = d.Einstellungen.Portal.Revision + 1,
+            Programmversion = typeof(UntPlanWebExport).Assembly.GetName().Version?.ToString() ?? "1.0",
+            Von = D(von),
+            Bis = D(bis),
+            Schule = new WebSchule
+            {
+                Name = d.Einstellungen.Schulname, Schulnummer = d.Einstellungen.Schulnummer, Schulform = Nrw.Schulformen.GetValueOrDefault(d.Einstellungen.Schulform, d.Einstellungen.Schulform),
+                SchuljahrVon = D(d.Einstellungen.SchuljahrVon), SchuljahrBis = D(d.Einstellungen.SchuljahrBis), Wochenperiodizitaet = Math.Max(1, d.Einstellungen.Wochenperiodizitaet),
+            },
+            Zeitraster = new WebZeitraster
+            {
+                TageProWoche = d.Zeitraster.TageProWoche,
+                Stunden = d.Zeitraster.Zeiten.Select(z => new WebStundenzeit(z.Nr, z.Bezeichnung, z.Beginn.ToString("HH:mm"), z.Ende.ToString("HH:mm"))).ToList(),
+                Pausen = d.Zeitraster.Pausen.Select(p => new WebPause(p.NachStunde, p.Bezeichnung, p.DauerMinuten)).ToList(),
+            },
+            Elemente = new WebElemente
+            {
+                Klassen = d.Klassen.Where(k => !k.Ignorieren).Select(k => new WebKlasse
+                {
+                    Id = k.Id, Kurz = k.Kurzname, Name = k.Langname, Farbe = Farbe(k.Hintergrund), Jahrgang = k.Jahrgang,
+                    Klassenleitung = k.KlassenlehrerIds.Select(ix.KLehrer).ToList(), Stammraum = K(ElementTyp.Raum, k.StammraumId),
+                }).ToList(),
+                Lehrer = d.Lehrer.Where(l => !l.Ignorieren).Select(l => new WebLehrer
+                {
+                    Id = l.Id, Kurz = l.Kurzname, Name = l.Langname, Vorname = l.Vorname, Farbe = Farbe(l.Hintergrund),
+                    Email = o.LehrerEmail && l.Email.Length > 0 ? l.Email : null, Faecher = l.FaecherIds.Select(f => ix.KFach(f)).ToList(),
+                }).ToList(),
+                Raeume = d.Raeume.Where(r => !r.Ignorieren).Select(r => new WebElement { Id = r.Id, Kurz = r.Kurzname, Name = r.Langname, Farbe = Farbe(r.Hintergrund) }).ToList(),
+                Faecher = d.Faecher.Select(f => new WebElement { Id = f.Id, Kurz = f.Kurzname, Name = f.Langname, Farbe = Farbe(f.Hintergrund) }).ToList(),
+                Gaenge = d.Gaenge.Select(g => new WebElement { Id = g.Id, Kurz = g.Kurzname, Name = g.Langname }).ToList(),
+            },
+            Perioden = d.Perioden.OrderBy(p => p.Von).Select(p => new WebPeriode
+            {
+                Id = p.Id, Name = p.Name, Von = D(p.Von), Bis = D(Module.Perioden.Ende(d, p)), MutterId = p.MutterId,
+                Unterricht = (p.Unterrichte ?? new()).Where(u => !u.Ignorieren).Select(u => new WebUnterricht(u.Id, u.Wochenstunden,
+                    u.Zeilen.Select(z => new WebZeile(K(ElementTyp.Fach, z.FachId), K(ElementTyp.Lehrer, z.LehrerId), Kl(z.KlassenIds), z.Zeilentext)).ToList(),
+                    u.Periodizitaet switch { Periodizitaet.AWoche => "A", Periodizitaet.BWoche => "B", _ => u.UGruppeId is int g ? d.UGruppen.FirstOrDefault(x => x.Id == g)?.Wochen ?? "" : "" },
+                    u.Kursname, u.Text)).ToList(),
+                Stundenplan = p.Plan.Select(s => new WebPlanstunde(s.UnterrichtId, s.Tag, s.Stunde, s.Raeume.Where(r => r.HasValue).Select(r => ix.KRaum(r)).ToList())).ToList(),
+            }).ToList(),
+            Tage = tage,
+            Vertretungen = vertretungen,
+            Absenzen = d.Abwesenheiten.Where(a => a.Bis >= von && a.Von <= bis && (o.LehrerAbsenzen || a.Art != AbwesenheitsArt.Lehrer)).Select(a => new WebAbsenz
+            {
+                Art = a.Art switch { AbwesenheitsArt.Lehrer => "lehrer", AbwesenheitsArt.Klasse => "klasse", _ => "raum" },
+                Element = ix.K(a.Art switch { AbwesenheitsArt.Lehrer => ElementTyp.Lehrer, AbwesenheitsArt.Klasse => ElementTyp.Klasse, _ => ElementTyp.Raum }, a.ElementId),
+                Von = D(a.Von), Bis = D(a.Bis), StundeVon = a.StundeVon, StundeBis = Math.Min(a.StundeBis, d.Zeitraster.StundenProTag), Grund = Grund(a.GrundId),
+            }).ToList(),
+            Termine = d.Veranstaltungen.Where(v => v.Bis >= von && v.Von <= bis).Select(v => new WebTermin
+                {
+                    Art = "veranstaltung", Titel = v.Text, Von = D(v.Von), Bis = D(v.Bis), StundeVon = v.StundeVon, StundeBis = Math.Min(v.StundeBis, d.Zeitraster.StundenProTag),
+                    Klassen = Kl(v.KlassenIds), Lehrer = v.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = v.RaumIds.Select(ix.KRaum).ToList(),
+                })
+                .Concat(d.Klausuren.Where(k => k.Aktiv && k.Datum >= von && k.Datum <= bis).Select(k => new WebTermin
+                {
+                    Art = "klausur", Titel = k.Name, Von = D(k.Datum), Bis = D(k.Datum), StundeVon = k.StundeVon, StundeBis = k.StundeBis,
+                    Klassen = Kl(k.KlassenIds), Lehrer = k.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = k.RaumIds.Select(ix.KRaum).ToList(),
+                })).ToList(),
+            Tagestexte = d.Tagestexte.Where(t => t.Portal && t.Datum.AddDays(Math.Max(1, t.GueltigTage)) > von && t.Datum <= bis).Select(t =>
+            {
+                var art = t.NurLehrer ? TagestextArt.NurLehrer : t.Art;
+                var typ = art == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
+                return new WebTagestext(D(t.Datum), Math.Max(1, t.GueltigTage), t.Text,
+                    art switch { TagestextArt.Klassen => "klassen", TagestextArt.Lehrer => "lehrer", TagestextArt.NurLehrer => "kollegium", _ => "alle" },
+                    t.ElementIds.Select(id => ix.K(typ, id)).ToList());
+            }).ToList(),
+            Ferien = d.Ferien.Select(f => new WebFerien(f.Langname.Length > 0 ? f.Langname : f.Kurzname, D(f.Von), D(f.Bis), f.Feiertag)).ToList(),
+            Pausenaufsichten = d.Pausenaufsichten.Where(a => a.Datum is null).Select(a => new WebAufsicht(ix.K(ElementTyp.Gang, a.GangId), a.Tag, a.NachStunde, ix.KLehrer(a.LehrerId),
+                a.UGruppeId is int g ? d.UGruppen.FirstOrDefault(x => x.Id == g)?.Wochen ?? "" : "")).ToList(),
+        };
+    }
+
+    public static string Json(WebPaket p) => JsonSerializer.Serialize(p, UntPlanWebSchema.Json);
+
+    public static WebPaket? Lesen(string json) => JsonSerializer.Deserialize<WebPaket>(json, UntPlanWebSchema.Json);
+
+    private static HttpClient Client(PortalEinstellungen p)
+    {
+        var c = new HttpClient { BaseAddress = new Uri(p.Adresse.TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(60) };
+        c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", p.ApiSchluessel);
+        c.DefaultRequestHeaders.UserAgent.ParseAdd("UntPlan-Desktop/1.0");
+        return c;
+    }
+
+    /// <summary>Paket an UntPlanWeb übertragen (PUT …/untplanweb).</summary>
+    public static async Task<WebAntwort> HochladenAsync(PortalEinstellungen p, WebPaket paket, CancellationToken ct = default)
+    {
+        using var c = Client(p);
+        using var r = await c.PutAsJsonAsync(UntPlanWebSchema.Pfade.Paket(p.SchulId), paket, UntPlanWebSchema.Json, ct);
+        if (!r.IsSuccessStatusCode) throw new InvalidOperationException($"UntPlanWeb antwortet mit HTTP {(int)r.StatusCode}");
+        return (await r.Content.ReadFromJsonAsync<WebAntwort>(UntPlanWebSchema.Json, ct))!;
+    }
+
+    public static async Task<List<WebRueckmeldung>> RueckmeldungenAsync(PortalEinstellungen p, CancellationToken ct = default)
+    {
+        using var c = Client(p);
+        return await c.GetFromJsonAsync<List<WebRueckmeldung>>(UntPlanWebSchema.Pfade.Rueckmeldungen(p.SchulId), UntPlanWebSchema.Json, ct) ?? new();
+    }
+
+    public static async Task QuittierenAsync(PortalEinstellungen p, IEnumerable<string> ids, CancellationToken ct = default)
+    {
+        using var c = Client(p);
+        using var r = await c.PostAsJsonAsync(UntPlanWebSchema.Pfade.Quittieren(p.SchulId), ids.ToArray(), UntPlanWebSchema.Json, ct);
+        r.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Rückmeldungen übernehmen: Krankmeldungen als Lehrer-Absenzen, Nachrichten als Tagestext für das Kollegium.</summary>
+    public static (List<string> Uebernommen, List<string> Abgelehnt) Uebernehmen(Schuldatei d, IEnumerable<WebRueckmeldung> liste)
+    {
+        var meldungen = liste.Select(m => new Portal.Meldung(m.Id, m.Typ == "absenz" ? "abwesenheit" : m.Typ, m.Erstellt, m.Absender, m.Lehrer, m.Von, m.Bis, m.StundeVon, m.StundeBis, m.Grund, m.Text));
+        return Portal.MeldungenUebernehmen(d, meldungen);
+    }
+}

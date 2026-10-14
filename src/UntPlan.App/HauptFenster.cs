@@ -180,6 +180,13 @@ public sealed partial class HauptFenster : Form
             E("Import/Export", "import", null, menue: ImportExportMenue()),
             E("Web-Portal…", "web", () => new PortalDialog().ShowDialog(this)),
             E("MultiUser (Datenbank)", "datenbank", null, menue: MultiUserMenue()),
+            E("UntPlanWeb", "web", null, menue: new()
+            {
+                E("An UntPlanWeb übertragen", "web", UntPlanWebUebertragen),
+                E("Rückmeldungen abholen und übernehmen", "import", UntPlanWebRueckmeldungen),
+                E("Paket als Datei exportieren (JSON)…", "export", UntPlanWebDatei),
+                E("Verbindung einstellen…", "einstellungen", () => new PortalDialog().ShowDialog(this)),
+            }),
             null,
             E("Drucken…", "drucken", () => Drucken(false), taste: Keys.Control | Keys.P),
             E("Seitenansicht…", "vorschau", () => Drucken(true)),
@@ -640,6 +647,52 @@ public sealed partial class HauptFenster : Form
         catch (Exception ex) { Ui.Fehler(ex); return; }
         Ui.Info($"BAL-Import: {b}", "BAL-Import");
         if (AppZustand.Vertretungsmodus) VertretungsStandardFenster(); else StandardFenster();
+    }
+
+    private UntPlan.Web.Contracts.WebPaket UntPlanWebPaket() =>
+        UntPlanWebExport.PaketErstellen(AppZustand.D, AppZustand.Vertretungsmodus ? AppZustand.Datum : DateOnly.FromDateTime(DateTime.Today));
+
+    private void UntPlanWebDatei()
+    {
+        using var sfd = new SaveFileDialog { Filter = "UntPlanWeb-Paket (*.json)|*.json", FileName = $"untplanweb_{DateTime.Now:yyyyMMdd_HHmm}.json" };
+        if (sfd.ShowDialog(this) != DialogResult.OK) return;
+        File.WriteAllText(sfd.FileName, UntPlanWebExport.Json(UntPlanWebPaket()));
+        Ui.Info("Das Paket (Schema untplanweb/1) wurde gespeichert.", "UntPlanWeb");
+    }
+
+    private async void UntPlanWebUebertragen()
+    {
+        var ps = AppZustand.D.Einstellungen.Portal;
+        if (string.IsNullOrWhiteSpace(ps.Adresse)) { Ui.Info("Bitte zuerst die Verbindung zu UntPlanWeb einstellen (Adresse, Schul-Id, API-Schlüssel).", "UntPlanWeb"); new PortalDialog().ShowDialog(this); return; }
+        try
+        {
+            UseWaitCursor = true;
+            var a = await UntPlanWebExport.HochladenAsync(ps, UntPlanWebPaket());
+            AppZustand.Doc.Aendern("UntPlanWeb-Übertragung", AenderungsArt.Einstellungen, d => { d.Einstellungen.Portal.Revision = a.Revision; d.Einstellungen.Portal.LetzteSynchronisation = DateTime.Now; });
+            Ui.Info($"Übertragung erfolgreich (Revision {a.Revision}).", "UntPlanWeb");
+        }
+        catch (Exception ex) { Ui.Fehler(new InvalidOperationException("Übertragung an UntPlanWeb fehlgeschlagen: " + ex.Message)); }
+        finally { UseWaitCursor = false; }
+    }
+
+    private async void UntPlanWebRueckmeldungen()
+    {
+        var ps = AppZustand.D.Einstellungen.Portal;
+        try
+        {
+            var liste = await UntPlanWebExport.RueckmeldungenAsync(ps);
+            if (liste.Count == 0) { Ui.Info("Keine neuen Rückmeldungen.", "UntPlanWeb"); return; }
+            List<string> ok = new(), nein = new();
+            AppZustand.Doc.Aendern("UntPlanWeb-Rückmeldungen", AenderungsArt.Vertretung, d =>
+            {
+                (ok, nein) = UntPlanWebExport.Uebernehmen(d, liste);
+                var tage = d.Abwesenheiten.Where(a => a.Text.Contains("Portal-Meldung")).SelectMany(a => Kalender.Tage(a.Von, a.Bis)).Distinct().ToList();
+                foreach (var t in tage.Where(t => Kalender.IstUnterrichtstag(d, t))) Core.Vertretungsplanung.Vertretungen.Aktualisieren(d, t);
+            });
+            await UntPlanWebExport.QuittierenAsync(ps, ok);
+            Ui.Info($"{ok.Count} Rückmeldungen übernommen{(nein.Count > 0 ? $", {nein.Count} nicht zuordenbar" : "")}.", "UntPlanWeb");
+        }
+        catch (Exception ex) { Ui.Fehler(new InvalidOperationException("Abruf von UntPlanWeb fehlgeschlagen: " + ex.Message)); }
     }
 
     private void GpuExport()

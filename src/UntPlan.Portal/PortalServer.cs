@@ -96,6 +96,41 @@ public static class PortalServer
             return Results.Json(new { ok = true, quittiert = speicher.Quittieren(id, ids) }, Json);
         });
 
+        // --- Schnittstelle untplanweb/1 (Verträge: UntPlan.Web.Contracts; UntPlanWeb nutzt dieselben Endpunkte)
+        api.MapPut("/schulen/{id}/untplanweb", async (string id, HttpContext ctx) =>
+        {
+            if (Schule(id) is not { } s) return Fehler(404, "Unbekannte Schule");
+            if (!Berechtigt(ctx, s)) return Fehler(401, "API-Schlüssel ungültig");
+            UntPlan.Web.Contracts.WebPaket? paket;
+            try { paket = await JsonSerializer.DeserializeAsync<UntPlan.Web.Contracts.WebPaket>(ctx.Request.Body, UntPlan.Web.Contracts.UntPlanWebSchema.Json); }
+            catch (JsonException) { return Fehler(400, "Ungültiges JSON"); }
+            if (paket?.Schema != UntPlan.Web.Contracts.UntPlanWebSchema.Schema) return Fehler(400, $"Schema {UntPlan.Web.Contracts.UntPlanWebSchema.Schema} erwartet");
+            var bisher = speicher.WebRevision(id);
+            if (paket.Revision <= bisher) return Fehler(409, $"Veraltete Revision {paket.Revision} (aktuell {bisher})");
+            speicher.WebPaketSpeichern(id, JsonSerializer.Serialize(paket, UntPlan.Web.Contracts.UntPlanWebSchema.Json), paket.Revision);
+            return Results.Json(new UntPlan.Web.Contracts.WebAntwort(true, paket.Revision, null), UntPlan.Web.Contracts.UntPlanWebSchema.Json);
+        });
+
+        api.MapGet("/schulen/{id}/rueckmeldungen", (string id, HttpContext ctx) =>
+        {
+            if (Schule(id) is not { } s) return Fehler(404, "Unbekannte Schule");
+            if (!Berechtigt(ctx, s)) return Fehler(401, "API-Schlüssel ungültig");
+            var liste = speicher.Meldungen(id).Where(m => !m.Quittiert).Select(m => new UntPlan.Web.Contracts.WebRueckmeldung
+            {
+                Id = m.Id, Typ = m.Typ == "abwesenheit" ? "absenz" : m.Typ, Erstellt = m.Erstellt, Absender = m.Absender, Lehrer = m.LehrerKuerzel,
+                Von = m.Von, Bis = m.Bis, StundeVon = m.StundeVon, StundeBis = m.StundeBis, Grund = m.Grund, Text = m.Text,
+            });
+            return Results.Json(liste, UntPlan.Web.Contracts.UntPlanWebSchema.Json);
+        });
+
+        api.MapPost("/schulen/{id}/rueckmeldungen/quittieren", async (string id, HttpContext ctx) =>
+        {
+            if (Schule(id) is not { } s) return Fehler(404, "Unbekannte Schule");
+            if (!Berechtigt(ctx, s)) return Fehler(401, "API-Schlüssel ungültig");
+            var ids = await JsonSerializer.DeserializeAsync<string[]>(ctx.Request.Body, UntPlan.Web.Contracts.UntPlanWebSchema.Json) ?? Array.Empty<string>();
+            return Results.Json(new { ok = true, quittiert = speicher.Quittieren(id, ids.ToHashSet()) }, Json);
+        });
+
         // Meldung einer Lehrkraft (Formular oder App)
         api.MapPost("/schulen/{id}/meldungen", async (string id, HttpContext ctx) =>
         {
@@ -221,6 +256,21 @@ public static class PortalServer
                 paket["empfangen"] = DateTime.Now;
                 Schreiben(Pfad(schule, "snapshot.json"), paket.ToJsonString(Json));
                 return revision;
+            }
+        }
+
+        public int WebRevision(string schule)
+        {
+            var p = Pfad(schule, "untplanweb.revision");
+            return File.Exists(p) && int.TryParse(File.ReadAllText(p), out var r) ? r : 0;
+        }
+
+        public void WebPaketSpeichern(string schule, string json, int revision)
+        {
+            lock (Sperre(schule))
+            {
+                Schreiben(Pfad(schule, "untplanweb.json"), json);
+                Schreiben(Pfad(schule, "untplanweb.revision"), revision.ToString());
             }
         }
 

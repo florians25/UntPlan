@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Schnittstelle zwischen UntPlan (Desktop) und UntPlanWeb (eigenes Repository). Keine Abhängigkeiten,
+       damit UntPlanWeb diese Bibliothek unverändert einbinden kann (Projekt- oder NuGet-Verweis). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>UntPlan.Web.Contracts</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>1.0.0</Version>
+    <PackageId>UntPlan.Web.Contracts</PackageId>
+    <Description>Datenverträge (Schema untplanweb/1) für den Abgleich zwischen UntPlan und UntPlanWeb.</Description>
+  </PropertyGroup>
+</Project>
