@@ -132,4 +132,72 @@ public class UntPlanWebTests
             try { Directory.Delete(ordner, true); } catch { }
         }
     }
+
+    [Fact]
+    public void FehlzeitenWerdenOhneDoppelimportAlsSchuelerabwesenheitenUebernommen()
+    {
+        var d = Demo.Beispielschule();
+        var a = d.Schueler[0];
+        var b = d.Schueler[1];
+        var ab = new DateOnly(2026, 10, 1);
+        var liste = new List<WebFehlzeit>
+        {
+            new() { Id = 1, Datum = "2026-10-14", Stunde = 1, Unterricht = 5, SchuelerId = a.Id, Klasse = "EF", Fach = "M", Art = "fehlt", Lehrer = "MUE" },
+            new() { Id = 2, Datum = "2026-10-14", Stunde = 2, Unterricht = 5, SchuelerId = a.Id, Klasse = "EF", Fach = "M", Art = "fehlt", Lehrer = "MUE" },
+            new() { Id = 3, Datum = "2026-10-14", Stunde = 1, SchuelerId = b.Id, Klasse = "EF", Art = "verspaetet", Minuten = 12, Status = "unentschuldigt" },
+            new() { Id = 4, Datum = "2026-10-14", Stunde = 1, SchuelerId = 999999, Klasse = "EF" },   // unbekannt
+            new() { Id = 5, Datum = "14.10.2026", Stunde = 1, SchuelerId = a.Id },                    // ungültiges Datum
+        };
+        Assert.Equal(new WebImportErgebnis(3, 0, 0, 2), UntPlanWebExport.FehlzeitenUebernehmen(d, liste, ab));
+        Assert.Equal(3, d.SchuelerAbwesenheiten.Count);
+        var v = d.SchuelerAbwesenheiten.Single(x => x.SchuelerId == b.Id);
+        Assert.True(v.Verspaetet);
+        Assert.Equal((12, "unentschuldigt", (int?)null), (v.Minuten, v.Status, v.UnterrichtId));
+        Assert.Equal(5, d.SchuelerAbwesenheiten.First(x => x.SchuelerId == a.Id).UnterrichtId);
+
+        // gleicher Import erneut: keine Änderung, nichts doppelt
+        Assert.Equal(new WebImportErgebnis(0, 0, 0, 2), UntPlanWebExport.FehlzeitenUebernehmen(d, liste, ab));
+        Assert.Equal(3, d.SchuelerAbwesenheiten.Count);
+
+        // entschuldigt, neu gespeichert (neue Server-Id) und Verspätung gelöscht
+        var neu = new List<WebFehlzeit>
+        {
+            liste[0] with { Id = 11, Status = "entschuldigt", Bemerkung = "Arzt" },
+            liste[1] with { Id = 12, Status = "entschuldigt", Bemerkung = "Arzt" },
+        };
+        Assert.Equal(new WebImportErgebnis(0, 2, 1, 0), UntPlanWebExport.FehlzeitenUebernehmen(d, neu, ab));
+        Assert.Equal(2, d.SchuelerAbwesenheiten.Count);
+        Assert.All(d.SchuelerAbwesenheiten, x => Assert.Equal(("entschuldigt", "Arzt"), (x.Status, x.Bemerkung)));
+        Assert.Equal(new[] { 11, 12 }, d.SchuelerAbwesenheiten.Select(x => x.WebId).OrderBy(x => x));
+
+        // Einträge vor dem abgefragten Zeitraum bleiben erhalten
+        Assert.Equal(new WebImportErgebnis(0, 0, 0, 0), UntPlanWebExport.FehlzeitenUebernehmen(d, new List<WebFehlzeit>(), new DateOnly(2026, 10, 15)));
+        Assert.Equal(2, d.SchuelerAbwesenheiten.Count);
+
+        // übersteht Speichern und Laden der Schuldatei
+        var json = System.Text.Json.JsonSerializer.Serialize(d, Dokument.JsonOptionen);
+        var geladen = System.Text.Json.JsonSerializer.Deserialize<Schuldatei>(json, Dokument.JsonOptionen)!;
+        Assert.Equal(2, geladen.SchuelerAbwesenheiten.Count);
+    }
+
+    [Fact]
+    public void KlassenbuchWirdOhneDoppelimportUebernommen()
+    {
+        var d = Demo.Beispielschule();
+        var ab = new DateOnly(2026, 9, 1);
+        var e = new WebKlassenbucheintrag { Id = 7, Datum = "2026-10-14", Stunde = 3, Unterricht = 12, Klassen = { "5a" }, Fach = "M", Lehrer = "MUE", Lehrstoff = "Brüche", Hausaufgabe = "S. 12", Faellig = "2026-10-16", Geaendert = "2026-10-14 10:00" };
+        Assert.Equal(new WebImportErgebnis(1, 0, 0, 0), UntPlanWebExport.KlassenbuchUebernehmen(d, new[] { e }, ab));
+        Assert.Equal(new WebImportErgebnis(0, 0, 0, 0), UntPlanWebExport.KlassenbuchUebernehmen(d, new[] { e }, ab));
+        var k = Assert.Single(d.Klassenbuch);
+        Assert.Equal(("Brüche", "S. 12", new DateOnly(2026, 10, 16), 12, false), (k.Lehrstoff, k.Hausaufgabe, k.Faellig!.Value, k.UnterrichtId!.Value, k.AnwesenheitGeprueft));
+
+        var geaendert = e with { Lehrstoff = "Brüche kürzen", Anwesenheit = "2026-10-14 10:05", Geaendert = "2026-10-14 10:05" };
+        var zweiter = e with { Id = 8, Stunde = 4, Lehrstoff = "Übung", Hausaufgabe = "", Faellig = null };
+        Assert.Equal(new WebImportErgebnis(1, 1, 0, 0), UntPlanWebExport.KlassenbuchUebernehmen(d, new[] { geaendert, zweiter }, ab));
+        Assert.Equal(2, d.Klassenbuch.Count);
+        Assert.True(d.Klassenbuch.Single(x => x.WebId == 7).AnwesenheitGeprueft);
+        // auf dem Server gelöscht
+        Assert.Equal(new WebImportErgebnis(0, 0, 1, 0), UntPlanWebExport.KlassenbuchUebernehmen(d, new[] { geaendert }, ab));
+        Assert.Equal(7, Assert.Single(d.Klassenbuch).WebId);
+    }
 }

@@ -42,6 +42,11 @@ Authentifizierung: `Authorization: Bearer <API-Schlüssel der Schule>`, nur übe
 | PUT | `api/v1/schulen/{schule}/untplanweb` | `WebPaket` übertragen → `WebAntwort` (409 bei veralteter Revision) |
 | GET | `api/v1/schulen/{schule}/rueckmeldungen` | offene `WebRueckmeldung[]` |
 | POST | `api/v1/schulen/{schule}/rueckmeldungen/quittieren` | `string[]` Ids → übernommen |
+| GET | `api/v1/schulen/{schule}/fehlzeiten?ab=yyyy-MM-dd[&bis=…]` | `WebFehlzeit[]` (Import „Studenten*“ → Schülerabwesenheiten; Abgleich über Datum, Stunde, Schüler) |
+| GET | `api/v1/schulen/{schule}/klassenbuch?ab=yyyy-MM-dd[&bis=…]` | `WebKlassenbucheintrag[]` (Import „Kurse“ → Klassenbuch; ohne interne Notizen) |
+
+Ohne `bis` liefern beide Klassenbuch-Endpunkte ein Jahr ab `ab` (höchstens 400 Tage). Im abgefragten Zeitraum auf dem Server
+gelöschte Einträge entfernt UntPlan beim Import.
 
 **Rückmeldungen** (`WebRueckmeldung.typ`, Konstanten in `WebRueckmeldungsTypen`):
 

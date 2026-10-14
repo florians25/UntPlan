@@ -38,6 +38,50 @@ public sealed class Abwesenheit
     [JsonIgnore] public int Tage => Bis.DayNumber - Von.DayNumber + 1;
 }
 
+/// <summary>
+/// Abwesenheit einer Schülerin/eines Schülers in einer Stunde (Fehlzeit aus dem Klassenbuch von UntPlanWeb).
+/// Datum, Stunde und Schüler sind eindeutig und verhindern Doppelimporte; ein erneuter Import aktualisiert den Eintrag
+/// (z. B. Entschuldigungsstatus). WebId ist die zuletzt gemeldete Id auf dem Server.
+/// </summary>
+public sealed class SchuelerAbwesenheit
+{
+    public int WebId { get; set; }
+    public int SchuelerId { get; set; }
+    /// <summary>Name laut UntPlanWeb (Anzeige, falls die Schülerin/der Schüler in UntPlan fehlt).</summary>
+    public string Name { get; set; } = "";
+    public string Klasse { get; set; } = "";
+    public DateOnly Datum { get; set; }
+    public int Stunde { get; set; }
+    public int? UnterrichtId { get; set; }
+    public string Fach { get; set; } = "";
+    /// <summary>true = verspätet (Minuten), false = fehlt.</summary>
+    public bool Verspaetet { get; set; }
+    public int Minuten { get; set; }
+    /// <summary>offen, entschuldigt, unentschuldigt</summary>
+    public string Status { get; set; } = "offen";
+    public string Bemerkung { get; set; } = "";
+    public string Lehrer { get; set; } = "";
+    public DateTime Importiert { get; set; } = DateTime.Now;
+}
+
+/// <summary>Klassenbucheintrag einer Stunde aus UntPlanWeb (Lehrstoff, Hausaufgabe) – Gegenstück zum Untis-Kursimport.</summary>
+public sealed class KlassenbuchEintrag
+{
+    public int WebId { get; set; }
+    public DateOnly Datum { get; set; }
+    public int Stunde { get; set; }
+    public int? UnterrichtId { get; set; }
+    public List<string> Klassen { get; set; } = new();
+    public string Fach { get; set; } = "";
+    public string Lehrer { get; set; } = "";
+    public string Lehrstoff { get; set; } = "";
+    public string Hausaufgabe { get; set; } = "";
+    public DateOnly? Faellig { get; set; }
+    /// <summary>Anwesenheit in UntPlanWeb geprüft.</summary>
+    public bool AnwesenheitGeprueft { get; set; }
+    public string Geaendert { get; set; } = "";
+}
+
 /// <summary>Vertretungsarten (Spalte "Art" im Vertretungsfenster).</summary>
 public enum VertretungsArt
 {

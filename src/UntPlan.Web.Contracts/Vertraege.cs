@@ -20,6 +20,12 @@ public static class UntPlanWebSchema
         public static string Paket(string schule) => $"api/v1/schulen/{Uri.EscapeDataString(schule)}/untplanweb";
         public static string Rueckmeldungen(string schule) => $"api/v1/schulen/{Uri.EscapeDataString(schule)}/rueckmeldungen";
         public static string Quittieren(string schule) => $"api/v1/schulen/{Uri.EscapeDataString(schule)}/rueckmeldungen/quittieren";
+        /// <summary>Im Klassenbuch erfasste Schüler-Fehlzeiten ab einem Datum (Import „Studenten*“).</summary>
+        public static string Fehlzeiten(string schule, string ab, string? bis = null) =>
+            $"api/v1/schulen/{Uri.EscapeDataString(schule)}/fehlzeiten?ab={Uri.EscapeDataString(ab)}" + (bis is null ? "" : $"&bis={Uri.EscapeDataString(bis)}");
+        /// <summary>Klassenbuch je Unterricht (Lehrstoff, Hausaufgaben) ab einem Datum (Import „Kurse“).</summary>
+        public static string Klassenbuch(string schule, string ab, string? bis = null) =>
+            $"api/v1/schulen/{Uri.EscapeDataString(schule)}/klassenbuch?ab={Uri.EscapeDataString(ab)}" + (bis is null ? "" : $"&bis={Uri.EscapeDataString(bis)}");
     }
 
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -270,3 +276,55 @@ public static class WebRueckmeldungsTypen
 }
 
 public sealed record WebAntwort(bool Ok, int Revision, string? Meldung);
+
+/// <summary>
+/// Fehlzeit einer Schülerin/eines Schülers in einer Stunde, im Klassenbuch von UntPlanWeb erfasst (Import „Studenten*“).
+/// Datum, Stunde und SchuelerId sind auf dem Server eindeutig und dienen dem Abgleich (kein Doppelimport); die Id kann sich
+/// ändern, wenn eine Lehrkraft die Anwesenheit erneut speichert.
+/// </summary>
+public sealed record WebFehlzeit
+{
+    public int Id { get; init; }
+    public string Datum { get; init; } = "";
+    public int Stunde { get; init; }
+    /// <summary>Unterrichtsnummer (0 = unbekannt).</summary>
+    public int Unterricht { get; init; }
+    /// <summary>Id der Schülerin/des Schülers aus UntPlan (WebSchueler.Id).</summary>
+    public int SchuelerId { get; init; }
+    /// <summary>Name, Vorname (zur Anzeige, falls die Id in UntPlan nicht mehr existiert).</summary>
+    public string Schueler { get; init; } = "";
+    public string Klasse { get; init; } = "";
+    public string Fach { get; init; } = "";
+    /// <summary>fehlt, verspaetet</summary>
+    public string Art { get; init; } = "fehlt";
+    /// <summary>Verspätung in Minuten.</summary>
+    public int Minuten { get; init; }
+    /// <summary>offen, entschuldigt, unentschuldigt</summary>
+    public string Status { get; init; } = "offen";
+    public string Bemerkung { get; init; } = "";
+    /// <summary>Erfassende Lehrkraft (Kürzel).</summary>
+    public string Lehrer { get; init; } = "";
+}
+
+/// <summary>
+/// Klassenbucheintrag einer gehaltenen Stunde aus UntPlanWeb: Lehrstoff (Unterrichtsinhalt) und Hausaufgabe (Import „Kurse“).
+/// Interne Notizen der Lehrkräfte werden nicht übertragen.
+/// </summary>
+public sealed record WebKlassenbucheintrag
+{
+    public int Id { get; init; }
+    public string Datum { get; init; } = "";
+    public int Stunde { get; init; }
+    public int Unterricht { get; init; }
+    public List<string> Klassen { get; init; } = new();
+    public string Fach { get; init; } = "";
+    public string Lehrer { get; init; } = "";
+    public string Lehrstoff { get; init; } = "";
+    public string Hausaufgabe { get; init; } = "";
+    /// <summary>Fälligkeit der Hausaufgabe (yyyy-MM-dd) oder null.</summary>
+    public string? Faellig { get; init; }
+    /// <summary>Zeitpunkt der Anwesenheitsprüfung oder null.</summary>
+    public string? Anwesenheit { get; init; }
+    /// <summary>Letzte Änderung (yyyy-MM-dd HH:mm).</summary>
+    public string Geaendert { get; init; } = "";
+}
