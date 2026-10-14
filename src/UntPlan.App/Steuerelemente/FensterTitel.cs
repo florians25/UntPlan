@@ -27,7 +27,10 @@ public sealed class FensterTitel : Control
 
     private Rectangle Knopf(int i) => new(Width - (3 - i) * KnopfBreite, 0, KnopfBreite, Height);
 
-    public static Color Farbe(bool aktiv) => aktiv ? Ui.Titel : Mischen(Ui.Titel, Color.White, 0.45f);
+    /// <summary>Titelfarbe; im Vertretungsmodus wie Untis hellgrau mit dunkler Schrift.</summary>
+    public static Color Farbe(bool aktiv) => Ui.Vertretungsmodus
+        ? (aktiv ? Color.FromArgb(212, 212, 212) : Color.FromArgb(232, 232, 232))
+        : aktiv ? Ui.Titel : Mischen(Ui.Titel, Color.White, 0.45f);
 
     private static Color Mischen(Color a, Color b, float t) =>
         Color.FromArgb((int)(a.R + (b.R - a.R) * t), (int)(a.G + (b.G - a.G) * t), (int)(a.B + (b.B - a.B) * t));
@@ -36,7 +39,15 @@ public sealed class FensterTitel : Control
     {
         var g = e.Graphics;
         var farbe = Farbe(Aktiv);
-        using (var b = new SolidBrush(farbe)) g.FillRectangle(b, ClientRectangle);
+        if (Ui.Vertretungsmodus)
+        {
+            // leichter Verlauf wie die Fenstertitel in Untis
+            using var vb = new System.Drawing.Drawing2D.LinearGradientBrush(ClientRectangle, Mischen(farbe, Color.White, 0.55f), farbe, 90f);
+            g.FillRectangle(vb, ClientRectangle);
+            using var rand = new Pen(Color.FromArgb(185, 185, 185));
+            g.DrawLine(rand, 0, Height - 1, Width, Height - 1);
+        }
+        else using (var b = new SolidBrush(farbe)) g.FillRectangle(b, ClientRectangle);
         var text = Ui.Textfarbe(farbe);
         var x = 6;
         if (_form.Icon != null)

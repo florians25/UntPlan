@@ -12,6 +12,24 @@ namespace UntPlan.Core.Tests;
 public class VertretungsfensterTests
 {
     [Fact]
+    public void OhneLehrkraftSetztTextNurWennKeinerDaIst()
+    {
+        var d = new Schuldatei();
+        var v = new Vertretung { Id = 1, Art = VertretungsArt.Vertretung };
+        Vertretungen.OhneLehrer(v);
+        Assert.Equal(Vertretungen.OhneLehrerText, v.Text);
+        // anderer Vertreter: der automatische Text verschwindet wieder
+        Vertretungen.VertreterSetzen(d, v, null);
+        Assert.Equal("", v.Text);
+        // eigener Text bleibt erhalten
+        var w = new Vertretung { Id = 2, Art = VertretungsArt.Vertretung, Text = "Aufgaben im Raum" };
+        Vertretungen.OhneLehrer(w);
+        Assert.Equal("Aufgaben im Raum", w.Text);
+        Vertretungen.EntfallUmschalten(d, w);
+        Assert.Equal("Aufgaben im Raum", w.Text);
+    }
+
+    [Fact]
     public void BearbeiteteZeileBleibtBisZumZeilenwechsel()
     {
         var b = new ZeilenBehalten();

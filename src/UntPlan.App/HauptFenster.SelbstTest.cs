@@ -53,10 +53,10 @@ public sealed partial class HauptFenster
                 aktion();
                 Warten(900);
                 Foto(Path.Combine(ordner, name + ".png"));
-                // Tabellenzellen dürfen beim Überfahren mit der Maus ihr Aussehen nicht ändern
+                // jede Tabellenzelle wird beim Überfahren mit der Maus hervorgehoben (Text-, Auswahl- und Kontrollkästchen-Zellen)
                 Steuerelemente.Auswahlbreite.AlleErfassen();
                 var hover = Application.OpenForms.Cast<Form>().Where(f => f.Visible && f != this).SelectMany(HoverPruefen).ToList();
-                if (hover.Count > 0) log.Add($"FEHLER {name}: Zellen reagieren auf Hover: {string.Join(", ", hover)}");
+                if (hover.Count > 0) log.Add($"FEHLER {name}: Zellen ohne Hover-Hervorhebung: {string.Join(", ", hover)}");
                 if (Ui.FehlerProtokoll is { Count: > 0 } fp)
                 {
                     log.Add($"FEHLER {name}: {string.Join(Environment.NewLine, fp)}");
@@ -307,7 +307,7 @@ public sealed partial class HauptFenster
         Application.Exit();
     }
 
-    /// <summary>Simuliert das Überfahren jeder sichtbaren Zelle (eine nicht aktuelle Zeile und die Kopfzeile) und meldet Zellen, deren Aussehen sich dabei ändert.</summary>
+    /// <summary>Simuliert das Überfahren jeder sichtbaren Zelle einer nicht aktuellen Zeile und meldet Zellen, die dabei nicht hervorgehoben werden.</summary>
     internal static List<string> HoverPruefen(Control wurzel)
     {
         var res = new List<string>();
@@ -332,7 +332,8 @@ public sealed partial class HauptFenster
                         if (a.GetPixel(x, y) != b.GetPixel(x, y)) return false;
                 return true;
             }
-            foreach (var z in new[] { -1, g.Rows.Count > 0 ? zeile : -2 }.Where(z => z >= -1))
+            if (g.Rows.Count == 0 || zeile >= g.Rows.Count) continue;
+            foreach (var z in new[] { zeile })
                 foreach (var c in g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible))
                 {
                     var r = g.GetCellDisplayRectangle(c.Index, z, true);
@@ -345,7 +346,7 @@ public sealed partial class HauptFenster
                         bewegen.Invoke(g, new object[] { new MouseEventArgs(MouseButtons.None, 0, r.X + r.Width / 2, r.Y + r.Height / 2, 0) });
                         g.Update();
                         using var waehrend = Ausschnitt(r);
-                        if (!Gleich(vorher, waehrend)) res.Add($"{wurzel.GetType().Name}/{g.Name}/{c.Name}{(z < 0 ? " (Kopf)" : "")}");
+                        if (Gleich(vorher, waehrend)) res.Add($"{wurzel.GetType().Name}/{g.Name}/{c.Name}");
                     }
                     finally { verlassen.Invoke(g, new object[] { EventArgs.Empty }); }
                 }

@@ -116,12 +116,17 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _offen.Padding = _kollisionen.Padding = new Padding(2, 4, 6, 0);
         filter.Controls.Add(Gruppe("Ansicht einschränken auf …", _offen, _kollisionen));
 
-        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 30, Padding = new Padding(4, 3, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        unten.Controls.Add(new Label { Text = "Vtr-Nr.:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
-        unten.Controls.Add(_nr);
-        unten.Controls.Add(new Label { Text = "   Ansicht:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
-        unten.Controls.Add(_ansicht);
-        unten.Controls.Add(_status);
+        // Fußleiste wie Untis: Vtr-Nr. links, Ansicht ganz rechts (keine Zeilen-/Offen-Zählung)
+        var unten = new Panel { Dock = DockStyle.Bottom, Height = 30, BackColor = Ui.Kopf };
+        var links = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(4, 3, 0, 0), WrapContents = false, BackColor = Ui.Kopf };
+        links.Controls.Add(new Label { Text = "Vtr-Nr.:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+        links.Controls.Add(_nr);
+        links.Controls.Add(_status);
+        var rechts = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 3, 6, 0), WrapContents = false, BackColor = Ui.Kopf };
+        rechts.Controls.Add(new Label { Text = "Ansicht:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+        rechts.Controls.Add(_ansicht);
+        unten.Controls.Add(links);
+        unten.Controls.Add(rechts);
 
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -539,8 +544,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var behalten = _behalten.Enthaelt(v.Id);
         if (_offen.Checked && !v.OffenOderRaumOffen && !behalten) return false;
         if (_kollisionen.Checked && KollisionEinzeln(v) is null && !behalten) return false;
-        // Unterricht, der als Veranstaltung stattfindet, erscheint nur in der Zeile der Veranstaltung
-        if (v.InVeranstaltung) return false;
+        // wie Untis: Veranstaltungen selbst stehen nicht in der Vertretungsliste, nur die zugehörigen Freisetzungen/Entfälle
+        if (v.Art == VertretungsArt.Veranstaltung) return false;
         if (!ArtSichtbar(v.Art)) return false;
         // Bereitschaften und Unterricht, der nicht vertreten wird, stehen nicht in der Vertretungsliste
         if (Vertretungen.NichtInListe(D, v) && !behalten) return false;
@@ -606,11 +611,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         SortGlyphen();
         if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
-        var alle = Vertretungen.ImZeitraum(D, Von, Bis);
-        var offen = alle.Where(v => v.OffenOderRaumOffen).Select(v => v.Art == VertretungsArt.Veranstaltung ? $"VA{v.VeranstaltungId}/{v.Datum}" : $"#{v.Id}").Distinct().Count();
-        var koll = alle.Count(v => Kollision(v) != null);
-        _status.Text = $"{_g.Rows.Count} Zeilen · {offen} offen · {koll} Kollisionen" + (_behalten.Aktiv && FilterAktiv ? " · bearbeitete Zeile bleibt bis zum Zeilenwechsel sichtbar" : "");
-        _status.ForeColor = offen > 0 || koll > 0 ? Color.Firebrick : Color.DarkGreen;
+        _status.Text = "";
         // andere Fenster (Vorschlag, Stundenpläne) nur benachrichtigen, wenn sich die Auswahl tatsächlich geändert hat
         if (AuswahlSignatur() != vorher) Gewaehlt();
     }

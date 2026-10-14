@@ -403,6 +403,15 @@ public static class Vertretungen
     // Bearbeitung
     // ----------------------------------------------------------------------------------------------
 
+    /// <summary>Vertretungstext, der bei „+++“ (Vertretung ohne Lehrkraft) eingesetzt wird, wenn noch kein anderer Text da ist.</summary>
+    public const string OhneLehrerText = "Vertr. o. Lehrkraft";
+
+    /// <summary>Der automatisch eingesetzte Text gehört nur zu „+++“: wird daraus etwas anderes, verschwindet er wieder.</summary>
+    private static void OhneLehrerTextEntfernen(Vertretung v)
+    {
+        if (v.Art == VertretungsArt.VertretungOhneLehrer && v.Text == OhneLehrerText) v.Text = "";
+    }
+
     private static void Markieren(Vertretung v, string benutzer)
     {
         v.Bearbeitet = true;
@@ -428,6 +437,7 @@ public static class Vertretungen
     /// </summary>
     public static void VertreterSetzen(Schuldatei d, Vertretung v, int? lehrerId, bool mitbetreuung = false, string benutzer = "")
     {
+        OhneLehrerTextEntfernen(v);
         Markieren(v, benutzer);
         if (lehrerId is null)
         {
@@ -473,6 +483,7 @@ public static class Vertretungen
     /// <summary>Schaltfläche Entfall: offene Vertretung → Entfall, Entfall → wieder offene Vertretung.</summary>
     public static void EntfallUmschalten(Schuldatei d, Vertretung v, string benutzer = "")
     {
+        OhneLehrerTextEntfernen(v);
         Markieren(v, benutzer);
         if (v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt)
         {
@@ -495,6 +506,7 @@ public static class Vertretungen
         v.Art = VertretungsArt.VertretungOhneLehrer;
         v.VertreterId = null;
         v.Mehrarbeit = false;
+        if (string.IsNullOrWhiteSpace(v.Text)) v.Text = OhneLehrerText;
     }
 
     /// <summary>

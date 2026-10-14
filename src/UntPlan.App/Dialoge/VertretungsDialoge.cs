@@ -124,7 +124,10 @@ public static class SondereinsatzDialog
         g.Columns.Add(Steuerelemente.SuchKombi.Spalte("R", "Raum", 80, Stammdaten.Sortiert(d.Raeume).Select(x => x.Kurzname)));
         g.Columns.Add(new DataGridViewTextBoxColumn { Name = "G", HeaderText = "Schülergruppe", Width = 95 });
         g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
-        Steuerelemente.SuchKombi.Aktivieren(g);
+        // Auswahllisten mit Langnamen wie im Veranstaltungsfenster
+        Steuerelemente.SuchKombi.Aktivieren(g, (zelle, text) => (zelle.OwningColumn.Name == "F"
+                ? (Element?)d.Faecher.FirstOrDefault(x => x.Kurzname == text) : d.Raeume.FirstOrDefault(x => x.Kurzname == text)) is { } el
+            ? new Steuerelemente.ListenStil(Color.White, Color.Black, el.Langname) : null);
         f.Controls.Add(g);
 
         // Wie Untis: Die erste Zeile eines Sondereinsatzes gilt für den ganzen Stundenbereich; darunter stehen die Stunden
@@ -234,7 +237,39 @@ public static class SondereinsatzDialog
         }
         List<int> Ids(ElementTyp typ, object? v) => (v?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(k => d.AlleElemente(typ).FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList();
-        bKl.Click += (_, _) =>
+        // Lehrer und Klassen: Mehrfachauswahl mit Häkchen und Langnamen über den Pfeil in der Zelle (Doppelklick oder Alt+↓)
+        void MehrfachZeigen(int zeile, int spalte)
+        {
+            var name = g.Columns[spalte].Name;
+            var typ = name == "L" ? ElementTyp.Lehrer : ElementTyp.Klasse;
+            var eintraege = Stammdaten.Sortiert(d, typ).Where(x => !x.Ignorieren)
+                .Select(x => new Steuerelemente.MehrfachAuswahl.Eintrag(x.Kurzname, x is Lehrer l ? l.VollerName : x.Langname)).ToList();
+            var aktuell = (g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            Steuerelemente.MehrfachAuswahl.Zeigen(g, zeile, spalte, eintraege, aktuell, true, gewaehlt =>
+            {
+                if (f.IsDisposed || zeile >= g.Rows.Count) return;
+                if (g.Rows[zeile].IsNewRow) zeile = Zeile();
+                g.Rows[zeile].Cells[name].Value = string.Join(",", gewaehlt);
+                Uebertragen(zeile, name);
+            });
+        }
+        bool Mehrfach(int spalte) => spalte >= 0 && g.Columns[spalte].Name is "L" or "K";
+        g.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || !Mehrfach(e.ColumnIndex) || g.CurrentCell is not { } c || c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex || g.IsCurrentCellInEditMode) return;
+            Steuerelemente.MehrfachAuswahl.PfeilZeichnen(e);
+        };
+        g.CellMouseClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.Button != MouseButtons.Left || !Mehrfach(e.ColumnIndex)) return;
+            if (Steuerelemente.MehrfachAuswahl.AufPfeil(g, e)) MehrfachZeigen(e.RowIndex, e.ColumnIndex);
+        };
+        g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && Mehrfach(e.ColumnIndex)) MehrfachZeigen(e.RowIndex, e.ColumnIndex); };
+        g.KeyDown += (_, e) =>
+        {
+            if (e.Alt && e.KeyCode == Keys.Down && g.CurrentCell is { } c && Mehrfach(c.ColumnIndex)) { e.Handled = true; MehrfachZeigen(c.RowIndex, c.ColumnIndex); }
+        };
+        bKl.Click += (_, _) =>        bKl.Click += (_, _) =>
         {
             var i = Zeile();
             var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassen des Sondereinsatzes", Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value));

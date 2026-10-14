@@ -31,7 +31,7 @@ public static class Auswahlbreite
         c.DisplayStyleForCurrentCellOnly = false;
     }
 
-    /// <summary>Kontrollkästchen in Tabellen immer im Normalzustand zeichnen – wie Untis ohne Hervorhebung beim Überfahren.</summary>
+    /// <summary>Kontrollkästchen in Tabellen im Normalzustand zeichnen (die Hervorhebung beim Überfahren übernimmt <see cref="ZellFarben"/> für alle Zellen gleich).</summary>
     private static void KontrollkaestchenOhneHover(object? sender, DataGridViewCellPaintingEventArgs e)
     {
         if (e.Handled || e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || sender is not DataGridView g ||
@@ -52,6 +52,45 @@ public static class Auswahlbreite
         e.Handled = true;
     }
 
+    /// <summary>Zelle unter der Maus je Tabelle.</summary>
+    private static readonly ConditionalWeakTable<DataGridView, StrongBox<Point>> HoverZelle = new();
+
+    private static Point Hover(DataGridView g) => HoverZelle.TryGetValue(g, out var b) ? b.Value : new Point(-1, -1);
+
+    private static void HoverSetzen(DataGridView g, int spalte, int zeile)
+    {
+        var alt = Hover(g);
+        if (alt.X == spalte && alt.Y == zeile) return;
+        HoverZelle.AddOrUpdate(g, new StrongBox<Point>(new Point(spalte, zeile)));
+        if (alt.X >= 0 && alt.Y >= 0 && alt.X < g.ColumnCount && alt.Y < g.RowCount) g.InvalidateCell(alt.X, alt.Y);
+        if (spalte >= 0 && zeile >= 0) g.InvalidateCell(spalte, zeile);
+    }
+
+    /// <summary>
+    /// Zellfarben: die Zelle unter der Maus wird hervorgehoben; im Vertretungsmodus wie Untis nicht bearbeitbare Felder grau,
+    /// bearbeitbare hell und die aktuelle Zelle orange. Eigene Farben der Fenster (Vertretungsarten, Kollision …) bleiben erhalten.
+    /// </summary>
+    private static void ZellFarben(object? sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (sender is not DataGridView g || e.RowIndex < 0 || e.ColumnIndex < 0 || e.CellStyle is null) return;
+        var zeile = g.Rows[e.RowIndex];
+        var standard = e.CellStyle.BackColor == g.DefaultCellStyle.BackColor || e.CellStyle.BackColor == g.AlternatingRowsDefaultCellStyle.BackColor ||
+                       e.CellStyle.BackColor == g.RowsDefaultCellStyle.BackColor || e.CellStyle.BackColor.IsEmpty;
+        if (Ui.Vertretungsmodus && !g.ReadOnly)
+        {
+            if (standard && zeile.Cells[e.ColumnIndex].ReadOnly) e.CellStyle.BackColor = Ui.ZelleGesperrt;
+            if (g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) e.CellStyle.SelectionBackColor = Ui.ZeileAktiv;
+        }
+        var h = Hover(g);
+        if (h.X == e.ColumnIndex && h.Y == e.RowIndex)
+        {
+            e.CellStyle.BackColor = standard || e.CellStyle.BackColor == Ui.ZelleGesperrt ? Ui.ZelleHover : Mischen(e.CellStyle.BackColor, Ui.ZelleHover);
+            e.CellStyle.SelectionBackColor = Mischen(e.CellStyle.SelectionBackColor.IsEmpty ? g.DefaultCellStyle.SelectionBackColor : e.CellStyle.SelectionBackColor, Ui.ZelleHover);
+        }
+    }
+
+    private static Color Mischen(Color a, Color b) => Color.FromArgb((a.R + b.R) / 2, (a.G + b.G) / 2, (a.B + b.B) / 2);
+
     private static void Erfassen(Control c)
     {
         if (Erfasst.TryGetValue(c, out _)) return;
@@ -67,6 +106,9 @@ public static class Auswahlbreite
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
                 g.CellPainting += KontrollkaestchenOhneHover;
+                g.CellFormatting += ZellFarben;
+                g.CellMouseEnter += (_, e) => HoverSetzen(g, e.ColumnIndex, e.RowIndex);
+                g.MouseLeave += (_, _) => HoverSetzen(g, -1, -1);
                 break;
             case ToolStrip ts:
                 foreach (var item in ts.Items.OfType<ToolStripComboBox>()) Erfassen(item.ComboBox);

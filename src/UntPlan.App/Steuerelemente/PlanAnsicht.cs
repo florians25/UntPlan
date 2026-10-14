@@ -390,8 +390,8 @@ public sealed class PlanAnsicht : Control
         g.FillRectangle(Brushes.White, bounds);
         var zr = D.Zeitraster;
         var klein = Format.Klein;
-        using var linie = new Pen(klein ? Color.FromArgb(70, 70, 70) : Color.FromArgb(160, 170, 185));
-        using var duenn = new Pen(klein ? Color.FromArgb(150, 150, 150) : Color.FromArgb(210, 216, 226));
+        using var linie = new Pen(klein ? Color.FromArgb(150, 150, 150) : Color.FromArgb(160, 170, 185));
+        using var duenn = new Pen(klein ? Color.FromArgb(200, 200, 200) : Color.FromArgb(210, 216, 226));
         using var kopfSchrift = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 1.9f)) : Ui.SchriftFett.Size, klein ? FontStyle.Regular : FontStyle.Bold);
         var heuteDatum = DateOnly.FromDateTime(DateTime.Today);
         var heuteTag = Kalender.IstUnterrichtstag(D, heuteDatum) ? Kalender.TagIndex(D, heuteDatum) : -1;
@@ -517,8 +517,8 @@ public sealed class PlanAnsicht : Control
                 var r = Zelle(bounds, t, start);
                 var n = Math.Max(1, Math.Min(_ziehLaenge, Stunden - start + 1));
                 var unten = Zelle(bounds, t, start + n - 1).Bottom;
-                using var p = new Pen(Color.Black, 2) { DashStyle = DashStyle.Dash };
-                g.DrawRectangle(p, r.X + 1, r.Y + 1, r.Width - 2, unten - r.Y - 2);
+                using var p = new Pen(Color.Black, Rahmen) { DashStyle = DashStyle.Dash };
+                g.DrawRectangle(p, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, unten - r.Y - 2);
             }
         }
         // Pausen als eigene schmale Zeilen mit Bezeichnung über die ganze Breite
@@ -560,10 +560,10 @@ public sealed class PlanAnsicht : Control
         var b = Bereich(hv.Tag, zielStart);
         var alt = g.SmoothingMode;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        using (var rot = new Pen(Color.FromArgb(230, 0, 0), 3f))
+        using (var rot = new Pen(Color.FromArgb(230, 0, 0), Rahmen))
         {
-            g.DrawRectangle(rot, a.X + 1.5f, a.Y + 1.5f, a.Width - 3, a.Height - 3);
-            g.DrawRectangle(rot, b.X + 1.5f, b.Y + 1.5f, b.Width - 3, b.Height - 3);
+            g.DrawRectangle(rot, a.X + 0.5f, a.Y + 0.5f, a.Width - 2, a.Height - 2);
+            g.DrawRectangle(rot, b.X + 0.5f, b.Y + 0.5f, b.Width - 2, b.Height - 2);
         }
         TauschPfeil(g, a, b);
         g.SmoothingMode = alt;
@@ -664,20 +664,26 @@ public sealed class PlanAnsicht : Control
         TextRenderer.DrawText(g, text, f, Rectangle.Round(r), farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
     }
 
-    /// <summary>Rahmen der gewählten Stunde: kräftig dunkelblau mit gelber Strichelung (gut sichtbar auf jeder Fachfarbe).</summary>
-    private static void AuswahlRahmen(Graphics g, RectangleF r)
+    /// <summary>Linienstärke von Markierungen: dünn wie Untis, im kleinen Plan nur ein Pixel.</summary>
+    private float Rahmen => Format.Klein ? 1f : 1.5f;
+
+    /// <summary>Rahmen der gewählten Stunde: dünn dunkelblau (gut sichtbar auf jeder Fachfarbe).</summary>
+    private void AuswahlRahmen(Graphics g, RectangleF r)
     {
-        using var blau = new Pen(Color.FromArgb(20, 40, 160), 3f);
-        using var gelb = new Pen(Color.FromArgb(255, 220, 0), 3f) { DashPattern = new[] { 1.5f, 1.5f } };
-        g.DrawRectangle(blau, r.X + 1.5f, r.Y + 1.5f, r.Width - 3, r.Height - 3);
-        g.DrawRectangle(gelb, r.X + 1.5f, r.Y + 1.5f, r.Width - 3, r.Height - 3);
+        using var blau = new Pen(Color.FromArgb(20, 40, 160), Rahmen);
+        g.DrawRectangle(blau, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
+        if (!Format.Klein)
+        {
+            using var hell = new Pen(Color.FromArgb(160, Color.White), 1f);
+            g.DrawRectangle(hell, r.X + 2f, r.Y + 2f, r.Width - 5, r.Height - 5);
+        }
     }
 
     /// <summary>Verknüpfte Markierung (derselbe Unterricht, in einem anderen Fenster gewählt): gestrichelter orangefarbener Rahmen.</summary>
-    private static void VerknuepfungsRahmen(Graphics g, RectangleF r)
+    private void VerknuepfungsRahmen(Graphics g, RectangleF r)
     {
-        using var pen = new Pen(Color.FromArgb(255, 120, 0), 2f) { DashStyle = DashStyle.Dash };
-        g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+        using var pen = new Pen(Color.FromArgb(255, 120, 0), Rahmen) { DashStyle = DashStyle.Dash };
+        g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
     }
 
     private void StundeZeichnen(Graphics g, RectangleF r, Planstunde p, bool druck, bool kollision, List<Planstunde>? feld = null)
@@ -697,7 +703,7 @@ public sealed class PlanAnsicht : Control
             var hg = Farbe(u, zi);
             using (var b = new SolidBrush(hg)) g.FillRectangle(b, r);
             KleinZeichnen(g, r, Praefix(u, p.Fixiert) + Kurz(ElementTyp.Fach, u.Zeilen.ElementAtOrDefault(zi)?.FachId), Ui.Textfarbe(hg));
-            if (kollision) using (var pen = new Pen(Color.Red, 2)) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
+            if (kollision) using (var pen = new Pen(Color.Red, Rahmen)) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
             AuswahlZeichnen(g, r, p, feld, druck);
             return;
         }
@@ -776,7 +782,7 @@ public sealed class PlanAnsicht : Control
             }
         }
         if (kollision)
-            using (var pen = new Pen(Color.Red, 2)) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
+            using (var pen = new Pen(Color.Red, Rahmen)) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
         AuswahlZeichnen(g, r, p, feld, druck);
     }
 
@@ -786,7 +792,7 @@ public sealed class PlanAnsicht : Control
         if (druck) return;
         if (Ausgewaehlt != null && feld.Contains(Ausgewaehlt)) AuswahlRahmen(g, r);
         else if (feld.Any(Mehrfach.Contains))
-            using (var pen = new Pen(Color.FromArgb(255, 140, 0), 2.5f) { DashStyle = DashStyle.Dash }) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+            using (var pen = new Pen(Color.FromArgb(255, 140, 0), Rahmen) { DashStyle = DashStyle.Dash }) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
         else if (MarkierterUnterricht == p.UnterrichtId) VerknuepfungsRahmen(g, r);
     }
 
@@ -845,7 +851,7 @@ public sealed class PlanAnsicht : Control
             var kurz = e.Status == TagesStatus.Offen && Typ == ElementTyp.Lehrer ? "???" : Praefix(e.Unterricht, fixiert) + Kurz(ElementTyp.Fach, e.FachId ?? e.Regel?.FachId);
             KleinZeichnen(g, r, kurz, textfarbe, entfall);
             if (e.Status is TagesStatus.Offen or TagesStatus.Zusaetzlich)
-                using (var pen = new Pen(Color.Red, 1.5f) { DashStyle = e.Status == TagesStatus.Offen ? DashStyle.Dash : DashStyle.Solid }) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+                using (var pen = new Pen(Color.Red, Rahmen) { DashStyle = e.Status == TagesStatus.Offen ? DashStyle.Dash : DashStyle.Solid }) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
             if (!druck && gewaehlt) AuswahlRahmen(g, r);
             else if (!druck && MarkierterUnterricht is int mu && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == mu) VerknuepfungsRahmen(g, r);
             return;
@@ -890,9 +896,9 @@ public sealed class PlanAnsicht : Control
             TextZeilen(g, r, zeilenTexte, textfarbe);
         }
         if (e.Status == TagesStatus.Offen)
-            using (var pen = new Pen(Color.Red, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+            using (var pen = new Pen(Color.Red, Rahmen) { DashStyle = DashStyle.Dash }) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
         if (e.Status == TagesStatus.Zusaetzlich)
-            using (var pen = new Pen(Color.Red, 1.5f)) g.DrawRectangle(pen, r.X + 1, r.Y + 1, r.Width - 3, r.Height - 3);
+            using (var pen = new Pen(Color.Red, Rahmen)) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
         if (!druck && gewaehlt) AuswahlRahmen(g, r);
         else if (!druck && MarkierterUnterricht is int mu && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == mu) VerknuepfungsRahmen(g, r);
     }
