@@ -21,6 +21,8 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _lehrer = new() { Dock = DockStyle.Fill };
     private bool _laedt;
+    // eigene Merkvariable: TabControl.SelectedIndex liefert vor dem Erzeugen des Handles -1
+    private bool _gangSicht = true;
 
     public PausenaufsichtFenster()
     {
@@ -31,7 +33,13 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         Positionieren();
         _tabs.TabPages.Add("Gang");
         _tabs.TabPages.Add("Lehrer");
-        _tabs.SelectedIndexChanged += (_, _) => { ElementeFuellen(); Neuaufbau(); };
+        _tabs.SelectedIndexChanged += (_, _) =>
+        {
+            if (_tabs.SelectedIndex < 0 || (_tabs.SelectedIndex == 0) == _gangSicht) return;
+            _gangSicht = _tabs.SelectedIndex == 0;
+            ElementeFuellen();
+            Neuaufbau();
+        };
         var ts = Werkzeugleiste();
         ts.Items.Add(_element);
         _element.SelectedIndexChanged += (_, _) => { if (!_laedt) Neuaufbau(); };
@@ -84,7 +92,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         public override string ToString() => Text;
     }
 
-    private bool GangSicht => _tabs.SelectedIndex == 0;
+    private bool GangSicht => _gangSicht;
     private int? ElementId => (_element.SelectedItem as Eintrag)?.Id;
     private List<Pause> Pausen => Pausenaufsichten.AufsichtsPausen(D).ToList();
 

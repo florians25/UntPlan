@@ -69,7 +69,7 @@ public sealed partial class HauptFenster
 
         g = Gruppe(vp, "Planung");
         g.Eintraege.Add(E("Planungs-dialog", "stundenplan", PlanungsdialogOeffnen, true, hinweis: "Klassen- und Lehrerplan tagesaktuell nebeneinander (Drag & Drop: Verlegen, Tauschen)"));
-        g.Eintraege.Add(E("Vormer-kungen", "vormerkung", () => VertretungsFensterOeffnen("vorm"), true));
+        g.Eintraege.Add(E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm"), true));
         g.Eintraege.Add(E("Pausen-aufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause"), true));
 
         g = Gruppe(vp, "Stundenpläne");

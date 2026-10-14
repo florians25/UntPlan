@@ -19,6 +19,7 @@ In der Anwendung erreichen Sie die passende Hilfeseite jederzeit mit **F1**.
 10. [Import, Export und WebPortal](#10-import-export-und-webportal)
 11. [Tastenkürzel](#11-tastenkürzel)
 12. [MultiUser](#12-multiuser)
+13. [Bedienung: Tabellen, Suche, Formate](#13-bedienung-tabellen-suche-formate)
 
 ---
 
@@ -43,6 +44,21 @@ In der Anwendung erreichen Sie die passende Hilfeseite jederzeit mit **F1**.
 
 Eine Schuldatei (`*.up`) enthält alle Daten eines Schuljahres. Beim Speichern legt UntPlan automatisch eine Sicherung `*.bak` an.
 Jede Änderung lässt sich mit **Strg+Z** rückgängig machen (50 Schritte).
+
+### Stundenplanung und Vertretungsplanung
+
+UntPlan arbeitet in zwei Modi, die Sie unten im Menüband (*Modus*) oder mit **Strg+M** umschalten:
+
+| Modus | Farbe | Inhalt |
+|---|---|---|
+| Stundenplanung | blau | Stammdaten, Unterricht, Planung, Optimierung, Module |
+| Vertretungsplanung | grün | Kalender, Absenzen, Vertretungen, Vorschlag, Veranstaltungen, Klausuren, Pausenaufsichten, Statistik |
+
+Jeder Modus merkt sich seine eigene Fensteranordnung. Titelleisten, Menüband und Fenster nehmen die Farbe des Modus an.
+Unter Windows 11 gilt das auch für die Titelleiste des Hauptfensters.
+
+**Auswahl wirkt auf alle Fenster:** Wählen Sie eine Vertretung, eine Stunde im Unterrichtsfenster oder eine Abwesenheit, zeigen alle geöffneten Stundenpläne mit eingeschalteter Synchronisation den zugehörigen Lehrer-, Klassen- bzw. Raumplan.
+Die betroffene Stunde ist gestrichelt markiert.
 
 ---
 
@@ -276,7 +292,10 @@ In der **Übersicht** (Raumplan quer) verlegen Sie Räume per Drag & Drop.
 *Vertretungsplanung → Abwesenheiten*: Geben Sie Lehrer-, Klassen- und Raumabwesenheiten mit Datum, Stunde von/bis, Grund und Text ein.
 
 - **Klassenabwesenheit:** Begleitlehrer gelten ebenfalls als abwesend. Der Unterricht der Klasse wird zur **Freisetzung**; die freigesetzten Lehrer stehen für Vertretungen zur Verfügung (Minusstunden).
-- Mit dem Speichern erzeugt UntPlan sofort die **offenen Vertretungen** (rot `???`).
+- Mit dem Speichern erzeugt UntPlan sofort die **offenen Vertretungen** (rot `???`, nicht fett).
+- **Direkteingabe:** Am Ende der Liste steht immer eine leere Zeile *neu*. Tippen Sie dort Lehrer, Datum und Stunden ein, ohne einen Dialog zu öffnen. Das gilt ebenso für **Veranstaltungen**, **Klausuren** und **Tagestexte**.
+- **Hinweis bei geplanten Vertretern:** Wird ein Lehrer abwesend, der bereits als Vertreter eingeteilt ist, meldet UntPlan die betroffenen Vertretungen. Diese werden wieder offen.
+- Mit **Teilen**, **Kopieren** und **Zusammenfassen** bearbeiten Sie mehrere Abwesenheiten auf einmal.
 
 ### Vertretungsfenster
 
@@ -296,6 +315,13 @@ Arbeitsablauf:
 4. **Automatische Vertretung des Tages** plant alle offenen Vertretungen nach dem Vorschlag.
 
 Die Spalten **Vertreter**, **Fach**, **Raum** und **Text** können Sie direkt überschreiben.
+In der Auswahlliste *Vertreter* sind belegte Lehrer rot und Lehrer mit Bereitschaft grün; Sie können in der Liste suchen, indem Sie tippen.
+
+- **Zusammenhängende Stunden** (Doppel- und Blockstunden) erscheinen im Tagesplan als ein Block.
+- **Drag & Drop im Tagesplan:** Beim Ziehen fragt UntPlan, ob nur die Stunde oder der ganze Block verlegt werden soll und wie mit Kollisionen umzugehen ist (Tauschen, Verdrängen, Kollision zulassen).
+- **Ansichten:** Klasse, Lehrer, Druck und Pausenaufsichten.
+- **Filter:** *Offene Vertretungen*, *Kollisionen*.
+- **Tasten:** `+` setzt *Vertretung ohne Lehrkraft*, `-` setzt *Entfall*.
 
 - **Bereitschaft:** Lehrer mit Bereitschaftsstunde stehen grün ganz oben; ihre Vertretung ist keine Mehrarbeit.
 - **statt-Vertretung:** Ein freigesetzter Lehrer vertritt.
@@ -307,13 +333,39 @@ Die Spalten **Vertreter**, **Fach**, **Raum** und **Text** können Sie direkt ü
 
 ![Pausenaufsichten](bilder/18_Pausenaufsichten.png)
 
-Zeilen = Aufsichtsbereich (Gang) × Aufsichtspause, Spalten = Tage. Geben Sie Lehrer-Kürzel ein oder lassen Sie **Pausenaufsichten optimieren** die Einteilung vornehmen. Berücksichtigt werden:
+Das Fenster hat die Karteikarten **Gang** und **Lehrer**:
 
-- Anwesenheit des Lehrers vor oder nach der Pause.
-- Zeitwünsche.
-- Minimal- und Maximalwerte der Lehrer.
+- **Gang:** Wählen Sie oben den Aufsichtsbereich. Die Matrix zeigt Tage × Aufsichtspausen. Der Spaltenkopf nennt die Pause mit Ende und Beginn der angrenzenden Stunden.
+- **Lehrer:** zeigt die Aufsichten des gewählten Lehrers; grün = anwesend, rot = eigentlich nicht verfügbar.
+- Neben der Auswahl stehen die Minuten des Elements und wie viele davon noch offen sind.
 
-Farben: rot = Bedarf nicht gedeckt, violett = Lehrer eigentlich nicht verfügbar.
+**Zellen der Matrix:**
+
+| Anzeige | Bedeutung |
+|---|---|
+| Kürzel | eingeteilter Lehrer |
+| `???` | Aufsicht nötig, noch niemand eingeteilt |
+| grau | keine Aufsicht |
+| rot | Einteilung verletzt eine Vorgabe |
+
+Sie können ein Lehrer-Kürzel direkt in die Zelle tippen.
+
+**Werkzeugleiste:**
+
+- **Lehrervorschlag:** listet alle Lehrer mit Bewertung (Anwesenheit vor bzw. nach der Pause, Zeitwünsche, Minimal- und Maximalwerte). Ein Doppelklick trägt den Lehrer ein.
+- **Aufsicht löschen** und **Aufsicht (???) / Keine Aufsicht** bearbeiten die markierte Zelle.
+- **Aufsicht teilen** bzw. **Teilung entfernen:** teilt eine Pause auf bis zu neun Lehrer auf, z. B. für die erste und zweite Hälfte.
+- **Optimierung** verteilt die offenen Aufsichten automatisch. Die **Gewichtung** legt fest, wie stark jedes Kriterium zählt und wie viele Aufsichten ein Lehrer höchstens pro Tag hat.
+
+Rechts steht die Übersicht aller Lehrer mit Soll, Ist, Anzahl und Pausenaufsicht-Vertretungen. Ein Doppelklick öffnet die Lehreransicht.
+
+### Kalender, Veranstaltungen, Klausuren, Bereitschaften
+
+- **Kalender:** Wochenübersicht mit der Anzahl der Abwesenheiten und Vertretungen je Tag. Auf der zweiten Karteikarte bearbeiten Sie die Tagestexte direkt.
+- **Veranstaltungen** (Exkursionen, Konferenzen, Projekttage) und **Klausuren** werden in der Liste direkt eingetragen. Beteiligte Klassen, Lehrer und Räume gelten in diesem Zeitraum als abwesend bzw. belegt.
+- **Sondereinsätze:** Raster mit Klassen und Lehrern, dazu eine Schaltfläche für eine Klassenkonferenz.
+- **Bereitschaften:** zeigt, wer am gewählten Tag in welcher Stunde Bereitschaft hat und ob diese schon für eine Vertretung verbraucht ist.
+- **Vormerkungen:** Ziehen Sie eine Vormerkung in den Tagesplan, um sie zu verplanen.
 
 ### Statistik und NRW-Mehrarbeit
 
@@ -322,6 +374,13 @@ Farben: rot = Bedarf nicht gedeckt, violett = Lehrer eigentlich nicht verfügbar
 Je Lehrer zeigt die Statistik Vertretungen, Betreuungen, Sondereinsätze, Pausenaufsichten, Mehrarbeit, Entfälle, Freisetzungen, Saldo und **vergütungsfähige Mehrarbeit nach NRW-Regel**:
 Werden in einem Kalendermonat mehr als 3 Stunden Mehrarbeit geleistet (Grenze einstellbar, Minderstunden werden verrechnet), sind alle Stunden vergütungsfähig.
 Die Liste lässt sich drucken oder als CSV exportieren.
+
+Weitere Berichte:
+
+- Abrechnung und Einzelnachweis je Lehrer.
+- Mehrarbeit NRW und Monatsabrechnung, mit Unterschriftszeile.
+- Entfalltage.
+- Übersicht und Wochenwerte.
 
 ### Vertretungsplan ausgeben
 
@@ -356,7 +415,33 @@ Die Liste lässt sich drucken oder als CSV exportieren.
 
 ### Perioden
 
-Verschiedene Stundenpläne für Abschnitte des Schuljahres, z. B. ab dem 2. Halbjahr. Neue Perioden kopieren den Plan der aktuellen Periode.
+![Perioden](bilder/25_Perioden.png)
+
+Perioden sind verschiedene Stundenpläne für Abschnitte des Schuljahres, z. B. ab dem 2. Halbjahr oder für eine Projektwoche. Sie verwalten sie unter *Planung → Perioden*.
+
+- **Neue Periode:** wird als Tochter der markierten (Mutter-)Periode angelegt. Sie übernimmt deren Unterricht, Stundenplan und Pausenaufsichten.
+  - Beginn und Ende müssen im Schuljahr und innerhalb der Mutterperiode liegen.
+  - Ohne Endedatum gilt die Periode bis zum Beginn der nächsten Periode derselben Ebene.
+- **Gültigkeit:** An jedem Tag gilt die innerste Periode. Die Spalte *Schultage* zeigt, an wie vielen Unterrichtstagen sie tatsächlich gilt.
+- **Fixieren:** Eine fixierte Periode lässt sich nicht ändern oder löschen. Weitergegebene Änderungen erreichen sie ebenfalls nicht.
+- **Änderungen weitergeben** (Kontrollkästchen *Unterrichtsänderungen in Folgeperioden übernehmen* im Periodendialog): Unterrichtsänderungen werden in die Tochterperioden übernommen, sofern der Unterricht dort noch unverändert ist. Bewusst abweichender Unterricht bleibt erhalten.
+- **Löschen:** Stammdaten werden aus allen Perioden entfernt. Tochterperioden einer gelöschten Periode hängen danach an deren Mutter.
+- **Vertretungsplanung:** Mit dem Datum wechselt automatisch die gültige Periode. Die Statuszeile zeigt sie an; ein Klick darauf wählt eine andere Periode.
+
+### Bereitschaftsplanung
+
+![Bereitschaftsplanung](bilder/25b_Bereitschaftsplanung.png)
+
+*Dateneingabe → Bereitschaftsplanung* zeigt Tage × Stunden mit Bedarf, Anzahl eingeteilter Lehrer und deren Kürzeln.
+
+- **Bedarf einer Stunde:** links wählen. **Bedarf für alle Vormittagsstunden setzen** füllt die übliche Grundversorgung auf einmal.
+- **Lehrervorschlag:** listet freie Lehrer mit Punkten, Bereitschaften pro Woche, freien Stunden und Lage (Hohlstunde, Tagesrand). Ein Doppelklick teilt den Lehrer ein.
+- **Fehlende Bereitschaften automatisch besetzen** verteilt den offenen Bedarf gleichmäßig. Dabei werden Zeitwünsche und die Wertrechnung beachtet.
+
+### Unterrichtsgruppen (A/B-Wochen)
+
+*Dateneingabe → Unterrichtsgruppen* legt Gruppen wie *A-Woche*, *B-Woche* oder *1. Halbjahr* mit Kalenderwochen bzw. Zeitraum fest.
+Weisen Sie im Unterrichtsfenster einem Unterricht oder einer Unterrichtszeile eine Gruppe zu. Dann gelten zwei Stunden zur gleichen Zeit nur als Kollision, wenn sich ihre Wochen überschneiden. Raumbelegung und Wertrechnung rechnen anteilig.
 
 ### Abteilungsplanung
 
@@ -372,6 +457,15 @@ Exportieren Sie eine Abteilungsdatei, planen Sie die Abteilung getrennt und füh
 | Umstieg aus anderen Programmen | GPU-Dateien (GPU001–GPU006) |
 | Export | GPU, HTML-Stundenpläne, Info-Stundenplan, Vertretungsplan, iCal, CSV |
 
+**BAL-Import:** *Dateneingabe → BAL-Import* (oder *Import/Export*) übernimmt einen Stundenplan aus einer WILLI2-BAL-Datei. Wahlweise werden Zeitraster, Stammdaten, Zeitwünsche, Unterricht, Stundenplan und Pausenaufsichten übernommen. Fehlende Elemente werden angelegt.
+
+**UntPlanWeb** (Menü *Datei → UntPlanWeb*): Hier bereiten Sie die Veröffentlichung für das Online-Portal UntPlanWeb vor.
+
+- **Übertragen** sendet Stundenpläne, Vertretungen, Tagestexte und Ferien als Paket an den Server. Personenbezogene Felder lassen sich in den Datenschutzoptionen ausblenden.
+- **Rückmeldungen** holt Krankmeldungen und Hinweise aus dem Portal ab.
+- **Paket als Datei exportieren** erzeugt das Paket offline als JSON-Datei.
+- Schema und Schnittstelle stehen in [UNTPLANWEB.md](UNTPLANWEB.md).
+
 **WebPortal** (*Module → Web-Portal*): Tragen Sie Adresse, Schul-ID und API-Schlüssel ein. **Synchronisieren** lädt Stundenplan, Vertretungen, Tagestexte und Ferien hoch und übernimmt Krankmeldungen aus dem Portal als Abwesenheiten.
 Die Schnittstelle ist in [SYNC_API.md](SYNC_API.md) beschrieben.
 
@@ -385,6 +479,10 @@ Die Schnittstelle ist in [SYNC_API.md](SYNC_API.md) beschrieben.
 | Strg+N / Strg+O / Strg+S | Neu / Öffnen / Speichern |
 | Strg+Z / Strg+Y | Rückgängig / Wiederholen |
 | Strg+P | Drucken |
+| Strg+M | Stundenplanung ↔ Vertretungsplanung |
+| Strg+T | Vertretungen |
+| Strg+G | Vertretungsvorschlag |
+| + / - (Vertretungsfenster) | Vertretung ohne Lehrkraft / Entfall |
 | Entf | Element löschen bzw. Stunde entplanen |
 | F | markierte Stunde fixieren / Fixierung lösen |
 | Doppelklick auf Kurzname | Umbenennen |
@@ -438,3 +536,25 @@ Die Benutzerverwaltung (Recht „Benutzerverwaltung") hat drei Karteikarten:
 ### Angemeldete Benutzer und Nachrichten
 
 **Angemeldete Benutzer** zeigt alle Sitzungen mit Rechner, Version, Anmeldezeit, letzter Aktivität und aktueller Tätigkeit (aktives Fenster). Sie können eine **Nachricht an alle** oder an einen Benutzer senden; sie erscheint beim Empfänger innerhalb von 10 Sekunden. Administratoren können Benutzer **abmelden**.
+
+---
+
+## 13. Bedienung: Tabellen, Suche, Formate
+
+- **Ein Klick genügt:** Ein Klick in ein änderbares Tabellenfeld startet die Bearbeitung.
+- **Suche in Auswahllisten:** In allen Auswahllisten (Lehrer, Klassen, Räume, Fächer, Ansichten usw.) können Sie tippen. Die Liste springt auf den ersten passenden Eintrag; dabei wird auch innerhalb der Namen gesucht. Enter oder Verlassen des Feldes übernimmt den Eintrag.
+- **Eigene Tabellenformate:** Ein Rechtsklick auf einen Spaltenkopf öffnet das Formatmenü.
+  - Spalten ein- und ausblenden.
+  - Spalten mit der Maus verschieben und in der Breite ändern.
+  - Die aktuelle Anordnung unter einem Namen speichern.
+  - Zwischen eigenen Formaten und dem Standardformat wechseln.
+  - Ein Format löschen.
+
+  Das zuletzt gewählte Format gilt beim nächsten Öffnen wieder.
+- **Druckformat-Editor:** Vor der Seitenansicht einer Liste öffnet sich das *Druckformular*. Dort legen Sie fest:
+  - Überschrift, Fußzeile und Summenzeile.
+  - Schriftgröße und Hoch- oder Querformat.
+  - Gitterlinien und Zebrastreifen.
+  - Welche Spalten mit welcher Breite gedruckt werden.
+
+  Jede Liste merkt sich ihr eigenes Drucklayout.

@@ -311,6 +311,9 @@ public sealed class PeriodenDialog : Dialog
         var druck = new Button { Text = "Druck", Left = 230, Top = 18, Width = 82, Height = 25 };
         var aktiv = new Button { Text = "Als aktive Periode", Left = 320, Top = 18, Width = 130, Height = 25 };
         Controls.AddRange(new Control[] { druck, aktiv, _fixiert });
+        var folge = new CheckBox { Text = "Unterrichtsänderungen in Folgeperioden übernehmen", Left = 320, Top = 60, AutoSize = true, Checked = D.Einstellungen.UnterrichtInFolgeperioden };
+        folge.CheckedChanged += (_, _) => AppZustand.Doc.Aendern("Unterricht in Folgeperioden", AenderungsArt.Alles, d => d.Einstellungen.UnterrichtInFolgeperioden = folge.Checked);
+        Controls.Add(folge);
         Controls.Add(new Label { Text = "Langname", Left = 214, Top = 99, AutoSize = true });
         _lang.SetBounds(12, 96, 196, 23);
         Controls.Add(_lang);

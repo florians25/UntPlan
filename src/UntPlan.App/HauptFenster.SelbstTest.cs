@@ -89,6 +89,8 @@ public sealed partial class HauptFenster
         Schritt("19b_Pausenaufsichten", () => Max(FensterOeffnen("pause")!), -1);
         Schritt("19c_Statistik", () => Max(FensterOeffnen("stat")!), -1);
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
+        Schritt("19d1_Veranstaltungen", () => Max(FensterOeffnen("veranst")!), -1);
+        Schritt("19d2_Klausuren", () => Max(FensterOeffnen("klaus")!), -1);
         Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
         Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
         Schritt("20_Wertrechnung", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(0))), 6);
@@ -97,6 +99,9 @@ public sealed partial class HauptFenster
         Schritt("23_Kursplanung", () => Max(Oeffnen<KursplanungFenster>("kurs", () => new KursplanungFenster())), 4);
         Schritt("24_Hilfe", () => HilfeFenster.Zeigen("Vertretungsplanung"), 0);
         Schritt("25_Perioden", () => new PeriodenDialog().Show(this), 2);
+        Schritt("25a_Optimierung", () => new OptimierungDialog().Show(this), 2);
+        Schritt("25b_Bereitschaftsplanung", () => Max(FensterOeffnen("bereitplan")!), 2);
+        Schritt("25c_Unterrichtsgruppen", () => Max(FensterOeffnen("ugruppen")!), 2);
         Schritt("26_Kommentare", () => Max(new KommentarUebersicht()).Show(), 1);
         Schritt("27_Monitor", () =>
         {
