@@ -27,7 +27,7 @@ public static class SuchKombi
         {
             if (g.Columns[e.ColumnIndex] is not DataGridViewComboBoxColumn || g.EditingControl is not ComboBox cb || cb.Items.Count == 0) return;
             var text = cb.Text.Trim();
-            var namen = cb.Items.Cast<object>().Select(cb.GetItemText).ToList();
+            var namen = cb.Items.Cast<object>().Select(o => cb.GetItemText(o) ?? "").ToList();
             var i = text.Length == 0 ? namen.FindIndex(x => x.Length == 0) : ListenSuche.Treffer(cb, text);
             if (i < 0) i = namen.FindIndex(x => x.Length == 0);
             if (i < 0) i = cb.SelectedIndex;

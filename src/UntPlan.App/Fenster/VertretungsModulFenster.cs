@@ -351,7 +351,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private int LetzteStunde => Math.Max(1, D.Zeitraster.StundenProTag);
 
-    private static string Tag(DateOnly d) => $"{Planungsdienst.TageKurz[((int)d.DayOfWeek + 6) % 7]} {d:dd.MM.yy}";
+    private static new string Tag(DateOnly d) => $"{Planungsdienst.TageKurz[((int)d.DayOfWeek + 6) % 7]} {d:dd.MM.yy}";
 
     /// <summary>Direkte Eingabe: geänderte Zelle in den Entwurf der Zeile übernehmen (gespeichert wird beim Zeilenwechsel).</summary>
     private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)

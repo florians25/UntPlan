@@ -39,6 +39,8 @@ public sealed class UntPlanWebDialog : Dialog
     }
 
     private static Schuldatei D => AppZustand.D;
+    /// <summary>Zeile „Stpl.-Änderungen*“: Import aller Buchungen, Prüfungen, … über das Fenster „Stundenplanänderungen aus UntPlanWeb“.</summary>
+    private const string Stpl = "stpl-aenderungen";
     private static PortalEinstellungen P => AppZustand.D.Einstellungen.Portal;
 
     public UntPlanWebDialog() : base("UntPlanWeb – Datenaustausch", 660, 544)
@@ -95,9 +97,11 @@ public sealed class UntPlanWebDialog : Dialog
         Zeile("Stammdaten", WebTeile.Stammdaten, true);
         Zeile("Unterricht*", WebTeile.Unterricht, true);
         Zeile("Vertretungen*", WebTeile.Vertretungen, true);
+        Zeile("Stpl.-Änderungen*", Stpl, false);
+        var info = new Label { Text = "i", Left = 470, Top = y - 26, Width = 16, Height = 16, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.SteelBlue, Font = Ui.SchriftFett, BorderStyle = BorderStyle.FixedSingle };
+        new ToolTip().SetToolTip(info, "Raumänderungen, zusätzliche Unterrichte (Buchungen) und Prüfungen aus UntPlanWeb im Fenster „Stundenplanänderungen aus UntPlanWeb“ prüfen und übernehmen.");
+        seite.Controls.Add(info);
         Zeile("Absenzen*", "absenzen", false);
-        Zeile("Buchungen*", WebRueckmeldungsTypen.Raumbuchung, false);
-        Zeile("Klausuren*", WebRueckmeldungsTypen.Klausur, false);
         var alles = new Button { Text = "Alles exportieren", Left = 474, Top = y + 8, Width = 120, Height = 25 };
         alles.Click += async (_, _) => await Ausfuehren("", true);
         seite.Controls.Add(alles);
@@ -140,7 +144,8 @@ public sealed class UntPlanWebDialog : Dialog
         foreach (var (datum, zuletzt, teil, export) in _zeilen)
         {
             var ab = teil == WebTeile.Stammdaten ? D.Einstellungen.SchuljahrVon : Start;
-            datum.Text = $"{(export ? "Export" : "Import")} ab {ab:d.M.yyyy}";
+            datum.Text = teil == Stpl ? "Import aller Buchungen, Prüfungen, …" : $"{(export ? "Export" : "Import")} ab {ab:d.M.yyyy}";
+            if (teil == Stpl) datum.Font = Ui.Schrift;
             zuletzt.Text = P.LetzteUebertragung.TryGetValue(teil, out var z) ? $"zuletzt {z:dd.MM. HH:mm}" : "";
         }
     }
@@ -164,6 +169,12 @@ public sealed class UntPlanWebDialog : Dialog
 
     private async Task Ausfuehren(string teil, bool export)
     {
+        if (teil == Stpl)
+        {
+            using (var f = new StundenplanAenderungenDialog()) f.ShowDialog(this);
+            Anzeigen();
+            return;
+        }
         if (string.IsNullOrWhiteSpace(P.Adresse))
         {
             FehlerZeigen("Keine Verbindung eingerichtet", "Bitte zuerst unter „Einstellungen“ Server, Schul-ID und API-Schlüssel eintragen.");

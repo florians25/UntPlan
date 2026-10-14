@@ -62,9 +62,9 @@ public static class RaumZuordnenDialog
 
     public static bool Zeigen(IWin32Window owner, Planstunde p, bool modal = true)
     {
-        var doc = AppZustand.Doc;
-        var ix = doc.Index;
-        var u = ix.Unterrichte[p.UnterrichtId];
+        Dokument doc = AppZustand.Doc;
+        DatenIndex ix = doc.Index;
+        Unterricht u = ix.Unterrichte[p.UnterrichtId];
         var idx = doc.Daten.Stundenplan.IndexOf(p);
         var d = new Dialog("Raum zuordnen / löschen", 1220, 640);
         d.Ok.Text = "Schließen";
@@ -75,17 +75,17 @@ public static class RaumZuordnenDialog
 
         var info = new Label { Left = 10, Top = 10, Width = 500, Height = 60, BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(4), BackColor = Color.White };
         var umfang = new GroupBox { Text = "Anwenden auf", Left = 556, Top = 4, Width = 230, Height = 88 };
-        var rbs = new[] { "Unterrichtsstunde", "Stundenblock", "Alle Stunden eines Unterr." }
+        RadioButton[] rbs = new[] { "Unterrichtsstunde", "Stundenblock", "Alle Stunden eines Unterr." }
             .Select((t, i) => new RadioButton { Text = t, Left = 10, Top = 18 + i * 22, Width = 210, Checked = i == _umfang }).ToArray();
         umfang.Controls.AddRange(rbs);
-        var lang = new CheckBox { Text = "Langname anzeigen", Left = 800, Top = 12, AutoSize = true };
+        CheckBox lang = new CheckBox { Text = "Langname anzeigen", Left = 800, Top = 12, AutoSize = true };
         var nurFrei = new CheckBox { Text = "Nur freie Räume", Left = 800, Top = 34, AutoSize = true, Checked = _nurFrei };
         var nurWunsch = new CheckBox { Text = "Nur Wunschräume / Raumgruppe", Left = 800, Top = 56, AutoSize = true };
         var nurKap = new CheckBox { Text = "Nur ausreichende Kapazität", Left = 800, Top = 78, AutoSize = true };
         var suche = new TextBox { Left = 700, Top = 100, Width = 180, PlaceholderText = "Raum suchen…" };
 
         d.Controls.Add(new Label { Text = "Auswahl derzeitiger Unterricht:", Left = 10, Top = 104, AutoSize = true });
-        var links = new DataGridView { Left = 10, Top = 128, Width = 500, Height = 420, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
+        DataGridView links = new DataGridView { Left = 10, Top = 128, Width = 500, Height = 420, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
         Ui.RasterGestalten(links, false);
         links.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         links.MultiSelect = false;

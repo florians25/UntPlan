@@ -167,7 +167,7 @@ public sealed class PlanAnsicht : Control
         public int Laenge = 1;
         public int Spur;
         public int Spuren = 1;
-        public int StapelIndex;
+        public int StapelIndex = 0;
         public int StapelAnzahl = 1;
     }
 

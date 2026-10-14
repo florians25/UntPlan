@@ -44,6 +44,14 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
         return f.Aenderungen > 0;
     }
 
+    /// <summary>Nicht modal (Selbsttest).</summary>
+    public static Form Anzeigen(IWin32Window owner, DateOnly datum, int stunde, int? unterrichtId, int? zeile)
+    {
+        var f = new RaumZuordnenVertretungDialog(datum, stunde, unterrichtId, zeile, null);
+        f.Show(owner);
+        return f;
+    }
+
     /// <summary>Für eine Zeile des Vertretungsfensters.</summary>
     public static bool Zeigen(IWin32Window owner, Vertretung v) =>
         Zeigen(owner, v.Datum, v.Stunde, v.UnterrichtId, v.UnterrichtId.HasValue ? v.ZeilenIndex : null, v);
