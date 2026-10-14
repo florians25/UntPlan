@@ -68,7 +68,22 @@ public static class AppZustand
     }
 
     public static void Waehlen(ElementTyp typ, int id, object quelle) => ElementGewaehlt?.Invoke(typ, id, quelle);
-    public static void StundeWaehlen(Unterricht u, Planstunde? p, object quelle) => StundeGewaehlt?.Invoke(u, p, quelle);
+    /// <summary>
+    /// Stunde gewählt. Optional mit den Elementen der angeklickten Zeile (z. B. im Lehrerplan nur die Klassen dieses Lehrers)
+    /// und dem Datum (tagesaktueller Plan) – damit synchronisierte Pläne genau die passende Klasse bzw. Lehrkraft zeigen.
+    /// </summary>
+    public static void StundeWaehlen(Unterricht u, Planstunde? p, object quelle, IReadOnlyList<int>? klassen = null, IReadOnlyList<int>? lehrer = null,
+        IReadOnlyList<int>? raeume = null, DateOnly? datum = null)
+    {
+        (AuswahlKlassen, AuswahlLehrer, AuswahlRaeume, AuswahlDatum) = (klassen, lehrer, raeume, datum);
+        try { StundeGewaehlt?.Invoke(u, p, quelle); }
+        finally { (AuswahlKlassen, AuswahlLehrer, AuswahlRaeume, AuswahlDatum) = (null, null, null, null); }
+    }
+
+    public static IReadOnlyList<int>? AuswahlKlassen { get; private set; }
+    public static IReadOnlyList<int>? AuswahlLehrer { get; private set; }
+    public static IReadOnlyList<int>? AuswahlRaeume { get; private set; }
+    public static DateOnly? AuswahlDatum { get; private set; }
 }
 
 public sealed class Benutzereinstellungen

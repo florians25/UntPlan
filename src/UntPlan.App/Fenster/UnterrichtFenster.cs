@@ -103,7 +103,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             _grid[e.ColumnIndex, e.RowIndex].Value = string.Join(",", w.Select(k => k.Kurzname));
             CellEndEdit(this, new DataGridViewCellEventArgs(e.ColumnIndex, e.RowIndex));
         };
-        _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.EndEdit(); };
+        _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.EndEdit(); };
         _grid.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZelleLeeren(); e.Handled = true; } };
 
         var unten = new Panel { Dock = DockStyle.Bottom, Height = 24, BackColor = Color.FromArgb(246, 248, 251) };

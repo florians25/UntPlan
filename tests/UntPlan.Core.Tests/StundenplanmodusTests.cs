@@ -101,6 +101,27 @@ public class BereitschaftsplanungTests
     }
 
     [Fact]
+    public void BereitschaftWirdNieVertreten()
+    {
+        var d = Demo.Beispielschule();
+        d.AktivePeriode.Plan = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 2 })[0].Plan;
+        var tag = Enumerable.Range(0, 14).Select(i => d.Einstellungen.SchuljahrVon.AddDays(i)).First(t => Kalender.IstUnterrichtstag(d, t));
+        var ti = Kalender.TagIndex(d, tag);
+        var ix = new DatenIndex(d);
+        var l = d.Lehrer.First(x => Enumerable.Range(1, 6).Any(s => !ix.PlanVon(ElementTyp.Lehrer, x.Id).Any(p => p.Tag == ti && p.Stunde == s)));
+        var stunde = Enumerable.Range(1, 6).First(s => !ix.PlanVon(ElementTyp.Lehrer, l.Id).Any(p => p.Tag == ti && p.Stunde == s));
+        Bereitschaftsplanung.Setzen(d, l.Id, ti, stunde);
+        d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = l.Id, Von = tag, Bis = tag });
+        Vertretungsplanung.Vertretungen.Aktualisieren(d, tag);
+        var v = Assert.Single(d.Vertretungen, x => x.Datum == tag && x.Stunde == stunde && x.LehrerId == l.Id);
+        Assert.Equal(VertretungsArt.BereitschaftEntfaellt, v.Art);
+        Assert.False(v.Offen);
+        // auch „Entfall umschalten“ macht daraus keine offene Vertretung
+        Vertretungsplanung.Vertretungen.EntfallUmschalten(d, v);
+        Assert.Equal(VertretungsArt.BereitschaftEntfaellt, v.Art);
+    }
+
+    [Fact]
     public void NurDoppelstundenBesetztPaarweiseAufeinanderfolgend()
     {
         var d = Demo.Beispielschule();

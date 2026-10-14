@@ -219,6 +219,12 @@ public sealed partial class HauptFenster
         _statusLinks.Font = Ui.SchriftFett;
         _statusLinks.ForeColor = Ui.Blau;
         _ribbon.Invalidate();
+        // Listen und Pläne in der Modusfarbe
+        foreach (var f in MdiChildren)
+        {
+            foreach (var g in Ui.Tabellen(f)) Ui.RasterFarben(g);
+            f.Invalidate(true);
+        }
         _assistent.Aktualisieren();
         _assistent.Invalidate(true);
     }

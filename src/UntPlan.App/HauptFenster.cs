@@ -45,6 +45,7 @@ public sealed partial class HauptFenster : Form
             SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => AppZustand.Doc.Wiederholen()), new ToolStripSeparator(),
             SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)),
             SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()), new ToolStripSeparator(),
+            WebKnopf(), new ToolStripSeparator(),
             SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretung", VertretungsmodusUmschalten),
             _titelLabel,
         });
@@ -82,6 +83,36 @@ public sealed partial class HauptFenster : Form
     {
         base.OnHandleCreated(e);
         Ui.TitelleisteFaerben(this);
+    }
+
+    /// <summary>UntPlanWeb direkt aus der obersten Leiste: alles oder einzelne Teile übertragen, Import, Einstellungen.</summary>
+    private ToolStripDropDownButton WebKnopf()
+    {
+        var b = new ToolStripDropDownButton("UntPlanWeb", Symbole.Get("web", 16)) { ToolTipText = "An UntPlanWeb übertragen", ForeColor = Color.White, DisplayStyle = ToolStripItemDisplayStyle.ImageAndText };
+        async void Export(string teil)
+        {
+            try
+            {
+                UseWaitCursor = true;
+                var meldung = await UntPlanWebDialog.DirektExportieren(this, teil);
+                if (meldung.Length > 0) _statusLinks.Text = meldung;
+            }
+            catch (Exception ex)
+            {
+                Ui.Fehler(new InvalidOperationException("Übertragung an UntPlanWeb fehlgeschlagen: " +
+                    (ex is HttpRequestException or TaskCanceledException ? "keine Verbindung zum Server (Internetverbindung und Einstellungen prüfen)." : ex.Message)));
+            }
+            finally { UseWaitCursor = false; }
+        }
+        b.DropDownItems.Add("Alles übertragen", Symbole.Get("export", 16), (_, _) => Export(""));
+        b.DropDownItems.Add("Stammdaten übertragen", null, (_, _) => Export(UntPlan.Web.Contracts.WebTeile.Stammdaten));
+        b.DropDownItems.Add("Unterricht / Stundenpläne übertragen", null, (_, _) => Export(UntPlan.Web.Contracts.WebTeile.Unterricht));
+        b.DropDownItems.Add("Vertretungen übertragen", null, (_, _) => Export(UntPlan.Web.Contracts.WebTeile.Vertretungen));
+        b.DropDownItems.Add(new ToolStripSeparator());
+        b.DropDownItems.Add("Datenaustausch (Absenzen, Buchungen, Klausuren importieren)…", Symbole.Get("import", 16), (_, _) => new UntPlanWebDialog().ShowDialog(this));
+        b.DropDownItems.Add("Einstellungen…", Symbole.Get("einstellungen", 16), (_, _) => new UntPlanWebEinstellungenDialog().ShowDialog(this));
+        b.DropDown.ForeColor = Color.Black;
+        return b;
     }
 
     private static ToolStripButton SKnopf(string text, string symbol, Action a)

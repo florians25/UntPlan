@@ -42,6 +42,9 @@ public static class Vertretungen
     /// </summary>
     public static void Aktualisieren(Schuldatei d, DateOnly datum)
     {
+        // ältere Dateien: offene „Bereitschaftsvertretungen“ gibt es nicht mehr – Bereitschaften entfallen
+        foreach (var alt in d.Vertretungen.Where(v => v.Datum == datum && v.Art == VertretungsArt.Bereitschaftsvertretung && v.VertreterId is null))
+            alt.Art = VertretungsArt.BereitschaftEntfaellt;
         var tag = Kalender.TagIndex(d, datum);
         var regel = Tagesplan.Regulaer(d, datum);
         var manuell = d.Vertretungen.Where(v => v.Datum == datum && !IstAbgeleitet(v) && v.UnterrichtId.HasValue)
@@ -133,7 +136,8 @@ public static class Vertretungen
                 basis.VeranstaltungId = va?.Id;
                 basis.GrundId = abw?.GrundId ?? va?.GrundId;
                 basis.Grund = GrundText(d, basis.GrundId);
-                if (bereit) basis.Art = fach!.KeineVertretung ? VertretungsArt.BereitschaftEntfaellt : VertretungsArt.Bereitschaftsvertretung;
+                // Bereitschaften werden nie vertreten: fehlt die Lehrkraft, entfällt die Bereitschaft
+                if (bereit) basis.Art = VertretungsArt.BereitschaftEntfaellt;
                 else if (fach?.KeineVertretung == true) basis.Art = VertretungsArt.Entfall;
                 else if (u.BetreuungLehrerId is int b && b != l && !Absenzen.LehrerAbwesend(d, b, datum, r.Stunde))
                 {
@@ -374,7 +378,8 @@ public static class Vertretungen
         Markieren(v, benutzer);
         if (v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt)
         {
-            v.Art = v.GangId.HasValue ? VertretungsArt.Pausenaufsicht : IstBereitschaftsfach(d, v.FachId) ? VertretungsArt.Bereitschaftsvertretung : VertretungsArt.Vertretung;
+            if (IstBereitschaftsfach(d, v.FachId)) return; // Bereitschaften werden nie vertreten
+            v.Art = v.GangId.HasValue ? VertretungsArt.Pausenaufsicht : VertretungsArt.Vertretung;
             v.VertreterId = null;
             return;
         }
@@ -1092,7 +1097,7 @@ public static class Vertretungsplan
         d.Vertretungseinstellungen.Bezeichnungen.TryGetValue(a.ToString(), out var t) && !string.IsNullOrWhiteSpace(t) ? t : ArtText(a);
 
     /// <summary>Bemerkung für den Aushang: Art der Änderung in Worten (z. B. Bereitschaft, Raumänderung, verlegt von …) und Vertretungstext.</summary>
-    public static string Bemerkung(Schuldatei d, Vertretung v)
+    public static string Bemerkung(Schuldatei d, Vertretung v, ISet<(int Lehrer, int Stunde)>? bereitschaften = null)
     {
         string Tag(DateOnly t, int? s) => $"{Planung.Planungsdienst.TageKurz[((int)t.DayOfWeek + 6) % 7]} {t:d.M.}{(s is int x ? $" {x}. Std." : "")}";
         var art = v.Art switch
@@ -1117,6 +1122,9 @@ public static class Vertretungsplan
             _ => "",
         };
         if (v.NachDatum is DateOnly nach && v.IstEntfall) art = $"verlegt auf {Tag(nach, v.NachStunde)}";
+        // Vertreter hatte zu der Stunde Bereitschaft
+        if (art.Length == 0 && v.VertreterId is int vl && bereitschaften?.Contains((vl, v.Stunde)) == true && v.Art is VertretungsArt.Vertretung or VertretungsArt.StattVertretung)
+            art = "Bereitschaft";
         // ein freier Text ersetzt die Standardbemerkung nicht, sondern ergänzt sie
         if (string.IsNullOrWhiteSpace(v.Text)) return art;
         if (art.Length == 0 || v.Text.Contains(art, StringComparison.CurrentCultureIgnoreCase)) return v.Text;
@@ -1129,6 +1137,12 @@ public static class Vertretungsplan
     {
         var ix = new DatenIndex(d);
         var nichtDruckFaecher = d.Faecher.Where(f => f.NichtDrucken).Select(f => f.Id).ToHashSet();
+        // Bereitschaftsstunden des Tages (für die Bemerkung „Bereitschaft“)
+        var periode = d.PeriodeAm(datum);
+        var tagIndex = Kalender.TagIndex(d, datum);
+        var bereitUnterricht = (periode.Unterrichte ?? d.Unterrichte).Where(u => u.Zeilen.Any(z => Vertretungen.IstBereitschaftsfach(d, z.FachId))).ToDictionary(u => u.Id);
+        var bereitschaften = periode.Plan.Where(p => p.Tag == tagIndex && bereitUnterricht.ContainsKey(p.UnterrichtId))
+            .SelectMany(p => bereitUnterricht[p.UnterrichtId].Zeilen.Where(z => z.LehrerId.HasValue).Select(z => (z.LehrerId!.Value, p.Stunde))).ToHashSet();
         return Vertretungen.Am(d, datum)
             .Where(v => mitNichtDrucken || (!v.NichtDrucken && !(v.FachId is int f && nichtDruckFaecher.Contains(f))))
             .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue)
@@ -1144,7 +1158,7 @@ public static class Vertretungsplan
                 v.VonDatum.HasValue ? $"{Planung.Planungsdienst.TageKurz[((int)v.VonDatum.Value.DayOfWeek + 6) % 7]}-{v.VonDatum:dd.MM.} / {v.VonStunde}" : "",
                 v.NachDatum.HasValue ? $"{Planung.Planungsdienst.TageKurz[((int)v.NachDatum.Value.DayOfWeek + 6) % 7]}-{v.NachDatum:dd.MM.} / {v.NachStunde}" : "",
                 d.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId) is { Vertraulich: true } ? "" : v.Grund, v.Id,
-                v.Schuelergruppe, Bemerkung(d, v), v.Art))
+                v.Schuelergruppe, Bemerkung(d, v, bereitschaften), v.Art))
             .OrderBy(z => z.Klassen, StringComparer.Create(Format.De, true)).ThenBy(z => z.Stunde).ToList();
     }
 }

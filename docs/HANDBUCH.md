@@ -308,7 +308,8 @@ In der **Übersicht** (Raumplan quer) verlegen Sie Räume per Drag & Drop.
 ## 7. Stundenpläne
 
 - **Planarten:** Klassen-, Lehrer-, Raum- und Fachpläne, jeweils normal oder groß.
-- **Blöcke:** Doppelstunden und Blöcke erscheinen als ein Feld. Laufen mehrere Blöcke gleichzeitig, stehen sie nebeneinander; mehrere Einzelstunden derselben Stunde stehen untereinander.
+- **Blöcke:** Doppelstunden und Blöcke erscheinen als ein Feld. Gleichzeitige Stunden und Blöcke stehen immer nebeneinander.
+- **Synchronisation:** Ein Klick auf eine Stunde, z. B. im Lehrerplan, stellt die geöffneten Klassen- und Raumpläne auf die Klasse bzw. den Raum dieser Stunde um. Bei Kopplungen gilt nur die Zeile der Lehrkraft. Das funktioniert auch im tagesaktuellen Plan des Vertretungsmodus.
 - **Vertretungsmodus:** Die Pläne sind kompakter und passen ohne Blättern auf die Seite.
 - **Durchschalten:** ◄ ► neben der Elementauswahl wechselt zum vorherigen bzw. nächsten Element.
 - **Auswahl:** oben im Fenster. Mit **Synchronisation** folgt der Plan der Auswahl in anderen Fenstern.
@@ -374,7 +375,7 @@ In der Auswahlliste *Vertreter* sind belegte Lehrer rot und Lehrer mit Bereitsch
 - **Flüssige Auswahl:** Beim Blättern mit den Pfeiltasten werden die Stundenpläne erst aufgebaut, wenn die Auswahl stehen bleibt. Mit *Weiter zur nächsten offenen* im Vertretungsvorschlag wählt UntPlan nach jedem Zuweisen automatisch die nächste offene Vertretung.
 - **Betreuungen:** Der Reiter *Betreuungen* sortiert nach Nähe: gekoppelt, gleicher Gang, gleiches Stockwerk. Danach zählt, ob die Lehrkraft die Klasse kennt, wie viele Betreuungen sie heute schon hat und ihr Vertretungszähler. *Nur in der Nähe* blendet weiter entfernte Lehrkräfte aus.
 
-- **Bereitschaft:** Lehrer mit Bereitschaftsstunde stehen grün ganz oben; ihre Vertretung ist keine Mehrarbeit.
+- **Bereitschaft:** Lehrer mit Bereitschaftsstunde stehen grün ganz oben; ihre Vertretung ist keine Mehrarbeit, im Aushang steht die Bemerkung „Bereitschaft“. Bereitschaften selbst werden nie vertreten: Fehlt die Lehrkraft, entfällt die Bereitschaft.
 - **statt-Vertretung:** Ein freigesetzter Lehrer vertritt.
 - **Vertretungsgewichtung** (Menüband): Hier legen Sie fest, wie stark jedes Kriterium im Vorschlag zählt (0–5).
 - **Pausenaufsicht-Vertretungen:** Fällt eine Aufsicht durch Abwesenheit aus, erscheint sie auf der gleichnamigen Karteikarte. Dort wählen Sie einen Vertreter.
@@ -519,7 +520,7 @@ Exportieren Sie eine Abteilungsdatei, planen Sie die Abteilung getrennt und füh
 
 **BAL-Import:** *Dateneingabe → BAL-Import* (oder *Import/Export*) übernimmt einen Stundenplan aus einer WILLI2-BAL-Datei. Wahlweise werden Zeitraster, Stammdaten, Zeitwünsche, Unterricht, Stundenplan und Pausenaufsichten übernommen. Fehlende Elemente werden angelegt.
 
-**UntPlanWeb** (Menü *Datei → UntPlanWeb → Datenaustausch*):
+**UntPlanWeb** (oberste Leiste *UntPlanWeb*: alles oder einzelne Teile direkt übertragen; ausführlich im Menü *Datei → UntPlanWeb → Datenaustausch*):
 
 ![UntPlanWeb](bilder/25d_UntPlanWeb.png)
 

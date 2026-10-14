@@ -318,8 +318,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
 
     private void CellContentClick(object? sender, DataGridViewCellEventArgs e)
     {
-        if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
-        if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.EndEdit();
+        if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
+        if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.EndEdit();
     }
 
     private void CellDoubleClick(object? sender, DataGridViewCellEventArgs e)

@@ -124,7 +124,9 @@ public static class ListenSuche
             var w = TextRenderer.MeasureText(g, t, cb.Font).Width + (string.IsNullOrEmpty(zusatz) ? 0 : TextRenderer.MeasureText(g, zusatz, cb.Font).Width + 24) + 28;
             breite = Math.Max(breite, Math.Min(460, w));
         }
-        cb.DropDownWidth = breite;
+        // mit Langnamen immer breit genug öffnen (auch in schmalen Tabellenspalten)
+        if (cb.Items.Cast<object>().Any(o => !string.IsNullOrEmpty(z.Stil?.Invoke(cb.GetItemText(o))?.Zusatz ?? z.Langname?.Invoke(cb.GetItemText(o))))) breite = Math.Max(breite, 220);
+        cb.DropDownWidth = Math.Max(cb.Width, breite);
     }
 
     /// <summary>Listenhöhe so wählen, dass die Liste unter dem Feld Platz hat (Windows öffnet sonst nach oben).</summary>

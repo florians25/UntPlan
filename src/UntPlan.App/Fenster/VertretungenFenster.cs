@@ -116,7 +116,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
             if (!lesbar) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
+        // Vertretungstext füllt die Restbreite, wird aber nie schmaler als 240 Pixel (sonst waagerecht blättern)
         _g.Columns["Text"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _g.Columns["Text"]!.MinimumWidth = 240;
+        _g.Columns["Text"]!.FillWeight = 300;
         // mehrere Klassen untereinander (Zeilenhöhe passt sich an)
         _g.Columns["Klassen"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -134,7 +137,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _auswahlTimer.Stop();
             _auswahlTimer.Start();
         };
-        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && _g.Columns[e.ColumnIndex].ReadOnly) VorschlagOeffnen(); };
+        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && (e.ColumnIndex < 0 || _g.Columns[e.ColumnIndex].ReadOnly)) VorschlagOeffnen(); };
         _g.KeyPress += TastenDruck;
         _g.KeyDown += (_, e) =>
         {

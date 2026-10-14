@@ -25,6 +25,12 @@ public static class Ui
     public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(232, 242, 233) : Color.FromArgb(236, 241, 243);
     public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 238, 216) : Color.FromArgb(214, 234, 240);
     public static Color HoverRand => Vertretungsmodus ? Color.FromArgb(120, 190, 130) : Color.FromArgb(110, 178, 200);
+    /// <summary>Hintergrund der Listen (leere Fläche) und der Zellen – leicht in der Modusfarbe getönt statt Weiß.</summary>
+    public static Color Listenhintergrund => Vertretungsmodus ? Color.FromArgb(236, 245, 237) : Color.FromArgb(236, 242, 245);
+    public static Color Zelle => Vertretungsmodus ? Color.FromArgb(251, 254, 251) : Color.FromArgb(251, 253, 254);
+    public static Color ZelleWechsel => Vertretungsmodus ? Color.FromArgb(244, 250, 245) : Color.FromArgb(244, 248, 250);
+    /// <summary>Leere Stunde im Stundenplan.</summary>
+    public static Color PlanLeer => Vertretungsmodus ? Color.FromArgb(248, 252, 248) : Color.FromArgb(248, 251, 252);
     public static readonly Color Rasterlinie = Color.FromArgb(208, 215, 229);
     public static readonly Color ZeileAktiv = Color.FromArgb(253, 222, 176);
     public static readonly Color Erste = Color.FromArgb(252, 228, 188);
@@ -53,7 +59,7 @@ public static class Ui
 
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
     {
-        g.BackgroundColor = Color.White;
+        RasterFarben(g);
         g.BorderStyle = BorderStyle.None;
         g.GridColor = Rasterlinie;
         g.Font = Schrift;
@@ -72,7 +78,7 @@ public static class Ui
         g.RowTemplate.Height = 20;
         g.DefaultCellStyle.SelectionBackColor = BlauHell;
         g.DefaultCellStyle.SelectionForeColor = Color.Black;
-        g.AlternatingRowsDefaultCellStyle.BackColor = Color.White;
+
         g.AllowUserToResizeRows = false;
         g.AllowUserToAddRows = false;
         g.AllowUserToDeleteRows = false;
@@ -100,6 +106,28 @@ public static class Ui
         };
         g.CellBorderStyle = DataGridViewCellBorderStyle.Single;
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
+    }
+
+    /// <summary>Modusfarben einer Tabelle (beim Moduswechsel erneut aufgerufen).</summary>
+    public static void RasterFarben(DataGridView g)
+    {
+        g.BackgroundColor = Listenhintergrund;
+        g.DefaultCellStyle.BackColor = Zelle;
+        g.AlternatingRowsDefaultCellStyle.BackColor = ZelleWechsel;
+        g.RowHeadersDefaultCellStyle.SelectionBackColor = ZeileAktiv;
+        g.ColumnHeadersDefaultCellStyle.BackColor = Kopf;
+        g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Kopf;
+        g.DefaultCellStyle.SelectionBackColor = BlauHell;
+        g.Invalidate();
+    }
+
+    public static IEnumerable<DataGridView> Tabellen(Control c)
+    {
+        foreach (Control x in c.Controls)
+        {
+            if (x is DataGridView g) yield return g;
+            foreach (var y in Tabellen(x)) yield return y;
+        }
     }
 
     /// <summary>

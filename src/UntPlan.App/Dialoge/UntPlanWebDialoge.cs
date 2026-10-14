@@ -175,6 +175,19 @@ public sealed class UntPlanWebDialog : Dialog
         }
     }
 
+    /// <summary>
+    /// Export direkt (ohne Dialog), z. B. aus der Schnellzugriffsleiste. Ohne Verbindungseinstellungen öffnen sich zuerst
+    /// die Einstellungen. Liefert eine Erfolgsmeldung bzw. wirft bei Fehlern.
+    /// </summary>
+    public static async Task<string> DirektExportieren(IWin32Window owner, string teil)
+    {
+        if (string.IsNullOrWhiteSpace(P.Adresse) && new UntPlanWebEinstellungenDialog().ShowDialog(owner) != DialogResult.OK) return "";
+        if (string.IsNullOrWhiteSpace(P.Adresse)) return "";
+        using var d = new UntPlanWebDialog();
+        await d.Exportieren(teil);
+        return $"An UntPlanWeb übertragen ({(teil.Length == 0 ? "alles" : teil)}, Revision {P.Revision}) um {DateTime.Now:HH:mm}";
+    }
+
     private async Task Exportieren(string teil)
     {
         // Unterricht und Vertretungen beziehen sich auf die Stammdaten: diese immer mitsenden

@@ -41,7 +41,9 @@ public sealed class RibbonSeite
 /// <summary>Menüband im Stil klassischer Office-/Windows-Anwendungen.</summary>
 public sealed class Ribbon : Control
 {
-    private const int TabHoehe = 24;
+    private const int TabHoehe = 30;
+    /// <summary>Größere Schrift für die Registerkarten (Datei, Start, …).</summary>
+    private static readonly Font TabSchrift = new("Segoe UI", 10.5f);
     private const int Inhalt = 94;
     private readonly ToolTip _tip = new() { InitialDelay = 600 };
     private RibbonEintrag? _hover;
@@ -71,15 +73,15 @@ public sealed class Ribbon : Control
     private void Layout2(Graphics g)
     {
         var x = 4;
-        _dateiBounds = new Rectangle(x, 2, (int)g.MeasureString("Datei", Font).Width + 24, TabHoehe - 2);
+        _dateiBounds = new Rectangle(x, 3, (int)g.MeasureString("Datei", TabSchrift).Width + 30, TabHoehe - 3);
         x = _dateiBounds.Right + 2;
         if (!(Seiten.ElementAtOrDefault(AktiveSeite)?.IstSichtbar ?? false))
             AktiveSeite = Math.Max(0, Seiten.FindIndex(x => x.IstSichtbar));
         foreach (var s in Seiten)
         {
             if (!s.IstSichtbar) { s.TabBounds = Rectangle.Empty; continue; }
-            var w = (int)g.MeasureString(s.Text, Font).Width + 18;
-            s.TabBounds = new Rectangle(x, 2, w, TabHoehe - 2);
+            var w = (int)g.MeasureString(s.Text, TabSchrift).Width + 26;
+            s.TabBounds = new Rectangle(x, 3, w, TabHoehe - 3);
             x += w + 1;
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
@@ -132,7 +134,7 @@ public sealed class Ribbon : Control
         using (var p = new Pen(Color.FromArgb(198, 205, 216))) { g.DrawLine(p, 0, TabHoehe, Width, TabHoehe); g.DrawLine(p, 0, Height - 1, Width, Height - 1); }
         // Datei-Tab
         using (var b = new SolidBrush(_hoverDatei ? Ui.Blau : Color.FromArgb(Math.Max(0, Ui.Blau.R - 18), Math.Max(0, Ui.Blau.G - 18), Math.Max(0, Ui.Blau.B - 18)))) g.FillRectangle(b, _dateiBounds);
-        TextRenderer.DrawText(g, "Datei", Font, _dateiBounds, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        TextRenderer.DrawText(g, "Datei", TabSchrift, _dateiBounds, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         for (var i = 0; i < Seiten.Count; i++)
         {
             var s = Seiten[i];
@@ -148,7 +150,7 @@ public sealed class Ribbon : Control
             }
             else if (_hoverTab == s)
                 using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, s.TabBounds);
-            TextRenderer.DrawText(g, s.Text, Font, s.TabBounds, aktiv ? Ui.Blau : Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, s.Text, TabSchrift, s.TabBounds, aktiv ? Ui.Blau : Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
         if (seite is null) return;

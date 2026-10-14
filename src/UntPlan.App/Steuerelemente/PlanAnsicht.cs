@@ -29,6 +29,17 @@ public sealed class PlanAnsicht : Control
     public List<Planstunde> Mehrfach { get; } = new();
     /// <summary>Gewählte Stunde im tagesaktuellen Plan.</summary>
     public (DateOnly Datum, TagesEintrag Eintrag)? TagesAuswahl { get; private set; }
+
+    /// <summary>Eintrag eines Unterrichts im tagesaktuellen Plan markieren (Synchronisation aus einem anderen Plan).</summary>
+    public void TagesAuswaehlen(DateOnly datum, int stunde, int unterrichtId)
+    {
+        if (_woche is not DateOnly w) return;
+        var tag = datum.DayNumber - w.DayNumber;
+        if (tag < 0 || tag >= Tage) return;
+        var e = EintraegeAm(tag, stunde).FirstOrDefault(x => (x.Unterricht?.Id ?? x.Vertretung?.UnterrichtId) == unterrichtId);
+        TagesAuswahl = e is null ? null : (datum, e);
+        Invalidate();
+    }
     public bool Bearbeitbar { get; set; } = true;
 
     public event Action<Planstunde?>? AuswahlGeaendert;
@@ -131,8 +142,7 @@ public sealed class PlanAnsicht : Control
     }
 
     // ------------------------------------------------------------------------------------------
-    // Anordnung: zusammenhängende Stunden als ein Feld; parallele Blöcke nebeneinander (Spuren),
-    // mehrere Einzelstunden derselben Stunde untereinander
+    // Anordnung: zusammenhängende Stunden als ein Feld; gleichzeitige Stunden und Blöcke immer nebeneinander (Spuren)
     // ------------------------------------------------------------------------------------------
 
     private sealed class Feld<T>
@@ -181,12 +191,6 @@ public sealed class PlanAnsicht : Control
         }
         foreach (var g in gruppen)
         {
-            if (g.All(x => x.Laenge == 1))
-            {
-                // nur Einzelstunden (alle in derselben Stunde): untereinander wie bisher
-                for (var i = 0; i < g.Count; i++) { g[i].StapelIndex = i; g[i].StapelAnzahl = g.Count; }
-                continue;
-            }
             var ende = new List<int>();
             foreach (var f in g.OrderBy(x => x.Start).ThenByDescending(x => x.Laenge))
             {
@@ -292,7 +296,7 @@ public sealed class PlanAnsicht : Control
             for (var s = 1; s <= Stunden; s++)
             {
                 var r = Zelle(bounds, t, s);
-                var hint = Color.White;
+                var hint = druck ? Color.White : Ui.PlanLeer;
                 var frei = kt?.StundeFrei(s) == true;
                 if (!zr.Verfuegbar(t, s)) hint = Color.FromArgb(225, 225, 225);
                 else if (ferien != null || frei) hint = Color.FromArgb(255, 248, 220);

@@ -93,7 +93,18 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _plan.Doppelklick += p => { var u = Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId); if (u != null) UnterrichtFenster.Zeigen(_typ is ElementTyp.Raum ? ElementTyp.Unterricht : _typ, _typ is ElementTyp.Raum ? null : _id); };
         _plan.Kontext += Kontextmenue;
         _plan.TagesKontext += TagesKontextmenue;
-        _plan.TagesAuswahlGeaendert += (datum, e) => { TagesLupe(e); if (e?.Vertretung is { } v) AppZustand.VertretungWaehlen(v); };
+        _plan.TagesAuswahlGeaendert += (datum, e) =>
+        {
+            TagesLupe(e);
+            if (e?.Vertretung is { } v) AppZustand.VertretungWaehlen(v);
+            else if (e?.Unterricht is { } u)
+            {
+                // regulärer Unterricht im tagesaktuellen Plan: die anderen Pläne zeigen Klasse, Lehrkraft und Raum dieser Stunde
+                var tag = Kalender.TagIndex(D, datum);
+                var p = D.Stundenplan.FirstOrDefault(x => x.UnterrichtId == u.Id && x.Tag == tag && x.Stunde == e.Stunde) ?? new Planstunde { UnterrichtId = u.Id, Tag = tag, Stunde = e.Stunde };
+                AppZustand.StundeWaehlen(u, p, this, e.KlassenIds, e.LehrerIds, e.RaumIds, datum);
+            }
+        };
 
         Ui.RasterGestalten(_lupe, false);
         _lupe.RowHeadersVisible = false;
@@ -317,19 +328,25 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         if (quelle == this || !_sync.Checked || _reiter.Visible) return;
         var k = FensterIndex(quelle);
+        // Elemente der angeklickten Zeile haben Vorrang (z. B. Lehrerplan → Klasse dieser Lehrkraft)
         int? neu = _typ switch
         {
-            ElementTyp.Lehrer => Wahl(u.LehrerIds.ToList(), k),
-            ElementTyp.Klasse => Wahl(u.KlassenIds.ToList(), k),
-            ElementTyp.Raum => Wahl(p?.Raeume.Where(r => r.HasValue).Select(r => r!.Value).ToList() ?? u.Zeilen.Where(z => z.FachraumId.HasValue).Select(z => z.FachraumId!.Value).ToList(), k),
+            ElementTyp.Lehrer => Wahl((AppZustand.AuswahlLehrer is { Count: > 0 } al ? al : u.LehrerIds).ToList(), k),
+            ElementTyp.Klasse => Wahl((AppZustand.AuswahlKlassen is { Count: > 0 } ak ? ak : u.KlassenIds).ToList(), k),
+            ElementTyp.Raum => Wahl(AppZustand.AuswahlRaeume is { Count: > 0 } ar ? ar.ToList() :
+                p?.Raeume.Where(r => r.HasValue).Select(r => r!.Value).ToList() ?? u.Zeilen.Where(z => z.FachraumId.HasValue).Select(z => z.FachraumId!.Value).ToList(), k),
             ElementTyp.Fach => u.HauptfachId,
             _ => null,
         };
-        if (neu is null || neu == _id) { if (p != null) { _plan.Ausgewaehlt = p; _plan.Invalidate(); } return; }
-        _id = neu.Value;
-        Neuaufbau();
-        _plan.Ausgewaehlt = p;
-        LupeFuellen(p);
+        var datum = AppZustand.AuswahlDatum;
+        if (neu is not null && neu != _id)
+        {
+            _id = neu.Value;
+            Neuaufbau();
+        }
+        if (_plan.Tagesmodus && datum is DateOnly dt && p != null) _plan.TagesAuswaehlen(dt, p.Stunde, u.Id);
+        else if (p != null) { _plan.Ausgewaehlt = p; _plan.Invalidate(); }
+        if (neu is not null) LupeFuellen(p);
     }
 
     /// <summary>Gewählte Vertretung: Klassenplan der Klasse, Lehrerpläne von (Lehrer) und Vertreter, Raumplan – tagesaktuell zur Woche der Vertretung.</summary>
@@ -520,7 +537,20 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         LupeFuellen(p);
         ReiterAufbauen();
-        if (p != null && Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) AppZustand.StundeWaehlen(u, p, this);
+        if (p == null || !Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) return;
+        // nur die Zeilen des angezeigten Elements weitergeben (Kopplungen: Klassen dieses Lehrers, Lehrer dieser Klasse)
+        var zeilen = Enumerable.Range(0, u.Zeilen.Count).Where(i => _typ switch
+        {
+            ElementTyp.Lehrer => u.Zeilen[i].LehrerId == _id,
+            ElementTyp.Klasse => u.Zeilen[i].KlassenIds.Contains(_id),
+            ElementTyp.Raum => p.RaumFuerZeile(i) == _id,
+            _ => true,
+        }).ToList();
+        if (zeilen.Count == 0) zeilen = Enumerable.Range(0, u.Zeilen.Count).ToList();
+        AppZustand.StundeWaehlen(u, p, this,
+            zeilen.SelectMany(i => u.Zeilen[i].KlassenIds).Distinct().ToList(),
+            zeilen.Select(i => u.Zeilen[i].LehrerId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList(),
+            zeilen.Select(i => p.RaumFuerZeile(i)).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList());
     }
 
     private void LupeFuellen(Planstunde? p, Unterricht? unv = null)

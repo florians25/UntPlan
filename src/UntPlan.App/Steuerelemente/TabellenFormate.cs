@@ -89,6 +89,8 @@ public static class TabellenFormate
         if (g.Columns.Count == 0) return;
         foreach (DataGridViewColumn c in g.Columns)
         {
+            // Füllspalten (z. B. Text) nie auf wenige Pixel zusammendrücken
+            if (c.AutoSizeMode == DataGridViewAutoSizeColumnMode.Fill && c.MinimumWidth < 140) c.MinimumWidth = 140;
             var k = Schluessel(c);
             if (!z.Standard.ContainsKey(k))
                 z.Standard[k] = new Tabellenspalte { Name = k, Sichtbar = c.Visible, Breite = c.Width, Position = c.DisplayIndex, Ueberschrift = c.HeaderText, Ausrichtung = 0, Fixiert = c.Frozen };
