@@ -478,3 +478,117 @@ public class MonitorTests
         Assert.Contains("UntPlanWeb", await start.Content.ReadAsStringAsync());
     }
 }
+
+public class BuchbarUndFehlzeitenTests
+{
+    private static readonly DateOnly Freitag = new(2026, 10, 16);
+
+    [Fact]
+    public async Task Nur_buchbare_Raeume_werden_angeboten_und_gebucht()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var buchbar = stand.Paket.Elemente.Raeume.Where(r => r.Buchbar).Select(r => r.Kurz).ToHashSet();
+        var nicht = stand.Paket.Elemente.Raeume.First(r => !r.Buchbar).Kurz;
+        Assert.NotEmpty(buchbar);
+        var c = await s.AlsAsync("mue", "lehrer", "MUE");
+        var frei = await Testserver.HolenAsync(c, "/api/app/meldungen/freieraeume?datum=2026-10-16&von=1&bis=1");
+        Assert.All(frei.AsArray(), x => Assert.Contains(x!["kurz"]!.GetValue<string>(), buchbar));
+        var r = await c.PostAsJsonAsync("/api/app/meldungen/raumbuchung", new { datum = "2026-10-16", stundeVon = 1, stundeBis = 1, raum = nicht });
+        Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task Raumbuchung_und_Klausur_erscheinen_auf_der_Stundenkarte()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var plan = s.Dienst<Plandienst>();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var karten = plan.Karten(stand, Freitag, Elementtyp.Klasse, "7a").Where(x => x.Unterricht.HasValue && x.Status == "regulaer").ToList();
+        var k = karten[0];
+        var c = await s.AlsAsync("mue", "lehrer", "MUE");
+        var frei = await Testserver.HolenAsync(c, $"/api/app/meldungen/freieraeume?datum=2026-10-16&von={k.Von}&bis={k.Von}");
+        var raum = frei[0]!["kurz"]!.GetValue<string>();
+        await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/raumbuchung", new { datum = "2026-10-16", stundeVon = k.Von, stundeBis = k.Von, raum, klassen = new[] { "7a" }, titel = "Raumänderung" }));
+        var k2 = karten.First(x => x.Von != k.Von);
+        await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/klausur", new { datum = "2026-10-16", stundeVon = k2.Von, stundeBis = k2.Von, klassen = new[] { "7a" }, titel = "Mathe-Arbeit" }));
+
+        var p = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=7a&datum=2026-10-16");
+        var amTag = p["karten"]!.AsArray().Where(x => x!["datum"]!.GetValue<string>() == "2026-10-16").ToList();
+        var mitRaum = amTag.Single(x => x!["von"]!.GetValue<int>() == k.Von && x["fach"]!.GetValue<string>() == k.Fach);
+        Assert.Equal("Raumänderung (vorgemerkt)", mitRaum!["art"]!.GetValue<string>());
+        Assert.Equal(raum, mitRaum["raeume"]![0]!["k"]!.GetValue<string>());
+        var klausur = amTag.Single(x => x!["von"]!.GetValue<int>() == k2.Von && x["fach"]!.GetValue<string>() == k2.Fach);
+        Assert.Equal("klausur", klausur!["status"]!.GetValue<string>());
+        Assert.Equal("Mathe-Arbeit", klausur["text"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Fehlzeiten_erfassen_und_entschuldigen()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var plan = s.Dienst<Plandienst>();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var heute = new DateOnly(2026, 10, 14);
+        var k = plan.Karten(stand, heute, Elementtyp.Klasse, "7a").First(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count > 0);
+        var lehrer = k.Lehrer[0].K;
+        var c = await s.AlsAsync(lehrer.ToLowerInvariant(), "lehrer", lehrer);
+
+        var anw = await Testserver.HolenAsync(c, $"/api/app/klassenbuch/anwesenheit?datum={k.Datum}&stunde={k.Von}&unterricht={k.Unterricht}");
+        Assert.True(anw["darf"]!.GetValue<bool>());
+        var schueler = anw["schueler"]!.AsArray();
+        Assert.NotEmpty(schueler);
+        var a = schueler[0]!["id"]!.GetValue<int>();
+        var b = schueler[1]!["id"]!.GetValue<int>();
+        await Testserver.JsonAsync(await c.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new
+        {
+            datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht,
+            eintraege = new object[] { new { schuelerId = a, art = "fehlt", minuten = 0 }, new { schuelerId = b, art = "verspaetet", minuten = 10 } },
+        }));
+        anw = await Testserver.HolenAsync(c, $"/api/app/klassenbuch/anwesenheit?datum={k.Datum}&stunde={k.Von}&unterricht={k.Unterricht}");
+        Assert.Equal(2, anw["fehlzeiten"]!.AsArray().Count);
+        Assert.False(string.IsNullOrEmpty(anw["geprueft"]?.GetValue<string>()));
+
+        var f = await Testserver.HolenAsync(c, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
+        var sa = f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == a)!;
+        Assert.Equal(k.Bis - k.Von + 1, sa["stunden"]!.GetValue<int>());
+        Assert.Equal(1, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == b)!["verspaetungen"]!.GetValue<int>());
+        var ids = f["eintraege"]!.AsArray().Where(x => x!["schuelerId"]!.GetValue<int>() == a).Select(x => x!["id"]!.GetValue<int>()).ToList();
+
+        // Entschuldigen darf nur Klassenleitung / Schulleitung
+        var fremd = await s.AlsAsync("fremd", "lehrer", "XYZ");
+        Assert.False((await fremd.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/status", new { ids, status = "entschuldigt" })).IsSuccessStatusCode);
+        var leitung = await s.AlsAsync("leitung", "leitung", "");
+        await Testserver.JsonAsync(await leitung.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/status", new { ids, status = "entschuldigt" }));
+        f = await Testserver.HolenAsync(c, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
+        Assert.Equal(k.Bis - k.Von + 1, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == a)!["entschuldigt"]!.GetValue<int>());
+
+        // Erneutes Speichern behält den Entschuldigungsstatus
+        await Testserver.JsonAsync(await c.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new { datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht, eintraege = new object[] { new { schuelerId = a, art = "fehlt" } } }));
+        f = await Testserver.HolenAsync(c, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
+        Assert.Equal(0, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == b)!["verspaetungen"]!.GetValue<int>());
+        Assert.Equal(k.Bis - k.Von + 1, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == a)!["entschuldigt"]!.GetValue<int>());
+
+        // Wochenübersicht zeigt die Fehlenden
+        var w = await Testserver.HolenAsync(c, "/api/app/klassenbuch/woche?klasse=7a&datum=2026-10-14");
+        var tag = w["tage"]!.AsArray().Single(x => x!["datum"]!.GetValue<string>() == "2026-10-14")!;
+        Assert.Contains(tag["stunden"]!.AsArray(), x => x!["fehlend"]!.AsArray().Count == 1);
+    }
+
+    [Fact]
+    public async Task Ganze_Tage_und_Vermerke()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var leitung = await s.AlsAsync("leitung", "leitung", "");
+        var sid = stand.Paket.Elemente.Schueler.First(x => x.Klasse == "7a").Id;
+        var r = await Testserver.JsonAsync(await leitung.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/tage", new { schuelerId = sid, von = "2026-10-12", bis = "2026-10-13", status = "entschuldigt", bemerkung = "krank" }));
+        Assert.True(r["stunden"]!.GetValue<int>() > 0);
+        var lehrer = await s.AlsAsync("fremd", "lehrer", "XYZ");
+        Assert.False((await lehrer.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/tage", new { schuelerId = sid, von = "2026-10-12", bis = "2026-10-12" })).IsSuccessStatusCode);
+
+        await Testserver.JsonAsync(await lehrer.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "7a", schuelerId = sid, art = "Lob", text = "Sehr gutes Referat" }));
+        var v = await Testserver.HolenAsync(lehrer, "/api/app/klassenbuch/vermerke?klasse=7a");
+        Assert.Equal("Lob", v["vermerke"]![0]!["art"]!.GetValue<string>());
+    }
+}

@@ -161,6 +161,25 @@ public sealed class Db
         );
         CREATE TABLE protokoll (id INTEGER PRIMARY KEY AUTOINCREMENT, zeit TEXT NOT NULL, benutzer TEXT NOT NULL, aktion TEXT NOT NULL, details TEXT NOT NULL DEFAULT '');
         """,
+
+        // 2: Klassenbuch – Anwesenheit, Fehlzeiten, Vermerke
+        """
+        ALTER TABLE klassenbuch ADD COLUMN anwesenheit TEXT;
+        CREATE TABLE fehlzeiten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, datum TEXT NOT NULL, stunde INTEGER NOT NULL, unterricht INTEGER NOT NULL DEFAULT 0,
+            schueler_id INTEGER NOT NULL, klasse TEXT NOT NULL, fach TEXT NOT NULL DEFAULT '',
+            art TEXT NOT NULL DEFAULT 'fehlt', minuten INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'offen', bemerkung TEXT NOT NULL DEFAULT '', lehrer TEXT NOT NULL DEFAULT '',
+            erstellt TEXT NOT NULL, benutzer_id INTEGER,
+            UNIQUE (datum, stunde, schueler_id)
+        );
+        CREATE INDEX ix_fehlzeiten_klasse ON fehlzeiten (klasse, datum);
+        CREATE TABLE vermerke (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, datum TEXT NOT NULL, klasse TEXT NOT NULL, schueler_id INTEGER,
+            art TEXT NOT NULL DEFAULT 'Vermerk', text TEXT NOT NULL, lehrer TEXT NOT NULL DEFAULT '', erstellt TEXT NOT NULL, benutzer_id INTEGER
+        );
+        CREATE INDEX ix_vermerke_klasse ON vermerke (klasse, datum);
+        """,
     };
 
     private static void Migrieren(SqliteConnection c)

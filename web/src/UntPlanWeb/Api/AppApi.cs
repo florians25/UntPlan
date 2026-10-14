@@ -17,6 +17,10 @@ public static class AppApi
     public sealed record BuchungDaten(DateOnly Datum, int? StundeVon, int? StundeBis, string Raum, List<string>? Klassen, string? Titel, string? Text);
     public sealed record KlausurDaten(DateOnly Datum, int? StundeVon, int? StundeBis, List<string> Klassen, List<string>? Raeume, List<string>? Aufsicht, string? Titel, string? Text);
     public sealed record MitteilungDaten(List<string> Empfaenger, string Betreff, string Text, bool Wichtig);
+    public sealed record AnwesenheitDaten(DateOnly Datum, int Stunde, int Unterricht, List<AnwesenheitEintrag>? Eintraege);
+    public sealed record FehlenDaten(int SchuelerId, DateOnly Von, DateOnly Bis, string? Status, string? Bemerkung);
+    public sealed record FehlzeitStatusDaten(List<int> Ids, string Status);
+    public sealed record VermerkDaten(DateOnly Datum, string Klasse, int? SchuelerId, string? Art, string Text);
     public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
@@ -283,6 +287,47 @@ public static class AppApi
         {
             var b = Ich(c);
             return Results.Json(b.LehrerKuerzel is string l && p.Aktuell is { } s ? kb.OffeneStunden(s, l) : new List<object>());
+        });
+
+        api.MapGet("/klassenbuch/woche", (string klasse, string? datum, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
+        {
+            if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            var d = Datum(datum, uhr);
+            return Results.Json(kb.Woche(Paket(p), klasse, d.AddDays(-(((int)d.DayOfWeek + 6) % 7))));
+        });
+        api.MapGet("/klassenbuch/anwesenheit", (DateOnly datum, int stunde, int unterricht, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        {
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            return Results.Json(kb.Anwesenheit(b, Paket(p), datum, stunde, unterricht));
+        });
+        api.MapPut("/klassenbuch/anwesenheit", (AnwesenheitDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(new { fehlend = kb.AnwesenheitSpeichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Eintraege ?? new()) }));
+        api.MapGet("/klassenbuch/fehlzeiten", (string klasse, string? von, string? bis, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            return Results.Json(kb.Fehlzeitenuebersicht(Paket(p), b, klasse, DateOnly.TryParse(von, out var v) ? v : uhr.Heute.AddDays(-90), DateOnly.TryParse(bis, out var bi) ? bi : uhr.Heute));
+        });
+        api.MapPost("/klassenbuch/fehlzeiten/tage", (FehlenDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(new { stunden = kb.FehlenEintragen(Ich(c), Paket(p), d.SchuelerId, d.Von, d.Bis, d.Status ?? "offen", d.Bemerkung ?? "") }));
+        api.MapPost("/klassenbuch/fehlzeiten/status", (FehlzeitStatusDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(new { geaendert = kb.StatusSetzen(Ich(c), Paket(p), d.Ids ?? new(), d.Status ?? "offen") }));
+        api.MapDelete("/klassenbuch/fehlzeiten/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(new { ok = kb.FehlzeitLoeschen(Ich(c), Paket(p), id) }));
+        api.MapGet("/klassenbuch/vermerke", (string klasse, string? von, string? bis, HttpContext c, Klassenbuchdienst kb, Uhr uhr) =>
+        {
+            if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, vermerke = kb.Vermerke(klasse, DateOnly.TryParse(von, out var v) ? v : uhr.Heute.AddDays(-90), DateOnly.TryParse(bis, out var bi) ? bi : uhr.Heute.AddDays(7)) });
+        });
+        api.MapPost("/klassenbuch/vermerke", (VermerkDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(kb.VermerkAnlegen(Ich(c), Paket(p), d.Datum, d.Klasse ?? "", d.SchuelerId, d.Art ?? "Vermerk", d.Text ?? "")));
+        api.MapDelete("/klassenbuch/vermerke/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(new { ok = kb.VermerkLoeschen(Ich(c), Paket(p), id) }));
+        api.MapGet("/klassenbuch/schueler", (string klasse, HttpContext c, Paketdienst p) =>
+        {
+            if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            return Results.Json(Klassenbuchdienst.Schueler(Paket(p), new[] { klasse }));
         });
 
         // ---------------------------------------------------------------- Profil, Kalender, Monitor

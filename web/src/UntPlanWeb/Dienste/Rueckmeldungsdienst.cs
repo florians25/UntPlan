@@ -112,17 +112,22 @@ public sealed class Rueckmeldungsdienst
         return !belegt && !gesperrt;
     }
 
-    /// <summary>Freie Räume für einen Zeitraum (für die Buchung).</summary>
+    /// <summary>Räume, die gebucht werden dürfen (in UntPlan als „buchbar“ markiert). Ältere Pakete ohne Kennzeichen: alle.</summary>
+    public static IEnumerable<WebRaum> Buchbar(Stand s) =>
+        s.Paket.Elemente.Raeume.Any(r => r.Buchbar) ? s.Paket.Elemente.Raeume.Where(r => r.Buchbar) : s.Paket.Elemente.Raeume;
+
+    /// <summary>Freie buchbare Räume für einen Zeitraum (für die Buchung).</summary>
     public List<object> FreieRaeume(Stand s, DateOnly d, int von, int bis) =>
-        s.Paket.Elemente.Raeume.Where(r => RaumFrei(s, d, r.Kurz, von, bis))
+        Buchbar(s).Where(r => RaumFrei(s, d, r.Kurz, von, bis))
             .OrderBy(r => r.Kurz, StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true))
-            .Select(r => (object)new { kurz = r.Kurz, name = r.Name }).ToList();
+            .Select(r => (object)new { kurz = r.Kurz, name = r.Name, raumart = r.Raumart, kapazitaet = r.Kapazitaet }).ToList();
 
     public Meldung Raumbuchung(Stand s, Benutzer b, DateOnly d, int? stundeVon, int? stundeBis, string raum, IEnumerable<string> klassen, string titel, string text)
     {
         if (b.LehrerKuerzel is null && !b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Räume buchen.");
         if (d < _uhr.Heute) throw new ArgumentException("Räume können nicht rückwirkend gebucht werden.");
         if (!s.Raeume.ContainsKey(raum)) throw new ArgumentException($"Unbekannter Raum {raum}.");
+        if (!Buchbar(s).Any(r => Ci.Equals(r.Kurz, raum))) throw new ArgumentException($"Raum {raum} ist nicht buchbar.");
         if (_plan.Frei(s, d).Frei) throw new ArgumentException("An diesem Tag ist kein Unterricht.");
         var (v, bi) = Stunden(s, stundeVon, stundeBis);
         if (!RaumFrei(s, d, raum, v, bi)) throw new ArgumentException($"Raum {raum} ist in dieser Zeit nicht frei.");

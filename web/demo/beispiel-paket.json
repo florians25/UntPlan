@@ -1,6 +1,6 @@
 {
   "schema": "untplanweb/1",
-  "erzeugt": "2026-10-14T07:49:54.1246549+00:00",
+  "erzeugt": "2026-10-14T10:34:33.1033477+00:00",
   "revision": 1,
   "programmversion": "1.0.0.0",
   "schule": {
@@ -3522,108 +3522,162 @@
     ],
     "raeume": [
       {
+        "buchbar": false,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 56,
         "kurz": "R101",
         "name": "Klassenraum 101",
         "farbe": ""
       },
       {
+        "buchbar": false,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 57,
         "kurz": "R102",
         "name": "Klassenraum 102",
         "farbe": ""
       },
       {
+        "buchbar": false,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 58,
         "kurz": "R103",
         "name": "Klassenraum 103",
         "farbe": ""
       },
       {
+        "buchbar": false,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 59,
         "kurz": "R104",
         "name": "Klassenraum 104",
         "farbe": ""
       },
       {
+        "buchbar": false,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 60,
         "kurz": "R105",
         "name": "Klassenraum 105",
         "farbe": ""
       },
       {
+        "buchbar": false,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 61,
         "kurz": "R106",
         "name": "Klassenraum 106",
         "farbe": ""
       },
       {
+        "buchbar": false,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 62,
         "kurz": "R107",
         "name": "Klassenraum 107",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 63,
         "kurz": "R108",
         "name": "Klassenraum 108",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Klassenraum",
+        "kapazitaet": 30,
         "id": 64,
         "kurz": "R109",
         "name": "Klassenraum 109",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Sporthalle",
+        "kapazitaet": 60,
         "id": 65,
         "kurz": "TH1",
         "name": "Turnhalle 1",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Sporthalle",
+        "kapazitaet": 60,
         "id": 66,
         "kurz": "TH2",
         "name": "Turnhalle 2",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Fachraum",
+        "kapazitaet": 30,
         "id": 67,
         "kurz": "PH1",
         "name": "Physiksaal",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Fachraum",
+        "kapazitaet": 30,
         "id": 68,
         "kurz": "CH1",
         "name": "Chemiesaal",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Fachraum",
+        "kapazitaet": 30,
         "id": 69,
         "kurz": "BI1",
         "name": "Biologieraum",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Fachraum",
+        "kapazitaet": 30,
         "id": 70,
         "kurz": "KU1",
         "name": "Kunstraum",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "Fachraum",
+        "kapazitaet": 30,
         "id": 71,
         "kurz": "MU1",
         "name": "Musikraum",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "EDV",
+        "kapazitaet": 30,
         "id": 72,
         "kurz": "EDV1",
         "name": "Computerraum 1",
         "farbe": ""
       },
       {
+        "buchbar": true,
+        "raumart": "EDV",
+        "kapazitaet": 30,
         "id": 73,
         "kurz": "EDV2",
         "name": "Computerraum 2",
@@ -3819,6 +3873,1112 @@
         "name": "Flur 1. Obergeschoss",
         "farbe": ""
       }
+    ],
+    "schueler": [
+      {
+        "id": 187,
+        "vorname": "Lea",
+        "name": "Bauer",
+        "klasse": "EF"
+      },
+      {
+        "id": 188,
+        "vorname": "Elias",
+        "name": "Keller",
+        "klasse": "EF"
+      },
+      {
+        "id": 189,
+        "vorname": "Emilia",
+        "name": "Vogel",
+        "klasse": "EF"
+      },
+      {
+        "id": 190,
+        "vorname": "Jonas",
+        "name": "Jung",
+        "klasse": "EF"
+      },
+      {
+        "id": 191,
+        "vorname": "Marie",
+        "name": "Roth",
+        "klasse": "EF"
+      },
+      {
+        "id": 192,
+        "vorname": "Paul",
+        "name": "Frank",
+        "klasse": "EF"
+      },
+      {
+        "id": 193,
+        "vorname": "Sofia",
+        "name": "Berg",
+        "klasse": "EF"
+      },
+      {
+        "id": 194,
+        "vorname": "Ben",
+        "name": "Lorenz",
+        "klasse": "EF"
+      },
+      {
+        "id": 195,
+        "vorname": "Lina",
+        "name": "Busch",
+        "klasse": "EF"
+      },
+      {
+        "id": 196,
+        "vorname": "Felix",
+        "name": "Otto",
+        "klasse": "EF"
+      },
+      {
+        "id": 197,
+        "vorname": "Hanna",
+        "name": "Sommer",
+        "klasse": "EF"
+      },
+      {
+        "id": 198,
+        "vorname": "Luis",
+        "name": "Engel",
+        "klasse": "EF"
+      },
+      {
+        "id": 199,
+        "vorname": "Emma",
+        "name": "Bauer",
+        "klasse": "EF"
+      },
+      {
+        "id": 200,
+        "vorname": "Finn",
+        "name": "Keller",
+        "klasse": "EF"
+      },
+      {
+        "id": 201,
+        "vorname": "Mia",
+        "name": "Vogel",
+        "klasse": "EF"
+      },
+      {
+        "id": 202,
+        "vorname": "Noah",
+        "name": "Jung",
+        "klasse": "EF"
+      },
+      {
+        "id": 203,
+        "vorname": "Lea",
+        "name": "Roth",
+        "klasse": "EF"
+      },
+      {
+        "id": 204,
+        "vorname": "Elias",
+        "name": "Frank",
+        "klasse": "EF"
+      },
+      {
+        "id": 205,
+        "vorname": "Emilia",
+        "name": "Berg",
+        "klasse": "EF"
+      },
+      {
+        "id": 206,
+        "vorname": "Jonas",
+        "name": "Lorenz",
+        "klasse": "EF"
+      },
+      {
+        "id": 207,
+        "vorname": "Marie",
+        "name": "Busch",
+        "klasse": "EF"
+      },
+      {
+        "id": 208,
+        "vorname": "Paul",
+        "name": "Otto",
+        "klasse": "EF"
+      },
+      {
+        "id": 209,
+        "vorname": "Sofia",
+        "name": "Sommer",
+        "klasse": "EF"
+      },
+      {
+        "id": 210,
+        "vorname": "Ben",
+        "name": "Engel",
+        "klasse": "EF"
+      },
+      {
+        "id": 211,
+        "vorname": "Lina",
+        "name": "Bauer",
+        "klasse": "EF"
+      },
+      {
+        "id": 212,
+        "vorname": "Felix",
+        "name": "Keller",
+        "klasse": "EF"
+      },
+      {
+        "id": 213,
+        "vorname": "Hanna",
+        "name": "Vogel",
+        "klasse": "EF"
+      },
+      {
+        "id": 214,
+        "vorname": "Luis",
+        "name": "Jung",
+        "klasse": "EF"
+      },
+      {
+        "id": 215,
+        "vorname": "Emma",
+        "name": "Roth",
+        "klasse": "EF"
+      },
+      {
+        "id": 216,
+        "vorname": "Finn",
+        "name": "Frank",
+        "klasse": "EF"
+      },
+      {
+        "id": 217,
+        "vorname": "Mia",
+        "name": "Berg",
+        "klasse": "EF"
+      },
+      {
+        "id": 218,
+        "vorname": "Noah",
+        "name": "Lorenz",
+        "klasse": "EF"
+      },
+      {
+        "id": 219,
+        "vorname": "Lea",
+        "name": "Busch",
+        "klasse": "EF"
+      },
+      {
+        "id": 220,
+        "vorname": "Elias",
+        "name": "Otto",
+        "klasse": "EF"
+      },
+      {
+        "id": 221,
+        "vorname": "Emilia",
+        "name": "Sommer",
+        "klasse": "EF"
+      },
+      {
+        "id": 222,
+        "vorname": "Jonas",
+        "name": "Engel",
+        "klasse": "EF"
+      },
+      {
+        "id": 223,
+        "vorname": "Marie",
+        "name": "Bauer",
+        "klasse": "EF"
+      },
+      {
+        "id": 224,
+        "vorname": "Paul",
+        "name": "Keller",
+        "klasse": "EF"
+      },
+      {
+        "id": 225,
+        "vorname": "Sofia",
+        "name": "Vogel",
+        "klasse": "EF"
+      },
+      {
+        "id": 226,
+        "vorname": "Ben",
+        "name": "Jung",
+        "klasse": "EF"
+      },
+      {
+        "id": 227,
+        "vorname": "Paul",
+        "name": "Bauer",
+        "klasse": "5a"
+      },
+      {
+        "id": 228,
+        "vorname": "Sofia",
+        "name": "Berg",
+        "klasse": "5a"
+      },
+      {
+        "id": 229,
+        "vorname": "Anton",
+        "name": "Arslan",
+        "klasse": "5a"
+      },
+      {
+        "id": 230,
+        "vorname": "Lotta",
+        "name": "Winter",
+        "klasse": "5a"
+      },
+      {
+        "id": 231,
+        "vorname": "Jonas",
+        "name": "Bauer",
+        "klasse": "5a"
+      },
+      {
+        "id": 232,
+        "vorname": "Marie",
+        "name": "Berg",
+        "klasse": "5a"
+      },
+      {
+        "id": 233,
+        "vorname": "Leon",
+        "name": "Arslan",
+        "klasse": "5a"
+      },
+      {
+        "id": 234,
+        "vorname": "Lea",
+        "name": "Winter",
+        "klasse": "5a"
+      },
+      {
+        "id": 235,
+        "vorname": "Elias",
+        "name": "Bauer",
+        "klasse": "5a"
+      },
+      {
+        "id": 236,
+        "vorname": "Emilia",
+        "name": "Berg",
+        "klasse": "5a"
+      },
+      {
+        "id": 237,
+        "vorname": "Henry",
+        "name": "Arslan",
+        "klasse": "5a"
+      },
+      {
+        "id": 238,
+        "vorname": "Mia",
+        "name": "Winter",
+        "klasse": "5a"
+      },
+      {
+        "id": 239,
+        "vorname": "Noah",
+        "name": "Bauer",
+        "klasse": "5a"
+      },
+      {
+        "id": 240,
+        "vorname": "Clara",
+        "name": "Berg",
+        "klasse": "5a"
+      },
+      {
+        "id": 241,
+        "vorname": "Theo",
+        "name": "Arslan",
+        "klasse": "5a"
+      },
+      {
+        "id": 242,
+        "vorname": "Emma",
+        "name": "Winter",
+        "klasse": "5a"
+      },
+      {
+        "id": 243,
+        "vorname": "Finn",
+        "name": "Bauer",
+        "klasse": "5a"
+      },
+      {
+        "id": 244,
+        "vorname": "Ida",
+        "name": "Berg",
+        "klasse": "5a"
+      },
+      {
+        "id": 245,
+        "vorname": "Emil",
+        "name": "Arslan",
+        "klasse": "5a"
+      },
+      {
+        "id": 246,
+        "vorname": "Hanna",
+        "name": "Winter",
+        "klasse": "5a"
+      },
+      {
+        "id": 247,
+        "vorname": "Luis",
+        "name": "Bauer",
+        "klasse": "5a"
+      },
+      {
+        "id": 248,
+        "vorname": "Mila",
+        "name": "Berg",
+        "klasse": "5a"
+      },
+      {
+        "id": 249,
+        "vorname": "Ben",
+        "name": "Arslan",
+        "klasse": "5a"
+      },
+      {
+        "id": 250,
+        "vorname": "Lina",
+        "name": "Winter",
+        "klasse": "5a"
+      },
+      {
+        "id": 251,
+        "vorname": "Felix",
+        "name": "Bauer",
+        "klasse": "5b"
+      },
+      {
+        "id": 252,
+        "vorname": "Ella",
+        "name": "Berg",
+        "klasse": "5b"
+      },
+      {
+        "id": 253,
+        "vorname": "Paul",
+        "name": "Arslan",
+        "klasse": "5b"
+      },
+      {
+        "id": 254,
+        "vorname": "Sofia",
+        "name": "Winter",
+        "klasse": "5b"
+      },
+      {
+        "id": 255,
+        "vorname": "Anton",
+        "name": "Bauer",
+        "klasse": "5b"
+      },
+      {
+        "id": 256,
+        "vorname": "Lotta",
+        "name": "Berg",
+        "klasse": "5b"
+      },
+      {
+        "id": 257,
+        "vorname": "Jonas",
+        "name": "Arslan",
+        "klasse": "5b"
+      },
+      {
+        "id": 258,
+        "vorname": "Marie",
+        "name": "Winter",
+        "klasse": "5b"
+      },
+      {
+        "id": 259,
+        "vorname": "Leon",
+        "name": "Bauer",
+        "klasse": "5b"
+      },
+      {
+        "id": 260,
+        "vorname": "Lea",
+        "name": "Berg",
+        "klasse": "5b"
+      },
+      {
+        "id": 261,
+        "vorname": "Elias",
+        "name": "Arslan",
+        "klasse": "5b"
+      },
+      {
+        "id": 262,
+        "vorname": "Emilia",
+        "name": "Winter",
+        "klasse": "5b"
+      },
+      {
+        "id": 263,
+        "vorname": "Henry",
+        "name": "Bauer",
+        "klasse": "5b"
+      },
+      {
+        "id": 264,
+        "vorname": "Mia",
+        "name": "Berg",
+        "klasse": "5b"
+      },
+      {
+        "id": 265,
+        "vorname": "Noah",
+        "name": "Arslan",
+        "klasse": "5b"
+      },
+      {
+        "id": 266,
+        "vorname": "Clara",
+        "name": "Winter",
+        "klasse": "5b"
+      },
+      {
+        "id": 267,
+        "vorname": "Theo",
+        "name": "Bauer",
+        "klasse": "5b"
+      },
+      {
+        "id": 268,
+        "vorname": "Emma",
+        "name": "Berg",
+        "klasse": "5b"
+      },
+      {
+        "id": 269,
+        "vorname": "Finn",
+        "name": "Arslan",
+        "klasse": "5b"
+      },
+      {
+        "id": 270,
+        "vorname": "Ida",
+        "name": "Winter",
+        "klasse": "5b"
+      },
+      {
+        "id": 271,
+        "vorname": "Emil",
+        "name": "Bauer",
+        "klasse": "5b"
+      },
+      {
+        "id": 272,
+        "vorname": "Hanna",
+        "name": "Berg",
+        "klasse": "5b"
+      },
+      {
+        "id": 273,
+        "vorname": "Luis",
+        "name": "Arslan",
+        "klasse": "5b"
+      },
+      {
+        "id": 274,
+        "vorname": "Mila",
+        "name": "Winter",
+        "klasse": "5b"
+      },
+      {
+        "id": 275,
+        "vorname": "Ben",
+        "name": "Bauer",
+        "klasse": "6a"
+      },
+      {
+        "id": 276,
+        "vorname": "Lina",
+        "name": "Berg",
+        "klasse": "6a"
+      },
+      {
+        "id": 277,
+        "vorname": "Felix",
+        "name": "Arslan",
+        "klasse": "6a"
+      },
+      {
+        "id": 278,
+        "vorname": "Ella",
+        "name": "Winter",
+        "klasse": "6a"
+      },
+      {
+        "id": 279,
+        "vorname": "Paul",
+        "name": "Bauer",
+        "klasse": "6a"
+      },
+      {
+        "id": 280,
+        "vorname": "Sofia",
+        "name": "Berg",
+        "klasse": "6a"
+      },
+      {
+        "id": 281,
+        "vorname": "Anton",
+        "name": "Arslan",
+        "klasse": "6a"
+      },
+      {
+        "id": 282,
+        "vorname": "Lotta",
+        "name": "Winter",
+        "klasse": "6a"
+      },
+      {
+        "id": 283,
+        "vorname": "Jonas",
+        "name": "Bauer",
+        "klasse": "6a"
+      },
+      {
+        "id": 284,
+        "vorname": "Marie",
+        "name": "Berg",
+        "klasse": "6a"
+      },
+      {
+        "id": 285,
+        "vorname": "Leon",
+        "name": "Arslan",
+        "klasse": "6a"
+      },
+      {
+        "id": 286,
+        "vorname": "Lea",
+        "name": "Winter",
+        "klasse": "6a"
+      },
+      {
+        "id": 287,
+        "vorname": "Elias",
+        "name": "Bauer",
+        "klasse": "6a"
+      },
+      {
+        "id": 288,
+        "vorname": "Emilia",
+        "name": "Berg",
+        "klasse": "6a"
+      },
+      {
+        "id": 289,
+        "vorname": "Henry",
+        "name": "Arslan",
+        "klasse": "6a"
+      },
+      {
+        "id": 290,
+        "vorname": "Mia",
+        "name": "Winter",
+        "klasse": "6a"
+      },
+      {
+        "id": 291,
+        "vorname": "Noah",
+        "name": "Bauer",
+        "klasse": "6a"
+      },
+      {
+        "id": 292,
+        "vorname": "Clara",
+        "name": "Berg",
+        "klasse": "6a"
+      },
+      {
+        "id": 293,
+        "vorname": "Theo",
+        "name": "Arslan",
+        "klasse": "6a"
+      },
+      {
+        "id": 294,
+        "vorname": "Emma",
+        "name": "Winter",
+        "klasse": "6a"
+      },
+      {
+        "id": 295,
+        "vorname": "Finn",
+        "name": "Bauer",
+        "klasse": "6a"
+      },
+      {
+        "id": 296,
+        "vorname": "Ida",
+        "name": "Berg",
+        "klasse": "6a"
+      },
+      {
+        "id": 297,
+        "vorname": "Emil",
+        "name": "Arslan",
+        "klasse": "6a"
+      },
+      {
+        "id": 298,
+        "vorname": "Hanna",
+        "name": "Winter",
+        "klasse": "6a"
+      },
+      {
+        "id": 299,
+        "vorname": "Luis",
+        "name": "Bauer",
+        "klasse": "6b"
+      },
+      {
+        "id": 300,
+        "vorname": "Mila",
+        "name": "Berg",
+        "klasse": "6b"
+      },
+      {
+        "id": 301,
+        "vorname": "Ben",
+        "name": "Arslan",
+        "klasse": "6b"
+      },
+      {
+        "id": 302,
+        "vorname": "Lina",
+        "name": "Winter",
+        "klasse": "6b"
+      },
+      {
+        "id": 303,
+        "vorname": "Felix",
+        "name": "Bauer",
+        "klasse": "6b"
+      },
+      {
+        "id": 304,
+        "vorname": "Ella",
+        "name": "Berg",
+        "klasse": "6b"
+      },
+      {
+        "id": 305,
+        "vorname": "Paul",
+        "name": "Arslan",
+        "klasse": "6b"
+      },
+      {
+        "id": 306,
+        "vorname": "Sofia",
+        "name": "Winter",
+        "klasse": "6b"
+      },
+      {
+        "id": 307,
+        "vorname": "Anton",
+        "name": "Bauer",
+        "klasse": "6b"
+      },
+      {
+        "id": 308,
+        "vorname": "Lotta",
+        "name": "Berg",
+        "klasse": "6b"
+      },
+      {
+        "id": 309,
+        "vorname": "Jonas",
+        "name": "Arslan",
+        "klasse": "6b"
+      },
+      {
+        "id": 310,
+        "vorname": "Marie",
+        "name": "Winter",
+        "klasse": "6b"
+      },
+      {
+        "id": 311,
+        "vorname": "Leon",
+        "name": "Bauer",
+        "klasse": "6b"
+      },
+      {
+        "id": 312,
+        "vorname": "Lea",
+        "name": "Berg",
+        "klasse": "6b"
+      },
+      {
+        "id": 313,
+        "vorname": "Elias",
+        "name": "Arslan",
+        "klasse": "6b"
+      },
+      {
+        "id": 314,
+        "vorname": "Emilia",
+        "name": "Winter",
+        "klasse": "6b"
+      },
+      {
+        "id": 315,
+        "vorname": "Henry",
+        "name": "Bauer",
+        "klasse": "6b"
+      },
+      {
+        "id": 316,
+        "vorname": "Mia",
+        "name": "Berg",
+        "klasse": "6b"
+      },
+      {
+        "id": 317,
+        "vorname": "Noah",
+        "name": "Arslan",
+        "klasse": "6b"
+      },
+      {
+        "id": 318,
+        "vorname": "Clara",
+        "name": "Winter",
+        "klasse": "6b"
+      },
+      {
+        "id": 319,
+        "vorname": "Theo",
+        "name": "Bauer",
+        "klasse": "6b"
+      },
+      {
+        "id": 320,
+        "vorname": "Emma",
+        "name": "Berg",
+        "klasse": "6b"
+      },
+      {
+        "id": 321,
+        "vorname": "Finn",
+        "name": "Arslan",
+        "klasse": "6b"
+      },
+      {
+        "id": 322,
+        "vorname": "Ida",
+        "name": "Winter",
+        "klasse": "6b"
+      },
+      {
+        "id": 323,
+        "vorname": "Emil",
+        "name": "Bauer",
+        "klasse": "7a"
+      },
+      {
+        "id": 324,
+        "vorname": "Hanna",
+        "name": "Berg",
+        "klasse": "7a"
+      },
+      {
+        "id": 325,
+        "vorname": "Luis",
+        "name": "Arslan",
+        "klasse": "7a"
+      },
+      {
+        "id": 326,
+        "vorname": "Mila",
+        "name": "Winter",
+        "klasse": "7a"
+      },
+      {
+        "id": 327,
+        "vorname": "Ben",
+        "name": "Bauer",
+        "klasse": "7a"
+      },
+      {
+        "id": 328,
+        "vorname": "Lina",
+        "name": "Berg",
+        "klasse": "7a"
+      },
+      {
+        "id": 329,
+        "vorname": "Felix",
+        "name": "Arslan",
+        "klasse": "7a"
+      },
+      {
+        "id": 330,
+        "vorname": "Ella",
+        "name": "Winter",
+        "klasse": "7a"
+      },
+      {
+        "id": 331,
+        "vorname": "Paul",
+        "name": "Bauer",
+        "klasse": "7a"
+      },
+      {
+        "id": 332,
+        "vorname": "Sofia",
+        "name": "Berg",
+        "klasse": "7a"
+      },
+      {
+        "id": 333,
+        "vorname": "Anton",
+        "name": "Arslan",
+        "klasse": "7a"
+      },
+      {
+        "id": 334,
+        "vorname": "Lotta",
+        "name": "Winter",
+        "klasse": "7a"
+      },
+      {
+        "id": 335,
+        "vorname": "Jonas",
+        "name": "Bauer",
+        "klasse": "7a"
+      },
+      {
+        "id": 336,
+        "vorname": "Marie",
+        "name": "Berg",
+        "klasse": "7a"
+      },
+      {
+        "id": 337,
+        "vorname": "Leon",
+        "name": "Arslan",
+        "klasse": "7a"
+      },
+      {
+        "id": 338,
+        "vorname": "Lea",
+        "name": "Winter",
+        "klasse": "7a"
+      },
+      {
+        "id": 339,
+        "vorname": "Elias",
+        "name": "Bauer",
+        "klasse": "7a"
+      },
+      {
+        "id": 340,
+        "vorname": "Emilia",
+        "name": "Berg",
+        "klasse": "7a"
+      },
+      {
+        "id": 341,
+        "vorname": "Henry",
+        "name": "Arslan",
+        "klasse": "7a"
+      },
+      {
+        "id": 342,
+        "vorname": "Mia",
+        "name": "Winter",
+        "klasse": "7a"
+      },
+      {
+        "id": 343,
+        "vorname": "Noah",
+        "name": "Bauer",
+        "klasse": "7a"
+      },
+      {
+        "id": 344,
+        "vorname": "Clara",
+        "name": "Berg",
+        "klasse": "7a"
+      },
+      {
+        "id": 345,
+        "vorname": "Theo",
+        "name": "Arslan",
+        "klasse": "7a"
+      },
+      {
+        "id": 346,
+        "vorname": "Emma",
+        "name": "Winter",
+        "klasse": "7a"
+      },
+      {
+        "id": 347,
+        "vorname": "Finn",
+        "name": "Bauer",
+        "klasse": "7b"
+      },
+      {
+        "id": 348,
+        "vorname": "Ida",
+        "name": "Berg",
+        "klasse": "7b"
+      },
+      {
+        "id": 349,
+        "vorname": "Emil",
+        "name": "Arslan",
+        "klasse": "7b"
+      },
+      {
+        "id": 350,
+        "vorname": "Hanna",
+        "name": "Winter",
+        "klasse": "7b"
+      },
+      {
+        "id": 351,
+        "vorname": "Luis",
+        "name": "Bauer",
+        "klasse": "7b"
+      },
+      {
+        "id": 352,
+        "vorname": "Mila",
+        "name": "Berg",
+        "klasse": "7b"
+      },
+      {
+        "id": 353,
+        "vorname": "Ben",
+        "name": "Arslan",
+        "klasse": "7b"
+      },
+      {
+        "id": 354,
+        "vorname": "Lina",
+        "name": "Winter",
+        "klasse": "7b"
+      },
+      {
+        "id": 355,
+        "vorname": "Felix",
+        "name": "Bauer",
+        "klasse": "7b"
+      },
+      {
+        "id": 356,
+        "vorname": "Ella",
+        "name": "Berg",
+        "klasse": "7b"
+      },
+      {
+        "id": 357,
+        "vorname": "Paul",
+        "name": "Arslan",
+        "klasse": "7b"
+      },
+      {
+        "id": 358,
+        "vorname": "Sofia",
+        "name": "Winter",
+        "klasse": "7b"
+      },
+      {
+        "id": 359,
+        "vorname": "Anton",
+        "name": "Bauer",
+        "klasse": "7b"
+      },
+      {
+        "id": 360,
+        "vorname": "Lotta",
+        "name": "Berg",
+        "klasse": "7b"
+      },
+      {
+        "id": 361,
+        "vorname": "Jonas",
+        "name": "Arslan",
+        "klasse": "7b"
+      },
+      {
+        "id": 362,
+        "vorname": "Marie",
+        "name": "Winter",
+        "klasse": "7b"
+      },
+      {
+        "id": 363,
+        "vorname": "Leon",
+        "name": "Bauer",
+        "klasse": "7b"
+      },
+      {
+        "id": 364,
+        "vorname": "Lea",
+        "name": "Berg",
+        "klasse": "7b"
+      },
+      {
+        "id": 365,
+        "vorname": "Elias",
+        "name": "Arslan",
+        "klasse": "7b"
+      },
+      {
+        "id": 366,
+        "vorname": "Emilia",
+        "name": "Winter",
+        "klasse": "7b"
+      },
+      {
+        "id": 367,
+        "vorname": "Henry",
+        "name": "Bauer",
+        "klasse": "7b"
+      },
+      {
+        "id": 368,
+        "vorname": "Mia",
+        "name": "Berg",
+        "klasse": "7b"
+      },
+      {
+        "id": 369,
+        "vorname": "Noah",
+        "name": "Arslan",
+        "klasse": "7b"
+      },
+      {
+        "id": 370,
+        "vorname": "Clara",
+        "name": "Winter",
+        "klasse": "7b"
+      }
     ]
   },
   "tage": [
@@ -3857,7 +5017,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 237,
+          "vertretung": 381,
           "text": ""
         },
         {
@@ -3954,7 +5114,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 238,
+          "vertretung": 382,
           "text": ""
         },
         {
@@ -4081,7 +5241,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 239,
+          "vertretung": 383,
           "text": ""
         },
         {
@@ -4212,7 +5372,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 240,
+          "vertretung": 384,
           "text": ""
         },
         {
@@ -4341,7 +5501,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 236,
+          "vertretung": 380,
           "text": ""
         },
         {
@@ -4649,7 +5809,7 @@
             "BI1"
           ],
           "status": "entfall",
-          "vertretung": 258,
+          "vertretung": 402,
           "text": "Exkursion Zoo"
         },
         {
@@ -4675,7 +5835,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 242,
+          "vertretung": 386,
           "text": "Elternsprechtag"
         },
         {
@@ -4708,7 +5868,7 @@
             "KU1"
           ],
           "status": "entfall",
-          "vertretung": 252,
+          "vertretung": 396,
           "text": ""
         },
         {
@@ -4725,7 +5885,7 @@
             "TH2"
           ],
           "status": "entfall",
-          "vertretung": 254,
+          "vertretung": 398,
           "text": "Exkursion Zoo"
         },
         {
@@ -4827,7 +5987,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 243,
+          "vertretung": 387,
           "text": "Elternsprechtag"
         },
         {
@@ -4860,7 +6020,7 @@
             "KU1"
           ],
           "status": "entfall",
-          "vertretung": 253,
+          "vertretung": 397,
           "text": ""
         },
         {
@@ -4959,7 +6119,7 @@
             "R105"
           ],
           "status": "entfall",
-          "vertretung": 259,
+          "vertretung": 403,
           "text": "Exkursion Zoo"
         },
         {
@@ -4969,7 +6129,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 244,
+          "vertretung": 388,
           "text": "Elternsprechtag"
         },
         {
@@ -5084,7 +6244,7 @@
             "R105"
           ],
           "status": "entfall",
-          "vertretung": 257,
+          "vertretung": 401,
           "text": "Exkursion Zoo"
         },
         {
@@ -5110,7 +6270,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 245,
+          "vertretung": 389,
           "text": "Elternsprechtag"
         },
         {
@@ -5193,7 +6353,7 @@
             "R105"
           ],
           "status": "entfall",
-          "vertretung": 256,
+          "vertretung": 400,
           "text": "Exkursion Zoo"
         },
         {
@@ -5251,7 +6411,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 246,
+          "vertretung": 390,
           "text": "Elternsprechtag"
         },
         {
@@ -5268,7 +6428,7 @@
             "PH1"
           ],
           "status": "entfall",
-          "vertretung": 255,
+          "vertretung": 399,
           "text": "Exkursion Zoo"
         },
         {
@@ -5326,7 +6486,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 247,
+          "vertretung": 391,
           "text": "Elternsprechtag"
         },
         {
@@ -5352,7 +6512,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 248,
+          "vertretung": 392,
           "text": "Elternsprechtag"
         },
         {
@@ -5362,7 +6522,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 249,
+          "vertretung": 393,
           "text": "Elternsprechtag"
         },
         {
@@ -5372,7 +6532,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 250,
+          "vertretung": 394,
           "text": "Elternsprechtag"
         },
         {
@@ -5382,7 +6542,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 251,
+          "vertretung": 395,
           "text": "Elternsprechtag"
         }
       ]
@@ -5454,7 +6614,7 @@
             "R103"
           ],
           "status": "vertreten",
-          "vertretung": 306,
+          "vertretung": 450,
           "text": ""
         },
         {
@@ -5567,7 +6727,7 @@
             "R103"
           ],
           "status": "vertreten",
-          "vertretung": 307,
+          "vertretung": 451,
           "text": ""
         },
         {
@@ -5660,7 +6820,7 @@
             "R106"
           ],
           "status": "vertreten",
-          "vertretung": 308,
+          "vertretung": 452,
           "text": ""
         },
         {
@@ -6037,7 +7197,7 @@
             "PH1"
           ],
           "status": "offen",
-          "vertretung": 305,
+          "vertretung": 449,
           "text": ""
         },
         {
@@ -6052,7 +7212,7 @@
             "R101"
           ],
           "status": "offen",
-          "vertretung": 309,
+          "vertretung": 453,
           "text": ""
         },
         {
@@ -6066,7 +7226,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 261,
+          "vertretung": 405,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6080,7 +7240,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 262,
+          "vertretung": 406,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6094,7 +7254,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 263,
+          "vertretung": 407,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6108,7 +7268,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 264,
+          "vertretung": 408,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6122,7 +7282,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 265,
+          "vertretung": 409,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6136,7 +7296,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 266,
+          "vertretung": 410,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6150,7 +7310,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 267,
+          "vertretung": 411,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6164,7 +7324,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 268,
+          "vertretung": 412,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6178,7 +7338,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 269,
+          "vertretung": 413,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6192,7 +7352,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 270,
+          "vertretung": 414,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6206,7 +7366,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 271,
+          "vertretung": 415,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6220,7 +7380,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 272,
+          "vertretung": 416,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6234,7 +7394,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 273,
+          "vertretung": 417,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6248,7 +7408,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 274,
+          "vertretung": 418,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6262,7 +7422,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 275,
+          "vertretung": 419,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6276,7 +7436,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 276,
+          "vertretung": 420,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6290,7 +7450,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 277,
+          "vertretung": 421,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6304,7 +7464,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 278,
+          "vertretung": 422,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6318,7 +7478,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 279,
+          "vertretung": 423,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6332,7 +7492,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 280,
+          "vertretung": 424,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6346,7 +7506,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 281,
+          "vertretung": 425,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6360,7 +7520,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 282,
+          "vertretung": 426,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6374,7 +7534,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 283,
+          "vertretung": 427,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6388,7 +7548,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 284,
+          "vertretung": 428,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6402,7 +7562,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 285,
+          "vertretung": 429,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6416,7 +7576,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 286,
+          "vertretung": 430,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6430,7 +7590,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 287,
+          "vertretung": 431,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6444,7 +7604,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 288,
+          "vertretung": 432,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6458,7 +7618,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 289,
+          "vertretung": 433,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6472,7 +7632,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 290,
+          "vertretung": 434,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6486,7 +7646,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 291,
+          "vertretung": 435,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6500,7 +7660,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 292,
+          "vertretung": 436,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6514,7 +7674,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 293,
+          "vertretung": 437,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6528,7 +7688,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 294,
+          "vertretung": 438,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6542,7 +7702,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 295,
+          "vertretung": 439,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6556,7 +7716,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 296,
+          "vertretung": 440,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6570,7 +7730,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 297,
+          "vertretung": 441,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6584,7 +7744,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 298,
+          "vertretung": 442,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6598,7 +7758,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 299,
+          "vertretung": 443,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6612,7 +7772,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 300,
+          "vertretung": 444,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6626,7 +7786,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 301,
+          "vertretung": 445,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6640,7 +7800,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 302,
+          "vertretung": 446,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6654,7 +7814,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 303,
+          "vertretung": 447,
           "text": "Lehrerkonferenz"
         },
         {
@@ -6668,7 +7828,7 @@
             "EDV2"
           ],
           "status": "zusaetzlich",
-          "vertretung": 304,
+          "vertretung": 448,
           "text": "Lehrerkonferenz"
         }
       ]
@@ -6708,7 +7868,7 @@
             "R102"
           ],
           "status": "entfall",
-          "vertretung": 327,
+          "vertretung": 471,
           "text": "Projekttag Medien"
         },
         {
@@ -6773,7 +7933,7 @@
             "R101"
           ],
           "status": "entfall",
-          "vertretung": 334,
+          "vertretung": 478,
           "text": "Projekttag Medien"
         },
         {
@@ -6786,7 +7946,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 313,
+          "vertretung": 457,
           "text": "Projekttag Medien"
         },
         {
@@ -6819,7 +7979,7 @@
             "R102"
           ],
           "status": "entfall",
-          "vertretung": 328,
+          "vertretung": 472,
           "text": "Projekttag Medien"
         },
         {
@@ -6852,7 +8012,7 @@
             "BI1"
           ],
           "status": "entfall",
-          "vertretung": 332,
+          "vertretung": 476,
           "text": "Projekttag Medien"
         },
         {
@@ -6897,7 +8057,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 314,
+          "vertretung": 458,
           "text": "Projekttag Medien"
         },
         {
@@ -6914,7 +8074,7 @@
             "R101"
           ],
           "status": "entfall",
-          "vertretung": 326,
+          "vertretung": 470,
           "text": "Projekttag Medien"
         },
         {
@@ -6979,7 +8139,7 @@
             "R102"
           ],
           "status": "entfall",
-          "vertretung": 329,
+          "vertretung": 473,
           "text": "Projekttag Medien"
         },
         {
@@ -7008,7 +8168,7 @@
           ],
           "raeume": [],
           "status": "entfall",
-          "vertretung": 337,
+          "vertretung": 481,
           "text": "Klausuraufsicht"
         },
         {
@@ -7024,7 +8184,7 @@
             "TH1"
           ],
           "status": "zusaetzlich",
-          "vertretung": 311,
+          "vertretung": 455,
           "text": "Mathematik-Klausur"
         },
         {
@@ -7037,7 +8197,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 315,
+          "vertretung": 459,
           "text": "Projekttag Medien"
         },
         {
@@ -7070,7 +8230,7 @@
             "BI1"
           ],
           "status": "entfall",
-          "vertretung": 323,
+          "vertretung": 467,
           "text": "Klausur Mathematik-Klausur"
         },
         {
@@ -7087,7 +8247,7 @@
             "PH1"
           ],
           "status": "entfall",
-          "vertretung": 324,
+          "vertretung": 468,
           "text": "Klausur Mathematik-Klausur"
         },
         {
@@ -7104,7 +8264,7 @@
             "MU1"
           ],
           "status": "entfall",
-          "vertretung": 325,
+          "vertretung": 469,
           "text": "Projekttag Medien"
         },
         {
@@ -7153,7 +8313,7 @@
             "R102"
           ],
           "status": "entfall",
-          "vertretung": 330,
+          "vertretung": 474,
           "text": "Projekttag Medien"
         },
         {
@@ -7185,7 +8345,7 @@
             "TH1"
           ],
           "status": "zusaetzlich",
-          "vertretung": 312,
+          "vertretung": 456,
           "text": "Mathematik-Klausur"
         },
         {
@@ -7198,7 +8358,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 316,
+          "vertretung": 460,
           "text": "Projekttag Medien"
         },
         {
@@ -7279,7 +8439,7 @@
             "R102"
           ],
           "status": "entfall",
-          "vertretung": 331,
+          "vertretung": 475,
           "text": "Projekttag Medien"
         },
         {
@@ -7296,7 +8456,7 @@
             "R101"
           ],
           "status": "entfall",
-          "vertretung": 333,
+          "vertretung": 477,
           "text": "Projekttag Medien"
         },
         {
@@ -7341,7 +8501,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 317,
+          "vertretung": 461,
           "text": "Projekttag Medien"
         },
         {
@@ -7406,7 +8566,7 @@
             "R101"
           ],
           "status": "entfall",
-          "vertretung": 335,
+          "vertretung": 479,
           "text": "Projekttag Medien"
         },
         {
@@ -7423,7 +8583,7 @@
             "R102"
           ],
           "status": "entfall",
-          "vertretung": 336,
+          "vertretung": 480,
           "text": "Projekttag Medien"
         },
         {
@@ -7448,7 +8608,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 318,
+          "vertretung": 462,
           "text": "Projekttag Medien"
         },
         {
@@ -7461,7 +8621,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 319,
+          "vertretung": 463,
           "text": "Projekttag Medien"
         },
         {
@@ -7474,7 +8634,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 320,
+          "vertretung": 464,
           "text": "Projekttag Medien"
         },
         {
@@ -7487,7 +8647,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 321,
+          "vertretung": 465,
           "text": "Projekttag Medien"
         },
         {
@@ -7500,7 +8660,7 @@
           "lehrer": [],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 322,
+          "vertretung": 466,
           "text": "Projekttag Medien"
         }
       ]
@@ -7554,7 +8714,7 @@
             "R105"
           ],
           "status": "offen",
-          "vertretung": 377,
+          "vertretung": 521,
           "text": ""
         },
         {
@@ -7569,7 +8729,7 @@
             "R106"
           ],
           "status": "offen",
-          "vertretung": 379,
+          "vertretung": 523,
           "text": ""
         },
         {
@@ -7584,7 +8744,7 @@
             "R101"
           ],
           "status": "offen",
-          "vertretung": 382,
+          "vertretung": 526,
           "text": ""
         },
         {
@@ -7624,7 +8784,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 338,
+          "vertretung": 482,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7636,7 +8796,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 339,
+          "vertretung": 483,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7648,7 +8808,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 340,
+          "vertretung": 484,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7660,7 +8820,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 341,
+          "vertretung": 485,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7672,7 +8832,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 342,
+          "vertretung": 486,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7684,7 +8844,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 343,
+          "vertretung": 487,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7699,7 +8859,7 @@
             "TH1"
           ],
           "status": "offen",
-          "vertretung": 374,
+          "vertretung": 518,
           "text": ""
         },
         {
@@ -7762,7 +8922,7 @@
             "R101"
           ],
           "status": "offen",
-          "vertretung": 378,
+          "vertretung": 522,
           "text": ""
         },
         {
@@ -7822,7 +8982,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 344,
+          "vertretung": 488,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7834,7 +8994,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 345,
+          "vertretung": 489,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7846,7 +9006,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 346,
+          "vertretung": 490,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7858,7 +9018,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 347,
+          "vertretung": 491,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7870,7 +9030,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 348,
+          "vertretung": 492,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7882,7 +9042,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 349,
+          "vertretung": 493,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -7897,7 +9057,7 @@
             "TH1"
           ],
           "status": "offen",
-          "vertretung": 375,
+          "vertretung": 519,
           "text": ""
         },
         {
@@ -7928,7 +9088,7 @@
             "BI1"
           ],
           "status": "offen",
-          "vertretung": 376,
+          "vertretung": 520,
           "text": ""
         },
         {
@@ -8020,7 +9180,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 350,
+          "vertretung": 494,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8032,7 +9192,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 351,
+          "vertretung": 495,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8044,7 +9204,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 352,
+          "vertretung": 496,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8056,7 +9216,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 353,
+          "vertretung": 497,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8068,7 +9228,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 354,
+          "vertretung": 498,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8080,7 +9240,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 355,
+          "vertretung": 499,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8207,7 +9367,7 @@
             "BI1"
           ],
           "status": "offen",
-          "vertretung": 381,
+          "vertretung": 525,
           "text": ""
         },
         {
@@ -8219,7 +9379,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 356,
+          "vertretung": 500,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8231,7 +9391,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 357,
+          "vertretung": 501,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8243,7 +9403,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 358,
+          "vertretung": 502,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8255,7 +9415,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 359,
+          "vertretung": 503,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8267,7 +9427,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 360,
+          "vertretung": 504,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8279,7 +9439,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 361,
+          "vertretung": 505,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8374,7 +9534,7 @@
             "R101"
           ],
           "status": "offen",
-          "vertretung": 380,
+          "vertretung": 524,
           "text": ""
         },
         {
@@ -8418,7 +9578,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 362,
+          "vertretung": 506,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8430,7 +9590,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 363,
+          "vertretung": 507,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8442,7 +9602,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 364,
+          "vertretung": 508,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8454,7 +9614,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 365,
+          "vertretung": 509,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8466,7 +9626,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 366,
+          "vertretung": 510,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8478,7 +9638,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 367,
+          "vertretung": 511,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8509,7 +9669,7 @@
             "R106"
           ],
           "status": "offen",
-          "vertretung": 383,
+          "vertretung": 527,
           "text": ""
         },
         {
@@ -8577,7 +9737,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 368,
+          "vertretung": 512,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8589,7 +9749,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 369,
+          "vertretung": 513,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8601,7 +9761,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 370,
+          "vertretung": 514,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8613,7 +9773,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 371,
+          "vertretung": 515,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8625,7 +9785,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 372,
+          "vertretung": 516,
           "text": "P\u00E4dagogischer Tag"
         },
         {
@@ -8637,7 +9797,7 @@
           ],
           "raeume": [],
           "status": "zusaetzlich",
-          "vertretung": 373,
+          "vertretung": 517,
           "text": "P\u00E4dagogischer Tag"
         }
       ]
@@ -8699,7 +9859,7 @@
   ],
   "vertretungen": [
     {
-      "id": 241,
+      "id": 385,
       "datum": "2026-10-12",
       "stunde": 2,
       "art": "Pausenaufsicht",
@@ -8716,7 +9876,7 @@
       "nurLehrer": true
     },
     {
-      "id": 239,
+      "id": 383,
       "datum": "2026-10-12",
       "stunde": 3,
       "art": "Vertretung",
@@ -8735,7 +9895,7 @@
       "nurLehrer": false
     },
     {
-      "id": 240,
+      "id": 384,
       "datum": "2026-10-12",
       "stunde": 4,
       "art": "Vertretung",
@@ -8754,7 +9914,7 @@
       "nurLehrer": false
     },
     {
-      "id": 237,
+      "id": 381,
       "datum": "2026-10-12",
       "stunde": 1,
       "art": "Vertretung",
@@ -8773,7 +9933,7 @@
       "nurLehrer": false
     },
     {
-      "id": 238,
+      "id": 382,
       "datum": "2026-10-12",
       "stunde": 2,
       "art": "Vertretung",
@@ -8792,7 +9952,7 @@
       "nurLehrer": false
     },
     {
-      "id": 236,
+      "id": 380,
       "datum": "2026-10-12",
       "stunde": 5,
       "art": "Vertretung",
@@ -8811,7 +9971,7 @@
       "nurLehrer": false
     },
     {
-      "id": 260,
+      "id": 404,
       "datum": "2026-10-13",
       "stunde": 2,
       "art": "Pausenaufsicht",
@@ -8828,7 +9988,7 @@
       "nurLehrer": true
     },
     {
-      "id": 258,
+      "id": 402,
       "datum": "2026-10-13",
       "stunde": 1,
       "art": "Freisetzung",
@@ -8847,7 +10007,7 @@
       "nurLehrer": false
     },
     {
-      "id": 254,
+      "id": 398,
       "datum": "2026-10-13",
       "stunde": 2,
       "art": "Freisetzung",
@@ -8866,7 +10026,7 @@
       "nurLehrer": false
     },
     {
-      "id": 259,
+      "id": 403,
       "datum": "2026-10-13",
       "stunde": 3,
       "art": "Freisetzung",
@@ -8885,7 +10045,7 @@
       "nurLehrer": false
     },
     {
-      "id": 257,
+      "id": 401,
       "datum": "2026-10-13",
       "stunde": 4,
       "art": "Freisetzung",
@@ -8904,7 +10064,7 @@
       "nurLehrer": false
     },
     {
-      "id": 256,
+      "id": 400,
       "datum": "2026-10-13",
       "stunde": 5,
       "art": "Freisetzung",
@@ -8923,7 +10083,7 @@
       "nurLehrer": false
     },
     {
-      "id": 255,
+      "id": 399,
       "datum": "2026-10-13",
       "stunde": 6,
       "art": "Freisetzung",
@@ -8942,7 +10102,7 @@
       "nurLehrer": false
     },
     {
-      "id": 252,
+      "id": 396,
       "datum": "2026-10-13",
       "stunde": 2,
       "art": "Entfall",
@@ -8961,7 +10121,7 @@
       "nurLehrer": false
     },
     {
-      "id": 253,
+      "id": 397,
       "datum": "2026-10-13",
       "stunde": 3,
       "art": "Entfall",
@@ -8980,7 +10140,7 @@
       "nurLehrer": false
     },
     {
-      "id": 310,
+      "id": 454,
       "datum": "2026-10-14",
       "stunde": 2,
       "art": "Pausenaufsicht",
@@ -8997,7 +10157,7 @@
       "nurLehrer": true
     },
     {
-      "id": 261,
+      "id": 405,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9014,7 +10174,7 @@
       "nurLehrer": false
     },
     {
-      "id": 262,
+      "id": 406,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9031,7 +10191,7 @@
       "nurLehrer": false
     },
     {
-      "id": 263,
+      "id": 407,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9048,7 +10208,7 @@
       "nurLehrer": false
     },
     {
-      "id": 264,
+      "id": 408,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9065,7 +10225,7 @@
       "nurLehrer": false
     },
     {
-      "id": 265,
+      "id": 409,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9082,7 +10242,7 @@
       "nurLehrer": false
     },
     {
-      "id": 266,
+      "id": 410,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9099,7 +10259,7 @@
       "nurLehrer": false
     },
     {
-      "id": 267,
+      "id": 411,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9116,7 +10276,7 @@
       "nurLehrer": false
     },
     {
-      "id": 268,
+      "id": 412,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9133,7 +10293,7 @@
       "nurLehrer": false
     },
     {
-      "id": 269,
+      "id": 413,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9150,7 +10310,7 @@
       "nurLehrer": false
     },
     {
-      "id": 270,
+      "id": 414,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9167,7 +10327,7 @@
       "nurLehrer": false
     },
     {
-      "id": 271,
+      "id": 415,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9184,7 +10344,7 @@
       "nurLehrer": false
     },
     {
-      "id": 272,
+      "id": 416,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9201,7 +10361,7 @@
       "nurLehrer": false
     },
     {
-      "id": 273,
+      "id": 417,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9218,7 +10378,7 @@
       "nurLehrer": false
     },
     {
-      "id": 274,
+      "id": 418,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9235,7 +10395,7 @@
       "nurLehrer": false
     },
     {
-      "id": 275,
+      "id": 419,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9252,7 +10412,7 @@
       "nurLehrer": false
     },
     {
-      "id": 276,
+      "id": 420,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9269,7 +10429,7 @@
       "nurLehrer": false
     },
     {
-      "id": 277,
+      "id": 421,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9286,7 +10446,7 @@
       "nurLehrer": false
     },
     {
-      "id": 278,
+      "id": 422,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9303,7 +10463,7 @@
       "nurLehrer": false
     },
     {
-      "id": 279,
+      "id": 423,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9320,7 +10480,7 @@
       "nurLehrer": false
     },
     {
-      "id": 280,
+      "id": 424,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9337,7 +10497,7 @@
       "nurLehrer": false
     },
     {
-      "id": 281,
+      "id": 425,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9354,7 +10514,7 @@
       "nurLehrer": false
     },
     {
-      "id": 282,
+      "id": 426,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Veranst.",
@@ -9371,7 +10531,7 @@
       "nurLehrer": false
     },
     {
-      "id": 283,
+      "id": 427,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9388,7 +10548,7 @@
       "nurLehrer": false
     },
     {
-      "id": 284,
+      "id": 428,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9405,7 +10565,7 @@
       "nurLehrer": false
     },
     {
-      "id": 285,
+      "id": 429,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9422,7 +10582,7 @@
       "nurLehrer": false
     },
     {
-      "id": 286,
+      "id": 430,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9439,7 +10599,7 @@
       "nurLehrer": false
     },
     {
-      "id": 287,
+      "id": 431,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9456,7 +10616,7 @@
       "nurLehrer": false
     },
     {
-      "id": 288,
+      "id": 432,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9473,7 +10633,7 @@
       "nurLehrer": false
     },
     {
-      "id": 289,
+      "id": 433,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9490,7 +10650,7 @@
       "nurLehrer": false
     },
     {
-      "id": 290,
+      "id": 434,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9507,7 +10667,7 @@
       "nurLehrer": false
     },
     {
-      "id": 291,
+      "id": 435,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9524,7 +10684,7 @@
       "nurLehrer": false
     },
     {
-      "id": 292,
+      "id": 436,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9541,7 +10701,7 @@
       "nurLehrer": false
     },
     {
-      "id": 293,
+      "id": 437,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9558,7 +10718,7 @@
       "nurLehrer": false
     },
     {
-      "id": 294,
+      "id": 438,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9575,7 +10735,7 @@
       "nurLehrer": false
     },
     {
-      "id": 295,
+      "id": 439,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9592,7 +10752,7 @@
       "nurLehrer": false
     },
     {
-      "id": 296,
+      "id": 440,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9609,7 +10769,7 @@
       "nurLehrer": false
     },
     {
-      "id": 297,
+      "id": 441,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9626,7 +10786,7 @@
       "nurLehrer": false
     },
     {
-      "id": 298,
+      "id": 442,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9643,7 +10803,7 @@
       "nurLehrer": false
     },
     {
-      "id": 299,
+      "id": 443,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9660,7 +10820,7 @@
       "nurLehrer": false
     },
     {
-      "id": 300,
+      "id": 444,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9677,7 +10837,7 @@
       "nurLehrer": false
     },
     {
-      "id": 301,
+      "id": 445,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9694,7 +10854,7 @@
       "nurLehrer": false
     },
     {
-      "id": 302,
+      "id": 446,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9711,7 +10871,7 @@
       "nurLehrer": false
     },
     {
-      "id": 303,
+      "id": 447,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9728,7 +10888,7 @@
       "nurLehrer": false
     },
     {
-      "id": 304,
+      "id": 448,
       "datum": "2026-10-14",
       "stunde": 8,
       "art": "Veranst.",
@@ -9745,7 +10905,7 @@
       "nurLehrer": false
     },
     {
-      "id": 309,
+      "id": 453,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Vertretung",
@@ -9764,7 +10924,7 @@
       "nurLehrer": false
     },
     {
-      "id": 306,
+      "id": 450,
       "datum": "2026-10-14",
       "stunde": 1,
       "art": "Vertretung",
@@ -9783,7 +10943,7 @@
       "nurLehrer": false
     },
     {
-      "id": 307,
+      "id": 451,
       "datum": "2026-10-14",
       "stunde": 2,
       "art": "Vertretung",
@@ -9802,7 +10962,7 @@
       "nurLehrer": false
     },
     {
-      "id": 305,
+      "id": 449,
       "datum": "2026-10-14",
       "stunde": 7,
       "art": "Vertretung",
@@ -9821,7 +10981,7 @@
       "nurLehrer": false
     },
     {
-      "id": 308,
+      "id": 452,
       "datum": "2026-10-14",
       "stunde": 3,
       "art": "Vertretung",
@@ -9840,7 +11000,7 @@
       "nurLehrer": false
     },
     {
-      "id": 337,
+      "id": 481,
       "datum": "2026-10-15",
       "stunde": 3,
       "art": "Bereitschaft entf\u00E4llt",
@@ -9857,7 +11017,7 @@
       "nurLehrer": false
     },
     {
-      "id": 334,
+      "id": 478,
       "datum": "2026-10-15",
       "stunde": 1,
       "art": "Freisetzung",
@@ -9876,7 +11036,7 @@
       "nurLehrer": false
     },
     {
-      "id": 332,
+      "id": 476,
       "datum": "2026-10-15",
       "stunde": 2,
       "art": "Freisetzung",
@@ -9895,7 +11055,7 @@
       "nurLehrer": false
     },
     {
-      "id": 326,
+      "id": 470,
       "datum": "2026-10-15",
       "stunde": 3,
       "art": "Freisetzung",
@@ -9914,7 +11074,7 @@
       "nurLehrer": false
     },
     {
-      "id": 325,
+      "id": 469,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Freisetzung",
@@ -9933,7 +11093,7 @@
       "nurLehrer": false
     },
     {
-      "id": 333,
+      "id": 477,
       "datum": "2026-10-15",
       "stunde": 5,
       "art": "Freisetzung",
@@ -9952,7 +11112,7 @@
       "nurLehrer": false
     },
     {
-      "id": 335,
+      "id": 479,
       "datum": "2026-10-15",
       "stunde": 6,
       "art": "Freisetzung",
@@ -9971,7 +11131,7 @@
       "nurLehrer": false
     },
     {
-      "id": 327,
+      "id": 471,
       "datum": "2026-10-15",
       "stunde": 1,
       "art": "Freisetzung",
@@ -9990,7 +11150,7 @@
       "nurLehrer": false
     },
     {
-      "id": 328,
+      "id": 472,
       "datum": "2026-10-15",
       "stunde": 2,
       "art": "Freisetzung",
@@ -10009,7 +11169,7 @@
       "nurLehrer": false
     },
     {
-      "id": 329,
+      "id": 473,
       "datum": "2026-10-15",
       "stunde": 3,
       "art": "Freisetzung",
@@ -10028,7 +11188,7 @@
       "nurLehrer": false
     },
     {
-      "id": 330,
+      "id": 474,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Freisetzung",
@@ -10047,7 +11207,7 @@
       "nurLehrer": false
     },
     {
-      "id": 331,
+      "id": 475,
       "datum": "2026-10-15",
       "stunde": 5,
       "art": "Freisetzung",
@@ -10066,7 +11226,7 @@
       "nurLehrer": false
     },
     {
-      "id": 336,
+      "id": 480,
       "datum": "2026-10-15",
       "stunde": 6,
       "art": "Freisetzung",
@@ -10085,7 +11245,7 @@
       "nurLehrer": false
     },
     {
-      "id": 311,
+      "id": 455,
       "datum": "2026-10-15",
       "stunde": 3,
       "art": "Klausur",
@@ -10104,7 +11264,7 @@
       "nurLehrer": false
     },
     {
-      "id": 312,
+      "id": 456,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Klausur",
@@ -10123,7 +11283,7 @@
       "nurLehrer": false
     },
     {
-      "id": 323,
+      "id": 467,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Entfall",
@@ -10142,7 +11302,7 @@
       "nurLehrer": false
     },
     {
-      "id": 324,
+      "id": 468,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Entfall",
@@ -10161,7 +11321,7 @@
       "nurLehrer": false
     },
     {
-      "id": 338,
+      "id": 482,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Veranst.",
@@ -10178,7 +11338,7 @@
       "nurLehrer": false
     },
     {
-      "id": 339,
+      "id": 483,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Veranst.",
@@ -10195,7 +11355,7 @@
       "nurLehrer": false
     },
     {
-      "id": 340,
+      "id": 484,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Veranst.",
@@ -10212,7 +11372,7 @@
       "nurLehrer": false
     },
     {
-      "id": 341,
+      "id": 485,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Veranst.",
@@ -10229,7 +11389,7 @@
       "nurLehrer": false
     },
     {
-      "id": 342,
+      "id": 486,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Veranst.",
@@ -10246,7 +11406,7 @@
       "nurLehrer": false
     },
     {
-      "id": 343,
+      "id": 487,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Veranst.",
@@ -10263,7 +11423,7 @@
       "nurLehrer": false
     },
     {
-      "id": 344,
+      "id": 488,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Veranst.",
@@ -10280,7 +11440,7 @@
       "nurLehrer": false
     },
     {
-      "id": 345,
+      "id": 489,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Veranst.",
@@ -10297,7 +11457,7 @@
       "nurLehrer": false
     },
     {
-      "id": 346,
+      "id": 490,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Veranst.",
@@ -10314,7 +11474,7 @@
       "nurLehrer": false
     },
     {
-      "id": 347,
+      "id": 491,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Veranst.",
@@ -10331,7 +11491,7 @@
       "nurLehrer": false
     },
     {
-      "id": 348,
+      "id": 492,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Veranst.",
@@ -10348,7 +11508,7 @@
       "nurLehrer": false
     },
     {
-      "id": 349,
+      "id": 493,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Veranst.",
@@ -10365,7 +11525,7 @@
       "nurLehrer": false
     },
     {
-      "id": 384,
+      "id": 528,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Pausenaufsicht",
@@ -10382,7 +11542,7 @@
       "nurLehrer": true
     },
     {
-      "id": 350,
+      "id": 494,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Veranst.",
@@ -10399,7 +11559,7 @@
       "nurLehrer": false
     },
     {
-      "id": 351,
+      "id": 495,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Veranst.",
@@ -10416,7 +11576,7 @@
       "nurLehrer": false
     },
     {
-      "id": 352,
+      "id": 496,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Veranst.",
@@ -10433,7 +11593,7 @@
       "nurLehrer": false
     },
     {
-      "id": 353,
+      "id": 497,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Veranst.",
@@ -10450,7 +11610,7 @@
       "nurLehrer": false
     },
     {
-      "id": 354,
+      "id": 498,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Veranst.",
@@ -10467,7 +11627,7 @@
       "nurLehrer": false
     },
     {
-      "id": 355,
+      "id": 499,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Veranst.",
@@ -10484,7 +11644,7 @@
       "nurLehrer": false
     },
     {
-      "id": 356,
+      "id": 500,
       "datum": "2026-10-16",
       "stunde": 4,
       "art": "Veranst.",
@@ -10501,7 +11661,7 @@
       "nurLehrer": false
     },
     {
-      "id": 357,
+      "id": 501,
       "datum": "2026-10-16",
       "stunde": 4,
       "art": "Veranst.",
@@ -10518,7 +11678,7 @@
       "nurLehrer": false
     },
     {
-      "id": 358,
+      "id": 502,
       "datum": "2026-10-16",
       "stunde": 4,
       "art": "Veranst.",
@@ -10535,7 +11695,7 @@
       "nurLehrer": false
     },
     {
-      "id": 359,
+      "id": 503,
       "datum": "2026-10-16",
       "stunde": 4,
       "art": "Veranst.",
@@ -10552,7 +11712,7 @@
       "nurLehrer": false
     },
     {
-      "id": 360,
+      "id": 504,
       "datum": "2026-10-16",
       "stunde": 4,
       "art": "Veranst.",
@@ -10569,7 +11729,7 @@
       "nurLehrer": false
     },
     {
-      "id": 361,
+      "id": 505,
       "datum": "2026-10-16",
       "stunde": 4,
       "art": "Veranst.",
@@ -10586,7 +11746,7 @@
       "nurLehrer": false
     },
     {
-      "id": 362,
+      "id": 506,
       "datum": "2026-10-16",
       "stunde": 5,
       "art": "Veranst.",
@@ -10603,7 +11763,7 @@
       "nurLehrer": false
     },
     {
-      "id": 363,
+      "id": 507,
       "datum": "2026-10-16",
       "stunde": 5,
       "art": "Veranst.",
@@ -10620,7 +11780,7 @@
       "nurLehrer": false
     },
     {
-      "id": 364,
+      "id": 508,
       "datum": "2026-10-16",
       "stunde": 5,
       "art": "Veranst.",
@@ -10637,7 +11797,7 @@
       "nurLehrer": false
     },
     {
-      "id": 365,
+      "id": 509,
       "datum": "2026-10-16",
       "stunde": 5,
       "art": "Veranst.",
@@ -10654,7 +11814,7 @@
       "nurLehrer": false
     },
     {
-      "id": 366,
+      "id": 510,
       "datum": "2026-10-16",
       "stunde": 5,
       "art": "Veranst.",
@@ -10671,7 +11831,7 @@
       "nurLehrer": false
     },
     {
-      "id": 367,
+      "id": 511,
       "datum": "2026-10-16",
       "stunde": 5,
       "art": "Veranst.",
@@ -10688,7 +11848,7 @@
       "nurLehrer": false
     },
     {
-      "id": 368,
+      "id": 512,
       "datum": "2026-10-16",
       "stunde": 6,
       "art": "Veranst.",
@@ -10705,7 +11865,7 @@
       "nurLehrer": false
     },
     {
-      "id": 369,
+      "id": 513,
       "datum": "2026-10-16",
       "stunde": 6,
       "art": "Veranst.",
@@ -10722,7 +11882,7 @@
       "nurLehrer": false
     },
     {
-      "id": 370,
+      "id": 514,
       "datum": "2026-10-16",
       "stunde": 6,
       "art": "Veranst.",
@@ -10739,7 +11899,7 @@
       "nurLehrer": false
     },
     {
-      "id": 371,
+      "id": 515,
       "datum": "2026-10-16",
       "stunde": 6,
       "art": "Veranst.",
@@ -10756,7 +11916,7 @@
       "nurLehrer": false
     },
     {
-      "id": 372,
+      "id": 516,
       "datum": "2026-10-16",
       "stunde": 6,
       "art": "Veranst.",
@@ -10773,7 +11933,7 @@
       "nurLehrer": false
     },
     {
-      "id": 373,
+      "id": 517,
       "datum": "2026-10-16",
       "stunde": 6,
       "art": "Veranst.",
@@ -10790,7 +11950,7 @@
       "nurLehrer": false
     },
     {
-      "id": 382,
+      "id": 526,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Vertretung",
@@ -10809,7 +11969,7 @@
       "nurLehrer": false
     },
     {
-      "id": 378,
+      "id": 522,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Vertretung",
@@ -10828,7 +11988,7 @@
       "nurLehrer": false
     },
     {
-      "id": 380,
+      "id": 524,
       "datum": "2026-10-16",
       "stunde": 5,
       "art": "Vertretung",
@@ -10847,7 +12007,7 @@
       "nurLehrer": false
     },
     {
-      "id": 374,
+      "id": 518,
       "datum": "2026-10-16",
       "stunde": 2,
       "art": "Vertretung",
@@ -10866,7 +12026,7 @@
       "nurLehrer": false
     },
     {
-      "id": 375,
+      "id": 519,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Vertretung",
@@ -10885,7 +12045,7 @@
       "nurLehrer": false
     },
     {
-      "id": 377,
+      "id": 521,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Vertretung",
@@ -10904,7 +12064,7 @@
       "nurLehrer": false
     },
     {
-      "id": 381,
+      "id": 525,
       "datum": "2026-10-16",
       "stunde": 4,
       "art": "Vertretung",
@@ -10923,7 +12083,7 @@
       "nurLehrer": false
     },
     {
-      "id": 379,
+      "id": 523,
       "datum": "2026-10-16",
       "stunde": 1,
       "art": "Vertretung",
@@ -10942,7 +12102,7 @@
       "nurLehrer": false
     },
     {
-      "id": 383,
+      "id": 527,
       "datum": "2026-10-16",
       "stunde": 6,
       "art": "Vertretung",
@@ -10961,7 +12121,7 @@
       "nurLehrer": false
     },
     {
-      "id": 376,
+      "id": 520,
       "datum": "2026-10-16",
       "stunde": 3,
       "art": "Vertretung",
