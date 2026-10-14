@@ -126,6 +126,90 @@ public static class SondereinsatzDialog
         g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         Steuerelemente.SuchKombi.Aktivieren(g);
         f.Controls.Add(g);
+
+        // Wie Untis: Die erste Zeile eines Sondereinsatzes gilt für den ganzen Stundenbereich; darunter stehen die Stunden
+        // einzeln (eingerückt). Was in der Kopfzeile eingetragen wird, geht auf alle Stunden über; einzelne Stunden lassen
+        // sich danach abweichend ändern. Kinderzeilen tragen im Tag ihre Kopfzeile.
+        var kopfFarbe = Color.FromArgb(214, 232, 224);
+        var syncAktiv = false;
+        bool IstKind(DataGridViewRow r) => r.Tag is DataGridViewRow;
+        List<DataGridViewRow> Kinder(DataGridViewRow kopf) => g.Rows.Cast<DataGridViewRow>().Where(r => ReferenceEquals(r.Tag, kopf)).ToList();
+        int Zahl(DataGridViewRow r, string spalte, int ersatz) => int.TryParse(r.Cells[spalte].Value?.ToString(), out var v) ? v : ersatz;
+        void KinderAufbauen(DataGridViewRow kopf)
+        {
+            if (kopf.IsNewRow || IstKind(kopf) || kopf.DataGridView is null) return;
+            syncAktiv = true;
+            try
+            {
+                foreach (var k in Kinder(kopf)) g.Rows.Remove(k);
+                var sv = Zahl(kopf, "SV", 1);
+                var sb = Math.Max(sv, Zahl(kopf, "SB", sv));
+                kopf.Cells["SV"].Style.BackColor = kopf.Cells["SB"].Style.BackColor = kopf.Cells["D"].Style.BackColor = kopfFarbe;
+                if (sb <= sv) return;
+                for (var h = sv; h <= sb; h++)
+                {
+                    var i = kopf.Index + 1 + (h - sv);
+                    g.Rows.Insert(i, kopf.Cells["D"].Value, h.ToString(), h.ToString(), kopf.Cells["L"].Value, kopf.Cells["K"].Value,
+                        kopf.Cells["F"].Value ?? "", kopf.Cells["R"].Value ?? "", kopf.Cells["G"].Value, kopf.Cells["T"].Value);
+                    var r = g.Rows[i];
+                    r.Tag = kopf;
+                    foreach (var n in new[] { "D", "SV", "SB" })
+                    {
+                        r.Cells[n].ReadOnly = true;
+                        r.Cells[n].Style.BackColor = kopfFarbe;
+                        r.Cells[n].Style.ForeColor = Color.FromArgb(60, 70, 80);
+                    }
+                    r.Cells["SV"].Style.Padding = new Padding(26, 0, 0, 0);
+                    r.DefaultCellStyle.BackColor = Color.FromArgb(253, 252, 236);
+                }
+            }
+            finally { syncAktiv = false; }
+        }
+        g.CellEndEdit += (_, e) =>
+        {
+            if (syncAktiv || e.RowIndex < 0 || e.RowIndex >= g.Rows.Count) return;
+            var r = g.Rows[e.RowIndex];
+            if (r.IsNewRow || IstKind(r)) return;
+            var spalte = g.Columns[e.ColumnIndex].Name;
+            var kinder = Kinder(r);
+            var sv = Zahl(r, "SV", 1);
+            var sb = Math.Max(sv, Zahl(r, "SB", sv));
+            var passt = kinder.Count == (sb > sv ? sb - sv + 1 : 0) && kinder.Select((k, i) => Zahl(k, "SV", -1) == sv + i).All(x => x);
+            // Neuaufbau außerhalb des Bearbeitungsereignisses (sonst Wiedereintritt in DataGridView)
+            if (spalte is "SV" or "SB" or "D" || !passt) g.BeginInvoke(() => KinderAufbauen(r));
+            else foreach (var k in kinder) k.Cells[spalte].Value = r.Cells[spalte].Value;
+        };
+        g.UserDeletingRow += (_, e) =>
+        {
+            if (e.Row is null || IstKind(e.Row)) return;
+            var kinder = Kinder(e.Row);
+            if (kinder.Count > 0) g.BeginInvoke(() => { foreach (var k in kinder.Where(k => k.DataGridView != null)) g.Rows.Remove(k); });
+        };
+        // Kopfzeile: Baumzeichen ⊟ vor der Stunde wie im Original
+        g.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || g.Columns[e.ColumnIndex].Name != "SV" || e.Graphics is null) return;
+            var r = g.Rows[e.RowIndex];
+            if (r.IsNewRow) return;
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All);
+            using var stift = new Pen(Color.FromArgb(150, 160, 170)) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot };
+            var b = e.CellBounds;
+            if (IstKind(r))
+            {
+                var x = b.Left + 12;
+                e.Graphics.DrawLine(stift, x, b.Top, x, b.Top + b.Height / 2);
+                e.Graphics.DrawLine(stift, x, b.Top + b.Height / 2, b.Left + 22, b.Top + b.Height / 2);
+                if (Kinder((DataGridViewRow)r.Tag!).LastOrDefault() != r) e.Graphics.DrawLine(stift, x, b.Top + b.Height / 2, x, b.Bottom);
+            }
+            else if (Kinder(r).Count > 0)
+            {
+                var k = new Rectangle(b.Left + 8, b.Top + (b.Height - 9) / 2, 9, 9);
+                e.Graphics.FillRectangle(Brushes.White, k);
+                e.Graphics.DrawRectangle(Pens.Gray, k);
+                e.Graphics.DrawLine(Pens.Black, k.Left + 2, k.Top + 4, k.Right - 2, k.Top + 4);
+            }
+            e.Handled = true;
+        };
         g.DefaultValuesNeeded += (_, e) =>
         {
             e.Row.Cells["D"].Value = Format.Datum(DateOnly.FromDateTime(dat.Value));
@@ -138,8 +222,15 @@ public static class SondereinsatzDialog
         {
             if (g.CurrentRow is { IsNewRow: false } r) return r.Index;
             var i = g.Rows.Add(Format.Datum(DateOnly.FromDateTime(dat.Value)), ((int)von.Value).ToString(), ((int)Math.Max(von.Value, bis.Value)).ToString(), "", "", "", "", "", "");
+            KinderAufbauen(g.Rows[i]);
             g.CurrentCell = g.Rows[i].Cells["L"];
             return i;
+        }
+        void Uebertragen(int zeile, string spalte)
+        {
+            var r = g.Rows[zeile];
+            if (IstKind(r)) return;
+            foreach (var k in Kinder(r)) k.Cells[spalte].Value = r.Cells[spalte].Value;
         }
         List<int> Ids(ElementTyp typ, object? v) => (v?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(k => d.AlleElemente(typ).FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList();
@@ -147,13 +238,13 @@ public static class SondereinsatzDialog
         {
             var i = Zeile();
             var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassen des Sondereinsatzes", Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value));
-            if (w != null) g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname));
+            if (w != null) { g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname)); Uebertragen(i, "K"); }
         };
         bLe.Click += (_, _) =>
         {
             var i = Zeile();
             var w = AuswahlDialog.Mehrere(f, ElementTyp.Lehrer, "Lehrer des Sondereinsatzes", Ids(ElementTyp.Lehrer, g.Rows[i].Cells["L"].Value));
-            if (w != null) g.Rows[i].Cells["L"].Value = string.Join(",", w.Select(x => x.Kurzname));
+            if (w != null) { g.Rows[i].Cells["L"].Value = string.Join(",", w.Select(x => x.Kurzname)); Uebertragen(i, "L"); }
         };
         bKk.Click += (_, _) =>
         {
@@ -171,6 +262,7 @@ public static class SondereinsatzDialog
                 .Concat(d.Klassen.Where(k => kl.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds)).Distinct();
             g.Rows[i].Cells["L"].Value = string.Join(",", lehrerIds.Select(ix.KLehrer).OrderBy(x => x));
             if (string.IsNullOrWhiteSpace(g.Rows[i].Cells["T"].Value?.ToString())) g.Rows[i].Cells["T"].Value = "Klassenkonferenz " + ix.KKlassen(kl);
+            Uebertragen(i, "K"); Uebertragen(i, "L"); Uebertragen(i, "T");
         };
         if (klassen.Length > 0 || lehrer.Length > 0)
             g.Rows.Add(Format.Datum(datum), stunde.ToString(), stunde.ToString(), string.Join(",", lehrer.Select(ix.KLehrer)), ix.KKlassen(klassen), "", "", "", "");
@@ -180,6 +272,8 @@ public static class SondereinsatzDialog
         foreach (DataGridViewRow r in g.Rows)
         {
             if (r.IsNewRow) continue;
+            // Kopfzeilen mit Einzelstunden: die Einzelstunden (ggf. abweichend geändert) werden angelegt
+            if (!IstKind(r) && Kinder(r).Count > 0) continue;
             var l = Ids(ElementTyp.Lehrer, r.Cells["L"].Value);
             var k = Ids(ElementTyp.Klasse, r.Cells["K"].Value);
             if (l.Count == 0 && k.Count == 0) continue;

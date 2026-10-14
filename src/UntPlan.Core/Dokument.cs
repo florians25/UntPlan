@@ -37,6 +37,9 @@ public sealed class Dokument
 
     public event Action<AenderungsArt>? Geaendert;
 
+    /// <summary>Beginn der Arbeitssitzung (Öffnen der Datei) – Kennzeichen „Neue Vertretung“.</summary>
+    public DateTime Sitzungsbeginn { get; } = DateTime.Now;
+
     public Dokument(Schuldatei daten, string? pfad = null)
     {
         Daten = daten;

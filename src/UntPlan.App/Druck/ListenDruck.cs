@@ -38,16 +38,18 @@ public static class ListenDruck
     private static string Schluessel(string titel) => new string(titel.TakeWhile(c => !char.IsDigit(c)).ToArray()).Trim(' ', '–', '-');
 
     /// <summary>Tabelle drucken: sichtbare Spalten in der angezeigten Reihenfolge und Breite.</summary>
-    public static void DruckenTabelle(IWin32Window owner, string titel, DataGridView g, bool vorschau)
+    /// <param name="leerfelder">Überschriften von Spalten, die im Ausdruck als umrandetes Leerfeld erscheinen (z. B. „Unterschrift“).</param>
+    /// <param name="zeilenFilter">Nur diese Zeilen drucken (z. B. „Nur neue Vertretungen“).</param>
+    public static void DruckenTabelle(IWin32Window owner, string titel, DataGridView g, bool vorschau, ISet<string>? leerfelder = null, Func<DataGridViewRow, bool>? zeilenFilter = null)
     {
         var spalten = g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
-        var zeilen = g.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow)
-            .Select(r => spalten.Select(c => r.Cells[c.Index].Value switch { bool b => b ? "X" : "", var v => v?.ToString() ?? "" }).ToArray()).ToList();
-        Drucken(owner, titel, spalten.Select(c => c.HeaderText).ToArray(), spalten.Select(c => c.Width).ToArray(), zeilen, vorschau);
+        var zeilen = g.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow && (zeilenFilter is null || zeilenFilter(r)))
+            .Select(r => spalten.Select(c => leerfelder?.Contains(c.HeaderText) == true ? "" : r.Cells[c.Index].Value switch { bool b => b ? "X" : "", var v => v?.ToString() ?? "" }).ToArray()).ToList();
+        Drucken(owner, titel, spalten.Select(c => c.HeaderText).ToArray(), spalten.Select(c => c.Width).ToArray(), zeilen, vorschau, leerfelder);
     }
 
 
-    public static void Drucken(IWin32Window owner, string titel, string[] kopf, int[] breiten, List<string[]> zeilen, bool vorschau)
+    public static void Drucken(IWin32Window owner, string titel, string[] kopf, int[] breiten, List<string[]> zeilen, bool vorschau, ISet<string>? leerfelder = null)
     {
         var layout = LayoutFuer(titel);
         // Spaltenliste mit der aktuellen Tabelle abgleichen
@@ -88,6 +90,8 @@ public static class ListenDruck
             var gesamt = Math.Max(1, breiten.Sum());
             var faktor = Math.Min(1f, r.Width / (float)gesamt);
             var hz = f.GetHeight(g) + 4;
+            // Leerfelder (Unterschrift) brauchen Platz zum Unterschreiben: höhere Zeilen
+            var zh = leerfelder is { Count: > 0 } && kopf.Any(leerfelder.Contains) ? hz * 2 : hz;
             float x = r.Left;
             g.FillRectangle(Brushes.Gainsboro, r.Left, y, gesamt * faktor, hz);
             for (var i = 0; i < kopf.Length; i++)
@@ -98,22 +102,25 @@ public static class ListenDruck
             y += hz;
             var fussHoehe = string.IsNullOrWhiteSpace(layout.Fusszeile) ? 0 : hz + 4;
             var nr = 0;
-            while (zeile < zeilen.Count && y + hz < r.Bottom - fussHoehe)
+            while (zeile < zeilen.Count && y + zh < r.Bottom - fussHoehe)
             {
-                if (layout.Zebra && nr++ % 2 == 1) g.FillRectangle(Brushes.WhiteSmoke, r.Left, y, gesamt * faktor, hz);
+                if (layout.Zebra && nr++ % 2 == 1) g.FillRectangle(Brushes.WhiteSmoke, r.Left, y, gesamt * faktor, zh);
                 x = r.Left;
                 for (var i = 0; i < kopf.Length; i++)
                 {
-                    g.DrawString(zeilen[zeile].ElementAtOrDefault(i) ?? "", f, Brushes.Black, new RectangleF(x + 2, y + 2, breiten[i] * faktor - 4, hz), new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap });
+                    if (leerfelder?.Contains(kopf[i]) == true)
+                        g.DrawRectangle(Pens.Black, x + 2, y + 2, breiten[i] * faktor - 4, zh - 4);
+                    else
+                        g.DrawString(zeilen[zeile].ElementAtOrDefault(i) ?? "", f, Brushes.Black, new RectangleF(x + 2, y + 2, breiten[i] * faktor - 4, hz), new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap });
                     x += breiten[i] * faktor;
                 }
-                g.DrawLine(Pens.LightGray, r.Left, y + hz, r.Left + gesamt * faktor, y + hz);
+                g.DrawLine(Pens.LightGray, r.Left, y + zh, r.Left + gesamt * faktor, y + zh);
                 if (layout.Gitter)
                 {
                     var gx = (float)r.Left;
-                    for (var i = 0; i <= kopf.Length; i++) { g.DrawLine(Pens.LightGray, gx, y, gx, y + hz); if (i < kopf.Length) gx += breiten[i] * faktor; }
+                    for (var i = 0; i <= kopf.Length; i++) { g.DrawLine(Pens.LightGray, gx, y, gx, y + zh); if (i < kopf.Length) gx += breiten[i] * faktor; }
                 }
-                y += hz;
+                y += zh;
                 zeile++;
             }
             if (fussHoehe > 0) g.DrawString(layout.Fusszeile, f, Brushes.DimGray, r.Left, r.Bottom - hz);

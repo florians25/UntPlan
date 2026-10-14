@@ -221,4 +221,43 @@ public class KachelbauTests
         Assert.Equal(6, zeiten.Count);
         Assert.Contains("1", zeiten.Keys);
     }
+
+    [Fact]
+    public void Klausur_geht_auf_die_Unterrichtskachel_ueber_statt_neuer_Kachel()
+    {
+        var plan = Plan("klasse", new()
+        {
+            Karte("regulaer", 3, 4),
+            Karte("klausur", 3, 4, fach: "", text: "Mathe-Arbeit", art: "Klausur", unterricht: null, raeume: new() { new("R106") }),
+        });
+        var kacheln = Kachelbau.Tag(plan, plan.Tage[0], new List<Ferienzeit>());
+        var k = Assert.Single(kacheln);
+        Assert.Equal("klausur", k.Art);
+        Assert.Equal("M", k.Fach);
+        Assert.Contains("Mathe-Arbeit", k.Info);
+        Assert.Equal("R106", k.Raum);
+        Assert.Equal("R101", k.RaumAlt);
+        Assert.Contains("room", k.Geaendert);
+    }
+
+    [Fact]
+    public void Hinzugefuegter_Raum_steht_in_der_Plakette()
+    {
+        var k = Kachelbau.AusKarte(Karte("geaendert", 2, raeume: new() { new("BI1", "R101", true) }), "class");
+        Assert.Contains("room", k.Geaendert);
+        var b = Kachelbau.AusKarte(Karte("buchung", 2, fach: "", text: "Raumbuchung", unterricht: null, raeume: new() { new("EDV1") }), "teacher");
+        Assert.Contains("room", b.Geaendert);
+    }
+
+    [Fact]
+    public void Veranstaltung_zeigt_alle_teilnehmenden_Lehrkraefte()
+    {
+        var ereignis = new PlanEreignis("Lehrerkonferenz", "veranstaltung", 7, 8, false, new(), new() { "WEB", "BEC", "HOF" }, new() { "EDV2" });
+        var plan = Plan("lehrer", new() { Karte("veranstaltung", 7, 8, fach: "", text: "Lehrerkonferenz", unterricht: null, klassen: new(), raeume: new()) },
+            new() { Tag(ereignisse: new() { ereignis }) });
+        var k = Assert.Single(Kachelbau.Tag(plan, plan.Tage[0], new List<Ferienzeit>()));
+        Assert.Equal("absence", k.Art);
+        Assert.Equal("WEB,BEC,HOF", k.Lehrkraft);
+        Assert.Equal("EDV2", k.Raum);
+    }
 }

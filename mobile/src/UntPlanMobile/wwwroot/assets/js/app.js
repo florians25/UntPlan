@@ -1237,7 +1237,9 @@ function renderGrid(){
             return [
               oben   ? `<span class="card__line card__line--primary">${esc(oben)}</span>` : '',
               anlass ? `<span class="card__line ${oben ? '' : 'card__line--primary'}">${esc(anlass)}</span>` : '',
-              unten  ? `<span class="card__line card__line--last">${esc(unten)}</span>` : ''
+              unten  ? `<span class="card__line ${card.room ? '' : 'card__line--last'}">${esc(unten)}</span>` : '',
+              /* Raum der Veranstaltung */
+              card.room ? `<span class="card__line card__line--last">${esc(card.room)}</span>` : ''
             ].filter(Boolean).join('');
           })()
         : lines.map((l, li) => {

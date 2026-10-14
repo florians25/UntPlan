@@ -174,7 +174,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
                 Neuaufbau(false);
                 return;
             }
-            if (e.Data?.GetData(DataFormats.Text) is string s && s.StartsWith("plan:"))
+            if (e.Data?.GetData(DataFormats.Text) is string s && s.StartsWith("plan:") && !RegelplanNurAnzeige)
             {
                 var (_, alle) = PlanAnsicht.PlanDaten(s);
                 var idxs = alle.Select(x => D.Stundenplan.IndexOf(x)).Where(i => i >= 0).OrderByDescending(i => i).ToList();
@@ -189,6 +189,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _lupe.DragDrop += (_, e) =>
         {
             if (e.Data?.GetData(DataFormats.Text) is not string x) return;
+            if (x.StartsWith("plan:") && RegelplanNurAnzeige) return;
             if (x.StartsWith("plan:")) { var (_, alle) = PlanAnsicht.PlanDaten(x); var idxs = alle.Select(a => D.Stundenplan.IndexOf(a)).Where(i => i >= 0).OrderByDescending(i => i).ToList(); Aendern("Stunde entplanen", AenderungsArt.Stundenplan, d => { foreach (var i in idxs) d.Stundenplan.RemoveAt(i); }); Neuaufbau(); return; }
             var t = x.Split(':');
             var datum = DateOnly.ParseExact(t[1], "yyyyMMdd");
@@ -272,7 +273,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         _laden = true;
         _wochenansicht.Checked = AppZustand.Vertretungsmodus || _wochenansicht.Checked && !AppZustand.Vertretungsmodus;
-        _wochenansicht.Enabled = !AppZustand.Vertretungsmodus;
+        _wochenansicht.Enabled = true;
         if (!AppZustand.Vertretungsmodus) _wochenansicht.Checked = false;
         _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _laden = false;
@@ -511,6 +512,47 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         if (_auswahl.Items.Count == 0) return;
         _auswahl.SelectedIndex = Math.Clamp(_auswahl.SelectedIndex + r, 0, _auswahl.Items.Count - 1);
+    }
+
+    /// <summary>Vertretungsmodus, Zeitbereich „Periode“: Regelplan nur zur Ansicht (Stundenplanänderungen gehören in den Stundenplanmodus).</summary>
+    private bool RegelplanNurAnzeige => AppZustand.Vertretungsmodus && !_plan.Tagesmodus;
+
+    /// <summary>
+    /// Kontextmenü „Zeitbereich“ wie in Untis: Woche (tagesaktueller Plan der Woche mit allen Vertretungen) oder Periode
+    /// (Regelplan der aktiven Periode). Im Vertretungsmodus ist „Woche“ der Standard, „Periode“ dient zum Nachsehen.
+    /// </summary>
+    private ToolStripMenuItem ZeitbereichMenue()
+    {
+        var woche = _plan.Woche.HasValue;
+        var m = new ToolStripMenuItem("Zeitbereich: " + (woche ? "Woche" : "Periode"));
+        var w = new ToolStripMenuItem("Woche – tagesaktuell mit Vertretungen") { Checked = woche };
+        w.Click += (_, _) => _wochenansicht.Checked = true;
+        var p = new ToolStripMenuItem($"Periode – Regelplan ({D.AktivePeriode.Name})") { Checked = !woche };
+        p.Click += (_, _) => _wochenansicht.Checked = false;
+        m.DropDownItems.Add(w);
+        m.DropDownItems.Add(p);
+        if (woche)
+        {
+            m.DropDownItems.Add(new ToolStripSeparator());
+            m.DropDownItems.Add("Vorherige Woche", null, (_, _) => WocheBlaettern(-7));
+            m.DropDownItems.Add("Nächste Woche", null, (_, _) => WocheBlaettern(7));
+        }
+        return m;
+    }
+
+    /// <summary>Selbsttest: Zeitbereich umschalten (Woche bzw. Periode) und prüfen.</summary>
+    internal void SelbsttestZeitbereich(bool woche)
+    {
+        _wochenansicht.Checked = woche;
+        if (_plan.Woche.HasValue != woche) throw new InvalidOperationException("Zeitbereich wurde nicht umgeschaltet.");
+        if (ZeitbereichMenue().Text != "Zeitbereich: " + (woche ? "Woche" : "Periode")) throw new InvalidOperationException("Kontextmenü Zeitbereich zeigt den falschen Zustand.");
+    }
+
+    private void WocheBlaettern(int tage)
+    {
+        var ziel = DateOnly.FromDateTime(_datum.Value).AddDays(tage);
+        if (ziel < D.Einstellungen.SchuljahrVon || ziel > D.Einstellungen.SchuljahrBis) return;
+        _datum.Value = ziel.ToDateTime(TimeOnly.MinValue);
     }
 
     private void WocheSetzen()
@@ -768,6 +810,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         if (daten.StartsWith("tag:") || daten.StartsWith("vormerkung:")) { TagesAbgelegt(daten, tag, stunde); return; }
         if (_plan.Tagesmodus) return;
+        if (RegelplanNurAnzeige) { Ui.Info("Im Vertretungsmodus zeigt der Zeitbereich „Periode“ den Regelplan nur an. Zum Verlegen bitte den Zeitbereich „Woche“ wählen (rechte Maustaste › Zeitbereich)."); return; }
         if (daten.StartsWith("plan:"))
         {
             var (prim, alle) = PlanAnsicht.PlanDaten(daten);
@@ -944,6 +987,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             var w = OptionenDialog.Fragen(this, "Frage", Tagesverlegung.TauschFrage(D, a), new[] { "mit dortiger Unterrichtsstunde tauschen", "nur dorthin verlegen" });
             if (w is null) return;
             if (w == 0) modus = VerlegeModus.Tauschen;
+            // „nur dorthin verlegen“: einfache Verlegung, die dortige Stunde bleibt stehen (Kollisionsfrage nur bei weiterem Unterricht)
+            else a = a.NurDorthin();
         }
         if (modus != VerlegeModus.Tauschen && a.Kollision)
         {
@@ -1041,9 +1086,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var schueler = uid is int us ? D.Schueler.Where(x => x.KurswahlIds.Contains(us)).ToList() : new List<Schueler>();
         var stud = cm.Items.Add("Studenten", null, (_, _) => Ui.Info(string.Join("\n", schueler.Select(x => $"{x.Langname}, {x.Vorname}")), $"Studenten – U-Nr. {uid}"));
         stud.Enabled = schueler.Count > 0;
-        var woche = new ToolStripMenuItem("Zeitbereich: Woche") { Checked = _plan.Woche.HasValue, Enabled = !AppZustand.Vertretungsmodus };
-        woche.Click += (_, _) => _wochenansicht.Checked = !_wochenansicht.Checked;
-        cm.Items.Add(woche);
+        cm.Items.Add(ZeitbereichMenue());
         cm.Items.Add(new ToolStripSeparator());
         cm.Items.Add("Im HTML-Format kopieren", Symbole.Get("html"), (_, _) => HtmlKopieren());
         // weitere Funktionen des Vertretungsmodus
@@ -1119,7 +1162,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     protected override void OnKeyDown(KeyEventArgs e)
     {
         // Entf = entplanen, F = fixieren (nicht während einer Texteingabe)
-        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.None)
+        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.None && !RegelplanNurAnzeige)
         {
             if (e.KeyCode == Keys.Delete) { Entplanen(); e.Handled = true; }
             else if (e.KeyCode == Keys.F) { Fixieren(); e.Handled = true; }
@@ -1131,6 +1174,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     private void Fixieren()
     {
+        if (RegelplanNurAnzeige) return;
         var m = Markierte();
         if (m.Count == 0) return;
         var idxs = m.Select(p => D.Stundenplan.IndexOf(p)).Where(i => i >= 0).ToList();
@@ -1141,6 +1185,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     private void Entplanen()
     {
+        if (RegelplanNurAnzeige) return;
         var m = Markierte();
         if (m.Count == 0) return;
         if (m.Any(p => p.Fixiert) && !Ui.Frage("Fixierte Stunden entplanen?")) return;
@@ -1191,8 +1236,16 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var std = new ToolStripMenuItem("Stpl-Stunde: Standardformat") { Checked = _plan.Format.Standardformat };
         std.Click += (_, _) => { var f = Kopie(_plan.Format); f.Standardformat = !f.Standardformat; FormatSpeichern(f, f.Name); };
         cm.Items.Add(std);
+        cm.Items.Add(ZeitbereichMenue());
         cm.Items.Add(new ToolStripSeparator());
         if (_plan.Tagesmodus) return;
+        // Vertretungsmodus mit Zeitbereich „Periode“: der Regelplan wird nur angezeigt, nicht verändert
+        if (RegelplanNurAnzeige)
+        {
+            cm.Items.RemoveAt(cm.Items.Count - 1);
+            cm.Show(_plan, pt);
+            return;
+        }
         if (_plan.Mehrfach.Count > 1)
         {
             cm.Items.Add($"{_plan.Mehrfach.Count} markierte Stunden entplanen", Symbole.Get("loeschen"), (_, _) => Entplanen());

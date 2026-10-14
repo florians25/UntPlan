@@ -47,6 +47,7 @@ public static class VeranstaltungsLogik
     public static void Bereinigen(Schuldatei d, Veranstaltung va, DateOnly datum)
     {
         va.Ersatz.RemoveAll(e => e.Datum < va.Von || e.Datum > va.Bis || !va.LehrerIds.Contains(e.LehrerId));
+        va.Zusatz.RemoveAll(z => z.Datum < va.Von || z.Datum > va.Bis || va.LehrerIds.Contains(z.LehrerId));
         va.Ersatz.RemoveAll(e => e.Datum == datum && e.AbwesenheitId is int aid &&
             !(d.Abwesenheiten.FirstOrDefault(a => a.Id == aid) is { } abs && abs.Art == AbwesenheitsArt.Lehrer && abs.ElementId == e.LehrerId &&
               Stunden(d, va, datum).Any(s => abs.Deckt(datum, s))));
@@ -138,6 +139,37 @@ public static class VeranstaltungsLogik
         Vertretungen.Aktualisieren(d, datum);
     }
 
+    /// <summary>
+    /// Zusätzliche Lehrkraft (kein Ersatz für eine entfernte): nur an diesem Tag (<paramref name="ganzeVeranstaltung"/> = false)
+    /// oder für die gesamte Veranstaltung. Ihr Unterricht in diesen Stunden wird – wie bei den übrigen Teilnehmern – zur Vertretung.
+    /// </summary>
+    public static void LehrerHinzufuegen(Schuldatei d, int veranstaltungId, DateOnly datum, int lehrerId, bool ganzeVeranstaltung)
+    {
+        var va = d.Veranstaltungen.FirstOrDefault(x => x.Id == veranstaltungId) ?? throw new InvalidOperationException($"Veranstaltung {veranstaltungId} nicht gefunden.");
+        if (datum < va.Von || datum > va.Bis) throw new InvalidOperationException("Die Veranstaltung findet an diesem Tag nicht statt.");
+        if (ganzeVeranstaltung)
+        {
+            if (va.LehrerIds.Contains(lehrerId)) throw new InvalidOperationException("Die Lehrkraft nimmt bereits an der Veranstaltung teil.");
+            va.LehrerIds.Add(lehrerId);
+            va.Zusatz.RemoveAll(z => z.LehrerId == lehrerId);
+            Vertretungen.Aktualisieren(d, va.Von, va.Bis);
+            return;
+        }
+        if (va.NimmtTeil(lehrerId, datum)) throw new InvalidOperationException("Die Lehrkraft nimmt an diesem Tag bereits an der Veranstaltung teil.");
+        // war sie an diesem Tag entfernt (Absenz), ist das keine Zusatz-, sondern ihre eigene Teilnahme – das bleibt dem Absenzfenster vorbehalten
+        va.Zusatz.Add(new VeranstaltungsZusatz { Datum = datum, LehrerId = lehrerId });
+        Vertretungen.Aktualisieren(d, datum);
+    }
+
+    /// <summary>Zusätzlich eingetragene Lehrkraft an diesem Tag wieder aus der Veranstaltung nehmen. Liefert false, wenn sie dort nicht zusätzlich eingetragen war.</summary>
+    public static bool ZusatzEntfernen(Schuldatei d, int veranstaltungId, DateOnly datum, int lehrerId)
+    {
+        var va = d.Veranstaltungen.FirstOrDefault(x => x.Id == veranstaltungId);
+        if (va is null || va.Zusatz.RemoveAll(z => z.Datum == datum && z.LehrerId == lehrerId) == 0) return false;
+        Vertretungen.Aktualisieren(d, datum);
+        return true;
+    }
+
     /// <summary>Hat die Veranstaltung im Zeitraum offene Plätze (entfernte Lehrkraft ohne Ersatz)?</summary>
     public static bool HatOffenePlaetze(Veranstaltung va, DateOnly von, DateOnly bis) =>
         va.Ersatz.Any(e => e.ErsatzId is null && e.Datum >= von && e.Datum <= bis && e.Datum >= va.Von && e.Datum <= va.Bis && va.LehrerIds.Contains(e.LehrerId));
@@ -154,6 +186,7 @@ public static class VeranstaltungsLogik
             var id = e is null ? l : e.ErsatzId;
             namen.Add(id is int x ? d.Lehrer.FirstOrDefault(y => y.Id == x)?.Kurzname ?? "?" : offen);
         }
+        foreach (var z in va.Zusatz.Where(z => z.Datum == datum)) namen.Add(d.Lehrer.FirstOrDefault(y => y.Id == z.LehrerId)?.Kurzname ?? "?");
         return string.Join(trenner, namen.Distinct().Where(n => n != offen).Concat(namen.Where(n => n == offen)));
     }
 

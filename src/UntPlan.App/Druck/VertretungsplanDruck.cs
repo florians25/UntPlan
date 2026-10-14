@@ -211,6 +211,12 @@ public static class VertretungsplanDruck
     {
         var ix = new DatenIndex(d);
         var plan = Vertretungsplan.Zeilen(d, datum);
+        // Seitenlayout „Nur neue Vertretungen“: in dieser Arbeitssitzung angelegt oder geändert
+        if (e.NurNeue)
+        {
+            var neu = d.Vertretungen.Where(v => v.Datum == datum && Vertretungen.IstNeu(v, AppZustand.Doc.Sitzungsbeginn)).Select(v => v.Id).ToHashSet();
+            plan = plan.Where(z => neu.Contains(z.Id)).ToList();
+        }
         if (!lehrer) plan = plan.Where(z => z.ArtWert != VertretungsArt.Pausenaufsicht).ToList();
         var zeilen = plan.Select(z =>
         {
@@ -245,7 +251,7 @@ public static class VertretungsplanDruck
     /// <summary>Optionen vor der Seitenansicht: Version, Schrift, Inhalte, Format.</summary>
     private static bool Optionen(IWin32Window owner, Vertretungsdruck e, ref bool lehrer)
     {
-        using var d = new Dialog("Vertretungsplan drucken", 420, 330);
+        using var d = new Dialog("Vertretungsplan drucken", 420, 356);
         var y = 14;
         var version = Ui.Zeile(d, "Version", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y, 130, 200);
         version.Items.AddRange(new object[] { "Klassen", "Lehrer" });
@@ -259,6 +265,7 @@ public static class VertretungsplanDruck
         var raeume = Ui.Zeile(d, "Blockierte Räume", new CheckBox { Checked = e.BlockierteRaeume }, ref y, 130);
         var klassen = Ui.Zeile(d, "Abwesende Klassen", new CheckBox { Checked = e.AbwesendeKlassen }, ref y, 130);
         var lehrerAbw = Ui.Zeile(d, "Abwesende Lehrer", new CheckBox { Checked = e.AbwesendeLehrer }, ref y, 130);
+        var nurNeue = Ui.Zeile(d, "Nur neue Vertretungen", new CheckBox { Checked = e.NurNeue }, ref y, 130);
         if (d.ShowDialog(owner) != DialogResult.OK) return false;
         lehrer = version.SelectedIndex == 1;
         e.Schriftart = schrift.SelectedItem?.ToString() ?? e.Schriftart;
@@ -268,6 +275,7 @@ public static class VertretungsplanDruck
         e.BlockierteRaeume = raeume.Checked;
         e.AbwesendeKlassen = klassen.Checked;
         e.AbwesendeLehrer = lehrerAbw.Checked;
+        e.NurNeue = nurNeue.Checked;
         return true;
     }
 }

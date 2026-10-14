@@ -20,8 +20,16 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly CheckBox _offen = new() { Text = "Offene Vertretungen", AutoSize = true };
-    /// <summary>Bei Filter „Offene Vertretungen“: gerade bearbeitete Zeilen bleiben sichtbar, bis eine andere Zeile gewählt wird.</summary>
-    private readonly HashSet<int> _behalten = new();
+    /// <summary>Bei Filter („Offene Vertretungen“, „Kollisionen“, Element): gerade bearbeitete Zeilen bleiben sichtbar, bis eine andere Zeile gewählt wird.</summary>
+    private readonly ZeilenBehalten _behalten = new();
+    /// <summary>Neuaufbau wurde während einer Eingabe aufgeschoben (wird beim Verlassen der Zelle nachgeholt).</summary>
+    private bool _neuaufbauAusstehend;
+    private bool _sortierenAusstehend;
+    /// <summary>Wert der Zelle beim Beginn der Bearbeitung (unveränderte Zellen lösen keine Änderung aus).</summary>
+    private string? _wertVorher;
+    /// <summary>Sortierung per Klick auf die Spaltenüberschrift (wie in Untis); null = Standard (Datum, Klasse bzw. Lehrer, Stunde).</summary>
+    private string? _sortSpalte;
+    private bool _sortAbsteigend;
     private readonly CheckBox _kollisionen = new() { Text = "Kollisionen", AutoSize = true };
     private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
     private readonly ToolStripButton _inhalt = new("Felder mit Inhalt", Symbole.Get("uebersicht", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Felder mit Inhalt: alle Spalten mit einer Eingabe zeigen – erneuter Klick stellt die ursprünglichen Spalten wieder her" };
@@ -29,8 +37,6 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private HashSet<string>? _vorInhalt;
     /// <summary>Zusammengefasste Zeilen einer Veranstaltung (je Tag eine Zeile): Stellvertreter-Id → alle Stundenzeilen.</summary>
     private readonly Dictionary<int, List<Vertretung>> _gruppen = new();
-    /// <summary>Beginn der Arbeitssitzung (Kennzeichen „Neue Vertretung“).</summary>
-    private static readonly DateTime Sitzungsbeginn = DateTime.Now;
     private readonly GroupBox _elementGruppe;
     private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
     private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
@@ -64,6 +70,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         });
         ts.Items.Add(Knopf("Vtr. ohne Lehrer (+)", "planen", OhneLehrkraft, false));
         ts.Items.Add(Knopf("Vertretung teilen", "tausch", Teilen));
+        ts.Items.Add(Knopf("Lehrkraft zur Veranstaltung hinzufügen", "lehrer", LehrkraftHinzufuegen));
         ts.Items.Add(Knopf("Raum zuordnen", "raumzuordnen", RaumZuordnen));
         ts.Items.Add(Knopf("Sondereinsatz", "neu", () => SondereinsatzDialog.Neu(this, AppZustand.Datum, Aktuelle().FirstOrDefault()?.Stunde ?? 1, Array.Empty<int>(), Array.Empty<int>())));
         ts.Items.Add(Knopf("Als Vormerkung beiseitelegen", "zurueck", AlsVormerkung));
@@ -85,6 +92,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var einst = new ToolStripDropDownButton("Einstellungen", Symbole.Get("einstellungen", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Einstellungen" };
         einst.DropDownItems.Add("Einstellungen Vertretungsfenster (Vertretungsarten anzeigen)…", null, (_, _) => FensterEinstellungen());
         einst.DropDownItems.Add("Vertretungsplanung: Farben und Bezeichnungen, Zähler, Vorschlag…", null, (_, _) => VertretungsEinstellungenDialog.Zeigen(this));
+        var nurNeu = new ToolStripMenuItem("Seitenlayout: Nur neue Vertretungen drucken") { CheckOnClick = true, Checked = AppZustand.Einstellungen.Vertretungsdruck.NurNeue, ToolTipText = "Nur Vertretungen drucken, die in dieser Arbeitssitzung angelegt oder geändert wurden (Kennzeichen „Neu“)" };
+        nurNeu.CheckedChanged += (_, _) => { AppZustand.Einstellungen.Vertretungsdruck.NurNeue = nurNeu.Checked; AppZustand.Einstellungen.Speichern(); };
+        einst.DropDownOpening += (_, _) => nurNeu.Checked = AppZustand.Einstellungen.Vertretungsdruck.NurNeue;
+        einst.DropDownItems.Add(nurNeu);
         ts.Items.Add(einst);
 
         // Kopf wie im Vertretungsfenster üblich: Element, Zeitraum (Tag/Woche/Von-Bis), Ansicht einschränken
@@ -99,7 +110,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         _elementGruppe = Gruppe("Klasse(n)", new Control[] { _element }.Concat(Ui.Durchschalter(_element)).ToArray());
         _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen");
-        _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Lehrer" : "Klasse(n)";
+        _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Vertreter" : "Klasse(n)";
         filter.Controls.Add(_elementGruppe);
         filter.Controls.Add(Gruppe("Von-Bis", _zeitraum));
         _offen.Padding = _kollisionen.Padding = new Padding(2, 4, 6, 0);
@@ -128,7 +139,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _g.Columns.Add(c);
             c.Width = breite;
             c.ReadOnly = lesbar;
-            c.SortMode = DataGridViewColumnSortMode.NotSortable;
+            c.SortMode = DataGridViewColumnSortMode.Programmatic;
             if (!lesbar) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
         // Reihenfolge wie in Untis: Vtr-Nr. Art Datum Stunde (Fach) Fach (Lehrer) Vertreter (Klasse(n)) Klasse(n) (Raum) Raum Vertr. von (Le.) nach Text Statistik …
@@ -148,6 +159,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.CellBeginEdit += (_, e) =>
         {
             if (e.RowIndex < 0 || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
+            _wertVorher = _g.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
             // fixierte Vertretungen sind vor Veränderungen geschützt, Unterrichtszeilen sind nur Anzeige
             if (v.Id == 0) { e.Cancel = true; return; }
             if (v.Fixiert) { e.Cancel = true; _status.Text = $"Vertretung {v.Id} ist fixiert (X) – zum Ändern zuerst lösen."; }
@@ -157,25 +169,36 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         };
         _g.EditingControlShowing += EditorZeigen;
         Steuerelemente.SuchKombi.Aktivieren(_g, VertreterStil);
+        // Auswahl aus der Liste (Maus bzw. Enter) wie in Untis sofort übernehmen: Bearbeitung beenden, die Zeile bleibt aktuell
+        _g.CurrentCellDirtyStateChanged += (_, _) =>
+        {
+            if (_g.CurrentCell is DataGridViewComboBoxCell && _g.EditingControl is ComboBox { DroppedDown: false } && !_g.IsCurrentCellDirty)
+                BeginInvoke(() => { if (!IsDisposed && _g.IsCurrentCellInEditMode && _g.CurrentCell is DataGridViewComboBoxCell) _g.EndEdit(); });
+        };
+        _g.ColumnHeaderMouseClick += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Left || e.ColumnIndex < 0) return;
+            SortierenNach(_g.Columns[e.ColumnIndex].Name);
+        };
         // Auswahl verzögert weitergeben: beim schnellen Blättern mit den Pfeiltasten werden die Pläne erst nach dem Anhalten aufgebaut
         _auswahlTimer.Tick += (_, _) => { _auswahlTimer.Stop(); if (!IsDisposed) Gewaehlt(); };
         _g.SelectionChanged += (_, _) =>
         {
             if (_laedt) return;
-            if (_behalten.Count > 0 && _g.CurrentRow?.Tag is Vertretung cur && !_behalten.Contains(cur.Id))
-            {
-                _behalten.Clear();
-                BeginInvoke(Neuaufbau);
-            }
             if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
             _auswahlTimer.Stop();
             _auswahlTimer.Start();
+        };
+        // erst beim Wechsel in eine andere Zeile verschwinden bearbeitete Zeilen, die nicht mehr zum Filter passen
+        _g.CurrentCellChanged += (_, _) =>
+        {
+            if (!_laedt && _g.CurrentRow?.Tag is Vertretung cur && _behalten.Zeilenwechsel(cur.Id)) NachZellwechsel(Neuaufbau);
         };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && (e.ColumnIndex < 0 || _g.Columns[e.ColumnIndex].ReadOnly)) VorschlagOeffnen(); };
         _g.KeyPress += TastenDruck;
         _g.KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Delete && !_g.IsCurrentCellInEditMode) { Zuruecksetzen(); e.Handled = true; }
+            if (e.KeyCode == Keys.Delete && !_g.IsCurrentCellInEditMode) { Entfernen(); e.Handled = true; }
             if (e.KeyCode == Keys.Enter && !_g.IsCurrentCellInEditMode) { VorschlagOeffnen(); e.Handled = true; }
             if (e.KeyCode == Keys.F3) { NaechsteOffene(e.Shift ? -1 : 1); e.Handled = true; }
         };
@@ -193,18 +216,20 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         };
 
         _zeitraum.Geaendert += ZeitraumGeaendert;
-        _offen.CheckedChanged += (_, _) => { _behalten.Clear(); Neuaufbau(); };
-        _kollisionen.CheckedChanged += (_, _) => Neuaufbau();
-        _element.SelectedIndexChanged += (_, _) => { if (!_laedt) Neuaufbau(); };
+        _offen.CheckedChanged += (_, _) => { _behalten.Leeren(); Neuaufbau(true); };
+        _kollisionen.CheckedChanged += (_, _) => { _behalten.Leeren(); Neuaufbau(true); };
+        _element.SelectedIndexChanged += (_, _) => { if (_laedt) return; _behalten.Leeren(); Neuaufbau(true); };
         _ansicht.SelectedIndexChanged += (_, _) =>
         {
             AppZustand.Einstellungen.Vertretungsansicht = Ansichten[_ansicht.SelectedIndex];
             AppZustand.Einstellungen.Speichern();
             Text = "Vertretungen / " + Ansichten[_ansicht.SelectedIndex].Replace(" - ", " – ");
             ElementeFuellen();
-            _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Lehrer" : "Klasse(n)";
+            _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Vertreter" : "Klasse(n)";
             if (_inhalt.Checked) _inhalt.Checked = false;
-            Neuaufbau();
+            _behalten.Leeren();
+            _sortSpalte = null;
+            Neuaufbau(true);
             FelderAnwenden();
         };
         _nr.KeyDown += (_, e) =>
@@ -322,7 +347,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             AppZustand.Einstellungen.Speichern();
             if (_inhalt.Checked) _inhalt.Checked = false;
             FelderAnwenden();
-            Neuaufbau();
+            Neuaufbau(true);
         }
         ok.Click += (_, _) => { Uebernehmen(); dlg.DialogResult = DialogResult.OK; };
         uebernahme.Click += (_, _) => Uebernehmen();
@@ -375,19 +400,23 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         AppZustand.Einstellungen.VertretungsArtenAus[AnsichtName] = neu;
         AppZustand.Einstellungen.Speichern();
-        Neuaufbau();
+        Neuaufbau(true);
     }
 
     /// <summary>Liste drucken: Spalten laut „Felder der Ansicht“ (drucken) – auch die Vtr-Nr. kann für den Druck ausgeblendet werden.</summary>
     private void ListeDrucken()
     {
+        if (_g.IsCurrentCellInEditMode) _g.EndEdit();
         var f = FeldEinstellungen();
         var vorher = _g.Columns.Cast<DataGridViewColumn>().ToDictionary(c => c, c => c.Visible);
         try
         {
             foreach (var s in Spalten) _g.Columns[s.Name]!.Visible = f[s.Name].Contains('d');
             if (!_g.Columns.Cast<DataGridViewColumn>().Any(c => c.Visible)) _g.Columns["Art"]!.Visible = true;
-            ListenDruck.DruckenTabelle(this, Text, _g, true);
+            // Unterschrift: Leerfeld zum Abzeichnen; Seitenlayout „Nur neue Vertretungen“
+            var nurNeue = AppZustand.Einstellungen.Vertretungsdruck.NurNeue;
+            ListenDruck.DruckenTabelle(this, Text + (nurNeue ? " (nur neue)" : ""), _g, true, new HashSet<string> { _g.Columns["Unterschrift"]!.HeaderText },
+                nurNeue ? r => r.Tag is Vertretung v && Vertretungen.IstNeu(v, Doc.Sitzungsbeginn) : null);
         }
         finally
         {
@@ -427,7 +456,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     private void FremdGewaehlt(Vertretung? v)
     {
-        if (v is null || _laedt || IsDisposed || ContainsFocus) return;
+        if (v is null || _laedt || IsDisposed || ContainsFocus || _g.IsCurrentCellInEditMode) return;
+        if (_behalten.Zeilenwechsel(v.Id)) Neuaufbau();
         foreach (DataGridViewRow r in _g.Rows)
             if (r.Tag is Vertretung x && x.Id == v.Id)
             {
@@ -460,7 +490,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _sync = true;
         }
         _plaene.Clear();
-        Neuaufbau();
+        _behalten.Leeren();
+        Neuaufbau(true);
     }
 
     private static string Signatur(Schuldatei d, DateOnly von, DateOnly bis) =>
@@ -502,14 +533,16 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     private bool Passt(Vertretung v)
     {
-        var pausen = _ansicht.SelectedIndex == 4;
-        if (pausen != (v.Art == VertretungsArt.Pausenaufsicht)) return false;
-        if (_offen.Checked && !v.OffenOderRaumOffen && !_behalten.Contains(v.Id)) return false;
-        if (_kollisionen.Checked && KollisionEinzeln(v) is null) return false;
+        // Ansicht „Pausenaufsichten“ zeigt nur diese; in den übrigen Ansichten stehen sie wie in Untis mit in der Liste
+        if (_ansicht.SelectedIndex == 4 && v.Art != VertretungsArt.Pausenaufsicht) return false;
+        // gerade bearbeitete Zeile bleibt bis zum Zeilenwechsel sichtbar, auch wenn sie nicht mehr zum Filter passt
+        var behalten = _behalten.Enthaelt(v.Id);
+        if (_offen.Checked && !v.OffenOderRaumOffen && !behalten) return false;
+        if (_kollisionen.Checked && KollisionEinzeln(v) is null && !behalten) return false;
         // Unterricht, der als Veranstaltung stattfindet, erscheint nur in der Zeile der Veranstaltung
         if (v.InVeranstaltung) return false;
         if (!ArtSichtbar(v.Art)) return false;
-        if (_element.SelectedItem is Eintrag { Id: int id })
+        if (_element.SelectedItem is Eintrag { Id: int id } && !behalten)
         {
             var treffer = _ansicht.SelectedIndex is 1 or 3
                 ? v.LehrerId == id || v.VertreterId == id
@@ -519,41 +552,156 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return true;
     }
 
-    private void Neuaufbau()
+    private void Neuaufbau() => Neuaufbau(false);
+
+    /// <summary>Schlüssel einer Tabellenzeile: Vtr-Nr., bei reinen Unterrichtszeilen Unterricht/Zeile/Datum/Stunde.</summary>
+    private static string Schluessel(Vertretung? v) =>
+        v is null ? "" : v.Id != 0 ? "V" + v.Id : $"U{v.UnterrichtId}/{v.ZeilenIndex}/{v.Datum:yyyyMMdd}/{v.Stunde}";
+
+    private static string? Schluessel(DataGridViewRow r) => r.Tag is Vertretung v ? Schluessel(v) : null;
+
+    /// <summary>Filter, unter dem eine bearbeitete Zeile verschwinden könnte (dann bleibt sie bis zum Zeilenwechsel stehen).</summary>
+    private bool FilterAktiv => _offen.Checked || _kollisionen.Checked || _element.SelectedItem is Eintrag { Id: not null } || _ansicht.SelectedIndex is 2 or 3;
+
+    /// <summary>
+    /// Liste aktualisieren. Sind es dieselben Zeilen wie bisher, werden nur die Werte an Ort und Stelle erneuert: Zeile, Spalte,
+    /// Markierung und Bildlauf bleiben, nichts springt (<paramref name="neuSortieren"/> erzwingt die Sortierung, z. B. nach einem
+    /// Filter- oder Ansichtswechsel). Sonst Neuaufbau mit Wiederherstellung der aktuellen Vertretung (Vtr-Nr.), Spalte und
+    /// Bildlaufposition. Während eine Zelle bearbeitet wird, wird nicht neu aufgebaut, sondern beim Verlassen der Zelle nachgeholt.
+    /// </summary>
+    private void Neuaufbau(bool neuSortieren)
     {
         if (IsDisposed) return;
-        var auswahl = Aktuelle().Select(v => v.Id).ToHashSet();
-        var aktuell = (_g.CurrentRow?.Tag as Vertretung)?.Id;
-        _laedt = true;
-        _g.Rows.Clear();
-        _gruppen.Clear();
-        var lehrerSicht = _ansicht.SelectedIndex is 1 or 3;
-        var druck = _ansicht.SelectedIndex is 2 or 3;
-        IEnumerable<Vertretung> liste = Zusammenfassen(Vertretungen.ImZeitraum(D, Von, Bis).Where(Passt).ToList());
-        if (druck) liste = liste.Where(v => !v.NichtDrucken);
-        if (AppZustand.Einstellungen.VertretungenUnterrichtZeigen && _ansicht.SelectedIndex != 4 && !_offen.Checked && !_kollisionen.Checked) liste = liste.Concat(Unterrichtszeilen());
-        var sortiert = lehrerSicht
-            ? liste.OrderBy(v => v.Datum).ThenBy(v => Ix.KLehrer(v.VertreterId ?? v.LehrerId), StringComparer.Create(Format.De, true)).ThenBy(v => v.Stunde)
-            : liste.OrderBy(v => v.Datum).ThenBy(v => Ix.KKlassen(v.NeueKlassenIds), StringComparer.Create(Format.De, true)).ThenBy(v => v.Stunde);
-        foreach (var v in sortiert)
+        if (_g.IsCurrentCellInEditMode)
         {
-            var r = _g.Rows.Add(Werte(v));
-            // Werte, die nicht in der Auswahlliste stehen (Veranstaltung „Cer,New,?“, Langnamen), als Text zeigen
-            foreach (var n in new[] { "Vertreter", "NRaum", "NFach" })
-                if (_g.Rows[r].Cells[n] is DataGridViewComboBoxCell cc && cc.Value is string sv && sv.Length > 0 && !((DataGridViewComboBoxColumn)_g.Columns[n]!).Items.Contains(sv))
-                    _g.Rows[r].Cells[n] = new DataGridViewTextBoxCell { Value = sv };
-            _g.Rows[r].Tag = v;
-            if (auswahl.Contains(v.Id)) _g.Rows[r].Selected = true;
-            if (v.Id == aktuell) _g.CurrentCell = _g.Rows[r].Cells[0];
+            _neuaufbauAusstehend = true;
+            _sortierenAusstehend |= neuSortieren;
+            return;
         }
-        _laedt = false;
+        neuSortieren |= _sortierenAusstehend;
+        _neuaufbauAusstehend = _sortierenAusstehend = false;
+        var vorher = AuswahlSignatur();
+        _gruppen.Clear();
+        var liste = Zeilenliste();
+        var alt = _g.Rows.Cast<DataGridViewRow>().Select(r => Schluessel(r) ?? "").ToList();
+        var amOrt = Listenabgleich.AmOrt(alt, liste, Schluessel, neuSortieren);
+        _laedt = true;
+        try
+        {
+            if (amOrt != null)
+                for (var i = 0; i < amOrt.Count; i++) ZeileSetzen(_g.Rows[i], amOrt[i]);
+            else
+            {
+                var stand = Steuerelemente.TabellenStand.Merken(_g, Schluessel);
+                _g.Rows.Clear();
+                foreach (var v in liste) ZeileSetzen(_g.Rows[_g.Rows.Add()], v);
+                stand.Wiederherstellen(_g, Schluessel);
+            }
+        }
+        finally
+        {
+            _laedt = false;
+        }
+        SortGlyphen();
         if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
         var alle = Vertretungen.ImZeitraum(D, Von, Bis);
         var offen = alle.Where(v => v.OffenOderRaumOffen).Select(v => v.Art == VertretungsArt.Veranstaltung ? $"VA{v.VeranstaltungId}/{v.Datum}" : $"#{v.Id}").Distinct().Count();
         var koll = alle.Count(v => Kollision(v) != null);
-        _status.Text = $"{_g.Rows.Count} Zeilen · {offen} offen · {koll} Kollisionen";
+        _status.Text = $"{_g.Rows.Count} Zeilen · {offen} offen · {koll} Kollisionen" + (_behalten.Aktiv && FilterAktiv ? " · bearbeitete Zeile bleibt bis zum Zeilenwechsel sichtbar" : "");
         _status.ForeColor = offen > 0 || koll > 0 ? Color.Firebrick : Color.DarkGreen;
-        Gewaehlt();
+        // andere Fenster (Vorschlag, Stundenpläne) nur benachrichtigen, wenn sich die Auswahl tatsächlich geändert hat
+        if (AuswahlSignatur() != vorher) Gewaehlt();
+    }
+
+    private string AuswahlSignatur() =>
+        Schluessel(_g.CurrentRow?.Tag as Vertretung) + "|" + string.Join(",", _g.SelectedRows.Cast<DataGridViewRow>().Select(r => Schluessel(r)).OrderBy(x => x));
+
+    /// <summary>Zeilen der Liste: Filter, Veranstaltungen je Tag zusammengefasst, sortiert (Standard oder nach gewählter Spalte).</summary>
+    private List<Vertretung> Zeilenliste()
+    {
+        var lehrerSicht = _ansicht.SelectedIndex is 1 or 3;
+        var druck = _ansicht.SelectedIndex is 2 or 3;
+        IEnumerable<Vertretung> liste = Zusammenfassen(Vertretungen.ImZeitraum(D, Von, Bis).Where(Passt).ToList());
+        if (druck) liste = liste.Where(v => !v.NichtDrucken || _behalten.Enthaelt(v.Id));
+        if (AppZustand.Einstellungen.VertretungenUnterrichtZeigen && _ansicht.SelectedIndex != 4 && !_offen.Checked && !_kollisionen.Checked) liste = liste.Concat(Unterrichtszeilen());
+        var zeilen = liste.ToList();
+        var vergleich = StringComparer.Create(Format.De, true);
+        if (_sortSpalte is { } sp && _g.Columns.Contains(sp))
+        {
+            var i = _g.Columns[sp]!.Index;
+            var werte = zeilen.ToDictionary(v => v, v => Werte(v)[i]?.ToString() ?? "");
+            var sortiert = sp switch
+            {
+                "Nr" => Richtung(zeilen, v => v.Id),
+                "Datum" or "Tag" => Richtung(zeilen, v => v.Datum).ThenBy(v => v.Stunde),
+                "Std" or "Zeit" => Richtung(zeilen, v => v.Stunde).ThenBy(v => v.Datum),
+                _ => _sortAbsteigend ? zeilen.OrderByDescending(v => werte[v], vergleich) : zeilen.OrderBy(v => werte[v], vergleich),
+            };
+            return sortiert.ThenBy(v => v.Datum).ThenBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
+        }
+        var standard = lehrerSicht
+            ? zeilen.OrderBy(v => v.Datum).ThenBy(v => Ix.KLehrer(v.VertreterId ?? v.LehrerId), vergleich).ThenBy(v => v.Stunde)
+            : zeilen.OrderBy(v => v.Datum).ThenBy(v => Ix.KKlassen(v.NeueKlassenIds), vergleich).ThenBy(v => v.Stunde);
+        return standard.ThenBy(v => v.Id).ToList();
+    }
+
+    private IOrderedEnumerable<Vertretung> Richtung<T>(IEnumerable<Vertretung> liste, Func<Vertretung, T> schluessel) =>
+        _sortAbsteigend ? liste.OrderByDescending(schluessel) : liste.OrderBy(schluessel);
+
+    /// <summary>Klick auf eine Spaltenüberschrift: nach dieser Spalte sortieren, erneuter Klick kehrt die Richtung um (wie in Untis).</summary>
+    private void SortierenNach(string spalte)
+    {
+        if (_g.IsCurrentCellInEditMode && !_g.EndEdit()) return;
+        if (_sortSpalte == spalte) _sortAbsteigend = !_sortAbsteigend;
+        else
+        {
+            _sortSpalte = spalte;
+            _sortAbsteigend = false;
+        }
+        Neuaufbau(true);
+    }
+
+    private void SortGlyphen()
+    {
+        foreach (DataGridViewColumn c in _g.Columns)
+        {
+            var soll = c.Name == _sortSpalte ? (_sortAbsteigend ? SortOrder.Descending : SortOrder.Ascending) : SortOrder.None;
+            if (c.HeaderCell.SortGlyphDirection != soll) c.HeaderCell.SortGlyphDirection = soll;
+        }
+    }
+
+    /// <summary>
+    /// Werte einer Zeile setzen – nur Zellen, deren Inhalt sich geändert hat (die aktuelle Zelle behält Fokus und Markierung).
+    /// Werte außerhalb der Auswahlliste (Veranstaltung „Cer,New,?“, Langnamen) stehen in einer Textzelle.
+    /// </summary>
+    private void ZeileSetzen(DataGridViewRow zeile, Vertretung v)
+    {
+        zeile.Tag = v;
+        var werte = Werte(v);
+        for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
+        {
+            var neu = werte[i];
+            var zelle = zeile.Cells[i];
+            if (_g.Columns[i] is DataGridViewComboBoxColumn kombi)
+            {
+                var text = neu?.ToString() ?? "";
+                if (zelle is DataGridViewComboBoxCell && !kombi.Items.Contains(text))
+                {
+                    ZelleErsetzen(zeile, i, new DataGridViewTextBoxCell { Value = text });
+                    continue;
+                }
+                neu = text;
+            }
+            if ((zelle.Value?.ToString() ?? "") != (neu?.ToString() ?? "")) zelle.Value = neu;
+        }
+    }
+
+    /// <summary>Auswahlzelle durch eine Textzelle ersetzen; ist sie die aktuelle, bleibt sie es.</summary>
+    private void ZelleErsetzen(DataGridViewRow zeile, int spalte, DataGridViewCell neu)
+    {
+        var aktuell = zeile.Index >= 0 && _g.CurrentCell is { } c && c.RowIndex == zeile.Index && c.ColumnIndex == spalte;
+        zeile.Cells[spalte] = neu;
+        if (aktuell && _g.Columns[spalte].Visible) _g.CurrentCell = zeile.Cells[spalte];
     }
 
     /// <summary>Zeilen einer Veranstaltung je Tag zu einer Zeile zusammenfassen (Stunde „1-8“, Vertreter „Cer,New,?“).</summary>
@@ -623,56 +771,55 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return new object?[]
         {
             v.Id == 0 ? "" : v.Id, Vertretungsplan.ArtText(D, v.Art), $"{v.Datum:dd.MM.}", tag, stunde, zeit,
-            Anzeige(ElementTyp.Fach, v.FachId, "Fach"), v.IstEntfall ? "---" : Anzeige(ElementTyp.Fach, v.VertretungsfachId ?? v.FachId, "NFach"),
+            // „Fach“ bleibt wie in Untis leer, solange kein Vertretungsfach eingetragen ist (der Druck setzt dann das ursprüngliche Fach ein)
+            Anzeige(ElementTyp.Fach, v.FachId, "Fach"), v.IstEntfall ? "---" : Anzeige(ElementTyp.Fach, v.VertretungsfachId, "NFach"),
             lehrer, vertreter, Klassen(v.KlassenIds, "AKlassen"), neueKlassen,
             v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, v.RaumId, "Raum"), raumNeu,
             Pos(v.VonDatum, v.VonStunde), Pos(v.NachDatum, v.NachStunde), v.Text, v.Statistik, v.Schuelergruppe,
             Langname("Grund") && D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == v.GrundId) is { } gl ? gl.Langname : v.Grund,
             u?.Text ?? "", u != null && v.ZeilenIndex < u.Zeilen.Count ? u.Zeilen[v.ZeilenIndex].Zeilentext : "", v.Beschreibung,
-            v.IstEntfall ? "X" : "", v.Mitbetreuung ? "X" : "", v.Kopplung > 0 ? v.Kopplung.ToString() : "", v.Id != 0 && v.Geaendert >= Sitzungsbeginn ? "Neu" : "",
+            v.IstEntfall ? "X" : "", v.Mitbetreuung ? "X" : "", v.Kopplung > 0 ? v.Kopplung.ToString() : "", Vertretungen.IstNeu(v, Doc.Sitzungsbeginn) ? "Neu" : "",
             v.Fixiert ? "X" : "", v.NichtDrucken ? "N" : "", v.Text2, benachrichtigen, zaehler, "", v.Wert?.ToString("0.##") ?? "",
             Anzeige(ElementTyp.Abteilung, abteilung, "Abt"), v.Benutzer, v.Mehrarbeit ? "x" : "",
         };
     }
 
+    /// <summary>Hintergrund des Vertreterfeldes einer Pausenaufsicht (wie in Untis türkis).</summary>
+    private static readonly Color PausenFarbe = Color.FromArgb(160, 236, 246);
+
+    /// <summary>
+    /// Darstellung wie in Untis: alle Werte in schwarzer Schrift; offene Felder „???“ rot (nicht fett), „---“ beim Vertreter rot,
+    /// Art in der Farbe der Vertretungsart, Pausenaufsicht türkis, Kollision gelb mit rotem Rahmen und roter Vtr-Nr.
+    /// </summary>
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)
     {
         if (e.RowIndex < 0 || e.CellStyle is null || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
         var name = _g.Columns[e.ColumnIndex].Name;
+        e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Black;
         if (D.Vertretungseinstellungen.Farben.TryGetValue(v.Art.ToString(), out var farbe) && name == "Art") e.CellStyle.BackColor = Ui.Farbe(farbe, Color.White);
+        if (name == "Vertreter" && v.Art == VertretungsArt.Pausenaufsicht) e.CellStyle.BackColor = PausenFarbe;
         // offene Vertretung: rotes "???" beim Vertreter bzw. Raum – auch in markierten Zeilen
-        if ((v.Offen && name == "Vertreter") || (v.RaumOffen && name == "NRaum"))
-        {
-            e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Red;
-            e.CellStyle.Font = Ui.SchriftFett;
-        }
-        else if (v.IstEntfall)
-        {
-            e.CellStyle.ForeColor = Color.DimGray;
-            if (name is "Vertreter" or "NFach" or "NRaum") e.CellStyle.BackColor = Color.FromArgb(236, 236, 236);
-        }
-        else if (name == "Vertreter" && v.VertreterId.HasValue && v.VertreterId != v.LehrerId) e.CellStyle.ForeColor = Color.FromArgb(0, 90, 160);
-        if (name == "NRaum" && v.VertretungsraumId.HasValue && v.VertretungsraumId != v.RaumId) e.CellStyle.ForeColor = Color.FromArgb(0, 90, 160);
-        if (name == "NFach" && v.VertretungsfachId.HasValue && v.VertretungsfachId != v.FachId) e.CellStyle.ForeColor = Color.FromArgb(0, 90, 160);
-        // Veranstaltung mit entfernter Lehrkraft: „?“ rot (offen)
-        if (name == "Vertreter" && v.Art == VertretungsArt.Veranstaltung && _gruppen.TryGetValue(v.Id, out var vg) && vg.Any(x => x.VeranstaltungOffen))
-        {
-            e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Red;
-            e.CellStyle.Font = Ui.SchriftFett;
-        }
-        if (v.Id == 0) e.CellStyle.ForeColor = Color.DimGray;
+        var offen = (v.Offen && name == "Vertreter") || (v.RaumOffen && name == "NRaum") ||
+                    (name == "Vertreter" && v.Art == VertretungsArt.Veranstaltung && _gruppen.TryGetValue(v.Id, out var vg) && vg.Any(x => x.VeranstaltungOffen));
+        var entfall = name == "Vertreter" && (v.IstEntfall && v.Art != VertretungsArt.Freisetzung || v.Art == VertretungsArt.Vormerkung);
+        if (offen || entfall) e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Red;
         if (Kollision(v) is { } k)
         {
             // Kollision: Feld gelb hinterlegt und rot umrandet (siehe KollisionZeichnen), Vertretungsnummer rot
             var (kl, kr) = KollisionsFelder(v);
             if ((name == "Vertreter" && kl) || (name == "NRaum" && kr)) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Color.FromArgb(255, 245, 0);
-            if ((name == "Vertreter" && kl) || (name == "NRaum" && kr)) e.CellStyle.SelectionForeColor = Color.Black;
             if (name == "Nr") e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Red;
-            _g.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = "Kollision: " + k;
+            Hinweis(_g.Rows[e.RowIndex].Cells[e.ColumnIndex], "Kollision: " + k);
         }
-        if (name == "Nr" && v.Bearbeitet) e.CellStyle.Font = Ui.SchriftFett;
+        else if (name is "Nr" or "Vertreter" or "NRaum") Hinweis(_g.Rows[e.RowIndex].Cells[e.ColumnIndex], "");
         if (name is "Fix" or "ND" or "Entf" or "Mitb" or "Neu" or "Ben") e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         if (name is "UText" or "UZText") e.CellStyle.BackColor = Color.FromArgb(225, 225, 225);
+        if (v.Id == 0 && name is not "Art") e.CellStyle.BackColor = Color.FromArgb(242, 242, 242);
+    }
+
+    private static void Hinweis(DataGridViewCell zelle, string text)
+    {
+        if (zelle.ToolTipText != text) zelle.ToolTipText = text;
     }
 
     /// <summary>Kollidierende Felder rot umranden.</summary>
@@ -739,9 +886,24 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>"+" und "-" ohne Bearbeitungsmodus wirken auf alle markierten Zeilen.</summary>
     private void TastenDruck(object? sender, KeyPressEventArgs e)
     {
-        if (_g.IsCurrentCellInEditMode) return;
+        // nur im Feld Vertreter bzw. in nicht editierbaren Feldern – in Text, Raum, Fach … beginnt „+“/„-“ die Eingabe
+        if (_g.IsCurrentCellInEditMode || _g.CurrentCell is not { } c || (c.OwningColumn.Name != "Vertreter" && !c.OwningColumn.ReadOnly)) return;
         if (e.KeyChar == '+') { OhneLehrkraft(); e.Handled = true; }
         else if (e.KeyChar == '-') { Entfall(); e.Handled = true; }
+    }
+
+    /// <summary>
+    /// Taste Entf (ohne Bearbeitung): im Feld Vertreter bzw. in nicht editierbaren Feldern wird die Vertretung wieder offen
+    /// (wie in Untis), in einem editierbaren Feld (Text, Raum, Fach …) wird dessen Inhalt gelöscht.
+    /// </summary>
+    private void Entfernen()
+    {
+        if (_g.CurrentCell is not { } c || c.RowIndex < 0 || _g.Rows[c.RowIndex].Tag is not Vertretung v) return;
+        var spalte = c.OwningColumn.Name;
+        if (spalte == "Vertreter" || c.OwningColumn.ReadOnly) { Zuruecksetzen(); return; }
+        if ((c.Value?.ToString() ?? "").Length == 0) return;
+        if (v.Id == 0 || v.Fixiert) return;
+        Uebernehmen(v, spalte, "", ZielIds(c.RowIndex));
     }
 
     /// <summary>Markierte Vertretungen (zusammengefasste Veranstaltungszeilen mit allen Stunden, ohne reine Unterrichtszeilen).</summary>
@@ -749,14 +911,18 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = _g.SelectedRows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Vertretung>().ToList();
         if (liste.Count == 0 && _g.CurrentRow?.Tag is Vertretung v) liste.Add(v);
-        return liste.Where(x => x.Id != 0).SelectMany(x => _gruppen.TryGetValue(x.Id, out var g) ? g : new List<Vertretung> { x }).Distinct()
-            .OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList();
+        return Erweitern(liste);
     }
 
+    /// <summary>Vertretungen um die Stunden einer zusammengefassten Veranstaltung erweitern (jede andere Zeile wird einzeln bearbeitet).</summary>
+    private List<Vertretung> Erweitern(IEnumerable<Vertretung> liste) =>
+        liste.Where(x => x.Id != 0).SelectMany(x => _gruppen.TryGetValue(x.Id, out var g) ? g : new List<Vertretung> { x })
+            .DistinctBy(x => x.Id).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList();
+
     /// <summary>Markierte Vertretungen ohne Zeilen einer Veranstaltung und ohne fixierte Zeilen (für Entfall, +, Vertreter …).</summary>
-    private List<Vertretung> Bearbeitbare()
+    private List<Vertretung> Bearbeitbare(IReadOnlyCollection<int>? ids = null)
     {
-        var alle = Aktuelle();
+        var alle = ids is null ? Aktuelle() : D.Vertretungen.Where(v => ids.Contains(v.Id)).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList();
         var fix = alle.Count(v => v.Fixiert);
         if (fix > 0) _status.Text = $"{fix} fixierte Vertretung(en) wurden nicht geändert.";
         return alle.Where(v => !v.Fixiert && v.Art != VertretungsArt.Veranstaltung).ToList();
@@ -833,33 +999,86 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             }
     }
 
+    /// <summary>
+    /// Zelle verlassen: geänderten Wert übernehmen. Die Übernahme läuft erst nach dem Zellwechsel – Rückfragen und Neuaufbau
+    /// stören so den Wechsel in die nächste Zelle nicht (Fokus und Zeile bleiben). Unveränderte Zellen lösen keine Änderung aus.
+    /// </summary>
     private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)
     {
-        if (_laedt || e.RowIndex < 0 || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
+        var vorher = _wertVorher;
+        _wertVorher = null;
+        if (_laedt || e.RowIndex < 0 || e.RowIndex >= _g.Rows.Count || _g.Rows[e.RowIndex].Tag is not Vertretung v || v.Id == 0)
+        {
+            AufgeschobenNachholen();
+            return;
+        }
         var spalte = _g.Columns[e.ColumnIndex].Name;
         var wert = _g.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
-        var id = v.Id;
+        if (vorher != null && wert == vorher)
+        {
+            AufgeschobenNachholen();
+            return;
+        }
+        var ziel = ZielIds(e.RowIndex);
+        NachZellwechsel(() =>
+        {
+            Uebernehmen(v, spalte, wert, ziel);
+            AufgeschobenNachholen();
+        });
+    }
+
+    /// <summary>Während der Eingabe aufgeschobenen Neuaufbau nachholen, sobald keine Zelle mehr bearbeitet wird.</summary>
+    private void AufgeschobenNachholen()
+    {
+        if (_neuaufbauAusstehend) NachZellwechsel(() => { if (_neuaufbauAusstehend && !_g.IsCurrentCellInEditMode) Neuaufbau(); });
+    }
+
+    /// <summary>
+    /// Ziel einer Eingabe: die bearbeitete Zeile (bei einer zusammengefassten Veranstaltung mit allen Stunden des Tages) bzw. –
+    /// wenn sie markiert ist – alle markierten Zeilen (gleichzeitige Bearbeitung mehrerer markierter Stunden). Eine Doppelstunde
+    /// wird nicht automatisch mitgeändert: jede Vertretungszeile wird einzeln bearbeitet.
+    /// </summary>
+    private List<int> ZielIds(int zeile)
+    {
+        if (zeile < 0 || zeile >= _g.Rows.Count || _g.Rows[zeile].Tag is not Vertretung v || v.Id == 0) return new();
+        var liste = _g.Rows[zeile].Selected ? Aktuelle() : Erweitern(new[] { v });
+        return liste.Select(x => x.Id).Append(v.Id).Distinct().ToList();
+    }
+
+    /// <summary>Eingabe in einer Spalte auf die Vertretung(en) anwenden.</summary>
+    private void Uebernehmen(Vertretung v, string spalte, string wert, IReadOnlyList<int> ids)
+    {
+        if (IsDisposed) return;
+        // nach Rückgängig o. Ä. ist das Objekt der Zeile nicht mehr das der Daten: aktuelle Fassung verwenden
+        v = D.Vertretungen.FirstOrDefault(x => x.Id == v.Id) ?? v;
+        var id = new[] { v.Id };
         switch (spalte)
         {
             case "Vertreter":
                 if (v.Art == VertretungsArt.Veranstaltung) { VeranstaltungsVertreter(v, wert); return; }
-                if (wert is "+" or "+++") { OhneLehrkraft(); return; }
-                if (wert is "-" or "---") { Entfall(); return; }
-                if (wert is "" or "???") { Ausfuehren("Vertreter entfernt", new[] { id }, (d, x) => Vertretungen.VertreterSetzen(d, x, null, false, AppZustand.Benutzer)); return; }
+                if (wert is "+" or "+++") { OhneLehrkraft(ids); return; }
+                if (wert is "-" or "---") { Entfall(ids); return; }
+                if (wert is "" or "???")
+                {
+                    var offen = Bearbeitbare(ids);
+                    if (offen.Count == 0) { Neuaufbau(); return; }
+                    Ausfuehren("Vertreter entfernt", offen.Select(x => x.Id).ToList(), (d, x) => Vertretungen.VertreterSetzen(d, x, null, false, AppZustand.Benutzer));
+                    return;
+                }
                 var l = D.Lehrer.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase)) ?? D.Lehrer.FirstOrDefault(x => x.VollerName.Equals(wert, StringComparison.OrdinalIgnoreCase));
-                if (l is null) { Ui.Info($"Der Lehrer '{wert}' ist nicht bekannt."); BeginInvoke(Neuaufbau); return; }
-                VertreterSetzen(l.Id, false);
+                if (l is null) { Ui.Info($"Der Lehrer '{wert}' ist nicht bekannt."); Neuaufbau(); return; }
+                VertreterSetzen(l.Id, false, ids);
                 return;
             case "NFach":
                 var f = wert.Length == 0 ? null : D.Faecher.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
-                if (wert.Length > 0 && f is null) { Ui.Info($"Das Fach '{wert}' ist nicht bekannt."); BeginInvoke(Neuaufbau); return; }
-                Ausfuehren("Vertretungsfach", new[] { id }, (d, x) => { x.VertretungsfachId = f?.Id; x.Bearbeitet = true; });
+                if (wert.Length > 0 && f is null) { Ui.Info($"Das Fach '{wert}' ist nicht bekannt."); Neuaufbau(); return; }
+                Ausfuehren("Vertretungsfach", id, (d, x) => { x.VertretungsfachId = f?.Id; x.Bearbeitet = true; });
                 return;
             case "NRaum":
                 if (wert == "???") wert = "";
                 var r = wert.Length == 0 ? null : D.Raeume.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
-                if (wert.Length > 0 && r is null) { Ui.Info($"Der Raum '{wert}' ist nicht bekannt."); BeginInvoke(Neuaufbau); return; }
-                Ausfuehren("Vertretungsraum", new[] { id }, (d, x) =>
+                if (wert.Length > 0 && r is null) { Ui.Info($"Der Raum '{wert}' ist nicht bekannt."); Neuaufbau(); return; }
+                Ausfuehren("Vertretungsraum", id, (d, x) =>
                 {
                     x.VertretungsraumId = r?.Id;
                     x.ZusatzraumIds.Clear();
@@ -868,66 +1087,96 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 });
                 return;
             case "Kz":
-                Ausfuehren("Statistik-Kennzeichen", new[] { id }, (d, x) => x.Statistik = wert);
+                Ausfuehren("Statistik-Kennzeichen", id, (d, x) => x.Statistik = wert);
                 return;
             case "Text":
-                Ausfuehren("Vertretungstext", Aktuelle().Select(x => x.Id).Append(id).Distinct().ToArray(), (d, x) => { x.Text = wert; x.Bearbeitet = true; });
+                Ausfuehren("Vertretungstext", ids, (d, x) => { x.Text = wert; x.Bearbeitet = true; });
                 return;
             case "Text2":
-                Ausfuehren("Vertretungstext 2", Aktuelle().Select(x => x.Id).Append(id).Distinct().ToArray(), (d, x) => { x.Text2 = wert; x.Bearbeitet = true; });
+                Ausfuehren("Vertretungstext 2", ids, (d, x) => { x.Text2 = wert; x.Bearbeitet = true; });
                 return;
             case "Beschr":
-                Ausfuehren("Beschreibung", Aktuelle().Select(x => x.Id).Append(id).Distinct().ToArray(), (d, x) => x.Beschreibung = wert);
+                Ausfuehren("Beschreibung", ids, (d, x) => x.Beschreibung = wert);
                 return;
             case "SG":
-                Ausfuehren("Schülergruppe", new[] { id }, (d, x) => x.Schuelergruppe = wert);
+                Ausfuehren("Schülergruppe", id, (d, x) => x.Schuelergruppe = wert);
                 return;
             case "Kopp":
-                if (!int.TryParse(wert.Length == 0 ? "0" : wert, out var kopp) || kopp < 0) { Ui.Info("Vertretungs-Kopplung: bitte eine Zahl eingeben."); NachZellwechsel(Neuaufbau); return; }
-                Ausfuehren("Vertretungs-Kopplung", new[] { id }, (d, x) => x.Kopplung = kopp);
+                if (!int.TryParse(wert.Length == 0 ? "0" : wert, out var kopp) || kopp < 0) { Ui.Info("Vertretungs-Kopplung: bitte eine Zahl eingeben."); Neuaufbau(); return; }
+                Ausfuehren("Vertretungs-Kopplung", id, (d, x) => x.Kopplung = kopp);
                 return;
             case "Wert":
                 decimal? w = null;
-                if (wert.Length > 0) { if (decimal.TryParse(wert.Replace('.', ','), System.Globalization.NumberStyles.Number, Format.De, out var wd)) w = wd; else { Ui.Info("Wert: bitte eine Zahl eingeben."); NachZellwechsel(Neuaufbau); return; } }
-                Ausfuehren("Wert", new[] { id }, (d, x) => x.Wert = w);
+                if (wert.Length > 0)
+                {
+                    if (decimal.TryParse(wert.Replace('.', ','), System.Globalization.NumberStyles.Number, Format.De, out var wd)) w = wd;
+                    else { Ui.Info("Wert: bitte eine Zahl eingeben."); Neuaufbau(); return; }
+                }
+                Ausfuehren("Wert", id, (d, x) => x.Wert = w);
                 return;
         }
     }
 
     /// <summary>
-    /// Vertreter einer Veranstaltung: für den offenen Platz („?“) eine Ersatzlehrkraft eintragen. Eingabe einer Lehrkraft
-    /// füllt den ersten offenen Platz des Tages; „?“ bzw. leer setzt den Ersatz wieder zurück.
+    /// Vertreter einer Veranstaltung („Cer,New,?“): Für einen offenen Platz („?“) eine Ersatzlehrkraft eintragen; weitere Namen
+    /// sind zusätzliche Lehrkräfte (nur an diesem Tag oder für die ganze Veranstaltung). Einen Ersatz bzw. eine zusätzliche
+    /// Lehrkraft aus der Liste löschen nimmt sie wieder heraus.
     /// </summary>
     private void VeranstaltungsVertreter(Vertretung v, string wert)
     {
-        if (v.VeranstaltungId is not int vaId || D.Veranstaltungen.FirstOrDefault(x => x.Id == vaId) is not { } va) { NachZellwechsel(Neuaufbau); return; }
-        var namen = wert.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries).Where(n => n.Trim('?').Length > 0).ToList();
-        var bisher = va.LehrerAm(v.Datum);
+        if (v.VeranstaltungId is not int vaId || D.Veranstaltungen.FirstOrDefault(x => x.Id == vaId) is not { } va) { Neuaufbau(); return; }
+        var namen = wert.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).Where(n => n.Trim('?').Length > 0).ToList();
+        var datum = v.Datum;
+        var bisher = va.LehrerAm(datum);
         var neu = new List<int>();
         foreach (var n in namen)
         {
             var l = D.Lehrer.FirstOrDefault(x => x.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase));
-            if (l is null) { Ui.Info($"Der Lehrer '{n}' ist nicht bekannt."); NachZellwechsel(Neuaufbau); return; }
-            if (!bisher.Contains(l.Id)) neu.Add(l.Id);
+            if (l is null) { Ui.Info($"Der Lehrer '{n}' ist nicht bekannt."); Neuaufbau(); return; }
+            if (!bisher.Contains(l.Id) && !neu.Contains(l.Id)) neu.Add(l.Id);
         }
-        var offen = va.OffenAm(v.Datum);
-        var entfernt = bisher.Where(b => va.Ersatz.Any(e => e.Datum == v.Datum && e.ErsatzId == b) && !namen.Any(n => Ix.KLehrer(b).Equals(n, StringComparison.OrdinalIgnoreCase))).ToList();
-        if (neu.Count == 0 && entfernt.Count == 0) { NachZellwechsel(Neuaufbau); return; }
-        if (neu.Count > offen.Count + entfernt.Count)
+        bool Genannt(int l) => namen.Any(n => Ix.KLehrer(l).Equals(n, StringComparison.OrdinalIgnoreCase));
+        var offen = va.OffenAm(datum);
+        var ersatzWeg = va.Ersatz.Where(e => e.Datum == datum && e.ErsatzId is int x && !Genannt(x)).ToList();
+        var zusatzWeg = va.Zusatz.Where(z => z.Datum == datum && !Genannt(z.LehrerId)).Select(z => z.LehrerId).ToList();
+        if (neu.Count == 0 && ersatzWeg.Count == 0 && zusatzWeg.Count == 0) { Neuaufbau(); return; }
+        var plaetze = offen.Count + ersatzWeg.Count;
+        var alsErsatz = neu.Take(plaetze).ToList();
+        var zusaetzlich = neu.Skip(plaetze).ToList();
+        var ganze = va.Von == va.Bis;
+        if (zusaetzlich.Count > 0 && !ganze)
         {
-            Ui.Info(offen.Count == 0 ? "Diese Veranstaltung hat an diesem Tag keinen offenen Platz. Weitere Lehrkräfte bitte im Veranstaltungsfenster eintragen."
-                : $"An diesem Tag ist nur {offen.Count} Platz offen.");
-            NachZellwechsel(Neuaufbau);
+            var w = OptionenDialog.Fragen(this, "Frage",
+                $"{string.Join(", ", zusaetzlich.Select(Ix.KLehrer))} zusätzlich an der Veranstaltung {va.Id} ({va.Text}) teilnehmen lassen?",
+                new[] { $"nur am {datum:dd.MM.yyyy}", $"an der ganzen Veranstaltung ({va.Von:dd.MM.} – {va.Bis:dd.MM.yyyy})" });
+            if (w is null) { Neuaufbau(); return; }
+            ganze = w == 1;
+        }
+        var stunden = VeranstaltungsLogik.Stunden(D, va, datum).ToList();
+        var probleme = neu.Select(l => stunden.Select(s => Vertretungen.LehrerBelegt(D, Plan(datum), l, s, v)).FirstOrDefault(g => g != null) is { } g ? $"{Ix.KLehrer(l)}: {g}" : null).OfType<string>().ToList();
+        if (probleme.Count > 0 && !Ui.Frage($"{string.Join("\n", probleme)}\n\nTrotzdem verplanen?", "UntPlan - Frage")) { Neuaufbau(); return; }
+        if (FilterAktiv) _behalten.Merken(new[] { v.Id });
+        Aendern(zusaetzlich.Count > 0 ? "Lehrkraft zur Veranstaltung hinzugefügt" : "Ersatzlehrkraft für Veranstaltung", AenderungsArt.Vertretung, d =>
+        {
+            foreach (var e in ersatzWeg) VeranstaltungsLogik.ErsatzSetzen(d, vaId, datum, e.LehrerId, null);
+            foreach (var l in zusatzWeg) VeranstaltungsLogik.ZusatzEntfernen(d, vaId, datum, l);
+            foreach (var l in alsErsatz) VeranstaltungsLogik.ErsatzSetzen(d, vaId, datum, null, l);
+            foreach (var l in zusaetzlich) VeranstaltungsLogik.LehrerHinzufuegen(d, vaId, datum, l, ganze);
+        });
+    }
+
+    /// <summary>Kontextmenü/Symbolleiste: einer Veranstaltung eine zusätzliche Lehrkraft hinzufügen (nicht nur als Ersatz).</summary>
+    private void LehrkraftHinzufuegen()
+    {
+        var v = Aktuelle().FirstOrDefault(x => x.Art == VertretungsArt.Veranstaltung);
+        if (v?.VeranstaltungId is not int vaId || D.Veranstaltungen.FirstOrDefault(x => x.Id == vaId) is not { } va)
+        {
+            Ui.Info("Bitte im Vertretungsfenster die Zeile einer Veranstaltung markieren.");
             return;
         }
-        var probleme = neu.Select(l => Vertretungen.LehrerBelegt(D, Plan(v.Datum), l, v.Stunde, v) is { } g ? $"{Ix.KLehrer(l)}: {g}" : null).OfType<string>().ToList();
-        if (probleme.Count > 0 && !Ui.Frage($"{string.Join("\n", probleme)}\n\nTrotzdem verplanen?", "UntPlan - Frage")) { NachZellwechsel(Neuaufbau); return; }
-        var datum = v.Datum;
-        Aendern("Ersatzlehrkraft für Veranstaltung", AenderungsArt.Vertretung, d =>
-        {
-            foreach (var e in entfernt) VeranstaltungsLogik.ErsatzSetzen(d, vaId, datum, d.Veranstaltungen.First(x => x.Id == vaId).Ersatz.First(x => x.Datum == datum && x.ErsatzId == e).LehrerId, null);
-            foreach (var l in neu) VeranstaltungsLogik.ErsatzSetzen(d, vaId, datum, null, l);
-        });
+        var name = Ui.Eingabe($"Zusätzliche Lehrkraft für Veranstaltung {va.Id} am {v.Datum:dd.MM.yyyy} (Kurzname, mehrere mit Komma):", "Lehrkraft hinzufügen");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        VeranstaltungsVertreter(v, string.Join(",", va.LehrerAm(v.Datum).Select(Ix.KLehrer)) + "," + name);
     }
 
     /// <summary>Vertretung fixieren (X): vor weiterer Veränderung schützen; erneuter Klick löst die Fixierung.</summary>
@@ -948,20 +1197,29 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         Ausfuehren("Nicht drucken", liste.Select(v => v.Id).ToList(), (_, v) => v.NichtDrucken = ziel);
     }
 
-    /// <summary>Änderung auf mehrere Vertretungen (per Id) anwenden.</summary>
+    /// <summary>
+    /// Änderung auf mehrere Vertretungen (per Id) anwenden. Die Zeilen bleiben bis zum nächsten Zeilenwechsel sichtbar, auch wenn
+    /// sie nicht mehr zum Filter passen, und erhalten das Kennzeichen „Neue Vertretung“.
+    /// </summary>
     private void Ausfuehren(string text, IReadOnlyCollection<int> ids, Action<Schuldatei, Vertretung> aktion)
     {
         if (ids.Count == 0) return;
-        if (_offen.Checked) _behalten.UnionWith(ids);
+        if (FilterAktiv) _behalten.Merken(ids);
         Aendern(ids.Count > 1 ? $"{text} ({ids.Count} Stunden)" : text, AenderungsArt.Vertretung, d =>
         {
-            foreach (var v in d.Vertretungen.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList()) aktion(d, v);
+            foreach (var v in d.Vertretungen.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList())
+            {
+                aktion(d, v);
+                Vertretungen.AlsGeaendertMarkieren(v, AppZustand.Benutzer);
+            }
         });
     }
 
-    public void VertreterSetzen(int lehrerId, bool mitbetreuung)
+    public void VertreterSetzen(int lehrerId, bool mitbetreuung) => VertreterSetzen(lehrerId, mitbetreuung, null);
+
+    private void VertreterSetzen(int lehrerId, bool mitbetreuung, IReadOnlyCollection<int>? ids)
     {
-        var liste = Bearbeitbare();
+        var liste = Bearbeitbare(ids);
         if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
         // absente Lehrkraft: Nachfrage „Trotzdem verplanen“ (Art „Trotz Absenz“)
         var absent = liste.Where(v => Absenzen.Lehrer(D, lehrerId, v.Datum, v.Stunde) != null).ToList();
@@ -971,9 +1229,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         Ausfuehren($"Vertreter {Ix.KLehrer(lehrerId)}", liste.Select(v => v.Id).ToList(), (d, v) => Vertretungen.VertreterSetzen(d, v, lehrerId, mitbetreuung, AppZustand.Benutzer));
     }
 
-    private void Entfall()
+    private void Entfall() => Entfall(null);
+
+    private void Entfall(IReadOnlyCollection<int>? ids)
     {
-        var liste = Bearbeitbare().Where(v => v.Art != VertretungsArt.Freisetzung).ToList();
+        var liste = Bearbeitbare(ids).Where(v => v.Art != VertretungsArt.Freisetzung).ToList();
         if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
         var zurueck = liste.All(v => v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt);
         Ausfuehren(zurueck ? "Entfall aufgehoben" : "Entfall", liste.Select(v => v.Id).ToList(), (d, v) =>
@@ -983,9 +1243,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         });
     }
 
-    private void OhneLehrkraft()
+    private void OhneLehrkraft() => OhneLehrkraft(null);
+
+    private void OhneLehrkraft(IReadOnlyCollection<int>? ids)
     {
-        var liste = Bearbeitbare().Where(v => v.Art != VertretungsArt.Pausenaufsicht).ToList();
+        var liste = Bearbeitbare(ids).Where(v => v.Art != VertretungsArt.Pausenaufsicht).ToList();
         if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
         Ausfuehren("Vtr. ohne Lehrer", liste.Select(v => v.Id).ToList(), (_, v) => Vertretungen.OhneLehrer(v, AppZustand.Benutzer));
     }
@@ -1026,6 +1288,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var liste = Bearbeitbare();
         if (liste.Count == 0) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
+        if (FilterAktiv) _behalten.Merken(ids);
         Aendern("Vertretung zurückgesetzt", AenderungsArt.Vertretung, d =>
         {
             var tage = new HashSet<DateOnly>();
@@ -1040,6 +1303,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                     v.VertretungsfachId = null;
                     v.Text = "";
                     v.Mehrarbeit = false;
+                    Vertretungen.AlsGeaendertMarkieren(v, AppZustand.Benutzer);
                 }
                 else
                 {
@@ -1106,6 +1370,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             else
                 cm.Items.Add($"Entfall{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("entfall"), (_, _) => Entfall());
             cm.Items.Add($"Vtr. ohne Lehrer{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("planen"), (_, _) => OhneLehrkraft());
+            if (liste.Any(v => v.Art == VertretungsArt.Veranstaltung))
+                cm.Items.Add("Lehrkraft zur Veranstaltung hinzufügen…", Symbole.Get("lehrer"), (_, _) => LehrkraftHinzufuegen());
             cm.Items.Add("Vertretung teilen", Symbole.Get("tausch"), (_, _) => Teilen());
             cm.Items.Add("Raum zuordnen / löschen…", Symbole.Get("raumzuordnen"), (_, _) => RaumZuordnen());
             cm.Items.Add("Als Vormerkung beiseitelegen", Symbole.Get("zurueck"), (_, _) => AlsVormerkung());
@@ -1147,6 +1413,73 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     /// <summary>Aushang des Vertretungsplans (Klassen- bzw. Lehrerversion je nach Ansicht).</summary>
     public void Drucken(bool vorschau) => Druck.VertretungsplanDruck.Drucken(this, Von, Bis, _ansicht.SelectedIndex is 1 or 3, vorschau);
+
+    /// <summary>
+    /// Selbsttest der Bearbeitung unter dem Filter „Offene Vertretungen“: Vertreter eintragen – Zeile bleibt sichtbar und aktuell,
+    /// Text in derselben Zeile sofort eingeben, Neuaufbau während einer Eingabe wird aufgeschoben, erst beim Zeilenwechsel
+    /// verschwindet die Zeile. Wirft bei einer Abweichung.
+    /// </summary>
+    internal string SelbsttestBearbeiten(Action warten)
+    {
+        _offen.Checked = true;
+        warten();
+        var zeile = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Vertretung { Art: VertretungsArt.Vertretung, Offen: true, Fixiert: false });
+        if (zeile?.Tag is not Vertretung v) return "keine offene Vertretung";
+        var id = v.Id;
+        var lehrer = VertretungsVorschlag.Berechnen(D, v).Select(k => k.Lehrer)
+            .FirstOrDefault(l => Vertretungen.LehrerBelegt(D, Plan(v.Datum), l.Id, v.Stunde, v) is null && Absenzen.Lehrer(D, l.Id, v.Datum, v.Stunde) is null);
+        // Nachbarstunden (z. B. Doppelstunde) bleiben unverändert – jede Zeile wird einzeln bearbeitet
+        var nachbarn = D.Vertretungen.Where(x => x.Id != id && x.Datum == v.Datum && x.UnterrichtId == v.UnterrichtId && x.ZeilenIndex == v.ZeilenIndex && Math.Abs(x.Stunde - v.Stunde) == 1)
+            .ToDictionary(x => x.Id, x => (x.VertreterId, x.Text));
+        if (lehrer is null) return "kein freier Vertreter";
+        DataGridViewRow Zeile() => _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Vertretung x && x.Id == id)
+                                   ?? throw new InvalidOperationException($"Vertretung {id} ist nach der Eingabe verschwunden.");
+        void Eingeben(string spalte, string wert, string vorher)
+        {
+            var r = Zeile();
+            _g.ClearSelection();
+            r.Selected = true;
+            _g.CurrentCell = r.Cells[spalte];
+            // wie eine abgeschlossene Eingabe: Wert in der Zelle, danach „Zelle verlassen“
+            _wertVorher = vorher;
+            _g.CurrentCell.Value = wert;
+            ZelleGeaendert(_g, new DataGridViewCellEventArgs(_g.CurrentCell.ColumnIndex, _g.CurrentCell.RowIndex));
+            warten();
+            if (_g.CurrentRow?.Tag is not Vertretung c || c.Id != id || _g.CurrentCell?.OwningColumn.Name != spalte)
+                throw new InvalidOperationException($"Nach der Eingabe in „{spalte}“ ist nicht mehr Vertretung {id} / {spalte} aktuell.");
+        }
+        Eingeben("Vertreter", lehrer.Kurzname, "???");
+        if (D.Vertretungen.First(x => x.Id == id) is { Offen: true }) throw new InvalidOperationException("Vertreter wurde nicht übernommen.");
+
+        Zeile();
+        // gleich weiter in derselben Zeile: Text
+        Eingeben("Text", "Selbsttest", "");
+        if (D.Vertretungen.First(x => x.Id == id).Text != "Selbsttest") throw new InvalidOperationException("Text wurde nicht übernommen.");
+        if (nachbarn.Any(n => D.Vertretungen.FirstOrDefault(x => x.Id == n.Key) is { } x && (x.VertreterId, x.Text) != n.Value))
+            throw new InvalidOperationException("Eine Nachbarstunde wurde mitgeändert – jede Zeile soll einzeln bearbeitet werden.");
+        // Neuaufbau während einer Eingabe wird aufgeschoben
+        _g.CurrentCell = Zeile().Cells["Text"];
+        _g.BeginEdit(false);
+        Neuaufbau(true);
+        if (!_g.IsCurrentCellInEditMode || !_neuaufbauAusstehend) throw new InvalidOperationException("Neuaufbau während der Eingabe wurde nicht aufgeschoben.");
+        _g.CancelEdit();
+        _g.EndEdit();
+        warten();
+        if (_neuaufbauAusstehend) throw new InvalidOperationException("Aufgeschobener Neuaufbau wurde nicht nachgeholt.");
+        // Zeilenwechsel: jetzt verschwindet die nicht mehr offene Zeile
+        var behalten = _behalten.Ids.ToHashSet();
+        if (!behalten.Contains(id)) throw new InvalidOperationException("Bearbeitete Zeile wurde nicht bis zum Zeilenwechsel behalten.");
+        var andere = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Vertretung x && x.Id != 0 && !behalten.Contains(x.Id));
+        if (andere != null)
+        {
+            _g.ClearSelection();
+            andere.Selected = true;
+            _g.CurrentCell = andere.Cells["Nr"];
+            warten();
+            if (_g.Rows.Cast<DataGridViewRow>().Any(r => r.Tag is Vertretung { OffenOderRaumOffen: false } x && behalten.Contains(x.Id))) throw new InvalidOperationException("Bearbeitete Zeile(n) verschwinden beim Zeilenwechsel nicht.");
+        }
+        return $"Vertretung {id}: Vertreter {lehrer.Kurzname} und Text eingegeben, Zeile blieb bis zum Zeilenwechsel";
+    }
 }
 
 /// <summary>
@@ -1259,9 +1592,16 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     {
         if (_v != null) _v = D.Vertretungen.FirstOrDefault(x => x.Id == _v.Id);
         Neuaufbau();
-        // nach dem Zuweisen direkt zur nächsten offenen Vertretung
-        if (_weiter.Checked && _v is { Offen: false })
-            BeginInvoke(() => AppZustand.Haupt.MdiChildren.OfType<VertretungenFenster>().FirstOrDefault()?.NaechsteOffene());
+    }
+
+    /// <summary>
+    /// Nach einer Zuweisung aus diesem Fenster („Weiter zur nächsten offenen“) zur nächsten offenen Vertretung springen.
+    /// Nur nach eigener Zuweisung – Änderungen im Vertretungsfenster (z. B. ein Text) lassen die Zeile dort stehen.
+    /// </summary>
+    private void Weiter(bool warOffen)
+    {
+        if (!warOffen || !_weiter.Checked || _v is null || _v.OffenOderRaumOffen) return;
+        BeginInvoke(() => AppZustand.Haupt.MdiChildren.OfType<VertretungenFenster>().FirstOrDefault()?.NaechsteOffene());
     }
 
     private void Gewaehlt(Vertretung? v)
@@ -1394,12 +1734,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     {
         var ids = Ziele();
         if (ids.Count == 0) return;
+        var warOffen = _v?.OffenOderRaumOffen == true;
         Aendern(ids.Count > 1 ? $"{text} ({ids.Count} Stunden)" : text, AenderungsArt.Vertretung, d =>
         {
             foreach (var v in d.Vertretungen.Where(x => ids.Contains(x.Id)).ToList()) a(d, v);
         });
         if (_v != null) _v = D.Vertretungen.FirstOrDefault(x => x.Id == _v.Id);
         Neuaufbau();
+        Weiter(warOffen);
     }
 
     private void Uebernehmen()
@@ -1412,11 +1754,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             var id = dv.Id;
             var block = _block.Checked;
             var uebersprungen = 0;
+            var warOffen = dv.OffenOderRaumOffen;
             Aendern($"Dauervertretung {Ix.KLehrer(l)}", AenderungsArt.Vertretung, d =>
                 uebersprungen = Vertretungen.Dauervertretung(d, d.Vertretungen.First(x => x.Id == id), l, block, AppZustand.Benutzer).Uebersprungen.Count);
             if (uebersprungen > 0) Ui.Info($"{Ix.KLehrer(l)} ist in {uebersprungen} Stunde(n) der Folgewochen nicht frei – diese bleiben offen.");
             _v = D.Vertretungen.FirstOrDefault(x => x.Id == id);
             Neuaufbau();
+            Weiter(warOffen);
             return;
         }
         Aktion($"Vertreter {Ix.KLehrer(l)}", (d, v) => Vertretungen.VertreterSetzen(d, v, l, false, AppZustand.Benutzer));

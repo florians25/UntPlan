@@ -49,7 +49,8 @@ public static class Kachelbau
 
         var art = Art(plan.Typ);
         var karten = plan.Karten.Where(k => k.Datum == tag.Datum).ToList();
-        var res = karten.Select(k => AusKarte(k, art)).ToList();
+        var res = KlausurenZusammenfuehren(karten.Select(k => AusKarte(k, art)).ToList());
+        TeilnehmerErgaenzen(res, tag);
         if (art == "teacher") res = BereitschaftenKuerzen(res, karten);
 
         // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen
@@ -85,6 +86,55 @@ public static class Kachelbau
         if (aufsichten.Count > 0) res = AnPausenTeilen(res, aufsichten.Where(a => a.NachStunde >= 1).Select(a => a.NachStunde).ToHashSet());
         res.AddRange(aufsichten.Select(a => Aufsicht(a, zeiten)));
         return res;
+    }
+
+    /// <summary>
+    /// Veranstaltungskacheln tragen im Lehrer- oder Raumplan oft nur das eigene Element. Wie in UntPlanWeb sollen dort alle
+    /// teilnehmenden Lehrkräfte, Klassen und Räume stehen – sie kommen aus den Veranstaltungen des Tages (gleicher Titel, Zeit überlappt).
+    /// </summary>
+    private static void TeilnehmerErgaenzen(List<Kachel> kacheln, PlanTag tag)
+    {
+        static string Vereinen(string vorhanden, IEnumerable<string> weitere) =>
+            string.Join(",", vorhanden.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Concat(weitere.Where(x => !string.IsNullOrWhiteSpace(x))).Distinct(StringComparer.OrdinalIgnoreCase));
+        foreach (var k in kacheln.Where(k => k.Art == "absence" && k.Feld == true))
+        {
+            var ende = k.Stunde + k.Dauer - 1;
+            var e = tag.Ereignisse.FirstOrDefault(x => Ci.Equals(x.Titel, k.Fach) && x.Von <= ende && Math.Max(x.Bis, x.Von) >= k.Stunde);
+            if (e is null) continue;
+            k.Lehrkraft = Vereinen(k.Lehrkraft, e.Lehrer);
+            k.Klasse = Vereinen(k.Klasse, e.Klassen);
+            k.Raum = Vereinen(k.Raum, e.Raeume);
+        }
+    }
+
+    /// <summary>
+    /// Wird eine Stunde zur Klausur (Klausur aus UntPlan oder vorgemerkt), entsteht keine zweite Kachel: Die Klausur geht
+    /// auf die Unterrichtskachel derselben Zeit und Klasse über (gelb, Bezeichnung als Info), die Klausurkachel entfällt.
+    /// </summary>
+    private static List<Kachel> KlausurenZusammenfuehren(List<Kachel> kacheln)
+    {
+        var klausuren = kacheln.Where(k => k.Art == "klausur" && k.Unterricht is null).ToList();
+        foreach (var kl in klausuren)
+        {
+            var klassen = kl.Klasse.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var ende = kl.Stunde + kl.Dauer - 1;
+            var ziel = kacheln.FirstOrDefault(k => k != kl && k.Art is "normal" or "change" && k.Unterricht != null &&
+                                                   k.Stunde <= ende && k.Stunde + k.Dauer - 1 >= kl.Stunde &&
+                                                   (klassen.Length == 0 || k.Klasse.Split(',', StringSplitOptions.TrimEntries).Any(x => klassen.Contains(x, Ci))));
+            if (ziel is null) continue;
+            ziel.Art = "klausur";
+            var titel = kl.Fach.Length > 0 && !Ci.Equals(kl.Fach, ziel.Fach) ? kl.Fach : "";
+            ziel.Info = string.Join(" · ", new[] { "Klausur", titel, kl.Info != kl.Fach ? kl.Info : "", ziel.Info }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+            if (kl.Raum.Length > 0 && !Ci.Equals(kl.Raum, ziel.Raum))
+            {
+                if (ziel.RaumAlt.Length == 0) ziel.RaumAlt = ziel.Raum;
+                ziel.Raum = kl.Raum;
+                if (!ziel.Geaendert.Contains("room")) ziel.Geaendert.Add("room");
+            }
+            kacheln.Remove(kl);
+        }
+        return kacheln;
     }
 
     /// <summary>
@@ -136,7 +186,8 @@ public static class Kachelbau
         };
         if (k.Klassen.Any(w => w.Neu)) kachel.Geaendert.Add("class");
         if (k.Lehrer.Any(w => w.Neu)) kachel.Geaendert.Add("teacher");
-        if (k.Raeume.Any(w => w.Neu)) kachel.Geaendert.Add("room");
+        // geänderter oder hinzugefügter Raum (neuer Wert ohne alten) steht in der grünen Plakette
+        if (k.Raeume.Any(w => w.Neu || (!string.IsNullOrEmpty(w.Alt) && !Ci.Equals(w.Alt, w.K)))) kachel.Geaendert.Add("room");
         if (!string.IsNullOrEmpty(k.FachAlt) && !Ci.Equals(k.FachAlt, k.Fach)) kachel.Geaendert.Add("subject");
         if (k.Art.Contains("vorgemerkt", StringComparison.OrdinalIgnoreCase))
             kachel.Info = string.Join(" · ", new[] { k.Art, k.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
@@ -170,6 +221,8 @@ public static class Kachelbau
                 break;
             case "buchung":
                 kachel.Art = "event";
+                // gebuchter bzw. hinzugefügter Raum steht in der grünen Plakette
+                if (kachel.Raum.Length > 0) kachel.Geaendert.Add("room");
                 if (kachel.Fach.Length == 0) kachel.Fach = k.Text.Length > 0 && k.Text != "Raumbuchung" ? k.Text : "Raumbuchung";
                 break;
             case "vorgemerkt":
