@@ -121,6 +121,11 @@ public sealed class Benutzereinstellungen
     public Dictionary<string, string> Zeitraumarten { get; set; } = new();
     /// <summary>Einstellungen des Vertretungsplan-Drucks (Aushang).</summary>
     public Vertretungsdruck Vertretungsdruck { get; set; } = new();
+    /// <summary>Sichtbare Spalten kleinerer Listen (z. B. „Mögliche Räume“), Schlüssel = Liste.</summary>
+    public Dictionary<string, List<string>> SichtbareSpalten { get; set; } = new();
+    /// <summary>Dialog „Raum zuordnen / löschen“: Auto-resize beim Öffnen deaktivieren (gemerkte Größe verwenden).</summary>
+    public bool RaumDialogAutoResizeAus { get; set; }
+    public Size RaumDialogGroesse { get; set; }
 
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 

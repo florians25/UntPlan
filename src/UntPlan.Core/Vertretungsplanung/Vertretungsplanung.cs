@@ -763,6 +763,12 @@ public enum AutomatikMethode
     BereitschaftUndFreigesetzteZuerst,
     VorziehungenZuerst,
     Pausenaufsichten,
+    /// <summary>Nur Bereitschaftslehrer und freigesetzte Lehrer einteilen (ohne Rückfall auf andere Lehrer).</summary>
+    Freigesetzte,
+    /// <summary>Lehrer einer Kopplung desselben Unterrichts betreuen mit (Betreuung).</summary>
+    Kopplungslehrer,
+    /// <summary>Offene Raumvertretungen, nur mit Ausweichräumen.</summary>
+    Raumvertretungen,
 }
 
 /// <summary>Vertretungsvorschlag, Betreuungs-, Raum- und Vorziehungsvorschlag sowie Vertretungsautomatik.</summary>

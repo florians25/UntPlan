@@ -254,6 +254,10 @@ public sealed record WebRueckmeldung
     public List<string> Raeume { get; init; } = new();
     /// <summary>Weitere Lehrkräfte (z. B. Klausuraufsichten).</summary>
     public List<string> WeitereLehrer { get; init; } = new();
+    /// <summary>Fach (Kurzname) bei zusätzlichem Unterricht (Aktivität) oder Prüfung, sonst leer.</summary>
+    public string? Fach { get; init; }
+    /// <summary>Unterrichtsnummer, falls sich die Änderung auf einen bestehenden Unterricht bezieht (z. B. Raumänderung).</summary>
+    public int? UnterrichtNr { get; init; }
 }
 
 /// <summary>Arten der Rückmeldungen.</summary>

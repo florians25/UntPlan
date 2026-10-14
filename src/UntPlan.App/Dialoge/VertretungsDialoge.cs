@@ -197,37 +197,18 @@ public static class SondereinsatzDialog
         });
     }
 
+    /// <summary>Sondereinsatz / Stunde ändern für eine Kopplungszeile (siehe <see cref="StundeAendernDialog"/>).</summary>
     public static void StundeAendern(IWin32Window owner, int uid, int zeile, DateOnly datum, int stunde)
     {
-        var d = AppZustand.D;
-        var tp = Tagesplan.Berechnen(d, datum);
+        var tp = Tagesplan.Berechnen(AppZustand.D, datum);
         var e = tp.Stunde(stunde).FirstOrDefault(x => x.Findetstatt && (x.Regel?.Unterricht.Id ?? x.Vertretung?.UnterrichtId) == uid && (x.Regel?.ZeilenIndex ?? x.Vertretung?.ZeilenIndex) == zeile);
         if (e is null) { Ui.Info("Die Stunde findet an diesem Tag nicht statt."); return; }
-        var ix = AppZustand.Doc.Index;
-        using var f = new Dialog($"Stunde ändern – {Planungsdienst.TageKurz[((int)datum.DayOfWeek + 6) % 7]} {Format.Datum(datum)}, {stunde}. Std.", 470, 270);
-        var y = 14;
-        f.Controls.Add(new Label { Text = $"Unterricht {uid}: {ix.KFach(e.FachId)} {string.Join(",", e.LehrerIds.Select(ix.KLehrer))} {ix.KKlassen(e.KlassenIds)}", Left = 12, Top = y, AutoSize = true, Font = Ui.SchriftFett });
-        y += 28;
-        var le = Ui.Zeile(f, "Lehrer:", ElementListe.Combo(ElementTyp.Lehrer, e.LehrerIds.FirstOrDefault() is var l0 && l0 != 0 ? l0 : null), ref y, 140, 290);
-        var fa = Ui.Zeile(f, "Fach:", ElementListe.Combo(ElementTyp.Fach, e.FachId), ref y, 140, 290);
-        var kl = Ui.Zeile(f, "Klasse(n):", new ElementWahl(ElementTyp.Klasse, e.KlassenIds), ref y, 140, 290);
-        var ra = Ui.Zeile(f, "Raum:", ElementListe.Combo(ElementTyp.Raum, e.RaumIds.FirstOrDefault() is var r0 && r0 != 0 ? r0 : null), ref y, 140, 290);
-        var tx = Ui.Zeile(f, "Text:", new TextBox { Text = e.Vertretung?.Text ?? "" }, ref y, 140, 290);
-        if (f.ShowDialog(owner) != DialogResult.OK) return;
-        Ausfuehren("Stunde ändern", x => Vertretungen.StundeAendern(x, uid, zeile, datum, stunde, ElementListe.Id(le), ElementListe.Id(fa), kl.Ids, ElementListe.Id(ra), tx.Text, AppZustand.Benutzer));
+        StundeAendernDialog.Zeigen(owner, datum, stunde, new[] { e });
     }
 
-    public static void RaumZuordnen(IWin32Window owner, int uid, int zeile, DateOnly datum, int stunde)
-    {
-        var d = AppZustand.D;
-        var tp = Tagesplan.Berechnen(d, datum);
-        var e = tp.Stunde(stunde).FirstOrDefault(x => x.Findetstatt && (x.Regel?.Unterricht.Id ?? x.Vertretung?.UnterrichtId) == uid && (x.Regel?.ZeilenIndex ?? x.Vertretung?.ZeilenIndex) == zeile);
-        if (e is null) { Ui.Info("Die Stunde findet an diesem Tag nicht statt."); return; }
-        var probe = new Vertretung { Datum = datum, Stunde = stunde, UnterrichtId = uid, ZeilenIndex = zeile, KlassenIds = e.KlassenIds.ToList(), RaumId = e.RaumIds.FirstOrDefault() is var r && r != 0 ? r : null };
-        var gewaehlt = RaumWahl(owner, probe, $"Raum zuordnen – {Format.Datum(datum)}, {stunde}. Std.", out var zusaetzlich, true);
-        if (gewaehlt is null) return;
-        Ausfuehren("Raum zuordnen", x => Vertretungen.RaumAendern(x, uid, zeile, datum, stunde, gewaehlt.Value == 0 ? null : gewaehlt.Value, zusaetzlich, AppZustand.Benutzer));
-    }
+    /// <summary>Raum zuordnen / löschen im Vertretungsmodus (siehe <see cref="RaumZuordnenVertretungDialog"/>).</summary>
+    public static void RaumZuordnen(IWin32Window owner, int uid, int zeile, DateOnly datum, int stunde) =>
+        RaumZuordnenVertretungDialog.Zeigen(owner, datum, stunde, uid, zeile);
 
     /// <summary>Raumvorschlag als Auswahlliste. Rückgabe: Raum-Id, 0 = Raum löschen, null = abgebrochen.</summary>
     public static int? RaumWahl(IWin32Window owner, Vertretung v, string titel, out bool zusaetzlich, bool zusatzErlaubt)
@@ -312,7 +293,20 @@ public static class KlausurDialog
         var ent = Ui.Zeile(f, "", new CheckBox { Text = "Kollidierender Unterricht der Klassen entfällt", Checked = k.UnterrichtEntfaellt, AutoSize = true }, ref y, 140);
         var akt = Ui.Zeile(f, "", new CheckBox { Text = "Aktiv", Checked = k.Aktiv, AutoSize = true }, ref y, 140);
         var tx = Ui.Zeile(f, "Text:", new TextBox { Text = k.Text }, ref y, 140, 290);
+        if (k.Importiert)
+        {
+            // aus UntPlanWeb übernommene Prüfung: nur Lehrkraft und Raum änderbar, keine Verlegung
+            foreach (var c in new Control[] { name, dat, von, bis, kl, ent, tx }) c.Enabled = false;
+            f.Text = "Klausur (aus UntPlanWeb – nur Lehrer und Raum änderbar)";
+        }
         if (f.ShowDialog(owner) != DialogResult.OK) return false;
+        if (k.Importiert)
+        {
+            k.LehrerIds = le.Ids;
+            k.RaumIds = ra.Ids;
+            k.Aktiv = akt.Checked;
+            return true;
+        }
         k.Name = name.Text;
         k.Datum = DateOnly.FromDateTime(dat.Value);
         k.StundeVon = (int)von.Value;

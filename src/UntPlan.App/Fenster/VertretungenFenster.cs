@@ -64,12 +64,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Zurücksetzen (wieder offen)", "rueckgaengig", Zuruecksetzen));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
         ts.Items.Add(new ToolStripSeparator());
-        var auto = new ToolStripDropDownButton("Automatik", Symbole.Get("optimierung", 16));
-        auto.DropDownItems.Add("Bester Vorschlag", null, (_, _) => Automatik(AutomatikMethode.BesterVorschlag));
-        auto.DropDownItems.Add("Bereitschaft und Freigesetzte zuerst", null, (_, _) => Automatik(AutomatikMethode.BereitschaftUndFreigesetzteZuerst));
-        auto.DropDownItems.Add("Vorziehungen zuerst", null, (_, _) => Automatik(AutomatikMethode.VorziehungenZuerst));
-        auto.DropDownItems.Add("Nur Pausenaufsichten", null, (_, _) => Automatik(AutomatikMethode.Pausenaufsichten));
-        ts.Items.Add(auto);
+        ts.Items.Add(Knopf("Automatik – Vertretungs-Automatik", "optimierung", () => VertretungsautomatikDialog.Zeigen(this, Von, Bis)));
         ts.Items.Add(Knopf("Neu berechnen (Absenzen, Veranstaltungen, Klausuren)", "aktualisieren", NeuBerechnen));
         ts.Items.Add(Knopf("Nachrichten zum Tag", "kommentar", () => TagestextDialog.Zeigen(this, AppZustand.Datum)));
         ts.Items.Add(new ToolStripSeparator());
@@ -627,15 +622,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private void RaumZuordnen()
     {
         if (Aktuelle().FirstOrDefault() is not { } v || v.Art == VertretungsArt.Pausenaufsicht) return;
-        var r = SondereinsatzDialog.RaumWahl(this, v, $"Raum für Vertretung {v.Id} ({Format.Datum(v.Datum)}, {v.Stunde}. Std.)", out var zusatz, true);
-        if (r is null) return;
-        Ausfuehren("Raum zuordnen", new[] { v.Id }, (_, x) =>
-        {
-            if (zusatz && r.Value != 0) { if (!x.ZusatzraumIds.Contains(r.Value)) x.ZusatzraumIds.Add(r.Value); }
-            else x.VertretungsraumId = r.Value == 0 ? null : r.Value;
-            if (x.Art == VertretungsArt.Vertretung && x.VertreterId == x.LehrerId && x.VertreterId != null) x.Art = VertretungsArt.Raumvertretung;
-            x.Bearbeitet = true;
-        });
+        RaumZuordnenVertretungDialog.Zeigen(this, v);
     }
 
     private void AlsVormerkung()
@@ -696,18 +683,6 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             d.Vertretungen.RemoveAll(x => ids.Contains(x.Id) || (x.VerlegungsId.HasValue && verlegungen.Contains(x.VerlegungsId)));
             foreach (var t in weg.Select(x => x.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
         });
-    }
-
-    private void Automatik(AutomatikMethode m)
-    {
-        var n = 0;
-        using (new WarteCursor())
-            Aendern("Vertretungsautomatik", AenderungsArt.Vertretung, d =>
-            {
-                foreach (var t in Kalender.Tage(Von, Bis).Where(t => Kalender.IstUnterrichtstag(d, t))) n += VertretungsVorschlag.Automatisch(d, t, m, AppZustand.Benutzer);
-            });
-        var offen = Vertretungen.ImZeitraum(D, Von, Bis).Count(v => v.Offen);
-        Ui.Info($"{n} Vertretungen wurden bearbeitet.{(offen > 0 ? $"\n{offen} Vertretungen sind weiterhin offen." : "")}", "Vertretungsautomatik");
     }
 
     private void NeuBerechnen()
@@ -796,10 +771,11 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private readonly DataGridView _vorschlag = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _vorziehung = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _betreuung = new() { Dock = DockStyle.Fill };
-    private readonly DataGridView _raeume = new() { Dock = DockStyle.Fill };
+    private readonly Steuerelemente.RaumListe _raeume = new("vorschlag", new[] { "Rm", "Kap", "AR", "SR", "B", "RG" }) { Dock = DockStyle.Fill };
+    private readonly ToolStripButton _zusatzRaum = new("Zusätzlichen Raum zuordnen") { CheckOnClick = true, ToolTipText = "Den gewählten Raum zusätzlich zum bestehenden Raum zuordnen" };
     private readonly ToolStripButton _block = new("Stundenblock") { CheckOnClick = true, ToolTipText = "Vorschlag für alle Stunden des Blocks (Doppelstunde)" };
     private readonly ToolStripButton _alle = new("Alle Lehrer") { CheckOnClick = true, ToolTipText = "Auch gesperrte und weit entfernte Lehrer anzeigen" };
-    private readonly ToolStripButton _besetzt = new("Auch besetzte Räume") { CheckOnClick = true };
+    private readonly ToolStripButton _besetzt = new("Auch besetzte Räume anzeigen") { CheckOnClick = true };
     private readonly ToolStripButton _weiter = new("Weiter zur nächsten offenen") { CheckOnClick = true, Checked = true, ToolTipText = "Nach dem Zuweisen automatisch die nächste offene Vertretung wählen" };
     private readonly ToolStripButton _nahe = new("Nur in der Nähe") { CheckOnClick = true, ToolTipText = "Nur gekoppelte Lehrkräfte, gleicher Gang oder gleiches Stockwerk" };
     private readonly ToolStripButton _dauer = new("Dauervertretung") { CheckOnClick = true, ToolTipText = "Vertreter für alle Stunden dieses Unterrichts während der Absenz übernehmen" };
@@ -855,12 +831,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _betreuung.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Betreuung(); e.Handled = true; } };
         _betreuung.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Betreuung(); };
 
-        Ui.RasterGestalten(_raeume, false);
-        _raeume.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        _raeume.MultiSelect = false;
-        foreach (var (n, k, b) in new[] { ("R", "Raum", 70), ("A", "Ausweichraum", 90), ("S", "Ausw. Stammraum", 105), ("B", "besetzt durch", 130), ("G", "Raumgruppen", 90), ("Ga", "Gang", 60), ("K", "Kap.-Diff.", 60) })
-            _raeume.Columns[_raeume.Columns.Add(n, k)].Width = b;
-        _raeume.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Raum(); };
+        _raeume.Gewaehlt += _ => Raum();
 
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
         split.Panel1.Controls.Add(_vorschlag);
@@ -878,6 +849,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var raumLeiste = Werkzeugleiste();
         raumLeiste.Items.Add(Knopf("Raum übernehmen", "raumzuordnen", Raum, false));
         raumLeiste.Items.Add(_besetzt);
+        raumLeiste.Items.Add(_zusatzRaum);
         var s3 = new TabPage("Räume");
         s3.Controls.Add(_raeume);
         s3.Controls.Add(raumLeiste);
@@ -915,7 +887,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _vorschlag.Rows.Clear();
         _vorziehung.Rows.Clear();
         _betreuung.Rows.Clear();
-        _raeume.Rows.Clear();
+        _raeume.Setzen(Array.Empty<RaumMoeglichkeit>());
         var v = _v;
         if (v is null)
         {
@@ -956,13 +928,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         }
         _tabs.TabPages[0].Text = $"Vertretungsvorschläge ({_vorschlag.Rows.Count})";
         _tabs.TabPages[1].Text = $"Betreuungen ({_betreuung.Rows.Count})";
-        foreach (var r in VertretungsVorschlag.Raeume(D, v, _besetzt.Checked, _block.Checked))
-        {
-            var n = _raeume.Rows.Add(r.Raum.Kurzname, r.Ausweichraum ? "ja" : "", r.AusweichStammraum ? "ja" : "", r.BesetztDurch ?? "", r.Raumgruppen, r.Gang, r.KapazitaetDifferenz == 0 ? "" : r.KapazitaetDifferenz.ToString("+0;-0"));
-            _raeume.Rows[n].Tag = r;
-            if (r.BesetztDurch != null) _raeume.Rows[n].DefaultCellStyle.ForeColor = Color.Firebrick;
-        }
-        _tabs.TabPages[2].Text = $"Räume ({_raeume.Rows.Count})";
+        _raeume.Langname = D.Vertretungseinstellungen.Vorschlag.Langname;
+        _raeume.Setzen(Raumvertretungen.MoeglicheRaeume(D, v, _besetzt.Checked, _block.Checked));
+        _tabs.TabPages[2].Text = $"Räume ({_raeume.Raster.Rows.Count})";
     }
 
     private void VorschlagFormatieren(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -1060,14 +1028,16 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
     private void Raum()
     {
-        if (_raeume.CurrentRow?.Tag is not Raumkandidat r) return;
-        if (r.BesetztDurch != null && !Ui.Frage($"Raum {r.Raum.Kurzname} ist besetzt durch {r.BesetztDurch}. Trotzdem zuordnen?")) return;
-        Aktion($"Raum {r.Raum.Kurzname}", (_, v) =>
+        if (_v is null || _raeume.Aktuell is not { } r) return;
+        var loesung = RaumKollisionsLoesung.MitKollision;
+        if (r.Belegung.FirstOrDefault() is { Eintrag: not null } b)
         {
-            v.VertretungsraumId = r.Raum.Id;
-            if (v.Art == VertretungsArt.Vertretung && v.VertreterId == v.LehrerId && v.VertreterId != null) v.Art = VertretungsArt.Raumvertretung;
-            v.Bearbeitet = true;
-        });
+            var w = RaumZuordnenVertretungDialog.KollisionFragen(this, Raumvertretungen.KollisionsText(D, r.Raum, _v.Datum, b.Stunde, r.Belegung.Where(x => x.Stunde == b.Stunde).Select(x => x.Eintrag)));
+            if (w is null or RaumKollisionsLoesung.NichtVerplanen) return;
+            loesung = w.Value;
+        }
+        var zusatz = _zusatzRaum.Checked;
+        Aktion($"Raum {r.Raum.Kurzname}", (d, v) => Raumvertretungen.Zuordnen(d, v, r.Raum.Id, zusatz, loesung, AppZustand.Benutzer));
     }
 
     private void Vorziehen()

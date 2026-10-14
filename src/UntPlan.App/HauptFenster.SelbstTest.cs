@@ -41,10 +41,10 @@ public sealed partial class HauptFenster
                 aktion();
                 Warten(900);
                 Foto(Path.Combine(ordner, name + ".png"));
-                if (Ui.FehlerProtokoll.Count > 0)
+                if (Ui.FehlerProtokoll is { Count: > 0 } fp)
                 {
-                    log.Add($"FEHLER {name}: {string.Join(Environment.NewLine, Ui.FehlerProtokoll)}");
-                    Ui.FehlerProtokoll.Clear();
+                    log.Add($"FEHLER {name}: {string.Join(Environment.NewLine, fp)}");
+                    fp.Clear();
                 }
                 else log.Add($"OK    {name}");
             }
@@ -91,6 +91,27 @@ public sealed partial class HauptFenster
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
         Schritt("19d1_Veranstaltungen", () => Max(FensterOeffnen("veranst")!), -1);
         Schritt("19d2_Klausuren", () => Max(FensterOeffnen("klaus")!), -1);
+        Schritt("19d3_Raum_zuordnen_Vertretung", () =>
+        {
+            var r = Core.Vertretungsplanung.Tagesplan.Regulaer(AppZustand.D, tag).First(x => x.RaumId.HasValue);
+            RaumZuordnenVertretungDialog.Anzeigen(this, tag, r.Stunde, r.Unterricht.Id, r.ZeilenIndex);
+        }, -1);
+        Schritt("19d4_Vertretungsautomatik", () => VertretungsautomatikDialog.Anzeigen(this, tag, tag), -1);
+        Schritt("19d5_Stunde_aendern", () =>
+        {
+            var e = Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, tag).Eintraege.First(x => x.Findetstatt && x.Unterricht != null);
+            StundeAendernDialog.Anzeigen(this, tag, e.Stunde, new[] { e });
+        }, -1);
+        Schritt("19d6_Stundenplanaenderungen_UntPlanWeb", () =>
+        {
+            var r = Core.Vertretungsplanung.Tagesplan.Regulaer(AppZustand.D, tag).First(x => x.LehrerId.HasValue);
+            var ix = AppZustand.Doc.Index;
+            new StundenplanAenderungenDialog(new[]
+            {
+                new Web.Contracts.WebRueckmeldung { Id = "B510", Typ = Web.Contracts.WebRueckmeldungsTypen.Raumbuchung, Absender = "admin", Lehrer = ix.KLehrer(r.LehrerId), Von = tag.ToString("yyyy-MM-dd"), StundeVon = r.Stunde, Raum = AppZustand.D.Raeume[0].Kurzname },
+                new Web.Contracts.WebRueckmeldung { Id = "E68", Typ = Web.Contracts.WebRueckmeldungsTypen.Klausur, Absender = "admin", Lehrer = ix.KLehrer(r.LehrerId), Von = tag.ToString("yyyy-MM-dd"), StundeVon = 4, Klassen = { AppZustand.D.Klassen[0].Kurzname }, Titel = "Mathe Schularbeit" },
+            }).Show(this);
+        }, -1);
         Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
         Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
         Schritt("20_Wertrechnung", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(0))), 6);

@@ -84,7 +84,7 @@ public static class ListenSuche
     {
         text = text.Trim();
         if (text.Length == 0) return -1;
-        var kurz = cb.Items.Cast<object>().Select(cb.GetItemText).ToList();
+        var kurz = cb.Items.Cast<object>().Select(o => cb.GetItemText(o) ?? "").ToList();
         var lang = kurz.Select(k => z.Langname?.Invoke(k) ?? "").ToList();
         const StringComparison ci = StringComparison.CurrentCultureIgnoreCase;
         var i = kurz.FindIndex(k => k.Equals(text, ci));
@@ -119,13 +119,13 @@ public static class ListenSuche
         using var g = cb.CreateGraphics();
         foreach (var o in cb.Items)
         {
-            var t = cb.GetItemText(o);
+            var t = cb.GetItemText(o) ?? "";
             var zusatz = z.Stil?.Invoke(t)?.Zusatz ?? z.Langname?.Invoke(t);
             var w = TextRenderer.MeasureText(g, t, cb.Font).Width + (string.IsNullOrEmpty(zusatz) ? 0 : TextRenderer.MeasureText(g, zusatz, cb.Font).Width + 24) + 28;
             breite = Math.Max(breite, Math.Min(460, w));
         }
         // mit Langnamen immer breit genug öffnen (auch in schmalen Tabellenspalten)
-        if (cb.Items.Cast<object>().Any(o => !string.IsNullOrEmpty(z.Stil?.Invoke(cb.GetItemText(o))?.Zusatz ?? z.Langname?.Invoke(cb.GetItemText(o))))) breite = Math.Max(breite, 220);
+        if (cb.Items.Cast<object>().Any(o => !string.IsNullOrEmpty(z.Stil?.Invoke(cb.GetItemText(o) ?? "")?.Zusatz ?? z.Langname?.Invoke(cb.GetItemText(o) ?? "")))) breite = Math.Max(breite, 220);
         cb.DropDownWidth = Math.Max(cb.Width, breite);
     }
 
@@ -172,7 +172,7 @@ public static class ListenSuche
     {
         if (sender is not ComboBox cb || e.Index < 0 || e.Index >= cb.Items.Count) return;
         Zustaende.TryGetValue(cb, out var z);
-        var text = cb.GetItemText(cb.Items[e.Index]);
+        var text = cb.GetItemText(cb.Items[e.Index]) ?? "";
         var s = z?.Stil?.Invoke(text);
         var zusatz = !string.IsNullOrEmpty(s?.Zusatz) ? s.Value.Zusatz : z?.Langname?.Invoke(text);
         var ausgewaehlt = (e.State & DrawItemState.Selected) != 0;
