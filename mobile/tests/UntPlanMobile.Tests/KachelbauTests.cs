@@ -248,4 +248,16 @@ public class KachelbauTests
         var b = Kachelbau.AusKarte(Karte("buchung", 2, fach: "", text: "Raumbuchung", unterricht: null, raeume: new() { new("EDV1") }), "teacher");
         Assert.Contains("room", b.Geaendert);
     }
+
+    [Fact]
+    public void Veranstaltung_zeigt_alle_teilnehmenden_Lehrkraefte()
+    {
+        var ereignis = new PlanEreignis("Lehrerkonferenz", "veranstaltung", 7, 8, false, new(), new() { "WEB", "BEC", "HOF" }, new() { "EDV2" });
+        var plan = Plan("lehrer", new() { Karte("veranstaltung", 7, 8, fach: "", text: "Lehrerkonferenz", unterricht: null, klassen: new(), raeume: new()) },
+            new() { Tag(ereignisse: new() { ereignis }) });
+        var k = Assert.Single(Kachelbau.Tag(plan, plan.Tage[0], new List<Ferienzeit>()));
+        Assert.Equal("absence", k.Art);
+        Assert.Equal("WEB,BEC,HOF", k.Lehrkraft);
+        Assert.Equal("EDV2", k.Raum);
+    }
 }

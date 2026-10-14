@@ -50,6 +50,7 @@ public static class Kachelbau
         var art = Art(plan.Typ);
         var karten = plan.Karten.Where(k => k.Datum == tag.Datum).ToList();
         var res = KlausurenZusammenfuehren(karten.Select(k => AusKarte(k, art)).ToList());
+        TeilnehmerErgaenzen(res, tag);
         if (art == "teacher") res = BereitschaftenKuerzen(res, karten);
 
         // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen
@@ -85,6 +86,26 @@ public static class Kachelbau
         if (aufsichten.Count > 0) res = AnPausenTeilen(res, aufsichten.Where(a => a.NachStunde >= 1).Select(a => a.NachStunde).ToHashSet());
         res.AddRange(aufsichten.Select(a => Aufsicht(a, zeiten)));
         return res;
+    }
+
+    /// <summary>
+    /// Veranstaltungskacheln tragen im Lehrer- oder Raumplan oft nur das eigene Element. Wie in UntPlanWeb sollen dort alle
+    /// teilnehmenden Lehrkräfte, Klassen und Räume stehen – sie kommen aus den Veranstaltungen des Tages (gleicher Titel, Zeit überlappt).
+    /// </summary>
+    private static void TeilnehmerErgaenzen(List<Kachel> kacheln, PlanTag tag)
+    {
+        static string Vereinen(string vorhanden, IEnumerable<string> weitere) =>
+            string.Join(",", vorhanden.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Concat(weitere.Where(x => !string.IsNullOrWhiteSpace(x))).Distinct(StringComparer.OrdinalIgnoreCase));
+        foreach (var k in kacheln.Where(k => k.Art == "absence" && k.Feld == true))
+        {
+            var ende = k.Stunde + k.Dauer - 1;
+            var e = tag.Ereignisse.FirstOrDefault(x => Ci.Equals(x.Titel, k.Fach) && x.Von <= ende && Math.Max(x.Bis, x.Von) >= k.Stunde);
+            if (e is null) continue;
+            k.Lehrkraft = Vereinen(k.Lehrkraft, e.Lehrer);
+            k.Klasse = Vereinen(k.Klasse, e.Klassen);
+            k.Raum = Vereinen(k.Raum, e.Raeume);
+        }
     }
 
     /// <summary>
