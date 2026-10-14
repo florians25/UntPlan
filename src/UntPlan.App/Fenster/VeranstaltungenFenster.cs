@@ -61,6 +61,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
         SuchKombi.Aktivieren(_g, (zelle, text) => D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname == text) is { } g ? new ListenStil(Color.White, Color.Black, g.Langname) : null);
         _g.CellEndEdit += ZelleGeaendert;
+        // während der Eingabe aufgeschobenen Neuaufbau nach dem Verlassen der Zelle nachholen
+        _g.CellEndEdit += (_, _) => { if (_neuaufbauAusstehend) NachZellwechsel(() => { if (_neuaufbauAusstehend) Neuaufbau(); }); };
         _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex].Name == "Z") _g.EndEdit(); };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0) Bearbeiten(); };
         _g.CellFormatting += Formatieren;
@@ -127,10 +129,27 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private DateOnly? OffenerTag(Veranstaltung v) =>
         v.Ersatz.Where(e => e.ErsatzId is null && e.Datum >= Von && e.Datum <= Bis && v.LehrerIds.Contains(e.LehrerId)).Select(e => (DateOnly?)e.Datum).OrderBy(x => x).FirstOrDefault();
 
+    private bool _neuaufbauAusstehend;
+    /// <summary>Nach dem Anlegen: diese Veranstaltung wählen.</summary>
+    private int? _springeZu;
+
+    private static string? Schluessel(DataGridViewRow r) => r.Tag is Veranstaltung v ? "VA" + v.Id : "neu";
+
+    /// <summary>
+    /// Liste neu aufbauen; aktuelle Veranstaltung (VA-Nr.), Spalte und Bildlauf bleiben erhalten. Während einer Eingabe wird
+    /// nicht neu aufgebaut, sondern beim Verlassen der Zelle nachgeholt.
+    /// </summary>
     private void Neuaufbau()
     {
-        if (_g.IsCurrentCellInEditMode) return;
-        var pos = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 1);
+        if (_g.IsCurrentCellInEditMode)
+        {
+            _neuaufbauAusstehend = true;
+            return;
+        }
+        _neuaufbauAusstehend = false;
+        var stand = Steuerelemente.TabellenStand.Merken(_g, Schluessel);
+        var springe = _springeZu;
+        _springeZu = null;
         _laedt = true;
         _g.Rows.Clear();
         foreach (var v in D.Veranstaltungen.Where(v => v.Bis >= Von && v.Von <= Bis).OrderBy(v => v.Von).ThenBy(v => v.Id))
@@ -142,8 +161,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
         }
         var neu = _g.Rows.Add("", "", "", "", "", "", "", "", "", "", "", false, "");
         _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(255, 228, 190);
+        if (springe is int sp) stand.AktuellSetzen("VA" + sp);
+        stand.Wiederherstellen(_g, Schluessel, false);
         _laedt = false;
-        if (pos.Item1 >= 0 && pos.Item1 < _g.Rows.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[Math.Clamp(pos.Item2, 0, _g.Columns.Count - 1)];
     }
 
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -299,6 +319,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
             if (alt != null) d.Veranstaltungen.RemoveAll(x => x.Id == alt.Id);
             else v.Id = d.NeueId();
             d.Veranstaltungen.Add(v);
+            if (alt is null) _springeZu = v.Id;
             var von = alt is null || v.Von < alt.Von ? v.Von : alt.Von;
             var bis = alt is null || v.Bis > alt.Bis ? v.Bis : alt.Bis;
             Vertretungen.Aktualisieren(d, von, bis);

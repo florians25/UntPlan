@@ -23,6 +23,18 @@ public sealed record VerlegeAnalyse(DateOnly Von, int VonStunde, int UnterrichtI
 {
     public bool Kollision => Schritte.Any(s => s.Hindernisse.Count > 0);
     public int? TauschUnterricht => TauschMoeglich ? Schritte[0].Hindernisse[0].Unterricht?.Id : null;
+
+    /// <summary>
+    /// Antwort „nur dorthin verlegen“ auf die Tauschfrage: eine einfache Verlegung, bei der die dortige (tauschbare) Stunde
+    /// stehen bleibt – sie behindert die Verlegung nicht. Bleibt danach weiterer behindernder Unterricht übrig, folgt wie
+    /// beim Ablegen auf ein belegtes Feld die Kollisionsfrage.
+    /// </summary>
+    public VerlegeAnalyse NurDorthin()
+    {
+        if (TauschUnterricht is not int t) return this;
+        var schritte = Schritte.Select(s => s with { Hindernisse = s.Hindernisse.Where(h => h.Unterricht?.Id != t).ToList() }).ToList();
+        return this with { Schritte = schritte, TauschMoeglich = false };
+    }
 }
 
 /// <summary>

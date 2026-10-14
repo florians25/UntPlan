@@ -179,6 +179,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private static string TagText(DateOnly d) => $"{Planungsdienst.TageKurz[((int)d.DayOfWeek + 6) % 7]} {d:dd.MM.yy}";
 
+    private static string? Schluessel(DataGridViewRow r) => r.Tag switch { Abwesenheit a => "A" + a.Id, Veranstaltung v => "VA" + v.Id, _ => "neu" };
+
     private void Neuaufbau()
     {
         // während der Eingabe bzw. mit offenem Entwurf nicht neu aufbauen (Eingaben gingen verloren) – später nachholen
@@ -188,7 +190,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
             return;
         }
         _neuaufbauAusstehend = false;
-        var zelle = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 1, _springeZu ?? (_g.CurrentRow?.Tag as Abwesenheit)?.Id);
+        // aktuelle Absenz (Nr.), Spalte und Bildlauf merken – nach dem Neuaufbau wiederherstellen
+        var stand = Steuerelemente.TabellenStand.Merken(_g, Schluessel);
+        if (_springeZu is int sp) stand.AktuellSetzen("A" + sp);
         _springeZu = null;
         _laedt = true;
         _g.Rows.Clear();
@@ -234,9 +238,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(255, 228, 190);
         _g.Rows[neu].Cells["Nr"].Value = "";
         _laedt = false;
-        var ziel = zelle.Item3 is int id ? _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit ab && ab.Id == id)?.Index ?? zelle.Item1 : zelle.Item1;
-        if (ziel >= 0 && ziel < _g.Rows.Count && zelle.Item2 >= 0 && zelle.Item2 < _g.Columns.Count && _g.Columns[zelle.Item2].Visible)
-            _g.CurrentCell = _g.Rows[ziel].Cells[zelle.Item2];
+        stand.Wiederherstellen(_g, Schluessel, false);
         for (var i = 0; i < 3; i++)
         {
             var art = (AbwesenheitsArt)i;
