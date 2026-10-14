@@ -96,8 +96,18 @@ public sealed class PlanModell
     private readonly Dictionary<string, int> _poolKeys = new();
     private readonly bool _mitPools;
 
-    private readonly double fLHohl, fLStd, fLMitt, fLNach, fLUnb, fLTag, fKHohl, fKKern, fKStd, fKMitt, fKNach, fF2x, fFDopp, fFRand, fFNach,
+    private readonly double fLHohl, fLStd, fLMitt, fLNach, fLUnb, fLTag, fKHohl, fKKern, fKStd, fKMitt, fKNach, fF2x, fFRand, fFNach,
         fHTag, fHFolge, fHSpaet, fRaum, fVert, fSpaet, fZL, fZK, fZR, fZF, fZU;
+
+    private double fFDopp;
+    private bool _nurGewuenschteFreieTage;
+
+    /// <summary>Optionen aus den Steuerdaten zur Optimierung übernehmen.</summary>
+    internal void OptionenSetzen(OptimierungsOptionen o)
+    {
+        if (o.DoppelstundenBesonders) fFDopp *= 2;
+        _nurGewuenschteFreieTage = o.NurGewuenschteFreieTage;
+    }
 
     public PlanModell(Schuldatei d, bool mitPools)
     {
@@ -437,6 +447,9 @@ public sealed class PlanModell
             stdJeTag[t] = n;
             if (n == 0)
             {
+                // freier Lehrertag an einem nicht gewünschten Tag
+                if (istLehrer && _nurGewuenschteFreieTage && zr.Verfuegbar(t, 1) && !Enumerable.Range(0, S).Any(x => _wunsch[bAnteil + t * S + x] < 0))
+                    V(VerstossArt.Verteilung, t, 0, 20 * fLTag, "freier Tag nicht gewünscht");
                 freieTage++;
                 freieVormittage++;
                 if (tagHatNachmittag) freieNachmittage++;

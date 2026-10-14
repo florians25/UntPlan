@@ -61,3 +61,19 @@ public class StundenplanmodusTests
         Assert.Equal(l2.Id, u3.Zeilen[0].LehrerId); // nur CD hat CH
     }
 }
+
+public class OptimierungsOptionenTests
+{
+    [Fact]
+    public void BedingtFixierenBehaeltDenVorplanWeitgehend()
+    {
+        var d = Demo.Beispielschule();
+        d.AktivePeriode.Plan = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 1 })[0].Plan;
+        var vorher = d.Stundenplan.Select(p => (p.UnterrichtId, p.Tag, p.Stunde)).ToHashSet();
+        var frei = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 99 })[0].Plan;
+        var bedingt = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 99, BedingtFixieren = true })[0].Plan;
+        int Gleich(List<Planstunde> plan) => plan.Count(p => vorher.Contains((p.UnterrichtId, p.Tag, p.Stunde)));
+        Assert.True(Gleich(bedingt) > Gleich(frei), $"bedingt {Gleich(bedingt)} frei {Gleich(frei)} von {vorher.Count}");
+        Assert.True(Gleich(bedingt) >= vorher.Count * 0.9, $"bedingt {Gleich(bedingt)} von {vorher.Count}");
+    }
+}

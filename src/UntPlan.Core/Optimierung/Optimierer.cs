@@ -27,6 +27,14 @@ public sealed class OptimierungsOptionen
     public int ErhoehungProzent { get; set; } = 20;
     /// <summary>Nur nicht verplante Stunden setzen; bestehende Stunden bleiben.</summary>
     public bool NurNichtVerplante { get; set; }
+    /// <summary>Ähnlichkeit zum vorhandenen Plan (0 = nicht ähnlich … 4 = sehr ähnlich): Abweichungen kosten Punkte.</summary>
+    public int Aehnlichkeit { get; set; }
+    /// <summary>Plan bedingt fixieren: vorhandene Stunden werden nur verlegt, wenn es gar nicht anders geht.</summary>
+    public bool BedingtFixieren { get; set; }
+    /// <summary>Freie Tage von Lehrern nur an gewünschten Tagen (Zeitwunsch negativ am ganzen Tag).</summary>
+    public bool NurGewuenschteFreieTage { get; set; }
+    /// <summary>Doppelstunden besonders optimieren (doppelte Gewichtung der Doppelstundenbedingung).</summary>
+    public bool DoppelstundenBesonders { get; set; }
     public int Seed { get; set; } = Environment.TickCount;
 }
 
@@ -110,6 +118,7 @@ public static class Optimierer
     {
         var rnd = new Random(seed);
         var m = new PlanModell(d, mitPools: true);
+        m.OptionenSetzen(o);
         var ix = new DatenIndex(d);
         var gesperrteQuellen = new List<Planstunde>();
 
@@ -147,12 +156,32 @@ public static class Optimierer
                 bisher += len;
             }
         }
+        var vorStart = new Dictionary<int, (int Tag, int Stunde)>();
         for (var ui = 0; ui < m.Unterrichte.Count; ui++)
         {
             if (inBand.Contains(ui)) continue;
             var u = m.Unterrichte[ui];
             var rest = u.Wochenstunden - gesetzt.GetValueOrDefault(ui);
             if (rest <= 0) continue;
+            if (o.BedingtFixieren)
+            {
+                // vorhandene Stunden als Blöcke an ihrer bisherigen Position übernehmen (verschiebbar, aber teuer)
+                foreach (var tag in d.Stundenplan.Where(p => p.UnterrichtId == u.Id && !gesperrteQuellen.Contains(p)).GroupBy(p => p.Tag))
+                {
+                    var stunden = tag.Select(p => p.Stunde).Distinct().OrderBy(x => x).ToList();
+                    for (var i = 0; i < stunden.Count && rest > 0;)
+                    {
+                        var j = i;
+                        while (j + 1 < stunden.Count && stunden[j + 1] == stunden[j] + 1) j++;
+                        var len = Math.Min(j - i + 1, rest);
+                        var bi = m.NeuerBlock(new[] { ui }, len, false);
+                        vorStart[bi] = (tag.Key, stunden[i] - 1);
+                        rest -= len;
+                        i = j + 1;
+                    }
+                }
+                if (rest <= 0) continue;
+            }
             var bloecke = u.Bloecke();
             BloeckeKuerzen(bloecke, rest);
             foreach (var len in bloecke) m.NeuerBlock(new[] { ui }, len, false);
@@ -160,6 +189,28 @@ public static class Optimierer
 
         var beweglich = Enumerable.Range(0, m.Bloecke.Count).Where(i => !m.Bloecke[i].Gesperrt).ToList();
         if (beweglich.Count == 0) return gesperrteQuellen.Select(p => p.Kopie()).ToList();
+
+        // --- Ähnlichkeit zum Vorplan bzw. bedingtes Fixieren: Startpositionen abseits des bisherigen Plans kosten Punkte
+        var stufe = o.BedingtFixieren ? 6 : Math.Clamp(o.Aehnlichkeit, 0, 4);
+        if (stufe > 0)
+        {
+            var vorplan = d.Stundenplan.GroupBy(p => m.UnterrichtIdx(p.UnterrichtId)).Where(g => g.Key >= 0)
+                .ToDictionary(g => g.Key, g => g.Select(p => p.Tag * m.S + p.Stunde - 1).ToHashSet());
+            var gewicht = stufe switch { 1 => 2.0, 2 => 6.0, 3 => 15.0, 4 => 40.0, _ => 400.0 };
+            foreach (var bi in beweglich)
+            {
+                var b = m.Bloecke[bi];
+                if (!b.Mitglieder.Any(vorplan.ContainsKey)) continue;
+                for (var c = 0; c < m.C; c++)
+                {
+                    if (double.IsInfinity(b.Statisch[c])) continue;
+                    var abweichend = 0;
+                    for (var j = 0; j < b.Laenge && c + j < m.C; j++)
+                        if (b.Mitglieder.Any(ui => vorplan.TryGetValue(ui, out var z) && !z.Contains(c + j))) abweichend++;
+                    b.Statisch[c] += abweichend * gewicht;
+                }
+            }
+        }
 
         // --- Setzoptimierung: Reihenfolge nach Schwierigkeit
         var schwierigkeit = beweglich.ToDictionary(bi => bi, bi =>
@@ -191,7 +242,8 @@ public static class Optimierer
             {
                 ct.ThrowIfCancellationRequested();
                 var bi = reihenfolge[gesetztBis];
-                BesteStelle(m, bi, rnd, erlaubeUnplatziert: false);
+                if (vorStart.TryGetValue(bi, out var st) && m.Bloecke[bi].Statisch[st.Tag * m.S + st.Stunde] < PlanModell.Hart) m.Platzieren(bi, st.Tag, st.Stunde);
+                else BesteStelle(m, bi, rnd, erlaubeUnplatziert: false);
                 aktive.Add(bi);
             }
             fortschritt?.Invoke((ph + 0.2) / phasen.Count, "Setzoptimierung", 0);

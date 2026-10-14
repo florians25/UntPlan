@@ -142,7 +142,14 @@ public sealed class OptimierungDialog : Dialog
     private readonly NumericUpDown _schritte = new() { Minimum = 1, Maximum = 9, Value = 2 };
     private readonly NumericUpDown _start = new() { Minimum = 5, Maximum = 100, Value = 30 };
     private readonly NumericUpDown _erhoehung = new() { Minimum = 5, Maximum = 100, Value = 20 };
-    private readonly CheckBox _nurNv = new() { Text = "Nur nicht verplante Stunden setzen (bestehende Stunden bleiben)", Width = 420 };
+    private readonly NumericUpDown _aehnlich = new() { Minimum = 0, Maximum = 4, Value = 0 };
+    private readonly CheckBox _bedingt = new() { Text = "Plan bedingt fixieren", AutoSize = true };
+    private readonly CheckBox _freieTage = new() { Text = "Lehrer nur gewünschte freie Tage", AutoSize = true };
+    private readonly CheckBox _doppel = new() { Text = "Doppelstunden besonders optimieren", AutoSize = true };
+    private readonly CheckBox _nurNv = new() { Text = "Nur nicht verplante Stunden setzen", AutoSize = true };
+    private readonly CheckBox _zuordnen = new() { Text = "Unterricht ohne Lehrer vorher automatisch zuordnen", AutoSize = true };
+
+    private static OptimierungsOptionen _letzte = new();
 
     public static void Starten(IWin32Window owner)
     {
@@ -152,35 +159,78 @@ public sealed class OptimierungDialog : Dialog
         {
             Strategie = (Strategie)d._strategie.SelectedIndex, AnzahlPlaene = (int)d._plaene.Value, Schritte = (int)d._schritte.Value,
             StartProzent = (int)d._start.Value, ErhoehungProzent = (int)d._erhoehung.Value, NurNichtVerplante = d._nurNv.Checked,
+            Aehnlichkeit = (int)d._aehnlich.Value, BedingtFixieren = d._bedingt.Checked, NurGewuenschteFreieTage = d._freieTage.Checked,
+            DoppelstundenBesonders = d._doppel.Checked,
         };
+        _letzte = o;
+        if (d._zuordnen.Checked)
+        {
+            var n = 0;
+            AppZustand.Doc.Aendern("Automatische Unterrichtszuordnung", AenderungsArt.Unterricht, x => n = Core.Module.Wertrechnung.AutomatischZuordnen(x).Count);
+            if (n > 0) Ui.Info($"{n} Kopplungszeilen wurde vor der Optimierung ein Lehrer zugeordnet.", "Optimierung");
+        }
         using var lauf = new OptimierungsLauf(o);
         if (lauf.ShowDialog(owner) != DialogResult.OK || lauf.Ergebnisse is null) return;
         using var erg = new ErgebnisDialog(lauf.Ergebnisse, o);
         erg.ShowDialog(owner);
     }
 
-    public OptimierungDialog() : base("Steuerdaten zur Optimierung", 470, 330)
+    public OptimierungDialog() : base("Steuerdaten zur Optimierung", 560, 420)
     {
-        var grp = new GroupBox { Text = "Ablauf der Optimierung", Left = 10, Top = 10, Width = 450, Height = 210 };
-        var y = 22;
+        var o = _letzte;
+        var grp = new GroupBox { Text = "Ablauf der Optimierung", Left = 10, Top = 10, Width = 260, Height = 170 };
         foreach (Strategie s in Enum.GetValues<Strategie>()) _strategie.Items.Add(StrategieInfo.Name(s));
-        _strategie.SelectedIndex = 1;
-        grp.Controls.Add(new Label { Text = "Optimierungs-Strategie (A, B, …)", Left = 12, Top = y, Width = 300 });
-        y += 18;
-        _strategie.Left = 12; _strategie.Top = y; _strategie.Width = 300;
+        _strategie.SelectedIndex = (int)o.Strategie;
+        grp.Controls.Add(new Label { Text = "Optimierungs-Strategie (A, B, …)", Left = 12, Top = 22, Width = 230 });
+        _strategie.SetBounds(12, 40, 230, 23);
         grp.Controls.Add(_strategie);
-        y += 32;
-        Ui.Zeile(grp, "Je Serie der Opt.: Anzahl Pläne (1-20)", _plaene, ref y, 260, 60);
-        Ui.Zeile(grp, "Optimierungsschritte je Plan (1-9)", _schritte, ref y, 260, 60);
-        Ui.Zeile(grp, "Start-Prozentsatz (C, D)", _start, ref y, 260, 60);
-        Ui.Zeile(grp, "Erhöhungs-Prozentsatz (C, D)", _erhoehung, ref y, 260, 60);
+        _plaene.Value = Math.Clamp(o.AnzahlPlaene, 1, 20);
+        _schritte.Value = Math.Clamp(o.Schritte, 1, 9);
+        _plaene.SetBounds(12, 76, 50, 23);
+        _schritte.SetBounds(12, 106, 50, 23);
+        grp.Controls.Add(_plaene);
+        grp.Controls.Add(_schritte);
+        grp.Controls.Add(new Label { Text = "Je Serie der Opt.: Anzahl Pläne (1-20)", Left = 68, Top = 79, Width = 190 });
+        grp.Controls.Add(new Label { Text = "Optimierungsschritte je Plan (1-9)", Left = 68, Top = 109, Width = 190 });
         Controls.Add(grp);
-        _nurNv.Left = 14; _nurNv.Top = 228;
-        Controls.Add(_nurNv);
-        var hinweis = new Label { Left = 14, Top = 252, Width = 440, Height = 30, ForeColor = Color.DarkRed, Text = "Prüfen Sie vor den ersten Optimierungsläufen Ihre Eingabedaten mit der Diagnose." };
-        Controls.Add(hinweis);
-        void Umschalten() { _start.Enabled = _erhoehung.Enabled = _strategie.SelectedIndex is 2 or 3; }
+
+        var lz = new GroupBox { Text = "Lehrer-Zuordnung", Left = 10, Top = 188, Width = 260, Height = 70 };
+        _zuordnen.SetBounds(12, 22, 240, 40);
+        _zuordnen.AutoSize = false;
+        lz.Controls.Add(_zuordnen);
+        Controls.Add(lz);
+
+        var x = 290;
+        var y = 14;
+        _aehnlich.Value = Math.Clamp(o.Aehnlichkeit, 0, 4);
+        _aehnlich.SetBounds(x, y, 50, 23);
+        Controls.Add(_aehnlich);
+        Controls.Add(new Label { Text = "Ähnlichkeit zu Vorplan (0-4, 0 = nicht ähnlich, 4 = sehr ähnlich)", Left = x + 56, Top = y, Width = 200, Height = 32 });
+        y += 40;
+        foreach (var c in new[] { _bedingt, _freieTage, _doppel, _nurNv })
+        {
+            c.Left = x;
+            c.Top = y;
+            Controls.Add(c);
+            y += 26;
+        }
+        _bedingt.Checked = o.BedingtFixieren;
+        _freieTage.Checked = o.NurGewuenschteFreieTage;
+        _doppel.Checked = o.DoppelstundenBesonders;
+        _nurNv.Checked = o.NurNichtVerplante;
+        var cd = new GroupBox { Text = "Für Strategie C und D", Left = x, Top = y + 6, Width = 250, Height = 82 };
+        _start.Value = Math.Clamp(o.StartProzent, 5, 100);
+        _erhoehung.Value = Math.Clamp(o.ErhoehungProzent, 5, 100);
+        _start.SetBounds(12, 22, 50, 23);
+        _erhoehung.SetBounds(12, 50, 50, 23);
+        cd.Controls.AddRange(new Control[] { _start, _erhoehung, new Label { Text = "Start-Prozentsatz", Left = 68, Top = 25, AutoSize = true }, new Label { Text = "Erhöhungs-Prozentsatz", Left = 68, Top = 53, AutoSize = true } });
+        Controls.Add(cd);
+        Controls.Add(new Label { Left = 12, Top = 270, Width = 520, Height = 60, ForeColor = Color.DarkRed,
+            Text = "Prüfen Sie vor den ersten Optimierungsläufen Ihre Eingabedaten mit der Diagnose.\n" +
+                   "Fixierte Stunden bleiben immer stehen. \"Plan bedingt fixieren\" verlegt vorhandene Stunden nur, wenn es nicht anders geht." });
+        void Umschalten() { cd.Enabled = _strategie.SelectedIndex is 2 or 3; _aehnlich.Enabled = !_bedingt.Checked; }
         _strategie.SelectedIndexChanged += (_, _) => Umschalten();
+        _bedingt.CheckedChanged += (_, _) => Umschalten();
         Umschalten();
     }
 
