@@ -15,6 +15,12 @@ public class MdiFenster : Form
     /// <summary>Hilfethema für F1.</summary>
     public string HilfeThema { get; protected set; } = "";
 
+    /// <summary>Fensterverknüpfung (Untis): das Fenster folgt dem in anderen Fenstern gewählten Element bzw. der gewählten Stunde.</summary>
+    public bool Verknuepft { get; set; } = true;
+
+    /// <summary>Knopf „Fenster verknüpfen“ für die Werkzeugleiste.</summary>
+    protected ToolStripButton VerknuepfenKnopf() => Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
+
     protected Dokument Doc => AppZustand.Doc;
     protected Schuldatei D => AppZustand.Doc.Daten;
     protected DatenIndex Ix => AppZustand.Doc.Index;

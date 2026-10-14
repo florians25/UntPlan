@@ -84,6 +84,52 @@ public sealed partial class HauptFenster
         Schritt("07_Unterricht", () => Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse))), 1);
         Schritt("08_Stundenplan_Klasse", () => Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false)), 3);
         Schritt("09_Stundenplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), 3);
+        Schritt("09a_Stundenplan_Einzelstunden_Pausen", () =>
+        {
+            var f = Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false));
+            f.FormatAnzeigen(new StundenplanFormat { Name = "Klassenplan Einzelstunden", Typ = ElementTyp.Klasse, Einzelstunden = true, PausenAnzeigen = true, Schriftgroesse = 9 });
+            if (AppZustand.D.Stundenplan.FirstOrDefault(p => f.Plan.StundenAm(p.Tag, p.Stunde).Contains(p)) is { } erste) f.StundeAnklicken(erste);
+        }, 3);
+        Schritt("09b_Stundenplan_Formatdialog", () =>
+            StundenplanEinstellungenDialog.Anzeigen(this, new StundenplanFormat { Name = "Klassenplan", Typ = ElementTyp.Klasse, Einzelstunden = true, PausenAnzeigen = true, Farbe = FarbeNach.Lehrer }, ElementTyp.Klasse, AppZustand.D.Klassen.First().Id), 3);
+        Schritt("09c_Tauschpfeil_Stundenplan", () =>
+        {
+            // Stunde einer Klasse „ziehen“ und über eine Stunde stellen, mit der kollisionsfrei getauscht werden kann
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            foreach (var k in dd.Klassen)
+                foreach (var p in ix.PlanVon(ElementTyp.Klasse, k.Id).ToList())
+                {
+                    var block = Core.Planung.Planungsdienst.BlockVon(dd, p);
+                    if (block[0] != p) continue;
+                    for (var t = 0; t < dd.Zeitraster.TageProWoche; t++)
+                        for (var s = 1; s <= dd.Zeitraster.StundenProTag; s++)
+                        {
+                            if (Core.Planung.Planungsdienst.Zielstatus(dd, ix, block, t, s) != Core.Planung.Feldstatus.TauschMoeglich) continue;
+                            var f = Max(StundenplanFenster.Neu(ElementTyp.Klasse, k.Id, false));
+                            f.Plan.Ziehvorschau($"plan:{dd.Stundenplan.IndexOf(p)};{string.Join(",", block.Select(x => dd.Stundenplan.IndexOf(x)))}", t, s);
+                            if (f.Plan.ZielstatusUnterMaus != Core.Planung.Feldstatus.TauschMoeglich) throw new InvalidOperationException("Tauschanzeige: Ziel unter der Maus ist kein Tauschpartner.");
+                            return;
+                        }
+                }
+            throw new InvalidOperationException("Kein Tausch im Beispielplan gefunden.");
+        }, 3);
+        Schritt("09d_Fensterverknuepfung", () =>
+        {
+            var kl = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false);
+            var le = StundenplanFenster.Neu(ElementTyp.Lehrer, null, false);
+            var un = Oeffnen<UnterrichtFenster>("u:Lehrer", () => new UnterrichtFenster(ElementTyp.Lehrer));
+            var st = Oeffnen<StammdatenFenster>("st:Lehrer", () => new StammdatenFenster(ElementTyp.Lehrer));
+            LayoutMdi(MdiLayout.TileVertical);
+            var p = AppZustand.Doc.Index.PlanVon(ElementTyp.Klasse, kl.ElementId).OrderBy(x => x.Tag).ThenBy(x => x.Stunde).Skip(3).First();
+            kl.StundeAnklicken(p);
+            Warten(300);
+            var u = AppZustand.Doc.Index.Unterrichte[p.UnterrichtId];
+            if (!u.LehrerIds.Contains(le.ElementId)) throw new InvalidOperationException("Fensterverknüpfung: Der Lehrerplan folgt der gewählten Stunde nicht.");
+            if (le.Plan.Ausgewaehlt != p) throw new InvalidOperationException("Fensterverknüpfung: Die Stunde ist im Lehrerplan nicht markiert.");
+            _ = un;
+            _ = st;
+        }, 3);
         Schritt("10_Uebersicht", () => Max(new UebersichtFenster(ElementTyp.Klasse)).Show(), 3);
         Schritt("11_Diagnose", () => Max(Oeffnen<DiagnoseFenster>("diag", () => new DiagnoseFenster())), 2);
         Schritt("12_Gewichtung", () => new GewichtungDialog().Show(this), 2);
@@ -115,6 +161,36 @@ public sealed partial class HauptFenster
         }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
+        Schritt("19a1_Kleine_Stundenplaene", () =>
+        {
+            var vertr = FensterOeffnen("vertr")!;
+            var plaene = KleinePlaeneOeffnen();
+            var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+            vertr.Bounds = new Rectangle(0, 0, Math.Max(300, mdi.Width - plaene.Sum(p => p.Width)), mdi.Height);
+            // zweite Reihe: kleiner Plan mit Stundenplanlupe
+            var mitLupe = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.Skip(1).First().Id, false, true);
+            mitLupe.Location = new Point(plaene[0].Left, plaene.Max(p => p.Bottom));
+            if (plaene.Any(p => !p.Klein || p.Width > 220)) throw new InvalidOperationException("Kleine Stundenpläne sind nicht klein.");
+        }, -1);
+        Schritt("19a2_Tauschpfeil_Vertretung", () =>
+        {
+            var dd = AppZustand.D;
+            var montag = Kalender.Montag(tag);
+            foreach (var k in dd.Klassen)
+            {
+                var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+                var eintraege = tp.VonKlasse(k.Id).Where(e => e.Findetstatt && e.Unterricht != null).ToList();
+                foreach (var a in eintraege)
+                    foreach (var b in eintraege.Where(b => b.Stunde != a.Stunde && b.Unterricht!.Id != a.Unterricht!.Id))
+                    {
+                        if (Core.Vertretungsplanung.Tagesverlegung.Zielstatus(dd, tp, a.Stunde, a.Unterricht!.Id, null, tp, b.Stunde) != Core.Planung.Feldstatus.TauschMoeglich) continue;
+                        var f = Max(StundenplanFenster.Neu(ElementTyp.Klasse, k.Id, false));
+                        f.Plan.Ziehvorschau($"tag:{tag:yyyyMMdd}:{a.Stunde}:{a.Unterricht.Id}:-1:1", tag.DayNumber - montag.DayNumber, b.Stunde);
+                        return;
+                    }
+            }
+            throw new InvalidOperationException("Kein Tausch im tagesaktuellen Plan gefunden.");
+        }, -1);
         Schritt("19b_Pausenaufsichten", () => Max(FensterOeffnen("pause")!), -1);
         Schritt("19c_Statistik", () => Max(FensterOeffnen("stat")!), -1);
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);

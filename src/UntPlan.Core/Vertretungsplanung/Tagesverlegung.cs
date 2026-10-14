@@ -73,6 +73,20 @@ public static class Tagesverlegung
         return Planung.Feldstatus.Frei;
     }
 
+    /// <summary>Status eines Zielfeldes beim Ziehen eines ganzen Blocks (<paramref name="laenge"/> Stunden, <paramref name="zielStunde"/> = erste Stunde).</summary>
+    public static Planung.Feldstatus Zielstatus(Schuldatei d, Tagesplan von, int vonStunde, int unterrichtId, int? zeile, int laenge, Tagesplan ziel, int zielStunde)
+    {
+        if (laenge <= 1) return Zielstatus(d, von, vonStunde, unterrichtId, zeile, ziel, zielStunde);
+        if (!Kalender.IstUnterrichtstag(d, ziel.Datum) || zielStunde + laenge - 1 > d.Zeitraster.StundenProTag ||
+            Enumerable.Range(zielStunde, laenge).Any(s => !d.Zeitraster.Verfuegbar(ziel.Tag, s))) return Planung.Feldstatus.Kollision;
+        if (von.Datum == ziel.Datum && vonStunde == zielStunde) return Planung.Feldstatus.Kollision;
+        var a = Analysieren(d, von, vonStunde, unterrichtId, zeile, laenge, ziel, zielStunde);
+        if (a.Schritte.Count == 0) return Planung.Feldstatus.Kollision;
+        if (a.TauschMoeglich) return Planung.Feldstatus.TauschMoeglich;
+        if (a.Kollision) return Planung.Feldstatus.Kollision;
+        return a.LehrerAbwesend ? Planung.Feldstatus.VorgabeVerletzt : Planung.Feldstatus.Frei;
+    }
+
     /// <summary>Tausch möglich: genau ein behindernder Unterricht, der an der Ursprungsposition kollisionsfrei stattfinden kann.</summary>
     private static bool TauschPruefen(Schuldatei d, Tagesplan von, int vonStunde, int unterrichtId, List<TagesEintrag> h)
     {
@@ -90,7 +104,18 @@ public static class Tagesverlegung
     public static VerlegeAnalyse Analysieren(Schuldatei d, DateOnly von, int vonStunde, int unterrichtId, int? zeile, int laenge, DateOnly ziel, int zielStunde)
     {
         var tpVon = Tagesplan.Berechnen(d, von);
-        var tp = Tagesplan.Berechnen(d, ziel);
+        var tp = von == ziel ? tpVon : Tagesplan.Berechnen(d, ziel);
+        return Analysieren(d, tpVon, vonStunde, unterrichtId, zeile, laenge, tp, zielStunde);
+    }
+
+    /// <summary>
+    /// Ablegen prüfen mit bereits berechneten Tagesplänen (beim Ziehen für alle Zielfelder). Ein Block kann getauscht werden, wenn
+    /// in jeder Zielstunde derselbe Unterricht liegt und jede seiner Stunden an der Ursprungsposition kollisionsfrei stattfinden kann.
+    /// </summary>
+    public static VerlegeAnalyse Analysieren(Schuldatei d, Tagesplan tpVon, int vonStunde, int unterrichtId, int? zeile, int laenge, Tagesplan tp, int zielStunde)
+    {
+        var von = tpVon.Datum;
+        var ziel = tp.Datum;
         var schritte = new List<VerlegeSchritt>();
         var abwesend = false;
         for (var i = 0; i < Math.Max(1, laenge); i++)
@@ -104,7 +129,10 @@ public static class Tagesverlegung
             schritte.Add(new VerlegeSchritt(vonStunde + i, zielStunde + i, h));
             abwesend |= lehrer.Any(l => Absenzen.LehrerAbwesend(d, l, ziel, zielStunde + i));
         }
-        var tausch = schritte.Count == 1 && schritte[0].Hindernisse.Count > 0 && TauschPruefen(d, tpVon, schritte[0].VonStunde, unterrichtId, schritte[0].Hindernisse.ToList());
+        var ueberlappt = von == ziel && zielStunde < vonStunde + laenge && vonStunde < zielStunde + laenge;
+        var partner = schritte.SelectMany(s => s.Hindernisse).Select(h => h.Unterricht?.Id).Distinct().ToList();
+        var tausch = schritte.Count > 0 && !ueberlappt && schritte.All(s => s.Hindernisse.Count > 0) && partner.Count == 1 && partner[0] is int &&
+                     schritte.All(s => TauschPruefen(d, tpVon, s.VonStunde, unterrichtId, s.Hindernisse.ToList()));
         return new VerlegeAnalyse(von, vonStunde, unterrichtId, zeile, ziel, zielStunde, schritte, tausch, abwesend);
     }
 
@@ -133,7 +161,8 @@ public static class Tagesverlegung
         if (modus == VerlegeModus.Tauschen)
         {
             if (a.TauschUnterricht is not int b) throw new InvalidOperationException("Ein Tausch ist an dieser Position nicht möglich.");
-            Vertretungen.Tauschen(d, a.UnterrichtId, a.Von, a.Schritte[0].VonStunde, b, a.Ziel, a.Schritte[0].NachStunde, benutzer);
+            // Block: Stunde für Stunde tauschen (Quelle und Ziel überschneiden sich nicht)
+            foreach (var s in a.Schritte) Vertretungen.Tauschen(d, a.UnterrichtId, a.Von, s.VonStunde, b, a.Ziel, s.NachStunde, benutzer);
             return;
         }
         if (modus == VerlegeModus.Verdraengen)

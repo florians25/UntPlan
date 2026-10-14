@@ -50,6 +50,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         ts.Items.Add(_auswahl);
         ts.Items.AddRange(Ui.Durchschalter(_auswahl));
         _auswahl.SelectedIndexChanged += (_, _) => { if (!_laden && _auswahl.SelectedItem is Eintrag e) { _id = e.Id; Neuaufbau(); AppZustand.Waehlen(_typ, e.Id, this); } };
+        ts.Items.Add(VerknuepfenKnopf());
         ts.Items.Add(new ToolStripSeparator());
         foreach (var w in new[] { 3, 2, 1, 0, -1, -2, -3 })
         {
@@ -104,7 +105,12 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         Load += (_, _) => split.SplitterDistance = Math.Max(120, split.Height - 110);
         WertWaehlen(-3);
         AppZustand.ElementGewaehlt += ElementGewaehlt;
-        FormClosed += (_, _) => AppZustand.ElementGewaehlt -= ElementGewaehlt;
+        AppZustand.StundeGewaehlt += StundeGewaehlt;
+        FormClosed += (_, _) =>
+        {
+            AppZustand.ElementGewaehlt -= ElementGewaehlt;
+            AppZustand.StundeGewaehlt -= StundeGewaehlt;
+        };
         void Typbox() { _laden = true; typBox.SelectedIndex = _typ switch { ElementTyp.Klasse => 0, ElementTyp.Lehrer => 1, ElementTyp.Raum => 2, ElementTyp.Fach => 3, _ => 4 }; _laden = false; }
         _typAnzeigen = Typbox;
     }
@@ -129,8 +135,15 @@ public sealed class ZeitwuenscheFenster : MdiFenster
 
     private void ElementGewaehlt(ElementTyp typ, int id, object quelle)
     {
-        if (quelle == this) return;
+        if (quelle == this || !Verknuepft || IsDisposed || (typ == _typ && id == _id)) return;
         if (typ is ElementTyp.Klasse or ElementTyp.Lehrer or ElementTyp.Raum or ElementTyp.Fach or ElementTyp.Unterricht) Setzen(typ, id);
+    }
+
+    /// <summary>Fensterverknüpfung: Zeitwünsche des Elements (bzw. Unterrichts) der gewählten Stunde zeigen.</summary>
+    private void StundeGewaehlt(Unterricht u, Planstunde? p, object quelle)
+    {
+        if (quelle == this || !Verknuepft || IsDisposed) return;
+        if (AppZustand.ElementDerStunde(_typ, u, p, _id) is int id && id != _id) Setzen(_typ, id);
     }
 
     private void WertWaehlen(int w)

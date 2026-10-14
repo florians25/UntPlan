@@ -22,6 +22,12 @@ public sealed record Hindernis(Planstunde Planstunde, Unterricht Unterricht, str
 
 public sealed record Tauschvorschlag(Planstunde A, Planstunde B, double Gewinn, string Beschreibung);
 
+/// <summary>
+/// Geprüfter Stundentausch per Drag &amp; Drop: die gezogenen Stunden (eine Stunde oder ein ganzer Block, ggf. mit den parallelen
+/// Stunden ihres Bandes) wechseln mit dem Unterricht an der Zielposition die Plätze.
+/// </summary>
+public sealed record Stundentausch(IReadOnlyList<Planstunde> Quelle, IReadOnlyList<Planstunde> Partner, int QuellTag, int QuellStunde, int ZielTag, int ZielStunde, int Laenge, string Beschreibung);
+
 public static class Planungsdienst
 {
     public static IEnumerable<int> Klassen(Unterricht u) => u.KlassenIds;
@@ -115,6 +121,11 @@ public static class Planungsdienst
         var ix = new DatenIndex(d);
         var u = ix.Unterrichte[p.UnterrichtId];
         var hind = Hindernisse(d, ix, u, tag, stunde, new[] { p });
+        if (tauschen && TauschPruefen(d, ix, new[] { p }, tag, stunde, out _) is { } geprueft)
+        {
+            Tauschen(d, geprueft);
+            return;
+        }
         if (tauschen && hind.Count == 1)
         {
             var q = hind[0].Planstunde;
@@ -131,6 +142,115 @@ public static class Planungsdienst
         p.Tag = tag;
         p.Stunde = stunde;
         p.Raeume = RaeumeSuchen(d, ix, u, tag, stunde, new[] { p });
+    }
+
+    /// <summary>
+    /// Prüft, ob die gezogenen Stunden mit dem Unterricht an der Zielposition (<paramref name="zielStunde"/> = erste Stunde) getauscht
+    /// werden können: genau ein behindernder Unterricht in jeder Zielstunde, nichts fixiert, Bänder wandern als Ganzes mit, ein
+    /// vollständig gezogener Block zerreißt keinen längeren Block des Partners, und nach dem Tausch sind beide Seiten kollisionsfrei.
+    /// </summary>
+    public static Stundentausch? TauschPruefen(Schuldatei d, DatenIndex ix, IReadOnlyCollection<Planstunde> gezogen, int zielTag, int zielStunde, out string grund)
+    {
+        grund = "";
+        var q = gezogen.OrderBy(p => p.Stunde).ToList();
+        if (q.Count == 0) { grund = "Keine Stunde gewählt."; return null; }
+        var uid = q[0].UnterrichtId;
+        var tag = q[0].Tag;
+        var von = q[0].Stunde;
+        var n = q.Count;
+        if (q.Any(p => p.UnterrichtId != uid || p.Tag != tag) || q.Select((p, i) => p.Stunde - i).Distinct().Count() != 1)
+        {
+            grund = "Getauscht werden kann nur eine Stunde oder ein zusammenhängender Block eines Unterrichts.";
+            return null;
+        }
+        if (!ix.Unterrichte.TryGetValue(uid, out var u)) { grund = "Unterricht nicht gefunden."; return null; }
+        if (zielTag < 0 || zielTag >= d.Zeitraster.TageProWoche || zielStunde < 1 || zielStunde + n - 1 > d.Zeitraster.StundenProTag)
+        {
+            grund = "Die Stunden passen an dieser Position nicht in das Zeitraster.";
+            return null;
+        }
+        if (zielTag == tag && zielStunde < von + n && von < zielStunde + n) { grund = "Quelle und Ziel überschneiden sich."; return null; }
+        if (q.Any(p => p.Fixiert)) { grund = "Die gezogene Stunde ist fixiert."; return null; }
+
+        // Partner: in jeder Zielstunde genau ein behindernder Unterricht (bzw. ein Band), überall derselbe
+        static string Schluessel(Unterricht x) => string.IsNullOrWhiteSpace(x.Band) ? "#" + x.Id : "Band " + x.Band;
+        string? partnerKey = null;
+        Unterricht? pu = null;
+        var partner = new List<Planstunde>();
+        for (var j = 0; j < n; j++)
+        {
+            var h = Hindernisse(d, ix, u, zielTag, zielStunde + j, q);
+            var keys = h.Select(x => Schluessel(x.Unterricht)).Distinct().ToList();
+            if (keys.Count == 0) { grund = n > 1 ? "Nicht in jeder Stunde des Zielbereichs liegt der Tauschpartner." : "An der Zielposition liegt keine Stunde, mit der getauscht werden kann."; return null; }
+            if (keys.Count > 1) { grund = $"In der {zielStunde + j}. Stunde behindern mehrere Unterrichte ({string.Join(", ", h.Select(x => x.Unterricht.Id).Distinct())})."; return null; }
+            if (partnerKey is not null && partnerKey != keys[0]) { grund = "Der Zielbereich enthält verschiedene Unterrichte."; return null; }
+            partnerKey = keys[0];
+            pu ??= h[0].Unterricht;
+            partner.AddRange(h.Select(x => x.Planstunde).Where(x => !partner.Contains(x)));
+        }
+        if (pu is null) return null;
+        // Blöcke: Ist die Quelle ein vollständiger Block, darf auch der Partner nicht zerrissen werden
+        if (BlockVon(d, q[0]).Count == n)
+            foreach (var p in partner)
+                if (BlockVon(d, p).Any(x => x.Tag != zielTag || x.Stunde < zielStunde || x.Stunde >= zielStunde + n))
+                {
+                    grund = $"Der Tauschpartner (U-Nr. {pu.Id}) ist ein längerer Block als die gezogenen Stunden.";
+                    return null;
+                }
+        // Bänder (parallele Unterrichte) wandern als Ganzes
+        var quelle = q.Concat(BandStunden(d, ix, u, tag, von, n, q)).Distinct().ToList();
+        var partnerAlle = partner.Concat(BandStunden(d, ix, pu, zielTag, zielStunde, n, partner)).Distinct().ToList();
+        if (partnerAlle.Any(p => p.Fixiert)) { grund = $"Der Tauschpartner (U-Nr. {pu.Id}) ist fixiert."; return null; }
+        if (quelle.Any(p => p.Fixiert)) { grund = "Eine parallele Stunde des Bandes ist fixiert."; return null; }
+        if (quelle.Intersect(partnerAlle).Any()) { grund = "Quelle und Ziel gehören zum selben Band."; return null; }
+
+        // Kollisionsfreiheit nach dem Tausch (alle bewegten Stunden werden bei der Prüfung ausgeblendet)
+        var bewegt = quelle.Concat(partnerAlle).ToHashSet();
+        foreach (var p in quelle)
+        {
+            var h = ix.Unterrichte.TryGetValue(p.UnterrichtId, out var o) ? Hindernisse(d, ix, o, zielTag, p.Stunde - von + zielStunde, bewegt) : new();
+            if (h.Count > 0) { grund = $"Nach dem Tausch: Kollision am Ziel mit U-Nr. {h[0].Unterricht.Id} ({h[0].Grund})."; return null; }
+        }
+        foreach (var p in partnerAlle)
+        {
+            var h = ix.Unterrichte.TryGetValue(p.UnterrichtId, out var o) ? Hindernisse(d, ix, o, tag, p.Stunde - zielStunde + von, bewegt) : new();
+            if (h.Count > 0) { grund = $"Nach dem Tausch: Kollision des Tauschpartners mit U-Nr. {h[0].Unterricht.Id} ({h[0].Grund})."; return null; }
+        }
+        var text = $"{ix.UnterrichtText(u)} ({Tagname(d, tag)} {von}.{(n > 1 ? $"-{von + n - 1}." : "")}) ⇄ {ix.UnterrichtText(pu)} ({Tagname(d, zielTag)} {zielStunde}.{(n > 1 ? $"-{zielStunde + n - 1}." : "")})";
+        return new Stundentausch(quelle, partnerAlle, tag, von, zielTag, zielStunde, n, text);
+    }
+
+    /// <summary>Weitere Stunden desselben Bandes in den Stunden <paramref name="start"/> … start+n-1 (gleichzeitiger, paralleler Unterricht).</summary>
+    private static List<Planstunde> BandStunden(Schuldatei d, DatenIndex ix, Unterricht u, int tag, int start, int n, ICollection<Planstunde> ohne)
+    {
+        if (string.IsNullOrWhiteSpace(u.Band)) return new();
+        return d.Stundenplan.Where(p => p.Tag == tag && p.Stunde >= start && p.Stunde < start + n && !ohne.Contains(p) &&
+                                        ix.Unterrichte.TryGetValue(p.UnterrichtId, out var o) && o.Band == u.Band).ToList();
+    }
+
+    /// <summary>Geprüften Tausch ausführen (die Stunden müssen zu <paramref name="d"/> gehören); Räume werden neu gesucht.</summary>
+    public static void Tauschen(Schuldatei d, Stundentausch t)
+    {
+        foreach (var p in t.Quelle) { p.Tag = t.ZielTag; p.Stunde += t.ZielStunde - t.QuellStunde; }
+        foreach (var p in t.Partner) { p.Tag = t.QuellTag; p.Stunde += t.QuellStunde - t.ZielStunde; }
+        var ix = new DatenIndex(d);
+        foreach (var p in t.Quelle.Concat(t.Partner))
+            if (ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) p.Raeume = RaeumeSuchen(d, ix, u, p.Tag, p.Stunde, new[] { p });
+    }
+
+    /// <summary>
+    /// Status eines Zielfeldes beim Ziehen verplanter Stunden (eine Stunde oder ein Block eines Unterrichts, <paramref name="zielStunde"/> =
+    /// neue erste Stunde): Frei, VorgabeVerletzt, KeinRaum, TauschMoeglich (geprüfter Tausch) oder Kollision.
+    /// </summary>
+    public static Feldstatus Zielstatus(Schuldatei d, DatenIndex ix, IReadOnlyCollection<Planstunde> gezogen, int zielTag, int zielStunde)
+    {
+        var q = gezogen.OrderBy(p => p.Stunde).ToList();
+        if (q.Count == 0 || !ix.Unterrichte.TryGetValue(q[0].UnterrichtId, out var u)) return Feldstatus.Kollision;
+        if (zielTag < 0 || zielTag >= d.Zeitraster.TageProWoche || zielStunde < 1 || zielStunde + q.Count - 1 > d.Zeitraster.StundenProTag) return Feldstatus.Kollision;
+        if (q[0].Tag == zielTag && q[0].Stunde == zielStunde) return Feldstatus.Kollision;
+        var behindert = Enumerable.Range(zielStunde, q.Count).Any(s => Hindernisse(d, ix, u, zielTag, s, q).Count > 0);
+        if (behindert) return TauschPruefen(d, ix, q, zielTag, zielStunde, out _) != null ? Feldstatus.TauschMoeglich : Feldstatus.Kollision;
+        return Status(d, ix, u, zielTag, zielStunde, q.Count, q);
     }
 
     public static void Entplanen(Schuldatei d, Planstunde p) => d.Stundenplan.Remove(p);

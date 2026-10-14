@@ -1,3 +1,4 @@
+using UntPlan.App.Steuerelemente;
 using UntPlan.Core;
 using UntPlan.Core.Model;
 using UntPlan.Core.Planung;
@@ -293,22 +294,53 @@ public sealed class WarteCursor : IDisposable
 /// <summary>Stundenplan-Einstellungen (Layout, Farben, Standardformat) und Grafik-Editor "Stundenplan-Stunde".</summary>
 public static class StundenplanEinstellungenDialog
 {
-    public static StundenplanFormat? Zeigen(IWin32Window owner, StundenplanFormat f)
+    public static StundenplanFormat? Zeigen(IWin32Window owner, StundenplanFormat f, ElementTyp? typ = null, int? elementId = null)
     {
-        using var d = new Dialog($"Stundenplan-Einstellungen – {f.Name}", 640, 470);
-        var tabs = new TabControl { Left = 8, Top = 8, Width = 624, Height = 410 };
+        using var d = Erstellen(f, typ, elementId, out var uebernehmen);
+        if (d.ShowDialog(owner) != DialogResult.OK) return null;
+        uebernehmen();
+        return f;
+    }
+
+    /// <summary>Dialog nicht modal anzeigen (Selbsttest, Dokumentation).</summary>
+    public static Form Anzeigen(IWin32Window owner, StundenplanFormat f, ElementTyp? typ = null, int? elementId = null)
+    {
+        var d = Erstellen(f, typ, elementId, out _);
+        d.Show(owner);
+        return d;
+    }
+
+    /// <summary>
+    /// Format-Dialog: welche Elemente in welcher Zeile (Grafik-Editor „Stundenplan-Stunde“), Schriftgröße, Farben nach Fach/Lehrer/Klasse/keine,
+    /// Einzelstunden, Pausen, kleiner Stundenplan, Zellengröße – mit Vorschau des aktuellen Plans, die sich bei jeder Änderung sofort anpasst.
+    /// </summary>
+    private static Dialog Erstellen(StundenplanFormat f, ElementTyp? typ, int? elementId, out Action uebernehmen)
+    {
+        var d = new Dialog($"Stundenplan-Einstellungen – {f.Name}", 900, 500);
+        var tabs = new TabControl { Left = 8, Top = 8, Width = 884, Height = 440 };
         var layout = new TabPage("Layout");
-        var y = 12;
-        var name = Ui.Zeile(layout, "Formatname", new TextBox { Text = f.Name }, ref y);
-        var schrift = Ui.Zeile(layout, "Schriftgröße", new NumericUpDown { Minimum = 6, Maximum = 20, Value = f.Schriftgroesse }, ref y, 170, 70);
-        var farbe = Ui.Zeile(layout, "Farbe nach", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y);
+        var y = 10;
+        var name = Ui.Zeile(layout, "Formatname", new TextBox { Text = f.Name }, ref y, 170, 200);
+        var schrift = Ui.Zeile(layout, "Schriftgröße", new NumericUpDown { Minimum = 6, Maximum = 20, Value = Math.Clamp(f.Schriftgroesse, 6, 20) }, ref y, 170, 70);
+        var farbe = Ui.Zeile(layout, "Farbe nach", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y, 170, 120);
         farbe.Items.AddRange(new object[] { "Fach", "Lehrer", "Klasse", "Raum", "keine" });
         farbe.SelectedIndex = (int)f.Farbe;
         var lang = Ui.Zeile(layout, "Langnamen anzeigen", new CheckBox { Checked = f.Langname }, ref y);
         var zeiten = Ui.Zeile(layout, "Uhrzeiten anzeigen", new CheckBox { Checked = f.ZeitenAnzeigen }, ref y);
+        var einzel = Ui.Zeile(layout, "Einzelstunden (nicht zusammenfassen)", new CheckBox { Checked = f.Einzelstunden }, ref y, 220);
+        var pausen = Ui.Zeile(layout, "Pausen anzeigen", new CheckBox { Checked = f.PausenAnzeigen }, ref y, 220);
+        var klein = Ui.Zeile(layout, "Kleiner Stundenplan (nur Fachkürzel)", new CheckBox { Checked = f.Klein }, ref y, 220);
+        var breite = Ui.Zeile(layout, "Zellenbreite (0 = automatisch)", new NumericUpDown { Minimum = 0, Maximum = 400, Value = Math.Clamp(f.ZellenBreite, 0, 400) }, ref y, 220, 60);
+        var hoehe = Ui.Zeile(layout, "Zellenhöhe (0 = automatisch)", new NumericUpDown { Minimum = 0, Maximum = 200, Value = Math.Clamp(f.ZellenHoehe, 0, 200) }, ref y, 220, 60);
+        var lupe = Ui.Zeile(layout, "Stundenplanlupe anzeigen", new CheckBox { Checked = f.StundenplanlupeAnzeigen }, ref y, 220);
         var dd = Ui.Zeile(layout, "DragDrop: Farben laut Zeitwünsche", new CheckBox { Checked = f.DragDropZeitwunschFarben }, ref y, 220);
         var std = Ui.Zeile(layout, "Stpl-Stunde: Standardformat", new CheckBox { Checked = f.Standardformat }, ref y, 220);
-        layout.Controls.Add(new Label { Text = "Tipp: Für jedes Element zwei Formate verwenden – ein kleines zum Arbeiten am Stundenplan und \"… groß\" mit allen Informationen für die Ausgabe.", Left = 12, Top = y + 10, Width = 590, Height = 40, ForeColor = Color.DimGray });
+        layout.Controls.Add(new Label { Text = "Tipp: Für jedes Element zwei Formate verwenden – ein kleines zum Arbeiten am Stundenplan und \"… groß\" mit allen Informationen für die Ausgabe. Welche Werte in welcher Zeile einer Stunde stehen, legt die Karte „Stundenplan-Stunde“ fest (Standardformat ausschalten).", Left = 12, Top = y + 2, Width = 400, Height = 58, ForeColor = Color.DimGray });
+        // Vorschau mit dem aktuellen Element
+        var vorschau = new PlanAnsicht { Left = 430, Top = 26, Width = 430, Height = 370, Bearbeitbar = false, Typ = typ ?? f.Typ };
+        vorschau.ElementId = elementId ?? Stammdaten.Sortiert(AppZustand.D, vorschau.Typ).FirstOrDefault()?.Id ?? 0;
+        layout.Controls.Add(new Label { Text = $"Vorschau: {AppZustand.Doc.Index.Element(vorschau.Typ, vorschau.ElementId)?.Kurzname}", Left = 430, Top = 6, Width = 300, ForeColor = Color.DimGray });
+        layout.Controls.Add(vorschau);
         tabs.TabPages.Add(layout);
 
         var stunde = new TabPage("Stundenplan-Stunde");
@@ -324,6 +356,42 @@ public static class StundenplanEinstellungenDialog
         stunde.Controls.Add(new Label { Text = "Schriftgrad %", Left = 170, Top = 328, Width = 100 });
         stunde.Controls.Add(new Label { Text = "Kopplungszeile", Left = 380, Top = 328, Width = 100 });
         stunde.Controls.Add(new Label { Text = "Felder per Drag & Drop in die Stunde ziehen. Das Hintergrundfeld symbolisiert die Stundenplan-Zelle; Hilfslinien unterstützen beim Ausrichten. Für Kopplungen ein Feld mehrfach einfügen (Kopplungszeile 1, 2, …).", Left = 12, Top = 350, Width = 590, Height = 32, ForeColor = Color.DimGray });
+        var stundeVorschau = new PlanAnsicht { Left = 612, Top = 12, Width = 250, Height = 370, Bearbeitbar = false, Typ = vorschau.Typ, ElementId = vorschau.ElementId };
+        stunde.Controls.Add(stundeVorschau);
+
+        // Werte in ein Format übernehmen (Vorschau und OK)
+        void Schreiben(StundenplanFormat z)
+        {
+            z.Name = name.Text;
+            z.Schriftgroesse = (int)schrift.Value;
+            z.Farbe = (FarbeNach)Math.Max(0, farbe.SelectedIndex);
+            z.Langname = lang.Checked;
+            z.ZeitenAnzeigen = zeiten.Checked;
+            z.Einzelstunden = einzel.Checked;
+            z.PausenAnzeigen = pausen.Checked;
+            z.Klein = klein.Checked;
+            z.ZellenBreite = (int)breite.Value;
+            z.ZellenHoehe = (int)hoehe.Value;
+            z.StundenplanlupeAnzeigen = lupe.Checked;
+            z.DragDropZeitwunschFarben = dd.Checked;
+            z.Felder = editor.Felder.Select(x => new StundenFeld { Art = x.Art, Zeile = x.Zeile, X = x.X, Y = x.Y, B = x.B, H = x.H, SchriftProzent = x.SchriftProzent, Fett = x.Fett }).ToList();
+            z.Standardformat = std.Checked || z.Felder.Count == 0;
+        }
+        void Vorschau()
+        {
+            var z = new StundenplanFormat { Typ = f.Typ, Gross = f.Gross, MitVertretungen = f.MitVertretungen };
+            Schreiben(z);
+            vorschau.Format = z;
+            stundeVorschau.Format = z;
+            vorschau.Invalidate();
+            stundeVorschau.Invalidate();
+        }
+        foreach (var n in new[] { schrift, breite, hoehe }) n.ValueChanged += (_, _) => Vorschau();
+        farbe.SelectedIndexChanged += (_, _) => Vorschau();
+        foreach (var c in new[] { lang, zeiten, einzel, pausen, klein, lupe, dd, std }) c.CheckedChanged += (_, _) => Vorschau();
+        editor.Geaendert += Vorschau;
+        Vorschau();
+
         editor.AuswahlGeaendert += sf =>
         {
             prozent.Enabled = fett.Enabled = zeileNr.Enabled = entfernen.Enabled = sf != null;
@@ -332,30 +400,25 @@ public static class StundenplanEinstellungenDialog
             fett.Checked = sf.Fett;
             zeileNr.Value = Math.Clamp(sf.Zeile, 1, 6);
         };
-        prozent.ValueChanged += (_, _) => { if (editor.Ausgewaehlt != null) { editor.Ausgewaehlt.SchriftProzent = (int)prozent.Value; editor.Invalidate(); } };
-        fett.CheckedChanged += (_, _) => { if (editor.Ausgewaehlt != null) { editor.Ausgewaehlt.Fett = fett.Checked; editor.Invalidate(); } };
-        zeileNr.ValueChanged += (_, _) => { if (editor.Ausgewaehlt != null) { editor.Ausgewaehlt.Zeile = (int)zeileNr.Value; editor.Invalidate(); } };
+        prozent.ValueChanged += (_, _) => { if (editor.Ausgewaehlt != null) { editor.Ausgewaehlt.SchriftProzent = (int)prozent.Value; editor.Invalidate(); Vorschau(); } };
+        fett.CheckedChanged += (_, _) => { if (editor.Ausgewaehlt != null) { editor.Ausgewaehlt.Fett = fett.Checked; editor.Invalidate(); Vorschau(); } };
+        zeileNr.ValueChanged += (_, _) => { if (editor.Ausgewaehlt != null) { editor.Ausgewaehlt.Zeile = (int)zeileNr.Value; editor.Invalidate(); Vorschau(); } };
         entfernen.Click += (_, _) => editor.Entfernen();
         stunde.Controls.AddRange(new Control[] { liste, editor, prozent, fett, zeileNr, entfernen });
         tabs.TabPages.Add(stunde);
         d.Controls.Add(tabs);
-        if (d.ShowDialog(owner) != DialogResult.OK) return null;
-        f.Name = name.Text;
-        f.Schriftgroesse = (int)schrift.Value;
-        f.Farbe = (FarbeNach)farbe.SelectedIndex;
-        f.Langname = lang.Checked;
-        f.ZeitenAnzeigen = zeiten.Checked;
-        f.DragDropZeitwunschFarben = dd.Checked;
-        f.Felder = editor.Felder;
-        f.Standardformat = std.Checked || f.Felder.Count == 0;
-        return f;
+        uebernehmen = () => Schreiben(f);
+        return d;
     }
+
 
     /// <summary>Grafik-Editor der Stundenplan-Zelle mit Snap-Lines.</summary>
     private sealed class StundenEditor : Control
     {
         public List<StundenFeld> Felder { get; }
         public StundenFeld? Ausgewaehlt { get; private set; }
+        /// <summary>Felder wurden hinzugefügt, verschoben, in der Größe geändert oder entfernt (Vorschau aktualisieren).</summary>
+        public event Action? Geaendert;
         public event Action<StundenFeld?>? AuswahlGeaendert;
         private PointF _start;
         private StundenFeld? _ziehen;
@@ -401,6 +464,7 @@ public static class StundenplanEinstellungenDialog
             Felder.Add(f);
             Ausgewaehlt = f;
             AuswahlGeaendert?.Invoke(f);
+            Geaendert?.Invoke();
             Invalidate();
         }
 
@@ -444,6 +508,7 @@ public static class StundenplanEinstellungenDialog
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
+            if (_ziehen != null) Geaendert?.Invoke();
             _ziehen = null;
             _snapX = _snapY = null;
             Invalidate();
@@ -455,6 +520,7 @@ public static class StundenplanEinstellungenDialog
             Felder.Remove(Ausgewaehlt);
             Ausgewaehlt = null;
             AuswahlGeaendert?.Invoke(null);
+            Geaendert?.Invoke();
             Invalidate();
         }
     }
