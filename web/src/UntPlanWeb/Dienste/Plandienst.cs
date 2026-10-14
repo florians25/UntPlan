@@ -57,6 +57,8 @@ public static class Elementtyp
 /// <summary>Stundenpläne (Woche, Tag), Tagesübersichten aller Elemente und Hinweise aus dem übertragenen Paket.</summary>
 public sealed class Plandienst
 {
+    /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft („+++“), wenn kein anderer Text vorhanden ist.</summary>
+    public const string OhneLehrkraftText = "Vertr. o. Lehrkraft";
     public static readonly string[] Wochentage = { "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag" };
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
 
@@ -157,7 +159,11 @@ public sealed class Plandienst
             if (!betrifft) continue;
             var k = KarteBauen(s, d, typ, kurz, r, v, zeiten);
             if (r.Status == "vorgemerkt") vorgemerkt.Add((r, k));
-            else einzel.Add(k);
+            else
+            {
+                einzel.Add(k);
+                if (Fachwechsel(k, typ, kurz) is { } alt) einzel.Add(alt);
+            }
         }
         // Vorgemerkte Klausuren und Raumbuchungen zu einer Unterrichtsstunde (gleiche Stunde, gemeinsame Klasse) direkt auf die Stundenkarte legen
         foreach (var (r, k) in vorgemerkt)
@@ -181,7 +187,60 @@ public sealed class Plandienst
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k))).ToList();
-        return Zusammenfassen(einzel, zeiten);
+        return Zusammenfassen(Kopplungen(einzel), zeiten);
+    }
+
+    /// <summary>
+    /// Fachwechsel wie im Original: Zur geänderten Stunde mit neuem Fach erscheint die ursprüngliche Stunde als Entfall daneben
+    /// (altes Fach, ursprüngliche Lehrkräfte und Räume). Im Lehrerplan nur, wenn die Lehrkraft die ursprüngliche Stunde gehalten hätte.
+    /// </summary>
+    private static Karte? Fachwechsel(Karte k, string typ, string kurz)
+    {
+        if (k.Status != "geaendert" || string.IsNullOrEmpty(k.FachAlt) || Ci.Equals(k.FachAlt, k.Fach)) return null;
+        static List<Wert> Urspruenglich(IEnumerable<Wert> l) => l.Select(w => w.Alt is { Length: > 0 } a ? a : w.K).Where(x => x.Length > 0).Distinct(Ci).Select(x => new Wert(x)).ToList();
+        var lehrer = Urspruenglich(k.Lehrer);
+        var raeume = Urspruenglich(k.Raeume);
+        if (typ == Elementtyp.Lehrer && !lehrer.Any(w => Ci.Equals(w.K, kurz))) return null;
+        if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) return null;
+        return k with
+        {
+            Status = "entfall", Fach = k.FachAlt!, FachAlt = null, FachName = k.FachAlt!, Farbe = k.Farbe, Lehrer = lehrer, Raeume = raeume,
+            Klassen = k.Klassen.Select(w => new Wert(w.Alt is { Length: > 0 } a ? a : w.K)).Where(w => w.K.Length > 0).ToList(),
+            Art = "Entfall", Text = "", Unterricht = null,
+        };
+    }
+
+    /// <summary>
+    /// Kopplungen: mehrere Zeilen desselben Unterrichts in derselben Stunde (z. B. drei Lehrkräfte) stehen auf einer Karte –
+    /// Fächer, Lehrkräfte, Klassen und Räume zusammengefasst. Entfall und abgegebene Stunden bleiben für sich.
+    /// </summary>
+    private static List<Karte> Kopplungen(List<Karte> einzel)
+    {
+        static string Gruppe(string status) => status is "regulaer" or "geaendert" or "offen" ? "laeuft" : status;
+        static List<Wert> Vereinigen(IEnumerable<Wert> l) => l.GroupBy(w => (w.K.ToLowerInvariant(), (w.Alt ?? "").ToLowerInvariant())).Select(g => g.First()).ToList();
+        var res = new List<Karte>();
+        foreach (var g in einzel.GroupBy(k => k.Unterricht is int u ? $"{u}|{k.Von}|{Gruppe(k.Status)}" : Guid.NewGuid().ToString()))
+        {
+            var liste = g.ToList();
+            if (liste.Count == 1 || liste[0].Unterricht is null) { res.AddRange(liste); continue; }
+            var f = liste[0];
+            var faecher = liste.Select(x => x.Fach).Where(x => x.Length > 0).Distinct(Ci).ToList();
+            var texte = liste.Select(x => x.Text).Where(x => x.Length > 0).Distinct().ToList();
+            res.Add(f with
+            {
+                Status = liste.Any(x => x.Status == "offen") ? "offen" : liste.Any(x => x.Status == "geaendert") ? "geaendert" : f.Status,
+                Fach = string.Join(", ", faecher),
+                FachAlt = liste.Select(x => x.FachAlt).FirstOrDefault(x => !string.IsNullOrEmpty(x)),
+                FachName = faecher.Count > 1 ? string.Join(", ", liste.Select(x => x.FachName).Where(x => x.Length > 0).Distinct(Ci)) : f.FachName,
+                Klassen = Vereinigen(liste.SelectMany(x => x.Klassen)),
+                Lehrer = Vereinigen(liste.SelectMany(x => x.Lehrer)),
+                Raeume = Vereinigen(liste.SelectMany(x => x.Raeume)),
+                Art = liste.Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? "",
+                Text = string.Join(" · ", texte),
+                Vertretung = liste.Select(x => x.Vertretung).FirstOrDefault(x => x.HasValue),
+            });
+        }
+        return res;
     }
 
     /// <summary>Veranstaltungskarte um Räume, Lehrkräfte (und Klassen) der zugehörigen Veranstaltung aus den Terminen ergänzen.</summary>
@@ -270,6 +329,8 @@ public sealed class Plandienst
                 status = "abwesend";
         }
         var text = string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+        // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
+        if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
         s.Faecher.TryGetValue(fach, out var fe);
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
         return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",

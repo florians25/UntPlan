@@ -53,6 +53,8 @@ public class FachpunktTests
         Assert.True(lehrer["neu"]!.GetValue<bool>());
         Assert.DoesNotContain("+++", plan.ToJsonString());
         Assert.DoesNotContain("???", k.ToJsonString());
+        // ohne eigenen Vertretungstext: Hinweis „Vertr. o. Lehrkraft“
+        Assert.Equal("Vertr. o. Lehrkraft", k["text"]!.GetValue<string>());
 
         if (mitVertretung)
         {
@@ -63,7 +65,69 @@ public class FachpunktTests
             Assert.Equal("", z["lehrer"]!.GetValue<string>());
             Assert.Equal("WAG", z["lehrerAlt"]!.GetValue<string>());
             Assert.Equal("geaendert", z["status"]!.GetValue<string>());
+            Assert.Equal("Vertr. o. Lehrkraft", z["text"]!.GetValue<string>());
         }
+    }
+
+    [Fact]
+    public async Task Vertretung_ohne_Lehrkraft_behaelt_eigenen_Text()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var (paket, id) = OhneLehrerPaket(true);
+        paket["vertretungen"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == id)!["text"] = "Aufgaben im Raum";
+        Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(paket)).StatusCode);
+        var c = await s.AlsAsync("admin");
+        var plan = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=6a&datum=2026-10-14");
+        Assert.Equal("Aufgaben im Raum", Karten(plan, "2026-10-14", 1).Single()["text"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Kopplung_mit_mehreren_Lehrkraeften_auf_einer_Karte()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var c = await s.AlsAsync("admin");
+        // Unterricht 167 (Religion 5a/5b): KR bei BEC in R101 und ER bei ZIM in R102 – im Klassenplan eine Karte
+        var plan = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=5a&datum=2026-10-12");
+        var k = Karten(plan, "2026-10-12", 5).Single();
+        Assert.Equal(167, k["unterricht"]!.GetValue<int>());
+        Assert.Equal("KR, ER", k["fach"]!.GetValue<string>());
+        Assert.Equal(new[] { "BEC", "ZIM" }, k["lehrer"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()).OrderBy(x => x));
+        Assert.Equal(new[] { "R101", "R102" }, k["raeume"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()).OrderBy(x => x));
+        // im Lehrerplan bleibt es bei der eigenen Zeile
+        var bec = await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=BEC&datum=2026-10-12");
+        Assert.Equal("KR", Karten(bec, "2026-10-12", 5).Single()["fach"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Fachwechsel_zeigt_alte_Stunde_als_Entfall_und_neue_als_Aenderung()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var p = Testserver.Beispielpaket();
+        p["revision"] = 2;
+        // 6a, Mittwoch 1. Stunde: Vertretung KRU für WAG – statt Englisch jetzt Mathematik
+        var stunde = p["tage"]!.AsArray().Single(t => t!["datum"]!.GetValue<string>() == "2026-10-14")!["stunden"]!.AsArray()
+            .Select(x => x!.AsObject()).Single(x => x["vertretung"]?.GetValue<int>() == 450);
+        stunde["fach"] = "M";
+        p["vertretungen"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == 450)!["neuesFach"] = "M";
+        Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(p)).StatusCode);
+        var c = await s.AlsAsync("admin");
+
+        var plan = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=6a&datum=2026-10-14");
+        var karten = Karten(plan, "2026-10-14", 1).ToList();
+        Assert.Equal(2, karten.Count);
+        var neu = karten.Single(k => k["status"]!.GetValue<string>() == "geaendert");
+        Assert.Equal("M", neu["fach"]!.GetValue<string>());
+        Assert.Equal("E", neu["fachAlt"]!.GetValue<string>());
+        var alt = karten.Single(k => k["status"]!.GetValue<string>() == "entfall");
+        Assert.Equal("E", alt["fach"]!.GetValue<string>());
+        Assert.Equal("WAG", alt["lehrer"]!.AsArray().Single()!["k"]!.GetValue<string>());
+        Assert.Null(alt["unterricht"]?.GetValue<int?>());
+
+        // Plan der Vertretung: nur die neue Stunde; Plan der abwesenden Lehrkraft: ihre abgegebene Stunde
+        var kru = await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=KRU&datum=2026-10-14");
+        Assert.Equal("geaendert", Karten(kru, "2026-10-14", 1).Single()["status"]!.GetValue<string>());
+        var wag = await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=WAG&datum=2026-10-14");
+        Assert.Equal("abwesend", Karten(wag, "2026-10-14", 1).Single()["status"]!.GetValue<string>());
     }
 
     [Fact]

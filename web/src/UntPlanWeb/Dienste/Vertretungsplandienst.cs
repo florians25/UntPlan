@@ -106,7 +106,7 @@ public sealed class Vertretungsplandienst
             // Schülerversion: keine Angaben, wer fehlt – nur, wer vertritt
             if (!kollegium && status != "entfall" && !ohneLehrer) lehrerAlt = null;
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,
-                neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, v.Text, v.VertrVon, v.Nach, status);
+                neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : v.Text, v.VertrVon, v.Nach, status);
         }).ToList();
 
         // gleiche Zeilen in aufeinanderfolgenden Stunden zusammenfassen (z. B. „3–4“)
