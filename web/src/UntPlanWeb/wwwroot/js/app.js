@@ -51,6 +51,16 @@ const kontext = {
 window.addEventListener('untplan:abgemeldet', () => { if (sitzung?.benutzer) { sitzung.benutzer = null; start(); } });
 window.addEventListener('hashchange', () => route());
 
+// Einmalanmeldung für UntPlanMobile: nach der Anmeldung zurück zu /sso/… (nur relative Pfade, kein offener Weiterleiter)
+const weiterNachAnmeldung = (() => {
+  const w = new URLSearchParams(location.search).get('weiter');
+  if (w && w.startsWith('/sso/') && !w.startsWith('//')) {
+    try { sessionStorage.setItem('untplan:weiter', w); } catch { /* privat */ }
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+  try { return sessionStorage.getItem('untplan:weiter'); } catch { return w; }
+})();
+
 async function start() {
   try { sitzung = await holen('/api/app/sitzung'); }
   catch (err) {
@@ -63,6 +73,11 @@ async function start() {
   if (!sitzung.eingerichtet) return einrichtung();
   if (!sitzung.benutzer) return anmeldung();
   if (sitzung.benutzer.passwortAendern) return passwortPflicht();
+  if (weiterNachAnmeldung) {
+    try { sessionStorage.removeItem('untplan:weiter'); } catch { /* privat */ }
+    location.href = weiterNachAnmeldung;
+    return;
+  }
   huelle();
   route();
 }

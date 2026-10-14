@@ -42,6 +42,8 @@ self.addEventListener('fetch', e => {
 
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
+  // Einmalanmeldung (Weiterleitungen zu UntPlanWeb) nie über den Service Worker
+  if (url.pathname.includes('/sso/')) return;
 
   // Navigation: erst Netz, sonst Shell aus dem Cache
   if (req.mode === 'navigate'){

@@ -605,3 +605,34 @@ public class BuchbarUndFehlzeitenTests
         Assert.Equal("Lob", v["vermerke"]![0]!["art"]!.GetValue<string>());
     }
 }
+
+public class SsoTests
+{
+    [Fact]
+    public async Task Einmalanmeldung_fuer_UntPlanMobile()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var host = s.Client().BaseAddress!.Host;
+        var ruecksprung = $"http://{host}:8081/sso/rueckkehr";
+        // nicht angemeldet: weiter zur Anmeldeseite
+        var anonym = s.Client();
+        var r = await anonym.GetAsync($"/sso/mobil?ruecksprung={Uri.EscapeDataString(ruecksprung)}&state=abc");
+        Assert.Equal(HttpStatusCode.Redirect, r.StatusCode);
+        Assert.StartsWith("/?weiter=", r.Headers.Location!.OriginalString);
+        // fremde Rücksprungadresse wird abgelehnt
+        var c = await s.AlsAsync("mue", "lehrer", "MUE");
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/sso/mobil?ruecksprung=" + Uri.EscapeDataString("https://boese.example/x") + "&state=abc")).StatusCode);
+        // angemeldet: Einmal-Code
+        r = await c.GetAsync($"/sso/mobil?ruecksprung={Uri.EscapeDataString(ruecksprung)}&state=abc");
+        Assert.Equal(HttpStatusCode.Redirect, r.StatusCode);
+        var ziel = r.Headers.Location!.ToString();
+        Assert.StartsWith(ruecksprung + "?code=", ziel);
+        Assert.EndsWith("&state=abc", ziel);
+        var code = Uri.UnescapeDataString(ziel[(ziel.IndexOf("code=") + 5)..ziel.IndexOf("&state")]);
+        // einlösen (ohne Cookie) liefert eine neue Sitzung, aber nur einmal
+        var mobil = s.Client(cookies: true);
+        await Testserver.JsonAsync(await mobil.PostAsJsonAsync("/api/app/sso/einloesen", new { code, ruecksprung }));
+        Assert.Equal("mue", (await Testserver.HolenAsync(mobil, "/api/app/sitzung"))["benutzer"]!["login"]!.GetValue<string>());
+        Assert.Equal(HttpStatusCode.Unauthorized, (await s.Client().PostAsJsonAsync("/api/app/sso/einloesen", new { code, ruecksprung })).StatusCode);
+    }
+}

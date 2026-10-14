@@ -18,6 +18,11 @@ public sealed class Konfiguration
     /// <summary>Optional: fest vorgegebene Schul-ID und API-Schlüssel (sonst bei der Einrichtung erzeugt).</summary>
     public string? SchulId { get; init; }
     public string? ApiSchluessel { get; init; }
+    /// <summary>
+    /// Optional: öffentliche Adresse(n) von UntPlanMobile (kommagetrennt) für die Einmalanmeldung (SSO).
+    /// Ohne Angabe sind Rücksprünge auf denselben Rechnernamen (anderer Port) erlaubt.
+    /// </summary>
+    public List<string> MobilAdressen { get; init; } = new();
 
     public static Konfiguration Laden(IConfiguration c) => new()
     {
@@ -27,6 +32,7 @@ public sealed class Konfiguration
         AdminPasswort = Leer(c["UNTPLANWEB_ADMIN_PASSWORT"]),
         SchulId = Leer(c["UNTPLANWEB_SCHUL_ID"]),
         ApiSchluessel = Leer(c["UNTPLANWEB_API_SCHLUESSEL"]),
+        MobilAdressen = (c["UNTPLANWEB_MOBILE_URL"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
     };
 
     private static string? Leer(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

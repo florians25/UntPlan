@@ -140,6 +140,7 @@ public class Program
         KlassenbuchApi.Abbilden(app);
         StartseiteApi.Abbilden(app);
         MitteilungenApi.Abbilden(app);
+        SsoApi.Abbilden(app);
         return app;
     }
 

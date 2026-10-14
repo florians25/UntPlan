@@ -90,6 +90,7 @@ UntPlanMobile wertet `X-Forwarded-Proto` und `X-Forwarded-Host` aus und setzt da
 | Variable | Bedeutung | Standard |
 |---|---|---|
 | `UNTPLANWEB_URL` | Adresse von UntPlanWeb aus Sicht des Containers | `http://untplanweb:8080` (Image), `http://localhost:8080` (Entwicklung) |
+| `UNTPLANWEB_PUBLIC_URL` | Adresse von UntPlanWeb aus Sicht des Browsers (für die Einmalanmeldung) | gleicher Rechnername, Port 8080 |
 | `UNTPLANMOBILE_ZEITZONE` | Zeitzone der Schule (heutiger Tag, aktuelle Woche) | `Europe/Berlin` |
 | `ASPNETCORE_HTTP_PORTS` | Port im Container | `8081` |
 
@@ -170,3 +171,16 @@ veröffentlicht das Image `ghcr.io/florians25/untplanmobile`.
 
 > Hinweis: Ein neues GHCR-Paket ist zunächst privat. Damit `docker pull` ohne Anmeldung funktioniert, stellen Sie es einmalig auf öffentlich:
 > GitHub → Packages → untplanmobile → Package settings → Change visibility.
+
+## Einmalanmeldung (SSO) über UntPlanWeb
+
+Beim ersten Aufruf leitet UntPlanMobile automatisch zu UntPlanWeb weiter. Wer dort schon angemeldet ist, landet ohne
+Passworteingabe direkt im eigenen Plan. Sonst erscheint die Anmeldeseite von UntPlanWeb, danach geht es zurück in die App.
+Die Anmeldung mit Benutzername und Passwort in der App bleibt als Alternative erhalten.
+
+- UntPlanWeb gibt nur einen Einmal-Code heraus (2 Minuten gültig), den UntPlanMobile serverseitig einlöst; Passwörter
+  laufen nie über die Mobil-App.
+- Erlaubte Rücksprungadressen: `UNTPLANWEB_MOBILE_URL` bei UntPlanWeb (kommagetrennt, z. B. `https://m.meine-schule.de`).
+  Ohne Angabe ist nur derselbe Rechnername (anderer Port) erlaubt.
+- Liegen beide hinter verschiedenen Adressen (Reverse-Proxy), bei UntPlanMobile `UNTPLANWEB_PUBLIC_URL` und bei UntPlanWeb
+  `UNTPLANWEB_MOBILE_URL` setzen.

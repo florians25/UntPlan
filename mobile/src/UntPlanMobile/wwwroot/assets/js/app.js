@@ -5490,6 +5490,8 @@ $('#btnLogout').addEventListener('click', async () => {
     });
   } catch (e){}
   try { localStorage.clear(); } catch (e){}
+  /* nach dem Abmelden nicht sofort wieder automatisch über UntPlanWeb anmelden */
+  try { sessionStorage.setItem('sso:versucht', '1'); } catch (e){}
   location.reload();
 });
 
@@ -5587,9 +5589,17 @@ document.addEventListener('visibilitychange', () => {
    ===================================================================== */
 (async function init(){
   if (window.TT_BOOT && window.TT_BOOT.needLogin){
-    showLogin();
+    /* Einmalanmeldung: einmal je Sitzung automatisch über UntPlanWeb anmelden – wer dort angemeldet ist,
+       kommt ohne Passwort direkt in den Plan. Schlägt das fehl, bleibt die normale Anmeldung. */
+    const fehler = new URLSearchParams(location.search).get('sso') === 'fehler';
+    let versucht = false;
+    try { versucht = sessionStorage.getItem('sso:versucht') === '1'; sessionStorage.setItem('sso:versucht', '1'); } catch (e) { versucht = true; }
+    if (!fehler && !versucht){ location.replace('sso/start'); return; }
+    if (fehler) history.replaceState(null, '', location.pathname);
+    showLogin(fehler ? 'Die Anmeldung über UntPlanWeb hat nicht geklappt. Bitte erneut versuchen oder mit Passwort anmelden.' : '');
     return;
   }
+  try { sessionStorage.removeItem('sso:versucht'); } catch (e) { /* privat */ }
   applyCardTimes();
   syncLabel();
   const mineLbl = $('#pickerMineLabel');
