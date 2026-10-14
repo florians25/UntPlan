@@ -182,8 +182,25 @@ public static class UntPlanWebExport
     {
         using var c = Client(p);
         using var r = await c.PutAsJsonAsync(UntPlanWebSchema.Pfade.Paket(p.SchulId), paket, UntPlanWebSchema.Json, ct);
+        if (r.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            // Server kennt bereits eine neuere Revision (z. B. andere Arbeitsstation, manueller Upload): einmal mit der nächsten Revision senden
+            var stand = await LesenOderNull(r, ct);
+            if (stand != null && stand.Revision >= paket.Revision)
+            {
+                using var r2 = await c.PutAsJsonAsync(UntPlanWebSchema.Pfade.Paket(p.SchulId), paket with { Revision = stand.Revision + 1 }, UntPlanWebSchema.Json, ct);
+                if (!r2.IsSuccessStatusCode) throw new InvalidOperationException($"UntPlanWeb antwortet mit HTTP {(int)r2.StatusCode}");
+                return (await r2.Content.ReadFromJsonAsync<WebAntwort>(UntPlanWebSchema.Json, ct))!;
+            }
+        }
         if (!r.IsSuccessStatusCode) throw new InvalidOperationException($"UntPlanWeb antwortet mit HTTP {(int)r.StatusCode}");
         return (await r.Content.ReadFromJsonAsync<WebAntwort>(UntPlanWebSchema.Json, ct))!;
+    }
+
+    private static async Task<WebAntwort?> LesenOderNull(HttpResponseMessage r, CancellationToken ct)
+    {
+        try { return await r.Content.ReadFromJsonAsync<WebAntwort>(UntPlanWebSchema.Json, ct); }
+        catch (Exception) { return null; }
     }
 
     /// <summary>Verbindung und Berechtigung prüfen (Abruf der Rückmeldungen ohne Übernahme).</summary>

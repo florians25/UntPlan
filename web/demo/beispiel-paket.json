@@ -1,0 +1,8357 @@
+{
+  "schema": "untplanweb/1",
+  "erzeugt": "2026-10-14T06:36:26.1383577+00:00",
+  "revision": 1,
+  "programmversion": "1.0.0.0",
+  "schule": {
+    "name": "St\u00E4dtisches Beispiel-Gymnasium",
+    "schulnummer": "199999",
+    "schulform": "Gymnasium",
+    "bundesland": "NRW",
+    "schuljahrVon": "2026-09-02",
+    "schuljahrBis": "2027-07-16",
+    "wochenperiodizitaet": 1
+  },
+  "zeitraster": {
+    "tageProWoche": 5,
+    "stunden": [
+      {
+        "nr": 1,
+        "bezeichnung": "",
+        "beginn": "07:55",
+        "ende": "08:40"
+      },
+      {
+        "nr": 2,
+        "bezeichnung": "",
+        "beginn": "08:45",
+        "ende": "09:30"
+      },
+      {
+        "nr": 3,
+        "bezeichnung": "",
+        "beginn": "09:50",
+        "ende": "10:35"
+      },
+      {
+        "nr": 4,
+        "bezeichnung": "",
+        "beginn": "10:40",
+        "ende": "11:25"
+      },
+      {
+        "nr": 5,
+        "bezeichnung": "",
+        "beginn": "11:45",
+        "ende": "12:30"
+      },
+      {
+        "nr": 6,
+        "bezeichnung": "",
+        "beginn": "12:35",
+        "ende": "13:20"
+      },
+      {
+        "nr": 7,
+        "bezeichnung": "",
+        "beginn": "13:25",
+        "ende": "14:10"
+      },
+      {
+        "nr": 8,
+        "bezeichnung": "",
+        "beginn": "14:15",
+        "ende": "15:00"
+      },
+      {
+        "nr": 9,
+        "bezeichnung": "",
+        "beginn": "15:05",
+        "ende": "15:50"
+      },
+      {
+        "nr": 10,
+        "bezeichnung": "",
+        "beginn": "15:55",
+        "ende": "16:40"
+      }
+    ],
+    "pausen": [
+      {
+        "nachStunde": 2,
+        "bezeichnung": "1. gro\u00DFe Pause",
+        "minuten": 20
+      },
+      {
+        "nachStunde": 4,
+        "bezeichnung": "2. gro\u00DFe Pause",
+        "minuten": 20
+      },
+      {
+        "nachStunde": 6,
+        "bezeichnung": "Mittagspause",
+        "minuten": 5
+      }
+    ]
+  },
+  "perioden": [
+    {
+      "id": 52,
+      "name": "Periode 1",
+      "von": "2026-09-02",
+      "bis": "2027-07-16",
+      "unterricht": [
+        {
+          "id": 105,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "FIS",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 106,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "WEB",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 107,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "E",
+              "lehrer": "SNE",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 108,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BI",
+              "lehrer": "MEY",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 109,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "EK",
+              "lehrer": "SUL",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 110,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "GE",
+              "lehrer": "KLE",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 111,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "PK",
+              "lehrer": "SRO",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 112,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "KU",
+              "lehrer": "HOF",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 113,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "MU",
+              "lehrer": "KOC",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 114,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "SP",
+              "lehrer": "RIC",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 115,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "KL",
+              "lehrer": "WOL",
+              "klassen": [
+                "5a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 116,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "SWA",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 117,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "NEU",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 118,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "E",
+              "lehrer": "HAR",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 119,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BI",
+              "lehrer": "MEY",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 120,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "EK",
+              "lehrer": "BRA",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 121,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "GE",
+              "lehrer": "ZIM",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 122,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "PK",
+              "lehrer": "KLE",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 123,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "KU",
+              "lehrer": "HOF",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 124,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "MU",
+              "lehrer": "LAN",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 125,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "SP",
+              "lehrer": "BRA",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 126,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "KL",
+              "lehrer": "KRU",
+              "klassen": [
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 127,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "BEC",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 128,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "SCH",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 129,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "E",
+              "lehrer": "WAG",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 130,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "F",
+              "lehrer": "SWA",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 131,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BI",
+              "lehrer": "RIC",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 132,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "PH",
+              "lehrer": "KRU",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 133,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "GE",
+              "lehrer": "MUE",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 134,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "KU",
+              "lehrer": "HOF",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 135,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "MU",
+              "lehrer": "KOC",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 136,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "SP",
+              "lehrer": "SNE",
+              "klassen": [
+                "6a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 137,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "SRO",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 138,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "SUL",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 139,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "E",
+              "lehrer": "WOL",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 140,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "F",
+              "lehrer": "WAG",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 141,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BI",
+              "lehrer": "WEB",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 142,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "PH",
+              "lehrer": "KRU",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 143,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "GE",
+              "lehrer": "ZIM",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 144,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "KU",
+              "lehrer": "HOF",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 145,
+          "wochenstunden": 1,
+          "zeilen": [
+            {
+              "fach": "MU",
+              "lehrer": "LAN",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 146,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "SP",
+              "lehrer": "RIC",
+              "klassen": [
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 147,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "LAN",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 148,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "KOC",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 149,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "E",
+              "lehrer": "FIS",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 150,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "F",
+              "lehrer": "SWA",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 151,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BI",
+              "lehrer": "MEY",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 152,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "PH",
+              "lehrer": "KRU",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 153,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "CH",
+              "lehrer": "NEU",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 154,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "EK",
+              "lehrer": "BRA",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 155,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "GE",
+              "lehrer": "KLE",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 156,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "SP",
+              "lehrer": "SNE",
+              "klassen": [
+                "7a"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 157,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "MUE",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 158,
+          "wochenstunden": 4,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "SCH",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 159,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "E",
+              "lehrer": "HAR",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 160,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "F",
+              "lehrer": "WAG",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 161,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BI",
+              "lehrer": "WEB",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 162,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "PH",
+              "lehrer": "KRU",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 163,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "CH",
+              "lehrer": "MEY",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 164,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "EK",
+              "lehrer": "SUL",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 165,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "GE",
+              "lehrer": "ZIM",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 166,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "SP",
+              "lehrer": "BRA",
+              "klassen": [
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": ""
+        },
+        {
+          "id": 167,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "KR",
+              "lehrer": "BEC",
+              "klassen": [
+                "5a",
+                "5b"
+              ],
+              "gruppe": ""
+            },
+            {
+              "fach": "ER",
+              "lehrer": "ZIM",
+              "klassen": [
+                "5a",
+                "5b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Religion gekoppelt"
+        },
+        {
+          "id": 168,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "KR",
+              "lehrer": "BEC",
+              "klassen": [
+                "6a",
+                "6b"
+              ],
+              "gruppe": ""
+            },
+            {
+              "fach": "ER",
+              "lehrer": "ZIM",
+              "klassen": [
+                "6a",
+                "6b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Religion gekoppelt"
+        },
+        {
+          "id": 169,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "KR",
+              "lehrer": "HAR",
+              "klassen": [
+                "7a",
+                "7b"
+              ],
+              "gruppe": ""
+            },
+            {
+              "fach": "ER",
+              "lehrer": "ZIM",
+              "klassen": [
+                "7a",
+                "7b"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Religion gekoppelt"
+        },
+        {
+          "id": 170,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "FIS",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "D-GK1",
+          "text": ""
+        },
+        {
+          "id": 171,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "SUL",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "M-GK1",
+          "text": ""
+        },
+        {
+          "id": 172,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "E",
+              "lehrer": "WOL",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "E-GK1",
+          "text": ""
+        },
+        {
+          "id": 173,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "BI",
+              "lehrer": "MEY",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "BI-GK1",
+          "text": ""
+        },
+        {
+          "id": 174,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "PH",
+              "lehrer": "KRU",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "PH-GK1",
+          "text": ""
+        },
+        {
+          "id": 175,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "GE",
+              "lehrer": "KLE",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "GE-GK1",
+          "text": ""
+        },
+        {
+          "id": 176,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "SP",
+              "lehrer": "BRA",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "SP-GK1",
+          "text": ""
+        },
+        {
+          "id": 177,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "IF",
+              "lehrer": "KRU",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "IF-GK1",
+          "text": ""
+        },
+        {
+          "id": 178,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "F",
+              "lehrer": "SWA",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "F-GK1",
+          "text": ""
+        },
+        {
+          "id": 179,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "D",
+              "lehrer": "SRO",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "D-GK2",
+          "text": ""
+        },
+        {
+          "id": 180,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "M",
+              "lehrer": "NEU",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "M-GK2",
+          "text": ""
+        },
+        {
+          "id": 181,
+          "wochenstunden": 3,
+          "zeilen": [
+            {
+              "fach": "KU",
+              "lehrer": "HOF",
+              "klassen": [
+                "EF"
+              ],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "KU-GK1",
+          "text": ""
+        },
+        {
+          "id": 182,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BER",
+              "lehrer": "RIC",
+              "klassen": [],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Bereitschaft"
+        },
+        {
+          "id": 183,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BER",
+              "lehrer": "SNE",
+              "klassen": [],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Bereitschaft"
+        },
+        {
+          "id": 184,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BER",
+              "lehrer": "NEU",
+              "klassen": [],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Bereitschaft"
+        },
+        {
+          "id": 185,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BER",
+              "lehrer": "HAR",
+              "klassen": [],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Bereitschaft"
+        },
+        {
+          "id": 186,
+          "wochenstunden": 2,
+          "zeilen": [
+            {
+              "fach": "BER",
+              "lehrer": "LAN",
+              "klassen": [],
+              "gruppe": ""
+            }
+          ],
+          "wochen": "",
+          "kurs": "",
+          "text": "Bereitschaft"
+        }
+      ],
+      "stundenplan": [
+        {
+          "unterricht": 176,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 176,
+          "tag": 1,
+          "stunde": 3,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 181,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 181,
+          "tag": 1,
+          "stunde": 3,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 175,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 175,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 177,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "EDV1"
+          ]
+        },
+        {
+          "unterricht": 177,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "EDV1"
+          ]
+        },
+        {
+          "unterricht": 125,
+          "tag": 0,
+          "stunde": 3,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 125,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 136,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 136,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 166,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 166,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 146,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "TH2"
+          ]
+        },
+        {
+          "unterricht": 146,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "TH2"
+          ]
+        },
+        {
+          "unterricht": 156,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "TH2"
+          ]
+        },
+        {
+          "unterricht": 156,
+          "tag": 0,
+          "stunde": 5,
+          "raeume": [
+            "TH2"
+          ]
+        },
+        {
+          "unterricht": 114,
+          "tag": 0,
+          "stunde": 1,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 114,
+          "tag": 0,
+          "stunde": 2,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 176,
+          "tag": 0,
+          "stunde": 5,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 181,
+          "tag": 0,
+          "stunde": 5,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 175,
+          "tag": 3,
+          "stunde": 6,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 177,
+          "tag": 3,
+          "stunde": 6,
+          "raeume": [
+            "EDV1"
+          ]
+        },
+        {
+          "unterricht": 166,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 136,
+          "tag": 0,
+          "stunde": 3,
+          "raeume": [
+            "TH2"
+          ]
+        },
+        {
+          "unterricht": 114,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 156,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "TH2"
+          ]
+        },
+        {
+          "unterricht": 125,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 146,
+          "tag": 0,
+          "stunde": 6,
+          "raeume": [
+            "TH1"
+          ]
+        },
+        {
+          "unterricht": 173,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 173,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 174,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 174,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 123,
+          "tag": 0,
+          "stunde": 1,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 123,
+          "tag": 0,
+          "stunde": 2,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 112,
+          "tag": 0,
+          "stunde": 3,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 112,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 144,
+          "tag": 4,
+          "stunde": 1,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 144,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 134,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 134,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "KU1"
+          ]
+        },
+        {
+          "unterricht": 173,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 174,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 132,
+          "tag": 4,
+          "stunde": 1,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 162,
+          "tag": 3,
+          "stunde": 2,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 124,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "MU1"
+          ]
+        },
+        {
+          "unterricht": 145,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": [
+            "MU1"
+          ]
+        },
+        {
+          "unterricht": 162,
+          "tag": 1,
+          "stunde": 4,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 132,
+          "tag": 0,
+          "stunde": 1,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 153,
+          "tag": 2,
+          "stunde": 3,
+          "raeume": [
+            "CH1"
+          ]
+        },
+        {
+          "unterricht": 113,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "MU1"
+          ]
+        },
+        {
+          "unterricht": 152,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 163,
+          "tag": 3,
+          "stunde": 1,
+          "raeume": [
+            "CH1"
+          ]
+        },
+        {
+          "unterricht": 142,
+          "tag": 0,
+          "stunde": 2,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 152,
+          "tag": 1,
+          "stunde": 6,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 113,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "MU1"
+          ]
+        },
+        {
+          "unterricht": 163,
+          "tag": 2,
+          "stunde": 1,
+          "raeume": [
+            "CH1"
+          ]
+        },
+        {
+          "unterricht": 124,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "MU1"
+          ]
+        },
+        {
+          "unterricht": 142,
+          "tag": 2,
+          "stunde": 7,
+          "raeume": [
+            "PH1"
+          ]
+        },
+        {
+          "unterricht": 135,
+          "tag": 3,
+          "stunde": 6,
+          "raeume": [
+            "MU1"
+          ]
+        },
+        {
+          "unterricht": 153,
+          "tag": 0,
+          "stunde": 8,
+          "raeume": [
+            "CH1"
+          ]
+        },
+        {
+          "unterricht": 171,
+          "tag": 1,
+          "stunde": 4,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 171,
+          "tag": 1,
+          "stunde": 5,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 179,
+          "tag": 1,
+          "stunde": 4,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 179,
+          "tag": 1,
+          "stunde": 5,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 172,
+          "tag": 0,
+          "stunde": 3,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 172,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 178,
+          "tag": 0,
+          "stunde": 3,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 178,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 170,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 170,
+          "tag": 2,
+          "stunde": 6,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 180,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 180,
+          "tag": 2,
+          "stunde": 6,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 170,
+          "tag": 0,
+          "stunde": 7,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 180,
+          "tag": 0,
+          "stunde": 7,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 169,
+          "tag": 0,
+          "stunde": 3,
+          "raeume": [
+            "R105",
+            "R108"
+          ]
+        },
+        {
+          "unterricht": 167,
+          "tag": 0,
+          "stunde": 5,
+          "raeume": [
+            "R101",
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 169,
+          "tag": 0,
+          "stunde": 2,
+          "raeume": [
+            "R105",
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 171,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 179,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 172,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 178,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 167,
+          "tag": 1,
+          "stunde": 3,
+          "raeume": [
+            "R101",
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 168,
+          "tag": 1,
+          "stunde": 4,
+          "raeume": [
+            "R103",
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 168,
+          "tag": 1,
+          "stunde": 5,
+          "raeume": [
+            "R103",
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 130,
+          "tag": 1,
+          "stunde": 1,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 108,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 139,
+          "tag": 2,
+          "stunde": 2,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 140,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 138,
+          "tag": 1,
+          "stunde": 1,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 139,
+          "tag": 2,
+          "stunde": 1,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 158,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "R108"
+          ]
+        },
+        {
+          "unterricht": 147,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 105,
+          "tag": 1,
+          "stunde": 1,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 150,
+          "tag": 2,
+          "stunde": 2,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 115,
+          "tag": 1,
+          "stunde": 4,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 149,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 116,
+          "tag": 2,
+          "stunde": 1,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 157,
+          "tag": 0,
+          "stunde": 1,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 106,
+          "tag": 3,
+          "stunde": 3,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 127,
+          "tag": 3,
+          "stunde": 3,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 157,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "R108"
+          ]
+        },
+        {
+          "unterricht": 117,
+          "tag": 3,
+          "stunde": 1,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 149,
+          "tag": 4,
+          "stunde": 1,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 148,
+          "tag": 2,
+          "stunde": 6,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 117,
+          "tag": 3,
+          "stunde": 2,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 164,
+          "tag": 2,
+          "stunde": 2,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 121,
+          "tag": 2,
+          "stunde": 3,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 154,
+          "tag": 1,
+          "stunde": 5,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 120,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 106,
+          "tag": 1,
+          "stunde": 5,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 165,
+          "tag": 3,
+          "stunde": 3,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 139,
+          "tag": 3,
+          "stunde": 3,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 131,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 160,
+          "tag": 1,
+          "stunde": 1,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 158,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 138,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 141,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 127,
+          "tag": 3,
+          "stunde": 2,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 129,
+          "tag": 2,
+          "stunde": 1,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 105,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 138,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 154,
+          "tag": 2,
+          "stunde": 1,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 157,
+          "tag": 1,
+          "stunde": 5,
+          "raeume": [
+            "R108"
+          ]
+        },
+        {
+          "unterricht": 130,
+          "tag": 3,
+          "stunde": 1,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 127,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 131,
+          "tag": 0,
+          "stunde": 5,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 116,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 148,
+          "tag": 1,
+          "stunde": 4,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 151,
+          "tag": 1,
+          "stunde": 1,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 147,
+          "tag": 0,
+          "stunde": 1,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 128,
+          "tag": 0,
+          "stunde": 6,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 119,
+          "tag": 1,
+          "stunde": 4,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 117,
+          "tag": 1,
+          "stunde": 1,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 148,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 107,
+          "tag": 2,
+          "stunde": 1,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 160,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 165,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "R108"
+          ]
+        },
+        {
+          "unterricht": 127,
+          "tag": 0,
+          "stunde": 2,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 133,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 117,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 109,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 159,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "R107"
+          ]
+        },
+        {
+          "unterricht": 157,
+          "tag": 4,
+          "stunde": 1,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 140,
+          "tag": 0,
+          "stunde": 3,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 116,
+          "tag": 3,
+          "stunde": 3,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 109,
+          "tag": 2,
+          "stunde": 3,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 161,
+          "tag": 0,
+          "stunde": 5,
+          "raeume": []
+        },
+        {
+          "unterricht": 118,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 107,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 111,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 151,
+          "tag": 4,
+          "stunde": 4,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 118,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 106,
+          "tag": 4,
+          "stunde": 1,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 108,
+          "tag": 3,
+          "stunde": 2,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 137,
+          "tag": 4,
+          "stunde": 6,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 119,
+          "tag": 2,
+          "stunde": 2,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 118,
+          "tag": 4,
+          "stunde": 2,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 116,
+          "tag": 4,
+          "stunde": 1,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 137,
+          "tag": 0,
+          "stunde": 5,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 129,
+          "tag": 0,
+          "stunde": 4,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 159,
+          "tag": 1,
+          "stunde": 6,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 110,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 164,
+          "tag": 1,
+          "stunde": 3,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 150,
+          "tag": 3,
+          "stunde": 2,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 155,
+          "tag": 3,
+          "stunde": 1,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 150,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 155,
+          "tag": 0,
+          "stunde": 6,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 118,
+          "tag": 1,
+          "stunde": 5,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 129,
+          "tag": 2,
+          "stunde": 2,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 160,
+          "tag": 2,
+          "stunde": 3,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 147,
+          "tag": 4,
+          "stunde": 3,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 128,
+          "tag": 2,
+          "stunde": 5,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 137,
+          "tag": 3,
+          "stunde": 1,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 128,
+          "tag": 2,
+          "stunde": 3,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 140,
+          "tag": 0,
+          "stunde": 1,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 143,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 137,
+          "tag": 3,
+          "stunde": 2,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 138,
+          "tag": 4,
+          "stunde": 5,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 107,
+          "tag": 3,
+          "stunde": 1,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 147,
+          "tag": 3,
+          "stunde": 5,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 129,
+          "tag": 1,
+          "stunde": 3,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 161,
+          "tag": 2,
+          "stunde": 4,
+          "raeume": []
+        },
+        {
+          "unterricht": 158,
+          "tag": 2,
+          "stunde": 6,
+          "raeume": [
+            "R108"
+          ]
+        },
+        {
+          "unterricht": 158,
+          "tag": 4,
+          "stunde": 6,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 141,
+          "tag": 2,
+          "stunde": 3,
+          "raeume": [
+            "BI1"
+          ]
+        },
+        {
+          "unterricht": 106,
+          "tag": 2,
+          "stunde": 2,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 149,
+          "tag": 3,
+          "stunde": 3,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 126,
+          "tag": 1,
+          "stunde": 7,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 139,
+          "tag": 1,
+          "stunde": 3,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 122,
+          "tag": 4,
+          "stunde": 6,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 133,
+          "tag": 1,
+          "stunde": 6,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 130,
+          "tag": 4,
+          "stunde": 6,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 128,
+          "tag": 3,
+          "stunde": 4,
+          "raeume": [
+            "R103"
+          ]
+        },
+        {
+          "unterricht": 105,
+          "tag": 3,
+          "stunde": 6,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 107,
+          "tag": 0,
+          "stunde": 6,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 120,
+          "tag": 3,
+          "stunde": 6,
+          "raeume": [
+            "R102"
+          ]
+        },
+        {
+          "unterricht": 143,
+          "tag": 1,
+          "stunde": 6,
+          "raeume": [
+            "R104"
+          ]
+        },
+        {
+          "unterricht": 105,
+          "tag": 2,
+          "stunde": 7,
+          "raeume": [
+            "R101"
+          ]
+        },
+        {
+          "unterricht": 159,
+          "tag": 0,
+          "stunde": 6,
+          "raeume": [
+            "R106"
+          ]
+        },
+        {
+          "unterricht": 148,
+          "tag": 1,
+          "stunde": 3,
+          "raeume": [
+            "R105"
+          ]
+        },
+        {
+          "unterricht": 186,
+          "tag": 0,
+          "stunde": 2,
+          "raeume": []
+        },
+        {
+          "unterricht": 183,
+          "tag": 2,
+          "stunde": 3,
+          "raeume": []
+        },
+        {
+          "unterricht": 183,
+          "tag": 3,
+          "stunde": 3,
+          "raeume": []
+        },
+        {
+          "unterricht": 185,
+          "tag": 3,
+          "stunde": 6,
+          "raeume": []
+        },
+        {
+          "unterricht": 182,
+          "tag": 0,
+          "stunde": 8,
+          "raeume": []
+        },
+        {
+          "unterricht": 184,
+          "tag": 4,
+          "stunde": 6,
+          "raeume": []
+        },
+        {
+          "unterricht": 184,
+          "tag": 1,
+          "stunde": 2,
+          "raeume": []
+        },
+        {
+          "unterricht": 186,
+          "tag": 2,
+          "stunde": 2,
+          "raeume": []
+        },
+        {
+          "unterricht": 182,
+          "tag": 4,
+          "stunde": 6,
+          "raeume": []
+        },
+        {
+          "unterricht": 185,
+          "tag": 4,
+          "stunde": 1,
+          "raeume": []
+        }
+      ]
+    }
+  ],
+  "elemente": {
+    "klassen": [
+      {
+        "jahrgang": "5",
+        "klassenleitung": [
+          "FIS"
+        ],
+        "stammraum": "R101",
+        "id": 76,
+        "kurz": "5a",
+        "name": "Klasse 5a",
+        "farbe": ""
+      },
+      {
+        "jahrgang": "5",
+        "klassenleitung": [
+          "SWA"
+        ],
+        "stammraum": "R102",
+        "id": 77,
+        "kurz": "5b",
+        "name": "Klasse 5b",
+        "farbe": ""
+      },
+      {
+        "jahrgang": "6",
+        "klassenleitung": [
+          "BEC"
+        ],
+        "stammraum": "R103",
+        "id": 78,
+        "kurz": "6a",
+        "name": "Klasse 6a",
+        "farbe": ""
+      },
+      {
+        "jahrgang": "6",
+        "klassenleitung": [
+          "SRO"
+        ],
+        "stammraum": "R104",
+        "id": 79,
+        "kurz": "6b",
+        "name": "Klasse 6b",
+        "farbe": ""
+      },
+      {
+        "jahrgang": "7",
+        "klassenleitung": [
+          "LAN"
+        ],
+        "stammraum": "R105",
+        "id": 80,
+        "kurz": "7a",
+        "name": "Klasse 7a",
+        "farbe": ""
+      },
+      {
+        "jahrgang": "7",
+        "klassenleitung": [
+          "MUE"
+        ],
+        "stammraum": "R106",
+        "id": 81,
+        "kurz": "7b",
+        "name": "Klasse 7b",
+        "farbe": ""
+      },
+      {
+        "jahrgang": "EF",
+        "klassenleitung": [],
+        "stammraum": "",
+        "id": 82,
+        "kurz": "EF",
+        "name": "Einf\u00FChrungsphase",
+        "farbe": ""
+      }
+    ],
+    "lehrer": [
+      {
+        "vorname": "Anna",
+        "faecher": [
+          "D",
+          "GE"
+        ],
+        "id": 83,
+        "kurz": "MUE",
+        "name": "M\u00FCller",
+        "farbe": ""
+      },
+      {
+        "vorname": "Thomas",
+        "faecher": [
+          "M",
+          "PH"
+        ],
+        "id": 84,
+        "kurz": "SCH",
+        "name": "Schmidt",
+        "farbe": ""
+      },
+      {
+        "vorname": "Julia",
+        "faecher": [
+          "E",
+          "SP"
+        ],
+        "id": 85,
+        "kurz": "SNE",
+        "name": "Schneider",
+        "farbe": ""
+      },
+      {
+        "vorname": "Michael",
+        "faecher": [
+          "D",
+          "E"
+        ],
+        "id": 86,
+        "kurz": "FIS",
+        "name": "Fischer",
+        "farbe": ""
+      },
+      {
+        "vorname": "Sabine",
+        "faecher": [
+          "M",
+          "BI"
+        ],
+        "id": 87,
+        "kurz": "WEB",
+        "name": "Weber",
+        "farbe": ""
+      },
+      {
+        "vorname": "Andreas",
+        "faecher": [
+          "BI",
+          "CH"
+        ],
+        "id": 88,
+        "kurz": "MEY",
+        "name": "Meyer",
+        "farbe": ""
+      },
+      {
+        "vorname": "Katrin",
+        "faecher": [
+          "F",
+          "E"
+        ],
+        "id": 89,
+        "kurz": "WAG",
+        "name": "Wagner",
+        "farbe": ""
+      },
+      {
+        "vorname": "Stefan",
+        "faecher": [
+          "D",
+          "KR"
+        ],
+        "id": 90,
+        "kurz": "BEC",
+        "name": "Becker",
+        "farbe": ""
+      },
+      {
+        "vorname": "Nina",
+        "faecher": [
+          "M",
+          "EK"
+        ],
+        "id": 91,
+        "kurz": "SUL",
+        "name": "Schulz",
+        "farbe": ""
+      },
+      {
+        "vorname": "Markus",
+        "faecher": [
+          "KU",
+          "D"
+        ],
+        "id": 92,
+        "kurz": "HOF",
+        "name": "Hoffmann",
+        "farbe": ""
+      },
+      {
+        "vorname": "Laura",
+        "faecher": [
+          "MU",
+          "M"
+        ],
+        "id": 93,
+        "kurz": "KOC",
+        "name": "Koch",
+        "farbe": ""
+      },
+      {
+        "vorname": "Jan",
+        "faecher": [
+          "SP",
+          "BI"
+        ],
+        "id": 94,
+        "kurz": "RIC",
+        "name": "Richter",
+        "farbe": ""
+      },
+      {
+        "vorname": "Claudia",
+        "faecher": [
+          "GE",
+          "PK"
+        ],
+        "id": 95,
+        "kurz": "KLE",
+        "name": "Klein",
+        "farbe": ""
+      },
+      {
+        "vorname": "Tobias",
+        "faecher": [
+          "E",
+          "GE"
+        ],
+        "id": 96,
+        "kurz": "WOL",
+        "name": "Wolf",
+        "farbe": ""
+      },
+      {
+        "vorname": "Sarah",
+        "faecher": [
+          "D",
+          "PK"
+        ],
+        "id": 97,
+        "kurz": "SRO",
+        "name": "Schr\u00F6der",
+        "farbe": ""
+      },
+      {
+        "vorname": "Frank",
+        "faecher": [
+          "M",
+          "CH"
+        ],
+        "id": 98,
+        "kurz": "NEU",
+        "name": "Neumann",
+        "farbe": ""
+      },
+      {
+        "vorname": "Lena",
+        "faecher": [
+          "F",
+          "D"
+        ],
+        "id": 99,
+        "kurz": "SWA",
+        "name": "Schwarz",
+        "farbe": ""
+      },
+      {
+        "vorname": "Daniel",
+        "faecher": [
+          "SP",
+          "EK"
+        ],
+        "id": 100,
+        "kurz": "BRA",
+        "name": "Braun",
+        "farbe": ""
+      },
+      {
+        "vorname": "Petra",
+        "faecher": [
+          "ER",
+          "GE"
+        ],
+        "id": 101,
+        "kurz": "ZIM",
+        "name": "Zimmermann",
+        "farbe": ""
+      },
+      {
+        "vorname": "Christian",
+        "faecher": [
+          "PH",
+          "IF"
+        ],
+        "id": 102,
+        "kurz": "KRU",
+        "name": "Kr\u00FCger",
+        "farbe": ""
+      },
+      {
+        "vorname": "Miriam",
+        "faecher": [
+          "E",
+          "KR"
+        ],
+        "id": 103,
+        "kurz": "HAR",
+        "name": "Hartmann",
+        "farbe": ""
+      },
+      {
+        "vorname": "J\u00F6rg",
+        "faecher": [
+          "D",
+          "MU"
+        ],
+        "id": 104,
+        "kurz": "LAN",
+        "name": "Lange",
+        "farbe": ""
+      }
+    ],
+    "raeume": [
+      {
+        "id": 56,
+        "kurz": "R101",
+        "name": "Klassenraum 101",
+        "farbe": ""
+      },
+      {
+        "id": 57,
+        "kurz": "R102",
+        "name": "Klassenraum 102",
+        "farbe": ""
+      },
+      {
+        "id": 58,
+        "kurz": "R103",
+        "name": "Klassenraum 103",
+        "farbe": ""
+      },
+      {
+        "id": 59,
+        "kurz": "R104",
+        "name": "Klassenraum 104",
+        "farbe": ""
+      },
+      {
+        "id": 60,
+        "kurz": "R105",
+        "name": "Klassenraum 105",
+        "farbe": ""
+      },
+      {
+        "id": 61,
+        "kurz": "R106",
+        "name": "Klassenraum 106",
+        "farbe": ""
+      },
+      {
+        "id": 62,
+        "kurz": "R107",
+        "name": "Klassenraum 107",
+        "farbe": ""
+      },
+      {
+        "id": 63,
+        "kurz": "R108",
+        "name": "Klassenraum 108",
+        "farbe": ""
+      },
+      {
+        "id": 64,
+        "kurz": "R109",
+        "name": "Klassenraum 109",
+        "farbe": ""
+      },
+      {
+        "id": 65,
+        "kurz": "TH1",
+        "name": "Turnhalle 1",
+        "farbe": ""
+      },
+      {
+        "id": 66,
+        "kurz": "TH2",
+        "name": "Turnhalle 2",
+        "farbe": ""
+      },
+      {
+        "id": 67,
+        "kurz": "PH1",
+        "name": "Physiksaal",
+        "farbe": ""
+      },
+      {
+        "id": 68,
+        "kurz": "CH1",
+        "name": "Chemiesaal",
+        "farbe": ""
+      },
+      {
+        "id": 69,
+        "kurz": "BI1",
+        "name": "Biologieraum",
+        "farbe": ""
+      },
+      {
+        "id": 70,
+        "kurz": "KU1",
+        "name": "Kunstraum",
+        "farbe": ""
+      },
+      {
+        "id": 71,
+        "kurz": "MU1",
+        "name": "Musikraum",
+        "farbe": ""
+      },
+      {
+        "id": 72,
+        "kurz": "EDV1",
+        "name": "Computerraum 1",
+        "farbe": ""
+      },
+      {
+        "id": 73,
+        "kurz": "EDV2",
+        "name": "Computerraum 2",
+        "farbe": ""
+      }
+    ],
+    "faecher": [
+      {
+        "id": 18,
+        "kurz": "D",
+        "name": "Deutsch",
+        "farbe": "#F28B82"
+      },
+      {
+        "id": 19,
+        "kurz": "M",
+        "name": "Mathematik",
+        "farbe": "#7BAAF7"
+      },
+      {
+        "id": 20,
+        "kurz": "E",
+        "name": "Englisch",
+        "farbe": "#81C995"
+      },
+      {
+        "id": 21,
+        "kurz": "F",
+        "name": "Franz\u00F6sisch",
+        "farbe": "#4DB6AC"
+      },
+      {
+        "id": 22,
+        "kurz": "L",
+        "name": "Latein",
+        "farbe": "#BCAAA4"
+      },
+      {
+        "id": 23,
+        "kurz": "S",
+        "name": "Spanisch",
+        "farbe": "#FFB74D"
+      },
+      {
+        "id": 24,
+        "kurz": "BI",
+        "name": "Biologie",
+        "farbe": "#AED581"
+      },
+      {
+        "id": 25,
+        "kurz": "CH",
+        "name": "Chemie",
+        "farbe": "#CE93D8"
+      },
+      {
+        "id": 26,
+        "kurz": "PH",
+        "name": "Physik",
+        "farbe": "#9FA8DA"
+      },
+      {
+        "id": 27,
+        "kurz": "IF",
+        "name": "Informatik",
+        "farbe": "#4FC3F7"
+      },
+      {
+        "id": 28,
+        "kurz": "EK",
+        "name": "Erdkunde",
+        "farbe": "#DCE775"
+      },
+      {
+        "id": 29,
+        "kurz": "GE",
+        "name": "Geschichte",
+        "farbe": "#D7CCC8"
+      },
+      {
+        "id": 30,
+        "kurz": "PK",
+        "name": "Politik",
+        "farbe": "#FFD54F"
+      },
+      {
+        "id": 31,
+        "kurz": "WI",
+        "name": "Wirtschaft-Politik",
+        "farbe": "#FFCA28"
+      },
+      {
+        "id": 32,
+        "kurz": "SW",
+        "name": "Sozialwissenschaften",
+        "farbe": "#FFE082"
+      },
+      {
+        "id": 33,
+        "kurz": "PL",
+        "name": "Philosophie",
+        "farbe": "#B0BEC5"
+      },
+      {
+        "id": 34,
+        "kurz": "PPL",
+        "name": "Praktische Philosophie",
+        "farbe": "#CFD8DC"
+      },
+      {
+        "id": 35,
+        "kurz": "KR",
+        "name": "Kath. Religionslehre",
+        "farbe": "#E1BEE7"
+      },
+      {
+        "id": 36,
+        "kurz": "ER",
+        "name": "Ev. Religionslehre",
+        "farbe": "#D1C4E9"
+      },
+      {
+        "id": 37,
+        "kurz": "KU",
+        "name": "Kunst",
+        "farbe": "#F48FB1"
+      },
+      {
+        "id": 38,
+        "kurz": "MU",
+        "name": "Musik",
+        "farbe": "#F06292"
+      },
+      {
+        "id": 39,
+        "kurz": "SP",
+        "name": "Sport",
+        "farbe": "#90A4AE"
+      },
+      {
+        "id": 40,
+        "kurz": "NW",
+        "name": "Naturwissenschaften",
+        "farbe": "#A5D6A7"
+      },
+      {
+        "id": 41,
+        "kurz": "GL",
+        "name": "Gesellschaftslehre",
+        "farbe": "#E6EE9C"
+      },
+      {
+        "id": 42,
+        "kurz": "SU",
+        "name": "Sachunterricht",
+        "farbe": "#C5E1A5"
+      },
+      {
+        "id": 43,
+        "kurz": "KL",
+        "name": "Klassenleitungsstunde",
+        "farbe": "#EEEEEE"
+      },
+      {
+        "id": 44,
+        "kurz": "F\u00D6",
+        "name": "F\u00F6rderunterricht",
+        "farbe": "#E0E0E0"
+      },
+      {
+        "id": 45,
+        "kurz": "BER",
+        "name": "Bereitschaft",
+        "farbe": "#FFF59D"
+      }
+    ],
+    "gaenge": [
+      {
+        "id": 53,
+        "kurz": "Hof",
+        "name": "Schulhof",
+        "farbe": ""
+      },
+      {
+        "id": 54,
+        "kurz": "Halle",
+        "name": "Pausenhalle",
+        "farbe": ""
+      },
+      {
+        "id": 55,
+        "kurz": "1.OG",
+        "name": "Flur 1. Obergeschoss",
+        "farbe": ""
+      }
+    ]
+  },
+  "tage": [
+    {
+      "datum": "2026-10-12",
+      "woche": "A",
+      "unterrichtstag": true,
+      "stunden": [
+        {
+          "stunde": 1,
+          "unterricht": 114,
+          "fach": "SP",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 123,
+          "fach": "KU",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "vertreten",
+          "vertretung": 233,
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 132,
+          "fach": "PH",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 157,
+          "fach": "D",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 147,
+          "fach": "D",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 140,
+          "fach": "F",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 114,
+          "fach": "SP",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 123,
+          "fach": "KU",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "vertreten",
+          "vertretung": 234,
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 142,
+          "fach": "PH",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 169,
+          "fach": "KR",
+          "klassen": [
+            "7a",
+            "7b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 169,
+          "fach": "ER",
+          "klassen": [
+            "7a",
+            "7b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 127,
+          "fach": "D",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 186,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 125,
+          "fach": "SP",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 136,
+          "fach": "SP",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH2"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 112,
+          "fach": "KU",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "vertreten",
+          "vertretung": 235,
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 172,
+          "fach": "E",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 178,
+          "fach": "F",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 169,
+          "fach": "KR",
+          "klassen": [
+            "7a",
+            "7b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 169,
+          "fach": "ER",
+          "klassen": [
+            "7a",
+            "7b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R108"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 140,
+          "fach": "F",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 125,
+          "fach": "SP",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 156,
+          "fach": "SP",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH2"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 112,
+          "fach": "KU",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "vertreten",
+          "vertretung": 236,
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 172,
+          "fach": "E",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 178,
+          "fach": "F",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 158,
+          "fach": "M",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R108"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 141,
+          "fach": "BI",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 129,
+          "fach": "E",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 156,
+          "fach": "SP",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH2"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 176,
+          "fach": "SP",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 181,
+          "fach": "KU",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "vertreten",
+          "vertretung": 232,
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 167,
+          "fach": "KR",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 167,
+          "fach": "ER",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 131,
+          "fach": "BI",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 161,
+          "fach": "BI",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 137,
+          "fach": "D",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 146,
+          "fach": "SP",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 128,
+          "fach": "M",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 155,
+          "fach": "GE",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 107,
+          "fach": "E",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 159,
+          "fach": "E",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 7,
+          "unterricht": 170,
+          "fach": "D",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 7,
+          "unterricht": 180,
+          "fach": "M",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 8,
+          "unterricht": 153,
+          "fach": "CH",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "CH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 8,
+          "unterricht": 182,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        }
+      ]
+    },
+    {
+      "datum": "2026-10-13",
+      "woche": "A",
+      "unterrichtstag": true,
+      "stunden": [
+        {
+          "stunde": 1,
+          "unterricht": 130,
+          "fach": "F",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 138,
+          "fach": "M",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 105,
+          "fach": "D",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 160,
+          "fach": "F",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 151,
+          "fach": "BI",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "entfall",
+          "vertretung": 244,
+          "text": "Exkursion Zoo"
+        },
+        {
+          "stunde": 1,
+          "unterricht": 117,
+          "fach": "M",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 176,
+          "fach": "SP",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 181,
+          "fach": "KU",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "entfall",
+          "vertretung": 238,
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 156,
+          "fach": "SP",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH2"
+          ],
+          "status": "entfall",
+          "vertretung": 240,
+          "text": "Exkursion Zoo"
+        },
+        {
+          "stunde": 2,
+          "unterricht": 108,
+          "fach": "BI",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 140,
+          "fach": "F",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 158,
+          "fach": "M",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 127,
+          "fach": "D",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 116,
+          "fach": "D",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 184,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 176,
+          "fach": "SP",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 181,
+          "fach": "KU",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "entfall",
+          "vertretung": 239,
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 167,
+          "fach": "KR",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 167,
+          "fach": "ER",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 164,
+          "fach": "EK",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 129,
+          "fach": "E",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 139,
+          "fach": "E",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 148,
+          "fach": "M",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "entfall",
+          "vertretung": 245,
+          "text": "Exkursion Zoo"
+        },
+        {
+          "stunde": 4,
+          "unterricht": 162,
+          "fach": "PH",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 171,
+          "fach": "M",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 179,
+          "fach": "D",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 168,
+          "fach": "KR",
+          "klassen": [
+            "6a",
+            "6b"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 168,
+          "fach": "ER",
+          "klassen": [
+            "6a",
+            "6b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 115,
+          "fach": "KL",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 148,
+          "fach": "M",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "entfall",
+          "vertretung": 243,
+          "text": "Exkursion Zoo"
+        },
+        {
+          "stunde": 4,
+          "unterricht": 119,
+          "fach": "BI",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 171,
+          "fach": "M",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 179,
+          "fach": "D",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 168,
+          "fach": "KR",
+          "klassen": [
+            "6a",
+            "6b"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 168,
+          "fach": "ER",
+          "klassen": [
+            "6a",
+            "6b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 154,
+          "fach": "EK",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "entfall",
+          "vertretung": 242,
+          "text": "Exkursion Zoo"
+        },
+        {
+          "stunde": 5,
+          "unterricht": 106,
+          "fach": "M",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 157,
+          "fach": "D",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "R108"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 118,
+          "fach": "E",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 152,
+          "fach": "PH",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "entfall",
+          "vertretung": 241,
+          "text": "Exkursion Zoo"
+        },
+        {
+          "stunde": 6,
+          "unterricht": 159,
+          "fach": "E",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 133,
+          "fach": "GE",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 143,
+          "fach": "GE",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 7,
+          "unterricht": 126,
+          "fach": "KL",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        }
+      ]
+    },
+    {
+      "datum": "2026-10-14",
+      "woche": "A",
+      "unterrichtstag": true,
+      "stunden": [
+        {
+          "stunde": 1,
+          "unterricht": 163,
+          "fach": "CH",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "CH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 139,
+          "fach": "E",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 116,
+          "fach": "D",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 129,
+          "fach": "E",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "vertreten",
+          "vertretung": 247,
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 154,
+          "fach": "EK",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 107,
+          "fach": "E",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 139,
+          "fach": "E",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 150,
+          "fach": "F",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 164,
+          "fach": "EK",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 119,
+          "fach": "BI",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 129,
+          "fach": "E",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "vertreten",
+          "vertretung": 248,
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 106,
+          "fach": "M",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 186,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 153,
+          "fach": "CH",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "CH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 121,
+          "fach": "GE",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 109,
+          "fach": "EK",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 160,
+          "fach": "F",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "vertreten",
+          "vertretung": 249,
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 128,
+          "fach": "M",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 141,
+          "fach": "BI",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 183,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 145,
+          "fach": "MU",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "MU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 172,
+          "fach": "E",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 178,
+          "fach": "F",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 149,
+          "fach": "E",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 120,
+          "fach": "EK",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 131,
+          "fach": "BI",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 111,
+          "fach": "PK",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 161,
+          "fach": "BI",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 114,
+          "fach": "SP",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 124,
+          "fach": "MU",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "MU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 152,
+          "fach": "PH",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 170,
+          "fach": "D",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 180,
+          "fach": "M",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 157,
+          "fach": "D",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "R108"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 138,
+          "fach": "M",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 128,
+          "fach": "M",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 170,
+          "fach": "D",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 180,
+          "fach": "M",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 148,
+          "fach": "M",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 158,
+          "fach": "M",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R108"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 7,
+          "unterricht": 142,
+          "fach": "PH",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 7,
+          "unterricht": 105,
+          "fach": "D",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        }
+      ]
+    },
+    {
+      "datum": "2026-10-15",
+      "woche": "A",
+      "unterrichtstag": true,
+      "stunden": [
+        {
+          "stunde": 1,
+          "unterricht": 163,
+          "fach": "CH",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "CH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 117,
+          "fach": "M",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 130,
+          "fach": "F",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 155,
+          "fach": "GE",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 137,
+          "fach": "D",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 107,
+          "fach": "E",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 162,
+          "fach": "PH",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 117,
+          "fach": "M",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 127,
+          "fach": "D",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 108,
+          "fach": "BI",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 150,
+          "fach": "F",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 137,
+          "fach": "D",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 106,
+          "fach": "M",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "vertreten",
+          "vertretung": 255,
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 127,
+          "fach": "D",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 165,
+          "fach": "GE",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 139,
+          "fach": "E",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 116,
+          "fach": "D",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 149,
+          "fach": "E",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 183,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "entfall",
+          "vertretung": 256,
+          "text": "Klausuraufsicht"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 251,
+          "text": "Mathematik-Klausur"
+        },
+        {
+          "stunde": 4,
+          "unterricht": 166,
+          "fach": "SP",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 173,
+          "fach": "BI",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "entfall",
+          "vertretung": 253,
+          "text": "Klausur Mathematik-Klausur"
+        },
+        {
+          "stunde": 4,
+          "unterricht": 174,
+          "fach": "PH",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "entfall",
+          "vertretung": 254,
+          "text": "Klausur Mathematik-Klausur"
+        },
+        {
+          "stunde": 4,
+          "unterricht": 113,
+          "fach": "MU",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "MU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 147,
+          "fach": "D",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 138,
+          "fach": "M",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 118,
+          "fach": "E",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 128,
+          "fach": "M",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 252,
+          "text": "Mathematik-Klausur"
+        },
+        {
+          "stunde": 5,
+          "unterricht": 166,
+          "fach": "SP",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 173,
+          "fach": "BI",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 174,
+          "fach": "PH",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 133,
+          "fach": "GE",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 118,
+          "fach": "E",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 110,
+          "fach": "GE",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 143,
+          "fach": "GE",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 147,
+          "fach": "D",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 175,
+          "fach": "GE",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 177,
+          "fach": "IF",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "EDV1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 135,
+          "fach": "MU",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "MU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 105,
+          "fach": "D",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 120,
+          "fach": "EK",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 185,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        }
+      ]
+    },
+    {
+      "datum": "2026-10-16",
+      "woche": "A",
+      "unterrichtstag": true,
+      "stunden": [
+        {
+          "stunde": 1,
+          "unterricht": 144,
+          "fach": "KU",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 132,
+          "fach": "PH",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 149,
+          "fach": "E",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 157,
+          "fach": "D",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 106,
+          "fach": "M",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 116,
+          "fach": "D",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 1,
+          "unterricht": 185,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 136,
+          "fach": "SP",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 144,
+          "fach": "KU",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 171,
+          "fach": "M",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 179,
+          "fach": "D",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 105,
+          "fach": "D",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 148,
+          "fach": "M",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 165,
+          "fach": "GE",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "R108"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 2,
+          "unterricht": 118,
+          "fach": "E",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 136,
+          "fach": "SP",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 146,
+          "fach": "SP",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "TH2"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 173,
+          "fach": "BI",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 174,
+          "fach": "PH",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "PH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 160,
+          "fach": "F",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 117,
+          "fach": "M",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 109,
+          "fach": "EK",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 3,
+          "unterricht": 147,
+          "fach": "D",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 175,
+          "fach": "GE",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 177,
+          "fach": "IF",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "EDV1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 146,
+          "fach": "SP",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "TH2"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 125,
+          "fach": "SP",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 134,
+          "fach": "KU",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 113,
+          "fach": "MU",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "MU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 159,
+          "fach": "E",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "R107"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 4,
+          "unterricht": 151,
+          "fach": "BI",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "BI1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 175,
+          "fach": "GE",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 177,
+          "fach": "IF",
+          "klassen": [
+            "EF"
+          ],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "EDV1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 166,
+          "fach": "SP",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "TH1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 134,
+          "fach": "KU",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "KU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 124,
+          "fach": "MU",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "MU1"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 107,
+          "fach": "E",
+          "klassen": [
+            "5a"
+          ],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "R101"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 150,
+          "fach": "F",
+          "klassen": [
+            "7a"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R105"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 5,
+          "unterricht": 138,
+          "fach": "M",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 137,
+          "fach": "D",
+          "klassen": [
+            "6b"
+          ],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "R104"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 158,
+          "fach": "M",
+          "klassen": [
+            "7b"
+          ],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "R106"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 122,
+          "fach": "PK",
+          "klassen": [
+            "5b"
+          ],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "R102"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 130,
+          "fach": "F",
+          "klassen": [
+            "6a"
+          ],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "R103"
+          ],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 184,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        },
+        {
+          "stunde": 6,
+          "unterricht": 182,
+          "fach": "BER",
+          "klassen": [],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [],
+          "status": "regulaer",
+          "text": ""
+        }
+      ]
+    },
+    {
+      "datum": "2026-10-17",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-18",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-19",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-20",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-21",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-22",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-23",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-24",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    },
+    {
+      "datum": "2026-10-25",
+      "woche": "A",
+      "unterrichtstag": false,
+      "stunden": []
+    }
+  ],
+  "vertretungen": [
+    {
+      "id": 237,
+      "datum": "2026-10-12",
+      "stunde": 2,
+      "art": "Pausenaufsicht",
+      "klassen": [],
+      "lehrer": "HOF",
+      "vertreter": "RIC",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "Hof",
+      "neuerRaum": "Hof",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": true
+    },
+    {
+      "id": 235,
+      "datum": "2026-10-12",
+      "stunde": 3,
+      "art": "Vertretung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "HOF",
+      "vertreter": "RIC",
+      "fach": "KU",
+      "neuesFach": "KU",
+      "raum": "KU1",
+      "neuerRaum": "KU1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 236,
+      "datum": "2026-10-12",
+      "stunde": 4,
+      "art": "Vertretung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "HOF",
+      "vertreter": "ZIM",
+      "fach": "KU",
+      "neuesFach": "KU",
+      "raum": "KU1",
+      "neuerRaum": "KU1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 233,
+      "datum": "2026-10-12",
+      "stunde": 1,
+      "art": "Vertretung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "HOF",
+      "vertreter": "BEC",
+      "fach": "KU",
+      "neuesFach": "KU",
+      "raum": "KU1",
+      "neuerRaum": "KU1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 234,
+      "datum": "2026-10-12",
+      "stunde": 2,
+      "art": "Vertretung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "HOF",
+      "vertreter": "LAN",
+      "fach": "KU",
+      "neuesFach": "KU",
+      "raum": "KU1",
+      "neuerRaum": "KU1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 232,
+      "datum": "2026-10-12",
+      "stunde": 5,
+      "art": "Vertretung",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "HOF",
+      "vertreter": "KLE",
+      "fach": "KU",
+      "neuesFach": "KU",
+      "raum": "KU1",
+      "neuerRaum": "KU1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 246,
+      "datum": "2026-10-13",
+      "stunde": 2,
+      "art": "Pausenaufsicht",
+      "klassen": [],
+      "lehrer": "HOF",
+      "vertreter": "???",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "1.OG",
+      "neuerRaum": "1.OG",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": true
+    },
+    {
+      "id": 244,
+      "datum": "2026-10-13",
+      "stunde": 1,
+      "art": "Freisetzung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "MEY",
+      "vertreter": "---",
+      "fach": "BI",
+      "neuesFach": "BI",
+      "raum": "BI1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Exkursion Zoo",
+      "nurLehrer": false
+    },
+    {
+      "id": 240,
+      "datum": "2026-10-13",
+      "stunde": 2,
+      "art": "Freisetzung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "SNE",
+      "vertreter": "---",
+      "fach": "SP",
+      "neuesFach": "SP",
+      "raum": "TH2",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Exkursion Zoo",
+      "nurLehrer": false
+    },
+    {
+      "id": 245,
+      "datum": "2026-10-13",
+      "stunde": 3,
+      "art": "Freisetzung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "KOC",
+      "vertreter": "---",
+      "fach": "M",
+      "neuesFach": "M",
+      "raum": "R105",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Exkursion Zoo",
+      "nurLehrer": false
+    },
+    {
+      "id": 243,
+      "datum": "2026-10-13",
+      "stunde": 4,
+      "art": "Freisetzung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "KOC",
+      "vertreter": "---",
+      "fach": "M",
+      "neuesFach": "M",
+      "raum": "R105",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Exkursion Zoo",
+      "nurLehrer": false
+    },
+    {
+      "id": 242,
+      "datum": "2026-10-13",
+      "stunde": 5,
+      "art": "Freisetzung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "BRA",
+      "vertreter": "---",
+      "fach": "EK",
+      "neuesFach": "EK",
+      "raum": "R105",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Exkursion Zoo",
+      "nurLehrer": false
+    },
+    {
+      "id": 241,
+      "datum": "2026-10-13",
+      "stunde": 6,
+      "art": "Freisetzung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "KRU",
+      "vertreter": "---",
+      "fach": "PH",
+      "neuesFach": "PH",
+      "raum": "PH1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Exkursion Zoo",
+      "nurLehrer": false
+    },
+    {
+      "id": 238,
+      "datum": "2026-10-13",
+      "stunde": 2,
+      "art": "Entfall",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "HOF",
+      "vertreter": "---",
+      "fach": "KU",
+      "neuesFach": "KU",
+      "raum": "KU1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 239,
+      "datum": "2026-10-13",
+      "stunde": 3,
+      "art": "Entfall",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "HOF",
+      "vertreter": "---",
+      "fach": "KU",
+      "neuesFach": "KU",
+      "raum": "KU1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 250,
+      "datum": "2026-10-14",
+      "stunde": 2,
+      "art": "Pausenaufsicht",
+      "klassen": [],
+      "lehrer": "WAG",
+      "vertreter": "SWA",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "Halle",
+      "neuerRaum": "Halle",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": true
+    },
+    {
+      "id": 247,
+      "datum": "2026-10-14",
+      "stunde": 1,
+      "art": "Vertretung",
+      "klassen": [
+        "6a"
+      ],
+      "lehrer": "WAG",
+      "vertreter": "SCH",
+      "fach": "E",
+      "neuesFach": "E",
+      "raum": "R103",
+      "neuerRaum": "R103",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 248,
+      "datum": "2026-10-14",
+      "stunde": 2,
+      "art": "Vertretung",
+      "klassen": [
+        "6a"
+      ],
+      "lehrer": "WAG",
+      "vertreter": "LAN",
+      "fach": "E",
+      "neuesFach": "E",
+      "raum": "R103",
+      "neuerRaum": "R103",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 249,
+      "datum": "2026-10-14",
+      "stunde": 3,
+      "art": "Vertretung",
+      "klassen": [
+        "7b"
+      ],
+      "lehrer": "WAG",
+      "vertreter": "SNE",
+      "fach": "F",
+      "neuesFach": "F",
+      "raum": "R106",
+      "neuerRaum": "R106",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 256,
+      "datum": "2026-10-15",
+      "stunde": 3,
+      "art": "Bereitschaft entf\u00E4llt",
+      "klassen": [],
+      "lehrer": "SNE",
+      "vertreter": "---",
+      "fach": "BER",
+      "neuesFach": "BER",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Klausuraufsicht",
+      "nurLehrer": false
+    },
+    {
+      "id": 255,
+      "datum": "2026-10-15",
+      "stunde": 3,
+      "art": "Raum-Vtr.",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "WEB",
+      "vertreter": "WEB",
+      "fach": "M",
+      "neuesFach": "M",
+      "raum": "R101",
+      "neuerRaum": "R101",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 251,
+      "datum": "2026-10-15",
+      "stunde": 3,
+      "art": "Klausur",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "TH1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Mathematik-Klausur",
+      "nurLehrer": false
+    },
+    {
+      "id": 252,
+      "datum": "2026-10-15",
+      "stunde": 4,
+      "art": "Klausur",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "TH1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Mathematik-Klausur",
+      "nurLehrer": false
+    },
+    {
+      "id": 253,
+      "datum": "2026-10-15",
+      "stunde": 4,
+      "art": "Entfall",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "MEY",
+      "vertreter": "---",
+      "fach": "BI",
+      "neuesFach": "BI",
+      "raum": "BI1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Klausur Mathematik-Klausur",
+      "nurLehrer": false
+    },
+    {
+      "id": 254,
+      "datum": "2026-10-15",
+      "stunde": 4,
+      "art": "Entfall",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "KRU",
+      "vertreter": "---",
+      "fach": "PH",
+      "neuesFach": "PH",
+      "raum": "PH1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Klausur Mathematik-Klausur",
+      "nurLehrer": false
+    }
+  ],
+  "absenzen": [
+    {
+      "art": "lehrer",
+      "element": "HOF",
+      "von": "2026-10-12",
+      "bis": "2026-10-13",
+      "stundeVon": 1,
+      "stundeBis": 10
+    },
+    {
+      "art": "lehrer",
+      "element": "WAG",
+      "von": "2026-10-14",
+      "bis": "2026-10-14",
+      "stundeVon": 1,
+      "stundeBis": 3
+    },
+    {
+      "art": "klasse",
+      "element": "7a",
+      "von": "2026-10-13",
+      "bis": "2026-10-13",
+      "stundeVon": 1,
+      "stundeBis": 10
+    },
+    {
+      "art": "raum",
+      "element": "R101",
+      "von": "2026-10-15",
+      "bis": "2026-10-15",
+      "stundeVon": 3,
+      "stundeBis": 4
+    }
+  ],
+  "termine": [
+    {
+      "art": "klausur",
+      "titel": "Mathematik-Klausur",
+      "von": "2026-10-15",
+      "bis": "2026-10-15",
+      "stundeVon": 3,
+      "stundeBis": 4,
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": [
+        "SNE"
+      ],
+      "raeume": [
+        "TH1"
+      ]
+    }
+  ],
+  "tagestexte": [
+    {
+      "datum": "2026-10-14",
+      "gueltigTage": 1,
+      "text": "Lehrerkonferenz um 14:15 Uhr in der Aula.",
+      "fuer": "kollegium",
+      "elemente": []
+    },
+    {
+      "datum": "2026-10-12",
+      "gueltigTage": 5,
+      "text": "Ab Mittwoch gilt der neue Aufsichtsplan. Bitte die Aush\u00E4nge im Lehrerzimmer beachten.",
+      "fuer": "kollegium",
+      "elemente": []
+    },
+    {
+      "datum": "2026-10-14",
+      "gueltigTage": 1,
+      "text": "Heute 7. Stunde Lehrerkonferenz \u2013 der Nachmittagsunterricht entf\u00E4llt.",
+      "fuer": "alle",
+      "elemente": []
+    }
+  ],
+  "ferien": [
+    {
+      "name": "Sommerferien",
+      "von": "2026-07-20",
+      "bis": "2026-09-01",
+      "feiertag": false
+    },
+    {
+      "name": "Tag der Deutschen Einheit",
+      "von": "2026-10-03",
+      "bis": "2026-10-03",
+      "feiertag": true
+    },
+    {
+      "name": "Herbstferien",
+      "von": "2026-10-17",
+      "bis": "2026-10-31",
+      "feiertag": false
+    },
+    {
+      "name": "Allerheiligen",
+      "von": "2026-11-01",
+      "bis": "2026-11-01",
+      "feiertag": true
+    },
+    {
+      "name": "Weihnachtsferien",
+      "von": "2026-12-23",
+      "bis": "2027-01-06",
+      "feiertag": false
+    },
+    {
+      "name": "1. Weihnachtstag",
+      "von": "2026-12-25",
+      "bis": "2026-12-25",
+      "feiertag": true
+    },
+    {
+      "name": "2. Weihnachtstag",
+      "von": "2026-12-26",
+      "bis": "2026-12-26",
+      "feiertag": true
+    },
+    {
+      "name": "Neujahr",
+      "von": "2027-01-01",
+      "bis": "2027-01-01",
+      "feiertag": true
+    },
+    {
+      "name": "Osterferien",
+      "von": "2027-03-22",
+      "bis": "2027-04-03",
+      "feiertag": false
+    },
+    {
+      "name": "Karfreitag",
+      "von": "2027-03-26",
+      "bis": "2027-03-26",
+      "feiertag": true
+    },
+    {
+      "name": "Ostermontag",
+      "von": "2027-03-29",
+      "bis": "2027-03-29",
+      "feiertag": true
+    },
+    {
+      "name": "Tag der Arbeit",
+      "von": "2027-05-01",
+      "bis": "2027-05-01",
+      "feiertag": true
+    },
+    {
+      "name": "Christi Himmelfahrt",
+      "von": "2027-05-06",
+      "bis": "2027-05-06",
+      "feiertag": true
+    },
+    {
+      "name": "Pfingstmontag",
+      "von": "2027-05-17",
+      "bis": "2027-05-17",
+      "feiertag": true
+    },
+    {
+      "name": "Pfingstferien",
+      "von": "2027-05-18",
+      "bis": "2027-05-18",
+      "feiertag": false
+    },
+    {
+      "name": "Fronleichnam",
+      "von": "2027-05-27",
+      "bis": "2027-05-27",
+      "feiertag": true
+    },
+    {
+      "name": "Sommerferien",
+      "von": "2027-07-19",
+      "bis": "2027-08-31",
+      "feiertag": false
+    }
+  ],
+  "pausenaufsichten": [
+    {
+      "gang": "Hof",
+      "tag": 0,
+      "nachStunde": 2,
+      "lehrer": "HOF",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 0,
+      "nachStunde": 2,
+      "lehrer": "ZIM",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 0,
+      "nachStunde": 2,
+      "lehrer": "HAR",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 0,
+      "nachStunde": 2,
+      "lehrer": "WAG",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 0,
+      "nachStunde": 4,
+      "lehrer": "BRA",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 0,
+      "nachStunde": 4,
+      "lehrer": "SNE",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 0,
+      "nachStunde": 4,
+      "lehrer": "WEB",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 0,
+      "nachStunde": 4,
+      "lehrer": "SCH",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 1,
+      "nachStunde": 2,
+      "lehrer": "BRA",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 1,
+      "nachStunde": 2,
+      "lehrer": "BEC",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 1,
+      "nachStunde": 2,
+      "lehrer": "WAG",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 1,
+      "nachStunde": 2,
+      "lehrer": "HOF",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 1,
+      "nachStunde": 4,
+      "lehrer": "SUL",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 1,
+      "nachStunde": 4,
+      "lehrer": "SRO",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 1,
+      "nachStunde": 4,
+      "lehrer": "ZIM",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 1,
+      "nachStunde": 4,
+      "lehrer": "KRU",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 2,
+      "nachStunde": 2,
+      "lehrer": "SUL",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 2,
+      "nachStunde": 2,
+      "lehrer": "WEB",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 2,
+      "nachStunde": 2,
+      "lehrer": "WAG",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 2,
+      "nachStunde": 2,
+      "lehrer": "WOL",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 2,
+      "nachStunde": 4,
+      "lehrer": "RIC",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 2,
+      "nachStunde": 4,
+      "lehrer": "FIS",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 2,
+      "nachStunde": 4,
+      "lehrer": "LAN",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 2,
+      "nachStunde": 4,
+      "lehrer": "NEU",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 3,
+      "nachStunde": 2,
+      "lehrer": "SWA",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 3,
+      "nachStunde": 2,
+      "lehrer": "BEC",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 3,
+      "nachStunde": 2,
+      "lehrer": "MEY",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 3,
+      "nachStunde": 2,
+      "lehrer": "KRU",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 3,
+      "nachStunde": 4,
+      "lehrer": "BRA",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 3,
+      "nachStunde": 4,
+      "lehrer": "HAR",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 3,
+      "nachStunde": 4,
+      "lehrer": "LAN",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 3,
+      "nachStunde": 4,
+      "lehrer": "KOC",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 4,
+      "nachStunde": 2,
+      "lehrer": "SNE",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 4,
+      "nachStunde": 2,
+      "lehrer": "SUL",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 4,
+      "nachStunde": 2,
+      "lehrer": "KOC",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 4,
+      "nachStunde": 2,
+      "lehrer": "SRO",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 4,
+      "nachStunde": 4,
+      "lehrer": "BRA",
+      "wochen": ""
+    },
+    {
+      "gang": "Hof",
+      "tag": 4,
+      "nachStunde": 4,
+      "lehrer": "KLE",
+      "wochen": ""
+    },
+    {
+      "gang": "Halle",
+      "tag": 4,
+      "nachStunde": 4,
+      "lehrer": "HOF",
+      "wochen": ""
+    },
+    {
+      "gang": "1.OG",
+      "tag": 4,
+      "nachStunde": 4,
+      "lehrer": "KRU",
+      "wochen": ""
+    }
+  ],
+  "teile": [],
+  "von": "2026-10-12",
+  "bis": "2026-10-25"
+}

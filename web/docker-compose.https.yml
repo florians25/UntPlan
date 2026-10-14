@@ -1,0 +1,33 @@
+# UntPlanWeb mit HTTPS (Let's Encrypt über Caddy).
+# Voraussetzung: ein DNS-Name (z. B. plan.meine-schule.de), der auf diesen Server zeigt, Ports 80 und 443 offen.
+#   UNTPLANWEB_DOMAIN=plan.meine-schule.de docker compose -f docker-compose.https.yml up -d
+
+services:
+  untplanweb:
+    image: ghcr.io/florians25/untplanweb:latest
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANWEB_ZEITZONE: Europe/Berlin
+    volumes:
+      - untplanweb-daten:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      UNTPLANWEB_DOMAIN: ${UNTPLANWEB_DOMAIN:?Bitte UNTPLANWEB_DOMAIN setzen}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-daten:/data
+      - caddy-config:/config
+    depends_on:
+      - untplanweb
+
+volumes:
+  untplanweb-daten:
+  caddy-daten:
+  caddy-config:

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>UntPlanWeb</RootNamespace>
+    <AssemblyName>UntPlanWeb</AssemblyName>
+    <Version>1.0.0</Version>
+    <Product>UntPlanWeb</Product>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- gemeinsame Datenverträge mit UntPlan (Desktop), Schema untplanweb/1 -->
+    <ProjectReference Include="..\..\..\src\UntPlan.Web.Contracts\UntPlan.Web.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\demo\beispiel-paket.json" Link="demo\beispiel-paket.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

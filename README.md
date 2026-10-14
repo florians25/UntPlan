@@ -35,6 +35,7 @@ Zeitwünsche, Unterricht und Stundenpläne, Drag & Drop beim manuellen Planen. D
 - **Module:** Unterrichtsplanung und Wertrechnung (Soll/Ist, Werte-Faktoren, Unterrichts-Matrix, Stundentafel), Kursplanung für die Oberstufe (Kurswahlen, Kollisionsmatrix, automatische Bandbildung), Perioden, Abteilungsplanung.
 - **Import und Export:** SchILD-NRW-CSV für Lehrer, Klassen und Schüler. GPU-Format für den Umstieg aus anderen Programmen. HTML, iCal und CSV.
 - **WebPortal-Synchronisation:** Pläne und Vertretungen hochladen, Krankmeldungen von Lehrkräften abholen. Die Schnittstelle steht in [docs/SYNC_API.md](docs/SYNC_API.md), ein Referenzserver liegt unter `src/UntPlan.Portal`.
+- **UntPlanWeb:** Stundenplan, Vertretungsplan, Monitore, Klassenbuch und Rückmeldungen (Abwesenheiten, Raumbuchungen, Klausuren) im Browser. Läuft als Docker-Container, siehe [web/README.md](web/README.md).
 - **Hilfe (F1)** zu jedem Fenster, Eingabeassistent, Rückgängig und Wiederholen (50 Schritte).
 
 Die Bedienung ist im **[Benutzerhandbuch](docs/HANDBUCH.md)** beschrieben.

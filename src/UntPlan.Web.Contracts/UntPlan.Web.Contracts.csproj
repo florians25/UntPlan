@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Schnittstelle zwischen UntPlan (Desktop) und UntPlanWeb (eigenes Repository). Keine Abhängigkeiten,
+  <!-- Schnittstelle zwischen UntPlan (Desktop) und UntPlanWeb (Ordner web/). Keine Abhängigkeiten,
        damit UntPlanWeb diese Bibliothek unverändert einbinden kann (Projekt- oder NuGet-Verweis). -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>

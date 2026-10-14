@@ -1,0 +1,5 @@
+{$UNTPLANWEB_DOMAIN} {
+	encode gzip
+	reverse_proxy untplanweb:8080
+	header Strict-Transport-Security "max-age=31536000"
+}

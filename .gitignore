@@ -7,3 +7,8 @@ artifacts/
 TestResults/
 portal-data/
 .claude/worktrees/
+web/daten/
+web/src/UntPlanWeb/daten/
+*.db
+*.db-shm
+*.db-wal

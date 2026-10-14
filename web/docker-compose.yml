@@ -1,0 +1,26 @@
+# UntPlanWeb – einfache Installation (HTTP auf Port 8080, z. B. hinter einem vorhandenen Reverse-Proxy).
+#   docker compose up -d
+# Danach im Browser http://<server>:8080 öffnen und die Schule einrichten.
+# Für HTTPS mit automatischem Zertifikat: docker-compose.https.yml verwenden (siehe README).
+
+services:
+  untplanweb:
+    image: ghcr.io/florians25/untplanweb:latest
+    # Selbst bauen statt das fertige Image zu laden:
+    # build: { context: .., dockerfile: web/Dockerfile }
+    container_name: untplanweb
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANWEB_ZEITZONE: Europe/Berlin
+      # Optional – sonst über den Einrichtungsassistenten im Browser:
+      # UNTPLANWEB_ADMIN_PASSWORT: "bitte-aendern"
+      # Zum Ausprobieren mit Beispieldaten:
+      # UNTPLANWEB_DEMO: "1"
+    volumes:
+      - untplanweb-daten:/data
+
+volumes:
+  untplanweb-daten:

@@ -1,0 +1,14 @@
+**/bin
+**/obj
+**/daten
+**/*.db*
+.git
+artifacts
+installer
+docs
+tests
+web/tests
+web/docs
+src/UntPlan.App
+src/UntPlan.Core
+src/UntPlan.Portal
