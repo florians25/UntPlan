@@ -91,6 +91,20 @@ public static class Pausenaufsichten
         return AufsichtsPausen(d).Any(p => p.NachStunde == nachStunde) ? d.Gaenge.FirstOrDefault(g => g.Id == gangId)?.Bedarf ?? 1 : 0;
     }
 
+    /// <summary>Anzahl Teile einer Aufsicht setzen (0 = keine Aufsicht, 2 = geteilte Aufsicht). Überzählige Einteilungen werden entfernt.</summary>
+    public static void TeileSetzen(Schuldatei d, int gangId, int tag, int nachStunde, int teile)
+    {
+        // beim ersten individuellen Eintrag den bisherigen Standard für alle Pausen des Gangs festhalten
+        if (!d.Aufsichtsbedarf.Any(x => x.GangId == gangId))
+            for (var t = 0; t < d.Zeitraster.TageProWoche; t++)
+                foreach (var p in AufsichtsPausen(d))
+                    d.Aufsichtsbedarf.Add(new Aufsichtsbedarf { GangId = gangId, Tag = t, NachStunde = p.NachStunde, Teile = Teile(d, gangId, t, p.NachStunde) });
+        var b = d.Aufsichtsbedarf.FirstOrDefault(x => x.GangId == gangId && x.Tag == tag && x.NachStunde == nachStunde);
+        if (b is null) d.Aufsichtsbedarf.Add(b = new Aufsichtsbedarf { GangId = gangId, Tag = tag, NachStunde = nachStunde });
+        b.Teile = Math.Clamp(teile, 0, 9);
+        d.Pausenaufsichten.RemoveAll(a => a.GangId == gangId && a.Tag == tag && a.NachStunde == nachStunde && a.Datum is null && a.Teil > b.Teile);
+    }
+
     public static int Minuten(Schuldatei d, int gangId, int tag, int nachStunde)
     {
         var b = d.Aufsichtsbedarf.FirstOrDefault(x => x.GangId == gangId && x.Tag == tag && x.NachStunde == nachStunde);
