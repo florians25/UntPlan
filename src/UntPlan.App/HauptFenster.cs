@@ -70,6 +70,12 @@ public sealed partial class HauptFenster : Form
         };
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Ui.TitelleisteFaerben(this);
+    }
+
     private static ToolStripButton SKnopf(string text, string symbol, Action a)
     {
         var b = new ToolStripButton(Symbole.Get(symbol, 16)) { ToolTipText = text, DisplayStyle = ToolStripItemDisplayStyle.Image };

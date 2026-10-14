@@ -133,6 +133,25 @@ public static class Ui
         cb.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Pruefen(); e.SuppressKeyPress = true; } };
     }
 
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int wert, int groesse);
+
+    /// <summary>Titelleiste eines Hauptfensters/Dialogs in der Modusfarbe (Windows 11; ältere Versionen ignorieren dies).</summary>
+    public static void TitelleisteFaerben(Form f, bool dunkel = true)
+    {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || !f.IsHandleCreated) return;
+        try
+        {
+            var c = dunkel ? Titel : Kopf;
+            var farbe = c.R | (c.G << 8) | (c.B << 16);
+            var text = dunkel ? 0xFFFFFF : 0x000000;
+            DwmSetWindowAttribute(f.Handle, 35, ref farbe, 4); // DWMWA_CAPTION_COLOR
+            DwmSetWindowAttribute(f.Handle, 34, ref farbe, 4); // DWMWA_BORDER_COLOR
+            DwmSetWindowAttribute(f.Handle, 36, ref text, 4);  // DWMWA_TEXT_COLOR
+        }
+        catch { /* nicht unterstützt */ }
+    }
+
     /// <summary>Im Selbsttest werden Fehler protokolliert statt angezeigt (keine blockierenden Meldungsfenster).</summary>
     public static List<string>? FehlerProtokoll { get; set; }
 

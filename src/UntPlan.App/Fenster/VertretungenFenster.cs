@@ -172,6 +172,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ("Grund", "Absenzgrund", 80, true), ("Kz", "Stat.", 38, false), ("Text", "Vertretungstext", 200, false), ("Mehr", "Mehrarb.", 54, true),
     };
 
+    public void AnsichtSetzen(string ansicht)
+    {
+        var i = Array.IndexOf(Ansichten, ansicht);
+        if (i >= 0) _ansicht.SelectedIndex = i;
+    }
+
     protected override bool EigeneAenderungenAnzeigen => true;
 
     protected override void Aktualisieren(AenderungsArt art)

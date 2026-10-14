@@ -33,6 +33,12 @@ public class Dialog : Form
         base.OnLoad(e);
         Ui.SucheAktivieren(this);
     }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Ui.TitelleisteFaerben(this);
+    }
 }
 
 public static class KurznameDialog
