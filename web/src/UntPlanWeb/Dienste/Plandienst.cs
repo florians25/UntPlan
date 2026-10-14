@@ -29,7 +29,7 @@ public sealed record Karte(
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
 public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
 
-public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise, List<Ereignis> Ereignisse, string? FreiArt = null);
+public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise, List<Ereignis> Ereignisse, string? FreiArt = null, string? FreiVon = null, string? FreiBis = null);
 
 /// <summary>Veranstaltung an einem Tag: ganztägig (Leiste über dem Tag) oder in bestimmten Stunden (Karte im Raster).</summary>
 public sealed record Ereignis(string Titel, string Art, int Von, int Bis, bool Ganztaegig, List<string> Klassen, List<string> Lehrer, List<string> Raeume);
@@ -313,7 +313,8 @@ public sealed class Plandienst
         var (frei, grund) = Frei(s, d);
         return new Tageskopf(Iso(d), Wochentage[TagIndex(d)], Woche(s, d), frei, grund, s.Tage.ContainsKey(Iso(d)),
             frei ? new List<string>() : Hinweise(s, d, typ, kurz, kollegium), frei ? new List<Ereignis>() : Ereignisse(s, d, typ, kurz),
-            !frei ? null : Ferien(s, d) is { } f ? (f.Feiertag ? "feiertag" : "ferien") : TagIndex(d) >= s.Paket.Zeitraster.TageProWoche ? "wochenende" : "frei");
+            !frei ? null : Ferien(s, d) is { } f ? (f.Feiertag ? "feiertag" : "ferien") : TagIndex(d) >= s.Paket.Zeitraster.TageProWoche ? "wochenende" : "frei",
+            frei ? Ferien(s, d)?.Von : null, frei ? Ferien(s, d)?.Bis : null);
     }
 
     /// <summary>

@@ -157,9 +157,10 @@ function navPunkte() {
   const punkte = [
     { gruppe: 'Pläne' },
     { id: 'heute', text: 'Übersicht', icon: 'heute' },
-    { id: 'plan', text: b.kollegium ? 'Stundenpläne' : 'Stundenplan', icon: 'plan' },
   ];
-  if (b.kollegium) punkte.push({ id: 'tag', text: 'Tagesübersicht', icon: 'tag' });
+  if (b.element) punkte.push({ id: 'plan', nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'plan' });
+  punkte.push({ id: b.element ? 'plan-weitere' : 'plan', nav: 'plan-weitere', href: '#/plan/klasse', text: 'Weitere Stundenpläne', icon: 'plaene', unter: true });
+  if (b.kollegium) punkte.push({ id: 'tag', nav: 'tag-klasse', href: '#/tag/klasse', text: 'Tagesübersicht', icon: 'tag', versteckt: true });
   punkte.push({ id: 'vertretungen', text: 'Vertretungsplan', icon: 'vertretung' });
   punkte.push({ gruppe: 'Schule' });
   punkte.push({ id: 'mitteilungen', text: 'Mitteilungen', icon: 'mitteilung', zaehler: true });
@@ -170,6 +171,22 @@ function navPunkte() {
     punkte.push({ id: 'admin', text: b.admin ? 'Administration' : 'Nachrichten zum Tag', icon: 'admin' });
   }
   return punkte;
+}
+
+/** Untermenü „Stundenplan“ wie im Original: eigener Plan, Klasse, Lehrkraft, Raum und die Tagesübersichten. */
+function unterPunkte() {
+  const b = sitzung.benutzer;
+  const p = [];
+  if (b.element) p.push({ nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'plan' });
+  p.push({ nav: 'plan-klasse', href: '#/plan/klasse', text: 'Klasse', icon: 'klasse' });
+  if (b.kollegium) p.push({ nav: 'plan-lehrer', href: '#/plan/lehrer', text: 'Lehrkraft', icon: 'lehrkraft' });
+  p.push({ nav: 'plan-raum', href: '#/plan/raum', text: 'Raum', icon: 'raum' });
+  if (b.kollegium) {
+    p.push({ nav: 'tag-klasse', href: '#/tag/klasse', text: 'Tag - Klassen', icon: 'tagklassen' });
+    p.push({ nav: 'tag-lehrer', href: '#/tag/lehrer', text: 'Tag - Lehrkräfte', icon: 'taglehrer' });
+    p.push({ nav: 'tag-raum', href: '#/tag/raum', text: 'Tag - Räume', icon: 'tagraeume' });
+  }
+  return p;
 }
 
 function huelle() {
@@ -196,9 +213,13 @@ function huelle() {
           <span class="offcanvas-title fw-semibold">Menü</span>
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#seitenleiste" aria-label="Schließen"></button>
         </div>
-        <div class="offcanvas-body d-block p-0 pb-3">
-          <nav class="nav flex-column">${navPunkte().map(p => p.gruppe ? `<div class="nav-ueberschrift">${p.gruppe}</div>`
-            : `<a class="nav-link" href="#/${p.id}" data-nav="${p.id}">${icon(p.icon)}<span>${p.text}</span>${p.zaehler ? '<span class="badge rounded-pill text-bg-primary ms-auto zaehler d-none" data-zaehler></span>' : ''}</a>`).join('')}</nav>
+        <div class="offcanvas-body d-block p-0 pb-3 nav-paneele">
+          <nav class="nav flex-column nav-haupt">${navPunkte().filter(p => !p.versteckt).map(p => p.gruppe ? `<div class="nav-ueberschrift">${p.gruppe}</div>`
+            : `<a class="nav-link" href="${p.href ?? '#/' + p.id}" data-nav="${p.nav ?? p.id}" ${p.unter ? 'data-unter-oeffnen' : ''}>${icon(p.icon)}<span>${p.text}</span>${p.zaehler ? '<span class="badge rounded-pill text-bg-primary ms-auto zaehler d-none" data-zaehler></span>' : ''}${p.unter ? `<i class="bi bi-chevron-right ms-auto small text-body-tertiary"></i>` : ''}</a>`).join('')}</nav>
+          <nav class="nav flex-column nav-unter">
+            <button type="button" class="nav-zurueck" data-unter-schliessen><span class="rund">${icon('links')}</span><span>Stundenplan</span></button>
+            ${unterPunkte().map(p => `<a class="nav-link" href="${p.href}" data-nav="${p.nav}">${icon(p.icon)}<span>${p.text}</span></a>`).join('')}
+          </nav>
         </div>
       </aside>
       <main class="flex-grow-1 app-main">
@@ -213,6 +234,8 @@ function huelle() {
   app.querySelector('[data-abmelden]').onclick = abmelden;
   const leiste = document.getElementById('seitenleiste');
   leiste.addEventListener('click', ev => {
+    if (ev.target.closest('[data-unter-schliessen]')) { leiste.classList.remove('unter-offen'); return; }
+    if (ev.target.closest('[data-unter-oeffnen]')) leiste.classList.add('unter-offen');
     if (ev.target.closest('.nav-link')) bootstrap.Offcanvas.getInstance(leiste)?.hide();
   });
   zaehlerAktualisieren();
@@ -239,8 +262,14 @@ async function route() {
   document.querySelectorAll('.modal.show').forEach(m => bootstrap.Modal.getInstance(m)?.hide());
   const teile = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   let name = teile[0] || 'heute';
-  if (!ANSICHTEN[name] || (!navPunkte().some(p => p.id === name) && name !== 'profil')) name = 'heute';
-  document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === name));
+  if (!ANSICHTEN[name] || (!navPunkte().some(p => p.id === name || (name === 'plan' && p.nav?.startsWith('plan'))) && name !== 'profil')) name = 'heute';
+  // aktiver Menüpunkt: im Stundenplan-Untermenü nach Planart
+  const b = sitzung.benutzer;
+  let nav = name;
+  if (name === 'plan') nav = !teile[1] || teile[1] === 'mein' || (teile[1] === b.typ && (teile[2] ?? b.element) === b.element && b.element) ? 'plan-mein' : 'plan-' + teile[1];
+  if (name === 'tag') nav = 'tag-' + (teile[1] || 'klasse');
+  document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === nav || (a.dataset.nav === 'plan-weitere' && /^(plan-(klasse|lehrer|raum)|tag-)/.test(nav))));
+  document.getElementById('seitenleiste')?.classList.toggle('unter-offen', name === 'plan' || name === 'tag');
   const seite = document.getElementById('seite');
   if (!seite) return;
   const nummer = laufendeAnsicht = Symbol(name);

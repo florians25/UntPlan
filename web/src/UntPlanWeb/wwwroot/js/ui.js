@@ -11,7 +11,8 @@ const SYMBOLE = {
   herunterladen: 'download', info: 'info-circle', warnung: 'exclamation-triangle', benutzer: 'people', uhr: 'clock',
   raum: 'door-open', klausur: 'file-earmark-check', senden: 'send', suchen: 'search', aktualisieren: 'arrow-repeat',
   abwesend: 'person-x', hausaufgabe: 'pencil-square', kopieren: 'clipboard', kalender: 'calendar-event', stift: 'pencil',
-  augen: 'eye', protokoll: 'list-ul',
+  augen: 'eye', protokoll: 'list-ul', plaene: 'calendar-week', klasse: 'people', lehrkraft: 'person-workspace',
+  tagklassen: 'calendar-range', taglehrer: 'person-lines-fill', tagraeume: 'building', schloss: 'lock-fill',
 };
 
 export function icon(name, klasse = '') {

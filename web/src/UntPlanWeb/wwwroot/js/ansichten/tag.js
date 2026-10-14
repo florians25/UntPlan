@@ -8,24 +8,20 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
   const typ = TYPEN[typParam] ? typParam : 'klasse';
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   const ziel = (t, d) => `#/tag/${t}/${d}`;
-  kontext.titel('Tagesübersicht', `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
+  kontext.titel(`Tag - ${TYPEN[typ]}`, `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
   document.querySelector('[data-drucken]').onclick = () => window.print();
 
   seite.innerHTML = `
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3 nicht-drucken">
-      <div class="btn-group" role="group">${Object.entries(TYPEN).map(([t, n]) => `<button type="button" data-typ="${t}" class="btn btn-outline-primary ${t === typ ? 'active' : ''}">${n}</button>`).join('')}</div>
       <input type="search" class="form-control" data-filter placeholder="Filtern" style="width:180px" aria-label="Filtern">
-      <div class="ms-md-auto d-flex gap-2">
-        <div class="btn-group" role="group">
-          <button type="button" class="btn btn-outline-secondary" data-tage="-1" title="Vorheriger Tag">${icon('links')}</button>
-          <button type="button" class="btn btn-outline-secondary" data-tage="0">Heute</button>
-          <button type="button" class="btn btn-outline-secondary" data-tage="1" title="Nächster Tag">${icon('rechts')}</button>
-        </div>
-        <input type="date" class="form-control" style="width:auto" value="${datum}" data-datum aria-label="Datum">
+      <div class="ms-md-auto d-flex align-items-center gap-1">
+        <button type="button" class="rundknopf" data-tage="-1" title="Vorheriger Tag">${icon('links')}</button>
+        <label class="planleiste-datum" title="Datum wählen">${e(datumLang(datum))}<input type="date" value="${datum}" data-datum aria-label="Datum"></label>
+        <button type="button" class="rundknopf" data-tage="1" title="Nächster Tag">${icon('rechts')}</button>
+        <button type="button" class="heute-pill ms-2" data-tage="0">Heute</button>
       </div>
     </div>
     <div data-inhalt>${lade()}</div>`;
-  seite.querySelectorAll('[data-typ]').forEach(b => b.onclick = () => kontext.navigieren(ziel(b.dataset.typ, datum)));
   seite.querySelectorAll('[data-tage]').forEach(b => b.onclick = () => {
     const n = Number(b.dataset.tage);
     let d = n === 0 ? heuteIso() : plusTage(datum, n);

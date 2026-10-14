@@ -180,6 +180,11 @@ public sealed class Db
         );
         CREATE INDEX ix_vermerke_klasse ON vermerke (klasse, datum);
         """,
+
+        // 3: Notizen für Schüler*innen je Stunde
+        """
+        ALTER TABLE klassenbuch ADD COLUMN notiz_schueler TEXT NOT NULL DEFAULT '';
+        """,
     };
 
     private static void Migrieren(SqliteConnection c)

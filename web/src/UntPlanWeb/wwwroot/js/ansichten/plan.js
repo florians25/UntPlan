@@ -17,7 +17,9 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const erlaubt = ich.kollegium ? ['klasse', 'lehrer', 'raum'] : ['klasse', 'raum'];
-  const typ = erlaubt.includes(typParam) ? typParam : ich.typ;
+  const mein = !typParam || typParam === 'mein';
+  if (mein && ich.element) { datumParam = /^\d{4}-/.test(elementParam ?? '') ? elementParam : datumParam; typParam = ich.typ; elementParam = ich.element; }
+  const typ = erlaubt.includes(typParam) ? typParam : (ich.typ && erlaubt.includes(ich.typ) ? ich.typ : 'klasse');
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   let element = elementParam;
   if (!element) element = typ === ich.typ && ich.element ? ich.element : el[LISTE[typ]][0]?.kurz;
@@ -28,9 +30,12 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
     return;
   }
 
-  kontext.titel('Stundenplan', `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
+  const istMein = typ === ich.typ && ich.element && element.toLowerCase() === ich.element.toLowerCase();
+  kontext.titel(istMein ? 'Mein Stundenplan' : `Stundenplan – ${TYPEN[typ]}`, `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
   document.querySelector('[data-drucken]').onclick = () => window.print();
 
+  let kartenZeiten = true;
+  try { kartenZeiten = localStorage.getItem('untplan:kartenzeiten') !== '0'; } catch { /* privat */ }
   const mo = montag(datum);
   const fr = plusTage(mo, 4);
   const liste = el[LISTE[typ]];
@@ -38,7 +43,6 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   seite.innerHTML = `
     <div class="planleiste mb-3 nicht-drucken">
       <div class="links">
-        ${erlaubt.length > 1 ? `<div class="btn-group btn-group-sm" role="group" aria-label="Planart">${erlaubt.map(t => `<button type="button" data-typ="${t}" class="btn btn-outline-primary ${t === typ ? 'active' : ''}">${TYPEN[t]}</button>`).join('')}</div>` : ''}
         <div class="element-pill">
           <button type="button" class="rundknopf" data-element="-1" title="Vorheriges Element (Alt+←)" ${pos <= 0 ? 'disabled' : ''}>${icon('links')}</button>
           <span data-wahl></span>
@@ -51,14 +55,12 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
           <input type="date" value="${datum}" data-datum aria-label="Datum"></label>
         <button type="button" class="rundknopf" data-woche="7" title="Nächste Woche">${icon('rechts')}</button>
       </div>
-      <div class="rechts"><button type="button" class="heute-pill" data-woche="0">Heute</button></div>
+      <div class="rechts">
+        <button type="button" class="rundknopf ${kartenZeiten ? 'aktiv' : ''}" data-zeiten title="Uhrzeiten auf den Karten ein-/ausblenden" aria-pressed="${kartenZeiten}">${icon('uhr')}</button>
+        <button type="button" class="heute-pill" data-woche="0">Heute</button></div>
     </div>
     <div data-inhalt>${lade()}</div>`;
 
-  seite.querySelectorAll('[data-typ]').forEach(b => b.onclick = () => {
-    const t = b.dataset.typ;
-    kontext.navigieren(ziel(t, t === ich.typ && ich.element ? ich.element : el[LISTE[t]][0]?.kurz, datum));
-  });
   seite.querySelector('[data-wahl]').replaceWith(elementWahl({
     eintraege: liste, wert: element, platzhalter: `${TYPEN[typ]} wählen`,
     beiWahl: x => kontext.navigieren(ziel(typ, x, datum)),
@@ -94,9 +96,16 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
         <span class="text-body-secondary small d-none d-print-inline">${erster ? `${datumKurz(erster.datum)} – ${datumKurz(letzter.datum)}${letzter.datum.slice(0, 4)}` : ''}</span>
       </div>
       ${tagAuswahl(plan, gewaehlt)}
-      ${wochenGitter(plan, { gewaehlterTag: gewaehlt })}`;
+      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten })}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext);
   };
   zeichnen();
+  seite.querySelector('[data-zeiten]').onclick = ev => {
+    kartenZeiten = !kartenZeiten;
+    try { localStorage.setItem('untplan:kartenzeiten', kartenZeiten ? '1' : '0'); } catch { /* privat */ }
+    ev.currentTarget.classList.toggle('aktiv', kartenZeiten);
+    ev.currentTarget.setAttribute('aria-pressed', kartenZeiten);
+    zeichnen();
+  };
 }

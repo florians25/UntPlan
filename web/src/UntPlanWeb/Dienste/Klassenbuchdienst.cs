@@ -5,7 +5,7 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 public sealed record Klassenbucheintrag(int Id, string Datum, int Stunde, int Unterricht, List<string> Klassen, string Fach, string Lehrer,
-    string Thema, string Hausaufgabe, string? Faellig, string Notiz, string Geaendert, string? Anwesenheit = null);
+    string Thema, string Hausaufgabe, string? Faellig, string Notiz, string Geaendert, string? Anwesenheit = null, string NotizSchueler = "");
 
 /// <summary>Fehlzeit einer Schülerin/eines Schülers in einer Stunde. Art „fehlt“ oder „verspaetet“, Status offen/entschuldigt/unentschuldigt.</summary>
 public sealed record Fehlzeit(int Id, string Datum, int Stunde, int Unterricht, int SchuelerId, string Klasse, string Fach, string Art, int Minuten,
@@ -34,7 +34,7 @@ public sealed class Klassenbuchdienst
 
     private static Klassenbucheintrag Lesen(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("thema"), r.Text("hausaufgabe"),
-        r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"));
+        r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"), r.Text("notiz_schueler"));
 
     private static Fehlzeit LesenFehlzeit(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         r.Zahl("schueler_id"), r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"));
@@ -74,7 +74,7 @@ public sealed class Klassenbuchdienst
         return _plan.Karten(s, d, Elementtyp.Lehrer, l).Any(k => k.Unterricht == unterricht && stunde >= k.Von && stunde <= k.Bis && k.Status is not ("entfall" or "abwesend"));
     }
 
-    public Klassenbucheintrag Speichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string thema, string hausaufgabe, DateOnly? faellig, string notiz)
+    public Klassenbucheintrag Speichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string thema, string hausaufgabe, DateOnly? faellig, string notiz, string? notizSchueler = null)
     {
         if (!DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (d > _uhr.Heute.AddDays(14)) throw new ArgumentException("Einträge sind höchstens zwei Wochen im Voraus möglich.");
@@ -85,12 +85,12 @@ public sealed class Klassenbuchdienst
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
         var klassen = JsonSerializer.Serialize(karte.Klassen.Select(k => k.K).ToList());
         _db.Ausfuehren("""
-            INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, thema, hausaufgabe, faellig, notiz, geaendert, benutzer_id)
-            VALUES (@d, @s, @u, @k, @f, @l, @t, @h, @fa, @n, @g, @b)
+            INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, thema, hausaufgabe, faellig, notiz, geaendert, benutzer_id, notiz_schueler)
+            VALUES (@d, @s, @u, @k, @f, @l, @t, @h, @fa, @n, @g, @b, COALESCE(@ns, ''))
             ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET thema = excluded.thema, hausaufgabe = excluded.hausaufgabe, faellig = excluded.faellig,
-                notiz = excluded.notiz, klassen = excluded.klassen, fach = excluded.fach, geaendert = excluded.geaendert, benutzer_id = excluded.benutzer_id
+                notiz = excluded.notiz, notiz_schueler = CASE WHEN @ns IS NULL THEN klassenbuch.notiz_schueler ELSE excluded.notiz_schueler END, klassen = excluded.klassen, fach = excluded.fach, geaendert = excluded.geaendert, benutzer_id = excluded.benutzer_id
             """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@k", klassen), Db.P("@f", karte.Fach), Db.P("@l", lehrer),
-            Db.P("@t", (thema ?? "").Trim()), Db.P("@h", (hausaufgabe ?? "").Trim()), Db.P("@fa", faellig), Db.P("@n", (notiz ?? "").Trim()),
+            Db.P("@t", (thema ?? "").Trim()), Db.P("@h", (hausaufgabe ?? "").Trim()), Db.P("@fa", faellig), Db.P("@n", (notiz ?? "").Trim()), Db.P("@ns", notizSchueler?.Trim()),
             Db.P("@g", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
         return Holen(d, karte.Von, unterricht, lehrer)!;
     }
