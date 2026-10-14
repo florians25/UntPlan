@@ -126,11 +126,12 @@ public sealed class Ribbon : Control
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         Layout2(g);
-        using (var b = new SolidBrush(Ui.RibbonTab)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
+        // Registerleiste in der Modusfarbe (durchgehend mit Titel- und Schnellzugriffsleiste)
+        using (var b = new SolidBrush(Ui.Titel)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
         using (var b = new LinearGradientBrush(new Rectangle(0, TabHoehe, Width, Inhalt), Color.White, Ui.BlauSehrHell, 90f)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt);
         using (var p = new Pen(Color.FromArgb(198, 205, 216))) { g.DrawLine(p, 0, TabHoehe, Width, TabHoehe); g.DrawLine(p, 0, Height - 1, Width, Height - 1); }
         // Datei-Tab
-        using (var b = new SolidBrush(_hoverDatei ? Ui.Titel : Ui.Blau)) g.FillRectangle(b, _dateiBounds);
+        using (var b = new SolidBrush(_hoverDatei ? Ui.Blau : Color.FromArgb(Math.Max(0, Ui.Blau.R - 18), Math.Max(0, Ui.Blau.G - 18), Math.Max(0, Ui.Blau.B - 18)))) g.FillRectangle(b, _dateiBounds);
         TextRenderer.DrawText(g, "Datei", Font, _dateiBounds, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         for (var i = 0; i < Seiten.Count; i++)
         {
@@ -142,10 +143,12 @@ public sealed class Ribbon : Control
                 g.FillRectangle(Brushes.White, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, s.TabBounds.Height + 2);
                 using var p = new Pen(Color.FromArgb(198, 205, 216));
                 g.DrawLines(p, new[] { new Point(s.TabBounds.X, s.TabBounds.Bottom), new Point(s.TabBounds.X, s.TabBounds.Y), new Point(s.TabBounds.Right, s.TabBounds.Y), new Point(s.TabBounds.Right, s.TabBounds.Bottom) });
+                using var akzent = new SolidBrush(Ui.Blau);
+                g.FillRectangle(akzent, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, 3);
             }
             else if (_hoverTab == s)
-                using (var b = new SolidBrush(Ui.Hover)) g.FillRectangle(b, s.TabBounds);
-            TextRenderer.DrawText(g, s.Text, Font, s.TabBounds, aktiv ? Ui.Blau : Color.FromArgb(50, 50, 50), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, s.TabBounds);
+            TextRenderer.DrawText(g, s.Text, Font, s.TabBounds, aktiv ? Ui.Blau : Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
         if (seite is null) return;

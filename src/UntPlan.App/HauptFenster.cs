@@ -13,6 +13,7 @@ public sealed partial class HauptFenster : Form
 {
     private readonly Ribbon _ribbon = new();
     private readonly ToolStrip _schnell = new();
+    private readonly ToolStripLabel _titelLabel = new() { Alignment = ToolStripItemAlignment.Right, ForeColor = Color.White, Font = Ui.SchriftFett, Margin = new Padding(0, 1, 12, 2) };
     private readonly StatusStrip _status = new();
     private readonly ToolStripStatusLabel _statusLinks = new("Mit F1 erhalten Sie Hilfe.");
     private readonly ToolStripStatusLabel _statusMitte = new() { Spring = true };
@@ -33,16 +34,19 @@ public sealed partial class HauptFenster : Form
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
 
         _schnell.GripStyle = ToolStripGripStyle.Hidden;
-        _schnell.RenderMode = ToolStripRenderMode.System;
+        _schnell.Renderer = new LeistenRenderer();
         _schnell.BackColor = Ui.Titel;
-        _schnell.Padding = new Padding(4, 1, 4, 1);
+        _schnell.Padding = new Padding(4, 2, 4, 2);
+        _schnell.ImageScalingSize = new Size(16, 16);
         _schnell.Items.AddRange(new ToolStripItem[]
         {
             SKnopf("Neu", "neu", Neu), SKnopf("Öffnen", "oeffnen", Oeffnen), SKnopf("Speichern (Strg+S)", "speichern", () => Speichern()),
             new ToolStripSeparator(), SKnopf("Rückgängig (Strg+Z)", "rueckgaengig", () => AppZustand.Doc.Rueckgaengig()),
             SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => AppZustand.Doc.Wiederholen()), new ToolStripSeparator(),
             SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)),
-            SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()),
+            SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()), new ToolStripSeparator(),
+            SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretung", VertretungsmodusUmschalten),
+            _titelLabel,
         });
         _status.Items.AddRange(new ToolStripItem[] { _statusLinks, _statusMitte, _statusRechts });
         _status.Font = Ui.Schrift;
@@ -100,6 +104,7 @@ public sealed partial class HauptFenster : Form
         var d = AppZustand.D;
         var name = AppZustand.Doc.Pfad is null ? "Unbenannt" : Path.GetFileName(AppZustand.Doc.Pfad);
         if (MultiUser.MultiUserSitzung.Aktiv) name = "MultiUser " + MultiUser.MultiUserSitzung.Titel;
+        _titelLabel.Text = $"{(AppZustand.Vertretungsmodus ? "Vertretungsplanung" : "Stundenplanung")}  ·  {d.Einstellungen.Schulname}  ·  {d.AktivePeriode.Name}";
         Text = $"UntPlan – {name}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")} – {d.Einstellungen.Schulname} – Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year % 100:00}";
         _statusMitte.Text = $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}";
         _statusRechts.Text = $"{d.AktivePeriode.Name} · {d.Klassen.Count} Klassen · {d.Lehrer.Count} Lehrer · {d.Unterrichte.Count} Unterrichte";
