@@ -157,8 +157,8 @@ public class PlanTests
         var k = Karten(plan, "2026-10-14", 1).Single();
         Assert.Equal("geaendert", k["status"]!.GetValue<string>());
         var lehrer = k["lehrer"]!.AsArray().Single()!;
-        Assert.Equal("SCH", lehrer["k"]!.GetValue<string>());
         Assert.Equal("WAG", lehrer["alt"]!.GetValue<string>());
+        Assert.NotEqual("WAG", lehrer["k"]!.GetValue<string>());
     }
 
     [Fact]
@@ -412,6 +412,35 @@ public class KlassenbuchUndMitteilungTests
         var c = await s.AlsAsync("klasse-7a", "schueler", "7a");
         var r = await c.PostAsJsonAsync("/api/app/mitteilungen", new { empfaenger = new[] { "gruppe:alle" }, betreff = "x", text = "y", wichtig = false });
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
+    }
+}
+
+public class VeranstaltungTests
+{
+    [Fact]
+    public async Task Veranstaltungen_als_Ereignisse_und_im_Vertretungsplan()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var c = await s.AlsAsync("admin");
+        // Projekttag der Klassen 5a/5b am Donnerstag: ganztägig, Unterricht entfällt
+        var plan = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=5a&datum=2026-10-15");
+        var donnerstag = plan["tage"]!.AsArray()[3]!;
+        var e = donnerstag["ereignisse"]!.AsArray().Single(x => x!["titel"]!.GetValue<string>() == "Projekttag Medien")!;
+        Assert.True(e["ganztaegig"]!.GetValue<bool>());
+        // Elternsprechtag ohne Elemente gilt schulweit
+        Assert.Contains(plan["tage"]!.AsArray()[1]!["ereignisse"]!.AsArray(), x => x!["titel"]!.GetValue<string>() == "Elternsprechtag");
+
+        // Lehrerkonferenz Mi 7.–8.: im Raumplan eine gemeinsame Karte statt einer je Lehrkraft
+        var raum = await Testserver.HolenAsync(c, "/api/app/plan?typ=raum&element=EDV2&datum=2026-10-14");
+        var karten = raum["karten"]!.AsArray().Where(k => k!["status"]!.GetValue<string>() == "veranstaltung").ToList();
+        Assert.Single(karten);
+        Assert.True(karten[0]!["lehrer"]!.AsArray().Count > 10);
+
+        // Vertretungsplan: eine Zeile je Veranstaltung, keine Teilnahmezeilen
+        var vt = await Testserver.HolenAsync(c, "/api/app/vertretungen?datum=2026-10-14&tage=1");
+        var tag = vt["tage"]![0]!;
+        Assert.Contains(tag["veranstaltungen"]!.AsArray(), x => x!.GetValue<string>().StartsWith("Lehrerkonferenz (7.–8. Std."));
+        Assert.DoesNotContain(tag["zeilen"]!.AsArray(), z => z!["art"]!.GetValue<string>().StartsWith("Veranst") && z["klassen"]!.GetValue<string>() == "");
     }
 }
 

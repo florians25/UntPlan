@@ -13,13 +13,16 @@ function tagHtml(t, lehrer) {
     lehrer && t.abwesendeLehrer.length ? `Abwesende Lehrkräfte: ${e(t.abwesendeLehrer.join(', '))}` : '',
     t.blockierteRaeume.length ? `Nicht verfügbare Räume: ${e(t.blockierteRaeume.join(', '))}` : '',
   ].filter(Boolean);
-  return `<section class="monitor-tag"><h2>${e(datumLang(t.datum))}${t.woche ? ` <small style="font-weight:400;opacity:.7">${e(t.woche)}-Woche</small>` : ''}</h2>
-    ${t.nachrichten.map(n => `<div class="nachricht">${e(n)}</div>`).join('')}
-    ${infos.map(i => `<div class="infos">${i}</div>`).join('')}
-    <div class="monitor-rollbereich"><div class="rolle">
-    ${t.frei ? `<p>${e(t.freiGrund || 'Unterrichtsfrei')}</p>` : !t.zeilen.length ? '<p style="opacity:.7">Keine Vertretungen.</p>' : `<table><thead><tr><th>Klasse</th><th>Std.</th><th>Fach</th><th>Lehrkraft</th><th>Raum</th><th>Art</th><th>Hinweis</th></tr></thead><tbody>
-      ${t.zeilen.map(z => `<tr class="${e(z.status)}"><td><b>${e(z.klassen)}</b></td><td>${e(z.stunde)}</td><td>${alt(z.fachAlt)}${e(z.fach)}</td>
-        <td>${alt(z.lehrerAlt)}${z.status === 'offen' ? '???' : e(z.lehrer)}</td><td>${alt(z.raumAlt)}${e(z.raum)}</td><td>${e(z.art)}</td><td>${e(z.text)}</td></tr>`).join('')}
+  return `<section class="card h-100"><div class="card-header">${e(datumLang(t.datum))}${t.woche ? ` <span class="fw-normal opacity-75">· ${e(t.woche)}-Woche</span>` : ''}</div>
+    <div class="card-body pb-0">
+      ${t.nachrichten.map(n => `<div class="nachricht">${e(n)}</div>`).join('')}
+      ${(t.veranstaltungen ?? []).map(v => `<div class="small mb-1"><span class="opacity-75">Veranstaltung:</span> ${e(v)}</div>`).join('')}
+      ${infos.map(i => `<div class="small opacity-75 mb-1">${i}</div>`).join('')}
+    </div>
+    <div class="monitor-rollbereich"><div>
+    ${t.frei ? `<p class="px-3">${e(t.freiGrund || 'Unterrichtsfrei')}</p>` : !t.zeilen.length ? '<p class="px-3 opacity-75">Keine Vertretungen.</p>' : `<table class="table table-card mb-0"><thead><tr><th>Klasse</th><th>Std.</th><th>Fach</th><th>Lehrkraft</th><th>Raum</th><th>Art</th><th>Text</th></tr></thead><tbody>
+      ${t.zeilen.map(z => `<tr class="${e(z.status)}"><td class="fw-semibold">${e(z.klassen)}</td><td>${e(z.stunde)}</td><td>${alt(z.fachAlt)}${e(z.fach)}</td>
+        <td class="vt-lehrer">${alt(z.lehrerAlt)}${z.status === 'offen' ? '???' : e(z.lehrer)}</td><td>${alt(z.raumAlt)}${e(z.raum)}</td><td>${e(z.art)}</td><td>${e(z.text)}</td></tr>`).join('')}
     </tbody></table>`}</div></div></section>`;
 }
 
@@ -52,14 +55,12 @@ function rollen() {
 async function laden() {
   try {
     const r = await fetch(`/api/monitor/${encodeURIComponent(token)}`, { cache: 'no-store' });
-    if (r.status === 404) { wurzel.innerHTML = '<h1>Monitor nicht gefunden</h1><p>Der Link ist ungültig oder wurde zurückgesetzt.</p>'; return; }
+    if (r.status === 404) { wurzel.innerHTML = '<h1 class="h3">Monitor nicht gefunden</h1><p>Der Link ist ungültig oder wurde zurückgesetzt.</p>'; return; }
     const d = await r.json();
     versatz = new Date(d.jetzt).getTime() - Date.now();
     document.title = `${d.name} · UntPlanWeb`;
-    wurzel.innerHTML = `<header class="monitor-kopf"><span style="width:52px;height:52px;display:block">${LOGO}</span>
-        <div><h1>Vertretungsplan</h1><div style="opacity:.75">${e(d.schule)}</div></div><div class="uhr"></div></header>
-      <div class="monitor-tage" style="--spalten:${Math.min(d.tage.length, 2) || 1}">${d.tage.map(t => tagHtml(t, d.version === 'lehrer')).join('') || '<p>Keine Daten.</p>'}</div>`;
-    wurzel.querySelectorAll('.monitor-kopf svg').forEach(s => { s.style.width = '52px'; s.style.height = '52px'; });
+    wurzel.innerHTML = `<header class="monitor-kopf">${LOGO}<div><h1>Vertretungsplan</h1><div class="opacity-75">${e(d.schule)}</div></div><div class="uhr"></div></header>
+      <div class="row g-3 row-cols-1 ${d.tage.length > 1 ? 'row-cols-xl-2' : ''}">${d.tage.map(t => `<div class="col">${tagHtml(t, d.version === 'lehrer')}</div>`).join('') || '<p>Keine Daten.</p>'}</div>`;
     bildlauf.clear();
     uhr();
   } catch {

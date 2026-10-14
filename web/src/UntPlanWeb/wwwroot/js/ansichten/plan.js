@@ -1,5 +1,5 @@
-// Stundenpläne (Klasse, Lehrkraft, Raum) als zeitbasiertes Wochenraster.
-import { e, icon, holen, heuteIso, plusTage, montag, datumKurz } from '../ui.js';
+// Stundenpläne (Klasse, Lehrkraft, Raum) als Wochenraster nach Uhrzeit.
+import { e, icon, holen, heuteIso, plusTage, montag, datumKurz, lade } from '../ui.js';
 import { wochenGitter, tagAuswahl, legende, kartenBinden } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
 
@@ -17,41 +17,38 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const erlaubt = ich.kollegium ? ['klasse', 'lehrer', 'raum'] : ['klasse', 'raum'];
-  let typ = erlaubt.includes(typParam) ? typParam : ich.typ;
-  let element = elementParam;
+  const typ = erlaubt.includes(typParam) ? typParam : ich.typ;
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
-  if (!element) {
-    if (typ === ich.typ && ich.element) element = ich.element;
-    else element = el[LISTE[typ]][0]?.kurz;
-  }
+  let element = elementParam;
+  if (!element) element = typ === ich.typ && ich.element ? ich.element : el[LISTE[typ]][0]?.kurz;
   const ziel = (t, x, d) => `#/plan/${t}/${encodeURIComponent(x ?? '')}/${d}`;
   if (!element) {
     kontext.titel('Stundenplan');
-    seite.innerHTML = '<div class="karte"><div class="leer">Noch keine Stammdaten vorhanden.</div></div>';
+    seite.innerHTML = '<div class="alert alert-secondary">Noch keine Stammdaten vorhanden.</div>';
     return;
   }
 
-  kontext.titel(`Stundenplan ${element}`, `<button class="knopf flach rund" data-drucken title="Drucken">${icon('drucken')}</button>`);
+  kontext.titel('Stundenplan', `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
   document.querySelector('[data-drucken]').onclick = () => window.print();
 
   seite.innerHTML = `
-    <div class="plan-steuerung">
-      ${erlaubt.length > 1 ? `<div class="segment" role="tablist">${erlaubt.map(t => `<button data-typ="${t}" class="${t === typ ? 'aktiv' : ''}">${TYPEN[t]}</button>`).join('')}</div>` : ''}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 nicht-drucken">
+      ${erlaubt.length > 1 ? `<div class="btn-group" role="group" aria-label="Planart">${erlaubt.map(t => `<button type="button" data-typ="${t}" class="btn btn-outline-primary ${t === typ ? 'active' : ''}">${TYPEN[t]}</button>`).join('')}</div>` : ''}
       <span data-wahl></span>
-      <span class="abstand" style="flex:1"></span>
-      <div class="segment">
-        <button data-woche="-7" title="Vorherige Woche">${icon('links', 'icon-klein')}</button>
-        <button data-woche="0">Heute</button>
-        <button data-woche="7" title="Nächste Woche">${icon('rechts', 'icon-klein')}</button>
+      <div class="ms-md-auto d-flex gap-2">
+        <div class="btn-group" role="group" aria-label="Woche">
+          <button type="button" class="btn btn-outline-secondary" data-woche="-7" title="Vorherige Woche">${icon('links')}</button>
+          <button type="button" class="btn btn-outline-secondary" data-woche="0">Heute</button>
+          <button type="button" class="btn btn-outline-secondary" data-woche="7" title="Nächste Woche">${icon('rechts')}</button>
+        </div>
+        <input type="date" class="form-control" style="width:auto" value="${datum}" data-datum aria-label="Datum">
       </div>
-      <input type="date" value="${datum}" data-datum aria-label="Datum" style="width:auto">
     </div>
-    <div data-inhalt><div class="lade">Plan wird geladen …</div></div>`;
+    <div data-inhalt>${lade()}</div>`;
 
   seite.querySelectorAll('[data-typ]').forEach(b => b.onclick = () => {
     const t = b.dataset.typ;
-    const x = t === ich.typ && ich.element ? ich.element : el[LISTE[t]][0]?.kurz;
-    kontext.navigieren(ziel(t, x, datum));
+    kontext.navigieren(ziel(t, t === ich.typ && ich.element ? ich.element : el[LISTE[t]][0]?.kurz, datum));
   });
   seite.querySelector('[data-wahl]').replaceWith(elementWahl({
     eintraege: el[LISTE[typ]], wert: element, platzhalter: `${TYPEN[typ]} wählen`,
@@ -72,8 +69,10 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   const zeichnen = () => {
     const erster = plan.tage[0], letzter = plan.tage[plan.tage.length - 1];
     inhalt.innerHTML = `
-      <div class="plan-titel"><h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` <span class="gedimmt" style="font-weight:500">${e(langname(plan))}</span>` : ''}</h2>
-        <span class="gedimmt">${erster ? `${datumKurz(erster.datum)} – ${datumKurz(letzter.datum)}${letzter.datum.slice(0, 4)}` : ''}${plan.woche ? ` · ${e(plan.woche)}-Woche` : ''}</span></div>
+      <div class="d-flex flex-wrap align-items-baseline gap-2 mb-2">
+        <h2 class="h5 mb-0">${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` <span class="text-body-secondary fw-normal">– ${e(langname(plan))}</span>` : ''}</h2>
+        <span class="text-body-secondary small">${erster ? `${datumKurz(erster.datum)} – ${datumKurz(letzter.datum)}${letzter.datum.slice(0, 4)}` : ''}${plan.woche ? ` · ${e(plan.woche)}-Woche` : ''}</span>
+      </div>
       ${tagAuswahl(plan, gewaehlt)}
       ${wochenGitter(plan, { gewaehlterTag: gewaehlt })}
       ${legende(typ === 'lehrer')}`;

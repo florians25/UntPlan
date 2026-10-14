@@ -1,48 +1,55 @@
 // Meldungen an UntPlan: Abwesenheit melden, Raum buchen, Klausur eintragen, eigene Meldungen verfolgen.
-import { e, icon, holen, senden, api, toast, bestaetigen, heuteIso, plusTage, meldungText, statusMarker } from '../ui.js';
+import { e, holen, senden, api, toast, bestaetigen, heuteIso, plusTage, meldungText, statusMarker, leer, lade, alarm } from '../ui.js';
 
 const BEREICHE = [
-  { id: 'abwesenheit', text: 'Abwesenheit', icon: 'abwesend' },
-  { id: 'raum', text: 'Raum buchen', icon: 'raum' },
-  { id: 'klausur', text: 'Klausur', icon: 'klausur' },
-  { id: 'meine', text: 'Meine Meldungen', icon: 'melden' },
+  { id: 'abwesenheit', text: 'Abwesenheit' },
+  { id: 'raum', text: 'Raum buchen' },
+  { id: 'klausur', text: 'Klausur' },
+  { id: 'meine', text: 'Meine Meldungen' },
 ];
 
 function stundenAuswahl(stunden, name, wert) {
-  return `<select name="${name}">${stunden.map(s => `<option value="${s.nr}" ${s.nr === wert ? 'selected' : ''}>${e(s.bezeichnung || s.nr + '.')}${s.beginn ? ` (${e(s.beginn)})` : ''}</option>`).join('')}</select>`;
+  return `<select class="form-select" name="${name}">${stunden.map(s => `<option value="${s.nr}" ${s.nr === wert ? 'selected' : ''}>${e(s.bezeichnung || s.nr)}. Stunde${s.beginn ? ` (${e(s.beginn)})` : ''}</option>`).join('')}</select>`;
 }
 
 function mehrfachAuswahl(name, eintraege) {
-  return `<div class="empfaengerwahl" data-mehrfach="${name}" style="max-height:170px">${eintraege.map(x => `<label><input type="checkbox" value="${e(x.kurz)}"> <b>${e(x.kurz)}</b><small>${e(x.name && x.name !== x.kurz ? x.name : '')}</small></label>`).join('')}</div>`;
+  return `<div class="border rounded overflow-auto px-2 py-1 bg-white" data-mehrfach="${name}" style="max-height:180px">${eintraege.map(x => `
+    <div class="form-check"><input class="form-check-input" type="checkbox" value="${e(x.kurz)}" id="${name}-${e(x.kurz)}">
+      <label class="form-check-label" for="${name}-${e(x.kurz)}"><span class="fw-semibold">${e(x.kurz)}</span> <span class="text-body-secondary small">${e(x.name && x.name !== x.kurz ? x.name : '')}</span></label></div>`).join('')}</div>`;
 }
 const gewaehlt = (wurzel, name) => [...wurzel.querySelectorAll(`[data-mehrfach="${name}"] input:checked`)].map(x => x.value);
+const karte = (titel, inhalt) => `<div class="card" style="max-width:860px"><div class="card-header">${titel}</div><div class="card-body">${inhalt}</div></div>`;
 
 export async function zeigen(seite, kontext, [bereichParam]) {
   const bereich = BEREICHE.some(b => b.id === bereichParam) ? bereichParam : 'abwesenheit';
-  kontext.titel('Melden & Buchen');
+  kontext.titel('Meldungen');
   const el = await kontext.elemente();
   const stunden = (el.stunden ?? []).map(s => ({ nr: s.nr, bezeichnung: s.bezeichnung, beginn: s.beginn })).filter(s => s.nr > 0);
-  if (!stunden.length) for (let i = 1; i <= 10; i++) stunden.push({ nr: i, bezeichnung: `${i}.` });
+  if (!stunden.length) for (let i = 1; i <= 10; i++) stunden.push({ nr: i, bezeichnung: String(i) });
   const letzte = stunden[stunden.length - 1].nr;
 
-  seite.innerHTML = `<nav class="reiter">${BEREICHE.map(b => `<a href="#/melden/${b.id}" class="${b.id === bereich ? 'aktiv' : ''}">${b.text}</a>`).join('')}</nav><div data-bereich></div>`;
+  seite.innerHTML = `<ul class="nav nav-tabs mb-3">${BEREICHE.map(b => `<li class="nav-item"><a class="nav-link ${b.id === bereich ? 'active' : ''}" href="#/melden/${b.id}">${b.text}</a></li>`).join('')}</ul><div data-bereich></div>`;
   const ziel = seite.querySelector('[data-bereich]');
 
   if (bereich === 'abwesenheit') {
-    ziel.innerHTML = `<div class="karte" style="max-width:720px"><div class="karte-kopf">${icon('abwesend')}<h2>Abwesenheit melden</h2></div><div class="karte-inhalt">
-      <p class="gedimmt">Die Meldung geht an die Vertretungsplanung in UntPlan. Dort wird sie geprüft und als Abwesenheit übernommen.</p>
-      <form class="formular">
-        <div class="zeile"><label class="feld">von<input type="date" name="von" value="${heuteIso()}" required></label>
-          <label class="feld">bis<input type="date" name="bis" value="${heuteIso()}" required></label></div>
-        <label class="check"><input type="checkbox" name="ganz" checked> ganztägig</label>
-        <div class="zeile versteckt" data-stunden><label class="feld">ab Stunde${stundenAuswahl(stunden, 'stundeVon', 1)}</label>
-          <label class="feld">bis Stunde${stundenAuswahl(stunden, 'stundeBis', letzte)}</label></div>
-        <label class="feld">Grund<select name="grund"><option>Krankheit</option><option>Fortbildung</option><option>Dienstlicher Termin</option><option>Klassenfahrt / Exkursion</option><option>Sonderurlaub</option><option>Sonstiges</option></select></label>
-        <label class="feld">Hinweise für die Vertretung (optional)<textarea name="text" rows="3" placeholder="z. B. Aufgaben für die Klassen, Material im Fach …"></textarea></label>
-        <div><button class="knopf haupt" type="submit">${icon('senden', 'icon-klein')} Abwesenheit melden</button></div>
-      </form></div></div>`;
+    ziel.innerHTML = karte('Abwesenheit melden', `
+      <p class="small text-body-secondary">Die Meldung wird an die Vertretungsplanung übermittelt und dort als Abwesenheit übernommen.</p>
+      <form>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6"><label class="form-label">Von</label><input type="date" class="form-control" name="von" value="${heuteIso()}" required></div>
+          <div class="col-sm-6"><label class="form-label">Bis</label><input type="date" class="form-control" name="bis" value="${heuteIso()}" required></div>
+        </div>
+        <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="ganz" id="ganz" checked><label class="form-check-label" for="ganz">ganztägig</label></div>
+        <div class="row g-3 mb-3 d-none" data-stunden>
+          <div class="col-sm-6"><label class="form-label">ab</label>${stundenAuswahl(stunden, 'stundeVon', 1)}</div>
+          <div class="col-sm-6"><label class="form-label">bis</label>${stundenAuswahl(stunden, 'stundeBis', letzte)}</div>
+        </div>
+        <div class="mb-3"><label class="form-label">Grund</label><select class="form-select" name="grund"><option>Krankheit</option><option>Fortbildung</option><option>Dienstlicher Termin</option><option>Klassenfahrt / Exkursion</option><option>Sonderurlaub</option><option>Sonstiges</option></select></div>
+        <div class="mb-3"><label class="form-label">Hinweise für die Vertretung <span class="text-body-secondary">(optional)</span></label><textarea class="form-control" name="text" rows="3"></textarea></div>
+        <button class="btn btn-primary" type="submit">Abwesenheit melden</button>
+      </form>`);
     const form = ziel.querySelector('form');
-    form.ganz.onchange = () => ziel.querySelector('[data-stunden]').classList.toggle('versteckt', form.ganz.checked);
+    form.ganz.onchange = () => ziel.querySelector('[data-stunden]').classList.toggle('d-none', form.ganz.checked);
     form.von.onchange = () => { if (form.bis.value < form.von.value) form.bis.value = form.von.value; };
     form.onsubmit = async ev => {
       ev.preventDefault();
@@ -51,27 +58,30 @@ export async function zeigen(seite, kontext, [bereichParam]) {
           von: form.von.value, bis: form.bis.value, grund: form.grund.value, text: form.text.value,
           stundeVon: form.ganz.checked ? null : Number(form.stundeVon.value), stundeBis: form.ganz.checked ? null : Number(form.stundeBis.value),
         });
-        toast('Abwesenheit gemeldet. Gute Besserung bzw. viel Erfolg!');
+        toast('Abwesenheit gemeldet.');
         kontext.navigieren('#/melden/meine');
       } catch (err) { kontext.fehler(err); }
     };
   }
 
   if (bereich === 'raum') {
-    const morgen = plusTage(heuteIso(), 1);
-    ziel.innerHTML = `<div class="karte" style="max-width:860px"><div class="karte-kopf">${icon('raum')}<h2>Raum buchen</h2></div><div class="karte-inhalt">
-      <form class="formular">
-        <div class="zeile"><label class="feld">Datum<input type="date" name="datum" value="${morgen}" min="${heuteIso()}" required></label>
-          <label class="feld">von Stunde${stundenAuswahl(stunden, 'stundeVon', 1)}</label>
-          <label class="feld">bis Stunde${stundenAuswahl(stunden, 'stundeBis', 1)}</label></div>
-        <div><b class="klein">Freie Räume</b><div data-raeume style="margin-top:6px"><div class="lade"></div></div></div>
-        <div class="zeile"><label class="feld">Titel<input name="titel" placeholder="z. B. Projektarbeit"></label>
-          <label class="feld">Klasse(n) (optional)<input name="klassen" placeholder="z. B. 7a, 7b" list="klassenliste"></label></div>
+    ziel.innerHTML = karte('Raum buchen', `
+      <form>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4"><label class="form-label">Datum</label><input type="date" class="form-control" name="datum" value="${plusTage(heuteIso(), 1)}" min="${heuteIso()}" required></div>
+          <div class="col-sm-4"><label class="form-label">Von</label>${stundenAuswahl(stunden, 'stundeVon', 1)}</div>
+          <div class="col-sm-4"><label class="form-label">Bis</label>${stundenAuswahl(stunden, 'stundeBis', 1)}</div>
+        </div>
+        <div class="mb-3"><label class="form-label">Freie Räume</label><div data-raeume>${lade()}</div></div>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6"><label class="form-label">Titel</label><input class="form-control" name="titel"></div>
+          <div class="col-sm-6"><label class="form-label">Klasse(n) <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="klassen" placeholder="z. B. 7a, 7b" list="klassenliste"></div>
+        </div>
         <datalist id="klassenliste">${el.klassen.map(k => `<option value="${e(k.kurz)}">`).join('')}</datalist>
-        <label class="feld">Bemerkung (optional)<input name="text"></label>
-        <div><button class="knopf haupt" type="submit">${icon('haken', 'icon-klein')} Raum buchen</button>
-          <span class="gedimmt klein" style="margin-left:8px">Die Buchung erscheint sofort als „vorgemerkt“ im Raumplan und wird von UntPlan übernommen.</span></div>
-      </form></div></div>`;
+        <div class="mb-3"><label class="form-label">Bemerkung <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="text"></div>
+        <button class="btn btn-primary" type="submit">Raum buchen</button>
+        <div class="form-text">Die Buchung erscheint sofort als „vorgemerkt“ im Raumplan und wird von UntPlan übernommen.</div>
+      </form>`);
     const form = ziel.querySelector('form');
     let raum = null;
     const laden = async () => {
@@ -80,13 +90,11 @@ export async function zeigen(seite, kontext, [bereichParam]) {
       raum = null;
       try {
         const frei = await holen(`/api/app/meldungen/freieraeume?datum=${form.datum.value}&von=${form.stundeVon.value}&bis=${form.stundeBis.value}`);
-        box.innerHTML = frei.length ? `<div class="raumwahl">${frei.map(r => `<button type="button" data-raum="${e(r.kurz)}"><b>${e(r.kurz)}</b><small>${e(r.name && r.name !== r.kurz ? r.name : ' ')}</small></button>`).join('')}</div>`
-          : '<div class="hinweis warnung">Kein Raum frei.</div>';
-        box.querySelectorAll('[data-raum]').forEach(b => b.onclick = () => {
-          raum = b.dataset.raum;
-          box.querySelectorAll('[data-raum]').forEach(x => x.classList.toggle('aktiv', x === b));
-        });
-      } catch (err) { box.innerHTML = `<div class="hinweis fehler">${e(err.message)}</div>`; }
+        box.innerHTML = frei.length ? `<div class="d-flex flex-wrap gap-2">${frei.map(r => `<input type="radio" class="btn-check" name="raumwahl" id="r-${e(r.kurz)}" value="${e(r.kurz)}" autocomplete="off">
+            <label class="btn btn-sm btn-outline-secondary" for="r-${e(r.kurz)}" title="${e(r.name ?? '')}">${e(r.kurz)}</label>`).join('')}</div>`
+          : alarm('warning', 'In diesem Zeitraum ist kein Raum frei.');
+        box.querySelectorAll('[name=raumwahl]').forEach(b => b.onchange = () => { raum = b.value; });
+      } catch (err) { box.innerHTML = alarm('danger', err.message); }
     };
     form.datum.onchange = form.stundeVon.onchange = form.stundeBis.onchange = laden;
     laden();
@@ -105,20 +113,22 @@ export async function zeigen(seite, kontext, [bereichParam]) {
   }
 
   if (bereich === 'klausur') {
-    ziel.innerHTML = `<div class="karte" style="max-width:860px"><div class="karte-kopf">${icon('klausur')}<h2>Klausur eintragen</h2></div><div class="karte-inhalt">
-      <form class="formular">
-        <div class="zeile"><label class="feld">Datum<input type="date" name="datum" value="${plusTage(heuteIso(), 7)}" min="${heuteIso()}" required></label>
-          <label class="feld">von Stunde${stundenAuswahl(stunden, 'stundeVon', 3)}</label>
-          <label class="feld">bis Stunde${stundenAuswahl(stunden, 'stundeBis', 4)}</label></div>
-        <label class="feld">Titel<input name="titel" placeholder="z. B. Klausur Deutsch GK" required></label>
-        <div class="zeile">
-          <div><b class="klein">Klasse(n) / Kurse</b>${mehrfachAuswahl('klassen', el.klassen)}</div>
-          <div><b class="klein">Räume (optional)</b>${mehrfachAuswahl('raeume', el.raeume)}</div>
+    ziel.innerHTML = karte('Klausur eintragen', `
+      <form>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4"><label class="form-label">Datum</label><input type="date" class="form-control" name="datum" value="${plusTage(heuteIso(), 7)}" min="${heuteIso()}" required></div>
+          <div class="col-sm-4"><label class="form-label">Von</label>${stundenAuswahl(stunden, 'stundeVon', 3)}</div>
+          <div class="col-sm-4"><label class="form-label">Bis</label>${stundenAuswahl(stunden, 'stundeBis', 4)}</div>
         </div>
-        <div><b class="klein">Aufsicht (optional)</b>${mehrfachAuswahl('aufsicht', el.lehrer)}</div>
-        <label class="feld">Bemerkung (optional)<input name="text"></label>
-        <div><button class="knopf haupt" type="submit">${icon('haken', 'icon-klein')} Klausur eintragen</button></div>
-      </form></div></div>`;
+        <div class="mb-3"><label class="form-label">Titel</label><input class="form-control" name="titel" placeholder="z. B. Deutsch GK" required></div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-4"><label class="form-label">Klassen / Kurse</label>${mehrfachAuswahl('klassen', el.klassen)}</div>
+          <div class="col-md-4"><label class="form-label">Räume <span class="text-body-secondary">(optional)</span></label>${mehrfachAuswahl('raeume', el.raeume)}</div>
+          <div class="col-md-4"><label class="form-label">Aufsicht <span class="text-body-secondary">(optional)</span></label>${mehrfachAuswahl('aufsicht', el.lehrer)}</div>
+        </div>
+        <div class="mb-3"><label class="form-label">Bemerkung <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="text"></div>
+        <button class="btn btn-primary" type="submit">Klausur eintragen</button>
+      </form>`);
     const form = ziel.querySelector('form');
     form.stundeVon.onchange = () => { if (Number(form.stundeBis.value) < Number(form.stundeVon.value)) form.stundeBis.value = form.stundeVon.value; };
     form.onsubmit = async ev => {
@@ -138,13 +148,13 @@ export async function zeigen(seite, kontext, [bereichParam]) {
 
   if (bereich === 'meine') {
     const liste = await holen('/api/app/meldungen');
-    ziel.innerHTML = `<div class="karte"><div class="karte-kopf">${icon('melden')}<h2>Meine Meldungen</h2></div>
-      ${liste.length ? `<div class="tabelle-huelle"><table class="tabelle"><thead><tr><th>Meldung</th><th>Erstellt</th><th>Stand</th><th></th></tr></thead><tbody>
-        ${liste.map(m => `<tr><td>${e(meldungText(m))}${m.text && m.typ !== 'nachricht' ? `<br><small class="gedimmt">${e(m.text)}</small>` : ''}</td>
-          <td class="gedimmt" style="white-space:nowrap">${e(new Date(m.erstellt.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</td>
+    ziel.innerHTML = `<div class="card"><div class="card-header">Meine Meldungen</div>
+      ${liste.length ? `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Meldung</th><th>Erstellt</th><th>Status</th><th></th></tr></thead><tbody>
+        ${liste.map(m => `<tr><td>${e(meldungText(m))}${m.text && m.typ !== 'nachricht' ? `<div class="small text-body-secondary">${e(m.text)}</div>` : ''}</td>
+          <td class="text-body-secondary small text-nowrap">${e(new Date(m.erstellt.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</td>
           <td>${statusMarker(m.status)}</td>
-          <td style="text-align:right">${m.status === 'offen' ? `<button class="knopf klein flach gefahr" data-zurueck="${e(m.id)}">${icon('x', 'icon-klein')} Zurückziehen</button>` : ''}</td></tr>`).join('')}
-      </tbody></table></div>` : '<div class="leer">Noch keine Meldungen.</div>'}</div>`;
+          <td class="text-end">${m.status === 'offen' ? `<button class="btn btn-sm btn-outline-danger" data-zurueck="${e(m.id)}">Zurückziehen</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>` : `<div class="card-body py-0">${leer('Noch keine Meldungen.')}</div>`}</div>`;
     ziel.querySelectorAll('[data-zurueck]').forEach(b => b.onclick = async () => {
       if (!await bestaetigen('Meldung zurückziehen', 'Soll die Meldung zurückgezogen werden?', 'Zurückziehen')) return;
       try { await api(`/api/app/meldungen/${encodeURIComponent(b.dataset.zurueck)}`, { methode: 'DELETE' }); toast('Meldung zurückgezogen.'); kontext.navigieren(location.hash); }
@@ -152,3 +162,4 @@ export async function zeigen(seite, kontext, [bereichParam]) {
     });
   }
 }
+

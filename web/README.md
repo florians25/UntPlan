@@ -11,9 +11,12 @@ UntPlan beim nächsten Datenaustausch ab.
 
 - **Heute:** der nächste Unterrichtstag mit Änderungen, Pausenaufsichten, Nachrichten, Terminen und eigenen Meldungen.
 - **Stundenpläne** für Klassen, Lehrkräfte und Räume:
-  - zeitbasiertes Wochenraster mit Jetzt-Linie; gleichzeitige Stunden stehen nebeneinander.
-  - Vertretungen sind farbig markiert, der ursprüngliche Wert ist durchgestrichen, offene Vertretungen erscheinen als „???“.
-  - Kennzeichnung von Entfall, Klausur, Bereitschaft und vorgemerkten Buchungen; Druck, Mobilansicht mit Tagesauswahl.
+  - Raster nach Unterrichtsstunden mit Uhrzeiten und Jetzt-Linie; gleichzeitige Stunden stehen nebeneinander.
+  - Stundenkarten mit den bekannten Kennzeichen: Änderungen grün hinterlegt, geänderte Werte als grüne Kürzelbox,
+    offene Vertretungen als „???“, Entfall rot und durchgestrichen, Prüfungen gelb.
+  - Marker oben rechts (Entfall, Prüfung, Änderung, Zusatzstunde) und Infozeichen bei Zusatztext.
+  - Veranstaltungen: ganztägige als Leiste über dem Tag, stundenweise als eigene Karte; Teilnahmen mehrerer Lehrkräfte werden zusammengefasst.
+  - Bereitschaften, Raumbuchungen und Vormerkungen; Druck, Mobilansicht mit Tagesauswahl.
 - **Tagesübersicht** (Kollegium): alle Klassen, Lehrkräfte oder Räume eines Tages auf einen Blick.
 - **Vertretungsplan** als Schüler- oder Lehrerversion:
   - Die Schülerversion zeigt keine Abwesenheitsgründe und weder Bereitschaften noch Aufsichten.
@@ -32,9 +35,9 @@ UntPlan beim nächsten Datenaustausch ab.
   - Benutzer, auch automatisch aus den Stammdaten mit Startpasswörtern als CSV.
   - Rückmeldungen, Nachrichten zum Tag, Monitore, Protokoll.
 
-| Heute | Vertretungsplan | Monitor |
+| Lehrerplan | Übersicht | Vertretungsplan |
 |---|---|---|
-| ![Heute](docs/bilder/heute.png) | ![Vertretungsplan](docs/bilder/vertretungsplan.png) | ![Monitor](docs/bilder/monitor.png) |
+| ![Lehrerplan](docs/bilder/lehrerplan.png) | ![Übersicht](docs/bilder/heute.png) | ![Vertretungsplan](docs/bilder/vertretungsplan.png) |
 
 ## Installation mit Docker
 
@@ -131,7 +134,7 @@ dotnet test tests/UntPlanWeb.Tests           # inkl. Ende-zu-Ende-Test mit dem E
 Aufbau:
 
 - `src/UntPlanWeb`: ASP.NET Core 8 (Minimal-APIs) mit SQLite und eigenen Migrationen.
-- `wwwroot`: Oberfläche ohne Build-Schritt (Vanilla-JS-Module, eigenes CSS).
+- `wwwroot`: Oberfläche ohne Build-Schritt auf Basis von Bootstrap 5.3 und Bootstrap Icons (lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module.
 - `demo/beispiel-paket.json`: Beispielpaket, mit UntPlan.Core aus der Beispielschule erzeugt.
 
 UntPlanWeb gehört nicht zur Desktop-Solution `UntPlan.sln` und hat einen eigenen CI-Ablauf (`.github/workflows/web.yml`).

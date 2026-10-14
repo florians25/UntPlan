@@ -7,7 +7,7 @@ public sealed record Vertretungszeile(string Klassen, string Stunde, int StundeV
     string Raum, string? RaumAlt, string Art, string Text, string VertrVon, string Nach, string Status);
 
 public sealed record Vertretungstag(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, List<string> Nachrichten,
-    List<string> AbwesendeKlassen, List<string> AbwesendeLehrer, List<string> BlockierteRaeume, List<Vertretungszeile> Zeilen);
+    List<string> AbwesendeKlassen, List<string> AbwesendeLehrer, List<string> BlockierteRaeume, List<string> Veranstaltungen, List<Vertretungszeile> Zeilen);
 
 /// <summary>Nachricht zum Tag (in UntPlanWeb gepflegt, ergänzt die Tagestexte aus UntPlan).</summary>
 public sealed record Nachricht(int Id, string Von, string Bis, string Text, string Zielgruppe, bool Startseite, bool Monitor);
@@ -73,8 +73,21 @@ public sealed class Vertretungsplandienst
         var lehrer = kollegium ? absenzen.Where(a => a.Art == "lehrer").Select(a => a.Element + Std(a)).Distinct().ToList() : new List<string>();
         var raeume = absenzen.Where(a => a.Art == "raum").Select(a => a.Element + Std(a)).Distinct().ToList();
 
+        // Veranstaltungen als eigene Zeile oben; Teilnahmezeilen einzelner Lehrkräfte (ohne Klassen) entfallen in der Liste
+        var veranstaltungen = s.Paket.Termine.Where(t => t.Art != "klausur" && DateOnly.TryParse(t.Von, out var v) && DateOnly.TryParse(t.Bis, out var b) && d >= v && d <= b
+                                                         && (kollegium || t.Klassen.Count > 0 || (t.Lehrer.Count == 0 && t.Raeume.Count == 0)))
+            .Select(t =>
+            {
+                var von = DateOnly.Parse(t.Von) == d ? t.StundeVon : 1;
+                var bis = DateOnly.Parse(t.Bis) == d ? t.StundeBis : 99;
+                var std = von <= 1 && bis >= 20 ? "ganztägig" : bis >= 20 ? $"ab {von}. Std." : von == bis ? $"{von}. Std." : $"{von}.–{bis}. Std.";
+                var wer = t.Klassen.Count > 0 ? string.Join(", ", t.Klassen) : t.Lehrer.Count > 0 && kollegium ? (t.Lehrer.Count > 8 ? $"{t.Lehrer.Count} Lehrkräfte" : string.Join(", ", t.Lehrer)) : "";
+                return $"{t.Titel} ({std}{(wer.Length > 0 ? ", " + wer : "")}{(t.Raeume.Count > 0 ? ", " + string.Join(", ", t.Raeume) : "")})";
+            }).ToList();
+
         // Schülerversion: nur Einträge mit Klassenbezug, keine Bereitschaften oder Aufsichten
-        var einzeln = s.Paket.Vertretungen.Where(v => v.Datum == iso && (kollegium || (!v.NurLehrer && v.Klassen.Count > 0 && !IstLehrerintern(v)))).Select(v =>
+        var einzeln = s.Paket.Vertretungen.Where(v => v.Datum == iso && !(v.Klassen.Count == 0 && v.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase))
+                                                      && (kollegium || (!v.NurLehrer && v.Klassen.Count > 0 && !IstLehrerintern(v)))).Select(v =>
         {
             var status = v.Art switch
             {
@@ -107,7 +120,7 @@ public sealed class Vertretungsplandienst
             zeilen.Add(z);
         }
         return new Vertretungstag(iso, Plandienst.Wochentage[Plandienst.TagIndex(d)], _plan.Woche(s, d), frei, grund, NachrichtenAm(s, d, kollegium, ort),
-            klassen, lehrer, raeume, zeilen);
+            klassen, lehrer, raeume, veranstaltungen, zeilen);
     }
 
     private static bool IstLehrerintern(WebVertretung v) =>

@@ -29,7 +29,10 @@ public sealed record Karte(
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
 public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
 
-public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise);
+public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise, List<Ereignis> Ereignisse);
+
+/// <summary>Veranstaltung an einem Tag: ganztägig (Leiste über dem Tag) oder in bestimmten Stunden (Karte im Raster).</summary>
+public sealed record Ereignis(string Titel, string Art, int Von, int Bis, bool Ganztaegig, List<string> Klassen, List<string> Lehrer, List<string> Raeume);
 
 public sealed record Zeit(int Nr, string Bezeichnung, string Beginn, string Ende);
 
@@ -152,6 +155,15 @@ public sealed class Plandienst
             if (!betrifft) continue;
             einzel.Add(KarteBauen(s, d, typ, kurz, r, v, zeiten));
         }
+        // Teilnahmen mehrerer Lehrkräfte an derselben Veranstaltung: eine Karte mit allen Beteiligten
+        var veranstaltungen = einzel.Where(k => k.Status == "veranstaltung").GroupBy(k => (k.Von, k.Text))
+            .Select(g => g.First() with
+            {
+                Klassen = g.SelectMany(k => k.Klassen).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
+                Lehrer = g.SelectMany(k => k.Lehrer).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
+                Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
+            }).ToList();
+        einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen).ToList();
         return Zusammenfassen(einzel, zeiten);
     }
 
@@ -165,6 +177,7 @@ public sealed class Plandienst
             "vertreten" => "geaendert",
             "zusaetzlich" when art.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) => "klausur",
             "zusaetzlich" when art.StartsWith("Raumbuchung", StringComparison.OrdinalIgnoreCase) => "buchung",
+            "zusaetzlich" when art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) => "veranstaltung",
             "zusaetzlich" => "geaendert",
             "vorgemerkt" => "vorgemerkt",
             _ => IstBereitschaft(s, r.Fach) ? "bereitschaft" : "regulaer",
@@ -270,17 +283,6 @@ public sealed class Plandienst
     {
         var res = new List<string>();
         string Std(int von, int bis) => bis >= 20 || bis < von ? $"ab {von}. Std." : von == bis ? $"{von}. Std." : $"{von}.–{bis}. Std.";
-        foreach (var t in s.Paket.Termine.Where(x => x.Art != "klausur" && DateOnly.TryParse(x.Von, out var v) && DateOnly.TryParse(x.Bis, out var b) && d >= v && d <= b))
-        {
-            var betrifft = typ switch
-            {
-                Elementtyp.Klasse => Enthaelt(t.Klassen, kurz),
-                Elementtyp.Lehrer => Enthaelt(t.Lehrer, kurz),
-                Elementtyp.Raum => Enthaelt(t.Raeume, kurz),
-                _ => false,
-            };
-            if (betrifft) res.Add($"{t.Titel} ({Std(t.StundeVon, t.StundeBis)})");
-        }
         foreach (var a in s.Paket.Absenzen.Where(x => DateOnly.TryParse(x.Von, out var v) && DateOnly.TryParse(x.Bis, out var b) && d >= v && d <= b && Ci.Equals(x.Element, kurz)))
         {
             if (a.Art == "lehrer" && typ == Elementtyp.Lehrer && kollegium) res.Add($"abwesend {Std(a.StundeVon, a.StundeBis)}{(string.IsNullOrEmpty(a.Grund) ? "" : " – " + a.Grund)}");
@@ -293,7 +295,36 @@ public sealed class Plandienst
     public Tageskopf Kopf(Stand s, DateOnly d, string typ, string kurz, bool kollegium)
     {
         var (frei, grund) = Frei(s, d);
-        return new Tageskopf(Iso(d), Wochentage[TagIndex(d)], Woche(s, d), frei, grund, s.Tage.ContainsKey(Iso(d)), frei ? new List<string>() : Hinweise(s, d, typ, kurz, kollegium));
+        return new Tageskopf(Iso(d), Wochentage[TagIndex(d)], Woche(s, d), frei, grund, s.Tage.ContainsKey(Iso(d)),
+            frei ? new List<string>() : Hinweise(s, d, typ, kurz, kollegium), frei ? new List<Ereignis>() : Ereignisse(s, d, typ, kurz));
+    }
+
+    /// <summary>
+    /// Veranstaltungen eines Tages für ein Element (ohne Klausuren, die als Karten erscheinen). Veranstaltungen ohne
+    /// zugeordnete Elemente gelten für die ganze Schule. Mehrtägige Veranstaltungen beginnen am ersten Tag mit
+    /// StundeVon und enden am letzten Tag mit StundeBis; dazwischen sind sie ganztägig.
+    /// </summary>
+    public List<Ereignis> Ereignisse(Stand s, DateOnly d, string typ, string kurz)
+    {
+        var letzte = s.Paket.Zeitraster.Stunden.Count > 0 ? s.Paket.Zeitraster.Stunden.Max(z => z.Nr) : 10;
+        var res = new List<Ereignis>();
+        foreach (var t in s.Paket.Termine.Where(x => x.Art != "klausur" && DateOnly.TryParse(x.Von, out var v) && DateOnly.TryParse(x.Bis, out var b) && d >= v && d <= b))
+        {
+            var schulweit = t.Klassen.Count == 0 && t.Lehrer.Count == 0 && t.Raeume.Count == 0;
+            var betrifft = schulweit || typ switch
+            {
+                Elementtyp.Klasse => Enthaelt(t.Klassen, kurz),
+                Elementtyp.Lehrer => Enthaelt(t.Lehrer, kurz),
+                Elementtyp.Raum => Enthaelt(t.Raeume, kurz),
+                _ => kurz.Length == 0,
+            };
+            if (!betrifft) continue;
+            var von = DateOnly.Parse(t.Von) == d ? Math.Max(1, t.StundeVon) : 1;
+            var bis = DateOnly.Parse(t.Bis) == d && t.StundeBis > 0 ? Math.Min(t.StundeBis, letzte) : letzte;
+            if (bis < von) bis = von;
+            res.Add(new Ereignis(t.Titel, t.Art, von, bis, von <= 1 && bis >= letzte, t.Klassen, t.Lehrer, t.Raeume));
+        }
+        return res.OrderBy(e => !e.Ganztaegig).ThenBy(e => e.Von).ToList();
     }
 
     /// <summary>Wochenplan eines Elements ab Montag.</summary>

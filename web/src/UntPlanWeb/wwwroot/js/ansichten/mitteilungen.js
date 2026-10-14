@@ -1,5 +1,5 @@
 // Mitteilungen: Posteingang, Gesendet, neue Mitteilung schreiben.
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, initialen } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer } from '../ui.js';
 
 function zeit(s) {
   const d = new Date(s.replace(' ', 'T'));
@@ -12,46 +12,51 @@ function zeit(s) {
 
 export async function zeigen(seite, kontext, [ordnerParam]) {
   const ordner = ordnerParam === 'gesendet' ? 'gesendet' : 'eingang';
-  kontext.titel('Mitteilungen', `<button class="knopf haupt" data-neu>${icon('plus', 'icon-klein')} Neue Mitteilung</button>`);
+  kontext.titel('Mitteilungen', `<button class="btn btn-primary btn-sm" data-neu>${icon('plus', 'me-1')}Neue Mitteilung</button>`);
   document.querySelector('[data-neu]').onclick = () => schreiben(kontext);
 
   const liste = await holen(`/api/app/mitteilungen?ordner=${ordner}`);
-  seite.innerHTML = `<div class="mitteilungen">
-    <div class="karte mt-liste">
-      <div class="reiter" style="margin:0;padding:0 8px">
-        <a href="#/mitteilungen" class="${ordner === 'eingang' ? 'aktiv' : ''}">Posteingang</a>
-        <a href="#/mitteilungen/gesendet" class="${ordner === 'gesendet' ? 'aktiv' : ''}">Gesendet</a>
+  seite.innerHTML = `<div class="row g-3">
+    <div class="col-lg-4" data-listenspalte>
+      <div class="card">
+        <div class="card-header p-0 border-bottom-0"><ul class="nav nav-tabs card-header-tabs m-0 px-2 pt-2">
+          <li class="nav-item"><a class="nav-link ${ordner === 'eingang' ? 'active' : ''}" href="#/mitteilungen">Posteingang</a></li>
+          <li class="nav-item"><a class="nav-link ${ordner === 'gesendet' ? 'active' : ''}" href="#/mitteilungen/gesendet">Gesendet</a></li>
+        </ul></div>
+        <div class="list-group list-group-flush" style="max-height:70vh;overflow-y:auto">${liste.length ? liste.map((m, i) => `
+          <button type="button" class="list-group-item list-group-item-action py-2" data-i="${i}">
+            <div class="d-flex small"><span class="text-truncate ${ordner === 'eingang' && !m.gelesen ? 'fw-semibold' : 'text-body-secondary'}">${ordner === 'gesendet' ? 'an ' + e(m.empfaenger.join(', ')) : e(m.absender)}</span>
+              <span class="ms-auto ps-2 text-body-secondary text-nowrap">${e(zeit(m.erstellt))}</span></div>
+            <div class="text-truncate ${ordner === 'eingang' && !m.gelesen ? 'fw-semibold' : ''}">${m.wichtig ? '<span class="badge text-bg-danger me-1">wichtig</span>' : ''}${e(m.betreff)}</div>
+            <div class="small text-body-secondary text-truncate">${e(m.text.slice(0, 120))}</div></button>`).join('')
+          : `<div class="list-group-item">${leer('Keine Mitteilungen.')}</div>`}</div>
       </div>
-      <div class="mt-eintraege">${liste.length ? liste.map((m, i) => `<button class="mt-eintrag ${ordner === 'eingang' && !m.gelesen ? 'ungelesen' : ''}" data-i="${i}">
-          <small style="float:right">${e(zeit(m.erstellt))}</small>
-          <small>${ordner === 'gesendet' ? 'an ' + e(m.empfaenger.join(', ')) : e(m.absender)}</small>
-          <b>${m.wichtig ? '<span class="marker rot" style="margin-right:4px">wichtig</span>' : ''}${e(m.betreff)}</b>
-          <small style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(m.text.slice(0, 120))}</small></button>`).join('')
-        : `<div class="leer">${icon('mitteilung')}<p>Keine Mitteilungen.</p></div>`}</div>
     </div>
-    <div class="karte mt-lesen-karte"><div class="mt-lesen" data-lesen><div class="leer">${icon('mitteilung')}<p>Wählen Sie eine Mitteilung aus.</p></div></div></div>
+    <div class="col-lg-8" data-lesespalte><div class="card"><div class="card-body" data-lesen>${leer('Wählen Sie eine Mitteilung aus.')}</div></div></div>
   </div>`;
-  const huelle = seite.querySelector('.mitteilungen');
   const lesen = seite.querySelector('[data-lesen]');
+  const schmal = () => window.innerWidth < 992;
+  const ansicht = lesemodus => {
+    if (!schmal()) return;
+    seite.querySelector('[data-listenspalte]').classList.toggle('d-none', lesemodus);
+    seite.querySelector('[data-lesespalte]').classList.toggle('d-none', !lesemodus);
+  };
+  ansicht(false);
 
   const oeffnen = async i => {
     const m = liste[i];
-    seite.querySelectorAll('.mt-eintrag').forEach(b => b.classList.toggle('aktiv', Number(b.dataset.i) === i));
-    huelle.classList.add('lesen');
+    seite.querySelectorAll('[data-i]').forEach(b => b.classList.toggle('active', Number(b.dataset.i) === i));
+    ansicht(true);
     lesen.innerHTML = `
-      <div class="leiste" style="margin-bottom:8px">
-        <button class="knopf flach klein" data-zurueck>${icon('links', 'icon-klein')} Zurück</button>
-        <span class="abstand"></span>
-        ${ordner === 'eingang' && m.absenderId ? `<button class="knopf klein" data-antworten>${icon('senden', 'icon-klein')} Antworten</button>` : ''}
-        <button class="knopf klein gefahr" data-loeschen>${icon('loeschen', 'icon-klein')} Löschen</button>
+      <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-sm btn-outline-secondary d-lg-none" data-zurueck>${icon('links')} Zurück</button>
+        ${ordner === 'eingang' && m.absenderId ? `<button class="btn btn-sm btn-outline-secondary" data-antworten>${icon('senden', 'me-1')}Antworten</button>` : ''}
+        <button class="btn btn-sm btn-outline-danger ms-auto" data-loeschen>${icon('loeschen', 'me-1')}Löschen</button>
       </div>
-      <h2 style="margin:0 0 10px">${m.wichtig ? '<span class="marker rot">wichtig</span> ' : ''}${e(m.betreff)}</h2>
-      <div style="display:flex;gap:10px;align-items:center">
-        <span class="avatar">${e(initialen(m.absender))}</span>
-        <div><b>${e(m.absender)}</b><br><small class="gedimmt">an ${e(m.empfaenger.join(', '))} · ${e(new Date(m.erstellt.replace(' ', 'T')).toLocaleString('de-DE'))}</small></div>
-      </div>
-      <div class="mt-text">${e(m.text)}</div>`;
-    lesen.querySelector('[data-zurueck]').onclick = () => huelle.classList.remove('lesen');
+      <h2 class="h5">${m.wichtig ? '<span class="badge text-bg-danger me-2 align-middle">wichtig</span>' : ''}${e(m.betreff)}</h2>
+      <div class="small text-body-secondary mb-3 pb-3 border-bottom"><span class="text-body fw-semibold">${e(m.absender)}</span> an ${e(m.empfaenger.join(', '))} · ${e(new Date(m.erstellt.replace(' ', 'T')).toLocaleString('de-DE'))}</div>
+      <div style="white-space:pre-wrap">${e(m.text)}</div>`;
+    lesen.querySelector('[data-zurueck]').onclick = () => ansicht(false);
     lesen.querySelector('[data-antworten]')?.addEventListener('click', () =>
       schreiben(kontext, { an: 'benutzer:' + m.absenderId, betreff: m.betreff.startsWith('AW:') ? m.betreff : 'AW: ' + m.betreff, zitat: m }));
     lesen.querySelector('[data-loeschen]').onclick = async () => {
@@ -64,13 +69,13 @@ export async function zeigen(seite, kontext, [ordnerParam]) {
       try {
         await senden(`/api/app/mitteilungen/${m.id}/gelesen`, {});
         m.gelesen = new Date().toISOString();
-        seite.querySelector(`.mt-eintrag[data-i="${i}"]`)?.classList.remove('ungelesen');
+        seite.querySelectorAll(`[data-i="${i}"] .fw-semibold`).forEach(x => x.classList.remove('fw-semibold'));
         await kontext.sitzungNeu();
       } catch { /* nicht kritisch */ }
     }
   };
-  seite.querySelectorAll('.mt-eintrag').forEach(b => b.onclick = () => oeffnen(Number(b.dataset.i)));
-  if (liste.length && window.innerWidth > 900) oeffnen(0);
+  seite.querySelectorAll('[data-i]').forEach(b => b.onclick = () => oeffnen(Number(b.dataset.i)));
+  if (liste.length && !schmal()) oeffnen(0);
 }
 
 async function schreiben(kontext, { an, betreff = '', zitat } = {}) {
@@ -80,27 +85,27 @@ async function schreiben(kontext, { an, betreff = '', zitat } = {}) {
   const text = zitat ? `\n\n----- ${zitat.absender} schrieb: -----\n${zitat.text}` : '';
   dialog({
     titel: 'Neue Mitteilung', breit: true,
-    inhalt: `<div class="formular">
-      <div><div class="leiste" style="margin-bottom:6px"><b class="klein">Empfänger</b><span class="abstand"></span>
-        <input type="search" data-suche placeholder="Empfänger suchen …" style="width:220px"></div>
-        <div class="empfaengerwahl">${gruppen.map(g => empfaenger.filter(x => x.art === g).map(x => `
-          <label data-name="${e(x.name.toLowerCase())}"><input type="checkbox" value="${e(x.id)}" ${x.id === an ? 'checked' : ''}> ${e(x.name)}<small>${e(g)}</small></label>`).join('')).join('')}</div></div>
-      <label class="feld">Betreff<input name="betreff" maxlength="200" value="${e(betreff)}" required></label>
-      <label class="feld">Nachricht<textarea name="text" rows="8" required>${e(text)}</textarea></label>
-      <label class="check"><input type="checkbox" name="wichtig"> Als wichtig markieren</label>
-    </div>`,
+    inhalt: `<div class="mb-3">
+        <div class="d-flex align-items-center mb-2"><label class="form-label mb-0">Empfänger</label>
+          <input type="search" class="form-control form-control-sm ms-auto" data-suche placeholder="Suchen" style="width:200px"></div>
+        <div class="border rounded overflow-auto px-2 py-1" style="max-height:200px">${gruppen.map(g => `<div class="small text-body-secondary fw-semibold mt-2 mb-1">${e(g)}</div>` + empfaenger.filter(x => x.art === g).map(x => `
+          <div class="form-check" data-name="${e(x.name.toLowerCase())}"><input class="form-check-input" type="checkbox" value="${e(x.id)}" id="mt-${e(x.id)}" ${x.id === an ? 'checked' : ''}>
+            <label class="form-check-label" for="mt-${e(x.id)}">${e(x.name)}</label></div>`).join('')).join('')}</div>
+      </div>
+      <div class="mb-3"><label class="form-label">Betreff</label><input class="form-control" name="betreff" maxlength="200" value="${e(betreff)}" required></div>
+      <div class="mb-3"><label class="form-label">Nachricht</label><textarea class="form-control" name="text" rows="8" required>${e(text)}</textarea></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="wichtig" id="mt-wichtig"><label class="form-check-label" for="mt-wichtig">Als wichtig markieren</label></div>`,
     beimOeffnen: box => {
       box.querySelector('[data-suche]').oninput = ev => {
         const f = ev.target.value.trim().toLowerCase();
-        box.querySelectorAll('.empfaengerwahl label').forEach(l => l.classList.toggle('versteckt', !!f && !l.dataset.name.includes(f)));
+        box.querySelectorAll('[data-name]').forEach(l => l.classList.toggle('d-none', !!f && !l.dataset.name.includes(f)));
       };
-      if (an) box.querySelector('[name=text]').focus();
     },
     knoepfe: [
       { text: 'Abbrechen' },
       {
-        text: `${icon('senden', 'icon-klein')} Senden`, art: 'haupt', aktion: async box => {
-          const ids = [...box.querySelectorAll('.empfaengerwahl input:checked')].map(x => x.value);
+        text: 'Senden', art: 'haupt', aktion: async box => {
+          const ids = [...box.querySelectorAll('[data-name] input:checked')].map(x => x.value);
           if (!ids.length) { toast('Bitte mindestens einen Empfänger auswählen.', true); return false; }
           await senden('/api/app/mitteilungen', { empfaenger: ids, betreff: box.querySelector('[name=betreff]').value, text: box.querySelector('[name=text]').value, wichtig: box.querySelector('[name=wichtig]').checked });
           toast('Mitteilung gesendet.');

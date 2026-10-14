@@ -1,31 +1,36 @@
-// Eigenes Profil: Passwort ändern, Kalenderabo.
+// Eigenes Konto: Angaben, Passwort ändern, Kalenderabo.
 import { e, icon, holen, senden, toast, bestaetigen } from '../ui.js';
 
 export async function zeigen(seite, kontext) {
-  kontext.titel('Mein Profil');
+  kontext.titel('Mein Konto');
   const p = await holen('/api/app/profil');
-  seite.innerHTML = `<div class="raster raster-2">
-    <div class="karte"><div class="karte-kopf">${icon('profil')}<h2>${e(p.anzeigename || p.login)}</h2></div><div class="karte-inhalt">
-      <table class="tabelle"><tbody>
-        <tr><th>Benutzername</th><td>${e(p.login)}</td></tr>
-        <tr><th>Rolle</th><td>${e(p.rolle)}</td></tr>
-        ${p.element ? `<tr><th>Kürzel</th><td>${e(p.element)}</td></tr>` : ''}
-        ${p.email ? `<tr><th>E-Mail</th><td>${e(p.email)}</td></tr>` : ''}
-        <tr><th>Letzte Anmeldung</th><td>${p.letzteAnmeldung ? e(new Date(p.letzteAnmeldung.replace(' ', 'T')).toLocaleString('de-DE')) : '–'}</td></tr>
-      </tbody></table></div></div>
-    <div class="karte"><div class="karte-kopf">${icon('schluessel')}<h2>Passwort ändern</h2></div><div class="karte-inhalt">
-      <form class="formular">
-        <label class="feld">Bisheriges Passwort<input name="alt" type="password" required autocomplete="current-password"></label>
-        <div class="zeile"><label class="feld">Neues Passwort<input name="neu" type="password" minlength="8" required autocomplete="new-password"></label>
-          <label class="feld">Wiederholen<input name="neu2" type="password" minlength="8" required autocomplete="new-password"></label></div>
-        <div><button class="knopf haupt" type="submit">Passwort ändern</button></div>
-      </form></div></div>
-    ${p.element ? `<div class="karte"><div class="karte-kopf">${icon('kalender')}<h2>Stundenplan im Kalender</h2></div><div class="karte-inhalt formular">
-      <p class="gedimmt" style="margin:0">Abonnieren Sie Ihren Stundenplan (inkl. Vertretungen der nächsten vier Wochen) in Outlook, Google Kalender oder auf dem Smartphone.
-        Der Link ist persönlich – bitte nicht weitergeben.</p>
-      <div class="schluessel-zeile"><div class="code klein" data-ical>${e(p.ical)}</div><button class="knopf rund" data-kopie title="Kopieren">${icon('kopieren', 'icon-klein')}</button></div>
-      <div><button class="knopf klein" data-neu>${icon('aktualisieren', 'icon-klein')} Neuen Link erzeugen</button></div>
-    </div></div>` : ''}
+  seite.innerHTML = `<div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card mb-3"><div class="card-header">Angaben</div>
+        <table class="table table-sm table-card mb-0"><tbody>
+          <tr><th class="fw-normal text-body-secondary w-50">Benutzername</th><td>${e(p.login)}</td></tr>
+          <tr><th class="fw-normal text-body-secondary">Name</th><td>${e(p.anzeigename || '–')}</td></tr>
+          <tr><th class="fw-normal text-body-secondary">Rolle</th><td>${e(p.rolle)}</td></tr>
+          ${p.element ? `<tr><th class="fw-normal text-body-secondary">Kürzel</th><td>${e(p.element)}</td></tr>` : ''}
+          ${p.email ? `<tr><th class="fw-normal text-body-secondary">E-Mail</th><td>${e(p.email)}</td></tr>` : ''}
+          <tr><th class="fw-normal text-body-secondary">Letzte Anmeldung</th><td>${p.letzteAnmeldung ? e(new Date(p.letzteAnmeldung.replace(' ', 'T')).toLocaleString('de-DE')) : '–'}</td></tr>
+        </tbody></table></div>
+      ${p.element ? `<div class="card"><div class="card-header">Stundenplan im Kalender abonnieren</div><div class="card-body">
+        <p class="small text-body-secondary">Persönlicher Link für Outlook, Google Kalender oder das Smartphone (Stunden und Vertretungen der nächsten vier Wochen). Bitte nicht weitergeben.</p>
+        <div class="input-group mb-2"><input class="form-control font-monospace small bg-body-tertiary" data-ical value="${e(p.ical)}" readonly>
+          <button class="btn btn-outline-secondary" type="button" data-kopie title="Kopieren">${icon('kopieren')}</button></div>
+        <button class="btn btn-sm btn-outline-secondary" data-neu>Neuen Link erzeugen</button>
+      </div></div>` : ''}
+    </div>
+    <div class="col-lg-6">
+      <div class="card"><div class="card-header">Passwort ändern</div><div class="card-body">
+        <form>
+          <div class="mb-3"><label class="form-label">Bisheriges Passwort</label><input class="form-control" name="alt" type="password" required autocomplete="current-password"></div>
+          <div class="mb-3"><label class="form-label">Neues Passwort</label><input class="form-control" name="neu" type="password" minlength="8" required autocomplete="new-password"><div class="form-text">Mindestens 8 Zeichen.</div></div>
+          <div class="mb-3"><label class="form-label">Neues Passwort wiederholen</label><input class="form-control" name="neu2" type="password" minlength="8" required autocomplete="new-password"></div>
+          <button class="btn btn-primary" type="submit">Passwort ändern</button>
+        </form></div></div>
+    </div>
   </div>`;
   const form = seite.querySelector('form');
   form.onsubmit = async ev => {
@@ -35,13 +40,13 @@ export async function zeigen(seite, kontext) {
     catch (err) { kontext.fehler(err); }
   };
   seite.querySelector('[data-kopie]')?.addEventListener('click', () => {
-    const t = seite.querySelector('[data-ical]').textContent;
+    const t = seite.querySelector('[data-ical]').value;
     navigator.clipboard?.writeText(t).then(() => toast('Link kopiert.'), () => toast('Bitte den Link manuell kopieren.', true));
   });
   seite.querySelector('[data-neu]')?.addEventListener('click', async () => {
     if (!await bestaetigen('Neuen Kalenderlink erzeugen', 'Der bisherige Link funktioniert danach nicht mehr.', 'Neu erzeugen')) return;
     const r = await senden('/api/app/profil/ical', {});
-    seite.querySelector('[data-ical]').textContent = r.ical;
+    seite.querySelector('[data-ical]').value = r.ical;
     toast('Neuer Link erzeugt.');
   });
 }

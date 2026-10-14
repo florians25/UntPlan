@@ -1,6 +1,6 @@
 {
   "schema": "untplanweb/1",
-  "erzeugt": "2026-10-14T06:36:26.1383577+00:00",
+  "erzeugt": "2026-10-14T07:49:54.1246549+00:00",
   "revision": 1,
   "programmversion": "1.0.0.0",
   "schule": {
@@ -3851,13 +3851,13 @@
             "5b"
           ],
           "lehrer": [
-            "BEC"
+            "HAR"
           ],
           "raeume": [
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 233,
+          "vertretung": 237,
           "text": ""
         },
         {
@@ -3954,7 +3954,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 234,
+          "vertretung": 238,
           "text": ""
         },
         {
@@ -4075,13 +4075,13 @@
             "5a"
           ],
           "lehrer": [
-            "RIC"
+            "BEC"
           ],
           "raeume": [
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 235,
+          "vertretung": 239,
           "text": ""
         },
         {
@@ -4212,7 +4212,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 236,
+          "vertretung": 240,
           "text": ""
         },
         {
@@ -4341,7 +4341,7 @@
             "KU1"
           ],
           "status": "vertreten",
-          "vertretung": 232,
+          "vertretung": 236,
           "text": ""
         },
         {
@@ -4649,7 +4649,7 @@
             "BI1"
           ],
           "status": "entfall",
-          "vertretung": 244,
+          "vertretung": 258,
           "text": "Exkursion Zoo"
         },
         {
@@ -4667,6 +4667,16 @@
           ],
           "status": "regulaer",
           "text": ""
+        },
+        {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 242,
+          "text": "Elternsprechtag"
         },
         {
           "stunde": 2,
@@ -4698,7 +4708,7 @@
             "KU1"
           ],
           "status": "entfall",
-          "vertretung": 238,
+          "vertretung": 252,
           "text": ""
         },
         {
@@ -4715,7 +4725,7 @@
             "TH2"
           ],
           "status": "entfall",
-          "vertretung": 240,
+          "vertretung": 254,
           "text": "Exkursion Zoo"
         },
         {
@@ -4811,6 +4821,16 @@
           "text": ""
         },
         {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 243,
+          "text": "Elternsprechtag"
+        },
+        {
           "stunde": 3,
           "unterricht": 176,
           "fach": "SP",
@@ -4840,7 +4860,7 @@
             "KU1"
           ],
           "status": "entfall",
-          "vertretung": 239,
+          "vertretung": 253,
           "text": ""
         },
         {
@@ -4939,8 +4959,18 @@
             "R105"
           ],
           "status": "entfall",
-          "vertretung": 245,
+          "vertretung": 259,
           "text": "Exkursion Zoo"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 244,
+          "text": "Elternsprechtag"
         },
         {
           "stunde": 4,
@@ -5054,7 +5084,7 @@
             "R105"
           ],
           "status": "entfall",
-          "vertretung": 243,
+          "vertretung": 257,
           "text": "Exkursion Zoo"
         },
         {
@@ -5072,6 +5102,16 @@
           ],
           "status": "regulaer",
           "text": ""
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 245,
+          "text": "Elternsprechtag"
         },
         {
           "stunde": 5,
@@ -5153,7 +5193,7 @@
             "R105"
           ],
           "status": "entfall",
-          "vertretung": 242,
+          "vertretung": 256,
           "text": "Exkursion Zoo"
         },
         {
@@ -5205,6 +5245,16 @@
           "text": ""
         },
         {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 246,
+          "text": "Elternsprechtag"
+        },
+        {
           "stunde": 6,
           "unterricht": 152,
           "fach": "PH",
@@ -5218,7 +5268,7 @@
             "PH1"
           ],
           "status": "entfall",
-          "vertretung": 241,
+          "vertretung": 255,
           "text": "Exkursion Zoo"
         },
         {
@@ -5270,6 +5320,16 @@
           "text": ""
         },
         {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 247,
+          "text": "Elternsprechtag"
+        },
+        {
           "stunde": 7,
           "unterricht": 126,
           "fach": "KL",
@@ -5284,6 +5344,46 @@
           ],
           "status": "regulaer",
           "text": ""
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 248,
+          "text": "Elternsprechtag"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 249,
+          "text": "Elternsprechtag"
+        },
+        {
+          "stunde": 9,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 250,
+          "text": "Elternsprechtag"
+        },
+        {
+          "stunde": 10,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 251,
+          "text": "Elternsprechtag"
         }
       ]
     },
@@ -5348,13 +5448,13 @@
             "6a"
           ],
           "lehrer": [
-            "SCH"
+            "KRU"
           ],
           "raeume": [
             "R103"
           ],
           "status": "vertreten",
-          "vertretung": 247,
+          "vertretung": 306,
           "text": ""
         },
         {
@@ -5467,7 +5567,7 @@
             "R103"
           ],
           "status": "vertreten",
-          "vertretung": 248,
+          "vertretung": 307,
           "text": ""
         },
         {
@@ -5560,7 +5660,7 @@
             "R106"
           ],
           "status": "vertreten",
-          "vertretung": 249,
+          "vertretung": 308,
           "text": ""
         },
         {
@@ -5932,13 +6032,12 @@
           "klassen": [
             "6b"
           ],
-          "lehrer": [
-            "KRU"
-          ],
+          "lehrer": [],
           "raeume": [
             "PH1"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 305,
           "text": ""
         },
         {
@@ -5948,14 +6047,629 @@
           "klassen": [
             "5a"
           ],
+          "lehrer": [],
+          "raeume": [
+            "R101"
+          ],
+          "status": "offen",
+          "vertretung": 309,
+          "text": ""
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 261,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 262,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 263,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
           "lehrer": [
             "FIS"
           ],
           "raeume": [
-            "R101"
+            "EDV2"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "zusaetzlich",
+          "vertretung": 264,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 265,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 266,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 267,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 268,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 269,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 270,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 271,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 272,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 273,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 274,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 275,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 276,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 277,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 278,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 279,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 280,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 281,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 282,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 283,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 284,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 285,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 286,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 287,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 288,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WAG"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 289,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "BEC"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 290,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SUL"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 291,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "HOF"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 292,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "KOC"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 293,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "RIC"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 294,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "KLE"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 295,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WOL"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 296,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SRO"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 297,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "NEU"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 298,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SWA"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 299,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "BRA"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 300,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "ZIM"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 301,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "KRU"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 302,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "HAR"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 303,
+          "text": "Lehrerkonferenz"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "LAN"
+          ],
+          "raeume": [
+            "EDV2"
+          ],
+          "status": "zusaetzlich",
+          "vertretung": 304,
+          "text": "Lehrerkonferenz"
         }
       ]
     },
@@ -5993,8 +6707,9 @@
           "raeume": [
             "R102"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 327,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 1,
@@ -6057,8 +6772,22 @@
           "raeume": [
             "R101"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 334,
+          "text": "Projekttag Medien"
+        },
+        {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 313,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 2,
@@ -6089,8 +6818,9 @@
           "raeume": [
             "R102"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 328,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 2,
@@ -6121,8 +6851,9 @@
           "raeume": [
             "BI1"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 332,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 2,
@@ -6157,6 +6888,19 @@
           "text": ""
         },
         {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 314,
+          "text": "Projekttag Medien"
+        },
+        {
           "stunde": 3,
           "unterricht": 106,
           "fach": "M",
@@ -6169,9 +6913,9 @@
           "raeume": [
             "R101"
           ],
-          "status": "vertreten",
-          "vertretung": 255,
-          "text": ""
+          "status": "entfall",
+          "vertretung": 326,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 3,
@@ -6234,8 +6978,9 @@
           "raeume": [
             "R102"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 329,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 3,
@@ -6263,7 +7008,7 @@
           ],
           "raeume": [],
           "status": "entfall",
-          "vertretung": 256,
+          "vertretung": 337,
           "text": "Klausuraufsicht"
         },
         {
@@ -6279,8 +7024,21 @@
             "TH1"
           ],
           "status": "zusaetzlich",
-          "vertretung": 251,
+          "vertretung": 311,
           "text": "Mathematik-Klausur"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 315,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 4,
@@ -6312,7 +7070,7 @@
             "BI1"
           ],
           "status": "entfall",
-          "vertretung": 253,
+          "vertretung": 323,
           "text": "Klausur Mathematik-Klausur"
         },
         {
@@ -6329,7 +7087,7 @@
             "PH1"
           ],
           "status": "entfall",
-          "vertretung": 254,
+          "vertretung": 324,
           "text": "Klausur Mathematik-Klausur"
         },
         {
@@ -6345,8 +7103,9 @@
           "raeume": [
             "MU1"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 325,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 4,
@@ -6393,8 +7152,9 @@
           "raeume": [
             "R102"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 330,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 4,
@@ -6425,8 +7185,21 @@
             "TH1"
           ],
           "status": "zusaetzlich",
-          "vertretung": 252,
+          "vertretung": 312,
           "text": "Mathematik-Klausur"
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 316,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 5,
@@ -6505,8 +7278,9 @@
           "raeume": [
             "R102"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 331,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 5,
@@ -6521,8 +7295,9 @@
           "raeume": [
             "R101"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 333,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 5,
@@ -6555,6 +7330,19 @@
           ],
           "status": "regulaer",
           "text": ""
+        },
+        {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 317,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 6,
@@ -6617,8 +7405,9 @@
           "raeume": [
             "R101"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 335,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 6,
@@ -6633,8 +7422,9 @@
           "raeume": [
             "R102"
           ],
-          "status": "regulaer",
-          "text": ""
+          "status": "entfall",
+          "vertretung": 336,
+          "text": "Projekttag Medien"
         },
         {
           "stunde": 6,
@@ -6647,6 +7437,71 @@
           "raeume": [],
           "status": "regulaer",
           "text": ""
+        },
+        {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 318,
+          "text": "Projekttag Medien"
+        },
+        {
+          "stunde": 7,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 319,
+          "text": "Projekttag Medien"
+        },
+        {
+          "stunde": 8,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 320,
+          "text": "Projekttag Medien"
+        },
+        {
+          "stunde": 9,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 321,
+          "text": "Projekttag Medien"
+        },
+        {
+          "stunde": 10,
+          "fach": "",
+          "klassen": [
+            "5a",
+            "5b"
+          ],
+          "lehrer": [],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 322,
+          "text": "Projekttag Medien"
         }
       ]
     },
@@ -6694,13 +7549,12 @@
           "klassen": [
             "7a"
           ],
-          "lehrer": [
-            "FIS"
-          ],
+          "lehrer": [],
           "raeume": [
             "R105"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 377,
           "text": ""
         },
         {
@@ -6710,13 +7564,12 @@
           "klassen": [
             "7b"
           ],
-          "lehrer": [
-            "MUE"
-          ],
+          "lehrer": [],
           "raeume": [
             "R106"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 379,
           "text": ""
         },
         {
@@ -6726,13 +7579,12 @@
           "klassen": [
             "5a"
           ],
-          "lehrer": [
-            "WEB"
-          ],
+          "lehrer": [],
           "raeume": [
             "R101"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 382,
           "text": ""
         },
         {
@@ -6764,19 +7616,90 @@
           "text": ""
         },
         {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 338,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 339,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 340,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 341,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 342,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 1,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 343,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
           "stunde": 2,
           "unterricht": 136,
           "fach": "SP",
           "klassen": [
             "6a"
           ],
-          "lehrer": [
-            "SNE"
-          ],
+          "lehrer": [],
           "raeume": [
             "TH1"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 374,
           "text": ""
         },
         {
@@ -6834,13 +7757,12 @@
           "klassen": [
             "5a"
           ],
-          "lehrer": [
-            "FIS"
-          ],
+          "lehrer": [],
           "raeume": [
             "R101"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 378,
           "text": ""
         },
         {
@@ -6892,19 +7814,90 @@
           "text": ""
         },
         {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 344,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 345,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 346,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 347,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 348,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 2,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 349,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
           "stunde": 3,
           "unterricht": 136,
           "fach": "SP",
           "klassen": [
             "6a"
           ],
-          "lehrer": [
-            "SNE"
-          ],
+          "lehrer": [],
           "raeume": [
             "TH1"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 375,
           "text": ""
         },
         {
@@ -6930,13 +7923,12 @@
           "klassen": [
             "EF"
           ],
-          "lehrer": [
-            "MEY"
-          ],
+          "lehrer": [],
           "raeume": [
             "BI1"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 376,
           "text": ""
         },
         {
@@ -7018,6 +8010,78 @@
           ],
           "status": "regulaer",
           "text": ""
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 350,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 351,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 352,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 353,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 354,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 3,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 355,
+          "text": "P\u00E4dagogischer Tag"
         },
         {
           "stunde": 4,
@@ -7138,14 +8202,85 @@
           "klassen": [
             "7a"
           ],
-          "lehrer": [
-            "MEY"
-          ],
+          "lehrer": [],
           "raeume": [
             "BI1"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 381,
           "text": ""
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 356,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 357,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 358,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 359,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 360,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 4,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 361,
+          "text": "P\u00E4dagogischer Tag"
         },
         {
           "stunde": 5,
@@ -7234,13 +8369,12 @@
           "klassen": [
             "5a"
           ],
-          "lehrer": [
-            "SNE"
-          ],
+          "lehrer": [],
           "raeume": [
             "R101"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 380,
           "text": ""
         },
         {
@@ -7276,6 +8410,78 @@
           "text": ""
         },
         {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 362,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 363,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 364,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 365,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 366,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 5,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 367,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
           "stunde": 6,
           "unterricht": 137,
           "fach": "D",
@@ -7298,13 +8504,12 @@
           "klassen": [
             "7b"
           ],
-          "lehrer": [
-            "SCH"
-          ],
+          "lehrer": [],
           "raeume": [
             "R106"
           ],
-          "status": "regulaer",
+          "status": "offen",
+          "vertretung": 383,
           "text": ""
         },
         {
@@ -7362,6 +8567,78 @@
           "raeume": [],
           "status": "regulaer",
           "text": ""
+        },
+        {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MUE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 368,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SCH"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 369,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "SNE"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 370,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "FIS"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 371,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "WEB"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 372,
+          "text": "P\u00E4dagogischer Tag"
+        },
+        {
+          "stunde": 6,
+          "fach": "",
+          "klassen": [],
+          "lehrer": [
+            "MEY"
+          ],
+          "raeume": [],
+          "status": "zusaetzlich",
+          "vertretung": 373,
+          "text": "P\u00E4dagogischer Tag"
         }
       ]
     },
@@ -7422,7 +8699,7 @@
   ],
   "vertretungen": [
     {
-      "id": 237,
+      "id": 241,
       "datum": "2026-10-12",
       "stunde": 2,
       "art": "Pausenaufsicht",
@@ -7439,7 +8716,7 @@
       "nurLehrer": true
     },
     {
-      "id": 235,
+      "id": 239,
       "datum": "2026-10-12",
       "stunde": 3,
       "art": "Vertretung",
@@ -7447,7 +8724,7 @@
         "5a"
       ],
       "lehrer": "HOF",
-      "vertreter": "RIC",
+      "vertreter": "BEC",
       "fach": "KU",
       "neuesFach": "KU",
       "raum": "KU1",
@@ -7458,7 +8735,7 @@
       "nurLehrer": false
     },
     {
-      "id": 236,
+      "id": 240,
       "datum": "2026-10-12",
       "stunde": 4,
       "art": "Vertretung",
@@ -7477,7 +8754,7 @@
       "nurLehrer": false
     },
     {
-      "id": 233,
+      "id": 237,
       "datum": "2026-10-12",
       "stunde": 1,
       "art": "Vertretung",
@@ -7485,7 +8762,7 @@
         "5b"
       ],
       "lehrer": "HOF",
-      "vertreter": "BEC",
+      "vertreter": "HAR",
       "fach": "KU",
       "neuesFach": "KU",
       "raum": "KU1",
@@ -7496,7 +8773,7 @@
       "nurLehrer": false
     },
     {
-      "id": 234,
+      "id": 238,
       "datum": "2026-10-12",
       "stunde": 2,
       "art": "Vertretung",
@@ -7515,7 +8792,7 @@
       "nurLehrer": false
     },
     {
-      "id": 232,
+      "id": 236,
       "datum": "2026-10-12",
       "stunde": 5,
       "art": "Vertretung",
@@ -7534,7 +8811,7 @@
       "nurLehrer": false
     },
     {
-      "id": 246,
+      "id": 260,
       "datum": "2026-10-13",
       "stunde": 2,
       "art": "Pausenaufsicht",
@@ -7551,7 +8828,7 @@
       "nurLehrer": true
     },
     {
-      "id": 244,
+      "id": 258,
       "datum": "2026-10-13",
       "stunde": 1,
       "art": "Freisetzung",
@@ -7570,7 +8847,7 @@
       "nurLehrer": false
     },
     {
-      "id": 240,
+      "id": 254,
       "datum": "2026-10-13",
       "stunde": 2,
       "art": "Freisetzung",
@@ -7589,7 +8866,7 @@
       "nurLehrer": false
     },
     {
-      "id": 245,
+      "id": 259,
       "datum": "2026-10-13",
       "stunde": 3,
       "art": "Freisetzung",
@@ -7608,7 +8885,7 @@
       "nurLehrer": false
     },
     {
-      "id": 243,
+      "id": 257,
       "datum": "2026-10-13",
       "stunde": 4,
       "art": "Freisetzung",
@@ -7627,7 +8904,7 @@
       "nurLehrer": false
     },
     {
-      "id": 242,
+      "id": 256,
       "datum": "2026-10-13",
       "stunde": 5,
       "art": "Freisetzung",
@@ -7646,7 +8923,7 @@
       "nurLehrer": false
     },
     {
-      "id": 241,
+      "id": 255,
       "datum": "2026-10-13",
       "stunde": 6,
       "art": "Freisetzung",
@@ -7665,7 +8942,7 @@
       "nurLehrer": false
     },
     {
-      "id": 238,
+      "id": 252,
       "datum": "2026-10-13",
       "stunde": 2,
       "art": "Entfall",
@@ -7684,7 +8961,7 @@
       "nurLehrer": false
     },
     {
-      "id": 239,
+      "id": 253,
       "datum": "2026-10-13",
       "stunde": 3,
       "art": "Entfall",
@@ -7703,7 +8980,7 @@
       "nurLehrer": false
     },
     {
-      "id": 250,
+      "id": 310,
       "datum": "2026-10-14",
       "stunde": 2,
       "art": "Pausenaufsicht",
@@ -7720,7 +8997,774 @@
       "nurLehrer": true
     },
     {
-      "id": 247,
+      "id": 261,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 262,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 263,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 264,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 265,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 266,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 267,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WAG",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 268,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "BEC",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 269,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SUL",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 270,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "HOF",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 271,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "KOC",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 272,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "RIC",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 273,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "KLE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 274,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WOL",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 275,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SRO",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 276,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "NEU",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 277,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SWA",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 278,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "BRA",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 279,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "ZIM",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 280,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "KRU",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 281,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "HAR",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 282,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "LAN",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 283,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 284,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 285,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 286,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 287,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 288,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 289,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WAG",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 290,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "BEC",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 291,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SUL",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 292,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "HOF",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 293,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "KOC",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 294,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "RIC",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 295,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "KLE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 296,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WOL",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 297,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SRO",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 298,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "NEU",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 299,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SWA",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 300,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "BRA",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 301,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "ZIM",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 302,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "KRU",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 303,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "HAR",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 304,
+      "datum": "2026-10-14",
+      "stunde": 8,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "LAN",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "EDV2",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Lehrerkonferenz",
+      "nurLehrer": false
+    },
+    {
+      "id": 309,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Vertretung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "FIS",
+      "vertreter": "???",
+      "fach": "D",
+      "neuesFach": "D",
+      "raum": "R101",
+      "neuerRaum": "R101",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 306,
       "datum": "2026-10-14",
       "stunde": 1,
       "art": "Vertretung",
@@ -7728,7 +9772,7 @@
         "6a"
       ],
       "lehrer": "WAG",
-      "vertreter": "SCH",
+      "vertreter": "KRU",
       "fach": "E",
       "neuesFach": "E",
       "raum": "R103",
@@ -7739,7 +9783,7 @@
       "nurLehrer": false
     },
     {
-      "id": 248,
+      "id": 307,
       "datum": "2026-10-14",
       "stunde": 2,
       "art": "Vertretung",
@@ -7758,7 +9802,26 @@
       "nurLehrer": false
     },
     {
-      "id": 249,
+      "id": 305,
+      "datum": "2026-10-14",
+      "stunde": 7,
+      "art": "Vertretung",
+      "klassen": [
+        "6b"
+      ],
+      "lehrer": "KRU",
+      "vertreter": "???",
+      "fach": "PH",
+      "neuesFach": "PH",
+      "raum": "PH1",
+      "neuerRaum": "PH1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 308,
       "datum": "2026-10-14",
       "stunde": 3,
       "art": "Vertretung",
@@ -7777,7 +9840,7 @@
       "nurLehrer": false
     },
     {
-      "id": 256,
+      "id": 337,
       "datum": "2026-10-15",
       "stunde": 3,
       "art": "Bereitschaft entf\u00E4llt",
@@ -7794,26 +9857,235 @@
       "nurLehrer": false
     },
     {
-      "id": 255,
+      "id": 334,
+      "datum": "2026-10-15",
+      "stunde": 1,
+      "art": "Freisetzung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "SNE",
+      "vertreter": "---",
+      "fach": "E",
+      "neuesFach": "E",
+      "raum": "R101",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 332,
+      "datum": "2026-10-15",
+      "stunde": 2,
+      "art": "Freisetzung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "MEY",
+      "vertreter": "---",
+      "fach": "BI",
+      "neuesFach": "BI",
+      "raum": "BI1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 326,
       "datum": "2026-10-15",
       "stunde": 3,
-      "art": "Raum-Vtr.",
+      "art": "Freisetzung",
       "klassen": [
         "5a"
       ],
       "lehrer": "WEB",
-      "vertreter": "WEB",
+      "vertreter": "---",
       "fach": "M",
       "neuesFach": "M",
       "raum": "R101",
-      "neuerRaum": "R101",
+      "neuerRaum": "",
       "vertrVon": "",
       "nach": "",
-      "text": "",
+      "text": "Projekttag Medien",
       "nurLehrer": false
     },
     {
-      "id": 251,
+      "id": 325,
+      "datum": "2026-10-15",
+      "stunde": 4,
+      "art": "Freisetzung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "KOC",
+      "vertreter": "---",
+      "fach": "MU",
+      "neuesFach": "MU",
+      "raum": "MU1",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 333,
+      "datum": "2026-10-15",
+      "stunde": 5,
+      "art": "Freisetzung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "KLE",
+      "vertreter": "---",
+      "fach": "GE",
+      "neuesFach": "GE",
+      "raum": "R101",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 335,
+      "datum": "2026-10-15",
+      "stunde": 6,
+      "art": "Freisetzung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "FIS",
+      "vertreter": "---",
+      "fach": "D",
+      "neuesFach": "D",
+      "raum": "R101",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 327,
+      "datum": "2026-10-15",
+      "stunde": 1,
+      "art": "Freisetzung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "NEU",
+      "vertreter": "---",
+      "fach": "M",
+      "neuesFach": "M",
+      "raum": "R102",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 328,
+      "datum": "2026-10-15",
+      "stunde": 2,
+      "art": "Freisetzung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "NEU",
+      "vertreter": "---",
+      "fach": "M",
+      "neuesFach": "M",
+      "raum": "R102",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 329,
+      "datum": "2026-10-15",
+      "stunde": 3,
+      "art": "Freisetzung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "SWA",
+      "vertreter": "---",
+      "fach": "D",
+      "neuesFach": "D",
+      "raum": "R102",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 330,
+      "datum": "2026-10-15",
+      "stunde": 4,
+      "art": "Freisetzung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "HAR",
+      "vertreter": "---",
+      "fach": "E",
+      "neuesFach": "E",
+      "raum": "R102",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 331,
+      "datum": "2026-10-15",
+      "stunde": 5,
+      "art": "Freisetzung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "HAR",
+      "vertreter": "---",
+      "fach": "E",
+      "neuesFach": "E",
+      "raum": "R102",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 336,
+      "datum": "2026-10-15",
+      "stunde": 6,
+      "art": "Freisetzung",
+      "klassen": [
+        "5b"
+      ],
+      "lehrer": "BRA",
+      "vertreter": "---",
+      "fach": "EK",
+      "neuesFach": "EK",
+      "raum": "R102",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "Projekttag Medien",
+      "nurLehrer": false
+    },
+    {
+      "id": 311,
       "datum": "2026-10-15",
       "stunde": 3,
       "art": "Klausur",
@@ -7832,7 +10104,7 @@
       "nurLehrer": false
     },
     {
-      "id": 252,
+      "id": 312,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Klausur",
@@ -7851,7 +10123,7 @@
       "nurLehrer": false
     },
     {
-      "id": 253,
+      "id": 323,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Entfall",
@@ -7870,7 +10142,7 @@
       "nurLehrer": false
     },
     {
-      "id": 254,
+      "id": 324,
       "datum": "2026-10-15",
       "stunde": 4,
       "art": "Entfall",
@@ -7886,6 +10158,825 @@
       "vertrVon": "",
       "nach": "",
       "text": "Klausur Mathematik-Klausur",
+      "nurLehrer": false
+    },
+    {
+      "id": 338,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 339,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 340,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 341,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 342,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 343,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 344,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 345,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 346,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 347,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 348,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 349,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 384,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Pausenaufsicht",
+      "klassen": [],
+      "lehrer": "SNE",
+      "vertreter": "???",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "Hof",
+      "neuerRaum": "Hof",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": true
+    },
+    {
+      "id": 350,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 351,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 352,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 353,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 354,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 355,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 356,
+      "datum": "2026-10-16",
+      "stunde": 4,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 357,
+      "datum": "2026-10-16",
+      "stunde": 4,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 358,
+      "datum": "2026-10-16",
+      "stunde": 4,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 359,
+      "datum": "2026-10-16",
+      "stunde": 4,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 360,
+      "datum": "2026-10-16",
+      "stunde": 4,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 361,
+      "datum": "2026-10-16",
+      "stunde": 4,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 362,
+      "datum": "2026-10-16",
+      "stunde": 5,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 363,
+      "datum": "2026-10-16",
+      "stunde": 5,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 364,
+      "datum": "2026-10-16",
+      "stunde": 5,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 365,
+      "datum": "2026-10-16",
+      "stunde": 5,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 366,
+      "datum": "2026-10-16",
+      "stunde": 5,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 367,
+      "datum": "2026-10-16",
+      "stunde": 5,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 368,
+      "datum": "2026-10-16",
+      "stunde": 6,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MUE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 369,
+      "datum": "2026-10-16",
+      "stunde": 6,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SCH",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 370,
+      "datum": "2026-10-16",
+      "stunde": 6,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "SNE",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 371,
+      "datum": "2026-10-16",
+      "stunde": 6,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "FIS",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 372,
+      "datum": "2026-10-16",
+      "stunde": 6,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "WEB",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 373,
+      "datum": "2026-10-16",
+      "stunde": 6,
+      "art": "Veranst.",
+      "klassen": [],
+      "lehrer": "",
+      "vertreter": "MEY",
+      "fach": "",
+      "neuesFach": "",
+      "raum": "",
+      "neuerRaum": "",
+      "vertrVon": "",
+      "nach": "",
+      "text": "P\u00E4dagogischer Tag",
+      "nurLehrer": false
+    },
+    {
+      "id": 382,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Vertretung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "WEB",
+      "vertreter": "???",
+      "fach": "M",
+      "neuesFach": "M",
+      "raum": "R101",
+      "neuerRaum": "R101",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 378,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Vertretung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "FIS",
+      "vertreter": "???",
+      "fach": "D",
+      "neuesFach": "D",
+      "raum": "R101",
+      "neuerRaum": "R101",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 380,
+      "datum": "2026-10-16",
+      "stunde": 5,
+      "art": "Vertretung",
+      "klassen": [
+        "5a"
+      ],
+      "lehrer": "SNE",
+      "vertreter": "???",
+      "fach": "E",
+      "neuesFach": "E",
+      "raum": "R101",
+      "neuerRaum": "R101",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 374,
+      "datum": "2026-10-16",
+      "stunde": 2,
+      "art": "Vertretung",
+      "klassen": [
+        "6a"
+      ],
+      "lehrer": "SNE",
+      "vertreter": "???",
+      "fach": "SP",
+      "neuesFach": "SP",
+      "raum": "TH1",
+      "neuerRaum": "TH1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 375,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Vertretung",
+      "klassen": [
+        "6a"
+      ],
+      "lehrer": "SNE",
+      "vertreter": "???",
+      "fach": "SP",
+      "neuesFach": "SP",
+      "raum": "TH1",
+      "neuerRaum": "TH1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 377,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Vertretung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "FIS",
+      "vertreter": "???",
+      "fach": "E",
+      "neuesFach": "E",
+      "raum": "R105",
+      "neuerRaum": "R105",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 381,
+      "datum": "2026-10-16",
+      "stunde": 4,
+      "art": "Vertretung",
+      "klassen": [
+        "7a"
+      ],
+      "lehrer": "MEY",
+      "vertreter": "???",
+      "fach": "BI",
+      "neuesFach": "BI",
+      "raum": "BI1",
+      "neuerRaum": "BI1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 379,
+      "datum": "2026-10-16",
+      "stunde": 1,
+      "art": "Vertretung",
+      "klassen": [
+        "7b"
+      ],
+      "lehrer": "MUE",
+      "vertreter": "???",
+      "fach": "D",
+      "neuesFach": "D",
+      "raum": "R106",
+      "neuerRaum": "R106",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 383,
+      "datum": "2026-10-16",
+      "stunde": 6,
+      "art": "Vertretung",
+      "klassen": [
+        "7b"
+      ],
+      "lehrer": "SCH",
+      "vertreter": "???",
+      "fach": "M",
+      "neuesFach": "M",
+      "raum": "R106",
+      "neuerRaum": "R106",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
+      "nurLehrer": false
+    },
+    {
+      "id": 376,
+      "datum": "2026-10-16",
+      "stunde": 3,
+      "art": "Vertretung",
+      "klassen": [
+        "EF"
+      ],
+      "lehrer": "MEY",
+      "vertreter": "???",
+      "fach": "BI",
+      "neuesFach": "BI",
+      "raum": "BI1",
+      "neuerRaum": "BI1",
+      "vertrVon": "",
+      "nach": "",
+      "text": "",
       "nurLehrer": false
     }
   ],
@@ -7924,6 +11015,85 @@
     }
   ],
   "termine": [
+    {
+      "art": "veranstaltung",
+      "titel": "P\u00E4dagogischer Tag",
+      "von": "2026-10-16",
+      "bis": "2026-10-16",
+      "stundeVon": 1,
+      "stundeBis": 10,
+      "klassen": [],
+      "lehrer": [
+        "MUE",
+        "SCH",
+        "SNE",
+        "FIS",
+        "WEB",
+        "MEY"
+      ],
+      "raeume": []
+    },
+    {
+      "art": "veranstaltung",
+      "titel": "Lehrerkonferenz",
+      "von": "2026-10-14",
+      "bis": "2026-10-14",
+      "stundeVon": 7,
+      "stundeBis": 8,
+      "klassen": [],
+      "lehrer": [
+        "MUE",
+        "SCH",
+        "SNE",
+        "FIS",
+        "WEB",
+        "MEY",
+        "WAG",
+        "BEC",
+        "SUL",
+        "HOF",
+        "KOC",
+        "RIC",
+        "KLE",
+        "WOL",
+        "SRO",
+        "NEU",
+        "SWA",
+        "BRA",
+        "ZIM",
+        "KRU",
+        "HAR",
+        "LAN"
+      ],
+      "raeume": [
+        "EDV2"
+      ]
+    },
+    {
+      "art": "veranstaltung",
+      "titel": "Projekttag Medien",
+      "von": "2026-10-15",
+      "bis": "2026-10-15",
+      "stundeVon": 1,
+      "stundeBis": 10,
+      "klassen": [
+        "5a",
+        "5b"
+      ],
+      "lehrer": [],
+      "raeume": []
+    },
+    {
+      "art": "veranstaltung",
+      "titel": "Elternsprechtag",
+      "von": "2026-10-13",
+      "bis": "2026-10-13",
+      "stundeVon": 1,
+      "stundeBis": 10,
+      "klassen": [],
+      "lehrer": [],
+      "raeume": []
+    },
     {
       "art": "klausur",
       "titel": "Mathematik-Klausur",

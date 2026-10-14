@@ -192,6 +192,7 @@ public static class AppApi
                 karten,
                 aufsichten,
                 hinweise = element is null ? new List<string>() : plan.Hinweise(s, tag, typ, element, b.Kollegium),
+                ereignisse = plan.Ereignisse(s, tag, typ, element ?? ""),
                 nachrichten = vp.NachrichtenAm(s, tag, b.Kollegium, "startseite"),
                 termine,
                 aenderungen = karten.Count(k => k.Status is not ("regulaer" or "bereitschaft")),
