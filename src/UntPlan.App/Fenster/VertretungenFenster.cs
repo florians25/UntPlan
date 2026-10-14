@@ -700,6 +700,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private readonly ToolStripButton _block = new("Stundenblock") { CheckOnClick = true, ToolTipText = "Vorschlag für alle Stunden des Blocks (Doppelstunde)" };
     private readonly ToolStripButton _alle = new("Alle Lehrer") { CheckOnClick = true, ToolTipText = "Auch gesperrte und weit entfernte Lehrer anzeigen" };
     private readonly ToolStripButton _besetzt = new("Auch besetzte Räume") { CheckOnClick = true };
+    private readonly ToolStripButton _dauer = new("Dauervertretung") { CheckOnClick = true, ToolTipText = "Vertreter für alle Stunden dieses Unterrichts während der Absenz übernehmen" };
     private Vertretung? _v;
 
     public VertretungsvorschlagFenster()
@@ -715,6 +716,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         ts.Items.Add(Knopf("Vertr. o. Lehrkraft", "lehrer", () => Aktion("Vertr. o. Lehrkraft", (_, v) => Vertretungen.OhneLehrer(v, AppZustand.Benutzer)), false));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_block);
+        ts.Items.Add(_dauer);
         ts.Items.Add(_alle);
         ts.Items.Add(Knopf("Einstellungen Vertretungsvorschlag", "gewichtung", () => { if (VertretungsEinstellungenDialog.Zeigen(this, 2)) Neuaufbau(); }));
         _block.CheckedChanged += (_, _) => Neuaufbau();
@@ -835,12 +837,15 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 _vorziehung.Rows[_vorziehung.Rows.Add(vz.Beschreibung)].Tag = vz;
         foreach (var b in VertretungsVorschlag.Betreuungen(D, v))
             _betreuung.Rows[_betreuung.Rows.Add(b.Lehrer.Kurzname, b.Klassen, b.Fach, b.Raum, b.Gang, b.Kopplung ? "ja" : "", b.Zaehler.ToString("0.#"))].Tag = b;
+        _tabs.TabPages[0].Text = $"Vertretungsvorschläge ({_vorschlag.Rows.Count})";
+        _tabs.TabPages[1].Text = $"Betreuungen ({_betreuung.Rows.Count})";
         foreach (var r in VertretungsVorschlag.Raeume(D, v, _besetzt.Checked, _block.Checked))
         {
             var n = _raeume.Rows.Add(r.Raum.Kurzname, r.Ausweichraum ? "ja" : "", r.AusweichStammraum ? "ja" : "", r.BesetztDurch ?? "", r.Raumgruppen, r.Gang, r.KapazitaetDifferenz == 0 ? "" : r.KapazitaetDifferenz.ToString("+0;-0"));
             _raeume.Rows[n].Tag = r;
             if (r.BesetztDurch != null) _raeume.Rows[n].DefaultCellStyle.ForeColor = Color.Firebrick;
         }
+        _tabs.TabPages[2].Text = $"Räume ({_raeume.Rows.Count})";
     }
 
     private void VorschlagFormatieren(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -887,8 +892,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 var text = t.Trim('[', ']');
                 var r = new Rectangle(x, e.CellBounds.Y + 2, b - 2, e.CellBounds.Height - 5);
                 var frei = text is "·" or "";
-                using (var br = new SolidBrush(aktuell ? Color.FromArgb(255, 230, 150) : frei ? Color.White : Ui.BlauSehrHell)) e.Graphics.FillRectangle(br, r);
-                using (var p = new Pen(aktuell ? Color.DarkOrange : Ui.Rasterlinie)) e.Graphics.DrawRectangle(p, r);
+                using (var br = new SolidBrush(aktuell ? Color.FromArgb(255, 244, 200) : frei ? Color.White : Ui.BlauSehrHell)) e.Graphics.FillRectangle(br, r);
+                using (var p = new Pen(aktuell ? Color.FromArgb(230, 160, 0) : Ui.Rasterlinie, aktuell ? 2 : 1) { DashStyle = aktuell ? System.Drawing.Drawing2D.DashStyle.Dash : System.Drawing.Drawing2D.DashStyle.Solid }) e.Graphics.DrawRectangle(p, r);
                 TextRenderer.DrawText(e.Graphics, frei ? "" : text, Ui.SchriftKlein, r, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
                 x += b;
             }
@@ -901,6 +906,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         if (_v is null) return new();
         var ids = AppZustand.MarkierteVertretungen.Contains(_v.Id) ? AppZustand.MarkierteVertretungen.ToList() : new List<int> { _v.Id };
         if (_block.Checked) ids.AddRange(VertretungsVorschlag.Block(D, _v).Select(x => x.Id));
+        if (_dauer.Checked && _v.UnterrichtId is int uid)
+        {
+            // Dauervertretung: alle offenen Stunden desselben Unterrichts aus derselben Absenz ab diesem Tag
+            var v = _v;
+            ids.AddRange(D.Vertretungen.Where(x => x.UnterrichtId == uid && x.ZeilenIndex == v.ZeilenIndex && x.Datum >= v.Datum && x.Offen &&
+                (v.AbwesenheitId is null ? x.LehrerId == v.LehrerId : x.AbwesenheitId == v.AbwesenheitId)).Select(x => x.Id));
+        }
         return ids.Distinct().ToList();
     }
 

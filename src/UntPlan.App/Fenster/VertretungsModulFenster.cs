@@ -6,15 +6,22 @@ using UntPlan.Core.Vertretungsplanung;
 
 namespace UntPlan.App.Fenster;
 
-/// <summary>Kalender der Vertretungsplanung: Planungsdatum wählen, Tage mit Absenzen hervorgehoben, Kalendereintrag (unterrichtsfrei, freie Stunden, Notiz).</summary>
+/// <summary>
+/// Kalender der Vertretungsplanung: Kalenderwoche mit Kennzahlen je Tag (offene Vertretungen, abwesende Klassen, Freisetzungen,
+/// gesperrte Räume, Raumvertretungen, Tagestexte, Kollisionen), darunter Tagestexte und Kalendertag des Planungsdatums.
+/// </summary>
 public sealed class KalenderFenster : MdiFenster
 {
-    private readonly MonthCalendar _kal = new() { MaxSelectionCount = 1, Dock = DockStyle.Top, ShowWeekNumbers = true };
-    private readonly Label _info = new() { Dock = DockStyle.Top, Height = 70, Padding = new Padding(6), BackColor = Ui.Kopf };
+    private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, Width = 50 };
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DataGridView _woche = new() { Dock = DockStyle.Fill };
+    private readonly DataGridView _texte = new() { Dock = DockStyle.Fill };
+    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
     private readonly CheckBox _frei = new() { Text = "unterrichtsfrei", AutoSize = true };
     private readonly CheckBox _feiertag = new() { Text = "Feiertag", AutoSize = true };
     private readonly TextBox _stunden = new() { Width = 70 };
-    private readonly TextBox _notiz = new() { Width = 200 };
+    private readonly TextBox _notiz = new() { Width = 260 };
+    private static readonly string[] Arten = { "Alle", "Klassen", "Lehrer", "Nur Lehrer" };
     private bool _laedt;
 
     public KalenderFenster()
@@ -22,23 +29,77 @@ public sealed class KalenderFenster : MdiFenster
         Text = "Kalender";
         HilfeThema = "Vertretungsplanung";
         Icon = SymbolIcon("kalender");
-        Size = new Size(260, 420);
+        Size = new Size(560, 480);
         Positionieren();
-        _kal.SetDate(AppZustand.Datum.ToDateTime(TimeOnly.MinValue));
-        _kal.DateSelected += (_, e) => { if (!_laedt) AppZustand.DatumSetzen(DateOnly.FromDateTime(e.Start)); };
-        var eingabe = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(6), WrapContents = false, AutoScroll = true };
-        var uebernehmen = new Button { Text = "Kalendereintrag übernehmen", Width = 200, Height = 26 };
-        uebernehmen.Click += (_, _) => Speichern();
-        eingabe.Controls.Add(_frei);
-        eingabe.Controls.Add(_feiertag);
-        eingabe.Controls.Add(new Label { Text = "nur diese Stunden frei (z. B. 6-8):", AutoSize = true });
-        eingabe.Controls.Add(_stunden);
-        eingabe.Controls.Add(new Label { Text = "Notiz (wird nicht gedruckt):", AutoSize = true });
-        eingabe.Controls.Add(_notiz);
-        eingabe.Controls.Add(uebernehmen);
-        Controls.Add(eingabe);
-        Controls.Add(_info);
-        Controls.Add(_kal);
+        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 32, Padding = new Padding(6, 4, 0, 0), WrapContents = false };
+        kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Padding = new Padding(0, 4, 4, 0) });
+        kopf.Controls.Add(_kw);
+        kopf.Controls.Add(_datum);
+        _kw.ValueChanged += (_, _) =>
+        {
+            if (_laedt) return;
+            var jahr = AppZustand.Datum.Year;
+            var kwJetzt = System.Globalization.ISOWeek.GetWeekOfYear(AppZustand.Datum.ToDateTime(TimeOnly.MinValue));
+            if ((int)_kw.Value < 10 && kwJetzt > 40) jahr++;
+            if ((int)_kw.Value > 40 && kwJetzt < 10) jahr--;
+            AppZustand.DatumSetzen(DateOnly.FromDateTime(System.Globalization.ISOWeek.ToDateTime(jahr, (int)_kw.Value, DayOfWeek.Monday)));
+        };
+        _datum.ValueChanged += (_, _) => { if (!_laedt) AppZustand.DatumSetzen(DateOnly.FromDateTime(_datum.Value)); };
+
+        Ui.RasterGestalten(_woche, false);
+        _woche.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        _woche.MultiSelect = false;
+        foreach (var (n, k, w) in new[] { ("D", "Datum", 52), ("T", "Tag", 34), ("O", "Offen", 46), ("AK", "Abw.Kl.", 50), ("F", "Freis.", 46), ("BR", "Bl.Räume", 58), ("RV", "Raum-V.", 52), ("TT", "Tagestexte", 66), ("KL", "Koll. Lehrer", 72), ("KR", "Koll. Räume", 72) })
+            _woche.Columns[_woche.Columns.Add(n, k)].Width = w;
+        _woche.CellClick += (_, e) => { if (e.RowIndex >= 0 && _woche.Rows[e.RowIndex].Tag is DateOnly d) AppZustand.DatumSetzen(d); };
+        _woche.CellFormatting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.CellStyle is null || _woche.Rows[e.RowIndex].Tag is not DateOnly d) return;
+            if (!Kalender.IstUnterrichtstag(D, d)) e.CellStyle.ForeColor = Color.Gray;
+            if (d == AppZustand.Datum) e.CellStyle.BackColor = Color.FromArgb(255, 222, 222);
+            if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
+        };
+
+        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile)
+        Ui.RasterGestalten(_texte, true);
+        _texte.AllowUserToAddRows = true;
+        _texte.AllowUserToDeleteRows = true;
+        var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "Art", Width = 80, FlatStyle = FlatStyle.Flat };
+        art.Items.AddRange(Arten);
+        _texte.Columns.Add(art);
+        _texte.Columns[_texte.Columns.Add("E", "Elemente")].Width = 90;
+        _texte.Columns[_texte.Columns.Add("G", "Gültig bis")].Width = 80;
+        _texte.Columns[_texte.Columns.Add("X", "Tagestext")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Portal", Width = 50 });
+        Steuerelemente.SuchKombi.Aktivieren(_texte);
+        _texte.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["G"].Value = Format.Datum(AppZustand.Datum); e.Row.Cells["P"].Value = true; };
+        _texte.CellEndEdit += (_, _) => TexteSpeichern();
+        _texte.UserDeletedRow += (_, _) => TexteSpeichern();
+        _texte.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 4) _texte.EndEdit(); };
+        var seiteTexte = new TabPage("Tagestexte");
+        seiteTexte.Controls.Add(_texte);
+
+        var tag = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(8), WrapContents = false };
+        var uebernehmen = new Button { Text = "Kalendertag übernehmen", Width = 180, Height = 26 };
+        uebernehmen.Click += (_, _) => KalendertagSpeichern();
+        tag.Controls.Add(_frei);
+        tag.Controls.Add(_feiertag);
+        tag.Controls.Add(new Label { Text = "nur diese Stunden unterrichtsfrei (z. B. 6-8):", AutoSize = true });
+        tag.Controls.Add(_stunden);
+        tag.Controls.Add(new Label { Text = "Notiz (wird nicht gedruckt):", AutoSize = true });
+        tag.Controls.Add(_notiz);
+        tag.Controls.Add(uebernehmen);
+        var seiteTag = new TabPage("Kalendertag");
+        seiteTag.Controls.Add(tag);
+        _tabs.TabPages.Add(seiteTexte);
+        _tabs.TabPages.Add(seiteTag);
+
+        var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
+        split.Panel1.Controls.Add(_woche);
+        split.Panel2.Controls.Add(_tabs);
+        Controls.Add(split);
+        Controls.Add(kopf);
+        Load += (_, _) => split.SplitterDistance = Math.Max(120, (int)(split.Height * 0.52));
         AppZustand.DatumGewechselt += DatumGewechselt;
         FormClosed += (_, _) => AppZustand.DatumGewechselt -= DatumGewechselt;
         Neuaufbau();
@@ -47,46 +108,95 @@ public sealed class KalenderFenster : MdiFenster
     protected override bool EigeneAenderungenAnzeigen => true;
     protected override void Aktualisieren(AenderungsArt art) => Neuaufbau();
 
-    private void DatumGewechselt(DateOnly d)
+    private void DatumGewechselt(DateOnly _)
     {
-        if (IsDisposed) return;
-        _laedt = true;
-        _kal.SetDate(d.ToDateTime(TimeOnly.MinValue));
-        _laedt = false;
-        Neuaufbau();
+        if (!IsDisposed) Neuaufbau();
     }
 
     private void Neuaufbau()
     {
+        if (_texte.IsCurrentCellInEditMode) return;
+        _laedt = true;
         var datum = AppZustand.Datum;
-        var fett = D.Abwesenheiten.SelectMany(a => Kalender.Tage(a.Von, a.Bis.DayNumber - a.Von.DayNumber > 120 ? a.Von : a.Bis))
-            .Concat(D.Veranstaltungen.SelectMany(v => Kalender.Tage(v.Von, v.Bis.DayNumber - v.Von.DayNumber > 60 ? v.Von : v.Bis)))
-            .Distinct().Select(t => t.ToDateTime(TimeOnly.MinValue)).ToArray();
-        _kal.BoldedDates = fett;
-        var ferien = D.Ferien.FirstOrDefault(f => datum >= f.Von && datum <= f.Bis);
-        var lehrer = D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Lehrer && datum >= a.Von && datum <= a.Bis);
-        var klassen = D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Klasse && datum >= a.Von && datum <= a.Bis);
-        var offen = D.Vertretungen.Count(v => v.Datum == datum && v.Offen);
-        var woche = Kalender.WochenTyp(D, datum);
-        _info.Text = $"{Planungsdienst.TageLang[((int)datum.DayOfWeek + 6) % 7]}, {Format.Datum(datum)}  (KW {System.Globalization.ISOWeek.GetWeekOfYear(datum.ToDateTime(TimeOnly.MinValue))}{(string.IsNullOrEmpty(woche) ? "" : ", Woche " + woche)})\n" +
-                     (ferien != null ? $"Ferien: {(ferien.Langname.Length > 0 ? ferien.Langname : ferien.Kurzname)}\n" : Kalender.IstUnterrichtstag(D, datum) ? $"Periode: {D.PeriodeAm(datum).Name}\n" : "kein Unterrichtstag\n") +
-                     $"Absent: {lehrer} Lehrer, {klassen} Klassen · offen: {offen}";
-        _info.ForeColor = offen > 0 ? Color.Firebrick : Color.Black;
+        _datum.Value = datum.ToDateTime(TimeOnly.MinValue);
+        _kw.Value = System.Globalization.ISOWeek.GetWeekOfYear(datum.ToDateTime(TimeOnly.MinValue));
+        _woche.Rows.Clear();
+        var montag = Kalender.Montag(datum);
+        for (var i = 0; i < 7; i++)
+        {
+            var t = montag.AddDays(i);
+            var liste = D.Vertretungen.Where(v => v.Datum == t).ToList();
+            int kollL = 0, kollR = 0;
+            if (Kalender.IstUnterrichtstag(D, t) && liste.Count > 0)
+            {
+                var tp = Tagesplan.Berechnen(D, t);
+                kollL = liste.Count(v => v.VertreterId is int l && !v.IstEntfall && !v.Mitbetreuung && v.Art != VertretungsArt.TrotzAbsenz && Vertretungen.LehrerBelegt(D, tp, l, v.Stunde, v) != null);
+                kollR = tp.Eintraege.Where(e => e.Findetstatt).SelectMany(e => e.RaumIds.Select(r => (e.Stunde, r))).GroupBy(x => x).Count(g => g.Count() > 1);
+            }
+            var r = _woche.Rows.Add($"{t:d.M.}", Planungsdienst.TageKurz[i], liste.Count(v => v.Offen),
+                D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Klasse && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Freisetzung),
+                D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Raum && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Raumvertretung),
+                D.Tagestexte.Count(x => x.GiltAm(t)), kollL, kollR);
+            _woche.Rows[r].Tag = t;
+            if (t == datum) _woche.CurrentCell = _woche.Rows[r].Cells[0];
+        }
+        _texte.Rows.Clear();
+        var ix = Ix;
+        foreach (var x in D.Tagestexte.Where(x => x.GiltAm(datum)))
+        {
+            var a = x.NurLehrer ? TagestextArt.NurLehrer : x.Art;
+            var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
+            var r = _texte.Rows.Add(Arten[(int)a], string.Join(",", x.ElementIds.Select(id => ix.K(typ, id))), Format.Datum(x.Datum.AddDays(Math.Max(1, x.GueltigTage) - 1)), x.Text, x.Portal);
+            _texte.Rows[r].Tag = x;
+        }
+        _tabs.TabPages[0].Text = $"Tagestexte ({D.Tagestexte.Count(x => x.GiltAm(datum))})";
         var k = Kalender.KalendertagAm(D, datum);
         _frei.Checked = k?.Unterrichtsfrei == true;
         _feiertag.Checked = k?.Feiertag == true;
         _stunden.Text = k?.FreieStunden ?? "";
         _notiz.Text = k?.Notiz ?? "";
+        _tabs.TabPages[1].Text = k is null ? "Kalendertag" : "Kalendertag ●";
+        _laedt = false;
     }
 
-    private void Speichern()
+    private void TexteSpeichern()
+    {
+        if (_laedt) return;
+        var datum = AppZustand.Datum;
+        var neu = new List<Tagestext>();
+        foreach (DataGridViewRow r in _texte.Rows)
+        {
+            if (r.IsNewRow || string.IsNullOrWhiteSpace(r.Cells["X"].Value?.ToString())) continue;
+            var a = (TagestextArt)Math.Max(0, Array.IndexOf(Arten, r.Cells["A"].Value?.ToString() ?? "Alle"));
+            var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
+            var alt = r.Tag as Tagestext;
+            var start = alt?.Datum ?? datum;
+            DateOnly bis;
+            try { bis = Ui.DatumLesen(r.Cells["G"].Value?.ToString() ?? "", datum); } catch (Exception) { bis = datum; }
+            neu.Add(new Tagestext
+            {
+                Datum = start, Art = a, Text = r.Cells["X"].Value!.ToString()!,
+                ElementIds = (r.Cells["E"].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(n => D.AlleElemente(typ).FirstOrDefault(e => e.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList(),
+                GueltigTage = Math.Max(1, bis.DayNumber - start.DayNumber + 1), Portal = r.Cells["P"].Value is true,
+            });
+        }
+        Aendern("Tagestexte", AenderungsArt.Vertretung, d =>
+        {
+            d.Tagestexte.RemoveAll(x => x.GiltAm(datum));
+            d.Tagestexte.AddRange(neu);
+        });
+        BeginInvoke(Neuaufbau);
+    }
+
+    private void KalendertagSpeichern()
     {
         var datum = AppZustand.Datum;
         var frei = _frei.Checked;
         var feiertag = _feiertag.Checked;
         var stunden = _stunden.Text.Trim();
         var notiz = _notiz.Text.Trim();
-        Aendern("Kalendereintrag", AenderungsArt.Vertretung, d =>
+        Aendern("Kalendertag", AenderungsArt.Vertretung, d =>
         {
             d.Kalender.RemoveAll(x => x.Datum == datum);
             if (frei || feiertag || stunden.Length > 0 || notiz.Length > 0)

@@ -260,8 +260,8 @@ public sealed partial class HauptFenster
         var mdi = Controls.OfType<MdiClient>().First().ClientSize;
         var w = mdi.Width;
         var h = mdi.Height;
-        var links = Math.Max(240, (int)(w * 0.2));
-        var mitteB = (int)(w * 0.5);
+        var links = Math.Max(380, (int)(w * 0.27));
+        var mitteB = (int)(w * 0.45);
         var oben = (int)(h * 0.36);
         var kal = FensterOeffnen("kal")!;
         kal.Bounds = new Rectangle(0, 0, links, oben);
