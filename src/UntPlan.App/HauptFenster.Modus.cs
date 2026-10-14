@@ -156,6 +156,8 @@ public sealed partial class HauptFenster
             "vorm" => Oeffnen("vorm", () => new VormerkungenFenster()),
             "bereit" => Oeffnen("bereit", () => new BereitschaftenFenster()),
             "pause" => Oeffnen("pause", () => new PausenaufsichtFenster()),
+            "bereitplan" => Oeffnen("bereitplan", () => new BereitschaftsplanungFenster()),
+            "ugruppen" => Oeffnen("ugruppen", () => new UGruppenFenster()),
             "stat" => Oeffnen("stat", () => new StatistikFenster()),
             "diag" => Oeffnen("diag", () => new DiagnoseFenster()),
             "ferien" => Oeffnen("ferien", () => new FerienFenster()),

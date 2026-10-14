@@ -77,3 +77,26 @@ public class OptimierungsOptionenTests
         Assert.True(Gleich(bedingt) >= vorher.Count * 0.9, $"bedingt {Gleich(bedingt)} von {vorher.Count}");
     }
 }
+
+public class BereitschaftsplanungTests
+{
+    [Fact]
+    public void AutomatischBesetztBedarfMitFreienLehrernUndBeachtetHoechstzahl()
+    {
+        var d = Demo.Beispielschule();
+        d.AktivePeriode.Plan = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 2 })[0].Plan;
+        foreach (var b in Bereitschaftsplanung.Stunden(d)) Bereitschaftsplanung.Entfernen(d, b.Lehrer.Id, b.Tag, b.Stunde);
+        foreach (var l in d.Lehrer) { l.BereitschaftenMax = 1; l.KeineVertretung = false; }
+        for (var t = 0; t < 5; t++) Bereitschaftsplanung.BedarfSetzen(d, t, 3, 2);
+        var n = Bereitschaftsplanung.Automatisch(d);
+        Assert.Equal(10, n);
+        var stunden = Bereitschaftsplanung.Stunden(d);
+        Assert.Equal(10, stunden.Count);
+        Assert.All(stunden.GroupBy(b => b.Lehrer.Id), g => Assert.Single(g)); // höchstens 1 je Lehrer
+        var ix = new DatenIndex(d);
+        foreach (var b in stunden) // Lehrer hat zu der Stunde keinen anderen Unterricht
+            Assert.Single(ix.PlanVon(ElementTyp.Lehrer, b.Lehrer.Id), p => p.Tag == b.Tag && p.Stunde == b.Stunde);
+        Bereitschaftsplanung.Entfernen(d, stunden[0].Lehrer.Id, stunden[0].Tag, stunden[0].Stunde);
+        Assert.Equal(9, Bereitschaftsplanung.Stunden(d).Count);
+    }
+}

@@ -276,6 +276,8 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Abteilungen", "abteilungen", () => Oeffnen<StammdatenFenster>("st:Abteilung", () => new StammdatenFenster(ElementTyp.Abteilung))));
         g.Eintraege.Add(E("Abwesenheitsgründe", "abwesenheit", () => Oeffnen<StammdatenFenster>("st:Grund", () => new StammdatenFenster(ElementTyp.Abwesenheitsgrund))));
         g.Eintraege.Add(E("Schüler", "schueler", () => Oeffnen<StammdatenFenster>("st:Schueler", () => new StammdatenFenster(ElementTyp.Schueler))));
+        g.Eintraege.Add(E("Unterrichtsgruppen", "perioden", () => FensterOeffnen("ugruppen")));
+        g.Eintraege.Add(E("Bereitschaftsplanung", "bereitschaft", () => FensterOeffnen("bereitplan")));
         g.Eintraege.Add(E("Stundentafel", "wertrechnung", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(2))));
         g = Gruppe(eingabe, "Unterricht");
         g.Eintraege.Add(E("Klassen", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)), true));
@@ -344,6 +346,8 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Stundentafel", "unterricht", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(2)), true));
         g = Gruppe(module, "Weitere Module");
         g.Eintraege.Add(E("Mehrwochen / Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this), true));
+        g.Eintraege.Add(E("Bereitschafts-planung", "bereitschaft", () => FensterOeffnen("bereitplan"), true));
+        g.Eintraege.Add(E("Unterrichts-gruppen", "perioden", () => FensterOeffnen("ugruppen"), true, hinweis: "A/B-Wochen und weitere Wochenzyklen"));
         g.Eintraege.Add(E("Abteilungsplanung", "abteilungen", null, true, new()
         {
             E("Abteilungen", "abteilungen", () => Oeffnen<StammdatenFenster>("st:Abteilung", () => new StammdatenFenster(ElementTyp.Abteilung))),

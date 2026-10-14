@@ -231,6 +231,10 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                 (d, u, z, t) => u.WerteFaktor = t.Trim().Length == 0 ? null : decimal.Parse(t.Replace('.', ','), CultureInfo.GetCultureInfo("de-DE")), "Werte"),
             new("Periode", "Woche (A/B)", 70, false, false, (u, _) => u.Periodizitaet switch { Periodizitaet.AWoche => "A", Periodizitaet.BWoche => "B", _ => "" },
                 (d, u, z, t) => u.Periodizitaet = t.Trim().ToUpperInvariant() switch { "A" => Periodizitaet.AWoche, "B" => Periodizitaet.BWoche, _ => Periodizitaet.JedeWoche }, "Mehrwochen"),
+            new("UGruppe", "U-Gruppe", 66, false, false, (u, _) => AppZustand.D.UGruppen.FirstOrDefault(g => g.Id == u.UGruppeId)?.Kurzname ?? "",
+                (d, u, z, t) => u.UGruppeId = t.Trim().Length == 0 ? null : d.UGruppen.FirstOrDefault(g => g.Kurzname.Equals(t.Trim(), StringComparison.OrdinalIgnoreCase))?.Id ?? throw new FormatException($"Unterrichtsgruppe \"{t}\" unbekannt"), "Mehrwochen"),
+            new("ZUGruppe", "Zeilen-U-Gr.", 74, true, false, (_, z) => AppZustand.D.UGruppen.FirstOrDefault(g => g.Id == z.UGruppeId)?.Kurzname ?? "",
+                (d, u, z, t) => z.UGruppeId = t.Trim().Length == 0 ? null : d.UGruppen.FirstOrDefault(g => g.Kurzname.Equals(t.Trim(), StringComparison.OrdinalIgnoreCase))?.Id ?? throw new FormatException($"Unterrichtsgruppe \"{t}\" unbekannt"), "Mehrwochen"),
             new("Von", "von", 76, false, false, (u, _) => u.VonDatum.HasValue ? Format.Datum(u.VonDatum.Value) : "",
                 (d, u, z, t) => u.VonDatum = t.Trim().Length == 0 ? null : DateOnly.Parse(t, CultureInfo.GetCultureInfo("de-DE")), "Mehrwochen"),
             new("Bis", "bis", 76, false, false, (u, _) => u.BisDatum.HasValue ? Format.Datum(u.BisDatum.Value) : "",
@@ -317,6 +321,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             "Fach" => Stammdaten.Sortiert(D.Faecher).Select(x => x.Kurzname),
             "Lehrer" => Stammdaten.Sortiert(D.Lehrer).Select(x => x.Kurzname),
             "Fachraum" or "Stammraum" => Stammdaten.Sortiert(D.Raeume).Select(x => x.Kurzname).Concat(Stammdaten.Sortiert(D.Raumgruppen).Select(x => x.Kurzname)),
+            "UGruppe" or "ZUGruppe" => D.UGruppen.Select(x => x.Kurzname),
             _ => null,
         };
         return q is null ? null : new[] { "" }.Concat(q).Distinct(StringComparer.Ordinal).ToList();
