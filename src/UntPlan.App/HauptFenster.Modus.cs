@@ -326,11 +326,34 @@ public sealed partial class HauptFenster
                 };
                 mdi.Resize += (_, _) => mdi.Invalidate();
             }
-        AppZustand.DatumGewechselt += _ =>
+        AppZustand.DatumGewechselt += datum =>
         {
+            // Vertretungsmodus: die am Planungsdatum gültige Periode ist aktiv (Unterricht, Stammdaten-Zählungen)
+            if (AppZustand.Vertretungsmodus && AppZustand.D.PeriodeAm(datum) is { } per && per.Id != AppZustand.D.AktivePeriodeId)
+            {
+                AppZustand.D.AktivePeriodeId = per.Id;
+                AppZustand.Doc.Melden(AenderungsArt.Alles);
+            }
             _ribbon.Invalidate();
             foreach (Control c in Controls) if (c is MdiClient m) m.Invalidate();
             if (AppZustand.Vertretungsmodus) _assistent.Aktualisieren();
+        };
+        _statusRechts.IsLink = true;
+        _statusRechts.LinkBehavior = LinkBehavior.HoverUnderline;
+        _statusRechts.ToolTipText = "Aktive Periode wählen";
+        _statusRechts.Click += (_, _) =>
+        {
+            var cm = new ContextMenuStrip { Font = Ui.Schrift };
+            foreach (var p in AppZustand.D.Perioden.OrderBy(x => x.Von))
+            {
+                var id = p.Id;
+                var it = new ToolStripMenuItem($"{p.Name}  ({Format.Datum(p.Von)} – {Format.Datum(Core.Module.Perioden.Ende(AppZustand.D, p))}){(p.Fixiert ? "  fixiert" : "")}") { Checked = p.Id == AppZustand.D.AktivePeriodeId };
+                it.Click += (_, _) => AppZustand.Doc.Aendern("Periode aktivieren", AenderungsArt.Alles, d => d.AktivePeriodeId = id);
+                cm.Items.Add(it);
+            }
+            cm.Items.Add(new ToolStripSeparator());
+            cm.Items.Add("Perioden verwalten…", Symbole.Get("perioden"), (_, _) => new PeriodenDialog().ShowDialog(this));
+            cm.Show(_status, new Point(_status.Width - 200, 0), ToolStripDropDownDirection.AboveLeft);
         };
         FarbenAnwenden();
     }

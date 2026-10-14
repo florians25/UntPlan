@@ -95,6 +95,8 @@ public sealed class Einstellungen
     public int Mehrarbeitsgrenze { get; set; } = 3;
     /// <summary>Entfall wird in Randstunden ab diesem Jahrgang vorgeschlagen (Sek I: verlässliche Schule).</summary>
     public string EntfallAbJahrgang { get; set; } = "EF";
+    /// <summary>Unterrichtsänderungen automatisch in Tochterperioden übernehmen (sofern dort unverändert).</summary>
+    public bool UnterrichtInFolgeperioden { get; set; } = true;
     public string Vertretungsplantitel { get; set; } = "Vertretungsplan";
     public Dictionary<string, int> Vertretungsgewichtung { get; set; } = new();
     public PortalEinstellungen Portal { get; set; } = new();
@@ -216,6 +218,12 @@ public sealed class Schuldatei
 
     /// <summary>Pausenaufsichten der aktiven Periode.</summary>
     [JsonIgnore] public List<Pausenaufsicht> Pausenaufsichten => AktivePeriode.Pausenaufsichten ??= new();
+
+    /// <summary>Unterricht aller Perioden (für Stammdatenpflege, z. B. beim Löschen von Elementen).</summary>
+    [JsonIgnore] public IEnumerable<Unterricht> AlleUnterrichte => Perioden.SelectMany(p => p.Unterrichte ?? new());
+
+    /// <summary>Pausenaufsichten aller Perioden.</summary>
+    [JsonIgnore] public IEnumerable<Pausenaufsicht> AllePausenaufsichten => Perioden.SelectMany(p => p.Pausenaufsichten ?? new());
 
     /// <summary>Periode, die an einem Datum gilt (innerste, d. h. zuletzt beginnende Periode, die das Datum abdeckt).</summary>
     public Periode PeriodeAm(DateOnly datum)

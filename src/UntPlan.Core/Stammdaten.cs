@@ -69,18 +69,18 @@ public static class Stammdaten
         {
             case Klasse:
                 d.Klassen.RemoveAll(x => x.Id == id);
-                foreach (var z in d.Unterrichte.SelectMany(u => u.Zeilen)) z.KlassenIds.Remove(id);
+                foreach (var z in d.AlleUnterrichte.SelectMany(u => u.Zeilen)) z.KlassenIds.Remove(id);
                 d.Abwesenheiten.RemoveAll(a => a.Art == AbwesenheitsArt.Klasse && a.ElementId == id);
                 foreach (var s in d.Schueler.Where(s => s.KlasseId == id)) s.KlasseId = null;
                 foreach (var v in d.Vertretungen) v.KlassenIds.Remove(id);
                 break;
             case Lehrer:
                 d.Lehrer.RemoveAll(x => x.Id == id);
-                foreach (var z in d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.LehrerId == id)) z.LehrerId = null;
+                foreach (var z in d.AlleUnterrichte.SelectMany(u => u.Zeilen).Where(z => z.LehrerId == id)) z.LehrerId = null;
                 foreach (var k in d.Klassen) k.KlassenlehrerIds.Remove(id);
                 d.Abwesenheiten.RemoveAll(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == id);
                 foreach (var a in d.Abwesenheiten) a.BegleitLehrerIds.Remove(id);
-                d.Pausenaufsichten.RemoveAll(p => p.LehrerId == id);
+                foreach (var per in d.Perioden) per.Pausenaufsichten?.RemoveAll(p => p.LehrerId == id);
                 foreach (var v in d.Vertretungen) { if (v.VertreterId == id) v.VertreterId = null; if (v.LehrerId == id) v.LehrerId = null; }
                 foreach (var a in d.Abteilungen.Where(a => a.LeiterId == id)) a.LeiterId = null;
                 break;
@@ -91,7 +91,7 @@ public static class Stammdaten
                 foreach (var l in d.Lehrer.Where(l => l.StammraumId == id)) l.StammraumId = null;
                 foreach (var f in d.Faecher.Where(f => f.FachraumId == id)) f.FachraumId = null;
                 foreach (var g in d.Raumgruppen) g.RaumIds.Remove(id);
-                foreach (var z in d.Unterrichte.SelectMany(u => u.Zeilen))
+                foreach (var z in d.AlleUnterrichte.SelectMany(u => u.Zeilen))
                 {
                     if (z.FachraumId == id) z.FachraumId = null;
                     if (z.StammraumId == id) z.StammraumId = null;
@@ -102,13 +102,13 @@ public static class Stammdaten
                 break;
             case Fach:
                 d.Faecher.RemoveAll(x => x.Id == id);
-                foreach (var z in d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.FachId == id)) z.FachId = null;
+                foreach (var z in d.AlleUnterrichte.SelectMany(u => u.Zeilen).Where(z => z.FachId == id)) z.FachId = null;
                 foreach (var l in d.Lehrer) l.FaecherIds.Remove(id);
                 d.Stundentafel.RemoveAll(s => s.FachId == id);
                 break;
             case Raumgruppe:
                 d.Raumgruppen.RemoveAll(x => x.Id == id);
-                foreach (var z in d.Unterrichte.SelectMany(u => u.Zeilen))
+                foreach (var z in d.AlleUnterrichte.SelectMany(u => u.Zeilen))
                 {
                     if (z.FachraumgruppeId == id) z.FachraumgruppeId = null;
                     if (z.StammraumgruppeId == id) z.StammraumgruppeId = null;
@@ -118,7 +118,7 @@ public static class Stammdaten
             case Gang:
                 d.Gaenge.RemoveAll(x => x.Id == id);
                 foreach (var r in d.Raeume.Where(r => r.GangId == id)) r.GangId = null;
-                d.Pausenaufsichten.RemoveAll(p => p.GangId == id);
+                foreach (var per in d.Perioden) per.Pausenaufsichten?.RemoveAll(p => p.GangId == id);
                 break;
             case Abteilung:
                 d.Abteilungen.RemoveAll(x => x.Id == id);

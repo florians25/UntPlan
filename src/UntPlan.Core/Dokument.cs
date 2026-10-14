@@ -84,10 +84,15 @@ public sealed class Dokument
     /// <summary>Führt eine Änderung mit Rückgängig-Möglichkeit aus.</summary>
     public void Aendern(string beschreibung, AenderungsArt art, Action<Schuldatei> aktion)
     {
+        if (art is AenderungsArt.Unterricht or AenderungsArt.Stundenplan && Daten.AktivePeriode.Fixiert)
+            throw new InvalidOperationException($"Die Periode {Daten.AktivePeriode.Name} ist fixiert – Unterricht und Stundenplan können nicht geändert werden.");
         var vorher = JsonSerializer.SerializeToUtf8Bytes(Daten, JsonOptionen);
+        var unterrichtVorher = art == AenderungsArt.Unterricht && Daten.Einstellungen.UnterrichtInFolgeperioden && Daten.Perioden.Count > 1
+            ? Module.Perioden.Momentaufnahme(Daten) : null;
         try
         {
             aktion(Daten);
+            if (unterrichtVorher != null) Module.Perioden.Weitergeben(Daten, unterrichtVorher);
         }
         catch
         {

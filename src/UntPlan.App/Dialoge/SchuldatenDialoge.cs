@@ -285,61 +285,159 @@ public sealed class EinstellungenDialog : Dialog
 /// <summary>Perioden (Mehrwochenstundenplan): Das Schuljahr in Abschnitte mit eigenen Stundenplänen unterteilen.</summary>
 public sealed class PeriodenDialog : Dialog
 {
-    private readonly ListView _liste = new() { Left = 10, Top = 10, Width = 380, Height = 250, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false };
+    private readonly TextBox _name = new() { Left = 12, Top = 22, Width = 110 };
+    private readonly Button _loeschen = new() { Text = "Löschen", Left = 132, Top = 20, Width = 72, Height = 24 };
+    private readonly Button _neu = new() { Text = "Neue Periode zu dieser Mutterper.", Left = 12, Top = 50, Width = 192, Height = 24 };
+    private readonly CheckBox _fixiert = new() { Text = "Fixiert", Left = 230, Top = 60, AutoSize = true };
+    private readonly TextBox _lang = new() { Left = 12, Top = 96, Width = 196 };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Left = 12, Top = 140, Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Left = 120, Top = 140, Width = 116, ShowCheckBox = true };
+    private readonly Label _tage = new() { Left = 250, Top = 144, AutoSize = true, Font = Ui.SchriftFett };
+    private readonly DataGridView _g = new() { Left = 12, Top = 176, Width = 690, Height = 230, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+    private bool _laedt;
 
-    public PeriodenDialog() : base("Perioden", 520, 310)
+    private Schuldatei D => AppZustand.D;
+
+    public PeriodenDialog() : base("Perioden", 716, 456)
     {
-        Ok.Text = "Schließen";
+        Ok.Text = "Ok";
         Abbrechen.Visible = false;
-        _liste.Columns.Add("Name", 160);
-        _liste.Columns.Add("ab", 100);
-        _liste.Columns.Add("Stunden", 80);
-        Controls.Add(_liste);
-        var neu = new Button { Text = "Neue Periode…", Left = 400, Top = 10, Width = 110 };
-        var aktiv = new Button { Text = "Aktivieren", Left = 400, Top = 40, Width = 110 };
-        var loeschen = new Button { Text = "Löschen", Left = 400, Top = 70, Width = 110 };
-        Controls.AddRange(new Control[] { neu, aktiv, loeschen });
-        Controls.Add(new Label { Text = "Eine neue Periode übernimmt den Stundenplan der aktiven Periode und gilt ab dem angegebenen Datum. So lassen sich mehrere Stundenpläne eines Jahres in einer Datei verwalten.", Left = 10, Top = 266, Width = 300, Height = 40, ForeColor = Color.DimGray });
-        neu.Click += (_, _) =>
+        var gruppe = new GroupBox { Text = "Name", Left = 8, Top = 4, Width = 214, Height = 84 };
+        Controls.Add(gruppe);
+        _name.SetBounds(8, 20, 110, 23);
+        _loeschen.SetBounds(124, 18, 82, 25);
+        _neu.SetBounds(8, 50, 198, 25);
+        gruppe.Controls.AddRange(new Control[] { _name, _loeschen, _neu });
+        var druck = new Button { Text = "Druck", Left = 230, Top = 18, Width = 82, Height = 25 };
+        var aktiv = new Button { Text = "Als aktive Periode", Left = 320, Top = 18, Width = 130, Height = 25 };
+        Controls.AddRange(new Control[] { druck, aktiv, _fixiert });
+        Controls.Add(new Label { Text = "Langname", Left = 214, Top = 99, AutoSize = true });
+        _lang.SetBounds(12, 96, 196, 23);
+        Controls.Add(_lang);
+        Controls.Add(new Label { Text = "Von", Left = 12, Top = 124, AutoSize = true });
+        Controls.Add(new Label { Text = "Bis", Left = 120, Top = 124, AutoSize = true });
+        Controls.Add(new Label { Text = "Schultage:", Left = 250, Top = 124, AutoSize = true });
+        Controls.AddRange(new Control[] { _von, _bis, _tage });
+        Ui.RasterGestalten(_g, false);
+        _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        _g.MultiSelect = false;
+        foreach (var (n, k, w) in new[] { ("N", "Name", 110), ("L", "Langname", 150), ("V", "Von", 80), ("B", "Bis", 80), ("F", "Fixiert", 50), ("T", "Tage", 50), ("M", "Mutter-Per.", 110) })
+            _g.Columns[_g.Columns.Add(n, k)].Width = w;
+        Controls.Add(_g);
+        Controls.Add(new Label
         {
-            var name = Ui.Eingabe("Name der neuen Periode:", "Neue Periode", $"Periode {AppZustand.D.Perioden.Count + 1}");
-            if (string.IsNullOrWhiteSpace(name)) return;
-            var datum = Ui.Eingabe("Gültig ab (TT.MM.JJJJ):", "Neue Periode", DateTime.Today.ToString("dd.MM.yyyy"));
-            if (!DateOnly.TryParse(datum, Format.De, out var ab)) return;
-            AppZustand.Doc.Aendern("Neue Periode", AenderungsArt.Alles, d =>
-            {
-                var p = new Periode { Id = d.NeueId(), Name = name, Von = ab, Plan = d.Stundenplan.Select(x => x.Kopie()).ToList() };
-                d.Perioden.Add(p);
-                d.AktivePeriodeId = p.Id;
-            });
-            Fuellen();
-        };
-        aktiv.Click += (_, _) =>
-        {
-            if (_liste.SelectedItems.Count == 0) return;
-            var id = (int)_liste.SelectedItems[0].Tag!;
-            AppZustand.Doc.Aendern("Periode aktivieren", AenderungsArt.Alles, d => d.AktivePeriodeId = id);
-            Fuellen();
-        };
-        loeschen.Click += (_, _) =>
-        {
-            if (_liste.SelectedItems.Count == 0 || AppZustand.D.Perioden.Count <= 1) return;
-            var id = (int)_liste.SelectedItems[0].Tag!;
-            if (!Ui.Frage("Periode samt Stundenplan löschen?")) return;
-            AppZustand.Doc.Aendern("Periode löschen", AenderungsArt.Alles, d => { d.Perioden.RemoveAll(p => p.Id == id); if (d.AktivePeriodeId == id) d.AktivePeriodeId = d.Perioden[0].Id; });
-            Fuellen();
-        };
-        Fuellen();
+            Text = "Eine Tochterperiode übernimmt Unterricht, Stundenplan und Pausenaufsichten der Mutterperiode. An jedem Tag gilt die innerste (zuletzt beginnende) Periode. " +
+                   "Unterrichtsänderungen werden in Tochterperioden übernommen, sofern der Unterricht dort nicht abweicht. Fixierte Perioden sind gegen Änderungen geschützt.",
+            Left = 12, Top = 410, Width = 500, Height = 40, ForeColor = Color.DimGray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom,
+        });
+        _g.SelectionChanged += (_, _) => { if (!_laedt) Anzeigen(); };
+        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Aktivieren(); };
+        _name.Leave += (_, _) => Uebernehmen();
+        _lang.Leave += (_, _) => Uebernehmen();
+        _von.ValueChanged += (_, _) => Uebernehmen();
+        _bis.ValueChanged += (_, _) => Uebernehmen();
+        _fixiert.CheckedChanged += (_, _) => Uebernehmen();
+        _loeschen.Click += (_, _) => Loeschen();
+        _neu.Click += (_, _) => Neu();
+        aktiv.Click += (_, _) => Aktivieren();
+        druck.Click += (_, _) => ListenDruck.Drucken(this, "Perioden", new[] { "Name", "Langname", "Von", "Bis", "Fixiert", "Tage", "Mutter-Per." }, new[] { 90, 140, 75, 75, 50, 45, 90 },
+            _g.Rows.Cast<DataGridViewRow>().Select(r => r.Cells.Cast<DataGridViewCell>().Select(c => c.Value?.ToString() ?? "").ToArray()).ToList(), true);
+        Fuellen(D.AktivePeriodeId);
     }
 
-    private void Fuellen()
+    private Periode? Gewaehlt => _g.CurrentRow?.Tag is int id ? D.Perioden.FirstOrDefault(p => p.Id == id) : null;
+
+    private void Fuellen(int? waehlen)
     {
-        _liste.Items.Clear();
-        foreach (var p in AppZustand.D.Perioden.OrderBy(p => p.Von))
+        _laedt = true;
+        _g.Rows.Clear();
+        // Baumreihenfolge: Mutter vor ihren Töchtern
+        void Ebene(int? mutter, int tiefe)
         {
-            var it = new ListViewItem(new[] { p.Name + (p.Id == AppZustand.D.AktivePeriodeId ? "  (aktiv)" : ""), Format.Datum(p.Von), p.Plan.Count.ToString() }) { Tag = p.Id };
-            if (p.Id == AppZustand.D.AktivePeriodeId) it.Font = Ui.SchriftFett;
-            _liste.Items.Add(it);
+            foreach (var p in D.Perioden.Where(x => x.MutterId == mutter || (mutter is null && x.MutterId is int m && D.Perioden.All(y => y.Id != m))).OrderBy(x => x.Von))
+            {
+                var r = _g.Rows.Add(new string(' ', tiefe * 3) + p.Name, p.Langname, Format.Datum(p.Von), p.Bis is DateOnly b ? Format.Datum(b) : "", p.Fixiert ? "ja" : "",
+                    Core.Module.Perioden.Schultage(D, p), D.Perioden.FirstOrDefault(x => x.Id == p.MutterId)?.Name ?? "");
+                _g.Rows[r].Tag = p.Id;
+                if (p.Id == D.AktivePeriodeId) _g.Rows[r].DefaultCellStyle.Font = Ui.SchriftFett;
+                Ebene(p.Id, tiefe + 1);
+            }
         }
+        Ebene(null, 0);
+        _laedt = false;
+        var zeile = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is int id && id == waehlen) ?? (_g.Rows.Count > 0 ? _g.Rows[0] : null);
+        if (zeile != null) { _g.ClearSelection(); zeile.Selected = true; _g.CurrentCell = zeile.Cells[0]; }
+        Anzeigen();
+    }
+
+    private void Anzeigen()
+    {
+        if (Gewaehlt is not { } p) return;
+        _laedt = true;
+        _name.Text = p.Name;
+        _lang.Text = p.Langname;
+        _von.Value = p.Von.ToDateTime(TimeOnly.MinValue);
+        _bis.Checked = p.Bis.HasValue;
+        _bis.Value = (p.Bis ?? Core.Module.Perioden.Ende(D, p)).ToDateTime(TimeOnly.MinValue);
+        _fixiert.Checked = p.Fixiert;
+        _tage.Text = Core.Module.Perioden.Schultage(D, p).ToString();
+        _loeschen.Enabled = D.Perioden.Count > 1;
+        _laedt = false;
+    }
+
+    private void Uebernehmen()
+    {
+        if (_laedt || Gewaehlt is not { } p) return;
+        var name = _name.Text;
+        var lang = _lang.Text;
+        var von = DateOnly.FromDateTime(_von.Value);
+        DateOnly? bis = _bis.Checked ? DateOnly.FromDateTime(_bis.Value) : null;
+        var fix = _fixiert.Checked;
+        if (p.Name == name && p.Langname == lang && p.Von == von && p.Bis == bis && p.Fixiert == fix) return;
+        try
+        {
+            AppZustand.Doc.Aendern("Periode ändern", AenderungsArt.Alles, d => Core.Module.Perioden.Aendern(d, d.Perioden.First(x => x.Id == p.Id), name, lang, von, bis, fix));
+        }
+        catch (Exception ex) { Ui.Fehler(ex); }
+        Fuellen(p.Id);
+    }
+
+    private void Neu()
+    {
+        if (Gewaehlt is not { } mutter) return;
+        var ab = Ui.Eingabe($"Neue Periode zur Mutterperiode {mutter.Name} – gültig ab (TT.MM.JJJJ):", "Neue Periode", Format.Datum(AppZustand.Datum < mutter.Von ? mutter.Von : AppZustand.Datum));
+        if (ab is null) return;
+        try
+        {
+            var von = Ui.DatumLesen(ab, mutter.Von);
+            var bisText = Ui.Eingabe("Gültig bis (leer = bis zur nächsten Periode bzw. Schuljahresende):", "Neue Periode", "");
+            if (bisText is null) return;
+            DateOnly? bis = bisText.Trim().Length == 0 ? null : Ui.DatumLesen(bisText, von);
+            var id = 0;
+            AppZustand.Doc.Aendern("Neue Periode", AenderungsArt.Alles, d =>
+            {
+                var p = Core.Module.Perioden.Neu(d, d.Perioden.First(x => x.Id == mutter.Id), $"Periode{d.Perioden.Count + 1}", von, bis);
+                d.AktivePeriodeId = p.Id;
+                id = p.Id;
+            });
+            Fuellen(id);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException) { Ui.Info("Das Datum ist ungültig."); }
+        catch (Exception ex) { Ui.Fehler(ex); }
+    }
+
+    private void Loeschen()
+    {
+        if (Gewaehlt is not { } p || !Ui.Frage($"Periode {p.Name} mit Unterricht und Stundenplan löschen?")) return;
+        try { AppZustand.Doc.Aendern("Periode löschen", AenderungsArt.Alles, d => Core.Module.Perioden.Loeschen(d, d.Perioden.First(x => x.Id == p.Id))); }
+        catch (Exception ex) { Ui.Fehler(ex); }
+        Fuellen(D.AktivePeriodeId);
+    }
+
+    private void Aktivieren()
+    {
+        if (Gewaehlt is not { } p) return;
+        AppZustand.Doc.Aendern("Periode aktivieren", AenderungsArt.Alles, d => d.AktivePeriodeId = p.Id);
+        Fuellen(p.Id);
     }
 }
