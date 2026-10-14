@@ -22,13 +22,14 @@ const karte = (titel, inhalt) => `<div class="card" style="max-width:860px"><div
 
 export async function zeigen(seite, kontext, [bereichParam]) {
   const bereich = BEREICHE.some(b => b.id === bereichParam) ? bereichParam : 'abwesenheit';
-  kontext.titel('Meldungen');
+  kontext.titel({ abwesenheit: 'Abwesenheit melden', raum: 'Raum buchen', klausur: 'Prüfung eintragen', meine: 'Meine Meldungen' }[bereich]);
   const el = await kontext.elemente();
   const stunden = (el.stunden ?? []).map(s => ({ nr: s.nr, bezeichnung: s.bezeichnung, beginn: s.beginn })).filter(s => s.nr > 0);
   if (!stunden.length) for (let i = 1; i <= 10; i++) stunden.push({ nr: i, bezeichnung: String(i) });
   const letzte = stunden[stunden.length - 1].nr;
 
-  seite.innerHTML = `<ul class="nav nav-tabs mb-3">${BEREICHE.map(b => `<li class="nav-item"><a class="nav-link ${b.id === bereich ? 'active' : ''}" href="#/melden/${b.id}">${b.text}</a></li>`).join('')}</ul><div data-bereich></div>`;
+  // Die Bereiche stehen im Untermenü „Melden & Buchen“ der Navigation
+  seite.innerHTML = '<div data-bereich></div>';
   const ziel = seite.querySelector('[data-bereich]');
 
   if (bereich === 'abwesenheit') {

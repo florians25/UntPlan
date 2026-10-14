@@ -21,6 +21,12 @@ const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert'
  * Werte (Klassen, Lehrkräfte, Räume) wie im Original: neuer Wert als grüne Kürzelbox, bei offener Vertretung der
  * bisherige Wert durchgestrichen in der grünen Box. Der ersetzte alte Wert steht im Detaildialog; bei Entfall erscheinen die ursprünglichen Werte durchgestrichen.
  */
+/** Lange Listen kürzen wie im Original: „BEC, BRA, FIS +12“ (vollständig in den Stundendetails). */
+export function gekuerzt(liste, max = 3, entfall = false) {
+  const l = liste || [];
+  return l.length <= max + 1 ? werte(l, entfall) : `${werte(l.slice(0, max), entfall)} <span class="mehr">+${l.length - max}</span>`;
+}
+
 export function werte(liste, entfall = false) {
   return (liste || []).map(w => {
     if (entfall) return e(w.alt || w.k);
@@ -54,9 +60,9 @@ export function karteInhalt(k, typ, kompakt = false) {
   const ohneFach = !k.fach;
   let oben, rest;
   if (ohneFach) {
-    const lehrer = k.lehrer.length > 6 ? `${k.lehrer.length} Lehrkräfte` : werte(k.lehrer, entfall);
+    // Veranstaltung, Klausur, Buchung: Bezeichnung, dann Klassen, Lehrkräfte (gekürzt) und Raum
     oben = e(k.text || k.art || '—');
-    rest = [werte(k.klassen, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? lehrer : '', werte(k.raeume, entfall)];
+    rest = [gekuerzt(k.klassen, 4, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? gekuerzt(k.lehrer, 3, entfall) : '', werte(k.raeume, entfall)];
   } else if (typ === 'klasse') {
     oben = fach;
     rest = [werte(k.lehrer, entfall), werte(k.raeume, entfall), k.klassen.length > 1 ? werte(k.klassen, entfall) : ''];
@@ -180,7 +186,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = true }
 
   let html = `<div class="tt" style="--tage:${tage.length}"><div class="tt-ecke"></div>`;
   tage.forEach((t, i) => {
-    html += `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}">${e(WOCHENTAGE_KURZ[i] ?? t.wochentag)} ${datumKurz(t.datum)}</div>`;
+    html += `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}"><span>${e(WOCHENTAGE_KURZ[i] ?? t.wochentag)} ${datumKurz(t.datum)}</span></div>`;
   });
   if (mitLeiste) {
     html += '<div class="tt-ecke"></div>';
@@ -244,8 +250,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = true }
 }
 
 export function tagAuswahl(plan, gewaehlt) {
-  return `<div class="tt-tagwahl btn-group w-100 mb-2" role="group">${plan.tage.map((t, i) =>
-    `<button type="button" data-tagwahl="${i}" class="btn btn-sm ${i === gewaehlt ? 'btn-primary' : 'btn-outline-secondary'}">${WOCHENTAGE_KURZ[i]}<br><small>${datumKurz(t.datum)}</small></button>`).join('')}</div>`;
+  return `<div class="tt-tagwahl nicht-drucken" role="group" aria-label="Tag wählen">${plan.tage.map((t, i) =>
+    `<button type="button" data-tagwahl="${i}" class="${i === gewaehlt ? 'aktiv' : ''}" aria-pressed="${i === gewaehlt}">${WOCHENTAGE_KURZ[i]}<small>${datumKurz(t.datum)}</small></button>`).join('')}</div>`;
 }
 
 /** Klick auf eine Karte öffnet den Detaildialog. */
@@ -295,8 +301,10 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
   const jetztIso = heuteIso(), jetzt = jetztMinuten();
   const eintraege = [
     ...ereignisse.filter(x => x.ganztaegig && !karten.some(k => k.text === x.titel)).map(x => ({ zeit: -1, html: `<div class="eintrag"><div class="zeit">ganztägig</div>
-        <div class="std veranstaltung"><span class="mks"><i class="mk-plus"></i></span><div class="z1">${e(x.titel)}</div><div class="z3">Veranstaltung</div></div></div>` })),
-    ...karten.map((k, i) => ({ zeit: minuten(k.beginn), html: `<div class="eintrag">
+        <div class="std veranstaltung"><span class="mks"><i class="mk-plus"></i></span><div class="z1">${e(x.titel)}</div>
+        ${[gekuerzt(x.klassen.map(k => ({ k })), 4), gekuerzt(x.lehrer.map(k => ({ k })), 3), werte(x.raeume.map(k => ({ k })))].filter(Boolean).map(z => `<div class="z2">${z}</div>`).join('')}
+        <div class="z3">Veranstaltung</div></div></div>` })),
+    ...karten.map((k, i) => ({ zeit: minuten(k.beginn), html: `<div class="eintrag ${k.datum === jetztIso && minuten(k.beginn) <= jetzt && jetzt < minuten(k.ende) ? 'jetzt' : ''}">
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
         <div class="std ${e(k.status)} ${vergangen(k, jetztIso, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''}" data-karte="${i}" tabindex="0" role="button" title="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>

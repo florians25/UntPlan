@@ -4,7 +4,7 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 public sealed record Vertretungszeile(string Klassen, string Stunde, int StundeVon, string Fach, string? FachAlt, string Lehrer, string? LehrerAlt,
-    string Raum, string? RaumAlt, string Art, string Text, string VertrVon, string Nach, string Status);
+    string Raum, string? RaumAlt, string Art, string Text, string VertrVon, string Nach, string Status, bool OhneLehrer = false);
 
 public sealed record Vertretungstag(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, List<string> Nachrichten,
     List<string> AbwesendeKlassen, List<string> AbwesendeLehrer, List<string> BlockierteRaeume, List<string> Veranstaltungen, List<Vertretungszeile> Zeilen);
@@ -106,7 +106,7 @@ public sealed class Vertretungsplandienst
             // Schülerversion: keine Angaben, wer fehlt – nur, wer vertritt
             if (!kollegium && status != "entfall" && !ohneLehrer) lehrerAlt = null;
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,
-                neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : v.Text, v.VertrVon, v.Nach, status);
+                neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : v.Text, v.VertrVon, v.Nach, status, ohneLehrer);
         }).ToList();
 
         // gleiche Zeilen in aufeinanderfolgenden Stunden zusammenfassen (z. B. „3–4“)

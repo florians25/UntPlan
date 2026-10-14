@@ -13,9 +13,11 @@ function verlaufTabelle(liste, kollegium) {
 
 export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumParam, vonParam]) {
   const ich = kontext.ich;
-  kontext.titel(ich.kollegium ? 'Klassenbuch' : 'Hausaufgaben');
+  kontext.titel(!ich.kollegium ? 'Hausaufgaben' : reiterParam === 'fehlzeiten' ? 'Fehlzeiten' : 'Klassenbuch');
   const el = await kontext.elemente();
-  const klasse = ich.kollegium ? (klasseParam || el.klassen[0]?.kurz) : ich.element;
+  // ohne Angabe: eigene Klasse (Klassenleitung), sonst die erste
+  const eigene = el.klassen.find(k => ich.element && (k.leitung ?? []).some(l => l.toLowerCase() === ich.element.toLowerCase()))?.kurz;
+  const klasse = ich.kollegium ? (klasseParam && klasseParam !== '-' ? klasseParam : eigene ?? el.klassen[0]?.kurz) : ich.element;
 
   if (!ich.kollegium) {
     if (!klasse) { seite.innerHTML = '<div class="alert alert-secondary">Ihrem Konto ist keine Klasse zugeordnet.</div>'; return; }
@@ -35,19 +37,17 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
   const reiter = ['woche', 'fehlzeiten', 'vermerke', 'verlauf'].includes(reiterParam) ? reiterParam : 'woche';
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   const ziel = (k, r, d = datum) => `#/klassenbuch/${encodeURIComponent(k ?? '')}/${r}/${d}`;
-  const REITER = { woche: ['calendar3-week', 'Wochenübersicht'], fehlzeiten: ['person-x', 'Fehlzeiten'], vermerke: ['chat-left-text', 'Vermerke'], verlauf: ['journal-text', 'Inhalte & Hausaufgaben'] };
+  const REITER = { woche: ['calendar3-week', 'Wochenübersicht'], fehlzeiten: ['person-x', 'Fehlzeiten'], vermerke: ['chat-left-text', 'Vermerke'], verlauf: ['journal-text', 'Lehrstoff & Hausaufgaben'] };
   seite.innerHTML = `
-    ${ich.element ? `<div class="card mb-3"><div class="card-header">Meine Stunden ohne Eintrag <span class="text-body-secondary fw-normal">(letzte 14 Tage)</span></div><div class="card-body" data-offen>${lade()}</div></div>` : ''}
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-3"><span data-wahl></span>
-      <ul class="nav nav-pills ms-md-3">${Object.entries(REITER).map(([r, [ic, t]]) => `<li class="nav-item"><a class="nav-link py-1 ${r === reiter ? 'active' : ''}" href="${ziel(klasse, r)}"><i class="bi bi-${ic} me-1"></i>${t}</a></li>`).join('')}</ul>
-    </div>
+    <div class="u-filter mb-2"><label class="u-feld"><span>Klasse</span><span data-wahl></span></label></div>
+    <ul class="nav nav-tabs mb-3">${Object.entries(REITER).map(([r, [ic, t]]) => `<li class="nav-item"><a class="nav-link ${r === reiter ? 'active' : ''}" href="${ziel(klasse, r)}"><i class="bi bi-${ic}"></i>${t}</a></li>`).join('')}</ul>
     <div data-reiterinhalt>${lade()}</div>`;
   if (klasse) seite.querySelector('[data-wahl]').replaceWith(elementWahl({ eintraege: el.klassen, wert: klasse, platzhalter: 'Klasse wählen', beiWahl: k => kontext.navigieren(ziel(k, reiter)) }));
   const inhalt = seite.querySelector('[data-reiterinhalt]');
   const neuLaden = () => kontext.navigieren(location.hash);
   const k2 = { ...kontext, nachSpeichern: neuLaden };
 
-  const offenLaden = async () => {
+  const offenLaden = async () => { // (Offene Stunden haben eine eigene Seite)
     const z = seite.querySelector('[data-offen]');
     if (!z) return;
     const offen = await holen('/api/app/klassenbuch/offen');

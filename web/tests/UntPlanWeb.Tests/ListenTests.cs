@@ -66,6 +66,7 @@ public class FachpunktTests
             Assert.Equal("WAG", z["lehrerAlt"]!.GetValue<string>());
             Assert.Equal("geaendert", z["status"]!.GetValue<string>());
             Assert.Equal("Vertr. o. Lehrkraft", z["text"]!.GetValue<string>());
+            Assert.True(z["ohneLehrer"]!.GetValue<bool>());
         }
     }
 
