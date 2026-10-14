@@ -781,6 +781,13 @@ public sealed class KlausurenFenster : MdiFenster
         var k = alt is null ? new Klausur { Datum = AppZustand.Datum, Name = "Klausur" } : System.Text.Json.JsonSerializer.Deserialize<Klausur>(System.Text.Json.JsonSerializer.Serialize(alt))!;
         var roh = zeile.Cells[e.ColumnIndex].Value;
         var wert = roh is bool b ? (b ? "1" : "") : roh?.ToString()?.Trim() ?? "";
+        // aus UntPlanWeb übernommene Prüfung: nur Lehrkraft und Raum änderbar, keine Verlegung
+        if (alt?.Importiert == true && _g.Columns[e.ColumnIndex].Name is not ("L" or "R" or "A"))
+        {
+            Ui.Info("Bei aus UntPlanWeb importierten Klausuren können nur Lehrkraft und Raum geändert werden. Eine Verlegung ist nicht möglich.");
+            BeginInvoke(Neuaufbau);
+            return;
+        }
         try
         {
             switch (_g.Columns[e.ColumnIndex].Name)

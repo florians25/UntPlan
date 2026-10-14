@@ -108,12 +108,27 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
         Ui.RasterGestalten(_lupe, false);
         _lupe.RowHeadersVisible = false;
-        foreach (var (n, t, w) in new[] { ("U", "U-Nr", 48), ("L", "Lehr.", 50), ("F", "Fa.", 46), ("R", "Rm.", 50), ("K", "Kla.", 80), ("W", "Wst", 36), ("G", "Schülergr.", 70), ("T", "Text", 120), ("X", "Fix", 30) })
-            _lupe.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = t, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
+        LupeSpalten(false);
 
-        _pool.DragEnter += (_, e) => e.Effect = (e.Data?.GetData(DataFormats.Text) as string)?.StartsWith("plan:") == true ? DragDropEffects.Move : DragDropEffects.None;
+        _pool.DragEnter += (_, e) => e.Effect = (e.Data?.GetData(DataFormats.Text) as string) is string x && (x.StartsWith("plan:") || (_plan.Tagesmodus && x.StartsWith("tag:"))) ? DragDropEffects.Move : DragDropEffects.None;
         _pool.DragDrop += (_, e) =>
         {
+            // Vertretungsmodus: Stunde neben den Stundenplan legen = Vormerkung (später, auch in einer anderen Woche, wieder einplanen)
+            if (_plan.Tagesmodus && e.Data?.GetData(DataFormats.Text) is string tx && tx.StartsWith("tag:"))
+            {
+                var t = tx.Split(':');
+                var datum = DateOnly.ParseExact(t[1], "yyyyMMdd");
+                var st = int.Parse(t[2]);
+                var uid = int.Parse(t[3]);
+                int? zeile = int.Parse(t[4]) is var zz && zz >= 0 ? zz : null;
+                var laenge = t.Length > 5 && int.TryParse(t[5], out var l5) ? Math.Max(1, l5) : 1;
+                Aendern(laenge > 1 ? $"Vormerkung ({laenge} Stunden)" : "Vormerkung", AenderungsArt.Vertretung, d =>
+                {
+                    for (var i = 0; i < laenge; i++) Tagesverlegung.Vormerken(d, datum, st + i, uid, zeile, VormerkungsQuelle.Stundenplan, AppZustand.Benutzer);
+                });
+                Neuaufbau(false);
+                return;
+            }
             if (e.Data?.GetData(DataFormats.Text) is string s && s.StartsWith("plan:"))
             {
                 var (_, alle) = PlanAnsicht.PlanDaten(s);
@@ -395,6 +410,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         _plan.Woche = _wochenansicht.Checked ? Kalender.Montag(DateOnly.FromDateTime(_datum.Value)) : null;
         _plan.AuswahlLeeren();
+        LupeSpalten(_plan.Tagesmodus);
+        _lupe.Rows.Clear();
         DetailAktualisieren();
         PoolAufbauen();
     }
@@ -431,8 +448,15 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var wst = _typ == ElementTyp.Raum ? Ix.PlanVon(ElementTyp.Raum, _id).Count() : unts.Sum(u => u.Wochenstunden);
         var nv = unts.Sum(u => Ix.NichtVerplant(u));
         var periode = D.AktivePeriode;
+        _plan.Ecke = $"Nvpl\n{nv}/{wst}";
         if (_plan.Woche is DateOnly w)
         {
+            // nicht verplant: Stunden neben dem Plan (Vormerkungen) / Stunden der Woche
+            if (_plan.Tagesmodus)
+            {
+                var neben = D.Vormerkungen.Where(v => v.Offen > 0 && (_typ == ElementTyp.Klasse ? v.KlassenIds.Contains(_id) : _typ == ElementTyp.Lehrer && v.LehrerIds.Contains(_id))).Sum(v => v.Offen);
+                _plan.Ecke = $"Nvpl\n{neben}/{_plan.StundenDerWoche()}";
+            }
             var p = D.PeriodeAm(w);
             _detail.Text = $"Woche {Format.Datum(w)} – {Format.Datum(w.AddDays(D.Zeitraster.TageProWoche - 1))} ({Kalender.WochenTyp(D, w)}-Woche, {p.Name})   Tagesaktueller Stundenplan: Änderungen rot, Entfälle durchgestrichen.";
             return;
@@ -446,7 +470,12 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _pool.Controls.Clear();
         if (_plan.Tagesmodus)
         {
-            _pool.Controls.Add(new Label { Text = "Vormerkungen", Font = Ui.SchriftFett, AutoSize = true, Margin = new Padding(2, 2, 2, 6) });
+            _pool.Controls.Add(new Label
+            {
+                Text = "Ablage", Image = Symbole.Get("vormerkung", 32), ImageAlign = ContentAlignment.TopCenter, TextAlign = ContentAlignment.BottomCenter, Width = 64, Height = 54,
+                BorderStyle = BorderStyle.FixedSingle, BackColor = Ui.BlauSehrHell, Margin = new Padding(3, 3, 3, 6),
+            });
+            new ToolTip().SetToolTip(_pool.Controls[^1], "Stunde hierher ziehen = neben den Stundenplan legen (Vormerkung). Von hier in eine andere Position oder Woche ziehen.");
             foreach (var vm in D.Vormerkungen.Where(v => v.Offen > 0 && (_typ switch
                      {
                          ElementTyp.Klasse => v.KlassenIds.Contains(_id),
@@ -553,8 +582,28 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             zeilen.Select(i => p.RaumFuerZeile(i)).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList());
     }
 
+    private bool? _lupeTages;
+
+    /// <summary>Spalten der Stundenplanlupe: Regelplan (U-Nr, Lehr., Fa., Rm., Kla., Wst …) bzw. tagesaktuell (U-Nr, Lehr./Fa./Rm., Kla., Zeit, Schulwoche, Studt, Sondertext, Band).</summary>
+    private void LupeSpalten(bool tages)
+    {
+        if (_lupeTages == tages) return;
+        _lupeTages = tages;
+        _lupe.Rows.Clear();
+        _lupe.Columns.Clear();
+        var spalten = tages
+            ? new[] { ("U", "U-Nr", 48), ("LFR", "Lehr., Fa., Rm.", 120), ("K", "Kla.", 70), ("Z", "Zeit", 80), ("W", "Schulwoche", 76), ("S", "Studt", 44), ("T", "Sondertext", 160), ("B", "Band", 60) }
+            : new[] { ("U", "U-Nr", 48), ("L", "Lehr.", 50), ("F", "Fa.", 46), ("R", "Rm.", 50), ("K", "Kla.", 80), ("W", "Wst", 36), ("G", "Schülergr.", 70), ("T", "Text", 120), ("X", "Fix", 30) };
+        foreach (var (n, t, w) in spalten)
+            _lupe.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = t, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _lupe.Columns[0].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        if (tages) _lupe.Columns["LFR"]!.DefaultCellStyle.BackColor = Ui.Erste;
+    }
+
     private void LupeFuellen(Planstunde? p, Unterricht? unv = null)
     {
+        if (_plan.Tagesmodus) return;
+        LupeSpalten(false);
         _lupe.Rows.Clear();
         var u = unv ?? (p != null ? Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId) : null);
         if (u is null) return;
@@ -718,13 +767,17 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         Neuaufbau(false);
     }
 
-    /// <summary>Tagesaktueller Plan: Verlegung, Tausch oder Vormerkung verplanen.</summary>
+    /// <summary>
+    /// Tagesaktueller Plan: Verlegung, Tausch oder Vormerkung verplanen. Auf einer Stunde mit Tauschmöglichkeit fragt
+    /// „Was wollen Sie … machen?“ (tauschen / nur dorthin verlegen), bei Kollision „Kollision in Zielstunde“
+    /// (nicht verplanen / verdrängen (vormerken) / Kollision erzeugen).
+    /// </summary>
     private void TagesAbgelegt(string daten, int tag, int stunde)
     {
         if (_plan.DatumVon(tag) is not DateOnly ziel) return;
         if (daten.StartsWith("vormerkung:") && int.TryParse(daten[11..], out var vid))
         {
-            Aendern("Vormerkung verplanen", AenderungsArt.Vertretung, d => Vertretungen.VormerkungVerplanen(d, d.Vormerkungen.First(v => v.Id == vid), ziel, stunde, AppZustand.Benutzer));
+            Aendern("Vormerkung verplanen", AenderungsArt.Vertretung, d => Tagesverlegung.VormerkungVerplanen(d, d.Vormerkungen.First(v => v.Id == vid), ziel, stunde, AppZustand.Benutzer));
             Neuaufbau(false);
             return;
         }
@@ -736,71 +789,51 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var laenge = t.Length > 5 && int.TryParse(t[5], out var l5) ? Math.Max(1, l5) : 1;
         if (von == ziel && vonStunde == stunde) return;
         if (stunde + laenge - 1 > D.Zeitraster.StundenProTag) { Ui.Info("Der Block passt an dieser Position nicht mehr in den Tag."); return; }
+        var a = Tagesverlegung.Analysieren(D, von, vonStunde, uid, zeile, laenge, ziel, stunde);
+        if (a.Schritte.Count == 0) return;
         var tpVon = Tagesplan.Berechnen(D, von);
-        var tp = Tagesplan.Berechnen(D, ziel);
-        // Quelle und Ziel je Blockstunde
-        var schritte = new List<(int Von, int Nach, List<TagesEintrag> Quelle, Feldstatus Status, List<TagesEintrag> Hindernisse)>();
-        for (var i = 0; i < laenge; i++)
+        if (a.Schritte.Any(x => tpVon.Stunde(x.VonStunde).Any(e => (e.Regel?.Unterricht.Id ?? e.Vertretung?.UnterrichtId) == uid &&
+                (e.Regel?.Planstunde.Fixiert == true || e.Vertretung?.Fixiert == true))) && !Ui.Frage("Die Stunde ist fixiert. Trotzdem verlegen?")) return;
+        var modus = VerlegeModus.Verlegen;
+        if (a.TauschMoeglich)
         {
-            var q = tpVon.Stunde(vonStunde + i).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == uid && (zeile is null || (e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex) == zeile)).ToList();
-            if (q.Count == 0) continue;
-            var lehrer = q.SelectMany(e => e.Regel?.LehrerId is int l ? new[] { l } : e.LehrerIds.ToArray()).Distinct().ToList();
-            var klassen = q.SelectMany(e => e.KlassenIds).Distinct().ToList();
-            var st = Vertretungen.Feldstatus(D, tp, lehrer, klassen, stunde + i, uid, null);
-            // Bereitschaftsstunden sind kein Hindernis: die Lehrkraft steht dann ohnehin zur Verfügung
-            var hindernisse = tp.Stunde(stunde + i).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) != uid && !Vertretungen.IstBereitschaftsfach(D, e.FachId)
-                && (e.LehrerIds.Intersect(lehrer).Any() || e.KlassenIds.Intersect(klassen).Any())).ToList();
-            schritte.Add((vonStunde + i, stunde + i, q, st, hindernisse));
+            var w = OptionenDialog.Fragen(this, "Frage", Tagesverlegung.TauschFrage(D, a), new[] { "mit dortiger Unterrichtsstunde tauschen", "nur dorthin verlegen" });
+            if (w is null) return;
+            if (w == 0) modus = VerlegeModus.Tauschen;
         }
-        if (schritte.Count == 0) return;
-        if (schritte.Any(x => x.Quelle.Any(e => e.Regel?.Planstunde.Fixiert == true || e.Vertretung?.Fixiert == true)) && !Ui.Frage("Die Stunde ist fixiert. Trotzdem verlegen?")) return;
-        var konflikte = schritte.Where(x => x.Hindernisse.Count > 0).ToList();
-        var tauschen = false;
-        var verdraengen = false;
-        if (konflikte.Count > 0)
+        if (modus != VerlegeModus.Tauschen && a.Kollision)
         {
-            var text = string.Join(Environment.NewLine + Environment.NewLine, konflikte.Select(k =>
-                $"Am {ziel:d.M.} in der {k.Nach}. Stunde: Kollision in Zielstunde{Environment.NewLine}" +
-                string.Join(Environment.NewLine, k.Hindernisse.Select(h => $"Unt. {h.Unterricht?.Id.ToString() ?? "V" + h.Vertretung?.Id}: {string.Join(",", h.LehrerIds.Select(Ix.KLehrer))}, {Ix.KKlassen(h.KlassenIds)} {Ix.KFach(h.FachId)}"))));
-            var tauschMoeglich = laenge == 1 && konflikte.Count == 1 && konflikte[0].Status == Feldstatus.TauschMoeglich && konflikte[0].Hindernisse.All(h => h.Unterricht != null) && konflikte[0].Hindernisse.Select(h => h.Unterricht!.Id).Distinct().Count() == 1;
-            var optionen = new List<string> { "Unterricht nicht verplanen.", "Behindernden Unterricht verdrängen (vormerken)", "Kollision erzeugen" };
-            if (tauschMoeglich) optionen.Add("Stunden tauschen");
-            var w = OptionenDialog.Fragen(this, "Frage", text, optionen, tauschMoeglich ? 3 : 0);
+            var w = OptionenDialog.Fragen(this, "Frage", Tagesverlegung.KollisionsFrage(D, a), new[] { "Unterricht nicht verplanen.", "Behindernden Unterricht verdrängen (vormerken)", "Kollision erzeugen" }, 1);
             if (w is null or 0) return;
-            verdraengen = w == 1;
-            tauschen = w == 3;
+            modus = w == 1 ? VerlegeModus.Verdraengen : VerlegeModus.Kollision;
         }
-        if (schritte.Any(x => x.Status == Feldstatus.VorgabeVerletzt) && !Ui.Frage("Ein beteiligter Lehrer ist zu diesem Zeitpunkt abwesend. Trotzdem verlegen? (Es entsteht eine offene Vertretung.)")) return;
-        Aendern(tauschen ? "Stundentausch" : laenge > 1 ? $"Block verlegen ({laenge} Stunden)" : verdraengen ? "Verlegung mit Verdrängung" : "Stundenverlegung", AenderungsArt.Vertretung, d =>
+        if (modus != VerlegeModus.Tauschen && a.LehrerAbwesend && !Ui.Frage("Ein beteiligter Lehrer ist zu diesem Zeitpunkt abwesend. Trotzdem verlegen? (Es entsteht eine offene Vertretung.)")) return;
+        Aendern(modus switch
         {
-            if (tauschen)
-            {
-                Vertretungen.Tauschen(d, uid, von, vonStunde, konflikte[0].Hindernisse[0].Unterricht!.Id, ziel, stunde, AppZustand.Benutzer);
-                return;
-            }
-            if (verdraengen)
-                foreach (var k in konflikte)
-                    foreach (var h in k.Hindernisse.Where(h => h.Unterricht != null).Select(h => h.Unterricht!.Id).Distinct())
-                    {
-                        Vertretungen.Entfallen(d, h, null, ziel, k.Nach, AppZustand.Benutzer);
-                        var v = d.Vertretungen.LastOrDefault(x => x.Datum == ziel && x.Stunde == k.Nach && x.UnterrichtId == h);
-                        if (v != null) Vertretungen.AlsVormerkung(d, v, AppZustand.Benutzer).Quelle = VormerkungsQuelle.Verdraengung;
-                    }
-            // bei Verschiebung innerhalb desselben Tages in Richtung der eigenen Stunden: Reihenfolge so wählen, dass nichts überschrieben wird
-            var reihe = von == ziel && stunde > vonStunde ? schritte.AsEnumerable().Reverse() : schritte;
-            foreach (var sch in reihe) Vertretungen.Verlegen(d, uid, zeile, von, sch.Von, ziel, sch.Nach, VertretungsArt.Verlegung, AppZustand.Benutzer);
-        });
+            VerlegeModus.Tauschen => "Stundentausch",
+            VerlegeModus.Verdraengen => "Verlegung mit Verdrängung",
+            _ => laenge > 1 ? $"Block verlegen ({laenge} Stunden)" : "Stundenverlegung",
+        }, AenderungsArt.Vertretung, d => Tagesverlegung.Ausfuehren(d, a, modus, AppZustand.Benutzer));
         Neuaufbau(false);
     }
 
+    /// <summary>Stundenplanlupe im tagesaktuellen Plan (Stunde hierher ziehen = Entfall).</summary>
     private void TagesLupe(TagesEintrag? e)
     {
+        LupeSpalten(true);
         _lupe.Rows.Clear();
         if (e is null) return;
         var v = e.Vertretung;
-        _lupe.Rows.Add(e.Unterricht?.Id.ToString() ?? (v != null ? "V" + v.Id : ""), string.Join(",", e.LehrerIds.Select(Ix.KLehrer)) + (v?.LehrerId is int l && !e.LehrerIds.Contains(l) ? $" ({Ix.KLehrer(l)})" : ""),
-            Ix.KFach(e.FachId), string.Join(",", e.RaumIds.Select(Ix.KRaum)), Ix.KKlassen(e.KlassenIds), "", e.Unterricht?.Schuelergruppe ?? "",
-            v is null ? e.Unterricht?.Text ?? "" : $"{Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art)} {v.Text}".Trim(), v?.Fixiert == true ? "*" : "");
+        var u = e.Unterricht;
+        var lehrer = string.Join(",", e.LehrerIds.Select(Ix.KLehrer)) + (v?.LehrerId is int l && !e.LehrerIds.Contains(l) ? $" ({Ix.KLehrer(l)})" : "");
+        var lfr = string.Join(", ", new[] { lehrer, Ix.KFach(e.FachId), string.Join(",", e.RaumIds.Select(Ix.KRaum)) }.Where(x => x.Length > 0));
+        var zeit = D.Zeitraster.Zeit(e.Stunde) is { } z ? $"{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}" : "";
+        var von = u?.VonDatum ?? D.Einstellungen.SchuljahrVon;
+        var bis = u?.BisDatum ?? D.Einstellungen.SchuljahrBis;
+        var wochen = $"{Kalender.Schulwoche(D, von)}-{Kalender.Schulwoche(D, bis)}";
+        var studt = D.Klassen.Where(k => e.KlassenIds.Contains(k.Id)).Sum(k => k.Schuelerzahl);
+        var sondertext = v is null ? u?.Text ?? "" : $"{Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art)} {v.Text}".Trim();
+        _lupe.Rows.Add(u?.Id.ToString() ?? (v != null ? "V" + v.Id : ""), lfr, Ix.KKlassen(e.KlassenIds), zeit, wochen, studt > 0 ? studt.ToString() : "", sondertext, u?.Band ?? "");
     }
 
     /// <summary>Alle Änderungen der gewählten Stunde zurücknehmen (manuelle Vertretungszeilen löschen).</summary>
@@ -816,61 +849,127 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         Neuaufbau(false);
     }
 
+    /// <summary>Einträge der Stunde für „Stunde ändern“: im Klassenplan alle Kopplungszeilen, im Lehrerplan nur die des Lehrers.</summary>
+    private List<TagesEintrag> StundenEintraege(DateOnly datum, int stunde, TagesEintrag e)
+    {
+        var uid = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId;
+        if (uid is null || _typ == ElementTyp.Lehrer) return new() { e };
+        return Tagesplan.Berechnen(D, datum).Stunde(stunde).Where(x => x.Findetstatt && (x.Unterricht?.Id ?? x.Vertretung?.UnterrichtId) == uid)
+            .GroupBy(x => x.Regel?.ZeilenIndex ?? x.Vertretung?.ZeilenIndex ?? 0).Select(g => g.First()).ToList();
+    }
+
+    /// <summary>Kontextmenü des tagesaktuellen Stundenplans (wie im Original).</summary>
     private void TagesKontextmenue(Point pt, DateOnly datum, int stunde, TagesEintrag? e)
     {
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         var uid = e?.Unterricht?.Id ?? e?.Vertretung?.UnterrichtId;
         var zeile = e?.Regel?.ZeilenIndex ?? e?.Vertretung?.ZeilenIndex ?? 0;
-        cm.Items.Add("Sondereinsatz / Stunde ändern…", Symbole.Get("neu"), (_, _) =>
+        var findet = e?.Findetstatt == true;
+        cm.Items.Add("Einstellungen", null, (_, _) => Einstellungen());
+        var stpl = cm.Items.Add("Stundenplan-Stunde", null, (_, _) =>
         {
-            if (e?.Findetstatt == true && uid is int u) Dialoge.SondereinsatzDialog.StundeAendern(this, u, zeile, datum, stunde);
-            else Dialoge.SondereinsatzDialog.Neu(this, datum, stunde, _typ == ElementTyp.Klasse ? new[] { _id } : Array.Empty<int>(), _typ == ElementTyp.Lehrer ? new[] { _id } : Array.Empty<int>());
+            if (uid is int u && Ix.Unterrichte.ContainsKey(u)) UnterrichtFenster.Zeigen(_typ is ElementTyp.Raum or ElementTyp.Fach ? ElementTyp.Unterricht : _typ, _typ is ElementTyp.Raum or ElementTyp.Fach ? null : _id);
         });
-        cm.Items.Add("Klausur erstellen…", Symbole.Get("kommentar"), (_, _) => Dialoge.KlausurDialog.Neu(this, datum, stunde, e));
-        if (e?.Findetstatt == true && uid is int uu)
+        stpl.Enabled = uid is int;
+        var raum = cm.Items.Add("Raum zuordnen / löschen", Symbole.Get("raumzuordnen"), (_, _) =>
         {
-            cm.Items.Add("Raum zuordnen / löschen…", Symbole.Get("raumzuordnen"), (_, _) => Dialoge.SondereinsatzDialog.RaumZuordnen(this, uu, zeile, datum, stunde));
-            cm.Items.Add("Entfall", Symbole.Get("entfall"), (_, _) => { Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uu, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde, AppZustand.Benutzer)); Neuaufbau(false); });
-            cm.Items.Add("Text zur Vertretung…", Symbole.Get("kommentar"), (_, _) =>
+            if (RaumZuordnenVertretungDialog.Zeigen(this, datum, stunde, uid, uid.HasValue ? zeile : null, e?.Vertretung)) Neuaufbau(false);
+        });
+        raum.Enabled = findet;
+        cm.Items.Add("Sondereinsatz / Stunde ändern", Symbole.Get("sondereinsatz"), (_, _) =>
+        {
+            if (findet && e != null && uid is int) { if (StundeAendernDialog.Zeigen(this, datum, stunde, StundenEintraege(datum, stunde, e))) Neuaufbau(false); }
+            else SondereinsatzDialog.Neu(this, datum, stunde, _typ == ElementTyp.Klasse ? new[] { _id } : Array.Empty<int>(), _typ == ElementTyp.Lehrer ? new[] { _id } : Array.Empty<int>());
+        });
+        var entfall = cm.Items.Add("Stunde entfallen lassen", Symbole.Get("entfall"), (_, _) =>
+        {
+            if (uid is not int uu) return;
+            Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uu, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde, AppZustand.Benutzer));
+            Neuaufbau(false);
+        });
+        entfall.Enabled = findet && uid is int;
+        cm.Items.Add("Klausur erstellen", Symbole.Get("klausur"), (_, _) => KlausurDialog.Neu(this, datum, stunde, e));
+        var std = new ToolStripMenuItem("Stpl-Stunde: Standardformat") { Checked = _plan.Format.Standardformat };
+        std.Click += (_, _) => { var f = Kopie(_plan.Format); f.Standardformat = !f.Standardformat; FormatSpeichern(f, f.Name); };
+        cm.Items.Add(std);
+        var text = cm.Items.Add("Text", null, (_, _) => TextZurVertretung(datum, stunde, e!));
+        text.Enabled = findet && uid is int;
+        var schueler = uid is int us ? D.Schueler.Where(x => x.KurswahlIds.Contains(us)).ToList() : new List<Schueler>();
+        var stud = cm.Items.Add("Studenten", null, (_, _) => Ui.Info(string.Join("\n", schueler.Select(x => $"{x.Langname}, {x.Vorname}")), $"Studenten – U-Nr. {uid}"));
+        stud.Enabled = schueler.Count > 0;
+        var woche = new ToolStripMenuItem("Zeitbereich: Woche") { Checked = _plan.Woche.HasValue, Enabled = !AppZustand.Vertretungsmodus };
+        woche.Click += (_, _) => _wochenansicht.Checked = !_wochenansicht.Checked;
+        cm.Items.Add(woche);
+        cm.Items.Add(new ToolStripSeparator());
+        cm.Items.Add("Im HTML-Format kopieren", Symbole.Get("html"), (_, _) => HtmlKopieren());
+        // weitere Funktionen des Vertretungsmodus
+        cm.Items.Add(new ToolStripSeparator());
+        if (findet && uid is int uv)
+            cm.Items.Add("Neben den Plan legen (Vormerkung)", Symbole.Get("vormerkung"), (_, _) =>
             {
-                var text = Ui.Eingabe("Text zur Vertretung (wird im Stundenplan und im Vertretungsplan ausgegeben):", "Text zur Vertretung", e.Vertretung?.Text ?? "");
-                if (text is null) return;
-                Aendern("Text zur Vertretung", AenderungsArt.Vertretung, d =>
-                {
-                    var v = e.Vertretung is { } x ? d.Vertretungen.First(y => y.Id == x.Id) : null;
-                    if (v is null)
-                    {
-                        v = new Vertretung
-                        {
-                            Id = d.NeueId(), Datum = datum, Stunde = stunde, UnterrichtId = uu, ZeilenIndex = zeile, LehrerId = e.Regel?.LehrerId, VertreterId = e.Regel?.LehrerId,
-                            FachId = e.FachId, KlassenIds = e.KlassenIds.ToList(), RaumId = e.Regel?.RaumId, Art = VertretungsArt.UnterrichtGeaendert, Quelle = VertretungsQuelle.Manuell, Bearbeitet = true,
-                        };
-                        d.Vertretungen.Add(v);
-                    }
-                    v.Text = text;
-                });
+                Aendern("Vormerkung", AenderungsArt.Vertretung, d => Tagesverlegung.Vormerken(d, datum, stunde, uv, _typ == ElementTyp.Lehrer ? zeile : null, VormerkungsQuelle.Stundenplan, AppZustand.Benutzer));
                 Neuaufbau(false);
             });
-            cm.Items.Add("Als Vormerkung beiseitelegen", Symbole.Get("zurueck"), (_, _) =>
-            {
-                Aendern("Vormerkung", AenderungsArt.Vertretung, d =>
-                {
-                    Vertretungen.Entfallen(d, uu, null, datum, stunde, AppZustand.Benutzer);
-                    var v = d.Vertretungen.Last(x => x.Datum == datum && x.Stunde == stunde && x.UnterrichtId == uu);
-                    Vertretungen.AlsVormerkung(d, v, AppZustand.Benutzer).Quelle = VormerkungsQuelle.Stundenplan;
-                });
-                Neuaufbau(false);
-            });
-        }
         if (e?.Vertretung != null)
         {
-            cm.Items.Add(new ToolStripSeparator());
             cm.Items.Add("Vertretungsvorschlag", Symbole.Get("vertretung"), (_, _) => { AppZustand.VertretungWaehlen(e.Vertretung); HauptFenster.Oeffnen("vorschlag", () => new VertretungsvorschlagFenster()); });
             cm.Items.Add("Änderungen rückgängig", Symbole.Get("rueckgaengig"), (_, _) => AenderungenRueckgaengig());
         }
-        cm.Items.Add(new ToolStripSeparator());
-        cm.Items.Add("Stundenplan-Einstellungen…", Symbole.Get("einstellungen"), (_, _) => Einstellungen());
+        if (cm.Items[^1] is ToolStripSeparator) cm.Items.RemoveAt(cm.Items.Count - 1);
         cm.Show(_plan, pt);
+    }
+
+    private void TextZurVertretung(DateOnly datum, int stunde, TagesEintrag e)
+    {
+        var uu = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId;
+        if (uu is null) return;
+        var zeile = e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex ?? 0;
+        var text = Ui.Eingabe("Text zur Stunde (wird im Stundenplan und im Vertretungsplan ausgegeben):", "Text", e.Vertretung?.Text ?? "");
+        if (text is null) return;
+        Aendern("Text zur Vertretung", AenderungsArt.Vertretung, d =>
+        {
+            var v = e.Vertretung is { } x ? d.Vertretungen.First(y => y.Id == x.Id) : null;
+            if (v is null)
+            {
+                v = new Vertretung
+                {
+                    Id = d.NeueId(), Datum = datum, Stunde = stunde, UnterrichtId = uu, ZeilenIndex = zeile, LehrerId = e.Regel?.LehrerId, VertreterId = e.Regel?.LehrerId,
+                    FachId = e.FachId, KlassenIds = e.KlassenIds.ToList(), RaumId = e.Regel?.RaumId, VertretungsraumId = e.Regel?.RaumId, Art = VertretungsArt.UnterrichtGeaendert,
+                    Quelle = VertretungsQuelle.Manuell, Bearbeitet = true,
+                };
+                d.Vertretungen.Add(v);
+            }
+            v.Text = text;
+        });
+        Neuaufbau(false);
+    }
+
+    /// <summary>Stundenplan im HTML-Format in die Zwischenablage (CF_HTML) kopieren.</summary>
+    private void HtmlKopieren()
+    {
+        var html = Export.StundenplanHtml(D, _typ, _id);
+        try
+        {
+            var data = new DataObject();
+            data.SetData(DataFormats.Html, ClipboardHtml(html));
+            data.SetData(DataFormats.Text, html);
+            Clipboard.SetDataObject(data, true);
+        }
+        catch (Exception ex) { Ui.Fehler(ex); }
+    }
+
+    private static string ClipboardHtml(string fragment)
+    {
+        const string kopf = "Version:0.9\r\nStartHTML:{0:D10}\r\nEndHTML:{1:D10}\r\nStartFragment:{2:D10}\r\nEndFragment:{3:D10}\r\n";
+        var vor = "<html><body><!--StartFragment-->";
+        var nach = "<!--EndFragment--></body></html>";
+        var laenge = string.Format(kopf, 0, 0, 0, 0).Length;
+        var enc = System.Text.Encoding.UTF8;
+        var startHtml = laenge;
+        var startFrag = startHtml + enc.GetByteCount(vor);
+        var endFrag = startFrag + enc.GetByteCount(fragment);
+        var endHtml = endFrag + enc.GetByteCount(nach);
+        return string.Format(kopf, startHtml, endHtml, startFrag, endFrag) + vor + fragment + nach;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -908,6 +1007,15 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     public void RaumZuordnen()
     {
+        if (_plan.Tagesmodus)
+        {
+            // Vertretungsmodus: Raum der gewählten Stunde an diesem Tag ändern (Raumvertretung)
+            if (_plan.TagesAuswahl is not { } ta || !ta.Eintrag.Findetstatt) { Ui.Info("Bitte zuerst eine Stunde im Stundenplan anklicken."); return; }
+            var e = ta.Eintrag;
+            var uid = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId;
+            if (RaumZuordnenVertretungDialog.Zeigen(this, ta.Datum, e.Stunde, uid, uid.HasValue ? e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex : null, e.Vertretung)) Neuaufbau(false);
+            return;
+        }
         if (_plan.Ausgewaehlt is not { } p) { Ui.Info("Bitte zuerst eine Stunde im Stundenplan anklicken."); return; }
         if (RaumZuordnenDialog.Zeigen(this, p)) Neuaufbau(false);
     }

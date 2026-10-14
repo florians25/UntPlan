@@ -41,6 +41,20 @@ public sealed class PlanAnsicht : Control
         Invalidate();
     }
     public bool Bearbeitbar { get; set; } = true;
+    /// <summary>Text der linken oberen Ecke, z. B. „Nvpl 0/25“ (nicht verplante / alle Stunden).</summary>
+    public string Ecke { get; set; } = "";
+
+    /// <summary>Anzahl der stattfindenden Stunden des Elements in der angezeigten Woche (tagesaktuell).</summary>
+    public int StundenDerWoche()
+    {
+        if (!Tagesmodus) return 0;
+        if (_tage.Count != Tage) TageNeu();
+        var n = 0;
+        for (var t = 0; t < Tage; t++)
+            for (var s = 1; s <= Stunden; s++)
+                if (EintraegeAm(t, s).Any(e => e.Findetstatt)) n++;
+        return n;
+    }
 
     public event Action<Planstunde?>? AuswahlGeaendert;
     public event Action<DateOnly, TagesEintrag?>? TagesAuswahlGeaendert;
@@ -286,6 +300,14 @@ public sealed class PlanAnsicht : Control
             TextRenderer.DrawText(g, text, Ui.SchriftKlein, Rectangle.Round(kopf), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
         }
+        if (Ecke.Length > 0)
+        {
+            var ecke = new Rectangle(bounds.X, bounds.Y, (int)KopfBreite, (int)KopfHoehe);
+            using (var b = new SolidBrush(Ui.Kopf)) g.FillRectangle(b, ecke);
+            g.DrawRectangle(linie, ecke);
+            using var f = new Font("Segoe UI", Math.Max(6f, Math.Min(10f, KopfHoehe / 3.2f)), FontStyle.Bold);
+            TextRenderer.DrawText(g, Ecke, f, ecke, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+        }
         var plan = Tagesmodus ? new List<Planstunde>() : Ix.PlanVon(Typ, ElementId).ToList();
         var el = Ix.Element(Typ, ElementId);
         for (var t = 0; t < Tage; t++)
@@ -305,7 +327,20 @@ public sealed class PlanAnsicht : Control
                     var w = el.Zeitwuensche.Get(t, s);
                     if (w != 0) hint = Color.FromArgb(70, Ui.ZeitwunschFarbe(w));
                 }
-                if (!druck && _status != null)
+                if (!druck && _status != null && Tagesmodus)
+                {
+                    // Vertretungsmodus: kollisionsfreie Zielfelder hellgrün, Ziel unter der Maus kräftig grün
+                    var st = _status[t, s - 1];
+                    var ziel = _hover is { } hz && hz.Tag == t && s >= hz.Stunde && s < hz.Stunde + Math.Max(1, _ziehLaenge);
+                    hint = st switch
+                    {
+                        Feldstatus.Frei => ziel ? Color.FromArgb(0, 225, 0) : Color.FromArgb(160, 245, 190),
+                        Feldstatus.TauschMoeglich => ziel ? Color.FromArgb(0, 225, 0) : Color.FromArgb(120, 230, 120),
+                        Feldstatus.VorgabeVerletzt => Ui.Rot,
+                        _ => hint,
+                    };
+                }
+                else if (!druck && _status != null)
                 {
                     hint = _status[t, s - 1] switch
                     {
@@ -324,6 +359,18 @@ public sealed class PlanAnsicht : Control
             if (Tagesmodus)
             {
                 foreach (var f in TagesFelder(t)) EintragZeichnen(g, FeldRechteck(bounds, t, f), f.Erster, datum!.Value, druck);
+                // beim Ziehen: Stunden, mit denen getauscht werden kann, grün; Ziel unter der Maus kräftig grün
+                if (!druck && _status != null)
+                    for (var s = 1; s <= Stunden; s++)
+                    {
+                        var st = _status[t, s - 1];
+                        var ziel = _hover is { } hz && hz.Tag == t && s >= hz.Stunde && s < hz.Stunde + Math.Max(1, _ziehLaenge);
+                        if (st != Feldstatus.TauschMoeglich && !(ziel && st == Feldstatus.Frei)) continue;
+                        if (!EintraegeAm(t, s).Any(e => e.Findetstatt)) continue;
+                        var r = Zelle(bounds, t, s);
+                        using var b = new SolidBrush(ziel ? Color.FromArgb(150, 0, 225, 0) : Color.FromArgb(130, 90, 220, 90));
+                        g.FillRectangle(b, r);
+                    }
                 if (kt?.StundeFrei(1) == true) TextRenderer.DrawText(g, "frei", Ui.SchriftKlein, Rectangle.Round(Zelle(bounds, t, 1)), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
             }
             else
@@ -676,12 +723,24 @@ public sealed class PlanAnsicht : Control
             var teile = s.Split(':');
             _ziehLaenge = teile.Length > 5 && int.TryParse(teile[5], out var zl) ? Math.Max(1, zl) : 1;
             _ziehVersatz = 0;
+            // gezogene Stunde: Quelle für die Prüfung der Tauschmöglichkeit
+            Tagesplan? quelle = null;
+            int vonStunde = 0;
+            int? zeile = null;
+            if (s.StartsWith("tag:") && teile.Length > 4)
+            {
+                quelle = Tagesplan.Berechnen(D, DateOnly.ParseExact(teile[1], "yyyyMMdd"));
+                vonStunde = int.Parse(teile[2]);
+                zeile = int.Parse(teile[4]) is var zz && zz >= 0 ? zz : null;
+            }
             for (var t = 0; t < Tage; t++)
                 for (var st = 1; st <= Stunden; st++)
                 {
                     if (!_tage.TryGetValue(t, out var tp) || st + _ziehLaenge - 1 > Stunden) { _status[t, st - 1] = Feldstatus.Kollision; continue; }
-                    // ganzer Block: schlimmster Status aller Zielstunden
-                    _status[t, st - 1] = AusSchwere(Enumerable.Range(st, _ziehLaenge).Max(x => Schwere(Vertretungen.Feldstatus(D, tp, lehrer, klassen, x, uid, raum))));
+                    // ganzer Block: schlimmster Status aller Zielstunden; einzelne Stunde: Tausch nur, wenn die dortige Stunde an die Quelle passt
+                    _status[t, st - 1] = quelle != null && _ziehLaenge == 1
+                        ? Tagesverlegung.Zielstatus(D, quelle, vonStunde, uid, zeile, tp, st)
+                        : AusSchwere(Enumerable.Range(st, _ziehLaenge).Max(x => Schwere(Vertretungen.Feldstatus(D, tp, lehrer, klassen, x, uid, raum))));
                 }
         }
         else if (s.StartsWith("plan:"))
