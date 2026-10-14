@@ -1,8 +1,12 @@
 // Vertretungsplan als Tabelle (Schüler- bzw. Lehrerversion je nach Konto).
 import { e, icon, holen, heuteIso, plusTage, datumLang, lade } from '../ui.js';
 
-const BADGE = { entfall: 'text-bg-danger', offen: 'text-bg-danger', klausur: 'text-bg-warning', geaendert: 'text-bg-success' };
+const CHIP = { entfall: 'rot', offen: 'rot', klausur: 'gelb', geaendert: 'gruen' };
 const alt = w => w ? `<span class="alt">${e(w)}</span>` : '';
+/** Wert wie auf der Karte: alter Wert durchgestrichen, neuer als grüne Plakette; ohne Ersatz (z. B. Vertretung ohne Lehrkraft) der alte Wert durchgestrichen in der Plakette. */
+const wert = (alter, neuer, status, ohneErsatz = false) => status === 'entfall' ? `${alt(alter)}${e(neuer)}`
+  : alter && !neuer ? (ohneErsatz ? `<span class="lbl-neu weg">${e(alter)}</span>` : alt(alter))
+  : alter ? `${alt(alter)}<span class="lbl-neu">${e(neuer)}</span>` : e(neuer);
 
 export function tagHtml(t, kollegium) {
   const infos = [
@@ -12,8 +16,8 @@ export function tagHtml(t, kollegium) {
   ].filter(Boolean).join('');
   return `<section class="card mb-3">
     <div class="card-header d-flex align-items-center gap-2">${e(datumLang(t.datum))}${t.woche ? `<span class="text-body-secondary fw-normal">· ${e(t.woche)}-Woche</span>` : ''}
-      <span class="ms-auto badge text-bg-light border fw-normal">${t.zeilen.length} ${t.zeilen.length === 1 ? 'Eintrag' : 'Einträge'}</span></div>
-    ${t.nachrichten.length ? `<ul class="list-group list-group-flush">${t.nachrichten.map(n => `<li class="list-group-item small bg-body-tertiary">${e(n)}</li>`).join('')}</ul>` : ''}
+      <span class="ms-auto u-chip">${t.zeilen.length} ${t.zeilen.length === 1 ? 'Eintrag' : 'Einträge'}</span></div>
+    ${t.nachrichten.length ? `<ul class="list-group list-group-flush">${t.nachrichten.map(n => `<li class="list-group-item small" style="border-left:3px solid var(--u-akzent)">${e(n)}</li>`).join('')}</ul>` : ''}
     ${t.veranstaltungen.length ? `<div class="card-body py-2 small border-bottom">${t.veranstaltungen.map(v => `<div class="tt-ereignis veranstaltung d-inline-block me-2 mb-1" style="line-height:24px">${e(v)}</div>`).join('')}</div>` : ''}
     ${infos ? `<div class="card-body py-2 small border-bottom">${infos}</div>` : ''}
     ${t.frei ? `<div class="card-body text-body-secondary">${e(t.freiGrund || 'Unterrichtsfrei')}</div>`
@@ -22,10 +26,10 @@ export function tagHtml(t, kollegium) {
           <th>Klasse(n)</th><th>Stunde</th><th>Fach</th><th>${kollegium ? 'Vertretung' : 'Lehrkraft'}</th><th>Raum</th><th>Art</th><th>Text</th></tr></thead><tbody>
           ${t.zeilen.map(z => `<tr class="vt-zeile ${e(z.status)}" data-klassen="${e(z.klassen.toLowerCase())}">
             <td class="fw-semibold">${e(z.klassen)}</td><td>${e(z.stunde)}</td>
-            <td>${alt(z.fachAlt)}${e(z.fach)}</td>
-            <td class="vt-lehrer">${alt(z.lehrerAlt)}${z.status === 'offen' ? '???' : e(z.lehrer)}</td>
-            <td>${alt(z.raumAlt)}${e(z.raum)}</td>
-            <td><span class="badge ${BADGE[z.status] ?? 'text-bg-secondary'} fw-normal">${e(z.art)}</span></td>
+            <td>${wert(z.fachAlt, z.fach, z.status)}</td>
+            <td class="vt-lehrer">${z.status === 'offen' ? `${alt(z.lehrerAlt)}???` : wert(z.lehrerAlt, z.lehrer, z.status, z.ohneLehrer)}</td>
+            <td>${wert(z.raumAlt, z.raum, z.status)}</td>
+            <td><span class="u-chip ${CHIP[z.status] ?? ''}">${e(z.art)}</span></td>
             <td class="small">${e(z.text)}${z.vertrVon ? `<div class="text-body-secondary">Vertr. von ${e(z.vertrVon)}</div>` : ''}${z.nach ? `<div class="text-body-secondary">verlegt nach ${e(z.nach)}</div>` : ''}</td></tr>`).join('')}
         </tbody></table></div>`}
   </section>`;
@@ -34,7 +38,7 @@ export function tagHtml(t, kollegium) {
 export async function zeigen(seite, kontext, [datumParam]) {
   const kollegium = kontext.ich.kollegium;
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
-  kontext.titel('Vertretungsplan', `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
+  kontext.titel('Vertretungsplan', `<button class="btn btn-outline-secondary" data-drucken>${icon('drucken')}Drucken</button>`);
   document.querySelector('[data-drucken]').onclick = () => window.print();
   let tage = 2;
   try { tage = Number(localStorage.getItem('untplan:vt-tage') ?? 2) || 2; } catch { /* privat */ }
@@ -42,7 +46,7 @@ export async function zeigen(seite, kontext, [datumParam]) {
   seite.innerHTML = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3 nicht-drucken">
       ${kollegium ? '<input type="search" class="form-control" data-filter placeholder="Klasse filtern" style="width:180px" aria-label="Klasse filtern">' : ''}
       <div class="ms-md-auto d-flex flex-wrap gap-2">
-        <div class="btn-group" role="group">${[1, 2, 5].map(n => `<button type="button" data-anzahl="${n}" class="btn btn-outline-primary ${n === tage ? 'active' : ''}">${n === 1 ? '1 Tag' : n + ' Tage'}</button>`).join('')}</div>
+        <div class="btn-group" role="group">${[1, 2, 5].map(n => `<button type="button" data-anzahl="${n}" class="btn btn-outline-secondary ${n === tage ? 'active' : ''}">${n === 1 ? '1 Tag' : n + ' Tage'}</button>`).join('')}</div>
         <div class="btn-group" role="group">
           <button type="button" class="btn btn-outline-secondary" data-tage="-1" title="Zurück">${icon('links')}</button>
           <button type="button" class="btn btn-outline-secondary" data-tage="0">Heute</button>

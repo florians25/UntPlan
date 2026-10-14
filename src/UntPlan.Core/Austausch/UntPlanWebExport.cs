@@ -83,6 +83,8 @@ public static class UntPlanWebExport
                             TagesStatus.Zusaetzlich => "zusaetzlich", TagesStatus.Frei => "frei", _ => "regulaer",
                         },
                         Vertretung = e.Vertretung?.Id, Text = e.Vertretung?.Text ?? "",
+                        LehrerAlt = (e.Status is TagesStatus.Vertreten or TagesStatus.Offen) && e.Vertretung?.LehrerId is int alt && !e.LehrerIds.Contains(alt)
+                            ? new List<string> { ix.KLehrer(alt) } : new List<string>(),
                     });
                 foreach (var z in Vertretungsplan.Zeilen(d, t))
                     vertretungen.Add(new WebVertretung

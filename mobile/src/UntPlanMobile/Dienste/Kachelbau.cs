@@ -17,6 +17,9 @@ public static class Kachelbau
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
 
     /// <summary>Planart von UntPlanWeb (klasse, lehrer, raum) → Planart der Oberfläche (class, teacher, room).</summary>
+    /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft, wenn kein anderer Text vorhanden ist (wie in UntPlanWeb).</summary>
+    public const string OhneLehrkraftText = "Vertr. o. Lehrkraft";
+
     public static string Art(string typ) => typ switch { "klasse" => "class", "lehrer" => "teacher", "raum" => "room", _ => typ };
 
     /// <summary>Planart der Oberfläche → UntPlanWeb.</summary>
@@ -193,6 +196,10 @@ public static class Kachelbau
             kachel.Info = string.Join(" · ", new[] { k.Art, k.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
         var offen = k.Lehrer.Any(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt));
+        // Vertretung ohne Lehrkraft („+++“): bisherige Lehrkraft durchgestrichen in der Plakette; ohne eigenen Text der Hinweis „Vertr. o. Lehrkraft“
+        // (UntPlanWeb liefert ihn bereits, ältere Server nicht)
+        if (k.Status == "geaendert" && k.Lehrer.Count > 0 && k.Lehrer.All(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)) && string.IsNullOrWhiteSpace(kachel.Info))
+            kachel.Info = OhneLehrkraftText;
         switch (k.Status)
         {
             case "regulaer":

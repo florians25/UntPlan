@@ -260,4 +260,46 @@ public class KachelbauTests
         Assert.Equal("WEB,BEC,HOF", k.Lehrkraft);
         Assert.Equal("EDV2", k.Raum);
     }
+
+    [Fact]
+    public void Vertretung_ohne_Lehrkraft_streicht_bisherige_Lehrkraft_und_zeigt_Hinweis()
+    {
+        var k = Kachelbau.AusKarte(Karte("geaendert", 1, art: "Vtr. ohne Lehrer", lehrer: new() { new("", "WAG", true) }), "class");
+        Assert.Equal("change", k.Art);
+        Assert.Equal("", k.Lehrkraft);
+        Assert.Equal("WAG", k.LehrkraftAlt);
+        Assert.Contains("teacher", k.Geaendert);
+        Assert.Equal(Kachelbau.OhneLehrkraftText, k.Info);
+        Assert.False(k.Offen);
+        // eigener Vertretungstext bleibt
+        var mitText = Kachelbau.AusKarte(Karte("geaendert", 1, text: "Aufgaben im Raum", lehrer: new() { new("", "WAG", true) }), "class");
+        Assert.Equal("Aufgaben im Raum", mitText.Info);
+    }
+
+    [Fact]
+    public void Kopplung_mit_mehreren_Lehrkraeften_ist_eine_Kachel()
+    {
+        var karte = Karte("regulaer", 5, fach: "KR, ER", unterricht: 167, lehrer: new() { new("BEC"), new("ZIM") }, raeume: new() { new("R101"), new("R102") }, klassen: new() { new("5a"), new("5b") });
+        var kacheln = Kachelbau.Tag(Plan("klasse", new() { karte }), Tag(), Array.Empty<Ferienzeit>());
+        var k = Assert.Single(kacheln);
+        Assert.Equal("KR, ER", k.Fach);
+        Assert.Equal("BEC,ZIM", k.Lehrkraft);
+        Assert.Equal("R101,R102", k.Raum);
+        Assert.Equal(new[] { "BEC", "ZIM" }, k.Kopplung!.Select(t => t.Code));
+    }
+
+    [Fact]
+    public void Fachwechsel_alte_Stunde_als_Entfall_neue_als_Aenderung()
+    {
+        var neu = Karte("geaendert", 1, fach: "M", fachAlt: "E", art: "Vertretung", lehrer: new() { new("KRU", "WAG", true) });
+        var alt = Karte("entfall", 1, fach: "E", art: "Entfall", unterricht: null, lehrer: new() { new("WAG") });
+        var kacheln = Kachelbau.Tag(Plan("klasse", new() { neu, alt }), Tag(), Array.Empty<Ferienzeit>());
+        Assert.Equal(2, kacheln.Count);
+        var aenderung = kacheln.Single(x => x.Art == "change");
+        Assert.Equal("M", aenderung.Fach);
+        Assert.Contains("subject", aenderung.Geaendert);
+        var entfall = kacheln.Single(x => x.Art == "cancelled");
+        Assert.Equal("E", entfall.Fach);
+        Assert.Equal("WAG", entfall.Lehrkraft);
+    }
 }

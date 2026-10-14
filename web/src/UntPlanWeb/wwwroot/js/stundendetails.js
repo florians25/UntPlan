@@ -12,9 +12,12 @@ const datumDe = iso => { const [j, m, t] = iso.split('-'); return `${Number(t)}.
 const kuerzel = l => (l || []).map(w => w.k || w.alt).filter(Boolean);
 
 /** Wert wie im Original: geänderter Wert „alt → neu“, offener Wert durchgestrichen. */
-function wertKopf(liste) {
-  return (liste || []).map(w => w.alt && !w.k ? `<s>${e(w.alt)}</s>`
-    : w.alt ? `<s class="text-body-tertiary">${e(w.alt)}</s> → ${e(w.k)}` : e(w.k)).join(', ');
+function wertKopf(liste, max = 6) {
+  const l = liste || [];
+  const teil = l.length > max + 1 ? l.slice(0, max - 2) : l;
+  return teil.map(w => w.alt && !w.k ? `<span class="lbl"><s>${e(w.alt)}</s></span>`
+    : w.alt ? `<s class="text-body-tertiary">${e(w.alt)}</s> → <span class="lbl">${e(w.k)}</span>` : e(w.k)).join(', ')
+    + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
 }
 
 function initialen(s) { return ((s.vorname?.[0] ?? '') + (s.name?.[0] ?? '')).toUpperCase(); }
@@ -181,8 +184,8 @@ export function karteDialog(karte, kontext = {}) {
     const st = statusText(k);
     const raumAenderbar = darfPruefung();
     const zeile = (ic, titel, inhalt) => inhalt ? `<div class="sd-detail"><i class="bi ${ic}"></i><div><div class="sd-detail-titel">${titel}</div><div>${inhalt}</div></div></div>` : '';
-    const pillen = liste => (liste || []).map(w => w.alt && !w.k ? `<span class="sd-wert"><s>${e(w.alt)}</s></span>`
-      : w.alt ? `<span class="sd-wert"><s class="text-body-tertiary">${e(w.alt)}</s> → ${e(w.k)}</span>` : `<span class="sd-wert">${e(w.k)}</span>`).join('');
+    const pillen = liste => (liste || []).map(w => w.alt && !w.k ? `<span class="sd-wert neu"><s>${e(w.alt)}</s></span>`
+      : w.alt ? `<span class="sd-wert neu"><s class="text-body-tertiary">${e(w.alt)}</s> → ${e(w.k)}</span>` : `<span class="sd-wert">${e(w.k)}</span>`).join('');
     return `
       ${k.status !== 'regulaer' && st ? zeile('bi-info-circle', k.status === 'klausur' ? 'Prüfung' : 'Status', `<span class="fw-semibold">${e(st)}</span>${k.art && k.art !== st ? ` <span class="text-body-secondary">· ${e(k.art)}</span>` : ''}`) : ''}
       ${k.status === 'klausur' && k.text ? zeile('bi-file-earmark-check', 'Prüfung', e(k.text)) : ''}

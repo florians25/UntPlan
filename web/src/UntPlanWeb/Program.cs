@@ -51,6 +51,7 @@ public class Program
         builder.Services.AddSingleton<Rueckmeldungsdienst>();
         builder.Services.AddSingleton<Mitteilungsdienst>();
         builder.Services.AddSingleton<Klassenbuchdienst>();
+        builder.Services.AddSingleton<Listendienst>();
         builder.Services.AddSingleton<Monitordienst>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>

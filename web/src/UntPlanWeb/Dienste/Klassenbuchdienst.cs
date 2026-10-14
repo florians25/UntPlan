@@ -95,20 +95,21 @@ public sealed class Klassenbuchdienst
         return Holen(d, karte.Von, unterricht, lehrer)!;
     }
 
-    /// <summary>Gehaltene Stunden einer Lehrkraft ohne Unterrichtsinhalt (letzte 14 Tage bis heute).</summary>
-    public List<object> OffeneStunden(Stand s, string lehrer)
+    /// <summary>Gehaltene Stunden einer Lehrkraft ohne Unterrichtsinhalt (standardmäßig letzte 14 Tage bis heute).</summary>
+    public List<object> OffeneStunden(Stand s, string lehrer, int tage = 14)
     {
         var heute = _uhr.Heute;
-        var eintraege = Zeitraum(heute.AddDays(-14), heute).Where(e => e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase) && e.Thema.Length > 0)
+        tage = Math.Clamp(tage, 1, 120);
+        var eintraege = Zeitraum(heute.AddDays(-tage), heute).Where(e => e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase) && e.Thema.Length > 0)
             .Select(e => (e.Datum, e.Stunde, e.Unterricht)).ToHashSet();
         var res = new List<object>();
-        for (var d = heute.AddDays(-14); d <= heute; d = d.AddDays(1))
+        for (var d = heute.AddDays(-tage); d <= heute; d = d.AddDays(1))
         {
             if (_plan.Frei(s, d).Frei) continue;
             foreach (var k in _plan.Karten(s, d, Elementtyp.Lehrer, lehrer).Where(k => k.Unterricht.HasValue && k.Status is "regulaer" or "geaendert"))
             {
                 if (d == heute && string.CompareOrdinal(k.Ende, _uhr.Jetzt.ToString("HH:mm")) > 0) continue;
-                if (!eintraege.Contains((k.Datum, k.Von, k.Unterricht!.Value))) res.Add(new { k.Datum, k.Von, k.Bis, k.Fach, klassen = k.Klassen.Select(x => x.K), unterricht = k.Unterricht });
+                if (!eintraege.Contains((k.Datum, k.Von, k.Unterricht!.Value))) res.Add(new { k.Datum, k.Von, k.Bis, k.Fach, klassen = k.Klassen.Select(x => x.K), unterricht = k.Unterricht, k.Beginn, k.Ende, k.FachName, k.Farbe, raeume = k.Raeume.Select(x => x.K) });
             }
         }
         return res;

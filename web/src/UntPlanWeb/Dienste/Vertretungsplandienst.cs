@@ -4,7 +4,7 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 public sealed record Vertretungszeile(string Klassen, string Stunde, int StundeVon, string Fach, string? FachAlt, string Lehrer, string? LehrerAlt,
-    string Raum, string? RaumAlt, string Art, string Text, string VertrVon, string Nach, string Status);
+    string Raum, string? RaumAlt, string Art, string Text, string VertrVon, string Nach, string Status, bool OhneLehrer = false);
 
 public sealed record Vertretungstag(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, List<string> Nachrichten,
     List<string> AbwesendeKlassen, List<string> AbwesendeLehrer, List<string> BlockierteRaeume, List<string> Veranstaltungen, List<Vertretungszeile> Zeilen);
@@ -96,15 +96,17 @@ public sealed class Vertretungsplandienst
                 var a when a.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) => "klausur",
                 _ => "geaendert",
             };
-            var neuLehrer = v.Vertreter is "---" ? "" : v.Vertreter;
+            // Vertretung ohne Lehrkraft („+++“): keine neue Lehrkraft, die bisherige steht durchgestrichen
+            var ohneLehrer = v.Vertreter is "+" or "+++";
+            var neuLehrer = v.Vertreter is "---" || ohneLehrer ? "" : v.Vertreter;
             var lehrerAlt = v.Lehrer.Length > 0 && !Ci.Equals(v.Lehrer, neuLehrer) ? v.Lehrer : null;
             var neuRaum = v.NeuerRaum;
             var raumAlt = v.Raum.Length > 0 && !Ci.Equals(v.Raum, neuRaum) ? v.Raum : null;
             var fachAlt = v.Fach.Length > 0 && v.NeuesFach.Length > 0 && !Ci.Equals(v.Fach, v.NeuesFach) ? v.Fach : null;
             // Schülerversion: keine Angaben, wer fehlt – nur, wer vertritt
-            if (!kollegium && status != "entfall") lehrerAlt = null;
+            if (!kollegium && status != "entfall" && !ohneLehrer) lehrerAlt = null;
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,
-                neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, v.Text, v.VertrVon, v.Nach, status);
+                neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : v.Text, v.VertrVon, v.Nach, status, ohneLehrer);
         }).ToList();
 
         // gleiche Zeilen in aufeinanderfolgenden Stunden zusammenfassen (z. B. „3–4“)

@@ -1,13 +1,22 @@
-// UntPlanWeb – Einstieg: Sitzung laden, Anmeldung/Einrichtung, Hülle (Bootstrap) mit Navigation und Hash-Router.
-import { LOGO, icon, e, holen, senden, fehler, alarm, lade } from './ui.js';
+// UntPlanWeb – Einstieg: Sitzung laden, Anmeldung/Einrichtung, Hülle im Stil von WebUntis (linke Navigationsleiste mit
+// Untermenüs, Schuljahr-Pille, Benutzer unten) und Hash-Router.
+import { LOGO, icon, e, holen, senden, fehler, alarm, lade, initialen } from './ui.js';
 
 const ANSICHTEN = {
   heute: () => import('./ansichten/heute.js'),
+  uebersicht: () => import('./ansichten/uebersicht.js'),
   plan: () => import('./ansichten/plan.js'),
   tag: () => import('./ansichten/tag.js'),
   vertretungen: () => import('./ansichten/vertretungen.js'),
   mitteilungen: () => import('./ansichten/mitteilungen.js'),
+  unterricht: () => import('./ansichten/unterricht.js'),
+  offen: () => import('./ansichten/offen.js'),
+  pruefungen: () => import('./ansichten/pruefungen.js'),
   klassenbuch: () => import('./ansichten/klassenbuch.js'),
+  eintraege: () => import('./ansichten/eintraege.js'),
+  hausaufgaben: () => import('./ansichten/hausaufgaben.js'),
+  abwesenheiten: () => import('./ansichten/abwesenheiten.js'),
+  berichte: () => import('./ansichten/berichte.js'),
   melden: () => import('./ansichten/melden.js'),
   admin: () => import('./ansichten/admin.js'),
   profil: () => import('./ansichten/profil.js'),
@@ -17,6 +26,9 @@ const app = document.getElementById('app');
 let sitzung = null;
 let elementeCache = null;
 let laufendeAnsicht = null;
+/** Geöffnetes Untermenü (Gruppen-ID) oder null für das Hauptmenü. */
+let untermenue = null;
+let aktiverPunkt = null;
 
 /** Gemeinsamer Kontext für alle Ansichten. */
 const kontext = {
@@ -31,6 +43,8 @@ const kontext = {
   titel(text, rechts = '') {
     const h = document.getElementById('titel');
     if (h) h.textContent = text;
+    const k = document.getElementById('kopftitel');
+    if (k) k.textContent = text || 'UntPlanWeb';
     const r = document.getElementById('aktionen');
     if (r) r.innerHTML = rechts;
     document.title = text ? `${text} – UntPlanWeb` : 'UntPlanWeb';
@@ -64,8 +78,7 @@ const weiterNachAnmeldung = (() => {
 async function start() {
   try { sitzung = await holen('/api/app/sitzung'); }
   catch (err) {
-    app.innerHTML = `<main class="anmeldung"><div class="card shadow-sm"><div class="card-body p-4">
-      ${alarm('danger', err.message)}<button class="btn btn-primary w-100" data-neu>Erneut versuchen</button></div></div></main>`;
+    app.innerHTML = `<main class="anmeldung"><div class="karte">${alarm('danger', err.message)}<button class="btn btn-primary w-100" data-neu>Erneut versuchen</button></div></main>`;
     app.querySelector('[data-neu]').onclick = () => location.reload();
     return;
   }
@@ -85,11 +98,11 @@ async function start() {
 // ------------------------------------------------------------------ Anmeldung und Einrichtung
 
 function anmeldeRahmen(titel, inhalt) {
-  app.innerHTML = `<main class="anmeldung"><div class="card shadow-sm"><div class="card-body p-4">
-    <div class="d-flex align-items-center gap-2 mb-1">${LOGO}<span class="fs-5 fw-semibold">UntPlanWeb</span></div>
-    <div class="text-body-secondary small mb-4">${e(sitzung?.schule?.name || 'Stundenplan und Vertretungsplan')}</div>
-    <h1 class="h6 mb-3">${e(titel)}</h1>
-    ${inhalt}</div></div></main>`;
+  app.innerHTML = `<main class="anmeldung"><div class="karte">
+    <div class="kopf">${LOGO}<b>UntPlanWeb</b><small>${e(sitzung?.schule?.name || 'Stundenplan, Vertretungsplan und Klassenbuch')}</small></div>
+    <h1>${e(titel)}</h1>
+    ${inhalt}
+    <div class="fuss">UntPlanWeb · Webbegleiter zu UntPlan</div></div></main>`;
   return app.querySelector('form');
 }
 
@@ -101,7 +114,7 @@ function anmeldung() {
       <div class="mb-3"><label class="form-label" for="login">Benutzername</label><input class="form-control" id="login" name="login" autocomplete="username" required autofocus></div>
       <div class="mb-3"><label class="form-label" for="passwort">Passwort</label><input class="form-control" id="passwort" name="passwort" type="password" autocomplete="current-password" required></div>
       <div data-meldung></div>
-      <button class="btn btn-primary w-100" type="submit">Anmelden</button>
+      <button class="btn btn-primary w-100 mt-2" type="submit">Anmelden</button>
     </form>`);
   form.onsubmit = async ev => {
     ev.preventDefault();
@@ -118,7 +131,7 @@ function anmeldung() {
 function einrichtung() {
   document.title = 'Einrichtung – UntPlanWeb';
   const form = anmeldeRahmen('Ersteinrichtung', `<form>
-      <p class="small text-body-secondary">Legen Sie die Schule und das Administrationskonto an.</p>
+      <p class="small text-body-secondary text-center">Legen Sie die Schule und das Administrationskonto an.</p>
       <div class="mb-3"><label class="form-label">Name der Schule</label><input class="form-control" name="schulname" required autofocus></div>
       <div class="mb-3"><label class="form-label">Benutzername</label><input class="form-control" name="login" value="admin" required autocomplete="username"></div>
       <div class="mb-3"><label class="form-label">Passwort</label><input class="form-control" name="passwort" type="password" minlength="8" required autocomplete="new-password"><div class="form-text">Mindestens 8 Zeichen.</div></div>
@@ -141,7 +154,7 @@ function einrichtung() {
 function passwortPflicht() {
   document.title = 'Passwort ändern – UntPlanWeb';
   const form = anmeldeRahmen('Neues Passwort festlegen', `<form>
-      <p class="small text-body-secondary">Bitte vergeben Sie vor der ersten Nutzung ein eigenes Passwort.</p>
+      <p class="small text-body-secondary text-center">Bitte vergeben Sie vor der ersten Nutzung ein eigenes Passwort.</p>
       <div class="mb-3"><label class="form-label">Bisheriges Passwort</label><input class="form-control" name="alt" type="password" required autocomplete="current-password" autofocus></div>
       <div class="mb-3"><label class="form-label">Neues Passwort</label><input class="form-control" name="neu" type="password" minlength="8" required autocomplete="new-password"><div class="form-text">Mindestens 8 Zeichen.</div></div>
       <div class="mb-3"><label class="form-label">Neues Passwort wiederholen</label><input class="form-control" name="neu2" type="password" minlength="8" required autocomplete="new-password"></div>
@@ -165,102 +178,189 @@ async function abmelden() {
   start();
 }
 
-// ------------------------------------------------------------------ Hülle
+// ------------------------------------------------------------------ Menü (Aufbau wie im Original)
 
-function navPunkte() {
+/** Haupt- und Untermenüpunkte je nach Rolle. Ein Punkt hat nav (Schlüssel für „aktiv“), href, text, icon. */
+function menue() {
   const b = sitzung.benutzer;
-  const punkte = [
-    { gruppe: 'Pläne' },
-    { id: 'heute', text: 'Übersicht', icon: 'heute' },
+  const k = b.kollegium;
+  const m = [
+    { id: 'heute', nav: 'heute', href: '#/heute', text: 'Heute', icon: 'dashboard' },
+    { id: 'uebersicht', nav: 'uebersicht', href: '#/uebersicht', text: 'Übersicht', icon: 'uebersicht' },
+    { id: 'mitteilungen', text: 'Mitteilungen', icon: 'mitteilungen', zaehler: true, unter: [
+      { nav: 'mitteilungen', href: '#/mitteilungen', text: 'Posteingang', icon: 'posteingang', zaehler: true },
+      { nav: 'mitteilungen-gesendet', href: '#/mitteilungen/gesendet', text: 'Gesendet', icon: 'gesendet' },
+    ] },
   ];
-  if (b.element) punkte.push({ id: 'plan', nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'plan' });
-  punkte.push({ id: b.element ? 'plan-weitere' : 'plan', nav: 'plan-weitere', href: '#/plan/klasse', text: 'Weitere Stundenpläne', icon: 'plaene', unter: true });
-  if (b.kollegium) punkte.push({ id: 'tag', nav: 'tag-klasse', href: '#/tag/klasse', text: 'Tagesübersicht', icon: 'tag', versteckt: true });
-  punkte.push({ id: 'vertretungen', text: 'Vertretungsplan', icon: 'vertretung' });
-  punkte.push({ gruppe: 'Schule' });
-  punkte.push({ id: 'mitteilungen', text: 'Mitteilungen', icon: 'mitteilung', zaehler: true });
-  punkte.push({ id: 'klassenbuch', text: b.kollegium ? 'Klassenbuch' : 'Hausaufgaben', icon: 'klassenbuch' });
-  if (b.kollegium) punkte.push({ id: 'melden', text: 'Meldungen', icon: 'melden' });
-  if (b.admin || b.nachrichten) {
-    punkte.push({ gruppe: 'Verwaltung' });
-    punkte.push({ id: 'admin', text: b.admin ? 'Administration' : 'Nachrichten zum Tag', icon: 'admin' });
+  const plaene = [];
+  if (b.element) plaene.push({ nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'meinplan' });
+  plaene.push({ nav: 'plan-klasse', href: '#/plan/klasse', text: 'Klasse', icon: 'klasse' });
+  if (k) plaene.push({ nav: 'plan-lehrer', href: '#/plan/lehrer', text: 'Lehrkraft', icon: 'lehrkraft' });
+  plaene.push({ nav: 'plan-raum', href: '#/plan/raum', text: 'Raum', icon: 'raumplan' });
+  if (k) {
+    plaene.push({ trenner: true });
+    plaene.push({ nav: 'tag-klasse', href: '#/tag/klasse', text: 'Tag - Klassen', icon: 'tagklassen' });
+    plaene.push({ nav: 'tag-lehrer', href: '#/tag/lehrer', text: 'Tag - Lehrkräfte', icon: 'taglehrer' });
+    plaene.push({ nav: 'tag-raum', href: '#/tag/raum', text: 'Tag - Räume', icon: 'tagraeume' });
+    plaene.push({ trenner: true });
+    plaene.push({ nav: 'vertretungen', href: '#/vertretungen', text: 'Vertretungsplan', icon: 'vertretungen' });
+    m.push({ id: 'stundenplan', text: 'Stundenplan', icon: 'stundenplan', unter: plaene });
+    const unterricht = [];
+    if (b.element) unterricht.push({ nav: 'unterricht', href: '#/unterricht', text: 'Meine Unterrichte', icon: 'meineunterrichte' });
+    else unterricht.push({ nav: 'unterricht', href: '#/unterricht', text: 'Unterrichte', icon: 'meineunterrichte' });
+    if (b.element) unterricht.push({ nav: 'offen', href: '#/offen', text: 'Offene Stunden', icon: 'offen' });
+    unterricht.push({ nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'pruefung' });
+    m.push({ id: 'unterricht', text: 'Unterricht', icon: 'unterricht', unter: unterricht });
+    m.push({ id: 'klassenbuch', text: 'Klassenbuch', icon: 'klassenbuchnav', unter: [
+      { nav: 'klassenbuch', href: '#/klassenbuch', text: 'Übersicht', icon: 'woche' },
+      { nav: 'eintraege', href: '#/eintraege', text: 'Klassenbucheinträge', icon: 'eintraege' },
+      { nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' },
+      { nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' },
+      { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' },
+      { nav: 'berichte', href: '#/berichte', text: 'Berichte', icon: 'berichte' },
+    ] });
+    m.push({ id: 'melden', text: 'Melden & Buchen', icon: 'meldenbuchen', unter: [
+      { nav: 'melden-abwesenheit', href: '#/melden/abwesenheit', text: 'Abwesenheit melden', icon: 'abwesend' },
+      { nav: 'melden-raum', href: '#/melden/raum', text: 'Raum buchen', icon: 'raum' },
+      { nav: 'melden-klausur', href: '#/melden/klausur', text: 'Prüfung eintragen', icon: 'klausur' },
+      { nav: 'melden-meine', href: '#/melden/meine', text: 'Meine Meldungen', icon: 'protokoll' },
+    ] });
+  } else {
+    if (b.element) m.push({ id: 'plan-mein', nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'meinplan' });
+    m.push({ id: 'weitere', text: 'Weitere Stundenpläne', icon: 'stundenplan', unter: plaene.filter(p => p.nav !== 'plan-mein') });
+    m.push({ id: 'vertretungen', nav: 'vertretungen', href: '#/vertretungen', text: 'Vertretungsplan', icon: 'vertretungen' });
+    m.push({ id: 'hausaufgaben', nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' });
+    m.push({ id: 'pruefungen', nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'pruefung' });
   }
-  return punkte;
+  if (b.admin) m.push({ id: 'admin', text: 'Administration', icon: 'verwaltung', unter: [
+    { nav: 'admin-sync', href: '#/admin/sync', text: 'Übersicht & Synchronisation', icon: 'synchron' },
+    { nav: 'admin-benutzer', href: '#/admin/benutzer', text: 'Benutzer', icon: 'benutzer' },
+    { nav: 'admin-rueckmeldungen', href: '#/admin/rueckmeldungen', text: 'Rückmeldungen', icon: 'ruckmeldung' },
+    { nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' },
+    { nav: 'admin-monitore', href: '#/admin/monitore', text: 'Monitore', icon: 'monitor' },
+    { nav: 'admin-protokoll', href: '#/admin/protokoll', text: 'Protokoll', icon: 'protokoll' },
+  ] });
+  else if (b.nachrichten) m.push({ id: 'admin', nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' });
+  return m;
 }
 
-/** Untermenü „Stundenplan“ wie im Original: eigener Plan, Klasse, Lehrkraft, Raum und die Tagesübersichten. */
-function unterPunkte() {
+const allePunkte = () => menue().flatMap(g => g.unter ? g.unter.filter(p => !p.trenner) : [g]);
+
+/** Schlüssel des aktiven Menüpunkts aus der Adresse. */
+function navAus(teile) {
   const b = sitzung.benutzer;
-  const p = [];
-  if (b.element) p.push({ nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'plan' });
-  p.push({ nav: 'plan-klasse', href: '#/plan/klasse', text: 'Klasse', icon: 'klasse' });
-  if (b.kollegium) p.push({ nav: 'plan-lehrer', href: '#/plan/lehrer', text: 'Lehrkraft', icon: 'lehrkraft' });
-  p.push({ nav: 'plan-raum', href: '#/plan/raum', text: 'Raum', icon: 'raum' });
-  if (b.kollegium) {
-    p.push({ nav: 'tag-klasse', href: '#/tag/klasse', text: 'Tag - Klassen', icon: 'tagklassen' });
-    p.push({ nav: 'tag-lehrer', href: '#/tag/lehrer', text: 'Tag - Lehrkräfte', icon: 'taglehrer' });
-    p.push({ nav: 'tag-raum', href: '#/tag/raum', text: 'Tag - Räume', icon: 'tagraeume' });
+  const [name, a, c] = teile;
+  switch (name) {
+    case 'plan': return !a || a === 'mein' || (a === b.typ && b.element && (c ?? b.element).toLowerCase() === b.element.toLowerCase()) ? 'plan-mein' : 'plan-' + a;
+    case 'tag': return 'tag-' + (a || 'klasse');
+    case 'mitteilungen': return a === 'gesendet' ? 'mitteilungen-gesendet' : 'mitteilungen';
+    case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : 'klassenbuch';
+    case 'melden': return 'melden-' + (a || 'abwesenheit');
+    case 'admin': return 'admin-' + (a || (b.admin ? 'sync' : 'nachrichten'));
+    default: return name || 'heute';
   }
-  return p;
+}
+
+function punktHtml(p) {
+  if (p.trenner) return '<div class="u-nav-trenner"></div>';
+  const attr = p.unter ? `data-gruppe="${p.id}"` : `data-nav="${p.nav}"`;
+  return `<a class="u-nav-punkt" href="${p.unter ? p.unter.find(x => x.href)?.href : p.href}" ${attr} title="${e(p.text)}">${icon(p.icon)}<span>${e(p.text)}</span>`
+    + `${p.zaehler ? '<span class="u-zahl d-none" data-zaehler></span>' : ''}${p.unter ? '<i class="bi bi-chevron-right u-pfeil" aria-hidden="true"></i>' : ''}</a>`;
+}
+
+function schuljahrText() {
+  const sj = sitzung.schuljahr;
+  if (!sj) return '';
+  const v = sj.von.slice(0, 4), b = sj.bis.slice(0, 4);
+  return v === b ? v : `${v}/${b}`;
+}
+
+/** Navigationsleiste neu zeichnen (Haupt- oder Untermenü). */
+function leisteZeichnen() {
+  const leiste = document.getElementById('seitenleiste');
+  if (!leiste) return;
+  const gruppen = menue();
+  const gruppe = gruppen.find(g => g.id === untermenue && g.unter);
+  const jahr = schuljahrText();
+  leiste.querySelector('[data-leistenkopf]').innerHTML = gruppe
+    ? `<div class="u-unterkopf"><button type="button" class="u-zurueck" data-zurueck title="Zurück" aria-label="Zurück">${icon('zurueck')}</button><b>${e(gruppe.text)}</b></div>`
+    : `<a class="u-marke" href="#/heute" title="UntPlanWeb">${LOGO}<span><b>UntPlanWeb</b><small>${e(sitzung.schule.name || '')}</small></span></a>`;
+  leiste.querySelector('[data-jahr]').innerHTML = jahr ? `<span class="u-jahr" title="Schuljahr ${e(sitzung.schuljahr.von)} – ${e(sitzung.schuljahr.bis)}">${e(jahr)} <i class="bi bi-chevron-down"></i></span>` : '';
+  const nav = leiste.querySelector('nav');
+  nav.className = `u-nav ${gruppe ? 'u-nav-unter' : ''}`;
+  nav.innerHTML = (gruppe ? gruppe.unter : gruppen).map(punktHtml).join('');
+  aktivMarkieren();
+  zaehlerAktualisieren();
+}
+
+function aktivMarkieren() {
+  const gruppen = menue();
+  const gruppe = gruppen.find(g => g.unter?.some(p => p.nav === aktiverPunkt));
+  document.querySelectorAll('#seitenleiste [data-nav]').forEach(a => a.classList.toggle('aktiv', a.dataset.nav === aktiverPunkt));
+  document.querySelectorAll('#seitenleiste [data-gruppe]').forEach(a => a.classList.toggle('aktiv', a.dataset.gruppe === gruppe?.id));
+  document.querySelector('.u-benutzer')?.classList.toggle('aktiv', aktiverPunkt === 'profil');
 }
 
 function huelle() {
   const b = sitzung.benutzer;
+  let zu = false;
+  try { zu = localStorage.getItem('untplan:leiste') === 'zu'; } catch { /* privat */ }
   app.innerHTML = `
-    <nav class="navbar bg-white border-bottom sticky-top px-3 app-navbar">
-      <button class="btn btn-link text-body p-0 me-3 d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#seitenleiste" aria-controls="seitenleiste" aria-label="Menü">${icon('menue', 'fs-4')}</button>
-      <a class="navbar-brand d-flex align-items-center gap-2 me-3" href="#/heute">${LOGO}<span class="fw-semibold">UntPlanWeb</span></a>
-      <span class="navbar-text small text-body-secondary d-none d-md-inline border-start ps-3 text-truncate" style="max-width:40vw">${e(sitzung.schule.name || '')}</span>
-      <div class="ms-auto dropdown">
-        <button class="btn btn-link text-body text-decoration-none dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-          ${icon('profil', 'fs-5 text-body-secondary')}<span class="d-none d-sm-inline">${e(b.anzeigename || b.login)}</span></button>
-        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-          <li><h6 class="dropdown-header">${e(b.rollenname)}${b.element ? ' · ' + e(b.element) : ''}</h6></li>
-          <li><a class="dropdown-item" href="#/profil">${icon('profil', 'me-2')}Mein Konto</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item" type="button" data-abmelden>${icon('abmelden', 'me-2')}Abmelden</button></li>
-        </ul>
-      </div>
-    </nav>
-    <div class="d-flex app-body">
-      <aside class="offcanvas-lg offcanvas-start bg-white border-end app-sidebar" tabindex="-1" id="seitenleiste" aria-label="Navigation">
-        <div class="offcanvas-header border-bottom">
-          <span class="offcanvas-title fw-semibold">Menü</span>
-          <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#seitenleiste" aria-label="Schließen"></button>
-        </div>
-        <div class="offcanvas-body d-block p-0 pb-3 nav-paneele">
-          <nav class="nav flex-column nav-haupt">${navPunkte().filter(p => !p.versteckt).map(p => p.gruppe ? `<div class="nav-ueberschrift">${p.gruppe}</div>`
-            : `<a class="nav-link" href="${p.href ?? '#/' + p.id}" data-nav="${p.nav ?? p.id}" ${p.unter ? 'data-unter-oeffnen' : ''}>${icon(p.icon)}<span>${p.text}</span>${p.zaehler ? '<span class="badge rounded-pill text-bg-primary ms-auto zaehler d-none" data-zaehler></span>' : ''}${p.unter ? `<i class="bi bi-chevron-right ms-auto small text-body-tertiary"></i>` : ''}</a>`).join('')}</nav>
-          <nav class="nav flex-column nav-unter">
-            <button type="button" class="nav-zurueck" data-unter-schliessen><span class="rund">${icon('links')}</span><span>Stundenplan</span></button>
-            ${unterPunkte().map(p => `<a class="nav-link" href="${p.href}" data-nav="${p.nav}">${icon(p.icon)}<span>${p.text}</span></a>`).join('')}
-          </nav>
+    <div class="u-app ${zu ? 'zu' : ''}">
+      <header class="u-kopfleiste">
+        <button type="button" class="rundknopf" data-menue aria-label="Menü öffnen" aria-controls="seitenleiste">${icon('menue')}</button>
+        ${LOGO}<b id="kopftitel">UntPlanWeb</b>
+      </header>
+      <aside class="u-leiste" id="seitenleiste" aria-label="Navigation">
+        <div data-leistenkopf></div>
+        <div data-jahr></div>
+        <nav class="u-nav"></nav>
+        <div class="u-fuss">
+          <button type="button" class="u-griff" data-einklappen title="Navigation ein-/ausklappen">${icon('einklappen')}<span>Einklappen</span></button>
+          <a class="u-benutzer" href="#/profil" title="Mein Konto"><span class="u-avatar">${e(initialen(b.anzeigename || b.login))}</span>
+            <span><b>${e(b.anzeigename || b.login)}</b><small>${e(b.rollenname)}${b.element ? ' · ' + e(b.element) : ''}</small></span></a>
+          <button type="button" class="u-abmelden" data-abmelden title="Abmelden">${icon('abmelden')}<span>Abmelden</span></button>
         </div>
       </aside>
-      <main class="flex-grow-1 app-main">
-        <div class="container-fluid px-3 px-lg-4 py-3">
-          <div class="seitenkopf d-flex flex-wrap align-items-center gap-2 mb-3 nicht-drucken-titel">
-            <h1 id="titel"></h1><div class="ms-auto d-flex flex-wrap gap-2" id="aktionen"></div>
-          </div>
+      <div class="u-schleier" data-schleier></div>
+      <main class="u-haupt">
+        <div class="u-inhalt">
+          <div class="u-seitenkopf nicht-drucken-titel"><h1 id="titel"></h1><div class="u-aktionen" id="aktionen"></div></div>
           <div id="seite"></div>
         </div>
       </main>
     </div>`;
-  app.querySelector('[data-abmelden]').onclick = abmelden;
+  const huelleEl = app.querySelector('.u-app');
   const leiste = document.getElementById('seitenleiste');
+  const mobilZu = () => huelleEl.classList.remove('offen');
+  app.querySelector('[data-abmelden]').onclick = abmelden;
+  app.querySelector('[data-menue]').onclick = () => huelleEl.classList.add('offen');
+  app.querySelector('[data-schleier]').onclick = mobilZu;
+  app.querySelector('[data-einklappen]').onclick = () => {
+    const z = huelleEl.classList.toggle('zu');
+    try { localStorage.setItem('untplan:leiste', z ? 'zu' : 'offen'); } catch { /* privat */ }
+  };
   leiste.addEventListener('click', ev => {
-    if (ev.target.closest('[data-unter-schliessen]')) { leiste.classList.remove('unter-offen'); return; }
-    if (ev.target.closest('[data-unter-oeffnen]')) leiste.classList.add('unter-offen');
-    if (ev.target.closest('.nav-link')) bootstrap.Offcanvas.getInstance(leiste)?.hide();
+    if (ev.target.closest('[data-zurueck]')) { untermenue = null; leisteZeichnen(); return; }
+    const g = ev.target.closest('[data-gruppe]');
+    if (g) {
+      // Gruppe öffnet ihr Untermenü und zeigt (wie im Original) gleich die erste Seite; auf dem Telefon bleibt das Menü offen
+      untermenue = g.dataset.gruppe;
+      leisteZeichnen();
+      return;
+    }
+    if (ev.target.closest('[data-nav], .u-benutzer, .u-marke')) mobilZu();
   });
-  zaehlerAktualisieren();
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') mobilZu(); });
+  leisteZeichnen();
 }
 
 function zaehlerAktualisieren() {
-  const z = document.querySelector('[data-zaehler]');
-  if (!z || !sitzung) return;
-  z.textContent = sitzung.ungelesen > 99 ? '99+' : sitzung.ungelesen;
-  z.classList.toggle('d-none', !sitzung.ungelesen);
+  if (!sitzung) return;
+  document.querySelectorAll('[data-zaehler]').forEach(z => {
+    z.textContent = sitzung.ungelesen > 99 ? '99+' : sitzung.ungelesen;
+    z.classList.toggle('d-none', !sitzung.ungelesen);
+  });
 }
 
 // Ungelesene Mitteilungen regelmäßig nachladen
@@ -277,19 +377,22 @@ async function route() {
   document.querySelectorAll('.modal.show').forEach(m => bootstrap.Modal.getInstance(m)?.hide());
   const teile = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   let name = teile[0] || 'heute';
-  if (!ANSICHTEN[name] || (!navPunkte().some(p => p.id === name || (name === 'plan' && p.nav?.startsWith('plan'))) && name !== 'profil')) name = 'heute';
-  // aktiver Menüpunkt: im Stundenplan-Untermenü nach Planart
-  const b = sitzung.benutzer;
-  let nav = name;
-  if (name === 'plan') nav = !teile[1] || teile[1] === 'mein' || (teile[1] === b.typ && (teile[2] ?? b.element) === b.element && b.element) ? 'plan-mein' : 'plan-' + teile[1];
-  if (name === 'tag') nav = 'tag-' + (teile[1] || 'klasse');
-  document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === nav || (a.dataset.nav === 'plan-weitere' && /^(plan-(klasse|lehrer|raum)|tag-)/.test(nav))));
-  document.getElementById('seitenleiste')?.classList.toggle('unter-offen', name === 'plan' || name === 'tag');
+  let nav = navAus([name, ...teile.slice(1)]);
+  // Klassenkonten: frühere Adresse #/klassenbuch zeigt die Hausaufgaben
+  if (name === 'klassenbuch' && !sitzung.benutzer.kollegium) { name = 'hausaufgaben'; nav = 'hausaufgaben'; }
+  const erlaubt = name === 'profil' || allePunkte().some(p => p.nav === nav);
+  if (!ANSICHTEN[name] || !erlaubt) { name = 'heute'; nav = 'heute'; }
+  aktiverPunkt = nav;
+  // passendes Untermenü öffnen (wie im Original: Stundenplan, Klassenbuch … mit Zurück-Knopf)
+  const gruppe = menue().find(g => g.unter?.some(p => p.nav === nav));
+  if ((gruppe?.id ?? null) !== untermenue) { untermenue = gruppe?.id ?? null; leisteZeichnen(); }
+  else aktivMarkieren();
   const seite = document.getElementById('seite');
   if (!seite) return;
   const nummer = laufendeAnsicht = Symbol(name);
   seite.innerHTML = lade();
   kontext.titel('');
+  window.scrollTo(0, 0);
   try {
     const modul = await ANSICHTEN[name]();
     if (laufendeAnsicht !== nummer) return;

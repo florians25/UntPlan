@@ -39,6 +39,7 @@ public sealed class Rueckmeldungsdienst
 
     public List<Meldung> Offene() => _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' ORDER BY erstellt", Lesen);
     public List<Meldung> Alle(int max = 500) => _db.Liste("SELECT * FROM rueckmeldungen ORDER BY erstellt DESC LIMIT @n", Lesen, Db.P("@n", max));
+    public List<Meldung> OffeneKlausuren() => _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausur' ORDER BY von", Lesen);
     public List<Meldung> VonBenutzer(int id) => _db.Liste("SELECT * FROM rueckmeldungen WHERE benutzer_id = @b ORDER BY erstellt DESC LIMIT 100", Lesen, Db.P("@b", id));
 
     public int Quittieren(IEnumerable<string> ids)

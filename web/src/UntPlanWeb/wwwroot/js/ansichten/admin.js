@@ -32,8 +32,9 @@ export async function zeigen(seite, kontext, [bereichParam]) {
   const ich = kontext.ich;
   const erlaubt = BEREICHE.filter(b => ich.admin || !b.admin);
   const bereich = erlaubt.find(b => b.id === bereichParam) ?? erlaubt[0];
-  kontext.titel(ich.admin ? 'Administration' : 'Nachrichten zum Tag');
-  seite.innerHTML = `${erlaubt.length > 1 ? `<ul class="nav nav-tabs mb-3">${erlaubt.map(b => `<li class="nav-item"><a class="nav-link ${b === bereich ? 'active' : ''}" href="#/admin/${b.id}">${b.text}</a></li>`).join('')}</ul>` : ''}<div data-bereich></div>`;
+  // Die Bereiche stehen im Untermenü „Administration“ der Navigation
+  kontext.titel(bereich.id === 'sync' ? 'Übersicht & Synchronisation' : bereich.text);
+  seite.innerHTML = '<div data-bereich></div>';
   const ziel = seite.querySelector('[data-bereich]');
   const neu = () => kontext.navigieren(location.hash);
   await ({ sync, benutzer, rueckmeldungen, nachrichten, monitore, protokoll })[bereich.id](ziel, kontext, neu);

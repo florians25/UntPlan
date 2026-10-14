@@ -183,6 +183,11 @@ public sealed record WebStunde
     public string Status { get; init; } = "regulaer";
     public int? Vertretung { get; init; }
     public string Text { get; init; } = "";
+    /// <summary>
+    /// Bisherige Lehrkräfte (Kurznamen), wenn die Stunde vertreten wird und die ursprüngliche Lehrkraft nicht mehr dabei ist –
+    /// z. B. bei einer Vertretung ohne Lehrkraft („+++“), bei der Lehrer leer bleibt. Ältere Pakete: leer.
+    /// </summary>
+    public List<string> LehrerAlt { get; init; } = new();
 }
 
 public sealed record WebVertretung

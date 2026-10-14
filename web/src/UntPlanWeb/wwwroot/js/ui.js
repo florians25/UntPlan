@@ -1,4 +1,4 @@
-// Gemeinsame Hilfen: Schnittstelle, Escaping, Symbole (Bootstrap Icons), Meldungen und Dialoge (Bootstrap), Datumsfunktionen.
+// Gemeinsame Hilfen: Schnittstelle, Escaping, Symbole (Bootstrap Icons, Linienstil), Meldungen und Dialoge, Datumsfunktionen.
 
 /** Bildmarke: schlichtes Raster-Symbol. */
 export const LOGO = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="6" fill="#1d4f73"/><path d="M8 7h5v15H8zM19 7h5v15h-5z" fill="#fff"/><rect x="8" y="18" width="16" height="7" rx="3" fill="#fff"/><rect x="14" y="7" width="4" height="4" rx="1" fill="#5fbf96"/></svg>`;
@@ -13,6 +13,14 @@ const SYMBOLE = {
   abwesend: 'person-x', hausaufgabe: 'pencil-square', kopieren: 'clipboard', kalender: 'calendar-event', stift: 'pencil',
   augen: 'eye', protokoll: 'list-ul', plaene: 'calendar-week', klasse: 'people', lehrkraft: 'person-workspace',
   tagklassen: 'calendar-range', taglehrer: 'person-lines-fill', tagraeume: 'building', schloss: 'lock-fill',
+  // Navigation im Stil von WebUntis (eigene Linien-Icons aus Bootstrap Icons)
+  dashboard: 'grid', uebersicht: 'card-list', mitteilungen: 'chat-square-text', posteingang: 'inbox', gesendet: 'send',
+  stundenplan: 'calendar3', meinplan: 'calendar2-week', raumplan: 'door-closed', unterricht: 'easel', meineunterrichte: 'easel2',
+  offen: 'hourglass-split', pruefung: 'file-earmark-text', klassenbuchnav: 'journal-bookmark', eintraege: 'journal-text',
+  hausaufgaben: 'pencil', abwesenheiten: 'person-x', fehlzeiten: 'clock-history', berichte: 'file-earmark-bar-graph',
+  meldenbuchen: 'clipboard-plus', verwaltung: 'gear', nachrichten: 'megaphone', zurueck: 'arrow-left', einklappen: 'chevron-double-left',
+  csv: 'filetype-csv', filter: 'funnel', woche: 'calendar-week', vertretungen: 'arrow-left-right', synchron: 'arrow-repeat',
+  aufsicht: 'eye', ruckmeldung: 'inbox',
 };
 
 export function icon(name, klasse = '') {
@@ -23,8 +31,8 @@ export function e(wert) {
   return String(wert ?? '').replace(/[&<>"']/g, z => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[z]));
 }
 
-/** Leerzustand, Ladeanzeige und Hinweisbox in Bootstrap-Optik. */
-export const leer = text => `<div class="text-center text-body-secondary py-4 small">${e(text)}</div>`;
+/** Leerzustand (mit Symbol), Ladeanzeige und Hinweisbox. */
+export const leer = (text, symbol = 'inbox') => `<div class="u-leer"><i class="bi bi-${SYMBOLE[symbol] ?? symbol}" aria-hidden="true"></i>${e(text)}</div>`;
 export const lade = () => '<div class="d-flex justify-content-center py-5"><div class="spinner-border spinner-border-sm text-secondary" role="status"><span class="visually-hidden">Wird geladen …</span></div></div>';
 export const alarm = (art, text, html = false) => `<div class="alert alert-${art} py-2 px-3 small mb-3" role="alert">${html ? text : e(text)}</div>`;
 
@@ -59,9 +67,9 @@ export const senden = (pfad, daten, methode = 'POST') => api(pfad, { methode, da
 export function toast(text, fehler = false) {
   const leiste = document.getElementById('toasts');
   const t = document.createElement('div');
-  t.className = `toast align-items-center border-0 ${fehler ? 'text-bg-danger' : 'text-bg-dark'}`;
+  t.className = `toast align-items-center ${fehler ? 'fehler' : ''}`;
   t.setAttribute('role', fehler ? 'alert' : 'status');
-  t.innerHTML = `<div class="d-flex"><div class="toast-body">${e(text)}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Schließen"></button></div>`;
+  t.innerHTML = `<div class="d-flex align-items-center"><div class="toast-body"><i class="bi bi-${fehler ? 'exclamation-circle' : 'check-circle'}" aria-hidden="true"></i>${e(text)}</div><button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Schließen"></button></div>`;
   leiste.append(t);
   const b = new bootstrap.Toast(t, { delay: fehler ? 6000 : 3000 });
   t.addEventListener('hidden.bs.toast', () => t.remove());
@@ -161,6 +169,31 @@ export function meldungText(m) {
   }
 }
 
+/** Datei im Browser speichern (z. B. CSV mit BOM für Excel). */
+export function herunterladen(name, inhalt, typ = 'text/csv;charset=utf-8') {
+  const url = URL.createObjectURL(inhalt instanceof Blob ? inhalt : new Blob(['\uFEFF' + inhalt], { type: typ }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/** Datumskachel für Listen (Tag und Wochentag). */
+export function datumKachel(isoDatum) {
+  const d = ausIso(isoDatum);
+  return `<div class="u-datum ${isoDatum === heuteIso() ? 'heute' : ''}"><small>${WOCHENTAGE_KURZ[(d.getDay() + 6) % 7]}</small><b>${d.getDate()}</b><small>${['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][d.getMonth()]}</small></div>`;
+}
+
+/** Feld in einer Filterleiste: Beschriftung über dem Steuerelement. */
+export const filterFeld = (beschriftung, html) => `<label class="u-feld"><span>${e(beschriftung)}</span>${html}</label>`;
+
+/** Bereich (Panel) mit Kopf. */
+export const panel = (titel, inhalt, { symbol = '', rechts = '', klasse = '' } = {}) =>
+  `<section class="u-panel ${klasse}"><header>${symbol ? icon(symbol) : ''}<h2>${e(titel)}</h2>${rechts ? `<div class="ms-auto d-flex gap-2 align-items-center">${rechts}</div>` : ''}</header>${inhalt}</section>`;
+
+/** Stunden als Text („3.“ bzw. „3.–4.“). */
+export const stundenText = (von, bis) => !von ? '' : von === bis || !bis ? `${von}.` : `${von}.–${bis}.`;
+
 export function statusMarker(status) {
-  return { offen: '<span class="badge text-bg-warning">offen</span>', quittiert: '<span class="badge text-bg-success">übernommen</span>', abgelehnt: '<span class="badge text-bg-danger">abgelehnt</span>' }[status] ?? `<span class="badge text-bg-secondary">${e(status)}</span>`;
+  return { offen: '<span class="u-chip gelb">offen</span>', quittiert: '<span class="u-chip gruen">übernommen</span>', abgelehnt: '<span class="u-chip rot">abgelehnt</span>' }[status] ?? `<span class="u-chip">${e(status)}</span>`;
 }

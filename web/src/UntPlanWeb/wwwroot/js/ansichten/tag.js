@@ -8,7 +8,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
   const typ = TYPEN[typParam] ? typParam : 'klasse';
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   const ziel = (t, d) => `#/tag/${t}/${d}`;
-  kontext.titel(`Tag - ${TYPEN[typ]}`, `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
+  kontext.titel(`Tag - ${TYPEN[typ]}`, `<button class="btn btn-outline-secondary" data-drucken>${icon('drucken')}Drucken</button>`);
   document.querySelector('[data-drucken]').onclick = () => window.print();
 
   seite.innerHTML = `

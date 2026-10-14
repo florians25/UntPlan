@@ -31,7 +31,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   }
 
   const istMein = typ === ich.typ && ich.element && element.toLowerCase() === ich.element.toLowerCase();
-  kontext.titel(istMein ? 'Mein Stundenplan' : `Stundenplan – ${TYPEN[typ]}`, `<button class="btn btn-outline-secondary btn-sm" data-drucken>${icon('drucken', 'me-1')}Drucken</button>`);
+  kontext.titel(istMein ? 'Mein Stundenplan' : `Stundenplan – ${TYPEN[typ]}`, `<button class="btn btn-outline-secondary" data-drucken>${icon('drucken')}Drucken</button>`);
   document.querySelector('[data-drucken]').onclick = () => window.print();
 
   let kartenZeiten = true;
@@ -91,12 +91,17 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   const zeichnen = () => {
     const erster = plan.tage[0], letzter = plan.tage[plan.tage.length - 1];
     inhalt.innerHTML = `
-      <div class="d-flex flex-wrap align-items-baseline gap-2 mb-2">
-        <h2 class="h5 mb-0">${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` <span class="text-body-secondary fw-normal">– ${e(langname(plan))}</span>` : ''}</h2>
+      <div class="u-plantitel">
+        <h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` <span class="text-body-secondary fw-normal">– ${e(langname(plan))}</span>` : ''}</h2>
         <span class="text-body-secondary small d-none d-print-inline">${erster ? `${datumKurz(erster.datum)} – ${datumKurz(letzter.datum)}${letzter.datum.slice(0, 4)}` : ''}</span>
       </div>
       ${tagAuswahl(plan, gewaehlt)}
-      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten })}`;
+      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten })}
+      <div class="u-legende nicht-drucken">
+        <span><i class="feld" style="background:#dcf5e8"></i>Änderung</span><span><i class="mk-plus"></i>zusätzlich</span>
+        <span><i class="feld" style="background:var(--u-rot-hell)"></i>Entfall</span><span><i class="feld" style="background:var(--u-gelb-hell)"></i>Prüfung</span>
+        <span><i class="feld" style="background:var(--u-ferien)"></i>Ferien</span><span><span class="std-lbl">AB</span>geänderter Wert</span><span><span class="std-lbl weg">AB</span>entfällt (ohne Ersatz)</span>
+      </div>`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext);
   };
