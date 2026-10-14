@@ -88,7 +88,7 @@ public sealed class Tagesplan
         var zusaetzlich = new List<Vertretung>();
         foreach (var v in vertretungen)
         {
-            if (v.UnterrichtId is int uid && v.Art is not (VertretungsArt.Verlegung or VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung
+            if (v.UnterrichtId is int uid && v.Art is not (VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung
                     or VertretungsArt.Klausur or VertretungsArt.Veranstaltung) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
             {
                 var key = (uid, v.ZeilenIndex, v.Stunde);
@@ -200,7 +200,7 @@ public static class Absenzen
         d.Abwesenheiten.FirstOrDefault(a => a.Art == AbwesenheitsArt.Raum && a.ElementId == raumId && a.Deckt(datum, stunde));
 
     public static Veranstaltung? VeranstaltungLehrer(Schuldatei d, int lehrerId, DateOnly datum, int stunde) =>
-        d.Veranstaltungen.FirstOrDefault(v => v.LehrerIds.Contains(lehrerId) && v.Deckt(datum, stunde));
+        d.Veranstaltungen.FirstOrDefault(v => v.Deckt(datum, stunde) && v.NimmtTeil(lehrerId, datum));
 
     public static Veranstaltung? VeranstaltungKlasse(Schuldatei d, int klasseId, DateOnly datum, int stunde) =>
         d.Veranstaltungen.FirstOrDefault(v => v.KlassenIds.Contains(klasseId) && v.Deckt(datum, stunde));

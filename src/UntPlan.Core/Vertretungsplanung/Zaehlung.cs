@@ -221,7 +221,7 @@ public static class Statistik
         return new Ausfall(l.Count,
             l.Count(v => v.VertreterId.HasValue && v.Art is VertretungsArt.Vertretung or VertretungsArt.Betreuung or VertretungsArt.StattVertretung or VertretungsArt.Teilvertretung or VertretungsArt.Lehrertausch or VertretungsArt.Bereitschaftsvertretung),
             l.Count(v => v.Art == VertretungsArt.Entfall && v.NachDatum is null), l.Count(v => v.Art == VertretungsArt.Freisetzung),
-            l.Count(v => v.Art == VertretungsArt.Raumvertretung), l.Count(v => v.Art is VertretungsArt.Verlegung or VertretungsArt.Tausch), l.Count(v => v.Offen));
+            l.Count(v => v.Art == VertretungsArt.Raumvertretung), l.Count(v => v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch), l.Count(v => v.Offen));
     }
 
     /// <summary>Entfalltage: Tage, an denen aufgrund einer Absenz alle Stunden des Lehrers entfallen sind.</summary>
