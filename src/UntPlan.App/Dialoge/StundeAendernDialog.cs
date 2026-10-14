@@ -127,7 +127,15 @@ public sealed class StundeAendernDialog : Dialog
             s.KlassenKnopf.Text = $"Klassen: {s.Klassen.Count}";
             s.KlassenText.Text = AppZustand.Doc.Index.KKlassen(s.Klassen);
         }
+        var fuellt = false;
         void Listen()
+        {
+            // Neu füllen setzt SelectedIndex und löst sonst über LehrerCb.SelectedIndexChanged eine Endlosrekursion aus
+            if (fuellt) return;
+            fuellt = true;
+            try { ListenFuellen(); } finally { fuellt = false; }
+        }
+        void ListenFuellen()
         {
             var st = Stunden(s);
             var lehrer = s.NurVerfuegbar.Checked ? Stundenaenderung.VerfuegbareLehrer(D, _datum, st).Cast<Element>().ToList() : Stammdaten.Sortiert(D.Lehrer).Cast<Element>().ToList();

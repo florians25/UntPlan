@@ -40,8 +40,12 @@ public sealed partial class HauptFenster
         d.Tagestexte.Add(new Tagestext { Datum = tag, Text = "Heute 7. Stunde Lehrerkonferenz – Unterricht endet nach der 6. Stunde." });
         AppZustand.Setzen(new Dokument(d));
 
+        var logPfad = Path.Combine(ordner, "selbsttest.log");
+        File.WriteAllText(logPfad, "");
         void Schritt(string name, Action aktion, int ribbonSeite = -1, bool schliessen = true)
         {
+            var vorher = log.Count;
+            File.AppendAllText(logPfad, $"START {name}{Environment.NewLine}");
             try
             {
                 if (schliessen) AlleSchliessen();
@@ -61,6 +65,8 @@ public sealed partial class HauptFenster
                 log.Add($"FEHLER {name}: {ex}");
             }
             foreach (var f in Application.OpenForms.Cast<Form>().Where(f => f != this && f.Owner == this && !f.IsMdiChild).ToList()) f.Close();
+            // schrittweise mitschreiben, damit bei einem Absturz sichtbar bleibt, wo er passierte
+            File.AppendAllLines(logPfad, log.Skip(vorher));
         }
 
         T Max<T>(T f) where T : Form
@@ -174,7 +180,7 @@ public sealed partial class HauptFenster
             var geladen = Dokument.Laden(pfad);
             if (geladen.Daten.Unterrichte.Count != AppZustand.D.Unterrichte.Count) throw new InvalidOperationException("Laden lieferte andere Daten");
         });
-        File.WriteAllLines(Path.Combine(ordner, "selbsttest.log"), log);
+        File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();
     }
 
