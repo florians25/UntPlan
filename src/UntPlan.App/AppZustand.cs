@@ -87,6 +87,8 @@ public sealed class Benutzereinstellungen
     public Dictionary<string, List<Tabellenformat>> Tabellenformate { get; set; } = new();
     /// <summary>Zuletzt gewähltes Tabellenformat je Tabelle.</summary>
     public Dictionary<string, string> AktiveTabellenformate { get; set; } = new();
+    /// <summary>Aktuelle (automatisch gemerkte) Spaltenanordnung je Tabelle.</summary>
+    public Dictionary<string, List<Tabellenspalte>> Tabellenlayouts { get; set; } = new();
 
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 
@@ -127,6 +129,12 @@ public sealed class Tabellenspalte
     public bool Sichtbar { get; set; } = true;
     public int Breite { get; set; }
     public int Position { get; set; }
+    /// <summary>Eigene Spaltenüberschrift (leer = Standard).</summary>
+    public string Ueberschrift { get; set; } = "";
+    /// <summary>0 = Standard, 1 = links, 2 = zentriert, 3 = rechts.</summary>
+    public int Ausrichtung { get; set; }
+    /// <summary>Spalte bleibt beim waagerechten Blättern stehen.</summary>
+    public bool Fixiert { get; set; }
 }
 
 public sealed class FensterPosition

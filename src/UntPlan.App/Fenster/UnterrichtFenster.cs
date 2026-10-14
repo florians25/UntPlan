@@ -332,7 +332,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         var c = new DataGridViewComboBoxColumn
         {
             DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox, DisplayStyleForCurrentCellOnly = true, FlatStyle = FlatStyle.Flat,
-            MaxDropDownItems = 20, AutoComplete = true,
+            MaxDropDownItems = 20, AutoComplete = false,
         };
         c.Items.AddRange(werte.Cast<object>().ToArray());
         return c;
@@ -425,7 +425,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                 s.Set(d, u, u.Zeilen[z.Index], text);
             }
         });
-        Neuaufbau();
+        NachZellwechsel(Neuaufbau);
     }
 
     private void NeuMitWert(Spalte s, string text)
@@ -435,7 +435,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         {
             neu = NeuerUnterrichtAnlegen(d);
             if (s.Set != null) s.Set(d, neu, neu.Zeilen[0], text);
-        })) Neuaufbau();
+        })) NachZellwechsel(Neuaufbau);
     }
 
     private Unterricht NeuerUnterrichtAnlegen(Schuldatei d)
@@ -544,7 +544,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         src.AddRange(quelle.ToArray());
         tb.AutoCompleteCustomSource = src;
         tb.AutoCompleteSource = AutoCompleteSource.CustomSource;
-        tb.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        tb.AutoCompleteMode = AutoCompleteMode.Append;
     }
 
     private void FelderDialog()

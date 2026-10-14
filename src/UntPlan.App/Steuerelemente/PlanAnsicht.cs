@@ -117,22 +117,105 @@ public sealed class PlanAnsicht : Control
     {
         var t = Treffer(p);
         if (t is null) return null;
-        var liste = StundenAm(t.Value.Tag, t.Value.Stunde);
-        if (liste.Count <= 1) return liste.FirstOrDefault();
-        var r = Zelle(ClientRectangle, t.Value.Tag, t.Value.Stunde);
-        var i = (int)((p.Y - r.Y) / (r.Height / liste.Count));
-        return liste[Math.Clamp(i, 0, liste.Count - 1)];
+        var f = RegelFelder(t.Value.Tag).FirstOrDefault(x => FeldRechteck(ClientRectangle, t.Value.Tag, x).Contains(p));
+        return f is null ? null : f.Alle.FirstOrDefault(x => x.Stunde == t.Value.Stunde) ?? f.Erster;
     }
 
     private (DateOnly Datum, TagesEintrag Eintrag)? EintragBei(Point p)
     {
         var t = Treffer(p);
         if (t is null || _woche is null) return null;
-        var liste = EintraegeAm(t.Value.Tag, t.Value.Stunde);
-        if (liste.Count == 0) return null;
-        var r = Zelle(ClientRectangle, t.Value.Tag, t.Value.Stunde);
-        var i = liste.Count == 1 ? 0 : (int)((p.Y - r.Y) / (r.Height / liste.Count));
-        return (_woche.Value.AddDays(t.Value.Tag), liste[Math.Clamp(i, 0, liste.Count - 1)]);
+        var f = TagesFelder(t.Value.Tag).FirstOrDefault(x => FeldRechteck(ClientRectangle, t.Value.Tag, x).Contains(p));
+        if (f is null) return null;
+        return (_woche.Value.AddDays(t.Value.Tag), f.Alle.FirstOrDefault(x => x.Stunde == t.Value.Stunde) ?? f.Erster);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Anordnung: zusammenhängende Stunden als ein Feld; parallele Blöcke nebeneinander (Spuren),
+    // mehrere Einzelstunden derselben Stunde untereinander
+    // ------------------------------------------------------------------------------------------
+
+    private sealed class Feld<T>
+    {
+        public required T Erster;
+        public readonly List<T> Alle = new();
+        public int Start;
+        public int Laenge = 1;
+        public int Spur;
+        public int Spuren = 1;
+        public int StapelIndex;
+        public int StapelAnzahl = 1;
+    }
+
+    private static List<Feld<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel)
+    {
+        var felder = new List<Feld<T>>();
+        var offen = new Dictionary<string, Feld<T>>();
+        for (var s = 1; s <= stunden; s++)
+        {
+            var neu = new Dictionary<string, Feld<T>>();
+            foreach (var x in am(s))
+            {
+                var k = schluessel(x);
+                if (k != null && !neu.ContainsKey(k) && offen.TryGetValue(k, out var f))
+                {
+                    f.Alle.Add(x);
+                    f.Laenge++;
+                    neu[k] = f;
+                    continue;
+                }
+                f = new Feld<T> { Erster = x, Start = s };
+                f.Alle.Add(x);
+                felder.Add(f);
+                if (k != null && !neu.ContainsKey(k)) neu[k] = f;
+            }
+            offen = neu;
+        }
+        // Gruppen sich zeitlich überschneidender Felder
+        var gruppen = new List<List<Feld<T>>>();
+        foreach (var f in felder.OrderBy(x => x.Start))
+        {
+            var g = gruppen.LastOrDefault();
+            if (g != null && g.Any(x => x.Start + x.Laenge > f.Start)) g.Add(f);
+            else gruppen.Add(new List<Feld<T>> { f });
+        }
+        foreach (var g in gruppen)
+        {
+            if (g.All(x => x.Laenge == 1))
+            {
+                // nur Einzelstunden (alle in derselben Stunde): untereinander wie bisher
+                for (var i = 0; i < g.Count; i++) { g[i].StapelIndex = i; g[i].StapelAnzahl = g.Count; }
+                continue;
+            }
+            var ende = new List<int>();
+            foreach (var f in g.OrderBy(x => x.Start).ThenByDescending(x => x.Laenge))
+            {
+                var spur = ende.FindIndex(e => e < f.Start);
+                if (spur < 0) { spur = ende.Count; ende.Add(0); }
+                ende[spur] = f.Start + f.Laenge - 1;
+                f.Spur = spur;
+            }
+            foreach (var f in g) f.Spuren = ende.Count;
+        }
+        return felder;
+    }
+
+    private List<Feld<Planstunde>> RegelFelder(int tag)
+    {
+        var plan = Ix.PlanVon(Typ, ElementId).Where(p => p.Tag == tag).ToList();
+        return Anordnen<Planstunde>(Stunden, s => plan.Where(p => p.Stunde == s).ToList(), p => p.UnterrichtId.ToString());
+    }
+
+    private List<Feld<TagesEintrag>> TagesFelder(int tag) => Anordnen<TagesEintrag>(Stunden, s => EintraegeAm(tag, s), TagesSchluessel);
+
+    private RectangleF FeldRechteck<T>(Rectangle bounds, int tag, Feld<T> f)
+    {
+        var r = Zelle(bounds, tag, f.Start);
+        var hoehe = r.Height * f.Laenge;
+        var breite = (r.Width - 1) / f.Spuren;
+        var x = r.X + 1 + f.Spur * breite;
+        var teilHoehe = (hoehe - 1) / f.StapelAnzahl;
+        return new RectangleF(x, r.Y + 1 + f.StapelIndex * teilHoehe, breite - 1, teilHoehe - 1);
     }
 
     /// <summary>Schlüssel für zusammenhängende Stunden im tagesaktuellen Plan (gleicher Unterricht, gleiche Änderung).</summary>
@@ -141,23 +224,16 @@ public sealed class PlanAnsicht : Control
             ? $"{u}/{e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex}/{e.Status}/{e.Vertretung?.Art}/{string.Join(",", e.LehrerIds)}/{string.Join(",", e.RaumIds)}/{e.Vertretung?.VerlegungsId}"
             : null;
 
+    private Feld<TagesEintrag>? TagesFeld(int tag, int stunde, TagesEintrag e) =>
+        TagesFelder(tag).FirstOrDefault(f => f.Alle.Contains(e)) ??
+        TagesFelder(tag).FirstOrDefault(f => f.Start <= stunde && f.Start + f.Laenge > stunde && TagesSchluessel(f.Erster) == TagesSchluessel(e));
+
     /// <summary>Anzahl zusammenhängender Stunden ab (tag, stunde) mit gleichem Schlüssel.</summary>
-    private int TagesBlockLaenge(int tag, int stunde, TagesEintrag e)
-    {
-        var key = TagesSchluessel(e);
-        if (key is null) return 1;
-        var n = 1;
-        while (stunde + n <= Stunden && EintraegeAm(tag, stunde + n) is { Count: 1 } x && TagesSchluessel(x[0]) == key) n++;
-        return n;
-    }
+    private int TagesBlockLaenge(int tag, int stunde, TagesEintrag e) =>
+        TagesFeld(tag, stunde, e) is { } f ? f.Start + f.Laenge - stunde : 1;
 
     /// <summary>Erste Stunde des Blocks, zu dem ein Eintrag gehört.</summary>
-    private int TagesBlockStart(int tag, int stunde, TagesEintrag e)
-    {
-        var key = TagesSchluessel(e);
-        while (stunde > 1 && EintraegeAm(tag, stunde - 1) is { Count: 1 } x && TagesSchluessel(x[0]) == key && EintraegeAm(tag, stunde).Count == 1) stunde--;
-        return stunde;
-    }
+    private int TagesBlockStart(int tag, int stunde, TagesEintrag e) => TagesFeld(tag, stunde, e)?.Start ?? stunde;
 
     private int _ziehLaenge = 1;
     private int _ziehVersatz;
@@ -239,42 +315,29 @@ public sealed class PlanAnsicht : Control
                 using (var b = new SolidBrush(hint)) g.FillRectangle(b, r);
                 g.DrawRectangle(duenn, r.X, r.Y, r.Width, r.Height);
             }
-            // zweiter Durchgang: Inhalte; zusammenhängende Stunden (Doppelstunde, Block) werden als ein Feld gezeichnet
-            for (var s = 1; s <= Stunden; s++)
+            // zweiter Durchgang: Inhalte; zusammenhängende Stunden (Doppelstunde, Block) werden als ein Feld gezeichnet,
+            // parallele Blöcke nebeneinander
+            if (Tagesmodus)
             {
-                var r = Zelle(bounds, t, s);
-                var frei = kt?.StundeFrei(s) == true;
-                if (Tagesmodus)
-                {
-                    var eintraege = EintraegeAm(t, s);
-                    if (eintraege.Count == 1 && s > 1 && EintraegeAm(t, s - 1) is { Count: 1 } vorher && TagesSchluessel(vorher[0]) == TagesSchluessel(eintraege[0])) continue;
-                    var laenge = eintraege.Count == 1 ? TagesBlockLaenge(t, s, eintraege[0]) : 1;
-                    var hoehe = r.Height * laenge;
-                    for (var i = 0; i < eintraege.Count; i++)
-                    {
-                        var teil = new RectangleF(r.X + 1, r.Y + 1 + i * (hoehe - 1) / eintraege.Count, r.Width - 2, (hoehe - 1) / eintraege.Count - 1);
-                        EintragZeichnen(g, teil, eintraege[i], datum!.Value, druck);
-                    }
-                    if (frei && s == 1) TextRenderer.DrawText(g, "frei", Ui.SchriftKlein, Rectangle.Round(r), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
-                }
-                else
+                foreach (var f in TagesFelder(t)) EintragZeichnen(g, FeldRechteck(bounds, t, f), f.Erster, datum!.Value, druck);
+                if (kt?.StundeFrei(1) == true) TextRenderer.DrawText(g, "frei", Ui.SchriftKlein, Rectangle.Round(Zelle(bounds, t, 1)), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
+            }
+            else
+            {
+                var kollisionen = new HashSet<int>();
+                for (var s = 1; s <= Stunden; s++)
                 {
                     var stunden = plan.Where(p => p.Tag == t && p.Stunde == s).ToList();
-                    if (stunden.Count == 1 && s > 1 && plan.Where(p => p.Tag == t && p.Stunde == s - 1).ToList() is { Count: 1 } vorher && vorher[0].UnterrichtId == stunden[0].UnterrichtId) continue;
-                    var laenge = 1;
-                    if (stunden.Count == 1)
-                        while (s + laenge <= Stunden && plan.Where(p => p.Tag == t && p.Stunde == s + laenge).ToList() is { Count: 1 } n && n[0].UnterrichtId == stunden[0].UnterrichtId) laenge++;
-                    var hoehe = r.Height * laenge;
-                    var kollision = stunden.Select(p => Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId)).Where(u => u != null)
-                        .Select(u => string.IsNullOrWhiteSpace(u!.Band) ? "#" + u.Id : u.Band).Distinct().Count() > 1 && Typ != ElementTyp.Fach && !AbWochenGetrennt(stunden);
-                    for (var i = 0; i < stunden.Count; i++)
-                    {
-                        var teil = new RectangleF(r.X + 1, r.Y + 1 + i * (hoehe - 1) / stunden.Count, r.Width - 2, (hoehe - 1) / stunden.Count - 1);
-                        StundeZeichnen(g, teil, stunden[i], druck, kollision);
-                    }
+                    if (stunden.Count > 1 && Typ != ElementTyp.Fach && !AbWochenGetrennt(stunden) &&
+                        stunden.Select(p => Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId)).Where(u => u != null)
+                            .Select(u => string.IsNullOrWhiteSpace(u!.Band) ? "#" + u.Id : u.Band).Distinct().Count() > 1)
+                        kollisionen.Add(s);
                 }
-                if (ferien != null && s == 1) TextRenderer.DrawText(g, ferien.Kurzname, Ui.SchriftKlein, Rectangle.Round(r), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
+                var tagPlan = plan.Where(p => p.Tag == t).ToList();
+                foreach (var f in Anordnen<Planstunde>(Stunden, s => tagPlan.Where(p => p.Stunde == s).ToList(), p => p.UnterrichtId.ToString()))
+                    StundeZeichnen(g, FeldRechteck(bounds, t, f), f.Erster, druck, Enumerable.Range(f.Start, f.Laenge).Any(kollisionen.Contains));
             }
+            if (ferien != null) TextRenderer.DrawText(g, ferien.Kurzname, Ui.SchriftKlein, Rectangle.Round(Zelle(bounds, t, 1)), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
             if (!druck && _hover is { } hv && hv.Tag == t)
             {
                 var start = Math.Clamp(hv.Stunde - _ziehVersatz, 1, Stunden);
@@ -430,7 +493,8 @@ public sealed class PlanAnsicht : Control
     }
 
     /// <summary>Mindesthöhe, damit alle Werte einer Stunde untereinander lesbar sind (das Fenster scrollt dann).</summary>
-    public int BenoetigteHoehe => KopfHoehe + Stunden * (int)Math.Ceiling(Format.Schriftgroesse * (Format.Gross ? 6.4f : 5.0f)) + 2;
+    /// <remarks>Im Vertretungsmodus kompakt (zwei bis drei Zeilen je Stunde), damit der Tagesplan auf die Seite passt.</remarks>
+    public int BenoetigteHoehe => KopfHoehe + Stunden * (int)Math.Ceiling(Format.Schriftgroesse * (AppZustand.Vertretungsmodus ? (Format.Gross ? 3.6f : 2.8f) : Format.Gross ? 6.4f : 5.0f)) + 2;
 
     private static string ZeilenGruppe(Kopplungszeile z) =>
         z.UGruppeId is int g && D.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug ? $"({ug.Kurzname})" : "";
@@ -542,9 +606,9 @@ public sealed class PlanAnsicht : Control
                 if (uid is null) return;
                 var zeile = Typ == ElementTyp.Lehrer ? (de.Item2.Regel?.ZeilenIndex ?? de.Item2.Vertretung?.ZeilenIndex ?? 0) : -1;
                 var tagIdx = _woche is DateOnly wo ? de.Item1.DayNumber - wo.DayNumber : 0;
-                var start = EintraegeAm(tagIdx, de.Item2.Stunde).Count == 1 ? TagesBlockStart(tagIdx, de.Item2.Stunde, de.Item2) : de.Item2.Stunde;
-                var startEintrag = EintraegeAm(tagIdx, start).FirstOrDefault() ?? de.Item2;
-                var laenge = EintraegeAm(tagIdx, start).Count == 1 ? TagesBlockLaenge(tagIdx, start, startEintrag) : 1;
+                var feld = TagesFeld(tagIdx, de.Item2.Stunde, de.Item2);
+                var start = feld?.Start ?? de.Item2.Stunde;
+                var laenge = feld?.Laenge ?? 1;
                 DoDragDrop($"tag:{de.Item1:yyyyMMdd}:{start}:{uid}:{zeile}:{laenge}", DragDropEffects.Move);
                 return;
             }

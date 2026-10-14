@@ -121,7 +121,48 @@ public class MdiFenster : Form
     {
         if (IsDisposed) return;
         if (_eigeneAenderung && !EigeneAenderungenAnzeigen) return;
-        Aktualisieren(art);
+        AktualisierenSicher(art);
+    }
+
+    private AenderungsArt? _ausstehend;
+
+    /// <summary>
+    /// Neuaufbau nach einer Änderung. Läuft die Änderung aus einem Tabellenereignis heraus (Zelle verlassen, Wert übernommen)
+    /// oder betrifft sie ein anderes Fenster, wird der Neuaufbau nachgeholt, sobald die Tabelle ihren Zellwechsel beendet hat
+    /// (sonst „Wiedereintrittsaufruf an SetCurrentCellAddressCore“). Mehrere Änderungen werden zusammengefasst.
+    /// </summary>
+    protected void AktualisierenSicher(AenderungsArt art)
+    {
+        if (!IsHandleCreated || (ContainsFocus && !TabelleHatFokus(this)))
+        {
+            Aktualisieren(art);
+            return;
+        }
+        if (_ausstehend is null)
+            BeginInvoke(() =>
+            {
+                var a = _ausstehend;
+                _ausstehend = null;
+                if (!IsDisposed && a is AenderungsArt x) Aktualisieren(x);
+            });
+        _ausstehend = _ausstehend is null || _ausstehend == art ? art : AenderungsArt.Alles;
+    }
+
+    /// <summary>Aktion nach Abschluss des laufenden Zellwechsels ausführen (für Neuaufbau aus Tabellenereignissen).</summary>
+    protected void NachZellwechsel(Action aktion)
+    {
+        if (IsHandleCreated) BeginInvoke(() => { if (!IsDisposed) aktion(); });
+        else aktion();
+    }
+
+    private static bool TabelleHatFokus(Control c)
+    {
+        foreach (Control k in c.Controls)
+        {
+            if (!k.ContainsFocus) continue;
+            if (k is DataGridView || TabelleHatFokus(k)) return true;
+        }
+        return false;
     }
 
     /// <summary>Soll das Fenster auch nach eigenen Änderungen neu aufgebaut werden?</summary>
@@ -141,7 +182,7 @@ public class MdiFenster : Form
         catch (Exception ex)
         {
             Ui.Fehler(ex);
-            Aktualisieren(AenderungsArt.Alles);
+            AktualisierenSicher(AenderungsArt.Alles);
             return false;
         }
         finally

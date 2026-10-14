@@ -106,6 +106,7 @@ public static class Bereitschaftsplanung
     /// <summary>Fehlende Bereitschaften laut Bedarf automatisch besetzen (beste Kandidaten zuerst). Liefert die Anzahl gesetzter Stunden.</summary>
     public static int Automatisch(Schuldatei d)
     {
+        if (d.Einstellungen.BereitschaftNurDoppelstunden) return AutomatischDoppelt(d);
         var n = 0;
         // knappe Stunden (wenige Kandidaten) zuerst
         var offen = d.Bereitschaftsbedarf.Select(b => (b.Tag, b.Stunde, Fehlt: b.Anzahl - Stunden(d).Count(x => x.Tag == b.Tag && x.Stunde == b.Stunde)))
@@ -118,6 +119,51 @@ public static class Bereitschaftsplanung
                 Setzen(d, k.Lehrer.Id, tag, stunde);
                 n++;
             }
+        return n;
+    }
+
+    private static int Fehlt(Schuldatei d, int tag, int stunde) => Bedarf(d, tag, stunde) - Stunden(d).Count(x => x.Tag == tag && x.Stunde == stunde);
+
+    /// <summary>
+    /// Bereitschaften nur als Doppelstunden: Jede offene Stunde wird mit einer Nachbarstunde desselben Tages zusammen besetzt.
+    /// Bevorzugt wird eine Nachbarstunde, in der ebenfalls Bedarf fehlt; der Lehrer muss in beiden Stunden frei sein.
+    /// Gibt es keine Nachbarstunde mit Bedarf, wird die angrenzende verfügbare Stunde (gleiche Tageshälfte) genommen.
+    /// </summary>
+    private static int AutomatischDoppelt(Schuldatei d)
+    {
+        var n = 0;
+        var offen = d.Bereitschaftsbedarf.Where(b => Fehlt(d, b.Tag, b.Stunde) > 0)
+            .OrderBy(b => Vorschlag(d, b.Tag, b.Stunde).Count).ThenBy(b => b.Tag).ThenBy(b => b.Stunde).Select(b => (b.Tag, b.Stunde)).ToList();
+        foreach (var (tag, stunde) in offen)
+        {
+            var schutz = 0;
+            while (Fehlt(d, tag, stunde) > 0 && schutz++ < 20)
+            {
+                var vormittag = stunde <= d.Zeitraster.LetzteVormittagsstunde;
+                var partner = new[] { stunde + 1, stunde - 1 }
+                    .Where(s => s >= 1 && s <= d.Zeitraster.StundenProTag && d.Zeitraster.Verfuegbar(tag, s) && (s <= d.Zeitraster.LetzteVormittagsstunde) == vormittag)
+                    .OrderByDescending(s => Fehlt(d, tag, s) > 0).ToList();
+                (BereitschaftsKandidat K, int Partner, double Punkte)? bester = null;
+                var hier = Vorschlag(d, tag, stunde);
+                foreach (var s in partner)
+                {
+                    var dort = Vorschlag(d, tag, s).ToDictionary(k => k.Lehrer.Id);
+                    foreach (var k in hier)
+                    {
+                        if (!dort.TryGetValue(k.Lehrer.Id, out var k2)) continue;
+                        // höchstens so viele Bereitschaften wie erlaubt (zwei auf einmal)
+                        if (k.Lehrer.BereitschaftenMax > 0 && k.BereitschaftenWoche + 2 > k.Lehrer.BereitschaftenMax) continue;
+                        var punkte = k.Punkte + k2.Punkte + (Fehlt(d, tag, s) > 0 ? 0 : 40);
+                        if (bester is null || punkte < bester.Value.Punkte) bester = (k, s, punkte);
+                    }
+                    if (bester != null && Fehlt(d, tag, s) > 0) break; // Partner mit Bedarf gefunden
+                }
+                if (bester is null) break;
+                Setzen(d, bester.Value.K.Lehrer.Id, tag, stunde);
+                Setzen(d, bester.Value.K.Lehrer.Id, tag, bester.Value.Partner);
+                n += 2;
+            }
+        }
         return n;
     }
 }

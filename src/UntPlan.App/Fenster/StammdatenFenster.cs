@@ -275,8 +275,12 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 if (neu is Fach fa) fa.Hintergrund = unchecked((int)Farbpalette[d.Faecher.Count % Farbpalette.Length]);
             }))
             {
-                Neuaufbau();
-                if (neu != null) ZeileWaehlen(neu, true, e.ColumnIndex);
+                var spalte = e.ColumnIndex;
+                NachZellwechsel(() =>
+                {
+                    Neuaufbau();
+                    if (neu != null) ZeileWaehlen(neu, true, spalte);
+                });
             }
             return;
         }
@@ -366,7 +370,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             src.AddRange(D.AlleElemente(f.RefTyp).Select(x => x.Kurzname).ToArray());
             tb.AutoCompleteCustomSource = src;
             tb.AutoCompleteSource = AutoCompleteSource.CustomSource;
-            tb.AutoCompleteMode = f.Art == FeldArt.Element ? AutoCompleteMode.SuggestAppend : AutoCompleteMode.None;
+            tb.AutoCompleteMode = f.Art == FeldArt.Element ? AutoCompleteMode.Append : AutoCompleteMode.None;
         }
     }
 
@@ -523,9 +527,14 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 {
                     var cb = new ComboBox { Left = 114, Top = 1, Width = 150, DropDownStyle = f.Art == FeldArt.Auswahl ? ComboBoxStyle.DropDownList : ComboBoxStyle.DropDown, Enabled = f.Editierbar };
                     if (f.Art == FeldArt.Auswahl) cb.Items.AddRange(f.Auswahl);
-                    else { cb.Items.Add(""); cb.Items.AddRange(D.AlleElemente(f.RefTyp).Select(x => (object)x.Kurzname).ToArray()); cb.AutoCompleteMode = AutoCompleteMode.SuggestAppend; cb.AutoCompleteSource = AutoCompleteSource.ListItems; }
+                    else { cb.Items.Add(""); cb.Items.AddRange(D.AlleElemente(f.RefTyp).Select(x => (object)x.Kurzname).ToArray()); Steuerelemente.ListenSuche.Einrichten(cb); }
                     cb.SelectionChangeCommitted += (_, _) => FormularWert(f, cb.SelectedItem?.ToString() ?? "");
-                    cb.Leave += (_, _) => { if (f.Art == FeldArt.Element) FormularWert(f, cb.Text); };
+                    cb.Leave += (_, _) =>
+                    {
+                        if (f.Art != FeldArt.Element) return;
+                        if (cb.Text.Trim().Length > 0 && Steuerelemente.ListenSuche.Treffer(cb, cb.Text) is var i and >= 0) cb.SelectedIndex = i;
+                        FormularWert(f, cb.Text);
+                    };
                     ed = cb;
                 }
                 else

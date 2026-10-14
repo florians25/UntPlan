@@ -83,11 +83,20 @@ public static class Ui
         g.CellClick += (_, e) =>
         {
             if (g.ReadOnly || e.RowIndex < 0 || e.ColumnIndex < 0 || Control.ModifierKeys != Keys.None || g.IsCurrentCellInEditMode) return;
-            var zelle = g.Rows[e.RowIndex].Cells[e.ColumnIndex];
-            if (zelle.ReadOnly || g.Columns[e.ColumnIndex].ReadOnly || zelle is DataGridViewCheckBoxCell || zelle is DataGridViewButtonCell) return;
-            if (g.SelectedCells.Count > 1 && g.SelectionMode != DataGridViewSelectionMode.FullRowSelect) return;
-            g.BeginEdit(zelle is not DataGridViewComboBoxCell);
-            if (zelle is DataGridViewComboBoxCell && g.EditingControl is ComboBox cb) cb.DroppedDown = true;
+            // erst nach Abschluss des Zellwechsels bearbeiten (kein Wiedereintritt in den Zellwechsel der Tabelle)
+            var (zeile, spalte) = (e.RowIndex, e.ColumnIndex);
+            g.BeginInvoke(() =>
+            {
+                if (g.IsDisposed || g.IsCurrentCellInEditMode || g.CurrentCell is not { } zelle || zelle.RowIndex != zeile || zelle.ColumnIndex != spalte) return;
+                if (zelle.ReadOnly || zelle is DataGridViewCheckBoxCell || zelle is DataGridViewButtonCell) return;
+                if (g.SelectedCells.Count > 1 && g.SelectionMode != DataGridViewSelectionMode.FullRowSelect) return;
+                try
+                {
+                    g.BeginEdit(zelle is not DataGridViewComboBoxCell);
+                    if (zelle is DataGridViewComboBoxCell && g.EditingControl is ComboBox cb) cb.DroppedDown = true;
+                }
+                catch (InvalidOperationException) { }
+            });
         };
         g.CellBorderStyle = DataGridViewCellBorderStyle.Single;
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
@@ -102,10 +111,40 @@ public static class Ui
         foreach (Control c in wurzel.Controls)
         {
             if (c is ComboBox cb) Suchliste(cb);
+            // Auswahlspalten in Tabellen ebenfalls mit Suche und Langnamen
+            if (c is DataGridView g && !Steuerelemente.SuchKombi.IstAktiv(g)) Steuerelemente.SuchKombi.Aktivieren(g);
             if (c is ToolStrip ts)
                 foreach (var item in ts.Items.OfType<ToolStripComboBox>()) Suchliste(item.ComboBox);
             if (c.HasChildren && c is not DataGridView) SucheAktivieren(c);
         }
+    }
+
+    /// <summary>Durchschaltknöpfe ◄ ► für eine Auswahlliste (vorheriges/nächstes Element, am Ende wieder von vorn).</summary>
+    public static Button[] Durchschalter(ComboBox cb, int hoehe = 23)
+    {
+        Button Knopf(string text, int richtung, string hinweis)
+        {
+            var b = new Button { Text = text, Width = 24, Height = hoehe, FlatStyle = FlatStyle.Flat, Margin = new Padding(1, 1, 0, 0), Font = SchriftKlein, TabStop = false, BackColor = Color.White };
+            b.FlatAppearance.BorderColor = Rasterlinie;
+            new ToolTip().SetToolTip(b, hinweis);
+            b.Click += (_, _) => Schalten(cb, richtung);
+            return b;
+        }
+        return new[] { Knopf("◄", -1, "Vorheriges Element"), Knopf("►", +1, "Nächstes Element") };
+    }
+
+    /// <summary>Durchschaltknöpfe ◄ ► für eine Auswahlliste in einer Werkzeugleiste.</summary>
+    public static ToolStripItem[] Durchschalter(ToolStripComboBox cb) => new ToolStripItem[]
+    {
+        new ToolStripButton("◄", null, (_, _) => Schalten(cb.ComboBox, -1)) { ToolTipText = "Vorheriges Element", DisplayStyle = ToolStripItemDisplayStyle.Text },
+        new ToolStripButton("►", null, (_, _) => Schalten(cb.ComboBox, +1)) { ToolTipText = "Nächstes Element", DisplayStyle = ToolStripItemDisplayStyle.Text },
+    };
+
+    public static void Schalten(ComboBox cb, int richtung)
+    {
+        if (cb.Items.Count == 0) return;
+        var i = cb.SelectedIndex < 0 ? (richtung > 0 ? 0 : cb.Items.Count - 1) : (cb.SelectedIndex + richtung + cb.Items.Count) % cb.Items.Count;
+        cb.SelectedIndex = i;
     }
 
     public static void Suchliste(ComboBox cb)
@@ -113,19 +152,13 @@ public static class Ui
         if (cb.DropDownStyle != ComboBoxStyle.DropDownList || cb.Tag as string == "suche" || cb.DrawMode != DrawMode.Normal) return;
         cb.Tag ??= "suche";
         var letzter = cb.SelectedIndex;
-        cb.DropDownStyle = ComboBoxStyle.DropDown;
-        cb.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
-        cb.AutoCompleteSource = AutoCompleteSource.ListItems;
-        if (letzter >= 0 && letzter < cb.Items.Count) cb.SelectedIndex = letzter;
+        Steuerelemente.ListenSuche.Einrichten(cb);
         cb.Enter += (_, _) => letzter = cb.SelectedIndex;
         cb.SelectedIndexChanged += (_, _) => { if (cb.SelectedIndex >= 0) letzter = cb.SelectedIndex; };
         void Pruefen()
         {
-            var text = cb.Text.Trim();
             var namen = cb.Items.Cast<object>().Select(cb.GetItemText).ToList();
-            var i = namen.FindIndex(n => n.Equals(text, StringComparison.OrdinalIgnoreCase));
-            if (i < 0 && text.Length > 0) i = namen.FindIndex(n => n.StartsWith(text, StringComparison.OrdinalIgnoreCase));
-            if (i < 0 && text.Length > 0) i = namen.FindIndex(n => n.Contains(text, StringComparison.OrdinalIgnoreCase));
+            var i = Steuerelemente.ListenSuche.Treffer(cb, cb.Text);
             if (i < 0) i = letzter;
             if (i >= 0 && i < cb.Items.Count) { if (cb.SelectedIndex != i) cb.SelectedIndex = i; else cb.Text = namen[i]; }
         }
@@ -157,6 +190,12 @@ public static class Ui
 
     public static void Fehler(Exception ex)
     {
+        // Wiedereintritt in den Zellwechsel einer Tabelle: harmlos, der Neuaufbau wird nachgeholt – keine Meldung
+        if (ex is InvalidOperationException && (ex.Message.Contains("SetCurrentCellAddressCore") || ex.StackTrace?.Contains("SetCurrentCellAddressCore") == true))
+        {
+            System.Diagnostics.Debug.WriteLine(ex);
+            return;
+        }
         if (FehlerProtokoll != null) { FehlerProtokoll.Add(ex.ToString()); return; }
         var text = ex is InvalidOperationException or FormatException or InvalidDataException ? ex.Message : ex.ToString();
         MessageBox.Show(text, "UntPlan", MessageBoxButtons.OK, MessageBoxIcon.Error);

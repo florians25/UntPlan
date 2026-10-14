@@ -75,7 +75,7 @@ public sealed class FerienFenster : MdiFenster
             });
         }
         catch (FormatException) { Ui.Info("Bitte Datum als TT.MM.JJJJ eingeben."); }
-        Neuaufbau();
+        NachZellwechsel(Neuaufbau);
     }
 
     private void Loeschen()

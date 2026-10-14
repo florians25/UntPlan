@@ -99,4 +99,31 @@ public class BereitschaftsplanungTests
         Bereitschaftsplanung.Entfernen(d, stunden[0].Lehrer.Id, stunden[0].Tag, stunden[0].Stunde);
         Assert.Equal(9, Bereitschaftsplanung.Stunden(d).Count);
     }
+
+    [Fact]
+    public void NurDoppelstundenBesetztPaarweiseAufeinanderfolgend()
+    {
+        var d = Demo.Beispielschule();
+        d.AktivePeriode.Plan = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 2 })[0].Plan;
+        foreach (var b in Bereitschaftsplanung.Stunden(d)) Bereitschaftsplanung.Entfernen(d, b.Lehrer.Id, b.Tag, b.Stunde);
+        foreach (var l in d.Lehrer) { l.BereitschaftenMax = 2; l.KeineVertretung = false; }
+        d.Einstellungen.BereitschaftNurDoppelstunden = true;
+        for (var t = 0; t < 5; t++) { Bereitschaftsplanung.BedarfSetzen(d, t, 3, 1); Bereitschaftsplanung.BedarfSetzen(d, t, 4, 1); }
+        var n = Bereitschaftsplanung.Automatisch(d);
+        Assert.Equal(10, n);
+        var stunden = Bereitschaftsplanung.Stunden(d);
+        // je Lehrer genau eine Doppelstunde (3./4. Stunde desselben Tages)
+        Assert.All(stunden.GroupBy(b => b.Lehrer.Id), g =>
+        {
+            var l = g.OrderBy(x => x.Stunde).ToList();
+            Assert.Equal(2, l.Count);
+            Assert.Equal(l[0].Tag, l[1].Tag);
+            Assert.Equal(l[0].Stunde + 1, l[1].Stunde);
+        });
+        for (var t = 0; t < 5; t++)
+        {
+            Assert.Single(stunden, b => b.Tag == t && b.Stunde == 3);
+            Assert.Single(stunden, b => b.Tag == t && b.Stunde == 4);
+        }
+    }
 }

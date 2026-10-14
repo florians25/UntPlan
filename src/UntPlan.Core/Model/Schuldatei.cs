@@ -97,6 +97,8 @@ public sealed class Einstellungen
     public string EntfallAbJahrgang { get; set; } = "EF";
     /// <summary>Unterrichtsänderungen automatisch in Tochterperioden übernehmen (sofern dort unverändert).</summary>
     public bool UnterrichtInFolgeperioden { get; set; } = true;
+    /// <summary>Automatische Bereitschaftsplanung: Bereitschaften nur als Doppelstunden verplanen.</summary>
+    public bool BereitschaftNurDoppelstunden { get; set; }
     public string Vertretungsplantitel { get; set; } = "Vertretungsplan";
     public Dictionary<string, int> Vertretungsgewichtung { get; set; } = new();
     public PortalEinstellungen Portal { get; set; } = new();

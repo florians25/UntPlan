@@ -174,6 +174,77 @@ public static class Planungsdienst
         return res.OrderByDescending(x => x.Item4).ThenByDescending(x => x.Item2).ThenBy(x => x.Item1.Sortierung).ToList();
     }
 
+    /// <summary>Zeile der Raumliste im Raumzuordnungsdialog.</summary>
+    public sealed record RaumZeile(Raum Raum, bool Wunsch, bool Ausweichraum, bool Stammraum, List<Planstunde> Belegt, int Gesperrt,
+        int StundenFrei, int StundenGesamt, int? KapazitaetDiff, string Raumgruppen, string Gang, int Wochenbelegung)
+    {
+        public bool GanzFrei => StundenFrei == StundenGesamt;
+    }
+
+    /// <summary>Für „Anwenden auf“: die betroffenen Stunden (eine Stunde, der Block oder alle Stunden des Unterrichts).</summary>
+    public static List<Planstunde> RaumStunden(Schuldatei d, Planstunde p, int umfang) => umfang switch
+    {
+        0 => new List<Planstunde> { p },
+        1 => BlockVon(d, p),
+        _ => d.Stundenplan.Where(x => x.UnterrichtId == p.UnterrichtId).OrderBy(x => x.Tag).ThenBy(x => x.Stunde).ToList(),
+    };
+
+    /// <summary>Doppelstunde bzw. Block: benachbarte Stunden desselben Unterrichts am selben Tag.</summary>
+    public static List<Planstunde> BlockVon(Schuldatei d, Planstunde p)
+    {
+        var gleiche = d.Stundenplan.Where(x => x.UnterrichtId == p.UnterrichtId && x.Tag == p.Tag).ToList();
+        var res = new List<Planstunde> { p };
+        for (var s = p.Stunde - 1; gleiche.FirstOrDefault(x => x.Stunde == s) is { } x; s--) res.Insert(0, x);
+        for (var s = p.Stunde + 1; gleiche.FirstOrDefault(x => x.Stunde == s) is { } x; s++) res.Add(x);
+        return res;
+    }
+
+    /// <summary>
+    /// Raumliste für eine Kopplungszeile über die betroffenen Stunden: Wunschraum/Ausweichraum/Stammraum, Belegung durch anderen
+    /// Unterricht (A/B-Wochen beachtet), Sperrungen, freie Stunden, Kapazitätsdifferenz zur Schülerzahl, Raumgruppen, Gang.
+    /// </summary>
+    public static List<RaumZeile> RaumUebersicht(Schuldatei d, DatenIndex ix, List<Planstunde> stunden, int zeile)
+    {
+        if (stunden.Count == 0) return new();
+        var u = ix.Unterrichte[stunden[0].UnterrichtId];
+        var z = zeile < u.Zeilen.Count ? u.Zeilen[zeile] : u.Zeilen.FirstOrDefault();
+        var kand = z is null ? new List<int>() : ix.RaumKandidaten(z);
+        var wunsch = z?.Wunschraum;
+        var gruppe = z?.Wunschraumgruppe is int gid ? d.Raumgruppen.FirstOrDefault(g => g.Id == gid) : null;
+        var klassen = (z?.KlassenIds ?? u.KlassenIds).Select(k => ix.Klassen.GetValueOrDefault(k)).Where(k => k != null).ToList();
+        var stammraeume = klassen.Select(k => k!.StammraumId).Where(x => x.HasValue).Select(x => x!.Value).ToHashSet();
+        var schueler = klassen.Sum(k => k!.Schuelerzahl);
+        var gruppen = d.Raumgruppen.SelectMany(g => g.RaumIds.Select(r => (r, g.Kurzname))).ToLookup(x => x.r, x => x.Kurzname);
+        var belegung = d.Stundenplan.SelectMany(q => q.Raeume.Where(r => r.HasValue).Select(r => r!.Value)).GroupBy(r => r).ToDictionary(g => g.Key, g => g.Count());
+        var eigene = stunden.ToHashSet();
+        var res = new List<RaumZeile>();
+        foreach (var r in d.Raeume.Where(r => !r.Ignorieren))
+        {
+            var belegt = new List<Planstunde>();
+            var gesperrt = 0;
+            var frei = 0;
+            foreach (var p in stunden)
+            {
+                var b = d.Stundenplan.FirstOrDefault(q => !eigene.Contains(q) && q.UnterrichtId != u.Id && q.Tag == p.Tag && q.Stunde == p.Stunde && q.Raeume.Contains(r.Id) &&
+                    ix.Unterrichte.TryGetValue(q.UnterrichtId, out var o) && Kalender.GleicheWoche(d, u, o));
+                var sperre = r.Zeitwuensche.Gesperrt(p.Tag, p.Stunde);
+                if (b != null) belegt.Add(b);
+                if (sperre) gesperrt++;
+                if (b is null && !sperre) frei++;
+            }
+            var ausweich = wunsch is int w && kand.Contains(r.Id) && r.Id != w;
+            res.Add(new RaumZeile(r, kand.Contains(r.Id) || gruppe?.RaumIds.Contains(r.Id) == true, ausweich, stammraeume.Contains(r.Id), belegt, gesperrt, frei, stunden.Count,
+                r.Kapazitaet > 0 && schueler > 0 ? r.Kapazitaet - schueler : null, string.Join(",", gruppen[r.Id]), ix.K(ElementTyp.Gang, r.GangId), belegung.GetValueOrDefault(r.Id)));
+        }
+        return res.OrderByDescending(x => x.Wunsch).ThenByDescending(x => x.StundenFrei).ThenBy(x => x.Raum.Sortierung).ThenBy(x => x.Raum.Kurzname).ToList();
+    }
+
+    /// <summary>Raum für eine Kopplungszeile in mehreren Stunden zuordnen bzw. löschen (raumId = null).</summary>
+    public static void RaumZuordnen(Schuldatei d, IEnumerable<Planstunde> stunden, int zeile, int? raumId, RaumKonfliktLoesung loesung)
+    {
+        foreach (var p in stunden.ToList()) RaumZuordnen(d, p, zeile, raumId, loesung);
+    }
+
     /// <summary>Tauschvorschläge für eine Stunde einer Klasse mit Gewinn (Verbesserung der Bewertungszahl).</summary>
     public static List<Tauschvorschlag> Tauschvorschlaege(Schuldatei d, Planstunde p, int max = 15)
     {

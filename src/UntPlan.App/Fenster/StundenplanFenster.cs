@@ -185,6 +185,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _laden = false;
         WocheSetzen();
+        // im Vertretungsmodus kompakter, damit der Plan ohne Blättern auf die Seite passt
+        _planGroesse?.Invoke();
     }
 
     private void DatumGewechselt(DateOnly datum)

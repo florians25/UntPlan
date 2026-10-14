@@ -28,6 +28,13 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
         Positionieren();
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Fehlende Bereitschaften automatisch besetzen", "optimierung", Automatisch, false));
+        var doppelt = new CheckBox { Text = "Bereitschaften nur als Doppelstunden verplanen", AutoSize = true, BackColor = Color.Transparent, Checked = D.Einstellungen.BereitschaftNurDoppelstunden };
+        doppelt.CheckedChanged += (_, _) =>
+        {
+            if (doppelt.Checked != D.Einstellungen.BereitschaftNurDoppelstunden)
+                Aendern("Bereitschaften nur als Doppelstunden", AenderungsArt.Einstellungen, d => d.Einstellungen.BereitschaftNurDoppelstunden = doppelt.Checked);
+        };
+        ts.Items.Add(new ToolStripControlHost(doppelt) { ToolTipText = "Die Automatik besetzt Bereitschaften immer paarweise in zwei aufeinanderfolgenden Stunden" });
         ts.Items.Add(Knopf("Bedarf für alle Vormittagsstunden setzen", "bereitschaft", BedarfVormittag, false));
         ts.Items.Add(Knopf("Alle Bereitschaften entfernen", "loeschen", AlleEntfernen, false));
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));

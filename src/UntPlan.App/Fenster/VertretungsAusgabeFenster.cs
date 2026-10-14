@@ -42,6 +42,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         };
         var ts = Werkzeugleiste();
         ts.Items.Add(_element);
+        ts.Items.AddRange(Ui.Durchschalter(_element));
         _element.SelectedIndexChanged += (_, _) => { if (!_laedt) Neuaufbau(); };
         ts.Items.Add(_minuten);
         ts.Items.Add(new ToolStripSeparator());

@@ -48,6 +48,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         };
         ts.Items.Add(typBox);
         ts.Items.Add(_auswahl);
+        ts.Items.AddRange(Ui.Durchschalter(_auswahl));
         _auswahl.SelectedIndexChanged += (_, _) => { if (!_laden && _auswahl.SelectedItem is Eintrag e) { _id = e.Id; Neuaufbau(); AppZustand.Waehlen(_typ, e.Id, this); } };
         ts.Items.Add(new ToolStripSeparator());
         foreach (var w in new[] { 3, 2, 1, 0, -1, -2, -3 })
