@@ -138,6 +138,7 @@ public class Program
 
         MobilApi.Abbilden(app);
         KlassenbuchApi.Abbilden(app);
+        RaumApi.Abbilden(app);
         StartseiteApi.Abbilden(app);
         MitteilungenApi.Abbilden(app);
         SsoApi.Abbilden(app);

@@ -15,7 +15,7 @@ const SYMBOLE = {
   abwesend: 'person-x', hausaufgabe: 'pencil-square', kopieren: 'clipboard', kalender: 'calendar-event', stift: 'pencil',
   augen: 'eye', protokoll: 'list-ul', plaene: 'calendar-week', klasse: 'people', lehrkraft: 'person-workspace',
   tagklassen: 'calendar-range', taglehrer: 'person-lines-fill', tagraeume: 'building', schloss: 'lock-fill',
-  // Navigation im Stil von WebUntis (eigene Linien-Icons aus Bootstrap Icons)
+  // Ersatz aus Bootstrap Icons, falls symbole.js kein Original-Icon zuordnet
   dashboard: 'grid', uebersicht: 'card-list', mitteilungen: 'chat-square-text', posteingang: 'inbox', gesendet: 'send',
   stundenplan: 'calendar3', meinplan: 'calendar2-week', raumplan: 'door-closed', unterricht: 'easel', meineunterrichte: 'easel2',
   offen: 'hourglass-split', pruefung: 'file-earmark-text', klassenbuchnav: 'journal-bookmark', eintraege: 'journal-text',
@@ -25,7 +25,7 @@ const SYMBOLE = {
   aufsicht: 'eye', ruckmeldung: 'inbox',
 };
 
-/** Symbol: eigene Linien-Symbole (symbole.js), sonst Bootstrap Icons für kleine Bedienelemente. */
+/** Symbol: Original-Icons (symbole.js, img/wu), sonst Bootstrap Icons für kleine Bedienelemente. */
 export function icon(name, klasse = '') {
   return symbol(name, klasse) ?? `<i class="bi bi-${SYMBOLE[name] ?? name} ${klasse === 'icon-klein' ? '' : klasse}" aria-hidden="true"></i>`;
 }

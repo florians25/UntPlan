@@ -253,6 +253,21 @@ public sealed class Db
             zuletzt TEXT NOT NULL, UNIQUE (geraet, benutzer_id)
         );
         """,
+
+        // 5: Mehrere Hausaufgaben je Stunde (Text, Fälligkeit, Bemerkung, erledigt) wie im Klassenbuch des Originals;
+        //    bisherige Hausaufgaben aus dem Klassenbuch werden übernommen
+        """
+        CREATE TABLE hausaufgaben_eintraege (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, datum TEXT NOT NULL, stunde INTEGER NOT NULL, unterricht INTEGER NOT NULL DEFAULT 0,
+            klassen TEXT NOT NULL DEFAULT '[]', fach TEXT NOT NULL DEFAULT '', lehrer TEXT NOT NULL DEFAULT '',
+            text TEXT NOT NULL, faellig TEXT, bemerkung TEXT NOT NULL DEFAULT '', erledigt INTEGER NOT NULL DEFAULT 0,
+            erstellt TEXT NOT NULL, benutzer_id INTEGER
+        );
+        CREATE INDEX ix_hausaufgaben_datum ON hausaufgaben_eintraege (datum);
+        CREATE INDEX ix_hausaufgaben_faellig ON hausaufgaben_eintraege (faellig);
+        INSERT INTO hausaufgaben_eintraege (datum, stunde, unterricht, klassen, fach, lehrer, text, faellig, erstellt, benutzer_id)
+            SELECT datum, stunde, unterricht, klassen, fach, lehrer, hausaufgabe, faellig, geaendert, benutzer_id FROM klassenbuch WHERE hausaufgabe <> '';
+        """,
     };
 
     private static void Migrieren(SqliteConnection c)

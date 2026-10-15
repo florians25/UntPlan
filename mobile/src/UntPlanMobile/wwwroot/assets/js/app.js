@@ -1225,7 +1225,7 @@ function renderGrid(){
             const eigen  = (state.entity.code || state.entity.label || '').toUpperCase();
             const alle   = String(card.teacher || '').split(/\s*,\s*/).filter(Boolean);
             const klassen= String(card.class || '').split(/\s*,\s*/).filter(Boolean);
-            const oben   = kind === 'class' ? alle.join(', ') : klassen.join(', ');
+            const oben   = kind === 'class' ? alle.join(' | ') : klassen.join(', ');
             /* Unten steht, wer sonst noch dabei ist: im Klassenplan die
                übrigen Klassen, im Lehrerplan die übrigen Lehrkräfte — die
                eigene Klasse beziehungsweise das eigene Kürzel jeweils ohne.
@@ -1233,11 +1233,13 @@ function renderGrid(){
                sehen, mit wem. */
             const unten  = kind === 'class'
                          ? klassen.filter(k => k.toUpperCase() !== eigen).join(', ')
-                         : alle.filter(t => kind !== 'teacher' || t.toUpperCase() !== eigen).join(', ');
+                         : alle.filter(t => kind !== 'teacher' || t.toUpperCase() !== eigen).join(' | ');
+            /* Mehrere Lehrkräfte: „ | “ als Trenner, nur diese Leiste rollt waagerecht. */
+            const rollen = t => t.includes(' | ') ? ' card__line--scroll' : '';
             return [
-              oben   ? `<span class="card__line card__line--primary">${esc(oben)}</span>` : '',
+              oben   ? `<span class="card__line card__line--primary${kind === 'class' ? rollen(oben) : ''}">${esc(oben)}</span>` : '',
               anlass ? `<span class="card__line ${oben ? '' : 'card__line--primary'}">${esc(anlass)}</span>` : '',
-              unten  ? `<span class="card__line ${card.room ? '' : 'card__line--last'}">${esc(unten)}</span>` : '',
+              unten  ? `<span class="card__line ${card.room ? '' : 'card__line--last'}${kind !== 'class' ? rollen(unten) : ''}">${esc(unten)}</span>` : '',
               /* Raum der Veranstaltung */
               card.room ? `<span class="card__line card__line--last">${esc(card.room)}</span>` : ''
             ].filter(Boolean).join('');
@@ -1246,7 +1248,7 @@ function renderGrid(){
             const cls2 = 'badge' + (l.removed ? ' badge--removed' : '');
             const inner = l.tokens
               ? l.tokens.map((t, ti) => {
-                  const komma = ti < l.tokens.length - 1 ? '<i>,</i>' : '';
+                  const komma = ti < l.tokens.length - 1 ? (l.key === 'teacher' ? '<i class="tok__trenn"> | </i>' : '<i>,</i>') : '';
                   const kern  = t.state === 'absent'
                     ? `<span class="badge badge--removed">${esc(t.text)}</span>`
                     : t.state === 'sub'
@@ -1262,7 +1264,7 @@ function renderGrid(){
                     rechts als jede andere Plakette auf der Kachel. */
                  + `${(l.changed || (l.tokens && (l.tokens[0].state || 'ok') !== 'ok'))
                       ? ' card__line--badge' : ''}`
-                 + `${l.tokens ? ' card__line--kopp' : ''}`
+                 + `${l.tokens ? ' card__line--kopp' : ''}${l.tokens && l.key === 'teacher' ? ' card__line--scroll' : ''}`
                  + `${li === lines.length - 1 ? ' card__line--last' : ''}">${inner}</span>`;
           }).join('');
 
@@ -1303,9 +1305,11 @@ function renderGrid(){
       if (cut && !card._supervision && card.blockType !== 'supervision'){
         eckzeichen = dots;
       } else if (zeigInfo && zeigHw){
+        /* Passen nicht beide nebeneinander, behält die schmale Kachel das
+           Info-Zeichen (Notizen, Vertretungstext) – die Hausaufgabe steht im Detail. */
         eckzeichen = beidePassen
           ? `<span class="card__ecke">${ikon('ic-tt-info-icon')}${ikon('ic-tt-homework-icon')}</span>`
-          : dots;
+          : `<span class="card__ecke">${ikon('ic-tt-info-icon')}</span>`;
       } else if (zeigHw){
         eckzeichen = `<span class="card__ecke">${ikon('ic-tt-homework-icon')}</span>`;
       } else if (zeigInfo){
@@ -1574,6 +1578,17 @@ function feinKuerzung(){
       z.style.width = Math.max(12, Math.floor(grenze - zeile.left)) + 'px';
 
       z.querySelectorAll('.badge').forEach(el => kuerzeText(el, grenze));
+    });
+  });
+
+  /* Allgemein: Ein Label (Plakette), das über den Rand der Kachel hinausreicht,
+     endet mit „…“ statt hart abgeschnitten zu werden. Die rollbare
+     Lehrerleiste bleibt ungekürzt. */
+  $$('.card', pane).forEach(k => {
+    const rand = k.getBoundingClientRect().right - 4;
+    k.querySelectorAll('.card__line:not(.card__line--scroll) .badge').forEach(el => {
+      if (el.dataset.voll != null && el.textContent !== el.dataset.voll && el.getBoundingClientRect().right <= rand) return;
+      if (el.getBoundingClientRect().right > rand) kuerzeText(el, rand);
     });
   });
 }
@@ -1970,6 +1985,9 @@ function hint(text){
 
   area.addEventListener('touchstart', e => {
     if (busy || e.touches.length !== 1) return;
+    /* In einer rollbaren Lehrerleiste wischt man die Leiste, nicht die Woche. */
+    const leiste = e.target.closest && e.target.closest('.card__line--scroll');
+    if (leiste && leiste.scrollWidth > leiste.clientWidth + 1){ active = false; return; }
     x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
     t0 = performance.now();
     dx = 0; lock = null; active = true; ankerX = 0;
@@ -3768,11 +3786,19 @@ function renderDetail(){
 
      Die Bezeichnung ist für alle dieselbe. Ein eigener Name je Rolle
      klingt nach zwei verschiedenen Dingen, obwohl es dasselbe Feld ist. */
-  /* „Notizen für Schüler*innen“ entfällt: UntPlanWeb führt je Stunde nur
-     den Inhalt, die Hausaufgabe und eine interne Notiz. */
+  /* Notizen für Schüler*innen: die Lehrkraft trägt sie ein, Schüler*innen
+     lesen sie (wie in UntPlanWeb). */
+  if (!off || !state.isStudent)
+    rows.push({ ico:'notes_students', title:'Notizen für Schüler*innen', key:'notes_students',
+                sub:cbText('notes_students') });
   if (!state.isStudent)
     rows.push({ ico:'notes_teachers', title:'Notizen für Lehrkräfte', key:'notes_teachers',
                 sub:cbText('notes_teachers') });
+
+  /* Raum buchen: die Stunde in einen freien buchbaren Raum verlegen – die
+     Raumänderung steht danach sofort im Plan (wie in UntPlanWeb). */
+  if (!state.isStudent && !off && (c.unterricht || c.entryId) && c.date >= iso(new Date()))
+    rows.push({ ico:'room', title:'Raum buchen', key:'room', sub: c.room ? 'Derzeit ' + c.room : '' });
 
   /* Nachgezeichnet nach der Vorlage: Seite mit abgeschnittener Ecke,
      Kamera im Rahmen, Klasse vor der Tafel, Seite mit Doktorhut, Buch. */
@@ -3798,6 +3824,7 @@ function renderDetail(){
     notes_students: 'ic-note',
     notes_teachers: 'ic-note',
     exam:           'ic-examinations',
+    room:           'ic-shared-roomentity',
     warn:           'ic-absences'
   };
 
@@ -3865,8 +3892,44 @@ const CB = {
   homework:       { title:'Hausaufgaben',              kind:'list' },
   classbook:      { title:'Klassenbucheinträge',       kind:'list' },
   students:       { title:'Schüler*innen',             kind:'students' },
-  substitution:   { title:'Vertretungstext',           kind:'readonly' }
+  substitution:   { title:'Vertretungstext',           kind:'readonly' },
+  room:           { title:'Raum buchen',               kind:'room' }
 };
+
+/* Raum buchen: freie buchbare Räume der Stunde, ein Tippen verlegt die Stunde. */
+const ROOM_URL = new URL('api/rooms', location.href).toString();
+async function raeumeZeichnen(c){
+  const body = $('#dsubBody');
+  body.innerHTML = '<p class="dsub__read">Freie Räume werden gesucht …</p>';
+  const bis = c.lesson + Math.max(1, c.span || 1) - 1;
+  try {
+    const r = await fetch(`${ROOM_URL}?action=free&date=${c.date}&from=${c.lesson}&to=${bis}`, { credentials:'same-origin' });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || 'Fehler ' + r.status);
+    if (!j.rooms.length){ body.innerHTML = cbEmpty('Kein buchbarer Raum frei'); return; }
+    body.innerHTML = `<p class="dsub__hinweis">Die Stunde wird in den gewählten Raum verlegt und erscheint sofort als Änderung im Stundenplan.</p>
+      <div class="dsub__list">${j.rooms.map((x, i) => `
+        <button type="button" class="dsub__item dsub__raum" data-raum="${i}">
+          <span class="dsub__item-main"><b>${esc(x.code)}</b>
+            <span>${esc([x.name !== x.code ? x.name : '', x.kind, x.seats ? x.seats + ' Plätze' : ''].filter(Boolean).join(' · '))}</span></span>
+        </button>`).join('')}</div>`;
+    $$('#dsubBody [data-raum]').forEach(b => b.addEventListener('click', async () => {
+      const raum = j.rooms[+b.dataset.raum];
+      b.disabled = true;
+      try {
+        const f = new URLSearchParams({ action:'book', date:c.date, from:String(c.lesson), to:String(bis), room:raum.code,
+                                        class:c.class || c.classOrig || '', subject:c.subject || '' });
+        const a = await fetch(ROOM_URL, { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:f });
+        const aj = await a.json();
+        if (!a.ok || !aj.ok) throw new Error(aj.error || 'Fehler ' + a.status);
+        toast(`Raum ${raum.code} gebucht`);
+        $('#detailSub').hidden = true;
+        wochenVergessen();
+        $('#detailClose').click();
+      } catch (e){ b.disabled = false; toast('Nicht gebucht: ' + e.message); }
+    }));
+  } catch (e){ body.innerHTML = cbEmpty('Räume nicht erreichbar: ' + e.message); }
+}
 
 const cbLocalKey = (c, key) => `cb.${c.date}.${c.lesson}.${key}`;
 let cbCache = {};                 /* Inhalte der geöffneten Stunde */
@@ -4116,6 +4179,7 @@ function openClassbook(key){
   }
 
   if (CB[key].kind === 'students') renderAttendance(c);
+  if (CB[key].kind === 'room') raeumeZeichnen(c);
 
   $('#detailSub').hidden = false;
 }

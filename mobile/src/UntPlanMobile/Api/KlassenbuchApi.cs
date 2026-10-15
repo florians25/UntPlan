@@ -8,10 +8,11 @@ namespace UntPlanMobile.Api;
 /// <summary>
 /// Klassenbuch der Stundendetails (Ersatz für api/classbook.php der Vorlage), abgebildet auf UntPlanWeb:
 /// <list type="bullet">
-/// <item>Lehrstoff → Unterrichtsinhalt, Notizen für Lehrkräfte → interne Notiz, Hausaufgaben → Hausaufgabe (je Zeile ein Eintrag) mit Fälligkeit.</item>
+/// <item>Lehrstoff → Unterrichtsinhalt, Notizen für Schüler*innen → Notiz für Schüler*innen, Notizen für Lehrkräfte → interne Notiz,
+/// Hausaufgaben → Hausaufgabenliste der Stunde (Text, Fälligkeit, Bemerkung).</item>
 /// <item>Klassenbucheinträge → Vermerke zur Klasse am Tag, Bemerkungen zu Schüler*innen → Vermerke zur Person.</item>
 /// <item>Schüler*innen → Anwesenheit (fehlt / verspätet mit Minuten); jede Änderung speichert die ganze Stunde.</item>
-/// <item>Notizen für Schüler*innen, Abwesenheitsgründe und Benachrichtigung gibt es in UntPlanWeb nicht.</item>
+/// <item>Abwesenheitsgründe und Benachrichtigung bietet die App nicht an.</item>
 /// </list>
 /// </summary>
 public static class KlassenbuchApi
@@ -126,19 +127,29 @@ public static class KlassenbuchApi
 
     // ------------------------------------------------------------------------------------------ Inhalte
 
-    private sealed record Eintrag(string Thema, string Hausaufgabe, string? Faellig, string Notiz);
+    private sealed record Eintrag(string Thema, string Hausaufgabe, string? Faellig, string Notiz, string NotizSchueler = "");
 
     private static async Task<(Eintrag Eintrag, bool Darf)> EintragAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k)
     {
         var j = await web.GetAsync(c, $"api/app/klassenbuch/stunde?{Stunde(k)}");
         var e = j?["eintrag"] as JsonObject;
         return (new Eintrag(e?["thema"]?.GetValue<string>() ?? "", e?["hausaufgabe"]?.GetValue<string>() ?? "", e?["faellig"]?.GetValue<string>(),
-            e?["notiz"]?.GetValue<string>() ?? ""), j?["darf"]?.GetValue<bool>() ?? false);
+            e?["notiz"]?.GetValue<string>() ?? "", e?["notizSchueler"]?.GetValue<string>() ?? ""), j?["darf"]?.GetValue<bool>() ?? false);
     }
 
-    private static List<object> Hausaufgaben(Eintrag e) =>
-        e.Hausaufgabe.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(t => (object)new { text = t, due = e.Faellig }).ToList();
+    /// <summary>Hausaufgaben der Stunde aus der Liste von UntPlanWeb (mit Id, Fälligkeit und Bemerkung).</summary>
+    private static async Task<List<JsonObject>> HausaufgabenListeAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k)
+    {
+        try
+        {
+            var j = await web.GetAsync(c, $"api/app/klassenbuch/hausaufgabenliste?{Stunde(k)}");
+            return (j?["liste"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>().ToList();
+        }
+        catch (UntPlanWebFehler) { return new(); }
+    }
+
+    private static List<object> Hausaufgaben(IEnumerable<JsonObject> liste) =>
+        liste.Select(h => (object)new { text = h["text"]?.GetValue<string>() ?? "", due = h["faellig"]?.GetValue<string>(), note = h["bemerkung"]?.GetValue<string>() ?? "", done = h["erledigt"]?.GetValue<bool>() ?? false }).ToList();
 
     private static async Task<(object Inhalte, bool Darf)> InhalteAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k)
     {
@@ -146,9 +157,9 @@ public static class KlassenbuchApi
         return (new
         {
             lehrstoff = e.Thema,
-            notes_students = "",
+            notes_students = e.NotizSchueler,
             notes_teachers = konto.Kollegium ? e.Notiz : "",
-            homework = Hausaufgaben(e),
+            homework = Hausaufgaben(await HausaufgabenListeAsync(c, web, k)),
             classbook = konto.Kollegium ? await KlasseneintraegeAsync(c, web, k) : new List<object>(),
         }, darf);
     }
@@ -157,7 +168,7 @@ public static class KlassenbuchApi
         web.PutAsync(c, "api/app/klassenbuch/stunde", new
         {
             datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht,
-            thema = e.Thema, hausaufgabe = e.Hausaufgabe, faellig = string.IsNullOrEmpty(e.Faellig) ? null : e.Faellig, notiz = e.Notiz,
+            thema = e.Thema, hausaufgabe = e.Hausaufgabe, faellig = string.IsNullOrEmpty(e.Faellig) ? null : e.Faellig, notiz = e.Notiz, notizSchueler = e.NotizSchueler,
         });
 
     private static async Task<IResult> TextSpeichernAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k, string feld, string wert)
@@ -167,32 +178,34 @@ public static class KlassenbuchApi
         {
             "lehrstoff" => e with { Thema = wert.Trim() },
             "notes_teachers" => e with { Notiz = wert.Trim() },
-            _ => throw new UntPlanWebFehler(400, "Notizen für Schüler*innen gibt es in UntPlanWeb nicht."),
+            "notes_students" => e with { NotizSchueler = wert.Trim() },
+            _ => throw new UntPlanWebFehler(400, "Unbekanntes Feld."),
         };
         await EintragSpeichernAsync(c, web, k, e);
         return Results.Json(new { ok = true });
     }
 
-    /// <summary>Hausaufgaben: UntPlanWeb kennt je Stunde einen Text mit einer Fälligkeit – jede Zeile ist ein Eintrag.</summary>
+    /// <summary>Hausaufgaben: Liste der Stunde in UntPlanWeb – anlegen, ändern (Text, Fälligkeit, Bemerkung, erledigt) und löschen.</summary>
     private static async Task<IResult> HausaufgabeAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k, string aktion, Parameter p)
     {
-        var (e, _) = await EintragAsync(c, web, k);
-        var zeilen = e.Hausaufgabe.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-        var faellig = e.Faellig;
+        var liste = await HausaufgabenListeAsync(c, web, k);
         var index = p.Zahl("index") ?? -1;
-        if (aktion != "delItem")
+        var id = index >= 0 && index < liste.Count ? liste[index]["id"]!.GetValue<int>() : (int?)null;
+        if (aktion != "addItem" && id is null) return Fehler("Eintrag nicht gefunden.");
+        if (aktion == "delItem") await web.DeleteAsync(c, $"api/app/klassenbuch/hausaufgabenliste/{id}");
+        else
         {
             var neu = JsonNode.Parse(p.Text("value", "{}")) as JsonObject;
-            var text = (neu?["text"]?.GetValue<string>() ?? "").Replace('\n', ' ').Trim();
+            var text = (neu?["text"]?.GetValue<string>() ?? "").Trim();
             if (text.Length == 0) return Fehler("Ohne Text lässt sich nichts speichern.");
-            if (neu?["due"]?.GetValue<string>() is { Length: > 0 } due) faellig = due;
-            if (aktion == "addItem") zeilen.Add(text);
-            else if (index >= 0 && index < zeilen.Count) zeilen[index] = text;
+            var due = neu?["due"]?.GetValue<string>() is { Length: > 0 } d ? d : null;
+            var note = neu?["note"]?.GetValue<string>();
+            if (aktion == "addItem")
+                await web.PostAsync(c, "api/app/klassenbuch/hausaufgabenliste", new { datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht, text, faellig = due, bemerkung = note ?? "" });
+            else
+                await web.PutAsync(c, $"api/app/klassenbuch/hausaufgabenliste/{id}", new { text, faellig = due, bemerkung = note, erledigt = neu?["done"]?.GetValue<bool>() });
         }
-        else if (index >= 0 && index < zeilen.Count) zeilen.RemoveAt(index);
-        e = e with { Hausaufgabe = string.Join("\n", zeilen), Faellig = zeilen.Count > 0 ? faellig : null };
-        await EintragSpeichernAsync(c, web, k, e);
-        return Results.Json(new { ok = true, data = Hausaufgaben(e) });
+        return Results.Json(new { ok = true, data = Hausaufgaben(await HausaufgabenListeAsync(c, web, k)) });
     }
 
     /// <summary>Hausaufgaben der Klasse, die am Tag der Stunde fällig sind.</summary>

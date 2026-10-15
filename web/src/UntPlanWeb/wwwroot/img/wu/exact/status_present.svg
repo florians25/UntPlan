@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>status_present</title>
+    <g id="class-register" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="icons-&amp;-states" transform="translate(-143.000000, -429.000000)">
+            <g id="status_present" transform="translate(143.000000, 429.000000)">
+                <circle id="Oval-Copy-3" fill="#3BC886" cx="8" cy="8" r="8"/>
+                <path d="M10.7604889,5.99155178 C10.9860686,5.74881647 11.3657129,5.73490913 11.6084482,5.96048885 C11.8242129,6.16100416 11.8591753,6.48324954 11.7058491,6.72286489 L11.6395111,6.80844822 L7.17875634,11.6084482 C6.96604373,11.8373378 6.61898002,11.8612372 6.37825057,11.6793998 L6.30227588,11.6111664 L4.36303069,9.5502232 C4.13594975,9.30889171 4.1475021,8.92916841 4.38883358,8.70208747 C4.60335046,8.50023774 4.92721396,8.48693778 5.15602147,8.65596902 L5.23696931,8.72789037 L6.736,10.321 L10.7604889,5.99155178 Z" id="Path-Copy-2" fill="#FFFFFF" fill-rule="nonzero"/>
+            </g>
+        </g>
+    </g>
+</svg>

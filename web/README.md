@@ -10,19 +10,25 @@ UntPlan beim nächsten Datenaustausch ab.
 ## Oberfläche
 
 Aufbau, Format und Bedienung entsprechen WebUntis – Startseite *Heute*, Stundenplan, Klassenbuch und Administration sehen aus und
-funktionieren wie dort. Alle Grafiken sind selbst gezeichnet: eigene SVG-Linien-Icons (`wwwroot/js/symbole.js`, ergänzt um
-Bootstrap Icons), eigenes Logo (Uhr mit orangen Zeigern) und die freie Schrift **Nunito Sans** (SIL OFL, lokal unter
-`wwwroot/lib/nunito-sans`). Es werden keine Grafiken, Logos oder Icon-Schriften von Untis verwendet; Produktname bleibt „UntPlanWeb“.
+funktionieren wie dort (abgeglichen mit Screenshots des Originals). Die Icons sind die Original-Icons aus dem Paket des Kollegen
+(`wwwroot/img/wu`: Navigation, Klassenbuch, Status, Info, Hausaufgabe, alte Klassenbuch-Symbole wie Stift, Besen, Beginn/Ende);
+`wwwroot/js/symbole.js` ordnet sie den Menüpunkten zu und zeichnet sie als Maske (grau, aktiv orange). Kleine Bedienelemente ohne
+Original-Icon (Pfeile, Papierkorb) kommen aus Bootstrap Icons. Logo (Uhr mit orangen Zeigern) und Produktname bleiben „UntPlanWeb“
+– kein WebUntis-Schriftzug, kein Fremdlogo. Schrift: **Nunito Sans** (SIL OFL, lokal unter `wwwroot/lib/nunito-sans`).
 
-- **Navigation links:** weiße Leiste mit Logo, Schulname und Schuljahr-Pille; Menüpunkte mit Linien-Icons, aktiver Punkt orange
-  mit Balken. Bereiche wie *Mitteilungen*, *Stundenplan*, *Unterricht*, *Klassenbuch*, *Melden & Buchen*, *Stammdaten* und
+- **Navigation links:** weiße Leiste mit Logo, Schulname und Schuljahr-Pille; Menüpunkte mit den Original-Icons, aktiver Punkt
+  orange auf hellorangem, rechts abgerundetem Grund mit orangem Balken links. Bereiche wie *Mitteilungen*, *Stundenplan*, *Unterricht*, *Klassenbuch*, *Melden & Buchen*, *Stammdaten* und
   *Administration* öffnen ein Untermenü mit rundem Zurück-Knopf. Unten Benutzer mit Avatar und Kontomenü (*Profil*, *Konto wechseln*,
   *Weiteres Konto hinzufügen*), *Abmelden* und Einklappen. Auf dem Telefon klappt die Navigation über das Menüsymbol aus.
 - **Heute** (Startseite): Datum, letzte Anmeldung und letzte Planaktualisierung, Nachrichten zum Tag (mit RSS-Symbol, wenn aktiviert),
   Hinweis auf offene Stunden und *Mein Unterricht heute* als Tabelle.
-- **Stundenplan:** Wochenleiste „12. 10. - 18. 10. 2026“ mit Pfeilen, dunkler *Heute*-Knopf, Zeitspalte mit Beginn/Ende und
-  Stundennummer, Jetzt-Linie mit Uhrzeit, schwebende Legende (Entfall ▲, Prüfung ●, Änderung ■ – anklickbar zum Ausblenden) und
-  rundem Hilfe-Knopf. Stundendetails öffnen sich als Bereich rechts neben der Navigation (blättern mit *Vorherige/Nächste Stunde*).
+- **Stundenplan:** im eigenen Plan Woche „12. 10. - 18. 10. 2026“ mit Pfeilen, in anderen Plänen Elementwahl als Pille mit
+  Info-Symbol (Hinweis z. B. „Klassenlehrkraft: KM“) und Datumsbereich als Pille; ein Klick öffnet den Kalender mit Spalte KW,
+  gestrichenen Wochenenden und rosa markierter Woche. Weißer *Heute*-Knopf rechts, keine A/B-Woche im Kopf. Zeitspalte mit
+  Beginn/Ende und Stundennummer, Jetzt-Linie, schwebende Legende (Entfall ▲, Prüfung ●, Änderung ■ – anklickbar zum Ausblenden)
+  mit Menü „⋮“ (*Symbole anzeigen*, *Uhrzeiten anzeigen*, *Abwesenheiten*, *Drucken*, *Öffentlichen Link kopieren*) und Hilfe-Knopf.
+  Stundenkarten weiß und leicht abgerundet, ohne Hover-Effekt, Beginn und Ende klein links in der Karte. Stundendetails öffnen sich
+  als Bereich rechts neben der Navigation.
 - **Listen** (Offene Stunden, Abwesenheiten, Benutzer …) mit weißer Werkzeugleiste oben (Suche mit Element-Pille, Filter, Zeitraum),
   Auswahlkreisen, Pillen-Knöpfen und Sammelaktionen. Alle Farben und Maße als CSS-Variablen (`wwwroot/css/app.css`), Druckansichten bleiben.
 
@@ -62,13 +68,29 @@ Im Einzelnen:
     Kürzelbox), Entfall rot und durchgestrichen mit Dreieck, Prüfungen gelb mit Punkt, Veranstaltungen grün mit Plus.
   - **Vertretung ohne Lehrkraft** („+++“ in UntPlan): Änderung, bei der die bisherige Lehrkraft durchgestrichen in der grünen Plakette steht
     (kein „???“ oder „+++“); ohne eigenen Vertretungstext steht „Vertr. o. Lehrkraft“ als Text.
-  - **Kopplungen**: mehrere Lehrkräfte desselben Unterrichts in einer Stunde stehen auf einer Karte (Fächer, Lehrkräfte, Räume zusammengefasst).
+  - **Kopplungen**: gekoppelte Stunden mit unterschiedlichen Fächern (z. B. KR und ER) oder in unterschiedlichen Räumen sind einzelne
+    Karten. Nur bei gleichem Fach **und** gleichem Raum stehen mehrere Lehrkräfte bzw. Klassen auf einer Karte – dann mit allen
+    beteiligten Klassen und Lehrkräften auf der Karte und in den Details (auch im Lehrerplan der beteiligten Lehrkräfte).
+  - **Lehrkraft abwesend**: Im Plan der abwesenden Lehrkraft sind Stunden, die andere übernehmen, grau gestrichelt mit dem eigenen
+    Kürzel durchgestrichen in der Plakette (Hinweis „abwesend …“ über dem Tag) – nur ein echter Entfall bleibt rot.
+  - **Symbole unten rechts**: Info-Symbol bei Notizen für Schüler*innen/Lehrkräfte oder Vertretungstext (Text als Hinweis), Hausaufgaben-
+    Symbol in der Stunde, zu der eine Hausaufgabe fällig ist.
   - **Fachwechsel**: die ursprüngliche Stunde erscheint als Entfall, die neue Stunde als grüne Karte daneben.
   - **Veranstaltungen** als Zusatzkarten mit Klassen, teilnehmenden Lehrkräften (gekürzt „BEC, BRA, FIS +12“, vollständig in den Details)
     und Raum; Veranstaltungen mit Raum stehen auch im Raumplan und in *Tag - Räume*.
   - Ferien, Feiertage und freie Tage (auch die in der Administration angelegten) als Fläche mit Schloss; Elementwahl mit Vor/Zurück (auch Alt+←/→).
-  - Stundendetails mit den Reitern *Klassenbuch* (Schülerkacheln, Lehrstoff, Hausaufgaben, Einträge, Abwesende, Befreite) und *Details*
-    (Schalter „Findet online statt“); von dort eine Prüfung eintragen (Prüfungssperren werden beachtet) oder einen freien Raum buchen.
+  - Stundendetails wie im Original: Kopf „Klassen | Unterricht | Fach“ und „Tag | Datum | Zeit | Raum | Lehrkraft“, Reiter
+    *Klassenbuch* und *Details*.
+    - *Klassenbuch*: Schülerkacheln mit Foto-Platzhalter und Statuspunkt (Alle auswählen, Auswahl löschen, abwesend, verspätet,
+      Klassenbucheintrag), Lehrstoff mit Stift, *Abwesende Schüler*innen* als alte Liste (grau gestreift: Auswahl, Stift, Von,
+      Beginnzeit, Bis, Endzeit, Grund, Status, Text) mit *Verlängern* (Fehlen aus der Vorstunde in diese Stunde übernehmen) und
+      Symbolen „auf Tagesbeginn“/„bis Stundenende“, Hausaufgaben (Liste mit *Neue Hausaufgabe*, Fälligkeit – vorbelegt eine Woche
+      später –, Bemerkung, erledigt, löschen; fällige Hausaufgaben der Stunde), Klassenbucheinträge mit „+“, Klassendienste mit
+      Besen, *Ticket erstellen* (Mitteilung an Schulleitung/Administration); unten die Statusleiste „Lehrstoffeintragung vorhanden“ und
+      „Abwesenheiten wurden kontrolliert“ (sonst Knöpfe *Lehrstoff eingeben*, *Abwesenheiten kontrollieren*).
+    - *Details*: nur „Findet online statt“, Lehrstoff und Vertretungstext (wenn vorhanden), Hausaufgaben, *Notizen für Schüler*innen*
+      und *Notizen für Lehrkräfte*; unten *Vorherige Stunde*, *Nächste Stunde*, *Prüfung erstellen* (Prüfungssperren werden beachtet)
+      und *Raum buchen*. Gebuchter Raum und Prüfung stehen sofort als Änderung bzw. Prüfung (gelb) im Plan.
   - Bereitschaften, Raumbuchungen und Vormerkungen; Druck, Telefonansicht mit Tagesauswahl.
 - **Tagesübersicht** (Kollegium): alle Klassen, Lehrkräfte oder Räume eines Tages auf einen Blick.
 - **Vertretungsplan** als Schüler- oder Lehrerversion; die Schülerversion zeigt keine Abwesenheitsgründe, Bereitschaften oder Aufsichten.
@@ -133,6 +155,8 @@ Zusätzlich zu Plan, Vertretungen, Klassenbuch und Mitteilungen (alle unter `/ap
 | `GET /api/app/berichte/lehrstoff?klasse=&von=&bis=&format=csv` | Lehrstoffbericht (JSON oder CSV) |
 | `GET /api/app/berichte/liste`, `GET /api/app/berichte/erstellen/{art}?…&format=csv` | alle Berichtsarten, Bericht erstellen |
 | `GET /api/app/klassenbuch/offen?tage=` | eigene Stunden ohne Lehrstoff (Standard 14 Tage) |
+| `GET/POST /api/app/klassenbuch/hausaufgabenliste`, `PUT/DELETE …/{id}` | Hausaufgaben einer Stunde (Text, Fälligkeit, Bemerkung, erledigt) und die in der Stunde fälligen |
+| `POST /api/app/klassenbuch/abwesenheit/verlaengern` | Abwesenheiten aus der Vorstunde bis Stundenende bzw. bis zum Tagesbeginn verlängern |
 | `GET /api/app/start` | Daten der Startseite *Heute* |
 | `GET /api/app/klassenbuch/stunden?von=&bis=&lehrer=&klasse=` | offene Stunden (Abwesenheitskontrolle/Lehrstoff) |
 | `PUT /api/app/klassenbuch/online` | Stunde „findet online statt“ |
@@ -246,7 +270,7 @@ dotnet test tests/UntPlanWeb.Tests           # inkl. Ende-zu-Ende-Test mit dem E
 Aufbau:
 
 - `src/UntPlanWeb`: ASP.NET Core 8 (Minimal-APIs) mit SQLite und eigenen Migrationen.
-- `wwwroot`: Oberfläche ohne Build-Schritt im WebUntis-Stil (eigenes `css/app.css` mit CSS-Variablen über Bootstrap 5.3, eigene SVG-Icons in `js/symbole.js`, Bootstrap Icons und Nunito Sans lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module je Seite unter `js/ansichten`.
+- `wwwroot`: Oberfläche ohne Build-Schritt im WebUntis-Stil (eigenes `css/app.css` mit CSS-Variablen über Bootstrap 5.3, Original-Icons unter `img/wu` (Zuordnung in `js/symbole.js`), Bootstrap Icons und Nunito Sans lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module je Seite unter `js/ansichten`.
 - `demo/beispiel-paket.json`: Beispielpaket, mit UntPlan.Core aus der Beispielschule erzeugt.
 
 UntPlanWeb gehört nicht zur Desktop-Solution `UntPlan.sln` und hat einen eigenen CI-Ablauf (`.github/workflows/web.yml`).

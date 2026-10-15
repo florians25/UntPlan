@@ -21,6 +21,9 @@ public static class AppApi
     public sealed record FehlenDaten(int SchuelerId, DateOnly Von, DateOnly Bis, string? Status, string? Bemerkung);
     public sealed record FehlzeitStatusDaten(List<int> Ids, string Status);
     public sealed record VermerkDaten(DateOnly Datum, string Klasse, int? SchuelerId, string? Art, string Text);
+    public sealed record HausaufgabeDaten(DateOnly Datum, int Stunde, int Unterricht, string? Text, DateOnly? Faellig, string? Bemerkung);
+    public sealed record HausaufgabeAenderDaten(string? Text, DateOnly? Faellig, string? Bemerkung, bool? Erledigt);
+    public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis);
     public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
@@ -148,12 +151,14 @@ public static class AppApi
             });
         });
 
-        api.MapGet("/plan", (string typ, string element, string? datum, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Uhr uhr) =>
+        api.MapGet("/plan", (string typ, string element, string? datum, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var b = Ich(c);
             PlanErlaubt(b, typ, element);
             var s = Paket(p);
-            return Results.Json(plan.Wochenplan(s, typ, element, Datum(datum, uhr), b.Kollegium, r.Vorgemerkt));
+            var w = plan.Wochenplan(s, typ, element, Datum(datum, uhr), b.Kollegium, r.Vorgemerkt);
+            // Notizen und fällige Hausaufgaben für die Symbole auf den Karten
+            return Results.Json(w with { Karten = kb.Anreichern(w.Karten, b.Kollegium) });
         });
 
         api.MapGet("/tag", (string typ, string? datum, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Uhr uhr) =>
@@ -187,7 +192,7 @@ public static class AppApi
             var tag = vp.NaechsteTage(s, heute, 1).FirstOrDefault(heute);
             var typ = b.KlassenKuerzel != null ? Elementtyp.Klasse : Elementtyp.Lehrer;
             var element = b.KlassenKuerzel ?? b.LehrerKuerzel;
-            var karten = element is null ? new List<Karte>() : plan.Karten(s, tag, typ, element, r.Vorgemerkt(tag));
+            var karten = element is null ? new List<Karte>() : kb.Anreichern(plan.Karten(s, tag, typ, element, r.Vorgemerkt(tag)), b.Kollegium);
             var aufsichten = element is not null && typ == Elementtyp.Lehrer ? plan.Aufsichten(s, tag, element) : new List<Aufsicht>();
             var termine = s.Paket.Termine.Where(t => DateOnly.TryParse(t.Von, out var v) && v >= heute && v <= heute.AddDays(14) &&
                     (element is null || (typ == Elementtyp.Klasse ? t.Klassen.Contains(element, StringComparer.OrdinalIgnoreCase) : t.Lehrer.Contains(element, StringComparer.OrdinalIgnoreCase))))
@@ -279,6 +284,29 @@ public static class AppApi
         });
         api.MapPut("/klassenbuch/stunde", (KlassenbuchDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(kb.Speichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? "", d.Hausaufgabe ?? "", d.Faellig, d.Notiz ?? "", d.NotizSchueler)));
+        // Hausaufgaben einer Stunde (Liste wie im Original) und die in dieser Stunde fälligen Hausaufgaben
+        api.MapGet("/klassenbuch/hausaufgabenliste", (DateOnly datum, int stunde, int unterricht, int? bis, string? fach, string? klassen, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        {
+            var b = Ich(c);
+            var s = Paket(p);
+            var liste = kb.HausaufgabenDerStunde(datum, stunde, Math.Max(stunde, bis ?? stunde), unterricht);
+            var kl = (klassen ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (!b.Kollegium) { kl = kl.Where(k => k.Equals(b.KlassenKuerzel ?? "", StringComparison.OrdinalIgnoreCase)).ToList(); if (!liste.All(h => h.Klassen.Contains(b.KlassenKuerzel ?? "", StringComparer.OrdinalIgnoreCase))) liste = new(); }
+            var faellig = string.IsNullOrEmpty(fach) || kl.Count == 0 ? new List<Hausaufgabe>() : kb.FaelligeHausaufgaben(datum, fach, kl, unterricht);
+            return Results.Json(new { liste, faellig, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
+        });
+        api.MapPost("/klassenbuch/hausaufgabenliste", (HausaufgabeDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(kb.HausaufgabeAnlegen(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Text ?? "", d.Faellig, d.Bemerkung ?? "")));
+        api.MapPut("/klassenbuch/hausaufgabenliste/{id:int}", (int id, HausaufgabeAenderDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(kb.HausaufgabeAendern(Ich(c), Paket(p), id, d.Text, d.Faellig, d.Bemerkung, d.Erledigt)));
+        api.MapDelete("/klassenbuch/hausaufgabenliste/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        {
+            kb.HausaufgabeLoeschen(Ich(c), Paket(p), id);
+            return Results.Json(new { ok = true });
+        });
+        // Abwesenheiten verlängern (aus der Vorstunde bis Stundenende bzw. bis zum Tagesbeginn)
+        api.MapPost("/klassenbuch/abwesenheit/verlaengern", (VerlaengernDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(new { stunden = kb.AbwesenheitVerlaengern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Bis == "tagesbeginn" ? "tagesbeginn" : "stunde") }));
         api.MapGet("/klassenbuch/klasse", (string klasse, string? von, string? bis, HttpContext c, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var b = Ich(c);

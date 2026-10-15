@@ -15,7 +15,7 @@ public sealed record Fehlzeit(int Id, string Datum, int Stunde, int Unterricht, 
 public sealed record Vermerk(int Id, string Datum, string Klasse, int? SchuelerId, string Art, string Text, string Lehrer, string Erstellt);
 
 /// <summary>Anwesenheitseintrag beim Speichern (nur Abweichungen: fehlt oder verspätet).</summary>
-public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung);
+public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung, string? Grund = null);
 
 /// <summary>
 /// Klassenbuch: je gehaltener Stunde Unterrichtsinhalt, Hausaufgabe (mit Fälligkeit) und interne Notiz.
@@ -24,7 +24,7 @@ public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten,
 /// <item>Klassenkonten sehen Inhalte und Hausaufgaben ihrer Klasse, aber keine Notizen.</item>
 /// </list>
 /// </summary>
-public sealed class Klassenbuchdienst
+public sealed partial class Klassenbuchdienst
 {
     private readonly Db _db;
     private readonly Uhr _uhr;
@@ -85,6 +85,7 @@ public sealed class Klassenbuchdienst
         if (karte is null) throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
         var klassen = JsonSerializer.Serialize(karte.Klassen.Select(k => k.K).ToList());
+        var vorher = Holen(d, karte.Von, unterricht, lehrer);
         _db.Ausfuehren("""
             INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, thema, hausaufgabe, faellig, notiz, geaendert, benutzer_id, notiz_schueler)
             VALUES (@d, @s, @u, @k, @f, @l, @t, @h, @fa, @n, @g, @b, COALESCE(@ns, ''))
@@ -93,6 +94,9 @@ public sealed class Klassenbuchdienst
             """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@k", klassen), Db.P("@f", karte.Fach), Db.P("@l", lehrer),
             Db.P("@t", (thema ?? "").Trim()), Db.P("@h", (hausaufgabe ?? "").Trim()), Db.P("@fa", faellig), Db.P("@n", (notiz ?? "").Trim()), Db.P("@ns", notizSchueler?.Trim()),
             Db.P("@g", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
+        // Einzelne Hausaufgabe über das alte Feld (z. B. UntPlanMobile): Liste der Hausaufgaben angleichen
+        if ((vorher?.Hausaufgabe ?? "") != (hausaufgabe ?? "").Trim() || vorher?.Faellig != faellig?.ToString("yyyy-MM-dd"))
+            HausaufgabeAusFeld(b, karte, d, lehrer, (hausaufgabe ?? "").Trim(), faellig);
         return Holen(d, karte.Von, unterricht, lehrer)!;
     }
 
@@ -149,7 +153,7 @@ public sealed class Klassenbuchdienst
         var eintrag = Zeitraum(d, d).FirstOrDefault(e => e.Unterricht == unterricht && e.Stunde == karte.Von);
         return new
         {
-            schueler = Schueler(s, klassen), fehlzeiten = fz, geprueft = eintrag?.Anwesenheit,
+            schueler = Schueler(s, klassen), fehlzeiten = fz, geprueft = eintrag?.Anwesenheit, vorstunden = Vorstunden(s, d, karte),
             darf = DarfSchreiben(b, s, d, stunde, unterricht) || klassen.Any(k => IstKlassenleitung(b, s, k)),
         };
     }
@@ -172,17 +176,18 @@ public sealed class Klassenbuchdienst
         {
             var art = e.Art == "verspaetet" ? "verspaetet" : "fehlt";
             var status = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Art == art)?.Status ?? "offen";
+            var altF = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId);
             // Fehlen gilt für alle Stunden des Blocks, Verspätung nur für die erste
             for (var n = karte.Von; n <= (art == "fehlt" ? karte.Bis : karte.Von); n++)
             {
                 _db.Ausfuehren("""
-                    INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id)
-                    VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b)
+                    INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe)
+                    VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b, @g, @gr)
                     ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET unterricht = excluded.unterricht, fach = excluded.fach, art = excluded.art,
-                        minuten = excluded.minuten, bemerkung = excluded.bemerkung, lehrer = excluded.lehrer
+                        minuten = excluded.minuten, bemerkung = excluded.bemerkung, lehrer = excluded.lehrer, grund = excluded.grund
                     """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", unterricht), Db.P("@sid", e.SchuelerId), Db.P("@k", schueler[e.SchuelerId].Klasse), Db.P("@f", karte.Fach),
                     Db.P("@a", art), Db.P("@m", art == "verspaetet" ? Math.Clamp(e.Minuten, 1, 90) : 0), Db.P("@st", status), Db.P("@bem", (e.Bemerkung ?? "").Trim()),
-                    Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id));
+                    Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id), Db.P("@g", (e.Grund ?? altF?.Grund ?? "").Trim()), Db.P("@gr", altF?.Gruppe ?? ""));
             }
             anzahl++;
         }

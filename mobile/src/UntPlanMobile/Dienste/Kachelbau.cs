@@ -10,6 +10,9 @@ namespace UntPlanMobile.Dienste;
 /// <item>Geänderte Werte (Plakette) aus dem Kennzeichen „neu“, Ursprungswerte aus „alt“ (…Orig).</item>
 /// <item>Ferien, Feiertage und freie Tage als ganztägiges Ferienfeld mit Name und Zeitraum.</item>
 /// <item>Pausenaufsichten als Pillen in der Pause, ganztägige Termine als Pille über der ersten Stunde.</item>
+/// <item>Kopplungen: UntPlanWeb fasst nur Stunden mit gleichem Fach und gleichem Raum zusammen – eine Karte wird eine Kachel,
+/// gekoppelte Stunden mit unterschiedlichen Fächern bleiben einzelne Kacheln.</item>
+/// <item>Notizen (für Schüler*innen und Lehrkräfte) und fällige Hausaufgaben setzen die Zeichen unten rechts.</item>
 /// </list>
 /// </summary>
 public static class Kachelbau
@@ -187,6 +190,14 @@ public static class Kachelbau
             Eintrag = k.Unterricht,
             Unterricht = k.Unterricht,
         };
+        // Notizen für Schüler*innen und Lehrkräfte sowie fällige Hausaufgaben: Zeichen unten rechts auf der Kachel
+        if (!string.IsNullOrWhiteSpace(k.NotizSchueler) || !string.IsNullOrWhiteSpace(k.NotizLehrer))
+        {
+            kachel.Notiz = true;
+            kachel.NotizSchueler = string.IsNullOrWhiteSpace(k.NotizSchueler) ? null : k.NotizSchueler;
+            kachel.NotizLehrer = string.IsNullOrWhiteSpace(k.NotizLehrer) ? null : k.NotizLehrer;
+        }
+        if (k.HausaufgabeFaellig) kachel.Hausaufgabe = true;
         if (k.Klassen.Any(w => w.Neu)) kachel.Geaendert.Add("class");
         if (k.Lehrer.Any(w => w.Neu)) kachel.Geaendert.Add("teacher");
         // geänderter oder hinzugefügter Raum (neuer Wert ohne alten) steht in der grünen Plakette

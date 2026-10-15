@@ -83,20 +83,54 @@ public class FachpunktTests
     }
 
     [Fact]
-    public async Task Kopplung_mit_mehreren_Lehrkraeften_auf_einer_Karte()
+    public async Task Kopplung_mit_unterschiedlichen_Faechern_bleibt_einzelne_Karten()
     {
         await using var s = await Testserver.StartenAsync();
         var c = await s.AlsAsync("admin");
-        // Unterricht 167 (Religion 5a/5b): KR bei BEC in R101 und ER bei ZIM in R102 – im Klassenplan eine Karte
+        // Unterricht 167 (Religion 5a/5b): KR bei BEC in R101 und ER bei ZIM in R102 – unterschiedliche Fächer, zwei Karten
         var plan = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=5a&datum=2026-10-12");
-        var k = Karten(plan, "2026-10-12", 5).Single();
-        Assert.Equal(167, k["unterricht"]!.GetValue<int>());
-        Assert.Equal("KR, ER", k["fach"]!.GetValue<string>());
-        Assert.Equal(new[] { "BEC", "ZIM" }, k["lehrer"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()).OrderBy(x => x));
-        Assert.Equal(new[] { "R101", "R102" }, k["raeume"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()).OrderBy(x => x));
+        var karten = Karten(plan, "2026-10-12", 5).ToList();
+        Assert.Equal(2, karten.Count);
+        var kr = karten.Single(k => k["fach"]!.GetValue<string>() == "KR");
+        var er = karten.Single(k => k["fach"]!.GetValue<string>() == "ER");
+        Assert.Equal("BEC", kr["lehrer"]!.AsArray().Single()!["k"]!.GetValue<string>());
+        Assert.Equal("R101", kr["raeume"]!.AsArray().Single()!["k"]!.GetValue<string>());
+        Assert.Equal("ZIM", er["lehrer"]!.AsArray().Single()!["k"]!.GetValue<string>());
+        Assert.Equal("R102", er["raeume"]!.AsArray().Single()!["k"]!.GetValue<string>());
+        // beide Karten nennen auch die gekoppelte Klasse
+        Assert.All(karten, k => Assert.Equal(new[] { "5a", "5b" }, k["klassen"]!.AsArray().Select(x => x!["k"]!.GetValue<string>())));
         // im Lehrerplan bleibt es bei der eigenen Zeile
         var bec = await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=BEC&datum=2026-10-12");
         Assert.Equal("KR", Karten(bec, "2026-10-12", 5).Single()["fach"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Kopplung_mit_gleichem_Fach_und_Raum_ist_eine_Karte_mit_allen_Lehrkraeften_und_Klassen()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var p = Testserver.Beispielpaket();
+        p["revision"] = 2;
+        // Montag 5. Stunde: beide Zeilen von Unterricht 167 als KR in R101; ZIM unterrichtet zusätzlich die 6a mit
+        var zeilen = p["tage"]!.AsArray().Single(t => t!["datum"]!.GetValue<string>() == "2026-10-12")!["stunden"]!.AsArray()
+            .Select(x => x!.AsObject()).Where(x => x["unterricht"]?.GetValue<int>() == 167).ToList();
+        var er = zeilen.Single(x => x["fach"]!.GetValue<string>() == "ER");
+        er["fach"] = "KR";
+        er["raeume"] = new JsonArray("R101");
+        er["klassen"] = new JsonArray("5a", "5b", "6a");
+        Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(p)).StatusCode);
+        var c = await s.AlsAsync("admin");
+
+        var plan = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=5a&datum=2026-10-12");
+        var k = Karten(plan, "2026-10-12", 5).Single();
+        Assert.Equal("KR", k["fach"]!.GetValue<string>());
+        Assert.Equal(new[] { "BEC", "ZIM" }, k["lehrer"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()).OrderBy(x => x));
+        Assert.Equal("R101", k["raeume"]!.AsArray().Single()!["k"]!.GetValue<string>());
+        // die jeweils anderen Klassen stehen mit auf der Karte
+        Assert.Equal(new[] { "5a", "5b", "6a" }, k["klassen"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()).OrderBy(x => x));
+        // im Lehrerplan von ZIM: eine Karte mit allen Klassen und beiden Lehrkräften
+        var zim = await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=ZIM&datum=2026-10-12");
+        var z = Karten(zim, "2026-10-12", 5).Single();
+        Assert.Equal(new[] { "BEC", "ZIM" }, z["lehrer"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()).OrderBy(x => x));
     }
 
     [Fact]

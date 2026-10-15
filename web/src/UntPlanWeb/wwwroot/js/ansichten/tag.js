@@ -44,12 +44,11 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
     const k = tag.kopf;
     const { html, karten } = tagesGitter(sicht);
     inhalt.innerHTML = `<div class="d-flex flex-wrap align-items-baseline gap-2 mb-2"><h2 class="h6 fw-bold mb-0">Tag - ${e(TYPEN[typ])}</h2>
-        ${k.woche ? `<span class="text-body-secondary small">${e(k.woche)}-Woche</span>` : ''}
         <span class="badge ${k.tagesaktuell ? 'text-bg-success' : 'text-bg-secondary'}">${k.tagesaktuell ? 'tagesaktuell' : 'Regelplan'}</span></div>
       ${k.hinweise.map(h => `<div class="alert alert-warning py-2 small mb-2">${e(h)}</div>`).join('')}
       ${k.frei ? `<div class="alert alert-secondary">${e(k.freiGrund || 'Unterrichtsfrei')}</div>`
         : sicht.zeilen.length ? html : '<div class="alert alert-secondary">Keine Einträge.</div>'}`;
-    kartenBinden(inhalt, karten, kontext);
+    kartenBinden(inhalt, karten, kontext, typ);
   };
   zeichnen('');
   seite.querySelector('[data-filter]').oninput = ev => zeichnen(ev.target.value);

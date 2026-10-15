@@ -1,4 +1,4 @@
-/* UntPlanWeb – Erscheinungsbild im Stil von WebUntis (eigene Umsetzung: eigene Linien-Symbole, freie Schrift Nunito Sans, keine fremden Grafiken).
+/* UntPlanWeb – Erscheinungsbild im Stil von WebUntis (Original-Icons aus dem Paket des Kollegen unter img/wu, freie Schrift Nunito Sans, eigenes Logo).
    Aufbau: Farben & Maße · Grundlagen · Bootstrap-Bausteine · Hülle (Navigation, Konto) · Seitenaufbau & Werkzeugleiste · Heute ·
    Listen, Tabellen & Filter · Anmeldung · Stundenplan · Legende · Tagesübersicht · Vertretungsplan · Stundendetails · Mitteilungen ·
    Klassenbuch · Verwaltung · Monitor · Druck · Schmale Bildschirme */
@@ -541,10 +541,10 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 /* Stundenkarte */
 .std {
   position: absolute; z-index: 2; overflow: hidden; cursor: pointer; background: #fff; color: var(--u-text);
-  padding: 8px 24px 8px 18px; text-align: left; border-radius: 1px;
+  padding: 8px 24px 8px 18px; text-align: left; border-radius: 4px;
 }
 .std::before { content: ""; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 4px; border-radius: 2px; background: var(--fach, #c3cbd2); }
-.std:hover, .std:focus-visible { z-index: 5; outline: 0; box-shadow: 0 0 0 1px rgba(65, 77, 85, .35); }
+.std:focus-visible { z-index: 5; outline: 2px solid rgba(245, 107, 42, .55); outline-offset: 1px; }
 /* Beginn/Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“) */
 .std.mit-zeit { padding-left: 44px; }
 .std.mit-zeit::before { left: 34px; }
@@ -955,3 +955,145 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .u-rechte .ja { color: var(--u-gruen); font-weight: 700; }
 .u-rechte .nein { color: var(--u-grau-3); }
 .u-import-fehler td { background: #fdecec !important; }
+
+/* ------------------------------------------------------------------ Feinabgleich nach den WebUntis-Screenshots (53–62) */
+
+/* Original-Icons als Maske: grau, im aktiven Menüpunkt orange */
+.u-sym.wu { display: inline-block; background-color: currentColor; -webkit-mask: var(--wu) center / contain no-repeat; mask: var(--wu) center / contain no-repeat; }
+.u-rss { color: var(--u-akzent); font-size: 15px; line-height: 1; }
+
+/* Menü wie 55.png: aktiver Punkt hellorange hinterlegt (rechts abgerundet) mit orangem Balken links */
+.u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover { background: #fff0ea; border-radius: 0 999px 999px 0; width: calc(100% - 14px); }
+.u-nav-punkt.aktiv::before { top: 0; bottom: 0; border-radius: 0; }
+.u-nav-punkt:hover { border-radius: 0 999px 999px 0; width: calc(100% - 14px); }
+
+/* Kopfzeile des Plans: weißer „Heute“-Knopf (54.png), Elementwahl- und Datums-Pille (57.png) */
+.heute-pill { background: #fff; color: var(--u-titel); box-shadow: 0 1px 3px rgba(0, 5, 10, .1), 0 2px 8px rgba(0, 5, 10, .05); padding: 0 32px; }
+.heute-pill:hover { background: #fff; color: var(--u-titel); box-shadow: 0 0 0 1.5px var(--u-grau-3); }
+.planleiste .zeitraum { border: 0; background: none; padding: 4px 6px; border-radius: 999px; }
+.planleiste .zeitraum.pille { border: 1.5px solid var(--u-grau-2); background: #fff; padding: 3px 14px; height: 32px; }
+.planleiste .zeitraum.pille:hover { border-color: var(--u-text); }
+.element-pill .wahl-knopf { background: transparent !important; border: 1.5px solid var(--u-grau-2) !important; box-shadow: none !important; height: 32px; min-width: 110px; padding: 0 14px !important; overflow: visible; }
+.element-pill .wahl-knopf:hover { border-color: var(--u-text) !important; }
+.wahl-info { position: relative; display: inline-flex; width: 16px; height: 16px; flex: none; }
+.wahl-info img { width: 16px; height: 16px; opacity: .6; }
+.wahl-info::after { content: attr(data-tip); position: absolute; left: -48px; top: calc(100% + 12px); background: #67747e; color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; padding: 5px 9px; border-radius: 4px; display: none; z-index: 40; box-shadow: 0 2px 6px rgba(0, 5, 10, .15); }
+.wahl-knopf:hover .wahl-info::after, .wahl-knopf:focus-visible .wahl-info::after { display: block; }
+
+/* Kalender wie 57.png: KW-Spalte, gestrichene Wochenenden, gewählte Woche rosa */
+.u-kalender { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 60; background: #fff; border-radius: 4px; padding: 18px 16px 12px; width: 360px;
+  box-shadow: 0 4px 12px rgba(0, 5, 10, .12), 0 16px 40px rgba(0, 5, 10, .16); }
+.kal-kopf { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 14px; color: var(--u-titel); font-size: 15px; }
+.kal-kopf button { border: 0; background: none; color: var(--u-grau); width: 30px; height: 30px; border-radius: 50%; }
+.kal-kopf button:hover { background: var(--u-hover); }
+.kal { width: 100%; border-collapse: collapse; text-align: center; font-size: 14px; }
+.kal th { font-weight: 600; color: var(--u-titel); padding: 4px 0 10px; }
+.kal td { padding: 0; height: 32px; }
+.kal td.kw { color: var(--u-grau-3); font-size: 13.5px; }
+.kal button { border: 0; background: none; width: 36px; height: 30px; color: var(--u-titel); font-size: 14px; border-radius: 3px; }
+.kal button:hover { background: var(--u-hover); }
+.kal button.fremd { color: var(--u-grau-3); }
+.kal button.we { color: var(--u-grau-3); text-decoration: line-through; }
+.kal button.heute { font-weight: 800; }
+.kal tr.gewaehlt td { background: #fde6e2; }
+
+/* Stundenkarten: weiß, leicht abgerundet, keine Hover-Reaktion; Uhrzeiten klein links wie 57.png */
+.std, .tagplan .std, .tt-liste .std { border-radius: 4px; }
+.std.mit-zeit { padding-left: 46px; }
+.std.mit-zeit::before { left: 38px; }
+.std .zt { left: 7px; font-size: 10px; color: #8a96a1; }
+.std .z1 { font-weight: 700; color: #24323d; }
+.std .z2 { color: #414d55; }
+/* Symbole unten rechts: fällige Hausaufgabe, Info (Notizen, Vertretungstext) */
+.std .ecke { position: absolute; right: 6px; bottom: 6px; display: flex; gap: 3px; z-index: 1; }
+.std .ecke img { width: 16px; height: 16px; display: block; }
+.tt.ohne-symbole .std .mks, .tt.ohne-symbole .std .ecke { display: none; }
+/* Lehrkraft abwesend (wie im Paket des Kollegen): gestrichelt, grau, ohne Schatten und ohne Entfall-Dreieck; eigenes Kürzel durchgestrichen */
+.std.lehrer-abwesend { background: #f1f5f8 !important; outline: 1px dashed #9aa7af; outline-offset: -1px; box-shadow: none !important; }
+.std.lehrer-abwesend::before { background: #b9c5cc; }
+.std.lehrer-abwesend .z1, .std.lehrer-abwesend .z2, .std.lehrer-abwesend .zt { text-decoration: none; color: #5b6770; }
+.std.lehrer-abwesend .lbl.weg { background: var(--u-gruen-label); color: #fff; text-decoration: line-through; }
+.tt.ohne-abwesenheiten .std.lehrer-abwesend { display: none; }
+.tt.ohne-abwesenheiten .tt-ereignis.hinweis { display: none; }
+.hilfe-gestrichelt { display: inline-block; width: 22px; height: 14px; background: #f1f5f8; outline: 1px dashed #9aa7af; outline-offset: -1px; border-radius: 3px; flex: none; }
+
+/* Legenden-Menü wie 56.png */
+.u-legende-menue { width: 300px; padding: 14px 0 10px; border-radius: 6px; }
+.u-legende-menue .kopf { font-size: 14px; font-weight: 700; color: var(--u-grau); padding: 8px 18px 6px; }
+.u-legende-menue button.eintrag { padding: 8px 18px; font-weight: 700; color: var(--u-titel); gap: 12px; font-size: 14px; }
+.u-legende-menue button.eintrag.ohne { padding-left: 24px; }
+.u-legende-menue .haken { color: var(--u-akzent); font-size: 20px; line-height: 1; -webkit-text-stroke: .3px; }
+.u-legende-menue .haken.leer { color: var(--u-grau-3); }
+.u-hilfe-rund .bi { font-size: 28px; line-height: 1; }
+
+/* Stundendetails wie 59/62 */
+.sd-leiste.grau { background: #8a96a1; }
+.sd-rumpf { padding: 40px 120px 40px 100px; }
+.sd-abschnitt { margin-bottom: 2.4rem; max-width: 1440px; }
+.sd-abschnitt-kopf { font-weight: 600; font-size: 15px; gap: 16px; padding-bottom: 14px; margin-bottom: 18px; }
+.sd-abschnitt-rumpf { padding-left: 42px; }
+.kb-icon { width: 26px; height: 26px; flex: none; object-fit: contain; color: #8a96a1; }
+.sd-detail > .kb-icon { width: 24px; height: 24px; }
+.sd-werkzeug { border: 0; background: none; color: #67747e; font-size: 22px; line-height: 1; padding: 0; }
+.sd-werkzeug:hover { color: var(--u-titel); }
+.sd-stift { width: 34px; height: 34px; border-color: #8a96a1; color: #67747e; }
+.sd-plus { width: 34px; height: 34px; font-size: 18px; border-color: #8a96a1; color: #67747e; }
+.sd-kacheln { grid-template-columns: repeat(auto-fill, 160px); gap: 4px; }
+.sd-kachel { grid-template-columns: 52px 1fr; padding: 8px 8px 6px; border: 1px solid #e3e7eb; min-height: 84px; }
+.sd-kachel.da { background: #f2f4f6; }
+.sd-kachel .sd-avatar { width: 48px; height: 48px; border: 0; background: #fff; overflow: hidden; }
+.sd-kachel .sd-avatar img { width: 100%; height: 100%; }
+.sd-kachel .sd-statusbild { position: absolute; top: 6px; left: 6px; width: 16px; height: 16px; z-index: 1; }
+.sd-kachel .sd-statusbild.spaet { border-radius: 50%; background: #f0b429; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; }
+.sd-kachel .sd-name { font-size: 14px; padding-top: 6px; }
+.sd-kachel.weg .sd-name, .sd-kachel.spaet .sd-name { color: #9aa5ae; }
+.sd-umschalten { font-size: 15px; margin-top: 2px; }
+.sd-pille.gross { font-size: 1.05rem; padding: .5rem 1.6rem; }
+.sd-fuss { padding: 14px 100px 14px 164px; }
+.sd-fuss.sd-status { justify-content: flex-end; gap: 2.4rem; padding-right: 60px; font-size: 1.1rem; color: var(--u-grau-2); }
+.sd-status .ok { color: #67747e; display: inline-flex; align-items: center; gap: .45rem; }
+.sd-status .ok .bi { color: #2bb673; font-size: 1.45rem; }
+.sd-statusknopf { border: 1.5px solid var(--u-akzent); background: #fff; color: var(--u-akzent-dunkel); border-radius: 999px; padding: .35rem 1.2rem; font-weight: 700; font-size: .95rem; }
+.sd-statusknopf:hover { background: var(--u-akzent-hell); }
+.sd-detail { gap: 1.4rem; padding: 1.1rem 0; max-width: 1360px; }
+.sd-detail-titel { font-size: .95rem; font-weight: 600; }
+.sd-notiz { min-height: 56px; }
+.sd-notiz-knoepfe { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .5rem; }
+.sd-leer { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: 3rem 1rem; color: var(--u-grau); }
+.sd-leer b { color: var(--u-titel); }
+
+/* Alte Listenelemente des Klassenbuchs (60/61.png): Zellen grau gestreift mit weißen Fugen */
+.alt-liste { border-collapse: separate; border-spacing: 2px; font-size: 12.5px; color: #24323d; }
+.alt-liste th { font-size: 11px; font-weight: 700; color: #24323d; padding: 2px 6px; vertical-align: bottom; white-space: nowrap; text-align: center; }
+.alt-liste td { padding: 3px 7px; white-space: nowrap; line-height: 16px; }
+.alt-liste tbody tr:nth-child(odd) td { background: #dfe3e9; }
+.alt-liste tbody tr.editor td { background: transparent !important; white-space: normal; padding: 6px 0 10px; }
+.alt-liste td.mitte, .alt-liste th.mitte { text-align: center; }
+.alt-liste td.text { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.alt-liste input[type=checkbox] { width: 13px; height: 13px; vertical-align: middle; }
+.alt-liste img { vertical-align: middle; }
+.alt-liste tr.vorstunde td { color: #5b6770; font-style: italic; }
+.kb-stift, .kb-zeitknopf { border: 0; background: none; padding: 0 2px; line-height: 1; }
+.kb-stift img, .kb-zeitknopf img { width: 16px; height: 16px; }
+.kb-eintraege td.text { max-width: 200px; }
+.kb-editor { background: #f7f8fa; border: 1px solid #e3e7eb; border-radius: 4px; padding: 12px 14px; margin: 8px 0; max-width: 760px; }
+.kb-editor-titel { font-weight: 700; color: var(--u-titel); margin-bottom: .6rem; display: flex; align-items: center; gap: .4rem; }
+.kb-formular { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: .5rem 1rem; align-items: start; }
+.kb-formular label { font-size: .85rem; font-weight: 600; padding-top: .3rem; color: var(--u-text); }
+.kb-hw { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .7rem; padding: .25rem 0; font-size: .9rem; color: var(--u-titel); }
+.kb-hw .faellig { color: var(--u-grau); font-size: .82rem; white-space: nowrap; }
+.kb-hw small { flex-basis: 100%; color: var(--u-grau); }
+.kb-hw.erledigt .text { text-decoration: line-through; color: var(--u-grau-2); }
+.kb-hw-knoepfe { margin-left: auto; display: inline-flex; gap: .6rem; }
+.kb-hw-knoepfe button { border: 0; background: none; color: var(--u-grau); padding: 0; }
+.kb-hw-knoepfe button:hover { color: var(--u-akzent); }
+.kb-hw-faellig { margin-top: .8rem; padding-top: .6rem; border-top: 1px dashed var(--u-linie); }
+
+@media (max-width: 991.98px) {
+  .sd-rumpf { padding: 18px 16px; }
+  .sd-abschnitt-rumpf { padding-left: 0; }
+  .sd-fuss, .sd-fuss.sd-status { padding: 10px 16px; gap: 1rem; font-size: .95rem; }
+  .kb-formular { grid-template-columns: 1fr; }
+  .u-kalender { left: 0; transform: none; width: min(360px, calc(100vw - 2rem)); }
+  .u-nav-punkt.aktiv, .u-nav-punkt:hover { width: 100%; }
+}

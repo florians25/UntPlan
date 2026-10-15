@@ -155,6 +155,38 @@ public class EndeZuEndeTests
     }
 
     [Fact]
+    public async Task Notizen_fuer_Schueler_und_Raumbuchung_aus_den_Stundendetails()
+    {
+        await using var u = await Umgebung.StartenAsync();
+        var sne = await u.AngemeldetAsync("sne");
+        var schluessel = new Dictionary<string, string> { ["date"] = "2026-10-14", ["lesson"] = "1", ["class"] = "5a", ["unterricht"] = "107" };
+        Dictionary<string, string> Mit(params (string, string)[] werte) => schluessel.Concat(werte.Select(w => new KeyValuePair<string, string>(w.Item1, w.Item2))).ToDictionary(x => x.Key, x => x.Value);
+
+        // Notizen für Schüler*innen: Lehrkraft trägt ein, die Klasse sieht sie (Info-Zeichen auf der Kachel)
+        await Umgebung.SendenAsync(sne, "/api/classbook", Mit(("action", "save"), ("field", "notes_students"), ("value", "Bitte Wörterbuch mitbringen")));
+        var alles = await Umgebung.HolenAsync(sne, "/api/classbook?" + string.Join("&", schluessel.Select(p => $"{p.Key}={p.Value}")) + "&action=all");
+        Assert.Equal("Bitte Wörterbuch mitbringen", alles["data"]!["notes_students"]!.GetValue<string>());
+        var klasse = await u.AngemeldetAsync("5a");
+        var woche = await Umgebung.HolenAsync(klasse, "/api/mobile?action=week&date=2026-10-14");
+        var kachel = Kacheln(woche, "2026-10-14").First(k => k["lesson"]!.GetValue<int>() == 1 && k["unterricht"]?.GetValue<int>() == 107);
+        Assert.True(kachel["hasNote"]!.GetValue<bool>());
+        Assert.Equal("Bitte Wörterbuch mitbringen", kachel["noteStudents"]!.GetValue<string>());
+        Assert.Null(kachel["noteTeachers"]);
+
+        // Raum buchen: freie Räume der Stunde, Buchung erscheint sofort als Raumänderung
+        var frei = await Umgebung.HolenAsync(sne, "/api/rooms?action=free&date=2026-10-14&from=1&to=1");
+        var raum = frei["rooms"]!.AsArray().First()!["code"]!.GetValue<string>();
+        var gebucht = await Umgebung.SendenAsync(sne, "/api/rooms", new() { ["action"] = "book", ["date"] = "2026-10-14", ["from"] = "1", ["to"] = "1", ["room"] = raum, ["class"] = "5a", ["subject"] = "E" });
+        Assert.True(gebucht["ok"]!.GetValue<bool>());
+        woche = await Umgebung.HolenAsync(sne, "/api/mobile?action=week&date=2026-10-14&type=mine");
+        var neu = Kacheln(woche, "2026-10-14").First(k => k["lesson"]!.GetValue<int>() == 1 && k["unterricht"]?.GetValue<int>() == 107);
+        Assert.Equal(raum, neu["room"]!.GetValue<string>());
+        Assert.Contains("room", neu["changed"]!.AsArray().Select(x => x!.GetValue<string>()));
+        // Klassenkonten können keine Räume buchen
+        Assert.Equal(HttpStatusCode.Forbidden, (await klasse.GetAsync("/api/rooms?action=free&date=2026-10-14&from=1&to=1")).StatusCode);
+    }
+
+    [Fact]
     public async Task Startseite_Mitteilungen_und_Abmelden()
     {
         await using var u = await Umgebung.StartenAsync();

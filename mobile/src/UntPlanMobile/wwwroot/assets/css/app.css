@@ -3512,3 +3512,22 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .login__sso{ display:block; text-align:center; text-decoration:none; margin:18px 0 6px; }
 .login__oder{ display:flex; align-items:center; gap:10px; margin:14px 0 4px; font-size:13px; opacity:.7; }
 .login__oder::before, .login__oder::after{ content:""; flex:1; border-top:1px solid currentColor; opacity:.35; }
+
+/* =====================================================================
+   Lehrerleiste mit mehreren Lehrkräften („ | “ als Trenner): nur diese
+   Zeile rollt waagerecht, der Rest der Kachel bleibt stehen.
+   ===================================================================== */
+.card__line--scroll,
+.card .card__line.card__line--scroll{
+  overflow-x:auto; overflow-y:hidden; text-overflow:clip;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;
+  touch-action:pan-x pan-y;
+}
+.card__line--scroll::-webkit-scrollbar, .card .card__line.card__line--scroll::-webkit-scrollbar{ display:none; }
+.tok__trenn{ font-style:normal; color:var(--c-muted, #8a96a1); }
+.card.pad-last .card__line--scroll{ max-width:calc(100% - 16px); }
+
+/* Raum buchen in den Stundendetails */
+.dsub__hinweis{ margin:4px 2px 12px; font-size:13px; color:var(--c-ink-2, #67747e); }
+.dsub__raum{ width:100%; text-align:left; background:none; border:0; font:inherit; color:inherit; }
+.dsub__raum:disabled{ opacity:.5; }

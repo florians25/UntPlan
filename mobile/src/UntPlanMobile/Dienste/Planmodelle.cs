@@ -15,7 +15,8 @@ public sealed record PlanKarte(
     string Datum, int Von, int Bis, string Beginn, string Ende, string Status,
     string Fach, string? FachAlt, string FachName, string Farbe,
     List<PlanWert> Klassen, List<PlanWert> Lehrer, List<PlanWert> Raeume,
-    string Art, string Text, int? Vertretung, int? Unterricht, string Gruppe = "");
+    string Art, string Text, int? Vertretung, int? Unterricht, string Gruppe = "",
+    string? NotizSchueler = null, string? NotizLehrer = null, bool HausaufgabeFaellig = false);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 public sealed record PlanAufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
@@ -103,6 +104,10 @@ public sealed class Kachel
     [JsonPropertyName("entryId")] public int? Eintrag { get; set; }
     [JsonPropertyName("unterricht")] public int? Unterricht { get; set; }
     [JsonPropertyName("hasHw")] public bool? Hausaufgabe { get; set; }
+    /// <summary>Notizen zur Stunde (Info-Symbol unten rechts auf der Kachel).</summary>
+    [JsonPropertyName("hasNote")] public bool? Notiz { get; set; }
+    [JsonPropertyName("noteStudents")] public string? NotizSchueler { get; set; }
+    [JsonPropertyName("noteTeachers")] public string? NotizLehrer { get; set; }
 
     public Kachel Kopie()
     {

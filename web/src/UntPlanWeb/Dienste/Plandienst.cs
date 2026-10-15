@@ -24,7 +24,15 @@ public sealed record Karte(
     string Datum, int Von, int Bis, string Beginn, string Ende, string Status,
     string Fach, string? FachAlt, string FachName, string Farbe,
     List<Wert> Klassen, List<Wert> Lehrer, List<Wert> Raeume,
-    string Art, string Text, int? Vertretung, int? Unterricht, string Gruppe);
+    string Art, string Text, int? Vertretung, int? Unterricht, string Gruppe)
+{
+    /// <summary>Notizen für Schüler*innen aus dem Klassenbuch (Info-Symbol unten rechts auf der Karte).</summary>
+    public string NotizSchueler { get; init; } = "";
+    /// <summary>Notizen für Lehrkräfte (nur Kollegium).</summary>
+    public string NotizLehrer { get; init; } = "";
+    /// <summary>Zu dieser Stunde ist eine Hausaufgabe fällig (Hausaufgaben-Symbol auf der Karte).</summary>
+    public bool HausaufgabeFaellig { get; init; }
+}
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
 public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
@@ -150,13 +158,18 @@ public sealed class Plandienst
         var zeiten = s.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr);
         var einzel = new List<Karte>();
         var vorgemerkt = new List<(Rohstunde R, Karte K)>();
-        foreach (var r in Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()))
+        var roh = Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList();
+        // Kopplung mit gleichem Fach und gleichem Raum: im Lehrerplan auch die Zeilen der Kolleg*innen (eine gemeinsame Karte)
+        static bool GleicherRaum(Rohstunde a, Rohstunde b) => a.Raeume.Count == b.Raeume.Count && a.Raeume.All(x => Enthaelt(b.Raeume, x));
+        bool Mitgekoppelt(Rohstunde r) => r.Unterricht is int u && r.Fach.Length > 0 && r.Status is not ("entfall" or "vorgemerkt") &&
+            roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz));
+        foreach (var r in roh)
         {
             WebVertretung? v = r.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vx) ? vx : null;
             var betrifft = typ switch
             {
                 Elementtyp.Klasse => Enthaelt(r.Klassen, kurz),
-                Elementtyp.Lehrer => Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz)),
+                Elementtyp.Lehrer => Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz)) || Mitgekoppelt(r),
                 // Veranstaltung mit Raum: der Raum steht (bei älteren Paketen) nur in der Vertretung
                 Elementtyp.Raum => Enthaelt(r.Raeume, kurz) || (v != null && (Ci.Equals(v.Raum, kurz) || (r.Raeume.Count == 0 && r.Status != "entfall" && Ci.Equals(v.NeuerRaum, kurz)))),
                 _ => false,
@@ -178,7 +191,7 @@ public sealed class Plandienst
             if (i < 0) { einzel.Add(k); continue; }
             var ziel = einzel[i];
             var raeume = r.Raeume.Count == 0 ? ziel.Raeume
-                : r.Raeume.Select(x => ziel.Raeume.Any(w => Ci.Equals(w.K, x)) ? new Wert(x) : new Wert(x, ziel.Raeume.FirstOrDefault()?.K ?? "", true)).ToList();
+                : r.Raeume.Select(x => ziel.Raeume.FirstOrDefault(w => Ci.Equals(w.K, x)) ?? new Wert(x, ziel.Raeume.FirstOrDefault()?.K ?? "", true)).ToList();
             einzel[i] = r.Art == "Klausur"
                 ? ziel with { Status = "klausur", Art = "Klausur (vorgemerkt)", Text = r.Text, Raeume = raeume }
                 : ziel with { Status = ziel.Status == "regulaer" ? "geaendert" : ziel.Status, Art = "Raumänderung (vorgemerkt)", Raeume = raeume, Text = r.Text.Length > 0 && r.Text != "Raumbuchung" ? r.Text : ziel.Text };
@@ -216,27 +229,27 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Kopplungen: mehrere Zeilen desselben Unterrichts in derselben Stunde (z. B. drei Lehrkräfte) stehen auf einer Karte –
-    /// Fächer, Lehrkräfte, Klassen und Räume zusammengefasst. Entfall und abgegebene Stunden bleiben für sich.
+    /// Kopplungen: Stunden zur selben Zeit werden nur dann auf einer Karte zusammengefasst, wenn Fach UND Raum gleich sind –
+    /// dann stehen alle Lehrkräfte und Klassen auf der Karte. Gekoppelte Stunden mit unterschiedlichen Fächern (z. B. KR und ER)
+    /// oder in unterschiedlichen Räumen bleiben einzelne Karten. Entfall und abgegebene Stunden werden nur untereinander zusammengefasst.
     /// </summary>
-    private static List<Karte> Kopplungen(List<Karte> einzel)
+    internal static List<Karte> Kopplungen(List<Karte> einzel)
     {
         static string Gruppe(string status) => status is "regulaer" or "geaendert" or "offen" ? "laeuft" : status;
+        static string Raeume(Karte k) => string.Join(",", k.Raeume.Select(w => (w.K.Length > 0 ? w.K : w.Alt ?? "").ToLowerInvariant()).Where(x => x.Length > 0).Distinct().OrderBy(x => x, StringComparer.Ordinal));
         static List<Wert> Vereinigen(IEnumerable<Wert> l) => l.GroupBy(w => (w.K.ToLowerInvariant(), (w.Alt ?? "").ToLowerInvariant())).Select(g => g.First()).ToList();
         var res = new List<Karte>();
-        foreach (var g in einzel.GroupBy(k => k.Unterricht is int u ? $"{u}|{k.Von}|{Gruppe(k.Status)}" : Guid.NewGuid().ToString()))
+        foreach (var g in einzel.GroupBy(k => k.Unterricht is int && k.Fach.Length > 0
+                     ? $"{k.Datum}|{k.Von}|{k.Bis}|{Gruppe(k.Status)}|{k.Fach.ToLowerInvariant()}|{Raeume(k)}" : Guid.NewGuid().ToString()))
         {
             var liste = g.ToList();
-            if (liste.Count == 1 || liste[0].Unterricht is null) { res.AddRange(liste); continue; }
+            if (liste.Count == 1) { res.AddRange(liste); continue; }
             var f = liste[0];
-            var faecher = liste.Select(x => x.Fach).Where(x => x.Length > 0).Distinct(Ci).ToList();
             var texte = liste.Select(x => x.Text).Where(x => x.Length > 0).Distinct().ToList();
             res.Add(f with
             {
                 Status = liste.Any(x => x.Status == "offen") ? "offen" : liste.Any(x => x.Status == "geaendert") ? "geaendert" : f.Status,
-                Fach = string.Join(", ", faecher),
                 FachAlt = liste.Select(x => x.FachAlt).FirstOrDefault(x => !string.IsNullOrEmpty(x)),
-                FachName = faecher.Count > 1 ? string.Join(", ", liste.Select(x => x.FachName).Where(x => x.Length > 0).Distinct(Ci)) : f.FachName,
                 Klassen = Vereinigen(liste.SelectMany(x => x.Klassen)),
                 Lehrer = Vereinigen(liste.SelectMany(x => x.Lehrer)),
                 Raeume = Vereinigen(liste.SelectMany(x => x.Raeume)),
