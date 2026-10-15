@@ -13,7 +13,7 @@ function verlaufTabelle(liste, kollegium) {
 
 export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumParam, vonParam]) {
   const ich = kontext.ich;
-  kontext.titel(!ich.kollegium ? 'Hausaufgaben' : reiterParam === 'fehlzeiten' ? 'Fehlzeiten' : 'Klassenbuch');
+  kontext.titel(!ich.kollegium ? 'Hausaufgaben' : reiterParam === 'fehlzeiten' ? 'Fehlzeiten' : klasseParam && reiterParam !== 'uebersicht' ? 'Klassenbuch' : '');
   const el = await kontext.elemente();
   // ohne Angabe: eigene Klasse (Klassenleitung), sonst die erste
   const eigene = el.klassen.find(k => ich.element && (k.leitung ?? []).some(l => l.toLowerCase() === ich.element.toLowerCase()))?.kurz;
@@ -34,6 +34,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     return;
   }
 
+  if (!klasseParam || reiterParam === 'uebersicht') return uebersicht(seite, kontext, klasseParam && klasseParam !== '-' ? klasseParam : '');
   const reiter = ['woche', 'fehlzeiten', 'vermerke', 'verlauf'].includes(reiterParam) ? reiterParam : 'woche';
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   const ziel = (k, r, d = datum) => `#/klassenbuch/${encodeURIComponent(k ?? '')}/${r}/${d}`;
@@ -104,12 +105,31 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     const f = await holen(`/api/app/klassenbuch/fehlzeiten?klasse=${q}&von=${von}&bis=${datum}`);
     const namen = new Map(f.schueler.map(x => [x.id, `${x.name}, ${x.vorname}`]));
     let auswahl = null;
+    // Darstellungsmodus: neue Ansicht oder alte Liste (grau gestreift wie im alten Klassenbuch), je Gerät gemerkt
+    let modus = 'neu';
+    try { modus = localStorage.getItem('untplan:fehlzeiten-modus') === 'alt' ? 'alt' : 'neu'; } catch { /* privat */ }
     const zeichnen = () => {
       const eintraege = auswahl ? f.eintraege.filter(x => x.schuelerId === auswahl) : f.eintraege;
+      if (modus === 'alt') {
+        inhalt.innerHTML = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
+            <span>Zeitraum</span><input type="date" class="form-control form-control-sm" style="width:auto" data-von value="${von}"><span>bis</span>
+            <input type="date" class="form-control form-control-sm" style="width:auto" data-bis value="${datum}">
+            <select class="form-select form-select-sm" style="width:auto" data-schuelerwahl aria-label="Schüler*in"><option value="">- Alle -</option>${f.schueler.map(x => `<option value="${x.id}" ${auswahl === x.id ? 'selected' : ''}>${e(x.name)} ${e(x.vorname)}</option>`).join('')}</select>
+            <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Darstellung"><button type="button" class="btn btn-outline-secondary" data-modus="neu">Neue Ansicht</button><button type="button" class="btn btn-outline-secondary active" data-modus="alt">Alte Liste</button></div></div>
+          <div class="u-tabelle-karte p-3">${eintraege.length ? `<table class="alt-liste w-100"><thead><tr><th class="mitte">Auswahl<br><input type="checkbox" data-alle-wahl aria-label="Alle"></th><th>Schüler*innen</th><th>Klasse</th><th>Datum</th><th>Std.</th><th>Fach</th><th>Abwesenheitsgrund</th><th>Status</th><th>Text</th><th>Lehrkraft</th></tr></thead><tbody>
+            ${eintraege.map(x => `<tr><td class="mitte"><input type="checkbox" data-id="${x.id}" aria-label="auswählen"></td><td>${e(namen.get(x.schuelerId) ?? '?')}</td><td>${e(x.klasse)}</td><td>${e(datumKurz(x.datum))}</td><td class="mitte">${x.stunde}</td><td>${e(x.fach)}</td>
+              <td>${x.art === 'verspaetet' ? `verspätet ${x.minuten} min` : e(x.grund || 'fehlt')}</td><td>${e(x.status)}</td><td class="text">${e(x.bemerkung)}</td><td>${e(x.lehrer)}</td></tr>`).join('')}</tbody></table>
+            ${f.verwalten ? `<div class="d-flex gap-2 mt-3"><button type="button" class="sd-pille klein" data-status="entschuldigt">Entschuldigen</button><button type="button" class="sd-pille klein" data-status="unentschuldigt">Unentschuldigt</button><button type="button" class="sd-pille klein" data-status="offen">Offen</button>${f.verwalten ? '<button type="button" class="sd-pille klein" data-tage>Neu</button>' : ''}</div>` : ''}`
+            : leer('Keine Fehlzeiten im Zeitraum.')}</div>`;
+        binden();
+        inhalt.querySelector('[data-schuelerwahl]').onchange = ev => { auswahl = ev.target.value ? Number(ev.target.value) : null; zeichnen(); };
+        return;
+      }
       inhalt.innerHTML = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
           <span>Zeitraum</span><input type="date" class="form-control form-control-sm" style="width:auto" data-von value="${von}"><span>bis</span>
           <input type="date" class="form-control form-control-sm" style="width:auto" data-bis value="${datum}">
-          ${f.verwalten ? `<button type="button" class="btn btn-sm btn-primary ms-auto" data-tage>${icon('plus', 'me-1')}Fehlen eintragen (ganze Tage)</button>` : ''}</div>
+          <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Darstellung"><button type="button" class="btn btn-outline-secondary active" data-modus="neu">Neue Ansicht</button><button type="button" class="btn btn-outline-secondary" data-modus="alt">Alte Liste</button></div>
+          ${f.verwalten ? `<button type="button" class="btn btn-sm btn-primary" data-tage>${icon('plus', 'me-1')}Fehlen eintragen (ganze Tage)</button>` : ''}</div>
         ${!f.schueler.length ? alarm('secondary', 'Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen.') : `
         <div class="row g-3"><div class="col-xl-5"><div class="card"><div class="card-header">Übersicht je Schüler/in</div>
           <div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0"><thead><tr><th>Name</th><th class="text-end" title="Fehlstunden">Std.</th><th class="text-end">Tage</th>
@@ -130,6 +150,10 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
                 <td>${STATUS_BADGE[x.status] ?? ''}</td><td class="small text-body-secondary">${e(x.lehrer)}</td></tr>`).join('')}
               </tbody></table></div>` : `<div class="card-body py-0">${leer('Keine Fehlzeiten im Zeitraum.')}</div>`}
           </div></div></div>`}`;
+      binden();
+    };
+    const binden = () => {
+      inhalt.querySelectorAll('[data-modus]').forEach(b => b.onclick = () => { modus = b.dataset.modus; try { localStorage.setItem('untplan:fehlzeiten-modus', modus); } catch { /* privat */ } zeichnen(); });
       const neu = (v, b) => kontext.navigieren(`${ziel(klasse, 'fehlzeiten', b)}/${v}`);
       inhalt.querySelector('[data-von]').onchange = ev => neu(ev.target.value, datum);
       inhalt.querySelector('[data-bis]').onchange = ev => neu(von, ev.target.value);
@@ -231,4 +255,107 @@ function fehlenDialog(schueler, vorwahl, fertig) {
       fertig();
     } }],
   });
+}
+
+// ------------------------------------------------------------------ Übersicht wie im Original (UW-09)
+
+const MONATE_LANG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const WT = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+const tagLang = iso => { const d = new Date(iso + 'T12:00'); return `${WT[(d.getDay() + 6) % 7]} | ${d.getDate()}. ${MONATE_LANG[d.getMonth()]} ${d.getFullYear()}`; };
+
+/**
+ * Klassenbuch → Übersicht: oben Suche mit Element-Chip (eigene Lehrkraft oder Klasse), darunter je Tag die Stunden mit Lehrstoff,
+ * Abwesenheiten und Hausaufgaben. „Scrollen um die letzten 7 Tage zu laden“ holt ältere Tage nach.
+ */
+async function uebersicht(seite, kontext, klasse) {
+  const ich = kontext.ich;
+  const el = await kontext.elemente();
+  const sj = kontext.schuljahr;
+  let element = klasse ? { typ: 'klasse', kurz: klasse } : ich.element ? { typ: 'lehrer', kurz: ich.element } : el.klassen[0] ? { typ: 'klasse', kurz: el.klassen[0].kurz } : null;
+  const heute = heuteIso();
+  let bis = sj?.bis && sj.bis < heute ? sj.bis : heute;
+  const tage = [];
+  let filter = 'alle';
+
+  const w = kontext.werkzeug(`<div class="u-suche">${icon('suchen')}
+      ${element ? `<span class="u-chip-dunkel">${e(element.kurz)}<button type="button" data-chip-weg aria-label="${e(element.kurz)} entfernen"><i class="bi bi-x-lg"></i></button></span>` : ''}
+      <input type="search" data-suche placeholder="Klasse oder Lehrkraft" list="kb-elemente" aria-label="Klasse oder Lehrkraft suchen">
+      <button type="button" class="u-leeren" data-leeren title="Suche leeren" aria-label="Suche leeren"><i class="bi bi-x-lg"></i></button>
+      <span class="u-trenn"></span>
+      <select data-filter aria-label="Anzeigen"><option value="alle">Alle</option><option value="offen">Offen</option><option value="lehrstoff">Mit Lehrstoff</option></select></div>
+    <datalist id="kb-elemente">${el.klassen.map(k => `<option value="${e(k.kurz)}">Klasse</option>`).join('')}${el.lehrer.map(l => `<option value="${e(l.kurz)}">${e(l.name)}</option>`).join('')}</datalist>`);
+  seite.innerHTML = '<div class="kb-uebersicht"><button type="button" class="kb-mehr" data-mehr>Scrollen um die letzten 7 Tage zu laden</button><div data-tage></div></div>';
+  const ziel = seite.querySelector('[data-tage]');
+  const k2 = { ...kontext, nachSpeichern: () => kontext.navigieren(location.hash) };
+  const alle = [];
+
+  const zeichnen = () => {
+    alle.length = 0;
+    const sichtbar = tage.map(t => ({ ...t, stunden: t.stunden.filter(s => filter === 'alle' || (filter === 'offen' ? !s.lehrstoff || !s.geprueft : !!s.lehrstoff)) })).filter(t => t.stunden.length);
+    let letzteKw = null;
+    ziel.innerHTML = sichtbar.length ? sichtbar.map(t => {
+      const kw = t.kw !== letzteKw ? `KW ${t.kw}` : '';
+      letzteKw = t.kw;
+      return `<section class="kb-tag-gruppe"><div class="kb-tagkopf"><span class="kw">${kw}</span><span class="linie"></span>
+          <button type="button" class="kb-tagpille" data-zu="${t.datum}" aria-expanded="true">${e(tagLang(t.datum))} <i class="bi bi-chevron-down"></i></button><span class="linie"></span></div>
+        <div class="u-tabelle-karte kb-tagliste" data-tagliste="${t.datum}"><table class="u-tabelle"><thead><tr><th style="width:44px">h</th><th style="width:110px">Fach</th><th style="width:130px">Klassen</th><th>Lehrstoff</th><th style="width:210px">Abwesenheiten</th><th>Hausaufgaben</th></tr></thead><tbody>
+          ${t.stunden.map(s => { alle.push({ ...s, datum: t.datum }); const offen = s.abwesend - s.entschuldigt; return `<tr role="button" data-s="${alle.length - 1}" class="${s.status === 'entfall' ? 'entfall' : ''}">
+            <td class="fw-bold">${s.von === s.bis ? s.von : `${s.von}-${s.bis}`}</td><td>${e(s.fach)}</td><td>${s.klassen.map(e).join(',<br>')}</td>
+            <td class="kb-stoff" title="${e(s.lehrstoff)}">${e(s.lehrstoff)}</td>
+            <td>${s.geprueft || s.abwesend ? `<span class="kb-abwpille ${offen ? '' : 'ok'}"><b>${offen}</b><span>|</span><b>${s.entschuldigt}</b> Entschuldigt</span>` : ''}</td>
+            <td class="kb-stoff" title="${e(s.hausaufgaben)}">${e(s.hausaufgaben)}</td></tr>`; }).join('')}
+        </tbody></table></div></section>`;
+    }).join('') : `<div class="u-tabelle-karte">${leer('Im Zeitraum gibt es keine Stunden.', 'journal-text')}</div>`;
+    ziel.querySelectorAll('[data-zu]').forEach(b => b.onclick = () => {
+      const l = ziel.querySelector(`[data-tagliste="${b.dataset.zu}"]`);
+      l.classList.toggle('d-none');
+      b.setAttribute('aria-expanded', String(!l.classList.contains('d-none')));
+    });
+    ziel.querySelectorAll('[data-s]').forEach(tr => tr.onclick = () => {
+      const s = alle[Number(tr.dataset.s)];
+      const karten = alle.map(x => ({ datum: x.datum, von: x.von, bis: x.bis, beginn: x.beginn, ende: x.ende, status: x.status, fach: x.fach, fachName: x.fach, art: '', text: '',
+        klassen: x.klassen.map(k => ({ k })), lehrer: x.lehrer.map(k => ({ k })), raeume: x.raeume.map(k => ({ k })), unterricht: x.unterricht }));
+      karteDialog(karten[alle.indexOf(s)], { ...k2, liste: karten });
+    });
+  };
+
+  let laedt = false;
+  const laden = async (erst = false) => {
+    if (!element || laedt) return;
+    laedt = true;
+    const hoeheVorher = document.documentElement.scrollHeight;
+    try {
+      const r = await holen(`/api/app/klassenbuch/uebersicht?bis=${bis}&tage=7&${element.typ}=${encodeURIComponent(element.kurz)}`);
+      tage.unshift(...r.tage.slice().reverse());
+      bis = plusTage(r.von, -1);
+      zeichnen();
+      if (erst) window.scrollTo(0, document.documentElement.scrollHeight);
+      else window.scrollTo(0, document.documentElement.scrollHeight - hoeheVorher);
+    } catch (err) { kontext.fehler(err); }
+    laedt = false;
+    if (sj?.von && bis < sj.von) seite.querySelector('[data-mehr]').remove();
+  };
+  if (!element) { ziel.innerHTML = leer('Bitte eine Klasse oder Lehrkraft wählen.'); return; }
+  await laden(true);
+  if (tage.length < 3) await laden();
+  seite.querySelector('[data-mehr]')?.addEventListener('click', () => laden());
+  const beimScrollen = () => {
+    if (!document.body.contains(seite) || location.hash.split('/')[1] !== 'klassenbuch') { window.removeEventListener('scroll', beimScrollen); return; }
+    if (window.scrollY < 40) laden();
+  };
+  setTimeout(() => window.addEventListener('scroll', beimScrollen, { passive: true }), 400);
+
+  const wechseln = kurz => {
+    const k = el.klassen.find(x => x.kurz.toLowerCase() === kurz.toLowerCase());
+    const l = el.lehrer.find(x => x.kurz.toLowerCase() === kurz.toLowerCase());
+    if (k) kontext.navigieren(`#/klassenbuch/${encodeURIComponent(k.kurz)}/uebersicht`);
+    else if (l) { element = { typ: 'lehrer', kurz: l.kurz }; tage.length = 0; bis = heute; w.querySelector('.u-chip-dunkel')?.remove(); w.querySelector('[data-suche]').insertAdjacentHTML('beforebegin', `<span class="u-chip-dunkel">${e(l.kurz)}</span>`); laden(true); }
+    else toast('Keine passende Klasse oder Lehrkraft.', true);
+  };
+  const suche = w.querySelector('[data-suche]');
+  suche.onkeydown = ev => { if (ev.key === 'Enter' && suche.value.trim()) { ev.preventDefault(); wechseln(suche.value.trim()); } };
+  suche.onchange = () => { if (suche.value.trim()) wechseln(suche.value.trim()); };
+  w.querySelector('[data-chip-weg]')?.addEventListener('click', () => kontext.navigieren('#/klassenbuch'));
+  w.querySelector('[data-leeren]').onclick = () => { suche.value = ''; };
+  w.querySelector('[data-filter]').onchange = ev => { filter = ev.target.value; zeichnen(); };
 }

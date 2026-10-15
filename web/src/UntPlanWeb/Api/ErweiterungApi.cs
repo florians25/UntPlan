@@ -83,7 +83,7 @@ public static class ErweiterungApi
 
         // ---------------------------------------------------------------- Startseite „Heute“
 
-        api.MapGet("/start", (HttpContext c, Paketdienst p, Plandienst plan, Vertretungsplandienst vp, Klassenbuchdienst kb, Mitteilungsdienst m, Verwaltungsdienst vw, Uhr uhr) =>
+        api.MapGet("/start", (HttpContext c, Paketdienst p, Plandienst plan, Vertretungsplandienst vp, Klassenbuchdienst kb, Mitteilungsdienst m, Verwaltungsdienst vw, Rueckmeldungsdienst r, Uhr uhr) =>
         {
             var b = Ich(c);
             var s = p.Aktuell;
@@ -91,19 +91,33 @@ public static class ErweiterungApi
             var typ = b.KlassenKuerzel != null ? Elementtyp.Klasse : Elementtyp.Lehrer;
             var element = b.KlassenKuerzel ?? b.LehrerKuerzel;
             var stunden = new List<object>();
-            if (s != null && element != null && !plan.Frei(s, heute).Frei)
+            // „Mein nächster Unterricht“: heute bzw. der nächste Unterrichtstag mit Stunden (höchstens zwei Wochen voraus)
+            var tag = heute;
+            List<Karte> karten = new();
+            if (s != null && element != null)
+                for (var d = heute; d <= heute.AddDays(14); d = d.AddDays(1))
+                {
+                    if (plan.Frei(s, d).Frei) continue;
+                    karten = kb.Anreichern(plan.Karten(s, d, typ, element, r.Vorgemerkt(d)), b.Kollegium);
+                    tag = d;
+                    if (karten.Count > 0) break;
+                }
+            if (s != null && karten.Count > 0)
             {
-                var eintraege = kb.Zeitraum(heute, heute);
-                foreach (var k in plan.Karten(s, heute, typ, element).OrderBy(k => k.Von))
+                var eintraege = kb.Zeitraum(tag, tag);
+                foreach (var k in karten.OrderBy(k => k.Von).ThenBy(k => k.Status == "entfall" ? 0 : 1))
                     for (var n = k.Von; n <= k.Bis; n++)
                     {
                         var z = s.Paket.Zeitraster.Stunden.FirstOrDefault(x => x.Nr == n);
                         var e = k.Unterricht is int u ? eintraege.FirstOrDefault(x => x.Unterricht == u && x.Stunde == k.Von) : null;
+                        var hw = k.Unterricht is int u2 ? kb.HausaufgabenDerStunde(tag, k.Von, k.Bis, u2) : new List<Hausaufgabe>();
                         stunden.Add(new
                         {
                             stunde = n, beginn = z?.Beginn ?? k.Beginn, ende = z?.Ende ?? k.Ende, k.Status, k.Art, k.Text, k.Fach, k.FachName, k.FachAlt,
-                            klassen = k.Klassen, lehrer = k.Lehrer, raeume = k.Raeume, k.Unterricht, von = k.Von, bis = k.Bis, k.Farbe,
-                            lehrstoff = b.Kollegium || e is null ? e?.Thema ?? "" : e.Thema, hausaufgabe = e?.Hausaufgabe ?? "", geprueft = e?.Anwesenheit != null,
+                            klassen = k.Klassen, lehrer = k.Lehrer, raeume = k.Raeume, k.Unterricht, von = k.Von, bis = k.Bis, k.Farbe, k.Gruppe, k.Zusaetzlich,
+                            k.NotizSchueler, notizLehrer = b.Kollegium ? k.NotizLehrer : "", k.HausaufgabeFaellig,
+                            lehrstoff = e?.Thema ?? "", hausaufgabe = string.Join(" · ", hw.Select(h => h.Text).DefaultIfEmpty(e?.Hausaufgabe ?? "").Where(x => x.Length > 0)),
+                            geprueft = e?.Anwesenheit != null, online = e?.Online == true,
                         });
                     }
             }
@@ -112,6 +126,7 @@ public static class ErweiterungApi
             {
                 datum = Plandienst.Iso(heute),
                 wochentag = Plandienst.Wochentage[Plandienst.TagIndex(heute)],
+                tag = Plandienst.Iso(tag),
                 letzteAnmeldung = b.VorherigeAnmeldung,
                 planAktualisiert = s?.Empfangen,
                 nachrichten = ansicht["nachrichtenAnzeigen"].ValueKind == JsonValueKind.False ? new List<Tagesnachricht>() : vp.NachrichtenDetails(s, heute, b.Kollegium, "startseite"),
@@ -320,8 +335,8 @@ public static class ErweiterungApi
             return Results.Json(art switch
             {
                 "klassen" => s is null ? Leer2() : s.Paket.Elemente.Klassen.OrderBy(k => k.Kurz, de).Select(k => new { k.Kurz, k.Name, k.Jahrgang, leitung = string.Join(", ", k.Klassenleitung),
-                    schueler = s.Paket.Elemente.Schueler.Count(x => x.Klasse.Equals(k.Kurz, StringComparison.OrdinalIgnoreCase)) }),
-                "schueler" => s is null ? Leer2() : s.Paket.Elemente.Schueler.OrderBy(x => x.Klasse, de).ThenBy(x => x.Name, de).ThenBy(x => x.Vorname, de).Select(x => new { x.Id, x.Name, x.Vorname, x.Klasse }),
+                    schueler = s.Schueler.Count(x => x.Klasse.Equals(k.Kurz, StringComparison.OrdinalIgnoreCase)) }),
+                "schueler" => s is null ? Leer2() : s.Schueler.OrderBy(x => x.Klasse, de).ThenBy(x => x.Name, de).ThenBy(x => x.Vorname, de).Select(x => new { x.Id, x.Name, x.Vorname, x.Klasse }),
                 "lehrer" => s is null ? Leer2() : s.Paket.Elemente.Lehrer.OrderBy(l => l.Kurz, de).Select(l => new { l.Kurz, l.Name, l.Vorname, l.Email }),
                 "faecher" => s is null ? Leer2() : s.Paket.Elemente.Faecher.OrderBy(f => f.Kurz, de).Select(f => new { f.Kurz, f.Name, f.Farbe }),
                 "raeume" => s is null ? Leer2() : s.Paket.Elemente.Raeume.OrderBy(r => r.Kurz, de).Select(r => new { r.Kurz, r.Name, r.Buchbar }),

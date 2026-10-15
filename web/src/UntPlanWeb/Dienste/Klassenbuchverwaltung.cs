@@ -54,7 +54,7 @@ public sealed class Klassenbuchverwaltung
 
     private string Jetzt => _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm");
 
-    private static Dictionary<int, WebSchueler> Schueler(Stand s) => s.Paket.Elemente.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+    private static Dictionary<int, WebSchueler> Schueler(Stand s) => s.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
     private static string Name(Dictionary<int, WebSchueler> d, int id) => d.TryGetValue(id, out var x) ? $"{x.Name} {x.Vorname}".Trim() : $"#{id}";
 
     private static void Klassenleitung(Benutzer b, Stand s, string klasse)
@@ -63,7 +63,7 @@ public sealed class Klassenbuchverwaltung
     }
 
     private static WebSchueler SchuelerPruefen(Stand s, int id) =>
-        s.Paket.Elemente.Schueler.FirstOrDefault(x => x.Id == id) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
+        s.Schueler.FirstOrDefault(x => x.Id == id) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
 
     // ------------------------------------------------------------------------------------------ Offene Stunden
 

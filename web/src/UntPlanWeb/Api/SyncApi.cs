@@ -69,7 +69,7 @@ public static class SyncApi
             if (Pruefen(schule, ctx, e) is { } fehler) return fehler;
             if (Zeitraum(ab, bis) is not { } z) return Fehler(400, "Parameter ab (und bis) im Format yyyy-MM-dd erwartet, höchstens 400 Tage.");
             var (von, ende) = z;
-            var namen = (p.Aktuell?.Paket.Elemente.Schueler ?? new()).ToDictionary(x => x.Id, x => $"{x.Name}, {x.Vorname}");
+            var namen = (p.Aktuell?.Schueler ?? new()).ToDictionary(x => x.Id, x => $"{x.Name}, {x.Vorname}");
             return Results.Json(kb.FehlzeitenZeitraum(von, ende).Select(f => new WebFehlzeit
             {
                 Id = f.Id, Datum = f.Datum, Stunde = f.Stunde, Unterricht = f.Unterricht, SchuelerId = f.SchuelerId, Schueler = namen.GetValueOrDefault(f.SchuelerId, ""),

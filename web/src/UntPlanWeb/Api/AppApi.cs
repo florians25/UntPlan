@@ -20,11 +20,12 @@ public static class AppApi
     public sealed record AnwesenheitDaten(DateOnly Datum, int Stunde, int Unterricht, List<AnwesenheitEintrag>? Eintraege);
     public sealed record FehlenDaten(int SchuelerId, DateOnly Von, DateOnly Bis, string? Status, string? Bemerkung);
     public sealed record FehlzeitStatusDaten(List<int> Ids, string Status);
-    public sealed record VermerkDaten(DateOnly Datum, string Klasse, int? SchuelerId, string? Art, string Text);
+    public sealed record VermerkDaten(DateOnly Datum, string Klasse, int? SchuelerId, string? Art, string Text, string? Zeit = null);
     public sealed record HausaufgabeDaten(DateOnly Datum, int Stunde, int Unterricht, string? Text, DateOnly? Faellig, string? Bemerkung);
     public sealed record HausaufgabeAenderDaten(string? Text, DateOnly? Faellig, string? Bemerkung, bool? Erledigt);
     public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis);
-    public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null);
+    public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null,
+        string? Lehrform = null, string? Anmerkung = null);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
 
@@ -283,7 +284,7 @@ public static class AppApi
             return Results.Json(new { eintrag, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
         });
         api.MapPut("/klassenbuch/stunde", (KlassenbuchDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
-            Results.Json(kb.Speichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? "", d.Hausaufgabe ?? "", d.Faellig, d.Notiz ?? "", d.NotizSchueler)));
+            Results.Json(kb.Speichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? "", d.Hausaufgabe ?? "", d.Faellig, d.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung)));
         // Hausaufgaben einer Stunde (Liste wie im Original) und die in dieser Stunde fälligen Hausaufgaben
         api.MapGet("/klassenbuch/hausaufgabenliste", (DateOnly datum, int stunde, int unterricht, int? bis, string? fach, string? klassen, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
@@ -358,7 +359,7 @@ public static class AppApi
             return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, vermerke = kb.Vermerke(klasse, DateOnly.TryParse(von, out var v) ? v : uhr.Heute.AddDays(-90), DateOnly.TryParse(bis, out var bi) ? bi : uhr.Heute.AddDays(7)) });
         });
         api.MapPost("/klassenbuch/vermerke", (VermerkDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
-            Results.Json(kb.VermerkAnlegen(Ich(c), Paket(p), d.Datum, d.Klasse ?? "", d.SchuelerId, d.Art ?? "Vermerk", d.Text ?? "")));
+            Results.Json(kb.VermerkAnlegen(Ich(c), Paket(p), d.Datum, d.Klasse ?? "", d.SchuelerId, d.Art ?? "Vermerk", d.Text ?? "", d.Zeit)));
         api.MapDelete("/klassenbuch/vermerke/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(new { ok = kb.VermerkLoeschen(Ich(c), Paket(p), id) }));
         api.MapGet("/klassenbuch/schueler", (string klasse, HttpContext c, Paketdienst p) =>

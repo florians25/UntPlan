@@ -237,7 +237,14 @@ public sealed record WebTermin
     public List<string> Raeume { get; init; } = new();
 }
 
-public sealed record WebTagestext(string Datum, int GueltigTage, string Text, string Fuer, List<string> Elemente);
+public sealed record WebTagestext(string Datum, int GueltigTage, string Text, string Fuer, List<string> Elemente)
+{
+    /// <summary>
+    /// Formatierter Text als HTML (fett, kursiv, unterstrichen, Farbe, Absätze), optional. UntPlanWeb zeigt nur eine Whitelist
+    /// (b, i, u, span mit style="color:…", br, p) an und fällt sonst auf <see cref="Text"/> zurück. Ältere Pakete: null.
+    /// </summary>
+    public string? TextHtml { get; init; }
+}
 public sealed record WebFerien(string Name, string Von, string Bis, bool Feiertag);
 public sealed record WebAufsicht(string Gang, int Tag, int NachStunde, string Lehrer, string Wochen);
 

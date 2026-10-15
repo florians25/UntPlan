@@ -79,7 +79,7 @@ export function kalenderBinden(knopf, gewaehltMontag, beiWahl) {
 
 /** Einstellungen der Legende (je Gerät). */
 export function planEinstellungen() {
-  const w = { symbole: true, abwesenheiten: true, zeiten: true };
+  const w = { symbole: true, abwesenheiten: true, zeiten: true, aufsichten: 'normal' };
   try { Object.assign(w, JSON.parse(localStorage.getItem('untplan:planeinstellungen') ?? '{}')); } catch { /* privat */ }
   try { const z = localStorage.getItem('untplan:kartenzeiten'); if (z !== null && !localStorage.getItem('untplan:planeinstellungen')) w.zeiten = z === '1'; } catch { /* privat */ }
   return w;
@@ -99,6 +99,8 @@ export function legendeHtml(aus, einst, mitDruck = true) {
         <button type="button" class="eintrag" data-einst="zeiten" role="menuitemcheckbox" aria-checked="${einst.zeiten}">${haken(einst.zeiten)}Uhrzeiten anzeigen</button>
         <div class="kopf">Anzeigen</div>
         <button type="button" class="eintrag" data-einst="abwesenheiten" role="menuitemcheckbox" aria-checked="${einst.abwesenheiten}">${haken(einst.abwesenheiten)}Abwesenheiten</button>
+        <div class="kopf">Pausenaufsichten</div>
+        ${[['normal', 'Normal'], ['halbiert', 'Halbiert (Blöcke durchgängig)'], ['aus', 'Ausgeblendet']].map(([w, t]) => `<button type="button" class="eintrag" data-aufsichten="${w}" role="menuitemradio" aria-checked="${(einst.aufsichten ?? 'normal') === w}">${haken((einst.aufsichten ?? 'normal') === w)}${t}</button>`).join('')}
         <div class="kopf">Andere</div>
         ${mitDruck ? '<button type="button" class="eintrag ohne" data-drucken role="menuitem">Drucken</button>' : ''}
         <button type="button" class="eintrag ohne" data-link role="menuitem">Öffentlichen Link kopieren <i class="bi bi-copy ms-auto text-body-tertiary"></i></button>
@@ -158,6 +160,12 @@ export function legendeBinden(wurzel, aus, einst, neuZeichnen) {
   wurzel.querySelectorAll('[data-einst]').forEach(b => b.onclick = ev => {
     ev.stopPropagation();
     einst[b.dataset.einst] = !einst[b.dataset.einst];
+    einstellungenSpeichern(einst);
+    neuZeichnen(true);
+  });
+  wurzel.querySelectorAll('[data-aufsichten]').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    einst.aufsichten = b.dataset.aufsichten;
     einstellungenSpeichern(einst);
     neuZeichnen(true);
   });
@@ -235,6 +243,11 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
     zuDatum(n === 0 ? heuteIso() : plusTage(mo, n));
   });
   kalenderBinden(seite.querySelector('[data-kalender]'), mo, zuDatum);
+  // Kopf (Elementwahl, Zeitraum, Heute) und Tageskopf bleiben beim Scrollen oben stehen: Höhe der Leiste für den Tageskopf
+  const leiste = seite.querySelector('.planleiste');
+  const kopfHoehe = () => seite.style.setProperty('--plankopf', `${leiste.offsetHeight}px`);
+  kopfHoehe();
+  if (window.ResizeObserver) new ResizeObserver(kopfHoehe).observe(leiste);
   const tasten = ev => {
     if (!document.body.contains(seite) || !location.hash.startsWith('#/plan')) { document.removeEventListener('keydown', tasten); return; }
     if (!ev.altKey || ev.target.closest('input, textarea, select') || istMein) return;
@@ -253,7 +266,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       <div class="u-plantitel"><h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` – ${e(langname(plan))}` : ''}</h2>
         <span class="text-body-secondary small ms-2">${wochenText(mo)}</span></div>
       ${tagAuswahl(plan, gewaehlt)}
-      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: einst.zeiten })}
+      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: einst.zeiten, aufsichten: einst.aufsichten })}
       ${legendeHtml(aus, einst)}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext, typ);

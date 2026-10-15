@@ -268,6 +268,21 @@ public sealed class Db
         INSERT INTO hausaufgaben_eintraege (datum, stunde, unterricht, klassen, fach, lehrer, text, faellig, erstellt, benutzer_id)
             SELECT datum, stunde, unterricht, klassen, fach, lehrer, hausaufgabe, faellig, geaendert, benutzer_id FROM klassenbuch WHERE hausaufgabe <> '';
         """,
+
+        // 6: Raumbuchung zu einem Unterricht (reine Raumänderung), Lehrform/Anmerkung zum Lehrstoff, Uhrzeit von Klassenbucheinträgen,
+        //    Schülerverwaltung in UntPlanWeb (Änderungen und neue Schüler*innen ergänzen die Liste aus UntPlan) – nur Standard-SQL
+        """
+        ALTER TABLE rueckmeldungen ADD COLUMN unterricht INTEGER;
+        ALTER TABLE klassenbuch ADD COLUMN lehrform VARCHAR(100) NOT NULL DEFAULT '';
+        ALTER TABLE klassenbuch ADD COLUMN anmerkung VARCHAR(1000) NOT NULL DEFAULT '';
+        ALTER TABLE vermerke ADD COLUMN zeit VARCHAR(5) NOT NULL DEFAULT '';
+        CREATE TABLE schueler_daten (
+            id INTEGER NOT NULL PRIMARY KEY, vorname VARCHAR(100) NOT NULL DEFAULT '', name VARCHAR(100) NOT NULL DEFAULT '', klasse VARCHAR(50) NOT NULL DEFAULT '',
+            geschlecht VARCHAR(1) NOT NULL DEFAULT '', geburtsdatum VARCHAR(10) NOT NULL DEFAULT '', email VARCHAR(200) NOT NULL DEFAULT '',
+            bemerkung VARCHAR(1000) NOT NULL DEFAULT '', eigen INTEGER NOT NULL DEFAULT 0, geloescht INTEGER NOT NULL DEFAULT 0,
+            geaendert VARCHAR(30) NOT NULL DEFAULT '', benutzer_id INTEGER
+        );
+        """,
     };
 
     private static void Migrieren(SqliteConnection c)

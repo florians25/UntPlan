@@ -1097,3 +1097,262 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
   .u-kalender { left: 0; transform: none; width: min(360px, calc(100vw - 2rem)); }
   .u-nav-punkt.aktiv, .u-nav-punkt:hover { width: 100%; }
 }
+
+/* ================================================================== Überarbeitung nach dem Anforderungskatalog (UW-03 … UW-17) */
+
+/* UW-03: Die Navigation bleibt sichtbar und bedienbar – kein Overlay und kein Schatten über der Leiste.
+   Stundendetails und Dialoge beginnen rechts der Navigation; der Dialoghintergrund lässt die Leiste frei. */
+@media (min-width: 992px) {
+  .stundendetails.modal { left: var(--u-leiste); width: auto; right: 0; }
+  body.leiste-zu .stundendetails.modal { left: var(--u-leiste-zu); }
+  .stundendetails .modal-dialog, body.leiste-zu .stundendetails .modal-dialog, .u-app.zu ~ .stundendetails .modal-dialog { left: 0; position: absolute; }
+  .modal:not(.stundendetails) { left: var(--u-leiste); width: auto; right: 0; }
+  body.leiste-zu .modal:not(.stundendetails) { left: var(--u-leiste-zu); }
+  .modal-backdrop { left: var(--u-leiste); width: auto; right: 0; }
+  body.leiste-zu .modal-backdrop { left: var(--u-leiste-zu); }
+}
+.stundendetails .modal-content { box-shadow: none; border-left: 1px solid #e5e8ec; position: relative; }
+.u-leiste { box-shadow: 1px 0 0 #e5e8ec; }
+@media (max-width: 991.98px) {
+  /* Telefon: Details unter der Kopfleiste, ausgeklapptes Menü liegt über den Details */
+  .stundendetails.modal, .stundendetails .modal-dialog { top: var(--u-kopf) !important; height: calc(100% - var(--u-kopf)) !important; }
+  .u-kopfleiste { z-index: 1056; }
+  .u-app.offen .u-leiste { z-index: 1062; }
+  .u-app.offen .u-schleier { z-index: 1061; }
+}
+
+/* UW-04: Schrift überall aus --u-schrift (AvenirNextPro, sonst Nunito Sans) – auch in Dialogen, Tabellen und Eingaben */
+button, input, select, textarea, .modal, .tooltip, .dropdown-menu, .u-hover-label { font-family: var(--u-schrift); }
+
+/* UW-17: Hover nur auf Labels und Symbolen unten rechts – grünes Label „B070 → C197“ über dem geänderten Wert */
+.std .lbl[data-hover], .std .ecke [data-hover] { cursor: default; }
+.std .lbl[data-hover]:hover { box-shadow: 0 0 0 1px #fff, 0 0 0 2px var(--u-gruen-label); }
+.u-hover-label {
+  position: fixed; z-index: 2000; display: none; pointer-events: none; background: #1d9a5c; color: #fff; font-weight: 700; font-size: 15px; line-height: 1.2;
+  padding: 7px 12px; border-radius: 3px; box-shadow: 0 2px 8px rgba(0, 5, 10, .25); white-space: pre-line; max-width: 360px;
+}
+.u-hover-label.dunkel { background: #5c6670; font-size: 13px; font-weight: 600; padding: 6px 10px; }
+
+/* UW-16: Ferien leicht abgerundet; Aufsichten ohne Trennlinie und ohne Aufschrift, Schrift wie der oberste Wert einer Karte */
+.tt-ferien { border-radius: 6px; inset: 1px 3px; }
+.tt-spalte.frei .tt-linie, .tt-spalte.frei .tt-pause { display: none; }
+.tt-pause { border-top: 0; }
+.aufsicht { font-size: 14px; font-weight: 700; color: #24323d; border-radius: 4px; }
+.tt-liste .aufsicht { font-size: 14px; }
+
+/* UW-11/12: Kopf der Stundendetails – Links auf die Stundenpläne, Änderungen ohne Label (alter Wert grau durchgestrichen) */
+.sd-link { color: inherit; text-decoration: none; }
+.sd-link:hover, .sd-link:focus-visible { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; color: inherit; }
+.sd-alt { color: #b3bcc4; text-decoration-color: #b3bcc4; }
+.sd-pfeil { color: var(--u-titel); margin: 0 .15rem; }
+.sd-zeile .lbl { background: none; color: inherit; padding: 0; font-weight: inherit; }
+.sd-badge { margin-left: 0; font-size: .64rem; padding: .12rem .6rem; align-self: center; letter-spacing: .03em; }
+.sd-badge.voll { background: #5c6670; border-color: #5c6670; color: #fff; }
+
+/* UW-13: Raumbuchung am Desktop – Raum-Chip mit Menü, Plus für einen weiteren Raum, Auswahlliste */
+.sd-raeume { align-items: center; }
+.sd-raumchip { position: relative; }
+.sd-chipknopf { border: 0; background: #eef1f4; color: var(--u-titel); border-radius: 999px; min-width: 64px; height: 40px; padding: 0 18px; font-weight: 700; font-size: .95rem; }
+.sd-chipknopf:hover, .sd-chipknopf[aria-expanded=true] { background: #e2e7eb; }
+.sd-raum-plus { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid #8a96a1; background: #fff; color: #5b6770; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; padding: 0; }
+.sd-raum-plus:hover { border-color: var(--u-akzent); color: var(--u-akzent); }
+.sd-raummenue { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 130px; background: #fff; border-radius: 4px; box-shadow: 0 4px 16px rgba(0, 5, 10, .18); padding: 4px 0; }
+.sd-raummenue button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 16px; font-weight: 600; color: var(--u-titel); font-size: .95rem; }
+.sd-raummenue button:hover, .sd-raummenue button:focus-visible { background: #e9edf0; }
+.sd-raumwahl { max-width: 900px; margin: 0 auto; }
+.sd-raumwahl h3 { font-size: 1.6rem; font-weight: 400; color: var(--u-text); margin: 0 0 1.4rem; }
+.sd-raumsuche { display: flex; align-items: center; gap: 10px; background: #f3f5f7; border-radius: 999px; height: 38px; padding: 0 16px; margin-bottom: .7rem; }
+.sd-raumsuche .bi { color: var(--u-grau); }
+.sd-raumsuche input { border: 0; background: transparent; outline: 0; flex: 1; font-size: .9rem; color: var(--u-titel); }
+.sd-raumfilter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.2rem; }
+.sd-filterpille { border: 1.5px solid #9aa5ae; background: #fff; color: var(--u-titel); border-radius: 999px; height: 30px; padding: 0 14px; font-size: .85rem; font-weight: 600; display: inline-flex; align-items: center; }
+.sd-filterpille.an { background: #5c6670; border-color: #5c6670; color: #fff; }
+.sd-filterpille.wahl { padding: 0; position: relative; }
+.sd-filterpille.wahl select { appearance: none; border: 0; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23414d55' stroke-width='1.5'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 10px center / 13px; height: 100%; padding: 0 30px 0 14px; font-weight: 600; font-size: .85rem; color: inherit; border-radius: 999px; outline: 0; cursor: pointer; }
+.sd-filterpille.wahl.an select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E"); }
+.sd-raumliste { list-style: none; margin: 0; padding: 0; }
+.sd-raumliste li { border-bottom: 1px solid #e5e8ec; }
+.sd-raumzeile { display: flex; align-items: center; gap: 18px; width: 100%; border: 0; background: none; padding: 14px 16px 14px 8px; text-align: left; color: var(--u-titel); font-size: .9rem; }
+.sd-raumzeile:hover, .sd-raumzeile.gewaehlt { background: #f3f5f7; }
+.sd-raumzeile .u-sym { width: 22px; height: 22px; color: #8a96a1; }
+.sd-raumzeile .name { flex: 1; font-weight: 600; }
+.sd-raumzeile .name small { display: block; font-weight: 400; color: var(--u-grau-2); font-size: .78rem; }
+.sd-raumzeile .radio { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #9aa5ae; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.sd-raumzeile.gewaehlt .radio { border-color: var(--u-akzent); }
+.sd-raumzeile.gewaehlt .radio::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--u-akzent); }
+.sd-raumleer { padding: 1.2rem .5rem; color: var(--u-grau); font-size: .9rem; }
+
+/* UW-10: Dialoge Lehrstoff, Abwesenheit, Klassenbucheintrag (alte Klassenbuch-Fenster über den abgedunkelten Details) */
+.sd-overlay { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; background: rgba(36, 50, 61, .45); display: flex; align-items: flex-start; justify-content: center; padding: 28px 12px; overflow-y: auto; }
+.sd-altdialog { background: #fff; border: 1px solid #9cb6d3; box-shadow: 0 6px 24px rgba(0, 5, 10, .3); font-size: 12px; color: #24323d; }
+.sd-altdialog-kopf { display: flex; align-items: center; justify-content: space-between; background: linear-gradient(#e6f0fb, #c8dcf2); border-bottom: 1px solid #9cb6d3; padding: 3px 8px 3px 8px; color: #1e3f66; font-size: 12.5px; font-weight: 600; }
+.sd-altdialog-kopf button { border: 0; background: none; color: #1e3f66; font-size: 17px; line-height: 1; padding: 0 2px; }
+.sd-altdialog-rumpf { padding: 10px 12px 10px; }
+.ad-kopf { display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; margin: 0 0 10px; }
+.ad-kopf dt { font-weight: 700; }
+.ad-kopf dd { margin: 0; }
+.ad-feld { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; font-size: 11.5px; color: #24323d; flex: 1; min-width: 0; }
+.ad-feld input, .ad-feld select, .ad-feld textarea { font-size: 12px; border: 1px solid #a8b3bd; border-radius: 1px; padding: 2px 4px; min-height: 22px; color: #24323d; background: #fff; width: 100%; }
+.ad-feld textarea { resize: vertical; }
+.ad-feld input:focus, .ad-feld select:focus, .ad-feld textarea:focus { outline: 1px solid #3b78c2; border-color: #3b78c2; }
+.ad-feld input:disabled, .ad-feld input[readonly] { background: #f3f5f7; color: #67747e; }
+.ad-feld select[multiple] { padding: 0; }
+.ad-reihe { display: flex; gap: 10px; }
+.ad-reihe .ad-feld.breit { flex: 1.6; }
+.ad-liste { width: 100%; border-collapse: separate; border-spacing: 1px; font-size: 11.5px; }
+.ad-liste td { padding: 1px 5px; white-space: nowrap; }
+.ad-liste tr:nth-child(odd) td { background: #dfe3e9; }
+.ad-liste td.text { max-width: 170px; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+.ad-liste td.leer { color: #67747e; background: none !important; }
+.ad-liste button { border: 0; background: none; padding: 0; line-height: 1; }
+.ad-liste img { width: 14px; height: 14px; }
+.ad-info { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11.5px; }
+.ad-info img { width: 18px; height: 14px; object-fit: contain; }
+.ad-zeichen { font-size: 11px; margin: -2px 0 8px; }
+.ad-zeichen input { width: 44px; font-size: 11px; border: 1px solid #a8b3bd; padding: 0 3px; }
+.ad-knoepfe { display: flex; gap: 6px; margin-top: 10px; }
+.ad-pille { border: 1.5px solid #9aa5ae; background: #fff; color: #24323d; border-radius: 999px; padding: 3px 14px; font-size: 12px; font-weight: 600; }
+.ad-pille:hover { border-color: #3b78c2; color: #1e3f66; }
+.ad-fuss { margin-top: 10px; font-size: 10.5px; color: #414d55; line-height: 1.5; }
+
+/* Stundenplan: obere Leiste (Elementwahl, Zeitraum, Heute) und Tageskopf Mo–Fr bleiben beim Scrollen oben stehen, mit leichtem Schatten */
+[data-ansicht="plan"] { --plan-grund: #f4f5f7; --plankopf: 58px; --plan-oben: 0px; }
+[data-ansicht="plan"] .planleiste {
+  position: sticky; top: var(--plan-oben); z-index: 20; background: var(--plan-grund); margin-top: -28px; padding-top: 14px; padding-bottom: 4px;
+  box-shadow: -32px 0 0 var(--plan-grund), 32px 0 0 var(--plan-grund), -32px -20px 0 var(--plan-grund), 32px -20px 0 var(--plan-grund);
+}
+[data-ansicht="plan"] .tt > .tt-tag, [data-ansicht="plan"] .tt > .tt-ecke:first-child {
+  position: sticky; top: calc(var(--plan-oben) + var(--plankopf)); z-index: 19; background: var(--plan-grund); padding-top: 4px;
+  box-shadow: -8px 0 0 var(--plan-grund), 8px 0 0 var(--plan-grund), 0 10px 10px -10px rgba(0, 5, 10, .22);
+}
+@media (max-width: 991.98px) { [data-ansicht="plan"] { --plan-oben: var(--u-kopf); } [data-ansicht="plan"] .planleiste { margin-top: -1rem; padding-top: .5rem; } }
+@media print { [data-ansicht="plan"] .planleiste, [data-ansicht="plan"] .tt > .tt-tag, [data-ansicht="plan"] .tt > .tt-ecke:first-child { position: static; box-shadow: none; } }
+
+/* Klasse abwesend: Klasse durchgestrichen mit Label, Karte grün; im eigenen Plan gestrichelt wie bei abwesender Lehrkraft */
+.std .lbl.abw { background: #8a96a1; }
+.std.klasse-abwesend { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
+.std.klasse-abwesend .kl-weg { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.std.lehrer-abwesend.klasse-abwesend { background: #f1f5f8 !important; }
+.std .abw-label { display: inline-block; font-size: 10.5px; line-height: 14px; font-weight: 700; color: #fff; background: #67747e; border-radius: 2px; padding: 0 4px; margin-top: 2px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Offene Raumvertretung: wie offene Lehrervertretung (rotes Label „???“) */
+.std .lbl.offen-raum { background: var(--u-rot); }
+
+/* Pausenaufsichten halbiert (Legendenmenü) bzw. schmal neben einer durchgängigen Veranstaltung */
+.tt.aufsicht-schmal .aufsicht, .aufsicht.schmal { left: auto !important; right: 0 !important; width: 50% !important; font-size: 11px; padding-left: 14px; }
+.aufsicht.schmal::before { left: 5px; }
+.tt.aufsicht-aus .aufsicht { display: none; }
+
+/* UW-05: Startseite – „Mein nächster Unterricht“ als alte Liste (Entfall grau durchgestrichen, Änderung lila) */
+.heute-karte > header .h-stift img { width: 16px; height: 16px; }
+.heute-karte > header .h-stift { margin-left: 4px; }
+.heute-karte > header .h-tag { color: var(--u-grau); font-size: .85rem; margin-left: 6px; }
+.heute-liste { width: 100%; border-collapse: separate; border-spacing: 0 2px; font-size: 12.5px; color: #24323d; margin: 4px 0 8px; }
+.heute-liste th { font-size: 11.5px; font-weight: 700; padding: 8px 8px 4px; white-space: nowrap; text-align: left; }
+.heute-liste td { padding: 6px 8px; background: #fff; white-space: nowrap; vertical-align: middle; }
+.heute-liste tbody tr:nth-child(odd) td { background: #e4e8ee; }
+.heute-liste tr { cursor: pointer; }
+.heute-liste tr:hover td { filter: brightness(.97); }
+.heute-liste tr.entfall td { background: #b9bec4 !important; color: #3b444b; }
+.heute-liste tr.entfall td:not(.art):not(:first-child) { text-decoration: line-through; }
+.heute-liste tr.aenderung td { background: #b392c9 !important; color: #fff; }
+.heute-liste tr.gewaehlt td { outline: 1px solid var(--u-akzent); }
+.heute-liste .mitte { text-align: center; }
+.heute-liste img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; }
+.heute-liste .art img.x { width: 14px; height: 14px; margin-left: 2px; }
+.heute-liste .symbole { display: flex; gap: 4px; align-items: center; min-height: 18px; }
+.heute-liste .h-online { width: 18px; height: 18px; border-radius: 50%; background: #2d6fa3; color: #fff; font-weight: 700; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.heute-liste .stoff { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.heute-liste img.blass { opacity: .35; }
+.heute-nachricht span[style] { font-weight: inherit; }
+
+/* UW-09: Schuljahr-Pille mit Auswahl und Hinweis „Aktuelles Schuljahr“ */
+.u-jahrwahl { position: relative; display: inline-block; }
+.u-jahrwahl .u-jahr { cursor: pointer; }
+.u-jahrwahl .u-jahr.anders { border-color: var(--u-akzent); color: var(--u-akzent-dunkel); }
+.u-jahr-tipp { position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); background: #5c6670; color: #fff; font-weight: 700; font-size: .85rem; padding: 6px 10px; border-radius: 3px; white-space: nowrap; display: none; z-index: 30; }
+.u-jahrwahl:hover .u-jahr-tipp, .u-jahrwahl .u-jahr:focus-visible + .u-jahr-tipp { display: block; }
+.u-jahrliste { position: absolute; left: 0; top: calc(100% + 6px); z-index: 31; background: #fff; border-radius: 4px; box-shadow: 0 4px 16px rgba(0, 5, 10, .18); padding: 4px 0; min-width: 190px; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; }
+.u-jahrliste.d-none { display: none; }
+.u-jahrliste button { border: 0; background: none; text-align: left; padding: 6px 16px; font-weight: 700; color: var(--u-titel); }
+.u-jahrliste button:hover, .u-jahrliste button.an { background: #e9edf0; }
+
+/* UW-09: Klassenbuch-Übersicht */
+.kb-uebersicht { max-width: 1100px; }
+.kb-mehr { display: block; margin: 0 auto 18px; border: 0; background: none; font-weight: 700; color: var(--u-titel); font-size: 1rem; }
+.kb-mehr:hover { color: var(--u-akzent-dunkel); }
+.kb-tagkopf { display: flex; align-items: center; gap: 12px; margin: 26px 0 10px; }
+.kb-tagkopf .kw { width: 44px; font-weight: 700; color: var(--u-titel); font-size: .85rem; }
+.kb-tagkopf .linie { flex: 1; height: 1px; background: #cdd3d9; }
+.kb-tagpille { border: 1.5px solid #9aa5ae; background: #fff; border-radius: 999px; padding: 3px 16px; font-weight: 600; font-size: .85rem; color: var(--u-titel); }
+.kb-tagliste { margin-left: 56px; }
+.kb-tagliste .u-tabelle td { height: 44px; font-size: .82rem; }
+.kb-tagliste .u-tabelle th { font-size: .72rem; }
+.kb-tagliste tr.entfall td { color: var(--u-grau-2); text-decoration: line-through; }
+.kb-tagliste tr[role=button]:hover td { background: #f7f8fa; }
+.kb-stoff { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--u-text); }
+.kb-abwpille { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid #f0a5a8; border-radius: 999px; padding: 1px 12px; font-size: .78rem; color: var(--u-titel); }
+.kb-abwpille.ok { border-color: #8fd3b2; }
+.kb-abwpille b { font-weight: 700; }
+.kb-abwpille span { color: var(--u-grau-3); }
+
+/* Alte Listenansichten (Mein Unterricht, Klassendienste, Fehlzeiten): orange Überschrift, weiße Karte, grau gestreifte Liste */
+.alt-seite { max-width: 1250px; }
+.alt-kopf { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
+.alt-kopf h1 { font-size: 1rem; font-weight: 400; color: var(--u-akzent); margin: 0; }
+.alt-hilfe { width: 22px; height: 22px; border-radius: 50%; border: 0; background: none; color: var(--u-titel); font-weight: 800; font-size: 1rem; }
+.alt-karte { background: #fff; box-shadow: 0 1px 3px rgba(0, 5, 10, .08), 0 3px 10px rgba(0, 5, 10, .05); border-radius: 2px; padding: 12px 14px; margin-bottom: 14px; }
+.alt-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 18px; font-size: 11.5px; }
+.alt-filter label { display: flex; flex-direction: column; gap: 2px; color: #24323d; }
+.alt-filter select, .alt-filter input { font-size: 12px; border: 1px solid #a8b3bd; border-radius: 1px; padding: 1px 4px; min-height: 22px; color: #24323d; background: #fff; }
+.alt-filterknopf { border: 0; background: none; color: #5c6670; padding: 0 4px; }
+.alt-link { color: var(--u-akzent-dunkel); text-decoration: underline; font-size: 11.5px; }
+.alt-liste.alt-breit { width: 100%; }
+.alt-liste tbody tr.lila td { background: #b392c9 !important; color: #fff; }
+.alt-liste a img, .alt-liste td > img { width: 16px; height: 16px; object-fit: contain; }
+.alt-fussleiste { padding: 10px 14px; }
+
+/* UW-08: Prüfungsliste, Hausaufgaben, Prüfungskalender */
+.pr-liste td, .pr-liste th { font-size: .8rem; }
+.pr-liste tr.vergangen td { color: var(--u-grau); }
+.u-statuspille.klein { height: 26px; min-width: 0; font-size: .78rem; padding: 0 10px; }
+.ha-text { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; }
+.pk-filter { background: #fff; box-shadow: var(--u-schatten); padding: 12px; font-size: .8rem; display: flex; flex-direction: column; gap: 10px; }
+.pk-filter label > span, .pk-gruppe > span { display: block; font-size: .72rem; color: var(--u-grau); margin-bottom: 2px; }
+.pk-gruppe h3 { font-size: .85rem; color: var(--u-akzent); font-weight: 400; margin: 6px 0; }
+.pk-gruppe .form-check { margin-bottom: 4px; font-size: .78rem; }
+.pk-raster { border-collapse: collapse; width: 100%; font-size: 10.5px; table-layout: fixed; }
+.pk-raster th { font-weight: 700; padding: 2px; text-align: center; border: 1px solid #c9ced4; background: #fff; }
+.pk-raster tbody th { width: 26px; text-align: right; padding-right: 4px; }
+.pk-raster td { border: 1px solid #c9ced4; padding: 1px 3px; height: 17px; background: #fff; white-space: nowrap; }
+.pk-raster td.leer { background: #6b737b; }
+.pk-raster td.we { background: #d4d8dc; color: #e03131; }
+.pk-raster td.ferien { background: #9aa1a8; color: #fff; }
+.pk-raster td.heute { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
+.pk-raster td sup { font-size: 8px; margin-left: 1px; }
+.p-eigen-art { background: #f4a0a0 !important; color: #24323d !important; }
+.p-eigen-andere { background: #fbd7d7 !important; color: #24323d !important; }
+.p-fremd-art { background: #a9c8ef !important; color: #24323d !important; }
+.p-fremd { background: #dbe8f8 !important; color: #24323d !important; }
+.p-eigen-klassen { background: #f7d6a7 !important; color: #24323d !important; }
+.pk-legende { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 16px; font-size: .75rem; margin-top: 10px; background: #fff; padding: 8px 12px; box-shadow: var(--u-schatten); }
+.pk-legende i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border: 1px solid #c9ced4; }
+.pk-legende i.ferien { background: #9aa1a8; }
+@media (max-width: 991.98px) { .pk { grid-template-columns: 1fr; } .pk-raster { font-size: 9px; } .pk-legende { grid-template-columns: 1fr; } }
+
+/* UW-09: Berichte mit Abschnitten und PDF-/Seiten-/Excel-Symbolen */
+.br-alt h3 { color: var(--u-akzent); font-weight: 400; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
+.br-alt h3 img { width: 18px; height: 18px; }
+.br-alt .br-zeile { display: grid; grid-template-columns: minmax(150px, 1fr) auto; gap: 2px 10px; align-items: center; padding: 3px 0; font-size: .82rem; }
+.br-alt .br-param { grid-column: 1 / -1; }
+.br-alt .br-param:empty { display: none; }
+.br-symbole { display: inline-flex; gap: 3px; }
+.br-symbole button { border: 0; background: none; padding: 0 1px; font-size: 1.15rem; line-height: 1; }
+.br-pdf { color: #d63b3b; }
+.br-html { color: #2d6fa3; }
+.br-xls { color: #1f8a4c; }
+.br-symbole button:hover { filter: brightness(1.2); transform: translateY(-1px); }
+.heute-nachricht .h-html { white-space: normal; }
+.heute-nachricht .h-html b { display: inline; margin: 0; }
+.heute-nachricht .h-html p { margin: 0 0 .3rem; }
