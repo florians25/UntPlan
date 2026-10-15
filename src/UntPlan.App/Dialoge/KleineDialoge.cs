@@ -41,15 +41,50 @@ public class Dialog : Form
     }
 }
 
+/// <summary>
+/// Dialog „Kurzname“ wie Untis (Neuanlegen und Umbenennen von Stammdaten): Eingabefelder links, Beschriftung „Name“ bzw.
+/// „Langname“ rechts daneben, Ok/Abbrechen unten links.
+/// </summary>
 public static class KurznameDialog
 {
+    /// <summary>Für den Selbsttest: zuletzt geöffneter Dialog (nicht modal angezeigt).</summary>
+    internal static Form Erzeugen(string kurz, string lang, out TextBox k, out TextBox l)
+    {
+        var d = new Dialog("Kurzname", 238, 112);
+        k = new TextBox { Text = kurz, Left = 12, Top = 14, Width = 120 };
+        l = new TextBox { Text = lang, Left = 12, Top = 44, Width = 120 };
+        d.Controls.Add(k);
+        d.Controls.Add(new Label { Text = "Name", Left = 140, Top = 17, AutoSize = true });
+        d.Controls.Add(l);
+        d.Controls.Add(new Label { Text = "Langname", Left = 140, Top = 47, AutoSize = true });
+        d.Ok.Text = "Ok";
+        d.Ok.Anchor = d.Abbrechen.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        d.Ok.Location = new Point(12, 76);
+        d.Abbrechen.Location = new Point(106, 76);
+        d.Ok.Width = d.Abbrechen.Width = 86;
+        d.Ok.Height = d.Abbrechen.Height = 24;
+        return d;
+    }
+
     public static (string Kurz, string Lang)? Zeigen(IWin32Window owner, string kurz, string lang)
     {
-        using var d = new Dialog("Kurzname", 330, 130);
-        var y = 14;
-        var k = Ui.Zeile(d, "Name", new TextBox { Text = kurz }, ref y, 80, 220);
-        var l = Ui.Zeile(d, "Langname", new TextBox { Text = lang }, ref y, 80, 220);
-        return d.ShowDialog(owner) == DialogResult.OK ? (k.Text, l.Text) : null;
+        using var d = Erzeugen(kurz, lang, out var k, out var l);
+        return d.ShowDialog(owner) == DialogResult.OK ? (k.Text.Trim(), l.Text.Trim()) : null;
+    }
+
+    /// <summary>Vorschlag für den Namen eines neuen Elements: nächste freie Nummer nach dem Muster des letzten Namens (S67 → S68).</summary>
+    public static string Vorschlag(IEnumerable<string> vorhandene)
+    {
+        var liste = vorhandene.Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+        var letzter = liste.LastOrDefault(n => char.IsDigit(n[^1]));
+        if (letzter is null) return "";
+        var i = letzter.Length;
+        while (i > 0 && char.IsDigit(letzter[i - 1])) i--;
+        var basis = letzter[..i];
+        var nr = int.TryParse(letzter[i..], out var x) ? x : 0;
+        var namen = liste.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        do nr++; while (namen.Contains(basis + nr));
+        return basis + nr;
     }
 }
 

@@ -149,6 +149,49 @@ public static class Kalender
     /// <summary>Kalendereintrag eines Tages (unterrichtsfrei, Stunden frei, Notiz) oder null.</summary>
     public static Kalendertag? KalendertagAm(Schuldatei d, DateOnly datum) => d.Kalender.FirstOrDefault(k => k.Datum == datum);
 
+    /// <summary>Ist der ganze Tag unterrichtsfrei (Ferien, Feiertag oder Kalendertag „unterrichtsfrei“/„Feiertag“)?</summary>
+    public static bool GanzerTagFrei(Schuldatei d, DateOnly datum) =>
+        FerienAm(d, datum) is not null || KalendertagAm(d, datum) is { } k && (k.Unterrichtsfrei || k.Feiertag);
+
+    /// <summary>
+    /// Bezeichnung der unterrichtsfreien Zeit eines Tages für die Anzeige im Stundenplan: Name der Ferien bzw. des Feiertags
+    /// (Langname, sonst Name) oder der Grund des Kalendertags; leer, wenn keine Bezeichnung hinterlegt ist.
+    /// </summary>
+    public static string FreiBezeichnung(Schuldatei d, DateOnly datum)
+    {
+        if (FerienAm(d, datum) is { } f) return (f.Langname.Length > 0 ? f.Langname : f.Kurzname).Trim();
+        if (KalendertagAm(d, datum) is { GrundId: int g } && d.Abwesenheitsgruende.FirstOrDefault(x => x.Id == g) is { } grund)
+            return (grund.Langname.Length > 0 ? grund.Langname : grund.Kurzname).Trim();
+        return "";
+    }
+
+    /// <summary>Auslassungszeichen für gekürzte Bezeichnungen.</summary>
+    public const string Auslassung = "…";
+
+    /// <summary>
+    /// Anzeigetext einer unterrichtsfreien Zeit: ohne Bezeichnung das Datum („3.9.2021“, bei wenig Platz „3.9.“),
+    /// mit Bezeichnung der Text – gekürzt mit „…“, wenn er nicht passt. <paramref name="passt"/> prüft, ob ein Text in den Platz passt.
+    /// </summary>
+    public static string FreiText(string? bezeichnung, DateOnly datum, Func<string, bool> passt)
+    {
+        var b = (bezeichnung ?? "").Trim();
+        if (b.Length == 0)
+        {
+            var lang = $"{datum.Day}.{datum.Month}.{datum.Year}";
+            return passt(lang) ? lang : $"{datum.Day}.{datum.Month}.";
+        }
+        if (passt(b)) return b;
+        for (var n = b.Length - 1; n >= 1; n--)
+        {
+            var kurz = b[..n].TrimEnd() + Auslassung;
+            if (passt(kurz)) return kurz;
+        }
+        return b[..1] + Auslassung;
+    }
+
+    /// <summary>Anzeigetext mit höchstens <paramref name="maxZeichen"/> Zeichen (siehe <see cref="FreiText(string?, DateOnly, Func{string, bool})"/>).</summary>
+    public static string FreiText(string? bezeichnung, DateOnly datum, int maxZeichen) => FreiText(bezeichnung, datum, t => t.Length <= maxZeichen);
+
     /// <summary>Zwischengespeicherte Berechnungen verwerfen (nach Änderungen an Ferien oder Schuljahr).</summary>
     public static void CacheLeeren() => _wochenCache = (null, 0, default, new());
 
@@ -202,7 +245,8 @@ public static class Kalender
         for (var w = start.AddDays(7); w <= ziel; w = w.AddDays(7))
         {
             // Ferienwoche: kein Unterrichtstag in der Woche → zählt nicht
-            var unterricht = Enumerable.Range(0, 7).Select(i => w.AddDays(i - 7)).Any(t => IstUnterrichtstag(d, t));
+            var unterricht = Enumerable.Range(0, 7).Select(i => w.AddDays(i - 7)).Any(t => IstUnterrichtstag(d, t) ||
+                (TagIndex(d, t) >= 0 && FerienAm(d, t) is { Wochennummerierung: true }));
             if (unterricht) idx = (idx + 1) % n;
             var reset = d.Ferien.FirstOrDefault(f => !string.IsNullOrEmpty(f.WocheDanach) && Montag(f.Bis.AddDays(1)) <= w && Montag(f.Bis.AddDays(1)) > w.AddDays(-7));
             if (reset != null) idx = ((char.ToUpperInvariant(reset.WocheDanach[0]) - 'A') % n + n) % n;
@@ -259,7 +303,31 @@ public static class Kalender
         for (var x = von; x <= bis; x = x.AddDays(1)) yield return x;
     }
 
+    /// <summary>
+    /// Kennzahlen des Ferienfensters (Reiter „Allgemeine Daten“): Schuljahr (Kalendertage, Wochen, Ferien, Feiertage) und
+    /// Unterricht (Unterrichtstage, Unterrichtswochen, Ferientage an Schultagen).
+    /// </summary>
+    public static Jahresdaten JahresdatenBerechnen(Schuldatei d)
+    {
+        var von = d.Einstellungen.SchuljahrVon;
+        var bis = d.Einstellungen.SchuljahrBis < von ? von : d.Einstellungen.SchuljahrBis;
+        var tage = Tage(von, bis).ToList();
+        var imJahr = d.Ferien.Where(f => f.Bis >= von && f.Von <= bis).ToList();
+        var unterricht = tage.Where(t => TagIndex(d, t) >= 0 && FerienAm(d, t) is null && !d.Kalender.Any(k => k.Datum == t && (k.Unterrichtsfrei || k.Feiertag))).ToList();
+        return new Jahresdaten(
+            tage.Count,
+            (Montag(bis).DayNumber - Montag(von).DayNumber) / 7 + 1,
+            imJahr.Count(f => !f.Feiertag),
+            imJahr.Count(f => f.Feiertag) + d.Kalender.Count(k => k.Feiertag && k.Datum >= von && k.Datum <= bis),
+            unterricht.Count,
+            unterricht.Select(Montag).Distinct().Count(),
+            tage.Count(t => TagIndex(d, t) >= 0 && FerienAm(d, t) is not null));
+    }
+
     /// <summary>Anzahl Unterrichtswochen im Schuljahr (für die Wertrechnung).</summary>
     public static int Unterrichtswochen(Schuldatei d) =>
         Tage(d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis).Count(t => IstUnterrichtstag(d, t)) / Math.Max(1, d.Zeitraster.TageProWoche);
 }
+
+/// <summary>Kennzahlen eines Schuljahres (Ferienfenster, Reiter „Allgemeine Daten“).</summary>
+public sealed record Jahresdaten(int SchuljahrTage, int SchuljahrWochen, int AnzahlFerien, int AnzahlFeiertage, int UnterrichtTage, int UnterrichtWochen, int Ferientage);

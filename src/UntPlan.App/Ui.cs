@@ -239,7 +239,10 @@ public static class Ui
     public static void Info(string text, string titel = "UntPlan") => MessageBox.Show(text, titel, MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     public static bool Frage(string text, string titel = "UntPlan") =>
-        MessageBox.Show(text, titel, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+        FrageAntwort is { } antwort ? antwort(text, titel) : MessageBox.Show(text, titel, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+
+    /// <summary>Abfrage-Hook (Selbsttest): beantwortet Ja/Nein-Fragen ohne modalen Dialog, null = Meldungsfenster.</summary>
+    public static Func<string, string, bool>? FrageAntwort { get; set; }
 
     public static string? Eingabe(string text, string titel, string vorgabe = "")
     {

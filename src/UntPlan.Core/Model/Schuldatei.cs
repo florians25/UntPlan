@@ -74,6 +74,8 @@ public sealed class Ferien
     public bool Feiertag { get; set; }
     /// <summary>Wochenbuchstabe der ersten Woche nach den Ferien (A, B, …), leer = Zyklus läuft weiter.</summary>
     public string WocheDanach { get; set; } = "";
+    /// <summary>Wochennummerierung: die Ferienwoche zählt bei der Nummerierung der Schulwochen (A/B) mit.</summary>
+    public bool Wochennummerierung { get; set; }
 }
 
 public sealed class Einstellungen

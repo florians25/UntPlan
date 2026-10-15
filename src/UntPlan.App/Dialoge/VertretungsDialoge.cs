@@ -562,7 +562,8 @@ public static class TagestextDialog
         {
             var a = t.NurLehrer ? TagestextArt.NurLehrer : t.Art;
             var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
-            g.Rows.Add(Arten[(int)a], string.Join(",", t.ElementIds.Select(i => ix.K(typ, i))), t.Text, t.GueltigTage, t.Portal);
+            var zr = g.Rows.Add(Arten[(int)a], string.Join(",", t.ElementIds.Select(i => ix.K(typ, i))), t.Text, t.GueltigTage, t.Portal);
+            g.Rows[zr].Tag = t;
         }
         g.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["G"].Value = 1; e.Row.Cells["P"].Value = true; };
         f.Controls.Add(g);
@@ -575,9 +576,13 @@ public static class TagestextDialog
             var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
             var ids = (r.Cells["E"].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(n => d.AlleElemente(typ).FirstOrDefault(e => e.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase))?.Id).Where(i => i.HasValue).Select(i => i!.Value).ToList();
+            var text = r.Cells["T"].Value!.ToString()!;
+            // formatierte Texte (Dialog „Tagestexte“) behalten ihre Formatierung, solange der Text unverändert ist
+            var alt = r.Tag as Tagestext;
+            var formatiert = alt != null && alt.Text == text && alt.TextHtml.Length > 0;
             neu.Add(new Tagestext
             {
-                Datum = datum, Art = a, Text = r.Cells["T"].Value!.ToString()!, ElementIds = ids,
+                Datum = datum, Art = a, Text = text, ElementIds = ids, TextRtf = formatiert ? alt!.TextRtf : "", TextHtml = formatiert ? alt!.TextHtml : "",
                 GueltigTage = int.TryParse(r.Cells["G"].Value?.ToString(), out var gt) ? Math.Max(1, gt) : 1, Portal = r.Cells["P"].Value is true,
             });
         }

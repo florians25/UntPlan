@@ -394,12 +394,15 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         }
     }
 
+    /// <summary>Neues Element anlegen: wie Untis zuerst der Dialog „Kurzname“ (Name und Langname).</summary>
     private void NeuesElement()
     {
-        var name = Ui.Eingabe($"Kurzname der neuen {Ui.TypName(_typ)}:", $"{Ui.TypName(_typ)} anlegen");
-        if (string.IsNullOrWhiteSpace(name)) return;
+        var vorschlag = KurznameDialog.Vorschlag(D.AlleElemente(_typ).Select(e => e.Kurzname));
+        var eingabe = KurznameDialog.Zeigen(this, vorschlag, "");
+        if (eingabe is not { } ein || string.IsNullOrWhiteSpace(ein.Kurz)) return;
+        var (name, lang) = ein;
         Element? neu = null;
-        if (Aendern($"{Ui.TypName(_typ)} anlegen", AenderungsArt.Stammdaten, d => neu = Stammdaten.Neu(d, _typ, name)))
+        if (Aendern($"{Ui.TypName(_typ)} anlegen", AenderungsArt.Stammdaten, d => { neu = Stammdaten.Neu(d, _typ, name); if (lang.Length > 0) neu.Langname = lang; }))
         {
             Neuaufbau();
             if (neu != null) ZeileWaehlen(neu);

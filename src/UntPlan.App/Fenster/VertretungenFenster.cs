@@ -1283,6 +1283,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = Bearbeitbare(ids).Where(v => v.Art != VertretungsArt.Freisetzung).ToList();
         if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
+        // Verlegung (Ziel oder verlegter Ursprung): zuerst fragen, ob die Verlegung rückgängig gemacht werden soll
+        var anzahl = liste.Count;
+        liste = VerlegungsAbfrage.VorEntfall(liste, Aendern);
+        if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
+        if (liste.Count != anzahl) liste = liste.Select(v => D.Vertretungen.FirstOrDefault(x => x.Id == v.Id)).OfType<Vertretung>().ToList();
         var zurueck = liste.All(v => v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt);
         Ausfuehren(zurueck ? "Entfall aufgehoben" : "Entfall", liste.Select(v => v.Id).ToList(), (d, v) =>
         {

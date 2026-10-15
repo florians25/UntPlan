@@ -55,7 +55,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Positionieren();
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Vertreter übernehmen (Doppelklick, Enter)", "planen", Uebernehmen));
-        ts.Items.Add(Knopf("Entfall", "entfall", () => Aktion("Entfall", (d, v) => Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer))));
+        ts.Items.Add(Knopf("Entfall", "entfall", EntfallMitRueckfrage));
         ts.Items.Add(Knopf("Vertr. o. Lehrkraft", "lehrer", () => Aktion("Vertr. o. Lehrkraft", (_, v) => Vertretungen.OhneLehrer(v, AppZustand.Benutzer))));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_weiter);
@@ -503,6 +503,20 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 (v.AbwesenheitId is null ? x.LehrerId == v.LehrerId : x.AbwesenheitId == v.AbwesenheitId)).Select(x => x.Id));
         }
         return ids.Distinct().ToList();
+    }
+
+    /// <summary>Entfall; bei einer Verlegung zuerst fragen, ob die Verlegung rückgängig gemacht werden soll.</summary>
+    private void EntfallMitRueckfrage()
+    {
+        var ids = Ziele();
+        var liste = D.Vertretungen.Where(x => ids.Contains(x.Id)).ToList();
+        var rest = VerlegungsAbfrage.VorEntfall(liste, Aendern);
+        if (rest.Count == liste.Count) { Aktion("Entfall", (d, v) => Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer)); return; }
+        if (_v != null) _v = D.Vertretungen.FirstOrDefault(x => x.Id == _v.Id);
+        var restIds = rest.Select(v => v.Id).ToHashSet();
+        if (restIds.Count > 0)
+            Aendern("Entfall", AenderungsArt.Vertretung, d => { foreach (var v in d.Vertretungen.Where(x => restIds.Contains(x.Id)).ToList()) Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer); });
+        Neuaufbau();
     }
 
     private void Aktion(string text, Action<Schuldatei, Vertretung> a)

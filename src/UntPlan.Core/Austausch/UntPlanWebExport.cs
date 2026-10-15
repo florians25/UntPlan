@@ -195,7 +195,7 @@ public static class UntPlanWebExport
                 var typ = art == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
                 return new WebTagestext(D(t.Datum), Math.Max(1, t.GueltigTage), t.Text,
                     art switch { TagestextArt.Klassen => "klassen", TagestextArt.Lehrer => "lehrer", TagestextArt.NurLehrer => "kollegium", _ => "alle" },
-                    t.ElementIds.Select(id => ix.K(typ, id)).ToList());
+                    t.ElementIds.Select(id => ix.K(typ, id)).ToList()) { TextHtml = TagestextHtml.FuerExport(t) };
             }).ToList(),
             Ferien = !o.Ferien ? new List<WebFerien>() : d.Ferien.Select(f => new WebFerien(f.Langname.Length > 0 ? f.Langname : f.Kurzname, D(f.Von), D(f.Bis), f.Feiertag)).ToList(),
             Pausenaufsichten = !mitUnterricht ? new List<WebAufsicht>() : d.Pausenaufsichten.Where(a => a.Datum is null).Select(a => new WebAufsicht(ix.K(ElementTyp.Gang, a.GangId), a.Tag, a.NachStunde, ix.KLehrer(a.LehrerId),

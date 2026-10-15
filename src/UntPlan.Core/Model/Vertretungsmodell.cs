@@ -254,7 +254,12 @@ public enum TagestextArt
 public sealed class Tagestext
 {
     public DateOnly Datum { get; set; }
+    /// <summary>Unformatierter Text (Listen, Druck, Monitor).</summary>
     public string Text { get; set; } = "";
+    /// <summary>Formatierter Text als Rich Text (Dialog „Tagestexte“ mit Fett, Kursiv, Unterstrichen und Farbe), leer = unformatiert.</summary>
+    public string TextRtf { get; set; } = "";
+    /// <summary>Formatierter Text als bereinigtes HTML-Subset (b, i, u, span style color, br, p) für den Export, leer = unformatiert.</summary>
+    public string TextHtml { get; set; } = "";
     /// <summary>Veraltet, ersetzt durch Art = NurLehrer.</summary>
     public bool NurLehrer { get; set; }
     public TagestextArt Art { get; set; }

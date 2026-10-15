@@ -17,10 +17,14 @@ public sealed class KalenderFenster : MdiFenster
     private readonly DataGridView _woche = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _texte = new() { Dock = DockStyle.Fill };
     private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
-    private readonly CheckBox _frei = new() { Text = "unterrichtsfrei", AutoSize = true };
-    private readonly CheckBox _feiertag = new() { Text = "Feiertag", AutoSize = true };
-    private readonly TextBox _stunden = new() { Width = 70 };
-    private readonly TextBox _notiz = new() { Width = 260 };
+    private readonly Label _tagTitel = new() { AutoSize = true, Font = new Font("Segoe UI", 10f), Location = new Point(14, 12) };
+    private readonly RadioButton _normal = new() { Text = "Normaler Schultag", AutoSize = true };
+    private readonly RadioButton _feiertag = new() { Text = "Feiertag", AutoSize = true };
+    private readonly RadioButton _frei = new() { Text = "Unterrichtsfrei", AutoSize = true };
+    private readonly RadioButton _nurStunden = new() { Text = "Nur diese Stunden unterrichtsfrei", AutoSize = true };
+    private readonly ComboBox _grund = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
+    private readonly TextBox _stunden = new() { Width = 200 };
+    private readonly TextBox _notiz = new() { Width = 300 };
     private static readonly string[] Arten = { "Alle", "Klassen", "Lehrer", "Nur Lehrer" };
     private bool _laedt;
 
@@ -60,35 +64,76 @@ public sealed class KalenderFenster : MdiFenster
             if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
         };
 
-        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile)
+        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie Untis: Gültig bis | Tagestext […] | WebUntis;
+        // „…“ in der Textzelle öffnet den Dialog für formatierte Tagestexte (Fett, Kursiv, Unterstrichen, Farbe)
         Ui.RasterGestalten(_texte, true);
         _texte.AllowUserToAddRows = true;
         _texte.AllowUserToDeleteRows = true;
+        _texte.Columns.Add(Steuerelemente.DatumSpalte.Neu("G", "Gültig bis", 90));
+        var textSpalte = _texte.Columns[_texte.Columns.Add("X", "Tagestext")];
+        textSpalte.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        textSpalte.MinimumWidth = 80;
+        _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "WebUntis", Width = 62 });
         var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "Art", Width = 80, FlatStyle = FlatStyle.Flat };
         art.Items.AddRange(Arten);
         _texte.Columns.Add(art);
         _texte.Columns[_texte.Columns.Add("E", "Elemente")].Width = 90;
-        _texte.Columns.Add(Steuerelemente.DatumSpalte.Neu("G", "Gültig bis", 108));
-        _texte.Columns[_texte.Columns.Add("X", "Tagestext")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Portal", Width = 50 });
         Steuerelemente.SuchKombi.Aktivieren(_texte);
         _texte.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["G"].Value = Format.Datum(AppZustand.Datum); e.Row.Cells["P"].Value = true; };
         _texte.CellEndEdit += (_, _) => TexteSpeichern();
         _texte.UserDeletedRow += (_, _) => TexteSpeichern();
-        _texte.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 4) _texte.EndEdit(); };
+        _texte.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _texte.Columns[e.ColumnIndex].Name == "P") _texte.EndEdit(); };
+        _texte.CellPainting += TextKnopfZeichnen;
+        _texte.CellMouseClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _texte.Columns[e.ColumnIndex].Name != "X" || e.Button != MouseButtons.Left) return;
+            var breite = _texte.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, false).Width;
+            if (e.X >= breite - KnopfBreite - 2) BeginInvoke(() => TextFormatieren(e.RowIndex));
+        };
+        _texte.CellFormatting += (_, e) =>
+        {
+            // formatierte Tagestexte fett kennzeichnen (die Formatierung selbst zeigt der Dialog)
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _texte.Columns[e.ColumnIndex].Name != "X" || e.CellStyle is null) return;
+            // mehrzeilige Texte einzeilig anzeigen (der gespeicherte Text bleibt unverändert)
+            if (e.Value is string mz && mz.Contains('\n')) { e.Value = mz.Replace("\r", "").Replace("\n", " "); e.FormattingApplied = true; }
+            if (_texte.Rows[e.RowIndex].Tag is Tagestext { TextHtml.Length: > 0 }) e.CellStyle.Font = _fett;
+        };
         var seiteTexte = new TabPage("Tagestexte");
         seiteTexte.Controls.Add(_texte);
 
-        var tag = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(8), WrapContents = false };
-        var uebernehmen = new Button { Text = "Kalendertag übernehmen", Width = 180, Height = 26 };
-        uebernehmen.Click += (_, _) => KalendertagSpeichern();
-        tag.Controls.Add(_frei);
-        tag.Controls.Add(_feiertag);
-        tag.Controls.Add(new Label { Text = "nur diese Stunden unterrichtsfrei (z. B. 6-8):", AutoSize = true });
-        tag.Controls.Add(_stunden);
-        tag.Controls.Add(new Label { Text = "Notiz (wird nicht gedruckt):", AutoSize = true });
-        tag.Controls.Add(_notiz);
-        tag.Controls.Add(uebernehmen);
+        // Kalendertag wie Untis: Datum, Normaler Schultag / Feiertag / Unterrichtsfrei [Grund] / Nur diese Stunden unterrichtsfrei [Stunden], Notiz
+        var tag = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(232, 240, 236), Padding = new Padding(8) };
+        var rahmen = new Panel { Location = new Point(6, 6), Size = new Size(520, 210), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(232, 240, 236) };
+        rahmen.Controls.Add(_tagTitel);
+        var y = 42;
+        foreach (var rb in new[] { _normal, _feiertag, _frei, _nurStunden })
+        {
+            rb.Location = new Point(14, y);
+            rahmen.Controls.Add(rb);
+            rb.CheckedChanged += (_, _) => { if (rb.Checked) KalendertagGeaendert(); };
+            y += 28;
+        }
+        _grund.Location = new Point(290, _frei.Top - 2);
+        _stunden.Location = new Point(290, _nurStunden.Top - 2);
+        _grund.SelectedIndexChanged += (_, _) => { if (_frei.Checked) KalendertagGeaendert(); };
+        _stunden.Enter += (_, _) => { if (!_nurStunden.Checked) { _laedt = true; _nurStunden.Checked = true; _laedt = false; } };
+        _stunden.Validated += (_, _) => { if (_nurStunden.Checked) KalendertagGeaendert(); };
+        rahmen.Controls.Add(_grund);
+        rahmen.Controls.Add(_stunden);
+        var notizLabel = new Label { Text = "Notiz", AutoSize = true, Location = new Point(16, y + 10) };
+        _notiz.Location = new Point(140, y + 6);
+        _notiz.Width = 364;
+        _notiz.Validated += (_, _) => KalendertagGeaendert();
+        rahmen.Controls.Add(notizLabel);
+        rahmen.Controls.Add(_notiz);
+        tag.Controls.Add(rahmen);
+        tag.Resize += (_, _) => rahmen.Width = Math.Max(420, tag.ClientSize.Width - 14);
+        rahmen.Resize += (_, _) =>
+        {
+            var rechts = rahmen.ClientSize.Width - 14;
+            _grund.Width = _stunden.Width = Math.Max(120, rechts - 290);
+            _notiz.Width = Math.Max(160, rechts - 140);
+        };
         var seiteTag = new TabPage("Kalendertag");
         seiteTag.Controls.Add(tag);
         _tabs.TabPages.Add(seiteTexte);
@@ -146,16 +191,23 @@ public sealed class KalenderFenster : MdiFenster
         {
             var a = x.NurLehrer ? TagestextArt.NurLehrer : x.Art;
             var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
-            var r = _texte.Rows.Add(Arten[(int)a], string.Join(",", x.ElementIds.Select(id => ix.K(typ, id))), Format.Datum(x.Datum.AddDays(Math.Max(1, x.GueltigTage) - 1)), x.Text, x.Portal);
+            var r = _texte.Rows.Add(Format.Datum(x.Datum.AddDays(Math.Max(1, x.GueltigTage) - 1)), x.Text, x.Portal, Arten[(int)a], string.Join(",", x.ElementIds.Select(id => ix.K(typ, id))));
             _texte.Rows[r].Tag = x;
         }
         _tabs.TabPages[0].Text = $"Tagestexte ({D.Tagestexte.Count(x => x.GiltAm(datum))})";
         var k = Kalender.KalendertagAm(D, datum);
-        _frei.Checked = k?.Unterrichtsfrei == true;
+        _tagTitel.Text = $"{Format.De.DateTimeFormat.GetDayName(datum.DayOfWeek)} {datum.Day}.{datum.Month}.{datum.Year}";
+        _grund.Items.Clear();
+        _grund.Items.Add("Kein Grund");
+        foreach (var g in D.Abwesenheitsgruende) _grund.Items.Add(new GrundEintrag(g));
+        _grund.SelectedIndex = k?.GrundId is int gid && D.Abwesenheitsgruende.FindIndex(g => g.Id == gid) is var gi and >= 0 ? gi + 1 : 0;
         _feiertag.Checked = k?.Feiertag == true;
+        _frei.Checked = k is { Unterrichtsfrei: true, Feiertag: false };
+        _nurStunden.Checked = k is { Unterrichtsfrei: false, Feiertag: false } && k.FreieStunden.Length > 0;
+        _normal.Checked = !_feiertag.Checked && !_frei.Checked && !_nurStunden.Checked;
         _stunden.Text = k?.FreieStunden ?? "";
         _notiz.Text = k?.Notiz ?? "";
-        _tabs.TabPages[1].Text = k is null ? "Kalendertag" : "Kalendertag ●";
+        _tabs.TabPages[1].Text = "Kalendertag";
         _laedt = false;
     }
 
@@ -173,9 +225,12 @@ public sealed class KalenderFenster : MdiFenster
             var start = alt?.Datum ?? datum;
             DateOnly bis;
             try { bis = Ui.DatumLesen(r.Cells["G"].Value?.ToString() ?? "", datum); } catch (Exception) { bis = datum; }
+            var text = r.Cells["X"].Value!.ToString()!;
+            // Formatierung bleibt erhalten, solange der Text nicht direkt in der Zelle geändert wurde
+            var formatiert = alt != null && alt.Text == text && alt.TextHtml.Length > 0;
             neu.Add(new Tagestext
             {
-                Datum = start, Art = a, Text = r.Cells["X"].Value!.ToString()!,
+                Datum = start, Art = a, Text = text, TextRtf = formatiert ? alt!.TextRtf : "", TextHtml = formatiert ? alt!.TextHtml : "",
                 ElementIds = (r.Cells["E"].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(n => D.AlleElemente(typ).FirstOrDefault(e => e.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList(),
                 GueltigTage = Math.Max(1, bis.DayNumber - start.DayNumber + 1), Portal = r.Cells["P"].Value is true,
@@ -189,22 +244,77 @@ public sealed class KalenderFenster : MdiFenster
         BeginInvoke(Neuaufbau);
     }
 
+    private const int KnopfBreite = 18;
+    private readonly Font _fett = new(Ui.Schrift, FontStyle.Bold);
+
+    /// <summary>„…“-Knopf rechts in der Tagestext-Zelle (öffnet den Formatierungsdialog).</summary>
+    private void TextKnopfZeichnen(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || _texte.Columns[e.ColumnIndex].Name != "X") return;
+        e.Paint(e.ClipBounds, DataGridViewPaintParts.All);
+        var r = new Rectangle(e.CellBounds.Right - KnopfBreite - 2, e.CellBounds.Y + 2, KnopfBreite, e.CellBounds.Height - 5);
+        ButtonRenderer.DrawButton(e.Graphics, r, "…", Ui.SchriftKlein, false, System.Windows.Forms.VisualStyles.PushButtonState.Normal);
+        e.Handled = true;
+    }
+
+    /// <summary>Formatierten Tagestext im Dialog „Tagestexte“ bearbeiten (neue Zeile: neuer Tagestext).</summary>
+    internal void TextFormatieren(int zeile)
+    {
+        if (IsDisposed || zeile < 0 || zeile >= _texte.Rows.Count) return;
+        if (_texte.IsCurrentCellInEditMode) _texte.EndEdit();
+        var r = _texte.Rows[zeile];
+        var datum = AppZustand.Datum;
+        var alt = r.Tag as Tagestext;
+        var t = new Tagestext
+        {
+            Datum = alt?.Datum ?? datum, Text = r.Cells["X"].Value?.ToString() ?? "", TextRtf = alt?.TextRtf ?? "", TextHtml = alt?.TextHtml ?? "",
+        };
+        if (alt != null && alt.Text != t.Text) { t.TextRtf = ""; t.TextHtml = ""; }
+        if (!TagestextFormatDialog.Bearbeiten(this, datum, t)) return;
+        if (r.IsNewRow)
+        {
+            var neu = _texte.Rows.Add(Format.Datum(datum), t.Text, true, Arten[0], "");
+            r = _texte.Rows[neu];
+        }
+        else r.Cells["X"].Value = t.Text;
+        r.Tag = t;
+        TexteSpeichern();
+    }
+
+    private sealed record GrundEintrag(Abwesenheitsgrund G)
+    {
+        public override string ToString() => G.Langname.Length > 0 ? $"{G.Kurzname} – {G.Langname}" : G.Kurzname;
+    }
+
+    private void KalendertagGeaendert()
+    {
+        if (_laedt) return;
+        KalendertagSpeichern();
+    }
+
     private void KalendertagSpeichern()
     {
         var datum = AppZustand.Datum;
         var frei = _frei.Checked;
         var feiertag = _feiertag.Checked;
-        var stunden = _stunden.Text.Trim();
+        var stunden = _nurStunden.Checked ? _stunden.Text.Trim() : "";
         var notiz = _notiz.Text.Trim();
+        int? grund = frei && _grund.SelectedItem is GrundEintrag ge ? ge.G.Id : null;
+        var alt = Kalender.KalendertagAm(D, datum);
+        if (alt != null && alt.Unterrichtsfrei == frei && alt.Feiertag == feiertag && alt.FreieStunden == stunden && alt.Notiz == notiz && alt.GrundId == grund) return;
+        if (alt is null && !frei && !feiertag && stunden.Length == 0 && notiz.Length == 0) return;
         Aendern("Kalendertag", AenderungsArt.Vertretung, d =>
         {
             d.Kalender.RemoveAll(x => x.Datum == datum);
             if (frei || feiertag || stunden.Length > 0 || notiz.Length > 0)
-                d.Kalender.Add(new Kalendertag { Datum = datum, Unterrichtsfrei = frei, Feiertag = feiertag, FreieStunden = stunden, Notiz = notiz });
+                d.Kalender.Add(new Kalendertag { Datum = datum, Unterrichtsfrei = frei, Feiertag = feiertag, FreieStunden = stunden, Notiz = notiz, GrundId = grund });
             Kalender.CacheLeeren();
             Vertretungen.Aktualisieren(d, datum);
         });
     }
+
+    /// <summary>Selbsttest: Kalendertag-Reiter zeigen.</summary>
+    internal void SelbsttestKalendertag() => _tabs.SelectedIndex = 1;
 }
 
 /// <summary>Klausuren (Prüfungen) mit Aufsichten; kollidierender Unterricht der Klassen entfällt.</summary>

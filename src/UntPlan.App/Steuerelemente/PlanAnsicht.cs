@@ -216,7 +216,8 @@ public sealed class PlanAnsicht : Control
     {
         var pausen = Pausen;
         var w = (bounds.Width - KopfBreite - 1) / (float)SichtbareTage;
-        var h = Math.Max(4f, (bounds.Height - KopfHoehe - 1 - pausen.Count * PausenHoehe) / (float)Stunden);
+        // Mindestzeilenhöhe: Zeilen werden nie gequetscht – reicht der Platz nicht, scrollt der Plan (StundenplanFenster)
+        var h = Math.Max(_druck ? 4f : MindestZeile, (bounds.Height - KopfHoehe - 1 - pausen.Count * PausenHoehe) / (float)Stunden);
         var vor = 0;
         foreach (var p in pausen) if (p.NachStunde < stunde) vor++;
         // ganze Pixel, damit die (schwarzen) Rasterlinien gleichmäßig und ohne Lücken zwischen Linie und Zelle liegen
@@ -280,7 +281,7 @@ public sealed class PlanAnsicht : Control
     {
         var t = Treffer(p);
         if (t is null) return null;
-        var f = RegelFelder(t.Value.Tag).FirstOrDefault(x => FeldRechteck(ClientRectangle, t.Value.Tag, x).Contains(p));
+        var f = RegelFelder(t.Value.Tag).FirstOrDefault(x => FeldTrifft(ClientRectangle, t.Value.Tag, x, p));
         return f is null ? null : f.Alle.FirstOrDefault(x => x.Stunde == t.Value.Stunde) ?? f.Erster;
     }
 
@@ -288,7 +289,7 @@ public sealed class PlanAnsicht : Control
     {
         var t = Treffer(p);
         if (t is null || _woche is null) return null;
-        var f = TagesFelder(t.Value.Tag).FirstOrDefault(x => FeldRechteck(ClientRectangle, t.Value.Tag, x).Contains(p));
+        var f = TagesFelder(t.Value.Tag).FirstOrDefault(x => FeldTrifft(ClientRectangle, t.Value.Tag, x, p));
         if (f is null) return null;
         return (_woche.Value.AddDays(t.Value.Tag), f.Alle.FirstOrDefault(x => x.Stunde == t.Value.Stunde) ?? f.Erster);
     }
@@ -297,66 +298,13 @@ public sealed class PlanAnsicht : Control
     // Anordnung: zusammenhängende Stunden als ein Feld; gleichzeitige Stunden und Blöcke immer nebeneinander (Spuren)
     // ------------------------------------------------------------------------------------------
 
-    private sealed class Feld<T>
-    {
-        public required T Erster;
-        public readonly List<T> Alle = new();
-        public int Start;
-        public int Laenge = 1;
-        public int Spur;
-        public int Spuren = 1;
-        public int StapelIndex = 0;
-        public int StapelAnzahl = 1;
-    }
+    /// <summary>Stunden, nach denen eine Pausenzeile angezeigt wird (Felder werden dort geteilt, nie über die Pause gezeichnet).</summary>
+    private HashSet<int> PausenNach => Pausen.Select(p => p.NachStunde).Where(n => n >= 1).ToHashSet();
 
-    private static List<Feld<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel)
-    {
-        var felder = new List<Feld<T>>();
-        var offen = new Dictionary<string, Feld<T>>();
-        for (var s = 1; s <= stunden; s++)
-        {
-            var neu = new Dictionary<string, Feld<T>>();
-            foreach (var x in am(s))
-            {
-                var k = schluessel(x);
-                if (k != null && !neu.ContainsKey(k) && offen.TryGetValue(k, out var f))
-                {
-                    f.Alle.Add(x);
-                    f.Laenge++;
-                    neu[k] = f;
-                    continue;
-                }
-                f = new Feld<T> { Erster = x, Start = s };
-                f.Alle.Add(x);
-                felder.Add(f);
-                if (k != null && !neu.ContainsKey(k)) neu[k] = f;
-            }
-            offen = neu;
-        }
-        // Gruppen sich zeitlich überschneidender Felder
-        var gruppen = new List<List<Feld<T>>>();
-        foreach (var f in felder.OrderBy(x => x.Start))
-        {
-            var g = gruppen.LastOrDefault();
-            if (g != null && g.Any(x => x.Start + x.Laenge > f.Start)) g.Add(f);
-            else gruppen.Add(new List<Feld<T>> { f });
-        }
-        foreach (var g in gruppen)
-        {
-            var ende = new List<int>();
-            foreach (var f in g.OrderBy(x => x.Start).ThenByDescending(x => x.Laenge))
-            {
-                var spur = ende.FindIndex(e => e < f.Start);
-                if (spur < 0) { spur = ende.Count; ende.Add(0); }
-                ende[spur] = f.Start + f.Laenge - 1;
-                f.Spur = spur;
-            }
-            foreach (var f in g) f.Spuren = ende.Count;
-        }
-        return felder;
-    }
+    private static List<PlanBlock<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel) =>
+        Blockbildung.Anordnen(stunden, am, schluessel);
 
-    private List<Feld<Planstunde>> RegelFelder(int tag)
+    private List<PlanBlock<Planstunde>> RegelFelder(int tag)
     {
         var plan = Ix.PlanVon(Typ, ElementId).Where(p => p.Tag == tag).ToList();
         return Anordnen<Planstunde>(Stunden, s => plan.Where(p => p.Stunde == s).ToList(), RegelSchluessel);
@@ -366,13 +314,22 @@ public sealed class PlanAnsicht : Control
     private string? RegelSchluessel(Planstunde p) => Format.Einzelstunden ? null : p.UnterrichtId.ToString();
 
     /// <summary>Felder des tagesaktuellen Plans; Entfälle werden in der Untis-Darstellung je Stunde einzeln gezeigt.</summary>
-    private List<Feld<TagesEintrag>> TagesFelder(int tag) => Anordnen<TagesEintrag>(Stunden, s => EintraegeAm(tag, s),
+    private List<PlanBlock<TagesEintrag>> TagesFelder(int tag) => Anordnen<TagesEintrag>(Stunden, s => EintraegeAm(tag, s),
         e => Format.Einzelstunden || (UntisStil && e.Status == TagesStatus.Entfall) ? null : TagesSchluessel(e));
 
-    private RectangleF FeldRechteck<T>(Rectangle bounds, int tag, Feld<T> f)
+    /// <summary>Rechtecke eines Feldes: ein Teil je Abschnitt zwischen Pausenzeilen (eine Pause wird nie überdeckt).</summary>
+    private List<RectangleF> FeldRechtecke<T>(Rectangle bounds, int tag, PlanBlock<T> f)
     {
-        var r = Zelle(bounds, tag, f.Start);
-        var hoehe = f.Laenge == 1 ? r.Height : Zelle(bounds, tag, f.Start + f.Laenge - 1).Bottom - r.Y;
+        var pausen = PausenNach;
+        return Blockbildung.Teile(f, pausen).Select(t => TeilRechteck(bounds, tag, f, t)).ToList();
+    }
+
+    private bool FeldTrifft<T>(Rectangle bounds, int tag, PlanBlock<T> f, Point p) => FeldRechtecke(bounds, tag, f).Any(r => r.Contains(p));
+
+    private RectangleF TeilRechteck<T>(Rectangle bounds, int tag, PlanBlock<T> f, BlockTeil t)
+    {
+        var r = Zelle(bounds, tag, t.Start);
+        var hoehe = t.Laenge == 1 ? r.Height : Zelle(bounds, tag, t.Ende).Bottom - r.Y;
         if (UntisStil)
         {
             // Untis: Feld füllt die Zelle bis an die Rasterlinien, parallele Stunden durch eine Linie getrennt
@@ -394,7 +351,7 @@ public sealed class PlanAnsicht : Control
             ? $"{u}/{e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex}/{e.Status}/{e.Vertretung?.Art}/{string.Join(",", e.LehrerIds)}/{string.Join(",", e.RaumIds)}/{e.Vertretung?.VerlegungsId}"
             : null;
 
-    private Feld<TagesEintrag>? TagesFeld(int tag, int stunde, TagesEintrag e) =>
+    private PlanBlock<TagesEintrag>? TagesFeld(int tag, int stunde, TagesEintrag e) =>
         TagesFelder(tag).FirstOrDefault(f => f.Alle.Contains(e)) ??
         TagesFelder(tag).FirstOrDefault(f => f.Start <= stunde && f.Start + f.Laenge > stunde && TagesSchluessel(f.Erster) == TagesSchluessel(e));
 
@@ -422,14 +379,37 @@ public sealed class PlanAnsicht : Control
 
     protected override void OnPaint(PaintEventArgs e) => Zeichnen(e.Graphics, ClientRectangle, false);
 
+    private bool _druck;
+
     public void Zeichnen(Graphics g, Rectangle bounds, bool druck)
     {
         if (Tagesmodus && _tage.Count != Tage) TageNeu();
         AuswahlAktualisieren();
         _pausenCache = PausenZeilen();
+        _druck = druck;
         try { ZeichnenIntern(g, bounds, druck); }
-        finally { _pausenCache = null; }
+        finally { _pausenCache = null; _druck = false; }
     }
+
+    /// <summary>Mausrad: den umgebenden Rahmen scrollen (der Plan ist höher als das Fenster).</summary>
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        if (Parent is ScrollableControl sc && sc.AutoScroll && sc.VerticalScroll.Visible)
+        {
+            var schritt = Math.Max(12, MindestZeile) * 2;
+            var y = Math.Max(0, -sc.AutoScrollPosition.Y - Math.Sign(e.Delta) * schritt);
+            sc.AutoScrollPosition = new Point(-sc.AutoScrollPosition.X, y);
+            return;
+        }
+        base.OnMouseWheel(e);
+    }
+
+    /// <summary>Mindesthöhe einer Stundenzeile (lesbar, auch bei vielen Stunden).</summary>
+    public int MindestZeile => Format.ZellenHoehe > 0 ? Math.Min(Format.ZellenHoehe, Blockbildung.MindestZeilenHoehe(Format.Schriftgroesse, Format.Klein))
+        : Blockbildung.MindestZeilenHoehe(Format.Schriftgroesse, Format.Klein);
+
+    /// <summary>Höhe, unter der der Plan nicht gequetscht, sondern gescrollt wird.</summary>
+    public int MindestHoehe => Blockbildung.MindestHoehe(KopfHoehe, PausenZeilen().Count, PausenHoehe, Stunden, MindestZeile);
 
     private void ZeichnenIntern(Graphics g, Rectangle bounds, bool druck)
     {
@@ -494,12 +474,11 @@ public sealed class PlanAnsicht : Control
             if (Tagesmodus)
             {
                 foreach (var f in TagesFelder(t))
-                {
-                    var fr = FeldRechteck(bounds, t, f);
-                    EintragZeichnen(g, fr, f.Erster, datum!.Value, druck, f.Alle.Any(x => IstTagesAuswahl(datum.Value, x)));
-                    if (untis) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
-                }
-                if (kt?.StundeFrei(1) == true && !klein) TextRenderer.DrawText(g, "frei", Ui.SchriftKlein, Rectangle.Round(Zelle(bounds, t, 1)), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
+                    foreach (var fr in FeldRechtecke(bounds, t, f))
+                    {
+                        EintragZeichnen(g, fr, f.Erster, datum!.Value, druck, f.Alle.Any(x => IstTagesAuswahl(datum.Value, x)));
+                        if (untis) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
+                    }
             }
             else
             {
@@ -514,11 +493,11 @@ public sealed class PlanAnsicht : Control
                 }
                 var tagPlan = plan.Where(p => p.Tag == t).ToList();
                 foreach (var f in Anordnen<Planstunde>(Stunden, s => tagPlan.Where(p => p.Stunde == s).ToList(), RegelSchluessel))
-                {
-                    var fr = FeldRechteck(bounds, t, f);
-                    StundeZeichnen(g, fr, f.Erster, druck, Enumerable.Range(f.Start, f.Laenge).Any(kollisionen.Contains), f.Alle);
-                    if (untis) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
-                }
+                    foreach (var fr in FeldRechtecke(bounds, t, f))
+                    {
+                        StundeZeichnen(g, fr, f.Erster, druck, Enumerable.Range(f.Start, f.Laenge).Any(kollisionen.Contains), f.Alle);
+                        if (untis) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
+                    }
             }
             // Untis: angeklickte leere Zelle rot-gelb gestrichelt
             if (untis && !druck && _zelle is { } zc && zc.Tag == t && zc.Stunde >= 1 && zc.Stunde <= Stunden && (Tagesmodus ? _tagesAuswahl is null : _ausgewaehlt is null))
@@ -527,7 +506,7 @@ public sealed class PlanAnsicht : Control
                 AuswahlRahmen(g, new RectangleF(r.X + 1, r.Y + 1, r.Width - 1, r.Height - 1));
             }
             ZiehMarken(g, bounds, druck, t, plan);
-            if (ferien != null && !klein) TextRenderer.DrawText(g, ferien.Kurzname, Ui.SchriftKlein, Rectangle.Round(Zelle(bounds, t, 1)), Color.Peru, TextFormatFlags.Top | TextFormatFlags.Right);
+            if (datum is DateOnly dt) FreiZeichnen(g, bounds, t, dt, kt);
         }
         PausenZeichnen(g, bounds, linie);
         if (!druck) TauschAnzeigen(g, bounds);
@@ -542,6 +521,81 @@ public sealed class PlanAnsicht : Control
             g.FillRectangle(Brushes.Black, bounds.X, bounds.Bottom - 2, bounds.Width, 2);
         }
         else g.DrawRectangle(linie, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+    }
+
+    /// <summary>
+    /// Selbsttest (UP-01): Felder dürfen keine Pausenzeile überdecken, müssen im Plan liegen und nicht über den Rand hinausragen;
+    /// Stundenzeilen haben mindestens die Mindesthöhe. Liefert die gefundenen Fehler.
+    /// </summary>
+    internal List<string> SelbsttestBlockPruefung()
+    {
+        var fehler = new List<string>();
+        var bounds = ClientRectangle;
+        _pausenCache = PausenZeilen();
+        try
+        {
+            var pausen = Pausen.Select(p => PausenRechteck(bounds, p)).ToList();
+            for (var t = 0; t < Tage; t++)
+            {
+                if (_nurTag is int nt && nt != t) continue;
+                var rechtecke = Tagesmodus
+                    ? TagesFelder(t).SelectMany(f => FeldRechtecke(bounds, t, f).Select(r => (f.Start, f.Laenge, r))).ToList()
+                    : RegelFelder(t).SelectMany(f => FeldRechtecke(bounds, t, f).Select(r => (f.Start, f.Laenge, r))).ToList();
+                foreach (var (start, laenge, r) in rechtecke)
+                {
+                    foreach (var p in pausen)
+                    {
+                        var x = RectangleF.Intersect(r, p);
+                        if (x.Height > 1 && x.Width > 1) fehler.Add($"Tag {t + 1}, Stunde {start}-{start + laenge - 1}: Feld überdeckt Pausenzeile");
+                    }
+                    if (r.Bottom > bounds.Bottom + 1 || r.Right > bounds.Right + 1) fehler.Add($"Tag {t + 1}, Stunde {start}: Feld ragt über den Plan hinaus");
+                }
+                for (var s = 1; s <= Stunden; s++)
+                    if (Zelle(bounds, t, s).Height + 1 < MindestZeile) fehler.Add($"Stunde {s}: Zeile kleiner als die Mindesthöhe");
+            }
+        }
+        finally { _pausenCache = null; }
+        return fehler.Distinct().ToList();
+    }
+
+    /// <summary>Zuletzt gezeichnete Beschriftungen unterrichtsfreier Zeiten (Tag, Text) – für den Selbsttest.</summary>
+    public List<(int Tag, string Text)> FreiBeschriftungen { get; } = new();
+
+    /// <summary>
+    /// Unterrichtsfreie Zeiten (Ferien, Feiertage, Kalendertag „unterrichtsfrei“ bzw. „nur diese Stunden unterrichtsfrei“) beschriften:
+    /// ohne Bezeichnung das Datum, mit Bezeichnung der Text, gekürzt mit „…“, wenn er nicht in die Spalte passt.
+    /// </summary>
+    private void FreiZeichnen(Graphics g, Rectangle bounds, int t, DateOnly datum, Kalendertag? kt)
+    {
+        if (t == 0) FreiBeschriftungen.Clear();
+        if (_nurTag is int nt && nt != t) return;
+        var bez = Kalender.FreiBezeichnung(D, datum);
+        var bereiche = new List<(int Von, int Bis)>();
+        if (Kalender.GanzerTagFrei(D, datum)) bereiche.Add((1, Stunden));
+        else if (kt != null)
+            for (var s = 1; s <= Stunden; s++)
+            {
+                if (!kt.StundeFrei(s)) continue;
+                if (bereiche.Count > 0 && bereiche[^1].Bis == s - 1) bereiche[^1] = (bereiche[^1].Von, s);
+                else bereiche.Add((s, s));
+            }
+        if (bereiche.Count == 0) return;
+        using var schrift = new Font("Segoe UI", Format.Klein ? 7f : 8.25f, FontStyle.Bold);
+        foreach (var (von, bis) in bereiche)
+        {
+            var oben = Zelle(bounds, t, von);
+            var unten = Zelle(bounds, t, bis);
+            var r = Rectangle.Round(new RectangleF(oben.X + 1, oben.Y + 1, oben.Width - 2, unten.Bottom - oben.Y - 2));
+            if (r.Width < 6 || r.Height < 6) continue;
+            var platz = r.Width - 4;
+            var text = Kalender.FreiText(bez, datum, x => TextRenderer.MeasureText(g, x, schrift, Size.Empty, TextFormatFlags.NoPadding).Width <= platz);
+            FreiBeschriftungen.Add((t, text));
+            // Beschriftung oben in der ersten freien Stunde, über dem hellgelben Hintergrund
+            var zeile = new Rectangle(r.X, r.Y, r.Width, Math.Min(r.Height, schrift.Height + 4));
+            using (var b = new SolidBrush(Color.FromArgb(255, 236, 190))) g.FillRectangle(b, zeile);
+            TextRenderer.DrawText(g, text, schrift, zeile, Color.FromArgb(150, 80, 0),
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        }
     }
 
     /// <summary>Beim Ziehen: Stunden, mit denen getauscht werden kann, grün; Ziel unter der Maus kräftig grün und gestrichelt umrandet.</summary>

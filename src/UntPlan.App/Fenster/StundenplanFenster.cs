@@ -60,6 +60,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     public int ElementId => _id;
     /// <summary>Gezeichneter Plan (für Selbsttest und Synchronisation).</summary>
     internal PlanAnsicht Plan => _plan;
+    /// <summary>Selbsttest: Der Plan ist höher als der sichtbare Bereich und kann gescrollt werden (Rollbalken statt Quetschen).</summary>
+    internal bool PlanScrollbar => _planRahmen.AutoScroll && _plan.Height > _planRahmen.ClientSize.Height;
+    /// <summary>Selbsttest: Plan mit dem Mausrad nach unten scrollen.</summary>
+    internal void SelbsttestScrollen(int y) => _planRahmen.AutoScrollPosition = new Point(0, y);
 
     public StundenplanFenster(ElementTyp typ, int id, bool gross, bool klein = false)
     {
@@ -233,6 +237,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             var uid = int.Parse(t[3]);
             var zeile = int.Parse(t[4]);
             var laenge = t.Length > 5 && int.TryParse(t[5], out var l5) ? Math.Max(1, l5) : 1;
+            // verlegte Stunde: erst fragen, ob die Verlegung rückgängig gemacht werden soll (dann kein Entfall)
+            if (VerlegungsAbfrage.VorEntfall(datum, stunde, uid, Aendern)) { Neuaufbau(false); return; }
             Aendern(laenge > 1 ? $"Entfall ({laenge} Stunden)" : "Entfall", AenderungsArt.Vertretung, d =>
             {
                 for (var i = 0; i < laenge; i++) Vertretungen.Entfallen(d, uid, zeile < 0 ? null : zeile, datum, stunde + i, AppZustand.Benutzer);
@@ -267,7 +273,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             // Vertretungsmodus (Untis): schmaler Rand um den Plan
             var rand = AppZustand.Vertretungsmodus ? (_klein ? 3 : 6) : 0;
             var innen = planRahmen.Height - 2 - 2 * rand;
-            var blaettern = !_klein && _plan.BenoetigteHoehe > innen;
+            // kleiner Plan (Miniplan): Mindestzeilenhöhe statt Quetschen – bei vielen Stunden (bis 14) scrollt er senkrecht
+            var noetig = _klein ? _plan.MindestHoehe : _plan.BenoetigteHoehe;
+            var blaettern = noetig > innen;
             var quer = !_klein && _plan.BenoetigteBreite > planRahmen.Width - (blaettern ? SystemInformation.VerticalScrollBarWidth : 0) - 2 - 2 * rand;
             if (planRahmen.AutoScroll != (blaettern || quer))
             {
@@ -275,7 +283,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
                 if (!blaettern && !quer) planRahmen.AutoScrollPosition = Point.Empty;
             }
             var breite = quer ? _plan.BenoetigteBreite : (blaettern ? planRahmen.Width - SystemInformation.VerticalScrollBarWidth - 2 : planRahmen.Width) - 2 * rand;
-            var hoehe = blaettern ? _plan.BenoetigteHoehe : planRahmen.Height - (quer ? SystemInformation.HorizontalScrollBarHeight + 2 : 0) - 2 * rand;
+            var hoehe = blaettern ? noetig : planRahmen.Height - (quer ? SystemInformation.HorizontalScrollBarHeight + 2 : 0) - 2 * rand;
             _plan.SetBounds(rand + (quer ? planRahmen.AutoScrollPosition.X : 0), rand + (blaettern ? planRahmen.AutoScrollPosition.Y : 0), Math.Max(_klein ? 60 : 100, breite), Math.Max(60, hoehe));
         }
         planRahmen.Resize += (_, _) => PlanGroesse();
@@ -1208,6 +1216,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var entfall = cm.Items.Add("Stunde entfallen lassen", Symbole.Get("entfall"), (_, _) =>
         {
             if (uid is not int uu) return;
+            if (VerlegungsAbfrage.VorEntfall(datum, stunde, uu, Aendern)) { Neuaufbau(false); return; }
             Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uu, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde, AppZustand.Benutzer));
             Neuaufbau(false);
         });

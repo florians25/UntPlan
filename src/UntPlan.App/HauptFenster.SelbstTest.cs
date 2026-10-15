@@ -44,6 +44,9 @@ public sealed partial class HauptFenster
         foreach (var k in AppZustand.Einstellungen.Tabellenlayouts.Keys.Where(k => k.StartsWith("VertretungenFenster", StringComparison.Ordinal)).ToList())
             AppZustand.Einstellungen.Tabellenlayouts.Remove(k);
         AppZustand.Einstellungen.Vertretungsansicht = "Klasse - Standard";
+        // Ja/Nein-Abfragen (z. B. „Soll die Verlegung rückgängig gemacht werden?“) nicht modal: mit Ja beantworten und protokollieren
+        var fragen = new List<string>();
+        Ui.FrageAntwort = (text, _) => { fragen.Add(text); return true; };
         var logPfad = Path.Combine(ordner, "selbsttest.log");
         File.WriteAllText(logPfad, "");
         void Schritt(string name, Action aktion, int ribbonSeite = -1, bool schliessen = true)
@@ -144,6 +147,31 @@ public sealed partial class HauptFenster
         Schritt("13_Zeitraster", () => new ZeitrasterDialog().Show(this), 0);
         Schritt("14_Einstellungen", () => new EinstellungenDialog().Show(this), 0);
         Schritt("15_Ferien", () => Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), 0);
+        Schritt("15a_Ferien_Untis", () =>
+        {
+            // UP-04: Ferienfenster wie Untis – eintägig unterrichtsfrei (Name „3.9“), Feiertag, Jahreskalender, Allgemeine Daten
+            var f = Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster()));
+            var dd = AppZustand.D;
+            var frei = Kalender.Tage(dd.Einstellungen.SchuljahrVon, dd.Einstellungen.SchuljahrBis).First(t => t.DayOfWeek == DayOfWeek.Friday && Kalender.IstUnterrichtstag(dd, t));
+            var vorher = f.Entwurf.Count;
+            f.Neu(frei, frei, $"{frei.Day}.{frei.Month}", $"{frei.Day}.{frei.Month}.{frei.Year}");
+            if (f.Entwurf.Count != vorher + 1) throw new InvalidOperationException("Ferien: neuer Eintrag fehlt im Entwurf.");
+            if (dd.Ferien.Any(x => x.Von == frei && x.Bis == frei && x.Kurzname == $"{frei.Day}.{frei.Month}")) throw new InvalidOperationException("Ferien: Entwurf wurde vor der Übernahme gespeichert.");
+            if (!f.Uebernehmen()) throw new InvalidOperationException("Ferien: Übernahme fehlgeschlagen.");
+            if (!AppZustand.D.Ferien.Any(x => x.Von == frei && x.Bis == frei)) throw new InvalidOperationException("Ferien: Übernahme hat den Eintrag nicht gespeichert.");
+            if (Kalender.IstUnterrichtstag(AppZustand.D, frei)) throw new InvalidOperationException("Ferien: Tag ist nach der Übernahme noch Unterrichtstag.");
+            f.DatumWaehlen(frei);
+        }, 0);
+        Schritt("15b_Kurzname_Neuanlegen", () =>
+        {
+            // Neuanlegen von Stammdaten: Dialog „Kurzname“ (Name, Langname) wie Untis
+            Max(Oeffnen<StammdatenFenster>("st:Schueler", () => new StammdatenFenster(ElementTyp.Schueler)));
+            var vorschlag = KurznameDialog.Vorschlag(AppZustand.D.AlleElemente(ElementTyp.Schueler).Select(e => e.Kurzname));
+            var dlg = KurznameDialog.Erzeugen(vorschlag.Length > 0 ? vorschlag : "S68", "Student 80", out _, out _);
+            dlg.StartPosition = FormStartPosition.CenterScreen;
+            dlg.Show(this);
+            log.Add($"INFO  Kurzname-Dialog: Vorschlag „{vorschlag}“");
+        }, 1);
         Schritt("16_Vertretungsmodus", VertretungsmodusUmschalten, -1, false);
         Schritt("17_Vertretungen", () => Max(FensterOeffnen("vertr")!), -1);
         Schritt("17a_Vertretungen_Eingabe_Offene", () =>
@@ -250,6 +278,54 @@ public sealed partial class HauptFenster
             }
             throw new InvalidOperationException("Kein Tausch im tagesaktuellen Plan gefunden.");
         }, -1);
+        // UP-01: 14 Stunden pro Tag (mit Pausenzeilen) – Miniplan und Stundenplan scrollen statt zu quetschen, Blöcke nie über Pausen
+        var stundenVorher = AppZustand.D.Zeitraster.StundenProTag;
+        void VierzehnStunden(bool an) => AppZustand.Doc.Aendern(an ? "14 Stunden (Selbsttest)" : "Stunden zurück (Selbsttest)", AenderungsArt.Alles, x =>
+        {
+            var z = x.Zeitraster;
+            z.StundenProTag = an ? 14 : stundenVorher;
+            for (var nr = 1; nr <= 14; nr++)
+                if (an && z.Zeit(nr) is null)
+                {
+                    var beginn = (z.Zeit(nr - 1)?.Ende ?? new TimeOnly(7, 0)).AddMinutes(5);
+                    z.Zeiten.Add(new Stundenzeit { Nr = nr, Beginn = beginn, Ende = beginn.AddMinutes(45) });
+                }
+            if (an && !z.Pausen.Any(p => p.NachStunde == 0)) z.Pausen.Add(new Pause { NachStunde = 0, Bezeichnung = "FA", DauerMinuten = 10 });
+            if (!an) z.Pausen.RemoveAll(p => p.NachStunde == 0 && p.Bezeichnung == "FA");
+        });
+        Schritt("19a3_Miniplan_14_Stunden", () =>
+        {
+            VierzehnStunden(true);
+            var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+            var vertr = FensterOeffnen("vertr")!;
+            vertr.Bounds = new Rectangle(0, 0, mdi.Width - 420, mdi.Height);
+            // kleiner Lehrerplan wie im Fehlerbild: niedriges Fenster → Mindestzeilenhöhe und Rollbalken
+            var klein = StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false, true);
+            klein.Bounds = new Rectangle(mdi.Width - 420, 0, 200, 300);
+            var hoch = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, true);
+            hoch.Bounds = new Rectangle(mdi.Width - 216, 0, 200, Math.Min(mdi.Height, hoch.Height));
+            Warten(300);
+            if (!klein.Klein) throw new InvalidOperationException("Miniplan ist nicht klein.");
+            if (!klein.PlanScrollbar) throw new InvalidOperationException("Miniplan mit 14 Stunden scrollt nicht (Zeilen werden gequetscht).");
+            var fehler = klein.Plan.SelbsttestBlockPruefung().Concat(hoch.Plan.SelbsttestBlockPruefung()).ToList();
+            if (fehler.Count > 0) throw new InvalidOperationException("Miniplan-Blöcke: " + string.Join("; ", fehler));
+            log.Add($"INFO  Miniplan 14 Stunden: Planhöhe {klein.Plan.Height} px, Mindesthöhe {klein.Plan.MindestHoehe} px, Zeile ≥ {klein.Plan.MindestZeile} px, scrollbar");
+        }, -1);
+        Schritt("19a4_Miniplan_14_Stunden_gescrollt", () =>
+        {
+            var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+            var klein = StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false, true);
+            klein.Bounds = new Rectangle(10, 10, 200, 300);
+            var gross = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false);
+            gross.Bounds = new Rectangle(220, 10, Math.Min(760, mdi.Width - 230), Math.Min(420, mdi.Height - 20));
+            Warten(300);
+            klein.SelbsttestScrollen(10000);
+            if (!gross.PlanScrollbar) throw new InvalidOperationException("Stundenplan mit 14 Stunden scrollt nicht.");
+            gross.SelbsttestScrollen(10000);
+            var fehler = klein.Plan.SelbsttestBlockPruefung().Concat(gross.Plan.SelbsttestBlockPruefung()).ToList();
+            if (fehler.Count > 0) throw new InvalidOperationException("Stundenplan-Blöcke: " + string.Join("; ", fehler));
+        }, -1);
+        Schritt("19a5_Stunden_zurueck", () => { VierzehnStunden(false); Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)); }, -1);
         Schritt("19b_Pausenaufsichten", () => Max(FensterOeffnen("pause")!), -1);
         Schritt("19c_Statistik", () => Max(FensterOeffnen("stat")!), -1);
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
@@ -275,6 +351,104 @@ public sealed partial class HauptFenster
                 new Web.Contracts.WebRueckmeldung { Id = "B510", Typ = Web.Contracts.WebRueckmeldungsTypen.Raumbuchung, Absender = "admin", Lehrer = ix.KLehrer(r.LehrerId), Von = tag.ToString("yyyy-MM-dd"), StundeVon = r.Stunde, Raum = AppZustand.D.Raeume[0].Kurzname },
                 new Web.Contracts.WebRueckmeldung { Id = "E68", Typ = Web.Contracts.WebRueckmeldungsTypen.Klausur, Absender = "admin", Lehrer = ix.KLehrer(r.LehrerId), Von = tag.ToString("yyyy-MM-dd"), StundeVon = 4, Klassen = { AppZustand.D.Klassen[0].Kurzname }, Titel = "Mathe Schularbeit" },
             }).Show(this);
+        }, -1);
+        Schritt("19d7_Tagestext_formatiert", () =>
+        {
+            // UP-02: Dialog „Tagestexte“ mit B K U und Farbe; gespeichert als Rich Text und bereinigtes HTML (Export: textHtml)
+            var kal = FensterOeffnen("kal")!;
+            kal.WindowState = FormWindowState.Normal;
+            kal.Bounds = new Rectangle(0, 0, 640, 560);
+            var t = new Tagestext { Datum = AppZustand.Datum };
+            var dlg = new TagestextFormatDialog(AppZustand.Datum, t) { StartPosition = FormStartPosition.Manual, Location = new Point(PointToScreen(Point.Empty).X + 660, PointToScreen(Point.Empty).Y + 160) };
+            dlg.Show(this);
+            var rtb = dlg.Textfeld;
+            rtb.Text = "Heute Lehrerkonferenz um 14:15 Uhr\nBitte Klassenbücher mitbringen.";
+            rtb.Select(0, 5); dlg.StilUmschalten(FontStyle.Bold);
+            rtb.Select(6, 15); dlg.StilUmschalten(FontStyle.Italic);
+            rtb.Select(25, 9); dlg.FarbeSetzen(Color.Red); dlg.StilUmschalten(FontStyle.Underline);
+            rtb.Select(rtb.TextLength, 0);
+            dlg.Uebernehmen();
+            if (!dlg.Html.Contains("<b>Heute</b>") || !dlg.Html.Contains("<i>") || !dlg.Html.Contains("color:#ff0000") || !dlg.Html.Contains("<u>"))
+                throw new InvalidOperationException("Tagestext-HTML unvollständig: " + dlg.Html);
+            if (dlg.Rtf.Length == 0) throw new InvalidOperationException("Tagestext: Rich Text fehlt.");
+            var neu = new Tagestext { Datum = AppZustand.Datum, Text = dlg.Klartext, TextRtf = dlg.Rtf, TextHtml = dlg.Html };
+            AppZustand.Doc.Aendern("Tagestext formatiert", AenderungsArt.Vertretung, x => x.Tagestexte.Add(neu));
+            var paket = Core.Austausch.UntPlanWebExport.PaketErstellen(AppZustand.D, AppZustand.Datum);
+            var web = paket.Tagestexte.FirstOrDefault(x => x.Text == neu.Text) ?? throw new InvalidOperationException("Export: formatierter Tagestext fehlt.");
+            if (!web.TextHtml.Contains("<b>Heute</b>")) throw new InvalidOperationException("Export: TextHtml ohne Formatierung: " + web.TextHtml);
+            log.Add("INFO  Tagestext-HTML: " + dlg.Html);
+        }, -1);
+        Schritt("19d8_Kalendertag_unterrichtsfrei", () =>
+        {
+            // UP-03: Kalendertag wie Untis (Normaler Schultag / Feiertag / Unterrichtsfrei [Grund] / Nur diese Stunden …, Notiz)
+            var dd = AppZustand.D;
+            var montag = Kalender.Montag(tag);
+            var tage = Enumerable.Range(0, 5).Select(i => montag.AddDays(i)).Where(t => t != tag).ToList();
+            var grund = dd.Abwesenheitsgruende.FirstOrDefault();
+            AppZustand.Doc.Aendern("Unterrichtsfrei (Selbsttest)", AenderungsArt.Vertretung, x =>
+            {
+                x.Kalender.RemoveAll(k => tage.Contains(k.Datum));
+                x.Kalender.Add(new Kalendertag { Datum = tage[0], Unterrichtsfrei = true });
+                var lang = new Abwesenheitsgrund { Id = x.NeueId(), Kurzname = "PTF", Langname = "Pädagogischer Tag mit ganztägiger Fortbildung des Kollegiums" };
+                x.Abwesenheitsgruende.Add(lang);
+                x.Kalender.Add(new Kalendertag { Datum = tage[1], Unterrichtsfrei = true, GrundId = lang.Id });
+                if (grund != null) x.Kalender.Add(new Kalendertag { Datum = tage[2], FreieStunden = "5-6", Notiz = "Sportfest" });
+                Kalender.CacheLeeren();
+                foreach (var t in tage) Core.Vertretungsplanung.Vertretungen.Aktualisieren(x, t);
+            });
+            AppZustand.DatumSetzen(tage[1]);
+            var kal = FensterOeffnen("kal") as KalenderFenster ?? throw new InvalidOperationException("Kalenderfenster fehlt");
+            kal.WindowState = FormWindowState.Normal;
+            kal.Bounds = new Rectangle(0, 0, 600, 560);
+            kal.SelbsttestKalendertag();
+            var sp = StundenplanFenster.Neu(ElementTyp.Klasse, dd.Klassen.First().Id, false);
+            var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+            sp.Bounds = new Rectangle(610, 0, Math.Min(900, mdi.Width - 610), Math.Min(640, mdi.Height));
+            var klein = StundenplanFenster.Neu(ElementTyp.Klasse, dd.Klassen.First().Id, false, true);
+            klein.Location = new Point(610, Math.Min(640, mdi.Height - klein.Height));
+            Warten(400);
+            sp.Plan.Refresh();
+            klein.Plan.Refresh();
+            var texte = sp.Plan.FreiBeschriftungen.Select(x => x.Text).ToList();
+            var kurz = $"{tage[0].Day}.{tage[0].Month}.{tage[0].Year}";
+            if (!texte.Contains(kurz)) throw new InvalidOperationException($"Unterrichtsfrei ohne Bezeichnung zeigt nicht das Datum {kurz}: {string.Join(" | ", texte)}");
+            if (!texte.Any(x => x.StartsWith("Päd") && x.EndsWith("…"))) throw new InvalidOperationException("Überlange Bezeichnung wird nicht mit „…“ gekürzt: " + string.Join(" | ", texte));
+            if (!klein.Plan.FreiBeschriftungen.Any(x => x.Text.EndsWith("…"))) throw new InvalidOperationException("Miniplan kürzt die Bezeichnung nicht: " + string.Join(" | ", klein.Plan.FreiBeschriftungen.Select(x => x.Text)));
+            log.Add("INFO  Unterrichtsfrei: " + string.Join(" | ", texte) + " / klein: " + string.Join(" | ", klein.Plan.FreiBeschriftungen.Select(x => x.Text)));
+        }, -1);
+        Schritt("19d9_Verlegung_Absenz_Abfragen", () =>
+        {
+            // Z1/Z2: Verlegung bei „Entfall“ rückgängig machen; neue Lehrer-Absenz fragt nach Verlegungen und Sondereinsätzen
+            AppZustand.DatumSetzen(tag);
+            var dd = AppZustand.D;
+            bool Aendern2(string text, AenderungsArt art, Action<Schuldatei> a) { AppZustand.Doc.Aendern(text, art, a); return true; }
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            var r = Core.Vertretungsplanung.Tagesplan.Regulaer(dd, tag).First(x => x.LehrerId is int l && l != krank.Id && tp.Stunde(x.Stunde).Any(e => e.Findetstatt && e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht?.Id == x.Unterricht.Id) && !dd.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == x.Unterricht.Id) && !dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l && a.Von <= tag && a.Bis >= tag) && x.Unterricht.Zeilen.Count == 1 && string.IsNullOrEmpty(x.Unterricht.Band) &&
+                Enumerable.Range(1, dd.Zeitraster.StundenProTag).Any(s => s != x.Stunde && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { l }, x.KlassenIds, s, x.Unterricht.Id, x.RaumId) == Core.Planung.Feldstatus.Frei));
+            var ziel = Enumerable.Range(1, dd.Zeitraster.StundenProTag).First(s => s != r.Stunde && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { r.LehrerId!.Value }, r.KlassenIds, s, r.Unterricht.Id, r.RaumId) == Core.Planung.Feldstatus.Frei);
+            AppZustand.Doc.Aendern("Verlegen (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Verlegen(x, r.Unterricht.Id, null, tag, r.Stunde, tag, ziel));
+            fragen.Clear();
+            if (!VerlegungsAbfrage.VorEntfall(tag, ziel, r.Unterricht.Id, Aendern2)) throw new InvalidOperationException("Entfall bei Verlegung: keine Rückfrage bzw. nicht aufgehoben.");
+            if (!fragen.Any(f => f.Contains(VerlegungsAbfrage.FrageVerlegung))) throw new InvalidOperationException("Rückfrage „Soll die Verlegung rückgängig gemacht werden?“ fehlt.");
+            if (AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == r.Unterricht.Id && (v.Stunde == ziel || v.IstEntfall))) throw new InvalidOperationException("Verlegung wurde nicht aufgehoben.");
+            log.Add("INFO  Z2 Rückfrage: " + fragen[0].Replace("\n", " / "));
+            // Z1: wieder verlegen, Sondereinsatz eintragen, dann wird die Lehrkraft krank
+            AppZustand.Doc.Aendern("Verlegen (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Verlegen(x, r.Unterricht.Id, null, tag, r.Stunde, tag, ziel));
+            var tp2 = Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, tag);
+            var sonderStunde = Enumerable.Range(1, AppZustand.D.Zeitraster.StundenProTag).FirstOrDefault(s => !tp2.Stunde(s).Any(e => e.Findetstatt && e.LehrerIds.Contains(r.LehrerId!.Value)));
+            if (sonderStunde > 0)
+                AppZustand.Doc.Aendern("Sondereinsatz (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Sondereinsatz(x, tag, sonderStunde, sonderStunde, new[] { r.KlassenIds[0] }, new[] { r.LehrerId!.Value }, r.FachId, null, "Projekt"));
+            var a = new Abwesenheit { Art = AbwesenheitsArt.Lehrer, ElementId = r.LehrerId!.Value, Von = tag, Bis = tag };
+            List<Abwesenheit> gespeichert = new();
+            AppZustand.Doc.Aendern("Absenz (Selbsttest)", AenderungsArt.Vertretung, x => gespeichert = Core.Vertretungsplanung.AbsenzVerwaltung.Speichern(x, new[] { a }, Array.Empty<Abwesenheit>()));
+            fragen.Clear();
+            VerlegungsAbfrage.NachAbsenz(gespeichert, Aendern2);
+            if (!fragen.Any(f => f.Contains(VerlegungsAbfrage.FrageVerlegung))) throw new InvalidOperationException("Absenz: Rückfrage zur Verlegung fehlt.");
+            if (sonderStunde > 0 && !fragen.Any(f => f.Contains(VerlegungsAbfrage.FrageSondereinsatz))) throw new InvalidOperationException("Absenz: Rückfrage zu Sondereinsätzen fehlt.");
+            if (AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.Art == VertretungsArt.Sondereinsatz && v.VertreterId == r.LehrerId)) throw new InvalidOperationException("Sondereinsatz wurde nicht gelöscht.");
+            if (AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.Stunde == ziel && v.UnterrichtId == r.Unterricht.Id)) throw new InvalidOperationException("Verlegung wurde nach der Absenz nicht aufgehoben.");
+            log.Add($"INFO  Z1 Rückfragen: {fragen.Count} – " + string.Join(" // ", fragen.Select(f => f.Replace("\n", " / "))));
+            Max(FensterOeffnen("vertr")!);
         }, -1);
         Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
         Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);

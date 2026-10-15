@@ -510,6 +510,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
                 string.Join("\n", betroffen.Take(20).Select(v => $"Vtr-Nr. {v.Id}: {Planungsdienst.TageKurz[((int)v.Datum.DayOfWeek + 6) % 7]} {Format.Datum(v.Datum)}, {v.Stunde}. Std., {Ix.KKlassen(v.NeueKlassenIds)} {Ix.KFach(v.FachId)} – Vertreter {Ix.KLehrer(v.VertreterId)}")) +
                 (betroffen.Count > 20 ? $"\n… und {betroffen.Count - 20} weitere" : ""), "Vertreter abwesend");
         VeranstaltungenPruefen(this, gespeichert, (t, a) => Aendern(t, AenderungsArt.Vertretung, a));
+        // Lehrkraft wird abwesend: Verlegungen und Sondereinsätze im Absenzzeitraum rückgängig machen bzw. löschen?
+        VerlegungsAbfrage.NachAbsenz(gespeichert, Aendern);
         Neuaufbau();
     }
 
