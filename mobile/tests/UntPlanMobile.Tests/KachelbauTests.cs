@@ -277,15 +277,42 @@ public class KachelbauTests
     }
 
     [Fact]
-    public void Kopplung_mit_mehreren_Lehrkraeften_ist_eine_Kachel()
+    public void Kopplung_gleiches_Fach_und_Raum_ist_eine_Kachel_mit_allen_Lehrkraeften_und_Klassen()
     {
-        var karte = Karte("regulaer", 5, fach: "KR, ER", unterricht: 167, lehrer: new() { new("BEC"), new("ZIM") }, raeume: new() { new("R101"), new("R102") }, klassen: new() { new("5a"), new("5b") });
+        // UntPlanWeb fasst nur bei gleichem Fach und gleichem Raum zusammen – dann eine Kachel mit allen Beteiligten
+        var karte = Karte("regulaer", 5, fach: "KR", unterricht: 167, lehrer: new() { new("BEC"), new("ZIM") }, raeume: new() { new("R101") }, klassen: new() { new("5a"), new("5b") });
         var kacheln = Kachelbau.Tag(Plan("klasse", new() { karte }), Tag(), Array.Empty<Ferienzeit>());
         var k = Assert.Single(kacheln);
-        Assert.Equal("KR, ER", k.Fach);
+        Assert.Equal("KR", k.Fach);
         Assert.Equal("BEC,ZIM", k.Lehrkraft);
-        Assert.Equal("R101,R102", k.Raum);
+        Assert.Equal("R101", k.Raum);
         Assert.Equal(new[] { "BEC", "ZIM" }, k.Kopplung!.Select(t => t.Code));
+        Assert.Equal(new[] { "5a", "5b" }, k.Klassenliste!.Select(t => t.Name));
+    }
+
+    [Fact]
+    public void Kopplung_mit_unterschiedlichen_Faechern_bleibt_einzelne_Kacheln()
+    {
+        var kr = Karte("regulaer", 5, fach: "KR", unterricht: 167, lehrer: new() { new("BEC") }, raeume: new() { new("R101") }, klassen: new() { new("5a"), new("5b") });
+        var er = Karte("regulaer", 5, fach: "ER", unterricht: 167, lehrer: new() { new("ZIM") }, raeume: new() { new("R102") }, klassen: new() { new("5a"), new("5b") });
+        var kacheln = Kachelbau.Tag(Plan("klasse", new() { kr, er }), Tag(), Array.Empty<Ferienzeit>());
+        Assert.Equal(2, kacheln.Count);
+        Assert.Equal(new[] { "ER", "KR" }, kacheln.Select(x => x.Fach).OrderBy(x => x));
+        Assert.All(kacheln, x => Assert.Null(x.Kopplung));
+    }
+
+    [Fact]
+    public void Notizen_und_faellige_Hausaufgabe_setzen_die_Zeichen_auf_der_Kachel()
+    {
+        var mitNotiz = Karte("regulaer", 2) with { NotizSchueler = "Bibel mitbringen", NotizLehrer = "Beamer defekt", HausaufgabeFaellig = true };
+        var k = Kachelbau.AusKarte(mitNotiz, "class");
+        Assert.True(k.Notiz);
+        Assert.Equal("Bibel mitbringen", k.NotizSchueler);
+        Assert.Equal("Beamer defekt", k.NotizLehrer);
+        Assert.True(k.Hausaufgabe);
+        var ohne = Kachelbau.AusKarte(Karte("regulaer", 2), "class");
+        Assert.Null(ohne.Notiz);
+        Assert.Null(ohne.Hausaufgabe);
     }
 
     [Fact]

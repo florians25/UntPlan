@@ -41,21 +41,44 @@ function titelText(k) {
   return [k.fachName || k.fach || k.text, w(k.klassen), w(k.lehrer), w(k.raeume), k.status !== 'regulaer' ? statusText(k) : '', k.fach && k.text].filter(Boolean).join(' · ');
 }
 
-function marker(k) {
+/** Eigene Stunde der gerade angezeigten Lehrkraft wird von anderen gehalten (Lehrkraft abwesend): gestrichelte Karte statt Entfall. */
+export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && typ === 'lehrer';
+/** Echter Entfall (rot, durchgestrichen); im Raumplan gilt eine verlegte Stunde weiter als Entfall. */
+const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend' && typ !== 'lehrer');
+
+function marker(k, typ) {
   const m = [];
-  if (k.status === 'entfall' || k.status === 'abwesend') m.push('<i class="mk-dreieck"></i>');
+  if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
   if (k.status === 'klausur') m.push('<i class="mk-kreis"></i>');
   if (istZusatz(k)) m.push('<i class="mk-plus"></i>');
   else if (k.status === 'geaendert' || k.status === 'offen' || k.status === 'buchung') m.push('<i class="mk-quadrat"></i>');
   return m.length ? `<span class="mks" aria-hidden="true">${m.join('')}</span>` : '';
 }
 
+/** Text für das Info-Symbol: Vertretungstext und Notizen (wie im Original unten rechts auf der Karte). */
+export function infoText(k) {
+  const z = [];
+  if (k.text && k.fach && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
+  if (k.notizLehrer) z.push(`Notizen für Lehrkräfte: ${k.notizLehrer}`);
+  if (k.notizSchueler) z.push(`Notizen für Schüler*innen: ${k.notizSchueler}`);
+  return z.join('\n');
+}
+
+/** Symbole unten rechts: fällige Hausaufgabe und Info (Original-Icons). */
+function eckSymbole(k) {
+  const info = infoText(k);
+  const hw = k.hausaufgabeFaellig ? '<img class="ecke-hw" src="img/wu/exact/tt-homework-icon.svg" alt="" title="Hausaufgabe fällig">' : '';
+  const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" title="${e(info)}">` : '';
+  return hw || i ? `<span class="ecke" aria-hidden="true">${hw}${i}</span>` : '';
+}
+
 /**
- * Inhalt einer Karte. Oberste Zeile wie im Original: im Klassenplan das Fach, im Lehrer- und Raumplan die Klasse(n);
- * darunter die übrigen Elemente. Ohne Fach (Veranstaltung, Klausur, Buchung) steht die Bezeichnung oben.
+ * Inhalt einer Karte wie im Original: im Klassenplan Lehrkraft (fett), Fach, Raum; im Lehrerplan Klasse(n) (fett), Fach, Raum;
+ * im Raumplan Klasse(n), Lehrkraft, Fach. Bei zusammengefassten Kopplungen (gleiches Fach und gleicher Raum) stehen alle
+ * Lehrkräfte und Klassen auf der Karte. Ohne Fach (Veranstaltung, Klausur, Buchung) steht die Bezeichnung oben.
  */
 export function karteInhalt(k, typ, kompakt = false) {
-  const entfall = k.status === 'entfall' || k.status === 'abwesend';
+  const entfall = istEntfall(k, typ);
   const fach = k.fachAlt && !entfall ? `<span class="lbl">${e(k.fach)}</span>` : e(k.fach || '');
   const ohneFach = !k.fach;
   let oben, rest;
@@ -64,16 +87,28 @@ export function karteInhalt(k, typ, kompakt = false) {
     oben = e(k.text || k.art || '—');
     rest = [gekuerzt(k.klassen, 4, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? gekuerzt(k.lehrer, 3, entfall) : '', werte(k.raeume, entfall)];
   } else if (typ === 'klasse') {
-    oben = fach;
-    rest = [werte(k.lehrer, entfall), werte(k.raeume, entfall), k.klassen.length > 1 ? werte(k.klassen, entfall) : ''];
+    const lehrer = werte(k.lehrer, entfall);
+    oben = lehrer || fach;
+    rest = [lehrer ? fach : '', werte(k.raeume, entfall), k.klassen.length > 1 ? werte(k.klassen, entfall) : ''];
+  } else if (typ === 'raum') {
+    oben = werte(k.klassen, entfall) || fach;
+    rest = [werte(k.lehrer, entfall), k.klassen.length ? fach : ''];
   } else {
     oben = werte(k.klassen, entfall) || fach;
-    rest = [k.klassen.length ? fach : '', typ === 'raum' ? werte(k.lehrer, entfall) : werte(k.raeume, entfall)];
+    // Lehrkraft abwesend: eigenes Kürzel durchgestrichen als Plakette; Kopplung: alle Lehrkräfte
+    const lehrerZeile = lehrerAbwesend(k, typ) ? (k.lehrer.filter(w => (w.alt || w.k)).map(w => `<span class="lbl weg">${e(w.alt || w.k)}</span>`).join(' ') || '')
+      : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werte(k.lehrer, entfall) : '';
+    rest = [k.klassen.length ? fach : '', werte(k.raeume, entfall), lehrerZeile];
   }
   const zeilen = rest.filter(x => x);
   const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.join(' · ')}</div>` : '') : zeilen.map(x => `<div class="z2">${x}</div>`).join('');
-  const info = k.text && !ohneFach ? '<span class="info" aria-hidden="true">i</span>' : '';
-  return `${marker(k)}<div class="z1">${oben}</div>${rumpf}${info}`;
+  return `${marker(k, typ)}<div class="z1">${oben}</div>${rumpf}${eckSymbole(k)}`;
+}
+
+/** CSS-Klassen einer Karte (Status, Lehrkraft abwesend, vergangen). */
+export function kartenKlasse(k, typ, jetztIso, jetzt) {
+  return [k.status, lehrerAbwesend(k, typ) ? 'lehrer-abwesend' : '', istEntfall(k, typ) && k.status === 'abwesend' ? 'entfall' : '',
+    vergangen(k, jetztIso, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''].filter(Boolean).join(' ');
 }
 
 function vergangen(k, jetztIso, jetzt) {
@@ -229,9 +264,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false 
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
         const oben = aufbau.oben[iv] + 1, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 1;
         // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“)
-        const mitZeit = kartenZeiten && h >= 60 && anzahl <= 2;
+        const mitZeit = kartenZeiten && h >= 60 && anzahl === 1;
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
-        html += `<div class="std ${e(k.status)} ${mitZeit ? 'mit-zeit' : ''} ${vergangen(k, heute, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''}" ${nr} tabindex="0" role="button"
+        html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
           title="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + ${spur ? 2 : 0}px);width:calc(${breite}% - ${anzahl > 1 ? 2 : 0}px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
       }
     }
@@ -260,8 +295,8 @@ export function tagAuswahl(plan, gewaehlt) {
 }
 
 /** Klick auf eine Karte öffnet den Detaildialog. */
-export function kartenBinden(wurzel, karten, kontext) {
-  const oeffnen = el => { const k = karten[Number(el.dataset.karte)]; if (k) karteDialog(k, { ...kontext, liste: karten }); };
+export function kartenBinden(wurzel, karten, kontext, typ = null) {
+  const oeffnen = el => { const k = karten[Number(el.dataset.karte)]; if (k) karteDialog(k, { ...kontext, liste: karten, typ }); };
   wurzel.querySelectorAll('[data-karte]').forEach(el => {
     el.addEventListener('click', () => oeffnen(el));
     el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); oeffnen(el); } });
@@ -293,7 +328,7 @@ export function tagesGitter(tag) {
       for (let n = z.nr + 1; n <= bis; n++) belegt.add(n);
       html += `<div class="tagplan-zelle" style="grid-column:span ${bis - z.nr + 1}">` + hier.map(k => {
         alle.push(k);
-        return `<div class="std ${e(k.status)} ${vergangen(k, jetztIso, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''}" data-karte="${alle.length - 1}" tabindex="0" role="button" title="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, tag.typ)}</div>`;
+        return `<div class="std ${e(kartenKlasse(k, tag.typ, jetztIso, jetzt))}" data-karte="${alle.length - 1}" tabindex="0" role="button" title="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, tag.typ)}</div>`;
       }).join('') + '</div>';
     }
   }
@@ -311,7 +346,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="z3">Veranstaltung</div></div></div>` })),
     ...karten.map((k, i) => ({ zeit: minuten(k.beginn), html: `<div class="eintrag ${k.datum === jetztIso && minuten(k.beginn) <= jetzt && jetzt < minuten(k.ende) ? 'jetzt' : ''}">
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
-        <div class="std ${e(k.status)} ${vergangen(k, jetztIso, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''}" data-karte="${i}" tabindex="0" role="button" title="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
+        <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" title="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
         <div class="aufsicht ${e(a.status)}">Pausenaufsicht ${e(a.gangName)}${a.status === 'vertreten' ? ' – übernimmt ' + e(a.lehrer) : a.status === 'vertretung' ? ' – Vertretung für ' + e(a.alt) : ''}</div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);

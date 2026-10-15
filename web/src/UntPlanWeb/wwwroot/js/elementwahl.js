@@ -2,13 +2,14 @@
 import { e } from './ui.js';
 
 /** eintraege: [{ kurz, name }]; wert: aktuelles Kürzel; beiWahl(kurz). Liefert ein DOM-Element. */
-export function elementWahl({ eintraege, wert, platzhalter = 'Auswählen …', beiWahl }) {
+export function elementWahl({ eintraege, wert, platzhalter = 'Auswählen …', beiWahl, info = x => (x?.name && x.name !== x.kurz ? x.name : '') }) {
   const wurzel = document.createElement('div');
   wurzel.className = 'position-relative elementwahl';
   const aktuell = eintraege.find(x => x.kurz.toLowerCase() === String(wert ?? '').toLowerCase());
-  // Knopf wie im Original: Kürzel mit Info-Symbol (Langname als Hinweis)
-  wurzel.innerHTML = `<button class="btn btn-outline-secondary bg-white text-body dropdown-toggle wahl-knopf" type="button" aria-expanded="false" title="${e(aktuell?.name ?? platzhalter)}">
-      ${aktuell ? `<span>${e(aktuell.kurz)}</span>${aktuell.name && aktuell.name !== aktuell.kurz ? '<span class="info" aria-hidden="true">i</span>' : ''}` : `<span class="text-body-secondary">${e(platzhalter)}</span>`}
+  // Knopf wie im Original: Kürzel mit Info-Symbol; beim Zeigen auf das Symbol erscheint z. B. „Klassenlehrkraft: KM“
+  const infoText = aktuell ? info(aktuell) : '';
+  wurzel.innerHTML = `<button class="btn btn-outline-secondary bg-white text-body dropdown-toggle wahl-knopf" type="button" aria-expanded="false" aria-label="${e(aktuell ? `${aktuell.kurz}${infoText ? ' – ' + infoText : ''}` : platzhalter)}">
+      ${aktuell ? `<span>${e(aktuell.kurz)}</span>${infoText ? `<span class="wahl-info" data-tip="${e(infoText)}"><img src="img/wu/exact/info-dropdown-dark.svg" alt=""></span>` : ''}` : `<span class="text-body-secondary">${e(platzhalter)}</span>`}
     </button>
     <div class="wahl-menue bg-white border rounded shadow">
       <div class="p-2 border-bottom"><input type="search" class="form-control form-control-sm" placeholder="Suchen" aria-label="Suchen"></div>

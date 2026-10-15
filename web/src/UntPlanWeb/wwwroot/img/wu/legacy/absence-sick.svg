@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="18" viewBox="0 0 20 18">
+  <defs>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c3a15d"/>
+      <stop offset="1" stop-color="#8e6b2f"/>
+    </linearGradient>
+    <linearGradient id="blanket" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6eef1"/>
+      <stop offset="1" stop-color="#b9c9cf"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="2" width="3" height="12" rx="1" fill="url(#wood)" stroke="#7b5b29" stroke-width=".55"/>
+  <path d="M3.4 7.2h10.1c1.6 0 2.7 1 2.7 2.25v3.15H3.4z" fill="url(#blanket)" stroke="#8d9ca2" stroke-width=".55"/>
+  <path d="M3.5 10.8h12.7v2.25H3.5z" fill="#b38b43" stroke="#876529" stroke-width=".45"/>
+  <rect x="14.4" y="5.2" width="2.2" height="8.1" rx=".75" fill="#90754c" stroke="#70583a" stroke-width=".45"/>
+  <circle cx="15.5" cy="12.3" r="4" fill="#f8f8f8" stroke="#d2d2d2" stroke-width=".55"/>
+  <rect x="14.35" y="9.75" width="2.3" height="5.1" rx=".3" fill="#e3262e"/>
+  <rect x="12.95" y="11.15" width="5.1" height="2.3" rx=".3" fill="#e3262e"/>
+</svg>

@@ -22,11 +22,18 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
     Bereitschaften gestrichelt, Pausenaufsichten als Pillen in der Pause.
   - Im eigenen Lehrerplan laufen abgegebene Stunden „ohne mich“ weiter (Eckklammern).
   - Ferien und Feiertage als blaues Feld mit Name und Zeitraum, ganztägige Termine als Pille über der ersten Stunde.
-  - Parallele Stunden mit Zählkarte, Tippen öffnet den Tag mit allen Stunden nebeneinander.
+  - Parallele Stunden mit Zählkarte, Tippen öffnet den Tag mit allen Stunden nebeneinander. Gekoppelte Stunden mit
+    unterschiedlichen Fächern sind eigene Kacheln; nur bei gleichem Fach und Raum stehen alle Lehrkräfte und Klassen auf einer.
+  - Mehrere Lehrkräfte (auch bei Veranstaltungen) stehen durch „ | “ getrennt; nur diese Leiste rollt waagerecht, der Rest der
+    Kachel bleibt stehen. Zu lange Werte und Plaketten enden mit „…“.
+  - Info-Zeichen unten rechts bei Notizen (für Schüler*innen bzw. Lehrkräfte) und Vertretungstext, Hausaufgabenzeichen in der
+    Stunde, zu der eine Hausaufgabe fällig ist.
   - Wischen zwischen Wochen bzw. Tagen (Nachbarwochen vorgeladen), Tagesansicht, „Gehe zu Datum“, Legende.
   - Auswahl mit Kategorien, Buchstabenleiste und Suche; Klassenkonten sehen nur die eigene Klasse und Räume.
 - **Stundendetails** mit Sprung in die Pläne von Klasse, Lehrkraft und Raum. Für die eigenen Stunden das **Klassenbuch**:
-  - Lehrstoff (Unterrichtsinhalt), Hausaufgaben mit Fälligkeit, interne Notiz für Lehrkräfte.
+  - Lehrstoff (Unterrichtsinhalt), Hausaufgaben mit Fälligkeit und Bemerkung (Hausaufgabenliste von UntPlanWeb),
+    *Notizen für Schüler*innen* (Klassenkonten lesen sie) und *Notizen für Lehrkräfte*.
+  - **Raum buchen**: freie buchbare Räume der Stunde, ein Tippen verlegt die Stunde – die Raumänderung steht sofort im Plan.
   - Klassenbucheinträge (Vermerke zur Klasse) und Bemerkungen zu einzelnen Schüler*innen.
   - Anwesenheit: alle anwesend vorbelegt, Antippen oder Wischen setzt „abwesend“ bzw. „verspätet“ (mit Ankunftszeit).
   - Hausaufgaben, die zu einer Stunde fällig sind, tragen ein Zeichen auf der Kachel.
@@ -39,9 +46,8 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
 - **Offline:** Der Service Worker hält die App und die zuletzt geladenen Wochen vor. Jede neue Fassung erneuert den
   Cache auf den Geräten automatisch (Prüfwert über alle Dateien der Oberfläche).
 
-Was UntPlanWeb nicht kennt, bietet die App nicht an: Entwürfe und Anhänge bei Mitteilungen, Notizen für
-Schüler*innen, Abwesenheitsgründe und „Erziehungsberechtigte benachrichtigt“, Onlineunterricht, mehrere Profile auf
-einem Gerät. Klassenkonten sehen in UntPlanWeb keine Fehlzeiten einzelner Schüler*innen – „Meine Abwesenheiten“ bleibt
+Nicht in der App (nur in UntPlanWeb): Entwürfe und Anhänge bei Mitteilungen, Abwesenheitsgründe und
+„Erziehungsberechtigte benachrichtigt“, Onlineunterricht, mehrere Profile auf einem Gerät. Klassenkonten sehen in UntPlanWeb keine Fehlzeiten einzelner Schüler*innen – „Meine Abwesenheiten“ bleibt
 dort leer.
 
 ## Installation mit Docker
@@ -112,7 +118,8 @@ UntPlanMobile spricht ausschließlich die JSON-API von UntPlanWeb (`/api/app/*`)
 | `GET /api/mobile?action=meta` | eigener Plan, Klassen/Lehrkräfte/Räume, Stundenzeiten, Langnamen | `sitzung`, `elemente` |
 | `GET /api/mobile?action=week&date=…&type=mine\|class\|teacher\|room&id=…` | eine Woche als Kacheln | `plan`, `klassenbuch/klasse` |
 | `POST /api/login` (`action=login\|logout`) | An- und Abmelden | `anmelden`, `abmelden` |
-| `GET/POST /api/classbook` | Lehrstoff, Hausaufgaben, Notiz, Klassenbucheinträge, Bemerkungen, Anwesenheit | `klassenbuch/stunde`, `klassenbuch/anwesenheit`, `klassenbuch/vermerke`, `klassenbuch/klasse` |
+| `GET/POST /api/classbook` | Lehrstoff, Hausaufgaben, Notizen für Schüler*innen und Lehrkräfte, Klassenbucheinträge, Bemerkungen, Anwesenheit | `klassenbuch/stunde`, `klassenbuch/hausaufgabenliste`, `klassenbuch/anwesenheit`, `klassenbuch/vermerke`, `klassenbuch/klasse` |
+| `GET/POST /api/rooms` (`action=free\|book`) | freie buchbare Räume einer Stunde, Raum buchen | `meldungen/freieraeume`, `meldungen/raumbuchung` |
 | `GET/POST /api/home` | Startseite, Termine, Abwesenheiten, Fehlzeiten der Klasse, Entschuldigen | `heute`, `meldungen`, `klassenbuch/fehlzeiten` |
 | `GET/POST /api/messages` | Posteingang, Gesendet, Lesen, Schreiben, Löschen | `mitteilungen` |
 | `GET /api/accounts` | Profilwechsel (nicht unterstützt, leere Liste) | – |
