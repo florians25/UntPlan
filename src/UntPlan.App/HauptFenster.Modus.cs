@@ -244,7 +244,7 @@ public sealed partial class HauptFenster
             if (c is MdiClient mdi) mdi.BackColor = Ui.MdiHintergrund;
         _schnell.BackColor = Ui.Titel;
         Ui.TitelleisteFaerben(this);
-        _status.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(206, 234, 208) : SystemColors.Control;
+        _status.BackColor = AppZustand.Vertretungsmodus ? Ui.BlauHell : SystemColors.Control;
         _statusLinks.Text = AppZustand.Vertretungsmodus ? "VERTRETUNGSPLANUNG" : "STUNDENPLANUNG";
         _statusLinks.Font = Ui.SchriftFett;
         _statusLinks.ForeColor = Ui.Blau;

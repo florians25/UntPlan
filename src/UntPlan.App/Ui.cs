@@ -16,15 +16,15 @@ public static class Ui
     public static bool Vertretungsmodus { get; set; }
 
     // Eigenes Farbschema "Petrol" (Stundenplanmodus) bzw. "Grün" (Vertretungsmodus)
-    public static Color Blau => Vertretungsmodus ? Color.FromArgb(46, 112, 64) : Color.FromArgb(18, 94, 122);
-    public static Color BlauHell => Vertretungsmodus ? Color.FromArgb(206, 234, 208) : Color.FromArgb(201, 228, 236);
-    public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(234, 246, 235) : Color.FromArgb(232, 243, 247);
-    public static Color Titel => Vertretungsmodus ? Color.FromArgb(78, 140, 92) : Color.FromArgb(52, 122, 148);
+    public static Color Blau => Vertretungsmodus ? Color.FromArgb(56, 112, 90) : Color.FromArgb(18, 94, 122);
+    public static Color BlauHell => Vertretungsmodus ? Color.FromArgb(199, 222, 213) : Color.FromArgb(201, 228, 236);
+    public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(232, 243, 247);
+    public static Color Titel => Vertretungsmodus ? Color.FromArgb(88, 150, 125) : Color.FromArgb(52, 122, 148);
     public static Color MdiHintergrund => Vertretungsmodus ? Color.FromArgb(168, 220, 202) : Color.FromArgb(176, 190, 197);
     public static Color Kopf => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(240, 245, 247);
-    public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(232, 242, 233) : Color.FromArgb(236, 241, 243);
-    public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 238, 216) : Color.FromArgb(214, 234, 240);
-    public static Color HoverRand => Vertretungsmodus ? Color.FromArgb(120, 190, 130) : Color.FromArgb(110, 178, 200);
+    public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(236, 241, 243);
+    public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 236, 226) : Color.FromArgb(214, 234, 240);
+    public static Color HoverRand => Vertretungsmodus ? Color.FromArgb(110, 175, 150) : Color.FromArgb(110, 178, 200);
     /// <summary>Hintergrund der Listen (leere Fläche) und der Zellen – leicht in der Modusfarbe getönt statt Weiß.</summary>
     public static Color Listenhintergrund => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(236, 242, 245);
     public static Color Zelle => Vertretungsmodus ? Color.White : Color.FromArgb(251, 253, 254);
@@ -40,7 +40,7 @@ public static class Ui
     /// <summary>Zelle unter der Maus.</summary>
     public static Color ZelleHover => Vertretungsmodus ? Color.FromArgb(214, 236, 226) : Color.FromArgb(222, 238, 246);
     /// <summary>Leere Stunde im Stundenplan.</summary>
-    public static Color PlanLeer => Vertretungsmodus ? Color.FromArgb(248, 252, 248) : Color.FromArgb(248, 251, 252);
+    public static Color PlanLeer => Vertretungsmodus ? Color.FromArgb(248, 252, 250) : Color.FromArgb(248, 251, 252);
     public static Color Rasterlinie => Vertretungsmodus ? Color.FromArgb(174, 207, 194) : Color.FromArgb(208, 215, 229);
     public static readonly Color ZeileAktiv = Color.FromArgb(253, 222, 176);
     public static readonly Color Erste = Color.FromArgb(252, 228, 188);

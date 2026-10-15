@@ -47,13 +47,40 @@ public static class Tagesverlegung
     private static List<TagesEintrag> Quelle(Tagesplan tp, int stunde, int unterrichtId, int? zeile) =>
         tp.Stunde(stunde).Where(e => e.Findetstatt && Raumvertretungen.Gehoert(e, unterrichtId, zeile)).ToList();
 
+    /// <summary>
+    /// Lehrkräfte der gezogenen Stunde. Bei einer offenen Stunde (Lehrkraft abwesend) zählt die eigentliche Lehrkraft mit:
+    /// wird die Stunde verlegt, unterrichtet sie am Ziel wieder selbst – dort muss sie anwesend und frei sein.
+    /// </summary>
     private static List<int> LehrerVon(IEnumerable<TagesEintrag> q) =>
-        q.SelectMany(e => e.Regel?.LehrerId is int l && e.Status != TagesStatus.Offen ? new[] { l } : e.LehrerIds.ToArray()).Distinct().ToList();
+        q.SelectMany(e => e.Status == TagesStatus.Vertreten ? e.LehrerIds
+            : e.LehrerIds.Concat(new[] { e.Regel?.LehrerId ?? e.Vertretung?.LehrerId }.OfType<int>())).Distinct().ToList();
 
-    /// <summary>Unterricht, der Lehrer oder Klassen in der Zielstunde bindet (Bereitschaften behindern nicht).</summary>
+    /// <summary>
+    /// Lücke durch eine kranke Lehrkraft: offene Stunde ohne Vertreter. Sie behindert eine Verlegung nicht – im Gegenteil, die
+    /// Klasse ist dort frei und bekommt die verlegte Stunde statt einer Vertretung.
+    /// </summary>
+    public static bool IstLuecke(TagesEintrag e) => e.Status == TagesStatus.Offen && e.LehrerIds.Count == 0;
+
+    /// <summary>Unterricht, der Lehrer oder Klassen in der Zielstunde bindet (Bereitschaften und Lücken kranker Lehrkräfte behindern nicht).</summary>
     public static List<TagesEintrag> Hindernisse(Schuldatei d, Tagesplan ziel, int stunde, int unterrichtId, IReadOnlyCollection<int> lehrer, IReadOnlyCollection<int> klassen) =>
-        ziel.Stunde(stunde).Where(e => e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) != unterrichtId && !Vertretungen.IstBereitschaftsfach(d, e.FachId)
+        ziel.Stunde(stunde).Where(e => e.Findetstatt && !IstLuecke(e) && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) != unterrichtId && !Vertretungen.IstBereitschaftsfach(d, e.FachId)
                                        && (e.LehrerIds.Intersect(lehrer).Any() || e.KlassenIds.Intersect(klassen).Any())).ToList();
+
+    /// <summary>Offene Vertretungen in der Zielstunde, die durch die verlegte Stunde erledigt sind (alle ihre Klassen bekommen die verlegte Stunde).</summary>
+    public static List<Vertretung> GefuellteLuecken(Tagesplan ziel, int stunde, int unterrichtId, IReadOnlyCollection<int> klassen) =>
+        ziel.Stunde(stunde).Where(e => IstLuecke(e) && e.Vertretung is { } v && v.UnterrichtId != unterrichtId && e.KlassenIds.Count > 0 && e.KlassenIds.All(klassen.Contains))
+            .Select(e => e.Vertretung!).Distinct().ToList();
+
+    /// <summary>Die verlegte Stunde füllt Lücken kranker Lehrkräfte: deren offene Vertretungen werden zum Entfall („Vertretung durch Verlegung“).</summary>
+    private static void LueckenFuellen(Schuldatei d, DateOnly ziel, int stunde, int unterrichtId, IReadOnlyCollection<int> klassen, string benutzer)
+    {
+        var tp = Tagesplan.Berechnen(d, ziel);
+        foreach (var v in GefuellteLuecken(tp, stunde, unterrichtId, klassen))
+        {
+            Vertretungen.EntfallUmschalten(d, v, benutzer);
+            if (string.IsNullOrWhiteSpace(v.Text)) v.Text = "Vertretung durch Verlegung";
+        }
+    }
 
     /// <summary>
     /// Status eines Zielfeldes beim Ziehen: Frei (kollisionsfrei, grün), TauschMoeglich (dortige Stunde kann an die
@@ -171,7 +198,13 @@ public static class Tagesverlegung
                     Vormerken(d, a.Ziel, s.NachStunde, h, null, VormerkungsQuelle.Verdraengung, benutzer);
         // innerhalb desselben Tages in Richtung der eigenen Stunden: Reihenfolge so wählen, dass nichts überschrieben wird
         var reihe = a.Von == a.Ziel && a.ZielStunde > a.VonStunde ? a.Schritte.Reverse() : a.Schritte;
-        foreach (var s in reihe) Vertretungen.Verlegen(d, a.UnterrichtId, a.Zeile, a.Von, s.VonStunde, a.Ziel, s.NachStunde, VertretungsArt.Verlegung, benutzer);
+        var tpVon = Tagesplan.Berechnen(d, a.Von);
+        var klassenJeStunde = a.Schritte.ToDictionary(s => s.VonStunde, s => (IReadOnlyCollection<int>)Quelle(tpVon, s.VonStunde, a.UnterrichtId, a.Zeile).SelectMany(e => e.KlassenIds).Distinct().ToList());
+        foreach (var s in reihe)
+        {
+            Vertretungen.Verlegen(d, a.UnterrichtId, a.Zeile, a.Von, s.VonStunde, a.Ziel, s.NachStunde, VertretungsArt.Verlegung, benutzer);
+            LueckenFuellen(d, a.Ziel, s.NachStunde, a.UnterrichtId, klassenJeStunde[s.VonStunde], benutzer);
+        }
     }
 
     /// <summary>
@@ -242,6 +275,7 @@ public static class Tagesverlegung
             erste ??= z;
         }
         vm.VerplantAm.Add(ziel);
+        LueckenFuellen(d, ziel, stunde, erste!.UnterrichtId ?? 0, ursprung.SelectMany(q => q.KlassenIds).Distinct().ToList(), benutzer);
         return erste!;
     }
 }

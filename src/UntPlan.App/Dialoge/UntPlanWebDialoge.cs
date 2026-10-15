@@ -19,10 +19,11 @@ namespace UntPlan.App.Dialoge;
 public sealed class UntPlanWebDialog : Dialog
 {
     // Untis-Optik des Fensters „WebUntis“: hellgrüner Hintergrund, hervorgehobene Knöpfe grün
-    internal static readonly Color Hintergrund = Color.FromArgb(227, 239, 219);
-    internal static readonly Color KnopfGruen = Color.FromArgb(198, 224, 180);
-    internal static readonly Color KnopfAktiv = Color.FromArgb(169, 208, 142);
-    internal static readonly Color RandGruen = Color.FromArgb(84, 130, 53);
+    // Farben passen sich dem Modus an: Vertretungsmodus mintgrün wie die übrigen Fenster, Stundenplanmodus Petrol
+    internal static Color Hintergrund => Ui.Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(232, 242, 246);
+    internal static Color KnopfGruen => Ui.Vertretungsmodus ? Color.FromArgb(199, 222, 213) : Color.FromArgb(201, 228, 236);
+    internal static Color KnopfAktiv => Ui.Vertretungsmodus ? Color.FromArgb(168, 205, 190) : Color.FromArgb(166, 208, 222);
+    internal static Color RandGruen => Ui.Vertretungsmodus ? Color.FromArgb(81, 132, 111) : Color.FromArgb(18, 94, 122);
     internal static readonly Color RandGrau = Color.FromArgb(173, 173, 173);
 
     /// <summary>Teil-Schlüssel der Importzeilen (Export: WebTeile).</summary>
@@ -482,7 +483,7 @@ public sealed class UntPlanWebDialog : Dialog
             FlatStyle = FlatStyle.Flat;
             UseVisualStyleBackColor = false;
             FlatAppearance.MouseOverBackColor = KnopfAktiv;
-            FlatAppearance.MouseDownBackColor = Color.FromArgb(150, 196, 120);
+            FlatAppearance.MouseDownBackColor = Ui.Vertretungsmodus ? Color.FromArgb(150, 192, 175) : Color.FromArgb(140, 192, 210);
             Faerben();
         }
 

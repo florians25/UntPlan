@@ -180,6 +180,61 @@ public class VertretungsfensterTests
         // ohne Tauschmöglichkeit ändert „nur dorthin“ nichts
         Assert.Same(nur, nur.NurDorthin());
     }
+
+    [Fact]
+    public void VerlegungInDieLueckeEinerKrankenLehrkraftErledigtDieVertretung()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var normale = Tagesplan.Regulaer(d, tag).Where(r => r.LehrerId.HasValue && !Vertretungen.IstBereitschaftsfach(d, r.FachId) &&
+                                                           r.Unterricht.Zeilen.Count == 1 && string.IsNullOrEmpty(r.Unterricht.Band) && r.KlassenIds.Count == 1).ToList();
+        // Klasse mit Stunde A (Lehrkraft wird krank) und späterer Stunde B einer anderen Lehrkraft, die in Stunde A frei ist
+        (RegelStunde Krank, RegelStunde Verlegt)? paar = null;
+        foreach (var a in normale)
+        {
+            foreach (var b in normale.Where(b => b.Stunde > a.Stunde && b.KlassenIds.SequenceEqual(a.KlassenIds) && b.LehrerId != a.LehrerId &&
+                                                 !Tagesplan.Regulaer(d, tag).Any(r => r.Stunde == a.Stunde && r.LehrerId == b.LehrerId)))
+            { paar = (a, b); break; }
+            if (paar != null) break;
+        }
+        Assert.NotNull(paar);
+        var (krank, verlegt) = paar!.Value;
+        d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = krank.LehrerId!.Value, Von = tag, Bis = tag });
+        Vertretungen.Aktualisieren(d, tag);
+        var offen = Assert.Single(d.Vertretungen, v => v.Datum == tag && v.Stunde == krank.Stunde && v.UnterrichtId == krank.Unterricht.Id);
+        Assert.True(offen.Offen);
+
+        // die offene Stunde behindert nicht: das Ziel ist frei (grün), keine Kollisions- oder Tauschfrage
+        var tp = Tagesplan.Berechnen(d, tag);
+        Assert.Equal(Planung.Feldstatus.Frei, Tagesverlegung.Zielstatus(d, tp, verlegt.Stunde, verlegt.Unterricht.Id, null, tp, krank.Stunde));
+        var an = Tagesverlegung.Analysieren(d, tag, verlegt.Stunde, verlegt.Unterricht.Id, null, 1, tag, krank.Stunde);
+        Assert.False(an.Kollision);
+        Tagesverlegung.Ausfuehren(d, an, VerlegeModus.Verlegen);
+
+        // Vertretung durch Verlegung: die offene Vertretung ist erledigt (Entfall), die Klasse hat dort die verlegte Stunde
+        Assert.Equal(VertretungsArt.Entfall, offen.Art);
+        Assert.False(offen.Offen);
+        var neu = Tagesplan.Berechnen(d, tag);
+        Assert.Contains(neu.VonKlasse(krank.KlassenIds[0]), e => e.Stunde == krank.Stunde && e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == verlegt.Unterricht.Id
+                                                                 && e.LehrerIds.Contains(verlegt.LehrerId!.Value));
+        Assert.DoesNotContain(neu.VonKlasse(krank.KlassenIds[0]), e => e.Stunde == krank.Stunde && e.Status == TagesStatus.Offen);
+    }
+
+    [Fact]
+    public void OffeneStundeEinerKrankenLehrkraftNurDorthinWoSieAnwesendIst()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var r = Tagesplan.Regulaer(d, tag).First(x => x.LehrerId.HasValue && !Vertretungen.IstBereitschaftsfach(d, x.FachId) && x.Unterricht.Zeilen.Count == 1 && x.Stunde < 6);
+        var l = r.LehrerId!.Value;
+        // Lehrkraft den ganzen Tag krank: eine Verlegung innerhalb des Tages verletzt die Vorgabe (sie ist auch am Ziel abwesend)
+        d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = l, Von = tag, Bis = tag });
+        Vertretungen.Aktualisieren(d, tag);
+        var tp = Tagesplan.Berechnen(d, tag);
+        var ziel = Enumerable.Range(1, d.Zeitraster.StundenProTag).First(s => s != r.Stunde && d.Zeitraster.Verfuegbar(tp.Tag, s) &&
+            !tp.Stunde(s).Any(e => e.Findetstatt && !Tagesverlegung.IstLuecke(e) && e.KlassenIds.Intersect(r.KlassenIds).Any()));
+        Assert.Equal(Planung.Feldstatus.VorgabeVerletzt, Tagesverlegung.Zielstatus(d, tp, r.Stunde, r.Unterricht.Id, null, tp, ziel));
+    }
 }
 
 internal static class TestErweiterungen
