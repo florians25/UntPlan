@@ -288,6 +288,13 @@ public sealed partial class HauptFenster
         Schritt("25b_Bereitschaftsplanung", () => Max(FensterOeffnen("bereitplan")!), 2);
         Schritt("25c_Unterrichtsgruppen", () => Max(FensterOeffnen("ugruppen")!), 2);
         Schritt("25d_UntPlanWeb", () => new UntPlanWebDialog().Show(this), 0);
+        Schritt("25d0_Upload_Fortschritt", () =>
+        {
+            // kleines Fortschrittsfenster beim Export (wie Untis), danach folgt die Erfolgsmeldung
+            var f = new UntPlanWebDialog.UploadFortschritt();
+            f.Zeigen(this);
+            f.Setzen(64, "Unterrichtsbestandteile werden konvertiert (153 von 238)");
+        }, 0);
         Schritt("25d1_UntPlanWeb_Fehler", () =>
         {
             var w = new UntPlanWebDialog();

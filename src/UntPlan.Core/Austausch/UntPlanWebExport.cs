@@ -71,7 +71,7 @@ public static class UntPlanWebExport
         return basis.AddDays(Math.Max(1, o.TageVoraus));
     }
 
-    public static WebPaket PaketErstellen(Schuldatei d, DateOnly ab, WebExportOptionen? o = null)
+    public static WebPaket PaketErstellen(Schuldatei d, DateOnly ab, WebExportOptionen? o = null, Action<int, int>? fortschritt = null)
     {
         o ??= new WebExportOptionen();
         var ix = new DatenIndex(d);
@@ -84,8 +84,11 @@ public static class UntPlanWebExport
         var vertretungen = new List<WebVertretung>();
         var mitVertretungen = o.Mit(WebTeile.Vertretungen);
         var mitUnterricht = o.Mit(WebTeile.Unterricht);
-        foreach (var t in mitVertretungen ? Kalender.Tage(von, bis) : Enumerable.Empty<DateOnly>())
+        var alleTage = mitVertretungen ? Kalender.Tage(von, bis).ToList() : new List<DateOnly>();
+        var nr = 0;
+        foreach (var t in alleTage)
         {
+            fortschritt?.Invoke(++nr, alleTage.Count);
             var unterrichtstag = Kalender.IstUnterrichtstag(d, t);
             var tag = new WebTag { Datum = D(t), Woche = Kalender.WochenTyp(d, t), Unterrichtstag = unterrichtstag };
             if (unterrichtstag)

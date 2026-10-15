@@ -272,9 +272,24 @@ public sealed class UntPlanWebDialog : Dialog
 
     // ------------------------------------------------------------------------------------------ Statuszeile
 
-    /// <summary>Fortschritt anzeigen (Wert 0–100 und Text des Arbeitsschritts).</summary>
+    /// <summary>Kleines Fortschrittsfenster wie in Untis („Unterrichtsbestandteile werden konvertiert (153 von 238)“).</summary>
+    private UploadFortschritt? _popup;
+
+    /// <summary>Fortschritt anzeigen (Wert 0–100 und Text des Arbeitsschritts): während der Arbeit im eigenen kleinen Fenster, am Ende in der Statuszeile.</summary>
     private void Fortschritt(int wert, string text)
     {
+        if (wert < 100)
+        {
+            if (_popup is null || _popup.IsDisposed)
+            {
+                _popup = new UploadFortschritt();
+                var o = Visible ? (Form)this : Form.ActiveForm;
+                _popup.Zeigen(o);
+            }
+            _popup.Setzen(wert, text);
+            return;
+        }
+        PopupSchliessen();
         _fehler = false;
         _meldung.Visible = true;
         _fortschritt.Visible = true;
@@ -284,6 +299,13 @@ public sealed class UntPlanWebDialog : Dialog
         _meldungText.Text = text;
         _meldung.Invalidate();
         _meldung.Refresh();
+    }
+
+    private void PopupSchliessen()
+    {
+        _popup?.Close();
+        _popup?.Dispose();
+        _popup = null;
     }
 
     /// <summary>Fehlerhinweis anzeigen (auch für den Selbsttest).</summary>
@@ -338,7 +360,11 @@ public sealed class UntPlanWebDialog : Dialog
         try
         {
             FehlerZeigen(null);
-            if (export) await Exportieren(teil);
+            if (export)
+            {
+                await Exportieren(teil);
+                danach = Erfolgsmeldung;
+            }
             else danach = teil switch
             {
                 Studenten => await StudentenImportieren(),
@@ -355,6 +381,7 @@ public sealed class UntPlanWebDialog : Dialog
         }
         finally
         {
+            PopupSchliessen();
             Sperren(false);
             Anzeigen();
         }
@@ -370,9 +397,14 @@ public sealed class UntPlanWebDialog : Dialog
         if (string.IsNullOrWhiteSpace(P.Adresse) && new UntPlanWebEinstellungenDialog().ShowDialog(owner) != DialogResult.OK) return "";
         if (string.IsNullOrWhiteSpace(P.Adresse)) return "";
         using var d = new UntPlanWebDialog();
-        await d.Exportieren(teil);
+        try { await d.Exportieren(teil); }
+        finally { d.PopupSchliessen(); }
+        Erfolgsmeldung();
         return $"An UntPlanWeb übertragen ({(teil.Length == 0 ? "alles" : teil)}, Revision {P.Revision}) um {DateTime.Now:HH:mm}";
     }
+
+    /// <summary>Meldung nach erfolgreicher Übertragung (wie Untis nach dem Export nach WebUntis).</summary>
+    private static void Erfolgsmeldung() => Ui.Info("Die Datenübertragung nach UntPlanWeb war erfolgreich!", "UntPlan - Frage");
 
     private static string TeilName(string teil) => teil switch
     {
@@ -387,7 +419,15 @@ public sealed class UntPlanWebDialog : Dialog
         var d0 = D;
         var start = Start;
         var optionen = WebExportOptionen.Aus(P, teile);
-        var paket = await Task.Run(() => UntPlanWebExport.PaketErstellen(d0, start, optionen));
+        // Progress<T> meldet auf dem UI-Thread zurück (auch beim Direktexport ohne sichtbaren Dialog)
+        var konvertiert = false;
+        IProgress<(int I, int N)> schritt = new Progress<(int I, int N)>(x =>
+        {
+            // verspätete Meldungen nach dem Zusammenstellen ignorieren (sonst öffnete sich das Fenster nach dem Ende erneut)
+            if (!konvertiert) Fortschritt(10 + 35 * x.I / Math.Max(1, x.N), $"Unterrichtsbestandteile werden konvertiert ({x.I} von {x.N})");
+        });
+        var paket = await Task.Run(() => UntPlanWebExport.PaketErstellen(d0, start, optionen, (i, n) => schritt.Report((i, n))));
+        konvertiert = true;
         Fortschritt(45, $"{TeilName(teil)}: Übertragung an {P.Adresse} … ({paket.Tage.Count} Tage, {paket.Vertretungen.Count} Vertretungen)");
         var a = await UntPlanWebExport.HochladenAsync(P, paket);
         Fortschritt(100, $"{TeilName(teil)}: an UntPlanWeb übertragen (Revision {a.Revision}) um {DateTime.Now:HH:mm}.");
@@ -470,6 +510,49 @@ public sealed class UntPlanWebDialog : Dialog
     }
 
     // ------------------------------------------------------------------------------------------ Steuerelemente
+
+    /// <summary>Kleines randloses Fortschrittsfenster (Text und grüner Balken) über dem Dialog, wie in Untis beim Export.</summary>
+    internal sealed class UploadFortschritt : Form
+    {
+        private readonly Label _text = new() { Left = 18, Top = 22, Width = 300, Height = 18, Font = Ui.SchriftKlein };
+        private readonly ProgressBar _balken = new() { Left = 18, Top = 46, Width = 300, Height = 18, Style = ProgressBarStyle.Continuous, ForeColor = Color.FromArgb(0, 160, 60) };
+
+        public UploadFortschritt()
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.Manual;
+            Size = new Size(336, 86);
+            BackColor = Ui.Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(246, 248, 251);
+            Controls.Add(_text);
+            Controls.Add(_balken);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            using var rand = new Pen(Color.FromArgb(150, 150, 150));
+            e.Graphics.DrawRectangle(rand, 0, 0, Width - 1, Height - 1);
+            using var innen = new Pen(Color.FromArgb(200, 200, 200));
+            e.Graphics.DrawRectangle(innen, 8, 8, Width - 17, Height - 17);
+        }
+
+        public void Zeigen(Form? besitzer)
+        {
+            var b = besitzer?.Bounds ?? Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 800, 600);
+            Location = new Point(b.X + (b.Width - Width) / 2, b.Y + (b.Height - Height) / 2);
+            if (besitzer != null) Show(besitzer); else Show();
+            Refresh();
+        }
+
+        public void Setzen(int wert, string text)
+        {
+            if (IsDisposed) return;
+            _text.Text = text;
+            _balken.Value = Math.Clamp(wert, 0, 100);
+            Refresh();
+        }
+    }
 
     /// <summary>Knopf in Untis-Optik: weiß mit grauem Rand, unter der Maus bzw. aktiv grün mit dunkelgrünem Rand.</summary>
     internal sealed class UntisKnopf : Button
