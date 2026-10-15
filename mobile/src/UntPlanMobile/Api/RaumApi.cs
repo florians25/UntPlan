@@ -10,6 +10,8 @@ namespace UntPlanMobile.Api;
 /// <list type="bullet">
 /// <item><c>GET /api/rooms?action=free&amp;date=…&amp;from=…&amp;to=…</c> → <c>api/app/meldungen/freieraeume</c></item>
 /// <item><c>POST /api/rooms</c> (action=book, date, from, to, room, class, subject) → <c>api/app/meldungen/raumbuchung</c></item>
+/// <item><c>POST /api/rooms</c> (action=change, op=replace|add|remove, date, from, to, room, old, class, unterricht) → <c>api/app/mobil/raum</c>:
+/// Raum-Chip in den Stundendetails – Raum ersetzen, zusätzlichen Raum hinzufügen, Raum löschen.</item>
 /// </list>
 /// </summary>
 public static class RaumApi
@@ -54,6 +56,23 @@ public static class RaumApi
                         datum = iso, stundeVon = von, stundeBis = bis, raum, klassen, titel = $"{(fach.Length > 0 ? fach : "Unterricht")} – Raumänderung",
                     });
                     return Results.Json(new { ok = true, room = raum });
+                }
+                case "change":
+                {
+                    if (HttpMethods.IsGet(c.Request.Method)) return Fehler("post_required", 405);
+                    var aktion = p["op"] switch { "replace" => "ersetzen", "add" => "hinzufuegen", "remove" => "loeschen", _ => "" };
+                    if (aktion.Length == 0) return Fehler("unknown_op");
+                    var raum = p["room"].Trim();
+                    if (raum.Length == 0) return Fehler("Bitte einen Raum wählen.");
+                    var klassen = p["class"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                    var antwort = await web.PostAsync(c, "api/app/mobil/raum", new
+                    {
+                        datum = iso, stundeVon = von, stundeBis = bis, unterricht = p.Zahl("unterricht"), klassen, aktion, raum, alt = p["old"].Trim(),
+                        // „Raumbuchung“: UntPlanWeb übernimmt den Titel dann nicht als Vertretungstext der Stunde
+                        titel = "Raumbuchung",
+                    });
+                    var raeume = (antwort?["raeume"]?.AsArray() ?? new JsonArray()).Select(x => x?.GetValue<string>() ?? "").Where(x => x.Length > 0).ToList();
+                    return Results.Json(new { ok = true, rooms = raeume, reset = antwort?["zurueckgesetzt"]?.GetValue<bool>() ?? false });
                 }
                 default:
                     return Fehler("unknown_action");

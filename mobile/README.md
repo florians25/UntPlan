@@ -13,6 +13,10 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
 |---|---|---|---|---|
 | ![Anwesenheit](docs/bilder/anwesenheit.png) | ![Ferien](docs/bilder/ferien.png) | ![Startseite](docs/bilder/startseite.png) | ![Mitteilungen](docs/bilder/mitteilungen.png) | ![Dunkel](docs/bilder/dunkel.png) |
 
+| Zusatzstunde | Raum-Chip | Raumliste |
+|---|---|---|
+| ![Zusatzstunde](docs/bilder/zusatzstunde.png) | ![Raum-Chip](docs/bilder/raumchip.png) | ![Raumliste](docs/bilder/raumliste.png) |
+
 ## Funktionen
 
 - **Stundenplan** für den eigenen Plan, Klassen, Lehrkräfte und Räume:
@@ -24,18 +28,46 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
   - Ferien und Feiertage als blaues Feld mit Name und Zeitraum, ganztägige Termine als Pille über der ersten Stunde.
   - Parallele Stunden mit Zählkarte, Tippen öffnet den Tag mit allen Stunden nebeneinander. Gekoppelte Stunden mit
     unterschiedlichen Fächern sind eigene Kacheln; nur bei gleichem Fach und Raum stehen alle Lehrkräfte und Klassen auf einer.
-  - Mehrere Lehrkräfte (auch bei Veranstaltungen) stehen durch „ | “ getrennt; nur diese Leiste rollt waagerecht, der Rest der
-    Kachel bleibt stehen. Zu lange Werte und Plaketten enden mit „…“.
+  - Trennzeichen: Auf den Kacheln stehen mehrere Werte (Lehrkräfte – auch bei Veranstaltungen –, Klassen, Räume) durch
+    **Kommas** getrennt, in den Stundendetails durch „ | “. Nur die Lehrerleiste rollt waagerecht, der Rest der Kachel
+    bleibt stehen. Zu lange Werte und Plaketten enden mit „…“.
+  - Offene Raumvertretungen (Raumänderung ohne neuen Raum, Platzhalter „???“) wie offene Lehrervertretungen: bisheriger
+    Raum durchgestrichen in der Plakette, in den Details Plakette „RAUM OFFEN“.
+  - Abwesende Klasse (Freisetzung): kein Entfall – im Klassenplan grüne Kachel mit der Klasse durchgestrichen in der Plakette
+    (oberste Zeile), im Lehrer- und Raumplan wie eine abgegebene Stunde (Eckklammern, Klasse durchgestrichen). Nur ein
+    echter Entfall bleibt rot.
+  - Veranstaltungen laufen als ein Block über Pausen mit Aufsicht hinweg; die Aufsicht tritt in der Wochenansicht dahinter
+    zurück und steht in der Tagesansicht als halbe Kachel daneben.
+  - Zusatzstunden (Sondereinsatz, Zusatzunterricht, Verlegung …) ohne Lehrkraft zeigen „---“ als Lehrkraft – nur bei
+    Zusatzstunden, auf der Kachel und in den Details. Vertretungen ohne Lehrkraft („+++“) behalten die durchgestrichene
+    bisherige Lehrkraft und den Hinweis „Vertr. o. Lehrkraft“.
   - Info-Zeichen unten rechts bei Notizen (für Schüler*innen bzw. Lehrkräfte) und Vertretungstext, Hausaufgabenzeichen in der
     Stunde, zu der eine Hausaufgabe fällig ist.
   - Wischen zwischen Wochen bzw. Tagen (Nachbarwochen vorgeladen), Tagesansicht, „Gehe zu Datum“, Legende.
   - Auswahl mit Kategorien, Buchstabenleiste und Suche; Klassenkonten sehen nur die eigene Klasse und Räume.
-- **Stundendetails** mit Sprung in die Pläne von Klasse, Lehrkraft und Raum. Für die eigenen Stunden das **Klassenbuch**:
-  - Lehrstoff (Unterrichtsinhalt), Hausaufgaben mit Fälligkeit und Bemerkung (Hausaufgabenliste von UntPlanWeb),
-    *Notizen für Schüler*innen* (Klassenkonten lesen sie) und *Notizen für Lehrkräfte*.
-  - **Raum buchen**: freie buchbare Räume der Stunde, ein Tippen verlegt die Stunde – die Raumänderung steht sofort im Plan.
-  - Klassenbucheinträge (Vermerke zur Klasse) und Bemerkungen zu einzelnen Schüler*innen.
-  - Anwesenheit: alle anwesend vorbelegt, Antippen oder Wischen setzt „abwesend“ bzw. „verspätet“ (mit Ankunftszeit).
+- **Stundendetails** nach den Mobile-Sollbildern (im Dunkeln wie die WebUntis-Fotos, im Hellen gleich aufgebaut), mit
+  Sprung in die Pläne von Klasse, Lehrkraft und Raum (⋮-Menü):
+  - Kopf mit X, Datum „Fr. | 16.10.26“ und kleiner Uhrzeit, ⋮-Menü. Liegen mehrere Stunden im selben Zeitraum, führen
+    obere Reiter mit den Fachkürzeln zu jeder (Veranstaltung als Reiter „Veranstaltung“ vorn).
+  - Kopfblock „Klasse | Kursbezeichnung“, Fach mit Plakette „ZUSÄTZLICHE UNTERRICHTSSTUNDE“ bzw. „VERANSTALTUNG“, alter Raum
+    durchgestrichen → neuer Raum, Lehrkraft; bei Entfall grau hinterlegt mit rotem Band „ENTFÄLLT“.
+  - Aktionszeilen mit Symbol, Titel, Untertitel, Zähler und „>“: Findet online statt (Schalter), Raum, Vertretungstext bzw.
+    Information zur Stunde, Lehrstoff (Häkchen, wenn eingetragen), Schüler*innen (rotes Feld mit der Zahl der Abwesenden,
+    Häkchen nach der Kontrolle), Hausaufgaben, Klassenbucheinträge, Notizen für Schüler*innen und für Lehrkräfte.
+    Klassenbuchzeilen gibt es nur für die eigene Stunde mit Unterricht; fremde Stunden, Zusatzstunden ohne Unterricht und
+    Veranstaltungen zeigen wie in den Sollbildern nur Vertretungstext/Information, Hausaufgaben und vorhandene Notizen.
+  - **Raumbuchung mobil:** Jeder Raum steht als Chip; Tippen öffnet „Ersetzen“/„Löschen“, das „+“ rechts fügt einen
+    zusätzlichen Raum hinzu. Ersetzen und Hinzufügen führen in die Raumliste („R103 ersetzen“) mit Suchfeld und Filterpille
+    „Abteilung“ (Raumart); angeboten werden die freien buchbaren Räume. Die Änderung steht sofort im Plan (vorgemerkt, bis
+    UntPlan sie übernimmt). Der letzte Raum einer Stunde lässt sich nicht löschen – nur ersetzen.
+  - **Schüler*innen:** Filter-Pillen Alle/Abwesend/Anwesend mit Zahlen, Band „✓ Abwesenheiten wurden kontrolliert“,
+    alphabetische Gruppen („Nachname Vorname“) mit Buchstabenleiste rechts, Statuskreis grün/rot, Zusatz (Klassendienst wie
+    Klassensprecher*in, „Abwesend (fehlt)“), rechts Klassenbucheintrag (Buch, mit Plus wenn noch keiner) und Uhr
+    (Abwesenheit bearbeiten). Antippen des Kreises oder Wischen setzt „abwesend“ bzw. „verspätet“; der Besen oben rechts
+    markiert alle als anwesend. Hinweis-Karte „Klassenbucheintrag – Tippen Sie mehrere Schüler*innen an, um einen
+    gemeinsamen Eintrag zu erstellen.“: Die Buch-Symbole wählen aus, die Leiste unten legt den gemeinsamen Eintrag an.
+  - Lehrstoff, Hausaufgaben mit Fälligkeit und Bemerkung (Hausaufgabenliste von UntPlanWeb), *Notizen für Schüler*innen*
+    (Klassenkonten lesen sie), *Notizen für Lehrkräfte*, Klassenbucheinträge (Vermerke zur Klasse).
   - Hausaufgaben, die zu einer Stunde fällig sind, tragen ein Zeichen auf der Kachel.
 - **Startseite:** die nächsten Stunden des eigenen Plans, Termine und Klausuren der nächsten zwei Wochen, eigene
   Abwesenheitsmeldungen; für Klassenleitungen die Fehlzeiten der Klasse mit „Entschuldigen“ und „Ablehnen“.
@@ -47,7 +79,7 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
   Cache auf den Geräten automatisch (Prüfwert über alle Dateien der Oberfläche).
 
 Nicht in der App (nur in UntPlanWeb): Entwürfe und Anhänge bei Mitteilungen, Abwesenheitsgründe und
-„Erziehungsberechtigte benachrichtigt“, Onlineunterricht, mehrere Profile auf einem Gerät. Klassenkonten sehen in UntPlanWeb keine Fehlzeiten einzelner Schüler*innen – „Meine Abwesenheiten“ bleibt
+„Erziehungsberechtigte benachrichtigt“, mehrere Profile auf einem Gerät. Klassenkonten sehen in UntPlanWeb keine Fehlzeiten einzelner Schüler*innen – „Meine Abwesenheiten“ bleibt
 dort leer.
 
 ## Installation mit Docker
@@ -171,8 +203,8 @@ UntPlanMobile spricht ausschließlich die JSON-API von UntPlanWeb (`/api/app/*`)
 | `GET /api/mobile?action=meta` | eigener Plan, Klassen/Lehrkräfte/Räume, Stundenzeiten, Langnamen | `sitzung`, `elemente` |
 | `GET /api/mobile?action=week&date=…&type=mine\|class\|teacher\|room&id=…` | eine Woche als Kacheln | `plan`, `klassenbuch/klasse` |
 | `POST /api/login` (`action=login\|logout`) | An- und Abmelden | `anmelden`, `abmelden` |
-| `GET/POST /api/classbook` | Lehrstoff, Hausaufgaben, Notizen für Schüler*innen und Lehrkräfte, Klassenbucheinträge, Bemerkungen, Anwesenheit | `klassenbuch/stunde`, `klassenbuch/hausaufgabenliste`, `klassenbuch/anwesenheit`, `klassenbuch/vermerke`, `klassenbuch/klasse` |
-| `GET/POST /api/rooms` (`action=free\|book`) | freie buchbare Räume einer Stunde, Raum buchen | `meldungen/freieraeume`, `meldungen/raumbuchung` |
+| `GET/POST /api/classbook` | Lehrstoff, Hausaufgaben, Notizen für Schüler*innen und Lehrkräfte, Klassenbucheinträge, Bemerkungen, Anwesenheit, Klassendienste, „Findet online statt“ (`action=online`), gemeinsamer Klassenbucheintrag (`action=remarkMany`); `canEdit` sagt, ob es die eigene Stunde ist | `klassenbuch/stunde`, `klassenbuch/hausaufgabenliste`, `klassenbuch/anwesenheit`, `klassenbuch/vermerke`, `klassenbuch/klasse`, `klassendienste`, `klassenbuch/online` |
+| `GET/POST /api/rooms` (`action=free\|book\|change`) | freie buchbare Räume einer Stunde, Raum buchen; `change` mit `op=replace\|add\|remove` (Raum-Chip) | `meldungen/freieraeume`, `meldungen/raumbuchung`, `mobil/raum` |
 | `GET/POST /api/home` | Startseite, Termine, Abwesenheiten, Fehlzeiten der Klasse, Entschuldigen | `heute`, `meldungen`, `klassenbuch/fehlzeiten` |
 | `GET/POST /api/messages` | Posteingang, Gesendet, Lesen, Schreiben, Löschen | `mitteilungen` |
 | `GET /api/accounts` | Profilwechsel (nicht unterstützt, leere Liste) | – |
@@ -186,9 +218,12 @@ UntPlanMobile spricht ausschließlich die JSON-API von UntPlanWeb (`/api/app/*`)
 |---|---|
 | `regulaer` | `normal` |
 | `geaendert`, `vorgemerkt` | `change` (geänderte Werte mit `…Orig` und `changed`) |
+| `geaendert` als Zusatzstunde (Sondereinsatz, Zusatz…, Verlegung, ohne Unterricht) | `change` mit `extra` (Plakette in den Details), ohne Lehrkraft `teacher: "---"` |
 | `offen` | `change` mit `openSub` (alter Wert durchgestrichen) |
 | `abwesend` (Lehrer-/Raumplan) | `change` mit dem eigenen Kürzel als `teacherOrig` (läuft ohne mich) |
 | `entfall` | `cancelled` |
+| `entfall` mit Art Freisetzung/Klassenabwesenheit | `change` mit `classAbsent` (Klasse als `classOrig`) |
+| Raumänderung ohne neuen Raum, Raum „???“ | `openRoom` (bisheriger Raum als `roomOrig`) |
 | `klausur` | `klausur` |
 | `bereitschaft` | `standby` (Stunden mit gehaltener Vertretung entfallen) |
 | `veranstaltung`, Teilnahme ohne Fach | `absence` mit `overlay` (grün gerahmtes Feld) |
@@ -197,6 +232,12 @@ UntPlanMobile spricht ausschließlich die JSON-API von UntPlanWeb (`/api/app/*`)
 | Pausenaufsicht | `supervision` (`_supAbsent` vertreten, `_supSub` übernommen) |
 
 Für die Zeiträume der Ferienfelder liefert UntPlanWeb unter `/api/app/elemente` zusätzlich die Liste `ferien`.
+
+**Raumänderung aus der App** (`POST /api/app/mobil/raum` in UntPlanWeb, `Api/MobilApi.cs`): ersetzen, hinzufügen oder
+löschen. Gespeichert wird wie jede Raumbuchung als Rückmeldung „raumbuchung“ mit der vollständigen Raumliste (neuer Raum
+vorn – UntPlan übernimmt ihn als Vertretungsraum, die übrigen als Zusatzräume). Je Lehrkraft und Stunde gibt es höchstens
+eine offene Raumänderung; ergibt sich wieder die ursprüngliche Raumliste, wird sie nur zurückgezogen. Neue Räume müssen
+buchbar und frei sein.
 
 ## Entwicklung
 

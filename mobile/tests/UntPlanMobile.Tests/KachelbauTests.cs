@@ -42,10 +42,10 @@ public class KachelbauTests
     [Fact]
     public void Entfall_wird_cancelled_und_behaelt_Text()
     {
-        var k = Kachelbau.AusKarte(Karte("entfall", 2, text: "Projekttag Medien", art: "Freisetzung"), "class");
+        var k = Kachelbau.AusKarte(Karte("entfall", 2, text: "Projekttag Medien", art: "Entfall"), "class");
         Assert.Equal("cancelled", k.Art);
         Assert.Equal("Projekttag Medien", k.Info);
-        Assert.Equal("Freisetzung", k.Typ);
+        Assert.Equal("Entfall", k.Typ);
         Assert.Equal("#7BAAF7", k.Farbe);
     }
 
@@ -183,6 +183,58 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Veranstaltung_bleibt_ueber_der_Aufsichtspause_ein_Block()
+    {
+        var plan = Plan("lehrer", new() { Karte("veranstaltung", 3, 5, fach: "", text: "Projekttag", unterricht: null) }, aufsichten: new()
+        {
+            new("2026-10-14", 4, "11:25", "11:45", "Hof", "Schulhof", "regulaer", "WEB", null),
+        });
+        var kacheln = Kachelbau.Tag(plan, plan.Tage[0], Array.Empty<Ferienzeit>());
+        var feld = kacheln.Single(k => k.Art == "absence");
+        Assert.Equal((3, 3), (feld.Stunde, feld.Dauer));
+        Assert.True(feld.Feld);
+        // die Aufsicht bleibt erhalten (Tagesansicht: halbe Kachel daneben, Wochenansicht: hinter dem Feld)
+        Assert.Single(kacheln, k => k.Art == "supervision");
+    }
+
+    [Fact]
+    public void Abwesende_Klasse_ist_kein_Entfall_sondern_Klasse_durchgestrichen()
+    {
+        var k = Kachelbau.AusKarte(Karte("entfall", 1, art: "Freisetzung", text: "Exkursion Zoo"), "teacher");
+        Assert.Equal("change", k.Art);
+        Assert.True(k.KlasseAbwesend);
+        Assert.Equal("", k.Klasse);
+        Assert.Equal("5a", k.KlasseAlt);
+        Assert.Contains("class", k.Geaendert);
+        Assert.Equal("Exkursion Zoo", k.Info);
+        // echter Entfall bleibt Entfall
+        var entfall = Kachelbau.AusKarte(Karte("entfall", 1, art: "Entfall"), "teacher");
+        Assert.Equal("cancelled", entfall.Art);
+        Assert.Null(entfall.KlasseAbwesend);
+        Assert.Equal("5a", entfall.Klasse);
+    }
+
+    [Fact]
+    public void Offene_Raumvertretung_wie_offene_Lehrervertretung()
+    {
+        // Raumänderung ohne neuen Raum: bisheriger Raum durchgestrichen in der Plakette
+        var k = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Raumänderung", raeume: new() { new("R101") }), "class");
+        Assert.True(k.RaumOffen);
+        Assert.Equal("", k.Raum);
+        Assert.Equal("R101", k.RaumAlt);
+        Assert.Contains("room", k.Geaendert);
+        // Platzhalter „???“ mit bisherigem Raum
+        var p = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Vertretung", raeume: new() { new("???", "R101", true) }), "class");
+        Assert.True(p.RaumOffen);
+        Assert.Equal("", p.Raum);
+        Assert.Equal("R101", p.RaumAlt);
+        // Raumänderung mit neuem Raum ist nicht offen
+        var neu = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Raumänderung", raeume: new() { new("R109", "R101", true) }), "class");
+        Assert.Null(neu.RaumOffen);
+        Assert.Equal("R109", neu.Raum);
+    }
+
+    [Fact]
     public void Ganztaegiger_Termin_steht_als_Pille_ueber_dem_Unterricht_oder_als_Flaeche()
     {
         var termin = new List<PlanEreignis> { new("Elternsprechtag", "veranstaltung", 1, 10, true, new(), new(), new()) };
@@ -274,6 +326,52 @@ public class KachelbauTests
         // eigener Vertretungstext bleibt
         var mitText = Kachelbau.AusKarte(Karte("geaendert", 1, text: "Aufgaben im Raum", lehrer: new() { new("", "WAG", true) }), "class");
         Assert.Equal("Aufgaben im Raum", mitText.Info);
+    }
+
+    [Fact]
+    public void Zusatzstunde_ohne_Lehrkraft_zeigt_drei_Striche()
+    {
+        var k = Kachelbau.AusKarte(Karte("geaendert", 5, fach: "WUB", art: "Sondereinsatz", unterricht: null, lehrer: new()), "class");
+        Assert.Equal("change", k.Art);
+        Assert.True(k.Zusatz);
+        Assert.Equal(Kachelbau.KeineLehrkraft, k.Lehrkraft);
+        Assert.Equal("---", k.Lehrkraft);
+        Assert.Equal("", k.LehrkraftAlt);
+        // auch eine Zusatzstunde aus „Zusatzunterricht“ mit Unterricht, aber ohne Lehrkraft
+        var z = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Zusatzunterricht", lehrer: new() { new("") }), "class");
+        Assert.True(z.Zusatz);
+        Assert.Equal("---", z.Lehrkraft);
+    }
+
+    [Fact]
+    public void Drei_Striche_nur_bei_Zusatzstunden()
+    {
+        // Zusatzstunde mit Lehrkraft: Lehrkraft bleibt, Kennzeichen für die Plakette in den Details
+        var mit = Kachelbau.AusKarte(Karte("geaendert", 2, fach: "SPO", art: "Sondereinsatz", unterricht: null, lehrer: new() { new("SNE") }), "class");
+        Assert.True(mit.Zusatz);
+        Assert.Equal("SNE", mit.Lehrkraft);
+        // Vertretung ohne Lehrkraft („+++“): bisherige Lehrkraft durchgestrichen, kein „---“
+        var plus = Kachelbau.AusKarte(Karte("geaendert", 1, art: "Vertretung", lehrer: new() { new("", "WAG", true) }), "class");
+        Assert.Null(plus.Zusatz);
+        Assert.Equal("", plus.Lehrkraft);
+        Assert.Equal("WAG", plus.LehrkraftAlt);
+        // offene Vertretung, Entfall, reguläre Stunde ohne Lehrkraft: kein „---“
+        Assert.Equal("", Kachelbau.AusKarte(Karte("offen", 1, lehrer: new() { new("", "WAG", true) }), "class").Lehrkraft);
+        Assert.Equal("", Kachelbau.AusKarte(Karte("entfall", 1, lehrer: new()), "class").Lehrkraft);
+        Assert.Equal("", Kachelbau.AusKarte(Karte("regulaer", 1, lehrer: new()), "class").Lehrkraft);
+        var vertretung = Kachelbau.AusKarte(Karte("geaendert", 1, art: "Vertretung", lehrer: new() { new("BEC", "WAG", true) }), "class");
+        Assert.Null(vertretung.Zusatz);
+        Assert.Equal("BEC", vertretung.Lehrkraft);
+    }
+
+    [Fact]
+    public void Hinzugefuegter_zweiter_Raum_nennt_den_alten_Raum_nur_einmal()
+    {
+        // Raumänderung mit zwei neuen Räumen (UntPlanWeb setzt bei beiden den bisherigen Raum als „alt“)
+        var k = Kachelbau.AusKarte(Karte("geaendert", 1, raeume: new() { new("R108", "R101", true), new("BI1", "R101", true) }), "class");
+        Assert.Equal("R108,BI1", k.Raum);
+        Assert.Equal("R101", k.RaumAlt);
+        Assert.Contains("room", k.Geaendert);
     }
 
     [Fact]

@@ -53,7 +53,7 @@ public static class KlassenbuchApi
             if (k.Unterricht is null)
                 return aktion switch
                 {
-                    "all" => Results.Json(new { ok = true, data = LeereInhalte, students = Array.Empty<object>(), absentClasses = Array.Empty<string>(), dueHomework = await FaelligAsync(c, web, k), @checked = false, absent = 0, reasons = Array.Empty<object>() }),
+                    "all" => Results.Json(new { ok = true, canEdit = false, online = false, data = LeereInhalte, students = Array.Empty<object>(), absentClasses = Array.Empty<string>(), dueHomework = await FaelligAsync(c, web, k), @checked = false, absent = 0, reasons = Array.Empty<object>() }),
                     "students" => Results.Json(new { ok = true, @checked = false, students = Array.Empty<object>(), absentClasses = Array.Empty<string>(), hint = "Zu dieser Stunde gibt es kein Klassenbuch." }),
                     "attSummary" => Results.Json(new { ok = true, @checked = false, absent = 0 }),
                     "reasons" => Results.Json(new { ok = true, reasons = Array.Empty<object>() }),
@@ -65,11 +65,12 @@ public static class KlassenbuchApi
             {
                 case "all":
                 {
-                    var (inhalte, _) = await InhalteAsync(c, web, konto, k);
+                    var (inhalte, darf, online) = await InhalteAsync(c, web, konto, k);
                     var (schueler, geprueft, _) = konto.Kollegium ? await SchuelerAsync(c, web, konto, k) : (new List<JsonObject>(), false, null);
                     return Results.Json(new
                     {
-                        ok = true, data = inhalte, students = schueler, absentClasses = Array.Empty<string>(),
+                        // canEdit: eigene Stunde (UntPlanWeb erlaubt das Klassenbuch), online: „Findet online statt“
+                        ok = true, canEdit = darf && konto.Kollegium, online, data = inhalte, students = schueler, absentClasses = Array.Empty<string>(),
                         dueHomework = await FaelligAsync(c, web, k), @checked = geprueft,
                         absent = schueler.Count(s => s["state"]?.GetValue<string>() == "absent"), reasons = Array.Empty<object>(),
                     });
@@ -91,6 +92,29 @@ public static class KlassenbuchApi
                     return Results.Json(new { ok = true, reasons = Array.Empty<object>() });
                 case "remarkTypes":
                     return Results.Json(new { ok = true, types = await ArtenAsync(c, web, k) });
+                case "online":
+                {
+                    // „Findet online statt“ (Schalter in den Stundendetails) → Klassenbuch der Stunde in UntPlanWeb
+                    var an = p["value"] is "1" or "true" or "on";
+                    await web.PutAsync(c, "api/app/klassenbuch/online", new { datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht, online = an });
+                    return Results.Json(new { ok = true, online = an });
+                }
+                case "remarkMany":
+                {
+                    // Gemeinsamer Klassenbucheintrag für mehrere Schüler*innen (Mehrfachauswahl in der Schülerliste): je Person ein Vermerk
+                    var text = p["text"].Trim();
+                    if (text.Length == 0) return Fehler("Bitte einen Text eingeben.");
+                    var ids = p["student_ids"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Select(x => int.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : 0).Where(i => i > 0).Distinct().ToList();
+                    if (ids.Count == 0) return Fehler("Bitte mindestens eine Schülerin oder einen Schüler wählen.");
+                    var aw = await web.GetAsync(c, $"api/app/klassenbuch/anwesenheit?{Stunde(k)}");
+                    foreach (var sid in ids)
+                    {
+                        var klasse = aw?["schueler"]?.AsArray().FirstOrDefault(s => s?["id"]?.GetValue<int>() == sid)?["klasse"]?.GetValue<string>() ?? k.Klasse;
+                        await web.PostAsync(c, "api/app/klassenbuch/vermerke", new { datum = Iso(k.Datum), klasse, schuelerId = sid, art = p.Text("type", "Vermerk"), text });
+                    }
+                    return Results.Json(new { ok = true, count = ids.Count, remarks = await BemerkungenAsync(c, web, await KlassenAsync(c, web, k), k) });
+                }
                 case "save":
                     return await TextSpeichernAsync(c, web, konto, k, p["field"], p["value"]);
                 case "addItem" or "setItem" or "delItem" when p["field"] == "homework":
@@ -127,14 +151,14 @@ public static class KlassenbuchApi
 
     // ------------------------------------------------------------------------------------------ Inhalte
 
-    private sealed record Eintrag(string Thema, string Hausaufgabe, string? Faellig, string Notiz, string NotizSchueler = "");
+    private sealed record Eintrag(string Thema, string Hausaufgabe, string? Faellig, string Notiz, string NotizSchueler = "", bool Online = false);
 
     private static async Task<(Eintrag Eintrag, bool Darf)> EintragAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k)
     {
         var j = await web.GetAsync(c, $"api/app/klassenbuch/stunde?{Stunde(k)}");
         var e = j?["eintrag"] as JsonObject;
         return (new Eintrag(e?["thema"]?.GetValue<string>() ?? "", e?["hausaufgabe"]?.GetValue<string>() ?? "", e?["faellig"]?.GetValue<string>(),
-            e?["notiz"]?.GetValue<string>() ?? "", e?["notizSchueler"]?.GetValue<string>() ?? ""), j?["darf"]?.GetValue<bool>() ?? false);
+            e?["notiz"]?.GetValue<string>() ?? "", e?["notizSchueler"]?.GetValue<string>() ?? "", e?["online"]?.GetValue<bool>() ?? false), j?["darf"]?.GetValue<bool>() ?? false);
     }
 
     /// <summary>Hausaufgaben der Stunde aus der Liste von UntPlanWeb (mit Id, Fälligkeit und Bemerkung).</summary>
@@ -151,7 +175,7 @@ public static class KlassenbuchApi
     private static List<object> Hausaufgaben(IEnumerable<JsonObject> liste) =>
         liste.Select(h => (object)new { text = h["text"]?.GetValue<string>() ?? "", due = h["faellig"]?.GetValue<string>(), note = h["bemerkung"]?.GetValue<string>() ?? "", done = h["erledigt"]?.GetValue<bool>() ?? false }).ToList();
 
-    private static async Task<(object Inhalte, bool Darf)> InhalteAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k)
+    private static async Task<(object Inhalte, bool Darf, bool Online)> InhalteAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k)
     {
         var (e, darf) = await EintragAsync(c, web, k);
         return (new
@@ -161,7 +185,7 @@ public static class KlassenbuchApi
             notes_teachers = konto.Kollegium ? e.Notiz : "",
             homework = Hausaufgaben(await HausaufgabenListeAsync(c, web, k)),
             classbook = konto.Kollegium ? await KlasseneintraegeAsync(c, web, k) : new List<object>(),
-        }, darf);
+        }, darf, e.Online);
     }
 
     private static Task EintragSpeichernAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k, Eintrag e) =>
@@ -303,6 +327,7 @@ public static class KlassenbuchApi
             .GroupBy(f => f["schuelerId"]!.GetValue<int>()).ToDictionary(g => g.Key, g => g.OrderBy(f => f["stunde"]!.GetValue<int>()).First());
         var schueler = (aw?["schueler"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>().ToList();
         var bemerkungen = await BemerkungenAsync(c, web, schueler.Select(s => s["klasse"]?.GetValue<string>() ?? ""), k);
+        var dienste = await DiensteAsync(c, web, schueler.Select(s => s["klasse"]?.GetValue<string>() ?? ""), k.Datum);
         var beginn = Beginn(konto, k.Stunde);
         var liste = schueler.Select(s =>
         {
@@ -314,9 +339,10 @@ public static class KlassenbuchApi
             return new JsonObject
             {
                 ["id"] = id,
-                ["name"] = $"{s["name"]?.GetValue<string>()}, {s["vorname"]?.GetValue<string>()}".Trim(' ', ','),
+                // wie in WebUntis: „Nachname Vorname“, sortiert nach Nachnamen
+                ["name"] = $"{s["name"]?.GetValue<string>()} {s["vorname"]?.GetValue<string>()}".Trim(),
                 ["class"] = s["klasse"]?.GetValue<string>() ?? "",
-                ["duties"] = new JsonArray(),
+                ["duties"] = new JsonArray(dienste.GetValueOrDefault(id, new List<string>()).Select(x => (JsonNode)JsonValue.Create(x)!).ToArray()),
                 ["state"] = art == "fehlt" ? "absent" : art == "verspaetet" ? "late" : "present",
                 ["note"] = f?["bemerkung"]?.GetValue<string>() ?? "",
                 ["arrival"] = ankunft,
@@ -325,8 +351,29 @@ public static class KlassenbuchApi
                 ["locked"] = false,
                 ["excused"] = f?["status"]?.GetValue<string>() == "entschuldigt",
             };
-        }).ToList();
+        }).OrderBy(s => s["name"]!.GetValue<string>(), StringComparer.Create(new CultureInfo("de-DE"), true)).ToList();
         return (liste, aw?["geprueft"] is JsonValue g && g.GetValueKind() == JsonValueKind.String, null);
+    }
+
+    /// <summary>Klassendienste (z. B. Klassensprecher*in) am Tag der Stunde, je Schüler-ID – Zusatz in der Schülerliste.</summary>
+    private static async Task<Dictionary<int, List<string>>> DiensteAsync(HttpContext c, UntPlanWebVerbindung web, IEnumerable<string> klassen, DateOnly datum)
+    {
+        var res = new Dictionary<int, List<string>>();
+        foreach (var kl in klassen.Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            JsonNode? j;
+            try { j = await web.GetAsync(c, $"api/app/klassendienste?klasse={Uri.EscapeDataString(kl)}&von={Iso(datum)}&bis={Iso(datum)}"); }
+            catch (UntPlanWebFehler) { continue; }
+            foreach (var z in (j?["zuordnungen"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>())
+            {
+                if (z["schuelerId"]?.GetValue<int>() is not int sid) continue;
+                var name = z["dienst"]?.GetValue<string>() ?? "";
+                if (name.Length == 0) continue;
+                if (!res.TryGetValue(sid, out var l)) res[sid] = l = new List<string>();
+                if (!l.Contains(name)) l.Add(name);
+            }
+        }
+        return res;
     }
 
     private sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung);
