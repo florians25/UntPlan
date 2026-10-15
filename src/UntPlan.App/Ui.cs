@@ -21,23 +21,27 @@ public static class Ui
     public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(234, 246, 235) : Color.FromArgb(232, 243, 247);
     public static Color Titel => Vertretungsmodus ? Color.FromArgb(78, 140, 92) : Color.FromArgb(52, 122, 148);
     public static Color MdiHintergrund => Vertretungsmodus ? Color.FromArgb(168, 220, 202) : Color.FromArgb(176, 190, 197);
-    public static Color Kopf => Vertretungsmodus ? Color.FromArgb(240, 240, 240) : Color.FromArgb(240, 245, 247);
+    public static Color Kopf => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(240, 245, 247);
     public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(232, 242, 233) : Color.FromArgb(236, 241, 243);
     public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 238, 216) : Color.FromArgb(214, 234, 240);
     public static Color HoverRand => Vertretungsmodus ? Color.FromArgb(120, 190, 130) : Color.FromArgb(110, 178, 200);
     /// <summary>Hintergrund der Listen (leere Fläche) und der Zellen – leicht in der Modusfarbe getönt statt Weiß.</summary>
-    public static Color Listenhintergrund => Vertretungsmodus ? Color.FromArgb(246, 246, 246) : Color.FromArgb(236, 242, 245);
+    public static Color Listenhintergrund => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(236, 242, 245);
     public static Color Zelle => Vertretungsmodus ? Color.White : Color.FromArgb(251, 253, 254);
-    public static Color ZelleWechsel => Vertretungsmodus ? Color.White : Color.FromArgb(244, 248, 250);
+    public static Color ZelleWechsel => Vertretungsmodus ? Color.FromArgb(240, 247, 244) : Color.FromArgb(244, 248, 250);
     /// <summary>Vertretungsmodus wie Untis: nicht bearbeitbare Felder grau, nur bearbeitbare Felder hell.</summary>
-    public static readonly Color ZelleGesperrt = Color.FromArgb(234, 234, 234);
+    public static Color ZelleGesperrt => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(234, 234, 234);
+    /// <summary>Aktuelle Zelle im Vertretungsmodus (helles Orange wie Untis).</summary>
+    public static readonly Color ZelleAktivVertretung = Color.FromArgb(255, 234, 198);
+    /// <summary>Werkzeugleisten der Arbeitsfenster.</summary>
+    public static Color Leiste => Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(246, 248, 251);
     /// <summary>Markierte Zeilen im Vertretungsmodus (gedecktes Grün wie Untis).</summary>
-    public static readonly Color AuswahlVertretung = Color.FromArgb(200, 222, 208);
+    public static readonly Color AuswahlVertretung = Color.FromArgb(199, 222, 213);
     /// <summary>Zelle unter der Maus.</summary>
-    public static Color ZelleHover => Vertretungsmodus ? Color.FromArgb(222, 238, 228) : Color.FromArgb(222, 238, 246);
+    public static Color ZelleHover => Vertretungsmodus ? Color.FromArgb(214, 236, 226) : Color.FromArgb(222, 238, 246);
     /// <summary>Leere Stunde im Stundenplan.</summary>
     public static Color PlanLeer => Vertretungsmodus ? Color.FromArgb(248, 252, 248) : Color.FromArgb(248, 251, 252);
-    public static readonly Color Rasterlinie = Color.FromArgb(208, 215, 229);
+    public static Color Rasterlinie => Vertretungsmodus ? Color.FromArgb(174, 207, 194) : Color.FromArgb(208, 215, 229);
     public static readonly Color ZeileAktiv = Color.FromArgb(253, 222, 176);
     public static readonly Color Erste = Color.FromArgb(252, 228, 188);
     public static readonly Color Gruen = Color.FromArgb(120, 220, 120);
@@ -118,6 +122,7 @@ public static class Ui
     public static void RasterFarben(DataGridView g)
     {
         g.BackgroundColor = Listenhintergrund;
+        g.GridColor = Rasterlinie;
         g.DefaultCellStyle.BackColor = Zelle;
         g.AlternatingRowsDefaultCellStyle.BackColor = ZelleWechsel;
         g.RowHeadersDefaultCellStyle.SelectionBackColor = ZeileAktiv;

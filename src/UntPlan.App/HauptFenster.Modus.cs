@@ -253,10 +253,24 @@ public sealed partial class HauptFenster
         foreach (var f in MdiChildren)
         {
             foreach (var g in Ui.Tabellen(f)) Ui.RasterFarben(g);
+            FlaechenFaerben(f);
             f.Invalidate(true);
         }
         _assistent.Aktualisieren();
         _assistent.Invalidate(true);
+    }
+
+    /// <summary>Werkzeugleisten und Kopfflächen offener Fenster in die Farben des neuen Modus umfärben.</summary>
+    private static void FlaechenFaerben(Control c)
+    {
+        var kopfAlt = new[] { Color.FromArgb(240, 245, 247), Color.FromArgb(229, 239, 235) };
+        var leisteAlt = new[] { Color.FromArgb(246, 248, 251), Color.FromArgb(240, 246, 243) };
+        foreach (Control k in c.Controls)
+        {
+            if (k is ToolStrip ts && ts is not MenuStrip && leisteAlt.Contains(ts.BackColor)) ts.BackColor = Ui.Leiste;
+            else if (k is not DataGridView && kopfAlt.Contains(k.BackColor)) k.BackColor = Ui.Kopf;
+            FlaechenFaerben(k);
+        }
     }
 
     private void LayoutMerken(string gruppe)

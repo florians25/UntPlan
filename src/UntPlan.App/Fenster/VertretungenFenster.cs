@@ -145,7 +145,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             c.Width = breite;
             c.ReadOnly = lesbar;
             c.SortMode = DataGridViewColumnSortMode.Programmatic;
-            if (!lesbar) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
+            // bearbeitbare Felder: im Vertretungsmodus weiß wie Untis (nicht bearbeitbare grünlich, siehe Auswahlbreite.ZellFarben)
+            if (!lesbar && !Ui.Vertretungsmodus) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
         // Reihenfolge wie in Untis: Vtr-Nr. Art Datum Stunde (Fach) Fach (Lehrer) Vertreter (Klasse(n)) Klasse(n) (Raum) Raum Vertr. von (Le.) nach Text Statistik …
         for (var i = 0; i < Spalten.Length; i++) _g.Columns[Spalten[i].Name]!.DisplayIndex = i;

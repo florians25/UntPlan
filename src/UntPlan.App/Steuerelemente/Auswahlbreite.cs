@@ -79,7 +79,7 @@ public static class Auswahlbreite
         if (Ui.Vertretungsmodus && !g.ReadOnly)
         {
             if (standard && zeile.Cells[e.ColumnIndex].ReadOnly) e.CellStyle.BackColor = Ui.ZelleGesperrt;
-            if (g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) e.CellStyle.SelectionBackColor = Ui.ZeileAktiv;
+            if (g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
         }
         var h = Hover(g);
         if (h.X == e.ColumnIndex && h.Y == e.RowIndex)

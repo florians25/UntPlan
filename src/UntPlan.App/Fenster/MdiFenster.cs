@@ -272,7 +272,7 @@ public class MdiFenster : Form
             RenderMode = ToolStripRenderMode.System,
             Font = Ui.Schrift,
             ImageScalingSize = new Size(16, 16),
-            BackColor = Color.FromArgb(246, 248, 251),
+            BackColor = Ui.Leiste,
             Padding = new Padding(2, 1, 2, 1),
         };
         return ts;
