@@ -40,6 +40,10 @@ public sealed partial class HauptFenster
         d.Tagestexte.Add(new Tagestext { Datum = tag, Text = "Heute 7. Stunde Lehrerkonferenz – Unterricht endet nach der 6. Stunde." });
         AppZustand.Setzen(new Dokument(d));
 
+        // gespeicherte Spaltenlayouts bzw. Ansicht der Vertretungsliste (aus früheren Läufen) nicht übernehmen: Standard wie Untis
+        foreach (var k in AppZustand.Einstellungen.Tabellenlayouts.Keys.Where(k => k.StartsWith("VertretungenFenster", StringComparison.Ordinal)).ToList())
+            AppZustand.Einstellungen.Tabellenlayouts.Remove(k);
+        AppZustand.Einstellungen.Vertretungsansicht = "Klasse - Standard";
         var logPfad = Path.Combine(ordner, "selbsttest.log");
         File.WriteAllText(logPfad, "");
         void Schritt(string name, Action aktion, int ribbonSeite = -1, bool schliessen = true)
@@ -170,11 +174,49 @@ public sealed partial class HauptFenster
             var sp = Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false));
             sp.SelbsttestZeitbereich(true, true);
         }, -1);
+        // offene Vertretung (möglichst mit Vorziehungen) für den Vertretungsvorschlag
+        Vertretung? OffeneVertretung()
+        {
+            var liste = AppZustand.D.Vertretungen.Where(v => v.Datum == AppZustand.Datum).OrderByDescending(v => v.Offen && v.Art == VertretungsArt.Vertretung).ThenByDescending(v => v.Offen).ThenBy(v => v.Stunde).ToList();
+            return liste.Where(v => v.Offen && v.Art == VertretungsArt.Vertretung).FirstOrDefault(v => Core.Vertretungsplanung.VertretungsVorschlag.Vorziehungen(AppZustand.D, v).Count > 0) ?? liste.FirstOrDefault();
+        }
+        Schritt("17c_Vertretungen_Tausch", () =>
+        {
+            // Stundentausch zweier Stunden einer Klasse: wie Untis je Position eine Zeile „Tausch“, geänderte Felder magenta
+            var dd = AppZustand.D;
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            bool Frei(Core.Vertretungsplanung.TagesEintrag e) => e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht is { Zeilen.Count: 1 } && e.KlassenIds.Count == 1 && !e.LehrerIds.Contains(krank.Id);
+            var paar = (from k in dd.Klassen
+                        from a in tp.VonKlasse(k.Id).Where(Frei)
+                        from b in tp.VonKlasse(k.Id).Where(Frei)
+                        where b.Stunde > a.Stunde && b.Unterricht!.Id != a.Unterricht!.Id && !a.LehrerIds.SequenceEqual(b.LehrerIds)
+                        select (a, b))
+                .FirstOrDefault(p => Core.Vertretungsplanung.Tagesverlegung.Zielstatus(dd, tp, p.a.Stunde, p.a.Unterricht!.Id, null, tp, p.b.Stunde) == Core.Planung.Feldstatus.TauschMoeglich);
+            if (paar.a is null) throw new InvalidOperationException("Kein Stundentausch möglich.");
+            Core.Vertretungsplanung.Vertretungen.Tauschen(dd, paar.a.Unterricht!.Id, tag, paar.a.Stunde, paar.b.Unterricht!.Id, tag, paar.b.Stunde);
+            var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            log.Add("INFO  " + f.SelbsttestTausch());
+        }, -1);
         Schritt("18_Vertretungsvorschlag", () =>
         {
-            var offen = AppZustand.D.Vertretungen.Where(v => v.Datum == AppZustand.Datum).OrderByDescending(v => v.Offen).FirstOrDefault();
-            AppZustand.VertretungWaehlen(offen);
-            Max(FensterOeffnen("vorschlag")!);
+            AppZustand.VertretungWaehlen(OffeneVertretung());
+            var f = Max(FensterOeffnen("vorschlag")!) as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+            Warten(300);
+            log.Add("INFO  " + f.SelbsttestPruefen());
+        }, -1);
+        Schritt("18a_Vertretungsvorschlag_Betreuungen", () =>
+        {
+            AppZustand.VertretungWaehlen(OffeneVertretung());
+            var f = Max(FensterOeffnen("vorschlag")!) as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+            f.SelbsttestReiter(1);
+        }, -1);
+        Schritt("18b_Vertretungsvorschlag_Raeume_Vorziehungen", () =>
+        {
+            AppZustand.VertretungWaehlen(OffeneVertretung());
+            var f = Max(FensterOeffnen("vorschlag")!) as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+            f.SelbsttestReiter(2);
+            f.SelbsttestAufklappen(true, true);
         }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
