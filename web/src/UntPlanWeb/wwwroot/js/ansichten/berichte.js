@@ -1,57 +1,94 @@
-// Berichte: Fehlzeitenbericht (je Klasse oder alle) und Lehrstoffbericht einer Klasse – Vorschau, Druck und CSV.
-import { e, icon, holen, leer, filterFeld, datumKurz, heuteIso, plusTage, herunterladen, ApiFehler } from '../ui.js';
+// Klassenbuch → Berichte wie im Original: Filter (Klasse, Schüler*in, Zeitraum), Berichte nach Gruppen (Abwesenheiten,
+// Klassenbucheinträge, Arbeitsbericht, Prüfungen, Weitere) mit Anzeigen, Drucken (PDF über den Browser) und CSV.
+import { e, icon, holen, leer, filterFeld, heuteIso, plusTage, herunterladen, ApiFehler, lade } from '../ui.js';
 
-const BERICHTE = {
-  fehlzeiten: { titel: 'Fehlzeitenbericht', text: 'Fehlstunden, Fehltage, entschuldigt/unentschuldigt und Verspätungen je Schüler*in.', symbol: 'fehlzeiten' },
-  lehrstoff: { titel: 'Lehrstoffbericht', text: 'Lehrstoff und Hausaufgaben je Stunde einer Klasse (Klassenbuch).', symbol: 'eintraege' },
-};
+const ALIAS = { fehlzeiten: 'fehlzeiten_schueler', lehrstoff: 'arbeitsbericht_tag' };
+const GRUPPENSYMBOL = { Abwesenheiten: 'abwesenheiten', Klassenbucheinträge: 'eintraege', Arbeitsbericht: 'woche', Prüfungen: 'pruefung', Weitere: 'berichte' };
+const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 
-export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonParam, bisParam]) {
+export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonParam, bisParam, schuelerParam, n1Param, n2Param]) {
   const el = await kontext.elemente();
-  const bericht = BERICHTE[berichtParam] ? berichtParam : 'fehlzeiten';
+  const arten = await holen('/api/app/berichte/liste');
+  const art = arten.find(a => a.id === (ALIAS[berichtParam] ?? berichtParam))?.id ?? null;
   const iso = /^\d{4}-\d{2}-\d{2}$/;
-  const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), bericht === 'lehrstoff' ? -28 : -90);
+  const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -30);
   const bis = iso.test(bisParam ?? '') ? bisParam : heuteIso();
-  const klasse = klasseParam && klasseParam !== '-' ? klasseParam : (bericht === 'lehrstoff' ? el.klassen[0]?.kurz ?? '' : '');
-  const ziel = (b, k, v = von, bi = bis) => `#/berichte/${b}/${encodeURIComponent(k || '-')}/${v}/${bi}`;
-  kontext.titel('Berichte', `<button class="btn btn-outline-secondary" data-csv>${icon('csv')}CSV herunterladen</button><button class="btn btn-primary" data-drucken>${icon('drucken')}Drucken</button>`);
+  const klasse = klasseParam && klasseParam !== '-' ? klasseParam : '';
+  const schueler = schuelerParam && schuelerParam !== '-' ? schuelerParam : '';
+  const n1 = Number(n1Param) || 0, n2 = Number(n2Param) || 0;
+  const ziel = (a, k = klasse, v = von, b = bis, s = schueler, x1 = n1, x2 = n2) =>
+    `#/berichte/${a ?? '-'}/${encodeURIComponent(k || '-')}/${v}/${b}/${s || '-'}/${x1 || 0}/${x2 || 0}`;
+  kontext.titel('Berichte');
+  const schuelerListe = klasse ? await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(klasse)}`).catch(() => []) : [];
+  const gruppen = [...new Set(arten.map(a => a.gruppe))];
+  const parameter = a => {
+    if (!a.parameter) return '';
+    const s1 = `<input type="number" min="1" class="form-control form-control-sm d-inline-block" style="width:70px" data-n1="${a.id}" value="${a.id === art && n1 ? n1 : a.id === 'unentschuldigt' ? 3 : 16}">`;
+    const s2 = `<input type="number" min="1" class="form-control form-control-sm d-inline-block" style="width:70px" data-n2="${a.id}" value="${a.id === art && n2 ? n2 : 4}">`;
+    return `<span class="small text-body-secondary d-inline-flex align-items-center gap-1 flex-wrap">${e(a.parameter).replace('{n1}', s1).replace('{n2}', s2)}</span>`;
+  };
   seite.innerHTML = `
-    <div class="u-kacheln nicht-drucken" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">${Object.entries(BERICHTE).map(([id, b]) => `<a class="u-kennzahl" href="${ziel(id, id === bericht ? klasse : '')}" style="${id === bericht ? 'box-shadow:0 0 0 2px var(--u-akzent)' : ''}">
-      ${icon(b.symbol)}<span><b style="font-size:1rem">${e(b.titel)}</b><small class="fw-normal">${e(b.text)}</small></span></a>`).join('')}</div>
     <div class="u-filter nicht-drucken">
-      ${filterFeld('Klasse', `<select class="form-select" data-klasse>${bericht === 'fehlzeiten' ? '<option value="">alle Klassen</option>' : ''}${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)}
+      ${filterFeld('Klasse', `<select class="form-select" data-klasse><option value="">alle Klassen</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)}
+      ${filterFeld('Schüler*innen', `<select class="form-select" data-schueler ${klasse ? '' : 'disabled'}><option value="">- Alle -</option>${schuelerListe.map(s => `<option value="${s.id}" ${String(s.id) === schueler ? 'selected' : ''}>${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select>`)}
       ${filterFeld('Von', `<input type="date" class="form-control" data-von value="${von}">`)}
       ${filterFeld('Bis', `<input type="date" class="form-control" data-bis value="${bis}">`)}
     </div>
-    <div class="card" data-inhalt></div>`;
+    <div class="row g-4">
+      <div class="col-xl-5 nicht-drucken">${gruppen.map(g => `<section class="br-gruppe"><h3>${icon(GRUPPENSYMBOL[g] ?? 'berichte')}${e(g)}</h3>
+        ${arten.filter(a => a.gruppe === g).map(a => `<div class="br-zeile ${a.id === art ? 'aktiv' : ''}"><div class="name">${e(a.titel)}${a.klasseNoetig ? ' <span class="small text-body-secondary fw-normal">(Klasse)</span>' : ''}
+            <div class="mt-1">${parameter(a)}</div></div>
+          <button class="btn btn-sm btn-outline-secondary" data-anzeigen="${a.id}">Anzeigen</button>
+          <button class="btn btn-sm btn-outline-secondary" data-druck="${a.id}" title="Drucken bzw. als PDF speichern">${icon('drucken')}</button>
+          <button class="btn btn-sm btn-outline-secondary" data-csv="${a.id}" title="CSV (Excel)">CSV</button></div>`).join('')}</section>`).join('')}
+        <p class="small text-body-secondary">Notfallliste, BAföG- und Fahrkostenbescheinigungen benötigen Adress- bzw. Kontaktdaten, die UntPlan nicht überträgt.</p></div>
+      <div class="col-xl-7" data-vorschau>${art ? lade() : `<div class="br-vorschau">${leer('Bericht wählen und „Anzeigen“ klicken.', 'file-earmark-bar-graph')}</div>`}</div>
+    </div>`;
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-  seite.querySelectorAll('.u-filter input, .u-filter select').forEach(x => x.onchange = () => kontext.navigieren(ziel(bericht, f('klasse'), f('von') || von, f('bis') || bis)));
-  document.querySelector('[data-drucken]').onclick = () => window.print();
-  const q = `${klasse ? `klasse=${encodeURIComponent(klasse)}&` : ''}von=${von}&bis=${bis}`;
-  document.querySelector('[data-csv]').onclick = async () => {
+  const nWerte = id => [Number(seite.querySelector(`[data-n1="${id}"]`)?.value) || 0, Number(seite.querySelector(`[data-n2="${id}"]`)?.value) || 0];
+  seite.querySelectorAll('.u-filter select, .u-filter input').forEach(x => x.onchange = () =>
+    kontext.navigieren(ziel(art, f('klasse'), f('von') || von, f('bis') || bis, x.matches('[data-klasse]') ? '' : f('schueler'))));
+  const abfrage = (id, n = nWerte(id)) => `klasse=${encodeURIComponent(klasse)}&von=${von}&bis=${bis}${schueler ? `&schueler=${schueler}` : ''}&n1=${n[0]}&n2=${n[1]}`;
+  seite.querySelectorAll('[data-anzeigen]').forEach(b => b.onclick = () => { const n = nWerte(b.dataset.anzeigen); kontext.navigieren(ziel(b.dataset.anzeigen, klasse, von, bis, schueler, n[0], n[1])); });
+  seite.querySelectorAll('[data-druck]').forEach(b => b.onclick = () => {
+    const n = nWerte(b.dataset.druck);
+    if (b.dataset.druck === art) { window.print(); return; }
+    sessionStorage.setItem('untplan:berichtdruck', '1');
+    kontext.navigieren(ziel(b.dataset.druck, klasse, von, bis, schueler, n[0], n[1]));
+  });
+  seite.querySelectorAll('[data-csv]').forEach(b => b.onclick = async () => {
     try {
-      const antwort = await fetch(`/api/app/berichte/${bericht}?${q}&format=csv`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
-      if (!antwort.ok) throw new ApiFehler(antwort.status, `Fehler ${antwort.status}`);
-      herunterladen(`${bericht}-${klasse || 'alle'}-${von}-${bis}.csv`, await antwort.blob());
+      const antwort = await fetch(`/api/app/berichte/erstellen/${b.dataset.csv}?${abfrage(b.dataset.csv)}&format=csv`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
+      if (!antwort.ok) throw new ApiFehler(antwort.status, (await antwort.json().catch(() => null))?.fehler ?? `Fehler ${antwort.status}`);
+      herunterladen(`${b.dataset.csv}-${klasse || 'alle'}-${von}-${bis}.csv`, await antwort.blob());
     } catch (err) { kontext.fehler(err); }
-  };
-  const inhalt = seite.querySelector('[data-inhalt]');
-  const r = await holen(`/api/app/berichte/${bericht}?${q}`);
-  const kopf = `<div class="card-header"><div>${e(BERICHTE[bericht].titel)}${klasse ? ` · Klasse ${e(klasse)}` : ' · alle Klassen'}</div>
-    <div class="small text-body-secondary fw-normal">${datumKurz(r.von)}${r.von.slice(0, 4)} – ${datumKurz(r.bis)}${r.bis.slice(0, 4)} · ${e(kontext.sitzung.schule.name || '')}</div></div>`;
-  if (bericht === 'lehrstoff') {
-    inhalt.innerHTML = kopf + (r.zeilen.length ? `<div class="table-responsive"><table class="table table-sm table-card align-middle"><thead><tr><th>Datum</th><th>Std.</th><th>Fach</th><th>Lehrkraft</th><th>Lehrstoff</th><th>Hausaufgabe</th></tr></thead><tbody>
-      ${r.zeilen.map(x => `<tr><td class="text-nowrap">${e(datumKurz(x.datum))}</td><td>${x.stunde}.</td><td class="fw-semibold">${e(x.fach)}</td><td>${e(x.lehrer)}</td><td>${e(x.thema) || '<span class="text-body-tertiary">—</span>'}</td>
-        <td>${e(x.hausaufgabe)}${x.faellig ? `<div class="small text-body-secondary">bis ${datumKurz(x.faellig)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>`
-      : leer('Keine Klassenbucheinträge im Zeitraum.', 'eintraege'));
-    return;
+  });
+  if (!art) return;
+
+  const vorschau = seite.querySelector('[data-vorschau]');
+  let r;
+  try { r = await holen(`/api/app/berichte/erstellen/${art}?${abfrage(art, [n1, n2])}`); }
+  catch (err) { vorschau.innerHTML = `<div class="br-vorschau p-3">${e(err.message)}</div>`; return; }
+  const kopf = `<div class="br-druckkopf"><b>${e(kontext.sitzung.schule.name || '')}</b> · ${e(r.titel)}${klasse ? ` · Klasse ${e(klasse)}` : ''} · ${datumDe(r.von)} – ${datumDe(r.bis)}</div>`;
+  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0"><thead><tr>${r.spalten.map(s => `<th>${e(s)}</th>`).join('')}</tr></thead><tbody>
+    ${zeilen.map(z => `<tr>${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  if (art === 'entschuldigungsschreiben') {
+    // je Schüler*in eine Seite mit Unterschriftsfeld
+    const proSchueler = new Map();
+    r.zeilen.forEach(z => proSchueler.set(z[0], [...(proSchueler.get(z[0]) ?? []), z]));
+    vorschau.innerHTML = `<div class="br-vorschau"><div class="card-header d-flex align-items-center nicht-drucken"><h2>${e(r.titel)}</h2><span class="ms-auto small text-body-secondary">${proSchueler.size} Schüler*innen</span></div>
+      ${proSchueler.size ? [...proSchueler].map(([name, zeilen]) => `<div class="p-3 br-seite border-bottom">${kopf}<h3 class="h6 fw-bold mt-2">Entschuldigung für ${e(name)} (${e(zeilen[0][1])})</h3>
+        <p class="small mb-2">Hiermit entschuldige ich das Fehlen meines Kindes zu folgenden Zeiten:</p>
+        <table class="table table-sm mb-3"><thead><tr><th>Datum</th><th>Stunden</th><th>Fächer</th><th>Grund</th></tr></thead><tbody>${zeilen.map(z => `<tr><td>${e(z[2])}</td><td>${e(z[3])}</td><td>${e(z[4])}</td><td>${e(z[5])}</td></tr>`).join('')}</tbody></table>
+        <div class="d-flex gap-4 small pt-4"><span class="border-top pt-1 flex-fill">Datum</span><span class="border-top pt-1 flex-fill">Unterschrift Erziehungsberechtigte</span></div></div>`).join('')
+        : leer('Keine offenen Fehlstunden im Zeitraum.', 'check2-circle')}</div>`;
+  } else {
+    vorschau.innerHTML = `<div class="br-vorschau">${kopf}<div class="card-header d-flex flex-wrap align-items-center gap-2"><h2>${e(r.titel)}</h2>
+        <span class="small text-body-secondary">${klasse ? `Klasse ${e(klasse)} · ` : ''}${datumDe(r.von)} – ${datumDe(r.bis)} · ${r.zeilen.length} Zeilen</span>
+        <button class="btn btn-sm btn-outline-secondary ms-auto nicht-drucken" data-jetzt-drucken>${icon('drucken')}Drucken</button></div>
+      ${r.hinweis ? `<div class="px-3 pt-2 small text-body-secondary">${e(r.hinweis)}</div>` : ''}
+      ${r.zeilen.length ? tabelle(r.zeilen) : leer('Keine Daten für diese Auswahl.', 'file-earmark')}</div>`;
+    vorschau.querySelector('[data-jetzt-drucken]').onclick = () => window.print();
   }
-  const summe = k => r.zeilen.reduce((s, z) => s + z[k], 0);
-  inhalt.innerHTML = kopf + (r.zeilen.length ? `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Klasse</th><th>Name</th>
-      <th class="text-end">Fehlstunden</th><th class="text-end">Fehltage</th><th class="text-end">entschuldigt</th><th class="text-end">unentschuldigt</th><th class="text-end">offen</th><th class="text-end">Verspätungen</th></tr></thead><tbody>
-    ${r.zeilen.map(z => `<tr><td>${e(z.klasse)}</td><td class="fw-semibold">${e(z.name)}, ${e(z.vorname)}</td><td class="text-end fw-semibold">${z.stunden || ''}</td><td class="text-end">${z.tage || ''}</td>
-      <td class="text-end text-success">${z.entschuldigt || ''}</td><td class="text-end text-danger">${z.unentschuldigt || ''}</td><td class="text-end">${z.offen || ''}</td>
-      <td class="text-end">${z.verspaetungen ? `${z.verspaetungen} <small class="text-body-secondary">(${z.minuten} min)</small>` : ''}</td></tr>`).join('')}
-    <tr class="fw-semibold"><td colspan="2">Summe</td><td class="text-end">${summe('stunden')}</td><td class="text-end">${summe('tage')}</td><td class="text-end">${summe('entschuldigt')}</td><td class="text-end">${summe('unentschuldigt')}</td><td class="text-end">${summe('offen')}</td><td class="text-end">${summe('verspaetungen')}</td></tr>
-    </tbody></table></div>` : leer('Für diese Auswahl wurde keine Schülerliste übertragen.', 'fehlzeiten'));
+  if (sessionStorage.getItem('untplan:berichtdruck')) { sessionStorage.removeItem('untplan:berichtdruck'); setTimeout(() => window.print(), 300); }
 }

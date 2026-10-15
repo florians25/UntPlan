@@ -24,7 +24,7 @@ public static class Rollen
 }
 
 public sealed record Benutzer(int Id, string Login, string Anzeigename, string Rolle, string Element, string Email, bool Gesperrt, bool PasswortAendern,
-    string IcalToken, string Erstellt, string? LetzteAnmeldung)
+    string IcalToken, string Erstellt, string? LetzteAnmeldung, string? VorherigeAnmeldung = null, string Sprache = "Deutsch", bool Benachrichtigung = false)
 {
     /// <summary>Kollegium (Lehrkräfte, Schulleitung, Administration): alle Pläne, Lehrerversion des Vertretungsplans.</summary>
     public bool Kollegium => Rolle is Rollen.Admin or Rollen.Leitung or Rollen.Lehrer;
@@ -44,10 +44,11 @@ public sealed class Benutzerdienst
 
     public Benutzerdienst(Db db, Uhr uhr) { _db = db; _uhr = uhr; }
 
-    private const string Spalten = "id, login, anzeigename, rolle, element, email, gesperrt, passwort_aendern, ical_token, erstellt, letzte_anmeldung";
+    private const string Spalten = "id, login, anzeigename, rolle, element, email, gesperrt, passwort_aendern, ical_token, erstellt, letzte_anmeldung, vorherige_anmeldung, sprache, benachrichtigung";
 
     private static Benutzer Lesen(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("login"), r.Text("anzeigename"), r.Text("rolle"),
-        r.Text("element"), r.Text("email"), r.Wahr("gesperrt"), r.Wahr("passwort_aendern"), r.Text("ical_token"), r.Text("erstellt"), r.TextOderNull("letzte_anmeldung"));
+        r.Text("element"), r.Text("email"), r.Wahr("gesperrt"), r.Wahr("passwort_aendern"), r.Text("ical_token"), r.Text("erstellt"), r.TextOderNull("letzte_anmeldung"),
+        r.TextOderNull("vorherige_anmeldung"), r.Text("sprache"), r.Wahr("benachrichtigung"));
 
     public bool Keiner => Convert.ToInt32(_db.Wert("SELECT COUNT(*) FROM benutzer WHERE rolle = 'admin'")) == 0;
 
@@ -103,10 +104,45 @@ public sealed class Benutzerdienst
         }
         if (ergebnis == PasswordVerificationResult.SuccessRehashNeeded)
             _db.Ausfuehren("UPDATE benutzer SET passwort = @p WHERE id = @id", Db.P("@p", _hasher.HashPassword(zeile.Login, passwort!)), Db.P("@id", zeile.Id));
-        _db.Ausfuehren("UPDATE benutzer SET fehlversuche = 0, gesperrt_bis = NULL, letzte_anmeldung = @z WHERE id = @id",
-            Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@id", zeile.Id));
+        // Die bisherige Anmeldung bleibt als „Letzte Anmeldung“ für die Startseite erhalten
+        _db.Ausfuehren("UPDATE benutzer SET fehlversuche = 0, gesperrt_bis = NULL, vorherige_anmeldung = letzte_anmeldung, letzte_anmeldung = @z WHERE id = @id",
+            Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm:ss")), Db.P("@id", zeile.Id));
         return (Anmeldeergebnis.Ok, Holen(zeile.Id));
     }
+
+    /// <summary>Sicherheitsrichtlinie für selbst gewählte Passwörter (Administration → Rechte und Rollen).</summary>
+    public sealed record Passwortregel(int MinLaenge = 8, bool Grossbuchstaben = false, bool Ziffern = false, bool Sonderzeichen = false);
+
+    public Passwortregel Regel()
+    {
+        var json = _db.Wert("SELECT wert FROM einstellungen WHERE schluessel = 'einstellung:passwort'") as string;
+        try { return json is null ? new Passwortregel() : System.Text.Json.JsonSerializer.Deserialize<Passwortregel>(json, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? new Passwortregel(); }
+        catch (System.Text.Json.JsonException) { return new Passwortregel(); }
+    }
+
+    /// <summary>Prüft ein selbst gewähltes Passwort gegen die Sicherheitsrichtlinie.</summary>
+    public void RegelPruefen(string passwort)
+    {
+        PasswortPruefen(passwort);
+        var r = Regel();
+        if (passwort.Length < Math.Max(8, r.MinLaenge)) throw new ArgumentException($"Das Passwort muss mindestens {Math.Max(8, r.MinLaenge)} Zeichen lang sein.");
+        if (r.Grossbuchstaben && !passwort.Any(char.IsUpper)) throw new ArgumentException("Das Passwort muss einen Großbuchstaben enthalten.");
+        if (r.Ziffern && !passwort.Any(char.IsDigit)) throw new ArgumentException("Das Passwort muss eine Ziffer enthalten.");
+        if (r.Sonderzeichen && passwort.All(char.IsLetterOrDigit)) throw new ArgumentException("Das Passwort muss ein Sonderzeichen enthalten.");
+    }
+
+    /// <summary>Eigene Angaben (Profil): E-Mail, Sprache, Benachrichtigung über neue Mitteilungen.</summary>
+    public void ProfilSpeichern(int id, string email, string sprache, bool benachrichtigung)
+    {
+        email = (email ?? "").Trim();
+        if (email.Length > 0 && (!email.Contains('@') || email.Length > 200)) throw new ArgumentException("Bitte eine gültige E-Mail-Adresse eingeben.");
+        _db.Ausfuehren("UPDATE benutzer SET email = @m, sprache = @s, benachrichtigung = @b WHERE id = @id",
+            Db.P("@m", email), Db.P("@s", sprache is "English" ? "English" : "Deutsch"), Db.P("@b", benachrichtigung), Db.P("@id", id));
+    }
+
+    public void Sperren(int id, bool gesperrt) => _db.Ausfuehren("UPDATE benutzer SET gesperrt = @g WHERE id = @id", Db.P("@g", gesperrt), Db.P("@id", id));
+
+    public void EmailSetzen(int id, string email) => _db.Ausfuehren("UPDATE benutzer SET email = @m WHERE id = @id", Db.P("@m", email.Trim()), Db.P("@id", id));
 
     public bool PasswortStimmt(int id, string passwort)
     {
@@ -142,8 +178,11 @@ public sealed class Benutzerdienst
     /// Konten aus den Stammdaten anlegen: je Lehrkraft (Benutzername = Kürzel) und je Klasse (klasse-7a) mit zufälligem
     /// Startpasswort, das bei der ersten Anmeldung geändert werden muss. Vorhandene Konten bleiben unverändert.
     /// </summary>
-    public List<(string Login, string Passwort, string Rolle, string Element, string Name)> AusStammdaten(UntPlan.Web.Contracts.WebPaket p, bool lehrer, bool klassen)
+    public List<(string Login, string Passwort, string Rolle, string Element, string Name)> AusStammdaten(UntPlan.Web.Contracts.WebPaket p, bool lehrer, bool klassen,
+        IEnumerable<string>? leitungKuerzel = null)
     {
+        // Zuordnungsgruppen (Administration): diese Kürzel erhalten die Rolle Schulleitung
+        var leitung = (leitungKuerzel ?? Enumerable.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var res = new List<(string, string, string, string, string)>();
         var vorhanden = Alle().Select(b => (b.Rolle == Rollen.Schueler ? "k:" : "l:") + b.Element.ToLowerInvariant()).ToHashSet();
         if (lehrer)
@@ -155,8 +194,9 @@ public sealed class Benutzerdienst
                 if (NachLogin(login) != null) continue;
                 var pw = Sicherheit.Zufall(10);
                 var name = string.Join(" ", new[] { l.Vorname, l.Name }.Where(x => !string.IsNullOrWhiteSpace(x)));
-                Anlegen(login, pw, Rollen.Lehrer, l.Kurz, name, l.Email ?? "", true);
-                res.Add((login, pw, Rollen.Lehrer, l.Kurz, name));
+                var rolle = leitung.Contains(l.Kurz) ? Rollen.Leitung : Rollen.Lehrer;
+                Anlegen(login, pw, rolle, l.Kurz, name, l.Email ?? "", true);
+                res.Add((login, pw, rolle, l.Kurz, name));
             }
         if (klassen)
             foreach (var k in p.Elemente.Klassen.Where(k => k.Kurz.Length > 0))

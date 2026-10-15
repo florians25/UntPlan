@@ -5,11 +5,11 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 public sealed record Klassenbucheintrag(int Id, string Datum, int Stunde, int Unterricht, List<string> Klassen, string Fach, string Lehrer,
-    string Thema, string Hausaufgabe, string? Faellig, string Notiz, string Geaendert, string? Anwesenheit = null, string NotizSchueler = "");
+    string Thema, string Hausaufgabe, string? Faellig, string Notiz, string Geaendert, string? Anwesenheit = null, string NotizSchueler = "", bool Online = false);
 
 /// <summary>Fehlzeit einer Schülerin/eines Schülers in einer Stunde. Art „fehlt“ oder „verspaetet“, Status offen/entschuldigt/unentschuldigt.</summary>
 public sealed record Fehlzeit(int Id, string Datum, int Stunde, int Unterricht, int SchuelerId, string Klasse, string Fach, string Art, int Minuten,
-    string Status, string Bemerkung, string Lehrer, string Erstellt);
+    string Status, string Bemerkung, string Lehrer, string Erstellt, string Grund = "", string Gruppe = "");
 
 /// <summary>Vermerk im Klassenbuch (zur Klasse oder zu einzelnen Schülern), z. B. Ordnungsmaßnahme, Elterngespräch, Lob.</summary>
 public sealed record Vermerk(int Id, string Datum, string Klasse, int? SchuelerId, string Art, string Text, string Lehrer, string Erstellt);
@@ -34,10 +34,11 @@ public sealed class Klassenbuchdienst
 
     private static Klassenbucheintrag Lesen(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("thema"), r.Text("hausaufgabe"),
-        r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"), r.Text("notiz_schueler"));
+        r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"), r.Text("notiz_schueler"), r.Wahr("online"));
 
     private static Fehlzeit LesenFehlzeit(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
-        r.Zahl("schueler_id"), r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"));
+        r.Zahl("schueler_id"), r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"),
+        r.Text("grund"), r.Text("gruppe"));
 
     private static Vermerk LesenVermerk(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Text("klasse"), r.ZahlOderNull("schueler_id"),
         r.Text("art"), r.Text("text"), r.Text("lehrer"), r.Text("erstellt"));
@@ -195,7 +196,8 @@ public sealed class Klassenbuchdienst
     }
 
     /// <summary>Ganztägiges Fehlen (z. B. Krankmeldung über die Klassenleitung) für alle Unterrichtsstunden der Tage eintragen.</summary>
-    public int FehlenEintragen(Benutzer b, Stand s, int schuelerId, DateOnly von, DateOnly bis, string status, string bemerkung)
+    public int FehlenEintragen(Benutzer b, Stand s, int schuelerId, DateOnly von, DateOnly bis, string status, string bemerkung,
+        string grund = "", int stundeVon = 1, int stundeBis = 99)
     {
         var sch = s.Paket.Elemente.Schueler.FirstOrDefault(x => x.Id == schuelerId) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
         if (!IstKlassenleitung(b, s, sch.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann ganze Tage eintragen.");
@@ -204,15 +206,19 @@ public sealed class Klassenbuchdienst
         for (var d = von; d <= bis; d = d.AddDays(1))
         {
             if (_plan.Frei(s, d).Frei) continue;
+            // Erster und letzter Tag ggf. nur ab bzw. bis zu einer Stunde
+            var ab = d == von ? stundeVon : 1;
+            var bis2 = d == bis ? stundeBis : 99;
             foreach (var k in _plan.Karten(s, d, Elementtyp.Klasse, sch.Klasse).Where(k => k.Unterricht.HasValue && k.Status is not ("entfall" or "veranstaltung")))
-                for (var n = k.Von; n <= k.Bis; n++)
+                for (var n = Math.Max(k.Von, ab); n <= Math.Min(k.Bis, bis2); n++)
                 {
                     _db.Ausfuehren("""
-                        INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id)
-                        VALUES (@d, @s, @u, @sid, @k, @f, 'fehlt', 0, @st, @bem, @l, @e, @b)
-                        ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET art = 'fehlt', minuten = 0, status = excluded.status, bemerkung = excluded.bemerkung
+                        INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund)
+                        VALUES (@d, @s, @u, @sid, @k, @f, 'fehlt', 0, @st, @bem, @l, @e, @b, @g)
+                        ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET art = 'fehlt', minuten = 0, status = excluded.status, bemerkung = excluded.bemerkung, grund = excluded.grund
                         """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", k.Unterricht), Db.P("@sid", schuelerId), Db.P("@k", sch.Klasse), Db.P("@f", k.Fach),
-                        Db.P("@st", Status(status)), Db.P("@bem", (bemerkung ?? "").Trim()), Db.P("@l", b.LehrerKuerzel ?? ""), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
+                        Db.P("@st", Status(status)), Db.P("@bem", (bemerkung ?? "").Trim()), Db.P("@l", b.LehrerKuerzel ?? ""), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id),
+                        Db.P("@g", (grund ?? "").Trim()));
                     anzahl++;
                 }
         }
