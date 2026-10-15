@@ -85,6 +85,8 @@ public sealed class Kachel
     [JsonPropertyName("type")] public string Typ { get; set; } = "";
     [JsonPropertyName("color")] public string? Farbe { get; set; }
     [JsonPropertyName("openSub")] public bool Offen { get; set; }
+    /// <summary>Zusatzstunde (zusätzlicher Unterricht): Plakette „Zusätzliche Unterrichtsstunde“ in den Details.</summary>
+    [JsonPropertyName("extra")] public bool? Zusatz { get; set; }
     [JsonPropertyName("overlay")] public bool? Feld { get; set; }
     [JsonPropertyName("fullday")] public bool? Ganztaegig { get; set; }
     [JsonPropertyName("holiday")] public bool? Ferien { get; set; }

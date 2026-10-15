@@ -23,6 +23,20 @@ public static class Kachelbau
     /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft, wenn kein anderer Text vorhanden ist (wie in UntPlanWeb).</summary>
     public const string OhneLehrkraftText = "Vertr. o. Lehrkraft";
 
+    /// <summary>Lehrkraft einer Zusatzstunde, für die (noch) keine Lehrkraft eingeteilt ist – nur bei Zusatzstunden (Kachel und Details).</summary>
+    public const string KeineLehrkraft = "---";
+
+    /// <summary>Vertretungsarten, die eine zusätzliche Stunde bedeuten (wie in UntPlanWeb: Marker „+“ statt Änderungsquadrat).</summary>
+    private static readonly System.Text.RegularExpressions.Regex ZusatzArt =
+        new("sondereinsatz|zusatz|verlegung|statt|mitbetreuung", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Zusatzstunde (zusätzlicher Unterricht): eine geänderte Stunde mit Fach, deren Vertretungsart eine zusätzliche Stunde
+    /// bezeichnet (Sondereinsatz, Zusatzunterricht, Verlegung …) oder die ohne Unterricht aus dem Regelplan im Plan steht.
+    /// </summary>
+    public static bool IstZusatzstunde(PlanKarte k) =>
+        k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && (ZusatzArt.IsMatch(k.Art ?? "") || k.Unterricht is null);
+
     public static string Art(string typ) => typ switch { "klasse" => "class", "lehrer" => "teacher", "raum" => "room", _ => typ };
 
     /// <summary>Planart der Oberfläche → UntPlanWeb.</summary>
@@ -221,6 +235,12 @@ public static class Kachelbau
                 return Veranstaltung(k.Datum, k.Von, k.Bis, k.Text.Length > 0 ? k.Text : k.Art, k.Klassen.Select(w => w.K), k.Lehrer.Select(w => w.K), k.Raeume.Select(w => w.K), k.Farbe);
             case "geaendert":
                 kachel.Art = "change";
+                if (IstZusatzstunde(k))
+                {
+                    kachel.Zusatz = true;
+                    // Zusatzstunde ohne Lehrkraft: „---“ statt einer leeren Zeile (nicht bei „+++“ – dort steht die bisherige Lehrkraft durchgestrichen)
+                    if (k.Lehrer.All(w => w.K.Length == 0 && string.IsNullOrEmpty(w.Alt))) kachel.Lehrkraft = KeineLehrkraft;
+                }
                 break;
             case "offen":
             case "abwesend":
@@ -352,7 +372,8 @@ public static class Kachelbau
     }
 
     private static string Werte(IEnumerable<PlanWert> w) => string.Join(",", w.Select(x => x.K).Where(x => x.Length > 0));
-    private static string Alte(IEnumerable<PlanWert> w) => string.Join(",", w.Where(x => x.Neu && !string.IsNullOrEmpty(x.Alt)).Select(x => x.Alt!));
+    // Ursprungswerte ohne Doppelte: Bei einem hinzugefügten Raum tragen mehrere neue Räume denselben alten Raum
+    private static string Alte(IEnumerable<PlanWert> w) => string.Join(",", w.Where(x => x.Neu && !string.IsNullOrEmpty(x.Alt)).Select(x => x.Alt!).Distinct(Ci));
 
     public static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 

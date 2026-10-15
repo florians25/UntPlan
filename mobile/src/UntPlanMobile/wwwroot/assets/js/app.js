@@ -364,12 +364,24 @@ const viewKind = e => {
   return e.type === 'mine' ? 'teacher' : e.type;
 };
 
+/* TRENNER-BEGINN (wird von den Tests ausgeführt) */
+/* Trennzeichen zwischen mehreren Werten (Lehrkräfte, Klassen, Räume):
+   auf den Stundenkarten ein Komma, in den Stundendetails ein senkrechter
+   Strich. */
+const KACHEL_TRENNER = ', ';
+const DETAIL_TRENNER = ' | ';
+const werteListe = v => String(v == null ? '' : v).split(/\s*[,|]\s*/).map(x => x.trim()).filter(Boolean);
+const kachelWert = v => werteListe(v).join(KACHEL_TRENNER);
+const detailWert = v => werteListe(v).join(DETAIL_TRENNER);
+if (typeof window !== 'undefined') window.UntPlanTrenner = { kachelWert, detailWert, KACHEL_TRENNER, DETAIL_TRENNER };
+/* TRENNER-ENDE */
+
 /* Anzuzeigender Wert einer Zeile.
    Fehlt der neue Wert, obwohl sich etwas geändert hat, steht der alte
    durchgestrichen da — so sieht eine offene Vertretung aus. */
 function lineValue(card, key){
-  const now  = (card[key] || '').toString().trim();
-  const orig = (card[key + 'Orig'] || '').toString().trim();
+  const now  = kachelWert(card[key]);
+  const orig = kachelWert(card[key + 'Orig']);
   const changed = (card.changed || []).includes(key);
 
   /* Übernommene Stunde im eigenen Plan: Die Stunde selbst bleibt, wie sie
@@ -1225,7 +1237,7 @@ function renderGrid(){
             const eigen  = (state.entity.code || state.entity.label || '').toUpperCase();
             const alle   = String(card.teacher || '').split(/\s*,\s*/).filter(Boolean);
             const klassen= String(card.class || '').split(/\s*,\s*/).filter(Boolean);
-            const oben   = kind === 'class' ? alle.join(' | ') : klassen.join(', ');
+            const oben   = kind === 'class' ? alle.join(KACHEL_TRENNER) : klassen.join(KACHEL_TRENNER);
             /* Unten steht, wer sonst noch dabei ist: im Klassenplan die
                übrigen Klassen, im Lehrerplan die übrigen Lehrkräfte — die
                eigene Klasse beziehungsweise das eigene Kürzel jeweils ohne.
@@ -1233,9 +1245,10 @@ function renderGrid(){
                sehen, mit wem. */
             const unten  = kind === 'class'
                          ? klassen.filter(k => k.toUpperCase() !== eigen).join(', ')
-                         : alle.filter(t => kind !== 'teacher' || t.toUpperCase() !== eigen).join(' | ');
-            /* Mehrere Lehrkräfte: „ | “ als Trenner, nur diese Leiste rollt waagerecht. */
-            const rollen = t => t.includes(' | ') ? ' card__line--scroll' : '';
+                         : alle.filter(t => kind !== 'teacher' || t.toUpperCase() !== eigen).join(KACHEL_TRENNER);
+            /* Mehrere Lehrkräfte: auf der Kachel durch Komma getrennt (in den
+               Details „ | “); nur diese Leiste rollt waagerecht. */
+            const rollen = t => t.includes(KACHEL_TRENNER) ? ' card__line--scroll' : '';
             return [
               oben   ? `<span class="card__line card__line--primary${kind === 'class' ? rollen(oben) : ''}">${esc(oben)}</span>` : '',
               anlass ? `<span class="card__line ${oben ? '' : 'card__line--primary'}">${esc(anlass)}</span>` : '',
@@ -1248,7 +1261,8 @@ function renderGrid(){
             const cls2 = 'badge' + (l.removed ? ' badge--removed' : '');
             const inner = l.tokens
               ? l.tokens.map((t, ti) => {
-                  const komma = ti < l.tokens.length - 1 ? (l.key === 'teacher' ? '<i class="tok__trenn"> | </i>' : '<i>,</i>') : '';
+                  /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
+                  const komma = ti < l.tokens.length - 1 ? (l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
                   const kern  = t.state === 'absent'
                     ? `<span class="badge badge--removed">${esc(t.text)}</span>`
                     : t.state === 'sub'
@@ -3602,7 +3616,7 @@ function detailFuerSchueler(rows){
 /* Beschriftung eines Reiters: das Kürzeste, was die Stunde erkennbar macht. */
 function detailTabLabel(c){
   if (c.blockType === 'holiday' || c.blockType === 'event') return c.subject || 'Termin';
-  if (c.blockType === 'gs' || c.blockType === 'absence')    return c.class || 'Veranstaltung';
+  if (c.blockType === 'gs' || c.blockType === 'absence')    return 'Veranstaltung';
   if (c.blockType === 'standby')                            return c.subject || 'ZBer';
   if (c.blockType === 'supervision')                        return c.subject || 'Aufsicht';
   return (c.subject || c.subjectOrig || c.class || c.teacher || '·').toString();
@@ -3625,6 +3639,9 @@ function renderDetailTabs(c){
     && x.lesson <= c.lesson + c.span - 1 && c.lesson <= x.lesson + x.span - 1);
 
   if (gleich.length < 2){ box.hidden = true; box.innerHTML = ''; return; }
+  /* Wie in den Sollbildern: die Veranstaltung vorn, danach die Stunden. */
+  const istV = x => x.blockType === 'absence' || x.blockType === 'gs';
+  gleich.sort((a, b) => (istV(b) - istV(a)) || (a.lesson - b.lesson));
 
   box.hidden = false;
   box.innerHTML = gleich.map((x, i) =>
@@ -3646,9 +3663,10 @@ function renderDetail(){
   const kind = viewKind(state.entity);
 
   const two = n => String(n).padStart(2, '0');
-  $('#detailDate').textContent =
-    `${WD_SHORT[(d.getDay()+6)%7]} | ${two(d.getDate())}.${two(d.getMonth()+1)}.${String(d.getFullYear()).slice(2)}`;
-  $('#detailTime').textContent = `${t1.replace(/^0/, '')} – ${t2}`;
+  /* „Fr. | 16.10.26“ – der Strich etwas heller, wie im Sollbild. */
+  $('#detailDate').innerHTML =
+    `${WD_SHORT[(d.getDay()+6)%7]}<span class="detail__when-sep">|</span>${two(d.getDate())}.${two(d.getMonth()+1)}.${String(d.getFullYear()).slice(2)}`;
+  $('#detailTime').textContent = `${t1.replace(/^0/, '')} - ${t2.replace(/^0/, '')}`;
 
   /* Bei einem Block lässt sich oben auf eine einzelne Stunde umstellen —
      Eintragungen gehören dann nur zu dieser Stunde. */
@@ -3664,217 +3682,191 @@ function renderDetail(){
      die man zufällig getroffen hatte. */
   renderDetailTabs(c);
 
-  /* Bei einer Freisetzung stehen Klassen und Lehrkräfte in voller Länge —
-     im Detail ist Platz dafür, und die Liste kann gerollt werden. */
+  /* Kopfblock nach den Mobile-Sollbildern:
+       Klasse | Kursbezeichnung
+       Fach  [ZUSÄTZLICHE UNTERRICHTSSTUNDE]
+       alter Raum (durchgestrichen) → neuer Raum
+       Lehrkraft
+     Bei einer Veranstaltung: Klasse, darunter die Plakette „VERANSTALTUNG“,
+     dann Raum und Lehrkräfte. Mehrere Werte stehen in den Details durch
+     „ | “ getrennt (auf den Kacheln durch Komma). */
   const istGS = c.blockType === 'gs' || c.blockType === 'absence';
+  const istVeranstaltung = istGS;
+  const zusatz = !!c.extra;
+  const SEP = '<span class="sep">|</span>';
+  const liste = v => werteListe(v).map(esc).join(SEP);
 
-  /* Kopfzeile: Klasse | Kursbezeichnung, dann Fach, Raum, Lehrkraft */
-  /* Bei gekoppelten Klassen steht oben die ganze Liste — wer fehlt,
-     durchgestrichen. In die Kursbezeichnung gehört dagegen nur eine
-     Klasse, sonst wird daraus eine unlesbare Kette. */
   const klassD = Array.isArray(c.classList) && c.classList.length > 1 ? c.classList : null;
-  /* Der Trenner ist derselbe wie zwischen Klasse und Kursbezeichnung —
-     gleiche Farbe, gleicher Abstand. Vorher stand hier der Strich aus den
-     Wertzeilen darunter, der breiter und dunkler ist.
-
-     Angetippt führt eine Klasse in ihren eigenen Plan: Bei einer Kopplung
-     will man oft sehen, wie dieselbe Stunde dort steht. Die Klasse, deren
-     Plan gerade offen ist, bleibt schlichter Text — dorthin gibt es
-     nichts zu wechseln. */
-  /* Die Klassen stehen als schlichter Text. Antippbar waren sie zuvor,
-     das führte aber zu zwei Wegen zum selben Ziel — und der eine war
-     unsichtbar, weil man einer Zeile nicht ansieht, dass sie ein Knopf
-     ist. Der Wechsel läuft jetzt allein über das Menü der Stunde, wo
-     ohnehin schon Lehrkraft und Raum stehen. */
   const klassHtml = () => klassD.map(t =>
     (t.state === 'absent') ? `<s>${esc(t.name)}</s>` : esc(t.name)).join('<i>|</i>');
   const klass1 = (c.class || '').split(',')[0].trim();
-  const course = c.courseName || [c.subject, klass1, c.teacher || c.teacherOrig].filter(Boolean).join('_');
-  /* Eine Veranstaltung mit Aufsicht: oben die Klasse mit einer Plakette,
-     darunter die begleitende Lehrkraft. Der Anlass steht als Text weiter
-     unten, nicht in der Überschrift. */
-  const istVeranstaltung = c.blockType === 'absence' && !!c.class && !!c.teacher && !c.subject;
+  const lehrKurs = werteListe(c.teacher || c.teacherOrig).filter(t => t !== '---')[0] || '';
+  const course = c.courseName || [c.subject, klass1, lehrKurs].filter(Boolean).join('_');
 
-  /* Oben stehen nur Klasse, Lehrkraft und Raum — nie der Vertretungstext.
-     Bei einer Freisetzung oder Klassenabwesenheit steht als Fach der
-     Anlass („Einschulung", „1. Konferenz im SJ 26/27"); der gehört in die
-     Zeile „Vertretungstext" und nicht in die Überschrift. Ist nur eine
-     Klasse da, steht auch nur sie dort. */
   const head = istVeranstaltung
-    ? `${esc(c.class)}<span class="dpill">Veranstaltung</span>`
-    : istGS
-    ? esc(c.class || '')
+    ? (c.class ? werteListe(c.class).map(esc).join('<i>|</i>') : esc(c.subject || c.info || 'Veranstaltung'))
     : (c.class
-        ? `${klassD ? klassHtml() : esc(c.class)}<i>|</i>${esc(course)}`
+        ? `${klassD ? klassHtml() : werteListe(c.class).map(esc).join('<i>|</i>')}<i>|</i>${esc(course)}`
         : esc(course || c.subject || 'Unterricht'));
 
   const val = key => {
-    const now  = (c[key] || '').toString().trim();
-    const orig = (c[key + 'Orig'] || '').toString().trim();
-    /* Bei einer Anstelle-Vertretung wechseln Klasse und Fach, die Lehrkraft
-       bleibt dieselbe — `changed` trägt dann kein `teacher`. Im Detail soll
-       trotzdem stehen, wen man vertritt: alter Wert durchgestrichen, dahinter
-       der neue. Sobald es einen abweichenden Vorwert gibt, wird die Zeile
-       deshalb als geändert behandelt. */
+    const now  = detailWert(c[key]);
+    const orig = detailWert(c[key + 'Orig']);
     const changed = (c.changed || []).includes(key)
       || (key === 'teacher' && orig !== '' && now !== ''
           && orig.toUpperCase() !== now.toUpperCase());
     if (!now && !orig) return '';
     if (changed && orig && orig.toUpperCase() !== now.toUpperCase()){
-      /* Bei der Lehrkraft steht ein Strich zwischen alt und neu — ein Pfeil
-         legt nahe, dass jemand woandershin geht. Beim Raum stimmt der Pfeil:
-         der Unterricht zieht wirklich um. */
-      const trenn = key === 'teacher'
-        ? '<span class="sep">|</span>'
-        : '<span class="arrow">→</span>';
-      /* Ist noch niemand eingeteilt, bleibt allein der durchgestrichene
-         alte Wert stehen — ohne Trennzeichen und ohne das Wort „offen".
-         Das Trennzeichen gehört zwischen zwei Werte, nicht ans Ende. */
-      if (!now) return `<s>${esc(orig)}</s>`;
-      return `<s>${esc(orig)}</s>${trenn}${esc(now)}`;
+      /* Bei der Lehrkraft steht ein Strich zwischen alt und neu, beim Raum
+         ein Pfeil: der Unterricht zieht wirklich um. */
+      const trenn = key === 'teacher' ? SEP : '<span class="arrow">→</span>';
+      if (!now) return `<s>${liste(orig)}</s>`;
+      return `<s>${liste(orig)}</s>${trenn}${liste(now)}`;
     }
-    return esc(now || orig);
+    return liste(now || orig);
   };
 
-  /* Im Detailfenster ist Platz: die Kopplung steht dort vollständig.
-     Anders als auf der Kachel wird hier nichts weggelassen — wer für wen
-     einspringt, steht als „alt | neu“ da, in derselben Schreibweise wie
-     bei einer einzelnen Lehrkraft. Keine eigene Farbe: die Zeile ist
-     hell wie die übrigen. */
+  /* Raumzeile: Was weggefallen ist, steht durchgestrichen vor dem Pfeil;
+     dahinter alle Räume der Stunde. Ein hinzugefügter Raum lässt die
+     bisherigen stehen — dann gibt es nichts durchzustreichen. */
+  const raumHtml = () => {
+    const jetzt = werteListe(c.room), vorher = werteListe(c.roomOrig);
+    const weg = vorher.filter(x => !jetzt.some(y => y.toUpperCase() === x.toUpperCase()));
+    if (!jetzt.length && vorher.length) return `<s>${vorher.map(esc).join(SEP)}</s>`;
+    if (weg.length) return `<s>${weg.map(esc).join(SEP)}</s><span class="arrow">→</span>${jetzt.map(esc).join(SEP)}`;
+    return jetzt.map(esc).join(SEP);
+  };
+
   const koppD = koppTokens(c);
   const koppHtml = () => koppD.map(t =>
       t.state === 'absent' ? `<s>${esc(t.text)}</s>`
-    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s><span class="sep">|</span>${esc(t.text)}`
-                                    : esc(t.text))
-    :                        esc(t.text)).join('<span class="sep">|</span>');
+    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s>${SEP}${esc(t.text)}` : esc(t.text))
+    :                        esc(t.text)).join(SEP);
 
   const banner = { cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '';
+  const plakette = istVeranstaltung ? 'Veranstaltung' : zusatz ? 'Zusätzliche Unterrichtsstunde' : '';
 
-  /* Zeilen wie in der Vorlage */
-  /* Beim Entfall bleibt nur das Klassenbuch übrig — wie in der Vorlage. */
+  /* --- Aktionszeilen ----------------------------------------------------
+     Alles, was zum Klassenbuch gehört (online, Raum, Lehrstoff,
+     Schüler*innen, Klassenbucheinträge, Notizen für Lehrkräfte), gibt es
+     nur für die eigene Stunde mit Unterricht. Fremde Stunden, Zusatz-
+     stunden ohne Unterricht und Veranstaltungen zeigen wie in den
+     Sollbildern nur Vertretungstext bzw. Information, Hausaufgaben und –
+     wenn hinterlegt – die Notizen für Schüler*innen. */
   const off = c.blockType === 'cancelled';
+  const hatKb = !!(c.unterricht || c.entryId) && !istVeranstaltung;
+  const eigen = !state.isStudent && hatKb && cbDarf(c);
+  const voll = eigen && !off;
   const rows = [];
 
-  /* Der Vertretungstext kommt aus dem Plan und hat eine eigene Zeile —
-     die Notizfelder sind davon getrennt und werden hier gepflegt. */
-  if (c.info) rows.push({ ico:'substitution', title:'Vertretungstext', key:'substitution', sub:c.info });
-
-  if (!off){
-    /* „Findet online statt“ entfällt: UntPlan kennt keinen Onlineunterricht. */
+  if (voll) rows.push({ ico:'online', title:'Findet online statt', key:'online', toggle:!!cbOnline });
+  if (voll && c.date >= iso(new Date())) rows.push({ ico:'room', key:'room', chips:werteListe(c.room) });
+  if (istVeranstaltung){
+    const anlass = (c.subject || c.info || '').trim();
+    if (anlass) rows.push({ ico:'info', title:'Information zur Stunde', key:'info', sub:anlass });
+  } else if (c.info) rows.push({ ico:'substitution', title:'Vertretungstext', key:'substitution', sub:c.info });
+  if (voll){
     rows.push({ ico:'lehrstoff', title:'Lehrstoff', key:'lehrstoff', sub:cbText('lehrstoff'),
                 done:!!cbText('lehrstoff') });
     rows.push({ ico:'students', title:'Schüler*innen', key:'students',
                 count:attAbsentCount(), tone:attAbsentCount() ? 'red' : '',
                 checked:attChecked });
   }
-  /* Hausaufgaben: aufgegeben **und** fällig. Die Zahl zählt beides, der
-     Untertitel nennt die fälligen ausdrücklich — sonst stünde dort eine
-     Zahl, die sich mit der Liste darunter nicht deckt. */
   const faellig = Array.isArray(cbFaellig) ? cbFaellig.length : 0;
   rows.push({ ico:'homework', title:'Hausaufgaben', key:'homework',
               count: cbCount('homework') + faellig,
               sub: faellig ? (faellig === 1 ? '1 Aufgabe heute fällig'
                                             : faellig + ' Aufgaben heute fällig') : '' });
-  rows.push({ ico:'classbook', title:'Klassenbucheinträge', key:'classbook', count:cbCount('classbook') });
-  /* Notizen gehören auch zu einer ausgefallenen Stunde — dort steht oft
-     erst recht etwas zu sagen. Die Zeilen tragen kein Häkchen, nur den
-     Text darunter. */
-  /* Schüler*innen sehen ihre eigene Notiz — und nur die. „Notizen für
-     Lehrkräfte“ sind, was der Name sagt: Absprachen im Kollegium, die
-     niemanden sonst angehen. Die Zeile ganz wegzulassen ist ehrlicher,
-     als sie leer anzubieten.
-
-     Die Bezeichnung ist für alle dieselbe. Ein eigener Name je Rolle
-     klingt nach zwei verschiedenen Dingen, obwohl es dasselbe Feld ist. */
-  /* Notizen für Schüler*innen: die Lehrkraft trägt sie ein, Schüler*innen
-     lesen sie (wie in UntPlanWeb). */
-  if (!off || !state.isStudent)
+  if (voll) rows.push({ ico:'classbook', title:'Klassenbucheinträge', key:'classbook', count:cbCount('classbook') });
+  /* Notizen gehören auch zur eigenen ausgefallenen Stunde – dort steht oft
+     erst recht etwas zu sagen. */
+  if (eigen || cbText('notes_students'))
     rows.push({ ico:'notes_students', title:'Notizen für Schüler*innen', key:'notes_students',
                 sub:cbText('notes_students') });
-  if (!state.isStudent)
+  if (eigen && !state.isStudent)
     rows.push({ ico:'notes_teachers', title:'Notizen für Lehrkräfte', key:'notes_teachers',
                 sub:cbText('notes_teachers') });
 
-  /* Raum buchen: die Stunde in einen freien buchbaren Raum verlegen – die
-     Raumänderung steht danach sofort im Plan (wie in UntPlanWeb). */
-  if (!state.isStudent && !off && (c.unterricht || c.entryId) && c.date >= iso(new Date()))
-    rows.push({ ico:'room', title:'Raum buchen', key:'room', sub: c.room ? 'Derzeit ' + c.room : '' });
-
-  /* Nachgezeichnet nach der Vorlage: Seite mit abgeschnittener Ecke,
-     Kamera im Rahmen, Klasse vor der Tafel, Seite mit Doktorhut, Buch. */
-  /* Abschnitte im Stundendetail. Benannt nach ihrer Bedeutung, nicht nach
-     der Datei — welches Symbol dahintersteckt, soll sich hier ändern
-     lassen, ohne die Zeilen weiter unten anzufassen.
-
-     Jede Zeile bekommt ihr eigenes Zeichen. Vorher trugen vier
-     verschiedene Dinge — Vertretungstext, Lehrstoff und zweierlei
-     Notizen — dasselbe Blatt Papier; im Detail standen dann vier gleiche
-     Symbole untereinander und keines sagte etwas. */
-  const ICO = {
-    substitution:   'ic-note',                    /* auch eine Notiz zur Stunde */
-    online:         'ic-online-lesson',
-    /* Lehrstoff und beide Notizzeilen tragen dasselbe Zeichen: Es ist in
-       allen drei Fällen dieselbe Handlung — etwas zur Stunde aufschreiben.
-       Unterschieden wird über die Beschriftung, nicht über das Bild. */
-    lehrstoff:      'ic-note',
-    students:       'ic-multiple-man-woman-2',
-    absent:         'ic-chair-1',                 /* der leere Stuhl         */
-    homework:       'ic-homework',
-    classbook:      'ic-class-register-entries',
-    notes_students: 'ic-note',
-    notes_teachers: 'ic-note',
-    exam:           'ic-examinations',
-    room:           'ic-shared-roomentity',
-    warn:           'ic-absences'
-  };
+  const zeilen = state.isStudent ? detailFuerSchueler(rows) : rows;
+  const ico = r => `<span class="drow2__ico">${DICO[r.ico] || DICO.note}</span>`;
+  const PFEIL = '<svg viewBox="0 0 24 24" class="ico drow2__chev"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>';
 
   $('#detailBody').innerHTML = `
     <div class="dhead ${(c.blockType === 'cancelled' || c.blockType === 'class-absent') ? 'is-off' : ''}">
       ${head ? `<h2 class="dtitle">${head}</h2>` : ''}
-      <!-- Als „Fach" steht bei einer Freisetzung der Anlass; der gehört
-           nach unten in die Zeile „Vertretungstext". -->
-      ${c.subject && !istGS ? `<p class="dline dline--big">${val('subject')}</p>` : ''}
-      ${(istVeranstaltung || istGS) && c.teacher ? `<p class="dline">${esc(c.teacher)}</p>` : ''}
-      <!-- Die Klasse steht bei einer Freisetzung schon in der Überschrift. -->
-      ${(c.room || c.roomOrig) && (!istGS || c.room) ? `<p class="dline">${val('room')}</p>` : ''}
-      ${(!istGS && !istVeranstaltung && (c.teacher || c.teacherOrig))
-          ? `<p class="dline${koppD ? ' dline--kopp' : ''}">${koppD ? koppHtml() : val('teacher')}</p>` : ''}
+      ${istVeranstaltung
+          ? `<p class="dline dline--pill"><span class="dpill">${plakette}</span></p>`
+          : (c.subject || c.subjectOrig)
+            ? `<p class="dline dline--big">${val('subject')}${plakette ? `<span class="dpill">${plakette}</span>` : ''}</p>` : ''}
+      ${(c.room || c.roomOrig) ? `<p class="dline">${raumHtml()}</p>` : ''}
+      ${istVeranstaltung
+          ? (c.teacher ? `<p class="dline">${liste(c.teacher)}</p>` : '')
+          : (c.teacher || c.teacherOrig)
+            ? `<p class="dline${koppD ? ' dline--kopp' : ''}">${koppD ? koppHtml() : val('teacher')}</p>` : ''}
     </div>
     ${banner ? `<div class="dbanner">${banner}</div>` : '<div class="detail__sep"></div>'}
     <div class="drows">
-      ${(state.isStudent ? detailFuerSchueler(rows) : rows).map(r => `
-        <div class="drow2" data-key="${r.key || ''}">
-          <span class="drow2__ico"><svg class="uic ico"><use href="#${ICO[r.ico] || ICO[r.key] || 'ic-common-file-text'}"></use></svg></span>
+      ${zeilen.map(r => r.key === 'room' ? `
+        <div class="drow2 drow2--room" data-key="room">
+          ${ico(r)}
+          <span class="droom">${r.chips.map((x, i) =>
+            `<button type="button" class="droom__chip" data-chip="${i}">${esc(x)}</button>`).join('')}</span>
+          <button type="button" class="droom__add" aria-label="Raum hinzufügen">
+            <svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="9.2"/><path d="M12 7.6v8.8M7.6 12h8.8"/></svg>
+          </button>
+        </div>` : `
+        <div class="drow2" data-key="${r.key || ''}" role="button">
+          ${ico(r)}
           <span class="drow2__main"><b>${esc(r.title)}</b>${r.sub ? `<span>${esc(r.sub)}</span>` : ''}</span>
           <span class="drow2__end">
             ${r.toggle !== undefined
-              ? `<span class="dtoggle ${r.toggle ? 'is-on' : ''}"></span>`
+              ? `<span class="dtoggle ${r.toggle ? 'is-on' : ''}" role="switch" aria-checked="${r.toggle ? 'true' : 'false'}"></span>`
               : `${r.done ? '<svg viewBox="0 0 24 24" class="ico drow2__done"><circle cx="12" cy="12" r="9"/><path d="m8.2 12.3 2.6 2.6L16 9.8"/></svg>' : ''}
                  ${r.count !== undefined ? `<span class="drow2__count ${r.tone === 'red' ? 'is-red' : ''} ${r.checked ? 'is-checked' : ''}">${r.count}</span>` : ''}
-                 <svg viewBox="0 0 24 24" class="ico"><path d="m10 6 6 6-6 6"/></svg>`}
+                 ${PFEIL}`}
           </span>
         </div>`).join('')}
     </div>`;
 
   $$('#detailBody .drow2').forEach(el => {
     const key = el.dataset.key;
-    if (!key || key === 'online') return;
-    /* Schüler*innen lesen nur — vier Zeilen lassen sich trotzdem öffnen,
-       weil dahinter mehr steht, als in eine Vorschauzeile passt:
-       Vertretungstext, Lehrstoff, Notizen und Hausaufgaben. Die Vorschau
-       bricht nach einer Zeile ab; ein längerer Text wäre sonst nur zur
-       Hälfte lesbar. Geändert werden kann dort nichts. */
-    if (state.isStudent && !['substitution', 'homework', 'lehrstoff', 'notes_students'].includes(key)) return;
-    /* Eine Zeile, die als nur lesbar gekennzeichnet ist, öffnet nichts —
-       unabhängig davon, wer sie gebunden hat. */
+    if (!key || key === 'room') return;
+    if (key === 'online'){
+      el.addEventListener('click', () => onlineUmschalten(c));
+      return;
+    }
+    if (state.isStudent && !['substitution', 'info', 'homework', 'lehrstoff', 'notes_students'].includes(key)) return;
     if (el.classList.contains('is-readonly')) return;
     el.addEventListener('click', () => openClassbook(key));
   });
+  raumZeileBinden(c);
 
   /* Nach jedem Aufbau erneut: die Zeilen entstehen hier neu, ein einmaliges
      Ausblenden beim Start hielte nicht. */
   if (state.isStudent) rechteAnwenden();
 }
+
+/* Symbole der Aktionszeilen – nachgezeichnet nach den Sollbildern. */
+const DICO = (() => {
+  const s = inner => `<svg viewBox="0 0 24 24" class="ico dico">${inner}</svg>`;
+  const blatt = '<path d="M6.5 3.5h7.8l3.7 3.7v12.3a1 1 0 0 1-1 1h-10.5a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/>';
+  const zeilen = '<path d="M8.6 10.2h6.8M8.6 13.4h6.8M8.6 16.6h4.6"/>';
+  return {
+    note:          s(blatt + zeilen),
+    substitution:  s(blatt + zeilen),
+    lehrstoff:     s(blatt + zeilen),
+    notes_students:s(blatt + zeilen),
+    notes_teachers:s(blatt + zeilen),
+    online:        s('<rect x="3.6" y="3.6" width="16.8" height="16.8" rx="3.4"/><rect x="6.9" y="9" width="6.8" height="6" rx="1.2"/><path d="m13.7 11.1 3.4-1.9v5.6l-3.4-1.9"/>'),
+    students:      s('<rect x="3.5" y="3.6" width="17" height="11.6" rx="1"/><circle cx="8" cy="8.4" r="1.5"/><circle cx="12" cy="8.4" r="1.5"/><circle cx="16" cy="8.4" r="1.5"/>'
+                   + '<path d="M5.6 13.4a2.4 2.4 0 0 1 4.8 0M9.6 13.4a2.4 2.4 0 0 1 4.8 0M13.6 13.4a2.4 2.4 0 0 1 4.8 0"/><circle cx="8" cy="18.6" r="1.3"/><circle cx="12" cy="18.6" r="1.3"/><circle cx="16" cy="18.6" r="1.3"/>'),
+    homework:      s('<path d="M11.4 20.4H5.6a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1h7.4l3.6 3.6v3.2"/><path d="M7.4 9.4h5.8M7.4 12.4h4.4M7.4 15.4h2.4"/>'
+                   + '<path d="m12.6 15.6 4.6-2.2 4.6 2.2-4.6 2.2z"/><path d="M14.4 16.7v2.4c1.6 1.3 4 1.3 5.6 0v-2.4"/>'),
+    classbook:     s('<path d="M6.6 3.6h11.2a.8.8 0 0 1 .8.8v13.4H7.2a1.6 1.6 0 0 0-1.6 1.6V4.6a1 1 0 0 1 1-1z"/><path d="M5.6 19.4a1.6 1.6 0 0 0 1.6 1.6h11.4v-3.2"/>'),
+    info:          s('<circle cx="12" cy="12" r="9"/><path d="M12 10.8v6M12 7.6v.2"/>'),
+    room:          s('<path d="M5.6 20.4V4.8l7.6-1.4v17.6"/><path d="M13.2 4.6h5.2v15.8"/><path d="M3.6 20.4h16.8"/><path d="M10.6 12.2v.4"/>')
+  };
+})();
 
 /* =====================================================================
    Klassenbuch — Vertretungstext, Lehrstoff, Notizen, Anwesenheit
@@ -3893,12 +3885,74 @@ const CB = {
   classbook:      { title:'Klassenbucheinträge',       kind:'list' },
   students:       { title:'Schüler*innen',             kind:'students' },
   substitution:   { title:'Vertretungstext',           kind:'readonly' },
-  room:           { title:'Raum buchen',               kind:'room' }
+  info:           { title:'Information zur Stunde',    kind:'readonly' },
+  room:           { title:'Raum ersetzen',             kind:'room' }
 };
 
-/* Raum buchen: freie buchbare Räume der Stunde, ein Tippen verlegt die Stunde. */
+/* =====================================================================
+   Raumbuchung mobil (Raum-Chip in den Stundendetails)
+   ---------------------------------------------------------------------
+   Jeder Raum der Stunde steht als Chip in einer eigenen Zeile. Tippen
+   öffnet ein kleines Menü „Ersetzen“ / „Löschen“, das „+“ rechts fügt
+   einen zusätzlichen Raum hinzu. Ersetzen und Hinzufügen führen in die
+   Raumliste („R1BK ersetzen“) mit Suchfeld und Filter nach Abteilung
+   (Raumart). Gespeichert wird über api/rooms (action=change) als
+   Raumänderung in UntPlanWeb; danach steht sie sofort im Plan.
+   ===================================================================== */
 const ROOM_URL = new URL('api/rooms', location.href).toString();
-async function raeumeZeichnen(c){
+let raumStand = { c:null, op:'', alt:'', liste:[], suche:'', abteilung:'' };
+
+function raumMenuZu(){
+  const m = document.getElementById('droomMenu');
+  if (m) m.remove();
+}
+
+function raumZeileBinden(c){
+  raumMenuZu();
+  const zeile = $('#detailBody .drow2--room');
+  if (!zeile) return;
+  const chips = werteListe(c.room);
+  zeile.querySelectorAll('[data-chip]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const offen = document.getElementById('droomMenu');
+    if (offen && offen.dataset.chip === b.dataset.chip){ raumMenuZu(); return; }
+    raumMenuZu();
+    const raum = chips[+b.dataset.chip];
+    const m = document.createElement('div');
+    m.className = 'droom__menu'; m.id = 'droomMenu'; m.dataset.chip = b.dataset.chip;
+    m.setAttribute('role', 'menu');
+    m.innerHTML = `<button type="button" role="menuitem" data-op="replace">Ersetzen</button>
+                   <button type="button" role="menuitem" data-op="remove">Löschen</button>`;
+    const host = $('#detailBody');
+    const hr = host.getBoundingClientRect(), br = b.getBoundingClientRect();
+    m.style.left = Math.max(12, br.left - hr.left) + 'px';
+    m.style.top = (br.bottom - hr.top + host.scrollTop + 4) + 'px';
+    host.appendChild(m);
+    m.querySelector('[data-op="replace"]').addEventListener('click', ev => {
+      ev.stopPropagation(); raumMenuZu(); raumListeOeffnen(c, 'replace', raum);
+    });
+    m.querySelector('[data-op="remove"]').addEventListener('click', async ev => {
+      ev.stopPropagation(); raumMenuZu();
+      await raumAendern(c, 'remove', raum, '');
+    });
+  }));
+  const plus = zeile.querySelector('.droom__add');
+  if (plus) plus.addEventListener('click', e => { e.stopPropagation(); raumMenuZu(); raumListeOeffnen(c, 'add', ''); });
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#droomMenu') && !e.target.closest('[data-chip]')) raumMenuZu();
+});
+
+async function raumListeOeffnen(c, op, alt){
+  raumStand = { c, op, alt, liste:[], suche:'', abteilung:'' };
+  cbCurrent = 'room';
+  $('#dsubTitle').textContent = op === 'replace' ? `${alt} ersetzen` : 'Raum hinzufügen';
+  $('#dsubWhen').hidden = true;
+  $('#dsubSave').hidden = true;
+  $('#dsubAddTop').hidden = true;
+  $('#dsubBack').innerHTML = '<svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg>';
+  $('#detailSub').classList.add('dsub--raum');
+  $('#detailSub').hidden = false;
   const body = $('#dsubBody');
   body.innerHTML = '<p class="dsub__read">Freie Räume werden gesucht …</p>';
   const bis = c.lesson + Math.max(1, c.span || 1) - 1;
@@ -3906,29 +3960,121 @@ async function raeumeZeichnen(c){
     const r = await fetch(`${ROOM_URL}?action=free&date=${c.date}&from=${c.lesson}&to=${bis}`, { credentials:'same-origin' });
     const j = await r.json();
     if (!r.ok || !j.ok) throw new Error(j.error || 'Fehler ' + r.status);
-    if (!j.rooms.length){ body.innerHTML = cbEmpty('Kein buchbarer Raum frei'); return; }
-    body.innerHTML = `<p class="dsub__hinweis">Die Stunde wird in den gewählten Raum verlegt und erscheint sofort als Änderung im Stundenplan.</p>
-      <div class="dsub__list">${j.rooms.map((x, i) => `
-        <button type="button" class="dsub__item dsub__raum" data-raum="${i}">
-          <span class="dsub__item-main"><b>${esc(x.code)}</b>
-            <span>${esc([x.name !== x.code ? x.name : '', x.kind, x.seats ? x.seats + ' Plätze' : ''].filter(Boolean).join(' · '))}</span></span>
-        </button>`).join('')}</div>`;
-    $$('#dsubBody [data-raum]').forEach(b => b.addEventListener('click', async () => {
-      const raum = j.rooms[+b.dataset.raum];
-      b.disabled = true;
-      try {
-        const f = new URLSearchParams({ action:'book', date:c.date, from:String(c.lesson), to:String(bis), room:raum.code,
-                                        class:c.class || c.classOrig || '', subject:c.subject || '' });
-        const a = await fetch(ROOM_URL, { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:f });
-        const aj = await a.json();
-        if (!a.ok || !aj.ok) throw new Error(aj.error || 'Fehler ' + a.status);
-        toast(`Raum ${raum.code} gebucht`);
-        $('#detailSub').hidden = true;
-        wochenVergessen();
-        $('#detailClose').click();
-      } catch (e){ b.disabled = false; toast('Nicht gebucht: ' + e.message); }
-    }));
+    const belegt = werteListe(c.room).map(x => x.toUpperCase());
+    raumStand.liste = (j.rooms || []).filter(x => !belegt.includes(String(x.code).toUpperCase()));
+    raumListeZeichnen();
   } catch (e){ body.innerHTML = cbEmpty('Räume nicht erreichbar: ' + e.message); }
+}
+
+function raumListeZeichnen(){
+  const st = raumStand;
+  const body = $('#dsubBody');
+  const q = st.suche.trim().toLowerCase();
+  const treffer = st.liste.filter(x =>
+    (!st.abteilung || x.kind === st.abteilung) &&
+    (!q || String(x.code).toLowerCase().includes(q) || String(x.name || '').toLowerCase().includes(q)));
+  const TUER = '<svg viewBox="0 0 24 24" class="ico"><path d="M7 19.6V5.4l6.6-1.2v15.4"/><path d="M13.6 5.2H17v14.4"/><path d="M5.4 19.6h13.2"/><path d="M11.4 12.2v.3"/></svg>';
+  const neu = !body.querySelector('.rsuche');
+  if (neu){
+    body.innerHTML = `
+      <label class="rsuche">
+        <svg viewBox="0 0 24 24" class="ico"><circle cx="10.8" cy="10.8" r="6.2"/><path d="m15.4 15.4 4.4 4.4"/></svg>
+        <input type="search" id="raumSuche" placeholder="Suchen" autocomplete="off" enterkeyhint="search">
+        <button type="button" class="rsuche__x" id="raumSucheX" aria-label="Suche leeren">
+          <svg viewBox="0 0 24 24" class="ico"><path d="m7 7 10 10M17 7 7 17"/></svg>
+        </button>
+      </label>
+      <div class="rfilter"><button type="button" class="rpill" id="raumAbteilung"></button></div>
+      <div class="rliste" id="raumListe"></div>`;
+    $('#raumSuche').addEventListener('input', e => { raumStand.suche = e.target.value; raumListeZeichnen(); });
+    $('#raumSucheX').addEventListener('click', () => { raumStand.suche = ''; $('#raumSuche').value = ''; raumListeZeichnen(); });
+    $('#raumAbteilung').addEventListener('click', e => { e.stopPropagation(); raumAbteilungWaehlen(); });
+  }
+  const pill = $('#raumAbteilung');
+  pill.textContent = st.abteilung || 'Abteilung';
+  pill.classList.toggle('is-on', !!st.abteilung);
+  $('#raumListe').innerHTML = treffer.length
+    ? treffer.map(x => `
+        <button type="button" class="rzeile" data-raum="${esc(x.code)}">
+          <span class="rzeile__ico">${TUER}</span>
+          <span class="rzeile__main"><b>${esc(x.code)}</b>${x.name && x.name !== x.code ? `<span>${esc(x.name)}</span>` : ''}</span>
+        </button>`).join('')
+    : cbEmpty(st.liste.length ? 'Kein Raum gefunden' : 'Kein buchbarer Raum frei');
+  $$('#raumListe [data-raum]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    const ok = await raumAendern(st.c, st.op, b.dataset.raum, st.alt);
+    if (!ok) b.disabled = false;
+  }));
+}
+
+function raumAbteilungWaehlen(){
+  const alt = document.getElementById('raumAbtMenu');
+  if (alt){ alt.remove(); return; }
+  const arten = [...new Set(raumStand.liste.map(x => x.kind).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  const m = document.createElement('div');
+  m.className = 'droom__menu rabt'; m.id = 'raumAbtMenu';
+  m.innerHTML = ['', ...arten].map(a =>
+    `<button type="button" data-a="${esc(a)}" class="${a === raumStand.abteilung ? 'is-on' : ''}">${esc(a || 'Alle Abteilungen')}</button>`).join('');
+  const pill = $('#raumAbteilung');
+  const host = $('#dsubBody');
+  const hr = host.getBoundingClientRect(), pr = pill.getBoundingClientRect();
+  m.style.left = (pr.left - hr.left) + 'px';
+  m.style.top = (pr.bottom - hr.top + host.scrollTop + 4) + 'px';
+  host.appendChild(m);
+  m.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    raumStand.abteilung = b.dataset.a;
+    m.remove();
+    raumListeZeichnen();
+  }));
+}
+document.addEventListener('click', e => {
+  const m = document.getElementById('raumAbtMenu');
+  if (m && !e.target.closest('#raumAbtMenu')) m.remove();
+});
+
+/* Raum ersetzen, hinzufügen oder löschen – danach Woche neu laden und die
+   Stunde mit dem neuen Stand wieder zeigen. */
+async function raumAendern(c, op, raum, alt){
+  const bis = c.lesson + Math.max(1, c.span || 1) - 1;
+  try {
+    const f = new URLSearchParams({ action:'change', op, date:c.date, from:String(c.lesson), to:String(bis), room:raum, old:alt || '',
+                                    class:c.class || c.classOrig || '', subject:c.subject || '',
+                                    unterricht:String(c.unterricht || c.entryId || '') });
+    const a = await fetch(ROOM_URL, { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:f });
+    const aj = await a.json().catch(() => ({}));
+    if (!a.ok || !aj.ok) throw new Error(aj.error || 'Fehler ' + a.status);
+    toast(op === 'remove' ? `Raum ${raum} gelöscht` : op === 'add' ? `Raum ${raum} hinzugefügt` : `${alt} durch ${raum} ersetzt`);
+    $('#detailSub').hidden = true;
+    $('#detailSub').classList.remove('dsub--raum');
+    cbCurrent = null;
+    /* Die Stunde sofort mit den neuen Räumen zeigen, der Plan lädt nach. */
+    const neu = Array.isArray(aj.rooms) ? aj.rooms : [];
+    const vorher = werteListe(c._raeumeVorher != null ? c._raeumeVorher : (c.roomOrig || c.room));
+    if (c._raeumeVorher == null) c._raeumeVorher = c.roomOrig || c.room || '';
+    c.room = neu.join(',');
+    c.roomOrig = vorher.filter(x => !neu.some(y => y.toUpperCase() === x.toUpperCase())).join(',');
+    if (!(c.changed || []).includes('room') && !aj.reset) c.changed = [...(c.changed || []), 'room'];
+    renderDetail();
+    wochenVergessen();
+    planNachladenNachRaum(c);
+    return true;
+  } catch (e){
+    toast('Nicht gespeichert: ' + e.message);
+    return false;
+  }
+}
+
+async function planNachladenNachRaum(c){
+  try {
+    await refresh();
+    const neu = ((state.week && state.week.byDate) || {})[c.date] || [];
+    const treffer = neu.find(x => x.lesson === c.lesson && (x.unterricht || x.entryId) === (c.unterricht || c.entryId));
+    if (treffer && state.detail === c && !$('#sheetDetail').hidden){
+      state.detail = treffer; state.detailFull = treffer;
+      renderDetail();
+    }
+  } catch (e){ /* der Stand in den Details bleibt */ }
 }
 
 const cbLocalKey = (c, key) => `cb.${c.date}.${c.lesson}.${key}`;
@@ -3936,6 +4082,25 @@ let cbCache = {};                 /* Inhalte der geöffneten Stunde */
 let attWegKlassen = [];           /* Klassen mit Abwesenheit in dieser Stunde */
 let cbFaellig = [];               /* heute fällige Hausaufgaben */
 let cbCurrent = null;
+let cbEdit = null;                /* eigene Stunde? (null = noch nicht geladen) */
+let cbOnline = false;             /* „Findet online statt“ */
+
+/* Eigene Stunde: Das sagt UntPlanWeb beim Laden. Bis dahin gilt als eigen,
+   was die eigene Lehrkraft trägt – so stehen die Zeilen gleich da. */
+function cbDarf(c){
+  if (cbEdit !== null) return cbEdit;
+  const ich = String(state.ownCode || '').toUpperCase();
+  return !!ich && werteListe(c.teacher).some(t => t.toUpperCase() === ich);
+}
+
+/* „Findet online statt“ – Schalter in den Stundendetails. */
+async function onlineUmschalten(c){
+  const neu = !cbOnline;
+  cbOnline = neu;
+  renderDetail();
+  try { await cbPost(c, { action:'online', value: neu ? '1' : '0' }); }
+  catch (e){ cbOnline = !neu; renderDetail(); toast('Nicht gespeichert: ' + e.message); }
+}
 
 function cbParams(c, extra){
   /* Die Kennung der Stunde wird mitgeschickt, damit der Server sie nicht
@@ -3959,6 +4124,7 @@ function cbParams(c, extra){
 
 async function cbLoadAll(c){
   cbCache = {};
+  cbEdit = null; cbOnline = false;
   /* Zuerst der Gerätespeicher, damit sofort etwas dasteht. */
   Object.keys(CB).forEach(k => {
     const v = store.get(cbLocalKey(c, k), null);
@@ -3975,6 +4141,8 @@ async function cbLoadAll(c){
     if (state.detail && attKey(state.detail) !== attKey(c)) return cbCache;
 
     cbCache = Object.assign(cbCache, data.data);
+    if (typeof data.canEdit === 'boolean') cbEdit = data.canEdit;
+    cbOnline = !!data.online;
     /* Der Gerätespeicher wird auf den Stand des Servers gebracht — sonst
        blitzt beim nächsten Öffnen wieder der alte Text auf. */
     Object.keys(data.data).forEach(k2 => store.set(cbLocalKey(c, k2), data.data[k2]));
@@ -4100,8 +4268,13 @@ function openClassbook(key){
 
   $('#dsubTitle').textContent = CB[key].title;
   $('#dsubWhen').textContent  =
-    `${two(d.getDate())}.${two(d.getMonth()+1)}.${d.getFullYear()}, ${t1.replace(/^0/, '')} – ${t2}`;
+    `${two(d.getDate())}.${two(d.getMonth()+1)}.${d.getFullYear()}, ${t1.replace(/^0/, '')} - ${t2.replace(/^0/, '')}`;
   $('#dsubSave').hidden = !(CB[key].kind === 'text' || CB[key].kind === 'students');
+  /* In der Schülerliste steht rechts oben der Besen: alle anwesend. */
+  $('#dsubSave').classList.toggle('is-besen', CB[key].kind === 'students');
+  $('#dsubSave').setAttribute('aria-label', CB[key].kind === 'students' ? 'Alle als anwesend markieren' : 'Speichern');
+  $('#dsubSave').innerHTML = CB[key].kind === 'students' ? ATT_BESEN
+    : '<svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>';
   $('#dsubAddTop').hidden = CB[key].kind !== 'list';
   if (state.isStudent) rechteAnwenden();
   /* Reine Textansichten schließen mit dem Kreuz, Listen führen zurück. */
@@ -4114,9 +4287,10 @@ function openClassbook(key){
   const body = $('#dsubBody');
 
   if (CB[key].kind === 'readonly'){
-    body.innerHTML = c.info
-      ? `<p class="dsub__read">${esc(c.info)}</p>`
-      : cbEmpty('Kein Vertretungstext');
+    const txt = key === 'info' ? (c.subject || c.info || '') : c.info;
+    body.innerHTML = txt
+      ? `<p class="dsub__read">${esc(txt)}</p>`
+      : cbEmpty(key === 'info' ? 'Keine Information' : 'Kein Vertretungstext');
   }
 
   if (CB[key].kind === 'text'){
@@ -4179,7 +4353,6 @@ function openClassbook(key){
   }
 
   if (CB[key].kind === 'students') renderAttendance(c);
-  if (CB[key].kind === 'room') raeumeZeichnen(c);
 
   $('#detailSub').hidden = false;
 }
@@ -4188,6 +4361,9 @@ function openClassbook(key){
    Anwesenheitskontrolle
    --------------------------------------------------------------------- */
 let attList = [], attFilter = 'all';
+/* Mehrfachauswahl für einen gemeinsamen Klassenbucheintrag (Buch-Symbol). */
+let attPick = new Set();
+const ATT_BESEN = '<svg viewBox="0 0 24 24" class="ico"><path d="M19.6 4.4 13 11"/><path d="M11.3 9.4l3.3 3.3-1 1.1c-.9.9-1.3 2.3-1 3.6l.4 1.7c-2.9-.3-5.6-1.6-7.6-3.7l1.7-.4c1.3-.3 2.4-1.1 3-2.3z"/><path d="M7.9 15.7 6.6 17M10.3 17.4l-.9 1.5"/></svg>';
 /* Erst wenn wirklich kontrolliert wurde, steht das grüne Häkchen da.
    Beides gehört zu genau einer Stunde — welcher, hält attFor fest. Ohne
    das zeigte die Übersicht die Werte der zuletzt geöffneten Stunde. */
@@ -4202,7 +4378,7 @@ const attKey = c => c ? `${c.date}#${c.lesson}#${c.class || c.classOrig || ''}` 
 function attReset(c, hart){
   const k = attKey(c);
   if (attFor === k && !hart) return;
-  attFor = k; attList = []; attChecked = false; attAbsent = 0; attFilter = 'all';
+  attFor = k; attList = []; attChecked = false; attAbsent = 0; attFilter = 'all'; attPick = new Set();
   /* Sonst bliebe der Hinweis der zuletzt geöffneten Stunde stehen. */
   attWegKlassen = []; cbFaellig = [];
 }
@@ -4411,12 +4587,12 @@ function drawAttendance(c){
       ? `gegangen um ${esc(s.gone)}${grund}`
       : s.arrival
         ? `gekommen um ${esc(s.arrival)}${grund}`
-        : (ATT_LABEL[s.state] ? `${ATT_LABEL[s.state]}${grund}` : '');
+        : (ATT_LABEL[s.state] ? `${ATT_LABEL[s.state]}${grund || (s.state === 'absent' ? ' (fehlt)' : '')}` : '');
     /* Nur „entschuldigt" steht da. Fehlt der Hinweis, ist es eben nicht
        entschuldigt — das muss man nicht auch noch hinschreiben. */
     const stand = (s.state === 'absent' && !s.locked && s.excused) ? 'entschuldigt' : '';
     return head + `
-      <div class="att__row is-${s.state} ${s.locked ? 'is-locked' : ''}" data-id="${s.id}">
+      <div class="att__row is-${s.state} ${s.locked ? 'is-locked' : ''} ${attPick.has(s.id) ? 'is-picked' : ''}" data-id="${s.id}">
         <span class="att__swipe att__swipe--in ${attRight(s.state, win.läuft) === 'late' ? 'is-late' : ''}" aria-hidden="true">
           <svg viewBox="0 0 24 24">${attRight(s.state, win.läuft) === 'late' ? ATT_ICON.late : ATT_ICON.present}</svg>
         </span>
@@ -4436,12 +4612,13 @@ function drawAttendance(c){
             ${s.source ? `<span class="att__before">${esc(s.source)}</span>` : ''}
             ${s.seit ? `<span class="att__before">Davor abwesend</span>` : ''}
             ${stand ? `<span class="att__state att__state--ok">${stand}</span>` : ''}
-            ${(s.remarks || []).map(r => `<span class="att__note">${
+            ${(s.remarks || []).map((r, ri) => `<span class="att__note" data-remark="${ri}">${
                 esc((r.type && r.type !== 'custom' ? r.type + ': ' : '') + r.text)}</span>`).join('')}
             ${s.note ? `<span class="att__note">${esc(s.note)}</span>` : ''}
           </span>
           <span class="att__acts">
-            <button data-act="note" aria-label="Bemerkung">
+            <button data-act="note" class="${attPick.has(s.id) ? 'is-on' : ''}" aria-pressed="${attPick.has(s.id)}"
+                    aria-label="Für Klassenbucheintrag auswählen">
               <svg viewBox="0 0 24 24">${(s.remarks || []).length ? ATT_ACT_ICON.note : ATT_ACT_ICON.noteAdd}</svg>
             </button>
             <button data-act="absence" aria-label="Abwesenheit bearbeiten">
@@ -4465,12 +4642,26 @@ function drawAttendance(c){
     ${attBand(c, win, d, two)}
     ${attWegKlassen.length ? `<div class="att__gone">${
         esc(attWegKlassen.join(', '))} ${attWegKlassen.length > 1 ? 'sind' : 'ist'} abwesend</div>` : ''}
-    <div class="att ${win.open ? '' : 'is-locked'}" id="attList">${rowsHtml}</div>`;
+    <div class="att ${win.open ? '' : 'is-locked'}" id="attList">${rowsHtml}</div>
+    ${attPick.size ? `
+      <div class="att__bar">
+        <button type="button" class="att__bar-x" data-bar="cancel" aria-label="Auswahl aufheben">
+          <svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+        <button type="button" class="att__bar-go" data-bar="entry">Klassenbucheintrag (${attPick.size})</button>
+      </div>`
+    : (!state.isStudent && !store.get('att.hinweisZu', false)) ? `
+      <div class="att__hint" role="note">
+        <span class="att__hint-ico" aria-hidden="true">${DICO.classbook}</span>
+        <span class="att__hint-text"><b>Klassenbucheintrag</b>
+          <span>Tippen Sie mehrere Schüler*innen an, um einen gemeinsamen Eintrag zu erstellen.</span></span>
+        <button type="button" class="att__hint-x" aria-label="Hinweis schließen">
+          <svg viewBox="0 0 24 24"><path d="m8 8 8 8M16 8l-8 8"/></svg></button>
+      </div>` : ''}`;
 
   /* Die Buchstabenleiste passt nur zu einer nach Namen sortierten Liste.
      Bei einer Kopplung stehen dort Klassennamen als Überschrift, und ein
      Sprung auf „M" liefe ins Leere. */
-  if (!nachKlasse && letters.length > 6){
+  if (!nachKlasse && letters.length > 1){
     const idx = document.createElement('div');
     idx.className = 'att__index'; idx.id = 'attIndex';
     idx.innerHTML = letters.map(L => `<button data-l="${L}">${L}</button>`).join('');
@@ -4487,6 +4678,21 @@ function drawAttendance(c){
 
   $$('#attSeg button').forEach(b => b.addEventListener('click', () => {
     attFilter = b.dataset.f; drawAttendance(c);
+  }));
+
+  /* Hinweis „Klassenbucheintrag“ schließen – bleibt danach weg. */
+  const hx = $('#dsubBody .att__hint-x');
+  if (hx) hx.addEventListener('click', () => { store.set('att.hinweisZu', true); drawAttendance(c); });
+  $$('#dsubBody [data-bar]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.bar === 'cancel'){ attPick = new Set(); drawAttendance(c); return; }
+    gemeinsamerEintrag(c);
+  }));
+  /* Eine vorhandene Bemerkung antippen öffnet sie zum Bearbeiten. */
+  $$('#dsubBody .att__note[data-remark]').forEach(n => n.addEventListener('click', e => {
+    e.stopPropagation();
+    if (state.isStudent) return;
+    const rec = attList.find(x => x.id === +n.closest('.att__row').dataset.id);
+    if (rec) openNoteSheet(c, rec, (rec.remarks || [])[+n.dataset.remark] || null);
   }));
 
   $$('#dsubBody .att__row button').forEach(b => b.addEventListener('click', async () => {
@@ -4515,8 +4721,11 @@ function drawAttendance(c){
     }
 
     if (act === 'note'){
-      /* Gibt es schon eine Bemerkung, wird sie geöffnet — sonst eine neue. */
-      openNoteSheet(c, rec, (rec.remarks || [])[0] || null);
+      /* Das Buch wählt die Schülerin bzw. den Schüler für einen gemeinsamen
+         Klassenbucheintrag aus (wie im Sollbild); unten erscheint dann die
+         Leiste zum Anlegen. */
+      if (attPick.has(rec.id)) attPick.delete(rec.id); else attPick.add(rec.id);
+      drawAttendance(c);
       return;
     }
 
@@ -4834,6 +5043,47 @@ async function openNoteSheet(c, rec, alt){
       drawAttendance(c);
     }
   });
+}
+
+/* Gemeinsamer Klassenbucheintrag für alle ausgewählten Schüler*innen. */
+async function gemeinsamerEintrag(c){
+  const arten = await loadRemarkTypes(c);
+  const namen = arten.map(t => t.name);
+  const gewaehlt = attList.filter(s => attPick.has(s.id));
+  openForm({
+    title: 'Klassenbucheintrag',
+    fields: [
+      { t:'hint', text: gewaehlt.map(s => s.name).join(', ') },
+      ...(namen.length ? [{ t:'pick', key:'art', label:'Art', value:'', options:namen }] : []),
+      { t:'area', key:'text', label:'Text hier eingeben', value:'' }
+    ],
+    onSave: async v => {
+      const text = (v.text || '').trim();
+      if (!text){ toast('Ohne Text lässt sich nichts speichern'); return; }
+      const art = (arten.find(t => t.name === v.art) || {}).code || '';
+      try {
+        const r = await cbPost(c, { action:'remarkMany', student_ids:[...attPick].join(','), type:art, text });
+        applyRemarks(r.remarks);
+        toast(gewaehlt.length === 1 ? 'Eintrag gespeichert' : `Eintrag für ${gewaehlt.length} Schüler*innen gespeichert`);
+        attPick = new Set();
+      } catch (e){ toast('Nicht gespeichert: ' + e.message); }
+      drawAttendance(c);
+    }
+  });
+}
+
+/* Besen: alle (nicht entschuldigten) Schüler*innen als anwesend markieren. */
+async function alleAnwesend(c){
+  const weg = attList.filter(s => !s.locked && (s.state === 'absent' || s.state === 'late'));
+  if (weg.length && !confirm(`${weg.length === 1 ? '1 Schüler*in' : weg.length + ' Schüler*innen'} als anwesend markieren?`)) return;
+  weg.forEach(s => { s.state = 'present'; s.arrival = ''; s.reason = ''; });
+  attChecked = true;
+  buzz(); drawAttendance(c); renderDetail();
+  try {
+    for (const s of weg)
+      await cbPost(c, { action:'attendance', student_id:String(s.id), state:'present', note:s.note || '', arrival:'', reason:'' });
+    if (!weg.length) await cbPost(c, { action:'setChecked' });
+  } catch (e){ toast('Nicht gespeichert: ' + e.message); }
 }
 
 /* --- Hausaufgabe und Klassenbucheintrag ------------------------------- */
@@ -5212,6 +5462,7 @@ document.addEventListener('click', e => {
 
 function closeClassbook(){
   const idx = document.getElementById('attIndex'); if (idx) idx.remove();
+  $('#detailSub').classList.remove('dsub--raum');
   closeAbsence(); closeForm();
   $('#detailSub').hidden = true;
   cbCurrent = null;
@@ -5225,6 +5476,7 @@ $('#dsubAddTop').addEventListener('click', () => {
 
 function closeClassbook(){
   const idx = document.getElementById('attIndex'); if (idx) idx.remove();
+  $('#detailSub').classList.remove('dsub--raum');
   closeAbsence(); closeForm();
   $('#detailSub').hidden = true;
   cbCurrent = null;
@@ -5241,10 +5493,7 @@ $('#dsubSave').addEventListener('click', async () => {
      landet in der Datenbank, damit er nach dem Neuladen stehen bleibt. */
   if (cbCurrent === 'students'){
     const c = state.detail; if (!c) return;
-    attChecked = true;
-    buzz(); drawAttendance(c); renderDetail();
-    try { await cbPost(c, { action:'setChecked' }); }
-    catch (e){ toast('Nicht gespeichert: ' + e.message); }
+    await alleAnwesend(c);
     return;
   }
   const el = $('#dsubText');

@@ -124,6 +124,20 @@ public sealed class Umgebung : IAsyncDisposable
     public static async Task<JsonNode> SendenAsync(HttpClient c, string pfad, Dictionary<string, string> formular) =>
         await JsonAsync(await c.PostAsync(pfad, new FormUrlEncodedContent(formular)));
 
+    /// <summary>Offene (noch nicht von UntPlan übernommene) Raumbuchungen in UntPlanWeb.</summary>
+    public int OffeneRaumbuchungen() =>
+        _web.Services.GetRequiredService<UntPlanWeb.Dienste.Rueckmeldungsdienst>().Offene().Count(m => m.Typ == "raumbuchung");
+
+    /// <summary>Klassendienst (z. B. Klassensprecher*in) für eine Schülerin bzw. einen Schüler im ganzen Schuljahr.</summary>
+    public void KlassendienstAnlegen(string dienst, int schuelerId, string klasse)
+    {
+        var kv = _web.Services.GetRequiredService<UntPlanWeb.Dienste.Klassenbuchverwaltung>();
+        var id = kv.Dienstarten().First(d => d.Name == dienst).Id;
+        _web.Services.GetRequiredService<UntPlanWeb.Daten.Db>().Ausfuehren(
+            "INSERT INTO klassendienst_zuordnungen (dienst_id, schueler_id, klasse, von, bis, text, erstellt, benutzer_id) VALUES (@d, @s, @k, '2026-08-01', '2027-07-31', '', '2026-10-14T08:00:00', NULL)",
+            UntPlanWeb.Daten.Db.P("@d", id), UntPlanWeb.Daten.Db.P("@s", schuelerId), UntPlanWeb.Daten.Db.P("@k", klasse));
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _mobile.StopAsync();

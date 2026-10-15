@@ -142,6 +142,7 @@ public class Program
         AdminApi.Abbilden(app);
         SsoApi.Abbilden(app);
         ErweiterungApi.Abbilden(app);
+        MobilApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
         app.MapGet("/gesundheit", () => Results.Ok(new { ok = true }));

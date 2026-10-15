@@ -277,6 +277,52 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Zusatzstunde_ohne_Lehrkraft_zeigt_drei_Striche()
+    {
+        var k = Kachelbau.AusKarte(Karte("geaendert", 5, fach: "WUB", art: "Sondereinsatz", unterricht: null, lehrer: new()), "class");
+        Assert.Equal("change", k.Art);
+        Assert.True(k.Zusatz);
+        Assert.Equal(Kachelbau.KeineLehrkraft, k.Lehrkraft);
+        Assert.Equal("---", k.Lehrkraft);
+        Assert.Equal("", k.LehrkraftAlt);
+        // auch eine Zusatzstunde aus „Zusatzunterricht“ mit Unterricht, aber ohne Lehrkraft
+        var z = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Zusatzunterricht", lehrer: new() { new("") }), "class");
+        Assert.True(z.Zusatz);
+        Assert.Equal("---", z.Lehrkraft);
+    }
+
+    [Fact]
+    public void Drei_Striche_nur_bei_Zusatzstunden()
+    {
+        // Zusatzstunde mit Lehrkraft: Lehrkraft bleibt, Kennzeichen für die Plakette in den Details
+        var mit = Kachelbau.AusKarte(Karte("geaendert", 2, fach: "SPO", art: "Sondereinsatz", unterricht: null, lehrer: new() { new("SNE") }), "class");
+        Assert.True(mit.Zusatz);
+        Assert.Equal("SNE", mit.Lehrkraft);
+        // Vertretung ohne Lehrkraft („+++“): bisherige Lehrkraft durchgestrichen, kein „---“
+        var plus = Kachelbau.AusKarte(Karte("geaendert", 1, art: "Vertretung", lehrer: new() { new("", "WAG", true) }), "class");
+        Assert.Null(plus.Zusatz);
+        Assert.Equal("", plus.Lehrkraft);
+        Assert.Equal("WAG", plus.LehrkraftAlt);
+        // offene Vertretung, Entfall, reguläre Stunde ohne Lehrkraft: kein „---“
+        Assert.Equal("", Kachelbau.AusKarte(Karte("offen", 1, lehrer: new() { new("", "WAG", true) }), "class").Lehrkraft);
+        Assert.Equal("", Kachelbau.AusKarte(Karte("entfall", 1, lehrer: new()), "class").Lehrkraft);
+        Assert.Equal("", Kachelbau.AusKarte(Karte("regulaer", 1, lehrer: new()), "class").Lehrkraft);
+        var vertretung = Kachelbau.AusKarte(Karte("geaendert", 1, art: "Vertretung", lehrer: new() { new("BEC", "WAG", true) }), "class");
+        Assert.Null(vertretung.Zusatz);
+        Assert.Equal("BEC", vertretung.Lehrkraft);
+    }
+
+    [Fact]
+    public void Hinzugefuegter_zweiter_Raum_nennt_den_alten_Raum_nur_einmal()
+    {
+        // Raumänderung mit zwei neuen Räumen (UntPlanWeb setzt bei beiden den bisherigen Raum als „alt“)
+        var k = Kachelbau.AusKarte(Karte("geaendert", 1, raeume: new() { new("R108", "R101", true), new("BI1", "R101", true) }), "class");
+        Assert.Equal("R108,BI1", k.Raum);
+        Assert.Equal("R101", k.RaumAlt);
+        Assert.Contains("room", k.Geaendert);
+    }
+
+    [Fact]
     public void Kopplung_gleiches_Fach_und_Raum_ist_eine_Kachel_mit_allen_Lehrkraeften_und_Klassen()
     {
         // UntPlanWeb fasst nur bei gleichem Fach und gleichem Raum zusammen – dann eine Kachel mit allen Beteiligten
