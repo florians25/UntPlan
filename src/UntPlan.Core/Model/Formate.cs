@@ -47,11 +47,11 @@ public sealed class StundenplanFormat
     /// <summary>Stundenplanlupe (Details der gewählten Stunde) unter dem Plan anzeigen.</summary>
     public bool StundenplanlupeAnzeigen { get; set; } = true;
 
-    /// <summary>Standardformat eines kleinen Stundenplans (Vertretungsplanung) für eine Planart.</summary>
+    /// <summary>Standardformat eines kleinen Stundenplans (Vertretungsplanung) für eine Planart: wie Untis mit zusammengefassten Doppelstunden, Pausenzeilen und Unterrichtsliste.</summary>
     public static StundenplanFormat KleinesFormat(ElementTyp typ, string name) => new()
     {
-        Name = name, Typ = typ, Klein = true, Einzelstunden = true, PausenAnzeigen = true, ZeitenAnzeigen = false, Schriftgroesse = 9,
-        DragDropZeitwunschFarben = false, StundenplanlupeAnzeigen = false,
+        Name = name, Typ = typ, Klein = true, Einzelstunden = false, PausenAnzeigen = true, ZeitenAnzeigen = false, Schriftgroesse = 9,
+        DragDropZeitwunschFarben = false, StundenplanlupeAnzeigen = true,
     };
 }
 

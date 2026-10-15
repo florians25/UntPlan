@@ -202,13 +202,14 @@ public class TauschTests
     }
 
     [Fact]
-    public void KleinesFormatHatEinzelstundenUndPausen()
+    public void KleinesFormatFasstBloeckeZusammenUndZeigtPausen()
     {
+        // wie Untis: Doppelstunden und Blöcke als ein Feld, Pausenzeilen, Unterrichtsliste unter dem Plan
         var f = StundenplanFormat.KleinesFormat(ElementTyp.Klasse, "Klassenplan klein");
-        Assert.True(f.Klein && f.Einzelstunden && f.PausenAnzeigen);
+        Assert.True(f.Klein && !f.Einzelstunden && f.PausenAnzeigen && f.StundenplanlupeAnzeigen);
         Assert.False(f.ZeitenAnzeigen);
         var json = System.Text.Json.JsonSerializer.Serialize(f);
         var zurueck = System.Text.Json.JsonSerializer.Deserialize<StundenplanFormat>(json)!;
-        Assert.True(zurueck.Klein && zurueck.Einzelstunden && zurueck.PausenAnzeigen);
+        Assert.True(zurueck.Klein && !zurueck.Einzelstunden && zurueck.PausenAnzeigen);
     }
 }
