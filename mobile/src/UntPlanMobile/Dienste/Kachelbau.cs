@@ -34,6 +34,20 @@ public static class Kachelbau
     /// Zusatzstunde (zusätzlicher Unterricht): eine geänderte Stunde mit Fach, deren Vertretungsart eine zusätzliche Stunde
     /// bezeichnet (Sondereinsatz, Zusatzunterricht, Verlegung …) oder die ohne Unterricht aus dem Regelplan im Plan steht.
     /// </summary>
+    public static bool IstKlassenabwesenheit(PlanKarte k) =>
+        k.Status == "entfall" && KlassenabwesenheitArt.IsMatch(k.Art ?? "") && k.Klassen.Count > 0;
+
+    /// <summary>Vertretungsarten, bei denen die Stunde wegen Abwesenheit der Klasse wegfällt (Freisetzung, Klassenabwesenheit).</summary>
+    private static readonly System.Text.RegularExpressions.Regex KlassenabwesenheitArt =
+        new(@"freisetz|klassenabwes|klasse\s+abwes", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>Raumvertretung (Raumänderung), für die noch kein neuer Raum eingeteilt ist.</summary>
+    public static bool IstOffeneRaumvertretung(PlanKarte k) =>
+        k.Status is "geaendert" or "offen" && System.Text.RegularExpressions.Regex.IsMatch(k.Art ?? "", "raum", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+        && !(k.Art ?? "").Contains("vorgemerkt", StringComparison.OrdinalIgnoreCase)
+        && !k.Raeume.Any(w => w.Neu && w.K.Length > 0 && w.K != "???");
+
+    /// <summary>Zusatzstunde: siehe <see cref="IstZusatzstunde"/>. Klassenabwesenheit: siehe <see cref="IstKlassenabwesenheit"/>.</summary>
     public static bool IstZusatzstunde(PlanKarte k) =>
         k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && (ZusatzArt.IsMatch(k.Art ?? "") || k.Unterricht is null);
 
@@ -169,7 +183,9 @@ public static class Kachelbau
         {
             var ende = k.Stunde + k.Dauer - 1;
             var schnitte = pausen.Where(p => p >= k.Stunde && p < ende).OrderBy(p => p).ToList();
-            if (k.Pause == true || k.Dauer < 2 || schnitte.Count == 0) { res.Add(k); continue; }
+            // Veranstaltungen bleiben ein durchgehender Block; die Aufsicht in der Pause tritt dahinter zurück
+            // (Wochenansicht ausgeblendet, Tagesansicht als halbe Kachel daneben)
+            if (k.Pause == true || k.Feld == true || k.Dauer < 2 || schnitte.Count == 0) { res.Add(k); continue; }
             var beginn = k.Stunde;
             foreach (var p in schnitte.Append(ende))
             {
@@ -187,6 +203,14 @@ public static class Kachelbau
     public static Kachel AusKarte(PlanKarte karte, string art)
     {
         var k = karte with { Text = karte.Text ?? "", Art = karte.Art ?? "", Fach = karte.Fach ?? "" };
+        // Offene Raumvertretung („???“ bzw. Raumänderung ohne neuen Raum): wie eine offene Lehrervertretung – bisheriger Raum
+        // durchgestrichen in der Plakette
+        var raumOffen = k.Raeume.Any(w => w.K == "???") || IstOffeneRaumvertretung(k);
+        if (raumOffen)
+        {
+            var alt = k.Raeume.Select(w => w.K == "???" ? w.Alt ?? "" : !string.IsNullOrEmpty(w.Alt) ? w.Alt! : w.K).Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
+            k = k with { Raeume = alt.Count > 0 ? alt.Select(x => new PlanWert("", x, true)).ToList() : new List<PlanWert>() };
+        }
         var kachel = new Kachel
         {
             Stunde = k.Von,
@@ -212,6 +236,11 @@ public static class Kachelbau
             kachel.NotizLehrer = string.IsNullOrWhiteSpace(k.NotizLehrer) ? null : k.NotizLehrer;
         }
         if (k.HausaufgabeFaellig) kachel.Hausaufgabe = true;
+        if (raumOffen)
+        {
+            kachel.RaumOffen = true;
+            if (!kachel.Geaendert.Contains("room")) kachel.Geaendert.Add("room");
+        }
         if (k.Klassen.Any(w => w.Neu)) kachel.Geaendert.Add("class");
         if (k.Lehrer.Any(w => w.Neu)) kachel.Geaendert.Add("teacher");
         // geänderter oder hinzugefügter Raum (neuer Wert ohne alten) steht in der grünen Plakette
@@ -246,6 +275,15 @@ public static class Kachelbau
             case "abwesend":
                 kachel.Art = "change";
                 kachel.Offen = offen;
+                break;
+            case "entfall" when IstKlassenabwesenheit(k):
+                // Klasse abwesend: kein Entfall – die Klasse steht durchgestrichen in der Plakette, die Kachel ist grün
+                // (im Lehrer- und Raumplan wie eine abgegebene Stunde)
+                kachel.Art = "change";
+                kachel.KlasseAbwesend = true;
+                kachel.KlasseAlt = kachel.Klasse;
+                kachel.Klasse = "";
+                if (!kachel.Geaendert.Contains("class")) kachel.Geaendert.Add("class");
                 break;
             case "entfall":
                 kachel.Art = "cancelled";

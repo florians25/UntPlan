@@ -31,6 +31,13 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
   - Trennzeichen: Auf den Kacheln stehen mehrere Werte (Lehrkräfte – auch bei Veranstaltungen –, Klassen, Räume) durch
     **Kommas** getrennt, in den Stundendetails durch „ | “. Nur die Lehrerleiste rollt waagerecht, der Rest der Kachel
     bleibt stehen. Zu lange Werte und Plaketten enden mit „…“.
+  - Offene Raumvertretungen (Raumänderung ohne neuen Raum, Platzhalter „???“) wie offene Lehrervertretungen: bisheriger
+    Raum durchgestrichen in der Plakette, in den Details Plakette „RAUM OFFEN“.
+  - Abwesende Klasse (Freisetzung): kein Entfall – im Klassenplan grüne Kachel mit der Klasse durchgestrichen in der Plakette
+    (oberste Zeile), im Lehrer- und Raumplan wie eine abgegebene Stunde (Eckklammern, Klasse durchgestrichen). Nur ein
+    echter Entfall bleibt rot.
+  - Veranstaltungen laufen als ein Block über Pausen mit Aufsicht hinweg; die Aufsicht tritt in der Wochenansicht dahinter
+    zurück und steht in der Tagesansicht als halbe Kachel daneben.
   - Zusatzstunden (Sondereinsatz, Zusatzunterricht, Verlegung …) ohne Lehrkraft zeigen „---“ als Lehrkraft – nur bei
     Zusatzstunden, auf der Kachel und in den Details. Vertretungen ohne Lehrkraft („+++“) behalten die durchgestrichene
     bisherige Lehrkraft und den Hinweis „Vertr. o. Lehrkraft“.
@@ -162,6 +169,8 @@ UntPlanMobile spricht ausschließlich die JSON-API von UntPlanWeb (`/api/app/*`)
 | `offen` | `change` mit `openSub` (alter Wert durchgestrichen) |
 | `abwesend` (Lehrer-/Raumplan) | `change` mit dem eigenen Kürzel als `teacherOrig` (läuft ohne mich) |
 | `entfall` | `cancelled` |
+| `entfall` mit Art Freisetzung/Klassenabwesenheit | `change` mit `classAbsent` (Klasse als `classOrig`) |
+| Raumänderung ohne neuen Raum, Raum „???“ | `openRoom` (bisheriger Raum als `roomOrig`) |
 | `klausur` | `klausur` |
 | `bereitschaft` | `standby` (Stunden mit gehaltener Vertretung entfallen) |
 | `veranstaltung`, Teilnahme ohne Fach | `absence` mit `overlay` (grün gerahmtes Feld) |

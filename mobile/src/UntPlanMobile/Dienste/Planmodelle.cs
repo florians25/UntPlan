@@ -87,6 +87,10 @@ public sealed class Kachel
     [JsonPropertyName("openSub")] public bool Offen { get; set; }
     /// <summary>Zusatzstunde (zusätzlicher Unterricht): Plakette „Zusätzliche Unterrichtsstunde“ in den Details.</summary>
     [JsonPropertyName("extra")] public bool? Zusatz { get; set; }
+    /// <summary>Klasse abwesend (Freisetzung): Klasse durchgestrichen, Kachel grün; im Lehrerplan wie eine abgegebene Stunde.</summary>
+    [JsonPropertyName("classAbsent")] public bool? KlasseAbwesend { get; set; }
+    /// <summary>Offene Raumvertretung: noch kein Raum eingeteilt, bisheriger Raum durchgestrichen.</summary>
+    [JsonPropertyName("openRoom")] public bool? RaumOffen { get; set; }
     [JsonPropertyName("overlay")] public bool? Feld { get; set; }
     [JsonPropertyName("fullday")] public bool? Ganztaegig { get; set; }
     [JsonPropertyName("holiday")] public bool? Ferien { get; set; }

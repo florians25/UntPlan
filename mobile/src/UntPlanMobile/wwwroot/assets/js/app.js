@@ -390,7 +390,7 @@ function lineValue(card, key){
   /* Ist die eigene Klasse abwesend und der gekoppelte Unterricht läuft
      weiter, hat sich an der Lehrkraft nichts geändert — sie steht schlicht
      da. Durchgestrichen gehört dann die Klasse, nicht das Kürzel. */
-  if (card._released && key === 'teacher' && !card._klasseWeg){
+  if (card._released && key === 'teacher' && !card._klasseWeg && !card.classAbsent){
     if (now) return { text:now, removed:false, changed:true };
     return { text:orig, removed:true, changed:true };
   }
@@ -496,7 +496,10 @@ function cardLines(card, kind){
 
   const first  = (kind === 'class') ? 'teacher' : 'class';
   const last   = (kind === 'class') ? 'class'   : 'teacher';
-  const order  = [first, 'subject', 'room', last];
+  /* Abwesende Klasse im Klassenplan: die durchgestrichene Klasse steht oben,
+     damit sie auch auf kleinen Kacheln nicht weggekürzt wird. */
+  const order  = (card.classAbsent && kind === 'class')
+    ? ['class', 'teacher', 'subject', 'room'] : [first, 'subject', 'room', last];
 
   /* Wessen Plan man ansieht, steht über dem Plan — in jeder Kachel noch
      einmal das eigene Kürzel zu wiederholen, bringt nichts. Das gilt für
@@ -543,7 +546,7 @@ function cardLines(card, kind){
        die Lehrkraft wirklich gewechselt, steht `changed` ohnehin schon —
        diese Regel fügt nur hinzu, sie nimmt nichts weg. */
     .map(l => (label && l.key === last && !l.tokens && card.blockType === 'change'
-               && kind === 'teacher'
+               && kind === 'teacher' && !card.classAbsent
                && !(ktoks && ktoks.some(t => (t.state || 'ok') === 'absent')
                     && !(card.changed || []).includes('teacher'))
                && !((card.changed || []).length
@@ -636,6 +639,8 @@ function assignParallel(cards){
     /* Läuft die Stunde ohne die eigene Klasse weiter, steht sie wie jede
        andere abgegebene Stunde hinter dem, was wirklich stattfindet. */
     if (c._klasseWeg) return 3;
+    /* Abwesende Klasse: im Lehrer- und Raumplan wie eine abgegebene Stunde. */
+    if (c.classAbsent && viewKind(state.entity) !== 'class') return 3;
     if (c.openSub || handedAway(c)) return 3;
     if (c.overlay) return 2;          /* AK, GS, Veranstaltung */
     /* Eine Vertretung geht der unveränderten Stunde vor. Wird es eng und
@@ -1092,7 +1097,11 @@ function renderGrid(){
          statt, nur ohne uns. Dieselbe Darstellung wie bei einer Lehrkraft,
          deren Kopplung ohne sie weiterläuft. */
       const klasseWeg = kind === 'class' && !!card._klasseWeg;
-      card._released = (((card.openSub || handedOver || koppOhneMich) && kind !== 'class')
+      /* Ist die Klasse abwesend (Freisetzung), läuft die Stunde im Lehrer- und
+         Raumplan wie eine abgegebene Stunde (Eckklammern, Klasse durchgestrichen
+         in der Plakette); im Klassenplan bleibt sie eine grüne Änderung. Nur ein
+         echter Entfall ist rot. */
+      card._released = (((card.openSub || handedOver || koppOhneMich || card.classAbsent) && kind !== 'class')
                         || klasseWeg)
                     && !isStandby && !isSup && !isMovedTarget;
 
@@ -3699,7 +3708,7 @@ function renderDetail(){
   const klassD = Array.isArray(c.classList) && c.classList.length > 1 ? c.classList : null;
   const klassHtml = () => klassD.map(t =>
     (t.state === 'absent') ? `<s>${esc(t.name)}</s>` : esc(t.name)).join('<i>|</i>');
-  const klass1 = (c.class || '').split(',')[0].trim();
+  const klass1 = (c.class || c.classOrig || '').split(',')[0].trim();
   const lehrKurs = werteListe(c.teacher || c.teacherOrig).filter(t => t !== '---')[0] || '';
   const course = c.courseName || [c.subject, klass1, lehrKurs].filter(Boolean).join('_');
 
@@ -3707,6 +3716,8 @@ function renderDetail(){
     ? (c.class ? werteListe(c.class).map(esc).join('<i>|</i>') : esc(c.subject || c.info || 'Veranstaltung'))
     : (c.class
         ? `${klassD ? klassHtml() : werteListe(c.class).map(esc).join('<i>|</i>')}<i>|</i>${esc(course)}`
+        : c.classAbsent && c.classOrig
+        ? `<s>${werteListe(c.classOrig).map(esc).join('<i>|</i>')}</s><i>|</i>${esc(course)}`
         : esc(course || c.subject || 'Unterricht'));
 
   const val = key => {
@@ -3744,7 +3755,8 @@ function renderDetail(){
     :                        esc(t.text)).join(SEP);
 
   const banner = { cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '';
-  const plakette = istVeranstaltung ? 'Veranstaltung' : zusatz ? 'Zusätzliche Unterrichtsstunde' : '';
+  const plakette = istVeranstaltung ? 'Veranstaltung' : zusatz ? 'Zusätzliche Unterrichtsstunde'
+                 : c.classAbsent ? 'Klasse abwesend' : c.openRoom ? 'Raum offen' : '';
 
   /* --- Aktionszeilen ----------------------------------------------------
      Alles, was zum Klassenbuch gehört (online, Raum, Lehrstoff,
