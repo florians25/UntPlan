@@ -141,8 +141,18 @@ public static class ListenSuche
         var w = kurzMax + (mitLang ? langMax + 30 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
         breite = Math.Max(breite, w);
         if (mitLang) breite = Math.Max(breite, 260);
-        var platz = Screen.FromControl(cb).WorkingArea.Right - cb.PointToScreen(Point.Empty).X - 4;
-        cb.DropDownWidth = Math.Max(cb.Width, Math.Min(breite, Math.Max(cb.Width, Math.Min(platz, 720))));
+        // nie auf die Feldbreite zurückfallen: der Platz bis zum Bildschirmrand war bei mehreren Monitoren bzw. unterschiedlicher
+        // Skalierung unzuverlässig (dann wurde die Liste plötzlich schmal) – Windows hält die geöffnete Liste selbst auf dem Bildschirm
+        var bildschirm = Screen.FromControl(cb).WorkingArea.Width;
+        var ziel = Math.Max(cb.Width, Math.Min(breite, Math.Min(720, Math.Max(300, bildschirm - 20))));
+        if (cb.DropDownWidth != ziel) cb.DropDownWidth = ziel;
+    }
+
+    /// <summary>Breite schon beim Beginn der Bearbeitung setzen (Tabellenzellen setzen sie sonst auf die Spaltenbreite zurück).</summary>
+    public static void BreiteAktualisieren(ComboBox cb)
+    {
+        if (Zustaende.TryGetValue(cb, out var z)) Breite(cb, z);
+        else BreiteSetzen(cb, langname: Langname);
     }
 
     /// <summary>Listenhöhe so wählen, dass die Liste unter dem Feld Platz hat (Windows öffnet sonst nach oben).</summary>

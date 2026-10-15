@@ -101,7 +101,12 @@ public static class Auswahlbreite
                 cb.DropDown += (_, _) => { if (!ListenSuche.IstEingerichtet(cb)) ListenSuche.BreiteSetzen(cb, langname: ListenSuche.Langname); };
                 break;
             case DataGridView g:
-                g.EditingControlShowing += (_, e) => { if (e.Control is ComboBox cb) Erfassen(cb); };
+                g.EditingControlShowing += (_, e) =>
+                {
+                    if (e.Control is not ComboBox cb) return;
+                    Erfassen(cb);
+                    g.BeginInvoke(() => { if (!cb.IsDisposed) ListenSuche.BreiteAktualisieren(cb); });
+                };
                 // Auswahlspalten wie Untis ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };

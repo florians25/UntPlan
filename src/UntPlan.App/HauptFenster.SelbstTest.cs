@@ -149,6 +149,13 @@ public sealed partial class HauptFenster
             Warten(400);
             log.Add("INFO  " + f.SelbsttestBearbeiten(() => Warten(400)));
         }, -1);
+        Schritt("17a1_Vertreterliste_breit", () =>
+        {
+            // Auswahllisten in Tabellenzellen öffnen immer breit (auch beim wiederholten Bearbeiten)
+            var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            log.Add("INFO  " + f.SelbsttestListenbreite(() => Warten(300)));
+        }, -1);
         Schritt("17b_Stundenplan_Zeitbereich", () =>
         {
             // Zeitbereich „Periode“ im Vertretungsmodus (Regelplan nur zur Ansicht), danach wieder „Woche“

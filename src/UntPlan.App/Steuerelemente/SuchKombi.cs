@@ -22,6 +22,9 @@ public static class SuchKombi
             if (e.Control is not ComboBox cb || g.CurrentCell is not DataGridViewComboBoxCell zelle) return;
             cb.MaxDropDownItems = 18;
             ListenSuche.Einrichten(cb, stil is null ? null : text => stil(zelle, text));
+            // die Zelle setzt die Listenbreite bei jeder Bearbeitung auf die Spaltenbreite – gleich wieder verbreitern
+            ListenSuche.BreiteAktualisieren(cb);
+            g.BeginInvoke(() => { if (!cb.IsDisposed) ListenSuche.BreiteAktualisieren(cb); });
         };
         g.CellValidating += (_, e) =>
         {

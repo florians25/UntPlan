@@ -1422,6 +1422,29 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// Text in derselben Zeile sofort eingeben, Neuaufbau während einer Eingabe wird aufgeschoben, erst beim Zeilenwechsel
     /// verschwindet die Zeile. Wirft bei einer Abweichung.
     /// </summary>
+    /// <summary>Selbsttest: die Auswahlliste „Vertreter“ öffnet breit genug für Kurz- und Langnamen (nie in Spaltenbreite).</summary>
+    internal string SelbsttestListenbreite(Action warten)
+    {
+        var spalte = _g.Columns["Vertreter"] ?? throw new InvalidOperationException("Spalte Vertreter fehlt");
+        var zeile = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Vertretung { Id: > 0, Fixiert: false } && !r.Cells[spalte.Index].ReadOnly)
+                    ?? throw new InvalidOperationException("keine bearbeitbare Zeile");
+        var ergebnis = new List<int>();
+        for (var versuch = 0; versuch < 3; versuch++)
+        {
+            _g.CurrentCell = zeile.Cells[spalte.Index];
+            _g.BeginEdit(false);
+            warten();
+            if (_g.EditingControl is not ComboBox cb) throw new InvalidOperationException("keine Auswahlliste beim Bearbeiten");
+            ergebnis.Add(cb.DropDownWidth);
+            if (cb.DropDownWidth < Math.Max(220, spalte.Width + 60)) throw new InvalidOperationException($"Auswahlliste zu schmal: {cb.DropDownWidth} px bei Spaltenbreite {spalte.Width} px (Versuch {versuch + 1})");
+            _g.CancelEdit();
+            _g.EndEdit();
+            _g.CurrentCell = zeile.Cells[0];
+            warten();
+        }
+        return $"Vertreter-Liste {string.Join("/", ergebnis)} px breit (Spalte {spalte.Width} px)";
+    }
+
     internal string SelbsttestBearbeiten(Action warten)
     {
         _offen.Checked = true;
