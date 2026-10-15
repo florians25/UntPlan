@@ -902,17 +902,55 @@ public sealed class Kandidat
     public bool Rot { get; set; }
     public List<string> Kriterien { get; } = new();
     public string Lage { get; set; } = "";
+    /// <summary>Spalte „Stundenplan“: drei Stunden um die Vertretungsstunde (die Vertretungsstunde ist markiert).</summary>
+    public List<StundenplanZelle> Zellen { get; set; } = new();
+    /// <summary>Spalte „Vertr.“: gewertete Vertretungen im Zählzeitraum (Stundenwert).</summary>
+    public decimal VertretungenWert { get; set; }
+    /// <summary>Spalte „Entfall“: gewertete Entfälle und Freisetzungen im Zählzeitraum (Stundenwert, positiv).</summary>
+    public decimal EntfaelleWert { get; set; }
+    /// <summary>Spalte „Kennz.“: Lehrkraft ist am Tag bereits von Vertretungen betroffen.</summary>
+    public bool Kennzeichen { get; set; }
+    public string KennzeichenText { get; set; } = "";
+    /// <summary>Spalte „reg. Bereitschaft“: regelmäßige Bereitschaftsstunden pro Woche.</summary>
+    public int RegelBereitschaft { get; set; }
+    /// <summary>Spalte „Dep.“: Deputatsdifferenz Ist − Soll (null = kein Soll erfasst).</summary>
+    public decimal? Deputat { get; set; }
+    /// <summary>Unmittelbar angrenzender Unterricht liegt in einem anderen Gebäude (Abteilung des Raumes).</summary>
+    public bool Disloziert { get; set; }
     public bool Mehrarbeit => !Bereitschaft && !Freigesetzt;
 }
 
 /// <summary>Lehrkraft, die die Klasse neben ihrem eigenen Unterricht mitbetreuen kann.</summary>
 /// <param name="Naehe">0 = gekoppelt, 1 = gleicher Gang, 2 = gleiches Stockwerk, 3 = sonst.</param>
 public sealed record Betreuungskandidat(Lehrer Lehrer, string Klassen, string Fach, string Raum, string Gang, bool Kopplung, decimal Zaehler,
-    int Naehe = 3, string NaeheText = "", int BetreuungenHeute = 0, bool KenntKlasse = false);
+    int Naehe = 3, string NaeheText = "", int BetreuungenHeute = 0, bool KenntKlasse = false)
+{
+    /// <summary>Spalte „Stundenplan“ wie im Vertretungsvorschlag.</summary>
+    public List<StundenplanZelle> Zellen { get; init; } = new();
+    public int Zeitwunsch { get; init; }
+    public decimal Jahreszaehler { get; init; }
+    public bool Kennzeichen { get; init; }
+    public string KennzeichenText { get; init; } = "";
+}
+
+/// <summary>Eine Stunde der Spalte „Stundenplan“ im Vertretungsvorschlag.</summary>
+/// <param name="Text">Fach (bzw. Klasse) des tagesaktuellen Unterrichts, leer = frei.</param>
+/// <param name="Entfallen">Der Unterricht der Lehrkraft entfällt bzw. ist offen (rot durchgestrichen).</param>
+/// <param name="Ziel">Die Stunde der Vertretung (gestrichelt markiert).</param>
+/// <param name="Hintergrund">Fachfarbe (ARGB, 0 = keine).</param>
+public sealed record StundenplanZelle(int Stunde, string Text, bool Entfallen, bool Ziel, int Hintergrund = 0, int Vordergrund = 0);
 
 public sealed record Raumkandidat(Raum Raum, bool Ausweichraum, bool AusweichStammraum, string? BesetztDurch, string Raumgruppen, string Gang, int KapazitaetDifferenz);
 
-public sealed record Vorziehung(TagesEintrag Eintrag, DateOnly Datum, int Stunde, string Beschreibung);
+public sealed record Vorziehung(TagesEintrag Eintrag, DateOnly Datum, int Stunde, string Beschreibung)
+{
+    /// <summary>Vorgezogen wird eine Randstunde der Klasse (es entsteht keine neue Lücke).</summary>
+    public bool Randstunde { get; init; }
+    public string Lehrer { get; init; } = "";
+    public string Klassen { get; init; } = "";
+    public string Fach { get; init; } = "";
+    public string Raum { get; init; } = "";
+}
 
 public enum AutomatikMethode
 {
@@ -947,10 +985,18 @@ public static class VertretungsVorschlag
         ("V.Saldo", "Minusstunden / Soll-Ist-Saldo"), ("V.Zeitwunsch", "Zeitwunsch des Lehrers beachten"), ("V.StdTag", "Max. Stunden pro Tag beachten"),
     };
 
-    /// <summary>Vertretungsvorschlag: alle verfügbaren Lehrer, gereiht nach Schlechtpunkten.</summary>
-    public static List<Kandidat> Berechnen(Schuldatei d, Vertretung v, bool stundenblock = false, bool alleAnzeigen = false)
+    /// <summary>
+    /// Vertretungsvorschlag: alle verfügbaren Lehrer, gereiht nach Schlechtpunkten (Vorschlagsgüte wie Untis:
+    /// freigesetzte und Bereitschaftslehrer zuerst, dann nach Merker zur Stunde, Zähler und Zeitwunsch;
+    /// Lehrkräfte mit Zeitwunsch −3 stehen am Ende).
+    /// </summary>
+    /// <param name="dislozierungenIgnorieren">
+    /// Lehrkräfte auch vorschlagen, deren unmittelbar angrenzender Unterricht in einem anderen Gebäude (Abteilung des Raumes) liegt.
+    /// </param>
+    public static List<Kandidat> Berechnen(Schuldatei d, Vertretung v, bool stundenblock = false, bool alleAnzeigen = false, bool dislozierungenIgnorieren = false)
     {
         var tp = Tagesplan.Berechnen(d, v.Datum);
+        var ix = new DatenIndex(d);
         var e = d.Vertretungseinstellungen.Vorschlag;
         var tag = Kalender.TagIndex(d, v.Datum);
         var stunden = new List<int> { v.Stunde };
@@ -960,6 +1006,8 @@ public static class VertretungsVorschlag
         var klassen = v.NeueKlassenIds;
         var montag = Kalender.Montag(v.Datum);
         var monat = new DateOnly(v.Datum.Year, v.Datum.Month, 1);
+        var kennzeichen = Kennzeichen(d, ix, v);
+        var bereitschaften = RegelBereitschaften(d, ix);
         foreach (var l in d.Lehrer.Where(l => !l.Ignorieren && l.Id != v.LehrerId))
         {
             if (stunden.Any(s => Vertretungen.LehrerBelegt(d, tp, l.Id, s, v) != null)) continue;
@@ -971,7 +1019,8 @@ public static class VertretungsVorschlag
             k.Freigesetzt = k.Merker == "x";
             k.Bereitschaft = Vertretungen.HatBereitschaft(d, tp, l.Id, v.Stunde);
             k.UnterrichtAmTag = Vertretungen.UnterrichtAmTag(d, tp, l.Id);
-            k.Stundenplan = StundenplanText(d, tp, l.Id, v.Stunde);
+            k.Stundenplan = StundenplanText(d, ix, tp, l.Id, v.Stunde);
+            k.Zellen = StundenplanZellen(d, ix, tp, l.Id, v.Stunde);
             k.KenntKlasse = klassen.Count > 0 && d.Unterrichte.Any(u => u.Zeilen.Any(z => z.LehrerId == l.Id &&
                 (e.KlasseAuchFuerKlassenteil ? z.KlassenIds.Intersect(klassen).Any() : klassen.All(z.KlassenIds.Contains))));
             k.Klassenlehrer = d.Klassen.Any(c => klassen.Contains(c.Id) && c.KlassenlehrerIds.Contains(l.Id));
@@ -981,6 +1030,7 @@ public static class VertretungsVorschlag
             k.Zaehler = z.Summe;
             k.Vertretungen = z.Vertretungen;
             k.Entfaelle = z.Entfaelle;
+            (k.VertretungenWert, k.EntfaelleWert) = Werte(z);
             k.Bezahlt = z.Bezahlt;
             k.Betreuungen = z.Betreuungen;
             k.Jahreszaehler = Zaehlung.Lehrer(d, l, d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis).Summe;
@@ -988,6 +1038,10 @@ public static class VertretungsVorschlag
             k.ZaehlerMonat = Vertretungen.Zaehler(d, l.Id, monat, monat.AddMonths(1).AddDays(-1));
             k.ZaehlerJahr = Vertretungen.Zaehler(d, l.Id, d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis);
             k.Saldo = k.Jahreszaehler;
+            if (kennzeichen.TryGetValue(l.Id, out var kz)) { k.Kennzeichen = true; k.KennzeichenText = kz; }
+            k.RegelBereitschaft = bereitschaften.GetValueOrDefault(l.Id);
+            k.Deputat = l.Soll > 0 ? Module.Wertrechnung.Ist(d, ix, l) - l.Soll : null;
+            k.Disloziert = Disloziert(ix, tp, v, l.Id, stunden);
             var vorher = tp.VonLehrer(l.Id).Where(x => x.Stunde < v.Stunde).Select(x => x.Stunde).DefaultIfEmpty(0).Max();
             k.Benachrichtigen = vorher == 0 && k.UnterrichtAmTag > 0 && v.Datum == DateOnly.FromDateTime(DateTime.Today);
             var merker = Vertretungen.MerkerWert(k.Merker);
@@ -1004,13 +1058,96 @@ public static class VertretungsVorschlag
             if (k.KenntKlasse) { k.Punkte -= e.HatKlasse; k.Kriterien.Add(k.Klassenlehrer ? "Klassenlehrer" : "kennt Klasse"); }
             if (k.Fachlehrer) { k.Punkte -= e.HatFach; k.Kriterien.Add("Fach"); }
             if (zw < 0) { k.Punkte += -zw * 15; k.Kriterien.Add($"Zeitwunsch {zw}"); }
+            // Zeitwunsch −3 (gesperrt) wie Untis ans Ende der Liste
+            if (zw <= -3) k.Punkte += 1000;
             if (!l.StundenProTag.IstLeer && k.UnterrichtAmTag + 1 > l.StundenProTag.Max) { k.Punkte += 25; k.Kriterien.Add("Std./Tag überschritten"); }
             if (l.Sperrvermerk > 0) k.Kriterien.Add($"Sperrvermerk {l.Sperrvermerk}");
+            if (k.Disloziert)
+            {
+                if (!dislozierungenIgnorieren && !alleAnzeigen) continue;
+                k.Kriterien.Add("Dislozierung");
+                if (!dislozierungenIgnorieren) k.Punkte += 30;
+            }
             if (merker > e.NichtAnzeigenWennMerkerGroesser && !alleAnzeigen) continue;
             k.Rot = merker > e.RotWennMerkerGroesser || k.Zaehler > e.RotWennZaehlerGroesser || l.Sperrvermerk >= 9;
             res.Add(k);
         }
         return res.OrderBy(x => x.Punkte).ThenBy(x => x.Lehrer.Kurzname).ToList();
+    }
+
+    /// <summary>Gewertete Vertretungen (positiv) und Entfälle/Freisetzungen (als positiver Betrag) einer Zählung – Spalten „Vertr.“ und „Entfall“.</summary>
+    public static (decimal Vertretungen, decimal Entfaelle) Werte(ZaehlSumme z) =>
+        (z.Zeilen.Where(x => x.Zaehlt && x.Wert > 0).Sum(x => x.Wert), -z.Zeilen.Where(x => x.Zaehlt && x.Wert < 0).Sum(x => x.Wert));
+
+    /// <summary>
+    /// Spalte „Kennz.“: Lehrkräfte, die am Tag der Vertretung bereits von Vertretungen betroffen sind
+    /// (eigener Unterricht entfällt/wird vertreten oder sie vertreten selbst) – mit Liste der Stunden als Text.
+    /// </summary>
+    public static Dictionary<int, string> Kennzeichen(Schuldatei d, DatenIndex ix, Vertretung v)
+    {
+        var res = new Dictionary<int, List<string>>();
+        void Add(int l, string t)
+        {
+            if (!res.TryGetValue(l, out var x)) res[l] = x = new();
+            if (!x.Contains(t)) x.Add(t);
+        }
+        foreach (var x in d.Vertretungen.Where(x => x.Datum == v.Datum && x != v && x.Art != VertretungsArt.Pausenaufsicht).OrderBy(x => x.Stunde))
+        {
+            var text = $"{x.Stunde}. Std. {Vertretungsplan.ArtText(x.Art)} {ix.KKlassen(x.NeueKlassenIds)} {ix.KFach(x.VertretungsfachId ?? x.FachId)}".TrimEnd();
+            if (x.LehrerId is int l && x.VertreterId != l) Add(l, text);
+            if (x.VertreterId is int vt) Add(vt, text);
+        }
+        return res.ToDictionary(p => p.Key, p => string.Join(Environment.NewLine, p.Value));
+    }
+
+    /// <summary>Spalte „reg. Bereitschaft“: Bereitschaftsstunden je Lehrkraft und Woche laut Unterricht.</summary>
+    public static Dictionary<int, int> RegelBereitschaften(Schuldatei d, DatenIndex ix)
+    {
+        var res = new Dictionary<int, int>();
+        foreach (var u in d.Unterrichte.Where(u => !u.Ignorieren))
+            foreach (var z in u.Zeilen.Where(z => z.LehrerId.HasValue && z.FachId is int f && ix.Faecher.TryGetValue(f, out var fa) && fa.Bereitschaft))
+                res[z.LehrerId!.Value] = res.GetValueOrDefault(z.LehrerId!.Value) + u.Wochenstunden;
+        return res;
+    }
+
+    /// <summary>Sind Gebäude (Abteilungen der Räume) erfasst? Nur dann ist „Dislozierungen ignorieren“ wählbar.</summary>
+    public static bool DislozierungenDefiniert(Schuldatei d) => d.Raeume.Any(r => !r.Ignorieren && r.AbteilungId.HasValue);
+
+    /// <summary>
+    /// Dislozierung: der Unterricht der Lehrkraft unmittelbar vor oder nach der Vertretung liegt in einem anderen Gebäude
+    /// (andere Abteilung des Raumes) als der Raum der Vertretung – ohne Pause dazwischen nicht erreichbar.
+    /// </summary>
+    public static bool Disloziert(DatenIndex ix, Tagesplan tp, Vertretung v, int lehrerId, IReadOnlyCollection<int>? stunden = null)
+    {
+        var raum = v.VertretungsraumId ?? v.RaumId;
+        if (raum is not int rid || !ix.Raeume.TryGetValue(rid, out var r) || r.AbteilungId is not int geb) return false;
+        stunden ??= new[] { v.Stunde };
+        var nachbarn = new[] { stunden.Min() - 1, stunden.Max() + 1 };
+        return tp.VonLehrer(lehrerId).Where(e => nachbarn.Contains(e.Stunde)).SelectMany(e => e.RaumIds)
+            .Any(x => ix.Raeume.TryGetValue(x, out var nr) && nr.AbteilungId is int g && g != geb);
+    }
+
+    /// <summary>
+    /// Spalte „Stundenplan“ wie Untis: drei Stunden (die Vertretungsstunde in der Mitte, am Tagesrand verschoben) mit dem
+    /// Fach des tagesaktuellen Unterrichts der Lehrkraft. Entfallener bzw. offener eigener Unterricht erscheint durchgestrichen.
+    /// </summary>
+    public static List<StundenplanZelle> StundenplanZellen(Schuldatei d, DatenIndex ix, Tagesplan tp, int lehrerId, int stunde, int anzahl = 3)
+    {
+        var max = Math.Max(stunde, d.Zeitraster.StundenProTag);
+        var start = Math.Clamp(stunde - (anzahl - 1) / 2, 1, Math.Max(1, max - anzahl + 1));
+        var res = new List<StundenplanZelle>();
+        for (var s = start; s < start + anzahl; s++)
+        {
+            var aktiv = tp.Stunde(s).Where(e => e.Findetstatt && e.LehrerIds.Contains(lehrerId)).ToList();
+            var entfallen = aktiv.Count == 0
+                ? tp.Stunde(s).Where(e => (e.Status == TagesStatus.Offen && e.Regel?.LehrerId == lehrerId) || (e.Status == TagesStatus.Entfall && (e.LehrerIds.Contains(lehrerId) || e.Regel?.LehrerId == lehrerId))).ToList()
+                : new List<TagesEintrag>();
+            var liste = aktiv.Count > 0 ? aktiv : entfallen;
+            var text = string.Join(" ", liste.Select(e => ix.KFach(e.FachId) is { Length: > 0 } f ? f : ix.KKlassen(e.KlassenIds)).Where(t => t.Length > 0).Distinct());
+            var fach = liste.Select(e => e.FachId).FirstOrDefault(f => f.HasValue) is int fid ? ix.Faecher.GetValueOrDefault(fid) : null;
+            res.Add(new StundenplanZelle(s, text, aktiv.Count == 0 && entfallen.Count > 0, s == stunde, fach?.Hintergrund ?? 0, fach?.Vordergrund ?? 0));
+        }
+        return res;
     }
 
     /// <summary>Stunden des Stundenblocks (Doppelstunde/Block) der Vertretung am selben Tag.</summary>
@@ -1025,9 +1162,11 @@ public static class VertretungsVorschlag
     }
 
     /// <summary>Benachbarte Stunden des Lehrers (Spalte "Stundenplan").</summary>
-    public static string StundenplanText(Schuldatei d, Tagesplan tp, int lehrerId, int stunde, int umfang = 2)
+    public static string StundenplanText(Schuldatei d, Tagesplan tp, int lehrerId, int stunde, int umfang = 2) =>
+        StundenplanText(d, new DatenIndex(d), tp, lehrerId, stunde, umfang);
+
+    public static string StundenplanText(Schuldatei d, DatenIndex ix, Tagesplan tp, int lehrerId, int stunde, int umfang = 2)
     {
-        var ix = new DatenIndex(d);
         var teile = new List<string>();
         for (var s = Math.Max(1, stunde - umfang); s <= Math.Min(d.Zeitraster.StundenProTag, stunde + umfang); s++)
         {
@@ -1055,6 +1194,9 @@ public static class VertretungsVorschlag
         var heute = d.Vertretungen.Where(x => x.Datum == v.Datum && x.Mitbetreuung && x.VertreterId.HasValue).GroupBy(x => x.VertreterId!.Value).ToDictionary(g => g.Key, g => g.Count());
         var kennt = d.Unterrichte.Where(u => u.KlassenIds.Any(klassen.Contains)).SelectMany(u => u.Zeilen.Select(z => z.LehrerId)).Where(x => x.HasValue).Select(x => x!.Value).ToHashSet();
         var res = new List<Betreuungskandidat>();
+        var tag = Kalender.TagIndex(d, v.Datum);
+        var kennzeichen = Kennzeichen(d, ix, v);
+        var raumReihe = d.Raeume.Select((r, i) => (r.Id, i)).ToDictionary(x => x.Id, x => x.i);
         foreach (var e in tp.Stunde(v.Stunde).Where(e => e.Findetstatt && e.LehrerIds.Count > 0 && e.Vertretung != v && !Vertretungen.IstBereitschaftsfach(d, e.FachId)))
             foreach (var l in e.LehrerIds.Where(l => l != v.LehrerId && !Absenzen.LehrerAbwesend(d, l, v.Datum, v.Stunde)))
             {
@@ -1069,9 +1211,18 @@ public static class VertretungsVorschlag
                     r != null && eigenerRaum != null && r.Stockwerk.Length > 0 && r.Stockwerk == eigenerRaum.Stockwerk ? (2, "gleiches Stockwerk") :
                     (3, "");
                 res.Add(new Betreuungskandidat(le, ix.KKlassen(e.KlassenIds), ix.KFach(e.FachId), raum == 0 ? "" : ix.KRaum(raum), gang, kopplung,
-                    Zaehlung.Lehrer(d, le, zVon, zBis).Summe, naehe, text, heute.GetValueOrDefault(l), kennt.Contains(l)));
+                    Zaehlung.Lehrer(d, le, zVon, zBis).Summe, naehe, text, heute.GetValueOrDefault(l), kennt.Contains(l))
+                {
+                    Zellen = StundenplanZellen(d, ix, tp, l, v.Stunde),
+                    Zeitwunsch = tag >= 0 ? le.Zeitwuensche.Get(tag, v.Stunde) : 0,
+                    Jahreszaehler = Zaehlung.Lehrer(d, le, d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis).Summe,
+                    Kennzeichen = kennzeichen.ContainsKey(l),
+                    KennzeichenText = kennzeichen.GetValueOrDefault(l) ?? "",
+                });
             }
-        return res.OrderBy(r => r.Naehe).ThenByDescending(r => r.KenntKlasse).ThenBy(r => r.BetreuungenHeute).ThenBy(r => r.Zaehler).ToList();
+        // wie Untis: nach Nähe zum Raum der Vertretung, dann nach der Reihenfolge der Räume
+        return res.OrderBy(r => r.Naehe).ThenByDescending(r => r.KenntKlasse).ThenBy(r => r.BetreuungenHeute).ThenBy(r => r.Zaehler)
+            .ThenBy(r => d.Raeume.FirstOrDefault(x => x.Kurzname == r.Raum) is { } x ? raumReihe[x.Id] : int.MaxValue).ThenBy(r => r.Lehrer.Kurzname).ToList();
     }
 
     /// <summary>Raumvorschlag: freie Räume (optional auch besetzte) für die Stunde(n).</summary>
@@ -1152,7 +1303,14 @@ public static class VertretungsVorschlag
                 if (!ok) continue;
                 res.Add(new Vorziehung(c, t, c.Stunde,
                     $"{Planung.Planungsdienst.TageKurz[((int)t.DayOfWeek + 6) % 7]} {Format.Datum(t)} {c.Stunde}. Std.: {ix.KFach(c.FachId)} {string.Join(",", c.LehrerIds.Select(ix.KLehrer))} {ix.KKlassen(c.KlassenIds)}" +
-                    (rand ? " (Randstunde)" : " (erzeugt neue Lücke)")));
+                    (rand ? " (Randstunde)" : " (erzeugt neue Lücke)"))
+                {
+                    Randstunde = rand,
+                    Lehrer = string.Join(",", zeilen.SelectMany(z => z.LehrerIds).Distinct().Select(ix.KLehrer)),
+                    Klassen = ix.KKlassen(zeilen.SelectMany(z => z.KlassenIds).Distinct()),
+                    Fach = string.Join(",", zeilen.Select(z => ix.KFach(z.FachId)).Where(f => f.Length > 0).Distinct()),
+                    Raum = string.Join(",", zeilen.SelectMany(z => z.RaumIds).Distinct().Select(ix.KRaum)),
+                });
             }
         }
         return res.OrderBy(x => x.Datum == v.Datum ? 0 : 1).ThenBy(x => x.Datum).ThenByDescending(x => x.Stunde).ToList();
@@ -1198,7 +1356,7 @@ public static class VertretungsVorschlag
                 continue;
             }
             if (methode == AutomatikMethode.Pausenaufsichten) continue;
-            if (methode == AutomatikMethode.VorziehungenZuerst && Vorziehungen(d, v).FirstOrDefault(x => x.Beschreibung.EndsWith("(Randstunde)")) is { } vz)
+            if (methode == AutomatikMethode.VorziehungenZuerst && Vorziehungen(d, v).FirstOrDefault(x => x.Randstunde) is { } vz)
             {
                 VorziehungAusfuehren(d, v, vz, benutzer);
                 anzahl++;
