@@ -28,6 +28,29 @@ public sealed class Paketdienst
             catch (JsonException) { _stand = null; }
         }
         ZusatzferienLaden();
+        SchuelerLaden();
+    }
+
+    /// <summary>
+    /// Schülerliste aus UntPlan mit den in UntPlanWeb gepflegten Änderungen (Schülerverwaltung) zusammenführen:
+    /// geänderte Namen/Klassen ersetzen den Eintrag aus UntPlan, gelöschte entfallen, neu angelegte kommen hinzu.
+    /// </summary>
+    public void SchuelerLaden()
+    {
+        if (_stand is null) return;
+        var aenderungen = _db.Liste("SELECT id, vorname, name, klasse, geloescht FROM schueler_daten",
+            r => (Id: r.Zahl("id"), Schueler: new WebSchueler(r.Zahl("id"), r.Text("vorname"), r.Text("name"), r.Text("klasse")), Geloescht: r.Wahr("geloescht")))
+            .ToDictionary(x => x.Id);
+        var liste = new List<WebSchueler>();
+        var gesehen = new HashSet<int>();
+        foreach (var x in _stand.Paket.Elemente.Schueler)
+        {
+            if (!gesehen.Add(x.Id)) continue;
+            if (!aenderungen.TryGetValue(x.Id, out var a)) liste.Add(x);
+            else if (!a.Geloescht) liste.Add(a.Schueler);
+        }
+        liste.AddRange(aenderungen.Values.Where(a => !a.Geloescht && !gesehen.Contains(a.Id)).Select(a => a.Schueler));
+        _stand.Schueler = liste;
     }
 
     /// <summary>In UntPlanWeb gepflegte freie Tage (Administration → Freie Tage &amp; Ferien) in den aktuellen Stand übernehmen.</summary>
@@ -75,6 +98,7 @@ public sealed class Paketdienst
                 """, Db.P("@r", paket.Revision), Db.P("@j", json), Db.P("@e", empfangen));
             _stand = new Stand(paket, empfangen);
             ZusatzferienLaden();
+            SchuelerLaden();
             // Übertragungsverlauf (Administration → Stammdaten → Stundenplan-Versionen)
             var tageVon = paket.Tage.Select(t => t.Datum).DefaultIfEmpty("").Min() ?? "";
             var tageBis = paket.Tage.Select(t => t.Datum).DefaultIfEmpty("").Max() ?? "";
@@ -139,10 +163,14 @@ public sealed class Stand
     public Dictionary<string, WebLehrer> Lehrer { get; }
     public Dictionary<string, WebRaum> Raeume { get; }
     public Dictionary<string, WebElement> Gaenge { get; }
+    /// <summary>Unterrichte aller Perioden nach Nummer (spätere Periode gewinnt), z. B. für die Schülergruppe einer Stunde.</summary>
+    public Dictionary<int, WebUnterricht> Unterricht { get; }
     public DateOnly SchuljahrVon { get; }
     public DateOnly SchuljahrBis { get; }
     /// <summary>Zusätzliche freie Tage aus UntPlanWeb (werden wie Ferien bzw. Feiertage behandelt).</summary>
     public List<WebFerien> Zusatzferien { get; set; } = new();
+    /// <summary>Schüler*innen: Liste aus UntPlan mit den Änderungen der Schülerverwaltung in UntPlanWeb.</summary>
+    public List<WebSchueler> Schueler { get; set; }
 
     public Stand(WebPaket p, string empfangen)
     {
@@ -158,6 +186,10 @@ public sealed class Stand
         Gaenge = p.Elemente.Gaenge.GroupBy(x => x.Kurz, ci).ToDictionary(g => g.Key, g => g.First(), ci);
         SchuljahrVon = DateOnly.TryParse(p.Schule.SchuljahrVon, out var v) ? v : DateOnly.MinValue;
         SchuljahrBis = DateOnly.TryParse(p.Schule.SchuljahrBis, out var b) ? b : DateOnly.MaxValue;
+        Schueler = p.Elemente.Schueler;
+        Unterricht = new Dictionary<int, WebUnterricht>();
+        foreach (var per in p.Perioden.OrderBy(x => x.Von, StringComparer.Ordinal))
+            foreach (var u in per.Unterricht) Unterricht[u.Id] = u;
     }
 
     public static DateOnly D(string s) => DateOnly.Parse(s);

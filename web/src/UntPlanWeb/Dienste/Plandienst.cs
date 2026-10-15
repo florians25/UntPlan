@@ -32,6 +32,12 @@ public sealed record Karte(
     public string NotizLehrer { get; init; } = "";
     /// <summary>Zu dieser Stunde ist eine Hausaufgabe fällig (Hausaufgaben-Symbol auf der Karte).</summary>
     public bool HausaufgabeFaellig { get; init; }
+    /// <summary>Zusätzlicher Unterricht (Stunde nicht im Regelplan) – Badge „ZUSÄTZLICHER UNTERRICHT“ in den Stundendetails.</summary>
+    public bool Zusaetzlich { get; init; }
+    /// <summary>Abwesende Klassen dieser Stunde (Klasse durchgestrichen, Label „abwesend“); die Stunde selbst findet laut Plan statt.</summary>
+    public List<string> AbwesendeKlassen { get; init; } = new();
+    /// <summary>Text des Labels bei abwesender Klasse, z. B. „abwesend“ bzw. „abwesend – Exkursion“ (Grund nur fürs Kollegium).</summary>
+    public string AbwesendText { get; init; } = "";
 }
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
@@ -67,6 +73,8 @@ public sealed class Plandienst
 {
     /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft („+++“), wenn kein anderer Text vorhanden ist.</summary>
     public const string OhneLehrkraftText = "Vertr. o. Lehrkraft";
+    /// <summary>Lehrkraft eines zusätzlichen Unterrichts, für den (noch) keine Lehrkraft eingetragen ist.</summary>
+    public const string OhneLehrkraftZusatz = "---";
     public static readonly string[] Wochentage = { "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag" };
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
 
@@ -149,7 +157,7 @@ public sealed class Plandienst
 
     private static bool Enthaelt(IReadOnlyList<string> liste, string kurz) => liste.Any(x => Ci.Equals(x, kurz));
 
-    private static bool IstBereitschaft(Stand s, string fach) =>
+    public static bool IstBereitschaft(Stand s, string fach) =>
         fach.Equals("BER", StringComparison.OrdinalIgnoreCase) || (s.Faecher.TryGetValue(fach, out var f) && f.Name.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Karten eines Elements an einem Tag; zusammenhängende gleiche Stunden werden zu Blöcken zusammengefasst.</summary>
@@ -174,7 +182,8 @@ public sealed class Plandienst
                 Elementtyp.Raum => Enthaelt(r.Raeume, kurz) || (v != null && (Ci.Equals(v.Raum, kurz) || (r.Raeume.Count == 0 && r.Status != "entfall" && Ci.Equals(v.NeuerRaum, kurz)))),
                 _ => false,
             };
-            if (!betrifft) continue;
+            // vorgemerkte Raumänderung eines Unterrichts: wird unten auf die Stunde gelegt, falls diese im Plan steht
+            if (!betrifft && !(r.Status == "vorgemerkt" && r.Unterricht.HasValue && r.Art != "Klausur")) continue;
             var k = KarteBauen(s, d, typ, kurz, r, v, zeiten);
             if (r.Status == "vorgemerkt") vorgemerkt.Add((r, k));
             else
@@ -183,18 +192,48 @@ public sealed class Plandienst
                 if (Fachwechsel(k, typ, kurz) is { } alt) einzel.Add(alt);
             }
         }
-        // Vorgemerkte Klausuren und Raumbuchungen zu einer Unterrichtsstunde (gleiche Stunde, gemeinsame Klasse) direkt auf die Stundenkarte legen
+        // Vorgemerkte Klausuren und Raumbuchungen zu einer Unterrichtsstunde direkt auf die Stundenkarte legen.
+        // Raumbuchung zu einem Unterricht (Stundendetails: Ersetzen, Löschen, zusätzlicher Raum) = reine Raumänderung:
+        // nur die Räume ändern sich (alt → neu), kein Vertretungstext, kein zusätzlicher Eintrag im Stundenplan.
         foreach (var (r, k) in vorgemerkt)
         {
-            var i = r.Klassen.Count == 0 ? -1 : einzel.FindIndex(x => x.Von == r.Stunde && x.Unterricht.HasValue && x.Status is not ("entfall" or "abwesend")
+            var raumbuchung = r.Art != "Klausur";
+            int i;
+            if (raumbuchung && r.Unterricht is int uz)
+            {
+                i = einzel.FindIndex(x => x.Unterricht == uz && r.Stunde >= x.Von && r.Stunde <= x.Bis && x.Status is not ("entfall" or "abwesend"));
+                // Raumplan des neuen Raums: die hierher verlegte Stunde anzeigen
+                if (i < 0 && typ == Elementtyp.Raum && Enthaelt(r.Raeume, kurz) &&
+                    roh.FirstOrDefault(x => x.Unterricht == uz && x.Stunde == r.Stunde && x.Status is not ("entfall" or "vorgemerkt")) is { } basis)
+                {
+                    WebVertretung? bv = basis.Vertretung is int bid && s.Vertretungen.TryGetValue(bid, out var bx) ? bx : null;
+                    einzel.Add(KarteBauen(s, d, typ, kurz, basis, bv, zeiten));
+                    i = einzel.Count - 1;
+                }
+                if (i < 0) continue;
+            }
+            else
+                i = r.Klassen.Count == 0 ? -1 : einzel.FindIndex(x => x.Von == r.Stunde && x.Unterricht.HasValue && x.Status is not ("entfall" or "abwesend")
                                                                       && x.Klassen.Any(w => Enthaelt(r.Klassen, w.K)));
-            if (i < 0) { einzel.Add(k); continue; }
+            if (i < 0)
+            {
+                // reine Raumbuchung ohne Unterricht: nur im Raumplan, kein zusätzlicher Eintrag im eigenen Stundenplan
+                if (!raumbuchung || typ == Elementtyp.Raum) einzel.Add(k);
+                continue;
+            }
             var ziel = einzel[i];
-            var raeume = r.Raeume.Count == 0 ? ziel.Raeume
-                : r.Raeume.Select(x => ziel.Raeume.FirstOrDefault(w => Ci.Equals(w.K, x)) ?? new Wert(x, ziel.Raeume.FirstOrDefault()?.K ?? "", true)).ToList();
-            einzel[i] = r.Art == "Klausur"
-                ? ziel with { Status = "klausur", Art = "Klausur (vorgemerkt)", Text = r.Text, Raeume = raeume }
-                : ziel with { Status = ziel.Status == "regulaer" ? "geaendert" : ziel.Status, Art = "Raumänderung (vorgemerkt)", Raeume = raeume, Text = r.Text.Length > 0 && r.Text != "Raumbuchung" ? r.Text : ziel.Text };
+            if (!raumbuchung)
+            {
+                var kr = r.Raeume.Count == 0 ? ziel.Raeume
+                    : r.Raeume.Select(x => ziel.Raeume.FirstOrDefault(w => Ci.Equals(w.K, x)) ?? new Wert(x, ziel.Raeume.FirstOrDefault()?.K ?? "", true)).ToList();
+                einzel[i] = ziel with { Status = "klausur", Art = "Klausur (vorgemerkt)", Text = r.Text, Raeume = kr };
+                continue;
+            }
+            var raeume = RaeumeNachBuchung(ziel.Raeume, r.Raeume);
+            var status = ziel.Status == "regulaer" ? "geaendert" : ziel.Status;
+            // Raumplan des bisherigen Raums: die Stunde findet woanders statt
+            if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) status = "abwesend";
+            einzel[i] = ziel with { Status = status, Raeume = raeume, Art = ziel.Art.Length > 0 ? ziel.Art : "Raumänderung (vorgemerkt)" };
         }
         // Teilnahmen mehrerer Lehrkräfte an derselben Veranstaltung: eine Karte mit allen Beteiligten
         var veranstaltungen = einzel.Where(k => k.Status == "veranstaltung").GroupBy(k => (k.Von, k.Text))
@@ -205,7 +244,43 @@ public sealed class Plandienst
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k))).ToList();
-        return Zusammenfassen(Kopplungen(einzel), zeiten);
+        return KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(einzel), zeiten));
+    }
+
+    /// <summary>Abwesende Klassen (Absenzen aus UntPlan) auf den Karten markieren – echte Entfälle und Veranstaltungen bleiben unverändert.</summary>
+    private static List<Karte> KlassenAbwesenheit(Stand s, DateOnly d, List<Karte> karten)
+    {
+        var absenzen = s.Paket.Absenzen.Where(a => a.Art == "klasse" && DateOnly.TryParse(a.Von, out var v) && DateOnly.TryParse(a.Bis, out var b) && d >= v && d <= b).ToList();
+        if (absenzen.Count == 0) return karten;
+        bool Trifft(WebAbsenz a, int von, int bis) => a.StundeVon <= bis && (a.StundeBis >= von || a.StundeBis < a.StundeVon || a.StundeBis >= 20);
+        return karten.Select(k =>
+        {
+            if (k.Status is "entfall" or "veranstaltung" or "vorgemerkt" or "buchung") return k;
+            var treffer = absenzen.Where(a => k.Klassen.Any(w => Ci.Equals(w.K, a.Element)) && Trifft(a, k.Von, k.Bis)).ToList();
+            if (treffer.Count == 0) return k;
+            var grund = treffer.Select(a => a.Grund).FirstOrDefault(g => !string.IsNullOrWhiteSpace(g));
+            return k with
+            {
+                AbwesendeKlassen = treffer.Select(a => k.Klassen.First(w => Ci.Equals(w.K, a.Element)).K).Distinct(Ci).ToList(),
+                AbwesendText = grund is null ? "abwesend" : $"abwesend – {grund}",
+            };
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Räume einer Stunde nach einer Raumbuchung (neu = vollständige neue Raumliste): ersetzte Räume als „alt → neu“,
+    /// zusätzliche Räume als neuer Wert, entfernte Räume durchgestrichen.
+    /// </summary>
+    internal static List<Wert> RaeumeNachBuchung(List<Wert> bisher, IReadOnlyList<string> neu)
+    {
+        // ursprünglicher Raum je bisherigem Wert (bei schon geändertem Raum der Wert vor der Änderung)
+        var entfernt = bisher.Where(w => w.K.Length > 0 && !Enthaelt(neu, w.K)).Select(w => w.Alt is { Length: > 0 } a ? a : w.K).ToList();
+        var res = new List<Wert>();
+        var j = 0;
+        foreach (var x in neu.Where(x => x.Length > 0).Distinct(Ci))
+            res.Add(bisher.FirstOrDefault(w => Ci.Equals(w.K, x)) ?? new Wert(x, j < entfernt.Count ? entfernt[j++] : null, true));
+        for (; j < entfernt.Count; j++) res.Add(new Wert("", entfernt[j], true));
+        return res;
     }
 
     /// <summary>
@@ -340,19 +415,50 @@ public sealed class Plandienst
             }
             else if (raeume.Count == 0 && (v.Raum.Length > 0 || v.NeuerRaum.Length > 0))
                 raeume.Add(new Wert(v.NeuerRaum.Length > 0 && status != "entfall" ? v.NeuerRaum : v.Raum));
+            // offene Raumvertretung (Raum „???“): wie eine offene Lehrervertretung – bisheriger Raum durchgestrichen
+            if (status != "entfall" && (v.NeuerRaum == "???" || raeume.Any(x => x.K == "???")))
+            {
+                var bisherRaum = v.Raum.Length > 0 && v.Raum != "???" ? v.Raum : null;
+                raeume = raeume.Where(x => x.K != "???").ToList();
+                raeume.RemoveAll(x => bisherRaum != null && Ci.Equals(x.K, bisherRaum));
+                raeume.Insert(0, new Wert("", bisherRaum ?? "???", true));
+                if (status is "regulaer" or "geaendert") status = "offen";
+            }
             // Eigene Stunde wird von jemand anderem gehalten bzw. findet in einem anderen Raum statt
             if (typ == Elementtyp.Lehrer && Ci.Equals(v.Lehrer, kurz) && !Enthaelt(r.Lehrer, kurz) && status is "geaendert" or "offen")
                 status = "abwesend";
             if (typ == Elementtyp.Raum && Ci.Equals(v.Raum, kurz) && !Enthaelt(r.Raeume, kurz) && status is "geaendert")
                 status = "abwesend";
         }
+        // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft (Kürzel durchgestrichen)
+        var bereitschaft = IstBereitschaft(s, fach) || (v != null && v.Art.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase));
+        if (bereitschaft && status == "entfall")
+        {
+            status = "abwesend";
+            var eingeteilt = lehrer.Select(w => w.K.Length > 0 ? w.K : w.Alt ?? "").Where(x => x.Length > 0).ToList();
+            if (eingeteilt.Count == 0 && v != null && v.Lehrer.Length > 0) eingeteilt.Add(v.Lehrer);
+            lehrer = eingeteilt.Distinct(Ci).Select(x => new Wert("", x)).ToList();
+        }
+        // zusätzlicher Unterricht ohne Lehrkraft: „---“
+        var zusatz = r.Status == "zusaetzlich" && status == "geaendert";
+        if (zusatz && lehrer.Count == 0) lehrer.Add(new Wert(OhneLehrkraftZusatz));
         var text = string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
         // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
         if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
         s.Faecher.TryGetValue(fach, out var fe);
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
         return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
-            r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, "");
+            r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, Gruppe(s, r))
+        { Zusaetzlich = zusatz };
+    }
+
+    /// <summary>Schülergruppe des Unterrichts (Kopplungszeile mit gleichem Fach bzw. gleicher Lehrkraft), sonst leer.</summary>
+    private static string Gruppe(Stand s, Rohstunde r)
+    {
+        if (r.Unterricht is not int u || !s.Unterricht.TryGetValue(u, out var un)) return "";
+        var zeile = un.Zeilen.FirstOrDefault(z => Ci.Equals(z.Fach, r.Fach) && r.Lehrer.Any(l => Ci.Equals(l, z.Lehrer)))
+                    ?? un.Zeilen.FirstOrDefault(z => Ci.Equals(z.Fach, r.Fach)) ?? (un.Zeilen.Count == 1 ? un.Zeilen[0] : null);
+        return zeile?.Gruppe ?? "";
     }
 
     private static string Schluessel(Karte k) =>

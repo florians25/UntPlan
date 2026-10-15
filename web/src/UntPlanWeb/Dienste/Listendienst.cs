@@ -10,7 +10,15 @@ public sealed record Unterrichtszeile(int Id, string Fach, string FachName, stri
 
 /// <summary>Prüfung (Klausur aus UntPlan oder in UntPlanWeb vorgemerkt).</summary>
 public sealed record Pruefung(string Datum, int StundeVon, int StundeBis, string Beginn, string Ende, string Titel, List<string> Klassen, List<string> Lehrer,
-    List<string> Raeume, string Status, string Text);
+    List<string> Raeume, string Status, string Text)
+{
+    /// <summary>Prüfungsart (Klassenarbeit, Klausur, Test …) – aus dem Text „Art: …“ bzw. dem Titel.</summary>
+    public string Art { get; init; } = "";
+    /// <summary>Fach (Kürzel), wenn der Titel ein Fach ist.</summary>
+    public string Fach { get; init; } = "";
+    /// <summary>Eingetragen am (yyyy-MM-dd), bei in UntPlanWeb vorgemerkten Prüfungen.</summary>
+    public string Aufgegeben { get; init; } = "";
+}
 
 /// <summary>Abwesenheit einer Schülerin/eines Schülers an einem Tag (aufeinanderfolgende Stunden zusammengefasst).</summary>
 public sealed record Abwesenheitszeile(int SchuelerId, string Schueler, string Klasse, string Datum, int StundeVon, int StundeBis, string Beginn, string Ende,
@@ -89,7 +97,7 @@ public sealed class Listendienst
         var res = new List<Pruefung>();
         foreach (var t in s.Paket.Termine.Where(t => t.Art == "klausur" && DateOnly.TryParse(t.Von, out var d) && d >= von && d <= bis && Passt(t.Klassen, t.Lehrer)))
             res.Add(new Pruefung(t.Von, t.StundeVon, Math.Max(t.StundeVon, t.StundeBis), Beginn(t.StundeVon), Ende(Math.Max(t.StundeVon, t.StundeBis)), t.Titel,
-                t.Klassen, t.Lehrer, t.Raeume, "geplant", ""));
+                t.Klassen, t.Lehrer, t.Raeume, "geplant", "") { Art = PruefungsArt(t.Titel, "") , Fach = FachAus(s, t.Titel) });
         foreach (var m in offeneKlausuren)
         {
             if (!DateOnly.TryParse(m.Von, out var d) || d < von || d > bis) continue;
@@ -99,9 +107,28 @@ public sealed class Listendienst
             if (!Passt(m.Klassen, lehrerListe)) continue;
             var v = m.StundeVon ?? 1;
             var b = Math.Max(v, m.StundeBis ?? v);
-            res.Add(new Pruefung(m.Von!, v, b, Beginn(v), Ende(b), m.Titel ?? "Klausur", m.Klassen, lehrerListe, m.Raeume, "vorgemerkt", m.Text ?? ""));
+            res.Add(new Pruefung(m.Von!, v, b, Beginn(v), Ende(b), m.Titel ?? "Klausur", m.Klassen, lehrerListe, m.Raeume, "vorgemerkt", m.Text ?? "")
+            { Art = PruefungsArt(m.Titel ?? "", m.Text ?? ""), Fach = FachAus(s, m.Titel ?? ""), Aufgegeben = m.Erstellt.Length >= 10 ? m.Erstellt[..10] : "" });
         }
         return res.OrderBy(x => x.Datum).ThenBy(x => x.StundeVon).ThenBy(x => x.Klassen.FirstOrDefault() ?? "", De).ToList();
+    }
+
+    public static readonly string[] Pruefungsarten = { "Klassenarbeit", "Klausur", "Test", "Abschlussprüfung", "Präsentation", "Referat", "Vergleichsarbeit" };
+
+    /// <summary>Prüfungsart aus „Art: Text“ bzw. dem Titel; sonst „Klausur“.</summary>
+    internal static string PruefungsArt(string titel, string text)
+    {
+        foreach (var a in Pruefungsarten)
+            if (text.StartsWith(a, StringComparison.OrdinalIgnoreCase)) return a;
+        foreach (var a in Pruefungsarten)
+            if (titel.Contains(a, StringComparison.OrdinalIgnoreCase)) return a;
+        return titel.Contains("Test", StringComparison.OrdinalIgnoreCase) ? "Test" : "Klausur";
+    }
+
+    private static string FachAus(Stand s, string titel)
+    {
+        var w = titel.Split(new[] { ' ', '-', '–', ':' }, StringSplitOptions.RemoveEmptyEntries);
+        return w.FirstOrDefault(x => s.Faecher.ContainsKey(x)) is { } f ? s.Faecher[f].Kurz : "";
     }
 
     /// <summary>Hausaufgaben im Zeitraum (nach Fälligkeit), gefiltert nach Klasse und/oder Lehrkraft.</summary>
@@ -113,7 +140,7 @@ public sealed class Listendienst
     /// <summary>Klassenbucheinträge (Vermerke) einer oder aller Klassen, neueste zuerst.</summary>
     public List<Vermerkzeile> Vermerke(Stand s, DateOnly von, DateOnly bis, string? klasse, string? art)
     {
-        var namen = s.Paket.Elemente.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => $"{g.First().Name}, {g.First().Vorname}");
+        var namen = s.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => $"{g.First().Name}, {g.First().Vorname}");
         var klassen = string.IsNullOrEmpty(klasse) ? s.Paket.Elemente.Klassen.Select(k => k.Kurz).ToList() : new List<string> { klasse };
         return klassen.SelectMany(k => _kb.Vermerke(k, von, bis))
             .Where(v => string.IsNullOrEmpty(art) || Ci.Equals(v.Art, art))
@@ -125,7 +152,7 @@ public sealed class Listendienst
     public List<Abwesenheitszeile> Abwesenheiten(Stand s, Benutzer b, DateOnly von, DateOnly bis, string? klasse, string? status)
     {
         var zeiten = Zeiten(s);
-        var schueler = s.Paket.Elemente.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+        var schueler = s.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
         var verwalten = new Dictionary<string, bool>(Ci);
         bool Verwalten(string k) => verwalten.TryGetValue(k, out var x) ? x : verwalten[k] = Klassenbuchdienst.IstKlassenleitung(b, s, k);
         var liste = _kb.FehlzeitenZeitraum(von, bis, string.IsNullOrEmpty(klasse) ? null : klasse)

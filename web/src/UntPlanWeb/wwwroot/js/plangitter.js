@@ -14,8 +14,11 @@ export function statusText(k) {
   return STATUSTEXT[k.status] ?? '';
 }
 
-/** Zusätzliche Stunde (Sondereinsatz, Verlegung hierher …) – Marker „+“ statt Änderungsquadrat. */
-const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert' && /sondereinsatz|zusatz|verlegung|statt|mitbetreuung/i.test(k.art || ''));
+/** Zusätzliche Stunde (zusätzlicher Unterricht, Sondereinsatz, Verlegung hierher …) – Marker „+“ statt Änderungsquadrat. */
+const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert' && (k.zusaetzlich || /sondereinsatz|zusatz|verlegung|statt|mitbetreuung/i.test(k.art || '')));
+
+/** Hover-Text eines geänderten Werts wie im Original: „B070 → C197“ (erscheint nur beim Überfahren des Labels). */
+const wechsel = (alt, neu) => `${alt} → ${neu}`;
 
 /**
  * Werte (Klassen, Lehrkräfte, Räume) wie im Original: neuer Wert als grüne Kürzelbox, bei offener Vertretung der
@@ -31,7 +34,8 @@ export function werte(liste, entfall = false) {
   return (liste || []).map(w => {
     if (entfall) return e(w.alt || w.k);
     if (w.alt && !w.k) return `<span class="lbl weg">${e(w.alt)}</span>`;
-    if (w.alt || w.neu) return `<span class="lbl">${e(w.k)}</span>`;
+    if (w.alt) return `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k))}">${e(w.k)}</span>`;
+    if (w.neu) return `<span class="lbl" data-hover="${e('+ ' + w.k)}">${e(w.k)}</span>`;
     return e(w.k);
   }).join(', ');
 }
@@ -67,9 +71,9 @@ export function infoText(k) {
 /** Symbole unten rechts: fällige Hausaufgabe und Info (Original-Icons). */
 function eckSymbole(k) {
   const info = infoText(k);
-  const hw = k.hausaufgabeFaellig ? '<img class="ecke-hw" src="img/wu/exact/tt-homework-icon.svg" alt="" title="Hausaufgabe fällig">' : '';
-  const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" title="${e(info)}">` : '';
-  return hw || i ? `<span class="ecke" aria-hidden="true">${hw}${i}</span>` : '';
+  const hw = k.hausaufgabeFaellig ? '<img class="ecke-hw" src="img/wu/exact/tt-homework-icon.svg" alt="" data-hover="Hausaufgabe fällig" data-hover-art="dunkel">' : '';
+  const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" data-hover="${e(info)}" data-hover-art="dunkel">` : '';
+  return hw || i ? `<span class="ecke">${hw}${i}</span>` : '';
 }
 
 /**
@@ -77,9 +81,18 @@ function eckSymbole(k) {
  * im Raumplan Klasse(n), Lehrkraft, Fach. Bei zusammengefassten Kopplungen (gleiches Fach und gleicher Raum) stehen alle
  * Lehrkräfte und Klassen auf der Karte. Ohne Fach (Veranstaltung, Klausur, Buchung) steht die Bezeichnung oben.
  */
+/** Abwesende Klassen einer Karte (Absenz aus UntPlan). */
+const abwesend = k => new Set((k.abwesendeKlassen || []).map(x => x.toLowerCase()));
+/** Klassen mit durchgestrichenen abwesenden Klassen. */
+function klassenWerte(k, entfall) {
+  const weg = abwesend(k);
+  if (!weg.size || entfall) return werte(k.klassen, entfall);
+  return (k.klassen || []).map(w => weg.has((w.k || '').toLowerCase()) ? `<span class="kl-weg">${e(w.k)}</span>` : werte([w])).join(', ');
+}
+
 export function karteInhalt(k, typ, kompakt = false) {
   const entfall = istEntfall(k, typ);
-  const fach = k.fachAlt && !entfall ? `<span class="lbl">${e(k.fach)}</span>` : e(k.fach || '');
+  const fach = k.fachAlt && !entfall ? `<span class="lbl" data-hover="${e(wechsel(k.fachAlt, k.fach))}">${e(k.fach)}</span>` : e(k.fach || '');
   const ohneFach = !k.fach;
   let oben, rest;
   if (ohneFach) {
@@ -89,25 +102,33 @@ export function karteInhalt(k, typ, kompakt = false) {
   } else if (typ === 'klasse') {
     const lehrer = werte(k.lehrer, entfall);
     oben = lehrer || fach;
-    rest = [lehrer ? fach : '', werte(k.raeume, entfall), k.klassen.length > 1 ? werte(k.klassen, entfall) : ''];
+    rest = [lehrer ? fach : '', werte(k.raeume, entfall), k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : ''];
   } else if (typ === 'raum') {
-    oben = werte(k.klassen, entfall) || fach;
+    oben = klassenWerte(k, entfall) || fach;
     rest = [werte(k.lehrer, entfall), k.klassen.length ? fach : ''];
   } else {
-    oben = werte(k.klassen, entfall) || fach;
-    // Lehrkraft abwesend: eigenes Kürzel durchgestrichen als Plakette; Kopplung: alle Lehrkräfte
-    const lehrerZeile = lehrerAbwesend(k, typ) ? (k.lehrer.filter(w => (w.alt || w.k)).map(w => `<span class="lbl weg">${e(w.alt || w.k)}</span>`).join(' ') || '')
+    oben = klassenWerte(k, entfall) || fach;
+    // Eigene Abwesenheit: die vertretende Lehrkraft als grünes Label (Hover „HOF → BEC“); ohne Vertretung (Vertretung ohne
+    // Lehrkraft, weggefallene Bereitschaft) das eigene Kürzel durchgestrichen. Kopplung: alle Lehrkräfte.
+    const lehrerZeile = lehrerAbwesend(k, typ) ? (k.lehrer.filter(w => w.alt || w.k).map(w => w.k && w.alt
+        ? `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k))}">${e(w.k)}</span>`
+        : `<span class="lbl weg">${e(w.alt || w.k)}</span>`).join(' ') || '')
       : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werte(k.lehrer, entfall) : '';
     rest = [k.klassen.length ? fach : '', werte(k.raeume, entfall), lehrerZeile];
   }
   const zeilen = rest.filter(x => x);
+  // abwesende Klasse: Label „abwesend …“ (Hover mit den Klassen)
+  if (abwesend(k).size && !entfall) zeilen.push(`<span class="abw-label" data-hover="${e([...abwesend(k)].join(', ') + ' ' + (k.abwesendText || 'abwesend'))}" data-hover-art="dunkel">${e(k.abwesendText || 'abwesend')}</span>`);
   const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.join(' · ')}</div>` : '') : zeilen.map(x => `<div class="z2">${x}</div>`).join('');
   return `${marker(k, typ)}<div class="z1">${oben}</div>${rumpf}${eckSymbole(k)}`;
 }
 
 /** CSS-Klassen einer Karte (Status, Lehrkraft abwesend, vergangen). */
 export function kartenKlasse(k, typ, jetztIso, jetzt) {
-  return [k.status, lehrerAbwesend(k, typ) ? 'lehrer-abwesend' : '', istEntfall(k, typ) && k.status === 'abwesend' ? 'entfall' : '',
+  const klasseWeg = (k.abwesendeKlassen || []).length && !istEntfall(k, typ);
+  // im eigenen (Lehrer-)Plan: alle Klassen abwesend → gestrichelt wie bei abwesender Lehrkraft
+  const alleWeg = klasseWeg && typ === 'lehrer' && k.klassen.every(w => k.abwesendeKlassen.some(x => x.toLowerCase() === (w.k || '').toLowerCase()));
+  return [k.status, lehrerAbwesend(k, typ) || alleWeg ? 'lehrer-abwesend' : '', klasseWeg ? 'klasse-abwesend' : '', istEntfall(k, typ) && k.status === 'abwesend' ? 'entfall' : '',
     vergangen(k, jetztIso, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''].filter(Boolean).join(' ');
 }
 
@@ -181,7 +202,8 @@ function jetztPosition(zeiten, aufbau, jetzt) {
 }
 
 /** Block an Pausenzeilen teilen: Aufsichten trennen Doppelstunden. */
-function abschnitte(k, aufbau, index) {
+function abschnitte(k, aufbau, index, durchgaengig = false) {
+  if (durchgaengig) return [[k.von, k.bis]];
   const res = [];
   let start = k.von;
   for (let n = k.von; n < k.bis; n++) if (aufbau.pause.has(n) && index.has(n + 1)) { res.push([start, n]); start = n + 1; }
@@ -207,7 +229,7 @@ const leisteEintrag = (text, art) => `<div class="tt-ereignis ${art}" title="${e
 export const tagKopf = (i, iso) => { const [, m, t] = iso.split('-'); return `${WOCHENTAGE_KURZ[i] ?? ''} ${t}.${m}.`; };
 
 /** Wochenraster als HTML. plan: Antwort von /api/app/plan; gewaehlterTag: Index für die Mobilansicht. */
-export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false } = {}) {
+export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false, aufsichten: aufsichtModus = 'normal' } = {}) {
   const alle = plan.zeitraster.filter(z => z.beginn && z.ende);
   if (!alle.length) return '<div class="alert alert-secondary">Kein Zeitraster übertragen.</div>';
   // Raster immer vollständig (alle Stunden des Zeitrasters), wie im Original
@@ -220,7 +242,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false 
   const tage = plan.tage;
   const ausgewaehlt = gewaehlterTag ?? Math.max(0, tage.findIndex(t => t.datum === heute));
   const jetztY = tage.some(t => t.datum === heute) ? jetztPosition(zeiten, aufbau, jetzt) : null;
-  const mitLeiste = tage.some(t => t.hinweise.length);
+  // „abwesend …“ steht nicht zusätzlich über dem Tag – die Karten zeigen die Abwesenheit bereits
+  const hinweise = t => plan.typ === 'lehrer' ? t.hinweise.filter(h => !/^abwesend\b/i.test(h)) : t.hinweise;
+  const mitLeiste = tage.some(t => hinweise(t).length);
 
   let html = `<div class="tt" style="--tage:${tage.length}"><div class="tt-ecke"></div>`;
   tage.forEach((t, i) => {
@@ -228,7 +252,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false 
   });
   if (mitLeiste) {
     html += '<div class="tt-ecke"></div>';
-    tage.forEach((t, i) => { html += `<div class="tt-leiste ${i === ausgewaehlt ? 'gewaehlt' : ''}">${t.hinweise.map(h => leisteEintrag(h, 'hinweis')).join('')}</div>`; });
+    tage.forEach((t, i) => { html += `<div class="tt-leiste ${i === ausgewaehlt ? 'gewaehlt' : ''}">${hinweise(t).map(h => leisteEintrag(h, 'hinweis')).join('')}</div>`; });
   }
 
   // Zeitachse wie im Original: Beginn oben an der Stunde, Ende unten (über der Linie), dazwischen die Stundennummer
@@ -260,18 +284,21 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false 
       const { spur, anzahl } = lage.get(k);
       const breite = 100 / anzahl;
       const nr = k.ereignis ? '' : `data-karte="${plan.karten.indexOf(k)}"`;
-      for (const [von, bis] of abschnitte(k, aufbau, index)) {
+      // Veranstaltungen (und bei halbierten/ausgeblendeten Aufsichten alle Karten) laufen über die Pause hinweg durch
+      for (const [von, bis] of abschnitte(k, aufbau, index, k.status === 'veranstaltung' || aufsichtModus !== 'normal')) {
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
         const oben = aufbau.oben[iv] + 1, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 1;
         // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“)
         const mitZeit = kartenZeiten && h >= 60 && anzahl === 1;
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
-          title="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + ${spur ? 2 : 0}px);width:calc(${breite}% - ${anzahl > 1 ? 2 : 0}px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
+          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + ${spur ? 2 : 0}px);width:calc(${breite}% - ${anzahl > 1 ? 2 : 0}px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
       }
     }
     // Pausenaufsichten in der Pausenzeile
-    const aufsichten = plan.aufsichten.filter(a => a.datum === t.datum && aufbau.pause.has(a.nachStunde));
+    const aufsichten = aufsichtModus === 'aus' ? [] : plan.aufsichten.filter(a => a.datum === t.datum && aufbau.pause.has(a.nachStunde));
+    // durchgängige Veranstaltung über diese Pause: Aufsicht schmal daneben
+    const ueberPause = nach => aufsichtModus === 'halbiert' || alleKarten.some(k => k.status === 'veranstaltung' && k.von <= nach && k.bis > nach);
     const proPause = new Map();
     for (const a of aufsichten) proPause.set(a.nachStunde, [...(proPause.get(a.nachStunde) ?? []), a]);
     for (const [nach, liste] of proPause) {
@@ -279,8 +306,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false 
       liste.forEach((a, j) => {
         const ersatz = a.lehrer && !/^[?+]+$/.test(a.lehrer) ? a.lehrer : '';
         const text = a.status === 'vertreten' ? (ersatz ? `${a.gangName || a.gang} → ${ersatz}` : (a.gangName || a.gang)) : a.status === 'vertretung' ? `${a.gangName || a.gang} (für ${a.alt})` : (a.gangName || a.gang);
-        html += `<div class="aufsicht ${e(a.status)}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
-          title="Pausenaufsicht ${e(a.gangName || a.gang)} ${e(a.beginn)}–${e(a.ende)}">${a.status === 'vertretung' ? '<i class="mk-plus"></i>' : ''}<span>Aufsicht ${e(text)}</span></div>`;
+        html += `<div class="aufsicht ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
+          aria-label="Pausenaufsicht ${e(a.gangName || a.gang)} ${e(a.beginn)}–${e(a.ende)}">${a.status === 'vertretung' ? '<i class="mk-plus"></i>' : ''}<span>${e(text)}</span></div>`;
       });
     }
     if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>${t.datum === heute ? `<div class="tt-jetzt heute" style="top:${jetztY}px"></div>` : ''}`;
@@ -293,6 +320,32 @@ export function tagAuswahl(plan, gewaehlt) {
   return `<div class="tt-tagwahl nicht-drucken" role="group" aria-label="Tag wählen">${plan.tage.map((t, i) =>
     `<button type="button" data-tagwahl="${i}" class="${i === gewaehlt ? 'aktiv' : ''}" aria-pressed="${i === gewaehlt}">${WOCHENTAGE_KURZ[i]}<small>${tagKopf(i, t.datum).split(' ')[1]}</small></button>`).join('')}</div>`;
 }
+
+/**
+ * Hover wie im Original (nur auf Labels und Symbolen unten rechts, nicht auf der ganzen Karte): grünes Label
+ * „B070 → C197“ über dem geänderten Wert bzw. dunkler Hinweis über dem Info-Symbol. Ein schwebendes Element, damit es
+ * nicht von der Karte abgeschnitten wird.
+ */
+let hoverEl = null;
+function hoverZeigen(ziel) {
+  if (!hoverEl) { hoverEl = document.createElement('div'); hoverEl.className = 'u-hover-label'; hoverEl.setAttribute('role', 'tooltip'); document.body.append(hoverEl); }
+  hoverEl.textContent = ziel.dataset.hover;
+  hoverEl.classList.toggle('dunkel', ziel.dataset.hoverArt === 'dunkel');
+  hoverEl.style.display = 'block';
+  const r = ziel.getBoundingClientRect();
+  const b = hoverEl.offsetWidth, h = hoverEl.offsetHeight;
+  const unten = ziel.dataset.hoverPos === 'unten';
+  const links = Math.max(6, Math.min(window.innerWidth - b - 6, unten ? r.left : ziel.dataset.hoverArt === 'dunkel' ? r.right - b : r.left - 4));
+  hoverEl.style.left = `${links}px`;
+  hoverEl.style.top = `${unten ? r.bottom + 6 : Math.max(6, r.top - h - 6)}px`;
+}
+function hoverVerbergen() { if (hoverEl) hoverEl.style.display = 'none'; }
+document.addEventListener('mouseover', ev => {
+  const z = ev.target.closest?.('[data-hover]');
+  if (z && z.closest('.std, .tt-liste, .tagplan, .sd-kopf, .u-hover-bereich')) hoverZeigen(z); else hoverVerbergen();
+});
+document.addEventListener('scroll', hoverVerbergen, true);
+document.addEventListener('click', hoverVerbergen, true);
 
 /** Klick auf eine Karte öffnet den Detaildialog. */
 export function kartenBinden(wurzel, karten, kontext, typ = null) {
@@ -328,7 +381,7 @@ export function tagesGitter(tag) {
       for (let n = z.nr + 1; n <= bis; n++) belegt.add(n);
       html += `<div class="tagplan-zelle" style="grid-column:span ${bis - z.nr + 1}">` + hier.map(k => {
         alle.push(k);
-        return `<div class="std ${e(kartenKlasse(k, tag.typ, jetztIso, jetzt))}" data-karte="${alle.length - 1}" tabindex="0" role="button" title="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, tag.typ)}</div>`;
+        return `<div class="std ${e(kartenKlasse(k, tag.typ, jetztIso, jetzt))}" data-karte="${alle.length - 1}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, tag.typ)}</div>`;
       }).join('') + '</div>';
     }
   }
@@ -346,9 +399,9 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="z3">Veranstaltung</div></div></div>` })),
     ...karten.map((k, i) => ({ zeit: minuten(k.beginn), html: `<div class="eintrag ${k.datum === jetztIso && minuten(k.beginn) <= jetzt && jetzt < minuten(k.ende) ? 'jetzt' : ''}">
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
-        <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" title="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
+        <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && k.status !== 'abwesend' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
-        <div class="aufsicht ${e(a.status)}">Pausenaufsicht ${e(a.gangName)}${a.status === 'vertreten' ? ' – übernimmt ' + e(a.lehrer) : a.status === 'vertretung' ? ' – Vertretung für ' + e(a.alt) : ''}</div></div>` })),
+        <div class="aufsicht ${e(a.status)}"><span>${e(a.gangName)}${a.status === 'vertreten' ? ' → ' + e(a.lehrer) : a.status === 'vertretung' ? ' (für ' + e(a.alt) + ')' : ''}</span></div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);
   return `<div class="tt-liste">${eintraege.map(x => x.html).join('')}</div>`;
 }

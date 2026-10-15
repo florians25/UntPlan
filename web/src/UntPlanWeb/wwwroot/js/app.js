@@ -12,6 +12,9 @@ const ANSICHTEN = {
   unterricht: () => import('./ansichten/unterricht.js'),
   offen: () => import('./ansichten/offen.js'),
   pruefungen: () => import('./ansichten/pruefungen.js'),
+  pruefungskalender: () => import('./ansichten/pruefungskalender.js'),
+  schueler: () => import('./ansichten/schueler.js'),
+  aufgaben: () => import('./ansichten/hausaufgaben.js'),
   klassenbuch: () => import('./ansichten/klassenbuch.js'),
   eintraege: () => import('./ansichten/eintraege.js'),
   hausaufgaben: () => import('./ansichten/hausaufgaben.js'),
@@ -38,6 +41,11 @@ let aktiverPunkt = null;
 const kontext = {
   get sitzung() { return sitzung; },
   get ich() { return sitzung?.benutzer; },
+  /**
+   * Gewähltes Schuljahr (Schuljahr-Pille in der Navigation): { von, bis, text, aktuell }. Listen und Berichte nehmen es als Zeitraum;
+   * ohne Auswahl gilt das aktuelle Schuljahr aus UntPlan.
+   */
+  get schuljahr() { return gewaehltesSchuljahr(); },
   /** Ansichtseinstellungen der Administration (Wochenende, Uhrzeiten auf Karten …). */
   get ansicht() { return sitzung?.ansicht ?? {}; },
   /** Stammdaten (Klassen, Lehrkräfte, Räume, Fächer, Zeitraster) – einmal je Sitzung geladen. */
@@ -222,20 +230,29 @@ function menue() {
     plaene.push({ nav: 'tag-raum', href: '#/tag/raum', text: 'Tag - Räume', icon: 'tagraeume' });
     plaene.push({ nav: 'vertretungen', href: '#/vertretungen', text: 'Vertretungsplan', icon: 'vertretungen' });
     m.push({ id: 'stundenplan', text: 'Stundenplan', icon: 'stundenplan', unter: plaene });
-    const unterricht = [{ nav: 'unterricht', href: '#/unterricht', text: b.element ? 'Meine Unterrichte' : 'Unterrichte', icon: 'meineunterrichte' }];
-    unterricht.push({ nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'pruefung' });
-    m.push({ id: 'unterricht', text: 'Unterricht', icon: 'unterricht', unter: unterricht });
+    // Unterricht wie in der Vorlage: Mein Unterricht, Klasse, Schüler*in, Prüfungen, Prüfungskalender, Aufgaben, Lehrkraft - Tag, Klasse - Tag
+    m.push({ id: 'unterricht', text: 'Unterricht', icon: 'unterricht', unter: [
+      { nav: 'unterricht', href: '#/unterricht', text: b.element ? 'Mein Unterricht' : 'Unterricht', icon: 'meineunterrichte' },
+      { nav: 'unterricht-klasse', href: '#/unterricht/klasse', text: 'Klasse', icon: 'klasse' },
+      { nav: 'schueler', href: '#/schueler', text: 'Schüler*in', icon: 'benutzer' },
+      { nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'klausur' },
+      { nav: 'pruefungskalender', href: '#/pruefungskalender', text: 'Prüfungskalender', icon: 'pruefung' },
+      { nav: 'aufgaben', href: '#/aufgaben', text: 'Aufgaben', icon: 'vertretungen' },
+      { nav: 'u-tag-lehrer', href: '#/tag/lehrer/-/u', text: 'Lehrkraft - Tag', icon: 'taglehrer' },
+      { nav: 'u-tag-klasse', href: '#/tag/klasse/-/u', text: 'Klasse - Tag', icon: 'tagklassen' },
+    ] });
     m.push({ id: 'klassenbuch', text: 'Klassenbuch', icon: 'klassenbuchnav', unter: [
-      { nav: 'klassenbuch', href: '#/klassenbuch', text: 'Übersicht', icon: 'woche' },
+      { nav: 'klassenbuch', href: '#/klassenbuch', text: 'Übersicht', icon: 'uebersicht' },
       { nav: 'offen', href: '#/offen', text: 'Offene Stunden', icon: 'offen' },
       { nav: 'eintraege', href: '#/eintraege', text: 'Klassenbucheinträge', icon: 'eintraege' },
       { nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' },
       { nav: 'dienste', href: '#/dienste', text: 'Klassendienste', icon: 'klassendienste' },
+      { nav: 'berichte', href: '#/berichte', text: 'Berichte', icon: 'berichte' },
+      { nav: 'klassenbuch-woche', href: '#/klassenbuch/-/woche', text: 'Wochenübersicht', icon: 'woche' },
       { nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' },
       { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' },
       { nav: 'befreiungen', href: '#/befreiungen', text: 'Befreiungen', icon: 'befreiungen' },
       { nav: 'sitzplan', href: '#/sitzplan', text: 'Sitzplan', icon: 'sitzplan' },
-      { nav: 'berichte', href: '#/berichte', text: 'Berichte', icon: 'berichte' },
     ] });
     m.push({ id: 'melden', text: 'Melden & Buchen', icon: 'meldenbuchen', unter: [
       { nav: 'melden-abwesenheit', href: '#/melden/abwesenheit', text: 'Abwesenheit melden', icon: 'abwesend' },
@@ -289,9 +306,10 @@ function navAus(teile) {
   const [name, a, c] = teile;
   switch (name) {
     case 'plan': return !a || a === 'mein' || (a === b.typ && b.element && (c ?? b.element).toLowerCase() === b.element.toLowerCase()) ? 'plan-mein' : 'plan-' + a;
-    case 'tag': return 'tag-' + (a || 'klasse');
+    case 'tag': return (teile[3] === 'u' ? 'u-tag-' : 'tag-') + (a || 'klasse');
+    case 'unterricht': return a === 'klasse' ? 'unterricht-klasse' : 'unterricht';
     case 'mitteilungen': return a === 'gesendet' || a === 'entwuerfe' || a === 'listen' ? 'mitteilungen-' + a : 'mitteilungen';
-    case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : 'klassenbuch';
+    case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : c && c !== 'uebersicht' ? 'klassenbuch-woche' : 'klassenbuch';
     case 'melden': return 'melden-' + (a || 'abwesenheit');
     case 'stammdaten': return 'stammdaten-' + (a || 'klassen');
     case 'admin': return 'admin-' + (a || (b.admin ? 'sync' : 'nachrichten'));
@@ -303,6 +321,24 @@ function punktHtml(p) {
   const attr = p.unter ? `data-gruppe="${p.id}"` : `data-nav="${p.nav}"`;
   return `<a class="u-nav-punkt" href="${p.unter ? p.unter.find(x => x.href)?.href : p.href}" ${attr} title="${e(p.text)}"><span class="u-nav-sym">${icon(p.icon)}</span><span class="u-nav-text">${e(p.text)}</span>`
     + `${p.zaehler ? '<span class="u-zahl d-none" data-zaehler></span>' : ''}</a>`;
+}
+
+/** Schuljahre zur Auswahl: das aktuelle aus UntPlan und die sieben vorherigen (1.8. – 31.7.). */
+function schuljahre() {
+  const sj = sitzung?.schuljahr;
+  if (!sj) return [];
+  const start = Number(sj.von.slice(0, 4));
+  return Array.from({ length: 8 }, (_, i) => {
+    const j = start - i;
+    return i === 0 ? { von: sj.von, bis: sj.bis, text: schuljahrText(), aktuell: true } : { von: `${j}-08-01`, bis: `${j + 1}-07-31`, text: `${j}/${j + 1}`, aktuell: false };
+  });
+}
+
+function gewaehltesSchuljahr() {
+  const liste = schuljahre();
+  let von = null;
+  try { von = sessionStorage.getItem('untplan:schuljahr'); } catch { /* privat */ }
+  return liste.find(x => x.von === von) ?? liste[0] ?? { von: '', bis: '', text: '', aktuell: true };
 }
 
 function schuljahrText() {
@@ -323,8 +359,24 @@ function leisteZeichnen() {
   leiste.querySelector('[data-leistenkopf]').innerHTML = gruppe
     ? `<div class="u-unterkopf"><button type="button" class="u-zurueck" data-zurueck title="Zurück" aria-label="Zurück">${icon('zurueck')}</button><b title="${e(gruppe.text)}">${e(gruppe.text)}</b></div>`
     : `<a class="u-marke" href="#/heute" title="UntPlanWeb">${LOGO}<span><b>UntPlanWeb</b><small>${e(sitzung.schule.name || '')}</small></span></a>`;
-  leiste.querySelector('[data-jahr]').innerHTML = jahr
-    ? `<span class="u-jahr ${gruppe ? 'mit-pfeil' : ''}" title="Schuljahr ${e(sitzung.schuljahr.von)} – ${e(sitzung.schuljahr.bis)}">${e(jahr)}${gruppe ? ' <i class="bi bi-chevron-down"></i>' : ''}</span>` : '';
+  const gw = gewaehltesSchuljahr();
+  leiste.querySelector('[data-jahr]').innerHTML = jahr ? `<span class="u-jahrwahl">
+      <button type="button" class="u-jahr mit-pfeil ${gw.aktuell ? '' : 'anders'}" data-jahrwahl aria-haspopup="listbox" aria-expanded="false" aria-describedby="u-jahr-tipp">${e(gw.text)} <i class="bi bi-chevron-down"></i></button>
+      <span class="u-jahr-tipp" id="u-jahr-tipp" role="tooltip">Aktuelles Schuljahr: ${e(jahr)}</span>
+      <span class="u-jahrliste d-none" role="listbox" data-jahrliste>${schuljahre().map(x => `<button type="button" role="option" data-jahr-von="${x.von}" aria-selected="${x.text === gw.text}" class="${x.text === gw.text ? 'an' : ''}">${e(x.text)}</button>`).join('')}</span></span>` : '';
+  const jw = leiste.querySelector('[data-jahrwahl]');
+  if (jw) {
+    const liste = leiste.querySelector('[data-jahrliste]');
+    jw.onclick = ev => { ev.stopPropagation(); liste.classList.toggle('d-none'); jw.setAttribute('aria-expanded', String(!liste.classList.contains('d-none'))); };
+    liste.querySelectorAll('[data-jahr-von]').forEach(b => b.onclick = () => {
+      try { sessionStorage.setItem('untplan:schuljahr', b.dataset.jahrVon); } catch { /* privat */ }
+      liste.classList.add('d-none');
+      leisteZeichnen();
+      toast(`Schuljahr ${b.textContent} gewählt.`);
+      route();
+    });
+    document.addEventListener('click', () => liste.classList.add('d-none'), { once: true });
+  }
   const nav = leiste.querySelector('nav');
   nav.className = `u-nav ${gruppe ? 'u-nav-unter' : ''}`;
   nav.innerHTML = (gruppe ? gruppe.unter : gruppen).map(punktHtml).join('');
@@ -372,6 +424,7 @@ function huelle() {
       </main>
     </div>`;
   const huelleEl = app.querySelector('.u-app');
+  document.body.classList.toggle('leiste-zu', zu);
   const leiste = document.getElementById('seitenleiste');
   const mobilZu = () => huelleEl.classList.remove('offen');
   app.querySelector('[data-abmelden]').onclick = abmelden;
@@ -379,6 +432,7 @@ function huelle() {
   app.querySelector('[data-schleier]').onclick = mobilZu;
   app.querySelector('[data-einklappen]').onclick = () => {
     const z = huelleEl.classList.toggle('zu');
+    document.body.classList.toggle('leiste-zu', z);
     try { localStorage.setItem('untplan:leiste', z ? 'zu' : 'offen'); } catch { /* privat */ }
   };
   app.querySelector('[data-kontomenue]').onclick = ev => { ev.stopPropagation(); kontomenue(); };

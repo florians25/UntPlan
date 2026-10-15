@@ -18,7 +18,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   const n1 = Number(n1Param) || 0, n2 = Number(n2Param) || 0;
   const ziel = (a, k = klasse, v = von, b = bis, s = schueler, x1 = n1, x2 = n2) =>
     `#/berichte/${a ?? '-'}/${encodeURIComponent(k || '-')}/${v}/${b}/${s || '-'}/${x1 || 0}/${x2 || 0}`;
-  kontext.titel('Berichte');
+  kontext.titel('Berichte', '<button type="button" class="alt-hilfe" title="PDF: Druckansicht, Seite: Vorschau, Excel: CSV-Datei" aria-label="Hilfe">?</button>');
   const schuelerListe = klasse ? await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(klasse)}`).catch(() => []) : [];
   const gruppen = [...new Set(arten.map(a => a.gruppe))];
   const parameter = a => {
@@ -35,12 +35,12 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       ${filterFeld('Bis', `<input type="date" class="form-control" data-bis value="${bis}">`)}
     </div>
     <div class="row g-4">
-      <div class="col-xl-5 nicht-drucken">${gruppen.map(g => `<section class="br-gruppe"><h3>${icon(GRUPPENSYMBOL[g] ?? 'berichte')}${e(g)}</h3>
-        ${arten.filter(a => a.gruppe === g).map(a => `<div class="br-zeile ${a.id === art ? 'aktiv' : ''}"><div class="name">${e(a.titel)}${a.klasseNoetig ? ' <span class="small text-body-secondary fw-normal">(Klasse)</span>' : ''}
-            <div class="mt-1">${parameter(a)}</div></div>
-          <button class="btn btn-sm btn-outline-secondary" data-anzeigen="${a.id}">Anzeigen</button>
-          <button class="btn btn-sm btn-outline-secondary" data-druck="${a.id}" title="Drucken bzw. als PDF speichern">${icon('drucken')}</button>
-          <button class="btn btn-sm btn-outline-secondary" data-csv="${a.id}" title="CSV (Excel)">CSV</button></div>`).join('')}</section>`).join('')}
+      <div class="col-xl-5 nicht-drucken">${gruppen.map(g => `<section class="br-gruppe br-alt"><h3><img src="/img/wu/legacy/lehrstoff.png" alt="">${e(g)}</h3>
+        ${arten.filter(a => a.gruppe === g).map(a => `<div class="br-zeile ${a.id === art ? 'aktiv' : ''}"><div class="name">${e(a.titel)}${a.klasseNoetig ? ' <span class="small text-body-secondary fw-normal">(Klasse)</span>' : ''}</div>
+          <span class="br-symbole"><button type="button" class="br-pdf" data-druck="${a.id}" title="PDF (Drucken bzw. als PDF speichern)" aria-label="${e(a.titel)} als PDF"><i class="bi bi-file-earmark-pdf-fill"></i></button>
+          <button type="button" class="br-html" data-anzeigen="${a.id}" title="Anzeigen" aria-label="${e(a.titel)} anzeigen"><i class="bi bi-file-earmark-richtext-fill"></i></button>
+          <button type="button" class="br-xls" data-csv="${a.id}" title="Excel (CSV)" aria-label="${e(a.titel)} als Excel"><i class="bi bi-file-earmark-excel-fill"></i></button></span>
+          <span class="br-param">${parameter(a)}</span></div>`).join('')}</section>`).join('')}
         <p class="small text-body-secondary">Notfallliste, BAföG- und Fahrkostenbescheinigungen benötigen Adress- bzw. Kontaktdaten, die UntPlan nicht überträgt.</p></div>
       <div class="col-xl-7" data-vorschau>${art ? lade() : `<div class="br-vorschau">${leer('Bericht wählen und „Anzeigen“ klicken.', 'file-earmark-bar-graph')}</div>`}</div>
     </div>`;

@@ -65,6 +65,7 @@ public class Program
         builder.Services.AddHttpClient("update");
         builder.Services.AddSingleton(Updateeinstellungen.Laden(builder.Configuration));
         builder.Services.AddSingleton<Updatedienst>();
+        builder.Services.AddSingleton<Schuelerverwaltung>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>
         {
@@ -154,6 +155,7 @@ public class Program
         ErweiterungApi.Abbilden(app);
         UpdateApi.Abbilden(app);
         MobilApi.Abbilden(app);
+        OberflaecheApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
         app.MapGet("/gesundheit", () => Results.Ok(new { ok = true }));

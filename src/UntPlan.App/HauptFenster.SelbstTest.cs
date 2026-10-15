@@ -375,7 +375,7 @@ public sealed partial class HauptFenster
             AppZustand.Doc.Aendern("Tagestext formatiert", AenderungsArt.Vertretung, x => x.Tagestexte.Add(neu));
             var paket = Core.Austausch.UntPlanWebExport.PaketErstellen(AppZustand.D, AppZustand.Datum);
             var web = paket.Tagestexte.FirstOrDefault(x => x.Text == neu.Text) ?? throw new InvalidOperationException("Export: formatierter Tagestext fehlt.");
-            if (!web.TextHtml.Contains("<b>Heute</b>")) throw new InvalidOperationException("Export: TextHtml ohne Formatierung: " + web.TextHtml);
+            if (web.TextHtml is not { } html || !html.Contains("<b>Heute</b>")) throw new InvalidOperationException("Export: TextHtml ohne Formatierung: " + web.TextHtml);
             log.Add("INFO  Tagestext-HTML: " + dlg.Html);
         }, -1);
         Schritt("19d8_Kalendertag_unterrichtsfrei", () =>

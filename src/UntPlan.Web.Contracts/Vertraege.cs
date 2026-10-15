@@ -241,9 +241,10 @@ public sealed record WebTagestext(string Datum, int GueltigTage, string Text, st
 {
     /// <summary>
     /// Formatierter Tagestext als bereinigtes HTML-Subset (nur &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;span style="color:…"&gt;,
-    /// &lt;br&gt;, &lt;p&gt;; Text maskiert). Bei unformatierten Texten der maskierte <see cref="Text"/> mit &lt;br&gt; je Zeile.
+    /// &lt;br&gt;, &lt;p&gt;; Text maskiert). UntPlan füllt es immer (unformatiert: maskierter <see cref="Text"/> mit &lt;br&gt; je Zeile);
+    /// UntPlanWeb zeigt nur die Whitelist an und fällt sonst auf <see cref="Text"/> zurück. Ältere Pakete: null.
     /// </summary>
-    public string TextHtml { get; init; } = "";
+    public string? TextHtml { get; init; }
 }
 public sealed record WebFerien(string Name, string Von, string Bis, bool Feiertag);
 public sealed record WebAufsicht(string Gang, int Tag, int NachStunde, string Lehrer, string Wochen);

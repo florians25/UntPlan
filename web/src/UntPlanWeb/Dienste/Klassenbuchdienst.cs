@@ -5,14 +5,26 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 public sealed record Klassenbucheintrag(int Id, string Datum, int Stunde, int Unterricht, List<string> Klassen, string Fach, string Lehrer,
-    string Thema, string Hausaufgabe, string? Faellig, string Notiz, string Geaendert, string? Anwesenheit = null, string NotizSchueler = "", bool Online = false);
+    string Thema, string Hausaufgabe, string? Faellig, string Notiz, string Geaendert, string? Anwesenheit = null, string NotizSchueler = "", bool Online = false)
+{
+    /// <summary>Lehrform zum Lehrstoff (Dialog „Lehrstoff“).</summary>
+    public string Lehrform { get; init; } = "";
+    /// <summary>Anmerkung zum Lehrstoff (Dialog „Lehrstoff“).</summary>
+    public string Anmerkung { get; init; } = "";
+    /// <summary>Wer zuletzt geändert hat (Lehrerkürzel bzw. Anmeldename).</summary>
+    public string GeaendertVon { get; init; } = "";
+}
 
 /// <summary>Fehlzeit einer Schülerin/eines Schülers in einer Stunde. Art „fehlt“ oder „verspaetet“, Status offen/entschuldigt/unentschuldigt.</summary>
 public sealed record Fehlzeit(int Id, string Datum, int Stunde, int Unterricht, int SchuelerId, string Klasse, string Fach, string Art, int Minuten,
     string Status, string Bemerkung, string Lehrer, string Erstellt, string Grund = "", string Gruppe = "");
 
 /// <summary>Vermerk im Klassenbuch (zur Klasse oder zu einzelnen Schülern), z. B. Ordnungsmaßnahme, Elterngespräch, Lob.</summary>
-public sealed record Vermerk(int Id, string Datum, string Klasse, int? SchuelerId, string Art, string Text, string Lehrer, string Erstellt);
+public sealed record Vermerk(int Id, string Datum, string Klasse, int? SchuelerId, string Art, string Text, string Lehrer, string Erstellt)
+{
+    /// <summary>Uhrzeit des Eintrags (Dialog „Klassenbucheintrag“), leer = Erstellungszeit.</summary>
+    public string Zeit { get; init; } = "";
+}
 
 /// <summary>Anwesenheitseintrag beim Speichern (nur Abweichungen: fehlt oder verspätet).</summary>
 public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung, string? Grund = null);
@@ -34,14 +46,15 @@ public sealed partial class Klassenbuchdienst
 
     private static Klassenbucheintrag Lesen(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("thema"), r.Text("hausaufgabe"),
-        r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"), r.Text("notiz_schueler"), r.Wahr("online"));
+        r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"), r.Text("notiz_schueler"), r.Wahr("online"))
+    { Lehrform = r.Text("lehrform"), Anmerkung = r.Text("anmerkung"), GeaendertVon = r.Text("lehrer") };
 
     private static Fehlzeit LesenFehlzeit(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         r.Zahl("schueler_id"), r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"),
         r.Text("grund"), r.Text("gruppe"));
 
     private static Vermerk LesenVermerk(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Text("klasse"), r.ZahlOderNull("schueler_id"),
-        r.Text("art"), r.Text("text"), r.Text("lehrer"), r.Text("erstellt"));
+        r.Text("art"), r.Text("text"), r.Text("lehrer"), r.Text("erstellt")) { Zeit = r.Text("zeit") };
 
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
     public static readonly string[] VermerkArten = { "Vermerk", "Ordnungsmaßnahme", "Elterngespräch", "Lob", "Material vergessen", "Hausaufgabe fehlt" };
@@ -75,7 +88,8 @@ public sealed partial class Klassenbuchdienst
         return _plan.Karten(s, d, Elementtyp.Lehrer, l).Any(k => k.Unterricht == unterricht && stunde >= k.Von && stunde <= k.Bis && k.Status is not ("entfall" or "abwesend"));
     }
 
-    public Klassenbucheintrag Speichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string thema, string hausaufgabe, DateOnly? faellig, string notiz, string? notizSchueler = null)
+    public Klassenbucheintrag Speichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string thema, string hausaufgabe, DateOnly? faellig, string notiz, string? notizSchueler = null,
+        string? lehrform = null, string? anmerkung = null)
     {
         if (!DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (d > _uhr.Heute.AddDays(14)) throw new ArgumentException("Einträge sind höchstens zwei Wochen im Voraus möglich.");
@@ -97,6 +111,10 @@ public sealed partial class Klassenbuchdienst
         // Einzelne Hausaufgabe über das alte Feld (z. B. UntPlanMobile): Liste der Hausaufgaben angleichen
         if ((vorher?.Hausaufgabe ?? "") != (hausaufgabe ?? "").Trim() || vorher?.Faellig != faellig?.ToString("yyyy-MM-dd"))
             HausaufgabeAusFeld(b, karte, d, lehrer, (hausaufgabe ?? "").Trim(), faellig);
+        // Lehrform und Anmerkung (nur wenn mitgeschickt)
+        if (lehrform != null || anmerkung != null)
+            _db.Ausfuehren("UPDATE klassenbuch SET lehrform = COALESCE(@lf, lehrform), anmerkung = COALESCE(@an, anmerkung) WHERE datum = @d AND stunde = @s AND unterricht = @u AND lehrer = @l",
+                Db.P("@lf", lehrform?.Trim()), Db.P("@an", anmerkung?.Trim()), Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@l", lehrer));
         return Holen(d, karte.Von, unterricht, lehrer)!;
     }
 
@@ -127,7 +145,7 @@ public sealed partial class Klassenbuchdienst
     {
         var k = klassen.ToHashSet(Ci);
         var de = StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true);
-        return s.Paket.Elemente.Schueler.Where(x => k.Contains(x.Klasse)).OrderBy(x => x.Klasse, de).ThenBy(x => x.Name, de).ThenBy(x => x.Vorname, de).ToList();
+        return s.Schueler.Where(x => k.Contains(x.Klasse)).OrderBy(x => x.Klasse, de).ThenBy(x => x.Name, de).ThenBy(x => x.Vorname, de).ToList();
     }
 
     /// <summary>Klassenleitung, Schulleitung oder Administration?</summary>
@@ -204,7 +222,7 @@ public sealed partial class Klassenbuchdienst
     public int FehlenEintragen(Benutzer b, Stand s, int schuelerId, DateOnly von, DateOnly bis, string status, string bemerkung,
         string grund = "", int stundeVon = 1, int stundeBis = 99)
     {
-        var sch = s.Paket.Elemente.Schueler.FirstOrDefault(x => x.Id == schuelerId) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
+        var sch = s.Schueler.FirstOrDefault(x => x.Id == schuelerId) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
         if (!IstKlassenleitung(b, s, sch.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann ganze Tage eintragen.");
         if (bis < von || bis.DayNumber - von.DayNumber > 60) throw new ArgumentException("Bitte einen Zeitraum von höchstens 60 Tagen wählen.");
         var anzahl = 0;
@@ -281,15 +299,17 @@ public sealed partial class Klassenbuchdienst
         _db.Liste("SELECT * FROM vermerke WHERE klasse = @k COLLATE NOCASE AND datum >= @v AND datum <= @b ORDER BY datum DESC, id DESC", LesenVermerk,
             Db.P("@k", klasse), Db.P("@v", von), Db.P("@b", bis));
 
-    public Vermerk VermerkAnlegen(Benutzer b, Stand s, DateOnly d, string klasse, int? schuelerId, string art, string text)
+    public Vermerk VermerkAnlegen(Benutzer b, Stand s, DateOnly d, string klasse, int? schuelerId, string art, string text, string? zeit = null)
     {
+        if (text?.Length > 1000) throw new ArgumentException("Der Klassenbucheintrag darf höchstens 1000 Zeichen lang sein.");
+        if (!string.IsNullOrEmpty(zeit) && !System.Text.RegularExpressions.Regex.IsMatch(zeit, @"^\d{2}:\d{2}$")) throw new ArgumentException("Ungültige Uhrzeit.");
         if (!b.Kollegium) throw new UnauthorizedAccessException("Nur das Kollegium kann Vermerke eintragen.");
         if (!s.Klassen.ContainsKey(klasse)) throw new ArgumentException($"Unbekannte Klasse {klasse}.");
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte einen Text eingeben.");
-        if (schuelerId is int sid && !s.Paket.Elemente.Schueler.Any(x => x.Id == sid && Ci.Equals(x.Klasse, klasse))) throw new ArgumentException("Schüler gehört nicht zur Klasse.");
+        if (schuelerId is int sid && !s.Schueler.Any(x => x.Id == sid && Ci.Equals(x.Klasse, klasse))) throw new ArgumentException("Schüler gehört nicht zur Klasse.");
         var a = VermerkArten.FirstOrDefault(x => Ci.Equals(x, art)) ?? "Vermerk";
-        var id = _db.Einfuegen("INSERT INTO vermerke (datum, klasse, schueler_id, art, text, lehrer, erstellt, benutzer_id) VALUES (@d, @k, @s, @a, @t, @l, @e, @b)", Db.P("@d", d), Db.P("@k", s.Klassen[klasse].Kurz), Db.P("@s", schuelerId), Db.P("@a", a), Db.P("@t", text.Trim()),
-            Db.P("@l", b.LehrerKuerzel ?? b.Anzeigename), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
+        var id = _db.Einfuegen("INSERT INTO vermerke (datum, klasse, schueler_id, art, text, lehrer, erstellt, benutzer_id, zeit) VALUES (@d, @k, @s, @a, @t, @l, @e, @b, @z)", Db.P("@d", d), Db.P("@k", s.Klassen[klasse].Kurz), Db.P("@s", schuelerId), Db.P("@a", a), Db.P("@t", text!.Trim()),
+            Db.P("@l", b.LehrerKuerzel ?? b.Anzeigename), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id), Db.P("@z", zeit ?? ""));
         return _db.Einzel("SELECT * FROM vermerke WHERE id = @i", LesenVermerk, Db.P("@i", id))!;
     }
 
@@ -311,7 +331,7 @@ public sealed partial class Klassenbuchdienst
         var eintraege = Zeitraum(montag, bis).Where(e => e.Klassen.Contains(klasse, Ci)).ToList();
         var fz = FehlzeitenZeitraum(montag, bis, klasse);
         var vermerke = Vermerke(klasse, montag, bis);
-        var namen = s.Paket.Elemente.Schueler.ToDictionary(x => x.Id, x => $"{x.Name}, {x.Vorname}");
+        var namen = s.Schueler.ToDictionary(x => x.Id, x => $"{x.Name}, {x.Vorname}");
         var tage = new List<object>();
         for (var d = montag; d <= bis; d = d.AddDays(1))
         {
@@ -333,6 +353,6 @@ public sealed partial class Klassenbuchdienst
                 }).ToList();
             tage.Add(new { datum = iso, frei = frei.Frei, freiGrund = frei.Grund, stunden, vermerke = vermerke.Where(v => v.Datum == iso).Select(v => new { v.Id, v.Art, v.Text, v.Lehrer, schueler = v.SchuelerId is int i ? namen.GetValueOrDefault(i, "") : "" }) });
         }
-        return new { klasse, von = Plandienst.Iso(montag), bis = Plandienst.Iso(bis), tage, schuelerAnzahl = s.Paket.Elemente.Schueler.Count(x => Ci.Equals(x.Klasse, klasse)) };
+        return new { klasse, von = Plandienst.Iso(montag), bis = Plandienst.Iso(bis), tage, schuelerAnzahl = s.Schueler.Count(x => Ci.Equals(x.Klasse, klasse)) };
     }
 }

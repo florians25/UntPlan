@@ -16,8 +16,11 @@ public sealed record Vertretungstag(string Datum, string Wochentag, string Woche
 public sealed record Nachricht(int Id, string Von, string Bis, string Text, string Zielgruppe, bool Startseite, bool Monitor,
     string Betreff = "", int Wochentag = 0, int Reihenfolge = 10, bool Aufgefaechert = true, bool Oeffentlich = false, bool Mobil = true);
 
-/// <summary>Nachricht eines Tages für Startseite und App (Betreff, Text, aufgefächert).</summary>
-public sealed record Tagesnachricht(string Betreff, string Text, bool Aufgefaechert, bool Eigen);
+/// <summary>
+/// Nachricht eines Tages für Startseite und App (Betreff, Text, aufgefächert). TextHtml: formatierter Tagestext aus UntPlan,
+/// bereits bereinigt (nur b, i, u, span mit Farbe, br, p) – ohne Formatierung null, dann gilt Text.
+/// </summary>
+public sealed record Tagesnachricht(string Betreff, string Text, bool Aufgefaechert, bool Eigen, string? TextHtml = null);
 
 /// <summary>Vertretungsplan je Tag in Schüler- bzw. Lehrerversion (Liste, Monitor, Startseite).</summary>
 public sealed class Vertretungsplandienst
@@ -86,7 +89,9 @@ public sealed class Vertretungsplandienst
             {
                 if (!DateOnly.TryParse(t.Datum, out var ab) || d < ab || d >= ab.AddDays(Math.Max(1, t.GueltigTage))) continue;
                 if (!kollegium && t.Fuer is "lehrer" or "kollegium") continue;
-                if (!string.IsNullOrWhiteSpace(t.Text)) res.Add(new Tagesnachricht("", t.Text, true, false));
+                var html = string.IsNullOrWhiteSpace(t.TextHtml) ? null : HtmlBereinigung.Bereinigen(t.TextHtml);
+                var text = !string.IsNullOrWhiteSpace(t.Text) ? t.Text : HtmlBereinigung.AlsText(html);
+                if (!string.IsNullOrWhiteSpace(text) || !string.IsNullOrWhiteSpace(html)) res.Add(new Tagesnachricht("", text, true, false, string.IsNullOrWhiteSpace(html) ? null : html));
             }
         foreach (var n in NachrichtenAmTag(d).Where(n => Passt(n, d, kollegium, ort)))
             res.Add(new Tagesnachricht(n.Betreff, n.Text, n.Aufgefaechert || n.Betreff.Length == 0, true));
@@ -121,8 +126,12 @@ public sealed class Vertretungsplandienst
         var einzeln = s.Paket.Vertretungen.Where(v => v.Datum == iso && !(v.Klassen.Count == 0 && v.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase))
                                                       && (kollegium || (!v.NurLehrer && v.Klassen.Count > 0 && !IstLehrerintern(v)))).Select(v =>
         {
+            var bereitschaft = IstBereitschaft(v);
+            var zusatz = IstZusatzstunde(s, v);
             var status = v.Art switch
             {
+                // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft
+                _ when bereitschaft && (v.Vertreter is "" or "---" || v.Art.Contains("entf", StringComparison.OrdinalIgnoreCase)) => "abwesend",
                 var a when a.StartsWith("Entfall", StringComparison.OrdinalIgnoreCase) || a.StartsWith("Freisetzung", StringComparison.OrdinalIgnoreCase) => "entfall",
                 _ when v.Vertreter is "???" => "offen",
                 var a when a.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) => "klausur",
@@ -131,14 +140,18 @@ public sealed class Vertretungsplandienst
             // Vertretung ohne Lehrkraft („+++“): keine neue Lehrkraft, die bisherige steht durchgestrichen
             var ohneLehrer = v.Vertreter is "+" or "+++";
             var neuLehrer = v.Vertreter is "---" || ohneLehrer ? "" : v.Vertreter;
+            // zusätzlicher Unterricht ohne Lehrkraft: „---“
+            if (zusatz && neuLehrer.Length == 0 && !ohneLehrer && status != "entfall") neuLehrer = Plandienst.OhneLehrkraftZusatz;
             var lehrerAlt = v.Lehrer.Length > 0 && !Ci.Equals(v.Lehrer, neuLehrer) ? v.Lehrer : null;
             var neuRaum = v.NeuerRaum;
             var raumAlt = v.Raum.Length > 0 && !Ci.Equals(v.Raum, neuRaum) ? v.Raum : null;
             var fachAlt = v.Fach.Length > 0 && v.NeuesFach.Length > 0 && !Ci.Equals(v.Fach, v.NeuesFach) ? v.Fach : null;
             // Schülerversion: keine Angaben, wer fehlt – nur, wer vertritt
             if (!kollegium && status != "entfall" && !ohneLehrer) lehrerAlt = null;
+            if (zusatz && neuLehrer == Plandienst.OhneLehrkraftZusatz) lehrerAlt = null;
+            if (status == "abwesend") { neuLehrer = ""; lehrerAlt = v.Lehrer; }
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,
-                neuLehrer, lehrerAlt, neuRaum, raumAlt, v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : v.Text, v.VertrVon, v.Nach, status, ohneLehrer);
+                neuLehrer, lehrerAlt, neuRaum, raumAlt, status == "abwesend" ? "Abwesenheit" : v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : v.Text, v.VertrVon, v.Nach, status, ohneLehrer);
         }).ToList();
 
         // gleiche Zeilen in aufeinanderfolgenden Stunden zusammenfassen (z. B. „3–4“)
@@ -156,6 +169,15 @@ public sealed class Vertretungsplandienst
         return new Vertretungstag(iso, Plandienst.Wochentage[Plandienst.TagIndex(d)], _plan.Woche(s, d), frei, grund, NachrichtenAm(s, d, kollegium, ort),
             klassen, lehrer, raeume, veranstaltungen, zeilen);
     }
+
+    private static bool IstBereitschaft(WebVertretung v) =>
+        v.Fach.Equals("BER", StringComparison.OrdinalIgnoreCase) || v.Art.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Zusätzlicher Unterricht: die Vertretung gehört zu einer Stunde mit Status „zusaetzlich“ (keine Klausur, Veranstaltung oder Raumbuchung).</summary>
+    private static bool IstZusatzstunde(Stand s, WebVertretung v) =>
+        !v.Art.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) && !v.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) &&
+        !v.Art.StartsWith("Raumbuchung", StringComparison.OrdinalIgnoreCase) &&
+        s.Tage.TryGetValue(v.Datum, out var t) && t.Stunden.Any(x => x.Vertretung == v.Id && x.Status == "zusaetzlich");
 
     private static bool IstLehrerintern(WebVertretung v) =>
         v.Fach.Equals("BER", StringComparison.OrdinalIgnoreCase) || v.Art.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase) ||

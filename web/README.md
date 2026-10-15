@@ -14,7 +14,7 @@ funktionieren wie dort (abgeglichen mit Screenshots des Originals). Die Icons si
 (`wwwroot/img/wu`: Navigation, Klassenbuch, Status, Info, Hausaufgabe, alte Klassenbuch-Symbole wie Stift, Besen, Beginn/Ende);
 `wwwroot/js/symbole.js` ordnet sie den Menüpunkten zu und zeichnet sie als Maske (grau, aktiv orange). Kleine Bedienelemente ohne
 Original-Icon (Pfeile, Papierkorb) kommen aus Bootstrap Icons. Logo (Uhr mit orangen Zeigern) und Produktname bleiben „UntPlanWeb“
-– kein WebUntis-Schriftzug, kein Fremdlogo. Schrift: **Nunito Sans** (SIL OFL, lokal unter `wwwroot/lib/nunito-sans`).
+– kein WebUntis-Schriftzug, kein Fremdlogo. Schrift: **AvenirNextPro**, wenn die Schule die lizenzierten Schriftdateien bereitstellt (siehe [Schrift AvenirNextPro](#schrift-avenirnextpro)), sonst **Nunito Sans** (SIL OFL, lokal unter `wwwroot/lib/nunito-sans`). Es werden keine Schriften aus dem Internet geladen.
 
 - **Navigation links:** weiße Leiste mit Logo, Schulname und Schuljahr-Pille; Menüpunkte mit den Original-Icons, aktiver Punkt
   orange auf hellorangem, rechts abgerundetem Grund mit orangem Balken links. Bereiche wie *Mitteilungen*, *Stundenplan*, *Unterricht*, *Klassenbuch*, *Melden & Buchen*, *Stammdaten* und
@@ -44,6 +44,71 @@ Original-Icon (Pfeile, Papierkorb) kommen aus Bootstrap Icons. Logo (Uhr mit ora
 |---|---|---|
 | ![Heute auf dem Telefon](docs/bilder/heute-telefon.png) | ![Stundenplan auf dem Telefon](docs/bilder/stundenplan-telefon.png) | ![Monitor](docs/bilder/monitor.png) |
 
+### Überarbeitung nach dem Anforderungskatalog (UW-03 … UW-17)
+
+- **Navigation bleibt frei (UW-03):** Stundendetails und Dialoge beginnen rechts der Navigation, ohne Schatten oder Abdunklung
+  über der Leiste; die Leiste bleibt bedienbar. Auf dem Telefon liegt das ausgeklappte Menü über den Details.
+- **Startseite (UW-05):** *Nachrichten* mit RSS-Symbol und Stift (Bearbeiten für Schulleitung/Administration), formatierte Tagestexte
+  (siehe unten), *Mein nächster Unterricht* als alte Liste: Auswahl, Art, Std., Von, Bis, Klasse, Lehrkraft, Fach, Raum, Symbole
+  (online, Info, fällige Hausaufgabe), Klassenbuch, Lehrstoff, Hausaufgaben; Entfall grau durchgestrichen, Änderungen lila.
+  Ohne Unterricht heute zeigt die Liste den nächsten Unterrichtstag.
+- **Schülerverwaltung (UW-06):** *Unterricht → Schüler\*in* (siehe Rollen).
+- **Fehlzeiten (UW-07):** *Unterricht → Mein Unterricht* als alte Liste („Mein Unterricht ASL“) mit Aktivitätsart, Zeitraum
+  (Aktuelle Woche, Nächste Woche, Monat, Schuljahr) und Symbolen für Termine, Schüler\*innen (Fehlzeitenverwaltung der Klasse),
+  Schülergruppen und Berichte; *Klassenbuch → Fehlzeiten* mit Umschalter *Neue Ansicht / Alte Liste*.
+- **Prüfungen, Prüfungskalender, Hausaufgaben (UW-08):** Prüfungsliste mit Suche, *Alle/Meine*, Zeitraum und Spalten wie im Original;
+  Prüfungskalender als Jahresraster August–Juli mit Prüfungsart, Planung, *Mein Unterricht* und Legende; Hausaufgabenliste
+  (Aufgabendatum, Fälligkeitsdatum, Fach, Erstellt von, Hausaufgabe, Anhänge).
+- **Klassenbuch (UW-09):** *Übersicht* je Tag (KW, „Donnerstag | 8. Oktober 2026“) mit Lehrstoff, Abwesenheiten
+  („offen | entschuldigt“) und Hausaufgaben; „Scrollen um die letzten 7 Tage zu laden“. *Klassendienste* als alte Liste
+  (Klasse, Art, Zeitraum; Neu, Löschen, Berichte; „Zur Zeitansicht wechseln“), *Berichte* in Abschnitten mit PDF-, Seiten- und
+  Excel-Symbol. Schuljahr-Pille mit Auswahl der Schuljahre und Hinweis „Aktuelles Schuljahr: 2026/2027“; Listen und Kalender
+  nehmen das gewählte Schuljahr als Zeitraum.
+- **Dialoge (UW-10):** *Lehrstoff* (Klasse, Lehrkraft, Fach, Datum, Lehrstoff, Vorstunden zum Übernehmen, Lehrform, Anmerkung;
+  Speichern, Übernehmen, Schließen; „Geändert am … von …“), *Abwesenheit* (Schüler\*in, Von/Bis, Beginn-/Endzeit, Grund, Text;
+  Speichern, Löschen, Schließen) und *Klassenbucheintrag* (Datum, Zeit, Schüler\*innen, Klasse, Eintragskategorie, Text mit
+  „Noch mögliche Zeichen“) als Fenster über den abgedunkelten Stundendetails.
+- **Kopf der Stundendetails (UW-11, UW-12):** Klasse, Gruppe, Lehrkraft und Raum verlinken auf den Stundenplan
+  (Hinweis „Im Stundenplan anzeigen“); Änderungen ohne Zusatzlabel („B070 → C197“, alter Wert grau durchgestrichen); Badges
+  „ZUSÄTZLICHER UNTERRICHT“ und „VERANSTALTUNG“.
+- **Raumbuchung am Desktop (UW-13, UW-14):** Raum-Chip mit Menü *Ersetzen*/*Löschen*, Plus für einen zusätzlichen Raum,
+  Auswahlliste mit Suche, *Abteilung* und Raumarten als Pillen und Radio-Auswahl. Danach steht im Kopf „R2a → Ps1“. Eine solche
+  reine Raumbuchung ist nur eine Raumänderung der Stunde: kein Vertretungstext, keine Zeile im Vertretungsplan, kein zusätzlicher
+  Eintrag im eigenen Stundenplan (Rückmeldung an UntPlan als `raumbuchung` mit `unterrichtNr` und der neuen Raumliste, ohne Titel/Text).
+  Raumbuchungen ohne Unterricht (*Melden & Buchen*) erscheinen nur im Raumplan.
+- **Eigene Abwesenheit (UW-15):** Karten zeigen die vertretende Lehrkraft als grünes Label (Hover „HOF → BEC“); eine wegfallende
+  Bereitschaft ist kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft (Karte gestrichelt, Kürzel durchgestrichen;
+  im Vertretungsplan Art „Abwesenheit“).
+- **Karten (UW-16, UW-17):** Ferien leicht abgerundet, keine zusätzliche „abwesend“-Leiste über dem Tag, Aufsichten ohne Trennlinie und
+  ohne Aufschrift „Aufsicht“ in der Schriftgröße des obersten Kartenwerts. Hover nur auf Labels und Symbolen unten rechts – grünes
+  Label „B070 → C197“ über dem geänderten Wert, nicht auf der ganzen Karte.
+- **Stundenplan-Kopf fixiert:** Elementwahl, Zeitraum, *Heute* und der Tageskopf Mo–Fr bleiben beim Scrollen oben stehen (leichter Schatten).
+- **Abwesende Klasse:** Die Klasse ist auf der Karte durchgestrichen, mit Label „abwesend …“ (Grund nur fürs Kollegium), die Karte ist
+  grün; im Lehrerplan gestrichelt wie bei abwesender Lehrkraft. Nur ein echter Entfall bleibt Entfall.
+- **Offene Raumvertretung** (Raum „???“): wie eine offene Lehrervertretung – bisheriger Raum durchgestrichen im Label.
+- **Pausenaufsichten** im Legendenmenü (⋮) *Normal*, *Halbiert* (Blöcke laufen über die Pause durch, Aufsicht schmal daneben) oder
+  *Ausgeblendet*; neben einer durchgängigen Veranstaltung wird die Aufsicht automatisch schmal.
+- **Zusatzstunden ohne Lehrkraft:** Bei zusätzlichem Unterricht ohne Lehrkraft steht „---“ (Karte, Details, Startseite, Vertretungsplan) –
+  nur bei Zusatzstunden, nicht bei Entfall oder Veranstaltungen.
+- **Formatierte Tagestexte:** Liefert UntPlan zu einem Tagestext zusätzlich `textHtml`, zeigt *Heute* den formatierten Text. Erlaubt sind
+  nur `b`, `i`, `u`, `br`, `p` und `span style="color:…"`; alles andere wird als Text angezeigt (Bereinigung auf dem Server, zusätzlich
+  im Browser). Monitor und Vertretungsplan zeigen den Klartext.
+
+### Schrift AvenirNextPro
+
+UntPlanWeb bringt AvenirNextPro **nicht** mit (lizenzpflichtig) und lädt keine Schriften aus dem Internet. Die Schule legt ihre
+lizenzierten Dateien in den Ordner `wwwroot/fonts/` (im Docker-Container `/app/wwwroot/fonts/`), Dateinamen beginnend mit
+`AvenirNextPro` und Endung `.woff2`, `.woff`, `.otf` oder `.ttf`, z. B. `AvenirNextPro-Regular.woff2`, `AvenirNextPro-Medium.woff2`,
+`AvenirNextPro-Demi.woff2`, `AvenirNextPro-Bold.woff2`, `AvenirNextPro-It.woff2`. Gewicht und Stil werden aus dem Namen erkannt
+(UltraLight/Thin, Light, Regular, Medium, Demi/SemiBold, Bold, Heavy/Black, …It/Italic). `/css/schrift.css` erzeugt daraus beim Aufruf die
+`@font-face`-Regeln; fehlen die Dateien, gilt Nunito Sans. Mit Docker z. B.:
+
+```yaml
+    volumes:
+      - untplanweb-daten:/data
+      - ./fonts:/app/wwwroot/fonts:ro
+```
+
 ## Funktionen
 
 Seiten (je nach Rolle):
@@ -57,6 +122,7 @@ Seiten (je nach Rolle):
 | **Unterricht** | Meine Unterrichte (Periode, Termine, Räume, CSV), Offene Stunden, Prüfungen |
 | **Klassenbuch** | Übersicht, Offene Stunden, Klassenbucheinträge, Hausaufgaben, Klassendienste, Abwesenheiten, Fehlzeiten, Befreiungen, Sitzplan, Berichte |
 | **Melden & Buchen** | Abwesenheit melden, Raum buchen, Prüfung eintragen, Meine Meldungen |
+| **Unterricht** (Schülerverwaltung) | *Schüler\*in*: anzeigen, anlegen, bearbeiten, löschen je nach Rolle (siehe Rollen) |
 | **Stammdaten** (Administration) | Klassen, Lehrkräfte, Fächer, Räume, Schüler*innen (aus UntPlan, lesend), Abwesenheitsgründe, Klassendienste, Versionen (Übertragungsverlauf) |
 | **Administration** | Übersicht & Synchronisation, Nachrichten zum Tag, Freie Tage & Ferien, Import, Export, Aktive Benutzer, Rechte und Rollen, Benutzer, Zuordnungsgruppen, Rückmeldungen, Prüfungssperren, Ansichtseinstellungen, Monitore, Protokoll |
 
@@ -157,7 +223,12 @@ Zusätzlich zu Plan, Vertretungen, Klassenbuch und Mitteilungen (alle unter `/ap
 | `GET /api/app/klassenbuch/offen?tage=` | eigene Stunden ohne Lehrstoff (Standard 14 Tage) |
 | `GET/POST /api/app/klassenbuch/hausaufgabenliste`, `PUT/DELETE …/{id}` | Hausaufgaben einer Stunde (Text, Fälligkeit, Bemerkung, erledigt) und die in der Stunde fälligen |
 | `POST /api/app/klassenbuch/abwesenheit/verlaengern` | Abwesenheiten aus der Vorstunde bis Stundenende bzw. bis zum Tagesbeginn verlängern |
-| `GET /api/app/start` | Daten der Startseite *Heute* |
+| `GET /api/app/start` | Daten der Startseite *Heute* (Nachrichten mit `textHtml`, nächster Unterricht) |
+| `GET/POST /api/app/schueler`, `PUT/DELETE …/{id}` | Schülerverwaltung (Rechte siehe Rollen) |
+| `POST /api/app/meldungen/raumaenderung` | Raum einer Stunde ersetzen, löschen oder zusätzlichen Raum buchen (`raeume` = neue Raumliste) |
+| `GET /api/app/klassenbuch/uebersicht?bis=&tage=&klasse=&lehrer=` | Klassenbuch-Übersicht je Tag |
+| `GET /api/app/klassenbuch/lehrstoff/vorstunden?datum=&stunde=&unterricht=` | Lehrstoff der letzten Stunden (Dialog *Lehrstoff*) |
+| `GET /css/schrift.css` | `@font-face` für AvenirNextPro aus `wwwroot/fonts` (leer ohne Dateien) |
 | `GET /api/app/klassenbuch/stunden?von=&bis=&lehrer=&klasse=` | offene Stunden (Abwesenheitskontrolle/Lehrstoff) |
 | `PUT /api/app/klassenbuch/online` | Stunde „findet online statt“ |
 | `GET /api/app/abwesenheitsgruende` | Abwesenheitsgründe |
@@ -336,6 +407,11 @@ Die Schnittstelle (Schema `untplanweb/1`) ist in `src/UntPlan.Web.Contracts` def
 Die Authentifizierung erfolgt über `Authorization: Bearer <API-Schlüssel>`.
 
 ## Rollen
+
+**Schülerverwaltung:** Administration und Schulleitung sehen und bearbeiten alle Schüler\*innen (auch Klassenwechsel und Löschen),
+die Klassenleitung bearbeitet die Schüler\*innen ihrer Klassen (inkl. Geburtsdatum, E-Mail, Bemerkung; kein Klassenwechsel, kein Löschen),
+andere Lehrkräfte sehen nur Name, Klasse und Geschlecht, Klassenkonten haben keinen Zugriff. Die Liste aus UntPlan bleibt Grundlage;
+Änderungen und neu angelegte Schüler\*innen (Ids ab 10.000.000) werden in UntPlanWeb gespeichert und überstehen neue Übertragungen.
 
 | Rolle | sieht | darf |
 |---|---|---|
