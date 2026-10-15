@@ -172,7 +172,8 @@ Zusätzlich zu Plan, Vertretungen, Klassenbuch und Mitteilungen (alle unter `/ap
 
 ## Installation mit Docker
 
-Voraussetzung: ein Server oder NAS mit Docker (Linux, amd64 oder arm64). Die Datenbank (SQLite) liegt im Container-Volume, ein eigener Datenbankserver ist nicht nötig.
+Voraussetzung: ein Server oder NAS mit Docker (Linux, amd64 oder arm64). Standardmäßig liegt die Datenbank (SQLite) im Container-Volume, ein eigener Datenbankserver ist nicht nötig.
+Für größere bzw. produktive Installationen kann stattdessen MariaDB oder MySQL verwendet werden (siehe [Installation mit MariaDB/MySQL](#installation-mit-mariadbmysql)).
 
 ```bash
 mkdir untplanweb && cd untplanweb
@@ -212,11 +213,106 @@ Anmeldung als `admin` / `admin12345`. Die Beispielwoche wird automatisch auf die
 | `UNTPLANWEB_API_SCHLUESSEL` | fester API-Schlüssel für UntPlan | wird erzeugt |
 | `UNTPLANWEB_DEMO` | `1` = Beispieldaten laden, solange noch keine Daten vorhanden sind | – |
 | `UNTPLANWEB_MOBILE_URL` | erlaubte Adresse(n) von UntPlanMobile für die Einmalanmeldung (kommagetrennt) | gleicher Rechnername |
+| `UNTPLANWEB_DB` | Datenbank: `sqlite` oder `mysql` (auch `mariadb`) | `sqlite` |
+| `UNTPLANWEB_DB_CONNECTION` | Verbindung zu MySQL/MariaDB: `Server=…;Port=3306;Database=…;User ID=…;Password=…` oder `mysql://benutzer:passwort@host:3306/datenbank` | – |
+| `UNTPLANWEB_DB_WARTEN` | Sekunden, die beim Start auf den Datenbankserver gewartet wird | `60` |
+| `UNTPLANWEB_UPDATE_PRUEFEN` | `0` = nicht nach neuen Versionen suchen | an |
+| `UNTPLANWEB_UPDATE_URL` | Quelle der neuesten Version (GitHub-API `…/releases/latest`, `…/releases`, `…/tags`, `ghcr://besitzer/image` oder eigene Adresse mit `{"version":"…"}` bzw. Text) | `https://api.github.com/repos/florians25/UntPlan/releases/latest` |
+| `UNTPLANWEB_UPDATE_TAG_PRAEFIX` | nur Tags mit diesem Präfix berücksichtigen (z. B. `web-v`) | – |
+| `UNTPLANWEB_UPDATE_MODUS` | „Update installieren“: `aus`, `watchtower` oder `datei` | `watchtower`, wenn eine Watchtower-Adresse gesetzt ist, sonst `aus` |
+| `UNTPLANWEB_UPDATE_WATCHTOWER_URL`, `…_TOKEN` | HTTP-API von Watchtower, z. B. `http://watchtower:8080/v1/update`, und deren Token | – |
+| `UNTPLANWEB_MOBILE_INTERN_URL` | Adresse von UntPlanMobile aus Sicht des Servers (Versionsanzeige in der Administration), z. B. `http://untplanmobile:8081` | – |
 
-### Sicherung und Update
+### Installation mit MariaDB/MySQL
 
-- **Sicherung:** das Volume `untplanweb-daten` sichern, zum Beispiel `docker run --rm -v untplanweb_untplanweb-daten:/data -v $PWD:/b alpine tar czf /b/untplanweb.tgz /data`.
-- **Update:** `docker compose pull && docker compose up -d`. Die Datenbank wird beim Start automatisch migriert.
+SQLite bleibt der Standard (und wird für die Tests verwendet). Für produktive Installationen mit vielen Benutzer*innen oder
+vorhandener Datenbank-Infrastruktur kann UntPlanWeb MariaDB (ab 10.5) oder MySQL (ab 8.0.13) verwenden. Die Datei
+`docker-compose.mariadb.yml` startet UntPlanWeb zusammen mit einem MariaDB-Dienst (eigenes Volume, Healthcheck; UntPlanWeb
+startet erst, wenn die Datenbank bereit ist):
+
+```bash
+mkdir untplanweb && cd untplanweb
+curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/web/docker-compose.mariadb.yml
+curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/web/update.sh && chmod +x update.sh
+cat > .env <<'EOF'
+MARIADB_PASSWORT=ein-langes-passwort
+MARIADB_ROOT_PASSWORT=ein-anderes-langes-passwort
+WATCHTOWER_TOKEN=ein-zufaelliger-token
+EOF
+docker compose -f docker-compose.mariadb.yml up -d
+```
+
+Tipp: `export COMPOSE_FILE=docker-compose.mariadb.yml` (oder `COMPOSE_FILE=…` in `.env`) erspart das `-f` bei allen weiteren Befehlen.
+
+Eigener Datenbankserver statt Container: `UNTPLANWEB_DB=mysql` und
+`UNTPLANWEB_DB_CONNECTION=Server=db.schule.local;Database=untplanweb;User ID=untplanweb;Password=…` setzen. Die Datenbank
+muss existieren (Zeichensatz `utf8mb4`), der Benutzer braucht alle Rechte darauf. Tabellen und Migrationen legt UntPlanWeb beim
+Start selbst an. Ein Passwort mit `;` in Anführungszeichen setzen (`Password="a;b"`) oder die Form `mysql://…` mit URL-Kodierung
+verwenden. Das Volume `/data` bleibt auch mit MySQL nötig (Schlüssel der Anmelde-Cookies, Sicherungen, Update-Anforderungen).
+
+Technik: Die Befehle und Migrationen sind im SQLite-Dialekt geschrieben; eine schlanke Provider-Abstraktion
+(`Daten/Dialekt.cs`, Paket MySqlConnector) übersetzt die Unterschiede zentral – `AUTOINCREMENT`/`AUTO_INCREMENT`,
+`ON CONFLICT … DO UPDATE`/`ON DUPLICATE KEY UPDATE`, `INSERT OR REPLACE/IGNORE`, `datetime('now')`, `last_insert_rowid()`,
+`COLLATE NOCASE`, Texttypen mit Index (`VARCHAR(255)`) bzw. ohne (`LONGTEXT`), Fremdschlüssel. Booleans werden als 0/1
+gespeichert, `LIMIT` ist gleich. Alle Tests laufen mit SQLite; mit `UNTPLANWEB_TEST_MYSQL` zusätzlich gegen MySQL/MariaDB
+(siehe [Entwicklung](#entwicklung)).
+
+### Update
+
+Ein Update ist immer ein neues Container-Image. Die Datenbank-Migrationen laufen beim Start automatisch (SQLite und MySQL);
+eine Sicherung vorher wird dringend empfohlen – bei MySQL/MariaDB schließen Schemaänderungen Transaktionen implizit ab.
+
+```bash
+./update.sh                       # Sicherung, docker compose pull, docker compose up -d
+# oder von Hand:
+docker compose exec untplanweb dotnet UntPlanWeb.dll --sichern      # SQLite → /data/sicherungen
+docker compose pull && docker compose up -d
+```
+
+`update.sh` (im Ordner mit der Compose-Datei aufrufen, für MariaDB mit `COMPOSE_FILE=docker-compose.mariadb.yml`) sichert
+SQLite per `--sichern` bzw. MariaDB per `mariadb-dump` nach `./sicherungen`, lädt die neuen Images und startet neu.
+
+**Updateanzeige:** Unter *Administration → Übersicht* zeigt die Karte *Version & Updates* die laufende Version, die Datenbank
+mit Schemastand und die neueste veröffentlichte Version (Standard: GitHub-Releases von florians25/UntPlan, alle 6 Stunden geprüft;
+abschaltbar mit `UNTPLANWEB_UPDATE_PRUEFEN=0`, andere Quelle mit `UNTPLANWEB_UPDATE_URL`). Ist ein Update verfügbar, erscheint
+oben ein Hinweis. Passt die Nummerierung der Releases nicht zu der des Images, `UNTPLANWEB_UPDATE_URL=ghcr://florians25/untplanweb`
+(Tags des öffentlichen Images) oder einen Tag-Präfix verwenden.
+
+**Update aus der Oberfläche** (nur Administration; Aufruf `POST /api/app/admin/update/installieren` mit Kopf `X-UntPlanWeb: 1`).
+Vorher wird SQLite automatisch nach `/data/sicherungen` gesichert (die letzten fünf bleiben). Zwei Wege:
+
+- **Watchtower** (empfohlen): Die Compose-Dateien enthalten einen optionalen Dienst `watchtower` (Profil `updater`), der nur auf
+  Anforderung und nur Container mit dem Label `com.centurylinklabs.watchtower.enable=true` aktualisiert (nicht MariaDB):
+  `docker compose --profile updater up -d`, Token in `.env` (`WATCHTOWER_TOKEN`), bei UntPlanWeb
+  `UNTPLANWEB_UPDATE_WATCHTOWER_URL=http://watchtower:8080/v1/update` und `UNTPLANWEB_UPDATE_WATCHTOWER_TOKEN` setzen
+  (in `docker-compose.mariadb.yml` bereits vorbelegt). Watchtower erhält Zugriff auf den Docker-Socket – nur mit eigenem, langem Token betreiben.
+- **Anforderungsdatei** (`UNTPLANWEB_UPDATE_MODUS=datei`, ohne Docker-Socket im Container): Der Knopf legt
+  `/data/update/angefordert.json` an; ein cron-Eintrag auf dem Server führt dann das Update aus:
+  `* * * * * cd /opt/untplanweb && ./update.sh --wenn-angefordert >> update.log 2>&1`.
+
+Ohne Updater zeigt die Karte den Befehl `docker compose pull && docker compose up -d`.
+
+### Datenmigration
+
+Bestehende SQLite-Daten lassen sich nach MySQL/MariaDB übernehmen. Der Befehl migriert beide Datenbanken auf den aktuellen
+Schemastand und kopiert alle Tabellen in einer Transaktion (IDs, Passwort-Hashes und Anhänge bleiben erhalten). Die Zieldatenbank
+muss leer sein (sonst `--ueberschreiben`); die SQLite-Datei bleibt als Sicherung liegen.
+
+Umstieg einer Docker-Installation (im selben Ordner, damit das Volume `untplanweb-daten` mit der SQLite-Datei weiterverwendet wird):
+
+```bash
+docker compose down                                                   # SQLite-Installation stoppen (Volume bleibt)
+curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/web/docker-compose.mariadb.yml
+# .env mit MARIADB_PASSWORT, MARIADB_ROOT_PASSWORT, WATCHTOWER_TOKEN anlegen (siehe oben)
+docker compose -f docker-compose.mariadb.yml run --rm untplanweb --migrieren-nach-mysql
+docker compose -f docker-compose.mariadb.yml up -d
+```
+
+Ohne Docker: `UNTPLANWEB_DATEN=/pfad/zum/datenordner UNTPLANWEB_DB_CONNECTION="Server=…;Database=…;User ID=…;Password=…" dotnet UntPlanWeb.dll --migrieren-nach-mysql [--quelle datei.db] [--ueberschreiben]`,
+danach UntPlanWeb mit `UNTPLANWEB_DB=mysql` starten. Der Ablauf ist durch Tests abgedeckt (`DatenbankTests`: SQLite → SQLite immer,
+SQLite → MySQL/MariaDB über den Kommandozeilenbefehl, wenn `UNTPLANWEB_TEST_MYSQL` gesetzt ist).
+
+**Sicherung des Volumes** (z. B. zusätzlich): `docker run --rm -v untplanweb_untplanweb-daten:/data -v $PWD:/b alpine tar czf /b/untplanweb.tgz /data`.
 
 ## UntPlan verbinden
 
@@ -265,11 +361,15 @@ cd web
 dotnet run --project src/UntPlanWeb          # http://localhost:5000, Daten in ./daten
 UNTPLANWEB_DEMO=1 UNTPLANWEB_ADMIN_PASSWORT=admin12345 dotnet run --project src/UntPlanWeb
 dotnet test tests/UntPlanWeb.Tests           # inkl. Ende-zu-Ende-Test mit dem Exportcode von UntPlan
+# zusätzlich gegen MySQL/MariaDB (Benutzer mit CREATE/DROP DATABASE); ohne Variable werden diese Tests übersprungen:
+UNTPLANWEB_TEST_MYSQL="Server=127.0.0.1;User ID=root;Password=…" dotnet test tests/UntPlanWeb.Tests
+# alle Tests gegen MySQL/MariaDB:
+UNTPLANWEB_TEST_MYSQL="…" UNTPLANWEB_TEST_ALLE_MIT_MYSQL=1 dotnet test tests/UntPlanWeb.Tests
 ```
 
 Aufbau:
 
-- `src/UntPlanWeb`: ASP.NET Core 8 (Minimal-APIs) mit SQLite und eigenen Migrationen.
+- `src/UntPlanWeb`: ASP.NET Core 8 (Minimal-APIs) mit SQLite (oder MySQL/MariaDB über `Daten/Dialekt.cs`) und eigenen Migrationen (`Daten/Db.cs`, nur anhängen).
 - `wwwroot`: Oberfläche ohne Build-Schritt im WebUntis-Stil (eigenes `css/app.css` mit CSS-Variablen über Bootstrap 5.3, Original-Icons unter `img/wu` (Zuordnung in `js/symbole.js`), Bootstrap Icons und Nunito Sans lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module je Seite unter `js/ansichten`.
 - `demo/beispiel-paket.json`: Beispielpaket, mit UntPlan.Core aus der Beispielschule erzeugt.
 

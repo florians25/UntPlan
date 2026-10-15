@@ -19,7 +19,7 @@ public sealed record Hausaufgabe(int Id, string Datum, int Stunde, int Unterrich
 /// </summary>
 public sealed partial class Klassenbuchdienst
 {
-    private static Hausaufgabe LesenHausaufgabe(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
+    private static Hausaufgabe LesenHausaufgabe(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("text"), r.TextOderNull("faellig"),
         r.Text("bemerkung"), r.Wahr("erledigt"), r.Text("erstellt"));
 

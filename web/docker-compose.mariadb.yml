@@ -1,0 +1,84 @@
+# UntPlanWeb mit MariaDB – produktive Installation (HTTP auf Port 8080, z. B. hinter einem vorhandenen Reverse-Proxy).
+#   1. Passwörter in einer Datei .env neben dieser Datei festlegen:
+#        MARIADB_PASSWORT=…            (Benutzer untplanweb)
+#        MARIADB_ROOT_PASSWORT=…       (nur für Sicherungen/Wartung)
+#   2. docker compose -f docker-compose.mariadb.yml up -d
+# Update (Sicherung vorher, Migrationen laufen beim Start automatisch):
+#   COMPOSE_FILE=docker-compose.mariadb.yml ./update.sh
+#   bzw. docker compose -f docker-compose.mariadb.yml pull && docker compose -f docker-compose.mariadb.yml up -d
+# Update aus der Oberfläche (Administration → Übersicht → „Update installieren“): mit Profil „updater“ starten
+#   docker compose -f docker-compose.mariadb.yml --profile updater up -d
+# Bestehende SQLite-Daten übernehmen: siehe README, Abschnitt „Datenmigration“.
+
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: untplanweb-mariadb
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      MARIADB_DATABASE: untplanweb
+      MARIADB_USER: untplanweb
+      MARIADB_PASSWORD: ${MARIADB_PASSWORT:?Bitte MARIADB_PASSWORT in .env setzen}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORT:?Bitte MARIADB_ROOT_PASSWORT in .env setzen}
+      MARIADB_AUTO_UPGRADE: "1"
+    # große Pakete (ganzes Schuljahr) zulassen, Zeichensatz utf8mb4
+    command: ["--max-allowed-packet=256M", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - mariadb-daten:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+  untplanweb:
+    image: ghcr.io/florians25/untplanweb:latest
+    # Selbst bauen statt das fertige Image zu laden:
+    # build: { context: .., dockerfile: web/Dockerfile }
+    container_name: untplanweb
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANWEB_ZEITZONE: Europe/Berlin
+      UNTPLANWEB_DB: mysql
+      UNTPLANWEB_DB_CONNECTION: "Server=mariadb;Port=3306;Database=untplanweb;User ID=untplanweb;Password=${MARIADB_PASSWORT}"
+      # Update aus der Oberfläche über Watchtower (Profil „updater“); ohne Watchtower wird der Befehl angezeigt
+      UNTPLANWEB_UPDATE_WATCHTOWER_URL: http://watchtower:8080/v1/update
+      UNTPLANWEB_UPDATE_WATCHTOWER_TOKEN: ${WATCHTOWER_TOKEN:-bitte-aendern}
+      # Updateprüfung abschalten bzw. andere Quelle:
+      # UNTPLANWEB_UPDATE_PRUEFEN: "0"
+      # UNTPLANWEB_UPDATE_URL: ghcr://florians25/untplanweb
+      # Optional – sonst über den Einrichtungsassistenten im Browser:
+      # UNTPLANWEB_ADMIN_PASSWORT: "bitte-aendern"
+    volumes:
+      # Schlüssel der Anmelde-Cookies, Sicherungen und Update-Anforderungen (die Daten selbst liegen in MariaDB)
+      - untplanweb-daten:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # Optionaler Updater: lädt neue Images nur auf Anforderung aus der Administration (HTTP-API mit Token).
+  # MariaDB wird bewusst nicht automatisch aktualisiert (kein Label).
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: untplanweb-watchtower
+    profiles: ["updater"]
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_TOKEN:-bitte-aendern}
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  mariadb-daten:
+  untplanweb-daten:

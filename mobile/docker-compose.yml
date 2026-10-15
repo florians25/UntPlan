@@ -3,6 +3,9 @@
 # UntPlanWeb:    http://<server>:8080  (Einrichtung, Administration, Datenaustausch mit UntPlan)
 # UntPlanMobile: http://<server>:8081  (App fürs Telefon, Anmeldung mit dem Konto von UntPlanWeb)
 # Für die Installation als App auf dem Telefon ist HTTPS nötig (z. B. über einen Reverse-Proxy, siehe README).
+# Mit MariaDB: docker-compose.mariadb.yml. Update beider Dienste (Sicherung vorher, Migrationen laufen automatisch):
+#   ../web/update.sh   bzw.   docker compose pull && docker compose up -d
+# Update aus der Administration von UntPlanWeb: docker compose --profile updater up -d (Token in .env: WATCHTOWER_TOKEN=…)
 
 services:
   untplanweb:
@@ -20,8 +23,15 @@ services:
       # UNTPLANWEB_ADMIN_PASSWORT: "bitte-aendern"
       # Zum Ausprobieren mit Beispieldaten:
       # UNTPLANWEB_DEMO: "1"
+      # Version von UntPlanMobile in der Administration anzeigen
+      UNTPLANWEB_MOBILE_INTERN_URL: http://untplanmobile:8081
+      # Update aus der Oberfläche über Watchtower (Profil „updater“):
+      # UNTPLANWEB_UPDATE_WATCHTOWER_URL: http://watchtower:8080/v1/update
+      # UNTPLANWEB_UPDATE_WATCHTOWER_TOKEN: ${WATCHTOWER_TOKEN:-bitte-aendern}
     volumes:
       - untplanweb-daten:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
 
   untplanmobile:
     image: ghcr.io/florians25/untplanmobile:latest
@@ -38,6 +48,25 @@ services:
       UNTPLANMOBILE_ZEITZONE: Europe/Berlin
       # Adresse von UntPlanWeb aus Sicht des Containers (Dienstname im Compose-Netz)
       UNTPLANWEB_URL: http://untplanweb:8080
+      # Updateprüfung abschalten:
+      # UNTPLANMOBILE_UPDATE_PRUEFEN: "0"
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # Optionaler Updater (nur mit --profile updater): aktualisiert UntPlanWeb und UntPlanMobile auf Anforderung
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: untplan-watchtower
+    profiles: ["updater"]
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_TOKEN:-bitte-aendern}
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   untplanweb-daten:

@@ -6,6 +6,7 @@ installer
 docs
 tests
 web
+!web/src/UntPlanWeb/Dienste/Updatepruefung.cs
 mobile/tests
 mobile/docs
 src

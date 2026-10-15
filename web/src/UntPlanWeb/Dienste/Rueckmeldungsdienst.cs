@@ -32,7 +32,7 @@ public sealed class Rueckmeldungsdienst
 
     private static List<string> Liste(string json) => string.IsNullOrEmpty(json) ? new() : JsonSerializer.Deserialize<List<string>>(json) ?? new();
 
-    private static Meldung Lesen(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Text("id"), r.Text("typ"), r.Text("erstellt"), r.ZahlOderNull("benutzer_id"), r.Text("absender"),
+    private static Meldung Lesen(System.Data.Common.DbDataReader r) => new(r.Text("id"), r.Text("typ"), r.Text("erstellt"), r.ZahlOderNull("benutzer_id"), r.Text("absender"),
         r.TextOderNull("lehrer"), r.TextOderNull("von"), r.TextOderNull("bis"), r.ZahlOderNull("stunde_von"), r.ZahlOderNull("stunde_bis"), r.TextOderNull("raum"),
         Liste(r.Text("raeume")), Liste(r.Text("klassen")), Liste(r.Text("weitere_lehrer")), r.TextOderNull("titel"), r.TextOderNull("grund"), r.TextOderNull("text"),
         r.Text("status"), r.TextOderNull("quittiert"));

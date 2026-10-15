@@ -1,0 +1,90 @@
+# UntPlanWeb + UntPlanMobile mit MariaDB – produktive Installation (HTTP).
+#   1. Datei .env neben dieser Datei: MARIADB_PASSWORT=…, MARIADB_ROOT_PASSWORT=…, WATCHTOWER_TOKEN=…
+#   2. docker compose -f docker-compose.mariadb.yml up -d
+#      (mit Update aus der Oberfläche: zusätzlich --profile updater)
+# UntPlanWeb:    http://<server>:8080  (Einrichtung, Administration, Updates)
+# UntPlanMobile: http://<server>:8081  (App fürs Telefon; speichert selbst keine Daten)
+# Update beider Dienste (Sicherung vorher, Migrationen laufen beim Start automatisch):
+#   COMPOSE_FILE=docker-compose.mariadb.yml ../web/update.sh
+#   bzw. docker compose -f docker-compose.mariadb.yml pull && docker compose -f docker-compose.mariadb.yml up -d
+
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: untplanweb-mariadb
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      MARIADB_DATABASE: untplanweb
+      MARIADB_USER: untplanweb
+      MARIADB_PASSWORD: ${MARIADB_PASSWORT:?Bitte MARIADB_PASSWORT in .env setzen}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORT:?Bitte MARIADB_ROOT_PASSWORT in .env setzen}
+      MARIADB_AUTO_UPGRADE: "1"
+    command: ["--max-allowed-packet=256M", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - mariadb-daten:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+  untplanweb:
+    image: ghcr.io/florians25/untplanweb:latest
+    # build: { context: .., dockerfile: web/Dockerfile }
+    container_name: untplanweb
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANWEB_ZEITZONE: Europe/Berlin
+      UNTPLANWEB_DB: mysql
+      UNTPLANWEB_DB_CONNECTION: "Server=mariadb;Port=3306;Database=untplanweb;User ID=untplanweb;Password=${MARIADB_PASSWORT}"
+      UNTPLANWEB_UPDATE_WATCHTOWER_URL: http://watchtower:8080/v1/update
+      UNTPLANWEB_UPDATE_WATCHTOWER_TOKEN: ${WATCHTOWER_TOKEN:-bitte-aendern}
+      # Version von UntPlanMobile in der Administration anzeigen
+      UNTPLANWEB_MOBILE_INTERN_URL: http://untplanmobile:8081
+    volumes:
+      - untplanweb-daten:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  untplanmobile:
+    image: ghcr.io/florians25/untplanmobile:latest
+    # build: { context: .., dockerfile: mobile/Dockerfile }
+    container_name: untplanmobile
+    restart: unless-stopped
+    depends_on:
+      - untplanweb
+    ports:
+      - "8081:8081"
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANMOBILE_ZEITZONE: Europe/Berlin
+      UNTPLANWEB_URL: http://untplanweb:8080
+      # UNTPLANMOBILE_UPDATE_PRUEFEN: "0"
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: untplan-watchtower
+    profiles: ["updater"]
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_TOKEN:-bitte-aendern}
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  mariadb-daten:
+  untplanweb-daten:

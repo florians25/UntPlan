@@ -9,6 +9,8 @@ COPY Directory.Build.props ./
 COPY mobile/src/UntPlanMobile/UntPlanMobile.csproj mobile/src/UntPlanMobile/
 RUN dotnet restore mobile/src/UntPlanMobile/UntPlanMobile.csproj
 COPY mobile/src/UntPlanMobile/ mobile/src/UntPlanMobile/
+# gemeinsame Update-Prüfung mit UntPlanWeb (in UntPlanMobile.csproj eingebunden)
+COPY web/src/UntPlanWeb/Dienste/Updatepruefung.cs web/src/UntPlanWeb/Dienste/
 ARG VERSION=1.0.0
 RUN dotnet publish mobile/src/UntPlanMobile/UntPlanMobile.csproj -c Release -o /app --no-restore -p:UseAppHost=false -p:Version=$VERSION
 
