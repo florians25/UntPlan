@@ -11,7 +11,7 @@ public sealed class Monitordienst
 
     public Monitordienst(Db db) => _db = db;
 
-    private static Monitor Lesen(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("name"), r.Text("token"), r.Text("version"), r.Zahl("tage"));
+    private static Monitor Lesen(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("name"), r.Text("token"), r.Text("version"), r.Zahl("tage"));
 
     public List<Monitor> Alle() => _db.Liste("SELECT * FROM monitore ORDER BY name", Lesen);
     public Monitor? NachToken(string token) => _db.Einzel("SELECT * FROM monitore WHERE token = @t", Lesen, Db.P("@t", token ?? ""));

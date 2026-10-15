@@ -99,6 +99,59 @@ UntPlanMobile wertet `X-Forwarded-Proto` und `X-Forwarded-Host` aus und setzt da
 | `UNTPLANWEB_PUBLIC_URL` | Adresse von UntPlanWeb aus Sicht des Browsers (für die Einmalanmeldung) | gleicher Rechnername, Port 8080 |
 | `UNTPLANMOBILE_ZEITZONE` | Zeitzone der Schule (heutiger Tag, aktuelle Woche) | `Europe/Berlin` |
 | `ASPNETCORE_HTTP_PORTS` | Port im Container | `8081` |
+| `UNTPLANMOBILE_UPDATE_PRUEFEN` | `0` = nicht nach neuen Versionen suchen | an |
+| `UNTPLANMOBILE_UPDATE_URL` | Quelle der neuesten Version (wie `UNTPLANWEB_UPDATE_URL`, z. B. `ghcr://florians25/untplanmobile`) | GitHub-Releases von florians25/UntPlan |
+| `UNTPLANMOBILE_UPDATE_TAG_PRAEFIX` | nur Tags mit diesem Präfix berücksichtigen | – |
+
+### Installation mit MariaDB/MySQL
+
+UntPlanMobile selbst speichert keine Daten – es ist ein Proxy vor UntPlanWeb. Die Datenbank betrifft nur UntPlanWeb;
+`docker-compose.mariadb.yml` startet MariaDB (Volume, Healthcheck), UntPlanWeb mit `UNTPLANWEB_DB=mysql` und UntPlanMobile:
+
+```bash
+mkdir untplan && cd untplan
+curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/mobile/docker-compose.mariadb.yml
+curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/web/update.sh && chmod +x update.sh
+printf 'MARIADB_PASSWORT=…\nMARIADB_ROOT_PASSWORT=…\nWATCHTOWER_TOKEN=…\nCOMPOSE_FILE=docker-compose.mariadb.yml\n' > .env
+docker compose up -d
+```
+
+Einzelheiten (eigener Datenbankserver, Verbindungszeichenfolge, Technik): [UntPlanWeb – Installation mit MariaDB/MySQL](../web/README.md#installation-mit-mariadbmysql).
+
+### Update
+
+Wie bei UntPlanWeb ist ein Update ein neues Image; UntPlanMobile hat keine Migrationen und keinen Zustand außer den Sitzungen,
+die an UntPlanWeb hängen. Beide Dienste zusammen aktualisieren:
+
+```bash
+./update.sh                       # Sicherung von UntPlanWeb (SQLite bzw. MariaDB), docker compose pull, docker compose up -d
+# oder von Hand:
+docker compose pull && docker compose up -d
+```
+
+- **Versionsanzeige:** `GET /api/version` liefert Version, neueste veröffentlichte Version und ob ein Update verfügbar ist
+  (gleiche Prüflogik wie UntPlanWeb, Datei `web/src/UntPlanWeb/Dienste/Updatepruefung.cs` wird eingebunden). Mit
+  `UNTPLANWEB_MOBILE_INTERN_URL=http://untplanmobile:8081` bei UntPlanWeb (in den Compose-Dateien gesetzt) erscheint die Version von
+  UntPlanMobile auch in UntPlanWeb unter *Administration → Übersicht → Version & Updates*.
+- **Update aus der Oberfläche:** UntPlanMobile hat keine eigene Administration. Der Knopf *Update installieren* in UntPlanWeb
+  stößt Watchtower an (`docker compose --profile updater up -d`), das alle Container mit dem Label
+  `com.centurylinklabs.watchtower.enable=true` aktualisiert – also UntPlanWeb und UntPlanMobile, nicht MariaDB. Alternativ
+  Anforderungsdatei plus cron (`./update.sh --wenn-angefordert`), siehe [UntPlanWeb – Update](../web/README.md#update).
+- Nach dem Update lädt die App auf den Telefonen die neue Oberfläche automatisch: Der Service Worker trägt eine Fassung
+  (Prüfwert über alle Dateien) im Cachenamen.
+
+### Datenmigration
+
+UntPlanMobile hat keine eigenen Daten. Für den Umstieg von UntPlanWeb von SQLite auf MariaDB im selben Ordner:
+
+```bash
+docker compose down
+curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/mobile/docker-compose.mariadb.yml   # .env wie oben
+docker compose -f docker-compose.mariadb.yml run --rm untplanweb --migrieren-nach-mysql
+docker compose -f docker-compose.mariadb.yml up -d
+```
+
+Siehe [UntPlanWeb – Datenmigration](../web/README.md#datenmigration).
 
 ## Verbindung zu UntPlanWeb
 
@@ -161,7 +214,7 @@ Aufbau:
 - `src/UntPlanMobile`: ASP.NET Core 8 (Minimal-APIs) ohne eigene Datenbank.
   - `Dienste/UntPlanWebVerbindung.cs`: Aufrufe an UntPlanWeb mit durchgereichtem Sitzungscookie.
   - `Dienste/Kachelbau.cs`: Wochenplan → Kacheln; `Dienste/Wochendienst.cs`: Wochen, Stammdaten, Startdaten.
-  - `Api/`: die Endpunkte der Oberfläche (Stundenplan, Anmeldung, Klassenbuch, Startseite, Mitteilungen).
+  - `Api/`: die Endpunkte der Oberfläche (Stundenplan, Anmeldung, Klassenbuch, Startseite, Mitteilungen) und `VersionApi.cs` (`/api/version`).
   - `Vorlagen/index.html`, `Vorlagen/sw.js`: App-Hülle und Service Worker; der Server setzt Symbolsammlung,
     Startdaten (mit CSP-Nonce) und Fassung ein.
   - `wwwroot/`: die Oberfläche ohne Build-Schritt – `app.js`, `app.css`, Symbole und Manifest.

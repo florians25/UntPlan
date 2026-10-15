@@ -122,6 +122,8 @@ async function sync(ziel, kontext, neu) {
     try { await senden('/api/app/admin/schule', formularWerte(ev.target), 'PUT'); toast('Gespeichert.'); await kontext.sitzungNeu(); neu(); }
     catch (err) { kontext.fehler(err); }
   };
+  // Version & Updates (eigene Datei)
+  import('./update.js').then(m => m.einbinden(ziel)).catch(() => { /* Anzeige ist optional */ });
 }
 
 // ------------------------------------------------------------------ Benutzer

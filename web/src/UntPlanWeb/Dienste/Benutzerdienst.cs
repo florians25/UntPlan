@@ -46,7 +46,7 @@ public sealed class Benutzerdienst
 
     private const string Spalten = "id, login, anzeigename, rolle, element, email, gesperrt, passwort_aendern, ical_token, erstellt, letzte_anmeldung, vorherige_anmeldung, sprache, benachrichtigung";
 
-    private static Benutzer Lesen(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("login"), r.Text("anzeigename"), r.Text("rolle"),
+    private static Benutzer Lesen(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("login"), r.Text("anzeigename"), r.Text("rolle"),
         r.Text("element"), r.Text("email"), r.Wahr("gesperrt"), r.Wahr("passwort_aendern"), r.Text("ical_token"), r.Text("erstellt"), r.TextOderNull("letzte_anmeldung"),
         r.TextOderNull("vorherige_anmeldung"), r.Text("sprache"), r.Wahr("benachrichtigung"));
 

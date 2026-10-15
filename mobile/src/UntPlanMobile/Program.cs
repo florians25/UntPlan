@@ -43,6 +43,8 @@ public class Program
         builder.Services.AddSingleton<Huelle>();
         builder.Services.AddTransient<Kontodienst>();
         builder.Services.AddTransient<Wochendienst>();
+        builder.Services.AddHttpClient("update");
+        builder.Services.AddSingleton(sp => VersionApi.PruefungErstellen(sp, builder.Configuration));
         builder.Services.AddHttpClient<UntPlanWebVerbindung>(c =>
             {
                 c.BaseAddress = new Uri(adresse.TrimEnd('/') + "/");
@@ -142,6 +144,7 @@ public class Program
         StartseiteApi.Abbilden(app);
         MitteilungenApi.Abbilden(app);
         SsoApi.Abbilden(app);
+        VersionApi.Abbilden(app);
         return app;
     }
 

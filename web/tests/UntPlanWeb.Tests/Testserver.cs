@@ -50,6 +50,7 @@ public sealed class Testserver : IAsyncDisposable
                 ["UNTPLANWEB_API_SCHLUESSEL"] = ApiSchluessel,
                 ["Logging:LogLevel:Default"] = "Warning",
             });
+            b.Configuration.AddInMemoryCollection(Testzusatz.Konfiguration(ordner)); // optional MySQL/MariaDB bzw. Update-Einstellungen
             b.WebHost.UseUrls("http://127.0.0.1:0");
         });
         app.Services.GetRequiredService<Uhr>().Fest = Jetzt;
@@ -126,6 +127,7 @@ public sealed class Testserver : IAsyncDisposable
         await _app.StopAsync();
         await _app.DisposeAsync();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        Testzusatz.Aufraeumen(_ordner);
         try { Directory.Delete(_ordner, true); } catch (IOException) { }
     }
 }

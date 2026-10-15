@@ -16,6 +16,12 @@ public class Program
     {
         // Gesundheitsprüfung für Docker (das Laufzeit-Image enthält weder curl noch wget)
         if (args.Contains("--gesundheitspruefung")) return Gesundheitspruefung();
+        // Kommandozeile: SQLite-Daten nach MySQL/MariaDB übernehmen bzw. sichern (siehe README, „Datenmigration“ und „Update“)
+        if (args.Contains(Datenmigration.Befehlsname) || args.Contains(Sicherung.Befehlsname))
+        {
+            var konfig = new ConfigurationBuilder().SetBasePath(AppContext.BaseDirectory).AddJsonFile("appsettings.json", optional: true).AddEnvironmentVariables().Build();
+            return args.Contains(Sicherung.Befehlsname) ? Sicherung.Befehl(konfig) : Datenmigration.Befehl(args, konfig);
+        }
         Erstellen(args).Run();
         return 0;
     }
@@ -37,7 +43,8 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         anpassen?.Invoke(builder);
         var konfig = Konfiguration.Laden(builder.Configuration);
-        var db = new Db(konfig.Datenordner);
+        // SQLite (Standard) oder MySQL/MariaDB über UNTPLANWEB_DB / UNTPLANWEB_DB_CONNECTION; Migrationen laufen beim Start
+        var db = Datenbankkonfiguration.Laden(builder.Configuration).Oeffnen(konfig.Datenordner);
 
         builder.Services.AddSingleton(konfig);
         builder.Services.AddSingleton(db);
@@ -55,6 +62,9 @@ public class Program
         builder.Services.AddSingleton<Monitordienst>();
         builder.Services.AddSingleton<Verwaltungsdienst>();
         builder.Services.AddSingleton<Klassenbuchverwaltung>();
+        builder.Services.AddHttpClient("update");
+        builder.Services.AddSingleton(Updateeinstellungen.Laden(builder.Configuration));
+        builder.Services.AddSingleton<Updatedienst>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>
         {
@@ -142,6 +152,7 @@ public class Program
         AdminApi.Abbilden(app);
         SsoApi.Abbilden(app);
         ErweiterungApi.Abbilden(app);
+        UpdateApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
         app.MapGet("/gesundheit", () => Results.Ok(new { ok = true }));

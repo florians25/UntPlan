@@ -8,7 +8,12 @@
     <Version>1.0.0</Version>
     <Product>UntPlanMobile</Product>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <DefineConstants>$(DefineConstants);UNTPLANMOBILE</DefineConstants>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- gemeinsame Update-Prüfung mit UntPlanWeb (gleiche Logik, eigener Namensraum UntPlanMobile.Dienste) -->
+    <Compile Include="..\..\..\web\src\UntPlanWeb\Dienste\Updatepruefung.cs" Link="Dienste\Updatepruefung.cs" />
+  </ItemGroup>
   <ItemGroup>
     <!-- App-Hülle und Service Worker: der Server setzt Startdaten und Fassung ein -->
     <Content Include="Vorlagen\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

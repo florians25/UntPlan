@@ -30,7 +30,7 @@ public sealed class Vertretungsplandienst
 
     // -------------------------------------------------------------- Nachrichten zum Tag
 
-    private static Nachricht LesenNachricht(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("von"), r.Text("bis"), r.Text("text"), r.Text("zielgruppe"),
+    private static Nachricht LesenNachricht(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("von"), r.Text("bis"), r.Text("text"), r.Text("zielgruppe"),
         r.Wahr("startseite"), r.Wahr("monitor"), r.Text("betreff"), r.Zahl("wochentag"), r.Zahl("reihenfolge"), r.Wahr("aufgefaechert"), r.Wahr("oeffentlich"), r.Wahr("mobil"));
 
     public List<Nachricht> Nachrichten() => _db.Liste("SELECT * FROM nachrichten ORDER BY von DESC, reihenfolge, id DESC", LesenNachricht);

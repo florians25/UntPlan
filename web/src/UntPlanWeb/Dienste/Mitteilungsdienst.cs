@@ -99,9 +99,7 @@ public sealed class Mitteilungsdienst
         {
             Db.Ausfuehren(c, "INSERT INTO mitteilungen (absender_id, betreff, text, erstellt, wichtig) VALUES (@a, @b, @t, @e, @w)",
                 Db.P("@a", ich.Id), Db.P("@b", betreff.Trim()), Db.P("@t", text.Trim()), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@w", wichtig && ich.Kollegium));
-            using var cmd = c.CreateCommand();
-            cmd.CommandText = "SELECT last_insert_rowid()";
-            neu = Convert.ToInt64(cmd.ExecuteScalar());
+            neu = Db.LetzteId(c);
             foreach (var id in ids) Db.Ausfuehren(c, "INSERT INTO mitteilung_empfaenger (mitteilung_id, benutzer_id) VALUES (@m, @b)", Db.P("@m", neu), Db.P("@b", id));
         });
         return (int)neu;
