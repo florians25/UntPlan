@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using UntPlan.Core.Model;
 
@@ -36,6 +37,15 @@ public sealed class Dokument
     public bool IstGeaendert { get; private set; }
 
     public event Action<AenderungsArt>? Geaendert;
+    /// <summary>Nur das Änderungskennzeichen wurde gesetzt (z. B. geänderte Ansichtseinstellungen) – keine Datenänderung.</summary>
+    public event Action? Markiert;
+
+    /// <summary>Exklusive Sperre der geöffneten Datei (null = ohne Sperre, z. B. neue Datei oder MultiUser).</summary>
+    public Dateisperre? Sperre { get; set; }
+    /// <summary>Die Datei wird bereits von jemand anderem verwendet und ist nur zum Lesen geöffnet: Speichern in dieselbe Datei ist gesperrt.</summary>
+    public bool Schreibgeschuetzt { get; set; }
+    /// <summary>Liefert beim Speichern die aktuellen Ansichtseinstellungen der Oberfläche (null = Datei-Inhalt unverändert lassen).</summary>
+    public Func<JsonObject?>? AnsichtLiefern { get; set; }
 
     /// <summary>Beginn der Arbeitssitzung (Öffnen der Datei) – Kennzeichen „Neue Vertretung“.</summary>
     public DateTime Sitzungsbeginn { get; } = DateTime.Now;
@@ -72,6 +82,11 @@ public sealed class Dokument
     public void Speichern(string? pfad = null)
     {
         pfad ??= Pfad ?? throw new InvalidOperationException("Kein Dateiname");
+        if (Schreibgeschuetzt && Dateisperre.PfadGleich(pfad, Pfad))
+            throw new InvalidOperationException("Die Datei ist schreibgeschützt geöffnet, weil sie von einem anderen Benutzer verwendet wird. Speichern Sie die Änderungen unter einem anderen Namen.");
+        if (Sperre != null && Dateisperre.PfadGleich(pfad, Sperre.Datei) && !Sperre.IstGueltig())
+            throw new InvalidOperationException("Die Sperre der Datei besteht nicht mehr (Sperrdatei gelöscht oder von jemand anderem übernommen). Damit keine fremden Änderungen überschrieben werden, wurde nicht gespeichert – speichern Sie unter einem anderen Namen.");
+        if (AnsichtLiefern?.Invoke() is { } ansicht) Daten.Ansichtseinstellungen = ansicht;
         var tmp = pfad + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(Daten, JsonOptionen));
         if (File.Exists(pfad)) File.Copy(pfad, pfad + ".bak", true);
@@ -107,6 +122,14 @@ public sealed class Dokument
         if (_undo.Count > MaxUndo) _undo.RemoveFirst();
         _redo.Clear();
         Melden(art);
+    }
+
+    /// <summary>Kennzeichnet das Dokument als geändert, ohne die Fenster neu aufzubauen (z. B. geänderte Ansichtseinstellungen).</summary>
+    public void AlsGeaendertMarkieren()
+    {
+        if (IstGeaendert) return;
+        IstGeaendert = true;
+        Markiert?.Invoke();
     }
 
     /// <summary>Meldet eine Änderung, die ohne Rückgängig-Stufe direkt an den Daten erfolgt ist.</summary>

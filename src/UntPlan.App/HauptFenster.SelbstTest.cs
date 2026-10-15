@@ -306,9 +306,63 @@ public sealed partial class HauptFenster
         Schritt("28_Speichern_Laden", () =>
         {
             var pfad = Path.Combine(ordner, "beispiel" + Dokument.Dateiendung);
-            AppZustand.Doc.Speichern(pfad);
-            var geladen = Dokument.Laden(pfad);
-            if (geladen.Daten.Unterrichte.Count != AppZustand.D.Unterrichte.Count) throw new InvalidOperationException("Laden lieferte andere Daten");
+            var e = AppZustand.Einstellungen;
+            var ansichtVorher = e.Vertretungsansicht;
+            var formatVorher = e.Stundenplanformate.GetValueOrDefault("Selbsttest");
+            var doc = AppZustand.Doc;
+            try
+            {
+                // exklusiver Zugriff: Sperre anlegen, zweiter Versuch wird erkannt
+                var sperre = Dateisperre.Anfordern(pfad);
+                if (sperre.Status != SperrStatus.Erhalten) throw new InvalidOperationException("Sperre nicht erhalten: " + sperre.Meldung);
+                doc.Sperre = sperre.Sperre;
+                var zweiter = Dateisperre.Anfordern(pfad);
+                if (zweiter.Status != SperrStatus.Belegt || !zweiter.Meldung.Contains(Environment.MachineName))
+                    throw new InvalidOperationException($"Zweiter Sperrversuch nicht erkannt ({zweiter.Status})");
+                if (!File.Exists(pfad + Dateisperre.Endung)) throw new InvalidOperationException("Sperrdatei fehlt");
+
+                // Ansichtseinstellung ändern → Dokument gilt als geändert → speichern
+                doc.Speichern(pfad);
+                e.Vertretungsansicht = "Lehrer - Standard";
+                e.Stundenplanformate["Selbsttest"] = "Format aus der Datei";
+                e.Speichern();
+                if (!doc.IstGeaendert) throw new InvalidOperationException("Geänderte Ansichtseinstellung markiert das Dokument nicht als geändert");
+                doc.Speichern(pfad);
+                if (doc.IstGeaendert) throw new InvalidOperationException("Nach dem Speichern noch geändert");
+
+                // lokal zurückstellen, laden → wiederhergestellt
+                e.Vertretungsansicht = "Raum - Standard";
+                e.Stundenplanformate["Selbsttest"] = "lokal";
+                var geladen = Dokument.Laden(pfad);
+                if (geladen.Daten.Unterrichte.Count != AppZustand.D.Unterrichte.Count) throw new InvalidOperationException("Laden lieferte andere Daten");
+                if (geladen.Daten.Ansichtseinstellungen is null) throw new InvalidOperationException("Ansichtseinstellungen fehlen in der Datei");
+                e.AnsichtUebernehmen(geladen.Daten.Ansichtseinstellungen);
+                if (e.Vertretungsansicht != "Lehrer - Standard" || e.Stundenplanformate.GetValueOrDefault("Selbsttest") != "Format aus der Datei")
+                    throw new InvalidOperationException("Ansichtseinstellungen nach dem Laden nicht wiederhergestellt");
+                if (!e.Fenstergruppen.ContainsKey(AppZustand.Vertretungsmodus ? GruppeVertretung : GruppeStundenplan))
+                    throw new InvalidOperationException("Fensteranordnung des Modus nicht in der Datei");
+
+                // schreibgeschützt: Speichern in dieselbe Datei wird verweigert
+                geladen.Schreibgeschuetzt = true;
+                try { geladen.Speichern(pfad); throw new InvalidOperationException("Schreibgeschützte Datei wurde gespeichert"); }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("schreibgeschützt geöffnet")) { /* erwartet */ }
+
+                // Freigabe: danach ist wieder ein Zugriff möglich
+                doc.Sperre = null;
+                sperre.Sperre!.Freigeben();
+                if (File.Exists(pfad + Dateisperre.Endung)) throw new InvalidOperationException("Sperrdatei nach Freigabe noch vorhanden");
+                var neu = Dateisperre.Anfordern(pfad);
+                if (neu.Status != SperrStatus.Erhalten) throw new InvalidOperationException("Nach Freigabe keine Sperre möglich");
+                neu.Sperre!.Freigeben();
+            }
+            finally
+            {
+                doc.Sperre?.Freigeben();
+                doc.Sperre = null;
+                e.Vertretungsansicht = ansichtVorher;
+                if (formatVorher is null) e.Stundenplanformate.Remove("Selbsttest"); else e.Stundenplanformate["Selbsttest"] = formatVorher;
+                e.AnsichtStandMerken();
+            }
         });
         File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();

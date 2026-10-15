@@ -110,10 +110,20 @@ public sealed partial class HauptFenster : Form
 
     private void DokumentAnmelden()
     {
-        if (_angemeldet != null) _angemeldet.Geaendert -= DokGeaendert;
+        if (_angemeldet != null)
+        {
+            _angemeldet.Geaendert -= DokGeaendert;
+            _angemeldet.Markiert -= TitelAktualisieren;
+        }
         _angemeldet = AppZustand.Doc;
         _angemeldet.Geaendert += DokGeaendert;
+        _angemeldet.Markiert += TitelAktualisieren;
         DokGeaendert(AenderungsArt.Alles);
+    }
+
+    private void TitelAktualisieren()
+    {
+        if (!IsDisposed) DokGeaendert(AenderungsArt.Einstellungen);
     }
 
     private void DokGeaendert(AenderungsArt art)
@@ -124,8 +134,9 @@ public sealed partial class HauptFenster : Form
         // kein Text oben rechts (wie Untis); Modus, Schule und Periode stehen im Fenstertitel
         _titelLabel.Text = "";
         _titelLabel.Visible = false;
-        Text = $"UntPlan – {name}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")} – {d.Einstellungen.Schulname} – Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year % 100:00}";
-        _statusMitte.Text = $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}";
+        var nurLesen = AppZustand.Doc.Schreibgeschuetzt && !MultiUser.MultiUserSitzung.Aktiv;
+        Text = $"UntPlan – {name}{(nurLesen ? " [schreibgeschützt]" : "")}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")} – {d.Einstellungen.Schulname} – Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year % 100:00}";
+        _statusMitte.Text = (nurLesen ? "SCHREIBGESCHÜTZT (Datei wird von jemand anderem verwendet) · " : "") + $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}";
         _statusRechts.Text = $"{d.AktivePeriode.Name} · {d.Klassen.Count} Klassen · {d.Lehrer.Count} Lehrer · {d.Unterrichte.Count} Unterrichte";
         _ribbon.Invalidate();
         _assistent.Aktualisieren();
@@ -476,6 +487,12 @@ public sealed partial class HauptFenster : Form
         // im MultiUser-Betrieb wird jede Änderung sofort in die Datenbank geschrieben
         if (MultiUser.MultiUserSitzung.Aktiv) return true;
         if (!AppZustand.Doc.IstGeaendert) return true;
+        if (AppZustand.Doc.Schreibgeschuetzt)
+        {
+            var w = MessageBox.Show("Die Schuldatei ist schreibgeschützt geöffnet und wurde geändert.\nÄnderungen unter einem anderen Namen speichern?", "UntPlan", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (w == DialogResult.Cancel) return false;
+            return w == DialogResult.No || Speichern(true);
+        }
         var r = MessageBox.Show("Die Schuldatei wurde geändert. Änderungen speichern?", "UntPlan", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
         if (r == DialogResult.Cancel) return false;
         return r == DialogResult.No || Speichern();
@@ -509,18 +526,75 @@ public sealed partial class HauptFenster : Form
 
     public void DateiLaden(string pfad)
     {
+        var alt = AppZustand.Doc;
+        Dateisperre? sperre = null;
         try
         {
+            var nurLesen = false;
+            // dieselbe Datei erneut öffnen: die eigene Sperre weiterverwenden
+            if (alt.Sperre is { Aktiv: true } offen && Dateisperre.PfadGleich(offen.Datei, pfad)) sperre = offen;
+            else if (!SperreAnfordern(pfad, out sperre, out nurLesen)) return;
             var d = Dokument.Laden(pfad);
+            d.Sperre = sperre;
+            d.Schreibgeschuetzt = nurLesen;
             AlleSchliessen();
             AppZustand.Setzen(d);
             AppZustand.Einstellungen.Merken(pfad);
             ZuletztAktualisieren();
-            if (AppZustand.Vertretungsmodus) VertretungsStandardFenster(); else StandardFenster();
+            // Fensteranordnung des Modus aus der Datei; ältere Dateien ohne Ansicht: Standardanordnung
+            if (d.Daten.Ansichtseinstellungen is null || !LayoutWiederherstellen(AppZustand.Vertretungsmodus ? GruppeVertretung : GruppeStundenplan))
+            {
+                if (AppZustand.Vertretungsmodus) VertretungsStandardFenster(); else StandardFenster();
+            }
+            if (nurLesen) _statusLinks.Text = "Schreibgeschützt geöffnet – Speichern nur unter anderem Namen";
         }
         catch (Exception ex)
         {
+            if (sperre != null && !ReferenceEquals(sperre, alt.Sperre) && !ReferenceEquals(sperre, AppZustand.Doc.Sperre)) sperre.Freigeben();
             Ui.Fehler(new InvalidOperationException($"Die Datei konnte nicht geöffnet werden:\n{ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Exklusiven Zugriff auf eine Schuldatei anfordern. Wird sie bereits von jemand anderem verwendet, kann sie nur
+    /// schreibgeschützt geöffnet werden; die Sperre eines anderen Rechners lässt sich nach Bestätigung aufheben.
+    /// Liefert false, wenn der Benutzer abbricht.
+    /// </summary>
+    private bool SperreAnfordern(string pfad, out Dateisperre? sperre, out bool nurLesen)
+    {
+        sperre = null;
+        nurLesen = false;
+        var erg = Dateisperre.Anfordern(pfad, SperrInfo.Aktuell(AppZustand.Benutzer));
+        if (erg.Status == SperrStatus.AndererRechner)
+        {
+            var r = MessageBox.Show(this, $"{erg.Meldung}\n\nWenn UntPlan dort nicht mehr läuft (z. B. nach einem Absturz), kann die Sperre aufgehoben werden.\n\n" +
+                "Ja = Sperre aufheben und die Datei bearbeiten\nNein = schreibgeschützt öffnen\nAbbrechen = nicht öffnen",
+                "Datei wird verwendet", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (r == DialogResult.Cancel) return false;
+            if (r == DialogResult.No)
+            {
+                nurLesen = true;
+                return true;
+            }
+            if (!Ui.Frage($"Sperre von {erg.Inhaber?.Beschreibung} wirklich aufheben?\nArbeitet dort noch jemand mit der Datei, können Änderungen verloren gehen."))
+                return false;
+            erg = Dateisperre.Aufheben(pfad, SperrInfo.Aktuell(AppZustand.Benutzer));
+        }
+        switch (erg.Status)
+        {
+            case SperrStatus.Erhalten:
+                sperre = erg.Sperre;
+                if (erg.VerwaisteUebernommen) _statusLinks.Text = $"Verwaiste Sperre ({erg.Inhaber?.Beschreibung}) übernommen";
+                return true;
+            case SperrStatus.NichtMoeglich:
+                if (!Ui.Frage($"{erg.Meldung}\n\nDie Datei schreibgeschützt öffnen?")) return false;
+                nurLesen = true;
+                return true;
+            default:
+                if (MessageBox.Show(this, $"{erg.Meldung}\n\nEs ist immer nur ein schreibender Zugriff möglich. Die Datei schreibgeschützt öffnen?",
+                        "Datei wird verwendet", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return false;
+                nurLesen = true;
+                return true;
         }
     }
 
@@ -534,15 +608,44 @@ public sealed partial class HauptFenster : Form
         }
         var doc = AppZustand.Doc;
         var pfad = doc.Pfad;
+        if (doc.Schreibgeschuetzt && !unter)
+        {
+            if (!Ui.Frage("Die Datei ist schreibgeschützt geöffnet, weil sie von jemand anderem verwendet wird.\nÄnderungen unter einem anderen Namen speichern?")) return false;
+            unter = true;
+        }
         if (pfad is null || unter)
         {
             using var sfd = new SaveFileDialog { Filter = Dokument.SpeicherFilter, FileName = string.IsNullOrWhiteSpace(doc.Daten.Einstellungen.Schulname) ? "Schule" + Dokument.Dateiendung : doc.Daten.Einstellungen.Schulname + Dokument.Dateiendung };
             if (sfd.ShowDialog(this) != DialogResult.OK) return false;
             pfad = sfd.FileName;
         }
+        // neue Zieldatei (neue Datei, „Speichern unter“): erst sperren – nie in eine Datei schreiben, die jemand anderes geöffnet hat
+        Dateisperre? neueSperre = null;
+        if (doc.Sperre is not { } eigene || !Dateisperre.PfadGleich(eigene.Datei, pfad))
+        {
+            if (doc.Schreibgeschuetzt && Dateisperre.PfadGleich(pfad, doc.Pfad))
+            {
+                Ui.Info("Die Datei wird von jemand anderem verwendet. Bitte wählen Sie einen anderen Dateinamen.");
+                return false;
+            }
+            var erg = Dateisperre.Anfordern(pfad, SperrInfo.Aktuell(AppZustand.Benutzer));
+            if (erg.Status == SperrStatus.Erhalten) neueSperre = erg.Sperre;
+            else if (erg.Status != SperrStatus.NichtMoeglich)
+            {
+                Ui.Info($"{erg.Meldung}\n\nBitte wählen Sie einen anderen Dateinamen.");
+                return false;
+            }
+        }
         try
         {
             doc.Speichern(pfad);
+            if (neueSperre != null)
+            {
+                var alteSperre = doc.Sperre;
+                doc.Sperre = neueSperre;
+                alteSperre?.Freigeben();
+            }
+            doc.Schreibgeschuetzt = false;
             AppZustand.Einstellungen.Merken(pfad);
             ZuletztAktualisieren();
             DokGeaendert(AenderungsArt.Einstellungen);
@@ -550,6 +653,7 @@ public sealed partial class HauptFenster : Form
         }
         catch (Exception ex)
         {
+            neueSperre?.Freigeben();
             Ui.Fehler(ex);
             return false;
         }

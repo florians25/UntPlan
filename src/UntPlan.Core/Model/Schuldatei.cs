@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace UntPlan.Core.Model;
@@ -234,6 +235,11 @@ public sealed class Schuldatei
     public List<Ansicht> Ansichten { get; set; } = new();
     public List<StundentafelZeile> Stundentafel { get; set; } = new();
     public List<StundenplanFormat> Formate { get; set; } = new();
+    /// <summary>
+    /// Ansichtseinstellungen der Oberfläche (Fensteranordnungen je Modus, Tabellen- und Spaltenformate, Vertretungsansichten,
+    /// Druckformate …) – werden von der Desktop-App gefüllt und beim Laden wiederhergestellt. null = ältere Datei ohne Ansicht.
+    /// </summary>
+    public JsonObject? Ansichtseinstellungen { get; set; }
     public int NaechsteId { get; set; } = 1;
 
     public int NeueId() => NaechsteId++;

@@ -108,7 +108,8 @@ public static class MultiUserSitzung
         var doc = new Dokument(daten);
         _doc = doc;
         doc.Geaendert += DocGeaendert;
-        AppZustand.Setzen(doc);
+        // im MultiUser-Betrieb gilt die Datenbank: Ansichtseinstellungen bleiben lokal (kein Zurücksetzen bei jedem Neuladen)
+        AppZustand.Setzen(doc, ansichtUebernehmen: false);
     }
 
     private static void Abhaengen()

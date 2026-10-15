@@ -15,9 +15,17 @@ public sealed partial class HauptFenster
         _autoSpeichern.Tick += (_, _) => AutoSpeichern();
         AutoSpeichernEinstellen();
         SchnellanordnungenAufbauen();
+        // vor dem Speichern der Ansicht in die Schuldatei: aktuelle Fensteranordnung des Modus aufnehmen
+        AppZustand.AnsichtVorSpeichern = () =>
+        {
+            if (!IsDisposed) AppZustand.Einstellungen.Fenstergruppen[AppZustand.Vertretungsmodus ? GruppeVertretung : GruppeStundenplan] = LayoutAufnehmen();
+        };
         FormClosed += (_, _) =>
         {
             _autoSpeichern.Stop();
+            AppZustand.AnsichtVorSpeichern = null;
+            // exklusiven Zugriff auf die Schuldatei freigeben
+            Dateisperre.AlleFreigeben();
             if (Selbsttest) return;
             AppZustand.Einstellungen.LetzterModusVertretung = AppZustand.Vertretungsmodus;
             AppZustand.Einstellungen.Speichern();
@@ -47,7 +55,7 @@ public sealed partial class HauptFenster
     private void AutoSpeichern()
     {
         var doc = AppZustand.Doc;
-        if (!doc.IstGeaendert || MultiUser.MultiUserSitzung.Aktiv || OwnedForms.Any(f => f.Modal) || ActiveForm is Form { Modal: true }) return;
+        if (!doc.IstGeaendert || doc.Schreibgeschuetzt || MultiUser.MultiUserSitzung.Aktiv || OwnedForms.Any(f => f.Modal) || ActiveForm is Form { Modal: true }) return;
         try
         {
             if (doc.Pfad is string pfad)

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using UntPlan.Core;
 using UntPlan.Core.Model;
 
@@ -61,9 +62,45 @@ public static class AppZustand
         VertretungGewaehlt?.Invoke(v);
     }
 
-    public static void Setzen(Dokument d)
+    static AppZustand()
     {
+        AnsichtAnbinden(Doc);
+        Einstellungen.AnsichtStandMerken();
+        Einstellungen.AnsichtGeaendert += () =>
+        {
+            // im MultiUser-Betrieb gilt die Datenbank; Ansichten bleiben dort lokal
+            if (!MultiUser.MultiUserSitzung.Aktiv) Doc.AlsGeaendertMarkieren();
+        };
+    }
+
+    /// <summary>Wird vor dem Speichern der Ansicht aufgerufen (z. B. aktuelle Fensteranordnung des Modus aufnehmen).</summary>
+    public static Action? AnsichtVorSpeichern { get; set; }
+
+    private static void AnsichtAnbinden(Dokument d)
+    {
+        d.AnsichtLiefern ??= () =>
+        {
+            AnsichtVorSpeichern?.Invoke();
+            var ansicht = Einstellungen.AnsichtAlsJson();
+            Einstellungen.AnsichtStandMerken(ansicht);
+            Einstellungen.Speichern();
+            return ansicht;
+        };
+    }
+
+    /// <summary>
+    /// Neues Dokument übernehmen: Ansichtseinstellungen der Datei wiederherstellen (ältere Dateien ohne Ansicht behalten die
+    /// bisherigen lokalen Einstellungen) und die Sperre des bisherigen Dokuments freigeben.
+    /// </summary>
+    public static void Setzen(Dokument d, bool ansichtUebernehmen = true)
+    {
+        var alt = Doc;
+        AnsichtAnbinden(d);
         Doc = d;
+        if (!ReferenceEquals(alt, d) && alt.Sperre is { } sperre && !ReferenceEquals(sperre, d.Sperre)) sperre.Freigeben();
+        var uebernommen = ansichtUebernehmen && Einstellungen.AnsichtUebernehmen(d.Daten.Ansichtseinstellungen) > 0;
+        Einstellungen.AnsichtStandMerken();
+        if (uebernommen) Einstellungen.Speichern();
         DokumentGewechselt?.Invoke();
     }
 
@@ -106,8 +143,45 @@ public static class AppZustand
     public static DateOnly? AuswahlDatum { get; private set; }
 }
 
+/// <summary>
+/// Benutzereinstellungen. Gerätebezogenes (zuletzt geöffnete Dateien, Begrüßung, Autospeichern, Dialoggrößen …) bleibt lokal
+/// in einstellungen.json; die Ansichtseinstellungen (<see cref="AnsichtsFelder"/>) werden zusätzlich mit der Schuldatei
+/// gespeichert und beim Öffnen daraus wiederhergestellt. Die lokale Kopie dient als Vorlage für neue und ältere Dateien.
+/// </summary>
 public sealed class Benutzereinstellungen
 {
+    /// <summary>Eigenschaften, die zur Ansicht gehören und in der .up-Datei gespeichert werden.</summary>
+    public static readonly string[] AnsichtsFelder =
+    {
+        nameof(Stundenplanformate), nameof(Schnellanordnungen), nameof(Fensteranordnungen), nameof(StundenplanSynchronisieren),
+        nameof(Zeitwunschfarben), nameof(Fenstergruppen), nameof(Vertretungsansicht), nameof(Drucklayouts), nameof(Tabellenformate),
+        nameof(AktiveTabellenformate), nameof(Tabellenlayouts), nameof(Zeitraumarten), nameof(Vertretungsdruck), nameof(SichtbareSpalten),
+        nameof(AbsenzenVeranstaltungenZeigen), nameof(VertretungsFelder), nameof(VertretungsArtenAus), nameof(VertretungenUnterrichtZeigen),
+    };
+
+    private JsonObject? _ansichtStand;
+
+    /// <summary>Eine Ansichtseinstellung wurde geändert (die Schuldatei gilt dann als geändert).</summary>
+    public event Action? AnsichtGeaendert;
+
+    /// <summary>Aktuelle Ansichtseinstellungen als JSON (für die Schuldatei).</summary>
+    public JsonObject AnsichtAlsJson() => Ansichtsdaten.Herausloesen(this, AnsichtsFelder);
+
+    /// <summary>Ansichtseinstellungen aus einer Schuldatei übernehmen (fehlende Felder behalten den lokalen Wert).</summary>
+    public int AnsichtUebernehmen(JsonObject? ansicht) => Ansichtsdaten.Uebernehmen(this, ansicht, AnsichtsFelder);
+
+    /// <summary>Vergleichsstand für die Erkennung geänderter Ansichtseinstellungen (nach Öffnen bzw. Speichern der Datei).</summary>
+    public void AnsichtStandMerken(JsonObject? stand = null) => _ansichtStand = stand ?? AnsichtAlsJson();
+
+    private void AnsichtPruefen()
+    {
+        if (_ansichtStand is null) return;
+        var jetzt = AnsichtAlsJson();
+        if (Ansichtsdaten.Gleich(jetzt, _ansichtStand)) return;
+        _ansichtStand = jetzt;
+        AnsichtGeaendert?.Invoke();
+    }
+
     public List<string> ZuletztGeoeffnet { get; set; } = new();
     public bool BegruessungZeigen { get; set; } = true;
     /// <summary>Beim Start die zuletzt geöffnete Schuldatei laden.</summary>
@@ -171,6 +245,7 @@ public sealed class Benutzereinstellungen
             File.WriteAllText(Pfad, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { /* nicht kritisch */ }
+        AnsichtPruefen();
     }
 
     public void Merken(string datei)
