@@ -777,7 +777,7 @@ public sealed partial class HauptFenster : Form
     }
 
     private UntPlan.Web.Contracts.WebPaket UntPlanWebPaket() =>
-        UntPlanWebExport.PaketErstellen(AppZustand.D, AppZustand.Vertretungsmodus ? AppZustand.Datum : DateOnly.FromDateTime(DateTime.Today),
+        UntPlanWebExport.PaketErstellen(AppZustand.D, DateOnly.FromDateTime(DateTime.Today),
             WebExportOptionen.Aus(AppZustand.D.Einstellungen.Portal));
 
     private void UntPlanWebDatei()

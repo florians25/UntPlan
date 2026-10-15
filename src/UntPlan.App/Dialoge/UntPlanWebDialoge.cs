@@ -177,7 +177,8 @@ public sealed class UntPlanWebDialog : Dialog
 
     // ------------------------------------------------------------------------------------------ Datumsangaben
 
-    private static DateOnly Heute => AppZustand.Vertretungsmodus ? AppZustand.Datum : DateOnly.FromDateTime(DateTime.Today);
+    /// <summary>Der Export läuft unabhängig vom gewählten Vertretungsdatum standardmäßig immer ab dem aktuellen Tag.</summary>
+    private static DateOnly Heute => DateOnly.FromDateTime(DateTime.Today);
 
     /// <summary>Anfangsdatum der mit * markierten Daten: Tagesdatum bzw. das gewählte Anfangsdatum, wenn aktiviert.</summary>
     private static DateOnly Start => P.AnfangsdatumAktiv && P.Anfangsdatum is DateOnly a ? a : Heute;
@@ -559,7 +560,12 @@ public sealed class UntPlanWebEinstellungenDialog : Dialog
         https.CheckedChanged += (_, _) => { if (https.Checked && port.Value == 80) port.Value = 443; else if (!https.Checked && port.Value == 443) port.Value = 80; };
         var pfad = uri?.AbsolutePath.Trim('/') ?? "";
         var schluessel = Feld("API-Schlüssel", new TextBox { Text = p.ApiSchluessel, UseSystemPasswordChar = true });
-        var tage = Feld("Tage voraus", new NumericUpDown { Minimum = 1, Maximum = 60, Value = Math.Clamp(p.TageVoraus, 1, 60) }, 70);
+        var tage = Feld("Tage voraus", new NumericUpDown { Minimum = 1, Maximum = 366, Value = Math.Clamp(p.TageVoraus, 1, 366) }, 70);
+        var unbegrenzt = new CheckBox { Text = "unbegrenzt", Left = 206, Top = y - 30, AutoSize = true, Checked = p.OhneTagesbegrenzung };
+        new ToolTip().SetToolTip(unbegrenzt, "Keine Tagesbegrenzung: Unterricht und Vertretungen bis zum Schuljahresende übertragen");
+        links.Controls.Add(unbegrenzt);
+        tage.Enabled = !unbegrenzt.Checked;
+        unbegrenzt.CheckedChanged += (_, _) => tage.Enabled = !unbegrenzt.Checked;
         var pruefen = new Button { Text = "Verbindung prüfen", Left = 126, Top = y + 4, Width = 170, Height = 28 };
         var ergebnis = new Label { Left = 12, Top = y + 38, Width = 306, Height = 34, Font = Ui.SchriftKlein };
         links.Controls.Add(pruefen);
@@ -615,6 +621,7 @@ public sealed class UntPlanWebEinstellungenDialog : Dialog
             e.SchulId = schule.Text.Trim();
             e.ApiSchluessel = schluessel.Text.Trim();
             e.TageVoraus = (int)tage.Value;
+            e.OhneTagesbegrenzung = unbegrenzt.Checked;
             e.IgnoriertenUnterrichtUebertragen = ignoriert.Checked;
             e.FerienNichtExportieren = ferien.Checked;
             e.LehrerEmail = email.Checked;

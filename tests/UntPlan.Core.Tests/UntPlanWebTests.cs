@@ -14,6 +14,31 @@ namespace UntPlan.Core.Tests;
 public class UntPlanWebTests
 {
     [Fact]
+    public void ExportzeitraumZaehltAbHeuteAuchBeiRueckwirkendemAnfang()
+    {
+        var d = Testdaten.Verplant();
+        var heute = d.Einstellungen.SchuljahrVon.AddDays(40);
+        var o = new WebExportOptionen { TageVoraus = 7, Heute = heute };
+        // normal: ab heute 7 Tage voraus
+        Assert.Equal(heute.AddDays(7), UntPlanWebExport.ExportBis(d, heute, o));
+        // rückwirkend: ab dem Anfangsdatum bis zum regulären Ende – nicht 7 Tage ab dem Anfangsdatum
+        Assert.Equal(heute.AddDays(7), UntPlanWebExport.ExportBis(d, heute.AddDays(-30), o));
+        var paket = UntPlanWebExport.PaketErstellen(d, heute.AddDays(-30), o);
+        Assert.Contains(paket.Tage, t => t.Datum == heute.AddDays(7).ToString("yyyy-MM-dd"));
+        Assert.Contains(paket.Tage, t => t.Datum == heute.AddDays(-30).ToString("yyyy-MM-dd"));
+        // künftiges Anfangsdatum: Tage ab dort
+        Assert.Equal(heute.AddDays(17), UntPlanWebExport.ExportBis(d, heute.AddDays(10), o));
+        // ohne Tagesbegrenzung bis Schuljahresende
+        o.OhneTagesbegrenzung = true;
+        Assert.Equal(d.Einstellungen.SchuljahrBis, UntPlanWebExport.ExportBis(d, heute.AddDays(-30), o));
+        // Optionen aus den Einstellungen: Tagesdatum, nicht das gewählte Vertretungsdatum
+        d.Einstellungen.Portal.OhneTagesbegrenzung = true;
+        var aus = WebExportOptionen.Aus(d.Einstellungen.Portal);
+        Assert.True(aus.OhneTagesbegrenzung);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.Today), aus.Heute);
+    }
+
+    [Fact]
     public void PaketEnthaeltStammdatenPeriodenTagesplaeneUndRespektiertDatenschutz()
     {
         var d = Testdaten.Verplant();

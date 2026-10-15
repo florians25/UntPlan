@@ -12,6 +12,13 @@ public sealed class WebExportOptionen
 {
     public int TageVoraus { get; set; } = 14;
     public int TageZurueck { get; set; } = 7;
+    /// <summary>Keine Tagesbegrenzung: alles bis zum Schuljahresende übertragen.</summary>
+    public bool OhneTagesbegrenzung { get; set; }
+    /// <summary>
+    /// Tagesdatum, ab dem die „Tage voraus“ gezählt werden (Standard: das Anfangsdatum). Bei einem rückwirkenden Anfangsdatum
+    /// wird vom Anfangsdatum bis zum regulären Ende (heute + Tage voraus) übertragen – die Tage zählen nicht ab dem Anfangsdatum.
+    /// </summary>
+    public DateOnly? Heute { get; set; }
     /// <summary>E-Mail-Adressen der Lehrkräfte übertragen.</summary>
     public bool LehrerEmail { get; set; }
     /// <summary>Lehrer-Absenzen übertragen (nur Zeitraum, ohne Grund).</summary>
@@ -30,7 +37,7 @@ public sealed class WebExportOptionen
     /// <summary>Optionen aus den UntPlanWeb-Einstellungen der Schuldatei.</summary>
     public static WebExportOptionen Aus(PortalEinstellungen p, params string[] teile) => new()
     {
-        TageVoraus = Math.Max(1, p.TageVoraus), LehrerEmail = p.LehrerEmail, LehrerAbsenzen = p.LehrerAbsenzen, Absenzgruende = p.Absenzgruende,
+        TageVoraus = Math.Max(1, p.TageVoraus), OhneTagesbegrenzung = p.OhneTagesbegrenzung, Heute = DateOnly.FromDateTime(DateTime.Today), LehrerEmail = p.LehrerEmail, LehrerAbsenzen = p.LehrerAbsenzen, Absenzgruende = p.Absenzgruende,
         IgnoriertenUnterricht = p.IgnoriertenUnterrichtUebertragen, Ferien = !p.FerienNichtExportieren, Schueler = p.SchuelerExportieren, Teile = teile.ToHashSet(),
     };
 }
@@ -52,12 +59,24 @@ public static class UntPlanWebExport
 
     private static string Farbe(int argb) => argb == 0 ? "" : $"#{argb & 0xFFFFFF:X6}";
 
+    /// <summary>
+    /// Letzter übertragener Tag: „Tage voraus“ ab heute (bzw. ab einem künftigen Anfangsdatum) – ein rückwirkendes
+    /// Anfangsdatum verlängert den Zeitraum nach vorne, verkürzt ihn aber nicht. Ohne Tagesbegrenzung bis Schuljahresende.
+    /// </summary>
+    public static DateOnly ExportBis(Schuldatei d, DateOnly ab, WebExportOptionen o)
+    {
+        var heute = o.Heute ?? ab;
+        var basis = ab > heute ? ab : heute;
+        if (o.OhneTagesbegrenzung) return d.Einstellungen.SchuljahrBis > basis ? d.Einstellungen.SchuljahrBis : basis;
+        return basis.AddDays(Math.Max(1, o.TageVoraus));
+    }
+
     public static WebPaket PaketErstellen(Schuldatei d, DateOnly ab, WebExportOptionen? o = null)
     {
         o ??= new WebExportOptionen();
         var ix = new DatenIndex(d);
         var von = ab.AddDays(-Math.Max(0, o.TageZurueck));
-        var bis = ab.AddDays(Math.Max(1, o.TageVoraus));
+        var bis = ExportBis(d, ab, o);
         string K(ElementTyp t, int? id) => id is int i ? ix.K(t, i) : "";
         List<string> Kl(IEnumerable<int> ids) => ids.Select(i => ix.K(ElementTyp.Klasse, i)).Where(x => x.Length > 0).ToList();
 

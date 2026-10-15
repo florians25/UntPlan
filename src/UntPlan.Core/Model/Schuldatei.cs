@@ -112,6 +112,8 @@ public sealed class PortalEinstellungen
     public string SchulId { get; set; } = "";
     public string ApiSchluessel { get; set; } = "";
     public int TageVoraus { get; set; } = 7;
+    /// <summary>Keine Tagesbegrenzung: alles bis zum Schuljahresende übertragen.</summary>
+    public bool OhneTagesbegrenzung { get; set; }
     public DateTime? LetzteSynchronisation { get; set; }
     public int Revision { get; set; }
     /// <summary>Anfangsdatum für Unterricht, Vertretungen und Absenzen aktivieren (sonst ab heute).</summary>
