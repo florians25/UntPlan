@@ -21,6 +21,9 @@ public class MdiFenster : Form
     /// <summary>Knopf „Fenster verknüpfen“ für die Werkzeugleiste.</summary>
     protected ToolStripButton VerknuepfenKnopf() => Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
 
+    /// <summary>Eigene Titelleiste (z. B. für die Untis-Durchschaltknöpfe der Stundenpläne).</summary>
+    protected FensterTitel Titelleiste => _titel;
+
     protected Dokument Doc => AppZustand.Doc;
     protected Schuldatei D => AppZustand.Doc.Daten;
     protected DatenIndex Ix => AppZustand.Doc.Index;

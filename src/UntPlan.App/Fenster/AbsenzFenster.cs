@@ -32,6 +32,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private bool _entwurfBisGesetzt;
     /// <summary>Nach dem Speichern auf diese Absenz springen.</summary>
     private int? _springeZu;
+    /// <summary>Fensterverknüpfung: in einem anderen Fenster gewähltes Element – seine Absenzen werden markiert.</summary>
+    private (ElementTyp Typ, int Id)? _markiert;
+    private bool _zuMarkierungSpringen;
 
     public AbwesenheitenFenster()
     {
@@ -51,6 +54,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
             Neuaufbau();
         };
         var ts = Werkzeugleiste();
+        ts.Items.Add(VerknuepfenKnopf());
+        ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Neue Absenz (Dialog)", "neu", Neu));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
         ts.Items.Add(new ToolStripSeparator());
@@ -134,7 +139,14 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
         _von.Value = _bis.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Absenzen");
-        _zeitraum.Geaendert += () => { if (_laedt) return; EntwurfSofortUebernehmen(); Neuaufbau(); };
+        _zeitraum.Geaendert += () =>
+        {
+            if (_laedt) return;
+            EntwurfSofortUebernehmen();
+            Neuaufbau();
+            // Datumsauswahl gilt für alle verknüpften Fenster (Vertretungsliste, Stundenpläne, Menüband)
+            if (Verknuepft && (Von == Bis || _zeitraum.Art != Steuerelemente.Zeitraumart.VonBis) && AppZustand.Datum != Von) AppZustand.DatumSetzen(Von);
+        };
         var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 56, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
         var gruppe = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), MinimumSize = new Size(0, 50) };
         gruppe.Controls.Add(_zeitraum);
@@ -146,8 +158,58 @@ public sealed class AbwesenheitenFenster : MdiFenster
         Controls.Add(kopf);
         Controls.Add(ts);
         AppZustand.DatumGewechselt += DatumGewechselt;
-        FormClosed += (_, _) => AppZustand.DatumGewechselt -= DatumGewechselt;
+        AppZustand.ElementGewaehlt += ElementGewaehlt;
+        AppZustand.StundeGewaehlt += StundeGewaehlt;
+        AppZustand.VertretungGewaehlt += VertretungGewaehlt;
+        FormClosed += (_, _) =>
+        {
+            AppZustand.DatumGewechselt -= DatumGewechselt;
+            AppZustand.ElementGewaehlt -= ElementGewaehlt;
+            AppZustand.StundeGewaehlt -= StundeGewaehlt;
+            AppZustand.VertretungGewaehlt -= VertretungGewaehlt;
+        };
         Neuaufbau();
+    }
+
+    /// <summary>Fensterverknüpfung: Lehrer, Klasse bzw. Raum wurde in einem anderen Fenster gewählt – Reiter wechseln, Absenzen markieren.</summary>
+    private void ElementGewaehlt(ElementTyp typ, int id, object quelle)
+    {
+        if (quelle == this || !Verknuepft || IsDisposed) return;
+        var art = typ switch { ElementTyp.Lehrer => 0, ElementTyp.Klasse => 1, ElementTyp.Raum => 2, _ => -1 };
+        if (art < 0) return;
+        Markieren(typ, id, art);
+    }
+
+    /// <summary>Fensterverknüpfung: Stunde in einem Stundenplan gewählt – Absenzen ihrer Lehrkraft (bzw. Klasse, Raum im jeweiligen Reiter) markieren.</summary>
+    private void StundeGewaehlt(Unterricht u, Planstunde? p, object quelle)
+    {
+        if (quelle == this || !Verknuepft || IsDisposed) return;
+        int? id = Art switch
+        {
+            AbwesenheitsArt.Lehrer => (AppZustand.AuswahlLehrer is { Count: > 0 } l ? l : u.LehrerIds).Cast<int?>().FirstOrDefault(),
+            AbwesenheitsArt.Klasse => (AppZustand.AuswahlKlassen is { Count: > 0 } k ? k : u.KlassenIds).Cast<int?>().FirstOrDefault(),
+            _ => (AppZustand.AuswahlRaeume is { Count: > 0 } r ? r : p?.Raeume.Where(x => x.HasValue).Select(x => x!.Value).ToList() ?? new List<int>()).Cast<int?>().FirstOrDefault(),
+        };
+        if (id is int i) Markieren(Typ, i, _tabs.SelectedIndex);
+    }
+
+    /// <summary>Fensterverknüpfung: gewählte Vertretung – Absenz der vertretenen Lehrkraft (bzw. Klasse) markieren.</summary>
+    private void VertretungGewaehlt(Vertretung? v)
+    {
+        if (v is null || !Verknuepft || IsDisposed) return;
+        if (Art == AbwesenheitsArt.Klasse && v.KlassenIds.Count > 0) Markieren(ElementTyp.Klasse, v.KlassenIds[0], 1);
+        else if (v.LehrerId is int l) Markieren(ElementTyp.Lehrer, l, 0);
+    }
+
+    private void Markieren(ElementTyp typ, int id, int reiter)
+    {
+        // laufende Eingaben nicht stören
+        if (_g.IsCurrentCellInEditMode || _entwurf != null || ContainsFocus) return;
+        if (_markiert == (typ, id) && _tabs.SelectedIndex == reiter) return;
+        _markiert = (typ, id);
+        _zuMarkierungSpringen = true;
+        if (_tabs.SelectedIndex != reiter) _tabs.SelectedIndex = reiter; // baut neu auf
+        else Neuaufbau();
     }
 
     protected override bool EigeneAenderungenAnzeigen => true;
@@ -155,7 +217,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private void DatumGewechselt(DateOnly datum)
     {
-        if (IsDisposed) return;
+        if (IsDisposed || !Verknuepft) return;
         EntwurfSofortUebernehmen();
         if (_zeitraum.Art != Steuerelemente.Zeitraumart.VonBis)
         {
@@ -216,6 +278,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
                 string.Join(", ", a.BegleitLehrerIds.Select(Ix.KLehrer)), offen == 0 ? "" : offen.ToString());
             _g.Rows[r].Tag = a;
             if (offen > 0) _g.Rows[r].Cells["O"].Style.ForeColor = Color.Firebrick;
+            // Fensterverknüpfung: Absenzen des in einem anderen Fenster gewählten Elements hervorheben
+            if (_markiert is { } m && m.Typ == typ && m.Id == a.ElementId) _g.Rows[r].DefaultCellStyle.BackColor = Ui.ZelleAktivVertretung;
         }
         // Veranstaltungen zur Information (Einstellungen „Veranstaltungen anzeigen“)
         if (_vaZeigen.Checked)
@@ -238,6 +302,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(255, 228, 190);
         _g.Rows[neu].Cells["Nr"].Value = "";
         _laedt = false;
+        if (_zuMarkierungSpringen && _markiert is { } mk && _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit ab && ab.ElementId == mk.Id && mk.Typ == typ) is { } ziel)
+            stand.AktuellSetzen("A" + ((Abwesenheit)ziel.Tag!).Id);
+        _zuMarkierungSpringen = false;
         stand.Wiederherstellen(_g, Schluessel, false);
         for (var i = 0; i < 3; i++)
         {
