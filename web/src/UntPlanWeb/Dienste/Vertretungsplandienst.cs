@@ -9,8 +9,15 @@ public sealed record Vertretungszeile(string Klassen, string Stunde, int StundeV
 public sealed record Vertretungstag(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, List<string> Nachrichten,
     List<string> AbwesendeKlassen, List<string> AbwesendeLehrer, List<string> BlockierteRaeume, List<string> Veranstaltungen, List<Vertretungszeile> Zeilen);
 
-/// <summary>Nachricht zum Tag (in UntPlanWeb gepflegt, ergänzt die Tagestexte aus UntPlan).</summary>
-public sealed record Nachricht(int Id, string Von, string Bis, string Text, string Zielgruppe, bool Startseite, bool Monitor);
+/// <summary>
+/// Nachricht zum Tag (in UntPlanWeb gepflegt, ergänzt die Tagestexte aus UntPlan). Wochentag 0 = jeden Tag, 1–7 = Montag–Sonntag;
+/// „aufgefächert“ zeigt den Text sofort, sonst nur den Betreff zum Aufklappen.
+/// </summary>
+public sealed record Nachricht(int Id, string Von, string Bis, string Text, string Zielgruppe, bool Startseite, bool Monitor,
+    string Betreff = "", int Wochentag = 0, int Reihenfolge = 10, bool Aufgefaechert = true, bool Oeffentlich = false, bool Mobil = true);
+
+/// <summary>Nachricht eines Tages für Startseite und App (Betreff, Text, aufgefächert).</summary>
+public sealed record Tagesnachricht(string Betreff, string Text, bool Aufgefaechert, bool Eigen);
 
 /// <summary>Vertretungsplan je Tag in Schüler- bzw. Lehrerversion (Liste, Monitor, Startseite).</summary>
 public sealed class Vertretungsplandienst
@@ -23,42 +30,67 @@ public sealed class Vertretungsplandienst
 
     // -------------------------------------------------------------- Nachrichten zum Tag
 
-    public List<Nachricht> Nachrichten() => _db.Liste("SELECT * FROM nachrichten ORDER BY von DESC, id DESC",
-        r => new Nachricht(r.Zahl("id"), r.Text("von"), r.Text("bis"), r.Text("text"), r.Text("zielgruppe"), r.Wahr("startseite"), r.Wahr("monitor")));
+    private static Nachricht LesenNachricht(Microsoft.Data.Sqlite.SqliteDataReader r) => new(r.Zahl("id"), r.Text("von"), r.Text("bis"), r.Text("text"), r.Text("zielgruppe"),
+        r.Wahr("startseite"), r.Wahr("monitor"), r.Text("betreff"), r.Zahl("wochentag"), r.Zahl("reihenfolge"), r.Wahr("aufgefaechert"), r.Wahr("oeffentlich"), r.Wahr("mobil"));
 
-    public void NachrichtSpeichern(int? id, DateOnly von, DateOnly bis, string text, string zielgruppe, bool startseite, bool monitor, int benutzer)
+    public List<Nachricht> Nachrichten() => _db.Liste("SELECT * FROM nachrichten ORDER BY von DESC, reihenfolge, id DESC", LesenNachricht);
+
+    public void NachrichtSpeichern(int? id, DateOnly von, DateOnly bis, string text, string zielgruppe, bool startseite, bool monitor, int benutzer,
+        string? betreff = null, int wochentag = 0, int reihenfolge = 10, bool aufgefaechert = true, bool oeffentlich = false, bool mobil = true)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte einen Text eingeben.");
         if (bis < von) throw new ArgumentException("Das Ende liegt vor dem Beginn.");
         if (zielgruppe is not ("alle" or "lehrer" or "schueler")) throw new ArgumentException("Unbekannte Zielgruppe.");
-        var p = new[] { Db.P("@v", von), Db.P("@b", bis), Db.P("@t", text.Trim()), Db.P("@z", zielgruppe), Db.P("@s", startseite), Db.P("@m", monitor), Db.P("@u", benutzer), Db.P("@id", id) };
-        if (id is null) _db.Ausfuehren("INSERT INTO nachrichten (von, bis, text, zielgruppe, startseite, monitor, erstellt, benutzer_id) VALUES (@v, @b, @t, @z, @s, @m, datetime('now'), @u)", p);
-        else _db.Ausfuehren("UPDATE nachrichten SET von = @v, bis = @b, text = @t, zielgruppe = @z, startseite = @s, monitor = @m WHERE id = @id", p);
+        if (wochentag is < 0 or > 7) throw new ArgumentException("Unbekannter Wochentag.");
+        var p = new[] { Db.P("@v", von), Db.P("@b", bis), Db.P("@t", text.Trim()), Db.P("@z", zielgruppe), Db.P("@s", startseite), Db.P("@m", monitor), Db.P("@u", benutzer), Db.P("@id", id),
+            Db.P("@be", (betreff ?? "").Trim()), Db.P("@w", wochentag), Db.P("@r", Math.Clamp(reihenfolge, 0, 9999)), Db.P("@a", aufgefaechert), Db.P("@o", oeffentlich), Db.P("@mo", mobil) };
+        if (id is null) _db.Ausfuehren("""
+            INSERT INTO nachrichten (von, bis, text, zielgruppe, startseite, monitor, erstellt, benutzer_id, betreff, wochentag, reihenfolge, aufgefaechert, oeffentlich, mobil)
+            VALUES (@v, @b, @t, @z, @s, @m, datetime('now'), @u, @be, @w, @r, @a, @o, @mo)
+            """, p);
+        else _db.Ausfuehren("""
+            UPDATE nachrichten SET von = @v, bis = @b, text = @t, zielgruppe = @z, startseite = @s, monitor = @m, betreff = @be, wochentag = @w, reihenfolge = @r,
+                aufgefaechert = @a, oeffentlich = @o, mobil = @mo WHERE id = @id
+            """, p);
     }
 
     public void NachrichtLoeschen(int id) => _db.Ausfuehren("DELETE FROM nachrichten WHERE id = @id", Db.P("@id", id));
 
-    /// <summary>Nachrichten eines Tages: Tagestexte aus UntPlan und Nachrichten aus UntPlanWeb, gefiltert nach Version und Ort.</summary>
-    public List<string> NachrichtenAm(Stand? s, DateOnly d, bool kollegium, string ort)
+    /// <summary>Gilt die Nachricht an diesem Tag für Ort und Version?</summary>
+    private static bool Passt(Nachricht n, DateOnly d, bool kollegium, string ort)
     {
-        var res = new List<string>();
-        if (s != null)
+        if (n.Wochentag != 0 && n.Wochentag != Plandienst.TagIndex(d) + 1) return false;
+        if (ort.StartsWith("monitor") && !n.Monitor) return false;
+        if (ort == "monitor-oeffentlich" && !n.Oeffentlich) return false;
+        if (ort == "startseite" && !n.Startseite) return false;
+        if (ort == "mobil" && !n.Mobil) return false;
+        if (ort == "oeffentlich" && !n.Oeffentlich) return false;
+        if (n.Zielgruppe == "lehrer" && !kollegium) return false;
+        return true;
+    }
+
+    private List<Nachricht> NachrichtenAmTag(DateOnly d) =>
+        _db.Liste("SELECT * FROM nachrichten WHERE von <= @d AND bis >= @d ORDER BY reihenfolge, id", LesenNachricht, Db.P("@d", Plandienst.Iso(d)));
+
+    /// <summary>Nachrichten eines Tages: Tagestexte aus UntPlan und Nachrichten aus UntPlanWeb, gefiltert nach Version und Ort.</summary>
+    public List<string> NachrichtenAm(Stand? s, DateOnly d, bool kollegium, string ort) =>
+        NachrichtenDetails(s, d, kollegium, ort).Select(n => n.Betreff.Length > 0 && !n.Text.StartsWith(n.Betreff) ? $"{n.Betreff}: {n.Text}" : n.Text)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+
+    /// <summary>Nachrichten eines Tages mit Betreff (Startseite „Heute“, RSS).</summary>
+    public List<Tagesnachricht> NachrichtenDetails(Stand? s, DateOnly d, bool kollegium, string ort)
+    {
+        var res = new List<Tagesnachricht>();
+        if (s != null && ort != "oeffentlich")
             foreach (var t in s.Paket.Tagestexte)
             {
                 if (!DateOnly.TryParse(t.Datum, out var ab) || d < ab || d >= ab.AddDays(Math.Max(1, t.GueltigTage))) continue;
                 if (!kollegium && t.Fuer is "lehrer" or "kollegium") continue;
-                res.Add(t.Text);
+                if (!string.IsNullOrWhiteSpace(t.Text)) res.Add(new Tagesnachricht("", t.Text, true, false));
             }
-        var iso = Plandienst.Iso(d);
-        foreach (var n in _db.Liste("SELECT text, zielgruppe, startseite, monitor FROM nachrichten WHERE von <= @d AND bis >= @d ORDER BY id",
-                     r => new { Text = r.Text("text"), Ziel = r.Text("zielgruppe"), Start = r.Wahr("startseite"), Mon = r.Wahr("monitor") }, Db.P("@d", iso)))
-        {
-            if (ort == "monitor" && !n.Mon) continue;
-            if (ort == "startseite" && !n.Start) continue;
-            if (n.Ziel == "lehrer" && !kollegium) continue;
-            res.Add(n.Text);
-        }
-        return res.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        foreach (var n in NachrichtenAmTag(d).Where(n => Passt(n, d, kollegium, ort)))
+            res.Add(new Tagesnachricht(n.Betreff, n.Text, n.Aufgefaechert || n.Betreff.Length == 0, true));
+        return res.DistinctBy(x => (x.Betreff, x.Text)).ToList();
     }
 
     // -------------------------------------------------------------- Vertretungsplan

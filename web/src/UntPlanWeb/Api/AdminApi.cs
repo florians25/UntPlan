@@ -19,7 +19,8 @@ public static class AdminApi
     public sealed record SchulDaten(string Schulname, string SchulId);
     public sealed record BenutzerDaten(string? Login, string? Passwort, string Rolle, string? Element, string? Anzeigename, string? Email, bool Gesperrt);
     public sealed record StammdatenDaten(bool Lehrer, bool Klassen);
-    public sealed record NachrichtDaten(DateOnly Von, DateOnly Bis, string Text, string? Zielgruppe, bool Startseite, bool Monitor);
+    public sealed record NachrichtDaten(DateOnly Von, DateOnly Bis, string Text, string? Zielgruppe, bool Startseite, bool Monitor,
+        string? Betreff = null, int? Wochentag = null, int? Reihenfolge = null, bool? Aufgefaechert = null, bool? Oeffentlich = null, bool? Mobil = null);
     public sealed record MonitorDaten(string Name, string? Version, int Tage);
     public sealed record StatusDaten(string Status);
 
@@ -150,11 +151,11 @@ public static class AdminApi
             return Results.Json(new { ok = true });
         });
 
-        api.MapPost("/benutzer/stammdaten", (StammdatenDaten d, HttpContext c, Benutzerdienst bd, Paketdienst p, Protokoll prot) =>
+        api.MapPost("/benutzer/stammdaten", (StammdatenDaten d, HttpContext c, Benutzerdienst bd, Paketdienst p, Protokoll prot, Verwaltungsdienst vw) =>
         {
             var ich = Admin(c);
             var s = p.Aktuell ?? throw new ArgumentException("Es wurden noch keine Stammdaten aus UntPlan übertragen.");
-            var neu = bd.AusStammdaten(s.Paket, d.Lehrer, d.Klassen);
+            var neu = bd.AusStammdaten(s.Paket, d.Lehrer, d.Klassen, vw.Text("zuordnung", "leitungKuerzel").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries));
             prot.Schreiben(ich.Login, "Konten aus Stammdaten angelegt", neu.Count.ToString());
             var csv = new StringBuilder("Benutzername;Startpasswort;Rolle;Kürzel;Name\r\n");
             foreach (var n in neu) csv.Append($"{n.Login};{n.Passwort};{Rollen.Name(n.Rolle)};{n.Element};{n.Name}\r\n");
@@ -179,13 +180,13 @@ public static class AdminApi
         api.MapPost("/nachrichten", (NachrichtDaten d, HttpContext c, Vertretungsplandienst vp) =>
         {
             var b = Leitung(c);
-            vp.NachrichtSpeichern(null, d.Von, d.Bis, d.Text, d.Zielgruppe ?? "alle", d.Startseite, d.Monitor, b.Id);
+            vp.NachrichtSpeichern(null, d.Von, d.Bis, d.Text, d.Zielgruppe ?? "alle", d.Startseite, d.Monitor, b.Id, d.Betreff, d.Wochentag ?? 0, d.Reihenfolge ?? 10, d.Aufgefaechert ?? true, d.Oeffentlich ?? false, d.Mobil ?? true);
             return Results.Json(new { ok = true });
         });
         api.MapPut("/nachrichten/{id:int}", (int id, NachrichtDaten d, HttpContext c, Vertretungsplandienst vp) =>
         {
             var b = Leitung(c);
-            vp.NachrichtSpeichern(id, d.Von, d.Bis, d.Text, d.Zielgruppe ?? "alle", d.Startseite, d.Monitor, b.Id);
+            vp.NachrichtSpeichern(id, d.Von, d.Bis, d.Text, d.Zielgruppe ?? "alle", d.Startseite, d.Monitor, b.Id, d.Betreff, d.Wochentag ?? 0, d.Reihenfolge ?? 10, d.Aufgefaechert ?? true, d.Oeffentlich ?? false, d.Mobil ?? true);
             return Results.Json(new { ok = true });
         });
         api.MapDelete("/nachrichten/{id:int}", (int id, HttpContext c, Vertretungsplandienst vp) => { Leitung(c); vp.NachrichtLoeschen(id); return Results.Json(new { ok = true }); });

@@ -2,7 +2,7 @@
 import { e, minuten, jetztMinuten, heuteIso, datumKurz, WOCHENTAGE_KURZ } from './ui.js';
 
 /** Höhe einer Unterrichtsstunde im Raster (Pausen werden nicht maßstäblich dargestellt). */
-const ZEILE = 78;
+const ZEILE = 80;
 
 export const STATUSTEXT = {
   geaendert: 'Änderung', offen: 'Vertretung offen', entfall: 'Entfall', abwesend: 'vertreten', klausur: 'Prüfung',
@@ -168,8 +168,11 @@ function freiUeberlagerung(t) {
 
 const leisteEintrag = (text, art) => `<div class="tt-ereignis ${art}" title="${e(text)}">${e(text)}</div>`;
 
+/** Wochentag und Datum wie im Original: „Mo 12.10.“ */
+export const tagKopf = (i, iso) => { const [, m, t] = iso.split('-'); return `${WOCHENTAGE_KURZ[i] ?? ''} ${t}.${m}.`; };
+
 /** Wochenraster als HTML. plan: Antwort von /api/app/plan; gewaehlterTag: Index für die Mobilansicht. */
-export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = true } = {}) {
+export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false } = {}) {
   const alle = plan.zeitraster.filter(z => z.beginn && z.ende);
   if (!alle.length) return '<div class="alert alert-secondary">Kein Zeitraster übertragen.</div>';
   // Raster immer vollständig (alle Stunden des Zeitrasters), wie im Original
@@ -186,28 +189,29 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = true }
 
   let html = `<div class="tt" style="--tage:${tage.length}"><div class="tt-ecke"></div>`;
   tage.forEach((t, i) => {
-    html += `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}"><span>${e(WOCHENTAGE_KURZ[i] ?? t.wochentag)} ${datumKurz(t.datum)}</span></div>`;
+    html += `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}">${e(tagKopf(i, t.datum))}</div>`;
   });
   if (mitLeiste) {
     html += '<div class="tt-ecke"></div>';
     tage.forEach((t, i) => { html += `<div class="tt-leiste ${i === ausgewaehlt ? 'gewaehlt' : ''}">${t.hinweise.map(h => leisteEintrag(h, 'hinweis')).join('')}</div>`; });
   }
 
-  // Zeitachse: Beginn jeder Stunde, nach einer Pause zusätzlich das Ende der vorherigen Stunde
+  // Zeitachse wie im Original: Beginn oben an der Stunde, Ende unten (über der Linie), dazwischen die Stundennummer
   html += `<div class="tt-achse" style="height:${aufbau.hoehe}px">`;
   zeiten.forEach((z, i) => {
-    const vorher = zeiten[i - 1];
-    const pause = vorher && aufbau.pause.has(vorher.nr);
-    if (pause) html += `<div class="tt-zeit" style="top:${aufbau.pause.get(vorher.nr)}px">${e(vorher.ende)}</div>`;
-    html += `<div class="tt-zeit" style="top:${aufbau.oben[i]}px">${vorher && !pause && vorher.ende !== z.beginn ? `${e(vorher.ende)}<br>` : ''}${e(z.beginn)}<small>${e(z.bezeichnung)}.</small></div>`;
+    const oben = aufbau.oben[i];
+    html += `<div class="tt-zeit beginn" style="top:${oben}px">${e(z.beginn)}</div>`;
+    html += `<div class="tt-nr" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
+    html += `<div class="tt-zeit ende" style="top:${oben + ZEILE}px">${e(z.ende)}</div>`;
   });
-  html += `<div class="tt-zeit" style="top:${aufbau.hoehe}px">${e(zeiten[zeiten.length - 1].ende)}</div>`;
   if (jetztY !== null) html += `<div class="tt-jetzt-zeit" style="top:${jetztY}px">${hhmm(jetzt)}</div>`;
   html += '</div>';
 
+  const linien = new Set();
+  zeiten.forEach((z, j) => { linien.add(aufbau.oben[j]); linien.add(aufbau.oben[j] + ZEILE); });
   tage.forEach((t, i) => {
     html += `<div class="tt-spalte ${t.frei ? 'frei ' + e(t.freiArt || '') : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}" style="height:${aufbau.hoehe}px">`;
-    html += zeiten.map((z, j) => `<div class="tt-linie" style="top:${aufbau.oben[j]}px"></div>`).join('');
+    html += [...linien].map(y => `<div class="tt-linie" style="top:${y}px"></div>`).join('');
     html += [...aufbau.pause.values()].map(y => `<div class="tt-pause" style="top:${y}px;height:${PAUSE}px"></div>`).join('');
     if (t.frei) html += freiUeberlagerung(t);
     const karten = plan.karten.filter(k => k.datum === t.datum && index.has(k.von));
@@ -223,12 +227,12 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = true }
       const nr = k.ereignis ? '' : `data-karte="${plan.karten.indexOf(k)}"`;
       for (const [von, bis] of abschnitte(k, aufbau, index)) {
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
-        const oben = aufbau.oben[iv] + 2, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 4;
-        // Beginn und Ende links in der Karte (wie im Original), wenn die Karte die ganze Spalte hat
-        const mitZeit = kartenZeiten && anzahl === 1 && h >= 60;
+        const oben = aufbau.oben[iv] + 1, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 1;
+        // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“)
+        const mitZeit = kartenZeiten && h >= 60 && anzahl <= 2;
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         html += `<div class="std ${e(k.status)} ${mitZeit ? 'mit-zeit' : ''} ${vergangen(k, heute, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''}" ${nr} tabindex="0" role="button"
-          title="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 3px);width:calc(${breite}% - 6px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
+          title="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + ${spur ? 2 : 0}px);width:calc(${breite}% - ${anzahl > 1 ? 2 : 0}px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
       }
     }
     // Pausenaufsichten in der Pausenzeile
@@ -238,12 +242,13 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = true }
     for (const [nach, liste] of proPause) {
       const breite = 100 / liste.length;
       liste.forEach((a, j) => {
-        const text = a.status === 'vertreten' ? `${a.gangName || a.gang} → ${a.lehrer}` : a.status === 'vertretung' ? `${a.gangName || a.gang} (für ${a.alt})` : (a.gangName || a.gang);
-        html += `<div class="aufsicht ${e(a.status)}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 2px)"
+        const ersatz = a.lehrer && !/^[?+]+$/.test(a.lehrer) ? a.lehrer : '';
+        const text = a.status === 'vertreten' ? (ersatz ? `${a.gangName || a.gang} → ${ersatz}` : (a.gangName || a.gang)) : a.status === 'vertretung' ? `${a.gangName || a.gang} (für ${a.alt})` : (a.gangName || a.gang);
+        html += `<div class="aufsicht ${e(a.status)}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
           title="Pausenaufsicht ${e(a.gangName || a.gang)} ${e(a.beginn)}–${e(a.ende)}">${a.status === 'vertretung' ? '<i class="mk-plus"></i>' : ''}<span>Aufsicht ${e(text)}</span></div>`;
       });
     }
-    if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>`;
+    if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>${t.datum === heute ? `<div class="tt-jetzt heute" style="top:${jetztY}px"></div>` : ''}`;
     html += '</div>';
   });
   return html + '</div>';
@@ -251,7 +256,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = true }
 
 export function tagAuswahl(plan, gewaehlt) {
   return `<div class="tt-tagwahl nicht-drucken" role="group" aria-label="Tag wählen">${plan.tage.map((t, i) =>
-    `<button type="button" data-tagwahl="${i}" class="${i === gewaehlt ? 'aktiv' : ''}" aria-pressed="${i === gewaehlt}">${WOCHENTAGE_KURZ[i]}<small>${datumKurz(t.datum)}</small></button>`).join('')}</div>`;
+    `<button type="button" data-tagwahl="${i}" class="${i === gewaehlt ? 'aktiv' : ''}" aria-pressed="${i === gewaehlt}">${WOCHENTAGE_KURZ[i]}<small>${tagKopf(i, t.datum).split(' ')[1]}</small></button>`).join('')}</div>`;
 }
 
 /** Klick auf eine Karte öffnet den Detaildialog. */

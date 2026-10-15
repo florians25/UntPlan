@@ -6,8 +6,9 @@ export function elementWahl({ eintraege, wert, platzhalter = 'Auswählen …', b
   const wurzel = document.createElement('div');
   wurzel.className = 'position-relative elementwahl';
   const aktuell = eintraege.find(x => x.kurz.toLowerCase() === String(wert ?? '').toLowerCase());
-  wurzel.innerHTML = `<button class="btn btn-outline-secondary bg-white text-body dropdown-toggle wahl-knopf" type="button" aria-expanded="false">
-      ${aktuell ? `<span class="fw-semibold">${e(aktuell.kurz)}</span>${aktuell.name && aktuell.name !== aktuell.kurz ? ` <span class="text-body-secondary">${e(aktuell.name)}</span>` : ''}` : `<span class="text-body-secondary">${e(platzhalter)}</span>`}
+  // Knopf wie im Original: Kürzel mit Info-Symbol (Langname als Hinweis)
+  wurzel.innerHTML = `<button class="btn btn-outline-secondary bg-white text-body dropdown-toggle wahl-knopf" type="button" aria-expanded="false" title="${e(aktuell?.name ?? platzhalter)}">
+      ${aktuell ? `<span>${e(aktuell.kurz)}</span>${aktuell.name && aktuell.name !== aktuell.kurz ? '<span class="info" aria-hidden="true">i</span>' : ''}` : `<span class="text-body-secondary">${e(platzhalter)}</span>`}
     </button>
     <div class="wahl-menue bg-white border rounded shadow">
       <div class="p-2 border-bottom"><input type="search" class="form-control form-control-sm" placeholder="Suchen" aria-label="Suchen"></div>

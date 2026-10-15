@@ -14,7 +14,7 @@ public sealed record Pruefung(string Datum, int StundeVon, int StundeBis, string
 
 /// <summary>Abwesenheit einer Schülerin/eines Schülers an einem Tag (aufeinanderfolgende Stunden zusammengefasst).</summary>
 public sealed record Abwesenheitszeile(int SchuelerId, string Schueler, string Klasse, string Datum, int StundeVon, int StundeBis, string Beginn, string Ende,
-    string Art, int Minuten, string Status, string Bemerkung, List<string> Faecher, List<string> Lehrer, List<int> Ids, bool Verwalten);
+    string Art, int Minuten, string Status, string Bemerkung, List<string> Faecher, List<string> Lehrer, List<int> Ids, bool Verwalten, string Grund = "", string Gruppe = "");
 
 /// <summary>Klassenbucheintrag (Vermerk) mit Klasse und Name für Listen über mehrere Klassen.</summary>
 public sealed record Vermerkzeile(int Id, string Datum, string Klasse, int? SchuelerId, string Schueler, string Art, string Text, string Lehrer);
@@ -131,7 +131,7 @@ public sealed class Listendienst
         var liste = _kb.FehlzeitenZeitraum(von, bis, string.IsNullOrEmpty(klasse) ? null : klasse)
             .Where(f => string.IsNullOrEmpty(status) || f.Status == status).ToList();
         var res = new List<Abwesenheitszeile>();
-        foreach (var g in liste.GroupBy(f => (f.SchuelerId, f.Datum, f.Art, f.Status, f.Bemerkung)))
+        foreach (var g in liste.GroupBy(f => (f.SchuelerId, f.Datum, f.Art, f.Status, f.Bemerkung, f.Grund, f.Gruppe)))
         {
             var sortiert = g.OrderBy(f => f.Stunde).ToList();
             for (var i = 0; i < sortiert.Count; i++)
@@ -143,7 +143,7 @@ public sealed class Listendienst
                 res.Add(new Abwesenheitszeile(f0.SchuelerId, name, f0.Klasse, f0.Datum, f0.Stunde, block[^1].Stunde,
                     zeiten.TryGetValue(f0.Stunde, out var zb) ? zb.Beginn : "", zeiten.TryGetValue(block[^1].Stunde, out var ze) ? ze.Ende : "",
                     f0.Art, block.Sum(x => x.Minuten), f0.Status, f0.Bemerkung, block.Select(x => x.Fach).Where(x => x.Length > 0).Distinct(Ci).ToList(),
-                    block.Select(x => x.Lehrer).Where(x => x.Length > 0).Distinct(Ci).ToList(), block.Select(x => x.Id).ToList(), Verwalten(f0.Klasse)));
+                    block.Select(x => x.Lehrer).Where(x => x.Length > 0).Distinct(Ci).ToList(), block.Select(x => x.Id).ToList(), Verwalten(f0.Klasse), f0.Grund, f0.Gruppe));
             }
         }
         return res.OrderByDescending(x => x.Datum).ThenBy(x => x.Klasse, De).ThenBy(x => x.Schueler, De).ThenBy(x => x.StundeVon).ToList();

@@ -56,7 +56,7 @@ public static class AppApi
 
         // ---------------------------------------------------------------- Sitzung und Einrichtung
 
-        api.MapGet("/sitzung", (HttpContext c, Einstellungen e, Benutzerdienst bd, Paketdienst p, Mitteilungsdienst m) =>
+        api.MapGet("/sitzung", (HttpContext c, Einstellungen e, Benutzerdienst bd, Paketdienst p, Mitteilungsdienst m, Verwaltungsdienst vw) =>
         {
             var b = c.Ich();
             return Results.Json(new
@@ -72,16 +72,19 @@ public static class AppApi
                     passwortAendern = b.PasswortAendern, typ = b.Rolle == Rollen.Schueler ? Elementtyp.Klasse : Elementtyp.Lehrer,
                 },
                 ungelesen = b is null ? 0 : m.Ungelesen(b.Id),
+                // Ansichtseinstellungen der Administration (Wochenende, Uhrzeiten auf Karten, Startseite)
+                ansicht = b is null ? null : vw.Einstellung("ansicht"),
             });
         });
 
-        api.MapPost("/anmelden", async (AnmeldeDaten d, HttpContext c, Benutzerdienst bd, Protokoll prot) =>
+        api.MapPost("/anmelden", async (AnmeldeDaten d, HttpContext c, Benutzerdienst bd, Protokoll prot, Verwaltungsdienst vw) =>
         {
             var (ergebnis, b) = bd.Anmelden(d.Login ?? "", d.Passwort ?? "");
             switch (ergebnis)
             {
                 case Benutzerdienst.Anmeldeergebnis.Ok:
                     await c.AnmeldenAsync(b!);
+                    vw.KontoMerken(ErweiterungApi.Geraet(c, true), b!.Id);
                     prot.Schreiben(b!.Login, "Anmeldung");
                     return Results.Json(new { ok = true });
                 case Benutzerdienst.Anmeldeergebnis.Gesperrt:
@@ -118,6 +121,7 @@ public static class AppApi
             var b = Ich(c);
             if (!bd.PasswortStimmt(b.Id, d.Alt)) throw new ArgumentException("Das bisherige Passwort ist falsch.");
             if (d.Neu == d.Alt) throw new ArgumentException("Das neue Passwort muss sich vom bisherigen unterscheiden.");
+            bd.RegelPruefen(d.Neu);
             bd.PasswortSetzen(b.Id, d.Neu);
             prot.Schreiben(b.Login, "Passwort geändert");
             return Results.Json(new { ok = true });
@@ -237,9 +241,10 @@ public static class AppApi
             return Results.Json(m);
         });
 
-        api.MapPost("/meldungen/klausur", (KlausurDaten d, HttpContext c, Paketdienst p, Rueckmeldungsdienst r, Protokoll prot) =>
+        api.MapPost("/meldungen/klausur", (KlausurDaten d, HttpContext c, Paketdienst p, Rueckmeldungsdienst r, Protokoll prot, Verwaltungsdienst vw, Listendienst l) =>
         {
             var b = Ich(c);
+            ErweiterungApi.PruefungssperrePruefen(vw, l, r, Paket(p), b, d.Datum, d.Klassen ?? new());
             var m = r.Klausur(Paket(p), b, d.Datum, d.StundeVon, d.StundeBis, d.Klassen ?? new(), d.Raeume ?? new(), d.Aufsicht ?? new(), d.Titel ?? "", d.Text ?? "");
             prot.Schreiben(b.Login, "Klausur eingetragen", $"{string.Join(",", m.Klassen)} {m.Von}");
             return Results.Json(m);
@@ -253,7 +258,7 @@ public static class AppApi
         api.MapGet("/mitteilungen", (string? ordner, HttpContext c, Mitteilungsdienst m) =>
         {
             var b = Ich(c);
-            return Results.Json(ordner == "gesendet" ? m.Gesendet(b.Id) : m.Posteingang(b.Id));
+            return Results.Json(ordner == "gesendet" ? m.Gesendet(b.Id) : ordner == "entwuerfe" ? m.Entwuerfe(b.Id) : m.Posteingang(b.Id));
         });
         api.MapGet("/mitteilungen/empfaenger", (HttpContext c, Mitteilungsdienst m, Paketdienst p) => Results.Json(m.Empfaengerliste(Ich(c), p.Aktuell)));
         api.MapPost("/mitteilungen", (MitteilungDaten d, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
@@ -408,7 +413,11 @@ public static class AppApi
         {
             var b = Ich(c);
             var basis = $"{c.Request.Scheme}://{c.Request.Host}{c.Request.PathBase}";
-            return Results.Json(new { b.Login, b.Anzeigename, b.Email, rolle = Rollen.Name(b.Rolle), b.Element, b.LetzteAnmeldung, ical = $"{basis}/ical/{b.IcalToken}.ics" });
+            return Results.Json(new
+            {
+                b.Login, b.Anzeigename, b.Email, rolle = Rollen.Name(b.Rolle), b.Element, b.LetzteAnmeldung, ical = $"{basis}/ical/{b.IcalToken}.ics",
+                b.VorherigeAnmeldung, b.Sprache, b.Benachrichtigung, b.Kollegium,
+            });
         });
         api.MapPost("/profil/ical", (HttpContext c, Benutzerdienst bd) =>
         {
@@ -417,7 +426,7 @@ public static class AppApi
             return Results.Json(new { ical = $"{c.Request.Scheme}://{c.Request.Host}{c.Request.PathBase}/ical/{t}.ics" });
         });
 
-        app.MapGet("/api/monitor/{token}", (string token, Monitordienst md, Paketdienst p, Vertretungsplandienst vp, Einstellungen e, Uhr uhr) =>
+        app.MapGet("/api/monitor/{token}", (string token, Monitordienst md, Paketdienst p, Vertretungsplandienst vp, Einstellungen e, Uhr uhr, Verwaltungsdienst vw) =>
         {
             if (md.NachToken(token) is not { } mon) return Results.NotFound();
             var s = p.Aktuell;
@@ -427,8 +436,10 @@ public static class AppApi
                 name = mon.Name,
                 schule = e.Schulname,
                 version = mon.Version,
+                // Monitoransichten (Administration): Ticker, Kopfzeile, Aktualisierungsintervall
+                anzeige = vw.Einstellung("monitor"),
                 jetzt = uhr.Jetzt.ToString("yyyy-MM-ddTHH:mm:ss"),
-                tage = s is null ? new List<Vertretungstag>() : vp.NaechsteTage(s, uhr.Heute, mon.Tage).Select(d => vp.Tag(s, d, lehrer, "monitor")).ToList(),
+                tage = s is null ? new List<Vertretungstag>() : vp.NaechsteTage(s, uhr.Heute, mon.Tage).Select(d => vp.Tag(s, d, lehrer, vw.Wahr("monitor", "nurOeffentlich") ? "monitor-oeffentlich" : "monitor")).ToList(),
             });
         });
 

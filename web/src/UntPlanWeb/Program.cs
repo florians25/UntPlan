@@ -53,6 +53,8 @@ public class Program
         builder.Services.AddSingleton<Klassenbuchdienst>();
         builder.Services.AddSingleton<Listendienst>();
         builder.Services.AddSingleton<Monitordienst>();
+        builder.Services.AddSingleton<Verwaltungsdienst>();
+        builder.Services.AddSingleton<Klassenbuchverwaltung>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>
         {
@@ -129,7 +131,8 @@ public class Program
         app.UseDefaultFiles();
         app.UseStaticFiles(new StaticFileOptions
         {
-            OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = c.File.Name.EndsWith(".html") ? "no-cache" : "public, max-age=3600",
+            // Oberfläche ohne Build-Schritt: HTML, Skripte und Stile immer neu prüfen (ETag), damit nach einem Update keine alten Module laufen
+            OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = c.File.Name.EndsWith(".html") || c.File.Name.EndsWith(".js") || c.File.Name.EndsWith(".css") ? "no-cache" : "public, max-age=3600",
         });
         app.UseAuthentication();
         app.UseAuthorization();
@@ -138,6 +141,7 @@ public class Program
         AppApi.Abbilden(app);
         AdminApi.Abbilden(app);
         SsoApi.Abbilden(app);
+        ErweiterungApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
         app.MapGet("/gesundheit", () => Results.Ok(new { ok = true }));

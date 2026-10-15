@@ -185,6 +185,74 @@ public sealed class Db
         """
         ALTER TABLE klassenbuch ADD COLUMN notiz_schueler TEXT NOT NULL DEFAULT '';
         """,
+
+        // 4: Funktionen der WebUntis-Oberfläche – vorherige Anmeldung, Nachrichten mit Betreff, Klassendienste, Befreiungen,
+        //    Abwesenheitsgründe, Sitzpläne, freie Tage, Übertragungsverlauf, Entwürfe/Listen/Anhänge, Kontowechsel
+        """
+        ALTER TABLE benutzer ADD COLUMN vorherige_anmeldung TEXT;
+        ALTER TABLE benutzer ADD COLUMN sprache TEXT NOT NULL DEFAULT 'Deutsch';
+        ALTER TABLE benutzer ADD COLUMN benachrichtigung INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE nachrichten ADD COLUMN betreff TEXT NOT NULL DEFAULT '';
+        ALTER TABLE nachrichten ADD COLUMN wochentag INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE nachrichten ADD COLUMN reihenfolge INTEGER NOT NULL DEFAULT 10;
+        ALTER TABLE nachrichten ADD COLUMN aufgefaechert INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE nachrichten ADD COLUMN oeffentlich INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE nachrichten ADD COLUMN mobil INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE klassenbuch ADD COLUMN online INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE fehlzeiten ADD COLUMN grund TEXT NOT NULL DEFAULT '';
+        ALTER TABLE fehlzeiten ADD COLUMN gruppe TEXT NOT NULL DEFAULT '';
+        ALTER TABLE mitteilungen ADD COLUMN entwurf INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE mitteilungen ADD COLUMN entwurf_empfaenger TEXT NOT NULL DEFAULT '[]';
+        CREATE TABLE mitteilung_anhaenge (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, mitteilung_id INTEGER NOT NULL REFERENCES mitteilungen(id) ON DELETE CASCADE,
+            name TEXT NOT NULL, typ TEXT NOT NULL DEFAULT 'application/octet-stream', groesse INTEGER NOT NULL DEFAULT 0, daten BLOB NOT NULL
+        );
+        CREATE TABLE mitteilung_listen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, besitzer_id INTEGER NOT NULL REFERENCES benutzer(id) ON DELETE CASCADE,
+            name TEXT NOT NULL, mitglieder TEXT NOT NULL DEFAULT '[]', erstellt TEXT NOT NULL
+        );
+        CREATE TABLE klassendienste (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, kurz TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, aktiv INTEGER NOT NULL DEFAULT 1, reihenfolge INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO klassendienste (kurz, name, reihenfolge) VALUES ('KO', 'Klassenordner', 10), ('KS', 'Klassensprecher*in', 20), ('TD', 'Tafeldienst', 30);
+        CREATE TABLE klassendienst_zuordnungen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, dienst_id INTEGER NOT NULL REFERENCES klassendienste(id) ON DELETE CASCADE,
+            schueler_id INTEGER NOT NULL, klasse TEXT NOT NULL, von TEXT NOT NULL, bis TEXT NOT NULL, text TEXT NOT NULL DEFAULT '',
+            erstellt TEXT NOT NULL, benutzer_id INTEGER
+        );
+        CREATE INDEX ix_klassendienst_klasse ON klassendienst_zuordnungen (klasse, von);
+        CREATE TABLE befreiungen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, schueler_id INTEGER NOT NULL, klasse TEXT NOT NULL, von TEXT NOT NULL, bis TEXT NOT NULL,
+            wochentag INTEGER NOT NULL DEFAULT 0, fach TEXT NOT NULL DEFAULT '', beginn TEXT NOT NULL DEFAULT '', ende TEXT NOT NULL DEFAULT '',
+            grund TEXT NOT NULL DEFAULT '', text TEXT NOT NULL DEFAULT '', erstellt TEXT NOT NULL, benutzer_id INTEGER
+        );
+        CREATE INDEX ix_befreiungen_klasse ON befreiungen (klasse, von);
+        CREATE TABLE abwesenheitsgruende (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, kurz TEXT NOT NULL, name TEXT NOT NULL, art TEXT NOT NULL DEFAULT 'abwesenheit',
+            entschuldigt INTEGER NOT NULL DEFAULT 0, reihenfolge INTEGER NOT NULL DEFAULT 0, aktiv INTEGER NOT NULL DEFAULT 1
+        );
+        INSERT INTO abwesenheitsgruende (kurz, name, art, entschuldigt, reihenfolge) VALUES
+            ('K', 'Krankheit', 'abwesenheit', 0, 10), ('A', 'Arzttermin', 'abwesenheit', 0, 20), ('B', 'Beurlaubung', 'abwesenheit', 1, 30),
+            ('F', 'Familiäre Gründe', 'abwesenheit', 0, 40), ('S', 'Schulveranstaltung', 'abwesenheit', 1, 50), ('P', 'Praktikum', 'abwesenheit', 1, 60),
+            ('SPB', 'Sportbefreiung (Attest)', 'befreiung', 1, 10), ('REL', 'Befreiung vom Religionsunterricht', 'befreiung', 1, 20),
+            ('SON', 'Sonstige Befreiung', 'befreiung', 1, 30);
+        CREATE TABLE sitzplaene (
+            klasse TEXT PRIMARY KEY COLLATE NOCASE, zeilen INTEGER NOT NULL DEFAULT 5, spalten INTEGER NOT NULL DEFAULT 6,
+            belegung TEXT NOT NULL DEFAULT '{}', geaendert TEXT NOT NULL
+        );
+        CREATE TABLE freie_tage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, von TEXT NOT NULL, bis TEXT NOT NULL, art TEXT NOT NULL DEFAULT 'frei', name TEXT NOT NULL, erstellt TEXT NOT NULL
+        );
+        CREATE TABLE paket_verlauf (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, revision INTEGER NOT NULL, empfangen TEXT NOT NULL, programmversion TEXT NOT NULL DEFAULT '',
+            klassen INTEGER NOT NULL DEFAULT 0, lehrer INTEGER NOT NULL DEFAULT 0, raeume INTEGER NOT NULL DEFAULT 0, tage INTEGER NOT NULL DEFAULT 0,
+            vertretungen INTEGER NOT NULL DEFAULT 0, von TEXT NOT NULL DEFAULT '', bis TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE geraete_konten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, geraet TEXT NOT NULL, benutzer_id INTEGER NOT NULL REFERENCES benutzer(id) ON DELETE CASCADE,
+            zuletzt TEXT NOT NULL, UNIQUE (geraet, benutzer_id)
+        );
+        """,
     };
 
     private static void Migrieren(SqliteConnection c)

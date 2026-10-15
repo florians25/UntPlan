@@ -1,7 +1,9 @@
 // Gemeinsame Hilfen: Schnittstelle, Escaping, Symbole (Bootstrap Icons, Linienstil), Meldungen und Dialoge, Datumsfunktionen.
 
-/** Bildmarke: schlichtes Raster-Symbol. */
-export const LOGO = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="6" fill="#1d4f73"/><path d="M8 7h5v15H8zM19 7h5v15h-5z" fill="#fff"/><rect x="8" y="18" width="16" height="7" rx="3" fill="#fff"/><rect x="14" y="7" width="4" height="4" rx="1" fill="#5fbf96"/></svg>`;
+import { symbol, LOGO as BILDMARKE } from './symbole.js';
+
+/** Bildmarke von UntPlanWeb (eigenes Zifferblatt-Symbol). */
+export const LOGO = BILDMARKE;
 
 const SYMBOLE = {
   heute: 'house', plan: 'calendar3-week', tag: 'grid-3x3', vertretung: 'arrow-left-right', mitteilung: 'envelope',
@@ -23,8 +25,9 @@ const SYMBOLE = {
   aufsicht: 'eye', ruckmeldung: 'inbox',
 };
 
+/** Symbol: eigene Linien-Symbole (symbole.js), sonst Bootstrap Icons für kleine Bedienelemente. */
 export function icon(name, klasse = '') {
-  return `<i class="bi bi-${SYMBOLE[name] ?? name} ${klasse === 'icon-klein' ? '' : klasse}" aria-hidden="true"></i>`;
+  return symbol(name, klasse) ?? `<i class="bi bi-${SYMBOLE[name] ?? name} ${klasse === 'icon-klein' ? '' : klasse}" aria-hidden="true"></i>`;
 }
 
 export function e(wert) {

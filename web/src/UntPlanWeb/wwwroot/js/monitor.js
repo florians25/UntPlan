@@ -7,7 +7,7 @@ let versatz = 0; // Abweichung der Geräteuhr von der Serveruhr
 
 function alt(w) { return w ? `<span class="alt">${e(w)}</span>` : ''; }
 
-function tagHtml(t, lehrer) {
+function tagHtml(t, lehrer, mitNachrichten = true) {
   const infos = [
     t.abwesendeKlassen.length ? `Abwesende Klassen: ${e(t.abwesendeKlassen.join(', '))}` : '',
     lehrer && t.abwesendeLehrer.length ? `Abwesende Lehrkräfte: ${e(t.abwesendeLehrer.join(', '))}` : '',
@@ -15,7 +15,7 @@ function tagHtml(t, lehrer) {
   ].filter(Boolean);
   return `<section class="card h-100"><div class="card-header">${e(datumLang(t.datum))}${t.woche ? ` <span class="fw-normal opacity-75">· ${e(t.woche)}-Woche</span>` : ''}</div>
     <div class="card-body pb-0">
-      ${t.nachrichten.map(n => `<div class="nachricht">${e(n)}</div>`).join('')}
+      ${mitNachrichten ? t.nachrichten.map(n => `<div class="nachricht">${e(n)}</div>`).join('') : ''}
       ${(t.veranstaltungen ?? []).map(v => `<div class="small mb-1"><span class="opacity-75">Veranstaltung:</span> ${e(v)}</div>`).join('')}
       ${infos.map(i => `<div class="small opacity-75 mb-1">${i}</div>`).join('')}
     </div>
@@ -59,8 +59,14 @@ async function laden() {
     const d = await r.json();
     versatz = new Date(d.jetzt).getTime() - Date.now();
     document.title = `${d.name} · UntPlanWeb`;
+    // Monitoransichten (Administration): Nachrichten in der Kopfzeile der Tage, Laufschrift, Aktualisierungsintervall
+    const anzeige = d.anzeige ?? {};
+    const ticker = anzeige.ticker && d.tage[0]?.nachrichten.length ? d.tage[0].nachrichten.join('   +++   ') : '';
     wurzel.innerHTML = `<header class="monitor-kopf">${LOGO}<div><h1>Vertretungsplan</h1><div class="opacity-75">${e(d.schule)}</div></div><div class="uhr"></div></header>
-      <div class="row g-3 row-cols-1 ${d.tage.length > 1 ? 'row-cols-xl-2' : ''}">${d.tage.map(t => `<div class="col">${tagHtml(t, d.version === 'lehrer')}</div>`).join('') || '<p>Keine Daten.</p>'}</div>`;
+      <div class="row g-3 row-cols-1 ${d.tage.length > 1 ? 'row-cols-xl-2' : ''}">${d.tage.map(t => `<div class="col">${tagHtml(t, d.version === 'lehrer', anzeige.kopfzeile !== false)}</div>`).join('') || '<p>Keine Daten.</p>'}</div>
+      ${ticker ? `<div class="monitor-ticker"><span>${e(ticker)}</span></div>` : ''}`;
+    const takt = Math.max(15, Number(anzeige.aktualisierung) || 60) * 1000;
+    if (takt !== aktualisierung) { aktualisierung = takt; clearInterval(zeitgeber); zeitgeber = setInterval(laden, takt); }
     bildlauf.clear();
     uhr();
   } catch {
@@ -68,7 +74,8 @@ async function laden() {
   }
 }
 
+let aktualisierung = 60000;
+let zeitgeber = setInterval(laden, aktualisierung);
 laden();
-setInterval(laden, 60000);
 setInterval(uhr, 5000);
 requestAnimationFrame(rollen);

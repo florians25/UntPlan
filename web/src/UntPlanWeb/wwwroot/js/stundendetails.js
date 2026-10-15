@@ -34,7 +34,9 @@ export function karteDialog(karte, kontext = {}) {
   el.tabIndex = -1;
   el.innerHTML = `<div class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable"><div class="modal-content"></div></div>`;
   document.body.append(el);
-  const modal = new bootstrap.Modal(el);
+  // wie im Original: Fläche rechts der Navigation, Navigation bleibt sichtbar
+  const modal = new bootstrap.Modal(el, { backdrop: false });
+  document.body.classList.toggle('leiste-zu', !!document.querySelector('.u-app.zu'));
   const box = el.querySelector('.modal-content');
   el.addEventListener('hidden.bs.modal', () => setTimeout(() => { modal.dispose(); el.remove(); }));
   let geaendert = false;
@@ -48,7 +50,7 @@ export function karteDialog(karte, kontext = {}) {
   const darfPruefung = () => kollegium && k.unterricht && k.klassen.length && k.datum >= heuteIso() && !['entfall', 'abwesend', 'veranstaltung', 'vorgemerkt'].includes(k.status);
 
   async function laden() {
-    daten = { eintrag: null, darf: false, anwesenheit: null, vermerke: [] };
+    daten = { eintrag: null, darf: false, anwesenheit: null, vermerke: [], befreit: new Set() };
     if (!k.unterricht || ['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status)) return;
     try {
       const r = await holen(`/api/app/klassenbuch/stunde?datum=${k.datum}&stunde=${k.von}&unterricht=${k.unterricht}`);
@@ -62,6 +64,8 @@ export function karteDialog(karte, kontext = {}) {
       ]);
       daten.anwesenheit = anw;
       daten.vermerke = verm?.vermerke ?? [];
+      // Befreiungen vom Unterricht (Wochentag, Fach, Uhrzeit) kennzeichnen
+      daten.befreit = new Set(await holen(`/api/app/klassenbuch/befreit?datum=${k.datum}&klassen=${encodeURIComponent(k.klassen.map(x => x.k).filter(Boolean).join(','))}&fach=${encodeURIComponent(k.fach || '')}&beginn=${encodeURIComponent(k.beginn || '')}`).catch(() => []));
       daten.arten = verm?.arten ?? [];
     }
   }
@@ -75,7 +79,8 @@ export function karteDialog(karte, kontext = {}) {
     return `<div class="sd-kopf ${KOPFSTATUS[k.status] ? 'grau' : ''}">
         <div class="sd-titel"><h2>${titel.map(e).join('<span class="trenn">|</span>')}${badge}</h2>
           <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        <div class="sd-knoepfe"><button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>
+          <button type="button" data-bs-dismiss="modal" title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>
       </div>
       ${KOPFSTATUS[k.status] ? `<div class="sd-leiste">${KOPFSTATUS[k.status]}</div>` : ''}
       <ul class="nav sd-reiter">${mitKlassenbuch() ? `<li><button type="button" data-reiter="klassenbuch" class="${reiter === 'klassenbuch' ? 'aktiv' : ''}">Klassenbuch</button></li>` : ''}
@@ -118,10 +123,11 @@ export function karteDialog(karte, kontext = {}) {
     const kacheln = schueler.map(s => {
       const f = fz.get(s.id);
       const st = !f ? 'da' : f.art === 'verspaetet' ? 'spaet' : 'weg';
-      return `<div class="sd-kachel ${st} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0">
+      const befreit = daten.befreit?.has(s.id);
+      return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" ${befreit ? 'title="vom Unterricht befreit"' : ''}>
         <span class="sd-status">${st === 'da' ? '<i class="bi bi-check-lg"></i>' : st === 'spaet' ? '<i class="bi bi-clock"></i>' : '<i class="bi bi-x-lg"></i>'}</span>
         <span class="sd-avatar">${e(initialen(s))}</span>
-        <span class="sd-name"><span>${e(s.name)}</span><span>${e(s.vorname)}</span></span>
+        <span class="sd-name"><span>${e(s.name)}</span><span>${e(s.vorname)}</span>${befreit ? '<span class="small text-body-secondary">befreit</span>' : ''}</span>
         ${darf ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'abwesend setzen' : 'anwesend setzen'}">${st === 'da' ? '<i class="bi bi-x-circle"></i>' : '<i class="bi bi-check-circle"></i>'}</button>` : ''}
       </div>`;
     }).join('');
@@ -186,7 +192,11 @@ export function karteDialog(karte, kontext = {}) {
     const zeile = (ic, titel, inhalt) => inhalt ? `<div class="sd-detail"><i class="bi ${ic}"></i><div><div class="sd-detail-titel">${titel}</div><div>${inhalt}</div></div></div>` : '';
     const pillen = liste => (liste || []).map(w => w.alt && !w.k ? `<span class="sd-wert neu"><s>${e(w.alt)}</s></span>`
       : w.alt ? `<span class="sd-wert neu"><s class="text-body-tertiary">${e(w.alt)}</s> → ${e(w.k)}</span>` : `<span class="sd-wert">${e(w.k)}</span>`).join('');
+    const online = k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status) && kollegium
+      ? `<div class="sd-detail"><i class="bi bi-camera-video"></i><div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
+          <label class="sd-detail-titel mb-0" for="sd-online">Findet online statt</label><input class="form-check-input ms-1 mt-0" type="checkbox" role="switch" id="sd-online" data-online ${ein?.online ? 'checked' : ''} ${daten.darf ? '' : 'disabled'}></div></div>` : '';
     return `
+      ${online}
       ${k.status !== 'regulaer' && st ? zeile('bi-info-circle', k.status === 'klausur' ? 'Prüfung' : 'Status', `<span class="fw-semibold">${e(st)}</span>${k.art && k.art !== st ? ` <span class="text-body-secondary">· ${e(k.art)}</span>` : ''}`) : ''}
       ${k.status === 'klausur' && k.text ? zeile('bi-file-earmark-check', 'Prüfung', e(k.text)) : ''}
       <div class="sd-detail"><i class="bi bi-door-open"></i><div class="flex-grow-1"><div class="sd-detail-titel">Raum</div>
@@ -335,6 +345,10 @@ export function karteDialog(karte, kontext = {}) {
       await eintragSpeichern(aenderung);
       offenesFeld = null;
       zeichnen();
+    });
+    box.querySelector('[data-online]')?.addEventListener('change', async ev => {
+      try { await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: ev.target.checked }, 'PUT'); if (daten.eintrag) daten.eintrag.online = ev.target.checked; geaendert = true; toast(ev.target.checked ? 'Die Stunde findet online statt.' : 'Die Stunde findet im Raum statt.'); }
+      catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, true); }
     });
     // Notizen (Details): speichern beim Verlassen
     box.querySelectorAll('[data-notiz]').forEach(t => t.onchange = () => eintragSpeichern({ [t.dataset.notiz]: t.value }));

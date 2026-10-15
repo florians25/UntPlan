@@ -27,6 +27,15 @@ public sealed class Paketdienst
             try { _stand = new Stand(JsonSerializer.Deserialize<WebPaket>(z.Json, UntPlanWebSchema.Json)!, z.Empfangen); }
             catch (JsonException) { _stand = null; }
         }
+        ZusatzferienLaden();
+    }
+
+    /// <summary>In UntPlanWeb gepflegte freie Tage (Administration → Freie Tage &amp; Ferien) in den aktuellen Stand übernehmen.</summary>
+    public void ZusatzferienLaden()
+    {
+        if (_stand is null) return;
+        _stand.Zusatzferien = _db.Liste("SELECT von, bis, art, name FROM freie_tage ORDER BY von",
+            r => new WebFerien(r.Text("name"), r.Text("von"), r.Text("bis"), r.Text("art") == "feiertag"));
     }
 
     /// <summary>Aktuelles Paket mit Nachschlagetabellen (null = noch nichts übertragen).</summary>
@@ -65,6 +74,16 @@ public sealed class Paketdienst
                 ON CONFLICT(id) DO UPDATE SET revision = excluded.revision, json = excluded.json, empfangen = excluded.empfangen
                 """, Db.P("@r", paket.Revision), Db.P("@j", json), Db.P("@e", empfangen));
             _stand = new Stand(paket, empfangen);
+            ZusatzferienLaden();
+            // Übertragungsverlauf (Administration → Stammdaten → Stundenplan-Versionen)
+            var tageVon = paket.Tage.Select(t => t.Datum).DefaultIfEmpty("").Min() ?? "";
+            var tageBis = paket.Tage.Select(t => t.Datum).DefaultIfEmpty("").Max() ?? "";
+            _db.Ausfuehren("""
+                INSERT INTO paket_verlauf (revision, empfangen, programmversion, klassen, lehrer, raeume, tage, vertretungen, von, bis)
+                VALUES (@r, @e, @p, @k, @l, @ra, @t, @v, @vo, @bi)
+                """, Db.P("@r", paket.Revision), Db.P("@e", empfangen), Db.P("@p", paket.Programmversion), Db.P("@k", paket.Elemente.Klassen.Count),
+                Db.P("@l", paket.Elemente.Lehrer.Count), Db.P("@ra", paket.Elemente.Raeume.Count), Db.P("@t", paket.Tage.Count), Db.P("@v", paket.Vertretungen.Count),
+                Db.P("@vo", tageVon), Db.P("@bi", tageBis));
             return _stand;
         }
     }
@@ -122,6 +141,8 @@ public sealed class Stand
     public Dictionary<string, WebElement> Gaenge { get; }
     public DateOnly SchuljahrVon { get; }
     public DateOnly SchuljahrBis { get; }
+    /// <summary>Zusätzliche freie Tage aus UntPlanWeb (werden wie Ferien bzw. Feiertage behandelt).</summary>
+    public List<WebFerien> Zusatzferien { get; set; } = new();
 
     public Stand(WebPaket p, string empfangen)
     {

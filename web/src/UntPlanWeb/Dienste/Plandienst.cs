@@ -87,11 +87,16 @@ public sealed class Plandienst
     }
 
     public WebFerien? Ferien(Stand s, DateOnly d) =>
-        s.Paket.Ferien.FirstOrDefault(f => DateOnly.TryParse(f.Von, out var v) && DateOnly.TryParse(f.Bis, out var b) && d >= v && d <= b);
+        s.Zusatzferien.Concat(s.Paket.Ferien).FirstOrDefault(f => DateOnly.TryParse(f.Von, out var v) && DateOnly.TryParse(f.Bis, out var b) && d >= v && d <= b);
+
+    /// <summary>In UntPlanWeb gepflegter freier Tag (gilt auch an tagesaktuellen Tagen).</summary>
+    private static WebFerien? Zusatz(Stand s, DateOnly d) =>
+        s.Zusatzferien.FirstOrDefault(f => DateOnly.TryParse(f.Von, out var v) && DateOnly.TryParse(f.Bis, out var b) && d >= v && d <= b);
 
     /// <summary>Unterrichtsfrei (Wochenende, Ferien, außerhalb des Schuljahres oder im Paket als unterrichtsfrei markiert)?</summary>
     public (bool Frei, string? Grund) Frei(Stand s, DateOnly d)
     {
+        if (TagIndex(d) < Math.Max(1, s.Paket.Zeitraster.TageProWoche) && Zusatz(s, d) is { } z) return (true, z.Name);
         if (s.Tage.TryGetValue(Iso(d), out var t))
             return t.Unterrichtstag ? (false, null) : (true, Ferien(s, d)?.Name ?? (TagIndex(d) >= s.Paket.Zeitraster.TageProWoche ? null : "unterrichtsfrei"));
         if (TagIndex(d) >= Math.Max(1, s.Paket.Zeitraster.TageProWoche)) return (true, null);
