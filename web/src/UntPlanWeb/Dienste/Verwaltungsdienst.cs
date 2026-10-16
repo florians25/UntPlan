@@ -38,6 +38,7 @@ public sealed class Verwaltungsdienst
         ["pruefungssperren"] = new() { ["aktiv"] = false, ["maxProTag"] = 2, ["maxProWoche"] = 4, ["leitungAusnehmen"] = true },
         ["monitor"] = new() { ["ticker"] = true, ["kopfzeile"] = true, ["aktualisierung"] = 60, ["nurOeffentlich"] = false },
         ["zuordnung"] = new() { ["leitungKuerzel"] = "", ["klassenkonten"] = true },
+        ["verspaetung"] = new() { ["abwesendAbMinuten"] = 0, ["minutenUmrechnen"] = true, ["minutenProFehlstunde"] = 45, ["hinweisAbAnzahl"] = 3, ["vorzeitigRestTag"] = true },
         ["passwort"] = new() { ["minLaenge"] = 8, ["grossbuchstaben"] = false, ["ziffern"] = false, ["sonderzeichen"] = false },
     };
 

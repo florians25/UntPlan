@@ -387,6 +387,8 @@ public sealed class Klassenbuchverwaltung
         new("fehlzeiten_klasse", "Abwesenheiten", "Fehlzeiten pro Klasse"),
         new("fehlzeiten_fach", "Abwesenheiten", "Fehlzeiten pro Fach"),
         new("fehltage_klasse", "Abwesenheiten", "Fehltage pro Klasse"),
+        new("verspaetungen", "Abwesenheiten", "Verspätungen und vorzeitiges Gehen"),
+        new("verspaetungen_auffaellig", "Abwesenheiten", "Auffällige Verspätungen", false, "mindestens {n1} Verspätungen"),
         new("abwesenheitsueberschreitung", "Abwesenheiten", "Abwesenheitsüberschreitung", false, "mehr als {n1} Fehlstunden in {n2} Wochen"),
         new("abwesenheiten", "Abwesenheiten", "Abwesenheiten"),
         new("anwesenheiten", "Abwesenheiten", "Anwesenheiten"),
@@ -424,14 +426,39 @@ public sealed class Klassenbuchverwaltung
             case "fehlzeiten_schueler":
             {
                 var fz = Fz(von, bis);
-                return B(new() { "Klasse", "Schüler*in", "Fehltage", "Fehlstunden", "entschuldigt", "unentschuldigt", "offen", "Verspätungen", "Verspätung (Min.)" },
+                var regeln = _kb.Regeln();
+                return B(new() { "Klasse", "Schüler*in", "Fehltage", "Fehlstunden", "entschuldigt", "unentschuldigt", "offen", "Verspätungen", "Verspätung (Min.)",
+                        "vorzeitig", "vorzeitig (Min.)", "Std. aus Minuten", "Fehlstunden gesamt", "Hinweis" },
                     schuelerListe.Select(x =>
                     {
-                        var f = fz.Where(y => y.SchuelerId == x.Id).ToList();
-                        var fehlt = f.Where(y => y.Art == "fehlt").ToList();
-                        return new object?[] { x.Klasse, N(x.Id), fehlt.Select(y => y.Datum).Distinct().Count(), fehlt.Count, fehlt.Count(y => y.Status == "entschuldigt"),
-                            fehlt.Count(y => y.Status == "unentschuldigt"), fehlt.Count(y => y.Status == "offen"), f.Count(y => y.Art == "verspaetet"), f.Where(y => y.Art == "verspaetet").Sum(y => y.Minuten) };
-                    }));
+                        var z = Listendienst.Summe(regeln, x.Klasse, x.Id, "", "", fz.Where(y => y.SchuelerId == x.Id).ToList());
+                        return new object?[] { x.Klasse, N(x.Id), z.Tage, z.Stunden, z.Entschuldigt, z.Unentschuldigt, z.Offen, z.Verspaetungen, z.Minuten,
+                            z.Vorzeitig, z.VorzeitigMinuten, z.StundenAusMinuten, z.StundenGesamt, z.Hinweis };
+                    }), regeln.MinutenUmrechnen ? $"Verspätungs- und Gehminuten werden zu Fehlstunden umgerechnet (je {regeln.MinutenProFehlstunde} min eine Stunde)." : null);
+            }
+            case "verspaetungen":
+            {
+                var fz = Fz(von, bis).Where(f => f.Art is "verspaetet" or "vorzeitig" || f.Bemerkung.StartsWith("verspätet", StringComparison.Ordinal)
+                                                  || f.Bemerkung.StartsWith("vorzeitig", StringComparison.Ordinal)).ToList();
+                return B(new() { "Klasse", "Schüler*in", "Datum", "Stunde", "Fach", "Art", "Minuten", "Grund", "Status", "Lehrkraft", "Text" },
+                    fz.OrderBy(f => f.Klasse, De).ThenBy(f => N(f.SchuelerId), De).ThenBy(f => f.Datum).ThenBy(f => f.Stunde)
+                        .Select(f => new object?[] { f.Klasse, N(f.SchuelerId), Datum(f.Datum), $"{f.Stunde}.", f.Fach,
+                            f.Art switch { "verspaetet" => "verspätet", "vorzeitig" => "vorzeitig gegangen", _ => "als Fehlstunde gewertet" },
+                            f.Art == "fehlt" ? "" : f.Minuten, Grund(f.Grund), f.Status, f.Lehrer, f.Bemerkung }));
+            }
+            case "verspaetungen_auffaellig":
+            {
+                var regeln = _kb.Regeln();
+                n1 = n1 > 0 ? n1 : Math.Max(1, regeln.HinweisAbAnzahl);
+                var fz = Fz(von, bis);
+                return B(new() { "Klasse", "Schüler*in", "Verspätungen", "Minuten", "vorzeitig", "Minuten (vorzeitig)", "Std. aus Minuten", "letzte Verspätung" },
+                    schuelerListe.Select(x => (x, f: fz.Where(f => f.SchuelerId == x.Id).ToList()))
+                        .Select(t => (t.x, t.f, sp: t.f.Where(f => f.Art == "verspaetet").ToList(), vz: t.f.Where(f => f.Art == "vorzeitig").ToList()))
+                        .Where(t => t.sp.Count >= n1 || t.vz.Count >= n1)
+                        .OrderByDescending(t => t.sp.Count + t.vz.Count)
+                        .Select(t => new object?[] { t.x.Klasse, N(t.x.Id), t.sp.Count, t.sp.Sum(f => f.Minuten), t.vz.Count, t.vz.Sum(f => f.Minuten),
+                            regeln.StundenAus(t.sp.Sum(f => f.Minuten) + t.vz.Sum(f => f.Minuten)), t.sp.Count > 0 ? Datum(t.sp.Max(f => f.Datum)!) : "" }),
+                    $"Schüler*innen mit mindestens {n1} Verspätungen bzw. vorzeitigem Gehen im Zeitraum.");
             }
             case "fehlzeiten_klasse":
             {
@@ -488,7 +515,7 @@ public sealed class Klassenbuchverwaltung
                     _listen.Abwesenheiten(s, b, von, bis, string.IsNullOrEmpty(klasse) ? null : klasse, null).Where(z => schueler is null || z.SchuelerId == schueler)
                         .OrderBy(z => z.Klasse, De).ThenBy(z => z.Schueler, De).ThenBy(z => z.Datum)
                         .Select(z => new object?[] { z.Klasse, z.Schueler, Datum(z.Datum), z.StundeVon == z.StundeBis ? $"{z.StundeVon}." : $"{z.StundeVon}.–{z.StundeBis}.",
-                            z.Art == "verspaetet" ? $"verspätet ({z.Minuten} min)" : "abwesend", Grund(z.Grund), z.Status, z.Bemerkung }));
+                            z.Art switch { "verspaetet" => $"verspätet ({z.Minuten} min)", "vorzeitig" => $"vorzeitig gegangen ({z.Minuten} min)", _ => "abwesend" }, Grund(z.Grund), z.Status, z.Bemerkung }));
             case "unentschuldigt":
             {
                 n1 = n1 > 0 ? n1 : 3;

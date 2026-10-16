@@ -14,6 +14,7 @@ const BEREICHE = [
   { id: 'zuordnung', text: 'Zuordnungsgruppen', admin: true },
   { id: 'rueckmeldungen', text: 'Rückmeldungen', admin: true },
   { id: 'sperren', text: 'Prüfungssperren', admin: true },
+  { id: 'verspaetung', text: 'Verspätungen & Fehlzeiten', admin: true },
   { id: 'ansicht', text: 'Ansichtseinstellungen', admin: true },
   { id: 'monitore', text: 'Monitoransichten', admin: true },
   { id: 'protokoll', text: 'Protokoll', admin: true },
@@ -46,7 +47,7 @@ export async function zeigen(seite, kontext, [bereichParam, ...weitere]) {
   seite.innerHTML = '<div data-bereich></div>';
   const ziel = seite.querySelector('[data-bereich]');
   const neu = () => kontext.navigieren(location.hash);
-  await ({ sync, benutzer, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, rechte, zuordnung, sperren, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
+  await ({ sync, benutzer, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, rechte, zuordnung, sperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
   ziel.querySelectorAll('[data-kopie]').forEach(b => b.onclick = () => kopieren(b.dataset.kopie));
 }
 
@@ -584,6 +585,24 @@ async function sperren(ziel) {
     <p class="small text-body-secondary mt-2 mb-3">Gezählt werden Klausuren aus UntPlan und noch nicht übernommene Prüfungen aus UntPlanWeb. 0 = keine Grenze.</p>
     <button class="btn btn-primary" type="submit">Speichern</button></form></div></div>`;
   einstellungBinden(ziel.querySelector('form'), 'pruefungssperren');
+}
+
+async function verspaetung(ziel) {
+  const w = await holen('/api/app/admin/einstellungen/verspaetung');
+  ziel.innerHTML = `<div class="card u-einstellungen"><div class="card-header">Verspätungen und vorzeitiges Gehen</div><div class="card-body"><form>
+    <div class="row g-3 mb-2">
+      <div class="col-sm-6"><label class="form-label">Stunde gilt als Fehlstunde ab</label><div class="input-group"><input type="number" class="form-control" name="abwesendAbMinuten" min="0" max="240" value="${w.abwesendAbMinuten}"><span class="input-group-text">Minuten</span></div>
+        <div class="form-text">0 = nur ganz verpasste Stunden werden Fehlstunden. Beispiel 20: Wer 20 min oder mehr zu spät kommt, fehlt in dieser Stunde.</div></div>
+      <div class="col-sm-6"><label class="form-label">Hinweis an die Klassenleitung ab</label><div class="input-group"><input type="number" class="form-control" name="hinweisAbAnzahl" min="0" max="100" value="${w.hinweisAbAnzahl}"><span class="input-group-text">Verspätungen</span></div>
+        <div class="form-text">Im Fehlzeitenbericht und in der Klassenübersicht markiert; 0 = aus.</div></div>
+    </div>
+    ${schalter('minutenUmrechnen', 'Verspätungs- und Gehminuten zu Fehlstunden zusammenrechnen', w)}
+    <div class="row g-3 my-1"><div class="col-sm-6"><label class="form-label">Minuten je Fehlstunde</label><input type="number" class="form-control" name="minutenProFehlstunde" min="1" max="240" value="${w.minutenProFehlstunde}"></div></div>
+    ${schalter('vorzeitigRestTag', 'Beim vorzeitigen Gehen standardmäßig für den Rest des Tages abwesend eintragen', w)}
+    <p class="small text-body-secondary mt-2 mb-3">Verspätungen werden ab der ersten, vorzeitiges Gehen bis zur letzten Stunde eines Blocks gerechnet; ganz verpasste Stunden zählen immer als Fehlstunden.
+      Der Entschuldigungsstatus bleibt beim Bearbeiten erhalten.</p>
+    <button class="btn btn-primary" type="submit">Speichern</button></form></div></div>`;
+  einstellungBinden(ziel.querySelector('form'), 'verspaetung');
 }
 
 async function ansicht(ziel, kontext) {

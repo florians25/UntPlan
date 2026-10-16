@@ -435,6 +435,16 @@ details.heute-nachricht > div { padding: 4px 0 0 13px; }
 .u-chip.gruen { background: var(--u-gruen-hell); color: #0f6b40; }
 .u-chip.rot { background: var(--u-rot-hell); color: #a1262b; }
 .u-chip.gelb { background: var(--u-gelb-hell); color: #6b4e00; }
+.u-chip.lila { background: #efe8fb; color: #5b3fa0; }
+/* Kennzahlen über der Abwesenheitsliste (neues Untis-Design: Kacheln als Schnellfilter) */
+.abw-kennzahlen { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.abw-kz { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border: 1px solid var(--u-linie, #e3e7eb); border-left: 4px solid #3b78c2;
+  border-radius: 8px; background: var(--u-flaeche, #fff); color: inherit; text-align: left; font: inherit; transition: box-shadow .15s, transform .15s; }
+button.abw-kz:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); transform: translateY(-1px); }
+.abw-kz b { font-size: 1.5rem; font-weight: 600; line-height: 1.1; }
+.abw-kz span { font-size: .8rem; color: var(--u-grau-2, #67747e); }
+.abw-kz.rot { border-left-color: #d64545; } .abw-kz.gelb { border-left-color: #f0b429; } .abw-kz.lila { border-left-color: #8e6bd1; } .abw-kz.still { border-left-color: #9aa5ae; }
+.abw-kz.aktiv { background: #eef4fb; border-color: #3b78c2; }
 .u-chip .bi { font-size: .8rem; color: var(--u-grau-2); }
 
 /* Status-Pillen in Tabellen („Geprüft“, „Prüfen“, „Eingeben“) */
@@ -733,7 +743,19 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .sd-kachel .sd-avatar { grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid #dde2e7; color: #8d99a3; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; align-self: start; }
 .sd-kachel .sd-name { display: flex; flex-direction: column; font-size: .875rem; line-height: 1.2; color: var(--u-titel); min-width: 0; }
 .sd-kachel .sd-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sd-kachel.weg .sd-name, .sd-kachel.spaet .sd-name { color: #9aa5ae; }
+.sd-kachel .sd-statusbild.frueh { border-radius: 50%; background: #8e6bd1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; }
+.sd-kachel .sd-minuten { position: absolute; top: 4px; right: 6px; font-size: 11px; font-weight: 700; color: #a8730b; background: #fff4d6; border-radius: 8px; padding: 0 6px; line-height: 16px; }
+.sd-kachel.frueh .sd-minuten { color: #5b3fa0; background: #efe8fb; }
+.sd-kachel .sd-minuten.gewertet { color: #fff; background: #d64545; }
+.sd-kachel.weg .sd-name { color: #9aa5ae; }
+.sd-kachel.spaet .sd-name, .sd-kachel.frueh .sd-name { color: #5d6a74; }
+.sd-kachel.spaet { background: #fffaf0; border-color: #f3dca5; }
+.sd-kachel.frueh { background: #f8f5fd; border-color: #ddd0f3; }
+.vs-schnell { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+.ad-pille.klein { padding: 1px 10px; font-size: 11.5px; }
+.vs-vorschau { font-size: 12px; padding: 7px 10px; border-radius: 6px; background: #eef4fb; color: #1e3f66; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start; }
+.vs-vorschau.warnung { background: #fdecec; color: #8a1f1f; }
+.ad-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin: 2px 0 10px; }
 .sd-kachel .sd-status { position: absolute; top: 6px; left: 6px; width: 15px; height: 15px; border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; z-index: 1; }
 .sd-kachel.da .sd-status { background: #1f9d55; }
 .sd-kachel.weg .sd-status { background: var(--u-rot); }
@@ -1051,7 +1073,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .sd-kachel .sd-statusbild { position: absolute; top: 6px; left: 6px; width: 16px; height: 16px; z-index: 1; }
 .sd-kachel .sd-statusbild.spaet { border-radius: 50%; background: #f0b429; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; }
 .sd-kachel .sd-name { font-size: 14px; padding-top: 6px; }
-.sd-kachel.weg .sd-name, .sd-kachel.spaet .sd-name { color: #9aa5ae; }
+.sd-kachel.weg .sd-name { color: #9aa5ae; }
 .sd-umschalten { font-size: 15px; margin-top: 2px; }
 .sd-pille.gross { font-size: 1.05rem; padding: .5rem 1.6rem; }
 .sd-fuss { padding: 14px 100px 14px 164px; }

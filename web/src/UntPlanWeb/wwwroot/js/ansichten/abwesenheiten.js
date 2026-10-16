@@ -25,7 +25,12 @@ function zusammenfassen(liste) {
   return res;
 }
 
-export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, statusParam, grundParam]) {
+const ARTEN = { fehlt: 'abwesend', verspaetet: 'verspätet', vorzeitig: 'vorzeitig gegangen' };
+const artChip = z => z.art === 'verspaetet' ? `<span class="u-chip gelb"><i class="bi bi-clock me-1"></i>verspätet ${z.minuten} min</span>`
+  : z.art === 'vorzeitig' ? `<span class="u-chip lila"><i class="bi bi-box-arrow-right me-1"></i>vorzeitig ${z.minuten} min</span>`
+  : /^(verspätet|vorzeitig gegangen)/.test(z.bemerkung || '') ? `abwesend <span class="small text-body-secondary">(${e(z.bemerkung.match(/^(verspätet|vorzeitig gegangen)/)[1])})</span>` : 'abwesend';
+
+export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, statusParam, grundParam, artParam]) {
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const reiter = reiterParam === 'meine' && ich.element ? 'meine' : 'schueler';
@@ -35,7 +40,8 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const klasse = klasseParam && klasseParam !== '-' ? klasseParam : '';
   const status = ['offen', 'entschuldigt', 'unentschuldigt'].includes(statusParam) ? statusParam : '';
   const grund = grundParam && grundParam !== '-' ? grundParam : '';
-  const ziel = (r, v = von, b = bis, k = klasse, s = status, g = grund) => `#/abwesenheiten/${r}/${v}/${b}/${encodeURIComponent(k || '-')}/${s || '-'}/${encodeURIComponent(g || '-')}`;
+  const art = ARTEN[artParam] ? artParam : '';
+  const ziel = (r, v = von, b = bis, k = klasse, s = status, g = grund, a = art) => `#/abwesenheiten/${r}/${v}/${b}/${encodeURIComponent(k || '-')}/${s || '-'}/${encodeURIComponent(g || '-')}${a ? `/${a}` : ''}`;
   seite.innerHTML = `
     ${ich.element ? `<nav class="u-reiter mb-3"><a href="${ziel('schueler')}" class="${reiter === 'schueler' ? 'aktiv' : ''}">Schüler*innen</a><a href="${ziel('meine')}" class="${reiter === 'meine' ? 'aktiv' : ''}">Meine Abwesenheiten</a></nav>` : ''}
     <div data-inhalt></div>`;
@@ -53,7 +59,11 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const q = `von=${von}&bis=${bis}${klasse ? `&klasse=${encodeURIComponent(klasse)}` : ''}${status ? `&status=${status}` : ''}`;
   const [roh, gruende] = await Promise.all([holen(`/api/app/abwesenheiten?${q}`), holen('/api/app/abwesenheitsgruende?art=abwesenheit').catch(() => [])]);
   const grundName = Object.fromEntries(gruende.map(g => [g.kurz, g.name]));
-  const liste = zusammenfassen(roh.filter(z => !grund || z.grund === grund));
+  const liste = zusammenfassen(roh.filter(z => (!grund || z.grund === grund) && (!art || z.art === art)));
+  const alleZeilen = zusammenfassen(roh);
+  const anzahl = { offen: alleZeilen.filter(z => z.status === 'offen' && z.art === 'fehlt').length, unent: alleZeilen.filter(z => z.status === 'unentschuldigt' && z.art === 'fehlt').length,
+    spaet: roh.filter(z => z.art === 'verspaetet').length, frueh: roh.filter(z => z.art === 'vorzeitig').length,
+    minuten: roh.filter(z => z.art !== 'fehlt').reduce((n, z) => n + z.minuten, 0) };
   const verwalten = roh.some(z => z.verwalten) || ich.admin;
   kontext.titel('Abwesenheiten', `${verwalten ? `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : ''}<button class="btn btn-outline-secondary" data-csv>${icon('csv')}Bericht</button>`, `${liste.length}`);
   inhalt.innerHTML = `
@@ -62,14 +72,22 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       ${filterFeld('Von', `<input type="date" class="form-control" data-von value="${von}">`)}
       ${filterFeld('Bis', `<input type="date" class="form-control" data-bis value="${bis}">`)}
       ${filterFeld('Abwesenheitsgrund', `<select class="form-select" data-grund><option value="">- Alle -</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select>`)}
+      ${filterFeld('Art', `<select class="form-select" data-art><option value="">- Alle -</option>${Object.entries(ARTEN).map(([k, t]) => `<option value="${k}" ${k === art ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
       ${filterFeld('Status', `<select class="form-select" data-status><option value="">- Alle -</option>${['offen', 'entschuldigt', 'unentschuldigt'].map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s === 'unentschuldigt' ? 'nicht entschuldigt' : s}</option>`).join('')}</select>`)}
+    </div>
+    <div class="abw-kennzahlen">
+      <button type="button" class="abw-kz ${status === 'offen' ? 'aktiv' : ''}" data-kz="offen"><b>${anzahl.offen}</b><span>offen</span></button>
+      <button type="button" class="abw-kz rot ${status === 'unentschuldigt' ? 'aktiv' : ''}" data-kz="unentschuldigt"><b>${anzahl.unent}</b><span>nicht entschuldigt</span></button>
+      <button type="button" class="abw-kz gelb ${art === 'verspaetet' ? 'aktiv' : ''}" data-kz="verspaetet"><b>${anzahl.spaet}</b><span>Verspätungen</span></button>
+      <button type="button" class="abw-kz lila ${art === 'vorzeitig' ? 'aktiv' : ''}" data-kz="vorzeitig"><b>${anzahl.frueh}</b><span>vorzeitig gegangen</span></button>
+      <div class="abw-kz still"><b>${anzahl.minuten}</b><span>Minuten gesamt</span></div>
     </div>
     <div class="card">${liste.length ? `<div class="table-responsive"><table class="table table-hover table-card align-middle"><thead><tr>${verwalten ? '<th><input type="checkbox" class="form-check-input" data-alle aria-label="Alle auswählen"></th>' : ''}
         <th>Schüler*in</th><th>Klasse</th><th>Von</th><th>Bis</th><th>Stunden</th><th>Art</th><th>Grund</th><th>Status</th><th>Text</th><th>erfasst von</th>${verwalten ? '<th></th>' : ''}</tr></thead><tbody>
       ${liste.map((z, i) => `<tr>${verwalten ? `<td>${z.verwalten || ich.admin ? `<input type="checkbox" class="form-check-input" data-i="${i}" aria-label="auswählen">` : ''}</td>` : ''}
         <td class="fw-semibold">${e(z.schueler)}</td><td>${e(z.klasse)}</td><td class="text-nowrap">${tagKurz(z.datum)}</td><td class="text-nowrap">${z.bis !== z.datum ? tagKurz(z.bis) : ''}</td>
         <td class="text-nowrap">${z.bis !== z.datum ? `${z.stundenSumme} Std.` : stundenText(z.stundeVon, z.stundeBis)}${z.beginn ? `<div class="small text-body-secondary">${e(z.beginn)}–${e(z.ende)}</div>` : ''}</td>
-        <td>${z.art === 'verspaetet' ? `<span class="u-chip gelb">verspätet ${z.minuten} min</span>` : 'abwesend'}</td>
+        <td>${artChip(z)}</td>
         <td>${e(grundName[z.grund] ?? z.grund)}</td><td>${STATUS[z.status] ?? e(z.status)}</td><td class="small">${e(z.bemerkung)}</td><td class="small text-body-secondary">${e(z.lehrer.join(', '))}</td>
         ${verwalten ? `<td class="text-end text-nowrap">${z.verwalten || ich.admin ? `<button class="btn btn-sm btn-outline-secondary" data-bearbeiten="${i}" title="Bearbeiten">${icon('stift')}</button>
           <button class="btn btn-sm btn-outline-danger" data-loeschen="${i}" title="Löschen">${icon('loeschen')}</button>` : ''}</td>` : ''}</tr>`).join('')}
@@ -80,7 +98,12 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         <a class="btn btn-sm btn-outline-secondary ms-auto" href="#/berichte/abwesenheiten/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Berichte</a></div>` : ''}`
       : `<div class="card-body py-0">${leer('Keine Abwesenheiten im Zeitraum.', 'person-check')}</div>`}</div>`;
   const f = n => inhalt.querySelector(`[data-${n}]`)?.value ?? '';
-  inhalt.querySelectorAll('.u-filter input, .u-filter select').forEach(x => x.onchange = () => kontext.navigieren(ziel('schueler', f('von') || von, f('bis') || bis, f('klasse'), f('status'), f('grund'))));
+  inhalt.querySelectorAll('.u-filter input, .u-filter select').forEach(x => x.onchange = () => kontext.navigieren(ziel('schueler', f('von') || von, f('bis') || bis, f('klasse'), f('status'), f('grund'), f('art'))));
+  inhalt.querySelectorAll('[data-kz]').forEach(b => b.onclick = () => {
+    const kz = b.dataset.kz;
+    if (kz === 'offen' || kz === 'unentschuldigt') kontext.navigieren(ziel('schueler', von, bis, klasse, status === kz ? '' : kz, grund, status === kz ? art : 'fehlt'));
+    else kontext.navigieren(ziel('schueler', von, bis, klasse, '', grund, art === kz ? '' : kz));
+  });
   inhalt.querySelector('[data-alle]')?.addEventListener('change', ev => inhalt.querySelectorAll('[data-i]').forEach(c => { c.checked = ev.target.checked; }));
   const gewaehlt = () => [...inhalt.querySelectorAll('[data-i]:checked')].map(c => liste[Number(c.dataset.i)]);
   const neu = () => kontext.navigieren(location.hash);

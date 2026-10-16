@@ -118,7 +118,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
             <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Darstellung"><button type="button" class="btn btn-outline-secondary" data-modus="neu">Neue Ansicht</button><button type="button" class="btn btn-outline-secondary active" data-modus="alt">Alte Liste</button></div></div>
           <div class="u-tabelle-karte p-3">${eintraege.length ? `<table class="alt-liste w-100"><thead><tr><th class="mitte">Auswahl<br><input type="checkbox" data-alle-wahl aria-label="Alle"></th><th>Schüler*innen</th><th>Klasse</th><th>Datum</th><th>Std.</th><th>Fach</th><th>Abwesenheitsgrund</th><th>Status</th><th>Text</th><th>Lehrkraft</th></tr></thead><tbody>
             ${eintraege.map(x => `<tr><td class="mitte"><input type="checkbox" data-id="${x.id}" aria-label="auswählen"></td><td>${e(namen.get(x.schuelerId) ?? '?')}</td><td>${e(x.klasse)}</td><td>${e(datumKurz(x.datum))}</td><td class="mitte">${x.stunde}</td><td>${e(x.fach)}</td>
-              <td>${x.art === 'verspaetet' ? `verspätet ${x.minuten} min` : e(x.grund || 'fehlt')}</td><td>${e(x.status)}</td><td class="text">${e(x.bemerkung)}</td><td>${e(x.lehrer)}</td></tr>`).join('')}</tbody></table>
+              <td>${x.art === 'verspaetet' ? `verspätet ${x.minuten} min` : x.art === 'vorzeitig' ? `vorzeitig gegangen ${x.minuten} min` : e(x.grund || 'fehlt')}</td><td>${e(x.status)}</td><td class="text">${e(x.bemerkung)}</td><td>${e(x.lehrer)}</td></tr>`).join('')}</tbody></table>
             ${f.verwalten ? `<div class="d-flex gap-2 mt-3"><button type="button" class="sd-pille klein" data-status="entschuldigt">Entschuldigen</button><button type="button" class="sd-pille klein" data-status="unentschuldigt">Unentschuldigt</button><button type="button" class="sd-pille klein" data-status="offen">Offen</button>${f.verwalten ? '<button type="button" class="sd-pille klein" data-tage>Neu</button>' : ''}</div>` : ''}`
             : leer('Keine Fehlzeiten im Zeitraum.')}</div>`;
         binden();
@@ -133,11 +133,13 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
         ${!f.schueler.length ? alarm('secondary', 'Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen.') : `
         <div class="row g-3"><div class="col-xl-5"><div class="card"><div class="card-header">Übersicht je Schüler/in</div>
           <div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0"><thead><tr><th>Name</th><th class="text-end" title="Fehlstunden">Std.</th><th class="text-end">Tage</th>
-            <th class="text-end" title="entschuldigt">E</th><th class="text-end" title="unentschuldigt">U</th><th class="text-end" title="offen">offen</th><th class="text-end" title="Verspätungen">Versp.</th></tr></thead><tbody>
-            ${f.schueler.map(x => `<tr role="button" data-s="${x.id}" class="${auswahl === x.id ? 'table-active' : ''}"><td>${e(x.name)}, ${e(x.vorname)}</td>
+            <th class="text-end" title="entschuldigt">E</th><th class="text-end" title="unentschuldigt">U</th><th class="text-end" title="offen">offen</th><th class="text-end" title="Verspätungen (Minuten)">Versp.</th><th class="text-end" title="vorzeitig gegangen (Minuten)">vorz.</th>${f.regeln?.minutenUmrechnen ? `<th class="text-end" title="Fehlstunden aus Minuten (je ${f.regeln.minutenProFehlstunde} min)">+Std.</th>` : ''}</tr></thead><tbody>
+            ${f.schueler.map(x => `<tr role="button" data-s="${x.id}" class="${auswahl === x.id ? 'table-active' : ''}"><td>${e(x.name)}, ${e(x.vorname)}${x.hinweis ? ` <span class="badge rounded-pill text-bg-warning ms-1" title="${e(x.hinweis)}"><i class="bi bi-exclamation-triangle-fill"></i></span>` : ''}</td>
               <td class="text-end fw-semibold">${x.stunden || ''}</td><td class="text-end">${x.tage || ''}</td><td class="text-end text-success">${x.entschuldigt || ''}</td>
               <td class="text-end text-danger">${x.unentschuldigt || ''}</td><td class="text-end">${x.offen ? `<span class="badge text-bg-warning">${x.offen}</span>` : ''}</td>
-              <td class="text-end">${x.verspaetungen ? `${x.verspaetungen}<small class="text-body-secondary"> (${x.minuten}′)</small>` : ''}</td></tr>`).join('')}
+              <td class="text-end">${x.verspaetungen ? `${x.verspaetungen}<small class="text-body-secondary"> (${x.minuten}′)</small>` : ''}</td>
+              <td class="text-end">${x.vorzeitig ? `${x.vorzeitig}<small class="text-body-secondary"> (${x.vorzeitigMinuten}′)</small>` : ''}</td>
+              ${f.regeln?.minutenUmrechnen ? `<td class="text-end">${x.stundenAusMinuten || ''}</td>` : ''}</tr>`).join('')}
             </tbody></table></div></div></div>
           <div class="col-xl-7"><div class="card"><div class="card-header d-flex align-items-center gap-2">${auswahl ? e(namen.get(auswahl)) : 'Alle Einträge'}
               ${auswahl ? '<button type="button" class="btn btn-sm btn-link py-0" data-alle>alle anzeigen</button>' : ''}
@@ -146,7 +148,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
             ${eintraege.length ? `<div class="table-responsive" style="max-height:560px"><table class="table table-sm table-card align-middle mb-0"><thead><tr>${f.verwalten ? '<th><input type="checkbox" class="form-check-input" data-alle-wahl aria-label="Alle"></th>' : ''}<th>Datum</th><th>Std.</th>${auswahl ? '' : '<th>Name</th>'}<th>Fach</th><th>Art</th><th>Status</th><th>Lehrkraft</th></tr></thead><tbody>
               ${eintraege.map(x => `<tr>${f.verwalten ? `<td><input type="checkbox" class="form-check-input" data-id="${x.id}" aria-label="auswählen"></td>` : ''}<td class="text-nowrap">${e(datumKurz(x.datum))}</td><td>${x.stunde}.</td>
                 ${auswahl ? '' : `<td>${e(namen.get(x.schuelerId) ?? '?')}</td>`}<td>${e(x.fach)}</td>
-                <td>${x.art === 'verspaetet' ? `<span class="text-warning-emphasis">verspätet ${x.minuten} min</span>` : 'fehlt'}${x.bemerkung ? `<div class="small text-body-secondary">${e(x.bemerkung)}</div>` : ''}</td>
+                <td>${x.art === 'verspaetet' ? `<span class="text-warning-emphasis">verspätet ${x.minuten} min</span>` : x.art === 'vorzeitig' ? `<span style="color:#5b3fa0">vorzeitig gegangen ${x.minuten} min</span>` : 'fehlt'}${x.bemerkung ? `<div class="small text-body-secondary">${e(x.bemerkung)}</div>` : ''}</td>
                 <td>${STATUS_BADGE[x.status] ?? ''}</td><td class="small text-body-secondary">${e(x.lehrer)}</td></tr>`).join('')}
               </tbody></table></div>` : `<div class="card-body py-0">${leer('Keine Fehlzeiten im Zeitraum.')}</div>`}
           </div></div></div>`}`;

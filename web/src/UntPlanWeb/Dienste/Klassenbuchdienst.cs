@@ -15,7 +15,7 @@ public sealed record Klassenbucheintrag(int Id, string Datum, int Stunde, int Un
     public string GeaendertVon { get; init; } = "";
 }
 
-/// <summary>Fehlzeit einer Schülerin/eines Schülers in einer Stunde. Art „fehlt“ oder „verspaetet“, Status offen/entschuldigt/unentschuldigt.</summary>
+/// <summary>Fehlzeit einer Schülerin/eines Schülers in einer Stunde. Art „fehlt“, „verspaetet“ oder „vorzeitig“, Status offen/entschuldigt/unentschuldigt.</summary>
 public sealed record Fehlzeit(int Id, string Datum, int Stunde, int Unterricht, int SchuelerId, string Klasse, string Fach, string Art, int Minuten,
     string Status, string Bemerkung, string Lehrer, string Erstellt, string Grund = "", string Gruppe = "");
 
@@ -26,8 +26,8 @@ public sealed record Vermerk(int Id, string Datum, string Klasse, int? SchuelerI
     public string Zeit { get; init; } = "";
 }
 
-/// <summary>Anwesenheitseintrag beim Speichern (nur Abweichungen: fehlt oder verspätet).</summary>
-public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung, string? Grund = null);
+/// <summary>Anwesenheitseintrag beim Speichern (nur Abweichungen: fehlt, verspätet oder vorzeitig gegangen; RestTag = für den Rest des Tages abwesend).</summary>
+public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung, string? Grund = null, bool? RestTag = null);
 
 /// <summary>
 /// Klassenbuch: je gehaltener Stunde Unterrichtsinhalt, Hausaufgabe (mit Fälligkeit) und interne Notiz.
@@ -167,12 +167,13 @@ public sealed partial class Klassenbuchdienst
         var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var klassen = karte.Klassen.Select(k => k.K).ToList();
         var fz = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && klassen.Contains(f.Klasse, Ci))
-            .GroupBy(f => f.SchuelerId).Select(g => g.OrderBy(f => f.Stunde).First()).ToList();
+            .GroupBy(f => f.SchuelerId).Select(g => Zusammenfassen(g.ToList())).ToList();
         var eintrag = Zeitraum(d, d).FirstOrDefault(e => e.Unterricht == unterricht && e.Stunde == karte.Von);
         return new
         {
             schueler = Schueler(s, klassen), fehlzeiten = fz, geprueft = eintrag?.Anwesenheit, vorstunden = Vorstunden(s, d, karte),
             darf = DarfSchreiben(b, s, d, stunde, unterricht) || klassen.Any(k => IstKlassenleitung(b, s, k)),
+            regeln = Regeln(), laengen = Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).Select(n => StundenLaenge(s, n)).ToList(),
         };
     }
 
@@ -189,24 +190,36 @@ public sealed partial class Klassenbuchdienst
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
         var jetzt = _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm");
         foreach (var f in alt) _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
+        // „Rest des Tages abwesend“ aus einer früheren Speicherung dieser Stunde zurücknehmen (wird unten ggf. neu eingetragen)
+        _db.Ausfuehren("DELETE FROM fehlzeiten WHERE datum = @d AND stunde > @s AND gruppe = @g", Db.P("@d", d), Db.P("@s", karte.Bis), Db.P("@g", RestTagGruppe(karte.Unterricht ?? unterricht, karte.Von)));
+        var regeln = Regeln();
         var anzahl = 0;
         foreach (var e in eintraege.Where(x => schueler.ContainsKey(x.SchuelerId)).DistinctBy(x => x.SchuelerId))
         {
-            var art = e.Art == "verspaetet" ? "verspaetet" : "fehlt";
-            var status = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Art == art)?.Status ?? "offen";
+            var art = e.Art is "verspaetet" or "vorzeitig" ? e.Art : "fehlt";
             var altF = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId);
-            // Fehlen gilt für alle Stunden des Blocks, Verspätung nur für die erste
-            for (var n = karte.Von; n <= (art == "fehlt" ? karte.Bis : karte.Von); n++)
+            var grund = (e.Grund ?? altF?.Grund ?? "").Trim();
+            // Fehlen gilt für alle Stunden des Blocks; Verspätung beginnt mit der ersten, vorzeitiges Gehen endet mit der letzten Stunde.
+            // Ganz verpasste Stunden werden Fehlstunden, ab der Schwelle der Verspätungsregeln auch die angebrochene.
+            var zeilen = art == "fehlt"
+                ? Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).Select(n => (Stunde: n, Art: "fehlt", Minuten: 0, Hinweis: "")).ToList()
+                : MinutenVerteilen(s, regeln, karte.Von, karte.Bis, art, Math.Clamp(e.Minuten, 1, 600));
+            foreach (var (n, a, min, hinweis) in zeilen)
             {
+                var status = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Stunde == n && f.Art == a)?.Status
+                             ?? alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Art == a)?.Status ?? "offen";
+                var bem = string.Join(" – ", new[] { hinweis, (e.Bemerkung ?? "").Trim() }.Where(x => x.Length > 0));
                 _db.Ausfuehren("""
                     INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe)
                     VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b, @g, @gr)
                     ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET unterricht = excluded.unterricht, fach = excluded.fach, art = excluded.art,
                         minuten = excluded.minuten, bemerkung = excluded.bemerkung, lehrer = excluded.lehrer, grund = excluded.grund
                     """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", unterricht), Db.P("@sid", e.SchuelerId), Db.P("@k", schueler[e.SchuelerId].Klasse), Db.P("@f", karte.Fach),
-                    Db.P("@a", art), Db.P("@m", art == "verspaetet" ? Math.Clamp(e.Minuten, 1, 90) : 0), Db.P("@st", status), Db.P("@bem", (e.Bemerkung ?? "").Trim()),
-                    Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id), Db.P("@g", (e.Grund ?? altF?.Grund ?? "").Trim()), Db.P("@gr", altF?.Gruppe ?? ""));
+                    Db.P("@a", a), Db.P("@m", min), Db.P("@st", status), Db.P("@bem", bem),
+                    Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id), Db.P("@g", grund), Db.P("@gr", altF?.Gruppe ?? ""));
             }
+            if (art == "vorzeitig" && (e.RestTag ?? regeln.VorzeitigRestTag))
+                RestTagEintragen(b, s, d, karte, e.SchuelerId, schueler[e.SchuelerId].Klasse, lehrer, jetzt, grund);
             anzahl++;
         }
         _db.Ausfuehren("""
@@ -277,10 +290,12 @@ public sealed partial class Klassenbuchdienst
     {
         var liste = FehlzeitenZeitraum(von, bis, klasse);
         var schueler = Schueler(s, new[] { klasse });
+        var regeln = Regeln();
         var summen = schueler.Select(x =>
         {
             var f = liste.Where(y => y.SchuelerId == x.Id).ToList();
             var fehlt = f.Where(y => y.Art == "fehlt").ToList();
+            var summe = Listendienst.Summe(regeln, x.Klasse, x.Id, x.Name, x.Vorname, f);
             return new
             {
                 x.Id, x.Vorname, x.Name,
@@ -288,9 +303,10 @@ public sealed partial class Klassenbuchdienst
                 entschuldigt = fehlt.Count(y => y.Status == "entschuldigt"), unentschuldigt = fehlt.Count(y => y.Status == "unentschuldigt"),
                 offen = fehlt.Count(y => y.Status == "offen"),
                 verspaetungen = f.Count(y => y.Art == "verspaetet"), minuten = f.Where(y => y.Art == "verspaetet").Sum(y => y.Minuten),
+                vorzeitig = summe.Vorzeitig, vorzeitigMinuten = summe.VorzeitigMinuten, stundenAusMinuten = summe.StundenAusMinuten, hinweis = summe.Hinweis,
             };
         }).ToList();
-        return new { schueler = summen, eintraege = liste.OrderByDescending(f => f.Datum).ThenBy(f => f.Stunde).ToList(), verwalten = IstKlassenleitung(b, s, klasse) };
+        return new { schueler = summen, eintraege = liste.OrderByDescending(f => f.Datum).ThenBy(f => f.Stunde).ToList(), verwalten = IstKlassenleitung(b, s, klasse), regeln };
     }
 
     // ------------------------------------------------------------------------------------------ Vermerke
@@ -349,6 +365,7 @@ public sealed partial class Klassenbuchdienst
                         thema = e?.Thema ?? "", hausaufgabe = e?.Hausaufgabe ?? "", faellig = e?.Faellig, geprueft = e?.Anwesenheit,
                         fehlend = f.Where(x => x.Art == "fehlt").Select(x => x.SchuelerId).Distinct().Select(i => namen.GetValueOrDefault(i, "?")).ToList(),
                         verspaetet = f.Where(x => x.Art == "verspaetet").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
+                        vorzeitig = f.Where(x => x.Art == "vorzeitig").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
                     };
                 }).ToList();
             tage.Add(new { datum = iso, frei = frei.Frei, freiGrund = frei.Grund, stunden, vermerke = vermerke.Where(v => v.Datum == iso).Select(v => new { v.Id, v.Art, v.Text, v.Lehrer, schueler = v.SchuelerId is int i ? namen.GetValueOrDefault(i, "") : "" }) });

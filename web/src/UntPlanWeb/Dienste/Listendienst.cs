@@ -29,7 +29,19 @@ public sealed record Vermerkzeile(int Id, string Datum, string Klasse, int? Schu
 
 /// <summary>Zeile des Fehlzeitenberichts (Summen je Schülerin/Schüler).</summary>
 public sealed record Fehlzeitensumme(string Klasse, int SchuelerId, string Name, string Vorname, int Stunden, int Tage, int Entschuldigt, int Unentschuldigt,
-    int Offen, int Verspaetungen, int Minuten);
+    int Offen, int Verspaetungen, int Minuten)
+{
+    /// <summary>Wie oft vorzeitig gegangen.</summary>
+    public int Vorzeitig { get; init; }
+    /// <summary>Minuten durch vorzeitiges Gehen.</summary>
+    public int VorzeitigMinuten { get; init; }
+    /// <summary>Fehlstunden aus Verspätungs- und Gehminuten (laut Verspätungsregeln).</summary>
+    public int StundenAusMinuten { get; init; }
+    /// <summary>Fehlstunden einschließlich der umgerechneten Minuten.</summary>
+    public int StundenGesamt => Stunden + StundenAusMinuten;
+    /// <summary>Hinweis für die Klassenleitung (z. B. „4× verspätet“).</summary>
+    public string Hinweis { get; init; } = "";
+}
 
 /// <summary>
 /// Listen wie in WebUntis: Meine Unterrichte, Prüfungen, Hausaufgaben, Klassenbucheinträge, Abwesenheiten und Berichte
@@ -181,14 +193,28 @@ public sealed class Listendienst
     {
         var liste = _kb.FehlzeitenZeitraum(von, bis, string.IsNullOrEmpty(klasse) ? null : klasse);
         var klassen = string.IsNullOrEmpty(klasse) ? s.Paket.Elemente.Klassen.Select(k => k.Kurz) : new[] { klasse };
+        var regeln = _kb.Regeln();
         return Klassenbuchdienst.Schueler(s, klassen).Select(x =>
         {
             var f = liste.Where(y => y.SchuelerId == x.Id).ToList();
-            var fehlt = f.Where(y => y.Art == "fehlt").ToList();
-            return new Fehlzeitensumme(x.Klasse, x.Id, x.Name, x.Vorname, fehlt.Count, fehlt.Select(y => y.Datum).Distinct().Count(),
-                fehlt.Count(y => y.Status == "entschuldigt"), fehlt.Count(y => y.Status == "unentschuldigt"), fehlt.Count(y => y.Status == "offen"),
-                f.Count(y => y.Art == "verspaetet"), f.Where(y => y.Art == "verspaetet").Sum(y => y.Minuten));
+            return Summe(regeln, x.Klasse, x.Id, x.Name, x.Vorname, f);
         }).ToList();
+    }
+
+    /// <summary>Summen einer Schülerin/eines Schülers nach den Verspätungsregeln.</summary>
+    public static Fehlzeitensumme Summe(Verspaetungsregeln regeln, string klasse, int id, string name, string vorname, IReadOnlyCollection<Fehlzeit> f)
+    {
+        var fehlt = f.Where(y => y.Art == "fehlt").ToList();
+        var spaet = f.Where(y => y.Art == "verspaetet").ToList();
+        var vor = f.Where(y => y.Art == "vorzeitig").ToList();
+        var unent = fehlt.Count(y => y.Status == "unentschuldigt");
+        return new Fehlzeitensumme(klasse, id, name, vorname, fehlt.Count, fehlt.Select(y => y.Datum).Distinct().Count(),
+            fehlt.Count(y => y.Status == "entschuldigt"), unent, fehlt.Count(y => y.Status == "offen"), spaet.Count, spaet.Sum(y => y.Minuten))
+        {
+            Vorzeitig = vor.Count, VorzeitigMinuten = vor.Sum(y => y.Minuten),
+            StundenAusMinuten = regeln.StundenAus(spaet.Sum(y => y.Minuten) + vor.Sum(y => y.Minuten)),
+            Hinweis = regeln.Hinweis(spaet.Count, vor.Count, unent),
+        };
     }
 
     // ------------------------------------------------------------------------------------------ CSV
@@ -209,8 +235,10 @@ public sealed class Listendienst
     }
 
     public static byte[] FehlzeitenCsv(IEnumerable<Fehlzeitensumme> liste) => Csv(
-        new[] { "Klasse", "Name", "Vorname", "Fehlstunden", "Fehltage", "entschuldigt", "unentschuldigt", "offen", "Verspätungen", "Verspätung (Minuten)" },
-        liste.Select(x => new object?[] { x.Klasse, x.Name, x.Vorname, x.Stunden, x.Tage, x.Entschuldigt, x.Unentschuldigt, x.Offen, x.Verspaetungen, x.Minuten }));
+        new[] { "Klasse", "Name", "Vorname", "Fehlstunden", "Fehltage", "entschuldigt", "unentschuldigt", "offen", "Verspätungen", "Verspätung (Minuten)",
+            "vorzeitig gegangen", "vorzeitig (Minuten)", "Fehlstunden aus Minuten", "Fehlstunden gesamt", "Hinweis" },
+        liste.Select(x => new object?[] { x.Klasse, x.Name, x.Vorname, x.Stunden, x.Tage, x.Entschuldigt, x.Unentschuldigt, x.Offen, x.Verspaetungen, x.Minuten,
+            x.Vorzeitig, x.VorzeitigMinuten, x.StundenAusMinuten, x.StundenGesamt, x.Hinweis }));
 
     public static byte[] LehrstoffCsv(IEnumerable<Klassenbucheintrag> liste) => Csv(
         new[] { "Datum", "Stunde", "Klassen", "Fach", "Lehrkraft", "Lehrstoff", "Hausaufgabe", "fällig" },

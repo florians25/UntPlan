@@ -147,11 +147,9 @@ public static class Symbole
         ["hilfe"] = "E 2 2 28 28 pe; A 11 7 10 10 180 270 w w3.5; L 16 17 16 19 w w3.5; E 14 21.5 4 4 w!",
         ["monitor"] = "R 13 22 6 5 gr & R 9 26 14 3 1 gr; R 2 4 28 19 2 dk; R 4 6 24 15 hb!",
 
-        // Programmlogo: Stundenplanraster in U-Form mit grünem Haken
-        ["farbe"] = "E 3 5 26 22 hbr; E 8 10 5 5 r!; E 15 8 5 5 b!; E 21 11 5 5 g!; E 8 17 5 5 y!; E 17 18 6 5 w",
-        // Logo (gleich in UntPlan und UntPlanWeb): „U“ aus Rasterbalken, grünes Feld als Planeintrag
-        ["logo"] = "R 1 1 30 30 6 nv; R 8 7 5 15 w!; R 19 7 5 15 w!; R 8 18 16 7 3 w!; R 14 7 4 4 1 mi!",
-        ["logo@16"] = "R 1 1 30 30 5 nv; R 7 6 6 16 w!; R 19 6 6 16 w!; R 7 17 18 8 3 w!; R 14 6 4 5 mi!",
+        // Programmlogo im klassischen Windows-Stil: Fenster mit blauer Titelleiste und Stundenplanraster (farbige Stunden), Schlagschatten
+        ["logo"] = "R 2 3 29 28 3 hg!; R 3 4 27 26 2 gr!; R 1 2 28 27 2 w; R 1 2 28 7 2 b; R 2 6 26 3 b!; R 22 4 2 2 w!; R 25 4 2 2 w!; R 4 4 9 2 hb!; R 3 11 3 16 hg!; R 7 11 21 2 hg!; R 7 14 4 4 o!; R 12 14 4 4 b!; R 17 14 4 4 hg!; R 22 14 5 4 g!; R 7 19 4 4 g!; R 12 19 4 4 y!; R 17 19 4 4 v!; R 22 19 5 4 b!; R 7 24 4 3 hb!; R 12 24 4 3 o!; R 17 24 4 3 hg!; R 22 24 5 3 hgr!",
+        ["logo@16"] = "R 4 4 27 27 3 gr!; R 1 1 27 27 3 w; R 1 1 27 9 3 b; R 2 6 25 4 b!; R 4 13 6 6 o!; R 11 13 6 6 b!; R 18 13 7 6 g!; R 4 20 6 5 g!; R 11 20 6 5 y!; R 18 20 7 5 hb!",
     };
 
     /// <summary>Alle definierten Symbolnamen (ohne Kleinvarianten).</summary>
