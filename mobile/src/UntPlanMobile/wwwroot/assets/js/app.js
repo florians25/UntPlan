@@ -3822,7 +3822,7 @@ function renderDetail(){
         <div class="drow2 drow2--room" data-key="room">
           ${ico(r)}
           <span class="droom">${r.chips.map((x, i) =>
-            `<button type="button" class="droom__chip" data-chip="${i}">${esc(x)}</button>`).join('')}</span>
+            `<button type="button" class="droom__chip" data-chip="${i}">${esc(x)}</button>`).join('<span class="droom__sep" aria-hidden="true">,</span>')}</span>
           <button type="button" class="droom__add" aria-label="Raum hinzufügen">
             <svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="9.2"/><path d="M12 7.6v8.8M7.6 12h8.8"/></svg>
           </button>

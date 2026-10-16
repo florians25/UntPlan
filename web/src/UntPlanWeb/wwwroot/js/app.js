@@ -526,6 +526,7 @@ async function route() {
   kontext.titel('');
   kontext.werkzeug('');
   document.querySelector('.u-app')?.setAttribute('data-ansicht', name);
+  planScrollBeobachten();
   window.scrollTo(0, 0);
   try {
     const modul = await ANSICHTEN[name]();
@@ -544,3 +545,17 @@ async function route() {
 kontext.aktuell = () => { const s = laufendeAnsicht; return () => s === laufendeAnsicht; };
 
 start();
+
+
+/** Schatten unter dem fixierten Plankopf nur, wenn gescrollt ist (ganz oben kein Schatten). */
+function planScrollBeobachten() {
+  if (window.__planScroll) return;
+  window.__planScroll = true;
+  const pruefen = ev => {
+    const t = ev?.target;
+    const y = t && t !== document && t.scrollTop !== undefined ? t.scrollTop : (window.scrollY || document.documentElement.scrollTop || 0);
+    document.body.classList.toggle('plan-gescrollt', y > 2);
+  };
+  document.addEventListener('scroll', pruefen, { capture: true, passive: true });
+  pruefen();
+}

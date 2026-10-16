@@ -145,11 +145,15 @@ export function karteDialog(karte, kontext = {}) {
       const stoff = !!daten.eintrag?.thema;
       const kontrolliert = !!a?.geprueft;
       const kannKontrolle = a?.darf && k.datum <= heuteIso();
+      // wie WebUntis: rechts orange Pille(n), daneben „Abwesenheitskontrolle ab: Datum - Uhrzeit“ (Beginn der Stunde)
+      const ab = `${datumDe(k.datum)} - ${e(k.beginn || '')}`;
       return `<div class="sd-fuss sd-status">
         ${stoff ? '<span class="ok"><i class="bi bi-check-circle-fill"></i> Lehrstoffeintragung vorhanden</span>'
-          : daten.darf ? '<button type="button" class="sd-statusknopf" data-bearbeiten="thema">Lehrstoff eingeben</button>' : '<span><i class="bi bi-circle"></i> Keine Lehrstoffeintragung</span>'}
+          : daten.darf ? '<button type="button" class="sd-orange" data-bearbeiten="thema">Lehrstoff eingeben</button>' : '<span><i class="bi bi-circle"></i> Keine Lehrstoffeintragung</span>'}
         ${kontrolliert ? '<span class="ok"><i class="bi bi-check-circle-fill"></i> Abwesenheiten wurden kontrolliert</span>'
-          : kannKontrolle ? '<button type="button" class="sd-statusknopf" data-kontrolle>Abwesenheiten kontrollieren</button>' : '<span><i class="bi bi-circle"></i> Abwesenheiten nicht kontrolliert</span>'}
+          : kannKontrolle ? '<button type="button" class="sd-orange" data-kontrolle>Abwesenheiten kontrollieren</button>'
+          : `<span class="sd-kontrolle"><span>Abwesenheitskontrolle ab:</span><span>${ab}</span></span>`}
+        ${darfPruefung() ? '<button type="button" class="sd-pille" data-pruefung>Prüfung erstellen</button>' : ''}
       </div>`;
     }
     const i = liste.indexOf(k);
@@ -451,7 +455,7 @@ export function karteDialog(karte, kontext = {}) {
     });
     q('[data-pruefung]')?.addEventListener('click', async () => {
       if (!daten.anwesenheit && k.unterricht) daten.anwesenheit = await holen(`/api/app/klassenbuch/anwesenheit?datum=${k.datum}&stunde=${k.von}&unterricht=${k.unterricht}`).catch(() => null);
-      reiter = 'pruefung'; zeichnen();
+      klausurDialog();
     });
     // Kopf: Klasse, Gruppe, Lehrkraft, Raum öffnen den Stundenplan
     alle('[data-plan]', a => a.onclick = ev => {
@@ -721,6 +725,45 @@ export function karteDialog(karte, kontext = {}) {
     beimOeffnen(o, zu);
     o.querySelector('textarea, input:not([readonly]):not([disabled]), select:not([disabled])')?.focus();
     return o;
+  }
+
+  /**
+   * Klausuranlage als Dialog direkt über den Stundendetails (Knopf „Prüfung erstellen“ unten neben „Nächste Stunde“):
+   * Name, Text, Prüfungsart, Datum und Stunden, freie Räume zur Auswahl, Aufsicht, teilnehmende Schüler*innen.
+   */
+  async function klausurDialog() {
+    pruefungSchueler = null;
+    let frei = [];
+    try { frei = await holen(`/api/app/meldungen/freieraeume?datum=${k.datum}&von=${k.von}&bis=${k.bis}`); } catch { /* ohne Vorschläge */ }
+    const vorschlaege = `<datalist id="sd-klausur-raeume">${[...kuerzel(k.raeume), ...frei.map(r => r.kurz)].filter((x, i, a) => x && a.indexOf(x) === i)
+      .map(x => `<option value="${e(x)}">`).join('')}</datalist>`;
+    altDialog('Prüfung erstellen', `${kopfDl()}${pruefungHtml()}${vorschlaege}
+      <div class="ad-knoepfe justify-content-end"><button type="button" class="ad-pille" data-ad-zu>Abbrechen</button>
+        <button type="button" class="sd-orange" data-klausur-speichern>Speichern</button></div>`, (o, zu) => {
+      o.querySelector('[name=raeume]')?.setAttribute('list', 'sd-klausur-raeume');
+      o.querySelectorAll('[data-chip]').forEach(c => c.onclick = () => {
+        const id = Number(c.dataset.chip);
+        pruefungSchueler.has(id) ? pruefungSchueler.delete(id) : pruefungSchueler.add(id);
+        c.classList.toggle('an');
+      });
+      o.querySelector('[data-klausur-speichern]').onclick = async ev => {
+        const f = n => o.querySelector(`[name=${n}]`).value;
+        const listeVon = n => f(n).split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+        const sl = daten.anwesenheit?.schueler ?? [];
+        const teil = sl.length && pruefungSchueler.size < sl.length
+          ? `Teilnehmende: ${sl.filter(s => pruefungSchueler.has(s.id)).map(s => `${s.vorname} ${s.name}`).join(', ')}` : '';
+        const text = [f('art') ? `${f('art')}${f('text') ? ': ' + f('text') : ''}` : f('text'), teil].filter(Boolean).join(' – ');
+        const knopf = ev.currentTarget;
+        knopf.disabled = true;
+        try {
+          await senden('/api/app/meldungen/klausur', { datum: f('datum'), stundeVon: Number(f('von')), stundeBis: Number(f('bis')), klassen: kuerzel(k.klassen), raeume: listeVon('raeume'), aufsicht: listeVon('aufsicht'), titel: f('name') || 'Prüfung', text });
+          toast('Prüfung erstellt – sie steht jetzt im Stundenplan.');
+          geaendert = true;
+          zu();
+          modal.hide();
+        } catch (err) { toast(err.message, true); knopf.disabled = false; }
+      };
+    }, 640);
   }
 
   const kopfDl = (zusatz = '') => `<dl class="ad-kopf"><dt>Klasse</dt><dd>${e(kuerzel(k.klassen).join(', '))}</dd><dt>Lehrkraft</dt><dd>${e(kuerzel(k.lehrer).join(', '))}</dd><dt>Fach</dt><dd>${e(k.fach)}</dd>${zusatz}</dl>`;

@@ -271,6 +271,14 @@ public sealed class KalenderFenster : MdiFenster
         };
         if (alt != null && alt.Text != t.Text) { t.TextRtf = ""; t.TextHtml = ""; }
         if (!TagestextFormatDialog.Bearbeiten(this, datum, t)) return;
+        if (IsDisposed) return;
+        // während der Dialog offen war, wurde die Tabelle neu aufgebaut (Speichern beim Beenden der Zellbearbeitung):
+        // die gemerkte Zeile gehört dann nicht mehr zur Tabelle – dieselbe Zeile neu suchen
+        if (r.DataGridView != _texte || r.Index < 0)
+        {
+            var gleich = alt is null ? null : _texte.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => !x.IsNewRow && x.Tag is Tagestext tt && tt.Datum == alt.Datum && tt.Text == alt.Text);
+            r = gleich ?? (zeile < _texte.Rows.Count ? _texte.Rows[zeile] : _texte.Rows[_texte.NewRowIndex]);
+        }
         if (r.IsNewRow)
         {
             var neu = _texte.Rows.Add(Format.Datum(datum), t.Text, true, Arten[0], "");

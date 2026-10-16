@@ -179,7 +179,7 @@ public sealed class Plandienst
                 Elementtyp.Klasse => Enthaelt(r.Klassen, kurz),
                 Elementtyp.Lehrer => Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz)) || Mitgekoppelt(r),
                 // Veranstaltung mit Raum: der Raum steht (bei älteren Paketen) nur in der Vertretung
-                Elementtyp.Raum => Enthaelt(r.Raeume, kurz) || (v != null && (Ci.Equals(v.Raum, kurz) || (r.Raeume.Count == 0 && r.Status != "entfall" && Ci.Equals(v.NeuerRaum, kurz)))),
+                Elementtyp.Raum => Enthaelt(r.Raeume, kurz) || (v != null && (RaumListe(v.Raum).Contains(kurz, Ci) || (r.Raeume.Count == 0 && r.Status != "entfall" && RaumListe(v.NeuerRaum).Contains(kurz, Ci)))),
                 _ => false,
             };
             // vorgemerkte Raumänderung eines Unterrichts: wird unten auf die Stunde gelegt, falls diese im Plan steht
@@ -271,6 +271,10 @@ public sealed class Plandienst
     /// Räume einer Stunde nach einer Raumbuchung (neu = vollständige neue Raumliste): ersetzte Räume als „alt → neu“,
     /// zusätzliche Räume als neuer Wert, entfernte Räume durchgestrichen.
     /// </summary>
+    /// <summary>Räume aus einem Feld wie „D017,C151“ bzw. „D017, C151“.</summary>
+    internal static List<string> RaumListe(string? text) =>
+        (text ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(Ci).ToList();
+
     internal static List<Wert> RaeumeNachBuchung(List<Wert> bisher, IReadOnlyList<string> neu)
     {
         // ursprünglicher Raum je bisherigem Wert (bei schon geändertem Raum der Wert vor der Änderung)
@@ -408,10 +412,18 @@ public sealed class Plandienst
             }
             else if (status == "entfall" && lehrer.Count == 0 && v.Lehrer.Length > 0)
                 lehrer.Add(new Wert(v.Lehrer));
-            if (status != "entfall" && v.NeuerRaum.Length > 0 && v.Raum.Length > 0 && !Ci.Equals(v.NeuerRaum, v.Raum))
+            // mehrere Räume kommen als „D017,C151“: einzeln vergleichen – unveränderte Räume bleiben, ersetzte als „alt → neu“,
+            // zusätzliche als neuer Raum, entfernte durchgestrichen (keine doppelten Räume)
+            var alteR = RaumListe(v.Raum);
+            var neueR = RaumListe(v.NeuerRaum);
+            if (status != "entfall" && neueR.Count > 0 && alteR.Count > 0 && !(alteR.Count == neueR.Count && alteR.All(x => neueR.Contains(x, Ci))) && v.NeuerRaum != "???")
             {
-                raeume = raeume.Select(x => Ci.Equals(x.K, v.NeuerRaum) ? new Wert(x.K, v.Raum, true) : x).ToList();
-                if (!raeume.Any(x => x.Neu)) raeume.Insert(0, new Wert(v.NeuerRaum, v.Raum, true));
+                if (neueR.Count == 1 && alteR.Count == 1)
+                {
+                    raeume = raeume.Select(x => Ci.Equals(x.K, neueR[0]) ? new Wert(x.K, alteR[0], true) : x).ToList();
+                    if (!raeume.Any(x => x.Neu)) raeume.Insert(0, new Wert(neueR[0], alteR[0], true));
+                }
+                else raeume = RaeumeNachBuchung(alteR.Select(x => new Wert(x)).ToList(), neueR);
             }
             else if (raeume.Count == 0 && (v.Raum.Length > 0 || v.NeuerRaum.Length > 0))
                 raeume.Add(new Wert(v.NeuerRaum.Length > 0 && status != "entfall" ? v.NeuerRaum : v.Raum));
@@ -427,7 +439,7 @@ public sealed class Plandienst
             // Eigene Stunde wird von jemand anderem gehalten bzw. findet in einem anderen Raum statt
             if (typ == Elementtyp.Lehrer && Ci.Equals(v.Lehrer, kurz) && !Enthaelt(r.Lehrer, kurz) && status is "geaendert" or "offen")
                 status = "abwesend";
-            if (typ == Elementtyp.Raum && Ci.Equals(v.Raum, kurz) && !Enthaelt(r.Raeume, kurz) && status is "geaendert")
+            if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && status is "geaendert")
                 status = "abwesend";
         }
         // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft (Kürzel durchgestrichen)

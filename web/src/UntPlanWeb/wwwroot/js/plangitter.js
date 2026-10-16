@@ -305,9 +305,13 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       const breite = 100 / liste.length;
       liste.forEach((a, j) => {
         const ersatz = a.lehrer && !/^[?+]+$/.test(a.lehrer) ? a.lehrer : '';
-        const text = a.status === 'vertreten' ? (ersatz ? `${a.gangName || a.gang} → ${ersatz}` : (a.gangName || a.gang)) : a.status === 'vertretung' ? `${a.gangName || a.gang} (für ${a.alt})` : (a.gangName || a.gang);
+        // auf der Karte nur der Aufsichtsbereich (z. B. „Hof“) – nicht „Früh …“ bzw. der lange Name; Details im Tooltip
+        const ort = aufsichtOrt(a);
+        const titel = `Pausenaufsicht ${a.gangName || a.gang} ${a.beginn}–${a.ende}${a.status === 'vertretung' ? ` (Vertretung für ${a.alt})` : a.status === 'vertreten' ? (ersatz ? ` (vertreten durch ${ersatz})` : ' (entfällt)') : ''}`;
+        // Vertretung: grüne Karte mit grünem Label; im Plan der abwesenden Lehrkraft grau gestrichelt mit Label der Vertretung
+        const label = a.status === 'vertretung' ? `<span class="lbl-auf">Vertr.</span>` : a.status === 'vertreten' && ersatz ? `<span class="lbl-auf">${e(ersatz)}</span>` : '';
         html += `<div class="aufsicht ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
-          aria-label="Pausenaufsicht ${e(a.gangName || a.gang)} ${e(a.beginn)}–${e(a.ende)}">${a.status === 'vertretung' ? '<i class="mk-plus"></i>' : ''}<span>${e(text)}</span></div>`;
+          title="${e(titel)}" aria-label="${e(titel)}"><span>${e(ort)}</span>${label}</div>`;
       });
     }
     if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>${t.datum === heute ? `<div class="tt-jetzt heute" style="top:${jetztY}px"></div>` : ''}`;
@@ -387,6 +391,13 @@ export function tagesGitter(tag) {
   }
   html += '</div></div>';
   return { html, karten: alle };
+}
+
+/** Aufsichtsbereich einer Pausenaufsicht für die Karte: Kurzname („Hof“), ohne „Früh“/„Frühaufsicht“ davor. */
+function aufsichtOrt(a) {
+  const roh = String(a.gang || a.gangName || '').trim();
+  const ohne = roh.replace(/^(früh(aufsicht)?|fa)[\s:\-–]*/i, '').trim();
+  return ohne || roh || 'Aufsicht';
 }
 
 /** Liste eines Tages (Übersicht) mit denselben Karten, Veranstaltungen und Pausenaufsichten. */

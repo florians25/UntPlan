@@ -108,7 +108,7 @@ public sealed class Rueckmeldungsdienst
     public bool RaumFrei(Stand s, DateOnly d, string raum, int von, int bis, int? ohneUnterricht = null)
     {
         var belegt = _plan.Rohstunden(s, d).Concat(Vorgemerkt(d).Where(r => ohneUnterricht is null || r.Unterricht != ohneUnterricht))
-            .Any(r => r.Stunde >= von && r.Stunde <= bis && r.Status != "entfall" && r.Raeume.Any(x => Ci.Equals(x, raum)) && (ohneUnterricht is null || r.Unterricht != ohneUnterricht));
+            .Any(r => r.Stunde >= von && r.Stunde <= bis && r.Status != "entfall" && r.Raeume.Any(x => Plandienst.RaumListe(x).Contains(raum, Ci)) && (ohneUnterricht is null || r.Unterricht != ohneUnterricht));
         var gesperrt = s.Paket.Absenzen.Any(a => a.Art == "raum" && Ci.Equals(a.Element, raum) && DateOnly.TryParse(a.Von, out var av) && DateOnly.TryParse(a.Bis, out var ab) &&
                                                  d >= av && d <= ab && a.StundeVon <= bis && (a.StundeBis >= von || a.StundeBis < a.StundeVon));
         return !belegt && !gesperrt;
@@ -116,7 +116,8 @@ public sealed class Rueckmeldungsdienst
 
     /// <summary>Räume, die gebucht werden dürfen (in UntPlan als „buchbar“ markiert). Ältere Pakete ohne Kennzeichen: alle.</summary>
     public static IEnumerable<WebRaum> Buchbar(Stand s) =>
-        s.Paket.Elemente.Raeume.Any(r => r.Buchbar) ? s.Paket.Elemente.Raeume.Where(r => r.Buchbar) : s.Paket.Elemente.Raeume;
+        (s.Paket.Elemente.Raeume.Any(r => r.Buchbar) ? s.Paket.Elemente.Raeume.Where(r => r.Buchbar) : s.Paket.Elemente.Raeume)
+            .Where(r => r.Kurz.Length > 0).DistinctBy(r => r.Kurz, Ci);
 
     /// <summary>Freie buchbare Räume für einen Zeitraum (für die Buchung).</summary>
     public List<object> FreieRaeume(Stand s, DateOnly d, int von, int bis) =>

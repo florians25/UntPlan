@@ -3585,9 +3585,9 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
   box-shadow:inset 0 0 0 1px var(--d-line);
 }
 .sheet--detail .detail__when b{
-  font-size:17px; font-weight:400; color:var(--d-ink-2); letter-spacing:.005em;
+  font-size:18px; font-weight:500; color:var(--d-ink-2); letter-spacing:.005em;
 }
-.sheet--detail .detail__when span{ font-size:12.5px; color:var(--d-muted); margin-top:1px; letter-spacing:.02em; }
+.sheet--detail .detail__when span{ font-size:14px; color:var(--d-muted); margin-top:1px; letter-spacing:.02em; }
 
 /* Reiter */
 .sheet--detail .dtabs, .is-dark .sheet--detail .dtabs{
@@ -3595,7 +3595,7 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 }
 .sheet--detail .dtabs__t, .is-dark .sheet--detail .dtabs__t{
   padding:15px 14px 12px; margin:0 2px;
-  font:600 15.5px/1.2 inherit; color:var(--d-tab-ink);
+  font:600 17px/1.2 inherit; color:var(--d-tab-ink);
   border-bottom:3px solid transparent;
 }
 .sheet--detail .dtabs__t.is-on, .is-dark .sheet--detail .dtabs__t.is-on{ color:var(--d-ink); border-bottom-color:var(--d-ink); }
@@ -3603,17 +3603,17 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 /* Kopfblock */
 .sheet--detail .dhead{ padding:14px 18px 18px; }
 .sheet--detail .dhead.is-off, .is-dark .sheet--detail .dhead.is-off{ background:var(--d-off); padding-bottom:18px; }
-.sheet--detail .dtitle{ font-size:19.5px; font-weight:400; color:var(--d-ink); line-height:1.3; }
+.sheet--detail .dtitle{ font-size:22px; font-weight:500; color:var(--d-ink); line-height:1.3; }
 .sheet--detail .dtitle i{ color:var(--d-muted); padding:0 5px; font-weight:300; }
-.sheet--detail .dline{ font-size:14.5px; color:var(--d-ink); margin-top:9px; line-height:1.3; }
-.sheet--detail .dline--big{ font-size:19.5px; margin-top:6px; display:flex; align-items:center; flex-wrap:wrap; gap:6px 0; }
+.sheet--detail .dline{ font-size:16.5px; font-weight:450; color:var(--d-ink); margin-top:10px; line-height:1.3; }
+.sheet--detail .dline--big{ font-size:21px; font-weight:500; margin-top:6px; display:flex; align-items:center; flex-wrap:wrap; gap:6px 0; }
 .sheet--detail .dline--pill{ margin-top:8px; }
 .sheet--detail .dline .sep{ color:var(--d-muted); padding:0 6px; font-weight:300; }
 .sheet--detail .dline .arrow{ color:var(--d-muted); padding:0 6px; }
 .sheet--detail .dpill, .is-dark .sheet--detail .dpill{
-  height:22px; padding:0 10px; margin-left:12px;
+  height:26px; padding:0 12px; margin-left:12px;
   background:var(--d-pill); color:var(--d-pill-ink);
-  font-size:11.5px; font-weight:500; letter-spacing:.03em;
+  font-size:14px; font-weight:500; letter-spacing:.04em;
 }
 .sheet--detail .dline--pill .dpill{ margin-left:0; }
 .sheet--detail .detail__sep, .is-dark .sheet--detail .detail__sep{ background:var(--d-line); margin:0; }
@@ -3626,18 +3626,18 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .sheet--detail .drows{ padding:6px 18px 0; }
 .sheet--detail .drow2{
   grid-template-columns:28px 1fr auto; gap:20px;
-  padding:13px 0; min-height:58px; cursor:pointer;
+  padding:15px 0; min-height:64px; cursor:pointer;
 }
 .sheet--detail .drow2 + .drow2, .is-dark .sheet--detail .drow2 + .drow2{ border-top:0; }
 .sheet--detail .drow2__ico{ color:var(--d-muted); display:grid; place-items:center; }
 .sheet--detail .drow2__ico .dico{ width:27px; height:27px; stroke-width:1.35; }
-.sheet--detail .drow2__main b{ font-size:15.5px; font-weight:400; color:var(--d-ink); }
-.sheet--detail .drow2__main span{ font-size:12.5px; color:var(--d-ink-2); margin-top:2px; }
+.sheet--detail .drow2__main b{ font-size:18px; font-weight:500; color:var(--d-ink); }
+.sheet--detail .drow2__main span{ font-size:15px; font-weight:400; color:var(--d-ink-2); margin-top:3px; }
 .sheet--detail .drow2__end{ gap:14px; color:var(--d-muted); }
 .sheet--detail .drow2__chev{ width:24px; height:24px; stroke-width:1.5; color:var(--d-muted); }
 .sheet--detail .drow2__count, .is-dark .sheet--detail .drow2__count{
   min-width:30px; height:30px; padding:0 8px;
-  background:var(--d-count); color:var(--d-count-ink); font-size:14.5px; font-weight:500;
+  background:var(--d-count); color:var(--d-count-ink); font-size:16px; font-weight:500;
 }
 .sheet--detail .drow2__count.is-red, .is-dark .sheet--detail .drow2__count.is-red{ background:#a10a3f; color:#fff; }
 .sheet--detail .drow2__count.is-checked::after{
@@ -3656,9 +3656,10 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .droom{ display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
 .droom__chip{
   height:32px; padding:0 15px; border-radius:999px;
-  background:var(--d-chip); color:var(--d-ink); font-size:14px; letter-spacing:.02em;
+  background:var(--d-chip); color:var(--d-ink); font-size:16px; font-weight:500; letter-spacing:.02em;
 }
 .droom__chip:active{ opacity:.7; }
+.droom__sep{ margin-left:-6px; align-self:center; color:inherit; }
 .droom__add{ display:grid; place-items:center; width:36px; height:36px; color:var(--d-muted); }
 .droom__add .ico{ width:30px; height:30px; stroke-width:1.3; }
 .droom__menu{

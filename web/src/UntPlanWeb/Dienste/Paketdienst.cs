@@ -91,6 +91,13 @@ public sealed class Paketdienst
                 json = neu.ToJsonString();
                 paket = JsonSerializer.Deserialize<WebPaket>(json, UntPlanWebSchema.Json)!;
             }
+            // Tagesaktuelle Daten ersetzen nur den übertragenen Zeitraum: wird z. B. erst das ganze Schuljahr und danach
+            // „ab heute“ übertragen, bleiben die vergangenen Tage aus der früheren Übertragung erhalten
+            if (_stand != null && (paket.Teile.Count == 0 || paket.Teile.Contains(WebTeile.Vertretungen)))
+            {
+                paket = ZeitraumZusammenfuehren(_stand.Paket, paket);
+                json = JsonSerializer.Serialize(paket, UntPlanWebSchema.Json);
+            }
             var empfangen = _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm:ss");
             _db.Ausfuehren("""
                 INSERT INTO paket (id, revision, json, empfangen) VALUES (1, @r, @j, @e)
@@ -110,6 +117,32 @@ public sealed class Paketdienst
                 Db.P("@vo", tageVon), Db.P("@bi", tageBis));
             return _stand;
         }
+    }
+
+    /// <summary>
+    /// Tagesaktuelle Daten (Tage, Vertretungen, Absenzen, Termine, Tagestexte) des neuen Pakets gelten nur für seinen Zeitraum
+    /// <see cref="WebPaket.Von"/>–<see cref="WebPaket.Bis"/>; Einträge des bisherigen Stands, die ganz davor oder danach liegen,
+    /// bleiben erhalten. Pakete ohne Zeitraum ersetzen alles (ältere Programmversionen).
+    /// </summary>
+    public static WebPaket ZeitraumZusammenfuehren(WebPaket alt, WebPaket neu)
+    {
+        if (string.IsNullOrEmpty(neu.Von) || string.IsNullOrEmpty(neu.Bis)) return neu;
+        var von = neu.Von;
+        var bis = neu.Bis;
+        bool Ausserhalb(string a, string b) => string.CompareOrdinal(b, von) < 0 || string.CompareOrdinal(a, bis) > 0;
+        static string Ende(WebTagestext t) => DateOnly.TryParse(t.Datum, out var d) ? d.AddDays(Math.Max(1, t.GueltigTage) - 1).ToString("yyyy-MM-dd") : t.Datum;
+        var tage = alt.Tage.Where(t => Ausserhalb(t.Datum, t.Datum)).Concat(neu.Tage).OrderBy(t => t.Datum, StringComparer.Ordinal).ToList();
+        var vertretungen = alt.Vertretungen.Where(v => Ausserhalb(v.Datum, v.Datum)).Concat(neu.Vertretungen).ToList();
+        var absenzen = alt.Absenzen.Where(a => Ausserhalb(a.Von, a.Bis.Length > 0 ? a.Bis : a.Von)).Concat(neu.Absenzen).ToList();
+        var termine = alt.Termine.Where(t => Ausserhalb(t.Von, t.Bis.Length > 0 ? t.Bis : t.Von)).Concat(neu.Termine).ToList();
+        var texte = alt.Tagestexte.Where(t => Ausserhalb(t.Datum, Ende(t))).Concat(neu.Tagestexte).ToList();
+        string Min(string a, string b) => string.IsNullOrEmpty(a) ? b : string.CompareOrdinal(a, b) <= 0 ? a : b;
+        string Max(string a, string b) => string.IsNullOrEmpty(a) ? b : string.CompareOrdinal(a, b) >= 0 ? a : b;
+        return neu with
+        {
+            Tage = tage, Vertretungen = vertretungen, Absenzen = absenzen, Termine = termine, Tagestexte = texte,
+            Von = Min(alt.Von, von), Bis = Max(alt.Bis, bis),
+        };
     }
 
     /// <summary>
