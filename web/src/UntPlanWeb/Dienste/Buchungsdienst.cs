@@ -392,21 +392,21 @@ public sealed class Buchungsdienst
     /// </summary>
     public List<string> Hinweise(Stand s, IEnumerable<TerminWahl> termine, string? lehrer, IEnumerable<string>? klassen)
     {
-        var res = new List<string>();
-        var kl = (klassen ?? Enumerable.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var kl = (klassen ?? Enumerable.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
         var l = (lehrer ?? "").Trim();
+        // je Element die Termine mit Überschneidung (zusammengefasst, damit eine Serie nicht viele gleiche Zeilen erzeugt)
+        var treffer = new Dictionary<string, List<DateOnly>>();
+        void Merken(string name, DateOnly d) => (treffer.TryGetValue(name, out var x) ? x : treffer[name] = new()).Add(d);
         foreach (var t in termine.Take(MaxTermine))
         {
             var roh = _plan.Rohstunden(s, t.Datum).Where(r => r.Status != "entfall" && r.Stunde >= t.StundeVon && r.Stunde <= t.StundeBis).ToList();
             var buchungen = AktiveAm(t.Datum).Where(b => b.StundeVon <= t.StundeBis && b.StundeBis >= t.StundeVon).ToList();
-            var tag = $"{Plandienst.Wochentage[Plandienst.TagIndex(t.Datum)][..2]} {t.Datum:dd.MM.}";
-            if (l.Length > 0 && (roh.Any(r => r.Lehrer.Contains(l, Ci)) || buchungen.Any(b => Ci.Equals(b.Lehrer, l))))
-                res.Add($"{tag}: {l} hat zur gleichen Zeit schon Unterricht bzw. eine andere Aktivität.");
-            foreach (var k in kl.Where(k => roh.Any(r => r.Klassen.Contains(k, Ci)) || buchungen.Any(b => b.Klassen.Contains(k, Ci))))
-                res.Add($"{tag}: Klasse {k} hat zur gleichen Zeit schon Unterricht bzw. eine andere Aktivität.");
-            if (res.Count > 30) break;
+            if (l.Length > 0 && (roh.Any(r => r.Lehrer.Contains(l, Ci)) || buchungen.Any(b => Ci.Equals(b.Lehrer, l)))) Merken(l, t.Datum);
+            foreach (var k in kl.Where(k => roh.Any(r => r.Klassen.Contains(k, Ci)) || buchungen.Any(b => b.Klassen.Contains(k, Ci)))) Merken($"Klasse {k}", t.Datum);
         }
-        return res;
+        string Tag(DateOnly d) => $"{Plandienst.Wochentage[Plandienst.TagIndex(d)][..2]} {d:dd.MM.}";
+        return treffer.Select(x => (x.Value.Count == 1 ? $"{x.Key} hat am {Tag(x.Value[0])}" : $"{x.Key} hat an {x.Value.Count} Terminen ({string.Join(", ", x.Value.Take(4).Select(Tag))}{(x.Value.Count > 4 ? ", …" : "")})")
+            + " zur gleichen Zeit schon Unterricht bzw. eine andere Aktivität.").ToList();
     }
 
     // ------------------------------------------------------------------------------------------ Speichern und Stornieren

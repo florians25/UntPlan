@@ -26,7 +26,8 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   const aktivitaet = aktParam && aktParam !== '-' ? aktParam : '';
   const ziel = (a = art, x = element, b = bereich, v = von, bi = bis, ak = aktivitaet) => `#/unterricht/${a}/${encodeURIComponent(x || '-')}/${b}/${v}/${bi}/${encodeURIComponent(ak || '-')}`;
   const titel = art === 'lehrer' ? `${element === ich.element ? 'Mein Unterricht' : 'Unterricht'} ${element}` : `Unterricht ${element}`;
-  kontext.titel(titel, '');
+  // Unterricht | Mein Unterricht | Neuer Unterricht (Buchungsmodul): Unterricht anlegen und zusätzliche Stunden verplanen
+  kontext.titel(titel, ich.kollegium ? '<a class="nl-knopf" href="#/buchen/unterricht"><i class="bi bi-plus-lg"></i>Neuer Unterricht</a>' : '');
   const pille = (inhalt, aktiv = false) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}">${inhalt}</label>`;
   seite.innerHTML = `
     <div class="nl-leiste">

@@ -519,8 +519,14 @@ function cardLines(card, kind){
   const last   = (kind === 'class') ? 'class'   : 'teacher';
   /* Abwesende Klasse im Klassenplan: die durchgestrichene Klasse steht oben,
      damit sie auch auf kleinen Kacheln nicht weggekürzt wird. */
+  /* Fehlt in einer Kopplung jemand (abwesend oder vertreten), steht die
+     Lehrerzeile vor dem unveränderten Raum — sonst kürzte sie sich auf
+     einer einstündigen Kachel als erste weg, obwohl sie die Änderung trägt. */
+  const koppGeaendert = kind !== 'class' && !(card.changed || []).includes('room')
+    && (koppTokens(card) || []).some(t => (t.state || 'ok') !== 'ok');
   const order  = (card.classAbsent && kind === 'class')
-    ? ['class', 'teacher', 'subject', 'room'] : [first, 'subject', 'room', last];
+    ? ['class', 'teacher', 'subject', 'room']
+    : koppGeaendert ? [first, 'subject', 'teacher', 'room'] : [first, 'subject', 'room', last];
 
   /* Wessen Plan man ansieht, steht über dem Plan — in jeder Kachel noch
      einmal das eigene Kürzel zu wiederholen, bringt nichts. Das gilt für
@@ -618,7 +624,7 @@ function tagesInhalt(card, zeilenHtml, von, bis){
   const zeit = `${esc((von || '').replace(/^0/, ''))}${bis ? ' – ' + esc(bis.replace(/^0/, '')) : ''}`
     + (card.lesson ? ` · ${card.lesson === bisSt ? card.lesson + '. Stunde' : card.lesson + '.–' + bisSt + '. Stunde'}` : '');
   const nurRaum = (card.changed || []).length && (card.changed || []).every(k => k === 'room');
-  const status = card._released ? (card.teacher ? 'Vertretung: ' + card.teacher : 'Vertretung offen')
+  const status = card._released ? (card.teacher ? 'Vertretung: ' + kachelWert(card.teacher) : 'Vertretung offen')
     : card.blockType === 'cancelled' ? (card.classAbsent || /klasse abw/i.test(card.info || '') ? 'Entfall – Klasse abwesend' : 'Entfall')
     : card.blockType === 'klausur' ? (card.type || 'Prüfung')
     : card.blockType === 'event' ? 'Raumbuchung'
@@ -967,6 +973,17 @@ function renderGrid(){
     </div>`;
   });
   html += `<div class="slotrow" style="top:${L.total}px"></div>`;
+  /* Unter der letzten Stunde läuft das Raster weiter — am iPhone bis ganz
+     unten hinter die Glasleiste, wie im Original. Leere Zeilen im Takt
+     einer Stunde, ohne Beschriftung. */
+  const takt = (() => {
+    const t1 = (state.times || {})[1];
+    const m = t1 ? minutes(t1.end) - minutes(t1.start) : 45;
+    return Math.max(24, Math.round((m > 0 ? m : 45) * PPM));
+  })();
+  const sichtbar = (pane && pane.parentElement && pane.parentElement.clientHeight) || window.innerHeight;
+  const rest = Math.max(0, sichtbar - L.total);
+  html += `<div class="grid__rest" style="top:${L.total}px;--takt:${takt}px;--rest:${rest}px"></div>`;
 
   /* Der Rahmen beginnt an der Zeitspalte und schneidet ab, was darüber
      hinausragt — sonst schöbe sich die Nachbarwoche über die Uhrzeiten. */

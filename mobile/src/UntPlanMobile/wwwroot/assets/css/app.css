@@ -4345,3 +4345,172 @@ html.is-dark .screen--msg, html.is-dark body.is-msgtop{ background:#000; }
 .msgrow__main{ min-width:0; }
 .msgrow__main em{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 @media (max-width:699px){ .msgrow{ grid-template-columns:44px minmax(0,1fr) auto; } }
+
+/* =====================================================================
+   Sprint 14 – Angleichung an die Original-App (iPhone 108/116/117/118/119)
+   ===================================================================== */
+
+/* ---- Kachel am iPhone: Balken und Text wie im Original 108 ----------
+   Balken 4 px breit, 4 px vom Rand; Text gut 5 px rechts vom Balken;
+   Schrift 11 px, Zeilenabstand 14 px. Die Rechnung im Raster (Zeilen,
+   die noch passen) liest denselben Abstand (karteZeile()). */
+@media (max-width:699px){
+  :root{
+    --card-pad-left: 11px;
+    --card-pad-top:  3.5px;
+    --bar-left:      4px;
+    --bar-top:       4px;
+  }
+  .card__line{ font-size:11px; line-height:14px; padding-left:1.5px; }
+  .card__line--badge{ padding-left:0; }
+}
+
+/* ---- Viele Werte: eine Zeile mit „…“ (nicht waagerecht rollen) ------ */
+.card__line--scroll,
+.card .card__line.card__line--scroll{
+  overflow:hidden; text-overflow:ellipsis; touch-action:manipulation;
+}
+
+/* ---- Raster läuft unter der letzten Stunde weiter ------------------- */
+.grid__rest{
+  position:absolute; left:var(--gutter-w); right:0;
+  height:max(calc(var(--grid-pad-bottom) + var(--sab) - 1px), calc(var(--rest) - var(--grid-pad-top) - 1px));
+  pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0, transparent calc(var(--takt) - 1px),
+             var(--c-line) calc(var(--takt) - 1px), var(--c-line) var(--takt));
+}
+@media (max-width:699px){
+  .gridpane{ min-height:100%; }
+}
+
+/* ---- Tagesansicht: Kopf wie die Woche ------------------------------- */
+.dayhead--day .dayhead__name{ font-size:12px; }
+.dayhead--day .dayhead__num{ font-size:16px; }
+
+/* ---- Vergangene Stunden (116 hell, 119 dunkel) ---------------------
+   Hell: reguläre Karten hellgrau, farbige behalten ihre helle Fläche,
+   nur der Rahmen fällt weg; Plaketten bleiben.
+   Dunkel: alle Karten schiefergrau, der farbige Rahmen bleibt. */
+.card.is-past{ background:#f2f3f5; }
+.card.is-past .card__line, .card.is-past .card__line--primary{ color:var(--c-ink); }
+.card--change.is-past{ background:var(--chg-bg); border:0; --bw:0px; }
+.card--cancelled.is-past{ background:var(--cnc-bg); border:0; --bw:0px; }
+.card--exam.is-past{ background:var(--exam-bg); border:0; --bw:0px; }
+.card--gs.is-past, .card--absence.is-past{ background:var(--chg-bg); border:0; --bw:0px; }
+.card.is-past::before{ opacity:1; }
+html.is-dark .card.is-past{ background:#313d44; box-shadow:none; }
+html.is-dark .card.is-past .card__line,
+html.is-dark .card.is-past .card__line--primary{ color:#f4f6f8; }
+html.is-dark .card--change.is-past{ background:#313d44; border:2px solid var(--chg-border); --bw:2px; }
+html.is-dark .card--cancelled.is-past{ background:#313d44; border:2px solid var(--cnc-border); --bw:2px; }
+html.is-dark .card--exam.is-past{ background:#313d44; border:2px solid var(--exam-border); --bw:2px; }
+html.is-dark .card--gs.is-past, html.is-dark .card--absence.is-past{ background:#313d44; border:1px solid #3d6457; --bw:1px; }
+html.is-dark .card--released.is-past, html.is-dark .card--standby.is-absent.is-past{ background:transparent; border-color:transparent; }
+.card--released.is-past{ background:transparent; }
+/* Vergangene Stunden bleiben antippbar */
+.card.is-past{ pointer-events:auto; cursor:pointer; }
+
+/* ---- Stundendetails wie 117/118: keine Plaketten, größere Schrift -- */
+.sheet--detail .detail__when b{ font-size:17px; font-weight:400; color:#6b7a86; letter-spacing:0; }
+.sheet--detail .detail__when span{ font-size:13px; color:#6b7a86; margin-top:1px; letter-spacing:.01em; }
+html.is-dark .sheet--detail .detail__when b,
+html.is-dark .sheet--detail .detail__when span{ color:#9aa2a9; }
+.sheet--detail .dhead{ padding:12px 16px 20px; }
+.sheet--detail .dtitle{ font-size:22px; font-weight:400; line-height:29px; color:var(--d-ink); }
+.sheet--detail .dtitle i{ color:var(--d-muted); padding:0 4px; font-weight:300; }
+.sheet--detail .dline{ margin-top:0; }
+.sheet--detail .dline--big{ display:block; font-size:22px; font-weight:400; line-height:29px; margin-top:2px; color:var(--d-ink); }
+.sheet--detail .dline--grau{ font-size:17px; font-weight:400; line-height:22px; margin-top:9px; color:#6b7a86; }
+html.is-dark .sheet--detail .dline--grau{ color:#a3acb4; }
+.sheet--detail .dline--big + .dline--grau{ margin-top:7px; }
+/* Jede Angabe genau eine Zeile; viele Werte rollen waagerecht */
+.sheet--detail .dtitle, .sheet--detail .dline{
+  white-space:nowrap; overflow-x:auto; overflow-y:hidden;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;
+}
+.sheet--detail .dtitle::-webkit-scrollbar, .sheet--detail .dline::-webkit-scrollbar{ display:none; }
+.sheet--detail .dline--kopp{ white-space:nowrap; }
+.sheet--detail .dline s{ text-decoration-thickness:var(--strike); }
+.sheet--detail .dline .arrow{ padding:0 5px; color:inherit; }
+.sheet--detail .dline .sep{ padding:0 5px; }
+.sheet--detail .detail__sep, .is-dark .sheet--detail .detail__sep{ height:1px; background:var(--d-line); }
+.sheet--detail{ --d-line:#dedee0; --d-off:#dfe1e6; }
+.is-dark .sheet--detail{ --d-line:#38383c; --d-off:#2c3036; }
+.sheet--detail .dhead.is-off, .is-dark .sheet--detail .dhead.is-off{ background:var(--d-off); padding-bottom:20px; }
+.sheet--detail .dbanner{
+  background:#ff0000; color:#fff; text-align:center;
+  height:27px; line-height:27px; padding:0 12px;
+  font-size:15px; font-weight:500; letter-spacing:.02em;
+}
+/* Liste: Symbol 30 px grau, Titel 19 px, Untertitel 17 px grau einzeilig,
+   keine Trennlinien zwischen den Menüpunkten */
+.sheet--detail .drows{ padding:10px 16px 0; }
+.sheet--detail .drow2{ grid-template-columns:30px 1fr auto; gap:12px; padding:9px 0; min-height:56px; }
+.sheet--detail .drow2 + .drow2, .is-dark .sheet--detail .drow2 + .drow2{ border-top:0; }
+.sheet--detail .drow2__ico .dico{ width:30px; height:30px; stroke-width:1.3; }
+.sheet--detail .drow2__ico .dico--sym{ width:30px; height:30px; }
+.sheet--detail .drow2__main{ min-width:0; }
+.sheet--detail .drow2__main b{ font-size:19px; font-weight:400; color:var(--d-ink); }
+.sheet--detail .drow2__main span{ display:block; font-size:17px; margin-top:2px; color:#6b7a86;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+html.is-dark .sheet--detail .drow2__main span{ color:#a3acb4; }
+.sheet--detail .drow2__count, .is-dark .sheet--detail .drow2__count{
+  min-width:31px; height:31px; border-radius:16px; padding:0 8px; font-size:16px; font-weight:400;
+}
+.sheet--detail .drow2__chev{ width:24px; height:24px; stroke-width:1.4; }
+@media (min-width:700px){
+  .sheet--detail .dhead{ padding:12px 20px 20px; }
+  .sheet--detail .drows{ padding:10px 20px 0; }
+}
+
+/* ---- Runde Knöpfe im Detail: Glas ----------------------------------- */
+.sheet--detail .rndbtn,
+.sheet--detail #detailClose, .sheet--detail #detailMenu,
+.sheet--detail #dsubBack, .sheet--detail #dsubSave, .sheet--detail #dsubAddTop,
+.sheet--detail #dabsClose, .sheet--detail #dabsDelete, .sheet--detail #dabsSave{
+  background:rgba(255,255,255,.55);
+  backdrop-filter:blur(18px) saturate(180%);
+  -webkit-backdrop-filter:blur(18px) saturate(180%);
+  border:.5px solid rgba(255,255,255,.85);
+  box-shadow:0 3px 12px rgba(20,28,36,.14), inset 0 .5px 0 rgba(255,255,255,.9);
+  color:#6b7a86;
+}
+html.is-dark .sheet--detail .rndbtn,
+html.is-dark .sheet--detail #detailClose, html.is-dark .sheet--detail #detailMenu,
+html.is-dark .sheet--detail #dsubBack, html.is-dark .sheet--detail #dsubSave, html.is-dark .sheet--detail #dsubAddTop,
+html.is-dark .sheet--detail #dabsClose, html.is-dark .sheet--detail #dabsDelete, html.is-dark .sheet--detail #dabsSave{
+  background:rgba(58,58,62,.5);
+  border-color:rgba(255,255,255,.16);
+  box-shadow:0 3px 12px rgba(0,0,0,.4), inset 0 .5px 0 rgba(255,255,255,.12);
+  color:#c9ced3;
+}
+.sheet--detail .rndbtn--ok{ color:var(--u-orange, #f26b2b); }
+
+/* ---- Unterseiten: feste Blattgröße, Tastatur verschiebt nichts ------
+   Das Blatt behält Größe und Platz; ragt die Tastatur hinein (--dkb),
+   bekommt nur der Inhalt unten Luft und rollt innen. */
+.sheet.sheet--detail{ padding-bottom:calc(var(--sab) + 12px); }
+@media (min-width:700px){
+  .sheet.sheet--detail{ padding-bottom:12px; }
+}
+.sheet--detail .dsub__body{ padding-bottom:calc(var(--sab) + 14px + var(--dkb, 0px)); }
+.sheet--detail .dsub__body:has(> .dsub__area){ display:flex; flex-direction:column; }
+.sheet--detail .dsub__area{ flex:1 1 auto; min-height:120px; font-size:17px; }
+
+/* ---- Klassenbucheinträge: Suche unter dem Kopf ---------------------- */
+.dsub__suche{
+  flex:0 0 auto; display:flex; align-items:center; gap:8px;
+  margin:2px 16px 8px; padding:0 12px; height:38px;
+  border-radius:12px; background:var(--d-chip, #eef0f2); color:var(--d-muted, #8b98a3);
+}
+.dsub__suche[hidden]{ display:none; }
+.dsub__suche .ico{ width:19px; height:19px; flex:0 0 auto; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; }
+.dsub__suche input{
+  flex:1 1 auto; min-width:0; border:0; outline:none; background:none;
+  font:inherit; font-size:17px; color:var(--d-ink, var(--c-ink));
+}
+.dsub__suche input::-webkit-search-cancel-button{ -webkit-appearance:none; }
+.dsub__item[hidden]{ display:none !important; }
+/* Kopf der Klassenbucheinträge nicht mehr gequetscht */
+.sheet--detail .dsub__top{ grid-template-columns:48px minmax(0,1fr) auto; }
+.sheet--detail .dsub__top .detail__when b{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

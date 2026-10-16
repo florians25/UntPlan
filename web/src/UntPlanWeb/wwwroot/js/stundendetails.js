@@ -20,6 +20,9 @@ const bildIcon = (datei, klasse = '') => `<img class="kb-icon ${klasse}" src="${
 const minutenVon = hhmm => { const [h, m] = String(hhmm || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 const uhrPlus = (hhmm, n) => { if (!hhmm) return ''; const x = Math.max(0, Math.min(1439, minutenVon(hhmm) + Number(n || 0))); return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
 const maskeIcon = datei => `<span class="u-sym wu kb-icon" style="--wu:url(${W}${datei})" aria-hidden="true"></span>`;
+/** Weiche Linien-Symbole (dünne, abgerundete Striche) für „abwesend“ bzw. „anwesend“ in den Schülerkacheln. */
+const KREUZ = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.9 5.9l4.2 4.2M10.1 5.9l-4.2 4.2"/></svg>';
+const HAKEN = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.3 8.2l1.9 1.9 3.6-3.9"/></svg>';
 
 /**
  * Wert im Kopf wie im Original, ohne zusätzliches Label: geänderter Wert „B070 → C197“ mit altem Wert grau durchgestrichen,
@@ -214,14 +217,14 @@ export function karteDialog(karte, kontext = {}) {
       const f = fehlzeitVon(s.id);
       const st = !f ? 'da' : f.art === 'verspaetet' ? 'spaet' : f.art === 'vorzeitig' ? 'frueh' : 'weg';
       const befreit = daten.befreit?.has(s.id);
-      const status = st === 'da' ? bildIcon('exact/status_present.svg', 'sd-statusbild') : st === 'weg' ? bildIcon('exact/status_absent.svg', 'sd-statusbild')
+      const status = st === 'da' ? bildIcon('exact/status_present.svg', 'sd-statusbild') : st === 'weg' ? `<span class="sd-statusbild weg">${KREUZ}</span>`
         : st === 'frueh' ? '<span class="sd-statusbild frueh"><i class="bi bi-box-arrow-right"></i></span>' : '<span class="sd-statusbild spaet"><i class="bi bi-clock-fill"></i></span>';
       const zusatz = f && st !== 'weg' ? `<span class="sd-minuten ${f.fehlstunden ? 'gewertet' : ''}">${st === 'spaet' ? '+' : '−'}${f.minuten}′</span>` : '';
       return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" aria-pressed="${auswahl.has(s.id)}" title="${befreit ? 'vom Unterricht befreit' : st === 'weg' ? 'abwesend' : st === 'spaet' ? `verspätet (${f.minuten} min)` : st === 'frueh' ? `vorzeitig gegangen (${f.minuten} min)` : 'anwesend'}${f?.fehlstunden && st !== 'weg' ? ' – als Fehlstunde gewertet' : ''}">
         ${status}${zusatz}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
         <span class="sd-name"><span>${e(s.name)}</span><span>${e(s.vorname)}</span></span>
-        ${darf ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? '<i class="bi bi-x-circle"></i>' : '<i class="bi bi-check-circle"></i>'}</button>` : ''}
+        ${darf ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
     }).join('');
     const werkzeuge = `<button type="button" class="sd-werkzeug" data-werkzeug="mail" title="Mitteilung schreiben" aria-label="Mitteilung schreiben"><i class="bi bi-envelope"></i></button>
@@ -236,7 +239,7 @@ export function karteDialog(karte, kontext = {}) {
           <button type="button" class="sd-pille klein grau" data-setzen="zeitraum" ${auswahl.size ? '' : 'disabled'} title="Abwesenheit minutengenau erfassen (Verspätung, vorzeitig gegangen, Zeitraum)"><i class="bi bi-clock me-1"></i>Abwesenheit …</button>
           <button type="button" class="sd-pille klein grau" data-vermerk-auswahl ${auswahl.size ? '' : 'disabled'}>Klassenbucheintrag</button></div>` : ''}`;
     return `
-      ${abschnitt(bildIcon('klassenbuch/multiple-man-woman-2.svg'), 'Schüler*innen im Unterricht', sl.length, a ? werkzeuge : '', schuelerTeil, 'kb-schueler')}
+      ${abschnitt(maskeIcon('klassenbuch/multiple-man-woman-2.svg'), 'Schüler*innen im Unterricht', sl.length, a ? werkzeuge : '', schuelerTeil, 'kb-schueler')}
       ${lehrstoffHtml()}
       ${abwesendeHtml()}
       ${hausaufgabenHtml()}
@@ -251,7 +254,7 @@ export function karteDialog(karte, kontext = {}) {
     const zusatz = [daten.eintrag?.lehrform ? `Lehrform: ${daten.eintrag.lehrform}` : '', daten.eintrag?.anmerkung ? `Anmerkung: ${daten.eintrag.anmerkung}` : ''].filter(Boolean).join(' · ');
     const inhalt = (wert ? `<p class="sd-text">${e(wert)}</p>` : '<p class="sd-text text-body-tertiary">Kein Lehrstoff eingetragen</p>')
       + (zusatz ? `<p class="sd-text small text-body-secondary mt-1">${e(zusatz)}</p>` : '');
-    return abschnitt(bildIcon('klassenbuch/common-file-text.svg'), 'Lehrstoff', null, stift, inhalt);
+    return abschnitt(maskeIcon('klassenbuch/common-file-text.svg'), 'Lehrstoff', null, stift, inhalt);
   }
 
   function abwesendeHtml() {
@@ -290,7 +293,7 @@ export function karteDialog(karte, kontext = {}) {
         <tbody>${zeilen.map(reihe).join('')}</tbody></table></div>
         ${a.darf ? `<button type="button" class="sd-pille klein grau mt-3" data-verlaengern ${abwAuswahl.size ? '' : 'disabled'}>Verlängern</button>` : ''}`
       : '<p class="sd-text small">Keine Abwesenheiten vorhanden</p>';
-    return abschnitt(bildIcon('klassenbuch/chair-1.svg'), 'Abwesende Schüler*innen', (a.fehlzeiten ?? []).length, '', tabelle);
+    return abschnitt(maskeIcon('klassenbuch/chair-1.svg'), 'Abwesende Schüler*innen', (a.fehlzeiten ?? []).length, '', tabelle);
   }
 
   function hausaufgabeZeile(h, bearbeitbar) {
@@ -319,7 +322,7 @@ export function karteDialog(karte, kontext = {}) {
     const liste = hw.liste.length ? hw.liste.map(h => hwBearbeiten === h.id ? hausaufgabeFormular(h) : hausaufgabeZeile(h, offen === 'hausaufgaben')).join('') : '<p class="sd-text small">Keine Hausaufgaben vorhanden</p>';
     const faellig = hw.faellig.length ? `<div class="kb-hw-faellig"><div class="small fw-semibold mb-1">Fällige Hausaufgaben</div>${hw.faellig.map(h => hausaufgabeZeile(h, false)).join('')}</div>` : '';
     const neu = offen === 'hausaufgaben' ? (hwBearbeiten === 'neu' ? hausaufgabeFormular(null) : '<div class="d-flex gap-2 mt-2"><button type="button" class="sd-pille klein" data-hw-neu><i class="bi bi-plus-lg"></i> Neue Hausaufgabe</button><button type="button" class="sd-pille klein" data-zu>Schließen</button></div>') : '';
-    return abschnitt(bildIcon('klassenbuch/common-file-text-home-kopie.svg'), 'Hausaufgaben', null, stift, liste + neu + faellig);
+    return abschnitt(maskeIcon('klassenbuch/common-file-text-home-kopie.svg'), 'Hausaufgaben', null, stift, liste + neu + faellig);
   }
 
   function vermerkeHtml() {
@@ -353,11 +356,11 @@ export function karteDialog(karte, kontext = {}) {
   function detailsHtml() {
     const ein = daten.eintrag;
     const reihe = (ic, titel, inhalt) => `<div class="sd-detail">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">${titel}</div>${inhalt}</div></div>`;
-    const datei = bildIcon('klassenbuch/common-file-text.svg');
+    const datei = maskeIcon('klassenbuch/common-file-text.svg');
     const teile = [];
     const unterricht = k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
     if (unterricht && kollegium && !istEntfall())
-      teile.push(`<div class="sd-detail">${bildIcon('klassenbuch/online_lesson.svg')}<div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
+      teile.push(`<div class="sd-detail">${maskeIcon('klassenbuch/online_lesson.svg')}<div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
           <label class="sd-detail-titel mb-0" for="sd-online">Findet online statt</label><input class="form-check-input ms-1 mt-0" type="checkbox" role="switch" id="sd-online" data-online ${ein?.online ? 'checked' : ''} ${daten.darf ? '' : 'disabled'}></div></div>`);
     if (darfRaum()) {
       const raeume = kuerzel(k.raeume.filter(w => w.k));
@@ -372,8 +375,8 @@ export function karteDialog(karte, kontext = {}) {
     if (k.status === 'klausur') teile.push(reihe(datei, 'Prüfung', `<p class="sd-text">${e([k.art, k.text].filter(Boolean).join(' – '))}</p>`));
     if (ein?.thema) teile.push(reihe(datei, 'Lehrstoff', `<p class="sd-text">${e(ein.thema)}</p>`));
     const hw = daten.hausaufgaben;
-    if (hw.faellig.length) teile.push(reihe(bildIcon('exact/homework.svg'), 'Fällige Hausaufgaben', hw.faellig.map(h => hausaufgabeZeile(h, false)).join('')));
-    if (hw.liste.length) teile.push(reihe(bildIcon('exact/homework.svg'), 'Hausaufgaben', hw.liste.map(h => hausaufgabeZeile(h, false)).join('')));
+    if (hw.faellig.length) teile.push(reihe(maskeIcon('exact/homework.svg'), 'Fällige Hausaufgaben', hw.faellig.map(h => hausaufgabeZeile(h, false)).join('')));
+    if (hw.liste.length) teile.push(reihe(maskeIcon('exact/homework.svg'), 'Hausaufgaben', hw.liste.map(h => hausaufgabeZeile(h, false)).join('')));
     if (unterricht) {
       teile.push(notizFeld('notizSchueler', 'Notizen für Schüler*innen', ein?.notizSchueler ?? k.notizSchueler));
       if (kollegium) teile.push(notizFeld('notiz', 'Notizen für Lehrkräfte', ein?.notiz ?? k.notizLehrer));
@@ -383,7 +386,7 @@ export function karteDialog(karte, kontext = {}) {
   }
 
   function notizFeld(feld, titel, wert) {
-    const ic = bildIcon('klassenbuch/common-file-text.svg');
+    const ic = maskeIcon('klassenbuch/common-file-text.svg');
     if (!daten.darf) return wert ? `<div class="sd-detail">${ic}<div><div class="sd-detail-titel">${titel}</div><p class="sd-text">${e(wert)}</p></div></div>` : '';
     return `<div class="sd-detail">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">${titel}</div>
       <textarea class="form-control sd-notiz" rows="2" data-notiz="${feld}">${e(wert)}</textarea>

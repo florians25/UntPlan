@@ -98,3 +98,9 @@ td > .au.w-auto, td > .au.d-inline-block { vertical-align: middle; }
 .nl-suche.au-mit-x { padding-right: 36px; }
 .nl-suche.au-mit-x > .au-x { right: 10px; }
 .d-flex > .au-suchfeld:not([class*="w-"]) { flex: 0 1 auto; }
+
+/* Auswahl in Werkzeugleisten mit eigener Hülle (Suche mit Chips, Raumsuche) */
+.u-suche .au, .u-werkzeug .u-suche .au { display: inline-block; width: auto; flex: none; }
+.u-suche .au-knopf { min-height: 0; height: 32px; padding: 0 6px 0 4px; border: 0; background: transparent; box-shadow: none !important; font-size: .95rem; color: var(--u-titel); }
+.u-suche .au.offen .au-knopf, .u-suche .au-knopf:focus-visible { background: rgba(255, 255, 255, .7); border-radius: 999px; }
+.sd-raumsuche.au-mit-x { position: relative; padding-right: 40px; }

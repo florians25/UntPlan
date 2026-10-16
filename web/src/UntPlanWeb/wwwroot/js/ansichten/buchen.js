@@ -440,7 +440,7 @@ async function assistent(seite, kontext, art, rest) {
       try {
         const h = await senden('/api/app/buchen/hinweise', { termine: gewaehlteTermine(), lehrer: d.lehrer || null, klassen: d.klassen });
         zustand.hinweise = h;
-        ziel.innerHTML = h.length ? `<div class="bu-warnung"><i class="bi bi-exclamation-triangle"></i><div><b>Zur gleichen Zeit schon belegt</b><ul>${h.slice(0, 8).map(x => `<li>${e(x)}</li>`).join('')}${h.length > 8 ? `<li>… und ${h.length - 8} weitere</li>` : ''}</ul></div></div>` : '';
+        ziel.innerHTML = h.length ? `<div class="bu-warnung"><i class="bi bi-exclamation-triangle"></i><div><b>Hinweis – zur gleichen Zeit schon eingeplant</b><ul>${h.slice(0, 8).map(x => `<li>${e(x)}</li>`).join('')}${h.length > 8 ? `<li>… und ${h.length - 8} weitere</li>` : ''}</ul></div></div>` : '';
       } catch { ziel.innerHTML = ''; }
     };
     inhalt.querySelectorAll('[data-d]').forEach(f => f.addEventListener(f.tagName === 'TEXTAREA' || f.type === 'text' || f.tagName === 'INPUT' && f.type !== 'checkbox' ? 'input' : 'change', () => {
@@ -476,7 +476,7 @@ async function assistent(seite, kontext, art, rest) {
           ${zeile('Bemerkung', e(d.text))}
           ${art === 'aktivitaet' && d.benachrichtigen && d.lehrer ? zeile('Benachrichtigung', `Mitteilung an ${e(d.lehrer)}`) : ''}
         </div>
-        ${zustand.hinweise.length && art !== 'unterricht' ? `<div class="bu-warnung"><i class="bi bi-exclamation-triangle"></i><div>${zustand.hinweise.length} Hinweis(e) zu Überschneidungen – die Buchung ist trotzdem möglich.</div></div>` : ''}
+        ${zustand.hinweise.length && art !== 'unterricht' ? `<div class="bu-warnung"><i class="bi bi-exclamation-triangle"></i><div>${zustand.hinweise.map(e).join('<br>')}<br><small>Die Buchung ist trotzdem möglich.</small></div></div>` : ''}
         <p class="nl-unter mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Die Buchung erscheint sofort in „Meine Buchungen“ und in den Stundenplänen${art === 'ressource' ? '' : ' und wird an UntPlan übermittelt'}.</p>
       </section>
       ${knopfleiste(true, true, 'Speichern', 'check-lg')}`;
@@ -496,10 +496,11 @@ async function assistent(seite, kontext, art, rest) {
   function erfolg() {
     const g = zustand.gespeichert;
     const b = g.buchungen;
+    const raeume = [...new Set(b.map(x => x.raum).filter(Boolean))];
     inhalt.innerHTML = `<section class="bu-karte bu-erfolg">
       <div class="bu-erfolg-symbol"><i class="bi bi-check-lg"></i></div>
       <h2>${b.length === 1 ? 'Die Buchung ist gespeichert.' : `Serie mit ${b.length} Terminen gespeichert.`}</h2>
-      <p class="nl-unter">${e(b[0].titel)} · ${e(tagKurz(b[0].datum))}${b.length > 1 ? ` – ${e(tagKurz(b[b.length - 1].datum))}` : ''} · ${stdText(b[0].stundeVon, b[0].stundeBis)}${b[0].raum ? ` · Raum ${e(b[0].raum)}` : ''}</p>
+      <p class="nl-unter">${e(b[0].titel)} · ${e(tagKurz(b[0].datum))}${b.length > 1 ? ` – ${e(tagKurz(b[b.length - 1].datum))}` : ''} · ${stdText(b[0].stundeVon, b[0].stundeBis)}${raeume.length ? ` · ${raeume.length > 1 ? 'Räume' : 'Raum'} ${e(raeume.join(', '))}` : ''}</p>
       ${g.hinweise?.length ? alarm('warning', g.hinweise.join(' ')) : ''}
       <div class="bu-knopfleiste mitte"><a class="nl-knopf bu-gross" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>
         ${b[0].raum ? `<a class="nl-knopf bu-gross" href="#/plan/raum/${encodeURIComponent(b[0].raum)}/${b[0].datum}"><i class="bi bi-calendar3-week"></i>Raumplan</a>` : ''}
@@ -637,17 +638,18 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
   const heute = heuteIso();
   const tage = u.tage;
   const kopf = `<tr><th class="bu-raumkopf" rowspan="${woche ? 2 : 1}">Raum</th>${woche ? tage.map(t => `<th colspan="${raster.length}" class="bu-tagkopf ${t.frei ? 'frei' : ''}">${e(tagKurz(t.datum))}</th>`).join('') + '</tr><tr>' : ''}
-    ${tage.map(t => raster.map(z => `<th class="bu-stdkopf ${woche ? 'klein' : ''}" title="${e(z.beginn)}–${e(z.ende)}">${z.nr}${woche ? '' : `<small>${e(z.beginn)}</small>`}</th>`).join('')).join('')}</tr>`;
-  const zelle = (r, t, z) => {
-    if (t.frei) return `<td class="bu-zelle tagfrei" title="${e(t.grund || 'unterrichtsfrei')}"></td>`;
+    ${tage.map(t => raster.map((z, j) => `<th class="bu-stdkopf ${woche ? 'klein' : ''} ${woche && j === 0 ? 'tagstart' : ''}" title="${e(z.beginn)}–${e(z.ende)}">${z.nr}${woche ? '' : `<small>${e(z.beginn)}</small>`}</th>`).join('')).join('')}</tr>`;
+  const zelle = (r, t, z, start) => {
+    const s = start && woche ? ' tagstart' : '';
+    if (t.frei) return `<td class="bu-zelle tagfrei${s}" title="${e(t.grund || 'unterrichtsfrei')}"></td>`;
     const b = (r.belegung[t.datum] ?? []).find(x => x.stunde === z.nr);
-    if (b) return `<td class="bu-zelle ${e(b.art)}" title="${e(BELEGT_TEXT[b.art] ?? b.art)}: ${e(b.text)}">${woche ? '' : `<span>${e(b.text)}</span>`}</td>`;
-    if (t.datum < heute) return '<td class="bu-zelle vergangen"></td>';
-    return `<td class="bu-zelle frei"><button type="button" data-buchen="${e(r.kurz)}|${t.datum}|${z.nr}" title="${e(r.kurz)} am ${e(tagKurz(t.datum))}, ${z.nr}. Stunde buchen" aria-label="${e(r.kurz)} ${z.nr}. Stunde buchen"><i class="bi bi-plus"></i></button></td>`;
+    if (b) return `<td class="bu-zelle ${e(b.art)}${s}" title="${e(BELEGT_TEXT[b.art] ?? b.art)}: ${e(b.text)}">${woche ? '' : `<span>${e(b.text)}</span>`}</td>`;
+    if (t.datum < heute) return `<td class="bu-zelle vergangen${s}"></td>`;
+    return `<td class="bu-zelle frei${s}"><button type="button" data-buchen="${e(r.kurz)}|${t.datum}|${z.nr}" title="${e(r.kurz)} am ${e(tagKurz(t.datum))}, ${z.nr}. Stunde buchen" aria-label="${e(r.kurz)} ${z.nr}. Stunde buchen"><i class="bi bi-plus"></i></button></td>`;
   };
   seite.querySelector('[data-raster]').innerHTML = u.raeume.length ? `<div class="bu-uebersicht ${woche ? 'woche' : ''}"><table><thead>${kopf}</thead><tbody>
     ${u.raeume.map(r => `<tr><th class="bu-raumname"><b>${e(r.kurz)}</b><small>${e([r.raumart, r.kapazitaet ? `${r.kapazitaet} Pl.` : ''].filter(Boolean).join(' · '))}</small></th>
-      ${tage.map(t => raster.map(z => zelle(r, t, z)).join('')).join('')}</tr>`).join('')}</tbody></table></div>`
+      ${tage.map(t => raster.map((z, j) => zelle(r, t, z, j === 0)).join('')).join('')}</tr>`).join('')}</tbody></table></div>`
     : leer('Kein buchbarer Raum passt zu den Filtern.', 'door-closed');
   seite.querySelectorAll('[data-buchen]').forEach(b => b.onclick = () => {
     const [raum, d, st] = b.dataset.buchen.split('|');

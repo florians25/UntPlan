@@ -359,7 +359,10 @@ const LAYOUT = /^(m[sebtxy]?-|w-|mw-|flex-|order-|col|align-self)/;
 export function suchfeldAufwerten(input) {
   if (input.au || input.hasAttribute('data-nativ') || input.closest('.au-menue, .input-group, [data-nativ-auswahl]')) return;
   let huelle = input.parentElement;
-  if (!huelle?.classList.contains('nl-suche')) {
+  // Container mit eigener Lupe (neues Design: .nl-suche, .u-suche, Raumsuche): nur das X ergänzen – oder nichts, wenn schon ein Leeren-Knopf da ist
+  const eigeneLupe = huelle && [...huelle.children].some(k => k !== input && k.matches('.bi-search, .u-sym, svg, img') && (k.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING));
+  if (eigeneLupe && huelle.querySelector('.u-leeren, [data-leeren]')) { input.au = { huelle }; return; }
+  if (!eigeneLupe) {
     huelle = document.createElement('span');
     huelle.className = 'au-suchfeld';
     [...input.classList].filter(k => LAYOUT.test(k)).forEach(k => { huelle.classList.add(k); input.classList.remove(k); });

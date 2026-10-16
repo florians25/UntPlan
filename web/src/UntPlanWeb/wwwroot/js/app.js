@@ -25,6 +25,7 @@ const ANSICHTEN = {
   berichte: () => import('./ansichten/berichte.js'),
   sitzplan: () => import('./ansichten/sitzplan.js'),
   melden: () => import('./ansichten/melden.js'),
+  buchen: () => import('./ansichten/buchen.js'),
   stammdaten: () => import('./ansichten/stammdaten.js'),
   admin: () => import('./ansichten/admin.js'),
   profil: () => import('./ansichten/profil.js'),
@@ -237,6 +238,7 @@ function menue() {
     // Unterricht wie in der Vorlage: Mein Unterricht, Klasse, Schüler*in, Prüfungen, Prüfungskalender, Aufgaben, Lehrkraft - Tag, Klasse - Tag
     m.push({ id: 'unterricht', text: 'Unterricht', icon: 'unterricht', unter: [
       { nav: 'unterricht', href: '#/unterricht', text: b.element ? 'Mein Unterricht' : 'Unterricht', icon: 'meineunterrichte' },
+      { nav: 'buchen-unterricht', href: '#/buchen/unterricht', text: 'Neuer Unterricht', icon: 'meineunterrichte' },
       { nav: 'unterricht-klasse', href: '#/unterricht/klasse', text: 'Klasse', icon: 'klasse' },
       { nav: 'schueler', href: '#/schueler', text: 'Schüler*in', icon: 'benutzer' },
       { nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'klausur' },
@@ -258,11 +260,21 @@ function menue() {
       { nav: 'befreiungen', href: '#/befreiungen', text: 'Befreiungen', icon: 'befreiungen' },
       { nav: 'sitzplan', href: '#/sitzplan', text: 'Sitzplan', icon: 'sitzplan' },
     ] });
-    m.push({ id: 'melden', text: 'Melden & Buchen', icon: 'meldenbuchen', unter: [
+    m.push({ id: 'melden', text: 'Melden', icon: 'ruckmeldung', unter: [
       { nav: 'melden-abwesenheit', href: '#/melden/abwesenheit', text: 'Abwesenheit melden', icon: 'abwesend' },
-      { nav: 'melden-raum', href: '#/melden/raum', text: 'Raum buchen', icon: 'raum' },
       { nav: 'melden-klausur', href: '#/melden/klausur', text: 'Prüfung eintragen', icon: 'klausur' },
       { nav: 'melden-meine', href: '#/melden/meine', text: 'Meine Meldungen', icon: 'protokoll' },
+    ] });
+    // Buchungsmodul (buchen.js): Räume, Ressourcen, Aktivitäten; Verwaltung der Ressourcen und Raumdaten nur für die Administration
+    m.push({ id: 'buchen', text: 'Buchen', icon: 'meldenbuchen', unter: [
+      { nav: 'buchen-raum', href: '#/buchen/raum', text: 'Raum buchen', icon: 'raum' },
+      { nav: 'buchen-ressource', href: '#/buchen/ressource', text: 'Ressource buchen', icon: 'ressource' },
+      { nav: 'buchen-aktivitaet', href: '#/buchen/aktivitaet', text: 'Neue Aktivität', icon: 'meineunterrichte' },
+      { nav: 'buchen-meine', href: '#/buchen/meine', text: 'Meine Buchungen', icon: 'protokoll' },
+      { nav: 'buchen-raeume', href: '#/buchen/raeume', text: 'Raumübersicht', icon: 'tagraeume' },
+      { nav: 'buchen-ressourcen', href: '#/buchen/ressourcen', text: 'Ressourcenübersicht', icon: 'woche' },
+      ...(b.admin ? [{ nav: 'buchen-verwaltung', href: '#/buchen/verwaltung', text: 'Ressourcen verwalten', icon: 'stammdaten' },
+        { nav: 'buchen-raumdaten', href: '#/buchen/raumdaten', text: 'Raumdaten', icon: 'raumplan' }] : []),
     ] });
   } else if (familie(b)) {
     // Schüler*innen und Erziehungsberechtigte wie im Original: Heute, Übersicht, Mitteilungen, Mein Stundenplan, Weitere Stundenpläne,
@@ -330,6 +342,7 @@ function navAus(teile) {
     case 'mitteilungen': return a === 'gesendet' || a === 'entwuerfe' || a === 'listen' ? 'mitteilungen-' + a : 'mitteilungen';
     case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : c && c !== 'uebersicht' ? 'klassenbuch-woche' : 'klassenbuch';
     case 'melden': return 'melden-' + (a || 'abwesenheit');
+    case 'buchen': return a === 'stunden' ? 'buchen-unterricht' : 'buchen-' + (a || 'raum');
     case 'stammdaten': return 'stammdaten-' + (a || 'klassen');
     case 'admin': return 'admin-' + (a || (b.admin ? 'sync' : 'nachrichten'));
     default: return name || 'heute';

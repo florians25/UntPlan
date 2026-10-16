@@ -1,0 +1,163 @@
+/* Buchungsmodul (buchen.js, buchungsverwaltung.js) im neuen Design: Schritte-Leiste, Karten, Segmentwahl, Wochentag-Chips,
+   Raum- und Ressourcenübersicht. Baut auf den nl-Bausteinen aus app.css auf (nl-tabelle, nl-chip, nl-pille, nl-knopf, nl-hinzu). */
+
+.bu-assistent { max-width: 1180px; }
+
+/* Schritte-Leiste: Termin → Kriterien → Freie Räume → Details → Speichern */
+.bu-schritte { display: flex; gap: 0; list-style: none; margin: 0 0 18px; padding: 0; counter-reset: s; overflow-x: auto; }
+.bu-schritte li { flex: 1 1 0; min-width: 120px; position: relative; }
+.bu-schritte li + li::before { content: ""; position: absolute; top: 19px; left: -50%; right: 50%; height: 2px; background: #dfe3e7; z-index: 0; }
+.bu-schritte li.fertig + li::before, .bu-schritte li.fertig + li.aktiv::before { background: var(--u-akzent); }
+.bu-schritte button { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; border: 0; background: none; padding: 0;
+  color: #67747e; font: inherit; font-size: .9rem; cursor: default; }
+.bu-schritte li.fertig button { cursor: pointer; color: var(--u-text); }
+.bu-schritte li.fertig button:hover .bu-sname { text-decoration: underline; }
+.bu-nr { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid #c9d0d6; background: #fff; font-weight: 700; color: #67747e; }
+.bu-schritte li.aktiv .bu-nr { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; box-shadow: 0 0 0 4px rgba(var(--u-akzent-rgb), .15); }
+.bu-schritte li.aktiv .bu-sname { color: var(--u-titel); font-weight: 600; }
+.bu-schritte li.fertig .bu-nr { border-color: var(--u-akzent); color: var(--u-akzent); }
+
+/* Karten */
+.bu-karte { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 18px 22px; margin-bottom: 14px; }
+.bu-karte > header { display: flex; align-items: center; gap: 10px; margin: -2px 0 14px; color: var(--u-titel); }
+.bu-karte > header > i { font-size: 1.15rem; color: var(--u-akzent); }
+.bu-karte > header h2 { font-size: 1.08rem; font-weight: 600; margin: 0; }
+.bu-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 18px; align-items: start; }
+.bu-raster .breit, .bu-breit { grid-column: 1 / -1; }
+.bu-feld { display: flex; flex-direction: column; gap: 5px; margin: 0; min-width: 0; }
+.bu-feld > span { font-size: .85rem; font-weight: 600; color: #414d55; }
+.bu-feld small { font-size: .78rem; line-height: 1.3; }
+.bu-zeile { margin-bottom: 14px; }
+
+/* Segmentwahl (Wiederholung, Stunden/Uhrzeit, Tag/Woche) */
+.bu-segment { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 999px; background: #eef1f4; }
+.bu-segment button { border: 0; background: transparent; border-radius: 999px; padding: 7px 14px; font: inherit; font-size: .9rem; color: #414d55; white-space: nowrap; }
+.bu-segment button:hover { background: #e2e6ea; }
+.bu-segment button.an { background: #fff; color: var(--u-titel); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 5, 10, .15); }
+.bu-segment.klein button { padding: 5px 12px; font-size: .85rem; }
+
+/* Wochentage */
+.bu-tage { display: flex; flex-wrap: wrap; gap: 6px; }
+.bu-tag { width: 46px; height: 38px; border-radius: 999px; border: 1.5px solid #c9d0d6; background: #fff; font: inherit; font-weight: 600; color: #414d55; }
+.bu-tag.an { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; }
+.bu-tag:focus-visible, .bu-segment button:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+
+/* Vorschau der Termine, Zusammenfassung, Hinweise */
+.bu-vorschau { margin-top: 16px; padding-top: 14px; border-top: 1px dashed #dfe3e7; min-height: 32px; }
+.bu-vorschau-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.bu-vorschau-kopf i { color: var(--u-gruen); }
+.bu-fehler { color: #a1262b; display: flex; gap: 8px; align-items: center; }
+.bu-zusammenfassung { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 16px; margin-bottom: 14px; border-radius: 10px; background: #fff6f1;
+  border: 1px solid #f7d4c2; color: var(--u-titel); }
+.bu-zusammenfassung > i { color: var(--u-akzent); }
+.bu-warnung { display: flex; gap: 10px; margin-top: 14px; padding: 10px 14px; border-radius: 8px; background: #fff4d6; color: #6b4600; font-size: .9rem; }
+.bu-warnung ul { margin: 4px 0 0; padding-left: 1.1rem; }
+.bu-knopfleiste { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 6px 0 24px; }
+.bu-knopfleiste.mitte { justify-content: center; flex-wrap: wrap; margin-bottom: 4px; }
+.nl-knopf.bu-gross { height: 42px; padding: 0 20px; font-size: .95rem; }
+.nl-hinzu.bu-klein { height: 34px; padding: 0 14px; font-size: .9rem; }
+.nl-hinzu[disabled] { opacity: .6; }
+.bu-schalter { display: inline-flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; }
+.bu-schalter .form-check-input { margin: 0; width: 1.15em; height: 1.15em; }
+.bu-ohne { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; margin: 0; }
+
+/* Tabellen im Assistenten */
+.bu-tabelle tbody tr[data-raum], .bu-tabelle tbody tr[data-res] { cursor: pointer; }
+.bu-balken { display: inline-block; width: 70px; height: 8px; border-radius: 4px; background: #fdecec; overflow: hidden; vertical-align: middle; margin-right: 8px; }
+.bu-balken i { display: block; height: 100%; background: var(--u-gruen); }
+.bu-menge { width: 84px; }
+.bu-tabelle tr.bu-storniert td { color: #8a96a1; }
+.bu-tabelle tr.bu-storniert td .nl-name, .bu-tabelle tr.bu-storniert td:nth-child(7) div:first-child { text-decoration: line-through; }
+.bu-tabelle tr.bu-vergangen td { background: #fbfcfd; }
+.nl-icon.sichtbar { opacity: 1; }
+
+/* Zusammenfassung vor dem Speichern, Erfolg */
+.bu-zf-raster { display: grid; gap: 8px; }
+.bu-zf { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f2f4; }
+.bu-zf > span { color: #67747e; }
+.bu-zf > b { font-weight: 600; color: var(--u-text); }
+.bu-erfolg { text-align: center; padding: 34px 22px; }
+.bu-erfolg h2 { font-size: 1.3rem; font-weight: 600; color: var(--u-titel); margin: 12px 0 6px; }
+.bu-erfolg-symbol { display: inline-grid; place-content: center; width: 64px; height: 64px; border-radius: 50%; background: #e5f6ec; color: #0f7b47; font-size: 2rem; }
+
+/* Raumübersicht */
+.bu-datumwahl { display: inline-flex; align-items: center; gap: 6px; }
+.bu-legende { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 10px; font-size: .82rem; color: #67747e; }
+.bu-legende span { display: inline-flex; align-items: center; gap: 6px; }
+.bu-legende .bu-zelle { display: inline-block; width: 16px; height: 12px; border-radius: 3px; border: 1px solid #dfe3e7; }
+.bu-uebersicht { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; overflow: auto; max-height: calc(100vh - 230px); }
+.bu-uebersicht table { border-collapse: separate; border-spacing: 0; width: 100%; }
+.bu-uebersicht th, .bu-uebersicht td { border-bottom: 1px solid #edf0f2; border-right: 1px solid #f2f4f6; }
+.bu-uebersicht thead th { position: sticky; top: 0; z-index: 2; background: #fbfcfd; font-weight: 600; font-size: .85rem; color: #414d55; padding: 8px 6px; text-align: center; }
+.bu-uebersicht.woche thead tr:nth-child(2) th { top: 35px; }
+.bu-stdkopf small { display: block; font-weight: 400; color: #8a96a1; font-size: .72rem; }
+.bu-stdkopf.klein { min-width: 22px; padding: 4px 2px !important; font-size: .72rem !important; }
+.bu-tagkopf.frei { color: #8a96a1; }
+.bu-raumkopf, .bu-raumname { position: sticky; left: 0; z-index: 1; background: #fff; text-align: left !important; min-width: 120px; }
+.bu-uebersicht thead .bu-raumkopf { z-index: 3; background: #fbfcfd; }
+.bu-raumname { padding: 6px 12px; }
+.bu-raumname b { display: block; color: var(--u-titel); }
+.bu-raumname small { color: #8a96a1; font-weight: 400; font-size: .75rem; }
+td.bu-zelle { height: 46px; min-width: 74px; padding: 2px 4px; font-size: .75rem; line-height: 1.15; vertical-align: middle; overflow: hidden; }
+.woche td.bu-zelle { min-width: 22px; height: 40px; padding: 0; }
+td.bu-zelle span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bu-zelle.unterricht { background: #eef1f4; color: #414d55; }
+.bu-zelle.buchung { background: #ffe8dc; color: #8a3a12; }
+.bu-zelle.klausur { background: #efe8fb; color: #5b3fa0; }
+.bu-zelle.termin { background: #e3eef8; color: #1f4f78; }
+.bu-zelle.vorgemerkt { background: #fff4d6; color: #6b4600; }
+.bu-zelle.gesperrt { background: repeating-linear-gradient(135deg, #fdecec 0 6px, #fff 6px 12px); color: #a1262b; }
+.bu-zelle.tagfrei { background: #f3f5f7; }
+.bu-zelle.vergangen { background: #fafbfc; }
+.bu-zelle.frei { background: #fff; }
+.bu-zelle.frei button { width: 100%; height: 100%; min-height: 36px; border: 0; background: transparent; color: transparent; border-radius: 6px; font-size: 1.1rem; }
+.bu-zelle.frei button:hover, .bu-zelle.frei button:focus-visible { background: #e5f6ec; color: #0f7b47; outline: none; }
+
+/* Ressourcenübersicht */
+.bu-uebersicht-rahmen { display: grid; grid-template-columns: 1fr 260px; gap: 16px; align-items: start; }
+.bu-arten { position: sticky; top: 80px; }
+.bu-artenliste { display: grid; gap: 8px; }
+.bu-woche th, .bu-woche td { vertical-align: top; }
+.bu-woche thead th.heute { color: var(--u-akzent); }
+.bu-woche tbody th { min-width: 170px; font-weight: 400; padding: 10px 12px; }
+.bu-woche td { min-width: 120px; }
+.bu-eintrag { padding: 4px 8px; margin-bottom: 4px; border-radius: 6px; background: #ffe8dc; color: #8a3a12; font-size: .8rem; line-height: 1.3; }
+.bu-eintrag.fest { background: #eef1f4; color: #414d55; }
+.bu-eintrag small { color: inherit; opacity: .75; }
+.bu-frei { font-size: .8rem; color: #0f7b47; }
+.bu-tagfrei { background: #f6f7f9; }
+
+/* Verwaltung */
+.bu-verwaltung { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+.bu-artenpflege { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 4px; }
+.bu-artenpflege li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f2f4; }
+.bu-artenpflege li .nl-unter { margin-left: auto; }
+.bu-artneu { display: flex; gap: 8px; }
+.bu-raumdaten input.form-control { min-width: 110px; }
+
+@media (max-width: 991.98px) {
+  .bu-uebersicht-rahmen, .bu-verwaltung { grid-template-columns: 1fr; }
+  .bu-arten { position: static; }
+}
+@media (max-width: 767.98px) {
+  .bu-karte { padding: 14px; }
+  .bu-schritte li { min-width: 74px; }
+  .bu-sname { font-size: .78rem; text-align: center; }
+  .bu-nr { width: 32px; height: 32px; }
+  .bu-schritte li + li::before { top: 16px; }
+  .bu-zf { grid-template-columns: 1fr; gap: 2px; }
+  .bu-knopfleiste { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--u-grund) 30%); padding-top: 14px; }
+  .bu-segment { border-radius: 14px; }
+}
+.bu-karte .bu-raster + .bu-feld { margin-top: 14px; }
+.bu-uebersicht.woche .tagstart, .bu-uebersicht.woche .bu-tagkopf { border-left: 2px solid #d3d9de; }
+.bu-raumname small { white-space: nowrap; }
+.bu-legende i.bu-zelle { border-color: #c9d0d6; }
+.bu-arten .nl-knopf, .bu-arten .nl-hinzu { white-space: nowrap; }
+.bu-artenpflege li .nl-unter { white-space: nowrap; }
+.bu-artenpflege .nl-tag { white-space: nowrap; }
+@media (min-width: 992px) { .bu-verwaltung { grid-template-columns: 360px 1fr; } }
+@media (max-width: 479.98px) {
+  .bu-schritte li:not(.aktiv) .bu-sname { display: none; }
+  .bu-schritte li { min-width: 52px; }
+}

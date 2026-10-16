@@ -1746,3 +1746,119 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .up-hinweis a { color: var(--u-akzent-dunkel); font-weight: 600; }
 .up-hinweis .btn-close { flex: none; margin-left: 4px; font-size: .7rem; }
 @media (max-width: 575.98px) { .up-hinweis { left: 16px; right: 16px; bottom: 16px; max-width: none; } }
+
+/* ===== Stundendetails: einheitliche graue Umriss-Symbole, weiche Abwesend-Symbole in den Schülerkacheln ===== */
+.sd-rumpf .kb-icon.wu { color: #a9b3bb; }
+.sd-linie { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.sd-umschalten { color: #b3bcc4; font-size: 17px; }
+.sd-umschalten:hover, .sd-umschalten:focus-visible { color: #c96a6a; }
+.sd-kachel:not(.da) .sd-umschalten:hover, .sd-kachel:not(.da) .sd-umschalten:focus-visible { color: #3f9a6c; }
+.sd-kachel .sd-statusbild.weg { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #fff; color: #cf6b6b; font-size: 16px; }
+
+/* ===== Infocenter (runder Knopf unten rechts mit Panel) ===== */
+.ic-knopf { position: fixed; right: 22px; bottom: 18px; z-index: 1035; width: 52px; height: 52px; border-radius: 50%; border: 0; background: #fff; color: var(--u-grau);
+  box-shadow: 0 2px 6px rgba(0, 5, 10, .12), 0 6px 18px rgba(0, 5, 10, .10); display: grid; place-content: center; font-size: 22px; transition: color .15s, transform .15s; }
+.ic-knopf:hover, .ic-knopf[aria-expanded="true"] { color: var(--u-akzent); }
+.ic-knopf:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.ic-zahl { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--u-akzent); color: #fff;
+  font-size: .7rem; font-weight: 700; display: grid; place-content: center; border: 2px solid #fff; }
+.ic-zahl[hidden] { display: none; }
+body:has(.u-app[data-ansicht="plan"]) .ic-knopf { bottom: 76px; }
+body:has(.ic-knopf) .up-hinweis { bottom: 88px; }
+.ic-panel { position: fixed; right: 22px; bottom: 82px; z-index: 1036; width: 400px; max-height: min(640px, calc(100vh - 110px)); display: flex; flex-direction: column;
+  background: #f6f7f9; border-radius: 14px; box-shadow: 0 8px 30px rgba(0, 5, 10, .18), 0 2px 6px rgba(0, 5, 10, .08); overflow: hidden; transform-origin: bottom right;
+  animation: ic-auf .16s ease-out; }
+.ic-panel[hidden] { display: none; }
+body:has(.u-app[data-ansicht="plan"]) .ic-panel { bottom: 140px; }
+@keyframes ic-auf { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.ic-panel-kopf { display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 18px; background: #fff; border-bottom: 1px solid #e6e9ec; }
+.ic-panel-kopf h2 { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--u-titel); }
+.ic-link { margin-left: auto; border: 0; background: none; color: var(--u-akzent-dunkel); font-size: .8rem; font-weight: 600; padding: 2px 4px; }
+.ic-link:disabled { color: #b7c0c7; }
+.ic-zu { border: 0; background: none; color: var(--u-grau-2); font-size: 1rem; padding: 2px 4px; line-height: 1; }
+.ic-zu:hover { color: var(--u-titel); }
+.ic-liste { overflow-y: auto; padding: 12px; display: grid; gap: 10px; align-content: start; }
+.ic-panel-fuss { display: flex; justify-content: space-between; padding: 10px 18px; background: #fff; border-top: 1px solid #e6e9ec; font-size: .82rem; }
+.ic-panel-fuss a { color: var(--u-akzent-dunkel); font-weight: 600; text-decoration: none; }
+.ic-panel-fuss a[hidden] { display: none; }
+.ic-karte { position: relative; background: #fff; border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(0, 5, 10, .06); border: 1px solid #e8ebee; }
+.ic-karte.neu { cursor: pointer; }
+.ic-karte.wichtig { border-left: 3px solid #d9534f; }
+.ic-karte h3 { margin: 6px 0 4px; font-size: .95rem; font-weight: 600; color: var(--u-titel); }
+.ic-text { margin: 0; font-size: .85rem; color: var(--u-text); white-space: normal; }
+.ic-punkte { margin: 4px 0 0; padding-left: 1.1rem; font-size: .84rem; color: var(--u-text); display: grid; gap: 2px; }
+.ic-liste .ic-punkte li:nth-child(n+4) { display: none; }
+.ic-meta { display: flex; align-items: center; gap: 8px; font-size: .75rem; color: var(--u-grau); }
+.ic-kat { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: .7rem; font-weight: 700; letter-spacing: .02em; background: #eef1f4; color: #4a5560; }
+.ic-kat.wichtig { background: #fde8e8; color: #b42318; }
+.ic-kat.info { background: #e8f1fd; color: #1d5fae; }
+.ic-kat.update { background: #fff1ea; color: #c2410c; }
+.ic-punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--u-akzent); flex: none; margin-left: auto; }
+.ic-meta .ic-punkt + .nw-werkzeuge, .ic-meta .nw-werkzeuge { margin-left: 8px; }
+.ic-leer { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 0; color: var(--u-grau); font-size: .9rem; }
+.ic-leer .bi { font-size: 56px; color: #c3c9ce; line-height: 1; }
+.ic-hinweis { position: fixed; right: 84px; bottom: 22px; z-index: 1037; display: flex; align-items: center; gap: 4px; max-width: 320px; background: var(--u-titel); color: #fff;
+  border-radius: 12px; padding: 8px 8px 8px 14px; box-shadow: 0 6px 18px rgba(0, 5, 10, .22); animation: ic-auf .2s ease-out; }
+body:has(.u-app[data-ansicht="plan"]) .ic-hinweis { bottom: 80px; }
+.ic-hinweis-text { border: 0; background: none; color: inherit; text-align: left; display: flex; flex-direction: column; min-width: 0; padding: 0; font-size: .82rem; }
+.ic-hinweis-text b { font-weight: 600; }
+.ic-hinweis-text span { opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px; }
+.ic-hinweis-zu { border: 0; background: none; color: #fff; opacity: .7; padding: 4px 6px; font-size: .8rem; }
+.ic-hinweis-zu:hover { opacity: 1; }
+@media (max-width: 575.98px) {
+  .ic-knopf { right: 14px; bottom: 14px; width: 48px; height: 48px; }
+  .ic-panel { right: 8px; left: 8px; width: auto; bottom: 72px; max-height: calc(100vh - 96px); }
+  .ic-hinweis { right: 70px; left: 12px; bottom: 16px; max-width: none; }
+}
+@media print { .ic-wurzel, .ic-hinweis { display: none !important; } }
+
+/* ===== Neuigkeiten (Seite) ===== */
+.nw-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding-top: 18px; align-items: start; }
+.nw-raster .ic-karte { padding: 16px 18px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 5, 10, .08), 0 3px 10px rgba(0, 5, 10, .05); border-color: transparent; }
+.nw-raster .ic-karte.neu::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--u-akzent); }
+.nw-raster .ic-karte h3 { font-size: 1.02rem; margin-top: 8px; }
+.nw-hinweis { color: var(--u-grau); font-size: .88rem; margin: -6px 0 16px; }
+.nw-tabelle td .nw-grau { color: var(--u-grau); font-size: .82rem; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nw-sichtbar { background: #e3f5ea; color: #0f6b40; }
+.nw-symbol { border: 0; background: none; color: var(--u-grau-2); font-size: 1.05rem; padding: 4px 6px; line-height: 1; }
+.nw-symbol:hover { color: var(--u-akzent-dunkel); }
+.nl-knopf.nw-primaer { background: var(--u-akzent); border-color: var(--u-akzent); color: #fff; text-decoration: none; }
+.nl-knopf.nw-primaer:hover { background: var(--u-akzent-dunkel); border-color: var(--u-akzent-dunkel); color: #fff; }
+.nw-formular { display: grid; gap: 4px; }
+.nw-formular .form-label { margin: 8px 0 2px; font-weight: 600; font-size: .88rem; }
+.nw-formular .form-switch { margin-top: 12px; }
+.nw-zeitraum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .nw-raster { grid-template-columns: 1fr; } .nw-tabelle { overflow-x: auto; } }
+
+/* ===== Übersicht (Karten-Dashboard) ===== */
+.ub-raster { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); align-items: start; padding-top: 4px; }
+.ub-karte .fm-inhalt { padding: 4px 16px 14px; }
+.ub-karte > header { padding-bottom: 8px; }
+.ub-zahl { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--u-akzent-hell); color: var(--u-akzent-dunkel); font-size: .72rem; font-weight: 700; display: inline-grid; place-content: center; }
+.ub-element { color: var(--u-grau); font-size: .88rem; }
+.ub-liste li { gap: 12px; }
+.ub-stunde { cursor: pointer; border-radius: 4px; }
+.ub-stunde:hover { background: #f7f9fa; }
+.ub-stunde:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
+.ub-balken { width: 4px; align-self: stretch; border-radius: 2px; background: var(--fach, #c9d0d6); flex: none; }
+.ub-zeit { display: flex; flex-direction: column; min-width: 64px; line-height: 1.2; }
+.ub-zeit b { font-weight: 600; color: var(--u-titel); font-size: .85rem; }
+.ub-zeit small { color: var(--u-grau); font-size: .75rem; }
+.ub-was { display: flex; flex-direction: column; min-width: 0; flex: 1; color: var(--u-titel); }
+.ub-was small { color: var(--u-grau); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ub-stunde.entfall .ub-was { text-decoration: line-through; text-decoration-thickness: .75px; color: var(--u-grau); }
+.ub-tag { min-width: 64px; color: var(--u-grau); font-size: .8rem; flex: none; }
+.ub-hinweis { margin: 0 0 6px; font-size: .88rem; color: var(--u-text); }
+.ub-hinweis b { color: var(--u-akzent-dunkel); font-size: 1.05rem; }
+.ub-mehr { display: inline-block; margin-top: 8px; font-size: .82rem; font-weight: 600; color: var(--u-akzent-dunkel); text-decoration: none; }
+.ub-bald { color: var(--u-akzent-dunkel) !important; font-weight: 600; }
+.ub-karte .fm-liste li { min-width: 0; }
+.ub-karte .fm-liste li > * { min-width: 0; }
+.ub-karte .fm-liste .ic-punkt { margin-left: 0; }
+.ub-karte .fm-leer.gross { padding: 14px 0 10px; }
+@media (max-width: 700px) { .ub-raster { grid-template-columns: 1fr; } .ub-zeit, .ub-tag { min-width: 54px; } }
+.ub-karte > header { min-width: 0; }
+.ub-karte > header .titel { white-space: nowrap; }
+.ub-karte > header .unter { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ub-karte { min-width: 0; }
+@media (max-width: 575.98px) { .ic-panel { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); } }

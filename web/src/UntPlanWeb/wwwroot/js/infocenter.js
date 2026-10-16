@@ -106,7 +106,7 @@ function hinweisZeigen() {
   try { bekannt = JSON.parse(localStorage.getItem(merker) || '[]'); } catch { /* privat */ }
   const frisch = neu.filter(x => !bekannt.includes(x.schluessel));
   try { localStorage.setItem(merker, JSON.stringify(neu.map(x => x.schluessel).slice(0, 200))); } catch { /* privat */ }
-  if (!frisch.length || document.querySelector('[data-ic-hinweis]')) return;
+  if (!frisch.length || document.querySelector('[data-ic-hinweis]') || location.hash.startsWith('#/neuigkeiten')) return;
   const h = document.createElement('div');
   h.className = 'ic-hinweis';
   h.dataset.icHinweis = '';
