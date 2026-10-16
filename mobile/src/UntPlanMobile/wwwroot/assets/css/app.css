@@ -4848,3 +4848,64 @@ html.is-dark .seg button.is-on{ background:#636366; color:#fff; box-shadow:0 1px
   white-space:normal; overflow:visible; text-overflow:clip;
   overflow-wrap:break-word; word-break:normal; hyphens:auto;
 }
+
+/* =====================================================================
+   Sprint 20 — Gleichstand mit der iOS-App
+   ===================================================================== */
+
+/* iPhone: Stundendetails randlos über die volle Breite und 90 % hoch.
+   Oben bleiben die runden Ecken, seitlich und unten liegt das Blatt
+   bündig am Bildschirmrand. Die Auswahl und die übrigen Blätter bleiben
+   bei 85 %. */
+@media (max-width:699px){
+  .sheet.sheet--detail{
+    left:0; right:0; width:100%; margin:0;
+    height:90vh; height:90svh;
+    max-height:90vh; max-height:90svh;
+    border-left:0; border-right:0; border-bottom:0;
+  }
+}
+
+/* Symbole in Menüs: schwarz im hellen, weiß im dunklen Modus — wie die
+   Systemmenüs von iOS. Der Haken der laufenden Ansicht bleibt orange. */
+.menu-item__ico, .dmenu .ico, .dmenu button .uic{ color:#000; }
+html.is-dark .menu-item__ico, html.is-dark .dmenu .ico, html.is-dark .dmenu button .uic{ color:#fff; }
+
+/* Planauswahl-Knopf: in der Mitte der Kopfzeile, Schrift minimal größer. */
+/* Die beiden Außenspalten teilen sich den freien Platz zu gleichen
+   Teilen; jede ist mindestens so breit wie ihr Knopf. Damit steht der
+   Titel genau auf der Bildschirmmitte. Nur wenn ein sehr langer Name
+   sonst gekürzt würde, rückt er ein Stück zur Seite, statt „…“ zu zeigen. */
+.topbar{
+  grid-template-columns:minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr);
+  column-gap:4px;
+}
+.topbar > #btnSwitchEntity{ justify-self:start; }
+.topbar > .topbar__actions{ justify-self:end; }
+.topbar__title{ font-size:18px; max-width:100%; padding-left:0; padding-right:0; gap:4px; }
+@media (min-width:820px){
+  /* Tablet: der Titel steht in der zweiten Zeile — über die ganze Breite,
+     damit er auf die Bildschirmmitte zentriert ist. */
+  .topbar{ grid-template-areas:"l c r" "t t t"; }
+}
+
+/* Mehrere Stunden zur selben Zeit: größere Reiter im Detail. Die
+   Kurzschreibweise „font: … inherit“ war ungültig und fiel ganz weg. */
+.sheet--detail .dtabs, .is-dark .sheet--detail .dtabs{ display:flex; align-items:stretch; }
+.sheet--detail .dtabs__t, .is-dark .sheet--detail .dtabs__t{
+  display:inline-flex; align-items:center; justify-content:center;
+  flex:0 0 auto; box-sizing:border-box;
+  min-width:64px; height:44px; padding:0 12px;
+  font-family:inherit; font-size:17px; font-weight:500; line-height:1;
+}
+.sheet--detail .dtabs__t.is-on, .is-dark .sheet--detail .dtabs__t.is-on{ font-weight:600; }
+.sheet--detail .dtabs__t.is-on::after{ left:8px; right:8px; height:3px; }
+
+/* Aufsichten tragen keine Uhrzeiten — auch nicht, wenn die Uhrzeiten auf
+   den Karten eingeschaltet sind (Tages- wie Wochenansicht). */
+body.show-card-times .card--supervision .card__times{ display:none; }
+
+/* Profil: Schalter mit zweiter Zeile (Benachrichtigungen) */
+.row__txt{ display:flex; flex-direction:column; min-width:0; }
+.row__txt small{ font-size:12.5px; color:var(--c-muted); margin-top:2px; line-height:1.25; }
+.row--switch input:disabled ~ .switch{ opacity:.45; }

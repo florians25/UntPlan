@@ -205,15 +205,14 @@ struct StundenplanView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar { leiste }
-            .sheet(item: $detail) { d in
+            // Stunden- und Aufsichtsdetails: iPad festes Formblatt, iPhone randlos über die volle Breite und 90 % hoch
+            .detailPraesentation(item: $detail, breit: istBreit) { d in
                 StundendetailView(karten: d.karten, start: d.start, typ: typ, element: element)
                     .environmentObject(zustand)
-                    .detailBlatt(breit: istBreit)
             }
-            .sheet(item: $gewaehlteAufsicht) { a in
+            .detailPraesentation(item: $gewaehlteAufsicht, breit: istBreit) { a in
                 AufsichtDetailView(aufsicht: a)
                     .environmentObject(zustand)
-                    .detailBlatt(breit: istBreit)
             }
             .sheet(isPresented: $zeigeAuswahl) {
                 PlanAuswahlView(auswahl: $auswahl)
@@ -233,7 +232,9 @@ struct StundenplanView: View {
             .onAppear {
                 planAnfrageUebernehmen()
                 schnellaktionUebernehmen()
+                tagAnfrageUebernehmen()
             }
+            .onChange(of: zustand.tagAnfrage) { _, _ in tagAnfrageUebernehmen() }
             .onChange(of: zustand.planAnfrage) { _, _ in planAnfrageUebernehmen() }
             .onChange(of: zustand.schnellaktion) { _, _ in schnellaktionUebernehmen() }
             // Reiter „Stundenplan“ erneut angetippt: zurück zur heutigen Woche
@@ -287,6 +288,19 @@ struct StundenplanView: View {
         }
     }
 
+    /// Angetippte Mitteilung über eine Planänderung: eigener Plan, Tagesansicht des betroffenen Tages.
+    private func tagAnfrageUebernehmen() {
+        guard let iso = zustand.tagAnfrage else { return }
+        zustand.tagAnfrage = nil
+        guard let ziel = Datumsformat.datum(iso) else { return }
+        detail = nil
+        gewaehlteAufsicht = nil
+        zeigeAuswahl = false
+        auswahl = nil
+        ansicht = .tag
+        datum = ziel
+    }
+
     /// „Im Stundenplan anzeigen“ aus den Stundendetails.
     private func planAnfrageUebernehmen() {
         guard let neu = zustand.planAnfrage else { return }
@@ -336,18 +350,21 @@ struct StundenplanView: View {
         Button {
             zeigeAuswahl = true
         } label: {
-            HStack(spacing: 4) {
-                Text(titel)
-                    .font(.system(size: istBreit ? 15 : 17, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: istBreit ? 10 : 12, weight: .medium))
+            // Nur so breit wie der Name (höchstens 170 bzw. 360 pt): ein fest breiter Knopf würde von den Knöpfen rechts
+            // aus der Mitte geschoben – so steht die Planauswahl immer oben mittig
+            Hoechstbreite(breite: istBreit ? 360 : 170).callAsFunction {
+                HStack(spacing: 4) {
+                    Text(titel)
+                        .font(.system(size: istBreit ? 17 : 19, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: istBreit ? 11 : 13, weight: .medium))
+                }
             }
             .foregroundStyle(Farben.titelGrau)
             .padding(.vertical, 4)
             .padding(.horizontal, 8)
-            .frame(maxWidth: istBreit ? 360 : 200)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -399,6 +416,8 @@ struct StundenplanView: View {
                     .rotationEffect(.degrees(90))
             }
         }
+        // Symbole im Menü schwarz bzw. weiß je nach Modus (nicht orange bzw. grau)
+        .tint(Color.primary)
         .accessibilityLabel("Menü")
         .popover(isPresented: $zeigeDatum, arrowEdge: .top) {
             GeheZuDatumView(start: tageModus ? tag : datum) { gewaehlt in
@@ -737,9 +756,9 @@ struct PlanInfoView: View {
                 }
                 Section("Legende") {
                     legende(Farben.karte, rand: nil, "Unterricht wie geplant")
-                    legende(Farben.aenderungHintergrund, rand: Farben.aenderungRand, "Vertretung bzw. Änderung (grün hinterlegt: geänderter Wert)")
+                    legende(Farben.aenderungHintergrund, rand: Farben.aenderungRand, "Vertretung, Änderung bzw. Raumänderung (grün hinterlegt: geänderter Wert)")
                     legende(Farben.entfallHintergrund, rand: Farben.entfallRand, "Entfall (durchgestrichen)")
-                    legende(Farben.pruefungHintergrund, rand: Farben.pruefungRand, "Klausur bzw. Prüfung")
+                    legende(Farben.pruefungHintergrund, rand: Farben.pruefungRand, "Klausur bzw. Prüfung (nur diese gelb)")
                     legende(Farben.aenderungHintergrund, rand: nil, "Veranstaltung (über den ganzen Zeitraum)")
                     HStack(spacing: 12) {
                         Eckklammern(laenge: 8, radius: 3)
@@ -950,7 +969,8 @@ struct WochenrasterView: View {
             uniquingKeysWith: { erste, _ in erste })
         let vorErster = kacheln.values.contains { liste in liste.contains { $0.vorErsterStunde } }
         let pausenAufsichten = kacheln.values.flatMap { $0 }.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
-        let mass = Rastermass(oben: vorErster ? 34 : 15, start: start, proMinute: proMinute,
+        // Tagesansicht: Aufsicht vor der 1. Stunde sitzt dichter am Plan, der Streifen darüber bleibt gleich hoch
+        let mass = Rastermass(oben: vorErster ? (nurTage?.count == 1 ? 31 : 34) : 15, start: start, proMinute: proMinute,
                               dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: proMinute,
                                                               mindestens: nurTage == nil ? 24 : 30))
         GeometryReader { geo in
@@ -1222,9 +1242,10 @@ struct WochenrasterView: View {
             let i = CGFloat(vorErste.firstIndex(of: k.id) ?? 0)
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
-            // Direkt über der Linie der 1. Stunde (im freien Streifen vor ihr), nie nach oben in den Tageskopf
+            // Direkt über der Linie der 1. Stunde (im freien Streifen vor ihr), nie nach oben in den Tageskopf;
+            // in der Tagesansicht noch dichter an der 1. Stunde (1 pt statt 4 pt Abstand zur Linie)
             h = 22
-            y = max(3, mass.y(mass.start) - h - 4)
+            y = max(3, mass.y(mass.start) - h - (nurTage?.count == 1 ? 1 : 4))
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar
             let oben = mass.yEnde(k.beginn)
@@ -1400,7 +1421,13 @@ struct KartenKnopfStil: ButtonStyle {
 struct AufsichtDetailView: View {
     let aufsicht: Aufsicht
     @EnvironmentObject var zustand: AppZustand
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
 
     private var ort: String {
         !aufsicht.gangName.isEmpty ? aufsicht.gangName : (!aufsicht.gang.isEmpty ? aufsicht.gang : "Aufsicht")
@@ -1472,6 +1499,7 @@ struct AufsichtDetailView: View {
                     } label: {
                         Rundknopf(symbol: "ellipsis", gewicht: .medium, groesse: 18, drehung: 90)
                     }
+                    .tint(Color.primary)
                     .accessibilityLabel("Weitere Aktionen")
                 }
             })
@@ -1536,5 +1564,23 @@ extension View {
         } else {
             self.iPhoneBlatt()
         }
+    }
+}
+
+/// Begrenzt die angebotene Breite, ohne das Kind zu dehnen: es bleibt so schmal wie sein Inhalt (anders als
+/// `.frame(maxWidth:)`, das sich bei viel Platz auf die volle Höchstbreite ausdehnt).
+struct Hoechstbreite: Layout {
+    var breite: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let kind = subviews.first else { return .zero }
+        let w = min(proposal.width ?? breite, breite)
+        return kind.sizeThatFits(ProposedViewSize(width: w, height: proposal.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let kind = subviews.first else { return }
+        kind.place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center,
+                   proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }

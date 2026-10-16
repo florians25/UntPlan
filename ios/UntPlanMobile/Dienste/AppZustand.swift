@@ -25,6 +25,8 @@ final class AppZustand: ObservableObject {
     @Published var planAnfrage: PlanAuswahl? = nil
     /// Kurzbefehl vom App-Symbol, den der Stundenplan noch ausführen soll (Mein Stundenplan heute bzw. Planauswahl).
     @Published var schnellaktion: Schnellaktion? = nil
+    /// Tag (yyyy-MM-dd), den der Stundenplan im eigenen Plan öffnen soll (angetippte Mitteilung über eine Planänderung).
+    @Published var tagAnfrage: String? = nil
 
     let api = ApiClient.shared
 
@@ -59,6 +61,18 @@ final class AppZustand: ObservableObject {
 
     /// Schüler*innen und Eltern sehen keine Pläne von Lehrkräften.
     var darfLehrerplaene: Bool { istKollegium }
+
+    /// Mitteilungen bei Änderungen im eigenen Plan: nur Lehrkräfte mit eigenem Lehrerplan.
+    var darfPlanmitteilungen: Bool { istKollegium && Planmitteilungen.berechtigt(benutzer) }
+
+    /// Eigenen Plan auf Änderungen prüfen (beim Öffnen bzw. im Vordergrund) und die Hintergrund-Prüfung anmelden.
+    /// Fragt beim ersten Mal nach der Erlaubnis für Mitteilungen.
+    func planPruefen() async {
+        guard phase == .angemeldet, darfPlanmitteilungen, Planmitteilungen.aktiv else { return }
+        await Planmitteilungen.erlaubnisAnfragen()
+        _ = await Planpruefer.shared.pruefen()
+        Planmitteilungen.planen()
+    }
 
     /// Plan im Reiter „Stundenplan“ öffnen.
     func planZeigen(_ plan: PlanAuswahl) {
@@ -132,6 +146,8 @@ final class AppZustand: ObservableObject {
         reiter = .stundenplan
         planAnfrage = nil
         schnellaktion = nil
+        tagAnfrage = nil
+        Planmitteilungen.zuruecksetzen()
         phase = .abgemeldet
     }
 

@@ -18,7 +18,7 @@ public static class AppApi
     public sealed record KlausurDaten(DateOnly Datum, int? StundeVon, int? StundeBis, List<string> Klassen, List<string>? Raeume, List<string>? Aufsicht, string? Titel, string? Text);
     public sealed record KlausurLoeschenDaten(DateOnly Datum, int StundeVon, int StundeBis, List<string>? Klassen, string? Titel);
     public sealed record KlausurVerlegenDaten(KlausurLoeschenDaten Alt, KlausurDaten Neu);
-    public sealed record MitteilungDaten(List<string> Empfaenger, string Betreff, string Text, bool Wichtig);
+    public sealed record MitteilungDaten(List<string> Empfaenger, string Betreff, string Text, bool Wichtig, bool Lesebestaetigung = false, int? AntwortAuf = null);
     public sealed record AnwesenheitDaten(DateOnly Datum, int Stunde, int Unterricht, List<AnwesenheitEintrag>? Eintraege);
     public sealed record FehlenDaten(int SchuelerId, DateOnly Von, DateOnly Bis, string? Status, string? Bemerkung);
     public sealed record FehlzeitStatusDaten(List<int> Ids, string Status);
@@ -298,14 +298,14 @@ public static class AppApi
 
         // ---------------------------------------------------------------- Mitteilungen
 
-        api.MapGet("/mitteilungen", (string? ordner, HttpContext c, Mitteilungsdienst m) =>
+        api.MapGet("/mitteilungen", (string? ordner, string? suche, HttpContext c, Mitteilungsdienst m) =>
         {
             var b = Ich(c);
-            return Results.Json(ordner == "gesendet" ? m.Gesendet(b.Id) : ordner == "entwuerfe" ? m.Entwuerfe(b.Id) : m.Posteingang(b.Id));
+            return Results.Json(ordner == "gesendet" ? m.Gesendet(b.Id, suche) : ordner == "entwuerfe" ? m.Entwuerfe(b.Id, suche) : m.Posteingang(b.Id, suche));
         });
         api.MapGet("/mitteilungen/empfaenger", (HttpContext c, Mitteilungsdienst m, Paketdienst p) => Results.Json(m.Empfaengerliste(Ich(c), p.Aktuell)));
         api.MapPost("/mitteilungen", (MitteilungDaten d, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
-            Results.Json(new { id = m.Senden(Ich(c), p.Aktuell, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig) }));
+            Results.Json(new { id = m.Senden(Ich(c), p.Aktuell, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig, d.Lesebestaetigung, d.AntwortAuf) }));
         api.MapPost("/mitteilungen/{id:int}/gelesen", (int id, HttpContext c, Mitteilungsdienst m) => { m.Gelesen(Ich(c).Id, id); return Results.Json(new { ok = true }); });
         api.MapDelete("/mitteilungen/{id:int}", (int id, HttpContext c, Mitteilungsdienst m) => { m.Loeschen(Ich(c).Id, id); return Results.Json(new { ok = true }); });
 
@@ -482,6 +482,20 @@ public static class AppApi
             var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
             var liste = l.Hausaufgaben(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(60)), k, b.Kollegium ? Leer(lehrer) : null);
             return Results.Json(b.Kollegium ? liste : liste.Select(e => e with { Notiz = "" }).ToList());
+        });
+
+        // Hausaufgaben mit Id, Bemerkung, Erledigt und Bearbeitungsrecht (Liste und Detailfenster unter Klassenbuch → Hausaufgaben)
+        api.MapGet("/hausaufgaben/eintraege", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
+            var s = b.Kollegium ? Paket(p) : null;
+            var liste = kb.Hausaufgabenliste(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(60)), k, b.Kollegium ? Leer(lehrer) : null);
+            return Results.Json(liste.Select(h => new
+            {
+                h.Id, h.Datum, h.Stunde, h.Unterricht, h.Klassen, h.Fach, h.Lehrer, h.Text, h.Faellig, h.Bemerkung, h.Erledigt, h.Erstellt,
+                darf = s != null && h.Id > 0 && kb.DarfSchreiben(b, s, DateOnly.Parse(h.Datum), h.Stunde, h.Unterricht),
+            }));
         });
 
         api.MapGet("/klassenbucheintraege", (string? von, string? bis, string? klasse, string? art, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>

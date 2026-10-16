@@ -313,6 +313,8 @@ struct KontoMenue<Beschriftung: View>: View {
         } label: {
             beschriftung()
         }
+        // Symbole im Menü schwarz bzw. weiß je nach Modus (nicht orange bzw. grau)
+        .tint(Color.primary)
         .accessibilityLabel("Konto wechseln")
         .confirmationDialog("Konto wechseln?", isPresented: $bestaetigen, titleVisibility: .visible) {
             Button("Abmelden und anderes Konto anmelden", role: .destructive) {

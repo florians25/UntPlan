@@ -12,6 +12,15 @@ export const avatar = (name, gefuellt = true) => {
 };
 const tagKurz = iso => new Date(iso + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
 
+/** Gemeinsamer Zeitraum und Klasse von Fehlzeiten und Abwesenheiten (je Sitzung); mit Wert: speichern. */
+export function abwZeitraum(wert) {
+  try {
+    if (wert) { sessionStorage.setItem('untplan:abw-zeitraum', JSON.stringify(wert)); return wert; }
+    const x = JSON.parse(sessionStorage.getItem('untplan:abw-zeitraum') || 'null');
+    return x && /^\d{4}-\d{2}-\d{2}$/.test(x.von) && /^\d{4}-\d{2}-\d{2}$/.test(x.bis) ? x : null;
+  } catch { return null; }
+}
+
 /** Nachweisarten einer Entschuldigung. */
 export const NACHWEISE = { attest: 'ärztliches Attest', schriftlich: 'schriftliche Entschuldigung', muendlich: 'mündlich', telefonisch: 'telefonisch', email: 'per E-Mail' };
 
@@ -51,9 +60,12 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const el = await kontext.elemente();
   const reiter = reiterParam === 'meine' && ich.element ? 'meine' : 'schueler';
   const iso = /^\d{4}-\d{2}-\d{2}$/;
-  const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -14);
-  const bis = iso.test(bisParam ?? '') ? bisParam : heuteIso();
-  const klasse = klasseParam && klasseParam !== '-' ? klasseParam : '';
+  // Zeitraum und Klasse gemeinsam mit den Fehlzeiten (dieselben Daten in beiden Bereichen)
+  const gemeinsam = abwZeitraum();
+  const von = iso.test(vonParam ?? '') ? vonParam : gemeinsam?.von ?? plusTage(heuteIso(), -14);
+  const bis = iso.test(bisParam ?? '') ? bisParam : gemeinsam?.bis ?? heuteIso();
+  const klasse = klasseParam && klasseParam !== '-' ? klasseParam : klasseParam === '-' ? '' : gemeinsam?.klasse ?? '';
+  if (reiterParam !== 'meine') abwZeitraum({ von, bis, klasse: klasse || gemeinsam?.klasse || '' });
   const status = ['offen', 'entschuldigt', 'unentschuldigt'].includes(statusParam) ? statusParam : '';
   const grund = grundParam && grundParam !== '-' ? grundParam : '';
   const art = ARTEN[artParam] ? artParam : '';
@@ -93,7 +105,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       ${pille('Abwesenheitsgrund', `<select data-grund><option value="">Abwesenheitsgrund</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select>`, grund)}
       ${pille('Art', `<select data-art><option value="">Art</option>${Object.entries(ARTEN).map(([k, t]) => `<option value="${k}" ${k === art ? 'selected' : ''}>${t}</option>`).join('')}</select>`, art)}
       ${pille('Status', `<select data-status><option value="">Status</option>${['offen', 'entschuldigt', 'unentschuldigt'].map(x => `<option value="${x}" ${x === status ? 'selected' : ''}>${x === 'unentschuldigt' ? 'nicht entschuldigt' : x}</option>`).join('')}</select>`, status)}
-      ${infoHinweis(`Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || el.klassen[0]?.kurz || '')}/fehlzeiten">Fehlzeiten</a>.`)}
+      ${infoHinweis(`Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || gemeinsam?.klasse || el.klassen[0]?.kurz || '')}/fehlzeiten/${bis}/${von}">Fehlzeiten</a> – mit denselben Daten.`)}
       <span class="ms-auto d-flex gap-2">
         <button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen">${icon('csv')}Bericht</button>
         ${verwalten ? `<button type="button" class="nl-hinzu" data-neu><i class="bi bi-plus-lg"></i>Hinzufügen</button>` : ''}
@@ -114,7 +126,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         <td class="text-nowrap"><div>${tagKurz(z.datum)} <span class="nl-unter">${e(z.beginn)}</span> – ${z.bis !== z.datum ? `${tagKurz(z.bis)} ` : ''}<span class="nl-unter">${e(z.ende)}</span></div>
           <div class="nl-unter">${z.fehlstunden} ${z.fehlstunden === 1 ? 'Fehlstunde' : 'Fehlstunden'} · ${z.fehlminuten} min</div></td>
         <td>${artChip(z)}</td>
-        <td>${z.grund ? `<span class="nl-tag">${e(grundName[z.grund] ?? z.grund)}</span>` : ''}</td><td>${STATUS[z.status] ?? e(z.status)}</td><td class="nl-text">${e(z.bemerkung)}${detailSymbole(z) ? `<div class="nl-chips mt-1">${detailSymbole(z)}</div>` : ''}</td>
+        <td>${z.grund ? `<span class="nl-tag">${e(grundName[z.grund] ?? z.grund)}</span>` : ''}</td><td>${z.statusGemischt ? `<span class="u-chip gelb" title="${z.entschuldigt} entschuldigt, ${z.unentschuldigt} nicht entschuldigt, ${z.fehlstunden - z.entschuldigt - z.unentschuldigt} offen (wie in den Fehlzeiten)">teilweise</span><div class="nl-unter">${z.entschuldigt}/${z.fehlstunden} entschuldigt</div>` : STATUS[z.status] ?? e(z.status)}</td><td class="nl-text">${e(z.bemerkung)}${detailSymbole(z) ? `<div class="nl-chips mt-1">${detailSymbole(z)}</div>` : ''}</td>
         ${verwalten ? `<td class="text-end text-nowrap nl-aktionen">${z.verwalten || ich.admin ? `<button class="nl-icon" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>
           <button class="nl-icon rot" data-loeschen="${i}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}</td>` : ''}</tr>`).join('')}
       </tbody></table>

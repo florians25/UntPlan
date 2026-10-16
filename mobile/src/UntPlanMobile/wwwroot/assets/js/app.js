@@ -275,8 +275,28 @@ function nachbarnAusSpeicher(){
 }
 
 function stampDates(cards, date){
-  cards.forEach(c => { if (!c.date) c.date = date; });
+  cards.forEach(c => { if (!c.date) c.date = date; nurRaumKeinePruefung(c); });
   return cards;
+}
+
+/* Eine Raumänderung ist nie eine Prüfung.
+   ---------------------------------------------------------------------
+   Gelb mit braunem Rahmen steht ausschließlich für Klausuren und
+   Prüfungen. Kommt eine Stunde als „klausur“ herein, deren Art aber nur
+   einen Raumwechsel nennt („Raumänderung“, „Raumvertretung“,
+   „Raumwechsel“) und nirgends eine Klausur oder Prüfung erwähnt, wird
+   sie als grüne Änderung gezeigt — mit dem neuen Raum in der grünen
+   Plakette. Gilt für Woche, Tag, Liste, Details und vergangene Stunden,
+   weil es hier beim Einlesen geschieht. */
+function nurRaumKeinePruefung(c){
+  if (!c || c.blockType !== 'klausur') return c;
+  const art = String(c.type || '');
+  const raumArt = /raum\s*(änderung|aenderung|vertretung|wechsel)/i.test(art);
+  const pruefWort = /klausur|prüfung|pruefung|leistungs|arbeit|test/i;
+  if (!raumArt || pruefWort.test(art) || pruefWort.test(String(c.info || ''))) return c;
+  c.blockType = 'change';
+  if (c.room && !(c.changed || []).includes('room')) c.changed = [...(c.changed || []), 'room'];
+  return c;
 }
 
 let bootUsed = false;
@@ -297,7 +317,11 @@ async function loadWeek(entity, weekStart, token){
      nicht mehr anfassen — sie beschreibt einen Plan, den niemand mehr
      ansieht. */
   const aktuell = () => token === undefined || token === renderToken;
-  const fertig = (byDate, bands) => ({ byDate, bands: bands || [], key: weekKey(entity, weekStart) });
+  const fertig = (byDate, bands) => {
+    /* Auch gespeicherte Wochen von früher durchlaufen die Prüfung. */
+    Object.values(byDate || {}).forEach(l => (l || []).forEach(nurRaumKeinePruefung));
+    return { byDate, bands: bands || [], key: weekKey(entity, weekStart) };
+  };
 
   /* Die vom Server mitgelieferte Woche braucht keinen zweiten Ladevorgang —
      aber nur, wenn sie auch zu dem Plan gehört, der angezeigt werden soll.
@@ -1025,7 +1049,10 @@ function renderGrid(){
      Streifen (alle drei Wochen bzw. Tage) wirklich eine solche Pille liegt;
      sonst beginnt das Raster wie im Original 15 px unter der Tagesleiste.
      Wie in der iOS-App: mit Pille 34 px bis zur ersten Linie, ohne 15 px. */
-  const PRE_PILLE = 23, PRE_LUFT = 2;
+  /* PRE_LUFT: Abstand der Pille zur ersten Stunde. Mit 2 px wirkte sie
+     abgesetzt; jetzt liegt sie so dicht davor wie die Pausenaufsichten
+     zwischen zwei Stunden (gut 1,5 px sichtbare Luft). */
+  const PRE_PILLE = 23, PRE_LUFT = 0.5;
   const hatVorErste = dates.some(d => (byDate[d] || []).some(c => c._pausePre
     && (state.opts.showCancelled || c.blockType !== 'cancelled')));
   const preInset = hatVorErste ? PRE_PILLE + PRE_LUFT + 1 : 0;
@@ -1600,7 +1627,7 @@ function renderGrid(){
         ${body}
         ${eckzeichen}
         ${(released || (isStandby && card.standbyAbsent)) ? '<span class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : ''}
-        ${isHoliday ? '' : `<span class="card__times"><span>${timeA}</span><span>${timeB}</span></span>`}
+        ${(isHoliday || isSup) ? '' : `<span class="card__times"><span>${timeA}</span><span>${timeB}</span></span>`}
       </${tag}>`;
 
       /* Gezeichnet wird die Zählkarte **nicht** hier, sondern weiter unten
@@ -6700,7 +6727,119 @@ document.addEventListener('visibilitychange', () => {
   else if (view === 'today') showScreen('start');
 
   scrollToNow();
+  planwachtStart();
 })();
+
+/* =====================================================================
+   Benachrichtigungen bei Änderungen im eigenen Plan
+   ---------------------------------------------------------------------
+   Nur für angemeldete Lehrkräfte. Nach der Erlaubnis des Browsers merkt
+   sich die App den Stand der laufenden und der nächsten Woche und
+   vergleicht ihn beim Öffnen, beim Zurückkehren in die App, alle 15
+   Minuten während sie offen ist und — wo es der Browser anbietet — im
+   Hintergrund (periodic background sync im Service Worker). Am iPhone
+   gibt es Benachrichtigungen nur in der zum Homescreen hinzugefügten App.
+   ===================================================================== */
+function planwachtMoeglich(){
+  const art = state.ownKind || '';
+  const lehrkraft = art ? art === 'teacher' : ((state.user && state.user.rolle) === 'lehrer');
+  return state.source === 'db' && lehrkraft && !keineLehrerplaene() && !!window.PlanWacht;
+}
+function planwachtUnterstuetzt(){
+  return 'Notification' in window && 'serviceWorker' in navigator && 'caches' in window;
+}
+function planwachtKonto(){ return state.ownCode || (state.user && state.user.login) || ''; }
+const planwachtAn = () => !!store.get('notify', false)
+  && planwachtUnterstuetzt() && Notification.permission === 'granted';
+
+async function planwachtHintergrund(an){
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg.periodicSync) return false;
+    if (!an){ await reg.periodicSync.unregister('planwacht'); return false; }
+    const p = navigator.permissions
+      ? await navigator.permissions.query({ name:'periodic-background-sync' }).catch(() => null) : null;
+    if (p && p.state === 'denied') return false;
+    await reg.periodicSync.register('planwacht', { minInterval: 60 * 60 * 1000 });
+    return true;
+  } catch (e){ return false; }
+}
+
+function planwachtHinweis(text){
+  const h = $('#notifyHint'); if (h) h.textContent = text;
+}
+
+let planwachtZuletzt = 0;
+function planwachtPruefen(){
+  if (!planwachtMoeglich() || !planwachtAn()) return;
+  if (Date.now() - planwachtZuletzt < 60 * 1000) return;   /* nicht doppelt kurz hintereinander */
+  planwachtZuletzt = Date.now();
+  window.PlanWacht.pruefen().catch(() => null);
+}
+
+function planwachtStart(){
+  const row = $('#rowNotify'), el = $('#optNotify');
+  if (!row || !el) return;
+  row.hidden = !planwachtMoeglich();
+  if (row.hidden){
+    /* Kein Lehrerkonto (mehr): eine früher eingeschaltete Wache ruht. */
+    if (window.PlanWacht && state.source === 'db' && store.get('notify', false)){
+      store.set('notify', false);
+      window.PlanWacht.einstellen(false, planwachtKonto()).catch(() => null);
+      if ('serviceWorker' in navigator) planwachtHintergrund(false);
+    }
+    return;
+  }
+
+  if (!planwachtUnterstuetzt()){
+    el.checked = false; el.disabled = true;
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    planwachtHinweis(ios ? 'Nur in der App vom Homescreen' : 'Von diesem Browser nicht unterstützt');
+    return;
+  }
+  if (Notification.permission === 'denied'){
+    planwachtHinweis('Im Browser nicht erlaubt');
+  }
+  el.checked = planwachtAn();
+
+  el.addEventListener('change', async () => {
+    if (el.checked){
+      let erlaubnis = Notification.permission;
+      if (erlaubnis === 'default'){
+        try { erlaubnis = await Notification.requestPermission(); } catch (e){ erlaubnis = 'denied'; }
+      }
+      if (erlaubnis !== 'granted'){
+        el.checked = false;
+        store.set('notify', false);
+        planwachtHinweis('Im Browser nicht erlaubt');
+        toast('Benachrichtigungen sind für diese Seite nicht erlaubt');
+        return;
+      }
+      store.set('notify', true);
+      await window.PlanWacht.einstellen(true, planwachtKonto());
+      /* Stand merken, ohne zu melden — ab jetzt zählt jede Änderung. */
+      await window.PlanWacht.pruefen({ stumm:true }).catch(() => null);
+      const hinten = await planwachtHintergrund(true);
+      planwachtHinweis(hinten ? 'Bei Änderungen im eigenen Plan, auch im Hintergrund'
+                              : 'Bei Änderungen im eigenen Plan (beim Öffnen der App)');
+      toast('Benachrichtigungen eingeschaltet');
+    } else {
+      store.set('notify', false);
+      await window.PlanWacht.einstellen(false, planwachtKonto());
+      await planwachtHintergrund(false);
+      planwachtHinweis('Bei Änderungen im eigenen Plan');
+    }
+  });
+
+  if (planwachtAn()){
+    /* Konto gewechselt? Dann beginnt die Wache mit leerem Stand. */
+    window.PlanWacht.einstellen(true, planwachtKonto())
+      .then(() => planwachtHintergrund(true))
+      .then(() => planwachtPruefen());
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) planwachtPruefen(); });
+  setInterval(() => { if (!document.hidden) planwachtPruefen(); }, 15 * 60 * 1000);
+}
 
 })();
 

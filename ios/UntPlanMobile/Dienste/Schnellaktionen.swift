@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 /// Kurzbefehle beim langen Drücken auf das App-Symbol (wie die „shortcuts“ der PWA):
 /// Heute, Mein Stundenplan, Mitteilungen, Plan suchen.
@@ -64,6 +65,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         application.shortcutItems = Schnellaktion.allCases.map(\.eintrag)
+        // Mitteilungen bei Planänderungen (Lehrkräfte): Antippen öffnet den Tag; Hintergrund-Prüfung registrieren
+        UNUserNotificationCenter.current().delegate = self
+        Planmitteilungen.registrieren()
         return true
     }
 

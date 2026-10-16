@@ -37,6 +37,7 @@
 		5A1F0C00000000000000004E /* GeheZuDatumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000004D /* GeheZuDatumView.swift */; };
 		5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003F /* ProfilSeiten.swift */; };
 		5A1F0C000000000000000042 /* Kachelbau.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000041 /* Kachelbau.swift */; };
+		5A1F0C000000000000000050 /* Planmitteilungen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000004F /* Planmitteilungen.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +72,8 @@
 		5A1F0C00000000000000004D /* GeheZuDatumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeheZuDatumView.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000003F /* ProfilSeiten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilSeiten.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000041 /* Kachelbau.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kachelbau.swift; sourceTree = "<group>"; };
+		5A1F0C00000000000000004F /* Planmitteilungen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Planmitteilungen.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000051 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +103,7 @@
 				5A1F0C000000000000000013 /* Dienste */,
 				5A1F0C000000000000000014 /* Ansichten */,
 				5A1F0C000000000000000010 /* Assets.xcassets */,
+				5A1F0C000000000000000051 /* Info.plist */,
 			);
 			path = UntPlanMobile;
 			sourceTree = "<group>";
@@ -139,6 +143,7 @@
 				5A1F0C00000000000000003B /* Favoriten.swift */,
 				5A1F0C000000000000000045 /* Schnellaktionen.swift */,
 				5A1F0C000000000000000041 /* Kachelbau.swift */,
+				5A1F0C00000000000000004F /* Planmitteilungen.swift */,
 				5A1F0C000000000000000021 /* Schluesselbund.swift */,
 			);
 			path = Dienste;
@@ -250,6 +255,7 @@
 				5A1F0C00000000000000003C /* Favoriten.swift in Sources */,
 				5A1F0C000000000000000046 /* Schnellaktionen.swift in Sources */,
 				5A1F0C000000000000000042 /* Kachelbau.swift in Sources */,
+				5A1F0C000000000000000050 /* Planmitteilungen.swift in Sources */,
 				5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */,
 				5A1F0C00000000000000003E /* StundendetailSeiten.swift in Sources */,
 				5A1F0C000000000000000044 /* DetailBausteine.swift in Sources */,
@@ -394,6 +400,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = UntPlanMobile/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = UntPlan;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -424,6 +431,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = UntPlanMobile/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = UntPlan;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

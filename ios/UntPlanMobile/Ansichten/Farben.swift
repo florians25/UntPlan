@@ -129,11 +129,8 @@ enum Farben {
     /// Zeile der Reiter (mehrere Stunden zur selben Zeit) in den Stundendetails
     static let reiterGrund = Color(hell: 0xF3F5F7, dunkel: 0x242427)
 
-    // Raumänderung (gelb-orangener Rand wie in der Vorlage)
+    // Raumbuchung (gelb-orangener Rand). Raumänderungen erscheinen grün wie eine Änderung (aenderungHintergrund/-Rand).
     static let raumRand = Color(hell: 0xE9A23B, dunkel: 0xF0B04A)
-    /// Raumänderung im Raster (Original): hell gelbe Fläche mit braunem Rahmen, dunkel braun-orange mit orangem Rahmen
-    static let raumKarte = Color(hell: 0xFFF6D5, dunkel: 0x6E300E)
-    static let raumKartenRand = Color(hell: 0xA1512C, dunkel: 0xE9A23B)
     /// Kopfblock der Stundendetails bei Entfall (Original: hellgrau #dfe1e6) und roter Balken „ENTFÄLLT“
     static let detailEntfallFlaeche = Color(hell: 0xDFE1E6, dunkel: 0x2C2F36)
     static let detailEntfallBalken = Color(hexWert: 0xFF0000)
@@ -183,7 +180,7 @@ struct Kartenstil {
     var plakette: String?
     var plaketteFarbe: Color
 
-    /// Farbe der Plakette für geänderte Werte auf der Karte: grün bei Vertretung, sonst gelb-orange (Raum, Buchung, Prüfung).
+    /// Farbe der Plakette für geänderte Werte auf der Karte: grün bei Vertretung und Raumänderung, sonst gelb-orange (Buchung, Prüfung).
     var wertFarbe: Color = Farben.gruen
 
     init(_ karte: Karte, vergangen: Bool = false) {
@@ -223,10 +220,10 @@ struct Kartenstil {
                       rand: Farben.entfallRand, schatten: false, durchgestrichen: true,
                       plakette: "Entfall", plaketteFarbe: Farben.entfallRand)
         case "geaendert" where Kartenstil.nurRaumGeaendert(karte):
-            // Raumänderung: Karte bleibt weiß, gelb-orangener Rand, neuer Raum als Plakette
-            self.init(hintergrund: vergangen ? Farben.karteVergangen : Farben.karte,
-                      rand: Farben.raumRand, schatten: true, durchgestrichen: false,
-                      plakette: "Raumänderung", plaketteFarbe: Farben.raumRand)
+            // Raumänderung: grün wie eine Änderung (nie gelb/braun – das bleibt Prüfungen vorbehalten), neuer Raum als grüne Plakette
+            self.init(hintergrund: vergangen ? Farben.aenderungVergangen : Farben.aenderungHintergrund,
+                      rand: Farben.aenderungRand, schatten: true, durchgestrichen: false,
+                      plakette: "Raumänderung", plaketteFarbe: Farben.gruen)
         case "geaendert":
             self.init(hintergrund: vergangen ? Farben.aenderungVergangen : Farben.aenderungHintergrund,
                       rand: Farben.aenderungRand, schatten: true, durchgestrichen: false,
@@ -273,6 +270,6 @@ struct Kartenstil {
         self.durchgestrichen = durchgestrichen
         self.plakette = plakette
         self.plaketteFarbe = plaketteFarbe
-        self.wertFarbe = ["Raumänderung", "Raumbuchung", "Prüfung"].contains(plakette ?? "") ? plaketteFarbe : Farben.gruen
+        self.wertFarbe = ["Raumbuchung", "Prüfung"].contains(plakette ?? "") ? plaketteFarbe : Farben.gruen
     }
 }

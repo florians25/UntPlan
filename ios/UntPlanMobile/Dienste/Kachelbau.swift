@@ -132,7 +132,7 @@ struct Kachel: Identifiable {
     var rang: Int = 1
     /// Zusatzstunde (Plakette in den Details)
     var zusatz: Bool = false
-    /// Nur der Raum hat sich geändert (Original: gelbe Karte, neuer Raum als grüne Plakette)
+    /// Nur der Raum hat sich geändert (grüne Karte wie eine Änderung, neuer Raum als grüne Plakette – nie gelb wie eine Prüfung)
     var raumAenderung: Bool = false
 
     /// Zeigt Text beim Antippen (alles außer der Ganztags-Pille).
@@ -417,7 +417,7 @@ enum Kachelbau {
         }
         // Online-Unterricht: grün wie eine Änderung, Plakette „Online“
         if k.online && kachel.art == .normal { kachel.art = .aenderung }
-        // Reine Raumänderung (keine Raumbuchung, nicht online, keine offene Vertretung): gelbe Karte wie im Original
+        // Reine Raumänderung (keine Raumbuchung, nicht online, keine offene Vertretung): grüne Karte wie eine Änderung
         kachel.raumAenderung = geaendert == ["raum"] && !offen && !k.online && !k.istRaumbuchung && !kachel.zusatz
             && (kachel.art == .aenderung || kachel.art == .normal)
         if titel.isEmpty { titel = k.art }

@@ -28,7 +28,7 @@ public static class ErweiterungApi
     public sealed record DienstWocheDaten(int DienstId, int SchuelerId, DateOnly Datum, bool An);
     public sealed record DienstAutoDaten(string Klasse, int DienstId, DateOnly Von, DateOnly Bis, int? ProWoche);
     public sealed record BefreiungDaten(int SchuelerId, DateOnly Von, DateOnly Bis, int? Wochentag, string? Fach, string? Beginn, string? Ende, string? Grund, string? Text);
-    public sealed record EntwurfDaten(int? Id, List<string>? Empfaenger, string? Betreff, string? Text, bool Wichtig);
+    public sealed record EntwurfDaten(int? Id, List<string>? Empfaenger, string? Betreff, string? Text, bool Wichtig, bool Lesebestaetigung = false, int? AntwortAuf = null);
     public sealed record ListeDaten(string Name, List<string>? Mitglieder);
     public sealed record ProfilDaten(string? Email, string? Sprache, bool Benachrichtigung);
     public sealed record GrundDaten(string Kurz, string Name, string? Art, bool Entschuldigt, int? Reihenfolge, bool? Aktiv);
@@ -275,7 +275,7 @@ public static class ErweiterungApi
         // ---------------------------------------------------------------- Mitteilungen: Entwürfe, Listen, Anhänge
 
         api.MapPost("/mitteilungen/entwurf", (EntwurfDaten d, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
-            Results.Json(new { id = m.EntwurfSpeichern(Ich(c), p.Aktuell, d.Id, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig) }));
+            Results.Json(new { id = m.EntwurfSpeichern(Ich(c), p.Aktuell, d.Id, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig, d.Lesebestaetigung, d.AntwortAuf) }));
         api.MapPost("/mitteilungen/{id:int}/senden", (int id, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
             Results.Json(new { id = m.EntwurfSenden(Ich(c), p.Aktuell, id) }));
         api.MapGet("/mitteilungen/listen", (HttpContext c, Mitteilungsdienst m, Paketdienst p) => Results.Json(m.Listen(Ich(c), p.Aktuell)));
@@ -290,7 +290,7 @@ public static class ErweiterungApi
             if (!c.Request.HasFormContentType) throw new ArgumentException("Bitte eine Datei auswählen.");
             var form = await c.Request.ReadFormAsync();
             var datei = form.Files.FirstOrDefault() ?? throw new ArgumentException("Bitte eine Datei auswählen.");
-            if (datei.Length > Mitteilungsdienst.MaxAnhang) throw new ArgumentException("Ein Anhang darf höchstens 10 MB groß sein.");
+            if (datei.Length > m.MaxAnhang) throw new ArgumentException($"Ein Anhang darf höchstens {m.Einstellungen().MaxAnhangMb} MB groß sein.");
             using var ms = new MemoryStream();
             await datei.CopyToAsync(ms);
             return Results.Json(m.AnhangHinzufuegen(b, id, datei.FileName, datei.ContentType, ms.ToArray()));

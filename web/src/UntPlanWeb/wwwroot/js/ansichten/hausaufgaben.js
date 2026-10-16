@@ -1,5 +1,6 @@
 // Hausaufgaben: nach Fälligkeit geordnet, Filter nach Zeitraum, Klasse und Lehrkraft; Klassenkonten zusätzlich mit Reiter „Lehrstoff“.
 import { e, icon, holen, leer, filterFeld, datumKachel, datumKurz, heuteIso, plusTage, montag } from '../ui.js';
+import { hausaufgabeDetails, hausaufgabeFormular } from '../hausaufgabe.js';
 
 export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, lehrerParam]) {
   // Schüler*innen und Erziehungsberechtigte: Hausaufgaben des Kindes (Datum + Woche/Monat)
@@ -75,16 +76,25 @@ async function hausaufgabenListe(seite, kontext, bereichParam) {
   let filter = '';
   let daten = [];
   const laden = async () => {
-    daten = await holen(`/api/app/hausaufgaben?von=${von}&bis=${bis}${wahl === 'meine' && ich.element ? `&lehrer=${encodeURIComponent(ich.element)}` : ''}`);
+    daten = await holen(`/api/app/hausaufgaben/eintraege?von=${von}&bis=${bis}${wahl === 'meine' && ich.element ? `&lehrer=${encodeURIComponent(ich.element)}` : ''}`);
     zeichnen();
   };
+  // Zeile anklicken → Detailfenster; Anlegen über ein Fenster (Datum und Stunde aus den eigenen Unterrichten)
   const zeichnen = () => {
-    const l = daten.filter(h => !filter || `${h.fach} ${h.lehrer} ${h.hausaufgabe} ${h.klassen.join(' ')}`.toLowerCase().includes(filter));
-    kontext.titel(basis === '#/aufgaben' ? 'Aufgaben' : 'Hausaufgaben', '', String(l.length));
-    seite.innerHTML = `<div class="u-tabelle-karte">${l.length ? `<table class="u-tabelle"><thead><tr><th>Aufgabendatum</th><th>Fälligkeitsdatum</th><th>Fach</th><th>Klasse</th><th>Erstellt von</th><th>Hausaufgabe</th><th>Anhänge</th></tr></thead><tbody>
-      ${l.map(h => `<tr><td>${datumDe(h.datum)}</td><td>${datumDe(h.faellig)}</td><td>${e(h.fach)}</td><td>${e(h.klassen.join(', '))}</td><td>${e(h.lehrer)}</td>
-        <td class="ha-text" title="${e(h.hausaufgabe)}">${e(h.hausaufgabe.length > 40 ? h.hausaufgabe.slice(0, 18) + ' …' : h.hausaufgabe)}</td><td></td></tr>`).join('')}</tbody></table>`
+    const l = daten.filter(h => !filter || `${h.fach} ${h.lehrer} ${h.text} ${h.bemerkung} ${h.klassen.join(' ')}`.toLowerCase().includes(filter));
+    kontext.titel(basis === '#/aufgaben' ? 'Aufgaben' : 'Hausaufgaben', ich.element ? `<button type="button" class="btn btn-primary" data-hw-neu>${icon('plus')}Neue Hausaufgabe</button>` : '', String(l.length));
+    document.querySelector('[data-hw-neu]')?.addEventListener('click', () => hausaufgabeFormular({ lehrer: ich.element, geaendert: laden }));
+    const heute = heuteIso();
+    seite.innerHTML = `<div class="u-tabelle-karte">${l.length ? `<table class="u-tabelle ha-liste"><thead><tr><th>Aufgabendatum</th><th>Fälligkeitsdatum</th><th>Fach</th><th>Klasse</th><th>Erstellt von</th><th>Hausaufgabe</th><th>Anhänge</th><th class="ha-st"><span class="visually-hidden">Status</span></th></tr></thead><tbody>
+      ${l.map((h, i) => `<tr data-i="${i}" tabindex="0" class="${h.erledigt ? 'erledigt' : ''}" aria-label="${e(`Hausaufgabe ${h.fach} ${h.klassen.join(', ')} öffnen`)}"><td>${datumDe(h.datum)}</td><td class="${h.faellig && h.faellig < heute && !h.erledigt ? 'ha-ueber' : ''}">${datumDe(h.faellig)}</td><td>${e(h.fach)}</td><td>${e(h.klassen.join(', '))}</td><td>${e(h.lehrer)}</td>
+        <td class="ha-text" title="${e(h.text)}">${e(h.text)}</td><td></td>
+        <td class="ha-st">${h.erledigt ? '<i class="bi bi-check-circle-fill" title="Erledigt" aria-label="Erledigt"></i>' : ''}</td></tr>`).join('')}</tbody></table>`
       : leer('Keine Hausaufgaben im Zeitraum.', 'hausaufgaben')}</div>`;
+    seite.querySelectorAll('tr[data-i]').forEach(tr => {
+      const oeffnen = () => hausaufgabeDetails(l[Number(tr.dataset.i)], { geaendert: aendern => aendern ? (daten = daten.slice(), zeichnen()) : laden() });
+      tr.onclick = oeffnen;
+      tr.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); oeffnen(); } };
+    });
   };
   w.querySelector('[data-wahl]').onchange = ev => { wahl = ev.target.value; laden(); };
   w.querySelector('[data-suche]').oninput = ev => { filter = ev.target.value.trim().toLowerCase(); zeichnen(); };

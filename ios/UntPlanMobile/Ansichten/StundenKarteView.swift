@@ -254,7 +254,8 @@ struct KachelView: View {
                 .lineLimit(1)
                 .layoutPriority(1)
             }
-            if gross {
+            // Tagesansicht: keine Uhrzeiten auf der Aufsichtskarte (die Pause zeigt das Raster selbst)
+            if gross && kachel.art != .aufsicht {
                 Text("\(Rasterzeit.uhrzeit(kachel.beginn))–\(Rasterzeit.uhrzeit(kachel.ende))")
                     .font(.system(size: 12.5).monospacedDigit())
                     .foregroundStyle(a.text.opacity(0.75))
@@ -484,14 +485,15 @@ struct Kachelaussehen {
                 text = Farben.aenderungText
             }
         }
-        // Reine Raumänderung: gelbe Karte mit braunem (dunkel: orangem) Rahmen, der neue Raum bleibt grüne Plakette
+        // Reine Raumänderung: wie eine Änderung/Vertretung (grüne Fläche mit grünem Rahmen), der neue Raum als grüne
+        // Plakette – nie gelb/braun (das ist ausschließlich Prüfungen bzw. Klausuren vorbehalten)
         if k.raumAenderung && (k.art == .aenderung || k.art == .normal) {
-            farbigeKarte(flaeche: Farben.raumKarte, rand: Farben.raumKartenRand, vergangen: v, dunkel: dunkel, schatten: true)
-            text = Farben.karteText
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            text = Farben.aenderungText
         }
     }
 
-    /// Farbige Kachel (Vertretung, Entfall, Klausur, Raumänderung, Veranstaltung) wie im Original: künftig farbige Fläche
+    /// Farbige Kachel (Vertretung, Raumänderung, Entfall, Klausur, Veranstaltung) wie im Original: künftig farbige Fläche
     /// mit Rahmen. Vergangen hell: farbige Fläche ohne Rahmen; vergangen dunkel: neutrale Schieferfläche, der farbige
     /// Rahmen bleibt. Plaketten bleiben grün.
     private mutating func farbigeKarte(flaeche: Color, rand farbe: Color, vergangen: Bool, dunkel: Bool, schatten mitSchatten: Bool) {

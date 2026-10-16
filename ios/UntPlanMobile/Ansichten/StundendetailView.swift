@@ -50,7 +50,8 @@ struct StundendetailInhalt: View {
     let karten: [Karte]
     @Binding var auswahl: Int
     @EnvironmentObject var zustand: AppZustand
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
     @StateObject private var daten: Stundendaten
     @State private var onlineFehler: String? = nil
     /// Raumliste („Ersetzen“ bzw. „Raum hinzufügen“) aus der Raumzeile
@@ -62,6 +63,11 @@ struct StundendetailInhalt: View {
         self.karten = karten
         _auswahl = auswahl
         _daten = StateObject(wrappedValue: Stundendaten(karte: karte))
+    }
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
     }
 
     private var kollegium: Bool { zustand.istKollegium }
@@ -187,6 +193,8 @@ struct StundendetailInhalt: View {
             Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: kollegium || karten.count > 1)
                 .contentShape(Rectangle())
         }
+        // Symbole im Menü schwarz bzw. weiß je nach Modus (nicht orange bzw. grau)
+        .tint(Color.primary)
         .accessibilityLabel("\(Datumsformat.anzeige(karte.datum, "EEEE, d. MMMM yyyy")), \(zeittitel)")
     }
 
@@ -207,6 +215,7 @@ struct StundendetailInhalt: View {
             } label: {
                 Rundknopf(symbol: "ellipsis", gewicht: .medium, groesse: 18, drehung: 90)
             }
+            .tint(Color.primary)
             .accessibilityLabel("Weitere Aktionen")
         }
     }
@@ -225,25 +234,26 @@ struct StundendetailInhalt: View {
     private var reiterleiste: some View {
         ScrollViewReader { leser in
             ScrollView(.horizontal) {
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
                         let gewaehlt = eintrag.offset == auswahl
                         Button {
                             auswahl = eintrag.offset
                         } label: {
+                            // Größere Reiter: 17 pt, mindestens 64 pt breit, 44 pt hoch (bequem antippbar)
                             Text(reitertitel(eintrag.element))
-                                .font(.system(size: 16, weight: gewaehlt ? .medium : .regular))
+                                .font(.system(size: 17, weight: gewaehlt ? .medium : .regular))
                                 .strikethrough(eintrag.element.istEntfall)
                                 .foregroundStyle(gewaehlt ? Farben.detailText : Farben.tinte2)
                                 .lineLimit(1)
-                                .padding(.horizontal, 6)
-                                .padding(.top, 9)
-                                .padding(.bottom, 10)
+                                .padding(.horizontal, 14)
+                                .frame(minWidth: 64, minHeight: 44)
                                 .overlay(alignment: .bottom) {
                                     if gewaehlt {
                                         Capsule()
                                             .fill(Farben.akzent)
                                             .frame(height: 3)
+                                            .padding(.horizontal, 8)
                                     }
                                 }
                                 .contentShape(Rectangle())
@@ -253,7 +263,7 @@ struct StundendetailInhalt: View {
                         .accessibilityAddTraits(gewaehlt ? .isSelected : [])
                     }
                 }
-                .padding(.horizontal, Detailmass.rand - 6)
+                .padding(.horizontal, Detailmass.rand - 10)
             }
             .scrollIndicators(.hidden)
             .onAppear { leser.scrollTo(auswahl, anchor: .center) }

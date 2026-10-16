@@ -274,6 +274,29 @@ public class PruefungsWegTests
         KeineOffenenKlausurmeldungen(a);
     }
 
+    /// <summary>Reine Raumänderung (Stundendetails bzw. Raumbuchung) ist nie eine Prüfung – weder vorgemerkt noch nach der Übernahme in UntPlan.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Raumaenderung_ist_nie_eine_Pruefung(bool automatisch)
+    {
+        await using var a = await Ablauf.StartenAsync();
+        var x = Doppelstunde(a, Tag);
+        var c = await a.S.AlsAsync(x.Lehrer.ToLowerInvariant(), "lehrer", x.Lehrer);
+        var raum = await FreierRaum(c, Tag, x.Von, x.Von, x.Raum);
+        await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/raumaenderung", new { datum = "2026-10-15", stundeVon = x.Von, stundeBis = x.Von, unterricht = x.Unterricht, raeume = new[] { raum } }));
+        void Pruefen()
+        {
+            foreach (var (typ, kurz) in new[] { (Elementtyp.Klasse, x.Klasse), (Elementtyp.Lehrer, x.Lehrer), (Elementtyp.Raum, raum), (Elementtyp.Raum, x.Raum) })
+                Assert.All(a.Karten(Tag, typ, kurz, x.Von, x.Von), k => { Assert.NotEqual("klausur", k.Status); Assert.False(Plandienst.IstKlausur(k.Art), k.Art); });
+            var karte = Assert.Single(a.Karten(Tag, Elementtyp.Klasse, x.Klasse, x.Von, x.Von), z => z.Unterricht == x.Unterricht);
+            Assert.Contains(karte.Raeume, w => w.K == raum);
+        }
+        Pruefen();
+        for (var i = 0; i < 2; i++) { await a.RundeAsync(automatisch); Pruefen(); }
+        Assert.Empty(a.D.Klausuren);
+    }
+
     [Fact]
     public async Task Pruefungsliste_zeigt_keine_Dubletten_und_keine_geloeschten_Pruefungen()
     {

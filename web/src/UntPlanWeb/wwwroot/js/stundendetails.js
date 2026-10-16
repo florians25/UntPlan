@@ -8,6 +8,7 @@
 // und für Lehrkräfte; unten „Vorherige Stunde“, „Nächste Stunde“, „Prüfung erstellen“ und „Raum buchen“.
 import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui.js';
 import * as sitz from './ansichten/sitzplan.js';
+import { hausaufgabeDetails, hausaufgabeFormular } from './hausaufgabe.js';
 
 const PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
 const W = '/img/wu/';
@@ -47,7 +48,7 @@ function wertKopf(liste, max = 6, typ = null, lehrkraft = typ === 'lehrer') {
     + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
 }
 
-const LEHRFORMEN = ['Einzelarbeit', 'Partnerarbeit', 'Gruppenarbeit', 'Frontalunterricht', 'Unterrichtsgespräch', 'Projektarbeit', 'Stationenlernen', 'Präsentation', 'Diskussion', 'Distanzunterricht'];
+export const LEHRFORMEN = ['Einzelarbeit', 'Partnerarbeit', 'Gruppenarbeit', 'Frontalunterricht', 'Unterrichtsgespräch', 'Projektarbeit', 'Stationenlernen', 'Präsentation', 'Diskussion', 'Distanzunterricht'];
 const zeitstempel = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/); return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}:${m[6] ?? '00'}` : ''; };
 const WT_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
@@ -322,33 +323,18 @@ export function karteDialog(karte, kontext = {}) {
     return abschnitt(maskeIcon('klassenbuch/chair-1.svg'), 'Abwesende Schüler*innen', (a.fehlzeiten ?? []).length, '', tabelle);
   }
 
-  function hausaufgabeZeile(h, bearbeitbar) {
-    return `<div class="kb-hw ${h.erledigt ? 'erledigt' : ''}">${h.faellig ? `<span class="faellig">bis ${datumDe(h.faellig)}</span>` : ''}<span class="text">${e(h.text)}</span>${h.bemerkung ? `<small>${e(h.bemerkung)}</small>` : ''}
-      ${bearbeitbar ? `<span class="kb-hw-knoepfe"><button type="button" data-hw-bearbeiten="${h.id}" title="Bearbeiten"><i class="bi bi-pencil"></i></button>
-        <button type="button" data-hw-erledigt="${h.id}" title="${h.erledigt ? 'Als offen markieren' : 'Erledigt'}"><i class="bi ${h.erledigt ? 'bi-check-circle-fill' : 'bi-check-circle'}"></i></button>
-        <button type="button" data-hw-loeschen="${h.id}" title="Löschen"><i class="bi bi-trash"></i></button></span>` : ''}</div>`;
-  }
-
-  function hausaufgabeFormular(h) {
-    const neu = !h;
-    return `<div class="kb-editor" data-hw-formular="${neu ? 'neu' : h.id}"><div class="kb-editor-titel">${neu ? '<i class="bi bi-plus-circle"></i> Neue Hausaufgabe' : 'Hausaufgabe bearbeiten'}</div>
-      <div class="kb-formular">
-        <label>Fälligkeitsdatum</label><input type="date" class="form-control form-control-sm" style="max-width:180px" data-hw-faellig value="${e(h?.faellig ?? plusTage(k.datum, 7))}" min="${k.datum}">
-        <label>Hausaufgaben</label><textarea class="form-control form-control-sm" rows="3" data-hw-text>${e(h?.text ?? '')}</textarea>
-        <label>Bemerkung</label><input class="form-control form-control-sm" data-hw-bemerkung value="${e(h?.bemerkung ?? '')}">
-        <label>Anhang</label><span class="small text-body-secondary pt-1">Nichts anzuzeigen</span>
-      </div>
-      <div class="d-flex gap-2 mt-2"><button type="button" class="sd-pille klein primaer" data-hw-speichern>${neu ? 'Erstellen' : 'Speichern'}</button><button type="button" class="sd-pille klein" data-hw-abbrechen>Abbrechen</button></div></div>`;
+  /** Hausaufgabe als ruhige Zeile; Klick öffnet das Detailfenster (Bearbeiten/Löschen/Erledigt für die Lehrkraft). */
+  function hausaufgabeZeile(h) {
+    return `<button type="button" class="kb-hw klickbar ${h.erledigt ? 'erledigt' : ''}" data-hw-details="${h.id}" title="Details anzeigen">${h.faellig ? `<span class="faellig">bis ${datumDe(h.faellig)}</span>` : ''}<span class="text">${e(h.text)}</span>${h.bemerkung ? `<small>${e(h.bemerkung)}</small>` : ''}
+      ${h.erledigt ? '<i class="bi bi-check-circle-fill kb-hw-ok" title="Erledigt" aria-label="Erledigt"></i>' : ''}<i class="bi bi-chevron-right kb-hw-pfeil" aria-hidden="true"></i></button>`;
   }
 
   function hausaufgabenHtml() {
     const hw = daten.hausaufgaben;
-    const darf = hw.darf;
-    const stift = darf && offen !== 'hausaufgaben' ? '<button type="button" class="sd-stift" data-bearbeiten="hausaufgaben" title="Hausaufgaben bearbeiten" aria-label="Hausaufgaben bearbeiten"><i class="bi bi-pencil"></i></button>' : '';
-    const liste = hw.liste.length ? hw.liste.map(h => hwBearbeiten === h.id ? hausaufgabeFormular(h) : hausaufgabeZeile(h, offen === 'hausaufgaben')).join('') : '<p class="sd-text small">Keine Hausaufgaben vorhanden</p>';
-    const faellig = hw.faellig.length ? `<div class="kb-hw-faellig"><div class="small fw-semibold mb-1">Fällige Hausaufgaben</div>${hw.faellig.map(h => hausaufgabeZeile(h, false)).join('')}</div>` : '';
-    const neu = offen === 'hausaufgaben' ? (hwBearbeiten === 'neu' ? hausaufgabeFormular(null) : '<div class="d-flex gap-2 mt-2"><button type="button" class="sd-pille klein" data-hw-neu><i class="bi bi-plus-lg"></i> Neue Hausaufgabe</button><button type="button" class="sd-pille klein" data-zu>Schließen</button></div>') : '';
-    return abschnitt(maskeIcon('klassenbuch/common-file-text-home-kopie.svg'), 'Hausaufgaben', null, stift, liste + neu + faellig);
+    const plus = hw.darf ? '<button type="button" class="sd-plus" data-hw-neu title="Neue Hausaufgabe" aria-label="Neue Hausaufgabe"><i class="bi bi-plus-lg"></i></button>' : '';
+    const liste = hw.liste.length ? hw.liste.map(hausaufgabeZeile).join('') : '<p class="sd-text small">Keine Hausaufgaben vorhanden</p>';
+    const faellig = hw.faellig.length ? `<div class="kb-hw-faellig"><div class="small fw-semibold mb-1">Fällige Hausaufgaben</div>${hw.faellig.map(hausaufgabeZeile).join('')}</div>` : '';
+    return abschnitt(maskeIcon('klassenbuch/common-file-text-home-kopie.svg'), 'Hausaufgaben', hw.liste.length || null, plus, liste + faellig);
   }
 
   function vermerkeHtml() {
@@ -362,12 +348,24 @@ export function karteDialog(karte, kontext = {}) {
     return abschnitt(maskeIcon('class_register_entries.svg'), 'Klassenbucheinträge', v.length, plus, tabelle);
   }
 
+  /** Klassendienste der Stunde in der Optik der Seite Klassendienste: je Dienst eine Zeile mit Symbol, Zeitraum und Schüler*innen-Chips. */
   function diensteHtml() {
     const d = daten.dienste;
-    const inhalt = d.length ? `<table class="alt-liste kb-dienste"><tbody>${d.map(x => `<tr title="${e(x.dienst)}${x.text ? ' · ' + e(x.text) : ''}">
-        <td class="mitte"><img src="${W}legacy/duty-broom.png" alt=""></td><td>${e(x.dienstKurz || x.dienst)}</td><td>${e(x.schueler)}</td></tr>`).join('')}</tbody></table>`
-      : '<p class="sd-text small">Nichts anzuzeigen</p>';
-    return abschnitt(maskeIcon('class_services.svg'), 'Klassendienste', d.length, '', inhalt);
+    const ini = n => String(n || '').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
+    const kurz = iso => { const [, m, t] = iso.split('-'); return `${Number(t)}.${Number(m)}.`; };
+    const gruppen = [];
+    for (const z of d) {
+      const g = gruppen.find(x => x.dienstId === z.dienstId && x.von === z.von && x.bis === z.bis && x.klasse === z.klasse);
+      if (g) g.eintraege.push(z); else gruppen.push({ dienstId: z.dienstId, dienst: z.dienst, von: z.von, bis: z.bis, klasse: z.klasse, text: z.text, eintraege: [z] });
+    }
+    const mehrereKlassen = new Set(gruppen.map(g => g.klasse)).size > 1;
+    const inhalt = gruppen.length ? `<div class="kb-kd">${gruppen.map(g => `<div class="kb-kd-zeile" title="${e(g.dienst)}${g.text ? ' · ' + e(g.text) : ''}">
+        <span class="kd-dienst"><span class="kd-symbol"><i class="bi bi-person-gear"></i></span><span><b>${e(g.dienst)}</b><small>${g.von === g.bis ? kurz(g.von) : `${kurz(g.von)} – ${kurz(g.bis)}`}${mehrereKlassen ? ` · ${e(g.klasse)}` : ''}${g.text ? ` · ${e(g.text)}` : ''}</small></span></span>
+        <span class="kd-schueler">${g.eintraege.map(z => `<span class="kd-person"><span class="kd-avatar">${e(ini(z.schueler))}</span>${e(z.schueler)}</span>`).join('')}</span></div>`).join('')}</div>`
+      : '<p class="sd-text small mb-0">Für diesen Tag ist niemand eingeteilt.</p>';
+    const kl = klassenListe()[0];
+    const rechts = kl ? `<a class="sd-link-klein" href="#/dienste/${encodeURIComponent(kl)}/alle/liste" data-dienste-link>Klassendienste</a>` : '';
+    return abschnitt(maskeIcon('class_services.svg'), 'Klassendienste', gruppen.length || null, rechts, inhalt);
   }
 
   function ticketFormular() {
@@ -401,8 +399,8 @@ export function karteDialog(karte, kontext = {}) {
     if (k.status === 'klausur') teile.push(reihe(datei, 'Prüfung', `<p class="sd-text">${e([k.art, k.text].filter(Boolean).join(' – '))}</p>`));
     if (ein?.thema) teile.push(reihe(datei, 'Lehrstoff', `<p class="sd-text">${e(ein.thema)}</p>`));
     const hw = daten.hausaufgaben;
-    if (hw.faellig.length) teile.push(reihe(maskeIcon('exact/homework.svg'), 'Fällige Hausaufgaben', hw.faellig.map(h => hausaufgabeZeile(h, false)).join('')));
-    if (hw.liste.length) teile.push(reihe(maskeIcon('exact/homework.svg'), 'Hausaufgaben', hw.liste.map(h => hausaufgabeZeile(h, false)).join('')));
+    if (hw.faellig.length) teile.push(reihe(maskeIcon('exact/homework.svg'), 'Fällige Hausaufgaben', hw.faellig.map(hausaufgabeZeile).join('')));
+    if (hw.liste.length) teile.push(reihe(maskeIcon('exact/homework.svg'), 'Hausaufgaben', hw.liste.map(hausaufgabeZeile).join('')));
     if (unterricht) {
       teile.push(notizFeld('notizSchueler', 'Notizen für Schüler*innen', ein?.notizSchueler ?? k.notizSchueler));
       if (kollegium) teile.push(notizFeld('notiz', 'Notizen für Lehrkräfte', ein?.notiz ?? k.notizLehrer));
@@ -654,29 +652,15 @@ export function karteDialog(karte, kontext = {}) {
       box.querySelector('[data-hw-neu]')?.scrollIntoView({ block: 'center' });
     });
 
-    // Hausaufgaben
-    q('[data-hw-neu]')?.addEventListener('click', () => { hwBearbeiten = 'neu'; zeichnen(); box.querySelector('[data-hw-text]')?.focus(); });
-    alle('[data-hw-bearbeiten]', b => b.onclick = () => { hwBearbeiten = Number(b.dataset.hwBearbeiten); zeichnen(); });
-    q('[data-hw-abbrechen]')?.addEventListener('click', () => { hwBearbeiten = null; zeichnen(); });
-    q('[data-hw-speichern]')?.addEventListener('click', async () => {
-      const form = box.querySelector('[data-hw-formular]');
-      const daten2 = { text: form.querySelector('[data-hw-text]').value.trim(), faellig: form.querySelector('[data-hw-faellig]').value || null, bemerkung: form.querySelector('[data-hw-bemerkung]').value };
-      if (!daten2.text) return toast('Bitte die Hausaufgabe eingeben.', true);
-      try {
-        if (form.dataset.hwFormular === 'neu') await senden('/api/app/klassenbuch/hausaufgabenliste', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, ...daten2 });
-        else await senden(`/api/app/klassenbuch/hausaufgabenliste/${form.dataset.hwFormular}`, daten2, 'PUT');
-        await hausaufgabenNeu();
-        toast(form.dataset.hwFormular === 'neu' ? 'Hausaufgabe erstellt.' : 'Hausaufgabe gespeichert.');
-        hwBearbeiten = null; zeichnen();
-      } catch (err) { toast(err.message, true); }
-    });
-    alle('[data-hw-erledigt]', b => b.onclick = async () => {
-      const h = daten.hausaufgaben.liste.find(x => x.id === Number(b.dataset.hwErledigt));
-      try { await senden(`/api/app/klassenbuch/hausaufgabenliste/${h.id}`, { erledigt: !h.erledigt }, 'PUT'); await hausaufgabenNeu(); zeichnen(); } catch (err) { toast(err.message, true); }
-    });
-    alle('[data-hw-loeschen]', b => b.onclick = async () => {
-      if (!confirm('Hausaufgabe löschen?')) return;
-      try { await senden(`/api/app/klassenbuch/hausaufgabenliste/${b.dataset.hwLoeschen}`, undefined, 'DELETE'); await hausaufgabenNeu(); toast('Hausaufgabe gelöscht.'); zeichnen(); } catch (err) { toast(err.message, true); }
+    q('[data-dienste-link]')?.addEventListener('click', ev => { ev.preventDefault(); const z = ev.currentTarget.getAttribute('href'); modal.hide(); setTimeout(() => kontext.navigieren ? kontext.navigieren(z) : (location.hash = z)); });
+    // Hausaufgaben: Anlegen im Fenster, Klick auf eine Hausaufgabe öffnet die Details
+    const hwNeuGeladen = async () => { try { await hausaufgabenNeu(); } catch (err) { toast(err.message, true); } zeichnen(); };
+    q('[data-hw-neu]')?.addEventListener('click', () => hausaufgabeFormular({ stunde: { datum: k.datum, von: k.von, unterricht: k.unterricht, fach: k.fach, klassen: klassenListe() }, geaendert: hwNeuGeladen }));
+    alle('[data-hw-details]', b => b.onclick = () => {
+      const id = Number(b.dataset.hwDetails);
+      const eigen = daten.hausaufgaben.liste.find(x => x.id === id);
+      const h = eigen ?? daten.hausaufgaben.faellig.find(x => x.id === id);
+      if (h) hausaufgabeDetails({ ...h, lehrer: h.lehrer }, { darf: !!eigen && daten.hausaufgaben.darf, geaendert: hwNeuGeladen });
     });
 
     // Abwesende Schüler*innen

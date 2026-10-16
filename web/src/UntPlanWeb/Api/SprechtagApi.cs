@@ -25,6 +25,7 @@ public static class SprechtagApi
     public sealed record TerminDaten(string? Lehrer, int SchuelerId, string? Beginn, string? Bemerkung);
     public sealed record VerschiebeDaten(string? Beginn, string? Bemerkung);
     public sealed record BuchDaten(string? Lehrer, int SchuelerId, string? Beginn);
+    public sealed record AbsageDaten(string? Lehrer, string? Grund);
 
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
@@ -76,8 +77,8 @@ public static class SprechtagApi
     private static object Json(Sprechtagdienst d, Sprechtag t, Stand? s) => new
     {
         t.Id, t.Name, t.Datum, datumText = DatumText(t.Datum), t.Beginn, t.Ende, t.Dauer, t.Pausen, t.EinladungBis, t.AnmeldungVon, t.AnmeldungBis,
-        einladungEnde = Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv), t.Sichtbar, t.Raumwahl, t.Hinweis, phase = d.Phase(t),
-        lehrkraefte = t.Lehrkraefte.Select(l => new { l.Lehrer, l.Raum, name = Sprechtagdienst.LehrerName(s, l.Lehrer) }),
+        einladungEnde = Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv), t.Sichtbar, t.Raumwahl, t.Hinweis, phase = d.Phase(t), t.Abgesagt, t.AbsageGrund,
+        lehrkraefte = t.Lehrkraefte.Select(l => new { l.Lehrer, l.Raum, name = Sprechtagdienst.LehrerName(s, l.Lehrer), l.Abgesagt, l.AbsageGrund }),
         zeitfenster = Sprechtagdienst.Zeitfenster(t).Count,
     };
 
@@ -113,6 +114,8 @@ public static class SprechtagApi
                     var eigene = l is null ? termine.Count : termine.Count(x => Ci.Equals(x.Lehrer, l.Lehrer));
                     var text = phase switch
                     {
+                        Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt." + (t.AbsageGrund.Length > 0 ? $" Grund: {t.AbsageGrund}" : ""),
+                        _ when l is { Abgesagt.Length: > 0 } => "Sie haben Ihre Teilnahme abgesagt.",
                         Sprechtagdienst.Einladung when l != null => $"Hier können Sie bis {ZeitText(Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv))} Erziehungsberechtigte zum Gespräch einladen.",
                         Sprechtagdienst.Einladung => $"Einladungsphase der Lehrkräfte; Anmeldung für Erziehungsberechtigte ab {ZeitText(t.AnmeldungVon)}.",
                         Sprechtagdienst.Anmeldung => $"Anmeldung für Erziehungsberechtigte bis {ZeitText(t.AnmeldungBis)} · {eigene} {(eigene == 1 ? "Termin" : "Termine")} gebucht.",
@@ -127,6 +130,7 @@ public static class SprechtagApi
                     if (phase != Sprechtagdienst.Anmeldung && eigene == 0 && einladungen == 0) continue;
                     var text = phase switch
                     {
+                        Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt." + (t.AbsageGrund.Length > 0 ? $" Grund: {t.AbsageGrund}" : ""),
                         Sprechtagdienst.Anmeldung => $"Hier können Sie bis {ZeitText(t.AnmeldungBis)} Gesprächstermine buchen" + (eigene > 0 ? $" · {eigene} {(eigene == 1 ? "Termin" : "Termine")} gebucht." : "."),
                         Sprechtagdienst.Einladung => $"Sie haben {einladungen} {(einladungen == 1 ? "Einladung" : "Einladungen")} erhalten. Die Anmeldung beginnt am {ZeitText(t.AnmeldungVon)}.",
                         _ => $"{eigene} {(eigene == 1 ? "Termin" : "Termine")} gebucht.",
@@ -236,7 +240,7 @@ public static class SprechtagApi
             return Results.Json(new
             {
                 sprechtag = Json(d, t, s), admin = b.IstAdmin,
-                lehrer = new { kurz, name = Sprechtagdienst.LehrerName(s, kurz), l.Raum },
+                lehrer = new { kurz, name = Sprechtagdienst.LehrerName(s, kurz), l.Raum, l.Abgesagt, l.AbsageGrund },
                 darfRaum = b.IstAdmin || t.Raumwahl,
                 raeume = b.IstAdmin || t.Raumwahl ? (s?.Paket.Elemente.Raeume ?? new()).OrderBy(r => r.Kurz, Ci).Select(r => new { r.Kurz, r.Name }).ToList<object>() : new List<object>(),
                 einladenMoeglich = t.Sichtbar && uhr.Jetzt <= Sprechtagdienst.EinladungEnde(t),
@@ -339,6 +343,47 @@ public static class SprechtagApi
             return Results.Json(new { ok = true });
         });
 
+        // ---------------------------------------------------------------- Absagen
+
+        api.MapPost("/{id:int}/termine/{tid:int}/absagen", (int id, int tid, AbsageDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p, Protokoll prot) =>
+        {
+            var b = Ich(c);
+            var t = Sichtbar(d, b, id);
+            var x = d.Termin(t, tid) ?? throw new ArgumentException("Unbekannter Termin.");
+            var n = d.TerminAbsagen(p.Aktuell, t, b, x, daten.Grund);
+            prot.Schreiben(b.Login, "Sprechtag: Termin abgesagt", $"{t.Name} {x.Lehrer} {x.Beginn}");
+            return Results.Json(new { ok = true, benachrichtigt = n });
+        });
+
+        api.MapPost("/{id:int}/teilnahme/absagen", (int id, AbsageDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p, Protokoll prot) =>
+        {
+            var b = Ich(c);
+            var t = Sichtbar(d, b, id);
+            var kurz = Lehrkraft(b, t, daten.Lehrer);
+            var (termine, n) = d.TeilnahmeAbsagen(p.Aktuell, t, b, kurz, daten.Grund);
+            prot.Schreiben(b.Login, "Sprechtag: Teilnahme abgesagt", $"{t.Name} {kurz}: {termine} Termine");
+            return Results.Json(new { termine, benachrichtigt = n });
+        });
+
+        api.MapPost("/{id:int}/teilnahme/wiederaufnehmen", (int id, AbsageDaten daten, HttpContext c, Sprechtagdienst d, Protokoll prot) =>
+        {
+            var b = Ich(c);
+            var t = Sichtbar(d, b, id);
+            var kurz = Lehrkraft(b, t, daten.Lehrer);
+            d.TeilnahmeWiederaufnehmen(t, kurz);
+            prot.Schreiben(b.Login, "Sprechtag: Teilnahme wieder aufgenommen", $"{t.Name} {kurz}");
+            return Results.Json(new { ok = true });
+        });
+
+        api.MapPost("/{id:int}/absagen", (int id, AbsageDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var t = d.Pflicht(id);
+            var (termine, n) = d.SprechtagAbsagen(p.Aktuell, t, b, daten.Grund);
+            prot.Schreiben(b.Login, "Sprechtag abgesagt", $"{t.Name}: {termine} Termine, {n} Konten benachrichtigt");
+            return Results.Json(new { termine, benachrichtigt = n });
+        });
+
         api.MapGet("/{id:int}/plan.pdf", (int id, string? lehrer, bool? leer, HttpContext c, Sprechtagdienst d, Paketdienst p, Benutzerdienst bd, Einstellungen e) =>
         {
             var b = Ich(c);
@@ -394,7 +439,7 @@ public static class SprechtagApi
                         var einladung = einladungen.FirstOrDefault(e => Ci.Equals(e.Lehrer, l.Kurz) && e.SchuelerId == k.Id);
                         return new
                         {
-                            l.Kurz, l.Name, l.Faecher, l.Klassenleitung, l.Raum,
+                            l.Kurz, l.Name, l.Faecher, l.Klassenleitung, l.Raum, abgesagt = Sprechtagdienst.Beteiligt(t, l.Kurz)?.Abgesagt.Length > 0,
                             eingeladen = einladung != null, einladungText = einladung?.Text ?? "",
                             termin = termin is null ? null : new { termin.Id, termin.Beginn, termin.Ende },
                             zeitfenster = termin != null ? null : d.Raster(t, l.Kurz).Where(x => x.Status == "frei").Select(x => new { x.Beginn, x.Ende, konflikt = Konflikt(x.Beginn) }),
@@ -438,7 +483,7 @@ public static class SprechtagApi
     /// <summary>Mitteilung an ein Elternkonto (Fehler beim Versand blockieren die Änderung nicht).</summary>
     private static void Benachrichtigen(Mitteilungsdienst m, Benutzer ich, Stand? s, int konto, string betreff, string text)
     {
-        try { m.Senden(ich, s, new[] { "benutzer:" + konto }, betreff, text, false); }
+        try { m.Benachrichtigen(ich, new[] { konto }, betreff, text); }
         catch (ArgumentException) { /* Konto gelöscht bzw. gesperrt */ }
     }
 }

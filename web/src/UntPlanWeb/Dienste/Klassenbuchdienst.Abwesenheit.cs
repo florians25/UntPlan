@@ -28,6 +28,13 @@ public sealed record Abwesenheitszeitraum(string Schluessel, int SchuelerId, str
     public bool ElternInformiert { get; init; }
     /// <summary>Interne Notiz – nur für die Klassenleitung befüllt.</summary>
     public string NotizIntern { get; init; } = "";
+    /// <summary>
+    /// Die Fehlstunden der Abwesenheit haben verschiedene Status (z. B. eine Stunde in den Fehlzeiten einzeln entschuldigt) – Status ist dann
+    /// „offen“, Anzahl je Status zeigen Entschuldigt/Unentschuldigt (gleiche Zählung wie die Fehlzeiten).
+    /// </summary>
+    public bool StatusGemischt { get; init; }
+    public int Entschuldigt { get; init; }
+    public int Unentschuldigt { get; init; }
 }
 
 /// <summary>
@@ -243,6 +250,8 @@ public sealed partial class Klassenbuchdienst
                 blk.Select(f => f.Lehrer).Where(x => x.Length > 0).Distinct(Ci).ToList(), darf, Zeitraumgruppe(f0.Gruppe) ? f0.Gruppe : "", f0.Erstellt)
             {
                 Nachweis = f0.Nachweis, EntschuldigtAm = f0.EntschuldigtAm, ElternInformiert = f0.ElternInformiert, NotizIntern = darf ? f0.NotizIntern : "",
+                StatusGemischt = blk.Any(f => f.Status != f0.Status),
+                Entschuldigt = blk.Count(f => f.Art == "fehlt" && f.Status == "entschuldigt"), Unentschuldigt = blk.Count(f => f.Art == "fehlt" && f.Status == "unentschuldigt"),
             };
         }).OrderByDescending(z => z.VonDatum, StringComparer.Ordinal).ThenByDescending(z => z.VonZeit, StringComparer.Ordinal).ThenBy(z => z.Schueler, StringComparer.Create(new CultureInfo("de-DE"), true)).ToList();
     }

@@ -300,6 +300,13 @@
           <input type="checkbox" id="optShowCancelled" checked>
           <span class="switch" aria-hidden="true"></span>
         </label>
+        <!-- Benachrichtigungen bei Änderungen im eigenen Plan (nur Lehrkräfte) -->
+        <label class="row row--switch" id="rowNotify" hidden>
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><path d="M6.2 16.6V11a5.8 5.8 0 0 1 11.6 0v5.6l1.6 1.8H4.6z"/><path d="M10 20.6a2.2 2.2 0 0 0 4 0"/></svg></span>
+          <span class="row__txt">Benachrichtigungen<small id="notifyHint">Bei Änderungen im eigenen Plan</small></span>
+          <input type="checkbox" id="optNotify">
+          <span class="switch" aria-hidden="true"></span>
+        </label>
         <button class="row row--nav" id="btnInstall" hidden>
           <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><path d="M14.6 3.4h1.2a2.2 2.2 0 0 1 2.2 2.2v13a2.2 2.2 0 0 1-2.2 2.2H8.2A2.2 2.2 0 0 1 6 18.6v-13a2.2 2.2 0 0 1 2.2-2.2h1.2"/><path d="M12 4v7.6M9.2 9.2 12 12l2.8-2.8"/><path d="M10.6 18.2h2.8"/></svg></span>
           <span>App installieren</span>
@@ -713,6 +720,7 @@ window.TT_FASSUNG = "__FASSUNG__";
 </script>
 <script src="assets/js/data.js?v=__FASSUNG__"></script>
 <script src="assets/js/api-db.js?v=__FASSUNG__"></script>
+<script src="assets/js/planwacht.js?v=__FASSUNG__"></script>
 <script src="assets/js/app.js?v=__FASSUNG__"></script>
 </body>
 </html>

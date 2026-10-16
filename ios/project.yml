@@ -17,8 +17,11 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      # Der ganze Ordner, also auch Ansichten/PlanAuswahlView.swift, Ansichten/TabLeiste.swift und Dienste/Favoriten.swift
+      # Der ganze Ordner, also auch Ansichten/PlanAuswahlView.swift, Ansichten/TabLeiste.swift, Dienste/Favoriten.swift
+      # und Dienste/Planmitteilungen.swift (Info.plist wird nicht als Ressource kopiert, sondern über INFOPLIST_FILE eingebunden)
       - path: UntPlanMobile
+        excludes:
+          - Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.untplan.mobile
@@ -32,6 +35,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: YES
+        # Ergänzt die generierte Info.plist: Hintergrund-Aktualisierung (UIBackgroundModes fetch) und
+        # BGTaskSchedulerPermittedIdentifiers für die Mitteilungen bei Planänderungen
+        INFOPLIST_FILE: UntPlanMobile/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: UntPlan
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

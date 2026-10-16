@@ -38,6 +38,22 @@ public sealed partial class Klassenbuchdienst
             .Where(h => h.Klassen.Contains(klasse, Ci) && (!nachFaelligkeit || (h.Faellig is string f ? string.CompareOrdinal(f, Plandienst.Iso(von)) >= 0 && string.CompareOrdinal(f, Plandienst.Iso(bis)) <= 0 : true)))
             .OrderBy(h => h.Faellig ?? h.Datum, StringComparer.Ordinal).ThenBy(h => h.Datum, StringComparer.Ordinal).ToList();
 
+    /// <summary>
+    /// Hausaufgaben (Liste Klassenbuch → Hausaufgaben): aufgegeben oder fällig im Zeitraum, optional nur einer Klasse bzw. Lehrkraft;
+    /// sortiert nach Aufgabedatum. Ältere Einträge, die nur im Klassenbuch-Feld stehen, kommen ohne Id (nur lesbar) dazu.
+    /// </summary>
+    public List<Hausaufgabe> Hausaufgabenliste(DateOnly von, DateOnly bis, string? klasse, string? lehrer)
+    {
+        var liste = _db.Liste("SELECT * FROM hausaufgaben_eintraege WHERE (datum >= @v AND datum <= @b) OR (faellig >= @v AND faellig <= @b) ORDER BY datum, stunde, id", LesenHausaufgabe,
+            Db.P("@v", von), Db.P("@b", bis));
+        var bekannt = liste.Select(h => (h.Datum, h.Unterricht, h.Stunde)).ToHashSet();
+        var alt = Zeitraum(von, bis).Where(e => e.Hausaufgabe.Length > 0 && !bekannt.Contains((e.Datum, e.Unterricht, e.Stunde)))
+            .Select(e => new Hausaufgabe(0, e.Datum, e.Stunde, e.Unterricht, e.Klassen, e.Fach, e.Lehrer, e.Hausaufgabe, e.Faellig, "", false, e.Geaendert));
+        return liste.Concat(alt)
+            .Where(h => (string.IsNullOrEmpty(klasse) || h.Klassen.Contains(klasse, Ci)) && (string.IsNullOrEmpty(lehrer) || Ci.Equals(h.Lehrer, lehrer)))
+            .OrderBy(h => h.Datum, StringComparer.Ordinal).ThenBy(h => h.Stunde).ThenBy(h => h.Id).ToList();
+    }
+
     /// <summary>Hausaufgaben, die an einem Tag in Stunden dieses Fachs und dieser Klassen fällig sind (aus früheren Stunden).</summary>
     public List<Hausaufgabe> FaelligeHausaufgaben(DateOnly d, string fach, IEnumerable<string> klassen, int? ausserUnterricht = null)
     {

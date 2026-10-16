@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Unterseiten des Profils.
 enum Profilseite: Hashable {
@@ -64,6 +65,13 @@ struct ProfilView: View {
                             Listenzeile(symbol: "lock", titel: "Passwort ändern")
                         }
                         .buttonStyle(ZeilenKnopfStil())
+                    }
+
+                    // Mitteilungen bei Änderungen im eigenen Plan (nur Lehrkräfte)
+                    if zustand.darfPlanmitteilungen {
+                        Zeilengruppe {
+                            PlanmitteilungenSchalter()
+                        }
                     }
 
                     Zeilengruppe {
@@ -177,6 +185,72 @@ struct ProfilView: View {
             fehler = nil
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
+        }
+    }
+}
+
+/// Schalter „Mitteilungen bei Planänderungen“ (Profil, nur Lehrkräfte): an = beim Öffnen und im Hintergrund den eigenen
+/// Plan prüfen und bei Entfall, Vertretung, Raumänderung, neuer Stunde oder Prüfung eine Mitteilung senden.
+struct PlanmitteilungenSchalter: View {
+    @EnvironmentObject var zustand: AppZustand
+    @AppStorage(Planmitteilungen.schalterSchluessel) private var aktiv = true
+    /// Mitteilungen in den iOS-Einstellungen ausgeschaltet
+    @State private var verweigert = false
+    @Environment(\.scenePhase) private var szene
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Toggle(isOn: $aktiv) {
+                HStack(spacing: 13) {
+                    Image(systemName: "bell.badge")
+                        .font(.system(size: 19, weight: .light))
+                        .foregroundStyle(Farben.gedaempft)
+                        .frame(width: 28)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mitteilungen bei Planänderungen")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Farben.tinte)
+                        Text("Entfall, Vertretung, Raumänderung, neue Stunde oder Prüfung im eigenen Plan")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Farben.tinte2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(minHeight: 50)
+            if aktiv && verweigert {
+                Button {
+                    if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Text("Mitteilungen sind in den iOS-Einstellungen ausgeschaltet. Einstellungen öffnen")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.akzent)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 57)
+                .padding(.trailing, 16)
+                .padding(.bottom, 10)
+            }
+        }
+        .task { verweigert = await Planmitteilungen.verweigert() }
+        .onChange(of: szene) { _, neu in
+            if neu == .active { Task { verweigert = await Planmitteilungen.verweigert() } }
+        }
+        .onChange(of: aktiv) { _, neu in
+            if neu {
+                Task {
+                    await zustand.planPruefen()
+                    verweigert = await Planmitteilungen.verweigert()
+                }
+            } else {
+                Planmitteilungen.abbestellen()
+            }
         }
     }
 }

@@ -86,10 +86,9 @@ struct StartView: View {
                     StartlisteView(ziel: ziel, heute: heute) { gewaehlteKarte = $0 }
                 }
             }
-            .sheet(item: $gewaehlteKarte) { karte in
+            .detailPraesentation(item: $gewaehlteKarte, breit: groessenklasse == .regular) { karte in
                 StundendetailView(karte: karte, typ: heute?.typ ?? "klasse", element: heute?.element ?? "")
                     .environmentObject(zustand)
-                    .detailBlatt(breit: groessenklasse == .regular)
             }
         }
     }

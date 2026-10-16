@@ -532,6 +532,20 @@ public sealed class Db
         );
         CREATE INDEX ix_sprechtag_termine_schueler ON sprechtag_termine (sprechtag_id, schueler_id);
         """,
+
+        // 14: Mitteilungen – Lesebestätigung (angefordert bzw. gesendet), Antwort/Weiterleitung, Empfänger in Worten; Sprechtag – Absage des
+        //    ganzen Sprechtags bzw. der Teilnahme einer Lehrkraft (mit Grund) – nur Standard-SQL
+        """
+        ALTER TABLE mitteilungen ADD COLUMN lesebestaetigung INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE mitteilungen ADD COLUMN antwort_auf INTEGER;
+        ALTER TABLE mitteilungen ADD COLUMN empfaenger_text VARCHAR(1000) NOT NULL DEFAULT '';
+        ALTER TABLE mitteilung_empfaenger ADD COLUMN bestaetigt VARCHAR(30);
+        CREATE INDEX ix_mitteilung_empfaenger_benutzer ON mitteilung_empfaenger (benutzer_id, geloescht);
+        ALTER TABLE sprechtage ADD COLUMN abgesagt VARCHAR(30) NOT NULL DEFAULT '';
+        ALTER TABLE sprechtage ADD COLUMN absage_grund VARCHAR(1000) NOT NULL DEFAULT '';
+        ALTER TABLE sprechtag_lehrer ADD COLUMN abgesagt VARCHAR(30) NOT NULL DEFAULT '';
+        ALTER TABLE sprechtag_lehrer ADD COLUMN absage_grund VARCHAR(1000) NOT NULL DEFAULT '';
+        """,
     };
 
 

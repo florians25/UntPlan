@@ -294,7 +294,7 @@ function menue() {
       ...(b.fehlzeiten ? [{ nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' },
         { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' }] : []),
       { nav: 'befreiungen', href: '#/befreiungen', text: 'Befreiungen', icon: 'befreiungen' },
-      { nav: 'sitzplan', href: '#/sitzplan', text: 'Sitzplan', icon: 'sitzplan' },
+      { nav: 'sitzplan', href: '#/sitzplan', text: 'Sitzplan', icon: 'sitzplan', verborgen: true },
     ] });
     m.push({ id: 'melden', text: 'Melden', icon: 'ruckmeldung', unter: [
       { nav: 'melden-abwesenheit', href: '#/melden/abwesenheit', text: 'Abwesenheit melden', icon: 'abwesend' },
@@ -449,7 +449,8 @@ function leisteZeichnen() {
   }
   const nav = leiste.querySelector('nav');
   nav.className = `u-nav ${gruppe ? 'u-nav-unter' : ''} ${gruppe && ['admin', 'stammdaten'].includes(gruppe.id) ? 'u-nav-kompakt' : ''}`;
-  nav.innerHTML = (gruppe ? gruppe.unter : gruppen).map(punktHtml).join('');
+  // verborgene Punkte (z. B. Sitzplan – nur über das Zahnrad in den Stundendetails) bleiben als Route erlaubt, stehen aber nicht im Menü
+  nav.innerHTML = (gruppe ? gruppe.unter.filter(p => !p.verborgen) : gruppen).map(punktHtml).join('');
   aktivMarkieren();
   zaehlerAktualisieren();
 }

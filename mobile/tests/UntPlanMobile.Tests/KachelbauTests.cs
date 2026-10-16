@@ -567,9 +567,9 @@ public class KachelbauTests
     [Fact]
     public void Raumaenderung_nur_an_der_Art_erkennbar_steht_als_Plakette()
     {
-        // Prüfung, deren Raum laut Art gewechselt hat: neuer Raum als Plakette
+        // Als „klausur“ gemeldet, laut Art aber nur ein Raumwechsel: grüne Änderung, neuer Raum als Plakette
         var k = Kachelbau.AusKarte(Karte("klausur", 3, art: "Raumänderung", raeume: new() { new("A103") }), "class");
-        Assert.Equal("klausur", k.Art);
+        Assert.Equal("change", k.Art);
         Assert.Contains("room", k.Geaendert);
         Assert.Equal("A103", k.Raum);
         // Raumänderung ohne neuen Raum bleibt offen gekennzeichnet (bisheriger Raum durchgestrichen in der Plakette)
@@ -582,6 +582,30 @@ public class KachelbauTests
         // gewöhnliche Vertretung ohne Raumwechsel bleibt ohne Raumplakette
         var vertretung = Kachelbau.AusKarte(Karte("geaendert", 3, art: "Vertretung", lehrer: new() { new("BEC", "HOF", true) }), "class");
         Assert.DoesNotContain("room", vertretung.Geaendert);
+    }
+
+    [Fact]
+    public void Raumaenderung_wird_nie_wie_eine_Pruefung_dargestellt()
+    {
+        // Reine Raumänderung: grüne Änderung mit dem neuen Raum in der Plakette – nie gelb/braun
+        var aenderung = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Raumänderung", raeume: new() { new("R109", "R101", true) }), "teacher");
+        Assert.Equal("change", aenderung.Art);
+        Assert.Equal(new[] { "room" }, aenderung.Geaendert);
+        // Auch wenn der Server sie als „klausur“ meldet (Raumänderung, Raumvertretung, Raumwechsel)
+        foreach (var art in new[] { "Raumänderung", "Raumvertretung", "Raumwechsel" })
+        {
+            var k = Kachelbau.AusKarte(Karte("klausur", 2, art: art, raeume: new() { new("R109", "R101", true) }), "teacher");
+            Assert.NotEqual("klausur", k.Art);
+            Assert.Equal("change", k.Art);
+            Assert.Contains("room", k.Geaendert);
+        }
+        // Raumbuchung zu einer Stunde: reguläre Karte, gebuchter Raum als grüne Plakette
+        var buchung = Kachelbau.AusKarte(Karte("regulaer", 2, art: "Raumbuchung", raeume: new() { new("R109", null, true) }), "teacher");
+        Assert.NotEqual("klausur", buchung.Art);
+        // Echte Prüfungen bleiben gelb – auch mit Raumwechsel
+        Assert.Equal("klausur", Kachelbau.AusKarte(Karte("klausur", 3, text: "Vokabeltest", art: "Klausur (vorgemerkt)"), "class").Art);
+        Assert.Equal("klausur", Kachelbau.AusKarte(Karte("klausur", 3, text: "Mathe-Klausur", art: "Raumänderung", raeume: new() { new("A103") }), "class").Art);
+        Assert.Equal("klausur", Kachelbau.AusKarte(Karte("klausur", 3, art: "Prüfung"), "class").Art);
     }
 
     [Fact]

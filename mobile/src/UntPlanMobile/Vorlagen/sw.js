@@ -6,6 +6,8 @@
    Cachenamen — von Hand hochzählen ist nicht mehr nötig.
    ===================================================================== */
 const VERSION = 'untplanmobile-__FASSUNG__';
+/* Planwache: Vergleich mit dem zuletzt gesehenen Stand (siehe planwacht.js). */
+try { importScripts('./assets/js/planwacht.js?v=__FASSUNG__'); } catch (e){ /* ohne Planwache weiter */ }
 const SHELL = [
   './',
   './manifest.webmanifest',
@@ -13,6 +15,7 @@ const SHELL = [
   './assets/js/app.js?v=__FASSUNG__',
   './assets/js/data.js?v=__FASSUNG__',
   './assets/js/api-db.js?v=__FASSUNG__',
+  './assets/js/planwacht.js?v=__FASSUNG__',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/favicon.svg'
@@ -31,7 +34,8 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+      // Der Stand der Planwache überdauert jede neue Fassung.
+      .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'untplan-planwacht').map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -136,4 +140,34 @@ function offlineJson(){
 
 self.addEventListener('message', e => {
   if (e.data === 'skip-waiting') self.skipWaiting();
+});
+
+/* =====================================================================
+   Benachrichtigungen bei Änderungen im eigenen Plan
+   ---------------------------------------------------------------------
+   periodicsync: Wo der Browser es anbietet (Chrome/Edge bei installierter
+   App), prüft der Service Worker auch im Hintergrund. Safari kennt das
+   nicht — dort wird beim Öffnen und Zurückkehren in die App geprüft.
+   push: vorbereitet für echte Push-Nachrichten vom Server; dann genügt
+   ein Anstoß, die Prüfung selbst läuft wie gewohnt.
+   ===================================================================== */
+self.addEventListener('periodicsync', e => {
+  if (e.tag === 'planwacht' && self.PlanWacht) e.waitUntil(self.PlanWacht.pruefen().catch(() => null));
+});
+
+self.addEventListener('push', e => {
+  if (!self.PlanWacht) return;
+  e.waitUntil(self.PlanWacht.pruefen().catch(() => null));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const ziel = new URL((e.notification.data && e.notification.data.url) || './', self.location.href).href;
+  e.waitUntil(
+    self.clients.matchAll({ type:'window', includeUncontrolled:true }).then(list => {
+      const offen = list.find(c => c.url.startsWith(self.registration.scope));
+      if (offen) return offen.focus();
+      return self.clients.openWindow(ziel);
+    })
+  );
 });

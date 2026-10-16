@@ -348,6 +348,10 @@ public static class Kachelbau
             case "entfall":
                 kachel.Art = "cancelled";
                 break;
+            case "klausur" when IstNurRaumaenderung(k):
+                // Eine Raumänderung ist nie eine Prüfung: grüne Änderung, neuer Raum in der grünen Plakette (nie gelb/braun)
+                kachel.Art = "change";
+                break;
             case "klausur":
                 kachel.Art = "klausur";
                 if (kachel.Fach.Length == 0) kachel.Fach = k.Text.Length > 0 ? k.Text : "Klausur";
@@ -402,6 +406,12 @@ public static class Kachelbau
     }
 
     /// <summary>Art einer reinen Raumänderung (Raumänderung, Raumvertretung, Raumwechsel).</summary>
+    /// <summary>Als „klausur“ gemeldet, die Art nennt aber nur einen Raumwechsel und nirgends eine Klausur oder Prüfung.</summary>
+    public static bool IstNurRaumaenderung(PlanKarte k) => IstRaumaenderungsArt(k.Art) && !NenntPruefung(k.Art) && !NenntPruefung(k.Text);
+
+    private static bool NenntPruefung(string? s) => !string.IsNullOrEmpty(s) &&
+        new[] { "klausur", "prüfung", "pruefung", "leistungs", "arbeit", "test" }.Any(w => s.Contains(w, StringComparison.OrdinalIgnoreCase));
+
     public static bool IstRaumaenderungsArt(string? art) => !string.IsNullOrEmpty(art) &&
         (art.Contains("raumänderung", StringComparison.OrdinalIgnoreCase) || art.Contains("raumvertretung", StringComparison.OrdinalIgnoreCase)
          || art.Contains("raumwechsel", StringComparison.OrdinalIgnoreCase));

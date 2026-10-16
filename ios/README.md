@@ -10,7 +10,7 @@ die App nicht; angemeldet wird mit dem Konto von UntPlanWeb.
   Tageskarte mit den nächsten Stunden, Pausenaufsichten, Termine der nächsten zwei Wochen und Hausaufgaben.
 - **Stundenplan**: Wochenraster mit Tagesspalten, Woche vor/zurück (auch per Wischen), Karten mit Fach,
   Lehrkraft/Klasse und Raum, Farbbalken in Fachfarbe. Entfall rot und durchgestrichen, Änderungen grün,
-  Prüfungen gelb, Ferien blau. Darstellung wie in UntPlanMobile (`Dienste/Kachelbau.swift`): abgegebene Stunden und
+  Raumänderungen grün wie Änderungen, nur Prüfungen gelb, Ferien blau. Darstellung wie in UntPlanMobile (`Dienste/Kachelbau.swift`): abgegebene Stunden und
   Bereitschaften abwesender Lehrkräfte mit Eckklammern und durchgestrichenem Kürzel, Veranstaltungen als hellgrünes Feld
   über den ganzen Zeitraum, Pausenaufsichten als Pillen in den Pausen, vergangene farbige Stunden ohne Rahmen.
   Tagesansicht mit großen Karten (Uhrzeit, Fach-Langname, Status, Hinweis). Antippen öffnet die Stundendetails
@@ -18,7 +18,12 @@ die App nicht; angemeldet wird mit dem Konto von UntPlanWeb.
   lassen sich oben rechts wählen, soweit das Konto sie sehen darf.
 - **Mitteilungen**: Posteingang und Gesendet, Lesen (wird als gelesen markiert), Löschen per Wischen,
   Zähler ungelesener Mitteilungen in der Tab-Leiste.
-- **Profil**: Kontodaten, Server, Kalender-Abo (iCal) und Abmelden.
+- **Profil**: Kontodaten, Server, Kalender-Abo (iCal) und Abmelden. Für Lehrkräfte der Schalter
+  „Mitteilungen bei Planänderungen“.
+- **Mitteilungen bei Planänderungen** (nur Lehrkräfte, `Dienste/Planmitteilungen.swift`): Beim Öffnen und im
+  Hintergrund (BGAppRefreshTask, frühestens alle 30 Minuten) vergleicht die App den eigenen Plan der aktuellen und
+  nächsten Woche mit dem zuletzt gesehenen Stand und meldet Entfall, Vertretung, Raumänderung, neue Stunden und
+  Prüfungen als lokale Mitteilung (ab vier Änderungen gebündelt). Antippen öffnet den Tag im Stundenplan.
 
 ## Öffnen in Xcode
 
@@ -27,6 +32,12 @@ die App nicht; angemeldet wird mit dem Konto von UntPlanWeb.
 2. Ziel **UntPlanMobile** wählen, unter *Signing & Capabilities* ein **Team** eintragen
    (bei Bedarf die Bundle-ID `de.untplan.mobile` anpassen, falls sie im eigenen Team schon vergeben ist).
 3. Simulator oder Gerät mit iOS 17 oder neuer wählen und starten (⌘R).
+4. Für die Mitteilungen bei Planänderungen: unter *Signing & Capabilities* die Fähigkeit **Background Modes** mit
+   **Background fetch** prüfen bzw. hinzufügen. `UntPlanMobile/Info.plist` (per `INFOPLIST_FILE` mit der generierten
+   Info.plist zusammengeführt) enthält bereits `UIBackgroundModes` (`fetch`) und `BGTaskSchedulerPermittedIdentifiers`
+   (`de.untplan.mobile.planpruefung`). Testen im Debugger: App in den Hintergrund, pausieren und
+   `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"de.untplan.mobile.planpruefung"]`
+   ausführen.
 
 ## Anmelden
 

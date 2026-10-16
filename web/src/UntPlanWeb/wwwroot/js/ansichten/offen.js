@@ -1,11 +1,12 @@
-// Klassenbuch → Offene Stunden (nl-design): Werkzeugleiste mit Suche (Filter-Chips für Lehrkraft, Klasse und offene Einträge,
-// Klassenleitungen bekommen „Meine Klassen“ zuerst angeboten), Zeitraum zum Anklicken (von/bis) und Auswahlbox mit vordefinierten
-// Zeitbereichen. Darunter ruhige Kennzahlen (zugleich Filter) und die Tabelle Datum | Std. | Klasse | Fach | Lehrkraft |
-// Abwesenheiten kontrolliert | Lehrstoff. Klick auf eine Zeile öffnet die Stundendetails (Pfeile blättern durch die Liste).
-// Rechte und der gespeicherte Zeitbereich liegen auf dem Server (/api/app/klassenbuch/offene-stunden).
+// Klassenbuch → Offene Stunden im Original-Look (nl-design): oben die Suchleiste mit Filter-Chips (Lehrkraft, Klasse, offene Einträge;
+// Klassenleitungen bekommen „Meine Klassen“ zuerst) und der Auswahl „Alle“, rechts der Zeitraum zum Anklicken (Kalender mit zwei Monaten)
+// und die Auswahlbox mit vordefinierten Zeitbereichen. Darunter eine schlichte Tabelle ○ | Lehrkraft | Klasse | Fach | Datum | Art | Raum |
+// Abwesenheitskontrolle („Prüfen“) | Lehrstoff („Eingeben“ → Seitenleiste mit Vorstunden, Pfeile blättern). Klick auf eine Zeile öffnet die
+// Stundendetails. Rechte und der gespeicherte Zeitbereich liegen auf dem Server (/api/app/klassenbuch/offene-stunden).
 // Adresse: #/offen/<bereich | ->/<art>/<Lehrkräfte, | ->/<Klasse | ->/<von>/<bis>
 import { e, icon, holen, senden, toast, herunterladen, dialog, lade } from '../ui.js';
 import { karteDialog } from '../plangitter.js';
+import { LEHRFORMEN } from '../stundendetails.js';
 
 const ART = {
   offen: 'Offene Stunden',
@@ -18,9 +19,10 @@ const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 const wochentag = iso => WT[new Date(`${iso}T12:00:00`).getDay()] ?? '';
 const istDatum = s => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '');
 const passtArt = (art, z) => art === 'kontrolle' ? !z.geprueft : art === 'lehrstoff' ? !z.lehrstoff : art === 'alle' ? true : !z.geprueft || !z.lehrstoff;
-const haken = (ok, text) => ok
-  ? `<span class="os-status ok" title="${e(text)}: ja"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">ja</span></span>`
-  : `<span class="os-status fehlt" title="${e(text)}: nein"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="visually-hidden">nein</span></span>`;
+const erledigt = text => `<span class="os-status ok" title="${e(text)}"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">${e(text)}</span></span>`;
+const ART_WAHL = [['offen', 'Alle'], ['kontrolle', 'Abwesenheiten'], ['lehrstoff', 'Lehrstoff'], ['alle', 'Auch vollständige']];
+const MONATE = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+const isoVon = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerParam, klasseParam, vonParam, bisParam]) {
   const art = ART[artParam] ? artParam : 'offen';
@@ -64,15 +66,13 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
         ${chips.map(c => `<span class="os-chip">${e(c.text)}<button type="button" data-chip-weg="${c.typ}:${e(c.wert)}" aria-label="Filter ${e(c.text)} entfernen"><i class="bi bi-x"></i></button></span>`).join('')}
         <input type="search" data-suche autocomplete="off" placeholder="${r.alle ? 'Lehrkraft, Klasse oder Fach suchen' : 'Klasse oder Fach suchen'}" aria-label="Suche" aria-expanded="false" aria-controls="os-vorschlaege">
         ${chips.length ? '<button type="button" class="os-leeren" data-leeren title="Alle Filter entfernen" aria-label="Alle Filter entfernen"><i class="bi bi-x-circle-fill"></i></button>' : ''}
+        <span class="os-trenn" aria-hidden="true"></span>
+        <label class="os-artwahl"><span class="visually-hidden">Anzeigen</span><select data-artwahl>${ART_WAHL.map(([a, t]) => `<option value="${a}" ${a === art ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <div class="os-vorschlaege" id="os-vorschlaege" role="listbox" hidden></div>
       </div>
       <div class="os-zeit">
-        <button type="button" class="os-zeitraum" data-zeitraum aria-haspopup="dialog" title="Zeitraum wählen">${icon('kalender')}<span>${datumDe(r.von)} – ${datumDe(r.bis)}</span></button>
-        <div class="os-zeitwahl" data-zeitwahl hidden role="dialog" aria-label="Zeitraum wählen">
-          <label><span>Von</span><input type="date" data-von value="${r.von}" max="${r.heute}"></label>
-          <label><span>Bis</span><input type="date" data-bis value="${r.bis}" max="${r.heute}"></label>
-          <div class="os-zeitwahl-fuss"><button type="button" class="nl-knopf" data-zeit-ab>Abbrechen</button><button type="button" class="nl-hinzu" data-zeit-ok>Übernehmen</button></div>
-        </div>
+        <button type="button" class="os-zeitraum" data-zeitraum aria-haspopup="dialog" title="Zeitraum wählen"><span>${datumDe(r.von)} - ${datumDe(r.bis)}</span></button>
+        <div class="os-kalender" data-zeitwahl hidden role="dialog" aria-label="Zeitraum wählen"></div>
         <label class="os-bereich"><span class="visually-hidden">Zeitbereich</span>
           <select data-bereich>${r.bereiche.map(b => `<option value="${b.id}" ${b.id === r.bereich ? 'selected' : ''}>${e(b.text)}</option>`).join('')}</select></label>
       </div></div>`);
@@ -83,42 +83,30 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
   const nachricht = r.alle || r.klassenleitung.length > 0;
   const zeilen = r.zeilen.map((z, i) => ({ ...z, i }));
   const sichtbar = () => zeilen.filter(z => passtArt(art, z) && (!text || `${z.lehrer} ${z.klassen.join(' ')} ${z.fach} ${z.fachName} ${z.raeume.join(' ')} ${datumDe(z.datum)}`.toLowerCase().includes(text)));
-  const zahl = (a, wert, bez, unter = '') => `<button type="button" class="os-zahl ${a === art ? 'an' : ''}" data-art="${a}" aria-pressed="${a === art}">
-      <b>${wert}</b><span>${e(bez)}</span>${unter ? `<small>${unter}</small>` : ''}</button>`;
-
   const zeichnen = () => {
     const liste = sichtbar();
-    kontext.titel('Offene Stunden', `${nachricht ? `<button type="button" class="btn btn-outline-secondary" data-nachricht ${liste.length ? '' : 'disabled'}>${icon('mitteilung')}Nachricht senden</button>` : ''}
-      <button type="button" class="btn btn-outline-secondary" data-bericht ${liste.length ? '' : 'disabled'}>${icon('herunterladen')}Bericht</button>`, `${liste.length}`);
+    kontext.titel('Offene Stunden', `${nachricht ? `<button type="button" class="btn btn-outline-secondary" data-nachricht ${liste.length ? '' : 'disabled'}>Nachricht senden</button>` : ''}
+      <button type="button" class="btn btn-outline-secondary" data-bericht ${liste.length ? '' : 'disabled'}>Bericht</button>`, `${liste.length}`);
     const alleGewaehlt = liste.length > 0 && liste.every(z => auswahl.has(z.i));
-    seite.innerHTML = `<div class="os-seite">
-      <div class="os-zahlen" role="group" aria-label="Kennzahlen und Filter">
-        ${zahl('alle', r.gesamt, r.gesamt === 1 ? 'gehaltene Stunde' : 'gehaltene Stunden', `${datumDe(r.von)} – ${datumDe(r.bis)}`)}
-        ${zahl('offen', r.offen, 'offen', r.gesamt ? `${r.vollstaendig} % vollständig` : '')}
-        ${zahl('kontrolle', r.ohneKontrolle, 'Abwesenheiten nicht kontrolliert')}
-        ${zahl('lehrstoff', r.ohneLehrstoff, 'ohne Lehrstoff')}
-      </div>
-      ${!r.alle ? `<p class="os-hinweis">${icon('info')}${r.klassenleitung.length && !zustand.klasse
-        ? `Sie sehen Ihre eigenen Stunden. Als Klassenleitung können Sie über die Suche alle Stunden ${r.klassenleitung.length === 1 ? 'Ihrer Klasse' : 'Ihrer Klassen'} anzeigen.`
-        : zustand.klasse && r.klassenleitung.includes(zustand.klasse) ? `Alle gehaltenen Stunden der Klasse ${e(zustand.klasse)}.` : 'Sie sehen die von Ihnen gehaltenen Stunden. Der gewählte Zeitbereich bleibt gespeichert.'}</p>` : ''}
+    seite.innerHTML = `<div class="os-seite os-original">
       ${liste.length ? `<div class="os-tabelle"><table>
         <thead><tr>
           <th class="os-wahl"><input type="checkbox" class="nl-rund" data-alle ${alleGewaehlt ? 'checked' : ''} aria-label="Alle auswählen"></th>
-          <th>Datum</th><th class="os-std">Std.</th><th>Klasse</th><th>Fach</th><th>Lehrkraft</th>
-          <th class="os-mitte">Abwesenheiten kontrolliert</th><th class="os-mitte">Lehrstoff</th><th class="os-pfeil-spalte"></th></tr></thead>
+          <th>Lehrkraft</th><th>Klasse</th><th>Fach</th><th>Datum</th><th>Art</th><th>Raum</th><th>Abwesenheitskontrolle</th><th>Lehrstoff</th></tr></thead>
         <tbody>${liste.map(z => `<tr data-z="${z.i}" tabindex="0" class="${auswahl.has(z.i) ? 'gewaehlt' : ''}" aria-label="${e(`${datumDe(z.datum)}, ${z.von}. Stunde, ${z.fach} ${z.klassen.join(', ')}`)}">
           <td class="os-wahl"><input type="checkbox" class="nl-rund" data-wahl="${z.i}" ${auswahl.has(z.i) ? 'checked' : ''} aria-label="Stunde auswählen"></td>
-          <td class="text-nowrap"><span class="os-wt">${wochentag(z.datum)}</span> ${datumDe(z.datum)}<small class="os-zeitklein">${e(z.beginn)} – ${e(z.ende)}</small></td>
-          <td class="os-std">${z.von === z.bis ? z.von : `${z.von}–${z.bis}`}</td>
-          <td>${e(z.klassen.join(', '))}</td>
-          <td><span class="os-fach" style="${/^#[0-9a-f]{6}$/i.test(z.farbe || '') ? `--fach:${z.farbe}` : ''}">${e(z.fach)}</span>${z.art ? ` <span class="os-art">${e(z.art)}</span>` : ''}</td>
           <td>${e(z.lehrer)}</td>
-          <td class="os-mitte">${haken(z.geprueft, 'Abwesenheiten kontrolliert')}</td>
-          <td class="os-mitte">${haken(z.lehrstoff, 'Lehrstoff eingetragen')}</td>
-          <td class="os-pfeil-spalte"><i class="bi bi-chevron-right" aria-hidden="true"></i></td></tr>`).join('')}</tbody></table>
+          <td>${e(z.klassen.join(', '))}</td>
+          <td>${e(z.fach)}</td>
+          <td class="text-nowrap os-datum">${datumDe(z.datum)} ${e(z.beginn)} - ${e(z.ende)}</td>
+          <td class="os-artspalte">${e(z.art || '')}</td>
+          <td>${e(z.raeume.join(', '))}</td>
+          <td>${z.geprueft ? erledigt('Abwesenheiten kontrolliert') : `<button type="button" class="os-pille" data-pruefen="${z.i}">Prüfen</button>`}</td>
+          <td>${z.lehrstoff ? erledigt('Lehrstoff eingetragen') : `<button type="button" class="os-pille" data-eingeben="${z.i}">Eingeben</button>`}</td></tr>`).join('')}</tbody></table>
         ${auswahl.size ? `<div class="os-fuss">${auswahl.size} ${auswahl.size === 1 ? 'Stunde' : 'Stunden'} ausgewählt<button type="button" class="nl-knopf" data-auswahl-weg>Auswahl aufheben</button></div>` : ''}</div>`
         : `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-check2-circle"></i></span><b>${r.gesamt ? 'Alles erledigt' : 'Keine gehaltenen Stunden'}</b>
             <p>${r.gesamt ? (text ? 'Keine Stunde passt zur Suche.' : 'Im gewählten Zeitraum sind Abwesenheiten und Lehrstoff vollständig eingetragen.') : 'Im gewählten Zeitraum gibt es keine gehaltenen Stunden.'}</p></div>`}
+      ${!r.alle && r.klassenleitung.length && !zustand.klasse ? `<p class="os-hinweis">${icon('info')}Als Klassenleitung können Sie über die Suche alle Stunden ${r.klassenleitung.length === 1 ? 'Ihrer Klasse' : 'Ihrer Klassen'} anzeigen.</p>` : ''}
     </div>`;
     binden(liste);
   };
@@ -131,13 +119,13 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
     const karten = liste.map(karte);
     const oeffnen = tr => { const i = liste.findIndex(z => z.i === Number(tr.dataset.z)); if (i >= 0) karteDialog(karten[i], { ...kontext, liste: karten, nachSpeichern: () => kontext.navigieren(location.hash) }); };
     seite.querySelectorAll('tr[data-z]').forEach(tr => {
-      tr.onclick = ev => { if (!ev.target.closest('.os-wahl')) oeffnen(tr); };
+      tr.onclick = ev => { if (!ev.target.closest('.os-wahl, [data-eingeben]')) oeffnen(tr); };
       tr.onkeydown = ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === tr) { ev.preventDefault(); oeffnen(tr); } };
     });
     seite.querySelectorAll('[data-wahl]').forEach(c => c.onchange = () => { const i = Number(c.dataset.wahl); if (c.checked) auswahl.add(i); else auswahl.delete(i); zeichnen(); });
     seite.querySelector('[data-alle]')?.addEventListener('change', ev => { liste.forEach(z => ev.target.checked ? auswahl.add(z.i) : auswahl.delete(z.i)); zeichnen(); });
     seite.querySelector('[data-auswahl-weg]')?.addEventListener('click', () => { auswahl.clear(); zeichnen(); });
-    seite.querySelectorAll('[data-art]').forEach(b => b.onclick = () => kontext.navigieren(ziel({ art: b.dataset.art === art && art !== 'offen' ? 'offen' : b.dataset.art })));
+    seite.querySelectorAll('[data-eingeben]').forEach(b => b.onclick = ev => { ev.stopPropagation(); lehrstoffLeiste(liste, liste.findIndex(z => z.i === Number(b.dataset.eingeben))); });
     const gewaehlt = () => auswahl.size ? zeilen.filter(z => auswahl.has(z.i)) : liste;
     document.querySelector('[data-nachricht]')?.addEventListener('click', () => nachrichtDialog(gewaehlt()));
     document.querySelector('[data-bericht]')?.addEventListener('click', () => herunterladen(`offene-stunden-${r.von}-${r.bis}.csv`,
@@ -224,26 +212,114 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
   w.querySelector('[data-leeren]')?.addEventListener('click', () => kontext.navigieren(ziel({ lehrer: [], klasse: '', art: 'offen' })));
   w.querySelector('[data-suchfeld]').addEventListener('click', ev => { if (!ev.target.closest('button')) suche.focus(); });
 
-  // ---------------------------------------------------------------- Zeitraum: Klick aufs Datum öffnet von/bis, Auswahlbox mit Zeitbereichen
+  // ---------------------------------------------------------------- Zeitraum: Klick aufs Datum öffnet einen Kalender mit zwei Monaten
   const zeitwahl = w.querySelector('[data-zeitwahl]');
   const zeitKnopf = w.querySelector('[data-zeitraum]');
-  const zeitZu = () => { zeitwahl.hidden = true; zeitKnopf.setAttribute('aria-expanded', 'false'); };
-  zeitKnopf.onclick = () => { zeitwahl.hidden = !zeitwahl.hidden; zeitKnopf.setAttribute('aria-expanded', String(!zeitwahl.hidden)); if (!zeitwahl.hidden) zeitwahl.querySelector('[data-von]').focus(); };
-  w.querySelector('[data-zeit-ab]').onclick = zeitZu;
-  zeitwahl.onkeydown = ev => { if (ev.key === 'Escape') { zeitZu(); zeitKnopf.focus(); } };
-  w.querySelector('[data-zeit-ok]').onclick = () => {
-    let von = zeitwahl.querySelector('[data-von]').value, bis = zeitwahl.querySelector('[data-bis]').value;
-    if (!istDatum(von) || !istDatum(bis)) { toast('Bitte Beginn und Ende wählen.', true); return; }
-    if (von > bis) [von, bis] = [bis, von];
-    zeitZu();
-    bereichSetzen('individuell', von, bis);
+  const kal = { von: r.von, bis: r.bis, monat: (() => { const d = new Date(`${r.bis}T12:00`); d.setDate(1); d.setMonth(d.getMonth() - 1); return d; })() };
+  const monatHtml = (start, pfeile) => {
+    const tage = [];
+    const erster = new Date(start);
+    const versatz = (erster.getDay() + 6) % 7;
+    const d = new Date(erster); d.setDate(1 - versatz);
+    for (let i = 0; i < 42; i++) { tage.push(new Date(d)); d.setDate(d.getDate() + 1); }
+    return `<div class="os-k-monat"><div class="os-k-kopf"><b>${MONATE[erster.getMonth()]} ${erster.getFullYear()}</b>
+        <span>${pfeile ? '<button type="button" data-k-schritt="-1" aria-label="Früher"><i class="bi bi-chevron-left"></i></button><button type="button" data-k-schritt="1" aria-label="Später"><i class="bi bi-chevron-right"></i></button>' : ''}</span></div>
+      <div class="os-k-raster">${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(t => `<span class="os-k-wt">${t}</span>`).join('')}
+        ${tage.map(t => { const iso = isoVon(t); const fremd = t.getMonth() !== erster.getMonth(); const im = kal.von && iso >= kal.von && iso <= (kal.bis || kal.von);
+          return `<button type="button" data-k-tag="${iso}" class="${fremd ? 'fremd' : ''} ${im ? 'im' : ''} ${iso === kal.von ? 'anfang' : ''} ${iso === (kal.bis || kal.von) ? 'ende' : ''} ${iso === r.heute ? 'heute' : ''}" ${iso > r.heute ? 'disabled' : ''}>${t.getDate()}</button>`; }).join('')}</div></div>`;
   };
+  const kalZeichnen = () => {
+    const zweiter = new Date(kal.monat); zweiter.setMonth(zweiter.getMonth() + 1);
+    zeitwahl.innerHTML = `<button type="button" class="os-k-zu" data-zeit-ab aria-label="Schließen"><i class="bi bi-x-lg"></i></button>
+      <div class="os-k-monate">${monatHtml(kal.monat, true)}${monatHtml(zweiter, true)}</div>
+      <div class="os-k-fuss"><span>${kal.von ? `${datumDe(kal.von)} - ${datumDe(kal.bis || kal.von)}` : 'Beginn wählen'}</span><button type="button" class="os-k-ok" data-zeit-ok>Ok</button></div>`;
+    zeitwahl.querySelectorAll('[data-k-schritt]').forEach(b => b.onclick = () => { kal.monat.setMonth(kal.monat.getMonth() + Number(b.dataset.kSchritt)); kalZeichnen(); });
+    zeitwahl.querySelectorAll('[data-k-tag]').forEach(b => b.onclick = () => {
+      const d = b.dataset.kTag;
+      if (!kal.von || kal.bis) { kal.von = d; kal.bis = null; } else if (d < kal.von) { kal.bis = kal.von; kal.von = d; } else kal.bis = d;
+      kalZeichnen();
+    });
+    zeitwahl.querySelector('[data-zeit-ab]').onclick = zeitZu;
+    zeitwahl.querySelector('[data-zeit-ok]').onclick = () => {
+      if (!kal.von) { toast('Bitte Beginn und Ende wählen.', true); return; }
+      zeitZu();
+      bereichSetzen('individuell', kal.von, kal.bis || kal.von);
+    };
+  };
+  const zeitZu = () => { zeitwahl.hidden = true; zeitKnopf.setAttribute('aria-expanded', 'false'); };
+  zeitKnopf.onclick = () => {
+    zeitwahl.hidden = !zeitwahl.hidden;
+    zeitKnopf.setAttribute('aria-expanded', String(!zeitwahl.hidden));
+    if (!zeitwahl.hidden) { kalZeichnen(); zeitwahl.querySelector('.anfang, [data-k-tag]:not(:disabled)')?.focus(); }
+  };
+  zeitwahl.onkeydown = ev => { if (ev.key === 'Escape') { zeitZu(); zeitKnopf.focus(); } };
   w.querySelector('[data-bereich]').onchange = ev => {
     if (ev.target.value === 'individuell') { ev.target.value = r.bereich; zeitKnopf.click(); return; }
     bereichSetzen(ev.target.value);
   };
+  w.querySelector('[data-artwahl]').onchange = ev => kontext.navigieren(ziel({ art: ev.target.value }));
   const aussen = ev => { if (!document.body.contains(w) || !w.contains(zeitwahl)) { document.removeEventListener('mousedown', aussen); return; } if (!zeitwahl.hidden && !ev.target.closest('.os-zeit')) zeitZu(); };
   document.addEventListener('mousedown', aussen);
+
+  // ---------------------------------------------------------------- Lehrstoff in der Seitenleiste eintragen (Pfeile: vorige/nächste Stunde der Liste)
+  async function lehrstoffLeiste(liste, start) {
+    document.querySelector('.os-leiste-huelle')?.remove();
+    let i = Math.max(0, start);
+    let gespeichert = false;
+    const h = document.createElement('div');
+    h.className = 'os-leiste-huelle';
+    h.innerHTML = `<div class="os-l-schleier" data-zu></div><aside class="os-l-panel" role="dialog" aria-modal="true" aria-labelledby="os-l-titel">
+        <header><h2 id="os-l-titel">Lehrstoff</h2><button type="button" class="btn-close" data-zu aria-label="Schließen"></button></header>
+        <div class="os-l-rumpf" data-rumpf>${lade()}</div>
+        <footer><button type="button" class="btn btn-outline-secondary s-knopf" data-zu>Abbrechen</button><button type="button" class="btn btn-primary s-knopf" data-speichern disabled>Speichern</button></footer></aside>`;
+    document.body.append(h);
+    requestAnimationFrame(() => h.classList.add('offen'));
+    const rumpf = h.querySelector('[data-rumpf]'), knopf = h.querySelector('[data-speichern]');
+    const zu = () => { h.classList.remove('offen'); setTimeout(() => h.remove(), 200); document.removeEventListener('keydown', taste); if (gespeichert) kontext.navigieren(location.hash); };
+    const taste = ev => { if (ev.key === 'Escape') zu(); };
+    document.addEventListener('keydown', taste);
+    window.addEventListener('hashchange', () => h.remove(), { once: true });
+    h.querySelectorAll('[data-zu]').forEach(x => x.onclick = zu);
+    const laden = async () => {
+      const z = liste[i];
+      knopf.disabled = true;
+      rumpf.innerHTML = lade();
+      const lk = z.lehrer ? `&lehrer=${encodeURIComponent(z.lehrer)}` : '';
+      const [st, vor] = await Promise.all([
+        holen(`/api/app/klassenbuch/stunde?datum=${z.datum}&stunde=${z.von}&unterricht=${z.unterricht}${lk}`).catch(() => null),
+        holen(`/api/app/klassenbuch/lehrstoff/vorstunden?datum=${z.datum}&stunde=${z.von}&unterricht=${z.unterricht}`).catch(() => []),
+      ]);
+      const ein = st?.eintrag ?? {};
+      const farbe = /^#[0-9a-f]{6}$/i.test(z.farbe || '') ? z.farbe : '#bfc8cf';
+      rumpf.innerHTML = `<div class="os-l-stunde">
+          <div class="os-l-zeit"><span>${datumDe(z.datum)}</span><span>${e(z.beginn)} - ${e(z.ende)}</span>
+            <span class="os-l-pfeile"><button type="button" data-schritt="-1" ${i <= 0 ? 'disabled' : ''} aria-label="Vorherige Stunde"><i class="bi bi-chevron-left"></i></button><button type="button" data-schritt="1" ${i >= liste.length - 1 ? 'disabled' : ''} aria-label="Nächste Stunde"><i class="bi bi-chevron-right"></i></button></span></div>
+          <div class="os-l-karte" style="--fach:${farbe}"><b>${e(z.fach)}</b><span>${e(z.klassen.join(', '))}</span><span>${e(z.lehrer)}</span><span>${e(z.raeume.join(', '))}</span></div></div>
+        <div class="os-l-feldkopf"><span>Lehrstoff</span><select data-lehrform aria-label="Lehrform"><option value="">Lehrform</option>${LEHRFORMEN.map(l => `<option ${l === ein.lehrform ? 'selected' : ''}>${e(l)}</option>`).join('')}</select></div>
+        <textarea class="form-control" rows="4" data-thema maxlength="2000" placeholder="Lehrstoff hier eingeben" ${st?.darf ? '' : 'disabled'}>${e(ein.thema ?? '')}</textarea>
+        ${st && !st.darf ? '<p class="os-l-hinweis">Diese Stunde gehört nicht zu Ihrem Unterricht.</p>' : ''}
+        <div class="os-l-vor"><div class="os-l-feldkopf"><span>Vorstunden</span></div>
+          ${vor.length ? `<ul>${vor.map((v, n) => `<li><span class="os-l-vdatum">${datumDe(v.datum).slice(0, 6)}</span><span class="os-l-vwt">${wochentag(v.datum)}</span><span class="os-l-vtext" title="${e(v.thema)}">${e(v.thema || '–')}</span>
+            ${v.thema && st?.darf ? `<button type="button" data-kopie="${n}" title="Lehrstoff übernehmen" aria-label="Lehrstoff übernehmen"><i class="bi bi-copy"></i></button>` : ''}</li>`).join('')}</ul>` : '<p class="os-l-hinweis">Keine Vorstunden</p>'}</div>`;
+      const thema = rumpf.querySelector('[data-thema]');
+      knopf.disabled = !st?.darf;
+      rumpf.querySelectorAll('[data-schritt]').forEach(b => b.onclick = () => { i += Number(b.dataset.schritt); laden(); });
+      rumpf.querySelectorAll('[data-kopie]').forEach(b => b.onclick = () => { thema.value = vor[Number(b.dataset.kopie)].thema; thema.focus(); });
+      knopf.onclick = async () => {
+        if (!thema.value.trim()) { toast('Bitte den Lehrstoff eingeben.', true); return; }
+        knopf.disabled = true;
+        try {
+          await senden('/api/app/klassenbuch/stunde', { datum: z.datum, stunde: z.von, unterricht: z.unterricht, thema: thema.value.trim(), lehrform: rumpf.querySelector('[data-lehrform]').value, lehrer: z.lehrer || null }, 'PUT');
+          gespeichert = true;
+          z.lehrstoff = true;
+          toast('Lehrstoff gespeichert.');
+          if (i < liste.length - 1) { i++; laden(); } else zu();
+        } catch (err) { toast(err.message, true); knopf.disabled = false; }
+      };
+      setTimeout(() => thema.focus(), 60);
+    };
+    laden();
+  }
 
   zeichnen();
 }

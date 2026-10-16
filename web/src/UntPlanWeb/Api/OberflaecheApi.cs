@@ -120,31 +120,48 @@ public static partial class OberflaecheApi
 
         // ---------------------------------------------------------------- Klassenbuch: Übersicht und Vorstunden
 
-        // Übersicht wie im Original: je Tag die Stunden (eigene bzw. einer Klasse) mit Lehrstoff, Abwesenheiten und Hausaufgaben
-        api.MapGet("/klassenbuch/uebersicht", (string? bis, int? tage, string? klasse, string? lehrer, HttpContext c, Paketdienst p, Plandienst plan, Klassenbuchdienst kb, Uhr uhr) =>
+        // Übersicht wie im Original: je Tag die Stunden (eigene, einer Lehrkraft bzw. Klasse) mit Lehrstoff, Abwesenheiten und Hausaufgaben.
+        // Zeitraum von–bis (höchstens 31 Tage; ohne von: bis und tage), mehrere Kriterien kombinierbar: klasse und lehrer als Komma-Liste,
+        // fach und unterricht schränken weiter ein. Grenzen des Schuljahres (Endlos-Scroll der Klassenbuch-Übersicht) liefert die Antwort mit.
+        api.MapGet("/klassenbuch/uebersicht", (string? von, string? bis, int? tage, string? klasse, string? lehrer, string? fach, int? unterricht,
+            HttpContext c, Paketdienst p, Plandienst plan, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var b = Kollegium(c);
             var s = Paket(p);
+            static List<string> Liste(string? x) => (x ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             var ende = DateOnly.TryParse(bis, out var x) ? x : uhr.Heute;
-            var anzahl = Math.Clamp(tage ?? 7, 1, 31);
-            var start = ende.AddDays(-anzahl + 1);
-            var k = string.IsNullOrWhiteSpace(klasse) ? null : klasse.Trim();
-            var l = k is null ? (string.IsNullOrWhiteSpace(lehrer) ? b.LehrerKuerzel : lehrer.Trim()) : null;
+            var start = DateOnly.TryParse(von, out var v) ? v : ende.AddDays(-Math.Clamp(tage ?? 7, 1, 31) + 1);
+            if (start > ende) (start, ende) = (ende, start);
+            if (ende.DayNumber - start.DayNumber > 30) ende = start.AddDays(30);
+            var klassen = Liste(klasse);
+            var lehrerListe = Liste(lehrer);
+            var faecher = Liste(fach);
+            if (klassen.Count == 0 && lehrerListe.Count == 0 && b.LehrerKuerzel is { Length: > 0 } ich) lehrerListe.Add(ich);
             var eintraege = kb.Zeitraum(start, ende);
             var fehl = kb.FehlzeitenZeitraum(start, ende);
             // Klassenbucheinträge (Vermerke) je Klasse im Zeitraum – je Stunde gezählt über die Uhrzeit des Eintrags
             var vermerke = new Dictionary<string, List<Vermerk>>(StringComparer.OrdinalIgnoreCase);
-            List<Vermerk> VermerkeVon(string kl) => vermerke.TryGetValue(kl, out var v) ? v : vermerke[kl] = kb.Vermerke(kl, start, ende);
+            List<Vermerk> VermerkeVon(string kl) => vermerke.TryGetValue(kl, out var w) ? w : vermerke[kl] = kb.Vermerke(kl, start, ende);
+            static bool Hat(IEnumerable<Wert> werte, List<string> liste) => werte.Any(w => liste.Contains(w.K, StringComparer.OrdinalIgnoreCase));
             var tageListe = new List<object>();
-            for (var d = ende; d >= start; d = d.AddDays(-1))
+            for (var d = start; d <= ende; d = d.AddDays(1))
             {
-                if (plan.Frei(s, d).Frei || (k is null && l is null)) continue;
+                if (plan.Frei(s, d).Frei || (klassen.Count == 0 && lehrerListe.Count == 0)) continue;
                 var iso = Plandienst.Iso(d);
-                var karten = plan.Karten(s, d, k is null ? Elementtyp.Lehrer : Elementtyp.Klasse, k ?? l!)
-                    .Where(z => z.Unterricht.HasValue && z.Klassen.Count > 0 && z.Status is not ("vorgemerkt" or "buchung" or "veranstaltung")).OrderBy(z => z.Von).ToList();
+                // Karten aus den Klassen (bzw. Lehrkräften), doppelte (gleicher Unterricht, gleiche Stunde) nur einmal
+                var quelle = klassen.Count > 0
+                    ? klassen.SelectMany(k => plan.Karten(s, d, Elementtyp.Klasse, k))
+                    : lehrerListe.SelectMany(l => plan.Karten(s, d, Elementtyp.Lehrer, l));
+                var karten = quelle
+                    .Where(z => z.Unterricht.HasValue && z.Klassen.Count > 0 && z.Status is not ("vorgemerkt" or "buchung" or "veranstaltung"))
+                    .Where(z => klassen.Count == 0 || lehrerListe.Count == 0 || Hat(z.Lehrer, lehrerListe))
+                    .Where(z => faecher.Count == 0 || faecher.Contains(z.Fach, StringComparer.OrdinalIgnoreCase))
+                    .Where(z => unterricht is null || z.Unterricht == unterricht)
+                    .GroupBy(z => (z.Unterricht, z.Von, z.Bis, z.Fach)).Select(g => g.First())
+                    .OrderBy(z => z.Von).ThenBy(z => z.Fach, StringComparer.OrdinalIgnoreCase).ToList();
                 if (karten.Count == 0) continue;
                 var tagVermerke = karten.SelectMany(z => z.Klassen.Select(w => w.K)).Where(w => w.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)
-                    .SelectMany(VermerkeVon).Where(v => v.Datum == iso).ToList();
+                    .SelectMany(VermerkeVon).Where(w => w.Datum == iso).ToList();
                 tageListe.Add(new
                 {
                     datum = iso,
@@ -155,22 +172,28 @@ public static partial class OberflaecheApi
                         var e = eintraege.FirstOrDefault(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis);
                         var f = fehl.Where(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis && y.Art == "fehlt")
                             .GroupBy(y => y.SchuelerId).Select(g => g.First()).ToList();
-                        var hw = kb.HausaufgabenDerStunde(DateOnly.Parse(iso), z.Von, z.Bis, z.Unterricht!.Value); // nicht d: die Liste wird erst beim Serialisieren ausgewertet
+                        var hw = kb.HausaufgabenDerStunde(DateOnly.Parse(iso), z.Von, z.Bis, z.Unterricht!.Value).ToList();
                         return new
                         {
                             von = z.Von, bis = z.Bis, beginn = z.Beginn, ende = z.Ende, fach = z.Fach, fachName = z.FachName, farbe = z.Farbe, art = z.Art, klassen = z.Klassen.Select(w => w.K).Where(w => w.Length > 0),
                             lehrer = z.Lehrer.Select(w => w.K).Where(w => w.Length > 0), raeume = z.Raeume.Select(w => w.K).Where(w => w.Length > 0),
                             status = z.Status, unterricht = z.Unterricht, lehrstoff = e?.Thema ?? "", geprueft = e?.Anwesenheit != null,
-                            abwesend = f.Count, entschuldigt = f.Count(y => y.Status == "entschuldigt"),
+                            abwesend = f.Count, entschuldigt = f.Count(y => y.Status == "entschuldigt"), unentschuldigt = f.Count(y => y.Status == "unentschuldigt"),
                             hausaufgaben = string.Join(" · ", hw.Select(h => h.Text)),
                             verspaetet = fehl.Count(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis && y.Art != "fehlt"),
-                            eintraege = tagVermerke.Count(v => v.Zeit.Length == 5 && z.Klassen.Any(w => string.Equals(w.K, v.Klasse, StringComparison.OrdinalIgnoreCase))
-                                && string.CompareOrdinal(v.Zeit, z.Beginn) >= 0 && string.CompareOrdinal(v.Zeit, z.Ende) < 0),
+                            eintraege = tagVermerke.Count(w => w.Zeit.Length == 5 && z.Klassen.Any(k => string.Equals(k.K, w.Klasse, StringComparison.OrdinalIgnoreCase))
+                                && string.CompareOrdinal(w.Zeit, z.Beginn) >= 0 && string.CompareOrdinal(w.Zeit, z.Ende) < 0),
                         };
-                    }),
+                    }).ToList(),
                 });
             }
-            return Results.Json(new { von = Plandienst.Iso(start), bis = Plandienst.Iso(ende), klasse = k, lehrer = l, tage = tageListe });
+            return Results.Json(new
+            {
+                von = Plandienst.Iso(start), bis = Plandienst.Iso(ende), klasse = klassen.FirstOrDefault(), lehrer = lehrerListe.FirstOrDefault(), klassen, lehrerListe, faecher,
+                schuljahrVon = s.SchuljahrVon == DateOnly.MinValue ? null : Plandienst.Iso(s.SchuljahrVon),
+                schuljahrBis = s.SchuljahrBis == DateOnly.MaxValue ? null : Plandienst.Iso(s.SchuljahrBis),
+                heute = Plandienst.Iso(uhr.Heute), tage = tageListe,
+            });
         });
 
         // Lehrstoff der letzten Stunden desselben Unterrichts (Dialog „Lehrstoff“, Übernehmen per Stift)

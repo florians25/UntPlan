@@ -63,6 +63,7 @@ struct RaumSeite: View {
                         .padding(.vertical, 6)
                         .background(abteilung.isEmpty ? Farben.knopf : Farben.akzent, in: Capsule())
                     }
+                    .tint(Color.primary)
                     .disabled(abteilungen.isEmpty)
                     Spacer(minLength: 0)
                 }

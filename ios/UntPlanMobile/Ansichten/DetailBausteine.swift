@@ -23,8 +23,10 @@ extension UINavigationController: UIGestureRecognizerDelegate {
 enum Detailblatt {
     static let breite: CGFloat = 620
     static let hoehe: CGFloat = 640
-    /// iPhone: volle Breite, 85 % der Höhe (alle Blätter, nicht bis ganz oben)
+    /// iPhone: volle Breite, 85 % der Höhe (Planauswahl, Formulare, Info …; nicht bis ganz oben)
     static let iPhoneAnteil: CGFloat = 0.85
+    /// iPhone: Stunden- und Aufsichtsdetails randlos über die volle Breite, 90 % der Bildschirmhöhe
+    static let iPhoneDetailAnteil: CGFloat = 0.90
     static let radius: CGFloat = 24
 
     /// Höhe aller Blätter auf dem iPhone: 85 % (auch unter iOS 26). Auf dem iPad (Formblatt) ignoriert das System die Stufe.
@@ -46,7 +48,8 @@ extension View {
     }
 
     /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 620 × 640 pt mittig (die Größe bleibt beim
-    /// Wechsel in Unterseiten und beim Ein-/Ausblenden der Tastatur gleich), auf dem iPhone 85 % hoch.
+    /// Wechsel in Unterseiten und beim Ein-/Ausblenden der Tastatur gleich). Auf dem iPhone zeigt `detailPraesentation`
+    /// stattdessen das randlose 90-%-Blatt (`Randblatt`); der Zweig für schmale Breiten bleibt als Rückfall.
     /// Die Tastatur verschiebt bzw. staucht das Blatt selbst nicht; Textfelder in Unterseiten weichen ihr innen aus.
     @ViewBuilder
     func detailBlatt(breit: Bool) -> some View {
@@ -73,6 +76,156 @@ extension View {
         }
     }
 
+}
+
+// MARK: - Randloses Detailblatt (iPhone)
+
+private struct BlattSchliessenSchluessel: EnvironmentKey {
+    static let defaultValue: (@MainActor () -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    /// Schließt das randlose Detailblatt mit seiner Animation (nil = Systemblatt, dann `dismiss`).
+    var blattSchliessen: (@MainActor () -> Void)? {
+        get { self[BlattSchliessenSchluessel.self] }
+        set { self[BlattSchliessenSchluessel.self] = newValue }
+    }
+}
+
+extension View {
+    /// Stunden- bzw. Aufsichtsdetails zeigen: auf dem iPad als festes Formblatt (`detailBlatt`), auf dem iPhone als
+    /// randloses Blatt über die volle Breite und 90 % der Höhe. Die Systemblätter von iOS 26 schweben bei Teilhöhen mit
+    /// Abstand zum Rand – deshalb zeichnet das iPhone-Blatt sich selbst (auf allen iOS-Versionen gleich).
+    func detailPraesentation<Item: Identifiable, Blatt: View>(item: Binding<Item?>, breit: Bool,
+                                                              @ViewBuilder blatt: @escaping (Item) -> Blatt) -> some View {
+        modifier(DetailPraesentation(item: item, breit: breit, blatt: blatt))
+    }
+}
+
+private struct DetailPraesentation<Item: Identifiable, Blatt: View>: ViewModifier {
+    @Binding var item: Item?
+    let breit: Bool
+    let blatt: (Item) -> Blatt
+    /// Auf dem iPhone gezeigtes Element: ohne Systemanimation präsentiert, das Blatt fährt selbst ein und aus.
+    @State private var randElement: Item? = nil
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: Binding(get: { breit ? item : nil }, set: { item = $0 })) { element in
+                blatt(element)
+                    .detailBlatt(breit: true)
+            }
+            .fullScreenCover(item: Binding(get: { randElement }, set: { neu in
+                randElement = neu
+                if neu == nil { item = nil }
+            })) { element in
+                Randblatt(schliessen: { item = nil }) {
+                    blatt(element)
+                }
+                .presentationBackground(.clear)
+            }
+            .onChange(of: item?.id) { _, _ in abgleichen() }
+            .onChange(of: breit) { _, _ in abgleichen() }
+            .onAppear { abgleichen() }
+    }
+
+    /// Blatt auf dem iPhone ohne die Einblendung des Vollbilds zeigen bzw. entfernen.
+    private func abgleichen() {
+        let neu = breit ? nil : item
+        guard neu?.id != randElement?.id else { return }
+        var transaktion = Transaction()
+        transaktion.disablesAnimations = true
+        withTransaction(transaktion) { randElement = neu }
+    }
+}
+
+/// Randloses Blatt (iPhone): volle Breite ohne seitlichen Abstand, 90 % der Bildschirmhöhe, oben große Ecken; dahinter
+/// ein abgedunkelter Plan (Antippen schließt). Am Kopf nach unten ziehen schließt ebenfalls. Bei eingeblendeter Tastatur
+/// bleibt die Oberkante stehen und das Blatt endet über der Tastatur (Textfelder bleiben sichtbar).
+struct Randblatt<Inhalt: View>: View {
+    let schliessen: () -> Void
+    @ViewBuilder let inhalt: () -> Inhalt
+    @State private var sichtbar = false
+    @State private var zug: CGFloat = 0
+    @State private var schliesst = false
+
+    /// Höhe des Bereichs oben, an dem sich das Blatt nach unten ziehen lässt (Kopf mit X, Titel und ⋮).
+    private let griffHoehe: CGFloat = 72
+
+    var body: some View {
+        GeometryReader { geo in
+            let gesamt = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+            let blattHoehe = gesamt * Detailblatt.iPhoneDetailAnteil
+            // Oberkante fest bei 10 % der Bildschirmhöhe; unten endet das Blatt am sicheren Bereich (bzw. an der Tastatur)
+            let innenHoehe = max(geo.size.height + geo.safeAreaInsets.top - (gesamt - blattHoehe), 120)
+            ZStack(alignment: .bottom) {
+                Color.black
+                    .opacity(sichtbar ? 0.32 * Double(1 - min(zug / max(blattHoehe, 1), 1)) : 0)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { zuklappen(blattHoehe) }
+                    .accessibilityHidden(true)
+                inhalt()
+                    .environment(\.blattSchliessen, { zuklappen(blattHoehe) })
+                    .frame(maxWidth: .infinity)
+                    .frame(height: innenHoehe, alignment: .top)
+                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: Detailblatt.radius, bottomLeadingRadius: 0,
+                                                      bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.radius,
+                                                      style: .continuous))
+                    .background(alignment: .top) {
+                        UnevenRoundedRectangle(topLeadingRadius: Detailblatt.radius, bottomLeadingRadius: 0,
+                                               bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.radius,
+                                               style: .continuous)
+                            .fill(Farben.blatt)
+                            .ignoresSafeArea(edges: .bottom)
+                            .shadow(color: .black.opacity(0.12), radius: 10, y: -2)
+                    }
+                    .simultaneousGesture(ziehen(blattHoehe, kopfUnten: geo.size.height - innenHoehe + griffHoehe))
+                    .offset(y: sichtbar ? zug : blattHoehe + 60)
+                    .accessibilityAction(.escape) { zuklappen(blattHoehe) }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .coordinateSpace(NamedCoordinateSpace.named(Self.raum))
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true }
+        }
+    }
+
+    private static var raum: String { "randblatt" }
+
+    /// Nach unten ziehen am Kopf des Blatts (nicht in der Liste, die selbst rollt). Gemessen im festen Koordinatenraum
+    /// des Vollbilds, damit das mitwandernde Blatt die Strecke nicht verfälscht.
+    private func ziehen(_ hoehe: CGFloat, kopfUnten: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: NamedCoordinateSpace.named(Self.raum))
+            .onChanged { wert in
+                guard !schliesst, wert.startLocation.y <= kopfUnten else { return }
+                zug = max(0, wert.translation.height)
+            }
+            .onEnded { wert in
+                guard !schliesst, wert.startLocation.y <= kopfUnten else { return }
+                let weit = wert.translation.height > hoehe * 0.25
+                let schnell = wert.predictedEndTranslation.height > hoehe * 0.45
+                if weit || schnell {
+                    zuklappen(hoehe)
+                } else {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { zug = 0 }
+                }
+            }
+    }
+
+    /// Blatt ausfahren, danach die Präsentation ohne weitere Animation beenden.
+    private func zuklappen(_ hoehe: CGFloat) {
+        guard !schliesst else { return }
+        schliesst = true
+        Tastatur.schliessen()
+        withAnimation(.easeIn(duration: 0.22)) {
+            sichtbar = false
+            zug = 0
+        } completion: {
+            schliessen()
+        }
+    }
 }
 
 // MARK: - Maße der Stundendetails (Original 117/118, iPhone)
@@ -625,6 +778,7 @@ struct RaumZeile: View {
                                 .padding(.vertical, 5)
                                 .background(Farben.knopf, in: Capsule())
                         }
+                        .tint(Color.primary)
                         .accessibilityLabel("Raum \(raum)")
                         .accessibilityHint("Ersetzen oder löschen")
                     }

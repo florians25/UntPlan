@@ -27,15 +27,46 @@ struct HauptView: View {
         }
         .onChange(of: szene) { _, neu in
             if neu == .active && zustand.phase == .angemeldet {
-                Task { await zustand.aktualisieren() }
+                Task {
+                    await zustand.aktualisieren()
+                    // Lehrkräfte: eigenen Plan auf Änderungen prüfen (Mitteilung bei Entfall, Vertretung, Raumänderung …)
+                    await zustand.planPruefen()
+                }
             }
+            if neu == .background && zustand.darfPlanmitteilungen {
+                Planmitteilungen.planen()
+            }
+        }
+        // Eigene Änderung in der App (z. B. Raum in den Stundendetails ersetzt): Stand übernehmen, nicht melden
+        .onChange(of: zustand.planGeaendert) { _, _ in
+            guard zustand.darfPlanmitteilungen else { return }
+            Task { _ = await Planpruefer.shared.pruefen(melden: false) }
+        }
+        // Angetippte Mitteilung über eine Planänderung: Tag im eigenen Plan öffnen
+        .onReceive(NotificationCenter.default.publisher(for: Planmitteilungen.tippBenachrichtigung)) { _ in
+            tagOeffnen()
         }
         // Kurzbefehle am App-Symbol: sofort bzw. nach der Anmeldung ausführen
         .onReceive(NotificationCenter.default.publisher(for: Schnellaktion.benachrichtigung)) { _ in
             schnellaktionAusfuehren()
         }
-        .onChange(of: zustand.phase) { _, _ in schnellaktionAusfuehren() }
-        .onAppear { schnellaktionAusfuehren() }
+        .onChange(of: zustand.phase) { _, neu in
+            schnellaktionAusfuehren()
+            tagOeffnen()
+            // Nach der Anmeldung bzw. beim Start einmal den eigenen Plan prüfen (Lehrkräfte)
+            if neu == .angemeldet { Task { await zustand.planPruefen() } }
+        }
+        .onAppear {
+            schnellaktionAusfuehren()
+            tagOeffnen()
+        }
+    }
+
+    private func tagOeffnen() {
+        guard zustand.phase == .angemeldet, let tag = Planmitteilungen.ausstehenderTag else { return }
+        Planmitteilungen.ausstehenderTag = nil
+        zustand.tagAnfrage = tag
+        zustand.reiter = .stundenplan
     }
 
     private func schnellaktionAusfuehren() {

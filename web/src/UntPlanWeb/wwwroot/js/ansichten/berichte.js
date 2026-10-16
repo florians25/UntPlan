@@ -1,5 +1,5 @@
-// Klassenbuch → Berichte im nl-design: Filterleiste (Klasse, Schüler*in, Zeitraum), Reiter je Berichtsgruppe, je Bericht eine Karte mit
-// Symbol, Beschreibung und gleich großen Knöpfen (Anzeigen, PDF, CSV); Parameter im Seitenpanel. Vorschau oberhalb der Karten.
+// Klassenbuch → Berichte im nl-design: Filterleiste (Klasse, Schüler*in, Zeitraum), Reiter je Berichtsgruppe, Berichte als ruhige Liste
+// (Symbol, Titel, Beschreibung, rechts Anzeigen/PDF/CSV); Parameter im Seitenpanel. Vorschau oberhalb der Liste.
 import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade } from '../ui.js';
 
 const ALIAS = { fehlzeiten: 'fehlzeiten_schueler', lehrstoff: 'arbeitsbericht_tag' };
@@ -78,21 +78,21 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   </div>`;
 
   const raster = seite.querySelector('[data-raster]');
+  // je Bericht eine ruhige Zeile: Symbol, Titel und Beschreibung (öffnet die Parameter), Hinweise, rechts die Aktionen
   const karte = a => {
     const g = GRUPPEN[a.gruppe] ?? GRUPPEN.Weitere;
     const fehltKlasse = a.klasseNoetig && !klasse;
-    return `<article class="br-karte ${a.id === art ? 'aktiv' : ''}" data-karte="${a.id}">
-      <button type="button" class="br-karte-kopf" data-panel="${a.id}" aria-label="${e(a.titel)}: Parameter und Export">
-        <span class="br-symbol ${g.farbe}"><i class="bi bi-${g.symbol}" aria-hidden="true"></i></span>
-        <span class="br-karte-text"><b>${e(a.titel)}</b><span>${e(BESCHREIBUNG[a.id] ?? a.gruppe)}</span></span>
-      </button>
-      <div class="br-karte-tags">${a.klasseNoetig ? `<span class="s-label ${fehltKlasse ? 'orange' : ''}">${fehltKlasse ? 'Klasse wählen' : 'je Klasse'}</span>` : ''}
-        ${a.parameter ? `<span class="s-label">${e(a.parameter.replace('{n1}', vorgabe(a, 1)).replace('{n2}', vorgabe(a, 2)))}</span>` : ''}</div>
-      <div class="br-karte-fuss">
-        <button type="button" class="br-knopf" data-anzeigen="${a.id}" ${fehltKlasse ? 'disabled' : ''}><i class="bi bi-eye"></i>Anzeigen</button>
-        <button type="button" class="br-knopf" data-pdf="${a.id}" ${fehltKlasse ? 'disabled' : ''}><i class="bi bi-file-earmark-pdf"></i>PDF</button>
-        <button type="button" class="br-knopf" data-csv="${a.id}" ${fehltKlasse || a.id === 'entschuldigungsschreiben' ? 'disabled' : ''}><i class="bi bi-filetype-csv"></i>CSV</button>
-      </div></article>`;
+    return `<div class="br-reihe ${a.id === art ? 'aktiv' : ''}" data-karte="${a.id}" role="listitem">
+      <span class="br-symbol ${g.farbe}"><i class="bi bi-${g.symbol}" aria-hidden="true"></i></span>
+      <button type="button" class="br-reihe-text" data-panel="${a.id}" aria-label="${e(a.titel)}: Parameter und Export">
+        <b>${e(a.titel)}</b><span>${e(BESCHREIBUNG[a.id] ?? a.gruppe)}</span></button>
+      <span class="br-reihe-tags">${a.klasseNoetig ? `<span class="s-label ${fehltKlasse ? 'orange' : ''}">${fehltKlasse ? 'Klasse wählen' : 'je Klasse'}</span>` : ''}
+        ${a.parameter ? `<span class="s-label">${e(a.parameter.replace('{n1}', vorgabe(a, 1)).replace('{n2}', vorgabe(a, 2)))}</span>` : ''}</span>
+      <span class="br-reihe-aktionen">
+        <button type="button" class="br-knopf" data-anzeigen="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Anzeigen"><i class="bi bi-eye"></i><span>Anzeigen</span></button>
+        <button type="button" class="br-knopf" data-pdf="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Als PDF herunterladen"><i class="bi bi-file-earmark-pdf"></i><span>PDF</span></button>
+        <button type="button" class="br-knopf" data-csv="${a.id}" ${fehltKlasse || a.id === 'entschuldigungsschreiben' ? 'disabled' : ''} title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i><span>CSV</span></button>
+      </span></div>`;
   };
   const rasterZeichnen = () => {
     const q = suche.trim().toLowerCase();
@@ -100,8 +100,8 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     seite.querySelector('[data-gruppen]').innerHTML = ['alle', ...gruppen].map(g => `<button type="button" role="tab" class="s-pille ${g === gruppe ? 'an' : ''}" aria-selected="${g === gruppe}" data-gruppe="${e(g)}">
       ${g === 'alle' ? 'Alle Berichte' : e(g)} <span class="br-anzahl">${g === 'alle' ? arten.length : arten.filter(a => a.gruppe === g).length}</span></button>`).join('');
     raster.innerHTML = sicht.length ? (gruppe === 'alle' && !q
-      ? gruppen.map(g => `<section class="br-abschnitt"><h2>${e(g)}</h2><div class="br-karten">${arten.filter(a => a.gruppe === g).map(karte).join('')}</div></section>`).join('')
-      : `<div class="br-karten">${sicht.map(karte).join('')}</div>`)
+      ? gruppen.map(g => `<section class="br-abschnitt"><h2>${e(g)}</h2><div class="br-liste" role="list">${arten.filter(a => a.gruppe === g).map(karte).join('')}</div></section>`).join('')
+      : `<div class="br-liste" role="list">${sicht.map(karte).join('')}</div>`)
       : `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-search"></i></span><b>Kein Bericht gefunden</b><p>Für „${e(suche)}“ gibt es keinen passenden Bericht.</p></div>`;
     seite.querySelectorAll('[data-gruppe]').forEach(b => b.onclick = () => {
       gruppe = b.dataset.gruppe;

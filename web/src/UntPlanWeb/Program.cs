@@ -119,6 +119,8 @@ public class Program
             h["Referrer-Policy"] = "same-origin";
             h["X-Frame-Options"] = "DENY";
             h["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+            // App-Daten nie zwischenspeichern: Änderungen (z. B. Abwesenheiten ↔ Fehlzeiten) sind sofort überall sichtbar; Downloads setzen eigene Werte
+            if (ctx.Request.Path.StartsWithSegments("/api/app")) h.CacheControl = "no-store";
             await next();
         });
         // Schutz gegen fremde Seiten (CSRF): ändernde App-Aufrufe brauchen einen eigenen Kopf, den nur unser Frontend setzt
@@ -164,6 +166,7 @@ public class Program
         MobilApi.Abbilden(app);
         OberflaecheApi.Abbilden(app);
         FamilieApi.Abbilden(app);
+        MitteilungApi.Abbilden(app);
         BuchungApi.Abbilden(app);
         BenutzerverwaltungApi.Abbilden(app);
         InfocenterApi.Abbilden(app);
