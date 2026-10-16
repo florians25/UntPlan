@@ -7,7 +7,7 @@ namespace UntPlanWeb.Api;
 /// <summary>
 /// Endpunkte der überarbeiteten Oberfläche:
 /// <list type="bullet">
-/// <item>Schrift: <c>/css/schrift.css</c> bindet AvenirNextPro ein, wenn die lizenzierten Dateien unter <c>wwwroot/fonts</c> liegen.</item>
+/// <item>Schrift: siehe <see cref="SchriftApi"/> (Dateien im Datenordner).</item>
 /// <item>Schülerverwaltung (Rechte siehe <see cref="Schuelerverwaltung"/>).</item>
 /// <item>Raumänderung aus den Stundendetails (Ersetzen, Löschen, zusätzlicher Raum).</item>
 /// <item>Klassenbuch: Übersicht der letzten Tage, Vorstunden für den Lehrstoff-Dialog.</item>
@@ -64,12 +64,6 @@ public static partial class OberflaecheApi
 
     public static void Abbilden(WebApplication app)
     {
-        app.MapGet("/css/schrift.css", (HttpContext c, IWebHostEnvironment env) =>
-        {
-            c.Response.Headers.CacheControl = "no-cache";
-            return Results.Text(SchriftCss(env.WebRootPath), "text/css; charset=utf-8");
-        });
-
         var api = app.MapGroup("/api/app");
 
         // ---------------------------------------------------------------- Schülerverwaltung

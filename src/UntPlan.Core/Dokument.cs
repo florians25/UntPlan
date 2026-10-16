@@ -99,6 +99,9 @@ public sealed class Dokument
     public static Schuldatei Klonen(Schuldatei d) =>
         JsonSerializer.Deserialize<Schuldatei>(JsonSerializer.SerializeToUtf8Bytes(d, JsonOptionen), JsonOptionen)!;
 
+    /// <summary>Nach Änderungen an Unterricht/Stundenplan die Vertretungsplanung ab heute neu abgleichen (Standard: ja).</summary>
+    public bool PlanaenderungenAbgleichen { get; set; } = true;
+
     /// <summary>Führt eine Änderung mit Rückgängig-Möglichkeit aus.</summary>
     public void Aendern(string beschreibung, AenderungsArt art, Action<Schuldatei> aktion)
     {
@@ -111,6 +114,9 @@ public sealed class Dokument
         {
             aktion(Daten);
             if (unterrichtVorher != null) Module.Perioden.Weitergeben(Daten, unterrichtVorher);
+            // geänderter Unterricht/Stundenplan: bestehende Absenzen und Vertretungen auf den neuen Plan anwenden (gleiche Rückgängig-Stufe)
+            if (art is AenderungsArt.Unterricht or AenderungsArt.Stundenplan && PlanaenderungenAbgleichen)
+                Vertretungsplanung.Vertretungen.NachPlanaenderung(Daten, DateOnly.FromDateTime(DateTime.Today));
         }
         catch
         {

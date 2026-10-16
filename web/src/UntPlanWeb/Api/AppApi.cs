@@ -74,6 +74,8 @@ public static class AppApi
                 {
                     b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Element, b.Kollegium, admin = b.IstAdmin, nachrichten = b.DarfNachrichten,
                     passwortAendern = b.PasswortAendern, typ = b.Rolle == Rollen.Schueler ? Elementtyp.Klasse : Elementtyp.Lehrer,
+                    // Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten) nur für Klassenleitungen, Schulleitung und Administration
+                    fehlzeiten = Klassenbuchdienst.FehlzeitenVerwalten(b, p.Aktuell),
                 },
                 ungelesen = b is null ? 0 : m.Ungelesen(b.Id),
                 // Ansichtseinstellungen der Administration (Wochenende, Uhrzeiten auf Karten, Startseite)
@@ -345,6 +347,7 @@ public static class AppApi
         {
             var b = Ich(c);
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            if (!Klassenbuchdienst.IstKlassenleitung(b, Paket(p), klasse)) throw new UnauthorizedAccessException("Die Fehlzeiten einer Klasse sieht nur die Klassenleitung.");
             return Results.Json(kb.Fehlzeitenuebersicht(Paket(p), b, klasse, DateOnly.TryParse(von, out var v) ? v : uhr.Heute.AddDays(-90), DateOnly.TryParse(bis, out var bi) ? bi : uhr.Heute));
         });
         api.MapPost("/klassenbuch/fehlzeiten/tage", (FehlenDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
@@ -409,16 +412,23 @@ public static class AppApi
         {
             var b = Ich(c);
             NurKollegium(b);
-            return Results.Json(l.Abwesenheiten(Paket(p), b, Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute), Leer(klasse), Leer(status)));
+            var st = Paket(p);
+            if (!Klassenbuchdienst.FehlzeitenVerwalten(b, st)) throw new UnauthorizedAccessException("Die Abwesenheitsverwaltung steht den Klassenleitungen zur Verfügung.");
+            // Klassenleitungen sehen die Abwesenheiten ihrer eigenen Klassen
+            var zeilen = l.Abwesenheiten(st, b, Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute), Leer(klasse), Leer(status));
+            return Results.Json(b.Rolle is Rollen.Admin or Rollen.Leitung ? zeilen : zeilen.Where(z => z.Verwalten).ToList());
         });
 
         api.MapGet("/berichte/fehlzeiten", (string? von, string? bis, string? klasse, string? format, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>
         {
             var b = Ich(c);
             NurKollegium(b);
+            var st = Paket(p);
+            if (!Klassenbuchdienst.FehlzeitenVerwalten(b, st)) throw new UnauthorizedAccessException("Fehlzeitenberichte stehen den Klassenleitungen zur Verfügung.");
             var v = Von(von, uhr.Heute.AddDays(-90));
             var bi = Von(bis, uhr.Heute);
-            var liste = l.Fehlzeitenbericht(Paket(p), v, bi, Leer(klasse));
+            var liste = l.Fehlzeitenbericht(st, v, bi, Leer(klasse))
+                .Where(z => b.Rolle is Rollen.Admin or Rollen.Leitung || Klassenbuchdienst.IstKlassenleitung(b, st, z.Klasse)).ToList();
             return format == "csv"
                 ? Results.File(Listendienst.FehlzeitenCsv(liste), "text/csv; charset=utf-8", $"fehlzeiten-{Leer(klasse) ?? "alle"}-{v:yyyy-MM-dd}-{bi:yyyy-MM-dd}.csv")
                 : Results.Json(new { von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste });

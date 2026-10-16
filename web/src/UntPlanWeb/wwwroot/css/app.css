@@ -6,6 +6,7 @@
 /* ------------------------------------------------------------------ Farben & Maße */
 
 :root {
+  --u-verlauf: linear-gradient(165deg, #f6f7f9 0%, #eef0f3 45%, #e2e5e9 100%);
   --u-akzent: #f56b2a;
   --u-akzent-dunkel: #dd5718;
   --u-akzent-hell: #fff1ea;
@@ -78,7 +79,7 @@
 
 html { -webkit-text-size-adjust: 100%; }
 body {
-  background: linear-gradient(165deg, #f6f7f9 0%, #eef0f3 45%, #e2e5e9 100%) fixed; color: var(--u-text); font-family: var(--u-schrift);
+  background: var(--u-verlauf) fixed; color: var(--u-text); font-family: var(--u-schrift);
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; min-height: 100vh;
 }
 h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { color: var(--u-titel); font-weight: 600; letter-spacing: 0; }
@@ -570,7 +571,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .std .lbl { display: inline-block; padding: 0 3px; background: var(--u-gruen-label); color: #fff; font-weight: 600; line-height: 15px; font-size: 12px; border-radius: 1px; }
 .z1 .lbl { font-size: 14px; line-height: 18px; }
 .std .lbl.offen { background: var(--u-rot); }
-.std .lbl.weg { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.std .lbl.weg { text-decoration: line-through; text-decoration-thickness: 1px; }
 .std .mks { position: absolute; top: 9px; right: 9px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .std .info { position: absolute; right: 9px; bottom: 9px; width: 12px; height: 12px; border-radius: 50%; background: var(--u-grau-2); color: #fff; font: italic 700 9px/12px Georgia, serif; text-align: center; }
 .std.vergangen { background: #f3f5f7; }
@@ -589,7 +590,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 /* Zustände (mit schwebendem Schatten wie im Original) */
 .std.geaendert, .std.offen, .std.buchung { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
 .std.entfall, .std.abwesend { background: var(--u-rot-hell); box-shadow: var(--u-schatten-karte); }
-.std.entfall .z1, .std.entfall .z2, .std.abwesend .z1, .std.abwesend .z2, .std.entfall .zt, .std.abwesend .zt { text-decoration: line-through; text-decoration-thickness: 1px; }
+.std.entfall .z1, .std.entfall .z2, .std.abwesend .z1, .std.abwesend .z2, .std.entfall .zt, .std.abwesend .zt { text-decoration: line-through; text-decoration-thickness: .75px; }
 .std.klausur { background: var(--u-gelb-hell); box-shadow: var(--u-schatten-karte); }
 .std.bereitschaft { background: #f3f5f7; outline: 1px dashed #8d99a3; outline-offset: -1px; }
 .std.bereitschaft::before { background: #20e0ee; }
@@ -1250,20 +1251,24 @@ button, input, select, textarea, .modal, .tooltip, .dropdown-menu, .u-hover-labe
 
 /* Stundenplan: obere Leiste (Elementwahl, Zeitraum, Heute) und Tageskopf Mo–Fr bleiben beim Scrollen oben stehen, mit leichtem Schatten */
 [data-ansicht="plan"] { --plan-grund: #f4f5f7; --plankopf: 58px; --plan-oben: 0px; }
-[data-ansicht="plan"] .planleiste {
-  position: sticky; top: var(--plan-oben); z-index: 20; background: var(--plan-grund); margin-top: -28px; padding-top: 14px; padding-bottom: 4px;
-  box-shadow: -32px 0 0 var(--plan-grund), 32px 0 0 var(--plan-grund), -32px -20px 0 var(--plan-grund), 32px -20px 0 var(--plan-grund);
+[data-ansicht="plan"] .planleiste { position: sticky; top: var(--plan-oben); z-index: 20; margin-top: -28px; padding-top: 14px; padding-bottom: 4px; }
+/* Hintergrund von Leiste und Tageskopf: derselbe fixierte Farbverlauf wie die Seite, durchgehend bis an die Ränder (auch über die Lücken) */
+[data-ansicht="plan"] .planleiste::before, [data-ansicht="plan"] .tt > .tt-tag::before, [data-ansicht="plan"] .tt > .tt-ecke:first-child::before {
+  content: ""; position: absolute; z-index: -1; inset: 0 calc(var(--tt-spalt) / -2); background: var(--u-verlauf) fixed; pointer-events: none;
 }
+[data-ansicht="plan"] .planleiste::before { inset: -20px -40px 0; }
+[data-ansicht="plan"] .tt > .tt-ecke:first-child::before { left: -40px; }
+[data-ansicht="plan"] .tt > .tt-tag.letzter::before { right: -40px; }
 [data-ansicht="plan"] .tt > .tt-tag, [data-ansicht="plan"] .tt > .tt-ecke:first-child {
-  position: sticky; top: calc(var(--plan-oben) + var(--plankopf)); z-index: 19; background: var(--plan-grund); padding-top: 4px;
-  box-shadow: calc(var(--tt-spalt) / -2) 0 0 var(--plan-grund), calc(var(--tt-spalt) / 2) 0 0 var(--plan-grund);
+  position: sticky; top: calc(var(--plan-oben) + var(--plankopf)); z-index: 19; padding-top: 4px;
 }
-/* Schatten unter dem Tageskopf: ein durchgehendes Band über alle Tage (auch über die Lücken), nur wenn gescrollt ist */
+/* Schatten unter dem Tageskopf: ein durchgehendes Band über die ganze Breite, nur wenn gescrollt ist */
 [data-ansicht="plan"] .tt > .tt-tag::after, [data-ansicht="plan"] .tt > .tt-ecke:first-child::after {
   content: ""; position: absolute; top: 100%; left: calc(var(--tt-spalt) / -2); right: calc(var(--tt-spalt) / -2); height: 10px;
-  background: linear-gradient(rgba(0, 5, 10, .17), rgba(0, 5, 10, 0)); opacity: 0; transition: opacity .15s ease; pointer-events: none;
+  background: linear-gradient(rgba(0, 5, 10, .14), rgba(0, 5, 10, 0)); opacity: 0; pointer-events: none;
 }
-[data-ansicht="plan"] .tt > .tt-ecke:first-child::after { left: -32px; }
+[data-ansicht="plan"] .tt > .tt-tag.letzter::after { right: -40px; }
+[data-ansicht="plan"] .tt > .tt-ecke:first-child::after { left: -40px; }
 body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-ecke:first-child::after { opacity: 1; }
 /* Stundenraster breiter: weniger Rand links und rechts, schmalere Lücken zwischen den Tagen */
 .tt { --tt-spalt: 16px; }
@@ -1278,7 +1283,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 /* Klasse abwesend: Klasse durchgestrichen mit Label, Karte grün; im eigenen Plan gestrichelt wie bei abwesender Lehrkraft */
 .std .lbl.abw { background: #8a96a1; }
 .std.klasse-abwesend { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
-.std.klasse-abwesend .kl-weg { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.std.klasse-abwesend .kl-weg { text-decoration: line-through; text-decoration-thickness: 1px; }
 .std.lehrer-abwesend.klasse-abwesend { background: #f1f5f8 !important; }
 .std .abw-label { display: inline-block; font-size: 10.5px; line-height: 14px; font-weight: 700; color: #fff; background: #67747e; border-radius: 2px; padding: 0 4px; margin-top: 2px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -1410,3 +1415,11 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 @media (min-width: 992px) { .u-app[data-ansicht="klassenbuch"] .u-inhalt { max-width: none; padding-right: 24px; } }
 .kb-tagkopf { position: sticky; top: 82px; z-index: 5; background: var(--plan-grund, #f4f5f7); padding: 4px 0; margin: 18px 0 8px; }
 @media (max-width: 991.98px) { .kb-tagkopf { top: calc(var(--u-kopf) + 64px); } }
+/* Überhang von Kopf und Schatten nicht seitlich scrollen lassen (clip statt hidden, damit sticky erhalten bleibt) */
+[data-ansicht="plan"] .u-haupt, .u-app[data-ansicht="plan"] .u-haupt { overflow-x: clip; }
+
+/* keine Lade- und Öffnungsanimationen */
+.u-laedt { min-height: 120px; }
+.stundendetails, .stundendetails .modal-dialog, .modal-backdrop { transition: none !important; animation: none !important; }
+/* Durchstreichung überall etwas feiner */
+.alt, .std-lbl.weg, .vt-zeile .lbl-neu.weg, .std.lehrer-abwesend .lbl.weg, .heute-tabelle tr.entfall td, .heute-liste tr.entfall td, .kb-tagliste tr.entfall td, .wert-alt, s, del { text-decoration-thickness: .75px; }

@@ -154,6 +154,7 @@ public class Program
         SsoApi.Abbilden(app);
         ErweiterungApi.Abbilden(app);
         UpdateApi.Abbilden(app);
+        SchriftApi.Abbilden(app);
         MobilApi.Abbilden(app);
         OberflaecheApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }

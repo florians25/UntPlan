@@ -50,7 +50,7 @@ export function karteDialog(karte, kontext = {}) {
     .sort((a, b) => a.datum.localeCompare(b.datum) || a.von - b.von);
 
   const el = document.createElement('div');
-  el.className = 'modal fade stundendetails';
+  el.className = 'modal stundendetails';
   el.tabIndex = -1;
   el.innerHTML = `<div class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable"><div class="modal-content"></div></div>`;
   document.body.append(el);
@@ -456,7 +456,7 @@ export function karteDialog(karte, kontext = {}) {
       const x = liste[liste.indexOf(k) + Number(b.dataset.blaettern)];
       if (!x) return;
       k = x; auswahl.clear(); abwAuswahl.clear(); offen = null; hwBearbeiten = null; pruefungSchueler = null;
-      box.querySelector('.sd-rumpf').innerHTML = '<div class="py-5 text-center"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+      box.querySelector('.sd-rumpf').innerHTML = '<div class="py-5"></div>';
       await laden();
       if (reiter === 'klassenbuch' && !mitKlassenbuch()) reiter = 'details';
       zeichnen();
@@ -675,7 +675,7 @@ export function karteDialog(karte, kontext = {}) {
 
   /** Auswahlliste wie im Original: Suche, Abteilung als Auswahl-Pille, Raumarten als Pillen, Zeilen mit Radio-Auswahl. */
   async function raumWahl(ziel) {
-    ziel.innerHTML = '<div class="py-2"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+    ziel.innerHTML = '<div class="py-2"></div>';
     let raeume;
     try { raeume = await holen(`/api/app/meldungen/freieraeume?datum=${k.datum}&von=${k.von}&bis=${k.bis}`); }
     catch (err) { ziel.innerHTML = `<p class="small text-danger mt-2">${e(err.message)}</p>`; return; }
@@ -924,7 +924,7 @@ export function karteDialog(karte, kontext = {}) {
   }
 
   // Start
-  box.innerHTML = '<div class="py-5 text-center"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+  box.innerHTML = '<div class="py-5"></div>';
   modal.show();
   laden().then(() => { reiter = mitKlassenbuch() ? 'klassenbuch' : 'details'; zeichnen(); });
   return box;

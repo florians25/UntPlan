@@ -248,7 +248,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
 
   let html = `<div class="tt" style="--tage:${tage.length}"><div class="tt-ecke"></div>`;
   tage.forEach((t, i) => {
-    html += `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}">${e(tagKopf(i, t.datum))}</div>`;
+    html += `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''} ${i === plan.tage.length - 1 ? 'letzter' : ''}">${e(tagKopf(i, t.datum))}</div>`;
   });
   if (mitLeiste) {
     html += '<div class="tt-ecke"></div>';

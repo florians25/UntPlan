@@ -123,7 +123,7 @@ public sealed partial class Klassenbuchdienst
     public List<Karte> Anreichern(List<Karte> karten, bool kollegium)
     {
         // Abwesenheitsgrund einer Klasse nur fürs Kollegium
-        if (!kollegium) karten = karten.Select(k => k.AbwesendText.Length > 0 ? k with { AbwesendText = "abwesend" } : k).ToList();
+        if (!kollegium) karten = karten.Select(k => k.AbwesendText.Length > 0 ? k with { AbwesendText = k.Status == "entfall" ? "Klasse abwesend" : "abwesend" } : k).ToList();
         var mitUnterricht = karten.Where(k => k.Unterricht.HasValue).ToList();
         if (mitUnterricht.Count == 0) return karten;
         var von = DateOnly.Parse(mitUnterricht.Min(k => k.Datum)!);

@@ -149,6 +149,11 @@ public sealed partial class Klassenbuchdienst
     }
 
     /// <summary>Klassenleitung, Schulleitung oder Administration?</summary>
+    /// <summary>Darf die Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten, Fehlzeitenberichte) nutzen: Klassenleitung mindestens einer Klasse, Schulleitung, Administration.</summary>
+    public static bool FehlzeitenVerwalten(Benutzer b, Stand? s) =>
+        b.Rolle is Rollen.Admin or Rollen.Leitung ||
+        (s != null && b.LehrerKuerzel is string l && s.Paket.Elemente.Klassen.Any(k => k.Klassenleitung.Contains(l, Ci)));
+
     public static bool IstKlassenleitung(Benutzer b, Stand s, string klasse) =>
         b.Rolle is Rollen.Admin or Rollen.Leitung ||
         b.LehrerKuerzel is string l && s.Paket.Elemente.Klassen.Any(k => Ci.Equals(k.Kurz, klasse) && k.Klassenleitung.Contains(l, Ci));

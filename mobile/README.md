@@ -40,7 +40,7 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
     zurück und steht in der Tagesansicht als halbe Kachel daneben.
   - Zusatzstunden (Sondereinsatz, Zusatzunterricht, Verlegung …) ohne Lehrkraft zeigen „---“ als Lehrkraft – nur bei
     Zusatzstunden, auf der Kachel und in den Details. Vertretungen ohne Lehrkraft („+++“) behalten die durchgestrichene
-    bisherige Lehrkraft und den Hinweis „Vertr. o. Lehrkraft“.
+    bisherige Lehrkraft und den Hinweis „Vertr. o. Lehrkr.“.
   - Info-Zeichen unten rechts bei Notizen (für Schüler*innen bzw. Lehrkräfte) und Vertretungstext, Hausaufgabenzeichen in der
     Stunde, zu der eine Hausaufgabe fällig ist.
   - Wischen zwischen Wochen bzw. Tagen (Nachbarwochen vorgeladen), Tagesansicht, „Gehe zu Datum“, Legende.

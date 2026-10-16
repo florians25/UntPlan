@@ -9,7 +9,7 @@ namespace UntPlan.App.Fenster;
 
 /// <summary>
 /// Vertretungsfenster (Vertretungsmodus): alle Vertretungen des Planungszeitraums mit Ansichten Klasse/Lehrer/Druck,
-/// Filter "Offene Vertretungen" und "Kollisionen", direkter Eingabe des Vertreters ("+" = Vertr. o. Lehrkraft, "-" = Entfall)
+/// Filter "Offene Vertretungen" und "Kollisionen", direkter Eingabe des Vertreters ("+" = Vertr. o. Lehrkr., "-" = Entfall)
 /// und gleichzeitiger Bearbeitung mehrerer markierter Zeilen.
 /// </summary>
 public sealed class VertretungenFenster : MdiFenster, IDruckbar
@@ -73,7 +73,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             ToolTipText = "Entfall – Unterricht entfällt (Taste - beim Vertreter); erneut klicken macht wieder eine offene Vertretung daraus", DisplayStyle = ToolStripItemDisplayStyle.Image,
         });
-        ts.Items.Add(Knopf("Vtr. ohne Lehrer (+)", "planen", OhneLehrkraft, false));
+        ts.Items.Add(Knopf("Vertr. o. Lehrkr. (+)", "planen", OhneLehrkraft, false));
         ts.Items.Add(Knopf("Vertretung teilen", "tausch", Teilen));
         ts.Items.Add(Knopf("Lehrkraft zur Veranstaltung hinzufügen", "lehrer", LehrkraftHinzufuegen));
         ts.Items.Add(Knopf("Raum zuordnen", "raumzuordnen", RaumZuordnen));
@@ -819,7 +819,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Anzeige(ElementTyp.Fach, (weg ?? v).FachId, "Fach"), neuesFach,
             lehrer, vertreter, Klassen((weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
             v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, (weg ?? v).RaumId, "Raum"), raumNeu,
-            Pos(v.VonDatum, v.VonStunde), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : Pos(v.NachDatum, v.NachStunde), v.Text, v.Statistik, v.Schuelergruppe,
+            Pos(v.VonDatum, v.VonStunde), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : Pos(v.NachDatum, v.NachStunde), v.Art == VertretungsArt.VertretungOhneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Vertretungen.OhneLehrerText : v.Text, v.Statistik, v.Schuelergruppe,
             Langname("Grund") && D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == v.GrundId) is { } gl ? gl.Langname : v.Grund,
             u?.Text ?? "", u != null && v.ZeilenIndex < u.Zeilen.Count ? u.Zeilen[v.ZeilenIndex].Zeilentext : "", v.Beschreibung,
             v.IstEntfall ? "X" : "", v.Mitbetreuung ? "X" : "", v.Kopplung > 0 ? v.Kopplung.ToString() : "", Vertretungen.IstNeu(v, Doc.Sitzungsbeginn) ? "Neu" : "",
@@ -897,7 +897,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (zelle.OwningColumn.Name != "Vertreter") return D.Faecher.FirstOrDefault(f => f.Kurzname == text) is { } fa ? new(Color.White, Color.Black, fa.Langname) : null;
         if (zelle.OwningRow.Tag is not Vertretung v) return null;
         var l = D.Lehrer.FirstOrDefault(x => x.Kurzname == text);
-        if (l is null) return text switch { "+++" => new(Color.White, Color.Black, "Vtr. ohne Lehrer"), "---" => new(Color.White, Color.Black, "Entfall"), _ => null };
+        if (l is null) return text switch { "+++" => new(Color.White, Color.Black, "Vertr. o. Lehrkr."), "---" => new(Color.White, Color.Black, "Entfall"), _ => null };
         var tp = Plan(v.Datum);
         if (Vertretungen.LehrerBelegt(D, tp, l.Id, v.Stunde, v) is { } grund) return new(Color.FromArgb(225, 40, 40), Color.White, $"{l.VollerName} – {grund}");
         if (Vertretungen.HatBereitschaft(D, tp, l.Id, v.Stunde) || Vertretungen.IstFreigesetzt(D, tp, l.Id, v.Stunde)) return new(Color.FromArgb(200, 240, 200), Color.Black, l.VollerName);
@@ -1307,7 +1307,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = Bearbeitbare(ids).Where(v => v.Art != VertretungsArt.Pausenaufsicht).ToList();
         if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
-        Ausfuehren("Vtr. ohne Lehrer", liste.Select(v => v.Id).ToList(), (_, v) => Vertretungen.OhneLehrer(v, AppZustand.Benutzer));
+        Ausfuehren("Vertr. o. Lehrkr.", liste.Select(v => v.Id).ToList(), (_, v) => Vertretungen.OhneLehrer(v, AppZustand.Benutzer));
     }
 
     private void Teilen()
@@ -1435,7 +1435,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 cm.Items.Add("Entfall rückgängig machen", Symbole.Get("rueckgaengig"), (_, _) => Entfall());
             else
                 cm.Items.Add($"Entfall{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("entfall"), (_, _) => Entfall());
-            cm.Items.Add($"Vtr. ohne Lehrer{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("planen"), (_, _) => OhneLehrkraft());
+            cm.Items.Add($"Vertr. o. Lehrkr.{(liste.Count > 1 ? $" ({liste.Count} Stunden)" : "")}", Symbole.Get("planen"), (_, _) => OhneLehrkraft());
             if (liste.Any(v => v.Art == VertretungsArt.Veranstaltung))
                 cm.Items.Add("Lehrkraft zur Veranstaltung hinzufügen…", Symbole.Get("lehrer"), (_, _) => LehrkraftHinzufuegen());
             cm.Items.Add("Vertretung teilen", Symbole.Get("tausch"), (_, _) => Teilen());

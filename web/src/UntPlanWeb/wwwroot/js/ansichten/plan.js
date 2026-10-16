@@ -224,9 +224,9 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
         <button type="button" class="rundknopf" data-element="1" title="Nächstes Element (Alt+→)" aria-label="Nächstes Element" ${pos < 0 || pos >= liste.length - 1 ? 'disabled' : ''}>${icon('rechts')}</button>`}
       </div>
       <div class="mitte">
-        ${istMein ? `<button type="button" class="rundknopf" data-woche="-7" title="Vorherige Woche" aria-label="Vorherige Woche">${icon('links')}</button>` : ''}
-        <span class="position-relative"><button type="button" class="zeitraum ${istMein ? '' : 'pille'}" data-kalender title="Datum wählen" aria-haspopup="dialog">${wochenText(mo)}</button></span>
-        ${istMein ? `<button type="button" class="rundknopf" data-woche="7" title="Nächste Woche" aria-label="Nächste Woche">${icon('rechts')}</button>` : ''}
+        <button type="button" class="rundknopf" data-woche="-7" title="Vorherige Woche" aria-label="Vorherige Woche">${icon('links')}</button>
+        <span class="position-relative"><button type="button" class="zeitraum" data-kalender title="Datum wählen" aria-haspopup="dialog">${wochenText(mo)}</button></span>
+        <button type="button" class="rundknopf" data-woche="7" title="Nächste Woche" aria-label="Nächste Woche">${icon('rechts')}</button>
       </div>
       <div class="rechts"><button type="button" class="heute-pill" data-woche="0">Heute</button></div>
     </div>

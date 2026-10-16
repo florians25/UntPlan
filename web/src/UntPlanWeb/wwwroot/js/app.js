@@ -249,8 +249,8 @@ function menue() {
       { nav: 'dienste', href: '#/dienste', text: 'Klassendienste', icon: 'klassendienste' },
       { nav: 'berichte', href: '#/berichte', text: 'Berichte', icon: 'berichte' },
       { nav: 'klassenbuch-woche', href: '#/klassenbuch/-/woche', text: 'Wochenübersicht', icon: 'woche' },
-      { nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' },
-      { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' },
+      ...(b.fehlzeiten ? [{ nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' },
+        { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' }] : []),
       { nav: 'befreiungen', href: '#/befreiungen', text: 'Befreiungen', icon: 'befreiungen' },
       { nav: 'sitzplan', href: '#/sitzplan', text: 'Sitzplan', icon: 'sitzplan' },
     ] });

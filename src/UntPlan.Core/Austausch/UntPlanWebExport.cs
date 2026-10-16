@@ -80,6 +80,10 @@ public static class UntPlanWebExport
         string K(ElementTyp t, int? id) => id is int i ? ix.K(t, i) : "";
         List<string> Kl(IEnumerable<int> ids) => ids.Select(i => ix.K(ElementTyp.Klasse, i)).Where(x => x.Length > 0).ToList();
 
+        // Kopplung: eine Zeile ohne eigene Klassen (z. B. zweite Lehrkraft) gehört zu den Klassen der ganzen Kopplung –
+        // so erscheint die Stunde auch im Plan dieser Klassen und die Klassen stehen auf Karte und in den Details
+        static IEnumerable<int> KlassenDerStunde(TagesEintrag e) =>
+            e.KlassenIds.Count > 0 || e.Unterricht is null ? e.KlassenIds : e.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct();
         var tage = new List<WebTag>();
         var vertretungen = new List<WebVertretung>();
         var mitVertretungen = o.Mit(WebTeile.Vertretungen);
@@ -98,7 +102,7 @@ public static class UntPlanWebExport
                     tag.Stunden.Add(new WebStunde
                     {
                         Stunde = e.Stunde, Unterricht = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId, Fach = K(ElementTyp.Fach, e.FachId),
-                        Klassen = Kl(e.KlassenIds), Lehrer = e.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = e.RaumIds.Select(ix.KRaum).ToList(),
+                        Klassen = Kl(KlassenDerStunde(e)), Lehrer = e.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = e.RaumIds.Select(ix.KRaum).ToList(),
                         Status = e.Status switch
                         {
                             TagesStatus.Vertreten => "vertreten", TagesStatus.Offen => "offen", TagesStatus.Entfall => "entfall",

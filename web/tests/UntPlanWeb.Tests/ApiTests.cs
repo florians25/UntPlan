@@ -546,6 +546,7 @@ public class BuchbarUndFehlzeitenTests
         var k = plan.Karten(stand, heute, Elementtyp.Klasse, "7a").First(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count > 0);
         var lehrer = k.Lehrer[0].K;
         var c = await s.AlsAsync(lehrer.ToLowerInvariant(), "lehrer", lehrer);
+        var kl = await s.AlsAsync("sl-test", "leitung", "");
 
         var anw = await Testserver.HolenAsync(c, $"/api/app/klassenbuch/anwesenheit?datum={k.Datum}&stunde={k.Von}&unterricht={k.Unterricht}");
         Assert.True(anw["darf"]!.GetValue<bool>());
@@ -562,7 +563,7 @@ public class BuchbarUndFehlzeitenTests
         Assert.Equal(2, anw["fehlzeiten"]!.AsArray().Count);
         Assert.False(string.IsNullOrEmpty(anw["geprueft"]?.GetValue<string>()));
 
-        var f = await Testserver.HolenAsync(c, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
+        var f = await Testserver.HolenAsync(kl, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
         var sa = f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == a)!;
         Assert.Equal(k.Bis - k.Von + 1, sa["stunden"]!.GetValue<int>());
         Assert.Equal(1, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == b)!["verspaetungen"]!.GetValue<int>());
@@ -573,12 +574,12 @@ public class BuchbarUndFehlzeitenTests
         Assert.False((await fremd.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/status", new { ids, status = "entschuldigt" })).IsSuccessStatusCode);
         var leitung = await s.AlsAsync("leitung", "leitung", "");
         await Testserver.JsonAsync(await leitung.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/status", new { ids, status = "entschuldigt" }));
-        f = await Testserver.HolenAsync(c, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
+        f = await Testserver.HolenAsync(kl, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
         Assert.Equal(k.Bis - k.Von + 1, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == a)!["entschuldigt"]!.GetValue<int>());
 
         // Erneutes Speichern behält den Entschuldigungsstatus
         await Testserver.JsonAsync(await c.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new { datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht, eintraege = new object[] { new { schuelerId = a, art = "fehlt" } } }));
-        f = await Testserver.HolenAsync(c, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
+        f = await Testserver.HolenAsync(kl, "/api/app/klassenbuch/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
         Assert.Equal(0, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == b)!["verspaetungen"]!.GetValue<int>());
         Assert.Equal(k.Bis - k.Von + 1, f["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == a)!["entschuldigt"]!.GetValue<int>());
 

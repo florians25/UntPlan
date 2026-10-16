@@ -70,9 +70,8 @@ public class EndeZuEndeTests
         // Klassenplan mit Entfall (Projekttag) und Herbstferien in der Woche danach
         var klasse = await Umgebung.HolenAsync(c, "/api/mobile?action=week&date=2026-10-14&type=class&id=5a");
         Assert.Equal("class", klasse["kind"]!.GetValue<string>());
-        // Freisetzung (Klasse abwesend) ist kein Entfall: Klasse durchgestrichen, grüne Kachel
-        Assert.Contains(Kacheln(klasse, "2026-10-15"), k => k["blockType"]!.GetValue<string>() == "change" && k["classAbsent"]?.GetValue<bool>() == true && k["classOrig"]!.GetValue<string>() == "5a");
-        Assert.DoesNotContain(Kacheln(klasse, "2026-10-15"), k => k["blockType"]!.GetValue<string>() == "cancelled" && k["subject"]?.GetValue<string>() != "");
+        // Freisetzung (Klasse abwesend) ist Entfall mit Hinweis „Klasse abwesend“
+        Assert.Contains(Kacheln(klasse, "2026-10-15"), k => k["blockType"]!.GetValue<string>() == "cancelled" && (k["info"]?.GetValue<string>() ?? "").StartsWith("Klasse abwesend"));
         Assert.Contains(Kacheln(klasse, "2026-10-15"), k => k["blockType"]!.GetValue<string>() == "absence" && k["subject"]!.GetValue<string>() == "Projekttag Medien");
         var ferien = await Umgebung.HolenAsync(c, "/api/mobile?action=week&date=2026-10-21&type=class&id=5a");
         var feld = Kacheln(ferien, "2026-10-21").Single();

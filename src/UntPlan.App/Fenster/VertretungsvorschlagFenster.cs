@@ -56,7 +56,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Vertreter übernehmen (Doppelklick, Enter)", "planen", Uebernehmen));
         ts.Items.Add(Knopf("Entfall", "entfall", EntfallMitRueckfrage));
-        ts.Items.Add(Knopf("Vertr. o. Lehrkraft", "lehrer", () => Aktion("Vertr. o. Lehrkraft", (_, v) => Vertretungen.OhneLehrer(v, AppZustand.Benutzer))));
+        ts.Items.Add(Knopf("Vertr. o. Lehrkr.", "lehrer", () => Aktion("Vertr. o. Lehrkr.", (_, v) => Vertretungen.OhneLehrer(v, AppZustand.Benutzer))));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_weiter);
         ts.Items.Add(_alle);

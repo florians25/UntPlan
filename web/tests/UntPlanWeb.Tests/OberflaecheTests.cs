@@ -189,14 +189,16 @@ public class OberflaecheTests
         });
         Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(paket)).StatusCode);
         var c = await s.AlsAsync("hof", "lehrer", "HOF");
-        // Klasse 6a abwesend: Stunde bleibt bestehen (kein Entfall), Klasse markiert, Grund fürs Kollegium
+        // Klasse 6a abwesend: die Stunde entfällt (wie ein Entfall), Klasse markiert, Grund nur fürs Kollegium
         var k = Karten(await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=HOF&datum=2026-10-16"), "2026-10-16", 4).Single();
-        Assert.Equal("regulaer", k["status"]!.GetValue<string>());
+        Assert.Equal("entfall", k["status"]!.GetValue<string>());
+        Assert.Equal("Klasse abwesend", k["art"]!.GetValue<string>());
         Assert.Equal("6a", k["abwesendeKlassen"]![0]!.GetValue<string>());
-        Assert.Equal("abwesend – Exkursion", k["abwesendText"]!.GetValue<string>());
+        Assert.Equal("Klasse abwesend – Exkursion", k["abwesendText"]!.GetValue<string>());
         var schueler = await s.AlsAsync("klasse6a", "schueler", "6a");
         var ks = Karten(await Testserver.HolenAsync(schueler, "/api/app/plan?typ=klasse&element=6a&datum=2026-10-16"), "2026-10-16", 4).Single();
-        Assert.Equal("abwesend", ks["abwesendText"]!.GetValue<string>());
+        Assert.Equal("entfall", ks["status"]!.GetValue<string>());
+        Assert.Equal("Klasse abwesend", ks["abwesendText"]!.GetValue<string>());
         // offene Raumvertretung: wie offene Lehrervertretung (Status offen, bisheriger Raum durchgestrichen)
         var r = Karten(await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=5b&datum=2026-10-16"), "2026-10-16", 6).Single();
         Assert.Equal("offen", r["status"]!.GetValue<string>());

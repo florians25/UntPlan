@@ -72,7 +72,10 @@ public static class Elementtyp
 public sealed class Plandienst
 {
     /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft („+++“), wenn kein anderer Text vorhanden ist.</summary>
-    public const string OhneLehrkraftText = "Vertr. o. Lehrkraft";
+    public const string OhneLehrkraftText = "Vertr. o. Lehrkr.";
+
+    /// <summary>Älterer Hinweistext aus früheren UntPlan-Versionen → aktuelle Bezeichnung.</summary>
+    public static string TextNormal(string text) => text.Replace("Vertr. o. Lehrkraft", OhneLehrkraftText, StringComparison.Ordinal);
     /// <summary>Lehrkraft eines zusätzlichen Unterrichts, für den (noch) keine Lehrkraft eingetragen ist.</summary>
     public const string OhneLehrkraftZusatz = "---";
     public static readonly string[] Wochentage = { "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag" };
@@ -122,11 +125,21 @@ public sealed class Plandienst
     }
 
     /// <summary>Alle Stunden eines Tages (tagesaktuell, sonst Regelplan der gültigen Periode).</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Stand, Dictionary<int, List<string>>> KopplungsKlassenCache = new();
+
+    /// <summary>Klassen je Unterricht über alle Kopplungszeilen (für Zeilen ohne eigene Klassen, z. B. zweite Lehrkraft).</summary>
+    private static Dictionary<int, List<string>> KopplungsKlassen(Stand s) => KopplungsKlassenCache.GetValue(s, st =>
+        st.Paket.Perioden.SelectMany(p => p.Unterricht).GroupBy(u => u.Id)
+            .ToDictionary(g => g.Key, g => g.SelectMany(u => u.Zeilen).SelectMany(z => z.Klassen).Where(k => k.Length > 0).Distinct(Ci).ToList()));
+
+    private static IReadOnlyList<string> KlassenOderKopplung(Stand s, int? unterricht, IReadOnlyList<string> klassen) =>
+        klassen.Count > 0 || unterricht is not int u ? klassen : KopplungsKlassen(s).TryGetValue(u, out var k) ? k : klassen;
+
     public List<Rohstunde> Rohstunden(Stand s, DateOnly d)
     {
         if (s.Tage.TryGetValue(Iso(d), out var tag))
             return tag.Unterrichtstag
-                ? tag.Stunden.Select(x => new Rohstunde(x.Stunde, x.Unterricht, x.Fach, x.Klassen, x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt)).ToList()
+                ? tag.Stunden.Select(x => new Rohstunde(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt)).ToList()
                 : new List<Rohstunde>();
         if (Frei(s, d).Frei) return new List<Rohstunde>();
         var periode = s.Paket.Perioden
@@ -145,7 +158,7 @@ public sealed class Plandienst
             {
                 var z = u.Zeilen[i];
                 var raeume = ps.Raeume.Count == u.Zeilen.Count ? new List<string> { ps.Raeume[i] } : ps.Raeume;
-                res.Add(new Rohstunde(ps.Stunde, u.Id, z.Fach, z.Klassen, z.Lehrer.Length > 0 ? new List<string> { z.Lehrer } : new List<string>(), raeume, "regulaer", null, ""));
+                res.Add(new Rohstunde(ps.Stunde, u.Id, z.Fach, KlassenOderKopplung(s, u.Id, z.Klassen), z.Lehrer.Length > 0 ? new List<string> { z.Lehrer } : new List<string>(), raeume, "regulaer", null, ""));
             }
         }
         // Klausuren aus den Terminen (im tagesaktuellen Plan sind sie bereits enthalten)
@@ -259,6 +272,14 @@ public sealed class Plandienst
             var treffer = absenzen.Where(a => k.Klassen.Any(w => Ci.Equals(w.K, a.Element)) && Trifft(a, k.Von, k.Bis)).ToList();
             if (treffer.Count == 0) return k;
             var grund = treffer.Select(a => a.Grund).FirstOrDefault(g => !string.IsNullOrWhiteSpace(g));
+            var weg = treffer.Select(a => a.Element).ToHashSet(Ci);
+            // alle Klassen der Stunde abwesend: die Stunde entfällt (wie ein Entfall aus der Vertretungsplanung)
+            if (k.Klassen.Count > 0 && k.Klassen.All(w => weg.Contains(w.K)))
+                return k with
+                {
+                    Status = "entfall", Art = "Klasse abwesend",
+                    AbwesendeKlassen = k.Klassen.Select(w => w.K).ToList(), AbwesendText = grund is null ? "Klasse abwesend" : $"Klasse abwesend – {grund}",
+                };
             return k with
             {
                 AbwesendeKlassen = treffer.Select(a => k.Klassen.First(w => Ci.Equals(w.K, a.Element)).K).Distinct(Ci).ToList(),
@@ -457,6 +478,7 @@ public sealed class Plandienst
         var text = string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
         // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
         if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
+        text = TextNormal(text);
         s.Faecher.TryGetValue(fach, out var fe);
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
         return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",

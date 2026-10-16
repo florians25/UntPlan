@@ -49,6 +49,7 @@ public class VerspaetungTests
         Assert.Contains(karten, x => x.Von > k.Bis);
         var admin = await s.AlsAsync("admin");
         var c = await s.AlsAsync(k.Lehrer[0].K.ToLowerInvariant(), "lehrer", k.Lehrer[0].K);
+        var kl = await s.AlsAsync("sl-test", "leitung", "");
         string Url() => $"/api/app/klassenbuch/anwesenheit?datum={k.Datum}&stunde={k.Von}&unterricht={k.Unterricht}";
         var anw = await Testserver.HolenAsync(c, Url());
         var sid = anw["schueler"]![0]!["id"]!.GetValue<int>();
@@ -56,6 +57,8 @@ public class VerspaetungTests
         Task Speichern(object e) => Testserver.JsonAsync(c.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new { datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht, eintraege = new[] { e } }).Result);
 
         // einfache Verspätung
+        // Fehlzeitenverwaltung nur für Klassenleitungen (die Fachlehrkraft ist hier nicht Klassenleitung von 7a)
+        if (k.Lehrer[0].K != "LAN") Assert.Equal(System.Net.HttpStatusCode.Forbidden, (await c.GetAsync("/api/app/abwesenheiten")).StatusCode);
         await Speichern(new { schuelerId = sid, art = "verspaetet", minuten = 8, bemerkung = "Bus" });
         var f = (await Testserver.HolenAsync(c, Url()))["fehlzeiten"]!.AsArray().Single()!;
         Assert.Equal(("verspaetet", 8, 0, "Bus"), (f["art"]!.GetValue<string>(), f["minuten"]!.GetValue<int>(), f["fehlstunden"]!.GetValue<int>(), f["bemerkung"]!.GetValue<string>()));
@@ -65,24 +68,24 @@ public class VerspaetungTests
         await Speichern(new { schuelerId = sid, art = "verspaetet", minuten = 8, bemerkung = "Bus" });
         f = (await Testserver.HolenAsync(c, Url()))["fehlzeiten"]!.AsArray().Single()!;
         Assert.Equal(("verspaetet", 8, 1, "Bus"), (f["art"]!.GetValue<string>(), f["minuten"]!.GetValue<int>(), f["fehlstunden"]!.GetValue<int>(), f["bemerkung"]!.GetValue<string>()));
-        var ab = (await Testserver.HolenAsync(c, "/api/app/abwesenheiten?von=2026-10-14&bis=2026-10-14&klasse=7a")).AsArray();
+        var ab = (await Testserver.HolenAsync(kl, "/api/app/abwesenheiten?von=2026-10-14&bis=2026-10-14&klasse=7a")).AsArray();
         Assert.Contains(ab, z => z!["art"]!.GetValue<string>() == "fehlt" && z["bemerkung"]!.GetValue<string>().StartsWith("verspätet 8 min"));
         await Testserver.JsonAsync(await admin.PutAsJsonAsync("/api/app/admin/einstellungen/verspaetung", new { abwesendAbMinuten = 0 }));
 
         // vorzeitig gegangen, Rest des Tages abwesend → spätere Stunden fehlen; erneutes Speichern ohne nimmt sie zurück
         await Speichern(new { schuelerId = sid, art = "vorzeitig", minuten = 10, restTag = true });
-        var tag = (await Testserver.HolenAsync(c, "/api/app/abwesenheiten?von=2026-10-14&bis=2026-10-14&klasse=7a")).AsArray().Where(z => z!["schuelerId"]!.GetValue<int>() == sid).ToList();
+        var tag = (await Testserver.HolenAsync(kl, "/api/app/abwesenheiten?von=2026-10-14&bis=2026-10-14&klasse=7a")).AsArray().Where(z => z!["schuelerId"]!.GetValue<int>() == sid).ToList();
         Assert.Contains(tag, z => z!["art"]!.GetValue<string>() == "vorzeitig" && z["minuten"]!.GetValue<int>() == 10);
         Assert.Contains(tag, z => z!["art"]!.GetValue<string>() == "fehlt" && z["stundeVon"]!.GetValue<int>() > k.Bis);
-        var bericht = await Testserver.HolenAsync(c, "/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-14&bis=2026-10-14");
+        var bericht = await Testserver.HolenAsync(kl, "/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-14&bis=2026-10-14");
         var zeile = bericht["zeilen"]!.AsArray().Single(x => x!["schuelerId"]!.GetValue<int>() == sid)!;
         Assert.Equal((1, 10), (zeile["vorzeitig"]!.GetValue<int>(), zeile["vorzeitigMinuten"]!.GetValue<int>()));
         Assert.True(zeile["stunden"]!.GetValue<int>() > 0);
 
         await Speichern(new { schuelerId = sid, art = "vorzeitig", minuten = 10, restTag = false });
-        tag = (await Testserver.HolenAsync(c, "/api/app/abwesenheiten?von=2026-10-14&bis=2026-10-14&klasse=7a")).AsArray().Where(z => z!["schuelerId"]!.GetValue<int>() == sid).ToList();
+        tag = (await Testserver.HolenAsync(kl, "/api/app/abwesenheiten?von=2026-10-14&bis=2026-10-14&klasse=7a")).AsArray().Where(z => z!["schuelerId"]!.GetValue<int>() == sid).ToList();
         Assert.DoesNotContain(tag, z => z!["art"]!.GetValue<string>() == "fehlt");
-        var csv = await c.GetStringAsync("/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-14&bis=2026-10-14&format=csv");
+        var csv = await kl.GetStringAsync("/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-14&bis=2026-10-14&format=csv");
         Assert.Contains("vorzeitig gegangen", csv);
 
         var b2 = await Testserver.HolenAsync(admin, "/api/app/berichte/erstellen/verspaetungen?von=2026-10-14&bis=2026-10-14&klasse=7a");

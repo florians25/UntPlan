@@ -330,7 +330,7 @@ async function nachrichten(ziel, kontext, neu) {
         <div class="form-check"><input class="form-check-input" type="checkbox" name="mobil" id="n-mo" ${n.mobil ?? true ? 'checked' : ''}><label class="form-check-label" for="n-mo">UntPlanMobile</label></div>
         <div class="form-check"><input class="form-check-input" type="checkbox" name="monitor" id="n-m" ${n.monitor ?? true ? 'checked' : ''}><label class="form-check-label" for="n-m">Monitore</label></div></div></div>`;
   const bearbeiten = n => dialog({
-    titel: n ? 'Nachricht bearbeiten' : 'Neue Nachricht', inhalt: formular(n),
+    titel: n ? 'Nachricht bearbeiten' : 'Neue Nachricht', inhalt: formular(n ?? {}),
     knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
       const w = formularWerte(box);
       await senden(n ? `/api/app/admin/nachrichten/${n.id}` : '/api/app/admin/nachrichten', { ...w, wochentag: Number(w.wochentag), reihenfolge: Number(w.reihenfolge) || 10 }, n ? 'PUT' : 'POST');
@@ -369,7 +369,7 @@ async function monitore(ziel, kontext, neu) {
       <div class="row g-3"><div class="col-sm-8"><label class="form-label">Version</label><select class="form-select" name="version"><option value="schueler">Schülerversion</option><option value="lehrer" ${m.version === 'lehrer' ? 'selected' : ''}>Lehrerversion (Lehrerzimmer)</option></select></div>
         <div class="col-sm-4"><label class="form-label">Anzahl Tage</label><input type="number" class="form-control" name="tage" min="1" max="5" value="${m.tage ?? 2}"></div></div>`;
   const bearbeiten = m => dialog({
-    titel: m ? 'Monitor bearbeiten' : 'Neuer Monitor', inhalt: formular(m),
+    titel: m ? 'Monitor bearbeiten' : 'Neuer Monitor', inhalt: formular(m ?? {}),
     knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
       await senden(m ? `/api/app/admin/monitore/${m.id}` : '/api/app/admin/monitore', formularWerte(box), m ? 'PUT' : 'POST');
       toast('Gespeichert.'); neu();
@@ -613,6 +613,32 @@ async function ansicht(ziel, kontext) {
     ${schalter('kartenZeiten', 'Uhrzeiten auf den Stundenkarten anzeigen (Voreinstellung)', w)}
     <div class="row g-3 my-1"><div class="col-sm-6"><label class="form-label">Startseite nach der Anmeldung</label><select class="form-select" name="startseite">
       <option value="heute" ${w.startseite === 'heute' ? 'selected' : ''}>Heute</option><option value="stundenplan" ${w.startseite === 'stundenplan' ? 'selected' : ''}>Mein Stundenplan</option></select></div></div>
-    <button class="btn btn-primary mt-2" type="submit">Speichern</button></form></div></div>`;
+    <button class="btn btn-primary mt-2" type="submit">Speichern</button></form></div></div>
+    <div class="card u-einstellungen mt-3"><div class="card-header">Schrift</div><div class="card-body" data-schriften></div></div>`;
   einstellungBinden(ziel.querySelector('form'), 'ansicht', () => kontext.sitzungNeu());
+  schriften(ziel.querySelector('[data-schriften]'));
+}
+
+/** Hausschrift (z. B. AvenirNextPro): lizenzierte Schriftdateien hochladen; sie liegen nur im Datenordner dieses Servers. */
+async function schriften(box) {
+  const liste = await holen('/api/app/admin/schriften');
+  const schnitt = x => `${({ 200: 'Ultra Light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Demi', 700: 'Bold', 800: 'Heavy' })[x.gewicht] ?? x.gewicht}${x.kursiv ? ' Italic' : ''}`;
+  box.innerHTML = `<p class="small text-body-secondary">Die Oberfläche verwendet die Schrift <b>AvenirNextPro</b>, sobald die Schriftdateien hier hochgeladen sind (.otf, .ttf, .woff oder .woff2, Schnitt aus dem Dateinamen, z. B. „…-Regular“, „…-Medium“, „…-Demi“, „…-Bold“).
+      Die Dateien werden nicht mit UntPlanWeb ausgeliefert – bitte nur Schriften mit gültiger Web-Lizenz verwenden. Ohne Dateien gilt die freie Ersatzschrift Nunito Sans.</p>
+    ${liste.length ? `<table class="table table-sm align-middle"><thead><tr><th>Datei</th><th>Schnitt</th><th class="text-end">Größe</th><th></th></tr></thead><tbody>
+      ${liste.map(x => `<tr><td>${e(x.datei)}</td><td style="font-family:AvenirNextPro;font-weight:${x.gewicht};font-style:${x.kursiv ? 'italic' : 'normal'}">${schnitt(x)}</td><td class="text-end small">${Math.round(x.groesse / 1024)} KB</td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-schrift-weg="${e(x.datei)}" title="Löschen">${icon('loeschen')}</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">Noch keine Schriftdateien hochgeladen.</p>'}
+    <label class="btn btn-outline-secondary btn-sm">${icon('plus')}Schriftdateien hochladen<input type="file" class="d-none" accept=".otf,.ttf,.woff,.woff2" multiple data-schrift-datei></label>`;
+  box.querySelector('[data-schrift-datei]').onchange = async ev => {
+    const fd = new FormData();
+    [...ev.target.files].forEach(f => fd.append('dateien', f));
+    try {
+      const r = await fetch('/api/app/admin/schriften', { method: 'POST', body: fd, headers: { 'X-UntPlanWeb': '1' } });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).fehler || 'Hochladen fehlgeschlagen.');
+      toast('Schrift hochgeladen – die Seite wird neu geladen.'); setTimeout(() => location.reload(), 600);
+    } catch (err) { toast(err.message, true); }
+  };
+  box.querySelectorAll('[data-schrift-weg]').forEach(b => b.onclick = async () => {
+    try { await senden(`/api/app/admin/schriften/${encodeURIComponent(b.dataset.schriftWeg)}`, null, 'DELETE'); schriften(box); } catch (err) { toast(err.message, true); }
+  });
 }

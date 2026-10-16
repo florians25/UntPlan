@@ -53,8 +53,8 @@ public class FachpunktTests
         Assert.True(lehrer["neu"]!.GetValue<bool>());
         Assert.DoesNotContain("+++", plan.ToJsonString());
         Assert.DoesNotContain("???", k.ToJsonString());
-        // ohne eigenen Vertretungstext: Hinweis „Vertr. o. Lehrkraft“
-        Assert.Equal("Vertr. o. Lehrkraft", k["text"]!.GetValue<string>());
+        // ohne eigenen Vertretungstext: Hinweis „Vertr. o. Lehrkr.“
+        Assert.Equal("Vertr. o. Lehrkr.", k["text"]!.GetValue<string>());
 
         if (mitVertretung)
         {
@@ -65,7 +65,7 @@ public class FachpunktTests
             Assert.Equal("", z["lehrer"]!.GetValue<string>());
             Assert.Equal("WAG", z["lehrerAlt"]!.GetValue<string>());
             Assert.Equal("geaendert", z["status"]!.GetValue<string>());
-            Assert.Equal("Vertr. o. Lehrkraft", z["text"]!.GetValue<string>());
+            Assert.Equal("Vertr. o. Lehrkr.", z["text"]!.GetValue<string>());
             Assert.True(z["ohneLehrer"]!.GetValue<bool>());
         }
     }
@@ -257,6 +257,7 @@ public class ListenTests
         var k = plan.Karten(stand, heute, Elementtyp.Klasse, "7a").First(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count > 0);
         var lehrer = k.Lehrer[0].K;
         var c = await s.AlsAsync(lehrer.ToLowerInvariant(), "lehrer", lehrer);
+        var kl = await s.AlsAsync("sl-test", "leitung", "");
 
         // Offene Stunden: vor dem Eintrag enthalten, danach nicht mehr
         var offen = (await Testserver.HolenAsync(c, "/api/app/klassenbuch/offen?tage=30")).AsArray();
@@ -276,17 +277,17 @@ public class ListenTests
         var anw = await Testserver.HolenAsync(c, $"/api/app/klassenbuch/anwesenheit?datum={k.Datum}&stunde={k.Von}&unterricht={k.Unterricht}");
         var sid = anw["schueler"]![0]!["id"]!.GetValue<int>();
         await Testserver.JsonAsync(await c.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new { datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht, eintraege = new object[] { new { schuelerId = sid, art = "fehlt" } } }));
-        var ab = (await Testserver.HolenAsync(c, "/api/app/abwesenheiten?von=2026-10-01&bis=2026-10-14&klasse=7a")).AsArray();
+        var ab = (await Testserver.HolenAsync(kl, "/api/app/abwesenheiten?von=2026-10-01&bis=2026-10-14&klasse=7a")).AsArray();
         var z = Assert.Single(ab)!;
         Assert.Equal(k.Von, z["stundeVon"]!.GetValue<int>());
         Assert.Equal(k.Bis, z["stundeBis"]!.GetValue<int>());
         Assert.Equal(k.Bis - k.Von + 1, z["ids"]!.AsArray().Count);
         Assert.Equal("offen", z["status"]!.GetValue<string>());
-        Assert.Empty((await Testserver.HolenAsync(c, "/api/app/abwesenheiten?von=2026-10-01&bis=2026-10-14&status=entschuldigt")).AsArray());
+        Assert.Empty((await Testserver.HolenAsync(kl, "/api/app/abwesenheiten?von=2026-10-01&bis=2026-10-14&status=entschuldigt")).AsArray());
 
-        var bericht = await Testserver.HolenAsync(c, "/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
+        var bericht = await Testserver.HolenAsync(kl, "/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14");
         Assert.Equal(k.Bis - k.Von + 1, bericht["zeilen"]!.AsArray().Single(x => x!["schuelerId"]!.GetValue<int>() == sid)!["stunden"]!.GetValue<int>());
-        var csv = await c.GetAsync("/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14&format=csv");
+        var csv = await kl.GetAsync("/api/app/berichte/fehlzeiten?klasse=7a&von=2026-10-01&bis=2026-10-14&format=csv");
         Assert.Equal("text/csv", csv.Content.Headers.ContentType!.MediaType);
         var text = await csv.Content.ReadAsStringAsync();
         Assert.StartsWith("Klasse;Name;Vorname;Fehlstunden", text.TrimStart('﻿'));

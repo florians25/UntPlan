@@ -36,7 +36,8 @@ export function e(wert) {
 
 /** Leerzustand (mit Symbol), Ladeanzeige und Hinweisbox. */
 export const leer = (text, symbol = 'inbox') => `<div class="u-leer"><i class="bi bi-${SYMBOLE[symbol] ?? symbol}" aria-hidden="true"></i>${e(text)}</div>`;
-export const lade = () => '<div class="d-flex justify-content-center py-5"><div class="spinner-border spinner-border-sm text-secondary" role="status"><span class="visually-hidden">Wird geladen …</span></div></div>';
+/** Platzhalter während des Ladens – bewusst ohne Animation (die Inhalte erscheinen direkt). */
+export const lade = () => '<div class="u-laedt" role="status"><span class="visually-hidden">Wird geladen …</span></div>';
 export const alarm = (art, text, html = false) => `<div class="alert alert-${art} py-2 px-3 small mb-3" role="alert">${html ? text : e(text)}</div>`;
 
 // ------------------------------------------------------------------ Schnittstelle

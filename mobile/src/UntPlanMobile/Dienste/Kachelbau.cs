@@ -21,7 +21,7 @@ public static class Kachelbau
 
     /// <summary>Planart von UntPlanWeb (klasse, lehrer, raum) → Planart der Oberfläche (class, teacher, room).</summary>
     /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft, wenn kein anderer Text vorhanden ist (wie in UntPlanWeb).</summary>
-    public const string OhneLehrkraftText = "Vertr. o. Lehrkraft";
+    public const string OhneLehrkraftText = "Vertr. o. Lehrkr.";
 
     /// <summary>Lehrkraft einer Zusatzstunde, für die (noch) keine Lehrkraft eingeteilt ist – nur bei Zusatzstunden (Kachel und Details).</summary>
     public const string KeineLehrkraft = "---";
@@ -250,7 +250,7 @@ public static class Kachelbau
             kachel.Info = string.Join(" · ", new[] { k.Art, k.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
         var offen = k.Lehrer.Any(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt));
-        // Vertretung ohne Lehrkraft („+++“): bisherige Lehrkraft durchgestrichen in der Plakette; ohne eigenen Text der Hinweis „Vertr. o. Lehrkraft“
+        // Vertretung ohne Lehrkraft („+++“): bisherige Lehrkraft durchgestrichen in der Plakette; ohne eigenen Text der Hinweis „Vertr. o. Lehrkr.“
         // (UntPlanWeb liefert ihn bereits, ältere Server nicht)
         if (k.Status == "geaendert" && k.Lehrer.Count > 0 && k.Lehrer.All(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)) && string.IsNullOrWhiteSpace(kachel.Info))
             kachel.Info = OhneLehrkraftText;
@@ -277,13 +277,10 @@ public static class Kachelbau
                 kachel.Offen = offen;
                 break;
             case "entfall" when IstKlassenabwesenheit(k):
-                // Klasse abwesend: kein Entfall – die Klasse steht durchgestrichen in der Plakette, die Kachel ist grün
-                // (im Lehrer- und Raumplan wie eine abgegebene Stunde)
-                kachel.Art = "change";
-                kachel.KlasseAbwesend = true;
-                kachel.KlasseAlt = kachel.Klasse;
-                kachel.Klasse = "";
-                if (!kachel.Geaendert.Contains("class")) kachel.Geaendert.Add("class");
+                // Klasse abwesend: Entfall wie jede andere ausfallende Stunde, mit Hinweis „Klasse abwesend“ (und Grund)
+                kachel.Art = "cancelled";
+                if (string.IsNullOrWhiteSpace(kachel.Info)) kachel.Info = "Klasse abwesend";
+                else if (!kachel.Info.Contains("abwesend", StringComparison.OrdinalIgnoreCase)) kachel.Info = $"Klasse abwesend – {kachel.Info}";
                 break;
             case "entfall":
                 kachel.Art = "cancelled";

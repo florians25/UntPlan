@@ -198,15 +198,13 @@ public class KachelbauTests
     }
 
     [Fact]
-    public void Abwesende_Klasse_ist_kein_Entfall_sondern_Klasse_durchgestrichen()
+    public void Abwesende_Klasse_ist_Entfall_mit_Hinweis()
     {
         var k = Kachelbau.AusKarte(Karte("entfall", 1, art: "Freisetzung", text: "Exkursion Zoo"), "teacher");
-        Assert.Equal("change", k.Art);
-        Assert.True(k.KlasseAbwesend);
-        Assert.Equal("", k.Klasse);
-        Assert.Equal("5a", k.KlasseAlt);
-        Assert.Contains("class", k.Geaendert);
-        Assert.Equal("Exkursion Zoo", k.Info);
+        Assert.Equal("cancelled", k.Art);
+        Assert.Null(k.KlasseAbwesend);
+        Assert.Equal("5a", k.Klasse);
+        Assert.Equal("Klasse abwesend – Exkursion Zoo", k.Info);
         // echter Entfall bleibt Entfall
         var entfall = Kachelbau.AusKarte(Karte("entfall", 1, art: "Entfall"), "teacher");
         Assert.Equal("cancelled", entfall.Art);

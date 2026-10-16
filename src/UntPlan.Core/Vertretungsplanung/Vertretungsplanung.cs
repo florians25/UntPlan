@@ -44,6 +44,35 @@ public static class Vertretungen
         return d.Vertretungseinstellungen.Regel(tag, stunde);
     }
 
+    /// <summary>
+    /// Nach einer Änderung von Unterricht oder Stundenplan: alle Tage ab <paramref name="ab"/> neu abgleichen, an denen Absenzen,
+    /// Veranstaltungen, Klausuren oder Vertretungen bestehen – so wirkt z. B. eine geplante Klassenabwesenheit auch auf eine neu
+    /// eingeplante Stunde (Freisetzung), und Vertretungszeilen weggefallener Stunden verschwinden.
+    /// </summary>
+    public static int NachPlanaenderung(Schuldatei d, DateOnly ab)
+    {
+        var grenze = ab.AddDays(370);
+        IEnumerable<DateOnly> Bereich(DateOnly von, DateOnly bis)
+        {
+            var v = von < ab ? ab : von;
+            var b = bis > grenze ? grenze : bis;
+            return v > b ? Enumerable.Empty<DateOnly>() : Kalender.Tage(v, b);
+        }
+        var tage = new SortedSet<DateOnly>();
+        foreach (var a in d.Abwesenheiten) tage.UnionWith(Bereich(a.Von, a.Bis));
+        foreach (var va in d.Veranstaltungen) tage.UnionWith(Bereich(va.Von, va.Bis));
+        foreach (var k in d.Klausuren.Where(k => k.Aktiv && k.Datum >= ab && k.Datum <= grenze)) tage.Add(k.Datum);
+        foreach (var v in d.Vertretungen.Where(v => v.Datum >= ab && v.Datum <= grenze)) tage.Add(v.Datum);
+        var n = 0;
+        foreach (var t in tage)
+        {
+            if (!Kalender.IstUnterrichtstag(d, t) && !d.Vertretungen.Any(v => v.Datum == t)) continue;
+            Aktualisieren(d, t);
+            n++;
+        }
+        return n;
+    }
+
     public static void Aktualisieren(Schuldatei d, DateOnly von, DateOnly bis)
     {
         foreach (var t in Kalender.Tage(von, bis)) Aktualisieren(d, t);
@@ -404,12 +433,12 @@ public static class Vertretungen
     // ----------------------------------------------------------------------------------------------
 
     /// <summary>Vertretungstext, der bei „+++“ (Vertretung ohne Lehrkraft) eingesetzt wird, wenn noch kein anderer Text da ist.</summary>
-    public const string OhneLehrerText = "Vertr. o. Lehrkraft";
+    public const string OhneLehrerText = "Vertr. o. Lehrkr.";
 
     /// <summary>Der automatisch eingesetzte Text gehört nur zu „+++“: wird daraus etwas anderes, verschwindet er wieder.</summary>
     private static void OhneLehrerTextEntfernen(Vertretung v)
     {
-        if (v.Art == VertretungsArt.VertretungOhneLehrer && v.Text == OhneLehrerText) v.Text = "";
+        if (v.Art == VertretungsArt.VertretungOhneLehrer && v.Text is OhneLehrerText or "Vertr. o. Lehrkraft") v.Text = "";
     }
 
     private static void Markieren(Vertretung v, string benutzer)
@@ -1398,7 +1427,7 @@ public static class Vertretungsplan
         VertretungsArt.Tausch => "Tausch",
         VertretungsArt.Pausenaufsicht => "Pausenaufsicht",
         VertretungsArt.Klausur => "Klausur",
-        VertretungsArt.VertretungOhneLehrer => "Vtr. ohne Lehrer",
+        VertretungsArt.VertretungOhneLehrer => "Vertr. o. Lehrkr.",
         VertretungsArt.Bereitschaftsvertretung => "Bereitschaftsvertretung",
         VertretungsArt.BereitschaftEntfaellt => "Bereitschaft entfällt",
         VertretungsArt.EigenverantwortlichesArbeiten => "eigenverantwortliches Arbeiten",

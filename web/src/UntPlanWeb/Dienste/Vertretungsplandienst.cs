@@ -151,7 +151,7 @@ public sealed class Vertretungsplandienst
             if (zusatz && neuLehrer == Plandienst.OhneLehrkraftZusatz) lehrerAlt = null;
             if (status == "abwesend") { neuLehrer = ""; lehrerAlt = v.Lehrer; }
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,
-                neuLehrer, lehrerAlt, neuRaum, raumAlt, status == "abwesend" ? "Abwesenheit" : v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : v.Text, v.VertrVon, v.Nach, status, ohneLehrer);
+                neuLehrer, lehrerAlt, neuRaum, raumAlt, status == "abwesend" ? "Abwesenheit" : v.Art, ohneLehrer && string.IsNullOrWhiteSpace(v.Text) ? Plandienst.OhneLehrkraftText : Plandienst.TextNormal(v.Text ?? ""), v.VertrVon, v.Nach, status, ohneLehrer);
         }).ToList();
 
         // gleiche Zeilen in aufeinanderfolgenden Stunden zusammenfassen (z. B. „3–4“)
