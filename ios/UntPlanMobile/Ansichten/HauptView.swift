@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Wurzelansicht: Anmeldung oder die App mit unterer Tab-Leiste.
+@MainActor
 struct HauptView: View {
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.scenePhase) private var szene
@@ -28,6 +29,26 @@ struct HauptView: View {
             if neu == .active && zustand.phase == .angemeldet {
                 Task { await zustand.aktualisieren() }
             }
+        }
+        // Kurzbefehle am App-Symbol: sofort bzw. nach der Anmeldung ausführen
+        .onReceive(NotificationCenter.default.publisher(for: Schnellaktion.benachrichtigung)) { _ in
+            schnellaktionAusfuehren()
+        }
+        .onChange(of: zustand.phase) { _, _ in schnellaktionAusfuehren() }
+        .onAppear { schnellaktionAusfuehren() }
+    }
+
+    private func schnellaktionAusfuehren() {
+        guard zustand.phase == .angemeldet, let aktion = Schnellaktion.ausstehend else { return }
+        Schnellaktion.ausstehend = nil
+        switch aktion {
+        case .heute:
+            zustand.reiter = .start
+        case .mitteilungen:
+            zustand.reiter = .mitteilungen
+        case .stundenplan, .suche:
+            zustand.schnellaktion = aktion
+            zustand.reiter = .stundenplan
         }
     }
 }

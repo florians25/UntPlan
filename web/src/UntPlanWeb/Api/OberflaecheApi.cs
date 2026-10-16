@@ -53,12 +53,15 @@ public static partial class OberflaecheApi
         if (dateien.Count == 0) return sb.Append("/* Keine AvenirNextPro-Dateien gefunden – es gilt Nunito Sans. */\n").ToString();
         static int Rang(string f) => Path.GetExtension(f).ToLowerInvariant() switch { ".woff2" => 0, ".woff" => 1, ".otf" => 2, _ => 3 };
         static string Format(string f) => Path.GetExtension(f).ToLowerInvariant() switch { ".woff2" => "woff2", ".woff" => "woff", ".otf" => "opentype", _ => "truetype" };
-        foreach (var g in dateien.GroupBy(Schnitt).OrderBy(g => g.Key.Gewicht).ThenBy(g => g.Key.Stil))
+        // gleiche Zuordnung wie bei hochgeladenen Schriften (SchriftApi): CSS 400 Regular, 600 Medium, 700 Demi, jedes Gewicht fest belegt
+        foreach (var stil in dateien.GroupBy(f => Schnitt(f).Stil).OrderBy(g => g.Key == "italic"))
         {
-            var quellen = string.Join(", ", g.OrderBy(Rang).Select(f => $"url(\"../fonts/{Uri.EscapeDataString(f)}\") format(\"{Format(f)}\")"));
-            sb.Append($"@font-face {{ font-family: \"AvenirNextPro\"; src: {quellen}; font-weight: {g.Key.Gewicht}; font-style: {g.Key.Stil}; font-display: swap; }}\n");
+            var jeSchnitt = stil.GroupBy(f => Schnitt(f).Gewicht).ToDictionary(g => g.Key,
+                g => string.Join(", ", g.OrderBy(Rang).Select(f => $"url(\"../fonts/{Uri.EscapeDataString(f)}\") format(\"{Format(f)}\")")));
+            foreach (var (css, schnitt) in SchriftApi.Zuordnung(jeSchnitt.Keys))
+                sb.Append($"@font-face {{ font-family: \"AvenirNextPro\"; src: {jeSchnitt[schnitt]}; font-weight: {css}; font-style: {stil.Key}; font-display: swap; }}\n");
         }
-        sb.Append(":root { --u-schrift: \"AvenirNextPro\", \"Nunito Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; }\n");
+        sb.Append(":root { --u-schrift: " + SchriftApi.Stapel + "; }\n").Append(SchriftApi.Darstellung);
         return sb.ToString();
     }
 

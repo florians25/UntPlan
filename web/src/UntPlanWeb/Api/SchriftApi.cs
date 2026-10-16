@@ -51,6 +51,33 @@ public static partial class SchriftApi
         var x => new[] { x },
     };
 
+    /// <summary>
+    /// Vollständige Zuordnung CSS-Gewicht (100–900) → Schriftschnitt: zuerst die festen Stufen aus <see cref="CssGewichte"/>,
+    /// jede fehlende Stufe erhält den nächstgelegenen vorhandenen Schnitt (bei Gleichstand den leichteren). So wählt jeder Browser
+    /// (Chrome, Firefox, Safari unter macOS/iOS) für jedes Gewicht dieselbe Datei – keine abweichende Fallback-Auswahl, keine Kunstfetten.
+    /// </summary>
+    public static List<(int Css, int Schnitt)> Zuordnung(IEnumerable<int> schnitte)
+    {
+        var basis = new SortedDictionary<int, int>();
+        foreach (var s in schnitte.Distinct().OrderBy(x => x))
+            foreach (var c in CssGewichte(s)) basis.TryAdd(c, s);
+        var res = new List<(int, int)>();
+        if (basis.Count == 0) return res;
+        for (var w = 100; w <= 900; w += 100)
+        {
+            if (basis.TryGetValue(w, out var s)) { res.Add((w, s)); continue; }
+            var naechste = basis.OrderBy(kv => Math.Abs(kv.Key - w)).ThenBy(kv => kv.Key).First();
+            res.Add((w, naechste.Value));
+        }
+        return res;
+    }
+
+    /// <summary>Schriftstapel mit metrisch ähnlichen Ersatzschriften (Avenir Next unter macOS/iOS, Nunito Sans, Segoe UI …).</summary>
+    public const string Stapel = "\"" + Familie + "\", \"Avenir Next\", \"Nunito Sans\", \"Segoe UI\", system-ui, -apple-system, Roboto, \"Helvetica Neue\", Arial, sans-serif";
+
+    /// <summary>Einheitliche Darstellung: keine künstlichen Fett-/Kursivschnitte, gleiche Kantenglättung auf allen Geräten.</summary>
+    public const string Darstellung = "html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-synthesis: none; font-synthesis-weight: none; font-synthesis-style: none; }\n";
+
     private static string Format(string datei) => Path.GetExtension(datei).ToLowerInvariant() switch
     {
         ".woff2" => "woff2", ".woff" => "woff", ".ttf" => "truetype", _ => "opentype",
@@ -69,18 +96,18 @@ public static partial class SchriftApi
             var sb = new StringBuilder("/* Hausschrift aus dem Datenordner (Administration → Ansichtseinstellungen → Schrift) */\n");
             var dateien = Dateien(k);
             // je Schnitt die kompakteste Datei (woff2 vor woff vor otf/ttf)
-            foreach (var g in dateien.GroupBy(Schnitt))
+            // Avenir Next ist in den fetten Schnitten deutlich kräftiger als die Ersatzschrift: eine Stufe leichter einordnen
+            // (CSS 400 → Regular, 500/600 → Medium, 700 → Demi, 800 → Bold) – jedes Gewicht 100–900 bekommt eine feste Datei
+            foreach (var stil in dateien.GroupBy(d => Schnitt(d).Kursiv))
             {
-                var quellen = g.OrderBy(d => Format(d) switch { "woff2" => 0, "woff" => 1, _ => 2 })
-                    .Select(d => $"url(\"/schriften/{Uri.EscapeDataString(d)}\") format(\"{Format(d)}\")");
-                // Avenir Next ist in den fetten Schnitten deutlich kräftiger als die Ersatzschrift: eine Stufe leichter einordnen
-                // (halbfett 600 → Medium, fett 700 → Demi, 800 → Bold) – so wirkt die Oberfläche wie in den Mustern, nicht zu fett
-                foreach (var css in CssGewichte(g.Key.Gewicht))
-                    sb.Append($"@font-face {{ font-family: \"{Familie}\"; font-weight: {css}; font-style: {(g.Key.Kursiv ? "italic" : "normal")}; font-display: swap; src: {string.Join(", ", quellen)}; }}\n");
+                var jeSchnitt = stil.GroupBy(d => Schnitt(d).Gewicht).ToDictionary(g => g.Key, g => string.Join(", ", g
+                    .OrderBy(d => Format(d) switch { "woff2" => 0, "woff" => 1, _ => 2 })
+                    .Select(d => $"url(\"/schriften/{Uri.EscapeDataString(d)}\") format(\"{Format(d)}\")")));
+                foreach (var (css, schnitt) in Zuordnung(jeSchnitt.Keys))
+                    sb.Append($"@font-face {{ font-family: \"{Familie}\"; font-weight: {css}; font-style: {(stil.Key ? "italic" : "normal")}; font-display: swap; src: {jeSchnitt[schnitt]}; }}\n");
             }
             if (dateien.Count > 0)
-                sb.Append(":root { --u-schrift: \"" + Familie + "\", \"Nunito Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; }\n")
-                  .Append("html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-synthesis: none; }\n");
+                sb.Append(":root { --u-schrift: " + Stapel + "; }\n").Append(Darstellung);
             return Results.Text(sb.ToString(), "text/css; charset=utf-8");
         });
 
@@ -97,7 +124,7 @@ public static partial class SchriftApi
         admin.MapGet("", (HttpContext c, Konfiguration k) =>
         {
             Admin(c);
-            return Results.Json(Dateien(k).Select(d => new { datei = d, gewicht = Schnitt(d).Gewicht, kursiv = Schnitt(d).Kursiv, groesse = new FileInfo(Path.Combine(Ordner(k), d)).Length }));
+            return Results.Json(Dateien(k).Select(d => new { datei = d, gewicht = Schnitt(d).Gewicht, cssGewicht = CssGewichte(Schnitt(d).Gewicht)[^1], kursiv = Schnitt(d).Kursiv, groesse = new FileInfo(Path.Combine(Ordner(k), d)).Length }));
         });
         admin.MapPost("", async (HttpContext c, Konfiguration k) =>
         {

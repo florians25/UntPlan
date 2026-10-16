@@ -4317,3 +4317,8 @@ html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--pr
   .card__line{ font-size:12.5px; }
   .tabbar{ left:12px; right:12px; height:58px; }
 }
+@media (max-width:699px){
+  .weekhead__kw{ padding-left:5px; }
+  .weekhead__kw-no{ white-space:nowrap; font-size:10.5px; letter-spacing:-.01em; }
+  .weekhead__month{ font-size:16px; }
+}

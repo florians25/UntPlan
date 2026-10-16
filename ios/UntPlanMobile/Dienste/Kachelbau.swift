@@ -284,6 +284,15 @@ enum Kachelbau {
         w.map(\.k).filter { !$0.isEmpty }
     }
 
+    /// Abwesende Koppelklassen: Einträge ohne neuen Wert mit gesetztem alten Wert (ohne Doppelte).
+    static func weggefalleneKlassen(_ k: Karte) -> [String] {
+        var ergebnis: [String] = []
+        for w in k.klassen where w.k.isEmpty {
+            if let a = w.alt, !a.isEmpty, !ergebnis.contains(where: { gleich($0, a) }) { ergebnis.append(a) }
+        }
+        return ergebnis
+    }
+
     /// Ursprungswerte geänderter Einträge (ohne Doppelte).
     private static func alte(_ w: [Wert]) -> [String] {
         var ergebnis: [String] = []
@@ -294,7 +303,17 @@ enum Kachelbau {
     }
 
     /// Eine Stundenkarte als Kachel (nil = nichts anzuzeigen).
-    static func ausKarte(_ k: Karte, typ: String, ich: String, raster: [Rasterzeit]) -> Kachel? {
+    static func ausKarte(_ original: Karte, typ: String, ich: String, raster: [Rasterzeit]) -> Kachel? {
+        // Koppelklassen: abwesende Klassen kommen als {k:"", alt:"INF13"}. Im Plan der abwesenden Klasse selbst
+        // erscheint die Stunde wie deren Abwesenheit (Klasse als abwesend vermerkt).
+        var k = original
+        if typ == "klasse" && !ich.isEmpty
+            && k.klassen.contains(where: { $0.k.isEmpty && gleich($0.alt ?? "", ich) }) {
+            k.klassen = k.klassen.map { w in
+                w.k.isEmpty && gleich(w.alt ?? "", ich) ? Wert(k: w.alt ?? "", alt: nil, neu: false) : w
+            }
+            if !k.abwesendeKlassen.contains(where: { gleich($0, ich) }) { k.abwesendeKlassen.append(ich) }
+        }
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
                             beginn: lage.beginn, ende: lage.ende)
@@ -368,6 +387,11 @@ enum Kachelbau {
             kachel.art = k.istPruefung ? .klausur : .aenderung
         }
         if k.istPruefung && k.status != "entfall" && k.status != "abwesend" { kachel.art = .klausur }
+        // Koppelklasse abwesend: im Plan der anderen Klasse grün wie eine Änderung
+        if typ == "klasse" && kachel.art == .normal && !weggefalleneKlassen(k).isEmpty {
+            kachel.art = .aenderung
+            geaendert.insert("klasse")
+        }
         // Raumbuchung ohne weitere Änderung: keine Vertretung, die Kachel bleibt regulär
         if k.istRaumbuchung && (kachel.art == .aenderung || kachel.art == .termin) && geaendert.subtracting(["raum"]).isEmpty && !offen {
             kachel.art = .normal
@@ -532,18 +556,22 @@ enum Kachelbau {
             case "klasse":
                 let namen = werte(k.klassen)
                 let abwesend = k.abwesendeKlassen
-                if namen.count > 1 || !abwesend.isEmpty {
+                // Abwesende Koppelklassen ({k:"", alt}) stehen durchgestrichen im grünen Label (wie abwesende Lehrkraft)
+                let weg = weggefalleneKlassen(k)
+                if namen.count > 1 || !abwesend.isEmpty || !weg.isEmpty {
                     var teile = namen.map { n -> Kachelteil in
                         Kachelteil(text: n, stil: abwesend.contains { gleich($0, n) } ? .weg : .text)
                     }
+                    teile += weg.filter { w in !namen.contains { gleich($0, w) } }
+                        .map { Kachelteil(text: $0, stil: art == .entfall ? .weg : .offen) }
                     // Im Klassenplan steht nur, wer mit dabei ist – die eigene Klasse nur, wenn sie fehlt
-                    if typ == "klasse" && !ich.isEmpty && namen.count > 1 {
+                    if typ == "klasse" && !ich.isEmpty && teile.count > 1 {
                         teile = teile.filter { $0.text.uppercased() != ich || $0.stil == .weg }
                     }
                     if !teile.isEmpty {
                         for j in 0..<(teile.count - 1) { teile[j].trenner = ", " }
                         zeile.teile = teile
-                        hatListe = namen.count > 1 || teile.contains { $0.stil == .weg }
+                        hatListe = namen.count > 1 || teile.contains { $0.stil == .weg || $0.stil == .offen }
                     }
                 } else {
                     zeile.teile = wertTeile(jetzt: namen.joined(separator: ", "), vorher: alte(k.klassen).joined(separator: ", "),
@@ -625,8 +653,9 @@ enum Kachelbau {
             ende = i + 1 < raster.count ? raster[i + 1].beginn : raster[i].ende + 15
         }
         let b = beginn ?? (erste?.beginn ?? 480)
-        var e = ende ?? (b + 15)
-        if e <= b { e = b + 15 }
+        var e = ende ?? b
+        // Ohne Pausenlänge (Stunden direkt hintereinander) bleibt die Aufsicht ein Punkt – das Raster dehnt dort eine Lücke
+        if e < b { e = b }
         let stunde = max(1, a.nachStunde)
         var k = Kachel(aufsicht: a, art: .aufsicht, datum: a.datum, von: stunde, bis: stunde, beginn: b, ende: e)
         k.inPause = true

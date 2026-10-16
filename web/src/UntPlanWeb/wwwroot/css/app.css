@@ -6,6 +6,7 @@
 /* ------------------------------------------------------------------ Farben & Maße */
 
 :root {
+  --bs-body-font-weight: 400;
   --u-verlauf: linear-gradient(165deg, #f6f7f9 0%, #eef0f3 45%, #e2e5e9 100%);
   --u-akzent: #f56b2a;
   --u-akzent-dunkel: #dd5718;
@@ -40,7 +41,7 @@
   --u-leiste-zu: 76px;
   --u-kopf: 56px;
   --u-zeile: 80px;
-  --u-schrift: "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --u-schrift: "Avenir Next", "Nunito Sans", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
 
   /* Bootstrap auf die eigenen Farben stellen */
   --bs-primary: var(--u-akzent);
@@ -77,11 +78,19 @@
 
 /* ------------------------------------------------------------------ Grundlagen */
 
-html { -webkit-text-size-adjust: 100%; }
+/* Gleiche Schriftstärken auf allen Geräten (Windows, macOS, iOS, Android; Chrome, Firefox, Safari): nur die Gewichte 400/600/700
+   (= Regular/Medium/Demi), keine künstlichen Fettschnitte, gleiche Kantenglättung. Alle Gewichte 100–900 sind in schrift.css fest belegt. */
+html { -webkit-text-size-adjust: 100%; font-synthesis: none; font-synthesis-weight: none; font-synthesis-style: none; }
 body {
-  background: var(--u-verlauf) fixed; color: var(--u-text); font-family: var(--u-schrift);
-  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; min-height: 100vh;
+  background: var(--u-verlauf) fixed; color: var(--u-text); font-family: var(--u-schrift); font-weight: 400;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; min-height: 100vh;
 }
+b, strong, dt, th, legend, optgroup { font-weight: 700; }
+.fw-bold, .fw-bolder { font-weight: 700 !important; }
+.fw-semibold, .fw-medium { font-weight: 600 !important; }
+.fw-normal, .fw-light, .fw-lighter { font-weight: 400 !important; }
+.lead, .display-1, .display-2, .display-3, .display-4, .display-5, .display-6 { font-weight: 400; }
+.badge { font-weight: 700; }
 h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { color: var(--u-titel); font-weight: 600; letter-spacing: 0; }
 a { text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -314,7 +323,7 @@ tr[role=button] { cursor: pointer; }
 .u-konto > button:first-child { flex: 1; min-width: 0; }
 .u-konto .u-avatar { width: 30px; height: 30px; font-size: .8rem; }
 .u-konto span:last-child { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
-.u-konto small { color: var(--u-grau-2); font-weight: 500; }
+.u-konto small { color: var(--u-grau-2); font-weight: 600; }
 .u-konto .u-konto-weg { width: auto; padding: 8px 12px; color: var(--u-grau-2); }
 .u-konto-neu { border-top: 1px solid var(--u-linie-2) !important; margin-top: 4px; }
 
@@ -537,7 +546,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .tt-zeit { position: absolute; left: 4px; font-size: 14px; line-height: 14px; font-weight: 600; color: var(--u-grau-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tt-zeit.beginn { transform: translateY(1px); }
 .tt-zeit.ende { transform: translateY(-15px); }
-.tt-nr { position: absolute; left: 14px; font-size: 12px; font-weight: 500; color: var(--u-grau-2); transform: translateY(30px); }
+.tt-nr { position: absolute; left: 14px; font-size: 12px; font-weight: 600; color: var(--u-grau-2); transform: translateY(30px); }
 .tt-spalte { position: relative; }
 .tt-linie { position: absolute; left: -8px; right: -8px; border-top: 1px solid var(--tt-linie); }
 .tt-achse + .tt-spalte .tt-linie, .tt-achse + .tt-spalte .tt-jetzt:not(.heute) { left: -16px; }
@@ -562,11 +571,11 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 /* Beginn/Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“) */
 .std.mit-zeit { padding-left: 44px; }
 .std.mit-zeit::before { left: 34px; }
-.std .zt { position: absolute; left: 6px; font-size: 10px; line-height: 12px; font-weight: 500; color: var(--u-grau-2); font-variant-numeric: tabular-nums; }
+.std .zt { position: absolute; left: 6px; font-size: 10px; line-height: 12px; font-weight: 600; color: var(--u-grau-2); font-variant-numeric: tabular-nums; }
 .std .zt.o { top: 8px; }
 .std .zt.u { bottom: 8px; }
 .std .z1 { font-size: 14px; font-weight: 600; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #414d55; }
-.std .z2 { font-size: 12px; font-weight: 500; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #414d55; }
+.std .z2 { font-size: 12px; font-weight: 600; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #414d55; }
 .std .z3 { font-size: 11.5px; line-height: 15px; color: var(--u-grau); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .std .lbl { display: inline-block; padding: 0 3px; background: var(--u-gruen-label); color: #fff; font-weight: 600; line-height: 15px; font-size: 12px; border-radius: 1px; }
 .z1 .lbl { font-size: 14px; line-height: 18px; }
@@ -706,7 +715,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .sd-kopf .sd-knoepfe button { border: 0; background: none; color: var(--u-grau-2); padding: 0; font-size: 1.35rem; line-height: 1; }
 .sd-kopf .sd-knoepfe button:hover { color: var(--u-titel); }
 .sd-titel h2 { font-size: 1.4rem; font-weight: 600; margin: 0 0 .35rem; color: var(--u-titel); display: flex; flex-wrap: wrap; align-items: center; gap: .1rem; }
-.sd-titel .trenn { color: #b8c1c9; font-weight: 300; margin: 0 .55rem; }
+.sd-titel .trenn { color: #b8c1c9; font-weight: 400; margin: 0 .55rem; }
 .sd-zeile { font-size: .9375rem; color: var(--u-titel); }
 .sd-zeile .trenn { color: #b8c1c9; margin: 0 .55rem; }
 .sd-zeile .lbl { display: inline-block; padding: 0 4px; border-radius: 1px; background: var(--u-gruen-label); color: #fff; font-weight: 700; line-height: 18px; }
@@ -821,7 +830,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .sp-platz { min-height: 64px; border: 1.5px dashed var(--u-grau-3); border-radius: 4px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: .82rem; font-weight: 600; color: var(--u-titel); padding: 4px; cursor: pointer; background: #fafbfc; line-height: 1.2; }
 .sp-platz.belegt { border-style: solid; border-color: #d6dbe0; background: #fff; }
 .sp-platz.gewaehlt { border-color: var(--u-akzent); box-shadow: 0 0 0 2px rgba(245, 107, 42, .25); }
-.sp-platz small { display: block; color: var(--u-grau-2); font-weight: 500; }
+.sp-platz small { display: block; color: var(--u-grau-2); font-weight: 600; }
 .sp-frei { display: flex; flex-wrap: wrap; gap: .35rem; }
 .sp-frei button { border: 1.5px solid var(--u-grau-3); background: #fff; border-radius: 999px; padding: .2rem .7rem; font-size: .82rem; font-weight: 700; color: var(--u-titel); }
 .sp-frei button.gewaehlt { border-color: var(--u-akzent); background: var(--u-akzent-hell); }
@@ -1023,7 +1032,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .kal button:hover { background: var(--u-hover); }
 .kal button.fremd { color: var(--u-grau-3); }
 .kal button.we { color: var(--u-grau-3); text-decoration: line-through; }
-.kal button.heute { font-weight: 800; }
+.kal button.heute { font-weight: 700; }
 .kal tr.gewaehlt td { background: #fde6e2; }
 
 /* Stundenkarten: weiß, leicht abgerundet, keine Hover-Reaktion; Uhrzeiten klein links wie 57.png */
@@ -1361,7 +1370,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .alt-seite { max-width: 1250px; }
 .alt-kopf { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
 .alt-kopf h1 { font-size: 1rem; font-weight: 400; color: var(--u-akzent); margin: 0; }
-.alt-hilfe { width: 22px; height: 22px; border-radius: 50%; border: 0; background: none; color: var(--u-titel); font-weight: 800; font-size: 1rem; }
+.alt-hilfe { width: 22px; height: 22px; border-radius: 50%; border: 0; background: none; color: var(--u-titel); font-weight: 700; font-size: 1rem; }
 .alt-karte { background: #fff; box-shadow: 0 1px 3px rgba(0, 5, 10, .08), 0 3px 10px rgba(0, 5, 10, .05); border-radius: 2px; padding: 12px 14px; margin-bottom: 14px; }
 .alt-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 18px; font-size: 11.5px; }
 .alt-filter label { display: flex; flex-direction: column; gap: 2px; color: #24323d; }
@@ -1517,7 +1526,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .fz-tabelle tr.fz-schueler { cursor: pointer; }
 .fz-tabelle tr.fz-schueler.auf td { background: #f7f9fa; border-bottom-color: transparent; }
 .fz-tabelle tr.fz-stunde td { background: #fbfcfd; padding-top: 7px; padding-bottom: 7px; font-size: .88rem; }
-.fz-zahl { display: inline-block; min-width: 28px; padding: 2px 8px; border-radius: 6px; background: #eef1f4; text-align: center; font-weight: 500; font-variant-numeric: tabular-nums; }
+.fz-zahl { display: inline-block; min-width: 28px; padding: 2px 8px; border-radius: 6px; background: #eef1f4; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .fz-zahl.fett { font-weight: 600; } .fz-zahl.gelb { background: #fff4d6; } .fz-zahl.gruen { background: #e3f4ea; color: #0f6b40; } .fz-zahl.rot { background: #fdecec; color: #a1262b; }
 .fz-null { color: #b3bcc3; }
 .abw-details-titel { margin-top: 4px; padding-top: 12px; border-top: 1px solid #e3e7eb; font-weight: 600; font-size: .9rem; color: #414d55; }
@@ -1537,7 +1546,7 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 .heute { max-width: none; }
 .kb-editor { max-width: none; }
 
-.sd-ursprung { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #e3f4ea; color: #0f6b40; font-size: .75rem; font-weight: 500; vertical-align: middle; }
+.sd-ursprung { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #e3f4ea; color: #0f6b40; font-size: .75rem; font-weight: 600; vertical-align: middle; }
 .sd-pille.rot { color: #a1262b; border-color: #e8a7aa; } .sd-pille.rot:hover { background: #fdecec; }
 
 /* Schriftstärken und -größen wie in der Vorlage (Avenir: 400 = Regular, 600 = Medium, 700 = Demi):

@@ -341,6 +341,8 @@ enum Wertbaustein: Hashable {
     case pfeil
     case trenner
     case offen(String)
+    /// Neue Lehrkraft (Vertretung): grünes Label, nicht durchgestrichen
+    case neu(String)
 }
 
 /// Wertzeile im Kopf der Details: „alt → neu“ (alt durchgestrichen); offene Vertretung als grüne Plakette.
@@ -376,6 +378,15 @@ struct Wertzeile: View {
                 .fixedSize()
         case .offen(let t):
             OffenPlakette(text: t, schrift: schrift)
+        case .neu(let t):
+            Text(t)
+                .font(.system(size: schrift, weight: .medium))
+                .foregroundStyle(Farben.gruenSchrift)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Farben.gruen, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 

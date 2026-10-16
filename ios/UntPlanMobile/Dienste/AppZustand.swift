@@ -17,6 +17,8 @@ final class AppZustand: ObservableObject {
     @Published var reiter: AppReiter = .start
     /// Plan, den der Stundenplan öffnen soll („Im Stundenplan anzeigen“ aus den Stundendetails).
     @Published var planAnfrage: PlanAuswahl? = nil
+    /// Kurzbefehl vom App-Symbol, den der Stundenplan noch ausführen soll (Mein Stundenplan heute bzw. Planauswahl).
+    @Published var schnellaktion: Schnellaktion? = nil
 
     let api = ApiClient.shared
 
@@ -102,6 +104,7 @@ final class AppZustand: ObservableObject {
         ungelesen = 0
         reiter = .start
         planAnfrage = nil
+        schnellaktion = nil
         phase = .abgemeldet
     }
 

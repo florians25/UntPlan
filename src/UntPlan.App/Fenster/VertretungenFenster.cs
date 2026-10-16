@@ -65,16 +65,6 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ElementeFuellen();
 
         var ts = Werkzeugleiste();
-        // Schnellwechsel „Alle / Offene“ direkt in der Werkzeugleiste (auch F4), gekoppelt an den Filter „Offene Vertretungen“
-        var alle = new ToolStripButton("Alle") { ToolTipText = "Alle Vertretungen anzeigen (F4 wechselt)", Checked = true };
-        var offene = new ToolStripButton("Offene") { ToolTipText = "Nur offene Vertretungen anzeigen (F4 wechselt)" };
-        alle.Click += (_, _) => _offen.Checked = false;
-        offene.Click += (_, _) => _offen.Checked = true;
-        _offen.CheckedChanged += (_, _) => { alle.Checked = !_offen.Checked; offene.Checked = _offen.Checked; };
-        foreach (var b in new[] { alle, offene }) { b.DisplayStyle = ToolStripItemDisplayStyle.Text; b.Font = new Font(Ui.Schrift, FontStyle.Bold); b.Padding = new Padding(6, 0, 6, 0); }
-        ts.Items.Add(alle);
-        ts.Items.Add(offene);
-        ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Felder der Ansicht", "rollup", FelderDialog));
         ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen, false));
         ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", TextImageRelation = TextImageRelation.TextBeforeImage });
@@ -227,7 +217,6 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             if (e.KeyCode == Keys.Delete && !_g.IsCurrentCellInEditMode) { Entfernen(); e.Handled = true; }
             if (e.KeyCode == Keys.Enter && !_g.IsCurrentCellInEditMode) { VorschlagOeffnen(); e.Handled = true; }
             if (e.KeyCode == Keys.F3) { NaechsteOffene(e.Shift ? -1 : 1); e.Handled = true; }
-            if (e.KeyCode == Keys.F4) { _offen.Checked = !_offen.Checked; e.Handled = true; }
         };
         _g.MouseDown += (_, e) =>
         {

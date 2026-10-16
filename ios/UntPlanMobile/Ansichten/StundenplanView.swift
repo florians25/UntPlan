@@ -123,7 +123,8 @@ struct StundenplanView: View {
             }
             .sheet(item: $gewaehlteAufsicht) { a in
                 AufsichtDetailView(aufsicht: a)
-                    .festesBlatt(breit: istBreit)
+                    .environmentObject(zustand)
+                    .detailBlatt(breit: istBreit)
             }
             .sheet(isPresented: $zeigeAuswahl) {
                 PlanAuswahlView(auswahl: $auswahl)
@@ -135,8 +136,30 @@ struct StundenplanView: View {
                     .presentationDetents([.medium, .large])
             }
             .task(id: ladeSchluessel) { await laden() }
-            .onAppear { planAnfrageUebernehmen() }
+            .onAppear {
+                planAnfrageUebernehmen()
+                schnellaktionUebernehmen()
+            }
             .onChange(of: zustand.planAnfrage) { _, _ in planAnfrageUebernehmen() }
+            .onChange(of: zustand.schnellaktion) { _, _ in schnellaktionUebernehmen() }
+        }
+    }
+
+    /// Kurzbefehl vom App-Symbol: „Mein Stundenplan“ (aktuelle Woche) bzw. „Plan suchen“ (Planauswahl).
+    private func schnellaktionUebernehmen() {
+        guard let aktion = zustand.schnellaktion else { return }
+        zustand.schnellaktion = nil
+        detail = nil
+        gewaehlteAufsicht = nil
+        switch aktion {
+        case .stundenplan:
+            auswahl = nil
+            tagModus = false
+            datum = Date()
+        case .suche:
+            zeigeAuswahl = true
+        default:
+            break
         }
     }
 
@@ -591,13 +614,57 @@ struct Detailauswahl: Identifiable {
 }
 
 /// Höhen im Raster: Abstand oben, Beginn des Rasters, Punkte je Minute.
+/// Pausen mit Aufsicht werden bei Bedarf gedehnt, damit die Aufsicht vollständig in die Lücke passt.
 struct Rastermass {
+    /// Zusätzliche Höhe in einer Pause (beginn…ende in Minuten; bei beginn == ende ein Sprung an dieser Stelle).
+    struct Dehnung {
+        let beginn: Int
+        let ende: Int
+        let extra: CGFloat
+    }
+
     let oben: CGFloat
     let start: Int
     let proMinute: CGFloat
+    var dehnungen: [Dehnung] = []
 
+    /// Oberkante bei dieser Minute (was hier beginnt).
     func y(_ minute: Int) -> CGFloat {
-        oben + CGFloat(minute - start) * proMinute
+        position(minute, ende: false)
+    }
+
+    /// Unterkante bei dieser Minute (was hier endet) – unterscheidet sich nur an Sprüngen ohne Pausenlänge.
+    func yEnde(_ minute: Int) -> CGFloat {
+        position(minute, ende: true)
+    }
+
+    private func position(_ minute: Int, ende: Bool) -> CGFloat {
+        var wert = oben + CGFloat(minute - start) * proMinute
+        for d in dehnungen {
+            if d.ende > d.beginn {
+                if minute >= d.ende {
+                    wert += d.extra
+                } else if minute > d.beginn {
+                    wert += d.extra * CGFloat(minute - d.beginn) / CGFloat(d.ende - d.beginn)
+                }
+            } else if minute > d.beginn || (minute == d.beginn && !ende) {
+                wert += d.extra
+            }
+        }
+        return wert
+    }
+
+    /// Dehnungen für die Pausen der Aufsichten: jede Lücke mindestens `mindestens` Punkte hoch.
+    static func dehnungen(_ aufsichten: [Kachel], proMinute: CGFloat, mindestens: CGFloat) -> [Dehnung] {
+        var extra: [Int: (ende: Int, extra: CGFloat)] = [:]
+        for a in aufsichten {
+            let luecke = CGFloat(max(0, a.ende - a.beginn)) * proMinute
+            let noetig = mindestens - luecke
+            guard noetig > 0.5 else { continue }
+            if let alt = extra[a.beginn], alt.extra >= noetig { continue }
+            extra[a.beginn] = (max(a.beginn, a.ende), noetig)
+        }
+        return extra.keys.sorted().map { Dehnung(beginn: $0, ende: extra[$0]?.ende ?? $0, extra: extra[$0]?.extra ?? 0) }
     }
 }
 
@@ -651,7 +718,10 @@ struct WochenrasterView: View {
             tage.map { ($0.datum, Kachelbau.tag($0, plan: plan, raster: zeiten, typ: typ, element: element, jetzt: jetzt)) },
             uniquingKeysWith: { erste, _ in erste })
         let vorErster = kacheln.values.contains { liste in liste.contains { $0.vorErsterStunde } }
-        let mass = Rastermass(oben: vorErster ? 34 : 15, start: start, proMinute: proMinute)
+        let pausenAufsichten = kacheln.values.flatMap { $0 }.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
+        let mass = Rastermass(oben: vorErster ? 34 : 15, start: start, proMinute: proMinute,
+                              dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: proMinute,
+                                                              mindestens: nurTag == nil ? 24 : 30))
         GeometryReader { geo in
             let spalten = max(tage.count, 1)
             let rand: CGFloat = nurTag == nil ? 0 : 3
@@ -834,7 +904,7 @@ struct WochenrasterView: View {
             ForEach(Array(zeiten.enumerated()), id: \.element.id) { eintrag in
                 let z = eintrag.element
                 let oben = mass.y(z.beginn)
-                let unten = mass.y(z.ende)
+                let unten = mass.yEnde(z.ende)
                 let naechste: Rasterzeit? = eintrag.offset + 1 < zeiten.count ? zeiten[eintrag.offset + 1] : nil
                 let pauseDanach = naechste == nil || (naechste?.beginn ?? 0) > z.ende
 
@@ -957,12 +1027,15 @@ struct WochenrasterView: View {
             y = 4
             h = 23
         } else if k.inPause {
-            let luecke = CGFloat(k.ende - k.beginn) * mass.proMinute
-            h = max(18, min(nurTag == nil ? 26 : 30, luecke - 3))
-            y = mass.y(k.beginn) + max(1, (luecke + 1 - h) / 2)
+            // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar
+            let oben = mass.yEnde(k.beginn)
+            let unten = k.ende > k.beginn ? mass.yEnde(k.ende) : mass.y(k.ende)
+            let luecke = max(0, unten - oben)
+            h = max(16, min(nurTag == nil ? 22 : 26, luecke - 2))
+            y = oben + max(1, (luecke - h) / 2)
         } else {
             y = mass.y(k.beginn) + 1
-            h = max(16, mass.y(k.ende) - mass.y(k.beginn) - 1)
+            h = max(16, mass.yEnde(k.ende) - mass.y(k.beginn) - 1)
         }
         return CGRect(x: x, y: y, width: max(w, 8), height: h)
     }
@@ -971,7 +1044,7 @@ struct WochenrasterView: View {
         let beginn = zeiten.first(where: { $0.nr == st.von })?.beginn ?? st.kacheln.map(\.beginn).min() ?? mass.start
         let ende = zeiten.first(where: { $0.nr == st.bis })?.ende ?? st.kacheln.map(\.ende).max() ?? (beginn + 45)
         let y = mass.y(beginn) + 1
-        return CGRect(x: breite - 12, y: y, width: 12, height: max(16, mass.y(ende) - mass.y(beginn) - 1))
+        return CGRect(x: breite - 12, y: y, width: 12, height: max(16, mass.yEnde(ende) - mass.y(beginn) - 1))
     }
 
     /// Art des freien Tages als Überschrift („Ferien“, „Feiertag“ …).
@@ -1058,9 +1131,12 @@ struct KartenKnopfStil: ButtonStyle {
     }
 }
 
-/// Details einer Pausenaufsicht.
+/// Details einer Pausenaufsicht im gleichen Aufbau wie alle Stundendetails: Blattkopf mit X, Datum | Zeit und ⋮;
+/// Kopfblock mit Ort, „Pausenaufsicht“, Zeitraum und Lehrkraft (Vertretung: alt durchgestrichen, neu im grünen Label);
+/// darunter nur „Im Stundenplan anzeigen“ für die beteiligten Lehrkräfte.
 struct AufsichtDetailView: View {
     let aufsicht: Aufsicht
+    @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var schliessen
 
     private var ort: String {
@@ -1069,70 +1145,123 @@ struct AufsichtDetailView: View {
 
     private var zeit: String {
         if aufsicht.beginn.isEmpty { return aufsicht.nachStunde <= 0 ? "vor der 1. Stunde" : "nach der \(aufsicht.nachStunde). Stunde" }
-        return aufsicht.ende.isEmpty ? aufsicht.beginn : "\(aufsicht.beginn) – \(aufsicht.ende)"
+        return aufsicht.ende.isEmpty ? aufsicht.beginn : "\(aufsicht.beginn) - \(aufsicht.ende)"
+    }
+
+    private var pause: String {
+        aufsicht.nachStunde <= 0 ? "vor der 1. Stunde" : "nach der \(aufsicht.nachStunde). Stunde"
+    }
+
+    private var neueLehrkraft: String {
+        aufsicht.lehrer == "???" ? "" : aufsicht.lehrer
+    }
+
+    /// Lehrkraft-Zeile: regulär als Text; Vertretung alt durchgestrichen und neu im grünen Label; offen alt im grünen Label.
+    private var lehrkraft: [Wertbaustein] {
+        let alt = aufsicht.alt ?? ""
+        switch aufsicht.status {
+        case "vertreten", "vertretung":
+            var teile: [Wertbaustein] = []
+            if neueLehrkraft.isEmpty {
+                if !alt.isEmpty { teile.append(.offen(alt)) }
+                teile.append(.text("Vertretung offen"))
+            } else {
+                if !alt.isEmpty && alt != neueLehrkraft {
+                    teile.append(.weg(alt))
+                    teile.append(.pfeil)
+                }
+                teile.append(.neu(neueLehrkraft))
+            }
+            return teile
+        default:
+            return neueLehrkraft.isEmpty ? [] : [.text(neueLehrkraft)]
+        }
+    }
+
+    private var planziele: [PlanAuswahl] {
+        guard zustand.istKollegium && zustand.darfLehrerplaene else { return [] }
+        var liste: [PlanAuswahl] = []
+        for k in [aufsicht.alt ?? "", neueLehrkraft] where !k.isEmpty {
+            let plan = PlanAuswahl(typ: "lehrer", element: k, name: k)
+            if !liste.contains(where: { $0.id == plan.id }) { liste.append(plan) }
+        }
+        return liste
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    HStack(spacing: 10) {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Farben.aufsichtBalken)
-                            .frame(width: 4, height: 34)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(ort)
-                                .font(.system(size: 18, weight: .semibold))
-                            Text("Pausenaufsicht")
-                                .font(.system(size: 13))
-                                .foregroundStyle(Farben.tinte2)
+        VStack(spacing: 0) {
+            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, mitte: {
+                Blatttitel(titel: "\(Datumsformat.anzeige(aufsicht.datum, "EE")) | \(Datumsformat.anzeige(aufsicht.datum, "dd.MM.yy"))",
+                           untertitel: zeit)
+            }, rechts: {
+                if !planziele.isEmpty {
+                    Menu {
+                        Section("Im Stundenplan anzeigen") {
+                            ForEach(planziele) { plan in
+                                Button {
+                                    zustand.planZeigen(plan)
+                                    schliessen()
+                                } label: {
+                                    Label(plan.anzeige, systemImage: "person")
+                                }
+                            }
                         }
-                    }
-                    .padding(.vertical, 4)
-                }
-                Section("Zeit") {
-                    LabeledContent("Datum", value: Datumsformat.anzeige(aufsicht.datum, "EEEE, d. MMMM yyyy"))
-                    LabeledContent("Uhrzeit", value: zeit)
-                    if aufsicht.nachStunde > 0 {
-                        LabeledContent("Pause", value: "nach der \(aufsicht.nachStunde). Stunde")
-                    }
-                }
-                Section("Aufsicht") {
-                    if !aufsicht.gang.isEmpty && aufsicht.gang != ort {
-                        LabeledContent("Ort", value: aufsicht.gang)
-                    }
-                    switch aufsicht.status {
-                    case "vertreten":
-                        LabeledContent("Status", value: "abgegeben")
-                        LabeledContent("Vertretung", value: aufsicht.lehrer.isEmpty || aufsicht.lehrer == "???" ? "offen" : aufsicht.lehrer)
-                    case "vertretung":
-                        LabeledContent("Status", value: "Vertretung")
-                        if let alt = aufsicht.alt, !alt.isEmpty {
-                            LabeledContent("für", value: alt)
-                        }
-                    default:
-                        if !aufsicht.lehrer.isEmpty {
-                            LabeledContent("Lehrkraft", value: aufsicht.lehrer)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Aufsicht")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        schliessen()
                     } label: {
-                        Glasknopf {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 16, weight: .regular))
+                        Rundknopf(symbol: "ellipsis", gewicht: .semibold, groesse: 15, drehung: 90)
+                    }
+                    .accessibilityLabel("Weitere Aktionen")
+                }
+            })
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(ort)
+                            .font(.system(size: 17))
+                            .foregroundStyle(Farben.tinte)
+                            .padding(.bottom, 4)
+                        Text("Pausenaufsicht")
+                            .font(.system(size: 17))
+                            .foregroundStyle(Farben.tinte)
+                            .padding(.bottom, 8)
+                        Text(aufsicht.beginn.isEmpty ? pause : "\(zeit) · \(pause)")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Farben.gedaempft)
+                            .padding(.bottom, 7)
+                        if !lehrkraft.isEmpty {
+                            Wertzeile(bausteine: lehrkraft)
                         }
                     }
-                    .accessibilityLabel("Schließen")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 16)
+                    .accessibilityElement(children: .combine)
+                    Rectangle()
+                        .fill(Farben.trennlinie)
+                        .frame(height: 0.5)
+                    VStack(spacing: 0) {
+                        if !aufsicht.gang.isEmpty && aufsicht.gang != ort {
+                            Detailzeile(symbol: "mappin.and.ellipse", titel: "Ort", untertitel: aufsicht.gang, pfeil: false)
+                            DetailTrenner()
+                        }
+                        ForEach(planziele) { plan in
+                            Button {
+                                zustand.planZeigen(plan)
+                                schliessen()
+                            } label: {
+                                Detailzeile(symbol: "person", titel: "Im Stundenplan anzeigen", untertitel: plan.anzeige)
+                            }
+                            .buttonStyle(ZeilenKnopfStil())
+                            DetailTrenner()
+                        }
+                    }
+                    .padding(.top, 6)
+                    .padding(.bottom, 24)
                 }
             }
+            .scrollIndicators(.hidden)
         }
+        .background(Farben.blatt.ignoresSafeArea())
     }
 }
 

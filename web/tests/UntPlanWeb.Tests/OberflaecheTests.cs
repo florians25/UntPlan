@@ -386,12 +386,17 @@ public class OberflaecheTests
             foreach (var f in new[] { "AvenirNextPro-Regular.woff2", "AvenirNextPro-Regular.otf", "AvenirNextPro-Demi.woff2", "AvenirNextPro-BoldIt.ttf", "fremd.woff2" })
                 File.WriteAllText(Path.Combine(ordner, "fonts", f), "");
             var css = OberflaecheApi.SchriftCss(ordner);
-            Assert.Equal(3, css.Split("@font-face").Length - 1);
+            // jedes CSS-Gewicht 100–900 fest belegt (normal und kursiv), keine Lücken für browserabhängige Ersatzwahl
+            Assert.Equal(18, css.Split("@font-face").Length - 1);
+            Assert.Contains("font-synthesis: none", css);
             Assert.Contains("url(\"../fonts/AvenirNextPro-Regular.woff2\") format(\"woff2\"), url(\"../fonts/AvenirNextPro-Regular.otf\") format(\"opentype\"); font-weight: 400; font-style: normal", css);
             Assert.Contains("font-weight: 600", css);
             Assert.Contains("font-weight: 700; font-style: italic", css);
             Assert.DoesNotContain("fremd", css);
-            Assert.Contains("--u-schrift: \"AvenirNextPro\", \"Nunito Sans\"", css);
+            Assert.Contains("--u-schrift: \"AvenirNextPro\", \"Avenir Next\", \"Nunito Sans\"", css);
+            Assert.Equal(new[] { (100, 400), (200, 400), (300, 400), (400, 400), (500, 400), (600, 600), (700, 600), (800, 600), (900, 600) }, SchriftApi.Zuordnung(new[] { 400, 600 }));
+            Assert.Contains((600, 500), SchriftApi.Zuordnung(new[] { 400, 500, 600, 700 }));
+            Assert.Contains((700, 600), SchriftApi.Zuordnung(new[] { 400, 500, 600, 700 }));
         }
         finally { Directory.Delete(ordner, true); }
     }

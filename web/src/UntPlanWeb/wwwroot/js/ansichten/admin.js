@@ -656,7 +656,7 @@ async function schriften(box) {
   box.innerHTML = `<p class="small text-body-secondary">Die Oberfläche verwendet die Schrift <b>AvenirNextPro</b>, sobald die Schriftdateien hier hochgeladen sind (.otf, .ttf, .woff oder .woff2, Schnitt aus dem Dateinamen, z. B. „…-Regular“, „…-Medium“, „…-Demi“, „…-Bold“).
       Die Dateien werden nicht mit UntPlanWeb ausgeliefert – bitte nur Schriften mit gültiger Web-Lizenz verwenden. Ohne Dateien gilt die freie Ersatzschrift Nunito Sans.</p>
     ${liste.length ? `<table class="table table-sm align-middle"><thead><tr><th>Datei</th><th>Schnitt</th><th class="text-end">Größe</th><th></th></tr></thead><tbody>
-      ${liste.map(x => `<tr><td>${e(x.datei)}</td><td style="font-family:AvenirNextPro;font-weight:${x.gewicht};font-style:${x.kursiv ? 'italic' : 'normal'}">${schnitt(x)}</td><td class="text-end small">${Math.round(x.groesse / 1024)} KB</td>
+      ${liste.map(x => `<tr><td>${e(x.datei)}</td><td style="font-family:AvenirNextPro;font-weight:${x.cssGewicht ?? x.gewicht};font-style:${x.kursiv ? 'italic' : 'normal'}">${schnitt(x)}</td><td class="text-end small">${Math.round(x.groesse / 1024)} KB</td>
         <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-schrift-weg="${e(x.datei)}" title="Löschen">${icon('loeschen')}</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">Noch keine Schriftdateien hochgeladen.</p>'}
     <label class="btn btn-outline-secondary btn-sm">${icon('plus')}Schriftdateien hochladen<input type="file" class="d-none" accept=".otf,.ttf,.woff,.woff2" multiple data-schrift-datei></label>`;
   box.querySelector('[data-schrift-datei]').onchange = async ev => {
