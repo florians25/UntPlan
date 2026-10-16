@@ -551,7 +551,9 @@ public sealed class Sprechtagdienst
     {
         if (s == null) return new();
         var res = s.Unterricht.Values.SelectMany(u => u.Zeilen).Where(z => Ci.Equals(z.Lehrer, lehrer)).SelectMany(z => z.Klassen).ToHashSet(Ci);
-        foreach (var k in s.Klassen.Values.Where(k => k.Klassenleitung.Contains(lehrer, Ci))) res.Add(k.Kurz);
-        return res.OrderBy(x => x, StringComparer.Create(CultureInfo.GetCultureInfo("de-DE"), true)).ToList();
+        var leitung = s.Klassen.Values.Where(k => k.Klassenleitung.Contains(lehrer, Ci)).Select(k => k.Kurz).ToHashSet(Ci);
+        res.UnionWith(leitung);
+        // eigene Klasse (Klassenleitung) zuerst – sie ist beim Einladen vorgewählt
+        return res.OrderByDescending(leitung.Contains).ThenBy(x => x, StringComparer.Create(CultureInfo.GetCultureInfo("de-DE"), true)).ToList();
     }
 }

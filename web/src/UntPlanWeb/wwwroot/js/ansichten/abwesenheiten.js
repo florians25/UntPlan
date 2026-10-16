@@ -85,7 +85,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   kontext.titel('Abwesenheiten', '', `${liste.length}`);
   const pille = (name, inhaltHtml, aktiv) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}"><span class="visually-hidden">${name}</span>${inhaltHtml}</label>`;
   inhalt.innerHTML = `
-    <div class="nl-leiste">
+    <div class="nl-leiste abw-leiste">
       <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Suchen" aria-label="Schüler*in suchen"></label>
       ${pille('Klasse', `<select data-klasse><option value="">Klasse</option>${el.klassen.map(k => `<option value="${e(k.kurz)}" ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`, klasse)}
       ${pille('Von', `<input type="date" data-von value="${von}">`, false)}

@@ -236,22 +236,33 @@ const FREI = { ferien: 'Ferien', feiertag: 'Feiertag', frei: 'Unterrichtsfrei' }
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 
 /** Ferien, Feiertage und freie Tage wie im Original: hellblaue Spalte, mittig Schloss + Art, Name und Zeitraum. */
+const freiFlaeche = x => !!(x && x.frei && FREI[x.freiArt]);
+/** automatisch benannter einzelner freier Tag aus UntPlan („19.10.2026“) – kein eigener Name */
+const nurDatum = n => /^\d{1,2}\.\d{1,2}\.(\d{2,4})?$/.test((n || '').trim());
+
 function freiUeberlagerung(t, tage = [t], i = 0) {
   const titel = FREI[t.freiArt];
   if (!titel) return t.freiGrund ? `<div class="tt-frei">${e(t.freiGrund)}</div>` : '';
-  // wie im Original eine durchgehende Fläche über alle aufeinanderfolgenden freien Tage (auch über die Lücken zwischen den Spalten);
+  // wie im Original eine durchgehende Fläche über alle aufeinanderfolgenden freien Tage (auch über die Lücken zwischen den Spalten) –
+  // auch wenn die Tage aus mehreren Einträgen bestehen (Ferien + Feiertag, tageweise eingetragene unterrichtsfreie Tage);
   // in der Tagesansicht (nur eine Spalte sichtbar) die Fläche je Tag
-  const gleich = x => x && x.frei && x.freiArt === t.freiArt && (x.freiGrund || '') === (t.freiGrund || '') && (x.freiVon || '') === (t.freiVon || '');
   let n = 1;
-  while (gleich(tage[i + n])) n++;
-  const inhalt = freiInhalt(t, titel);
-  return (gleich(tage[i - 1]) ? '' : `<div class="tt-ferien gesamt" style="--frei-tage:${n}">${inhalt}</div>`) + `<div class="tt-ferien einzeln">${inhalt}</div>`;
+  while (freiFlaeche(tage[i + n])) n++;
+  const einzeln = `<div class="tt-ferien einzeln">${freiInhalt([t])}</div>`;
+  if (freiFlaeche(tage[i - 1])) return einzeln;
+  return `<div class="tt-ferien gesamt" style="--frei-tage:${n}">${freiInhalt(tage.slice(i, i + n))}</div>${einzeln}`;
 }
 
-function freiInhalt(t, titel) {
-  const name = t.freiGrund && t.freiGrund.toLowerCase() !== titel.toLowerCase() ? t.freiGrund : '';
-  const zeitraum = t.freiVon ? (t.freiBis && t.freiBis !== t.freiVon ? `${datumDe(t.freiVon)} - ${datumDe(t.freiBis)}` : datumDe(t.freiVon)) : '';
-  return `<div class="inhalt"><div class="art"><i class="bi bi-lock-fill" aria-hidden="true"></i> ${titel}</div>${name ? `<div>${e(name)}</div>` : ''}${zeitraum ? `<div>${zeitraum}</div>` : ''}</div>`;
+/** Inhalt einer freien Fläche über einen oder mehrere Tage: Art (Ferien vor Feiertag vor unterrichtsfrei), Namen, Zeitraum. */
+function freiInhalt(liste) {
+  const art = ['ferien', 'feiertag', 'frei'].find(a => liste.some(x => x.freiArt === a)) ?? liste[0].freiArt;
+  const titel = FREI[art];
+  const namen = [...new Set(liste.map(x => (x.freiGrund || '').trim()).filter(x => x && !nurDatum(x) && x.toLowerCase() !== titel.toLowerCase()))];
+  // Zeitraum: bei einem Eintrag dessen Zeitraum, sonst vom ersten bis zum letzten freien Tag (bzw. Eintrag)
+  const vons = liste.map(x => x.freiVon || x.datum).filter(Boolean).sort(), bise = liste.map(x => x.freiBis || x.freiVon || x.datum).filter(Boolean).sort();
+  const von = vons[0], bis = bise[bise.length - 1];
+  const zeitraum = von ? (bis && bis !== von ? `${datumDe(von)} - ${datumDe(bis)}` : datumDe(von)) : '';
+  return `<div class="inhalt"><div class="art"><i class="bi bi-lock-fill" aria-hidden="true"></i> ${titel}</div>${namen.length ? `<div>${e(namen.join(', '))}</div>` : ''}${zeitraum ? `<div>${zeitraum}</div>` : ''}</div>`;
 }
 
 const leisteEintrag = (text, art) => `<div class="tt-ereignis ${art}" title="${e(text)}">${e(text)}</div>`;

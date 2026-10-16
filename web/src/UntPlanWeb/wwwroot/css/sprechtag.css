@@ -1,0 +1,76 @@
+/* UntPlanWeb – Sprechtag (Elternsprechtag) im nl-design: Karten, Zeitraster der Lehrkraft (frei/gebucht/gesperrt), Einladungen,
+   Elternansicht, Formular der Administration und Hinweis auf der Startseite. Wird von js/ansichten/sprechtag.js geladen. */
+
+.st-karte { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 18px 22px; margin-bottom: 14px; min-width: 0; }
+.st-karte > header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: -2px 0 14px; color: var(--u-titel); }
+.st-karte > header > i { font-size: 1.15rem; color: var(--u-akzent); }
+.st-karte > header h2 { font-size: 1.08rem; font-weight: 600; margin: 0; }
+.st-karte > .nl-tabelle { margin: 0 -22px -18px; border: 0; border-top: 1px solid #e3e7eb; border-radius: 0 0 10px 10px; }
+.st-karte > .nl-unter { margin: -6px 0 12px; }
+
+/* Kopfzeile mit Datum, Zeit und Phase */
+.st-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px; }
+.st-kopf-datum { display: flex; flex-direction: column; margin-right: 6px; }
+.st-kopf-datum b { font-size: 1.05rem; color: var(--u-titel); font-weight: 600; }
+.st-kopf-datum span { font-size: .85rem; color: #67747e; }
+
+/* Liste */
+.st-liste tr[data-oeffnen], .nl-tabelle tr[data-lehrer][tabindex] { cursor: pointer; }
+
+/* Lehrkraft: links Raum und Einladungen, rechts das Zeitraster */
+.st-raster { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: start; }
+@media (max-width: 1199.98px) { .st-raster { grid-template-columns: minmax(0, 1fr); } }
+.st-links { min-width: 0; }
+.st-raum .u-feld { max-width: 280px; }
+.st-einladen-felder { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 12px; align-items: end; margin-bottom: 14px; }
+.st-einladen-felder .st-textfeld { grid-column: 1 / -1; }
+.st-einladen-felder .nl-hinzu { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 575.98px) { .st-einladen-felder { grid-template-columns: minmax(0, 1fr); } }
+.st-einladungen { max-height: 420px; overflow-y: auto; }
+.st-n { font-size: .95rem; }
+
+.st-tag { padding: 0 0 10px; font-weight: 600; color: var(--u-akzent); font-size: .95rem; }
+.st-zeitraster td { padding-top: 7px; padding-bottom: 7px; }
+.st-zeitraster tr.st-frei td { background: #fafbfc; }
+.st-zeitraster tr.st-gesperrt td { background: #fdf3f3; }
+.st-zeitraster tr.nl-gewaehlt td { background: #fff6f1; }
+.st-zeit { display: inline-block; min-width: 54px; padding: 3px 10px; border-radius: 999px; background: #eef1f4; color: #414d55; font-size: .85rem; font-weight: 600; text-align: center;
+  font-variant-numeric: tabular-nums; }
+tr.st-gebucht .st-zeit, .st-zeit.gebucht { background: #fde3cf; color: #8a3a0c; }
+tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
+.st-abwesend { display: inline-block; padding: 3px 12px; border-radius: 6px; background: #d9363e; color: #fff; font-size: .8rem; font-weight: 600; }
+.st-zeitraster .nl-fuss { position: sticky; bottom: 0; }
+
+/* Eltern */
+.st-flach td { vertical-align: middle; }
+.st-buchen { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+.st-buchen .form-select, .st-buchen .au { width: 180px; flex: none; }
+@media (max-width: 575.98px) { .st-buchen { flex-wrap: wrap; } }
+.nl-hinzu.st-klein { height: 34px; padding: 0 16px; font-size: .9rem; }
+
+/* Formular der Administration */
+.st-formular { max-width: 1100px; }
+.st-vorschau { height: 38px; }
+.st-pausen { display: flex; flex-direction: column; gap: 10px; }
+.st-pause { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.st-pause .u-feld { width: 140px; }
+.st-schalter { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.st-schalter .form-check-input { margin-top: .2rem; flex: none; }
+.st-lehrerwahl { max-height: 520px; overflow-y: auto; }
+.st-lehrerwahl .st-raumzelle { width: 240px; }
+.st-lehrerwahl tr[hidden] { display: none; }
+
+/* Startseite */
+.heute-karte.st-start { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.st-start-sym { display: inline-grid; place-content: center; width: 34px; height: 34px; border-radius: 50%; background: var(--u-akzent); color: #fff; flex: none; }
+.st-start-sym .u-sym { width: 22px; height: 22px; }
+.st-start-titel { color: var(--u-akzent); font-weight: 600; text-decoration: none; }
+.st-start-titel:hover { text-decoration: underline; }
+.st-start-datum { color: var(--u-grau, #67747e); font-size: .85rem; }
+.st-start-text { font-size: .875rem; color: var(--u-text); }
+.st-start-link { font-size: .8125rem; white-space: nowrap; }
+@media (max-width: 575.98px) { .st-start-link { display: none; } }
+
+@media print {
+  .st-zeitraster .nl-fuss, .st-einladen-felder, .nl-icon { display: none !important; }
+}

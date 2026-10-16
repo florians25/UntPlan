@@ -50,19 +50,6 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
   const neuLaden = () => kontext.navigieren(location.hash);
   const k2 = { ...kontext, nachSpeichern: neuLaden };
 
-  const offenLaden = async () => { // (Offene Stunden haben eine eigene Seite)
-    const z = seite.querySelector('[data-offen]');
-    if (!z) return;
-    const offen = await holen('/api/app/klassenbuch/offen');
-    z.innerHTML = offen.length ? `<div class="d-flex flex-wrap gap-2">${offen.map((o, i) => `<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-o="${i}">
-        <span class="fw-semibold">${e(o.fach)}</span> ${e(o.klassen.join(', '))}<div class="small text-body-secondary">${e(datumKurz(o.datum))} · ${o.von}. Std.</div></button>`).join('')}</div>`
-      : '<span class="small text-body-secondary">Alle Stunden sind eingetragen.</span>';
-    z.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
-      const o = offen[Number(b.dataset.o)];
-      karteDialog({ datum: o.datum, von: o.von, bis: o.bis, beginn: '', ende: '', status: 'regulaer', fach: o.fach, fachName: '', klassen: o.klassen.map(k => ({ k })), lehrer: [{ k: ich.element }], raeume: [], art: '', text: '', unterricht: o.unterricht }, k2);
-    });
-  };
-  offenLaden();
   if (!klasse) { inhalt.innerHTML = leer('Keine Klassen vorhanden.'); return; }
   const q = encodeURIComponent(klasse);
 
@@ -110,7 +97,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
           <label class="nl-pille"><span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}"></label>
           <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${datum}"></label>
           ${infoHinweis('<b>Fehlstunden</b> entstehen aus einer Abwesenheit und dem Stundenplan: gezählt werden die Unterrichtsstunden, in denen die Schülerin bzw. der Schüler hätte anwesend sein müssen (z. B. ganzer Mittwoch abwesend, laut Plan 4 Stunden → 4 Fehlstunden). Den Zeitraum selbst erfassen Sie unter <a href="#/abwesenheiten">Abwesenheiten</a>.')}
-          ${f.schueler.length ? `<span class="nl-zahlen kompakt"><span class="nl-zahl still" title="Schüler*innen mit Fehlzeiten"><b>${zeilen.length}</b>/${f.schueler.length} mit Fehlzeiten</span>
+          ${f.schueler.length ? `<span class="nl-zahlen kompakt"><span class="nl-zahl still" title="Schüler*innen mit Fehlzeiten"><b>${zeilen.length}/${f.schueler.length}</b> mit Fehlzeiten</span>
           <span class="nl-zahl rot still"><b>${fehlt.length}</b> Fehlstd.</span>
           <span class="nl-zahl gelb still"><b>${fehlt.filter(y => y.status === 'offen').length}</b> offen</span>
           <span class="nl-zahl rot still"><b>${fehlt.filter(y => y.status === 'unentschuldigt').length}</b> nicht entsch.</span></span>` : ''}
@@ -357,16 +344,16 @@ async function uebersicht(seite, kontext, elementParam, datumParam, modusParam) 
   const karten = alle.map(x => ({ datum: x.datum, von: x.von, bis: x.bis, beginn: x.beginn, ende: x.ende, status: x.status, fach: x.fach, fachName: x.fachName || x.fach,
     farbe: x.farbe, art: x.art ?? '', text: '', klassen: x.klassen.map(k => ({ k })), lehrer: x.lehrer.map(k => ({ k })), raeume: x.raeume.map(k => ({ k })), unterricht: x.unterricht }));
 
-  const kachel = (zahl, text, { farbe = '', unter = '', f = '' } = {}) => `<${f ? `button type="button" data-f="${f}"` : 'div'} class="kbu-kachel ${farbe} ${f && f === filter ? 'aktiv' : ''}">
+  const kachel = (zahl, text, { farbe = '', unter = '', f = '' } = {}) => `<${f ? `button type="button" data-f="${f}" aria-pressed="${f === filter}"` : 'div'} class="kbu-kachel ${farbe} ${f && f === filter ? 'aktiv' : ''}">
       <b>${zahl}</b><span>${e(text)}</span>${unter ? `<small>${unter}</small>` : ''}</${f ? 'button' : 'div'}>`;
   const zelleAbw = (s, kommend) => {
     if (s.zustand.art === 'entfall') return '';
     const offen = s.abwesend - s.entschuldigt;
     const teile = [];
-    if (s.abwesend) teile.push(`<span class="kbu-abw ${offen ? 'offen' : 'ok'}" title="${s.abwesend} abwesend, davon ${s.entschuldigt} entschuldigt"><i class="bi bi-person-x"></i>${s.abwesend}<span class="trenn">|</span><i class="bi bi-check2"></i>${s.entschuldigt}</span>`);
-    if (s.verspaetet) teile.push(`<span class="kbu-abw spaet" title="${s.verspaetet} verspätet bzw. vorzeitig gegangen"><i class="bi bi-clock"></i>${s.verspaetet}</span>`);
+    if (s.abwesend) teile.push(`<span class="kbu-abw" title="${s.abwesend} abwesend, davon ${s.entschuldigt} entschuldigt"><i class="bi bi-person-x"></i>${s.abwesend}${offen ? ` <small>(${offen} offen)</small>` : ''}</span>`);
+    if (s.verspaetet) teile.push(`<span class="kbu-abw" title="${s.verspaetet} verspätet bzw. vorzeitig gegangen"><i class="bi bi-clock"></i>${s.verspaetet}</span>`);
     if (teile.length) return teile.join('');
-    if (s.geprueft) return '<span class="kbu-still gruen"><i class="bi bi-check2-all"></i> alle da</span>';
+    if (s.geprueft) return '<span class="kbu-still"><i class="bi bi-check2"></i> alle da</span>';
     return kommend ? '<span class="kbu-still">–</span>' : '<span class="kbu-still">nicht erfasst</span>';
   };
   const zeile = s => {
@@ -378,28 +365,28 @@ async function uebersicht(seite, kontext, elementParam, datumParam, modusParam) 
       <div class="kbu-std" role="cell"><b>${s.von === s.bis ? s.von : `${s.von}–${s.bis}`}</b><small>${e(s.beginn)}</small></div>
       <div class="kbu-fach" role="cell" style="${farbe ? `--fach:${farbe}` : ''}"><b>${e(s.fach)}</b><small>${e(wer.join(', '))}</small></div>
       <div class="kbu-stoff" role="cell">${st.art === 'entfall' ? '' : s.lehrstoff ? `<span class="kbu-text" title="${e(s.lehrstoff)}">${e(s.lehrstoff)}</span>`
-        : st.kommend ? '<span class="kbu-still">–</span>' : '<span class="kbu-fehlt"><i class="bi bi-exclamation-circle"></i> Lehrstoff fehlt</span>'}</div>
+        : st.kommend ? '<span class="kbu-still">–</span>' : '<span class="kbu-fehlt">Lehrstoff fehlt</span>'}</div>
       <div class="kbu-abwz" role="cell">${zelleAbw(s, st.kommend)}</div>
       <div class="kbu-eintr" role="cell">${s.eintraege ? `<span class="kbu-zahl" title="${s.eintraege} Klassenbucheinträge"><i class="bi bi-journal-text"></i>${s.eintraege}</span>` : '<span class="kbu-still">–</span>'}</div>
       <div class="kbu-hw" role="cell">${s.hausaufgaben ? `<span class="kbu-text" title="${e(s.hausaufgaben)}">${e(s.hausaufgaben)}</span>` : '<span class="kbu-still">–</span>'}</div>
-      <div class="kbu-status" role="cell"><span class="kbu-label ${st.farbe}">${e(st.text)}</span><i class="bi bi-chevron-right kbu-pfeilchen" aria-hidden="true"></i></div></div>`;
+      <div class="kbu-status" role="cell"><span class="kbu-st ${st.farbe}">${e(st.text)}</span><i class="bi bi-chevron-right kbu-pfeilchen" aria-hidden="true"></i></div></div>`;
   };
   const zeichnen = () => {
     const sichtbar = tage.map(t => ({ ...t, sicht: t.stunden.filter(s => passt(filter, s, s.zustand)) })).filter(t => t.sicht.length || filter === 'alle');
     seite.innerHTML = `<div class="kbu">
       <div class="kbu-kennzahlen">
         ${kachel(gehalten.length, gehalten.length === 1 ? 'Stunde' : 'Stunden', { unter: alle.length - gehalten.length ? `${alle.length - gehalten.length} entfallen` : modus === 'tag' ? 'an diesem Tag' : 'in dieser Woche' })}
-        ${kachel(fehlt, 'Lehrstoff fehlt', { farbe: fehlt ? 'orange' : 'gruen', f: 'fehlt', unter: fehlt ? 'bitte nachtragen' : 'alles eingetragen' })}
-        ${kachel(abw, abw === 1 ? 'Abwesenheit' : 'Abwesenheiten', { farbe: abwOffen ? 'rot' : '', f: 'abwesend', unter: abw ? `${abwOffen} nicht entschuldigt` : 'keine' })}
+        ${kachel(fehlt, 'Lehrstoff fehlt', { farbe: fehlt ? 'orange' : '', f: 'fehlt', unter: fehlt ? 'bitte nachtragen' : 'alles eingetragen' })}
+        ${kachel(abw, abw === 1 ? 'Abwesenheit' : 'Abwesenheiten', { f: 'abwesend', unter: abw ? `${abwOffen} nicht entschuldigt` : 'keine' })}
         ${kachel(eintr, eintr === 1 ? 'Eintrag' : 'Einträge', { f: 'eintraege', unter: 'Klassenbucheinträge' })}
         ${kachel(hw, 'Hausaufgaben', { f: 'hausaufgaben', unter: 'aufgegeben' })}
         <div class="kbu-fortschritt" title="${mitStoff} von ${vergangen.length} gehaltenen Stunden mit Lehrstoff">
           <div class="kbu-fortschritt-kopf"><span>Lehrstoff eingetragen</span><b>${prozent} %</b></div>
           <div class="kbu-balken ${fehlt ? 'luecke' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prozent}" aria-label="Lehrstoff eingetragen"><span style="width:${prozent}%"></span></div>
-          <small>${mitStoff} von ${vergangen.length} ${vergangen.length === 1 ? 'Stunde' : 'Stunden'}${fehlt ? ` · <b class="kbu-fehlt-text">${fehlt} offen</b>` : ''}</small>
+          <small>${mitStoff} von ${vergangen.length} ${vergangen.length === 1 ? 'Stunde' : 'Stunden'}${fehlt ? ` · ${fehlt} offen` : ''}</small>
         </div>
       </div>
-      <div class="kbu-pillen" role="tablist" aria-label="Filter">${FILTER.map(([f, t]) => `<button type="button" role="tab" aria-selected="${f === filter}" class="kbu-pille ${f === filter ? 'an' : ''} ${f === 'fehlt' && fehlt ? 'warn' : ''}" data-f="${f}">${e(t)}${f === 'fehlt' && fehlt ? ` <span class="kbu-pille-zahl">${fehlt}</span>` : ''}</button>`).join('')}</div>
+      <div class="kbu-pillen" role="tablist" aria-label="Filter">${FILTER.map(([f, t]) => `<button type="button" role="tab" aria-selected="${f === filter}" class="kbu-pille ${f === filter ? 'an' : ''}" data-f="${f}">${e(t)}${f === 'fehlt' && fehlt ? ` <span class="kbu-pille-zahl">${fehlt}</span>` : ''}</button>`).join('')}</div>
       ${!tage.length ? `<div class="kbu-leer">${leer(modus === 'tag' ? 'An diesem Tag gibt es keinen Unterricht.' : 'In dieser Woche gibt es keinen Unterricht.', 'calendar-x')}</div>`
         : !sichtbar.length ? `<div class="kbu-leer">${leer(filter === 'fehlt' ? 'Kein Lehrstoff fehlt – alles eingetragen.' : 'Keine passenden Stunden im Zeitraum.', filter === 'fehlt' ? 'check2-circle' : 'funnel')}</div>`
         : sichtbar.map(t => {
@@ -407,8 +394,8 @@ async function uebersicht(seite, kontext, elementParam, datumParam, modusParam) 
           return `<section class="kbu-tag ${t.datum === heute ? 'heute' : ''}" aria-label="${e(`${wtVon(t.datum)}, ${tt(t.datum)}`)}">
           <header class="kbu-tagkopf">
             <div class="kbu-datum"><b>${datumVon(t.datum).getDate()}</b><small>${MONATE_KURZ[datumVon(t.datum).getMonth()]}</small></div>
-            <div class="kbu-tagtitel"><h2>${e(wtVon(t.datum))}${t.datum === heute ? ' <span class="kbu-label orange">Heute</span>' : ''}</h2><span>${tt(t.datum)}${t.datum.slice(0, 4)} · KW ${t.kw} · ${t.stunden.length} ${t.stunden.length === 1 ? 'Stunde' : 'Stunden'}</span></div>
-            <div class="kbu-tagchips">${tf ? `<span class="kbu-label orange">${tf} × Lehrstoff fehlt</span>` : ''}${t.eintraege ? `<span class="kbu-label grau"><i class="bi bi-journal-text"></i> ${t.eintraege} ${t.eintraege === 1 ? 'Eintrag' : 'Einträge'}</span>` : ''}</div>
+            <div class="kbu-tagtitel"><h2>${e(wtVon(t.datum))}${t.datum === heute ? ' <span class="kbu-heute-text">Heute</span>' : ''}</h2><span>${tt(t.datum)}${t.datum.slice(0, 4)} · ${t.stunden.length} ${t.stunden.length === 1 ? 'Stunde' : 'Stunden'}</span></div>
+            <div class="kbu-tagchips">${tf ? `<span class="kbu-tagzahl warn">${tf} ohne Lehrstoff</span>` : ''}${t.eintraege ? `<span class="kbu-tagzahl"><i class="bi bi-journal-text"></i> ${t.eintraege} ${t.eintraege === 1 ? 'Eintrag' : 'Einträge'}</span>` : ''}</div>
           </header>
           <div class="kbu-tabelle" role="table">
             <div class="kbu-kopfzeile" role="row"><span role="columnheader">Std.</span><span role="columnheader">Fach</span><span role="columnheader">Lehrstoff</span><span role="columnheader">Abwesenheiten</span><span role="columnheader">Einträge</span><span role="columnheader">Hausaufgaben</span><span role="columnheader">Status</span></div>
@@ -510,15 +497,15 @@ async function wochenraster(inhalt, kontext, klasse, datum, ziel, k2, neuLaden) 
 
   const spalten = tage.map((t, x) => {
     const spalte = x + 2;
-    const kopf = `<div class="kbw-tag ${t.datum === heute ? 'heute' : ''}" style="grid-column:${spalte}">
+    const kopf = `<div class="kbw-tag ${t.datum === heute ? 'ist-heute' : ''}" style="grid-column:${spalte}">
         <span><b>${WT_KURZ[datumVon(t.datum).getDay()]}</b> ${tt(t.datum)}</span>
         ${!t.frei ? `<button type="button" class="kbw-plus" data-vermerk="${t.datum}" title="Klassenbucheintrag am ${tt(t.datum)}" aria-label="Klassenbucheintrag am ${tt(t.datum)}"><i class="bi bi-plus-lg"></i></button>` : ''}</div>`;
     if (t.frei) return `${kopf}<div class="kbw-frei" style="grid-column:${spalte};grid-row:2 / span ${Math.max(1, raster.length)}"><i class="bi bi-lock"></i>${e(t.freiGrund || 'unterrichtsfrei')}</div>`;
     const leer = raster.filter(r => !t.stunden.some(s => r.nr >= s.von && r.nr <= s.bis))
-      .map(r => `<div class="kbw-leer ${t.datum === heute ? 'heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(r.nr)}"></div>`).join('');
+      .map(r => `<div class="kbw-leer ${t.datum === heute ? 'ist-heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(r.nr)}"></div>`).join('');
     return kopf + leer + bloecke(t.stunden.filter(s => s.von <= letzte)).map(b => {
       b.stunden.forEach(s => { s.blockVon = b.von; });
-      return `<div class="kbw-block ${t.datum === heute ? 'heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(b.von)} / span ${b.bis - b.von + 1};grid-template-columns:repeat(${b.spuren}, minmax(0, 1fr));grid-template-rows:repeat(${b.bis - b.von + 1}, minmax(0, 1fr))">
+      return `<div class="kbw-block ${t.datum === heute ? 'ist-heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(b.von)} / span ${b.bis - b.von + 1};grid-template-columns:repeat(${b.spuren}, minmax(0, 1fr));grid-template-rows:repeat(${b.bis - b.von + 1}, minmax(0, 1fr))">
         ${b.stunden.map(karte).join('')}</div>`;
     }).join('');
   }).join('');
@@ -542,7 +529,7 @@ async function wochenraster(inhalt, kontext, klasse, datum, ziel, k2, neuLaden) 
       </div>
     </div>
     ${!raster.length || !tage.length ? `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-calendar-x"></i></span><b>Kein Unterricht</b><p>In dieser Woche gibt es für ${e(klasse)} keinen Unterricht.</p></div>` : `
-    <div class="kbw-rahmen"><div class="kbw-raster" style="grid-template-columns:64px repeat(${tage.length}, minmax(150px, 1fr));grid-template-rows:44px repeat(${raster.length}, minmax(92px, auto))">
+    <div class="kbw-rahmen"><div class="kbw-raster" style="--tage:${tage.length};grid-template-columns:64px repeat(${tage.length}, minmax(150px, 1fr));grid-template-rows:44px repeat(${raster.length}, minmax(92px, auto))">
       <div class="kbw-ecke"></div>
       ${raster.map(r => `<div class="kbw-nr" style="grid-row:${zeileVon(r.nr)}"><b>${r.nr}</b><small>${e(r.beginn)}</small></div>`).join('')}
       ${spalten}

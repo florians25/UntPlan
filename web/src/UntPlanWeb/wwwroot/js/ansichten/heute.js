@@ -136,6 +136,9 @@ export async function zeigen(seite, kontext) {
       ${d.keinPlan && ich.admin ? `<section class="heute-karte heute-hinweis">${icon('info')}<span>Diesem Administrationskonto ist kein eigener Stundenplan zugewiesen.</span></section>` : ''}
     </div>`;
 
+  // Hinweis „Sprechtag“ (Einladungs- bzw. Anmeldezeitraum) nach der letzten Anmeldung
+  import('./sprechtag.js').then(m => m.startkarte(seite.querySelector('.heute'))).catch(() => { /* ohne Hinweis */ });
+
   // Klick auf eine Stunde öffnet die Stundendetails (Klassenbuch)
   const karten = stunden.map(s => ({
     datum: d.tag ?? d.datum, von: s.von, bis: s.bis, beginn: s.beginn, ende: s.ende, status: s.status, fach: s.fach, fachName: s.fachName, fachAlt: s.fachAlt, farbe: s.farbe,

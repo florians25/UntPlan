@@ -869,6 +869,131 @@ function stripRuhe(el){
   el.classList.remove('is-dragging');
 }
 
+/* --- Raster abgleichen statt neu aufbauen ------------------------------
+   Das Raster wird weiterhin als eine Zeichenkette gebaut — das ist schnell
+   und übersichtlich. Eingesetzt wird es aber nicht mehr blind per
+   innerHTML: Jeder Knoten merkt sich, aus welchem Quelltext er entstand
+   (`_src`). Ist ein neuer Knoten Zeichen für Zeichen gleich, bleibt der
+   alte stehen — samt seiner Vermessung (Kürzungen). Die Behälter (Raster,
+   Rahmen, Streifen, Tagesspalten) werden dabei Ebene für Ebene abgeglichen,
+   alles darunter (Kachel, Zeitzeile, Jetzt-Linie) als Ganzes ersetzt.
+   Rückgabe: false = nichts geändert, true = alles neu, sonst die Liste
+   der neu eingesetzten Knoten. */
+const RASTER_BEHAELTER = new Set(['grid', 'colclip', 'colstrip', 'daycol']);
+let rasterQuelle = '', rasterBreite = -1;
+
+function rasterEinsetzen(pane, html){
+  const breite = pane.clientWidth;
+  if (html === rasterQuelle && breite === rasterBreite && pane.firstElementChild) return false;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const neuRoot = tpl.content.firstElementChild;
+  const altRoot = pane.firstElementChild;
+  const ganz = !altRoot || !neuRoot || breite !== rasterBreite
+            || !altRoot.classList.contains(neuRoot.className) || pane.children.length !== 1;
+  rasterQuelle = html; rasterBreite = breite;
+  console.log('DBG ganz', ganz, altRoot && altRoot.className, neuRoot && neuRoot.className, pane.children.length, breite);
+  if (ganz){
+    /* Quelltext jedes Blattknotens merken, bevor vermessen und gekürzt wird. */
+    merkeBlaetter(neuRoot);
+    pane.replaceChildren(tpl.content);
+    return true;
+  }
+  const neue = [];
+  rasterAbgleich(altRoot, neuRoot, neue);
+  console.log('DBG neue', neue.length, neue.map(n => n.className).join(','));
+  return neue;
+}
+
+/* Quelltext der Blattknoten (und Inhalt der Tagesspalten) merken, bevor
+   vermessen und gekürzt wird. */
+function merkeBlaetter(el){
+  [...el.children].forEach(k => {
+    if (RASTER_BEHAELTER.has(k.className)){
+      if (k.className === 'daycol') k._inner = k.innerHTML;
+      merkeBlaetter(k);
+    } else k._src = k.outerHTML;
+  });
+}
+
+function rasterAbgleich(alt, neu, neue){
+  /* Eigenschaften des Behälters (Höhe, Lage) übernehmen. */
+  for (const a of [...alt.attributes]) if (!neu.hasAttribute(a.name)) alt.removeAttribute(a.name);
+  for (const a of neu.attributes) if (alt.getAttribute(a.name) !== a.value) alt.setAttribute(a.name, a.value);
+
+  const alte = [...alt.children], neuK = [...neu.children];
+  const pool = new Map();
+  alte.forEach(k => {
+    if (!k._src) return;
+    const l = pool.get(k._src); if (l) l.push(k); else pool.set(k._src, [k]);
+  });
+  /* Tagesspalten zusätzlich nach Inhalt: Beim Wochenwechsel wandert ein
+     Tag nur an eine andere Stelle des Streifens — seine Kacheln bleiben
+     gleich, nur die Lage der Spalte ändert sich. */
+  const innen = new Map();
+  alte.forEach(k => {
+    if (k._inner == null) return;
+    const l = innen.get(k._inner); if (l) l.push(k); else innen.set(k._inner, [k]);
+  });
+  const benutzt = new Set();
+  if (neu.className === 'colstrip') console.log('DBG strip', alte.length, neuK.length, alte.filter(k => k._inner != null).length, alte.map(k => k.className).join(','));
+  const ziel = neuK.map((n, i) => {
+    const src = n.outerHTML;
+    const treffer = pool.get(src);
+    while (treffer && treffer.length){
+      const k = treffer.shift();
+      if (!benutzt.has(k)){ benutzt.add(k); return k; }
+    }
+    if (n.className === 'daycol'){
+      const inner = n.innerHTML;
+      const gleich = innen.get(inner);
+      while (gleich && gleich.length){
+        const k = gleich.shift();
+        if (!benutzt.has(k)){
+          benutzt.add(k);
+          for (const a of n.attributes) if (k.getAttribute(a.name) !== a.value) k.setAttribute(a.name, a.value);
+          k._src = src;
+          return k;
+        }
+      }
+    }
+    const a = alte[i];
+    if (n.className === 'daycol' && i === 7) console.log('DBG d7', alte.length, alte.filter(k => k._inner != null).length, (n.innerHTML.match(/data-date="([^"]+)"/)||[])[1], alte.map(k => (k._inner||'').match(/data-date="([^"]+)"/)?.[1]).join(' '));
+    if (n.className === 'daycol'){ const dd = (n.innerHTML.match(/data-date="([^"]+)"/)||[])[1]; const o = alte.find(k => k._inner && dd && k._inner.includes('data-date="'+dd+'"')); if (o){ const A=o._inner, B=n.innerHTML; let j=0; while (j<A.length && A[j]===B[j]) j++; console.log('DBG daycol', dd, A.length, B.length, JSON.stringify(A.slice(Math.max(0,j-80), j+60)), '||', JSON.stringify(B.slice(Math.max(0,j-80), j+60))); } }
+    /* Verglichen wird die Grundklasse — Zustände wie `is-dragging` am
+       Streifen hängen nur vorübergehend daran. */
+    if (a && !benutzt.has(a) && a.tagName === n.tagName
+        && RASTER_BEHAELTER.has(n.className) && a.classList.contains(n.className)){
+      benutzt.add(a);
+      if (n.className === 'daycol') a._inner = n.innerHTML;
+      rasterAbgleich(a, n, neue);
+      a._src = src;
+      return a;
+    }
+    n._src = src;
+    if (n.className === 'daycol'){ n._inner = n.innerHTML; merkeBlaetter(n); }
+    neue.push(n);
+    return n;
+  });
+  alte.forEach(k => { if (!benutzt.has(k)) k.remove(); });
+  /* Reihenfolge herstellen — bewegt wird nur, was nicht schon passt. */
+  ziel.forEach((k, i) => {
+    const jetzt = alt.children[i];
+    if (jetzt !== k) alt.insertBefore(k, jetzt || null);
+  });
+}
+
+/* Breite der Zeitspalte: nur einmal je Fensterbreite aus dem Stil lesen
+   (getComputedStyle erzwingt sonst bei jedem Zeichnen eine Stilberechnung). */
+let zeitspalteMerk = { w:-1, px:45 };
+function zeitspalteBreite(){
+  const w = window.innerWidth;
+  if (zeitspalteMerk.w !== w){
+    zeitspalteMerk = { w, px: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gutter-w')) || 45 };
+  }
+  return zeitspalteMerk.px;
+}
+
 function renderGrid(){
   const nTage = tageAnsicht();
   /* „isDay“ ist die Tagesansicht im engeren Sinn (eine Spalte, Feld links
@@ -914,7 +1039,7 @@ function renderGrid(){
      wie dem iPad sind es mehrere. Erst wenn es nicht mehr reicht, tritt die
      Zählkarte an die Stelle der verdrängten Kacheln. */
   const MIN_CARD = 62;
-  const gutterPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gutter-w')) || 45;
+  const gutterPx = zeitspalteBreite();
   const colPx = Math.max(1, (($('#gridScroll').clientWidth || 402) - gutterPx) / cols);
   /* Breite Wochenspalte: Platz für eine halbe Kachel neben einem Feld. */
   const nebenFeld = !isDay && colPx >= 180;
@@ -1581,8 +1706,12 @@ function renderGrid(){
 
   html += '</div></div>';  /* colstrip, colclip */
   html += '</div>';        /* grid */
-  pane.innerHTML = html;
-  feinKuerzung();
+  /* Nur austauschen, was sich wirklich geändert hat (siehe rasterEinsetzen):
+     Beim Minutentakt, nach stillem Nachladen oder beim Zurückkehren in die
+     App bleiben fast alle Kacheln stehen. Vermessen werden dann nur die
+     neuen Kacheln. */
+  const neu = rasterEinsetzen(pane, html);
+  if (neu) feinKuerzung(neu === true ? null : neu);
 
   /* Der Streifen steht auf der Mitte — bei der Woche auf der aktuellen
      Woche, in der Tagesansicht auf dem gewählten Tag. Vorher stand die
@@ -1646,49 +1775,52 @@ function kuerzeText(el, grenze){
   el.textContent = lo > 0 ? voll.slice(0, lo) + '…' : '…';
 }
 
-function feinKuerzung(){
+function feinKuerzung(nur){
   const pane = $('#gridPane');
   if (!pane) return;
+  /* Nur die neu eingesetzten Knoten vermessen, wenn eine Liste kommt —
+     sonst (erster Aufbau, Sichtbarwerden, Aufruf aus requestAnimationFrame
+     mit Zeitstempel) das ganze Raster. */
+  const teil = Array.isArray(nur);
+  const unter = sel => teil
+    ? nur.flatMap(n => (n.matches && n.matches(sel)) ? [n] : [...n.querySelectorAll(sel)])
+    : $$(sel, pane);
 
-  $$('.card.pad-check', pane).forEach(k => {
-    /* Welches Zeichen in der Ecke steht, hat sich geändert: Info und
-       Hausaufgaben sind jetzt Bilder in `.card__ecke`, nicht mehr der
-       gezeichnete `.card__info`. Die alte Suche fand sie nicht und die
-       Messung brach ab — die Werte liefen wieder unter das Zeichen.
-       Gesucht wird deshalb nach allen drei Formen; maßgeblich ist die
-       linke Kante, also bei zwei Zeichen nebeneinander die des ersten. */
-    const zeichen = k.querySelector('.card__ecke, .card__cut, .card__info');
-    const zeilen  = $$('.card__line', k);
-    if (!zeichen || !zeilen.length) return;
+  /* Drei Durchgänge, damit Lesen und Schreiben nicht abwechseln (sonst
+     erzwingt jede Kachel eine eigene Layoutberechnung):
+       1. alles zurücksetzen (nur schreiben),
+       2. alles vermessen (nur lesen),
+       3. Breiten setzen (nur schreiben); Plaketten-Text kürzen braucht
+          Messen und kommt nur bei wirklich zu langen Werten vor. */
+  /* Welches Zeichen in der Ecke steht: Info und Hausaufgaben stehen in
+     `.card__ecke`, das Kürzungszeichen in `.card__cut`; maßgeblich ist die
+     linke Kante, bei zwei Zeichen nebeneinander also die des ersten. */
+  const pruef = unter('.card.pad-check').map(k => ({
+    k, zeichen: k.querySelector('.card__ecke, .card__cut, .card__info'), zeilen: $$('.card__line', k)
+  })).filter(x => x.zeichen && x.zeilen.length);
 
-    /* Erst alles zurücksetzen, sonst misst man das Ergebnis der letzten
-       Messung mit. */
+  /* 1. Zurücksetzen — sonst misst man das Ergebnis der letzten Messung mit. */
+  pruef.forEach(({ k, zeilen }) => {
     zeilen.forEach(z => {
       z.style.width = '';
-      /* Gekürzte Plaketten wieder auf ihren vollen Text — sonst misst der
-         nächste Durchgang das Ergebnis des letzten. */
-      z.querySelectorAll('.badge[data-voll]').forEach(el => {
-        el.textContent = el.dataset.voll;
-      });
+      z.querySelectorAll('.badge[data-voll]').forEach(el => { el.textContent = el.dataset.voll; });
     });
     k.classList.remove('pad-last');
+  });
 
+  /* 2. Vermessen. Nicht nur die letzte Zeile: Auf einer Vertretung liegt der
+     lange Raumname oft in der vorletzten, und auch die reicht auf einer
+     flachen Kachel unter das Zeichen. Gemessen wird Kind für Kind, weil ein
+     Bereich über den ganzen Inhalt in WebKit kein brauchbares Rechteck
+     liefert, sobald die Zeile allein aus einer Plakette besteht. */
+  const arbeit = [];
+  pruef.forEach(({ k, zeichen, zeilen }) => {
     const ico = zeichen.getBoundingClientRect();
-    if (!ico.width || !ico.height){ k.classList.add('pad-last'); return; }
-
-    /* Nicht nur die letzte Zeile prüfen.
-       Auf einer Vertretung stehen oft vier Werte — Klasse, Fach, Raum und
-       darunter die einspringende Lehrkraft. Der lange Raumname liegt dann
-       in der **vorletzten** Zeile, und die reicht auf einer flachen Kachel
-       genauso unter das Zeichen. Gepolstert wurde bisher aber nur die
-       letzte; der Raum lief weiter und verschwand unter dem Punkt.
-
-       Geprüft wird deshalb jede Zeile einzeln, senkrecht wie waagerecht,
-       und gepolstert wird genau die, die es braucht. */
+    /* Nichts zu messen (Plan verborgen): Vorauswahl, später nachmessen. */
+    if (!ico.width || !ico.height){ arbeit.push({ k, padLast:true }); return; }
     zeilen.forEach(z => {
       const zeile = z.getBoundingClientRect();
       if (zeile.bottom <= ico.top + 1) return;          /* liegt über dem Zeichen */
-
       let rechts = 0;
       z.childNodes.forEach(kind => {
         if (kind.nodeType === 1){
@@ -1701,44 +1833,35 @@ function feinKuerzung(){
           } catch (e){}
         }
       });
-      /* Nichts messbar: lieber polstern als riskieren, dass das Zeichen
-         auf dem Wert liegt. */
+      /* Nichts messbar: lieber polstern als das Zeichen auf den Wert legen. */
       if (!rechts) rechts = zeile.right;
-
       if (rechts <= ico.left + 2) return;
-
-      /* Zwei Wege, je nachdem, was in der Zeile steht.
-
-         Reiner Text: Die Zeile bekommt eine Breite. `overflow:hidden`
-         schneidet an der Polsterkante ab, nicht an der Inhaltskante — ein
-         Polster rechts verschöbe die Schnittstelle also gar nicht. Eine
-         schmalere Zeile zieht die Kante selbst nach innen, und
-         `text-overflow:ellipsis` setzt dort die Auslassungspunkte.
-
-         Plaketten: Die sind Elemente im Zeilenfluss und lassen sich davon
-         nicht beeindrucken — sie würden hart abgeschnitten. Ihnen
-         `overflow:hidden` zu geben wäre der naheliegende Weg, verschiebt
-         sie aber senkrecht: Ein Inline-Block mit Überlaufbegrenzung richtet
-         sich nicht mehr an der Schriftlinie aus, sondern an seiner
-         Unterkante. Deshalb wird ihr Text gekürzt statt ihr Kasten — das
-         Ergebnis sind echte Auslassungspunkte ohne Verrutschen. */
       const grenze = ico.left - 2;
-      z.style.width = Math.max(12, Math.floor(grenze - zeile.left)) + 'px';
-
-      z.querySelectorAll('.badge').forEach(el => kuerzeText(el, grenze));
+      arbeit.push({ z, grenze, breite: Math.max(12, Math.floor(grenze - zeile.left)) });
     });
   });
 
-  /* Allgemein: Ein Label (Plakette), das über den Rand der Kachel hinausreicht,
-     endet mit „…“ statt hart abgeschnitten zu werden. Die rollbare
-     Lehrerleiste bleibt ungekürzt. */
-  $$('.card', pane).forEach(k => {
+  /* 3. Schreiben. Reiner Text: Die Zeile wird schmaler, `text-overflow`
+     setzt die Auslassungspunkte. Plaketten würden hart abgeschnitten — ihr
+     Text wird gekürzt statt ihr Kasten (kein senkrechtes Verrutschen). */
+  arbeit.forEach(w => { if (w.padLast) w.k.classList.add('pad-last'); else w.z.style.width = w.breite + 'px'; });
+  arbeit.forEach(w => { if (w.z) w.z.querySelectorAll('.badge').forEach(el => kuerzeText(el, w.grenze)); });
+
+  /* Allgemein: Ein Label, das über den Rand der Kachel hinausreicht, endet
+     mit „…“ statt hart abgeschnitten zu werden. Die rollbare Lehrerleiste
+     bleibt ungekürzt. Erst alles lesen, dann nur die Überläufer kürzen. */
+  const ueber = [];
+  unter('.card').forEach(k => {
+    const badges = k.querySelectorAll('.card__line:not(.card__line--scroll) .badge');
+    if (!badges.length) return;
     const rand = k.getBoundingClientRect().right - 4;
-    k.querySelectorAll('.card__line:not(.card__line--scroll) .badge').forEach(el => {
-      if (el.dataset.voll != null && el.textContent !== el.dataset.voll && el.getBoundingClientRect().right <= rand) return;
-      if (el.getBoundingClientRect().right > rand) kuerzeText(el, rand);
+    badges.forEach(el => {
+      const r = el.getBoundingClientRect().right;
+      if (el.dataset.voll != null && el.textContent !== el.dataset.voll && r <= rand) return;
+      if (r > rand) ueber.push([el, rand]);
     });
   });
+  ueber.forEach(([el, rand]) => kuerzeText(el, rand));
 }
 
 /* Kurzer Impuls am Gerät — Bestätigung ohne Ton. Bisher stand er nur in
@@ -4123,6 +4246,9 @@ function renderDetail(){
   void zusatz;
   const einmal = arr => arr.filter((x, i) => arr.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i);
   const veranstAnlass = istVeranstaltung ? (c.subject || c.info || '').trim() : '';
+  /* Art der Stunde als dezente graue Pille unter der Überschrift – in
+     normaler Schreibweise, nicht als Versal-Plakette. */
+  const artPille = c.blockType === 'klausur' ? 'Prüfung' : istVeranstaltung ? 'Veranstaltung' : '';
 
   /* --- Aktionszeilen ----------------------------------------------------
      Alles, was zum Klassenbuch gehört (online, Raum, Lehrstoff,
@@ -4182,6 +4308,7 @@ function renderDetail(){
   $('#detailBody').innerHTML = `
     <div class="dhead ${(c.blockType === 'cancelled' || c.blockType === 'class-absent') ? 'is-off' : ''}">
       ${head ? `<h2 class="dtitle">${head}</h2>` : ''}
+      ${artPille ? `<p class="dline dline--pill"><span class="dpill dpill--dezent">${artPille}</span></p>` : ''}
       ${istVeranstaltung
           /* Veranstaltung: der Anlass nur dann als eigene Zeile, wenn oben
              die Klassen stehen — sonst ist er schon die Überschrift. */
@@ -6419,11 +6546,21 @@ if ('serviceWorker' in navigator){
 }
 
 /* Jetzt-Linie nachführen */
-setInterval(() => { if (state.screen === 'plan' && state.week) renderGrid(); }, 60000);
+/* Im nächsten Bildschirmtakt zeichnen und mehrere Anstöße bündeln. Nur
+   wenn die App sichtbar ist — im Hintergrund gibt es nichts zu sehen. */
+let rasterTakt = 0;
+function rasterBald(){
+  if (rasterTakt || document.hidden) return;
+  rasterTakt = requestAnimationFrame(() => {
+    rasterTakt = 0;
+    if (state.screen === 'plan' && state.week) renderGrid();
+  });
+}
+setInterval(rasterBald, 60000);
 
 /* Bei Rückkehr in die App auf die aktuelle Woche prüfen */
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && state.week) renderGrid();
+  if (!document.hidden && state.week) rasterBald();
 });
 
 /* =====================================================================
