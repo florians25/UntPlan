@@ -27,17 +27,19 @@ struct PlanAuswahl: Hashable, Codable, Identifiable {
 /// Favorisierte Pläne, lokal in den UserDefaults gespeichert (Reihenfolge wie vom Benutzer sortiert).
 @MainActor
 final class Favoriten: ObservableObject {
-    static let schluessel = "planFavoriten"
+    nonisolated static let schluessel = "planFavoriten"
 
-    @Published private(set) var liste: [PlanAuswahl] = []
+    @Published private(set) var liste: [PlanAuswahl]
 
-    nonisolated init() {}
+    nonisolated init() {
+        _liste = Published(initialValue: Favoriten.gespeichert())
+    }
 
-    /// Liest die gespeicherten Favoriten (einmal beim Start).
-    func laden() {
-        guard let daten = UserDefaults.standard.data(forKey: Self.schluessel),
-              let gelesen = try? JSONDecoder().decode([PlanAuswahl].self, from: daten) else { return }
-        liste = gelesen
+    /// Liest die gespeicherten Favoriten.
+    nonisolated static func gespeichert() -> [PlanAuswahl] {
+        guard let daten = UserDefaults.standard.data(forKey: schluessel),
+              let gelesen = try? JSONDecoder().decode([PlanAuswahl].self, from: daten) else { return [] }
+        return gelesen
     }
 
     func enthaelt(_ plan: PlanAuswahl) -> Bool {
