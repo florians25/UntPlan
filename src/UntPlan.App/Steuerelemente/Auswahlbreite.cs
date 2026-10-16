@@ -34,6 +34,9 @@ public static class Auswahlbreite
     /// <summary>Kontrollkästchen in Tabellen im Normalzustand zeichnen (die Hervorhebung beim Überfahren übernimmt <see cref="ZellFarben"/> für alle Zellen gleich).</summary>
     private static void KontrollkaestchenOhneHover(object? sender, DataGridViewCellPaintingEventArgs e)
     {
+        // Schutz vor stehen gelassener Kantenglättung eigener Zellzeichner: die Grafik wird für alle Zellen (und über den
+        // Doppelpuffer für spätere Zeichenvorgänge) weiterverwendet – sonst verschwommene/versetzte Rasterlinien und Hintergründe
+        if (e.Graphics is { } gr && gr.SmoothingMode != System.Drawing.Drawing2D.SmoothingMode.Default) gr.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.Default;
         if (e.Handled || e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || sender is not DataGridView g ||
             g.Rows[e.RowIndex].Cells[e.ColumnIndex] is not DataGridViewCheckBoxCell) return;
         e.Paint(e.ClipBounds, e.PaintParts & ~DataGridViewPaintParts.ContentForeground);
@@ -114,6 +117,8 @@ public static class Auswahlbreite
                 g.CellFormatting += ZellFarben;
                 g.CellMouseEnter += (_, e) => HoverSetzen(g, e.ColumnIndex, e.RowIndex);
                 g.MouseLeave += (_, _) => HoverSetzen(g, -1, -1);
+                // nach Neuaufbau der Zeilen keine veraltete Hover-Zelle stehen lassen
+                g.RowsRemoved += (_, _) => HoverZelle.AddOrUpdate(g, new StrongBox<Point>(new Point(-1, -1)));
                 break;
             case ToolStrip ts:
                 foreach (var item in ts.Items.OfType<ToolStripComboBox>()) Erfassen(item.ComboBox);

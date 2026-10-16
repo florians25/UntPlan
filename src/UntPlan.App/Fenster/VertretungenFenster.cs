@@ -122,16 +122,20 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         filter.Controls.Add(Gruppe("Ansicht einschränken auf …", _offen, _kollisionen));
 
         // Fußleiste wie Untis: Vtr-Nr. links, Ansicht ganz rechts (keine Zeilen-/Offen-Zählung)
-        var unten = new Panel { Dock = DockStyle.Bottom, Height = 30, BackColor = Ui.Kopf };
-        var links = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(4, 3, 0, 0), WrapContents = false, BackColor = Ui.Kopf };
+        var unten = new Steuerelemente.Fussleiste { BackColor = Ui.Kopf };
+        var links = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(4, 5, 0, 0), WrapContents = false, BackColor = Ui.Kopf };
         links.Controls.Add(new Label { Text = "Vtr-Nr.:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
         links.Controls.Add(_nr);
         links.Controls.Add(_status);
-        var rechts = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 3, 6, 0), WrapContents = false, BackColor = Ui.Kopf };
+        var rechts = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = Padding.Empty, Margin = Padding.Empty, WrapContents = false, BackColor = Ui.Kopf };
         rechts.Controls.Add(new Label { Text = "Ansicht:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+        _ansicht.Margin = new Padding(3, 0, 0, 0);
         rechts.Controls.Add(_ansicht);
         unten.Controls.Add(links);
-        unten.Controls.Add(rechts);
+        unten.Rechts = rechts;
+        links.Padding = new Padding(4, 5, 0, 0);
+        unten.Resize += (_, _) => links.Width = Math.Max(0, rechts.Left - 4);
+        links.Dock = DockStyle.Left;
 
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -1393,7 +1397,15 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     private void NeuBerechnen()
     {
-        Aendern("Vertretungen neu berechnet", AenderungsArt.Vertretung, d => Vertretungen.Aktualisieren(d, Von, Bis));
+        UmplanungsErgebnis? erg = null;
+        Aendern("Vertretungen neu berechnet", AenderungsArt.Vertretung, d =>
+        {
+            // im Stundenplan umgeplante Stunden nacherfassen, damit ihre Vertretungen an der neuen Lage wieder erscheinen
+            erg = Umplanungsabgleich.Nacherfassen(d, AppZustand.Benutzer);
+            Vertretungen.Aktualisieren(d, Von, Bis);
+        });
+        if (erg is { } e && (e.Uebertragen.Count > 0 || e.Hinweise.Count > 0))
+            Ui.Info($"{e.Uebertragen.Count} Vertretung(en) umgeplanter Stunden übertragen." + (e.Hinweise.Count > 0 ? "\n\n" + string.Join("\n", e.Hinweise.Take(15)) : ""), "Stundenplanänderungen nacherfasst");
     }
 
     private void VorschlagOeffnen()

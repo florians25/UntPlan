@@ -23,6 +23,44 @@ public static class PlanungsKonfliktDialog
     }
 }
 
+/// <summary>Antwort auf „Soll behindernder Unterricht entplant werden?“.</summary>
+public enum BehinderungsAntwort
+{
+    /// <summary>Ja: behindernden Unterricht entplanen (er erscheint unter „nicht verplant“).</summary>
+    Entplanen,
+    /// <summary>Nein: trotzdem ausführen, die Kollision bleibt bestehen.</summary>
+    KollisionZulassen,
+    /// <summary>Abbrechen: nichts ändern.</summary>
+    Abbrechen,
+}
+
+/// <summary>
+/// Untis-Abfrage „Soll behindernder Unterricht entplant werden?“ mit der Liste der behindernden Stunden. Ja entplant den
+/// behindernden Unterricht, Nein führt die Aktion mit Kollision aus, Abbrechen ändert nichts. Im Selbsttest beantwortet der
+/// Hook <see cref="Ui.FrageAntwort"/> die Frage ohne modales Fenster (true = Ja, false = Nein).
+/// </summary>
+public static class BehinderungsAbfrage
+{
+    public const string Titel = "Behindernder Unterricht";
+
+    public static BehinderungsAntwort Fragen(IWin32Window? owner, Schuldatei d, DatenIndex ix, IReadOnlyCollection<Hindernis> hindernisse, string? anlass = null, bool nein = true)
+    {
+        var text = Behinderung.Fragetext(d, ix, hindernisse, anlass) +
+                   "\n\nJa: behindernden Unterricht entplanen (er erscheint unter „nicht verplant“)" +
+                   (nein ? "\nNein: trotzdem ausführen – die Kollision bleibt bestehen" : "") + "\nAbbrechen: nichts ändern";
+        if (Ui.FrageAntwort is { } antwort) return antwort(text, Titel) ? BehinderungsAntwort.Entplanen : nein ? BehinderungsAntwort.KollisionZulassen : BehinderungsAntwort.Abbrechen;
+        var r = owner is null
+            ? MessageBox.Show(text, Titel, nein ? MessageBoxButtons.YesNoCancel : MessageBoxButtons.OKCancel, MessageBoxIcon.Question)
+            : MessageBox.Show(owner, text, Titel, nein ? MessageBoxButtons.YesNoCancel : MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+        return r switch
+        {
+            DialogResult.Yes or DialogResult.OK => BehinderungsAntwort.Entplanen,
+            DialogResult.No => BehinderungsAntwort.KollisionZulassen,
+            _ => BehinderungsAntwort.Abbrechen,
+        };
+    }
+}
+
 /// <summary>Frage mit Meldungstext und mehreren Optionen (Optionsfelder), z. B. "Kollision in Zielstunde".</summary>
 public static class OptionenDialog
 {
@@ -123,13 +161,7 @@ public static class RaumZuordnenDialog
         rechts.CellPainting += (_, e) =>
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Value as string != "✔" || e.Graphics is null) return;
-            e.PaintBackground(e.CellBounds, true);
-            var r = e.CellBounds;
-            var m = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
-            using var pen = new Pen(rechts.Columns[e.ColumnIndex].Name == "B" ? Color.ForestGreen : Color.SteelBlue, 2.2f);
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            e.Graphics.DrawLines(pen, new[] { new Point(m.X - 5, m.Y), new Point(m.X - 1, m.Y + 4), new Point(m.X + 6, m.Y - 4) });
-            e.Handled = true;
+            Ui.ZellHaken(e, rechts.Columns[e.ColumnIndex].Name == "B" ? Color.ForestGreen : Color.SteelBlue, 2.2f);
         };
 
         int Umfang() => Array.FindIndex(rbs, r => r.Checked);

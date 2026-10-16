@@ -47,6 +47,9 @@ public sealed partial class HauptFenster
         // Ja/Nein-Abfragen (z. B. „Soll die Verlegung rückgängig gemacht werden?“) nicht modal: mit Ja beantworten und protokollieren
         var fragen = new List<string>();
         Ui.FrageAntwort = (text, _) => { fragen.Add(text); return true; };
+        // Hinweise (z. B. „Stundenplanänderungen nacherfasst“) nicht modal: protokollieren
+        var hinweise = new List<string>();
+        Ui.InfoAntwort = (text, _) => hinweise.Add(text);
         var logPfad = Path.Combine(ordner, "selbsttest.log");
         File.WriteAllText(logPfad, "");
         void Schritt(string name, Action aktion, int ribbonSeite = -1, bool schliessen = true)
@@ -62,6 +65,9 @@ public sealed partial class HauptFenster
                 Foto(Path.Combine(ordner, name + ".png"));
                 // jede Tabellenzelle wird beim Überfahren mit der Maus hervorgehoben (Text-, Auswahl- und Kontrollkästchen-Zellen)
                 Steuerelemente.Auswahlbreite.AlleErfassen();
+                // UP5: Rasterlinien aller Tabellen vollständig (keine verschwommenen/fehlenden Linien nach eigenen Zellzeichnern)
+                var raster = Application.OpenForms.Cast<Form>().Where(f => f.Visible && f != this).SelectMany(RasterPruefen).ToList();
+                if (raster.Count > 0) log.Add($"INFO  {name}: Rasterlinien abweichend (eigene Zellrahmen?): {string.Join(", ", raster)}");
                 var hover = Application.OpenForms.Cast<Form>().Where(f => f.Visible && f != this).SelectMany(HoverPruefen).ToList();
                 if (hover.Count > 0) log.Add($"FEHLER {name}: Zellen ohne Hover-Hervorhebung: {string.Join(", ", hover)}");
                 if (Ui.FehlerProtokoll is { Count: > 0 } fp)
@@ -141,6 +147,165 @@ public sealed partial class HauptFenster
             _ = un;
             _ = st;
         }, 3);
+        // ---------------------------------------------------------------- UP5: Stundenplanmodus nach Untis (65/66)
+        StundenplanFenster[] DreiPlaene(bool klein, bool gross)
+        {
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            var kl = dd.Klassen.OrderByDescending(k => ix.UnterrichteVon(ElementTyp.Klasse, k.Id).Count(u => u.Zeilen.Select(z => z.FachId).Distinct().Count() > 1)).First();
+            var le = dd.Lehrer.OrderByDescending(l => ix.PlanVon(ElementTyp.Lehrer, l.Id).Count()).First();
+            var ra = dd.Raeume.OrderByDescending(r => ix.PlanVon(ElementTyp.Raum, r.Id).Count()).First();
+            var f = new[] { StundenplanFenster.Neu(ElementTyp.Klasse, kl.Id, gross, klein), StundenplanFenster.Neu(ElementTyp.Lehrer, le.Id, gross, klein), StundenplanFenster.Neu(ElementTyp.Raum, ra.Id, gross, klein) };
+            var x = 10;
+            foreach (var p in f)
+            {
+                if (!klein) p.Size = new Size(520, 700);
+                else p.Size = new Size(300, p.Height + 60);
+                p.Location = new Point(x, 10);
+                x += p.Width + 14;
+            }
+            return f;
+        }
+        void Up5PlanPruefen(StundenplanFenster[] f)
+        {
+            Warten(300);
+            foreach (var p in f)
+            {
+                if (!p.FormatauswahlFrei) throw new InvalidOperationException($"{p.Text}: Formatauswahl liegt am Fensterrand bzw. ist abgeschnitten.");
+                if (p.Plan.SelbsttestBlockPruefung() is { Count: > 0 } fb) throw new InvalidOperationException($"{p.Text}: " + string.Join("; ", fb));
+            }
+        }
+        // Daten vor den UP5-Schritten sichern: die Schritte ändern Unterricht und Stundenplan, danach wird der Stand wiederhergestellt
+        var up5Sicherung = Dokument.Klonen(AppZustand.D);
+        void Up5Zurueck() => AppZustand.Setzen(new Dokument(Dokument.Klonen(up5Sicherung)), false);
+        Schritt("UP5a_Kleine_Plaene_Stundenplanmodus", () =>
+        {
+            AppZustand.DatumSetzen(tag);
+            var f = DreiPlaene(true, false);
+            var p = AppZustand.Doc.Index.PlanVon(ElementTyp.Klasse, f[0].ElementId).OrderBy(x => x.Tag).ThenBy(x => x.Stunde).First();
+            f[0].StundeAnklicken(p);
+            Up5PlanPruefen(f);
+            if (!f[0].LupeOffenText.StartsWith("+")) throw new InvalidOperationException($"Unterrichtsliste: Zeile mit offenen Stunden fehlt ({f[0].LupeOffenText}).");
+            log.Add($"INFO  UP5a Unterrichtsliste: {f[0].LupeOffenText} / {f[1].LupeOffenText} / {f[2].LupeOffenText}");
+        }, 3);
+        Schritt("UP5b_Grosse_Plaene_Stundenplanmodus", () =>
+        {
+            AppZustand.DatumSetzen(tag);
+            // unterrichtsfreier Tag in der Woche: senkrechter Text über die ganze Spalte (Untis)
+            var frei = Kalender.Montag(tag).AddDays(AppZustand.D.Zeitraster.TageProWoche - 1);
+            if (frei == tag) frei = Kalender.Montag(tag);
+            AppZustand.Doc.Aendern("Selbsttest Feiertag", AenderungsArt.Alles, x => x.Kalender.Add(new Kalendertag { Datum = frei, Feiertag = true }));
+            var f = DreiPlaene(false, true);
+            Up5PlanPruefen(f);
+            Warten(300);
+            var zeilen = f.SelectMany(p => p.Plan.GezeichneteZeilen).ToList();
+            if (zeilen.Count == 0) throw new InvalidOperationException("Große Pläne: keine Stundentexte gezeichnet.");
+            if (!f[0].Plan.FreiBeschriftungen.Any()) throw new InvalidOperationException("Unterrichtsfreier Tag wird im Regelplan nicht gezeigt.");
+            log.Add($"INFO  UP5b Zeilen (Auszug): {string.Join(" | ", zeilen.Take(12))}; frei: {string.Join(",", f[0].Plan.FreiBeschriftungen.Select(b => b.Text))}");
+        }, 3);
+        Schritt("UP5b1_Feiertag_zurueck", () => { Up5Zurueck(); Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, true)); }, 3);
+        Schritt("UP5c_Nicht_verplant_Bloecke", () =>
+        {
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            // Doppelstunde einer Klasse entplanen: erscheint als doppelt hoher Block unter „nicht verplant“
+            var block = dd.Stundenplan.Select(p => Core.Planung.Planungsdienst.BlockVon(dd, p)).First(b => b.Count == 2 && ix.Unterrichte[b[0].UnterrichtId].KlassenIds.Any());
+            var uid = block[0].UnterrichtId;
+            var kl = ix.Unterrichte[uid].KlassenIds.First();
+            var (bt, bs) = (block[0].Tag, block[0].Stunde);
+            AppZustand.Doc.Aendern("Selbsttest entplanen", AenderungsArt.Stundenplan, x => { foreach (var p in x.Stundenplan.Where(p => p.UnterrichtId == uid && p.Tag == bt).ToList()) x.Stundenplan.Remove(p); });
+            var f = Max(StundenplanFenster.Neu(ElementTyp.Klasse, kl, false));
+            Warten(300);
+            var bloecke = f.PoolBloecke;
+            var doppel = bloecke.FirstOrDefault(b => b.Unterricht == uid && b.Laenge == 2);
+            var einzel = bloecke.FirstOrDefault(b => b.Laenge == 1);
+            if (doppel == default) throw new InvalidOperationException($"Entplante Doppelstunde fehlt unter „nicht verplant“ ({string.Join(",", bloecke)}).");
+            if (einzel != default && doppel.Hoehe < einzel.Hoehe * 1.7) throw new InvalidOperationException("Doppelstunde ist nicht doppelt so hoch wie eine Einzelstunde.");
+            // Block auf belegte Stunden ziehen: „Soll behindernder Unterricht entplant werden?“ → Ja
+            var vorher = fragen.Count;
+            dd = AppZustand.D;
+            ix = AppZustand.Doc.Index;
+            var unt = ix.Unterrichte[uid];
+            var ziel = Enumerable.Range(0, dd.Zeitraster.TageProWoche).SelectMany(t => Enumerable.Range(1, dd.Zeitraster.StundenProTag - 1).Select(s => (t, s)))
+                .First(z => z.t != bt && Core.Planung.Planungsdienst.Hindernisse(dd, ix, unt, z.t, z.s).Count > 0 && dd.Zeitraster.Verfuegbar(z.t, z.s + 1));
+            f.SelbsttestAblegen($"unterricht:{uid}|2", ziel.t, ziel.s);
+            Warten(300);
+            if (fragen.Count == vorher || !fragen[^1].Contains("Soll behindernder Unterricht entplant werden?")) throw new InvalidOperationException($"Keine Abfrage „Soll behindernder Unterricht entplant werden?“ (U{uid} nach {ziel.t}/{ziel.s}, Hinweis: {hinweise.LastOrDefault()}, Plan: {string.Join(",", AppZustand.D.Stundenplan.Where(p => p.UnterrichtId == uid).Select(p => $"{p.Tag}/{p.Stunde}"))}).");
+            var gesetzt = AppZustand.D.Stundenplan.Count(p => p.UnterrichtId == uid && p.Tag == ziel.t && (p.Stunde == ziel.s || p.Stunde == ziel.s + 1));
+            if (gesetzt != 2) throw new InvalidOperationException($"Block wurde nicht als Doppelstunde gesetzt ({gesetzt}; Ziel {ziel.t}/{ziel.s}; Plan U{uid}: {string.Join(",", AppZustand.D.Stundenplan.Where(p => p.UnterrichtId == uid).Select(p => $"{p.Tag}/{p.Stunde}"))}; Frage: {fragen[^1].Replace("\n", " / ")}).");
+            if (AppZustand.Doc.Index.PlanVon(ElementTyp.Klasse, kl).Any(p => p.Tag == ziel.t && p.Stunde == ziel.s && p.UnterrichtId != uid && !AppZustand.Doc.Index.Unterrichte[p.UnterrichtId].Band.Any()))
+                log.Add("INFO  UP5c: parallele Stunde (Kopplung/anderer Lehrer) bleibt erhalten");
+            log.Add($"INFO  UP5c Abfrage: {fragen[^1].Replace("\n", " / ")}");
+            log.Add($"INFO  UP5c Pool danach: {string.Join(", ", f.PoolBloecke.Select(b => $"U{b.Unterricht}:{b.Laenge}"))}");
+        }, 3);
+        Schritt("UP5c1_Pool_zurueck", () => { Up5Zurueck(); Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false)); }, 3);
+        Schritt("UP5d_Unterrichtseingabe", () =>
+        {
+            var dd = AppZustand.D;
+            var f = Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)));
+            var klasse = dd.Klassen.First();
+            f.ElementSetzen(klasse.Id);
+            Warten(200);
+            // unbekanntes Kürzel: verständlicher Hinweis, Eingabe bleibt offen
+            f.SelbsttestWaehlen(null, "Fach");
+            if (f.SelbsttestEingabe("XYZQ")) throw new InvalidOperationException($"Unbekanntes Fach wurde übernommen (geprüft: {f.LetztePruefung}, Hinweis: {f.HinweisText}, Position {f.SelbsttestPosition}).");
+            if (!f.HinweisText.Contains("nicht vorhanden")) throw new InvalidOperationException("Kein Hinweis zum unbekannten Fach: " + f.HinweisText);
+            log.Add("INFO  UP5d Hinweis: " + f.HinweisText);
+            f.SelbsttestVerwerfen();
+            // neuer Unterricht: Fach (kleingeschrieben) → Enter springt zum Lehrer
+            var anzahl = dd.Unterrichte.Count;
+            var fach = dd.Faecher.First(x => !x.Bereitschaft);
+            var lehrer = dd.Lehrer.First();
+            f.SelbsttestWaehlen(null, "Fach");
+            if (!f.SelbsttestEingabe(fach.Kurzname.ToLowerInvariant())) throw new InvalidOperationException("Fach wurde nicht übernommen: " + f.HinweisText);
+            Warten(300);
+            if (AppZustand.D.Unterrichte.Count != anzahl + 1) throw new InvalidOperationException("Kein neuer Unterricht angelegt.");
+            var neu = AppZustand.D.Unterrichte.OrderBy(u => u.Id).Last();
+            var pos = f.SelbsttestPosition;
+            if (pos.Unterricht != neu.Id || pos.Spalte != "Lehrer") throw new InvalidOperationException($"Eingabeposition nach dem Anlegen: U{pos.Unterricht}/{pos.Spalte} statt U{neu.Id}/Lehrer.");
+            if (!f.SelbsttestEingabe(lehrer.Kurzname.ToLowerInvariant())) throw new InvalidOperationException("Lehrer wurde nicht übernommen: " + f.HinweisText);
+            Warten(300);
+            neu = AppZustand.D.Unterrichte.First(u => u.Id == neu.Id);
+            if (neu.Zeilen[0].FachId != fach.Id || neu.Zeilen[0].LehrerId != lehrer.Id || !neu.Zeilen[0].KlassenIds.Contains(klasse.Id))
+                throw new InvalidOperationException("Neuer Unterricht unvollständig gespeichert.");
+            log.Add($"INFO  UP5d neu: U{neu.Id} {AppZustand.Doc.Index.UnterrichtText(neu)}; Position {f.SelbsttestPosition}; Hinweis: {f.HinweisText}");
+            f.SelbsttestKopplungszeile();
+            Warten(300);
+            if (AppZustand.D.Unterrichte.First(u => u.Id == neu.Id).Zeilen.Count != 2 || f.SelbsttestPosition.Zeile != 1) throw new InvalidOperationException("Kopplungszeile nicht angelegt bzw. nicht gewählt.");
+            log.Add("INFO  UP5d Kopplung: " + f.HinweisText);
+        }, 1);
+        Schritt("UP5d1_Klasse_hinzufuegen_behindernd", () =>
+        {
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            // verplanter Unterricht einer Klasse + andere Klasse, die zu einer verplanten Zeit schon Unterricht hat
+            foreach (var u in dd.Unterrichte.Where(u => u.Zeilen.Count == 1 && u.KlassenIds.Count() == 1 && ix.Verplant(u) > 0 && string.IsNullOrEmpty(u.Band)))
+            {
+                var p = ix.PlanJeUnterricht[u.Id][0];
+                var andere = dd.Stundenplan.Where(x => x.Tag == p.Tag && x.Stunde == p.Stunde && x.UnterrichtId != u.Id).Select(x => ix.Unterrichte[x.UnterrichtId])
+                    .SelectMany(x => x.KlassenIds).Where(k => !u.KlassenIds.Contains(k)).Select(k => dd.Klassen.First(c => c.Id == k)).FirstOrDefault();
+                if (andere is null) continue;
+                var f = Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)));
+                f.ElementSetzen(u.KlassenIds.First());
+                Warten(200);
+                f.SelbsttestWaehlen(u.Id, "Klassen");
+                var vorher = fragen.Count;
+                f.SelbsttestEingabe(ix.KKlassen(u.KlassenIds) + "," + andere.Kurzname);
+                Warten(400);
+                if (fragen.Count == vorher || !fragen[^1].Contains("Soll behindernder Unterricht entplant werden?")) throw new InvalidOperationException("Keine Abfrage beim Hinzufügen einer Klasse.");
+                if (!AppZustand.D.Unterrichte.First(x => x.Id == u.Id).KlassenIds.Contains(andere.Id)) throw new InvalidOperationException("Klasse wurde nicht hinzugefügt.");
+                var nachher = new DatenIndex(AppZustand.D);
+                if (Core.Planung.Planungsdienst.Hindernisse(AppZustand.D, nachher, nachher.Unterrichte[u.Id], p.Tag, p.Stunde).Count > 0) throw new InvalidOperationException("Behindernder Unterricht wurde nicht entplant.");
+                log.Add($"INFO  UP5d1 Abfrage: {fragen[^1].Replace("\n", " / ")} // {f.HinweisText}");
+                return;
+            }
+            throw new InvalidOperationException("Kein passender Unterricht für den Test gefunden.");
+        }, 1);
+        Schritt("UP5d2_Unterricht_zurueck", () =>
+        {
+            Up5Zurueck();
+            Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)));
+        }, 1);
         Schritt("10_Uebersicht", () => Max(new UebersichtFenster(ElementTyp.Klasse)).Show(), 3);
         Schritt("11_Diagnose", () => Max(Oeffnen<DiagnoseFenster>("diag", () => new DiagnoseFenster())), 2);
         Schritt("12_Gewichtung", () => new GewichtungDialog().Show(this), 2);
@@ -424,8 +589,9 @@ public sealed partial class HauptFenster
             bool Aendern2(string text, AenderungsArt art, Action<Schuldatei> a) { AppZustand.Doc.Aendern(text, art, a); return true; }
             var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
             var r = Core.Vertretungsplanung.Tagesplan.Regulaer(dd, tag).First(x => x.LehrerId is int l && l != krank.Id && tp.Stunde(x.Stunde).Any(e => e.Findetstatt && e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht?.Id == x.Unterricht.Id) && !dd.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == x.Unterricht.Id) && !dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l && a.Von <= tag && a.Bis >= tag) && x.Unterricht.Zeilen.Count == 1 && string.IsNullOrEmpty(x.Unterricht.Band) &&
-                Enumerable.Range(1, dd.Zeitraster.StundenProTag).Any(s => s != x.Stunde && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { l }, x.KlassenIds, s, x.Unterricht.Id, x.RaumId) == Core.Planung.Feldstatus.Frei));
-            var ziel = Enumerable.Range(1, dd.Zeitraster.StundenProTag).First(s => s != r.Stunde && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { r.LehrerId!.Value }, r.KlassenIds, s, r.Unterricht.Id, r.RaumId) == Core.Planung.Feldstatus.Frei);
+                Enumerable.Range(1, dd.Zeitraster.StundenProTag).Any(s => s != x.Stunde && !tp.Regel.Any(y => y.Unterricht.Id == x.Unterricht.Id && y.Stunde == s) && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { l }, x.KlassenIds, s, x.Unterricht.Id, x.RaumId) == Core.Planung.Feldstatus.Frei));
+            // Ziel nicht auf eine eigene reguläre Stunde des Unterrichts (Doppelstunde) – dort entstünde bei der Absenz zu Recht eine Vertretung
+            var ziel = Enumerable.Range(1, dd.Zeitraster.StundenProTag).First(s => s != r.Stunde && !tp.Regel.Any(y => y.Unterricht.Id == r.Unterricht.Id && y.Stunde == s) && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { r.LehrerId!.Value }, r.KlassenIds, s, r.Unterricht.Id, r.RaumId) == Core.Planung.Feldstatus.Frei);
             AppZustand.Doc.Aendern("Verlegen (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Verlegen(x, r.Unterricht.Id, null, tag, r.Stunde, tag, ziel));
             fragen.Clear();
             if (!VerlegungsAbfrage.VorEntfall(tag, ziel, r.Unterricht.Id, Aendern2)) throw new InvalidOperationException("Entfall bei Verlegung: keine Rückfrage bzw. nicht aufgehoben.");
@@ -452,6 +618,46 @@ public sealed partial class HauptFenster
         }, -1);
         Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
         Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
+        var umgeplant = (Id: 0, Stunde: 0);
+        Schritt("19g_Umplanung_Stundenplan", () =>
+        {
+            // Stunde mit bearbeiteter Vertretung im Stundenplan umplanen (gleicher Tag, freie Stunde)
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            var tagIdx = Kalender.TagIndex(dd, tag);
+            foreach (var v in dd.Vertretungen.Where(v => v.Datum == tag && Core.Vertretungsplanung.Umplanungsabgleich.Uebertragbar(v) && v.UnterrichtId.HasValue).ToList())
+            {
+                var p = dd.Stundenplan.FirstOrDefault(x => x.UnterrichtId == v.UnterrichtId && x.Tag == tagIdx && x.Stunde == v.Stunde);
+                if (p is null || Core.Planung.Planungsdienst.BlockVon(dd, p).Count > 1 || !ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u) || u.Zeilen.Count > 1) continue;
+                var frei = Enumerable.Range(1, dd.Zeitraster.StundenProTag).FirstOrDefault(s => s != p.Stunde && dd.Zeitraster.Verfuegbar(tagIdx, s) &&
+                    !dd.Stundenplan.Any(x => x.UnterrichtId == u.Id && x.Tag == tagIdx && x.Stunde == s) && Core.Planung.Planungsdienst.Hindernisse(dd, ix, u, tagIdx, s, new[] { p }).Count == 0);
+                if (frei == 0) continue;
+                var vid = v.Id;
+                var idx = dd.Stundenplan.IndexOf(p);
+                AppZustand.Doc.Aendern("Selbsttest Vertretung bearbeiten", AenderungsArt.Vertretung, x =>
+                {
+                    var w = x.Vertretungen.First(y => y.Id == vid);
+                    w.Text = "Selbsttest: Aufgaben S. 12";
+                    w.Bearbeitet = true;
+                });
+                AppZustand.Doc.Aendern("Selbsttest umplanen", AenderungsArt.Stundenplan, x => Core.Planung.Planungsdienst.Verschieben(x, x.Stundenplan[idx], tagIdx, frei, false, false));
+                umgeplant = (vid, frei);
+                Max(StundenplanFenster.Neu(ElementTyp.Klasse, u.KlassenIds.First(), false));
+                log.Add($"INFO  19g Vertretung {vid}: U{u.Id} {v.Stunde}. → {frei}. Stunde umgeplant");
+                return;
+            }
+            throw new InvalidOperationException("Keine umplanbare Stunde mit Vertretung gefunden.");
+        }, 3);
+        Schritt("19h_Umplanung_nacherfasst", () =>
+        {
+            VertretungsmodusUmschalten();
+            var erg = LetzteUmplanung ?? throw new InvalidOperationException("Keine Nacherfassung beim Moduswechsel.");
+            var v = AppZustand.D.Vertretungen.FirstOrDefault(x => x.Id == umgeplant.Id) ?? throw new InvalidOperationException("Vertretung ging beim Umplanen verloren.");
+            if (v.Stunde != umgeplant.Stunde || v.Text != "Selbsttest: Aufgaben S. 12") throw new InvalidOperationException($"Vertretung nicht übertragen ({v.Stunde}. Std., „{v.Text}“).");
+            log.Add($"INFO  19h nacherfasst: {erg.Uebertragen.Count} übertragen, {erg.Vormerkungen.Count} Vormerkungen; Hinweis: {hinweise.LastOrDefault()?.Replace("\n", " / ")}");
+            Max(FensterOeffnen("vertr")!);
+        }, -1, false);
+        Schritt("19i_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
         Schritt("20_Wertrechnung", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(0))), 6);
         Schritt("21_Unterrichtsmatrix", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(1))), 6);
         Schritt("22_Stundentafel", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(2))), 6);
@@ -498,6 +704,17 @@ public sealed partial class HauptFenster
         }, 0);
         Schritt("25d2_UntPlanWeb_Einstellungen", () => new UntPlanWebEinstellungenDialog().Show(this), 0);
         Schritt("25e_Raumzuordnung", () => RaumZuordnenDialog.Zeigen(this, AppZustand.D.Stundenplan.FirstOrDefault(p => Core.Planung.Planungsdienst.BlockVon(AppZustand.D, p).Count > 1) ?? AppZustand.D.Stundenplan[0], false), 2);
+        Schritt("25e1_Raumzuordnung_Raster", () =>
+        {
+            // Stunde mit belegtem Wunschraum: Häkchen in „Besetzt“ – danach müssen alle Zellen sauber mit Linien gezeichnet sein
+            var dd = AppZustand.D;
+            var p = dd.Stundenplan.FirstOrDefault(x => dd.Stundenplan.Count(y => y.Tag == x.Tag && y.Stunde == x.Stunde && y.Raeume.Any(r => r.HasValue)) > 3) ?? dd.Stundenplan[0];
+            RaumZuordnenDialog.Zeigen(this, p, false);
+            Warten(400);
+            var dlg = Application.OpenForms.Cast<Form>().Last(f => f.Text == "Raum zuordnen / löschen");
+            var fehler = RasterPruefen(dlg);
+            if (fehler.Count > 0) throw new InvalidOperationException("Raster „Mögliche Räume“: " + string.Join(", ", fehler));
+        }, 2);
         Schritt("26_Kommentare", () => Max(new KommentarUebersicht()).Show(), 1);
         Schritt("27_Monitor", () =>
         {
@@ -634,6 +851,44 @@ public sealed partial class HauptFenster
                     }
                     finally { verlassen.Invoke(g, new object[] { EventArgs.Empty }); }
                 }
+        }
+        return res;
+    }
+
+    /// <summary>
+    /// Prüft die Rasterlinien aller sichtbaren Tabellen (UP5, Raster-Bug „Mögliche Räume“): jede sichtbare Zelle muss unten und rechts
+    /// eine Linie in der Rasterfarbe haben – eine stehen gelassene Kantenglättung eigener Zellzeichner zeichnet sie verschwommen.
+    /// </summary>
+    internal static List<string> RasterPruefen(Control wurzel)
+    {
+        var res = new List<string>();
+        IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => Alle(k).Prepend(k));
+        foreach (var g in Alle(wurzel).OfType<DataGridView>().Where(g => g.Visible && g.Width > 20 && g.Height > 20 && g.CellBorderStyle == DataGridViewCellBorderStyle.Single && g.Rows.Count > 0).ToList())
+        {
+            if (g.IsCurrentCellInEditMode) continue;
+            using var b = new Bitmap(g.Width, g.Height);
+            g.DrawToBitmap(b, new Rectangle(0, 0, g.Width, g.Height));
+            var soll = g.GridColor.ToArgb();
+            // sichtbare Höhe ohne waagerechten Rollbalken (teilweise verdeckte Zeilen nicht prüfen)
+            var sichtbar = g.ClientSize.Height - (g.Controls.OfType<HScrollBar>().FirstOrDefault(x => x.Visible)?.Height ?? 0);
+            var falsch = 0;
+            var geprueft = 0;
+            var beispiele = new List<string>();
+            var ende = Math.Min(g.Rows.Count, Math.Max(0, g.FirstDisplayedScrollingRowIndex) + 12);
+            for (var z = Math.Max(0, g.FirstDisplayedScrollingRowIndex); z < ende; z++)
+                foreach (var c in g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible))
+                {
+                    var r = g.GetCellDisplayRectangle(c.Index, z, false);
+                    if (r.Width < 8 || r.Height < 8 || r.Bottom > sichtbar || r.Right > g.Width) continue;
+                    geprueft++;
+                    var px = b.GetPixel(r.X + r.Width / 2, r.Bottom - 1);
+                    if (px.ToArgb() != soll && b.GetPixel(r.X + 2, r.Bottom - 1).ToArgb() != soll)
+                    {
+                        falsch++;
+                        if (beispiele.Count < 4) beispiele.Add($"{c.Name}/{z}:{px.R},{px.G},{px.B}");
+                    }
+                }
+            if (falsch > 0) res.Add($"{wurzel.GetType().Name}/{g.Name}: {falsch} von {geprueft} Zellen (Raster {g.GridColor.R},{g.GridColor.G},{g.GridColor.B}; {string.Join(" ", beispiele)})");
         }
         return res;
     }

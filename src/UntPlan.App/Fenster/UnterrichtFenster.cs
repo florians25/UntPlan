@@ -1,13 +1,21 @@
 using System.Globalization;
 using UntPlan.App.Dialoge;
+using UntPlan.App.Steuerelemente;
 using UntPlan.Core;
 using UntPlan.Core.Model;
+using UntPlan.Core.Planung;
 
 namespace UntPlan.App.Fenster;
 
 /// <summary>
 /// Unterrichtsfenster aus Sicht der Klassen, Lehrer, Fächer oder aller Unterrichte. Jede Kopplungszeile ist eine
 /// eigene Zeile (über "+" in der Spalte Kl,Le auf- und zuklappbar). Mehrere Klassen durch Komma getrennt.
+/// <para>
+/// Eingabe (UP5): deutlich markierte Neuanlage-Zeile „+ neu“, Auswahllisten mit Langnamen (Klassen als Mehrfachauswahl über den
+/// Pfeil bzw. Alt+↓), Enter/Tab springen zum nächsten Feld derselben Zeile, jede Eingabe wird sofort geprüft (unbekannte Kürzel,
+/// fehlende Pflichtfelder) und in der Hinweisleiste verständlich erklärt; Esc verwirft die Eingabe, „Rückgängig“ (Strg+Z) die
+/// letzte Änderung. Nach dem Speichern bleibt die Eingabeposition erhalten (keine Sprünge).
+/// </para>
 /// </summary>
 public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 {
@@ -16,7 +24,109 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private readonly ElementTyp _sicht;
     private int? _elementId;
-    private readonly DataGridView _grid = new() { Dock = DockStyle.Fill };
+    private readonly EingabeRaster _grid = new() { Dock = DockStyle.Fill };
+    /// <summary>Hinweisleiste unter der Tabelle: Prüfergebnis, gespeicherte Änderung, fehlende Pflichtfelder.</summary>
+    private readonly Panel _hinweisLeiste = new() { Dock = DockStyle.Bottom, Height = 24, Padding = new Padding(6, 4, 4, 0) };
+    private readonly Label _hinweis = new() { Dock = DockStyle.Fill, AutoEllipsis = true };
+    private readonly ToolStripButton _rueckgaengig;
+    /// <summary>Gerade über die Neuanlage-Zeile angelegter Unterricht (Eingabeposition nach dem Neuaufbau).</summary>
+    private int? _neuId;
+    /// <summary>Hinweis nach einer Änderung bleibt stehen, solange dieser Unterricht gewählt ist (U-Nr., -1 = Neuanlage-Zeile).</summary>
+    private int? _hinweisFestUid;
+
+    /// <summary>Tabelle, in der Enter (wie Tab) zum nächsten Eingabefeld derselben Zeile springt.</summary>
+    private sealed class EingabeRaster : DataGridView
+    {
+        public Action<bool>? Weiter { get; set; }
+
+        protected override bool ProcessDialogKey(Keys keyData)
+        {
+            if ((keyData & Keys.KeyCode) == Keys.Enter && (keyData & (Keys.Control | Keys.Alt)) == 0 && Weiter != null)
+            {
+                Weiter((keyData & Keys.Shift) != 0);
+                return true;
+            }
+            return base.ProcessDialogKey(keyData);
+        }
+
+        protected override bool ProcessDataGridViewKey(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter && !e.Control && !e.Alt && Weiter != null)
+            {
+                Weiter(e.Shift);
+                return true;
+            }
+            return base.ProcessDataGridViewKey(e);
+        }
+    }
+
+    private enum HinweisArt { Info, Ok, Warnung }
+
+    /// <summary>Hinweis in der Leiste unter der Tabelle (grün = gespeichert, gelb = bitte prüfen, grau = Tipp).</summary>
+    private void Hinweis(string text, HinweisArt art, bool fest = false, int? uid = null)
+    {
+        _hinweis.Text = (art == HinweisArt.Warnung ? "Bitte prüfen: " : "") + text;
+        _hinweis.ForeColor = art == HinweisArt.Warnung ? Color.FromArgb(120, 70, 0) : art == HinweisArt.Ok ? Color.FromArgb(20, 100, 30) : Color.FromArgb(60, 60, 60);
+        _hinweisLeiste.BackColor = art switch { HinweisArt.Ok => Color.FromArgb(226, 244, 226), HinweisArt.Warnung => Color.FromArgb(255, 243, 205), _ => Color.FromArgb(240, 244, 248) };
+        _hinweisFestUid = fest ? uid ?? Aktuell()?.U.Id ?? -1 : null;
+    }
+
+    /// <summary>Selbsttest: zuletzt geprüfte Eingabe.</summary>
+    internal string LetztePruefung { get; private set; } = "";
+
+    /// <summary>Selbsttest: aktueller Text der Hinweisleiste.</summary>
+    internal string HinweisText => _hinweis.Text;
+
+    /// <summary>Selbsttest: Neuanlage-Zeile bzw. erste Zeile eines Unterrichts wählen (Spalte).</summary>
+    internal void SelbsttestWaehlen(int? unterrichtId, string spalte, int zeile = 0)
+    {
+        if (!_grid.Columns.Contains(spalte)) throw new InvalidOperationException($"Spalte {spalte} ist nicht sichtbar.");
+        var r = unterrichtId is int uid
+            ? _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is ZeilenTag zt && zt.U.Id == uid && zt.Index == zeile)
+            : _grid.Rows.Cast<DataGridViewRow>().LastOrDefault(x => x.Tag is null);
+        if (r is null) throw new InvalidOperationException($"Zeile für U-Nr. {unterrichtId} nicht gefunden.");
+        _grid.Focus();
+        _grid.ClearSelection();
+        _grid.CurrentCell = r.Cells[spalte];
+    }
+
+    /// <summary>
+    /// Selbsttest: Text in die aktuelle Zelle tippen und Enter drücken (Prüfung, Übernahme, Sprung zum nächsten Feld).
+    /// Liefert true, wenn die Eingabe übernommen wurde; bei abgelehnter Eingabe bleibt die Zelle in Bearbeitung.
+    /// </summary>
+    internal bool SelbsttestEingabe(string text)
+    {
+        if (_grid.CurrentCell is null) throw new InvalidOperationException("Keine Zelle gewählt.");
+        _grid.BeginEdit(true);
+        switch (_grid.EditingControl)
+        {
+            case ComboBox cb:
+                cb.Text = text;
+                _grid.NotifyCurrentCellDirty(true);
+                break;
+            case TextBox tb:
+                tb.Text = text;
+                _grid.NotifyCurrentCellDirty(true);
+                break;
+            default: throw new InvalidOperationException("Zelle lässt sich nicht bearbeiten.");
+        }
+        Weiter(false);
+        return !_grid.IsCurrentCellInEditMode;
+    }
+
+    /// <summary>Selbsttest: Eingabe verwerfen (Esc).</summary>
+    internal void SelbsttestVerwerfen()
+    {
+        _grid.CancelEdit();
+        _grid.EndEdit();
+    }
+
+    /// <summary>Selbsttest: aktuelle Position (U-Nr. bzw. null = Neuanlage-Zeile, Spalte, Kopplungszeile).</summary>
+    internal (int? Unterricht, string Spalte, int Zeile) SelbsttestPosition =>
+        (Aktuell()?.U.Id, _grid.CurrentCell is { } c ? _grid.Columns[c.ColumnIndex].Name : "", Aktuell()?.Index ?? -1);
+
+    /// <summary>Selbsttest: Kopplungszeile zum aktuellen Unterricht hinzufügen.</summary>
+    internal void SelbsttestKopplungszeile() => KopplungszeileNeu();
     private readonly ToolStripComboBox _auswahl = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
     private readonly ToolStripLabel _summe = new() { Alignment = ToolStripItemAlignment.Right };
     private readonly HashSet<int> _aufgeklappt = new();
@@ -58,8 +168,20 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(VerknuepfenKnopf());
         ts.Items.Add(Knopf("Neuer Unterricht", "neu", NeuerUnterricht));
         ts.Items.Add(Knopf("Unterricht löschen", "loeschen", Loeschen));
-        ts.Items.Add(Knopf("Kopplungszeile hinzufügen", "plus", KopplungszeileNeu));
+        var kopplung = Knopf("Kopplungszeile", "plus", KopplungszeileNeu, false);
+        kopplung.ToolTipText = "Kopplungszeile zum gewählten Unterricht hinzufügen (weiterer Lehrer bzw. weitere Gruppe)";
+        ts.Items.Add(kopplung);
         ts.Items.Add(Knopf("Kopplungszeile löschen", "minus", KopplungszeileLoeschen));
+        _rueckgaengig = Knopf("Rückgängig", "rueckgaengig", () =>
+        {
+            if (_grid.IsCurrentCellInEditMode) { _grid.CancelEdit(); _grid.EndEdit(); Hinweis("Eingabe verworfen.", HinweisArt.Info, true); return; }
+            if (!Doc.KannRueckgaengig) { Hinweis("Es gibt nichts rückgängig zu machen.", HinweisArt.Info, true); return; }
+            var text = Doc.RueckgaengigText;
+            Doc.Rueckgaengig();
+            Hinweis($"Rückgängig gemacht: {text}", HinweisArt.Ok, true);
+        }, false);
+        _rueckgaengig.ToolTipText = "Letzte Änderung rückgängig machen (Strg+Z); während der Eingabe: Eingabe verwerfen (Esc)";
+        ts.Items.Add(_rueckgaengig);
         ts.Items.Add(Knopf("Unterricht kopieren", "unterricht", Kopieren));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Alle Kopplungszeilen ein-/ausblenden", "uebersicht", () => { _alleAuf = !_alleAuf; _aufgeklappt.Clear(); Neuaufbau(); }));
@@ -76,6 +198,11 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         Ui.RasterGestalten(_grid);
         _grid.MultiSelect = true;
         _grid.RowHeadersVisible = false;
+        _grid.ShowCellErrors = true;
+        _grid.StandardTab = false;
+        _grid.Weiter = Weiter;
+        // sofortige Prüfung (vor der Direktsuche der Auswahllisten registriert, damit unbekannte Kürzel nicht still „leer“ werden)
+        _grid.CellValidating += ZellePruefen;
         _grid.CellEndEdit += CellEndEdit;
         _grid.CellClick += CellClick;
         _grid.CellFormatting += CellFormatting;
@@ -83,6 +210,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.CurrentCellChanged += (_, _) =>
         {
             FormularFuellen();
+            if (!_laden) ZeilenHinweis();
             // gewählter Unterricht wirkt auf die geöffneten Stundenpläne (Synchronisation)
             if (!_laden && Aktuell() is { } zt) AppZustand.StundeWaehlen(zt.U, null, this);
         };
@@ -90,11 +218,23 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.DataError += (_, e) => e.ThrowException = false;
         Steuerelemente.SuchKombi.Aktivieren(_grid, (zelle, text) =>
         {
-            // Langname als Zusatz in der Auswahlliste
+            // Langname als Zusatz in der Auswahlliste (Räume und Raumgruppen)
             var typ = zelle.OwningColumn.Name switch { "Fach" => ElementTyp.Fach, "Lehrer" => ElementTyp.Lehrer, _ => ElementTyp.Raum };
-            var el = D.AlleElemente(typ).FirstOrDefault(x => x.Kurzname == text);
-            return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el is Lehrer l ? l.VollerName : el.Langname);
+            var el = D.AlleElemente(typ).FirstOrDefault(x => x.Kurzname == text) ?? (typ == ElementTyp.Raum ? D.Raumgruppen.FirstOrDefault(x => x.Kurzname == text) : null);
+            return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el is Lehrer l ? l.VollerName : el is Raumgruppe ? "Raumgruppe " + el.Langname : el.Langname);
         });
+        // Klassen: Mehrfachauswahl mit Langnamen über den Pfeil in der aktuellen Zelle bzw. Alt+↓
+        _grid.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Klassen" || _grid.CurrentCell is not { } c ||
+                c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex || _grid.IsCurrentCellInEditMode || _grid[e.ColumnIndex, e.RowIndex].ReadOnly) return;
+            MehrfachAuswahl.PfeilZeichnen(e);
+        };
+        _grid.CellMouseClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Button != MouseButtons.Left || _grid.Columns[e.ColumnIndex].Name != "Klassen") return;
+            if (MehrfachAuswahl.AufPfeil(_grid, e)) KlassenAuswahl(e.RowIndex);
+        };
         _grid.CellDoubleClick += (_, e) =>
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Klassen" || _grid.Rows[e.RowIndex].Tag is not ZeilenTag zt) return;
@@ -105,18 +245,25 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             CellEndEdit(this, new DataGridViewCellEventArgs(e.ColumnIndex, e.RowIndex));
         };
         _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.EndEdit(); };
-        _grid.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZelleLeeren(); e.Handled = true; } };
+        _grid.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZelleLeeren(); e.Handled = true; }
+            else if (e.Alt && e.KeyCode == Keys.Down && _grid.CurrentCell is { } c && _grid.Columns[c.ColumnIndex].Name == "Klassen" && !c.ReadOnly) { e.Handled = true; KlassenAuswahl(c.RowIndex); }
+        };
 
-        var unten = new Panel { Dock = DockStyle.Bottom, Height = 24, BackColor = Color.FromArgb(246, 248, 251) };
-        var klappen = new Button { Text = "▾", Width = 22, Height = 20, Left = 2, Top = 2, FlatStyle = FlatStyle.Flat };
+        var unten = new Fussleiste { BackColor = Color.FromArgb(246, 248, 251) };
+        var klappen = new Button { Text = "▾", Width = 22, Height = 22, Left = 4, Top = (Fussleiste.Hoehe - 22) / 2, FlatStyle = FlatStyle.Flat };
         klappen.Click += (_, _) => { _split.Panel2Collapsed = !_split.Panel2Collapsed; klappen.Text = _split.Panel2Collapsed ? "▾" : "▴"; };
         unten.Controls.Add(klappen);
-        unten.Controls.Add(new Label { Text = "Formularansicht", Left = 28, Top = 5, AutoSize = true, ForeColor = Color.DimGray });
+        unten.Controls.Add(new Label { Text = "Formularansicht", Left = 30, Top = (Fussleiste.Hoehe - 15) / 2, AutoSize = true, ForeColor = Color.DimGray });
+        _hinweisLeiste.Controls.Add(_hinweis);
         _split.Panel1.Controls.Add(_grid);
+        _split.Panel1.Controls.Add(_hinweisLeiste);
         _split.Panel2.Controls.Add(_formular);
         Controls.Add(_split);
         Controls.Add(unten);
         Controls.Add(ts);
+        Hinweis("Neuer Unterricht: in der Zeile „+ neu“ Fach, Lehrer und Klasse eingeben – Enter/Tab springt zum nächsten Feld, Esc verwirft die Eingabe.", HinweisArt.Info);
         Load += (_, _) => _split.SplitterDistance = Math.Max(80, _split.Height - 150);
         FormularAufbauen();
 
@@ -303,7 +450,9 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     {
         _laden = true;
         var tag = _grid.CurrentRow?.Tag as ZeilenTag;
-        var spalte = _grid.CurrentCell?.ColumnIndex ?? 3;
+        var spalteName = _grid.CurrentCell is { } cc && cc.ColumnIndex < _grid.Columns.Count ? _grid.Columns[cc.ColumnIndex].Name : null;
+        var scroll = _grid.FirstDisplayedScrollingRowIndex;
+        var neueZeile = _grid.CurrentRow is { } cr && cr.Tag is null && cr.Index == _grid.Rows.Count - 1;
         if (_sicht != ElementTyp.Unterricht)
         {
             _auswahl.Items.Clear();
@@ -337,25 +486,138 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             var zeigen = (_alleAuf || _aufgeklappt.Contains(u.Id)) ? u.Zeilen.Count : 1;
             for (var i = 0; i < Math.Max(1, zeigen); i++) ZeileAnlegen(u, i);
         }
-        // Eingabezeile
+        // Neuanlage-Zeile: deutlich markiert, das Element der Ansicht ist schon eingetragen (grau)
         var leer = _grid.Rows.Add();
-        _grid.Rows[leer].Tag = null;
-        _grid.Rows[leer].DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 240);
+        var neuZeile = _grid.Rows[leer];
+        neuZeile.Tag = null;
+        neuZeile.DefaultCellStyle.BackColor = Color.FromArgb(236, 248, 236);
+        neuZeile.DefaultCellStyle.SelectionBackColor = Color.FromArgb(200, 232, 200);
+        if (_grid.Columns.Contains("UNr"))
+        {
+            neuZeile.Cells["UNr"].Value = "+ neu";
+            neuZeile.Cells["UNr"].ToolTipText = "Neuer Unterricht: Fach, Lehrer und Klasse in dieser Zeile eingeben. Der Unterricht wird mit dem ersten Wert angelegt.";
+        }
+        var vorgabe = _elementId is int eid ? D.AlleElemente(_sicht).FirstOrDefault(e => e.Id == eid)?.Kurzname : null;
+        var vorgabeSpalte = _sicht switch { ElementTyp.Klasse => "Klassen", ElementTyp.Lehrer => "Lehrer", ElementTyp.Fach => "Fach", _ => null };
+        if (vorgabe != null && vorgabeSpalte != null && _grid.Columns.Contains(vorgabeSpalte))
+        {
+            neuZeile.Cells[vorgabeSpalte].Style.ForeColor = Color.Gray;
+            neuZeile.Cells[vorgabeSpalte].ToolTipText = $"{vorgabe} wird beim Anlegen automatisch eingetragen.";
+            if (_grid.Columns[vorgabeSpalte] is not DataGridViewComboBoxColumn) neuZeile.Cells[vorgabeSpalte].Value = vorgabe;
+        }
         _grid.ResumeLayout();
         _summe.Text = $"Wst: {summeWst}   Nvpl.: {summeNv}";
-        // bisherige Zeile wiederherstellen, ohne die Auswahl erneut an andere Fenster zu melden (Rückkopplung)
+        // bisherige Zeile wiederherstellen (bzw. den gerade angelegten Unterricht), ohne die Auswahl erneut an andere Fenster zu melden
         try
         {
+            if (tag is null && neueZeile && _neuId is int nid)
+                tag = _grid.Rows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<ZeilenTag>().FirstOrDefault(z => z.U.Id == nid && z.Index == 0);
+            _neuId = null;
+            if (scroll >= 0 && scroll < _grid.Rows.Count) _grid.FirstDisplayedScrollingRowIndex = scroll;
+            var spalte = spalteName != null && _grid.Columns.Contains(spalteName) ? _grid.Columns[spalteName]!.Index : Math.Min(3, _grid.Columns.Count - 1);
             if (tag != null)
+            {
                 foreach (DataGridViewRow r in _grid.Rows)
-                    if (r.Tag is ZeilenTag zt && zt.U.Id == tag.U.Id && zt.Index == tag.Index && spalte < _grid.Columns.Count)
+                    if (r.Tag is ZeilenTag zt && zt.U.Id == tag.U.Id && zt.Index == tag.Index && spalte >= 0)
                     {
                         _grid.CurrentCell = r.Cells[spalte];
                         break;
                     }
+            }
+            else if (neueZeile && spalte >= 0) _grid.CurrentCell = neuZeile.Cells[spalte];
         }
+        catch (InvalidOperationException) { }
         finally { _laden = false; }
         FormularFuellen();
+        ZeilenHinweis();
+    }
+
+    /// <summary>Hinweis zur aktuellen Zeile: fehlende Pflichtangaben bzw. Zusammenfassung des Unterrichts.</summary>
+    private void ZeilenHinweis()
+    {
+        if (_hinweisFestUid is int fest && fest == (Aktuell()?.U.Id ?? -1)) return;
+        _hinweisFestUid = null;
+        if (_grid.CurrentRow is { Tag: null })
+        {
+            Hinweis("Neuer Unterricht: Fach, Lehrer und Klasse eingeben (Alt+↓ öffnet die Auswahl mit Langnamen) – Enter/Tab springt zum nächsten Feld.", HinweisArt.Info);
+            return;
+        }
+        if (Aktuell() is not { } zt) return;
+        var u = Ix.Unterrichte.GetValueOrDefault(zt.U.Id) ?? zt.U;
+        var fehlt = Unterrichtseingabe.Pflichthinweise(u);
+        var pflicht = fehlt.Where(x => !x.StartsWith("Noch kein Lehrer")).ToList();
+        if (pflicht.Count > 0) Hinweis($"U-Nr. {u.Id}: {string.Join(" ", fehlt)}", HinweisArt.Warnung);
+        else
+            Hinweis($"U-Nr. {u.Id}: {Ix.UnterrichtText(u)}, {u.Wochenstunden} Wst" + (Ix.NichtVerplant(u) > 0 ? $", {Ix.NichtVerplant(u)} nicht verplant" : ", vollständig verplant") +
+                    (fehlt.Count > 0 ? " – " + string.Join(" ", fehlt) : ""), HinweisArt.Info);
+    }
+
+    /// <summary>Enter/Tab: Eingabe übernehmen (nur wenn gültig) und zum nächsten bearbeitbaren Feld (Umschalt: zurück).</summary>
+    private void Weiter(bool zurueck)
+    {
+        if (_grid.CurrentCell is not { } c) return;
+        if (_grid.IsCurrentCellInEditMode)
+        {
+            // EndEdit löst keine Zellprüfung aus: vorher prüfen, ungültige Eingabe bleibt in der Zelle (Hinweis in der Leiste)
+            if (!EingabeGueltig(c.ColumnIndex, c.RowIndex, _grid.EditingControl?.Text ?? "") || !_grid.EndEdit()) return;
+        }
+        var spalten = _grid.Columns.Cast<DataGridViewColumn>().Where(x => x.Visible && !x.ReadOnly).OrderBy(x => x.DisplayIndex).ToList();
+        if (spalten.Count == 0) return;
+        var zeile = c.RowIndex;
+        var pos = spalten.FindIndex(x => x.Index == c.ColumnIndex);
+        for (var schritte = 0; schritte < spalten.Count * 3; schritte++)
+        {
+            pos += zurueck ? -1 : 1;
+            if (pos >= spalten.Count) { zeile++; pos = 0; }
+            else if (pos < 0) { zeile--; pos = spalten.Count - 1; }
+            if (zeile < 0 || zeile >= _grid.Rows.Count) return;
+            var zelle = _grid.Rows[zeile].Cells[spalten[pos].Index];
+            if (zelle.ReadOnly) continue;
+            try { _grid.CurrentCell = zelle; } catch (InvalidOperationException) { }
+            return;
+        }
+    }
+
+    /// <summary>Klassen als Mehrfachauswahl mit Langnamen (Häkchen) wählen.</summary>
+    private void KlassenAuswahl(int zeile)
+    {
+        if (!_grid.Columns.Contains("Klassen") || zeile < 0 || zeile >= _grid.Rows.Count) return;
+        var spalte = _grid.Columns["Klassen"]!.Index;
+        if (_grid.IsCurrentCellInEditMode && !_grid.EndEdit()) return;
+        var eintraege = Stammdaten.Sortiert(D, ElementTyp.Klasse).Where(x => !x.Ignorieren).Select(x => new MehrfachAuswahl.Eintrag(x.Kurzname, x.Langname)).ToList();
+        var aktuell = (_grid[spalte, zeile].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        MehrfachAuswahl.Zeigen(_grid, zeile, spalte, eintraege, aktuell, true, gewaehlt =>
+        {
+            if (IsDisposed || zeile >= _grid.Rows.Count) return;
+            _grid[spalte, zeile].Value = string.Join(",", gewaehlt);
+            CellEndEdit(this, new DataGridViewCellEventArgs(spalte, zeile));
+        });
+    }
+
+    /// <summary>Sofortige Prüfung der Eingabe: unbekannte Kürzel bzw. falsche Formate werden nicht übernommen, sondern erklärt.</summary>
+    private void ZellePruefen(object? sender, DataGridViewCellValidatingEventArgs e)
+    {
+        if (_laden || e.RowIndex < 0 || e.ColumnIndex < 0 || !_grid.IsCurrentCellInEditMode) return;
+        var text = _grid.EditingControl is ComboBox cb ? cb.Text : e.FormattedValue?.ToString() ?? "";
+        if (!EingabeGueltig(e.ColumnIndex, e.RowIndex, text)) e.Cancel = true;
+    }
+
+    /// <summary>Eingabe einer Zelle prüfen: ungültig → Fehlersymbol und Hinweis in der Leiste; gültig mit Ergänzung → Hinweis.</summary>
+    private bool EingabeGueltig(int spalte, int zeile, string text)
+    {
+        if (_grid.Columns[spalte].Tag is not Spalte s || s.Set is null || s.Bool) return true;
+        LetztePruefung = $"{s.Key}=„{text}“";
+        var zelle = _grid[spalte, zeile];
+        var p = Unterrichtseingabe.Pruefen(D, s.Key, text);
+        if (!p.Gueltig)
+        {
+            zelle.ErrorText = p.Hinweis;
+            Hinweis(p.Hinweis + "  (Esc = Eingabe verwerfen)", HinweisArt.Warnung, true);
+            return false;
+        }
+        zelle.ErrorText = "";
+        if (p.Hinweis.Length > 0) Hinweis(p.Hinweis, HinweisArt.Info, true);
+        return true;
     }
 
     /// <summary>Auswahllisten (Dropdowns) für Fach, Lehrer und Räume.</summary>
@@ -395,6 +657,9 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             if (i > 0 && !s.Zeile) { row.Cells[c.Index].Value = s.Bool ? false : ""; row.Cells[c.Index].ReadOnly = true; continue; }
             var v = s.Get(u, z);
             row.Cells[c.Index].Value = s.Bool ? v == "X" : v;
+            // fehlende Pflichtangabe: Fehlersymbol mit Erklärung in der Zelle
+            if (Unterrichtseingabe.PflichtFehlt(u, i, s.Key))
+                row.Cells[c.Index].ErrorText = s.Key switch { "Fach" => "Pflichtfeld: Fach fehlt", "Klassen" => "Pflichtfeld: Klasse fehlt", _ => "Pflichtfeld: Wochenstunden fehlen" };
         }
         if (i > 0) row.DefaultCellStyle.BackColor = Ui.BlauSehrHell;
         if (u.Ignorieren) row.DefaultCellStyle.ForeColor = Color.Gray;
@@ -416,6 +681,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             e.CellStyle.Font = Ui.SchriftFett;
         }
         if (key == "UNr") e.CellStyle!.BackColor = zt.Index == 0 ? Ui.Erste : Ui.BlauSehrHell;
+        if (Unterrichtseingabe.PflichtFehlt(zt.U, zt.Index, key)) e.CellStyle!.BackColor = Color.FromArgb(255, 232, 232);
     }
 
     private void CellClick(object? sender, DataGridViewCellEventArgs e)
@@ -452,24 +718,72 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (s.Set is null) return;
         var v = _grid[e.ColumnIndex, e.RowIndex].Value;
         var text = v switch { bool b => b ? "X" : "", null => "", _ => v.ToString()! };
+        // geprüfter, normalisierter Wert (Groß-/Kleinschreibung, ergänzte Kürzel)
+        if (!s.Bool)
+        {
+            var pr = Unterrichtseingabe.Pruefen(D, s.Key, text);
+            if (!pr.Gueltig)
+            {
+                // ungültige Eingabe nie speichern (z. B. über eine Auswahlliste übernommen): erklären und alten Wert zeigen
+                Hinweis(pr.Hinweis, HinweisArt.Warnung, true);
+                NachZellwechsel(Neuaufbau);
+                return;
+            }
+            text = pr.Wert;
+        }
         var tag = _grid.Rows[e.RowIndex].Tag as ZeilenTag;
         if (tag is null)
         {
             if (text.Trim().Length == 0) return;
+            // vorgegebenes Element der Ansicht (grau) ist kein eigener Wert
+            if (_elementId is int eid && D.AlleElemente(_sicht).FirstOrDefault(x => x.Id == eid)?.Kurzname == text.Trim() &&
+                s.Key == (_sicht switch { ElementTyp.Klasse => "Klassen", ElementTyp.Lehrer => "Lehrer", _ => "" })) return;
             NeuMitWert(s, text);
             return;
         }
         var ziele = _grid.SelectedCells.Cast<DataGridViewCell>().Where(c => c.ColumnIndex == e.ColumnIndex && c.OwningRow.Tag is ZeilenTag).Select(c => (ZeilenTag)c.OwningRow.Tag!).ToList();
         if (!ziele.Contains(tag)) ziele.Add(tag);
-        Aendern($"Unterricht: {s.Titel}", AenderungsArt.Unterricht, d =>
+        // unverändert: nichts speichern (keine leere Rückgängig-Stufe)
+        if (ziele.Count == 1 && s.Get(tag.U, tag.U.Zeilen.ElementAtOrDefault(tag.Index) ?? new Kopplungszeile()) == text) return;
+        // „Soll behindernder Unterricht entplant werden?“: zusätzliche Klasse bzw. Lehrkraft kollidiert mit den verplanten Stunden
+        var weg = new List<int>();
+        if (s.Key is "Klassen" or "Lehrer")
         {
+            var behindernd = new List<Hindernis>();
+            foreach (var z in ziele.Where(z => Ix.Verplant(z.U) > 0))
+            {
+                var alt = Ix.Unterrichte.GetValueOrDefault(z.U.Id) ?? z.U;
+                var neu = alt.Kopie(alt.Id);
+                while (neu.Zeilen.Count <= z.Index) neu.Zeilen.Add(new Kopplungszeile());
+                try { s.Set(D, neu, neu.Zeilen[z.Index], text); } catch (FormatException) { continue; }
+                behindernd.AddRange(Behinderung.DurchAenderung(D, Ix, alt, neu).Where(h => behindernd.All(x => x.Planstunde != h.Planstunde)));
+            }
+            if (behindernd.Count > 0)
+            {
+                var antwort = BehinderungsAbfrage.Fragen(this, D, Ix, behindernd,
+                    $"U-Nr. {tag.U.Id}: {s.Titel} „{text}“ – der Unterricht ist bereits verplant; zu den verplanten Zeiten hat {(s.Key == "Klassen" ? "die Klasse" : "die Lehrkraft")} schon Unterricht.");
+                if (antwort == BehinderungsAntwort.Abbrechen)
+                {
+                    Hinweis($"Abgebrochen – {s.Titel} von U-Nr. {tag.U.Id} bleibt unverändert.", HinweisArt.Info, true);
+                    NachZellwechsel(Neuaufbau);
+                    return;
+                }
+                if (antwort == BehinderungsAntwort.Entplanen) weg = behindernd.Select(h => D.Stundenplan.IndexOf(h.Planstunde)).Where(i => i >= 0).ToList();
+            }
+        }
+        if (Aendern($"Unterricht: {s.Titel}", AenderungsArt.Unterricht, d =>
+        {
+            var entfernen = weg.Select(i => d.Stundenplan[i]).ToList();
+            foreach (var x in entfernen) d.Stundenplan.Remove(x);
             foreach (var z in ziele)
             {
                 var u = d.Unterrichte.First(x => x.Id == z.U.Id);
                 while (u.Zeilen.Count <= z.Index) u.Zeilen.Add(new Kopplungszeile());
                 s.Set(d, u, u.Zeilen[z.Index], text);
             }
-        });
+        }))
+            Hinweis($"Gespeichert: {s.Titel} = „{text}“ (U-Nr. {string.Join(", ", ziele.Select(z => z.U.Id).Distinct())})" +
+                    (weg.Count > 0 ? $", {weg.Count} behindernde Stunde(n) entplant" : "") + " – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, tag.U.Id);
         NachZellwechsel(Neuaufbau);
     }
 
@@ -480,7 +794,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         {
             neu = NeuerUnterrichtAnlegen(d);
             if (s.Set != null) s.Set(d, neu, neu.Zeilen[0], text);
-        })) NachZellwechsel(Neuaufbau);
+        }))
+        {
+            _neuId = neu?.Id;
+            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt ({s.Titel} = „{text}“) – weitere Felder eintragen; Strg+Z macht die Anlage rückgängig.", HinweisArt.Ok, true, neu?.Id);
+            NachZellwechsel(Neuaufbau);
+        }
     }
 
     private Unterricht NeuerUnterrichtAnlegen(Schuldatei d)
@@ -514,11 +833,14 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private void NeuerUnterricht()
     {
-        if (Aendern("Neuer Unterricht", AenderungsArt.Unterricht, d => NeuerUnterrichtAnlegen(d)))
+        Unterricht? neu = null;
+        if (Aendern("Neuer Unterricht", AenderungsArt.Unterricht, d => neu = NeuerUnterrichtAnlegen(d)))
         {
             Neuaufbau();
-            var letzte = _grid.Rows.Cast<DataGridViewRow>().LastOrDefault(r => r.Tag is ZeilenTag);
-            if (letzte != null && _grid.Columns.Contains("Wst")) _grid.CurrentCell = letzte.Cells["Wst"];
+            var zeile = _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == neu?.Id);
+            var spalte = new[] { "Fach", "Lehrer", "Klassen", "Wst" }.FirstOrDefault(n => _grid.Columns.Contains(n) && _grid.Columns[n]!.Visible);
+            if (zeile != null && spalte != null) _grid.CurrentCell = zeile.Cells[spalte];
+            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt – bitte Fach, Lehrer und Klasse eintragen (Enter springt weiter).", HinweisArt.Ok, true, neu?.Id);
         }
     }
 
@@ -532,7 +854,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private void KopplungszeileNeu()
     {
-        if (Aktuell() is not { } t) return;
+        if (Aktuell() is not { } t)
+        {
+            Hinweis("Bitte zuerst den Unterricht wählen, zu dem eine Kopplungszeile (weiterer Lehrer bzw. weitere Gruppe) hinzukommen soll.", HinweisArt.Warnung, true);
+            return;
+        }
+        var nr = t.U.Zeilen.Count + 1;
         if (Aendern("Kopplungszeile hinzufügen", AenderungsArt.Unterricht, d =>
         {
             var u = d.Unterrichte.First(x => x.Id == t.U.Id);
@@ -543,6 +870,11 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         {
             _aufgeklappt.Add(t.U.Id);
             Neuaufbau();
+            // neue Kopplungszeile wählen: Lehrer eintragen
+            var zeile = _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == t.U.Id && zt.Index == nr - 1);
+            var spalte = new[] { "Lehrer", "Fach", "Klassen" }.FirstOrDefault(n => _grid.Columns.Contains(n) && _grid.Columns[n]!.Visible);
+            if (zeile != null && spalte != null) { _grid.ClearSelection(); _grid.CurrentCell = zeile.Cells[spalte]; }
+            Hinweis($"Kopplungszeile {nr} zu U-Nr. {t.U.Id} angelegt (Klassen und Fach übernommen) – jetzt den Lehrer der Zeile eintragen.", HinweisArt.Ok, true);
         }
     }
 

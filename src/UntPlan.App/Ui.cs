@@ -118,6 +118,35 @@ public static class Ui
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
     }
 
+    /// <summary>
+    /// Hintergrund, Rasterlinien und Auswahl einer Tabellenzelle ohne Inhalt zeichnen (für eigene Zellinhalte in CellPainting).
+    /// Anders als <see cref="DataGridViewCellPaintingEventArgs.PaintBackground"/> werden die Rasterlinien mitgezeichnet.
+    /// </summary>
+    public static void ZelleOhneInhalt(DataGridViewCellPaintingEventArgs e) =>
+        e.Paint(e.ClipBounds, e.PaintParts & ~DataGridViewPaintParts.ContentForeground);
+
+    /// <summary>
+    /// Häkchen in einer Tabellenzelle zeichnen. Der Zustand der Grafik (Kantenglättung) wird danach wiederhergestellt – die
+    /// Grafik wird für alle Zellen eines Zeichenvorgangs und über den Doppelpuffer auch für spätere Zeichenvorgänge weiterverwendet;
+    /// eine stehen gelassene Kantenglättung zeichnet Rasterlinien und Hintergründe der übrigen Zellen verschwommen bzw. versetzt.
+    /// </summary>
+    public static void ZellHaken(DataGridViewCellPaintingEventArgs e, Color farbe, float breite = 2.4f)
+    {
+        if (e.Graphics is not { } g) return;
+        ZelleOhneInhalt(e);
+        var r = e.CellBounds;
+        var m = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
+        var zustand = g.Save();
+        try
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var pen = new Pen(farbe, breite);
+            g.DrawLines(pen, new[] { new Point(m.X - 5, m.Y), new Point(m.X - 1, m.Y + 4), new Point(m.X + 6, m.Y - 4) });
+        }
+        finally { g.Restore(zustand); }
+        e.Handled = true;
+    }
+
     /// <summary>Modusfarben einer Tabelle (beim Moduswechsel erneut aufgerufen).</summary>
     public static void RasterFarben(DataGridView g)
     {
@@ -236,7 +265,14 @@ public static class Ui
         MessageBox.Show(text, "UntPlan", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
-    public static void Info(string text, string titel = "UntPlan") => MessageBox.Show(text, titel, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    public static void Info(string text, string titel = "UntPlan")
+    {
+        if (InfoAntwort is { } hook) { hook(text, titel); return; }
+        MessageBox.Show(text, titel, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    /// <summary>Hinweis-Hook (Selbsttest): nimmt Hinweise ohne modales Meldungsfenster entgegen, null = Meldungsfenster.</summary>
+    public static Action<string, string>? InfoAntwort { get; set; }
 
     public static bool Frage(string text, string titel = "UntPlan") =>
         FrageAntwort is { } antwort ? antwort(text, titel) : MessageBox.Show(text, titel, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;

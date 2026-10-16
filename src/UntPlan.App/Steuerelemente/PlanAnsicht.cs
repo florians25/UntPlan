@@ -114,6 +114,23 @@ public sealed class PlanAnsicht : Control
         }
     }
     public bool Bearbeitbar { get; set; } = true;
+
+    /// <summary>
+    /// Stundenplanmodus (Regelplan): Montag der im Fenster gewählten Woche – unterrichtsfreie Tage dieser Woche (Feiertag, Kalendertag
+    /// „unterrichtsfrei“) werden wie in Untis als weiße Spalte mit senkrechtem Text („3.9.2021“) gezeigt. Ist die ganze Woche frei
+    /// (Ferien), bleibt der Regelplan sichtbar.
+    /// </summary>
+    public DateOnly? Anzeigewoche { get; set; }
+
+    /// <summary>Datum eines Tages im Regelplan (über <see cref="Anzeigewoche"/>), null im tagesaktuellen Plan bzw. ohne Woche.</summary>
+    private DateOnly? RegelDatum(int tag) => !Tagesmodus && Anzeigewoche is DateOnly w ? w.AddDays(tag + D.Zeitraster.ErsterSchultag) : null;
+
+    /// <summary>Ist der Tag im Regelplan als unterrichtsfreie Spalte verdeckt (nicht die ganze Woche frei)?</summary>
+    private bool RegelTagFrei(int tag)
+    {
+        if (RegelDatum(tag) is not DateOnly dt || !Kalender.GanzerTagFrei(D, dt)) return false;
+        return Enumerable.Range(0, Tage).Any(t => RegelDatum(t) is DateOnly x && !Kalender.GanzerTagFrei(D, x));
+    }
     /// <summary>Text der linken oberen Ecke, z. B. „Nvpl 0/25“ (nicht verplante / alle Stunden).</summary>
     public string Ecke { get; set; } = "";
 
@@ -155,9 +172,17 @@ public sealed class PlanAnsicht : Control
     /// schwarze dünne Rasterlinien (doppelt unter dem Kopf und rechts der Stundenspalte), Pausenzeilen weiß über die Tage,
     /// Tag und Stunde der gewählten Zelle rosa, gewählte Stunde dünn rot-gelb gestrichelt, Entfall rot durchgestrichen.
     /// </summary>
-    public static bool UntisStil => AppZustand.Vertretungsmodus;
-    /// <summary>Mintgrün der Untis-Stundenpläne (Kopf, Stundenspalte, belegte Stunden).</summary>
+    /// <remarks>
+    /// Seit UP5 auch im Stundenplanmodus (Untis-Stundenplanmodus: hellblau statt mintgrün, siehe <see cref="Grund"/>), kleine und
+    /// große Pläne; eigene Stundenformate (Felder) behalten ihre Fachfarben.
+    /// </remarks>
+    public static bool UntisStil => true;
+    /// <summary>Mintgrün der Untis-Stundenpläne im Vertretungsmodus (Kopf, Stundenspalte, belegte Stunden).</summary>
     public static readonly Color Mint = Color.FromArgb(175, 223, 204);
+    /// <summary>Hellblau der Untis-Stundenpläne im Stundenplanmodus (Kopf, Stundenspalte, belegte Stunden).</summary>
+    public static readonly Color Hellblau = Color.FromArgb(220, 240, 255);
+    /// <summary>Grundfarbe der Pläne: hellblau im Stundenplanmodus, mintgrün im Vertretungsmodus.</summary>
+    public static Color Grund => AppZustand.Vertretungsmodus ? Mint : Hellblau;
     /// <summary>Rosa für Tag und Stunde der gewählten Zelle.</summary>
     public static readonly Color Rosa = Color.FromArgb(255, 210, 210);
     private static readonly Color AuswahlRot = Color.FromArgb(255, 128, 128);
@@ -243,7 +268,7 @@ public sealed class PlanAnsicht : Control
         var w = (Width - KopfBreite - 1) / (float)SichtbareTage;
         var t = (int)((p.X - KopfBreite) / w);
         if (_nurTag is int nt) t = t == 0 ? nt : -1;
-        if (t < 0 || t >= Tage) return null;
+        if (t < 0 || t >= Tage || RegelTagFrei(t)) return null;
         for (var s = 1; s <= Stunden; s++)
         {
             var r = Zelle(ClientRectangle, t, s);
@@ -301,14 +326,17 @@ public sealed class PlanAnsicht : Control
     /// <summary>Stunden, nach denen eine Pausenzeile angezeigt wird (Felder werden dort geteilt, nie über die Pause gezeichnet).</summary>
     private HashSet<int> PausenNach => Pausen.Select(p => p.NachStunde).Where(n => n >= 1).ToHashSet();
 
-    private static List<PlanBlock<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel) =>
-        Blockbildung.Anordnen(stunden, am, schluessel);
+    private static List<PlanBlock<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel, bool stapeln = false) =>
+        Blockbildung.Anordnen(stunden, am, schluessel, stapeln);
 
     private List<PlanBlock<Planstunde>> RegelFelder(int tag)
     {
         var plan = Ix.PlanVon(Typ, ElementId).Where(p => p.Tag == tag).ToList();
-        return Anordnen<Planstunde>(Stunden, s => plan.Where(p => p.Stunde == s).ToList(), RegelSchluessel);
+        return Anordnen<Planstunde>(Stunden, s => plan.Where(p => p.Stunde == s).ToList(), RegelSchluessel, Stapeln);
     }
+
+    /// <summary>Große Pläne: gleichzeitige Unterrichte untereinander in einem Feld (Untis), im kleinen Plan nebeneinander.</summary>
+    private bool Stapeln => UntisStil && !Format.Klein;
 
     /// <summary>Zusammenfassung zu Doppelstunden/Blöcken (nicht in der Darstellung „Einzelstunden“).</summary>
     private string? RegelSchluessel(Planstunde p) => Format.Einzelstunden ? null : p.UnterrichtId.ToString();
@@ -416,6 +444,8 @@ public sealed class PlanAnsicht : Control
         g.SmoothingMode = SmoothingMode.None;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         g.FillRectangle(Brushes.White, bounds);
+        FreiBeschriftungen.Clear();
+        if (!druck) GezeichneteZeilen.Clear();
         var zr = D.Zeitraster;
         var klein = Format.Klein;
         var untis = UntisStil;
@@ -492,12 +522,19 @@ public sealed class PlanAnsicht : Control
                         kollisionen.Add(s);
                 }
                 var tagPlan = plan.Where(p => p.Tag == t).ToList();
-                foreach (var f in Anordnen<Planstunde>(Stunden, s => tagPlan.Where(p => p.Stunde == s).ToList(), RegelSchluessel))
+                var felder = Anordnen<Planstunde>(Stunden, s => tagPlan.Where(p => p.Stunde == s).ToList(), RegelSchluessel, Stapeln);
+                foreach (var f in felder)
                     foreach (var fr in FeldRechtecke(bounds, t, f))
                     {
                         StundeZeichnen(g, fr, f.Erster, druck, Enumerable.Range(f.Start, f.Laenge).Any(kollisionen.Contains), f.Alle);
                         if (untis) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
                     }
+                // untereinander gestapelte Unterrichte bilden ein gemeinsames Feld: keine Linie zwischen den Zeilen
+                if (untis)
+                    using (var grund = new SolidBrush(Grund))
+                        foreach (var f in felder.Where(f => f.StapelIndex > 0))
+                            foreach (var fr in FeldRechtecke(bounds, t, f))
+                                g.FillRectangle(grund, fr.X, fr.Y - 1, fr.Width, 1);
             }
             // Untis: angeklickte leere Zelle rot-gelb gestrichelt
             if (untis && !druck && _zelle is { } zc && zc.Tag == t && zc.Stunde >= 1 && zc.Stunde <= Stunden && (Tagesmodus ? _tagesAuswahl is null : _ausgewaehlt is null))
@@ -509,6 +546,13 @@ public sealed class PlanAnsicht : Control
             if (datum is DateOnly dt) FreiZeichnen(g, bounds, t, dt, kt);
         }
         PausenZeichnen(g, bounds, linie);
+        // Untis-Stundenplanmodus: unterrichtsfreier Tag als weiße Spalte mit senkrechtem Datum bzw. Bezeichnung über alle Stunden
+        for (var t = 0; t < Tage; t++)
+        {
+            var frei = Tagesmodus ? !AppZustand.Vertretungsmodus && _woche?.AddDays(t) is DateOnly wd && Kalender.GanzerTagFrei(D, wd) ? wd : (DateOnly?)null
+                : RegelTagFrei(t) ? RegelDatum(t) : null;
+            if (frei is DateOnly fd) FreiSpalteZeichnen(g, bounds, t, fd, linie);
+        }
         if (!druck) TauschAnzeigen(g, bounds);
         if (untis)
         {
@@ -567,7 +611,6 @@ public sealed class PlanAnsicht : Control
     /// </summary>
     private void FreiZeichnen(Graphics g, Rectangle bounds, int t, DateOnly datum, Kalendertag? kt)
     {
-        if (t == 0) FreiBeschriftungen.Clear();
         if (_nurTag is int nt && nt != t) return;
         var bez = Kalender.FreiBezeichnung(D, datum);
         var bereiche = new List<(int Von, int Bis)>();
@@ -596,6 +639,36 @@ public sealed class PlanAnsicht : Control
             TextRenderer.DrawText(g, text, schrift, zeile, Color.FromArgb(150, 80, 0),
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
         }
+    }
+
+    /// <summary>
+    /// Unterrichtsfreier Tag wie im Untis-Stundenplanmodus: die Spalte von der ersten bis zur letzten Stunde weiß (auch über die
+    /// Pausenzeilen), darin senkrecht von unten nach oben das Datum („3.9.2021“) bzw. die Bezeichnung des Feiertags.
+    /// </summary>
+    private void FreiSpalteZeichnen(Graphics g, Rectangle bounds, int t, DateOnly datum, Pen linie)
+    {
+        if (_nurTag is int nt && nt != t) return;
+        var oben = Zelle(bounds, t, 1);
+        var unten = Zelle(bounds, t, Stunden);
+        if (oben.Right < bounds.X || oben.Width < 4) return;
+        var r = new RectangleF(oben.X, oben.Y, oben.Width, unten.Bottom - oben.Y);
+        g.FillRectangle(Brushes.White, r);
+        g.DrawRectangle(linie, r.X, r.Y, r.Width, r.Height);
+        using var schrift = new Font("Segoe UI", Format.Klein ? 8f : 9f);
+        var platz = r.Height - 8;
+        var text = Kalender.FreiText(Kalender.FreiBezeichnung(D, datum), datum, x => g.MeasureString(x, schrift).Width <= platz);
+        FreiBeschriftungen.RemoveAll(x => x.Tag == t);
+        FreiBeschriftungen.Add((t, text));
+        var groesse = g.MeasureString(text, schrift);
+        var zustand = g.Save();
+        try
+        {
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            g.TranslateTransform(r.X + r.Width / 2f, r.Y + r.Height / 2f);
+            g.RotateTransform(-90);
+            g.DrawString(text, schrift, Brushes.Black, -groesse.Width / 2f, -groesse.Height / 2f);
+        }
+        finally { g.Restore(zustand); }
     }
 
     /// <summary>Beim Ziehen: Stunden, mit denen getauscht werden kann, grün; Ziel unter der Maus kräftig grün und gestrichelt umrandet.</summary>
@@ -632,7 +705,7 @@ public sealed class PlanAnsicht : Control
         var klein = Format.Klein;
         using var pausenSchrift = new Font("Segoe UI", UntisStil ? Math.Max(6f, Math.Min(9f, PausenHoehe / 1.75f)) : Math.Max(6f, Math.Min(8f, PausenHoehe / 1.6f)));
         using var pausenHg = new SolidBrush(UntisStil ? Color.White : klein ? Color.FromArgb(214, 226, 214) : Color.FromArgb(236, 239, 244));
-        using var mint = new SolidBrush(Mint);
+        using var mint = new SolidBrush(Grund);
         foreach (var p in Pausen)
         {
             var r = PausenRechteck(bounds, p);
@@ -667,11 +740,17 @@ public sealed class PlanAnsicht : Control
             else if (Kalender.IstUnterrichtstag(D, heute)) rosaTag = Kalender.TagIndex(D, heute);
         }
         int? rosaStunde = druck ? null : _hover is { } hv && _status != null ? hv.Stunde : wahl?.Stunde;
-        using var mint = new SolidBrush(Mint);
+        using var mint = new SolidBrush(Grund);
         using var rosa = new SolidBrush(Rosa);
         var ecke = new RectangleF(bounds.X, bounds.Y, KopfBreite, KopfHoehe);
         g.FillRectangle(mint, ecke);
         g.DrawRectangle(linie, ecke.X, ecke.Y, ecke.Width, ecke.Height);
+        // Untis: „Nvpl Std.“ mit nicht verplanten / allen Stunden oben links (große Pläne)
+        if (Ecke.Length > 0 && !klein && !druck)
+        {
+            using var f = new Font("Segoe UI", Math.Max(6.5f, Math.Min(8.25f, KopfHoehe / 3.4f)));
+            TextRenderer.DrawText(g, Ecke, f, Rectangle.Round(ecke), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        }
         var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
         using var kopfSchrift = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 2.1f)) : Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f)), klein ? FontStyle.Regular : FontStyle.Bold);
         for (var t = 0; t < Tage; t++)
@@ -960,6 +1039,85 @@ public sealed class PlanAnsicht : Control
         g.Clip = alt;
     }
 
+    /// <summary>Textteil einer Planzeile: Text und Stil (fett bzw. unterstrichen wie in Untis).</summary>
+    internal readonly record struct Teil(string Text, bool Fett = false, bool Unterstrichen = false);
+
+    /// <summary>
+    /// Zeilen einer Stunde im großen Plan des Stundenplanmodus: Klasse: Fach (fett), Lehrer, Raum (unterstrichen); Lehrer: Klasse (fett),
+    /// Raum (unterstrichen), Fach; Raum: Klasse (fett), Lehrer, Fach. Haben die beteiligten Kopplungszeilen verschiedene Fächer,
+    /// bekommt jede Zeile eine eigene Textzeile, sonst werden Lehrer und Räume zusammengefasst.
+    /// </summary>
+    internal List<List<Teil>> GrossZeilen(Unterricht u, Planstunde p, List<int> zs)
+    {
+        var stern = p.Fixiert ? "*" : "";
+        var getrennt = zs.Select(i => u.Zeilen[i].FachId).Distinct().Count() > 1;
+        var gruppen = getrennt ? zs.Select(i => new List<int> { i }).ToList() : new List<List<int>> { zs };
+        var res = new List<List<Teil>>();
+        foreach (var gr in gruppen)
+        {
+            string Liste(IEnumerable<string> x) => string.Join(",", x.Where(y => y.Length > 0).Distinct());
+            var fach = Liste(gr.Select(i => Kurz(ElementTyp.Fach, u.Zeilen[i].FachId)));
+            var lehrer = Liste(gr.Select(i => Kurz(ElementTyp.Lehrer, u.Zeilen[i].LehrerId)));
+            var raum = Liste(gr.Select(i => Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))));
+            var klassen = Ix.KKlassen(gr.SelectMany(i => u.Zeilen[i].KlassenIds).Distinct().ToList());
+            var teile = Typ switch
+            {
+                ElementTyp.Klasse => new List<Teil> { new(fach, true), new(lehrer), new(raum, false, true) },
+                ElementTyp.Lehrer => new List<Teil> { new(klassen, true), new(raum, false, true), new(fach) },
+                ElementTyp.Raum => new List<Teil> { new(klassen, true), new(lehrer), new(fach) },
+                _ => new List<Teil> { new(klassen, true), new(lehrer), new(raum, false, true) },
+            };
+            teile = teile.Where(x => x.Text.Length > 0).ToList();
+            if (teile.Count == 0) teile.Add(new Teil("?", true));
+            if (res.Count == 0 && stern.Length > 0) teile[0] = teile[0] with { Text = stern + teile[0].Text };
+            res.Add(teile);
+        }
+        return res;
+    }
+
+    /// <summary>Zuletzt gezeichnete Textzeilen der großen Pläne (für den Selbsttest).</summary>
+    internal List<string> GezeichneteZeilen { get; } = new();
+
+    /// <summary>Zeilen untereinander, jede zentriert; die Schrift wird verkleinert, bis alle Zeilen in Breite und Höhe passen.</summary>
+    private void UntisZeilen(Graphics g, RectangleF r, List<List<Teil>> zeilen, Color farbe)
+    {
+        if (zeilen.Count == 0 || r.Width < 6 || r.Height < 6) return;
+        const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+        var groesse = Math.Max(6.5f, Math.Min(Format.Schriftgroesse, (r.Height - 2) / zeilen.Count / 1.55f));
+        Font[] Schriften(float gr) => new[] { new Font("Segoe UI", gr), new Font("Segoe UI", gr, FontStyle.Bold), new Font("Segoe UI", gr, FontStyle.Underline), new Font("Segoe UI", gr, FontStyle.Bold | FontStyle.Underline) };
+        Font S(Font[] f, Teil t) => f[(t.Fett ? 1 : 0) + (t.Unterstrichen ? 2 : 0)];
+        int Breite(Font[] f, List<Teil> z, int abstand) => z.Sum(t => TextRenderer.MeasureText(g, t.Text, S(f, t), Size.Empty, flags).Width) + abstand * (z.Count - 1);
+        var schriften = Schriften(groesse);
+        try
+        {
+            while (groesse > 6.5f && zeilen.Max(z => Breite(schriften, z, (int)Math.Ceiling(groesse * 0.45f))) > r.Width - 4)
+            {
+                foreach (var f in schriften) f.Dispose();
+                groesse = Math.Max(6.5f, groesse - 0.5f);
+                schriften = Schriften(groesse);
+            }
+            var abstand = (int)Math.Ceiling(groesse * 0.45f);
+            var zh = TextRenderer.MeasureText(g, "Ag", schriften[1], Size.Empty, flags).Height + 1;
+            var y = r.Y + Math.Max(1, (r.Height - zh * zeilen.Count) / 2);
+            var alt = g.Clip;
+            g.SetClip(r);
+            foreach (var z in zeilen)
+            {
+                var b = Breite(schriften, z, abstand);
+                var x = (int)(r.X + Math.Max(2, (r.Width - b) / 2));
+                foreach (var t in z)
+                {
+                    TextRenderer.DrawText(g, t.Text, S(schriften, t), new Point(x, (int)y), farbe, flags);
+                    x += TextRenderer.MeasureText(g, t.Text, S(schriften, t), Size.Empty, flags).Width + abstand;
+                }
+                if (!_druck) GezeichneteZeilen.Add(string.Join(" ", z.Select(t => t.Text)));
+                y += zh;
+            }
+            g.Clip = alt;
+        }
+        finally { foreach (var f in schriften) f.Dispose(); }
+    }
+
     /// <summary>Werte einer Stunde in der Reihenfolge der Planart (Untis): Klasse: Fach, Lehrer, Raum; Lehrer: Klasse, Fach, Raum; Raum: Klasse, Lehrer, Fach.</summary>
     private List<string> UntisWerte(string praefix, string klassen, string fach, string lehrer, string raum)
     {
@@ -994,7 +1152,16 @@ public sealed class PlanAnsicht : Control
                 ElementTyp.Raum => p.RaumFuerZeile(i) == ElementId,
                 _ => true,
             }).DefaultIfEmpty(0).ToList();
-            using (var b = new SolidBrush(Mint)) g.FillRectangle(b, r);
+            using (var b = new SolidBrush(Grund)) g.FillRectangle(b, r);
+            if (!Format.Klein && !AppZustand.Vertretungsmodus)
+            {
+                // Untis-Stundenplanmodus, großer Plan: „Nw Les C12“ (erster Wert fett, Raum unterstrichen); Kopplungszeilen mit
+                // unterschiedlichen Fächern untereinander als eigene Zeilen („Rel Beu A11 / Eth Sei A11“)
+                UntisZeilen(g, r, GrossZeilen(u, p, zs), Color.Black);
+                if (kollision) using (var pen = new Pen(Color.Red, Rahmen)) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
+                AuswahlZeichnen(g, r, p, feld, druck);
+                return;
+            }
             var werte = UntisWerte(Praefix(u, p.Fixiert),
                 Typ == ElementTyp.Lehrer ? Ix.KKlassen(zs.SelectMany(i => u.Zeilen[i].KlassenIds).Distinct().ToList()) : Ix.KKlassen(u.KlassenIds),
                 Kurz(ElementTyp.Fach, u.Zeilen[zs[0]].FachId),
@@ -1032,7 +1199,7 @@ public sealed class PlanAnsicht : Control
             _ => true,
         }).ToList();
         if (zeilen.Count == 0) zeilen.Add(0);
-        var farbe = UntisStil ? Mint : Farbe(u, zeilen[0]);
+        var farbe = UntisStil ? Grund : Farbe(u, zeilen[0]);
         using (var b = new SolidBrush(farbe)) g.FillRectangle(b, r);
         var text = Ui.Textfarbe(farbe);
         using var schrift = new Font("Segoe UI", Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
@@ -1162,7 +1329,7 @@ public sealed class PlanAnsicht : Control
         var v = e.Vertretung;
         var entfall = e.Status == TagesStatus.Entfall;
         var offen = e.Status == TagesStatus.Offen;
-        using (var b = new SolidBrush(Mint)) g.FillRectangle(b, r);
+        using (var b = new SolidBrush(Grund)) g.FillRectangle(b, r);
         if (entfall && r.Width > 6 && r.Height > 6)
         {
             var innen = Format.Klein ? 2 : 3;
@@ -1449,9 +1616,13 @@ public sealed class PlanAnsicht : Control
         }
         else if (s.StartsWith("unterricht:"))
         {
-            var uids = s[11..].Split(',').Select(x => int.TryParse(x, out var i) ? Ix.Unterrichte.GetValueOrDefault(i) : null).OfType<Unterricht>().ToList();
+            var (ids, gewuenscht) = Fenster.StundenplanFenster.UnterrichtDaten(s);
+            var uids = ids.Select(i => Ix.Unterrichte.GetValueOrDefault(i)).OfType<Unterricht>().ToList();
             if (uids.Count == 0) { _status = null; e.Effect = DragDropEffects.None; return; }
-            var laenge = uids[0].Bloecke().FirstOrDefault(b => b > 0);
+            // gezogener Block aus „nicht verplant“ in seiner Blockgröße, sonst der nächste offene Block
+            var laenge = gewuenscht ?? Planungsdienst.OffeneBloecke(D, Ix, uids[0]).FirstOrDefault(1);
+            _ziehLaenge = uids.Count == 1 ? Math.Max(1, laenge) : 1;
+            _ziehVersatz = 0;
             for (var t = 0; t < Tage; t++)
                 for (var st = 1; st <= Stunden; st++)
                     _status[t, st - 1] = uids.Select(u => Planungsdienst.Status(D, Ix, u, t, st, Math.Max(1, uids.Count == 1 ? laenge : 1))).Max(Schwere) is var m && m < 3 ? AusSchwere(m) : Feldstatus.Kollision; // nicht verplante Stunden können nicht getauscht werden

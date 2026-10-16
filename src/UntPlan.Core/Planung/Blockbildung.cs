@@ -36,7 +36,11 @@ public readonly record struct BlockTeil(int Start, int Laenge)
 public static class Blockbildung
 {
     /// <summary>Felder bilden: <paramref name="am"/> liefert die Einträge einer Stunde, <paramref name="schluessel"/> null = nie zusammenfassen.</summary>
-    public static List<PlanBlock<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel)
+    /// <param name="stapeln">
+    /// Untis-Darstellung der großen Pläne: Gleichzeitige Felder mit genau gleicher Lage (gleiche Stunden) werden nicht nebeneinander,
+    /// sondern untereinander als eigene Zeilen in einem gemeinsamen Feld gezeigt (z. B. „D Way R105“ über „M LesD A117“).
+    /// </param>
+    public static List<PlanBlock<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel, bool stapeln = false)
     {
         var felder = new List<PlanBlock<T>>();
         var offen = new Dictionary<string, PlanBlock<T>>();
@@ -79,6 +83,14 @@ public static class Blockbildung
                 f.Spur = spur;
             }
             foreach (var f in g) f.Spuren = ende.Count;
+            if (stapeln && g.Count > 1 && g.All(x => x.Start == g[0].Start && x.Laenge == g[0].Laenge))
+                foreach (var f in g)
+                {
+                    f.StapelIndex = f.Spur;
+                    f.StapelAnzahl = f.Spuren;
+                    f.Spur = 0;
+                    f.Spuren = 1;
+                }
         }
         return felder;
     }

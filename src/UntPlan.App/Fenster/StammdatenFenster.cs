@@ -95,15 +95,14 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _formular.DragOver += (_, e) => e.Effect = (e.Data!.GetData(DataFormats.Text) as string)?.StartsWith("aus:") == true ? DragDropEffects.Move : DragDropEffects.None;
         _formular.DragDrop += (_, e) => { if (e.Data!.GetData(DataFormats.Text) is string s && s.StartsWith("aus:")) SpalteAusblenden(s[4..]); };
 
-        var unten = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = Color.FromArgb(246, 248, 251) };
-        _klappen.Left = 2;
-        _klappen.Top = 3;
+        // Fußleiste: Ansichtsauswahl unten rechts mit Abstand zum Rand, Größengriff frei
+        var unten = new Steuerelemente.Fussleiste { BackColor = Color.FromArgb(246, 248, 251) };
+        _klappen.Left = 4;
+        _klappen.Top = (Steuerelemente.Fussleiste.Hoehe - _klappen.Height) / 2;
         _klappen.Click += (_, _) => FormularUmschalten();
         _tip.SetToolTip(_klappen, "Formularansicht ein-/ausklappen");
         unten.Controls.Add(_klappen);
-        _ansichtBox.Top = 2;
-        unten.Controls.Add(_ansichtBox);
-        unten.Resize += (_, _) => _ansichtBox.Left = unten.Width - _ansichtBox.Width - 4;
+        unten.Rechts = _ansichtBox;
         _ansichtBox.SelectionChangeCommitted += (_, _) => AnsichtGewaehlt();
 
         _split.Panel1.Controls.Add(_grid);

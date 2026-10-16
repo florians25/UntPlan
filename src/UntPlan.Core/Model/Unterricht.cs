@@ -166,6 +166,11 @@ public sealed class Periode
     public List<Unterricht>? Unterrichte { get; set; }
     public List<Planstunde> Plan { get; set; } = new();
     public List<Pausenaufsicht>? Pausenaufsichten { get; set; }
+    /// <summary>
+    /// Stand des Stundenplans beim letzten Abgleich mit der Vertretungsplanung (Moduswechsel/Neuberechnung): Stunden, die seitdem
+    /// umgeplant wurden, werden daran erkannt und ihre Vertretungen auf die neue Lage übertragen (null = noch kein Stand).
+    /// </summary>
+    public List<Planstunde>? Vertretungsstand { get; set; }
 
     public bool Deckt(DateOnly datum) => datum >= Von && (Bis is null || datum <= Bis.Value);
 

@@ -177,12 +177,6 @@ public sealed class RaumListe : UserControl
     private void HakenZeichnen(object? sender, DataGridViewCellPaintingEventArgs e)
     {
         if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Value as string != "✔" || e.Graphics is null) return;
-        e.PaintBackground(e.CellBounds, (e.State & DataGridViewElementStates.Selected) != 0);
-        var r = e.CellBounds;
-        var m = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
-        using var pen = new Pen(Color.FromArgb(60, 170, 60), 2.4f);
-        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        e.Graphics.DrawLines(pen, new[] { new Point(m.X - 5, m.Y), new Point(m.X - 1, m.Y + 4), new Point(m.X + 6, m.Y - 4) });
-        e.Handled = true;
+        Ui.ZellHaken(e, Color.FromArgb(60, 170, 60));
     }
 }

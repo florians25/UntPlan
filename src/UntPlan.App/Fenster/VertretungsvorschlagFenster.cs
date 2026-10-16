@@ -391,7 +391,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var i = Array.IndexOf(Stundenplanspalten, spalte.Name);
         if (i >= 0 && Zellen(g.Rows[e.RowIndex].Tag) is { } z && i < z.Count)
         {
-            e.PaintBackground(e.CellBounds, selected);
+            Ui.ZelleOhneInhalt(e);
             var zelle = z[i];
             var r = e.CellBounds;
             var hg = selected ? e.CellStyle.SelectionBackColor : e.CellStyle.BackColor;
@@ -411,7 +411,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         }
         if (spalte.Name == "Kennz" && e.Value as string == "K")
         {
-            e.PaintBackground(e.CellBounds, selected);
+            Ui.ZelleOhneInhalt(e);
             var r = e.CellBounds;
             var b = new Rectangle(r.X + (r.Width - 10) / 2, r.Y + (r.Height - 13) / 2, 10, 13);
             using (var br = new SolidBrush(Color.FromArgb(40, 90, 180))) e.Graphics.FillRectangle(br, b);
@@ -423,15 +423,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         }
         if (e.Value as string == "✔")
         {
-            e.PaintBackground(e.CellBounds, selected);
-            var r = e.CellBounds;
-            var m = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
-            var alt = e.Graphics.SmoothingMode;
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using (var pen = new Pen(Color.FromArgb(60, 170, 60), 2.4f))
-                e.Graphics.DrawLines(pen, new[] { new Point(m.X - 5, m.Y), new Point(m.X - 1, m.Y + 4), new Point(m.X + 6, m.Y - 4) });
-            e.Graphics.SmoothingMode = alt;
-            e.Handled = true;
+            Ui.ZellHaken(e, Color.FromArgb(60, 170, 60));
         }
     }
 

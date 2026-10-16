@@ -217,6 +217,8 @@ public sealed partial class HauptFenster
     public void VertretungsmodusUmschalten()
     {
         var neu = !AppZustand.Vertretungsmodus;
+        // vor dem Öffnen der Vertretungsfenster: im Stundenplan umgeplante Stunden nacherfassen (Vertretungen wandern mit)
+        if (neu) UmplanungNacherfassen();
         LayoutMerken(AppZustand.Vertretungsmodus ? GruppeVertretung : GruppeStundenplan);
         SuspendLayout();
         AlleSchliessen();
@@ -235,6 +237,42 @@ public sealed partial class HauptFenster
             else StandardFenster();
         }
         DokGeaendert(AenderungsArt.Einstellungen);
+    }
+
+    /// <summary>Ergebnis der letzten Nacherfassung umgeplanter Stunden (Selbsttest).</summary>
+    internal UmplanungsErgebnis? LetzteUmplanung { get; private set; }
+
+    /// <summary>
+    /// Stunden, die im Stundenplan nach dem letzten Abgleich umgeplant wurden, für die Vertretungsplanung nacherfassen: vorhandene
+    /// Vertretungen (Vertreter, Raum, Text, Art) wandern auf die neue Lage, nicht zuordenbare bleiben als Vormerkung erhalten.
+    /// </summary>
+    internal void UmplanungNacherfassen()
+    {
+        var doc = AppZustand.Doc;
+        if (!doc.Daten.Perioden.Any(Umplanungsabgleich.StandVeraltet)) return;
+        try
+        {
+            var probe = Dokument.Klonen(doc.Daten);
+            var erg = Umplanungsabgleich.Nacherfassen(probe, AppZustand.Benutzer);
+            if (erg.Geaendert && !doc.Schreibgeschuetzt)
+                doc.Aendern($"Umgeplante Stunden nacherfasst ({erg.Uebertragen.Count} Vertretung(en) übertragen)", AenderungsArt.Vertretung,
+                    d => erg = Umplanungsabgleich.Nacherfassen(d, AppZustand.Benutzer));
+            else
+            {
+                Umplanungsabgleich.StandSichern(doc.Daten);
+                doc.AlsGeaendertMarkieren();
+            }
+            LetzteUmplanung = erg;
+            if (erg.Uebertragen.Count == 0 && erg.Hinweise.Count == 0) return;
+            var text = (erg.Uebertragen.Count > 0 ? $"{erg.Uebertragen.Count} Vertretung(en) umgeplanter Stunden wurden auf die neue Lage übertragen.\n" : "") +
+                       (erg.Vormerkungen.Count > 0 ? $"{erg.Vormerkungen.Count} nicht mehr zuordenbare Vertretung(en) liegen als Vormerkung neben dem Stundenplan.\n" : "") +
+                       (erg.Hinweise.Count > 0 ? "\nHinweise:\n" + string.Join("\n", erg.Hinweise.Take(15)) + (erg.Hinweise.Count > 15 ? "\n…" : "") : "");
+            Ui.Info(text.Trim(), "Stundenplanänderungen nacherfasst");
+        }
+        catch (Exception ex)
+        {
+            Ui.Fehler(ex);
+        }
     }
 
     /// <summary>Farben der Oberfläche nach dem aktuellen Modus setzen (Petrol bzw. Grün).</summary>

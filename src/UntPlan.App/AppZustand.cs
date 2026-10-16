@@ -95,6 +95,8 @@ public static class AppZustand
     public static void Setzen(Dokument d, bool ansichtUebernehmen = true)
     {
         var alt = Doc;
+        // Stand des Stundenplans für die Nacherfassung umgeplanter Stunden (ältere Dateien ohne Stand)
+        Core.Vertretungsplanung.Umplanungsabgleich.StandErgaenzen(d.Daten);
         AnsichtAnbinden(d);
         Doc = d;
         if (!ReferenceEquals(alt, d) && alt.Sperre is { } sperre && !ReferenceEquals(sperre, d.Sperre)) sperre.Freigeben();

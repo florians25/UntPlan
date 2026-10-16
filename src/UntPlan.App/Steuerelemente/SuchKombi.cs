@@ -28,6 +28,8 @@ public static class SuchKombi
         };
         g.CellValidating += (_, e) =>
         {
+            // eine vorher registrierte Prüfung hat die Eingabe abgelehnt (Hinweis statt stiller Ersetzung durch „leer“)
+            if (e.Cancel) return;
             if (g.Columns[e.ColumnIndex] is not DataGridViewComboBoxColumn || g.EditingControl is not ComboBox cb || cb.Items.Count == 0) return;
             var text = cb.Text.Trim();
             var namen = cb.Items.Cast<object>().Select(o => cb.GetItemText(o) ?? "").ToList();
@@ -42,7 +44,8 @@ public static class SuchKombi
         g.CurrentCellDirtyStateChanged += (_, _) =>
         {
             // Auswahl mit der Maus sofort übernehmen
-            if (g.IsCurrentCellDirty && g.CurrentCell is DataGridViewComboBoxCell && g.EditingControl is ComboBox { DroppedDown: false } cb && cb.SelectedIndex >= 0)
+            if (g.IsCurrentCellDirty && g.CurrentCell is DataGridViewComboBoxCell && g.EditingControl is ComboBox { DroppedDown: false } cb && cb.SelectedIndex >= 0 &&
+                string.Equals(cb.GetItemText(cb.SelectedItem), cb.Text, StringComparison.Ordinal))
                 g.CommitEdit(DataGridViewDataErrorContexts.Commit);
         };
         g.DataError += (_, e) => e.ThrowException = false;

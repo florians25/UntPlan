@@ -320,6 +320,49 @@ public static class Planungsdienst
     }
 
     /// <summary>
+    /// Noch nicht verplante Blöcke eines Unterrichts in ihrer Blockgröße (z. B. [2, 1] = eine Doppelstunde und eine Einzelstunde offen):
+    /// die Planungsblöcke laut Unterricht (Block, Doppelstunden) ohne die bereits verplanten zusammenhängenden Stunden. Die Summe
+    /// entspricht immer der Zahl der nicht verplanten Stunden; zerrissene Blöcke werden als Einzelstunden gezählt.
+    /// </summary>
+    public static List<int> OffeneBloecke(Schuldatei d, DatenIndex ix, Unterricht u)
+    {
+        var offen = ix.NichtVerplant(u);
+        var res = new List<int>();
+        if (offen <= 0) return res;
+        var verplant = ix.PlanJeUnterricht.TryGetValue(u.Id, out var l) ? l : new List<Planstunde>();
+        var vorhanden = new List<int>();
+        foreach (var g in verplant.GroupBy(p => p.Tag))
+        {
+            var st = g.Select(p => p.Stunde).Distinct().OrderBy(x => x).ToList();
+            var lauf = 1;
+            for (var i = 1; i <= st.Count; i++)
+            {
+                if (i < st.Count && st[i] == st[i - 1] + 1) lauf++;
+                else { vorhanden.Add(lauf); lauf = 1; }
+            }
+        }
+        foreach (var b in u.Bloecke())
+        {
+            if (vorhanden.Remove(b)) continue;
+            // ein längerer verplanter Lauf (z. B. zwei Doppelstunden hintereinander) deckt mehrere Blöcke ab
+            var groesser = vorhanden.Where(x => x > b).OrderBy(x => x).Cast<int?>().FirstOrDefault();
+            if (groesser is int g2) { vorhanden.Remove(g2); vorhanden.Add(g2 - b); continue; }
+            res.Add(b);
+        }
+        // Summe an die tatsächlich offenen Stunden anpassen (verplante Einzelstunden aus Blöcken, zusätzliche Wochenstunden)
+        var summe = res.Sum();
+        while (summe > offen && res.Count > 0)
+        {
+            var i = res.FindLastIndex(x => x > 1);
+            if (i < 0) { res.RemoveAt(res.Count - 1); summe--; continue; }
+            res[i]--;
+            summe--;
+        }
+        while (summe < offen) { res.Add(1); summe++; }
+        return res.OrderByDescending(x => x).ToList();
+    }
+
+    /// <summary>
     /// Raumliste für eine Kopplungszeile über die betroffenen Stunden: Wunschraum/Ausweichraum/Stammraum, Belegung durch anderen
     /// Unterricht (A/B-Wochen beachtet), Sperrungen, freie Stunden, Kapazitätsdifferenz zur Schülerzahl, Raumgruppen, Gang.
     /// </summary>
