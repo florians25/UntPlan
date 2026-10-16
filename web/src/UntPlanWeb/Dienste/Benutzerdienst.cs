@@ -34,11 +34,15 @@ public static class Zusatzrechte
 {
     public const string Nachrichten = "nachrichten";
     public const string Schuelerverwaltung = "schuelerverwaltung";
+    public const string KlassenbuchAlle = "klassenbuch_alle";
+    public const string OffeneStunden = "offene_stunden";
 
     public static readonly (string Id, string Name, string Beschreibung)[] Alle =
     {
         (Nachrichten, "Nachrichten zum Tag", "Nachrichten zum Tag pflegen und Mitteilungen an alle Benutzer senden (wie die Schulleitung)."),
         (Schuelerverwaltung, "Schülerverwaltung", "Schüler*innen aller Klassen anlegen, bearbeiten und löschen (nur Kollegium)."),
+        (KlassenbuchAlle, "Klassenbuch – alle", "Klassenbuch aller Lehrkräfte einsehen, z. B. die offenen Stunden aller Lehrkräfte (nur Kollegium)."),
+        (OffeneStunden, "Offene Stunden", "Offene Stunden aller Lehrkräfte kontrollieren und Lehrkräfte daran erinnern (nur Kollegium)."),
     };
 
     /// <summary>Bekannte Rechte aus einer Liste bzw. kommagetrennten Angabe (unbekannte werden ignoriert).</summary>

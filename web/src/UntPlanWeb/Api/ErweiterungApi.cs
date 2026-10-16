@@ -153,7 +153,7 @@ public static class ErweiterungApi
             {
                 von = Plandienst.Iso(v), bis = Plandienst.Iso(bi > uhr.Heute ? uhr.Heute : bi), gesamt = alle.Count,
                 offen = alle.Count(z => !z.Geprueft || !z.Lehrstoff), zeilen = alle,
-                lehrer = b.Rolle is Rollen.Admin or Rollen.Leitung ? wahl.ToList() : b.LehrerKuerzel is string l ? new List<string> { l } : new List<string>(),
+                lehrer = OffeneStunden.DarfAlle(b) ? wahl.ToList() : b.LehrerKuerzel is string l ? new List<string> { l } : new List<string>(),
             });
         });
 

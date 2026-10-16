@@ -68,8 +68,9 @@ public sealed class Klassenbuchverwaltung
     // ------------------------------------------------------------------------------------------ Offene Stunden
 
     /// <summary>
-    /// Gehaltene Stunden im Zeitraum (bis jetzt) der gewählten Lehrkräfte. Lehrkräfte sehen nur ihre eigenen Stunden;
-    /// Schulleitung und Administration alle (ohne Auswahl: alle Lehrkräfte).
+    /// Gehaltene Stunden im Zeitraum (bis jetzt) der gewählten Lehrkräfte. Lehrkräfte sehen nur ihre eigenen Stunden, Klassenleitungen
+    /// mit Klassenfilter alle Stunden ihrer Klasse; Schulleitung, Administration und Konten mit „Klassenbuch – alle“ bzw. „Offene Stunden“
+    /// alle (ohne Auswahl: alle Lehrkräfte).
     /// </summary>
     public List<Stundenzeile> Stunden(Stand s, Benutzer b, DateOnly von, DateOnly bis, IEnumerable<string> lehrerWahl, string? klasse)
     {
@@ -77,7 +78,8 @@ public sealed class Klassenbuchverwaltung
         var jetzt = _uhr.Jetzt.ToString("HH:mm");
         if (bis > heute) bis = heute;
         if (bis.DayNumber - von.DayNumber > 366) von = bis.AddDays(-366);
-        var lehrer = b.Rolle is Rollen.Admin or Rollen.Leitung
+        var alle = OffeneStunden.DarfAlle(b) || (klasse is not null && Klassenbuchdienst.IstKlassenleitung(b, s, klasse));
+        var lehrer = alle
             ? (lehrerWahl.Any() ? lehrerWahl.Where(l => s.Lehrer.ContainsKey(l)).ToList() : s.Paket.Elemente.Lehrer.Select(l => l.Kurz).ToList())
             : b.LehrerKuerzel is string eigen ? new List<string> { eigen } : new List<string>();
         var eintraege = _kb.Zeitraum(von, bis);
