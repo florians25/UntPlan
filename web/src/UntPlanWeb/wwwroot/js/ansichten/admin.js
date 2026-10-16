@@ -488,7 +488,7 @@ async function ansicht(ziel, kontext) {
 async function schriften(box) {
   const liste = await holen('/api/app/admin/schriften');
   const schnitt = x => `${({ 200: 'Ultra Light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Demi', 700: 'Bold', 800: 'Heavy' })[x.gewicht] ?? x.gewicht}${x.kursiv ? ' Italic' : ''}`;
-  box.innerHTML = `<p class="small text-body-secondary">Die Oberfläche verwendet die Schrift <b>AvenirNextPro</b>, sobald die Schriftdateien hier hochgeladen sind (.otf, .ttf, .woff oder .woff2, Schnitt aus dem Dateinamen, z. B. „…-Regular“, „…-Medium“, „…-Demi“, „…-Bold“).
+  box.innerHTML = `<p class="small text-body-secondary">Die Oberfläche verwendet die Schrift <b>AvenirNextPro</b>, sobald die Schriftdateien hier hochgeladen sind (.otf, .ttf, .woff oder .woff2, Schnitt aus dem Dateinamen, z. B. „…-Regular“, „…-Medium“). Verwendet werden nur Regular und Medium; Demi/Bold nur ersatzweise, wenn Medium fehlt.
       Die Dateien werden nicht mit UntPlanWeb ausgeliefert – bitte nur Schriften mit gültiger Web-Lizenz verwenden. Ohne Dateien gilt die freie Ersatzschrift Nunito Sans.</p>
     ${liste.length ? `<table class="table table-sm align-middle"><thead><tr><th>Datei</th><th>Schnitt</th><th class="text-end">Größe</th><th></th></tr></thead><tbody>
       ${liste.map(x => `<tr><td>${e(x.datei)}</td><td style="font-family:AvenirNextPro;font-weight:${x.cssGewicht ?? x.gewicht};font-style:${x.kursiv ? 'italic' : 'normal'}">${schnitt(x)}</td><td class="text-end small">${Math.round(x.groesse / 1024)} KB</td>

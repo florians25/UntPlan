@@ -12,7 +12,8 @@ namespace UntPlanMobile.Api;
 /// Hausaufgaben → Hausaufgabenliste der Stunde (Text, Fälligkeit, Bemerkung).</item>
 /// <item>Klassenbucheinträge → Vermerke zur Klasse am Tag, Bemerkungen zu Schüler*innen → Vermerke zur Person.</item>
 /// <item>Schüler*innen → Anwesenheit (fehlt / verspätet mit Minuten); jede Änderung speichert die ganze Stunde.</item>
-/// <item>Abwesenheitsgründe und Benachrichtigung bietet die App nicht an.</item>
+/// <item>Abwesenheit bearbeiten: minutengenau von–bis mit Grund, Text und „Erziehungsberechtigte benachrichtigt“
+/// (UntPlanWeb: /klassenbuch/abwesenheit), Abwesenheiten je Schüler*in (action=absences), Gründe aus UntPlanWeb.</item>
 /// </list>
 /// </summary>
 public static class KlassenbuchApi
@@ -72,7 +73,7 @@ public static class KlassenbuchApi
                         // canEdit: eigene Stunde (UntPlanWeb erlaubt das Klassenbuch), online: „Findet online statt“
                         ok = true, canEdit = darf && konto.Kollegium, online, data = inhalte, students = schueler, absentClasses = Array.Empty<string>(),
                         dueHomework = await FaelligAsync(c, web, k), @checked = geprueft,
-                        absent = schueler.Count(s => s["state"]?.GetValue<string>() == "absent"), reasons = Array.Empty<object>(),
+                        absent = schueler.Count(s => s["state"]?.GetValue<string>() == "absent"), reasons = konto.Kollegium ? await GruendeAsync(c, web) : new List<object>(),
                     });
                 }
                 case "load":
@@ -88,8 +89,12 @@ public static class KlassenbuchApi
                     return Results.Json(new { ok = true, @checked = geprueft, absent = schueler.Count(s => s["state"]?.GetValue<string>() == "absent") });
                 }
                 case "reasons":
-                    // Abwesenheitsgründe kennt UntPlanWeb nicht – die Oberfläche bietet dann nur „Ohne Angabe“ an
-                    return Results.Json(new { ok = true, reasons = Array.Empty<object>() });
+                    // Abwesenheitsgründe aus UntPlanWeb (Kürzel → Name); ohne Verbindung nur „Ohne Angabe“
+                    return Results.Json(new { ok = true, reasons = await GruendeAsync(c, web) });
+                case "absences":
+                    return await AbwesenheitenAsync(c, web, k, p.Zahl("student_id") ?? 0);
+                case "absenceDelete":
+                    return await AbwesenheitLoeschenAsync(c, web, k, p);
                 case "remarkTypes":
                     return Results.Json(new { ok = true, types = await ArtenAsync(c, web, k) });
                 case "online":
@@ -327,6 +332,10 @@ public static class KlassenbuchApi
         var fehlzeiten = (aw?["fehlzeiten"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>()
             .GroupBy(f => f["schuelerId"]!.GetValue<int>()).ToDictionary(g => g.Key, g => g.OrderBy(f => f["stunde"]!.GetValue<int>()).First());
         var schueler = (aw?["schueler"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>().ToList();
+        // In einer früheren Stunde desselben Tages abwesend, hier (noch) nicht eingetragen → Hinweis „War in Vorstunde abwesend!“
+        var vorstunde = (aw?["vorstunden"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>()
+            .Where(v => v["schuelerId"] is not null).GroupBy(v => v["schuelerId"]!.GetValue<int>())
+            .ToDictionary(g => g.Key, g => g.Max(v => v["stunde"]?.GetValue<int>() ?? 0));
         var bemerkungen = await BemerkungenAsync(c, web, schueler.Select(s => s["klasse"]?.GetValue<string>() ?? ""), k);
         var dienste = await DiensteAsync(c, web, schueler.Select(s => s["klasse"]?.GetValue<string>() ?? ""), k.Datum);
         var beginn = Beginn(konto, k.Stunde);
@@ -336,7 +345,10 @@ public static class KlassenbuchApi
             fehlzeiten.TryGetValue(id, out var f);
             var art = f?["art"]?.GetValue<string>();
             var minuten = f?["minuten"]?.GetValue<int>() ?? 0;
-            var ankunft = art == "verspaetet" && beginn.Length > 0 ? Kachelbau.Minus(beginn, -minuten) : "";
+            string? Text(string feld) => f?[feld] is JsonValue v && v.GetValueKind() == JsonValueKind.String ? v.GetValue<string>() : null;
+            // Ankunft = Ende des Fehlfensters (minutengenau), sonst Stundenbeginn + Minuten
+            var ankunft = art == "verspaetet" ? (Text("ende") is { Length: > 0 } en ? en : beginn.Length > 0 ? Kachelbau.Minus(beginn, -minuten) : "") : "";
+            var gegangen = art == "vorzeitig" ? Text("beginn") ?? "" : "";
             return new JsonObject
             {
                 ["id"] = id,
@@ -344,16 +356,93 @@ public static class KlassenbuchApi
                 ["name"] = $"{s["name"]?.GetValue<string>()} {s["vorname"]?.GetValue<string>()}".Trim(),
                 ["class"] = s["klasse"]?.GetValue<string>() ?? "",
                 ["duties"] = new JsonArray(dienste.GetValueOrDefault(id, new List<string>()).Select(x => (JsonNode)JsonValue.Create(x)!).ToArray()),
-                ["state"] = art == "fehlt" ? "absent" : art == "verspaetet" ? "late" : "present",
-                ["note"] = f?["bemerkung"]?.GetValue<string>() ?? "",
+                ["state"] = art is "fehlt" or "vorzeitig" ? "absent" : art == "verspaetet" ? "late" : "present",
+                ["note"] = Text("text") ?? f?["bemerkung"]?.GetValue<string>() ?? "",
                 ["arrival"] = ankunft,
-                ["reason"] = "",
+                ["gone"] = gegangen,
+                ["reason"] = Text("grund") ?? "",
+                // Zeitraum der ganzen Abwesenheit (Abwesenheit bearbeiten, minutengenau)
+                ["from_date"] = Text("vonDatum") ?? "", ["from_time"] = Text("vonZeit") ?? "",
+                ["to_date"] = Text("bisDatum") ?? "", ["to_time"] = Text("bisZeit") ?? "",
+                ["seit"] = f is null && vorstunde.ContainsKey(id),
+                ["prevLesson"] = vorstunde.TryGetValue(id, out var vs) ? vs : 0,
                 ["remarks"] = JsonSerializer.SerializeToNode(bemerkungen.GetValueOrDefault(id.ToString(CultureInfo.InvariantCulture)) ?? new List<object>()),
                 ["locked"] = false,
                 ["excused"] = f?["status"]?.GetValue<string>() == "entschuldigt",
             };
         }).OrderBy(s => s["name"]!.GetValue<string>(), StringComparer.Create(new CultureInfo("de-DE"), true)).ToList();
         return (liste, aw?["geprueft"] is JsonValue g && g.GetValueKind() == JsonValueKind.String, null);
+    }
+
+    private static DateTime? Zeitpunkt(string datum, string zeit) =>
+        DateTime.TryParseExact($"{datum.Trim()} {zeit.Trim()}", new[] { "yyyy-MM-dd HH:mm", "yyyy-MM-dd H:mm", "yyyy-MM-dd HH:mm:ss" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var t) ? t : null;
+
+    /// <summary>Abwesenheitsgründe aus UntPlanWeb (Art „abwesenheit“, aktiv) als Kürzel und Name.</summary>
+    private static async Task<List<object>> GruendeAsync(HttpContext c, UntPlanWebVerbindung web)
+    {
+        try
+        {
+            return ((await web.GetAsync(c, "api/app/abwesenheitsgruende?art=abwesenheit"))?.AsArray() ?? new JsonArray()).OfType<JsonObject>()
+                .Where(g => g["aktiv"]?.GetValue<bool>() ?? true)
+                .Select(g => (object)new { code = g["kurz"]?.GetValue<string>() ?? "", name = g["name"]?.GetValue<string>() ?? "" })
+                .ToList();
+        }
+        catch (UntPlanWebFehler) { return new(); }
+    }
+
+    /// <summary>
+    /// Abwesenheiten einer Schülerin / eines Schülers (Ansicht „Abwesenheiten“ aus der Schülerliste): für die Klassenleitung alle Zeiträume
+    /// der letzten Wochen aus UntPlanWeb, sonst die Abwesenheit in dieser Stunde. manage = Zeiträume über den Tag hinaus bearbeitbar.
+    /// </summary>
+    private static async Task<IResult> AbwesenheitenAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k, int sid)
+    {
+        if (sid <= 0) return Fehler("Bitte eine Schülerin bzw. einen Schüler wählen.");
+        var aw = await web.GetAsync(c, $"api/app/klassenbuch/anwesenheit?{Stunde(k)}");
+        var klasse = aw?["schueler"]?.AsArray().FirstOrDefault(s => s?["id"]?.GetValue<int>() == sid)?["klasse"]?.GetValue<string>() ?? k.Klasse;
+        var verwalten = aw?["verwalten"]?.GetValue<bool>() ?? false;
+        var gruende = (await GruendeAsync(c, web)).Select(g => JsonSerializer.SerializeToNode(g)!).ToDictionary(g => g["code"]!.GetValue<string>(), g => g["name"]!.GetValue<string>(), StringComparer.OrdinalIgnoreCase);
+        string Name(string g) => gruende.GetValueOrDefault(g, g);
+        string S(JsonNode? n, string feld) => n?[feld] is JsonValue v && v.GetValueKind() == JsonValueKind.String ? v.GetValue<string>() : "";
+        var liste = new List<object>();
+        if (verwalten)
+        {
+            try
+            {
+                var zr = await web.GetAsync(c, $"api/app/abwesenheiten/zeitraeume?klasse={Uri.EscapeDataString(klasse)}&von={Iso(k.Datum.AddDays(-120))}&bis={Iso(k.Datum.AddDays(60))}");
+                foreach (var z in (zr?.AsArray() ?? new JsonArray()).OfType<JsonObject>().Where(z => z["schuelerId"]?.GetValue<int>() == sid))
+                    liste.Add(new
+                    {
+                        key = S(z, "schluessel"), fromDate = S(z, "vonDatum"), fromTime = S(z, "vonZeit"), toDate = S(z, "bisDatum"), toTime = S(z, "bisZeit"),
+                        reason = S(z, "grund"), reasonName = Name(S(z, "grund")), text = S(z, "text"), status = S(z, "status"), art = S(z, "art"),
+                        notified = z["elternInformiert"]?.GetValue<bool>() ?? false,
+                        ids = z["ids"]?.AsArray().Select(i => i!.GetValue<int>()).ToList() ?? new List<int>(),
+                        current = (z["ids"]?.AsArray() ?? new JsonArray()).Any(i => (aw?["fehlzeiten"]?.AsArray() ?? new JsonArray()).Any(f => f?["id"]?.GetValue<int>() == i?.GetValue<int>())),
+                    });
+            }
+            catch (UntPlanWebFehler) { verwalten = false; }
+        }
+        if (!verwalten)
+            foreach (var f in (aw?["fehlzeiten"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>().Where(f => f["schuelerId"]?.GetValue<int>() == sid))
+                liste.Add(new
+                {
+                    key = $"{sid}:{f["id"]}", fromDate = S(f, "vonDatum"), fromTime = S(f, "vonZeit"), toDate = S(f, "bisDatum"), toTime = S(f, "bisZeit"),
+                    reason = S(f, "grund"), reasonName = Name(S(f, "grund")), text = S(f, "text"), status = S(f, "status"), art = S(f, "art"),
+                    notified = false, ids = new List<int>(), current = true,
+                });
+        return Results.Json(new { ok = true, manage = verwalten, items = liste });
+    }
+
+    /// <summary>Abwesenheit löschen: in dieser Stunde (Lehrkraft) bzw. die angegebenen Fehlzeiten (Klassenleitung).</summary>
+    private static async Task<IResult> AbwesenheitLoeschenAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k, Parameter p)
+    {
+        var sid = p.Zahl("student_id") ?? 0;
+        var ids = p["ids"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => int.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : 0).Where(i => i > 0).Distinct().ToList();
+        if (ids.Count > 0 && p["current"] != "1")
+            foreach (var id in ids) await web.DeleteAsync(c, $"api/app/klassenbuch/fehlzeiten/{id}");
+        else
+            await web.PostAsync(c, "api/app/klassenbuch/abwesenheit/loeschen", new { datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht, schuelerIds = new[] { sid } });
+        return Results.Json(new { ok = true });
     }
 
     /// <summary>Klassendienste (z. B. Klassensprecher*in) am Tag der Stunde, je Schüler-ID – Zusatz in der Schülerliste.</summary>
@@ -390,6 +479,21 @@ public static class KlassenbuchApi
     private static async Task<IResult> AnwesenheitAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k, Parameter p)
     {
         var sid = p.Zahl("student_id") ?? 0;
+        // Abwesenheit bearbeiten: Zeitraum von–bis (minutengenau) mit Grund, Text und Benachrichtigung
+        if (p["state"] is "absent" or "late" && Zeitpunkt(p["from_date"], p["from_time"]) is DateTime von && Zeitpunkt(p["to_date"], p["to_time"]) is DateTime bis)
+        {
+            if (bis <= von) return Fehler("Das Ende der Abwesenheit muss nach dem Beginn liegen.");
+            var ersetzen = p["replace"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => int.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : 0).Where(i => i > 0).ToList();
+            await web.PostAsync(c, "api/app/klassenbuch/abwesenheit", new
+            {
+                schuelerIds = new[] { sid }, von, bis, grund = p["reason"].Trim(), text = p["note"].Trim(),
+                datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht,
+                ersetzen = ersetzen.Count > 0 ? ersetzen : null,
+                elternInformiert = p["notified"] is "1" or "true" ? true : p["notified"] is "0" or "false" ? false : (bool?)null,
+            });
+            return Results.Json(new { ok = true, @checked = true });
+        }
         var aw = await web.GetAsync(c, $"api/app/klassenbuch/anwesenheit?{Stunde(k)}");
         var eintraege = Eintraege(aw).Where(e => e.SchuelerId != sid).ToList();
         var bemerkung = p["note"].Trim();

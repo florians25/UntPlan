@@ -48,8 +48,8 @@ function htmlBereinigt(n) {
 }
 
 /** Werte (Klassen, Lehrkräfte, Räume) wie auf den Plankarten: geänderter Wert als grünes Label, offene Vertretung durchgestrichen im Label. */
-const wert = (l, entfall = false, max = 4) => {
-  const teile = (l || []).map(w => entfall ? e(w.alt || w.k) : lehrkraftLabel(w)).filter(Boolean);
+const wert = (l, entfall = false, max = 4, trenn = '→') => {
+  const teile = (l || []).map(w => entfall ? e(w.alt || w.k) : lehrkraftLabel(w, undefined, trenn)).filter(Boolean);
   return teile.length > max ? `${teile.slice(0, max - 1).join(', ')} <span class="nl-unter" data-hover="${e((l || []).map(w => w.k || w.alt).join(', '))}" data-hover-art="dunkel">+${teile.length - max + 1}</span>` : teile.join(', ');
 };
 const istEntfall = s => s.status === 'entfall';
@@ -91,7 +91,7 @@ export async function zeigen(seite, kontext) {
     const entfall = istEntfall(s);
     const info = [s.text && s.fach ? `Vertretungstext: ${s.text}` : '', s.notizLehrer ? `Notizen für Lehrkräfte: ${s.notizLehrer}` : '', s.notizSchueler ? `Notizen für Schüler*innen: ${s.notizSchueler}` : ''].filter(Boolean).join('\n');
     const mitKb = ich.kollegium && s.unterricht && !entfall && s.status !== 'abwesend';
-    const fach = s.fachAlt && !entfall ? lehrkraftLabel({ k: s.fach, alt: s.fachAlt }) : e(s.fach || s.text || s.art || '–');
+    const fach = s.fachAlt && !entfall ? lehrkraftLabel({ k: s.fach, alt: s.fachAlt }, undefined, '→') : e(s.fach || s.text || s.art || '–');
     const kb = [
       mitKb ? (s.geprueft ? '<span class="nl-chip gruen" data-hover="Abwesenheiten kontrolliert" data-hover-art="dunkel"><i class="bi bi-check2" aria-hidden="true"></i>Anwesenheit</span>'
         : '<span class="nl-chip grau" data-hover="Abwesenheiten noch nicht kontrolliert" data-hover-art="dunkel">Anwesenheit offen</span>') : '',
@@ -106,7 +106,7 @@ export async function zeigen(seite, kontext) {
       <td class="hu-fach"><span class="hu-balken" style="${/^#[0-9a-f]{6}$/i.test(s.farbe || '') ? `--fach:${s.farbe}` : ''}"></span><span class="hu-wert">${fach}</span>${s.fachName && s.fachName !== s.fach && !entfall ? `<span class="nl-unter">${e(s.fachName)}</span>` : ''}</td>
       <td class="hu-wert">${wert(s.klassen, entfall) || '–'}</td>
       <td class="hu-wert">${wert(s.raeume, entfall) || '–'}</td>
-      ${mitLehrkraft ? `<td class="hu-wert">${wert(s.lehrer, entfall) || '–'}</td>` : ''}
+      ${mitLehrkraft ? `<td class="hu-wert">${wert(s.lehrer, entfall, 4, '|') || '–'}</td>` : ''}
       <td><span class="nl-chips">${statusLabels(s)}</span></td>
       ${ich.kollegium ? `<td><span class="nl-chips hu-kb">${kb}</span></td>` : ''}
       <td class="hu-info">${info ? `<i class="bi bi-info-circle" data-hover="${e(info)}" data-hover-art="dunkel" aria-label="Info"></i>` : ''}</td></tr>`;

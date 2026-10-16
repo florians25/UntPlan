@@ -103,8 +103,7 @@ public static partial class SchriftApi
                 var jeSchnitt = stil.GroupBy(d => Schnitt(d).Gewicht).ToDictionary(g => g.Key, g => string.Join(", ", g
                     .OrderBy(d => Format(d) switch { "woff2" => 0, "woff" => 1, _ => 2 })
                     .Select(d => $"url(\"/schriften/{Uri.EscapeDataString(d)}\") format(\"{Format(d)}\")")));
-                var zuordnung = Zuordnung(jeSchnitt.Keys);
-                foreach (var (css, schnitt) in zuordnung)
+                foreach (var (css, schnitt) in Zuordnung(jeSchnitt.Keys))
                     sb.Append($"@font-face {{ font-family: \"{Familie}\"; font-weight: {css}; font-style: {(stil.Key ? "italic" : "normal")}; font-display: swap; src: {jeSchnitt[schnitt]}; }}\n");
             }
             if (dateien.Count > 0)

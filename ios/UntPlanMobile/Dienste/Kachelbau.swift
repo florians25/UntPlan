@@ -336,7 +336,8 @@ enum Kachelbau {
             kachel.feld = true
             kachel.titel = k.text.isEmpty ? k.art : k.text
             kachel.zeilen = veranstaltungsZeilen(k, typ: typ, ich: ich, anlass: kachel.titel)
-            kachel.info = false
+            // Infotext der Veranstaltung (in den Details als Zeile „Information“): Info-Zeichen unten rechts
+            kachel.info = !veranstaltungsInfo(k).isEmpty
             kachel.rang = 2
             return kachel.zeilen.isEmpty ? nil : kachel
         }
@@ -449,6 +450,16 @@ enum Kachelbau {
         return kachel
     }
 
+    /// Infotext einer Veranstaltung: Text bzw. Art und Notizen (ohne Doppelte).
+    static func veranstaltungsInfo(_ k: Karte) -> String {
+        var teile: [String] = []
+        for t in [k.text.isEmpty ? k.art : k.text, k.notizSchueler, k.notizLehrer] {
+            let w = t.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !w.isEmpty && !teile.contains(where: { gleich($0, w) }) { teile.append(w) }
+        }
+        return teile.joined(separator: "\n")
+    }
+
     private static func istEntfaelltText(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return t == "entfällt" || t == "entfällt." || t == "entfaellt" || t == "entfaellt."
@@ -558,7 +569,12 @@ enum Kachelbau {
                     let vertreten = teile.filter { $0.stil == .weg }.map { $0.text }
                     teile.removeAll { t in t.stil == .offen && vertreten.contains { gleich($0, t.text) } }
                     if teile.count > 1 {
-                        for j in teile.indices { teile[j].trenner = j < teile.count - 1 ? ", " : "" }
+                        // Abwesende und vertretende Lehrkraft durch „|“ getrennt (z. B. „LAN | ILK“), sonst Komma
+                        for j in teile.indices {
+                            guard j < teile.count - 1 else { teile[j].trenner = ""; continue }
+                            let paar = teile[j].stil == .weg && teile[j + 1].stil == .plakette
+                            teile[j].trenner = paar ? "\u{2009}|\u{2009}" : ", "
+                        }
                         zeile.teile = teile
                         hatListe = true
                         koppliste = true

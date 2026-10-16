@@ -102,7 +102,7 @@ a:hover { text-decoration: underline; }
 .text-body-secondary { color: var(--u-grau) !important; }
 .text-body-tertiary { color: var(--u-grau-2) !important; }
 .alt { text-decoration: line-through; color: var(--u-grau); margin-right: .25rem; }
-.logo { width: 32px; height: 32px; flex: none; }
+.logo { width: 32px; height: 32px; flex: none; color: #8a96a1; }
 .zaehler { font-size: .7rem; }
 .fw-semibold { font-weight: 600 !important; }
 .small, small { font-size: .8125rem; }
@@ -358,7 +358,9 @@ tr[role=button] { cursor: pointer; }
 
 /* Weiße Leiste oben (Klassenbuch): Suche mit Auswahl-Chips, Bereich, Zeitraum-Pille */
 /* obere Werkzeugleiste (Suche, Filter) bleibt beim Scrollen sichtbar */
-.u-werkzeug { position: sticky; top: 0; z-index: 25; box-shadow: 0 6px 10px -10px rgba(0, 5, 10, .35); }
+.u-werkzeug { position: sticky; top: 0; z-index: 25; box-shadow: none; transition: box-shadow .15s ease; }
+/* Schatten oben nur, wenn nach unten gescrollt ist (app.js setzt body.gescrollt) */
+body.gescrollt .u-werkzeug { box-shadow: 0 6px 10px -10px rgba(0, 5, 10, .35); }
 @media (max-width: 991.98px) { .u-werkzeug { top: var(--u-kopf); } }
 .u-werkzeug { background: #fff; border-bottom: 1px solid #e5e8ec; min-height: 82px; display: flex; align-items: center; gap: 16px; padding: 0 32px 0 96px; flex-wrap: wrap; }
 .u-suche { display: flex; align-items: center; gap: 8px; background: #f3f5f7; border-radius: 999px; height: 42px; padding: 0 8px 0 14px; min-width: 300px; flex: 0 1 480px; }
@@ -853,7 +855,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 
 .monitor { background: #0f1c26; color: #e7edf1; min-height: 100vh; padding: 1.5rem 0; font-size: 1.15rem; }
 .monitor-kopf { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
-.monitor-kopf .logo { width: 48px; height: 48px; }
+.monitor-kopf .logo { width: 48px; height: 48px; color: #c3ccd3; }
 .monitor-kopf h1 { font-size: 1.8rem; margin: 0; font-weight: 600; color: #fff; }
 .monitor-kopf .uhr { margin-left: auto; font-size: 2.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .monitor .card { background: #16283a; --bs-card-bg: #16283a; --bs-card-border-color: #24394d; --bs-card-cap-bg: #1b3046; color: #e7edf1; box-shadow: none; }
@@ -895,8 +897,9 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 @media (max-width: 991.98px) {
   .u-kopfleiste {
     display: flex; align-items: center; gap: .6rem; position: sticky; top: 0; z-index: 1030; height: var(--u-kopf); padding: 0 .75rem;
-    background: #fff; box-shadow: 0 1px 0 var(--u-linie), 0 2px 8px rgba(36, 50, 61, .05);
+    background: #fff; box-shadow: none; transition: box-shadow .15s ease;
   }
+  body.gescrollt .u-kopfleiste { box-shadow: 0 1px 0 var(--u-linie), 0 2px 8px rgba(36, 50, 61, .05); }
   .u-kopfleiste .logo { width: 30px; height: 30px; }
   .u-kopfleiste b { font-size: 1.05rem; color: var(--u-titel); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .u-kopfleiste .rundknopf { width: 40px; height: 40px; color: var(--u-text); }
@@ -1022,22 +1025,38 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .wahl-info:hover::after, .wahl-knopf:focus-visible .wahl-info::after { display: block; }
 .wahl-info:hover img { opacity: 1; }
 
-/* Kalender wie 57.png: KW-Spalte, gestrichene Wochenenden, gewählte Woche rosa */
-.u-kalender { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 60; background: #fff; border-radius: 4px; padding: 18px 16px 12px; width: 360px;
-  box-shadow: 0 4px 12px rgba(0, 5, 10, .12), 0 16px 40px rgba(0, 5, 10, .16); }
-.kal-kopf { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 14px; color: var(--u-titel); font-size: 15px; }
-.kal-kopf button { border: 0; background: none; color: var(--u-grau); width: 30px; height: 30px; border-radius: 50%; }
-.kal-kopf button:hover { background: var(--u-hover); }
-.kal { width: 100%; border-collapse: collapse; text-align: center; font-size: 14px; }
-.kal th { font-weight: 600; color: var(--u-titel); padding: 4px 0 10px; }
+/* Auswahlkalender wie im Original: Popover mit Schatten und kleinem Pfeil unter dem Datumsbereich-Pill, Kopf „Nov 2026“ + ‹ ›,
+   KW-Spalte grau, Wochenende grau durchgestrichen, andere Monate grau, gewählte Woche rosa Zeile, Zeile beim Überfahren hellgrau abgerundet */
+.zeitraum.kal-pille, .planleiste .zeitraum.kal-pille { display: inline-flex; align-items: center; height: 32px; padding: 0 16px; border: 1px solid #67747e; border-radius: 999px;
+  background: transparent; color: var(--u-titel); font-size: .875rem; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; cursor: pointer; }
+.zeitraum.kal-pille:hover, .zeitraum.kal-pille[aria-expanded="true"] { border-color: var(--u-text); background: rgba(255, 255, 255, .55); }
+.zeitraum.kal-pille:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.u-kalender { position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 60; background: #fff; border-radius: 4px; padding: 14px 16px 12px; width: 360px;
+  box-shadow: 0 2px 6px rgba(0, 5, 10, .08), 0 10px 30px rgba(0, 5, 10, .16); cursor: default; }
+.u-kalender::before { content: ""; position: absolute; top: -6px; left: 50%; width: 12px; height: 12px; margin-left: -6px; background: #fff; transform: rotate(45deg);
+  border-radius: 2px 0 0 0; box-shadow: -2px -2px 4px rgba(0, 5, 10, .05); }
+.kal-kopf { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 12px 8px; color: #24323d; font-size: 15px; }
+.kal-kopf b { font-weight: 600; }
+.kal-kopf span { display: flex; gap: 4px; }
+.kal-kopf button { border: 0; background: none; color: #8a96a1; width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-content: center; font-size: 15px; }
+.kal-kopf button:hover { background: #f1f3f5; color: var(--u-text); }
+.kal { width: 100%; border-collapse: separate; border-spacing: 0; text-align: center; font-size: 14px; }
+.kal th { font-weight: 400; color: #414d55; padding: 4px 0 10px; font-size: 14px; }
 .kal td { padding: 0; height: 32px; }
-.kal td.kw { color: var(--u-grau-3); font-size: 13.5px; }
-.kal button { border: 0; background: none; width: 36px; height: 30px; color: var(--u-titel); font-size: 14px; border-radius: 3px; }
-.kal button:hover { background: var(--u-hover); }
-.kal button.fremd { color: var(--u-grau-3); }
-.kal button.we { color: var(--u-grau-3); text-decoration: line-through; }
-.kal button.heute { font-weight: 600; }
-.kal tr.gewaehlt td { background: #fde6e2; }
+.kal td.kw { color: #b3bcc4; font-size: 13.5px; width: 40px; }
+.kal button { border: 0; background: none; width: 36px; height: 30px; padding: 0; color: #414d55; font-size: 14px; border-radius: 15px; }
+.kal button.fremd { color: #b3bcc4; }
+.kal button.we { color: #b3bcc4; text-decoration: line-through; text-decoration-thickness: 1px; }
+.kal button.ist-heute { font-weight: 600; color: var(--u-titel); }
+.kal button.fremd.ist-heute, .kal button.we.ist-heute { color: #8a96a1; }
+.kal.wochenwahl tbody tr { cursor: pointer; }
+.kal.wochenwahl tbody tr:hover td { background: #f1f2f4; }
+.kal.wochenwahl tbody tr:hover td:first-child { border-radius: 16px 0 0 16px; }
+.kal.wochenwahl tbody tr:hover td:last-child { border-radius: 0 16px 16px 0; }
+.kal.wochenwahl tbody tr.gewaehlt td, .kal.wochenwahl tbody tr.gewaehlt:hover td { background: #fde4dc; border-radius: 0; }
+.kal.wochenwahl button:hover { background: none; }
+.kal.tageswahl button:hover { background: #f1f2f4; }
+.kal.tageswahl button.gewaehlt { background: #fde4dc; color: var(--u-titel); }
 
 /* Stundenkarten: weiß, leicht abgerundet, keine Hover-Reaktion; Uhrzeiten klein links wie 57.png */
 .std, .tagplan .std, .tt-liste .std { border-radius: 4px; }
@@ -1146,6 +1165,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
   .sd-fuss, .sd-fuss.sd-status { padding: 10px 16px; gap: 1rem; font-size: .95rem; }
   .kb-formular { grid-template-columns: 1fr; }
   .u-kalender { left: 0; transform: none; width: min(360px, calc(100vw - 2rem)); }
+  .u-kalender::before { display: none; }
   .u-nav-punkt.aktiv, .u-nav-punkt:hover { width: 100%; }
 }
 
@@ -1706,8 +1726,26 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .ab-hinweis { flex-basis: 100%; font-size: .75rem; color: #8a96a1; }
 .ab-knoepfe { justify-content: flex-end; border-top: 1px solid #e3e7eb; padding-top: 14px; }
 @media (max-width: 560px) { .ab-formular { grid-template-columns: 1fr; gap: 6px; } }
-.fz-eingebettet { background: #fbfcfd; }
-.fz-eingebettet thead th { background: #f1f3f5; }
+/* Fehlzeiten aufgeklappt: Untertabelle je Schüler*in leicht eingerückt auf hellgrauer Fläche, feine Linien, klare Chevrons */
+.fz-tabelle tr.fz-stunde > td { padding: 0 16px 14px 56px !important; background: #f7f9fa; border-bottom: 1px solid #e3e7eb; }
+.fz-unter { background: #fff; border: 1px solid #e3e7eb; border-radius: 6px; overflow: hidden; }
+.fz-eingebettet { background: #fff; font-size: .8125rem; }
+.fz-eingebettet thead th { background: #f1f3f5; color: #57626b; font-size: .72rem; padding: 9px 12px; border-bottom: 1px solid #e3e7eb; }
+.fz-eingebettet td { padding: 8px 12px; border-bottom: 1px solid #eef0f2; }
+.fz-eingebettet tbody tr:last-child td { border-bottom: 0; }
+.fz-eingebettet tbody tr:hover td { background: #f9fafb; }
+.fz-eingebettet .nl-wahl { width: 40px; padding-left: 12px !important; padding-right: 0 !important; }
+.fz-eingebettet .nl-rund { width: 18px; height: 18px; }
+.fz-eingebettet .fz-zeit { color: #8a96a1; }
+.fz-eingebettet .fz-datum { margin-left: 2px; }
+.fz-eingebettet .fz-kaestchen { width: 16px; height: 16px; }
+.fz-eingebettet .nl-icon { width: 28px; height: 28px; }
+.fz-auf { display: inline-grid; place-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: none; color: #67747e; font-size: .95rem; line-height: 1; }
+.fz-auf .bi { transition: transform .15s ease; }
+.fz-auf[aria-expanded="true"] .bi { transform: rotate(180deg); }
+.fz-schueler:hover .fz-auf, .fz-auf:focus-visible { background: #e9ecef; color: var(--u-text); }
+.fz-tabelle tr.fz-schueler.auf td { background: #f7f9fa; border-bottom: 0; }
+@media (max-width: 767.98px) { .fz-tabelle tr.fz-stunde > td { padding: 0 8px 10px 8px !important; } .fz-unter { overflow-x: auto; } }
 
 /* Karte: Stunde findet online statt */
 .ecke .ecke-online { display: inline-block; padding: 0 4px; border-radius: 2px; background: var(--u-gruen-label); color: #fff; font-size: 10.5px; font-weight: 600; line-height: 14px; margin-right: 3px; vertical-align: middle; }
@@ -1718,6 +1756,8 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .v-lbl.weg { text-decoration: line-through; text-decoration-thickness: 1px; }
 .v-lbl a, .v-lbl a:hover, .sd-zeile .v-lbl .sd-link, .sd-zeile .v-lbl .sd-link:hover { color: #fff !important; text-decoration: inherit; }
 .v-alt { color: #8a96a1; text-decoration-thickness: .75px; }
+.v-trenn { color: #b8c1c9; margin-right: .1rem; }
+.monitor .v-trenn { color: #7f97a8; margin-right: .25rem; }
 .v-lbl, .v-lbl:hover, tr:hover .v-lbl, a:hover .v-lbl, .nl-chip, .nl-chip:hover, tr:hover .nl-chip { filter: none !important; opacity: 1; }
 
 /* Startseite „Mein nächster Unterricht“ im neuen Listen-Design */
@@ -1888,8 +1928,14 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .ub-bald { color: var(--u-akzent-dunkel) !important; font-weight: 600; }
 @media (max-width: 700px) { .ub-zeit, .ub-tag { min-width: 54px; } }
 @media (max-width: 575.98px) { .ic-panel { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); } }
-/* Stundendetails: Status im Kopf nur als schlichter Text; „Abwesende Schüler*innen“ als Tabelle im neuen Design */
-.sd-status-text { color: var(--u-grau); font-weight: 400; }
+/* Stundendetails wie im Original: bei Entfall Kopf hellgrau, darunter über die volle Breite roter Balken „ENTFÄLLT“;
+   Prüfung/Veranstaltung als dezente graue Kapsel im Kopf; „Abwesende Schüler*innen“ als Tabelle im neuen Design */
+.sd-kopf.grau { background: #dfe2e8; padding-bottom: 16px; }
+.sd-entfall-leiste { background: #f00; color: #fff; font-size: 1rem; font-weight: 500; letter-spacing: .02em; line-height: 22px; padding: 5px 16px; text-align: center; }
+.sd-kopf.grau + .sd-entfall-leiste + .sd-reiter { margin-top: 2px; }
+.sd-statuspille { display: inline-block; margin-left: .75rem; padding: 1px 10px; border-radius: 999px; background: #e6e9ed; color: #4a5662; font-size: .8125rem; font-weight: 400; line-height: 20px; vertical-align: 1px; }
+.sd-kopf.grau .sd-statuspille { background: #fff; }
+.sd-strich { color: #b8c1c9; margin: 0 .2rem; }
 .nl-tabelle.sd-abw { border-radius: 6px; font-size: .875rem; overflow-x: auto; }
 .sd-abw thead th { background: #f3f5f7; padding: 10px 12px; font-size: .82rem; font-weight: 600; color: #414d55; }
 .sd-abw td { padding: 8px 12px; background: #fff; }

@@ -4,9 +4,10 @@ import { e, icon, holen, heuteIso, plusTage, datumLang, lade } from '../ui.js';
 const CHIP = { entfall: 'rot', offen: 'rot', klausur: 'gelb', geaendert: 'gruen' };
 const alt = w => w ? `<span class="alt">${e(w)}</span>` : '';
 /** Wert wie auf der Karte: alter Wert durchgestrichen, neuer als grüne Plakette; ohne Ersatz (z. B. Vertretung ohne Lehrkraft) der alte Wert durchgestrichen in der Plakette. */
-const wert = (alter, neuer, status, ohneErsatz = false) => status === 'entfall' ? `${alt(alter)}${e(neuer)}`
+/** Zwischen altem und neuem Wert: bei Lehrkräften „LAN | ILK“, bei Raum und Fach „B125 → A300“. */
+const wert = (alter, neuer, status, ohneErsatz = false, trenn = '→') => status === 'entfall' ? `${alt(alter)}${e(neuer)}`
   : alter && !neuer ? (ohneErsatz ? `<span class="lbl-neu weg">${e(alter)}</span>` : alt(alter))
-  : alter ? `${alt(alter)}<span class="lbl-neu">${e(neuer)}</span>` : e(neuer);
+  : alter ? `${alt(alter)}<span class="v-trenn">${trenn}</span> <span class="lbl-neu">${e(neuer)}</span>` : e(neuer);
 
 export function tagHtml(t, kollegium) {
   const infos = [
@@ -27,7 +28,7 @@ export function tagHtml(t, kollegium) {
           ${t.zeilen.map(z => `<tr class="vt-zeile ${e(z.status)}" data-klassen="${e(z.klassen.toLowerCase())}">
             <td class="fw-semibold">${e(z.klassen)}</td><td>${e(z.stunde)}</td>
             <td>${wert(z.fachAlt, z.fach, z.status)}</td>
-            <td class="vt-lehrer">${z.status === 'offen' ? `${alt(z.lehrerAlt)}???` : wert(z.lehrerAlt, z.lehrer, z.status, z.ohneLehrer)}</td>
+            <td class="vt-lehrer">${z.status === 'offen' ? `${alt(z.lehrerAlt)}???` : wert(z.lehrerAlt, z.lehrer, z.status, z.ohneLehrer, '|')}</td>
             <td>${wert(z.raumAlt, z.raum, z.status)}</td>
             <td><span class="u-chip ${CHIP[z.status] ?? ''}">${e(z.art)}</span></td>
             <td class="small">${e(z.text)}${z.vertrVon ? `<div class="text-body-secondary">Vertr. von ${e(z.vertrVon)}</div>` : ''}${z.nach ? `<div class="text-body-secondary">verlegt nach ${e(z.nach)}</div>` : ''}</td></tr>`).join('')}

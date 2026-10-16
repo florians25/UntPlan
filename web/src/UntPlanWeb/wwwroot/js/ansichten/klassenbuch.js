@@ -118,14 +118,21 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     }).filter(x => (f.zeilen ?? []).some(z => z.schuelerId === x.id)).sort((a, b) => b.stunden - a.stunden || a.name.localeCompare(b.name, 'de'));
     // Fehlzeiten je Unterrichtsstunde (Datum, Zeit, Fach, Lehrkraft, Fehltage, Fehlstd., Fehlmin., zählt, Grund, Status, Text) wie in der Fehlzeitenliste
     const grundName = g => f.gruende?.[g] ?? g;
+    // Untertabelle wie die Fehlzeitenliste im Original: leicht eingerückt auf hellgrauer Fläche, feine Linien, Wochentag grau vor dem Datum;
+    // Abwesenheitsgrund und Text nur, wenn mindestens eine Stunde sie enthält
+    const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const wtKurz = iso => WT[new Date(`${iso}T12:00:00`).getDay()] ?? '';
     const stundenTabelle = sid => {
       const zl = (f.zeilen ?? []).filter(z => z.schuelerId === sid);
-      return `<table class="fz-tabelle-neu fz-eingebettet"><thead><tr>${f.verwalten ? '<th class="nl-wahl"></th>' : ''}<th>Datum</th><th>Zeit</th><th>Fach</th><th>Lehrkraft</th><th class="zahl">Fehltage</th><th class="zahl">Fehlstd.</th><th class="zahl">Fehlmin.</th><th class="mitte">zählt</th><th>Abwesenheitsgrund</th><th>Status</th><th>Text</th><th></th></tr></thead><tbody>
+      const mitGrund = zl.some(z => z.grund);
+      const zusatz = y => `${nachweis(y)}${y.elternInformiert ? ' <span class="nl-tag"><i class="bi bi-telephone me-1"></i>Eltern</span>' : ''}${y.notizIntern ? ` <span class="nl-tag" title="${e(y.notizIntern)}"><i class="bi bi-lock me-1"></i>Notiz</span>` : ''}`;
+      const mitText = zl.some(z => z.text || zusatz(f.eintraege.find(q => q.id === z.id) ?? {}));
+      return `<div class="fz-unter"><table class="fz-tabelle-neu fz-eingebettet"><thead><tr>${f.verwalten ? '<th class="nl-wahl"></th>' : ''}<th>Datum</th><th>Zeit</th><th>Fach</th><th>Lehrkraft</th><th class="zahl">Fehlstd.</th><th class="zahl">Fehlmin.</th><th class="mitte">zählt</th>${mitGrund ? '<th>Abwesenheitsgrund</th>' : ''}<th>Status</th>${mitText ? '<th>Text</th>' : ''}<th></th></tr></thead><tbody>
         ${zl.map(z => { const y = f.eintraege.find(q => q.id === z.id) ?? {}; return `<tr>${f.verwalten ? `<td class="nl-wahl"><input type="checkbox" class="nl-rund" data-id="${z.id}" data-von-s="${sid}" aria-label="auswählen"></td>` : ''}
-          <td class="text-nowrap">${e(datumKurz(z.datum))}</td><td class="text-nowrap">${e(z.beginn)} - ${e(z.ende)}${z.abwesendVon !== z.beginn || z.abwesendBis !== z.ende ? `<div class="fz-klein">abwesend ${e(z.abwesendVon)}–${e(z.abwesendBis)}</div>` : ''}</td>
-          <td>${e(z.fach)}</td><td>${e(z.lehrer)}</td><td class="zahl">${z.fehltage}</td><td class="zahl">${z.fehlstunden}</td><td class="zahl">${z.fehlminuten}</td><td class="mitte">${zaehltKaestchen(z.zaehlt)}</td>
-          <td>${e(grundName(z.grund))}</td><td>${statusLabel(z.status)}</td><td class="fz-text">${e(z.text)} ${nachweis(y)}${y.elternInformiert ? ' <span class="nl-tag"><i class="bi bi-telephone me-1"></i>Eltern</span>' : ''}${y.notizIntern ? ` <span class="nl-tag" title="${e(y.notizIntern)}"><i class="bi bi-lock me-1"></i>Notiz</span>` : ''}</td>
-          <td class="text-end">${f.verwalten ? `<button type="button" class="nl-icon sichtbar" data-bearb="${z.id}" title="Details bearbeiten" aria-label="Details bearbeiten">${icon('stift')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>`;
+          <td class="text-nowrap"><span class="fz-grau">${e(wtKurz(z.datum))}</span> <span class="fz-datum">${e(datumKurz(z.datum))}</span></td><td class="text-nowrap fz-zeit">${e(z.beginn)} - ${e(z.ende)}${z.abwesendVon !== z.beginn || z.abwesendBis !== z.ende ? `<div class="fz-klein">abwesend ${e(z.abwesendVon)}–${e(z.abwesendBis)}</div>` : ''}</td>
+          <td>${e(z.fach)}</td><td>${e(z.lehrer)}</td><td class="zahl">${z.fehlstunden}</td><td class="zahl">${z.fehlminuten}</td><td class="mitte">${zaehltKaestchen(z.zaehlt)}</td>
+          ${mitGrund ? `<td>${e(grundName(z.grund))}</td>` : ''}<td>${statusLabel(z.status)}</td>${mitText ? `<td class="fz-text">${e(z.text)} ${zusatz(y)}</td>` : ''}
+          <td class="text-end">${f.verwalten ? `<button type="button" class="nl-icon sichtbar" data-bearb="${z.id}" title="Details bearbeiten" aria-label="Details bearbeiten">${icon('stift')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`;
     };
     const zahl = (n, kl = '') => n ? `<span class="fz-zahl ${kl}">${n}</span>` : '<span class="fz-null">–</span>';
     const nachweis = y => y.nachweis ? `<span class="nl-tag" title="${e(NACHWEISE[y.nachweis] ?? '')}${y.entschuldigtAm ? ` · eingegangen ${e(datumKurz(y.entschuldigtAm))}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[y.nachweis] ?? y.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '';
@@ -148,8 +155,8 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
               <td><div class="nl-name">${e(x.name)} ${e(x.vorname)}</div>${x.hinweis ? `<div class="nl-unter text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${e(x.hinweis)}</div>` : ''}</td>
               <td class="text-end">${zahl(x.stunden, 'fett')}</td><td class="text-end">${zahl(x.tage)}</td><td class="text-end">${zahl(x.offen, 'gelb')}</td>
               <td class="text-end">${zahl(x.entschuldigt, 'gruen')}</td><td class="text-end">${zahl(x.unentschuldigt, 'rot')}</td>
-              <td class="text-end"><i class="bi bi-chevron-${offen.has(x.id) ? 'up' : 'down'} text-body-secondary"></i></td></tr>
-            ${offen.has(x.id) ? `<tr class="fz-stunde"><td colspan="${f.verwalten ? 9 : 8}" class="p-0">${stundenTabelle(x.id)}</td></tr>` : ''}`).join('')}
+              <td class="text-end"><button type="button" class="fz-auf" aria-expanded="${offen.has(x.id)}" aria-label="${offen.has(x.id) ? 'Fehlstunden zuklappen' : 'Fehlstunden aufklappen'}"><i class="bi bi-chevron-down" aria-hidden="true"></i></button></td></tr>
+            ${offen.has(x.id) ? `<tr class="fz-stunde"><td colspan="${f.verwalten ? 9 : 8}">${stundenTabelle(x.id)}</td></tr>` : ''}`).join('')}
           </tbody></table>
           ${f.verwalten ? `<div class="nl-fuss"><span class="nl-unter me-2">Ausgewählte Fehlstunden:</span><button type="button" class="nl-knopf gruen" data-status="entschuldigt">Entschuldigen</button>
             <button type="button" class="nl-knopf rot" data-status="unentschuldigt">Nicht entschuldigt</button><button type="button" class="nl-knopf" data-status="offen">Offen</button>

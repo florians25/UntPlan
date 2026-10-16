@@ -6,6 +6,8 @@ const token = location.pathname.split('/').filter(Boolean).pop();
 let versatz = 0; // Abweichung der Geräteuhr von der Serveruhr
 
 function alt(w) { return w ? `<span class="alt">${e(w)}</span>` : ''; }
+/** alt → neu (Raum, Fach) bzw. alt | neu (Lehrkraft); ohne neuen Wert nur der alte durchgestrichen. */
+function wechsel(a, n, trenn = '→') { return a && n ? `${alt(a)}<span class="v-trenn">${trenn}</span> ${e(n)}` : `${alt(a)}${e(n)}`; }
 
 function tagHtml(t, lehrer, mitNachrichten = true) {
   const infos = [
@@ -21,8 +23,8 @@ function tagHtml(t, lehrer, mitNachrichten = true) {
     </div>
     <div class="monitor-rollbereich"><div>
     ${t.frei ? `<p class="px-3">${e(t.freiGrund || 'Unterrichtsfrei')}</p>` : !t.zeilen.length ? '<p class="px-3 opacity-75">Keine Vertretungen.</p>' : `<table class="table table-card mb-0"><thead><tr><th>Klasse</th><th>Std.</th><th>Fach</th><th>Lehrkraft</th><th>Raum</th><th>Art</th><th>Text</th></tr></thead><tbody>
-      ${t.zeilen.map(z => `<tr class="${e(z.status)}"><td class="fw-semibold">${e(z.klassen)}</td><td>${e(z.stunde)}</td><td>${alt(z.fachAlt)}${e(z.fach)}</td>
-        <td class="vt-lehrer">${alt(z.lehrerAlt)}${z.status === 'offen' ? '???' : e(z.lehrer)}</td><td>${alt(z.raumAlt)}${e(z.raum)}</td><td>${e(z.art)}</td><td>${e(z.text)}</td></tr>`).join('')}
+      ${t.zeilen.map(z => `<tr class="${e(z.status)}"><td class="fw-semibold">${e(z.klassen)}</td><td>${e(z.stunde)}</td><td>${z.status === 'entfall' ? alt(z.fachAlt) + e(z.fach) : wechsel(z.fachAlt, z.fach)}</td>
+        <td class="vt-lehrer">${z.status === 'offen' ? alt(z.lehrerAlt) + '???' : z.status === 'entfall' ? alt(z.lehrerAlt) + e(z.lehrer) : wechsel(z.lehrerAlt, z.lehrer, '|')}</td><td>${z.status === 'entfall' ? alt(z.raumAlt) + e(z.raum) : wechsel(z.raumAlt, z.raum)}</td><td>${e(z.art)}</td><td>${e(z.text)}</td></tr>`).join('')}
     </tbody></table>`}</div></div></section>`;
 }
 

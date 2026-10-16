@@ -35,8 +35,12 @@ export function kalenderwoche(iso) {
 
 const isoVon = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** Kalender wie im Original: Monat mit Pfeilen, Spalte KW, Mo–So, Wochenende gestrichen, gewählte Woche rosa hinterlegt. */
-export function kalenderHtml(jahr, monat, gewaehltMontag) {
+/**
+ * Auswahlkalender wie im Original: Kopf „Nov 2026“ mit ‹ ›, graue Spalte KW, Mo–So, Wochenende grau durchgestrichen, Tage anderer Monate
+ * grau. modus 'woche': gewählte Woche als rosa Zeile, Zeile beim Überfahren hellgrau abgerundet, Klick auf die Zeile wählt die Woche;
+ * modus 'tag': gewählter Tag rosa.
+ */
+export function kalenderHtml(jahr, monat, gewaehlt, modus = 'woche') {
   const erster = new Date(jahr, monat, 1, 12);
   const start = new Date(erster); start.setDate(1 - ((erster.getDay() + 6) % 7));
   let zeilen = '';
@@ -44,37 +48,46 @@ export function kalenderHtml(jahr, monat, gewaehltMontag) {
     const mo = new Date(start); mo.setDate(start.getDate() + w * 7);
     const moIso = isoVon(mo);
     if (w === 5 && mo.getMonth() !== monat) break;
-    let z = `<tr class="${moIso === gewaehltMontag ? 'gewaehlt' : ''}"><td class="kw">${kalenderwoche(moIso)}</td>`;
+    let z = `<tr class="${modus === 'woche' && moIso === gewaehlt ? 'gewaehlt' : ''}" ${modus === 'woche' ? `data-woche-mo="${moIso}"` : ''}><td class="kw">${kalenderwoche(moIso)}</td>`;
     for (let t = 0; t < 7; t++) {
       const d = new Date(mo); d.setDate(mo.getDate() + t);
       const iso = isoVon(d);
-      z += `<td><button type="button" data-tag="${iso}" class="${d.getMonth() !== monat ? 'fremd' : ''} ${t >= 5 ? 'we' : ''} ${iso === heuteIso() ? 'heute' : ''}">${d.getDate()}</button></td>`;
+      const kl = [d.getMonth() !== monat ? 'fremd' : '', t >= 5 ? 'we' : '', iso === heuteIso() ? 'ist-heute' : '', modus === 'tag' && iso === gewaehlt ? 'gewaehlt' : ''].filter(Boolean).join(' ');
+      z += `<td><button type="button" data-tag="${iso}" class="${kl}" ${modus === 'tag' && iso === gewaehlt ? 'aria-current="date"' : ''}>${d.getDate()}</button></td>`;
     }
     zeilen += z + '</tr>';
   }
   return `<div class="kal-kopf"><b>${MONATE[monat]}&nbsp; ${jahr}</b><span><button type="button" data-monat="-1" aria-label="Vorheriger Monat"><i class="bi bi-chevron-left"></i></button>
       <button type="button" data-monat="1" aria-label="Nächster Monat"><i class="bi bi-chevron-right"></i></button></span></div>
-    <table class="kal"><thead><tr><th></th>${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${zeilen}</tbody></table>`;
+    <table class="kal ${modus === 'woche' ? 'wochenwahl' : 'tageswahl'}"><thead><tr><th class="kw"></th>${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${zeilen}</tbody></table>`;
 }
 
-/** Kalender an eine Pille hängen; beiWahl(iso). */
-export function kalenderBinden(knopf, gewaehltMontag, beiWahl) {
+/** Kalender an einen Pillen-Knopf hängen; beiWahl(iso). modus 'woche' (gewaehlt = Montag) oder 'tag' (gewaehlt = Datum). */
+export function kalenderBinden(knopf, gewaehlt, beiWahl, modus = 'woche') {
   const pop = document.createElement('div');
   pop.className = 'u-kalender d-none';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', modus === 'woche' ? 'Woche wählen' : 'Datum wählen');
   knopf.parentElement.append(pop);
-  let [j, m] = gewaehltMontag.split('-').map(Number); m -= 1;
+  knopf.classList.add('kal-pille');
+  let [j, m] = gewaehlt.split('-').map(Number); m -= 1;
+  const schliessen = () => { pop.classList.add('d-none'); knopf.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', zu, true); };
   const zeichnen = () => {
-    pop.innerHTML = kalenderHtml(j, m, gewaehltMontag);
+    pop.innerHTML = kalenderHtml(j, m, gewaehlt, modus);
     pop.querySelectorAll('[data-monat]').forEach(b => b.onclick = ev => { ev.stopPropagation(); m += Number(b.dataset.monat); if (m < 0) { m = 11; j--; } if (m > 11) { m = 0; j++; } zeichnen(); });
-    pop.querySelectorAll('[data-tag]').forEach(b => b.onclick = () => { pop.classList.add('d-none'); beiWahl(b.dataset.tag); });
+    pop.querySelectorAll('[data-tag]').forEach(b => b.onclick = ev => { ev.stopPropagation(); schliessen(); beiWahl(b.dataset.tag); });
+    // Woche: Klick irgendwo in der Zeile (auch auf die KW) wählt die Woche
+    pop.querySelectorAll('[data-woche-mo]').forEach(tr => tr.onclick = () => { schliessen(); beiWahl(tr.dataset.wocheMo); });
   };
-  const zu = ev => { if (!pop.contains(ev.target) && ev.target !== knopf && !knopf.contains(ev.target)) { pop.classList.add('d-none'); document.removeEventListener('mousedown', zu, true); } };
+  const zu = ev => { if (!pop.contains(ev.target) && ev.target !== knopf && !knopf.contains(ev.target)) schliessen(); };
+  knopf.setAttribute('aria-expanded', 'false');
   knopf.onclick = () => {
-    if (!pop.classList.contains('d-none')) { pop.classList.add('d-none'); return; }
-    zeichnen(); pop.classList.remove('d-none');
+    if (!pop.classList.contains('d-none')) { schliessen(); return; }
+    zeichnen(); pop.classList.remove('d-none'); knopf.setAttribute('aria-expanded', 'true');
     document.addEventListener('mousedown', zu, true);
   };
-  knopf.addEventListener('keydown', ev => { if (ev.key === 'Escape') pop.classList.add('d-none'); });
+  knopf.addEventListener('keydown', ev => { if (ev.key === 'Escape') schliessen(); });
+  pop.addEventListener('keydown', ev => { if (ev.key === 'Escape') { schliessen(); knopf.focus(); } });
 }
 
 /** Einstellungen der Legende (je Gerät). */

@@ -80,9 +80,13 @@ struct SitzungsBenutzer: Decodable, Sendable {
     var passwortAendern: Bool
     /// Planart des eigenen Plans: "klasse" oder "lehrer"
     var typ: String
+    /// Schüler- bzw. Elternkonto (Seite „Meine Abwesenheiten“)
+    var familie: Bool
+    /// Fehlzeitenverwaltung (Klassenleitung, Schulleitung, Administration)
+    var fehlzeiten: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, login, anzeigename, rolle, rollenname, element, kollegium, admin, nachrichten, passwortAendern, typ
+        case id, login, anzeigename, rolle, rollenname, element, kollegium, admin, nachrichten, passwortAendern, typ, familie, fehlzeiten
     }
 
     init(from decoder: Decoder) throws {
@@ -98,6 +102,8 @@ struct SitzungsBenutzer: Decodable, Sendable {
         nachrichten = c.wahr(.nachrichten)
         passwortAendern = c.wahr(.passwortAendern)
         typ = c.text(.typ)
+        familie = c.wahr(.familie)
+        fehlzeiten = c.wahr(.fehlzeiten)
     }
 
     var name: String { anzeigename.isEmpty ? login : anzeigename }
@@ -857,24 +863,70 @@ struct Schueler: Decodable, Identifiable, Hashable, Sendable {
 }
 
 /// Erfasste Fehlzeit einer Schülerin/eines Schülers in der Stunde (art: fehlt, verspaetet, vorzeitig).
+/// Minutengenau: beginn/ende im Block; vonDatum/vonZeit bis bisDatum/bisZeit = Zeitraum der ganzen Abwesenheit.
 struct Fehlzeiteintrag: Decodable, Sendable {
+    var id: Int
     var schuelerId: Int
     var art: String
     var minuten: Int
     var status: String
     var bemerkung: String
     var grund: String
+    var stunden: [Int]
+    var beginn: String
+    var ende: String
+    var vonDatum: String
+    var vonZeit: String
+    var bisDatum: String
+    var bisZeit: String
+    var text: String
 
-    enum CodingKeys: String, CodingKey { case schuelerId, art, minuten, status, bemerkung, grund }
+    enum CodingKeys: String, CodingKey {
+        case id, schuelerId, art, minuten, status, bemerkung, grund, stunden, beginn, ende, vonDatum, vonZeit, bisDatum, bisZeit, text
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? 0
         schuelerId = c.zahl(.schuelerId) ?? 0
         art = c.textOderNil(.art) ?? "fehlt"
         minuten = c.zahl(.minuten) ?? 0
         status = c.text(.status)
         bemerkung = c.text(.bemerkung)
         grund = c.text(.grund)
+        stunden = c.liste(.stunden)
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
+        vonDatum = String(c.text(.vonDatum).prefix(10))
+        vonZeit = c.text(.vonZeit)
+        bisDatum = String(c.text(.bisDatum).prefix(10))
+        bisZeit = c.text(.bisZeit)
+        text = c.text(.text)
+    }
+
+    /// „Abwesend (verspätet)“, „Abwesend (fehlt)“ bzw. „Abwesend (vorzeitig)“ wie in der Vorlage.
+    var statustext: String {
+        switch art {
+        case "verspaetet": return "Abwesend (verspätet)"
+        case "vorzeitig": return "Abwesend (vorzeitig)"
+        default: return "Abwesend (fehlt)"
+        }
+    }
+}
+
+/// Fehlzeit einer früheren Stunde desselben Tages („War in Vorstunde abwesend!“).
+struct Vorstundenfehlzeit: Decodable, Sendable {
+    var schuelerId: Int
+    var stunde: Int
+    var art: String
+
+    enum CodingKeys: String, CodingKey { case schuelerId, stunde, art }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schuelerId = c.zahl(.schuelerId) ?? 0
+        stunde = c.zahl(.stunde) ?? 0
+        art = c.text(.art)
     }
 }
 
@@ -884,8 +936,15 @@ struct Anwesenheitsliste: Decodable, Sendable {
     var fehlzeiten: [Fehlzeiteintrag]
     var geprueft: String?
     var darf: Bool
+    /// Fehlzeiten früherer Stunden desselben Tages, die in dieser Stunde (noch) nicht eingetragen sind
+    var vorstunden: [Vorstundenfehlzeit]
+    /// Klassenleitung: Zeiträume über den Tag hinaus und Status im Abwesenheitsdialog
+    var verwalten: Bool
+    /// Beginn und Ende des Blocks (HH:mm)
+    var beginn: String
+    var ende: String
 
-    enum CodingKeys: String, CodingKey { case schueler, fehlzeiten, geprueft, darf }
+    enum CodingKeys: String, CodingKey { case schueler, fehlzeiten, geprueft, darf, vorstunden, verwalten, beginn, ende }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -893,7 +952,14 @@ struct Anwesenheitsliste: Decodable, Sendable {
         fehlzeiten = c.liste(.fehlzeiten)
         geprueft = c.textOderNil(.geprueft)
         darf = c.wahr(.darf)
+        vorstunden = c.liste(.vorstunden)
+        verwalten = c.wahr(.verwalten)
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
     }
+
+    /// Wurden die Abwesenheiten der Stunde bereits kontrolliert?
+    var kontrolliert: Bool { !(geprueft ?? "").isEmpty }
 }
 
 /// Eintrag beim Speichern der Anwesenheit (nur Abweichungen).
@@ -903,6 +969,203 @@ struct AnwesenheitEintragDaten: Encodable, Sendable {
     var minuten: Int
     var bemerkung: String?
     var grund: String?
+    /// Minutengenau abwesend von–bis (HH:mm) im Block
+    var von: String? = nil
+    var bis: String? = nil
+}
+
+/// POST /api/app/klassenbuch/abwesenheit – Abwesenheitsdialog (minutengenau von–bis, „yyyy-MM-ddTHH:mm:ss“).
+struct AbwesenheitZeitraumDaten: Encodable, Sendable {
+    var schuelerIds: [Int]
+    var von: String
+    var bis: String
+    var grund: String?
+    var text: String?
+    var status: String? = nil
+    var datum: String?
+    var stunde: Int?
+    var unterricht: Int?
+    var ersetzen: [Int]? = nil
+    var elternInformiert: Bool? = nil
+}
+
+/// POST /api/app/klassenbuch/abwesenheit/loeschen – Abwesenheit in dieser Stunde entfernen (anwesend).
+struct AbwesenheitEntfernenDaten: Encodable, Sendable {
+    var datum: String
+    var stunde: Int
+    var unterricht: Int
+    var schuelerIds: [Int]
+}
+
+/// POST /api/app/abwesenheiten/loeschen
+struct IdsDaten: Encodable, Sendable {
+    var ids: [Int]
+}
+
+/// POST /api/app/klassenbuch/vermerke – neuer Klassenbucheintrag (zur Klasse oder zu einer Schülerin bzw. einem Schüler).
+struct VermerkNeuDaten: Encodable, Sendable {
+    var datum: String
+    var klasse: String
+    var schuelerId: Int?
+    var art: String
+    var text: String
+    var zeit: String?
+}
+
+/// Abwesenheitsgrund (GET /api/app/abwesenheitsgruende), gespeichert wird das Kürzel.
+struct Abwesenheitsgrund: Decodable, Identifiable, Hashable, Sendable {
+    var id: Int
+    var kurz: String
+    var name: String
+    var art: String
+    var entschuldigt: Bool
+    var aktiv: Bool
+
+    enum CodingKeys: String, CodingKey { case id, kurz, name, art, entschuldigt, aktiv }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? 0
+        kurz = c.text(.kurz)
+        name = c.text(.name)
+        art = c.text(.art)
+        entschuldigt = c.wahr(.entschuldigt)
+        aktiv = (try? c.decodeIfPresent(Bool.self, forKey: .aktiv)) ?? true
+    }
+
+    var anzeige: String { name.isEmpty ? kurz : name }
+}
+
+/// Abwesenheit als Zeitraum (Klassenleitung: GET /api/app/abwesenheiten/zeitraeume; Familie: /api/app/familie/abwesenheiten).
+struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
+    var schluessel: String
+    var schuelerId: Int
+    var schueler: String
+    var klasse: String
+    var vonDatum: String
+    var vonZeit: String
+    var bisDatum: String
+    var bisZeit: String
+    var art: String
+    var minuten: Int
+    var grund: String
+    var status: String
+    var text: String
+    var ids: [Int]
+    var verwalten: Bool
+    var elternInformiert: Bool
+
+    var id: String { schluessel }
+
+    enum CodingKeys: String, CodingKey {
+        case schluessel, schuelerId, schueler, klasse, vonDatum, vonZeit, bisDatum, bisZeit, art, minuten, grund, status, text, ids, verwalten, elternInformiert
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schuelerId = c.zahl(.schuelerId) ?? 0
+        vonDatum = String(c.text(.vonDatum).prefix(10))
+        vonZeit = c.text(.vonZeit)
+        schluessel = c.textOderNil(.schluessel) ?? "\(schuelerId):\(vonDatum):\(vonZeit)"
+        schueler = c.text(.schueler)
+        klasse = c.text(.klasse)
+        bisDatum = String(c.text(.bisDatum).prefix(10))
+        bisZeit = c.text(.bisZeit)
+        art = c.text(.art)
+        minuten = c.zahl(.minuten) ?? 0
+        grund = c.text(.grund)
+        status = c.textOderNil(.status) ?? "offen"
+        text = c.text(.text)
+        ids = c.liste(.ids)
+        verwalten = c.wahr(.verwalten)
+        elternInformiert = c.wahr(.elternInformiert)
+    }
+}
+
+/// Kind eines Eltern- bzw. Schülerkontos (GET /api/app/familie/kinder).
+struct Kind: Decodable, Identifiable, Hashable, Sendable {
+    var id: Int
+    var vorname: String
+    var name: String
+    var klasse: String
+
+    enum CodingKeys: String, CodingKey { case id, vorname, name, klasse }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? 0
+        vorname = c.text(.vorname)
+        name = c.text(.name)
+        klasse = c.text(.klasse)
+    }
+
+    var anzeige: String { [vorname, name].filter { !$0.isEmpty }.joined(separator: " ") }
+}
+
+/// GET /api/app/familie/abwesenheiten
+struct FamilieAbwesenheiten: Decodable, Sendable {
+    var von: String
+    var bis: String
+    var zeilen: [Abwesenheitszeitraum]
+
+    enum CodingKeys: String, CodingKey { case von, bis, zeilen }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        von = String(c.text(.von).prefix(10))
+        bis = String(c.text(.bis).prefix(10))
+        zeilen = c.liste(.zeilen)
+    }
+}
+
+/// Freier buchbarer Raum (GET /api/app/meldungen/freieraeume).
+struct FreierRaum: Decodable, Identifiable, Hashable, Sendable {
+    var kurz: String
+    var name: String
+    var raumart: String
+    var kapazitaet: Int?
+    var urspruenglich: Bool
+
+    var id: String { kurz }
+
+    enum CodingKeys: String, CodingKey { case kurz, name, raumart, kapazitaet, urspruenglich }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kurz = c.text(.kurz)
+        name = c.text(.name)
+        raumart = c.text(.raumart)
+        kapazitaet = c.zahl(.kapazitaet)
+        urspruenglich = c.wahr(.urspruenglich)
+    }
+}
+
+/// POST /api/app/mobil/raum – Raum einer eigenen Stunde ersetzen, hinzufügen oder löschen.
+struct RaumAenderungDaten: Encodable, Sendable {
+    var datum: String
+    var stundeVon: Int
+    var stundeBis: Int
+    var unterricht: Int?
+    var klassen: [String]
+    /// ersetzen, hinzufuegen oder loeschen
+    var aktion: String
+    var raum: String
+    var alt: String?
+    var titel: String = "Raumbuchung"
+}
+
+/// Antwort auf eine Raumänderung: neue Raumliste der Stunde.
+struct RaumAenderungAntwort: Decodable, Sendable {
+    var raeume: [String]
+    var zurueckgesetzt: Bool
+
+    enum CodingKeys: String, CodingKey { case raeume, zurueckgesetzt }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        raeume = c.texte(.raeume)
+        zurueckgesetzt = c.wahr(.zurueckgesetzt)
+    }
 }
 
 /// PUT /api/app/klassenbuch/anwesenheit
@@ -976,12 +1239,15 @@ struct Vermerk: Decodable, Identifiable, Sendable {
 /// GET /api/app/klassenbuch/vermerke (nur Kollegium)
 struct Vermerkliste: Decodable, Sendable {
     var vermerke: [Vermerk]
+    /// Eintragskategorien (z. B. Vermerk, Ordnungsmaßnahme, Lob)
+    var arten: [String]
 
-    enum CodingKeys: String, CodingKey { case vermerke }
+    enum CodingKeys: String, CodingKey { case vermerke, arten }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         vermerke = c.liste(.vermerke)
+        arten = c.texte(.arten)
     }
 }
 

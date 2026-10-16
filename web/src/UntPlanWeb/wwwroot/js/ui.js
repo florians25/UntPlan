@@ -205,13 +205,14 @@ export function statusMarker(status) {
 /**
  * Lehrkraft als Label außerhalb der Karten (Stundendetails-Kopf, Startseite) – einheitlich mit den Plankarten:
  * offene Vertretung bzw. Vertretung ohne Lehrkraft ({ k: "", alt: "FIS" }) → altes Kürzel durchgestrichen im grünen Label;
- * eingeteilte Vertretung ({ k: "BEC", alt: "FIS" }) → „FIS“ grau durchgestrichen, „BEC“ als grünes Label; zusätzliche Lehrkraft → grünes Label.
+ * eingeteilte Vertretung ({ k: "BEC", alt: "FIS" }) → „FIS“ grau durchgestrichen | „BEC“ als grünes Label; zusätzliche Lehrkraft → grünes Label.
  * inhalt(kuerzel) liefert den (ggf. verlinkten) Text; ohne inhalt wird nur escaped.
  */
-export function lehrkraftLabel(w, inhalt = x => e(x)) {
+export function lehrkraftLabel(w, inhalt = x => e(x), trenn = '|') {
   if (!w.k && w.alt) return `<span class="v-lbl weg">${inhalt(w.alt)}</span>`;
   if (!w.k) return w.neu ? '<span class="v-lbl">???</span>' : '';
-  if (w.alt) return `<s class="v-alt">${inhalt(w.alt)}</s> <span class="v-lbl" data-hover="${e(`${w.alt} → ${w.k}`)}" data-hover-art="dunkel">${inhalt(w.k)}</span>`;
+  // Lehrkraft-Wechsel „LAN | ILK“, Raum/Fach „B125 → A300“ (trenn = '→')
+  if (w.alt) return `<s class="v-alt">${inhalt(w.alt)}</s> <span class="v-trenn">${trenn}</span> <span class="v-lbl" data-hover="${e(`${w.alt} ${trenn} ${w.k}`)}" data-hover-art="dunkel">${inhalt(w.k)}</span>`;
   if (w.neu) return `<span class="v-lbl">${inhalt(w.k)}</span>`;
   return inhalt(w.k);
 }

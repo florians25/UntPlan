@@ -1127,7 +1127,7 @@ struct AufsichtDetailView: View {
         aufsicht.lehrer == "???" ? "" : aufsicht.lehrer
     }
 
-    /// Lehrkraft-Zeile (nur Text): regulär das Kürzel; Vertretung „alt → neu“ (alt durchgestrichen); offen alt durchgestrichen.
+    /// Lehrkraft-Zeile (nur Text): regulär das Kürzel; Vertretung „alt | neu“ (alt durchgestrichen); offen alt durchgestrichen.
     private var lehrkraft: [Wertbaustein] {
         let alt = aufsicht.alt ?? ""
         switch aufsicht.status {
@@ -1139,7 +1139,7 @@ struct AufsichtDetailView: View {
             } else {
                 if !alt.isEmpty && alt != neueLehrkraft {
                     teile.append(.weg(alt))
-                    teile.append(.pfeil)
+                    teile.append(.trenner)
                 }
                 teile.append(.neu(neueLehrkraft))
             }

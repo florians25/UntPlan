@@ -127,6 +127,12 @@ enum Farben {
     static let detailEntfallBalken = Color(hexWert: 0xFF0000)
     // Abwesenheit auf der Startseite (graue Fläche)
     static let abwesendFlaeche = Color(hell: 0x868F99, dunkel: 0x4A5058)
+    /// Zahl der Abwesenden in den Stundendetails (Vorlage: dunkelrote Scheibe)
+    static let abwesendRot = Color(hell: 0xB0063A, dunkel: 0x8E0B3A)
+    /// Leiste „Abwesenheiten wurden kontrolliert“ (Schüler*innen)
+    static let kontrollLeiste = Color(hell: 0xE8EDF1, dunkel: 0x323D47)
+    /// Felder im Abwesenheitsdialog (Grund, Text)
+    static let eingabeFeld = Color(hell: 0xF1F3F5, dunkel: 0x323D47)
 
     // Kacheln im Raster (app.css: .card--event, .corners, .card--supervision, .card--standby, Zählkarte)
     static let karteTextVergangen = Color(hell: 0x48606F, dunkel: 0xF4F6F8)

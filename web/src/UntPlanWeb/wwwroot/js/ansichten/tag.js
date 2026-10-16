@@ -1,6 +1,7 @@
 // Tagesübersicht für das Kollegium: alle Klassen, Lehrkräfte oder Räume eines Tages.
 import { e, icon, holen, heuteIso, plusTage, datumLang, lade } from '../ui.js';
 import { tagesGitter, kartenBinden } from '../plangitter.js';
+import { kalenderBinden } from './plan.js';
 
 const TYPEN = { klasse: 'Klassen', lehrer: 'Lehrkräfte', raum: 'Räume' };
 
@@ -17,7 +18,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
       <div class="links"><input type="search" class="form-control" data-filter placeholder="${TYPEN[typ]} filtern" style="width:200px;border-radius:999px" aria-label="Filtern"></div>
       <div class="mitte">
         <button type="button" class="rundknopf" data-tage="-1" title="Vorheriger Tag" aria-label="Vorheriger Tag">${icon('links')}</button>
-        <label class="zeitraum" title="Datum wählen">${e(datumLang(datum))}<input type="date" value="${datum}" data-datum aria-label="Datum"></label>
+        <span class="position-relative"><button type="button" class="zeitraum" data-datum title="Datum wählen" aria-haspopup="dialog">${e(datumLang(datum))}</button></span>
         <button type="button" class="rundknopf" data-tage="1" title="Nächster Tag" aria-label="Nächster Tag">${icon('rechts')}</button>
       </div>
       <div class="rechts"><button type="button" class="rundknopf" data-drucken title="Drucken" aria-label="Drucken">${icon('drucken')}</button><button type="button" class="heute-pill" data-tage="0">Heute</button></div>
@@ -30,9 +31,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
     while (n !== 0 && [0, 6].includes(new Date(d + 'T12:00').getDay())) d = plusTage(d, n);
     kontext.navigieren(ziel(typ, d));
   });
-  const datumFeld = seite.querySelector('[data-datum]');
-  datumFeld.onchange = ev => { if (ev.target.value) kontext.navigieren(ziel(typ, ev.target.value)); };
-  datumFeld.onclick = () => { try { datumFeld.showPicker(); } catch { /* ältere Browser */ } };
+  kalenderBinden(seite.querySelector('[data-datum]'), datum, d => kontext.navigieren(ziel(typ, d)), 'tag');
 
   const istAktuell = kontext.aktuell();
   const tag = await holen(`/api/app/tag?typ=${typ}&datum=${datum}`);

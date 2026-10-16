@@ -19,27 +19,27 @@ const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert'
 /** Verlegte Stunde (hierher verlegt bzw. von hier weg verlegt): eigenes Verlegungssymbol statt „+“ bzw. Entfall-Dreieck. */
 const istVerlegung = k => /verleg|statt/i.test(k.art || '') || !!k.nach;
 
-/** Hover-Text eines geänderten Werts wie im Original: „B070 → C197“ (erscheint nur beim Überfahren des Labels). */
-const wechsel = (alt, neu) => `${alt} → ${neu}`;
+/** Hover-Text eines geänderten Werts wie im Original: Raum „B070 → C197“, Lehrkraft „LAN | ILK“ (erscheint nur beim Überfahren des Labels). */
+const wechsel = (alt, neu, lehrkraft = false) => `${alt} ${lehrkraft ? '|' : '→'} ${neu}`;
 
 /**
  * Werte (Klassen, Lehrkräfte, Räume) wie im Original: neuer Wert als grüne Kürzelbox, bei offener Vertretung der
  * bisherige Wert durchgestrichen in der grünen Box. Der ersetzte alte Wert steht im Detaildialog; bei Entfall erscheinen die ursprünglichen Werte durchgestrichen.
  */
 /** Lange Listen kürzen wie im Original: „BEC, BRA, FIS +12“ (vollständig in den Stundendetails). */
-export function gekuerzt(liste, max = 3, entfall = false) {
+export function gekuerzt(liste, max = 3, entfall = false, lehrkraft = false) {
   const l = liste || [];
-  return l.length <= max + 1 ? werte(l, entfall) : `${werte(l.slice(0, max), entfall)} <span class="mehr">+${l.length - max}</span>`;
+  return l.length <= max + 1 ? werte(l, entfall, lehrkraft) : `${werte(l.slice(0, max), entfall, lehrkraft)} <span class="mehr">+${l.length - max}</span>`;
 }
 
 const kuerzelListe = l => (l || []).map(w => w.k || w.alt).filter(Boolean);
 
-export function werte(liste, entfall = false) {
+export function werte(liste, entfall = false, lehrkraft = false) {
   return (liste || []).map(w => {
     if (entfall) return e(w.alt || w.k);
     if (w.alt && !w.k) return `<span class="lbl weg">${e(w.alt)}</span>`;
     if (!w.k && w.neu) return '<span class="lbl">???</span>';
-    if (w.alt) return `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k))}">${e(w.k)}</span>`;
+    if (w.alt) return `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k, lehrkraft))}">${e(w.k)}</span>`;
     if (w.neu) return `<span class="lbl" data-hover="${e('+ ' + w.k)}">${e(w.k)}</span>`;
     return e(w.k);
   }).join(', ');
@@ -111,9 +111,9 @@ export function karteInhalt(k, typ, kompakt = false) {
   if (ohneFach) {
     // Veranstaltung, Klausur, Buchung: Bezeichnung, dann Klassen, Lehrkräfte (gekürzt) und Raum
     oben = e(k.text || k.art || '—');
-    rest = [gekuerzt(k.klassen, 4, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? gekuerzt(k.lehrer, 3, entfall) : '', werte(k.raeume, entfall)];
+    rest = [gekuerzt(k.klassen, 4, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? gekuerzt(k.lehrer, 3, entfall, true) : '', werte(k.raeume, entfall)];
   } else if (typ === 'klasse') {
-    const lehrer = werte(k.lehrer, entfall);
+    const lehrer = werte(k.lehrer, entfall, true);
     oben = lehrer || fach;
     // Mitklassen (gekoppelt bzw. parallel identisch, z. B. INF13 auf der Karte von INF12) ganz unten; eine fehlende Mitklasse
     // steht wie eine abwesende Lehrkraft durchgestrichen im grünen Label
@@ -121,15 +121,15 @@ export function karteInhalt(k, typ, kompakt = false) {
     rest = [lehrer ? fach : '', werte(k.raeume, entfall), k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : '', mit];
   } else if (typ === 'raum') {
     oben = klassenWerte(k, entfall) || fach;
-    rest = [werte(k.lehrer, entfall), k.klassen.length ? fach : ''];
+    rest = [werte(k.lehrer, entfall, true), k.klassen.length ? fach : ''];
   } else {
     oben = klassenWerte(k, entfall) || fach;
     // Eigene Abwesenheit: die vertretende Lehrkraft als grünes Label (Hover „HOF → BEC“); ohne Vertretung (Vertretung ohne
     // Lehrkraft, weggefallene Bereitschaft) das eigene Kürzel durchgestrichen. Kopplung: alle Lehrkräfte.
     const lehrerZeile = lehrerAbwesend(k, typ) ? (k.lehrer.filter(w => w.alt || w.k).map(w => w.k && w.alt
-        ? `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k))}">${e(w.k)}</span>`
+        ? `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k, true))}">${e(w.k)}</span>`
         : `<span class="lbl weg">${e(w.alt || w.k)}</span>`).join(' ') || '')
-      : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werte(k.lehrer, entfall) : '';
+      : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werte(k.lehrer, entfall, true) : '';
     rest = [k.klassen.length ? fach : '', werte(k.raeume, entfall), lehrerZeile];
   }
   const zeilen = rest.filter(x => x);
@@ -442,7 +442,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
         <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && k.status !== 'abwesend' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
-        <div class="aufsicht ${e(a.status)}"><span>${e(a.gangName)}${a.status === 'vertreten' ? ' → ' + e(a.lehrer) : a.status === 'vertretung' ? ' (für ' + e(a.alt) + ')' : ''}</span></div></div>` })),
+        <div class="aufsicht ${e(a.status)}"><span>${e(a.gangName)}${a.status === 'vertreten' ? ' | ' + e(a.lehrer) : a.status === 'vertretung' ? ' (für ' + e(a.alt) + ')' : ''}</span></div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);
   return `<div class="tt-liste">${eintraege.map(x => x.html).join('')}</div>`;
 }

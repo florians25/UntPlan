@@ -53,9 +53,14 @@ const store = {
   del(k){ try { localStorage.removeItem('tt.'+k); } catch {} }
 };
 
+/* Ansicht: Tag, 2 Tage, 3 Tage oder Woche – wie im ⋮-Menü des Originals.
+   Gemerkt wird sie auf dem Gerät. */
+const TAGE_ANSICHT = { day:1, day2:2, day3:3 };
+const tageAnsicht = () => TAGE_ANSICHT[state.view] || 0;
+
 const state = {
   source:   'demo',            // demo | db | scrape
-  view:     'week',            // week | day
+  view:     ['day', 'day2', 'day3', 'week'].includes(store.get('view', 'week')) ? store.get('view', 'week') : 'week',
   day:      null,              // gewählter Tag in der Tagesansicht
   kind:     null,              // vom Server gemeldete Planart
   entities: S.ENTITIES.slice(),
@@ -614,37 +619,6 @@ function cardLines(card, kind){
                    && label && l.text.toUpperCase() === label));
 }
 
-/* Karte der Tagesansicht: genau wie die Wochenkachel — Balken, dieselben
-   Zeilen mit denselben Plaketten —, nur breiter. Rechts daneben stehen die
-   Details: Fach ausgeschrieben, Uhrzeit mit Stunde, Status und Hinweis.
-   Keine Beschriftungen („Klasse“, „Raum“) und keine weiteren Zutaten. */
-function tagesInhalt(card, zeilenHtml, von, bis){
-  const lang = card.subjectLong && card.subjectLong !== card.subject ? card.subjectLong : '';
-  const bisSt = card.lesson + (card.span || 1) - 1;
-  const zeit = `${esc((von || '').replace(/^0/, ''))}${bis ? ' – ' + esc(bis.replace(/^0/, '')) : ''}`
-    + (card.lesson ? ` · ${card.lesson === bisSt ? card.lesson + '. Stunde' : card.lesson + '.–' + bisSt + '. Stunde'}` : '');
-  const nurRaum = (card.changed || []).length && (card.changed || []).every(k => k === 'room');
-  const status = card._released ? (card.teacher ? 'Vertretung: ' + kachelWert(card.teacher) : 'Vertretung offen')
-    : card.blockType === 'cancelled' ? (card.classAbsent || /klasse abw/i.test(card.info || '') ? 'Entfall – Klasse abwesend' : 'Entfall')
-    : card.blockType === 'klausur' ? (card.type || 'Prüfung')
-    : card.blockType === 'event' ? 'Raumbuchung'
-    : card.blockType === 'change' ? (card.openSub ? 'Vertretung offen' : card.extra ? 'Zusätzliche Unterrichtsstunde'
-                                    : card.openRoom ? 'Raum offen' : nurRaum ? 'Raumänderung' : (card.type || 'Vertretung'))
-    : '';
-  const info = (card.info || '').trim();
-  const hinweise = [info && info !== status && info !== lang ? info : '',
-                    card.noteStudents || '', card.noteTeachers || ''].filter(Boolean);
-  return `<span class="dk">
-      <span class="dk__zeilen">${zeilenHtml}</span>
-      <span class="dk__details">
-        ${lang ? `<span class="dk__lang">${esc(lang)}</span>` : ''}
-        <span class="dk__zeit">${zeit}</span>
-        ${status ? `<span class="dk__status">${esc(status)}</span>` : ''}
-        ${hinweise.map(t => `<span class="dk__hinweis">${esc(t)}</span>`).join('')}
-      </span>
-    </span>`;
-}
-
 /* Zeilenabstand der Kachel wie in app.css: am iPhone 14 px (Vorlage), sonst 14,3 px. */
 const KARTE_SCHMAL = window.matchMedia ? window.matchMedia('(max-width:699px)') : null;
 const karteZeile = () => (KARTE_SCHMAL && KARTE_SCHMAL.matches) ? 14 : 14.3;
@@ -793,14 +767,15 @@ function renderWeekHead(){
   const dates = weekDates(state.weekStart);
   const mo = parseISO(state.weekStart);
   /* In der Tagesansicht gelten KW und Monat für den gezeigten Tag. */
-  const bezug = (state.view === 'day' && state.day) ? parseISO(state.day) : mo;
+  const bezug = (tageAnsicht() && state.day) ? parseISO(state.day) : mo;
   $('#kwNo').textContent = 'KW ' + isoWeek(bezug);
   $('#kwMonth').textContent = MONTHS_SHORT[bezug.getMonth()];
 
   const today = iso(new Date());
   /* In der Tagesansicht steht im Kopf nur der gewählte Tag, mittig. */
-  if (state.view === 'day'){
-    const trio = [shiftDay(state.day, -1), state.day, shiftDay(state.day, 1)];
+  if (tageAnsicht()){
+    const n = tageAnsicht();
+    const trio = tagesStreifen(state.day, n);
     $('#weekDays').style.display = '';
     $('#weekDays').style.gridTemplateColumns = '';
     /* Dieselbe Breite wie der Rasterstreifen: Der lässt in der Tagesansicht
@@ -808,19 +783,22 @@ function renderWeekHead(){
        Ohne diesen Abzug wäre eine Spalte hier drei Punkte breiter als
        unten — die Datumsleiste liefe beim Wischen aus dem Takt. */
     $('#weekDays').innerHTML = `<div class="weekhead__strip" id="headStrip"
-        style="grid-template-columns:repeat(3, 100%); width:calc(100% - 3px)"></div>`;
+        style="grid-template-columns:repeat(${trio.length}, ${100 / n}%); width:calc(100% - ${n === 1 ? 3 : 0}px)"></div>`;
     $('#headStrip').innerHTML = trio.map(d => {
       const dd = parseISO(d);
       /* Derselbe Kopf wie in der Woche: „Fr.“ über „16“ — nur eben eine
          einzige, breite Spalte. KW und Monat stehen links wie dort. */
-      return `<button class="dayhead dayhead--day ${d === today ? 'is-today' : ''}" data-day="${d}">
+      return `<button class="dayhead ${n === 1 ? 'dayhead--day' : ''} ${d === today ? 'is-today' : ''}" data-day="${d}">
          <span class="dayhead__name">${WD_SHORT[(dd.getDay()+6)%7]}</span>
          <span class="dayhead__num">${dd.getDate()}</span>
        </button>`;
     }).join('');
     stripRuhe($('#headStrip'));
+    /* Tippen auf einen Tag: in der Tagesansicht zurück zur Woche, in der
+       2- oder 3-Tage-Ansicht auf genau diesen Tag. */
     $$('#weekDays .dayhead').forEach(b => b.addEventListener('click', () => {
-      if (b.dataset.day === state.day) setView('week');
+      if (n === 1){ if (b.dataset.day === state.day) setView('week'); }
+      else setView('day', b.dataset.day);
     }));
     return;
   }
@@ -876,11 +854,16 @@ function stripRuhe(el){
 }
 
 function renderGrid(){
-  const isDay = state.view === 'day';
+  const nTage = tageAnsicht();
+  /* „isDay“ ist die Tagesansicht im engeren Sinn (eine Spalte, Feld links
+     und Stunden daneben). 2 und 3 Tage verhalten sich wie die Woche, nur
+     mit breiteren Spalten. */
+  const isDay = nTage === 1;
   const mo0 = parseISO(state.weekStart);
-  /* Auch die Tagesansicht ist ein Streifen: gestern, heute, morgen. */
-  const dates = isDay
-    ? [shiftDay(state.day, -1), state.day, shiftDay(state.day, 1)]
+  /* Auch die Tagesansichten sind ein Streifen: davor, die gezeigten Tage,
+     danach – je so viele Tage, wie die Ansicht zeigt. */
+  const dates = nTage
+    ? tagesStreifen(state.day, nTage)
     : [-7, 0, 7].flatMap(off => weekDates(iso(addDays(mo0, off))));
   const pane = $('#gridPane');
 
@@ -922,7 +905,7 @@ function renderGrid(){
   const todayISO = iso(now);
 
   const atTime = t => { const [h,m] = String(t).split(':').map(Number); return ((h*60+m) - L.t0) * PPM + L.pre; };
-  const cols  = isDay ? 1 : 5;          /* Spaltenbreite immer eine Woche */
+  const cols  = nTage || 5;             /* Spalten je sichtbarem Abschnitt */
 
   /* Wie viele Kacheln passen nebeneinander in eine Spalte, ohne dass der
      Text unlesbar wird? Auf dem Telefon ist das eine, auf breiten Geräten
@@ -1208,14 +1191,8 @@ function renderGrid(){
                     && !isStandby && !isSup && !isMovedTarget;
 
       let lines = cardLines(card, kind);
-      /* Tagesansicht auf breitem Bildschirm: ausführliche Karte (Uhrzeit, Fach
-         ausgeschrieben, Lehrkraft, Raum, Klasse, Status und Hinweis). */
-      /* Auch am iPhone (Spalte ab 260 px): kompakte, aber ausführliche
-         Karte — Fach ausgeschrieben mit Uhrzeit, darunter Klasse, Lehrkraft,
-         Raum und der Hinweis, statt der schmalen Wochenkachel über die volle
-         Breite. */
-      const tagesKarte = isDay && colPx / Math.max(1, (!card._supervision && card._n) || 1) >= 260 && !isHoliday && !isStandby && !isSup && !card.overlay
-        && card.blockType !== 'absence' && card.blockType !== 'gs';
+      /* Tagesansicht wie im Original: dieselbe Kachel wie in der Woche —
+         Balken, Zeilen, Plaketten —, nur breiter. Keine Zusatzdetails. */
 
       /* Passen nicht alle Zeilen in die Karte, wird gekürzt und unten rechts
          ein Zeichen gesetzt — dann ohne Info-Punkt. */
@@ -1244,7 +1221,6 @@ function renderGrid(){
       /* Offene Vertretung im Plan der ausgefallenen Lehrkraft: die Stunde
          läuft ohne sie — dargestellt mit Eckklammern statt grüner Fläche. */
       if (card.highlight)                    cls.push('is-highlight');
-      if (tagesKarte)                        cls.push('card--tag');
 
       const released = card._released;
       if (released){
@@ -1405,8 +1381,6 @@ function renderGrid(){
               card.room ? `<span class="card__line card__line--last">${esc(card.room)}</span>` : ''
             ].filter(Boolean).join('');
           })()
-        : tagesKarte
-        ? tagesInhalt(card, zeilenHtml(lines), timeA, timeB)
         : zeilenHtml(lines);
       function zeilenHtml(lines){ return lines.map((l, li) => {
             const inner = zeileInnen(l);
@@ -1570,8 +1544,8 @@ function renderGrid(){
      Sonst läge der dünne Balken über einer Woche, in der es „jetzt" gar
      nicht gibt. */
   const ti     = dates.indexOf(todayISO);
-  const midAt  = isDay ? 1 : 5;            /* erste Spalte der mittleren Woche */
-  const midLen = isDay ? 1 : 5;
+  const midAt  = cols;                     /* erste Spalte des mittleren Abschnitts */
+  const midLen = cols;
   if (ti >= midAt && ti < midAt + midLen){
     const mins = now.getHours()*60 + now.getMinutes();
     const y = (mins - L.t0) * PPM + L.pre;
@@ -1775,7 +1749,7 @@ function ladenAus(){
 
 /* Alles neu zeichnen, was zur Woche gehört. */
 function wocheZeichnen(keepTop){
-  if (state.view === 'day' && !weekDates(state.weekStart).includes(state.day))
+  if (tageAnsicht() && !weekDates(state.weekStart).includes(state.day))
     state.day = pickDefaultDay();
   renderDayBar();
   renderWeekHead();
@@ -1930,8 +1904,9 @@ const WD_LONG = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'
 
 function setView(view, day){
   state.view = view;
-  if (view === 'day'){
-    state.day = day || state.day || pickDefaultDay();
+  store.set('view', view);
+  if (tageAnsicht()){
+    state.day = schultag(day || state.day || pickDefaultDay());
     /* Der Tag muss in der geladenen Woche liegen */
     if (!weekDates(state.weekStart).includes(state.day)){
       state.weekStart = iso(mondayOf(parseISO(state.day)));
@@ -1958,7 +1933,7 @@ function renderDayBar(){
      zurück durch Tippen auf den Tag. */
   const bar = $('#dayswitch');
   bar.hidden = true;
-  if (state.view !== 'day') return;
+  if (!tageAnsicht()) return;
   const d = parseISO(state.day);
   $('#dayswitchLabel').textContent =
     `${WD_LONG[(d.getDay() + 6) % 7]}, ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]}`;
@@ -1971,18 +1946,39 @@ function shiftDay(isoDay, delta){
   return iso(d);
 }
 
+/* Ein Schultag: Samstag und Sonntag werden auf den folgenden Montag gelegt. */
+function schultag(isoDay){
+  const d = parseISO(isoDay);
+  if (d.getDay() === 6) return iso(addDays(d, 2));
+  if (d.getDay() === 0) return iso(addDays(d, 1));
+  return isoDay;
+}
+
+/* Mehrere Schultage weiter (delta < 0: zurück). */
+function tageWeiter(isoDay, delta){
+  let d = isoDay;
+  for (let i = 0; i < Math.abs(delta); i++) d = shiftDay(d, Math.sign(delta));
+  return d;
+}
+
+/* Streifen der Tagesansichten: n Schultage davor, die n gezeigten, n danach. */
+function tagesStreifen(start, n){
+  const out = [tageWeiter(start, -n)];
+  while (out.length < 3 * n) out.push(shiftDay(out[out.length - 1], 1));
+  return out;
+}
+
 function stepDay(delta){
-  let d = addDays(parseISO(state.day), delta);
-  /* Wochenenden überspringen */
-  while (d.getDay() === 0 || d.getDay() === 6) d = addDays(d, delta > 0 ? 1 : -1);
-  const target = iso(d);
+  /* Je so viele Schultage, wie die Ansicht zeigt. */
+  const target = tageWeiter(state.day, delta * (tageAnsicht() || 1));
+  const d = parseISO(target);
   if (!weekDates(state.weekStart).includes(target)){
     state.weekStart = iso(mondayOf(d));
     state.day = target;
     refresh(delta);
     return;
   }
-  setView('day', target);
+  setView(tageAnsicht() ? state.view : 'day', target);
 }
 
 $('#dayPrev').addEventListener('click', () => stepDay(-1));
@@ -2008,7 +2004,8 @@ async function preloadNeighbours(token){
   if (planKey(entity) !== planKey(state.entity) || basis !== state.weekStart) return;
   state.around    = { prev: prev || undefined, next: next || undefined };
   state.aroundKey = weekKey(entity, basis);
-  if (state.view === 'week') renderGrid();
+  /* Auch die Tagesansichten zeigen am Rand Tage der Nachbarwochen. */
+  renderGrid();
 
   /* Wer in eine Richtung weiterwischt, wischt meist noch einmal. Die
      übernächste Woche in dieser Richtung wird deshalb gleich mitgeholt —
@@ -2197,8 +2194,8 @@ function hint(text){
     const keep = area.scrollTop;
     const vonWoche = state.weekStart;
     greifend = false;
-    if (state.view === 'day'){
-      const target = shiftDay(state.day, dir);
+    if (tageAnsicht()){
+      const target = tageWeiter(state.day, dir * tageAnsicht());
       state.day = target;
       const mon = iso(mondayOf(parseISO(target)));
       if (mon !== state.weekStart){
@@ -2365,7 +2362,7 @@ function hint(text){
 function planBlaettern(dir){
   if (state.screen !== 'plan') return;
   if (window.ttBlaettern && window.ttBlaettern(dir)) return;
-  if (state.view === 'day') stepDay(dir); else gotoWeek(dir);
+  if (tageAnsicht()) stepDay(dir); else gotoWeek(dir);
 }
 document.addEventListener('keydown', e => {
   if (state.screen !== 'plan' || e.altKey || e.metaKey || e.ctrlKey) return;
@@ -2510,9 +2507,15 @@ function showScreen(name){
 $$('.tab').forEach(t => t.addEventListener('click', () => {
   /* Steht man schon auf dem Stundenplan, führt ein zweiter Tipp zurück zur
      laufenden Woche — wie das Antippen des aktiven Reiters in einer App. */
+  /* Die gewählte Ansicht (Tag, 2 Tage, 3 Tage, Woche) bleibt; nur der
+     Zeitraum springt auf heute. Steht man schon dort, wird der Plan
+     aufgefrischt. */
   if (t.dataset.screen === 'plan' && state.screen === 'plan'){
-    const mon = iso(mondayOf(new Date()));
-    state.view = 'week';
+    const heute = schultag(iso(new Date()));
+    const mon = iso(mondayOf(tageAnsicht() ? parseISO(heute) : new Date()));
+    const schonDa = mon === state.weekStart && (!tageAnsicht() || state.day === heute);
+    if (tageAnsicht()) state.day = heute;
+    if (schonDa){ datenNeuLaden().then(scrollToNow); return; }
     if (mon !== state.weekStart){
       state.weekStart = mon; state.around = {};
       refresh().then(scrollToNow);
@@ -3706,8 +3709,7 @@ $('#btnInfo').addEventListener('click', () => toast(state.entity.info || ''));
    jedem Öffnen frisch gesetzt, damit er dem tatsächlichen Stand folgt. */
 function markMenuView(){
   $$('#sheetMenu .menu-item--view').forEach(b => {
-    const on = (b.dataset.act === 'view-day' && state.view === 'day')
-            || (b.dataset.act === 'view-week' && state.view === 'week');
+    const on = b.dataset.act === 'view-' + state.view;
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
   });
@@ -3743,65 +3745,66 @@ $$('#sheetMenu .menu-item').forEach(b => b.addEventListener('click', () => {
   SH.menu.close();
   setTimeout(() => {
     if (act === 'reload'){ datenNeuLaden(); }
-    if (act === 'pickweek'){ state.calMonth = parseISO(state.weekStart); renderCalendar(); SH.week.open(); }
-    if (act === 'view-day'){ if (state.view !== 'day') setView('day'); }
-    if (act === 'view-week'){ if (state.view !== 'week') setView('week'); }
+    if (act === 'pickweek'){
+      /* Vorgewählt ist der Tag, der gerade vorne steht. */
+      state.calSel = tageAnsicht() ? state.day : (weekDates(state.weekStart).includes(iso(new Date())) ? iso(new Date()) : state.weekStart);
+      state.calMonth = parseISO(state.calSel);
+      renderCalendar(); SH.week.open();
+    }
+    if (act && act.startsWith('view-')){
+      const v = act.slice(5);
+      if (state.view !== v){
+        /* Von der Woche in eine Tagesansicht: heute, wenn heute in der
+           gezeigten Woche liegt, sonst der Montag. */
+        if (TAGE_ANSICHT[v] && !tageAnsicht()) state.day = pickDefaultDay();
+        setView(v);
+      }
+    }
     if (act === 'legend'){ SH.legend.open(); }
   }, 200);
 }));
 
-/* ---------- Wochenkalender ----------
-   Gewählt wird eine ganze Woche, nicht ein einzelner Tag — der Kalender
-   zeigt das auch so: je Zeile eine Kalenderwoche, die als Ganzes leuchtet
-   und als Ganzes angetippt wird. Links steht die Wochennummer. */
-function kwNummer(d){
-  /* Zählweise nach ISO 8601: Woche 1 ist die mit dem ersten Donnerstag. */
-  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-  const jan1 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  return Math.ceil(((t - jan1) / 86400000 + 1) / 7);
+/* ---------- Gehe zu Datum ----------
+   Popover wie im Original: oben „Heute“ und „Auswählen“, darunter der
+   Monat mit Pfeilen und die Tage MO–SO. Heute steht farbig, der gewählte
+   Tag mit Kreis. „Auswählen“ springt zum gewählten Tag – in der Woche zu
+   dessen Woche, in den Tagesansichten auf genau diesen Tag. */
+function datumAnspringen(isoDay){
+  const tag = schultag(isoDay);
+  state.weekStart = iso(mondayOf(parseISO(tag)));
+  state.around = {};
+  if (tageAnsicht()) state.day = tag;
+  SH.week.close();
+  refresh();
 }
 
 function renderCalendar(){
   const m = state.calMonth;
   $('#calMonth').textContent = `${MONTHS[m.getMonth()]} ${m.getFullYear()}`;
-
-  const start    = mondayOf(new Date(m.getFullYear(), m.getMonth(), 1));
-  const todayISO = iso(new Date());
-  const heuteKW  = iso(mondayOf(new Date()));
-
+  const erster = new Date(m.getFullYear(), m.getMonth(), 1);
+  const leer = (erster.getDay() + 6) % 7;
+  const tage = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  const heute = iso(new Date());
   let html = '';
-  for (let w = 0; w < 6; w++){
-    const mo  = addDays(start, w * 7);
-    const moI = iso(mo);
-    const cls = ['calweek'];
-    if (moI === state.weekStart) cls.push('is-selected');
-    if (moI === heuteKW)         cls.push('is-current');
-
-    let tage = '';
-    for (let i = 0; i < 7; i++){
-      const d = addDays(mo, i);
-      const raus = d.getMonth() !== m.getMonth();
-      tage += `<span class="calday${raus ? ' is-out' : ''}`
-            + `${i > 4 ? ' is-weekend' : ''}`
-            + `${iso(d) === todayISO ? ' is-today' : ''}">${d.getDate()}</span>`;
-    }
-    html += `<button class="${cls.join(' ')}" data-date="${moI}">
-               <span class="calweek__kw">${kwNummer(mo)}</span>${tage}
-             </button>`;
+  for (let i = 0; i < leer; i++) html += '<span class="dpday is-leer"></span>';
+  for (let t = 1; t <= tage; t++){
+    const d = new Date(m.getFullYear(), m.getMonth(), t), di = iso(d);
+    const cls = ['dpday'];
+    if (di === heute) cls.push('is-today');
+    if (di === state.calSel) cls.push('is-sel');
+    if (d.getDay() === 0 || d.getDay() === 6) cls.push('is-weekend');
+    html += `<button type="button" class="${cls.join(' ')}" data-date="${di}"><span>${t}</span></button>`;
   }
   $('#calGrid').innerHTML = html;
-
-  $$('#calGrid .calweek').forEach(b => b.addEventListener('click', () => {
-    state.weekStart = b.dataset.date;
-    state.around = {};
-    SH.week.close();
-    refresh();
+  $$('#calGrid .dpday[data-date]').forEach(b => b.addEventListener('click', () => {
+    state.calSel = b.dataset.date;
+    renderCalendar();
   }));
 }
 $('#calPrev').addEventListener('click', () => { state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth()-1, 1); renderCalendar(); });
 $('#calNext').addEventListener('click', () => { state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth()+1, 1); renderCalendar(); });
-$('#calToday').addEventListener('click', () => { state.weekStart = iso(mondayOf(new Date())); SH.week.close(); refresh(); });
+$('#calToday').addEventListener('click', () => datumAnspringen(iso(new Date())));
+$('#calPick').addEventListener('click', () => datumAnspringen(state.calSel || iso(new Date())));
 
 /* =====================================================================
    Stundendetails
@@ -3888,7 +3891,7 @@ function rechteAnwenden(){
     /* Diese beiden bleiben offen: Der Vertretungstext ist ohnehin nur zu
        lesen, und hinter den Hausaufgaben steht eine Liste, die in eine
        Zeile nicht passt. */
-    if (['substitution', 'homework', 'lehrstoff', 'notes_students'].includes(z.dataset.key)) return;
+    if (['substitution', 'info', 'homework', 'lehrstoff', 'notes_students'].includes(z.dataset.key)) return;
     if (['students', 'classbook', 'notes_teachers', 'online'].includes(z.dataset.key)){
       z.remove();
       return;
@@ -3912,7 +3915,7 @@ function detailFuerSchueler(rows){
     if (r.key === 'homework'){ out.push(r); return out; }
     /* Der Vertretungstext gehört ebenfalls zur Stunde und geht Schüler*innen
        an — er steht ohnehin schon auf der Kachel. */
-    if (r.key === 'substitution'){
+    if (r.key === 'substitution' || r.key === 'info'){
       if (r.sub && String(r.sub).trim()) out.push(r);
       return out;
     }
@@ -4045,9 +4048,10 @@ function renderDetail(){
           && orig.toUpperCase() !== now.toUpperCase());
     if (!now && !orig) return '';
     if (changed && orig && orig.toUpperCase() !== now.toUpperCase()){
-      /* Im Detail stehen keine Plaketten: alt durchgestrichen → neu, eine
-         offene Vertretung allein durchgestrichen (wie im Original). */
-      const trenn = '<span class="arrow">→</span>';
+      /* Im Detail stehen keine Plaketten: alt durchgestrichen, daneben neu
+         – getrennt durch „|“ („~~LAN~~ | ILK“). Der Pfeil gehört allein zum
+         Raum. Eine offene Vertretung steht allein durchgestrichen. */
+      const trenn = SEP;
       if (!now) return `<s>${liste(orig)}</s>`;
       return `<s>${liste(orig)}</s>${trenn}${liste(now)}`;
     }
@@ -4075,7 +4079,7 @@ function renderDetail(){
   const koppD = koppTokens(c);
   const koppHtml = () => koppD.map(t =>
       t.state === 'absent' ? `<s>${esc(t.text)}</s>`
-    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s><span class="arrow">→</span>${esc(t.text)}` : esc(t.text))
+    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s>${SEP}${esc(t.text)}` : esc(t.text))
     :                        esc(t.text)).join(SEP);
 
   const banner = { cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '';
@@ -4101,11 +4105,11 @@ function renderDetail(){
   if (voll) rows.push({ ico:'online', title:'Findet online statt', key:'online', toggle:!!cbOnline });
   if (voll && c.date >= iso(new Date())) rows.push({ ico:'room', key:'room', chips:werteListe(c.room) });
   if (istVeranstaltung){
-    /* Der Anlass steht schon im Kopf — die Information nur, wenn sie
-       darüber hinaus etwas sagt. */
+    /* Der Infotext der Veranstaltung steht immer als eigene Zeile mit
+       Info-Symbol da – auch wenn er dem Anlass im Kopf gleicht. Auf der
+       Kachel zeigt das Info-Symbol, dass es ihn gibt. */
     const extraInfo = (c.info || '').trim();
-    if (extraInfo && extraInfo.toUpperCase() !== (c.subject || '').trim().toUpperCase())
-      rows.push({ ico:'info', title:'Information zur Stunde', key:'info', sub:extraInfo });
+    if (extraInfo) rows.push({ ico:'info', title:'Information zur Stunde', key:'info', sub:extraInfo });
   } else if (c.info){
     /* „Vertretungstext" nur bei einer Vertretung oder einem Entfall —
        Klausuren, Raumbuchungen und gewöhnliche Stunden tragen eine
@@ -5135,6 +5139,8 @@ function drawAttendance(c){
    --------------------------------------------------------------------- */
 const ATT_SWIPE_MAX = 132;   /* so weit lässt sich die Zeile ziehen */
 const ATT_SWIPE_HIT = 62;    /* ab hier greift die Aktion */
+const ATT_SWIPE_START = 8;   /* ab hier gilt die Bewegung als Geste */
+const ATT_SWIPE_GAP = 12;    /* Luft zwischen Knopf und Zeile */
 
 /* Was das Wischen je Zustand bedeutet:
    nach rechts — wer schon anwesend ist, ist es bereits; wer als abwesend
@@ -5153,7 +5159,7 @@ function attBindSwipe(c){
     const inner = row.querySelector('.att__inner');
     const pIn   = row.querySelector('.att__swipe--in');
     const pOut  = row.querySelector('.att__swipe--out');
-    let sx = 0, sy = 0, sdx = 0, slock = null, sdrag = false;
+    let sx = 0, sy = 0, sdx = 0, slock = null, sdrag = false, pid = null, schlucken = false;
 
     /* Gesperrte Richtungen lassen sich gar nicht erst aufziehen. */
     const erlaubt = dx => state.isStudent ? false
@@ -5161,11 +5167,14 @@ function attBindSwipe(c){
                         : dx > 0 ? !!attRight(rec && rec.state, win.läuft)
                         : dx < 0 ? !!attLeft(rec && rec.state) : true;
 
+    /* Die Zeile wandert mit dem Finger; in der frei werdenden Fläche steht
+       der Knopf wie im Original – eine Pille mit etwas Luft zur Zeile. */
     const paint = dx => {
       if (!erlaubt(dx)) dx = 0;
       inner.style.transform = `translateX(${dx}px)`;
-      pIn .style.width = (dx > 0 ? dx : 0) + 'px';
-      pOut.style.width = (dx < 0 ? -dx : 0) + 'px';
+      const w = d => Math.max(0, Math.abs(d) - ATT_SWIPE_GAP);
+      pIn .style.width = (dx > 0 ? w(dx) : 0) + 'px';
+      pOut.style.width = (dx < 0 ? w(dx) : 0) + 'px';
       row.classList.toggle('is-armed', Math.abs(dx) >= ATT_SWIPE_HIT);
     };
     const reset = () => {
@@ -5174,29 +5183,41 @@ function attBindSwipe(c){
       pIn.style.width = pOut.style.width = '';
     };
 
-    row.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1 || !offen || (rec && rec.locked)) return;
-      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-      sdx = 0; slock = null; sdrag = true;
-    }, { passive:true });
+    /* Zeigerereignisse: Finger, Stift und Maus nehmen denselben Weg. Die
+       Zeile lässt senkrechtes Rollen zu (touch-action: pan-y) – erst eine
+       waagerechte Bewegung über die Schwelle wird zur Geste. */
+    row.addEventListener('pointerdown', e => {
+      if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (!offen || (rec && rec.locked) || state.isStudent) return;
+      sx = e.clientX; sy = e.clientY; sdx = 0; slock = null; sdrag = true; pid = e.pointerId;
+    });
 
-    row.addEventListener('touchmove', e => {
-      if (!sdrag) return;
-      const mx = e.touches[0].clientX - sx, my = e.touches[0].clientY - sy;
+    row.addEventListener('pointermove', e => {
+      if (!sdrag || e.pointerId !== pid) return;
+      const mx = e.clientX - sx, my = e.clientY - sy;
       if (slock === null){
-        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        if (Math.abs(mx) < ATT_SWIPE_START && Math.abs(my) < ATT_SWIPE_START) return;
         slock = Math.abs(mx) > Math.abs(my) * 1.3 ? 'x' : 'y';
+        if (slock === 'x'){ try { row.setPointerCapture(pid); } catch (err){} }
       }
       if (slock !== 'x') return;
+      e.preventDefault();
       sdx = Math.max(-ATT_SWIPE_MAX, Math.min(ATT_SWIPE_MAX, mx));
       row.classList.add('is-swiping');
       paint(sdx);
-    }, { passive:true });
+    });
 
-    const end = async () => {
-      if (!sdrag) return; sdrag = false;
+    const end = async e => {
+      if (!sdrag || (e && e.pointerId !== undefined && e.pointerId !== pid)) return;
+      sdrag = false;
+      try { if (pid !== null) row.releasePointerCapture(pid); } catch (err){}
+      pid = null;
       reset();
       if (slock !== 'x' || !rec) return;
+      /* Der Klick, der auf eine Wischgeste folgt, gehört nicht zum Knopf
+         darunter – sonst schaltete das Loslassen den Zustand gleich weiter. */
+      schlucken = true; setTimeout(() => { schlucken = false; }, 350);
+      if (e && e.type === 'pointercancel') return;
       const ziel = sdx >= ATT_SWIPE_HIT ? attRight(rec.state, win.läuft)
                  : sdx <= -ATT_SWIPE_HIT ? attLeft(rec.state) : null;
       if (!ziel) return;
@@ -5206,22 +5227,26 @@ function attBindSwipe(c){
               : ziel === 'absent' ? { state:'absent', arrival:'' }
               : { state:'present', arrival:'' };
       if (rec.state === r.state && (rec.arrival || '') === r.arrival) return;
-      rec.state = r.state; rec.arrival = r.arrival;
+      rec.state = r.state; rec.arrival = r.arrival; rec.gone = '';
       if (r.state !== 'absent') rec.reason = '';
+      if (r.state === 'absent') rec.seit = false;
       attChecked = true;
       buzz(); drawAttendance(c);
       if (state.detail === c) renderDetail();
       try { await cbPost(c, { action:'attendance', student_id:String(rec.id),
                               state:r.state, note:rec.note || '', arrival:r.arrival,
                               reason:rec.reason || '' }); }
-      catch (e){ toast('Nicht gespeichert: ' + e.message); }
+      catch (err){ toast('Nicht gespeichert: ' + err.message); }
     };
-    row.addEventListener('touchend', end, { passive:true });
-    row.addEventListener('touchcancel', end, { passive:true });
+    row.addEventListener('pointerup', end);
+    row.addEventListener('pointercancel', end);
+    row.addEventListener('click', e => {
+      if (schlucken){ e.stopPropagation(); e.preventDefault(); }
+    }, true);
 
-    /* Zum Prüfen am Rechner: dieselbe Geste mit der Maus. */
+    /* Zum Prüfen ohne Finger: dieselbe Geste von außen auslösen. */
     row.__swipe = { paint, reset, commit: end,
-                    set dx(v){ sdx = v; slock = 'x'; sdrag = true; } };
+                    set dx(v){ sdx = v; slock = 'x'; sdrag = true; pid = null; } };
   });
 }
 

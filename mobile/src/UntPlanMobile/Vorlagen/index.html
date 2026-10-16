@@ -542,54 +542,61 @@
 <!-- ==================== SHEET: MENU ==================== -->
 <div class="scrim" id="scrimMenu" hidden></div>
 <section class="sheet sheet--menu" id="sheetMenu" role="dialog" aria-modal="true" aria-label="Menü" hidden>
-  <div class="menu-list">
-    <button class="menu-item" data-act="reload">
-      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20.4 4v4.4H16"/></svg></span>
-      <span class="menu-item__label">Aktualisieren</span>
-    </button>
-
-    <div class="menu-sep" role="separator"></div>
-
-    <button class="menu-item" data-act="pickweek">
-      <span class="menu-item__ico"><svg class="uic ico" aria-hidden="true"><use href="#ic-my-timetable"></use></svg></span>
+  <div class="menu-list" role="menu">
+    <button class="menu-item" data-act="pickweek" role="menuitem">
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M10.6 19.5H5.8a1.6 1.6 0 0 1-1.6-1.6V6.6A1.6 1.6 0 0 1 5.8 5h12.4a1.6 1.6 0 0 1 1.6 1.6v3.6"/><path d="M4.2 9.4h15.6M8.2 3.2v3.4M15.8 3.2v3.4"/><circle cx="16.2" cy="16.2" r="3.4"/><path d="m18.7 18.7 2.4 2.4"/></svg></span>
       <span class="menu-item__label">Gehe zu Datum</span>
     </button>
 
     <div class="menu-sep" role="separator"></div>
     <p class="menu-section">Ansicht</p>
 
-    <button class="menu-item menu-item--view" data-act="view-day">
+    <button class="menu-item menu-item--view" data-act="view-day" role="menuitemradio">
       <span class="menu-item__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></svg></span>
-      <span class="menu-item__ico"><svg class="uic ico" aria-hidden="true"><use href="#ic-classes-daily"></use></svg></span>
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.6"/></svg></span>
       <span class="menu-item__label">Tag</span>
     </button>
-    <button class="menu-item menu-item--view" data-act="view-week">
+    <button class="menu-item menu-item--view" data-act="view-day2" role="menuitemradio">
       <span class="menu-item__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></svg></span>
-      <span class="menu-item__ico"><svg class="uic ico" aria-hidden="true"><use href="#ic-navigation-timetable"></use></svg></span>
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.6"/><path d="M12 4.5v15"/></svg></span>
+      <span class="menu-item__label">2 Tage</span>
+    </button>
+    <button class="menu-item menu-item--view" data-act="view-day3" role="menuitemradio">
+      <span class="menu-item__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></svg></span>
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.6"/><path d="M9.5 4.5v15M14.5 4.5v15"/></svg></span>
+      <span class="menu-item__label">3 Tage</span>
+    </button>
+    <button class="menu-item menu-item--view" data-act="view-week" role="menuitemradio">
+      <span class="menu-item__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></svg></span>
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.6"/><path d="M7.5 4.5v15M10.5 4.5v15M13.5 4.5v15M16.5 4.5v15"/></svg></span>
       <span class="menu-item__label">Woche</span>
     </button>
 
     <div class="menu-sep" role="separator"></div>
 
-    <button class="menu-item" data-act="legend">
+    <button class="menu-item" data-act="legend" role="menuitem">
       <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M9.8 9.6a2.2 2.2 0 1 1 3 2.05c-.7.3-1 .8-1 1.55v.4"/><circle cx="11.8" cy="16.4" r=".95" fill="currentColor" stroke="none"/></svg></span>
-      <span class="menu-item__label">Legende</span>
+      <span class="menu-item__label">Hilfe</span>
     </button>
   </div>
 </section>
 
-<!-- ==================== SHEET: WEEK PICKER ==================== -->
-<div class="scrim" id="scrimWeek" hidden></div>
-<section class="sheet sheet--week" id="sheetWeek" role="dialog" aria-modal="true" aria-label="Woche wählen" hidden>
-  <div class="sheet__grab"></div>
-  <div class="cal__head">
-    <button class="calnav" id="calPrev" aria-label="Vorheriger Monat"><svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg></button>
-    <span id="calMonth">–</span>
-    <button class="calnav" id="calNext" aria-label="Nächster Monat"><svg viewBox="0 0 24 24" class="ico"><path d="m10 6 6 6-6 6"/></svg></button>
+<!-- ==================== GEHE ZU DATUM (Popover) ==================== -->
+<div class="scrim scrim--clear" id="scrimWeek" hidden></div>
+<section class="sheet sheet--menu datepop" id="sheetWeek" role="dialog" aria-modal="true" aria-label="Gehe zu Datum" data-nodrag hidden>
+  <div class="datepop__top">
+    <button class="datepop__btn" id="calToday" type="button">Heute</button>
+    <button class="datepop__btn datepop__btn--go" id="calPick" type="button">Auswählen</button>
   </div>
-  <div class="cal__dow"><span class="cal__kw">KW</span><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+  <div class="cal__head">
+    <span class="cal__title" id="calMonth">–</span>
+    <span class="cal__navs">
+      <button class="calnav" id="calPrev" aria-label="Vorheriger Monat"><svg viewBox="0 0 24 24" class="ico"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg></button>
+      <button class="calnav" id="calNext" aria-label="Nächster Monat"><svg viewBox="0 0 24 24" class="ico"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg></button>
+    </span>
+  </div>
+  <div class="cal__dow"><span>MO</span><span>DI</span><span>MI</span><span>DO</span><span>FR</span><span>SA</span><span>SO</span></div>
   <div class="cal__grid" id="calGrid"></div>
-  <button class="cal__today" id="calToday">Zur aktuellen Woche</button>
 </section>
 
 <!-- ==================== SHEET: LEGENDE ==================== -->

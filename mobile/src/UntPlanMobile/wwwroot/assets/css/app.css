@@ -33,11 +33,11 @@
   /* Linke Kante der Plakette. Der Fließtext rückt davon noch einmal um das
      Polster der Plakette ein, damit beides bündig steht. Werte aus dem
      Muster: Balken bei 3 px, Text bei 12,5 px. */
-  --card-pad-left:    11.5px;
+  --card-pad-left:    11px;
   --card-pad-top:     4.5px;
   --card-pad-edge:    4px;      /* rechts und unten */
   --bar-left:         4px;      /* alles von der Außenkante gemessen */
-  --bar-top:          4.7px;
+  --bar-top:          4px;
 
   /* Am Muster ausgemessen: Fläche #e3fff2, Rahmen #019169. */
   --chg-bg:           #e3fff2;
@@ -107,6 +107,8 @@
 
 /* ---------- Reset ---------- */
 *,*::before,*::after{ box-sizing:border-box; }
+/* Schrift nur Regular (400) und Medium (500) – wie im Original, nie fett. */
+b,strong,h1,h2,h3,h4,h5,h6,th{ font-weight:500; }
 
 /* Klassen wie .row setzen display und heben damit hidden auf — deshalb
    hier ausdrücklich. Sonst blieben ausgeblendete Zeilen sichtbar. */
@@ -225,8 +227,8 @@ ul{ padding:0; list-style:none; }
   background:var(--c-bar);
 }
 .weekhead__kw{ padding-left:6px; line-height:1.05; }
-.weekhead__kw-no{ display:block; font-size:11px; font-weight:600; color:var(--c-ink-2); }
-.weekhead__month{ display:block; margin-top:3px; font-size:17px; font-weight:700; color:var(--c-ink); letter-spacing:-.01em; }
+.weekhead__kw-no{ display:block; font-size:11px; font-weight:500; color:var(--c-ink-2); }
+.weekhead__month{ display:block; margin-top:3px; font-size:17px; font-weight:500; color:var(--c-ink); letter-spacing:-.01em; }
 
 /* Der Streifen ragt über drei Wochen; die Spalte wird deshalb selbst zum
    Rahmen und schneidet ab, was links neben der Woche liegt. */
@@ -267,7 +269,7 @@ ul{ padding:0; list-style:none; }
 
 .dayhead{ text-align:center; line-height:1.05; }
 .dayhead__name{ display:block; font-size:12px; font-weight:500; color:var(--c-ink-2); }
-.dayhead__num{ display:block; margin-top:3px; font-size:16px; font-weight:700; color:var(--c-ink); letter-spacing:-.02em; }
+.dayhead__num{ display:block; margin-top:3px; font-size:16px; font-weight:500; color:var(--c-ink); letter-spacing:-.02em; }
 .dayhead.is-today .dayhead__name,
 .dayhead.is-today .dayhead__num{ color:var(--today); }
 .dayhead{ padding:2px 0 3px; border-radius:9px; transition:background .15s var(--ease); }
@@ -403,7 +405,7 @@ ul{ padding:0; list-style:none; }
 .card__line--primary{
   /* Eine Spur weniger fett als zuvor: Mit 700 stach die erste Zeile im
      Vergleich zum Vorbild zu stark heraus, dort ist sie nur halbfett. */
-  font-weight:600;
+  font-weight:500;
 }
 .card__line--badge{
   padding-left:0;
@@ -533,7 +535,7 @@ ul{ padding:0; list-style:none; }
 .card--change .card__cut circle,
 .card--released .card__cut circle{ fill:var(--green-ink); }
 .card__info{
-  color:#fff; font-size:7.5px; font-weight:700; font-style:normal;
+  color:#fff; font-size:7.5px; font-weight:500; font-style:normal;
   line-height:1;
 }
 .card__info::before{
@@ -641,7 +643,7 @@ ul{ padding:0; list-style:none; }
   background:#f4f6f7;
   color:#3f5666;
   display:grid; place-items:center;
-  font-size:11px; font-weight:700;
+  font-size:11px; font-weight:500;
   box-shadow:var(--shadow-card);
   z-index:3;
   transition:transform .12s var(--ease);
@@ -715,7 +717,7 @@ ul{ padding:0; list-style:none; }
 .card--supervision.is-sub,
 .card--supervision.is-absent{ padding-right:20px; }
 .card--supervision .card__line{
-  font-weight:600;
+  font-weight:500;
   line-height:1;
   padding:0; margin:0;
   /* Ohne `min-width:0` weigert sich ein Flex-Element zu schrumpfen: Der
@@ -864,7 +866,7 @@ ul{ padding:0; list-style:none; }
 .card--standby.is-absent .card__line{
   text-align:left; font-size:11.5px; color:var(--c-ink);
 }
-.card--standby.is-absent .card__line--primary{ font-weight:600; }
+.card--standby.is-absent .card__line--primary{ font-weight:500; }
 /* Vergangen und abwesend: Die Kachel bleibt durchsichtig, sie wird nicht
    blass. `.card--standby.is-past` legt sonst die Füllung der vergangenen
    Kacheln darunter — dann sähe eine Bereitschaft, die man gar nicht hält,
@@ -913,12 +915,12 @@ ul{ padding:0; list-style:none; }
 }
 .card--holiday{ overflow:hidden; }
 /* Lange Namen (Herbstferien, Weihnachtsferien) trennen statt mitten im Wort umbrechen */
-.holiday-name{ font-weight:700; -webkit-hyphens:auto; hyphens:auto; }
+.holiday-name{ font-weight:500; -webkit-hyphens:auto; hyphens:auto; }
 .holiday-range{ font-weight:400; font-size:11.5px !important; margin-top:6px; }
 .card--holiday{ cursor:default; pointer-events:none; }
 .card--holiday .card__line{
   color:var(--u-ink);
-  font-size:13px; font-weight:600;
+  font-size:13px; font-weight:500;
   text-align:center;
   width:100%;
   padding-left:0; padding-right:0;
@@ -946,7 +948,7 @@ ul{ padding:0; list-style:none; }
   background:var(--absent);
   color:#fff;
   display:grid; place-items:center;
-  font-size:12px; font-weight:600;
+  font-size:12px; font-weight:500;
   z-index:4;
 }
 
@@ -984,7 +986,7 @@ ul{ padding:0; list-style:none; }
 }
 .tab:active{ transform:scale(.92); }
 .tab .ico{ width:24px; height:24px; stroke-width:1.6; }
-.tab .tabnum{ font-size:7.4px; font-weight:700; fill:currentColor; stroke:none; font-family:inherit; }
+.tab .tabnum{ font-size:7.4px; font-weight:500; fill:currentColor; stroke:none; font-family:inherit; }
 .tab.is-active::before{
   content:""; position:absolute; inset:4px 6px;
   border-radius:999px; background:#eceff2; z-index:-1;
@@ -1054,7 +1056,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .profrow__del{ display:grid; place-items:center; color:#c3ccd3; }
 .profrow__del svg{ width:16px; height:16px; fill:none; stroke:currentColor;
   stroke-width:1.9; stroke-linecap:round; }
-.profrow.is-on .profrow__main b{ font-weight:600; }
+.profrow.is-on .profrow__main b{ font-weight:500; }
 
 
 /* ---------- Listen: Termine, Abwesenheiten, Klassenleitung ---------- */
@@ -1081,7 +1083,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 @media (min-width:820px){ .lstsearch{ display:flex; } }
 
 .lsthead__when{ text-align:center; line-height:1.2; }
-.lsthead__when b{ display:block; font-size:16px; font-weight:600; color:var(--c-ink-2); }
+.lsthead__when b{ display:block; font-size:16px; font-weight:500; color:var(--c-ink-2); }
 .lsthead__when span{ display:block; font-size:13px; color:#8b9aa5; margin-top:2px; }
 .lstbody{ padding:14px 14px calc(var(--sab) + 90px); }
 
@@ -1091,7 +1093,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .lstfilter[hidden]{ display:none !important; }
 .lstfilter__title{
   margin:0; padding:10px 0 14px; text-align:center;
-  font-size:16px; font-weight:600; color:var(--c-ink-2);
+  font-size:16px; font-weight:500; color:var(--c-ink-2);
 }
 .frow{
   display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px;
@@ -1104,7 +1106,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .frow__val{ font-size:15px; color:#8b9aa5; }
 .frow--toggle{ grid-template-columns:1fr auto; }
 .frow--sub{ padding:14px 26px; border-top:0; }
-.frow--sub.is-on .frow__lab{ color:var(--u-orange-ink); font-weight:600; }
+.frow--sub.is-on .frow__lab{ color:var(--u-orange-ink); font-weight:500; }
 .frow__pick[hidden]{ display:none !important; }
 .frow__pick{ border-bottom:1px solid #e3e6ea; }
 /* Reihe mit den eigenen Klassen. */
@@ -1115,10 +1117,10 @@ body.has-plain-top .topbar{ background:#eceef1; }
   background:#fff; color:var(--c-ink-2);
   font-size:14px; border:1px solid rgba(21,33,44,.08);
 }
-.lstchip.is-on{ background:var(--u-orange); color:#fff; border-color:transparent; font-weight:600; }
+.lstchip.is-on{ background:var(--u-orange); color:#fff; border-color:transparent; font-weight:500; }
 
 .lst__group{
-  font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  font-size:12.5px; font-weight:500; letter-spacing:.06em; text-transform:uppercase;
   color:#8b9aa5; margin:18px 4px 8px;
 }
 .lst__group:first-child{ margin-top:2px; }
@@ -1145,7 +1147,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .lstcard__acts{ display:flex; gap:8px; margin-top:12px; }
 .lstbtn{
   flex:1 1 0; padding:9px 12px; border-radius:11px;
-  background:#eef1f4; color:var(--c-ink-2); font-size:14.5px; font-weight:600;
+  background:#eef1f4; color:var(--c-ink-2); font-size:14.5px; font-weight:500;
 }
 .lstbtn--ok{ background:var(--u-green); color:#fff; }
 .lstbtn:active{ transform:scale(.98); }
@@ -1159,18 +1161,18 @@ body.has-plain-top .topbar{ background:#eceef1; }
   width:38px; height:38px; color:#8b9aa5;
   fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;
 }
-.lst__empty b{ display:block; font-size:19px; font-weight:700; color:var(--c-ink); margin-bottom:6px; }
+.lst__empty b{ display:block; font-size:19px; font-weight:500; color:var(--c-ink); margin-bottom:6px; }
 .lst__empty span{ font-size:15px; }
 
 .row__main{ display:block; text-align:left; }
 .row__main b{ display:block; font-weight:400; }
 .row__main i{ display:block; font-style:normal; font-size:13.5px; color:#8b9aa5; margin-top:2px; }
 .pad{ padding:calc(var(--sat) + 6px) 18px calc(var(--tabbar-h) + var(--sab) + 44px); }
-.h1{ font-size:28px; font-weight:700; letter-spacing:-.02em; margin-bottom:2px; }
+.h1{ font-size:28px; font-weight:500; letter-spacing:-.02em; margin-bottom:2px; }
 .sub{ color:var(--c-muted); font-size:14px; margin-bottom:18px; }
 
 .panel{ margin-bottom:22px; }
-.panel__head{ font-size:12.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--c-muted); margin-bottom:9px; }
+.panel__head{ font-size:12.5px; font-weight:500; letter-spacing:.05em; text-transform:uppercase; color:var(--c-muted); margin-bottom:9px; }
 .stack{ display:flex; flex-direction:column; gap:9px; }
 
 .tile{
@@ -1179,11 +1181,11 @@ body.has-plain-top .topbar{ background:#eceef1; }
   box-shadow:var(--shadow-card);
   text-align:left; width:100%;
 }
-.tile__time{ font-size:13px; font-weight:700; color:var(--c-ink-2); line-height:1.25; }
+.tile__time{ font-size:13px; font-weight:500; color:var(--c-ink-2); line-height:1.25; }
 .tile__time small{ display:block; font-weight:500; color:var(--c-muted); }
-.tile__main b{ display:block; font-size:15px; font-weight:600; }
+.tile__main b{ display:block; font-size:15px; font-weight:500; }
 .tile__main span{ display:block; font-size:13px; color:var(--c-muted); }
-.tile__flag{ font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; }
+.tile__flag{ font-size:11px; font-weight:500; padding:3px 8px; border-radius:999px; }
 .flag--change{ background:var(--chg-bg); color:#006b51; }
 .flag--cancel{ background:var(--cnc-bg); color:#b03030; }
 .flag--exam{ background:var(--exam-bg); color:#8a4626; }
@@ -1192,14 +1194,14 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .empty{ background:var(--c-bar); border-radius:14px; padding:18px 16px; color:var(--c-muted); font-size:14px; box-shadow:var(--shadow-card); }
 
 .msg{ background:var(--c-bar); border-radius:14px; padding:14px; box-shadow:var(--shadow-card); }
-.msg h3{ font-size:15px; font-weight:600; margin-bottom:3px; }
+.msg h3{ font-size:15px; font-weight:500; margin-bottom:3px; }
 .msg time{ font-size:12px; color:var(--c-muted); }
 .msg p{ font-size:14px; color:var(--c-ink-2); margin-top:6px; line-height:1.45; }
 .msg.is-unread{ border-left:3px solid var(--green); }
 
 .profile-card{ display:flex; align-items:center; gap:14px; background:var(--c-bar); border-radius:16px; padding:16px; box-shadow:var(--shadow-card); margin-bottom:20px; }
-.avatar{ width:54px; height:54px; border-radius:50%; background:var(--u-orange); color:#fff; display:grid; place-items:center; font-weight:700; font-size:19px; }
-.profile-name{ font-size:17px; font-weight:600; }
+.avatar{ width:54px; height:54px; border-radius:50%; background:var(--u-orange); color:#fff; display:grid; place-items:center; font-weight:500; font-size:19px; }
+.profile-name{ font-size:17px; font-weight:500; }
 .profile-role{ font-size:13px; color:var(--c-muted); }
 
 .rows{ background:var(--c-bar); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-card); margin-bottom:16px; }
@@ -1243,7 +1245,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .sheet{ pointer-events:none; }
 .sheet.is-open{ transform:translateY(0); pointer-events:auto; }
 .sheet__grab{ width:38px; height:4px; border-radius:2px; background:#d3d8dd; margin:9px auto 6px; flex:0 0 auto; }
-.sheet__title{ font-size:19px; font-weight:700; padding:4px 18px 12px; }
+.sheet__title{ font-size:19px; font-weight:500; padding:4px 18px 12px; }
 
 /* Auswahl — Aufbau nach Vorlage: Kategorien, dann Liste, Suche unten */
 /* Die Suchleiste sitzt oben, also darf das Sheet stehen bleiben; nur der
@@ -1264,7 +1266,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
   align-items:center; gap:8px;
   padding:12px 14px 10px;
 }
-.pk__title{ text-align:center; font-size:17px; font-weight:600; color:#5d727f; }
+.pk__title{ text-align:center; font-size:17px; font-weight:500; color:#5d727f; }
 
 .pk__body{
   position:relative;
@@ -1303,7 +1305,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .picker-letter{
   position:sticky; top:0; z-index:2;
   padding:9px 16px 6px;
-  font-size:13px; font-weight:700; color:var(--c-muted);
+  font-size:13px; font-weight:500; color:var(--c-muted);
   background:var(--c-bar);
 }
 
@@ -1316,7 +1318,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 }
 .pk__index[hidden]{ display:none; }
 .pk__index button{
-  font-size:10.5px; font-weight:600; color:#8b9aa5;
+  font-size:10.5px; font-weight:500; color:#8b9aa5;
   line-height:1.25; padding:0 2px;
 }
 .pk__index button:active{ color:var(--u-orange); }
@@ -1332,7 +1334,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
   width:42px; height:42px; border-radius:50%;
   background:#8b9aa5; color:#fff;
   display:grid; place-items:center;
-  font-size:13px; font-weight:700; letter-spacing:.02em;
+  font-size:13px; font-weight:500; letter-spacing:.02em;
 }
 .picker-item__main b{ display:block; font-size:19px; font-weight:400; color:var(--c-ink); }
 .picker-item__chip{
@@ -1469,7 +1471,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .rndbtn .ico{ width:21px; height:21px; }
 
 .detail__when{ text-align:center; line-height:1.2; }
-.detail__when b{ display:block; font-size:15px; font-weight:600; color:#5d727f; }
+.detail__when b{ display:block; font-size:15px; font-weight:500; color:#5d727f; }
 .detail__when span{ display:block; font-size:12.5px; color:#8b9aa5; margin-top:1px; }
 
 /* Im Stundendetail sind die runden Schaltflächen und die Kopfzeile eine
@@ -1506,7 +1508,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 }
 .dpart button b{ display:block; font-size:16px; font-weight:500; color:var(--c-ink); }
 .dpart button span{ display:block; font-size:14px; color:#8b9aa5; margin-top:2px; }
-.dpart button.is-on b{ color:var(--u-orange-ink); font-weight:600; }
+.dpart button.is-on b{ color:var(--u-orange-ink); font-weight:500; }
 .dpart button.is-on span{ color:var(--u-orange-ink); opacity:.75; }
 .sheet--detail .detail__when span{ font-size:14px; }
 
@@ -1536,7 +1538,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
   background:#fe0000; color:#fff;
   text-align:center;
   padding:9px 12px;
-  font-size:13.5px; font-weight:600; letter-spacing:.06em;
+  font-size:13.5px; font-weight:500; letter-spacing:.06em;
 }
 
 /* Plakette neben der Klasse im Detailkopf, etwa bei einer Veranstaltung.
@@ -1547,7 +1549,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
   margin-left:10px; vertical-align:middle;
   height:24px; padding:0 12px; border-radius:999px;
   background:#5d727f; color:#fff;
-  font-size:12.5px; font-weight:600; line-height:1;
+  font-size:12.5px; font-weight:500; line-height:1;
   letter-spacing:.02em; text-transform:uppercase;
   white-space:nowrap;
 }
@@ -1613,7 +1615,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .dtoggle.is-on::after{ transform:translateX(21px); }
 
 .detail__nav{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 18px 4px; border-top:1px solid #eef0f2; flex:0 0 auto; }
-.navbtn{ display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; border-radius:12px; background:#f1f3f5; font-size:14px; font-weight:600; color:var(--c-ink-2); }
+.navbtn{ display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; border-radius:12px; background:#f1f3f5; font-size:14px; font-weight:500; color:var(--c-ink-2); }
 .navbtn:disabled{ opacity:.4; }
 .navbtn .ico{ width:18px; height:18px; }
 
@@ -1644,20 +1646,20 @@ body.has-plain-top .topbar{ background:#eceef1; }
   stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round;
 }
 .menu-item--view.is-active .menu-item__check{ opacity:1; }
-.menu-item--view.is-active .menu-item__label{ font-weight:600; }
+.menu-item--view.is-active .menu-item__label{ font-weight:500; }
 
 /* Feine Trennlinie und stiller Abschnittstitel zwischen den Gruppen. */
 .menu-sep{ height:1px; margin:5px 12px; background:rgba(120,132,143,.24); }
 .menu-section{ padding:7px 14px 3px; font-size:13px; color:var(--c-muted); }
 
 /* Kalender */
-.cal__head{ display:flex; align-items:center; justify-content:space-between; padding:2px 18px 10px; font-size:16px; font-weight:700; }
+.cal__head{ display:flex; align-items:center; justify-content:space-between; padding:2px 18px 10px; font-size:16px; font-weight:500; }
 .calnav{ width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:#f1f3f5; color:var(--c-ink-2); }
 /* Gewählt wird die Woche, nicht der Tag — deshalb ist die Zeile das
    anfassbare Element. Links die Wochennummer, dann Mo bis So. */
 .cal__dow{
   display:grid; grid-template-columns:34px repeat(7,1fr);
-  padding:0 14px; font-size:11.5px; font-weight:600;
+  padding:0 14px; font-size:11.5px; font-weight:500;
   color:var(--c-muted); text-align:center;
 }
 .cal__dow .cal__kw{ font-size:10.5px; letter-spacing:.04em; }
@@ -1670,7 +1672,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
   transition:background-color .14s var(--ease);
 }
 .calweek__kw{
-  font-size:11.5px; font-weight:600; color:#9aa7b1;
+  font-size:11.5px; font-weight:500; color:#9aa7b1;
   display:grid; place-items:center;
 }
 .calday{
@@ -1681,7 +1683,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 .calday.is-weekend{ color:#b3bdc5; }
 .calday.is-out.is-weekend{ color:#d8dde1; }
 .calday.is-today{
-  color:#fff; font-weight:700;
+  color:#fff; font-weight:500;
   background:var(--today); border-radius:50%;
   width:28px; height:28px; aspect-ratio:auto;
   justify-self:center; align-self:center;
@@ -1689,7 +1691,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 
 /* Die gewählte Woche liegt als ein durchgehendes Feld unter der Zeile. */
 .calweek.is-selected{ background:var(--u-orange-soft); }
-.calweek.is-selected .calday{ color:var(--u-orange-ink); font-weight:600; }
+.calweek.is-selected .calday{ color:var(--u-orange-ink); font-weight:500; }
 .calweek.is-selected .calday.is-out{ color:#e0b394; }
 .calweek.is-selected .calweek__kw{ color:var(--u-orange-ink); }
 .calweek.is-selected .calday.is-today{ color:#fff; }
@@ -1697,12 +1699,12 @@ body.has-plain-top .topbar{ background:#eceef1; }
 /* Die laufende Woche bekommt einen zarten Umriss, auch wenn eine andere
    gewählt ist. */
 .calweek.is-current:not(.is-selected){ box-shadow:inset 0 0 0 1.5px #e6e9ec; }
-.cal__today{ margin:2px 18px 4px; padding:13px; border-radius:12px; background:var(--u-orange); color:#fff; font-weight:600; font-size:15px; }
+.cal__today{ margin:2px 18px 4px; padding:13px; border-radius:12px; background:var(--u-orange); color:#fff; font-weight:500; font-size:15px; }
 
 /* Legende */
 .legend{ padding:0 18px 8px; display:flex; flex-direction:column; gap:14px; }
 .legend li{ display:grid; grid-template-columns:34px 1fr; gap:12px; align-items:center; }
-.legend b{ display:block; font-size:15px; font-weight:600; }
+.legend b{ display:block; font-size:15px; font-weight:500; }
 .legend span{ display:block; font-size:13px; color:var(--c-muted); }
 .sw{ width:34px; height:34px; border-radius:8px; display:block; box-shadow:var(--shadow-card); }
 .sw--normal{ background:var(--card-bg); }
@@ -1718,7 +1720,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
   transform:translate(-50%,-50%) scale(.9);
   background:rgba(37,55,70,.9); color:#fff;
   padding:9px 16px; border-radius:999px;
-  font-size:14px; font-weight:600;
+  font-size:14px; font-weight:500;
   opacity:0; pointer-events:none;
   transition:opacity .18s var(--ease), transform .18s var(--ease);
   z-index:30;
@@ -1746,7 +1748,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
 
 /* Kartenzeiten (optional, Profil-Schalter) */
 body.show-card-times .card__times{ display:flex; }
-.card__times{ display:none; position:absolute; right:7px; top:6px; bottom:6px; flex-direction:column; justify-content:space-between; align-items:flex-end; font-size:9.5px; color:#93a0aa; font-weight:600; }
+.card__times{ display:none; position:absolute; right:7px; top:6px; bottom:6px; flex-direction:column; justify-content:space-between; align-items:flex-end; font-size:9.5px; color:#93a0aa; font-weight:500; }
 
 /* =====================================================================
    Anmeldung — eigener Bildschirm der PWA
@@ -1767,11 +1769,11 @@ body.show-card-times .card__times{ display:flex; }
   margin-bottom:20px;
 }
 .login__mark svg{ width:30px; height:30px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; }
-.login h1{ font-size:27px; font-weight:700; letter-spacing:-.02em; }
+.login h1{ font-size:27px; font-weight:500; letter-spacing:-.02em; }
 .login p{ font-size:14.5px; color:var(--c-muted); margin:5px 0 26px; }
 
 .field{ display:block; margin-bottom:14px; }
-.field span{ display:block; font-size:12.5px; font-weight:600; color:var(--c-ink-2); margin-bottom:6px; }
+.field span{ display:block; font-size:12.5px; font-weight:500; color:var(--c-ink-2); margin-bottom:6px; }
 .field input{
   width:100%; padding:13px 14px;
   border:1.5px solid #dde2e7; border-radius:12px;
@@ -1792,7 +1794,7 @@ body.show-card-times .card__times{ display:flex; }
   width:100%; padding:15px;
   border-radius:12px;
   background:var(--u-orange); color:#fff;
-  font-size:16px; font-weight:600;
+  font-size:16px; font-weight:500;
   transition:transform .12s var(--ease), opacity .15s var(--ease);
 }
 .login__submit:active{ transform:scale(.98); }
@@ -1835,7 +1837,7 @@ body.show-card-times .card__times{ display:flex; }
   background:#eff1f4; border-radius:999px; padding:3px;
   margin-bottom:12px;
 }
-.dsub__seg button{ padding:11px 2px; font-size:15.5px; font-weight:600; color:var(--c-ink-2); border-radius:999px; }
+.dsub__seg button{ padding:11px 2px; font-size:15.5px; font-weight:500; color:var(--c-ink-2); border-radius:999px; }
 .dsub__seg button.is-active{ background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); color:var(--c-ink); }
 
 .dsub__hint{
@@ -1844,7 +1846,7 @@ body.show-card-times .card__times{ display:flex; }
   margin-bottom:16px;
 }
 .dsub__empty{ text-align:center; padding:40px 10px; color:var(--c-muted); }
-.dsub__empty b{ display:block; font-size:20px; font-weight:700; color:var(--c-ink); margin:14px 0 6px; }
+.dsub__empty b{ display:block; font-size:20px; font-weight:500; color:var(--c-ink); margin:14px 0 6px; }
 .dsub__empty span{ font-size:15px; }
 .dsub__empty svg{ width:44px; height:44px; fill:none; stroke:#9aa7b1; stroke-width:1.5; }
 .dsub__empty-ico svg{ width:28px; height:28px; }
@@ -1875,7 +1877,7 @@ body.show-card-times .card__times{ display:flex; }
   display:flex; align-items:center; gap:10px;
   width:100%; padding:15px 16px;
   border:1.5px dashed #cfd6dc; border-radius:12px;
-  color:var(--u-orange-ink); font-size:16.5px; font-weight:600;
+  color:var(--u-orange-ink); font-size:16.5px; font-weight:500;
 }
 .dsub__add svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; }
 
@@ -1984,7 +1986,7 @@ body.show-card-times .card__times{ display:flex; }
   display:flex; flex-direction:column; justify-content:center; gap:1px;
   z-index:6;
 }
-.att__index button{ font-size:11.5px; font-weight:600; color:#8b9aa5; line-height:1.3; padding:0 3px; }
+.att__index button{ font-size:11.5px; font-weight:500; color:#8b9aa5; line-height:1.3; padding:0 3px; }
 .att__index button:active{ color:var(--u-orange); }
 
 /* Vermerk und Uhr rechts — kräftig, wie in der Vorlage */
@@ -2016,7 +2018,7 @@ body.show-card-times .card__times{ display:flex; }
   align-items:center; gap:8px;
   padding:14px 14px 12px;
 }
-.dabs__title{ text-align:center; font-size:17px; font-weight:600; color:var(--c-ink-2); }
+.dabs__title{ text-align:center; font-size:17px; font-weight:500; color:var(--c-ink-2); }
 .dabs__acts{ display:flex; align-items:center; gap:8px; }
 .rndbtn--ok{ color:var(--u-green); }
 
@@ -2036,7 +2038,7 @@ body.show-card-times .card__times{ display:flex; }
 .dabs__ava{
   width:56px; height:56px; border-radius:50%;
   background:#8b9aa5; color:#fff;
-  display:grid; place-items:center; font-size:18px; font-weight:600;
+  display:grid; place-items:center; font-size:18px; font-weight:500;
 }
 .dabs__id b{ display:block; font-size:21px; font-weight:400; color:var(--c-ink); line-height:1.2; }
 .dabs__chip{
@@ -2047,7 +2049,7 @@ body.show-card-times .card__times{ display:flex; }
 
 .dabs__lab{
   display:block;
-  font-size:12.5px; font-weight:600; letter-spacing:.06em;
+  font-size:12.5px; font-weight:500; letter-spacing:.06em;
   color:#8b9aa5; text-transform:uppercase;
   margin-bottom:8px;
 }
@@ -2115,7 +2117,7 @@ body.show-card-times .card__times{ display:flex; }
   padding:14px 14px 12px;
   border-bottom:1px solid #eceff1;
 }
-.dform__title{ text-align:center; font-size:17px; font-weight:600; color:var(--c-ink-2); }
+.dform__title{ text-align:center; font-size:17px; font-weight:500; color:var(--c-ink-2); }
 .rndbtn--go{ color:var(--u-orange); }
 
 .dform__body{
@@ -2194,7 +2196,7 @@ body.show-card-times .card__times{ display:flex; }
   padding:14px 14px; border-radius:11px;
   font-size:17px; color:var(--c-ink);
 }
-.dabs__pick button.is-on{ color:var(--u-orange-ink); font-weight:600; }
+.dabs__pick button.is-on{ color:var(--u-orange-ink); font-weight:500; }
 
 /* =====================================================================
    Dunkles Erscheinungsbild
@@ -2624,12 +2626,12 @@ body.is-msgtop .topbar{ display:none; }
 .msghead__left{ grid-column:1; display:flex; align-items:center; gap:8px; }
 .msghead__title{
   grid-column:2; text-align:center;
-  font-size:19px; font-weight:600; color:var(--c-ink-2);
+  font-size:19px; font-weight:500; color:var(--c-ink-2);
 }
 .msghead__acts{ grid-column:3; display:flex; align-items:center; gap:8px; }
 .msghead .rndbtn[hidden]{ display:none; }
 .msgtabs{ display:flex; gap:22px; padding:6px 18px 10px; }
-.msgtabs button{ font-size:17px; font-weight:600; color:var(--c-muted); }
+.msgtabs button{ font-size:17px; font-weight:500; color:var(--c-muted); }
 .msgtabs button.is-active{ color:var(--c-ink); }
 .msglist{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 .msgrow{
@@ -2643,7 +2645,7 @@ body.is-msgtop .topbar{ display:none; }
 .msgrow__ava{
   width:52px; height:52px; border-radius:50%;
   background:#8b9aa5; color:#fff;
-  display:grid; place-items:center; font-size:17px; font-weight:600;
+  display:grid; place-items:center; font-size:17px; font-weight:500;
 }
 .msgrow__main b{ display:block; font-size:17px; font-weight:400; color:var(--c-ink); }
 .msgrow__main span{ display:block; font-size:15px; color:var(--c-ink-2); margin-top:1px; }
@@ -2654,7 +2656,7 @@ body.is-msgtop .topbar{ display:none; }
 }
 .msgrow__main b, .msgrow__main span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .msgrow__date{ font-size:14px; color:var(--c-muted); white-space:nowrap; }
-.msgrow.is-unread .msgrow__main b{ font-weight:700; }
+.msgrow.is-unread .msgrow__main b{ font-weight:500; }
 
 /* ---------- Abwesend oder verspätet im Fehlzeit-Fenster ---------- */
 .dabs__art{
@@ -2663,7 +2665,7 @@ body.is-msgtop .topbar{ display:none; }
 }
 .dabs__art button{
   flex:1 1 0; padding:8px 10px; border-radius:9px;
-  font-size:14.5px; font-weight:600; color:var(--c-ink-2);
+  font-size:14.5px; font-weight:500; color:var(--c-ink-2);
 }
 .dabs__art button.is-on{ background:var(--c-surface); color:var(--c-ink); }
 
@@ -2695,7 +2697,7 @@ body.is-msgtop .topbar{ display:none; }
   width:34px; height:34px; color:var(--c-muted);
   fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;
 }
-.msgempty b{ display:block; font-size:21px; font-weight:600; color:var(--c-ink); }
+.msgempty b{ display:block; font-size:21px; font-weight:500; color:var(--c-ink); }
 .msgempty span{ display:block; margin-top:8px; font-size:15.5px; color:var(--c-muted); }
 
 /* ---------- Eine gelesene Mitteilung ---------- */
@@ -2708,8 +2710,8 @@ body.is-msgtop .topbar{ display:none; }
   display:flex; justify-content:space-between; align-items:baseline; gap:14px;
   font-size:15px; color:var(--c-muted);
 }
-.msgread__from b{ color:var(--c-ink); font-weight:600; }
-.msgread__subject{ margin:10px 0 18px; font-size:21px; font-weight:600; color:var(--c-ink); }
+.msgread__from b{ color:var(--c-ink); font-weight:500; }
+.msgread__subject{ margin:10px 0 18px; font-size:21px; font-weight:500; color:var(--c-ink); }
 .msgread__body{ font-size:16px; line-height:1.5; color:var(--c-ink); white-space:normal; }
 .msgread__body a{ color:var(--u-orange); text-decoration:none; word-break:break-word; }
 .msgread__to{ margin-top:18px; font-size:14px; color:var(--c-muted); }
@@ -2746,7 +2748,7 @@ body.is-msgtop .topbar{ display:none; }
   display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
   gap:10px; padding:12px 14px;
 }
-.write__title{ text-align:center; font-size:17px; font-weight:600; color:var(--c-ink); }
+.write__title{ text-align:center; font-size:17px; font-weight:500; color:var(--c-ink); }
 .write__pane{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
 .write__pane[hidden]{ display:none; }
 .write__to{
@@ -2764,7 +2766,7 @@ body.is-msgtop .topbar{ display:none; }
   width:100%; border:0; outline:none; background:transparent;
   color:var(--c-ink); font-family:inherit;
 }
-.write__subject{ padding:16px 18px 4px; font-size:20px; font-weight:600; }
+.write__subject{ padding:16px 18px 4px; font-size:20px; font-weight:500; }
 .write__body{ flex:1 1 auto; padding:6px 18px 10px; font-size:16px; line-height:1.45; resize:none; }
 .write__files{ display:flex; flex-wrap:wrap; gap:6px; padding:0 18px; }
 .write__tools{
@@ -2778,7 +2780,7 @@ body.is-msgtop .topbar{ display:none; }
 .write__clip .ico{ width:20px; height:20px; color:var(--c-ink-2); }
 .write__draft{
   padding:9px 16px; border-radius:11px;
-  background:var(--c-chip); color:var(--c-ink-2); font-size:14.5px; font-weight:600;
+  background:var(--c-chip); color:var(--c-ink-2); font-size:14.5px; font-weight:500;
 }
 .write__find{
   padding:12px 18px; font-size:16px;
@@ -2789,7 +2791,7 @@ body.is-msgtop .topbar{ display:none; }
 .write__hint{ padding:16px 18px; font-size:14.5px; color:var(--c-muted); }
 .write__ok{
   margin:10px 18px 0; padding:13px; border-radius:12px;
-  background:var(--u-orange); color:#fff; font-size:16px; font-weight:600;
+  background:var(--u-orange); color:#fff; font-size:16px; font-weight:500;
 }
 .msgchip{
   display:inline-flex; align-items:center; gap:6px;
@@ -2804,11 +2806,11 @@ body.is-msgtop .topbar{ display:none; }
 .msghit__ava{
   flex:0 0 38px; width:38px; height:38px; border-radius:50%;
   background:#8b9aa5; color:#fff;
-  display:grid; place-items:center; font-size:14px; font-weight:600;
+  display:grid; place-items:center; font-size:14px; font-weight:500;
 }
 /* Name über Zusatz, beides beschnitten statt umbrechend. */
 .msghit > span:last-child{ display:flex; flex-direction:column; min-width:0; }
-.msghit b{ font-size:15.5px; font-weight:600; color:var(--c-ink); }
+.msghit b{ font-size:15.5px; font-weight:500; color:var(--c-ink); }
 .msghit b, .msghit span span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .msghit span span{ font-size:13.5px; color:var(--c-muted); }
 
@@ -2819,7 +2821,7 @@ body.is-msgtop .topbar{ display:none; }
 }
 .dabs__art button{
   flex:1 1 0; padding:8px 10px; border-radius:9px;
-  font-size:14.5px; font-weight:600; color:var(--c-ink-2);
+  font-size:14.5px; font-weight:500; color:var(--c-ink-2);
 }
 .dabs__art button.is-on{ background:var(--c-surface); color:var(--c-ink); }
 
@@ -2939,7 +2941,7 @@ body.is-msgtop .topbar{ display:none; }
   margin:16px 0 20px;
   /* Passt sich der Länge an: kurze Namen groß, lange schrumpfen mit. */
   font-size:clamp(25px, 8.6vw, 34px);
-  line-height:1.08; font-weight:800;
+  line-height:1.08; font-weight:500;
   letter-spacing:-.022em;
   color:var(--c-ink-2);
   text-wrap:balance;
@@ -2954,13 +2956,13 @@ body.is-msgtop .topbar{ display:none; }
 }
 .daycard__left{ min-width:0; }
 .daycard__wd{ display:block; font-size:15px; color:var(--c-ink-2); }
-.daycard__num{ display:block; font-size:42px; font-weight:700; line-height:1.05; color:var(--u-orange); }
-.daycard__mon{ display:block; font-size:17px; font-weight:600; color:var(--u-orange); }
+.daycard__num{ display:block; font-size:42px; font-weight:500; line-height:1.05; color:var(--u-orange); }
+.daycard__mon{ display:block; font-size:17px; font-weight:500; color:var(--u-orange); }
 .daycard__tag{
   display:inline-block; margin-top:10px;
   padding:5px 10px; border-radius:7px;
   background:#d7e4f7; color:#20364f;
-  font-size:14.5px; font-weight:600; white-space:nowrap;
+  font-size:14.5px; font-weight:500; white-space:nowrap;
 }
 .daycard__right{ min-width:0; }
 
@@ -2974,7 +2976,7 @@ body.is-msgtop .topbar{ display:none; }
 .nextnone b{ display:block; margin-top:8px; font-size:16px; color:var(--c-ink); }
 .nextnone span{ display:block; margin-top:3px; font-size:14.5px; color:var(--c-ink-2); }
 
-.nextday{ font-size:15px; font-weight:600; color:var(--c-ink-2); margin:4px 0 8px; }
+.nextday{ font-size:15px; font-weight:500; color:var(--c-ink-2); margin:4px 0 8px; }
 .nextday:first-child{ margin-top:0; }
 .nextday span{ color:var(--c-muted); font-weight:400; }
 .nextday span::before{ content:"| "; }
@@ -2995,7 +2997,7 @@ body.is-msgtop .topbar{ display:none; }
   display:block; font-size:15px; color:var(--c-ink);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.nextrow__main span:first-child{ font-weight:600; }
+.nextrow__main span:first-child{ font-weight:500; }
 /* Zeiten rechtsbündig: Beginn oben, Ende unten — wie in der Vorlage. */
 .nextrow__times{
   display:flex; flex-direction:column; justify-content:space-between;
@@ -3319,7 +3321,7 @@ html.is-dark{
   -webkit-backdrop-filter:var(--glass-blur);
   box-shadow:inset 0 .5px 0 var(--glass-top),
              inset 0 -.5px 0 var(--glass-bot);
-  font-size:13.5px; font-weight:600; color:var(--c-ink-2);
+  font-size:13.5px; font-weight:500; color:var(--c-ink-2);
 }
 
 /* =====================================================================
@@ -3408,7 +3410,7 @@ html.is-dark{
    danach greift. */
 .dsub__gruppe{
   padding:12px 16px 6px;
-  font-size:13.5px; font-weight:700; color:var(--c-muted);
+  font-size:13.5px; font-weight:500; color:var(--c-muted);
   letter-spacing:.01em;
 }
 /* Fremde Einträge: kein Löschknopf, zurückgenommene Schrift. */
@@ -3454,7 +3456,7 @@ html.is-dark .card--released .card__cut circle{ fill:var(--green-ink); }
 }
 .seg button{
   padding:5px 11px; border-radius:999px;
-  font-size:13.5px; font-weight:600; color:var(--c-ink-2);
+  font-size:13.5px; font-weight:500; color:var(--c-ink-2);
   white-space:nowrap;
 }
 .seg button.is-on{
@@ -3475,7 +3477,7 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .att__duty{
   display:block;
   margin-top:1px;
-  font-size:12.5px; font-weight:600;
+  font-size:12.5px; font-weight:500;
   color:var(--c-muted);
 }
 
@@ -3761,7 +3763,7 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .is-dark .att__hint{ background:#36414c; color:#f2f4f6; }
 .att__hint-ico{ color:#ef6a3a; display:grid; place-items:center; padding-top:2px; }
 .att__hint-ico .dico{ width:42px; height:42px; stroke-width:1.5; }
-.att__hint-text b{ display:block; font-size:16px; font-weight:600; }
+.att__hint-text b{ display:block; font-size:16px; font-weight:500; }
 .att__hint-text span{ display:block; font-size:14.5px; line-height:1.35; margin-top:3px; opacity:.72; }
 .att__hint-x{
   width:26px; height:26px; border-radius:50%; display:grid; place-items:center;
@@ -3776,7 +3778,7 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .att__bar-x{ width:44px; height:44px; border-radius:50%; display:grid; place-items:center; color:var(--c-ink); }
 .att__bar-go{
   height:44px; border-radius:999px; background:var(--u-orange); color:#fff;
-  font-size:15.5px; font-weight:600;
+  font-size:15.5px; font-weight:500;
 }
 .detail__when b .detail__when-sep, .sheet--detail .detail__when b .detail__when-sep{
   display:inline; font-size:inherit; margin:0; padding:0 5px; color:var(--d-muted, #9aa5ae); font-weight:300; letter-spacing:0;
@@ -3806,7 +3808,7 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
   content:""; position:absolute; inset:0; pointer-events:none; z-index:-1; border-radius:inherit;
   background:radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,.65) 0%, rgba(255,255,255,0) 60%);
 }
-.tab{ font-size:11px; font-weight:600; letter-spacing:-.01em; color:#2b333a; }
+.tab{ font-size:11px; font-weight:500; letter-spacing:-.01em; color:#2b333a; }
 .tab .ico{ stroke-width:1.8; }
 .tab.is-active{ color:var(--u-orange); }
 .tab.is-active::before{
@@ -3824,11 +3826,11 @@ html.is-dark .tab{ color:#c9ced3; }
 html.is-dark .tab.is-active{ color:var(--u-orange); }
 html.is-dark .tab.is-active::before{ background:rgba(255,255,255,.12); box-shadow:inset 0 .5px 0 rgba(255,255,255,.2); }
 @media (min-width:820px){
-  .tab > span{ font-weight:600; }
+  .tab > span{ font-weight:500; }
 }
 
 /* Ohne Raum: Pill „Raum hinzufügen“ (gestrichelt, Akzentfarbe) */
-.droom__neu{ background:transparent; border:1.5px dashed color-mix(in srgb, var(--u-orange) 70%, transparent); color:var(--u-orange); font-weight:600; letter-spacing:0; }
+.droom__neu{ background:transparent; border:1.5px dashed color-mix(in srgb, var(--u-orange) 70%, transparent); color:var(--u-orange); font-weight:500; letter-spacing:0; }
 
 /* =====================================================================
    Sprint 9: Startseite mit Infos zum Tag oben (wie Referenz), Glasknöpfe
@@ -3858,7 +3860,7 @@ html.is-dark .tab.is-active::before{ background:rgba(255,255,255,.12); box-shado
 .newscard__head .ico{ width:28px; height:28px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
 .newscard__neu{ border:1.5px solid rgba(255,255,255,.9); border-radius:8px; padding:2px 10px; font-size:14px; font-weight:500; }
 .newscard__body{ padding:16px 18px 18px; }
-.newscard__body b{ display:block; font-size:18px; font-weight:600; color:var(--c-ink); margin-bottom:6px; }
+.newscard__body b{ display:block; font-size:18px; font-weight:500; color:var(--c-ink); margin-bottom:6px; }
 .newscard__body p{ margin:0; font-size:16px; line-height:1.35; color:var(--c-ink-2);
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 html.is-dark .newscard{ box-shadow:none; }
@@ -3892,7 +3894,7 @@ html.is-dark .topbar .icon-btn--solo, html.is-dark .topbar__actions, html.is-dar
 }
 
 /* Aktiver Reiter wie in der Vorlage: Schrift dunkel und kräftig, nur die Glaskapsel markiert die Auswahl */
-.tab.is-active{ color:var(--c-ink); font-weight:700; }
+.tab.is-active{ color:var(--c-ink); font-weight:500; }
 html.is-dark .tab.is-active{ color:#fff; }
 @media (min-width:820px){ .tab.is-active{ color:var(--u-orange); } }
 
@@ -3968,7 +3970,7 @@ html.is-dark .row{ border-bottom-color:transparent; }
 
 /* Profil: groß das Kürzel, Kontokarte mit grauem Kreis und Rollenplakette */
 .screen--profile .h1{
-  font-size:30px; font-weight:800; letter-spacing:-.022em;
+  font-size:30px; font-weight:500; letter-spacing:-.022em;
   color:var(--c-ink-2);
   margin:6px 0 12px;
 }
@@ -3980,13 +3982,13 @@ html.is-dark .screen--profile .h1{ color:#c2ccd4; }
 .screen--profile .avatar{
   width:38px; height:38px;
   background:#8e8e93; color:#fff;
-  font-size:17px; font-weight:600;
+  font-size:17px; font-weight:500;
 }
 .screen--profile .row--user__main b{ font-size:17px; font-weight:500; }
 .screen--profile .chip{
   margin-top:3px; padding:1px 8px; border-radius:6px;
   background:#8e8e93; color:#fff;
-  font-size:11.5px; font-weight:600; letter-spacing:.01em;
+  font-size:11.5px; font-weight:500; letter-spacing:.01em;
 }
 html.is-dark .screen--profile .chip{ background:#636366; color:#fff; }
 
@@ -4100,31 +4102,6 @@ html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:non
 }
 
 /* =====================================================================
-   Tagesansicht: großer Kopf und ausführliche Karten
-   ===================================================================== */
-/* Tagesansicht: Kopf wie in der Woche („Fr.“ über „16“), eine breite
-   Spalte. Die Karte ist die Wochenkachel in breit — links die Zeilen,
-   rechts daneben die Details (Langname, Uhrzeit, Status, Hinweis). */
-.dk{ display:flex; align-items:flex-start; gap:16px; width:100%; min-width:0; }
-.dk__zeilen{ display:flex; flex-direction:column; flex:0 0 auto; width:clamp(110px, 34%, 230px); min-width:0; }
-.dk__details{ display:flex; flex-direction:column; flex:1 1 auto; min-width:0; gap:1px; padding-right:14px; }
-.dk__details > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.dk__lang{ font-size:13px; line-height:16px; font-weight:600; color:var(--c-ink); }
-.dk__zeit{ font-size:12px; line-height:15px; color:var(--c-ink-2); font-variant-numeric:tabular-nums; }
-.dk__status{ font-size:12px; line-height:15px; font-weight:500; color:#00654c; }
-.dk__hinweis{ font-size:12px; line-height:15px; color:var(--c-ink-2); }
-.card--cancelled .dk__status{ color:var(--cnc-border); }
-.card--exam .dk__status{ color:#8a6100; }
-.is-dark .dk__status{ color:#7fe0bf; }
-.is-dark .card--cancelled .dk__status{ color:#ff8fa8; }
-.is-dark .card--exam .dk__status{ color:#f3cf7a; }
-.card--cancelled .dk__details > span{ text-decoration:none; }
-@media (min-width:700px){
-  .dk__lang{ font-size:14px; line-height:17px; }
-  .dk__zeit, .dk__status, .dk__hinweis{ font-size:12.5px; line-height:16px; }
-}
-
-/* =====================================================================
    Veranstaltung (Feld): hellgrün mit feinem Rahmen, Klassen fett – im
    Dunkeln gedämpft statt kräftigem Dunkelgrün mit Türkisrahmen.
    ===================================================================== */
@@ -4134,7 +4111,7 @@ html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:non
   --bw:1px;
   box-shadow:0 1px 2px rgba(21,33,44,.06);
 }
-.card--gs .card__line--primary{ font-weight:700; }
+.card--gs .card__line--primary{ font-weight:500; }
 html.is-dark .card--gs, html.is-dark .card--absence{
   background:#22352f;
   border:1px solid #3d6457;
@@ -4196,7 +4173,7 @@ html.is-dark .card--gs.is-past, html.is-dark .card--absence.is-past, html.is-dar
 .card--gs .card__line, .card--gs .card__line--primary,
 .card--absence .card__line, .card--absence .card__line--primary,
 .card--event .card__line, .card--event .card__line--primary{ color:var(--c-ink); }
-.card--gs .card__line--primary, .card--absence .card__line--primary, .card--event .card__line--primary{ font-weight:600; }
+.card--gs .card__line--primary, .card--absence .card__line--primary, .card--event .card__line--primary{ font-weight:500; }
 html.is-dark .card--gs .card__line, html.is-dark .card--gs .card__line--primary,
 html.is-dark .card--absence .card__line, html.is-dark .card--absence .card__line--primary,
 html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--primary{ color:#eafff8; }
@@ -4514,3 +4491,56 @@ html.is-dark .sheet--detail #dabsClose, html.is-dark .sheet--detail #dabsDelete,
 /* Kopf der Klassenbucheinträge nicht mehr gequetscht */
 .sheet--detail .dsub__top{ grid-template-columns:48px minmax(0,1fr) auto; }
 .sheet--detail .dsub__top .detail__when b{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* =====================================================================
+   Gehe zu Datum – Popover am ⋮-Knopf wie im Original (Heute / Auswählen,
+   Monat mit Pfeilen, Tage MO–SO; heute farbig, gewählt mit Kreis)
+   ===================================================================== */
+#sheetWeek{
+  position:fixed; left:auto; right:10px; bottom:auto;
+  top:calc(env(safe-area-inset-top, 0px) + 58px);
+  width:min(356px, calc(100vw - 20px));
+  max-height:none;
+  border-radius:24px;
+  padding:6px 8px 12px;
+  overflow:visible;
+  background:color-mix(in srgb, var(--c-bar) 72%, transparent);
+  backdrop-filter:saturate(200%) blur(34px);
+  -webkit-backdrop-filter:saturate(200%) blur(34px);
+  box-shadow:0 14px 44px rgba(21,33,44,.24), 0 3px 12px rgba(21,33,44,.14),
+             inset 0 .5px 0 var(--glass-top), inset 0 -.5px 0 var(--glass-bot);
+  transform-origin:top right;
+  transform:translateY(-6px) scale(.94);
+  opacity:0;
+  transition:transform .2s var(--ease), opacity .16s var(--ease);
+}
+#sheetWeek.is-open{ transform:none; opacity:1; }
+#sheetWeek::before{
+  content:""; position:absolute; top:-8px; right:16px; width:22px; height:12px;
+  background:inherit; clip-path:polygon(50% 0, 100% 100%, 0 100%);
+}
+.is-dark #sheetWeek{
+  background:color-mix(in srgb, var(--c-surface) 66%, transparent);
+  box-shadow:0 14px 44px rgba(0,0,0,.6), 0 3px 12px rgba(0,0,0,.4), inset 0 0 0 .5px rgba(255,255,255,.12);
+}
+.datepop__top{ display:flex; justify-content:space-between; align-items:center; padding:6px 10px 10px; }
+.datepop__btn{ font-size:17px; color:var(--c-ink); padding:6px 4px; background:none; }
+.datepop__btn--go{ color:var(--c-ink); }
+.datepop .cal__head{ display:flex; align-items:center; justify-content:space-between; padding:6px 10px 8px; font-size:17px; font-weight:500; }
+.datepop .cal__title{ font-weight:500; }
+.datepop .cal__title::after{ content:"›"; color:var(--u-orange); margin-left:6px; font-weight:500; }
+.datepop .cal__navs{ display:flex; gap:14px; }
+.datepop .calnav{ width:30px; height:30px; background:none !important; box-shadow:none !important; color:var(--c-ink); }
+.datepop .calnav .ico{ width:22px; height:22px; stroke-width:2.2; }
+.datepop .cal__dow{ display:grid; grid-template-columns:repeat(7, 1fr); padding:4px 2px 2px; font-size:12px; font-weight:500; color:var(--c-muted); text-align:center; letter-spacing:.02em; }
+.datepop .cal__grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:2px 0; padding:2px 2px 0; }
+.datepop .dpday{
+  height:42px; display:grid; place-items:center; font-size:19px; color:var(--c-ink);
+  background:none; border-radius:50%; font-variant-numeric:tabular-nums;
+}
+.datepop .dpday span{ width:40px; height:40px; display:grid; place-items:center; border-radius:50%; }
+.datepop .dpday.is-leer{ visibility:hidden; }
+.datepop .dpday.is-today{ color:var(--u-orange); }
+.datepop .dpday.is-sel span{ background:color-mix(in srgb, var(--u-orange) 22%, transparent); color:var(--u-orange); font-weight:500; }
+.datepop .dpday.is-weekend{ color:var(--c-muted); }
+.datepop .dpday.is-weekend.is-today{ color:var(--u-orange); }

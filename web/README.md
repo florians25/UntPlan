@@ -101,7 +101,8 @@ lizenzierten Dateien in den Ordner `wwwroot/fonts/` (im Docker-Container `/app/w
 `AvenirNextPro` und Endung `.woff2`, `.woff`, `.otf` oder `.ttf`, z. B. `AvenirNextPro-Regular.woff2`, `AvenirNextPro-Medium.woff2`,
 `AvenirNextPro-Demi.woff2`, `AvenirNextPro-Bold.woff2`, `AvenirNextPro-It.woff2`. Gewicht und Stil werden aus dem Namen erkannt
 (UltraLight/Thin, Light, Regular, Medium, Demi/SemiBold, Bold, Heavy/Black, …It/Italic). `/css/schrift.css` erzeugt daraus beim Aufruf die
-`@font-face`-Regeln; fehlen die Dateien, gilt Nunito Sans. Mit Docker z. B.:
+`@font-face`-Regeln; fehlen die Dateien, gilt Nunito Sans. Die Oberfläche nutzt nur **Regular** (CSS 100–400) und **Medium**
+(CSS 500–900); Demi-/Bold-Dateien werden nur geladen, wenn kein Medium-Schnitt vorhanden ist. Mit Docker z. B.:
 
 ```yaml
     volumes:

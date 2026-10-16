@@ -13,8 +13,12 @@ final class AppZustand: ObservableObject {
     @Published var phase: Phase = .startet
     @Published var sitzung: Sitzung?
     @Published var ungelesen = 0
-    /// Gewählter Reiter der Tab-Leiste.
-    @Published var reiter: AppReiter = .start
+    /// Gewählter Reiter der Tab-Leiste (die App startet im Stundenplan).
+    @Published var reiter: AppReiter = .stundenplan
+    /// Zählt hoch, wenn der bereits gewählte Reiter „Stundenplan“ erneut angetippt wird (zurück zur heutigen Woche).
+    @Published var stundenplanHeute = 0
+    /// Zählt hoch, wenn sich der Plan geändert hat (z. B. Raumbuchung in den Stundendetails) – der Stundenplan lädt neu.
+    @Published var planGeaendert = 0
     /// Plan, den der Stundenplan öffnen soll („Im Stundenplan anzeigen“ aus den Stundendetails).
     @Published var planAnfrage: PlanAuswahl? = nil
     /// Kurzbefehl vom App-Symbol, den der Stundenplan noch ausführen soll (Mein Stundenplan heute bzw. Planauswahl).
@@ -35,6 +39,20 @@ final class AppZustand: ObservableObject {
     var istKollegium: Bool {
         guard let b = benutzer else { return false }
         return b.kollegium && !["schueler", "eltern"].contains(b.rolle.lowercased())
+    }
+
+    /// Schüler*innen und Erziehungsberechtigte („Meine Abwesenheiten“).
+    var istFamilie: Bool {
+        guard let b = benutzer else { return false }
+        return b.familie || ["schueler", "eltern"].contains(b.rolle.lowercased())
+    }
+
+    /// Reiter wählen; erneutes Antippen des Stundenplans führt zur heutigen Woche zurück.
+    func reiterWaehlen(_ neu: AppReiter) {
+        if neu == reiter && neu == .stundenplan {
+            stundenplanHeute += 1
+        }
+        if neu != reiter { reiter = neu }
     }
 
     /// Schüler*innen und Eltern sehen keine Pläne von Lehrkräften.
@@ -102,7 +120,7 @@ final class AppZustand: ObservableObject {
         Schluesselbund.loeschen(konto: Schluesselbund.konto(login: login, server: api.serverAdresse))
         sitzung = nil
         ungelesen = 0
-        reiter = .start
+        reiter = .stundenplan
         planAnfrage = nil
         schnellaktion = nil
         phase = .abgemeldet

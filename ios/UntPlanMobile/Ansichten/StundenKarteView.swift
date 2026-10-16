@@ -8,10 +8,11 @@ import SwiftUI
 ///   neue Lehrkraft als grüne Plakette.
 /// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
 /// - Aufsicht: schmale Pille in der Pause mit lila Balken.
-/// Maße wie im Original (Woche auf dem iPhone): Balken 4 pt breit, 4 pt vom Kartenrand, Text 6 pt rechts vom Balken und
-/// 4 pt unter der Oberkante; Schrift 12 pt bei 14 pt Zeilenabstand (iPad 12,4/14,3). Jede Zeile ist einzeilig – was nicht
-/// passt, endet mit „…“ (vollständig in den Details).
-/// In der Tagesansicht (gross) dieselbe Karte, nur breiter: links die Zeilen, rechts Fach-Langname, Uhrzeit, Status und Hinweis.
+/// Maße wie im Original (nachgemessen an den Vorlagen, Woche und Tag gleich): Balken 4 pt breit, oben, links und unten je
+/// 4 pt vom Kartenrand; Text 4 pt rechts vom Balken (Glyphe ≈ 12,8 pt von der Kante) und 4 pt unter der Oberkante; Schrift
+/// 12 pt bei 14 pt Zeilenabstand (iPad 12,4/14,3). Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
+/// innerhalb grüner Plaketten; Zeilen auf Höhe der Zeichen unten rechts (Info, Hausaufgabe) lassen dafür Platz.
+/// In der Tagesansicht (gross) dieselbe Karte ohne zusätzliche Angaben, nur breiter.
 struct KachelView: View {
     let kachel: Kachel
     var gross: Bool = false
@@ -27,10 +28,10 @@ struct KachelView: View {
     private var schrift: CGFloat { kompakt ? 12 : 12.4 }
     private var zeilenHoehe: CGFloat { kompakt ? 14 : 14.3 }
 
-    // Balken und Textbeginn (Original: Balken 4 pt breit, 4 pt vom Rand; Text 6 pt rechts vom Balken)
+    // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
     static let balkenRand: CGFloat = 4
     static let balkenBreite: CGFloat = 4
-    static let textAbstand: CGFloat = 6
+    static let textAbstand: CGFloat = 4
     static var textLinks: CGFloat { balkenRand + balkenBreite + textAbstand }
     static let textOben: CGFloat = 4
 
@@ -142,30 +143,9 @@ struct KachelView: View {
                 .minimumScaleFactor(0.8)
                 .padding(4)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if gross && breite >= 240 && kachel.karte != nil {
-            // Tagesansicht: links die Zeilen wie auf der Wochenkarte, rechts die Details
-            HStack(alignment: .top, spacing: 12) {
-                zeilenBlock(a)
-                    .frame(width: min(max(breite * 0.34, 96), 220), alignment: .topLeading)
-                TagesDetails(kachel: kachel, textFarbe: a.text, hoehe: hoehe - Self.textOben - 4,
-                             schrift: schrift, zeilenHoehe: zeilenHoehe)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-            .padding(.leading, Self.textLinks)
-            .padding(.top, Self.textOben)
-            .padding(.trailing, 20)
-            .padding(.bottom, 4)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
-            VStack(alignment: .leading, spacing: 0) {
-                zeilenBlock(a)
-                let rest = hoehe - Self.textOben - 4 - CGFloat(sichtbareZeilen.count) * zeilenHoehe
-                if gross && kachel.karte != nil && rest >= zeilenHoehe {
-                    TagesDetails(kachel: kachel, textFarbe: a.text, hoehe: rest,
-                                 schrift: schrift, zeilenHoehe: zeilenHoehe, mitLangname: false)
-                        .padding(.trailing, 16)
-                }
-            }
+            // Woche wie Tag: dieselben Zeilen, in der Tagesansicht nur breiter (keine zusätzlichen Angaben)
+            zeilenBlock(a)
             .padding(.leading, Self.textLinks)
             .padding(.top, Self.textOben)
             .padding(.trailing, 3)
@@ -175,13 +155,33 @@ struct KachelView: View {
 
     private func zeilenBlock(_ a: Kachelaussehen) -> some View {
         let sichtbar = sichtbareZeilen
+        // Zeichen unten rechts (2 pt vom Rand): Zeilen auf ihrer Höhe lassen rechts Platz, damit nichts verdeckt wird
+        let breiteZeichen = zeichenBreite
+        let zeichenOben = hoehe - 2 - Self.zeichenGroesse
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(sichtbar.enumerated()), id: \.offset) { eintrag in
+                let unten = Self.textOben + CGFloat(eintrag.offset + 1) * zeilenHoehe
+                let frei: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + 2 : 0
                 KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift,
                                 titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil)
+                    .padding(.trailing, frei)
                     .frame(height: zeilenHoehe, alignment: .leading)
             }
         }
+    }
+
+    /// Kantenlänge der Zeichen unten rechts (Info, Hausaufgabe, Kürzung).
+    static let zeichenGroesse: CGFloat = 14.5
+
+    /// Breite der Zeichen unten rechts (0 = keine) – wie in `zeichen(_:)`.
+    private var zeichenBreite: CGFloat {
+        let mitInfo = kachel.info && kachel.art != .termin
+        let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
+        if gekuerzt { return Self.zeichenGroesse }
+        var anzahl: CGFloat = 0
+        if mitHausaufgabe && (!mitInfo || breite >= 96) { anzahl += 1 }
+        if mitInfo { anzahl += 1 }
+        return anzahl == 0 ? 0 : anzahl * Self.zeichenGroesse + (anzahl - 1) * 2
     }
 
     // MARK: - Zeichen unten rechts (Info, Hausaufgabe, Kürzung)
@@ -282,7 +282,8 @@ struct KachelView: View {
 }
 
 /// Eine Zeile der Kachel: Text, grüne Plaketten, durchgestrichene Werte. Immer genau eine Zeile – was nicht passt,
-/// endet mit „…“ (vollständig in den Details).
+/// endet mit „…“ (vollständig in den Details): reiner Text wird am Ende gekürzt; bei Teilen kürzt zuerst der letzte
+/// Teil, Plaketten kürzen ihren Text innerhalb der grünen Fläche.
 struct KachelzeileView: View {
     let zeile: Kachelzeile
     let aussehen: Kachelaussehen
@@ -297,151 +298,63 @@ struct KachelzeileView: View {
                     .truncationMode(.tail)
             } else {
                 ViewThatFits(in: .horizontal) {
-                    teileReihe
-                    HStack(spacing: 0) {
-                        teileReihe
-                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                            .clipped()
-                        Text("…")
-                            .fixedSize()
-                    }
+                    teileReihe(kuerzbar: false)
+                    teileReihe(kuerzbar: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .font(.system(size: schrift, weight: zeile.fett ? .semibold : .regular))
+        .font(.system(size: schrift, weight: zeile.fett ? .medium : .regular))
         .foregroundStyle(titelFarbe ?? aussehen.text)
     }
 
-    /// Alle Teile nebeneinander in voller Breite (ohne Umbruch).
-    private var teileReihe: some View {
+    /// Alle Teile nebeneinander ohne Umbruch. Kürzbar: jeder Teil darf mit „…“ enden, vordere Teile haben Vorrang.
+    @ViewBuilder
+    private func teileReihe(kuerzbar: Bool) -> some View {
+        let anzahl = zeile.teile.count
         HStack(spacing: 0) {
             ForEach(Array(zeile.teile.enumerated()), id: \.offset) { eintrag in
-                teil(eintrag.element)
-                if !eintrag.element.trenner.isEmpty {
-                    Text(eintrag.element.trenner)
-                        .strikethrough(aussehen.durchgestrichen)
+                HStack(spacing: 0) {
+                    teil(eintrag.element, kuerzbar: kuerzbar)
+                    if !eintrag.element.trenner.isEmpty {
+                        Text(eintrag.element.trenner)
+                            .strikethrough(aussehen.durchgestrichen)
+                            .fixedSize()
+                    }
                 }
+                .layoutPriority(Double(anzahl - eintrag.offset))
             }
         }
         .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
+        .fixedSize(horizontal: !kuerzbar, vertical: false)
+        .frame(maxWidth: kuerzbar ? .infinity : nil, alignment: .leading)
     }
 
     @ViewBuilder
-    private func teil(_ t: Kachelteil) -> some View {
+    private func teil(_ t: Kachelteil, kuerzbar: Bool) -> some View {
         if aussehen.durchgestrichen {
             // Entfall: alles durchgestrichen, Plaketten ohne grüne Fläche
             Text(t.text)
                 .strikethrough(true)
                 .foregroundStyle(t.stil == .plakette ? Farben.entfallPlakettenText : aussehen.text)
+                .truncationMode(.tail)
         } else {
             switch t.stil {
             case .text:
                 Text(t.text)
+                    .truncationMode(.tail)
             case .plakette:
-                Plakettenwert(text: t.text)
+                Plakettenwert(text: t.text, kuerzbar: kuerzbar)
             case .weg:
                 // Wegfallender Wert (z. B. vertretene Lehrkraft): durchgestrichen, ohne grüne Fläche
                 Text(t.text)
                     .strikethrough(true)
+                    .truncationMode(.tail)
             case .offen:
                 // Offene Vertretung: abwesende Lehrkraft durchgestrichen in grüner Plakette
-                Plakettenwert(text: t.text, durchgestrichen: true)
+                Plakettenwert(text: t.text, durchgestrichen: true, kuerzbar: kuerzbar)
             }
         }
-    }
-}
-
-/// Tagesansicht: Fach-Langname, Uhrzeit und Stunden, Status und Hinweis rechts neben bzw. unter den Zeilen –
-/// in derselben Schrift und demselben Zeilenabstand wie die Zeilen der Karte, jede Angabe einzeilig.
-struct TagesDetails: View {
-    let kachel: Kachel
-    let textFarbe: Color
-    var hoehe: CGFloat = 80
-    var schrift: CGFloat = 12.4
-    var zeilenHoehe: CGFloat = 14.3
-    var mitLangname: Bool = true
-
-    private var karte: Karte? { kachel.karte }
-
-    private var langname: String? {
-        guard let k = karte else { return nil }
-        if kachel.art == .veranstaltung { return "Veranstaltung" }
-        if !k.fachName.isEmpty && k.fachName.caseInsensitiveCompare(k.fach) != .orderedSame { return k.fachName }
-        return nil
-    }
-
-    private var zeit: String {
-        var s = "\(Rasterzeit.uhrzeit(kachel.beginn)) – \(Rasterzeit.uhrzeit(kachel.ende))"
-        if kachel.art != .veranstaltung || kachel.von != kachel.bis {
-            s += kachel.von == kachel.bis ? " · \(kachel.von). Stunde" : " · \(kachel.von).–\(kachel.bis). Stunde"
-        }
-        return s
-    }
-
-    private var status: String? {
-        guard let k = karte else { return nil }
-        switch kachel.art {
-        case .entfall:
-            return k.art.isEmpty || k.art.lowercased() == "entfall" ? "Entfall" : "Entfall · \(k.art)"
-        case .aenderung:
-            if k.online { return "Findet online statt" }
-            if kachel.zusatz { return "Zusätzliche Unterrichtsstunde" }
-            if Kartenstil.nurRaumGeaendert(k) { return "Raumänderung" }
-            return k.art.isEmpty ? "Vertretung" : k.art
-        case .abgegeben:
-            let neu = k.lehrer.map(\.k).filter { !$0.isEmpty }
-            return neu.isEmpty ? "Vertretung offen" : "Vertretung: \(neu.joined(separator: ", "))"
-        case .bereitschaftAbwesend:
-            return "Lehrkraft abwesend"
-        case .klausur:
-            return k.art.isEmpty ? "Klausur" : k.art
-        case .termin:
-            return k.istRaumbuchung || k.status == "buchung" ? "Raumbuchung" : "Termin"
-        default:
-            return nil
-        }
-    }
-
-    private var hinweise: [String] {
-        guard let k = karte else { return [] }
-        var liste: [String] = []
-        if !k.text.isEmpty && kachel.art != .veranstaltung { liste.append(k.text) }
-        if !k.abwesendeKlassen.isEmpty {
-            liste.append("\(k.abwesendeKlassen.joined(separator: ", ")) – \(k.abwesendText.isEmpty ? "abwesend" : k.abwesendText)")
-        }
-        if !k.notizSchueler.isEmpty { liste.append(k.notizSchueler) }
-        if !k.notizLehrer.isEmpty { liste.append(k.notizLehrer) }
-        if k.hausaufgabeFaellig { liste.append("Hausaufgabe fällig") }
-        return liste
-    }
-
-    /// Zeilen nach Wichtigkeit; es stehen nur so viele da, wie in die Höhe passen.
-    private var zeilen: [(text: String, fett: Bool)] {
-        var liste: [(text: String, fett: Bool)] = []
-        if mitLangname, let langname { liste.append((text: langname, fett: true)) }
-        liste.append((text: zeit, fett: false))
-        if let status { liste.append((text: status, fett: false)) }
-        for h in hinweise { liste.append((text: h, fett: false)) }
-        let platz = max(1, Int(hoehe / zeilenHoehe))
-        return Array(liste.prefix(platz))
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(zeilen.enumerated()), id: \.offset) { eintrag in
-                Text(eintrag.element.text.replacingOccurrences(of: "\n", with: " "))
-                    .font(.system(size: schrift, weight: eintrag.element.fett ? .semibold : .regular))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(height: zeilenHoehe, alignment: .leading)
-            }
-        }
-        .foregroundStyle(textFarbe)
-        .frame(maxHeight: max(hoehe, zeilenHoehe), alignment: .topLeading)
-        .clipped()
     }
 }
 
@@ -653,17 +566,20 @@ struct Plakettenwert: View {
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
+    /// Darf der Text innerhalb der Plakette mit „…“ gekürzt werden (sonst volle Breite)?
+    var kuerzbar: Bool = false
 
     var body: some View {
         Text(text)
             .fontWeight(.medium)
             .strikethrough(durchgestrichen, color: Farben.gruenSchrift)
             .foregroundStyle(Farben.gruenSchrift)
+            .lineLimit(1)
+            .truncationMode(.tail)
             .padding(.horizontal, 2.27)
             .padding(.top, 0.33)
             .background(farbe, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
-            .lineLimit(1)
-            .fixedSize()
+            .fixedSize(horizontal: !kuerzbar, vertical: true)
     }
 }
 

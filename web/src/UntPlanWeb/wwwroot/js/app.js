@@ -584,15 +584,26 @@ auswahlBeobachten(document.body);
 start();
 
 
-/** Schatten unter dem fixierten Plankopf nur, wenn gescrollt ist (ganz oben kein Schatten). */
+/**
+ * Schatten oben (Kopfleiste auf schmalen Bildschirmen, Werkzeugleiste, Plankopf) nur, wenn nach unten gescrollt ist – bei
+ * Scroll-Position 0 kein Schatten. Seiten-Scroll (Fenster) setzt body.gescrollt (bzw. plan-gescrollt); eigene Scroll-Container
+ * (Dialoge, [data-kopf-schatten]) erhalten selbst die Klasse „gescrollt“. Andere innere Scrollbereiche
+ * (Navigation, Tabellen) ändern nichts mehr am Seitenschatten.
+ */
 function planScrollBeobachten() {
   if (window.__planScroll) return;
   window.__planScroll = true;
-  const pruefen = ev => {
-    const t = ev?.target;
-    const y = t && t !== document && t.scrollTop !== undefined ? t.scrollTop : (window.scrollY || document.documentElement.scrollTop || 0);
-    document.body.classList.toggle('plan-gescrollt', y > 2);
+  const seite = () => {
+    const unten = (window.scrollY || document.documentElement.scrollTop || 0) > 2;
+    document.body.classList.toggle('gescrollt', unten);
+    document.body.classList.toggle('plan-gescrollt', unten);
   };
-  document.addEventListener('scroll', pruefen, { capture: true, passive: true });
-  pruefen();
+  window.addEventListener('scroll', seite, { passive: true });
+  document.addEventListener('scroll', ev => {
+    const t = ev.target;
+    if (t instanceof Element && t.matches('.modal, [data-kopf-schatten]')) t.classList.toggle('gescrollt', t.scrollTop > 2);
+  }, { capture: true, passive: true });
+  // Seitenwechsel: scrollTo(0, 0) löst nicht immer ein scroll-Ereignis aus
+  window.addEventListener('hashchange', () => requestAnimationFrame(seite));
+  seite();
 }

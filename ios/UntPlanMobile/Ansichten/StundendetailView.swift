@@ -52,6 +52,8 @@ struct StundendetailInhalt: View {
     @Environment(\.dismiss) private var schliessen
     @StateObject private var daten: Stundendaten
     @State private var onlineFehler: String? = nil
+    /// Raumliste („Ersetzen“ bzw. „Raum hinzufügen“) aus der Raumzeile
+    @State private var raumZiel: RaumZiel? = nil
 
     init(karte: Karte, typ: String, karten: [Karte], auswahl: Binding<Int>) {
         self.karte = karte
@@ -110,6 +112,28 @@ struct StundendetailInhalt: View {
             ziel(seite)
                 .environmentObject(daten)
                 .environmentObject(zustand)
+        }
+        .navigationDestination(item: $raumZiel) { z in
+            RaumSeite(ziel: z)
+                .environmentObject(daten)
+                .environmentObject(zustand)
+        }
+        .overlay(alignment: .bottom) {
+            if let hinweis = daten.hinweis {
+                Text(hinweis)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.78), in: Capsule())
+                    .padding(.bottom, 28)
+                    .transition(.opacity)
+                    .task(id: hinweis) {
+                        try? await Task.sleep(nanoseconds: 2_400_000_000)
+                        withAnimation { daten.hinweis = nil }
+                    }
+            }
         }
         .task { await daten.laden(kollegium: kollegium) }
         .environmentObject(daten)
@@ -173,7 +197,7 @@ struct StundendetailInhalt: View {
                     }
                 }
             } label: {
-                Rundknopf(symbol: "ellipsis", gewicht: .semibold, groesse: 18, drehung: 90)
+                Rundknopf(symbol: "ellipsis", gewicht: .medium, groesse: 18, drehung: 90)
             }
             .accessibilityLabel("Weitere Aktionen")
         }
@@ -197,7 +221,7 @@ struct StundendetailInhalt: View {
                         auswahl = eintrag.offset
                     } label: {
                         Text(reitertitel(eintrag.element))
-                            .font(.system(size: 15, weight: gewaehlt ? .semibold : .regular))
+                            .font(.system(size: 15, weight: gewaehlt ? .medium : .regular))
                             .strikethrough(eintrag.element.istEntfall)
                             .foregroundStyle(gewaehlt ? Farben.tinte : Farben.gedaempft)
                             .lineLimit(1)
@@ -224,8 +248,11 @@ struct StundendetailInhalt: View {
     }
 
     private var textTitel: String {
-        karte.keineVertretung || karte.status == "regulaer" ? "Hinweis" : "Vertretungstext"
+        karte.keineVertretung || karte.status == "regulaer" ? "Information zur Stunde" : "Vertretungstext"
     }
+
+    /// Infotext einer Veranstaltung (Zeile „Information“).
+    private var veranstaltungsInfo: String { Kachelbau.veranstaltungsInfo(karte) }
 
     private var stundentext: String {
         karte.von == karte.bis ? "\(karte.von). Stunde" : "\(karte.von).–\(karte.bis). Stunde"
@@ -242,7 +269,7 @@ struct StundendetailInhalt: View {
                 }
             }
         }
-        hinzu("raum", karte.raeume)
+        hinzu("raum", daten.aktuelleRaeume)
         if kollegium {
             hinzu("klasse", karte.klassen)
             hinzu("lehrer", karte.lehrer)
@@ -325,13 +352,14 @@ struct StundendetailInhalt: View {
     /// durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt.
     private var kopfblock: some View {
         let fach = istVeranstaltung ? (karte.text.isEmpty ? karte.art : karte.text) : (karte.fach.isEmpty ? karte.art : karte.fach)
-        let raeume = Wertzeile.bausteine(einmal(karte.raeume), durchgestrichen: false, offenAlsPlakette: false)
+        // Pfeil „alt → neu“ nur beim Raum; bei Lehrkräften und Fach trennt „|“ (z. B. „LAN | ILK“)
+        let raeume = Wertzeile.bausteine(einmal(daten.aktuelleRaeume), durchgestrichen: false, offenAlsPlakette: false, pfeil: true)
         let lehrer = Wertzeile.bausteine(einmal(karte.lehrer), durchgestrichen: Kachelbau.istBereitschaftAbwesend(karte),
                                          offenAlsPlakette: lehrerOffen)
         var fachteile: [Wertbaustein] = []
         if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach, !istVeranstaltung {
             fachteile.append(.weg(alt))
-            fachteile.append(.pfeil)
+            fachteile.append(.trenner)
         }
         fachteile.append(.text(fach))
         return VStack(alignment: .leading, spacing: 0) {
@@ -363,34 +391,56 @@ struct StundendetailInhalt: View {
 
     // MARK: - Liste
 
+    /// Reihenfolge wie in der Vorlage: „Findet online statt“ ganz oben, Raum, Vertretungstext bzw. Information, Lehrstoff,
+    /// Schüler*innen, Hausaufgaben, Klassenbucheinträge, Notizen.
     private var zeilen: some View {
         VStack(spacing: 0) {
-            if !karte.text.isEmpty && !istVeranstaltung {
-                link(.text, Detailzeile(symbol: "doc.text", titel: textTitel, untertitel: karte.text))
-            }
-            if kollegium && mitUnterricht {
+            if kollegium && mitUnterricht && !istVeranstaltung {
                 onlineZeile
             }
+            if kollegium && daten.raumAenderbar && !istVeranstaltung {
+                RaumZeile(raeume: daten.aktuelleRaeume, ziel: $raumZiel)
+            }
+            if istVeranstaltung {
+                if !veranstaltungsInfo.isEmpty {
+                    link(.info, Detailzeile(symbol: "info.circle", titel: "Information", untertitel: veranstaltungsInfo))
+                }
+            } else if !karte.text.isEmpty {
+                link(.text, Detailzeile(symbol: "SymbolNotiz", titel: textTitel, untertitel: karte.text))
+            }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
-                link(.lehrstoff, Detailzeile(symbol: "doc.text", titel: "Lehrstoff", untertitel: daten.eintrag?.thema))
+                let thema = daten.eintrag?.thema ?? ""
+                link(.lehrstoff, Detailzeile(symbol: "SymbolLehrstoff", titel: "Lehrstoff", untertitel: thema) {
+                    if !thema.isEmpty {
+                        Image(systemName: "checkmark.circle")
+                            .font(.system(size: 24, weight: .ultraLight))
+                            .foregroundStyle(Farben.gedaempft)
+                            .padding(.trailing, 4)
+                            .accessibilityLabel("Lehrstoff eingetragen")
+                    }
+                })
             }
             if kollegium && mitUnterricht {
-                link(.schueler, Detailzeile(symbol: "person.3", titel: "Schüler*innen",
-                                            zahl: daten.anwesenheit != nil ? daten.abwesendAnzahl : (daten.geladen ? 0 : nil)))
+                link(.schueler, Detailzeile(symbol: "SymbolSchueler", titel: "Schüler*innen") {
+                    if daten.anwesenheit != nil || daten.geladen {
+                        SchuelerPlakette(zahl: daten.abwesendAnzahl, kontrolliert: daten.anwesenheit?.kontrolliert == true)
+                            .padding(.trailing, 4)
+                    }
+                })
             }
             if mitUnterricht {
-                link(.hausaufgaben, Detailzeile(symbol: "book", titel: "Hausaufgaben",
+                link(.hausaufgaben, Detailzeile(symbol: "SymbolHausaufgaben", titel: "Hausaufgaben",
                                                 zahl: daten.hausaufgaben.map { $0.liste.count } ?? (daten.geladen ? 0 : nil)))
             }
             if kollegium && !daten.klassen.isEmpty && !istVeranstaltung {
-                link(.klassenbuch, Detailzeile(symbol: "book.closed", titel: "Klassenbucheinträge",
+                link(.klassenbuch, Detailzeile(symbol: "SymbolKlassenbuch", titel: "Klassenbucheinträge",
                                                zahl: daten.geladen ? daten.vermerke.count : nil))
             }
             if (kollegium && mitUnterricht) || !daten.notizSchueler.isEmpty {
-                link(.notizSchueler, Detailzeile(symbol: "doc.text", titel: "Notizen für Schüler*innen", untertitel: daten.notizSchueler))
+                link(.notizSchueler, Detailzeile(symbol: "SymbolNotiz", titel: "Notizen für Schüler*innen", untertitel: daten.notizSchueler))
             }
             if kollegium && (mitUnterricht || !daten.notizLehrer.isEmpty) {
-                link(.notizLehrer, Detailzeile(symbol: "doc.text", titel: "Notizen für Lehrkräfte", untertitel: daten.notizLehrer))
+                link(.notizLehrer, Detailzeile(symbol: "SymbolNotiz", titel: "Notizen für Lehrkräfte", untertitel: daten.notizLehrer))
             }
             if karte.hausaufgabeFaellig {
                 Detailzeile(symbol: "exclamationmark.circle", titel: "Zu dieser Stunde ist eine Hausaufgabe fällig", pfeil: false)
@@ -412,7 +462,7 @@ struct StundendetailInhalt: View {
 
     /// „Findet online statt“ – speicherbar für Lehrkräfte mit Schreibrecht (optimistisch, bei Fehler zurück).
     private var onlineZeile: some View {
-        Detailzeile(symbol: "video", titel: "Findet online statt", pfeil: false) {
+        Detailzeile(symbol: "SymbolOnline", titel: "Findet online statt", pfeil: false) {
             Toggle("Findet online statt", isOn: Binding(
                 get: { daten.istOnline },
                 set: { neu in
@@ -435,8 +485,10 @@ struct StundendetailInhalt: View {
         switch seite {
         case .text:
             DetailTextSeite(titel: textTitel, text: karte.text, karte: karte)
+        case .info:
+            DetailTextSeite(titel: "Information", text: veranstaltungsInfo, karte: karte)
         case .lehrstoff:
-            LehrstoffSeite()
+            NotizSeite(art: .lehrstoff)
         case .schueler:
             SchuelerSeite()
         case .hausaufgaben:

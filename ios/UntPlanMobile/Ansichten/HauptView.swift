@@ -65,6 +65,11 @@ struct AppTabView: View {
 
     private var istBreit: Bool { groessenklasse == .regular }
 
+    /// Auswahl des Reiters über AppZustand: erneutes Antippen von „Stundenplan“ führt zur heutigen Woche zurück.
+    private var reiterBindung: Binding<AppReiter> {
+        Binding(get: { zustand.reiter }, set: { zustand.reiterWaehlen($0) })
+    }
+
     var body: some View {
         if #available(iOS 26.0, *) {
             systemLeiste
@@ -76,7 +81,7 @@ struct AppTabView: View {
     // MARK: - iOS 26: Systemleiste
 
     private var systemLeiste: some View {
-        TabView(selection: $zustand.reiter) {
+        TabView(selection: reiterBindung) {
             StartView()
                 .tint(Farben.akzent)
                 .tabItem { Label(AppReiter.start.titel, systemImage: AppReiter.start.symbol) }
@@ -141,7 +146,7 @@ struct AppTabView: View {
             // iPad: Kapsel oben mittig in der Zeile der Navigationsleiste (links Konto, rechts Knöpfe)
             reiterStapel
                 .overlay(alignment: .top) {
-                    KopfTabLeiste(auswahl: $zustand.reiter, ungelesen: zustand.ungelesen)
+                    KopfTabLeiste(auswahl: reiterBindung, ungelesen: zustand.ungelesen)
                         .padding(.top, 5)
                 }
         } else {
@@ -162,7 +167,7 @@ struct AppTabView: View {
                     Color.clear.frame(height: einzug)
                 }
                 .overlay(alignment: .bottom) {
-                    GlasTabLeiste(auswahl: $zustand.reiter, ungelesen: zustand.ungelesen)
+                    GlasTabLeiste(auswahl: reiterBindung, ungelesen: zustand.ungelesen)
                         .padding(.bottom, abstand)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .ignoresSafeArea(.container, edges: .bottom)

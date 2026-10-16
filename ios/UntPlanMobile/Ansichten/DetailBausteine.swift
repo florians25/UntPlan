@@ -314,10 +314,7 @@ struct Detailzeile<Rechts: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 25, weight: .ultraLight))
-                .foregroundStyle(Farben.gedaempft)
-                .frame(width: 30, height: 30)
+            Listensymbol(name: symbol)
             VStack(alignment: .leading, spacing: 3) {
                 Text(titel)
                     .font(.system(size: 19))
@@ -406,8 +403,9 @@ struct Wertzeile: View {
         }
     }
 
-    /// Bausteine aus Werten: geänderte Werte als „alt → neu“, offene Lehrkraft (kein neuer Wert) als grüne Plakette.
-    static func bausteine(_ werte: [Wert], durchgestrichen: Bool, offenAlsPlakette: Bool) -> [Wertbaustein] {
+    /// Bausteine aus Werten: geänderte Werte als „alt → neu“ (nur Räume, `pfeil`) bzw. „alt | neu“ (Lehrkräfte, Klassen),
+    /// offene Lehrkraft (kein neuer Wert) durchgestrichen.
+    static func bausteine(_ werte: [Wert], durchgestrichen: Bool, offenAlsPlakette: Bool, pfeil: Bool = false) -> [Wertbaustein] {
         var ergebnis: [Wertbaustein] = []
         for w in werte {
             var teil: [Wertbaustein] = []
@@ -423,7 +421,7 @@ struct Wertzeile: View {
             } else {
                 if !alt.isEmpty && alt != w.k {
                     teil.append(.weg(alt))
-                    teil.append(.pfeil)
+                    teil.append(pfeil ? .pfeil : .trenner)
                 }
                 if !w.k.isEmpty { teil.append(.text(w.k)) }
             }
@@ -452,5 +450,171 @@ struct EinzeilenScroller<Inhalt: View>: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Symbole der Liste
+
+/// Symbol links in der Detailliste: Vektorgrafik aus Assets.xcassets (Name beginnt mit „Symbol“, als Vorlage eingefärbt)
+/// oder SF Symbol in Linienstil, jeweils grau in einem 30-pt-Feld.
+struct Listensymbol: View {
+    let name: String
+    var groesse: CGFloat = 30
+
+    var body: some View {
+        Group {
+            if name.hasPrefix("Symbol") {
+                Image(name)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: groesse * 0.86, height: groesse * 0.86)
+            } else {
+                Image(systemName: name)
+                    .font(.system(size: groesse * 0.83, weight: .ultraLight))
+            }
+        }
+        .foregroundStyle(Farben.gedaempft)
+        .frame(width: groesse, height: groesse)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Schüler*innen-Plakette
+
+/// Zahl der Abwesenden wie in der Vorlage: dunkelrote Scheibe (grau bei 0), oben rechts ein kleines Häkchen,
+/// wenn die Abwesenheiten der Stunde kontrolliert wurden.
+struct SchuelerPlakette: View {
+    let zahl: Int
+    let kontrolliert: Bool
+
+    var body: some View {
+        Text("\(zahl)")
+            .font(.system(size: 17))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .frame(minWidth: 31, minHeight: 31)
+            .background(zahl > 0 ? Farben.abwesendRot : Farben.zahlPlakette, in: Capsule())
+            .overlay(alignment: .topTrailing) {
+                if kontrolliert {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 7, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 13, height: 13)
+                        .background(Farben.zahlPlakette, in: Circle())
+                        .overlay { Circle().strokeBorder(Farben.blatt, lineWidth: 1) }
+                        .offset(x: 3, y: -3)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(kontrolliert ? "\(zahl) abwesend, kontrolliert" : "\(zahl) abwesend")
+    }
+}
+
+// MARK: - Raumbuchung in den Stundendetails
+
+/// Ziel der Raumliste: Raum ersetzen (alt) bzw. zusätzlichen Raum hinzufügen.
+struct RaumZiel: Hashable, Identifiable {
+    /// ersetzen oder hinzufuegen
+    let aktion: String
+    let alt: String
+
+    var id: String { "\(aktion)|\(alt)" }
+}
+
+/// Raumzeile wie in der PWA: jeder Raum als Chip (Tippen: „Ersetzen“ / „Löschen“), rechts „+“ für einen weiteren Raum.
+struct RaumZeile: View {
+    let raeume: [Wert]
+    @Binding var ziel: RaumZiel?
+    @EnvironmentObject var daten: Stundendaten
+    @EnvironmentObject var zustand: AppZustand
+    @State private var fehler: String? = nil
+    @State private var arbeitet = false
+
+    /// Aktuelle Räume (ohne weggefallene).
+    private var aktuelle: [String] {
+        var liste: [String] = []
+        for w in raeume where !w.k.isEmpty && !liste.contains(where: { $0.caseInsensitiveCompare(w.k) == .orderedSame }) {
+            liste.append(w.k)
+        }
+        return liste
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Listensymbol(name: "door.left.hand.open")
+            EinzeilenScroller {
+                HStack(spacing: 8) {
+                    if aktuelle.isEmpty {
+                        Text("Kein Raum")
+                            .font(.system(size: 17))
+                            .foregroundStyle(Farben.gedaempft)
+                    }
+                    ForEach(aktuelle, id: \.self) { raum in
+                        Menu {
+                            Button {
+                                ziel = RaumZiel(aktion: "ersetzen", alt: raum)
+                            } label: {
+                                Label("Ersetzen", systemImage: "arrow.left.arrow.right")
+                            }
+                            Button(role: .destructive) {
+                                Task { await loeschen(raum) }
+                            } label: {
+                                Label("Löschen", systemImage: "trash")
+                            }
+                            .disabled(aktuelle.count < 2)
+                        } label: {
+                            Text(raum)
+                                .font(.system(size: 17))
+                                .foregroundStyle(Farben.detailText)
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                                .background(Farben.knopf, in: Capsule())
+                        }
+                        .accessibilityLabel("Raum \(raum)")
+                        .accessibilityHint("Ersetzen oder löschen")
+                    }
+                }
+            }
+            if arbeitet {
+                ProgressView()
+                    .frame(width: 31, height: 31)
+            } else {
+                Button {
+                    ziel = RaumZiel(aktion: "hinzufuegen", alt: "")
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(Farben.tinte2)
+                        .frame(width: 31, height: 31)
+                        .background(Farben.knopf, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Raum hinzufügen")
+            }
+        }
+        .padding(.leading, Detailmass.rand)
+        .padding(.trailing, 22)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .alert("Nicht gespeichert", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(fehler ?? "")
+        }
+    }
+
+    private func loeschen(_ raum: String) async {
+        arbeitet = true
+        defer { arbeitet = false }
+        do {
+            let meldung = try await daten.raumAendern(aktion: "loeschen", raum: raum, alt: nil)
+            withAnimation { daten.hinweis = meldung }
+            zustand.planGeaendert += 1
+        } catch {
+            fehler = zustand.fehlertext(error)
+        }
     }
 }

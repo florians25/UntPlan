@@ -14,6 +14,14 @@ final class Stundendaten: ObservableObject {
     @Published var hausaufgaben: HausaufgabenDerStunde? = nil
     @Published var anwesenheit: Anwesenheitsliste? = nil
     @Published var vermerke: [Vermerk] = []
+    /// Eintragskategorien der Klassenbucheinträge (vom Server, sonst Vorgabe)
+    @Published var vermerkArten: [String] = ["Vermerk", "Ordnungsmaßnahme", "Elterngespräch", "Lob", "Material vergessen", "Hausaufgabe fehlt"]
+    /// Abwesenheitsgründe (beim ersten Bedarf geladen)
+    @Published var gruende: [Abwesenheitsgrund] = []
+    /// Räume nach einer Raumänderung in den Details (nil = wie auf der Karte)
+    @Published var raeume: [Wert]? = nil
+    /// Kurze Meldung unten im Blatt (z. B. „Raum C197 hinzugefügt“)
+    @Published var hinweis: String? = nil
     /// Klassendienste am Tag der Stunde je Schüler-ID (z. B. „Klassensprecher*in“)
     @Published var dienste: [Int: [String]] = [:]
     @Published var geladen = false
@@ -51,6 +59,36 @@ final class Stundendaten: ObservableObject {
 
     var abwesendAnzahl: Int { anwesenheit?.fehlzeiten.count ?? 0 }
 
+    /// Angezeigte Räume der Stunde (nach einer Raumänderung die neuen).
+    var aktuelleRaeume: [Wert] { raeume ?? karte.raeume }
+
+    /// Raum buchen bzw. ändern: eigene Stunde mit Unterricht, nicht entfallen, ab heute.
+    var raumAenderbar: Bool {
+        guard darf, karte.unterricht != nil, !karte.istEntfall, let tag = Datumsformat.datum(karte.datum) else { return false }
+        return tag >= Datumsformat.kalender.startOfDay(for: Date())
+    }
+
+    /// Erfasste Fehlzeit einer Schülerin bzw. eines Schülers in dieser Stunde.
+    func fehlzeit(_ s: Schueler) -> Fehlzeiteintrag? {
+        anwesenheit?.fehlzeiten.first { $0.schuelerId == s.id }
+    }
+
+    /// In einer früheren Stunde desselben Tages abwesend, hier (noch) nicht eingetragen?
+    func inVorstundeAbwesend(_ s: Schueler) -> Bool {
+        fehlzeit(s) == nil && (anwesenheit?.vorstunden.contains { $0.schuelerId == s.id } ?? false)
+    }
+
+    /// Beginn und Ende des Blocks (HH:mm).
+    var blockBeginn: String {
+        let b = anwesenheit?.beginn ?? ""
+        return b.isEmpty ? karte.beginn : b
+    }
+
+    var blockEnde: String {
+        let e = anwesenheit?.ende ?? ""
+        return e.isEmpty ? karte.ende : e
+    }
+
     func laden(kollegium: Bool) async {
         defer { geladen = true }
         guard let u = karte.unterricht else { return }
@@ -61,13 +99,29 @@ final class Stundendaten: ObservableObject {
         guard kollegium else { return }
         await anwesenheitLaden()
         await diensteLaden()
+        await vermerkeLaden()
+    }
+
+    func vermerkeLaden() async {
         var liste: [Vermerk] = []
         for klasse in klassen {
             if let v = try? await api.vermerke(klasse: klasse, von: karte.datum, bis: karte.datum) {
                 liste.append(contentsOf: v.vermerke)
+                if !v.arten.isEmpty { vermerkArten = v.arten }
             }
         }
         vermerke = liste
+    }
+
+    func gruendeLaden() async {
+        guard gruende.isEmpty else { return }
+        if let g = try? await api.abwesenheitsgruende() { gruende = g }
+    }
+
+    /// Bezeichnung eines Abwesenheitsgrunds (Kürzel → Name).
+    func grundName(_ kurz: String) -> String {
+        guard !kurz.isEmpty else { return "" }
+        return gruende.first { $0.kurz.caseInsensitiveCompare(kurz) == .orderedSame }?.anzeige ?? kurz
     }
 
     func hausaufgabenLaden() async {
@@ -153,25 +207,125 @@ final class Stundendaten: ObservableObject {
         await hausaufgabenLaden()
     }
 
-    /// Schüler*in als abwesend bzw. anwesend markieren; die übrigen erfassten Fehlzeiten bleiben erhalten.
-    func abwesenheitUmschalten(_ schueler: Schueler) async throws {
-        guard let u = karte.unterricht, let liste = anwesenheit else { return }
-        var eintraege = liste.fehlzeiten.filter { $0.schuelerId != schueler.id }.map {
-            AnwesenheitEintragDaten(schuelerId: $0.schuelerId, art: $0.art, minuten: $0.minuten,
-                                    bemerkung: $0.bemerkung.isEmpty ? nil : $0.bemerkung, grund: $0.grund.isEmpty ? nil : $0.grund)
+    // MARK: Anwesenheit und Abwesenheiten
+
+    /// „yyyy-MM-ddTHH:mm:ss“ für den Abwesenheitsdialog.
+    static func zeitpunkt(_ d: Date) -> String {
+        Datumsformat.anzeige(d, "yyyy-MM-dd'T'HH:mm:ss")
+    }
+
+    /// Datum der Stunde mit Uhrzeit (HH:mm).
+    func zeit(_ hhmm: String) -> Date {
+        let tag = Datumsformat.datum(karte.datum) ?? Date()
+        let teile = hhmm.split(separator: ":").compactMap { Int($0) }
+        guard teile.count >= 2 else { return tag }
+        return Datumsformat.kalender.date(bySettingHour: teile[0], minute: teile[1], second: 0, of: tag) ?? tag
+    }
+
+    /// Wischgeste nach rechts: anwesend – die Abwesenheit in dieser Stunde wird entfernt.
+    func anwesendSetzen(_ s: Schueler) async throws {
+        guard let u = karte.unterricht, fehlzeit(s) != nil else { return }
+        try await api.abwesenheitEntfernen(AbwesenheitEntfernenDaten(datum: karte.datum, stunde: karte.von, unterricht: u, schuelerIds: [s.id]))
+        await anwesenheitLaden()
+    }
+
+    /// Wischgeste nach links: abwesend für den ganzen Block (minutengenau von Beginn bis Ende).
+    func abwesendSetzen(_ s: Schueler) async throws {
+        guard let u = karte.unterricht, fehlzeit(s) == nil else { return }
+        try await api.abwesenheitErfassen(AbwesenheitZeitraumDaten(
+            schuelerIds: [s.id], von: Self.zeitpunkt(zeit(blockBeginn)), bis: Self.zeitpunkt(zeit(blockEnde)),
+            grund: nil, text: nil, datum: karte.datum, stunde: karte.von, unterricht: u))
+        await anwesenheitLaden()
+    }
+
+    /// Abwesenheit erfassen bzw. ändern (Abwesenheitsdialog). `ersetzen`: Fehlzeit-IDs der bisherigen Abwesenheit.
+    func abwesenheitSpeichern(_ s: Schueler, von: Date, bis: Date, grund: String, text: String, eltern: Bool, ersetzen: [Int]?) async throws {
+        guard let u = karte.unterricht else { return }
+        try await api.abwesenheitErfassen(AbwesenheitZeitraumDaten(
+            schuelerIds: [s.id], von: Self.zeitpunkt(von), bis: Self.zeitpunkt(bis),
+            grund: grund, text: text, datum: karte.datum, stunde: karte.von, unterricht: u,
+            ersetzen: (ersetzen ?? []).isEmpty ? nil : ersetzen, elternInformiert: eltern))
+        await anwesenheitLaden()
+    }
+
+    /// Abwesenheit löschen: ganze Abwesenheit (Klassenleitung, IDs) bzw. die Abwesenheit in dieser Stunde.
+    func abwesenheitLoeschen(_ s: Schueler, ids: [Int]?) async throws {
+        if let ids, !ids.isEmpty, anwesenheit?.verwalten == true {
+            try await api.abwesenheitenLoeschen(ids)
+        } else if let u = karte.unterricht {
+            try await api.abwesenheitEntfernen(AbwesenheitEntfernenDaten(datum: karte.datum, stunde: karte.von, unterricht: u, schuelerIds: [s.id]))
         }
-        let warAbwesend = liste.fehlzeiten.contains { $0.schuelerId == schueler.id }
-        if !warAbwesend {
-            eintraege.append(AnwesenheitEintragDaten(schuelerId: schueler.id, art: "fehlt", minuten: 0, bemerkung: nil, grund: nil))
+        await anwesenheitLaden()
+    }
+
+    /// Leiste „Abwesenheiten kontrollieren“: die erfassten Fehlzeiten unverändert speichern – die Stunde gilt als kontrolliert.
+    func kontrolleBestaetigen() async throws {
+        guard let u = karte.unterricht, let liste = anwesenheit else { return }
+        let eintraege = liste.fehlzeiten.map { f -> AnwesenheitEintragDaten in
+            let minutengenau = f.art != "fehlt" && !f.beginn.isEmpty && !f.ende.isEmpty
+            return AnwesenheitEintragDaten(schuelerId: f.schuelerId, art: f.art, minuten: f.minuten,
+                                           bemerkung: f.text.isEmpty ? nil : f.text, grund: f.grund.isEmpty ? nil : f.grund,
+                                           von: minutengenau ? f.beginn : nil, bis: minutengenau ? f.ende : nil)
         }
         try await api.anwesenheitSpeichern(AnwesenheitDaten(datum: karte.datum, stunde: karte.von, unterricht: u, eintraege: eintraege))
         await anwesenheitLaden()
+    }
+
+    /// Neuer Klassenbucheintrag zu den gewählten Schüler*innen (je Person ein Eintrag) bzw. zur Klasse.
+    func vermerkAnlegen(schueler: [Schueler], art: String, text: String) async throws {
+        let zeit = karte.beginn.isEmpty ? nil : karte.beginn
+        if schueler.isEmpty {
+            for klasse in klassen.prefix(1) {
+                try await api.vermerkAnlegen(VermerkNeuDaten(datum: karte.datum, klasse: klasse, schuelerId: nil, art: art, text: text, zeit: zeit))
+            }
+        } else {
+            for s in schueler {
+                let klasse = s.klasse.isEmpty ? (klassen.first ?? "") : s.klasse
+                try await api.vermerkAnlegen(VermerkNeuDaten(datum: karte.datum, klasse: klasse, schuelerId: s.id, art: art, text: text, zeit: zeit))
+            }
+        }
+        await vermerkeLaden()
+    }
+
+    // MARK: Raumbuchung
+
+    /// Raum ersetzen, hinzufügen oder löschen (wie in der PWA); liefert die Meldung für die Anzeige.
+    func raumAendern(aktion: String, raum: String, alt: String?) async throws -> String {
+        guard let u = karte.unterricht else { return "" }
+        let antwort = try await api.raumAendern(RaumAenderungDaten(
+            datum: karte.datum, stundeVon: karte.von, stundeBis: karte.bis, unterricht: u,
+            klassen: klassen, aktion: aktion, raum: raum, alt: alt))
+        let original = karte.raeume.map { $0.alt.flatMap { $0.isEmpty ? nil : $0 } ?? $0.k }.filter { !$0.isEmpty }
+        if antwort.zurueckgesetzt {
+            raeume = nil
+        } else {
+            func enthaelt(_ liste: [String], _ x: String) -> Bool { liste.contains { $0.caseInsensitiveCompare(x) == .orderedSame } }
+            var weg = original.filter { !enthaelt(antwort.raeume, $0) }
+            var neu: [Wert] = []
+            for r in antwort.raeume {
+                if enthaelt(original, r) {
+                    neu.append(Wert(k: r))
+                } else if !weg.isEmpty {
+                    neu.append(Wert(k: r, alt: weg.removeFirst(), neu: true))
+                } else {
+                    neu.append(Wert(k: r, alt: nil, neu: true))
+                }
+            }
+            for o in weg { neu.append(Wert(k: "", alt: o, neu: true)) }
+            raeume = neu
+        }
+        switch aktion {
+        case "loeschen": return "Raum \(raum) gelöscht"
+        case "hinzufuegen": return "Raum \(raum) hinzugefügt"
+        default: return "\(alt ?? "") durch \(raum) ersetzt"
+        }
     }
 }
 
 /// Unterseiten der Stundendetails.
 enum Detailseite: Hashable {
     case text
+    case info
     case lehrstoff
     case schueler
     case hausaufgaben
@@ -214,11 +368,29 @@ struct NotizSeite: View {
     enum Art {
         case schueler
         case lehrer
+        /// Lehrstoff: eine einfache Textfläche wie in der Vorlage
+        case lehrstoff
 
         var titel: String {
             switch self {
             case .schueler: return "Notizen für Schüler*innen"
             case .lehrer: return "Notizen für Lehrkräfte"
+            case .lehrstoff: return "Lehrstoff"
+            }
+        }
+
+        var platzhalter: String {
+            switch self {
+            case .schueler: return "Notiz, die Schüler*innen sehen"
+            case .lehrer: return "Notiz nur für Lehrkräfte"
+            case .lehrstoff: return "Hier klicken um Lehrstoff einzutragen."
+            }
+        }
+
+        var leer: String {
+            switch self {
+            case .lehrstoff: return "Noch kein Lehrstoff eingetragen."
+            default: return "Keine Notiz."
             }
         }
     }
@@ -247,7 +419,12 @@ struct NotizSeite: View {
             }
         }
         .onAppear {
-            let wert = art == .schueler ? daten.notizSchueler : daten.notizLehrer
+            let wert: String
+            switch art {
+            case .schueler: wert = daten.notizSchueler
+            case .lehrer: wert = daten.notizLehrer
+            case .lehrstoff: wert = daten.eintrag?.thema ?? ""
+            }
             text = wert
             anfang = wert
         }
@@ -281,7 +458,7 @@ struct NotizSeite: View {
                         .padding(.top, 8)
                         .overlay(alignment: .topLeading) {
                             if text.isEmpty {
-                                Text(art == .schueler ? "Notiz, die Schüler*innen sehen" : "Notiz nur für Lehrkräfte")
+                                Text(art.platzhalter)
                                     .font(.system(size: 16))
                                     .foregroundStyle(Farben.gedaempft)
                                     .padding(.horizontal, 20)
@@ -303,7 +480,7 @@ struct NotizSeite: View {
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             } else {
                 ScrollView {
-                    Text(text.isEmpty ? "Keine Notiz." : text)
+                    Text(text.isEmpty ? art.leer : text)
                         .font(.system(size: 16))
                         .foregroundStyle(text.isEmpty ? Farben.gedaempft : Farben.tinte)
                         .textSelection(.enabled)
@@ -321,10 +498,10 @@ struct NotizSeite: View {
         defer { speichert = false }
         do {
             let wert = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if art == .schueler {
-                try await daten.speichern(notizSchueler: wert)
-            } else {
-                try await daten.speichern(notiz: wert)
+            switch art {
+            case .schueler: try await daten.speichern(notizSchueler: wert)
+            case .lehrer: try await daten.speichern(notiz: wert)
+            case .lehrstoff: try await daten.speichern(thema: wert)
             }
             text = wert
             anfang = wert
@@ -333,93 +510,6 @@ struct NotizSeite: View {
         } catch {
             fehler = zustand.fehlertext(error)
             return false
-        }
-    }
-}
-
-// MARK: - Lehrstoff
-
-struct LehrstoffSeite: View {
-    @EnvironmentObject var daten: Stundendaten
-    @EnvironmentObject var zustand: AppZustand
-    @State private var thema = ""
-    @State private var lehrform = ""
-    @State private var anmerkung = ""
-    @State private var gespeichert = ["", "", ""]
-    @State private var speichert = false
-    @State private var fehler: String? = nil
-
-    private var bearbeitbar: Bool { daten.darf && daten.karte.unterricht != nil }
-
-    private var geaendert: Bool { [thema, lehrform, anmerkung] != gespeichert }
-
-    var body: some View {
-        DetailSeitenRahmen(titel: "Lehrstoff", untertitel: stundenUntertitel(daten.karte)) {
-            formular
-        } rechts: {
-            if bearbeitbar {
-                SichernKnopf(speichert: speichert, aktiv: geaendert) { Task { await sichern() } }
-            }
-        }
-        .onAppear {
-            thema = daten.eintrag?.thema ?? ""
-            lehrform = daten.eintrag?.lehrform ?? ""
-            anmerkung = daten.eintrag?.anmerkung ?? ""
-            gespeichert = [thema, lehrform, anmerkung]
-        }
-        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(fehler ?? "")
-        }
-    }
-
-    private var formular: some View {
-        Form {
-            if bearbeitbar {
-                Section("Lehrstoff") {
-                    TextField("Thema der Stunde", text: $thema, axis: .vertical)
-                        .lineLimit(3...10)
-                }
-                Section("Lehrform") {
-                    TextField("z. B. Gruppenarbeit", text: $lehrform)
-                }
-                Section("Anmerkung") {
-                    TextField("Anmerkung", text: $anmerkung, axis: .vertical)
-                        .lineLimit(2...6)
-                }
-            } else {
-                Section("Lehrstoff") {
-                    Text(thema.isEmpty ? "Noch kein Lehrstoff eingetragen." : thema)
-                        .foregroundStyle(thema.isEmpty ? Farben.gedaempft : Farben.tinte)
-                        .textSelection(.enabled)
-                }
-                if !lehrform.isEmpty {
-                    Section("Lehrform") { Text(lehrform) }
-                }
-                if !anmerkung.isEmpty {
-                    Section("Anmerkung") { Text(anmerkung) }
-                }
-            }
-            if let e = daten.eintrag, !e.hausaufgabe.isEmpty {
-                Section("Hausaufgabe (Klassenbuch)") {
-                    Text(e.hausaufgabe)
-                }
-            }
-        }
-    }
-
-    private func sichern() async {
-        speichert = true
-        defer { speichert = false }
-        do {
-            thema = thema.trimmingCharacters(in: .whitespacesAndNewlines)
-            lehrform = lehrform.trimmingCharacters(in: .whitespacesAndNewlines)
-            anmerkung = anmerkung.trimmingCharacters(in: .whitespacesAndNewlines)
-            try await daten.speichern(thema: thema, lehrform: lehrform, anmerkung: anmerkung)
-            gespeichert = [thema, lehrform, anmerkung]
-        } catch {
-            fehler = zustand.fehlertext(error)
         }
     }
 }
@@ -809,9 +899,12 @@ private struct EintragLabelStil: LabelStyle {
 
 // MARK: - Schüler*innen (Anwesenheit)
 
-/// Vorlage (Seite „Schüler*innen“): Kopf mit Zurück, Titel und Datum mittig, rechts Klassendienste; darunter das Segment
-/// Alle | Abwesend | Anwesend, der Hinweis zur Kontrolle, Abschnitte nach Anfangsbuchstaben mit A–Z-Leiste rechts.
-/// Jede Zeile: grüner Haken-Kreis (antippen = abwesend), Name, darunter Klassendienst, rechts Buch und Uhr.
+/// Vorlage (Seite „Schüler*innen“): Kopf mit Zurück, Titel und Datum mittig; darunter das Segment
+/// Alle | Abwesend | Anwesend und die Leiste „✓ Abwesenheiten wurden kontrolliert“ (bzw. zum Bestätigen der Kontrolle),
+/// Abschnitte nach Anfangsbuchstaben mit A–Z-Leiste rechts.
+/// Jede Zeile: grüner Haken-Kreis (anwesend) bzw. rote Uhr (abwesend), Name, darunter „Abwesend (verspätet)“ bzw.
+/// „Abwesend (fehlt)“ oder der Hinweis „War in Vorstunde abwesend!“, rechts Buch mit Plus (neuer Klassenbucheintrag)
+/// und Uhr (Abwesenheiten der Person). Wischen von links nach rechts: anwesend (grün), von rechts nach links: abwesend (rot).
 struct SchuelerSeite: View {
     enum Filter: Hashable {
         case alle
@@ -819,17 +912,22 @@ struct SchuelerSeite: View {
         case anwesend
     }
 
+    /// Vorlage für den Klassenbucheintrag (vorausgewählte Schüler*innen).
+    struct Eintragsvorlage: Identifiable {
+        let id = UUID()
+        let schueler: [Schueler]
+    }
+
     @EnvironmentObject var daten: Stundendaten
     @EnvironmentObject var zustand: AppZustand
     @State private var filter: Filter = .alle
     @State private var speichert: Int? = nil
+    @State private var kontrolliert = false
     @State private var fehler: String? = nil
+    @State private var eintrag: Eintragsvorlage? = nil
+    @State private var abwesenheitenVon: Schueler? = nil
 
     private var liste: Anwesenheitsliste? { daten.anwesenheit }
-
-    private func fehlzeit(_ s: Schueler) -> Fehlzeiteintrag? {
-        liste?.fehlzeiten.first { $0.schuelerId == s.id }
-    }
 
     /// Kontrolle erst ab dem Tag der Stunde möglich.
     private var kontrolleAb: Date? {
@@ -843,8 +941,8 @@ struct SchuelerSeite: View {
         let alle = liste?.schueler ?? []
         switch filter {
         case .alle: return alle
-        case .abwesend: return alle.filter { fehlzeit($0) != nil }
-        case .anwesend: return alle.filter { fehlzeit($0) == nil }
+        case .abwesend: return alle.filter { daten.fehlzeit($0) != nil }
+        case .anwesend: return alle.filter { daten.fehlzeit($0) == nil }
         }
     }
 
@@ -870,8 +968,16 @@ struct SchuelerSeite: View {
     var body: some View {
         DetailSeitenRahmen(titel: "Schüler*innen", untertitel: stundenUntertitel(daten.karte)) {
             inhalt
-        } rechts: {
-            diensteMenue
+        }
+        .sheet(item: $eintrag) { v in
+            NeuerKlassenbucheintragView(vorauswahl: v.schueler)
+                .environmentObject(daten)
+                .environmentObject(zustand)
+        }
+        .navigationDestination(item: $abwesenheitenVon) { s in
+            SchuelerAbwesenheitenView(schueler: s)
+                .environmentObject(daten)
+                .environmentObject(zustand)
         }
         .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
@@ -882,7 +988,7 @@ struct SchuelerSeite: View {
 
     private var inhalt: some View {
         let alle = liste?.schueler ?? []
-        let abwesend = alle.filter { fehlzeit($0) != nil }.count
+        let abwesend = alle.filter { daten.fehlzeit($0) != nil }.count
         return VStack(spacing: 0) {
             Picker("Filter", selection: $filter) {
                 Text("Alle (\(alle.count))").tag(Filter.alle)
@@ -893,16 +999,7 @@ struct SchuelerSeite: View {
             .padding(.horizontal, 14)
             .padding(.top, 2)
             .padding(.bottom, 8)
-            if let hinweis = hinweistext {
-                Text(hinweis)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(Farben.tinte2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 12)
-                    .background(Farben.infoFeld)
-            }
+            kontrollLeiste
             if liste == nil {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -913,8 +1010,28 @@ struct SchuelerSeite: View {
                             Section {
                                 ForEach(gruppe.liste) { s in
                                     zeile(s)
-                                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 30))
+                                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 26))
                                         .listRowBackground(Farben.blatt)
+                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                            if bearbeitbar && daten.fehlzeit(s) != nil {
+                                                Button {
+                                                    Task { await ausfuehren(s) { try await daten.anwesendSetzen(s) } }
+                                                } label: {
+                                                    Label("Anwesend", systemImage: "checkmark.circle")
+                                                }
+                                                .tint(Farben.gruen)
+                                            }
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            if bearbeitbar && daten.fehlzeit(s) == nil {
+                                                Button {
+                                                    Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
+                                                } label: {
+                                                    Label("Abwesend", systemImage: "clock")
+                                                }
+                                                .tint(Farben.entfallRand)
+                                            }
+                                        }
                                 }
                             } header: {
                                 Text(gruppe.buchstabe)
@@ -936,117 +1053,116 @@ struct SchuelerSeite: View {
         }
     }
 
-    /// Klassendienste des Tages (Symbol oben rechts).
+    /// Leiste unter dem Segment: „✓ Abwesenheiten wurden kontrolliert“; noch nicht kontrolliert: antippen zum Bestätigen.
     @ViewBuilder
-    private var diensteMenue: some View {
-        let alle = liste?.schueler ?? []
-        let mitDienst = alle.filter { !(daten.dienste[$0.id] ?? []).isEmpty }
-        Menu {
-            Section("Klassendienste") {
-                if mitDienst.isEmpty {
-                    Button {} label: { Text("Keine Klassendienste eingetragen") }
-                        .disabled(true)
-                }
-                ForEach(mitDienst) { s in
-                    Button {} label: {
-                        Label("\(s.anzeige) – \((daten.dienste[s.id] ?? []).joined(separator: ", "))", systemImage: "person")
-                    }
-                    .disabled(true)
-                }
-            }
-        } label: {
-            Rundknopf(symbol: "pencil", gewicht: .light, groesse: 15)
-        }
-        .accessibilityLabel("Klassendienste")
-    }
-
-    private var hinweistext: String? {
+    private var kontrollLeiste: some View {
         if let ab = kontrolleAb {
             let zeit = daten.karte.beginn.isEmpty ? "" : " - \(daten.karte.beginn)"
-            return "Kontrolle der Abwesenheiten ist ab \(Datumsformat.anzeige(ab, "dd.MM.yyyy"))\(zeit) möglich"
+            leiste(Text("Kontrolle der Abwesenheiten ist ab \(Datumsformat.anzeige(ab, "dd.MM.yyyy"))\(zeit) möglich"))
+        } else if liste?.kontrolliert == true {
+            leiste(Text("✓ Abwesenheiten wurden kontrolliert"))
+                .accessibilityLabel("Abwesenheiten wurden kontrolliert")
+        } else if bearbeitbar {
+            Button {
+                Task { await kontrolleBestaetigen() }
+            } label: {
+                leiste(HStack(spacing: 6) {
+                    if kontrolliert {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "checkmark.circle")
+                    }
+                    Text("Abwesenheiten kontrollieren")
+                }
+                .foregroundStyle(Farben.akzent))
+            }
+            .buttonStyle(.plain)
+            .disabled(kontrolliert)
+            .accessibilityHint("Bestätigt, dass die Abwesenheiten dieser Stunde kontrolliert wurden")
+        } else if liste?.darf == false {
+            leiste(Text("Nur Ansicht – die Stunde gehört nicht zu Ihrem Unterricht."))
         }
-        if let geprueft = liste?.geprueft, !geprueft.isEmpty {
-            return "Abwesenheiten geprüft (\(Datumsformat.anzeige(geprueft, "d.M.yyyy, HH:mm")))"
-        }
-        if liste?.darf == false {
-            return "Nur Ansicht – die Stunde gehört nicht zu Ihrem Unterricht."
-        }
-        return nil
     }
 
-    private func untertitel(_ s: Schueler, _ f: Fehlzeiteintrag?) -> String? {
+    private func leiste<V: View>(_ inhalt: V) -> some View {
+        inhalt
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(Farben.tinte2)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 12)
+            .background(Farben.kontrollLeiste)
+    }
+
+    private func untertitel(_ s: Schueler, _ f: Fehlzeiteintrag?) -> (text: String, warnung: Bool)? {
+        if let f { return (f.statustext, false) }
+        if daten.inVorstundeAbwesend(s) { return ("War in Vorstunde abwesend!", true) }
         var teile: [String] = []
         let dienste = daten.dienste[s.id] ?? []
         if !dienste.isEmpty { teile.append(dienste.joined(separator: ", ")) }
-        if let f { teile.append(fehlzeittext(f)) }
         if teile.isEmpty, (liste?.schueler.contains { $0.klasse != s.klasse }) == true, !s.klasse.isEmpty {
             teile.append(s.klasse)
         }
-        return teile.isEmpty ? nil : teile.joined(separator: " · ")
+        return teile.isEmpty ? nil : (teile.joined(separator: " · "), false)
     }
 
     private func zeile(_ s: Schueler) -> some View {
-        let f = fehlzeit(s)
-        let verspaetet = f?.art == "verspaetet" || f?.art == "vorzeitig"
+        let f = daten.fehlzeit(s)
         let hatVermerk = daten.vermerke.contains { $0.schuelerId == s.id }
-        return HStack(spacing: 12) {
-            Button {
-                Task { await umschalten(s) }
-            } label: {
-                Group {
-                    if speichert == s.id {
-                        ProgressView()
-                    } else if let f {
-                        Image(systemName: f.art == "fehlt" ? "xmark.circle" : "clock.badge.exclamationmark")
-                            .foregroundStyle(f.art == "fehlt" ? Farben.entfallRand : Farben.orange)
-                    } else {
-                        Image(systemName: "checkmark.circle")
-                            .foregroundStyle(Farben.gruen)
-                    }
+        return HStack(spacing: 14) {
+            Group {
+                if speichert == s.id {
+                    ProgressView()
+                } else if f != nil {
+                    Image(systemName: "clock")
+                        .foregroundStyle(Farben.entfallRand)
+                } else {
+                    Image(systemName: "checkmark.circle")
+                        .foregroundStyle(Farben.gruen)
                 }
-                .font(.system(size: 21, weight: .light))
-                .frame(width: 28, height: 28)
             }
-            .buttonStyle(.borderless)
-            .disabled(!bearbeitbar || speichert != nil)
+            .font(.system(size: 22, weight: .light))
+            .frame(width: 28, height: 28)
             .accessibilityLabel(f == nil ? "Anwesend" : "Abwesend")
-            .accessibilityHint(bearbeitbar ? "Doppeltippen zum Umschalten" : "")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.anzeige)
-                    .font(.system(size: 15))
+                    .font(.system(size: 17))
                     .foregroundStyle(Farben.tinte)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                 if let u = untertitel(s, f) {
-                    Text(u)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Farben.gedaempft)
+                    Text(u.text)
+                        .font(.system(size: 14, weight: u.warnung ? .medium : .regular))
+                        .foregroundStyle(u.warnung ? Farben.entfallRand : Farben.gedaempft)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
-            Spacer(minLength: 4)
-            Image(systemName: hatVermerk ? "book.closed.fill" : "book.closed")
-                .font(.system(size: 18, weight: .light))
-                .foregroundStyle(hatVermerk ? Farben.tinte2 : Farben.gedaempft)
-                .accessibilityLabel(hatVermerk ? "Klassenbucheintrag vorhanden" : "Kein Klassenbucheintrag")
-            Image(systemName: verspaetet ? "clock.fill" : "clock")
-                .font(.system(size: 18, weight: .light))
-                .foregroundStyle(verspaetet ? Farben.orange : Farben.gedaempft)
-                .accessibilityLabel(verspaetet ? "Verspätung bzw. vorzeitig gegangen" : "Pünktlich")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                eintrag = Eintragsvorlage(schueler: [s])
+            } label: {
+                BuchPlusSymbol(vorhanden: hatVermerk)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(hatVermerk ? "Klassenbucheintrag vorhanden, neuer Klassenbucheintrag" : "Neuer Klassenbucheintrag")
+            Button {
+                abwesenheitenVon = s
+            } label: {
+                Image(systemName: "clock")
+                    .font(.system(size: 22, weight: .light))
+                    .foregroundStyle(Farben.tinte2)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Abwesenheiten von \(s.anzeige)")
         }
-        .frame(minHeight: 50)
-    }
-
-    private func fehlzeittext(_ f: Fehlzeiteintrag) -> String {
-        var teile: [String] = []
-        switch f.art {
-        case "verspaetet": teile.append("verspätet \(f.minuten) min")
-        case "vorzeitig": teile.append("vorzeitig gegangen \(f.minuten) min")
-        default: teile.append("abwesend")
-        }
-        if !f.grund.isEmpty { teile.append(f.grund) }
-        if !f.bemerkung.isEmpty { teile.append(f.bemerkung) }
-        return teile.joined(separator: " · ")
+        .frame(minHeight: 56)
+        .contentShape(Rectangle())
     }
 
     /// Buchstabenleiste A–Z am rechten Rand.
@@ -1068,13 +1184,44 @@ struct SchuelerSeite: View {
         .accessibilityHidden(true)
     }
 
-    private func umschalten(_ s: Schueler) async {
+    private func ausfuehren(_ s: Schueler, _ aktion: () async throws -> Void) async {
         speichert = s.id
         defer { speichert = nil }
         do {
-            try await daten.abwesenheitUmschalten(s)
+            try await aktion()
         } catch {
             fehler = zustand.fehlertext(error)
         }
+    }
+
+    private func kontrolleBestaetigen() async {
+        kontrolliert = true
+        defer { kontrolliert = false }
+        do {
+            try await daten.kontrolleBestaetigen()
+        } catch {
+            fehler = zustand.fehlertext(error)
+        }
+    }
+}
+
+/// Buch mit Plus (neuer Klassenbucheintrag); ist schon ein Eintrag vorhanden, das Buch ohne Plus.
+struct BuchPlusSymbol: View {
+    var vorhanden: Bool = false
+
+    var body: some View {
+        Image(systemName: "book.closed")
+            .font(.system(size: 21, weight: .light))
+            .foregroundStyle(Farben.tinte2)
+            .overlay(alignment: .bottomTrailing) {
+                if !vorhanden {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(Farben.tinte2)
+                        .background(Circle().fill(Farben.blatt).padding(1))
+                        .offset(x: 4, y: 3)
+                }
+            }
+            .frame(width: 30, height: 30)
     }
 }

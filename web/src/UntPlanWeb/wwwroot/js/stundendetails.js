@@ -33,14 +33,16 @@ function planLink(typ, kurz) {
   if (!typ || !kurz || KEIN_ELEMENT.test(kurz)) return e(kurz);
   return `<a href="#" class="sd-link" data-plan="${typ}" data-element="${e(kurz)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(kurz)}</a>`;
 }
-function wertKopf(liste, max = 6, typ = null) {
+function wertKopf(liste, max = 6, typ = null, lehrkraft = typ === 'lehrer') {
   const l = (liste || []).filter(w => w.k || w.alt);
   const teil = l.length > max + 1 ? l.slice(0, max - 2) : l;
   // Kopf ohne Labels: Änderungen nur als Text – alt durchgestrichen → neu, entfallener Wert (z. B. offene Vertretung) nur durchgestrichen
   // auch der ersetzte (durchgestrichene) Wert – z. B. die abwesende Lehrkraft – führt zu seinem Plan
   const alt = w => typ ? `<s class="sd-alt">${planLink(typ, w.alt)}</s>` : `<s class="sd-alt">${e(w.alt)}</s>`;
+  // Lehrkraft-Wechsel wie im Original „abwesend | Vertretung“, nur bei Raum (und Fach) ein Pfeil
+  const zwischen = lehrkraft ? '<span class="sd-strich">|</span>' : '<span class="sd-pfeil">→</span>';
   return teil.map(w => w.alt && !w.k ? alt(w)
-    : w.alt ? `${alt(w)} <span class="sd-pfeil">→</span> ${planLink(typ, w.k)}` : planLink(typ, w.k)).join(', ')
+    : w.alt ? `${alt(w)} ${zwischen} ${planLink(typ, w.k)}` : planLink(typ, w.k)).join(', ')
     + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
 }
 
@@ -129,20 +131,20 @@ export function karteDialog(karte, kontext = {}) {
     const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}` : e(k.fach || k.text || k.art || 'Stunde');
     const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
     const zeile = [wochentag(k.datum), datumDe(k.datum), k.beginn ? `${k.beginn}-${k.ende}` : `${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'} Std.`,
-      wertKopf(k.raeume, 6, 'raum'), wertKopf(k.lehrer, 6, kollegium ? 'lehrer' : null)].filter(Boolean);
-    // Keine Labels/Plaketten im Kopf: Änderungen stehen als Text (alt durchgestrichen → neu), der Status höchstens als schlichter Text
-    const statusText = istEntfall() ? 'Entfällt' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung'
-      : k.zusaetzlich || (k.status === 'geaendert' && /zusatz|sondereinsatz|zusätzlich/i.test(k.art || '')) ? 'Zusätzlicher Unterricht' : '';
-    if (statusText) zeile.push(`<span class="sd-status-text">${statusText}</span>`);
-    const leiste = istEntfall() ? 'entfall' : '';
+      wertKopf(k.raeume, 6, 'raum'), wertKopf(k.lehrer, 6, kollegium ? 'lehrer' : null, true)].filter(Boolean);
+    // Wie im Original: bei Entfall Kopf hellgrau und darunter roter Balken „ENTFÄLLT“; Prüfung/Veranstaltung als dezente graue Pille,
+    // sonst keine Labels (Änderungen stehen als Text: alt durchgestrichen | neu bzw. → beim Raum)
+    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : '';
+    const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
     return `<div class="sd-kopf ${leiste ? 'grau' : ''}">
         <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}</h2>
-          <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
+          <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}</div></div>
         <div class="sd-knoepfe"><button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>
           <button type="button" data-bs-dismiss="modal" title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>
       </div>
+      ${leiste ? '<div class="sd-entfall-leiste" role="status">ENTFÄLLT</div>' : ''}
       <ul class="nav sd-reiter">${reiterListe.map(([id, t]) => `<li><button type="button" data-reiter="${id}" class="${reiter === id ? 'aktiv' : ''}">${t}</button></li>`).join('')}</ul>`;
   }
 

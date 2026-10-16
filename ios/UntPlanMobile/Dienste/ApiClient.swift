@@ -150,6 +150,7 @@ final class ApiClient: @unchecked Sendable {
                           parameter: ["datum": datum, "stunde": String(stunde), "unterricht": String(unterricht)])
     }
 
+    /// PUT /klassenbuch/anwesenheit – ersetzt die Fehlzeiten der Stunde und markiert sie als kontrolliert.
     func anwesenheitSpeichern(_ daten: AnwesenheitDaten) async throws {
         let _: BeliebigeAntwort = try await anfrage("PUT", "/klassenbuch/anwesenheit", koerper: try encoder.encode(daten))
     }
@@ -172,6 +173,77 @@ final class ApiClient: @unchecked Sendable {
 
     func vermerke(klasse: String, von: String, bis: String) async throws -> Vermerkliste {
         try await anfrage("GET", "/klassenbuch/vermerke", parameter: ["klasse": klasse, "von": von, "bis": bis])
+    }
+
+    /// POST /klassenbuch/vermerke – neuer Klassenbucheintrag.
+    func vermerkAnlegen(_ daten: VermerkNeuDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/klassenbuch/vermerke", koerper: try encoder.encode(daten))
+    }
+
+    // MARK: Abwesenheiten (Kollegium)
+
+    /// POST /klassenbuch/abwesenheit – Abwesenheit minutengenau erfassen bzw. ersetzen (Abwesenheitsdialog, Wischgeste).
+    func abwesenheitErfassen(_ daten: AbwesenheitZeitraumDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/klassenbuch/abwesenheit", koerper: try encoder.encode(daten))
+    }
+
+    /// POST /klassenbuch/abwesenheit/loeschen – Abwesenheit in dieser Stunde entfernen (anwesend).
+    func abwesenheitEntfernen(_ daten: AbwesenheitEntfernenDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/klassenbuch/abwesenheit/loeschen", koerper: try encoder.encode(daten))
+    }
+
+    /// POST /abwesenheiten/loeschen – ganze Abwesenheiten (Fehlzeit-IDs) löschen (Klassenleitung).
+    func abwesenheitenLoeschen(_ ids: [Int]) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/abwesenheiten/loeschen", koerper: try encoder.encode(IdsDaten(ids: ids)))
+    }
+
+    /// GET /abwesenheitsgruende?art=abwesenheit
+    func abwesenheitsgruende() async throws -> [Abwesenheitsgrund] {
+        let liste: [Vielleicht<Abwesenheitsgrund>] = try await anfrage("GET", "/abwesenheitsgruende", parameter: ["art": "abwesenheit"])
+        return liste.compactMap(\.wert).filter(\.aktiv)
+    }
+
+    /// GET /abwesenheiten/zeitraeume – Abwesenheiten einer Klasse als Zeiträume (nur Klassenleitung).
+    func abwesenheitszeitraeume(klasse: String, von: String, bis: String) async throws -> [Abwesenheitszeitraum] {
+        let liste: [Vielleicht<Abwesenheitszeitraum>] = try await anfrage("GET", "/abwesenheiten/zeitraeume",
+                                                                            parameter: ["klasse": klasse, "von": von, "bis": bis])
+        return liste.compactMap(\.wert)
+    }
+
+    // MARK: Meine Abwesenheiten (Schüler*innen und Eltern)
+
+    func familieKinder() async throws -> [Kind] {
+        let liste: [Vielleicht<Kind>] = try await anfrage("GET", "/familie/kinder")
+        return liste.compactMap(\.wert)
+    }
+
+    /// Bezeichnungen der Abwesenheitsgründe (Kürzel → Name).
+    func familieGruende() async throws -> [String: String] {
+        try await anfrage("GET", "/familie/gruende")
+    }
+
+    func familieAbwesenheiten(schueler: Int?, von: String?, bis: String?, status: String?) async throws -> FamilieAbwesenheiten {
+        var parameter: [String: String] = [:]
+        if let schueler { parameter["schueler"] = String(schueler) }
+        if let von, !von.isEmpty { parameter["von"] = von }
+        if let bis, !bis.isEmpty { parameter["bis"] = bis }
+        if let status, !status.isEmpty { parameter["status"] = status }
+        return try await anfrage("GET", "/familie/abwesenheiten", parameter: parameter)
+    }
+
+    // MARK: Raumbuchung aus den Stundendetails
+
+    /// GET /meldungen/freieraeume – freie buchbare Räume der Stunde.
+    func freieRaeume(datum: String, von: Int, bis: Int, unterricht: Int?) async throws -> [FreierRaum] {
+        var parameter = ["datum": datum, "von": String(von), "bis": String(bis)]
+        if let unterricht { parameter["unterricht"] = String(unterricht) }
+        let liste: [Vielleicht<FreierRaum>] = try await anfrage("GET", "/meldungen/freieraeume", parameter: parameter)
+        return liste.compactMap(\.wert).filter { !$0.kurz.isEmpty }
+    }
+
+    /// POST /mobil/raum – Raum ersetzen, hinzufügen oder löschen; liefert die neue Raumliste.
+    func raumAendern(_ daten: RaumAenderungDaten) async throws -> RaumAenderungAntwort {
+        try await anfrage("POST", "/mobil/raum", koerper: try encoder.encode(daten))
     }
 
     /// Klassendienste einer Klasse im Zeitraum (z. B. Klassensprecher*in), je Schüler*in.
