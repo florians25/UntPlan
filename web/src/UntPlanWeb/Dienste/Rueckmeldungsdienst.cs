@@ -41,6 +41,20 @@ public sealed class Rueckmeldungsdienst
     public List<Meldung> Offene() => _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' ORDER BY erstellt", Lesen);
     public List<Meldung> Alle(int max = 500) => _db.Liste("SELECT * FROM rueckmeldungen ORDER BY erstellt DESC LIMIT @n", Lesen, Db.P("@n", max));
     public List<Meldung> OffeneKlausuren() => _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausur' ORDER BY von", Lesen);
+
+    /// <summary>Offene Prüfungen ohne die schon in UntPlan übernommenen und wieder übertragenen (diese werden quittiert – keine Dubletten).</summary>
+    public List<Meldung> OffeneKlausuren(Stand s) => OffeneKlausuren().Where(m => !(DateOnly.TryParse(m.Von, out var d) && SchonUebertragenQuittieren(s, d, m))).ToList();
+
+    /// <summary>Noch nicht übernommene Löschungen von Prüfungen (Prüfungsliste: gelöschte Prüfungen nicht mehr zeigen).</summary>
+    public List<Meldung> OffeneLoeschungen() => _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausurloeschen' ORDER BY von", Lesen);
+
+    private bool SchonUebertragenQuittieren(Stand s, DateOnly d, Meldung m)
+    {
+        if (!SchonUebertragen(s, d, m)) return false;
+        _db.Ausfuehren("UPDATE rueckmeldungen SET status = 'quittiert', quittiert = @z WHERE id = @id AND status = 'offen'",
+            Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@id", m.Id));
+        return true;
+    }
     public List<Meldung> VonBenutzer(int id) => _db.Liste("SELECT * FROM rueckmeldungen WHERE benutzer_id = @b ORDER BY erstellt DESC LIMIT 100", Lesen, Db.P("@b", id));
 
     public int Quittieren(IEnumerable<string> ids)

@@ -892,7 +892,6 @@ function rasterEinsetzen(pane, html){
   const ganz = !altRoot || !neuRoot || breite !== rasterBreite
             || !altRoot.classList.contains(neuRoot.className) || pane.children.length !== 1;
   rasterQuelle = html; rasterBreite = breite;
-  console.log('DBG ganz', ganz, altRoot && altRoot.className, neuRoot && neuRoot.className, pane.children.length, breite);
   if (ganz){
     /* Quelltext jedes Blattknotens merken, bevor vermessen und gekürzt wird. */
     merkeBlaetter(neuRoot);
@@ -901,7 +900,6 @@ function rasterEinsetzen(pane, html){
   }
   const neue = [];
   rasterAbgleich(altRoot, neuRoot, neue);
-  console.log('DBG neue', neue.length, neue.map(n => n.className).join(','));
   return neue;
 }
 
@@ -936,44 +934,50 @@ function rasterAbgleich(alt, neu, neue){
     const l = innen.get(k._inner); if (l) l.push(k); else innen.set(k._inner, [k]);
   });
   const benutzt = new Set();
-  if (neu.className === 'colstrip') console.log('DBG strip', alte.length, neuK.length, alte.filter(k => k._inner != null).length, alte.map(k => k.className).join(','));
-  const ziel = neuK.map((n, i) => {
-    const src = n.outerHTML;
-    const treffer = pool.get(src);
-    while (treffer && treffer.length){
-      const k = treffer.shift();
+  const nimm = (liste) => {
+    while (liste && liste.length){
+      const k = liste.shift();
       if (!benutzt.has(k)){ benutzt.add(k); return k; }
     }
+    return null;
+  };
+  /* Erst alle genauen Treffer (gleicher Quelltext bzw. gleicher Inhalt einer
+     Tagesspalte) vergeben, dann den Rest nach Lage. In einem Durchgang nähme
+     beim Zurückblättern die erste neue Spalte die alte an derselben Stelle
+     weg — genau die, die fünf Spalten weiter unverändert gebraucht wird. */
+  const quellen = neuK.map(n => n.outerHTML);
+  const ziel = neuK.map((n, i) => {
+    const k = nimm(pool.get(quellen[i]));
+    if (k) return k;
     if (n.className === 'daycol'){
-      const inner = n.innerHTML;
-      const gleich = innen.get(inner);
-      while (gleich && gleich.length){
-        const k = gleich.shift();
-        if (!benutzt.has(k)){
-          benutzt.add(k);
-          for (const a of n.attributes) if (k.getAttribute(a.name) !== a.value) k.setAttribute(a.name, a.value);
-          k._src = src;
-          return k;
-        }
+      const g = nimm(innen.get(n.innerHTML));
+      if (g){
+        for (const at of n.attributes) if (g.getAttribute(at.name) !== at.value) g.setAttribute(at.name, at.value);
+        g._src = quellen[i];
+        return g;
       }
     }
-    const a = alte[i];
-    if (n.className === 'daycol' && i === 7) console.log('DBG d7', alte.length, alte.filter(k => k._inner != null).length, (n.innerHTML.match(/data-date="([^"]+)"/)||[])[1], alte.map(k => (k._inner||'').match(/data-date="([^"]+)"/)?.[1]).join(' '));
-    if (n.className === 'daycol'){ const dd = (n.innerHTML.match(/data-date="([^"]+)"/)||[])[1]; const o = alte.find(k => k._inner && dd && k._inner.includes('data-date="'+dd+'"')); if (o){ const A=o._inner, B=n.innerHTML; let j=0; while (j<A.length && A[j]===B[j]) j++; console.log('DBG daycol', dd, A.length, B.length, JSON.stringify(A.slice(Math.max(0,j-80), j+60)), '||', JSON.stringify(B.slice(Math.max(0,j-80), j+60))); } }
+    return null;
+  });
+  ziel.forEach((k, i) => {
+    if (k) return;
+    const n = neuK[i], src = quellen[i];
     /* Verglichen wird die Grundklasse — Zustände wie `is-dragging` am
        Streifen hängen nur vorübergehend daran. */
+    const a = alte[i];
     if (a && !benutzt.has(a) && a.tagName === n.tagName
         && RASTER_BEHAELTER.has(n.className) && a.classList.contains(n.className)){
       benutzt.add(a);
       if (n.className === 'daycol') a._inner = n.innerHTML;
       rasterAbgleich(a, n, neue);
       a._src = src;
-      return a;
+      ziel[i] = a;
+      return;
     }
     n._src = src;
     if (n.className === 'daycol'){ n._inner = n.innerHTML; merkeBlaetter(n); }
     neue.push(n);
-    return n;
+    ziel[i] = n;
   });
   alte.forEach(k => { if (!benutzt.has(k)) k.remove(); });
   /* Reihenfolge herstellen — bewegt wird nur, was nicht schon passt. */

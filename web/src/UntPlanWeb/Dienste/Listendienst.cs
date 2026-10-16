@@ -107,15 +107,18 @@ public sealed class Listendienst
     }
 
     /// <summary>Prüfungen im Zeitraum: Klausuren aus UntPlan und noch nicht übernommene Klausuren aus UntPlanWeb („vorgemerkt“).</summary>
-    public List<Pruefung> Pruefungen(Stand s, IEnumerable<Meldung> offeneKlausuren, DateOnly von, DateOnly bis, string? klasse, string? lehrer)
+    public List<Pruefung> Pruefungen(Stand s, IEnumerable<Meldung> offeneKlausuren, DateOnly von, DateOnly bis, string? klasse, string? lehrer, IEnumerable<Meldung>? loeschungen = null)
     {
+        var weg = (loeschungen ?? Enumerable.Empty<Meldung>()).ToList();
         var zeiten = Zeiten(s);
         string Beginn(int n) => zeiten.TryGetValue(n, out var z) ? z.Beginn : "";
         string Ende(int n) => zeiten.TryGetValue(n, out var z) ? z.Ende : "";
         bool Passt(IReadOnlyCollection<string> klassen, IReadOnlyCollection<string> lehrerListe) =>
             (string.IsNullOrEmpty(klasse) || klassen.Contains(klasse, Ci)) && (string.IsNullOrEmpty(lehrer) || lehrerListe.Contains(lehrer, Ci));
         var res = new List<Pruefung>();
-        foreach (var t in s.Paket.Termine.Where(t => t.Art == "klausur" && DateOnly.TryParse(t.Von, out var d) && d >= von && d <= bis && Passt(t.Klassen, t.Lehrer)))
+        // zum Löschen vorgemerkte Prüfungen (auch der alte Termin einer verlegten Prüfung) nicht mehr zeigen
+        foreach (var t in s.Paket.Termine.Where(t => t.Art == "klausur" && DateOnly.TryParse(t.Von, out var d) && d >= von && d <= bis && Passt(t.Klassen, t.Lehrer)
+                                                     && !Rueckmeldungsdienst.Geloescht(t, weg)))
             res.Add(new Pruefung(t.Von, t.StundeVon, Math.Max(t.StundeVon, t.StundeBis), Beginn(t.StundeVon), Ende(Math.Max(t.StundeVon, t.StundeBis)), t.Titel,
                 t.Klassen, t.Lehrer, t.Raeume, "geplant", "") { Art = PruefungsArt(t.Titel, "") , Fach = FachAus(s, t.Titel) });
         foreach (var m in offeneKlausuren)
