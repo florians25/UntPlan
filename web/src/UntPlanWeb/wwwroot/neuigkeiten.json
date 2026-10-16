@@ -1,6 +1,17 @@
 [
   {
     "datum": "2026-10-16",
+    "titel": "Schlichte Formulare und mehr Platz",
+    "punkte": [
+      "PDF-Berichte als schlichtes Schulformular in Schwarz-Weiß, ohne Logo.",
+      "Seiten nutzen die volle Breite neben der Seitenleiste; Einstellungen nicht mehr schmal.",
+      "Profil, Neuigkeiten und Abmelden mit Hover-Fläche wie die Navigation.",
+      "Logo in den Grautönen der Oberfläche.",
+      "App: Infos zum Tag als Karten oben auf der Startseite, Glasknöpfe oben, Suchfeld der Planauswahl unten, Vollbild bis unter die Statusleiste im dunklen Aussehen."
+    ]
+  },
+  {
+    "datum": "2026-10-16",
     "titel": "Fehlzeiten mit Details, PDF als Schuldokument",
     "punkte": [
       "Abwesenheiten mit weiteren Angaben: Nachweis (Attest, schriftlich, mündlich …), Eingang der Entschuldigung, Eltern informiert, interne Notiz der Klassenleitung.",

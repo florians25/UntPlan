@@ -200,6 +200,10 @@ public sealed class Benutzereinstellungen
     /// <summary>Benannte, vom Benutzer gespeicherte Fensteranordnungen.</summary>
     public Dictionary<string, Fensteranordnung> Fensteranordnungen { get; set; } = new();
     public bool AssistentZeigen { get; set; } = true;
+    /// <summary>Lage des Hauptfensters im Fenstermodus (x, y, Breite, Höhe) – wird beim nächsten Start wiederhergestellt.</summary>
+    public int[]? Hauptfenster { get; set; }
+    /// <summary>Hauptfenster war beim Beenden maximiert.</summary>
+    public bool HauptfensterMaximiert { get; set; } = true;
     public bool StundenplanSynchronisieren { get; set; } = true;
     public int[] Zeitwunschfarben { get; set; } = Array.Empty<int>();
     /// <summary>Fensteranordnung je Modus (Stundenplan / Vertretung): Schlüssel und Position.</summary>

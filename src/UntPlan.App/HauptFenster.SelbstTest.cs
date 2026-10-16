@@ -12,6 +12,24 @@ namespace UntPlan.App;
 /// </summary>
 public sealed partial class HauptFenster
 {
+    /// <summary>Schnelle Druckprobe (UntPlan.exe --druckprobe=Ordner): Beispielschule planen, Stundenplandrucke als Bilder speichern, beenden.</summary>
+    internal void Druckprobe(string ordner)
+    {
+        Directory.CreateDirectory(ordner);
+        var d = Demo.Beispielschule();
+        var erg = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 1 });
+        d.AktivePeriode.Plan = erg.OrderBy(e => e.Kennzahlen.Bewertung).First().Plan;
+        AppZustand.Setzen(new Dokument(d));
+        foreach (var (typ, name) in new[] { (ElementTyp.Klasse, "klasse"), (ElementTyp.Lehrer, "lehrer"), (ElementTyp.Raum, "raum") })
+        {
+            var ids = Stammdaten.Sortiert(d, typ).Take(2).Select(e => e.Id).ToList();
+            StundenplanDruck.Bilder(typ, ids, new StundenplanFormat { Typ = typ, Gross = true, Schriftgroesse = 10 })[0].Save(Path.Combine(ordner, $"druck_{name}.png"));
+            StundenplanDruck.Bilder(typ, ids, new StundenplanFormat { Typ = typ, Gross = false, Schriftgroesse = 8 })[0].Save(Path.Combine(ordner, $"druck_{name}_klein.png"));
+        }
+        File.WriteAllText(Path.Combine(ordner, "druckprobe.log"), "ENDE");
+        Close();
+    }
+
     internal void SelbstTest(string ordner)
     {
         Directory.CreateDirectory(ordner);
@@ -96,7 +114,7 @@ public sealed partial class HauptFenster
         void KopfPruefen(string modus)
         {
             // Sprint 6: Programmkopf wie im Vorbild 2026 – keine Windows-Titelleiste, ein Balken in der Modusfarbe, Titel mittig, helle Registerkarte
-            if (FormBorderStyle != FormBorderStyle.None) throw new InvalidOperationException("Hauptfenster hat noch die Windows-Titelleiste");
+            if (!NativerRahmen && FormBorderStyle != FormBorderStyle.None) throw new InvalidOperationException("Hauptfenster hat noch die Windows-Titelleiste");
             if (_schnell.BackColor != Ui.Titel || _ribbon.Rechts.BackColor != Ui.Titel) throw new InvalidOperationException($"Kopf nicht in der Modusfarbe ({modus})");
             _schnell.Refresh();
             var t = KopfTitelBereich;

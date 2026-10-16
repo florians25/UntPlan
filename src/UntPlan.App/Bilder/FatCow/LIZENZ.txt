@@ -1,0 +1,3 @@
+Symbole: "Farm-Fresh Web Icons" von FatCow Web Hosting (https://www.fatcow.com/free-icons)
+Lizenz: Creative Commons Namensnennung 3.0 (CC BY 3.0 US), https://creativecommons.org/licenses/by/3.0/us/
+Verwendet unverändert in 16×16 und 32×32 Pixeln; Zuordnung zu den Programmsymbolen in Symbole.cs.

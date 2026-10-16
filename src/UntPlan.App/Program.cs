@@ -25,9 +25,11 @@ internal static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, e) => { if (e.ExceptionObject is Exception ex) Ui.Fehler(ex); };
         var datei = args.FirstOrDefault(a => (a.EndsWith(Core.Dokument.Dateiendung, StringComparison.OrdinalIgnoreCase) || a.EndsWith(Core.Dokument.DateiendungAlt, StringComparison.OrdinalIgnoreCase)) && File.Exists(a));
         var test = args.FirstOrDefault(a => a.StartsWith("--selbsttest=", StringComparison.OrdinalIgnoreCase))?["--selbsttest=".Length..];
-        if (test != null) { AppZustand.Einstellungen.BegruessungZeigen = false; AppZustand.Einstellungen.LetzteDateiLaden = false; }
+        if (test != null || args.Any(a => a.StartsWith("--druckprobe=", StringComparison.OrdinalIgnoreCase))) { AppZustand.Einstellungen.BegruessungZeigen = false; AppZustand.Einstellungen.LetzteDateiLaden = false; }
         var haupt = new HauptFenster(test is null ? datei : null);
-        if (test != null) haupt.Shown += (_, _) => haupt.BeginInvoke(() => haupt.SelbstTest(Path.GetFullPath(test)));
+        var probe = args.FirstOrDefault(a => a.StartsWith("--druckprobe=", StringComparison.OrdinalIgnoreCase))?["--druckprobe=".Length..];
+        if (probe != null) haupt.Shown += (_, _) => haupt.BeginInvoke(() => haupt.Druckprobe(Path.GetFullPath(probe)));
+        else if (test != null) haupt.Shown += (_, _) => haupt.BeginInvoke(() => haupt.SelbstTest(Path.GetFullPath(test)));
         else haupt.Shown += (_, _) => haupt.Updates.Starten(TimeSpan.FromSeconds(4));
         Application.Run(haupt);
     }

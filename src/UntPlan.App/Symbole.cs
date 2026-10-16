@@ -155,9 +155,105 @@ public static class Symbole
     /// <summary>Alle definierten Symbolnamen (ohne Kleinvarianten).</summary>
     public static IReadOnlyList<string> Namen => Definitionen.Keys.Where(k => !k.Contains('@')).ToList();
 
+    /// <summary>
+    /// Programmsymbole aus dem FatCow-Satz „Farm-Fresh Web Icons“ (CC BY 3.0, Hinweis in Lizenzen/FatCow-Symbole.txt):
+    /// Programmname → Dateiname. Nicht zugeordnete Namen (und das Programmlogo) werden weiterhin gezeichnet.
+    /// </summary>
+    private static readonly Dictionary<string, string> FatCow = new()
+    {
+        ["klassen"] = "group",
+        ["lehrer"] = "user_suit",
+        ["raeume"] = "door",
+        ["faecher"] = "book",
+        ["schueler"] = "users_men_women",
+        ["benutzer"] = "user",
+        ["abteilungen"] = "chart_organisation",
+        ["kurs"] = "blackboard_steps",
+        ["modul"] = "brick",
+        ["perioden"] = "calendar_view_month",
+        ["datenbank"] = "database",
+        ["stundenplan"] = "calendar_view_week",
+        ["uebersicht"] = "application_view_tile",
+        ["planen"] = "wand",
+        ["kalender"] = "calendar",
+        ["zeitraster"] = "clock",
+        ["zeitwunsch"] = "time",
+        ["ferien"] = "sun_cloudy",
+        ["veranstaltung"] = "events",
+        ["klausur"] = "report",
+        ["vormerkung"] = "note_pin",
+        ["block"] = "bricks",
+        ["unterricht"] = "education",
+        ["vertretung"] = "arrow_switch",
+        ["abwesenheit"] = "user_delete",
+        ["absenz"] = "user_red",
+        ["entfall"] = "cancel",
+        ["bereitschaft"] = "bell",
+        ["sondereinsatz"] = "star",
+        ["pausenaufsicht"] = "eye",
+        ["fixieren"] = "lock",
+        ["raumzuordnen"] = "door_in",
+        ["tausch"] = "arrow_refresh",
+        ["gewichtung"] = "balance",
+        ["optimierung"] = "lightning",
+        ["einstellungen"] = "cog",
+        ["diagnose"] = "stethoscope",
+        ["assistent"] = "lightbulb",
+        ["normalform"] = "layout",
+        ["wertrechnung"] = "calculator",
+        ["statistik"] = "chart_bar",
+        ["neu"] = "page_white_add",
+        ["oeffnen"] = "folder",
+        ["speichern"] = "diskette",
+        ["drucken"] = "printer",
+        ["vorschau"] = "page_white_magnify",
+        ["loeschen"] = "delete",
+        ["kopieren"] = "page_white_copy",
+        ["rueckgaengig"] = "undo",
+        ["wiederholen"] = "redo",
+        ["aktualisieren"] = "arrow_refresh_small",
+        ["sortieren"] = "sort",
+        ["filter"] = "filter",
+        ["suchen"] = "find",
+        ["import"] = "table_import",
+        ["export"] = "table_export",
+        ["html"] = "html",
+        ["web"] = "world",
+        ["kommentar"] = "comment",
+        ["nachricht"] = "email",
+        ["rollup"] = "application_cascade",
+        ["schloss"] = "lock",
+        ["plus"] = "add",
+        ["minus"] = "bullet_toggle_minus",
+        ["vor"] = "resultset_next",
+        ["zurueck"] = "resultset_previous",
+        ["info"] = "information",
+        ["hilfe"] = "help",
+        ["monitor"] = "monitor",
+        ["farbe"] = "color_wheel",
+    };
+
+    /// <summary>FatCow-Symbol in der gewünschten Größe (16er bzw. 32er Vorlage, sonst hochwertig skaliert); null, wenn nicht vorhanden.</summary>
+    private static Bitmap? FatCowSymbol(string name, int groesse)
+    {
+        for (var i = 0; i < 4 && Definitionen.TryGetValue(name, out var alias) && alias.StartsWith('='); i++) name = alias[1..];
+        if (!FatCow.TryGetValue(name, out var datei)) return null;
+        var basis = groesse <= 20 ? 16 : 32;
+        using var strom = typeof(Symbole).Assembly.GetManifestResourceStream($"FatCow.{basis}.{datei}.png");
+        if (strom is null) return null;
+        using var quelle = new Bitmap(strom);
+        var b = new Bitmap(groesse, groesse, PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(b);
+        g.InterpolationMode = groesse == basis ? InterpolationMode.NearestNeighbor : InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.DrawImage(quelle, new Rectangle(0, 0, groesse, groesse));
+        return b;
+    }
+
     public static Bitmap Get(string name, int groesse = 16)
     {
         if (Cache.TryGetValue((name, groesse), out var b)) return b;
+        if (FatCowSymbol(name, groesse) is { } fc) { Cache[(name, groesse)] = fc; return fc; }
         b = new Bitmap(groesse, groesse, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(b))
         {

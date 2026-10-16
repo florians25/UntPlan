@@ -8,13 +8,24 @@
 
 <meta name="description" content="UntPlanMobile – Stundenplan, Vertretungen, Klassenbuch und Mitteilungen aus UntPlanWeb">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#131416" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 
 <!-- iOS Standalone -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="default" id="statusleiste">
+<script nonce="__NONCE__">
+  /* Vollbild bis unter die Statusleiste (Notch): im dunklen Aussehen durchscheinend, damit die App den Platz bis ganz oben nutzt.
+     Im hellen Aussehen bleibt die Leiste hell mit dunkler Schrift – iOS kennt für Web-Apps keine durchscheinende Leiste mit dunkler Schrift. */
+  (function () {
+    try {
+      var t = JSON.parse(localStorage.getItem('tt.theme') || '"auto"');
+      var dunkel = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (dunkel) document.getElementById('statusleiste').setAttribute('content', 'black-translucent');
+    } catch (e) { }
+  })();
+</script>
 <meta name="apple-mobile-web-app-title" content="UntPlanMobile">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <link rel="icon" href="assets/icons/icon-192.png" sizes="192x192">
@@ -112,6 +123,9 @@
       </button>
 
       <h1 class="schoolname" id="startSchool">UntPlanMobile</h1>
+
+      <!-- Infos zum Tag (Nachrichten zum Tag, Veranstaltungen) als waagrecht wischbare Karten -->
+      <section class="newsstrip" id="startNews" hidden aria-label="Infos zum Tag"></section>
 
       <section class="daycard">
         <div class="daycard__left">

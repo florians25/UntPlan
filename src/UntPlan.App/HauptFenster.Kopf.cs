@@ -6,8 +6,9 @@ namespace UntPlan.App;
 /// Programmkopf wie im Vorbild 2026: keine Windows-Titelleiste, sondern ein durchgehender Balken in der Modusfarbe –
 /// links die Schnellzugriffsleiste, in der Mitte der Fenstertitel in kleiner weißer Schrift, rechts schlanke weiße
 /// Fensterknöpfe (Minimieren, Maximieren/Wiederherstellen, Schließen). Darunter die Registerleiste in derselben Farbe.
-/// Ziehen am Balken verschiebt das Fenster, Doppelklick maximiert/stellt wieder her, an den Rändern lässt es sich
-/// in der Größe ändern (Aero Snap bleibt über die Systemnachrichten erhalten).
+/// Unter Windows ist es trotzdem ein echtes Windows-Fenster: Es behält den Systemrahmen (WS_THICKFRAME) – also Schatten,
+/// abgerundete Ecken unter Windows 11, Andocken (Snap), unsichtbare Greifränder und Maximieren bis zur Taskleiste –,
+/// nur der Titelbereich wird über WM_NCCALCSIZE dem Programmkopf überlassen. Lage und Zustand werden gemerkt.
 /// </summary>
 public partial class HauptFenster
 {
@@ -23,9 +24,56 @@ public partial class HauptFenster
     /// <summary>Bereich, in dem der Titel gezeichnet wurde (für den Selbsttest).</summary>
     internal Rectangle KopfTitelBereich { get; private set; }
 
+    /// <summary>
+    /// Echter Windows-Rahmen (Systemrahmen ohne Titelleiste). Unter Wine bleibt das Fenster rahmenlos, weil Wine den
+    /// Systemrahmen selbst als breiten 3D-Rand zeichnen würde.
+    /// </summary>
+    internal static bool NativerRahmen { get; } = OperatingSystem.IsWindows() && !UnterWine();
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Ansi)] private static extern IntPtr GetModuleHandle(string name);
+    [DllImport("kernel32.dll", CharSet = CharSet.Ansi)] private static extern IntPtr GetProcAddress(IntPtr modul, string name);
+    private static bool UnterWine()
+    {
+        try { var nt = GetModuleHandle("ntdll.dll"); return nt != IntPtr.Zero && GetProcAddress(nt, "wine_get_version") != IntPtr.Zero; }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return false; }
+    }
+
+    /// <summary>Lage beim Start: zuletzt benutzte Lage, sonst maximiert (kleine Bildschirme) bzw. mittig mit 90 % der Arbeitsfläche.</summary>
+    private void FensterlageWiederherstellen()
+    {
+        var e = AppZustand.Einstellungen;
+        var flaeche = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1600, 900);
+        StartPosition = FormStartPosition.Manual;
+        if (e.Hauptfenster is { Length: 4 } b)
+        {
+            var r = new Rectangle(b[0], b[1], Math.Max(MinimumSize.Width, b[2]), Math.Max(MinimumSize.Height, b[3]));
+            // nur übernehmen, wenn die Titelleiste auf einem vorhandenen Bildschirm liegt
+            if (Screen.AllScreens.Any(sc => sc.WorkingArea.IntersectsWith(new Rectangle(r.X + 40, r.Y, Math.Max(10, r.Width - 80), 30))))
+            {
+                Bounds = r;
+                WindowState = e.HauptfensterMaximiert ? FormWindowState.Maximized : FormWindowState.Normal;
+                return;
+            }
+        }
+        var w = Math.Min(flaeche.Width, Math.Max(MinimumSize.Width, (int)(flaeche.Width * .9)));
+        var h = Math.Min(flaeche.Height, Math.Max(MinimumSize.Height, (int)(flaeche.Height * .9)));
+        Bounds = new Rectangle(flaeche.X + (flaeche.Width - w) / 2, flaeche.Y + (flaeche.Height - h) / 2, w, h);
+        WindowState = flaeche.Width < 1500 || flaeche.Height < 860 || e.HauptfensterMaximiert ? FormWindowState.Maximized : FormWindowState.Normal;
+    }
+
+    private void FensterlageMerken()
+    {
+        var e = AppZustand.Einstellungen;
+        if (WindowState == FormWindowState.Minimized) return;
+        var r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        e.Hauptfenster = new[] { r.X, r.Y, r.Width, r.Height };
+        e.HauptfensterMaximiert = WindowState == FormWindowState.Maximized;
+        try { e.Speichern(); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    }
+
     private void KopfVorbereiten()
     {
-        FormBorderStyle = FormBorderStyle.None;
+        FormBorderStyle = NativerRahmen ? FormBorderStyle.Sizable : FormBorderStyle.None;
         DoubleBuffered = true;
         BackColor = Ui.Titel;
         foreach (var (k, art) in new[] { (_knopfZu, 2), (_knopfMax, 1), (_knopfMin, 0) })
@@ -56,8 +104,11 @@ public partial class HauptFenster
         };
         TextChanged += (_, _) => _schnell.Invalidate();
         Resize += (_, _) => KopfAnpassen();
-        LocationChanged += (_, _) => MaximalgroesseSetzen();
-        MaximalgroesseSetzen();
+        if (!NativerRahmen)
+        {
+            LocationChanged += (_, _) => MaximalgroesseSetzen();
+            MaximalgroesseSetzen();
+        }
         KopfAnpassen();
         var filter = new KantenFilter(this);
         Application.AddMessageFilter(filter);
@@ -183,15 +234,50 @@ public partial class HauptFenster
         }
     }
 
+    [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct NcCalcSizeParams { public Rect R0, R1, R2; public IntPtr Pos; }
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr nach, int x, int y, int cx, int cy, uint flags);
+
+    /// <summary>Breite des (unsichtbaren) Systemrahmens – um so viel ragt ein maximiertes Fenster über den Bildschirm hinaus.</summary>
+    private static int Rahmendicke => GetSystemMetrics(33 /* SM_CYFRAME */) + GetSystemMetrics(92 /* SM_CXPADDEDBORDER */);
+
+    /// <summary>Nach dem Erzeugen des Fensters: Nicht-Client-Bereich neu berechnen lassen (aus OnHandleCreated aufgerufen).</summary>
+    private void RahmenAnwenden()
+    {
+        if (!NativerRahmen) return;
+        // neuen Nicht-Client-Bereich sofort berechnen lassen (ohne Titelleiste)
+        const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOZORDER = 4, SWP_FRAMECHANGED = 0x20;
+        try { SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED); }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+    }
+
     protected override void WndProc(ref Message m)
     {
-        const int WM_NCHITTEST = 0x84;
+        const int WM_NCHITTEST = 0x84, WM_NCCALCSIZE = 0x83;
+        if (NativerRahmen && m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero)
+        {
+            // Systemrahmen links, rechts und unten behalten (Schatten, Greifränder, Snap), die Titelleiste dem Programmkopf geben
+            var vorher = Marshal.PtrToStructure<NcCalcSizeParams>(m.LParam);
+            base.WndProc(ref m);
+            var p = Marshal.PtrToStructure<NcCalcSizeParams>(m.LParam);
+            p.R0.Top = vorher.R0.Top + (WindowState == FormWindowState.Maximized ? Rahmendicke : 0);
+            Marshal.StructureToPtr(p, m.LParam, false);
+            m.Result = IntPtr.Zero;
+            return;
+        }
         base.WndProc(ref m);
         if (m.Msg != WM_NCHITTEST || WindowState != FormWindowState.Normal) return;
-        // Größe an den Rändern ändern (die Ränder sind die Polsterung des Formulars in der Modusfarbe)
-        var p = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
-        var l = p.X < Rand; var r = p.X >= ClientSize.Width - Rand;
-        var o = p.Y < 3; var u = p.Y >= ClientSize.Height - Rand;
+        var pt = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
+        if (NativerRahmen)
+        {
+            // Seiten und unten erledigt der Systemrahmen; oben fehlt er – dort ein schmaler Greifbereich im Programmkopf
+            if ((int)m.Result == 1 && pt.Y < 4) m.Result = pt.X < 12 ? 13 : pt.X >= ClientSize.Width - 12 ? 14 : 12;
+            return;
+        }
+        // rahmenlos (Wine): Größe an den Rändern ändern
+        var l = pt.X < Rand; var r = pt.X >= ClientSize.Width - Rand;
+        var o = pt.Y < 3; var u = pt.Y >= ClientSize.Height - Rand;
         int? hit = (o, u, l, r) switch
         {
             (true, _, true, _) => 13, (true, _, _, true) => 14, (_, true, true, _) => 16, (_, true, _, true) => 17,

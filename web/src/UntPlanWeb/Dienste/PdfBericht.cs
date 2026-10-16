@@ -4,9 +4,10 @@ using System.Text;
 namespace UntPlanWeb.Dienste;
 
 /// <summary>
-/// Schlanker PDF-Erzeuger für Berichte als Schuldokument (ohne Fremdbibliothek): A4 quer, Briefkopf mit Logo, Schule und Erstellungsdatum,
-/// orange Trennlinie, Titel mit Zeitraum, Tabelle mit dunkler Kopfzeile (auf jeder Seite wiederholt), rechtsbündigen Zahlenspalten und
-/// abwechselnd hinterlegten Zeilen, Summenzeile, Hinweis, Unterschriftsfeld und Fußzeile „Seite x von y“. Schrift Helvetica (WinAnsi, Umlaute und ß).
+/// Schlanker PDF-Erzeuger für Berichte als schlichtes Schulformular in Schwarz-Weiß (ohne Fremdbibliothek, ohne Logo): A4 quer,
+/// Kopf mit Schule und Erstellungsdatum, schwarze Trennlinie, Titel mit Zeitraum, Tabelle mit umrandeter Kopfzeile (auf jeder Seite
+/// wiederholt), rechtsbündigen Zahlenspalten und feinen Zeilenlinien, Summenzeile, Hinweis, Unterschriftsfeld und Fußzeile „Seite x von y“.
+/// Schrift Helvetica (WinAnsi, Umlaute und ß).
 /// </summary>
 public static class PdfBericht
 {
@@ -36,7 +37,9 @@ public static class PdfBericht
         var kopfHoehe = kopfZeilen.Any(k => k.Count > 1) ? 26f : 18f;
         void Tabellenkopf()
         {
-            Rechteck(sb, Rand, y - kopfHoehe, nutz, kopfHoehe, Dunkel);
+            Rechteck(sb, Rand, y - kopfHoehe, nutz, kopfHoehe, Grau(0.9f));
+            Linie(sb, Rand, y, Rand + nutz, y, 0f);
+            Linie(sb, Rand, y - kopfHoehe, Rand + nutz, y - kopfHoehe, 0f);
             var x = Rand;
             for (var i = 0; i < spalten.Count; i++)
             {
@@ -46,7 +49,7 @@ public static class PdfBericht
                 foreach (var teil in teile)
                 {
                     var t = Kuerzen(teil, w[i] - 10, true, 7.8f);
-                    Text(sb, zahl[i] ? x + w[i] - 6 - TextBreite(t, true, 7.8f) : x + 6, ty, 7.8f, true, t, Weiss);
+                    Text(sb, zahl[i] ? x + w[i] - 6 - TextBreite(t, true, 7.8f) : x + 6, ty, 7.8f, true, t, Schwarz);
                     ty -= 9;
                 }
                 x += w[i];
@@ -58,59 +61,57 @@ public static class PdfBericht
             seite++;
             sb.Clear();
             y = Hoehe - Rand + 6;
-            Logo(sb, Rand, y - 26, 26);
-            Text(sb, Rand + 34, y - 10, 11, true, schule, Dunkel);
-            Text(sb, Rand + 34, y - 23, 8, false, "Stundenplan · Vertretungsplan · Klassenbuch", Grau(0.45f));
+            Text(sb, Rand, y - 10, 11, true, schule, Schwarz);
+            Text(sb, Rand, y - 23, 8, false, "Schulverwaltung", Schwarz);
             var r1 = $"Erstellt am {jetzt:dd.MM.yyyy} um {jetzt:HH:mm} Uhr";
-            Text(sb, Breite - Rand - TextBreite(r1, false, 8), y - 10, 8, false, r1, Grau(0.4f));
-            if (!string.IsNullOrWhiteSpace(ersteller)) { var r2 = $"von {ersteller}"; Text(sb, Breite - Rand - TextBreite(r2, false, 8), y - 21, 8, false, r2, Grau(0.4f)); }
+            Text(sb, Breite - Rand - TextBreite(r1, false, 8), y - 10, 8, false, r1, Schwarz);
+            if (!string.IsNullOrWhiteSpace(ersteller)) { var r2 = $"von {ersteller}"; Text(sb, Breite - Rand - TextBreite(r2, false, 8), y - 21, 8, false, r2, Schwarz); }
             y -= 34;
-            Balken(sb, Rand, y, nutz, 1.6f, Akzent);
+            Balken(sb, Rand, y, nutz, 0.8f, Schwarz);
             y -= 26;
             if (seite == 1)
             {
-                Text(sb, Rand, y, 17, true, titel, Dunkel);
-                if (untertitel.Length > 0) Text(sb, Rand, y - 16, 9.5f, false, untertitel, Grau(0.35f));
+                Text(sb, Rand, y, 16, true, titel, Schwarz);
+                if (untertitel.Length > 0) Text(sb, Rand, y - 16, 9.5f, false, untertitel, Schwarz);
                 y -= untertitel.Length > 0 ? 32 : 18;
             }
             else
             {
-                Text(sb, Rand, y + 4, 10, true, titel + " (Fortsetzung)", Dunkel);
+                Text(sb, Rand, y + 4, 10, true, titel + " (Fortsetzung)", Schwarz);
                 y -= 10;
             }
             Tabellenkopf();
         }
         void Fuss()
         {
-            Linie(sb, Rand, Rand - 4, Breite - Rand, Rand - 4, 0.8f);
-            Text(sb, Rand, Rand - 16, 7.5f, false, Kuerzen($"{schule} · {titel}", nutz * .4f, false, 7.5f), Grau(0.45f));
-            const string mitte = "Vertraulich – nur für den Dienstgebrauch";
-            Text(sb, (Breite - TextBreite(mitte, false, 7.5f)) / 2, Rand - 16, 7.5f, false, mitte, Grau(0.45f));
+            Linie(sb, Rand, Rand - 4, Breite - Rand, Rand - 4, 0f);
+            Text(sb, Rand, Rand - 16, 7.5f, false, Kuerzen($"{schule} · {titel}", nutz * .4f, false, 7.5f), Schwarz);
+            const string mitte = "Nur für den Dienstgebrauch";
+            Text(sb, (Breite - TextBreite(mitte, false, 7.5f)) / 2, Rand - 16, 7.5f, false, mitte, Schwarz);
             var t = $"Seite {seite} von {Seitenzahl}";
-            Text(sb, Breite - Rand - TextBreite($"Seite {seite} von 99", false, 7.5f), Rand - 16, 7.5f, false, t, Grau(0.45f));
+            Text(sb, Breite - Rand - TextBreite($"Seite {seite} von 99", false, 7.5f), Rand - 16, 7.5f, false, t, Schwarz);
             seiten.Add(sb.ToString());
         }
         Kopf();
-        if (zeilen.Count == 0) { Text(sb, Rand + 6, y - 11, Schrift, false, "Keine Einträge im gewählten Zeitraum.", Grau(0.35f)); y -= Zeile; }
+        if (zeilen.Count == 0) { Text(sb, Rand + 6, y - 11, Schrift, false, "Keine Einträge im gewählten Zeitraum.", Schwarz); y -= Zeile; }
         for (var r = 0; r < zeilen.Count; r++)
         {
             if (y - Zeile < Rand + 14) { Fuss(); Kopf(); }
-            if (r % 2 == 1) Rechteck(sb, Rand, y - Zeile, nutz, Zeile, Grau(0.965f));
             var x = Rand;
             for (var i = 0; i < spalten.Count; i++)
             {
                 var t = Kuerzen(i < zeilen[r].Count ? zeilen[r][i] : "", w[i] - 10, i == 0);
-                Text(sb, zahl[i] ? x + w[i] - 6 - TextBreite(t, false) : x + 6, y - 11, Schrift, i == 0, t, zahl[i] && t == "0" ? Grau(0.62f) : Grau(0.12f));
+                Text(sb, zahl[i] ? x + w[i] - 6 - TextBreite(t, false) : x + 6, y - 11, Schrift, i == 0, t, Schwarz);
                 x += w[i];
             }
-            Linie(sb, Rand, y - Zeile, Rand + nutz, y - Zeile, 0.88f);
+            Linie(sb, Rand, y - Zeile, Rand + nutz, y - Zeile, 0.75f);
             y -= Zeile;
         }
         // Summenzeile
         if (zeilen.Count > 0)
         {
-            Linie(sb, Rand, y, Rand + nutz, y, 0.35f);
-            Text(sb, Rand + 6, y - 12, Schrift, true, zeilen.Count == 1 ? "1 Eintrag" : $"{zeilen.Count} Einträge", Dunkel);
+            Linie(sb, Rand, y, Rand + nutz, y, 0f);
+            Text(sb, Rand + 6, y - 12, Schrift, true, zeilen.Count == 1 ? "1 Eintrag" : $"{zeilen.Count} Einträge", Schwarz);
             y -= Zeile + 2;
         }
         if (!string.IsNullOrWhiteSpace(hinweis))
@@ -118,7 +119,7 @@ public static class PdfBericht
             foreach (var teil in Umbrechen(hinweis, nutz, 8.5f))
             {
                 if (y - 14 < Rand + 14) { Fuss(); Kopf(); }
-                Text(sb, Rand, y - 12, 8.5f, false, teil, Grau(0.35f));
+                Text(sb, Rand, y - 12, 8.5f, false, teil, Schwarz);
                 y -= 12;
             }
             y -= 4;
@@ -129,8 +130,8 @@ public static class PdfBericht
             y -= 46;
             foreach (var (x, text) in new[] { (Rand, "Ort, Datum"), (Rand + nutz / 2 + 20, "Unterschrift") })
             {
-                Linie(sb, x, y, x + nutz / 2 - 40, y, 0.45f);
-                Text(sb, x, y - 11, 7.5f, false, text, Grau(0.45f));
+                Linie(sb, x, y, x + nutz / 2 - 40, y, 0f);
+                Text(sb, x, y - 11, 7.5f, false, text, Schwarz);
             }
         }
         Fuss();
@@ -138,25 +139,11 @@ public static class PdfBericht
         return Datei(seiten.Select(x => x.Replace(Seitenzahl, anzahl)).ToList());
     }
 
-    // ------------------------------------------------------------------------------------------ Farben und Zeichenhilfen
+    // ------------------------------------------------------------------------------------------ Graustufen und Zeichenhilfen
 
     private readonly record struct Farbe(float R, float G, float B);
-    private static readonly Farbe Dunkel = new(0.145f, 0.216f, 0.275f), Weiss = new(1, 1, 1), Akzent = new(0.96f, 0.42f, 0.165f);
+    private static readonly Farbe Schwarz = new(0, 0, 0);
     private static Farbe Grau(float g) => new(g, g, g);
-
-    /// <summary>Bildmarke wie das Programmlogo: Kalenderblatt mit blauer Kopfzeile und farbigen Feldern.</summary>
-    private static void Logo(StringBuilder sb, float x, float y, float groesse)
-    {
-        var e = groesse / 28f;
-        void Feld(float fx, float fy, float fb, float fh, Farbe f) => Rechteck(sb, x + fx * e, y + (28 - fy - fh) * e, fb * e, fh * e, f);
-        Feld(0, 0, 28, 28, new(0.5f, 0.51f, 0.53f));
-        Feld(0.6f, 0.6f, 26.8f, 26.8f, Weiss);
-        Feld(0.6f, 0.6f, 26.8f, 6.4f, new(0.184f, 0.435f, 0.753f));
-        Feld(2, 9, 3, 16.4f, new(0.84f, 0.86f, 0.89f));
-        var farben = new Farbe[] { new(0.9f, 0.51f, 0.165f), new(0.184f, 0.435f, 0.753f), new(0.84f, 0.86f, 0.89f), new(0.18f, 0.5f, 0.28f),
-            new(0.18f, 0.5f, 0.28f), new(0.95f, 0.745f, 0.18f), new(0.48f, 0.34f, 0.72f), new(0.184f, 0.435f, 0.753f) };
-        for (var i = 0; i < 8; i++) Feld(6.4f + i % 4 * 5.1f, 10 + i / 4 * 5.2f, 4.2f, 4.2f, farben[i]);
-    }
 
     private static IEnumerable<string> Umbrechen(string text, float max, float groesse)
     {

@@ -1523,3 +1523,17 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .fz-null { color: #b3bcc3; }
 .abw-details-titel { margin-top: 4px; padding-top: 12px; border-top: 1px solid #e3e7eb; font-weight: 600; font-size: .9rem; color: #414d55; }
 .modal-body .row > .col-12:first-child .abw-details-titel { border-top: 0; padding-top: 0; margin-top: 0; }
+
+/* Unterer Bereich der Seitenleiste: Profil, Neuigkeiten und Abmelden mit derselben Hover-Fläche wie die Navigation, ohne Unterstreichung */
+.u-benutzer, .u-abmelden { border-radius: 0 999px 999px 0; width: calc(100% - 14px); text-decoration: none !important; }
+.u-benutzer:hover, .u-benutzer.aktiv, .u-abmelden:hover, .u-abmelden:focus-visible { background: #fff0ea; color: var(--u-akzent); text-decoration: none !important; }
+.u-benutzer:hover b, .u-benutzer.aktiv b { color: var(--u-akzent); }
+.u-abmelden { padding-top: 8px; padding-bottom: 8px; margin-top: 2px; }
+.u-abmelden:hover .u-sym { color: var(--u-akzent); }
+a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !important; }
+
+/* Seitenbreite ausnutzen (neben der Seitenleiste): Inhalt ohne feste Höchstbreite, Einstellungskarten über die volle Breite */
+.u-inhalt { max-width: none; }
+.u-einstellungen { max-width: none; }
+.heute { max-width: none; }
+.kb-editor { max-width: none; }

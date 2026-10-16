@@ -19,5 +19,9 @@
     <Using Include="System.Windows.Forms" />
     <!-- dieselbe Update-Prüfung wie UntPlanWeb/UntPlanMobile (GitHub-Releases) -->
     <Compile Include="..\..\web\src\UntPlanWeb\Dienste\Updatepruefung.cs" Link="Update\Updatepruefung.cs" />
+    <!-- Programmsymbole: FatCow „Farm-Fresh Web Icons“ (CC BY 3.0, siehe Bilder/FatCow/LIZENZ.txt) -->
+    <EmbeddedResource Include="Bilder\FatCow\16\*.png" LogicalName="FatCow.16.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Bilder\FatCow\32\*.png" LogicalName="FatCow.32.%(Filename)%(Extension)" />
+    <None Include="Bilder\FatCow\LIZENZ.txt" CopyToOutputDirectory="PreserveNewest" Link="Lizenzen\FatCow-Symbole.txt" />
   </ItemGroup>
 </Project>

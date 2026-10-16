@@ -27,6 +27,14 @@ public static class StartseiteApi
         return (p.Datum("from") ?? new DateOnly(jahr, 8, 1), p.Datum("to") ?? heute.AddDays(7));
     }
 
+    /// <summary>Formatierte Tagestexte (HTML aus UntPlan) als schlichter Text.</summary>
+    internal static string OhneHtml(string html)
+    {
+        var t = System.Text.RegularExpressions.Regex.Replace(html ?? "", "<(br|/p)[^>]*>", " ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        t = System.Text.RegularExpressions.Regex.Replace(t, "<[^>]+>", "");
+        return System.Text.RegularExpressions.Regex.Replace(System.Net.WebUtility.HtmlDecode(t), @"\s+", " ").Trim();
+    }
+
     public static void Abbilden(WebApplication app)
     {
         app.MapMethods("/api/home", new[] { "GET", "POST" }, async (HttpContext c, UntPlanWebVerbindung web, Kontodienst konten, Zeitgeber zeit) =>
@@ -43,10 +51,33 @@ public static class StartseiteApi
                     var offen = 0;
                     if (klassen.Count is > 0 and <= 3)
                         foreach (var kl in klassen) offen += (await FehlzeitenAsync(c, web, k, kl.Kurz, heute.AddDays(-60), heute)).Count(f => f.Status == "pending");
+                    // Infos zum Tag für die Karten oben: Nachrichten zum Tag und heutige Veranstaltungen aus UntPlanWeb
+                    var news = new List<object>();
+                    try
+                    {
+                        var h = await web.GetAsync(c, "api/app/heute");
+                        foreach (var n in (h?["nachrichten"]?.AsArray() ?? new JsonArray()).Select(x => x?.GetValue<string>() ?? ""))
+                        {
+                            var text = OhneHtml(n);
+                            if (text.Length == 0) continue;
+                            var teil = text.IndexOf(": ", StringComparison.Ordinal);
+                            news.Add(teil is > 0 and < 60 ? new { kind = "news", title = text[..teil], text = text[(teil + 2)..] } : new { kind = "news", title = "Nachricht zum Tag", text });
+                        }
+                        foreach (var ev in (h?["ereignisse"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>())
+                        {
+                            var titel = ev["titel"]?.GetValue<string>() ?? "";
+                            if (titel.Length == 0) continue;
+                            var ganz = ev["ganztaegig"]?.GetValue<bool>() == true;
+                            var v = ev["von"]?.GetValue<int>() ?? 0; var b = ev["bis"]?.GetValue<int>() ?? v;
+                            news.Add(new { kind = "event", title = titel, text = ganz ? "Heute ganztägig" : $"Heute {Stunden(v, b)}" });
+                        }
+                    }
+                    catch (Exception) { /* Startseite bleibt ohne Infokarten nutzbar */ }
                     return Results.Json(new
                     {
                         ok = true,
                         school = k.Schule,
+                        news,
                         absence = new
                         {
                             total = meldungen.Count,

@@ -29,9 +29,8 @@ public sealed partial class HauptFenster : Form
         Text = "UntPlan";
         Font = Ui.Schrift;
         IsMdiContainer = true;
-        WindowState = FormWindowState.Maximized;
         MinimumSize = new Size(1000, 640);
-        Size = new Size(1400, 900);
+        FensterlageWiederherstellen();
         KeyPreview = true;
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
 
@@ -87,7 +86,9 @@ public sealed partial class HauptFenster : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        Ui.TitelleisteFaerben(this);
+        // eigener Programmkopf: Systemrahmen in Standardfarbe lassen (kein farbiger Rand um das Fenster)
+        if (!NativerRahmen) Ui.TitelleisteFaerben(this);
+        RahmenAnwenden();
     }
 
     /// <summary>UntPlanWeb aus der obersten Leiste: öffnet das Fenster für den Datenaustausch (Export/Import mit Fortschritt).</summary>
@@ -273,7 +274,7 @@ public sealed partial class HauptFenster : Form
             E("Handbuch: Erste Schritte", "hilfe", () => HilfeFenster.Zeigen("Eingabeassistent")),
             null,
             E("Nach Updates suchen", "info", () => Updates.JetztPruefen()),
-            E("Über UntPlan", "info", () => Ui.Info($"UntPlan {Updates.Version}\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert." +
+            E("Über UntPlan", "info", () => Ui.Info($"UntPlan {Updates.Version}\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.\n\nSymbole: „Farm-Fresh Web Icons“ von FatCow (fatcow.com/free-icons), Lizenz CC BY 3.0." +
                 (Updates.Stand is { UpdateVerfuegbar: true } u ? $"\n\nNeue Version verfügbar: {u.Neueste} (Hilfethemen → Nach Updates suchen)" : ""), "Über UntPlan")),
         }));
         g.Eintraege.Add(E("MultiUser", "datenbank", null, true, MultiUserMenue(), hinweis: "Gemeinsame Datenbank für mehrere Benutzer (SQLite, SQL Server, MySQL, Access)"));
@@ -671,6 +672,7 @@ public sealed partial class HauptFenster : Form
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (!Verwerfen()) e.Cancel = true;
+        else FensterlageMerken();
         base.OnFormClosing(e);
     }
 

@@ -2347,6 +2347,20 @@ function renderStart(){
   }));
 }
 
+/* Infos zum Tag oben auf der Startseite: Karte mit farbigem Kopf (Nachricht blau mit Megafon, Veranstaltung grün),
+   Kennzeichen „neu“ und Text – mehrere Karten werden waagrecht gewischt. */
+function newsZeichnen(liste){
+  const box = $('#startNews');
+  if (!box) return;
+  box.hidden = !liste.length;
+  const MEGAFON = '<svg viewBox="0 0 24 24" class="ico"><path d="M3.8 10v4h3l7.4 4V6L6.8 10z"/><path d="M6.8 14l1.3 4.6h2.3L9.4 14.4M17.6 9.4a3.6 3.6 0 0 1 0 5.2"/></svg>';
+  const GRUPPE = '<svg viewBox="0 0 24 24" class="ico"><circle cx="8.5" cy="8.4" r="2.6"/><circle cx="15.8" cy="8.4" r="2.6"/><path d="M3.8 18.4c.5-3 2.4-4.6 4.7-4.6s4.2 1.6 4.7 4.6M11.4 14.6c.9-.6 2.2-.8 4.4-.8 2.3 0 4.2 1.6 4.6 4.6"/></svg>';
+  box.innerHTML = liste.map(n => `<article class="newscard newscard--${n.kind === 'event' ? 'event' : 'news'}">
+      <header class="newscard__head">${n.kind === 'event' ? GRUPPE : MEGAFON}<span class="newscard__neu">neu</span></header>
+      <div class="newscard__body"><b>${esc(n.title || '')}</b><p>${esc(n.text || '')}</p></div>
+    </article>`).join('');
+}
+
 function tile(c){
   const t1 = (state.times[c.lesson] || {}).start || '';
   const dd = parseISO(c.date);
@@ -2976,6 +2990,7 @@ $('#lstFilter').addEventListener('click', () => {
   try {
     const d = await homeFetch('home');
     if (d.school) $('#startSchool').textContent = d.school;
+    newsZeichnen(d.news || []);
 
     /* Zusammenfassung der eigenen Fehlzeiten unter „Meine Abwesenheiten". */
     const f = d.absence || {};
