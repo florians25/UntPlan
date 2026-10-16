@@ -1,5 +1,5 @@
 // Klassenbuch: Wochenübersicht mit Anwesenheit, Fehlzeitenverwaltung, Vermerke, Inhalte/Hausaufgaben; Hausaufgaben für Klassenkonten.
-import { e, icon, api, holen, senden, toast, dialog, bestaetigen, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade } from '../ui.js';
+import { e, icon, api, holen, senden, toast, dialog, bestaetigen, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis } from '../ui.js';
 import { karteDialog } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
 import { detailFelder, detailWerte, NACHWEISE } from './abwesenheiten.js';
@@ -66,41 +66,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
   if (!klasse) { inhalt.innerHTML = leer('Keine Klassen vorhanden.'); return; }
   const q = encodeURIComponent(klasse);
 
-  if (reiter === 'woche') {
-    const w = await holen(`/api/app/klassenbuch/woche?klasse=${q}&datum=${datum}`);
-    const alleStunden = [];
-    inhalt.innerHTML = `<div class="d-flex align-items-center gap-1 mb-3">
-        <a class="rundknopf" href="${ziel(klasse, 'woche', plusTage(w.von, -7))}" title="Vorherige Woche">${icon('links')}</a>
-        <b class="px-2">${datumKurz(w.von)} – ${datumKurz(w.bis)}${w.bis.slice(0, 4)}</b>
-        <a class="rundknopf" href="${ziel(klasse, 'woche', plusTage(w.von, 7))}" title="Nächste Woche">${icon('rechts')}</a>
-        <a class="heute-pill ms-2 text-decoration-none" href="${ziel(klasse, 'woche', heuteIso())}">Heute</a>
-        <span class="ms-auto small text-body-secondary">${w.schuelerAnzahl ? `${w.schuelerAnzahl} Schüler/innen` : 'keine Schülerliste übertragen'}</span></div>
-      ${w.tage.map(t => `<div class="card mb-3 kb-tag"><div class="card-header d-flex align-items-center gap-2">${e(datumLang(t.datum))}
-          ${t.frei ? `<span class="badge text-bg-primary fw-normal"><i class="bi bi-lock-fill me-1"></i>${e(t.freiGrund || 'unterrichtsfrei')}</span>` : ''}
-          ${!t.frei ? `<button type="button" class="btn btn-sm btn-link ms-auto py-0" data-vermerk="${t.datum}">${icon('plus', 'me-1')}Vermerk</button>` : ''}</div>
-        ${t.frei ? '' : !t.stunden.length ? `<div class="card-body py-0">${leer('Kein Unterricht.')}</div>` : `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle kb-tabelle"><thead><tr>
-          <th style="width:60px">Std.</th><th style="width:110px">Fach</th><th style="width:90px">Lehrkraft</th><th>Unterrichtsinhalt</th><th>Hausaufgabe</th><th style="width:190px">Anwesenheit</th></tr></thead><tbody>
-          ${t.stunden.map(s => { alleStunden.push({ ...s, datum: t.datum }); return `<tr class="${s.status === 'entfall' ? 'text-body-secondary' : ''}" data-stunde="${alleStunden.length - 1}" role="button">
-            <td class="text-nowrap">${s.von === s.bis ? s.von + '.' : s.von + '.–' + s.bis + '.'}</td>
-            <td class="fw-semibold text-nowrap">${/^#[0-9a-f]{6}$/i.test(s.farbe || '') ? `<span class="fachpunkt" style="background:${s.farbe}"></span>` : ''}${s.status === 'entfall' ? `<s>${e(s.fach)}</s>` : e(s.fach)}</td>
-            <td>${e(s.lehrer.join(', '))}</td>
-            <td>${s.status === 'entfall' ? `<span class="badge text-bg-danger fw-normal">${e(s.art || 'Entfall')}</span>` : s.thema ? e(s.thema) : '<span class="text-body-tertiary small">– kein Eintrag –</span>'}</td>
-            <td>${e(s.hausaufgabe)}${s.faellig ? `<div class="small text-body-secondary">bis ${datumKurz(s.faellig)}</div>` : ''}</td>
-            <td class="small">${s.status === 'entfall' ? '' : s.fehlend.length || s.verspaetet.length
-              ? `${s.fehlend.length ? `<div class="text-danger" title="${e(s.fehlend.join('; '))}"><i class="bi bi-person-x me-1"></i>${s.fehlend.length} fehlen</div>` : ''}${s.verspaetet.length ? `<div class="text-warning-emphasis" title="${e(s.verspaetet.join('; '))}"><i class="bi bi-clock me-1"></i>${s.verspaetet.length} verspätet</div>` : ''}`
-              : s.geprueft ? '<span class="text-success"><i class="bi bi-check2-all me-1"></i>alle da</span>' : t.datum <= heuteIso() ? '<span class="text-body-tertiary">nicht erfasst</span>' : ''}</td></tr>`; }).join('')}
-          </tbody></table></div>`}
-        ${t.vermerke.length ? `<ul class="list-group list-group-flush border-top">${t.vermerke.map(v => `<li class="list-group-item small d-flex gap-2"><span class="badge ${VERMERK_FARBE[v.art] ?? 'text-bg-secondary'} fw-normal align-self-start">${e(v.art)}</span>
-            <span>${v.schueler ? `<b>${e(v.schueler)}:</b> ` : ''}${e(v.text)}</span><span class="ms-auto text-body-secondary">${e(v.lehrer)}</span></li>`).join('')}</ul>` : ''}
-      </div>`).join('')}`;
-    inhalt.querySelectorAll('[data-stunde]').forEach(tr => tr.onclick = () => {
-      const s = alleStunden[Number(tr.dataset.stunde)];
-      karteDialog({ datum: s.datum, von: s.von, bis: s.bis, beginn: s.beginn, ende: s.ende, status: s.status, fach: s.fach, fachName: s.fachName, farbe: s.farbe, art: s.art, text: '',
-        klassen: [{ k: klasse }], lehrer: s.lehrer.map(k => ({ k })), raeume: s.raeume.map(k => ({ k })), unterricht: s.unterricht }, k2);
-    });
-    inhalt.querySelectorAll('[data-vermerk]').forEach(b => b.onclick = () => vermerkDialog(klasse, b.dataset.vermerk, neuLaden));
-    return;
-  }
+  if (reiter === 'woche') return wochenraster(inhalt, kontext, klasse, datum, ziel, k2, neuLaden);
 
   if (reiter === 'fehlzeiten') {
     // Fehlzeiten der Klasse: nur echte Fehlzeiten (Verspätungen stehen unter Abwesenheiten), eine Tabelle – je Schüler*in eine Zeile,
@@ -136,17 +102,20 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     };
     const zahl = (n, kl = '') => n ? `<span class="fz-zahl ${kl}">${n}</span>` : '<span class="fz-null">–</span>';
     const nachweis = y => y.nachweis ? `<span class="nl-tag" title="${e(NACHWEISE[y.nachweis] ?? '')}${y.entschuldigtAm ? ` · eingegangen ${e(datumKurz(y.entschuldigtAm))}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[y.nachweis] ?? y.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '';
+    const klWahl = seite.querySelector('.u-filter .u-feld')?.lastElementChild;
     const zeichnen = () => {
-      inhalt.innerHTML = `<div class="nl-leiste">
+      // kompakter Kopf: Klasse, Von, Bis, (i)-Hinweis und Kennzahlen in einer Zeile, rechts der Knopf
+      inhalt.innerHTML = `<div class="nl-leiste fz-kopfzeile">
+          <span class="nl-pille" data-klwahl><span class="me-1 text-body-secondary">Klasse</span></span>
           <label class="nl-pille"><span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}"></label>
           <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${datum}"></label>
-          ${f.verwalten ? `<span class="ms-auto d-flex gap-2"><button type="button" class="nl-hinzu" data-tage><i class="bi bi-plus-lg"></i>Fehlen eintragen</button></span>` : ''}</div>
-        <p class="nl-hinweis"><i class="bi bi-info-circle"></i> <b>Fehlstunden</b> entstehen aus einer Abwesenheit und dem Stundenplan: gezählt werden die Unterrichtsstunden, in denen die Schülerin bzw. der Schüler hätte anwesend sein müssen (z. B. ganzer Mittwoch abwesend, laut Plan 4 Stunden → 4 Fehlstunden). Den Zeitraum selbst erfassen Sie unter <a href="#/abwesenheiten">Abwesenheiten</a>.</p>
-        ${!f.schueler.length ? alarm('secondary', 'Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen.') : `
-        <div class="nl-zahlen"><span class="nl-zahl still"><b>${zeilen.length}</b> von ${f.schueler.length} Schüler*innen mit Fehlzeiten</span>
-          <span class="nl-zahl rot still"><b>${fehlt.length}</b> Fehlstunden</span>
+          ${infoHinweis('<b>Fehlstunden</b> entstehen aus einer Abwesenheit und dem Stundenplan: gezählt werden die Unterrichtsstunden, in denen die Schülerin bzw. der Schüler hätte anwesend sein müssen (z. B. ganzer Mittwoch abwesend, laut Plan 4 Stunden → 4 Fehlstunden). Den Zeitraum selbst erfassen Sie unter <a href="#/abwesenheiten">Abwesenheiten</a>.')}
+          ${f.schueler.length ? `<span class="nl-zahlen kompakt"><span class="nl-zahl still" title="Schüler*innen mit Fehlzeiten"><b>${zeilen.length}</b>/${f.schueler.length} mit Fehlzeiten</span>
+          <span class="nl-zahl rot still"><b>${fehlt.length}</b> Fehlstd.</span>
           <span class="nl-zahl gelb still"><b>${fehlt.filter(y => y.status === 'offen').length}</b> offen</span>
-          <span class="nl-zahl rot still"><b>${fehlt.filter(y => y.status === 'unentschuldigt').length}</b> nicht entschuldigt</span></div>
+          <span class="nl-zahl rot still"><b>${fehlt.filter(y => y.status === 'unentschuldigt').length}</b> nicht entsch.</span></span>` : ''}
+          ${f.verwalten ? `<span class="ms-auto d-flex gap-2"><button type="button" class="nl-hinzu" data-tage><i class="bi bi-plus-lg"></i>Fehlen eintragen</button></span>` : ''}</div>
+        ${!f.schueler.length ? alarm('secondary', 'Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen.') : `
         <div class="nl-tabelle">${zeilen.length ? `<table class="fz-tabelle"><thead><tr>${f.verwalten ? '<th class="nl-wahl"><input type="checkbox" class="nl-rund" data-alle-wahl aria-label="Alle"></th>' : ''}
             <th colspan="2">Name</th><th class="text-end">Fehlstunden</th><th class="text-end">Fehltage</th><th class="text-end">offen</th><th class="text-end">entschuldigt</th><th class="text-end">nicht entsch.</th><th></th></tr></thead><tbody>
           ${zeilen.map(x => `<tr class="fz-schueler ${offen.has(x.id) ? 'auf' : ''}" data-s="${x.id}">
@@ -162,6 +131,9 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
             <button type="button" class="nl-knopf rot" data-status="unentschuldigt">Nicht entschuldigt</button><button type="button" class="nl-knopf" data-status="offen">Offen</button>
             <button type="button" class="nl-knopf" data-details>Details …</button></div>` : ''}`
           : `<div class="p-3">${leer('Im Zeitraum hat niemand gefehlt.', 'person-check')}</div>`}</div>`}`;
+      // Klassenwahl aus dem Seitenkopf in die Filterzeile übernehmen
+      if (klWahl) { inhalt.querySelector('[data-klwahl]').append(klWahl); seite.querySelector('.u-filter')?.classList.add('d-none'); }
+      else inhalt.querySelector('[data-klwahl]')?.remove();
       binden();
     };
     const gewaehlt = () => {
@@ -455,4 +427,133 @@ async function uebersicht(seite, kontext, elementParam, datumParam, modusParam) 
     });
   };
   zeichnen();
+}
+
+// ------------------------------------------------------------------ Wochenansicht einer Klasse: Raster Tage × Stunden
+
+const WT_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+/** Überlappende Stunden eines Tages zu Blöcken zusammenfassen und in Spuren nebeneinander legen (z. B. KR 2.–3. neben ER 2. und ER 3.). */
+function bloecke(stunden) {
+  const sortiert = stunden.slice().sort((a, b) => a.von - b.von || b.bis - a.bis);
+  const liste = [];
+  for (const s of sortiert) {
+    const b = liste[liste.length - 1];
+    if (b && s.von <= b.bis) { b.stunden.push(s); b.bis = Math.max(b.bis, s.bis); } else liste.push({ von: s.von, bis: s.bis, stunden: [s] });
+  }
+  for (const b of liste) {
+    const spuren = [];
+    for (const s of b.stunden) {
+      let i = spuren.findIndex(ende => ende < s.von);
+      if (i < 0) { i = spuren.length; spuren.push(0); }
+      spuren[i] = s.bis;
+      s.spur = i + 1;
+    }
+    b.spuren = spuren.length;
+  }
+  return liste;
+}
+
+/**
+ * Klassenbuch einer Klasse für eine Woche als ruhiges Raster: Zeilen = Unterrichtsstunden, Spalten = Tage. Jede Stunde zeigt Fach,
+ * Lehrkraft, Lehrstoff (bzw. „Lehrstoff fehlt“), Abwesenheiten, Klassenbucheinträge und Hausaufgaben; Klick öffnet die Stundendetails.
+ * Darunter die Klassenbucheinträge (Vermerke) der Woche.
+ */
+async function wochenraster(inhalt, kontext, klasse, datum, ziel, k2, neuLaden) {
+  const w = await holen(`/api/app/klassenbuch/woche?klasse=${encodeURIComponent(klasse)}&datum=${datum}`);
+  const heute = heuteIso();
+  const jetzt = jetztHhmm();
+  const tage = w.tage.filter(t => t.stunden.length || t.frei || !['Sa', 'So'].includes(WT_KURZ[datumVon(t.datum).getDay()]));
+  const genutzt = tage.flatMap(t => t.stunden.map(s => s.bis));
+  const letzte = Math.max(0, ...genutzt, ...w.raster.filter(r => r.nr <= 6).map(r => r.nr));
+  const raster = w.raster.filter(r => r.nr <= letzte);
+  const zeileVon = nr => Math.max(0, raster.findIndex(r => r.nr === nr)) + 2;
+  const karten = [];
+  // Zahlen der Woche (dezent über dem Raster)
+  const vergangen = s => s.status !== 'entfall' && (s.datum < heute || (s.datum === heute && (s.ende || '99:99') <= jetzt));
+  const alle = tage.flatMap(t => t.stunden.map(s => Object.assign(s, { datum: t.datum })));
+  const gehalten = alle.filter(vergangen);
+  const ohneStoff = gehalten.filter(s => !s.thema).length;
+  const ohneKontrolle = gehalten.filter(s => s.geprueft == null).length;
+  const fehlend = alle.reduce((n, s) => n + (s.fehlend?.length ?? 0), 0);
+  const eintraege = tage.reduce((n, t) => n + t.vermerke.length, 0);
+
+  const karte = s => {
+    const i = karten.length;
+    karten.push({ datum: s.datum, von: s.von, bis: s.bis, beginn: s.beginn, ende: s.ende, status: s.status, fach: s.fach, fachName: s.fachName, farbe: s.farbe, art: s.art, text: '',
+      klassen: [{ k: klasse }], lehrer: s.lehrer.map(k => ({ k })), raeume: s.raeume.map(k => ({ k })), unterricht: s.unterricht });
+    const entfall = s.status === 'entfall';
+    const kommend = !entfall && !vergangen(s);
+    const farbe = /^#[0-9a-f]{6}$/i.test(s.farbe || '') ? s.farbe : '';
+    const hw = (s.hausaufgaben?.length ? s.hausaufgaben : [s.hausaufgabe]).filter(Boolean);
+    const zusatz = [];
+    if (!entfall) {
+      if (s.fehlend.length) zusatz.push(`<span class="kbw-info" title="${e(`fehlt: ${s.fehlend.join('; ')}`)}"><i class="bi bi-person-x"></i>${s.fehlend.length}</span>`);
+      const spaet = s.verspaetet.length + (s.vorzeitig?.length ?? 0);
+      if (spaet) zusatz.push(`<span class="kbw-info" title="${e([...s.verspaetet, ...(s.vorzeitig ?? [])].join('; '))}"><i class="bi bi-clock"></i>${spaet}</span>`);
+      if (!s.fehlend.length && !spaet && s.geprueft != null) zusatz.push('<span class="kbw-info ok" title="Abwesenheiten kontrolliert – alle anwesend"><i class="bi bi-person-check"></i></span>');
+      if (s.eintraege) zusatz.push(`<span class="kbw-info" title="${s.eintraege} ${s.eintraege === 1 ? 'Klassenbucheintrag' : 'Klassenbucheinträge'}"><i class="bi bi-journal-text"></i>${s.eintraege}</span>`);
+      if (hw.length) zusatz.push(`<span class="kbw-info" title="${e(`Hausaufgabe: ${hw.join(' · ')}`)}"><i class="bi bi-house"></i></span>`);
+    }
+    const stoff = entfall ? `<span class="kbw-entfall">${e(s.art || 'Entfall')}</span>`
+      : s.thema ? `<span class="kbw-stoff" title="${e(s.thema)}">${e(s.thema)}</span>`
+      : kommend ? '' : '<span class="kbw-fehlt">Lehrstoff fehlt</span>';
+    const offenKontrolle = !entfall && !kommend && s.geprueft == null;
+    return `<button type="button" class="kbw-stunde ${entfall ? 'entfall' : ''} ${kommend ? 'kommend' : ''} ${!entfall && !kommend && !s.thema ? 'luecke' : ''}" data-k="${i}"
+        style="grid-row:${s.von - s.blockVon + 1} / span ${s.bis - s.von + 1};grid-column:${s.spur};${farbe ? `--fach:${farbe}` : ''}"
+        aria-label="${e(`${s.von === s.bis ? s.von : `${s.von}.–${s.bis}`}. Stunde ${s.fach}, ${s.lehrer.join(', ')}${entfall ? ', entfällt' : ''}`)}">
+      <span class="kbw-kopf"><b>${e(s.fach)}</b><span>${e(s.lehrer.join(', '))}</span>${offenKontrolle ? '<i class="kbw-punkt" title="Abwesenheiten nicht kontrolliert"></i>' : ''}</span>
+      ${stoff}
+      ${zusatz.length ? `<span class="kbw-zusatz">${zusatz.join('')}</span>` : ''}
+    </button>`;
+  };
+
+  const spalten = tage.map((t, x) => {
+    const spalte = x + 2;
+    const kopf = `<div class="kbw-tag ${t.datum === heute ? 'heute' : ''}" style="grid-column:${spalte}">
+        <span><b>${WT_KURZ[datumVon(t.datum).getDay()]}</b> ${tt(t.datum)}</span>
+        ${!t.frei ? `<button type="button" class="kbw-plus" data-vermerk="${t.datum}" title="Klassenbucheintrag am ${tt(t.datum)}" aria-label="Klassenbucheintrag am ${tt(t.datum)}"><i class="bi bi-plus-lg"></i></button>` : ''}</div>`;
+    if (t.frei) return `${kopf}<div class="kbw-frei" style="grid-column:${spalte};grid-row:2 / span ${Math.max(1, raster.length)}"><i class="bi bi-lock"></i>${e(t.freiGrund || 'unterrichtsfrei')}</div>`;
+    const leer = raster.filter(r => !t.stunden.some(s => r.nr >= s.von && r.nr <= s.bis))
+      .map(r => `<div class="kbw-leer ${t.datum === heute ? 'heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(r.nr)}"></div>`).join('');
+    return kopf + leer + bloecke(t.stunden.filter(s => s.von <= letzte)).map(b => {
+      b.stunden.forEach(s => { s.blockVon = b.von; });
+      return `<div class="kbw-block ${t.datum === heute ? 'heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(b.von)} / span ${b.bis - b.von + 1};grid-template-columns:repeat(${b.spuren}, minmax(0, 1fr));grid-template-rows:repeat(${b.bis - b.von + 1}, minmax(0, 1fr))">
+        ${b.stunden.map(karte).join('')}</div>`;
+    }).join('');
+  }).join('');
+
+  const vermerke = tage.flatMap(t => t.vermerke.map(v => ({ ...v, datum: t.datum })));
+  inhalt.innerHTML = `<div class="kbw">
+    <div class="kbw-leiste">
+      <div class="kbw-woche">
+        <a class="kbu-pfeil" href="${ziel(klasse, 'woche', plusTage(w.von, -7))}" title="Vorherige Woche" aria-label="Vorherige Woche"><i class="bi bi-chevron-left"></i></a>
+        <span class="kbw-zeitraum"><b>KW ${kwVon(w.von)}</b> ${tt(w.von)} – ${tt(w.bis)}${w.bis.slice(0, 4)}</span>
+        <a class="kbu-pfeil" href="${ziel(klasse, 'woche', plusTage(w.von, 7))}" title="Nächste Woche" aria-label="Nächste Woche"><i class="bi bi-chevron-right"></i></a>
+        <a class="kbw-heute ${heute >= w.von && heute <= w.bis ? 'aktiv' : ''}" href="${ziel(klasse, 'woche', heute)}">Heute</a>
+      </div>
+      <div class="kbw-zahlen">
+        <span><b>${gehalten.length}</b> gehalten</span>
+        <span class="${ohneStoff ? 'warn' : ''}"><b>${ohneStoff}</b> ohne Lehrstoff</span>
+        <span><b>${ohneKontrolle}</b> nicht kontrolliert</span>
+        <span><b>${fehlend}</b> Abwesenheiten</span>
+        <span><b>${eintraege}</b> ${eintraege === 1 ? 'Eintrag' : 'Einträge'}</span>
+        <span class="kbw-schueler">${w.schuelerAnzahl ? `${w.schuelerAnzahl} Schüler*innen` : 'keine Schülerliste übertragen'}</span>
+      </div>
+    </div>
+    ${!raster.length || !tage.length ? `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-calendar-x"></i></span><b>Kein Unterricht</b><p>In dieser Woche gibt es für ${e(klasse)} keinen Unterricht.</p></div>` : `
+    <div class="kbw-rahmen"><div class="kbw-raster" style="grid-template-columns:64px repeat(${tage.length}, minmax(150px, 1fr));grid-template-rows:44px repeat(${raster.length}, minmax(92px, auto))">
+      <div class="kbw-ecke"></div>
+      ${raster.map(r => `<div class="kbw-nr" style="grid-row:${zeileVon(r.nr)}"><b>${r.nr}</b><small>${e(r.beginn)}</small></div>`).join('')}
+      ${spalten}
+    </div></div>
+    <div class="kbw-legende"><span><span class="kbw-fehlt">Lehrstoff fehlt</span></span><span><i class="kbw-punkt"></i> Abwesenheiten nicht kontrolliert</span>
+      <span><i class="bi bi-person-x"></i> fehlt</span><span><i class="bi bi-clock"></i> verspätet</span><span><i class="bi bi-journal-text"></i> Einträge</span><span><i class="bi bi-house"></i> Hausaufgabe</span></div>`}
+    <section class="kbw-vermerke"><h2>Klassenbucheinträge der Woche</h2>
+      ${vermerke.length ? `<ul>${vermerke.map(v => `<li><span class="kbw-v-datum">${WT_KURZ[datumVon(v.datum).getDay()]} ${tt(v.datum)}${v.zeit ? ` · ${e(v.zeit)}` : ''}</span>
+          <span class="kbw-v-art">${e(v.art)}</span><span class="kbw-v-text">${v.schueler ? `<b>${e(v.schueler)}:</b> ` : ''}${e(v.text)}</span><span class="kbw-v-lehrer">${e(v.lehrer)}</span></li>`).join('')}</ul>`
+        : '<p class="kbw-v-leer">Keine Einträge in dieser Woche.</p>'}
+    </section></div>`;
+  inhalt.querySelectorAll('[data-k]').forEach(b => b.onclick = () => karteDialog(karten[Number(b.dataset.k)], { ...k2, liste: karten }));
+  inhalt.querySelectorAll('[data-vermerk]').forEach(b => b.onclick = () => vermerkDialog(klasse, b.dataset.vermerk, neuLaden));
 }

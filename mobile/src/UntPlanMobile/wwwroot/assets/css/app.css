@@ -237,21 +237,22 @@ ul{ padding:0; list-style:none; }
   display:block;
   min-width:0;
 }
-/* Ladebalken: dünn und orange, oben an der Tagesleiste — also direkt
+/* Ladebalken: kräftig (4 px) und satt orange, oben an der Tagesleiste — also direkt
    unter der Kopfzeile, wo der Blick beim Wechseln ohnehin ist. Er läuft
    unbestimmt von links nach rechts (zwei Abschnitte, wie bei den
    Systemleisten) und erscheint erst, wenn das Laden wirklich dauert. */
 .loadbar{
-  position:absolute; left:0; right:0; top:0; height:2.5px;
+  position:absolute; left:0; right:0; top:0; height:4px;
   overflow:hidden; pointer-events:none; z-index:3;
-  background:color-mix(in srgb, var(--u-orange) 18%, transparent);
+  background:color-mix(in srgb, #ff7a00 22%, transparent);
   opacity:0; transition:opacity .2s var(--ease);
 }
 .loadbar.is-on{ opacity:1; }
 .loadbar span, .loadbar::after{
   content:""; position:absolute; top:0; bottom:0; left:0;
-  background:var(--u-orange); border-radius:2px;
+  background:#ff7a00; border-radius:2px;
   width:38%; transform:translateX(-110%);
+  will-change:transform;
 }
 .loadbar::after{ width:22%; }
 .loadbar.is-on span{ animation:laden 1.35s cubic-bezier(.65,.05,.36,1) infinite; }
@@ -305,6 +306,9 @@ ul{ padding:0; list-style:none; }
   transition:transform .38s cubic-bezier(.32,.72,0,1);
   will-change:transform;
 }
+/* Pille vor der ersten Stunde: Sie steht direkt über der ersten Linie;
+   der Rand darüber schrumpft, damit sie nicht hoch oben schwebt. */
+.gridpane.has-pre{ padding-top:8px; }
 /* Während des Wischens folgt der Streifen dem Finger, ohne Nachlauf. */
 .gridpane.is-dragging{ transition:none; }
 

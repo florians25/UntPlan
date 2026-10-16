@@ -1,0 +1,174 @@
+/* UntPlanWeb – Klassenbuch im nl-design: Offene Stunden (os-), Wochenraster einer Klasse (kbw-) und Klassenbuchübersicht (kbu-).
+   Wird nach seiten.css geladen. Ruhige Flächen: weiße Karten, feine Linien, Farbe nur für Status. */
+
+/* ------------------------------------------------------------------ Offene Stunden: Werkzeugleiste */
+
+.os-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; width: 100%; padding: 12px 0; }
+.os-suche { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1 1 340px; max-width: 620px; min-height: 42px; padding: 4px 8px 4px 14px;
+  border-radius: 21px; background: #f3f5f7; cursor: text; }
+.os-suche:focus-within { background: #fff; box-shadow: inset 0 0 0 1.5px var(--u-akzent); }
+.os-suche > .u-sym, .os-suche > .bi { width: 20px; height: 20px; color: #8a96a1; flex: none; }
+.os-suche input { flex: 1 1 140px; min-width: 120px; height: 32px; border: 0; outline: 0; background: transparent; font: inherit; color: #24323d; }
+.os-suche input::-webkit-search-cancel-button { display: none; }
+.os-chip { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px 0 12px; border-radius: 999px; background: #414d55; color: #fff; font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.os-chip button { display: inline-grid; place-content: center; width: 22px; height: 22px; border: 0; border-radius: 50%; background: transparent; color: #fff; padding: 0; }
+.os-chip button:hover { background: rgba(255, 255, 255, .18); }
+.os-leeren { border: 0; background: none; color: #8a96a1; font-size: 18px; padding: 0 4px; line-height: 1; }
+.os-leeren:hover { color: #414d55; }
+.os-vorschlaege { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40; max-height: 360px; overflow: auto; padding: 6px 0; background: #fff;
+  border: 1px solid #dfe3e7; border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 5, 10, .14); }
+.os-v-titel { padding: 8px 16px 4px; font-size: .72rem; font-weight: 600; color: #8a96a1; text-transform: uppercase; letter-spacing: .04em; }
+.os-vorschlaege button { display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 7px 16px; border: 0; background: none; text-align: left; font: inherit; font-size: .92rem; color: #24323d; }
+.os-vorschlaege button small { color: #8a96a1; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.os-vorschlaege button:hover, .os-vorschlaege button.aktiv { background: #f3f5f7; }
+.os-zeit { position: relative; display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.os-zeitraum { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: #57626b; font-weight: 600; white-space: nowrap; }
+.os-zeitraum:hover, .os-zeitraum[aria-expanded="true"] { background: #f3f5f7; color: #24323d; }
+.os-zeitraum .u-sym, .os-zeitraum .bi { width: 18px; height: 18px; color: #8a96a1; }
+.os-zeitwahl { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 340px; padding: 16px;
+  background: #fff; border: 1px solid #dfe3e7; border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 5, 10, .14); }
+.os-zeitwahl[hidden] { display: none; }
+.os-zeitwahl label { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: .78rem; font-weight: 600; color: #67747e; }
+.os-zeitwahl input { height: 38px; padding: 0 10px; border: 1.5px solid #c9d0d6; border-radius: 8px; font: inherit; font-size: .9rem; color: #24323d; }
+.os-zeitwahl input:focus { outline: 0; border-color: var(--u-akzent); }
+.os-zeitwahl-fuss { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.os-zeitwahl-fuss .nl-hinzu { height: 34px; padding: 0 16px; font-size: .9rem; }
+/* ------------------------------------------------------------------ Offene Stunden: Kennzahlen, Hinweis, Tabelle */
+
+.os-zahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; background: #fff; border: 1px solid var(--s-karte-rand, #dfe3e7); border-radius: 10px; overflow: hidden; }
+.os-zahl { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 14px 20px; border: 0; border-left: 1px solid #edf0f2; background: #fff; text-align: left; font: inherit; color: #57626b; min-width: 0; position: relative; }
+.os-zahl:first-child { border-left: 0; }
+.os-zahl:hover { background: #fafbfc; }
+.os-zahl b { font-size: 1.35rem; line-height: 1.2; font-weight: 600; color: #24323d; font-variant-numeric: tabular-nums; }
+.os-zahl span { font-size: .85rem; font-weight: 600; }
+.os-zahl small { font-size: .76rem; color: #8a96a1; }
+.os-zahl.an::after { content: ""; position: absolute; left: 20px; right: 20px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--u-akzent); }
+.os-zahl.an span { color: #24323d; }
+.os-zahl:focus-visible { outline: 2px solid rgba(245, 107, 42, .55); outline-offset: -2px; }
+.os-hinweis { display: flex; align-items: center; gap: 8px; margin: -4px 0 14px; font-size: .85rem; color: #67747e; }
+.os-hinweis .u-sym, .os-hinweis .bi { width: 16px; height: 16px; color: #8a96a1; flex: none; }
+
+.os-tabelle { background: #fff; border: 1px solid var(--s-karte-rand, #dfe3e7); border-radius: 10px; overflow: hidden; }
+.os-tabelle table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.os-tabelle th { padding: 12px; font-size: .75rem; font-weight: 600; color: #8a96a1; text-transform: uppercase; letter-spacing: .04em; text-align: left; white-space: nowrap; border-bottom: 1px solid #e3e7eb; }
+.os-tabelle td { padding: 0 12px; height: 54px; border-bottom: 1px solid #f0f2f4; color: #24323d; vertical-align: middle; }
+.os-tabelle tbody tr:last-child td { border-bottom: 0; }
+.os-tabelle tbody tr { cursor: pointer; }
+.os-tabelle tbody tr:hover td { background: #fafbfc; }
+.os-tabelle tbody tr:focus-visible { outline: 0; }
+.os-tabelle tbody tr:focus-visible td { background: #f6f8f9; }
+.os-tabelle tbody tr:focus-visible td:first-child { box-shadow: inset 3px 0 0 var(--u-akzent); }
+.os-tabelle tbody tr.gewaehlt td { background: #fff7f2; }
+.os-wahl { width: 52px; padding-left: 18px !important; cursor: default; }
+.os-std { width: 64px; font-variant-numeric: tabular-nums; }
+.os-mitte { text-align: center !important; width: 150px; }
+.os-wt { display: inline-block; width: 22px; color: #8a96a1; }
+.os-zeitklein { display: block; margin-left: 26px; font-size: .76rem; color: #8a96a1; line-height: 1.1; }
+.os-fach { position: relative; padding-left: 12px; font-weight: 600; }
+.os-fach::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 4px; border-radius: 2px; background: var(--fach, #bfc8cf); }
+.os-art { margin-left: 4px; padding: 1px 7px; border-radius: 5px; background: #eef1f4; color: #57626b; font-size: .72rem; font-weight: 600; }
+.os-status { display: inline-grid; place-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 14px; }
+.os-status.ok { color: #13784a; background: #e8f5ee; }
+.os-status.fehlt { color: #c2470f; background: #fff1ea; }
+.os-pfeil-spalte { width: 40px; color: #c3cbd2; }
+.os-tabelle tr:hover .os-pfeil-spalte { color: var(--u-akzent); }
+.os-fuss { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid #e3e7eb; background: #fbfcfd; font-size: .875rem; color: #57626b; }
+
+@media (max-width: 991.98px) {
+  .os-zeit { margin-left: 0; }
+  .os-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .os-zahl:nth-child(3) { border-left: 0; }
+  .os-zahl:nth-child(n+3) { border-top: 1px solid #edf0f2; }
+  .os-tabelle { overflow-x: auto; }
+  .os-tabelle table { min-width: 760px; }
+}
+@media (max-width: 575.98px) {
+  .os-suche { flex-basis: 100%; max-width: none; }
+  .os-zeit { width: 100%; justify-content: space-between; }
+  .os-zeitwahl { width: calc(100vw - 32px); right: auto; left: 0; }
+  .os-zahl { padding: 12px 14px; }
+  .os-zahl b { font-size: 1.15rem; }
+  .os-zahl.an::after { left: 14px; right: 14px; }
+}
+
+/* ------------------------------------------------------------------ Wochenansicht einer Klasse: Raster Tage × Stunden */
+
+.kbw-leiste { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; margin-bottom: 14px; }
+.kbw-woche { display: flex; align-items: center; gap: 4px; }
+.kbw-zeitraum { padding: 0 8px; font-weight: 600; color: #24323d; white-space: nowrap; }
+.kbw-zeitraum b { margin-right: 6px; color: #8a96a1; font-weight: 600; }
+.kbw-heute { display: inline-flex; align-items: center; height: 34px; padding: 0 16px; margin-left: 8px; border: 1.5px solid #c9d0d6; border-radius: 999px; color: #414d55; font-weight: 600; font-size: .875rem; text-decoration: none !important; }
+.kbw-heute:hover { border-color: #8a96a1; color: #24323d; }
+.kbw-heute.aktiv { border-color: transparent; background: #eef1f4; }
+.kbw-zahlen { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; font-size: .85rem; color: #67747e; }
+.kbw-zahlen b { color: #24323d; font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 2px; }
+.kbw-zahlen .warn b { color: #c2470f; }
+.kbw-schueler { color: #8a96a1; }
+
+.kbw-rahmen { background: #fff; border: 1px solid var(--s-karte-rand, #dfe3e7); border-radius: 10px; overflow-x: auto; }
+.kbw-raster { display: grid; min-width: 760px; }
+.kbw-ecke { grid-row: 1; grid-column: 1; border-bottom: 1px solid #e3e7eb; }
+.kbw-tag { grid-row: 1; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 8px 0 12px; border-bottom: 1px solid #e3e7eb; border-left: 1px solid #f0f2f4;
+  font-size: .875rem; color: #57626b; white-space: nowrap; }
+.kbw-tag b { color: #24323d; font-weight: 600; margin-right: 2px; }
+.kbw-tag.heute { color: #c2470f; box-shadow: inset 0 -2px 0 var(--u-akzent); }
+.kbw-tag.heute b { color: #c2470f; }
+.kbw-plus { display: inline-grid; place-content: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: #a3adb6; opacity: 0; transition: opacity .12s; }
+.kbw-tag:hover .kbw-plus, .kbw-plus:focus-visible { opacity: 1; }
+.kbw-plus:hover { background: #f1f4f6; color: #24323d; }
+.kbw-nr { grid-column: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; border-bottom: 1px solid #f0f2f4; }
+.kbw-nr b { font-size: 1rem; font-weight: 600; color: #414d55; }
+.kbw-nr small { font-size: .72rem; color: #a3adb6; }
+.kbw-leer, .kbw-block { border-left: 1px solid #f0f2f4; border-bottom: 1px solid #f0f2f4; }
+.kbw-leer.heute, .kbw-block.heute { background: #fffaf7; }
+.kbw-block { display: grid; gap: 4px; padding: 4px; min-width: 0; }
+.kbw-frei { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-left: 1px solid #f0f2f4; background: repeating-linear-gradient(135deg, #f7f9fa 0 10px, #f2f4f6 10px 20px);
+  color: #8a96a1; font-size: .85rem; font-weight: 600; text-align: center; padding: 12px; }
+
+.kbw-stunde { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 3px; min-width: 0; padding: 7px 9px 7px 12px; border: 0; border-radius: 6px;
+  background: #f7f8fa; text-align: left; font: inherit; color: #24323d; cursor: pointer; overflow: hidden; transition: background .12s, box-shadow .12s; }
+.kbw-stunde::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--fach, #bfc8cf); }
+.kbw-stunde:hover { background: #eef1f4; }
+.kbw-stunde:focus-visible { outline: 2px solid rgba(245, 107, 42, .6); outline-offset: 1px; }
+.kbw-kopf { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.kbw-kopf b { font-weight: 600; font-size: .92rem; }
+.kbw-kopf > span { font-size: .78rem; color: #67747e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kbw-punkt { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #e7a17e; flex: none; margin-left: auto; align-self: center; }
+.kbw-stoff { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .8rem; line-height: 1.3; color: #57626b; }
+.kbw-fehlt { font-size: .78rem; font-weight: 600; color: #c2470f; }
+.kbw-entfall { font-size: .78rem; color: #8a96a1; }
+.kbw-zusatz { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: auto; padding-top: 2px; }
+.kbw-info { display: inline-flex; align-items: center; gap: 3px; font-size: .76rem; font-weight: 600; color: #67747e; }
+.kbw-info .bi { color: #8a96a1; }
+.kbw-info.ok .bi { color: #3a9a6a; }
+.kbw-stunde.entfall { background: #fafbfc; }
+.kbw-stunde.entfall::before { background: #d6dce1; }
+.kbw-stunde.entfall .kbw-kopf b { text-decoration: line-through; color: #8a96a1; font-weight: 600; }
+.kbw-stunde.kommend { background: #fff; box-shadow: inset 0 0 0 1px #eceff2; }
+.kbw-stunde.kommend:hover { background: #fafbfc; }
+.kbw-stunde.luecke { background: #fdf7f3; }
+.kbw-stunde.luecke:hover { background: #fbefe7; }
+
+.kbw-legende { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 2px 0; font-size: .78rem; color: #8a96a1; }
+.kbw-legende > span { display: inline-flex; align-items: center; gap: 5px; }
+.kbw-legende .bi { color: #8a96a1; }
+
+.kbw-vermerke { margin-top: 24px; }
+.kbw-vermerke h2 { font-size: 1rem; font-weight: 600; color: #24323d; margin: 0 0 10px; }
+.kbw-vermerke ul { list-style: none; margin: 0; padding: 0; background: #fff; border: 1px solid var(--s-karte-rand, #dfe3e7); border-radius: 10px; }
+.kbw-vermerke li { display: grid; grid-template-columns: 140px 150px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 12px 18px; border-bottom: 1px solid #f0f2f4; font-size: .875rem; }
+.kbw-vermerke li:last-child { border-bottom: 0; }
+.kbw-v-datum { color: #8a96a1; white-space: nowrap; }
+.kbw-v-art { font-weight: 600; color: #414d55; }
+.kbw-v-text { color: #24323d; }
+.kbw-v-lehrer { color: #8a96a1; }
+.kbw-v-leer { margin: 0; font-size: .875rem; color: #8a96a1; }
+
+@media (max-width: 767.98px) {
+  .kbw-raster { grid-template-columns: 48px repeat(var(--tage, 5), minmax(140px, 1fr)) !important; }
+  .kbw-nr { position: sticky; left: 0; z-index: 1; background: #fff; }
+  .kbw-ecke { position: sticky; left: 0; z-index: 1; background: #fff; }
+  .kbw-plus { opacity: 1; }
+  .kbw-vermerke li { grid-template-columns: 1fr auto; }
+  .kbw-v-text { grid-column: 1 / -1; }
+}

@@ -251,7 +251,9 @@ struct Karte: Decodable, Identifiable, Sendable {
         bis = max(c.zahl(.bis) ?? 0, stunde)
         beginn = c.text(.beginn)
         ende = c.text(.ende)
-        status = c.textOderNil(.status) ?? "regulaer"
+        // Status robust erkennen (Groß-/Kleinschreibung, Leerzeichen), z. B. „Klausur“ → „klausur“
+        let rohStatus = (c.textOderNil(.status) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        status = rohStatus.isEmpty ? "regulaer" : rohStatus
         fach = c.text(.fach)
         fachAlt = c.textOderNil(.fachAlt)
         fachName = c.text(.fachName)
@@ -279,7 +281,26 @@ struct Karte: Decodable, Identifiable, Sendable {
 
     var istEntfall: Bool { status == "entfall" }
     var istAenderung: Bool { status == "geaendert" || status == "offen" }
-    var istPruefung: Bool { status == "klausur" || art.lowercased().hasPrefix("klausur") }
+    var istPruefung: Bool {
+        let a = art.lowercased()
+        return status == "klausur" || status == "pruefung" || status == "prüfung" || a.hasPrefix("klausur") || a.hasPrefix("prüfung")
+    }
+
+    /// Veranstaltung bzw. Termin (Status oder Art) – wie im Kachelbau auch eine geänderte Stunde ohne Unterricht und Fach,
+    /// die nur einen Text trägt.
+    var istVeranstaltung: Bool {
+        if status == "veranstaltung" || status == "termin" { return true }
+        if art.lowercased().hasPrefix("veranstaltung") && !istPruefung { return true }
+        return status == "geaendert" && unterricht == nil && fach.isEmpty && !text.isEmpty
+    }
+
+    /// Dezente graue Pille im Kopf der Stundendetails (wie im Web): „Prüfung“ bzw. „Veranstaltung“, nie bei Entfall.
+    var statusPille: String? {
+        guard !istEntfall else { return nil }
+        if istPruefung { return "Prüfung" }
+        if istVeranstaltung { return "Veranstaltung" }
+        return nil
+    }
 
     /// Raumbuchung (eigene Karte oder gebuchter Raum für eine Stunde) – nie als Vertretung darstellen.
     var istRaumbuchung: Bool {
@@ -335,7 +356,9 @@ struct Aufsicht: Decodable, Identifiable, Sendable {
         ende = c.text(.ende)
         gang = c.text(.gang)
         gangName = c.text(.gangName)
-        status = c.textOderNil(.status) ?? "regulaer"
+        // Status robust erkennen (Groß-/Kleinschreibung, Leerzeichen), z. B. „Klausur“ → „klausur“
+        let rohStatus = (c.textOderNil(.status) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        status = rohStatus.isEmpty ? "regulaer" : rohStatus
         lehrer = c.text(.lehrer)
         alt = c.textOderNil(.alt)
     }

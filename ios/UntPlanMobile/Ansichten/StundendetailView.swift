@@ -36,8 +36,9 @@ struct StundendetailView: View {
         }
         .environmentObject(zustand)
         .background(Farben.blatt.ignoresSafeArea())
-        // Das Blatt bleibt beim Einblenden der Tastatur fest (keine Größenänderung, kein Springen des Inhalts)
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+        // Tastatur: Unterseiten mit Textfeldern weichen ihr selbst aus (Systemverhalten, nichts Manuelles); beim
+        // Schließen des Blatts wird der Fokus abgegeben, damit keine Tastatur-Einrückung hängen bleibt
+        .onDisappear { Tastatur.schliessen() }
     }
 }
 
@@ -65,7 +66,7 @@ struct StundendetailInhalt: View {
 
     private var kollegium: Bool { zustand.istKollegium }
     private var mitUnterricht: Bool { karte.unterricht != nil }
-    private var istVeranstaltung: Bool { karte.status == "veranstaltung" || karte.status == "termin" }
+    private var istVeranstaltung: Bool { karte.istVeranstaltung }
     /// Klassenbuch, Hausaufgaben usw. werden noch geladen (Ladebalken unter dem Kopf).
     private var laedt: Bool { mitUnterricht && !daten.geladen }
 
@@ -111,6 +112,9 @@ struct StundendetailInhalt: View {
             .scrollIndicators(.hidden)
         }
         .background(Farben.blatt.ignoresSafeArea())
+        // Hauptseite ohne Textfelder: bleibt beim Ein- und Ausblenden der Tastatur (z. B. beim Zurückkehren aus einer
+        // Notiz) unverändert stehen
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: Detailseite.self) { seite in
             ziel(seite)
@@ -215,40 +219,67 @@ struct StundendetailInhalt: View {
         return k.art.isEmpty ? "Stunde" : k.art
     }
 
-    /// Reiterleiste in eigener Zeile unter dem Kopf – überlappt weder Titel noch Kopfblock.
+    /// Reiterleiste in eigener Zeile unter dem Kopf genau nach Vorlage (133): hellgraue Zeile, waagrecht scrollbare
+    /// Text-Reiter (Regular, aktiv Medium), nur unter dem aktiven eine orange Unterstreichung etwas breiter als der Text;
+    /// der aktive Reiter wird beim Wechsel in den sichtbaren Bereich gerollt.
     private var reiterleiste: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 22) {
-                ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
-                    let gewaehlt = eintrag.offset == auswahl
-                    Button {
-                        auswahl = eintrag.offset
-                    } label: {
-                        Text(reitertitel(eintrag.element))
-                            .font(.system(size: 15, weight: gewaehlt ? .medium : .regular))
-                            .strikethrough(eintrag.element.istEntfall)
-                            .foregroundStyle(gewaehlt ? Farben.tinte : Farben.gedaempft)
-                            .lineLimit(1)
-                            .padding(.vertical, 9)
-                            .overlay(alignment: .bottom) {
-                                Rectangle()
-                                    .fill(gewaehlt ? Farben.tinte : Color.clear)
-                                    .frame(height: 2)
-                            }
+        ScrollViewReader { leser in
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
+                        let gewaehlt = eintrag.offset == auswahl
+                        Button {
+                            auswahl = eintrag.offset
+                        } label: {
+                            Text(reitertitel(eintrag.element))
+                                .font(.system(size: 16, weight: gewaehlt ? .medium : .regular))
+                                .strikethrough(eintrag.element.istEntfall)
+                                .foregroundStyle(gewaehlt ? Farben.detailText : Farben.tinte2)
+                                .lineLimit(1)
+                                .padding(.horizontal, 6)
+                                .padding(.top, 9)
+                                .padding(.bottom, 10)
+                                .overlay(alignment: .bottom) {
+                                    if gewaehlt {
+                                        Capsule()
+                                            .fill(Farben.akzent)
+                                            .frame(height: 3)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .id(eintrag.offset)
+                        .accessibilityAddTraits(gewaehlt ? .isSelected : [])
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(gewaehlt ? .isSelected : [])
                 }
+                .padding(.horizontal, Detailmass.rand - 6)
             }
-            .padding(.horizontal, 20)
+            .scrollIndicators(.hidden)
+            .onAppear { leser.scrollTo(auswahl, anchor: .center) }
+            .onChange(of: auswahl) { _, neu in
+                withAnimation(.easeInOut(duration: 0.2)) { leser.scrollTo(neu, anchor: .center) }
+            }
         }
-        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farben.reiterGrund)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Farben.trennlinie)
                 .frame(height: 0.5)
         }
+    }
+
+    /// „Prüfung“ bzw. „Veranstaltung“ als dezente graue Pille (wie im Web: normale Schreibweise, 13 pt).
+    private func statuspille(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(Farben.pilleText)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2.5)
+            .background(Farben.pilleFlaeche, in: Capsule())
+            .accessibilityLabel(text)
     }
 
     private var textTitel: String {
@@ -375,6 +406,11 @@ struct StundendetailInhalt: View {
                 Wertzeile(bausteine: fachteile, schrift: Detailmass.gross, farbe: Farben.detailText)
                     .frame(height: Detailmass.zeile)
             }
+            if let pille = karte.statusPille {
+                statuspille(pille)
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+            }
             if !raeume.isEmpty {
                 Wertzeile(bausteine: raeume, schrift: Detailmass.klein)
                     .frame(height: Detailmass.zeile)
@@ -410,7 +446,9 @@ struct StundendetailInhalt: View {
                     link(.info, Detailzeile(symbol: "SymbolInfo", titel: "Information", untertitel: veranstaltungsInfo))
                 }
             } else if !karte.text.isEmpty {
-                link(.text, Detailzeile(symbol: "SymbolNotiz", titel: textTitel, untertitel: karte.text))
+                // Information zur Stunde mit dem Info-Zeichen (info.svg), Vertretungstext mit dem Notizblatt
+                link(.text, Detailzeile(symbol: textTitel == "Information zur Stunde" ? "SymbolInfo" : "SymbolNotiz",
+                                        titel: textTitel, untertitel: karte.text))
             }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 let thema = daten.eintrag?.thema ?? ""
@@ -448,7 +486,7 @@ struct StundendetailInhalt: View {
                 link(.notizLehrer, Detailzeile(symbol: "SymbolNotiz", titel: "Notizen für Lehrkräfte", untertitel: daten.notizLehrer))
             }
             if karte.hausaufgabeFaellig {
-                Detailzeile(symbol: "SymbolHinweis", titel: "Zu dieser Stunde ist eine Hausaufgabe fällig", pfeil: false)
+                Detailzeile(symbol: "SymbolHausaufgaben", titel: "Zu dieser Stunde ist eine Hausaufgabe fällig", pfeil: false)
             }
         }
     }

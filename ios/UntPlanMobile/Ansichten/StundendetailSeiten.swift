@@ -95,17 +95,46 @@ final class Stundendaten: ObservableObject {
         return e.isEmpty ? karte.ende : e
     }
 
+    /// Lädt alle Teile gleichzeitig (statt nacheinander): Klassenbuch, Hausaufgaben und – für Lehrkräfte – Anwesenheit,
+    /// Klassendienste und Klassenbucheinträge.
     func laden(kollegium: Bool) async {
         defer { geladen = true }
         guard let u = karte.unterricht else { return }
-        if let k = try? await api.klassenbuchStunde(datum: karte.datum, stunde: karte.von, unterricht: u, lehrer: lehrerHinweis) {
-            klassenbuch = k
+        let api = self.api
+        let datum = karte.datum
+        let von = karte.von
+        let bis = karte.bis
+        let fach = karte.fach
+        let klassenliste = klassen
+        let lehrer = lehrerHinweis
+        @Sendable func holeKlassenbuch() async -> KlassenbuchStunde? {
+            try? await api.klassenbuchStunde(datum: datum, stunde: von, unterricht: u, lehrer: lehrer)
         }
-        await hausaufgabenLaden()
-        guard kollegium else { return }
-        await anwesenheitLaden()
-        await diensteLaden()
-        await vermerkeLaden()
+        @Sendable func holeHausaufgaben() async -> HausaufgabenDerStunde? {
+            try? await api.hausaufgabenDerStunde(datum: datum, stunde: von, bis: bis, unterricht: u, fach: fach, klassen: klassenliste)
+        }
+        @Sendable func holeAnwesenheit() async -> Anwesenheitsliste? {
+            guard kollegium else { return nil }
+            return try? await api.anwesenheit(datum: datum, stunde: von, unterricht: u)
+        }
+        async let kb = holeKlassenbuch()
+        async let hw = holeHausaufgaben()
+        async let anw = holeAnwesenheit()
+        @Sendable func holeDienste() async {
+            guard kollegium else { return }
+            await self.diensteLaden()
+        }
+        @Sendable func holeVermerke() async {
+            guard kollegium else { return }
+            await self.vermerkeLaden()
+        }
+        async let dienstListe: Void = holeDienste()
+        async let vermerkListe: Void = holeVermerke()
+        let (neuKlassenbuch, neuHausaufgaben, neuAnwesenheit) = await (kb, hw, anw)
+        if let neuKlassenbuch { klassenbuch = neuKlassenbuch }
+        if let neuHausaufgaben { hausaufgaben = neuHausaufgaben }
+        if let neuAnwesenheit { anwesenheit = neuAnwesenheit }
+        _ = await (dienstListe, vermerkListe)
     }
 
     func vermerkeLaden() async {
@@ -411,8 +440,6 @@ struct NotizSeite: View {
     @State private var speichert = false
     @State private var fehler: String? = nil
     @FocusState private var fokus: Bool
-    /// Teil des Textbereichs, den die Tastatur verdeckt – das Blatt bleibt fest, nur der Text rückt darüber
-    @State private var verdeckt: CGFloat = 0
     @Environment(\.dismiss) private var zurueck
 
     /// Bearbeiten dürfen nur Lehrkräfte mit Schreibrecht; Schüler*innen sehen ihre Notizen nur lesend.
@@ -440,6 +467,8 @@ struct NotizSeite: View {
             text = wert
             anfang = wert
         }
+        // Fokus beim Verlassen abgeben: die Tastatur schließt, das Blatt kehrt sicher in seine Größe zurück
+        .onDisappear { fokus = false }
         .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -453,6 +482,7 @@ struct NotizSeite: View {
             let ok = await sichern()
             guard ok else { return }
         }
+        fokus = false
         zurueck()
     }
 
@@ -460,36 +490,27 @@ struct NotizSeite: View {
     private var textbereich: some View {
         Group {
             if bearbeitbar {
-                GeometryReader { geo in
-                    TextEditor(text: $text)
-                        .font(.system(size: 16))
-                        .foregroundStyle(Farben.tinte)
-                        .scrollContentBackground(.hidden)
-                        .focused($fokus)
-                        .padding(.horizontal, 15)
-                        .padding(.top, 8)
-                        .overlay(alignment: .topLeading) {
-                            if text.isEmpty {
-                                Text(art.platzhalter)
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(Farben.gedaempft)
-                                    .padding(.horizontal, 20)
-                                    .padding(.top, 16)
-                                    .allowsHitTesting(false)
-                            }
+                // Ohne eigene Tastatur-Verschiebung: der Textbereich weicht der Tastatur über den Sicherheitsbereich aus
+                // und füllt nach dem Schließen wieder die ganze Seite; Wischen nach unten schließt die Tastatur
+                TextEditor(text: $text)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Farben.tinte)
+                    .scrollContentBackground(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
+                    .focused($fokus)
+                    .padding(.horizontal, 15)
+                    .padding(.top, 8)
+                    .overlay(alignment: .topLeading) {
+                        if text.isEmpty {
+                            Text(art.platzhalter)
+                                .font(.system(size: 16))
+                                .foregroundStyle(Farben.gedaempft)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 16)
+                                .allowsHitTesting(false)
                         }
-                        .padding(.bottom, verdeckt)
-                        .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
-                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { meldung in
-                            guard let rahmen = meldung.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
-                            let unten = geo.frame(in: .global).maxY
-                            verdeckt = max(0, min(unten - rahmen.minY, geo.size.height - 80))
-                        }
-                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                            verdeckt = 0
-                        }
-                }
-                .ignoresSafeArea(.keyboard, edges: .bottom)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 ScrollView {
                     Text(text.isEmpty ? art.leer : text)
@@ -1008,12 +1029,11 @@ struct SchuelerSeite: View {
         let alle = liste?.schueler ?? []
         let abwesend = alle.filter { daten.fehlzeit($0) != nil }.count
         return VStack(spacing: 0) {
-            Picker("Filter", selection: $filter) {
-                Text("Alle (\(alle.count))").tag(Filter.alle)
-                Text("Abwesend (\(abwesend))").tag(Filter.abwesend)
-                Text("Anwesend (\(alle.count - abwesend))").tag(Filter.anwesend)
-            }
-            .pickerStyle(.segmented)
+            Segmentschalter(auswahl: $filter, [
+                (Filter.alle, "Alle (\(alle.count))"),
+                (Filter.abwesend, "Abwesend (\(abwesend))"),
+                (Filter.anwesend, "Anwesend (\(alle.count - abwesend))"),
+            ])
             .padding(.horizontal, 14)
             .padding(.top, 2)
             .padding(.bottom, 8)

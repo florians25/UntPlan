@@ -37,19 +37,43 @@ enum Datumsformat {
         return isoFormat.date(from: String(t.prefix(10)))
     }
 
-    /// Deutsche Anzeige mit festem Muster, z. B. "EEEE, d. MMMM".
-    static func anzeige(_ datum: Date, _ muster: String) -> String {
+    /// Wiederverwendete Formatierer je Muster und zwischengespeicherte Anzeigen von API-Daten (das Erzeugen eines
+    /// DateFormatter ist teuer; das Raster fragt bei jedem Zeichnen dieselben Tage ab). Zugriff über eine Sperre.
+    private static let sperre = NSLock()
+    private static var formatiererJeMuster: [String: DateFormatter] = [:]
+    private static var anzeigen: [String: String] = [:]
+
+    private static func formatierer(_ muster: String) -> DateFormatter {
+        sperre.lock()
+        defer { sperre.unlock() }
+        if let f = formatiererJeMuster[muster] { return f }
         let f = DateFormatter()
         f.calendar = kalender
         f.locale = Locale(identifier: "de_DE")
         f.dateFormat = muster
-        return f.string(from: datum)
+        formatiererJeMuster[muster] = f
+        return f
+    }
+
+    /// Deutsche Anzeige mit festem Muster, z. B. "EEEE, d. MMMM".
+    static func anzeige(_ datum: Date, _ muster: String) -> String {
+        formatierer(muster).string(from: datum)
     }
 
     /// Anzeige eines API-Datums; unlesbare Werte bleiben unverändert.
     static func anzeige(_ text: String, _ muster: String) -> String {
+        let schluessel = muster + "|" + text
+        sperre.lock()
+        let fertig = anzeigen[schluessel]
+        sperre.unlock()
+        if let fertig { return fertig }
         guard let d = datum(text) else { return text }
-        return anzeige(d, muster)
+        let ergebnis = anzeige(d, muster)
+        sperre.lock()
+        if anzeigen.count > 4000 { anzeigen.removeAll(keepingCapacity: true) }
+        anzeigen[schluessel] = ergebnis
+        sperre.unlock()
+        return ergebnis
     }
 
     static func montag(_ datum: Date) -> Date {

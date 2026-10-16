@@ -19,25 +19,41 @@ extension UINavigationController: UIGestureRecognizerDelegate {
 
 // MARK: - Blatt der Stundendetails
 
-/// Feste Maße des Detailblatts auf dem iPad (wie in der Vorlage: mittig über dem Plan).
+/// Feste Maße des Detailblatts auf dem iPad (wie in der Vorlage: mittig über dem Plan, breiter als ein Formblatt).
 enum Detailblatt {
-    static let breite: CGFloat = 540
-    /// Etwas niedriger als ein volles Formblatt (Vorlage: Liste endet knapp unter „Notizen für Lehrkräfte“)
-    static let hoehe: CGFloat = 540
-    /// iPhone: Blatt öffnet in mittlerer Höhe (nicht bis ganz oben), lässt sich auf volle Höhe ziehen
-    static let iPhoneAnteil: CGFloat = 0.85
+    static let breite: CGFloat = 620
+    static let hoehe: CGFloat = 640
+    /// iPhone: volle Breite, 90 % der Höhe
+    static let iPhoneAnteil: CGFloat = 0.9
     static let radius: CGFloat = 24
+
+    /// Höhe des Detailblatts auf dem iPhone: 90 % (ab iOS 26 die große, randlose Stufe – entspricht dort etwa 90 %).
+    static var iPhoneStufen: Set<PresentationDetent> {
+        if #available(iOS 26.0, *) {
+            return [.large]
+        }
+        return [.fraction(iPhoneAnteil)]
+    }
+}
+
+/// Tastatur schließen (Fokus abgeben) – z. B. beim Schließen eines Blatts, damit keine Einrückung hängen bleibt.
+enum Tastatur {
+    @MainActor
+    static func schliessen() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
 }
 
 extension View {
-    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 540 × 540 pt mittig (die Größe bleibt beim
-    /// Wechsel in Unterseiten gleich), auf dem iPhone ein Blatt mit Griff, das auf 85 % der Höhe öffnet (ziehbar bis groß).
+    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 620 × 640 pt mittig (die Größe bleibt beim
+    /// Wechsel in Unterseiten und beim Ein-/Ausblenden der Tastatur gleich), auf dem iPhone über die volle Breite und
+    /// 90 % hoch (ab iOS 26 die große Stufe: nur sie liegt dort randlos an, kleinere Stufen schweben mit seitlichem Rand).
+    /// Die Tastatur verschiebt bzw. staucht das Blatt selbst nicht; Textfelder in Unterseiten weichen ihr innen aus.
     @ViewBuilder
     func detailBlatt(breit: Bool) -> some View {
         if breit {
             if #available(iOS 18.0, *) {
                 self
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
                     .frame(width: Detailblatt.breite, height: Detailblatt.hoehe)
                     .presentationSizing(.fitted)
                     .presentationCornerRadius(Detailblatt.radius)
@@ -45,20 +61,19 @@ extension View {
             } else {
                 // iOS 17: Formblatt des Systems (540 × 620 pt), nur die Ecken angleichen
                 self
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
                     .presentationCornerRadius(Detailblatt.radius)
                     .presentationBackground(Farben.blatt)
             }
         } else {
             self
-                .ignoresSafeArea(.keyboard, edges: .bottom)
-                .presentationDetents([.fraction(Detailblatt.iPhoneAnteil), .large])
-                .presentationDragIndicator(.visible)
+                .presentationDetents(Detailblatt.iPhoneStufen)
+                .presentationDragIndicator(.hidden)
                 .presentationContentInteraction(.scrolls)
                 .presentationCornerRadius(Detailblatt.radius)
                 .presentationBackground(Farben.blatt)
         }
     }
+
 }
 
 // MARK: - Maße der Stundendetails (Original 117/118, iPhone)
@@ -249,8 +264,9 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Farben.blatt.ignoresSafeArea())
-        // Das Blatt bleibt fest: die Tastatur verschiebt bzw. staucht es nicht (Textfelder scrollen innen)
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+        // Keine eigene Tastatur-Logik: Textfelder weichen der Tastatur über den Sicherheitsbereich aus (System);
+        // beim Verlassen der Seite wird der Fokus abgegeben, damit nichts verschoben bleibt
+        .onDisappear { Tastatur.schliessen() }
         .toolbar(.hidden, for: .navigationBar)
     }
 }

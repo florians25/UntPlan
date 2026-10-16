@@ -161,10 +161,11 @@ final class AppZustand: ObservableObject {
         return fehler.localizedDescription
     }
 
+    /// Nur geänderte Werte veröffentlichen: jede Zuweisung an @Published lässt alle beobachtenden Ansichten neu rechnen.
     private func uebernehmen(_ s: Sitzung) {
         sitzung = s
-        ungelesen = s.ungelesen
-        phase = .angemeldet
+        if ungelesen != s.ungelesen { ungelesen = s.ungelesen }
+        if phase != .angemeldet { phase = .angemeldet }
     }
 }
 

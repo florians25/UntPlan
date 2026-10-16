@@ -36,6 +36,8 @@ export function e(wert) {
 
 /** Leerzustand (mit Symbol), Ladeanzeige und Hinweisbox. */
 export const leer = (text, symbol = 'inbox') => `<div class="u-leer"><i class="bi bi-${SYMBOLE[symbol] ?? symbol}" aria-hidden="true"></i>${e(text)}</div>`;
+/** Einklappbarer Hinweis als (i)-Knopf in einer Filterzeile (statt eines breiten Hinweistexts); html: vertrauenswürdiger, fester Text. */
+export const infoHinweis = (html, titel = 'Hinweis') => `<details class="nl-info"><summary title="${e(titel)}" aria-label="${e(titel)} anzeigen"><i class="bi bi-info-circle" aria-hidden="true"></i></summary><div class="nl-info-text" role="note">${html}</div></details>`;
 /** Platzhalter während des Ladens – bewusst ohne Animation (die Inhalte erscheinen direkt). */
 export const lade = () => '<div class="u-laedt" role="status"><span class="visually-hidden">Wird geladen …</span></div>';
 export const alarm = (art, text, html = false) => `<div class="alert alert-${art} py-2 px-3 small mb-3" role="alert">${html ? text : e(text)}</div>`;

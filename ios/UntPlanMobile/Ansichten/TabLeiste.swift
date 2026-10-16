@@ -33,9 +33,20 @@ enum Leistensymbole {
         Datumsformat.kalender.component(.day, from: Date())
     }
 
+    /// Bereits gezeichnete Kalenderblätter je Tageszahl (ImageRenderer ist teuer; die Leiste fragt bei jedem Zeichnen).
+    @MainActor private static var kalenderBilder: [Int: Image] = [:]
+
     /// Kalenderblatt mit Tageszahl als Vorlagenbild (wird von der Leiste eingefärbt).
     @MainActor
     static func kalender(tag: Int) -> Image {
+        if let fertig = kalenderBilder[tag] { return fertig }
+        let bild = kalenderZeichnen(tag: tag)
+        kalenderBilder[tag] = bild
+        return bild
+    }
+
+    @MainActor
+    private static func kalenderZeichnen(tag: Int) -> Image {
         let renderer = ImageRenderer(content:
             KalenderSymbol(inhalt: .tag(tag), groesse: 26, strich: 1.7)
                 .foregroundStyle(Color.black)
@@ -48,9 +59,10 @@ enum Leistensymbole {
     }
 }
 
-/// Schwebende Glaskapsel als untere Leiste (vor iOS 26), Maße wie .tabbar in der PWA.
+/// Schwebende Glaskapsel als untere Leiste (vor iOS 26) genau nach Vorlage (108/116): Glaskapsel 20 pt vom Rand,
+/// je Reiter Symbol über Text, der aktive Reiter als hellere Kapsel (ragt etwas in die Nachbarn), Text 12 pt.
 struct GlasTabLeiste: View {
-    static let hoehe: CGFloat = 64
+    static let hoehe: CGFloat = 60
 
     @Binding var auswahl: AppReiter
     let ungelesen: Int
@@ -71,18 +83,18 @@ struct GlasTabLeiste: View {
                 .accessibilityAddTraits(auswahl == reiter ? .isSelected : [])
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 6)
         .frame(height: Self.hoehe)
-        .frame(maxWidth: 500)
+        .frame(maxWidth: 460)
         .glas(Capsule())
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
     }
 
     private func eintrag(_ reiter: AppReiter) -> some View {
         let aktiv = auswahl == reiter
-        return VStack(spacing: 4) {
+        return VStack(spacing: 3) {
             symbol(reiter)
-                .frame(width: 30, height: 26)
+                .frame(width: 30, height: 25)
                 .overlay(alignment: .topTrailing) {
                     if reiter == .mitteilungen && ungelesen > 0 {
                         Text(ungelesen > 99 ? "99+" : "\(ungelesen)")
@@ -96,8 +108,8 @@ struct GlasTabLeiste: View {
                     }
                 }
             Text(reiter.titel)
-                .font(.system(size: 11.5, weight: .medium))
-                .tracking(-0.12)
+                .font(.system(size: 12, weight: .medium))
+                .tracking(-0.1)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .padding(.horizontal, 2)
@@ -107,12 +119,12 @@ struct GlasTabLeiste: View {
         .background {
             if aktiv {
                 Capsule()
-                    .fill(Color(hell: 0xE6E9EC, dunkel: 0xFFFFFF, deckkraftHell: 0.85, deckkraftDunkel: 0.12))
+                    .fill(Color(hell: 0xE3E5E9, dunkel: 0xFFFFFF, deckkraftHell: 0.95, deckkraftDunkel: 0.14))
                     .overlay {
-                        Capsule().strokeBorder(Color(hell: 0xFFFFFF, dunkel: 0xFFFFFF, deckkraftHell: 0.9, deckkraftDunkel: 0.18), lineWidth: 0.5)
+                        Capsule().strokeBorder(Color(hell: 0xFFFFFF, dunkel: 0xFFFFFF, deckkraftHell: 0.7, deckkraftDunkel: 0.12), lineWidth: 0.5)
                     }
-                    .padding(.vertical, 5)
-                    .padding(.horizontal, -2)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, -5)
                     .matchedGeometryEffect(id: "aktiverReiter", in: raum)
             }
         }
@@ -125,7 +137,7 @@ struct GlasTabLeiste: View {
             KalenderSymbol(inhalt: .tag(Leistensymbole.heutigerTag), groesse: 26, strich: 1.7)
         } else {
             Image(systemName: reiter.symbol)
-                .font(.system(size: 22, weight: .regular))
+                .font(.system(size: 21, weight: .regular))
         }
     }
 }

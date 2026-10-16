@@ -162,7 +162,8 @@ struct Kachellage: Identifiable {
 
 /// Zählstreifen rechts neben einer Kachel: so viele Stunden liegen dahinter (Wochenansicht, zu wenig Platz).
 struct Zaehlstreifen: Identifiable {
-    let id = UUID()
+    /// Feste Kennung aus vorderer Kachel und Stunden: bleibt beim erneuten Anordnen gleich (keine neuen Ansichten)
+    var id: String { "\(vorne.id.uuidString)-\(von)-\(bis)" }
     var von: Int
     var bis: Int
     var kacheln: [Kachel]

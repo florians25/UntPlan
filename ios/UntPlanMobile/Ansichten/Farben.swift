@@ -34,6 +34,8 @@ extension Color {
 enum Farben {
     // Akzente
     static let akzent = Color(hexWert: 0xF56B2A)
+    /// Ladebalken: kräftiges Orange
+    static let ladebalken = Color(hexWert: 0xFF6A13)
     static let akzentSanft = Color(hell: 0xFFF1E2, dunkel: 0x3A2414)
     static let orange = Color(hexWert: 0xF07C00)
     static let heute = Color(hexWert: 0xEF5A2A)
@@ -116,6 +118,16 @@ enum Farben {
     static let leisteAktiv = Color(hell: 0x253746, dunkel: 0xFFFFFF)
     /// Helles Feld hinter dem aktiven Reiter der oberen Kapsel (iPad)
     static let reiterAktiv = Color(hell: 0xF4ECE7, dunkel: 0xFFFFFF, deckkraftHell: 0.95, deckkraftDunkel: 0.13)
+
+    // Segment-Schalter und Reiter (Vorlage seite-8, 133)
+    static let segmentGrund = Color(hell: 0xEDEFF2, dunkel: 0x2C2C2E)
+    static let segmentAktiv = Color(hell: 0xFFFFFF, dunkel: 0x636366)
+    static let segmentSchatten = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.16, deckkraftDunkel: 0.35)
+    /// Statuspille „Prüfung“/„Veranstaltung“ im Kopf der Stundendetails (Web: #e6e9ed / #4a5662)
+    static let pilleFlaeche = Color(hell: 0xE6E9ED, dunkel: 0x3A3F45)
+    static let pilleText = Color(hell: 0x4A5662, dunkel: 0xD3D9DF)
+    /// Zeile der Reiter (mehrere Stunden zur selben Zeit) in den Stundendetails
+    static let reiterGrund = Color(hell: 0xF3F5F7, dunkel: 0x242427)
 
     // Raumänderung (gelb-orangener Rand wie in der Vorlage)
     static let raumRand = Color(hell: 0xE9A23B, dunkel: 0xF0B04A)

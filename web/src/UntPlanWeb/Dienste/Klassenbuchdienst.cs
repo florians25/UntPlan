@@ -426,10 +426,17 @@ public sealed partial class Klassenbuchdienst
                         fehlend = f.Where(x => x.Art == "fehlt").Select(x => x.SchuelerId).Distinct().Select(i => namen.GetValueOrDefault(i, "?")).ToList(),
                         verspaetet = f.Where(x => x.Art == "verspaetet").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
                         vorzeitig = f.Where(x => x.Art == "vorzeitig").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
+                        // Wochenraster: Hausaufgaben der Stunde und Klassenbucheinträge (Vermerke) mit Uhrzeit innerhalb der Stunde
+                        hausaufgaben = k.Unterricht is int u ? HausaufgabenDerStunde(d, k.Von, k.Bis, u).Select(h => h.Text).ToList() : new List<string>(),
+                        eintraege = vermerke.Count(v => v.Datum == iso && v.Zeit.Length == 5 && string.CompareOrdinal(v.Zeit, k.Beginn) >= 0 && string.CompareOrdinal(v.Zeit, k.Ende) < 0),
                     };
                 }).ToList();
-            tage.Add(new { datum = iso, frei = frei.Frei, freiGrund = frei.Grund, stunden, vermerke = vermerke.Where(v => v.Datum == iso).Select(v => new { v.Id, v.Art, v.Text, v.Lehrer, schueler = v.SchuelerId is int i ? namen.GetValueOrDefault(i, "") : "" }) });
+            tage.Add(new { datum = iso, frei = frei.Frei, freiGrund = frei.Grund, stunden, vermerke = vermerke.Where(v => v.Datum == iso).Select(v => new { v.Id, v.Art, v.Text, v.Lehrer, v.Zeit, schueler = v.SchuelerId is int i ? namen.GetValueOrDefault(i, "") : "" }) });
         }
-        return new { klasse, von = Plandienst.Iso(montag), bis = Plandienst.Iso(bis), tage, schuelerAnzahl = s.Schueler.Count(x => Ci.Equals(x.Klasse, klasse)) };
+        return new
+        {
+            klasse, von = Plandienst.Iso(montag), bis = Plandienst.Iso(bis), tage, schuelerAnzahl = s.Schueler.Count(x => Ci.Equals(x.Klasse, klasse)),
+            raster = s.Paket.Zeitraster.Stunden.OrderBy(z => z.Nr).Select(z => new { nr = z.Nr, beginn = z.Beginn, ende = z.Ende }),
+        };
     }
 }

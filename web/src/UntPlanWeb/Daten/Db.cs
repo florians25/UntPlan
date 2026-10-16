@@ -499,6 +499,39 @@ public sealed class Db
         INSERT INTO sitzplan_bereiche (bereich, schluessel, zeilen, spalten, belegung, geaendert)
             SELECT 'klasse', klasse, zeilen, spalten, belegung, geaendert FROM sitzplaene;
         """,
+
+        // 13: Sprechtag (Elternsprechtag) – Sprechtage mit Zeitfenster, Termindauer, Pausen (JSON), Einladungs- und Anmeldezeitraum,
+        //    beteiligte Lehrkräfte mit Raum, gesperrte Zeitfenster, Einladungen und Termine (ein Termin je Zeitfenster und je Lehrkraft
+        //    und Kind) – nur Standard-SQL
+        """
+        CREATE TABLE sprechtage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(200) NOT NULL, datum VARCHAR(10) NOT NULL, beginn VARCHAR(5) NOT NULL,
+            ende VARCHAR(5) NOT NULL, dauer INTEGER NOT NULL DEFAULT 10, pausen VARCHAR(1000) NOT NULL DEFAULT '[]',
+            einladung_bis VARCHAR(16) NOT NULL DEFAULT '', anmeldung_von VARCHAR(16) NOT NULL, anmeldung_bis VARCHAR(16) NOT NULL,
+            sichtbar INTEGER NOT NULL DEFAULT 0, raumwahl INTEGER NOT NULL DEFAULT 0, hinweis VARCHAR(2000) NOT NULL DEFAULT '',
+            erstellt VARCHAR(30) NOT NULL DEFAULT '', geaendert VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE sprechtag_lehrer (
+            sprechtag_id INTEGER NOT NULL REFERENCES sprechtage(id) ON DELETE CASCADE, lehrer VARCHAR(50) NOT NULL,
+            raum VARCHAR(50) NOT NULL DEFAULT '', PRIMARY KEY (sprechtag_id, lehrer)
+        );
+        CREATE TABLE sprechtag_sperren (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sprechtag_id INTEGER NOT NULL REFERENCES sprechtage(id) ON DELETE CASCADE,
+            lehrer VARCHAR(50) NOT NULL, beginn VARCHAR(5) NOT NULL, UNIQUE (sprechtag_id, lehrer, beginn)
+        );
+        CREATE TABLE sprechtag_einladungen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sprechtag_id INTEGER NOT NULL REFERENCES sprechtage(id) ON DELETE CASCADE,
+            lehrer VARCHAR(50) NOT NULL, schueler_id INTEGER NOT NULL, text VARCHAR(1000) NOT NULL DEFAULT '',
+            erstellt VARCHAR(30) NOT NULL DEFAULT '', benachrichtigt INTEGER NOT NULL DEFAULT 0, UNIQUE (sprechtag_id, lehrer, schueler_id)
+        );
+        CREATE TABLE sprechtag_termine (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sprechtag_id INTEGER NOT NULL REFERENCES sprechtage(id) ON DELETE CASCADE,
+            lehrer VARCHAR(50) NOT NULL, beginn VARCHAR(5) NOT NULL, schueler_id INTEGER NOT NULL, benutzer_id INTEGER,
+            bemerkung VARCHAR(500) NOT NULL DEFAULT '', quelle VARCHAR(20) NOT NULL DEFAULT 'eltern', erstellt VARCHAR(30) NOT NULL DEFAULT '',
+            UNIQUE (sprechtag_id, lehrer, beginn), UNIQUE (sprechtag_id, lehrer, schueler_id)
+        );
+        CREATE INDEX ix_sprechtag_termine_schueler ON sprechtag_termine (sprechtag_id, schueler_id);
+        """,
     };
 
 

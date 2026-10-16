@@ -9,7 +9,7 @@ import SwiftUI
 /// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
 /// - Aufsicht: schmale Pille in der Pause mit lila Balken; Vertretung (übernommen oder abgegeben) grün wie eine
 ///   Vertretungskarte, abwesendes Kürzel durchgestrichen, Vertretung als grüne Plakette.
-/// - Erste Zeile Medium, weitere Zeilen Regular; Info-Zeichen flach, 4 pt vom Rand unten rechts.
+/// - Erste Zeile Medium (auch in Plaketten), weitere Zeilen Regular; Info-Zeichen (info.svg), 4 pt vom Rand unten rechts.
 /// Maße wie im Original (nachgemessen an den Vorlagen, Woche und Tag gleich): Balken 4 pt breit, oben, links und unten je
 /// 4 pt vom Kartenrand; Text 4 pt rechts vom Balken (Glyphe ≈ 12,8 pt von der Kante) und 4 pt unter der Oberkante; Schrift
 /// 12 pt bei 14 pt Zeilenabstand (iPad 12,4/14,3). Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
@@ -176,8 +176,8 @@ struct KachelView: View {
 
     /// Kantenlänge der Zeichen unten rechts (Hausaufgabe, Kürzung).
     static let zeichenGroesse: CGFloat = 14.5
-    /// Durchmesser des flachen Info-Zeichens.
-    static let infoGroesse: CGFloat = 12
+    /// Kantenlänge des Info-Zeichens (exakt info.svg: helles Feld mit grauer Scheibe, wie die Hausaufgabe).
+    static let infoGroesse: CGFloat = 14.5
     /// Abstand der Zeichen zum unteren und rechten Kartenrand.
     static let zeichenRand: CGFloat = 4
 
@@ -210,11 +210,7 @@ struct KachelView: View {
         } else if mitInfo || mitHausaufgabe {
             HStack(alignment: .center, spacing: 2) {
                 if mitHausaufgabe && (!mitInfo || breite >= 96) {
-                    Image(systemName: "book.closed.fill")
-                        .font(.system(size: 8))
-                        .foregroundStyle(Farben.infoScheibe)
-                        .frame(width: 14.5, height: 14.5)
-                        .background(Farben.infoFeld, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    Hausaufgabenzeichen(groesse: Self.zeichenGroesse)
                 }
                 if mitInfo {
                     Infozeichen(groesse: Self.infoGroesse)
@@ -338,6 +334,7 @@ struct KachelzeileView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        // Obere Zeile (auch die grüne Plakette darin) Medium, weitere Zeilen Regular
         .font(.system(size: schrift, weight: oben ? .medium : .regular))
         .foregroundStyle(titelFarbe ?? aussehen.text)
     }
@@ -614,17 +611,30 @@ struct Plakettenwert: View {
     }
 }
 
-/// Info-Zeichen (.card__info) flach wie im Original: graue Scheibe mit ausgespartem „i“ als Vektorgrafik (KartenInfo),
-/// ohne Feld, Verlauf oder Schatten.
+/// Info-Zeichen (.card__info) exakt wie im Original: die Vektorgrafik info.svg (helles abgerundetes Feld, graue Scheibe
+/// mit ausgespartem „i“; dunkel eigene Variante) als Originalbild ohne Einfärbung.
 struct Infozeichen: View {
-    var groesse: CGFloat = 12
+    var groesse: CGFloat = KachelView.infoGroesse
 
     var body: some View {
         Image("KartenInfo")
-            .renderingMode(.template)
             .resizable()
+            .interpolation(.high)
             .scaledToFit()
-            .foregroundStyle(Farben.infoScheibe)
+            .frame(width: groesse, height: groesse)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Zeichen „Hausaufgabe fällig“ auf den Karten exakt wie im Original (tt-homework-icon.svg, dunkel eigene Variante).
+struct Hausaufgabenzeichen: View {
+    var groesse: CGFloat = KachelView.zeichenGroesse
+
+    var body: some View {
+        Image("KartenHausaufgabe")
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
             .frame(width: groesse, height: groesse)
             .accessibilityHidden(true)
     }

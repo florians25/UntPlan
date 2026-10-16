@@ -90,14 +90,18 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .tt .std .zt { left: 3px; font-size: 10px; color: var(--u-grau-2); }
 .tt .std .zt.o { top: 6px; line-height: 12px; }
 .tt .std .zt.u { bottom: 6px; line-height: 7px; }
-.std .lbl { border-radius: 2px; }
+.std .lbl { border-radius: 1.5px; }
 /* Bereitschaft und abwesende Lehrkraft: gestrichelter Rand 1,5px wie im Original */
 .std.bereitschaft, .std.lehrer-abwesend, .std.vorgemerkt { outline: 1.5px dashed #8a96a1; outline-offset: -1.5px; border-radius: 4px; }
 .std.bereitschaft, .std.lehrer-abwesend { background: #f1f5f8 !important; }
-/* Hover eines geänderten Werts: alter Wert durchgestrichen */
-.u-hover-label s { text-decoration-thickness: 1px; }
-.std .z1 { font-size: 14px; font-weight: 600; line-height: 16px; margin-bottom: -2px; color: #414d55; }
+/* Hover eines geänderten Werts: „alt → neu“ ohne Durchstreichung */
+.u-hover-label s { text-decoration: none; }
+/* erste Zeile einen Tick kräftiger (feiner Strich statt Bold-Schnitt), etwas mehr Luft zwischen den Zeilen (Label ↔ Text) */
+.std .z1 { font-size: 14px; font-weight: 600; line-height: 16px; margin-bottom: 1px; color: #414d55; -webkit-text-stroke: .25px currentColor; }
+.std .z1 .lbl { -webkit-text-stroke: 0; }
 .std .z2 { font-size: 12px; font-weight: 500; line-height: 16px; color: #414d55; }
+.std .z2 + .z2 { margin-top: 1px; }
+.std .lbl + .lbl { margin-left: 2px; }
 .std .zt { color: var(--u-grau-2); font-weight: 600; }
 .std .lbl { font-weight: 600; }
 /* vergangene Stunden: Fläche leicht grau, Schrift bleibt gleich kräftig */

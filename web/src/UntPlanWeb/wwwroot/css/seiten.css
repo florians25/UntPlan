@@ -475,3 +475,40 @@ a.s-pille { text-decoration: none !important; }
 .ad-knoepfe > .sd-orange, .ad-knoepfe > .ad-pille:not(.klein), .ad-knoepfe > a.ad-pille {
   display: inline-flex; align-items: center; justify-content: center; height: var(--s-knopf); min-width: 104px; padding: 0 20px; font-size: .9375rem; font-weight: 600; line-height: 1; box-shadow: none;
 }
+
+/* ------------------------------------------------------------------ Primäre (orange) Knöpfe einheitlich: etwas höher (42px), schmaler (16px seitlich) */
+.btn.btn-primary:not(.btn-sm):not(.btn-lg), .nl-hinzu:not(.bu-klein):not(.os-zeitwahl-fuss *), .sd-orange, .sd-pille.primaer, .sp-knopf.primaer,
+.ad-knoepfe > .sd-orange {
+  --bs-btn-padding-x: 16px; --bs-btn-padding-y: 0; padding-left: 16px; padding-right: 16px; height: 42px; min-height: 42px;
+}
+.sd-orange, .sd-pille.primaer { padding-top: 0; padding-bottom: 0; display: inline-flex; align-items: center; justify-content: center; }
+.ad-knoepfe > .sd-orange { min-width: 96px; }
+/* Nebenknöpfe in derselben Dialogzeile gleich hoch */
+.modal-footer .btn { height: 42px; min-height: 42px; }
+.ad-knoepfe > .ad-pille:not(.klein), .ad-knoepfe > a.ad-pille { height: 42px; }
+@media (max-width: 991.98px) {
+  .u-aktionen .btn.btn-primary, .u-aktionen .nl-hinzu { height: 38px; min-height: 38px; padding-left: 14px; padding-right: 14px; }
+}
+
+/* Meldungen (Toasts): schmal und dezent */
+.u-toasts .toast { --bs-toast-max-width: 360px; --bs-toast-font-size: .8125rem; --bs-toast-border-radius: 12px; max-width: 360px; background: rgba(65, 77, 85, .94); box-shadow: 0 4px 14px rgba(0, 5, 10, .16); }
+.u-toasts .toast.fehler { background: rgba(200, 54, 59, .95); }
+.u-toasts .toast-body { padding: .45rem .8rem; font-weight: 500; line-height: 1.35; gap: .5rem; }
+.u-toasts .toast .btn-close { font-size: .6rem; margin-right: .45rem; }
+.up-hinweis { max-width: 360px; padding: 10px 10px 10px 12px; gap: 10px; border-left-width: 3px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 5, 10, .1); font-size: .8125rem; }
+.up-hinweis > .bi { font-size: 1.1rem; }
+
+/* Fehlzeiten/Abwesenheiten: kompakter Kopf – Hinweis als (i)-Knopf zum Aufklappen, kleinere Kennzahlen */
+.nl-info { position: relative; display: inline-flex; }
+.nl-info > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; color: #7b8892; cursor: pointer; font-size: 1.05rem; }
+.nl-info > summary::-webkit-details-marker { display: none; }
+.nl-info > summary:hover, .nl-info[open] > summary { background: #eef1f4; color: var(--u-titel); }
+.nl-info-text { position: absolute; z-index: 40; top: calc(100% + 6px); left: -8px; width: min(440px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 8px; background: #fff;
+  box-shadow: 0 6px 20px rgba(0, 5, 10, .16); color: #57626b; font-size: .8125rem; line-height: 1.45; }
+.nl-info-text a { color: var(--u-akzent-dunkel); }
+.nl-zahlen.kompakt { gap: 6px; margin-bottom: 10px; }
+.nl-zahlen.kompakt .nl-zahl { height: 24px; padding: 0 9px; font-size: .75rem; gap: 4px; }
+.nl-leiste .nl-zahlen.kompakt { margin: 0 0 0 4px; }
+.fz-kopfzeile { margin-bottom: 12px; }
+.fz-kopfzeile [data-klwahl] { padding-right: 8px; }
+.nl-pille .elementwahl .wahl-knopf { border: 0; height: auto; min-height: 0; padding: 0 0 0 4px; min-width: 0; background: transparent !important; box-shadow: none; }

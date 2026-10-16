@@ -193,7 +193,7 @@ struct StundenplanView: View {
                         .padding(.bottom, 6)
                 }
                 inhalt
-                    // Dünner oranger Ladebalken direkt unter der Kopfzeile, solange der Plan lädt
+                    // Kräftiger oranger Ladebalken direkt unter der Kopfzeile, solange der Plan lädt
                     .overlay(alignment: .top) {
                         Ladebalken(aktiv: laedt)
                     }
@@ -627,13 +627,26 @@ struct StundenplanView: View {
             if let text = zustand.fehlertext(error) { fehler = text }
         }
         laedt = false
-        // Nachbarwochen vorab laden, damit beim Wischen (und in der Ansicht über zwei Wochen) sofort etwas zu sehen ist
-        for nachbar in [Datumsformat.tage(7, nach: m), Datumsformat.tage(-7, nach: m)] where neu || plaene[k(nachbar)] == nil {
-            if Task.isCancelled { return }
-            if let p = try? await zustand.api.plan(typ: t, element: e, datum: nachbar) {
-                plaene[k(nachbar)] = p
-                staende[k(nachbar), default: 0] += 1
-            }
+        // Nachbarwochen vorab und gleichzeitig laden, damit beim Wischen (und in der Ansicht über zwei Wochen) sofort
+        // etwas zu sehen ist
+        if Task.isCancelled { return }
+        let api = zustand.api
+        let naechste = Datumsformat.tage(7, nach: m)
+        let vorige = Datumsformat.tage(-7, nach: m)
+        let holeNaechste = neu || plaene[k(naechste)] == nil
+        let holeVorige = neu || plaene[k(vorige)] == nil
+        @Sendable func hole(_ datum: Date, _ noetig: Bool) async -> Wochenplan? {
+            guard noetig else { return nil }
+            return try? await api.plan(typ: t, element: e, datum: datum)
+        }
+        async let planNaechste = hole(naechste, holeNaechste)
+        async let planVorige = hole(vorige, holeVorige)
+        let (pn, pv) = await (planNaechste, planVorige)
+        if Task.isCancelled { return }
+        for (datum, plan) in [(naechste, pn), (vorige, pv)] {
+            guard let plan else { continue }
+            plaene[k(datum)] = plan
+            staende[k(datum), default: 0] += 1
         }
     }
 }
@@ -752,6 +765,11 @@ struct PlanInfoView: View {
                         Infozeichen()
                             .frame(width: 34)
                         Text("Hinweis bzw. Notiz zur Stunde")
+                    }
+                    HStack(spacing: 12) {
+                        Hausaufgabenzeichen()
+                            .frame(width: 34)
+                        Text("Hausaufgabe fällig")
                     }
                     HStack(spacing: 12) {
                         Rectangle()
@@ -908,8 +926,16 @@ struct WochenrasterView: View {
         let start = zeiten.first?.beginn ?? 480
         let ende = zeiten.last?.ende ?? 960
         let jetzt = Date()
+        // Kacheln je Tag aus dem Zwischenspeicher: gleiche Daten (Stand) liefern dieselben Kacheln mit denselben
+        // Kennungen – SwiftUI behält die Kartenansichten, statt sie bei jedem Zeichnen neu aufzubauen
+        let minute = Int(jetzt.timeIntervalSinceReferenceDate / 60)
+        let basis = "\(typ)|\(element)|\(plan.montag)|\(stand)|\(nurTage?.joined(separator: ",") ?? "w")|\(minute)"
         let kacheln: [String: [Kachel]] = Dictionary(
-            tage.map { ($0.datum, Kachelbau.tag($0, plan: plan, raster: zeiten, typ: typ, element: element, jetzt: jetzt)) },
+            tage.map { tag in
+                (tag.datum, Kachelspeicher.kacheln(basis + "|" + tag.datum) {
+                    Kachelbau.tag(tag, plan: plan, raster: zeiten, typ: typ, element: element, jetzt: jetzt)
+                })
+            },
             uniquingKeysWith: { erste, _ in erste })
         let vorErster = kacheln.values.contains { liste in liste.contains { $0.vorErsterStunde } }
         let pausenAufsichten = kacheln.values.flatMap { $0 }.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
@@ -1181,8 +1207,9 @@ struct WochenrasterView: View {
             let i = CGFloat(vorErste.firstIndex(of: k.id) ?? 0)
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
-            y = 4
-            h = 23
+            // Direkt über der Linie der 1. Stunde (im freien Streifen vor ihr), nie nach oben in den Tageskopf
+            h = 22
+            y = max(3, mass.y(mass.start) - h - 4)
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar
             let oben = mass.yEnde(k.beginn)
@@ -1269,6 +1296,20 @@ struct WochenrasterView: View {
                 .allowsHitTesting(false)
             }
         }
+    }
+}
+
+/// Zwischenspeicher der gebauten Kacheln je Tag (Schlüssel: Plan, Stand, angezeigte Tage, Minute). Das Bauen der Kacheln
+/// ist teuer und erzeugt neue Kennungen; beim Blättern und erneuten Zeichnen werden die vorhandenen wiederverwendet.
+enum Kachelspeicher {
+    private static var speicher: [String: [Kachel]] = [:]
+
+    static func kacheln(_ schluessel: String, bauen: () -> [Kachel]) -> [Kachel] {
+        if let fertig = speicher[schluessel] { return fertig }
+        let neu = bauen()
+        if speicher.count > 160 { speicher.removeAll(keepingCapacity: true) }
+        speicher[schluessel] = neu
+        return neu
     }
 }
 

@@ -441,13 +441,70 @@ extension View {
     }
 }
 
+// MARK: - Segment-Schalter
+
+/// Segment-Schalter wie im Original (Schüler*innen: Alle | Abwesend | Anwesend): grauer, voll abgerundeter Hintergrund,
+/// der aktive Teil als helle Kapsel mit leichtem Schatten (gleitet beim Wechsel), Schrift 13 pt (aktiv Medium).
+struct Segmentschalter<Wert: Hashable>: View {
+    struct Eintrag {
+        let wert: Wert
+        let titel: String
+    }
+
+    @Binding var auswahl: Wert
+    let eintraege: [Eintrag]
+    @Namespace private var raum
+
+    /// Einträge als (Wert, Titel).
+    init(auswahl: Binding<Wert>, _ eintraege: [(Wert, String)]) {
+        _auswahl = auswahl
+        self.eintraege = eintraege.map { Eintrag(wert: $0.0, titel: $0.1) }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(eintraege.enumerated()), id: \.offset) { _, eintrag in
+                let aktiv = eintrag.wert == auswahl
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                        auswahl = eintrag.wert
+                    }
+                } label: {
+                    Text(eintrag.titel)
+                        .font(.system(size: 13, weight: aktiv ? .medium : .regular))
+                        .foregroundStyle(Farben.tinte)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 6)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background {
+                            if aktiv {
+                                Capsule()
+                                    .fill(Farben.segmentAktiv)
+                                    .shadow(color: Farben.segmentSchatten, radius: 2, y: 1)
+                                    .matchedGeometryEffect(id: "aktivesSegment", in: raum)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(aktiv ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Farben.segmentGrund, in: Capsule())
+    }
+}
+
 // MARK: - Ladebalken
 
-/// Dünner Fortschrittsbalken (iOS-typisch, unbestimmt) direkt unter der Kopfzeile: beim Laden von Plan, Details und
+/// Kräftiger Fortschrittsbalken (4 pt, unbestimmt) direkt unter der Kopfzeile: beim Laden von Plan, Details und
 /// Listen läuft ein orangefarbenes Segment von links nach rechts über eine blasse Spur. Nimmt keine Antippen an.
 struct Ladebalken: View {
     let aktiv: Bool
-    var hoehe: CGFloat = 2.5
+    /// Kräftig und gut sichtbar (4 pt)
+    var hoehe: CGFloat = 4
 
     var body: some View {
         ZStack {
@@ -483,9 +540,9 @@ private struct LadebalkenLauf: View {
                 let x = -segment + (w + segment) * CGFloat(weich)
                 ZStack(alignment: .leading) {
                     Rectangle()
-                        .fill(Farben.akzent.opacity(0.16))
+                        .fill(Farben.ladebalken.opacity(0.22))
                     Capsule()
-                        .fill(Farben.akzent)
+                        .fill(Farben.ladebalken)
                         .frame(width: max(segment, 1), height: hoehe)
                         .offset(x: x)
                 }

@@ -378,12 +378,13 @@ const viewKind = e => {
   return e.type === 'mine' ? 'teacher' : e.type;
 };
 
-/* Zeichen unten rechts auf der Kachel — flach, als Linie bzw. Fläche in
-   einer Farbe (Info-Scheibe mit ausgespartem „i“, Hausaufgaben-Haus). */
-const KACHEL_INFO = '<svg class="ticon ticon--flach" viewBox="0 0 12 12" aria-hidden="true">'
-  + '<path fill="currentColor" fill-rule="evenodd" d="M6 .25a5.75 5.75 0 1 1 0 11.5A5.75 5.75 0 0 1 6 .25Zm.62 4.55H5.3a.55.55 0 0 0 0 1.1h.25v2.75H5.3a.55.55 0 0 0 0 1.1h1.6a.55.55 0 0 0 0-1.1h-.28Zm-.62-2.2a.78.78 0 1 0 0 1.56.78.78 0 0 0 0-1.56Z"/></svg>';
-const KACHEL_HA = '<svg class="ticon ticon--flach" viewBox="0 0 12 12" aria-hidden="true">'
-  + '<path fill="currentColor" d="M6.36.4a.5.5 0 0 0-.72 0L.42 5.6a.5.5 0 0 0 .36.85h1.1v4.65c0 .28.22.5.5.5h7.24a.5.5 0 0 0 .5-.5V6.45h1.1a.5.5 0 0 0 .36-.85Z"/></svg>';
+/* Zeichen unten rechts auf der Kachel — exakt die Originalgrafiken aus
+   img/wu/exact (info.svg, tt-homework-icon.svg): helles, abgerundetes Feld,
+   darauf die graue Scheibe mit ausgespartem „i“ bzw. das Haus. Sie liegen
+   einmal in der Symbolsammlung und werden nur per <use> verwiesen — keine
+   Kopie des Pfads je Kachel. Farben (hell/dunkel) über fill/color. */
+const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-info-icon"></use></svg>';
+const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-homework-icon"></use></svg>';
 
 /* TRENNER-BEGINN (wird von den Tests ausgeführt) */
 /* Trennzeichen zwischen mehreren Werten (Lehrkräfte, Klassen, Räume):
@@ -889,31 +890,17 @@ function renderGrid(){
   /* Auch die Nachbarwochen sind anklickbar — der Streifen zeigt sie ja. */
   state.allByDate = byDate;
 
-  /* Aufsichten vor der ersten Stunde brauchen Platz oberhalb des Rasters.
-     Der Streifen steht immer, auch an Tagen ohne Aufsicht: Wurde er nur bei
-     Bedarf eingefügt, sprang beim Wochenwechsel der ganze Plan um seine
-     Höhe — je nachdem, ob in der neuen Woche zufällig eine Aufsicht vor der
-     ersten Stunde lag.
-
-     Er ist so hoch wie eine gewöhnliche Pause. Statt eines festen Wertes
-     wird die übliche Pausenlänge aus den Stundenzeiten selbst abgelesen:
-     die häufigste Lücke zwischen zwei aufeinanderfolgenden Stunden. Lücken
-     der Länge null sind Doppelstunden und zählen nicht mit. */
-  const preInset = (() => {
-    const t = state.times || {};
-    const nos = Object.keys(t).map(Number).sort((a, b) => a - b);
-    const luecken = {};
-    for (let i = 0; i < nos.length - 1; i++){
-      const g = minutes(t[nos[i + 1]].start) - minutes(t[nos[i]].end);
-      if (g > 0) luecken[g] = (luecken[g] || 0) + 1;
-    }
-    const haeufigste = Object.keys(luecken)
-      .sort((a, b) => luecken[b] - luecken[a] || Number(a) - Number(b))[0];
-    /* Mindestens so hoch wie eine Pille: Schulen mit Fünf-Minuten-Wechseln
-       hätten sonst einen Streifen von sechs Punkten, und die Pille vor der
-       ersten Stunde (Aufsicht, ganztägiger Termin) läge auf der Stunde. */
-    return Math.max(26, Math.round((Number(haeufigste) || 20) * PPM));
-  })();
+  /* Aufsichten vor der ersten Stunde (und ganztägige Termine als Pille)
+     stehen direkt über der ersten Stunde – nicht oben am Rand mit leerem
+     Streifen dazwischen. Platz dafür gibt es nur, wenn im gezeigten
+     Streifen (alle drei Wochen bzw. Tage) wirklich eine solche Pille liegt;
+     sonst beginnt das Raster wie im Original 15 px unter der Tagesleiste.
+     Wie in der iOS-App: mit Pille 34 px bis zur ersten Linie, ohne 15 px. */
+  const PRE_PILLE = 23, PRE_LUFT = 2;
+  const hatVorErste = dates.some(d => (byDate[d] || []).some(c => c._pausePre
+    && (state.opts.showCancelled || c.blockType !== 'cancelled')));
+  const preInset = hatVorErste ? PRE_PILLE + PRE_LUFT + 1 : 0;
+  if (pane) pane.classList.toggle('has-pre', hatVorErste);
 
   const L = buildLayout(state.times, preInset);
   const now = new Date();
@@ -1132,14 +1119,14 @@ function renderGrid(){
          Sie soll nicht wie eine Unterrichtsstunde aussehen. */
       const SUP_H = 26;
       const top = isHoliday ? 0
-                : card._pausePre ? 2
+                : card._pausePre ? L.pre - PRE_PILLE - PRE_LUFT
                 : (byTime && card._supervision)
                     ? atTime(card.from) + Math.max(1.5, (atTime(card.to) - atTime(card.from) - SUP_H) / 2)
                 : byTime    ? atTime(card.from) + 1
                 :             L.top(card.lesson) + 1;
       const supGap = byTime ? (atTime(card.to) - atTime(card.from)) : 0;
       const h   = isHoliday ? L.total
-                : card._pausePre ? 23
+                : card._pausePre ? PRE_PILLE
                 : (byTime && card._supervision)
                     ? Math.max(18, Math.min(SUP_H, supGap - 3))
                 : card._supervision ? SUP_H            /* Aufsicht: immer schmale Pille */
@@ -1460,9 +1447,8 @@ function renderGrid(){
 
       let eckzeichen = '';
       const dots = `<span class="card__cut" aria-hidden="true">${DOTS}</span>`;
-      /* Flach gezeichnet: nur die Scheibe bzw. das Haus, ohne Kästchen
-         dahinter. Das „i“ ist ausgespart und zeigt die Kachelfläche. */
-      const ikon = n => `<span class="card__ic card__ic--flach">${n === 'ic-tt-homework-icon' ? KACHEL_HA : KACHEL_INFO}</span>`;
+      /* Originalgrafiken (Feld mit Scheibe bzw. Haus), wie in der iOS-App. */
+      const ikon = n => `<span class="card__ic card__ic--exakt">${n === 'ic-tt-homework-icon' ? KACHEL_HA : KACHEL_INFO}</span>`;
 
       if (cut && !card._supervision && card.blockType !== 'supervision'){
         eckzeichen = dots;
@@ -4164,7 +4150,7 @@ function renderDetail(){
        Klausuren, Raumbuchungen und gewöhnliche Stunden tragen eine
        Information, keinen Vertretungstext. */
     const vertretung = c.blockType === 'change' || c.blockType === 'cancelled';
-    rows.push({ ico:'substitution', title: vertretung ? 'Vertretungstext' : 'Information zur Stunde',
+    rows.push({ ico: vertretung ? 'substitution' : 'info', title: vertretung ? 'Vertretungstext' : 'Information zur Stunde',
                 key:'substitution', sub:c.info });
   }
   if (voll){
@@ -4272,7 +4258,9 @@ const DICO = (() => {
     students:      u('ic-lessons-classes'),
     homework:      u('ic-homework'),
     classbook:     u('ic-navigation-class-register'),
-    info:          linie('<circle cx="14" cy="14" r="10.75"/><path d="M14 12.5v7"/><path d="M14 8.6v.1" stroke-width="2.1"/>'),
+    /* Info wie im Original (img/wu/exact/info.svg ohne Feld): volle Scheibe
+       mit ausgespartem „i“, auf die Scheibe zugeschnitten. */
+    info:          '<svg viewBox="1.1429 1.1429 13.7143 13.7143" class="ico dico dico--info" aria-hidden="true"><use href="#ic-tt-info-icon"></use></svg>',
     room:          u('ic-shared-roomentity')
   };
 })();
@@ -6319,24 +6307,48 @@ $('#btnLogout').addEventListener('click', async () => {
 (() => {
   const vv = window.visualViewport;
   if (!vv) return;
-  const apply = () => {
-    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    document.documentElement.style.setProperty('--kb', Math.round(kb) + 'px');
-    /* Stundendetail: Das Blatt behält seine Größe und seinen Platz — die
-       Tastatur legt sich darüber. Wie weit sie in das Blatt hineinragt,
-       steht in --dkb; um so viel bekommt nur der Inhalt unten Luft und
-       rollt innen, statt dass das Blatt springt oder sich staucht. */
-    const blatt = document.getElementById('sheetDetail');
-    if (blatt && !blatt.hidden){
-      const r = blatt.getBoundingClientRect();
-      const ueber = Math.max(0, r.bottom - (vv.offsetTop + vv.height));
-      blatt.style.setProperty('--dkb', Math.round(kb > 0 ? ueber : 0) + 'px');
-    }
+  /* Nach dem Schließen der Tastatur darf nichts hängen bleiben: --kb und
+     --dkb gehen auf null (auch wenn das Detail inzwischen zu ist), und das
+     Fenster wird wieder an seinen Platz gezogen, falls iOS es beim Fokus
+     hochgeschoben hatte. Kleine Ausschläge (Adressleiste, Rundung) zählen
+     nicht als Tastatur. Geschrieben wird nur bei einer echten Änderung,
+     gebündelt in einem Bildschirmtakt. */
+  const root = document.documentElement;
+  let lastKb = -1, lastDkb = -1, frame = 0;
+  const eingabeAktiv = () => {
+    const a = document.activeElement;
+    return !!a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
   };
-  document.addEventListener('focusin', () => setTimeout(apply, 50));
-  document.addEventListener('focusout', () => setTimeout(apply, 50));
-  vv.addEventListener('resize', apply);
-  vv.addEventListener('scroll', apply);
+  const apply = () => {
+    frame = 0;
+    let kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    if (kb < 60 || !eingabeAktiv()) kb = 0;
+    const blatt = document.getElementById('sheetDetail');
+    let dkb = 0;
+    if (kb > 0 && blatt && !blatt.hidden){
+      /* Stundendetail: Das Blatt behält seine Größe und seinen Platz — die
+         Tastatur legt sich darüber. Wie weit sie in das Blatt hineinragt,
+         steht in --dkb; um so viel bekommt nur der Inhalt unten Luft und
+         rollt innen, statt dass das Blatt springt oder sich staucht. */
+      const r = blatt.getBoundingClientRect();
+      dkb = Math.max(0, r.bottom - (vv.offsetTop + vv.height));
+    }
+    kb = Math.round(kb); dkb = Math.round(dkb);
+    if (kb !== lastKb){ root.style.setProperty('--kb', kb + 'px'); lastKb = kb; }
+    if (dkb !== lastDkb && blatt){ blatt.style.setProperty('--dkb', dkb + 'px'); lastDkb = dkb; }
+    /* Tastatur weg: hochgeschobenes Fenster zurückholen. */
+    if (kb === 0 && (window.scrollY || vv.offsetTop || (document.scrollingElement || {}).scrollTop))
+      pinViewport();
+  };
+  const plan = () => { if (!frame) frame = requestAnimationFrame(apply); };
+  /* iOS meldet das Ende der Tastatur-Animation nicht zuverlässig — darum
+     mehrfach nachsehen, bis sie wirklich fort ist. */
+  const nachlauf = () => { plan(); [80, 260, 520].forEach(t => setTimeout(plan, t)); };
+  document.addEventListener('focusin', nachlauf, { passive:true });
+  document.addEventListener('focusout', nachlauf, { passive:true });
+  vv.addEventListener('resize', plan, { passive:true });
+  vv.addEventListener('scroll', plan, { passive:true });
+  window.addEventListener('orientationchange', nachlauf, { passive:true });
   apply();
 })();
 

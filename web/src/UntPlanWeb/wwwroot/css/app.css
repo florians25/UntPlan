@@ -1920,10 +1920,13 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .ub-bald { color: var(--u-akzent-dunkel) !important; font-weight: 600; }
 @media (max-width: 700px) { .ub-zeit, .ub-tag { min-width: 54px; } }
 @media (max-width: 575.98px) { .ic-panel { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); } }
-/* Stundendetails wie im Original: bei Entfall Kopf hellgrau, darunter über die volle Breite roter Balken „ENTFÄLLT“;
+/* Stundendetails wie im Original: bei Entfall Kopf hellgrau, darunter roter Balken „ENTFÄLLT“ (bündig mit dem Inhalt);
    Prüfung/Veranstaltung als dezente graue Kapsel im Kopf; „Abwesende Schüler*innen“ als Tabelle im neuen Design */
 .sd-kopf.grau { background: #dfe2e8; padding-bottom: 16px; }
 .sd-entfall-leiste { background: #f00; color: #fff; font-size: 1rem; font-weight: 500; letter-spacing: .02em; line-height: 22px; padding: 5px 16px; text-align: center; }
+/* Leiste bündig mit Kopf, Reitern und Inhalt (gleicher linker und rechter Einzug wie .sd-rumpf) statt über die volle Breite */
+.modal .sd-entfall-leiste { margin: 0 120px 0 166px; border-radius: 2px; }
+@media (max-width: 991.98px) { .modal .sd-entfall-leiste { margin: 0 16px; } }
 .sd-kopf.grau + .sd-entfall-leiste + .sd-reiter { margin-top: 2px; }
 .sd-statuspille { display: inline-block; margin-left: .75rem; padding: 1px 10px; border-radius: 999px; background: #e6e9ed; color: #4a5662; font-size: .8125rem; font-weight: 400; line-height: 20px; vertical-align: 1px; }
 .sd-kopf.grau .sd-statuspille { background: #fff; }

@@ -21,7 +21,7 @@ const istVerlegung = k => /verleg|statt/i.test(k.art || '') || !!k.nach;
 
 /** Hover-Text eines geänderten Werts wie im Original: Raum „B070 → C197“, Lehrkraft „LAN | ILK“ (erscheint nur beim Überfahren des Labels). */
 const wechsel = (alt, neu, lehrkraft = false) => `${alt} ${lehrkraft ? '|' : '→'} ${neu}`;
-/** Hover-Attribute eines geänderten Werts: alter Wert erscheint im Hover durchgestrichen („~~B070~~ → C197“, „~~LAN~~ | ILK“). */
+/** Hover-Attribute eines geänderten Werts: „B070 → C197“ bzw. „LAN | ILK“ (ohne Durchstreichung). */
 const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(alt, neu, lehrkraft))}" data-hover-alt="${e(alt)}"`;
 
 /**
@@ -370,10 +370,9 @@ function hoverZeigen(ziel) {
   if (hoverZiel === ziel && hoverEl.style.display === 'block') return;   // ruhig stehen lassen, kein Flackern beim Bewegen
   hoverZiel = ziel;
   const pillen = ziel.dataset.hoverPillen;
-  const alt = ziel.dataset.hoverAlt, text = ziel.dataset.hover || '';
+  const text = ziel.dataset.hover || '';
   if (pillen) hoverEl.innerHTML = pillen.split(',').map(x => `<span>${e(x)}</span>`).join('');
-  else if (alt && text.startsWith(alt)) hoverEl.innerHTML = `<s>${e(alt)}</s>${e(text.slice(alt.length))}`;
-  else hoverEl.textContent = text;
+  else hoverEl.textContent = text;   // „alt → neu“ bzw. „alt | neu“ ohne Durchstreichung
   hoverEl.classList.toggle('dunkel', ziel.dataset.hoverArt === 'dunkel');
   hoverEl.classList.toggle('pillen', !!pillen);
   hoverEl.style.display = 'block';

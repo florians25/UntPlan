@@ -1,6 +1,6 @@
 // Klassenbuch → Abwesenheiten wie im Original: Liste der Schülerabwesenheiten mit Filter (Klasse, Schüler*in, Zeitraum, Grund, Status),
 // Neu/Bearbeiten/Löschen, Zusammenfassen und Entschuldigen durch die Klassenleitung, CSV; Reiter „Meine Abwesenheiten“ (eigene Meldungen).
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen, infoHinweis } from '../ui.js';
 
 const STATUS = { offen: '<span class="u-chip gelb">offen</span>', entschuldigt: '<span class="u-chip gruen">entschuldigt</span>', unentschuldigt: '<span class="u-chip rot">nicht entschuldigt</span>' };
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
@@ -93,13 +93,13 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       ${pille('Abwesenheitsgrund', `<select data-grund><option value="">Abwesenheitsgrund</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select>`, grund)}
       ${pille('Art', `<select data-art><option value="">Art</option>${Object.entries(ARTEN).map(([k, t]) => `<option value="${k}" ${k === art ? 'selected' : ''}>${t}</option>`).join('')}</select>`, art)}
       ${pille('Status', `<select data-status><option value="">Status</option>${['offen', 'entschuldigt', 'unentschuldigt'].map(x => `<option value="${x}" ${x === status ? 'selected' : ''}>${x === 'unentschuldigt' ? 'nicht entschuldigt' : x}</option>`).join('')}</select>`, status)}
+      ${infoHinweis(`Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || el.klassen[0]?.kurz || '')}/fehlzeiten">Fehlzeiten</a>.`)}
       <span class="ms-auto d-flex gap-2">
         <button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen">${icon('csv')}Bericht</button>
         ${verwalten ? `<button type="button" class="nl-hinzu" data-neu><i class="bi bi-plus-lg"></i>Hinzufügen</button>` : ''}
       </span>
     </div>
-    <p class="nl-hinweis"><i class="bi bi-info-circle"></i>Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || el.klassen[0]?.kurz || '')}/fehlzeiten">Fehlzeiten</a>.</p>
-    <div class="nl-zahlen">
+    <div class="nl-zahlen kompakt">
       <button type="button" class="nl-zahl ${status === 'offen' ? 'aktiv' : ''}" data-kz="offen"><b>${anzahl.offen}</b> offen</button>
       <button type="button" class="nl-zahl rot ${status === 'unentschuldigt' ? 'aktiv' : ''}" data-kz="unentschuldigt"><b>${anzahl.unent}</b> nicht entschuldigt</button>
       <button type="button" class="nl-zahl gelb ${art === 'verspaetet' ? 'aktiv' : ''}" data-kz="verspaetet"><b>${anzahl.spaet}</b> Verspätungen</button>
