@@ -360,8 +360,19 @@ public static class Kachelbau
         if (k.Lehrer.Count > 1)
             kachel.Kopplung = k.Lehrer.Select(w => w.Neu && w.K.Length == 0 ? new KoppEintrag(w.Alt ?? "", "absent", Offen: true)
                 : w.Neu && !string.IsNullOrEmpty(w.Alt) ? new KoppEintrag(w.K, "sub", w.Alt) : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
+        // Koppelklassen: alle Klassen der Stunde; eine abwesende Klasse ({k:"", alt:"INF13"}) steht durchgestrichen in der grünen Plakette
         if (k.Klassen.Count > 1)
-            kachel.Klassenliste = k.Klassen.Where(w => w.K.Length > 0).Select(w => new KlassenEintrag(w.K)).ToList();
+        {
+            kachel.Klassenliste = k.Klassen
+                .Select(w => w.K.Length > 0 ? new KlassenEintrag(w.K) : !string.IsNullOrEmpty(w.Alt) ? new KlassenEintrag(w.Alt!, "absent") : null)
+                .Where(e => e != null).Select(e => e!).DistinctBy(e => e.Name, Ci).ToList();
+            // Im Plan der anderen (anwesenden) Klasse wird die Stunde grün – wie bei einer abwesenden Lehrkraft
+            if (art == "class" && kachel.Art == "normal" && kachel.Klassenliste.Any(e => e.Zustand == "absent") && kachel.Klassenliste.Any(e => e.Zustand == "ok"))
+            {
+                kachel.Art = "change";
+                if (!kachel.Geaendert.Contains("class")) kachel.Geaendert.Add("class");
+            }
+        }
         return kachel;
     }
 

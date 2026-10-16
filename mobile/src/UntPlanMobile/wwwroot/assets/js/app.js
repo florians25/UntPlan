@@ -3974,7 +3974,7 @@ function renderDetail(){
 
   const klassD = Array.isArray(c.classList) && c.classList.length > 1 ? c.classList : null;
   const klassHtml = () => klassD.map(t =>
-    (t.state === 'absent') ? `<s>${esc(t.name)}</s>` : esc(t.name)).join('<i>|</i>');
+    (t.state === 'absent') ? `<span class="dlab dlab--neu dlab--offen"><s>${esc(t.name)}</s></span>` : esc(t.name)).join('<i>|</i>');
   const klass1 = (c.class || c.classOrig || '').split(',')[0].trim();
   const lehrKurs = werteListe(c.teacher || c.teacherOrig).filter(t => t !== '---')[0] || '';
   const course = c.courseName || [c.subject, klass1, lehrKurs].filter(Boolean).join('_');

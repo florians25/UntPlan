@@ -441,6 +441,25 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Koppelklassen_nennen_die_andere_Klasse_und_eine_abwesende_Klasse_macht_die_Karte_gruen()
+    {
+        // INF12 und INF13 mit derselben Lehrkraft, demselben Fach und Raum: beide Klassen in der Liste
+        var beide = Kachelbau.AusKarte(Karte("regulaer", 2, fach: "INF", klassen: new() { new("INF12"), new("INF13") }), "class");
+        Assert.Equal("normal", beide.Art);
+        Assert.Equal(new[] { ("INF12", "ok"), ("INF13", "ok") }, beide.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+        // INF13 abwesend ({k:"", alt:"INF13"}): im Plan von INF12 grün, INF13 durchgestrichen (Zustand „absent“)
+        var ohne = Kachelbau.AusKarte(Karte("regulaer", 2, fach: "INF", klassen: new() { new("INF12"), new("", "INF13", true) }), "class");
+        Assert.Equal("change", ohne.Art);
+        Assert.Contains("class", ohne.Geaendert);
+        Assert.Equal("INF12", ohne.Klasse);
+        Assert.Equal(new[] { ("INF12", "ok"), ("INF13", "absent") }, ohne.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+        // im Lehrerplan bleibt die Kachel, wie sie ist – die abwesende Klasse steht nur durchgestrichen
+        var lehrer = Kachelbau.AusKarte(Karte("regulaer", 2, fach: "INF", klassen: new() { new("INF12"), new("", "INF13") }), "teacher");
+        Assert.Equal("normal", lehrer.Art);
+        Assert.Equal("absent", lehrer.Klassenliste![1].Zustand);
+    }
+
+    [Fact]
     public void Kopplung_gleiches_Fach_und_Raum_ist_eine_Kachel_mit_allen_Lehrkraeften_und_Klassen()
     {
         // UntPlanWeb fasst nur bei gleichem Fach und gleichem Raum zusammen – dann eine Kachel mit allen Beteiligten

@@ -4056,7 +4056,7 @@ html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:non
 }
 .dlab--neu{ background:var(--green); color:var(--green-ink); }
 /* Im Kopf der Details steht die Lehrkraft ohne Abstand zum Strich davor. */
-.dline .dlab{ margin:0; padding:0 5px; border-radius:3px; }
+.dline .dlab, .dtitle .dlab{ margin:0; padding:0 5px; border-radius:3px; }
 .dline .dlab--offen s{ text-decoration-color:currentColor; }
 
 /* Offene Vertretung einer abwesenden Lehrkraft: das bisherige Kürzel steht
