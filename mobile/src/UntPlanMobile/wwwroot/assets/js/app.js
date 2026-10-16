@@ -1844,9 +1844,19 @@ function scrollToNow(){
   if (!sc) return;
   const L = buildLayout(state.times);
   const now = new Date();
-  const y = (now.getHours() * 60 + now.getMinutes() - L.t0) * PPM;
-  const target = Math.max(0, y - sc.clientHeight * 0.35);
-  sc.scrollTop = Math.min(target, Math.max(0, sc.scrollHeight - sc.clientHeight));
+  const y = (now.getHours() * 60 + now.getMinutes() - L.t0) * PPM + (L.pre || 0);
+  const max = Math.max(0, sc.scrollHeight - sc.clientHeight);
+  const ziel = Math.min(Math.max(0, y - sc.clientHeight * 0.35), max);
+  /* Nie mitten in einer Stunde anschneiden: auf den Beginn der Stunde
+     einrasten, die an dieser Stelle beginnt (bzw. davor). Vor der ersten
+     Stunde steht der Plan ganz oben. */
+  const grid = sc.querySelector('.grid');
+  const off = grid ? grid.offsetTop : 0;
+  const starts = (L.rows || []).filter(r => r.no).map(r => r.y + off);
+  let top = 0;
+  for (const st of starts) if (st - 2 <= ziel) top = st - 2;
+  if (!starts.length || ziel <= (starts[0] || 0)) top = 0;
+  sc.scrollTop = Math.max(0, Math.min(top, max));
 }
 
 /* ---------------------------------------------------------------------
@@ -3945,8 +3955,12 @@ function renderDetail(){
   const lehrKurs = werteListe(c.teacher || c.teacherOrig).filter(t => t !== '---')[0] || '';
   const course = c.courseName || [c.subject, klass1, lehrKurs].filter(Boolean).join('_');
 
+  /* Termin ohne Klasse (z. B. Elternsprechtag): die Bezeichnung steht einmal
+     als Titel – nicht noch einmal als Fachzeile darunter. */
+  const terminOhneKlasse = !istVeranstaltung && c.blockType === 'event' && !c.class && !c.classOrig;
   const head = istVeranstaltung
     ? (c.class ? werteListe(c.class).map(esc).join('<i>|</i>') : esc(c.subject || c.info || 'Veranstaltung'))
+    : terminOhneKlasse ? esc(c.subject || c.info || 'Termin')
     : (c.class
         ? `${klassD ? klassHtml() : werteListe(c.class).map(esc).join('<i>|</i>')}<i>|</i>${esc(course)}`
         : c.classAbsent && c.classOrig
@@ -4057,7 +4071,7 @@ function renderDetail(){
       ${head ? `<h2 class="dtitle">${head}</h2>` : ''}
       ${istVeranstaltung
           ? `<p class="dline dline--pill"><span class="dpill">${plakette}</span></p>`
-          : (c.subject || c.subjectOrig)
+          : (c.subject || c.subjectOrig) && !terminOhneKlasse
             ? `<p class="dline dline--big">${val('subject')}${plakette ? `<span class="dpill${zusatz && !istVeranstaltung ? ' dpill--hinweis' : ''}">${plakette}</span>` : ''}</p>` : ''}
       ${(c.room || c.roomOrig) ? `<p class="dline">${raumHtml()}</p>` : ''}
       ${istVeranstaltung

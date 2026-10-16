@@ -218,6 +218,7 @@ struct StundendetailInhalt: View {
         var teile = karte.klassen.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k }.filter { !$0.isEmpty }
         if !karte.gruppe.isEmpty { teile.append(karte.gruppe) }
         if teile.isEmpty {
+            // Veranstaltung ohne Klassen: Lehrkräfte; sonst nichts (der Anlass steht in der nächsten Zeile)
             if istVeranstaltung { return karte.lehrer.map(\.k).filter { !$0.isEmpty }.joined(separator: " | ") }
             return karte.titel
         }
@@ -236,7 +237,7 @@ struct StundendetailInhalt: View {
                     .strikethrough(stil.durchgestrichen, color: Farben.tinte)
                     .textSelection(.enabled)
             }
-            if !fach.isEmpty {
+            if !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach {
                         Text(alt)
@@ -287,7 +288,12 @@ struct StundendetailInhalt: View {
     private func plakettenListe(_ stil: Kartenstil) -> [(String, Color)] {
         var liste: [(String, Color)] = []
         if istVeranstaltung {
-            liste.append((karte.status == "termin" ? "Termin" : "Veranstaltung", Farben.gruen))
+            // Kennzeichen nur, wenn es nicht schon als Titel dasteht
+            let kennung = karte.status == "termin" ? "Termin" : "Veranstaltung"
+            let anlass = karte.text.isEmpty ? karte.art : karte.text
+            if anlass.caseInsensitiveCompare(kennung) != .orderedSame && titelzeile.caseInsensitiveCompare(kennung) != .orderedSame {
+                liste.append((kennung, Farben.gruen))
+            }
             return liste
         }
         if let p = stil.plakette, p != "Zusätzlich" { liste.append((p, stil.plaketteFarbe)) }

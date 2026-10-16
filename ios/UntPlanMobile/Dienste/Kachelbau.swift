@@ -801,13 +801,44 @@ enum Kachelbau {
 
         // Wochenansicht
         let passt = max(1, Int(spaltenBreite / 62))
-        let verdeckteAufsichten = Set(felder.flatMap { aufsichtenIm($0).map(\.id) })
         var verdraengt: [(karte: Kachel, vorne: Kachel)] = []
         var vorneIds: Set<UUID> = []
+        // Veranstaltungsfeld: auf breiten Spalten (iPad) Feld links, entfallende Stunden und Aufsichten rechts daneben
+        // (halbe Spalte); auf schmalen Spalten (iPhone) treten sie hinter das Feld zurück (Zählstreifen, Aufsichten ausgeblendet).
+        var feldLinks: Set<UUID> = []
+        var feldSeite: [UUID: (spur: Int, spuren: Int)] = [:]
+        var feldVerdeckt: [UUID: Kachel] = [:]
+        var verdeckteAufsichten: Set<UUID> = []
+        for f in felder {
+            let treffer = stunden.filter { !$0.feld && $0.ueberlappt(f) && feldSeite[$0.id] == nil && feldVerdeckt[$0.id] == nil }
+            let aufs = aufsichtenIm(f)
+            if passt >= 2 {
+                if treffer.isEmpty && aufs.isEmpty { continue }
+                feldLinks.insert(f.id)
+                for (k, s) in gruppenSpuren(treffer) { feldSeite[k] = s }
+                for a in aufs { feldSeite[a.id] = (0, 1) }
+            } else {
+                for t in treffer { feldVerdeckt[t.id] = f }
+                for a in aufs { verdeckteAufsichten.insert(a.id) }
+            }
+        }
         for k in stunden {
+            if feldLinks.contains(k.id) {
+                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: 2, i: 0, von: 0, bis: 1, luecke: 2))
+                continue
+            }
+            if let s = feldSeite[k.id] {
+                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: s.spuren, i: s.spur, von: 0.5, bis: 1, luecke: 2))
+                continue
+            }
+            if let f = feldVerdeckt[k.id] {
+                verdraengt.append((k, f))
+                vorneIds.insert(f.id)
+                continue
+            }
             let n = spuren[k.id] ?? 1
             let i = spur[k.id] ?? 0
-            if n > passt && i > 0 {
+            if n > passt && i > 0 && !k.feld {
                 if let vorne = stunden.first(where: { (spur[$0.id] ?? 0) == 0 && $0.ueberlappt(k) }) {
                     verdraengt.append((k, vorne))
                     vorneIds.insert(vorne.id)
@@ -849,7 +880,11 @@ enum Kachelbau {
             }
         }
         for p in pausen where !verdeckteAufsichten.contains(p.id) {
-            belegung.lagen.append(Kachellage(kachel: p))
+            if feldSeite[p.id] != nil {
+                belegung.lagen.append(spurLage(Kachellage(kachel: p), n: 1, i: 0, von: 0.5, bis: 1, luecke: 2))
+            } else {
+                belegung.lagen.append(Kachellage(kachel: p))
+            }
         }
         return belegung
     }

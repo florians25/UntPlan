@@ -656,8 +656,16 @@ struct WochenrasterView: View {
             let hoehe = mass.y(ende) + abstandUnten
             VStack(spacing: 0) {
                 wochenkopf(spaltenBreite: spaltenBreite, kacheln: kacheln)
+                ScrollViewReader { leser in
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
+                        // Anker knapp über der 1. Stunde (bzw. über den Pillen vor der 1. Stunde)
+                        VStack(spacing: 0) {
+                            Color.clear.frame(height: vorErster ? 0 : max(0, mass.y(start) - 8))
+                            Color.clear.frame(width: 1, height: 1).id(Self.ersteStundeAnker)
+                            Spacer(minLength: 0)
+                        }
+                        .accessibilityHidden(true)
                         zeitspalte(zeiten, mass: mass, breite: geo.size.width)
                         ForEach(Array(tage.enumerated()), id: \.element.id) { eintrag in
                             tagesspalte(eintrag.element, kacheln: kacheln[eintrag.element.datum] ?? [], zeiten: zeiten,
@@ -675,9 +683,18 @@ struct WochenrasterView: View {
                     LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
                         .ignoresSafeArea(edges: .bottom)
                 )
+                .onAppear {
+                    // Beim Öffnen so scrollen, dass die 1. Stunde vollständig sichtbar ist
+                    DispatchQueue.main.async {
+                        leser.scrollTo(Self.ersteStundeAnker, anchor: .top)
+                    }
+                }
+                }
             }
         }
     }
+
+    private static let ersteStundeAnker = "ersteStunde"
 
     // MARK: Kopf mit KW, Monat und Tagen (.weekhead)
 

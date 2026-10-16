@@ -132,6 +132,8 @@ enum Farben {
     static let bereitschaftRandVergangen = Color(hell: 0xB7C2CB, dunkel: 0x4A5560)
     static let bereitschaftText = Color(hell: 0x5D727F, dunkel: 0xCFD6DC)
     static let kartenSchattenFlach = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.22, deckkraftDunkel: 0.30)
+    static let veranstaltungFlaeche = Color(hell: 0xE0FDF3, dunkel: 0x22352F)
+    static let veranstaltungRand = Color(hell: 0xA9DCCB, dunkel: 0x3D6457)
     static let zaehlerFlaeche = Color(hell: 0xF4F6F7, dunkel: 0x323D45)
     static let zaehlerText = Color(hell: 0x3F5666, dunkel: 0xF2F4F6)
     static let zaehlerAenderungFlaeche = Color(hell: 0xE3FFF2, dunkel: 0x20C0A2)
@@ -184,9 +186,10 @@ struct Kartenstil {
         }
         switch karte.status {
         case "veranstaltung":
-            self.init(hintergrund: vergangen ? Farben.aenderungVergangen : Farben.aenderungHintergrund,
-                      rand: Farben.aenderungRand, schatten: false, durchgestrichen: false,
+            self.init(hintergrund: Farben.veranstaltungFlaeche,
+                      rand: vergangen ? nil : Farben.veranstaltungRand, schatten: false, durchgestrichen: false,
                       plakette: "Veranstaltung", plaketteFarbe: Farben.gruen)
+            randBreite = vergangen ? 0 : 1
         case "entfall":
             self.init(hintergrund: vergangen ? Farben.entfallVergangen : Farben.entfallHintergrund,
                       rand: Farben.entfallRand, schatten: false, durchgestrichen: true,
