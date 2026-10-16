@@ -74,6 +74,7 @@ struct MitteilungenView: View {
                     if ordner == .gesendet { Task { await laden() } }
                 }
                 .environmentObject(zustand)
+                .iPhoneBlatt()
             }
         }
     }

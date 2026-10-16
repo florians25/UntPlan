@@ -431,17 +431,24 @@ public static class UntPlanWebExport
             }
             return res.Distinct().ToList();
         }
-        foreach (var m in liste)
+        var protokoll = d.Einstellungen.Portal.StplAenderungen;
+        var alle = liste.GroupBy(m => m.Id).Select(g => g.First()).ToList();
+        // Löschungen zuerst; im selben Import neu angelegte Prüfungen (neuer Termin einer verlegten Prüfung) sind vor ihnen geschützt
+        var neueIds = alle.Where(m => m.Typ == WebRueckmeldungsTypen.Klausur).Select(m => m.Id).ToHashSet();
+        foreach (var m in alle.OrderBy(m => m.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? 0 : 1))
         {
             if (m.Typ is not (WebRueckmeldungsTypen.Raumbuchung or WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen)) { rest.Add(m); continue; }
+            // schon über den Dialog „Stundenplanänderungen“ übernommen bzw. ignoriert: nicht noch einmal anwenden
+            if (protokoll.Any(x => x.Id == m.Id)) { if (protokoll.Last(x => x.Id == m.Id).Uebernommen) ok.Add(m.Id); else nein.Add(m.Id); continue; }
             if (!DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var datum) || !Kalender.IstUnterrichtstag(d, datum)) { nein.Add(m.Id); continue; }
             var von = Math.Clamp(m.StundeVon ?? 1, 1, d.Zeitraster.StundenProTag);
             var bis = Math.Clamp(m.StundeBis ?? von, von, d.Zeitraster.StundenProTag);
             if (m.Typ == WebRueckmeldungsTypen.KlausurLoeschen)
             {
-                if (StundenplanAenderungen.KlausurenEntfernen(d, m, datum, von, bis) == 0) { nein.Add(m.Id); continue; }
+                if (StundenplanAenderungen.KlausurenEntfernen(d, m, datum, von, bis, neueIds) == 0) { nein.Add(m.Id); continue; }
                 tage.Add(datum);
                 ok.Add(m.Id);
+                protokoll.Add(new StplAenderungsEintrag { Id = m.Id, Uebernommen = true, Benutzer = "UntPlanWeb", Meldung = m });
                 continue;
             }
             var klassen = Ids(ElementTyp.Klasse, m.Klassen);
@@ -472,6 +479,8 @@ public static class UntPlanWebExport
                 tage.Add(datum);
             }
             ok.Add(m.Id);
+            // vermerken, damit der Dialog „Stundenplanänderungen“ die Meldung nicht noch einmal anbietet (keine Dubletten)
+            protokoll.Add(new StplAenderungsEintrag { Id = m.Id, Uebernommen = true, Benutzer = "UntPlanWeb", Meldung = m });
         }
         var meldungen = rest.Select(m => new Portal.Meldung(m.Id, m.Typ == WebRueckmeldungsTypen.Absenz ? "abwesenheit" : m.Typ, m.Erstellt, m.Absender, m.Lehrer, m.Von, m.Bis, m.StundeVon, m.StundeBis, m.Grund, m.Text));
         var (ok2, nein2) = Portal.MeldungenUebernehmen(d, meldungen);

@@ -27,6 +27,17 @@ enum AppReiter: Hashable, CaseIterable {
     }
 }
 
+/// Beschriftung der Systemleiste (ab iOS 26) so weit möglich wie in der Vorlage: 12,5 pt kräftig.
+enum Leistenaussehen {
+    @MainActor
+    static func anwenden() {
+        let schrift = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
+        let eintrag = UITabBarItem.appearance()
+        eintrag.setTitleTextAttributes([.font: schrift], for: .normal)
+        eintrag.setTitleTextAttributes([.font: schrift], for: .selected)
+    }
+}
+
 /// Zeichen für die Systemleiste, die sich nicht als SF Symbol finden.
 enum Leistensymbole {
     static var heutigerTag: Int {
@@ -107,9 +118,10 @@ struct GlasTabLeiste: View {
                             .offset(x: 9, y: -6)
                     }
                 }
+            // Wie in der Vorlage (108/116/s-03): Beschriftung 12,5 pt kräftig
             Text(reiter.titel)
-                .font(.system(size: 12, weight: .medium))
-                .tracking(-0.1)
+                .font(.system(size: 12.5, weight: .semibold))
+                .tracking(-0.15)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .padding(.horizontal, 2)
@@ -119,7 +131,7 @@ struct GlasTabLeiste: View {
         .background {
             if aktiv {
                 Capsule()
-                    .fill(Color(hell: 0xE3E5E9, dunkel: 0xFFFFFF, deckkraftHell: 0.95, deckkraftDunkel: 0.14))
+                    .fill(Color(hell: 0xDCDFE4, dunkel: 0xFFFFFF, deckkraftHell: 1, deckkraftDunkel: 0.18))
                     .overlay {
                         Capsule().strokeBorder(Color(hell: 0xFFFFFF, dunkel: 0xFFFFFF, deckkraftHell: 0.7, deckkraftDunkel: 0.12), lineWidth: 0.5)
                     }

@@ -4704,11 +4704,15 @@ html.is-dark .card .ticon.ticon--flach{ fill:none; color:#9aa6b2; }
 
 /* Obere Zeile der Kachel Medium – auch dann, wenn sie als Label steht
    (geänderter Wert, offene oder abgegebene Stunde). */
+/* Ausdrückliche Ausnahme: die erste Zeile (und ihr Label) Semibold 600. */
 .card .card__line--primary,
 .card .card__line--primary .badge,
 .card .card__line--primary .badge.badge--removed,
 .card .card__line--primary .badge.badge--open,
-.card .card__line--primary .tok{ font-weight:500; }
+.card .card__line--primary .tok,
+.card--standby.is-absent .card__line--primary,
+.card--gs .card__line--primary, .card--absence .card__line--primary, .card--event .card__line--primary,
+.card--holiday .card__line:first-of-type{ font-weight:600; }
 
 /* Info- und Hausaufgabenzeichen auf der Kachel: Originalgrafik
    (abgerundetes helles Feld, graue Scheibe bzw. Haus), 14,5 px wie in iOS. */
@@ -4737,16 +4741,19 @@ html.is-dark .card .ticon.ticon--exakt{ fill:#36414b; color:#a3aeb9; }
 .is-dark .sheet--detail .dpill.dpill--dezent{ background:#3a3a3e; color:#c9ced3; }
 .sheet--detail .dline--pill{ margin-top:6px; margin-bottom:2px; }
 
-/* Stundendetails – iPhone: volle Breite, 90 % der Höhe, unten bündig.
-   svh bleibt beim Ein- und Ausblenden der Tastatur stehen. */
+/* iPhone: alle Blätter (Stundendetails, Planauswahl, Schreiben, Legende)
+   in voller Breite, unten bündig und höchstens 85 % hoch. Details und
+   Auswahl stehen fest auf 85 %, damit sie bei Entfall wie bei voller Stunde
+   gleich groß sind. svh bleibt beim Ein- und Ausblenden der Tastatur stehen. */
 @media (max-width:699px){
-  .sheet.sheet--detail{
+  .sheet:not(.sheet--menu){ max-height:85vh; max-height:85svh; }
+  .sheet.sheet--detail, .sheet.sheet--picker{
     left:0; right:0; width:100%;
     top:auto; bottom:0;
-    height:90vh; height:90svh;
-    max-height:none; min-height:0;
-    border-radius:14px 14px 0 0;
+    height:85vh; height:85svh;
+    max-height:85vh; max-height:85svh; min-height:0;
   }
+  .sheet.sheet--detail{ border-radius:14px 14px 0 0; }
 }
 /* Stundendetails – iPad: breiteres und etwas größeres Fenster */
 @media (min-width:700px){
@@ -4817,15 +4824,27 @@ html.is-dark .seg button.is-on{ background:#636366; color:#fff; box-shadow:0 1px
   .tabbar{
     left:21px; right:21px;
     height:59px;
-    padding:0 13px;
+    padding:0 10px;
     bottom:max(8px, calc(var(--sab) - 13px));
   }
   .tab{ gap:2px; }
   .tab .ico{ width:28px; height:28px; }
-  .tab > span{ font-size:11px; font-weight:500; letter-spacing:0; }
-  .tab.is-active > span{ font-weight:600; }
+  .tab > span{ font-size:11.5px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; }
+  .tab.is-active > span{ font-weight:700; }
   .tab.is-active, html.is-dark .tab.is-active{ color:var(--c-ink); }
   html.is-dark .tab.is-active{ color:#fff; }
   .tab.is-active::before{ inset:3.5px -9px; background:#e6e8eb; box-shadow:none; }
   html.is-dark .tab.is-active::before{ background:rgba(255,255,255,.13); box-shadow:none; }
+}
+
+/* Schüler*innen-Liste: größere Schrift (Name 18 px, Zeilen darunter 14 px) */
+.att__main b, .sheet--detail .att__main b{ font-size:18px; line-height:1.25; }
+.att__tag, .att__before, .att__state, .att__duty,
+.sheet--detail .att__tag, .sheet--detail .att__before, .sheet--detail .att__state, .sheet--detail .att__duty{ font-size:14px; }
+
+/* Ferien: Bezeichnung größer, darf umbrechen (mehrzeilig, mittig). */
+.card--holiday .card__line, .card--holiday .card__line:first-of-type{
+  font-size:15px; line-height:18px;
+  white-space:normal; overflow:visible; text-overflow:clip;
+  overflow-wrap:break-word; word-break:normal; hyphens:auto;
 }

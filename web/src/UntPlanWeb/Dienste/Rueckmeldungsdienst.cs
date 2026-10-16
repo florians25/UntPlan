@@ -204,31 +204,105 @@ public sealed class Rueckmeldungsdienst
     /// <summary>
     /// Prüfung löschen: eine noch nicht übernommene Prüfung (eigene Rückmeldung) wird einfach zurückgezogen; eine schon aus UntPlan
     /// übertragene Prüfung erhält eine Rückmeldung „klausurloeschen“, die UntPlan beim Import ausführt. Ergebnis: neue Meldung oder null.
+    /// Die Löschmeldung beschreibt den Termin genau (Stunden, Klassen, Räume und Titel aus dem Paket, Kennzeichen <see cref="Exakt"/>),
+    /// damit beim Verlegen in dieselbe Zeit (anderer Raum, längere Dauer) nur der alte Termin gelöscht wird.
     /// </summary>
     public Meldung? KlausurLoeschen(Stand s, Benutzer b, DateOnly d, int stundeVon, int stundeBis, IEnumerable<string> klassen, string? titel)
     {
         if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Prüfungen löschen.");
         var (v, bi) = Stunden(s, stundeVon, stundeBis);
         var k = klassen.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
+        // noch nicht übernommene Prüfung: zurückziehen – außer sie ist schon im Paket (übernommen, aber noch nicht quittiert)
         var offen = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausur' AND von = @d AND stunde_von <= @b AND stunde_bis >= @v", Lesen,
                 Db.P("@d", Plandienst.Iso(d)), Db.P("@v", v), Db.P("@b", bi))
-            .Where(m => k.Count == 0 || m.Klassen.Any(x => k.Contains(x, Ci))).ToList();
+            .Where(m => k.Count == 0 || m.Klassen.Any(x => k.Contains(x, Ci))).Where(m => !SchonUebertragenQuittieren(s, d, m)).ToList();
         if (offen.Count > 0)
         {
             foreach (var m in offen) _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @i", Db.P("@i", m.Id));
             return null;
         }
-        if (!s.Paket.Termine.Any(t => PasstKlausur(t, d, v, bi, k))) throw new ArgumentException("Zu dieser Stunde gibt es keine Prüfung.");
-        return Speichern(Neu(WebRueckmeldungsTypen.KlausurLoeschen, b) with
-        {
-            Von = Plandienst.Iso(d), StundeVon = v, StundeBis = bi, Klassen = k, Titel = string.IsNullOrWhiteSpace(titel) ? null : titel.Trim(),
-        });
+        var probe = new Meldung("", WebRueckmeldungsTypen.KlausurLoeschen, "", null, "", null, Plandienst.Iso(d), null, v, bi, null, new(), k, new(), titel, null, null, "offen", null);
+        var ziele = Ziele(probe, s.Paket.Termine.Where(t => Ci.Equals(t.Art, "klausur")).ToList());
+        if (ziele.Count == 0) throw new ArgumentException("Zu dieser Stunde gibt es keine Prüfung.");
+        // schon zum Löschen vorgemerkt: nicht doppelt melden
+        var loeschungen = OffeneLoeschungen();
+        if (ziele.All(t => Geloescht(t, loeschungen, s.Paket.Termine))) return null;
+        Meldung? letzte = null;
+        foreach (var t in ziele.Where(t => !Geloescht(t, loeschungen, s.Paket.Termine)))
+            letzte = Speichern(Neu(WebRueckmeldungsTypen.KlausurLoeschen, b) with
+            {
+                Von = Plandienst.Iso(d), StundeVon = t.StundeVon, StundeBis = Bis(t), Klassen = t.Klassen.ToList(), Raeume = t.Raeume.ToList(),
+                Titel = string.IsNullOrWhiteSpace(t.Titel) ? (string.IsNullOrWhiteSpace(titel) ? null : titel.Trim()) : t.Titel.Trim(), Grund = Exakt,
+            });
+        return letzte;
     }
 
     private static bool PasstKlausur(WebTermin t, DateOnly d, int von, int bis, IReadOnlyCollection<string> klassen) =>
         Ci.Equals(t.Art, "klausur") && DateOnly.TryParse(t.Von, out var tv) && DateOnly.TryParse(string.IsNullOrEmpty(t.Bis) ? t.Von : t.Bis, out var tb)
         && d >= tv && d <= tb && t.StundeVon <= bis && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= von
         && (klassen.Count == 0 || t.Klassen.Any(x => klassen.Contains(x, Ci)));
+
+    /// <summary>Kennzeichen (Feld Grund) einer Löschmeldung, die den Termin genau beschreibt (Stunden, Räume, Titel).</summary>
+    public const string Exakt = "exakt";
+
+    private static int Bis(WebTermin t) => t.StundeBis == 0 ? t.StundeVon : Math.Max(t.StundeVon, t.StundeBis);
+    private static bool GleicheMenge(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b) =>
+        a.Distinct(Ci).Count() == b.Distinct(Ci).Count() && a.All(x => b.Contains(x, Ci));
+
+    /// <summary>Titel einer Meldung passt zum Termin (der Kartentext kann „Name Text“ bzw. „Name · Text“ lauten; „Klausur“/„Prüfung“ passt immer).</summary>
+    private static bool TitelPasst(string? titel, string termin)
+    {
+        var a = (titel ?? "").Trim();
+        var b = (termin ?? "").Trim();
+        return a.Length == 0 || b.Length == 0 || a is "Klausur" or "Prüfung" || a.Equals(b, StringComparison.OrdinalIgnoreCase)
+               || a.StartsWith(b + " ", StringComparison.OrdinalIgnoreCase) || b.StartsWith(a + " ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Termine, die eine Löschmeldung meint: genau beschriebene Meldung (<see cref="Exakt"/>): gleiche Stunden, Räume und Titel, gemeinsame
+    /// Klasse; sonst überlappende Stunden mit gemeinsamer Klasse (bevorzugt gleiche Stunden).
+    /// </summary>
+    public static List<WebTermin> Ziele(Meldung m, IReadOnlyCollection<WebTermin> termine)
+    {
+        if (!DateOnly.TryParse(m.Von, out var d)) return new();
+        var von = m.StundeVon ?? 1;
+        var bis = m.StundeBis ?? von;
+        var kandidaten = termine.Where(t => PasstKlausur(t, d, von, bis, m.Klassen) && TitelPasst(m.Titel, t.Titel)).ToList();
+        if (m.Grund == Exakt)
+            return kandidaten.Where(t => t.StundeVon == von && Bis(t) == bis && GleicheMenge(t.Raeume, m.Raeume)).ToList();
+        var gleich = kandidaten.Where(t => t.StundeVon == von && Bis(t) == bis).ToList();
+        return gleich.Count > 0 ? gleich : kandidaten;
+    }
+
+    /// <summary>Ist der Termin zum Löschen vorgemerkt (offene Löschmeldung, auch der alte Termin einer verlegten Prüfung)?</summary>
+    public static bool Geloescht(WebTermin t, IEnumerable<Meldung> loeschungen, IReadOnlyCollection<WebTermin>? termine = null) =>
+        Ci.Equals(t.Art, "klausur") && loeschungen.Any(m => m.Typ == WebRueckmeldungsTypen.KlausurLoeschen && Ziele(m, termine ?? new[] { t }).Contains(t));
+
+    /// <summary>
+    /// Prüfung verlegen = alten Termin löschen und neu eintragen – als Einheit: schlägt das Eintragen fehl (Raum belegt, Prüfungssperre …),
+    /// bleibt die alte Prüfung unverändert. Unveränderte Angaben ändern nichts.
+    /// </summary>
+    public Meldung KlausurVerlegen(Stand s, Benutzer b, DateOnly altDatum, int altVon, int altBis, IEnumerable<string> altKlassen, string? altTitel,
+        DateOnly d, int? stundeVon, int? stundeBis, IEnumerable<string> klassen, IEnumerable<string> raeume, IEnumerable<string> aufsicht, string titel, string text)
+    {
+        var vorher = Offene().Where(m => m.Typ is WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen).Select(m => m.Id).ToHashSet();
+        var gesichert = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ IN ('klausur', 'klausurloeschen') AND von IN (@a, @n)", Lesen,
+            Db.P("@a", Plandienst.Iso(altDatum)), Db.P("@n", Plandienst.Iso(d)));
+        try
+        {
+            KlausurLoeschen(s, b, altDatum, altVon, altBis, altKlassen, altTitel);
+            return Klausur(s, b, d, stundeVon, stundeBis, klassen, raeume, aufsicht, titel, text);
+        }
+        catch
+        {
+            // zurück zum Stand vor dem Verlegen: neue Meldungen weg, zurückgezogene bzw. ersetzte wiederherstellen
+            foreach (var m in Offene().Where(m => m.Typ is WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen && !vorher.Contains(m.Id)))
+                _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @i", Db.P("@i", m.Id));
+            var jetzt = Offene().Select(m => m.Id).ToHashSet();
+            foreach (var m in gesichert.Where(m => !jetzt.Contains(m.Id))) Speichern(m);
+            throw;
+        }
+    }
 
     public Meldung Klausur(Stand s, Benutzer b, DateOnly d, int? stundeVon, int? stundeBis, IEnumerable<string> klassen, IEnumerable<string> raeume, IEnumerable<string> aufsicht, string titel, string text)
     {
@@ -253,9 +327,12 @@ public sealed class Rueckmeldungsdienst
         if (r.FirstOrDefault(x => s.Paket.Absenzen.Any(a => a.Art == "raum" && Ci.Equals(a.Element, x) && DateOnly.TryParse(a.Von, out var av) && DateOnly.TryParse(a.Bis, out var ab)
                                                        && d >= av && d <= ab && a.StundeVon <= bi && (a.StundeBis >= v || a.StundeBis < a.StundeVon))) is { } gesperrt)
             throw new ArgumentException($"Raum {gesperrt} ist in dieser Zeit gesperrt.");
-        // schon übernommene Prüfung zu denselben Klassen und Stunden: nicht doppelt anlegen
+        // schon übernommene Prüfung zu denselben Klassen und Stunden: nicht doppelt anlegen (außer sie ist zum Löschen vorgemerkt,
+        // z. B. beim Verlegen in dieselbe Zeit mit anderem Raum bzw. längerer Dauer)
+        var loeschungen = OffeneLoeschungen();
         if (s.Paket.Termine.Any(t => Ci.Equals(t.Art, "klausur") && DateOnly.TryParse(t.Von, out var tv) && DateOnly.TryParse(string.IsNullOrEmpty(t.Bis) ? t.Von : t.Bis, out var tb)
-                                     && d >= tv && d <= tb && t.StundeVon <= bi && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= v && t.Klassen.Any(x => k.Contains(x, Ci))))
+                                     && d >= tv && d <= tb && t.StundeVon <= bi && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= v && t.Klassen.Any(x => k.Contains(x, Ci))
+                                     && !Geloescht(t, loeschungen, s.Paket.Termine)))
             throw new ArgumentException("Für diese Klasse ist in dieser Zeit bereits eine Prüfung eingetragen.");
         // gleiche, noch offene Prüfung (z. B. doppelt abgeschickt) ersetzen statt verdoppeln
         foreach (var alt in _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausur' AND von = @d AND stunde_von <= @b AND stunde_bis >= @v", Lesen,
@@ -280,13 +357,23 @@ public sealed class Rueckmeldungsdienst
     {
         var von = m.StundeVon ?? 1;
         var bis = m.StundeBis ?? von;
-        // Löschung ist übernommen, sobald die Prüfung im Paket fehlt
+        var termine = s.Paket.Termine.Where(t => Ci.Equals(t.Art, "klausur")).ToList();
+        // Löschung ist übernommen, sobald der gemeinte Termin im Paket fehlt
         if (m.Typ == WebRueckmeldungsTypen.KlausurLoeschen)
-            return !s.Paket.Termine.Any(t => PasstKlausur(t, d, von, bis, m.Klassen));
+            return Ziele(m, termine).Count == 0;
         if (m.Typ == WebRueckmeldungsTypen.Klausur)
-            return s.Paket.Termine.Any(t => Ci.Equals(t.Art, "klausur") && DateOnly.TryParse(t.Von, out var tv) && DateOnly.TryParse(string.IsNullOrEmpty(t.Bis) ? t.Von : t.Bis, out var tb)
-                                            && d >= tv && d <= tb && t.StundeVon <= bis && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= von
-                                            && (m.Klassen.Count == 0 || t.Klassen.Any(k => m.Klassen.Contains(k, Ci))));
+        {
+            // genau diese Prüfung (Stunden, Klassen, Titel, Räume) steht im Paket
+            var titel = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel.Trim();
+            if (termine.Any(t => PasstKlausur(t, d, von, bis, m.Klassen) && t.StundeVon == von && Bis(t) == bis && GleicheMenge(t.Klassen, m.Klassen)
+                                 && Ci.Equals(t.Titel.Trim(), titel) && (m.Raeume.Count == 0 || GleicheMenge(t.Raeume, m.Raeume))))
+                return true;
+            // sonst (in UntPlan nachbearbeitet) eine überlappende Prüfung derselben Klassen – aber nicht der alte Termin einer verlegten
+            // bzw. gelöschten Prüfung, solange dessen Löschung noch aussteht
+            var loeschungen = OffeneLoeschungen().Where(x => x.Von == m.Von).ToList();
+            return termine.Any(t => PasstKlausur(t, d, von, bis, m.Klassen) && (m.Klassen.Count == 0 || t.Klassen.Any(k => m.Klassen.Contains(k, Ci))))
+                   && !loeschungen.Any(x => Ziele(x, termine).Count > 0 && (m.Klassen.Count == 0 || x.Klassen.Any(k => m.Klassen.Contains(k, Ci))));
+        }
         if (m.Typ == WebRueckmeldungsTypen.Raumbuchung && m.Unterricht is int u && m.Raeume.Count > 0)
         {
             var stunden = _plan.Rohstunden(s, d).Where(r => r.Unterricht == u && r.Stunde >= von && r.Stunde <= bis && r.Status != "entfall").ToList();

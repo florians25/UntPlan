@@ -6316,7 +6316,46 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#detailMenuPop') && !e.target.closest('#detailMenu')) pop.hidden = true;
 });
 
+/* Beim Wischen nie versehentlich eine Stunde öffnen: Hat sich der Finger
+   mehr als 8 px bewegt, rollt das Raster gerade oder ist das Rollen erst
+   einen Augenblick her, wird der folgende Tipp auf eine Kachel verworfen. */
+const rasterGeste = { x:0, y:0, bewegt:false, rollEnde:0, beruehrt:-1e9 };
+(() => {
+  const area = $('#gridScroll');
+  if (!area) return;
+  area.addEventListener('touchstart', e => {
+    const t = e.touches[0]; if (!t) return;
+    rasterGeste.x = t.clientX; rasterGeste.y = t.clientY;
+    rasterGeste.bewegt = e.touches.length > 1;
+    rasterGeste.beruehrt = performance.now();
+  }, { passive:true });
+  area.addEventListener('touchend', () => { rasterGeste.beruehrt = performance.now(); }, { passive:true });
+  area.addEventListener('touchmove', e => {
+    const t = e.touches[0]; if (!t || rasterGeste.bewegt) return;
+    if (Math.abs(t.clientX - rasterGeste.x) > 8 || Math.abs(t.clientY - rasterGeste.y) > 8) rasterGeste.bewegt = true;
+  }, { passive:true });
+  /* Nur Rollen durch den Finger (auch der Nachlauf danach) zählt — nicht
+     das Setzen der Rollposition durch die App selbst. */
+  area.addEventListener('scroll', () => {
+    const t = performance.now();
+    if (t - rasterGeste.beruehrt < 2500) rasterGeste.rollEnde = t;
+  }, { passive:true });
+  /* Mausbedienung: Ziehen mit gedrückter Taste zählt ebenso. */
+  area.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch') return;
+    rasterGeste.x = e.clientX; rasterGeste.y = e.clientY; rasterGeste.bewegt = false;
+  }, { passive:true });
+  area.addEventListener('pointermove', e => {
+    if (e.pointerType === 'touch' || !e.buttons || rasterGeste.bewegt) return;
+    if (Math.abs(e.clientX - rasterGeste.x) > 8 || Math.abs(e.clientY - rasterGeste.y) > 8) rasterGeste.bewegt = true;
+  }, { passive:true });
+})();
+const rasterTippGueltig = () => !rasterGeste.bewegt
+  && performance.now() - rasterGeste.rollEnde > 180
+  && !document.querySelector('#colStrip.is-dragging');
+
 document.addEventListener('click', e => {
+  if (e.target.closest('#gridPane') && !rasterTippGueltig()){ e.stopPropagation(); return; }
   const more = e.target.closest('#gridPane .parcount');
   if (more){ setView('day', more.dataset.more); return; }
 

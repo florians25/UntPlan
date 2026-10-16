@@ -81,7 +81,7 @@ struct MeineAbwesenheitenView: View {
             AbwesenheitsfilterView(filter: $filter, kinder: kinder) {
                 Task { await laden() }
             }
-            .presentationDetents([.medium, .large])
+            .iPhoneBlatt()
         }
         .task {
             if daten == nil {

@@ -23,17 +23,12 @@ extension UINavigationController: UIGestureRecognizerDelegate {
 enum Detailblatt {
     static let breite: CGFloat = 620
     static let hoehe: CGFloat = 640
-    /// iPhone: volle Breite, 90 % der Höhe
-    static let iPhoneAnteil: CGFloat = 0.9
+    /// iPhone: volle Breite, 85 % der Höhe (alle Blätter, nicht bis ganz oben)
+    static let iPhoneAnteil: CGFloat = 0.85
     static let radius: CGFloat = 24
 
-    /// Höhe des Detailblatts auf dem iPhone: 90 % (ab iOS 26 die große, randlose Stufe – entspricht dort etwa 90 %).
-    static var iPhoneStufen: Set<PresentationDetent> {
-        if #available(iOS 26.0, *) {
-            return [.large]
-        }
-        return [.fraction(iPhoneAnteil)]
-    }
+    /// Höhe aller Blätter auf dem iPhone: 85 % (auch unter iOS 26). Auf dem iPad (Formblatt) ignoriert das System die Stufe.
+    static var iPhoneStufen: Set<PresentationDetent> { [.fraction(iPhoneAnteil)] }
 }
 
 /// Tastatur schließen (Fokus abgeben) – z. B. beim Schließen eines Blatts, damit keine Einrückung hängen bleibt.
@@ -45,9 +40,13 @@ enum Tastatur {
 }
 
 extension View {
+    /// Blatt auf dem iPhone nur 85 % hoch (Planauswahl, Formulare, Info …); auf dem iPad bleibt das Formblatt.
+    func iPhoneBlatt() -> some View {
+        presentationDetents(Detailblatt.iPhoneStufen)
+    }
+
     /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 620 × 640 pt mittig (die Größe bleibt beim
-    /// Wechsel in Unterseiten und beim Ein-/Ausblenden der Tastatur gleich), auf dem iPhone über die volle Breite und
-    /// 90 % hoch (ab iOS 26 die große Stufe: nur sie liegt dort randlos an, kleinere Stufen schweben mit seitlichem Rand).
+    /// Wechsel in Unterseiten und beim Ein-/Ausblenden der Tastatur gleich), auf dem iPhone 85 % hoch.
     /// Die Tastatur verschiebt bzw. staucht das Blatt selbst nicht; Textfelder in Unterseiten weichen ihr innen aus.
     @ViewBuilder
     func detailBlatt(breit: Bool) -> some View {

@@ -65,6 +65,13 @@ struct AppTabView: View {
 
     private var istBreit: Bool { groessenklasse == .regular }
 
+    init() {
+        // Systemleiste (iOS 26): kräftigere Beschriftung – muss vor dem Anlegen der Leiste gesetzt sein
+        if #available(iOS 26.0, *) {
+            Leistenaussehen.anwenden()
+        }
+    }
+
     /// Auswahl des Reiters über AppZustand: erneutes Antippen von „Stundenplan“ führt zur heutigen Woche zurück.
     private var reiterBindung: Binding<AppReiter> {
         Binding(get: { zustand.reiter }, set: { zustand.reiterWaehlen($0) })

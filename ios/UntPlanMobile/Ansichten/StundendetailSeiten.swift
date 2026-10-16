@@ -763,7 +763,7 @@ struct HausaufgabeFormular: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .iPhoneBlatt()
     }
 
     private func speichern() async {
@@ -1048,29 +1048,19 @@ struct SchuelerSeite: View {
                         ForEach(gruppen) { gruppe in
                             Section {
                                 ForEach(gruppe.liste) { s in
-                                    zeile(s)
-                                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 26))
-                                        .listRowBackground(Farben.blatt)
-                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                            if bearbeitbar && daten.fehlzeit(s) != nil {
-                                                Button {
-                                                    Task { await ausfuehren(s) { try await daten.anwesendSetzen(s) } }
-                                                } label: {
-                                                    Label("Anwesend", systemImage: "checkmark.circle")
-                                                }
-                                                .tint(Farben.gruen)
-                                            }
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            if bearbeitbar && daten.fehlzeit(s) == nil {
-                                                Button {
-                                                    Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
-                                                } label: {
-                                                    Label("Abwesend", systemImage: "clock")
-                                                }
-                                                .tint(Farben.entfallRand)
-                                            }
-                                        }
+                                    // Wischen wie im Original: nach rechts anwesend (grün, Haken), nach links abwesend
+                                    // (rot, Uhr); die Farbe läuft über die ganze Zeilenbreite
+                                    let abwesend = daten.fehlzeit(s) != nil
+                                    WischZeile(rechtsMoeglich: bearbeitbar && abwesend,
+                                               linksMoeglich: bearbeitbar && !abwesend,
+                                               rechts: { Task { await ausfuehren(s) { try await daten.anwesendSetzen(s) } } },
+                                               links: { Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } } }) {
+                                        zeile(s)
+                                            .padding(.leading, 16)
+                                            .padding(.trailing, 26)
+                                    }
+                                    .listRowInsets(EdgeInsets())
+                                    .listRowBackground(Farben.blatt)
                                 }
                             } header: {
                                 Text(gruppe.buchstabe)
@@ -1169,7 +1159,7 @@ struct SchuelerSeite: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.anzeige)
-                    .font(.system(size: 17))
+                    .font(.system(size: 18))
                     .foregroundStyle(Farben.tinte)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -1200,7 +1190,7 @@ struct SchuelerSeite: View {
             .buttonStyle(.borderless)
             .accessibilityLabel("Abwesenheiten von \(s.anzeige)")
         }
-        .frame(minHeight: 56)
+        .frame(minHeight: 60)
         .contentShape(Rectangle())
     }
 
@@ -1262,5 +1252,114 @@ struct BuchPlusSymbol: View {
                 }
             }
             .frame(width: 30, height: 30)
+    }
+}
+
+// MARK: - Wischzeile (An-/Abwesenheit)
+
+/// Zeile mit Wischgeste wie im Original: nach rechts → anwesend (grüne Fläche mit Haken), nach links → abwesend (rote
+/// Fläche mit Uhr). Ab 80 pt löst das Loslassen aus; beim Erreichen der Schwelle und beim Auslösen gibt es eine Haptik.
+/// Senkrechtes Scrollen der Liste bleibt frei (Richtung wird zu Beginn festgelegt); in die gesperrte Richtung gibt die
+/// Zeile nur mit Widerstand nach. Für VoiceOver gibt es dieselben Aktionen.
+private struct WischZeile<Inhalt: View>: View {
+    let rechtsMoeglich: Bool
+    let linksMoeglich: Bool
+    let rechts: () -> Void
+    let links: () -> Void
+    let inhalt: Inhalt
+
+    @State private var versatz: CGFloat = 0
+    @State private var waagrecht: Bool? = nil
+    @State private var ueberSchwelle = false
+    @State private var ausgeloest = 0
+    @GestureState private var zieht = false
+    private let schwelle: CGFloat = 80
+
+    init(rechtsMoeglich: Bool, linksMoeglich: Bool, rechts: @escaping () -> Void, links: @escaping () -> Void,
+         @ViewBuilder inhalt: () -> Inhalt) {
+        self.rechtsMoeglich = rechtsMoeglich
+        self.linksMoeglich = linksMoeglich
+        self.rechts = rechts
+        self.links = links
+        self.inhalt = inhalt()
+    }
+
+    var body: some View {
+        inhalt
+            .background(Farben.blatt)
+            .offset(x: versatz)
+            .background { hintergrund }
+            .clipped()
+            .simultaneousGesture(geste)
+            .onChange(of: zieht) { _, neu in
+                // Geste abgebrochen (z. B. von der Liste übernommen): zurückfedern
+                guard !neu else { return }
+                waagrecht = nil
+                ueberSchwelle = false
+                if versatz != 0 { withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) { versatz = 0 } }
+            }
+            .sensoryFeedback(.selection, trigger: ueberSchwelle)
+            .sensoryFeedback(.success, trigger: ausgeloest)
+            .accessibilityActions {
+                if rechtsMoeglich { Button("Anwesend") { rechts() } }
+                if linksMoeglich { Button("Abwesend") { links() } }
+            }
+    }
+
+    @ViewBuilder
+    private var hintergrund: some View {
+        if versatz > 0 {
+            HStack {
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 24, weight: .regular))
+                    .scaleEffect(ueberSchwelle ? 1.15 : 1)
+                    .padding(.leading, 22)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(rechtsMoeglich ? Farben.gruen : Farben.zahlPlakette)
+        } else if versatz < 0 {
+            HStack {
+                Spacer(minLength: 0)
+                Image(systemName: "clock")
+                    .font(.system(size: 24, weight: .regular))
+                    .scaleEffect(ueberSchwelle ? 1.15 : 1)
+                    .padding(.trailing, 22)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(linksMoeglich ? Farben.entfallRand : Farben.zahlPlakette)
+        }
+    }
+
+    private var geste: some Gesture {
+        DragGesture(minimumDistance: 14)
+            .updating($zieht) { _, status, _ in status = true }
+            .onChanged { wert in
+                let dx = wert.translation.width
+                let dy = wert.translation.height
+                if waagrecht == nil {
+                    waagrecht = abs(dx) > abs(dy) * 1.3
+                }
+                guard waagrecht == true else { return }
+                let erlaubt = dx > 0 ? rechtsMoeglich : linksMoeglich
+                versatz = erlaubt ? dx : dx / 6
+                let neu = erlaubt && abs(dx) > schwelle
+                if neu != ueberSchwelle {
+                    withAnimation(.easeOut(duration: 0.12)) { ueberSchwelle = neu }
+                }
+            }
+            .onEnded { _ in
+                let war = waagrecht == true
+                waagrecht = nil
+                let ausloesen = war && ueberSchwelle
+                let nachRechts = versatz > 0
+                ueberSchwelle = false
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) { versatz = 0 }
+                guard ausloesen else { return }
+                ausgeloest += 1
+                if nachRechts { rechts() } else { links() }
+            }
     }
 }

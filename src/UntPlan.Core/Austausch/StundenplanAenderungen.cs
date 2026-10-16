@@ -57,15 +57,39 @@ public static class StundenplanAenderungen
         return weg.Count;
     }
 
-    /// <summary>Prüfungen eines Tages entfernen, die zu Stunden, Klassen und (falls angegeben) Titel der Meldung passen. Ergebnis: Anzahl.</summary>
-    public static int KlausurenEntfernen(Schuldatei d, WebRueckmeldung m, DateOnly datum, int von, int bis)
+    /// <summary>Kennzeichen (Feld Grund) einer Löschmeldung aus UntPlanWeb, die den Termin genau beschreibt (Stunden, Räume, Titel).</summary>
+    public const string Exakt = "exakt";
+
+    /// <summary>Titel der Meldung passt zur Prüfung (Kartentext „Name Text“ bzw. „Name · Text“; „Klausur“/„Prüfung“ passt immer).</summary>
+    internal static bool TitelPasst(string? titel, string name)
+    {
+        var a = (titel ?? "").Trim();
+        var b = (name ?? "").Trim();
+        return a.Length == 0 || b.Length == 0 || a is "Klausur" or "Prüfung" || a.Equals(b, StringComparison.OrdinalIgnoreCase)
+               || a.StartsWith(b + " ", StringComparison.OrdinalIgnoreCase) || b.StartsWith(a + " ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Prüfungen eines Tages entfernen, die zu Stunden, Klassen und (falls angegeben) Titel der Meldung passen – bei gleichen Stunden
+    /// (und bei einer genau beschriebenen Meldung gleichen Räumen) nur diese. Prüfungen aus <paramref name="geschuetzt"/> (WebIds der
+    /// im selben Import neu angelegten Prüfungen, z. B. der neue Termin einer verlegten Prüfung) bleiben. Auch die zugehörigen
+    /// Vertretungszeilen (Entfall, Aufsicht, Pausenaufsicht vor/nach der Prüfung) werden entfernt. Ergebnis: Anzahl.
+    /// </summary>
+    public static int KlausurenEntfernen(Schuldatei d, WebRueckmeldung m, DateOnly datum, int von, int bis, IReadOnlySet<string>? geschuetzt = null)
     {
         var klassen = m.Klassen.Select(k => Id(d, ElementTyp.Klasse, k)).OfType<int>().ToHashSet();
-        var titel = (m.Titel ?? "").Trim();
-        var weg = d.Klausuren.Where(k => k.Datum == datum && k.StundeVon <= bis && Math.Max(k.StundeVon, k.StundeBis) >= von
-                                         && (klassen.Count == 0 || k.KlassenIds.Any(klassen.Contains))
-                                         && (titel.Length == 0 || titel.Equals(k.Name, StringComparison.OrdinalIgnoreCase) || titel == "Klausur" || titel == "Prüfung")).ToList();
-        foreach (var k in weg) d.Klausuren.Remove(k);
+        var raeume = m.Raeume.Append(m.Raum ?? "").Select(r => Id(d, ElementTyp.Raum, r)).OfType<int>().ToHashSet();
+        var kandidaten = d.Klausuren.Where(k => k.Datum == datum && k.StundeVon <= bis && Math.Max(k.StundeVon, k.StundeBis) >= von
+                                                && (klassen.Count == 0 || k.KlassenIds.Any(klassen.Contains)) && TitelPasst(m.Titel, k.Name)
+                                                && (geschuetzt is null || k.WebId is null || !geschuetzt.Contains(k.WebId))).ToList();
+        var gleich = kandidaten.Where(k => k.StundeVon == von && Math.Max(k.StundeVon, k.StundeBis) == bis).ToList();
+        var genau = m.Grund == Exakt ? gleich.Where(k => k.RaumIds.ToHashSet().SetEquals(raeume)).ToList() : new List<Klausur>();
+        var weg = genau.Count > 0 ? genau : gleich.Count > 0 ? gleich : kandidaten;
+        foreach (var k in weg)
+        {
+            d.Klausuren.Remove(k);
+            d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
+        }
         return weg.Count;
     }
 
@@ -153,7 +177,11 @@ public static class StundenplanAenderungen
         var nein = new List<(string, string)>();
         var p = d.Einstellungen.Portal;
         var tage = new HashSet<DateOnly>();
-        foreach (var alt in liste)
+        // Löschungen zuerst (sie meinen stets schon übertragene Prüfungen); im selben Import neu angelegte Prüfungen – etwa der neue
+        // Termin einer verlegten Prüfung – sind vor ihnen geschützt
+        var alle = liste.ToList();
+        var neueIds = alle.Where(a => a.Meldung.Typ == WebRueckmeldungsTypen.Klausur).Select(a => a.Id).ToHashSet();
+        foreach (var alt in alle.OrderBy(a => a.Meldung.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? 0 : 1))
         {
             if (alt.Erledigt || p.StplAenderungen.Any(x => x.Id == alt.Id)) continue;
             var a = Zeile(d, alt.Meldung);
@@ -206,7 +234,7 @@ public static class StundenplanAenderungen
                 {
                     if (m.Typ == WebRueckmeldungsTypen.KlausurLoeschen)
                     {
-                        if (KlausurenEntfernen(d, m, a.Datum, a.StundeVon, a.StundeBis) == 0) { nein.Add((a.Id, "Prüfung nicht gefunden")); continue; }
+                        if (KlausurenEntfernen(d, m, a.Datum, a.StundeVon, a.StundeBis, neueIds) == 0) { nein.Add((a.Id, "Prüfung nicht gefunden")); continue; }
                         tage.Add(a.Datum);
                         break;
                     }

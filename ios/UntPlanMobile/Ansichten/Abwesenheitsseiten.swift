@@ -70,7 +70,7 @@ struct NeuerKlassenbucheintragView: View {
             if gewaehlt.isEmpty { gewaehlt = Set(vorauswahl.map(\.id)) }
             if kategorie.isEmpty { kategorie = daten.vermerkArten.first ?? "Vermerk" }
         }
-        .presentationDetents([.large])
+        .iPhoneBlatt()
         .presentationBackground(Farben.blatt)
     }
 

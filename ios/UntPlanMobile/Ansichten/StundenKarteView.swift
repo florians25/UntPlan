@@ -9,7 +9,7 @@ import SwiftUI
 /// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
 /// - Aufsicht: schmale Pille in der Pause mit lila Balken; Vertretung (übernommen oder abgegeben) grün wie eine
 ///   Vertretungskarte, abwesendes Kürzel durchgestrichen, Vertretung als grüne Plakette.
-/// - Erste Zeile Medium (auch in Plaketten), weitere Zeilen Regular; Info-Zeichen (info.svg), 4 pt vom Rand unten rechts.
+/// - Erste Zeile Semibold (auch in Plaketten), weitere Zeilen Regular; Info-Zeichen (info.svg), 4 pt vom Rand unten rechts.
 /// Maße wie im Original (nachgemessen an den Vorlagen, Woche und Tag gleich): Balken 4 pt breit, oben, links und unten je
 /// 4 pt vom Kartenrand; Text 4 pt rechts vom Balken (Glyphe ≈ 12,8 pt von der Kante) und 4 pt unter der Oberkante; Schrift
 /// 12 pt bei 14 pt Zeilenabstand (iPad 12,4/14,3). Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
@@ -165,7 +165,7 @@ struct KachelView: View {
             ForEach(Array(sichtbar.enumerated()), id: \.offset) { eintrag in
                 let unten = Self.textOben + CGFloat(eintrag.offset + 1) * zeilenHoehe
                 let frei: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + Self.zeichenRand - 1 : 0
-                // Erste Zeile (oberer Wert) Medium, alle weiteren Regular
+                // Erste Zeile (oberer Wert) Semibold, alle weiteren Regular
                 KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift, oben: eintrag.offset == 0,
                                 titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil)
                     .padding(.trailing, frei)
@@ -334,8 +334,8 @@ struct KachelzeileView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        // Obere Zeile (auch die grüne Plakette darin) Medium, weitere Zeilen Regular
-        .font(.system(size: schrift, weight: oben ? .medium : .regular))
+        // Obere Zeile (auch die grüne Plakette darin) Semibold (ausdrücklicher Wunsch), weitere Zeilen Regular
+        .font(.system(size: schrift, weight: oben ? .semibold : .regular))
         .foregroundStyle(titelFarbe ?? aussehen.text)
     }
 

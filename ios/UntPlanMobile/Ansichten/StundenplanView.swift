@@ -71,6 +71,8 @@ struct StundenplanView: View {
     /// Ziel eines Sprungs über mehrere Seiten („Heute“, „Gehe zu Datum“): ersetzt während der Animation die Nachbarseite
     @State private var sprungZiel: Date? = nil
     @GestureState private var zieht = false
+    /// Sperrt das Öffnen von Stunden während und kurz nach einer Wisch- bzw. Scrollbewegung (nicht beobachtet)
+    @State private var tippsperre = Tippsperre()
     /// Gewählte Ansicht (bleibt gespeichert)
     @AppStorage("planansicht") private var ansicht: Planansicht = .woche
 
@@ -217,14 +219,15 @@ struct StundenplanView: View {
                 PlanAuswahlView(auswahl: $auswahl)
                     .environmentObject(zustand)
                     .environmentObject(favoriten)
+                    .iPhoneBlatt()
             }
             .sheet(isPresented: $zeigeInfo) {
                 PlanInfoView(titel: titel, plan: aktuellerPlan)
-                    .presentationDetents([.medium, .large])
+                    .iPhoneBlatt()
             }
             .sheet(isPresented: $zeigeHilfe) {
                 PlanInfoView(titel: "Hilfe", plan: aktuellerPlan, hilfe: true)
-                    .presentationDetents([.large])
+                    .iPhoneBlatt()
             }
             .task(id: ladeSchluessel) { await laden() }
             .onAppear {
@@ -463,6 +466,7 @@ struct StundenplanView: View {
             // Geste abgebrochen (z. B. vom senkrechten Scrollen übernommen): zurückfedern
             guard !neu else { return }
             richtung = nil
+            if tippsperre.wischt { tippsperre.bewegungEnde(nachlauf: 0.15) }
             if !blaettert && verschiebung != 0 {
                 withAnimation(feder) { verschiebung = 0 }
             }
@@ -507,6 +511,7 @@ struct StundenplanView: View {
 
     private func raster(_ p: Wochenplan, nurTage: [String]?, stand: Int, untenFrei: CGFloat) -> some View {
         WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ, element: element,
+                         tippsperre: tippsperre,
                          nurTage: nurTage,
                          stand: stand,
                          untenFrei: untenFrei,
@@ -539,6 +544,8 @@ struct StundenplanView: View {
                     let dy = abs(wert.translation.height)
                     guard dx > 8 || dy > 8 else { return }
                     richtung = dx > dy * 1.2 ? .waagrecht : .senkrecht
+                    // Ab jetzt ist es eine Wisch- bzw. Scrollbewegung: kein Antippen einer Stunde auslösen
+                    tippsperre.wischt = true
                 }
                 if richtung == .waagrecht {
                     verschiebung = wert.translation.width
@@ -547,6 +554,8 @@ struct StundenplanView: View {
             .onEnded { wert in
                 let war = richtung
                 richtung = nil
+                // Kurzes Nachlaufen (Senkrecht: Schwung des Scrollens, solange keine Scrollphase gemeldet wird)
+                tippsperre.bewegungEnde(nachlauf: war == .senkrecht ? 0.35 : 0.15)
                 guard war == .waagrecht, !blaettert else { return }
                 let w = max(seitenBreite, 1)
                 let dx = wert.translation.width
@@ -884,6 +893,8 @@ struct WochenrasterView: View {
     let plan: Wochenplan
     let typ: String
     var element: String = ""
+    /// Sperre für das Antippen während bzw. kurz nach Wischen und Scrollen
+    var tippsperre: Tippsperre = Tippsperre()
     var laedt: Bool = false
     /// Tageweise Ansicht: nur diese Tage (yyyy-MM-dd), Spalten über die volle Breite (nil = ganze Woche).
     var nurTage: [String]? = nil
@@ -976,6 +987,7 @@ struct WochenrasterView: View {
                     .animation(.easeOut(duration: 0.18), value: laedt)
                 }
                 .scrollIndicators(.hidden)
+                .modifier(Scrollsperre(sperre: tippsperre))
                 .background(
                     LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
                         .ignoresSafeArea(edges: .bottom)
@@ -1150,6 +1162,7 @@ struct WochenrasterView: View {
                 ForEach(belegung.streifen) { st in
                     let r = streifenRechteck(st, zeiten: zeiten, mass: mass, breite: breite)
                     Button {
+                        guard !tippsperre.gesperrt else { return }
                         oeffnen(st.kacheln.first ?? st.vorne, alle: kacheln, vorne: st.vorne)
                     } label: {
                         ZaehlstreifenView(streifen: st)
@@ -1169,6 +1182,8 @@ struct WochenrasterView: View {
         let ansicht = KachelView(kachel: k, gross: nurTage != nil, breite: breite, hoehe: hoehe)
         if k.antippbar {
             Button {
+                // Nur ein echtes Antippen öffnet die Stunde – nicht das Ende einer Wisch- oder Scrollbewegung
+                guard !tippsperre.gesperrt else { return }
                 if let a = k.aufsicht {
                     aufsichtAntippen?(a)
                 } else {
@@ -1246,26 +1261,29 @@ struct WochenrasterView: View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
             .fill(Farben.ferienHintergrund)
             .overlay {
-                VStack(spacing: 2) {
+                // Bezeichnung groß (16 pt), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
+                VStack(spacing: 3) {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .padding(.bottom, 2)
                     Text(freiTitel(tag))
-                        .font(.system(size: 12.5, weight: .medium))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .font(.system(size: 16, weight: .medium))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let grund = tag.freiGrund, !grund.isEmpty, grund.lowercased() != freiTitel(tag).lowercased() {
                         Text(grund)
-                            .font(.system(size: 12.5, weight: .medium))
+                            .font(.system(size: 16, weight: .medium))
                             .multilineTextAlignment(.center)
-                            .lineLimit(4)
-                            .minimumScaleFactor(0.7)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     if let von = tag.freiVon, let bis = tag.freiBis, !von.isEmpty, !bis.isEmpty {
                         Text(von == bis ? Datumsformat.anzeige(von, "dd.MM.") : "\(Datumsformat.anzeige(von, "dd.MM.")) bis \(Datumsformat.anzeige(bis, "dd.MM."))")
-                            .font(.system(size: 11.5))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .font(.system(size: 13))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
                             .padding(.top, 4)
                     }
                 }
@@ -1297,6 +1315,53 @@ struct WochenrasterView: View {
             }
         }
     }
+}
+
+/// Sperre für das Antippen von Stunden: während einer Wisch- bzw. Scrollbewegung und kurz danach (Nachlauf) öffnet ein
+/// Antippen keine Details. Referenztyp ohne Beobachtung – Änderungen zeichnen nichts neu.
+final class Tippsperre {
+    var wischt = false
+    var scrollt = false
+    private var bis = Date.distantPast
+
+    var gesperrt: Bool { wischt || scrollt || Date() < bis }
+
+    /// Bewegung beendet: noch `nachlauf` Sekunden gesperrt.
+    func bewegungEnde(nachlauf: TimeInterval) {
+        wischt = false
+        bis = max(bis, Date().addingTimeInterval(nachlauf))
+    }
+
+    /// Scrollen beendet (Scrollphase wieder ruhend).
+    func scrollEnde() {
+        scrollt = false
+        bis = max(bis, Date().addingTimeInterval(0.15))
+    }
+}
+
+/// Meldet ab iOS 18 die Scrollphase des Rasters an die Tippsperre (auch der Schwung nach dem Loslassen zählt).
+struct Scrollsperre: ViewModifier {
+    let sperre: Tippsperre
+
+    #if compiler(>=6.0)
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollPhaseChange { _, neu in
+                if neu == .idle {
+                    sperre.scrollEnde()
+                } else {
+                    sperre.scrollt = true
+                }
+            }
+        } else {
+            content
+        }
+    }
+    #else
+    func body(content: Content) -> some View {
+        content
+    }
+    #endif
 }
 
 /// Zwischenspeicher der gebauten Kacheln je Tag (Schlüssel: Plan, Stand, angezeigte Tage, Minute). Das Bauen der Kacheln
@@ -1469,7 +1534,7 @@ extension View {
                 self
             }
         } else {
-            self.presentationDetents([.large])
+            self.iPhoneBlatt()
         }
     }
 }

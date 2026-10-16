@@ -285,9 +285,10 @@ public static class AppApi
         {
             var b = Ich(c);
             var neu = d.Neu;
-            ErweiterungApi.PruefungssperrePruefen(vw, l, r, Paket(p), b, neu.Datum, neu.Klassen ?? new());
-            r.KlausurLoeschen(Paket(p), b, d.Alt.Datum, d.Alt.StundeVon, d.Alt.StundeBis, d.Alt.Klassen ?? new(), d.Alt.Titel);
-            var m = r.Klausur(Paket(p), b, neu.Datum, neu.StundeVon, neu.StundeBis, neu.Klassen ?? new(), neu.Raeume ?? new(), neu.Aufsicht ?? new(), neu.Titel ?? "", neu.Text ?? "");
+            // die zu verlegende Prüfung zählt für die Prüfungssperre nicht mit; Löschen und neu Eintragen als Einheit
+            ErweiterungApi.PruefungssperrePruefen(vw, l, r, Paket(p), b, neu.Datum, neu.Klassen ?? new(), (d.Alt.Datum, d.Alt.StundeVon, d.Alt.StundeBis));
+            var m = r.KlausurVerlegen(Paket(p), b, d.Alt.Datum, d.Alt.StundeVon, d.Alt.StundeBis, d.Alt.Klassen ?? new(), d.Alt.Titel,
+                neu.Datum, neu.StundeVon, neu.StundeBis, neu.Klassen ?? new(), neu.Raeume ?? new(), neu.Aufsicht ?? new(), neu.Titel ?? "", neu.Text ?? "");
             prot.Schreiben(b.Login, "Prüfung verlegt", $"{d.Alt.Datum:yyyy-MM-dd} → {neu.Datum:yyyy-MM-dd}");
             return Results.Json(m);
         });
@@ -472,7 +473,7 @@ public static class AppApi
             var b = Ich(c);
             // Klassenkonten: nur die eigene Klasse, keine Filter nach Lehrkräften
             var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
-            return Results.Json(l.Pruefungen(Paket(p), r.OffeneKlausuren(), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null));
+            return Results.Json(l.Pruefungen(Paket(p), r.OffeneKlausuren(Paket(p)), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null, r.OffeneLoeschungen()));
         });
 
         api.MapGet("/hausaufgaben", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Listendienst l, Uhr uhr) =>

@@ -60,14 +60,17 @@ public static class ErweiterungApi
     }
 
     /// <summary>Prüfungssperren (Administration): höchstens n Prüfungen je Klasse und Tag bzw. Woche.</summary>
-    public static void PruefungssperrePruefen(Verwaltungsdienst vw, Listendienst l, Rueckmeldungsdienst r, Stand s, Benutzer b, DateOnly d, IEnumerable<string> klassen)
+    public static void PruefungssperrePruefen(Verwaltungsdienst vw, Listendienst l, Rueckmeldungsdienst r, Stand s, Benutzer b, DateOnly d, IEnumerable<string> klassen,
+        (DateOnly Datum, int Von, int Bis)? ohne = null)
     {
         if (!vw.Wahr("pruefungssperren", "aktiv")) return;
         if (b.Rolle is Rollen.Admin or Rollen.Leitung && vw.Wahr("pruefungssperren", "leitungAusnehmen")) return;
         var maxTag = vw.Zahl("pruefungssperren", "maxProTag");
         var maxWoche = vw.Zahl("pruefungssperren", "maxProWoche");
         var mo = Plandienst.Montag(d);
-        var alle = l.Pruefungen(s, r.OffeneKlausuren(), mo, mo.AddDays(6), null, null);
+        // ohne Dubletten (übernommen, noch nicht quittiert) und ohne zum Löschen vorgemerkte bzw. die gerade verlegte Prüfung
+        var alle = l.Pruefungen(s, r.OffeneKlausuren(s), mo, mo.AddDays(6), null, null, r.OffeneLoeschungen())
+            .Where(p => ohne is not { } o || p.Datum != Plandienst.Iso(o.Datum) || p.StundeVon > o.Bis || p.StundeBis < o.Von).ToList();
         foreach (var k in klassen.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var eigene = alle.Where(p => p.Klassen.Contains(k, StringComparer.OrdinalIgnoreCase)).ToList();
