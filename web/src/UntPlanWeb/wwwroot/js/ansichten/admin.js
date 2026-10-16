@@ -11,6 +11,7 @@ const BEREICHE = [
   { id: 'aktive', text: 'Aktive Benutzer', admin: true },
   { id: 'rechte', text: 'Rechte und Rollen', admin: true },
   { id: 'benutzer', text: 'Benutzer', admin: true },
+  { id: 'personen', text: 'Personen & Konten', admin: true },
   { id: 'zuordnung', text: 'Zuordnungsgruppen', admin: true },
   { id: 'rueckmeldungen', text: 'Rückmeldungen', admin: true },
   { id: 'sperren', text: 'Prüfungssperren', admin: true },
@@ -47,7 +48,7 @@ export async function zeigen(seite, kontext, [bereichParam, ...weitere]) {
   seite.innerHTML = '<div data-bereich></div>';
   const ziel = seite.querySelector('[data-bereich]');
   const neu = () => kontext.navigieren(location.hash);
-  await ({ sync, benutzer, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, rechte, zuordnung, sperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
+  await ({ sync, benutzer, personen, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, rechte, zuordnung, sperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
   ziel.querySelectorAll('[data-kopie]').forEach(b => b.onclick = () => kopieren(b.dataset.kopie));
 }
 
@@ -127,176 +128,10 @@ async function sync(ziel, kontext, neu) {
   import('./update.js').then(m => m.einbinden(ziel, false, kontext.ich?.login)).catch(() => { /* Anzeige ist optional */ });
 }
 
-// ------------------------------------------------------------------ Benutzer
+// ------------------------------------------------------------------ Benutzer und Personen (eigene Datei: benutzerverwaltung.js)
 
-function passwortHinweis(login, pw) {
-  dialog({
-    titel: 'Startpasswort', inhalt: `<p>Startpasswort für <strong>${e(login)}</strong>:</p>${kopierfeld(pw)}
-      <div class="form-text">Beim ersten Anmelden muss ein eigenes Passwort vergeben werden.</div>`,
-    beimOeffnen: box => { box.querySelector('[data-kopie]').onclick = () => kopieren(pw); },
-    knoepfe: [{ text: 'Schließen', art: 'haupt' }],
-  });
-}
-
-async function benutzer(ziel, kontext, neu, [rolleParam]) {
-  const [liste, el, alleSchueler] = await Promise.all([holen('/api/app/admin/benutzer'), kontext.elemente(), holen('/api/app/stammdaten/schueler').catch(() => [])]);
-  const schuelerName = id => { const x = alleSchueler.find(y => y.id === id); return x ? `${x.name}, ${x.vorname} (${x.klasse})` : `#${id}`; };
-  ziel.innerHTML = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-      <input type="search" class="form-control" data-filter placeholder="Suchen" style="width:220px">
-      <select class="form-select" data-rolle style="width:auto"><option value="">Alle Rollen</option>${Object.entries(ROLLEN).map(([r, n]) => `<option value="${r}" ${r === rolleParam ? 'selected' : ''}>${n}</option>`).join('')}</select>
-      <label class="form-check mb-0 ms-2"><input class="form-check-input" type="checkbox" data-nuraktive><span class="form-check-label small">Aktive Benutzer</span></label>
-      <div class="ms-auto d-flex gap-2 flex-wrap">
-        <button class="btn btn-outline-secondary" data-stammdaten>${icon('benutzer', 'me-1')}Konten aus Stammdaten</button>
-        <button class="btn btn-primary" data-neu>${icon('plus', 'me-1')}Benutzer anlegen</button>
-      </div>
-    </div>
-    <div class="card"><div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th><input type="checkbox" class="form-check-input" data-alle aria-label="Alle auswählen"></th><th>Benutzername</th><th>Name</th><th>Rolle</th><th>Kürzel</th><th>Letzte Anmeldung</th><th></th></tr></thead><tbody>
-      ${liste.map(b => `<tr data-zeile data-rolle="${e(b.rolle)}" data-gesperrt="${b.gesperrt ? 1 : 0}" data-text="${e((b.login + ' ' + b.anzeigename + ' ' + b.element).toLowerCase())}">
-        <td><input type="checkbox" class="form-check-input" data-wahl="${b.id}" aria-label="${e(b.login)} auswählen"></td>
-        <td class="fw-semibold">${e(b.login)}${b.gesperrt ? ' <span class="badge text-bg-danger fw-normal">gesperrt</span>' : ''}${b.passwortAendern ? ' <span class="badge text-bg-warning fw-normal">Startpasswort</span>' : ''}</td>
-        <td>${e(b.anzeigename)}${b.email ? `<div class="small text-body-secondary">${e(b.email)}</div>` : ''}</td>
-        <td>${e(b.rollenname)}${(b.schuelerIds ?? []).length ? `<div class="small text-body-secondary">${b.schuelerIds.map(i => e(schuelerName(i))).join('<br>')}</div>` : ''}</td><td>${e(b.element)}</td>
-        <td class="text-body-secondary small">${b.letzteAnmeldung ? e(kurzZeit(b.letzteAnmeldung)) : 'nie'}</td>
-        <td class="text-end text-nowrap">
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-secondary" data-bearbeiten="${b.id}" title="Bearbeiten">${icon('stift')}</button>
-            <button class="btn btn-outline-secondary" data-passwort="${b.id}" title="Passwort zurücksetzen">${icon('schluessel')}</button>
-            ${b.id !== kontext.ich.id ? `<button class="btn btn-outline-danger" data-loeschen="${b.id}" title="Löschen">${icon('loeschen')}</button>` : ''}
-          </div></td></tr>`).join('')}
-    </tbody></table></div>
-      <div class="card-footer d-flex flex-wrap gap-2 align-items-center"><span class="small text-body-secondary me-2" data-anzahl>${liste.length} Elemente gefunden.</span>
-        <button class="btn btn-sm btn-outline-secondary" data-aktion="sperren">Sperren</button><button class="btn btn-sm btn-outline-secondary" data-aktion="entsperren">Entsperren</button>
-        <button class="btn btn-sm btn-outline-secondary" data-aktion="email_uebernehmen">E-Mail von Person übernehmen</button>
-        <button class="btn btn-sm btn-outline-danger" data-aktion="loeschen">Löschen</button>
-        <span class="ms-auto d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" data-aktion="inaktive_sperren" title="Konten sperren, deren Kürzel nicht mehr in den Stammdaten steht">Inaktive Personen sperren</button>
-        <button class="btn btn-sm btn-outline-secondary" data-bericht>${icon('csv')}Bericht</button><a class="btn btn-sm btn-outline-secondary" href="#/admin/import">Import</a></span></div></div>
-    <datalist id="elementliste">${[...el.lehrer, ...el.klassen].map(x => `<option value="${e(x.kurz)}">${e(x.name ?? '')}</option>`).join('')}</datalist>`;
-
-  const filtern = () => {
-    const f = ziel.querySelector('[data-filter]').value.trim().toLowerCase();
-    const rolle = ziel.querySelector('select[data-rolle]').value;
-    const nurAktive = ziel.querySelector('[data-nuraktive]').checked;
-    let n = 0;
-    ziel.querySelectorAll('[data-zeile]').forEach(z => {
-      const weg = (rolle && z.dataset.rolle !== rolle) || (f && !z.dataset.text.includes(f)) || (nurAktive && z.dataset.gesperrt === '1');
-      z.classList.toggle('d-none', weg);
-      if (!weg) n++;
-    });
-    ziel.querySelector('[data-anzahl]').textContent = `${n} Elemente gefunden.`;
-  };
-  ziel.querySelector('[data-filter]').oninput = filtern;
-  ziel.querySelector('select[data-rolle]').onchange = filtern;
-  ziel.querySelector('[data-nuraktive]').onchange = filtern;
-  filtern();
-  ziel.querySelector('[data-alle]').onchange = ev => ziel.querySelectorAll('[data-zeile]:not(.d-none) [data-wahl]').forEach(c => { c.checked = ev.target.checked; });
-  ziel.querySelectorAll('[data-aktion]').forEach(b => b.onclick = async () => {
-    const aktion = b.dataset.aktion;
-    const ids = [...ziel.querySelectorAll('[data-wahl]:checked')].map(c => Number(c.dataset.wahl));
-    if (aktion !== 'inaktive_sperren' && !ids.length) return toast('Bitte zuerst Benutzer auswählen.', true);
-    if ((aktion === 'loeschen' || aktion === 'inaktive_sperren') && !await bestaetigen(b.textContent, aktion === 'loeschen' ? `${ids.length} Benutzer löschen?` : 'Alle Konten sperren, deren Lehrer- bzw. Klassenkürzel nicht mehr in den Stammdaten steht?', aktion === 'loeschen' ? 'Löschen' : 'Sperren')) return;
-    try { const r = await senden('/api/app/admin/benutzer/aktion', { aktion, ids }); toast(`${r.anzahl} Benutzer geändert.`); neu(); }
-    catch (err) { kontext.fehler(err); }
-  });
-  ziel.querySelector('[data-bericht]').onclick = () => herunterladen(`benutzer-${heuteIso()}.csv`, ['Benutzername;Name;Rolle;Kürzel;E-Mail;gesperrt;Letzte Anmeldung',
-    ...liste.map(b => [b.login, b.anzeigename, b.rollenname, b.element, b.email, b.gesperrt ? 'ja' : 'nein', b.letzteAnmeldung ?? ''].map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(';'))].join('\r\n'));
-
-  const formular = (b = {}) => `
-      <div class="row g-3 mb-3">
-        <div class="col-sm-6"><label class="form-label">Benutzername</label><input class="form-control" name="login" value="${e(b.login ?? '')}" ${b.id ? 'disabled' : 'required'} autocomplete="off"></div>
-        <div class="col-sm-6"><label class="form-label">Anzeigename</label><input class="form-control" name="anzeigename" value="${e(b.anzeigename ?? '')}"></div>
-        <div class="col-sm-6"><label class="form-label">Rolle</label><select class="form-select" name="rolle">${Object.entries(ROLLEN).map(([r, n]) => `<option value="${r}" ${r === (b.rolle ?? 'lehrer') ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
-        <div class="col-sm-6"><label class="form-label">Kürzel (Lehrkraft bzw. Klasse)</label><input class="form-control" name="element" value="${e(b.element ?? '')}" list="elementliste" autocomplete="off"></div>
-        <div class="col-12 ${['schueler', 'eltern'].includes(b.rolle) ? '' : 'd-none'}" data-schuelerbereich><label class="form-label" data-schuelertitel>${b.rolle === 'eltern' ? 'Kinder (Schüler*innen)' : 'Schüler*in'}</label>
-          <div class="d-flex flex-wrap gap-2 mb-2" data-gewaehlt></div>
-          <select class="form-select" data-schuelerwahl><option value="">Schüler*in zuordnen …</option>${[...new Set(alleSchueler.map(x => x.klasse))].map(k => `<optgroup label="Klasse ${e(k)}">${alleSchueler.filter(x => x.klasse === k).map(x => `<option value="${x.id}">${e(x.name)}, ${e(x.vorname)}</option>`).join('')}</optgroup>`).join('')}</select>
-          <div class="form-text">Schülerkonten gehören zu genau einer Person (Abwesenheiten, Fehlzeiten, Hausaufgaben, Klassenplan); Konten von Erziehungsberechtigten können mehrere Kinder haben. Ohne Zuordnung bleibt ein Schülerkonto ein Klassenkonto (Kürzel = Klasse).</div></div>
-        <div class="col-12"><label class="form-label">E-Mail <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="email" type="email" value="${e(b.email ?? '')}"></div>
-      </div>
-      ${b.id ? `<div class="form-check"><input class="form-check-input" type="checkbox" name="gesperrt" id="gesperrt" ${b.gesperrt ? 'checked' : ''}><label class="form-check-label" for="gesperrt">Konto gesperrt</label></div>`
-        : '<div><label class="form-label">Passwort</label><input class="form-control" name="passwort" type="password" minlength="8" autocomplete="new-password"><div class="form-text">Leer lassen, um ein Startpasswort zu erzeugen.</div></div>'}`;
-
-  /** Schülerzuordnung im Dialog: gewählte Personen als Chips, Auswahl nach Klassen; bei Schülerkonten genau eine Person. */
-  const zuordnung = (box, start = []) => {
-    const gewaehlt = new Set(start);
-    const rolle = box.querySelector('[name=rolle]');
-    const zeichnen = () => {
-      box.querySelector('[data-schuelerbereich]').classList.toggle('d-none', !['schueler', 'eltern'].includes(rolle.value));
-      box.querySelector('[data-schuelertitel]').textContent = rolle.value === 'eltern' ? 'Kinder (Schüler*innen)' : 'Schüler*in';
-      box.querySelector('[data-gewaehlt]').innerHTML = [...gewaehlt].map(i => `<span class="nl-tag">${e(schuelerName(i))} <button type="button" class="btn-close btn-close-sm ms-1" style="font-size:.55rem" data-weg="${i}" aria-label="Zuordnung entfernen"></button></span>`).join('')
-        || '<span class="small text-body-secondary">Keine Schülerin bzw. kein Schüler zugeordnet.</span>';
-      box.querySelectorAll('[data-weg]').forEach(x => x.onclick = () => { gewaehlt.delete(Number(x.dataset.weg)); zeichnen(); });
-    };
-    rolle.addEventListener('change', zeichnen);
-    box.querySelector('[data-schuelerwahl]').onchange = ev => {
-      const id = Number(ev.target.value);
-      if (!id) return;
-      if (rolle.value !== 'eltern') gewaehlt.clear();
-      gewaehlt.add(id);
-      ev.target.value = '';
-      zeichnen();
-    };
-    zeichnen();
-    return () => ['schueler', 'eltern'].includes(rolle.value) ? [...gewaehlt] : [];
-  };
-  let auswahl = () => [];
-  ziel.querySelector('[data-neu]').onclick = () => dialog({
-    titel: 'Benutzer anlegen', inhalt: formular(), beimOeffnen: box => { auswahl = zuordnung(box); }, knoepfe: [{ text: 'Abbrechen' }, {
-      text: 'Anlegen', art: 'haupt', aktion: async box => {
-        const r = await senden('/api/app/admin/benutzer', { ...formularWerte(box), gesperrt: false, schuelerIds: auswahl() });
-        toast('Benutzer angelegt.');
-        neu();
-        if (r.passwort) passwortHinweis(r.benutzer.login, r.passwort);
-      },
-    }],
-  });
-  ziel.querySelectorAll('[data-bearbeiten]').forEach(k => k.onclick = () => {
-    const b = liste.find(x => x.id === Number(k.dataset.bearbeiten));
-    dialog({
-      titel: `Benutzer ${b.login}`, inhalt: formular(b), beimOeffnen: box => { auswahl = zuordnung(box, b.schuelerIds ?? []); }, knoepfe: [{ text: 'Abbrechen' }, {
-        text: 'Speichern', art: 'haupt', aktion: async box => {
-          await senden(`/api/app/admin/benutzer/${b.id}`, { ...formularWerte(box), schuelerIds: auswahl() }, 'PUT');
-          toast('Gespeichert.');
-          neu();
-        },
-      }],
-    });
-  });
-  ziel.querySelectorAll('[data-passwort]').forEach(k => k.onclick = async () => {
-    const b = liste.find(x => x.id === Number(k.dataset.passwort));
-    if (!await bestaetigen('Passwort zurücksetzen', `Für ${b.login} ein neues Startpasswort erzeugen?`, 'Zurücksetzen')) return;
-    const r = await senden(`/api/app/admin/benutzer/${b.id}/passwort`, {});
-    passwortHinweis(b.login, r.passwort);
-    neu();
-  });
-  ziel.querySelectorAll('[data-loeschen]').forEach(k => k.onclick = async () => {
-    const b = liste.find(x => x.id === Number(k.dataset.loeschen));
-    if (!await bestaetigen('Benutzer löschen', `${b.login} wirklich löschen?`)) return;
-    await api(`/api/app/admin/benutzer/${b.id}`, { methode: 'DELETE' });
-    toast('Benutzer gelöscht.');
-    neu();
-  });
-  ziel.querySelector('[data-stammdaten]').onclick = () => dialog({
-    titel: 'Konten aus Stammdaten anlegen',
-    inhalt: `<p>Für alle Lehrkräfte bzw. Klassen ohne Konto wird ein Konto mit Startpasswort angelegt
-      (Benutzername: Lehrerkürzel bzw. <code>klasse-7a</code>).</p>
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="lehrer" id="sd-l" checked><label class="form-check-label" for="sd-l">Lehrkräfte (${el.lehrer.length})</label></div>
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="klassen" id="sd-k"><label class="form-check-label" for="sd-k">Klassenkonten (${el.klassen.length})</label></div>`,
-    knoepfe: [{ text: 'Abbrechen' }, {
-      text: 'Konten anlegen', art: 'haupt', aktion: async box => {
-        const r = await senden('/api/app/admin/benutzer/stammdaten', formularWerte(box));
-        neu();
-        dialog({
-          titel: `${r.anzahl} Konten angelegt`, breit: true,
-          inhalt: r.anzahl ? `${alarm('warning', 'Die Startpasswörter werden nur jetzt angezeigt. Bitte die Liste herunterladen und sicher verteilen.')}
-            <div class="table-responsive" style="max-height:340px"><table class="table table-sm align-middle"><thead><tr><th>Benutzername</th><th>Startpasswort</th><th>Rolle</th><th>Name</th></tr></thead><tbody>
-            ${r.konten.map(k => `<tr><td class="fw-semibold">${e(k.login)}</td><td class="font-monospace">${e(k.passwort)}</td><td>${e(k.rolle)}</td><td>${e(k.name)}</td></tr>`).join('')}</tbody></table></div>`
-            : '<p class="mb-0">Alle Lehrkräfte bzw. Klassen haben bereits ein Konto.</p>',
-          knoepfe: r.anzahl ? [{ text: 'Liste herunterladen (CSV)', aktion: () => { herunterladen(`untplanweb-konten-${heuteIso()}.csv`, r.csv); return false; } }, { text: 'Schließen', art: 'haupt' }] : [{ text: 'OK', art: 'haupt' }],
-        });
-      },
-    }],
-  });
-}
+const benutzer = (...a) => import('./benutzerverwaltung.js').then(m => m.benutzer(...a));
+const personen = (...a) => import('./benutzerverwaltung.js').then(m => m.personen(...a));
 
 // ------------------------------------------------------------------ Rückmeldungen
 

@@ -1,6 +1,7 @@
 // UntPlanWeb – Einstieg: Sitzung laden, Anmeldung/Einrichtung, Hülle im Stil des Vorbilds (linke Navigationsleiste mit
 // Untermenüs, Schuljahr-Pille, Benutzer unten, Konto wechseln) und Hash-Router.
 import { LOGO, icon, e, holen, senden, api, fehler, alarm, lade, initialen, toast } from './ui.js';
+import { beobachten as auswahlBeobachten } from './auswahl.js';
 
 const ANSICHTEN = {
   heute: () => import('./ansichten/heute.js'),
@@ -299,6 +300,7 @@ function menue() {
       { nav: 'admin-aktive', href: '#/admin/aktive', text: 'Aktive Benutzer', icon: 'aktive' },
       { nav: 'admin-rechte', href: '#/admin/rechte', text: 'Rechte und Rollen', icon: 'rechte' },
       { nav: 'admin-benutzer', href: '#/admin/benutzer', text: 'Benutzer', icon: 'benutzer' },
+      { nav: 'admin-personen', href: '#/admin/personen', text: 'Personen & Konten', icon: 'lehrkraft' },
       { nav: 'admin-zuordnung', href: '#/admin/zuordnung', text: 'Zuordnungsgruppen', icon: 'zuordnung' },
       { nav: 'admin-rueckmeldungen', href: '#/admin/rueckmeldungen', text: 'Rückmeldungen', icon: 'ruckmeldung' },
       { nav: 'admin-sperren', href: '#/admin/sperren', text: 'Prüfungssperren', icon: 'sperre' },
@@ -569,6 +571,8 @@ async function route() {
 /** Ist diese Ansicht noch die aktuelle? (gegen verspätete Antworten) */
 kontext.aktuell = () => { const s = laufendeAnsicht; return () => s === laufendeAnsicht; };
 
+// Einheitliche Auswahl: alle nativen Selects und Suchfelder werden automatisch ersetzt bzw. vereinheitlicht
+auswahlBeobachten(document.body);
 start();
 
 

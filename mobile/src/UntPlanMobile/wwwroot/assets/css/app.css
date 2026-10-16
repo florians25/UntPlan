@@ -4102,24 +4102,27 @@ html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:non
 /* =====================================================================
    Tagesansicht: großer Kopf und ausführliche Karten
    ===================================================================== */
-.dayhead--single .dayhead__name{ font-size:14px; }
-.dayhead--single .dayhead__num{ font-size:22px; margin-top:2px; }
-.dk{ display:grid; grid-template-columns:minmax(150px, 34%) 1fr; column-gap:18px; width:100%; align-items:start; }
-.dk__links, .dk__rechts{ display:flex; flex-direction:column; min-width:0; gap:2px; }
-.dk__titel{ font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.dk__kurz{ font-weight:500; color:var(--c-ink-2); font-size:13px; }
-.dk__zeit{ font-size:12.5px; color:var(--c-ink-2); font-variant-numeric:tabular-nums; }
-.dk__werte{ display:flex; flex-wrap:wrap; gap:2px 18px; font-size:14px; color:var(--c-ink); }
-.dk__wert{ white-space:nowrap; }
-.dk__wert i{ font-style:normal; font-size:11.5px; color:var(--c-muted); margin-right:6px; text-transform:none; }
-.dk__hinweis{ font-size:12.5px; color:var(--c-ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.card--cancelled .dk__titel, .card--cancelled .dk__wert > :not(i),
-.card--cancelled .dk__wert{ text-decoration:line-through; text-decoration-thickness:var(--strike); }
-.card--cancelled .dk__wert i{ text-decoration:none; display:inline-block; }
-.card--change .dk__hinweis{ color:#00654c; }
-.card--cancelled .dk__hinweis{ color:var(--cnc-border); }
-.is-dark .card--change .dk__hinweis{ color:#7fe0bf; }
-.is-dark .card--cancelled .dk__hinweis{ color:#ff8fa8; }
+/* Tagesansicht: Kopf wie in der Woche („Fr.“ über „16“), eine breite
+   Spalte. Die Karte ist die Wochenkachel in breit — links die Zeilen,
+   rechts daneben die Details (Langname, Uhrzeit, Status, Hinweis). */
+.dk{ display:flex; align-items:flex-start; gap:16px; width:100%; min-width:0; }
+.dk__zeilen{ display:flex; flex-direction:column; flex:0 0 auto; width:clamp(110px, 34%, 230px); min-width:0; }
+.dk__details{ display:flex; flex-direction:column; flex:1 1 auto; min-width:0; gap:1px; padding-right:14px; }
+.dk__details > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dk__lang{ font-size:13px; line-height:16px; font-weight:600; color:var(--c-ink); }
+.dk__zeit{ font-size:12px; line-height:15px; color:var(--c-ink-2); font-variant-numeric:tabular-nums; }
+.dk__status{ font-size:12px; line-height:15px; font-weight:500; color:#00654c; }
+.dk__hinweis{ font-size:12px; line-height:15px; color:var(--c-ink-2); }
+.card--cancelled .dk__status{ color:var(--cnc-border); }
+.card--exam .dk__status{ color:#8a6100; }
+.is-dark .dk__status{ color:#7fe0bf; }
+.is-dark .card--cancelled .dk__status{ color:#ff8fa8; }
+.is-dark .card--exam .dk__status{ color:#f3cf7a; }
+.card--cancelled .dk__details > span{ text-decoration:none; }
+@media (min-width:700px){
+  .dk__lang{ font-size:14px; line-height:17px; }
+  .dk__zeit, .dk__status, .dk__hinweis{ font-size:12.5px; line-height:16px; }
+}
 
 /* =====================================================================
    Veranstaltung (Feld): hellgrün mit feinem Rahmen, Klassen fett – im
@@ -4164,20 +4167,7 @@ html.is-dark .card--cancelled.is-past .card__line{ color:#ffffff; }
 /* Termin bzw. ganztägige Veranstaltung im Dunkeln ebenso gedämpft */
 html.is-dark .card--event{ background:#22352f; border:1px solid #3d6457; box-shadow:none; }
 html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--primary{ color:#e3efe9; }
-.dk__wert .tok + .tok{ margin-left:6px; }
 
-/* Tagesansicht am iPhone: kompakte ausführliche Karte — oben Fach
-   (ausgeschrieben, Kürzel klein) mit der Uhrzeit rechts, darunter Klasse,
-   Lehrkraft und Raum in einer Zeile, zuletzt Status und Hinweis. */
-.card.is-dk-schmal .dk{ display:flex; flex-direction:column; gap:1px; }
-.card.is-dk-schmal .dk__links{ flex-direction:row; align-items:baseline; gap:8px; }
-.card.is-dk-schmal .dk__titel{ flex:1 1 auto; min-width:0; font-size:14.5px; }
-.card.is-dk-schmal .dk__zeit{ flex:0 0 auto; font-size:12px; color:var(--c-muted); }
-.card.is-dk-schmal .dk__werte{ display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13.5px; }
-.card.is-dk-schmal .dk__wert + .dk__wert{ margin-left:12px; }
-.card.is-dk-schmal .dk__wert i{ font-size:11px; margin-right:4px; }
-.card.is-dk-schmal .dk__hinweis{ font-size:12px; }
-.card.is-dk-schmal .dk__zeit{ margin-left:auto; }
 
 /* =====================================================================
    Veranstaltungen und Termine wie grüne Stundenkarten (Vertretung)

@@ -49,16 +49,17 @@ public static class SyncApi
             }
         });
 
-        api.MapGet("/schulen/{schule}/rueckmeldungen", (string schule, HttpContext ctx, Einstellungen e, Rueckmeldungsdienst r) =>
-            Pruefen(schule, ctx, e) ?? Results.Json(r.Offene().Select(m => m.AlsVertrag()), UntPlanWebSchema.Json));
+        // Rückmeldungen und noch nicht übertragene Buchungen (Buchungsmodul, Typ „raumbuchung“, Id „buchung-…“)
+        api.MapGet("/schulen/{schule}/rueckmeldungen", (string schule, HttpContext ctx, Einstellungen e, Rueckmeldungsdienst r, Buchungsdienst bu) =>
+            Pruefen(schule, ctx, e) ?? Results.Json(r.Offene().Select(m => m.AlsVertrag()).Concat(bu.Rueckmeldungen()), UntPlanWebSchema.Json));
 
-        api.MapPost("/schulen/{schule}/rueckmeldungen/quittieren", async (string schule, HttpContext ctx, Einstellungen e, Rueckmeldungsdienst r, Protokoll prot) =>
+        api.MapPost("/schulen/{schule}/rueckmeldungen/quittieren", async (string schule, HttpContext ctx, Einstellungen e, Rueckmeldungsdienst r, Buchungsdienst bu, Protokoll prot) =>
         {
             if (Pruefen(schule, ctx, e) is { } fehler) return fehler;
             // Liste der Ids – als Array oder als Objekt { "ids": [...] }
             var knoten = await JsonNode.ParseAsync(ctx.Request.Body);
             var ids = (knoten as JsonArray ?? knoten?["ids"] as JsonArray)?.Select(x => x?.GetValue<string>()).OfType<string>().ToList() ?? new();
-            var n = r.Quittieren(ids);
+            var n = r.Quittieren(ids) + bu.Quittieren(ids);
             if (n > 0) prot.Schreiben("UntPlan", "Rückmeldungen quittiert", n.ToString());
             return Results.Json(new { ok = true, quittiert = n });
         });

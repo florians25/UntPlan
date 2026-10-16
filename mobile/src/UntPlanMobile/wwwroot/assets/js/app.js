@@ -594,37 +594,40 @@ function cardLines(card, kind){
                    && label && l.text.toUpperCase() === label));
 }
 
-/* Ausführliche Karte der Tagesansicht (breiter Bildschirm): links Fach
-   (ausgeschrieben) und Uhrzeit, rechts Klasse, Lehrkraft und Raum mit
-   denselben Plaketten wie auf der Wochenkachel, darunter Status und Hinweis. */
-function tagesInhalt(card, kind, zeilen, zeileInnen, von, bis){
-  const lab = { teacher:'Lehrkraft', room:'Raum', class:'Klasse' };
-  const fachZeile = zeilen.find(l => l.key === 'subject');
+/* Karte der Tagesansicht: genau wie die Wochenkachel — Balken, dieselben
+   Zeilen mit denselben Plaketten —, nur breiter. Rechts daneben stehen die
+   Details: Fach ausgeschrieben, Uhrzeit mit Stunde, Status und Hinweis.
+   Keine Beschriftungen („Klasse“, „Raum“) und keine weiteren Zutaten. */
+function tagesInhalt(card, zeilenHtml, von, bis){
   const lang = card.subjectLong && card.subjectLong !== card.subject ? card.subjectLong : '';
-  const titel = lang || card.subject || card.info || card.type || '';
-  const fachKurz = fachZeile && (lang || fachZeile.changed) ? zeileInnen(fachZeile) : '';
-  const werte = ['class', 'teacher', 'room'].map(k => zeilen.find(l => l.key === k)).filter(Boolean)
-    .map(l => `<span class="dk__wert"><i>${lab[l.key]}</i>${zeileInnen(l)}</span>`).join('');
-  const status = card._released ? (card.teacher ? 'Abwesend – vertreten durch ' + card.teacher : 'Abwesend – Vertretung offen')
+  const bisSt = card.lesson + (card.span || 1) - 1;
+  const zeit = `${esc((von || '').replace(/^0/, ''))}${bis ? ' – ' + esc(bis.replace(/^0/, '')) : ''}`
+    + (card.lesson ? ` · ${card.lesson === bisSt ? card.lesson + '. Stunde' : card.lesson + '.–' + bisSt + '. Stunde'}` : '');
+  const nurRaum = (card.changed || []).length && (card.changed || []).every(k => k === 'room');
+  const status = card._released ? (card.teacher ? 'Vertretung: ' + card.teacher : 'Vertretung offen')
     : card.blockType === 'cancelled' ? (card.classAbsent || /klasse abw/i.test(card.info || '') ? 'Entfall – Klasse abwesend' : 'Entfall')
-    : card.blockType === 'klausur' ? 'Prüfung'
+    : card.blockType === 'klausur' ? (card.type || 'Prüfung')
     : card.blockType === 'event' ? 'Raumbuchung'
     : card.blockType === 'change' ? (card.openSub ? 'Vertretung offen' : card.extra ? 'Zusätzliche Unterrichtsstunde'
-                                    : card.openRoom ? 'Raum offen' : (card.type || 'Änderung'))
+                                    : card.openRoom ? 'Raum offen' : nurRaum ? 'Raumänderung' : (card.type || 'Vertretung'))
     : '';
   const info = (card.info || '').trim();
-  const hinweis = [status, info && info !== status && info !== titel ? info : ''].filter(Boolean).join(' · ');
+  const hinweise = [info && info !== status && info !== lang ? info : '',
+                    card.noteStudents || '', card.noteTeachers || ''].filter(Boolean);
   return `<span class="dk">
-      <span class="dk__links">
-        <span class="card__line card__line--primary dk__titel">${esc(titel)}${fachKurz ? ` <span class="dk__kurz">${fachKurz}</span>` : ''}</span>
-        <span class="dk__zeit">${esc((von || '').replace(/^0/, ''))}${bis ? ' – ' + esc(bis.replace(/^0/, '')) : ''}</span>
-      </span>
-      <span class="dk__rechts">
-        <span class="dk__werte">${werte}</span>
-        ${hinweis ? `<span class="dk__hinweis">${esc(hinweis)}</span>` : ''}
+      <span class="dk__zeilen">${zeilenHtml}</span>
+      <span class="dk__details">
+        ${lang ? `<span class="dk__lang">${esc(lang)}</span>` : ''}
+        <span class="dk__zeit">${zeit}</span>
+        ${status ? `<span class="dk__status">${esc(status)}</span>` : ''}
+        ${hinweise.map(t => `<span class="dk__hinweis">${esc(t)}</span>`).join('')}
       </span>
     </span>`;
 }
+
+/* Zeilenabstand der Kachel wie in app.css: am iPhone 14 px (Vorlage), sonst 14,3 px. */
+const KARTE_SCHMAL = window.matchMedia ? window.matchMedia('(max-width:699px)') : null;
+const karteZeile = () => (KARTE_SCHMAL && KARTE_SCHMAL.matches) ? 14 : 14.3;
 
 function cardEndDate(card){
   const t = state.times[Math.min(card.lesson + card.span - 1, 12)] || state.times[card.lesson];
@@ -1185,8 +1188,8 @@ function renderGrid(){
 
       /* Passen nicht alle Zeilen in die Karte, wird gekürzt und unten rechts
          ein Zeichen gesetzt — dann ohne Info-Punkt. */
-      const maxLines = Math.max(1, Math.floor((h - 9) / 14.3));
-      const cut = !isHoliday && !isStandby && !card.overlay && !tagesKarte && lines.length > maxLines;
+      const maxLines = Math.max(1, Math.floor((h - 9) / karteZeile()));
+      const cut = !isHoliday && !isStandby && !card.overlay && lines.length > maxLines;
       if (cut) lines = lines.slice(0, maxLines);
       const past = (() => { const e = cardEndDate(card); return e && e < now; })();
 
@@ -1210,7 +1213,7 @@ function renderGrid(){
       /* Offene Vertretung im Plan der ausgefallenen Lehrkraft: die Stunde
          läuft ohne sie — dargestellt mit Eckklammern statt grüner Fläche. */
       if (card.highlight)                    cls.push('is-highlight');
-      if (tagesKarte && colPx < 520)         cls.push('is-dk-schmal');
+      if (tagesKarte)                        cls.push('card--tag');
 
       const released = card._released;
       if (released){
@@ -1279,7 +1282,7 @@ function renderGrid(){
       /* Sowohl beim Info-Punkt als auch beim „…"-Zeichen (Kürzung) Platz
          rechts lassen, damit der Raum/Text mit … abgekürzt statt verdeckt
          wird. */
-      const textBottom = 4.5 + lines.length * 14.3;
+      const textBottom = 4.5 + lines.length * karteZeile();
       /* Großzügig vorauswählen: Das Zeichen sitzt 2 px über dem inneren
          Rand, bei einer gerahmten Kachel kommen dessen 2 px hinzu — mit
          einer knappen Schwelle rutschten genau diese Fälle durch und das
@@ -1367,8 +1370,9 @@ function renderGrid(){
             ].filter(Boolean).join('');
           })()
         : tagesKarte
-        ? tagesInhalt(card, kind, cardLines(card, kind), zeileInnen, timeA, timeB)
-        : lines.map((l, li) => {
+        ? tagesInhalt(card, zeilenHtml(lines), timeA, timeB)
+        : zeilenHtml(lines);
+      function zeilenHtml(lines){ return lines.map((l, li) => {
             const inner = zeileInnen(l);
             return `<span class="card__line ${l.primary ? 'card__line--primary' : ''}`
                  /* Beginnt die Zeile mit einer Plakette, bringt die ihr
@@ -1379,7 +1383,7 @@ function renderGrid(){
                       ? ' card__line--badge' : ''}`
                  + `${l.tokens ? ' card__line--kopp' : ''}${l.tokens && l.key === 'room' ? ' card__line--rooms' : ''}${l.tokens && l.key === 'teacher' ? ' card__line--scroll' : ''}`
                  + `${li === lines.length - 1 ? ' card__line--last' : ''}">${inner}</span>`;
-          }).join('');
+          }).join(''); }
       /* Die Fachfarbe steht als Stilangabe unmittelbar an der Kachel.
          Sie gilt auch beim Entfall: Ist für das Fach eine Farbe
          hinterlegt, bleibt der Balken farbig — erkennbar ist der Entfall

@@ -1,0 +1,100 @@
+/* ------------------------------------------------------------------ Einheitliche Auswahl (Dropdown) mit integrierter Suche – neues Design
+   Hülle .au über dem versteckten nativen Select, Menü .au-menue (fest positioniert, öffnet nach unten), Suchfelder mit Lupe und X. */
+
+.au-nativ { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+  clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; border: 0 !important; white-space: nowrap !important; opacity: 0 !important; pointer-events: none !important; }
+
+.au { position: relative; display: block; width: 100%; min-width: 0; }
+.au[hidden] { display: none !important; }
+.au.w-auto, .au.d-inline-block, .d-flex > .au.w-auto { display: inline-block; width: auto; }
+.au-knopf { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 4px 10px 4px 12px; border: 1px solid var(--u-grau-3, #bfc8cf);
+  border-radius: var(--u-radius, 4px); background: #fff; color: var(--u-titel, #24323d); font: inherit; font-size: .9375rem; line-height: 1.3; text-align: left; cursor: pointer;
+  transition: border-color .12s, box-shadow .12s; }
+.au-knopf:hover { border-color: var(--u-grau-2, #8a96a1); }
+.au-knopf:focus { outline: 0; }
+.au-knopf:focus-visible, .au.offen > .au-knopf { border-color: var(--u-akzent, #f56b2a); box-shadow: 0 0 0 .15rem rgba(245, 107, 42, .16); }
+.au-knopf:disabled { background: var(--u-grund, #f3f5f7); color: var(--u-grau, #67747e); cursor: default; border-color: var(--u-linie, #dcdfe5); }
+.au-wert { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.au-wert-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.au-platzhalter, .au-knopf.leer .au-wert-text { color: var(--u-grau-2, #8a96a1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-pfeil { flex: none; font-size: .78rem; color: var(--u-grau, #67747e); transition: transform .15s; -webkit-text-stroke: .4px; }
+.au.offen .au-pfeil { transform: rotate(180deg); color: var(--u-akzent, #f56b2a); }
+.au-sm .au-knopf { min-height: 32px; padding: 2px 8px 2px 10px; font-size: .8125rem; gap: 6px; }
+.au-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 180px; padding: 1px 4px 1px 8px; border-radius: 6px; background: #eef1f4; color: var(--u-titel, #24323d);
+  font-size: .8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.au-chip.mehr { padding-right: 8px; color: var(--u-grau, #67747e); }
+.au-chip-x { display: inline-grid; place-content: center; width: 16px; height: 16px; border-radius: 50%; color: var(--u-grau, #67747e); font-size: .95rem; line-height: 1; cursor: pointer; }
+.au-chip-x:hover { background: #dfe3e8; color: var(--u-titel, #24323d); }
+
+/* Gruppen-Layouts: Eingabegruppe, Filterleisten, Pillen des neuen Designs, Tabellenzellen */
+.input-group > .au { flex: 1 1 auto; width: 1%; }
+.input-group > .au:not(:last-child) > .au-knopf { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.input-group > .au:not(:nth-child(2)) > .au-knopf { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.u-filter .au { width: auto; min-width: 140px; display: inline-block; }
+.nl-pille .au { display: inline-block; width: auto; min-width: 0; }
+.nl-pille .au-knopf { min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none !important; font-size: .95rem; color: var(--u-text, #414d55); gap: 10px; }
+.nl-pille .au-knopf.leer .au-wert-text, .nl-pille .au-platzhalter { color: var(--u-text, #414d55); }
+.nl-pille .au-pfeil { color: var(--u-titel, #24323d); }
+.nl-pille:has(.au.offen), .nl-pille:focus-within { border-color: var(--u-akzent, #f56b2a); }
+.ab-formular .au-knopf { border: 1.5px solid #c9d0d6; border-radius: 6px; min-height: 38px; font-size: .9rem; }
+td > .au.w-auto, td > .au.d-inline-block { vertical-align: middle; }
+@media (max-width: 767.98px) { .u-filter .au { min-width: 0; width: 100%; } }
+
+/* Menü */
+.au-menue { position: fixed; z-index: 1085; display: flex; flex-direction: column; min-width: 220px; background: #fff; border: 1px solid #dfe3e7; border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(36, 50, 61, .18), 0 2px 6px rgba(0, 5, 10, .06); padding: 6px; font-size: .9375rem; color: var(--u-text, #414d55);
+  animation: au-auf .12s ease-out; }
+.au-menue.oben { animation-name: au-ab; }
+@keyframes au-auf { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes au-ab { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.au-suche { position: relative; display: flex; align-items: center; margin-bottom: 4px; }
+.au-suche > .bi-search { position: absolute; left: 11px; color: var(--u-grau-2, #8a96a1); font-size: .9rem; pointer-events: none; }
+.au-suche input { width: 100%; height: 36px; padding: 0 30px 0 32px; border: 1px solid #c9d0d6; border-radius: 6px; background: #fff; font: inherit; font-size: .9rem;
+  color: var(--u-titel, #24323d); outline: 0; }
+.au-suche input::placeholder { color: var(--u-grau-2, #8a96a1); }
+.au-suche input:focus { border-color: var(--u-akzent, #f56b2a); box-shadow: 0 0 0 .15rem rgba(245, 107, 42, .14); }
+.au-suche input::-webkit-search-cancel-button, .au-suchfeld input::-webkit-search-cancel-button, .nl-suche input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.au-x { position: absolute; right: 6px; display: inline-grid; place-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--u-grau, #67747e); font-size: .7rem; cursor: pointer; }
+.au-x:hover { background: #eef1f4; color: var(--u-titel, #24323d); }
+.au-x[hidden] { display: none; }
+.au-zusatz:empty { display: none; }
+.au-liste { overflow-y: auto; overscroll-behavior: contain; max-height: 360px; }
+.au-gruppe { padding: 10px 10px 4px; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--u-grau-2, #8a96a1); }
+.au-gruppe:first-child { padding-top: 4px; }
+.au-option { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--u-titel, #24323d); line-height: 1.25; }
+.au-option.aktiv { background: #f1f3f5; }
+.au-option.gewaehlt { font-weight: 600; }
+.au-option.gewaehlt .au-haupt { color: var(--u-akzent-dunkel, #dd5718); }
+.au-option.deaktiviert { color: var(--u-grau-3, #bfc8cf); cursor: default; }
+.au-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.au-haupt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-zweit { font-size: .78rem; font-weight: 400; color: var(--u-grau, #67747e); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-option mark { padding: 0; border-radius: 2px; background: var(--u-akzent-hell, #fff1ea); color: inherit; box-shadow: 0 1px 0 rgba(245, 107, 42, .55); }
+.au-haken { flex: none; color: var(--u-akzent, #f56b2a); font-size: 1rem; -webkit-text-stroke: .5px; }
+.au-kasten { flex: none; width: 18px; height: 18px; border: 1.5px solid #8a96a1; border-radius: 4px; background: #fff; display: inline-grid; place-content: center; }
+.au-option.gewaehlt .au-kasten { border-color: var(--u-akzent, #f56b2a); background: var(--u-akzent, #f56b2a); }
+.au-option.gewaehlt .au-kasten::after { content: ""; width: 9px; height: 5px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
+.au-leer { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 12px; color: var(--u-grau, #67747e); font-size: .875rem; text-align: center; }
+.au-leer .bi { font-size: 1.2rem; color: var(--u-grau-3, #bfc8cf); }
+.au-mehr { padding: 8px 10px 4px; font-size: .78rem; color: var(--u-grau-2, #8a96a1); text-align: center; }
+
+/* Elementwahl (Planwahl): Schalter „Alle anzeigen“ und Pillenfeld neben dem Menü */
+.au-elementwahl .wahl-alle-schalter { margin: 0 -6px 4px; padding: 6px 14px 8px; }
+.au-elementwahl .au-haupt { font-weight: 700; }
+.au-pillen { position: absolute; top: 0; left: calc(100% + 8px); display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px 4px; max-height: 70vh; overflow: auto;
+  padding: 10px 12px; background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; box-shadow: 0 12px 32px rgba(36, 50, 61, .18); }
+.au-pillen .wahl-pille.aktiv { background: var(--u-akzent); color: #fff; }
+@media (max-width: 767.98px) { .au-pillen { display: none; } }
+
+/* Suchfelder: Lupe links, Löschen-X rechts */
+.au-suchfeld { position: relative; display: inline-flex; align-items: center; min-width: 0; vertical-align: middle; }
+.au-suchfeld > input { width: 100%; }
+.au-suchfeld > .au-lupe { position: absolute; left: 11px; color: var(--u-grau-2, #8a96a1); font-size: .9rem; pointer-events: none; z-index: 1; }
+.au-suchfeld > input[type=search], .au-suchfeld > input[type=search].form-control { padding-left: 2.1rem; padding-right: 2rem; background-image: none; }
+.au-suchfeld.au-sm > .au-lupe { left: 9px; font-size: .8rem; }
+.au-mit-x { position: relative; }
+.au-mit-x > .au-x { right: 8px; top: 50%; transform: translateY(-50%); }
+.nl-suche.au-mit-x { padding-right: 36px; }
+.nl-suche.au-mit-x > .au-x { right: 10px; }
+.d-flex > .au-suchfeld:not([class*="w-"]) { flex: 0 1 auto; }

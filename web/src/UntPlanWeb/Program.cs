@@ -66,6 +66,7 @@ public class Program
         builder.Services.AddSingleton(Updateeinstellungen.Laden(builder.Configuration));
         builder.Services.AddSingleton<Updatedienst>();
         builder.Services.AddSingleton<Schuelerverwaltung>();
+        builder.Services.AddSingleton<Buchungsdienst>();
         builder.Services.AddSingleton<Personendienst>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>
@@ -161,6 +162,7 @@ public class Program
         MobilApi.Abbilden(app);
         OberflaecheApi.Abbilden(app);
         FamilieApi.Abbilden(app);
+        BuchungApi.Abbilden(app);
         BenutzerverwaltungApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
