@@ -903,7 +903,8 @@ function renderGrid(){
      wie dem iPad sind es mehrere. Erst wenn es nicht mehr reicht, tritt die
      Zählkarte an die Stelle der verdrängten Kacheln. */
   const MIN_CARD = 62;
-  const colPx = Math.max(1, (($('#gridScroll').clientWidth || 402) - 45) / cols);
+  const gutterPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gutter-w')) || 45;
+  const colPx = Math.max(1, (($('#gridScroll').clientWidth || 402) - gutterPx) / cols);
   /* Breite Wochenspalte: Platz für eine halbe Kachel neben einem Feld. */
   const nebenFeld = !isDay && colPx >= 180;
   const weekPx = colPx * cols;
@@ -4154,20 +4155,20 @@ function renderDetail(){
 /* Symbole der Aktionszeilen – nachgezeichnet nach den Sollbildern. */
 const DICO = (() => {
   const s = inner => `<svg viewBox="0 0 24 24" class="ico dico">${inner}</svg>`;
-  const blatt = '<path d="M6.5 3.5h7.8l3.7 3.7v12.3a1 1 0 0 1-1 1h-10.5a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/>';
-  const zeilen = '<path d="M8.6 10.2h6.8M8.6 13.4h6.8M8.6 16.6h4.6"/>';
+  /* Original-Symbole aus der Symbolsammlung (Linien-Icons wie in der
+     Vorlage): Notiz, Onlineunterricht, Klasse mit Schüler*innen, Klassenbuch. */
+  const u = id => `<svg viewBox="0 0 28 28" class="uic ico dico dico--sym"><use href="#${id}"></use></svg>`;
   return {
-    note:          s(blatt + zeilen),
-    substitution:  s(blatt + zeilen),
-    lehrstoff:     s(blatt + zeilen),
-    notes_students:s(blatt + zeilen),
-    notes_teachers:s(blatt + zeilen),
-    online:        s('<rect x="3.6" y="3.6" width="16.8" height="16.8" rx="3.4"/><rect x="6.9" y="9" width="6.8" height="6" rx="1.2"/><path d="m13.7 11.1 3.4-1.9v5.6l-3.4-1.9"/>'),
-    students:      s('<rect x="3.5" y="3.6" width="17" height="11.6" rx="1"/><circle cx="8" cy="8.4" r="1.5"/><circle cx="12" cy="8.4" r="1.5"/><circle cx="16" cy="8.4" r="1.5"/>'
-                   + '<path d="M5.6 13.4a2.4 2.4 0 0 1 4.8 0M9.6 13.4a2.4 2.4 0 0 1 4.8 0M13.6 13.4a2.4 2.4 0 0 1 4.8 0"/><circle cx="8" cy="18.6" r="1.3"/><circle cx="12" cy="18.6" r="1.3"/><circle cx="16" cy="18.6" r="1.3"/>'),
+    note:          u('ic-note'),
+    substitution:  u('ic-note'),
+    lehrstoff:     u('ic-note'),
+    notes_students:u('ic-note'),
+    notes_teachers:u('ic-note'),
+    online:        u('ic-online-lesson'),
+    students:      u('ic-lessons-classes'),
     homework:      s('<path d="M11.4 20.4H5.6a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1h7.4l3.6 3.6v3.2"/><path d="M7.4 9.4h5.8M7.4 12.4h4.4M7.4 15.4h2.4"/>'
                    + '<path d="m12.6 15.6 4.6-2.2 4.6 2.2-4.6 2.2z"/><path d="M14.4 16.7v2.4c1.6 1.3 4 1.3 5.6 0v-2.4"/>'),
-    classbook:     s('<path d="M6.6 3.6h11.2a.8.8 0 0 1 .8.8v13.4H7.2a1.6 1.6 0 0 0-1.6 1.6V4.6a1 1 0 0 1 1-1z"/><path d="M5.6 19.4a1.6 1.6 0 0 0 1.6 1.6h11.4v-3.2"/>'),
+    classbook:     u('ic-navigation-class-register'),
     info:          s('<circle cx="12" cy="12" r="9"/><path d="M12 10.8v6M12 7.6v.2"/>'),
     room:          s('<path d="M5.6 20.4V4.8l7.6-1.4v17.6"/><path d="M13.2 4.6h5.2v15.8"/><path d="M3.6 20.4h16.8"/><path d="M10.6 12.2v.4"/>')
   };
