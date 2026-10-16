@@ -83,7 +83,8 @@ public static class MobilApi
             }
             case "hinzufuegen":
                 if (Enthaelt(aktuell, raum)) throw new ArgumentException($"Raum {raum} gehört schon zur Stunde.");
-                neu = new List<string> { raum }.Concat(aktuell).ToList();
+                // zusätzlicher Raum hinten: der ursprüngliche Raum bleibt Hauptraum
+                neu = aktuell.Append(raum).ToList();
                 break;
             case "loeschen":
                 if (!Enthaelt(aktuell, raum)) throw new ArgumentException($"Raum {raum} gehört nicht zur Stunde.");

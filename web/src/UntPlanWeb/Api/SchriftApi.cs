@@ -40,6 +40,17 @@ public static partial class SchriftApi
         return (gewicht, kursiv);
     }
 
+    /// <summary>CSS-Gewichte, für die ein Schriftschnitt gilt (eine Stufe leichter als üblich).</summary>
+    public static int[] CssGewichte(int schnitt) => schnitt switch
+    {
+        200 => new[] { 200, 300 },
+        500 => new[] { 500, 600 },
+        600 => new[] { 700 },
+        700 => new[] { 800 },
+        800 => new[] { 900 },
+        var x => new[] { x },
+    };
+
     private static string Format(string datei) => Path.GetExtension(datei).ToLowerInvariant() switch
     {
         ".woff2" => "woff2", ".woff" => "woff", ".ttf" => "truetype", _ => "opentype",
@@ -62,7 +73,10 @@ public static partial class SchriftApi
             {
                 var quellen = g.OrderBy(d => Format(d) switch { "woff2" => 0, "woff" => 1, _ => 2 })
                     .Select(d => $"url(\"/schriften/{Uri.EscapeDataString(d)}\") format(\"{Format(d)}\")");
-                sb.Append($"@font-face {{ font-family: \"{Familie}\"; font-weight: {g.Key.Gewicht}; font-style: {(g.Key.Kursiv ? "italic" : "normal")}; font-display: swap; src: {string.Join(", ", quellen)}; }}\n");
+                // Avenir Next ist in den fetten Schnitten deutlich kräftiger als die Ersatzschrift: eine Stufe leichter einordnen
+                // (halbfett 600 → Medium, fett 700 → Demi, 800 → Bold) – so wirkt die Oberfläche wie in den Mustern, nicht zu fett
+                foreach (var css in CssGewichte(g.Key.Gewicht))
+                    sb.Append($"@font-face {{ font-family: \"{Familie}\"; font-weight: {css}; font-style: {(g.Key.Kursiv ? "italic" : "normal")}; font-display: swap; src: {string.Join(", ", quellen)}; }}\n");
             }
             if (dateien.Count > 0)
                 sb.Append(":root { --u-schrift: \"" + Familie + "\", \"Nunito Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; }\n")

@@ -315,6 +315,34 @@ public class VertretungsmodusDetailTests
     }
 
     [Fact]
+    public void Raumaenderung_Zusatzraum_loeschen_behaelt_den_urspruenglichen_Raum()
+    {
+        var (d, tag) = Daten();
+        var r = Normale(d, tag).First(x => x.RaumId.HasValue);
+        var tp = Tagesplan.Berechnen(d, tag);
+        var original = d.Raeume.First(x => x.Id == r.RaumId);
+        var zusatz = d.Raeume.First(x => x.Id != original.Id && !tp.Stunde(r.Stunde).Any(e => e.RaumIds.Contains(x.Id)));
+        var lehrer = d.Lehrer.First(l => l.Id == r.LehrerId);
+        var datum = tag.ToString("yyyy-MM-dd");
+        WebRueckmeldung Buchung(string id, params string[] raeume) => new()
+        {
+            Id = id, Typ = WebRueckmeldungsTypen.Raumbuchung, Absender = "web", Lehrer = lehrer.Kurzname, Von = datum, StundeVon = r.Stunde, StundeBis = r.Stunde,
+            UnterrichtNr = r.Unterricht.Id, Raeume = raeume.ToList(), Raum = raeume.FirstOrDefault(x => x != original.Kurzname),
+        };
+        // Zusatzraum hinzufügen (in der Reihenfolge der App: neuer Raum zuerst)
+        var a1 = StundenplanAenderungen.Analysieren(d, new[] { Buchung("R1", zusatz.Kurzname, original.Kurzname) }, tag, tag.AddDays(14), false);
+        StundenplanAenderungen.Uebernehmen(d, a1);
+        var e1 = Tagesplan.Berechnen(d, tag).Stunde(r.Stunde).Single(x => x.Unterricht?.Id == r.Unterricht.Id && x.LehrerIds.Contains(lehrer.Id));
+        Assert.Contains(original.Id, e1.RaumIds);
+        Assert.Contains(zusatz.Id, e1.RaumIds);
+        // Zusatzraum wieder löschen: der ursprüngliche Raum bleibt
+        var a2 = StundenplanAenderungen.Analysieren(d, new[] { Buchung("R2", original.Kurzname) }, tag, tag.AddDays(14), false);
+        StundenplanAenderungen.Uebernehmen(d, a2);
+        var e2 = Tagesplan.Berechnen(d, tag).Stunde(r.Stunde).Single(x => x.Unterricht?.Id == r.Unterricht.Id && x.LehrerIds.Contains(lehrer.Id));
+        Assert.Equal(new[] { original.Id }, e2.RaumIds);
+    }
+
+    [Fact]
     public void StundenplanAenderungenAusUntPlanWebOhneDoppelimport()
     {
         var (d, tag) = Daten();

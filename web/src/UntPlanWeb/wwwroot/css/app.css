@@ -585,7 +585,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .mk-plus::before { width: 8px; height: 1.8px; }
 .mk-plus::after { width: 1.8px; height: 8px; }
 .mk-kreis { background: var(--u-gelb); border-radius: 50%; }
-.mk-dreieck { width: 13px; height: 11px; background: var(--u-rot); clip-path: polygon(50% 0, 100% 100%, 0 100%); border-radius: 1px; }
+.mk-dreieck { width: 13px; height: 12px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 3.5 23.5 21H2.5Z' fill='%23f03e3e' stroke='%23f03e3e' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain; }
 
 /* Zustände (mit schwebendem Schatten wie im Original) */
 .std.geaendert, .std.offen, .std.buchung { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
@@ -1005,8 +1005,9 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .element-pill .wahl-knopf:hover { border-color: var(--u-text) !important; }
 .wahl-info { position: relative; display: inline-flex; width: 16px; height: 16px; flex: none; }
 .wahl-info img { width: 16px; height: 16px; opacity: .6; }
-.wahl-info::after { content: attr(data-tip); position: absolute; left: -48px; top: calc(100% + 12px); background: #67747e; color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; padding: 5px 9px; border-radius: 4px; display: none; z-index: 40; box-shadow: 0 2px 6px rgba(0, 5, 10, .15); }
-.wahl-knopf:hover .wahl-info::after, .wahl-knopf:focus-visible .wahl-info::after { display: block; }
+.wahl-info::after { content: attr(data-tip); position: absolute; left: -48px; top: calc(100% + 12px); background: #5c6670; color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; padding: 5px 9px; border-radius: 4px; display: none; z-index: 40; box-shadow: 0 2px 6px rgba(0, 5, 10, .15); }
+.wahl-info:hover::after, .wahl-knopf:focus-visible .wahl-info::after { display: block; }
+.wahl-info:hover img { opacity: 1; }
 
 /* Kalender wie 57.png: KW-Spalte, gestrichene Wochenenden, gewählte Woche rosa */
 .u-kalender { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 60; background: #fff; border-radius: 4px; padding: 18px 16px 12px; width: 360px;
@@ -1030,17 +1031,20 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .std.mit-zeit { padding-left: 46px; }
 .std.mit-zeit::before { left: 38px; }
 .std .zt { left: 7px; font-size: 10px; color: #8a96a1; }
-.std .z1 { font-weight: 700; color: #24323d; }
+.std .z1 { font-weight: 600; color: #24323d; }
 .std .z2 { color: #414d55; }
 /* Symbole unten rechts: fällige Hausaufgabe, Info (Notizen, Vertretungstext) */
 .std .ecke { position: absolute; right: 6px; bottom: 6px; display: flex; gap: 3px; z-index: 1; }
 .std .ecke img { width: 16px; height: 16px; display: block; }
 .tt.ohne-symbole .std .mks, .tt.ohne-symbole .std .ecke { display: none; }
 /* Lehrkraft abwesend (wie im Paket des Kollegen): gestrichelt, grau, ohne Schatten und ohne Entfall-Dreieck; eigenes Kürzel durchgestrichen */
-.std.lehrer-abwesend { background: #f1f5f8 !important; outline: 1px dashed #9aa7af; outline-offset: -1px; box-shadow: none !important; }
-.std.lehrer-abwesend::before { background: #b9c5cc; }
-.std.lehrer-abwesend .z1, .std.lehrer-abwesend .z2, .std.lehrer-abwesend .zt { text-decoration: none; color: #5b6770; }
-.std.lehrer-abwesend .lbl.weg { background: var(--u-gruen-label); color: #fff; text-decoration: line-through; }
+.std.lehrer-abwesend { background: #eff3f6 !important; outline: 1px dashed #a3adb5; outline-offset: -1px; box-shadow: none !important; border-radius: 5px; }
+.std.lehrer-abwesend::before { background: #c3cbd2; }
+.std.lehrer-abwesend .z1, .std.lehrer-abwesend .z2, .std.lehrer-abwesend .zt { text-decoration: none; }
+.std.lehrer-abwesend .z1 { color: #414d55; }
+.std.lehrer-abwesend .z2 { color: #57626b; }
+.std.lehrer-abwesend .zt { color: var(--u-grau-2); }
+.std.lehrer-abwesend .lbl.weg { background: var(--u-gruen-label); color: #fff; font-weight: 600; padding: 0 3px; border-radius: 2px; text-decoration: line-through; text-decoration-thickness: 1px; }
 .tt.ohne-abwesenheiten .std.lehrer-abwesend { display: none; }
 .tt.ohne-abwesenheiten .tt-ereignis.hinweis { display: none; }
 .hilfe-gestrichelt { display: inline-block; width: 22px; height: 14px; background: #f1f5f8; outline: 1px dashed #9aa7af; outline-offset: -1px; border-radius: 3px; flex: none; }
@@ -1160,12 +1164,15 @@ button, input, select, textarea, .modal, .tooltip, .dropdown-menu, .u-hover-labe
 
 /* UW-17: Hover nur auf Labels und Symbolen unten rechts – grünes Label „B070 → C197“ über dem geänderten Wert */
 .std .lbl[data-hover], .std .ecke [data-hover] { cursor: default; }
-.std .lbl[data-hover]:hover { box-shadow: 0 0 0 1px #fff, 0 0 0 2px var(--u-gruen-label); }
+.std .lbl[data-hover]:hover { filter: brightness(.92); }
 .u-hover-label {
   position: fixed; z-index: 2000; display: none; pointer-events: none; background: #1d9a5c; color: #fff; font-weight: 700; font-size: 15px; line-height: 1.2;
   padding: 7px 12px; border-radius: 3px; box-shadow: 0 2px 8px rgba(0, 5, 10, .25); white-space: pre-line; max-width: 360px;
 }
-.u-hover-label.dunkel { background: #5c6670; font-size: 13px; font-weight: 600; padding: 6px 10px; }
+.u-hover-label.dunkel { background: #5c6670; font-size: 13px; font-weight: 700; padding: 6px 10px; }
+/* Klassen einer Kopplung als Pillen über der Karte */
+.u-hover-label.pillen { background: none; box-shadow: none; padding: 0; display: flex; gap: 4px; flex-wrap: wrap; max-width: 420px; }
+.u-hover-label.pillen span { background: #5c6670; color: #fff; font-size: 13px; font-weight: 700; padding: 5px 9px; border-radius: 4px; box-shadow: 0 2px 6px rgba(0, 5, 10, .2); }
 
 /* UW-16: Ferien leicht abgerundet; Aufsichten ohne Trennlinie und ohne Aufschrift, Schrift wie der oberste Wert einer Karte */
 .tt-ferien { border-radius: 6px; inset: 1px 3px; }
@@ -1446,7 +1453,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .nl-knopf.gruen { color: #0f6b40; border-color: #9fd3b6; } .nl-knopf.rot { color: #a1262b; border-color: #e8a7aa; }
 .nl-zahlen { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .nl-zahl { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: #eef1f4; color: #414d55; font-size: .85rem; }
-.nl-zahl b { font-weight: 700; color: var(--u-text); }
+.nl-zahl b { font-weight: 600; color: var(--u-text); }
 .nl-zahl.rot { background: #fdecec; } .nl-zahl.gelb { background: #fff4d6; } .nl-zahl.lila { background: #efe8fb; }
 .nl-zahl.aktiv { outline: 2px solid var(--u-akzent); }
 .nl-tabelle { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; overflow: hidden; }
@@ -1470,7 +1477,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .nl-tabelle tr:hover .nl-icon, .nl-icon:focus-visible { opacity: 1; }
 .nl-icon:hover { background: #eef1f4; color: var(--u-text); } .nl-icon.rot:hover { color: #a1262b; }
 .nl-fuss { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid #e3e7eb; background: #fbfcfd; }
-.nl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .8rem; font-weight: 700; }
+.nl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .8rem; font-weight: 600; }
 .nl-chip.rot { background: #fdecec; color: #c62828; } .nl-chip.gruen { background: #e5f6ec; color: #0f7b47; } .nl-chip.gelb { background: #fff4d6; color: #8a5a00; }
 .nl-chip.lila { background: #efe8fb; color: #5b3fa0; } .nl-chip.grau { background: #eef1f4; color: #414d55; }
 @media (max-width: 767.98px) { .nl-tabelle { overflow-x: auto; } .nl-icon { opacity: 1; } }
@@ -1487,3 +1494,32 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .nw-eintrag ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; color: #414d55; }
 .nw-datum { font-size: .85rem; color: #67747e; display: flex; align-items: center; gap: 8px; }
 .nw-neu { padding: 1px 8px; border-radius: 999px; background: #fff0e8; color: #c2410c; font-weight: 700; font-size: .75rem; }
+/* Elementwahl: „Alle anzeigen“ – Schalter oben, alle Elemente als Pillen in einem breiten Feld */
+.wahl-alle-schalter { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; margin: 0; border-bottom: 1px solid #edf0f2; font-size: .92rem; cursor: pointer; }
+.wahl-alle-schalter input { appearance: none; -webkit-appearance: none; width: 40px; height: 22px; border-radius: 11px; background: #c9d0d6; position: relative; cursor: pointer; }
+.wahl-alle-schalter input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.wahl-alle-schalter input:checked { background: var(--u-akzent); }
+.wahl-alle-schalter input:checked::after { left: 21px; }
+.elementwahl .wahl-alle { display: none; position: absolute; top: calc(100% + 6px); z-index: 1000; max-height: 70vh; overflow: auto; padding: 10px 12px;
+  background: rgba(244, 245, 247, .97); border-radius: 8px; box-shadow: var(--u-schatten-hoch); flex-wrap: wrap; gap: 6px 4px; align-content: flex-start; }
+.elementwahl .wahl-alle.show { display: flex; }
+.wahl-pille { border: 0; background: transparent; border-radius: 999px; padding: 3px 10px; font: inherit; font-size: .9rem; color: var(--u-text); }
+.wahl-pille:hover { background: #e3e7eb; }
+.wahl-pille.aktiv { background: #56616b; color: #fff; }
+@media (max-width: 767.98px) { .elementwahl .wahl-alle { display: none !important; } .wahl-alle-schalter { display: none; } }
+/* Administration und Stammdaten: Untermenü ohne Symbole, etwas schmaler; Hintergrund nur beim Überfahren, gewählter Punkt orange */
+.u-nav-kompakt .u-nav-sym { display: none; }
+.u-nav-kompakt .u-nav-punkt { padding-top: 7px; padding-bottom: 7px; padding-left: 28px; font-size: .92rem; min-height: 0; width: calc(100% - 28px); }
+.u-nav-kompakt .u-nav-punkt:hover { background: #f1f3f5; }
+.u-nav-kompakt .u-nav-punkt.aktiv, .u-nav-kompakt .u-nav-punkt.aktiv:hover { background: #fff0ea; color: var(--u-akzent); }
+.u-nav-punkt:not(:hover):not(.aktiv) { background: none; }
+
+/* Fehlzeiten: eine Tabelle, je Schüler*in aufklappbar */
+.fz-tabelle tr.fz-schueler { cursor: pointer; }
+.fz-tabelle tr.fz-schueler.auf td { background: #f7f9fa; border-bottom-color: transparent; }
+.fz-tabelle tr.fz-stunde td { background: #fbfcfd; padding-top: 7px; padding-bottom: 7px; font-size: .88rem; }
+.fz-zahl { display: inline-block; min-width: 28px; padding: 2px 8px; border-radius: 6px; background: #eef1f4; text-align: center; font-weight: 500; font-variant-numeric: tabular-nums; }
+.fz-zahl.fett { font-weight: 600; } .fz-zahl.gelb { background: #fff4d6; } .fz-zahl.gruen { background: #e3f4ea; color: #0f6b40; } .fz-zahl.rot { background: #fdecec; color: #a1262b; }
+.fz-null { color: #b3bcc3; }
+.abw-details-titel { margin-top: 4px; padding-top: 12px; border-top: 1px solid #e3e7eb; font-weight: 600; font-size: .9rem; color: #414d55; }
+.modal-body .row > .col-12:first-child .abw-details-titel { border-top: 0; padding-top: 0; margin-top: 0; }

@@ -75,8 +75,9 @@ export function karteDialog(karte, kontext = {}) {
 
   const istEntfall = () => k.status === 'entfall' || (k.status === 'abwesend' && kontext.typ !== 'lehrer');
   const mitKlassenbuch = () => kollegium && k.unterricht && !['entfall', 'abwesend', 'vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
-  const darfPruefung = () => kollegium && k.unterricht && k.klassen.length && k.datum >= heuteIso() && !['entfall', 'abwesend', 'veranstaltung', 'vorgemerkt'].includes(k.status);
-  const darfRaum = () => darfPruefung() && (daten?.darf || ich.admin);
+  // Prüfung auch in Vertretungs- und Zusatzstunden (ohne eigenen Unterricht), nur nicht in entfallenen Stunden oder Veranstaltungen
+  const darfPruefung = () => kollegium && kuerzel(k.klassen).length && k.datum >= heuteIso() && !['entfall', 'abwesend', 'veranstaltung', 'vorgemerkt'].includes(k.status);
+  const darfRaum = () => darfPruefung() && k.unterricht && (daten?.darf || ich.admin);
   const klassenListe = () => kuerzel(k.klassen);
   // gekoppelte Karten mit unterschiedlichen Fächern teilen sich den Unterricht: Klassenbuch der Lehrkraft dieser Karte
   const einzigeLehrkraft = () => { const l = kuerzel(k.lehrer); return l.length === 1 && !(k.lehrer[0].alt && !k.lehrer[0].k) ? `&lehrer=${encodeURIComponent(l[0])}` : ''; };
@@ -358,7 +359,6 @@ export function karteDialog(karte, kontext = {}) {
     const vertretung = k.text && (k.fach || k.status !== 'veranstaltung') ? k.text : '';
     if (vertretung && k.status !== 'klausur') teile.push(reihe(datei, k.fach ? 'Vertretungstext' : 'Bezeichnung', `<p class="sd-text">${e(vertretung)}</p>`));
     if (k.status === 'klausur') teile.push(reihe(datei, 'Prüfung', `<p class="sd-text">${e([k.art, k.text].filter(Boolean).join(' – '))}</p>`));
-    if (k.status !== 'regulaer' && k.art && !vertretung && k.status !== 'klausur' && !/^raum(änderung|buchung)/i.test(k.art)) teile.push(reihe(datei, 'Vertretungsart', `<p class="sd-text">${e(k.art)}</p>`));
     if (ein?.thema) teile.push(reihe(datei, 'Lehrstoff', `<p class="sd-text">${e(ein.thema)}</p>`));
     const hw = daten.hausaufgaben;
     if (hw.faellig.length) teile.push(reihe(bildIcon('exact/homework.svg'), 'Fällige Hausaufgaben', hw.faellig.map(h => hausaufgabeZeile(h, false)).join('')));
@@ -422,7 +422,8 @@ export function karteDialog(karte, kontext = {}) {
     const alt = daten.eintrag ?? {};
     const neu = { thema: alt.thema ?? '', hausaufgabe: alt.hausaufgabe ?? '', faellig: alt.faellig ?? null, notiz: alt.notiz ?? '', notizSchueler: alt.notizSchueler ?? '', ...aenderung };
     try {
-      daten.eintrag = await senden('/api/app/klassenbuch/stunde', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, ...neu }, 'PUT');
+      const lk = kuerzel(k.lehrer);
+      daten.eintrag = await senden('/api/app/klassenbuch/stunde', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, ...neu, faellig: neu.faellig || null, lehrer: lk.length === 1 ? lk[0] : null }, 'PUT');
       geaendert = true;
       toast('Gespeichert.');
       return true;
@@ -660,7 +661,12 @@ export function karteDialog(karte, kontext = {}) {
     return res;
   }
 
+  let raumLaeuft = false;
   async function raumAendern(raeume, meldung) {
+    // nur eine Änderung gleichzeitig (Doppelklick), Knöpfe währenddessen gesperrt
+    if (raumLaeuft) return;
+    raumLaeuft = true;
+    box.querySelectorAll('[data-raum-loeschen], [data-raum-ersetzen], [data-raum-plus], [data-raum-uebernehmen]').forEach(x => { x.disabled = true; });
     try {
       await senden('/api/app/meldungen/raumaenderung', { datum: k.datum, stundeVon: k.von, stundeBis: k.bis, unterricht: k.unterricht, raeume });
       const i = liste.indexOf(k);
@@ -670,7 +676,10 @@ export function karteDialog(karte, kontext = {}) {
       toast(meldung);
       reiter = 'details'; raumModus = null;
       zeichnen();
-    } catch (err) { toast(err.message, true); }
+    } catch (err) {
+      toast(err.message, true);
+      box.querySelectorAll('[data-raum-loeschen], [data-raum-ersetzen], [data-raum-plus], [data-raum-uebernehmen]').forEach(x => { x.disabled = false; });
+    } finally { raumLaeuft = false; }
   }
 
   /** Auswahlliste wie im Original: Suche, Abteilung als Auswahl-Pille, Raumarten als Pillen, Zeilen mit Radio-Auswahl. */

@@ -71,6 +71,8 @@ public class Program
         {
             o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             o.SerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never;
+            // leere Datumsfelder aus Formularen ("") als „kein Datum“ lesen statt die Anfrage mit 400 abzulehnen
+            o.SerializerOptions.Converters.Add(new LeeresDatum());
         });
         // Schlüssel für Anmelde-Cookies im Datenordner, damit Anmeldungen einen Neustart des Containers überstehen
         builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(konfig.Datenordner, "schluessel"))).SetApplicationName("UntPlanWeb");
@@ -201,3 +203,21 @@ public static class Kontext
             new AuthenticationProperties { IsPersistent = true });
     }
 }
+
+/// <summary>DateOnly? aus JSON: "" bzw. Leerzeichen = null (Formularfelder), sonst ISO-Datum.</summary>
+internal sealed class LeeresDatum : System.Text.Json.Serialization.JsonConverter<DateOnly?>
+{
+    public override DateOnly? Read(ref System.Text.Json.Utf8JsonReader r, Type t, System.Text.Json.JsonSerializerOptions o)
+    {
+        if (r.TokenType == System.Text.Json.JsonTokenType.Null) return null;
+        var s = r.GetString();
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        return DateOnly.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : throw new System.Text.Json.JsonException("Ungültiges Datum.");
+    }
+
+    public override void Write(System.Text.Json.Utf8JsonWriter w, DateOnly? v, System.Text.Json.JsonSerializerOptions o)
+    {
+        if (v is DateOnly d) w.WriteStringValue(d.ToString("yyyy-MM-dd")); else w.WriteNullValue();
+    }
+}
+

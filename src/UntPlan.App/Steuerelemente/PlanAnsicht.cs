@@ -164,7 +164,8 @@ public sealed class PlanAnsicht : Control
     private string _letzterTip = "";
 
     private int KopfHoehe => KlassikStil ? (Format.Klein ? 20 : 30) : Format.Klein ? 17 : 22;
-    private int KopfBreite => KlassikStil ? (Format.Klein ? 26 : Format.ZeitenAnzeigen ? 72 : 34) : Format.Klein ? 20 : Format.ZeitenAnzeigen ? 74 : 32;
+    // im Druck etwas breiter, damit „10:40-11:25“ vollständig in die Stundenspalte passt
+    private int KopfBreite => (KlassikStil ? (Format.Klein ? 26 : Format.ZeitenAnzeigen ? 72 : 34) : Format.Klein ? 20 : Format.ZeitenAnzeigen ? 74 : 32) + (_druck && Format.ZeitenAnzeigen && !Format.Klein ? 12 : 0);
     private int PausenHoehe => KlassikStil ? (Format.Klein ? 15 : 16) : Format.Klein ? 12 : 15;
 
     /// <summary>

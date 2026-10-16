@@ -3625,8 +3625,8 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 /* Aktionszeilen */
 .sheet--detail .drows{ padding:6px 18px 0; }
 .sheet--detail .drow2{
-  grid-template-columns:28px 1fr auto; gap:20px;
-  padding:15px 0; min-height:64px; cursor:pointer;
+  grid-template-columns:28px 1fr auto; gap:18px;
+  padding:9px 0; min-height:50px; cursor:pointer;
 }
 .sheet--detail .drow2 + .drow2, .is-dark .sheet--detail .drow2 + .drow2{ border-top:0; }
 .sheet--detail .drow2__ico{ color:var(--d-muted); display:grid; place-items:center; }
@@ -3778,3 +3778,51 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .detail__when b .detail__when-sep, .sheet--detail .detail__when b .detail__when-sep{
   display:inline; font-size:inherit; margin:0; padding:0 5px; color:var(--d-muted, #9aa5ae); font-weight:300; letter-spacing:0;
 }
+
+/* =====================================================================
+   Untere Leiste im Liquid-Glass-Stil (nur die System-Reiter):
+   klares Glas mit starker Unschärfe, Glanzkante oben, weicher Schatten,
+   aktiver Reiter als kleine Glaslinse mit Akzentfarbe
+   ===================================================================== */
+.tabbar{
+  background:linear-gradient(180deg, rgba(255,255,255,.62) 0%, rgba(255,255,255,.38) 100%);
+  backdrop-filter:blur(26px) saturate(200%) brightness(1.04);
+  -webkit-backdrop-filter:blur(26px) saturate(200%) brightness(1.04);
+  border:.5px solid rgba(255,255,255,.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 0 -1px 1px rgba(255,255,255,.35),
+    inset 0 0 0 .5px rgba(0,0,0,.04),
+    0 10px 30px rgba(20,28,36,.14),
+    0 1px 3px rgba(20,28,36,.08);
+  overflow:hidden;
+  isolation:isolate;
+}
+/* Lichtreflex oben auf dem Glas */
+.tabbar::before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:-1; border-radius:inherit;
+  background:radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,.65) 0%, rgba(255,255,255,0) 60%);
+}
+.tab{ font-size:11px; font-weight:600; letter-spacing:-.01em; color:#2b333a; }
+.tab .ico{ stroke-width:1.8; }
+.tab.is-active{ color:var(--u-orange); }
+.tab.is-active::before{
+  inset:5px 4px;
+  background:linear-gradient(180deg, rgba(255,255,255,.75), rgba(236,239,242,.55));
+  box-shadow:inset 0 .5px 0 rgba(255,255,255,.95), inset 0 0 0 .5px rgba(0,0,0,.05), 0 2px 8px rgba(20,28,36,.10);
+}
+html.is-dark .tabbar{
+  background:linear-gradient(180deg, rgba(44,44,48,.62) 0%, rgba(24,24,27,.5) 100%);
+  border-color:rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 10px 30px rgba(0,0,0,.45);
+}
+html.is-dark .tabbar::before{ background:radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,.12) 0%, rgba(255,255,255,0) 60%); }
+html.is-dark .tab{ color:#c9ced3; }
+html.is-dark .tab.is-active{ color:var(--u-orange); }
+html.is-dark .tab.is-active::before{ background:rgba(255,255,255,.12); box-shadow:inset 0 .5px 0 rgba(255,255,255,.2); }
+@media (min-width:820px){
+  .tab > span{ font-weight:600; }
+}
+
+/* Ohne Raum: Pill „Raum hinzufügen“ (gestrichelt, Akzentfarbe) */
+.droom__neu{ background:transparent; border:1.5px dashed color-mix(in srgb, var(--u-orange) 70%, transparent); color:var(--u-orange); font-weight:600; letter-spacing:0; }

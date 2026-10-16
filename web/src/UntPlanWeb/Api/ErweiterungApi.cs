@@ -19,8 +19,10 @@ namespace UntPlanWeb.Api;
 public static class ErweiterungApi
 {
     public sealed record OnlineDaten(DateOnly Datum, int Stunde, int Unterricht, bool Online);
-    public sealed record AbwesenheitNeuDaten(int SchuelerId, DateOnly Von, DateOnly Bis, int? StundeVon, int? StundeBis, string? Grund, string? Status, string? Bemerkung);
-    public sealed record AbwesenheitAenderDaten(List<int> Ids, string? Grund, string? Bemerkung, string? Status);
+    public sealed record AbwesenheitNeuDaten(int SchuelerId, DateOnly Von, DateOnly Bis, int? StundeVon, int? StundeBis, string? Grund, string? Status, string? Bemerkung,
+        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null);
+    public sealed record AbwesenheitAenderDaten(List<int> Ids, string? Grund, string? Bemerkung, string? Status,
+        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null);
     public sealed record IdsDaten(List<int> Ids);
     public sealed record DienstDaten(int DienstId, int SchuelerId, DateOnly Von, DateOnly Bis, string? Text);
     public sealed record DienstWocheDaten(int DienstId, int SchuelerId, DateOnly Datum, bool An);
@@ -98,7 +100,7 @@ public static class ErweiterungApi
                 for (var d = heute; d <= heute.AddDays(14); d = d.AddDays(1))
                 {
                     if (plan.Frei(s, d).Frei) continue;
-                    karten = kb.Anreichern(plan.Karten(s, d, typ, element, r.Vorgemerkt(d)), b.Kollegium);
+                    karten = kb.Anreichern(plan.Karten(s, d, typ, element, r.Vorgemerkt(d, s)), b.Kollegium);
                     tag = d;
                     if (karten.Count > 0) break;
                 }
@@ -168,9 +170,10 @@ public static class ErweiterungApi
         api.MapGet("/abwesenheiten/texte", (HttpContext c, Klassenbuchverwaltung kv) => { Kollegium(c); return Results.Json(kv.LetzteTexte()); });
         api.MapPost("/abwesenheiten", (AbwesenheitNeuDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(new { stunden = kb.FehlenEintragen(Kollegium(c), Paket(p), d.SchuelerId, d.Von, d.Bis, d.Status ?? "offen", d.Bemerkung ?? "", d.Grund ?? "",
-                Math.Max(1, d.StundeVon ?? 1), Math.Max(1, d.StundeBis ?? 99)) }));
+                Math.Max(1, d.StundeVon ?? 1), Math.Max(1, d.StundeBis ?? 99), d.Nachweis, d.EntschuldigtAm, d.ElternInformiert ?? false, d.NotizIntern) }));
         api.MapPut("/abwesenheiten", (AbwesenheitAenderDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
-            Results.Json(new { geaendert = kv.AbwesenheitAendern(Kollegium(c), Paket(p), d.Ids ?? new(), d.Grund, d.Bemerkung, d.Status) }));
+            Results.Json(new { geaendert = kv.AbwesenheitAendern(Kollegium(c), Paket(p), d.Ids ?? new(), d.Grund, d.Bemerkung, d.Status,
+                d.Nachweis, d.EntschuldigtAm, d.ElternInformiert, d.NotizIntern) }));
         api.MapPost("/abwesenheiten/loeschen", (IdsDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
             Results.Json(new { geloescht = kv.AbwesenheitenLoeschen(Kollegium(c), Paket(p), d.Ids ?? new()) }));
         api.MapPost("/abwesenheiten/zusammenfassen", (IdsDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
@@ -268,7 +271,8 @@ public static class ErweiterungApi
                 var schule = es.Schulname.Length > 0 ? es.Schulname : Paket(p).Paket.Schule.Name;
                 var unter = $"{(Leer(klasse) is { } kl ? $"Klasse {kl} · " : "")}Zeitraum {v:dd.MM.yyyy} – {bi:dd.MM.yyyy}";
                 var pdf = PdfBericht.Erzeugen(schule, bericht.Titel, unter, bericht.Spalten,
-                    bericht.Zeilen.Select(z => (IReadOnlyList<string>)z.Select(x => Convert.ToString(x, System.Globalization.CultureInfo.GetCultureInfo("de-DE")) ?? "").ToList()).ToList(), bericht.Hinweis);
+                    bericht.Zeilen.Select(z => (IReadOnlyList<string>)z.Select(x => Convert.ToString(x, System.Globalization.CultureInfo.GetCultureInfo("de-DE")) ?? "").ToList()).ToList(), bericht.Hinweis,
+                    b.Anzeigename);
                 return Results.File(pdf, "application/pdf", dateiname + ".pdf");
             }
             return format == "csv"

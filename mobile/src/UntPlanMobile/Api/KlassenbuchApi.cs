@@ -17,19 +17,19 @@ namespace UntPlanMobile.Api;
 /// </summary>
 public static class KlassenbuchApi
 {
-    private sealed record Schluessel(DateOnly Datum, int Stunde, int? Unterricht, string Klasse);
+    private sealed record Schluessel(DateOnly Datum, int Stunde, int? Unterricht, string Klasse, string Lehrer = "");
 
     private static Schluessel? SchluesselLesen(Parameter p)
     {
         var datum = p.Datum("date");
         var stunde = p.Zahl("lesson");
         if (datum is null || stunde is null) return null;
-        return new Schluessel(datum.Value, stunde.Value, p.Zahl("unterricht") ?? p.Zahl("entry"), p["class"].Split(',')[0].Trim());
+        return new Schluessel(datum.Value, stunde.Value, p.Zahl("unterricht") ?? p.Zahl("entry"), p["class"].Split(',')[0].Trim(), p["teacher"].Trim());
     }
 
     private static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    private static string Stunde(Schluessel k) => $"datum={Iso(k.Datum)}&stunde={k.Stunde}&unterricht={k.Unterricht}";
+    private static string Stunde(Schluessel k) => $"datum={Iso(k.Datum)}&stunde={k.Stunde}&unterricht={k.Unterricht}{(k.Lehrer.Length > 0 ? "&lehrer=" + Uri.EscapeDataString(k.Lehrer) : "")}";
 
     private static IResult Fehler(string meldung, int status = 400) => Results.Json(new { ok = false, error = meldung }, statusCode: status);
 
@@ -193,6 +193,7 @@ public static class KlassenbuchApi
         {
             datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht,
             thema = e.Thema, hausaufgabe = e.Hausaufgabe, faellig = string.IsNullOrEmpty(e.Faellig) ? null : e.Faellig, notiz = e.Notiz, notizSchueler = e.NotizSchueler,
+            lehrer = k.Lehrer.Length > 0 ? k.Lehrer : null,
         });
 
     private static async Task<IResult> TextSpeichernAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k, string feld, string wert)

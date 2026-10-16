@@ -9,8 +9,8 @@ export const STATUSTEXT = {
   bereitschaft: 'Bereitschaft', buchung: 'Raumbuchung', vorgemerkt: 'vorgemerkt', veranstaltung: 'Veranstaltung',
 };
 
+/** Allgemeiner Status (die interne Vertretungsart wird im Web bewusst nicht angezeigt). */
 export function statusText(k) {
-  if ((k.status === 'entfall' || k.status === 'geaendert') && k.art && k.art.length <= 18) return k.art;
   return STATUSTEXT[k.status] ?? '';
 }
 
@@ -29,6 +29,8 @@ export function gekuerzt(liste, max = 3, entfall = false) {
   const l = liste || [];
   return l.length <= max + 1 ? werte(l, entfall) : `${werte(l.slice(0, max), entfall)} <span class="mehr">+${l.length - max}</span>`;
 }
+
+const kuerzelListe = l => (l || []).map(w => w.k || w.alt).filter(Boolean);
 
 export function werte(liste, entfall = false) {
   return (liste || []).map(w => {
@@ -120,7 +122,10 @@ export function karteInhalt(k, typ, kompakt = false) {
   // abwesende Klasse: Label „abwesend …“ (Hover mit den Klassen)
   if (abwesend(k).size && !entfall) zeilen.push(`<span class="abw-label" data-hover="${e([...abwesend(k)].join(', ') + ' ' + (k.abwesendText || 'abwesend'))}" data-hover-art="dunkel">${e(k.abwesendText || 'abwesend')}</span>`);
   const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.join(' · ')}</div>` : '') : zeilen.map(x => `<div class="z2">${x}</div>`).join('');
-  return `${marker(k, typ)}<div class="z1">${oben}</div>${rumpf}${eckSymbole(k)}`;
+  // mehrere Klassen (Kopplung, Kurs): beim Zeigen auf die erste Zeile alle Klassen als Pillen (gekürzte Anzeige)
+  const kl = kuerzelListe(k.klassen);
+  const pillen = kl.length > 1 && typ !== 'klasse' ? ` data-hover-pillen="${e(kl.join(','))}"` : '';
+  return `${marker(k, typ)}<div class="z1"${pillen}>${oben}</div>${rumpf}${eckSymbole(k)}`;
 }
 
 /** CSS-Klassen einer Karte (Status, Lehrkraft abwesend, vergangen). */
@@ -288,8 +293,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       for (const [von, bis] of abschnitte(k, aufbau, index, k.status === 'veranstaltung' || aufsichtModus !== 'normal')) {
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
         const oben = aufbau.oben[iv] + 1, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 1;
-        // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“)
-        const mitZeit = kartenZeiten && h >= 60 && anzahl === 1;
+        // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“); bei zwei parallelen Stunden nur in der linken
+        const mitZeit = kartenZeiten && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
           aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + ${spur ? 2 : 0}px);width:calc(${breite}% - ${anzahl > 1 ? 2 : 0}px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
@@ -330,26 +335,36 @@ export function tagAuswahl(plan, gewaehlt) {
  * „B070 → C197“ über dem geänderten Wert bzw. dunkler Hinweis über dem Info-Symbol. Ein schwebendes Element, damit es
  * nicht von der Karte abgeschnitten wird.
  */
-let hoverEl = null;
+let hoverEl = null, hoverZiel = null, hoverTimer = 0;
 function hoverZeigen(ziel) {
+  clearTimeout(hoverTimer);
   if (!hoverEl) { hoverEl = document.createElement('div'); hoverEl.className = 'u-hover-label'; hoverEl.setAttribute('role', 'tooltip'); document.body.append(hoverEl); }
-  hoverEl.textContent = ziel.dataset.hover;
+  if (hoverZiel === ziel && hoverEl.style.display === 'block') return;   // ruhig stehen lassen, kein Flackern beim Bewegen
+  hoverZiel = ziel;
+  const pillen = ziel.dataset.hoverPillen;
+  if (pillen) hoverEl.innerHTML = pillen.split(',').map(x => `<span>${e(x)}</span>`).join('');
+  else hoverEl.textContent = ziel.dataset.hover;
   hoverEl.classList.toggle('dunkel', ziel.dataset.hoverArt === 'dunkel');
+  hoverEl.classList.toggle('pillen', !!pillen);
   hoverEl.style.display = 'block';
   const r = ziel.getBoundingClientRect();
   const b = hoverEl.offsetWidth, h = hoverEl.offsetHeight;
   const unten = ziel.dataset.hoverPos === 'unten';
-  const links = Math.max(6, Math.min(window.innerWidth - b - 6, unten ? r.left : ziel.dataset.hoverArt === 'dunkel' ? r.right - b : r.left - 4));
-  hoverEl.style.left = `${links}px`;
-  hoverEl.style.top = `${unten ? r.bottom + 6 : Math.max(6, r.top - h - 6)}px`;
+  const links = Math.max(6, Math.min(window.innerWidth - b - 6, unten || pillen ? r.left : ziel.dataset.hoverArt === 'dunkel' ? r.right - b : r.left - 4));
+  hoverEl.style.left = `${Math.round(links)}px`;
+  hoverEl.style.top = `${Math.round(unten ? r.bottom + 6 : Math.max(6, r.top - h - 6))}px`;
 }
-function hoverVerbergen() { if (hoverEl) hoverEl.style.display = 'none'; }
+function hoverVerbergen(sofort = false) {
+  clearTimeout(hoverTimer);
+  const weg = () => { if (hoverEl) hoverEl.style.display = 'none'; hoverZiel = null; };
+  if (sofort) weg(); else hoverTimer = setTimeout(weg, 80);
+}
 document.addEventListener('mouseover', ev => {
-  const z = ev.target.closest?.('[data-hover]');
-  if (z && z.closest('.std, .tt-liste, .tagplan, .sd-kopf, .u-hover-bereich')) hoverZeigen(z); else hoverVerbergen();
+  const z = ev.target.closest?.('[data-hover], [data-hover-pillen]');
+  if (z && z.closest('.std, .tt-liste, .tagplan, .sd-kopf, .u-hover-bereich')) hoverZeigen(z); else if (hoverZiel) hoverVerbergen();
 });
-document.addEventListener('scroll', hoverVerbergen, true);
-document.addEventListener('click', hoverVerbergen, true);
+document.addEventListener('scroll', () => hoverVerbergen(true), true);
+document.addEventListener('click', () => hoverVerbergen(true), true);
 
 /** Klick auf eine Karte öffnet den Detaildialog. */
 export function kartenBinden(wurzel, karten, kontext, typ = null) {

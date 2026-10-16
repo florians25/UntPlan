@@ -25,7 +25,7 @@ public static class AppApi
     public sealed record HausaufgabeAenderDaten(string? Text, DateOnly? Faellig, string? Bemerkung, bool? Erledigt);
     public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis);
     public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null,
-        string? Lehrform = null, string? Anmerkung = null);
+        string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
 
@@ -159,7 +159,7 @@ public static class AppApi
             var b = Ich(c);
             PlanErlaubt(b, typ, element);
             var s = Paket(p);
-            var w = plan.Wochenplan(s, typ, element, Datum(datum, uhr), b.Kollegium, r.Vorgemerkt);
+            var w = plan.Wochenplan(s, typ, element, Datum(datum, uhr), b.Kollegium, d => r.Vorgemerkt(d, s));
             // Notizen und fällige Hausaufgaben für die Symbole auf den Karten
             return Results.Json(w with { Karten = kb.Anreichern(w.Karten, b.Kollegium) });
         });
@@ -169,7 +169,8 @@ public static class AppApi
             var b = Ich(c);
             if (!Elementtyp.Gueltig(typ)) throw new ArgumentException("Unbekannte Ansicht.");
             if (!b.Kollegium) throw new UnauthorizedAccessException("Die Tagesübersicht steht nur dem Kollegium zur Verfügung.");
-            return Results.Json(plan.Tag(Paket(p), typ, Datum(datum, uhr), b.Kollegium, r.Vorgemerkt));
+            var st = Paket(p);
+            return Results.Json(plan.Tag(st, typ, Datum(datum, uhr), b.Kollegium, d => r.Vorgemerkt(d, st)));
         });
 
         api.MapGet("/vertretungen", (string? datum, int? tage, HttpContext c, Paketdienst p, Vertretungsplandienst vp, Uhr uhr) =>
@@ -195,7 +196,7 @@ public static class AppApi
             var tag = vp.NaechsteTage(s, heute, 1).FirstOrDefault(heute);
             var typ = b.KlassenKuerzel != null ? Elementtyp.Klasse : Elementtyp.Lehrer;
             var element = b.KlassenKuerzel ?? b.LehrerKuerzel;
-            var karten = element is null ? new List<Karte>() : kb.Anreichern(plan.Karten(s, tag, typ, element, r.Vorgemerkt(tag)), b.Kollegium);
+            var karten = element is null ? new List<Karte>() : kb.Anreichern(plan.Karten(s, tag, typ, element, r.Vorgemerkt(tag, s)), b.Kollegium);
             var aufsichten = element is not null && typ == Elementtyp.Lehrer ? plan.Aufsichten(s, tag, element) : new List<Aufsicht>();
             var termine = s.Paket.Termine.Where(t => DateOnly.TryParse(t.Von, out var v) && v >= heute && v <= heute.AddDays(14) &&
                     (element is null || (typ == Elementtyp.Klasse ? t.Klassen.Contains(element, StringComparer.OrdinalIgnoreCase) : t.Lehrer.Contains(element, StringComparer.OrdinalIgnoreCase))))
@@ -280,13 +281,15 @@ public static class AppApi
         {
             var b = Ich(c);
             var s = Paket(p);
-            var eintrag = kb.Zeitraum(datum, datum).FirstOrDefault(e => e.Unterricht == unterricht && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
-                                                                         (b.Kollegium || e.Klassen.Contains(b.KlassenKuerzel ?? "", StringComparer.OrdinalIgnoreCase)));
+            // die nächstliegende Stunde (Blockbeginn) zuerst – bei Kopplungen mit Einzel- und Doppelstunden nicht den Eintrag einer anderen Lehrkraft
+            var eintrag = kb.Zeitraum(datum, datum).Where(e => e.Unterricht == unterricht && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
+                                                                         (b.Kollegium || e.Klassen.Contains(b.KlassenKuerzel ?? "", StringComparer.OrdinalIgnoreCase)))
+                .OrderByDescending(e => e.Stunde).FirstOrDefault();
             if (eintrag != null && !b.Kollegium) eintrag = eintrag with { Notiz = "" };
             return Results.Json(new { eintrag, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
         });
         api.MapPut("/klassenbuch/stunde", (KlassenbuchDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
-            Results.Json(kb.Speichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? "", d.Hausaufgabe ?? "", d.Faellig, d.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung)));
+            Results.Json(kb.Speichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? "", d.Hausaufgabe ?? "", d.Faellig, d.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung, d.Lehrer)));
         // Hausaufgaben einer Stunde (Liste wie im Original) und die in dieser Stunde fälligen Hausaufgaben
         api.MapGet("/klassenbuch/hausaufgabenliste", (DateOnly datum, int stunde, int unterricht, int? bis, string? fach, string? klassen, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {

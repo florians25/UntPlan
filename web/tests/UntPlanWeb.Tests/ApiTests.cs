@@ -365,8 +365,15 @@ public class RueckmeldungTests
     {
         await using var s = await Testserver.StartenAsync();
         var c = await s.AlsAsync("mue", "lehrer", "MUE");
-        await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/klausur", new { datum = "2026-10-16", stundeVon = 3, stundeBis = 4, klassen = new[] { "EF" }, raeume = new[] { "R106" }, aufsicht = new[] { "MUE" }, titel = "Deutsch GK" }));
+        // belegter Raum wird abgelehnt
+        var belegt = await c.PostAsJsonAsync("/api/app/meldungen/klausur", new { datum = "2026-10-16", stundeVon = 3, stundeBis = 4, klassen = new[] { "EF" }, raeume = new[] { "R106" }, aufsicht = new[] { "MUE" }, titel = "Deutsch GK" });
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, belegt.StatusCode);
+        var frei = (await Testserver.HolenAsync(c, "/api/app/meldungen/freieraeume?datum=2026-10-16&von=3&bis=4")).AsArray()[0]!["kurz"]!.GetValue<string>();
+        // doppelt abgeschickt: nur eine Prüfung
+        for (var i = 0; i < 2; i++)
+            await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/klausur", new { datum = "2026-10-16", stundeVon = 3, stundeBis = 4, klassen = new[] { "EF" }, raeume = new[] { frei }, aufsicht = new[] { "MUE" }, titel = "Deutsch GK" }));
         var offen = await Testserver.HolenAsync(s.SyncClient(), $"/api/v1/schulen/{Testserver.SchulId}/rueckmeldungen");
+        Assert.Single(offen.AsArray(), x => x!["typ"]!.GetValue<string>() == "klausur");
         var k = offen[0]!;
         Assert.Equal("klausur", k["typ"]!.GetValue<string>());
         Assert.Equal("Deutsch GK", k["titel"]!.GetValue<string>());

@@ -136,13 +136,23 @@ public static class StundenplanAenderungen
                 case StplAenderungsArt.Unterricht:
                 {
                     if (raeume.Count == 0) { nein.Add((a.Id, "kein Raum angegeben")); continue; }
-                    var neu = Raumvertretungen.Zuordnen(d, a.UnterrichtId!.Value, a.ZeilenIndex ?? 0, a.Datum, stunden, raeume[0], false, RaumKollisionsLoesung.MitKollision, benutzer);
+                    // Die Rückmeldung enthält die vollständige neue Raumliste: der ursprüngliche Raum bleibt Hauptraum, solange er dabei ist;
+                    // die übrigen sind genau die Zusatzräume (gelöschte Zusatzräume verschwinden, der ursprüngliche Raum bleibt erhalten)
+                    var regel = Tagesplan.Berechnen(d, a.Datum).Stunde(a.StundeVon).FirstOrDefault(x => x.Unterricht?.Id == a.UnterrichtId);
+                    var ursprung = regel?.Regel?.RaumId;
+                    var haupt = ursprung is int ur && raeume.Contains(ur) ? ur : raeume[0];
+                    var zusatz = raeume.Where(r => r != haupt).ToList();
+                    var neu = Raumvertretungen.Zuordnen(d, a.UnterrichtId!.Value, a.ZeilenIndex ?? 0, a.Datum, stunden, haupt, false, RaumKollisionsLoesung.MitKollision, benutzer);
                     foreach (var v in neu.Where(v => v.UnterrichtId == a.UnterrichtId))
                     {
                         v.Text = a.Text;
                         v.WebId = a.Id;
-                        foreach (var z in raeume.Skip(1)) if (!v.ZusatzraumIds.Contains(z)) v.ZusatzraumIds.Add(z);
+                        v.ZusatzraumIds = zusatz.ToList();
                     }
+                    // wieder genau der ursprüngliche Raum: bestehende Zusatzräume dieser Stunden entfernen
+                    if (zusatz.Count == 0)
+                        foreach (var v in d.Vertretungen.Where(v => v.Datum == a.Datum && v.UnterrichtId == a.UnterrichtId && stunden.Contains(v.Stunde)))
+                            v.ZusatzraumIds.Clear();
                     break;
                 }
                 case StplAenderungsArt.Aktivitaet:

@@ -1,6 +1,23 @@
 [
   {
-    "datum": "2026-10-16", "titel": "Abwesenheiten, Schrift und Export",
+    "datum": "2026-10-16",
+    "titel": "Fehlzeiten mit Details, PDF als Schuldokument",
+    "punkte": [
+      "Abwesenheiten mit weiteren Angaben: Nachweis (Attest, schriftlich, mündlich …), Eingang der Entschuldigung, Eltern informiert, interne Notiz der Klassenleitung.",
+      "Fehlzeiten zeigen nur noch echte Fehlzeiten in einer Tabelle – je Schüler*in aufklappbar mit den einzelnen Stunden.",
+      "PDF-Berichte mit Briefkopf, Logo, „Seite x von y“, rechtsbündigen Zahlen und Unterschriftsfeld.",
+      "„Alle anzeigen“ in der Planauswahl: alle Elemente auf einen Blick.",
+      "Kopplungsklassen beim Überfahren als Pillen, ruhigere Hinweise und Info-Symbol.",
+      "Lehrkräfte können wieder beliebige Lehrerpläne wählen; die interne Vertretungsart wird nicht mehr angezeigt.",
+      "Raumänderung: Löschen eines Zusatzraums lässt den ursprünglichen Raum stehen; Prüfungen prüfen belegte Räume und werden nicht doppelt angelegt – auch in Vertretungsstunden.",
+      "Lehrstoff speichern funktioniert wieder (auch bei gekoppelten Stunden und in der App).",
+      "Bei zwei parallelen Stunden steht die Uhrzeit nur noch links; Logo wie im Desktop-Programm.",
+      "App: untere Leiste im Glas-Stil, kräftigere Beschriftung, engere Menüs in den Stundendetails, „Raum hinzufügen“, wenn kein Raum hinterlegt ist."
+    ]
+  },
+  {
+    "datum": "2026-10-16",
+    "titel": "Abwesenheiten, Schrift und Export",
     "punkte": [
       "Abwesenheiten und Fehlzeiten im neuen Listendesign: Suche, Filterpillen, Avatare, Kennzahlen als Schnellfilter.",
       "Fehlzeitenübersicht zeigt nur noch Schüler*innen, die im Zeitraum tatsächlich gefehlt haben.",
@@ -14,7 +31,8 @@
     ]
   },
   {
-    "datum": "2026-10-16", "titel": "Verspätungen bis ins Detail",
+    "datum": "2026-10-16",
+    "titel": "Verspätungen bis ins Detail",
     "punkte": [
       "Verspätung und vorzeitiges Gehen mit Uhrzeit oder Minuten, Vorschau, ob eine Fehlstunde entsteht.",
       "Regeln in der Administration: Fehlstunde ab x Minuten, Minuten in Fehlstunden umrechnen, Hinweis bei auffälligen Verspätungen.",
@@ -23,7 +41,8 @@
     ]
   },
   {
-    "datum": "2026-10-15", "titel": "Klausuranlage und Raumbuchung",
+    "datum": "2026-10-15",
+    "titel": "Klausuranlage und Raumbuchung",
     "punkte": [
       "Prüfung direkt aus den Stundendetails anlegen (Knopf neben „Nächste Stunde“).",
       "Raumbuchung ohne doppelte Räume; zusätzliche Räume werden sauber angezeigt.",

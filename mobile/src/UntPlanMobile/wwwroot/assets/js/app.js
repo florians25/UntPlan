@@ -3821,11 +3821,12 @@ function renderDetail(){
       ${zeilen.map(r => r.key === 'room' ? `
         <div class="drow2 drow2--room" data-key="room">
           ${ico(r)}
-          <span class="droom">${r.chips.map((x, i) =>
-            `<button type="button" class="droom__chip" data-chip="${i}">${esc(x)}</button>`).join('<span class="droom__sep" aria-hidden="true">,</span>')}</span>
-          <button type="button" class="droom__add" aria-label="Raum hinzufügen">
+          <span class="droom">${r.chips.length ? r.chips.map((x, i) =>
+            `<button type="button" class="droom__chip" data-chip="${i}">${esc(x)}</button>`).join('')
+            : '<button type="button" class="droom__chip droom__neu">Raum hinzufügen</button>'}</span>
+          ${r.chips.length ? `<button type="button" class="droom__add" aria-label="Raum hinzufügen">
             <svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="9.2"/><path d="M12 7.6v8.8M7.6 12h8.8"/></svg>
-          </button>
+          </button>` : '<span></span>'}
         </div>` : `
         <div class="drow2" data-key="${r.key || ''}" role="button">
           ${ico(r)}
@@ -3948,8 +3949,8 @@ function raumZeileBinden(c){
       await raumAendern(c, 'remove', raum, '');
     });
   }));
-  const plus = zeile.querySelector('.droom__add');
-  if (plus) plus.addEventListener('click', e => { e.stopPropagation(); raumMenuZu(); raumListeOeffnen(c, 'add', ''); });
+  zeile.querySelectorAll('.droom__add, .droom__neu').forEach(plus =>
+    plus.addEventListener('click', e => { e.stopPropagation(); raumMenuZu(); raumListeOeffnen(c, 'add', ''); }));
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('#droomMenu') && !e.target.closest('[data-chip]')) raumMenuZu();
@@ -4128,6 +4129,9 @@ function cbParams(c, extra){
   /* UntPlanWeb führt das Klassenbuch je Unterricht — die Kennung gilt für
      jede Stunde des Blocks, auch für eine einzeln gewählte. */
   if (c.unterricht) p.unterricht = String(c.unterricht);
+  /* Kopplung mit mehreren Lehrkräften (z. B. KR/ER): die Lehrkraft der Kachel mitgeben, damit der Eintrag an der richtigen Stunde landet. */
+  const lk = String(c.teacher || '').split(',').map(x => x.trim()).filter(Boolean);
+  if (lk.length === 1) p.teacher = lk[0];
   /* Gilt die Eintragung für einen Block, bekommt der Server dessen Länge
      und schreibt in jede Stunde — genauso wie die Desktop-Version. */
   if (!c._teil && (c.span || 1) > 1) p.span = String(c.span);

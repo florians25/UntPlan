@@ -107,7 +107,7 @@ public sealed class Rueckmeldungsdienst
     /// <summary>Raum ist in allen Stunden frei (kein Unterricht laut Plan, keine andere Buchung/Vormerkung)?</summary>
     public bool RaumFrei(Stand s, DateOnly d, string raum, int von, int bis, int? ohneUnterricht = null)
     {
-        var belegt = _plan.Rohstunden(s, d).Concat(Vorgemerkt(d).Where(r => ohneUnterricht is null || r.Unterricht != ohneUnterricht))
+        var belegt = _plan.Rohstunden(s, d).Concat(Vorgemerkt(d, s).Where(r => ohneUnterricht is null || r.Unterricht != ohneUnterricht))
             .Any(r => r.Stunde >= von && r.Stunde <= bis && r.Status != "entfall" && r.Raeume.Any(x => Plandienst.RaumListe(x).Contains(raum, Ci)) && (ohneUnterricht is null || r.Unterricht != ohneUnterricht));
         var gesperrt = s.Paket.Absenzen.Any(a => a.Art == "raum" && Ci.Equals(a.Element, raum) && DateOnly.TryParse(a.Von, out var av) && DateOnly.TryParse(a.Bis, out var ab) &&
                                                  d >= av && d <= ab && a.StundeVon <= bis && (a.StundeBis >= von || a.StundeBis < a.StundeVon));
@@ -191,6 +191,27 @@ public sealed class Rueckmeldungsdienst
         if (r.FirstOrDefault(x => !s.Raeume.ContainsKey(x)) is { } ur) throw new ArgumentException($"Unbekannter Raum {ur}.");
         var l = aufsicht.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
         if (l.FirstOrDefault(x => !s.Lehrer.ContainsKey(x)) is { } ul) throw new ArgumentException($"Unbekannte Lehrkraft {ul}.");
+        r = r.Select(x => s.Raeume[x].Kurz).ToList();
+        k = k.Select(x => s.Klassen[x].Kurz).ToList();
+        // Räume müssen frei sein – belegt nur durch den Unterricht der eigenen Klassen zählt nicht (die Prüfung findet dort statt)
+        var belegt = _plan.Rohstunden(s, d).Concat(Vorgemerkt(d, s))
+            .Where(x => x.Stunde >= v && x.Stunde <= bi && x.Status != "entfall" && !x.Klassen.Any(kl => k.Contains(kl, Ci)))
+            .SelectMany(x => x.Raeume.SelectMany(Plandienst.RaumListe)).ToHashSet(Ci);
+        if (r.FirstOrDefault(belegt.Contains) is { } voll) throw new ArgumentException($"Raum {voll} ist in dieser Zeit schon belegt.");
+        if (r.FirstOrDefault(x => s.Paket.Absenzen.Any(a => a.Art == "raum" && Ci.Equals(a.Element, x) && DateOnly.TryParse(a.Von, out var av) && DateOnly.TryParse(a.Bis, out var ab)
+                                                       && d >= av && d <= ab && a.StundeVon <= bi && (a.StundeBis >= v || a.StundeBis < a.StundeVon))) is { } gesperrt)
+            throw new ArgumentException($"Raum {gesperrt} ist in dieser Zeit gesperrt.");
+        // schon übernommene Prüfung zu denselben Klassen und Stunden: nicht doppelt anlegen
+        if (s.Paket.Termine.Any(t => Ci.Equals(t.Art, "klausur") && DateOnly.TryParse(t.Von, out var tv) && DateOnly.TryParse(string.IsNullOrEmpty(t.Bis) ? t.Von : t.Bis, out var tb)
+                                     && d >= tv && d <= tb && t.StundeVon <= bi && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= v && t.Klassen.Any(x => k.Contains(x, Ci))))
+            throw new ArgumentException("Für diese Klasse ist in dieser Zeit bereits eine Prüfung eingetragen.");
+        // gleiche, noch offene Prüfung (z. B. doppelt abgeschickt) ersetzen statt verdoppeln
+        foreach (var alt in _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausur' AND von = @d AND stunde_von <= @b AND stunde_bis >= @v", Lesen,
+                     Db.P("@d", Plandienst.Iso(d)), Db.P("@v", v), Db.P("@b", bi)).Where(x => x.Klassen.Any(kl => k.Contains(kl, Ci))))
+        {
+            if (alt.BenutzerId != b.Id) throw new ArgumentException("Für diese Klasse ist in dieser Zeit bereits eine Prüfung vorgemerkt.");
+            _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @i", Db.P("@i", alt.Id));
+        }
         var haupt = l.FirstOrDefault() ?? b.LehrerKuerzel;
         return Speichern(Neu(WebRueckmeldungsTypen.Klausur, b) with
         {
@@ -199,12 +220,39 @@ public sealed class Rueckmeldungsdienst
         });
     }
 
+    /// <summary>
+    /// Ist eine offene Klausur bzw. Raumänderung schon im Paket aus UntPlan enthalten? Klausur: Klausurtermin am Tag mit überlappenden
+    /// Stunden und gemeinsamer Klasse. Raumänderung zum Unterricht: die Stunden haben bereits genau die gebuchten Räume.
+    /// </summary>
+    private bool SchonUebertragen(Stand s, DateOnly d, Meldung m)
+    {
+        var von = m.StundeVon ?? 1;
+        var bis = m.StundeBis ?? von;
+        if (m.Typ == WebRueckmeldungsTypen.Klausur)
+            return s.Paket.Termine.Any(t => Ci.Equals(t.Art, "klausur") && DateOnly.TryParse(t.Von, out var tv) && DateOnly.TryParse(string.IsNullOrEmpty(t.Bis) ? t.Von : t.Bis, out var tb)
+                                            && d >= tv && d <= tb && t.StundeVon <= bis && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= von
+                                            && (m.Klassen.Count == 0 || t.Klassen.Any(k => m.Klassen.Contains(k, Ci))));
+        if (m.Typ == WebRueckmeldungsTypen.Raumbuchung && m.Unterricht is int u && m.Raeume.Count > 0)
+        {
+            var stunden = _plan.Rohstunden(s, d).Where(r => r.Unterricht == u && r.Stunde >= von && r.Stunde <= bis && r.Status != "entfall").ToList();
+            return stunden.Count > 0 && stunden.All(r => r.Raeume.Count == m.Raeume.Count && r.Raeume.All(x => m.Raeume.Contains(x, Ci))) && stunden.Any(r => r.Status != "regulaer");
+        }
+        return false;
+    }
+
     /// <summary>Noch nicht übernommene Raumbuchungen und Klausuren eines Tages als Stunden „vorgemerkt“.</summary>
-    public IEnumerable<Rohstunde> Vorgemerkt(DateOnly d)
+    public IEnumerable<Rohstunde> Vorgemerkt(DateOnly d, Stand? s = null)
     {
         var iso = Plandienst.Iso(d);
         foreach (var m in _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND von = @d AND typ IN ('raumbuchung', 'klausur') ORDER BY erstellt", Lesen, Db.P("@d", iso)))
         {
+            // schon in UntPlan übernommen und wieder übertragen (auch ohne Quittung, z. B. Import aus Datei): nicht doppelt anzeigen
+            if (s != null && SchonUebertragen(s, d, m))
+            {
+                _db.Ausfuehren("UPDATE rueckmeldungen SET status = 'quittiert', quittiert = @z WHERE id = @id AND status = 'offen'",
+                    Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@id", m.Id));
+                continue;
+            }
             var lehrer = new List<string>();
             if (!string.IsNullOrEmpty(m.Lehrer)) lehrer.Add(m.Lehrer);
             lehrer.AddRange(m.WeitereLehrer);

@@ -127,8 +127,7 @@ public sealed class Klassenbuchverwaltung
         var liste = new List<Fehlzeit>();
         foreach (var id in ids.Distinct())
         {
-            var f = _db.Einzel("SELECT * FROM fehlzeiten WHERE id = @i", r => new Fehlzeit(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"), r.Zahl("schueler_id"),
-                r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"), r.Text("grund"), r.Text("gruppe")), Db.P("@i", id));
+            var f = _db.Einzel("SELECT * FROM fehlzeiten WHERE id = @i", Klassenbuchdienst.FehlzeitLesen, Db.P("@i", id));
             if (f is null) continue;
             Klassenleitung(b, s, f.Klasse);
             liste.Add(f);
@@ -136,15 +135,25 @@ public sealed class Klassenbuchverwaltung
         return liste;
     }
 
-    /// <summary>Grund, Text und Status einer Abwesenheit (aller zugehörigen Stunden) ändern.</summary>
-    public int AbwesenheitAendern(Benutzer b, Stand s, IEnumerable<int> ids, string? grund, string? bemerkung, string? status)
+    /// <summary>Grund, Text, Status und Details (Nachweis, Entschuldigung am, Eltern informiert, interne Notiz) einer Abwesenheit (aller zugehörigen Stunden) ändern.</summary>
+    public int AbwesenheitAendern(Benutzer b, Stand s, IEnumerable<int> ids, string? grund, string? bemerkung, string? status,
+        string? nachweis = null, string? entschuldigtAm = null, bool? elternInformiert = null, string? notizIntern = null)
     {
         var n = 0;
         foreach (var f in FehlzeitenNachIds(b, s, ids))
-            n += _db.Ausfuehren("UPDATE fehlzeiten SET grund = COALESCE(@g, grund), bemerkung = COALESCE(@b, bemerkung), status = COALESCE(@s, status) WHERE id = @i",
-                Db.P("@g", grund?.Trim()), Db.P("@b", bemerkung?.Trim()), Db.P("@s", status is "offen" or "entschuldigt" or "unentschuldigt" ? status : null), Db.P("@i", f.Id));
+            n += _db.Ausfuehren("UPDATE fehlzeiten SET grund = COALESCE(@g, grund), bemerkung = COALESCE(@b, bemerkung), status = COALESCE(@s, status), " +
+                "nachweis = COALESCE(@n, nachweis), entschuldigt_am = COALESCE(@ea, entschuldigt_am), eltern_informiert = COALESCE(@ei, eltern_informiert), " +
+                "notiz_intern = COALESCE(@ni, notiz_intern) WHERE id = @i",
+                Db.P("@g", grund?.Trim()), Db.P("@b", bemerkung?.Trim()), Db.P("@s", status is "offen" or "entschuldigt" or "unentschuldigt" ? status : null),
+                Db.P("@n", nachweis is null ? null : Nachweis(nachweis)), Db.P("@ea", entschuldigtAm is null ? null : DatumOderLeer(entschuldigtAm)),
+                Db.P("@ei", elternInformiert is null ? null : elternInformiert.Value ? 1 : 0), Db.P("@ni", notizIntern?.Trim()), Db.P("@i", f.Id));
         return n;
     }
+
+    /// <summary>Erlaubte Nachweisarten einer Entschuldigung.</summary>
+    public static readonly string[] Nachweisarten = { "attest", "schriftlich", "muendlich", "telefonisch", "email" };
+    internal static string Nachweis(string? n) => Nachweisarten.Contains(n ?? "") ? n! : "";
+    internal static string DatumOderLeer(string? d) => DateOnly.TryParse(d, out var x) ? x.ToString("yyyy-MM-dd") : "";
 
     public int AbwesenheitenLoeschen(Benutzer b, Stand s, IEnumerable<int> ids)
     {

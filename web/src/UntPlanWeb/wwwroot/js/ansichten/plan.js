@@ -206,7 +206,8 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
     return;
   }
 
-  const istMein = typ === ich.typ && ich.element && element.toLowerCase() === ich.element.toLowerCase();
+  // eigener Plan ohne Elementauswahl nur unter „Mein Stundenplan“; unter „Lehrkraft“ immer mit Auswahl (auch eigene Lehrkraft)
+  const istMein = mein && typ === ich.typ && !!ich.element && element.toLowerCase() === ich.element.toLowerCase();
   kontext.titel('');
   document.title = `${istMein ? 'Mein Stundenplan' : `${TYPEN[typ]} ${element}`} – UntPlanWeb`;
 

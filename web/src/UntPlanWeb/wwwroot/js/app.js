@@ -307,7 +307,8 @@ function navAus(teile) {
   const b = sitzung.benutzer;
   const [name, a, c] = teile;
   switch (name) {
-    case 'plan': return !a || a === 'mein' || (a === b.typ && b.element && (c ?? b.element).toLowerCase() === b.element.toLowerCase()) ? 'plan-mein' : 'plan-' + a;
+    // „Mein Stundenplan“ nur über #/plan/mein; unter „Lehrkraft“/„Klasse“ bleibt der Menüpunkt aktiv, auch beim eigenen Element
+    case 'plan': return !a || a === 'mein' ? 'plan-mein' : 'plan-' + a;
     case 'tag': return (teile[3] === 'u' ? 'u-tag-' : 'tag-') + (a || 'klasse');
     case 'unterricht': return a === 'klasse' ? 'unterricht-klasse' : 'unterricht';
     case 'mitteilungen': return a === 'gesendet' || a === 'entwuerfe' || a === 'listen' ? 'mitteilungen-' + a : 'mitteilungen';
@@ -380,7 +381,7 @@ function leisteZeichnen() {
     document.addEventListener('click', () => liste.classList.add('d-none'), { once: true });
   }
   const nav = leiste.querySelector('nav');
-  nav.className = `u-nav ${gruppe ? 'u-nav-unter' : ''}`;
+  nav.className = `u-nav ${gruppe ? 'u-nav-unter' : ''} ${gruppe && ['admin', 'stammdaten'].includes(gruppe.id) ? 'u-nav-kompakt' : ''}`;
   nav.innerHTML = (gruppe ? gruppe.unter : gruppen).map(punktHtml).join('');
   aktivMarkieren();
   zaehlerAktualisieren();

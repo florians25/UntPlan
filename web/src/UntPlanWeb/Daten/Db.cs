@@ -398,6 +398,14 @@ public sealed class Db
             geaendert VARCHAR(30) NOT NULL DEFAULT '', benutzer_id INTEGER
         );
         """,
+
+        // 7: Details zu Abwesenheiten (Nachweis, Datum der Entschuldigung, Eltern informiert, interne Notiz der Klassenleitung) – nur Standard-SQL
+        """
+        ALTER TABLE fehlzeiten ADD COLUMN nachweis VARCHAR(30) NOT NULL DEFAULT '';
+        ALTER TABLE fehlzeiten ADD COLUMN entschuldigt_am VARCHAR(10) NOT NULL DEFAULT '';
+        ALTER TABLE fehlzeiten ADD COLUMN eltern_informiert INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE fehlzeiten ADD COLUMN notiz_intern VARCHAR(1000) NOT NULL DEFAULT '';
+        """,
     };
 
 

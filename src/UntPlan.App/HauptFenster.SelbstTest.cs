@@ -920,6 +920,17 @@ public sealed partial class HauptFenster
             bilder[0].Save(Path.Combine(ordner, "27a_Druck_Klassen.png"));
             Druck.VertretungsplanDruck.Bilder(tag, tag, true)[0].Save(Path.Combine(ordner, "27b_Druck_Lehrer.png"));
         }, -1);
+        Schritt("27d_Stundenplan_Druck", () =>
+        {
+            var klassen = AppZustand.D.Klassen.Take(2).Select(k => k.Id).ToList();
+            var gross = new StundenplanFormat { Typ = ElementTyp.Klasse, Gross = true, Schriftgroesse = 10 };
+            var seiten = StundenplanDruck.Bilder(ElementTyp.Klasse, klassen, gross);
+            if (seiten.Count != klassen.Count) throw new InvalidOperationException($"Stundenplandruck: {seiten.Count} Seiten statt {klassen.Count}");
+            seiten[0].Save(Path.Combine(ordner, "27d1_Druck_Stundenplan_gross.png"));
+            var klein = StundenplanDruck.Bilder(ElementTyp.Klasse, klassen, new StundenplanFormat { Typ = ElementTyp.Klasse, Gross = false, Schriftgroesse = 8 });
+            if (klein.Count != 1) throw new InvalidOperationException("Stundenplandruck klein: zwei Pläne gehören auf eine Seite");
+            klein[0].Save(Path.Combine(ordner, "27d2_Druck_Stundenplan_klein.png"));
+        }, -1);
         // Sprint 6: Seitenlayout und „Felder der Ansicht“ für den Vertretungsplan (Einstellungen danach wiederherstellen)
         var druckVorher = System.Text.Json.JsonSerializer.Serialize(AppZustand.Einstellungen.Vertretungsdruck);
         void DruckZurueck() => AppZustand.Einstellungen.Vertretungsdruck = System.Text.Json.JsonSerializer.Deserialize<Vertretungsdruck>(druckVorher)!;

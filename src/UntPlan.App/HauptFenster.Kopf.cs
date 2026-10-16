@@ -59,6 +59,49 @@ public partial class HauptFenster
         LocationChanged += (_, _) => MaximalgroesseSetzen();
         MaximalgroesseSetzen();
         KopfAnpassen();
+        var filter = new KantenFilter(this);
+        Application.AddMessageFilter(filter);
+        FormClosed += (_, _) => Application.RemoveMessageFilter(filter);
+    }
+
+    /// <summary>Kante des Fensters unter dem Mauszeiger (Bildschirmkoordinaten) als Trefferwert für WM_NCLBUTTONDOWN, sonst null.</summary>
+    internal int? KantenTreffer(Point bildschirm)
+    {
+        if (WindowState != FormWindowState.Normal || !Visible) return null;
+        var b = Bounds;
+        if (!b.Contains(bildschirm)) return null;
+        var l = bildschirm.X < b.Left + Rand; var r = bildschirm.X >= b.Right - Rand;
+        var o = bildschirm.Y < b.Top + 3; var u = bildschirm.Y >= b.Bottom - Rand;
+        return (o, u, l, r) switch
+        {
+            (true, _, true, _) => 13, (true, _, _, true) => 14, (_, true, true, _) => 16, (_, true, _, true) => 17,
+            (true, _, _, _) => 12, (_, true, _, _) => 15, (_, _, true, _) => 10, (_, _, _, true) => 11, _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Unsichtbarer Greifbereich an den Fensterkanten: Mausnachrichten an untergeordnete Steuerelemente nahe der Kante setzen den
+    /// Größenänderungszeiger bzw. starten die Größenänderung über das System (wie bei einem normalen Fensterrahmen).
+    /// </summary>
+    private sealed class KantenFilter(HauptFenster f) : IMessageFilter
+    {
+        public bool PreFilterMessage(ref Message m)
+        {
+            const int WM_MOUSEMOVE = 0x200, WM_LBUTTONDOWN = 0x201;
+            if (m.Msg is not (WM_MOUSEMOVE or WM_LBUTTONDOWN) || f.IsDisposed || !f.IsHandleCreated) return false;
+            if (Control.FromHandle(m.HWnd) is not { } c || c.FindForm() != f) return false;
+            if (f.KantenTreffer(Cursor.Position) is not int hit) return false;
+            Cursor.Current = hit switch { 10 or 11 => Cursors.SizeWE, 12 or 15 => Cursors.SizeNS, 13 or 17 => Cursors.SizeNWSE, _ => Cursors.SizeNESW };
+            if (m.Msg != WM_LBUTTONDOWN) return false;
+            try
+            {
+                ReleaseCapture();
+                const int WM_NCLBUTTONDOWN = 0xA1;
+                SendMessage(f.Handle, WM_NCLBUTTONDOWN, hit, IntPtr.Zero);
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return false; }
+            return true;
+        }
     }
 
     private void MaximierenUmschalten() => WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
@@ -76,9 +119,9 @@ public partial class HauptFenster
     private void KopfAnpassen()
     {
         var max = WindowState == FormWindowState.Maximized;
-        // im normalen Zustand ein schmaler Rand in der Modusfarbe zum Ändern der Größe
-        var p = max ? new Padding(0) : new Padding(Rand, 1, Rand, Rand);
-        if (Padding != p) Padding = p;
+        // kein sichtbarer Rahmen – auch nicht im Fenstermodus (z. B. auf kleineren Bildschirmen); die Größe ändert sich
+        // trotzdem an den Kanten (unsichtbarer Greifbereich über den Nachrichtenfilter)
+        if (Padding != Padding.Empty) Padding = Padding.Empty;
         _knopfMax.Image = KnopfBild(max ? 3 : 1, false);
         _knopfMax.ToolTipText = max ? "Verkleinern" : "Maximieren";
         _schnell.Invalidate();
