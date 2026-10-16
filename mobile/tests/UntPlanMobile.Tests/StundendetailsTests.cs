@@ -126,6 +126,62 @@ public class StundendetailsTests
         Assert.False(fremd["canEdit"]?.GetValue<bool>() ?? false);
     }
 
+    [Fact]
+    public async Task Abwesenheit_minutengenau_mit_Grund_Liste_je_Schueler_und_Loeschen()
+    {
+        await using var u = await Umgebung.StartenAsync();
+        var sne = await u.AngemeldetAsync("sne");
+        var schluessel = new Dictionary<string, string> { ["date"] = "2026-10-14", ["lesson"] = "1", ["class"] = "5a", ["unterricht"] = "107" };
+        string Abfrage(string aktion, string extra = "") => "/api/classbook?" + string.Join("&", schluessel.Append(new("action", aktion)).Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}")) + extra;
+
+        // Gründe kommen aus UntPlanWeb
+        var gruende = (await Umgebung.HolenAsync(sne, Abfrage("reasons")))["reasons"]!.AsArray();
+        Assert.Contains(gruende, g => g!["code"]!.GetValue<string>() == "K" && g["name"]!.GetValue<string>() == "Krankheit");
+
+        var alles = await Umgebung.HolenAsync(sne, Abfrage("all"));
+        var id = alles["students"]![0]!["id"]!.GetValue<int>();
+        var beginn = alles["students"]![0]!["from_time"]; // vorher leer
+        Assert.Equal("", beginn!.GetValue<string>());
+
+        // Ab 08:10 bis Stundenende abwesend (vorzeitig gegangen), Grund Krankheit, Text
+        await Umgebung.SendenAsync(sne, "/api/classbook", Mit(schluessel, ("action", "attendance"), ("student_id", id.ToString()), ("state", "absent"),
+            ("from_date", "2026-10-14"), ("from_time", "08:10"), ("to_date", "2026-10-14"), ("to_time", "08:40"), ("reason", "K"), ("note", "Übelkeit"), ("notified", "0")));
+        var s = (await Umgebung.HolenAsync(sne, Abfrage("students")))["students"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == id)!;
+        Assert.Equal("absent", s["state"]!.GetValue<string>());
+        Assert.Equal("K", s["reason"]!.GetValue<string>());
+        Assert.Equal("08:10", s["from_time"]!.GetValue<string>());
+        Assert.Equal("Übelkeit", s["note"]!.GetValue<string>());
+
+        // Abwesenheiten der Schülerin / des Schülers
+        var liste = await Umgebung.HolenAsync(sne, Abfrage("absences", $"&student_id={id}"));
+        var eintrag = liste["items"]!.AsArray().Single()!;
+        Assert.Equal("Krankheit", eintrag["reasonName"]!.GetValue<string>());
+        Assert.Equal("08:10", eintrag["fromTime"]!.GetValue<string>());
+        Assert.True(eintrag["current"]!.GetValue<bool>());
+
+        // Ende vor Beginn wird abgewiesen
+        var falsch = await sne.PostAsync("/api/classbook", new FormUrlEncodedContent(Mit(schluessel, ("action", "attendance"), ("student_id", id.ToString()), ("state", "absent"),
+            ("from_date", "2026-10-14"), ("from_time", "08:30"), ("to_date", "2026-10-14"), ("to_time", "08:00"))));
+        Assert.Equal(HttpStatusCode.BadRequest, falsch.StatusCode);
+
+        // Löschen
+        await Umgebung.SendenAsync(sne, "/api/classbook", Mit(schluessel, ("action", "absenceDelete"), ("student_id", id.ToString()), ("current", "1")));
+        Assert.Equal(0, (await Umgebung.HolenAsync(sne, Abfrage("attSummary")))["absent"]!.GetValue<int>());
+        Assert.Empty((await Umgebung.HolenAsync(sne, Abfrage("absences", $"&student_id={id}")))["items"]!.AsArray());
+    }
+
+    [Fact]
+    public async Task Meine_Abwesenheiten_fuer_Schuelerkonto()
+    {
+        await using var u = await Umgebung.StartenAsync();
+        var klasse = await u.AngemeldetAsync("5a");
+        var d = await Umgebung.HolenAsync(klasse, "/api/home?action=absences");
+        Assert.True(d["ok"]!.GetValue<bool>());
+        Assert.True(d["student"]!.GetValue<bool>());
+        Assert.NotNull(d["from"]);
+        Assert.NotNull(d["items"]!.AsArray());
+    }
+
     /// <summary>
     /// Trennzeichen der Oberfläche: Der Abschnitt TRENNER aus app.js wird mit Node ausgeführt (ohne Node nur die statische Prüfung).
     /// Auf den Stundencards trennt ein Komma (auch mehrere Lehrkräfte), in den Stundendetails „ | “.
