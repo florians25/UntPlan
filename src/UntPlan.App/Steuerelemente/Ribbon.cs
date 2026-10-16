@@ -42,7 +42,7 @@ public sealed class RibbonSeite
 public sealed class Ribbon : Control
 {
     /// <summary>Registerleiste wie im Vorbild 2026: schmal, in der Modusfarbe, durchgehend mit der Titelzeile darüber.</summary>
-    public const int TabHoehe = 26;
+    public const int TabHoehe = 24;
     /// <summary>Schrift der Registerkarten (Datei, Start, …) – klein und weiß wie im Vorbild.</summary>
     private static readonly Font TabSchrift = new("Segoe UI", 9f);
     /// <summary>Kleine Knöpfe rechts in der Registerleiste (Fensteranordnungen 1–8).</summary>

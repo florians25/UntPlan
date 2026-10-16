@@ -80,10 +80,8 @@ public partial class HauptFenster
         {
             k.DisplayStyle = ToolStripItemDisplayStyle.Image;
             k.AutoSize = false;
-            k.Size = new Size(40, 24);
             k.Margin = new Padding(0);
             k.ImageScaling = ToolStripItemImageScaling.None;
-            k.Image = KnopfBild(art, false);
             k.Tag = art;
         }
         _knopfMin.Click += (_, _) => WindowState = FormWindowState.Minimized;
@@ -94,6 +92,8 @@ public partial class HauptFenster
         // rechtsbündige Einträge werden von rechts nach links angeordnet: Schließen ganz rechts
         _schnell.Items.AddRange(new ToolStripItem[] { _knopfZu, _knopfMax, _knopfMin });
         _schnell.Padding = new Padding(4, 0, 0, 0);
+        KopfHoeheSetzen();
+        DpiChanged += (_, _) => KopfHoeheSetzen();
         _schnell.Paint += TitelZeichnen;
         _schnell.MouseDown += KopfMausDown;
         _schnell.MouseDoubleClick += (_, e) => { if (e.Button == MouseButtons.Left && _schnell.GetItemAt(e.Location) is null) MaximierenUmschalten(); };
@@ -155,6 +155,33 @@ public partial class HauptFenster
         }
     }
 
+    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % – kompakt wie die Titelleiste von Office unter Windows 11.</summary>
+    internal const int KopfHoeheLogisch = 26;
+
+    /// <summary>Feste, DPI-skalierte Höhe des Programmkopfs; Symbole, Titel und Fensterknöpfe stehen vertikal mittig.</summary>
+    private void KopfHoeheSetzen()
+    {
+        var h = LogicalToDeviceUnits(KopfHoeheLogisch);
+        _schnell.AutoSize = false;
+        _schnell.Height = h;
+        foreach (ToolStripItem i in _schnell.Items)
+        {
+            if (i is ToolStripSeparator) i.Margin = new Padding(LogicalToDeviceUnits(2), LogicalToDeviceUnits(4), LogicalToDeviceUnits(2), LogicalToDeviceUnits(4));
+            else if (i.Alignment == ToolStripItemAlignment.Left) i.Margin = new Padding(0, 0, LogicalToDeviceUnits(1), 0);
+        }
+        var groesse = new Size(LogicalToDeviceUnits(44), h);
+        foreach (var k in new[] { _knopfZu, _knopfMax, _knopfMin })
+        {
+            k.Size = groesse;
+            var art = (int)k.Tag!;
+            var alt = k.Image;
+            k.Image = KnopfBild(art, false, groesse);
+            alt?.Dispose();
+        }
+        _schnell.PerformLayout();
+        _schnell.Invalidate();
+    }
+
     private void MaximierenUmschalten() => WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
 
     /// <summary>Maximiert nur bis zur Taskleiste (ohne Systemrahmen würde das Fenster sonst den ganzen Bildschirm füllen).</summary>
@@ -173,7 +200,13 @@ public partial class HauptFenster
         // kein sichtbarer Rahmen – auch nicht im Fenstermodus (z. B. auf kleineren Bildschirmen); die Größe ändert sich
         // trotzdem an den Kanten (unsichtbarer Greifbereich über den Nachrichtenfilter)
         if (Padding != Padding.Empty) Padding = Padding.Empty;
-        _knopfMax.Image = KnopfBild(max ? 3 : 1, false);
+        if (!Equals(_knopfMax.Tag, max ? 3 : 1) || _knopfMax.Image is null)
+        {
+            var alt = _knopfMax.Image;
+            _knopfMax.Image = KnopfBild(max ? 3 : 1, false, _knopfMax.Size);
+            _knopfMax.Tag = max ? 3 : 1;
+            alt?.Dispose();
+        }
         _knopfMax.ToolTipText = max ? "Verkleinern" : "Maximieren";
         _schnell.Invalidate();
     }
@@ -287,22 +320,25 @@ public partial class HauptFenster
     }
 
     /// <summary>Schlanke weiße Fensterknöpfe wie Windows 11 / Vorbild 2026 (0 = minimieren, 1 = maximieren, 2 = schließen, 3 = wiederherstellen).</summary>
-    private static Bitmap KnopfBild(int art, bool dunkel)
+    private static Bitmap KnopfBild(int art, bool dunkel, Size groesse)
     {
-        var bmp = new Bitmap(40, 24);
+        var bmp = new Bitmap(Math.Max(1, groesse.Width), Math.Max(1, groesse.Height));
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = art == 2 ? System.Drawing.Drawing2D.SmoothingMode.AntiAlias : System.Drawing.Drawing2D.SmoothingMode.None;
-        using var p = new Pen(dunkel ? Color.FromArgb(40, 40, 40) : Color.White, 1f);
-        const int cx = 20, cy = 12;
+        // Symbolgröße mit der Knopfhöhe skaliert (bei 100 %: 10 px wie Windows 11)
+        var e = Math.Max(4, (int)Math.Round(groesse.Height * 5 / 26.0));
+        using var p = new Pen(dunkel ? Color.FromArgb(40, 40, 40) : Color.White, Math.Max(1f, groesse.Height / 26f));
+        int cx = groesse.Width / 2, cy = groesse.Height / 2;
+        var d = Math.Max(2, e * 2 / 5);
         switch (art)
         {
-            case 0: g.DrawLine(p, cx - 5, cy, cx + 5, cy); break;
-            case 1: g.DrawRectangle(p, cx - 5, cy - 5, 10, 10); break;
-            case 2: g.DrawLine(p, cx - 5, cy - 5, cx + 5, cy + 5); g.DrawLine(p, cx + 5, cy - 5, cx - 5, cy + 5); break;
+            case 0: g.DrawLine(p, cx - e, cy, cx + e, cy); break;
+            case 1: g.DrawRectangle(p, cx - e, cy - e, 2 * e, 2 * e); break;
+            case 2: g.DrawLine(p, cx - e, cy - e, cx + e, cy + e); g.DrawLine(p, cx + e, cy - e, cx - e, cy + e); break;
             case 3:
-                g.DrawRectangle(p, cx - 5, cy - 3, 8, 8);
-                g.DrawLine(p, cx - 3, cy - 5, cx + 5, cy - 5);
-                g.DrawLine(p, cx + 5, cy - 5, cx + 5, cy + 3);
+                g.DrawRectangle(p, cx - e, cy - e + d, 2 * e - d, 2 * e - d);
+                g.DrawLine(p, cx - e + d, cy - e, cx + e, cy - e);
+                g.DrawLine(p, cx + e, cy - e, cx + e, cy + e - d);
                 break;
         }
         return bmp;
