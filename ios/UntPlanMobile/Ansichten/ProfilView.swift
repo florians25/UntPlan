@@ -15,6 +15,7 @@ struct ProfilView: View {
     @State private var profil: Profil? = nil
     @State private var fehler: String? = nil
     @State private var bestaetigen = false
+    @Environment(\.horizontalSizeClass) private var groessenklasse
 
     private var login: String { profil?.login ?? zustand.benutzer?.login ?? "" }
 
@@ -39,7 +40,7 @@ struct ProfilView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(grosserTitel)
-                        .font(.system(size: 30, weight: .heavy))
+                        .font(.system(size: groessenklasse == .compact ? 32 : 30, weight: .heavy))
                         .tracking(-0.6)
                         .foregroundStyle(Farben.titelGrau)
                         .lineLimit(1)
@@ -92,7 +93,7 @@ struct ProfilView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 4)
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, groessenklasse == .compact ? 16 : 18)
                 .padding(.bottom, 28)
                 .zentriert(maxBreite: 736)
             }

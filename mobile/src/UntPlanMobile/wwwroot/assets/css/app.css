@@ -4165,3 +4165,15 @@ html.is-dark .card--cancelled.is-past .card__line{ color:#ffffff; }
 html.is-dark .card--event{ background:#22352f; border:1px solid #3d6457; box-shadow:none; }
 html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--primary{ color:#e3efe9; }
 .dk__wert .tok + .tok{ margin-left:6px; }
+
+/* Tagesansicht am iPhone: kompakte ausführliche Karte — oben Fach
+   (ausgeschrieben, Kürzel klein) mit der Uhrzeit rechts, darunter Klasse,
+   Lehrkraft und Raum in einer Zeile, zuletzt Status und Hinweis. */
+.card.is-dk-schmal .dk{ display:flex; flex-direction:column; gap:1px; }
+.card.is-dk-schmal .dk__links{ flex-direction:row; align-items:baseline; gap:8px; }
+.card.is-dk-schmal .dk__titel{ flex:1 1 auto; min-width:0; font-size:14.5px; }
+.card.is-dk-schmal .dk__zeit{ flex:0 0 auto; font-size:12px; color:var(--c-muted); }
+.card.is-dk-schmal .dk__werte{ display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13.5px; }
+.card.is-dk-schmal .dk__wert + .dk__wert{ margin-left:12px; }
+.card.is-dk-schmal .dk__wert i{ font-size:11px; margin-right:4px; }
+.card.is-dk-schmal .dk__hinweis{ font-size:12px; }

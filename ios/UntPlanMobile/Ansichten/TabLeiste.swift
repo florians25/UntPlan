@@ -73,8 +73,9 @@ struct GlasTabLeiste: View {
         }
         .padding(.horizontal, 4)
         .frame(height: Self.hoehe)
+        .frame(maxWidth: 500)
         .glas(Capsule())
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
     }
 
     private func eintrag(_ reiter: AppReiter) -> some View {
@@ -98,7 +99,8 @@ struct GlasTabLeiste: View {
                 .font(.system(size: 11.5, weight: aktiv ? .bold : .semibold))
                 .tracking(-0.12)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, 2)
         }
         .foregroundStyle(aktiv ? Farben.leisteAktiv : Farben.leisteText)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

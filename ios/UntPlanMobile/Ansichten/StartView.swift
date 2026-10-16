@@ -35,6 +35,9 @@ struct StartView: View {
     @State private var alleStunden = false
     @Environment(\.horizontalSizeClass) private var groessenklasse
 
+    /// iPhone: Seitenrand 16 pt (iPad 18 pt, mittig höchstens 736 pt breit).
+    private var rand: CGFloat { groessenklasse == .compact ? 16 : 18 }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -59,7 +62,7 @@ struct StartView: View {
                             .padding(.top, 40)
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, rand)
                 .padding(.bottom, 28)
                 .zentriert(maxBreite: 736)
             }
@@ -88,7 +91,7 @@ struct StartView: View {
 
     private var schulname: some View {
         Text(zustand.schulname)
-            .font(.system(size: 30, weight: .heavy))
+            .font(.system(size: groessenklasse == .compact ? 32 : 30, weight: .heavy))
             .tracking(-0.6)
             .foregroundStyle(Farben.titelGrau)
             .lineLimit(2)
@@ -147,7 +150,7 @@ struct StartView: View {
                         Infokarte(info: info)
                             .frame(maxHeight: .infinity, alignment: .top)
                             .containerRelativeFrame(.horizontal) { breite, _ in
-                                liste.count == 1 ? breite - 36 : breite * 0.86
+                                liste.count == 1 ? breite - 2 * rand : breite * 0.86
                             }
                     }
                 }
@@ -159,8 +162,8 @@ struct StartView: View {
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(.viewAligned)
             .scrollClipDisabled()
-            .contentMargins(.horizontal, 18, for: .scrollContent)
-            .padding(.horizontal, -18)
+            .contentMargins(.horizontal, rand, for: .scrollContent)
+            .padding(.horizontal, -rand)
         }
     }
 
@@ -197,8 +200,8 @@ struct StartView: View {
                 }
             }
             .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .frame(width: 84, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: groessenklasse == .compact ? 64 : 84, alignment: .leading)
 
             if zeigtAbwesenheit(h) {
                 abwesenheitsfeld(h)
@@ -206,7 +209,7 @@ struct StartView: View {
                 stundenspalte(h)
             }
         }
-        .padding(14)
+        .padding(groessenklasse == .compact ? 14 : 16)
         .alsKarte()
     }
 

@@ -312,7 +312,7 @@ struct StundendetailInhalt: View {
     private var zeilen: some View {
         VStack(spacing: 0) {
             if !karte.text.isEmpty && !istVeranstaltung {
-                link(.text, Detailzeile(symbol: "doc.plaintext", titel: textTitel, untertitel: karte.text))
+                link(.text, Detailzeile(symbol: "doc.text", titel: textTitel, untertitel: karte.text))
             }
             if kollegium && mitUnterricht {
                 onlineZeile
@@ -326,7 +326,7 @@ struct StundendetailInhalt: View {
                                             zahl: daten.anwesenheit != nil ? daten.abwesendAnzahl : (daten.geladen ? 0 : nil)))
             }
             if mitUnterricht {
-                link(.hausaufgaben, Detailzeile(symbol: "list.clipboard", titel: "Hausaufgaben",
+                link(.hausaufgaben, Detailzeile(symbol: "book", titel: "Hausaufgaben",
                                                 zahl: daten.hausaufgaben.map { $0.liste.count } ?? (daten.geladen ? 0 : nil)))
             }
             if kollegium && !daten.klassen.isEmpty && !istVeranstaltung {

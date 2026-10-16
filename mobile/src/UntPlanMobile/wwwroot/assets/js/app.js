@@ -1172,7 +1172,11 @@ function renderGrid(){
       let lines = cardLines(card, kind);
       /* Tagesansicht auf breitem Bildschirm: ausführliche Karte (Uhrzeit, Fach
          ausgeschrieben, Lehrkraft, Raum, Klasse, Status und Hinweis). */
-      const tagesKarte = isDay && colPx >= 520 && !isHoliday && !isStandby && !isSup && !card.overlay
+      /* Auch am iPhone (Spalte ab 260 px): kompakte, aber ausführliche
+         Karte — Fach ausgeschrieben mit Uhrzeit, darunter Klasse, Lehrkraft,
+         Raum und der Hinweis, statt der schmalen Wochenkachel über die volle
+         Breite. */
+      const tagesKarte = isDay && colPx / Math.max(1, (!card._supervision && card._n) || 1) >= 260 && !isHoliday && !isStandby && !isSup && !card.overlay
         && card.blockType !== 'absence' && card.blockType !== 'gs';
 
       /* Passen nicht alle Zeilen in die Karte, wird gekürzt und unten rechts
@@ -1202,6 +1206,7 @@ function renderGrid(){
       /* Offene Vertretung im Plan der ausgefallenen Lehrkraft: die Stunde
          läuft ohne sie — dargestellt mit Eckklammern statt grüner Fläche. */
       if (card.highlight)                    cls.push('is-highlight');
+      if (tagesKarte && colPx < 520)         cls.push('is-dk-schmal');
 
       const released = card._released;
       if (released){

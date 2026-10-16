@@ -132,7 +132,9 @@ struct PlanAuswahlView: View {
                 Text(imBearbeiten ? "Fertig" : "Bearbeiten")
                     .font(.system(size: 17, weight: imBearbeiten ? .semibold : .regular))
                     .foregroundStyle(Farben.tinte)
-                    .padding(.horizontal, 16)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 14)
                     .frame(height: 44)
                     .glas(Capsule())
                     .contentShape(Capsule())
@@ -559,10 +561,10 @@ struct Suchleiste: View {
 }
 
 private extension View {
-    /// Listenzeile ohne Trennlinie und Hintergrund, Einzug wie in der Vorlage (18 pt).
+    /// Listenzeile ohne Trennlinie und Hintergrund, Einzug 16 pt (iPhone-Vorlage).
     func auswahlZeile(oben: CGFloat, unten: CGFloat) -> some View {
         self
-            .listRowInsets(EdgeInsets(top: oben, leading: 18, bottom: unten, trailing: 14))
+            .listRowInsets(EdgeInsets(top: oben, leading: 16, bottom: unten, trailing: 14))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
     }

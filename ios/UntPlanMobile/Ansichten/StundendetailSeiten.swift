@@ -838,7 +838,7 @@ struct SchuelerSeite: View {
                 }
             }
         } label: {
-            Rundknopf(symbol: "eraser", gewicht: .light, groesse: 15)
+            Rundknopf(symbol: "pencil", gewicht: .light, groesse: 15)
         }
         .accessibilityLabel("Klassendienste")
     }
