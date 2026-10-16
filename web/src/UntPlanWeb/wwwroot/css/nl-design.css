@@ -64,7 +64,9 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 
 /* Kopf: Zeitraum 14px Demi dunkel, Tage 16px grau (Medium), heute fett schwarz */
 .planleiste .zeitraum { font-size: .875rem; font-weight: 700; color: var(--u-titel); letter-spacing: .02em; }
-.tt-tag { font-size: 1rem; font-weight: 600; color: var(--u-grau-2); padding-bottom: 20px; }
+.tt-tag { font-size: 1rem; font-weight: 600; color: var(--u-grau-2); padding-bottom: 25px; }
+[data-ansicht="plan"] .tt > .tt-tag, [data-ansicht="plan"] .tt > .tt-ecke:first-child { padding-top: 1px; }
+@media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 51px; } [data-ansicht="plan"] .planleiste { padding-top: 11px; } }
 .tt-tag.heute { color: #24323d; font-weight: 700; }
 
 /* Raster: Zeitspalte 44px, 16px zwischen den Tagen, Linien durchgehend über die Lücken (nicht in der Zeitspalte) */
@@ -79,12 +81,12 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .tt-tag.letzter ~ .tt-spalte:last-child .tt-linie, .tt-spalte:last-child .tt-linie { right: 0; }
 
 /* Karten: weiß, eckig, grauer Balken links (oder Fachfarbe), erste Zeile 14px Medium, weitere Zeilen 12px Medium dunkelgrau */
-.tt .std { border-radius: 0; padding: 7px 24px 6px 18px; }
+.tt .std { border-radius: 0; padding: 8px 24px 6px 18px; }
 .tt .std::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 0; background: var(--fach, #bfc8cf); }
 .tt .std.mit-zeit { padding-left: 46px; }
 .tt .std.mit-zeit::before { left: 36px; }
-.std .z1 { font-size: 14px; font-weight: 600; line-height: 17px; color: #414d55; }
-.std .z2 { font-size: 12px; font-weight: 500; line-height: 15px; color: #414d55; }
+.std .z1 { font-size: 14px; font-weight: 600; line-height: 16px; margin-bottom: -2px; color: #414d55; }
+.std .z2 { font-size: 12px; font-weight: 500; line-height: 16px; color: #414d55; }
 .std .zt { color: var(--u-grau-2); font-weight: 600; }
 .std .lbl { font-weight: 600; }
 /* vergangene Stunden: Fläche leicht grau, Schrift bleibt gleich kräftig */
