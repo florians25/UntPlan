@@ -104,17 +104,134 @@ struct Initialen: View {
     }
 }
 
-/// Weiße Karte mit abgerundeten Ecken (Startseite).
+/// Weiße Karte mit abgerundeten Ecken und weichem Schatten (Startseite, wie .newscard/.daycard).
 struct Kartenhintergrund: ViewModifier {
+    var radius: CGFloat = 22
+
     func body(content: Content) -> some View {
         content
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+            .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .weicherSchatten()
+    }
+}
+
+/// Schatten 0 1 2 rgba(21,33,44,.05), 0 10 26 rgba(21,33,44,.08); im Dunkeln keiner.
+struct WeicherSchatten: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: Color(hell: 0x15212C, dunkel: 0x000000, deckkraftHell: 0.05, deckkraftDunkel: 0), radius: 1, y: 1)
+            .shadow(color: Color(hell: 0x15212C, dunkel: 0x000000, deckkraftHell: 0.08, deckkraftDunkel: 0), radius: 13, y: 10)
+    }
+}
+
+/// Glasfläche wie in der PWA (Milchglas, Glanzkante, weicher Schatten).
+struct Glasflaeche<Form: InsettableShape>: ViewModifier {
+    let form: Form
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                form
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        form.fill(LinearGradient(colors: [Color(hell: 0xFFFFFF, dunkel: 0x3A3A3E, deckkraftHell: 0.55, deckkraftDunkel: 0.55),
+                                                          Color(hell: 0xFFFFFF, dunkel: 0x1E1E21, deckkraftHell: 0.30, deckkraftDunkel: 0.45)],
+                                                 startPoint: .top, endPoint: .bottom))
+                    }
+                    .overlay {
+                        form.strokeBorder(Color(hell: 0xFFFFFF, dunkel: 0xFFFFFF, deckkraftHell: 0.75, deckkraftDunkel: 0.14), lineWidth: 0.5)
+                    }
+                    .shadow(color: Color(hell: 0x141C24, dunkel: 0x000000, deckkraftHell: 0.10, deckkraftDunkel: 0.35), radius: 9, y: 6)
+            }
     }
 }
 
 extension View {
-    func alsKarte() -> some View {
-        modifier(Kartenhintergrund())
+    func alsKarte(radius: CGFloat = 22) -> some View {
+        modifier(Kartenhintergrund(radius: radius))
+    }
+
+    func weicherSchatten() -> some View {
+        modifier(WeicherSchatten())
+    }
+
+    func glas<Form: InsettableShape>(_ form: Form) -> some View {
+        modifier(Glasflaeche(form: form))
+    }
+}
+
+/// Runder Knopf (44 pt) im Glas der Leiste, z. B. Plan wechseln oder Menü.
+struct RunderKnopfInhalt: View {
+    let symbol: String
+    var groesse: CGFloat = 44
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 19, weight: .regular))
+            .foregroundStyle(Farben.tinte2)
+            .frame(width: groesse, height: groesse)
+            .glas(Circle())
+            .contentShape(Circle())
+    }
+}
+
+/// Kalenderblatt als Linienzeichen mit Tageszahl oder Stern (Reiter „Stundenplan“, „Mein Stundenplan“).
+struct KalenderSymbol: View {
+    enum Inhalt {
+        case tag(Int)
+        case stern
+    }
+
+    let inhalt: Inhalt
+    var groesse: CGFloat = 24
+    var strich: CGFloat = 1.6
+
+    var body: some View {
+        let b = groesse
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: b * 0.16, style: .continuous)
+                .strokeBorder(lineWidth: strich)
+                .frame(width: b * 0.86, height: b * 0.78)
+                .offset(y: b * 0.16)
+            Rectangle()
+                .frame(width: b * 0.86, height: strich)
+                .offset(y: b * 0.36)
+            HStack(spacing: b * 0.34) {
+                Capsule().frame(width: strich, height: b * 0.2)
+                Capsule().frame(width: strich, height: b * 0.2)
+            }
+            .offset(y: b * 0.06)
+            Group {
+                switch inhalt {
+                case .tag(let tag):
+                    Text("\(tag)")
+                        .font(.system(size: b * 0.36, weight: .semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                case .stern:
+                    Image(systemName: "star")
+                        .font(.system(size: b * 0.34, weight: .semibold))
+                }
+            }
+            .frame(width: b * 0.8, height: b * 0.5)
+            .offset(y: b * 0.4)
+        }
+        .frame(width: b, height: b, alignment: .top)
+    }
+}
+
+/// Graue runde Zahl-Plakette (Startseite, z. B. Abwesenheiten „1“).
+struct ZahlPlakette: View {
+    let zahl: Int
+
+    var body: some View {
+        Text("\(zahl)")
+            .font(.system(size: 15, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 7)
+            .frame(minWidth: 26, minHeight: 26)
+            .background(Farben.zahlPlakette, in: Capsule())
     }
 }
