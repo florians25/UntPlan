@@ -127,28 +127,63 @@ async function start() {
 
 // ------------------------------------------------------------------ Anmeldung und Einrichtung
 
+/**
+ * Anmeldeseite im Stil des Vorbilds: links schmale Leiste mit Bildmarke, Mitte heller Verlaufsbereich mit Datum und Schulname,
+ * rechts weißes Panel mit Titel, großer Bildmarke und Formular; unten Hinweis zur App (PWA) statt Store-Badges.
+ */
 function anmeldeRahmen(titel, inhalt) {
-  app.innerHTML = `<main class="anmeldung"><div class="karte">
-    <div class="kopf">${LOGO}<b>UntPlanWeb</b><small>${e(sitzung?.schule?.name || 'Stundenplan, Vertretungsplan und Klassenbuch')}</small></div>
-    <h1>${e(titel)}</h1>
-    ${inhalt}
-    <div class="fuss">UntPlanWeb · Webbegleiter zu UntPlan</div></div></main>`;
+  const heute = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  app.innerHTML = `<main class="anmeldung lg">
+    <aside class="lg-leiste" aria-hidden="true">${LOGO}<span class="lg-leiste-sym">${icon('dashboard')}</span></aside>
+    <section class="lg-mitte"><div class="lg-mitte-inhalt">
+      <div class="lg-heute">Heute ${e(heute)}</div>
+      <h2 class="lg-schule">${e(sitzung?.schule?.name || 'UntPlanWeb')}</h2>
+      <p class="lg-zeile">Stundenplan, Vertretungsplan und Klassenbuch – immer aktuell aus UntPlan.</p></div></section>
+    <section class="lg-panel">
+      <h1 class="lg-titel">${e(titel)}</h1>
+      <div class="lg-marke">${LOGO}<b>UntPlanWeb</b></div>
+      <div class="lg-form">${inhalt}</div>
+      <footer class="lg-fuss"><button type="button" class="lg-app d-none" data-pwa>${icon('herunterladen')}Als App installieren</button>
+        <span class="lg-app-text" data-pwa-text>Tipp: UntPlanWeb lässt sich auf dem Smartphone über „Zum Startbildschirm hinzufügen“ wie eine App nutzen.</span>
+        <span class="lg-impressum">UntPlanWeb · Webbegleiter zu UntPlan</span></footer>
+    </section></main>`;
+  // App installieren (PWA), sobald der Browser es anbietet
+  const pwa = app.querySelector('[data-pwa]');
+  const anbieten = () => { if (!window.__pwaAngebot) return; pwa.classList.remove('d-none'); app.querySelector('[data-pwa-text]')?.classList.add('d-none'); };
+  pwa.onclick = async () => { const p = window.__pwaAngebot; if (!p) return; window.__pwaAngebot = null; p.prompt(); try { await p.userChoice; } catch { /* egal */ } pwa.classList.add('d-none'); };
+  anbieten();
+  window.addEventListener('untplan:pwa', anbieten, { once: true });
+  // Passwortfelder: Auge zum Anzeigen
+  app.querySelectorAll('.lg-feld input[type=password]').forEach(i => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'lg-auge'; b.setAttribute('aria-label', 'Passwort anzeigen'); b.innerHTML = '<i class="bi bi-eye" aria-hidden="true"></i>';
+    b.onclick = () => { const zeigen = i.type === 'password'; i.type = zeigen ? 'text' : 'password'; b.innerHTML = `<i class="bi bi-eye${zeigen ? '-slash' : ''}" aria-hidden="true"></i>`; b.setAttribute('aria-label', zeigen ? 'Passwort verbergen' : 'Passwort anzeigen'); i.focus(); };
+    i.after(b);
+  });
   return app.querySelector('form');
 }
+window.addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); window.__pwaAngebot = ev; window.dispatchEvent(new Event('untplan:pwa')); });
 
 const meldung = (form, text) => { form.querySelector('[data-meldung]').innerHTML = alarm('danger', text); };
 
 function anmeldung() {
   document.title = 'Anmelden – UntPlanWeb';
-  const form = anmeldeRahmen('Anmelden', `<form autocomplete="on">
-      <div class="mb-3"><label class="form-label" for="login">Benutzername</label><input class="form-control" id="login" name="login" autocomplete="username" required autofocus></div>
-      <div class="mb-3"><label class="form-label" for="passwort">Passwort</label><input class="form-control" id="passwort" name="passwort" type="password" autocomplete="current-password" required></div>
+  const form = anmeldeRahmen('UntPlanWeb Login', `<form autocomplete="on">
+      <label class="lg-feld"><input id="login" name="login" autocomplete="username" placeholder=" " required autofocus><span>Benutzername</span></label>
+      <label class="lg-feld"><input id="passwort" name="passwort" type="password" autocomplete="current-password" placeholder=" " required><span>Passwort</span></label>
       <div data-meldung></div>
-      <button class="btn btn-primary w-100 mt-2" type="submit">Login</button>
+      <button class="btn btn-primary lg-login" type="submit">Login</button>
+      <button type="button" class="lg-vergessen" data-vergessen aria-expanded="false">Passwort vergessen?</button>
+      <p class="lg-hinweis d-none" data-vergessen-text>Ein neues Passwort vergibt die Administration Ihrer Schule. Bitte wenden Sie sich dorthin.</p>
     </form>`);
+  form.querySelector('[data-vergessen]').onclick = ev => {
+    const t = form.querySelector('[data-vergessen-text]');
+    t.classList.toggle('d-none');
+    ev.currentTarget.setAttribute('aria-expanded', String(!t.classList.contains('d-none')));
+  };
   form.onsubmit = async ev => {
     ev.preventDefault();
-    const btn = form.querySelector('button');
+    const btn = form.querySelector('button[type=submit]');
     btn.disabled = true;
     try {
       await senden('/api/app/anmelden', { login: form.login.value.trim(), passwort: form.passwort.value });

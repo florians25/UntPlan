@@ -1295,7 +1295,9 @@ function renderGrid(){
          Kachel etwas, und das wiegt schwerer als der Hinweis: Der Hinweis
          sagt „hier steht mehr“, das Kürzungszeichen sagt „hier fehlt
          etwas“. Wo nichts wegfällt, bleibt es beim Punkt. */
-      const showInfo = hatText && card.blockType !== 'event' && !isHoliday && !cut;
+      /* Die Aufsichtspille trägt kein Info-Zeichen: Was es zu sagen gäbe
+         („Vertretung für …“), steht dort schon in den Labels. */
+      const showInfo = hatText && card.blockType !== 'event' && !isHoliday && !cut && !isSup;
       if (showInfo) cls.push('has-info');
       /* Nur kürzen, wenn der Info-Punkt die letzte Zeile wirklich erreicht.
          Auf hohen Karten steht er weit unter dem Text — dann volle Breite,
@@ -3531,7 +3533,10 @@ function renderPicker(){
   }
 
   const CHECK = '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></svg>';
-  const TYPE_CHIP = { class:'Klasse', teacher:'Lehrkraft', room:'Raum', mine:'Mein Stundenplan' };
+  const TYPE_CHIP = { class:'Klasse', teacher:'Lehrkraft', room:'Raum', student:'Schüler*in', mine:'Mein Stundenplan' };
+  /* Zeichen je Planart — dieselben wie in der Übersicht darüber. */
+  const PICK_SYM = { class:'ic-shared-classentity', teacher:'ic-shared-teacherentity', room:'ic-shared-roomentity',
+                     student:'ic-lessons-students', mine:'ic-my-timetable' };
   const grouped = !q && pickerType && pickerType !== 'mine';
 
   let html = q ? `<div class="pk__count">${list.length} ${list.length === 1 ? 'Treffer' : 'Treffer'}</div>` : '';
@@ -3546,7 +3551,7 @@ function renderPicker(){
     const active = e === state.entity;
     html += `<button class="picker-item ${active ? 'is-active' : ''}"
       data-type="${e.type}" data-id="${e.id}">
-      <span class="picker-item__ava">${esc((e.label || '?').slice(0, 3).toUpperCase())}</span>
+      <span class="picker-item__ava picker-item__ava--sym">${PICK_SYM[e.type] ? `<svg class="uic" viewBox="0 0 28 28" aria-hidden="true"><use href="#${PICK_SYM[e.type]}"></use></svg>` : esc((e.label || '?').slice(0, 3).toUpperCase())}</span>
       <span class="picker-item__main"><b>${esc(e.label)}</b>
         ${TYPE_CHIP[e.type] ? `<span class="picker-item__chip">${esc(TYPE_CHIP[e.type])}</span>` : ''}
         ${e.classTeacher ? `<span class="picker-item__chip picker-item__chip--kl">Klassenlehrkraft: ${esc(e.classTeacher)}</span>` : ''}</span>
@@ -4248,23 +4253,27 @@ function renderDetail(){
 
 /* Symbole der Aktionszeilen – nachgezeichnet nach den Sollbildern. */
 const DICO = (() => {
-  const s = inner => `<svg viewBox="0 0 24 24" class="ico dico">${inner}</svg>`;
-  /* Original-Symbole aus der Symbolsammlung (Linien-Icons wie in der
-     Vorlage): Notiz, Onlineunterricht, Klasse mit Schüler*innen, Klassenbuch. */
+  /* Alle Zeichen auf demselben 28er-Raster mit derselben Strichstärke
+     (1,5 Einheiten) — die Symbole der Sammlung sind als Umriss mit dieser
+     Stärke gezeichnet, die eigenen als Linie mit genau diesem Wert. Die
+     Notiz lag vorher auf einem 32er-Raster und wirkte dadurch dünner, die
+     selbst gezeichneten (Hausaufgaben, Raum, Info) dicker. */
   const u = id => `<svg viewBox="0 0 28 28" class="uic ico dico dico--sym"><use href="#${id}"></use></svg>`;
+  const linie = (inner, vb) => `<svg viewBox="${vb || '0 0 28 28'}" class="ico dico dico--linie" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  /* Notiz der Sammlung, auf das 28er-Raster zugeschnitten (32er-Vorlage). */
+  const notiz = linie('<path d="M26.5 25.75a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5V6.25A1.5 1.5 0 0 1 7 4.75h15.045c.392 0 .768.153 1.048.426l2.954 2.883c.29.282.453.67.453 1.074V25.75zm-16.455-13.5h12m-12 4.5h12m-12 4.5h6"/>', '2 2 28 28');
   return {
-    note:          u('ic-note'),
-    substitution:  u('ic-note'),
-    lehrstoff:     u('ic-note'),
-    notes_students:u('ic-note'),
-    notes_teachers:u('ic-note'),
+    note:          notiz,
+    substitution:  notiz,
+    lehrstoff:     notiz,
+    notes_students:notiz,
+    notes_teachers:notiz,
     online:        u('ic-online-lesson'),
     students:      u('ic-lessons-classes'),
-    homework:      s('<path d="M11.4 20.4H5.6a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1h7.4l3.6 3.6v3.2"/><path d="M7.4 9.4h5.8M7.4 12.4h4.4M7.4 15.4h2.4"/>'
-                   + '<path d="m12.6 15.6 4.6-2.2 4.6 2.2-4.6 2.2z"/><path d="M14.4 16.7v2.4c1.6 1.3 4 1.3 5.6 0v-2.4"/>'),
+    homework:      u('ic-homework'),
     classbook:     u('ic-navigation-class-register'),
-    info:          s('<circle cx="12" cy="12" r="9"/><path d="M12 10.8v6M12 7.6v.2"/>'),
-    room:          s('<path d="M5.6 20.4V4.8l7.6-1.4v17.6"/><path d="M13.2 4.6h5.2v15.8"/><path d="M3.6 20.4h16.8"/><path d="M10.6 12.2v.4"/>')
+    info:          linie('<circle cx="14" cy="14" r="10.75"/><path d="M14 12.5v7"/><path d="M14 8.6v.1" stroke-width="2.1"/>'),
+    room:          u('ic-shared-roomentity')
   };
 })();
 
@@ -4373,7 +4382,7 @@ function raumListeZeichnen(){
   const treffer = st.liste.filter(x =>
     (!st.abteilung || x.kind === st.abteilung) &&
     (!q || String(x.code).toLowerCase().includes(q) || String(x.name || '').toLowerCase().includes(q)));
-  const TUER = '<svg viewBox="0 0 24 24" class="ico"><path d="M7 19.6V5.4l6.6-1.2v15.4"/><path d="M13.6 5.2H17v14.4"/><path d="M5.4 19.6h13.2"/><path d="M11.4 12.2v.3"/></svg>';
+  const TUER = '<svg viewBox="0 0 28 28" class="uic ico rzeile__sym"><use href="#ic-shared-roomentity"></use></svg>';
   const neu = !body.querySelector('.rsuche');
   if (neu){
     body.innerHTML = `

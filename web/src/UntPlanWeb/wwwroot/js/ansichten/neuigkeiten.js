@@ -1,27 +1,30 @@
 // Neuigkeiten: Infos der Schule und Neuigkeiten zu UntPlanWeb als ruhige, einheitliche Liste (wie im Infocenter), Filter nach Art.
 // #/neuigkeiten/verwalten: Infos anlegen, bearbeiten, löschen (Administration, Schulleitung).
 import { e, holen, senden, api, dialog, bestaetigen, toast, fehler } from '../ui.js';
-import { laden, gelesen, karteHtml, mehrBinden, datumText, beobachten } from '../infocenter.js';
+import { laden, gelesen, karteHtml, mehrBinden, datumText, beobachten, leerHtml } from '../infocenter.js';
 
 const ZIELGRUPPEN = { alle: 'Alle', kollegium: 'Lehrkräfte', schueler: 'Schüler*innen', eltern: 'Eltern' };
 
 export async function zeigen(seite, kontext, [teil, filterParam]) {
   if (teil === 'verwalten') return verwalten(seite, kontext);
-  kontext.titel('');
   const d = await laden();
   const filter = ['infos', 'updates'].includes(teil) ? teil : ['infos', 'updates'].includes(filterParam) ? filterParam : 'alle';
   const liste = d.eintraege.filter(x => filter === 'alle' || (filter === 'infos' ? x.art === 'info' : x.art === 'neuigkeit'));
   const ungelesen = new Set(d.eintraege.filter(x => !x.gelesen).map(x => x.schluessel));
-  const reiter = (id, text, n) => `<a href="#/neuigkeiten${id === 'alle' ? '' : '/' + id}" class="${filter === id ? 'aktiv' : ''}">${text}${n ? ` <span class="nw-zahl">${n}</span>` : ''}</a>`;
   const zahl = art => d.eintraege.filter(x => !x.gelesen && (!art || x.art === art)).length;
-  seite.innerHTML = `<div class="fm-kopf"><h1 class="fm-titel">Neuigkeiten</h1>
-      <span class="ms-auto d-flex gap-2 flex-wrap">${ungelesen.size ? '<button type="button" class="nl-knopf" data-alle-gelesen><i class="bi bi-check2-all"></i> Alle als gelesen markieren</button>' : ''}
-      ${d.darfVerwalten ? '<a class="nl-knopf nw-primaer" href="#/neuigkeiten/verwalten"><i class="bi bi-pencil-square"></i> Infos verwalten</a>' : ''}</span></div>
-    <nav class="u-reiter fm-reiter">${reiter('alle', 'Alle', zahl())}${reiter('infos', 'Infos der Schule', zahl('info'))}${reiter('updates', 'UntPlanWeb-Updates', zahl('neuigkeit'))}</nav>
-    ${liste.length ? `<div class="fm-karte nw-liste-karte" data-nw-liste>${liste.map(x => karteHtml(x)).join('')}</div>`
-      : `<div class="fm-karte"><div class="fm-leer gross"><i class="bi bi-bell-slash"></i><span>${filter === 'infos' ? 'Keine Infos der Schule' : 'Keine Neuigkeiten'}</span></div></div>`}`;
+  const anzahl = art => d.eintraege.filter(x => !art || x.art === art).length;
+  const pille = (id, text, art) => `<a href="#/neuigkeiten${id === 'alle' ? '' : '/' + id}" role="tab" aria-selected="${filter === id}" class="s-pille ${filter === id ? 'an' : ''}">${text}
+    <span class="nw-anzahl">${anzahl(art)}</span>${zahl(art) ? `<span class="s-zahl" title="ungelesen">${zahl(art)}</span>` : ''}</a>`;
+  kontext.titel('Neuigkeiten', `${ungelesen.size ? '<button type="button" class="btn btn-outline-secondary" data-alle-gelesen><i class="bi bi-check2-all"></i>Alle als gelesen markieren</button>' : ''}
+    ${d.darfVerwalten ? '<a class="btn btn-primary" href="#/neuigkeiten/verwalten"><i class="bi bi-pencil-square"></i>Infos verwalten</a>' : ''}`, ungelesen.size ? `${ungelesen.size} ungelesen` : '');
+  seite.innerHTML = `<div class="nw-seite">
+    <p class="nw-unterzeile">Infos der Schule und Neuerungen in UntPlanWeb – neue Einträge sind mit einem Punkt markiert.</p>
+    <nav class="s-pillen" role="tablist" aria-label="Filter">${pille('alle', 'Alle')}${pille('infos', 'Infos der Schule', 'info')}${pille('updates', 'UntPlanWeb-Updates', 'neuigkeit')}</nav>
+    ${liste.length ? `<div class="nw-liste-karte" data-nw-liste>${liste.map(x => karteHtml(x)).join('')}</div>`
+      : `<div class="nw-liste-karte">${leerHtml(filter === 'infos' ? 'Keine Infos der Schule' : 'Keine Neuigkeiten', filter === 'infos' ? 'Die Schule hat aktuell keine Infos veröffentlicht.' : 'Sobald es etwas Neues gibt, erscheint es hier.', filter === 'infos' ? 'megaphone' : 'bell-slash')}</div>`}
+  </div>`;
   mehrBinden(seite.querySelector('[data-nw-liste]'));
-  seite.querySelector('[data-alle-gelesen]')?.addEventListener('click', async () => { await gelesen(); kontext.navigieren(location.hash); });
+  document.querySelector('[data-alle-gelesen]')?.addEventListener('click', async () => { await gelesen(); kontext.navigieren(location.hash); });
   // beim Ansehen gelten die gezeigten Einträge als gelesen; die Markierung bleibt bis zum nächsten Aufruf sichtbar
   const gezeigt = liste.filter(x => !x.gelesen).map(x => x.schluessel);
   if (gezeigt.length) await gelesen(gezeigt);
@@ -39,9 +42,8 @@ async function verwalten(seite, kontext) {
   catch (err) { seite.innerHTML = `<div class="fm-karte"><div class="fm-leer gross"><i class="bi bi-lock"></i><span>${e(err.message)}</span></div></div>`; return; }
   const heute = new Date().toISOString().slice(0, 10);
   const aktiv = i => (!i.von || i.von <= heute) && (!i.bis || i.bis >= heute);
-  seite.innerHTML = `<div class="fm-kopf"><a href="#/neuigkeiten" class="fm-pfeil ms-0" title="Zurück zu den Neuigkeiten" aria-label="Zurück zu den Neuigkeiten"><i class="bi bi-arrow-left"></i></a>
-      <h1 class="fm-titel">Infos verwalten</h1><button type="button" class="nl-knopf nw-primaer ms-auto" data-neu><i class="bi bi-plus-lg"></i> Info erstellen</button></div>
-    <p class="nw-hinweis">Infos erscheinen im Infocenter (Glocke unten rechts) bei der gewählten Zielgruppe – im angegebenen Zeitraum. Wichtige Infos stehen oben.</p>
+  kontext.titel('Infos verwalten', '<a class="btn btn-outline-secondary" href="#/neuigkeiten"><i class="bi bi-arrow-left"></i>Neuigkeiten</a><button type="button" class="btn btn-primary" data-neu><i class="bi bi-plus-lg"></i>Info erstellen</button>');
+  seite.innerHTML = `<p class="nw-hinweis">Infos erscheinen im Infocenter (Glocke unten rechts) bei der gewählten Zielgruppe – im angegebenen Zeitraum. Wichtige Infos stehen oben.</p>
     ${infos.length ? `<div class="nl-tabelle nw-tabelle"><table><thead><tr><th>Titel</th><th>Zielgruppe</th><th>Gültig</th><th>Status</th><th class="text-end">Aktionen</th></tr></thead><tbody>
       ${infos.map(i => `<tr><td><b>${e(i.titel)}</b>${i.wichtig ? ' <span class="ic-kat wichtig">Wichtig</span>' : ''}<div class="nw-grau">${e(i.text).slice(0, 140)}</div></td>
         <td>${e(ZIELGRUPPEN[i.zielgruppe] ?? i.zielgruppe)}</td><td class="text-nowrap">${e(zeitraum(i))}</td>
@@ -51,7 +53,7 @@ async function verwalten(seite, kontext) {
       </tbody></table></div>`
       : '<div class="fm-karte"><div class="fm-leer gross"><i class="bi bi-megaphone"></i><span>Noch keine Infos angelegt</span></div></div>'}`;
   const neu = () => verwalten(seite, kontext);
-  seite.querySelector('[data-neu]').onclick = () => formular(null, neu);
+  document.querySelector('#aktionen [data-neu]').onclick = () => formular(null, neu);
   seite.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => formular(infos.find(i => i.id === Number(b.dataset.bearbeiten)), neu));
   seite.querySelectorAll('[data-loeschen]').forEach(b => b.onclick = async () => {
     const i = infos.find(x => x.id === Number(b.dataset.loeschen));

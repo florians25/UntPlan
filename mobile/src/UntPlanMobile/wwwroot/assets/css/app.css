@@ -4652,7 +4652,7 @@ html.is-dark .card .ticon.ticon--flach{ fill:none; color:#9aa6b2; }
 .card--supervision.is-absent.is-past{ border:0; --bw:0px; background:var(--chg-bg); }
 .is-dark .card--supervision.is-absent.is-past{ background:var(--card-bg-past); border:1.5px solid var(--chg-border); }
 .card--supervision.is-sub,
-.card--supervision.is-absent{ padding-right:3px; }
+.card--supervision.is-absent{ padding-right:3px; overflow:hidden; }
 .card--supervision.is-sub .card__line,
 .card--supervision.is-absent .card__line,
 .card--supervision.is-sub.is-past .card__line,
@@ -4662,6 +4662,7 @@ html.is-dark .card .ticon.ticon--flach{ fill:none; color:#9aa6b2; }
   flex:0 0 auto; display:flex; align-items:center; gap:2px;
   margin-left:4px; min-width:0;
   font-size:12.4px; line-height:14.3px; font-weight:400; color:var(--c-ink);
+  letter-spacing:-.01em;
   white-space:nowrap;
 }
 .card--supervision .sup-lab .badge{ padding:0.33px 2.27px 0; font-weight:500; }
@@ -4670,3 +4671,25 @@ html.is-dark .card .ticon.ticon--flach{ fill:none; color:#9aa6b2; }
 /* Bereitschaft der abwesenden Lehrkraft: Kürzel im grünen Label,
    durchgestrichen. */
 .card--standby.is-absent .card__line--badge .badge{ font-weight:400; }
+
+/* Stundendetails: alle Zeichen gleich groß und gleich stark. Die Linien-
+   zeichen tragen genau die Stärke, mit der die Umrisse der Sammlung
+   gezeichnet sind (1,5 auf dem 28er-Raster). Menütexte Regular. */
+.sheet--detail .drow2__ico .dico,
+.sheet--detail .drow2__ico .dico--sym,
+.sheet--detail .drow2__ico .dico--linie{ width:28px; height:28px; }
+.sheet--detail .drow2__ico .dico.dico--linie{ stroke-width:1.5px; fill:none; stroke:currentColor; }
+.sheet--detail .drow2__ico .dico.dico--sym{ fill:currentColor; stroke:none; }
+.sheet--detail .drow2__main b{ font-weight:400; font-size:18px; letter-spacing:-.005em; }
+
+/* Raumbuchung: Raumzeichen der Sammlung */
+.rzeile__ico .rzeile__sym{ width:22px; height:22px; fill:currentColor; stroke:none; }
+
+/* Planauswahl: Zeichen der Planart statt Buchstaben */
+.picker-item__ava--sym svg{ width:24px; height:24px; fill:#fff; color:#fff; }
+
+/* Schmale Wochenspalte am Telefon: Labels eine Spur kleiner, damit beide
+   Kürzel neben dem (dann gekürzten) Ort Platz finden. */
+@media (max-width:699px){
+  .card--supervision .sup-lab{ font-size:11.5px; gap:1px; margin-left:3px; }
+}

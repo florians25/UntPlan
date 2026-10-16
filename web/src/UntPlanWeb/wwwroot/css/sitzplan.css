@@ -4,7 +4,7 @@
 :root {
   --sp-tisch: #fff;
   --sp-tisch-rand: #d9dee3;
-  --sp-raum: #f4f6f8;
+  --sp-saal: #f4f6f8;
   --sp-pult: #414d55;
   --sp-ziel: rgba(var(--u-akzent-rgb, 245, 107, 42), .14);
 }
@@ -52,21 +52,22 @@
 .sp-zahl input::-webkit-outer-spin-button, .sp-zahl input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .sp-aktionen { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 
-.sp-arbeit { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--sp-raum); padding: 18px 20px; }
-.sp-raum { margin: 0 auto; width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.sp-arbeit { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--sp-saal); padding: 18px 20px; }
+.sp-saal { margin: 0 auto; width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .sp-pult { display: flex; align-items: center; justify-content: center; gap: .5rem; min-width: 220px; padding: 7px 26px; border-radius: 10px; background: var(--sp-pult); color: #fff; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .sp-raster { display: grid; grid-template-columns: repeat(var(--spalten, 6), minmax(118px, 150px)); gap: 12px; }
 
-.sp-platz { position: relative; min-height: 74px; border-radius: 12px; border: 1.5px dashed #c6ced5; background: rgba(255, 255, 255, .55); display: flex; align-items: stretch; justify-content: stretch; transition: background-color .12s, border-color .12s, box-shadow .12s; }
-.sp-platz.leer { cursor: pointer; align-items: center; justify-content: center; color: #aab4bc; }
-.sp-platz.leer .sp-plus { font-size: 1.1rem; }
-.sp-platz.leer:hover, .sp-platz.leer:focus-visible { border-color: var(--u-grau-2); color: var(--u-grau); outline: none; }
-.sp-platz.kein-tisch { border: 1.5px dashed transparent; background: transparent; align-items: center; justify-content: center; color: transparent; }
-.sp-tischmodus .sp-platz.kein-tisch { border-color: #dfe4e8; color: #b3bdc5; cursor: pointer; }
-.sp-tischmodus .sp-platz.leer { border-style: solid; background: #fff; }
-.sp-platz.ziel { border-color: var(--u-akzent); border-style: solid; background: var(--sp-ziel); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb, 245, 107, 42), .18); }
-.sp-platz .sp-nr { position: absolute; left: 8px; bottom: 4px; font-size: .62rem; color: #b6c0c8; font-weight: 600; pointer-events: none; }
-.sp-platz.belegt .sp-nr { display: none; }
+.sp-sitz { position: relative; min-height: 74px; border-radius: 12px; border: 1.5px dashed #c6ced5; background: rgba(255, 255, 255, .55); display: flex; align-items: stretch; justify-content: stretch; transition: background-color .12s, border-color .12s, box-shadow .12s; }
+.sp-sitz.leer { cursor: pointer; align-items: center; justify-content: center; color: #aab4bc; }
+.sp-sitz.leer .sp-plus { font-size: 1.1rem; }
+.sp-sitz.leer:hover, .sp-sitz.leer:focus-visible { border-color: var(--u-grau-2); color: var(--u-grau); outline: none; }
+.sp-sitz.kein-tisch { border: 1.5px dashed transparent; background: transparent; align-items: center; justify-content: center; color: transparent; }
+.sp-tischmodus .sp-sitz.kein-tisch { border-color: #dfe4e8; color: #b3bdc5; cursor: pointer; }
+.sp-tischmodus .sp-sitz.leer { border-style: solid; background: #fff; }
+.sp-sitz.ziel { border-color: var(--u-akzent); border-style: solid; background: var(--sp-ziel); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb, 245, 107, 42), .18); }
+.sp-sitz.belegt { border-color: transparent; background: transparent; }
+.sp-sitz .sp-nr { position: absolute; left: 8px; bottom: 4px; font-size: .62rem; color: #b6c0c8; font-weight: 600; pointer-events: none; }
+.sp-sitz.belegt .sp-nr { display: none; }
 
 .sp-karte { flex: 1; display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 12px; background: var(--sp-tisch); border: 1px solid var(--sp-tisch-rand); box-shadow: 0 1px 2px rgba(0, 5, 10, .06), 0 3px 8px rgba(0, 5, 10, .05); cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; min-width: 0; }
 .sp-karte:hover { border-color: #c3cbd2; }
@@ -108,12 +109,17 @@
   .sp-raster { grid-template-columns: repeat(var(--spalten, 6), minmax(92px, 120px)); gap: 8px; }
   .sp-karte { padding: 7px; gap: 6px; }
   .sp-karte .sp-ava { width: 28px; height: 28px; font-size: .66rem; }
-  .sp-aktionen { margin-left: 0; }
+  .sp-leiste { gap: 8px 12px; padding-top: 8px; padding-bottom: 8px; }
+  .sp-aktionen { margin-left: 0; width: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .sp-aktionen .sp-knopf { padding: .26rem .75rem; }
+  .sp-liste { max-height: 70px; }
   .sp-suche { margin-left: 0; width: 100%; }
   .sp-suche input { width: 100%; max-width: none; }
   .sp-fuss .sp-rechts { margin-left: 0; width: 100%; justify-content: flex-end; }
 }
-@media (prefers-reduced-motion: reduce) { .sp-platz, .sp-ablage { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .sp-sitz, .sp-ablage { transition: none; } }
+/* Telefon/Tablet: die Kopfleiste liegt über den Dialogen – Editor und Panel beginnen darunter (wie die Stundendetails) */
+@media (max-width: 991.98px) { .sp-overlay, .sp-panel, .sp-panel-hg { top: var(--u-kopf, 56px); } }
 
 /* ------------------------------------------------------------------ Klassenbuch-Einstellungen (Seitenpanel) */
 
@@ -143,9 +149,11 @@
 
 .sp-umschalter { margin-right: .25rem; }
 .sp-anordnung { overflow-x: auto; padding: 4px 2px 6px; }
-.sp-anordnung-raum { width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--sp-raum); border-radius: 12px; padding: 14px; }
+.sp-anordnung-raum { min-width: calc(var(--spalten, 6) * 128px + 28px); display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--sp-saal); border-radius: 12px; padding: 14px; }
 .sp-anordnung .sp-pult { padding: 5px 22px; font-size: .74rem; }
-.sp-anordnung-raster { display: grid; grid-template-columns: repeat(var(--spalten, 6), minmax(132px, 160px)); gap: 8px; }
+.sp-anordnung-raster { align-self: stretch; display: grid; grid-template-columns: repeat(var(--spalten, 6), minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 1400px) { .sp-anordnung-raster { align-self: center; grid-template-columns: repeat(var(--spalten, 6), minmax(120px, 170px)); } }
+@media (max-width: 767.98px) { .sp-anordnung-raum { min-width: calc(var(--spalten, 6) * 112px + 28px); } }
 .sp-anordnung-raster .sd-kachel { min-height: 74px; border-radius: 10px; grid-template-columns: 40px 1fr; padding: 7px 7px 5px; box-shadow: 0 1px 2px rgba(0, 5, 10, .05); }
 .sp-anordnung-raster .sd-kachel .sd-avatar { width: 38px; height: 38px; }
 .sp-anordnung-raster .sd-kachel .sd-name { font-size: 13px; }
@@ -156,6 +164,9 @@
 .sp-a-hinweis { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: #f4f6f8; font-size: .88rem; color: var(--u-text); margin-bottom: 12px; }
 .sp-a-hinweis .bi { color: var(--u-grau); font-size: 1.1rem; }
 .sp-a-quelle { font-size: .76rem; color: var(--u-grau-2); text-align: right; margin-top: 4px; }
+/* Liste „von oben nach unten“ (Klassenbuch-Einstellungen): Spalten werden zuerst gefüllt */
+.sd-kacheln.sp-spalten { display: block; columns: 160px; column-gap: 4px; }
+.sd-kacheln.sp-spalten > .sd-kachel { break-inside: avoid; margin-bottom: 4px; }
 .sd-kachel .sd-name .sp-kl { font-size: .68rem; font-weight: 700; color: #5d6a74; background: #eef1f4; border-radius: 6px; padding: 0 6px; width: max-content; margin-top: 2px; }
 
 /* Seite „Sitzplan“ (Klasse) */

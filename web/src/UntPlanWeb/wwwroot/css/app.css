@@ -831,15 +831,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .kd-raster thead th { font-size: .75rem; color: var(--u-text); background: #f7f8fa; }
 .kd-raster td.summe, .kd-raster th.summe { font-weight: 600; background: #f7f8fa; }
 .kd-raster tfoot td { font-weight: 600; background: #f7f8fa; }
-.sp-raum { display: grid; gap: 10px; padding: 1.2rem; background: #fff; box-shadow: var(--u-schatten); border-radius: 2px; overflow-x: auto; }
-.sp-tafel { grid-column: 1 / -1; text-align: center; background: #414d55; color: #fff; border-radius: 3px; font-weight: 600; padding: 4px; font-size: .8rem; letter-spacing: .05em; margin-bottom: 8px; }
-.sp-platz { min-height: 64px; border: 1.5px dashed var(--u-grau-3); border-radius: 4px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: .82rem; font-weight: 600; color: var(--u-titel); padding: 4px; cursor: pointer; background: #fafbfc; line-height: 1.2; }
-.sp-platz.belegt { border-style: solid; border-color: #d6dbe0; background: #fff; }
-.sp-platz.gewaehlt { border-color: var(--u-akzent); box-shadow: 0 0 0 2px rgba(245, 107, 42, .25); }
-.sp-platz small { display: block; color: var(--u-grau-2); font-weight: 600; }
-.sp-frei { display: flex; flex-wrap: wrap; gap: .35rem; }
-.sp-frei button { border: 1.5px solid var(--u-grau-3); background: #fff; border-radius: 999px; padding: .2rem .7rem; font-size: .82rem; font-weight: 600; color: var(--u-titel); }
-.sp-frei button.gewaehlt { border-color: var(--u-akzent); background: var(--u-akzent-hell); }
+/* Sitzplan: eigene Stildatei css/sitzplan.css (von js/ansichten/sitzplan.js geladen) */
 .br-gruppe { margin-bottom: 1.4rem; }
 .br-gruppe h3 { font-size: .98rem; font-weight: 600; margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem; }
 .br-gruppe h3 .u-sym { width: 22px; height: 22px; color: var(--u-grau-2); }

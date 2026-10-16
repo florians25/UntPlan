@@ -176,8 +176,8 @@ export function rasterHtml(d, schueler, kachel, w = einstellungen()) {
   const gesetzt = new Set(Object.values(belegung));
   const rest = sortieren(schueler.filter(s => !gesetzt.has(s.id)), w);
   const pult = '<div class="sp-pult"><i class="bi bi-easel2" aria-hidden="true"></i>Lehrerpult</div>';
-  return `<div class="sp-anordnung"><div class="sp-anordnung-raum">${hinten ? '' : pult}
-      <div class="sp-anordnung-raster" style="--spalten:${plan.spalten}">${zellen.join('')}</div>${hinten ? pult : ''}</div></div>
+  return `<div class="sp-anordnung" style="--spalten:${plan.spalten}"><div class="sp-anordnung-raum">${hinten ? '' : pult}
+      <div class="sp-anordnung-raster">${zellen.join('')}</div>${hinten ? pult : ''}</div></div>
     <div class="sp-a-quelle">Sitzplan: ${e(bereichName(plan.bereich))}${plan.geaendert ? ` · geändert ${e(plan.geaendert.slice(8, 10))}.${e(plan.geaendert.slice(5, 7))}.${e(plan.geaendert.slice(0, 4))}` : ''}</div>
     ${rest.length ? `<div class="sp-a-ohne"><div class="sp-a-ohne-titel">Ohne Sitzplatz (${rest.length})</div><div class="sd-kacheln">${rest.map(kachel).join('')}</div></div>` : ''}`;
 }
@@ -247,7 +247,7 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
         <button type="button" class="sp-knopf" data-drucken title="Als PDF drucken (Schwarz-Weiß)"><i class="bi bi-printer"></i>Drucken</button>
       </div>
     </div>
-    <div class="sp-arbeit" data-arbeit><div class="sp-raum" data-t-raum></div></div>
+    <div class="sp-arbeit" data-arbeit><div class="sp-saal" data-t-raum></div></div>
     <section class="sp-ablage" data-ablage aria-label="Nicht zugeordnete Schüler*innen">
       <div class="sp-ablage-kopf"><h3>Nicht zugeordnet <span class="sp-anzahl" data-t-anzahl></span></h3>
         <label class="sp-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Name suchen …" aria-label="Schüler*in suchen"></label></div>
@@ -268,9 +268,9 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
       const z = hinten ? st.zeilen - dz : dz + 1, sp = hinten ? st.spalten - ds : ds + 1;
       const k = `${z}-${sp}`, s = nachId.get(st.belegung.get(k));
       const nr = `<span class="sp-nr">${z}·${sp}</span>`;
-      if (st.ohne.has(k)) zellen += `<div class="sp-platz kein-tisch" data-platz="${k}" ${st.tische ? `role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: kein Tisch – Tisch hinstellen"` : 'aria-hidden="true"'}>${st.tische ? '<i class="bi bi-plus-lg"></i>' : ''}</div>`;
-      else if (s) zellen += `<div class="sp-platz belegt" data-platz="${k}">${karteHtml(s, w, st.gewaehlt === s.id ? 'aria-pressed="true"' : '').replace('class="sp-karte"', `class="sp-karte ${st.gewaehlt === s.id ? 'gewaehlt' : ''}"`)}${nr}</div>`;
-      else zellen += `<div class="sp-platz leer" data-platz="${k}" role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: frei${st.tische ? ' – Tisch entfernen' : ''}">${st.tische ? '<i class="bi bi-x-lg"></i>' : '<span class="sp-plus" aria-hidden="true">+</span>'}${nr}</div>`;
+      if (st.ohne.has(k)) zellen += `<div class="sp-sitz kein-tisch" data-platz="${k}" ${st.tische ? `role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: kein Tisch – Tisch hinstellen"` : 'aria-hidden="true"'}>${st.tische ? '<i class="bi bi-plus-lg"></i>' : ''}</div>`;
+      else if (s) zellen += `<div class="sp-sitz belegt" data-platz="${k}">${karteHtml(s, w, st.gewaehlt === s.id ? 'aria-pressed="true"' : '').replace('class="sp-karte"', `class="sp-karte ${st.gewaehlt === s.id ? 'gewaehlt' : ''}"`)}${nr}</div>`;
+      else zellen += `<div class="sp-sitz leer" data-platz="${k}" role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: frei${st.tische ? ' – Tisch entfernen' : ''}">${st.tische ? '<i class="bi bi-x-lg"></i>' : '<span class="sp-plus" aria-hidden="true">+</span>'}${nr}</div>`;
     }
     return `${hinten ? '' : pult}<div class="sp-raster ${st.tische ? 'sp-tischmodus' : ''}" style="--spalten:${st.spalten}">${zellen}</div>${hinten ? pult : ''}`;
   }
@@ -469,7 +469,7 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
     if (ev.key === 'Escape') { ev.stopPropagation(); ev.preventDefault(); if (st.gewaehlt !== null) { st.gewaehlt = null; zeichnen(); } else schliessen(); return; }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('[data-karte], [data-platz][role=button]')) { ev.preventDefault(); ev.target.click(); restoreFokus(ev.target); }
     if (ev.key === 'Enter' && ev.target.matches('[data-zeilen], [data-spalten]')) { ev.preventDefault(); anwenden(); }
-    if ((ev.key === 'Delete' || ev.key === 'Backspace') && ev.target.matches('.sp-platz [data-karte]')) { ev.preventDefault(); setzen(Number(ev.target.dataset.karte), null); }
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && ev.target.matches('.sp-sitz [data-karte]')) { ev.preventDefault(); setzen(Number(ev.target.dataset.karte), null); }
   });
   /** Nach dem Neuzeichnen den Fokus auf denselben Platz bzw. dieselbe Karte setzen (Tastaturbedienung). */
   function restoreFokus(el) {
@@ -509,7 +509,7 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
       }
       geist.style.transform = `translate(${m.clientX - dx}px, ${m.clientY - dy}px)`;
       const unter = document.elementFromPoint(m.clientX, m.clientY);
-      markieren(unter?.closest('.sp-platz:not(.kein-tisch)') ?? unter?.closest('[data-ablage]') ?? null);
+      markieren(unter?.closest('.sp-sitz:not(.kein-tisch)') ?? unter?.closest('[data-ablage]') ?? null);
       // am Rand der Arbeitsfläche automatisch rollen
       clearInterval(scrollTimer);
       const a = arbeit.getBoundingClientRect(), rand = 40;

@@ -16,15 +16,20 @@ const hoerer = new Set();
 export const beobachten = f => { hoerer.add(f); return () => hoerer.delete(f); };
 export const daten = () => zustand;
 
-/** Ein Eintrag im Infocenter bzw. auf der Seite „Neuigkeiten“ – immer gleich aufgebaut: Kategorie klein links oben,
- *  Datum rechts (mit Punkt für ungelesen), Titel, Text auf wenige Zeilen gekürzt mit „mehr“. */
+const MONAT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+/** Ein Eintrag im Infocenter bzw. auf der Seite „Neuigkeiten“ – ruhige Liste: Datum links (Tag groß, Monat klein), daneben
+ *  Kategorie-Label, Titel und Text (auf wenige Zeilen gekürzt mit „mehr“), rechts der Punkt für ungelesen. */
 export function karteHtml(x, { werkzeuge = '' } = {}) {
   const text = x.text ? `<p class="ic-text">${e(x.text).replace(/\n/g, '<br>')}</p>` : '';
   const punkte = (x.punkte || []).length ? `<ul class="ic-punkte">${x.punkte.map(p => `<li>${e(p)}</li>`).join('')}</ul>` : '';
+  const d = new Date(String(x.datum).slice(0, 10) + 'T12:00');
+  const ok = !Number.isNaN(d.getTime());
   return `<article class="ic-karte ${x.gelesen ? '' : 'neu'} ${x.wichtig ? 'wichtig' : ''}" data-schluessel="${e(x.schluessel)}">
-    <div class="ic-meta"><span class="ic-kat ${KATEGORIE[x.kategorie] ?? ''}">${e(x.kategorie)}</span>${werkzeuge}<span class="ic-datum">${e(datumText(x.datum))}</span>
-      <span class="ic-punkt" title="ungelesen" aria-label="ungelesen"${x.gelesen ? ' hidden' : ''}></span></div>
-    <h3>${e(x.titel)}</h3>${text || punkte ? `<div class="ic-koerper">${text}${punkte}</div><button type="button" class="ic-mehr" data-ic-mehr hidden>mehr</button>` : ''}</article>`;
+    <time class="ic-tag" datetime="${e(String(x.datum).slice(0, 10))}" title="${e(datumText(x.datum))}">${ok ? `<b>${d.getDate()}</b><small>${MONAT[d.getMonth()]}</small>` : ''}</time>
+    <div class="ic-inhalt"><div class="ic-meta"><span class="ic-kat ${KATEGORIE[x.kategorie] ?? ''}">${e(x.kategorie)}</span>${werkzeuge}<span class="ic-datum">${e(datumText(x.datum))}</span></div>
+      <h3>${e(x.titel)}</h3>${text || punkte ? `<div class="ic-koerper">${text}${punkte}</div><button type="button" class="ic-mehr" data-ic-mehr hidden>mehr</button>` : ''}</div>
+    <span class="ic-punkt" title="ungelesen" aria-label="ungelesen"${x.gelesen ? ' hidden' : ''}></span></article>`;
 }
 
 /** „mehr“ nur zeigen, wo der Text gekürzt ist; Klick klappt den Eintrag auf bzw. zu. */
@@ -60,11 +65,23 @@ function zahlSetzen() {
   hoerer.forEach(f => { try { f(zustand); } catch { /* Ansicht weg */ } });
 }
 
+/** Filter im Infocenter (Pillen): alle, Infos der Schule, Updates. */
+let icFilter = 'alle';
+const ART = { infos: 'info', updates: 'neuigkeit' };
+/** Leerer Zustand (Infocenter und Seite „Neuigkeiten“). */
+export const leerHtml = (titel, text, symbol = 'bell-slash') => `<div class="ic-leer"><span class="ic-leer-symbol"><i class="bi bi-${symbol}" aria-hidden="true"></i></span><b>${e(titel)}</b>${text ? `<span>${e(text)}</span>` : ''}</div>`;
+
 function listeZeichnen() {
   const l = document.querySelector('[data-ic-liste]');
   if (!l) return;
-  l.innerHTML = zustand.eintraege.length ? zustand.eintraege.slice(0, 30).map(x => karteHtml(x)).join('')
-    : '<div class="ic-leer"><i class="bi bi-bell-slash" aria-hidden="true"></i><span>Keine Neuigkeiten</span></div>';
+  const f = document.querySelector('[data-ic-filter]');
+  if (f) f.innerHTML = [['alle', 'Alle'], ['infos', 'Infos'], ['updates', 'Updates']].map(([id, t]) => {
+    const n = zustand.eintraege.filter(x => !x.gelesen && (id === 'alle' || x.art === ART[id])).length;
+    return `<button type="button" class="ic-pille ${icFilter === id ? 'an' : ''}" data-ic-f="${id}" aria-pressed="${icFilter === id}">${t}${n ? ` <span>${n}</span>` : ''}</button>`;
+  }).join('');
+  const liste = zustand.eintraege.filter(x => icFilter === 'alle' || x.art === ART[icFilter]);
+  l.innerHTML = liste.length ? liste.slice(0, 30).map(x => karteHtml(x)).join('')
+    : leerHtml(icFilter === 'infos' ? 'Keine Infos der Schule' : 'Keine Neuigkeiten', 'Sobald es etwas Neues gibt, erscheint es hier.');
   if (!document.querySelector('[data-ic-panel]')?.hidden) mehrBinden(l);
   document.querySelector('[data-ic-alle]')?.toggleAttribute('disabled', !zustand.ungelesen);
 }
@@ -161,6 +178,7 @@ export async function starten(kontext) {
       <header class="ic-panel-kopf"><h2>Infocenter</h2>
         <button type="button" class="ic-link" data-ic-alle disabled>Alle als gelesen markieren</button>
         <button type="button" class="ic-zu" data-ic-zu aria-label="Infocenter schließen" title="Schließen"><i class="bi bi-x-lg"></i></button></header>
+      <div class="ic-filter" data-ic-filter role="group" aria-label="Filter"></div>
       <div class="ic-liste" data-ic-liste></div>
       <footer class="ic-panel-fuss"><a href="#/neuigkeiten" data-ic-seite>Alle Neuigkeiten</a><a href="#/neuigkeiten/verwalten" data-ic-verwalten hidden>Infos verwalten</a></footer>
     </section>`;
@@ -170,6 +188,14 @@ export async function starten(kontext) {
   w.querySelector('[data-ic-zu]').onclick = () => oeffnen(false);
   w.querySelector('[data-ic-alle]').onclick = () => gelesen();
   w.querySelectorAll('.ic-panel-fuss a').forEach(a => a.onclick = () => oeffnen(false));
+  w.querySelector('[data-ic-filter]').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-ic-f]');
+    if (!b) return;
+    ev.stopPropagation();
+    icFilter = b.dataset.icF;
+    listeZeichnen();
+    mehrBinden(w.querySelector('[data-ic-liste]'));
+  });
   w.querySelector('[data-ic-liste]').addEventListener('click', ev => {
     const k = ev.target.closest('.ic-karte.neu');
     if (k && !ev.target.closest('[data-ic-mehr]')) gelesen([k.dataset.schluessel]);

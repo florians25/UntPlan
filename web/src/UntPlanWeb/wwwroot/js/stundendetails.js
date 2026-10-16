@@ -7,6 +7,7 @@
 // Details: nur „Findet online statt“, Lehrstoff und Vertretungstext (wenn vorhanden), Hausaufgaben, Notizen für Schüler*innen
 // und für Lehrkräfte; unten „Vorherige Stunde“, „Nächste Stunde“, „Prüfung erstellen“ und „Raum buchen“.
 import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui.js';
+import * as sitz from './ansichten/sitzplan.js';
 
 const PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
 const W = '/img/wu/';
@@ -115,6 +116,9 @@ export function karteDialog(karte, kontext = {}) {
       daten.dienste = dienste.filter(Boolean).flatMap(d => d.zuordnungen ?? []);
       daten.gruende = (gruende ?? []).filter(g => g.aktiv !== false);
       daten.befreit = new Set(befreit ?? []);
+      // Sitzplan der Stunde (Unterricht vor Raum vor Klasse) für die Ansicht „Sitzplan“ und den Editor
+      sitz.cssLaden();
+      daten.sitz = await sitz.stundeLaden(sitz.kontextVon(k)).catch(() => null);
     }
   }
 
@@ -205,7 +209,7 @@ export function karteDialog(karte, kontext = {}) {
   const fehlzeitVon = id => (daten.anwesenheit?.fehlzeiten ?? []).find(f => f.schuelerId === id);
   const schueler = () => {
     const l = (daten.anwesenheit?.schueler ?? []).slice();
-    return sortierung === 'vorname' ? l.sort((a, b) => a.vorname.localeCompare(b.vorname, 'de') || a.name.localeCompare(b.name, 'de')) : l;
+    return sitz.sortieren(l, sitz.einstellungen()); // Klassenbuch-Einstellungen (Zahnrad)
   };
   const schuelerName = id => { const s = daten.anwesenheit?.schueler.find(x => x.id === id); return s ? `${s.name} ${s.vorname}` : ''; };
   const zeitVon = nr => zeiten.find(z => z.nr === nr) ?? {};
@@ -220,7 +224,8 @@ export function karteDialog(karte, kontext = {}) {
     const a = daten.anwesenheit;
     const darf = !!a?.darf;
     const sl = schueler();
-    const kacheln = sl.map(s => {
+    const sitzW = sitz.einstellungen();
+    const kachel = s => {
       const f = fehlzeitVon(s.id);
       const st = !f ? 'da' : f.art === 'verspaetet' ? 'spaet' : f.art === 'vorzeitig' ? 'frueh' : 'weg';
       const befreit = daten.befreit?.has(s.id);
@@ -230,23 +235,28 @@ export function karteDialog(karte, kontext = {}) {
       return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" aria-pressed="${auswahl.has(s.id)}" title="${befreit ? 'vom Unterricht befreit' : st === 'weg' ? 'abwesend' : st === 'spaet' ? `verspätet (${f.minuten} min)` : st === 'frueh' ? `vorzeitig gegangen (${f.minuten} min)` : 'anwesend'}${f?.fehlstunden && st !== 'weg' ? ' – als Fehlstunde gewertet' : ''}">
         ${status}${zusatz}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
-        <span class="sd-name"><span>${e(s.name)}</span><span>${e(s.vorname)}</span></span>
+        <span class="sd-name">${sitz.nameHtml(s, sitzW)}</span>
         ${darf ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
-    }).join('');
+    };
+    const kacheln = sl.map(kachel).join('');
     const werkzeuge = `<button type="button" class="sd-werkzeug" data-werkzeug="mail" title="Mitteilung schreiben" aria-label="Mitteilung schreiben"><i class="bi bi-envelope"></i></button>
       <button type="button" class="sd-werkzeug" data-werkzeug="druck" title="Drucken" aria-label="Drucken"><i class="bi bi-printer"></i></button>
-      <button type="button" class="sd-werkzeug" data-werkzeug="einst" title="Sortierung: ${sortierung === 'name' ? 'Nachname' : 'Vorname'}" aria-label="Sortierung wechseln"><i class="bi bi-gear"></i></button>`;
+      <button type="button" class="sd-werkzeug" data-werkzeug="einst" title="Klassenbuch-Einstellungen" aria-label="Klassenbuch-Einstellungen"><i class="bi bi-gear"></i></button>`;
+    const sitzUmschalter = sl.length ? `<span class="sp-seg klein sp-umschalter" role="radiogroup" aria-label="Ansicht der Schüler*innen">${[['liste', 'grid-3x3-gap', 'Liste'], ['sitzplan', 'easel', 'Sitzplan']]
+      .map(([v, i, t]) => `<button type="button" role="radio" data-sitz-ansicht="${v}" class="${(sitzW.ansicht === 'sitzplan') === (v === 'sitzplan') ? 'an' : ''}" aria-checked="${(sitzW.ansicht === 'sitzplan') === (v === 'sitzplan')}"><i class="bi bi-${i}"></i>${t}</button>`).join('')}</span>` : '';
+    const listeHtml = `<div class="sd-kacheln ${sitzW.richtung === 'spalten' ? 'sp-spalten' : ''}">${kacheln}</div>`;
+    const sitzHinweis = `<div class="sp-a-hinweis"><i class="bi bi-easel"></i>Für diese Stunde ist noch kein Sitzplan hinterlegt.${sitz.darfIrgendwas(daten.sitz) ? ' <button type="button" class="sp-knopf primaer" data-sitz-bearbeiten>Sitzplan erstellen</button>' : ''}</div>`;
     const schuelerTeil = !a ? '<p class="small text-body-secondary">Anwesenheit kann nicht geladen werden.</p>'
       : !sl.length ? '<p class="small text-body-secondary mb-0">Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen (UntPlanWeb → Einstellungen → „Schülerliste übertragen“).</p>'
       : `${darf ? '<div class="d-flex flex-wrap gap-2 mb-3"><button type="button" class="sd-pille klein" data-alle>Alle auswählen</button><button type="button" class="sd-pille klein" data-keine>Auswahl löschen</button></div>' : ''}
-        <div class="sd-kacheln">${kacheln}</div>
+        ${sitzW.ansicht !== 'sitzplan' ? listeHtml : daten.sitz?.gueltig ? sitz.rasterHtml(daten.sitz, sl, kachel, sitzW) : sitzHinweis + listeHtml}
         ${darf ? `<div class="d-flex flex-wrap gap-2 mt-3">
           <button type="button" class="sd-pille klein grau" data-setzen="fehlt" ${auswahl.size ? '' : 'disabled'}>abwesend</button>
           <button type="button" class="sd-pille klein grau" data-setzen="zeitraum" ${auswahl.size ? '' : 'disabled'} title="Abwesenheit minutengenau erfassen (Verspätung, vorzeitig gegangen, Zeitraum)"><i class="bi bi-clock me-1"></i>Abwesenheit …</button>
           <button type="button" class="sd-pille klein grau" data-vermerk-auswahl ${auswahl.size ? '' : 'disabled'}>Klassenbucheintrag</button></div>` : ''}`;
     return `
-      ${abschnitt(maskeIcon('klassenbuch/multiple-man-woman-2.svg'), 'Schüler*innen im Unterricht', sl.length, a ? werkzeuge : '', schuelerTeil, 'kb-schueler')}
+      ${abschnitt(maskeIcon('klassenbuch/multiple-man-woman-2.svg'), 'Schüler*innen im Unterricht', sl.length, a ? sitzUmschalter + werkzeuge : '', schuelerTeil, 'kb-schueler')}
       ${lehrstoffHtml()}
       ${abwesendeHtml()}
       ${hausaufgabenHtml()}
@@ -479,6 +489,25 @@ export function karteDialog(karte, kontext = {}) {
 
   // ---------------------------------------------------------------- Ereignisse
 
+  // ---------------------------------------------------------------- Sitzplan: Klassenbuch-Einstellungen (Zahnrad) und Editor
+
+  function sitzEditor() {
+    if (!daten.sitz) { toast('Der Sitzplan kann nicht geladen werden.', true); return; }
+    const kx = sitz.kontextVon(k);
+    sitz.editorOeffnen({
+      wurzel: el, d: daten.sitz, kontext: { ...kx, klasse: daten.sitz.kontext?.klasse ?? null }, titel: 'Sitzplan',
+      untertitel: [kuerzel(k.klassen).join(', '), k.fach, kuerzel(k.lehrer).join(', '), kuerzel(k.raeume).join(', ')].filter(Boolean).join(' · '),
+      onGespeichert: async () => {
+        daten.sitz = await sitz.stundeLaden(kx).catch(() => null);
+        sitz.einstellungenSpeichern({ ...sitz.einstellungen(), ansicht: 'sitzplan' });
+        zeichnen();
+      },
+    });
+  }
+  function sitzEinstellungen() {
+    sitz.einstellungenPanel({ wurzel: el, onAendern: () => zeichnen(), sitzplan: { darf: sitz.darfIrgendwas(daten.sitz), onOeffnen: sitzEditor } });
+  }
+
   function binden() {
     const q = s => box.querySelector(s);
     const alle = (s, f) => box.querySelectorAll(s).forEach(f);
@@ -604,8 +633,10 @@ export function karteDialog(karte, kontext = {}) {
     alle('[data-werkzeug]', b => b.onclick = () => {
       if (b.dataset.werkzeug === 'druck') window.print();
       else if (b.dataset.werkzeug === 'mail') { modal.hide(); kontext.navigieren?.('#/mitteilungen'); }
-      else { sortierung = sortierung === 'name' ? 'vorname' : 'name'; toast(`Sortiert nach ${sortierung === 'name' ? 'Nachname' : 'Vorname'}.`); zeichnen(); }
+      else sitzEinstellungen();
     });
+    alle('[data-sitz-ansicht]', b => b.onclick = () => { sitz.einstellungenSpeichern({ ...sitz.einstellungen(), ansicht: b.dataset.sitzAnsicht }); zeichnen(); });
+    q('[data-sitz-bearbeiten]')?.addEventListener('click', sitzEditor);
 
     // Editoren schließen
     alle('[data-zu]', b => b.onclick = () => { offen = null; hwBearbeiten = null; zeichnen(); });
