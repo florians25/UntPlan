@@ -468,6 +468,9 @@ ul{ padding:0; list-style:none; }
 /* Wegfallender Wert — etwa eine noch offene Vertretung */
 /* Eine Stärke für alle Durchstreichungen — Plakette, Kachel, Detail. */
 .badge--removed{ text-decoration:line-through; text-decoration-thickness:var(--strike); }
+/* Abwesende bzw. wegfallende Lehrkraft: nur durchgestrichen, ohne grüne Fläche – grün hinterlegt
+   ist allein der neue Wert (z. B. die vertretende Lehrkraft). */
+.badge.badge--removed{ background:transparent; color:inherit; font-weight:inherit; }
 /* Das oberste Label trägt dieselbe Stärke wie die Zeile selbst — nicht
    mehr. Mit 700 stand das Kürzel im Kasten fetter da als derselbe Wert auf
    einer Kachel ohne Label; im Vorbild ist beides gleich. */
@@ -4053,3 +4056,97 @@ html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:non
 }
 .dlab--neu{ background:var(--green); color:var(--green-ink); }
 .tab:focus, .tab:focus-visible, .icon-btn:focus, .rndbtn:focus{ outline:none; }
+
+/* =====================================================================
+   Fenster am iPad bzw. breiten Bildschirm: FESTE Größe
+   ---------------------------------------------------------------------
+   Stundendetail, Auswahl und Schreiben stehen immer gleich groß da –
+   unabhängig vom Inhalt und auch beim Wechsel in Unterseiten (Klassenbuch,
+   Schüler*innen, Notizen). Der Inhalt rollt innen. Kalender und Legende
+   (ohne Unterseiten) behalten die feste Breite, ihre Höhe folgt dem Inhalt.
+   ===================================================================== */
+@media (min-width:700px){
+  .sheet.sheet--detail, .sheet.sheet--picker, .sheet.sheet--write{
+    width:min(560px, 94vw);
+    height:min(640px, 88vh);
+    min-height:min(640px, 88vh);
+    max-height:min(640px, 88vh);
+    overflow:hidden;
+  }
+  .sheet.sheet--week, .sheet.sheet--legend{ width:min(560px, 94vw); }
+  .sheet.sheet--legend{ overflow-y:auto; }
+}
+
+/* Hinweis „Zusätzliche Unterrichtsstunde“: normale Schreibweise, keine Großbuchstaben-Kapsel – dezent. */
+.dpill.dpill--hinweis, .sheet--detail .dpill.dpill--hinweis, .is-dark .sheet--detail .dpill.dpill--hinweis{
+  text-transform:none; letter-spacing:0; font-weight:500; font-size:14px;
+  height:auto; padding:2px 9px; border-radius:6px;
+  background:var(--d-chip, #eef0f2); color:var(--d-ink-2, #6b7a86);
+}
+
+/* =====================================================================
+   Tagesansicht: großer Kopf und ausführliche Karten
+   ===================================================================== */
+.dayhead--single .dayhead__name{ font-size:14px; }
+.dayhead--single .dayhead__num{ font-size:22px; margin-top:2px; }
+.dk{ display:grid; grid-template-columns:minmax(150px, 34%) 1fr; column-gap:18px; width:100%; align-items:start; }
+.dk__links, .dk__rechts{ display:flex; flex-direction:column; min-width:0; gap:2px; }
+.dk__titel{ font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dk__kurz{ font-weight:500; color:var(--c-ink-2); font-size:13px; }
+.dk__zeit{ font-size:12.5px; color:var(--c-ink-2); font-variant-numeric:tabular-nums; }
+.dk__werte{ display:flex; flex-wrap:wrap; gap:2px 18px; font-size:14px; color:var(--c-ink); }
+.dk__wert{ white-space:nowrap; }
+.dk__wert i{ font-style:normal; font-size:11.5px; color:var(--c-muted); margin-right:6px; text-transform:none; }
+.dk__hinweis{ font-size:12.5px; color:var(--c-ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.card--cancelled .dk__titel, .card--cancelled .dk__wert > :not(i),
+.card--cancelled .dk__wert{ text-decoration:line-through; text-decoration-thickness:var(--strike); }
+.card--cancelled .dk__wert i{ text-decoration:none; display:inline-block; }
+.card--change .dk__hinweis{ color:#00654c; }
+.card--cancelled .dk__hinweis{ color:var(--cnc-border); }
+.is-dark .card--change .dk__hinweis{ color:#7fe0bf; }
+.is-dark .card--cancelled .dk__hinweis{ color:#ff8fa8; }
+
+/* =====================================================================
+   Veranstaltung (Feld): hellgrün mit feinem Rahmen, Klassen fett – im
+   Dunkeln gedämpft statt kräftigem Dunkelgrün mit Türkisrahmen.
+   ===================================================================== */
+.card--gs, .card--absence{
+  background:#e0fdf3;
+  border:1px solid #a9dccb;
+  --bw:1px;
+  box-shadow:0 1px 2px rgba(21,33,44,.06);
+}
+.card--gs .card__line--primary{ font-weight:700; }
+html.is-dark .card--gs, html.is-dark .card--absence{
+  background:#22352f;
+  border:1px solid #3d6457;
+  --bw:1px;
+  box-shadow:none;
+}
+html.is-dark .card--gs .card__line,
+html.is-dark .card--gs .card__line--primary{ color:#e3efe9; }
+html.is-dark .card--gs.is-past, html.is-dark .card--absence.is-past{
+  background:#22352f; border:0; --bw:0px;
+}
+.card--gs.is-past, .card--absence.is-past{ background:#e0fdf3; border:0; --bw:0px; }
+
+/* =====================================================================
+   Vergangene Vertretungen und Entfälle: Es verschwindet nur der farbige
+   Rahmen – Fläche, Schrift und Fachbalken bleiben unverändert (kein
+   Verblassen), im Hellen wie im Dunkeln.
+   ===================================================================== */
+.card--change.is-past, .card--cancelled.is-past,
+html.is-dark .card--change.is-past, html.is-dark .card--cancelled.is-past{
+  border:0; --bw:0px;
+}
+.card--change.is-past, html.is-dark .card--change.is-past{ background:var(--chg-bg); }
+.card--cancelled.is-past, html.is-dark .card--cancelled.is-past{ background:var(--cnc-bg); }
+.card--change.is-past::before, .card--cancelled.is-past::before{ opacity:1; }
+.card--change.is-past .card__line, .card--change.is-past .card__line--primary{ color:var(--c-ink); }
+.card--cancelled.is-past .card__line, .card--cancelled.is-past .card__line--primary{ color:var(--c-ink); }
+html.is-dark .card--change.is-past .card__line{ color:#eafff8; }
+html.is-dark .card--cancelled.is-past .card__line{ color:#ffffff; }
+/* Termin bzw. ganztägige Veranstaltung im Dunkeln ebenso gedämpft */
+html.is-dark .card--event{ background:#22352f; border:1px solid #3d6457; box-shadow:none; }
+html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--primary{ color:#e3efe9; }
+.dk__wert .tok + .tok{ margin-left:6px; }

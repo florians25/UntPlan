@@ -585,6 +585,38 @@ function cardLines(card, kind){
                    && label && l.text.toUpperCase() === label));
 }
 
+/* Ausführliche Karte der Tagesansicht (breiter Bildschirm): links Fach
+   (ausgeschrieben) und Uhrzeit, rechts Klasse, Lehrkraft und Raum mit
+   denselben Plaketten wie auf der Wochenkachel, darunter Status und Hinweis. */
+function tagesInhalt(card, kind, zeilen, zeileInnen, von, bis){
+  const lab = { teacher:'Lehrkraft', room:'Raum', class:'Klasse' };
+  const fachZeile = zeilen.find(l => l.key === 'subject');
+  const lang = card.subjectLong && card.subjectLong !== card.subject ? card.subjectLong : '';
+  const titel = lang || card.subject || card.info || card.type || '';
+  const fachKurz = fachZeile && (lang || fachZeile.changed) ? zeileInnen(fachZeile) : '';
+  const werte = ['class', 'teacher', 'room'].map(k => zeilen.find(l => l.key === k)).filter(Boolean)
+    .map(l => `<span class="dk__wert"><i>${lab[l.key]}</i>${zeileInnen(l)}</span>`).join('');
+  const status = card._released ? (card.teacher ? 'Abwesend – vertreten durch ' + card.teacher : 'Abwesend – Vertretung offen')
+    : card.blockType === 'cancelled' ? (card.classAbsent || /klasse abw/i.test(card.info || '') ? 'Entfall – Klasse abwesend' : 'Entfall')
+    : card.blockType === 'klausur' ? 'Prüfung'
+    : card.blockType === 'event' ? 'Raumbuchung'
+    : card.blockType === 'change' ? (card.openSub ? 'Vertretung offen' : card.extra ? 'Zusätzliche Unterrichtsstunde'
+                                    : card.openRoom ? 'Raum offen' : (card.type || 'Änderung'))
+    : '';
+  const info = (card.info || '').trim();
+  const hinweis = [status, info && info !== status && info !== titel ? info : ''].filter(Boolean).join(' · ');
+  return `<span class="dk">
+      <span class="dk__links">
+        <span class="card__line card__line--primary dk__titel">${esc(titel)}${fachKurz ? ` <span class="dk__kurz">${fachKurz}</span>` : ''}</span>
+        <span class="dk__zeit">${esc((von || '').replace(/^0/, ''))}${bis ? ' – ' + esc(bis.replace(/^0/, '')) : ''}</span>
+      </span>
+      <span class="dk__rechts">
+        <span class="dk__werte">${werte}</span>
+        ${hinweis ? `<span class="dk__hinweis">${esc(hinweis)}</span>` : ''}
+      </span>
+    </span>`;
+}
+
 function cardEndDate(card){
   const t = state.times[Math.min(card.lesson + card.span - 1, 12)] || state.times[card.lesson];
   if (!t) return null;
@@ -745,9 +777,10 @@ function renderWeekHead(){
         style="grid-template-columns:repeat(3, 100%); width:calc(100% - 3px)"></div>`;
     $('#headStrip').innerHTML = trio.map(d => {
       const dd = parseISO(d);
+      /* Großer Kopf wie im Original: Wochentag ausgeschrieben und Datum */
       return `<button class="dayhead dayhead--single ${d === today ? 'is-today' : ''}" data-day="${d}">
-         <span class="dayhead__name">${WD_SHORT[(dd.getDay()+6)%7]}</span>
-         <span class="dayhead__num">${dd.getDate()}</span>
+         <span class="dayhead__name">${WD_LONG[(dd.getDay()+6)%7]}</span>
+         <span class="dayhead__num">${dd.getDate()}. ${MONTHS[dd.getMonth()]}</span>
        </button>`;
     }).join('');
     stripRuhe($('#headStrip'));
@@ -862,6 +895,8 @@ function renderGrid(){
      Zählkarte an die Stelle der verdrängten Kacheln. */
   const MIN_CARD = 62;
   const colPx = Math.max(1, (($('#gridScroll').clientWidth || 402) - 45) / cols);
+  /* Breite Wochenspalte: Platz für eine halbe Kachel neben einem Feld. */
+  const nebenFeld = !isDay && colPx >= 180;
   const weekPx = colPx * cols;
   const fitSide = Math.max(1, Math.floor(colPx / MIN_CARD));
 
@@ -962,7 +997,9 @@ function renderGrid(){
         });
       };
 
-      if (isDay){
+      /* Auf breitem Bildschirm (iPad) auch in der Woche: Feld links, die
+         wegen der Veranstaltung entfallenden Stunden und Aufsichten rechts daneben. */
+      if (isDay || nebenFeld){
         cards.filter(c => c.overlay).forEach(o => {
           const hit = cards.filter(c => !c.overlay && !istPause(c)
             && c.lesson <= o.lesson + o.span - 1 && o.lesson <= c.lesson + c.span - 1);
@@ -1124,11 +1161,15 @@ function renderGrid(){
                     && !isStandby && !isSup && !isMovedTarget;
 
       let lines = cardLines(card, kind);
+      /* Tagesansicht auf breitem Bildschirm: ausführliche Karte (Uhrzeit, Fach
+         ausgeschrieben, Lehrkraft, Raum, Klasse, Status und Hinweis). */
+      const tagesKarte = isDay && colPx >= 520 && !isHoliday && !isStandby && !isSup && !card.overlay
+        && card.blockType !== 'absence' && card.blockType !== 'gs';
 
       /* Passen nicht alle Zeilen in die Karte, wird gekürzt und unten rechts
          ein Zeichen gesetzt — dann ohne Info-Punkt. */
       const maxLines = Math.max(1, Math.floor((h - 9) / 14.3));
-      const cut = !isHoliday && !isStandby && !card.overlay && lines.length > maxLines;
+      const cut = !isHoliday && !isStandby && !card.overlay && !tagesKarte && lines.length > maxLines;
       if (cut) lines = lines.slice(0, maxLines);
       const past = (() => { const e = cardEndDate(card); return e && e < now; })();
 
@@ -1177,11 +1218,11 @@ function renderGrid(){
            bekamen GS und AK eine feste halbe Breite ohne Abstand. */
         style += lane(Math.max(2, card._n), card._i, 0, 100, isDay ? 4 : 2);
         cls.push('is-priority');
-      } else if (card._side && !isDay){
+      } else if (card._side && !isDay && !nebenFeld){
         /* Entfallene Originalstunden treten hinter das Feld zurück. */
         return;
-      } else if (card._side && isDay){
-        style += lane(card._n, card._i, 50, 100, 4);
+      } else if (card._side){
+        style += lane(card._n, card._i, 50, 100, isDay ? 4 : 2);
       } else if (isDay && card._n > 1 && !card._supervision){
         style += lane(card._n, card._i, 0, 100, 4);
       } else if (isDay && card._supervision){
@@ -1234,6 +1275,23 @@ function renderGrid(){
 
       const DOTS = '<svg viewBox="0 0 12 12"><circle cx="6" cy="2.4" r="1.05"/><circle cx="6" cy="6" r="1.05"/><circle cx="6" cy="9.6" r="1.05"/></svg>';
 
+      /* Inhalt einer Kartenzeile: Plaketten, Kopplungs-Kürzel oder Text. */
+      const zeileInnen = l => {
+        const cls2 = 'badge' + (l.removed ? ' badge--removed' : '');
+        return l.tokens
+          ? l.tokens.map((t, ti) => {
+              /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
+              const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
+              const kern  = t.state === 'absent'
+                ? `<span class="badge badge--removed">${esc(t.text)}</span>`
+                : t.state === 'sub'
+                ? `<span class="badge">${esc(t.text)}</span>`
+                : esc(t.text);
+              return `<span class="tok tok--${t.state}">${kern}${komma}</span>`;
+            }).join('')
+          : l.changed ? `<span class="${cls2}">${esc(l.text)}</span>` : esc(l.text);
+      };
+
       const body = isHoliday
         ? `<span class="holiday-inner">
              <span class="holiday-mark" aria-hidden="true">
@@ -1284,20 +1342,10 @@ function renderGrid(){
               card.room ? `<span class="card__line card__line--last">${esc(card.room)}</span>` : ''
             ].filter(Boolean).join('');
           })()
+        : tagesKarte
+        ? tagesInhalt(card, kind, cardLines(card, kind), zeileInnen, timeA, timeB)
         : lines.map((l, li) => {
-            const cls2 = 'badge' + (l.removed ? ' badge--removed' : '');
-            const inner = l.tokens
-              ? l.tokens.map((t, ti) => {
-                  /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
-                  const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
-                  const kern  = t.state === 'absent'
-                    ? `<span class="badge badge--removed">${esc(t.text)}</span>`
-                    : t.state === 'sub'
-                    ? `<span class="badge">${esc(t.text)}</span>`
-                    : esc(t.text);
-                  return `<span class="tok tok--${t.state}">${kern}${komma}</span>`;
-                }).join('')
-              : l.changed ? `<span class="${cls2}">${esc(l.text)}</span>` : esc(l.text);
+            const inner = zeileInnen(l);
             return `<span class="card__line ${l.primary ? 'card__line--primary' : ''}`
                  /* Beginnt die Zeile mit einer Plakette, bringt die ihr
                     eigenes Polster schon mit. Die Zeile darf dann keines
@@ -1308,7 +1356,6 @@ function renderGrid(){
                  + `${l.tokens ? ' card__line--kopp' : ''}${l.tokens && l.key === 'room' ? ' card__line--rooms' : ''}${l.tokens && l.key === 'teacher' ? ' card__line--scroll' : ''}`
                  + `${li === lines.length - 1 ? ' card__line--last' : ''}">${inner}</span>`;
           }).join('');
-
       /* Die Fachfarbe steht als Stilangabe unmittelbar an der Kachel.
          Sie gilt auch beim Entfall: Ist für das Fach eine Farbe
          hinterlegt, bleibt der Balken farbig — erkennbar ist der Entfall
@@ -3840,8 +3887,14 @@ function renderDetailTabs(c){
   box._cards = gleich;
 
   /* Der aktive Reiter soll sichtbar sein, auch wenn die Leiste rollt. */
+  /* Nur die Leiste selbst waagerecht rollen – scrollIntoView rollte auch das
+     Fenster senkrecht mit, dann rutschte der Titel unter die Reiter. */
   const on = box.querySelector('.is-on');
-  if (on && on.scrollIntoView) on.scrollIntoView({ block:'nearest', inline:'nearest' });
+  if (on){
+    const l = on.offsetLeft, r = l + on.offsetWidth;
+    if (l < box.scrollLeft) box.scrollLeft = l;
+    else if (r > box.scrollLeft + box.clientWidth) box.scrollLeft = r - box.clientWidth;
+  }
 }
 
 function renderDetail(){
@@ -4005,7 +4058,7 @@ function renderDetail(){
       ${istVeranstaltung
           ? `<p class="dline dline--pill"><span class="dpill">${plakette}</span></p>`
           : (c.subject || c.subjectOrig)
-            ? `<p class="dline dline--big">${val('subject')}${plakette ? `<span class="dpill">${plakette}</span>` : ''}</p>` : ''}
+            ? `<p class="dline dline--big">${val('subject')}${plakette ? `<span class="dpill${zusatz && !istVeranstaltung ? ' dpill--hinweis' : ''}">${plakette}</span>` : ''}</p>` : ''}
       ${(c.room || c.roomOrig) ? `<p class="dline">${raumHtml()}</p>` : ''}
       ${istVeranstaltung
           ? (c.teacher ? `<p class="dline">${liste(c.teacher)}</p>` : '')
