@@ -639,7 +639,10 @@ public sealed class Plandienst
         if (lehrerOffen)
         {
             var abwesend = bisher.Count > 0 ? bisher : r.Lehrer.Where(x => x.Length > 0 && x != "???").ToList();
-            lehrer = abwesend.Count > 0 ? abwesend.Distinct(Ci).Select(x => new Wert("", x, true)).ToList() : new List<Wert> { new("", null, true) };
+            var weg = abwesend.Count > 0 ? abwesend.Distinct(Ci).Select(x => new Wert("", x, true)).ToList() : new List<Wert> { new("", null, true) };
+            // Koppelstunde: anwesende Lehrkräfte derselben Stunde bleiben erhalten (nur die abwesende steht durchgestrichen)
+            var anwesend = bisher.Count > 0 ? r.Lehrer.Where(x => x.Length > 0 && x is not ("???" or "---" or "+" or "+++") && !Enthaelt(abwesend, x)).Distinct(Ci).Select(x => new Wert(x)).ToList() : new List<Wert>();
+            lehrer = anwesend.Concat(weg).ToList();
         }
         if (v != null)
         {

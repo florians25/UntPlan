@@ -163,6 +163,49 @@ public class OberflaecheTests
         }
     }
 
+    /// <summary>
+    /// Offene Vertretung in einer Koppelstunde: die anwesenden Koppel-Lehrkräfte bleiben in lehrer[] ({ k: "BIE" }), die abwesende
+    /// steht ohne Vertretung als { k: "", alt: "LAN", neu: true }, eine vertretene als { k: "ILK", alt: "MEY", neu: true }.
+    /// </summary>
+    [Fact]
+    public async Task Offene_Vertretung_in_Koppelstunde_behaelt_die_anwesenden_Lehrkraefte()
+    {
+        await using var s = await Testserver.StartenAsync(false);
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 53;
+        var tag = paket["tage"]!.AsArray().First(t => t!["datum"]!.GetValue<string>() == "2026-10-16")!;
+        JsonObject Stunde(int st, string status, int? vertretung, params string[] lehrer) => new()
+        {
+            ["stunde"] = st, ["unterricht"] = 9901 + st, ["fach"] = "SP", ["klassen"] = new JsonArray("7a"), ["lehrer"] = new JsonArray(lehrer.Select(l => (JsonNode)l).ToArray()),
+            ["raeume"] = new JsonArray("TH1"), ["status"] = status, ["vertretung"] = vertretung, ["text"] = "",
+        };
+        JsonObject Vertretung(int id, int st, string lehrer, string vertreter) => new()
+        {
+            ["id"] = id, ["datum"] = "2026-10-16", ["stunde"] = st, ["art"] = "Vertretung", ["klassen"] = new JsonArray("7a"), ["lehrer"] = lehrer, ["vertreter"] = vertreter,
+            ["fach"] = "SP", ["neuesFach"] = "SP", ["raum"] = "TH1", ["neuerRaum"] = "TH1", ["text"] = "",
+        };
+        var stunden = tag["stunden"]!.AsArray();
+        // Stunde 9: drei Koppelzeilen (BIE anwesend, LAN offen, MEY von ILK vertreten)
+        stunden.Add(Stunde(9, "regulaer", null, "BIE"));
+        stunden.Add(Stunde(9, "offen", 99091));
+        stunden.Add(Stunde(9, "vertreten", 99092, "ILK"));
+        // Stunde 10: eine Zeile mit beiden Lehrkräften, LAN fehlt (offen)
+        stunden.Add(Stunde(10, "offen", 99101, "BIE"));
+        var vertretungen = paket["vertretungen"]!.AsArray();
+        vertretungen.Add(Vertretung(99091, 9, "LAN", "???"));
+        vertretungen.Add(Vertretung(99092, 9, "MEY", "ILK"));
+        vertretungen.Add(Vertretung(99101, 10, "LAN", "???"));
+        Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(paket)).StatusCode);
+        var c = await s.AlsAsync("admin");
+        var plan = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=7a&datum=2026-10-16");
+        string Lehrer(JsonNode k) => string.Join(" ", k["lehrer"]!.AsArray().Select(w => $"{w!["k"]}/{w["alt"]}/{w["neu"]}").Order());
+        var k9 = Karten(plan, "2026-10-16", 9).Single(x => x["fach"]!.GetValue<string>() == "SP");
+        Assert.Equal("offen", k9["status"]!.GetValue<string>());
+        Assert.Equal("/LAN/true BIE//false ILK/MEY/true", Lehrer(k9));
+        var k10 = Karten(plan, "2026-10-16", 10).Single(x => x["fach"]!.GetValue<string>() == "SP");
+        Assert.Equal("/LAN/true BIE//false", Lehrer(k10));
+    }
+
     [Fact]
     public async Task Veranstaltung_der_Klasse_laesst_regulaeren_Unterricht_entfallen()
     {
