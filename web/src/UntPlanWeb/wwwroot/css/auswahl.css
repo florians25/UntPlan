@@ -60,7 +60,7 @@ td > .au.w-auto, td > .au.d-inline-block { vertical-align: middle; }
 .au-x[hidden] { display: none; }
 .au-zusatz:empty { display: none; }
 .au-liste { overflow-y: auto; overscroll-behavior: contain; max-height: 360px; }
-.au-gruppe { padding: 10px 10px 4px; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--u-grau-2, #8a96a1); }
+.au-gruppe { padding: 10px 10px 4px; font-size: .7rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--u-grau-2, #8a96a1); }
 .au-gruppe:first-child { padding-top: 4px; }
 .au-option { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--u-titel, #24323d); line-height: 1.25; }
 .au-option.aktiv { background: #f1f3f5; }
@@ -81,7 +81,7 @@ td > .au.w-auto, td > .au.d-inline-block { vertical-align: middle; }
 
 /* Elementwahl (Planwahl): Schalter „Alle anzeigen“ und Pillenfeld neben dem Menü */
 .au-elementwahl .wahl-alle-schalter { margin: 0 -6px 4px; padding: 6px 14px 8px; }
-.au-elementwahl .au-haupt { font-weight: 700; }
+.au-elementwahl .au-haupt { font-weight: 600; }
 .au-pillen { position: absolute; top: 0; left: calc(100% + 8px); display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px 4px; max-height: 70vh; overflow: auto;
   padding: 10px 12px; background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; box-shadow: 0 12px 32px rgba(36, 50, 61, .18); }
 .au-pillen .wahl-pille.aktiv { background: var(--u-akzent); color: #fff; }

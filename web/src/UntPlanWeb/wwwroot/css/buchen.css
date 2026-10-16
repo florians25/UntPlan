@@ -12,7 +12,7 @@
   color: #67747e; font: inherit; font-size: .9rem; cursor: default; }
 .bu-schritte li.fertig button { cursor: pointer; color: var(--u-text); }
 .bu-schritte li.fertig button:hover .bu-sname { text-decoration: underline; }
-.bu-nr { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid #c9d0d6; background: #fff; font-weight: 700; color: #67747e; }
+.bu-nr { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid #c9d0d6; background: #fff; font-weight: 600; color: #67747e; }
 .bu-schritte li.aktiv .bu-nr { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; box-shadow: 0 0 0 4px rgba(var(--u-akzent-rgb), .15); }
 .bu-schritte li.aktiv .bu-sname { color: var(--u-titel); font-weight: 600; }
 .bu-schritte li.fertig .bu-nr { border-color: var(--u-akzent); color: var(--u-akzent); }

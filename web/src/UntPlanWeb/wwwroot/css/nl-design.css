@@ -62,12 +62,12 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
   --u-gruen-hell: #dff6eb;
 }
 
-/* Kopf: Zeitraum 14px Demi dunkel, Tage 16px grau (Medium), heute fett schwarz */
-.planleiste .zeitraum { font-size: .875rem; font-weight: 700; color: var(--u-titel); letter-spacing: .02em; }
+/* Kopf: Zeitraum 14px Medium dunkel, Tage 16px grau (Medium), heute Medium schwarz */
+.planleiste .zeitraum { font-size: .875rem; font-weight: 600; color: var(--u-titel); letter-spacing: .02em; }
 .tt-tag { font-size: 1rem; font-weight: 600; color: var(--u-grau-2); padding-bottom: 25px; }
 [data-ansicht="plan"] .tt > .tt-tag, [data-ansicht="plan"] .tt > .tt-ecke:first-child { padding-top: 1px; }
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 51px; } [data-ansicht="plan"] .planleiste { padding-top: 11px; } }
-.tt-tag.heute { color: #24323d; font-weight: 700; }
+.tt-tag.heute { color: #24323d; font-weight: 600; }
 
 /* Raster: Zeitspalte 44px, 16px zwischen den Tagen, Linien durchgehend über die Lücken (nicht in der Zeitspalte) */
 @media (min-width: 992px) {
@@ -104,7 +104,7 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .tt-ferien .art .bi { font-size: 10px; vertical-align: 1px; margin-right: 2px; }
 
 /* Legende unten: dunkle Pillen in weißer Leiste */
-.u-legende-pille { background: #67747e; border-color: #67747e; font-weight: 700; }
+.u-legende-pille { background: #67747e; border-color: #67747e; font-weight: 600; }
 
 /* ------------------------------------------------------------------ Seitenleiste wie im Vorbild: dunkelgraue Texte (Medium), Symbole grau, aktiv orange */
 

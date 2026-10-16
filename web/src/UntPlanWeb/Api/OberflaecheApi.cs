@@ -53,7 +53,7 @@ public static partial class OberflaecheApi
         if (dateien.Count == 0) return sb.Append("/* Keine AvenirNextPro-Dateien gefunden – es gilt Nunito Sans. */\n").ToString();
         static int Rang(string f) => Path.GetExtension(f).ToLowerInvariant() switch { ".woff2" => 0, ".woff" => 1, ".otf" => 2, _ => 3 };
         static string Format(string f) => Path.GetExtension(f).ToLowerInvariant() switch { ".woff2" => "woff2", ".woff" => "woff", ".otf" => "opentype", _ => "truetype" };
-        // gleiche Zuordnung wie bei hochgeladenen Schriften (SchriftApi): CSS 400 Regular, 600 Medium, 700 Demi, jedes Gewicht fest belegt
+        // gleiche Zuordnung wie bei hochgeladenen Schriften (SchriftApi): CSS 100–400 Regular, 500–900 Medium, jedes Gewicht fest belegt
         foreach (var stil in dateien.GroupBy(f => Schnitt(f).Stil).OrderBy(g => g.Key == "italic"))
         {
             var jeSchnitt = stil.GroupBy(f => Schnitt(f).Gewicht).ToDictionary(g => g.Key,

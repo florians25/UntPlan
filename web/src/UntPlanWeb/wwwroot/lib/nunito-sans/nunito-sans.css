@@ -1,5 +1,5 @@
-/* Nunito Sans (SIL Open Font License 1.1, siehe LICENSE) – lokal eingebunden, ohne externe Schriftquellen. */
+/* Nunito Sans (SIL Open Font License 1.1, siehe LICENSE) – lokal eingebunden, ohne externe Schriftquellen.
+   Nur Regular (400) und Medium (500/600); 700–900 fallen ebenfalls auf den 600er-Schnitt – kein Bold-Schnitt wird geladen. */
 @font-face { font-family: 'Nunito Sans'; font-style: normal; font-display: swap; font-weight: 400; src: url(nunito-sans-latin-400-normal.woff2) format('woff2'); }
 @font-face { font-family: 'Nunito Sans'; font-style: normal; font-display: swap; font-weight: 500; src: url(nunito-sans-latin-500-normal.woff2) format('woff2'); }
-@font-face { font-family: 'Nunito Sans'; font-style: normal; font-display: swap; font-weight: 600; src: url(nunito-sans-latin-600-normal.woff2) format('woff2'); }
-@font-face { font-family: 'Nunito Sans'; font-style: normal; font-display: swap; font-weight: 700; src: url(nunito-sans-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Nunito Sans'; font-style: normal; font-display: swap; font-weight: 600 900; src: url(nunito-sans-latin-600-normal.woff2) format('woff2'); }

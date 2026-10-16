@@ -40,35 +40,32 @@ public static partial class SchriftApi
         return (gewicht, kursiv);
     }
 
-    /// <summary>CSS-Gewichte, für die ein Schriftschnitt gilt (eine Stufe leichter als üblich).</summary>
+    /// <summary>
+    /// Die Oberfläche verwendet nur zwei Schnitte: Regular (CSS 100–400) und Medium (CSS 500–900). Demi-/Bold-Dateien werden nicht
+    /// geladen, solange ein Medium-Schnitt vorhanden ist; fehlt er, vertritt ihn der leichteste fettere Schnitt.
+    /// </summary>
     public static int[] CssGewichte(int schnitt) => schnitt switch
     {
-        200 => new[] { 200, 300 },
-        500 => new[] { 500, 600 },
-        600 => new[] { 700 },
-        700 => new[] { 800 },
-        800 => new[] { 900 },
-        var x => new[] { x },
+        <= 400 => new[] { 100, 200, 300, 400 },
+        _ => new[] { 500, 600, 700, 800, 900 },
     };
 
     /// <summary>
-    /// Vollständige Zuordnung CSS-Gewicht (100–900) → Schriftschnitt: zuerst die festen Stufen aus <see cref="CssGewichte"/>,
-    /// jede fehlende Stufe erhält den nächstgelegenen vorhandenen Schnitt (bei Gleichstand den leichteren). So wählt jeder Browser
-    /// (Chrome, Firefox, Safari unter macOS/iOS) für jedes Gewicht dieselbe Datei – keine abweichende Fallback-Auswahl, keine Kunstfetten.
+    /// Vollständige Zuordnung CSS-Gewicht (100–900) → Schriftschnitt: 100–400 → Regular, 500–900 → Medium. So wählt jeder Browser
+    /// (Chrome, Firefox, Safari unter macOS/iOS) für jedes Gewicht dieselbe Datei – keine abweichende Fallback-Auswahl, keine Kunstfetten,
+    /// keine Demi-/Bold-Schnitte.
     /// </summary>
     public static List<(int Css, int Schnitt)> Zuordnung(IEnumerable<int> schnitte)
     {
-        var basis = new SortedDictionary<int, int>();
-        foreach (var s in schnitte.Distinct().OrderBy(x => x))
-            foreach (var c in CssGewichte(s)) basis.TryAdd(c, s);
+        var alle = schnitte.Distinct().OrderBy(x => x).ToList();
         var res = new List<(int, int)>();
-        if (basis.Count == 0) return res;
-        for (var w = 100; w <= 900; w += 100)
-        {
-            if (basis.TryGetValue(w, out var s)) { res.Add((w, s)); continue; }
-            var naechste = basis.OrderBy(kv => Math.Abs(kv.Key - w)).ThenBy(kv => kv.Key).First();
-            res.Add((w, naechste.Value));
-        }
+        if (alle.Count == 0) return res;
+        int? regular = alle.Contains(400) ? 400 : alle.Where(x => x < 400).Select(x => (int?)x).LastOrDefault();
+        int? medium = alle.Contains(500) ? 500 : alle.Where(x => x > 500).Select(x => (int?)x).FirstOrDefault()
+            ?? alle.Where(x => x > 400 && x < 500).Select(x => (int?)x).FirstOrDefault();
+        regular ??= medium;
+        medium ??= regular;
+        for (var w = 100; w <= 900; w += 100) res.Add((w, w <= 400 ? regular!.Value : medium!.Value));
         return res;
     }
 
@@ -100,14 +97,14 @@ public static partial class SchriftApi
             var sb = new StringBuilder("/* Hausschrift aus dem Datenordner (Administration → Ansichtseinstellungen → Schrift) */\n");
             var dateien = Dateien(k);
             // je Schnitt die kompakteste Datei (woff2 vor woff vor otf/ttf)
-            // Avenir Next ist in den fetten Schnitten deutlich kräftiger als die Ersatzschrift: eine Stufe leichter einordnen
-            // (CSS 400 → Regular, 500/600 → Medium, 700 → Demi, 800 → Bold) – jedes Gewicht 100–900 bekommt eine feste Datei
+            // nur Regular und Medium: CSS 100–400 → Regular, 500–900 → Medium (keine Demi-/Bold-Dateien) – jedes Gewicht bekommt eine feste Datei
             foreach (var stil in dateien.GroupBy(d => Schnitt(d).Kursiv))
             {
                 var jeSchnitt = stil.GroupBy(d => Schnitt(d).Gewicht).ToDictionary(g => g.Key, g => string.Join(", ", g
                     .OrderBy(d => Format(d) switch { "woff2" => 0, "woff" => 1, _ => 2 })
                     .Select(d => $"url(\"/schriften/{Uri.EscapeDataString(d)}\") format(\"{Format(d)}\")")));
-                foreach (var (css, schnitt) in Zuordnung(jeSchnitt.Keys))
+                var zuordnung = Zuordnung(jeSchnitt.Keys);
+                foreach (var (css, schnitt) in zuordnung)
                     sb.Append($"@font-face {{ font-family: \"{Familie}\"; font-weight: {css}; font-style: {(stil.Key ? "italic" : "normal")}; font-display: swap; src: {jeSchnitt[schnitt]}; }}\n");
             }
             if (dateien.Count > 0)
