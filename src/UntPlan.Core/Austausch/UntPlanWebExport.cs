@@ -115,6 +115,7 @@ public static class UntPlanWebExport
                         Vertretung = e.Vertretung?.Id, Text = e.Vertretung?.Text ?? "",
                         LehrerAlt = (e.Status is TagesStatus.Vertreten or TagesStatus.Offen) && e.Vertretung?.LehrerId is int alt && !e.LehrerIds.Contains(alt)
                             ? new List<string> { ix.KLehrer(alt) } : new List<string>(),
+                        Bereitschaft = Vertretungen.IstBereitschaftsfach(d, e.FachId) || Vertretungen.IstBereitschaftsfach(d, e.Regel?.FachId),
                     });
                 foreach (var z in Vertretungsplan.Zeilen(d, t))
                     vertretungen.Add(new WebVertretung

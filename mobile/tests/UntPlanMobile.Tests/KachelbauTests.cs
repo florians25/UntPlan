@@ -86,6 +86,30 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Bereitschaft_einer_abwesenden_Lehrkraft_ist_kein_Entfall()
+    {
+        var karte = Karte("abwesend", 3, fach: "BER", unterricht: 300, klassen: new(), raeume: new(), lehrer: new() { new("", "SNE") })
+            with { LehrerAbwesend = true, Bereitschaft = true };
+        foreach (var art in new[] { "teacher", "room", "class" })
+        {
+            var k = Kachelbau.AusKarte(karte, art);
+            Assert.Equal("standby", k.Art);
+            Assert.True(k.BereitschaftAbwesend);
+            Assert.True(k.LehrerAbwesend);
+            Assert.Equal("", k.Lehrkraft);
+            Assert.Equal("SNE", k.LehrkraftAlt);
+        }
+        // anderes Kürzel: erkannt am Kennzeichen „bereitschaft“
+        var vb = Kachelbau.AusKarte(Karte("abwesend", 3, fach: "VB", lehrer: new() { new("", "SNE") }) with { Bereitschaft = true, LehrerAbwesend = true }, "room");
+        Assert.Equal("standby", vb.Art);
+        // normale abgegebene Stunde bleibt eine Änderung, mit Kennzeichen „teacherAbsent“
+        var weg = Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("HAR", "HOF", true) }) with { LehrerAbwesend = true }, "teacher");
+        Assert.Equal("change", weg.Art);
+        Assert.True(weg.LehrerAbwesend);
+        Assert.Null(weg.BereitschaftAbwesend);
+    }
+
+    [Fact]
     public void Klausur_ohne_Fach_traegt_den_Titel()
     {
         var k = Kachelbau.AusKarte(Karte("klausur", 3, 4, fach: "", text: "Mathematik-Klausur", art: "Klausur", unterricht: null, klassen: new() { new("EF") }), "teacher");

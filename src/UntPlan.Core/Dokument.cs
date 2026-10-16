@@ -117,6 +117,8 @@ public sealed class Dokument
             // geänderter Unterricht/Stundenplan: bestehende Absenzen und Vertretungen auf den neuen Plan anwenden (gleiche Rückgängig-Stufe)
             if (art is AenderungsArt.Unterricht or AenderungsArt.Stundenplan && PlanaenderungenAbgleichen)
                 Vertretungsplanung.Vertretungen.NachPlanaenderung(Daten, DateOnly.FromDateTime(DateTime.Today));
+            // geänderte Vertretungen (z. B. Sondereinsatz, Stunde ändern, Verlegung): Unterricht einer abwesenden Klasse entfällt
+            if (art is AenderungsArt.Vertretung or AenderungsArt.Alles) Vertretungsplanung.Vertretungen.KlassenabwesenheitAnwenden(Daten);
         }
         catch
         {

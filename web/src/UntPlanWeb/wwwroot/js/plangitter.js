@@ -49,10 +49,13 @@ function titelText(k) {
   return [k.fachName || k.fach || k.text, w(k.klassen), w(k.lehrer), w(k.raeume), k.status !== 'regulaer' ? statusText(k) : '', k.fach && k.text].filter(Boolean).join(' · ');
 }
 
-/** Eigene Stunde der gerade angezeigten Lehrkraft wird von anderen gehalten (Lehrkraft abwesend): gestrichelte Karte statt Entfall. */
-export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && typ === 'lehrer';
+/**
+ * Lehrkraft abwesend: eigene Stunde der angezeigten Lehrkraft wird von anderen gehalten, bzw. die Bereitschaft einer abwesenden
+ * Lehrkraft fällt weg (in jedem Plan) – gestrichelte Karte mit Eck-Klammern statt Entfall. Der Server liefert dafür lehrerAbwesend.
+ */
+export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && (typ === 'lehrer' || !!k.lehrerAbwesend);
 /** Echter Entfall (rot, durchgestrichen); im Raumplan gilt eine verlegte Stunde weiter als Entfall. */
-const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend' && typ !== 'lehrer');
+const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend' && !lehrerAbwesend(k, typ));
 
 function marker(k, typ) {
   const m = [];

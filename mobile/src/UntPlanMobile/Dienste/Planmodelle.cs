@@ -16,7 +16,8 @@ public sealed record PlanKarte(
     string Fach, string? FachAlt, string FachName, string Farbe,
     List<PlanWert> Klassen, List<PlanWert> Lehrer, List<PlanWert> Raeume,
     string Art, string Text, int? Vertretung, int? Unterricht, string Gruppe = "",
-    string? NotizSchueler = null, string? NotizLehrer = null, bool HausaufgabeFaellig = false);
+    string? NotizSchueler = null, string? NotizLehrer = null, bool HausaufgabeFaellig = false,
+    bool LehrerAbwesend = false, bool Bereitschaft = false);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 public sealed record PlanAufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
@@ -105,7 +106,10 @@ public sealed class Kachel
     [JsonPropertyName("_pausePre")] public bool? VorErsterStunde { get; set; }
     [JsonPropertyName("_supSub")] public bool? AufsichtUebernommen { get; set; }
     [JsonPropertyName("_supAbsent")] public bool? AufsichtAbgegeben { get; set; }
+    /// <summary>Bereitschaft einer abwesenden Lehrkraft: Eckklammern, Kürzel durchgestrichen (kein Entfall).</summary>
     [JsonPropertyName("standbyAbsent")] public bool? BereitschaftAbwesend { get; set; }
+    /// <summary>Lehrkraft abwesend (eigene Stunde wird von anderen gehalten): Eckklammern statt Entfall.</summary>
+    [JsonPropertyName("teacherAbsent")] public bool? LehrerAbwesend { get; set; }
     [JsonPropertyName("teacherList")] public List<KoppEintrag>? Kopplung { get; set; }
     [JsonPropertyName("classList")] public List<KlassenEintrag>? Klassenliste { get; set; }
     /// <summary>Unterricht in UntPlanWeb – Schlüssel fürs Klassenbuch (auch als entryId, wie in der Vorlage).</summary>

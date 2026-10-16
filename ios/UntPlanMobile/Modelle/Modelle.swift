@@ -113,11 +113,30 @@ struct Wert: Decodable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey { case k, alt, neu }
 
+    init(k: String, alt: String? = nil, neu: Bool = false) {
+        self.k = k
+        self.alt = alt
+        self.neu = neu
+    }
+
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        k = c.text(.k)
-        alt = c.textOderNil(.alt)
-        neu = c.wahr(.neu)
+        // Nachsichtig: auch ein einfacher Text (z. B. "INF13") wird als Wert gelesen
+        if let c = try? decoder.container(keyedBy: CodingKeys.self) {
+            k = c.text(.k)
+            alt = c.textOderNil(.alt)
+            neu = c.wahr(.neu)
+            return
+        }
+        let einzeln = try decoder.singleValueContainer()
+        if let s = try? einzeln.decode(String.self) {
+            k = s
+        } else if let i = try? einzeln.decode(Int.self) {
+            k = String(i)
+        } else {
+            k = ""
+        }
+        alt = nil
+        neu = false
     }
 
     /// Wurde der Wert geändert (neu oder mit abweichendem altem Wert)?
@@ -157,10 +176,59 @@ struct Karte: Decodable, Identifiable, Sendable {
     var abwesendText: String
     /// Stunde findet online statt (Klassenbuch) – Karte grün mit Plakette „Online“.
     var online: Bool
+    /// Die eingeteilte Lehrkraft ist abwesend (z. B. Bereitschaft der abwesenden Lehrkraft) – falls der Server es liefert.
+    var lehrerAbwesend: Bool
+    /// Bereitschaftsstunde (falls der Server es ausdrücklich liefert; sonst aus Status bzw. Fach abgeleitet).
+    var bereitschaft: Bool
 
     enum CodingKeys: String, CodingKey {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
         case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
+        case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent
+    }
+
+    /// Karte ohne Server-Antwort (Veranstaltung aus den Tagesdaten, geteilte Blöcke).
+    init(datum: String, von: Int, bis: Int, beginn: String, ende: String, status: String,
+         fach: String = "", fachName: String = "", farbe: String = "",
+         klassen: [Wert] = [], lehrer: [Wert] = [], raeume: [Wert] = [], art: String = "", text: String = "") {
+        self.datum = datum
+        self.von = von
+        self.bis = max(bis, von)
+        self.beginn = beginn
+        self.ende = ende
+        self.status = status
+        self.fach = fach
+        self.fachAlt = nil
+        self.fachName = fachName
+        self.farbe = farbe
+        self.klassen = klassen
+        self.lehrer = lehrer
+        self.raeume = raeume
+        self.art = art
+        self.text = text
+        self.vertretung = nil
+        self.unterricht = nil
+        self.gruppe = ""
+        self.notizSchueler = ""
+        self.notizLehrer = ""
+        self.hausaufgabeFaellig = false
+        self.zusaetzlich = false
+        self.abwesendeKlassen = []
+        self.abwesendText = ""
+        self.online = false
+        self.lehrerAbwesend = false
+        self.bereitschaft = false
+    }
+
+    /// Teil eines Blocks (z. B. an einer Pausenaufsicht geteilt) – mit eigener Kennung.
+    func teil(von: Int, bis: Int, beginn: String, ende: String) -> Karte {
+        var k = self
+        k.id = UUID()
+        k.von = von
+        k.bis = max(bis, von)
+        k.beginn = beginn
+        k.ende = ende
+        return k
     }
 
     init(from decoder: Decoder) throws {
@@ -191,6 +259,8 @@ struct Karte: Decodable, Identifiable, Sendable {
         abwesendeKlassen = c.texte(.abwesendeKlassen)
         abwesendText = c.text(.abwesendText)
         online = c.wahr(.online)
+        lehrerAbwesend = c.wahr(.lehrerAbwesend) || c.wahr(.bereitschaftAbwesend) || c.wahr(.standbyAbsent)
+        bereitschaft = c.wahr(.bereitschaft)
     }
 
     var istEntfall: Bool { status == "entfall" }

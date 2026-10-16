@@ -40,6 +40,13 @@ public sealed record Karte(
     public List<string> AbwesendeKlassen { get; init; } = new();
     /// <summary>Text des Labels bei abwesender Klasse, z. B. „abwesend“ bzw. „abwesend – Exkursion“ (Grund nur fürs Kollegium).</summary>
     public string AbwesendText { get; init; } = "";
+    /// <summary>
+    /// Darstellung „Lehrkraft abwesend“ (gestrichelter Rahmen mit Eck-Klammern, Lehrer-Label grün bzw. durchgestrichen) statt Entfall:
+    /// eigene Stunde im Lehrerplan wird von anderen gehalten, oder die Bereitschaft einer abwesenden Lehrkraft fällt weg.
+    /// </summary>
+    public bool LehrerAbwesend { get; init; }
+    /// <summary>Bereitschaft (Fach mit Bereitschaft) – wird nie vertreten; fehlt die Lehrkraft, gilt <see cref="LehrerAbwesend"/>.</summary>
+    public bool Bereitschaft { get; init; }
 }
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
@@ -60,7 +67,7 @@ public sealed record Tageszeile(string Kurz, string Name, List<Karte> Karten);
 
 /// <summary>Rohdaten einer Stunde (aus dem tagesaktuellen Plan, dem Regelplan oder einer Vormerkung).</summary>
 public sealed record Rohstunde(int Stunde, int? Unterricht, string Fach, IReadOnlyList<string> Klassen, IReadOnlyList<string> Lehrer, IReadOnlyList<string> Raeume,
-    string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null);
+    string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null, bool Bereitschaft = false);
 
 public static class Elementtyp
 {
@@ -139,7 +146,7 @@ public sealed class Plandienst
 
     public List<Rohstunde> Rohstunden(Stand s, DateOnly d)
     {
-        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt);
+        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft);
         if (s.Tage.TryGetValue(Iso(d), out var tag) && !tag.NurAenderungen)
             return tag.Unterrichtstag ? tag.Stunden.Select(Aus).ToList() : new List<Rohstunde>();
         if (tag is { NurAenderungen: true })
@@ -308,7 +315,31 @@ public sealed class Plandienst
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k))).ToList();
-        return KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(einzel), zeiten));
+        return KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten));
+    }
+
+    /// <summary>
+    /// Veranstaltung einer Klasse (Termin mit Klassen): regulärer Unterricht ohne Vertretung, dessen Klassen alle an der Veranstaltung
+    /// teilnehmen, entfällt – auch wenn das Paket (z. B. aus einer älteren UntPlan-Version) dafür keinen Entfall enthält.
+    /// </summary>
+    internal static List<Karte> KlassenVeranstaltung(Stand s, DateOnly d, List<Karte> einzel)
+    {
+        var termine = s.Paket.Termine.Where(t => t.Art == "veranstaltung" && t.Klassen.Count > 0 && DateOnly.TryParse(t.Von, out var v) && DateOnly.TryParse(t.Bis, out var b)
+            && d >= v && d <= b).ToList();
+        if (termine.Count == 0) return einzel;
+        bool Deckt(WebTermin t, int stunde)
+        {
+            // mehrtägig: am ersten Tag ab StundeVon, am letzten bis StundeBis, dazwischen ganztägig
+            var erster = DateOnly.Parse(t.Von) == d;
+            var letzter = DateOnly.Parse(t.Bis) == d;
+            return (!erster || stunde >= t.StundeVon) && (!letzter || t.StundeBis < 1 || stunde <= t.StundeBis);
+        }
+        return einzel.Select(k =>
+        {
+            if (k.Status != "regulaer" || k.Vertretung.HasValue || k.Klassen.Count == 0 || k.Fach.Length == 0) return k;
+            var t = termine.FirstOrDefault(t => Deckt(t, k.Von) && k.Klassen.All(w => Enthaelt(t.Klassen, w.K)));
+            return t is null ? k : k with { Status = "entfall", Art = "Entfall", Text = t.Titel };
+        }).ToList();
     }
 
     /// <summary>Abwesende Klassen (Absenzen aus UntPlan) auf den Karten markieren – echte Entfälle und Veranstaltungen bleiben unverändert.</summary>
@@ -527,7 +558,7 @@ public sealed class Plandienst
                 status = "abwesend";
         }
         // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft (Kürzel durchgestrichen)
-        var bereitschaft = IstBereitschaft(s, fach) || (v != null && v.Art.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase));
+        var bereitschaft = r.Bereitschaft || IstBereitschaft(s, fach) || (v != null && v.Art.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase));
         if (bereitschaft && status == "entfall")
         {
             status = "abwesend";
@@ -547,7 +578,11 @@ public sealed class Plandienst
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
         return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
             r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, Gruppe(s, r))
-        { Zusaetzlich = zusatz };
+        {
+            Zusaetzlich = zusatz, Bereitschaft = bereitschaft,
+            // abwesende Lehrkraft: eigene Stunde im Lehrerplan von anderen gehalten bzw. weggefallene Bereitschaft (in jedem Plan)
+            LehrerAbwesend = status == "abwesend" && (typ == Elementtyp.Lehrer || bereitschaft),
+        };
     }
 
     /// <summary>Schülergruppe des Unterrichts (Kopplungszeile mit gleichem Fach bzw. gleicher Lehrkraft), sonst leer.</summary>

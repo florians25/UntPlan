@@ -75,7 +75,7 @@ export function karteDialog(karte, kontext = {}) {
   let sortierung = 'name';
   let raumModus = null;      // Raumwahl: { art: 'ersetzen' | 'hinzufuegen', raum, gewaehlt, suche, abteilung, arten:Set }
 
-  const istEntfall = () => k.status === 'entfall' || (k.status === 'abwesend' && kontext.typ !== 'lehrer');
+  const istEntfall = () => k.status === 'entfall' || (k.status === 'abwesend' && kontext.typ !== 'lehrer' && !k.lehrerAbwesend);
   const mitKlassenbuch = () => kollegium && k.unterricht && !['entfall', 'abwesend', 'vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
   // Prüfung auch in Vertretungs- und Zusatzstunden (ohne eigenen Unterricht), nur nicht in entfallenen Stunden oder Veranstaltungen
   const darfPruefung = () => kollegium && kuerzel(k.klassen).length && k.datum >= heuteIso() && !['entfall', 'abwesend', 'veranstaltung', 'vorgemerkt'].includes(k.status);

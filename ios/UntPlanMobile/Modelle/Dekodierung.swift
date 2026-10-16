@@ -34,9 +34,12 @@ extension KeyedDecodingContainer {
         return false
     }
 
-    /// Liste; fehlt sie oder ist sie unlesbar, dann leer.
+    /// Liste; fehlt sie oder ist sie unlesbar, dann leer. Unlesbare einzelne Einträge werden übersprungen,
+    /// statt die ganze Liste zu verwerfen.
     func liste<T: Decodable>(_ key: Key) -> [T] {
-        (try? decodeIfPresent([T].self, forKey: key)) ?? []
+        if let l = try? decodeIfPresent([T].self, forKey: key) { return l }
+        let einzeln = (try? decodeIfPresent([Vielleicht<T>].self, forKey: key)) ?? []
+        return einzeln.compactMap(\.wert)
     }
 
     /// Liste von Texten (Zahlen werden zu Text).
@@ -44,5 +47,14 @@ extension KeyedDecodingContainer {
         if let l = try? decodeIfPresent([String].self, forKey: key) { return l }
         if let l = try? decodeIfPresent([Int].self, forKey: key) { return l.map { String($0) } }
         return []
+    }
+}
+
+/// Hülle für einen einzelnen Listeneintrag: unlesbar wird zu nil statt zum Fehler.
+struct Vielleicht<T: Decodable>: Decodable {
+    let wert: T?
+
+    init(from decoder: Decoder) throws {
+        wert = try? T(from: decoder)
     }
 }

@@ -118,6 +118,25 @@ enum Farben {
     // Abwesenheit auf der Startseite (graue Fläche)
     static let abwesendFlaeche = Color(hell: 0x868F99, dunkel: 0x4A5058)
 
+    // Kacheln im Raster (app.css: .card--event, .corners, .card--supervision, .card--standby, Zählkarte)
+    static let karteTextVergangen = Color(hell: 0x48606F, dunkel: 0xF4F6F8)
+    static let aenderungText = Color(hell: 0x253746, dunkel: 0xEAFFF8)
+    static let entfallText = Color(hell: 0x253746, dunkel: 0xFFFFFF)
+    static let entfallPlakettenText = Color(hell: 0x48606F, dunkel: 0xFFFFFF)
+    static let terminRand = Color(hell: 0x7FD4B6, dunkel: 0x7FD4B6)
+    static let terminTitel = Color(hell: 0x00654C, dunkel: 0xF4F6F8)
+    static let eckklammer = Color(hell: 0x5F7180, dunkel: 0x8D949C)
+    static let aufsichtBalken = Color(hell: 0xD379E9, dunkel: 0xE08CFF)
+    static let bereitschaftBalken = Color(hell: 0x01FFFF, dunkel: 0x3EE6FF)
+    static let bereitschaftRand = Color(hell: 0x5F7180, dunkel: 0xC3CCD4)
+    static let bereitschaftRandVergangen = Color(hell: 0xB7C2CB, dunkel: 0x4A5560)
+    static let bereitschaftText = Color(hell: 0x5D727F, dunkel: 0xCFD6DC)
+    static let kartenSchattenFlach = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.22, deckkraftDunkel: 0.30)
+    static let zaehlerFlaeche = Color(hell: 0xF4F6F7, dunkel: 0x323D45)
+    static let zaehlerText = Color(hell: 0x3F5666, dunkel: 0xF2F4F6)
+    static let zaehlerAenderungFlaeche = Color(hell: 0xE3FFF2, dunkel: 0x20C0A2)
+    static let zaehlerAenderungText = Color(hell: 0x00654C, dunkel: 0xEAFFF7)
+
     /// Fachfarbe für den Balken, sonst Grau.
     static func fach(_ hex: String) -> Color {
         Color(hex: hex) ?? karteBalken
@@ -158,7 +177,16 @@ struct Kartenstil {
                       plakette: "Online", plaketteFarbe: Farben.gruen)
             return
         }
+        if Kachelbau.istBereitschaftAbwesend(karte) {
+            self.init(hintergrund: Color.clear, rand: Farben.eckklammer, schatten: false, durchgestrichen: false,
+                      plakette: "Lehrkraft abwesend", plaketteFarbe: Farben.gedaempft)
+            return
+        }
         switch karte.status {
+        case "veranstaltung":
+            self.init(hintergrund: vergangen ? Farben.aenderungVergangen : Farben.aenderungHintergrund,
+                      rand: Farben.aenderungRand, schatten: false, durchgestrichen: false,
+                      plakette: "Veranstaltung", plaketteFarbe: Farben.gruen)
         case "entfall":
             self.init(hintergrund: vergangen ? Farben.entfallVergangen : Farben.entfallHintergrund,
                       rand: Farben.entfallRand, schatten: false, durchgestrichen: true,

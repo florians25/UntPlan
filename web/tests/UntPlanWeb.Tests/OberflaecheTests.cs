@@ -123,12 +123,69 @@ public class OberflaecheTests
         var l = ber["lehrer"]!.AsArray().Single()!;
         Assert.Equal("", l["k"]!.GetValue<string>());
         Assert.Equal("SNE", l["alt"]!.GetValue<string>());
+        // eindeutige Kennzeichen für Apps: Darstellung „Lehrkraft abwesend“, Bereitschaft
+        Assert.True(ber["lehrerAbwesend"]!.GetValue<bool>());
+        Assert.True(ber["bereitschaft"]!.GetValue<bool>());
+        // Raum-/Tagesansicht: auch außerhalb des Lehrerplans kein Entfall, sondern abwesende Lehrkraft
+        var tagKarten = s.Dienst<Plandienst>().Tag(s.Dienst<Paketdienst>().Aktuell!, Elementtyp.Lehrer, new DateOnly(2026, 10, 15), true)
+            .Zeilen.Single(z => z.Kurz == "SNE").Karten.Where(k => k.Fach == "BER" && k.Von <= 3 && k.Bis >= 3).ToList();
+        Assert.All(tagKarten, k => Assert.True(k.LehrerAbwesend));
         // Vertretungsplan (Lehrerversion): keine Entfallzeile, sondern Abwesenheit
         var vp = await Testserver.HolenAsync(c, "/api/app/vertretungen?datum=2026-10-15");
         var zeile = vp["tage"]![0]!["zeilen"]!.AsArray().Single(z => z!["fach"]!.GetValue<string>() == "BER")!;
         Assert.Equal("abwesend", zeile["status"]!.GetValue<string>());
         Assert.Equal("SNE", zeile["lehrerAlt"]!.GetValue<string>());
         Assert.Equal("Abwesenheit", zeile["art"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Bereitschaft_aus_dem_Paket_ist_auch_im_Raumplan_kein_Entfall()
+    {
+        await using var s = await Testserver.StartenAsync(false);
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 51;
+        var tag = paket["tage"]!.AsArray().First(t => t!["datum"]!.GetValue<string>() == "2026-10-16")!;
+        // Bereitschaft mit Raum und anderem Kürzel – erkannt am Kennzeichen „bereitschaft“ aus UntPlan
+        tag["stunden"]!.AsArray().Add(new JsonObject
+        {
+            ["stunde"] = 9, ["fach"] = "VB", ["klassen"] = new JsonArray(), ["lehrer"] = new JsonArray("MUE"), ["raeume"] = new JsonArray("R103"),
+            ["status"] = "entfall", ["text"] = "", ["bereitschaft"] = true,
+        });
+        Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(paket)).StatusCode);
+        var c = await s.AlsAsync("admin");
+        foreach (var url in new[] { "/api/app/plan?typ=raum&element=R103&datum=2026-10-16", "/api/app/plan?typ=lehrer&element=MUE&datum=2026-10-16" })
+        {
+            var k = Karten(await Testserver.HolenAsync(c, url), "2026-10-16", 9).Single(x => x["fach"]!.GetValue<string>() == "VB");
+            Assert.Equal("abwesend", k["status"]!.GetValue<string>());
+            Assert.True(k["lehrerAbwesend"]!.GetValue<bool>());
+            Assert.True(k["bereitschaft"]!.GetValue<bool>());
+            Assert.Equal("MUE", k["lehrer"]![0]!["alt"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
+    public async Task Veranstaltung_der_Klasse_laesst_regulaeren_Unterricht_entfallen()
+    {
+        await using var s = await Testserver.StartenAsync(false);
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 52;
+        paket["termine"]!.AsArray().Add(new JsonObject
+        {
+            ["art"] = "veranstaltung", ["titel"] = "Bewerbungstraining", ["von"] = "2026-10-16", ["bis"] = "2026-10-16", ["stundeVon"] = 1, ["stundeBis"] = 3,
+            ["klassen"] = new JsonArray("7a"), ["lehrer"] = new JsonArray(), ["raeume"] = new JsonArray(),
+        });
+        Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(paket)).StatusCode);
+        var plan = s.Dienst<Plandienst>();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var karten = plan.Karten(stand, Freitag, Elementtyp.Klasse, "7a");
+        // in den Stunden 1–3 läuft kein regulärer Unterricht der 7a mehr (Entfall, durchgestrichen); Stunden mit Vertretung
+        // bestimmt weiterhin UntPlan …
+        var betroffen = karten.Where(k => k.Unterricht.HasValue && k.Von <= 3).ToList();
+        Assert.NotEmpty(betroffen);
+        Assert.DoesNotContain(betroffen, k => k.Status == "regulaer");
+        Assert.Contains(betroffen, k => k.Status == "entfall" && k.Text == "Bewerbungstraining");
+        // … danach regulär
+        Assert.Contains(karten, k => k.Unterricht.HasValue && k.Von > 3 && k.Status == "regulaer");
     }
 
     // ------------------------------------------------------------------ „---“ bei Zusatzstunden ohne Lehrkraft

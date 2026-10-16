@@ -1117,7 +1117,9 @@ function renderGrid(){
          Raumplan wie eine abgegebene Stunde (Eckklammern, Klasse durchgestrichen
          in der Plakette); im Klassenplan bleibt sie eine grüne Änderung. Nur ein
          echter Entfall ist rot. */
-      card._released = (((card.openSub || handedOver || koppOhneMich || card.classAbsent) && kind !== 'class')
+      /* `teacherAbsent` liefert der Server, wenn die Stunde im eigenen Plan
+         ohne die (abwesende) Lehrkraft läuft – gleiche Darstellung. */
+      card._released = (((card.openSub || handedOver || koppOhneMich || card.classAbsent || card.teacherAbsent) && kind !== 'class')
                         || klasseWeg)
                     && !isStandby && !isSup && !isMovedTarget;
 

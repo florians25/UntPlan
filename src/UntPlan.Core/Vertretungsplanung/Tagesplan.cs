@@ -89,8 +89,10 @@ public sealed class Tagesplan
         foreach (var v in vertretungen)
         {
             // Sondereinsatz zu einem regulären Unterricht („Stunde ändern“, andere Lehrkraft) ersetzt diesen Unterricht
-            if (v.UnterrichtId is int uid && v.Art is not (VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.SondereinsatzVormerkung
-                    or VertretungsArt.Klausur or VertretungsArt.Veranstaltung) && !(v.Art == VertretungsArt.Sondereinsatz && v.LehrerId is null) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
+            // wegen abwesender Klasse entfallene Zeile: zugeordnet wird nach der ursprünglichen Art
+            var art = v.ArtVorKlassenabwesenheit ?? v.Art;
+            if (v.UnterrichtId is int uid && art is not (VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.SondereinsatzVormerkung
+                    or VertretungsArt.Klausur or VertretungsArt.Veranstaltung) && !(art == VertretungsArt.Sondereinsatz && v.LehrerId is null) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
             {
                 var key = (uid, v.ZeilenIndex, v.Stunde);
                 if (!zuRegel.TryGetValue(key, out var l)) zuRegel[key] = l = new();
@@ -121,12 +123,14 @@ public sealed class Tagesplan
         }
         foreach (var v in zusaetzlich)
         {
-            if (v.IstEntfall) continue;
+            // zusätzlicher Unterricht, der wegen abwesender Klasse entfällt, bleibt als Entfall sichtbar (z. B. durchgestrichen im Web)
+            var entfallKlasse = v.IstEntfall && v.ArtVorKlassenabwesenheit.HasValue;
+            if (v.IstEntfall && !entfallKlasse) continue;
             tp.Unterrichte.TryGetValue(v.UnterrichtId ?? -1, out var u);
             var regel = u is null ? null : new RegelStunde(new Planstunde { UnterrichtId = u.Id, Tag = tp.Tag, Stunde = v.Stunde }, u, Math.Min(v.ZeilenIndex, Math.Max(0, u.Zeilen.Count - 1)));
             var e = new TagesEintrag
             {
-                Stunde = v.Stunde, Regel = u is null || u.Zeilen.Count == 0 ? null : regel, Vertretung = v, Status = TagesStatus.Zusaetzlich,
+                Stunde = v.Stunde, Regel = u is null || u.Zeilen.Count == 0 ? null : regel, Vertretung = v, Status = entfallKlasse ? TagesStatus.Entfall : TagesStatus.Zusaetzlich,
                 FachId = v.VertretungsfachId ?? v.FachId, KlassenIds = v.NeueKlassenIds.ToList(),
                 LehrerIds = v.VertreterId is int l ? new List<int> { l } : new(),
                 RaumIds = (v.VertretungsraumId ?? v.RaumId) is int rm ? new List<int> { rm } : new(),

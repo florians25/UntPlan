@@ -193,6 +193,11 @@ public sealed record WebStunde
     /// z. B. bei einer Vertretung ohne Lehrkraft („+++“), bei der Lehrer leer bleibt. Ältere Pakete: leer.
     /// </summary>
     public List<string> LehrerAlt { get; init; } = new();
+    /// <summary>
+    /// Bereitschaft (Fach mit Bereitschaft): wird nie vertreten. Fehlt die Lehrkraft, steht die Stunde als „entfall“ im Paket und
+    /// UntPlanWeb zeigt sie wie eine Stunde einer abwesenden Lehrkraft (nicht als Entfall). Ältere Pakete: false.
+    /// </summary>
+    public bool Bereitschaft { get; init; }
 }
 
 public sealed record WebVertretung

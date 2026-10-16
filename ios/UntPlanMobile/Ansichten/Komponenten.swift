@@ -65,18 +65,19 @@ struct Fehlerhinweis: View {
     }
 }
 
-/// Kleine farbige Plakette (Änderung, Entfall, Prüfung …).
+/// Kleines Kennzeichen (Änderung, Entfall, Zusätzliche Unterrichtsstunde …) wie in der Vorlage:
+/// normale Schreibweise, dezent hinterlegt, Schrift in der Kennfarbe.
 struct Plakette: View {
     let text: String
     let farbe: Color
 
     var body: some View {
-        Text(text.uppercased())
-            .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(farbe, in: Capsule())
+        Text(text)
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundStyle(farbe)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2.5)
+            .background(farbe.opacity(0.13), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .lineLimit(1)
     }
 }

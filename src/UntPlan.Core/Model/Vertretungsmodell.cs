@@ -201,6 +201,11 @@ public sealed class Vertretung
     /// Raum mehr, bis ein Ersatzraum eingetragen ist (offene Raumvertretung „???“).
     /// </summary>
     public bool RaumVerdraengt { get; set; }
+    /// <summary>
+    /// Die Klassen sind abwesend (Veranstaltung bzw. Klassenabsenz): Die Zeile wurde deshalb zur Freisetzung bzw. zum Entfall.
+    /// Hält die bisherige Art (z. B. Sondereinsatz, Unterricht geändert), die zurückkehrt, sobald die Klasse wieder anwesend ist.
+    /// </summary>
+    public VertretungsArt? ArtVorKlassenabwesenheit { get; set; }
     /// <summary>Herkunft aus UntPlanWeb (Kennung der übernommenen Stundenplanänderung), sonst leer.</summary>
     public string WebId { get; set; } = "";
 

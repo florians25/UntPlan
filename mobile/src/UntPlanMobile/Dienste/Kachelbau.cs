@@ -62,6 +62,14 @@ public static class Kachelbau
     public static bool IstZusatzstunde(PlanKarte k) =>
         k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && (ZusatzArt.IsMatch(k.Art ?? "") || k.Unterricht is null);
 
+    /// <summary>
+    /// Bereitschaft, die wegfällt, weil die Lehrkraft abwesend ist (UntPlanWeb: Status „abwesend“ mit Kennzeichen bereitschaft;
+    /// ältere Server: Fach BER bzw. Art mit „Bereitschaft“, Status „abwesend“ oder „entfall“).
+    /// </summary>
+    public static bool IstBereitschaftAbwesend(PlanKarte k) =>
+        (k.Bereitschaft || Ci.Equals(k.Fach ?? "", "BER") || (k.Art ?? "").Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase))
+        && k.Status is "abwesend" or "entfall";
+
     public static string Art(string typ) => typ switch { "klasse" => "class", "lehrer" => "teacher", "raum" => "room", _ => typ };
 
     /// <summary>Planart der Oberfläche → UntPlanWeb.</summary>
@@ -270,6 +278,18 @@ public static class Kachelbau
         // (UntPlanWeb liefert ihn bereits, ältere Server nicht)
         if (k.Status == "geaendert" && k.Lehrer.Count > 0 && k.Lehrer.All(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)) && string.IsNullOrWhiteSpace(kachel.Info))
             kachel.Info = OhneLehrkraftText;
+        // Bereitschaft einer abwesenden Lehrkraft: wie eine abgegebene Stunde (Eckklammern, Kürzel durchgestrichen) – kein Entfall
+        if (IstBereitschaftAbwesend(k))
+        {
+            kachel.Art = "standby";
+            kachel.BereitschaftAbwesend = true;
+            kachel.LehrerAbwesend = true;
+            kachel.LehrkraftAlt = string.Join(",", k.Lehrer.Select(w => w.K.Length > 0 ? w.K : w.Alt ?? "").Where(x => x.Length > 0).Distinct(Ci));
+            kachel.Lehrkraft = "";
+            kachel.Geaendert.Remove("teacher");
+            return kachel;
+        }
+        if (k.LehrerAbwesend) kachel.LehrerAbwesend = true;
         switch (k.Status)
         {
             case "regulaer":

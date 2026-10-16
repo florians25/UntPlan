@@ -167,10 +167,12 @@ public static class Vertretungen
                 continue;
             }
             // Klassen abwesend → Freisetzung (bzw. Unterricht findet als Veranstaltung statt, wenn die Lehrkraft an derselben Veranstaltung teilnimmt)
-            if (r.KlassenIds.Count > 0 && r.KlassenIds.All(k => Absenzen.KlasseAbwesend(d, k, datum, r.Stunde)))
+            // Kopplungszeile ohne eigene Klassen (z. B. hinzugefügte zweite Lehrkraft): es zählen die Klassen der ganzen Kopplung
+            var klassenDerStunde = KlassenDerStunde(r);
+            if (klassenDerStunde.Count > 0 && klassenDerStunde.All(k => Absenzen.KlasseAbwesend(d, k, datum, r.Stunde)))
             {
-                var abw = Absenzen.Klasse(d, r.KlassenIds[0], datum, r.Stunde);
-                var va = abw is null ? Absenzen.VeranstaltungKlasse(d, r.KlassenIds[0], datum, r.Stunde) : null;
+                var abw = Absenzen.Klasse(d, klassenDerStunde[0], datum, r.Stunde);
+                var va = abw is null ? Absenzen.VeranstaltungKlasse(d, klassenDerStunde[0], datum, r.Stunde) : null;
                 if (bereit) continue;
                 basis.Quelle = va != null ? VertretungsQuelle.Veranstaltung : VertretungsQuelle.Absenz;
                 basis.AbwesenheitId = abw?.Id;
@@ -282,6 +284,80 @@ public static class Vertretungen
             d.Vertretungen.Add(b);
         }
         OffenWennVertreterAbwesend(d, datum);
+        KlassenabwesenheitAnwenden(d, datum);
+    }
+
+    /// <summary>Klassen einer Stunde; eine Kopplungszeile ohne eigene Klassen gehört zu den Klassen der ganzen Kopplung.</summary>
+    private static IReadOnlyList<int> KlassenDerStunde(RegelStunde r) =>
+        r.KlassenIds.Count > 0 ? r.KlassenIds : r.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct().ToList();
+
+    /// <summary>Arten, die nicht als Unterricht der Klasse zählen (bleiben bei abwesender Klasse unverändert).</summary>
+    private static bool KeinKlassenunterricht(VertretungsArt a) => a is VertretungsArt.Veranstaltung or VertretungsArt.Klausur or VertretungsArt.Raumbuchung
+        or VertretungsArt.Pausenaufsicht or VertretungsArt.Vormerkung or VertretungsArt.SondereinsatzVormerkung or VertretungsArt.Unterricht;
+
+    /// <summary>
+    /// Ist die Klasse abwesend (Veranstaltung der Klasse bzw. Klassenabsenz), entfällt auch Unterricht, der erst nachträglich hinzukam
+    /// oder von Hand geändert wurde (Sondereinsatz, Stunde ändern, Verlegung, Raumänderung, bearbeitete Vertretung): Die Zeile wird
+    /// zur Freisetzung (bzw. zum Entfall, wenn die Lehrkraft an derselben Veranstaltung teilnimmt), die bisherige Art bleibt in
+    /// <see cref="Vertretung.ArtVorKlassenabwesenheit"/> erhalten und kehrt zurück, sobald die Klasse wieder anwesend ist.
+    /// Liefert die Anzahl geänderter Zeilen.
+    /// </summary>
+    public static int KlassenabwesenheitAnwenden(Schuldatei d, DateOnly datum)
+    {
+        var n = 0;
+        Tagesplan? tp = null;
+        foreach (var v in d.Vertretungen.Where(v => v.Datum == datum).ToList())
+        {
+            // abgeleitete, nicht bearbeitete Zeilen folgen ohnehin der Neuberechnung
+            if (IstAbgeleitet(v) && !v.Bearbeitet)
+            {
+                v.ArtVorKlassenabwesenheit = null;
+                continue;
+            }
+            if (KeinKlassenunterricht(v.Art) || IstBereitschaftsfach(d, v.VertretungsfachId ?? v.FachId)) continue;
+            IReadOnlyList<int> klassen = v.NeueKlassenIds;
+            if (klassen.Count == 0 && v.UnterrichtId is int uid)
+            {
+                tp ??= Tagesplan.Berechnen(d, datum);
+                klassen = tp.Unterrichte.TryGetValue(uid, out var u) ? u.Zeilen.SelectMany(z => z.KlassenIds).Distinct().ToList() : klassen;
+            }
+            var abwesend = klassen.Count > 0 && klassen.All(k => Absenzen.KlasseAbwesend(d, k, datum, v.Stunde));
+            if (abwesend && !v.IstEntfall)
+            {
+                var va = Absenzen.Klasse(d, klassen[0], datum, v.Stunde) is null ? Absenzen.VeranstaltungKlasse(d, klassen[0], datum, v.Stunde) : null;
+                var lehrer = v.VertreterId ?? v.LehrerId;
+                v.ArtVorKlassenabwesenheit = v.Art;
+                v.Art = va != null && lehrer is int l && va.NimmtTeil(l, datum) ? VertretungsArt.Entfall : VertretungsArt.Freisetzung;
+                v.Geaendert = DateTime.Now;
+                n++;
+            }
+            else if (!abwesend && v.ArtVorKlassenabwesenheit is VertretungsArt alt)
+            {
+                if (v.Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung) v.Art = alt;
+                v.ArtVorKlassenabwesenheit = null;
+                v.Geaendert = DateTime.Now;
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// <see cref="KlassenabwesenheitAnwenden(Schuldatei, DateOnly)"/> für alle Tage, an denen eine Klasse abwesend ist (Veranstaltung mit
+    /// Klassen, Klassenabsenz) oder eine Zeile wegen einer früheren Klassenabwesenheit entfallen ist – z. B. nach einer Änderung an Vertretungen.
+    /// </summary>
+    public static int KlassenabwesenheitAnwenden(Schuldatei d)
+    {
+        var tage = new HashSet<DateOnly>();
+        foreach (var v in d.Vertretungen)
+        {
+            if (v.ArtVorKlassenabwesenheit.HasValue) { tage.Add(v.Datum); continue; }
+            if (IstAbgeleitet(v) && !v.Bearbeitet) continue;
+            if (d.Veranstaltungen.Any(va => va.KlassenIds.Count > 0 && va.Deckt(v.Datum, v.Stunde)) ||
+                d.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Klasse && a.Deckt(v.Datum, v.Stunde)))
+                tage.Add(v.Datum);
+        }
+        return tage.Sum(t => KlassenabwesenheitAnwenden(d, t));
     }
 
     /// <summary>Inhalt einer Zeile, der für das Kennzeichen „Neue Vertretung“ zählt.</summary>
