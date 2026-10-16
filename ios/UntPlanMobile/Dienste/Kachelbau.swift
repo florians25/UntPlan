@@ -287,7 +287,7 @@ enum Kachelbau {
     /// Abwesende Koppelklassen: Einträge ohne neuen Wert mit gesetztem alten Wert (ohne Doppelte).
     static func weggefalleneKlassen(_ k: Karte) -> [String] {
         var ergebnis: [String] = []
-        for w in k.klassen where w.k.isEmpty {
+        for w in k.klassen + k.mitklassen where w.k.isEmpty {
             if let a = w.alt, !a.isEmpty, !ergebnis.contains(where: { gleich($0, a) }) { ergebnis.append(a) }
         }
         return ergebnis
@@ -362,8 +362,8 @@ enum Kachelbau {
         if k.raeume.contains(where: { $0.neu || (!($0.alt ?? "").isEmpty && !gleich($0.alt ?? "", $0.k)) }) { geaendert.insert("raum") }
         if let alt = k.fachAlt, !alt.isEmpty, !gleich(alt, k.fach) { geaendert.insert("fach") }
 
-        let offen = (k.status == "offen" || k.status == "abwesend")
-            && k.lehrer.contains { $0.neu && $0.k.isEmpty && !($0.alt ?? "").isEmpty }
+        let offen = k.vertretungOffen || ((k.status == "offen" || k.status == "abwesend")
+            && k.lehrer.contains { $0.neu && $0.k.isEmpty && !($0.alt ?? "").isEmpty })
         var titel = k.fach
         switch k.status {
         case "regulaer":
@@ -500,8 +500,7 @@ enum Kachelbau {
         let reihenfolge = klasseOben ? ["klasse", "lehrer", "fach", "raum"] : [erste, "fach", "raum", letzte]
         // Offene Vertretung (Karte „offen“ bzw. Lehrkraft ohne neuen Wert, alter Wert gesetzt): alte Lehrkraft
         // immer durchgestrichen in grüner Plakette
-        let lehrerOffen = art != .entfall
-            && (k.status == "offen" || k.lehrer.contains { $0.k.isEmpty && !($0.alt ?? "").isEmpty })
+        let lehrerOffen = art != .entfall && k.istOffeneVertretung
 
         var ergebnis: [Kachelzeile] = []
         for (i, schluessel) in reihenfolge.enumerated() {
@@ -515,7 +514,11 @@ enum Kachelbau {
                     var teile: [Kachelteil] = []
                     for w in k.lehrer {
                         if w.neu && w.k.isEmpty {
-                            if let a = w.alt, !a.isEmpty { teile.append(Kachelteil(text: a, stil: .weg)) }
+                            if let a = w.alt, !a.isEmpty {
+                                teile.append(Kachelteil(text: a, stil: .weg))
+                            } else if k.vertretungOffen {
+                                teile.append(Kachelteil(text: "???", stil: .weg))
+                            }
                         } else if w.neu && !(w.alt ?? "").isEmpty {
                             teile.append(Kachelteil(text: w.k, stil: .plakette))
                         } else if !w.k.isEmpty {
@@ -549,12 +552,13 @@ enum Kachelbau {
                         zeile.teile[j].stil = .offen
                     }
                     if zeile.teile.isEmpty {
-                        let offeneNamen = k.lehrer.compactMap { $0.k.isEmpty ? $0.alt : nil }.filter { !$0.isEmpty }
-                        zeile.teile = liste(offeneNamen, stil: .offen, trenner: ", ")
+                        zeile.teile = liste(k.offeneLehrkraefte, stil: .offen, trenner: ", ")
                     }
                 }
             case "klasse":
-                let namen = werte(k.klassen)
+                // Eigene Klasse(n) und anwesende Koppelklassen (mitklassen) – ohne Doppelte
+                var namen = werte(k.klassen)
+                for m in werte(k.mitklassen) where !namen.contains(where: { gleich($0, m) }) { namen.append(m) }
                 let abwesend = k.abwesendeKlassen
                 // Abwesende Koppelklassen ({k:"", alt}) stehen durchgestrichen im grünen Label (wie abwesende Lehrkraft)
                 let weg = weggefalleneKlassen(k)

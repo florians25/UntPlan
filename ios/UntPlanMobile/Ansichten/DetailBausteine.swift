@@ -349,6 +349,7 @@ enum Wertbaustein: Hashable {
 struct Wertzeile: View {
     let bausteine: [Wertbaustein]
     var schrift: CGFloat = 13
+    var farbe: Color = Farben.gedaempft
 
     var body: some View {
         Fliesslayout(abstand: 4, zeilenAbstand: 3) {
@@ -357,7 +358,7 @@ struct Wertzeile: View {
             }
         }
         .font(.system(size: schrift))
-        .foregroundStyle(Farben.gedaempft)
+        .foregroundStyle(farbe)
     }
 
     @ViewBuilder
@@ -401,6 +402,9 @@ struct Wertzeile: View {
                 if !t.isEmpty { teil.append(.weg(t)) }
             } else if w.k.isEmpty && !alt.isEmpty {
                 teil.append(offenAlsPlakette ? .offen(alt) : .weg(alt))
+            } else if w.k.isEmpty && w.neu && offenAlsPlakette {
+                // Offene Vertretung ohne bekannte Lehrkraft
+                teil.append(.offen("???"))
             } else {
                 if !alt.isEmpty && alt != w.k {
                     teil.append(.weg(alt))

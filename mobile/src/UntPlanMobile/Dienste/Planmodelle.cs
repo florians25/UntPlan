@@ -17,7 +17,11 @@ public sealed record PlanKarte(
     List<PlanWert> Klassen, List<PlanWert> Lehrer, List<PlanWert> Raeume,
     string Art, string Text, int? Vertretung, int? Unterricht, string Gruppe = "",
     string? NotizSchueler = null, string? NotizLehrer = null, bool HausaufgabeFaellig = false,
-    bool LehrerAbwesend = false, bool Bereitschaft = false);
+    bool LehrerAbwesend = false, bool Bereitschaft = false,
+    // Koppelklassen (nur im Klassenplan): anwesend {k:"INF13"}, fehlend {k:"", alt:"INF13", neu:true}; klassen[] bleibt die eigene Klasse
+    List<PlanWert>? Mitklassen = null,
+    // offene Vertretung (noch keine Lehrkraft eingeteilt) – auch bei Status „abwesend“ im eigenen Lehrerplan
+    bool VertretungOffen = false);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 public sealed record PlanAufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);

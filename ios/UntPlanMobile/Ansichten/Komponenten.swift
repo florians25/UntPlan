@@ -6,8 +6,9 @@ func werteText(_ werte: [Wert], trenner: String = ", ", offen: Bool = false) -> 
     var ergebnis = Text("")
     for (i, w) in werte.enumerated() {
         if i > 0 { ergebnis = ergebnis + Text(trenner) }
-        if offen, w.k.isEmpty, let alt = w.alt, !alt.isEmpty {
-            ergebnis = ergebnis + offenText(alt)
+        if offen, w.k.isEmpty, w.neu || !(w.alt ?? "").isEmpty {
+            let alt = w.alt ?? ""
+            ergebnis = ergebnis + offenText(alt.isEmpty ? "???" : alt)
             continue
         }
         if let alt = w.alt, !alt.isEmpty, alt != w.k {
@@ -34,8 +35,7 @@ func offenText(_ text: String) -> Text {
 
 /// Offene Vertretung erkennen: Karte „offen“ bzw. Lehrkraft ohne neuen Wert mit gesetztem alten Wert (nicht bei Entfall).
 func istOffeneVertretung(_ karte: Karte) -> Bool {
-    guard !karte.istEntfall else { return false }
-    return karte.status == "offen" || karte.lehrer.contains { $0.k.isEmpty && !($0.alt ?? "").isEmpty }
+    karte.istOffeneVertretung
 }
 
 /// Werte als einfacher Text (ohne Hervorhebung).

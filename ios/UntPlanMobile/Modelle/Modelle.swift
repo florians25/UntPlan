@@ -161,10 +161,14 @@ struct Karte: Decodable, Identifiable, Sendable {
     var fachName: String
     var farbe: String
     var klassen: [Wert]
+    /// Koppelklassen (nur im Klassenplan): anwesend {k:"INF13"}, fehlend {k:"", alt:"INF13", neu:true}
+    var mitklassen: [Wert]
     var lehrer: [Wert]
     var raeume: [Wert]
     var art: String
     var text: String
+    /// Offene Vertretung: die Stunde ist noch keiner Lehrkraft zugeteilt (auch bei Status „abwesend“).
+    var vertretungOffen: Bool
     var vertretung: Int?
     var unterricht: Int?
     var gruppe: String
@@ -184,7 +188,7 @@ struct Karte: Decodable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
         case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
-        case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent
+        case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen
     }
 
     /// Karte ohne Server-Antwort (Veranstaltung aus den Tagesdaten, geteilte Blöcke).
@@ -202,6 +206,8 @@ struct Karte: Decodable, Identifiable, Sendable {
         self.fachName = fachName
         self.farbe = farbe
         self.klassen = klassen
+        self.mitklassen = []
+        self.vertretungOffen = false
         self.lehrer = lehrer
         self.raeume = raeume
         self.art = art
@@ -245,6 +251,8 @@ struct Karte: Decodable, Identifiable, Sendable {
         fachName = c.text(.fachName)
         farbe = c.text(.farbe)
         klassen = c.liste(.klassen)
+        mitklassen = c.liste(.mitklassen)
+        vertretungOffen = c.wahr(.vertretungOffen)
         lehrer = c.liste(.lehrer)
         raeume = c.liste(.raeume)
         art = c.text(.art)
@@ -275,6 +283,20 @@ struct Karte: Decodable, Identifiable, Sendable {
 
     /// Raumbuchungen und Klausuren erscheinen nie als Vertretung (keine grüne Farbe, kein Vertretungstext).
     var keineVertretung: Bool { istRaumbuchung || istPruefung }
+
+    /// Offene Vertretung (Feld vertretungOffen, Status „offen“ oder Lehrkraft ohne neuen Wert mit altem Wert); nie bei Entfall.
+    var istOffeneVertretung: Bool {
+        guard !istEntfall else { return false }
+        return vertretungOffen || status == "offen" || lehrer.contains { $0.k.isEmpty && !($0.alt ?? "").isEmpty }
+    }
+
+    /// Kürzel der Lehrkräfte einer offenen Vertretung (alter Wert; fehlt er, „???“).
+    var offeneLehrkraefte: [String] {
+        var liste = lehrer.filter { $0.k.isEmpty && ($0.neu || !($0.alt ?? "").isEmpty) }
+            .map { ($0.alt ?? "").isEmpty ? "???" : ($0.alt ?? "") }
+        if liste.isEmpty && vertretungOffen { liste = ["???"] }
+        return liste
+    }
 
     /// Bezeichnung für Listen: Fachname, sonst Kürzel bzw. Art.
     var titel: String {

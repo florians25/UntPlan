@@ -464,6 +464,40 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Mitklassen_aus_eigenem_Feld_stehen_unten_und_fehlende_machen_die_Karte_gruen()
+    {
+        // UntPlanWeb liefert die Koppelklassen im Klassenplan in mitklassen[]; klassen[] ist die eigene Klasse
+        var mit = Kachelbau.AusKarte(Karte("regulaer", 2, fach: "INF", klassen: new() { new("INF12") }) with { Mitklassen = new() { new("INF13") } }, "class");
+        Assert.Equal("normal", mit.Art);
+        Assert.Equal("INF12", mit.Klasse);
+        Assert.Equal(new[] { ("INF12", "ok"), ("INF13", "ok") }, mit.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+        // fehlende Mitklasse: Status „geaendert“, Karte grün, INF13 durchgestrichen
+        var ohne = Kachelbau.AusKarte(Karte("geaendert", 2, fach: "INF", klassen: new() { new("INF12") })
+            with { Mitklassen = new() { new("", "INF13", true) } }, "class");
+        Assert.Equal("change", ohne.Art);
+        Assert.Contains("class", ohne.Geaendert);
+        Assert.Equal(new[] { ("INF12", "ok"), ("INF13", "absent") }, ohne.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+        Assert.Null(ohne.Zusatz);
+    }
+
+    [Fact]
+    public void Vertretung_offen_aus_Kennzeichen_auch_ohne_bisherige_Lehrkraft()
+    {
+        // vertretungOffen im eigenen Lehrerplan (Status „abwesend“)
+        var eigen = Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("", "FIS", true) }) with { VertretungOffen = true, LehrerAbwesend = true }, "teacher");
+        Assert.True(eigen.Offen);
+        Assert.True(eigen.LehrkraftOffen);
+        Assert.Equal("FIS", eigen.LehrkraftAlt);
+        // ohne bisherige Lehrkraft (alt = null): „???“ durchgestrichen
+        var unbekannt = Kachelbau.AusKarte(Karte("offen", 1, lehrer: new() { new("", null, true) }) with { VertretungOffen = true }, "class");
+        Assert.True(unbekannt.Offen);
+        Assert.True(unbekannt.LehrkraftOffen);
+        Assert.Equal("", unbekannt.Lehrkraft);
+        Assert.Equal("???", unbekannt.LehrkraftAlt);
+        Assert.Contains("teacher", unbekannt.Geaendert);
+    }
+
+    [Fact]
     public void Kopplung_gleiches_Fach_und_Raum_ist_eine_Kachel_mit_allen_Lehrkraeften_und_Klassen()
     {
         // UntPlanWeb fasst nur bei gleichem Fach und gleichem Raum zusammen – dann eine Kachel mit allen Beteiligten

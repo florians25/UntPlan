@@ -250,9 +250,29 @@ struct StundendetailInhalt: View {
     }
 
     /// Offene Vertretung: Lehrkraft ohne neuen Wert (Karte „offen“ bzw. Kürzel leer und alter Wert gesetzt).
-    private var lehrerOffen: Bool {
-        guard !karte.istEntfall else { return false }
-        return karte.status == "offen" || karte.lehrer.contains { $0.k.isEmpty && !($0.alt ?? "").isEmpty }
+    private var lehrerOffen: Bool { karte.istOffeneVertretung }
+
+    /// Kopfzeile mit Koppelklassen: eigene Klasse(n), anwesende Mitklassen als Text, fehlende durchgestrichen im grünen Label.
+    private var titelBausteine: [Wertbaustein]? {
+        guard !karte.mitklassen.isEmpty else { return nil }
+        var teile: [Wertbaustein] = []
+        func hinzu(_ b: Wertbaustein) {
+            if !teile.isEmpty { teile.append(.trenner) }
+            teile.append(b)
+        }
+        for w in karte.klassen {
+            let t = w.k.isEmpty ? (w.alt ?? "") : w.k
+            if !t.isEmpty { hinzu(.text(t)) }
+        }
+        for w in karte.mitklassen {
+            if !w.k.isEmpty {
+                hinzu(.text(w.k))
+            } else if let alt = w.alt, !alt.isEmpty {
+                hinzu(karte.istEntfall ? .weg(alt) : .offen(alt))
+            }
+        }
+        if !karte.gruppe.isEmpty { hinzu(.text(karte.gruppe)) }
+        return teile.isEmpty ? nil : teile
     }
 
     /// Kopfblock nach Vorlage, links bündig mit 20 pt Rand: Klasse | Gruppe (17 pt), Fach (17 pt), Raum und Lehrkraft
@@ -264,7 +284,10 @@ struct StundendetailInhalt: View {
         let lehrer = Wertzeile.bausteine(karte.lehrer, durchgestrichen: stil.durchgestrichen || Kachelbau.istBereitschaftAbwesend(karte),
                                          offenAlsPlakette: lehrerOffen)
         return VStack(alignment: .leading, spacing: 0) {
-            if !titelzeile.isEmpty {
+            if let titelBausteine {
+                Wertzeile(bausteine: titelBausteine, schrift: 17, farbe: Farben.tinte)
+                    .padding(.bottom, 4)
+            } else if !titelzeile.isEmpty {
                 Text(titelzeile)
                     .font(.system(size: 17))
                     .foregroundStyle(Farben.tinte)

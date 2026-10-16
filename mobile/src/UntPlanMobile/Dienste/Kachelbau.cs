@@ -273,7 +273,13 @@ public static class Kachelbau
         // Raumbuchungen tragen nie einen Vertretungs- oder Änderungstext
         if (buchung && IstBuchungstext(kachel.Info)) kachel.Info = "";
 
-        var offen = k.Lehrer.Any(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt));
+        // Offene Vertretung: UntPlanWeb kennzeichnet sie mit „vertretungOffen“; ohne bisherige Lehrkraft steht „???“
+        var offen = k.VertretungOffen || k.Lehrer.Any(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt));
+        if (k.VertretungOffen && kachel.Lehrkraft.Length == 0 && kachel.LehrkraftAlt.Length == 0)
+        {
+            kachel.LehrkraftAlt = "???";
+            if (!kachel.Geaendert.Contains("teacher")) kachel.Geaendert.Add("teacher");
+        }
         // Vertretung ohne Lehrkraft („+++“): bisherige Lehrkraft durchgestrichen in der Plakette; ohne eigenen Text der Hinweis „Vertr. o. Lehrkr.“
         // (UntPlanWeb liefert ihn bereits, ältere Server nicht)
         if (k.Status == "geaendert" && k.Lehrer.Count > 0 && k.Lehrer.All(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)) && string.IsNullOrWhiteSpace(kachel.Info))
@@ -291,8 +297,9 @@ public static class Kachelbau
         }
         if (k.LehrerAbwesend) kachel.LehrerAbwesend = true;
         // Offene Vertretung: keine Lehrkraft eingeteilt, die bisherige steht durchgestrichen in der grünen Plakette
-        if (k.Status is "offen" or "abwesend" or "geaendert" && k.Lehrer.Count > 0
-            && k.Lehrer.All(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)))
+        if ((k.VertretungOffen && kachel.Lehrkraft.Length == 0)
+            || (k.Status is "offen" or "abwesend" or "geaendert" && k.Lehrer.Count > 0
+                && k.Lehrer.All(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt))))
             kachel.LehrkraftOffen = true;
         switch (k.Status)
         {
@@ -358,16 +365,18 @@ public static class Kachelbau
 
         // Kopplungen: mehrere Lehrkräfte bzw. Klassen in derselben Stunde
         if (k.Lehrer.Count > 1)
-            kachel.Kopplung = k.Lehrer.Select(w => w.Neu && w.K.Length == 0 ? new KoppEintrag(w.Alt ?? "", "absent", Offen: true)
+            kachel.Kopplung = k.Lehrer.Select(w => w.Neu && w.K.Length == 0 ? new KoppEintrag(string.IsNullOrEmpty(w.Alt) ? "???" : w.Alt, "absent", Offen: true)
                 : w.Neu && !string.IsNullOrEmpty(w.Alt) ? new KoppEintrag(w.K, "sub", w.Alt) : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
-        // Koppelklassen: alle Klassen der Stunde; eine abwesende Klasse ({k:"", alt:"INF13"}) steht durchgestrichen in der grünen Plakette
-        if (k.Klassen.Count > 1)
+        // Koppelklassen: alle Klassen der Stunde (eigene aus klassen[], die übrigen aus mitklassen[]); eine abwesende Klasse
+        // ({k:"", alt:"INF13"}) steht durchgestrichen in der grünen Plakette
+        var alleKlassen = k.Mitklassen is { Count: > 0 } ? k.Klassen.Concat(k.Mitklassen).ToList() : k.Klassen;
+        if (alleKlassen.Count > 1)
         {
-            kachel.Klassenliste = k.Klassen
+            kachel.Klassenliste = alleKlassen
                 .Select(w => w.K.Length > 0 ? new KlassenEintrag(w.K) : !string.IsNullOrEmpty(w.Alt) ? new KlassenEintrag(w.Alt!, "absent") : null)
                 .Where(e => e != null).Select(e => e!).DistinctBy(e => e.Name, Ci).ToList();
             // Im Plan der anderen (anwesenden) Klasse wird die Stunde grün – wie bei einer abwesenden Lehrkraft
-            if (art == "class" && kachel.Art == "normal" && kachel.Klassenliste.Any(e => e.Zustand == "absent") && kachel.Klassenliste.Any(e => e.Zustand == "ok"))
+            if (art == "class" && kachel.Art is "normal" or "change" && kachel.Klassenliste.Any(e => e.Zustand == "absent") && kachel.Klassenliste.Any(e => e.Zustand == "ok"))
             {
                 kachel.Art = "change";
                 if (!kachel.Geaendert.Contains("class")) kachel.Geaendert.Add("class");
