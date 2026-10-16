@@ -10,12 +10,16 @@ namespace UntPlan.App;
 /// <summary>Druck von Stundenplänen (je Element eine Seite).</summary>
 public static class StundenplanDruck
 {
+    /// <summary>Seitenlayout der Stundenplandrucke (Menü „»“ → Seitenlayout), Standard Querformat mit schmalen Rändern.</summary>
+    public static PageSettings Seite { get; } = new() { Landscape = true, Margins = new Margins(35, 35, 40, 40) };
+
     public static void Drucken(IWin32Window owner, ElementTyp typ, List<int> ids, StundenplanFormat format, bool vorschau, DateOnly? woche = null)
     {
         if (ids.Count == 0) return;
         var doc = new PrintDocument { DocumentName = $"Stundenpläne {Ui.TypName(typ, true)}" };
-        doc.DefaultPageSettings.Landscape = true;
-        doc.DefaultPageSettings.Margins = new Margins(35, 35, 40, 40);
+        doc.DefaultPageSettings.Landscape = Seite.Landscape;
+        doc.DefaultPageSettings.Margins = Seite.Margins;
+        try { if (Seite.PaperSize is { } papier) doc.DefaultPageSettings.PaperSize = papier; } catch (InvalidPrinterException) { }
         var i = 0;
         doc.BeginPrint += (_, _) => i = 0;
         doc.PrintPage += (_, e) =>

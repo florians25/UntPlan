@@ -119,15 +119,12 @@ public static class ListenSuche
     private static void Breite(ComboBox cb, Zustand z) => BreiteSetzen(cb, z.Stil, z.Langname);
 
     /// <summary>
-    /// Liste so breit öffnen, dass Kurz- und Langname vollständig lesbar sind (auch in schmalen Tabellenspalten),
-    /// höchstens bis zum Bildschirmrand.
+    /// Benötigte Listenbreite, damit Kurzname (fett) und Langname vollständig lesbar sind – unabhängig von der Feld- bzw.
+    /// Spaltenbreite (auch ohne Fenster-Handle messbar, z. B. für frisch erzeugte Tabellen-Editoren).
     /// </summary>
-    public static void BreiteSetzen(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
+    public static int BenoetigteBreite(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
     {
-        if (cb.IsDisposed || !cb.IsHandleCreated) return;
-        var breite = cb.Width;
         var mitLang = false;
-        using var g = cb.CreateGraphics();
         using var fett = new Font(cb.Font, FontStyle.Bold);
         var kurzMax = 0;
         var langMax = 0;
@@ -135,16 +132,27 @@ public static class ListenSuche
         {
             var t = cb.GetItemText(o) ?? "";
             var zusatz = stil?.Invoke(t)?.Zusatz ?? langname?.Invoke(t);
-            kurzMax = Math.Max(kurzMax, TextRenderer.MeasureText(g, t, fett).Width);
-            if (!string.IsNullOrEmpty(zusatz)) { mitLang = true; langMax = Math.Max(langMax, TextRenderer.MeasureText(g, zusatz, cb.Font).Width); }
+            kurzMax = Math.Max(kurzMax, TextRenderer.MeasureText(t, fett).Width);
+            if (!string.IsNullOrEmpty(zusatz)) { mitLang = true; langMax = Math.Max(langMax, TextRenderer.MeasureText(zusatz, cb.Font).Width); }
         }
-        var w = kurzMax + (mitLang ? langMax + 30 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
-        breite = Math.Max(breite, w);
-        if (mitLang) breite = Math.Max(breite, 260);
+        // Kurzname-Spalte wie beim Zeichnen (mind. 64 px, höchstens 160 px), danach der Langname
+        var kurzSpalte = mitLang ? Math.Max(64, Math.Min(kurzMax + 10, 160)) : kurzMax;
+        var w = kurzSpalte + (mitLang ? langMax + 22 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
+        if (mitLang) w = Math.Max(w, 260);
+        return w;
+    }
+
+    /// <summary>
+    /// Liste so breit öffnen, dass Kurz- und Langname vollständig lesbar sind (auch in schmalen Tabellenspalten).
+    /// </summary>
+    public static void BreiteSetzen(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
+    {
+        if (cb.IsDisposed) return;
+        var breite = Math.Max(cb.Width, BenoetigteBreite(cb, stil, langname));
         // nie auf die Feldbreite zurückfallen: der Platz bis zum Bildschirmrand war bei mehreren Monitoren bzw. unterschiedlicher
         // Skalierung unzuverlässig (dann wurde die Liste plötzlich schmal) – Windows hält die geöffnete Liste selbst auf dem Bildschirm
-        var bildschirm = Screen.FromControl(cb).WorkingArea.Width;
-        var ziel = Math.Max(cb.Width, Math.Min(breite, Math.Min(720, Math.Max(300, bildschirm - 20))));
+        var bildschirm = (cb.IsHandleCreated ? Screen.FromControl(cb) : Screen.PrimaryScreen)?.WorkingArea.Width ?? 1024;
+        var ziel = Math.Max(cb.Width, Math.Min(breite, Math.Min(760, Math.Max(320, bildschirm - 20))));
         if (cb.DropDownWidth != ziel) cb.DropDownWidth = ziel;
     }
 

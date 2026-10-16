@@ -28,6 +28,7 @@ internal static class Program
         if (test != null) { AppZustand.Einstellungen.BegruessungZeigen = false; AppZustand.Einstellungen.LetzteDateiLaden = false; }
         var haupt = new HauptFenster(test is null ? datei : null);
         if (test != null) haupt.Shown += (_, _) => haupt.BeginInvoke(() => haupt.SelbstTest(Path.GetFullPath(test)));
+        else haupt.Shown += (_, _) => haupt.Updates.Starten(TimeSpan.FromSeconds(4));
         Application.Run(haupt);
     }
 }

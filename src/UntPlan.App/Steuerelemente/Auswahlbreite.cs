@@ -94,6 +94,26 @@ public static class Auswahlbreite
 
     private static Color Mischen(Color a, Color b) => Color.FromArgb((a.R + b.R) / 2, (a.G + b.G) / 2, (a.B + b.B) / 2);
 
+    /// <summary>Enthält die Liste Stammdaten-Kürzel mit Langnamen (Lehrer, Klassen, Räume, Fächer, Gänge)?</summary>
+    public static bool MitLangnamen(ComboBox cb)
+    {
+        var n = 0;
+        foreach (var o in cb.Items)
+        {
+            if (ListenSuche.Langname(cb.GetItemText(o) ?? "") != null) return true;
+            if (++n > 400) break;
+        }
+        return false;
+    }
+
+    /// <summary>Einzelne Auswahlfelder (Dialoge, Werkzeugleisten, Unterfenster) auf dieselbe Darstellung wie in den Tabellen bringen.</summary>
+    public static void Vereinheitlichen(ComboBox cb)
+    {
+        if (cb.IsDisposed || ListenSuche.IstEingerichtet(cb) || cb.DrawMode != DrawMode.Normal || cb.Parent is DataGridView || !MitLangnamen(cb)) return;
+        if (cb.DropDownStyle == ComboBoxStyle.DropDownList) Ui.Suchliste(cb);
+        else ListenSuche.Einrichten(cb);
+    }
+
     private static void Erfassen(Control c)
     {
         if (Erfasst.TryGetValue(c, out _)) return;
@@ -101,6 +121,15 @@ public static class Auswahlbreite
         switch (c)
         {
             case ComboBox cb:
+                // überall gleich: Auswahllisten mit Stammdaten-Kürzeln zeigen beim ersten Betreten Kurz- und Langnamen mit Direktsuche
+                // (nicht erst beim Mausklick: ein Umbau des Felds mitten im Klick würde das Öffnen verschlucken)
+                if (cb.Parent is not DataGridView)
+                {
+                    if (cb.IsHandleCreated) cb.BeginInvoke(() => Vereinheitlichen(cb));
+                    else cb.HandleCreated += (_, _) => cb.BeginInvoke(() => Vereinheitlichen(cb));
+                }
+                cb.VisibleChanged += (_, _) => { if (cb.Visible) Vereinheitlichen(cb); };
+                cb.Enter += (_, _) => Vereinheitlichen(cb);
                 cb.DropDown += (_, _) => { if (!ListenSuche.IstEingerichtet(cb)) ListenSuche.BreiteSetzen(cb, langname: ListenSuche.Langname); };
                 break;
             case DataGridView g:
@@ -108,8 +137,14 @@ public static class Auswahlbreite
                 {
                     if (e.Control is not ComboBox cb) return;
                     Erfassen(cb);
+                    // Auswahlzellen aller Tabellen wie die Vertretungsliste: Kurz- und Langname, Direktsuche, breite Liste
+                    if (!SuchKombi.IstAktiv(g) && g.CurrentCell is DataGridViewComboBoxCell && cb.DrawMode == DrawMode.Normal && MitLangnamen(cb))
+                        ListenSuche.Einrichten(cb);
+                    ListenSuche.BreiteAktualisieren(cb);
                     g.BeginInvoke(() => { if (!cb.IsDisposed) ListenSuche.BreiteAktualisieren(cb); });
                 };
+                // Spaltenbreite geändert oder neu gebunden: eine offene Bearbeitung behält ihre breite Liste
+                g.ColumnWidthChanged += (_, _) => { if (g.EditingControl is ComboBox ec && !ec.IsDisposed) ListenSuche.BreiteAktualisieren(ec); };
                 // Auswahlspalten wie Untis ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };

@@ -10,11 +10,14 @@
     <ApplicationIcon>..\..\build\untplan.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyTitle>UntPlan – Stunden- und Vertretungsplanung</AssemblyTitle>
+    <DefineConstants>$(DefineConstants);UNTPLANDESKTOP</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <ProjectReference Include="..\UntPlan.Core\UntPlan.Core.csproj" />
     <Using Include="System.Drawing" />
     <Using Include="System.Windows.Forms" />
+    <!-- dieselbe Update-Prüfung wie UntPlanWeb/UntPlanMobile (GitHub-Releases) -->
+    <Compile Include="..\..\web\src\UntPlanWeb\Dienste\Updatepruefung.cs" Link="Update\Updatepruefung.cs" />
   </ItemGroup>
 </Project>

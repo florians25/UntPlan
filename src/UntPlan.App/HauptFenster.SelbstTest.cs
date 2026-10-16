@@ -93,6 +93,25 @@ public sealed partial class HauptFenster
         }
 
         Schritt("01_Arbeitsbereich", StandardFenster, 0);
+        void KopfPruefen(string modus)
+        {
+            // Sprint 6: Programmkopf wie Untis 2026 – keine Windows-Titelleiste, ein Balken in der Modusfarbe, Titel mittig, helle Registerkarte
+            if (FormBorderStyle != FormBorderStyle.None) throw new InvalidOperationException("Hauptfenster hat noch die Windows-Titelleiste");
+            if (_schnell.BackColor != Ui.Titel || _ribbon.Rechts.BackColor != Ui.Titel) throw new InvalidOperationException($"Kopf nicht in der Modusfarbe ({modus})");
+            _schnell.Refresh();
+            var t = KopfTitelBereich;
+            if (t.IsEmpty) throw new InvalidOperationException("Fenstertitel wird im Kopf nicht gezeichnet");
+            var mitte = t.X + t.Width / 2;
+            if (Math.Abs(mitte - _schnell.Width / 2) > _schnell.Width / 6) throw new InvalidOperationException($"Titel nicht mittig: {t} bei Breite {_schnell.Width}");
+            if (_ribbon.Rechts.Items.Count != 8) throw new InvalidOperationException("Fensteranordnungen 1–8 fehlen rechts in der Registerleiste");
+            if (!Text.StartsWith("UntPlan") || !Text.Contains("-  Stundenplan ")) throw new InvalidOperationException("Fenstertitel nicht wie Untis: " + Text);
+            using var bild = new Bitmap(_ribbon.Width, _ribbon.Height);
+            _ribbon.DrawToBitmap(bild, new Rectangle(Point.Empty, bild.Size));
+            var akzentGefunden = Enumerable.Range(0, Math.Min(bild.Width, 900)).Any(x => bild.GetPixel(x, 3).ToArgb() == Steuerelemente.Ribbon.Akzent.ToArgb());
+            if (!akzentGefunden) throw new InvalidOperationException("Gewählte Registerkarte ohne Akzentlinie");
+            log.Add($"INFO  Kopf ({modus}): „{Text}“ mittig bei {mitte}/{_schnell.Width}, Farbe {Ui.Titel.R},{Ui.Titel.G},{Ui.Titel.B}");
+        }
+        Schritt("01a_Programmkopf", () => KopfPruefen("Stundenplanung"), 1, false);
         Schritt("02_Klassen", () => Max(Oeffnen<StammdatenFenster>("st:Klasse", () => new StammdatenFenster(ElementTyp.Klasse))), 1);
         Schritt("03_Lehrer", () => Max(Oeffnen<StammdatenFenster>("st:Lehrer", () => new StammdatenFenster(ElementTyp.Lehrer))), 1);
         Schritt("04_Raeume", () => Max(Oeffnen<StammdatenFenster>("st:Raum", () => new StammdatenFenster(ElementTyp.Raum))), 1);
@@ -178,6 +197,31 @@ public sealed partial class HauptFenster
         // Daten vor den UP5-Schritten sichern: die Schritte ändern Unterricht und Stundenplan, danach wird der Stand wiederhergestellt
         var up5Sicherung = Dokument.Klonen(AppZustand.D);
         void Up5Zurueck() => AppZustand.Setzen(new Dokument(Dokument.Klonen(up5Sicherung)), false);
+        Schritt("09e_Stundenplan_Menue", () =>
+        {
+            // Sprint 6: Menü „»“ im Stundenplanfenster wie Untis
+            var sp = StundenplanFenster.Neu(ElementTyp.Raum, AppZustand.D.Raeume.First().Id, false);
+            sp.WindowState = FormWindowState.Normal;
+            sp.Bounds = new Rectangle(60, 10, 380, 420);
+            Warten(300);
+            var m = sp.MehrMenue;
+            var texte = m.DropDownItems.Cast<ToolStripItem>().Select(i => i.Text).ToList();
+            var soll = new[] { "Unterrichts-Farben anzeigen", "Art fixieren", "Ansicht fixiert", "Seitenlayout", "Einstellungen", "Alle Elemente im Unterricht", "Schaltflächen hinzufügen oder entfernen" };
+            if (!texte.SequenceEqual(soll)) throw new InvalidOperationException("Menü »: " + string.Join(" | ", texte));
+            m.ShowDropDown();
+            Warten(200);
+            var art = (ToolStripMenuItem)m.DropDownItems[1];
+            art.PerformClick();
+            if (!sp.ArtFixiert) throw new InvalidOperationException("Art fixieren wirkt nicht");
+            var knoepfe = (ToolStripMenuItem)m.DropDownItems[6];
+            if (knoepfe.DropDownItems.Count < 8) throw new InvalidOperationException($"Schaltflächen-Liste unvollständig ({knoepfe.DropDownItems.Count})");
+            var layout = (ToolStripMenuItem)m.DropDownItems[3];
+            if (!m.DropDown.Visible) m.ShowDropDown();
+            layout.ShowDropDown();
+            if (layout.DropDownItems.Cast<ToolStripItem>().Select(i => i.Text).FirstOrDefault() != "Seitenansicht") throw new InvalidOperationException("Seitenlayout ▸ Seitenansicht fehlt");
+            log.Add($"INFO  Menü »: {texte.Count} Einträge, {knoepfe.DropDownItems.Count} Schaltflächen ein-/ausblendbar");
+        }, 3);
+        Schritt("09e1_Stundenplan_Menue_zu", () => { foreach (var f in MdiChildren.OfType<StundenplanFenster>()) f.MehrMenue.HideDropDown(); }, 3);
         Schritt("UP5a_Kleine_Plaene_Stundenplanmodus", () =>
         {
             AppZustand.DatumSetzen(tag);
@@ -337,7 +381,7 @@ public sealed partial class HauptFenster
             dlg.Show(this);
             log.Add($"INFO  Kurzname-Dialog: Vorschlag „{vorschlag}“");
         }, 1);
-        Schritt("16_Vertretungsmodus", VertretungsmodusUmschalten, -1, false);
+        Schritt("16_Vertretungsmodus", () => { VertretungsmodusUmschalten(); Warten(300); KopfPruefen("Vertretungsplanung"); }, -1, false);
         Schritt("17_Vertretungen", () => Max(FensterOeffnen("vertr")!), -1);
         Schritt("17a_Vertretungen_Eingabe_Offene", () =>
         {
@@ -623,6 +667,27 @@ public sealed partial class HauptFenster
             log.Add($"INFO  Z1 Rückfragen: {fragen.Count} – " + string.Join(" // ", fragen.Select(f => f.Replace("\n", " / "))));
             Max(FensterOeffnen("vertr")!);
         }, -1);
+        Schritt("19d10_Dropdowns_alle_Fenster", () =>
+        {
+            // Sprint 6: alle Auswahllisten in allen Tabellen, Unterfenstern und Werkzeugleisten gleich – breit genug für Kurz- und Langname
+            var geprueft = 0;
+            var fehler = new List<string>();
+            foreach (var schluessel in new[] { "vertr", "abw", "veranst", "klaus", "bereit", "pause", "vorm", "st:Lehrer", "st:Klasse", "st:Raum", "st:Fach", "u:Klasse", "u:Lehrer" })
+            {
+                AlleSchliessen();
+                if (FensterOeffnen(schluessel) is not { } f) continue;
+                f.WindowState = FormWindowState.Maximized;
+                Warten(300);
+                Steuerelemente.Auswahlbreite.AlleErfassen();
+                Warten(100);
+                foreach (var (ort, problem) in DropdownsPruefen(f)) { geprueft++; if (problem != null) fehler.Add($"{schluessel}/{ort}: {problem}"); }
+            }
+            AlleSchliessen();
+            log.Add($"INFO  Dropdowns geprüft: {geprueft}, zu schmal/ohne Langnamen: {fehler.Count}" + (fehler.Count > 0 ? " – " + string.Join("; ", fehler.Take(12)) : ""));
+            if (geprueft < 8) throw new InvalidOperationException($"Zu wenige Auswahllisten gefunden ({geprueft}).");
+            if (fehler.Count > 0) throw new InvalidOperationException("Auswahllisten zu schmal bzw. ohne Langnamen: " + string.Join("; ", fehler.Take(12)));
+            Max(FensterOeffnen("vertr")!);
+        }, -1);
         Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
         Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
         var umgeplant = (Id: 0, Stunde: 0);
@@ -670,6 +735,29 @@ public sealed partial class HauptFenster
         Schritt("22_Stundentafel", () => Max(Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(2))), 6);
         Schritt("23_Kursplanung", () => Max(Oeffnen<KursplanungFenster>("kurs", () => new KursplanungFenster())), 4);
         Schritt("24_Hilfe", () => HilfeFenster.Zeigen("Vertretungsplanung"), 0);
+        Schritt("24a_Updateanzeige", () =>
+        {
+            // Releases wie von GitHub: nur Desktop-Tags „v…“ zählen, Entwürfe/Vorabversionen nicht
+            var json = """[{"tag_name":"web-v9.9.9","html_url":"https://example/web"},{"tag_name":"v1.0.999","html_url":"https://example/v999","draft":true},{"tag_name":"v1.0.998","html_url":"https://example/v998"},{"tag_name":"v1.0.5","html_url":"https://example/v5"}]""";
+            var (neu, url) = UntPlan.App.Update.Updatepruefung.Auswerten(json, "v");
+            if (neu != "1.0.998" || url != "https://example/v998") throw new InvalidOperationException($"Release-Auswertung falsch: {neu} {url}");
+            var stand = new UntPlan.App.Update.Updatestand(Updates.Version, true, neu, UntPlan.App.Update.Updatepruefung.Vergleichen(neu!, Updates.Version) > 0, url, Updateanzeige.Standardquelle, DateTime.UtcNow, null);
+            Updates.Anwenden(stand);
+            Warten(200);
+            if (!Updates.Label.Visible || !(Updates.Label.Text ?? "").Contains("1.0.998")) throw new InvalidOperationException("Statusleiste zeigt das Update nicht: " + Updates.Label.Text);
+            string? frage = null;
+            var alt = Ui.FrageAntwort;
+            Ui.FrageAntwort = (t, _) => { frage = t; return false; };
+            try { Updates.HinweisZeigen(); } finally { Ui.FrageAntwort = alt; }
+            if (frage is null || !frage.Contains("Neue Version: 1.0.998") || !frage.Contains("Installierte Version: " + Updates.Version))
+                throw new InvalidOperationException("Update-Hinweis fehlt oder unvollständig: " + frage);
+            log.Add($"INFO  Update: installiert {Updates.Version}, Statusleiste „{Updates.Label.Text}“");
+        }, 0);
+        Schritt("24b_Update_aktuell", () =>
+        {
+            Updates.Anwenden(new UntPlan.App.Update.Updatestand(Updates.Version, true, Updates.Version, false, null, Updateanzeige.Standardquelle, DateTime.UtcNow, null));
+            if (Updates.Label.Visible) throw new InvalidOperationException("Hinweis bleibt trotz aktueller Version sichtbar");
+        }, 0);
         Schritt("25_Perioden", () => new PeriodenDialog().Show(this), 2);
         Schritt("25a_Optimierung", () => new OptimierungDialog().Show(this), 2);
         Schritt("25b_Bereitschaftsplanung", () => Max(FensterOeffnen("bereitplan")!), 2);
@@ -898,6 +986,54 @@ public sealed partial class HauptFenster
             if (falsch > 0) res.Add($"{wurzel.GetType().Name}/{g.Name}: {falsch} von {geprueft} Zellen (Raster {g.GridColor.R},{g.GridColor.G},{g.GridColor.B}; {string.Join(" ", beispiele)})");
         }
         return res;
+    }
+
+    /// <summary>
+    /// Alle Auswahllisten eines Fensters prüfen: einzelne Felder (Dialoge, Werkzeugleisten) werden geöffnet, Auswahlzellen jeder Tabelle
+    /// bearbeitet; die geöffnete Liste muss so breit sein wie für Kurz- und Langname nötig und Langnamen anzeigen (eigene Darstellung).
+    /// </summary>
+    private static List<(string Ort, string? Problem)> DropdownsPruefen(Form f)
+    {
+        var erg = new List<(string, string?)>();
+        string? Bewerten(ComboBox cb)
+        {
+            var noetig = Math.Min(Steuerelemente.ListenSuche.BenoetigteBreite(cb, langname: Steuerelemente.ListenSuche.Langname), 760);
+            if (cb.DropDownWidth < noetig) return $"Liste {cb.DropDownWidth} px statt mind. {noetig} px";
+            if (Steuerelemente.Auswahlbreite.MitLangnamen(cb) && cb.DrawMode == DrawMode.Normal) return "zeigt keine Langnamen";
+            return null;
+        }
+        IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => new[] { k }.Concat(Alle(k)));
+        foreach (var cb in Alle(f).OfType<ComboBox>().Where(c => c.Visible && c.Enabled && c.Items.Count > 0 && c.Parent is not DataGridView).ToList())
+        {
+            cb.Focus();
+            Warten(30);
+            cb.DroppedDown = true;
+            Warten(60);
+            var p = Bewerten(cb);
+            cb.DroppedDown = false;
+            erg.Add((cb.Name is { Length: > 0 } n ? n : "Feld " + cb.Text, p));
+        }
+        foreach (var g in Alle(f).OfType<DataGridView>().Where(x => x.Visible && !x.ReadOnly && x.RowCount > 0).ToList())
+            foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>().Where(c => c.Visible && !c.ReadOnly).ToList())
+            {
+                var zeile = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => !r.IsNewRow && r.Visible && !r.Cells[spalte.Index].ReadOnly && r.Cells[spalte.Index] is DataGridViewComboBoxCell);
+                if (zeile is null) continue;
+                try
+                {
+                    g.CurrentCell = zeile.Cells[spalte.Index];
+                    g.BeginEdit(true);
+                    Warten(80);
+                    if (g.EditingControl is ComboBox cb && cb.Items.Count > 0)
+                    {
+                        cb.DroppedDown = true;
+                        Warten(60);
+                        erg.Add(($"{g.Name}.{spalte.HeaderText}", Bewerten(cb)));
+                        cb.DroppedDown = false;
+                    }
+                }
+                finally { g.CancelEdit(); g.EndEdit(); }
+            }
+        return erg;
     }
 
     private static void Warten(int ms)

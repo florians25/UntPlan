@@ -18,6 +18,8 @@ public sealed partial class HauptFenster : Form
     private readonly ToolStripStatusLabel _statusLinks = new("Mit F1 erhalten Sie Hilfe.");
     private readonly ToolStripStatusLabel _statusMitte = new() { Spring = true };
     private readonly ToolStripStatusLabel _statusRechts = new();
+    /// <summary>Updateanzeige (GitHub-Releases) mit Hinweis rechts in der Statusleiste.</summary>
+    internal Updateanzeige Updates { get; }
     private readonly Eingabeassistent _assistent;
     private readonly Splitter _assistentSplitter = new() { Dock = DockStyle.Right, Width = 4 };
 
@@ -49,7 +51,8 @@ public sealed partial class HauptFenster : Form
             SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretung", VertretungsmodusUmschalten),
             _titelLabel,
         });
-        _status.Items.AddRange(new ToolStripItem[] { _statusLinks, _statusMitte, _statusRechts });
+        Updates = new Updateanzeige(this);
+        _status.Items.AddRange(new ToolStripItem[] { _statusLinks, _statusMitte, _statusRechts, Updates.Label });
         _status.Font = Ui.Schrift;
 
         _assistent = new Eingabeassistent { Dock = DockStyle.Right, Width = 230, Visible = AppZustand.Einstellungen.AssistentZeigen };
@@ -64,6 +67,7 @@ public sealed partial class HauptFenster : Form
             if (c is MdiClient mdi) mdi.BackColor = Ui.MdiHintergrund;
 
         RibbonAufbauen();
+        KopfVorbereiten();
         ModusVorbereiten();
         KomfortVorbereiten();
         AppZustand.DokumentGewechselt += DokumentAnmelden;
@@ -135,7 +139,10 @@ public sealed partial class HauptFenster : Form
         _titelLabel.Text = "";
         _titelLabel.Visible = false;
         var nurLesen = AppZustand.Doc.Schreibgeschuetzt && !MultiUser.MultiUserSitzung.Aktiv;
-        Text = $"UntPlan – {name}{(nurLesen ? " [schreibgeschützt]" : "")}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")} – {d.Einstellungen.Schulname} – Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year % 100:00}";
+        // Fenstertitel wie Untis 2026: „Untis MultiUser 2026 - de_rlp_igs - Testschule DEMO - Stundenplan 2021/2022“
+        var produkt = MultiUser.MultiUserSitzung.Aktiv ? "UntPlan MultiUser 2026" : "UntPlan 2026";
+        if (MultiUser.MultiUserSitzung.Aktiv) name = MultiUser.MultiUserSitzung.Titel;
+        Text = $"{produkt}  -  {name}{(nurLesen ? " [schreibgeschützt]" : "")}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")}  -  {d.Einstellungen.Schulname}  -  Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";
         _statusMitte.Text = (nurLesen ? "SCHREIBGESCHÜTZT (Datei wird von jemand anderem verwendet) · " : "") + $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}";
         _statusRechts.Text = $"{d.AktivePeriode.Name} · {d.Klassen.Count} Klassen · {d.Lehrer.Count} Lehrer · {d.Unterrichte.Count} Unterrichte";
         _ribbon.Invalidate();
@@ -265,7 +272,9 @@ public sealed partial class HauptFenster : Form
             E("Hilfe (F1)", "hilfe", () => HilfeFenster.Zeigen("")),
             E("Handbuch: Erste Schritte", "hilfe", () => HilfeFenster.Zeigen("Eingabeassistent")),
             null,
-            E("Über UntPlan", "info", () => Ui.Info("UntPlan 1.0\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.", "Über UntPlan")),
+            E("Nach Updates suchen", "info", () => Updates.JetztPruefen()),
+            E("Über UntPlan", "info", () => Ui.Info($"UntPlan {Updates.Version}\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert." +
+                (Updates.Stand is { UpdateVerfuegbar: true } u ? $"\n\nNeue Version verfügbar: {u.Neueste} (Hilfethemen → Nach Updates suchen)" : ""), "Über UntPlan")),
         }));
         g.Eintraege.Add(E("MultiUser", "datenbank", null, true, MultiUserMenue(), hinweis: "Gemeinsame Datenbank für mehrere Benutzer (SQLite, SQL Server, MySQL, Access)"));
         g = Gruppe(start, "Module");

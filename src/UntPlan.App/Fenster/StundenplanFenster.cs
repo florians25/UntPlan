@@ -144,6 +144,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _wochenansicht.CheckedChanged += (_, _) => WocheSetzen();
         ts.Items.Add(_wochenansicht);
         ts.Items.Add(Knopf("Änderungen rückgängig (gewählte Stunde)", "rueckgaengig", AenderungenRueckgaengig));
+        ts.Items.Add(MehrMenueAufbauen(ts));
 
         // zweite Zeile: Zeitbereich, Datum, Hoch/Runter, Ende der Woche
         _zeitLeiste = Werkzeugleiste();
@@ -374,6 +375,78 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     internal bool FormatauswahlFrei => _fuss.AuswahlFrei && _fuss.Visible;
 
     /// <summary>Planart wechseln (Symbol neben der Elementauswahl): Klasse, Lehrer, Raum oder Fach.</summary>
+    /// <summary>„Art fixieren“: die Planart (Klasse/Lehrer/Raum) lässt sich nicht mehr umschalten.</summary>
+    internal bool ArtFixiert { get; private set; }
+
+    /// <summary>„Ansicht fixiert“: der Plan folgt nicht mehr der Auswahl in anderen Fenstern.</summary>
+    internal bool AnsichtFixiert { get; private set; }
+
+    /// <summary>Menü „»“ am Ende der Werkzeugleiste wie in Untis (für den Selbsttest erreichbar).</summary>
+    internal ToolStripDropDownButton MehrMenue { get; private set; } = null!;
+
+    /// <summary>
+    /// Menü „»“ wie Untis: Unterrichts-Farben anzeigen, Art fixieren, Ansicht fixiert, Seitenlayout ▸ (Seitenansicht, Seitenlayout),
+    /// Einstellungen, Alle Elemente im Unterricht, Schaltflächen hinzufügen oder entfernen ▸.
+    /// </summary>
+    private ToolStripDropDownButton MehrMenueAufbauen(ToolStrip ts)
+    {
+        var mehr = new ToolStripDropDownButton("»") { Alignment = ToolStripItemAlignment.Right, Overflow = ToolStripItemOverflow.Never, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Weitere Optionen", ShowDropDownArrow = true, Font = new Font(Ui.Schrift, FontStyle.Bold) };
+        var farben = new ToolStripMenuItem("Unterrichts-Farben anzeigen", Symbole.Get("farbe", 16)) { CheckOnClick = true };
+        farben.Click += (_, _) =>
+        {
+            var f = Kopie(_plan.Format);
+            f.Farbe = farben.Checked ? (f.Farbe == FarbeNach.Keine ? FarbeNach.Fach : f.Farbe) : FarbeNach.Keine;
+            FormatSpeichern(f, f.Name);
+        };
+        var art = new ToolStripMenuItem("Art fixieren", Symbole.Get("fixieren", 16)) { CheckOnClick = true };
+        art.Click += (_, _) => { ArtFixiert = art.Checked; _typKnopf.Enabled = !ArtFixiert; };
+        var ansicht = new ToolStripMenuItem("Ansicht fixiert", Symbole.Get("schloss", 16)) { CheckOnClick = true };
+        ansicht.Click += (_, _) =>
+        {
+            AnsichtFixiert = ansicht.Checked;
+            if (AnsichtFixiert) Verknuepft = false;
+            _sync.Enabled = !AnsichtFixiert;
+            _sync.Checked = Verknuepft;
+        };
+        var layout = new ToolStripMenuItem("Seitenlayout", Symbole.Get("einstellungen", 16));
+        layout.DropDownItems.Add("Seitenansicht", Symbole.Get("vorschau", 16), (_, _) => Drucken(true));
+        layout.DropDownItems.Add("Seitenlayout", Symbole.Get("einstellungen", 16), (_, _) => Seitenlayout());
+        var einstellungen = new ToolStripMenuItem("Einstellungen", Symbole.Get("einstellungen", 16), (_, _) => Einstellungen());
+        var alle = new ToolStripMenuItem("Alle Elemente im Unterricht", Symbole.Get("uebersicht", 16)) { CheckOnClick = true };
+        alle.Click += (_, _) => _alleElemente.Checked = alle.Checked;
+        var knoepfe = new ToolStripMenuItem("Schaltflächen hinzufügen oder entfernen");
+        mehr.DropDownItems.AddRange(new ToolStripItem[] { farben, art, ansicht, layout, einstellungen, alle, knoepfe });
+        mehr.DropDownOpening += (_, _) =>
+        {
+            farben.Checked = _plan.Format.Farbe != FarbeNach.Keine;
+            art.Checked = ArtFixiert;
+            ansicht.Checked = AnsichtFixiert;
+            alle.Checked = _alleElemente.Checked;
+            // alle Schaltflächen der Leiste ein-/ausblendbar (Auswahlfeld und das Menü selbst bleiben immer sichtbar)
+            knoepfe.DropDownItems.Clear();
+            foreach (ToolStripItem it in ts.Items)
+            {
+                if (it == mehr || it == _auswahl || it is ToolStripSeparator) continue;
+                var titel = !string.IsNullOrEmpty(it.ToolTipText) ? it.ToolTipText.Split('\n')[0] : it.Text;
+                if (string.IsNullOrWhiteSpace(titel)) continue;
+                var eintrag = new ToolStripMenuItem(titel, it.Image) { Checked = it.Available, CheckOnClick = true };
+                var ziel = it;
+                eintrag.Click += (_, _) => ziel.Available = eintrag.Checked;
+                knoepfe.DropDownItems.Add(eintrag);
+            }
+        };
+        MehrMenue = mehr;
+        return mehr;
+    }
+
+    /// <summary>Seitenlayout des Stundenplans: Papierformat, Ausrichtung und Ränder für Druck und Seitenansicht.</summary>
+    private void Seitenlayout()
+    {
+        using var dlg = new PageSetupDialog { PageSettings = StundenplanDruck.Seite, EnableMetric = true, AllowPrinter = true };
+        try { dlg.ShowDialog(this); }
+        catch (System.Drawing.Printing.InvalidPrinterException ex) { Ui.Info("Kein Drucker eingerichtet – das Seitenlayout kann erst mit einem Drucker gewählt werden.\n\n" + ex.Message, "Seitenlayout"); }
+    }
+
     private void TypSetzen(ElementTyp typ)
     {
         if (typ == _typ) return;

@@ -41,9 +41,16 @@ public sealed class RibbonSeite
 /// <summary>Menüband im Stil klassischer Office-/Windows-Anwendungen.</summary>
 public sealed class Ribbon : Control
 {
-    private const int TabHoehe = 30;
-    /// <summary>Größere Schrift für die Registerkarten (Datei, Start, …).</summary>
-    private static readonly Font TabSchrift = new("Segoe UI", 10.5f);
+    /// <summary>Registerleiste wie Untis 2026: schmal, in der Modusfarbe, durchgehend mit der Titelzeile darüber.</summary>
+    public const int TabHoehe = 26;
+    /// <summary>Schrift der Registerkarten (Datei, Start, …) – klein und weiß wie in Untis.</summary>
+    private static readonly Font TabSchrift = new("Segoe UI", 9f);
+    /// <summary>Kleine Knöpfe rechts in der Registerleiste (Fensteranordnungen 1–8).</summary>
+    public ToolStrip Rechts { get; } = new()
+    {
+        GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.None, AutoSize = true, Padding = new Padding(0),
+        ImageScalingSize = new Size(16, 16), CanOverflow = false, Renderer = new LeistenRenderer(),
+    };
     private const int Inhalt = 94;
     private readonly ToolTip _tip = new() { InitialDelay = 600 };
     private RibbonEintrag? _hover;
@@ -61,7 +68,29 @@ public sealed class Ribbon : Control
         Dock = DockStyle.Top;
         Height = TabHoehe + Inhalt + 1;
         Font = Ui.Schrift;
+        Controls.Add(Rechts);
+        Rechts.SizeChanged += (_, _) => RechtsPlatzieren();
     }
+
+    private void RechtsPlatzieren()
+    {
+        var w = Rechts.PreferredSize.Width;
+        Rechts.SetBounds(Math.Max(0, Width - w - 6), 1, w, TabHoehe - 2);
+        Rechts.BackColor = Ui.Titel;
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        RechtsPlatzieren();
+    }
+
+    /// <summary>Liegt der Punkt in der Registerleiste auf keiner Registerkarte (dort lässt sich das Fenster ziehen)?</summary>
+    public bool FreieKopfFlaeche(Point p) =>
+        p.Y < TabHoehe && !_dateiBounds.Contains(p) && !Seiten.Any(s => s.IstSichtbar && s.TabBounds.Contains(p)) && !Rechts.Bounds.Contains(p);
+
+    /// <summary>Akzentlinie über der gewählten Registerkarte (heller und kräftiger als die Modusfarbe).</summary>
+    public static Color Akzent => Ui.Vertretungsmodus ? Color.FromArgb(122, 204, 96) : Color.FromArgb(96, 186, 232);
 
     public RibbonSeite Seite(string text, Func<bool>? sichtbar = null)
     {
@@ -73,15 +102,15 @@ public sealed class Ribbon : Control
     private void Layout2(Graphics g)
     {
         var x = 4;
-        _dateiBounds = new Rectangle(x, 3, (int)g.MeasureString("Datei", TabSchrift).Width + 30, TabHoehe - 3);
+        _dateiBounds = new Rectangle(x, 2, (int)g.MeasureString("Datei", TabSchrift).Width + 22, TabHoehe - 2);
         x = _dateiBounds.Right + 2;
         if (!(Seiten.ElementAtOrDefault(AktiveSeite)?.IstSichtbar ?? false))
             AktiveSeite = Math.Max(0, Seiten.FindIndex(x => x.IstSichtbar));
         foreach (var s in Seiten)
         {
             if (!s.IstSichtbar) { s.TabBounds = Rectangle.Empty; continue; }
-            var w = (int)g.MeasureString(s.Text, TabSchrift).Width + 26;
-            s.TabBounds = new Rectangle(x, 3, w, TabHoehe - 3);
+            var w = (int)g.MeasureString(s.Text, TabSchrift).Width + 24;
+            s.TabBounds = new Rectangle(x, 2, w, TabHoehe - 2);
             x += w + 1;
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
@@ -130,10 +159,11 @@ public sealed class Ribbon : Control
         Layout2(g);
         // Registerleiste in der Modusfarbe (durchgehend mit Titel- und Schnellzugriffsleiste)
         using (var b = new SolidBrush(Ui.Titel)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
-        using (var b = new LinearGradientBrush(new Rectangle(0, TabHoehe, Width, Inhalt), Color.White, Ui.BlauSehrHell, 90f)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt);
-        using (var p = new Pen(Color.FromArgb(198, 205, 216))) { g.DrawLine(p, 0, TabHoehe, Width, TabHoehe); g.DrawLine(p, 0, Height - 1, Width, Height - 1); }
-        // Datei-Tab
-        using (var b = new SolidBrush(_hoverDatei ? Ui.Blau : Color.FromArgb(Math.Max(0, Ui.Blau.R - 18), Math.Max(0, Ui.Blau.G - 18), Math.Max(0, Ui.Blau.B - 18)))) g.FillRectangle(b, _dateiBounds);
+        using (var b = new LinearGradientBrush(new Rectangle(0, TabHoehe, Width, Inhalt), Color.FromArgb(250, 251, 252), Ui.BlauSehrHell, 90f)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
+        using (var p = new Pen(Color.FromArgb(198, 205, 216))) g.DrawLine(p, 0, Height - 1, Width, Height - 1);
+        if (Rechts.BackColor != Ui.Titel) Rechts.BackColor = Ui.Titel;
+        // Datei wie die übrigen Registerkarten (Untis 2026): weiße Schrift, beim Überfahren aufgehellt
+        if (_hoverDatei) using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, _dateiBounds);
         TextRenderer.DrawText(g, "Datei", TabSchrift, _dateiBounds, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         for (var i = 0; i < Seiten.Count; i++)
         {
@@ -142,15 +172,15 @@ public sealed class Ribbon : Control
             var aktiv = i == AktiveSeite;
             if (aktiv)
             {
-                g.FillRectangle(Brushes.White, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, s.TabBounds.Height + 2);
-                using var p = new Pen(Color.FromArgb(198, 205, 216));
-                g.DrawLines(p, new[] { new Point(s.TabBounds.X, s.TabBounds.Bottom), new Point(s.TabBounds.X, s.TabBounds.Y), new Point(s.TabBounds.Right, s.TabBounds.Y), new Point(s.TabBounds.Right, s.TabBounds.Bottom) });
-                using var akzent = new SolidBrush(Ui.Blau);
+                // gewählte Registerkarte hell, geht nahtlos in das Menüband über; oben eine dünne helle Akzentlinie
+                using (var b = new SolidBrush(Color.FromArgb(250, 251, 252))) g.FillRectangle(b, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, s.TabBounds.Height + 2);
+                using var akzent = new SolidBrush(Akzent);
                 g.FillRectangle(akzent, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, 3);
             }
             else if (_hoverTab == s)
                 using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, s.TabBounds);
-            TextRenderer.DrawText(g, s.Text, TabSchrift, s.TabBounds, aktiv ? Ui.Blau : Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, s.Text, TabSchrift, Rectangle.FromLTRB(s.TabBounds.X, s.TabBounds.Y + 2, s.TabBounds.Right, s.TabBounds.Bottom), aktiv ? Color.FromArgb(40, 44, 48) : Color.White,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
         if (seite is null) return;

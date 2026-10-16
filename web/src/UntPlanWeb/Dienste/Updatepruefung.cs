@@ -3,10 +3,13 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-// Gemeinsame Update-Prüfung von UntPlanWeb und UntPlanMobile: UntPlanMobile bindet diese Datei ein (siehe UntPlanMobile.csproj,
-// Konstante UNTPLANMOBILE), damit beide dieselbe Logik verwenden, die Typen aber getrennt bleiben.
+// Gemeinsame Update-Prüfung von UntPlanWeb, UntPlanMobile und UntPlan Desktop: UntPlanMobile und der Desktop binden diese Datei ein
+// (siehe UntPlanMobile.csproj bzw. UntPlan.App.csproj, Konstanten UNTPLANMOBILE / UNTPLANDESKTOP), damit alle dieselbe Logik
+// verwenden, die Typen aber getrennt bleiben.
 #if UNTPLANMOBILE
 namespace UntPlanMobile.Dienste;
+#elif UNTPLANDESKTOP
+namespace UntPlan.App.Update;
 #else
 namespace UntPlanWeb.Dienste;
 #endif

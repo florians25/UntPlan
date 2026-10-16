@@ -280,8 +280,7 @@ public sealed partial class HauptFenster
     {
         foreach (Control c in Controls)
             if (c is MdiClient mdi) mdi.BackColor = Ui.MdiHintergrund;
-        _schnell.BackColor = Ui.Titel;
-        Ui.TitelleisteFaerben(this);
+        KopfFarben();
         _status.BackColor = AppZustand.Vertretungsmodus ? Ui.BlauHell : SystemColors.Control;
         _statusLinks.Text = AppZustand.Vertretungsmodus ? "VERTRETUNGSPLANUNG" : "STUNDENPLANUNG";
         _statusLinks.Font = Ui.SchriftFett;

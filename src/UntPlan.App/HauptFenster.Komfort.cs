@@ -88,21 +88,19 @@ public sealed partial class HauptFenster
     /// </summary>
     private void SchnellanordnungenAufbauen()
     {
-        // rechtsbündige Elemente werden von rechts nach links angeordnet: 8 zuerst einfügen
-        var pos = _schnell.Items.IndexOf(_titelLabel);
-        for (var n = 8; n >= 1; n--)
+        // wie Untis 2026: kleine Fenstersymbole rechts in der Registerleiste
+        for (var n = 1; n <= 8; n++)
         {
             var nr = n;
-            var b = new ToolStripButton { Alignment = ToolStripItemAlignment.Right, DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 24, Margin = new Padding(0, 1, 0, 2) };
+            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 22, Height = 20, Margin = new Padding(0, 1, 0, 1) };
             b.MouseUp += (_, e) =>
             {
                 if (e.Button == MouseButtons.Right) SchnellanordnungSpeichern(nr);
                 else if (e.Button == MouseButtons.Left) SchnellanordnungOeffnen(nr);
             };
             _schnellAnordnung[nr - 1] = b;
-            _schnell.Items.Insert(pos + 1, b);
+            _ribbon.Rechts.Items.Add(b);
         }
-        _schnell.Items.Insert(pos + 1, new ToolStripSeparator { Alignment = ToolStripItemAlignment.Right });
         SchnellanordnungenAnzeigen();
     }
 
