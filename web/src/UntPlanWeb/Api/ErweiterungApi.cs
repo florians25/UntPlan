@@ -256,14 +256,23 @@ public static class ErweiterungApi
 
         api.MapGet("/berichte/liste", (HttpContext c) => { Kollegium(c); return Results.Json(Klassenbuchverwaltung.Berichtsarten); });
         api.MapGet("/berichte/erstellen/{art}", (string art, string? von, string? bis, string? klasse, int? schueler, int? n1, int? n2, string? format,
-            HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Uhr uhr) =>
+            HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Uhr uhr, Einstellungen es) =>
         {
             var b = Kollegium(c);
             var v = D(von, uhr.Heute.AddDays(-30));
             var bi = D(bis, uhr.Heute);
             var bericht = kv.BerichtErstellen(Paket(p), b, art, v, bi, Leer(klasse), schueler, n1 ?? 0, n2 ?? 0);
+            var dateiname = $"{art}-{Leer(klasse) ?? "alle"}-{v:yyyy-MM-dd}-{bi:yyyy-MM-dd}";
+            if (format == "pdf")
+            {
+                var schule = es.Schulname.Length > 0 ? es.Schulname : Paket(p).Paket.Schule.Name;
+                var unter = $"{(Leer(klasse) is { } kl ? $"Klasse {kl} · " : "")}Zeitraum {v:dd.MM.yyyy} – {bi:dd.MM.yyyy}";
+                var pdf = PdfBericht.Erzeugen(schule, bericht.Titel, unter, bericht.Spalten,
+                    bericht.Zeilen.Select(z => (IReadOnlyList<string>)z.Select(x => Convert.ToString(x, System.Globalization.CultureInfo.GetCultureInfo("de-DE")) ?? "").ToList()).ToList(), bericht.Hinweis);
+                return Results.File(pdf, "application/pdf", dateiname + ".pdf");
+            }
             return format == "csv"
-                ? Results.File(Klassenbuchverwaltung.BerichtCsv(bericht), "text/csv; charset=utf-8", $"{art}-{Leer(klasse) ?? "alle"}-{v:yyyy-MM-dd}-{bi:yyyy-MM-dd}.csv")
+                ? Results.File(Klassenbuchverwaltung.BerichtCsv(bericht), "text/csv; charset=utf-8", dateiname + ".csv")
                 : Results.Json(new { bericht.Id, bericht.Titel, bericht.Spalten, bericht.Zeilen, bericht.Hinweis, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi) });
         });
 

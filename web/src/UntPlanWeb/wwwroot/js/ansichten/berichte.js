@@ -37,7 +37,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     <div class="row g-4">
       <div class="col-xl-5 nicht-drucken">${gruppen.map(g => `<section class="br-gruppe br-alt"><h3><img src="/img/wu/legacy/lehrstoff.png" alt="">${e(g)}</h3>
         ${arten.filter(a => a.gruppe === g).map(a => `<div class="br-zeile ${a.id === art ? 'aktiv' : ''}"><div class="name">${e(a.titel)}${a.klasseNoetig ? ' <span class="small text-body-secondary fw-normal">(Klasse)</span>' : ''}</div>
-          <span class="br-symbole"><button type="button" class="br-pdf" data-druck="${a.id}" title="PDF (Drucken bzw. als PDF speichern)" aria-label="${e(a.titel)} als PDF"><i class="bi bi-file-earmark-pdf-fill"></i></button>
+          <span class="br-symbole"><button type="button" class="br-pdf" data-druck="${a.id}" title="PDF herunterladen" aria-label="${e(a.titel)} als PDF"><i class="bi bi-file-earmark-pdf-fill"></i></button>
           <button type="button" class="br-html" data-anzeigen="${a.id}" title="Anzeigen" aria-label="${e(a.titel)} anzeigen"><i class="bi bi-file-earmark-richtext-fill"></i></button>
           <button type="button" class="br-xls" data-csv="${a.id}" title="Excel (CSV)" aria-label="${e(a.titel)} als Excel"><i class="bi bi-file-earmark-excel-fill"></i></button></span>
           <span class="br-param">${parameter(a)}</span></div>`).join('')}</section>`).join('')}
@@ -50,11 +50,21 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     kontext.navigieren(ziel(art, f('klasse'), f('von') || von, f('bis') || bis, x.matches('[data-klasse]') ? '' : f('schueler'))));
   const abfrage = (id, n = nWerte(id)) => `klasse=${encodeURIComponent(klasse)}&von=${von}&bis=${bis}${schueler ? `&schueler=${schueler}` : ''}&n1=${n[0]}&n2=${n[1]}`;
   seite.querySelectorAll('[data-anzeigen]').forEach(b => b.onclick = () => { const n = nWerte(b.dataset.anzeigen); kontext.navigieren(ziel(b.dataset.anzeigen, klasse, von, bis, schueler, n[0], n[1])); });
-  seite.querySelectorAll('[data-druck]').forEach(b => b.onclick = () => {
-    const n = nWerte(b.dataset.druck);
-    if (b.dataset.druck === art) { window.print(); return; }
-    sessionStorage.setItem('untplan:berichtdruck', '1');
-    kontext.navigieren(ziel(b.dataset.druck, klasse, von, bis, schueler, n[0], n[1]));
+  // echtes PDF vom Server (A4 quer, Kopf mit Schule und Zeitraum, Seitenzahlen); Entschuldigungsschreiben weiterhin über den Druck
+  seite.querySelectorAll('[data-druck]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.druck;
+    if (id === 'entschuldigungsschreiben') {
+      const n = nWerte(id);
+      if (id === art) { window.print(); return; }
+      sessionStorage.setItem('untplan:berichtdruck', '1');
+      kontext.navigieren(ziel(id, klasse, von, bis, schueler, n[0], n[1]));
+      return;
+    }
+    try {
+      const antwort = await fetch(`/api/app/berichte/erstellen/${id}?${abfrage(id)}&format=pdf`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
+      if (!antwort.ok) throw new ApiFehler(antwort.status, (await antwort.json().catch(() => null))?.fehler ?? `Fehler ${antwort.status}`);
+      herunterladen(`${id}-${klasse || 'alle'}-${von}-${bis}.pdf`, await antwort.blob());
+    } catch (err) { kontext.fehler(err); }
   });
   seite.querySelectorAll('[data-csv]').forEach(b => b.onclick = async () => {
     try {

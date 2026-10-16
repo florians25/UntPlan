@@ -143,7 +143,7 @@ UntPlanMobile selbst speichert keine Daten – es ist ein Proxy vor UntPlanWeb. 
 ```bash
 mkdir untplan && cd untplan
 curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/mobile/docker-compose.mariadb.yml
-curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/web/update.sh && chmod +x update.sh
+curl -O https://raw.githubusercontent.com/florians25/UntPlan/main/mobile/update.sh && chmod +x update.sh
 printf 'MARIADB_PASSWORT=…\nMARIADB_ROOT_PASSWORT=…\nWATCHTOWER_TOKEN=…\nCOMPOSE_FILE=docker-compose.mariadb.yml\n' > .env
 docker compose up -d
 ```

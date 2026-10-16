@@ -5,7 +5,7 @@
 # UntPlanWeb:    http://<server>:8080  (Einrichtung, Administration, Updates)
 # UntPlanMobile: http://<server>:8081  (App fürs Telefon; speichert selbst keine Daten)
 # Update beider Dienste (Sicherung vorher, Migrationen laufen beim Start automatisch):
-#   COMPOSE_FILE=docker-compose.mariadb.yml ../web/update.sh
+#   COMPOSE_FILE=docker-compose.mariadb.yml ./update.sh   (Update-Skript: mobile/update.sh)
 #   bzw. docker compose -f docker-compose.mariadb.yml pull && docker compose -f docker-compose.mariadb.yml up -d
 
 services:

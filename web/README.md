@@ -340,8 +340,11 @@ docker compose exec untplanweb dotnet UntPlanWeb.dll --sichern      # SQLite →
 docker compose pull && docker compose up -d
 ```
 
-`update.sh` (im Ordner mit der Compose-Datei aufrufen, für MariaDB mit `COMPOSE_FILE=docker-compose.mariadb.yml`) sichert
-SQLite per `--sichern` bzw. MariaDB per `mariadb-dump` nach `./sicherungen`, lädt die neuen Images und startet neu.
+`update.sh` (im Ordner mit der Compose-Datei aufrufen; liegt dort nur `docker-compose.mariadb.yml`, wird sie automatisch verwendet) sichert
+SQLite per `--sichern`, MariaDB bzw. MySQL im Container (Dienst `mariadb`, `mysql` oder `db`, sonst `DB_DIENST=…`) per `mariadb-dump`/`mysqldump`
+als `./sicherungen/untplanweb-…sql.gz` und einen externen Datenbankserver mit `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_BENUTZER`, `DB_PASSWORT`.
+Danach lädt es die neuen Images und startet neu; die letzten 14 Sicherungen bleiben (`SICHERUNGEN_BEHALTEN`).
+Für UntPlanMobile gibt es dasselbe als `mobile/update.sh` (aktualisiert UntPlanWeb und UntPlanMobile gemeinsam).
 
 **Updateanzeige:** Unter *Administration → Übersicht* zeigt die Karte *Version & Updates* die laufende Version, die Datenbank
 mit Schemastand und die neueste veröffentlichte Version (Standard: GitHub-Releases von florians25/UntPlan, alle 6 Stunden geprüft;

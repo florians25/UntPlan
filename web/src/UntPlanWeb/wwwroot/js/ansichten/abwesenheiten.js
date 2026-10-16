@@ -4,6 +4,12 @@ import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, filterFe
 
 const STATUS = { offen: '<span class="u-chip gelb">offen</span>', entschuldigt: '<span class="u-chip gruen">entschuldigt</span>', unentschuldigt: '<span class="u-chip rot">nicht entschuldigt</span>' };
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
+/** Avatar mit Initialen (Nachname, Vorname) wie in der neuen Oberfläche; hervorgehoben = gefüllt. */
+export const avatar = (name, gefuellt = true) => {
+  const teile = String(name || '').replace(',', ' ').split(/\s+/).filter(Boolean);
+  const ini = ((teile[0]?.[0] ?? '') + (teile[1]?.[0] ?? '')).toUpperCase();
+  return `<span class="nl-avatar ${gefuellt ? 'voll' : ''}" aria-hidden="true">${e(ini)}</span>`;
+};
 const tagKurz = iso => new Date(iso + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
 
 /** Zeilen einer zusammengefassten Abwesenheit (gleiche Gruppe) zu einer Zeile über mehrere Tage verbinden. */
@@ -65,40 +71,52 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
     spaet: roh.filter(z => z.art === 'verspaetet').length, frueh: roh.filter(z => z.art === 'vorzeitig').length,
     minuten: roh.filter(z => z.art !== 'fehlt').reduce((n, z) => n + z.minuten, 0) };
   const verwalten = roh.some(z => z.verwalten) || ich.admin;
-  kontext.titel('Abwesenheiten', `${verwalten ? `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : ''}<button class="btn btn-outline-secondary" data-csv>${icon('csv')}Bericht</button>`, `${liste.length}`);
+  kontext.titel('Abwesenheiten', '', `${liste.length}`);
+  const pille = (name, inhaltHtml, aktiv) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}"><span class="visually-hidden">${name}</span>${inhaltHtml}</label>`;
   inhalt.innerHTML = `
-    <div class="u-filter">
-      ${filterFeld('Klasse', `<select class="form-select" data-klasse><option value="">alle</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)}
-      ${filterFeld('Von', `<input type="date" class="form-control" data-von value="${von}">`)}
-      ${filterFeld('Bis', `<input type="date" class="form-control" data-bis value="${bis}">`)}
-      ${filterFeld('Abwesenheitsgrund', `<select class="form-select" data-grund><option value="">- Alle -</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select>`)}
-      ${filterFeld('Art', `<select class="form-select" data-art><option value="">- Alle -</option>${Object.entries(ARTEN).map(([k, t]) => `<option value="${k}" ${k === art ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
-      ${filterFeld('Status', `<select class="form-select" data-status><option value="">- Alle -</option>${['offen', 'entschuldigt', 'unentschuldigt'].map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s === 'unentschuldigt' ? 'nicht entschuldigt' : s}</option>`).join('')}</select>`)}
+    <div class="nl-leiste">
+      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Suchen" aria-label="Schüler*in suchen"></label>
+      ${pille('Klasse', `<select data-klasse><option value="">Klasse</option>${el.klassen.map(k => `<option value="${e(k.kurz)}" ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`, klasse)}
+      ${pille('Von', `<input type="date" data-von value="${von}">`, false)}
+      ${pille('Bis', `<input type="date" data-bis value="${bis}">`, false)}
+      ${pille('Abwesenheitsgrund', `<select data-grund><option value="">Abwesenheitsgrund</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select>`, grund)}
+      ${pille('Art', `<select data-art><option value="">Art</option>${Object.entries(ARTEN).map(([k, t]) => `<option value="${k}" ${k === art ? 'selected' : ''}>${t}</option>`).join('')}</select>`, art)}
+      ${pille('Status', `<select data-status><option value="">Status</option>${['offen', 'entschuldigt', 'unentschuldigt'].map(x => `<option value="${x}" ${x === status ? 'selected' : ''}>${x === 'unentschuldigt' ? 'nicht entschuldigt' : x}</option>`).join('')}</select>`, status)}
+      <span class="ms-auto d-flex gap-2">
+        <button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen">${icon('csv')}Bericht</button>
+        ${verwalten ? `<button type="button" class="nl-hinzu" data-neu><i class="bi bi-plus-lg"></i>Hinzufügen</button>` : ''}
+      </span>
     </div>
-    <div class="abw-kennzahlen">
-      <button type="button" class="abw-kz ${status === 'offen' ? 'aktiv' : ''}" data-kz="offen"><b>${anzahl.offen}</b><span>offen</span></button>
-      <button type="button" class="abw-kz rot ${status === 'unentschuldigt' ? 'aktiv' : ''}" data-kz="unentschuldigt"><b>${anzahl.unent}</b><span>nicht entschuldigt</span></button>
-      <button type="button" class="abw-kz gelb ${art === 'verspaetet' ? 'aktiv' : ''}" data-kz="verspaetet"><b>${anzahl.spaet}</b><span>Verspätungen</span></button>
-      <button type="button" class="abw-kz lila ${art === 'vorzeitig' ? 'aktiv' : ''}" data-kz="vorzeitig"><b>${anzahl.frueh}</b><span>vorzeitig gegangen</span></button>
-      <div class="abw-kz still"><b>${anzahl.minuten}</b><span>Minuten gesamt</span></div>
+    <div class="nl-zahlen">
+      <button type="button" class="nl-zahl ${status === 'offen' ? 'aktiv' : ''}" data-kz="offen"><b>${anzahl.offen}</b> offen</button>
+      <button type="button" class="nl-zahl rot ${status === 'unentschuldigt' ? 'aktiv' : ''}" data-kz="unentschuldigt"><b>${anzahl.unent}</b> nicht entschuldigt</button>
+      <button type="button" class="nl-zahl gelb ${art === 'verspaetet' ? 'aktiv' : ''}" data-kz="verspaetet"><b>${anzahl.spaet}</b> Verspätungen</button>
+      <button type="button" class="nl-zahl lila ${art === 'vorzeitig' ? 'aktiv' : ''}" data-kz="vorzeitig"><b>${anzahl.frueh}</b> vorzeitig gegangen</button>
+      <span class="nl-zahl still"><b>${anzahl.minuten}</b> Minuten</span>
     </div>
-    <div class="card">${liste.length ? `<div class="table-responsive"><table class="table table-hover table-card align-middle"><thead><tr>${verwalten ? '<th><input type="checkbox" class="form-check-input" data-alle aria-label="Alle auswählen"></th>' : ''}
-        <th>Schüler*in</th><th>Klasse</th><th>Von</th><th>Bis</th><th>Stunden</th><th>Art</th><th>Grund</th><th>Status</th><th>Text</th><th>erfasst von</th>${verwalten ? '<th></th>' : ''}</tr></thead><tbody>
-      ${liste.map((z, i) => `<tr>${verwalten ? `<td>${z.verwalten || ich.admin ? `<input type="checkbox" class="form-check-input" data-i="${i}" aria-label="auswählen">` : ''}</td>` : ''}
-        <td class="fw-semibold">${e(z.schueler)}</td><td>${e(z.klasse)}</td><td class="text-nowrap">${tagKurz(z.datum)}</td><td class="text-nowrap">${z.bis !== z.datum ? tagKurz(z.bis) : ''}</td>
-        <td class="text-nowrap">${z.bis !== z.datum ? `${z.stundenSumme} Std.` : stundenText(z.stundeVon, z.stundeBis)}${z.beginn ? `<div class="small text-body-secondary">${e(z.beginn)}–${e(z.ende)}</div>` : ''}</td>
+    <div class="nl-tabelle">${liste.length ? `<table><thead><tr>${verwalten ? '<th class="nl-wahl"><input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></th>' : ''}
+        <th colspan="2">Name</th><th>Zeitraum</th><th>Art</th><th>Grund</th><th>Status</th><th>Text</th>${verwalten ? '<th></th>' : ''}</tr></thead><tbody>
+      ${liste.map((z, i) => `<tr data-name="${e((z.schueler + ' ' + z.klasse).toLowerCase())}">${verwalten ? `<td class="nl-wahl">${z.verwalten || ich.admin ? `<input type="checkbox" class="nl-rund" data-i="${i}" aria-label="auswählen">` : ''}</td>` : ''}
+        <td class="nl-avatar-zelle">${avatar(z.schueler, z.status === 'offen')}</td>
+        <td><div class="nl-name">${e(z.schueler)}</div><div class="nl-unter">${e(z.klasse)}${z.lehrer.length ? ` · erfasst von ${e(z.lehrer.join(', '))}` : ''}</div></td>
+        <td class="text-nowrap"><div>${tagKurz(z.datum)}${z.bis !== z.datum ? ` – ${tagKurz(z.bis)}` : ''}</div>
+          <div class="nl-unter">${z.bis !== z.datum ? `${z.stundenSumme} Std.` : stundenText(z.stundeVon, z.stundeBis)}${z.beginn ? ` · ${e(z.beginn)}–${e(z.ende)}` : ''}</div></td>
         <td>${artChip(z)}</td>
-        <td>${e(grundName[z.grund] ?? z.grund)}</td><td>${STATUS[z.status] ?? e(z.status)}</td><td class="small">${e(z.bemerkung)}</td><td class="small text-body-secondary">${e(z.lehrer.join(', '))}</td>
-        ${verwalten ? `<td class="text-end text-nowrap">${z.verwalten || ich.admin ? `<button class="btn btn-sm btn-outline-secondary" data-bearbeiten="${i}" title="Bearbeiten">${icon('stift')}</button>
-          <button class="btn btn-sm btn-outline-danger" data-loeschen="${i}" title="Löschen">${icon('loeschen')}</button>` : ''}</td>` : ''}</tr>`).join('')}
-      </tbody></table></div>
-      ${verwalten ? `<div class="card-footer d-flex flex-wrap gap-2 align-items-center"><span class="small text-body-secondary me-2">${liste.length} Elemente gefunden.</span>
-        <button class="btn btn-sm btn-outline-success" data-setzen="entschuldigt">Entschuldigen</button><button class="btn btn-sm btn-outline-danger" data-setzen="unentschuldigt">Nicht entschuldigt</button>
-        <button class="btn btn-sm btn-outline-secondary" data-setzen="offen">Offen</button><button class="btn btn-sm btn-outline-secondary" data-zusammen>Zusammenfassen</button>
-        <a class="btn btn-sm btn-outline-secondary ms-auto" href="#/berichte/abwesenheiten/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Berichte</a></div>` : ''}`
-      : `<div class="card-body py-0">${leer('Keine Abwesenheiten im Zeitraum.', 'person-check')}</div>`}</div>`;
+        <td>${z.grund ? `<span class="nl-tag">${e(grundName[z.grund] ?? z.grund)}</span>` : ''}</td><td>${STATUS[z.status] ?? e(z.status)}</td><td class="nl-text">${e(z.bemerkung)}</td>
+        ${verwalten ? `<td class="text-end text-nowrap nl-aktionen">${z.verwalten || ich.admin ? `<button class="nl-icon" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>
+          <button class="nl-icon rot" data-loeschen="${i}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}</td>` : ''}</tr>`).join('')}
+      </tbody></table>
+      ${verwalten ? `<div class="nl-fuss"><span class="nl-unter me-2">${liste.length} Elemente</span>
+        <button class="nl-knopf gruen" data-setzen="entschuldigt">Entschuldigen</button><button class="nl-knopf rot" data-setzen="unentschuldigt">Nicht entschuldigt</button>
+        <button class="nl-knopf" data-setzen="offen">Offen</button><button class="nl-knopf" data-zusammen>Zusammenfassen</button>
+        <a class="nl-knopf ms-auto" href="#/berichte/abwesenheiten/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Berichte</a></div>` : ''}`
+      : `<div class="p-3">${leer('Keine Abwesenheiten im Zeitraum.', 'person-check')}</div>`}</div>`;
+  inhalt.querySelector('[data-suche]')?.addEventListener('input', ev => {
+    const t = ev.target.value.trim().toLowerCase();
+    inhalt.querySelectorAll('.nl-tabelle tbody tr').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); });
+  });
   const f = n => inhalt.querySelector(`[data-${n}]`)?.value ?? '';
-  inhalt.querySelectorAll('.u-filter input, .u-filter select').forEach(x => x.onchange = () => kontext.navigieren(ziel('schueler', f('von') || von, f('bis') || bis, f('klasse'), f('status'), f('grund'), f('art'))));
+  inhalt.querySelectorAll('.nl-pille input, .nl-pille select').forEach(x => x.onchange = () => kontext.navigieren(ziel('schueler', f('von') || von, f('bis') || bis, f('klasse'), f('status'), f('grund'), f('art'))));
   inhalt.querySelectorAll('[data-kz]').forEach(b => b.onclick = () => {
     const kz = b.dataset.kz;
     if (kz === 'offen' || kz === 'unentschuldigt') kontext.navigieren(ziel('schueler', von, bis, klasse, status === kz ? '' : kz, grund, status === kz ? art : 'fehlt'));

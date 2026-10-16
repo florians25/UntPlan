@@ -21,9 +21,9 @@ public class PlanaenderungTests
         var p = regel.Planstunde;
         Assert.Contains(d.Vertretungen, v => v.Datum == tag && v.UnterrichtId == regel.Unterricht.Id && v.Stunde == p.Stunde && v.Art == VertretungsArt.Freisetzung);
 
-        // Stunde aus dem Plan nehmen: die Freisetzung verschwindet
+        // Stunde aus dem Plan nehmen (vollständiger Abgleich): die Freisetzung verschwindet
         periode.Plan.Remove(p);
-        Vertretungen.NachPlanaenderung(d, tag);
+        Vertretungen.Aktualisieren(d, tag);
         Assert.DoesNotContain(d.Vertretungen, v => v.Datum == tag && v.UnterrichtId == regel.Unterricht.Id && v.Stunde == p.Stunde && v.Art == VertretungsArt.Freisetzung);
 
         // wieder (bzw. zusätzlich) einplanen: die geplante Klassenabwesenheit gilt sofort auch für diese Stunde

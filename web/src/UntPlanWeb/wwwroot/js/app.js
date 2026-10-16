@@ -27,6 +27,7 @@ const ANSICHTEN = {
   stammdaten: () => import('./ansichten/stammdaten.js'),
   admin: () => import('./ansichten/admin.js'),
   profil: () => import('./ansichten/profil.js'),
+  neuigkeiten: () => import('./ansichten/neuigkeiten.js'),
 };
 
 const app = document.getElementById('app');
@@ -412,6 +413,7 @@ function huelle() {
           <button type="button" class="u-benutzer" data-kontomenue title="Konto" aria-haspopup="menu" aria-expanded="false"><span class="u-avatar">${e(b.login.slice(0, 1).toUpperCase())}</span>
             <span class="u-benutzer-text"><b>${e(b.login)}</b><small>${e(b.rollenname)}</small></span></button>
           <div class="u-kontomenue d-none" role="menu" data-konten></div>
+          <a class="u-abmelden u-neuigkeiten" href="#/neuigkeiten" data-neuigkeiten title="Neuigkeiten">${icon('nachrichten')}<span>Neuigkeiten</span></a>
           <button type="button" class="u-abmelden" data-abmelden title="Abmelden">${icon('abmelden')}<span>Abmelden</span></button>
         </div>
       </aside>
@@ -429,6 +431,11 @@ function huelle() {
   const leiste = document.getElementById('seitenleiste');
   const mobilZu = () => huelleEl.classList.remove('offen');
   app.querySelector('[data-abmelden]').onclick = abmelden;
+  // ungelesene Entwicklungsnews als Zahl am Eintrag „Neuigkeiten“
+  import('./ansichten/neuigkeiten.js').then(async m => {
+    const n = await m.neueAnzahl();
+    if (n > 0 && !location.hash.startsWith('#/neuigkeiten')) app.querySelector('[data-neuigkeiten]')?.insertAdjacentHTML('beforeend', `<span class="nw-zahl">${n}</span>`);
+  }).catch(() => { /* ohne Zahl */ });
   app.querySelector('[data-menue]').onclick = () => huelleEl.classList.add('offen');
   app.querySelector('[data-schleier]').onclick = mobilZu;
   app.querySelector('[data-einklappen]').onclick = () => {
@@ -513,7 +520,7 @@ async function route() {
   let nav = navAus([name, ...teile.slice(1)]);
   // Klassenkonten: frühere Adresse #/klassenbuch zeigt die Hausaufgaben
   if (name === 'klassenbuch' && !sitzung.benutzer.kollegium) { name = 'hausaufgaben'; nav = 'hausaufgaben'; }
-  const erlaubt = name === 'profil' || allePunkte().some(p => p.nav === nav);
+  const erlaubt = name === 'profil' || name === 'neuigkeiten' || allePunkte().some(p => p.nav === nav);
   if (!ANSICHTEN[name] || !erlaubt) { name = 'heute'; nav = 'heute'; }
   aktiverPunkt = nav;
   // passendes Untermenü öffnen (wie im Original: Stundenplan, Klassenbuch … mit Zurück-Knopf)

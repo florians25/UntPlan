@@ -47,7 +47,7 @@ public static class Vertretungen
     /// <summary>
     /// Nach einer Änderung von Unterricht oder Stundenplan: alle Tage ab <paramref name="ab"/> neu abgleichen, an denen Absenzen,
     /// Veranstaltungen, Klausuren oder Vertretungen bestehen – so wirkt z. B. eine geplante Klassenabwesenheit auch auf eine neu
-    /// eingeplante Stunde (Freisetzung), und Vertretungszeilen weggefallener Stunden verschwinden.
+    /// eingeplante Stunde (Freisetzung). Zeilen verschobener Stunden bleiben für die Nacherfassung (Umplanungsabgleich) stehen.
     /// </summary>
     public static int NachPlanaenderung(Schuldatei d, DateOnly ab)
     {
@@ -67,7 +67,7 @@ public static class Vertretungen
         foreach (var t in tage)
         {
             if (!Kalender.IstUnterrichtstag(d, t) && !d.Vertretungen.Any(v => v.Datum == t)) continue;
-            Aktualisieren(d, t);
+            Aktualisieren(d, t, entfernen: false);
             n++;
         }
         return n;
@@ -83,7 +83,11 @@ public static class Vertretungen
     /// vorhandenen ab. Bearbeitete Zeilen bleiben erhalten; entfällt die Ursache (z. B. Absenz gelöscht), werden die
     /// daraus entstandenen Zeilen entfernt. Manuelle Änderungen (Verlegung, Sondereinsatz) haben Vorrang.
     /// </summary>
-    public static void Aktualisieren(Schuldatei d, DateOnly datum)
+    public static void Aktualisieren(Schuldatei d, DateOnly datum) => Aktualisieren(d, datum, true);
+
+    /// <param name="entfernen">false: Zeilen, deren Ursache nicht mehr besteht (z. B. verschobene Stunde), bleiben stehen – die Nacherfassung
+    /// beim Wechsel in den Vertretungsmodus überträgt bzw. entfernt sie; neue Zeilen (z. B. Freisetzung einer neu eingeplanten Stunde) kommen hinzu</param>
+    public static void Aktualisieren(Schuldatei d, DateOnly datum, bool entfernen)
     {
         // ältere Dateien: offene „Bereitschaftsvertretungen“ gibt es nicht mehr – Bereitschaften entfallen
         foreach (var alt in d.Vertretungen.Where(v => v.Datum == datum && v.Art == VertretungsArt.Bereitschaftsvertretung && v.VertreterId is null))
@@ -252,6 +256,8 @@ public static class Vertretungen
 
         // Abgleich
         var vorhanden = d.Vertretungen.Where(v => v.Datum == datum && IstAbgeleitet(v)).ToList();
+        // nur ergänzen: Unterrichte mit verwaister Zeile (Stunde verschoben) überlässt man der Nacherfassung – sonst doppelte Zeilen
+        var verwaist = new HashSet<int>();
         foreach (var v in vorhanden)
         {
             var key = Schluessel(v);
@@ -259,7 +265,8 @@ public static class Vertretungen
             if (b is null)
             {
                 if (v.VerlegungsId.HasValue) v.Quelle = VertretungsQuelle.Verlegung;
-                else d.Vertretungen.Remove(v);
+                else if (entfernen) d.Vertretungen.Remove(v);
+                else if (v.UnterrichtId is int vu) verwaist.Add(vu);
                 continue;
             }
             benoetigt.Remove(b);
@@ -270,6 +277,7 @@ public static class Vertretungen
         }
         foreach (var b in benoetigt)
         {
+            if (!entfernen && b.UnterrichtId is int bu && verwaist.Contains(bu)) continue;
             b.Id = d.NeueId();
             d.Vertretungen.Add(b);
         }

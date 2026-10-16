@@ -158,7 +158,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         // Fußzeile: Formatauswahl unten rechts mit Abstand zum Fensterrand, Größengriff frei (wie im Vorbild „Kla1 - Klasse 1“)
         _fuss.Rechts = _format;
         _format.DrawMode = DrawMode.OwnerDrawFixed;
-        _format.ItemHeight = 16;
+        _format.ItemHeight = 18;
         _format.DrawItem += FormatEintragZeichnen;
         _format.DropDown += (_, _) => _format.DropDownWidth = Math.Max(_format.Width, FormatListenbreite());
 

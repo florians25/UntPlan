@@ -130,28 +130,42 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
           <input type="date" class="form-control form-control-sm" style="width:auto" data-bis value="${datum}">
           <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Darstellung"><button type="button" class="btn btn-outline-secondary active" data-modus="neu">Neue Ansicht</button><button type="button" class="btn btn-outline-secondary" data-modus="alt">Alte Liste</button></div>
           ${f.verwalten ? `<button type="button" class="btn btn-sm btn-primary" data-tage>${icon('plus', 'me-1')}Fehlen eintragen (ganze Tage)</button>` : ''}</div>
-        ${!f.schueler.length ? alarm('secondary', 'Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen.') : `
-        <div class="row g-3"><div class="col-xl-5"><div class="card"><div class="card-header">Übersicht je Schüler/in</div>
-          <div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0"><thead><tr><th>Name</th><th class="text-end" title="Fehlstunden">Std.</th><th class="text-end">Tage</th>
-            <th class="text-end" title="entschuldigt">E</th><th class="text-end" title="unentschuldigt">U</th><th class="text-end" title="offen">offen</th><th class="text-end" title="Verspätungen (Minuten)">Versp.</th><th class="text-end" title="vorzeitig gegangen (Minuten)">vorz.</th>${f.regeln?.minutenUmrechnen ? `<th class="text-end" title="Fehlstunden aus Minuten (je ${f.regeln.minutenProFehlstunde} min)">+Std.</th>` : ''}</tr></thead><tbody>
-            ${f.schueler.map(x => `<tr role="button" data-s="${x.id}" class="${auswahl === x.id ? 'table-active' : ''}"><td>${e(x.name)}, ${e(x.vorname)}${x.hinweis ? ` <span class="badge rounded-pill text-bg-warning ms-1" title="${e(x.hinweis)}"><i class="bi bi-exclamation-triangle-fill"></i></span>` : ''}</td>
-              <td class="text-end fw-semibold">${x.stunden || ''}</td><td class="text-end">${x.tage || ''}</td><td class="text-end text-success">${x.entschuldigt || ''}</td>
-              <td class="text-end text-danger">${x.unentschuldigt || ''}</td><td class="text-end">${x.offen ? `<span class="badge text-bg-warning">${x.offen}</span>` : ''}</td>
-              <td class="text-end">${x.verspaetungen ? `${x.verspaetungen}<small class="text-body-secondary"> (${x.minuten}′)</small>` : ''}</td>
-              <td class="text-end">${x.vorzeitig ? `${x.vorzeitig}<small class="text-body-secondary"> (${x.vorzeitigMinuten}′)</small>` : ''}</td>
-              ${f.regeln?.minutenUmrechnen ? `<td class="text-end">${x.stundenAusMinuten || ''}</td>` : ''}</tr>`).join('')}
-            </tbody></table></div></div></div>
-          <div class="col-xl-7"><div class="card"><div class="card-header d-flex align-items-center gap-2">${auswahl ? e(namen.get(auswahl)) : 'Alle Einträge'}
+        ${!f.schueler.length ? alarm('secondary', 'Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen.') : (() => {
+          // nur wer im Zeitraum tatsächlich gefehlt hat (oder verspätet / vorzeitig gegangen ist)
+          const mit = f.schueler.filter(x => x.stunden || x.verspaetungen || x.vorzeitig);
+          const ini = x => ((x.name?.[0] ?? '') + (x.vorname?.[0] ?? '')).toUpperCase();
+          const chips = x => [
+            x.stunden ? `<span class="nl-chip rot" title="Fehlstunden">${x.stunden} Std.</span>` : '',
+            x.tage ? `<span class="nl-chip grau" title="Fehltage">${x.tage} ${x.tage === 1 ? 'Tag' : 'Tage'}</span>` : '',
+            x.offen ? `<span class="nl-chip gelb" title="noch nicht entschuldigt">${x.offen} offen</span>` : '',
+            x.entschuldigt ? `<span class="nl-chip gruen" title="entschuldigt">${x.entschuldigt} entsch.</span>` : '',
+            x.unentschuldigt ? `<span class="nl-chip rot" title="unentschuldigt">${x.unentschuldigt} unentsch.</span>` : '',
+            x.verspaetungen ? `<span class="nl-chip gelb" title="Verspätungen">${x.verspaetungen}× versp. (${x.minuten}′)</span>` : '',
+            x.vorzeitig ? `<span class="nl-chip lila" title="vorzeitig gegangen">${x.vorzeitig}× vorz. (${x.vorzeitigMinuten}′)</span>` : '',
+            f.regeln?.minutenUmrechnen && x.stundenAusMinuten ? `<span class="nl-chip grau" title="Fehlstunden aus Minuten (je ${f.regeln.minutenProFehlstunde} min)">+${x.stundenAusMinuten} Std.</span>` : '',
+          ].filter(Boolean).join(' ');
+          const artText = x => x.art === 'verspaetet' ? `<span class="nl-chip gelb">verspätet ${x.minuten} min</span>` : x.art === 'vorzeitig' ? `<span class="nl-chip lila">vorzeitig ${x.minuten} min</span>` : '<span class="nl-chip rot">fehlt</span>';
+          return `
+        <div class="nl-zahlen"><span class="nl-zahl"><b>${mit.length}</b> von ${f.schueler.length} Schüler*innen mit Fehlzeiten</span>
+          <span class="nl-zahl rot"><b>${mit.reduce((n, x) => n + x.stunden, 0)}</b> Fehlstunden</span>
+          <span class="nl-zahl gelb"><b>${mit.reduce((n, x) => n + x.offen, 0)}</b> offen</span>
+          <span class="nl-zahl gelb"><b>${mit.reduce((n, x) => n + x.verspaetungen, 0)}</b> Verspätungen</span></div>
+        <div class="row g-3"><div class="col-xl-6"><div class="nl-tabelle">${mit.length ? `<table><thead><tr><th colspan="2">Name</th><th>Fehlzeiten</th></tr></thead><tbody>
+            ${mit.map(x => `<tr role="button" data-s="${x.id}" class="${auswahl === x.id ? 'nl-gewaehlt' : ''}"><td class="nl-avatar-zelle"><span class="nl-avatar ${x.offen || x.unentschuldigt ? 'voll' : ''}">${e(ini(x))}</span></td>
+              <td><div class="nl-name">${e(x.name)} ${e(x.vorname)}</div>${x.hinweis ? `<div class="nl-unter text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${e(x.hinweis)}</div>` : ''}</td>
+              <td><div class="nl-chips">${chips(x)}</div></td></tr>`).join('')}</tbody></table>` : `<div class="p-3">${leer('Im Zeitraum hat niemand gefehlt.', 'person-check')}</div>`}</div></div>
+          <div class="col-xl-6"><div class="nl-tabelle"><div class="nl-kopf">${auswahl ? e(namen.get(auswahl)) : 'Alle Einträge'}
               ${auswahl ? '<button type="button" class="btn btn-sm btn-link py-0" data-alle>alle anzeigen</button>' : ''}
-              ${f.verwalten && eintraege.length ? `<div class="ms-auto btn-group btn-group-sm"><button type="button" class="btn btn-outline-success" data-status="entschuldigt">entschuldigen</button>
-                <button type="button" class="btn btn-outline-danger" data-status="unentschuldigt">unentschuldigt</button><button type="button" class="btn btn-outline-secondary" data-status="offen">offen</button></div>` : ''}</div>
-            ${eintraege.length ? `<div class="table-responsive" style="max-height:560px"><table class="table table-sm table-card align-middle mb-0"><thead><tr>${f.verwalten ? '<th><input type="checkbox" class="form-check-input" data-alle-wahl aria-label="Alle"></th>' : ''}<th>Datum</th><th>Std.</th>${auswahl ? '' : '<th>Name</th>'}<th>Fach</th><th>Art</th><th>Status</th><th>Lehrkraft</th></tr></thead><tbody>
-              ${eintraege.map(x => `<tr>${f.verwalten ? `<td><input type="checkbox" class="form-check-input" data-id="${x.id}" aria-label="auswählen"></td>` : ''}<td class="text-nowrap">${e(datumKurz(x.datum))}</td><td>${x.stunde}.</td>
-                ${auswahl ? '' : `<td>${e(namen.get(x.schuelerId) ?? '?')}</td>`}<td>${e(x.fach)}</td>
-                <td>${x.art === 'verspaetet' ? `<span class="text-warning-emphasis">verspätet ${x.minuten} min</span>` : x.art === 'vorzeitig' ? `<span style="color:#5b3fa0">vorzeitig gegangen ${x.minuten} min</span>` : 'fehlt'}${x.bemerkung ? `<div class="small text-body-secondary">${e(x.bemerkung)}</div>` : ''}</td>
-                <td>${STATUS_BADGE[x.status] ?? ''}</td><td class="small text-body-secondary">${e(x.lehrer)}</td></tr>`).join('')}
-              </tbody></table></div>` : `<div class="card-body py-0">${leer('Keine Fehlzeiten im Zeitraum.')}</div>`}
-          </div></div></div>`}`;
+              ${f.verwalten && eintraege.length ? `<span class="ms-auto d-flex gap-2"><button type="button" class="nl-knopf gruen" data-status="entschuldigt">Entschuldigen</button>
+                <button type="button" class="nl-knopf rot" data-status="unentschuldigt">Unentschuldigt</button><button type="button" class="nl-knopf" data-status="offen">Offen</button></span>` : ''}</div>
+            ${eintraege.length ? `<div style="max-height:620px;overflow:auto"><table><thead><tr>${f.verwalten ? '<th class="nl-wahl"><input type="checkbox" class="nl-rund" data-alle-wahl aria-label="Alle"></th>' : ''}<th>Datum</th>${auswahl ? '' : '<th>Name</th>'}<th>Fach</th><th>Art</th><th>Status</th></tr></thead><tbody>
+              ${eintraege.map(x => `<tr>${f.verwalten ? `<td class="nl-wahl"><input type="checkbox" class="nl-rund" data-id="${x.id}" aria-label="auswählen"></td>` : ''}<td class="text-nowrap"><div>${e(datumKurz(x.datum))}</div><div class="nl-unter">${x.stunde}. Std.</div></td>
+                ${auswahl ? '' : `<td>${e(namen.get(x.schuelerId) ?? '?')}</td>`}<td>${e(x.fach)}<div class="nl-unter">${e(x.lehrer)}</div></td>
+                <td>${artText(x)}${x.bemerkung ? `<div class="nl-unter">${e(x.bemerkung)}</div>` : ''}</td>
+                <td>${STATUS_BADGE[x.status] ?? ''}</td></tr>`).join('')}
+              </tbody></table></div>` : `<div class="p-3">${leer('Keine Fehlzeiten im Zeitraum.')}</div>`}
+          </div></div></div>`;
+        })()}`;
       binden();
     };
     const binden = () => {

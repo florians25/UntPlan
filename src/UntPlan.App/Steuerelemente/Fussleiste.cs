@@ -16,6 +16,8 @@ public sealed class Fussleiste : Panel
     public const int AbstandUnten = 6;
 
     private Control? _rechts;
+    private static readonly Font LesbareSchrift = new("Segoe UI", 9.5f);
+    private static IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => new[] { k }.Concat(Alle(k)));
 
     public Fussleiste()
     {
@@ -36,6 +38,12 @@ public sealed class Fussleiste : Panel
             if (value is null) return;
             value.Dock = DockStyle.None;
             value.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            // Ansichts-/Formatauswahl gut lesbar: etwas größere, dunkle Schrift auf Weiß, Beschriftungen dunkel
+            foreach (var c in new[] { value }.Concat(Alle(value)))
+            {
+                if (c is ComboBox cb) { cb.Font = LesbareSchrift; cb.ForeColor = Color.FromArgb(20, 28, 36); cb.BackColor = Color.White; }
+                else if (c is Label l) { l.Font = LesbareSchrift; l.ForeColor = Color.FromArgb(40, 48, 56); }
+            }
             Controls.Add(value);
             value.SizeChanged += (_, _) => Anordnen();
             Anordnen();

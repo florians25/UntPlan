@@ -1,0 +1,33 @@
+[
+  {
+    "datum": "2026-10-16", "titel": "Abwesenheiten, Schrift und Export",
+    "punkte": [
+      "Abwesenheiten und Fehlzeiten im neuen Listendesign: Suche, Filterpillen, Avatare, Kennzahlen als Schnellfilter.",
+      "Fehlzeitenübersicht zeigt nur noch Schüler*innen, die im Zeitraum tatsächlich gefehlt haben.",
+      "Fehlzeitenverwaltung nur noch für Klassenleitungen, Schulleitung und Administration.",
+      "Klassenabwesenheiten erscheinen wieder als Entfall (Web und App).",
+      "Gekoppelte Stunden ohne eigene Klasse erscheinen im Plan aller beteiligten Klassen.",
+      "Hausschrift hochladen (Administration → Ansichtseinstellungen → Schrift) – gleiche Darstellung auf allen Geräten.",
+      "Export „Vertretungen“ überträgt nur noch Änderungen – Stundenplanänderungen gehen mit „Stundenplan“.",
+      "Wochenpfeile im Stundenplan, keine Lade- und Öffnungsanimationen, feinere Durchstreichung.",
+      "Monitoransichten und Nachrichten zum Tag lassen sich wieder anlegen."
+    ]
+  },
+  {
+    "datum": "2026-10-16", "titel": "Verspätungen bis ins Detail",
+    "punkte": [
+      "Verspätung und vorzeitiges Gehen mit Uhrzeit oder Minuten, Vorschau, ob eine Fehlstunde entsteht.",
+      "Regeln in der Administration: Fehlstunde ab x Minuten, Minuten in Fehlstunden umrechnen, Hinweis bei auffälligen Verspätungen.",
+      "„Für den Rest des Tages abwesend“ trägt die späteren Stunden automatisch ein.",
+      "Neue Berichte: Verspätungen und vorzeitiges Gehen, auffällige Verspätungen."
+    ]
+  },
+  {
+    "datum": "2026-10-15", "titel": "Klausuranlage und Raumbuchung",
+    "punkte": [
+      "Prüfung direkt aus den Stundendetails anlegen (Knopf neben „Nächste Stunde“).",
+      "Raumbuchung ohne doppelte Räume; zusätzliche Räume werden sauber angezeigt.",
+      "Übertragung ab heute lässt bereits übertragene vergangene Tage stehen."
+    ]
+  }
+]

@@ -4,7 +4,7 @@
 # UntPlanMobile: http://<server>:8081  (App fürs Telefon, Anmeldung mit dem Konto von UntPlanWeb)
 # Für die Installation als App auf dem Telefon ist HTTPS nötig (z. B. über einen Reverse-Proxy, siehe README).
 # Mit MariaDB: docker-compose.mariadb.yml. Update beider Dienste (Sicherung vorher, Migrationen laufen automatisch):
-#   ../web/update.sh   bzw.   docker compose pull && docker compose up -d
+#   ./update.sh   bzw.   docker compose pull && docker compose up -d
 # Update aus der Administration von UntPlanWeb: docker compose --profile updater up -d (Token in .env: WATCHTOWER_TOKEN=…)
 
 services:

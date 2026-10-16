@@ -1423,3 +1423,67 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .stundendetails, .stundendetails .modal-dialog, .modal-backdrop { transition: none !important; animation: none !important; }
 /* Durchstreichung überall etwas feiner */
 .alt, .std-lbl.weg, .vt-zeile .lbl-neu.weg, .std.lehrer-abwesend .lbl.weg, .heute-tabelle tr.entfall td, .heute-liste tr.entfall td, .kb-tagliste tr.entfall td, .wert-alt, s, del { text-decoration-thickness: .75px; }
+
+/* ---------------------------------------------------------------- Neue Listen (Abwesenheiten, Fehlzeiten): Suche, Filterpillen,
+   runde Auswahl, Avatare mit Initialen, Chips – Grunddesign der neuen Oberfläche */
+.nl-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.nl-suche { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; max-width: 480px; height: 42px; padding: 0 16px; border: 1.5px solid #c9d0d6;
+  border-radius: 999px; background: #fff; color: #67747e; }
+.nl-suche:focus-within { border-color: var(--u-akzent); }
+.nl-suche input { border: 0; outline: 0; flex: 1; min-width: 0; font: inherit; font-size: 1rem; background: transparent; color: var(--u-text); }
+.nl-pille { position: relative; display: inline-flex; align-items: center; height: 42px; padding: 0 14px; border: 1.5px solid #c9d0d6; border-radius: 999px;
+  background: #fff; color: var(--u-text); font-size: .95rem; cursor: pointer; }
+.nl-pille.aktiv { border-color: var(--u-akzent); background: #fff6f1; }
+.nl-pille select, .nl-pille input { border: 0; outline: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; padding-right: 4px; }
+.nl-pille select { appearance: none; -webkit-appearance: none; padding-right: 22px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2324323d' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right center; }
+.nl-hinzu { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--u-akzent); color: #fff;
+  font-weight: 600; font-size: 1rem; }
+.nl-hinzu:hover { filter: brightness(.95); }
+.nl-knopf { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1.5px solid #c9d0d6; border-radius: 999px; background: #fff;
+  color: var(--u-text); font-size: .9rem; font-weight: 600; text-decoration: none; }
+.nl-knopf:hover { border-color: #8a96a1; color: var(--u-text); }
+.nl-knopf.gruen { color: #0f6b40; border-color: #9fd3b6; } .nl-knopf.rot { color: #a1262b; border-color: #e8a7aa; }
+.nl-zahlen { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.nl-zahl { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: #eef1f4; color: #414d55; font-size: .85rem; }
+.nl-zahl b { font-weight: 700; color: var(--u-text); }
+.nl-zahl.rot { background: #fdecec; } .nl-zahl.gelb { background: #fff4d6; } .nl-zahl.lila { background: #efe8fb; }
+.nl-zahl.aktiv { outline: 2px solid var(--u-akzent); }
+.nl-tabelle { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; overflow: hidden; }
+.nl-tabelle table { width: 100%; border-collapse: collapse; }
+.nl-tabelle th { padding: 14px 12px; font-weight: 600; font-size: .95rem; color: #414d55; border-bottom: 1px solid #e3e7eb; text-align: left; white-space: nowrap; }
+.nl-tabelle td { padding: 10px 12px; border-bottom: 1px solid #edf0f2; vertical-align: middle; }
+.nl-tabelle tbody tr:last-child td { border-bottom: 0; }
+.nl-tabelle tbody tr:hover { background: #f7f9fa; }
+.nl-wahl { width: 44px; padding-left: 16px !important; }
+.nl-rund { appearance: none; -webkit-appearance: none; width: 22px; height: 22px; border: 1.8px solid #4a5560; border-radius: 50%; background: #fff; cursor: pointer; display: inline-grid; place-content: center; vertical-align: middle; }
+.nl-rund:checked { border-color: var(--u-akzent); background: var(--u-akzent); }
+.nl-rund:checked::after { content: ""; width: 10px; height: 6px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
+.nl-avatar-zelle { width: 52px; }
+.nl-avatar { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 1px dashed #c9d0d6; color: #67747e; font-size: .78rem; font-weight: 600; background: #fff; }
+.nl-avatar.voll { border: 0; background: #56616b; color: #fff; }
+.nl-name { font-weight: 600; font-size: 1.02rem; color: var(--u-text); }
+.nl-unter { font-size: .82rem; color: #67747e; }
+.nl-tag { display: inline-block; padding: 3px 10px; border-radius: 6px; background: #eef1f4; color: #24323d; font-size: .8rem; font-weight: 600; }
+.nl-text { max-width: 240px; font-size: .85rem; color: #414d55; }
+.nl-icon { border: 0; background: none; width: 32px; height: 32px; border-radius: 50%; color: #67747e; opacity: 0; transition: none; }
+.nl-tabelle tr:hover .nl-icon, .nl-icon:focus-visible { opacity: 1; }
+.nl-icon:hover { background: #eef1f4; color: var(--u-text); } .nl-icon.rot:hover { color: #a1262b; }
+.nl-fuss { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid #e3e7eb; background: #fbfcfd; }
+.nl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .8rem; font-weight: 700; }
+.nl-chip.rot { background: #fdecec; color: #c62828; } .nl-chip.gruen { background: #e5f6ec; color: #0f7b47; } .nl-chip.gelb { background: #fff4d6; color: #8a5a00; }
+.nl-chip.lila { background: #efe8fb; color: #5b3fa0; } .nl-chip.grau { background: #eef1f4; color: #414d55; }
+@media (max-width: 767.98px) { .nl-tabelle { overflow-x: auto; } .nl-icon { opacity: 1; } }
+.nl-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #e3e7eb; font-weight: 600; color: var(--u-titel); }
+.nl-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.nl-tabelle tr.nl-gewaehlt td { background: #fff6f1; }
+/* Neuigkeiten (Entwicklungsnews) */
+.u-neuigkeiten { text-decoration: none; position: relative; }
+.nw-zahl { display: inline-grid; place-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 9px; background: var(--u-akzent); color: #fff; font-size: .7rem; font-weight: 700; }
+.nw-liste { max-width: 860px; display: grid; gap: 14px; }
+.nw-eintrag { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 18px 22px; }
+.nw-eintrag.neu { border-left: 4px solid var(--u-akzent); }
+.nw-eintrag h3 { font-size: 1.15rem; font-weight: 600; color: var(--u-titel); margin: 4px 0 10px; }
+.nw-eintrag ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; color: #414d55; }
+.nw-datum { font-size: .85rem; color: #67747e; display: flex; align-items: center; gap: 8px; }
+.nw-neu { padding: 1px 8px; border-radius: 999px; background: #fff0e8; color: #c2410c; font-weight: 700; font-size: .75rem; }
