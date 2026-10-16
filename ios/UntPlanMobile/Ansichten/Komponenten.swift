@@ -61,7 +61,7 @@ struct Fehlerhinweis: View {
             .foregroundStyle(Farben.entfallRand)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Farben.entfallHintergrund, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(Color(hell: 0xFFF3F2, dunkel: 0x3A1018), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

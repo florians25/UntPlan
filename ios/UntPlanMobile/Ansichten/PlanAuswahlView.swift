@@ -237,8 +237,8 @@ struct PlanAuswahlView: View {
     @ViewBuilder
     private var suchergebnisse: some View {
         if let elemente {
-            let treffer = Plankategorie.allCases.flatMap { k in
-                k.liste(elemente).filter { passt($0) }.map { (kategorie: k, element: $0) }
+            let treffer: [Suchtreffer] = Plankategorie.allCases.flatMap { k in
+                k.liste(elemente).filter { passt($0) }.map { Suchtreffer(kategorie: k, element: $0) }
             }
             if treffer.isEmpty {
                 Text("Keine Treffer für „\(suche)“.")
@@ -247,7 +247,7 @@ struct PlanAuswahlView: View {
                     .frame(maxWidth: .infinity)
                     .auswahlZeile(oben: 30, unten: 30)
             } else {
-                ForEach(treffer, id: \.element.id) { t in
+                ForEach(treffer) { t in
                     Elementzeile(element: t.element, kategorie: t.kategorie, zeigeArt: true,
                                  gewaehlt: auswahl?.typ == t.kategorie.rawValue && auswahl?.element == t.element.kurz) {
                         waehlen(PlanAuswahl(typ: t.kategorie.rawValue, element: t.element.kurz, name: t.element.name))
@@ -301,16 +301,22 @@ struct ElementlisteView: View {
         return liste.filter { $0.kurz.localizedCaseInsensitiveContains(suche) || $0.name.localizedCaseInsensitiveContains(suche) }
     }
 
-    /// Gruppen nach Anfangsbuchstaben (.picker-letter).
-    private var gruppen: [(buchstabe: String, liste: [Planelement])] {
+    /// Gruppe nach Anfangsbuchstaben (.picker-letter).
+    private struct Gruppe: Identifiable {
+        let buchstabe: String
+        var liste: [Planelement]
+        var id: String { buchstabe }
+    }
+
+    private var gruppen: [Gruppe] {
         let sortiert = gefiltert.sorted { $0.kurz.localizedStandardCompare($1.kurz) == .orderedAscending }
-        var ergebnis: [(buchstabe: String, liste: [Planelement])] = []
+        var ergebnis: [Gruppe] = []
         for e in sortiert {
             let b = e.kurz.first.map { String($0).uppercased() } ?? "#"
             if let letzte = ergebnis.last, letzte.buchstabe == b {
                 ergebnis[ergebnis.count - 1].liste.append(e)
             } else {
-                ergebnis.append((buchstabe: b, liste: [e]))
+                ergebnis.append(Gruppe(buchstabe: b, liste: [e]))
             }
         }
         return ergebnis
@@ -329,7 +335,7 @@ struct ElementlisteView: View {
                     .frame(maxWidth: .infinity)
                     .auswahlZeile(oben: 30, unten: 30)
             }
-            ForEach(gruppen, id: \.buchstabe) { gruppe in
+            ForEach(gruppen) { gruppe in
                 Section {
                     ForEach(gruppe.liste) { e in
                         Elementzeile(element: e, kategorie: kategorie, zeigeArt: false,
@@ -385,6 +391,13 @@ struct ElementlisteView: View {
 }
 
 // MARK: - Bausteine
+
+/// Treffer der Suche über alle Planarten.
+struct Suchtreffer: Identifiable {
+    let kategorie: Plankategorie
+    let element: Planelement
+    var id: String { "\(kategorie.rawValue)|\(element.kurz)" }
+}
 
 /// Zeile eines Elements (.picker-item): runder Avatar mit Kürzel, Name, Haken, Stern.
 struct Elementzeile: View {
