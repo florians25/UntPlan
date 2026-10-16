@@ -151,6 +151,13 @@ struct Kartenstil {
                       plakette: "Raumbuchung", plaketteFarbe: Farben.raumRand)
             return
         }
+        if karte.online && !["entfall", "abwesend"].contains(karte.status) {
+            // Online-Unterricht: grün wie in der Vorlage, Plakette „Online“
+            self.init(hintergrund: vergangen ? Farben.aenderungVergangen : Farben.aenderungHintergrund,
+                      rand: Farben.aenderungRand, schatten: true, durchgestrichen: false,
+                      plakette: "Online", plaketteFarbe: Farben.gruen)
+            return
+        }
         switch karte.status {
         case "entfall":
             self.init(hintergrund: vergangen ? Farben.entfallVergangen : Farben.entfallHintergrund,

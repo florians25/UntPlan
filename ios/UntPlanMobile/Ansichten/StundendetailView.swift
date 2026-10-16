@@ -10,6 +10,7 @@ struct StundendetailView: View {
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var schliessen
     @StateObject private var daten: Stundendaten
+    @State private var onlineFehler: String? = nil
 
     init(karte: Karte, typ: String) {
         self.karte = karte
@@ -264,7 +265,7 @@ struct StundendetailView: View {
         }
     }
 
-    /// „Findet online statt“ – nur Anzeige (die API bietet kein Feld zum Speichern).
+    /// „Findet online statt“ – speicherbar für Lehrkräfte mit Schreibrecht (optimistisch, bei Fehler zurück).
     private var onlineZeile: some View {
         HStack(spacing: 13) {
             Image(systemName: "video")
@@ -275,12 +276,28 @@ struct StundendetailView: View {
                 .font(.system(size: 16))
                 .foregroundStyle(Farben.tinte)
             Spacer(minLength: 4)
-            Toggle("Findet online statt", isOn: .constant(daten.eintrag?.online ?? false))
+            Toggle("Findet online statt", isOn: Binding(
+                get: { daten.istOnline },
+                set: { neu in
+                    Task {
+                        do {
+                            try await daten.onlineSetzen(neu)
+                        } catch {
+                            onlineFehler = zustand.fehlertext(error)
+                        }
+                    }
+                }))
                 .labelsHidden()
-                .disabled(true)
+                .tint(Farben.gruen)
+                .disabled(!daten.darf || !daten.geladen)
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 50)
+        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { onlineFehler != nil }, set: { if !$0 { onlineFehler = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(onlineFehler ?? "")
+        }
     }
 
     @ViewBuilder

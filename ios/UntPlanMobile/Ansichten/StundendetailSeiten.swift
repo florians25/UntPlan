@@ -83,7 +83,7 @@ final class Stundendaten: ObservableObject {
 
     /// Lehrstoff bzw. Notizen speichern (nil = unverändert lassen).
     func speichern(thema: String? = nil, lehrform: String? = nil, anmerkung: String? = nil,
-                   notiz: String? = nil, notizSchueler: String? = nil) async throws {
+                   notiz: String? = nil, notizSchueler: String? = nil, online: Bool? = nil) async throws {
         guard let u = karte.unterricht else { return }
         let e = eintrag
         // Das alte Hausaufgabenfeld unverändert mitschicken, damit die Hausaufgabenliste nicht angeglichen wird
@@ -95,9 +95,27 @@ final class Stundendaten: ObservableObject {
                                      notizSchueler: notizSchueler,
                                      lehrform: lehrform,
                                      anmerkung: anmerkung,
-                                     lehrer: lehrerHinweis)
+                                     lehrer: lehrerHinweis,
+                                     online: online)
         let neu = try await api.klassenbuchSpeichern(daten)
         klassenbuch = KlassenbuchStunde(eintrag: neu, darf: klassenbuch?.darf ?? true)
+    }
+
+    /// „Findet online statt“ – optimistisch umschalten, bei Fehler zurück.
+    @Published var online: Bool? = nil
+
+    var istOnline: Bool { online ?? eintrag?.online ?? karte.online }
+
+    func onlineSetzen(_ wert: Bool) async throws {
+        let vorher = istOnline
+        online = wert
+        do {
+            try await speichern(online: wert)
+            online = nil
+        } catch {
+            online = vorher
+            throw error
+        }
     }
 
     func hausaufgabeAnlegen(text: String, faellig: Date?, bemerkung: String) async throws {

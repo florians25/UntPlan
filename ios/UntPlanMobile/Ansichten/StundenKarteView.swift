@@ -74,6 +74,8 @@ struct StundenKarteView: View {
         /// Räume: jeder Raum ein eigenes Label
         case raeume([Wert])
         case fach
+        /// Plakette „Online“ (ohne Raumzeile)
+        case online
     }
 
     /// Lehrkraft (bzw. Klasse) – Fach – Raum (bzw. Lehrkraft); leere Zeilen entfallen.
@@ -85,6 +87,10 @@ struct StundenKarteView: View {
         if paar.count > 1, !paar[1].isEmpty {
             // Im Klassen- und Lehrerplan ist die zweite Zeile der Raum
             liste.append(typ == "raum" ? .werte(paar[1]) : .raeume(paar[1]))
+        }
+        // Online-Stunde: Plakette „Online“ – in der Raumzeile, sonst als eigene Zeile
+        if onlineFehlt && !liste.contains(where: { if case .raeume = $0 { return true }; return false }) {
+            liste.append(.online)
         }
         return liste
     }
@@ -98,7 +104,14 @@ struct StundenKarteView: View {
             raumZeile(werte, stil: stil)
         case .fach:
             fachZeile(stil)
+        case .online:
+            Plakettenwert(text: "Online", farbe: Farben.gruen)
         }
+    }
+
+    /// Online-Stunde, deren Raum nicht schon „Online“ heißt.
+    private var onlineFehlt: Bool {
+        karte.online && !karte.istEntfall && !karte.raeume.contains { $0.k.caseInsensitiveCompare("Online") == .orderedSame }
     }
 
     @ViewBuilder
@@ -177,6 +190,9 @@ struct StundenKarteView: View {
                 } else {
                     Text(w.k)
                 }
+            }
+            if onlineFehlt {
+                Plakettenwert(text: "Online", farbe: Farben.gruen)
             }
         }
         .lineLimit(1)

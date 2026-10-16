@@ -155,10 +155,12 @@ struct Karte: Decodable, Identifiable, Sendable {
     var zusaetzlich: Bool
     var abwesendeKlassen: [String]
     var abwesendText: String
+    /// Stunde findet online statt (Klassenbuch) – Karte grün mit Plakette „Online“.
+    var online: Bool
 
     enum CodingKeys: String, CodingKey {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
-        case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText
+        case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
     }
 
     init(from decoder: Decoder) throws {
@@ -188,6 +190,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         zusaetzlich = c.wahr(.zusaetzlich)
         abwesendeKlassen = c.texte(.abwesendeKlassen)
         abwesendText = c.text(.abwesendText)
+        online = c.wahr(.online)
     }
 
     var istEntfall: Bool { status == "entfall" }
@@ -831,6 +834,7 @@ struct KlassenbuchDaten: Encodable, Sendable {
     var lehrform: String?
     var anmerkung: String?
     var lehrer: String?
+    var online: Bool? = nil
 }
 
 /// POST /api/app/klassenbuch/hausaufgabenliste
