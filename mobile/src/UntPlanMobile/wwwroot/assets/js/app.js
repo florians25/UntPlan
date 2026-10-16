@@ -411,11 +411,20 @@ function lineValue(card, key){
 
    Zustände: `ok` hält die Stunde, `absent` fällt aus (durchgestrichen),
    `sub` springt für jemanden ein (Plakette). */
+/* Fehlt eine Lehrkraft der Kopplung und vertritt sie niemand, ist ihre
+   Vertretung offen: Kürzel durchgestrichen in der grünen Plakette. Ist eine
+   Vertretung eingeteilt, steht das alte Kürzel ohne Fläche da. */
+function koppOffen(t, toks){
+  if (t.state !== 'absent') return false;
+  if (toks && toks.some(x => x.state === 'sub' && x.for && x.for.toUpperCase() === t.text.toUpperCase())) return false;
+  return t.open !== false;
+}
+
 function koppTokens(card){
   const list = Array.isArray(card.teacherList) ? card.teacherList : null;
   if (!list || list.length < 2) return null;
   const toks = list.map(t => ({ text:String(t.code || ''), state:t.state || 'ok',
-                                for:String(t.for || '') }))
+                                for:String(t.for || ''), open: t.open === undefined ? undefined : !!t.open }))
                    .filter(t => t.text);
   return toks.length > 1 ? toks : null;
 }
@@ -1276,14 +1285,20 @@ function renderGrid(){
       const DOTS = '<svg viewBox="0 0 12 12"><circle cx="6" cy="2.4" r="1.05"/><circle cx="6" cy="6" r="1.05"/><circle cx="6" cy="9.6" r="1.05"/></svg>';
 
       /* Inhalt einer Kartenzeile: Plaketten, Kopplungs-Kürzel oder Text. */
+      /* Offene Vertretung (noch niemand eingeteilt): Die bisherige Lehrkraft
+         steht immer durchgestrichen IN der grünen Plakette — ebenso ein noch
+         offener Raum. Nur wo eine Vertretung eingeteilt ist (Kopplung), steht
+         das alte Kürzel ohne Fläche und das neue grün. */
       const zeileInnen = l => {
-        const cls2 = 'badge' + (l.removed ? ' badge--removed' : '');
+        const offenGruen = l.removed && (l.key === 'teacher' || l.key === 'room')
+          && card.blockType !== 'cancelled';
+        const cls2 = 'badge' + (l.removed ? ' badge--removed' : '') + (offenGruen ? ' badge--open' : '');
         return l.tokens
           ? l.tokens.map((t, ti) => {
               /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
               const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
               const kern  = t.state === 'absent'
-                ? `<span class="badge badge--removed">${esc(t.text)}</span>`
+                ? `<span class="badge badge--removed${koppOffen(t, l.tokens) ? ' badge--open' : ''}">${esc(t.text)}</span>`
                 : t.state === 'sub'
                 ? `<span class="badge">${esc(t.text)}</span>`
                 : esc(t.text);
@@ -3492,11 +3507,14 @@ document.addEventListener('focusin', e => {
   if (e.target.closest('#detailSub')) { pinViewport(); setTimeout(pinViewport, 120); }
 });
 
+/* Tipp auf das Plan-Kürzel oben öffnet direkt die Planauswahl. Das
+   Suchfeld steht oben, bekommt aber keinen Fokus — sonst schöbe iOS sofort
+   die Tastatur über die Liste. Gefiltert wird live beim Tippen. */
 function openPicker(){
   pickerShowRoot();
   SH.picker.open();
-  /* Das Suchfeld bekommt den Fokus, ohne dass die Liste wegspringt. */
-  setTimeout(() => { const i = $('#pickerSearch'); if (i) i.focus({ preventScroll:true }); }, 320);
+  const i = $('#pickerSearch');
+  if (i && document.activeElement === i) i.blur();
 }
 $('#btnEntityPicker').addEventListener('click', openPicker);
 /* =====================================================================
@@ -3978,6 +3996,12 @@ function renderDetail(){
       /* Bei der Lehrkraft steht ein Strich zwischen alt und neu, beim Raum
          ein Pfeil: der Unterricht zieht wirklich um. */
       const trenn = key === 'teacher' ? SEP : '<span class="arrow">→</span>';
+      /* Lehrkraft: offene Vertretung durchgestrichen in der grünen Plakette,
+         eingeteilte Vertretung mit der neuen Lehrkraft als grünem Label. */
+      if (key === 'teacher'){
+        if (!now) return `<span class="dlab dlab--neu dlab--offen"><s>${liste(orig)}</s></span>`;
+        return `<s>${liste(orig)}</s>${trenn}${werteListe(now).map(x => `<span class="dlab dlab--neu">${esc(x)}</span>`).join(' ')}`;
+      }
       if (!now) return `<s>${liste(orig)}</s>`;
       return `<s>${liste(orig)}</s>${trenn}${liste(now)}`;
     }
@@ -4006,8 +4030,8 @@ function renderDetail(){
 
   const koppD = koppTokens(c);
   const koppHtml = () => koppD.map(t =>
-      t.state === 'absent' ? `<s>${esc(t.text)}</s>`
-    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s>${SEP}${esc(t.text)}` : esc(t.text))
+      t.state === 'absent' ? (koppOffen(t, koppD) ? `<span class="dlab dlab--neu dlab--offen"><s>${esc(t.text)}</s></span>` : `<s>${esc(t.text)}</s>`)
+    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s>${SEP}<span class="dlab dlab--neu">${esc(t.text)}</span>` : `<span class="dlab dlab--neu">${esc(t.text)}</span>`)
     :                        esc(t.text)).join(SEP);
 
   const banner = { cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '';

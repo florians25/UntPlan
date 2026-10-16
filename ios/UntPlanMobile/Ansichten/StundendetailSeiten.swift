@@ -13,6 +13,8 @@ final class Stundendaten: ObservableObject {
     @Published var hausaufgaben: HausaufgabenDerStunde? = nil
     @Published var anwesenheit: Anwesenheitsliste? = nil
     @Published var vermerke: [Vermerk] = []
+    /// Klassendienste am Tag der Stunde je Schüler-ID (z. B. „Klassensprecher*in“)
+    @Published var dienste: [Int: [String]] = [:]
     @Published var geladen = false
 
     nonisolated init(karte: Karte) {
@@ -57,6 +59,7 @@ final class Stundendaten: ObservableObject {
         await hausaufgabenLaden()
         guard kollegium else { return }
         await anwesenheitLaden()
+        await diensteLaden()
         var liste: [Vermerk] = []
         for klasse in klassen {
             if let v = try? await api.vermerke(klasse: klasse, von: karte.datum, bis: karte.datum) {
@@ -79,6 +82,19 @@ final class Stundendaten: ObservableObject {
         if let a = try? await api.anwesenheit(datum: karte.datum, stunde: karte.von, unterricht: u) {
             anwesenheit = a
         }
+    }
+
+    func diensteLaden() async {
+        var ergebnis: [Int: [String]] = [:]
+        for klasse in klassen {
+            guard let d = try? await api.klassendienste(klasse: klasse, von: karte.datum, bis: karte.datum) else { continue }
+            for z in d.zuordnungen where !z.dienst.isEmpty {
+                var liste = ergebnis[z.schuelerId] ?? []
+                if !liste.contains(z.dienst) { liste.append(z.dienst) }
+                ergebnis[z.schuelerId] = liste
+            }
+        }
+        dienste = ergebnis
     }
 
     /// Lehrstoff bzw. Notizen speichern (nil = unverändert lassen).
@@ -178,19 +194,14 @@ struct DetailTextSeite: View {
     let karte: Karte
 
     var body: some View {
-        ScrollView {
-            Text(text.isEmpty ? "Kein Text." : text)
-                .font(.system(size: 16))
-                .foregroundStyle(text.isEmpty ? Farben.gedaempft : Farben.tinte)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-        }
-        .background(Farben.blatt.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Leistentitel(titel: titel, untertitel: stundenUntertitel(karte))
+        DetailSeitenRahmen(titel: titel, untertitel: stundenUntertitel(karte)) {
+            ScrollView {
+                Text(text.isEmpty ? "Kein Text." : text)
+                    .font(.system(size: 16))
+                    .foregroundStyle(text.isEmpty ? Farben.gedaempft : Farben.tinte)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(20)
             }
         }
     }
@@ -219,10 +230,42 @@ struct NotizSeite: View {
     @State private var speichert = false
     @State private var fehler: String? = nil
     @FocusState private var fokus: Bool
+    @Environment(\.dismiss) private var zurueck
 
     private var bearbeitbar: Bool { daten.darf && daten.karte.unterricht != nil }
 
+    /// Vorlage (Seite „Notizen“): X links, Titel mittig grau, darunter ein großer weißer Textbereich.
     var body: some View {
+        DetailSeitenRahmen(titel: art.titel, symbol: "xmark", zurueck: { Task { await schliessen() } }) {
+            textbereich
+        } rechts: {
+            if bearbeitbar {
+                SichernKnopf(speichert: speichert, aktiv: text != anfang) { Task { await sichern() } }
+            }
+        }
+        .onAppear {
+            let wert = art == .schueler ? daten.notizSchueler : daten.notizLehrer
+            text = wert
+            anfang = wert
+        }
+        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(fehler ?? "")
+        }
+    }
+
+    /// Schließen: geänderte Notiz vorher sichern (bei Fehler bleibt die Seite offen).
+    private func schliessen() async {
+        if bearbeitbar && text != anfang {
+            let ok = await sichern()
+            guard ok else { return }
+        }
+        zurueck()
+    }
+
+    @ViewBuilder
+    private var textbereich: some View {
         Group {
             if bearbeitbar {
                 TextEditor(text: $text)
@@ -242,6 +285,7 @@ struct NotizSeite: View {
                                 .allowsHitTesting(false)
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     Text(text.isEmpty ? "Keine Notiz." : text)
@@ -253,37 +297,11 @@ struct NotizSeite: View {
                 }
             }
         }
-        .background(Farben.blatt.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Leistentitel(titel: art.titel, untertitel: stundenUntertitel(daten.karte))
-            }
-            if bearbeitbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    if speichert {
-                        ProgressView()
-                    } else {
-                        Button("Sichern") { Task { await sichern() } }
-                            .fontWeight(.semibold)
-                            .disabled(text == anfang)
-                    }
-                }
-            }
-        }
-        .onAppear {
-            let wert = art == .schueler ? daten.notizSchueler : daten.notizLehrer
-            text = wert
-            anfang = wert
-        }
-        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(fehler ?? "")
-        }
+        .background(Farben.blatt)
     }
 
-    private func sichern() async {
+    @discardableResult
+    private func sichern() async -> Bool {
         speichert = true
         defer { speichert = false }
         do {
@@ -296,8 +314,10 @@ struct NotizSeite: View {
             text = wert
             anfang = wert
             fokus = false
+            return true
         } catch {
             fehler = zustand.fehlertext(error)
+            return false
         }
     }
 }
@@ -319,6 +339,27 @@ struct LehrstoffSeite: View {
     private var geaendert: Bool { [thema, lehrform, anmerkung] != gespeichert }
 
     var body: some View {
+        DetailSeitenRahmen(titel: "Lehrstoff", untertitel: stundenUntertitel(daten.karte)) {
+            formular
+        } rechts: {
+            if bearbeitbar {
+                SichernKnopf(speichert: speichert, aktiv: geaendert) { Task { await sichern() } }
+            }
+        }
+        .onAppear {
+            thema = daten.eintrag?.thema ?? ""
+            lehrform = daten.eintrag?.lehrform ?? ""
+            anmerkung = daten.eintrag?.anmerkung ?? ""
+            gespeichert = [thema, lehrform, anmerkung]
+        }
+        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(fehler ?? "")
+        }
+    }
+
+    private var formular: some View {
         Form {
             if bearbeitbar {
                 Section("Lehrstoff") {
@@ -351,34 +392,6 @@ struct LehrstoffSeite: View {
                 }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Leistentitel(titel: "Lehrstoff", untertitel: stundenUntertitel(daten.karte))
-            }
-            if bearbeitbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    if speichert {
-                        ProgressView()
-                    } else {
-                        Button("Sichern") { Task { await sichern() } }
-                            .fontWeight(.semibold)
-                            .disabled(!geaendert)
-                    }
-                }
-            }
-        }
-        .onAppear {
-            thema = daten.eintrag?.thema ?? ""
-            lehrform = daten.eintrag?.lehrform ?? ""
-            anmerkung = daten.eintrag?.anmerkung ?? ""
-            gespeichert = [thema, lehrform, anmerkung]
-        }
-        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(fehler ?? "")
-        }
     }
 
     private func sichern() async {
@@ -407,6 +420,37 @@ struct HausaufgabenSeite: View {
     private var bearbeitbar: Bool { daten.hausaufgaben?.darf == true }
 
     var body: some View {
+        DetailSeitenRahmen(titel: "Hausaufgaben", untertitel: stundenUntertitel(daten.karte)) {
+            hausaufgabenliste
+        } rechts: {
+            if bearbeitbar {
+                Button {
+                    formular = HausaufgabeFormular.Vorlage(eintrag: nil, stundenDatum: daten.karte.datum)
+                } label: {
+                    Rundknopf(symbol: "plus", gewicht: .regular, groesse: 16)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Neue Hausaufgabe")
+            }
+        }
+        .sheet(item: $formular) { vorlage in
+            HausaufgabeFormular(vorlage: vorlage) { text, faellig, bemerkung in
+                if let id = vorlage.eintrag?.id {
+                    try await daten.hausaufgabeAendern(id, text: text, faellig: faellig, bemerkung: bemerkung)
+                } else {
+                    try await daten.hausaufgabeAnlegen(text: text, faellig: faellig, bemerkung: bemerkung)
+                }
+            }
+            .environmentObject(zustand)
+        }
+        .alert("Fehler", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(fehler ?? "")
+        }
+    }
+
+    private var hausaufgabenliste: some View {
         List {
             Section {
                 let liste = daten.hausaufgaben?.liste ?? []
@@ -449,28 +493,8 @@ struct HausaufgabenSeite: View {
                 }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Leistentitel(titel: "Hausaufgaben", untertitel: stundenUntertitel(daten.karte))
-            }
-        }
+        .listStyle(.plain)
         .refreshable { await daten.hausaufgabenLaden() }
-        .sheet(item: $formular) { vorlage in
-            HausaufgabeFormular(vorlage: vorlage) { text, faellig, bemerkung in
-                if let id = vorlage.eintrag?.id {
-                    try await daten.hausaufgabeAendern(id, text: text, faellig: faellig, bemerkung: bemerkung)
-                } else {
-                    try await daten.hausaufgabeAnlegen(text: text, faellig: faellig, bemerkung: bemerkung)
-                }
-            }
-            .environmentObject(zustand)
-        }
-        .alert("Fehler", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(fehler ?? "")
-        }
     }
 
     private func zeile(_ ha: Hausaufgabeneintrag) -> some View {
@@ -622,6 +646,12 @@ struct KlassenbuchSeite: View {
     }
 
     var body: some View {
+        DetailSeitenRahmen(titel: "Klassenbucheinträge", untertitel: stundenUntertitel(daten.karte)) {
+            liste
+        }
+    }
+
+    private var liste: some View {
         List {
             if daten.vermerke.isEmpty {
                 Text("Keine Klassenbucheinträge an diesem Tag.")
@@ -656,17 +686,15 @@ struct KlassenbuchSeite: View {
                 .padding(.vertical, 2)
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Leistentitel(titel: "Klassenbucheinträge", untertitel: stundenUntertitel(daten.karte))
-            }
-        }
+        .listStyle(.plain)
     }
 }
 
 // MARK: - Schüler*innen (Anwesenheit)
 
+/// Vorlage (Seite „Schüler*innen“): Kopf mit Zurück, Titel und Datum mittig, rechts Klassendienste; darunter das Segment
+/// Alle | Abwesend | Anwesend, der Hinweis zur Kontrolle, Abschnitte nach Anfangsbuchstaben mit A–Z-Leiste rechts.
+/// Jede Zeile: grüner Haken-Kreis (antippen = abwesend), Name, darunter Klassendienst, rechts Buch und Uhr.
 struct SchuelerSeite: View {
     enum Filter: Hashable {
         case alle
@@ -723,24 +751,38 @@ struct SchuelerSeite: View {
     }
 
     var body: some View {
+        DetailSeitenRahmen(titel: "Schüler*innen", untertitel: stundenUntertitel(daten.karte)) {
+            inhalt
+        } rechts: {
+            diensteMenue
+        }
+        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(fehler ?? "")
+        }
+    }
+
+    private var inhalt: some View {
         let alle = liste?.schueler ?? []
         let abwesend = alle.filter { fehlzeit($0) != nil }.count
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             Picker("Filter", selection: $filter) {
                 Text("Alle (\(alle.count))").tag(Filter.alle)
                 Text("Abwesend (\(abwesend))").tag(Filter.abwesend)
                 Text("Anwesend (\(alle.count - abwesend))").tag(Filter.anwesend)
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .padding(.top, 2)
+            .padding(.bottom, 8)
             if let hinweis = hinweistext {
                 Text(hinweis)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(Farben.tinte2)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 6)
                     .padding(.horizontal, 12)
                     .background(Farben.infoFeld)
             }
@@ -754,35 +796,51 @@ struct SchuelerSeite: View {
                             Section {
                                 ForEach(gruppe.liste) { s in
                                     zeile(s)
+                                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 30))
+                                        .listRowBackground(Farben.blatt)
                                 }
                             } header: {
                                 Text(gruppe.buchstabe)
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(.system(size: 12, weight: .regular))
                                     .foregroundStyle(Farben.gedaempft)
                             }
                             .id(gruppe.buchstabe)
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(Farben.blatt)
                     .overlay(alignment: .trailing) {
                         buchstabenleiste(proxy)
                     }
+                    .refreshable { await daten.anwesenheitLaden() }
                 }
             }
         }
-        .background(Farben.blatt.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Leistentitel(titel: "Schüler*innen", untertitel: stundenUntertitel(daten.karte))
+    }
+
+    /// Klassendienste des Tages (Symbol oben rechts).
+    @ViewBuilder
+    private var diensteMenue: some View {
+        let alle = liste?.schueler ?? []
+        let mitDienst = alle.filter { !(daten.dienste[$0.id] ?? []).isEmpty }
+        Menu {
+            Section("Klassendienste") {
+                if mitDienst.isEmpty {
+                    Button {} label: { Text("Keine Klassendienste eingetragen") }
+                        .disabled(true)
+                }
+                ForEach(mitDienst) { s in
+                    Button {} label: {
+                        Label("\(s.anzeige) – \((daten.dienste[s.id] ?? []).joined(separator: ", "))", systemImage: "person")
+                    }
+                    .disabled(true)
+                }
             }
+        } label: {
+            Rundknopf(symbol: "eraser", gewicht: .light, groesse: 15)
         }
-        .refreshable { await daten.anwesenheitLaden() }
-        .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(fehler ?? "")
-        }
+        .accessibilityLabel("Klassendienste")
     }
 
     private var hinweistext: String? {
@@ -799,6 +857,17 @@ struct SchuelerSeite: View {
         return nil
     }
 
+    private func untertitel(_ s: Schueler, _ f: Fehlzeiteintrag?) -> String? {
+        var teile: [String] = []
+        let dienste = daten.dienste[s.id] ?? []
+        if !dienste.isEmpty { teile.append(dienste.joined(separator: ", ")) }
+        if let f { teile.append(fehlzeittext(f)) }
+        if teile.isEmpty, (liste?.schueler.contains { $0.klasse != s.klasse }) == true, !s.klasse.isEmpty {
+            teile.append(s.klasse)
+        }
+        return teile.isEmpty ? nil : teile.joined(separator: " · ")
+    }
+
     private func zeile(_ s: Schueler) -> some View {
         let f = fehlzeit(s)
         let verspaetet = f?.art == "verspaetet" || f?.art == "vorzeitig"
@@ -811,14 +880,14 @@ struct SchuelerSeite: View {
                     if speichert == s.id {
                         ProgressView()
                     } else if let f {
-                        Image(systemName: f.art == "fehlt" ? "xmark.circle.fill" : "clock.badge.exclamationmark")
+                        Image(systemName: f.art == "fehlt" ? "xmark.circle" : "clock.badge.exclamationmark")
                             .foregroundStyle(f.art == "fehlt" ? Farben.entfallRand : Farben.orange)
                     } else {
                         Image(systemName: "checkmark.circle")
                             .foregroundStyle(Farben.gruen)
                     }
                 }
-                .font(.system(size: 22))
+                .font(.system(size: 21, weight: .light))
                 .frame(width: 28, height: 28)
             }
             .buttonStyle(.borderless)
@@ -828,30 +897,27 @@ struct SchuelerSeite: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.anzeige)
-                    .font(.system(size: 16))
+                    .font(.system(size: 15))
                     .foregroundStyle(Farben.tinte)
-                if let f {
-                    Text(fehlzeittext(f))
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(Farben.tinte2)
-                } else if (liste?.schueler.contains { $0.klasse != s.klasse }) == true {
-                    Text(s.klasse)
-                        .font(.system(size: 12.5))
+                    .lineLimit(1)
+                if let u = untertitel(s, f) {
+                    Text(u)
+                        .font(.system(size: 12))
                         .foregroundStyle(Farben.gedaempft)
+                        .lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
             Image(systemName: hatVermerk ? "book.closed.fill" : "book.closed")
-                .font(.system(size: 17, weight: .light))
+                .font(.system(size: 18, weight: .light))
                 .foregroundStyle(hatVermerk ? Farben.tinte2 : Farben.gedaempft)
                 .accessibilityLabel(hatVermerk ? "Klassenbucheintrag vorhanden" : "Kein Klassenbucheintrag")
             Image(systemName: verspaetet ? "clock.fill" : "clock")
-                .font(.system(size: 17, weight: .light))
+                .font(.system(size: 18, weight: .light))
                 .foregroundStyle(verspaetet ? Farben.orange : Farben.gedaempft)
-                .padding(.trailing, 14)
                 .accessibilityLabel(verspaetet ? "Verspätung bzw. vorzeitig gegangen" : "Pünktlich")
         }
-        .padding(.vertical, 3)
+        .frame(minHeight: 50)
     }
 
     private func fehlzeittext(_ f: Fehlzeiteintrag) -> String {
@@ -874,14 +940,14 @@ struct SchuelerSeite: View {
                     withAnimation { proxy.scrollTo(gruppe.buchstabe, anchor: .top) }
                 } label: {
                     Text(gruppe.buchstabe)
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(Farben.akzent)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Farben.tinte2)
                         .frame(width: 16, height: 14)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.trailing, 1)
+        .padding(.trailing, 3)
         .accessibilityHidden(true)
     }
 

@@ -163,6 +163,11 @@ final class ApiClient: @unchecked Sendable {
         try await anfrage("GET", "/klassenbuch/vermerke", parameter: ["klasse": klasse, "von": von, "bis": bis])
     }
 
+    /// Klassendienste einer Klasse im Zeitraum (z. B. Klassensprecher*in), je Schüler*in.
+    func klassendienste(klasse: String, von: String, bis: String) async throws -> Klassendienstliste {
+        try await anfrage("GET", "/klassendienste", parameter: ["klasse": klasse, "von": von, "bis": bis])
+    }
+
     /// Entfernt die Cookies des Servers (nach dem Abmelden).
     func cookiesLoeschen() {
         guard let url = URL(string: serverAdresse), let speicher = session.configuration.httpCookieStorage else { return }

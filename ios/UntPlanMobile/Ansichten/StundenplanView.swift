@@ -117,7 +117,7 @@ struct StundenplanView: View {
             .sheet(item: $detail) { d in
                 StundendetailView(karten: d.karten, start: d.start, typ: typ, element: element)
                     .environmentObject(zustand)
-                    .festesBlatt(breit: istBreit)
+                    .detailBlatt(breit: istBreit)
             }
             .sheet(item: $gewaehlteAufsicht) { a in
                 AufsichtDetailView(aufsicht: a)
@@ -168,53 +168,25 @@ struct StundenplanView: View {
             }
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                zeigeInfo = true
-            } label: {
-                Glasknopf {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 18, weight: .regular))
+            if istBreit {
+                Button {
+                    zeigeInfo = true
+                } label: {
+                    Glasknopf {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 18, weight: .regular))
+                    }
                 }
+                .accessibilityLabel("Informationen zum Plan")
             }
-            .accessibilityLabel("Informationen zum Plan")
             menue
         }
     }
 
-    /// Planname mit Pfeil als Menü (Mein Stundenplan, Favoriten, Auswahl).
+    /// Planname mit Pfeil: ein Tipp öffnet direkt die Planauswahl (Mein Stundenplan, Favoriten, Suche, Listen).
     private var plantitel: some View {
-        Menu {
-            Button {
-                auswahl = nil
-            } label: {
-                Label("Mein Stundenplan", systemImage: auswahl == nil ? "checkmark" : "calendar")
-            }
-            let favs = favoriten.liste.filter { $0.typ != "lehrer" || zustand.darfLehrerplaene }
-            if !favs.isEmpty {
-                Section("Favoriten") {
-                    ForEach(favs) { fav in
-                        Button {
-                            auswahl = fav
-                        } label: {
-                            Label(fav.anzeige, systemImage: auswahl?.id == fav.id ? "checkmark" : fav.symbol)
-                        }
-                    }
-                }
-            }
-            Divider()
-            Button {
-                zeigeAuswahl = true
-            } label: {
-                Label("Stundenplan auswählen …", systemImage: "magnifyingglass")
-            }
-            if let auswahl {
-                Button {
-                    favoriten.umschalten(auswahl)
-                } label: {
-                    Label(favoriten.enthaelt(auswahl) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen",
-                          systemImage: favoriten.enthaelt(auswahl) ? "star.slash" : "star")
-                }
-            }
+        Button {
+            zeigeAuswahl = true
         } label: {
             HStack(spacing: 4) {
                 Text(titel)
@@ -227,8 +199,10 @@ struct StundenplanView: View {
             .foregroundStyle(Farben.titelGrau)
             .padding(.vertical, 4)
             .padding(.horizontal, 8)
+            .frame(maxWidth: istBreit ? 360 : 200)
             .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("Stundenplan auswählen, aktuell \(titel)")
     }
 
@@ -267,6 +241,21 @@ struct StundenplanView: View {
                 }
             }
             Divider()
+            if let auswahl {
+                Button {
+                    favoriten.umschalten(auswahl)
+                } label: {
+                    Label(favoriten.enthaelt(auswahl) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen",
+                          systemImage: favoriten.enthaelt(auswahl) ? "star.slash" : "star")
+                }
+            }
+            if !istBreit {
+                Button {
+                    zeigeInfo = true
+                } label: {
+                    Label("Informationen zum Plan", systemImage: "info.circle")
+                }
+            }
             Button {
                 Task { await laden() }
             } label: {
@@ -623,9 +612,14 @@ struct WochenrasterView: View {
     /// Antippen einer Stunde: alle Stunden derselben Zeit und die angetippte.
     let antippen: ([Karte], Int) -> Void
 
-    // Maße aus app.css
-    private let rinnenBreite: CGFloat = 45
-    private let tagesLuecke: CGFloat = 3
+    @Environment(\.horizontalSizeClass) private var groessenklasse
+
+    /// iPhone (schmale Breite): schmale Zeitspalte und kleinere Schrift, damit fünf Tage lesbar nebeneinander passen.
+    private var kompakt: Bool { groessenklasse == .compact }
+
+    // Maße aus app.css (iPhone: Zeitspalte 38 pt)
+    private var rinnenBreite: CGFloat { kompakt ? 38 : 45 }
+    private var tagesLuecke: CGFloat { kompakt ? 2 : 3 }
     /// Höhe je Minute; in der Tagesansicht größer, damit die Karten mehr Text zeigen.
     private var proMinute: CGFloat { nurTag == nil ? 1.2704 : 1.75 }
     private let abstandUnten: CGFloat = 28
@@ -652,7 +646,7 @@ struct WochenrasterView: View {
         GeometryReader { geo in
             let spalten = max(tage.count, 1)
             let rand: CGFloat = nurTag == nil ? 0 : 3
-            let spaltenBreite = max(40, (geo.size.width - rinnenBreite - rand) / CGFloat(spalten))
+            let spaltenBreite = max(kompakt ? 34 : 40, (geo.size.width - rinnenBreite - rand) / CGFloat(spalten))
             let hoehe = mass.y(ende) + abstandUnten
             VStack(spacing: 0) {
                 wochenkopf(spaltenBreite: spaltenBreite, kacheln: kacheln)
@@ -707,12 +701,12 @@ struct WochenrasterView: View {
                 kwFeld
                 ForEach(tage) { tag in
                     let heute = Datumsformat.istHeute(tag.datum)
-                    VStack(spacing: 3) {
+                    VStack(spacing: kompakt ? 2 : 3) {
                         Text(Datumsformat.anzeige(tag.datum, "EE"))
-                            .font(.system(size: 12.5, weight: .regular))
+                            .font(.system(size: kompakt ? 12 : 12.5, weight: .regular))
                             .foregroundStyle(heute ? Farben.heute : Farben.tinte2)
                         Text(Datumsformat.anzeige(tag.datum, "d"))
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: kompakt ? 17 : 18, weight: .bold))
                             .tracking(-0.36)
                             .foregroundStyle(heute ? Farben.heute : Farben.tinte)
                     }
@@ -743,8 +737,8 @@ struct WochenrasterView: View {
                 .foregroundStyle(Farben.tinte)
         }
         .lineLimit(1)
-        .minimumScaleFactor(0.7)
-        .padding(.leading, 6)
+        .minimumScaleFactor(0.6)
+        .padding(.leading, kompakt ? 4 : 6)
         .frame(width: rinnenBreite, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { heuteAntippen?() }
@@ -834,28 +828,28 @@ struct WochenrasterView: View {
                 linie(breite: breite)
                     .offset(x: rinnenBreite, y: oben)
                 Text(Rasterzeit.uhrzeit(z.beginn))
-                    .font(.system(size: 12, weight: .medium).monospacedDigit())
-                    .tracking(0.12)
+                    .font(.system(size: kompakt ? 10.5 : 12, weight: .medium).monospacedDigit())
+                    .tracking(kompakt ? 0 : 0.12)
                     .foregroundStyle(Farben.rinne)
                     .fixedSize()
-                    .offset(x: 8, y: oben + 2)
+                    .offset(x: kompakt ? 4 : 8, y: oben + 2)
                 if unten - oben > 36 {
                     Text("\(z.nr).")
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.system(size: kompakt ? 14.5 : 16, weight: .regular))
                         .foregroundStyle(Farben.tinte2)
                         .fixedSize()
-                        .offset(x: 14, y: oben + (unten - oben) / 2 - 10)
+                        .offset(x: kompakt ? 11 : 14, y: oben + (unten - oben) / 2 - 10)
                 }
                 if pauseDanach {
                     linie(breite: breite)
                         .offset(x: rinnenBreite, y: unten)
                     Text(Rasterzeit.uhrzeit(z.ende))
-                        .font(.system(size: 12, weight: .medium).monospacedDigit())
-                        .tracking(0.12)
+                        .font(.system(size: kompakt ? 10.5 : 12, weight: .medium).monospacedDigit())
+                        .tracking(kompakt ? 0 : 0.12)
                         .foregroundStyle(Farben.rinne)
                         .fixedSize()
                         .frame(height: 15, alignment: .bottom)
-                        .offset(x: 8, y: unten - 3 - 15)
+                        .offset(x: kompakt ? 4 : 8, y: unten - 3 - 15)
                 }
             }
         }

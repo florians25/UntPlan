@@ -56,7 +56,9 @@ public sealed record Sitzungsbenutzer(int Id, string Login, string Anzeigename, 
 public sealed record KoppEintrag(
     [property: JsonPropertyName("code")] string Code,
     [property: JsonPropertyName("state")] string Zustand,
-    [property: JsonPropertyName("for")] string? Fuer = null);
+    [property: JsonPropertyName("for")] string? Fuer = null,
+    /// <summary>Offene Vertretung (noch keine Lehrkraft eingeteilt): Kürzel durchgestrichen in der grünen Plakette.</summary>
+    [property: JsonPropertyName("open")] bool? Offen = null);
 
 public sealed record KlassenEintrag(
     [property: JsonPropertyName("name")] string Name,
@@ -88,6 +90,11 @@ public sealed class Kachel
     [JsonPropertyName("type")] public string Typ { get; set; } = "";
     [JsonPropertyName("color")] public string? Farbe { get; set; }
     [JsonPropertyName("openSub")] public bool Offen { get; set; }
+    /// <summary>
+    /// Offene Vertretung einer abwesenden Lehrkraft (Status offen/abwesend oder „+++“): Es ist noch keine Lehrkraft eingeteilt,
+    /// die bisherige steht immer durchgestrichen in der grünen Plakette – auf Karten und im Kopf der Stundendetails.
+    /// </summary>
+    [JsonPropertyName("teacherOpen")] public bool? LehrkraftOffen { get; set; }
     /// <summary>Zusatzstunde (zusätzlicher Unterricht): Plakette „Zusätzliche Unterrichtsstunde“ in den Details.</summary>
     [JsonPropertyName("extra")] public bool? Zusatz { get; set; }
     /// <summary>Klasse abwesend (Freisetzung): Klasse durchgestrichen, Kachel grün; im Lehrerplan wie eine abgegebene Stunde.</summary>

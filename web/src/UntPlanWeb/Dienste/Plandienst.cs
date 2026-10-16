@@ -47,6 +47,12 @@ public sealed record Karte(
     public bool LehrerAbwesend { get; init; }
     /// <summary>Bereitschaft (Fach mit Bereitschaft) – wird nie vertreten; fehlt die Lehrkraft, gilt <see cref="LehrerAbwesend"/>.</summary>
     public bool Bereitschaft { get; init; }
+    /// <summary>
+    /// Offene Lehrervertretung: die eingeplante Lehrkraft ist abwesend und es ist noch keine Vertretungslehrkraft eingeteilt.
+    /// Lehrer enthält dann je abwesende Lehrkraft einen Wert { K = "", Alt = Kürzel, Neu = true } – Darstellung: altes Kürzel
+    /// durchgestrichen im grünen Label. Gilt auch, wenn der Status im eigenen Lehrerplan „abwesend“ lautet.
+    /// </summary>
+    public bool VertretungOffen { get; init; }
 }
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
@@ -438,6 +444,7 @@ public sealed class Plandienst
                 Art = liste.Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? "",
                 Text = string.Join(" · ", texte),
                 Vertretung = liste.Select(x => x.Vertretung).FirstOrDefault(x => x.HasValue),
+                VertretungOffen = liste.Any(x => x.VertretungOffen),
             });
         }
         return res;
@@ -515,10 +522,16 @@ public sealed class Plandienst
         var ohneLehrer = r.Status == "vertreten" && r.Lehrer.Count == 0 && bisher.Count > 0 && (v is null || v.Vertreter is "" or "+" or "+++");
         if (ohneLehrer)
             lehrer = bisher.Select(x => new Wert("", x, true)).ToList();
+        // offene Lehrervertretung: die abwesende Lehrkraft steht durchgestrichen im grünen Label ({ k: "", alt: "FIS", neu: true })
+        var lehrerOffen = status == "offen" && (v != null || bisher.Count > 0);
+        if (lehrerOffen)
+        {
+            var abwesend = bisher.Count > 0 ? bisher : r.Lehrer.Where(x => x.Length > 0 && x != "???").ToList();
+            lehrer = abwesend.Count > 0 ? abwesend.Distinct(Ci).Select(x => new Wert("", x, true)).ToList() : new List<Wert> { new("", null, true) };
+        }
         if (v != null)
         {
-            if (status == "offen")
-                lehrer = new List<Wert> { new("", v.Lehrer.Length > 0 ? v.Lehrer : null, true) };
+            if (lehrerOffen) { }
             else if (ohneLehrer) { }
             else if (status == "geaendert" && v.Lehrer.Length > 0 && v.Vertreter.Length > 0 && v.Vertreter is not ("+" or "+++" or "---" or "???") && !Ci.Equals(v.Lehrer, v.Vertreter))
             {
@@ -582,6 +595,7 @@ public sealed class Plandienst
             Zusaetzlich = zusatz, Bereitschaft = bereitschaft,
             // abwesende Lehrkraft: eigene Stunde im Lehrerplan von anderen gehalten bzw. weggefallene Bereitschaft (in jedem Plan)
             LehrerAbwesend = status == "abwesend" && (typ == Elementtyp.Lehrer || bereitschaft),
+            VertretungOffen = lehrerOffen,
         };
     }
 

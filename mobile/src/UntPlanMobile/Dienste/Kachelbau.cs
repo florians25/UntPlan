@@ -290,6 +290,10 @@ public static class Kachelbau
             return kachel;
         }
         if (k.LehrerAbwesend) kachel.LehrerAbwesend = true;
+        // Offene Vertretung: keine Lehrkraft eingeteilt, die bisherige steht durchgestrichen in der grünen Plakette
+        if (k.Status is "offen" or "abwesend" or "geaendert" && k.Lehrer.Count > 0
+            && k.Lehrer.All(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)))
+            kachel.LehrkraftOffen = true;
         switch (k.Status)
         {
             case "regulaer":
@@ -354,7 +358,7 @@ public static class Kachelbau
 
         // Kopplungen: mehrere Lehrkräfte bzw. Klassen in derselben Stunde
         if (k.Lehrer.Count > 1)
-            kachel.Kopplung = k.Lehrer.Select(w => w.Neu && w.K.Length == 0 ? new KoppEintrag(w.Alt ?? "", "absent")
+            kachel.Kopplung = k.Lehrer.Select(w => w.Neu && w.K.Length == 0 ? new KoppEintrag(w.Alt ?? "", "absent", Offen: true)
                 : w.Neu && !string.IsNullOrEmpty(w.Alt) ? new KoppEintrag(w.K, "sub", w.Alt) : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
         if (k.Klassen.Count > 1)
             kachel.Klassenliste = k.Klassen.Where(w => w.K.Length > 0).Select(w => new KlassenEintrag(w.K)).ToList();

@@ -64,6 +64,8 @@ public class EndeZuEndeTests
         // Donnerstag: Klausur, Freitag: offene Vertretung der eigenen Stunde und abgegebene Pausenaufsicht
         Assert.Contains(Kacheln(woche, "2026-10-15"), k => k["blockType"]!.GetValue<string>() == "klausur");
         Assert.Contains(Kacheln(woche, "2026-10-16"), k => k["blockType"]!.GetValue<string>() == "change" && k["openSub"]!.GetValue<bool>() && k["teacherOrig"]!.GetValue<string>() == "SNE");
+        // offene Vertretung: Kennzeichen für die durchgestrichene Lehrkraft in der grünen Plakette
+        Assert.Contains(Kacheln(woche, "2026-10-16"), k => k["openSub"]!.GetValue<bool>() && k["teacherOpen"]?.GetValue<bool>() == true);
         Assert.Contains(Kacheln(woche, "2026-10-16"), k => k["blockType"]!.GetValue<string>() == "supervision" && k["_supAbsent"]?.GetValue<bool>() == true);
         Assert.Contains(Kacheln(woche, "2026-10-14"), k => k["blockType"]!.GetValue<string>() == "absence" && k["subject"]!.GetValue<string>() == "Lehrerkonferenz");
 

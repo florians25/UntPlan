@@ -155,8 +155,8 @@ public partial class HauptFenster
         }
     }
 
-    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % – kompakt wie die Titelleiste von Office unter Windows 11.</summary>
-    internal const int KopfHoeheLogisch = 26;
+    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % (vorher ca. 26 px) – kompakt: 16-px-Symbole mit knappem Rand.</summary>
+    internal const int KopfHoeheLogisch = 23;
 
     /// <summary>Feste, DPI-skalierte Höhe des Programmkopfs; Symbole, Titel und Fensterknöpfe stehen vertikal mittig.</summary>
     private void KopfHoeheSetzen()
@@ -166,8 +166,8 @@ public partial class HauptFenster
         _schnell.Height = h;
         foreach (ToolStripItem i in _schnell.Items)
         {
-            if (i is ToolStripSeparator) i.Margin = new Padding(LogicalToDeviceUnits(2), LogicalToDeviceUnits(4), LogicalToDeviceUnits(2), LogicalToDeviceUnits(4));
-            else if (i.Alignment == ToolStripItemAlignment.Left) i.Margin = new Padding(0, 0, LogicalToDeviceUnits(1), 0);
+            if (i is ToolStripSeparator) i.Margin = new Padding(LogicalToDeviceUnits(2), LogicalToDeviceUnits(3), LogicalToDeviceUnits(2), LogicalToDeviceUnits(3));
+            else if (i.Alignment == ToolStripItemAlignment.Left) { i.Margin = new Padding(0, 0, LogicalToDeviceUnits(1), 0); i.Padding = new Padding(LogicalToDeviceUnits(1), 0, LogicalToDeviceUnits(1), 0); }
         }
         var groesse = new Size(LogicalToDeviceUnits(44), h);
         foreach (var k in new[] { _knopfZu, _knopfMax, _knopfMin })
@@ -322,13 +322,14 @@ public partial class HauptFenster
     /// <summary>Schlanke weiße Fensterknöpfe wie Windows 11 / Vorbild 2026 (0 = minimieren, 1 = maximieren, 2 = schließen, 3 = wiederherstellen).</summary>
     private static Bitmap KnopfBild(int art, bool dunkel, Size groesse)
     {
-        var bmp = new Bitmap(Math.Max(1, groesse.Width), Math.Max(1, groesse.Height));
+        // nur das Symbol (quadratisch) – der Knopf zentriert es selbst, so steht es exakt mittig in der Titelleiste
+        var e = Math.Max(4, (int)Math.Round(groesse.Height * 5 / 23.0));
+        var seite = 2 * e + 3;
+        var bmp = new Bitmap(seite, seite);
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = art == 2 ? System.Drawing.Drawing2D.SmoothingMode.AntiAlias : System.Drawing.Drawing2D.SmoothingMode.None;
-        // Symbolgröße mit der Knopfhöhe skaliert (bei 100 %: 10 px wie Windows 11)
-        var e = Math.Max(4, (int)Math.Round(groesse.Height * 5 / 26.0));
-        using var p = new Pen(dunkel ? Color.FromArgb(40, 40, 40) : Color.White, Math.Max(1f, groesse.Height / 26f));
-        int cx = groesse.Width / 2, cy = groesse.Height / 2;
+        using var p = new Pen(dunkel ? Color.FromArgb(40, 40, 40) : Color.White, Math.Max(1f, groesse.Height / 23f));
+        int cx = seite / 2, cy = seite / 2;
         var d = Math.Max(2, e * 2 / 5);
         switch (art)
         {

@@ -1698,3 +1698,33 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 
 /* Karte: Stunde findet online statt */
 .ecke .ecke-online { display: inline-block; padding: 0 4px; border-radius: 2px; background: var(--u-gruen-label); color: #fff; font-size: 10.5px; font-weight: 600; line-height: 14px; margin-right: 3px; vertical-align: middle; }
+
+/* ------------------------------------------------------------------ Vertretungs-Labels außerhalb der Karten (Stundendetails, Heute)
+   Offene Vertretung: abwesende Lehrkraft durchgestrichen im grünen Label; eingeteilte Vertretung: neue Lehrkraft als grünes Label. */
+.v-lbl { display: inline-block; padding: 0 4px; border-radius: 2px; background: var(--u-gruen-label); color: #fff; font-weight: 600; line-height: 1.45; white-space: nowrap; }
+.v-lbl.weg { text-decoration: line-through; text-decoration-thickness: 1px; }
+.v-lbl a, .v-lbl a:hover, .sd-zeile .v-lbl .sd-link, .sd-zeile .v-lbl .sd-link:hover { color: #fff !important; text-decoration: inherit; }
+.v-alt { color: #8a96a1; text-decoration-thickness: .75px; }
+.v-lbl, .v-lbl:hover, tr:hover .v-lbl, a:hover .v-lbl, .nl-chip, .nl-chip:hover, tr:hover .nl-chip { filter: none !important; opacity: 1; }
+
+/* Startseite „Mein nächster Unterricht“ im neuen Listen-Design */
+.heute-karte > .nl-tabelle { border: 0; border-radius: 0 0 2px 2px; }
+.heute-unterricht th { padding: 12px; font-size: .85rem; }
+.heute-unterricht td { padding: 10px 12px; font-size: .875rem; color: var(--u-titel); white-space: nowrap; }
+.heute-unterricht tbody tr { cursor: pointer; }
+.heute-unterricht tbody tr:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
+.heute-unterricht .hu-zeit .nl-name { display: block; font-size: .95rem; line-height: 1.2; }
+.heute-unterricht .hu-zeit .nl-unter { display: block; line-height: 1.2; }
+.heute-unterricht .hu-std { width: 1%; }
+.heute-unterricht .hu-fach { position: relative; padding-left: 20px; }
+.heute-unterricht .hu-balken { position: absolute; left: 8px; top: 10px; bottom: 10px; width: 4px; border-radius: 2px; background: var(--fach, #c9d0d6); }
+.heute-unterricht .hu-fach .hu-wert { font-weight: 600; }
+.heute-unterricht .hu-fach .nl-unter { display: block; line-height: 1.2; }
+.heute-unterricht .hu-kb { flex-wrap: nowrap; align-items: center; }
+.heute-unterricht .hu-stoff { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #67747e; font-size: .8rem; }
+.heute-unterricht .hu-stoff .bi { color: #0f7b47; }
+.heute-unterricht .nl-chip .bi { font-size: .85em; }
+.heute-unterricht .hu-info { width: 1%; color: #67747e; }
+.heute-unterricht tr.entfall td { color: #8a96a1; }
+.heute-unterricht tr.entfall .hu-wert, .heute-unterricht tr.entfall .hu-zeit .nl-name { text-decoration: line-through; text-decoration-thickness: .75px; }
+.heute-unterricht tr.entfall .hu-balken { opacity: .4; }

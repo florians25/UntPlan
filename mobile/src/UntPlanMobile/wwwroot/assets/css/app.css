@@ -3896,9 +3896,9 @@ html.is-dark .topbar .icon-btn--solo, html.is-dark .topbar__actions, html.is-dar
 html.is-dark .tab.is-active{ color:#fff; }
 @media (min-width:820px){ .tab.is-active{ color:var(--u-orange); } }
 
-/* Planauswahl wie in der Vorlage: Suchfeld unten im Blatt (mit dem Daumen erreichbar), kein doppelter Schließen-Knopf */
+/* Planauswahl: Suchfeld OBEN unter dem Titel, über den Listen; kein doppelter Schließen-Knopf */
 .sheet--picker{ display:flex; flex-direction:column; }
-.sheet--picker .pk__search{ order:3; grid-template-columns:1fr; padding:10px 24px 8px; }
+.sheet--picker .pk__search{ order:1; grid-template-columns:1fr; padding:4px 16px 10px; }
 .sheet--picker .pk__body{ order:2; }
 #pickerClear{ display:none; }
 .sheet--picker .searchwrap{ border:1px solid color-mix(in srgb, var(--c-ink) 10%, transparent); }
@@ -4055,6 +4055,21 @@ html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:non
   border-radius:6px; background:var(--d-chip, #eef0f2); color:inherit;
 }
 .dlab--neu{ background:var(--green); color:var(--green-ink); }
+/* Im Kopf der Details steht die Lehrkraft ohne Abstand zum Strich davor. */
+.dline .dlab{ margin:0; padding:0 5px; border-radius:3px; }
+.dline .dlab--offen s{ text-decoration-color:currentColor; }
+
+/* Offene Vertretung einer abwesenden Lehrkraft: das bisherige Kürzel steht
+   IMMER durchgestrichen in der grünen Plakette (#0b7d65, weiße Schrift) —
+   auf Karten der Woche und des Tages. Gilt ebenso für einen noch offenen
+   Raum. Ohne Fläche bleibt das alte Kürzel nur, wo eine Vertretung schon
+   eingeteilt ist (Kopplung, Eckklammern). */
+.badge.badge--removed.badge--open,
+.card--released .card__line .badge.badge--removed.badge--open{
+  background:var(--green); color:var(--green-ink);
+  text-decoration:line-through; text-decoration-thickness:var(--strike);
+  text-decoration-color:currentColor;
+}
 .tab:focus, .tab:focus-visible, .icon-btn:focus, .rndbtn:focus{ outline:none; }
 
 /* =====================================================================

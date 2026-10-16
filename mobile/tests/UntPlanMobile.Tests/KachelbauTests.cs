@@ -76,6 +76,28 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Offene_Vertretung_einer_abwesenden_Lehrkraft_steht_im_gruenen_Label_durchgestrichen()
+    {
+        // offen, abwesend (Plan der abwesenden Lehrkraft) und „+++“: bisherige Lehrkraft in der grünen Plakette durchgestrichen
+        foreach (var (status, art) in new[] { ("offen", "class"), ("abwesend", "teacher"), ("geaendert", "class") })
+        {
+            var k = Kachelbau.AusKarte(Karte(status, 1, lehrer: new() { new("", "SNE", true) }) with { LehrerAbwesend = status == "abwesend" }, art);
+            Assert.True(k.LehrkraftOffen);
+            Assert.Equal("", k.Lehrkraft);
+            Assert.Equal("SNE", k.LehrkraftAlt);
+        }
+        // eingeteilte Vertretung: keine offene Vertretung – die neue Lehrkraft steht im grünen Label
+        var vertreten = Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("HAR", "HOF", true) }) with { LehrerAbwesend = true }, "teacher");
+        Assert.Null(vertreten.LehrkraftOffen);
+        Assert.Contains("teacher", vertreten.Geaendert);
+        // Bereitschaft einer abwesenden Lehrkraft ist keine offene Vertretung
+        var ber = Kachelbau.AusKarte(Karte("abwesend", 3, fach: "BER", lehrer: new() { new("", "SNE", true) }) with { Bereitschaft = true, LehrerAbwesend = true }, "teacher");
+        Assert.Null(ber.LehrkraftOffen);
+        // reguläre Stunde ebenso nicht
+        Assert.Null(Kachelbau.AusKarte(Karte("regulaer", 1), "class").LehrkraftOffen);
+    }
+
+    [Fact]
     public void Abgegebene_Stunde_im_Lehrerplan_zeigt_Vertreter_und_eigenes_Kuerzel_als_Orig()
     {
         var k = Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("HAR", "HOF", true) }), "teacher");
@@ -282,6 +304,9 @@ public class KachelbauTests
         Assert.NotNull(k.Kopplung);
         Assert.Equal(new[] { ("BIE", "ok"), ("BLU", "absent"), ("ILK", "sub") }, k.Kopplung!.Select(t => (t.Code, t.Zustand)));
         Assert.Equal("KRU", k.Kopplung![2].Fuer);
+        // offen ist nur das abwesende Kürzel ohne eingeteilte Vertretung (grüne Plakette, durchgestrichen)
+        Assert.Equal(new bool?[] { null, true, null }, k.Kopplung!.Select(t => t.Offen));
+        Assert.Null(k.LehrkraftOffen);
     }
 
     [Fact]

@@ -1,10 +1,15 @@
 import SwiftUI
 
 /// Werte (Lehrkräfte, Klassen, Räume) als Text: alter Wert durchgestrichen, geänderter Wert grün.
-func werteText(_ werte: [Wert], trenner: String = ", ") -> Text {
+/// `offen`: Lehrkräfte einer offenen Vertretung – die alte Lehrkraft ohne neuen Wert steht durchgestrichen auf grüner Fläche.
+func werteText(_ werte: [Wert], trenner: String = ", ", offen: Bool = false) -> Text {
     var ergebnis = Text("")
     for (i, w) in werte.enumerated() {
         if i > 0 { ergebnis = ergebnis + Text(trenner) }
+        if offen, w.k.isEmpty, let alt = w.alt, !alt.isEmpty {
+            ergebnis = ergebnis + offenText(alt)
+            continue
+        }
         if let alt = w.alt, !alt.isEmpty, alt != w.k {
             ergebnis = ergebnis + Text(alt).strikethrough(true, color: Farben.entfallRand)
             if !w.k.isEmpty { ergebnis = ergebnis + Text(" ") }
@@ -16,6 +21,21 @@ func werteText(_ werte: [Wert], trenner: String = ", ") -> Text {
         }
     }
     return ergebnis
+}
+
+/// Grün hinterlegter, durchgestrichener Text (offene Vertretung) – als Text, damit er sich mit anderen Texten verbinden lässt.
+func offenText(_ text: String) -> Text {
+    var a = AttributedString("\u{2009}\(text)\u{2009}")
+    a[AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Farben.gruen
+    a[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = Farben.gruenSchrift
+    a[AttributeScopes.SwiftUIAttributes.StrikethroughStyleAttribute.self] = Text.LineStyle(pattern: .solid, color: Farben.gruenSchrift)
+    return Text(a).fontWeight(.medium)
+}
+
+/// Offene Vertretung erkennen: Karte „offen“ bzw. Lehrkraft ohne neuen Wert mit gesetztem alten Wert (nicht bei Entfall).
+func istOffeneVertretung(_ karte: Karte) -> Bool {
+    guard !karte.istEntfall else { return false }
+    return karte.status == "offen" || karte.lehrer.contains { $0.k.isEmpty && !($0.alt ?? "").isEmpty }
 }
 
 /// Werte als einfacher Text (ohne Hervorhebung).

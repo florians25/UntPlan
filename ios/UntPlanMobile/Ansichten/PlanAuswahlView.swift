@@ -42,8 +42,8 @@ enum Plankategorie: String, Hashable, CaseIterable, Identifiable {
     }
 }
 
-/// Planauswahl als Blatt (nach Vorlage): Schließen, Titel, „Bearbeiten“; „Mein Stundenplan“, Favoriten mit Stern,
-/// Stundenpläne nach Art; unten das Suchfeld. Favoriten lassen sich im Bearbeiten-Modus entfernen und umsortieren.
+/// Planauswahl als Blatt (nach Vorlage): Schließen, Titel, „Bearbeiten“; darunter oben das Suchfeld (filtert live),
+/// „Mein Stundenplan“, Favoriten mit Stern, Stundenpläne nach Art. Favoriten lassen sich im Bearbeiten-Modus entfernen und umsortieren.
 struct PlanAuswahlView: View {
     @EnvironmentObject var zustand: AppZustand
     @EnvironmentObject var favoriten: Favoriten
@@ -79,10 +79,13 @@ struct PlanAuswahlView: View {
             .scrollContentBackground(.hidden)
             .environment(\.editMode, $bearbeiten)
             .background(Farben.blatt.ignoresSafeArea())
-            .safeAreaInset(edge: .top, spacing: 0) { kopf }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Suchleiste(text: $suche, platzhalter: "Stundenplan suchen")
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    kopf
+                    Suchleiste(text: $suche, platzhalter: "Stundenplan suchen")
+                }
             }
+            .scrollDismissesKeyboard(.immediately)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Plankategorie.self) { kategorie in
                 ElementlisteView(kategorie: kategorie, elemente: elemente, auswahl: auswahl) { plan in
@@ -140,7 +143,7 @@ struct PlanAuswahlView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
-        .padding(.bottom, 10)
+        .padding(.bottom, 12)
         .background(Farben.blatt)
     }
 
@@ -361,10 +364,13 @@ struct ElementlisteView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Farben.blatt.ignoresSafeArea())
-        .safeAreaInset(edge: .top, spacing: 0) { kopf }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Suchleiste(text: $suche, platzhalter: "\(kategorie.titel) suchen")
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                kopf
+                Suchleiste(text: $suche, platzhalter: "\(kategorie.titel) suchen")
+            }
         }
+        .scrollDismissesKeyboard(.immediately)
         .toolbar(.hidden, for: .navigationBar)
     }
 
@@ -507,7 +513,7 @@ struct Abschnittszeile: View {
     }
 }
 
-/// Suchfeld als Kapsel unten im Blatt (.searchwrap).
+/// Suchfeld als Kapsel oben im Blatt (unter dem Titel, über Favoriten und Listen); filtert bei jeder Eingabe.
 struct Suchleiste: View {
     @Binding var text: String
     let platzhalter: String
@@ -537,17 +543,17 @@ struct Suchleiste: View {
                 .accessibilityLabel("Suche leeren")
             }
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 13)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Farben.suchfeld, in: Capsule())
         .overlay {
             Capsule().strokeBorder(Farben.tinte.opacity(0.10), lineWidth: 1)
         }
         .contentShape(Capsule())
         .onTapGesture { fokus = true }
-        .padding(.horizontal, 24)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 16)
+        .padding(.top, 2)
+        .padding(.bottom, 10)
         .background(Farben.blatt)
     }
 }

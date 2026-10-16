@@ -6,7 +6,7 @@
 // („Lehrstoffeintragung vorhanden“, „Abwesenheiten wurden kontrolliert“).
 // Details: nur „Findet online statt“, Lehrstoff und Vertretungstext (wenn vorhanden), Hausaufgaben, Notizen für Schüler*innen
 // und für Lehrkräfte; unten „Vorherige Stunde“, „Nächste Stunde“, „Prüfung erstellen“ und „Raum buchen“.
-import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui.js';
+import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE, lehrkraftLabel } from './ui.js';
 
 const PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
 const W = '/img/wu/';
@@ -30,9 +30,12 @@ function planLink(typ, kurz) {
   if (!typ || !kurz || KEIN_ELEMENT.test(kurz)) return e(kurz);
   return `<a href="#" class="sd-link" data-plan="${typ}" data-element="${e(kurz)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(kurz)}</a>`;
 }
-function wertKopf(liste, max = 6, typ = null) {
+function wertKopf(liste, max = 6, typ = null, label = false) {
   const l = liste || [];
   const teil = l.length > max + 1 ? l.slice(0, max - 2) : l;
+  // Lehrkräfte wie auf den Plankarten: offene Vertretung → abwesende Lehrkraft durchgestrichen im grünen Label, Vertretung → neue Lehrkraft grün
+  if (label) return teil.map(w => lehrkraftLabel(w, x => planLink(typ, x))).filter(Boolean).join(', ')
+    + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
   // auch der ersetzte (durchgestrichene) Wert – z. B. die abwesende Lehrkraft – führt zu seinem Plan
   const alt = w => typ ? `<s class="sd-alt">${planLink(typ, w.alt)}</s>` : `<s class="sd-alt">${e(w.alt)}</s>`;
   return teil.map(w => w.alt && !w.k ? alt(w)
@@ -123,7 +126,7 @@ export function karteDialog(karte, kontext = {}) {
     const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}` : e(k.fach || k.text || k.art || 'Stunde');
     const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
     const zeile = [wochentag(k.datum), datumDe(k.datum), k.beginn ? `${k.beginn}-${k.ende}` : `${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'} Std.`,
-      wertKopf(k.raeume, 6, 'raum'), wertKopf(k.lehrer, 6, kollegium ? 'lehrer' : null)].filter(Boolean);
+      wertKopf(k.raeume, 6, 'raum'), wertKopf(k.lehrer, 6, kollegium ? 'lehrer' : null, !istEntfall())].filter(Boolean);
     // Badge statt Zusatzlabel: zusätzlicher Unterricht, Veranstaltung, Prüfung
     const badge = k.status === 'klausur' ? '<span class="sd-badge">PRÜFUNG</span>'
       : k.status === 'veranstaltung' ? '<span class="sd-badge voll">VERANSTALTUNG</span>'

@@ -83,6 +83,8 @@ struct Kachelteil: Hashable {
         case text
         case plakette
         case weg
+        /// Offene Vertretung: abwesende Lehrkraft durchgestrichen in grüner Plakette
+        case offen
     }
 
     var text: String
@@ -472,6 +474,10 @@ enum Kachelbau {
         let erste = typ == "klasse" ? "lehrer" : "klasse"
         let letzte = typ == "klasse" ? "klasse" : "lehrer"
         let reihenfolge = klasseOben ? ["klasse", "lehrer", "fach", "raum"] : [erste, "fach", "raum", letzte]
+        // Offene Vertretung (Karte „offen“ bzw. Lehrkraft ohne neuen Wert, alter Wert gesetzt): alte Lehrkraft
+        // immer durchgestrichen in grüner Plakette
+        let lehrerOffen = art != .entfall
+            && (k.status == "offen" || k.lehrer.contains { $0.k.isEmpty && !($0.alt ?? "").isEmpty })
 
         var ergebnis: [Kachelzeile] = []
         for (i, schluessel) in reihenfolge.enumerated() {
@@ -512,6 +518,15 @@ enum Kachelbau {
                         geaendertWert = true
                     } else {
                         zeile.teile = wertTeile(jetzt: jetzt, vorher: vorher, geaendert: geaendertWert)
+                    }
+                }
+                if lehrerOffen {
+                    for j in zeile.teile.indices where zeile.teile[j].stil == .weg {
+                        zeile.teile[j].stil = .offen
+                    }
+                    if zeile.teile.isEmpty {
+                        let offeneNamen = k.lehrer.compactMap { $0.k.isEmpty ? $0.alt : nil }.filter { !$0.isEmpty }
+                        zeile.teile = liste(offeneNamen, stil: .offen, trenner: ", ")
                     }
                 }
             case "klasse":

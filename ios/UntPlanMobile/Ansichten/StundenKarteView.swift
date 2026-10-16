@@ -16,10 +16,13 @@ struct KachelView: View {
     var hoehe: CGFloat = 60
 
     @Environment(\.colorScheme) private var schema
+    @Environment(\.horizontalSizeClass) private var groessenklasse
 
     private var dunkel: Bool { schema == .dark }
-    private var schrift: CGFloat { gross ? 15 : 12.4 }
-    private var zeilenHoehe: CGFloat { gross ? 19 : 14.3 }
+    /// iPhone-Woche: schmale Spalten, Schrift 11 pt (Tagesansicht bleibt groß).
+    private var kompakt: Bool { groessenklasse == .compact && !gross }
+    private var schrift: CGFloat { gross ? 15 : (kompakt ? 11 : 12.4) }
+    private var zeilenHoehe: CGFloat { gross ? 19 : (kompakt ? 13 : 14.3) }
 
     var body: some View {
         let a = Kachelaussehen(kachel, dunkel: dunkel)
@@ -43,10 +46,10 @@ struct KachelView: View {
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(balken)
                     .opacity(a.balkenDeckkraft)
-                    .frame(width: gross ? 4 : 3.5)
+                    .frame(width: gross ? 4 : (kompakt ? 3 : 3.5))
                     .padding(.top, 4.7)
                     .padding(.bottom, 4)
-                    .padding(.leading, 4)
+                    .padding(.leading, kompakt ? 3 : 4)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             }
             inhalt(a)
@@ -126,9 +129,9 @@ struct KachelView: View {
                         .padding(.trailing, 16)
                 }
             }
-            .padding(.leading, gross ? 14 : 11.5)
-            .padding(.top, gross ? 6 : 4.5)
-            .padding(.trailing, 4)
+            .padding(.leading, gross ? 14 : (kompakt ? 9 : 11.5))
+            .padding(.top, gross ? 6 : (kompakt ? 4 : 4.5))
+            .padding(.trailing, kompakt ? 2 : 4)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
@@ -288,9 +291,12 @@ struct KachelzeileView: View {
             case .plakette:
                 Plakettenwert(text: t.text)
             case .weg:
-                // Wegfallender Wert (z. B. abwesende Lehrkraft): durchgestrichen, ohne grüne Fläche
+                // Wegfallender Wert (z. B. vertretene Lehrkraft): durchgestrichen, ohne grüne Fläche
                 Text(t.text)
                     .strikethrough(true)
+            case .offen:
+                // Offene Vertretung: abwesende Lehrkraft durchgestrichen in grüner Plakette
+                Plakettenwert(text: t.text, durchgestrichen: true)
             }
         }
     }
@@ -588,10 +594,12 @@ struct Kuerzungszeichen: View {
 struct Plakettenwert: View {
     let text: String
     var farbe: Color = Farben.gruen
+    var durchgestrichen: Bool = false
 
     var body: some View {
         Text(text)
             .fontWeight(.medium)
+            .strikethrough(durchgestrichen, color: Farben.gruenSchrift)
             .foregroundStyle(Farben.gruenSchrift)
             .padding(.horizontal, 2.27)
             .padding(.top, 0.33)

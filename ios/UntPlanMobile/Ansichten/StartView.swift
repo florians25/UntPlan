@@ -79,7 +79,7 @@ struct StartView: View {
             .sheet(item: $gewaehlteKarte) { karte in
                 StundendetailView(karte: karte, typ: heute?.typ ?? "klasse", element: heute?.element ?? "")
                     .environmentObject(zustand)
-                    .festesBlatt(breit: groessenklasse == .regular)
+                    .detailBlatt(breit: groessenklasse == .regular)
             }
         }
     }
@@ -495,7 +495,7 @@ struct NaechsteStunde: View {
         if stil.durchgestrichen {
             return Text(werteKurz(werte)).strikethrough(true)
         }
-        return werteText(werte)
+        return werteText(werte, offen: werte == karte.lehrer && istOffeneVertretung(karte))
     }
 }
 
@@ -757,7 +757,7 @@ struct Stundenzeile: View {
                     .lineLimit(1)
                 let unten = zeilen.filter { !$0.isEmpty }
                 if !unten.isEmpty {
-                    unten.dropFirst().reduce(werteText(unten[0])) { $0 + Text(" · ") + werteText($1) }
+                    unten.dropFirst().reduce(werteText(unten[0], offen: offen(unten[0]))) { $0 + Text(" · ") + werteText($1, offen: offen($1)) }
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -775,6 +775,10 @@ struct Stundenzeile: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
+    }
+
+    private func offen(_ werte: [Wert]) -> Bool {
+        werte == karte.lehrer && istOffeneVertretung(karte)
     }
 }
 

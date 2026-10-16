@@ -963,6 +963,32 @@ struct Vermerkliste: Decodable, Sendable {
     }
 }
 
+/// Zuordnung eines Klassendienstes (z. B. Klassensprecher*in) zu einer Schülerin bzw. einem Schüler.
+struct Klassendienstzuordnung: Decodable, Sendable {
+    var schuelerId: Int
+    var dienst: String
+
+    enum CodingKeys: String, CodingKey { case schuelerId, dienst }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schuelerId = c.zahl(.schuelerId) ?? 0
+        dienst = c.text(.dienst)
+    }
+}
+
+/// GET /api/app/klassendienste (nur Kollegium)
+struct Klassendienstliste: Decodable, Sendable {
+    var zuordnungen: [Klassendienstzuordnung]
+
+    enum CodingKeys: String, CodingKey { case zuordnungen }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        zuordnungen = c.liste(.zuordnungen)
+    }
+}
+
 // MARK: - Allgemeine Antworten
 
 struct OkAntwort: Decodable, Sendable {

@@ -1,8 +1,8 @@
 // Heute – Startseite wie im Original (UW-05): „Heute 15.10.2026“, letzte Anmeldung und Planaktualisierung, „Nachrichten“ mit
-// RSS-Symbol und Stift (formatierte Tagestexte, sicher bereinigt) und „Mein nächster Unterricht“ als alte Liste mit Auswahl,
-// Art, Std., Von, Bis, Klasse, Lehrkraft, Fach, Raum, Symbolen, Klassenbuch, Lehrstoff und Hausaufgaben. Entfall grau
-// durchgestrichen, Änderungen als lila Zeile.
-import { e, icon, holen, WOCHENTAGE } from '../ui.js';
+// RSS-Symbol und Stift (formatierte Tagestexte, sicher bereinigt) und „Mein nächster Unterricht“ im neuen Listen-Design
+// (nl-tabelle): Uhrzeit, Stunde, Fach, Klasse, Raum, ggf. Lehrkraft, Status-Labels und Klassenbuch-Stand. Entfall grau
+// durchgestrichen, Vertretungen mit grünen Labels wie auf den Plankarten.
+import { e, icon, holen, WOCHENTAGE, lehrkraftLabel } from '../ui.js';
 import { RSS } from '../symbole.js';
 import { karteDialog } from '../plangitter.js';
 
@@ -47,9 +47,28 @@ function htmlBereinigt(n) {
   return div.innerHTML;
 }
 
-const wert = l => (l || []).map(w => w.alt && !w.k ? `<s>${e(w.alt)}</s>` : w.alt ? `<span title="${e(w.alt)} → ${e(w.k)}">${e(w.k)}</span>` : e(w.k)).join(', ');
+/** Werte (Klassen, Lehrkräfte, Räume) wie auf den Plankarten: geänderter Wert als grünes Label, offene Vertretung durchgestrichen im Label. */
+const wert = (l, entfall = false, max = 4) => {
+  const teile = (l || []).map(w => entfall ? e(w.alt || w.k) : lehrkraftLabel(w)).filter(Boolean);
+  return teile.length > max ? `${teile.slice(0, max - 1).join(', ')} <span class="nl-unter" data-hover="${e((l || []).map(w => w.k || w.alt).join(', '))}" data-hover-art="dunkel">+${teile.length - max + 1}</span>` : teile.join(', ');
+};
 const istEntfall = s => s.status === 'entfall';
-const istAenderung = s => ['geaendert', 'offen', 'veranstaltung', 'abwesend', 'klausur', 'buchung'].includes(s.status);
+
+/** Status-Label einer Stunde (Farben wie die übrigen neuen Listen). */
+function statusLabels(s) {
+  const l = [];
+  const chip = (farbe, text, hover = '') => `<span class="nl-chip ${farbe}"${hover ? ` data-hover="${e(hover)}" data-hover-art="dunkel"` : ''}>${text}</span>`;
+  if (s.status === 'entfall') l.push(chip('rot', 'Entfall'));
+  else if (s.status === 'offen' || s.vertretungOffen) l.push(chip('gelb', 'Vertretung offen'));
+  else if (s.status === 'abwesend') l.push(chip('grau', 'vertreten'));
+  else if (s.status === 'klausur') l.push(chip('gelb', 'Prüfung'));
+  else if (s.status === 'veranstaltung') l.push(chip('grau', 'Veranstaltung'));
+  else if (s.status === 'buchung') l.push(chip('grau', 'Raumbuchung'));
+  else if (s.status === 'vorgemerkt') l.push(chip('grau', 'vorgemerkt'));
+  else if (s.status === 'geaendert') l.push(chip('lila', s.zusaetzlich ? 'Zusätzlich' : 'Änderung', s.art || ''));
+  if (s.online && !istEntfall(s)) l.push(chip('gruen', 'Online', 'Findet online statt'));
+  return l.join('');
+}
 
 export async function zeigen(seite, kontext) {
   const ich = kontext.ich;
@@ -61,23 +80,36 @@ export async function zeigen(seite, kontext) {
         : `<details class="heute-nachricht"><summary>${e(n.betreff)}</summary><div>${tagestextHtml(n)}</div></details>`).join('')
     : '<div class="leer">Keine Tagesnachrichten</div>';
 
-  const stunden = d.stunden ?? [];
+  // nach Stunde sortiert (der Server liefert Karten gruppiert, z. B. Veranstaltungen zuerst); Entfall vor der Ersatzstunde
+  const stunden = (d.stunden ?? []).slice().sort((a, b) => a.stunde - b.stunde || (a.status === 'entfall' ? 0 : 1) - (b.status === 'entfall' ? 0 : 1));
   // Schüler*innen und Erziehungsberechtigte: nur Anmeldung, Planaktualisierung und Nachrichten (wie im Original)
   const mitStunden = !kontext.familie && !d.keinPlan && (stunden.length || ich.kollegium);
   const anderTag = d.tag && d.tag !== d.datum;
+  // Lehrkraft-Spalte nur, wenn sie etwas aussagt (Vertretung, Kopplung, Schüler*innen-Ansicht)
+  const mitLehrkraft = !ich.kollegium || stunden.some(s => (s.lehrer || []).length > 1 || (s.lehrer || []).some(w => w.alt || w.neu));
   const zeile = (s, i) => {
+    const entfall = istEntfall(s);
     const info = [s.text && s.fach ? `Vertretungstext: ${s.text}` : '', s.notizLehrer ? `Notizen für Lehrkräfte: ${s.notizLehrer}` : '', s.notizSchueler ? `Notizen für Schüler*innen: ${s.notizSchueler}` : ''].filter(Boolean).join('\n');
-    const mitKb = ich.kollegium && s.unterricht && !istEntfall(s) && s.status !== 'abwesend';
-    return `<tr class="${istEntfall(s) ? 'entfall' : istAenderung(s) ? 'aenderung' : ''}" data-i="${i}">
-      <td class="mitte"><input type="checkbox" data-wahl aria-label="Stunde ${s.stunde} auswählen"></td>
-      <td class="art"><img src="${L}lesson-type.png" alt="" title="${e(s.art || 'Unterricht')}">${istEntfall(s) ? `<img src="${L}delete-red.png" alt="Entfall" title="Entfall" class="x">` : ''}</td>
-      <td class="mitte">${s.stunde}</td><td>${e(s.beginn)}</td><td>${e(s.ende)}</td>
-      <td>${wert(s.klassen)}</td><td>${wert(s.lehrer)}</td>
-      <td>${s.fachAlt ? `<span title="${e(s.fachAlt)} → ${e(s.fach)}">${e(s.fach)}</span>` : e(s.fach || s.text || s.art)}</td><td class="raum">${wert(s.raeume)}</td>
-      <td><span class="symbole">${s.online ? '<span class="h-online" title="Findet online statt">@</span>' : ''}${info ? `<img src="${L}info.png" alt="" title="${e(info)}">` : ''}${s.hausaufgabeFaellig ? `<img src="${L}question.png" alt="" title="Hausaufgabe fällig">` : ''}</span></td>
-      <td class="mitte">${mitKb ? `<img src="${L}${s.geprueft ? 'absence-sick.png' : 'absence-sick.png'}" alt="" title="${s.geprueft ? 'Abwesenheiten kontrolliert' : 'Abwesenheiten noch nicht kontrolliert'}" class="${s.geprueft ? '' : 'blass'}">` : ''}</td>
-      <td class="stoff">${s.unterricht && !istEntfall(s) && s.status !== 'abwesend' && (s.lehrstoff || ich.kollegium) ? `<img src="${L}${s.lehrstoff ? 'lehrstoff.png' : 'lehrstoff-warning.png'}" alt="" title="${s.lehrstoff ? 'Lehrstoff eingetragen' : 'Kein Lehrstoff eingetragen'}"> <span title="${e(s.lehrstoff)}">${e(s.lehrstoff)}</span>` : ''}</td>
-      <td class="mitte">${s.hausaufgabe ? `<img src="${L}homework.png" alt="" title="${e(s.hausaufgabe)}">` : ''}</td></tr>`;
+    const mitKb = ich.kollegium && s.unterricht && !entfall && s.status !== 'abwesend';
+    const fach = s.fachAlt && !entfall ? lehrkraftLabel({ k: s.fach, alt: s.fachAlt }) : e(s.fach || s.text || s.art || '–');
+    const kb = [
+      mitKb ? (s.geprueft ? '<span class="nl-chip gruen" data-hover="Abwesenheiten kontrolliert" data-hover-art="dunkel"><i class="bi bi-check2" aria-hidden="true"></i>Anwesenheit</span>'
+        : '<span class="nl-chip grau" data-hover="Abwesenheiten noch nicht kontrolliert" data-hover-art="dunkel">Anwesenheit offen</span>') : '',
+      s.unterricht && !entfall && s.status !== 'abwesend' && s.lehrstoff ? `<span class="hu-stoff" data-hover="${e(s.lehrstoff)}" data-hover-art="dunkel"><i class="bi bi-card-text" aria-hidden="true"></i>${e(s.lehrstoff)}</span>`
+        : mitKb ? '<span class="nl-chip gelb">Kein Lehrstoff</span>' : '',
+      s.hausaufgabe ? `<span class="nl-chip grau" data-hover="${e(s.hausaufgabe)}" data-hover-art="dunkel"><i class="bi bi-house" aria-hidden="true"></i>Hausaufgabe</span>` : '',
+      s.hausaufgabeFaellig ? '<span class="nl-chip lila" data-hover="Zu dieser Stunde ist eine Hausaufgabe fällig" data-hover-art="dunkel">HA fällig</span>' : '',
+    ].filter(Boolean).join('');
+    return `<tr class="${entfall ? 'entfall' : ''}" data-i="${i}" tabindex="0">
+      <td class="hu-zeit"><span class="nl-name">${e(s.beginn)}</span><span class="nl-unter">${e(s.ende)}</span></td>
+      <td class="hu-std nl-unter">${s.stunde}.</td>
+      <td class="hu-fach"><span class="hu-balken" style="${/^#[0-9a-f]{6}$/i.test(s.farbe || '') ? `--fach:${s.farbe}` : ''}"></span><span class="hu-wert">${fach}</span>${s.fachName && s.fachName !== s.fach && !entfall ? `<span class="nl-unter">${e(s.fachName)}</span>` : ''}</td>
+      <td class="hu-wert">${wert(s.klassen, entfall) || '–'}</td>
+      <td class="hu-wert">${wert(s.raeume, entfall) || '–'}</td>
+      ${mitLehrkraft ? `<td class="hu-wert">${wert(s.lehrer, entfall) || '–'}</td>` : ''}
+      <td><span class="nl-chips">${statusLabels(s)}</span></td>
+      ${ich.kollegium ? `<td><span class="nl-chips hu-kb">${kb}</span></td>` : ''}
+      <td class="hu-info">${info ? `<i class="bi bi-info-circle" data-hover="${e(info)}" data-hover-art="dunkel" aria-label="Info"></i>` : ''}</td></tr>`;
   };
   seite.innerHTML = `
     <h1 class="heute-titel">Heute <span>${datumDe(d.datum)}</span></h1>
@@ -96,8 +128,8 @@ export async function zeigen(seite, kontext) {
         <a class="ms-auto fw-bold" href="#/offen">Offene Stunden</a></section>` : ''}
       ${mitStunden ? `<section class="heute-karte">
         <header>${ich.kollegium ? 'Mein nächster Unterricht' : 'Nächster Unterricht'}${anderTag ? ` <span class="h-tag">${e(WOCHENTAGE[(new Date(d.tag + 'T12:00').getDay() + 6) % 7])}, ${datumDe(d.tag)}</span>` : ''}</header>
-        ${stunden.length ? `<div class="table-responsive"><table class="heute-liste"><thead><tr>
-              <th class="mitte">Auswahl</th><th>Art</th><th class="mitte">Std.</th><th>Von</th><th>Bis</th><th>Klasse</th><th>Lehrkraft</th><th>Fach</th><th>Raum</th><th></th><th>Klassenbuch</th><th>Lehrstoff</th><th>Hausaufgaben</th></tr></thead><tbody>
+        ${stunden.length ? `<div class="nl-tabelle heute-unterricht"><table><thead><tr>
+              <th>Uhrzeit</th><th>Std.</th><th>Fach</th><th>Klasse</th><th>Raum</th>${mitLehrkraft ? '<th>Lehrkraft</th>' : ''}<th>Status</th>${ich.kollegium ? '<th>Klassenbuch</th>' : ''}<th><span class="visually-hidden">Info</span></th></tr></thead><tbody>
             ${stunden.map(zeile).join('')}</tbody></table></div>`
           : `<div class="heute-nachrichten"><div class="leer">${d.frei ? `Heute ist unterrichtsfrei (${e(d.frei)}).` : 'In den nächsten Tagen ist kein Unterricht eingetragen.'}</div></div>`}
       </section>` : ''}
@@ -108,11 +140,14 @@ export async function zeigen(seite, kontext) {
   const karten = stunden.map(s => ({
     datum: d.tag ?? d.datum, von: s.von, bis: s.bis, beginn: s.beginn, ende: s.ende, status: s.status, fach: s.fach, fachName: s.fachName, fachAlt: s.fachAlt, farbe: s.farbe,
     klassen: s.klassen, lehrer: s.lehrer, raeume: s.raeume, art: s.art, text: s.text, unterricht: s.unterricht, gruppe: s.gruppe, zusaetzlich: s.zusaetzlich,
-    notizSchueler: s.notizSchueler, notizLehrer: s.notizLehrer,
+    notizSchueler: s.notizSchueler, notizLehrer: s.notizLehrer, lehrerAbwesend: s.lehrerAbwesend, vertretungOffen: s.vertretungOffen,
   }));
-  seite.querySelectorAll('[data-i]').forEach(tr => tr.onclick = ev => {
-    if (ev.target.closest('[data-wahl]')) { tr.classList.toggle('gewaehlt', ev.target.checked); return; }
+  const oeffnen = tr => {
     const k = karten[Number(tr.dataset.i)];
     karteDialog(k, { ...kontext, liste: karten.filter((x, i, a) => a.findIndex(y => y.von === x.von && y.unterricht === x.unterricht && y.status === x.status) === i) });
+  };
+  seite.querySelectorAll('[data-i]').forEach(tr => {
+    tr.onclick = () => oeffnen(tr);
+    tr.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); oeffnen(tr); } };
   });
 }

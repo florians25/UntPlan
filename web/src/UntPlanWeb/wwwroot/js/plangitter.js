@@ -38,6 +38,7 @@ export function werte(liste, entfall = false) {
   return (liste || []).map(w => {
     if (entfall) return e(w.alt || w.k);
     if (w.alt && !w.k) return `<span class="lbl weg">${e(w.alt)}</span>`;
+    if (!w.k && w.neu) return '<span class="lbl">???</span>';
     if (w.alt) return `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k))}">${e(w.k)}</span>`;
     if (w.neu) return `<span class="lbl" data-hover="${e('+ ' + w.k)}">${e(w.k)}</span>`;
     return e(w.k);
