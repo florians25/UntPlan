@@ -84,15 +84,20 @@ public class PruefungsWegTests
     private static object Alt(DateOnly tag, int von, int bis, string[] klassen, string titel) =>
         new { datum = tag.ToString("yyyy-MM-dd"), stundeVon = von, stundeBis = bis, klassen, titel };
 
-    /// <summary>Im Plan der Klasse: genau eine Prüfungskarte im Zeitraum, kein Entfall, Raum wie erwartet.</summary>
+    /// <summary>
+    /// Im Plan der Klasse: in jeder Stunde des Zeitraums genau eine Prüfungskarte (bei verschiedenen Unterrichten je Stunde die
+    /// Stundenkarte als Prüfung), kein Entfall, Raum wie erwartet.
+    /// </summary>
     private static Karte EinePruefung(Ablauf a, DateOnly tag, string klasse, int von, int bis, string raum)
     {
         var karten = a.Karten(tag, Elementtyp.Klasse, klasse, von, bis);
-        Assert.DoesNotContain(karten, x => x.Status == "entfall");
-        var k = Assert.Single(karten, x => x.Status == "klausur");
-        Assert.True(k.Von <= von && k.Bis >= bis, $"Prüfung {k.Von}-{k.Bis} deckt {von}-{bis} nicht ab");
-        Assert.Contains(k.Raeume, w => w.K == raum);
-        return k;
+        var info = string.Join("\n", karten.Select(x => System.Text.Json.JsonSerializer.Serialize(x)));
+        Assert.False(karten.Any(x => x.Status == "entfall"), info);
+        for (var h = von; h <= bis; h++)
+            Assert.True(karten.Count(x => x.Status == "klausur" && x.Von <= h && x.Bis >= h) == 1, $"Stunde {h}:\n{info}");
+        var pruefungen = karten.Where(x => x.Status == "klausur").ToList();
+        Assert.All(pruefungen, k => Assert.Contains(k.Raeume, w => w.K == raum));
+        return pruefungen[0];
     }
 
     /// <summary>Keine Prüfung und kein Entfall mehr: der Unterricht findet regulär statt.</summary>
