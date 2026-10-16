@@ -6,7 +6,7 @@ using UntPlan.Web.Contracts;
 namespace UntPlan.App.Dialoge;
 
 /// <summary>
-/// Fenster „UntPlanWeb“ (wie „WebUntis“ in Untis):
+/// Fenster „UntPlanWeb“ (wie „Webportal“ in Vorbild):
 /// <list type="bullet">
 /// <item>Oben links „Einstellungen“ und der Exportstatus, oben rechts Schulname, Server:Port und Schul-ID.</item>
 /// <item>Reiter „UntPlanWeb“ mit der Gruppe „UntPlanWeb Import/Export“: Anfangsdatum für die mit * markierten Daten,
@@ -18,7 +18,7 @@ namespace UntPlan.App.Dialoge;
 /// </summary>
 public sealed class UntPlanWebDialog : Dialog
 {
-    // Untis-Optik des Fensters „WebUntis“: hellgrüner Hintergrund, hervorgehobene Knöpfe grün
+    // Vorbild-Optik des Fensters „Webportal“: hellgrüner Hintergrund, hervorgehobene Knöpfe grün
     // Farben passen sich dem Modus an: Vertretungsmodus mintgrün wie die übrigen Fenster, Stundenplanmodus Petrol
     internal static Color Hintergrund => Ui.Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(232, 242, 246);
     internal static Color KnopfGruen => Ui.Vertretungsmodus ? Color.FromArgb(199, 222, 213) : Color.FromArgb(201, 228, 236);
@@ -53,7 +53,7 @@ public sealed class UntPlanWebDialog : Dialog
     private bool _fuellen;
     private static string? _schulnameServer;
 
-    private sealed record Zeile(string Teil, bool Export, Label Titel, Label Datum, UntisKnopf Knopf);
+    private sealed record Zeile(string Teil, bool Export, Label Titel, Label Datum, KlassikKnopf Knopf);
 
     private static Schuldatei D => AppZustand.D;
     private static PortalEinstellungen P => AppZustand.D.Einstellungen.Portal;
@@ -68,7 +68,7 @@ public sealed class UntPlanWebDialog : Dialog
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape && !_laeuft) { e.Handled = true; Close(); } };
 
         // ---------------------------------------------------------------- oben links: Einstellungen und Exportstatus
-        var einstellungen = new UntisKnopf("Einstellungen", dauerhaftGruen: true) { Left = 22, Top = 22, Width = 130, Height = 26 };
+        var einstellungen = new KlassikKnopf("Einstellungen", dauerhaftGruen: true) { Left = 22, Top = 22, Width = 130, Height = 26 };
         einstellungen.Click += (_, _) => EinstellungenOeffnen();
         _tipp.SetToolTip(einstellungen, "Verbindung zu UntPlanWeb (Server, Port, Schul-ID, API-Schlüssel) und Exportoptionen");
         _links.Controls.Add(einstellungen);
@@ -101,7 +101,7 @@ public sealed class UntPlanWebDialog : Dialog
         {
             var t = new Label { Text = titel, Left = 14, Top = y + 5, Width = 132, Height = 18 };
             var d = new Label { Left = 148, Top = y + 5, Width = 260, Height = 18, Font = Ui.SchriftFett };
-            var k = new UntisKnopf(export ? "Exportieren" : "Importieren") { Left = export ? 434 : 542, Top = y, Width = 104, Height = 26 };
+            var k = new KlassikKnopf(export ? "Exportieren" : "Importieren") { Left = export ? 434 : 542, Top = y, Width = 104, Height = 26 };
             k.Click += async (_, _) => await Ausfuehren(teil, export);
             _tipp.SetToolTip(t, tipp);
             gruppe.Controls.AddRange(new Control[] { t, d, k });
@@ -111,8 +111,8 @@ public sealed class UntPlanWebDialog : Dialog
             return z;
         }
         Neu("Stammdaten", WebTeile.Stammdaten, true, "Schule, Zeitraster, Klassen, Lehrkräfte, Räume, Fächer, Gänge, Ferien (und Schüler, falls freigegeben)");
-        Neu("Unterricht*", WebTeile.Unterricht, true, "Perioden mit Unterricht und Stundenplan sowie Pausenaufsichten");
-        var vertretungen = Neu("Vertretungen*", WebTeile.Vertretungen, true, "Tagesaktuelle Pläne, Vertretungen, Absenzen, Termine und Tagestexte");
+        Neu("Stundenplan*", WebTeile.Unterricht, true, "Perioden mit Unterricht und Stundenplan sowie Pausenaufsichten – Stundenplanänderungen gehen nur hiermit an UntPlanWeb");
+        var vertretungen = Neu("Vertretungen*", WebTeile.Vertretungen, true, "Vertretungen, Absenzen, Termine und Tagestexte – nur die geänderten Stunden, ohne Stundenplanänderungen");
         var stpl = Neu("Stpl.-Änderungen*", Stpl, false, "Raumänderungen, Buchungen (zusätzliche Unterrichte) und Prüfungen aus UntPlanWeb");
         stpl.Datum.Font = Ui.Schrift;
         stpl.Datum.Width = 230;
@@ -141,7 +141,7 @@ public sealed class UntPlanWebDialog : Dialog
         gruppe.Controls.Add(_meldung);
 
         Anzeigen();
-        // wie in Untis ist der aktive Knopf hervorgehoben – zu Beginn „Vertretungen exportieren“ (häufigste Aktion)
+        // wie im Vorbild ist der aktive Knopf hervorgehoben – zu Beginn „Vertretungen exportieren“ (häufigste Aktion)
         ActiveControl = vertretungen.Knopf;
     }
 
@@ -157,7 +157,7 @@ public sealed class UntPlanWebDialog : Dialog
     protected override async void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        // Schulname laut UntPlanWeb (wie Untis den Schulnamen aus WebUntis zeigt); ohne Server bleibt der Name der Schuldatei
+        // Schulname laut UntPlanWeb (wie im Vorbild den Schulnamen aus Webportal zeigt); ohne Server bleibt der Name der Schuldatei
         if (Ui.FehlerProtokoll != null || string.IsNullOrWhiteSpace(P.Adresse)) return;
         var name = await UntPlanWebExport.SchulnameAsync(P);
         if (name is null || IsDisposed) return;
@@ -272,7 +272,7 @@ public sealed class UntPlanWebDialog : Dialog
 
     // ------------------------------------------------------------------------------------------ Statuszeile
 
-    /// <summary>Kleines Fortschrittsfenster wie in Untis („Unterrichtsbestandteile werden konvertiert (153 von 238)“).</summary>
+    /// <summary>Kleines Fortschrittsfenster wie im Vorbild („Unterrichtsbestandteile werden konvertiert (153 von 238)“).</summary>
     private UploadFortschritt? _popup;
 
     /// <summary>Fortschritt anzeigen (Wert 0–100 und Text des Arbeitsschritts): während der Arbeit im eigenen kleinen Fenster, am Ende in der Statuszeile.</summary>
@@ -403,12 +403,12 @@ public sealed class UntPlanWebDialog : Dialog
         return $"An UntPlanWeb übertragen ({(teil.Length == 0 ? "alles" : teil)}, Revision {P.Revision}) um {DateTime.Now:HH:mm}";
     }
 
-    /// <summary>Meldung nach erfolgreicher Übertragung (wie Untis nach dem Export nach WebUntis).</summary>
+    /// <summary>Meldung nach erfolgreicher Übertragung (wie im Vorbild nach dem Export nach Webportal).</summary>
     private static void Erfolgsmeldung() => Ui.Info("Die Datenübertragung nach UntPlanWeb war erfolgreich!", "UntPlan - Frage");
 
     private static string TeilName(string teil) => teil switch
     {
-        WebTeile.Stammdaten => "Stammdaten", WebTeile.Unterricht => "Unterricht", WebTeile.Vertretungen => "Vertretungen", "" => "Alle Daten", _ => teil,
+        WebTeile.Stammdaten => "Stammdaten", WebTeile.Unterricht => "Unterricht/Stundenplan", WebTeile.Vertretungen => "Vertretungen", "" => "Alle Daten", _ => teil,
     };
 
     private async Task Exportieren(string teil)
@@ -511,7 +511,7 @@ public sealed class UntPlanWebDialog : Dialog
 
     // ------------------------------------------------------------------------------------------ Steuerelemente
 
-    /// <summary>Kleines randloses Fortschrittsfenster (Text und grüner Balken) über dem Dialog, wie in Untis beim Export.</summary>
+    /// <summary>Kleines randloses Fortschrittsfenster (Text und grüner Balken) über dem Dialog, wie im Vorbild beim Export.</summary>
     internal sealed class UploadFortschritt : Form
     {
         private readonly Label _text = new() { Left = 18, Top = 22, Width = 300, Height = 18, Font = Ui.SchriftKlein };
@@ -554,13 +554,13 @@ public sealed class UntPlanWebDialog : Dialog
         }
     }
 
-    /// <summary>Knopf in Untis-Optik: weiß mit grauem Rand, unter der Maus bzw. aktiv grün mit dunkelgrünem Rand.</summary>
-    internal sealed class UntisKnopf : Button
+    /// <summary>Knopf in Vorbild-Optik: weiß mit grauem Rand, unter der Maus bzw. aktiv grün mit dunkelgrünem Rand.</summary>
+    internal sealed class KlassikKnopf : Button
     {
         private readonly bool _dauerhaftGruen;
         private bool _maus;
 
-        public UntisKnopf(string text, bool dauerhaftGruen = false)
+        public KlassikKnopf(string text, bool dauerhaftGruen = false)
         {
             Text = text;
             _dauerhaftGruen = dauerhaftGruen;

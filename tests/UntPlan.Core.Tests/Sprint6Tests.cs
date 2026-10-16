@@ -4,7 +4,7 @@ using Xunit;
 
 namespace UntPlan.Core.Tests;
 
-/// <summary>Sprint 6: Stundenplanformat wie Untis (Auswahl (Bereich), Layout 1/2, HTML, Grundformen, Stundenplan-Stunde).</summary>
+/// <summary>Sprint 6: Stundenplanformat wie im Vorbild (Auswahl (Bereich), Layout 1/2, HTML, Grundformen, Stundenplan-Stunde).</summary>
 public class Sprint6Tests
 {
     [Theory]
@@ -13,7 +13,7 @@ public class Sprint6Tests
     [InlineData(" 1; 7 ", new[] { 1, 7 })]
     [InlineData("", new int[0])]
     [InlineData("x,2", new[] { 2 })]
-    public void StundenListe_liest_Untis_Schreibweisen(string text, int[] erwartet) =>
+    public void StundenListe_liest_Vorbild_Schreibweisen(string text, int[] erwartet) =>
         Assert.Equal(erwartet.OrderBy(x => x), StundenplanFormat.StundenListe(text).OrderBy(x => x));
 
     [Fact]
@@ -40,7 +40,7 @@ public class Sprint6Tests
     }
 
     [Fact]
-    public void Aeltere_Formate_ohne_neue_Felder_behalten_die_Untis_Vorgaben()
+    public void Aeltere_Formate_ohne_neue_Felder_behalten_die_Vorbild_Vorgaben()
     {
         var z = JsonSerializer.Deserialize<StundenplanFormat>("""{"Name":"Alt","Schriftgroesse":9}""", Dokument.JsonOptionen)!;
         Assert.Equal(Grundform.Format01, z.Grundform);
@@ -51,7 +51,7 @@ public class Sprint6Tests
     }
 
     [Fact]
-    public void Grundform_Titel_wie_im_Untis_Dialog()
+    public void Grundform_Titel_wie_im_Vorbild_Dialog()
     {
         Assert.Equal("Format 01 - Einzelstundenplan Tage waagrecht, Stunden senkrecht", StundenplanFormat.GrundformText(Grundform.Format01));
         Assert.StartsWith("Format 10 - ", StundenplanFormat.GrundformText(Grundform.Format10));

@@ -7,7 +7,7 @@ using UntPlan.Core.Vertretungsplanung;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Absenzen / Lehrer | Klassen | Räume (Reiter mit Anzahl wie in Untis). Direkte Eingabe in der Liste – Änderungen einer Zeile
+/// Absenzen / Lehrer | Klassen | Räume (Reiter mit Anzahl wie im Vorbild). Direkte Eingabe in der Liste – Änderungen einer Zeile
 /// werden beim Verlassen der Zeile (auch beim Reiter- oder Datumswechsel, beim Verlassen und Schließen des Fensters) übernommen.
 /// Überlappt eine Lehrer-Absenz mit einer Veranstaltung, wird gefragt, ob die Lehrkraft aus der Veranstaltung entfernt werden soll.
 /// </summary>
@@ -516,7 +516,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
     }
 
     /// <summary>
-    /// Lehrer-Absenzen, die mit einer Veranstaltung überlappen: wie Untis nachfragen, ob die Lehrkraft aus der Veranstaltung
+    /// Lehrer-Absenzen, die mit einer Veranstaltung überlappen: wie im Vorbild nachfragen, ob die Lehrkraft aus der Veranstaltung
     /// entfernt werden soll (nur für die Tage der Absenz). Bei Ja bleibt ihr Platz als „?“ offen.
     /// </summary>
     internal static void VeranstaltungenPruefen(IWin32Window owner, IEnumerable<Abwesenheit> absenzen, Func<string, Action<Schuldatei>, bool> aendern)

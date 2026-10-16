@@ -11,7 +11,7 @@ namespace UntPlan.App.Druck;
 
 /// <summary>
 /// Aushang des Vertretungsplans (Klassen- oder Lehrerversion), je Tag eine neue Seite – gestaltet über das Seitenlayout
-/// (<see cref="SeitenlayoutFenster"/>) wie in Untis.
+/// (<see cref="SeitenlayoutFenster"/>) wie im Vorbild.
 /// <list type="bullet">
 /// <item>Kopf: Schule, Schuljahr, Programm, Adresse und Druckzeitpunkt; Titel „… Klassen am: 24.9. / Donnerstag“.</item>
 /// <item>Nachrichten zum Tag (grauer Kasten); blockierte Räume, abwesende Klassen bzw. Lehrer (mit Absenzgrund) im Rahmen.</item>

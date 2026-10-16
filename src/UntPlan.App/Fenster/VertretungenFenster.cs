@@ -27,7 +27,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private bool _sortierenAusstehend;
     /// <summary>Wert der Zelle beim Beginn der Bearbeitung (unveränderte Zellen lösen keine Änderung aus).</summary>
     private string? _wertVorher;
-    /// <summary>Sortierung per Klick auf die Spaltenüberschrift (wie in Untis); null = Standard (Datum, Klasse bzw. Lehrer, Stunde).</summary>
+    /// <summary>Sortierung per Klick auf die Spaltenüberschrift (wie im Vorbild); null = Standard (Datum, Klasse bzw. Lehrer, Stunde).</summary>
     private string? _sortSpalte;
     private bool _sortAbsteigend;
     private readonly CheckBox _kollisionen = new() { Text = "Kollisionen", AutoSize = true };
@@ -38,7 +38,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Zusammengefasste Zeilen einer Veranstaltung (je Tag eine Zeile): Stellvertreter-Id → alle Stundenzeilen.</summary>
     private readonly Dictionary<int, List<Vertretung>> _gruppen = new();
     /// <summary>
-    /// Tausch/Verlegung wie Untis in einer Zeile: zur ankommenden Stunde (Schlüssel) die an derselben Position wegverlegte
+    /// Tausch/Verlegung wie im Vorbild in einer Zeile: zur ankommenden Stunde (Schlüssel) die an derselben Position wegverlegte
     /// Stunde (Entfall mit „(Le.) nach“), deren Lehrer, Fach, Raum und Klassen in den Klammerspalten stehen.
     /// </summary>
     private readonly Dictionary<int, Vertretung> _weg = new();
@@ -122,7 +122,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _offen.Padding = _kollisionen.Padding = new Padding(2, 4, 6, 0);
         filter.Controls.Add(Gruppe("Ansicht einschränken auf …", _offen, _kollisionen));
 
-        // Fußleiste wie Untis: Vtr-Nr. links, Ansicht ganz rechts (keine Zeilen-/Offen-Zählung)
+        // Fußleiste wie im Vorbild: Vtr-Nr. links, Ansicht ganz rechts (keine Zeilen-/Offen-Zählung)
         var unten = new Steuerelemente.Fussleiste { BackColor = Ui.Kopf };
         var links = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(4, 5, 0, 0), WrapContents = false, BackColor = Ui.Kopf };
         links.Controls.Add(new Label { Text = "Vtr-Nr.:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
@@ -155,10 +155,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             c.Width = breite;
             c.ReadOnly = lesbar;
             c.SortMode = DataGridViewColumnSortMode.Programmatic;
-            // bearbeitbare Felder: im Vertretungsmodus weiß wie Untis (nicht bearbeitbare grünlich, siehe Auswahlbreite.ZellFarben)
+            // bearbeitbare Felder: im Vertretungsmodus weiß wie im Vorbild (nicht bearbeitbare grünlich, siehe Auswahlbreite.ZellFarben)
             if (!lesbar && !Ui.Vertretungsmodus) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
-        // Reihenfolge wie in Untis: Vtr-Nr. Art Datum Stunde (Fach) Fach (Lehrer) Vertreter (Klasse(n)) Klasse(n) (Raum) Raum Vertr. von (Le.) nach Text Statistik …
+        // Reihenfolge wie im Vorbild: Vtr-Nr. Art Datum Stunde (Fach) Fach (Lehrer) Vertreter (Klasse(n)) Klasse(n) (Raum) Raum Vertr. von (Le.) nach Text Statistik …
         for (var i = 0; i < Spalten.Length; i++) _g.Columns[Spalten[i].Name]!.DisplayIndex = i;
         _g.Columns["Nr"]!.Frozen = true;
         // Vertretungstext füllt die Restbreite, wird aber nie schmaler als 240 Pixel (sonst waagerecht blättern)
@@ -185,7 +185,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         };
         _g.EditingControlShowing += EditorZeigen;
         Steuerelemente.SuchKombi.Aktivieren(_g, VertreterStil);
-        // Auswahl aus der Liste (Maus bzw. Enter) wie in Untis sofort übernehmen: Bearbeitung beenden, die Zeile bleibt aktuell
+        // Auswahl aus der Liste (Maus bzw. Enter) wie im Vorbild sofort übernehmen: Bearbeitung beenden, die Zeile bleibt aktuell
         _g.CurrentCellDirtyStateChanged += (_, _) =>
         {
             if (_g.CurrentCell is DataGridViewComboBoxCell && _g.EditingControl is ComboBox { DroppedDown: false } && !_g.IsCurrentCellDirty)
@@ -270,7 +270,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>
-    /// Felder der Ansicht (wie Untis): Spaltenname, Überschrift, Bezeichnung im Dialog „Felder der Ansicht“, Breite, nur lesen,
+    /// Felder der Ansicht (wie im Vorbild): Spaltenname, Überschrift, Bezeichnung im Dialog „Felder der Ansicht“, Breite, nur lesen,
     /// standardmäßig aktiv, Anzeige wahlweise als Kurz- oder Langname.
     /// </summary>
     internal static readonly (string Name, string Kopf, string Feld, int Breite, bool Lesbar, bool Standard, bool Lang)[] Spalten =
@@ -549,13 +549,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     private bool Passt(Vertretung v)
     {
-        // Ansicht „Pausenaufsichten“ zeigt nur diese; in den übrigen Ansichten stehen sie wie in Untis mit in der Liste
+        // Ansicht „Pausenaufsichten“ zeigt nur diese; in den übrigen Ansichten stehen sie wie im Vorbild mit in der Liste
         if (_ansicht.SelectedIndex == 4 && v.Art != VertretungsArt.Pausenaufsicht) return false;
         // gerade bearbeitete Zeile bleibt bis zum Zeilenwechsel sichtbar, auch wenn sie nicht mehr zum Filter passt
         var behalten = _behalten.Enthaelt(v.Id);
         if (_offen.Checked && !v.OffenOderRaumOffen && !behalten) return false;
         if (_kollisionen.Checked && KollisionEinzeln(v) is null && !behalten) return false;
-        // wie Untis: Veranstaltungen selbst stehen nicht in der Vertretungsliste, nur die zugehörigen Freisetzungen/Entfälle
+        // wie im Vorbild: Veranstaltungen selbst stehen nicht in der Vertretungsliste, nur die zugehörigen Freisetzungen/Entfälle
         if (v.Art == VertretungsArt.Veranstaltung) return false;
         if (!ArtSichtbar(v.Art)) return false;
         // Bereitschaften und Unterricht, der nicht vertreten wird, stehen nicht in der Vertretungsliste
@@ -663,7 +663,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private IOrderedEnumerable<Vertretung> Richtung<T>(IEnumerable<Vertretung> liste, Func<Vertretung, T> schluessel) =>
         _sortAbsteigend ? liste.OrderByDescending(schluessel) : liste.OrderBy(schluessel);
 
-    /// <summary>Klick auf eine Spaltenüberschrift: nach dieser Spalte sortieren, erneuter Klick kehrt die Richtung um (wie in Untis).</summary>
+    /// <summary>Klick auf eine Spaltenüberschrift: nach dieser Spalte sortieren, erneuter Klick kehrt die Richtung um (wie im Vorbild).</summary>
     private void SortierenNach(string spalte)
     {
         if (_g.IsCurrentCellInEditMode && !_g.EndEdit()) return;
@@ -732,11 +732,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return res;
     }
 
-    /// <summary>Arten, bei denen Unterricht an eine andere Position kommt (geänderte Felder magenta wie in Untis).</summary>
+    /// <summary>Arten, bei denen Unterricht an eine andere Position kommt (geänderte Felder magenta wie im Vorbild).</summary>
     private static bool IstVerlegung(Vertretung v) => v.Art is VertretungsArt.Tausch or VertretungsArt.Verlegung or VertretungsArt.Verlegt;
 
     /// <summary>
-    /// Wie Untis: an einer Position, von der Unterricht weg- und auf die anderer Unterricht hinverlegt wurde (Stundentausch),
+    /// Wie Vorbild: an einer Position, von der Unterricht weg- und auf die anderer Unterricht hinverlegt wurde (Stundentausch),
     /// steht nur eine Zeile „Tausch“ bzw. „Verlegung“ – in Klammern der bisherige, daneben der neue Unterricht,
     /// „Vertr. von“ und „(Le.) nach“ in derselben Zeile. Bearbeitet wird die ankommende Stunde.
     /// </summary>
@@ -815,7 +815,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return new object?[]
         {
             v.Id == 0 ? "" : v.Id, Vertretungsplan.ArtText(D, v.Art), $"{v.Datum:dd.MM.}", tag, stunde, zeit,
-            // „Fach“ bleibt wie in Untis leer, solange kein Vertretungsfach eingetragen ist (der Druck setzt dann das ursprüngliche Fach ein)
+            // „Fach“ bleibt wie im Vorbild leer, solange kein Vertretungsfach eingetragen ist (der Druck setzt dann das ursprüngliche Fach ein)
             Anzeige(ElementTyp.Fach, (weg ?? v).FachId, "Fach"), neuesFach,
             lehrer, vertreter, Klassen((weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
             v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, (weg ?? v).RaumId, "Raum"), raumNeu,
@@ -828,15 +828,15 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         };
     }
 
-    /// <summary>Hintergrund des Vertreterfeldes einer Pausenaufsicht (wie in Untis türkis).</summary>
+    /// <summary>Hintergrund des Vertreterfeldes einer Pausenaufsicht (wie im Vorbild türkis).</summary>
     private static readonly Color PausenFarbe = Color.FromArgb(160, 236, 246);
 
-    /// <summary>Geänderte Felder bei Tausch/Verlegung (Untis: magenta, in der markierten Zeile lila).</summary>
+    /// <summary>Geänderte Felder bei Tausch/Verlegung (Vorbild: magenta, in der markierten Zeile lila).</summary>
     internal static readonly Color VerlegungsFarbe = Color.FromArgb(255, 128, 255);
     internal static readonly Color VerlegungsFarbeMarkiert = Color.FromArgb(212, 166, 223);
 
     /// <summary>
-    /// Darstellung wie in Untis: alle Werte in schwarzer Schrift; offene Felder „???“ rot (nicht fett), „---“ (Entfall) schwarz,
+    /// Darstellung wie im Vorbild: alle Werte in schwarzer Schrift; offene Felder „???“ rot (nicht fett), „---“ (Entfall) schwarz,
     /// Art in der Farbe der Vertretungsart, Pausenaufsicht türkis, Kollision gelb mit rotem Rahmen und roter Vtr-Nr.
     /// </summary>
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -861,7 +861,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         else if (name is "Nr" or "Vertreter" or "NRaum") Hinweis(_g.Rows[e.RowIndex].Cells[e.ColumnIndex], "");
         if (name is "Fix" or "ND" or "Entf" or "Mitb" or "Neu" or "Ben") e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         if (name is "UText" or "UZText") e.CellStyle.BackColor = Color.FromArgb(225, 225, 225);
-        // Tausch/Verlegung wie Untis: geänderte Felder magenta, in der markierten Zeile lila
+        // Tausch/Verlegung wie im Vorbild: geänderte Felder magenta, in der markierten Zeile lila
         if (IstVerlegung(v) && name is "Klassen" or "Vertreter" or "NRaum" or "NFach" or "Text" && e.CellStyle.BackColor != Color.FromArgb(255, 245, 0))
         {
             e.CellStyle.BackColor = VerlegungsFarbe;
@@ -947,7 +947,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     /// <summary>
     /// Taste Entf (ohne Bearbeitung): im Feld Vertreter bzw. in nicht editierbaren Feldern wird die Vertretung wieder offen
-    /// (wie in Untis), in einem editierbaren Feld (Text, Raum, Fach …) wird dessen Inhalt gelöscht.
+    /// (wie im Vorbild), in einem editierbaren Feld (Text, Raum, Fach …) wird dessen Inhalt gelöscht.
     /// </summary>
     private void Entfernen()
     {
@@ -1486,7 +1486,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// verschwindet die Zeile. Wirft bei einer Abweichung.
     /// </summary>
     /// <summary>Selbsttest: die Auswahlliste „Vertreter“ öffnet breit genug für Kurz- und Langnamen (nie in Spaltenbreite).</summary>
-    /// <summary>Selbsttest: ein Stundentausch steht wie Untis je Position in einer Zeile „Tausch“ mit magenta hinterlegten geänderten Feldern.</summary>
+    /// <summary>Selbsttest: ein Stundentausch steht wie im Vorbild je Position in einer Zeile „Tausch“ mit magenta hinterlegten geänderten Feldern.</summary>
     internal string SelbsttestTausch()
     {
         var tausch = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung { Art: VertretungsArt.Tausch }).ToList();

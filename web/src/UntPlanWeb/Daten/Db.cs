@@ -301,7 +301,7 @@ public sealed class Db
         ALTER TABLE klassenbuch ADD COLUMN notiz_schueler TEXT NOT NULL DEFAULT '';
         """,
 
-        // 4: Funktionen der WebUntis-Oberfläche – vorherige Anmeldung, Nachrichten mit Betreff, Klassendienste, Befreiungen,
+        // 4: Funktionen der Portal-Oberfläche – vorherige Anmeldung, Nachrichten mit Betreff, Klassendienste, Befreiungen,
         //    Abwesenheitsgründe, Sitzpläne, freie Tage, Übertragungsverlauf, Entwürfe/Listen/Anhänge, Kontowechsel
         """
         ALTER TABLE benutzer ADD COLUMN vorherige_anmeldung TEXT;

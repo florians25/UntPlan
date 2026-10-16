@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace UntPlan.Core.Austausch;
 
 /// <summary>
-/// Aufbereitung von Druckzeilen nach den Seitenlayout-Optionen wie Untis („Form“): kombinierte Klassen (2a,2b → 2ab),
+/// Aufbereitung von Druckzeilen nach den Seitenlayout-Optionen wie im Vorbild („Form“): kombinierte Klassen (2a,2b → 2ab),
 /// Blockvertretungen zusammenfassen (1, 2 → 1-2), Stundenbezeichnung.
 /// </summary>
 public static class Druckaufbereitung

@@ -42,7 +42,7 @@ public class Dialog : Form
 }
 
 /// <summary>
-/// Dialog „Kurzname“ wie Untis (Neuanlegen und Umbenennen von Stammdaten): Eingabefelder links, Beschriftung „Name“ bzw.
+/// Dialog „Kurzname“ wie im Vorbild (Neuanlegen und Umbenennen von Stammdaten): Eingabefelder links, Beschriftung „Name“ bzw.
 /// „Langname“ rechts daneben, Ok/Abbrechen unten links.
 /// </summary>
 public static class KurznameDialog

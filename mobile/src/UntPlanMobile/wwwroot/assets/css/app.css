@@ -58,8 +58,8 @@
   --hol-line:         #b3d6f6;
   --hol-ink:          #2b3f52;
 
-  /* Untis-Farbtöne (aus der Vorlage abgenommen) */
-  --u-orange:         #f07c00;   /* Untis-Orange — Akzent der Oberfläche */
+  /* Vorbild-Farbtöne (aus der Vorlage abgenommen) */
+  --u-orange:         #f07c00;   /* Vorbild-Orange — Akzent der Oberfläche */
   --u-orange-soft:    #fff1e2;
   --u-orange-ink:     #a85400;
   --u-green:          #0b7d65;   /* Plaketten und Änderungen im Plan */
@@ -146,7 +146,7 @@ ul{ padding:0; list-style:none; }
 
 .ico{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; display:block; }
 
-/* Symbole aus der Untis-Sammlung.
+/* Symbole aus der Vorbild-Sammlung.
    Sie sind anders gebaut als die selbst gezeichneten: reine Füllflächen
    ohne Konturlinie. Deshalb müssen die Vorgaben von `.ico` — Kontur an,
    Füllung aus — hier genau umgekehrt stehen, sonst bliebe die Fläche
@@ -1282,7 +1282,7 @@ body.has-plain-top .topbar{ background:#eceef1; }
   background:#8b9aa5; color:#fff;
   display:grid; place-items:center;
 }
-/* Das runde Feld trug bisher ein Konturzeichen. Das Untis-Symbol ist eine
+/* Das runde Feld trug bisher ein Konturzeichen. Das Vorbild-Symbol ist eine
    Füllfläche — mit den alten Vorgaben bliebe es unsichtbar. */
 .pk__ava svg{ width:27px; height:27px; fill:currentColor; stroke:none; }
 

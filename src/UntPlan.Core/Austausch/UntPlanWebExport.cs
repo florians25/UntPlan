@@ -94,11 +94,13 @@ public static class UntPlanWebExport
         {
             fortschritt?.Invoke(++nr, alleTage.Count);
             var unterrichtstag = Kalender.IstUnterrichtstag(d, t);
-            var tag = new WebTag { Datum = D(t), Woche = Kalender.WochenTyp(d, t), Unterrichtstag = unterrichtstag };
+            // nur Vertretungen (ohne Unterricht/Stundenplan): nur die geänderten Stunden – Stundenplanänderungen gehen erst mit „Unterricht“ hinaus
+            var nurAenderungen = !mitUnterricht && o.Teile.Count > 0;
+            var tag = new WebTag { Datum = D(t), Woche = Kalender.WochenTyp(d, t), Unterrichtstag = unterrichtstag, NurAenderungen = nurAenderungen };
             if (unterrichtstag)
             {
                 var tp = Tagesplan.Berechnen(d, t);
-                foreach (var e in tp.Eintraege.OrderBy(e => e.Stunde))
+                foreach (var e in tp.Eintraege.Where(e => !nurAenderungen || e.Status != TagesStatus.Regulaer).OrderBy(e => e.Stunde))
                     tag.Stunden.Add(new WebStunde
                     {
                         Stunde = e.Stunde, Unterricht = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId, Fach = K(ElementTyp.Fach, e.FachId),

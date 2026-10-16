@@ -393,7 +393,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         }
     }
 
-    /// <summary>Neues Element anlegen: wie Untis zuerst der Dialog „Kurzname“ (Name und Langname).</summary>
+    /// <summary>Neues Element anlegen: wie im Vorbild zuerst der Dialog „Kurzname“ (Name und Langname).</summary>
     private void NeuesElement()
     {
         var vorschlag = KurznameDialog.Vorschlag(D.AlleElemente(_typ).Select(e => e.Kurzname));

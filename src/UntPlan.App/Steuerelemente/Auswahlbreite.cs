@@ -29,6 +29,26 @@ public static class Auswahlbreite
     {
         c.DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing;
         c.DisplayStyleForCurrentCellOnly = false;
+        SpaltenListeBreit(c);
+    }
+
+    /// <summary>
+    /// Listenbreite schon an der Spalte festlegen: die Zelle übernimmt sie beim Öffnen des Editors (sonst setzt sie die Liste auf die
+    /// Spaltenbreite zurück) – unabhängig von der Spaltenbreite immer so breit, dass Kurz- und Langnamen lesbar sind.
+    /// </summary>
+    internal static void SpaltenListeBreit(DataGridViewComboBoxColumn c)
+    {
+        var schrift = c.DataGridView?.Font ?? Ui.Schrift;
+        using var fett = new Font(schrift, FontStyle.Bold);
+        int kurz = 0, lang = 0;
+        foreach (var o in c.Items)
+        {
+            var t = o?.ToString() ?? "";
+            kurz = Math.Max(kurz, TextRenderer.MeasureText(t, fett).Width);
+            if (ListenSuche.Langname(t) is { Length: > 0 } l) lang = Math.Max(lang, TextRenderer.MeasureText(l, schrift).Width);
+        }
+        var w = Math.Max(64, Math.Min(kurz + 10, 160)) + (lang > 0 ? lang + 22 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
+        c.DropDownWidth = Math.Clamp(Math.Max(w, ListenSuche.MindestListenbreite), 1, 760);
     }
 
     /// <summary>Kontrollkästchen in Tabellen im Normalzustand zeichnen (die Hervorhebung beim Überfahren übernimmt <see cref="ZellFarben"/> für alle Zellen gleich).</summary>
@@ -70,7 +90,7 @@ public static class Auswahlbreite
     }
 
     /// <summary>
-    /// Zellfarben: die Zelle unter der Maus wird hervorgehoben; im Vertretungsmodus wie Untis nicht bearbeitbare Felder grau,
+    /// Zellfarben: die Zelle unter der Maus wird hervorgehoben; im Vertretungsmodus wie im Vorbild nicht bearbeitbare Felder grau,
     /// bearbeitbare hell und die aktuelle Zelle orange. Eigene Farben der Fenster (Vertretungsarten, Kollision …) bleiben erhalten.
     /// </summary>
     private static void ZellFarben(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -136,6 +156,7 @@ public static class Auswahlbreite
                 g.EditingControlShowing += (_, e) =>
                 {
                     if (e.Control is not ComboBox cb) return;
+                    if (g.CurrentCell?.OwningColumn is DataGridViewComboBoxColumn aktSpalte) SpaltenListeBreit(aktSpalte);
                     Erfassen(cb);
                     // Auswahlzellen aller Tabellen wie die Vertretungsliste: Kurz- und Langname, Direktsuche, breite Liste
                     if (!SuchKombi.IstAktiv(g) && g.CurrentCell is DataGridViewComboBoxCell && cb.DrawMode == DrawMode.Normal && MitLangnamen(cb))
@@ -145,7 +166,7 @@ public static class Auswahlbreite
                 };
                 // Spaltenbreite geändert oder neu gebunden: eine offene Bearbeitung behält ihre breite Liste
                 g.ColumnWidthChanged += (_, _) => { if (g.EditingControl is ComboBox ec && !ec.IsDisposed) ListenSuche.BreiteAktualisieren(ec); };
-                // Auswahlspalten wie Untis ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
+                // Auswahlspalten wie im Vorbild ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
                 g.CellPainting += KontrollkaestchenOhneHover;

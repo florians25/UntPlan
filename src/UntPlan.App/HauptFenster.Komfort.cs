@@ -80,6 +80,9 @@ public sealed partial class HauptFenster
         }
     }
 
+    /// <summary>Kurze Rückmeldung links in der Statusleiste.</summary>
+    internal void StatusMelden(string text) => _statusLinks.Text = text;
+
     private readonly ToolStripButton[] _schnellAnordnung = new ToolStripButton[8];
 
     /// <summary>
@@ -88,11 +91,11 @@ public sealed partial class HauptFenster
     /// </summary>
     private void SchnellanordnungenAufbauen()
     {
-        // wie Untis 2026: kleine Fenstersymbole rechts in der Registerleiste
+        // wie im Vorbild 2026: kleine Fenstersymbole rechts in der Registerleiste
         for (var n = 1; n <= 8; n++)
         {
             var nr = n;
-            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 22, Height = 20, Margin = new Padding(0, 1, 0, 1) };
+            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 20, Height = 20, Margin = new Padding(0, 1, 0, 1) };
             b.MouseUp += (_, e) =>
             {
                 if (e.Button == MouseButtons.Right) SchnellanordnungSpeichern(nr);
@@ -120,20 +123,16 @@ public sealed partial class HauptFenster
     }
 
     /// <summary>Kleines Fenstersymbol mit Nummer (hell = frei).</summary>
+    /// <summary>Schnellknopf als schlichte Ziffer ohne Rahmen (belegt: weiß, sonst gedämpft).</summary>
     private static Bitmap SchnellBild(int n, bool belegt)
     {
-        var bmp = new Bitmap(18, 16);
+        var bmp = new Bitmap(16, 16);
         using var g = Graphics.FromImage(bmp);
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
-        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-        var rahmen = belegt ? Color.White : Color.FromArgb(150, 255, 255, 255);
-        using (var b = new SolidBrush(belegt ? Color.FromArgb(70, 255, 255, 255) : Color.Transparent)) g.FillRectangle(b, 1, 1, 15, 13);
-        using (var p = new Pen(rahmen)) { g.DrawRectangle(p, 1, 1, 15, 13); g.DrawLine(p, 1, 4, 16, 4); }
-        using var f = new Font("Segoe UI", 7f, FontStyle.Bold, GraphicsUnit.Pixel);
-        using var t = new SolidBrush(rahmen);
-        var s = n.ToString();
-        var gr = g.MeasureString(s, f);
-        g.DrawString(s, f, t, 9 - gr.Width / 2, 9.5f - gr.Height / 2);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        using var f = new Font("Segoe UI", 11f, belegt ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
+        using var t = new SolidBrush(belegt ? Color.White : Color.FromArgb(150, 255, 255, 255));
+        using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        g.DrawString(n.ToString(), f, t, new RectangleF(0, 0, 16, 16), sf);
         return bmp;
     }
 

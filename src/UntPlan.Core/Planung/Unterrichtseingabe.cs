@@ -65,7 +65,27 @@ public static class Unterrichtseingabe
     }
 
     /// <summary>Hinweise zu fehlenden Pflichtangaben eines Unterrichts (Fach, Klasse, Wochenstunden; Lehrer als Hinweis).</summary>
-    public static List<string> Pflichthinweise(Unterricht u)
+    private static readonly System.Text.RegularExpressions.Regex OhneKlasseFach = new(
+        @"aufsicht|bereitschaft|sprechstunde|konferenz|verwaltung|ermäßig|ermaessig|entlastung|koordination|beratung|teamsitzung|dienstbesprechung",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Braucht dieser Unterricht eine Klasse? Nein, wenn schon eine Kopplungszeile Klassen hat oder es ein Dienst ohne Klasse ist:
+    /// Bereitschaft, Fach ohne Vertretung (Aufsicht, Sprechstunde, Konferenz …) bzw. ein Fach mit entsprechendem Namen.
+    /// </summary>
+    public static bool KlasseNoetig(Schuldatei? d, Unterricht u)
+    {
+        if (u.Zeilen.Any(z => z.KlassenIds.Count > 0)) return false;
+        if (d is null) return true;
+        foreach (var z in u.Zeilen)
+        {
+            if (z.FachId is not int fid || d.Faecher.FirstOrDefault(f => f.Id == fid) is not { } fach) continue;
+            if (fach.Bereitschaft || fach.KeineVertretung || OhneKlasseFach.IsMatch(fach.Kurzname) || OhneKlasseFach.IsMatch(fach.Langname)) return false;
+        }
+        return true;
+    }
+
+    public static List<string> Pflichthinweise(Unterricht u, Schuldatei? d = null)
     {
         var res = new List<string>();
         if (u.Wochenstunden <= 0) res.Add("Wochenstunden fehlen (Wst = 0) – der Unterricht kann nicht verplant werden.");
@@ -74,21 +94,21 @@ public static class Unterrichtseingabe
             var z = u.Zeilen[i];
             var wo = u.Zeilen.Count > 1 ? $" (Kopplungszeile {i + 1})" : "";
             if (z.FachId is null) res.Add($"Fach fehlt{wo}.");
-            if (z.KlassenIds.Count == 0 && i == 0) res.Add($"Klasse fehlt{wo}.");
+            if (i == 0 && KlasseNoetig(d, u)) res.Add($"Klasse fehlt{wo}.");
             if (z.LehrerId is null) res.Add($"Noch kein Lehrer{wo} – kann später ergänzt werden.");
         }
         return res;
     }
 
     /// <summary>Fehlt eine Pflichtangabe (Fach bzw. Klasse) in dieser Kopplungszeile?</summary>
-    public static bool PflichtFehlt(Unterricht u, int zeile, string feld)
+    public static bool PflichtFehlt(Unterricht u, int zeile, string feld, Schuldatei? d = null)
     {
         if (zeile < 0 || zeile >= u.Zeilen.Count) return false;
         var z = u.Zeilen[zeile];
         return feld switch
         {
             "Fach" => z.FachId is null,
-            "Klassen" => zeile == 0 && z.KlassenIds.Count == 0,
+            "Klassen" => zeile == 0 && KlasseNoetig(d, u),
             "Wst" => zeile == 0 && u.Wochenstunden <= 0,
             _ => false,
         };

@@ -339,7 +339,7 @@ public static class KlassenbuchApi
             return new JsonObject
             {
                 ["id"] = id,
-                // wie in WebUntis: „Nachname Vorname“, sortiert nach Nachnamen
+                // wie im Vorbild: „Nachname Vorname“, sortiert nach Nachnamen
                 ["name"] = $"{s["name"]?.GetValue<string>()} {s["vorname"]?.GetValue<string>()}".Trim(),
                 ["class"] = s["klasse"]?.GetValue<string>() ?? "",
                 ["duties"] = new JsonArray(dienste.GetValueOrDefault(id, new List<string>()).Select(x => (JsonNode)JsonValue.Create(x)!).ToArray()),

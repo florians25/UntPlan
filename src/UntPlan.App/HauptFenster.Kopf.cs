@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace UntPlan.App;
 
 /// <summary>
-/// Programmkopf wie Untis 2026: keine Windows-Titelleiste, sondern ein durchgehender Balken in der Modusfarbe –
+/// Programmkopf wie im Vorbild 2026: keine Windows-Titelleiste, sondern ein durchgehender Balken in der Modusfarbe –
 /// links die Schnellzugriffsleiste, in der Mitte der Fenstertitel in kleiner weißer Schrift, rechts schlanke weiße
 /// Fensterknöpfe (Minimieren, Maximieren/Wiederherstellen, Schließen). Darunter die Registerleiste in derselben Farbe.
 /// Ziehen am Balken verschiebt das Fenster, Doppelklick maximiert/stellt wieder her, an den Rändern lässt es sich
@@ -157,7 +157,7 @@ public partial class HauptFenster
         if (hit is int h) m.Result = h;
     }
 
-    /// <summary>Schlanke weiße Fensterknöpfe wie Windows 11 / Untis 2026 (0 = minimieren, 1 = maximieren, 2 = schließen, 3 = wiederherstellen).</summary>
+    /// <summary>Schlanke weiße Fensterknöpfe wie Windows 11 / Vorbild 2026 (0 = minimieren, 1 = maximieren, 2 = schließen, 3 = wiederherstellen).</summary>
     private static Bitmap KnopfBild(int art, bool dunkel)
     {
         var bmp = new Bitmap(40, 24);

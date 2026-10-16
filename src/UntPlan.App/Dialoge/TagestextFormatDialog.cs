@@ -6,7 +6,7 @@ using UntPlan.Core.Model;
 namespace UntPlan.App.Dialoge;
 
 /// <summary>
-/// Formatierter Tagestext wie Untis („3.9.21 Tagestexte“): Leiste mit Fett (B), Kursiv (K), Unterstrichen (U) und Farbe,
+/// Formatierter Tagestext wie im Vorbild („3.9.21 Tagestexte“): Leiste mit Fett (B), Kursiv (K), Unterstrichen (U) und Farbe,
 /// darunter das Textfeld, unten Ok/Abbrechen. Gespeichert werden Rich Text, unformatierter Text und bereinigtes HTML (Export).
 /// </summary>
 public sealed class TagestextFormatDialog : Form

@@ -79,7 +79,7 @@ public static class VeranstaltungsLogik
 
     private static string Zeitraum(DateOnly von, DateOnly bis) => von == bis ? $"{von:dd.MM.} / {Wt(von)}" : $"{von:dd.MM.} - {bis:dd.MM.}";
 
-    /// <summary>Text der Nachfrage beim Anlegen einer Absenz, die mit einer Veranstaltung überlappt (wie in Untis).</summary>
+    /// <summary>Text der Nachfrage beim Anlegen einer Absenz, die mit einer Veranstaltung überlappt (wie im Vorbild).</summary>
     public static string FrageText(Schuldatei d, Abwesenheit a, VeranstaltungsUeberlappung u)
     {
         var lehrer = d.Lehrer.FirstOrDefault(x => x.Id == u.LehrerId);

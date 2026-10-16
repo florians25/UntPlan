@@ -15,13 +15,13 @@ public class MdiFenster : Form
     /// <summary>Hilfethema für F1.</summary>
     public string HilfeThema { get; protected set; } = "";
 
-    /// <summary>Fensterverknüpfung (Untis): das Fenster folgt dem in anderen Fenstern gewählten Element bzw. der gewählten Stunde.</summary>
+    /// <summary>Fensterverknüpfung: das Fenster folgt dem in anderen Fenstern gewählten Element bzw. der gewählten Stunde.</summary>
     public bool Verknuepft { get; set; } = true;
 
     /// <summary>Knopf „Fenster verknüpfen“ für die Werkzeugleiste.</summary>
     protected ToolStripButton VerknuepfenKnopf() => Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
 
-    /// <summary>Eigene Titelleiste (z. B. für die Untis-Durchschaltknöpfe der Stundenpläne).</summary>
+    /// <summary>Eigene Titelleiste (z. B. für die Vorbild-Durchschaltknöpfe der Stundenpläne).</summary>
     protected FensterTitel Titelleiste => _titel;
 
     protected Dokument Doc => AppZustand.Doc;

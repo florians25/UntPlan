@@ -1,7 +1,7 @@
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
-/// Kleiner Hoch/Runter-Knopf wie in Untis (neben der Elementauswahl und dem Datum): oben = weiter (+1), unten = zurück (−1).
+/// Kleiner Hoch/Runter-Knopf wie im Vorbild (neben der Elementauswahl und dem Datum): oben = weiter (+1), unten = zurück (−1).
 /// </summary>
 public sealed class Drehknopf : Control
 {

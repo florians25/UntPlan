@@ -126,7 +126,7 @@ public sealed partial class HauptFenster
     }
 
     /// <summary>
-    /// Kleine Stundenpläne nebeneinander am rechten Rand (wie Untis-Fensteranordnungen der Vertretungsplanung): Klasse und Lehrkraft
+    /// Kleine Stundenpläne nebeneinander am rechten Rand (wie im Vorbild-Fensteranordnungen der Vertretungsplanung): Klasse und Lehrkraft
     /// der gewählten Vertretung (bzw. abwesende Lehrkraft), Vertreter und Raum. Über die Fensterverknüpfung folgen sie der Auswahl.
     /// </summary>
     public List<StundenplanFenster> KleinePlaeneOeffnen()

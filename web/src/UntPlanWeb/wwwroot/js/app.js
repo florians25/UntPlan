@@ -1,4 +1,4 @@
-// UntPlanWeb – Einstieg: Sitzung laden, Anmeldung/Einrichtung, Hülle im Stil von WebUntis (linke Navigationsleiste mit
+// UntPlanWeb – Einstieg: Sitzung laden, Anmeldung/Einrichtung, Hülle im Stil des Vorbilds (linke Navigationsleiste mit
 // Untermenüs, Schuljahr-Pille, Benutzer unten, Konto wechseln) und Hash-Router.
 import { LOGO, icon, e, holen, senden, api, fehler, alarm, lade, initialen, toast } from './ui.js';
 

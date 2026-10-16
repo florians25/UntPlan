@@ -1,7 +1,7 @@
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
-/// Aufklappliste unter einer Tabellenzelle (wie die Auswahlbox der Untis-Spalten): Kurzname und Langname nebeneinander,
+/// Aufklappliste unter einer Tabellenzelle (wie die Auswahlbox der Vorbild-Spalten): Kurzname und Langname nebeneinander,
 /// mit gedrückter Strg-Taste (bzw. Umschalt) mehrere Einträge wählen, Enter oder Doppelklick übernimmt, Esc bricht ab.
 /// </summary>
 public static class MehrfachAuswahl
@@ -57,7 +57,7 @@ public static class MehrfachAuswahl
         {
             if (!mehrfach || (Control.ModifierKeys & (Keys.Control | Keys.Shift)) == 0) Uebernehmen();
         };
-        // Schließen durch Klick daneben: Auswahl der Mehrfachliste übernehmen (wie Untis)
+        // Schließen durch Klick daneben: Auswahl der Mehrfachliste übernehmen (wie im Vorbild)
         dd.Closed += (_, e) => { if (mehrfach && e.CloseReason == ToolStripDropDownCloseReason.AppClicked) Uebernehmen(); };
         var r = g.GetCellDisplayRectangle(spalte, zeile, false);
         dd.Show(g, new Point(r.Left, r.Bottom));

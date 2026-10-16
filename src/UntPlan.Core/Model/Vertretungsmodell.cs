@@ -64,7 +64,7 @@ public sealed class SchuelerAbwesenheit
     public DateTime Importiert { get; set; } = DateTime.Now;
 }
 
-/// <summary>Klassenbucheintrag einer Stunde aus UntPlanWeb (Lehrstoff, Hausaufgabe) – Gegenstück zum Untis-Kursimport.</summary>
+/// <summary>Klassenbucheintrag einer Stunde aus UntPlanWeb (Lehrstoff, Hausaufgabe) – Gegenstück zum Vorbild-Kursimport.</summary>
 public sealed class KlassenbuchEintrag
 {
     public int WebId { get; set; }

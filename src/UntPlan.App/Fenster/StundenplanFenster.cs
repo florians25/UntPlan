@@ -30,14 +30,14 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private readonly ToolStripButton _lupeKnopf;
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 105 };
     private readonly ToolStrip _leiste;
-    /// <summary>Zweite Zeile wie Untis: Zeitbereich (▼), Datum mit Hoch/Runter und Ende der Woche („- 16.10.2026“).</summary>
+    /// <summary>Zweite Zeile wie im Vorbild: Zeitbereich (▼), Datum mit Hoch/Runter und Ende der Woche („- 16.10.2026“).</summary>
     private readonly Panel _zeitZeile = new() { Dock = DockStyle.Top, Height = 27 };
     private readonly ToolStrip _zeitLeiste;
     private readonly ToolStripLabel _bisText = new() { Margin = new Padding(2, 1, 0, 2) };
-    /// <summary>Fußzeile mit der Formatauswahl unten rechts (wie Untis „Rau1A - Raumplan …“).</summary>
+    /// <summary>Fußzeile mit der Formatauswahl unten rechts (wie im Vorbild „Rau1A - Raumplan …“).</summary>
     private readonly Fussleiste _fuss = new();
-    /// <summary>Hellblau des Untis-Stundenplanmodus für die Flächen um den Plan (Zeitzeile, Fuß, Ablage).</summary>
-    internal static readonly Color UntisFlaeche = Color.FromArgb(220, 240, 255);
+    /// <summary>Hellblau des Vorbild-Stundenplanmodus für die Flächen um den Plan (Zeitzeile, Fuß, Ablage).</summary>
+    internal static readonly Color PlanFlaeche = Color.FromArgb(220, 240, 255);
     private readonly ToolStripDropDownButton _typKnopf = new() { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Planart: Klasse, Lehrer oder Raum" };
     private readonly Panel _planRahmen = new() { Dock = DockStyle.Fill };
     private bool _laden;
@@ -90,7 +90,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             // Fensterverknüpfung: andere Fenster (Stammdaten, Unterricht, Zeitwünsche, Pläne desselben Typs) folgen
             if (Verknuepft) AppZustand.Waehlen(_typ, _id, this);
         };
-        // Hoch/Runter neben der Elementauswahl und Planart-Symbol mit Auswahl (Klasse, Lehrer, Raum) wie in Untis
+        // Hoch/Runter neben der Elementauswahl und Planart-Symbol mit Auswahl (Klasse, Lehrer, Raum) wie im Vorbild
         var dreh = new Steuerelemente.Drehknopf("Nächstes / vorheriges Element");
         dreh.Gedreht += r => Blaettern(r);
         ts.Items.Add(new ToolStripControlHost(dreh) { Margin = new Padding(1, 1, 1, 0), AutoSize = false, Size = dreh.Size });
@@ -101,7 +101,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _kleinSichtbar.Add(_typKnopf);
         // blaue Durchschaltknöpfe im Fenstertitel
         Titelleiste.Durchschalten = Blaettern;
-        // Fensterverknüpfung (Untis-Kettensymbol): Plan folgt dem gewählten Element bzw. der gewählten Stunde anderer Fenster
+        // Fensterverknüpfung (Vorbild-Kettensymbol): Plan folgt dem gewählten Element bzw. der gewählten Stunde anderer Fenster
         Verknuepft = AppZustand.Einstellungen.StundenplanSynchronisieren;
         _sync = Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
         ts.Items.Add(_sync);
@@ -113,21 +113,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _lupeKnopf.CheckedChanged += (_, _) => { if (!_laden) LupeUmschalten(_lupeKnopf.Checked); };
         ts.Items.Add(_lupeKnopf);
         ts.Items.Add(new ToolStripSeparator());
-        _format.SelectedIndexChanged += (_, _) => { if (!_laden && _format.SelectedItem is string n) FormatWaehlen(n); };
-        var formate = new ToolStripDropDownButton(Symbole.Get("einstellungen", 16)) { ToolTipText = "Stundenplanformate", DisplayStyle = ToolStripItemDisplayStyle.Image };
-        formate.DropDownItems.Add("Format bearbeiten…", Symbole.Get("einstellungen", 16), (_, _) => Einstellungen());
-        var einzel = new ToolStripMenuItem("Einzelstunden (Doppelstunden nicht zusammenfassen)");
-        einzel.Click += (_, _) => { var f = Kopie(_plan.Format); f.Einzelstunden = !f.Einzelstunden; FormatSpeichern(f, f.Name); };
-        var pausen = new ToolStripMenuItem("Pausen anzeigen");
-        pausen.Click += (_, _) => { var f = Kopie(_plan.Format); f.PausenAnzeigen = !f.PausenAnzeigen; FormatSpeichern(f, f.Name); };
-        formate.DropDownItems.Add(einzel);
-        formate.DropDownItems.Add(pausen);
-        formate.DropDownOpening += (_, _) => { einzel.Checked = _plan.Format.Einzelstunden; pausen.Checked = _plan.Format.PausenAnzeigen; };
-        formate.DropDownItems.Add(new ToolStripSeparator());
-        formate.DropDownItems.Add("Neues Format (Kopie)…", Symbole.Get("neu", 16), (_, _) => FormatNeu());
-        formate.DropDownItems.Add("Format umbenennen…", null, (_, _) => FormatUmbenennen());
-        formate.DropDownItems.Add("Format löschen", Symbole.Get("loeschen", 16), (_, _) => FormatLoeschen());
-        ts.Items.Add(formate);
+        _format.SelectedIndexChanged += (_, _) => FormatAuswahlGeaendert();
         _alleElemente = new ToolStripButton(Symbole.Get("uebersicht")) { ToolTipText = "Alle Elemente im Unterricht", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
         _alleElemente.CheckedChanged += (_, _) => { _reiter.Visible = _alleElemente.Checked; ReiterAufbauen(); };
         ts.Items.Add(_alleElemente);
@@ -169,10 +155,12 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _datum.ValueChanged += (_, _) => { if (!_laden) { AppZustand.DatumSetzen(DateOnly.FromDateTime(_datum.Value)); WocheSetzen(); } };
 
-        // Fußzeile: Formatauswahl unten rechts mit Abstand zum Fensterrand, Größengriff frei (wie Untis „Kla1 - Klasse 1“)
+        // Fußzeile: Formatauswahl unten rechts mit Abstand zum Fensterrand, Größengriff frei (wie im Vorbild „Kla1 - Klasse 1“)
         _fuss.Rechts = _format;
-        _format.FormattingEnabled = true;
-        _format.Format += (_, e) => { if (e.ListItem is string n) e.Value = FormatAnzeige(n); };
+        _format.DrawMode = DrawMode.OwnerDrawFixed;
+        _format.ItemHeight = 16;
+        _format.DrawItem += FormatEintragZeichnen;
+        _format.DropDown += (_, _) => _format.DropDownWidth = Math.Max(_format.Width, FormatListenbreite());
 
         _plan.Format = FormatHolen();
         FormateFuellen();
@@ -273,7 +261,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         {
             // nur blättern, wenn die Zellen tatsächlich mehr Platz brauchen (sonst füllt der Plan das Fenster ohne Rollbalken)
             // kleiner Plan: immer an das Fenster angepasst; sonst Mindestgrößen laut Format (Zellengröße) bzw. Schriftgröße
-            // Vertretungsmodus (Untis): schmaler Rand um den Plan
+            // Vertretungsmodus: schmaler Rand um den Plan
             var rand = AppZustand.Vertretungsmodus ? (_klein ? 3 : 6) : 0;
             var innen = planRahmen.Height - 2 - 2 * rand;
             // kleiner Plan (Miniplan): Mindestzeilenhöhe statt Quetschen – bei vielen Stunden (bis 14) scrollt er senkrecht
@@ -322,11 +310,11 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Im Vertretungsmodus zeigt der Stundenplan immer den tagesaktuellen Plan der gewählten Woche.</summary>
     private void ModusAnwenden()
     {
-        // Untis-Farben des Vertretungsmodus für die Zeilen um den Plan
-        _zeitLeiste.BackColor = AppZustand.Vertretungsmodus ? Ui.Leiste : UntisFlaeche;
-        _zeitZeile.BackColor = _fuss.BackColor = _planRahmen.BackColor = AppZustand.Vertretungsmodus ? Ui.BlauSehrHell : UntisFlaeche;
+        // Vorbild-Farben des Vertretungsmodus für die Zeilen um den Plan
+        _zeitLeiste.BackColor = AppZustand.Vertretungsmodus ? Ui.Leiste : PlanFlaeche;
+        _zeitZeile.BackColor = _fuss.BackColor = _planRahmen.BackColor = AppZustand.Vertretungsmodus ? Ui.BlauSehrHell : PlanFlaeche;
         _pool.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(244, 246, 250) : Color.FromArgb(232, 244, 255);
-        _detail.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(248, 249, 252) : UntisFlaeche;
+        _detail.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(248, 249, 252) : PlanFlaeche;
         _detail.Visible = !_klein && !AppZustand.Vertretungsmodus;
         _laden = true;
         _wochenansicht.Checked = AppZustand.Vertretungsmodus || _wochenansicht.Checked && !AppZustand.Vertretungsmodus;
@@ -363,7 +351,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _fuss.Anordnen();
     }
 
-    /// <summary>Anzeige eines Formats wie Untis: „Kla1 - Klassenplan klein“, große Pläne „Kla1A - Klassenplan groß“.</summary>
+    /// <summary>Anzeige eines Formats wie im Vorbild: „Kla1 - Klassenplan klein“, große Pläne „Kla1A - Klassenplan groß“.</summary>
     private string FormatAnzeige(string name)
     {
         var i = Math.Max(0, _format.Items.IndexOf(name));
@@ -381,11 +369,11 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>„Ansicht fixiert“: der Plan folgt nicht mehr der Auswahl in anderen Fenstern.</summary>
     internal bool AnsichtFixiert { get; private set; }
 
-    /// <summary>Menü „»“ am Ende der Werkzeugleiste wie in Untis (für den Selbsttest erreichbar).</summary>
+    /// <summary>Menü „»“ am Ende der Werkzeugleiste wie im Vorbild (für den Selbsttest erreichbar).</summary>
     internal ToolStripDropDownButton MehrMenue { get; private set; } = null!;
 
     /// <summary>
-    /// Menü „»“ wie Untis: Unterrichts-Farben anzeigen, Art fixieren, Ansicht fixiert, Seitenlayout ▸ (Seitenansicht, Seitenlayout),
+    /// Menü „»“ wie im Vorbild: Unterrichts-Farben anzeigen, Art fixieren, Ansicht fixiert, Seitenlayout ▸ (Seitenansicht, Seitenlayout),
     /// Einstellungen, Alle Elemente im Unterricht, Schaltflächen hinzufügen oder entfernen ▸.
     /// </summary>
     private ToolStripDropDownButton MehrMenueAufbauen(ToolStrip ts)
@@ -506,7 +494,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _laden = true;
         _kleinKnopf.Checked = _klein;
         _laden = false;
-        // kleiner Plan wie Untis: Elementauswahl, Hoch/Runter, Planart und Verknüpfung sichtbar, alles Weitere hinter „»“
+        // kleiner Plan wie im Vorbild: Elementauswahl, Hoch/Runter, Planart und Verknüpfung sichtbar, alles Weitere hinter „»“
         foreach (ToolStripItem it in _leiste.Items)
         {
             it.Visible = true;
@@ -552,8 +540,100 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var namen = D.Formate.Where(x => x.Typ == _typ && x.Klein == _klein).Select(x => x.Name).Where(n => n.Length > 0).Distinct().ToList();
         if (!namen.Contains(_plan.Format.Name)) namen.Insert(0, _plan.Format.Name);
         foreach (var n in namen) _format.Items.Add(n);
+        _format.Items.Add(FormatTrenner);
+        _format.Items.Add(new FormatBefehl("Format speichern", FormatAktuellSpeichern));
+        _format.Items.Add(new FormatBefehl("Format speichern als…", FormatSpeichernAls));
+        _format.Items.Add(new FormatBefehl("Neues Format…", FormatNeu));
+        _format.Items.Add(new FormatBefehl("Bearbeiten", Einstellungen));
+        _format.Items.Add(new FormatBefehl("Löschen", FormatLoeschen));
         _format.SelectedItem = _plan.Format.Name;
         _laden = false;
+    }
+
+    // ------------------------------------------------------------------ Formatauswahl unten: Formate und Befehle
+
+    /// <summary>Befehl in der Formatauswahl (unter den Formaten, fett wie im Vorbild).</summary>
+    private sealed record FormatBefehl(string Text, Action Aktion)
+    {
+        public override string ToString() => Text;
+    }
+
+    private static readonly object FormatTrenner = new();
+
+    private void FormatAuswahlGeaendert()
+    {
+        if (_laden) return;
+        switch (_format.SelectedItem)
+        {
+            case string n: FormatWaehlen(n); break;
+            case FormatBefehl b:
+                // zurück auf das aktuelle Format, dann den Befehl ausführen
+                _laden = true;
+                _format.SelectedItem = _plan.Format.Name;
+                _laden = false;
+                BeginInvoke(b.Aktion);
+                break;
+            default:
+                _laden = true;
+                _format.SelectedItem = _plan.Format.Name;
+                _laden = false;
+                break;
+        }
+    }
+
+    private int FormatListenbreite()
+    {
+        using var g = _format.CreateGraphics();
+        using var fett = new Font(_format.Font, FontStyle.Bold);
+        var w = 0;
+        foreach (var o in _format.Items)
+            w = Math.Max(w, TextRenderer.MeasureText(g, o is string n ? FormatAnzeige(n) : o.ToString(), o is FormatBefehl ? fett : _format.Font).Width);
+        return w + 16 + (_format.Items.Count > _format.MaxDropDownItems ? SystemInformation.VerticalScrollBarWidth : 0);
+    }
+
+    private void FormatEintragZeichnen(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0) return;
+        var o = _format.Items[e.Index];
+        var imFeld = (e.State & DrawItemState.ComboBoxEdit) != 0;
+        if (o == FormatTrenner)
+        {
+            using var hg = new SolidBrush(_format.BackColor);
+            e.Graphics.FillRectangle(hg, e.Bounds);
+            var y = e.Bounds.Top + e.Bounds.Height / 2;
+            e.Graphics.DrawLine(SystemPens.ControlDark, e.Bounds.Left + 2, y, e.Bounds.Right - 2, y);
+            return;
+        }
+        e.DrawBackground();
+        using var fett = new Font(e.Font ?? _format.Font, FontStyle.Bold);
+        var text = o is string n ? FormatAnzeige(n) : o.ToString() ?? "";
+        TextRenderer.DrawText(e.Graphics, text, o is FormatBefehl && !imFeld ? fett : e.Font ?? _format.Font, e.Bounds,
+            (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : _format.ForeColor,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        e.DrawFocusRectangle();
+    }
+
+    /// <summary>„Format speichern“: das aktuelle Format (auch ein noch nicht gespeichertes Standardformat) in der Datei ablegen.</summary>
+    private void FormatAktuellSpeichern()
+    {
+        var f = Kopie(_plan.Format);
+        if (f.Name.Length == 0) f.Name = FormatAnzeige(_plan.Format.Name);
+        f.Typ = _typ;
+        FormatSpeichern(f, _plan.Format.Name);
+        AppZustand.Haupt.StatusMelden($"Stundenplanformat „{f.Name}“ gespeichert.");
+    }
+
+    /// <summary>„Format speichern als…“: Kopie des aktuellen Formats unter neuem Namen.</summary>
+    private void FormatSpeichernAls()
+    {
+        var name = Ui.Eingabe("Name des Stundenplanformats:", "Format speichern als", _plan.Format.Name + " 2");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        name = name.Trim();
+        if (D.Formate.Any(x => x.Typ == _typ && x.Name == name) && !Ui.Frage($"Das Format \"{name}\" gibt es bereits. Überschreiben?")) return;
+        var f = Kopie(_plan.Format);
+        f.Name = name;
+        f.Typ = _typ;
+        FormatSpeichern(f, name);
     }
 
     private void FormatWaehlen(string name)
@@ -568,7 +648,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     private void FormatNeu()
     {
-        // wie Untis: zuerst die Grundform wählen (Format 01, 10, 11, 20, 21, 30, 40)
+        // wie im Vorbild: zuerst die Grundform wählen (Format 01, 10, 11, 20, 21, 30, 40)
         if (StundenplanGrundformDialog.Zeigen(this, _plan.Format.Grundform) is not { } grundform) return;
         var name = Ui.Eingabe("Name des neuen Stundenplanformats (Kopie des aktuellen Formats):", "Neues Stundenplanformat", _plan.Format.Name + " 2");
         if (string.IsNullOrWhiteSpace(name)) return;
@@ -707,7 +787,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private bool RegelplanNurAnzeige => AppZustand.Vertretungsmodus && !_plan.Tagesmodus;
 
     /// <summary>
-    /// Kontextmenü „Zeitbereich“ wie in Untis: Woche (tagesaktueller Plan der Woche mit allen Vertretungen) oder Periode
+    /// Kontextmenü „Zeitbereich“ wie im Vorbild: Woche (tagesaktueller Plan der Woche mit allen Vertretungen) oder Periode
     /// (Regelplan der aktiven Periode). Im Vertretungsmodus ist „Woche“ der Standard, „Periode“ dient zum Nachsehen.
     /// </summary>
     private ToolStripMenuItem ZeitbereichMenue()
@@ -907,7 +987,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     internal List<(int Unterricht, int Laenge, int Hoehe)> PoolBloecke => _pool.Controls.OfType<PoolBlock>().Select(b => (b.Unterricht.Id, b.Laenge, b.Height)).ToList();
 
     /// <summary>
-    /// Nicht verplanter Block eines Unterrichts in seiner Blockgröße wie in Untis: eine Einzelstunde als Kästchen, eine Doppelstunde
+    /// Nicht verplanter Block eines Unterrichts in seiner Blockgröße wie im Vorbild: eine Einzelstunde als Kästchen, eine Doppelstunde
     /// doppelt so hoch usw. – mit Fach, Klasse bzw. Lehrer und Blocklänge; zum Verplanen in den Stundenplan ziehen.
     /// </summary>
     private sealed class PoolBlock : Control
@@ -1048,12 +1128,12 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _lupeTages = tages;
         _lupe.Rows.Clear();
         _lupe.Columns.Clear();
-        // Untis: dieselbe Unterrichtsliste im Stunden- und im Vertretungsmodus (U-Nr, „Lehr., Fa., Rm.“, Kla., Zeit, Schulwoche …)
+        // Vorbild: dieselbe Unterrichtsliste im Stunden- und im Vertretungsmodus (U-Nr, „Lehr., Fa., Rm.“, Kla., Zeit, Schulwoche …)
         var spalten = new[] { ("U", "U-Nr", 48), ("LFR", "Lehr., Fa., Rm.", 130), ("K", "Kla.", 50), ("Z", "Zeit", 40), ("W", "Schulwoche", 76), ("S", "Studt", 44), ("T", "Sondertext", 80), ("B", "Band", 40), ("Z2", "ZeilenText-2", 84), ("G", "Schülergruppe", 90) };
         foreach (var (n, t, w) in spalten)
             _lupe.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = t, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
         _lupe.Columns[0].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-        // Untis: Kopf „Lehr., Fa., Rm.“ orange hinterlegt
+        // Vorbild: Kopf „Lehr., Fa., Rm.“ orange hinterlegt
         _lupe.Columns["LFR"]!.HeaderCell.Style.BackColor = Ui.Erste;
     }
 
@@ -1078,7 +1158,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
                 _lupe.Rows[r].Tag = u;
             }
         }
-        // Untis: letzte Zeile mit der Zahl der noch nicht verplanten Stunden – „+3“ für den gewählten Unterricht, „-3“ für das Element
+        // Vorbild: letzte Zeile mit der Zahl der noch nicht verplanten Stunden – „+3“ für den gewählten Unterricht, „-3“ für das Element
         var offen = u != null ? Ix.NichtVerplant(u) : _typ == ElementTyp.Raum ? 0 : Ix.UnterrichteVon(_typ, _id).Where(x => !x.Ignorieren).Sum(x => Ix.NichtVerplant(x));
         var summe = _lupe.Rows.Add((u != null ? "+" : "-") + offen, "", "", "", "", "", "", "", "", "");
         var zeile = _lupe.Rows[summe];
@@ -1129,7 +1209,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             var ds = stunde - prim.Stunde;
             if (dt == 0 && ds == 0) return;
             var idx = D.Stundenplan.IndexOf(prim);
-            // eine Stunde bzw. ein ganzer Block eines Unterrichts: geprüfter Tausch mit dem Unterricht am Ziel (wie in Untis)
+            // eine Stunde bzw. ein ganzer Block eines Unterrichts: geprüfter Tausch mit dem Unterricht am Ziel (wie im Vorbild)
             var erzwingen = false;
             var tauschGrund = "";
             if (alle.All(x => x.UnterrichtId == prim.UnterrichtId && x.Tag == prim.Tag))
@@ -1337,10 +1417,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var sondertext = v is null ? u?.Text ?? "" : $"{Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art)} {v.Text}".Trim();
         var zeile = e.Regel?.ZeilenIndex ?? v?.ZeilenIndex ?? 0;
         var zeilenText = u?.Zeilen.ElementAtOrDefault(zeile)?.Zeilentext ?? "";
-        // Vertretung/Änderung wie in Untis mit „*“ hinter der Nummer
+        // Vertretung/Änderung wie im Vorbild mit „*“ hinter der Nummer
         var nr = u is null ? (v != null ? "V" + v.Id : "") : u.Id + (v != null ? "*" : "");
         var r = _lupe.Rows.Add(nr, lfr, Ix.KKlassen(e.KlassenIds), zeit, wochen, studt > 0 ? studt.ToString() : "", sondertext, u?.Band ?? "", zeilenText, u?.Schuelergruppe ?? "");
-        // gewählte Stunde orange wie in Untis
+        // gewählte Stunde orange wie im Vorbild
         _lupe.Rows[r].DefaultCellStyle.BackColor = Ui.ZelleAktivVertretung;
         _lupe.Rows[r].DefaultCellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
     }
@@ -1594,7 +1674,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private void Einstellungen()
     {
         var alt = _plan.Format.Name;
-        var f = StundenplanEinstellungenDialog.Zeigen(this, Kopie(_plan.Format), _typ, _id);
+        var f = StundenplanEinstellungenDialog.Zeigen(this, Kopie(_plan.Format), _typ, _id, sofort: neu => { FormatSpeichern(Kopie(neu), alt); alt = neu.Name; });
         if (f != null) FormatSpeichern(f, alt);
     }
 

@@ -135,11 +135,11 @@ public sealed partial class HauptFenster : Form
         var d = AppZustand.D;
         var name = AppZustand.Doc.Pfad is null ? "Unbenannt" : Path.GetFileName(AppZustand.Doc.Pfad);
         if (MultiUser.MultiUserSitzung.Aktiv) name = "MultiUser " + MultiUser.MultiUserSitzung.Titel;
-        // kein Text oben rechts (wie Untis); Modus, Schule und Periode stehen im Fenstertitel
+        // kein Text oben rechts (wie im Vorbild); Modus, Schule und Periode stehen im Fenstertitel
         _titelLabel.Text = "";
         _titelLabel.Visible = false;
         var nurLesen = AppZustand.Doc.Schreibgeschuetzt && !MultiUser.MultiUserSitzung.Aktiv;
-        // Fenstertitel wie Untis 2026: „Untis MultiUser 2026 - de_rlp_igs - Testschule DEMO - Stundenplan 2021/2022“
+        // Fenstertitel wie im Vorbild 2026: „Vorbild MultiUser 2026 - de_rlp_igs - Testschule DEMO - Stundenplan 2021/2022“
         var produkt = MultiUser.MultiUserSitzung.Aktiv ? "UntPlan MultiUser 2026" : "UntPlan 2026";
         if (MultiUser.MultiUserSitzung.Aktiv) name = MultiUser.MultiUserSitzung.Titel;
         Text = $"{produkt}  -  {name}{(nurLesen ? " [schreibgeschützt]" : "")}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")}  -  {d.Einstellungen.Schulname}  -  Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";

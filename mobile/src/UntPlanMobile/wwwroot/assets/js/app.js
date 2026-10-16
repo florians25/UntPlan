@@ -5635,7 +5635,7 @@ function renderDetailMenu(){
 
   /* Klasse: Gruppe vor der Tafel. Lehrkraft: Person mit Zeigestock an der
      Tafel. Raum: Tür mit Klinke. */
-  /* Die Symbole der Untis-Sammlung. Sie sind Füllflächen und brauchen
+  /* Die Symbole der Vorbild-Sammlung. Sie sind Füllflächen und brauchen
      deshalb `uic` statt `ico` — dort steht Kontur an, Füllung aus. */
   const ICO = {
     class:   'ic-shared-classentity',

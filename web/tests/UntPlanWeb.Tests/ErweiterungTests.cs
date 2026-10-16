@@ -7,7 +7,7 @@ using UntPlanWeb.Dienste;
 
 namespace UntPlanWeb.Tests;
 
-/// <summary>Neue Funktionen der WebUntis-Oberfläche (Startseite, Offene Stunden, Klassendienste, Befreiungen, Berichte, Mitteilungen, Verwaltung).</summary>
+/// <summary>Neue Funktionen der Portal-Oberfläche (Startseite, Offene Stunden, Klassendienste, Befreiungen, Berichte, Mitteilungen, Verwaltung).</summary>
 public class ErweiterungTests
 {
     private static readonly DateOnly Heute = new(2026, 10, 14);

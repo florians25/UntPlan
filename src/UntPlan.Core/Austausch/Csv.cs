@@ -58,7 +58,7 @@ public static class Csv
         return sb.ToString();
     }
 
-    /// <summary>Liest Dateien aus Schild-NRW/Untis, die häufig Windows-1252 kodiert sind.</summary>
+    /// <summary>Liest Dateien aus Schild-NRW/Vorbild, die häufig Windows-1252 kodiert sind.</summary>
     public static string DateiLesen(string pfad)
     {
         var bytes = File.ReadAllBytes(pfad);

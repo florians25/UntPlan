@@ -15,7 +15,7 @@ public sealed class FensterTitel : Control
 
     public bool Aktiv { get; set; }
 
-    /// <summary>Blaue Durchschaltknöpfe ◀ ▶ im Titel wie in Untis (vorheriges/nächstes Element); null = keine.</summary>
+    /// <summary>Blaue Durchschaltknöpfe ◀ ▶ im Titel wie im Vorbild (vorheriges/nächstes Element); null = keine.</summary>
     public Action<int>? Durchschalten { get; set; }
     /// <summary>Durchschaltknöpfe links neben dem Titel (kleine Fenster) statt rechts vor den Fensterknöpfen.</summary>
     public bool DurchschalterLinks { get; set; }
@@ -42,7 +42,7 @@ public sealed class FensterTitel : Control
 
     private Rectangle Knopf(int i) => new(Width - (3 - i) * KnopfBreite, 0, KnopfBreite, Height);
 
-    /// <summary>Titelfarbe; im Vertretungsmodus wie Untis: aktives Fenster dunkelgrün mit weißer Schrift, inaktive hellgrün.</summary>
+    /// <summary>Titelfarbe; im Vertretungsmodus wie im Vorbild: aktives Fenster dunkelgrün mit weißer Schrift, inaktive hellgrün.</summary>
     public static Color Farbe(bool aktiv) => Ui.Vertretungsmodus
         ? (aktiv ? Color.FromArgb(88, 150, 125) : Color.FromArgb(149, 208, 185))
         : aktiv ? Ui.Titel : Mischen(Ui.Titel, Color.White, 0.45f);
@@ -100,7 +100,7 @@ public sealed class FensterTitel : Control
         }
     }
 
-    /// <summary>Weißer Knopf mit blauem Dreieck (Untis-Durchschalter).</summary>
+    /// <summary>Weißer Knopf mit blauem Dreieck (Vorbild-Durchschalter).</summary>
     private static void SchalterZeichnen(Graphics g, Rectangle r, bool vor, bool hover)
     {
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;

@@ -3,7 +3,7 @@ using System.Drawing.Drawing2D;
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
-/// Fensterverknüpfung wie in Untis: Wird in einem Fenster eine Klasse, Lehrkraft, ein Raum, Fach oder Unterricht bzw. eine Stunde
+/// Fensterverknüpfung wie im Vorbild: Wird in einem Fenster eine Klasse, Lehrkraft, ein Raum, Fach oder Unterricht bzw. eine Stunde
 /// gewählt, zeigen alle verknüpften Fenster die Daten zu diesem Element. Die Verknüpfung ist pro Fenster über das Kettensymbol
 /// („Fenster verknüpfen“) abschaltbar.
 /// </summary>

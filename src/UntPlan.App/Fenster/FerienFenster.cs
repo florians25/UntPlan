@@ -5,7 +5,7 @@ using UntPlan.Core.Model;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Ferien und Feiertage nach Untis-Vorbild: oben die Tabelle (Name, Langname, Von, Bis, Woche danach, Wochennummerierung),
+/// Ferien und Feiertage nach Vorbild: oben die Tabelle (Name, Langname, Von, Bis, Woche danach, Wochennummerierung),
 /// darunter Werkzeugknöpfe, Datum/Kalenderwoche des gewählten Tages mit „Unterrichtsfrei“/„Feiertag“ und Legende,
 /// der Jahreskalender (Monate August–Juli als Zeilen, Mo–So über sechs Wochen als Spalten: Ferien orange, Feiertage rot,
 /// Schultage grün, Wochenenden fett umrandet), der Reiter „Allgemeine Daten“ und Ok/Abbrechen/Übernahme.
@@ -14,7 +14,7 @@ namespace UntPlan.App.Fenster;
 /// </summary>
 public sealed class FerienFenster : MdiFenster
 {
-    /// <summary>Farben der Legende (wie Untis).</summary>
+    /// <summary>Farben der Legende (wie im Vorbild).</summary>
     public static readonly Color FerienOrange = Color.FromArgb(255, 153, 51);
     public static readonly Color FeiertagRot = Color.FromArgb(240, 40, 40);
     public static readonly Color SchultagGruen = Color.FromArgb(102, 240, 102);
@@ -45,7 +45,7 @@ public sealed class FerienFenster : MdiFenster
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("NRW-Ferien und Feiertage eintragen", "ferien", NrwEintragen, false));
 
-        // Tabelle wie Untis
+        // Tabelle wie im Vorbild
         Ui.RasterGestalten(_liste);
         _liste.AllowUserToAddRows = false;
         _liste.Columns[_liste.Columns.Add("K", "Name")].Width = 60;
@@ -192,7 +192,7 @@ public sealed class FerienFenster : MdiFenster
     private Ferien? FerienAm(DateOnly datum) => _entwurf.Where(f => datum >= f.Von && datum <= f.Bis).OrderBy(f => f.Bis.DayNumber - f.Von.DayNumber).FirstOrDefault();
 
     /// <summary>
-    /// Häkchen für den gewählten Tag: „Unterrichtsfrei“ legt einen eintägigen Eintrag an (Name „3.9“, Langname „3.9.2021“ wie Untis)
+    /// Häkchen für den gewählten Tag: „Unterrichtsfrei“ legt einen eintägigen Eintrag an (Name „3.9“, Langname „3.9.2021“ wie im Vorbild)
     /// bzw. entfernt ihn, „Feiertag“ kennzeichnet den Eintrag als Feiertag.
     /// </summary>
     private void TagUmschalten()
@@ -279,7 +279,7 @@ public sealed class FerienFenster : MdiFenster
         Geaendert();
     }
 
-    /// <summary>Neue Ferien für einen Zeitraum: Name und Langname im Dialog „Kurzname“ (Vorschlag wie Untis: Datum).</summary>
+    /// <summary>Neue Ferien für einen Zeitraum: Name und Langname im Dialog „Kurzname“ (Vorschlag wie im Vorbild: Datum).</summary>
     internal void NeuDialog(DateOnly von, DateOnly bis)
     {
         var kurz = von == bis ? $"{von.Day}.{von.Month}" : "Ferien";
@@ -357,7 +357,7 @@ public sealed class FerienFenster : MdiFenster
     }
 
     /// <summary>
-    /// Jahreskalender wie Untis: Zeilen = Monate des Schuljahres (August bis Juli, links das Jahr), Spalten = Mo–So über sechs Wochen.
+    /// Jahreskalender wie im Vorbild: Zeilen = Monate des Schuljahres (August bis Juli, links das Jahr), Spalten = Mo–So über sechs Wochen.
     /// Ferien orange, Feiertage rot, Schultage grün, Wochenenden fett umrandet, gewählter Tag blau. Überstreichen legt Ferien an.
     /// </summary>
     private sealed class Kalenderansicht : Control

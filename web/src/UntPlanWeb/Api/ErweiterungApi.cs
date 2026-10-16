@@ -7,7 +7,7 @@ using UntPlanWeb.Dienste;
 namespace UntPlanWeb.Api;
 
 /// <summary>
-/// Endpunkte der WebUntis-Oberfläche, die über Plan, Vertretungen und Klassenbuch hinausgehen:
+/// Endpunkte der Portal-Oberfläche, die über Plan, Vertretungen und Klassenbuch hinausgehen:
 /// <list type="bullet">
 /// <item>Startseite „Heute“ (letzte Anmeldung, Planaktualisierung, Nachrichten, Stunden des Tages).</item>
 /// <item>Klassenbuch: Offene Stunden, Klassendienste, Befreiungen, Abwesenheiten bearbeiten, Sitzplan, Berichte.</item>

@@ -5,14 +5,14 @@ using UntPlan.Core.Model;
 namespace UntPlan.App.Dialoge;
 
 /// <summary>
-/// Untis „Stundenplan-Stunde - Inhalt (Felder) einer Unterrichtsstunde“: Felder aus der Liste links in die Stunde ziehen (Rasterfläche),
+/// Vorbild „Stundenplan-Stunde - Inhalt (Felder) einer Unterrichtsstunde“: Felder aus der Liste links in die Stunde ziehen (Rasterfläche),
 /// verschieben und an den Griffen in der Größe ändern; Fett/Kursiv/Unterstrichen, Ausrichtung, Schriftgröße in %, Felder in der Stunde
 /// zentrieren, Beginn- und Endzeit, Standardstunde, Art des Stundenplanes, „Fld. ausrichten“, Art des Namens (Kurz-/Lang-/Druckname),
 /// Alias verwenden, Lehrer und Vertreter, Zoom. Damit lassen sich Stundenpläne vollständig selbst gestalten.
 /// </summary>
 public static class StundenplanStundeDialog
 {
-    /// <summary>Felder in der Reihenfolge der Untis-Liste.</summary>
+    /// <summary>Felder in der Reihenfolge der Vorbild-Liste.</summary>
     public static readonly (StundenFeldArt Art, string Text)[] Palette =
     {
         (StundenFeldArt.Klasse, "Klasse"), (StundenFeldArt.Lehrer, "Lehrer"), (StundenFeldArt.Raum, "Raum"), (StundenFeldArt.Fach, "Fach"),
@@ -196,7 +196,7 @@ public static class StundenplanStundeDialog
             set { _zoom = Math.Clamp(value, 1, 8); Invalidate(); }
         }
 
-        /// <summary>Rechteck der Unterrichtsstunde auf der Fläche (Untis: weiße Fläche im Raster).</summary>
+        /// <summary>Rechteck der Unterrichtsstunde auf der Fläche (Vorbild: weiße Fläche im Raster).</summary>
         public Rectangle Stunde => new(40, 30, 40 + _zoom * 36, 20 + _zoom * 18);
 
         public RectangleF Rechteck(StundenFeld f)

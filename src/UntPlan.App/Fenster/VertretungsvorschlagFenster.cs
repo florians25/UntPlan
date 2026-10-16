@@ -8,10 +8,10 @@ using UntPlan.Core.Vertretungsplanung;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Vertretungsvorschlag wie Untis: folgt der markierten Vertretung. Aufklappbarer Kopf „30.8. Mo-1 Se/Mu/05D“, aufklappbare
+/// Vertretungsvorschlag wie im Vorbild: folgt der markierten Vertretung. Aufklappbarer Kopf „30.8. Mo-1 Se/Mu/05D“, aufklappbare
 /// Optionen (Stundenblock, Dislozierungen ignorieren, Dauervertretung) mit den Anzahlen der Reiter, Reiter
 /// Vertretungsvorschläge / Betreuungen / Räume und unten aufklappbar die Vorziehungen.
-/// Spalten wie Untis: Name, Stundenplan (drei Stunden, die Vertretungsstunde gestrichelt markiert), Merker zur Stunde,
+/// Spalten wie im Vorbild: Name, Stundenplan (drei Stunden, die Vertretungsstunde gestrichelt markiert), Merker zur Stunde,
 /// Vertr., Entfall, Zähler, Zeitwunsch, Jahressaldo, Kennzeichen, reg. Bereitschaft, Dep. (Werte mit drei Nachkommastellen).
 /// </summary>
 public sealed class VertretungsvorschlagFenster : MdiFenster
@@ -176,7 +176,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         if (g.Columns.Contains("Kr")) g.Columns["Kr"]!.MinimumWidth = 160;
     }
 
-    /// <summary>Tabelle wie Untis: weiße Kopfzeile ohne Zeilenköpfe, abwechselnde Zeilen, nur die aktuelle Zelle orange.</summary>
+    /// <summary>Tabelle wie im Vorbild: weiße Kopfzeile ohne Zeilenköpfe, abwechselnde Zeilen, nur die aktuelle Zelle orange.</summary>
     private void RasterEinrichten(DataGridView g)
     {
         Ui.RasterGestalten(g, false);
@@ -193,7 +193,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.CellPainting += ZelleZeichnen;
         g.CellFormatting += (_, e) =>
         {
-            // Untis: nur die aktuelle Zelle ist orange hinterlegt (auch nach einem Moduswechsel der Tabellenfarben)
+            // Vorbild: nur die aktuelle Zelle ist orange hinterlegt (auch nach einem Moduswechsel der Tabellenfarben)
             if (e.CellStyle != null) e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
         };
     }
@@ -216,7 +216,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Neuaufbau();
     }
 
-    /// <summary>Kopf wie Untis: „30.8. Mo-1 Se/Mu/05D“ (Datum, Tag-Stunde, Lehrer/Fach/Klasse).</summary>
+    /// <summary>Kopf wie im Vorbild: „30.8. Mo-1 Se/Mu/05D“ (Datum, Tag-Stunde, Lehrer/Fach/Klasse).</summary>
     internal static string KopfText(DatenIndex ix, Vertretung v)
     {
         var tag = Planungsdienst.TageKurz[((int)v.Datum.DayOfWeek + 6) % 7];
@@ -312,14 +312,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
     private static string ZellText(List<StundenplanZelle> z, int i) => i < z.Count ? z[i].Text : "";
 
-    /// <summary>Zahlenformat wie Untis: drei Nachkommastellen mit Punkt (0.000, -1.000).</summary>
+    /// <summary>Zahlenformat wie im Vorbild: drei Nachkommastellen mit Punkt (0.000, -1.000).</summary>
     internal static string Zahl(decimal w) => w.ToString("0.000", Inv);
 
     internal static string ZahlLeer(decimal w) => w == 0 ? "" : Zahl(w);
 
     internal static string Zeitwunsch(int w) => w == 0 ? "" : w.ToString("+0;-0", Inv);
 
-    /// <summary>Merker zur Stunde wie Untis: 0–3 weiß, 4–8 zunehmend rosa, 9 rot; Bereitschaft (Fachkürzel) grün.</summary>
+    /// <summary>Merker zur Stunde wie im Vorbild: 0–3 weiß, 4–8 zunehmend rosa, 9 rot; Bereitschaft (Fachkürzel) grün.</summary>
     internal static Color? MerkerFarbe(string merker)
     {
         if (merker.Length == 0 || merker == "x") return null;
@@ -597,7 +597,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _vorzLeiste.Offen = vorziehungen;
     }
 
-    /// <summary>Selbsttest: Spalten und Werte wie Untis (drei Stundenplanspalten mit genau einer Vertretungsstunde, drei Nachkommastellen).</summary>
+    /// <summary>Selbsttest: Spalten und Werte wie im Vorbild (drei Stundenplanspalten mit genau einer Vertretungsstunde, drei Nachkommastellen).</summary>
     internal string SelbsttestPruefen()
     {
         if (_v is null) return "Vorschlag: keine Vertretung markiert";
@@ -617,7 +617,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     // Steuerelemente
     // ----------------------------------------------------------------------------------------------
 
-    /// <summary>Aufklappbare Leiste wie Untis (weißer Kasten, fetter Text, ▼ zugeklappt / ▲ aufgeklappt; unten umgekehrt).</summary>
+    /// <summary>Aufklappbare Leiste wie im Vorbild (weißer Kasten, fetter Text, ▼ zugeklappt / ▲ aufgeklappt; unten umgekehrt).</summary>
     private sealed class Klappleiste : Control
     {
         private readonly bool _unten;
@@ -677,7 +677,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         }
     }
 
-    /// <summary>Reiter wie Untis: mintgrüne Leiste, gewählter Reiter hell und erhöht.</summary>
+    /// <summary>Reiter wie im Vorbild: mintgrüne Leiste, gewählter Reiter hell und erhöht.</summary>
     private sealed class Reiterleiste : Control
     {
         private string[] _texte = Array.Empty<string>();

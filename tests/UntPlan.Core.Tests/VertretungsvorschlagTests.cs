@@ -5,7 +5,7 @@ using Xunit;
 
 namespace UntPlan.Core.Tests;
 
-/// <summary>Vertretungsvorschlag wie Untis: Stundenplanspalte, Vertr./Entfall-Werte, Kennzeichen, Sortierung, Dislozierung, Betreuungen, Vorziehungen.</summary>
+/// <summary>Vertretungsvorschlag wie im Vorbild: Stundenplanspalte, Vertr./Entfall-Werte, Kennzeichen, Sortierung, Dislozierung, Betreuungen, Vorziehungen.</summary>
 public class VertretungsvorschlagTests
 {
     private static (Schuldatei d, DateOnly tag, List<Vertretung> offen, int lehrer) Krank()

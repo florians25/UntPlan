@@ -4,7 +4,7 @@ using UntPlan.Core;
 namespace UntPlan.App.Druck;
 
 /// <summary>
-/// Seitenlayout des Vertretungsplans wie Untis: links die Seitenvorschau (WYSIWYG, Seiten blättern, Zoom, Stifte über den
+/// Seitenlayout des Vertretungsplans wie im Vorbild: links die Seitenvorschau (WYSIWYG, Seiten blättern, Zoom, Stifte über den
 /// Spaltenköpfen zum Ändern von Überschrift und Breite), rechts die Einstellungen – Auswahl der Klassen/Lehrer, „Druck nur, wenn
 /// geändert nach …“, Erste Beschriftungsspalte auf jeder Seite, Raster, Beschränkung auf Seitenbreite, Felder, Hintergrund-Bild
 /// sowie die Karten „Aktuelle Ansicht“ (Auswahl, Gliederung, Form, Abwesend, Überschrift) und „Global“ (Schrift, Format).
@@ -347,7 +347,7 @@ public sealed class SeitenlayoutFenster : Form
                 Size = new Size(16, 16), Tag = schluessel, TabStop = false, Padding = new Padding(0),
             };
             stift.FlatAppearance.BorderSize = 0;
-            // im Spaltenkopf oben rechts (wie die Stifte in Untis), nicht über dem Inhalt darüber
+            // im Spaltenkopf oben rechts (wie die Stifte in Vorbild), nicht über dem Inhalt darüber
             stift.Location = new Point(_seite.Left + (int)(kopf.Right * faktor) - 17, _seite.Top + (int)(kopf.Y * faktor) + 1);
             stift.Click += (_, _) => SpalteBearbeiten(schluessel);
             new ToolTip().SetToolTip(stift, "Überschrift und Breite der Spalte ändern");
@@ -376,7 +376,7 @@ public sealed class SeitenlayoutFenster : Form
 }
 
 /// <summary>
-/// Untis „Felder der Ansicht“: Knöpfe Ok / Übernahme / Abbrechen, darunter die Felder mit „drucken“ – Reihenfolge mit ▲/▼.
+/// Vorbild „Felder der Ansicht“: Knöpfe Ok / Übernahme / Abbrechen, darunter die Felder mit „drucken“ – Reihenfolge mit ▲/▼.
 /// „Übernahme“ wendet die Auswahl an, ohne den Dialog zu schließen.
 /// </summary>
 public static class FelderDerAnsichtDialog

@@ -7,15 +7,16 @@ using UntPlan.Core.Planung;
 namespace UntPlan.App.Dialoge;
 
 /// <summary>
-/// Stundenplanformat wie Untis: „Format 01 - Einzelstundenplan Tage waagrecht, Stunden senkrecht“ mit den Karten
+/// Stundenplanformat wie im Vorbild: „Format 01 - Einzelstundenplan Tage waagrecht, Stunden senkrecht“ mit den Karten
 /// Allgemein | Auswahl (Bereich) | Layout 1 | Layout 2 | HTML und einer Vorschau des aktuellen Plans, die jede Änderung sofort zeigt.
 /// Der Inhalt einer Stunde wird im eigenen Editor „Stundenplan-Stunde“ gestaltet (<see cref="StundenplanStundeDialog"/>).
 /// </summary>
 public static class StundenplanEinstellungenDialog
 {
-    public static StundenplanFormat? Zeigen(IWin32Window owner, StundenplanFormat f, ElementTyp? typ = null, int? elementId = null)
+    /// <param name="sofort">wird nach jeder Änderung der Stundenplan-Stunde (Editor) sofort mit dem aktuellen Stand aufgerufen – das Format wird gespeichert und die Pläne zeigen die Änderung direkt</param>
+    public static StundenplanFormat? Zeigen(IWin32Window owner, StundenplanFormat f, ElementTyp? typ = null, int? elementId = null, Action<StundenplanFormat>? sofort = null)
     {
-        using var d = Erstellen(f, typ, elementId, out var uebernehmen);
+        using var d = Erstellen(f, typ, elementId, out var uebernehmen, sofort);
         if (d.ShowDialog(owner) != DialogResult.OK) return null;
         uebernehmen();
         return f;
@@ -40,7 +41,7 @@ public static class StundenplanEinstellungenDialog
     /// <summary>Für den Selbsttest: die Vorschau des Dialogs.</summary>
     public static PlanAnsicht Vorschau(Form d) => d.Controls.OfType<PlanAnsicht>().First();
 
-    private static Dialog Erstellen(StundenplanFormat f, ElementTyp? typ, int? elementId, out Action uebernehmen)
+    private static Dialog Erstellen(StundenplanFormat f, ElementTyp? typ, int? elementId, out Action uebernehmen, Action<StundenplanFormat>? sofort = null)
     {
         var d = new Dialog(StundenplanFormat.GrundformText(f.Grundform), 920, 520) { Font = Ui.Schrift };
         var tabs = new TabControl { Left = 8, Top = 8, Width = 560, Height = 440 };
@@ -358,6 +359,13 @@ public static class StundenplanEinstellungenDialog
             stundeEinstellungen = (neu.FelderHorizontalZentrieren, neu.FelderVertikalZentrieren, neu.BeginnEndzeit, neu.NamensArt, neu.AliasVerwenden, neu.LehrerUndVertreter);
             std.Checked = neu.Standardformat;
             Vorschau();
+            if (sofort != null)
+            {
+                // Stundenplan-Stunde sofort übernehmen und speichern (nicht erst beim OK des Formatdialogs)
+                var stand = System.Text.Json.JsonSerializer.Deserialize<StundenplanFormat>(System.Text.Json.JsonSerializer.Serialize(f))!;
+                Schreiben(stand);
+                sofort(stand);
+            }
         };
         grundKnopf.Click += (_, _) =>
         {
@@ -379,7 +387,7 @@ public static class StundenplanEinstellungenDialog
     };
 }
 
-/// <summary>Untis „Stundenplanformate – Grundformen der Stundenpläne“: Auswahl der Grundform beim Anlegen eines Formats.</summary>
+/// <summary>Vorbild „Stundenplanformate – Grundformen der Stundenpläne“: Auswahl der Grundform beim Anlegen eines Formats.</summary>
 public static class StundenplanGrundformDialog
 {
     private static readonly (Grundform Form, string Text, bool Einzel)[] Formen =
@@ -438,7 +446,7 @@ public static class StundenplanGrundformDialog
         return d;
     }
 
-    /// <summary>Kleine schematische Vorschau der Grundform (wie die Bilder im Untis-Dialog).</summary>
+    /// <summary>Kleine schematische Vorschau der Grundform (wie die Bilder im Vorbild-Dialog).</summary>
     public static Bitmap Vorschaubild(Grundform g)
     {
         var bmp = new Bitmap(84, 66);

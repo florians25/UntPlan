@@ -64,7 +64,7 @@ public sealed class KalenderFenster : MdiFenster
             if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
         };
 
-        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie Untis: Gültig bis | Tagestext […] | WebUntis;
+        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Gültig bis | Tagestext […] | Webportal;
         // „…“ in der Textzelle öffnet den Dialog für formatierte Tagestexte (Fett, Kursiv, Unterstrichen, Farbe)
         Ui.RasterGestalten(_texte, true);
         _texte.AllowUserToAddRows = true;
@@ -73,7 +73,7 @@ public sealed class KalenderFenster : MdiFenster
         var textSpalte = _texte.Columns[_texte.Columns.Add("X", "Tagestext")];
         textSpalte.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
         textSpalte.MinimumWidth = 80;
-        _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "WebUntis", Width = 62 });
+        _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Webportal", Width = 62 });
         var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "Art", Width = 80, FlatStyle = FlatStyle.Flat };
         art.Items.AddRange(Arten);
         _texte.Columns.Add(art);
@@ -101,7 +101,7 @@ public sealed class KalenderFenster : MdiFenster
         var seiteTexte = new TabPage("Tagestexte");
         seiteTexte.Controls.Add(_texte);
 
-        // Kalendertag wie Untis: Datum, Normaler Schultag / Feiertag / Unterrichtsfrei [Grund] / Nur diese Stunden unterrichtsfrei [Stunden], Notiz
+        // Kalendertag wie im Vorbild: Datum, Normaler Schultag / Feiertag / Unterrichtsfrei [Grund] / Nur diese Stunden unterrichtsfrei [Stunden], Notiz
         var tag = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(232, 240, 236), Padding = new Padding(8) };
         var rahmen = new Panel { Location = new Point(6, 6), Size = new Size(520, 210), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(232, 240, 236) };
         rahmen.Controls.Add(_tagTitel);

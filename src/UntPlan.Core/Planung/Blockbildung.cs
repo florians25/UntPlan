@@ -37,7 +37,7 @@ public static class Blockbildung
 {
     /// <summary>Felder bilden: <paramref name="am"/> liefert die Einträge einer Stunde, <paramref name="schluessel"/> null = nie zusammenfassen.</summary>
     /// <param name="stapeln">
-    /// Untis-Darstellung der großen Pläne: Gleichzeitige Felder mit genau gleicher Lage (gleiche Stunden) werden nicht nebeneinander,
+    /// Vorbild-Darstellung der großen Pläne: Gleichzeitige Felder mit genau gleicher Lage (gleiche Stunden) werden nicht nebeneinander,
     /// sondern untereinander als eigene Zeilen in einem gemeinsamen Feld gezeigt (z. B. „D Way R105“ über „M LesD A117“).
     /// </param>
     public static List<PlanBlock<T>> Anordnen<T>(int stunden, Func<int, IReadOnlyList<T>> am, Func<T, string?> schluessel, bool stapeln = false)

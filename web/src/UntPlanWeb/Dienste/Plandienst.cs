@@ -137,10 +137,31 @@ public sealed class Plandienst
 
     public List<Rohstunde> Rohstunden(Stand s, DateOnly d)
     {
-        if (s.Tage.TryGetValue(Iso(d), out var tag))
-            return tag.Unterrichtstag
-                ? tag.Stunden.Select(x => new Rohstunde(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt)).ToList()
-                : new List<Rohstunde>();
+        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt);
+        if (s.Tage.TryGetValue(Iso(d), out var tag) && !tag.NurAenderungen)
+            return tag.Unterrichtstag ? tag.Stunden.Select(Aus).ToList() : new List<Rohstunde>();
+        if (tag is { NurAenderungen: true })
+        {
+            // nur Vertretungen übertragen: die geänderten Stunden über den zuletzt übertragenen Stundenplan legen
+            if (!tag.Unterrichtstag) return new List<Rohstunde>();
+            var basis = RegelStunden(s, d);
+            foreach (var x in tag.Stunden)
+            {
+                var betroffen = new HashSet<string>(x.Lehrer.Concat(x.LehrerAlt ?? new List<string>()), Ci);
+                var gleich = basis.Where(b => b.Stunde == x.Stunde && b.Unterricht == x.Unterricht && x.Unterricht.HasValue).ToList();
+                var treffer = gleich.Where(b => b.Lehrer.Any(betroffen.Contains)).ToList();
+                if (treffer.Count == 0) treffer = gleich.Where(b => Ci.Equals(b.Fach, x.Fach)).Take(1).ToList();
+                foreach (var b in treffer) basis.Remove(b);
+                basis.Add(Aus(x));
+            }
+            return basis.OrderBy(b => b.Stunde).ToList();
+        }
+        return RegelStunden(s, d);
+    }
+
+    /// <summary>Stunden laut zuletzt übertragenem Periodenstundenplan (ohne Vertretungen).</summary>
+    private List<Rohstunde> RegelStunden(Stand s, DateOnly d)
+    {
         if (Frei(s, d).Frei) return new List<Rohstunde>();
         var periode = s.Paket.Perioden
             .Where(p => DateOnly.TryParse(p.Von, out var v) && v <= d && (!DateOnly.TryParse(p.Bis, out var b) || d <= b))

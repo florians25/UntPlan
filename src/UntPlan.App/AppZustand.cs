@@ -271,7 +271,7 @@ public sealed class Vertretungsdruck
     /// <summary>Seitenlayout „Nur neue Vertretungen“: nur in dieser Arbeitssitzung angelegte oder geänderte Vertretungen drucken.</summary>
     public bool NurNeue { get; set; }
 
-    // ---- Seitenlayout wie Untis ----
+    // ---- Seitenlayout wie im Vorbild ----
     /// <summary>Felder (Spalten) des Ausdrucks in Druckreihenfolge; leer = Standardfelder.</summary>
     public List<DruckFeld> Felder { get; set; } = new();
     /// <summary>Auswahl der Klassen (Klassenversion) bzw. Lehrer (Lehrerversion); leer = alle.</summary>

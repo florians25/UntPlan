@@ -455,7 +455,7 @@ public static class Vertretungen
     }
 
     /// <summary>
-    /// Kennzeichen „Neue Vertretung“ (wie in Untis): in der aktuellen Arbeitssitzung – seit dem Öffnen der Datei – neu angelegt
+    /// Kennzeichen „Neue Vertretung“ (wie im Vorbild): in der aktuellen Arbeitssitzung – seit dem Öffnen der Datei – neu angelegt
     /// oder geändert. Reine Unterrichtszeilen (Nr. 0) sind nie neu.
     /// </summary>
     public static bool IstNeu(Vertretung v, DateTime sitzungsbeginn) => v.Id != 0 && (v.Erstellt >= sitzungsbeginn || v.Geaendert >= sitzungsbeginn);
@@ -1015,7 +1015,7 @@ public static class VertretungsVorschlag
     };
 
     /// <summary>
-    /// Vertretungsvorschlag: alle verfügbaren Lehrer, gereiht nach Schlechtpunkten (Vorschlagsgüte wie Untis:
+    /// Vertretungsvorschlag: alle verfügbaren Lehrer, gereiht nach Schlechtpunkten (Vorschlagsgüte wie im Vorbild:
     /// freigesetzte und Bereitschaftslehrer zuerst, dann nach Merker zur Stunde, Zähler und Zeitwunsch;
     /// Lehrkräfte mit Zeitwunsch −3 stehen am Ende).
     /// </summary>
@@ -1087,7 +1087,7 @@ public static class VertretungsVorschlag
             if (k.KenntKlasse) { k.Punkte -= e.HatKlasse; k.Kriterien.Add(k.Klassenlehrer ? "Klassenlehrer" : "kennt Klasse"); }
             if (k.Fachlehrer) { k.Punkte -= e.HatFach; k.Kriterien.Add("Fach"); }
             if (zw < 0) { k.Punkte += -zw * 15; k.Kriterien.Add($"Zeitwunsch {zw}"); }
-            // Zeitwunsch −3 (gesperrt) wie Untis ans Ende der Liste
+            // Zeitwunsch −3 (gesperrt) wie im Vorbild ans Ende der Liste
             if (zw <= -3) k.Punkte += 1000;
             if (!l.StundenProTag.IstLeer && k.UnterrichtAmTag + 1 > l.StundenProTag.Max) { k.Punkte += 25; k.Kriterien.Add("Std./Tag überschritten"); }
             if (l.Sperrvermerk > 0) k.Kriterien.Add($"Sperrvermerk {l.Sperrvermerk}");
@@ -1157,7 +1157,7 @@ public static class VertretungsVorschlag
     }
 
     /// <summary>
-    /// Spalte „Stundenplan“ wie Untis: drei Stunden (die Vertretungsstunde in der Mitte, am Tagesrand verschoben) mit dem
+    /// Spalte „Stundenplan“ wie im Vorbild: drei Stunden (die Vertretungsstunde in der Mitte, am Tagesrand verschoben) mit dem
     /// Fach des tagesaktuellen Unterrichts der Lehrkraft. Entfallener bzw. offener eigener Unterricht erscheint durchgestrichen.
     /// </summary>
     public static List<StundenplanZelle> StundenplanZellen(Schuldatei d, DatenIndex ix, Tagesplan tp, int lehrerId, int stunde, int anzahl = 3)
@@ -1249,7 +1249,7 @@ public static class VertretungsVorschlag
                     KennzeichenText = kennzeichen.GetValueOrDefault(l) ?? "",
                 });
             }
-        // wie Untis: nach Nähe zum Raum der Vertretung, dann nach der Reihenfolge der Räume
+        // wie im Vorbild: nach Nähe zum Raum der Vertretung, dann nach der Reihenfolge der Räume
         return res.OrderBy(r => r.Naehe).ThenByDescending(r => r.KenntKlasse).ThenBy(r => r.BetreuungenHeute).ThenBy(r => r.Zaehler)
             .ThenBy(r => d.Raeume.FirstOrDefault(x => x.Kurzname == r.Raum) is { } x ? raumReihe[x.Id] : int.MaxValue).ThenBy(r => r.Lehrer.Kurzname).ToList();
     }

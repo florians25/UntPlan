@@ -35,7 +35,7 @@ public enum BehinderungsAntwort
 }
 
 /// <summary>
-/// Untis-Abfrage „Soll behindernder Unterricht entplant werden?“ mit der Liste der behindernden Stunden. Ja entplant den
+/// Vorbild-Abfrage „Soll behindernder Unterricht entplant werden?“ mit der Liste der behindernden Stunden. Ja entplant den
 /// behindernden Unterricht, Nein führt die Aktion mit Kollision aus, Abbrechen ändert nichts. Im Selbsttest beantwortet der
 /// Hook <see cref="Ui.FrageAntwort"/> die Frage ohne modales Fenster (true = Ja, false = Nein).
 /// </summary>

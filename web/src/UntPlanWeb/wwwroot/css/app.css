@@ -1,4 +1,4 @@
-/* UntPlanWeb – Erscheinungsbild im Stil von WebUntis (Original-Icons aus dem Paket des Kollegen unter img/wu, freie Schrift Nunito Sans, eigenes Logo).
+/* UntPlanWeb – Erscheinungsbild im Stil des Vorbilds (Original-Icons aus dem Paket des Kollegen unter img/wu, freie Schrift Nunito Sans, eigenes Logo).
    Aufbau: Farben & Maße · Grundlagen · Bootstrap-Bausteine · Hülle (Navigation, Konto) · Seitenaufbau & Werkzeugleiste · Heute ·
    Listen, Tabellen & Filter · Anmeldung · Stundenplan · Legende · Tagesübersicht · Vertretungsplan · Stundendetails · Mitteilungen ·
    Klassenbuch · Verwaltung · Monitor · Druck · Schmale Bildschirme */
@@ -97,7 +97,7 @@ a:hover { text-decoration: underline; }
 .u-sym { width: 1.2em; height: 1.2em; flex: none; vertical-align: -.22em; }
 .btn .u-sym, .rundknopf .u-sym { width: 18px; height: 18px; }
 
-/* ------------------------------------------------------------------ Bootstrap-Bausteine im WebUntis-Stil */
+/* ------------------------------------------------------------------ Bootstrap-Bausteine im Portal-Stil */
 
 /* Knöpfe: Pillen mit 1,5-px-Rand und kräftiger Schrift; Hauptaktion orange, „Heute“ dunkelgrau */
 .btn {
@@ -437,7 +437,7 @@ details.heute-nachricht > div { padding: 4px 0 0 13px; }
 .u-chip.rot { background: var(--u-rot-hell); color: #a1262b; }
 .u-chip.gelb { background: var(--u-gelb-hell); color: #6b4e00; }
 .u-chip.lila { background: #efe8fb; color: #5b3fa0; }
-/* Kennzahlen über der Abwesenheitsliste (neues Untis-Design: Kacheln als Schnellfilter) */
+/* Kennzahlen über der Abwesenheitsliste (neues Vorbild-Design: Kacheln als Schnellfilter) */
 .abw-kennzahlen { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .abw-kz { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border: 1px solid var(--u-linie, #e3e7eb); border-left: 4px solid #3b78c2;
   border-radius: 8px; background: var(--u-flaeche, #fff); color: inherit; text-align: left; font: inherit; transition: box-shadow .15s, transform .15s; }
@@ -984,7 +984,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .u-rechte .nein { color: var(--u-grau-3); }
 .u-import-fehler td { background: #fdecec !important; }
 
-/* ------------------------------------------------------------------ Feinabgleich nach den WebUntis-Screenshots (53–62) */
+/* ------------------------------------------------------------------ Feinabgleich nach den Portal-Screenshots (53–62) */
 
 /* Original-Icons als Maske: grau, im aktiven Menüpunkt orange */
 .u-sym.wu { display: inline-block; background-color: currentColor; -webkit-mask: var(--wu) center / contain no-repeat; mask: var(--wu) center / contain no-repeat; }
@@ -1083,7 +1083,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .sd-status .ok .bi { color: #2bb673; font-size: 1.45rem; }
 .sd-statusknopf { border: 1.5px solid var(--u-akzent); background: #fff; color: var(--u-akzent-dunkel); border-radius: 999px; padding: .35rem 1.2rem; font-weight: 700; font-size: .95rem; }
 .sd-statusknopf:hover { background: var(--u-akzent-hell); }
-/* orange Pille wie WebUntis („Lehrstoff eingeben“), daneben zweizeilig „Abwesenheitskontrolle ab:“ */
+/* orange Pille wie im Vorbild („Lehrstoff eingeben“), daneben zweizeilig „Abwesenheitskontrolle ab:“ */
 .sd-orange { border: 0; background: var(--u-akzent); color: #fff; border-radius: 999px; padding: .62rem 1.15rem; font-weight: 600; font-size: .95rem; line-height: 1.2; box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 .sd-orange:hover { background: var(--u-akzent-dunkel); }
 .sd-orange:disabled { opacity: .55; }

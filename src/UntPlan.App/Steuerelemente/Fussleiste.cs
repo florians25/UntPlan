@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
-/// Fußleiste der Arbeitsfenster mit der Ansichts- bzw. Formatauswahl unten rechts wie in Untis („Kla1 - Klasse 1“): die Auswahl hat
+/// Fußleiste der Arbeitsfenster mit der Ansichts- bzw. Formatauswahl unten rechts wie im Vorbild („Kla1 - Klasse 1“): die Auswahl hat
 /// Abstand zum unteren und rechten Fensterrand (nie abgeschnitten), rechts unten bleibt der Größengriff frei (gezeichnet, ziehbar).
 /// </summary>
 public sealed class Fussleiste : Panel
@@ -76,7 +76,7 @@ public sealed class Fussleiste : Panel
     {
         base.OnPaint(e);
         if (!GriffAktiv) return;
-        // Größengriff aus Punkten wie in Untis
+        // Größengriff aus Punkten wie im Vorbild
         using var dunkel = new SolidBrush(Color.FromArgb(150, 150, 150));
         using var hell = new SolidBrush(Color.White);
         var g = Griff;

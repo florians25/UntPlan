@@ -145,10 +145,13 @@ public static class ListenSuche
     /// <summary>
     /// Liste so breit öffnen, dass Kurz- und Langname vollständig lesbar sind (auch in schmalen Tabellenspalten).
     /// </summary>
+    /// <summary>Mindestbreite jeder geöffneten Auswahlliste – nie nur so schmal wie die Tabellenspalte bzw. das Feld.</summary>
+    public const int MindestListenbreite = 240;
+
     public static void BreiteSetzen(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
     {
         if (cb.IsDisposed) return;
-        var breite = Math.Max(cb.Width, BenoetigteBreite(cb, stil, langname));
+        var breite = Math.Max(cb.Width, Math.Max(MindestListenbreite, BenoetigteBreite(cb, stil, langname)));
         // nie auf die Feldbreite zurückfallen: der Platz bis zum Bildschirmrand war bei mehreren Monitoren bzw. unterschiedlicher
         // Skalierung unzuverlässig (dann wurde die Liste plötzlich schmal) – Windows hält die geöffnete Liste selbst auf dem Bildschirm
         var bildschirm = (cb.IsHandleCreated ? Screen.FromControl(cb) : Screen.PrimaryScreen)?.WorkingArea.Width ?? 1024;

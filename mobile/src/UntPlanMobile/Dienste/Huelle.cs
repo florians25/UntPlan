@@ -19,7 +19,7 @@ public sealed class Huelle
     public Huelle(IWebHostEnvironment env)
     {
         var vorlagen = Path.Combine(env.ContentRootPath, "Vorlagen");
-        var sprite = File.ReadAllText(Path.Combine(env.WebRootPath, "assets", "icons", "untis-sprite.svg"));
+        var sprite = File.ReadAllText(Path.Combine(env.WebRootPath, "assets", "icons", "symbole-sprite.svg"));
         Fassung = FassungBerechnen(env.WebRootPath, vorlagen);
         _index = File.ReadAllText(Path.Combine(vorlagen, "index.html")).Replace("<!--SYMBOLE-->", sprite).Replace("__FASSUNG__", Fassung);
         _sw = File.ReadAllText(Path.Combine(vorlagen, "sw.js")).Replace("__FASSUNG__", Fassung);

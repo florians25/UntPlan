@@ -40,7 +40,7 @@ public sealed partial class HauptFenster
         d.Tagestexte.Add(new Tagestext { Datum = tag, Text = "Heute 7. Stunde Lehrerkonferenz – Unterricht endet nach der 6. Stunde." });
         AppZustand.Setzen(new Dokument(d));
 
-        // gespeicherte Spaltenlayouts bzw. Ansicht der Vertretungsliste (aus früheren Läufen) nicht übernehmen: Standard wie Untis
+        // gespeicherte Spaltenlayouts bzw. Ansicht der Vertretungsliste (aus früheren Läufen) nicht übernehmen: Standard wie im Vorbild
         foreach (var k in AppZustand.Einstellungen.Tabellenlayouts.Keys.Where(k => k.StartsWith("VertretungenFenster", StringComparison.Ordinal)).ToList())
             AppZustand.Einstellungen.Tabellenlayouts.Remove(k);
         AppZustand.Einstellungen.Vertretungsansicht = "Klasse - Standard";
@@ -95,7 +95,7 @@ public sealed partial class HauptFenster
         Schritt("01_Arbeitsbereich", StandardFenster, 0);
         void KopfPruefen(string modus)
         {
-            // Sprint 6: Programmkopf wie Untis 2026 – keine Windows-Titelleiste, ein Balken in der Modusfarbe, Titel mittig, helle Registerkarte
+            // Sprint 6: Programmkopf wie im Vorbild 2026 – keine Windows-Titelleiste, ein Balken in der Modusfarbe, Titel mittig, helle Registerkarte
             if (FormBorderStyle != FormBorderStyle.None) throw new InvalidOperationException("Hauptfenster hat noch die Windows-Titelleiste");
             if (_schnell.BackColor != Ui.Titel || _ribbon.Rechts.BackColor != Ui.Titel) throw new InvalidOperationException($"Kopf nicht in der Modusfarbe ({modus})");
             _schnell.Refresh();
@@ -104,7 +104,7 @@ public sealed partial class HauptFenster
             var mitte = t.X + t.Width / 2;
             if (Math.Abs(mitte - _schnell.Width / 2) > _schnell.Width / 6) throw new InvalidOperationException($"Titel nicht mittig: {t} bei Breite {_schnell.Width}");
             if (_ribbon.Rechts.Items.Count != 8) throw new InvalidOperationException("Fensteranordnungen 1–8 fehlen rechts in der Registerleiste");
-            if (!Text.StartsWith("UntPlan") || !Text.Contains("-  Stundenplan ")) throw new InvalidOperationException("Fenstertitel nicht wie Untis: " + Text);
+            if (!Text.StartsWith("UntPlan") || !Text.Contains("-  Stundenplan ")) throw new InvalidOperationException("Fenstertitel nicht wie im Vorbild: " + Text);
             using var bild = new Bitmap(_ribbon.Width, _ribbon.Height);
             _ribbon.DrawToBitmap(bild, new Rectangle(Point.Empty, bild.Size));
             var akzentGefunden = Enumerable.Range(0, Math.Min(bild.Width, 900)).Any(x => bild.GetPixel(x, 3).ToArgb() == Steuerelemente.Ribbon.Akzent.ToArgb());
@@ -126,7 +126,7 @@ public sealed partial class HauptFenster
             f.FormatAnzeigen(new StundenplanFormat { Name = "Klassenplan Einzelstunden", Typ = ElementTyp.Klasse, Einzelstunden = true, PausenAnzeigen = true, Schriftgroesse = 9 });
             if (AppZustand.D.Stundenplan.FirstOrDefault(p => f.Plan.StundenAm(p.Tag, p.Stunde).Contains(p)) is { } erste) f.StundeAnklicken(erste);
         }, 3);
-        // Sprint 6: Formatdialog wie Untis (Allgemein | Auswahl (Bereich) | Layout 1 | Layout 2 | HTML), Grundformen, Stundenplan-Stunde
+        // Sprint 6: Formatdialog wie im Vorbild (Allgemein | Auswahl (Bereich) | Layout 1 | Layout 2 | HTML), Grundformen, Stundenplan-Stunde
         Form? formatDialog = null;
         StundenplanFormat FormatTest() => new() { Name = "Klassenplan", Typ = ElementTyp.Klasse, Einzelstunden = true, PausenAnzeigen = true, Farbe = FarbeNach.Lehrer };
         Bitmap PlanBild(Steuerelemente.PlanAnsicht pa)
@@ -202,7 +202,7 @@ public sealed partial class HauptFenster
             Warten(150);
             var neu = ergebnis();
             if (neu.Felder.Count != 3 || neu.Standardformat) throw new InvalidOperationException($"Editor liefert {neu.Felder.Count} Felder, Standardformat={neu.Standardformat}");
-            if (ed.Felder[1].Beschriftung != "1Lehrer") throw new InvalidOperationException("Beschriftung wie Untis erwartet („1Lehrer“): " + ed.Felder[1].Beschriftung);
+            if (ed.Felder[1].Beschriftung != "1Lehrer") throw new InvalidOperationException("Beschriftung wie im Vorbild erwartet („1Lehrer“): " + ed.Felder[1].Beschriftung);
             // der Stundenplan zeichnet die eigenen Felder
             var plan = new Steuerelemente.PlanAnsicht { Typ = ElementTyp.Klasse, ElementId = AppZustand.D.Klassen.First().Id, Format = neu, Width = 700, Height = 520, Bearbeitbar = false };
             using (PlanBild(plan)) { }
@@ -264,7 +264,7 @@ public sealed partial class HauptFenster
             _ = un;
             _ = st;
         }, 3);
-        // ---------------------------------------------------------------- UP5: Stundenplanmodus nach Untis (65/66)
+        // ---------------------------------------------------------------- UP5: Stundenplanmodus nach Vorbild (65/66)
         StundenplanFenster[] DreiPlaene(bool klein, bool gross)
         {
             var dd = AppZustand.D;
@@ -297,7 +297,7 @@ public sealed partial class HauptFenster
         void Up5Zurueck() => AppZustand.Setzen(new Dokument(Dokument.Klonen(up5Sicherung)), false);
         Schritt("09e_Stundenplan_Menue", () =>
         {
-            // Sprint 6: Menü „»“ im Stundenplanfenster wie Untis
+            // Sprint 6: Menü „»“ im Stundenplanfenster wie im Vorbild
             var sp = StundenplanFenster.Neu(ElementTyp.Raum, AppZustand.D.Raeume.First().Id, false);
             sp.WindowState = FormWindowState.Normal;
             sp.Bounds = new Rectangle(60, 10, 380, 420);
@@ -333,7 +333,7 @@ public sealed partial class HauptFenster
         Schritt("UP5b_Grosse_Plaene_Stundenplanmodus", () =>
         {
             AppZustand.DatumSetzen(tag);
-            // unterrichtsfreier Tag in der Woche: senkrechter Text über die ganze Spalte (Untis)
+            // unterrichtsfreier Tag in der Woche: senkrechter Text über die ganze Spalte
             var frei = Kalender.Montag(tag).AddDays(AppZustand.D.Zeitraster.TageProWoche - 1);
             if (frei == tag) frei = Kalender.Montag(tag);
             AppZustand.Doc.Aendern("Selbsttest Feiertag", AenderungsArt.Alles, x => x.Kalender.Add(new Kalendertag { Datum = frei, Feiertag = true }));
@@ -454,9 +454,9 @@ public sealed partial class HauptFenster
         Schritt("13_Zeitraster", () => new ZeitrasterDialog().Show(this), 0);
         Schritt("14_Einstellungen", () => new EinstellungenDialog().Show(this), 0);
         Schritt("15_Ferien", () => Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), 0);
-        Schritt("15a_Ferien_Untis", () =>
+        Schritt("15a_Ferien_Kalender", () =>
         {
-            // UP-04: Ferienfenster wie Untis – eintägig unterrichtsfrei (Name „3.9“), Feiertag, Jahreskalender, Allgemeine Daten
+            // UP-04: Ferienfenster wie im Vorbild – eintägig unterrichtsfrei (Name „3.9“), Feiertag, Jahreskalender, Allgemeine Daten
             var f = Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster()));
             var dd = AppZustand.D;
             var frei = Kalender.Tage(dd.Einstellungen.SchuljahrVon, dd.Einstellungen.SchuljahrBis).First(t => t.DayOfWeek == DayOfWeek.Friday && Kalender.IstUnterrichtstag(dd, t));
@@ -471,7 +471,7 @@ public sealed partial class HauptFenster
         }, 0);
         Schritt("15b_Kurzname_Neuanlegen", () =>
         {
-            // Neuanlegen von Stammdaten: Dialog „Kurzname“ (Name, Langname) wie Untis
+            // Neuanlegen von Stammdaten: Dialog „Kurzname“ (Name, Langname) wie im Vorbild
             Max(Oeffnen<StammdatenFenster>("st:Schueler", () => new StammdatenFenster(ElementTyp.Schueler)));
             var vorschlag = KurznameDialog.Vorschlag(AppZustand.D.AlleElemente(ElementTyp.Schueler).Select(e => e.Kurzname));
             var dlg = KurznameDialog.Erzeugen(vorschlag.Length > 0 ? vorschlag : "S68", "Student 80", out _, out _);
@@ -517,7 +517,7 @@ public sealed partial class HauptFenster
         }
         Schritt("17c_Vertretungen_Tausch", () =>
         {
-            // Stundentausch zweier Stunden einer Klasse: wie Untis je Position eine Zeile „Tausch“, geänderte Felder magenta
+            // Stundentausch zweier Stunden einer Klasse: wie im Vorbild je Position eine Zeile „Tausch“, geänderte Felder magenta
             var dd = AppZustand.D;
             var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
             bool Frei(Core.Vertretungsplanung.TagesEintrag e) => e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht is { Zeilen.Count: 1 } && e.KlassenIds.Count == 1 && !e.LehrerIds.Contains(krank.Id);
@@ -687,7 +687,7 @@ public sealed partial class HauptFenster
         }, -1);
         Schritt("19d8_Kalendertag_unterrichtsfrei", () =>
         {
-            // UP-03: Kalendertag wie Untis (Normaler Schultag / Feiertag / Unterrichtsfrei [Grund] / Nur diese Stunden …, Notiz)
+            // UP-03: Kalendertag wie im Vorbild (Normaler Schultag / Feiertag / Unterrichtsfrei [Grund] / Nur diese Stunden …, Notiz)
             var dd = AppZustand.D;
             var montag = Kalender.Montag(tag);
             var tage = Enumerable.Range(0, 5).Select(i => montag.AddDays(i)).Where(t => t != tag).ToList();
@@ -863,7 +863,7 @@ public sealed partial class HauptFenster
         Schritt("25d_UntPlanWeb", () => new UntPlanWebDialog().Show(this), 0);
         Schritt("25d0_Upload_Fortschritt", () =>
         {
-            // kleines Fortschrittsfenster beim Export (wie Untis), danach folgt die Erfolgsmeldung
+            // kleines Fortschrittsfenster beim Export (wie im Vorbild), danach folgt die Erfolgsmeldung
             var f = new UntPlanWebDialog.UploadFortschritt();
             f.Zeigen(this);
             f.Setzen(64, "Unterrichtsbestandteile werden konvertiert (153 von 238)");

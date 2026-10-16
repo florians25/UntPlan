@@ -1,7 +1,7 @@
 # UntPlanMobile
 
 **Der Stundenplan fürs Telefon – als installierbare App (PWA) zu UntPlanWeb.**
-UntPlanMobile zeigt Stundenpläne, Vertretungen, Ferien und Termine in der vertrauten Untis-Optik, führt das Klassenbuch
+UntPlanMobile zeigt Stundenpläne, Vertretungen, Ferien und Termine in der vertrauten Vorbild-Optik, führt das Klassenbuch
 der eigenen Stunden und bringt die Mitteilungen aus UntPlanWeb aufs Telefon. Die App hat keine eigene Datenbank: Sie
 holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto von UntPlanWeb.
 
@@ -45,7 +45,7 @@ holt alles von einer laufenden UntPlanWeb-Instanz, angemeldet wird mit dem Konto
     Stunde, zu der eine Hausaufgabe fällig ist.
   - Wischen zwischen Wochen bzw. Tagen (Nachbarwochen vorgeladen), Tagesansicht, „Gehe zu Datum“, Legende.
   - Auswahl mit Kategorien, Buchstabenleiste und Suche; Klassenkonten sehen nur die eigene Klasse und Räume.
-- **Stundendetails** nach den Mobile-Sollbildern (im Dunkeln wie die WebUntis-Fotos, im Hellen gleich aufgebaut), mit
+- **Stundendetails** nach den Mobile-Sollbildern (im Dunkeln wie die Portal-Fotos, im Hellen gleich aufgebaut), mit
   Sprung in die Pläne von Klasse, Lehrkraft und Raum (⋮-Menü):
   - Kopf mit X, Datum „Fr. | 16.10.26“ und kleiner Uhrzeit, ⋮-Menü. Liegen mehrere Stunden im selben Zeitraum, führen
     obere Reiter mit den Fachkürzeln zu jeder (Veranstaltung als Reiter „Veranstaltung“ vorn).

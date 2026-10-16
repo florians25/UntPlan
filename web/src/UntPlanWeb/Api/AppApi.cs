@@ -371,7 +371,7 @@ public static class AppApi
             return Results.Json(Klassenbuchdienst.Schueler(Paket(p), new[] { klasse }));
         });
 
-        // ---------------------------------------------------------------- Listen wie in WebUntis (Unterricht, Prüfungen, Hausaufgaben, Einträge, Abwesenheiten, Berichte)
+        // ---------------------------------------------------------------- Listen wie im Vorbild (Unterricht, Prüfungen, Hausaufgaben, Einträge, Abwesenheiten, Berichte)
 
         DateOnly Von(string? s, DateOnly vorgabe) => DateOnly.TryParse(s, out var d) ? d : vorgabe;
         static string? Leer(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

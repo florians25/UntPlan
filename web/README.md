@@ -9,12 +9,12 @@ UntPlan beim nächsten Datenaustausch ab.
 
 ## Oberfläche
 
-Aufbau, Format und Bedienung entsprechen WebUntis – Startseite *Heute*, Stundenplan, Klassenbuch und Administration sehen aus und
+Aufbau, Format und Bedienung entsprechen Webportal – Startseite *Heute*, Stundenplan, Klassenbuch und Administration sehen aus und
 funktionieren wie dort (abgeglichen mit Screenshots des Originals). Die Icons sind die Original-Icons aus dem Paket des Kollegen
 (`wwwroot/img/wu`: Navigation, Klassenbuch, Status, Info, Hausaufgabe, alte Klassenbuch-Symbole wie Stift, Besen, Beginn/Ende);
 `wwwroot/js/symbole.js` ordnet sie den Menüpunkten zu und zeichnet sie als Maske (grau, aktiv orange). Kleine Bedienelemente ohne
 Original-Icon (Pfeile, Papierkorb) kommen aus Bootstrap Icons. Logo (Uhr mit orangen Zeigern) und Produktname bleiben „UntPlanWeb“
-– kein WebUntis-Schriftzug, kein Fremdlogo. Schrift: **AvenirNextPro**, wenn die Schule die lizenzierten Schriftdateien bereitstellt (siehe [Schrift AvenirNextPro](#schrift-avenirnextpro)), sonst **Nunito Sans** (SIL OFL, lokal unter `wwwroot/lib/nunito-sans`). Es werden keine Schriften aus dem Internet geladen.
+– kein Portal-Schriftzug, kein Fremdlogo. Schrift: **AvenirNextPro**, wenn die Schule die lizenzierten Schriftdateien bereitstellt (siehe [Schrift AvenirNextPro](#schrift-avenirnextpro)), sonst **Nunito Sans** (SIL OFL, lokal unter `wwwroot/lib/nunito-sans`). Es werden keine Schriften aus dem Internet geladen.
 
 - **Navigation links:** weiße Leiste mit Logo, Schulname und Schuljahr-Pille; Menüpunkte mit den Original-Icons, aktiver Punkt
   orange auf hellorangem, rechts abgerundetem Grund mit orangem Balken links. Bereiche wie *Mitteilungen*, *Stundenplan*, *Unterricht*, *Klassenbuch*, *Melden & Buchen*, *Stammdaten* und
@@ -446,7 +446,7 @@ UNTPLANWEB_TEST_MYSQL="…" UNTPLANWEB_TEST_ALLE_MIT_MYSQL=1 dotnet test tests/U
 Aufbau:
 
 - `src/UntPlanWeb`: ASP.NET Core 8 (Minimal-APIs) mit SQLite (oder MySQL/MariaDB über `Daten/Dialekt.cs`) und eigenen Migrationen (`Daten/Db.cs`, nur anhängen).
-- `wwwroot`: Oberfläche ohne Build-Schritt im WebUntis-Stil (eigenes `css/app.css` mit CSS-Variablen über Bootstrap 5.3, Original-Icons unter `img/wu` (Zuordnung in `js/symbole.js`), Bootstrap Icons und Nunito Sans lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module je Seite unter `js/ansichten`.
+- `wwwroot`: Oberfläche ohne Build-Schritt im Portal-Stil (eigenes `css/app.css` mit CSS-Variablen über Bootstrap 5.3, Original-Icons unter `img/wu` (Zuordnung in `js/symbole.js`), Bootstrap Icons und Nunito Sans lokal eingebunden, keine CDN-Abhängigkeit), Vanilla-JS-Module je Seite unter `js/ansichten`.
 - `demo/beispiel-paket.json`: Beispielpaket, mit UntPlan.Core aus der Beispielschule erzeugt.
 
 UntPlanWeb gehört nicht zur Desktop-Solution `UntPlan.sln` und hat einen eigenen CI-Ablauf (`.github/workflows/web.yml`).

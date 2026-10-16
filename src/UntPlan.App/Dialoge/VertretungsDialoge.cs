@@ -130,7 +130,7 @@ public static class SondereinsatzDialog
             ? new Steuerelemente.ListenStil(Color.White, Color.Black, el.Langname) : null);
         f.Controls.Add(g);
 
-        // Wie Untis: Die erste Zeile eines Sondereinsatzes gilt für den ganzen Stundenbereich; darunter stehen die Stunden
+        // Wie Vorbild: Die erste Zeile eines Sondereinsatzes gilt für den ganzen Stundenbereich; darunter stehen die Stunden
         // einzeln (eingerückt). Was in der Kopfzeile eingetragen wird, geht auf alle Stunden über; einzelne Stunden lassen
         // sich danach abweichend ändern. Kinderzeilen tragen im Tag ihre Kopfzeile.
         var kopfFarbe = Color.FromArgb(214, 232, 224);
@@ -221,6 +221,22 @@ public static class SondereinsatzDialog
             e.Row.Cells["F"].Value = "";
             e.Row.Cells["R"].Value = "";
         };
+        // Datum und Stunde von/bis oben wirken sofort auf die erste Zeile der Tabelle (samt ihren Stundenzeilen)
+        void KopfUebernehmen()
+        {
+            if (syncAktiv) return;
+            var erste = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => !r.IsNewRow && !IstKind(r));
+            if (erste is null) return;
+            if (g.IsCurrentCellInEditMode) g.EndEdit();
+            erste.Cells["D"].Value = Format.Datum(DateOnly.FromDateTime(dat.Value));
+            erste.Cells["SV"].Value = ((int)von.Value).ToString();
+            erste.Cells["SB"].Value = ((int)Math.Max(von.Value, bis.Value)).ToString();
+            KinderAufbauen(erste);
+            foreach (var k in Kinder(erste)) k.Cells["D"].Value = erste.Cells["D"].Value;
+        }
+        von.ValueChanged += (_, _) => { if (bis.Value < von.Value) bis.Value = von.Value; KopfUebernehmen(); };
+        bis.ValueChanged += (_, _) => { if (bis.Value < von.Value) von.Value = bis.Value; KopfUebernehmen(); };
+        dat.ValueChanged += (_, _) => KopfUebernehmen();
         int Zeile()
         {
             if (g.CurrentRow is { IsNewRow: false } r) return r.Index;

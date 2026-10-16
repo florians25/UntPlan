@@ -148,7 +148,7 @@ export function karteDialog(karte, kontext = {}) {
       const stoff = !!daten.eintrag?.thema;
       const kontrolliert = !!a?.geprueft;
       const kannKontrolle = a?.darf && k.datum <= heuteIso();
-      // wie WebUntis: rechts orange Pille(n), daneben „Abwesenheitskontrolle ab: Datum - Uhrzeit“ (Beginn der Stunde)
+      // wie im Vorbild: rechts orange Pille(n), daneben „Abwesenheitskontrolle ab: Datum - Uhrzeit“ (Beginn der Stunde)
       const ab = `${datumDe(k.datum)} - ${e(k.beginn || '')}`;
       return `<div class="sd-fuss sd-status">
         ${stoff ? '<span class="ok"><i class="bi bi-check-circle-fill"></i> Lehrstoffeintragung vorhanden</span>'

@@ -204,7 +204,7 @@ public class TauschTests
     [Fact]
     public void KleinesFormatFasstBloeckeZusammenUndZeigtPausen()
     {
-        // wie Untis: Doppelstunden und Blöcke als ein Feld, Pausenzeilen, Unterrichtsliste unter dem Plan
+        // wie im Vorbild: Doppelstunden und Blöcke als ein Feld, Pausenzeilen, Unterrichtsliste unter dem Plan
         var f = StundenplanFormat.KleinesFormat(ElementTyp.Klasse, "Klassenplan klein");
         Assert.True(f.Klein && !f.Einzelstunden && f.PausenAnzeigen && f.StundenplanlupeAnzeigen);
         Assert.False(f.ZeitenAnzeigen);

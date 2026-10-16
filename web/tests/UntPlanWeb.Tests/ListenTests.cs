@@ -213,7 +213,7 @@ public class FachpunktTests
     }
 }
 
-/// <summary>Listen wie in WebUntis: Unterrichte, Prüfungen, Hausaufgaben, Klassenbucheinträge, Abwesenheiten, Offene Stunden, Berichte.</summary>
+/// <summary>Listen wie im Vorbild: Unterrichte, Prüfungen, Hausaufgaben, Klassenbucheinträge, Abwesenheiten, Offene Stunden, Berichte.</summary>
 public class ListenTests
 {
     [Fact]

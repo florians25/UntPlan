@@ -3,7 +3,7 @@ namespace UntPlan.Core.Vertretungsplanung;
 /// <summary>
 /// Zeilen einer gefilterten Liste (Vertretungsfenster mit „Offene Vertretungen“, „Kollisionen“ oder Elementauswahl), die
 /// nach einer Bearbeitung sichtbar bleiben, auch wenn sie nicht mehr zum Filter passen – bis eine andere Zeile gewählt wird
-/// (wie in Untis: Vertreter eintragen, danach Text eingeben, erst beim Zeilenwechsel verschwindet die Zeile).
+/// (wie im Vorbild: Vertreter eintragen, danach Text eingeben, erst beim Zeilenwechsel verschwindet die Zeile).
 /// </summary>
 public sealed class ZeilenBehalten
 {

@@ -544,7 +544,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         }
         if (Aktuell() is not { } zt) return;
         var u = Ix.Unterrichte.GetValueOrDefault(zt.U.Id) ?? zt.U;
-        var fehlt = Unterrichtseingabe.Pflichthinweise(u);
+        var fehlt = Unterrichtseingabe.Pflichthinweise(u, D);
         var pflicht = fehlt.Where(x => !x.StartsWith("Noch kein Lehrer")).ToList();
         if (pflicht.Count > 0) Hinweis($"U-Nr. {u.Id}: {string.Join(" ", fehlt)}", HinweisArt.Warnung);
         else
@@ -658,7 +658,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             var v = s.Get(u, z);
             row.Cells[c.Index].Value = s.Bool ? v == "X" : v;
             // fehlende Pflichtangabe: Fehlersymbol mit Erklärung in der Zelle
-            if (Unterrichtseingabe.PflichtFehlt(u, i, s.Key))
+            if (Unterrichtseingabe.PflichtFehlt(u, i, s.Key, D))
                 row.Cells[c.Index].ErrorText = s.Key switch { "Fach" => "Pflichtfeld: Fach fehlt", "Klassen" => "Pflichtfeld: Klasse fehlt", _ => "Pflichtfeld: Wochenstunden fehlen" };
         }
         if (i > 0) row.DefaultCellStyle.BackColor = Ui.BlauSehrHell;
@@ -681,7 +681,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             e.CellStyle.Font = Ui.SchriftFett;
         }
         if (key == "UNr") e.CellStyle!.BackColor = zt.Index == 0 ? Ui.Erste : Ui.BlauSehrHell;
-        if (Unterrichtseingabe.PflichtFehlt(zt.U, zt.Index, key)) e.CellStyle!.BackColor = Color.FromArgb(255, 232, 232);
+        if (Unterrichtseingabe.PflichtFehlt(zt.U, zt.Index, key, D)) e.CellStyle!.BackColor = Color.FromArgb(255, 232, 232);
     }
 
     private void CellClick(object? sender, DataGridViewCellEventArgs e)

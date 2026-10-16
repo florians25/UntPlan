@@ -41,9 +41,9 @@ public sealed class RibbonSeite
 /// <summary>Menüband im Stil klassischer Office-/Windows-Anwendungen.</summary>
 public sealed class Ribbon : Control
 {
-    /// <summary>Registerleiste wie Untis 2026: schmal, in der Modusfarbe, durchgehend mit der Titelzeile darüber.</summary>
+    /// <summary>Registerleiste wie im Vorbild 2026: schmal, in der Modusfarbe, durchgehend mit der Titelzeile darüber.</summary>
     public const int TabHoehe = 26;
-    /// <summary>Schrift der Registerkarten (Datei, Start, …) – klein und weiß wie in Untis.</summary>
+    /// <summary>Schrift der Registerkarten (Datei, Start, …) – klein und weiß wie im Vorbild.</summary>
     private static readonly Font TabSchrift = new("Segoe UI", 9f);
     /// <summary>Kleine Knöpfe rechts in der Registerleiste (Fensteranordnungen 1–8).</summary>
     public ToolStrip Rechts { get; } = new()
@@ -162,7 +162,7 @@ public sealed class Ribbon : Control
         using (var b = new LinearGradientBrush(new Rectangle(0, TabHoehe, Width, Inhalt), Color.FromArgb(250, 251, 252), Ui.BlauSehrHell, 90f)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
         using (var p = new Pen(Color.FromArgb(198, 205, 216))) g.DrawLine(p, 0, Height - 1, Width, Height - 1);
         if (Rechts.BackColor != Ui.Titel) Rechts.BackColor = Ui.Titel;
-        // Datei wie die übrigen Registerkarten (Untis 2026): weiße Schrift, beim Überfahren aufgehellt
+        // Datei wie die übrigen Registerkarten (Vorbild 2026): weiße Schrift, beim Überfahren aufgehellt
         if (_hoverDatei) using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, _dateiBounds);
         TextRenderer.DrawText(g, "Datei", TabSchrift, _dateiBounds, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         for (var i = 0; i < Seiten.Count; i++)

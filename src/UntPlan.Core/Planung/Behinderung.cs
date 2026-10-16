@@ -3,7 +3,7 @@ using UntPlan.Core.Model;
 namespace UntPlan.Core.Planung;
 
 /// <summary>
-/// „Soll behindernder Unterricht entplant werden?“ (wie Untis): Ermittelt die Stunden, die das Setzen eines Unterrichts bzw. eine
+/// „Soll behindernder Unterricht entplant werden?“ (wie im Vorbild): Ermittelt die Stunden, die das Setzen eines Unterrichts bzw. eine
 /// Änderung an einem verplanten Unterricht (z. B. zusätzliche Klasse) behindern – gleiche Lehrkraft, gleiche Klasse oder ein fest
 /// vorgegebener Raum, der zur selben Zeit belegt ist – und entplant sie auf Wunsch (sie erscheinen dann unter „nicht verplant“).
 /// </summary>

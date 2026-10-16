@@ -278,7 +278,7 @@ public static class TabellenFormate
     private static ContextMenuStrip Menue(DataGridView g, Zustand z, int spalte = -1)
     {
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
-        // automatische Justierung der Spaltenbreite (wie Untis: Rechtsklick auf die Titelzeile)
+        // automatische Justierung der Spaltenbreite (wie im Vorbild: Rechtsklick auf die Titelzeile)
         if (spalte >= 0 && spalte < g.Columns.Count)
         {
             var col = g.Columns[spalte];

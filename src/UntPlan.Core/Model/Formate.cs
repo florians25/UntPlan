@@ -1,7 +1,7 @@
 namespace UntPlan.Core.Model;
 
 /// <summary>
-/// Felder der Stundenplan-Stunde wie im Untis-Editor „Inhalt (Felder) einer Unterrichtsstunde“. Neue Arten werden nur angehängt
+/// Felder der Stundenplan-Stunde wie im Vorbild-Editor „Inhalt (Felder) einer Unterrichtsstunde“. Neue Arten werden nur angehängt
 /// (Dateien speichern die Namen).
 /// </summary>
 public enum StundenFeldArt
@@ -10,10 +10,10 @@ public enum StundenFeldArt
     Schuelergruppe, StudZl, UnterrichtsGruppe, Fussnote, Sondertext, ZeilenText, ZeilenText2, Stundentext, Beschreibung, Zeitwunsch, Band,
 }
 
-/// <summary>Räumliche Darstellung der Felder (Untis „Layout 1“).</summary>
+/// <summary>Räumliche Darstellung der Felder (Vorbild „Layout 1“).</summary>
 public enum Raeumlich { Erhaben, Versenkt, Flach }
 
-/// <summary>Grundformen der Stundenpläne (Untis „Stundenplanformate“).</summary>
+/// <summary>Grundformen der Stundenpläne (Vorbild „Stundenplanformate“).</summary>
 public enum Grundform
 {
     /// <summary>Format 01 – Einzelstundenplan, Tage waagrecht, Stunden senkrecht.</summary>
@@ -32,7 +32,7 @@ public enum Grundform
     Format40 = 40,
 }
 
-/// <summary>Zeitraum der Formatauswahl (Untis „Auswahl (Bereich)“).</summary>
+/// <summary>Zeitraum der Formatauswahl (Vorbild „Auswahl (Bereich)“).</summary>
 public enum FormatZeitraum { Kalenderwoche, GanzesSchuljahr, EinTag }
 
 /// <summary>Art des Namens in der Stundenplan-Stunde.</summary>
@@ -63,7 +63,7 @@ public sealed class StundenFeld
     /// <summary>Ausrichtung im Feld: 0 = links, 1 = mittig, 2 = rechts.</summary>
     public int Ausrichtung { get; set; } = 1;
 
-    /// <summary>Beschriftung im Editor wie Untis („1Lehrer“).</summary>
+    /// <summary>Beschriftung im Editor wie im Vorbild („1Lehrer“).</summary>
     public string Beschriftung => Zeile + Art switch
     {
         StundenFeldArt.UNr => "Unterrichts-Nummer",
@@ -95,7 +95,7 @@ public sealed class StundenplanFormat
     public bool ZeitenAnzeigen { get; set; } = true;
     public bool MitVertretungen { get; set; } = true;
     public List<StundenFeld> Felder { get; set; } = new();
-    /// <summary>Einzelstunden: Doppelstunden und Blöcke nicht zu einem Feld zusammenfassen, jede Stunde einzeln (wie in Untis).</summary>
+    /// <summary>Einzelstunden: Doppelstunden und Blöcke nicht zu einem Feld zusammenfassen, jede Stunde einzeln (wie im Vorbild).</summary>
     public bool Einzelstunden { get; set; }
     /// <summary>Pausen als eigene schmale Zeilen mit Bezeichnung über die ganze Breite anzeigen (z. B. „FA“, „1. P“, „MP“).</summary>
     public bool PausenAnzeigen { get; set; }
@@ -108,7 +108,7 @@ public sealed class StundenplanFormat
     /// <summary>Stundenplanlupe (Details der gewählten Stunde) unter dem Plan anzeigen.</summary>
     public bool StundenplanlupeAnzeigen { get; set; } = true;
 
-    // ---- Untis-Formatdialog: Allgemein ----
+    // ---- Vorbild-Formatdialog: Allgemein ----
     public Grundform Grundform { get; set; } = Grundform.Format01;
 
     // ---- Auswahl (Bereich) ----
@@ -188,7 +188,7 @@ public sealed class StundenplanFormat
         return erg;
     }
 
-    /// <summary>Titel des Formatdialogs wie Untis („Format 01 - Einzelstundenplan Tage waagrecht, Stunden senkrecht“).</summary>
+    /// <summary>Titel des Formatdialogs wie im Vorbild („Format 01 - Einzelstundenplan Tage waagrecht, Stunden senkrecht“).</summary>
     public static string GrundformText(Grundform g) => g switch
     {
         Grundform.Format10 => "Format 10 - Einzelstundenplan Stunden waagrecht, Tage senkrecht",
@@ -200,7 +200,7 @@ public sealed class StundenplanFormat
         _ => "Format 01 - Einzelstundenplan Tage waagrecht, Stunden senkrecht",
     };
 
-    /// <summary>Standardformat eines kleinen Stundenplans (Vertretungsplanung) für eine Planart: wie Untis mit zusammengefassten Doppelstunden, Pausenzeilen und Unterrichtsliste.</summary>
+    /// <summary>Standardformat eines kleinen Stundenplans (Vertretungsplanung) für eine Planart: wie im Vorbild mit zusammengefassten Doppelstunden, Pausenzeilen und Unterrichtsliste.</summary>
     public static StundenplanFormat KleinesFormat(ElementTyp typ, string name) => new()
     {
         Name = name, Typ = typ, Klein = true, Einzelstunden = false, PausenAnzeigen = true, ZeitenAnzeigen = false, Schriftgroesse = 9,
@@ -208,7 +208,7 @@ public sealed class StundenplanFormat
     };
 }
 
-/// <summary>Kurzbezeichnungen der Pausen für Stundenpläne (Untis: „FA“ Frühaufsicht, „1. P“, „2. P“, „MP“ Mittagspause).</summary>
+/// <summary>Kurzbezeichnungen der Pausen für Stundenpläne (Vorbild: „FA“ Frühaufsicht, „1. P“, „2. P“, „MP“ Mittagspause).</summary>
 public static class Pausenbezeichnung
 {
     /// <summary>Kurzbezeichnung einer Pause: kurze eigene Bezeichnung (bis 5 Zeichen) bleibt, sonst FA, MP bzw. „n. P“.</summary>

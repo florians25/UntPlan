@@ -38,3 +38,30 @@ public class ZeitraumTests
         Assert.Single(Paketdienst.ZeitraumZusammenfuehren(alt, neu).Tage);
     }
 }
+
+/// <summary>Export „nur Vertretungen“: geänderte Stunden werden über den zuletzt übertragenen Stundenplan gelegt.</summary>
+public class NurAenderungenTests
+{
+    [Fact]
+    public async Task Nur_geaenderte_Stunden_ueber_dem_Stundenplan()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var plan = s.Dienst<Plandienst>();
+        var tag = new DateOnly(2026, 10, 14);
+        var vorher = plan.Karten(s.Dienst<Paketdienst>().Aktuell!, tag, Elementtyp.Klasse, "7a")
+            .Select(k => (k.Von, k.Status, k.Fach)).OrderBy(x => x.Von).ThenBy(x => x.Fach).ToList();
+
+        var p = Testserver.Beispielpaket();
+        p["revision"] = 2;
+        var t = p["tage"]!.AsArray().Single(x => x!["datum"]!.GetValue<string>() == "2026-10-14")!.AsObject();
+        var geaendert = new System.Text.Json.Nodes.JsonArray(t["stunden"]!.AsArray().Where(x => x!["status"]!.GetValue<string>() != "regulaer").Select(x => x!.DeepClone()).ToArray());
+        Assert.NotEmpty(geaendert);
+        t["stunden"] = geaendert;
+        t["nurAenderungen"] = true;
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await s.PaketSendenAsync(p)).StatusCode);
+
+        var nachher = plan.Karten(s.Dienst<Paketdienst>().Aktuell!, tag, Elementtyp.Klasse, "7a")
+            .Select(k => (k.Von, k.Status, k.Fach)).OrderBy(x => x.Von).ThenBy(x => x.Fach).ToList();
+        Assert.Equal(vorher, nachher);
+    }
+}

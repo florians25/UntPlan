@@ -7,7 +7,7 @@ using UntPlan.Core.Vertretungsplanung;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Veranst. / Lehrer: Exkursionen, Klassenfahrten, Schulveranstaltungen. Spalten wie in Untis (VA-Nr., Klasse, Kl-Teil, Lehrer, Raum,
+/// Veranst. / Lehrer: Exkursionen, Klassenfahrten, Schulveranstaltungen. Spalten wie im Vorbild (VA-Nr., Klasse, Kl-Teil, Lehrer, Raum,
 /// Von, ab St., Bis, bis St., Grund, Text, zählen, Schülergruppe). Mehrere Klassen/Lehrer mit Komma oder in der Auswahlliste mit
 /// Strg-Klick, Elemente aus dem Element-Rollup per Drag &amp; Drop, Strg+C / Strg+V kopiert eine Veranstaltung auf das eingestellte Datum.
 /// Ist eine Lehrkraft wegen einer Absenz entfernt worden, steht im Feld „Lehrer“ rot „???“, bis eine Ersatzlehrkraft eingetragen ist.

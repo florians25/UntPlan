@@ -169,6 +169,11 @@ public sealed record WebTag
     public string Woche { get; init; } = "";
     public bool Unterrichtstag { get; init; }
     public List<WebStunde> Stunden { get; init; } = new();
+    /// <summary>
+    /// Nur Vertretungen übertragen (ohne Teil „Unterricht“): <see cref="Stunden"/> enthält nur die geänderten Stunden; UntPlanWeb legt sie
+    /// über den zuletzt übertragenen Stundenplan. So wirken Stundenplanänderungen in UntPlan erst mit dem Export „Unterricht“. Ältere Pakete: false.
+    /// </summary>
+    public bool NurAenderungen { get; init; }
 }
 
 public sealed record WebStunde
