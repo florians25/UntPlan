@@ -371,7 +371,7 @@ async function uebersicht(seite, kontext, elementParam, datumParam, modusParam) 
   const r = await holen(`/api/app/klassenbuch/uebersicht?bis=${bis}&tage=${modus === 'tag' ? 1 : 7}&${element.typ}=${encodeURIComponent(element.kurz)}`);
   const tage = r.tage.slice().sort((a, b) => a.datum.localeCompare(b.datum))
     .map(t => ({ ...t, stunden: t.stunden.map(s => ({ ...s, zustand: stundenStatus(s, t.datum) })) }));
-  const alle = tage.flatMap(t => t.stunden.map(s => ({ ...s, datum: t.datum })));
+  const alle = tage.flatMap(t => t.stunden.map(s => Object.assign(s, { datum: t.datum })));
   const gehalten = alle.filter(s => s.zustand.art !== 'entfall');
   const vergangen = gehalten.filter(s => !s.zustand.kommend);
   const mitStoff = vergangen.filter(s => s.lehrstoff).length;

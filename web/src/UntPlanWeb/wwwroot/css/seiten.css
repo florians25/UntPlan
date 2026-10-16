@@ -35,8 +35,13 @@
   height: var(--s-knopf); min-height: var(--s-knopf); line-height: 1; gap: 8px;
 }
 .u-aktionen .btn .u-sym, .modal-footer .btn .u-sym, .u-seitenkopf .btn .u-sym { width: 18px; height: 18px; }
-.nl-hinzu, .nl-knopf, .ad-pille, .sd-orange { min-height: 0; }
-.nl-leiste .nl-hinzu, .nl-leiste .nl-pille { height: var(--s-knopf); }
+/* Werkzeugleisten (Benutzerverwaltung, Fehlzeiten, Buchen …): Haupt- und Nebenknopf gleich hoch, gleiche Schrift (vgl. „Benutzer“ | „Konten anlegen“) */
+.nl-leiste .nl-hinzu, .nl-leiste .nl-knopf, .nl-leiste .nl-pille, .nl-leiste .nl-suche,
+.u-aktionen .nl-knopf, .u-aktionen .nl-hinzu, .fm-kopf .nl-knopf, .fm-kopf .nl-hinzu, .bv-kopf .nl-knopf, .bv-kopf .nl-hinzu {
+  height: var(--s-knopf); padding: 0 18px; font-size: .9375rem; font-weight: 600; gap: 8px; line-height: 1;
+}
+.nl-leiste .nl-suche { padding: 0 16px; }
+.nl-leiste .nl-knopf .u-sym, .nl-leiste .nl-hinzu .u-sym { width: 18px; height: 18px; }
 .u-aktionen { align-items: center; }
 @media (max-width: 991.98px) {
   .u-aktionen .btn { --bs-btn-padding-x: 14px; --bs-btn-font-size: .875rem; height: 36px; min-height: 36px; }
@@ -464,4 +469,9 @@ a.s-pille { text-decoration: none !important; }
   .anmeldung .lg-titel { font-size: 1.3rem; margin-bottom: 24px; }
   .lg-marke { margin-bottom: 30px; } .lg-marke .logo { width: 80px; height: 80px; }
   .lg-fuss { padding-top: 28px; }
+}
+
+/* Dialogknöpfe in den Stundendetails (Speichern | Abbrechen | Löschen) gleich groß */
+.ad-knoepfe > .sd-orange, .ad-knoepfe > .ad-pille:not(.klein), .ad-knoepfe > a.ad-pille {
+  display: inline-flex; align-items: center; justify-content: center; height: var(--s-knopf); min-width: 104px; padding: 0 20px; font-size: .9375rem; font-weight: 600; line-height: 1; box-shadow: none;
 }
