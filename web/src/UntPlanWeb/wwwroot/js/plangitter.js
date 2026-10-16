@@ -21,6 +21,8 @@ const istVerlegung = k => /verleg|statt/i.test(k.art || '') || !!k.nach;
 
 /** Hover-Text eines geänderten Werts wie im Original: Raum „B070 → C197“, Lehrkraft „LAN | ILK“ (erscheint nur beim Überfahren des Labels). */
 const wechsel = (alt, neu, lehrkraft = false) => `${alt} ${lehrkraft ? '|' : '→'} ${neu}`;
+/** Hover-Attribute eines geänderten Werts: alter Wert erscheint im Hover durchgestrichen („~~B070~~ → C197“, „~~LAN~~ | ILK“). */
+const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(alt, neu, lehrkraft))}" data-hover-alt="${e(alt)}"`;
 
 /**
  * Werte (Klassen, Lehrkräfte, Räume) wie im Original: neuer Wert als grüne Kürzelbox, bei offener Vertretung der
@@ -39,7 +41,7 @@ export function werte(liste, entfall = false, lehrkraft = false) {
     if (entfall) return e(w.alt || w.k);
     if (w.alt && !w.k) return `<span class="lbl weg">${e(w.alt)}</span>`;
     if (!w.k && w.neu) return '<span class="lbl">???</span>';
-    if (w.alt) return `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k, lehrkraft))}">${e(w.k)}</span>`;
+    if (w.alt) return `<span class="lbl" ${wechselHover(w.alt, w.k, lehrkraft)}>${e(w.k)}</span>`;
     if (w.neu) return `<span class="lbl" data-hover="${e('+ ' + w.k)}">${e(w.k)}</span>`;
     return e(w.k);
   }).join(', ');
@@ -105,7 +107,7 @@ function klassenWerte(k, entfall) {
 
 export function karteInhalt(k, typ, kompakt = false) {
   const entfall = istEntfall(k, typ);
-  const fach = k.fachAlt && !entfall ? `<span class="lbl" data-hover="${e(wechsel(k.fachAlt, k.fach))}">${e(k.fach)}</span>` : e(k.fach || '');
+  const fach = k.fachAlt && !entfall ? `<span class="lbl" ${wechselHover(k.fachAlt, k.fach)}>${e(k.fach)}</span>` : e(k.fach || '');
   const ohneFach = !k.fach;
   let oben, rest;
   if (ohneFach) {
@@ -127,7 +129,7 @@ export function karteInhalt(k, typ, kompakt = false) {
     // Eigene Abwesenheit: die vertretende Lehrkraft als grünes Label (Hover „HOF → BEC“); ohne Vertretung (Vertretung ohne
     // Lehrkraft, weggefallene Bereitschaft) das eigene Kürzel durchgestrichen. Kopplung: alle Lehrkräfte.
     const lehrerZeile = lehrerAbwesend(k, typ) ? (k.lehrer.filter(w => w.alt || w.k).map(w => w.k && w.alt
-        ? `<span class="lbl" data-hover="${e(wechsel(w.alt, w.k, true))}">${e(w.k)}</span>`
+        ? `<span class="lbl" ${wechselHover(w.alt, w.k, true)}>${e(w.k)}</span>`
         : `<span class="lbl weg">${e(w.alt || w.k)}</span>`).join(' ') || '')
       : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werte(k.lehrer, entfall, true) : '';
     rest = [k.klassen.length ? fach : '', werte(k.raeume, entfall), lehrerZeile];
@@ -234,12 +236,22 @@ const FREI = { ferien: 'Ferien', feiertag: 'Feiertag', frei: 'Unterrichtsfrei' }
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 
 /** Ferien, Feiertage und freie Tage wie im Original: hellblaue Spalte, mittig Schloss + Art, Name und Zeitraum. */
-function freiUeberlagerung(t) {
+function freiUeberlagerung(t, tage = [t], i = 0) {
   const titel = FREI[t.freiArt];
   if (!titel) return t.freiGrund ? `<div class="tt-frei">${e(t.freiGrund)}</div>` : '';
+  // wie im Original eine durchgehende Fläche über alle aufeinanderfolgenden freien Tage (auch über die Lücken zwischen den Spalten);
+  // in der Tagesansicht (nur eine Spalte sichtbar) die Fläche je Tag
+  const gleich = x => x && x.frei && x.freiArt === t.freiArt && (x.freiGrund || '') === (t.freiGrund || '') && (x.freiVon || '') === (t.freiVon || '');
+  let n = 1;
+  while (gleich(tage[i + n])) n++;
+  const inhalt = freiInhalt(t, titel);
+  return (gleich(tage[i - 1]) ? '' : `<div class="tt-ferien gesamt" style="--frei-tage:${n}">${inhalt}</div>`) + `<div class="tt-ferien einzeln">${inhalt}</div>`;
+}
+
+function freiInhalt(t, titel) {
   const name = t.freiGrund && t.freiGrund.toLowerCase() !== titel.toLowerCase() ? t.freiGrund : '';
   const zeitraum = t.freiVon ? (t.freiBis && t.freiBis !== t.freiVon ? `${datumDe(t.freiVon)} - ${datumDe(t.freiBis)}` : datumDe(t.freiVon)) : '';
-  return `<div class="tt-ferien"><div class="inhalt"><div class="art"><i class="bi bi-lock-fill" aria-hidden="true"></i> ${titel}</div>${name ? `<div>${e(name)}</div>` : ''}${zeitraum ? `<div>${zeitraum}</div>` : ''}</div></div>`;
+  return `<div class="inhalt"><div class="art"><i class="bi bi-lock-fill" aria-hidden="true"></i> ${titel}</div>${name ? `<div>${e(name)}</div>` : ''}${zeitraum ? `<div>${zeitraum}</div>` : ''}</div>`;
 }
 
 const leisteEintrag = (text, art) => `<div class="tt-ereignis ${art}" title="${e(text)}">${e(text)}</div>`;
@@ -291,7 +303,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     html += `<div class="tt-spalte ${t.frei ? 'frei ' + e(t.freiArt || '') : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}" style="height:${aufbau.hoehe}px">`;
     html += [...linien].map(y => `<div class="tt-linie" style="top:${y}px"></div>`).join('');
     html += [...aufbau.pause.values()].map(y => `<div class="tt-pause" style="top:${y}px;height:${PAUSE}px"></div>`).join('');
-    if (t.frei) html += freiUeberlagerung(t);
+    if (t.frei) html += freiUeberlagerung(t, tage, i);
     const karten = plan.karten.filter(k => k.datum === t.datum && index.has(k.von));
     // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen – als grüne Zusatzkarte
     const ereignisKarten = t.ereignisse.filter(x => index.has(Math.max(x.von, zeiten[0].nr)) && !karten.some(k => k.text === x.titel && k.von <= x.bis && k.bis >= x.von))
@@ -311,7 +323,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         const mitZeit = kartenZeiten && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
-          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + ${spur ? 2 : 0}px);width:calc(${breite}% - ${anzahl > 1 ? 2 : 0}px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
+          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
       }
     }
     // Pausenaufsichten in der Pausenzeile
@@ -327,8 +339,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // auf der Karte nur der Aufsichtsbereich (z. B. „Hof“) – nicht „Früh …“ bzw. der lange Name; Details im Tooltip
         const ort = aufsichtOrt(a);
         const titel = `Pausenaufsicht ${a.gangName || a.gang} ${a.beginn}–${a.ende}${a.status === 'vertretung' ? ` (Vertretung für ${a.alt})` : a.status === 'vertreten' ? (ersatz ? ` (vertreten durch ${ersatz})` : ' (entfällt)') : ''}`;
-        // Vertretung: grüne Karte mit grünem Label; im Plan der abwesenden Lehrkraft grau gestrichelt mit Label der Vertretung
-        const label = a.status === 'vertretung' ? `<span class="lbl-auf">Vertr.</span>` : a.status === 'vertreten' && ersatz ? `<span class="lbl-auf">${e(ersatz)}</span>` : '';
+        // Vertretung wie bei den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grünes Label (ohne Vertretung
+        // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
+        const label = aufsichtLabel(a);
         const vorbei = a.datum < heute || (a.datum === heute && a.ende && minuten(a.ende) <= jetzt);
         html += `<div class="aufsicht ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
           title="${e(titel)}" aria-label="${e(titel)}"><span>${e(ort)}</span>${label}</div>`;
@@ -357,8 +370,10 @@ function hoverZeigen(ziel) {
   if (hoverZiel === ziel && hoverEl.style.display === 'block') return;   // ruhig stehen lassen, kein Flackern beim Bewegen
   hoverZiel = ziel;
   const pillen = ziel.dataset.hoverPillen;
+  const alt = ziel.dataset.hoverAlt, text = ziel.dataset.hover || '';
   if (pillen) hoverEl.innerHTML = pillen.split(',').map(x => `<span>${e(x)}</span>`).join('');
-  else hoverEl.textContent = ziel.dataset.hover;
+  else if (alt && text.startsWith(alt)) hoverEl.innerHTML = `<s>${e(alt)}</s>${e(text.slice(alt.length))}`;
+  else hoverEl.textContent = text;
   hoverEl.classList.toggle('dunkel', ziel.dataset.hoverArt === 'dunkel');
   hoverEl.classList.toggle('pillen', !!pillen);
   hoverEl.style.display = 'block';
@@ -430,6 +445,15 @@ function aufsichtOrt(a) {
   return ohne || roh || 'Aufsicht';
 }
 
+/** Vertretene Pausenaufsicht: abwesendes Kürzel durchgestrichen und Vertretung als grünes Label; ohne Vertretung das Kürzel durchgestrichen im Label. */
+function aufsichtLabel(a) {
+  if (a.status !== 'vertretung' && a.status !== 'vertreten') return '';
+  const ersatz = a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
+  const alt = a.alt && !/^[?+-]+$/.test(a.alt) ? a.alt : '';
+  if (!ersatz) return alt ? `<span class="auf-wechsel"><span class="lbl-auf weg">${e(alt)}</span></span>` : '';
+  return `<span class="auf-wechsel">${alt ? `<s class="auf-alt">${e(alt)}</s>` : ''}<span class="lbl-auf">${e(ersatz)}</span></span>`;
+}
+
 /** Liste eines Tages (Übersicht) mit denselben Karten, Veranstaltungen und Pausenaufsichten. */
 export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
   const jetztIso = heuteIso(), jetzt = jetztMinuten();
@@ -442,7 +466,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
         <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && k.status !== 'abwesend' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
-        <div class="aufsicht ${e(a.status)}"><span>${e(a.gangName)}${a.status === 'vertreten' ? ' | ' + e(a.lehrer) : a.status === 'vertretung' ? ' (für ' + e(a.alt) + ')' : ''}</span></div></div>` })),
+        <div class="aufsicht ${e(a.status)}"><span>${e(a.gangName)}</span>${aufsichtLabel(a)}</div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);
   return `<div class="tt-liste">${eintraege.map(x => x.html).join('')}</div>`;
 }

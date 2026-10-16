@@ -97,6 +97,7 @@ public sealed class Wochendienst
         var plan = await _web.HolenAsync<Wochenplan>(c,
             $"api/app/plan?typ={Kachelbau.Typ(art)}&element={Uri.EscapeDataString(element)}&datum={Kachelbau.Iso(datum)}");
         var tage = Kachelbau.Woche(plan, k.Elemente.Ferien);
+        if (!k.Kollegium) Kachelbau.NurSchuelerNotizen(tage);
         if (art == "class") await HausaufgabenMarkieren(c, element, plan, tage);
         return new WochenAntwort(true, plan.Montag, art, Entitaet(k, art, plan.Element),
             Kachelbau.Stundenzeiten(plan.Zeitraster.Count > 0 ? plan.Zeitraster : zeiten), tage, new List<object>());

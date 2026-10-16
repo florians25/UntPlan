@@ -537,6 +537,20 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Notizen_fuer_Lehrkraefte_fallen_ausserhalb_des_Kollegiums_weg()
+    {
+        var nurLehrer = Kachelbau.AusKarte(Karte("regulaer", 2) with { NotizLehrer = "Beamer defekt" }, "class");
+        var beide = Kachelbau.AusKarte(Karte("regulaer", 3) with { NotizSchueler = "Atlas", NotizLehrer = "Beamer defekt" }, "class");
+        var tage = new Dictionary<string, List<Kachel>> { ["2026-10-12"] = new() { nurLehrer, beide } };
+        Kachelbau.NurSchuelerNotizen(tage);
+        Assert.Null(nurLehrer.Notiz);
+        Assert.Null(nurLehrer.NotizLehrer);
+        Assert.True(beide.Notiz);
+        Assert.Equal("Atlas", beide.NotizSchueler);
+        Assert.Null(beide.NotizLehrer);
+    }
+
+    [Fact]
     public void Fachwechsel_alte_Stunde_als_Entfall_neue_als_Aenderung()
     {
         var neu = Karte("geaendert", 1, fach: "M", fachAlt: "E", art: "Vertretung", lehrer: new() { new("KRU", "WAG", true) });

@@ -250,7 +250,15 @@ function loadWeekShared(entity, weekStart, token){
   const da = laufendeLadungen.get(k);
   if (da) return da;
   const p = Promise.resolve(loadWeek(entity, weekStart, token))
-    .then(w => { wocheMerken(k, w); return w; })
+    /* Der Stand des Servers wird festgehalten, bevor das Zeichnen
+       Hilfsfelder an die Karten hängt — der stille Abgleich vergleicht
+       damit Server gegen Server. */
+    .then(w => {
+      if (w && w.byDate && w.roh === undefined){
+        try { Object.defineProperty(w, 'roh', { value: JSON.stringify(w.byDate), enumerable:false }); } catch (e){}
+      }
+      wocheMerken(k, w); return w;
+    })
     .finally(() => laufendeLadungen.delete(k));
   laufendeLadungen.set(k, p);
   return p;
@@ -369,6 +377,13 @@ const viewKind = e => {
   if (state.kind && e.type === 'mine') return state.kind;
   return e.type === 'mine' ? 'teacher' : e.type;
 };
+
+/* Zeichen unten rechts auf der Kachel — flach, als Linie bzw. Fläche in
+   einer Farbe (Info-Scheibe mit ausgespartem „i“, Hausaufgaben-Haus). */
+const KACHEL_INFO = '<svg class="ticon ticon--flach" viewBox="0 0 12 12" aria-hidden="true">'
+  + '<path fill="currentColor" fill-rule="evenodd" d="M6 .25a5.75 5.75 0 1 1 0 11.5A5.75 5.75 0 0 1 6 .25Zm.62 4.55H5.3a.55.55 0 0 0 0 1.1h.25v2.75H5.3a.55.55 0 0 0 0 1.1h1.6a.55.55 0 0 0 0-1.1h-.28Zm-.62-2.2a.78.78 0 1 0 0 1.56.78.78 0 0 0 0-1.56Z"/></svg>';
+const KACHEL_HA = '<svg class="ticon ticon--flach" viewBox="0 0 12 12" aria-hidden="true">'
+  + '<path fill="currentColor" d="M6.36.4a.5.5 0 0 0-.72 0L.42 5.6a.5.5 0 0 0 .36.85h1.1v4.65c0 .28.22.5.5.5h7.24a.5.5 0 0 0 .5-.5V6.45h1.1a.5.5 0 0 0 .36-.85Z"/></svg>';
 
 /* TRENNER-BEGINN (wird von den Tests ausgeführt) */
 /* Trennzeichen zwischen mehreren Werten (Lehrkräfte, Klassen, Räume):
@@ -1301,6 +1316,17 @@ function renderGrid(){
       const timeA = (state.times[card.lesson] || {}).start || '';
       const timeB = (state.times[Math.min(card.lesson + card.span - 1, 12)] || {}).end || '';
 
+      const aufsichtLabel = k => {
+        if (!(k._supSub || k._supAbsent)) return '';
+        const neu = werteListe(k.teacher).filter(t => t !== '???' && t !== '---');
+        const alt = werteListe(k.teacherOrig);
+        if (!neu.length && !alt.length) return '';
+        const html = neu.length
+          ? alt.map(t => `<span class="badge badge--removed">${esc(t)}</span>`).join('')
+            + neu.map(t => `<span class="badge">${esc(t)}</span>`).join('')
+          : alt.map(t => `<span class="badge badge--removed badge--open">${esc(t)}</span>`).join('');
+        return `<span class="sup-lab">${html}</span>`;
+      };
       const DOTS = '<svg viewBox="0 0 12 12"><circle cx="6" cy="2.4" r="1.05"/><circle cx="6" cy="6" r="1.05"/><circle cx="6" cy="9.6" r="1.05"/></svg>';
 
       /* Inhalt einer Kartenzeile: Plaketten, Kopplungs-Kürzel oder Text. */
@@ -1340,12 +1366,18 @@ function renderGrid(){
              ${card.holidayName ? `<span class="card__line holiday-name">${esc(card.holidayName)}</span>` : ''}
              ${card.holidayRange ? `<span class="card__line holiday-range">${esc(card.holidayRange)}</span>` : ''}
            </span>`
+        /* Bereitschaft der abwesenden Lehrkraft: Das eigene Kürzel steht
+           durchgestrichen im grünen Label — dieselbe Sprache wie bei einer
+           offenen Vertretung. */
         : (isStandby && card.standbyAbsent)
         ? `<span class="card__line card__line--primary">${esc(card.subject || 'Bereitschaft')}</span>
-           ${card.teacherOrig ? `<span class="card__line card__line--badge"><span class="badge badge--removed">${esc(card.teacherOrig)}</span></span>` : ''}`
+           ${card.teacherOrig ? `<span class="card__line card__line--badge"><span class="badge badge--removed badge--open">${esc(card.teacherOrig)}</span></span>` : ''}`
+        /* Aufsichtsvertretung (eingesprungen oder abgegeben): Wie auf jeder
+           Vertretungskarte steht die abwesende Lehrkraft durchgestrichen,
+           daneben die Vertretung im grünen Label. Ist noch niemand
+           eingeteilt, steht das alte Kürzel durchgestrichen im Label. */
         : (card.blockType === 'supervision' || card._supervision)
-        ? `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>
-           ${(card._supSub || card._supAbsent) ? `<span class="sup-menu" aria-hidden="true">${DOTS}</span>` : ''}`
+        ? `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>${aufsichtLabel(card)}`
         : isStandby
         ? `<span class="card__line">${esc(card.subject || 'Bereitschaft')}</span>`
         : (card.blockType === 'absence' || card.blockType === 'gs')
@@ -1426,7 +1458,9 @@ function renderGrid(){
 
       let eckzeichen = '';
       const dots = `<span class="card__cut" aria-hidden="true">${DOTS}</span>`;
-      const ikon = n => `<span class="card__ic"><svg class="ticon"><use href="#${n}"></use></svg></span>`;
+      /* Flach gezeichnet: nur die Scheibe bzw. das Haus, ohne Kästchen
+         dahinter. Das „i“ ist ausgespart und zeigt die Kachelfläche. */
+      const ikon = n => `<span class="card__ic card__ic--flach">${n === 'ic-tt-homework-icon' ? KACHEL_HA : KACHEL_INFO}</span>`;
 
       if (cut && !card._supervision && card.blockType !== 'supervision'){
         eckzeichen = dots;
@@ -1448,7 +1482,7 @@ function renderGrid(){
                  ${isHoliday ? '' : 'type="button"'}>
         ${body}
         ${eckzeichen}
-        ${(released || (isStandby && card.standbyAbsent) || (isSup && card._supAbsent)) ? '<span class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : ''}
+        ${(released || (isStandby && card.standbyAbsent)) ? '<span class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : ''}
         ${isHoliday ? '' : `<span class="card__times"><span>${timeA}</span><span>${timeB}</span></span>`}
       </${tag}>`;
 
@@ -1738,7 +1772,7 @@ function ladenAn(){
   clearTimeout(ladeTimer);
   ladeTimer = setTimeout(() => {
     const el = $('#loadBar'); if (el) el.classList.add('is-on');
-  }, 280);
+  }, 180);
 }
 function ladenAus(){
   ladeTiefe = Math.max(0, ladeTiefe - 1);
@@ -3354,10 +3388,16 @@ async function planNachladen(){
     const neu = await loadWeekQuiet(state.entity, state.weekStart);
     /* Verglichen wird der Inhalt, nicht der Zeitpunkt: Wird ohne Not neu
        gezeichnet, springt der Rollbereich und eine offene Liste schließt
-       sich. */
-    if (neu && neu.ok && JSON.stringify(neu.days) !== JSON.stringify((state.week || {}).days)){
+       sich. loadWeek liefert `byDate` (nicht `days`) — der frühere
+       Vergleich lief deshalb ins Leere, und ein neues Info-Zeichen kam
+       erst nach dem nächsten Neuladen der Seite. Verglichen wird der
+       festgehaltene Serverstand (`roh`), nicht die gezeichneten Karten. */
+    if (neu && neu.byDate && neu.key === weekKey(state.entity, state.weekStart)
+        && (neu.roh === undefined || neu.roh !== (state.week || {}).roh)){
+      const top = $('#gridScroll').scrollTop;
       state.week = neu;
       renderGrid();
+      $('#gridScroll').scrollTop = top;
       if (state.screen === 'start') renderStart();
     }
   } catch (e){ /* ohne Verbindung bleibt stehen, was da ist */ }
@@ -4567,10 +4607,40 @@ async function cbPost(c, body){
   return data;
 }
 
+/* Eine gespeicherte Notiz zeigt ihr Info-Zeichen sofort auf der Kachel —
+   noch bevor das Detailfenster schließt. Gesetzt wird an der Kachel des
+   Plans (dem ganzen Block) und an der gewählten Einzelstunde; danach
+   gleicht der Plan still mit dem Server ab. */
+function karteNotizSetzen(c, key, value){
+  const feld = key === 'notes_students' ? 'noteStudents' : key === 'notes_teachers' ? 'noteTeachers' : '';
+  if (!feld) return;
+  const v = String(value || '').trim();
+  const ziele = new Set([c, state.detail, state.detailFull].filter(Boolean));
+  const tag = ((state.allByDate || (state.week && state.week.byDate) || {})[c.date]) || [];
+  const kennung = c.unterricht || c.entryId;
+  tag.forEach(x => {
+    if (x.lesson <= c.lesson + (c.span || 1) - 1 && c.lesson <= x.lesson + (x.span || 1) - 1
+        && kennung && (x.unterricht || x.entryId) === kennung) ziele.add(x);
+  });
+  ziele.forEach(x => {
+    x[feld] = v || null;
+    x.hasNote = !!(x.noteStudents || x.noteTeachers) || null;
+  });
+  const top = $('#gridScroll').scrollTop;
+  renderGrid();
+  $('#gridScroll').scrollTop = top;
+  if (state.screen === 'start') renderStart();
+}
+
 async function cbSaveText(c, key, value){
   cbCache[key] = value;
   store.set(cbLocalKey(c, key), value);            /* Rückhalt auf dem Gerät */
-  try { await cbPost(c, { action:'save', field:key, value }); }
+  try {
+    await cbPost(c, { action:'save', field:key, value });
+    karteNotizSetzen(c, key, value);
+    wochenVergessen();
+    planNachladen();
+  }
   catch (e){
     /* Konnte der Server es nicht übernehmen, darf auf dem Gerät nichts
        Abweichendes stehen bleiben — sonst sieht es hier gespeichert aus

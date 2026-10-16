@@ -9,7 +9,7 @@ namespace UntPlanWeb.Dienste;
 /// wiederholt), rechtsbündigen Zahlenspalten und feinen Zeilenlinien, Summenzeile, Hinweis, Unterschriftsfeld und Fußzeile „Seite x von y“.
 /// Schrift Helvetica (WinAnsi, Umlaute und ß).
 /// </summary>
-public static class PdfBericht
+public static partial class PdfBericht
 {
     private const float Breite = 841.89f, Hoehe = 595.28f, Rand = 40f;
     private const float Schrift = 8.5f, Zeile = 16f;

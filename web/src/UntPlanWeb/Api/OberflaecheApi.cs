@@ -132,7 +132,9 @@ public static partial class OberflaecheApi
             var l = k is null ? (string.IsNullOrWhiteSpace(lehrer) ? b.LehrerKuerzel : lehrer.Trim()) : null;
             var eintraege = kb.Zeitraum(start, ende);
             var fehl = kb.FehlzeitenZeitraum(start, ende);
-            var gruende = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Klassenbucheinträge (Vermerke) je Klasse im Zeitraum – je Stunde gezählt über die Uhrzeit des Eintrags
+            var vermerke = new Dictionary<string, List<Vermerk>>(StringComparer.OrdinalIgnoreCase);
+            List<Vermerk> VermerkeVon(string kl) => vermerke.TryGetValue(kl, out var v) ? v : vermerke[kl] = kb.Vermerke(kl, start, ende);
             var tageListe = new List<object>();
             for (var d = ende; d >= start; d = d.AddDays(-1))
             {
@@ -141,23 +143,29 @@ public static partial class OberflaecheApi
                 var karten = plan.Karten(s, d, k is null ? Elementtyp.Lehrer : Elementtyp.Klasse, k ?? l!)
                     .Where(z => z.Unterricht.HasValue && z.Klassen.Count > 0 && z.Status is not ("vorgemerkt" or "buchung" or "veranstaltung")).OrderBy(z => z.Von).ToList();
                 if (karten.Count == 0) continue;
+                var tagVermerke = karten.SelectMany(z => z.Klassen.Select(w => w.K)).Where(w => w.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .SelectMany(VermerkeVon).Where(v => v.Datum == iso).ToList();
                 tageListe.Add(new
                 {
                     datum = iso,
+                    eintraege = tagVermerke.Count,
                     kw = System.Globalization.ISOWeek.GetWeekOfYear(d.ToDateTime(TimeOnly.MinValue)),
                     stunden = karten.Select(z =>
                     {
                         var e = eintraege.FirstOrDefault(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis);
                         var f = fehl.Where(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis && y.Art == "fehlt")
                             .GroupBy(y => y.SchuelerId).Select(g => g.First()).ToList();
-                        var hw = kb.HausaufgabenDerStunde(d, z.Von, z.Bis, z.Unterricht!.Value);
+                        var hw = kb.HausaufgabenDerStunde(DateOnly.Parse(iso), z.Von, z.Bis, z.Unterricht!.Value); // nicht d: die Liste wird erst beim Serialisieren ausgewertet
                         return new
                         {
-                            von = z.Von, bis = z.Bis, beginn = z.Beginn, ende = z.Ende, fach = z.Fach, klassen = z.Klassen.Select(w => w.K).Where(w => w.Length > 0),
+                            von = z.Von, bis = z.Bis, beginn = z.Beginn, ende = z.Ende, fach = z.Fach, fachName = z.FachName, farbe = z.Farbe, art = z.Art, klassen = z.Klassen.Select(w => w.K).Where(w => w.Length > 0),
                             lehrer = z.Lehrer.Select(w => w.K).Where(w => w.Length > 0), raeume = z.Raeume.Select(w => w.K).Where(w => w.Length > 0),
                             status = z.Status, unterricht = z.Unterricht, lehrstoff = e?.Thema ?? "", geprueft = e?.Anwesenheit != null,
                             abwesend = f.Count, entschuldigt = f.Count(y => y.Status == "entschuldigt"),
                             hausaufgaben = string.Join(" · ", hw.Select(h => h.Text)),
+                            verspaetet = fehl.Count(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis && y.Art != "fehlt"),
+                            eintraege = tagVermerke.Count(v => v.Zeit.Length == 5 && z.Klassen.Any(w => string.Equals(w.K, v.Klasse, StringComparison.OrdinalIgnoreCase))
+                                && string.CompareOrdinal(v.Zeit, z.Beginn) >= 0 && string.CompareOrdinal(v.Zeit, z.Ende) < 0),
                         };
                     }),
                 });

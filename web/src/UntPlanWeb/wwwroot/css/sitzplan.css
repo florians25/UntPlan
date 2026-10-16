@@ -1,0 +1,168 @@
+/* UntPlanWeb – Sitzplan im Klassenbuch (nl-design): Editor als großes Fenster, Klassenbuch-Einstellungen als Seitenpanel,
+   Sitzplan-Anordnung der Schülerkacheln in den Stundendetails. Wird von js/ansichten/sitzplan.js nachgeladen. */
+
+:root {
+  --sp-tisch: #fff;
+  --sp-tisch-rand: #d9dee3;
+  --sp-raum: #f4f6f8;
+  --sp-pult: #414d55;
+  --sp-ziel: rgba(var(--u-akzent-rgb, 245, 107, 42), .14);
+}
+
+/* ------------------------------------------------------------------ Gemeinsame Bausteine */
+
+.sp-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: #e9edf0; gap: 2px; flex-wrap: nowrap; }
+.sp-seg button { border: 0; background: none; border-radius: 999px; padding: .32rem .9rem; font-size: .86rem; font-weight: 600; color: #5d6a74; display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
+.sp-seg button:hover:not(:disabled) { color: var(--u-titel); }
+.sp-seg button.an { background: #fff; color: var(--u-titel); box-shadow: 0 1px 3px rgba(0, 5, 10, .12); }
+.sp-seg button:disabled { opacity: .45; cursor: not-allowed; }
+.sp-seg button .sp-punkt { width: 7px; height: 7px; border-radius: 50%; background: var(--u-gruen, #1f9d55); display: inline-block; }
+.sp-seg.klein button { padding: .2rem .7rem; font-size: .8rem; }
+
+.sp-knopf { border: 1.5px solid var(--u-grau-3); background: #fff; color: var(--u-text); border-radius: 999px; padding: .32rem .95rem; font-weight: 600; font-size: .86rem; display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
+.sp-knopf:hover:not(:disabled) { border-color: var(--u-grau-2); color: var(--u-titel); }
+.sp-knopf:disabled { opacity: .45; }
+.sp-knopf.an { border-color: var(--u-akzent); color: var(--u-akzent-dunkel, #dd5718); background: var(--u-akzent-hell, #fff1ea); }
+.sp-knopf.primaer { background: var(--u-akzent); border-color: var(--u-akzent); color: #fff; }
+.sp-knopf.primaer:hover:not(:disabled) { background: var(--u-akzent-dunkel, #dd5718); border-color: var(--u-akzent-dunkel, #dd5718); color: #fff; }
+.sp-knopf.rot { color: #c92a2a; }
+.sp-knopf.rot:hover:not(:disabled) { border-color: #e03131; color: #c92a2a; }
+.sp-knopf .bi { font-size: 1rem; line-height: 1; }
+
+.sp-ava { flex: none; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .74rem; font-weight: 700; letter-spacing: .02em; color: #3d4a54; background: var(--ava, #e4e9ee); }
+
+/* ------------------------------------------------------------------ Editor (großes Fenster) */
+
+.sp-overlay { position: fixed; inset: 0; z-index: 1065; background: rgba(36, 50, 61, .38); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal .sp-overlay, body.leiste-zu .sp-overlay { left: var(--u-leiste-akt, 0px); }
+.sp-fenster { background: #fff; border-radius: 14px; box-shadow: var(--u-schatten-hoch, 0 10px 30px rgba(36, 50, 61, .2)); width: min(1240px, 100%); height: min(920px, 100%); display: flex; flex-direction: column; overflow: hidden; color: var(--u-text); }
+.sp-kopf { display: flex; align-items: flex-start; gap: 1rem; padding: 16px 20px 10px; border-bottom: 1px solid var(--u-linie-2, #e9ecef); }
+.sp-kopf h2 { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--u-titel); }
+.sp-kopf .sp-unter { font-size: .86rem; color: var(--u-grau); margin-top: 2px; }
+.sp-kopf .sp-x { margin-left: auto; border: 0; background: none; font-size: 1.35rem; color: var(--u-grau); line-height: 1; padding: 4px 6px; border-radius: 8px; }
+.sp-kopf .sp-x:hover { background: var(--u-hover, #f3f5f7); color: var(--u-titel); }
+
+.sp-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 20px; border-bottom: 1px solid var(--u-linie-2, #e9ecef); }
+.sp-groesse { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sp-zahl { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; font-weight: 600; color: var(--u-text); }
+.sp-zahl .sp-stepper { display: inline-flex; align-items: center; border: 1.5px solid var(--u-grau-3); border-radius: 999px; overflow: hidden; background: #fff; }
+.sp-zahl .sp-stepper button { border: 0; background: none; width: 28px; height: 30px; color: var(--u-grau); font-size: 1rem; line-height: 1; }
+.sp-zahl .sp-stepper button:hover { background: var(--u-hover, #f3f5f7); color: var(--u-titel); }
+.sp-zahl input { width: 34px; border: 0; text-align: center; font-weight: 700; font-size: .9rem; color: var(--u-titel); padding: 0; -moz-appearance: textfield; appearance: textfield; background: transparent; }
+.sp-zahl input::-webkit-outer-spin-button, .sp-zahl input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sp-aktionen { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+
+.sp-arbeit { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--sp-raum); padding: 18px 20px; }
+.sp-raum { margin: 0 auto; width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.sp-pult { display: flex; align-items: center; justify-content: center; gap: .5rem; min-width: 220px; padding: 7px 26px; border-radius: 10px; background: var(--sp-pult); color: #fff; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.sp-raster { display: grid; grid-template-columns: repeat(var(--spalten, 6), minmax(118px, 150px)); gap: 12px; }
+
+.sp-platz { position: relative; min-height: 74px; border-radius: 12px; border: 1.5px dashed #c6ced5; background: rgba(255, 255, 255, .55); display: flex; align-items: stretch; justify-content: stretch; transition: background-color .12s, border-color .12s, box-shadow .12s; }
+.sp-platz.leer { cursor: pointer; align-items: center; justify-content: center; color: #aab4bc; }
+.sp-platz.leer .sp-plus { font-size: 1.1rem; }
+.sp-platz.leer:hover, .sp-platz.leer:focus-visible { border-color: var(--u-grau-2); color: var(--u-grau); outline: none; }
+.sp-platz.kein-tisch { border: 1.5px dashed transparent; background: transparent; align-items: center; justify-content: center; color: transparent; }
+.sp-tischmodus .sp-platz.kein-tisch { border-color: #dfe4e8; color: #b3bdc5; cursor: pointer; }
+.sp-tischmodus .sp-platz.leer { border-style: solid; background: #fff; }
+.sp-platz.ziel { border-color: var(--u-akzent); border-style: solid; background: var(--sp-ziel); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb, 245, 107, 42), .18); }
+.sp-platz .sp-nr { position: absolute; left: 8px; bottom: 4px; font-size: .62rem; color: #b6c0c8; font-weight: 600; pointer-events: none; }
+.sp-platz.belegt .sp-nr { display: none; }
+
+.sp-karte { flex: 1; display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 12px; background: var(--sp-tisch); border: 1px solid var(--sp-tisch-rand); box-shadow: 0 1px 2px rgba(0, 5, 10, .06), 0 3px 8px rgba(0, 5, 10, .05); cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; min-width: 0; }
+.sp-karte:hover { border-color: #c3cbd2; }
+.sp-karte:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.sp-karte.gewaehlt { border-color: var(--u-akzent); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb, 245, 107, 42), .25); }
+.sp-karte.sp-zieht { opacity: .35; }
+.sp-karte .sp-nm { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; font-size: .84rem; color: var(--u-titel); }
+.sp-karte .sp-nm b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-karte .sp-nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #4f5b64; }
+.sp-karte .sp-kl { display: inline-block; margin-top: 2px; font-size: .68rem; font-weight: 700; color: #5d6a74; background: #eef1f4; border-radius: 6px; padding: 0 6px; width: max-content; }
+.sp-geist { position: fixed; left: 0; top: 0; z-index: 1100; pointer-events: none; cursor: grabbing; transform-origin: 0 0; box-shadow: 0 12px 28px rgba(36, 50, 61, .28); border-color: var(--u-akzent); opacity: .96; }
+
+/* nicht zugeordnet */
+.sp-ablage { border-top: 1px solid var(--u-linie-2, #e9ecef); padding: 10px 20px 12px; background: #fff; transition: background-color .12s; }
+.sp-ablage.ziel { background: var(--sp-ziel); }
+.sp-ablage-kopf { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.sp-ablage-kopf h3 { font-size: .92rem; font-weight: 700; margin: 0; color: var(--u-titel); display: flex; align-items: center; gap: .45rem; }
+.sp-ablage-kopf h3 .sp-anzahl { background: #e9edf0; color: #5d6a74; border-radius: 999px; padding: 0 8px; font-size: .78rem; }
+.sp-suche { margin-left: auto; position: relative; }
+.sp-suche input { border: 1.5px solid var(--u-grau-3); border-radius: 999px; padding: .28rem .9rem .28rem 2rem; font-size: .86rem; width: 230px; max-width: 60vw; }
+.sp-suche input:focus { outline: none; border-color: var(--u-akzent); }
+.sp-suche .bi { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: var(--u-grau-2); font-size: .85rem; }
+.sp-liste { display: flex; flex-wrap: wrap; gap: 8px; max-height: 128px; overflow-y: auto; padding: 2px; min-height: 52px; }
+.sp-liste .sp-karte { flex: 0 0 168px; padding: 7px 9px; }
+.sp-liste .sp-hinweis { font-size: .84rem; color: var(--u-grau-2); align-self: center; }
+
+.sp-fuss { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; padding: 12px 20px; border-top: 1px solid var(--u-linie-2, #e9ecef); background: #fbfcfd; }
+.sp-bereich { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sp-bereich > span { font-size: .82rem; font-weight: 700; color: var(--u-titel); }
+.sp-bereich-info { font-size: .8rem; color: var(--u-grau); max-width: 420px; }
+.sp-bereich-info button { border: 0; background: none; padding: 0; color: var(--u-akzent-dunkel, #dd5718); font-weight: 700; text-decoration: underline; }
+.sp-fuss .sp-rechts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 767.98px) {
+  .sp-overlay { padding: 0; }
+  .sp-fenster { border-radius: 0; height: 100%; }
+  .sp-kopf, .sp-leiste, .sp-ablage, .sp-fuss { padding-left: 12px; padding-right: 12px; }
+  .sp-arbeit { padding: 12px; }
+  .sp-raster { grid-template-columns: repeat(var(--spalten, 6), minmax(92px, 120px)); gap: 8px; }
+  .sp-karte { padding: 7px; gap: 6px; }
+  .sp-karte .sp-ava { width: 28px; height: 28px; font-size: .66rem; }
+  .sp-aktionen { margin-left: 0; }
+  .sp-suche { margin-left: 0; width: 100%; }
+  .sp-suche input { width: 100%; max-width: none; }
+  .sp-fuss .sp-rechts { margin-left: 0; width: 100%; justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) { .sp-platz, .sp-ablage { transition: none; } }
+
+/* ------------------------------------------------------------------ Klassenbuch-Einstellungen (Seitenpanel) */
+
+.sp-panel-hg { position: fixed; inset: 0; z-index: 1066; background: rgba(36, 50, 61, .22); }
+.sp-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1067; width: min(380px, 100%); background: #fff; box-shadow: -10px 0 30px rgba(36, 50, 61, .18); display: flex; flex-direction: column; animation: sp-rein .18s ease-out; color: var(--u-text); }
+@keyframes sp-rein { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sp-panel { animation: none; } }
+.sp-panel header { display: flex; align-items: center; gap: .6rem; padding: 18px 20px 12px; border-bottom: 1px solid var(--u-linie-2, #e9ecef); }
+.sp-panel header h2 { font-size: 1.1rem; font-weight: 700; margin: 0; color: var(--u-titel); }
+.sp-panel header .bi-gear { color: var(--u-grau); font-size: 1.15rem; }
+.sp-panel header button { margin-left: auto; border: 0; background: none; font-size: 1.3rem; color: var(--u-grau); line-height: 1; border-radius: 8px; padding: 2px 6px; }
+.sp-panel header button:hover { background: var(--u-hover, #f3f5f7); color: var(--u-titel); }
+.sp-panel .sp-panel-rumpf { flex: 1; overflow-y: auto; padding: 8px 20px 16px; }
+.sp-panel fieldset { border: 0; padding: 12px 0; margin: 0; border-bottom: 1px solid var(--u-linie-2, #e9ecef); }
+.sp-panel fieldset:last-child { border-bottom: 0; }
+.sp-panel legend { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--u-grau); margin-bottom: 8px; float: none; padding: 0; }
+.sp-panel .sp-wahl { display: flex; align-items: center; gap: .6rem; padding: 5px 0; font-size: .92rem; color: var(--u-titel); cursor: pointer; }
+.sp-panel .sp-wahl input { width: 17px; height: 17px; accent-color: var(--u-akzent); flex: none; }
+.sp-panel .sp-wahl small { display: block; color: var(--u-grau-2); font-size: .78rem; }
+.sp-panel .sp-vorschau { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.sp-panel .sp-vorschau .sp-karte { flex: 0 0 auto; cursor: default; padding: 6px 10px; }
+.sp-panel footer { display: flex; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--u-linie-2, #e9ecef); flex-wrap: wrap; }
+.sp-panel footer .sp-knopf.primaer { flex: 1; justify-content: center; }
+.sp-panel .sp-panel-hinweis { font-size: .8rem; color: var(--u-grau); margin: 0; }
+
+/* ------------------------------------------------------------------ Sitzplan-Anordnung in den Stundendetails */
+
+.sp-umschalter { margin-right: .25rem; }
+.sp-anordnung { overflow-x: auto; padding: 4px 2px 6px; }
+.sp-anordnung-raum { width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--sp-raum); border-radius: 12px; padding: 14px; }
+.sp-anordnung .sp-pult { padding: 5px 22px; font-size: .74rem; }
+.sp-anordnung-raster { display: grid; grid-template-columns: repeat(var(--spalten, 6), minmax(132px, 160px)); gap: 8px; }
+.sp-anordnung-raster .sd-kachel { min-height: 74px; border-radius: 10px; grid-template-columns: 40px 1fr; padding: 7px 7px 5px; box-shadow: 0 1px 2px rgba(0, 5, 10, .05); }
+.sp-anordnung-raster .sd-kachel .sd-avatar { width: 38px; height: 38px; }
+.sp-anordnung-raster .sd-kachel .sd-name { font-size: 13px; }
+.sp-a-leer { min-height: 74px; border-radius: 10px; border: 1.5px dashed #d3dadf; }
+.sp-a-gang { min-height: 74px; }
+.sp-a-ohne { margin-top: 12px; }
+.sp-a-ohne-titel { font-size: .82rem; font-weight: 700; color: var(--u-grau); margin-bottom: 6px; }
+.sp-a-hinweis { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: #f4f6f8; font-size: .88rem; color: var(--u-text); margin-bottom: 12px; }
+.sp-a-hinweis .bi { color: var(--u-grau); font-size: 1.1rem; }
+.sp-a-quelle { font-size: .76rem; color: var(--u-grau-2); text-align: right; margin-top: 4px; }
+.sd-kachel .sd-name .sp-kl { font-size: .68rem; font-weight: 700; color: #5d6a74; background: #eef1f4; border-radius: 6px; padding: 0 6px; width: max-content; margin-top: 2px; }
+
+/* Seite „Sitzplan“ (Klasse) */
+.sp-seite .sp-arbeit { border-radius: 12px; }
+.sp-seite-leiste { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.sp-seite-leiste .u-feld select { min-width: 140px; }
+
+@media print {
+  .sp-overlay, .sp-panel, .sp-panel-hg { display: none !important; }
+}

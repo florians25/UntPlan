@@ -357,6 +357,27 @@ public sealed partial class Klassenbuchdienst
         return res.Values.OrderBy(f => f.Datum, StringComparer.Ordinal).ThenBy(f => f.Stunde).ToList();
     }
 
+    /// <summary>
+    /// Entschuldigungsstatus direkt aus den Stundendetails setzen (Segment-Schalter im Abwesenheitsdialog): ändert den Status der Fehlzeiten
+    /// der Stunde samt der zugehörigen Abwesenheit (auch über mehrere Tage). Nur Klassenleitung, Schulleitung und Administration.
+    /// </summary>
+    public int AbwesenheitStatusSetzen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds, string status)
+    {
+        if (status is not ("entschuldigt" or "unentschuldigt" or "offen")) throw new ArgumentException("Unbekannter Status.");
+        var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var klassen = karte.Klassen.Select(k => k.K).ToList();
+        var n = 0;
+        foreach (var sid in schuelerIds.Distinct())
+        {
+            var sch = s.Schueler.FirstOrDefault(x => x.Id == sid && klassen.Contains(x.Klasse, Ci));
+            if (sch is null) continue;
+            if (!IstKlassenleitung(b, s, sch.Klasse)) throw new UnauthorizedAccessException("Den Entschuldigungsstatus setzt die Klassenleitung.");
+            foreach (var f in AlteAbwesenheit(b, s, sid, karte, d, null, true))
+                n += _db.Ausfuehren("UPDATE fehlzeiten SET status = @s WHERE id = @i", Db.P("@s", status), Db.P("@i", f.Id));
+        }
+        return n;
+    }
+
     /// <summary>Abwesenheit (aus den Stundendetails) entfernen: Fehlzeiten der Stunde und der zugehörigen Abwesenheit.</summary>
     public int AbwesenheitEntfernen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds)
     {

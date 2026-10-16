@@ -24,14 +24,8 @@ enum Plankategorie: String, Hashable, CaseIterable, Identifiable {
         }
     }
 
-    /// Linienzeichen für die Zeilen unter „Stundenpläne“.
-    var symbol: String {
-        switch self {
-        case .klasse: return "person.3"
-        case .lehrer: return "person.2"
-        case .raum: return "door.left.hand.open"
-        }
-    }
+    /// Vektorgrafik (Assets.xcassets) für die Zeilen unter „Stundenpläne“ und die Favoriten.
+    var bild: String { PlanAuswahl.bild(rawValue) }
 
     func liste(_ e: Elemente) -> [Planelement] {
         switch self {
@@ -83,6 +77,9 @@ struct PlanAuswahlView: View {
                 VStack(spacing: 0) {
                     kopf
                     Suchleiste(text: $suche, platzhalter: "Stundenplan suchen")
+                }
+                .overlay(alignment: .bottom) {
+                    Ladebalken(aktiv: elemente == nil && fehler == nil)
                 }
             }
             .scrollDismissesKeyboard(.immediately)
@@ -184,8 +181,11 @@ struct PlanAuswahlView: View {
                     } label: {
                         HStack(spacing: 14) {
                             AuswahlAvatar {
-                                Image(systemName: fav.symbol)
-                                    .font(.system(size: 19, weight: .regular))
+                                Image(fav.bild)
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 26, height: 26)
                             }
                             Text(fav.anzeige)
                                 .font(.system(size: 21))
@@ -214,9 +214,12 @@ struct PlanAuswahlView: View {
                 pfad.append(kategorie)
             } label: {
                 HStack(spacing: 16) {
-                    Image(systemName: kategorie.symbol)
-                        .font(.system(size: 22, weight: .light))
+                    Image(kategorie.bild)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
                         .foregroundStyle(Farben.titelGrau)
+                        .frame(width: 28, height: 28)
                         .frame(width: 34, height: 30)
                     Text(kategorie.titel)
                         .font(.system(size: 19))
@@ -235,11 +238,6 @@ struct PlanAuswahlView: View {
             .auswahlZeile(oben: 0, unten: 0)
         }
 
-        if elemente == nil && fehler == nil {
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .auswahlZeile(oben: 12, unten: 12)
-        }
     }
 
     // MARK: - Suche über alle Arten
@@ -266,10 +264,6 @@ struct PlanAuswahlView: View {
                     .auswahlZeile(oben: 0, unten: 0)
                 }
             }
-        } else {
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .auswahlZeile(oben: 12, unten: 12)
         }
     }
 
@@ -335,9 +329,8 @@ struct ElementlisteView: View {
     var body: some View {
         List {
             if elemente == nil {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .auswahlZeile(oben: 20, unten: 20)
+                // Lädt noch (Ladebalken unter dem Suchfeld)
+                EmptyView()
             } else if gruppen.isEmpty {
                 Text(suche.isEmpty ? "Keine Einträge." : "Keine Treffer für „\(suche)“.")
                     .font(.system(size: 16))
@@ -370,6 +363,9 @@ struct ElementlisteView: View {
             VStack(spacing: 0) {
                 kopf
                 Suchleiste(text: $suche, platzhalter: "\(kategorie.titel) suchen")
+            }
+            .overlay(alignment: .bottom) {
+                Ladebalken(aktiv: elemente == nil)
             }
         }
         .scrollDismissesKeyboard(.immediately)

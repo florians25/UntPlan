@@ -354,7 +354,8 @@ enum Kachelbau {
                 var lehrkraefte = k.lehrer.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k }.filter { !$0.isEmpty }
                 if lehrkraefte.isEmpty && !ich.isEmpty && typ == "lehrer" { lehrkraefte = [ich] }
                 if !lehrkraefte.isEmpty {
-                    zeilen.append(Kachelzeile(schluessel: "lehrer", teile: liste(lehrkraefte, stil: .weg, trenner: ", ")))
+                    // Abwesende Lehrkraft als Plakette mit durchgestrichenem Kürzel
+                    zeilen.append(Kachelzeile(schluessel: "lehrer", teile: liste(lehrkraefte, stil: .offen, trenner: ", ")))
                 }
                 kachel.zeilen = zeilen
                 kachel.rang = 3

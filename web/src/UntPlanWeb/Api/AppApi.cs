@@ -30,6 +30,7 @@ public static class AppApi
         DateOnly? Datum = null, int? Stunde = null, int? Unterricht = null, List<int>? Ersetzen = null,
         string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null);
     public sealed record AbwesenheitEntfernenDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds);
+    public sealed record AbwesenheitStatusDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Status);
     public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis);
     public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null,
         string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null, bool? Online = null);
@@ -377,6 +378,13 @@ public static class AppApi
             var n = ids.Distinct().Sum(id => kb.AbwesenheitErfassen(b, s, id, d.Von, d.Bis, d.Grund, d.Text, d.Status, stunde, ids.Count == 1 ? d.Ersetzen : null,
                 d.Nachweis, d.EntschuldigtAm, d.ElternInformiert, d.NotizIntern));
             return Results.Json(new { stunden = n });
+        });
+        // Entschuldigungsstatus direkt im Abwesenheitsdialog (Segment-Schalter) – nur Klassenleitung, Schulleitung, Administration
+        api.MapPost("/klassenbuch/abwesenheit/status", (AbwesenheitStatusDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        {
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            return Results.Json(new { geaendert = kb.AbwesenheitStatusSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Status ?? "") });
         });
         api.MapPost("/klassenbuch/abwesenheit/loeschen", (AbwesenheitEntfernenDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {

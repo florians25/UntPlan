@@ -28,7 +28,6 @@ public static class ErweiterungApi
     public sealed record DienstWocheDaten(int DienstId, int SchuelerId, DateOnly Datum, bool An);
     public sealed record DienstAutoDaten(string Klasse, int DienstId, DateOnly Von, DateOnly Bis, int? ProWoche);
     public sealed record BefreiungDaten(int SchuelerId, DateOnly Von, DateOnly Bis, int? Wochentag, string? Fach, string? Beginn, string? Ende, string? Grund, string? Text);
-    public sealed record SitzplanDaten(int Zeilen, int Spalten, Dictionary<string, int>? Belegung);
     public sealed record EntwurfDaten(int? Id, List<string>? Empfaenger, string? Betreff, string? Text, bool Wichtig);
     public sealed record ListeDaten(string Name, List<string>? Mitglieder);
     public sealed record ProfilDaten(string? Email, string? Sprache, bool Benachrichtigung);
@@ -243,17 +242,7 @@ public static class ErweiterungApi
 
         // ---------------------------------------------------------------- Sitzplan
 
-        api.MapGet("/sitzplan/{klasse}", (string klasse, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
-        {
-            var b = Kollegium(c);
-            var s = Paket(p);
-            return Results.Json(new { plan = kv.Sitzplan(klasse), schueler = Klassenbuchdienst.Schueler(s, new[] { klasse }), verwalten = Klassenbuchdienst.IstKlassenleitung(b, s, klasse) });
-        });
-        api.MapPut("/sitzplan/{klasse}", (string klasse, SitzplanDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
-        {
-            kv.SitzplanSpeichern(Kollegium(c), Paket(p), klasse, d.Zeilen, d.Spalten, d.Belegung ?? new());
-            return Results.Json(new { ok = true });
-        });
+        SitzplanApi.Abbilden(api);
 
         // ---------------------------------------------------------------- Berichte
 

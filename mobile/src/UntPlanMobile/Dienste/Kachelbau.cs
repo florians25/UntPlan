@@ -93,6 +93,20 @@ public static class Kachelbau
         return res;
     }
 
+    /// <summary>
+    /// Notizen für Lehrkräfte gehören nur ins Kollegium: Für Schüler*innen und Eltern fällt der Text weg,
+    /// und das Info-Zeichen steht nur noch, wenn es eine Notiz für Schüler*innen gibt.
+    /// </summary>
+    public static void NurSchuelerNotizen(Dictionary<string, List<Kachel>> tage)
+    {
+        foreach (var kachel in tage.Values.SelectMany(t => t))
+        {
+            if (kachel.Notiz is null && kachel.NotizLehrer is null) continue;
+            kachel.NotizLehrer = null;
+            kachel.Notiz = string.IsNullOrWhiteSpace(kachel.NotizSchueler) ? null : true;
+        }
+    }
+
     /// <summary>Kacheln eines Tages.</summary>
     public static List<Kachel> Tag(Wochenplan plan, PlanTag tag, IReadOnlyList<Ferienzeit> ferien)
     {

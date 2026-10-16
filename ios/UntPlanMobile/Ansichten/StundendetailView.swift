@@ -66,16 +66,20 @@ struct StundendetailInhalt: View {
     private var kollegium: Bool { zustand.istKollegium }
     private var mitUnterricht: Bool { karte.unterricht != nil }
     private var istVeranstaltung: Bool { karte.status == "veranstaltung" || karte.status == "termin" }
+    /// Klassenbuch, Hausaufgaben usw. werden noch geladen (Ladebalken unter dem Kopf).
+    private var laedt: Bool { mitUnterricht && !daten.geladen }
 
     var body: some View {
         VStack(spacing: 0) {
-            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, mitte: {
+            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() },
+                      laedt: karten.count <= 1 && laedt, mitte: {
                 datumsMenue
             }, rechts: {
                 weitereAktionen
             })
             if karten.count > 1 {
                 reiterleiste
+                    .overlay(alignment: .bottom) { Ladebalken(aktiv: laedt) }
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -192,7 +196,7 @@ struct StundendetailInhalt: View {
                             zustand.planZeigen(plan)
                             schliessen()
                         } label: {
-                            Label(plan.anzeige, systemImage: plan.typ == "raum" ? "door.left.hand.open" : (plan.typ == "lehrer" ? "person" : "person.3"))
+                            Label(plan.anzeige, image: plan.bild)
                         }
                     }
                 }
@@ -403,7 +407,7 @@ struct StundendetailInhalt: View {
             }
             if istVeranstaltung {
                 if !veranstaltungsInfo.isEmpty {
-                    link(.info, Detailzeile(symbol: "info.circle", titel: "Information", untertitel: veranstaltungsInfo))
+                    link(.info, Detailzeile(symbol: "SymbolInfo", titel: "Information", untertitel: veranstaltungsInfo))
                 }
             } else if !karte.text.isEmpty {
                 link(.text, Detailzeile(symbol: "SymbolNotiz", titel: textTitel, untertitel: karte.text))
@@ -413,7 +417,7 @@ struct StundendetailInhalt: View {
                 link(.lehrstoff, Detailzeile(symbol: "SymbolLehrstoff", titel: "Lehrstoff", untertitel: thema) {
                     if !thema.isEmpty {
                         Image(systemName: "checkmark.circle")
-                            .font(.system(size: 24, weight: .ultraLight))
+                            .font(.system(size: 24, weight: .light))
                             .foregroundStyle(Farben.gedaempft)
                             .padding(.trailing, 4)
                             .accessibilityLabel("Lehrstoff eingetragen")
@@ -433,21 +437,18 @@ struct StundendetailInhalt: View {
                                                 zahl: daten.hausaufgaben.map { $0.liste.count } ?? (daten.geladen ? 0 : nil)))
             }
             if kollegium && !daten.klassen.isEmpty && !istVeranstaltung {
-                link(.klassenbuch, Detailzeile(symbol: "book.closed", titel: "Klassenbucheinträge",
+                link(.klassenbuch, Detailzeile(symbol: "SymbolKlassenbuch", titel: "Klassenbucheinträge",
                                                zahl: daten.geladen ? daten.vermerke.count : nil))
             }
             if (kollegium && mitUnterricht) || !daten.notizSchueler.isEmpty {
                 link(.notizSchueler, Detailzeile(symbol: "SymbolNotiz", titel: "Notizen für Schüler*innen", untertitel: daten.notizSchueler))
             }
+            // Notizen für Lehrkräfte sehen (und bearbeiten) nur Lehrkräfte
             if kollegium && (mitUnterricht || !daten.notizLehrer.isEmpty) {
                 link(.notizLehrer, Detailzeile(symbol: "SymbolNotiz", titel: "Notizen für Lehrkräfte", untertitel: daten.notizLehrer))
             }
             if karte.hausaufgabeFaellig {
-                Detailzeile(symbol: "exclamationmark.circle", titel: "Zu dieser Stunde ist eine Hausaufgabe fällig", pfeil: false)
-            }
-            if !daten.geladen && mitUnterricht {
-                ProgressView()
-                    .padding(.top, 14)
+                Detailzeile(symbol: "SymbolHinweis", titel: "Zu dieser Stunde ist eine Hausaufgabe fällig", pfeil: false)
             }
         }
     }

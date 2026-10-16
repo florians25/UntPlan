@@ -120,6 +120,14 @@ export function karteDialog(karte, kontext = {}) {
 
   // ---------------------------------------------------------------- Kopf, Fuß, Aufbau
 
+  /** Lehrkräfte im Kopf; weggefallene Bereitschaft (Lehrkraft abwesend): Kürzel durchgestrichen im grünen Label wie auf der Karte. */
+  function lehrerKopf() {
+    const typ = kollegium ? 'lehrer' : null;
+    if (k.bereitschaft && k.status === 'abwesend' && k.lehrer.length && k.lehrer.every(w => !w.k && w.alt))
+      return k.lehrer.map(w => `<span class="sd-lbl-weg">${planLink(typ, w.alt)}</span>`).join(' ');
+    return wertKopf(k.lehrer, 6, typ, true);
+  }
+
   function kopf() {
     // „Klassen | Gruppe | Fach“ – Klassen und Gruppe verlinkt („Im Stundenplan anzeigen“)
     // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse nur durchgestrichen (ohne Label)
@@ -131,7 +139,7 @@ export function karteDialog(karte, kontext = {}) {
     const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}` : e(k.fach || k.text || k.art || 'Stunde');
     const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
     const zeile = [wochentag(k.datum), datumDe(k.datum), k.beginn ? `${k.beginn}-${k.ende}` : `${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'} Std.`,
-      wertKopf(k.raeume, 6, 'raum'), wertKopf(k.lehrer, 6, kollegium ? 'lehrer' : null, true)].filter(Boolean);
+      wertKopf(k.raeume, 6, 'raum'), lehrerKopf()].filter(Boolean);
     // Wie im Original: bei Entfall Kopf hellgrau und darunter roter Balken „ENTFÄLLT“; Prüfung/Veranstaltung als dezente graue Pille,
     // sonst keine Labels (Änderungen stehen als Text: alt durchgestrichen | neu bzw. → beim Raum)
     const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : '';
@@ -890,7 +898,8 @@ export function karteDialog(karte, kontext = {}) {
     const laeuft = k.datum === heuteIso() && jetztMin > minutenVon(start) && jetztMin < minutenVon(ende);
     const jetztZeit = `${String(jetzt.getHours()).padStart(2, '0')}:${String(jetzt.getMinutes()).padStart(2, '0')}`;
     const gruendeWahl = `<option value="">–</option>${daten.gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === f?.grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}`;
-    const radio = (wert, text) => `<label class="ab-radio"><input type="radio" name="ab-status" value="${wert}" ${status === wert ? 'checked' : ''} ${verwalten ? '' : 'disabled'}><span>${text}</span></label>`;
+    // Status als Segment-Schalter; bei einer bestehenden Abwesenheit entschuldigt die Klassenleitung damit direkt (ohne Speichern)
+    const radio = (wert, text) => `<label class="ab-radio ab-seg-${wert}"><input type="radio" name="ab-status" value="${wert}" ${status === wert ? 'checked' : ''} ${verwalten ? '' : 'disabled'}><span>${text}</span></label>`;
     altDialog('Abwesenheit', `
       <div class="ab-formular">
         <label>Schüler*in</label><div class="ab-wert">${e(namen.length > 3 ? `${namen.slice(0, 3).join(', ')} und ${namen.length - 3} weitere` : namen.join(', '))}</div>
@@ -903,8 +912,8 @@ export function karteDialog(karte, kontext = {}) {
         <span></span><div class="vs-vorschau" data-ab-vorschau></div>
         <label for="ab-grund">Abwesenheitsgrund</label><select id="ab-grund" data-ab-grund>${gruendeWahl}</select>
         <label for="ab-text">Text</label><input id="ab-text" data-ab-text maxlength="500" value="${e(f?.text ?? '')}">
-        <label>Status</label><div class="ab-status">${radio('entschuldigt', 'entschuldigt')}${radio('unentschuldigt', 'nicht entschuldigt')}${radio('offen', 'offen')}
-          ${verwalten ? '' : '<div class="ab-hinweis">Status und Zeiträume über den Tag hinaus ändert die Klassenleitung.</div>'}</div>
+        <label>Status</label><div class="ab-status ab-segment ${verwalten ? '' : 'gesperrt'}" role="radiogroup" aria-label="Entschuldigungsstatus">${radio('entschuldigt', 'entschuldigt')}${radio('unentschuldigt', 'nicht entschuldigt')}${radio('offen', 'offen')}
+          ${verwalten ? (f ? '<div class="ab-hinweis">Wird sofort gespeichert.</div>' : '') : '<div class="ab-hinweis"><i class="bi bi-lock"></i> Entschuldigen und Zeiträume über den Tag hinaus nur durch die Klassenleitung.</div>'}</div>
       </div>
       ${f?.erstellt ? `<div class="ad-fuss">Erfasst am ${zeitstempel(f.erstellt)} von ${e(f.lehrer || '')}</div>` : ''}
       <div class="ad-knoepfe ab-knoepfe"><button type="button" class="sd-orange" data-ab-speichern>Speichern</button><button type="button" class="ad-pille" data-ad-zu>Abbrechen</button>
@@ -959,6 +968,16 @@ export function karteDialog(karte, kontext = {}) {
         zeichnen();
       };
       q('[data-ab-loeschen]')?.addEventListener('click', () => { zu(); abwesenheitEntfernen(ids); });
+      if (f && verwalten) o.querySelectorAll('[name=ab-status]').forEach(r => r.onchange = async () => {
+        try {
+          await senden('/api/app/klassenbuch/abwesenheit/status', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, schuelerIds: ids, status: r.value });
+          geaendert = true;
+          toast({ entschuldigt: 'Als entschuldigt markiert.', unentschuldigt: 'Als nicht entschuldigt markiert.', offen: 'Status auf offen gesetzt.' }[r.value]);
+          await anwesenheitNeu();
+          zeichnen();
+          if (!o.isConnected) box.append(o); // Dialog bleibt offen
+        } catch (err) { toast(err.message, true); }
+      });
     }, 520);
   }
 

@@ -486,6 +486,19 @@ public sealed class Db
             zeit VARCHAR(30) NOT NULL DEFAULT '', PRIMARY KEY (benutzer_id, schluessel)
         );
         """,
+
+        // 12: Sitzpläne je Wirkungsbereich (klasse = Klassenkürzel, unterricht = Unterrichtsnummer, raum = „Raum|Lehrkraft“) mit Pult-Lage
+        //    und Plätzen ohne Tisch; bisherige Klassen-Sitzpläne werden übernommen – nur Standard-SQL
+        """
+        CREATE TABLE sitzplan_bereiche (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, bereich VARCHAR(20) NOT NULL, schluessel VARCHAR(200) NOT NULL,
+            zeilen INTEGER NOT NULL DEFAULT 5, spalten INTEGER NOT NULL DEFAULT 6, pult VARCHAR(10) NOT NULL DEFAULT 'vorne',
+            belegung TEXT NOT NULL, ohne_tisch VARCHAR(2000) NOT NULL DEFAULT '[]', lehrer VARCHAR(50) NOT NULL DEFAULT '',
+            geaendert VARCHAR(30) NOT NULL DEFAULT '', benutzer_id INTEGER, UNIQUE (bereich, schluessel)
+        );
+        INSERT INTO sitzplan_bereiche (bereich, schluessel, zeilen, spalten, belegung, geaendert)
+            SELECT 'klasse', klasse, zeilen, spalten, belegung, geaendert FROM sitzplaene;
+        """,
     };
 
 

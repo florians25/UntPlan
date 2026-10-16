@@ -193,6 +193,10 @@ struct StundenplanView: View {
                         .padding(.bottom, 6)
                 }
                 inhalt
+                    // Dünner oranger Ladebalken direkt unter der Kopfzeile, solange der Plan lädt
+                    .overlay(alignment: .top) {
+                        Ladebalken(aktiv: laedt)
+                    }
             }
             .background(Farben.leiste.ignoresSafeArea())
             .navigationTitle("")
@@ -233,6 +237,32 @@ struct StundenplanView: View {
             .onChange(of: zustand.stundenplanHeute) { _, _ in zurHeutigenWoche() }
             // Plan geändert (z. B. Raumbuchung in den Stundendetails): neu laden
             .onChange(of: zustand.planGeaendert) { _, _ in Task { await laden(neu: true) } }
+            // Notiz in den Stundendetails gespeichert: Info-Zeichen sofort zeigen, dann den Plan neu laden
+            .onChange(of: zustand.notizAenderung) { _, neu in
+                guard let neu else { return }
+                notizUebernehmen(neu)
+                Task { await laden() }
+            }
+        }
+    }
+
+    /// Gespeicherte Notiz in alle geladenen Wochen übernehmen (Karten derselben Stunde); der neue Stand zeichnet das
+    /// Raster mit Info-Zeichen sofort neu.
+    private func notizUebernehmen(_ n: NotizAenderung) {
+        for (schluessel, plan) in plaene {
+            var neu = plan
+            var geaendert = false
+            for i in neu.karten.indices {
+                let k = neu.karten[i]
+                guard k.datum == n.datum, k.unterricht == n.unterricht, k.von <= n.bis, k.bis >= n.von else { continue }
+                if let s = n.schueler { neu.karten[i].notizSchueler = s }
+                if let l = n.lehrer { neu.karten[i].notizLehrer = l }
+                geaendert = true
+            }
+            if geaendert {
+                plaene[schluessel] = neu
+                staende[schluessel, default: 0] += 1
+            }
         }
     }
 
@@ -1288,10 +1318,10 @@ struct AufsichtDetailView: View {
         let alt = aufsicht.alt ?? ""
         switch aufsicht.status {
         case "vertreten", "vertretung":
+            // Wie bei Stundenkarten: abwesende Lehrkraft durchgestrichen, daneben die Vertretung (offen: nur durchgestrichen)
             var teile: [Wertbaustein] = []
             if neueLehrkraft.isEmpty {
                 if !alt.isEmpty { teile.append(.offen(alt)) }
-                teile.append(.text("Vertretung offen"))
             } else {
                 if !alt.isEmpty && alt != neueLehrkraft {
                     teile.append(.weg(alt))
@@ -1329,7 +1359,7 @@ struct AufsichtDetailView: View {
                                     zustand.planZeigen(plan)
                                     schliessen()
                                 } label: {
-                                    Label(plan.anzeige, systemImage: "person")
+                                    Label(plan.anzeige, image: "SymbolLehrer")
                                 }
                             }
                         }
@@ -1370,7 +1400,7 @@ struct AufsichtDetailView: View {
                                 zustand.planZeigen(plan)
                                 schliessen()
                             } label: {
-                                Detailzeile(symbol: "person", titel: "Im Stundenplan anzeigen", untertitel: plan.anzeige)
+                                Detailzeile(symbol: "SymbolLehrer", titel: "Im Stundenplan anzeigen", untertitel: plan.anzeige)
                             }
                             .buttonStyle(ZeilenKnopfStil())
                         }

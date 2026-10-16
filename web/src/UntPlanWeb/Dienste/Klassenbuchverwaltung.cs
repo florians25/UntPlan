@@ -31,7 +31,7 @@ public sealed record Berichtsart(string Id, string Gruppe, string Titel, bool Kl
 /// Verwaltung im Klassenbuch über die Einträge je Stunde hinaus:
 /// <list type="bullet">
 /// <item>Offene Stunden (Abwesenheitskontrolle und Lehrstoff je gehaltener Stunde).</item>
-/// <item>Klassendienste, Befreiungen, Abwesenheitsgründe, Sitzpläne.</item>
+/// <item>Klassendienste, Befreiungen, Abwesenheitsgründe (Sitzpläne: <see cref="Sitzplandienst"/>).</item>
 /// <item>Abwesenheiten bearbeiten und zusammenfassen.</item>
 /// <item>Berichte (Fehlzeiten, Fehltage, Überschreitungen, Einträge, Arbeitsbericht, Prüfungen …).</item>
 /// </list>
@@ -341,37 +341,6 @@ public sealed class Klassenbuchverwaltung
                 res.Add(x.SchuelerId);
             }
         return res.Distinct().ToList();
-    }
-
-    // ------------------------------------------------------------------------------------------ Sitzplan
-
-    public object Sitzplan(string klasse)
-    {
-        var z = _db.Einzel("SELECT * FROM sitzplaene WHERE klasse = @k", r => new { Zeilen = r.Zahl("zeilen"), Spalten = r.Zahl("spalten"), Belegung = r.Text("belegung"), Geaendert = r.Text("geaendert") },
-            Db.P("@k", klasse));
-        return new
-        {
-            klasse,
-            zeilen = z?.Zeilen ?? 5,
-            spalten = z?.Spalten ?? 6,
-            belegung = z is null ? new Dictionary<string, int>() : JsonSerializer.Deserialize<Dictionary<string, int>>(z.Belegung) ?? new(),
-            geaendert = z?.Geaendert,
-        };
-    }
-
-    public void SitzplanSpeichern(Benutzer b, Stand s, string klasse, int zeilen, int spalten, Dictionary<string, int> belegung)
-    {
-        if (!s.Klassen.ContainsKey(klasse)) throw new ArgumentException($"Unbekannte Klasse {klasse}.");
-        Klassenleitung(b, s, klasse);
-        zeilen = Math.Clamp(zeilen, 1, 15);
-        spalten = Math.Clamp(spalten, 1, 15);
-        var erlaubt = Klassenbuchdienst.Schueler(s, new[] { klasse }).Select(x => x.Id).ToHashSet();
-        var sauber = belegung.Where(x => erlaubt.Contains(x.Value) && System.Text.RegularExpressions.Regex.IsMatch(x.Key, @"^\d{1,2}-\d{1,2}$"))
-            .DistinctBy(x => x.Value).ToDictionary(x => x.Key, x => x.Value);
-        _db.Ausfuehren("""
-            INSERT INTO sitzplaene (klasse, zeilen, spalten, belegung, geaendert) VALUES (@k, @z, @s, @b, @g)
-            ON CONFLICT(klasse) DO UPDATE SET zeilen = excluded.zeilen, spalten = excluded.spalten, belegung = excluded.belegung, geaendert = excluded.geaendert
-            """, Db.P("@k", s.Klassen[klasse].Kurz), Db.P("@z", zeilen), Db.P("@s", spalten), Db.P("@b", JsonSerializer.Serialize(sauber)), Db.P("@g", Jetzt));
     }
 
     // ------------------------------------------------------------------------------------------ Findet online statt

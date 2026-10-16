@@ -47,12 +47,18 @@ final class Stundendaten: ObservableObject {
     /// Darf das Konto Lehrstoff, Notizen und Hausaufgaben dieser Stunde bearbeiten?
     var darf: Bool { klassenbuch?.darf == true || hausaufgaben?.darf == true }
 
+    /// Zuletzt gespeicherte Notizen (gelten sofort, auch wenn sie geleert wurden)
+    @Published var notizSchuelerGespeichert: String? = nil
+    @Published var notizLehrerGespeichert: String? = nil
+
     var notizSchueler: String {
+        if let n = notizSchuelerGespeichert { return n }
         if let n = eintrag?.notizSchueler, !n.isEmpty { return n }
         return karte.notizSchueler
     }
 
     var notizLehrer: String {
+        if let n = notizLehrerGespeichert { return n }
         if let n = eintrag?.notiz, !n.isEmpty { return n }
         return karte.notizLehrer
     }
@@ -170,6 +176,8 @@ final class Stundendaten: ObservableObject {
                                      online: online)
         let neu = try await api.klassenbuchSpeichern(daten)
         klassenbuch = KlassenbuchStunde(eintrag: neu, darf: klassenbuch?.darf ?? true)
+        if let notizSchueler { notizSchuelerGespeichert = notizSchueler }
+        if let notiz { notizLehrerGespeichert = notiz }
     }
 
     /// „Findet online statt“ – optimistisch umschalten, bei Fehler zurück.
@@ -407,7 +415,11 @@ struct NotizSeite: View {
     @State private var verdeckt: CGFloat = 0
     @Environment(\.dismiss) private var zurueck
 
-    private var bearbeitbar: Bool { daten.darf && daten.karte.unterricht != nil }
+    /// Bearbeiten dürfen nur Lehrkräfte mit Schreibrecht; Schüler*innen sehen ihre Notizen nur lesend.
+    private var bearbeitbar: Bool { zustand.istKollegium && daten.darf && daten.karte.unterricht != nil }
+
+    /// Notizen für Lehrkräfte sind für Schüler*innen und Eltern nie sichtbar.
+    private var sichtbar: Bool { art != .lehrer || zustand.istKollegium }
 
     /// Vorlage (Seite „Notizen“): X links, Titel mittig grau, darunter ein großer weißer Textbereich.
     var body: some View {
@@ -422,7 +434,7 @@ struct NotizSeite: View {
             let wert: String
             switch art {
             case .schueler: wert = daten.notizSchueler
-            case .lehrer: wert = daten.notizLehrer
+            case .lehrer: wert = sichtbar ? daten.notizLehrer : ""
             case .lehrstoff: wert = daten.eintrag?.thema ?? ""
             }
             text = wert
@@ -499,9 +511,15 @@ struct NotizSeite: View {
         do {
             let wert = text.trimmingCharacters(in: .whitespacesAndNewlines)
             switch art {
-            case .schueler: try await daten.speichern(notizSchueler: wert)
-            case .lehrer: try await daten.speichern(notiz: wert)
-            case .lehrstoff: try await daten.speichern(thema: wert)
+            case .schueler:
+                try await daten.speichern(notizSchueler: wert)
+                // Info-Zeichen auf der Karte sofort zeigen bzw. entfernen (Plan lokal anpassen und neu laden)
+                zustand.notizGespeichert(daten.karte, schueler: wert, lehrer: nil)
+            case .lehrer:
+                try await daten.speichern(notiz: wert)
+                zustand.notizGespeichert(daten.karte, schueler: nil, lehrer: wert)
+            case .lehrstoff:
+                try await daten.speichern(thema: wert)
             }
             text = wert
             anfang = wert
@@ -525,7 +543,7 @@ struct HausaufgabenSeite: View {
     private var bearbeitbar: Bool { daten.hausaufgaben?.darf == true }
 
     var body: some View {
-        DetailSeitenRahmen(titel: "Hausaufgaben", untertitel: stundenUntertitel(daten.karte)) {
+        DetailSeitenRahmen(titel: "Hausaufgaben", untertitel: stundenUntertitel(daten.karte), laedt: !daten.geladen) {
             hausaufgabenliste
         } rechts: {
             if bearbeitbar {
@@ -784,7 +802,7 @@ struct KlassenbuchSeite: View {
 
     /// Vorlage: Kopf mit Zurück und Titel mittig; die Suche steht als eigene Zeile unter dem Kopf (nicht daneben gequetscht).
     var body: some View {
-        DetailSeitenRahmen(titel: "Klassenbucheinträge", untertitel: stundenUntertitel(daten.karte)) {
+        DetailSeitenRahmen(titel: "Klassenbucheinträge", untertitel: stundenUntertitel(daten.karte), laedt: !daten.geladen) {
             VStack(spacing: 0) {
                 suchfeld
                     .padding(.horizontal, 20)
@@ -966,7 +984,7 @@ struct SchuelerSeite: View {
     }
 
     var body: some View {
-        DetailSeitenRahmen(titel: "Schüler*innen", untertitel: stundenUntertitel(daten.karte)) {
+        DetailSeitenRahmen(titel: "Schüler*innen", untertitel: stundenUntertitel(daten.karte), laedt: liste == nil) {
             inhalt
         }
         .sheet(item: $eintrag) { v in
@@ -1001,7 +1019,8 @@ struct SchuelerSeite: View {
             .padding(.bottom, 8)
             kontrollLeiste
             if liste == nil {
-                ProgressView()
+                // Lädt noch (Ladebalken unter dem Kopf)
+                Color.clear
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in

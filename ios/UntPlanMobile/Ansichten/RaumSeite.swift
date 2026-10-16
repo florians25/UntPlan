@@ -33,7 +33,7 @@ struct RaumSeite: View {
     }
 
     var body: some View {
-        DetailSeitenRahmen(titel: titel, untertitel: stundenUntertitel(daten.karte)) {
+        DetailSeitenRahmen(titel: titel, untertitel: stundenUntertitel(daten.karte), laedt: raeume == nil) {
             VStack(spacing: 0) {
                 Suchleiste(text: $suche, platzhalter: "Suchen")
                 HStack {
@@ -108,7 +108,6 @@ struct RaumSeite: View {
             .scrollDismissesKeyboard(.interactively)
         } else {
             VStack(spacing: 10) {
-                ProgressView()
                 Text("Freie Räume werden gesucht …")
                     .font(.system(size: 14))
                     .foregroundStyle(Farben.gedaempft)
@@ -119,7 +118,7 @@ struct RaumSeite: View {
 
     private func zeile(_ r: FreierRaum) -> some View {
         HStack(spacing: 12) {
-            Listensymbol(name: "door.left.hand.open", groesse: 26)
+            Listensymbol(name: "SymbolRaum", groesse: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(r.kurz)
                     .font(.system(size: 17, weight: .medium))

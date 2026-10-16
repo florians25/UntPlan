@@ -37,6 +37,8 @@ struct MitteilungenView: View {
     @State private var suche = ""
     @State private var sucheOffen = false
     @State private var neueMitteilung = false
+    /// Liste wird (neu) geladen – Ladebalken unter der Kopfzeile
+    @State private var laedt = false
 
     private var gefiltert: [Mitteilung] {
         guard !suche.isEmpty else { return liste }
@@ -57,6 +59,9 @@ struct MitteilungenView: View {
                         .transition(.opacity)
                 }
                 inhalt
+            }
+            .overlay(alignment: .top) {
+                Ladebalken(aktiv: laedt || !geladen)
             }
             .background(Farben.leiste.ignoresSafeArea())
             .navigationTitle("")
@@ -175,8 +180,6 @@ struct MitteilungenView: View {
             if geladen && gefiltert.isEmpty && fehler == nil {
                 ContentUnavailableView(suche.isEmpty ? "Keine Mitteilungen" : "Keine Treffer", systemImage: "tray",
                                        description: Text(leertext))
-            } else if !geladen {
-                ProgressView()
             }
         }
         .refreshable { await laden() }
@@ -192,6 +195,8 @@ struct MitteilungenView: View {
     }
 
     private func laden() async {
+        laedt = true
+        defer { laedt = false }
         do {
             let neu = try await zustand.api.mitteilungen(ordner: ordner.apiWert)
             liste = neu

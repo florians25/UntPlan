@@ -7,7 +7,9 @@ import SwiftUI
 /// - Abgegebene Stunde und Bereitschaft der abwesenden Lehrkraft: durchsichtig mit feinen Eckklammern, Kürzel durchgestrichen,
 ///   neue Lehrkraft als grüne Plakette.
 /// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
-/// - Aufsicht: schmale Pille in der Pause mit lila Balken.
+/// - Aufsicht: schmale Pille in der Pause mit lila Balken; Vertretung (übernommen oder abgegeben) grün wie eine
+///   Vertretungskarte, abwesendes Kürzel durchgestrichen, Vertretung als grüne Plakette.
+/// - Erste Zeile Medium, weitere Zeilen Regular; Info-Zeichen flach, 4 pt vom Rand unten rechts.
 /// Maße wie im Original (nachgemessen an den Vorlagen, Woche und Tag gleich): Balken 4 pt breit, oben, links und unten je
 /// 4 pt vom Kartenrand; Text 4 pt rechts vom Balken (Glyphe ≈ 12,8 pt von der Kante) und 4 pt unter der Oberkante; Schrift
 /// 12 pt bei 14 pt Zeilenabstand (iPad 12,4/14,3). Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
@@ -72,7 +74,8 @@ struct KachelView: View {
         .overlay { rahmen(a) }
         .overlay(alignment: .bottomTrailing) {
             zeichen(a)
-                .padding(2)
+                .padding(.trailing, Self.zeichenRand)
+                .padding(.bottom, Self.zeichenRand)
         }
         .shadow(color: a.schatten == .voll ? Farben.kartenSchatten : (a.schatten == .flach ? Farben.kartenSchattenFlach : .clear),
                 radius: a.schatten == .keiner ? 0 : 1, y: a.schatten == .keiner ? 0 : 1)
@@ -155,14 +158,15 @@ struct KachelView: View {
 
     private func zeilenBlock(_ a: Kachelaussehen) -> some View {
         let sichtbar = sichtbareZeilen
-        // Zeichen unten rechts (2 pt vom Rand): Zeilen auf ihrer Höhe lassen rechts Platz, damit nichts verdeckt wird
+        // Zeichen unten rechts (4 pt vom Rand): Zeilen auf ihrer Höhe lassen rechts Platz, damit nichts verdeckt wird
         let breiteZeichen = zeichenBreite
-        let zeichenOben = hoehe - 2 - Self.zeichenGroesse
+        let zeichenOben = hoehe - Self.zeichenRand - zeichenHoehe
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(sichtbar.enumerated()), id: \.offset) { eintrag in
                 let unten = Self.textOben + CGFloat(eintrag.offset + 1) * zeilenHoehe
-                let frei: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + 2 : 0
-                KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift,
+                let frei: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + Self.zeichenRand - 1 : 0
+                // Erste Zeile (oberer Wert) Medium, alle weiteren Regular
+                KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift, oben: eintrag.offset == 0,
                                 titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil)
                     .padding(.trailing, frei)
                     .frame(height: zeilenHoehe, alignment: .leading)
@@ -170,18 +174,29 @@ struct KachelView: View {
         }
     }
 
-    /// Kantenlänge der Zeichen unten rechts (Info, Hausaufgabe, Kürzung).
+    /// Kantenlänge der Zeichen unten rechts (Hausaufgabe, Kürzung).
     static let zeichenGroesse: CGFloat = 14.5
+    /// Durchmesser des flachen Info-Zeichens.
+    static let infoGroesse: CGFloat = 12
+    /// Abstand der Zeichen zum unteren und rechten Kartenrand.
+    static let zeichenRand: CGFloat = 4
+
+    /// Höhe der Zeichen unten rechts (das flache Info-Zeichen allein ist etwas kleiner).
+    private var zeichenHoehe: CGFloat {
+        let mitInfo = kachel.info && kachel.art != .termin
+        let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft && (!mitInfo || breite >= 96)
+        return !gekuerzt && mitInfo && !mitHausaufgabe ? Self.infoGroesse : Self.zeichenGroesse
+    }
 
     /// Breite der Zeichen unten rechts (0 = keine) – wie in `zeichen(_:)`.
     private var zeichenBreite: CGFloat {
         let mitInfo = kachel.info && kachel.art != .termin
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
         if gekuerzt { return Self.zeichenGroesse }
-        var anzahl: CGFloat = 0
-        if mitHausaufgabe && (!mitInfo || breite >= 96) { anzahl += 1 }
-        if mitInfo { anzahl += 1 }
-        return anzahl == 0 ? 0 : anzahl * Self.zeichenGroesse + (anzahl - 1) * 2
+        var summe: CGFloat = 0
+        if mitHausaufgabe && (!mitInfo || breite >= 96) { summe += Self.zeichenGroesse }
+        if mitInfo { summe += (summe > 0 ? 2 : 0) + Self.infoGroesse }
+        return summe
     }
 
     // MARK: - Zeichen unten rechts (Info, Hausaufgabe, Kürzung)
@@ -193,7 +208,7 @@ struct KachelView: View {
         if gekuerzt {
             Kuerzungszeichen(gruen: kachel.art == .aenderung || kachel.art == .abgegeben)
         } else if mitInfo || mitHausaufgabe {
-            HStack(spacing: 2) {
+            HStack(alignment: .center, spacing: 2) {
                 if mitHausaufgabe && (!mitInfo || breite >= 96) {
                     Image(systemName: "book.closed.fill")
                         .font(.system(size: 8))
@@ -202,7 +217,7 @@ struct KachelView: View {
                         .background(Farben.infoFeld, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
                 if mitInfo {
-                    Infozeichen()
+                    Infozeichen(groesse: Self.infoGroesse)
                 }
             }
         }
@@ -221,36 +236,53 @@ struct KachelView: View {
                 .foregroundStyle(a.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
+            if let v = aufsichtVertretung {
+                // Vertretung wie auf den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grüne Plakette
+                // (offen: abwesendes Kürzel durchgestrichen in der grünen Plakette)
+                HStack(spacing: 3) {
+                    if v.vertreter.isEmpty {
+                        if !v.abwesend.isEmpty {
+                            Plakettenwert(text: v.abwesend, durchgestrichen: true)
+                        }
+                    } else {
+                        if !v.abwesend.isEmpty {
+                            Text(v.abwesend)
+                                .strikethrough(true)
+                                .foregroundStyle(a.text)
+                                .fixedSize()
+                        }
+                        Plakettenwert(text: v.vertreter)
+                    }
+                }
+                .font(.system(size: gross ? 13.5 : 12.4))
+                .lineLimit(1)
+                .layoutPriority(1)
+            }
             if gross {
                 Text("\(Rasterzeit.uhrzeit(kachel.beginn))–\(Rasterzeit.uhrzeit(kachel.ende))")
                     .font(.system(size: 12.5).monospacedDigit())
                     .foregroundStyle(a.text.opacity(0.75))
                     .lineLimit(1)
-                if let hinweis = aufsichtHinweis {
-                    Text(hinweis)
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(a.text.opacity(0.75))
-                        .lineLimit(1)
-                }
             }
             Spacer(minLength: 0)
-            if kachel.art == .aufsicht && kachel.aufsichtsstand != .regulaer {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 9, weight: .medium))
-                    .rotationEffect(.degrees(90))
-                    .foregroundStyle(Farben.gruenSchrift)
-                    .frame(width: 15, height: 13)
-                    .background(Farben.gruen, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-                    .padding(.trailing, 3)
-            }
         }
         .padding(.leading, 4)
         .padding(.trailing, 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(a.hintergrund, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
         .shadow(color: a.schatten == .keiner ? .clear : Farben.kartenSchattenFlach, radius: a.schatten == .keiner ? 0 : 1.5, y: a.schatten == .keiner ? 0 : 1)
+    }
+
+    /// Vertretene bzw. übernommene Aufsicht: abwesende Lehrkraft und Vertretung (leer = offen).
+    private var aufsichtVertretung: (abwesend: String, vertreter: String)? {
+        guard kachel.art == .aufsicht, kachel.aufsichtsstand != .regulaer, let a = kachel.aufsicht else { return nil }
+        let vertreter = a.lehrer == "???" ? "" : a.lehrer
+        let abwesend = a.alt ?? ""
+        guard !(vertreter.isEmpty && abwesend.isEmpty) else { return nil }
+        return (abwesend, vertreter)
     }
 
     private var aufsichtHinweis: String? {
@@ -288,6 +320,8 @@ struct KachelzeileView: View {
     let zeile: Kachelzeile
     let aussehen: Kachelaussehen
     let schrift: CGFloat
+    /// Erste (obere) Zeile der Karte: Medium, sonst Regular
+    var oben: Bool = false
     var titelFarbe: Color? = nil
 
     var body: some View {
@@ -304,7 +338,7 @@ struct KachelzeileView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .font(.system(size: schrift, weight: zeile.fett ? .medium : .regular))
+        .font(.system(size: schrift, weight: oben ? .medium : .regular))
         .foregroundStyle(titelFarbe ?? aussehen.text)
     }
 
@@ -445,15 +479,12 @@ struct Kachelaussehen {
             case .regulaer:
                 hintergrund = v ? Farben.karteVergangen : Farben.karte
                 schatten = .flach
-            case .vertretung:
+            case .vertretung, .abgegeben:
+                // Vertretung (übernommen bzw. abgegeben) wie eine Vertretungskarte: nicht verblasst, grüne Fläche mit
+                // grünem Rahmen; Kürzel stehen als Plakette bzw. durchgestrichen in der Pille
                 farbigeKarte(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: false)
                 randBreite = 1.5
                 text = Farben.aenderungText
-            case .abgegeben:
-                hintergrund = .clear
-                schatten = .keiner
-                ecken = true
-                text = Farben.tinte2
             }
         }
         // Reine Raumänderung: gelbe Karte mit braunem (dunkel: orangem) Rahmen, der neue Raum bleibt grüne Plakette
@@ -570,8 +601,8 @@ struct Plakettenwert: View {
     var kuerzbar: Bool = false
 
     var body: some View {
+        // Schriftstärke wie die Zeile (oben Medium, sonst Regular)
         Text(text)
-            .fontWeight(.medium)
             .strikethrough(durchgestrichen, color: Farben.gruenSchrift)
             .foregroundStyle(Farben.gruenSchrift)
             .lineLimit(1)
@@ -583,19 +614,18 @@ struct Plakettenwert: View {
     }
 }
 
-/// Info-Punkt (.card__info): helles Feld 14,5 pt, graue Scheibe mit „i“.
+/// Info-Zeichen (.card__info) flach wie im Original: graue Scheibe mit ausgespartem „i“ als Vektorgrafik (KartenInfo),
+/// ohne Feld, Verlauf oder Schatten.
 struct Infozeichen: View {
+    var groesse: CGFloat = 12
+
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(Farben.infoFeld)
-            Circle()
-                .fill(Farben.infoScheibe)
-                .padding(2.3)
-            Text("i")
-                .font(.system(size: 7.5, weight: .medium))
-                .foregroundStyle(Farben.infoZeichen)
-        }
-        .frame(width: 14.5, height: 14.5)
+        Image("KartenInfo")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(Farben.infoScheibe)
+            .frame(width: groesse, height: groesse)
+            .accessibilityHidden(true)
     }
 }

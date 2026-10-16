@@ -69,41 +69,126 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
     });
   }
 
-  // Klassendienste-Liste wie im Original (alte Liste): Klasse, Art, Zeitraum; Auswahl, Stift, Dienst, Name, Klasse, Zeit, Text; Neu, Löschen, Berichte
+  // Klassendienste als Liste im nl-design: Filterleiste (Klasse, Dienst als Pillen, Zeitraum), Tabelle Dienst | Schüler*innen | Zeitraum
+  // (gleicher Dienst und Zeitraum in einer Zeile), Anlegen und Bearbeiten in einem Dialog mit Mehrfachauswahl der Schüler*innen.
   function altListe() {
-    const datumDe2 = iso => iso ? iso.split('-').reverse().join('.') : '';
-    seite.innerHTML = `<div class="alt-seite"><div class="alt-kopf"><h1>Klassendienste</h1></div><div class="alt-karte">
-      <div class="alt-filter">
-        <label><span>Klasse</span><select data-klasse><option value="alle">- Alle -</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
-        <label><span>Art</span><select data-dienst><option value="alle">- Alle -</option>${d.arten.map(a => `<option value="${a.id}" ${!alleDienste && a.id === dienst?.id ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
-        <label><span>Zeitraum</span><span class="d-flex gap-1"><input type="date" data-von value="${von}" aria-label="von"><input type="date" data-bis value="${bis}" aria-label="bis"></span></label>
-        <a class="alt-link ms-auto" href="${ziel(klasse || el.klassen[0]?.kurz, dienst?.id, 'zeit')}">Zur Zeitansicht wechseln</a>
+    const heute = heuteIso();
+    const jahr = iso => iso.slice(0, 4);
+    const zeitText = (v, b) => v === b ? `${kurz(v)}${jahr(v)}` : `${kurz(v)} – ${kurz(b)}${jahr(b)}`;
+    const ini = n => n.split(/[\s,]+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
+    const gruppen = [];
+    for (const z of zuordnungen) {
+      const g = gruppen.find(x => x.dienstId === z.dienstId && x.von === z.von && x.bis === z.bis && x.klasse === z.klasse && x.text === z.text);
+      if (g) g.eintraege.push(z); else gruppen.push({ dienstId: z.dienstId, dienst: z.dienst, dienstKurz: z.dienstKurz, von: z.von, bis: z.bis, klasse: z.klasse, text: z.text, eintraege: [z] });
+    }
+    gruppen.sort((a, b) => a.von.localeCompare(b.von) || a.dienst.localeCompare(b.dienst, 'de'));
+    const phase = g => g.bis < heute ? ['vorbei', 'grau'] : g.von > heute ? ['geplant', 'blau'] : ['aktuell', 'gruen'];
+    const darf = d.verwalten || ich.admin;
+    kontext.titel('Klassendienste', `<a class="btn btn-outline-secondary" href="${ziel(klasse || el.klassen[0]?.kurz, dienst?.id, 'zeit')}">${icon('woche')}Zeitansicht</a>
+      ${d.verwalten ? `<button type="button" class="btn btn-primary" data-neu>${icon('plus')}Dienst einteilen</button>` : ''}`, klasse || 'alle Klassen');
+    seite.innerHTML = `<div class="kd-seite">
+      <div class="kd-filter">
+        <label class="kd-feld"><span>Klasse</span><select data-klasse><option value="alle">Alle Klassen</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
+        <label class="kd-feld"><span>Von</span><input type="date" data-von value="${von}"></label>
+        <label class="kd-feld"><span>Bis</span><input type="date" data-bis value="${bis}"></label>
+        <a class="kd-bericht" href="#/berichte/klassendienste/${encodeURIComponent(klasse || '-')}/${von}/${bis}">${icon('berichte')}Bericht</a>
       </div>
-      ${zuordnungen.length ? `<table class="alt-liste mt-2"><thead><tr><th class="mitte">Auswahl<br><input type="checkbox" data-alle aria-label="Alle auswählen"></th><th></th><th>Dienst</th><th>Name</th><th>Klasse</th><th>Zeit</th><th>Text</th></tr></thead><tbody>
-        ${zuordnungen.map(z => `<tr><td class="mitte"><input type="checkbox" data-id="${z.id}" aria-label="auswählen"></td>
-          <td class="mitte">${d.verwalten || ich.admin ? `<button type="button" class="kb-stift" data-bearbeiten="${z.id}" title="Bearbeiten"><img src="/img/wu/legacy/absence-edit.png" alt="Bearbeiten"></button>` : '<img src="/img/wu/legacy/duty-broom.png" alt="">'}</td>
-          <td>${e(z.dienstKurz || z.dienst)}</td><td>${e(z.schueler)}</td><td>${e(z.klasse)}</td><td>${z.von === z.bis ? kurz(z.von) : `${kurz(z.von)}-${kurz(z.bis)}`}</td><td class="text">${e(z.text)}</td></tr>`).join('')}</tbody></table>`
-        : `<p class="small text-body-secondary mt-3">Im Zeitraum ${datumDe2(von)} – ${datumDe2(bis)} ist niemand eingeteilt.</p>`}
-      <div class="ad-knoepfe mt-3">${d.verwalten ? '<button type="button" class="ad-pille" data-neu>Neu</button><button type="button" class="ad-pille" data-sammel-loeschen>Löschen</button>' : ''}
-        <a class="ad-pille text-decoration-none" href="#/berichte/klassendienste/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Berichte ▾</a></div></div></div>`;
+      <div class="s-pillen" role="tablist" aria-label="Dienst">
+        <button type="button" role="tab" class="s-pille ${alleDienste ? 'an' : ''}" data-art="alle" aria-selected="${alleDienste}">Alle Dienste</button>
+        ${d.arten.map(a => `<button type="button" role="tab" class="s-pille ${!alleDienste && a.id === dienst?.id ? 'an' : ''}" data-art="${a.id}" aria-selected="${!alleDienste && a.id === dienst?.id}">${e(a.name)}${d.zuordnungen.some(z => z.dienstId === a.id) ? ` <span class="s-zahl">${new Set(d.zuordnungen.filter(z => z.dienstId === a.id).map(z => z.schuelerId)).size}</span>` : ''}</button>`).join('')}
+      </div>
+      ${!d.arten.length ? `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-person-gear"></i></span><b>Noch keine Dienste angelegt</b><p>Die Administration legt Dienste wie Tafeldienst oder Klassenordner unter Stammdaten → Dienste an.</p></div>`
+        : !gruppen.length ? `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-people"></i></span><b>Niemand eingeteilt</b><p>Im Zeitraum ${datumDe(von)} – ${datumDe(bis)} ist ${alleDienste ? 'für keinen Dienst' : `für „${e(dienst?.name ?? '')}“`} jemand eingeteilt.${d.verwalten ? ' Über „Dienst einteilen“ legen Sie eine Einteilung an.' : !klasse ? ' Zum Einteilen bitte eine Klasse wählen.' : ''}</p></div>`
+        : `<div class="s-karte kd-tabelle" role="table">
+          <div class="kd-kopf" role="row">${darf ? '<span class="kd-wahl"><input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span>' : '<span></span>'}<span role="columnheader">Dienst</span><span role="columnheader">Schüler*innen</span><span role="columnheader">Zeitraum</span><span role="columnheader">Text</span><span></span></div>
+          ${gruppen.map((g, i) => { const [ph, farbe] = phase(g); return `<div class="kd-zeile ${ph}" role="row">
+            ${darf ? `<span class="kd-wahl"><input type="checkbox" class="nl-rund" data-gruppe="${i}" aria-label="auswählen"></span>` : '<span></span>'}
+            <span class="kd-dienst" role="cell"><span class="kd-symbol"><i class="bi bi-person-gear"></i></span><span><b>${e(g.dienst)}</b>${!klasse ? `<small>Klasse ${e(g.klasse)}</small>` : ''}</span></span>
+            <span class="kd-schueler" role="cell">${g.eintraege.map(z => `<span class="kd-person"><span class="kd-avatar">${e(ini(z.schueler))}</span>${e(z.schueler)}</span>`).join('')}</span>
+            <span class="kd-zeit" role="cell"><span>${zeitText(g.von, g.bis)}</span><span class="s-label ${farbe}">${ph}</span></span>
+            <span class="kd-text" role="cell">${e(g.text) || '<span class="kbu-still">–</span>'}</span>
+            <span class="kd-aktionen">${darf ? `<button type="button" class="nl-icon sichtbar" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>` : ''}</span></div>`; }).join('')}
+          ${darf ? `<div class="kd-fuss"><span data-anzahl>${gruppen.length} ${gruppen.length === 1 ? 'Einteilung' : 'Einteilungen'}</span><button type="button" class="btn btn-outline-danger s-knopf" data-sammel-loeschen disabled>${icon('loeschen')}Auswahl löschen</button></div>` : ''}
+        </div>`}
+      ${!d.verwalten && klasse ? '<p class="nl-hinweis mt-3"><i class="bi bi-info-circle"></i>Einteilen kann die Klassenleitung bzw. die Schulleitung.</p>' : ''}
+    </div>`;
     const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-    seite.querySelectorAll('.alt-filter select, .alt-filter input').forEach(x => x.onchange = () => kontext.navigieren(`#/dienste/${encodeURIComponent(f('klasse'))}/${f('dienst')}/liste/${f('von') || von}/${f('bis') || bis}`));
-    seite.querySelector('[data-alle]')?.addEventListener('change', ev => seite.querySelectorAll('[data-id]').forEach(c => { c.checked = ev.target.checked; }));
+    const art = alleDienste ? 'alle' : dienst?.id;
+    const hin = (k, a) => kontext.navigieren(`#/dienste/${encodeURIComponent(k)}/${a}/liste/${f('von') || von}/${f('bis') || bis}`);
+    seite.querySelectorAll('.kd-filter select, .kd-filter input').forEach(x => x.onchange = () => hin(f('klasse'), art));
+    seite.querySelectorAll('[data-art]').forEach(b => b.onclick = () => hin(klasse || 'alle', b.dataset.art));
+    const auswahl = () => [...seite.querySelectorAll('[data-gruppe]:checked')].flatMap(c => gruppen[Number(c.dataset.gruppe)].eintraege.map(z => z.id));
+    const knopf = seite.querySelector('[data-sammel-loeschen]');
+    const aktualisieren = () => { const n = seite.querySelectorAll('[data-gruppe]:checked').length; if (knopf) knopf.disabled = !n; };
+    seite.querySelectorAll('[data-gruppe]').forEach(c => c.onchange = () => { c.closest('.kd-zeile').classList.toggle('gewaehlt', c.checked); aktualisieren(); });
+    seite.querySelector('[data-alle]')?.addEventListener('change', ev => seite.querySelectorAll('[data-gruppe]').forEach(c => { c.checked = ev.target.checked; c.closest('.kd-zeile').classList.toggle('gewaehlt', c.checked); aktualisieren(); }));
     const neu = () => kontext.navigieren(location.hash);
-    seite.querySelector('[data-neu]')?.addEventListener('click', () => dialog({ titel: 'Klassendienst eintragen', inhalt: formular(), knoepfe: [{ text: 'Abbrechen' },
-      { text: 'Speichern', art: 'haupt', aktion: async box => { await senden('/api/app/klassendienste', werte(box)); toast('Gespeichert.'); neu(); } }] }));
-    seite.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => {
-      const z = zuordnungen.find(x => x.id === Number(b.dataset.bearbeiten));
-      dialog({ titel: 'Klassendienst', inhalt: formular(z), knoepfe: [{ text: 'Abbrechen' },
-        { text: 'Speichern', art: 'haupt', aktion: async box => { await senden(`/api/app/klassendienste/${z.id}`, werte(box), 'PUT'); toast('Gespeichert.'); neu(); } }] });
-    });
-    seite.querySelector('[data-sammel-loeschen]')?.addEventListener('click', async () => {
-      const ids = [...seite.querySelectorAll('[data-id]:checked')].map(c => c.dataset.id);
-      if (!ids.length) return toast('Bitte zuerst Einträge auswählen.', true);
-      if (!await bestaetigen('Klassendienste löschen', `${ids.length} Einteilung(en) löschen?`)) return;
-      for (const id of ids) await api(`/api/app/klassendienste/${id}`, { methode: 'DELETE' });
+    seite.querySelector('[data-neu]')?.addEventListener('click', () => einteilenDialog());
+    document.querySelector('#aktionen [data-neu]')?.addEventListener('click', () => einteilenDialog());
+    seite.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => einteilenDialog(gruppen[Number(b.dataset.bearbeiten)]));
+    knopf?.addEventListener('click', async () => {
+      const ids = auswahl();
+      if (!ids.length) return;
+      if (!await bestaetigen('Einteilungen löschen', `${ids.length} ${ids.length === 1 ? 'Einteilung' : 'Einteilungen'} löschen?`)) return;
+      try { for (const id of ids) await api(`/api/app/klassendienste/${id}`, { methode: 'DELETE' }); toast('Gelöscht.'); } catch (err) { kontext.fehler(err); }
       neu();
     });
+
+    /** Ein Dialog für Anlegen und Bearbeiten: Dienst, Zeitraum, Schüler*innen (Mehrfachauswahl mit Suche), Text. */
+    async function einteilenDialog(g = null) {
+      let schueler = d.schueler;
+      const kl = g?.klasse || klasse;
+      if (!schueler.length && kl) schueler = await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(kl)}`).catch(() => []);
+      const gewaehlt = new Set((g?.eintraege ?? []).map(z => z.schuelerId));
+      const vonV = g?.von ?? montag(heuteIso()), bisV = g?.bis ?? plusTage(montag(heuteIso()), 4);
+      dialog({
+        titel: g ? 'Einteilung bearbeiten' : `Dienst einteilen · ${kl}`,
+        breit: true,
+        inhalt: `<div class="kd-dialog">
+          <div class="kd-dialog-reihe">
+            <label class="kd-dfeld"><span>Dienst</span><select class="form-select" name="dienstId">${d.arten.map(a => `<option value="${a.id}" ${a.id === (g?.dienstId ?? (alleDienste ? d.arten[0]?.id : dienst?.id)) ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
+            <label class="kd-dfeld"><span>Von</span><input type="date" class="form-control" name="von" value="${vonV}"></label>
+            <label class="kd-dfeld"><span>Bis</span><input type="date" class="form-control" name="bis" value="${bisV}"></label>
+          </div>
+          <div class="kd-schnell"><span>Zeitraum:</span>
+            <button type="button" class="s-pille" data-woche="0">diese Woche</button><button type="button" class="s-pille" data-woche="1">nächste Woche</button><button type="button" class="s-pille" data-woche="2">2 Wochen</button></div>
+          <div class="kd-dfeld"><span>Schüler*innen <small data-zahl>${gewaehlt.size ? `· ${gewaehlt.size} gewählt` : ''}</small></span>
+            <div class="kd-auswahl"><input type="search" class="form-control" data-suche placeholder="Name suchen …" aria-label="Schüler*in suchen">
+              <div class="kd-liste">${schueler.map(x => `<label class="kd-option" data-name="${e(`${x.name} ${x.vorname}`.toLowerCase())}"><input type="checkbox" value="${x.id}" ${gewaehlt.has(x.id) ? 'checked' : ''}><span class="kd-avatar">${e(ini(`${x.name} ${x.vorname}`))}</span>${e(x.name)} ${e(x.vorname)}</label>`).join('') || '<div class="small text-body-secondary p-2">Keine Schülerliste übertragen.</div>'}</div></div></div>
+          <label class="kd-dfeld"><span>Text (optional)</span><input class="form-control" name="text" maxlength="200" value="${e(g?.text ?? '')}" placeholder="z. B. Tafel wischen, Fenster schließen"></label>
+        </div>`,
+        beimOeffnen: box => {
+          const zahl = () => { const n = box.querySelectorAll('.kd-liste input:checked').length; box.querySelector('[data-zahl]').textContent = n ? `· ${n} gewählt` : ''; };
+          box.querySelectorAll('.kd-liste input').forEach(c => c.onchange = zahl);
+          box.querySelector('[data-suche]').oninput = ev => { const q = ev.target.value.trim().toLowerCase(); box.querySelectorAll('.kd-option').forEach(o => { o.hidden = q && !o.dataset.name.includes(q); }); };
+          box.querySelectorAll('[data-woche]').forEach(b => b.onclick = () => {
+            const n = Number(b.dataset.woche), m = montag(heuteIso());
+            box.querySelector('[name=von]').value = n === 1 ? plusTage(m, 7) : m;
+            box.querySelector('[name=bis]').value = n === 0 ? plusTage(m, 4) : n === 1 ? plusTage(m, 11) : plusTage(m, 11);
+          });
+        },
+        knoepfe: [
+          ...(g ? [{ text: 'Löschen', art: 'gefahr', aktion: async () => {
+            for (const z of g.eintraege) await api(`/api/app/klassendienste/${z.id}`, { methode: 'DELETE' });
+            toast('Einteilung gelöscht.'); neu();
+          } }] : []),
+          { text: 'Abbrechen' },
+          { text: 'Speichern', art: 'haupt', aktion: async box => {
+            const q = n => box.querySelector(`[name=${n}]`).value;
+            const ids = [...box.querySelectorAll('.kd-liste input:checked')].map(c => Number(c.value));
+            if (!ids.length) { toast('Bitte mindestens eine Schülerin bzw. einen Schüler wählen.', true); return false; }
+            if (q('bis') < q('von')) { toast('Das Ende liegt vor dem Beginn.', true); return false; }
+            const daten = sid => ({ dienstId: Number(q('dienstId')), schuelerId: sid, von: q('von'), bis: q('bis'), text: q('text') });
+            for (const z of g?.eintraege ?? []) {
+              if (ids.includes(z.schuelerId)) await senden(`/api/app/klassendienste/${z.id}`, daten(z.schuelerId), 'PUT');
+              else await api(`/api/app/klassendienste/${z.id}`, { methode: 'DELETE' });
+            }
+            for (const sid of ids.filter(x => !gewaehlt.has(x))) await senden('/api/app/klassendienste', daten(sid));
+            toast('Gespeichert.'); neu();
+          } },
+        ],
+      });
+    }
   }
 
   function formular(z = {}) { return formularHtml(z); }

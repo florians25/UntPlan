@@ -237,26 +237,36 @@ ul{ padding:0; list-style:none; }
   display:block;
   min-width:0;
 }
-/* Ladebalken direkt unter den Tagen. Er läuft von links nach rechts und
-   erscheint erst, wenn das Laden wirklich dauert. */
+/* Ladebalken: dünn und orange, oben an der Tagesleiste — also direkt
+   unter der Kopfzeile, wo der Blick beim Wechseln ohnehin ist. Er läuft
+   unbestimmt von links nach rechts (zwei Abschnitte, wie bei den
+   Systemleisten) und erscheint erst, wenn das Laden wirklich dauert. */
 .loadbar{
-  position:absolute; left:0; right:0; bottom:-2px; height:4px;
-  overflow:hidden; pointer-events:none;
-  opacity:0; transition:opacity .18s var(--ease);
+  position:absolute; left:0; right:0; top:0; height:2.5px;
+  overflow:hidden; pointer-events:none; z-index:3;
+  background:color-mix(in srgb, var(--u-orange) 18%, transparent);
+  opacity:0; transition:opacity .2s var(--ease);
 }
 .loadbar.is-on{ opacity:1; }
-.loadbar span{
-  display:block; width:40%; height:100%;
-  background:var(--u-orange); border-radius:3px;
-  transform:translateX(-100%);
+.loadbar span, .loadbar::after{
+  content:""; position:absolute; top:0; bottom:0; left:0;
+  background:var(--u-orange); border-radius:2px;
+  width:38%; transform:translateX(-110%);
 }
-.loadbar.is-on span{ animation:laden 1.1s var(--ease) infinite; }
+.loadbar::after{ width:22%; }
+.loadbar.is-on span{ animation:laden 1.35s cubic-bezier(.65,.05,.36,1) infinite; }
+.loadbar.is-on::after{ animation:laden2 1.35s cubic-bezier(.4,0,.2,1) .55s infinite; }
 @keyframes laden{
-  0%   { transform:translateX(-100%); }
-  100% { transform:translateX(250%); }
+  0%   { transform:translateX(-110%); }
+  100% { transform:translateX(280%); }
+}
+@keyframes laden2{
+  0%   { transform:translateX(-110%); }
+  100% { transform:translateX(470%); }
 }
 @media (prefers-reduced-motion: reduce){
-  .loadbar.is-on span{ animation:none; transform:none; width:100%; opacity:.6; }
+  .loadbar.is-on span{ animation:none; transform:none; width:100%; opacity:.7; }
+  .loadbar.is-on::after{ animation:none; display:none; }
 }
 
 .weekhead__strip{
@@ -4612,3 +4622,51 @@ html.is-dark .card .ticon{ fill:transparent; }
 .sheet--detail .dabs__title{ font-size:16px; }
 .sheet--detail .dabs__top{ gap:6px; padding-left:12px; padding-right:12px; }
 .sheet--detail .dabs__acts .rndbtn{ width:40px; }
+
+/* =====================================================================
+   Sprint 17 – Feinschliff Kacheln
+   ===================================================================== */
+/* Nur die erste Zeile Medium (500), alles Übrige Regular — auch Plaketten
+   in den unteren Zeilen und die Zeilen des Ferienfelds. */
+.card .card__line:not(.card__line--primary) .badge{ font-weight:400; }
+.card .card__line--primary .badge{ font-weight:500; }
+.card--holiday .card__line{ font-weight:400; }
+.card--holiday .card__line:first-of-type{ font-weight:500; }
+.card--standby:not(.is-absent) .card__line:first-child{ font-weight:500; }
+
+/* Info- und Hausaufgabenzeichen: flach, eine Farbe, gut 4 px vom Rand. */
+.card__ecke{ right:4px; bottom:4px; gap:3px; }
+.card__ic.card__ic--flach{ width:12px; height:12px; }
+.card .ticon.ticon--flach{ fill:none; color:#8a96a1; }
+html.is-dark .card .ticon.ticon--flach{ fill:none; color:#9aa6b2; }
+
+/* Aufsichtsvertretung — eingesprungen wie abgegeben: nicht verblassen,
+   kein Menüzeichen. Grün wie jede Vertretung, rechts neben dem Ort das
+   abwesende Kürzel durchgestrichen und die Vertretung im grünen Label. */
+.card--supervision.is-absent{
+  background:var(--chg-bg);
+  border:1.5px solid var(--chg-border);
+  --bw:1.5px;
+  box-shadow:0 -1px 2px rgba(31,47,61,.10), 0 1px 3px rgba(31,47,61,.20);
+}
+.card--supervision.is-absent.is-past{ border:0; --bw:0px; background:var(--chg-bg); }
+.is-dark .card--supervision.is-absent.is-past{ background:var(--card-bg-past); border:1.5px solid var(--chg-border); }
+.card--supervision.is-sub,
+.card--supervision.is-absent{ padding-right:3px; }
+.card--supervision.is-sub .card__line,
+.card--supervision.is-absent .card__line,
+.card--supervision.is-sub.is-past .card__line,
+.card--supervision.is-absent.is-past .card__line{ color:var(--c-ink); }
+.card--supervision .sup-menu{ display:none !important; }
+.card--supervision .sup-lab{
+  flex:0 0 auto; display:flex; align-items:center; gap:2px;
+  margin-left:4px; min-width:0;
+  font-size:12.4px; line-height:14.3px; font-weight:400; color:var(--c-ink);
+  white-space:nowrap;
+}
+.card--supervision .sup-lab .badge{ padding:0.33px 2.27px 0; font-weight:500; }
+.card--supervision .sup-lab .badge.badge--removed:not(.badge--open){ padding-left:1px; padding-right:1px; font-weight:400; }
+
+/* Bereitschaft der abwesenden Lehrkraft: Kürzel im grünen Label,
+   durchgestrichen. */
+.card--standby.is-absent .card__line--badge .badge{ font-weight:400; }

@@ -19,6 +19,8 @@ final class AppZustand: ObservableObject {
     @Published var stundenplanHeute = 0
     /// Zählt hoch, wenn sich der Plan geändert hat (z. B. Raumbuchung in den Stundendetails) – der Stundenplan lädt neu.
     @Published var planGeaendert = 0
+    /// Zuletzt gespeicherte Notiz einer Stunde – der Stundenplan passt die Karte sofort an (Info-Zeichen) und lädt neu.
+    @Published var notizAenderung: NotizAenderung? = nil
     /// Plan, den der Stundenplan öffnen soll („Im Stundenplan anzeigen“ aus den Stundendetails).
     @Published var planAnfrage: PlanAuswahl? = nil
     /// Kurzbefehl vom App-Symbol, den der Stundenplan noch ausführen soll (Mein Stundenplan heute bzw. Planauswahl).
@@ -62,6 +64,13 @@ final class AppZustand: ObservableObject {
     func planZeigen(_ plan: PlanAuswahl) {
         planAnfrage = plan
         reiter = .stundenplan
+    }
+
+    /// Notiz einer Stunde gespeichert (nil = unverändert): Karte im Plan sofort anpassen und den Plan neu laden.
+    func notizGespeichert(_ karte: Karte, schueler: String?, lehrer: String?) {
+        guard let u = karte.unterricht else { return }
+        notizAenderung = NotizAenderung(datum: karte.datum, unterricht: u, von: karte.von, bis: karte.bis,
+                                        schueler: schueler, lehrer: lehrer)
     }
 
     /// Beim Start: bestehende Sitzung prüfen, sonst mit gemerktem Passwort neu anmelden.
@@ -157,4 +166,16 @@ final class AppZustand: ObservableObject {
         ungelesen = s.ungelesen
         phase = .angemeldet
     }
+}
+
+/// Gespeicherte Notiz einer Stunde (für die sofortige Anzeige des Info-Zeichens im Plan).
+struct NotizAenderung: Equatable {
+    let id = UUID()
+    let datum: String
+    let unterricht: Int
+    let von: Int
+    let bis: Int
+    /// Neue Notiz für Schüler*innen bzw. Lehrkräfte (nil = unverändert)
+    let schueler: String?
+    let lehrer: String?
 }

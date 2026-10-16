@@ -272,22 +272,20 @@ struct Glasknopf<Inhalt: View>: View {
     }
 }
 
-/// Person mit Auf-/Ab-Pfeilen unten rechts (Konto wechseln) wie in der Vorlage: dünne graue Linien.
+/// Person mit Auf-/Ab-Pfeilen unten rechts (Profil wechseln) wie in der Vorlage: eine Vektorgrafik (ProfilWechsel)
+/// mit durchgehend gleicher Strichstärke, die Pfeile (ab, auf) unten rechts neben der Schulter.
 struct KontoSymbol: View {
+    var groesse: CGFloat = 26
+
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Image(systemName: "person")
-                .font(.system(size: 18, weight: .light))
-                .frame(width: 20, height: 20)
-            Image(systemName: "arrow.up.arrow.down")
-                .font(.system(size: 10.5, weight: .light))
-                .frame(width: 13, height: 13)
-                .offset(x: 13, y: 13)
-        }
-        .foregroundStyle(Farben.gedaempft)
-        .frame(width: 28, height: 28, alignment: .topLeading)
-        .offset(x: 1, y: 1)
-        .accessibilityHidden(true)
+        Image("ProfilWechsel")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: groesse, height: groesse)
+            .foregroundStyle(Farben.gedaempft)
+            .offset(x: 1)
+            .accessibilityHidden(true)
     }
 }
 
@@ -440,5 +438,61 @@ extension View {
     func zentriert(maxBreite: CGFloat = 700) -> some View {
         frame(maxWidth: maxBreite)
             .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Ladebalken
+
+/// Dünner Fortschrittsbalken (iOS-typisch, unbestimmt) direkt unter der Kopfzeile: beim Laden von Plan, Details und
+/// Listen läuft ein orangefarbenes Segment von links nach rechts über eine blasse Spur. Nimmt keine Antippen an.
+struct Ladebalken: View {
+    let aktiv: Bool
+    var hoehe: CGFloat = 2.5
+
+    var body: some View {
+        ZStack {
+            if aktiv {
+                LadebalkenLauf(hoehe: hoehe)
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: hoehe)
+        .animation(.easeInOut(duration: 0.2), value: aktiv)
+        .allowsHitTesting(false)
+        .accessibilityElement()
+        .accessibilityLabel(aktiv ? "Wird geladen" : "")
+        .accessibilityHidden(!aktiv)
+    }
+}
+
+/// Laufendes Segment des Ladebalkens (Zeitachse statt Zustand – läuft ohne Neustart weiter, solange sichtbar).
+private struct LadebalkenLauf: View {
+    let hoehe: CGFloat
+    private let dauer: Double = 1.35
+
+    var body: some View {
+        GeometryReader { geo in
+            TimelineView(.animation) { kontext in
+                let w = geo.size.width
+                let t = kontext.date.timeIntervalSinceReferenceDate
+                let p = t.truncatingRemainder(dividingBy: dauer) / dauer
+                // Weicher Lauf (ease-in-out), das Segment wächst zur Mitte hin etwas
+                let weich = p < 0.5 ? 2 * p * p : 1 - pow(-2 * p + 2, 2) / 2
+                let segment = w * CGFloat(0.22 + 0.18 * sin(Double.pi * p))
+                let x = -segment + (w + segment) * CGFloat(weich)
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Farben.akzent.opacity(0.16))
+                    Capsule()
+                        .fill(Farben.akzent)
+                        .frame(width: max(segment, 1), height: hoehe)
+                        .offset(x: x)
+                }
+                .frame(width: w, height: hoehe, alignment: .leading)
+                .clipped()
+            }
+        }
+        .frame(height: hoehe)
     }
 }

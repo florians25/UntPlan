@@ -22,13 +22,16 @@ extension UINavigationController: UIGestureRecognizerDelegate {
 /// Feste Maße des Detailblatts auf dem iPad (wie in der Vorlage: mittig über dem Plan).
 enum Detailblatt {
     static let breite: CGFloat = 540
-    static let hoehe: CGFloat = 600
+    /// Etwas niedriger als ein volles Formblatt (Vorlage: Liste endet knapp unter „Notizen für Lehrkräfte“)
+    static let hoehe: CGFloat = 540
+    /// iPhone: Blatt öffnet in mittlerer Höhe (nicht bis ganz oben), lässt sich auf volle Höhe ziehen
+    static let iPhoneAnteil: CGFloat = 0.85
     static let radius: CGFloat = 24
 }
 
 extension View {
-    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 540 × 600 pt mittig (die Größe bleibt beim
-    /// Wechsel in Unterseiten gleich), auf dem iPhone großes Blatt mit Griff.
+    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 540 × 540 pt mittig (die Größe bleibt beim
+    /// Wechsel in Unterseiten gleich), auf dem iPhone ein Blatt mit Griff, das auf 85 % der Höhe öffnet (ziehbar bis groß).
     @ViewBuilder
     func detailBlatt(breit: Bool) -> some View {
         if breit {
@@ -49,8 +52,9 @@ extension View {
         } else {
             self
                 .ignoresSafeArea(.keyboard, edges: .bottom)
-                .presentationDetents([.large])
+                .presentationDetents([.fraction(Detailblatt.iPhoneAnteil), .large])
                 .presentationDragIndicator(.visible)
+                .presentationContentInteraction(.scrolls)
                 .presentationCornerRadius(Detailblatt.radius)
                 .presentationBackground(Farben.blatt)
         }
@@ -133,12 +137,15 @@ struct Blattkopf<Mitte: View, Rechts: View>: View {
     let aktion: () -> Void
     let mitte: Mitte
     let rechts: Rechts
+    /// Lädt der Inhalt? Dann läuft unten am Kopf der orange Ladebalken.
+    var laedt: Bool = false
 
-    init(symbol: String, symbolText: String, aktion: @escaping () -> Void,
+    init(symbol: String, symbolText: String, aktion: @escaping () -> Void, laedt: Bool = false,
          @ViewBuilder mitte: () -> Mitte, @ViewBuilder rechts: () -> Rechts) {
         self.symbol = symbol
         self.symbolText = symbolText
         self.aktion = aktion
+        self.laedt = laedt
         self.mitte = mitte()
         self.rechts = rechts()
     }
@@ -163,12 +170,15 @@ struct Blattkopf<Mitte: View, Rechts: View>: View {
         .padding(.bottom, 9)
         .frame(minHeight: 68)
         .background(Farben.blatt)
+        .overlay(alignment: .bottom) {
+            Ladebalken(aktiv: laedt)
+        }
     }
 }
 
 extension Blattkopf where Rechts == EmptyView {
-    init(symbol: String, symbolText: String, aktion: @escaping () -> Void, @ViewBuilder mitte: () -> Mitte) {
-        self.init(symbol: symbol, symbolText: symbolText, aktion: aktion, mitte: mitte, rechts: { EmptyView() })
+    init(symbol: String, symbolText: String, aktion: @escaping () -> Void, laedt: Bool = false, @ViewBuilder mitte: () -> Mitte) {
+        self.init(symbol: symbol, symbolText: symbolText, aktion: aktion, laedt: laedt, mitte: mitte, rechts: { EmptyView() })
     }
 }
 
@@ -211,14 +221,17 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
     let zurueck: (() -> Void)?
     let inhalt: Inhalt
     let rechts: Rechts
+    /// Lädt die Seite? Dann läuft unter dem Kopf der orange Ladebalken.
+    let laedt: Bool
     @Environment(\.dismiss) private var schliessen
 
     init(titel: String, untertitel: String? = nil, symbol: String = "chevron.left", zurueck: (() -> Void)? = nil,
-         @ViewBuilder inhalt: () -> Inhalt, @ViewBuilder rechts: () -> Rechts) {
+         laedt: Bool = false, @ViewBuilder inhalt: () -> Inhalt, @ViewBuilder rechts: () -> Rechts) {
         self.titel = titel
         self.untertitel = untertitel
         self.symbol = symbol
         self.zurueck = zurueck
+        self.laedt = laedt
         self.inhalt = inhalt()
         self.rechts = rechts()
     }
@@ -227,7 +240,7 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
         VStack(spacing: 0) {
             Blattkopf(symbol: symbol, symbolText: symbol == "xmark" ? "Schließen" : "Zurück", aktion: {
                 if let zurueck { zurueck() } else { schliessen() }
-            }, mitte: {
+            }, laedt: laedt, mitte: {
                 Blatttitel(titel: titel, untertitel: untertitel)
             }, rechts: {
                 rechts
@@ -244,8 +257,8 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
 
 extension DetailSeitenRahmen where Rechts == EmptyView {
     init(titel: String, untertitel: String? = nil, symbol: String = "chevron.left", zurueck: (() -> Void)? = nil,
-         @ViewBuilder inhalt: () -> Inhalt) {
-        self.init(titel: titel, untertitel: untertitel, symbol: symbol, zurueck: zurueck, inhalt: inhalt, rechts: { EmptyView() })
+         laedt: Bool = false, @ViewBuilder inhalt: () -> Inhalt) {
+        self.init(titel: titel, untertitel: untertitel, symbol: symbol, zurueck: zurueck, laedt: laedt, inhalt: inhalt, rechts: { EmptyView() })
     }
 }
 
@@ -316,8 +329,9 @@ struct Detailzeile<Rechts: View>: View {
         HStack(spacing: 12) {
             Listensymbol(name: symbol)
             VStack(alignment: .leading, spacing: 3) {
+                // Menütext einen Tick dünner als zuvor
                 Text(titel)
-                    .font(.system(size: 19))
+                    .font(.system(size: 19, weight: .light))
                     .foregroundStyle(Farben.detailText)
                     .lineLimit(1)
                 if let untertitel, !untertitel.isEmpty {
@@ -455,23 +469,46 @@ struct EinzeilenScroller<Inhalt: View>: View {
 
 // MARK: - Symbole der Liste
 
-/// Symbol links in der Detailliste: Vektorgrafik aus Assets.xcassets (Name beginnt mit „Symbol“, als Vorlage eingefärbt)
-/// oder SF Symbol in Linienstil, jeweils grau in einem 30-pt-Feld.
+/// Symbol links in der Detailliste – alle gleich stark: Vektorgrafiken aus Assets.xcassets (Name beginnt mit „Symbol“,
+/// als Vorlage eingefärbt) werden in ihrer Grundgröße gezeichnet, sodass jede Linie 1,5 pt breit ist und die Zeichen
+/// gleich groß wirken (≈ 24 pt); SF Symbols ohne Vektorgrafik in leichter Stärke mit gleicher Linienbreite. Grau in
+/// einem festen Feld (Standard 30 pt), damit die Titel bündig stehen.
 struct Listensymbol: View {
     let name: String
     var groesse: CGFloat = 30
 
+    /// Grundgröße der Vektorgrafiken in pt (Zeichenfläche × Faktor, damit die Linie 1,5 pt breit wird).
+    static func grundgroesse(_ name: String) -> CGSize {
+        switch name {
+        // 28er-Zeichenfläche mit 1,5er-Linien (Raum, Klasse, Lehrkraft, Schüler*innen, Hausaufgaben)
+        case "SymbolRaum", "SymbolKlasse", "SymbolLehrer", "SymbolSchuelerPlan", "SymbolHausaufgaben":
+            return CGSize(width: 28, height: 28)
+        // Kamera: Zeichenfläche 22 mit 1,35er-Linien
+        case "SymbolOnline":
+            return CGSize(width: 24.4, height: 24.4)
+        // Gruppe: 24 × 18 mit 1,5er-Linien
+        case "SymbolSchueler":
+            return CGSize(width: 24, height: 18)
+        default:
+            return CGSize(width: 24, height: 24)
+        }
+    }
+
     var body: some View {
+        // Kleinere Felder (z. B. 26 pt in der Raumliste) verkleinern alles im selben Verhältnis
+        let faktor = min(1, groesse / 30)
         Group {
             if name.hasPrefix("Symbol") {
+                let g = Self.grundgroesse(name)
                 Image(name)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: groesse * 0.86, height: groesse * 0.86)
+                    .frame(width: g.width * faktor, height: g.height * faktor)
             } else {
                 Image(systemName: name)
-                    .font(.system(size: groesse * 0.83, weight: .ultraLight))
+                    .font(.system(size: 21 * faktor, weight: .light))
+                    .frame(width: 24 * faktor, height: 24 * faktor)
             }
         }
         .foregroundStyle(Farben.gedaempft)
@@ -543,7 +580,7 @@ struct RaumZeile: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Listensymbol(name: "door.left.hand.open")
+            Listensymbol(name: "SymbolRaum")
             EinzeilenScroller {
                 HStack(spacing: 8) {
                     if aktuelle.isEmpty {
