@@ -1,100 +1,117 @@
 import SwiftUI
 
-/// Profil: Konto, Server, Kalender-Abo und Abmelden.
+/// Unterseiten des Profils.
+enum Profilseite: Hashable {
+    case kontaktdaten
+    case passwort
+    case neues
+    case ueber
+}
+
+/// Profil nach Vorlage: großer Titel (Kürzel bzw. Plan), Kontokarte mit Konto-Wechsel,
+/// Gruppen Kontaktdaten/Passwort, Neues/Über und Abmelden. Auf dem iPad mittig, höchstens 700 pt breit.
 struct ProfilView: View {
     @EnvironmentObject var zustand: AppZustand
     @State private var profil: Profil? = nil
     @State private var fehler: String? = nil
     @State private var bestaetigen = false
 
+    private var login: String { profil?.login ?? zustand.benutzer?.login ?? "" }
+
     private var name: String {
         if let p = profil, !p.anzeigename.isEmpty { return p.anzeigename }
-        return zustand.benutzer?.name ?? ""
+        return zustand.benutzer?.name ?? login
+    }
+
+    /// Großer Titel: Kürzel bzw. eigener Plan, sonst der Anmeldename.
+    private var grosserTitel: String {
+        let element = profil?.element ?? zustand.benutzer?.element ?? ""
+        return element.isEmpty ? login : element
+    }
+
+    private var rolle: String {
+        let r = zustand.benutzer?.rollenname ?? ""
+        return r.isEmpty ? (profil?.rolle ?? "") : r
     }
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    HStack(spacing: 14) {
-                        Initialen(name: name, groesse: 56)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(name)
-                                .font(.title3.weight(.bold))
-                            Text(profil?.rolle ?? zustand.benutzer?.rollenname ?? "")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text(grosserTitel)
+                        .font(.system(size: 30, weight: .heavy))
+                        .tracking(-0.6)
+                        .foregroundStyle(Farben.titelGrau)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .padding(.top, 2)
+                        .accessibilityAddTraits(.isHeader)
+
+                    if let fehler {
+                        Fehlerhinweis(text: fehler)
+                    }
+
+                    kontokarte
+
+                    Zeilengruppe {
+                        NavigationLink(value: Profilseite.kontaktdaten) {
+                            Listenzeile(symbol: "person.text.rectangle", titel: "Kontaktdaten")
                         }
-                    }
-                    .padding(.vertical, 6)
-                }
-
-                if let fehler {
-                    Fehlerhinweis(text: fehler)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                }
-
-                Section("Konto") {
-                    LabeledContent("Benutzer", value: profil?.login ?? zustand.benutzer?.login ?? "")
-                    let element = profil?.element ?? zustand.benutzer?.element ?? ""
-                    if !element.isEmpty {
-                        LabeledContent("Plan", value: element)
-                    }
-                    if let email = profil?.email, !email.isEmpty {
-                        LabeledContent("E-Mail", value: email)
-                    }
-                    if let letzte = profil?.letzteAnmeldung, !letzte.isEmpty {
-                        LabeledContent("Letzte Anmeldung", value: Datumsformat.anzeige(letzte, "d.M.yyyy, HH:mm"))
-                    }
-                    if let vorherige = profil?.vorherigeAnmeldung, !vorherige.isEmpty {
-                        LabeledContent("Davor", value: Datumsformat.anzeige(vorherige, "d.M.yyyy, HH:mm"))
-                    }
-                }
-
-                Section("Schule") {
-                    LabeledContent("Name", value: zustand.schulname)
-                    LabeledContent("Server", value: zustand.api.serverAdresse)
-                    if let sj = zustand.sitzung?.schuljahr {
-                        LabeledContent("Schuljahr", value: "\(Datumsformat.anzeige(sj.von, "d.M.yyyy")) – \(Datumsformat.anzeige(sj.bis, "d.M.yyyy"))")
-                    }
-                }
-
-                if let ical = profil?.ical, let url = URL(string: ical) {
-                    Section {
-                        if let abo = URL(string: ical.replacingOccurrences(of: "https://", with: "webcal://").replacingOccurrences(of: "http://", with: "webcal://")) {
-                            Link(destination: abo) {
-                                Label("Kalender abonnieren", systemImage: "calendar.badge.plus")
-                            }
+                        .buttonStyle(ZeilenKnopfStil())
+                        Zeilentrenner()
+                        NavigationLink(value: Profilseite.passwort) {
+                            Listenzeile(symbol: "lock", titel: "Passwort ändern")
                         }
-                        ShareLink(item: url) {
-                            Label("Kalenderadresse teilen", systemImage: "square.and.arrow.up")
-                        }
-                    } header: {
-                        Text("Kalender")
-                    } footer: {
-                        Text("Die Stunden der nächsten vier Wochen als Kalender-Abo (iCal).")
+                        .buttonStyle(ZeilenKnopfStil())
                     }
-                }
 
-                Section {
-                    Button(role: .destructive) {
-                        bestaetigen = true
-                    } label: {
-                        HStack {
-                            Spacer()
-                            Text("Abmelden")
-                                .fontWeight(.semibold)
-                            Spacer()
+                    Zeilengruppe {
+                        NavigationLink(value: Profilseite.neues) {
+                            Listenzeile(symbol: "megaphone", titel: "Was gibt es Neues")
                         }
+                        .buttonStyle(ZeilenKnopfStil())
+                        Zeilentrenner()
+                        NavigationLink(value: Profilseite.ueber) {
+                            Listenzeile(symbol: "info.circle", titel: "Über")
+                        }
+                        .buttonStyle(ZeilenKnopfStil())
                     }
-                } footer: {
-                    Text("UntPlan für iOS \(Self.version)")
+
+                    Zeilengruppe {
+                        Button {
+                            bestaetigen = true
+                        } label: {
+                            Listenzeile(symbol: "rectangle.portrait.and.arrow.right", titel: "Abmelden")
+                        }
+                        .buttonStyle(ZeilenKnopfStil())
+                    }
+
+                    Text("UntPlan für iOS \(ProfilView.version)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Farben.gedaempft)
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
+                        .padding(.top, 4)
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 28)
+                .zentriert(maxBreite: 736)
+            }
+            .scrollIndicators(.hidden)
+            .background(Farben.grund.ignoresSafeArea())
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { KontoKnopf() }
+            }
+            .navigationDestination(for: Profilseite.self) { seite in
+                switch seite {
+                case .kontaktdaten: KontaktdatenView(profil: profil, name: name)
+                case .passwort: PasswortView()
+                case .neues: NeuigkeitenView()
+                case .ueber: UeberView()
                 }
             }
-            .navigationTitle("Profil")
             .refreshable { await laden() }
             .task { await laden() }
             .confirmationDialog("Wirklich abmelden?", isPresented: $bestaetigen, titleVisibility: .visible) {
@@ -108,7 +125,45 @@ struct ProfilView: View {
         }
     }
 
-    private static var version: String {
+    /// Karte mit Avatar, Anmeldename, Rollen-Plakette und Konto-Wechsel (⌃⌄).
+    private var kontokarte: some View {
+        KontoMenue {
+            HStack(spacing: 12) {
+                Text(String(login.prefix(1)).uppercased())
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Farben.avatar, in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(login)
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.tinte)
+                        .lineLimit(1)
+                    if !rolle.isEmpty {
+                        Text(rolle)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Farben.zahlPlakette, in: Capsule())
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Farben.gedaempft)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .alsKarte(radius: 20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    static var version: String {
         let info = Bundle.main.infoDictionary
         let v = info?["CFBundleShortVersionString"] as? String ?? "1.0"
         let b = info?["CFBundleVersion"] as? String ?? "1"

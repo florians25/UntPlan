@@ -5,6 +5,8 @@ import { statusText, werte, gekuerzt, kartenBinden, fachStil } from '../plangitt
 const kennzahl = (href, symbol, zahl, text) => `<a class="u-kennzahl" href="${href}">${icon(symbol)}<span><b>${zahl}</b><small>${e(text)}</small></span></a>`;
 
 export async function zeigen(seite, kontext) {
+  // Schüler*innen und Erziehungsberechtigte: „Meine Daten“
+  if (kontext.familie) return (await import('./familie.js')).uebersicht(seite, kontext);
   const ich = kontext.ich;
   kontext.titel('Übersicht');
   const heute = heuteIso();

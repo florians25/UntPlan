@@ -1164,7 +1164,6 @@ button, input, select, textarea, .modal, .tooltip, .dropdown-menu, .u-hover-labe
 
 /* UW-17: Hover nur auf Labels und Symbolen unten rechts – grünes Label „B070 → C197“ über dem geänderten Wert */
 .std .lbl[data-hover], .std .ecke [data-hover] { cursor: default; }
-.std .lbl[data-hover]:hover { filter: brightness(.92); }
 .u-hover-label {
   position: fixed; z-index: 2000; display: none; pointer-events: none; background: #1d9a5c; color: #fff; font-weight: 700; font-size: 15px; line-height: 1.2;
   padding: 7px 12px; border-radius: 3px; box-shadow: 0 2px 8px rgba(0, 5, 10, .25); white-space: pre-line; max-width: 360px;
@@ -1311,7 +1310,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .heute-liste td { padding: 6px 8px; background: #fff; white-space: nowrap; vertical-align: middle; }
 .heute-liste tbody tr:nth-child(odd) td { background: #e4e8ee; }
 .heute-liste tr { cursor: pointer; }
-.heute-liste tr:hover td { filter: brightness(.97); }
+.heute-liste tr:hover td { background-color: #f7f9fa; }
 .heute-liste tr.entfall td { background: #b9bec4 !important; color: #3b444b; }
 .heute-liste tr.entfall td:not(.art):not(:first-child) { text-decoration: line-through; }
 .heute-liste tr.aenderung td { background: #b392c9 !important; color: #fff; }
@@ -1546,7 +1545,7 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 .u-nav-punkt { font-size: .9rem; font-weight: 700; min-height: 50px; color: #24323d; }
 .u-nav-unter .u-nav-punkt { font-size: .875rem; }
 .u-nav-kompakt .u-nav-punkt { font-weight: 600; }
-.std .z1 { font-size: 13px; font-weight: 700; color: #24323d; }
+.std .z1 { font-size: 13px; font-weight: 600; color: #24323d; }
 .std .z2 { font-size: 12px; font-weight: 400; color: #414d55; }
 .sd-titel h2 { font-size: 1.3rem; font-weight: 700; }
 .sd-zeile { font-size: .875rem; }
@@ -1573,8 +1572,8 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 .sd-fuss.sd-status { gap: .75rem; }
 .sd-status .sd-orange { min-width: 250px; padding: .7rem 1.6rem; text-align: center; }
 
-.nl-hinweis { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; background: #f1f5f8; color: #57626b; font-size: .85rem; line-height: 1.45; }
-.nl-hinweis .bi { color: #7b8892; margin-top: 1px; }
+.nl-hinweis { display: block; margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; background: #f1f5f8; color: #57626b; font-size: .85rem; line-height: 1.45; }
+.nl-hinweis .bi { color: #7b8892; margin-right: 6px; }
 .nl-hinweis a { color: var(--u-akzent-dunkel); }
 .nl-icon.sichtbar { opacity: 1; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 
@@ -1593,3 +1592,67 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 .u-inhalt .alt-seite .alt-liste tbody tr:hover td { background: #f7f9fa !important; }
 .u-inhalt .alt-seite .ad-pille, .u-inhalt .alt-seite .sd-pille { height: 34px; padding: 0 14px; border: 1.5px solid #c9d0d6; border-radius: 999px; background: #fff; font-weight: 600; font-size: .9rem; }
 .u-inhalt .alt-seite .alt-link { color: var(--u-akzent-dunkel); font-weight: 600; text-decoration: none; }
+
+/* Labels und Plaketten (z. B. grün „entschuldigt“) ändern beim Überfahren nie ihre Farbe */
+.lbl, .lbl:hover, .std-lbl:hover, .lbl-neu:hover, .lbl-auf:hover, .wert-neu:hover, .u-chip:hover, .badge:hover, .nl-tag:hover, .fz-label, .fz-label:hover,
+a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, tr:hover .u-chip, tr:hover .fz-label, tr:hover .badge { filter: none !important; opacity: 1; }
+
+/* Startseite „Heute“ wie im Original: begrenzte Inhaltsbreite links neben der Navigation, nicht die volle Breite */
+.u-inhalt .heute, .u-inhalt .heute-titel { max-width: 992px; }
+
+/* ------------------------------------------------------------------ Meine Daten (Schüler*innen, Erziehungsberechtigte) und Fehlzeitenliste */
+.fm-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 22px; }
+.fm-titel { font-size: 1.07rem; font-weight: 400; color: var(--u-akzent); margin: 0 0 18px; }
+.fm-kopf .fm-titel { margin: 0; }
+.fm-karte { background: #fff; box-shadow: 0 1px 3px rgba(0, 5, 10, .08), 0 3px 10px rgba(0, 5, 10, .05); border-radius: 2px; }
+.fm-raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; padding-top: 22px; }
+.fm-uebersicht > header { display: flex; align-items: center; gap: 8px; padding: 14px 16px 6px; }
+.fm-uebersicht .titel { color: var(--u-akzent); font-size: .95rem; }
+.fm-uebersicht .unter { color: var(--u-grau); font-size: .78rem; margin-left: 8px; }
+.fm-sym { width: 26px; height: 17px; color: var(--u-akzent); font-size: 1.1rem; display: inline-flex; align-items: center; }
+.fm-pfeil { margin-left: auto; color: var(--u-akzent); font-size: 1.15rem; line-height: 1; padding: 2px 4px; }
+.fm-pfeil:hover { color: var(--u-akzent-dunkel); }
+.fm-inhalt { padding: 6px 16px 18px; }
+.fm-leer { text-align: center; color: var(--u-grau); font-size: .85rem; padding: 18px; }
+.fm-leer.gross { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0 4px; }
+.fm-leer.gross svg { width: 84px; height: 54px; color: #b5b5b5; }
+.fm-leer.gross .bi { font-size: 62px; line-height: 1; color: #b5b5b5; }
+.fm-liste { list-style: none; margin: 0; padding: 0; }
+.fm-liste li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #edf0f2; font-size: .875rem; }
+.fm-liste li:last-child { border-bottom: 0; }
+.fm-hwtext { color: #414d55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fm-reiter { margin: -6px 0 26px; }
+.fm-reiter a { font-size: 1rem; padding: 10px 16px; }
+.fm-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 24px; margin-bottom: 16px; }
+.fm-pfeiltaste { border: 0; background: none; color: #a3adb5; font-size: 1.1rem; width: 32px; height: 32px; border-radius: 50%; }
+.fm-pfeiltaste:hover { background: #f1f4f6; color: var(--u-text); }
+.fm-datum input { border: 0; border-bottom: 1px dotted #b9c1c8; background: transparent; height: 36px; padding: 0 10px; font: inherit; font-size: .875rem; color: var(--u-text); width: 150px; outline: 0; }
+.fm-datum input:focus { border-bottom-color: var(--u-akzent); }
+.fm-wahl select { appearance: none; -webkit-appearance: none; border: 0; border-bottom: 1px solid #c9d0d6; background: #f3f5f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%2324323d'/%3E%3C/svg%3E") no-repeat right 12px center / 10px 6px;
+  height: 36px; min-width: 150px; padding: 0 34px 0 12px; font: inherit; font-size: .875rem; color: var(--u-text); cursor: pointer; outline: 0; }
+.fm-export { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; color: #8a96a1; font-size: 1.2rem; border-radius: 50%; }
+.fm-export:hover { background: #f1f4f6; color: var(--u-text); }
+.fm-tabelle { overflow-x: auto; margin-bottom: 16px; min-height: 120px; }
+.fm-fuss { background: #e9ecef; padding: 10px 16px; font-size: .82rem; color: var(--u-text); }
+.fm-aktionen { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 16px; }
+.fm-pille { height: 44px; padding: 0 18px; border: 1.5px solid #c9d0d6; border-radius: 999px; background: #fff; color: #5b6770; font-weight: 600; font-size: 1rem; display: inline-flex; align-items: center; gap: 6px; }
+.fm-pille:hover { border-color: #8a96a1; color: var(--u-text); }
+.fm-check { width: 15px; height: 15px; accent-color: var(--u-akzent); cursor: pointer; vertical-align: middle; }
+.fz-tabelle-neu { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.fz-tabelle-neu thead th { background: #e9ecef; color: var(--u-text); font-weight: 400; font-size: .72rem; padding: 12px 14px; text-align: left; white-space: nowrap; }
+.fz-tabelle-neu td { padding: 11px 14px; border-bottom: 1px solid #e9ecef; color: var(--u-text); vertical-align: middle; }
+.fz-tabelle-neu tbody tr:hover td { background: #fafbfc; }
+.fz-tabelle-neu .zahl { text-align: left; font-variant-numeric: tabular-nums; }
+.fz-tabelle-neu .mitte { text-align: center; }
+.fz-tabelle-neu tr.fz-erledigt td { color: #8a96a1; }
+.fz-grau { color: #8a96a1; }
+.fz-datum { color: var(--u-text); margin-left: 3px; }
+.fz-klein { font-size: .72rem; color: #8a96a1; margin-top: 2px; }
+.fz-text { max-width: 260px; color: #414d55; } .fz-text.breit { max-width: 520px; }
+.fz-sort { font-size: .6rem; margin-right: 4px; }
+.fz-leer { padding: 28px 16px; text-align: center; color: var(--u-grau); font-size: .875rem; }
+.fz-label { display: inline-block; padding: 1px 6px; border-radius: 2px; font-size: .68rem; font-weight: 700; line-height: 15px; color: #fff; white-space: nowrap; background: #8a96a1; }
+.fz-label.gruen { background: #3fae49; } .fz-label.rot { background: #d9534f; } .fz-label.gelb { background: #f0ad4e; }
+.fz-kaestchen { display: inline-block; width: 17px; height: 17px; border-radius: 1px; background: #fff; border: 1.5px solid #c9d0d6; vertical-align: middle; }
+.fz-kaestchen.an { background: #f5845c; border-color: #f5845c; }
+@media (max-width: 700px) { .fm-filter { padding: 12px; gap: 8px; } .fm-raster { grid-template-columns: 1fr; } }

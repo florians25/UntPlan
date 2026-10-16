@@ -66,7 +66,6 @@ public sealed class Wochendienst
     /// <summary>Planart und Element auflösen; „mine“ (oder fehlende Angaben) wird zum eigenen Plan.</summary>
     public static (string Art, string Element) Aufloesen(Konto k, string? type, string? id)
     {
-        if (type == "teacher" && k.IstSchueler) return (k.EigeneArt, k.Kuerzel);   // keine Lehrerpläne für Schüler- und Elternkonten
         if (type is "class" or "teacher" or "room" && !string.IsNullOrWhiteSpace(id)) return (type, id!.Trim());
         return (k.EigeneArt, k.Kuerzel);
     }

@@ -41,6 +41,17 @@ public static class Kachelbau
     private static readonly System.Text.RegularExpressions.Regex KlassenabwesenheitArt =
         new(@"freisetz|klassenabwes|klasse\s+abwes", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
+    /// <summary>Raumbuchung: eigene Buchungskarte oder ein zu einem Unterricht gebuchter bzw. hinzugefügter Raum.</summary>
+    public static bool IstRaumbuchung(PlanKarte k) =>
+        k.Status == "buchung" || (k.Art ?? "").StartsWith("Raumbuchung", StringComparison.OrdinalIgnoreCase)
+        || (k.Art ?? "").StartsWith("Raumänderung (vorgemerkt)", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Texte, die eine Buchung als Änderung ausweisen würden („Raumbuchung“, „Raumänderung (vorgemerkt)“ …).</summary>
+    private static bool IstBuchungstext(string? text) =>
+        !string.IsNullOrWhiteSpace(text) && (text.StartsWith("Raumbuchung", StringComparison.OrdinalIgnoreCase)
+                                             || text.StartsWith("Raumänderung", StringComparison.OrdinalIgnoreCase)
+                                             || text.StartsWith("Vertretung", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>Raumvertretung (Raumänderung), für die noch kein neuer Raum eingeteilt ist.</summary>
     public static bool IstOffeneRaumvertretung(PlanKarte k) =>
         k.Status is "geaendert" or "offen" && System.Text.RegularExpressions.Regex.IsMatch(k.Art ?? "", "raum", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
@@ -236,6 +247,8 @@ public static class Kachelbau
             kachel.NotizLehrer = string.IsNullOrWhiteSpace(k.NotizLehrer) ? null : k.NotizLehrer;
         }
         if (k.HausaufgabeFaellig) kachel.Hausaufgabe = true;
+        var raumNeu = k.Raeume.Where(w => w.Neu && w.K.Length > 0 && w.K != "???" && !Ci.Equals(w.Alt ?? "", w.K)).Select(w => w.K).Distinct(Ci).ToList();
+        if (raumNeu.Count > 0 && !raumOffen) kachel.RaumNeu = string.Join(",", raumNeu);
         if (raumOffen)
         {
             kachel.RaumOffen = true;
@@ -246,8 +259,11 @@ public static class Kachelbau
         // geänderter oder hinzugefügter Raum (neuer Wert ohne alten) steht in der grünen Plakette
         if (k.Raeume.Any(w => w.Neu || (!string.IsNullOrEmpty(w.Alt) && !Ci.Equals(w.Alt, w.K)))) kachel.Geaendert.Add("room");
         if (!string.IsNullOrEmpty(k.FachAlt) && !Ci.Equals(k.FachAlt, k.Fach)) kachel.Geaendert.Add("subject");
-        if (k.Art.Contains("vorgemerkt", StringComparison.OrdinalIgnoreCase))
+        var buchung = IstRaumbuchung(k);
+        if (k.Art.Contains("vorgemerkt", StringComparison.OrdinalIgnoreCase) && !buchung)
             kachel.Info = string.Join(" · ", new[] { k.Art, k.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        // Raumbuchungen tragen nie einen Vertretungs- oder Änderungstext
+        if (buchung && IstBuchungstext(kachel.Info)) kachel.Info = "";
 
         var offen = k.Lehrer.Any(w => w.Neu && w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt));
         // Vertretung ohne Lehrkraft („+++“): bisherige Lehrkraft durchgestrichen in der Plakette; ohne eigenen Text der Hinweis „Vertr. o. Lehrkr.“
@@ -305,6 +321,15 @@ public static class Kachelbau
             default:
                 kachel.Art = "change";
                 break;
+        }
+
+        // Raumbuchung (auch zu einem Unterricht gebucht oder als zusätzlicher Raum): keine Vertretung – die Kachel bleibt
+        // regulär, nur der gebuchte bzw. hinzugefügte Raum steht hervorgehoben. Ändert sich zugleich Lehrkraft, Klasse oder
+        // Fach, bleibt es eine Vertretung.
+        if (buchung && kachel.Art is "change" or "event" && kachel.Geaendert.All(g => g == "room") && !kachel.Offen)
+        {
+            kachel.Art = "normal";
+            kachel.Zusatz = null;
         }
 
         // Kopplungen: mehrere Lehrkräfte bzw. Klassen in derselben Stunde

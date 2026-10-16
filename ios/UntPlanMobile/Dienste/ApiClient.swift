@@ -140,6 +140,22 @@ final class ApiClient: @unchecked Sendable {
         let _: BeliebigeAntwort = try await anfrage("PUT", "/klassenbuch/anwesenheit", koerper: try encoder.encode(daten))
     }
 
+    func klassenbuchSpeichern(_ daten: KlassenbuchDaten) async throws -> Klassenbucheintrag {
+        try await anfrage("PUT", "/klassenbuch/stunde", koerper: try encoder.encode(daten))
+    }
+
+    func hausaufgabeAnlegen(_ daten: HausaufgabeNeuDaten) async throws -> Hausaufgabeneintrag {
+        try await anfrage("POST", "/klassenbuch/hausaufgabenliste", koerper: try encoder.encode(daten))
+    }
+
+    func hausaufgabeAendern(_ id: Int, _ daten: HausaufgabeAenderDaten) async throws -> Hausaufgabeneintrag {
+        try await anfrage("PUT", "/klassenbuch/hausaufgabenliste/\(id)", koerper: try encoder.encode(daten))
+    }
+
+    func hausaufgabeLoeschen(_ id: Int) async throws {
+        let _: OkAntwort = try await anfrage("DELETE", "/klassenbuch/hausaufgabenliste/\(id)")
+    }
+
     func vermerke(klasse: String, von: String, bis: String) async throws -> Vermerkliste {
         try await anfrage("GET", "/klassenbuch/vermerke", parameter: ["klasse": klasse, "von": von, "bis": bis])
     }

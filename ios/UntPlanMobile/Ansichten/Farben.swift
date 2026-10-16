@@ -134,7 +134,23 @@ struct Kartenstil {
     var plakette: String?
     var plaketteFarbe: Color
 
+    /// Farbe der Plakette für geänderte Werte auf der Karte: grün bei Vertretung, sonst gelb-orange (Raum, Buchung, Prüfung).
+    var wertFarbe: Color = Farben.gruen
+
     init(_ karte: Karte, vergangen: Bool = false) {
+        // Klausuren und Raumbuchungen nie als Vertretung (grün) darstellen
+        if karte.istPruefung && karte.status != "entfall" && karte.status != "abwesend" {
+            self.init(hintergrund: vergangen ? Farben.pruefungVergangen : Farben.pruefungHintergrund,
+                      rand: Farben.pruefungRand, schatten: false, durchgestrichen: false,
+                      plakette: "Prüfung", plaketteFarbe: Farben.pruefungRand)
+            return
+        }
+        if karte.istRaumbuchung && ["buchung", "geaendert", "offen", "regulaer"].contains(karte.status) {
+            self.init(hintergrund: vergangen ? Farben.karteVergangen : Farben.karte,
+                      rand: Farben.raumRand, schatten: true, durchgestrichen: false,
+                      plakette: "Raumbuchung", plaketteFarbe: Farben.raumRand)
+            return
+        }
         switch karte.status {
         case "entfall":
             self.init(hintergrund: vergangen ? Farben.entfallVergangen : Farben.entfallHintergrund,
@@ -164,8 +180,8 @@ struct Kartenstil {
             self.init(hintergrund: Farben.akzentSanft, rand: Farben.akzent, schatten: false, durchgestrichen: false,
                       plakette: "Vorgemerkt", plaketteFarbe: Farben.akzent)
         case "buchung":
-            self.init(hintergrund: Farben.veranstaltungHintergrund, rand: Farben.aenderungRand, schatten: false, durchgestrichen: false,
-                      plakette: "Buchung", plaketteFarbe: Farben.gruen)
+            self.init(hintergrund: vergangen ? Farben.karteVergangen : Farben.karte, rand: Farben.raumRand, schatten: true, durchgestrichen: false,
+                      plakette: "Raumbuchung", plaketteFarbe: Farben.raumRand)
         case "bereitschaft":
             self.init(hintergrund: Color.clear, rand: Farben.karteBalken, schatten: false, durchgestrichen: false,
                       plakette: "Bereitschaft", plaketteFarbe: Farben.gedaempft)
@@ -191,5 +207,6 @@ struct Kartenstil {
         self.durchgestrichen = durchgestrichen
         self.plakette = plakette
         self.plaketteFarbe = plaketteFarbe
+        self.wertFarbe = ["Raumänderung", "Raumbuchung", "Prüfung"].contains(plakette ?? "") ? plaketteFarbe : Farben.gruen
     }
 }

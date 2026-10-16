@@ -192,7 +192,16 @@ struct Karte: Decodable, Identifiable, Sendable {
 
     var istEntfall: Bool { status == "entfall" }
     var istAenderung: Bool { status == "geaendert" || status == "offen" }
-    var istPruefung: Bool { status == "klausur" }
+    var istPruefung: Bool { status == "klausur" || art.lowercased().hasPrefix("klausur") }
+
+    /// Raumbuchung (eigene Karte oder gebuchter Raum für eine Stunde) – nie als Vertretung darstellen.
+    var istRaumbuchung: Bool {
+        let a = art.lowercased()
+        return status == "buchung" || a.hasPrefix("raumbuchung") || a.hasPrefix("raumänderung (vorgemerkt)")
+    }
+
+    /// Raumbuchungen und Klausuren erscheinen nie als Vertretung (keine grüne Farbe, kein Vertretungstext).
+    var keineVertretung: Bool { istRaumbuchung || istPruefung }
 
     /// Bezeichnung für Listen: Fachname, sonst Kürzel bzw. Art.
     var titel: String {
@@ -649,8 +658,9 @@ struct Klassenbucheintrag: Decodable, Sendable {
     var anmerkung: String
     var anwesenheit: String?
     var lehrer: String
+    var faellig: String?
 
-    enum CodingKeys: String, CodingKey { case id, datum, stunde, thema, hausaufgabe, notiz, notizSchueler, online, lehrform, anmerkung, anwesenheit, lehrer }
+    enum CodingKeys: String, CodingKey { case id, datum, stunde, thema, hausaufgabe, notiz, notizSchueler, online, lehrform, anmerkung, anwesenheit, lehrer, faellig }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -666,6 +676,7 @@ struct Klassenbucheintrag: Decodable, Sendable {
         anmerkung = c.text(.anmerkung)
         anwesenheit = c.textOderNil(.anwesenheit)
         lehrer = c.text(.lehrer)
+        faellig = c.textOderNil(.faellig)
     }
 }
 
@@ -675,6 +686,11 @@ struct KlassenbuchStunde: Decodable, Sendable {
     var darf: Bool
 
     enum CodingKeys: String, CodingKey { case eintrag, darf }
+
+    init(eintrag: Klassenbucheintrag?, darf: Bool) {
+        self.eintrag = eintrag
+        self.darf = darf
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -800,6 +816,39 @@ struct AnwesenheitDaten: Encodable, Sendable {
     var stunde: Int
     var unterricht: Int
     var eintraege: [AnwesenheitEintragDaten]
+}
+
+/// PUT /api/app/klassenbuch/stunde – Lehrstoff und Notizen einer Stunde.
+struct KlassenbuchDaten: Encodable, Sendable {
+    var datum: String
+    var stunde: Int
+    var unterricht: Int
+    var thema: String
+    var hausaufgabe: String
+    var faellig: String?
+    var notiz: String
+    var notizSchueler: String?
+    var lehrform: String?
+    var anmerkung: String?
+    var lehrer: String?
+}
+
+/// POST /api/app/klassenbuch/hausaufgabenliste
+struct HausaufgabeNeuDaten: Encodable, Sendable {
+    var datum: String
+    var stunde: Int
+    var unterricht: Int
+    var text: String
+    var faellig: String?
+    var bemerkung: String
+}
+
+/// PUT /api/app/klassenbuch/hausaufgabenliste/{id} (nil = unverändert)
+struct HausaufgabeAenderDaten: Encodable, Sendable {
+    var text: String?
+    var faellig: String?
+    var bemerkung: String?
+    var erledigt: Bool?
 }
 
 /// Klassenbucheintrag (Vermerk) zur Klasse oder zu einzelnen Schüler*innen.

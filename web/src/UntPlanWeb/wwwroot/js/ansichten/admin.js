@@ -19,7 +19,7 @@ const BEREICHE = [
   { id: 'monitore', text: 'Monitoransichten', admin: true },
   { id: 'protokoll', text: 'Protokoll', admin: true },
 ];
-const ROLLEN = { admin: 'Administration', leitung: 'Schulleitung', lehrer: 'Lehrkraft', schueler: 'Klasse / Schüler' };
+const ROLLEN = { admin: 'Administration', leitung: 'Schulleitung', lehrer: 'Lehrkraft', schueler: 'Schüler*in / Klasse', eltern: 'Erziehungsberechtigte*r' };
 const kurzZeit = s => s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
 
 function kopieren(text) {
@@ -139,7 +139,8 @@ function passwortHinweis(login, pw) {
 }
 
 async function benutzer(ziel, kontext, neu, [rolleParam]) {
-  const [liste, el] = await Promise.all([holen('/api/app/admin/benutzer'), kontext.elemente()]);
+  const [liste, el, alleSchueler] = await Promise.all([holen('/api/app/admin/benutzer'), kontext.elemente(), holen('/api/app/stammdaten/schueler').catch(() => [])]);
+  const schuelerName = id => { const x = alleSchueler.find(y => y.id === id); return x ? `${x.name}, ${x.vorname} (${x.klasse})` : `#${id}`; };
   ziel.innerHTML = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
       <input type="search" class="form-control" data-filter placeholder="Suchen" style="width:220px">
       <select class="form-select" data-rolle style="width:auto"><option value="">Alle Rollen</option>${Object.entries(ROLLEN).map(([r, n]) => `<option value="${r}" ${r === rolleParam ? 'selected' : ''}>${n}</option>`).join('')}</select>
@@ -154,7 +155,7 @@ async function benutzer(ziel, kontext, neu, [rolleParam]) {
         <td><input type="checkbox" class="form-check-input" data-wahl="${b.id}" aria-label="${e(b.login)} auswählen"></td>
         <td class="fw-semibold">${e(b.login)}${b.gesperrt ? ' <span class="badge text-bg-danger fw-normal">gesperrt</span>' : ''}${b.passwortAendern ? ' <span class="badge text-bg-warning fw-normal">Startpasswort</span>' : ''}</td>
         <td>${e(b.anzeigename)}${b.email ? `<div class="small text-body-secondary">${e(b.email)}</div>` : ''}</td>
-        <td>${e(b.rollenname)}</td><td>${e(b.element)}</td>
+        <td>${e(b.rollenname)}${(b.schuelerIds ?? []).length ? `<div class="small text-body-secondary">${b.schuelerIds.map(i => e(schuelerName(i))).join('<br>')}</div>` : ''}</td><td>${e(b.element)}</td>
         <td class="text-body-secondary small">${b.letzteAnmeldung ? e(kurzZeit(b.letzteAnmeldung)) : 'nie'}</td>
         <td class="text-end text-nowrap">
           <div class="btn-group btn-group-sm">
@@ -205,15 +206,43 @@ async function benutzer(ziel, kontext, neu, [rolleParam]) {
         <div class="col-sm-6"><label class="form-label">Anzeigename</label><input class="form-control" name="anzeigename" value="${e(b.anzeigename ?? '')}"></div>
         <div class="col-sm-6"><label class="form-label">Rolle</label><select class="form-select" name="rolle">${Object.entries(ROLLEN).map(([r, n]) => `<option value="${r}" ${r === (b.rolle ?? 'lehrer') ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
         <div class="col-sm-6"><label class="form-label">Kürzel (Lehrkraft bzw. Klasse)</label><input class="form-control" name="element" value="${e(b.element ?? '')}" list="elementliste" autocomplete="off"></div>
+        <div class="col-12 ${['schueler', 'eltern'].includes(b.rolle) ? '' : 'd-none'}" data-schuelerbereich><label class="form-label" data-schuelertitel>${b.rolle === 'eltern' ? 'Kinder (Schüler*innen)' : 'Schüler*in'}</label>
+          <div class="d-flex flex-wrap gap-2 mb-2" data-gewaehlt></div>
+          <select class="form-select" data-schuelerwahl><option value="">Schüler*in zuordnen …</option>${[...new Set(alleSchueler.map(x => x.klasse))].map(k => `<optgroup label="Klasse ${e(k)}">${alleSchueler.filter(x => x.klasse === k).map(x => `<option value="${x.id}">${e(x.name)}, ${e(x.vorname)}</option>`).join('')}</optgroup>`).join('')}</select>
+          <div class="form-text">Schülerkonten gehören zu genau einer Person (Abwesenheiten, Fehlzeiten, Hausaufgaben, Klassenplan); Konten von Erziehungsberechtigten können mehrere Kinder haben. Ohne Zuordnung bleibt ein Schülerkonto ein Klassenkonto (Kürzel = Klasse).</div></div>
         <div class="col-12"><label class="form-label">E-Mail <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="email" type="email" value="${e(b.email ?? '')}"></div>
       </div>
       ${b.id ? `<div class="form-check"><input class="form-check-input" type="checkbox" name="gesperrt" id="gesperrt" ${b.gesperrt ? 'checked' : ''}><label class="form-check-label" for="gesperrt">Konto gesperrt</label></div>`
         : '<div><label class="form-label">Passwort</label><input class="form-control" name="passwort" type="password" minlength="8" autocomplete="new-password"><div class="form-text">Leer lassen, um ein Startpasswort zu erzeugen.</div></div>'}`;
 
+  /** Schülerzuordnung im Dialog: gewählte Personen als Chips, Auswahl nach Klassen; bei Schülerkonten genau eine Person. */
+  const zuordnung = (box, start = []) => {
+    const gewaehlt = new Set(start);
+    const rolle = box.querySelector('[name=rolle]');
+    const zeichnen = () => {
+      box.querySelector('[data-schuelerbereich]').classList.toggle('d-none', !['schueler', 'eltern'].includes(rolle.value));
+      box.querySelector('[data-schuelertitel]').textContent = rolle.value === 'eltern' ? 'Kinder (Schüler*innen)' : 'Schüler*in';
+      box.querySelector('[data-gewaehlt]').innerHTML = [...gewaehlt].map(i => `<span class="nl-tag">${e(schuelerName(i))} <button type="button" class="btn-close btn-close-sm ms-1" style="font-size:.55rem" data-weg="${i}" aria-label="Zuordnung entfernen"></button></span>`).join('')
+        || '<span class="small text-body-secondary">Keine Schülerin bzw. kein Schüler zugeordnet.</span>';
+      box.querySelectorAll('[data-weg]').forEach(x => x.onclick = () => { gewaehlt.delete(Number(x.dataset.weg)); zeichnen(); });
+    };
+    rolle.addEventListener('change', zeichnen);
+    box.querySelector('[data-schuelerwahl]').onchange = ev => {
+      const id = Number(ev.target.value);
+      if (!id) return;
+      if (rolle.value !== 'eltern') gewaehlt.clear();
+      gewaehlt.add(id);
+      ev.target.value = '';
+      zeichnen();
+    };
+    zeichnen();
+    return () => ['schueler', 'eltern'].includes(rolle.value) ? [...gewaehlt] : [];
+  };
+  let auswahl = () => [];
   ziel.querySelector('[data-neu]').onclick = () => dialog({
-    titel: 'Benutzer anlegen', inhalt: formular(), knoepfe: [{ text: 'Abbrechen' }, {
+    titel: 'Benutzer anlegen', inhalt: formular(), beimOeffnen: box => { auswahl = zuordnung(box); }, knoepfe: [{ text: 'Abbrechen' }, {
       text: 'Anlegen', art: 'haupt', aktion: async box => {
-        const r = await senden('/api/app/admin/benutzer', { ...formularWerte(box), gesperrt: false });
+        const r = await senden('/api/app/admin/benutzer', { ...formularWerte(box), gesperrt: false, schuelerIds: auswahl() });
         toast('Benutzer angelegt.');
         neu();
         if (r.passwort) passwortHinweis(r.benutzer.login, r.passwort);
@@ -223,9 +252,9 @@ async function benutzer(ziel, kontext, neu, [rolleParam]) {
   ziel.querySelectorAll('[data-bearbeiten]').forEach(k => k.onclick = () => {
     const b = liste.find(x => x.id === Number(k.dataset.bearbeiten));
     dialog({
-      titel: `Benutzer ${b.login}`, inhalt: formular(b), knoepfe: [{ text: 'Abbrechen' }, {
+      titel: `Benutzer ${b.login}`, inhalt: formular(b), beimOeffnen: box => { auswahl = zuordnung(box, b.schuelerIds ?? []); }, knoepfe: [{ text: 'Abbrechen' }, {
         text: 'Speichern', art: 'haupt', aktion: async box => {
-          await senden(`/api/app/admin/benutzer/${b.id}`, formularWerte(box), 'PUT');
+          await senden(`/api/app/admin/benutzer/${b.id}`, { ...formularWerte(box), schuelerIds: auswahl() }, 'PUT');
           toast('Gespeichert.');
           neu();
         },
@@ -528,21 +557,22 @@ async function aktive(ziel) {
 
 /** Rechte je Rolle (fest in UntPlanWeb): [Recht, { admin, leitung, lehrer, schueler }]. */
 const RECHTE = [
-  ['Eigener Stundenplan', { admin: true, leitung: true, lehrer: true, schueler: true }],
-  ['Stundenpläne aller Klassen, Lehrkräfte und Räume', { admin: true, leitung: true, lehrer: true, schueler: false }],
-  ['Raumpläne', { admin: true, leitung: true, lehrer: true, schueler: true }],
-  ['Tagesübersichten (Tag - Klassen/Lehrkräfte/Räume)', { admin: true, leitung: true, lehrer: true, schueler: false }],
-  ['Vertretungsplan: Lehrerversion', { admin: true, leitung: true, lehrer: true, schueler: false }],
-  ['Vertretungsplan: Schülerversion (eigene Klasse)', { admin: true, leitung: true, lehrer: true, schueler: true }],
-  ['Klassenbuch: eigene Stunden eintragen', { admin: true, leitung: true, lehrer: true, schueler: false }],
-  ['Klassenbuch: entschuldigen, Klassendienste, Befreiungen, Sitzplan', { admin: true, leitung: true, lehrer: 'Klassenleitung', schueler: false }],
-  ['Hausaufgaben und Lehrstoff der Klasse sehen', { admin: true, leitung: true, lehrer: true, schueler: true }],
-  ['Melden & Buchen (Abwesenheit, Raum, Prüfung)', { admin: true, leitung: true, lehrer: true, schueler: false }],
-  ['Mitteilungen an alle Benutzer', { admin: true, leitung: true, lehrer: false, schueler: false }],
-  ['Mitteilungen an Kollegium, Klassen, eigene Listen', { admin: true, leitung: true, lehrer: true, schueler: false }],
-  ['Mitteilungen an Klassenleitung und Schulleitung', { admin: true, leitung: true, lehrer: true, schueler: true }],
-  ['Nachrichten zum Tag pflegen', { admin: true, leitung: true, lehrer: false, schueler: false }],
-  ['Stammdaten und Administration', { admin: true, leitung: false, lehrer: false, schueler: false }],
+  ['Eigener Stundenplan', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
+  ['Stundenpläne aller Klassen, Lehrkräfte und Räume', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
+  ['Raumpläne', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
+  ['Tagesübersichten (Tag - Klassen/Lehrkräfte/Räume)', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
+  ['Vertretungsplan: Lehrerversion', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
+  ['Vertretungsplan: Schülerversion (eigene Klasse)', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
+  ['Klassenbuch: eigene Stunden eintragen', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
+  ['Klassenbuch: entschuldigen, Klassendienste, Befreiungen, Sitzplan', { admin: true, leitung: true, lehrer: 'Klassenleitung', schueler: false, eltern: false }],
+  ['Hausaufgaben und Lehrstoff der Klasse sehen', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
+  ['Melden & Buchen (Abwesenheit, Raum, Prüfung)', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
+  ['Mitteilungen an alle Benutzer', { admin: true, leitung: true, lehrer: false, schueler: false, eltern: false }],
+  ['Mitteilungen an Kollegium, Klassen, eigene Listen', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
+  ['Mitteilungen an Klassenleitung und Schulleitung', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
+  ['Nachrichten zum Tag pflegen', { admin: true, leitung: true, lehrer: false, schueler: false, eltern: false }],
+  ['Eigene Abwesenheiten, Fehlzeiten und Hausaufgaben (bzw. die der Kinder)', { admin: false, leitung: false, lehrer: false, schueler: 'mit Zuordnung', eltern: true }],
+  ['Stammdaten und Administration', { admin: true, leitung: false, lehrer: false, schueler: false, eltern: false }],
 ];
 
 async function rechte(ziel) {

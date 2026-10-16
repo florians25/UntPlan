@@ -300,6 +300,25 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Raumbuchung_ist_keine_Vertretung()
+    {
+        // zusätzlicher Raum zu einem Unterricht gebucht: Kachel bleibt regulär, ohne Änderungstext, nur der Raum ist hervorgehoben
+        var k = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Raumänderung (vorgemerkt)",
+            raeume: new() { new("R101"), new("EDV1", "R101", true) }), "teacher");
+        Assert.Equal("normal", k.Art);
+        Assert.Equal("", k.Info);
+        Assert.Equal("R101,EDV1", k.Raum);
+        Assert.Contains("room", k.Geaendert);
+        var b = Kachelbau.AusKarte(Karte("buchung", 2, fach: "", text: "Raumbuchung", unterricht: null, raeume: new() { new("EDV1") }), "room");
+        Assert.Equal("normal", b.Art);
+        Assert.Equal("", b.Info);
+        // Vertretung mit zusätzlich gebuchtem Raum bleibt eine Vertretung
+        var v = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Raumänderung (vorgemerkt)", lehrer: new() { new("BEC", "WEB", true) },
+            raeume: new() { new("EDV1", "R101", true) }), "class");
+        Assert.Equal("change", v.Art);
+    }
+
+    [Fact]
     public void Veranstaltung_zeigt_alle_teilnehmenden_Lehrkraefte()
     {
         var ereignis = new PlanEreignis("Lehrerkonferenz", "veranstaltung", 7, 8, false, new(), new() { "WEB", "BEC", "HOF" }, new() { "EDV2" });

@@ -28,6 +28,16 @@ public sealed partial class Klassenbuchdienst
         _db.Liste("SELECT * FROM hausaufgaben_eintraege WHERE datum = @d AND unterricht = @u AND stunde >= @v AND stunde <= @b ORDER BY id", LesenHausaufgabe,
             Db.P("@d", d), Db.P("@u", unterricht), Db.P("@v", von), Db.P("@b", bis));
 
+    /// <summary>
+    /// Hausaufgaben einer Klasse im Zeitraum: aufgegeben oder fällig im Zeitraum (nachFaelligkeit: nur fällig im Zeitraum bzw. ohne
+    /// Fälligkeit aufgegeben im Zeitraum), sortiert nach Fälligkeit.
+    /// </summary>
+    public List<Hausaufgabe> HausaufgabenZeitraum(DateOnly von, DateOnly bis, string klasse, bool nachFaelligkeit = false) =>
+        _db.Liste("SELECT * FROM hausaufgaben_eintraege WHERE (datum >= @v AND datum <= @b) OR (faellig >= @v AND faellig <= @b) ORDER BY faellig, datum, stunde, id", LesenHausaufgabe,
+                Db.P("@v", von), Db.P("@b", bis))
+            .Where(h => h.Klassen.Contains(klasse, Ci) && (!nachFaelligkeit || (h.Faellig is string f ? string.CompareOrdinal(f, Plandienst.Iso(von)) >= 0 && string.CompareOrdinal(f, Plandienst.Iso(bis)) <= 0 : true)))
+            .OrderBy(h => h.Faellig ?? h.Datum, StringComparer.Ordinal).ThenBy(h => h.Datum, StringComparer.Ordinal).ToList();
+
     /// <summary>Hausaufgaben, die an einem Tag in Stunden dieses Fachs und dieser Klassen fällig sind (aus früheren Stunden).</summary>
     public List<Hausaufgabe> FaelligeHausaufgaben(DateOnly d, string fach, IEnumerable<string> klassen, int? ausserUnterricht = null)
     {

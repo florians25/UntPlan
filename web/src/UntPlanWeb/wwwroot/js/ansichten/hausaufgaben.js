@@ -2,6 +2,8 @@
 import { e, icon, holen, leer, filterFeld, datumKachel, datumKurz, heuteIso, plusTage, montag } from '../ui.js';
 
 export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, lehrerParam]) {
+  // Schüler*innen und Erziehungsberechtigte: Hausaufgaben des Kindes (Datum + Woche/Monat)
+  if (kontext.familie) return (await import('./familie.js')).hausaufgaben(seite, kontext, [reiterParam, vonParam]);
   const ich = kontext.ich;
   if (ich.kollegium && !/^\d{4}-/.test(vonParam ?? '')) return hausaufgabenListe(seite, kontext, reiterParam);
   const el = await kontext.elemente();

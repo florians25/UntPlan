@@ -4039,3 +4039,17 @@ html.is-dark .screen--start .daycard{ box-shadow:none; }
   html.is-dark .tab.is-active{ color:var(--u-orange); }
 }
 html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:none; }
+
+/* Zeilen der Stundendetails: etwas mehr Luft zwischen den Einträgen */
+.sheet--detail .drow2{ min-height:54px; padding:10px 0; }
+.sheet--detail .drows{ padding-top:8px; }
+
+/* Mehrere Räume: jeder Raum ein eigenes Label, nicht zu einem Wert
+   verschmolzen; nur der hinzugekommene Raum ist hervorgehoben. */
+.card__line--rooms .tok + .tok{ margin-left:4px; }
+.dlab{
+  display:inline-block; margin:0 6px 2px 0; padding:1px 8px;
+  border-radius:6px; background:var(--d-chip, #eef0f2); color:inherit;
+}
+.dlab--neu{ background:var(--green); color:var(--green-ink); }
+.tab:focus, .tab:focus-visible, .icon-btn:focus, .rndbtn:focus{ outline:none; }

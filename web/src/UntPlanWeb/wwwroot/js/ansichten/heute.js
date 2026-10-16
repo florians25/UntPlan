@@ -62,7 +62,8 @@ export async function zeigen(seite, kontext) {
     : '<div class="leer">Keine Tagesnachrichten</div>';
 
   const stunden = d.stunden ?? [];
-  const mitStunden = !d.keinPlan && (stunden.length || ich.kollegium);
+  // Schüler*innen und Erziehungsberechtigte: nur Anmeldung, Planaktualisierung und Nachrichten (wie im Original)
+  const mitStunden = !kontext.familie && !d.keinPlan && (stunden.length || ich.kollegium);
   const anderTag = d.tag && d.tag !== d.datum;
   const zeile = (s, i) => {
     const info = [s.text && s.fach ? `Vertretungstext: ${s.text}` : '', s.notizLehrer ? `Notizen für Lehrkräfte: ${s.notizLehrer}` : '', s.notizSchueler ? `Notizen für Schüler*innen: ${s.notizSchueler}` : ''].filter(Boolean).join('\n');

@@ -87,6 +87,9 @@ struct MitteilungenView: View {
             }
             .searchable(text: $suche, prompt: "Mitteilungen durchsuchen")
             .navigationTitle("Mitteilungen")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { KontoKnopf() }
+            }
             .refreshable { await laden() }
             .task(id: ordner) { await laden() }
         }

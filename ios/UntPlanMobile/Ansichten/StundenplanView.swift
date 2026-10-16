@@ -25,6 +25,8 @@ struct StundenplanView: View {
     /// Ziel eines Sprungs über mehrere Wochen („Heute“): ersetzt während der Animation die Nachbarseite
     @State private var sprungZiel: Date? = nil
     @GestureState private var zieht = false
+    /// Tagesansicht (eine Spalte über die volle Breite) für den Tag `datum`
+    @State private var tagModus = false
 
     private enum Wischrichtung {
         case waagrecht
@@ -55,15 +57,44 @@ struct StundenplanView: View {
 
     private var aktuellerPlan: Wochenplan? { plaene[schluessel(montag)] }
 
-    /// Montage der drei Seiten: vorherige, aktuelle, nächste Woche (bzw. Sprungziel).
+    /// Angezeigter Tag in der Tagesansicht.
+    private var tag: Date { Datumsformat.kalender.startOfDay(for: datum) }
+
+    /// Mitte der aktuellen Seite: Montag (Wochenansicht) bzw. Tag (Tagesansicht).
+    private var mitte: Date { tagModus ? tag : montag }
+
+    /// Seiten: vorherige, aktuelle, nächste Woche bzw. Vortag, Tag, Folgetag (oder Sprungziel).
     private var seiten: [Date] {
-        var links = Datumsformat.tage(-7, nach: montag)
-        var rechts = Datumsformat.tage(7, nach: montag)
+        var links = nachbar(-1)
+        var rechts = nachbar(1)
         if let sprungZiel {
-            let ziel = Datumsformat.montag(sprungZiel)
-            if ziel < montag { links = ziel } else if ziel > montag { rechts = ziel }
+            let ziel = tagModus ? Datumsformat.kalender.startOfDay(for: sprungZiel) : Datumsformat.montag(sprungZiel)
+            if ziel < mitte { links = ziel } else if ziel > mitte { rechts = ziel }
         }
-        return [links, montag, rechts]
+        return [links, mitte, rechts]
+    }
+
+    /// Nächste Woche bzw. nächster Schultag (Wochenende nur, wenn der Plan es enthält).
+    private func nachbar(_ schritt: Int) -> Date {
+        guard tagModus else { return Datumsformat.tage(7 * schritt, nach: montag) }
+        var d = Datumsformat.tage(schritt, nach: tag)
+        for _ in 0..<3 {
+            let wochentag = Datumsformat.kalender.component(.weekday, from: d) // 1 = Sonntag, 7 = Samstag
+            guard wochentag == 1 || wochentag == 7 else { break }
+            let iso = Datumsformat.iso(d)
+            if plaene[schluessel(Datumsformat.montag(d))]?.tage.contains(where: { $0.datum == iso }) == true { break }
+            d = Datumsformat.tage(schritt, nach: d)
+        }
+        return d
+    }
+
+    /// Tagesansicht ein- bzw. ausschalten.
+    private func tagesansicht(_ an: Bool, tag neu: Date? = nil) {
+        guard !blaettert else { return }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            if let neu { datum = neu }
+            tagModus = an
+        }
     }
 
     var body: some View {
@@ -83,6 +114,7 @@ struct StundenplanView: View {
             .toolbar { leiste }
             .sheet(item: $gewaehlteKarte) { karte in
                 StundendetailView(karte: karte, typ: typ)
+                    .environmentObject(zustand)
                     .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $zeigeAuswahl) {
@@ -200,16 +232,32 @@ struct StundenplanView: View {
             } label: {
                 Label("Heute", systemImage: "calendar.circle")
             }
-            .disabled(Datumsformat.iso(montag) == Datumsformat.iso(Datumsformat.montag(Date())))
+            .disabled(tagModus ? Datumsformat.istHeute(Datumsformat.iso(tag))
+                               : Datumsformat.iso(montag) == Datumsformat.iso(Datumsformat.montag(Date())))
             Button {
                 blaettern(-1)
             } label: {
-                Label("Vorherige Woche", systemImage: "chevron.left")
+                Label(tagModus ? "Vorheriger Tag" : "Vorherige Woche", systemImage: "chevron.left")
             }
             Button {
                 blaettern(1)
             } label: {
-                Label("Nächste Woche", systemImage: "chevron.right")
+                Label(tagModus ? "Nächster Tag" : "Nächste Woche", systemImage: "chevron.right")
+            }
+            Divider()
+            if tagModus {
+                Button {
+                    tagesansicht(false)
+                } label: {
+                    Label("Wochenansicht", systemImage: "calendar")
+                }
+            } else {
+                Button {
+                    let heuteInWoche = Datumsformat.montag(Date()) == montag
+                    tagesansicht(true, tag: heuteInWoche ? Date() : montag)
+                } label: {
+                    Label("Tagesansicht", systemImage: "rectangle.portrait")
+                }
             }
             Divider()
             Button {
@@ -287,10 +335,22 @@ struct StundenplanView: View {
 
     @ViewBuilder
     private func seite(_ m: Date) -> some View {
-        if let p = plaene[schluessel(m)] {
-            WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ, heuteAntippen: { heute() }) { gewaehlteKarte = $0 }
+        let woche = tagModus ? Datumsformat.montag(m) : m
+        if let p = plaene[schluessel(woche)] {
+            WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ,
+                             nurTag: tagModus ? Datumsformat.iso(m) : nil,
+                             heuteAntippen: {
+                                 if tagModus { tagesansicht(false) } else { heute() }
+                             },
+                             tagAntippen: { iso in
+                                 if tagModus {
+                                     tagesansicht(false)
+                                 } else if let d = Datumsformat.datum(iso) {
+                                     tagesansicht(true, tag: d)
+                                 }
+                             }) { gewaehlteKarte = $0 }
         } else {
-            Platzhalterwoche(montag: m)
+            Platzhalterwoche(montag: woche)
         }
     }
 
@@ -329,7 +389,7 @@ struct StundenplanView: View {
     /// Eine Woche vor (1) bzw. zurück (-1) oder zu einem Ziel; gleitet mit Feder-Animation zur neuen Seite.
     private func blaettern(_ schritt: Int, ziel: Date? = nil) {
         guard !blaettert, schritt != 0 else { return }
-        let neuesDatum = ziel ?? Datumsformat.tage(7 * schritt, nach: montag)
+        let neuesDatum = ziel ?? nachbar(schritt)
         let w = seitenBreite
         guard w > 0 else {
             datum = neuesDatum
@@ -353,9 +413,9 @@ struct StundenplanView: View {
 
     private func heute() {
         let heute = Date()
-        let ziel = Datumsformat.montag(heute)
-        guard Datumsformat.iso(ziel) != Datumsformat.iso(montag) else { return }
-        blaettern(ziel > montag ? 1 : -1, ziel: heute)
+        let ziel = tagModus ? Datumsformat.kalender.startOfDay(for: heute) : Datumsformat.montag(heute)
+        guard Datumsformat.iso(ziel) != Datumsformat.iso(mitte) else { return }
+        blaettern(ziel > mitte ? 1 : -1, ziel: heute)
     }
 
     private func laden() async {
@@ -511,14 +571,19 @@ struct WochenrasterView: View {
     let plan: Wochenplan
     let typ: String
     var laedt: Bool = false
-    /// Antippen von „KW / Monat“ springt zur aktuellen Woche.
+    /// Tagesansicht: nur dieser Tag (yyyy-MM-dd) als eine Spalte über die volle Breite.
+    var nurTag: String? = nil
+    /// Antippen von „KW / Monat“ (Woche: zur aktuellen Woche, Tag: zurück zur Woche).
     var heuteAntippen: (() -> Void)? = nil
+    /// Antippen eines Tageskopfs (Tagesansicht öffnen bzw. schließen).
+    var tagAntippen: ((String) -> Void)? = nil
     let antippen: (Karte) -> Void
 
     // Maße aus app.css
     private let rinnenBreite: CGFloat = 45
     private let tagesLuecke: CGFloat = 3
-    private let proMinute: CGFloat = 1.2704
+    /// Höhe je Minute; in der Tagesansicht größer, damit die Karten mehr Text zeigen.
+    private var proMinute: CGFloat { nurTag == nil ? 1.2704 : 1.6 }
     private let abstandOben: CGFloat = 15
     private let abstandUnten: CGFloat = 28
 
@@ -537,7 +602,10 @@ struct WochenrasterView: View {
         }
     }
 
-    private var tage: [Tageskopf] { plan.tage }
+    private var tage: [Tageskopf] {
+        guard let nurTag else { return plan.tage }
+        return plan.tage.filter { $0.datum == nurTag }
+    }
 
     private var montagDatum: Date {
         Datumsformat.datum(plan.montag) ?? Datumsformat.datum(tage.first?.datum ?? "") ?? Date()
@@ -599,14 +667,14 @@ struct WochenrasterView: View {
             .contentShape(Rectangle())
             .onTapGesture { heuteAntippen?() }
             .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Zur aktuellen Woche")
+            .accessibilityHint(nurTag == nil ? "Zur aktuellen Woche" : "Zurück zur Wochenansicht")
             ForEach(tage) { tag in
                 let heute = Datumsformat.istHeute(tag.datum)
                 VStack(spacing: 3) {
-                    Text(Datumsformat.anzeige(tag.datum, "EE"))
+                    Text(Datumsformat.anzeige(tag.datum, nurTag == nil ? "EE" : "EEEE"))
                         .font(.system(size: 12.5, weight: .regular))
                         .foregroundStyle(heute ? Farben.heute : Farben.tinte2)
-                    Text(Datumsformat.anzeige(tag.datum, "d"))
+                    Text(Datumsformat.anzeige(tag.datum, nurTag == nil ? "d" : "d. MMMM"))
                         .font(.system(size: 18, weight: .bold))
                         .tracking(-0.36)
                         .foregroundStyle(heute ? Farben.heute : Farben.tinte)
@@ -614,7 +682,11 @@ struct WochenrasterView: View {
                 .lineLimit(1)
                 .frame(width: spaltenBreite - tagesLuecke)
                 .padding(.trailing, tagesLuecke)
+                .contentShape(Rectangle())
+                .onTapGesture { tagAntippen?(tag.datum) }
                 .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(nurTag == nil ? "Tagesansicht öffnen" : "Zurück zur Wochenansicht")
             }
         }
         .padding(.top, 2)
@@ -703,7 +775,7 @@ struct WochenrasterView: View {
                     Button {
                         antippen(p.karte)
                     } label: {
-                        StundenKarteView(karte: p.karte, typ: typ, vergangen: istVergangen(p.karte, jetzt: jetzt))
+                        StundenKarteView(karte: p.karte, typ: typ, vergangen: istVergangen(p.karte, jetzt: jetzt), gross: nurTag != nil)
                     }
                     .buttonStyle(KartenKnopfStil())
                     .frame(width: max(spurBreite - (p.spuren > 1 ? 2 : 0), 10), height: hoehe)

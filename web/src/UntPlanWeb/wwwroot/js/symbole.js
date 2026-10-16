@@ -19,6 +19,7 @@ const S = {
   meldenbuchen: 'resources.svg',
   verwaltung: 'navigation-administration.svg',
   stammdaten: 'my_data.svg',
+  meinedaten: 'my_data.svg',
   vertretungen: 'tasks.svg',
 
   // Stundenplan-Untermenü

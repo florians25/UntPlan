@@ -57,6 +57,11 @@ struct PlanAuswahlView: View {
 
     private var imBearbeiten: Bool { bearbeiten == .active }
 
+    /// Schüler*innen und Eltern sehen keine Pläne von Lehrkräften.
+    private var kategorien: [Plankategorie] {
+        Plankategorie.allCases.filter { $0 != .lehrer || zustand.darfLehrerplaene }
+    }
+
     var body: some View {
         NavigationStack(path: $pfad) {
             List {
@@ -199,7 +204,7 @@ struct PlanAuswahlView: View {
         }
 
         Abschnittszeile(text: "Stundenpläne")
-        ForEach(Plankategorie.allCases) { kategorie in
+        ForEach(kategorien) { kategorie in
             Button {
                 pfad.append(kategorie)
             } label: {
@@ -237,7 +242,7 @@ struct PlanAuswahlView: View {
     @ViewBuilder
     private var suchergebnisse: some View {
         if let elemente {
-            let treffer: [Suchtreffer] = Plankategorie.allCases.flatMap { k in
+            let treffer: [Suchtreffer] = kategorien.flatMap { k in
                 k.liste(elemente).filter { passt($0) }.map { Suchtreffer(kategorie: k, element: $0) }
             }
             if treffer.isEmpty {

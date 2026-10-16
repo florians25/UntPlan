@@ -273,10 +273,11 @@ public sealed class Plandienst
                 continue;
             }
             var raeume = RaeumeNachBuchung(ziel.Raeume, r.Raeume);
-            var status = ziel.Status == "regulaer" ? "geaendert" : ziel.Status;
+            // nur die Räume ändern sich (alt → neu): Status, Art und Text der Stunde bleiben – keine Vertretung
+            var status = ziel.Status;
             // Raumplan des bisherigen Raums: die Stunde findet woanders statt
             if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) status = "abwesend";
-            einzel[i] = ziel with { Status = status, Raeume = raeume, Art = ziel.Art.Length > 0 ? ziel.Art : "Raumänderung (vorgemerkt)" };
+            einzel[i] = ziel with { Status = status, Raeume = raeume };
         }
         // doppelt übertragene Prüfungen (ältere Mehrfachimporte) nur einmal zeigen
         einzel = einzel.GroupBy(x => x.Unterricht is null && x.Fach.Length == 0 && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))
@@ -438,10 +439,22 @@ public sealed class Plandienst
             .ToList();
     }
 
+    /// <summary>Raumbuchung bzw. Raumänderung aus einer Buchung – erzeugt nie eine Vertretung, einen Vertretungstext oder eine Änderungsart.</summary>
+    public static bool IstBuchung(string? art) => !string.IsNullOrEmpty(art) &&
+        (art.StartsWith("Raumbuchung", StringComparison.OrdinalIgnoreCase) || art.StartsWith("Buchung", StringComparison.OrdinalIgnoreCase) ||
+         art.StartsWith("Raumänderung (vorgemerkt)", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Klausur bzw. Prüfung – eigener Status „klausur“, nie eine Vertretung.</summary>
+    public static bool IstKlausur(string? art) => !string.IsNullOrEmpty(art) &&
+        (art.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) || art.StartsWith("Prüfung", StringComparison.OrdinalIgnoreCase));
+
     private Karte KarteBauen(Stand s, DateOnly d, string typ, string kurz, Rohstunde r, WebVertretung? v, Dictionary<int, WebStundenzeit> zeiten)
     {
         var art = r.Art.Length > 0 ? r.Art : v?.Art ?? "";
-        var status = r.Status switch
+        // Buchungen (Raum) und Klausuren sind keine Vertretungen: kein Status „geändert“, keine Vertretungsart, kein Vertretungstext
+        var buchung = r.Status == "vertreten" && IstBuchung(art);
+        var klausur = r.Status == "vertreten" && IstKlausur(art);
+        var status = buchung ? (IstBereitschaft(s, r.Fach) ? "bereitschaft" : "regulaer") : klausur ? "klausur" : r.Status switch
         {
             "entfall" => "entfall",
             "offen" => "offen",
@@ -508,7 +521,7 @@ public sealed class Plandienst
             // Eigene Stunde wird von jemand anderem gehalten bzw. findet in einem anderen Raum statt
             if (typ == Elementtyp.Lehrer && Ci.Equals(v.Lehrer, kurz) && !Enthaelt(r.Lehrer, kurz) && status is "geaendert" or "offen")
                 status = "abwesend";
-            if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && status is "geaendert")
+            if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && (status is "geaendert" || buchung))
                 status = "abwesend";
         }
         // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft (Kürzel durchgestrichen)
@@ -523,7 +536,8 @@ public sealed class Plandienst
         // zusätzlicher Unterricht ohne Lehrkraft: „---“
         var zusatz = r.Status == "zusaetzlich" && status == "geaendert";
         if (zusatz && lehrer.Count == 0) lehrer.Add(new Wert(OhneLehrkraftZusatz));
-        var text = string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+        var text = buchung ? "" : string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+        if (buchung) art = "";
         // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
         if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
         text = TextNormal(text);

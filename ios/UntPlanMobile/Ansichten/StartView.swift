@@ -77,6 +77,7 @@ struct StartView: View {
             }
             .sheet(item: $gewaehlteKarte) { karte in
                 StundendetailView(karte: karte, typ: heute?.typ ?? "klasse")
+                    .environmentObject(zustand)
                     .presentationDetents([.medium, .large])
             }
         }

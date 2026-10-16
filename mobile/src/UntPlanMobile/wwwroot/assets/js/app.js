@@ -530,6 +530,21 @@ function cardLines(card, kind){
       l.changed = false;
       l.removed = false;
     }
+    /* Mehrere Räume: jeder steht für sich, nicht mit Komma zu einem Wert
+       verschmolzen. Hervorgehoben wird nur, was neu hinzugekommen ist —
+       der bisherige Raum bleibt ein gewöhnliches Label daneben. */
+    if (key === 'room' && !l.removed){
+      const jetzt = werteListe(card.room);
+      if (jetzt.length > 1){
+        const vorher = werteListe(card.roomOrig).map(x => x.toUpperCase());
+        const neuListe = werteListe(card.roomNew).map(x => x.toUpperCase());
+        const neu = x => l.changed && (neuListe.length ? neuListe.includes(x.toUpperCase())
+                                       : (!vorher.length || !vorher.includes(x.toUpperCase())));
+        l.tokens  = jetzt.map(x => ({ text:x, state: neu(x) ? 'sub' : 'ok' }));
+        l.text    = jetzt.join(' ');
+        l.changed = false;
+      }
+    }
     return l;
   })
     .filter(l => l.text)
@@ -1272,7 +1287,7 @@ function renderGrid(){
             const inner = l.tokens
               ? l.tokens.map((t, ti) => {
                   /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
-                  const komma = ti < l.tokens.length - 1 ? (l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
+                  const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
                   const kern  = t.state === 'absent'
                     ? `<span class="badge badge--removed">${esc(t.text)}</span>`
                     : t.state === 'sub'
@@ -1288,7 +1303,7 @@ function renderGrid(){
                     rechts als jede andere Plakette auf der Kachel. */
                  + `${(l.changed || (l.tokens && (l.tokens[0].state || 'ok') !== 'ok'))
                       ? ' card__line--badge' : ''}`
-                 + `${l.tokens ? ' card__line--kopp' : ''}${l.tokens && l.key === 'teacher' ? ' card__line--scroll' : ''}`
+                 + `${l.tokens ? ' card__line--kopp' : ''}${l.tokens && l.key === 'room' ? ' card__line--rooms' : ''}${l.tokens && l.key === 'teacher' ? ' card__line--scroll' : ''}`
                  + `${li === lines.length - 1 ? ' card__line--last' : ''}">${inner}</span>`;
           }).join('');
 
@@ -3903,12 +3918,21 @@ function renderDetail(){
   /* Raumzeile: Was weggefallen ist, steht durchgestrichen vor dem Pfeil;
      dahinter alle Räume der Stunde. Ein hinzugefügter Raum lässt die
      bisherigen stehen — dann gibt es nichts durchzustreichen. */
+  /* Jeder Raum ist ein eigenes Label. Neu hinzugekommene oder gebuchte
+     Räume sind hervorgehoben, die bisherigen stehen unverändert daneben. */
   const raumHtml = () => {
     const jetzt = werteListe(c.room), vorher = werteListe(c.roomOrig);
-    const weg = vorher.filter(x => !jetzt.some(y => y.toUpperCase() === x.toUpperCase()));
+    const gross = a => a.map(x => x.toUpperCase());
+    const weg = vorher.filter(x => !gross(jetzt).includes(x.toUpperCase()));
+    const geaendert = (c.changed || []).includes('room');
+    const lab = (x, neu) => `<span class="dlab${neu ? ' dlab--neu' : ''}">${esc(x)}</span>`;
+    const neuListe = gross(werteListe(c.roomNew));
+    const neuer = x => geaendert && jetzt.length > 1 && (neuListe.length ? neuListe.includes(x.toUpperCase())
+                                                         : (!vorher.length || !gross(vorher).includes(x.toUpperCase())));
     if (!jetzt.length && vorher.length) return `<s>${vorher.map(esc).join(SEP)}</s>`;
-    if (weg.length) return `<s>${weg.map(esc).join(SEP)}</s><span class="arrow">→</span>${jetzt.map(esc).join(SEP)}`;
-    return jetzt.map(esc).join(SEP);
+    const rechts = jetzt.length > 1 ? jetzt.map(x => lab(x, neuer(x))).join('') : jetzt.map(esc).join(SEP);
+    if (weg.length) return `<s>${weg.map(esc).join(SEP)}</s><span class="arrow">→</span>${rechts}`;
+    return rechts;
   };
 
   const koppD = koppTokens(c);
@@ -3939,7 +3963,14 @@ function renderDetail(){
   if (istVeranstaltung){
     const anlass = (c.subject || c.info || '').trim();
     if (anlass) rows.push({ ico:'info', title:'Information zur Stunde', key:'info', sub:anlass });
-  } else if (c.info) rows.push({ ico:'substitution', title:'Vertretungstext', key:'substitution', sub:c.info });
+  } else if (c.info){
+    /* „Vertretungstext" nur bei einer Vertretung oder einem Entfall —
+       Klausuren, Raumbuchungen und gewöhnliche Stunden tragen eine
+       Information, keinen Vertretungstext. */
+    const vertretung = c.blockType === 'change' || c.blockType === 'cancelled';
+    rows.push({ ico:'substitution', title: vertretung ? 'Vertretungstext' : 'Information zur Stunde',
+                key:'substitution', sub:c.info });
+  }
   if (voll){
     rows.push({ ico:'lehrstoff', title:'Lehrstoff', key:'lehrstoff', sub:cbText('lehrstoff'),
                 done:!!cbText('lehrstoff') });
@@ -4230,6 +4261,7 @@ async function raumAendern(c, op, raum, alt){
     if (c._raeumeVorher == null) c._raeumeVorher = c.roomOrig || c.room || '';
     c.room = neu.join(',');
     c.roomOrig = vorher.filter(x => !neu.some(y => y.toUpperCase() === x.toUpperCase())).join(',');
+    c.roomNew  = neu.filter(x => !vorher.some(y => y.toUpperCase() === x.toUpperCase())).join(',');
     if (!(c.changed || []).includes('room') && !aj.reset) c.changed = [...(c.changed || []), 'room'];
     renderDetail();
     wochenVergessen();

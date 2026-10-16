@@ -123,7 +123,9 @@ public sealed class Vertretungsplandienst
             }).ToList();
 
         // Schülerversion: nur Einträge mit Klassenbezug, keine Bereitschaften oder Aufsichten
+        // Buchungen (Raum) und Klausuren erzeugen keine Vertretung – sie stehen nur im Stundenplan
         var einzeln = s.Paket.Vertretungen.Where(v => v.Datum == iso && !(v.Klassen.Count == 0 && v.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase))
+                                                      && !Plandienst.IstBuchung(v.Art) && !Plandienst.IstKlausur(v.Art)
                                                       && (kollegium || (!v.NurLehrer && v.Klassen.Count > 0 && !IstLehrerintern(v)))).Select(v =>
         {
             var bereitschaft = IstBereitschaft(v);

@@ -548,7 +548,10 @@ public class BuchbarUndFehlzeitenTests
         var p = await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=7a&datum=2026-10-16");
         var amTag = p["karten"]!.AsArray().Where(x => x!["datum"]!.GetValue<string>() == "2026-10-16").ToList();
         var mitRaum = amTag.Single(x => x!["von"]!.GetValue<int>() == k.Von && x["fach"]!.GetValue<string>() == k.Fach);
-        Assert.Equal("Raumänderung (vorgemerkt)", mitRaum!["art"]!.GetValue<string>());
+        // Buchungen erzeugen nie eine Vertretung: kein Änderungsstatus, keine Art, kein Text – nur der Raum ändert sich
+        Assert.Equal("", mitRaum!["art"]!.GetValue<string>());
+        Assert.Equal("", mitRaum["text"]!.GetValue<string>());
+        Assert.Equal(k.Status, mitRaum["status"]!.GetValue<string>());
         Assert.Equal(raum, mitRaum["raeume"]![0]!["k"]!.GetValue<string>());
         var klausur = amTag.Single(x => x!["von"]!.GetValue<int>() == k2.Von && x["fach"]!.GetValue<string>() == k2.Fach);
         Assert.Equal("klausur", klausur!["status"]!.GetValue<string>());

@@ -28,6 +28,8 @@
 		5A1F0C000000000000000038 /* PlanAuswahlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000037 /* PlanAuswahlView.swift */; };
 		5A1F0C00000000000000003A /* TabLeiste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000039 /* TabLeiste.swift */; };
 		5A1F0C00000000000000003C /* Favoriten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003B /* Favoriten.swift */; };
+		5A1F0C00000000000000003E /* StundendetailSeiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003D /* StundendetailSeiten.swift */; };
+		5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003F /* ProfilSeiten.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +55,8 @@
 		5A1F0C000000000000000037 /* PlanAuswahlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanAuswahlView.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000039 /* TabLeiste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabLeiste.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000003B /* Favoriten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favoriten.swift; sourceTree = "<group>"; };
+		5A1F0C00000000000000003D /* StundendetailSeiten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StundendetailSeiten.swift; sourceTree = "<group>"; };
+		5A1F0C00000000000000003F /* ProfilSeiten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilSeiten.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +105,8 @@
 				5A1F0C000000000000000033 /* StundendetailView.swift */,
 				5A1F0C000000000000000035 /* StundenplanView.swift */,
 				5A1F0C000000000000000039 /* TabLeiste.swift */,
+				5A1F0C00000000000000003F /* ProfilSeiten.swift */,
+				5A1F0C00000000000000003D /* StundendetailSeiten.swift */,
 			);
 			path = Ansichten;
 			sourceTree = "<group>";
@@ -221,6 +227,8 @@
 				5A1F0C000000000000000034 /* StundendetailView.swift in Sources */,
 				5A1F0C000000000000000036 /* StundenplanView.swift in Sources */,
 				5A1F0C00000000000000003C /* Favoriten.swift in Sources */,
+				5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */,
+				5A1F0C00000000000000003E /* StundendetailSeiten.swift in Sources */,
 				5A1F0C00000000000000003A /* TabLeiste.swift in Sources */,
 				5A1F0C000000000000000038 /* PlanAuswahlView.swift in Sources */,
 			);

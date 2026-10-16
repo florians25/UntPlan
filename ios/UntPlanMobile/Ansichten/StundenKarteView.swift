@@ -1,16 +1,17 @@
 import SwiftUI
 
 /// Karte einer Stunde im Wochenraster (Maße aus app.css, .card):
-/// Balken in Fachfarbe links, darunter drei Zeilen – Lehrkraft bzw. Klasse (halbfett), Fach, Raum.
-/// Geänderte Werte stehen grün hinterlegt, bei Entfall ist alles durchgestrichen.
+/// grauer Balken links, darunter drei Zeilen – Lehrkraft bzw. Klasse (halbfett), Fach, Raum.
+/// Geänderte Werte stehen hinterlegt (Vertretung grün, Raumänderung/Buchung gelb-orange), bei Entfall ist alles durchgestrichen.
+/// Mehrere Räume stehen als einzelne Labels nebeneinander. In der Tagesansicht (gross) größer und mit mehr Text.
 struct StundenKarteView: View {
     let karte: Karte
     let typ: String
     var vergangen: Bool = false
+    var gross: Bool = false
 
-    // .card__line: 12,4 px (am Muster eher 13 pt), Zeilenabstand 14,3 px
-    private let schrift: CGFloat = 13
-    private let zeilenHoehe: CGFloat = 14.3
+    private var schrift: CGFloat { gross ? 15 : 13 }
+    private var zeilenHoehe: CGFloat { gross ? 18.5 : 14.3 }
 
     var body: some View {
         let stil = Kartenstil(karte, vergangen: vergangen)
@@ -30,10 +31,13 @@ struct StundenKarteView: View {
                         .font(.system(size: schrift, weight: eintrag.offset == 0 ? .semibold : .regular))
                         .frame(height: zeilenHoehe, alignment: .leading)
                 }
+                if gross {
+                    zusatzText(stil)
+                }
             }
             .foregroundStyle(Farben.karteText)
-            .padding(.leading, 12)
-            .padding(.top, 4.5)
+            .padding(.leading, gross ? 14 : 12)
+            .padding(.top, gross ? 6 : 4.5)
             .padding(.trailing, 4)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -44,6 +48,12 @@ struct StundenKarteView: View {
             if let rand = stil.rand {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .strokeBorder(rand, lineWidth: stil.randBreite)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if gross, let p = stil.plakette {
+                Plakette(text: p, farbe: stil.plaketteFarbe)
+                    .padding(5)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -61,6 +71,8 @@ struct StundenKarteView: View {
 
     private enum Kartenzeile {
         case werte([Wert])
+        /// Räume: jeder Raum ein eigenes Label
+        case raeume([Wert])
         case fach
     }
 
@@ -70,7 +82,10 @@ struct StundenKarteView: View {
         var liste: [Kartenzeile] = []
         if let erste = paar.first, !erste.isEmpty { liste.append(.werte(erste)) }
         if !karte.fach.isEmpty || !karte.art.isEmpty || !(karte.fachAlt ?? "").isEmpty { liste.append(.fach) }
-        if paar.count > 1, !paar[1].isEmpty { liste.append(.werte(paar[1])) }
+        if paar.count > 1, !paar[1].isEmpty {
+            // Im Klassen- und Lehrerplan ist die zweite Zeile der Raum
+            liste.append(typ == "raum" ? .werte(paar[1]) : .raeume(paar[1]))
+        }
         return liste
     }
 
@@ -79,6 +94,8 @@ struct StundenKarteView: View {
         switch z {
         case .werte(let werte):
             werteZeile(werte, stil: stil)
+        case .raeume(let werte):
+            raumZeile(werte, stil: stil)
         case .fach:
             fachZeile(stil)
         }
@@ -87,20 +104,30 @@ struct StundenKarteView: View {
     @ViewBuilder
     private func fachZeile(_ stil: Kartenstil) -> some View {
         let fach = karte.fach.isEmpty ? karte.art : karte.fach
+        let mitName = gross && !karte.fachName.isEmpty && karte.fachName != fach
         if stil.durchgestrichen {
             Text(fach.isEmpty ? (karte.fachAlt ?? "") : fach)
                 .strikethrough(true)
                 .lineLimit(1)
-        } else if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach, !fach.isEmpty {
-            Plakettenwert(text: fach)
+        } else if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach, !fach.isEmpty, !karte.keineVertretung {
+            Plakettenwert(text: fach, farbe: stil.wertFarbe)
         } else if fach.isEmpty, let alt = karte.fachAlt {
             Text(alt)
                 .strikethrough(true)
+                .lineLimit(1)
+        } else if mitName {
+            (Text(fach) + Text("  ") + Text(karte.fachName).foregroundColor(Farben.tinte2))
                 .lineLimit(1)
         } else {
             Text(fach)
                 .lineLimit(1)
         }
+    }
+
+    /// Hervorhebung eines geänderten Werts (bei Klausuren/Raumbuchungen nur für Räume, nie grün).
+    private func hervorheben(_ w: Wert, raum: Bool) -> Bool {
+        guard w.geaendert else { return false }
+        return raum || !karte.keineVertretung
     }
 
     @ViewBuilder
@@ -109,7 +136,7 @@ struct StundenKarteView: View {
             Text(werte.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k }.filter { !$0.isEmpty }.joined(separator: ", "))
                 .strikethrough(true)
                 .lineLimit(1)
-        } else if !werte.contains(where: { $0.geaendert }) {
+        } else if !werte.contains(where: { hervorheben($0, raum: false) }) {
             Text(werteKurz(werte))
                 .lineLimit(1)
         } else {
@@ -120,8 +147,8 @@ struct StundenKarteView: View {
                     if eintrag.offset > 0 { Text(", ") }
                     if w.k.isEmpty, let alt = w.alt, !alt.isEmpty {
                         Text(alt).strikethrough(true)
-                    } else if w.geaendert {
-                        Plakettenwert(text: w.k)
+                    } else if hervorheben(w, raum: false) {
+                        Plakettenwert(text: w.k, farbe: stil.wertFarbe)
                     } else {
                         Text(w.k)
                     }
@@ -132,6 +159,51 @@ struct StundenKarteView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .clipped()
         }
+    }
+
+    /// Räume als einzelne Labels: ein hinzugefügter bzw. neuer Raum steht allein im Änderungs-Label,
+    /// unveränderte Räume bleiben eigene Labels (kein Zusammenfassen mit Komma).
+    @ViewBuilder
+    private func raumZeile(_ werte: [Wert], stil: Kartenstil) -> some View {
+        HStack(spacing: 5) {
+            ForEach(Array(werte.enumerated()), id: \.offset) { eintrag in
+                let w = eintrag.element
+                if stil.durchgestrichen {
+                    Text(w.k.isEmpty ? (w.alt ?? "") : w.k).strikethrough(true)
+                } else if w.k.isEmpty, let alt = w.alt, !alt.isEmpty {
+                    Text(alt).strikethrough(true)
+                } else if hervorheben(w, raum: true) {
+                    Plakettenwert(text: w.k, farbe: stil.wertFarbe)
+                } else {
+                    Text(w.k)
+                }
+            }
+        }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipped()
+    }
+
+    /// Tagesansicht: Uhrzeit und Hinweistext unter den Zeilen.
+    @ViewBuilder
+    private func zusatzText(_ stil: Kartenstil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if !karte.beginn.isEmpty {
+                Text("\(karte.beginn) – \(karte.ende)")
+                    .font(.system(size: 12.5).monospacedDigit())
+                    .foregroundStyle(Farben.tinte2)
+            }
+            let hinweis = [karte.text, karte.abwesendText, karte.notizSchueler].first { !$0.isEmpty } ?? ""
+            if !hinweis.isEmpty {
+                Text(hinweis)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Farben.tinte2)
+                    .lineLimit(3)
+            }
+        }
+        .padding(.top, 4)
+        .padding(.trailing, 20)
     }
 
     // MARK: - Info- und Hausaufgabenzeichen unten rechts
@@ -164,9 +236,10 @@ struct StundenKarteView: View {
     }
 }
 
-/// Grün hinterlegter Wert (.badge): Polster 0,33/2,27, Radius 2, Schrift mittel.
+/// Hinterlegter Wert (.badge): Polster 0,33/2,27, Radius 2, Schrift mittel; Vertretung grün, Raum gelb-orange.
 struct Plakettenwert: View {
     let text: String
+    var farbe: Color = Farben.gruen
 
     var body: some View {
         Text(text)
@@ -174,7 +247,7 @@ struct Plakettenwert: View {
             .foregroundStyle(Farben.gruenSchrift)
             .padding(.horizontal, 2.27)
             .padding(.top, 0.33)
-            .background(Farben.gruen, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
+            .background(farbe, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
             .lineLimit(1)
             .fixedSize()
     }

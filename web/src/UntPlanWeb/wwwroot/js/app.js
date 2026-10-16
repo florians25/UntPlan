@@ -42,6 +42,8 @@ let aktiverPunkt = null;
 const kontext = {
   get sitzung() { return sitzung; },
   get ich() { return sitzung?.benutzer; },
+  /** Schüler- bzw. Elternkonto mit eigenen Seiten (Abwesenheiten, Fehlzeiten, Hausaufgaben des Kindes). */
+  get familie() { return familie(sitzung?.benutzer); },
   /**
    * Gewähltes Schuljahr (Schuljahr-Pille in der Navigation): { von, bis, text, aktuell }. Listen und Berichte nehmen es als Zeitraum;
    * ohne Auswahl gilt das aktuelle Schuljahr aus UntPlan.
@@ -261,6 +263,15 @@ function menue() {
       { nav: 'melden-klausur', href: '#/melden/klausur', text: 'Prüfung eintragen', icon: 'klausur' },
       { nav: 'melden-meine', href: '#/melden/meine', text: 'Meine Meldungen', icon: 'protokoll' },
     ] });
+  } else if (familie(b)) {
+    // Schüler*innen und Erziehungsberechtigte wie im Original: Heute, Übersicht, Mitteilungen, Mein Stundenplan, Weitere Stundenpläne,
+    // Abwesenheiten, Hausaufgaben (Lehrerpläne gibt es nicht)
+    m[1] = { id: 'uebersicht', nav: 'uebersicht', href: '#/uebersicht', text: 'Übersicht', icon: 'meinedaten' };
+    m[2] = { id: 'mitteilungen', nav: 'mitteilungen', href: '#/mitteilungen', text: 'Mitteilungen', icon: 'mitteilungen', zaehler: true };
+    if (b.element) m.push({ id: 'plan-mein', nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'meinplan' });
+    m.push({ id: 'weitere', text: 'Weitere Stundenpläne', icon: 'stundenplan', unter: plaene.filter(p => p.nav !== 'plan-mein') });
+    m.push({ id: 'abwesenheiten', nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' });
+    m.push({ id: 'hausaufgaben', nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' });
   } else {
     if (b.element) m.push({ id: 'plan-mein', nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'meinplan' });
     m.push({ id: 'weitere', text: 'Weitere Stundenpläne', icon: 'stundenplan', unter: plaene.filter(p => p.nav !== 'plan-mein') });
@@ -299,6 +310,9 @@ function menue() {
   } else if (b.nachrichten) m.push({ id: 'admin', nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' });
   return m;
 }
+
+/** Schüler- bzw. Elternkonto mit zugeordneter Person (eigene Seiten „Meine Daten“); Klassenkonten ohne Zuordnung behalten die Klassenansicht. */
+function familie(b) { return !!b?.familie && (b.rolle === 'eltern' || (b.schuelerIds ?? []).length > 0); }
 
 const allePunkte = () => menue().flatMap(g => g.unter ? g.unter : [g]);
 

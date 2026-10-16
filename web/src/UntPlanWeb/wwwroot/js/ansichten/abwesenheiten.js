@@ -64,6 +64,8 @@ const artChip = z => z.art === 'verspaetet' ? `<span class="u-chip gelb"><i clas
   : /^(verspätet|vorzeitig gegangen)/.test(z.bemerkung || '') ? `abwesend <span class="small text-body-secondary">(${e(z.bemerkung.match(/^(verspätet|vorzeitig gegangen)/)[1])})</span>` : 'abwesend';
 
 export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, statusParam, grundParam, artParam]) {
+  // Schüler*innen und Erziehungsberechtigte: Reiter „Meine Abwesenheiten“ | „Fehlzeiten“
+  if (kontext.familie) return (await import('./familie.js')).abwesenheiten(seite, kontext, [reiterParam, vonParam, bisParam]);
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const reiter = reiterParam === 'meine' && ich.element ? 'meine' : 'schueler';
