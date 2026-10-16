@@ -250,7 +250,7 @@ public static class ErweiterungApi
         // ---------------------------------------------------------------- Berichte
 
         api.MapGet("/berichte/liste", (HttpContext c) => { Kollegium(c); return Results.Json(Klassenbuchverwaltung.Berichtsarten); });
-        api.MapGet("/berichte/erstellen/{art}", (string art, string? von, string? bis, string? klasse, int? schueler, int? n1, int? n2, string? format,
+        api.MapGet("/berichte/erstellen/{art}", (string art, string? von, string? bis, string? klasse, int? schueler, int? n1, int? n2, string? format, string? ausrichtung,
             HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Uhr uhr, Einstellungen es) =>
         {
             var b = Kollegium(c);
@@ -264,7 +264,7 @@ public static class ErweiterungApi
                 var unter = $"{(Leer(klasse) is { } kl ? $"Klasse {kl} · " : "")}Zeitraum {v:dd.MM.yyyy} – {bi:dd.MM.yyyy}";
                 var pdf = PdfBericht.Erzeugen(schule, bericht.Titel, unter, bericht.Spalten,
                     bericht.Zeilen.Select(z => (IReadOnlyList<string>)z.Select(x => Convert.ToString(x, System.Globalization.CultureInfo.GetCultureInfo("de-DE")) ?? "").ToList()).ToList(), bericht.Hinweis,
-                    b.Anzeigename);
+                    b.Anzeigename, true, PdfBericht.Hochformat(ausrichtung, false));
                 return Results.File(pdf, "application/pdf", dateiname + ".pdf");
             }
             return format == "csv"

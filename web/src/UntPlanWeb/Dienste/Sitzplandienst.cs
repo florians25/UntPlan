@@ -218,7 +218,8 @@ public sealed class Sitzplandienst
     }
 
     /// <summary>Sitzplan als PDF (A4 quer, Schwarz-Weiß): Tische als Kästen mit Namen, Pult vorne bzw. hinten, Liste ohne Platz.</summary>
-    public static byte[] Pdf(string schule, string titel, string untertitel, Sitzplan plan, IReadOnlyList<WebSchueler> schueler, bool vornameZuerst, bool kurz, bool klasse, string? ersteller)
+    public static byte[] Pdf(string schule, string titel, string untertitel, Sitzplan plan, IReadOnlyList<WebSchueler> schueler, bool vornameZuerst, bool kurz, bool klasse, string? ersteller,
+        bool hochformat = false)
     {
         var nachId = schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
         var plaetze = new List<(int Reihe, int Spalte, string? Name, bool Tisch)>();
@@ -233,6 +234,6 @@ public sealed class Sitzplandienst
         var ohnePlatz = schueler.Where(x => !gesetzt.Contains(x.Id)).Select(x => Anzeigename(x, vornameZuerst, kurz, klasse)).ToList();
         string? KlasseVon(int z, int sp) => klasse && plan.Belegung.TryGetValue($"{z}-{sp}", out var id) && nachId.TryGetValue(id, out var x) ? x.Klasse : null;
         return PdfBericht.Sitzplan(schule, titel, untertitel, plan.Zeilen, plan.Spalten, plan.Pult == "hinten",
-            plaetze.Select(p => (p.Reihe, p.Spalte, p.Name, KlasseVon(p.Reihe, p.Spalte), p.Tisch)).ToList(), ohnePlatz, ersteller);
+            plaetze.Select(p => (p.Reihe, p.Spalte, p.Name, KlasseVon(p.Reihe, p.Spalte), p.Tisch)).ToList(), ohnePlatz, ersteller, hochformat);
     }
 }

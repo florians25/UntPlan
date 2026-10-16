@@ -135,6 +135,12 @@
 .mt-einst-zahlen .u-feld { min-width: 180px; }
 .mt-einst-konten { max-height: 280px; border: 1px solid var(--u-linie-2, #e8ebee); border-radius: 6px; padding: 0 8px; }
 
+@media (max-width: 1399.98px) {
+  .mt-werkzeuge .btn:not(.btn-icon) { font-size: 0; gap: 0; width: 32px; height: 32px; padding: 0; justify-content: center; }
+  .mt-werkzeuge .btn:not(.btn-icon) i { font-size: .9rem; }
+  .mt-werkzeuge .btn[data-liste] { font-size: .8rem; width: auto; padding: 0 10px; gap: 5px; }
+}
+
 @media (max-width: 991.98px) {
   .mt-raster { grid-template-columns: 1fr; }
   .mt-liste { max-height: none; }

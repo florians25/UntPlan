@@ -6,7 +6,7 @@
 //   Leeren, Rückgängig, Drucken (PDF, S/W), Wirkungsbereich Klasse/Unterricht/Raum mit Rechteprüfung, Speichern/Löschen.
 // - Sitzplan-Anordnung der Schülerkacheln in den Stundendetails (rasterHtml) und die Seite „Sitzplan“ einer Klasse (zeigen).
 // Gültiger Plan einer Stunde (Server): Unterricht vor Raum vor Klasse.
-import { e, holen, senden, toast, filterFeld, leer } from '../ui.js';
+import { e, holen, senden, toast, filterFeld, leer, pdfAusrichtung } from '../ui.js';
 
 // ------------------------------------------------------------------ Stil und Einstellungen
 
@@ -185,6 +185,9 @@ export function rasterHtml(d, schueler, kachel, w = einstellungen()) {
 // ------------------------------------------------------------------ Druck
 
 async function pdfOeffnen(daten) {
+  const ausrichtung = await pdfAusrichtung('quer', 'sitzplan');
+  if (!ausrichtung) return;
+  daten = { ...daten, ausrichtung };
   const fenster = window.open('', '_blank');
   try {
     const r = await fetch('/api/app/sitzplaene/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(daten) });

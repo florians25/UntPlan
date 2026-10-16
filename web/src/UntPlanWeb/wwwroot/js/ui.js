@@ -279,3 +279,79 @@ const kuerzungsHover = (() => {
   return { verbergen };
 })();
 export const hoverVerbergen = () => kuerzungsHover?.verbergen();
+
+// ------------------------------------------------------------------ Formulare im Hoch- bzw. Querformat
+
+/**
+ * Auswahl Hoch-/Querformat vor dem Erstellen eines PDF-Formulars (auch aus einem offenen Dialog heraus). Liefert „hoch“ bzw. „quer“,
+ * null bei Abbruch. Die letzte Wahl je Formular wird im Browser gemerkt.
+ */
+export function pdfAusrichtung(vorgabe = 'quer', schluessel = '') {
+  let gemerkt = null;
+  try { gemerkt = schluessel ? localStorage.getItem(`untplan:pdf:${schluessel}`) : null; } catch { /* privat */ }
+  let wahl = gemerkt === 'hoch' || gemerkt === 'quer' ? gemerkt : vorgabe;
+  return new Promise(ok => {
+    const el = document.createElement('div');
+    el.className = 'u-pdf-wahl';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-label', 'Format wählen');
+    el.innerHTML = `<div class="u-pdf-wahl-box">
+        <div class="u-pdf-wahl-titel">Format des Formulars</div>
+        <div class="u-pdf-wahl-optionen">${[['hoch', 'Hochformat'], ['quer', 'Querformat']].map(([w, t]) => `
+          <button type="button" class="u-pdf-option ${w === wahl ? 'aktiv' : ''}" data-wahl="${w}" aria-pressed="${w === wahl}"><span class="u-pdf-blatt ${w}"><i></i><i></i><i></i></span>${t}${w === vorgabe ? '<small>empfohlen</small>' : ''}</button>`).join('')}</div>
+        <div class="u-pdf-wahl-fuss"><button type="button" class="btn btn-outline-secondary" data-abbrechen>Abbrechen</button><button type="button" class="btn btn-primary" data-ok>PDF erstellen</button></div>
+      </div>`;
+    const fertig = w => {
+      el.remove();
+      document.removeEventListener('keydown', taste, true);
+      if (w && schluessel) { try { localStorage.setItem(`untplan:pdf:${schluessel}`, w); } catch { /* privat */ } }
+      ok(w);
+    };
+    const taste = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); fertig(null); } else if (ev.key === 'Enter') { ev.preventDefault(); fertig(wahl); } };
+    el.querySelectorAll('[data-wahl]').forEach(b => {
+      b.onclick = () => { wahl = b.dataset.wahl; el.querySelectorAll('[data-wahl]').forEach(x => { x.classList.toggle('aktiv', x === b); x.setAttribute('aria-pressed', x === b); }); };
+      b.ondblclick = () => fertig(b.dataset.wahl);
+    });
+    el.querySelector('[data-abbrechen]').onclick = () => fertig(null);
+    el.querySelector('[data-ok]').onclick = () => fertig(wahl);
+    el.addEventListener('mousedown', ev => { if (ev.target === el) fertig(null); });
+    document.addEventListener('keydown', taste, true);
+    document.body.append(el);
+    el.querySelector('[data-ok]').focus();
+  });
+}
+
+/** Adresse um die Ausrichtung ergänzen. */
+export const mitAusrichtung = (url, ausrichtung) => `${url}${url.includes('?') ? '&' : '?'}ausrichtung=${ausrichtung}`;
+
+// Links auf PDF-Formulare der Schnittstelle (…/plan.pdf, …?format=pdf): vor dem Öffnen Hoch-/Querformat wählen.
+// Vorgabe über data-pdf="hoch|quer" am Link, sonst Querformat.
+if (typeof document !== 'undefined') document.addEventListener('click', async ev => {
+  const a = ev.target instanceof Element ? ev.target.closest('a[href]') : null;
+  if (!a || ev.defaultPrevented || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+  const href = a.getAttribute('href') || '';
+  if (!href.startsWith('/api/app/') || !/(\.pdf(\?|$))|[?&]format=pdf\b/.test(href) || /[?&]ausrichtung=/.test(href)) return;
+  ev.preventDefault();
+  const pfad = href.split('?')[0].replace(/\/\d+(?=\/|$)/g, '');
+  const w = await pdfAusrichtung(a.dataset.pdf === 'hoch' ? 'hoch' : 'quer', pfad);
+  if (!w) return;
+  const ziel = mitAusrichtung(href, w);
+  if (a.hasAttribute('download')) { const x = Object.assign(document.createElement('a'), { href: ziel, download: a.getAttribute('download') || '' }); document.body.append(x); x.click(); x.remove(); }
+  else window.open(ziel, a.target || '_self', a.target === '_blank' ? 'noopener' : '');
+});
+
+/** Browserdruck (z. B. Stundenplan) im gewählten Format: setzt @page für diesen Druck. */
+export async function druckenMitAusrichtung(vorgabe = 'quer', schluessel = 'druck') {
+  const w = await pdfAusrichtung(vorgabe, schluessel);
+  if (!w) return false;
+  const st = document.createElement('style');
+  st.textContent = `@page { size: A4 ${w === 'hoch' ? 'portrait' : 'landscape'}; }`;
+  document.head.append(st);
+  document.body.classList.toggle('druck-hoch', w === 'hoch');
+  const weg = () => { st.remove(); document.body.classList.remove('druck-hoch'); window.removeEventListener('afterprint', weg); };
+  window.addEventListener('afterprint', weg);
+  window.print();
+  setTimeout(weg, 1500);
+  return true;
+}

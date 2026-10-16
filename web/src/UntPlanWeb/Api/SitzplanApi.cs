@@ -19,7 +19,7 @@ public static class SitzplanApi
     /// <summary>Plan speichern bzw. drucken: Wirkungsbereich, Kontext der Stunde und Raster.</summary>
     public sealed record PlanDaten(string? Bereich, int? Unterricht, List<string>? Raeume, List<string>? Klassen, string? Lehrer, string? Klasse, string? Raum,
         int Zeilen, int Spalten, string? Pult, Dictionary<string, int>? Belegung, List<string>? OhneTisch,
-        bool VornameZuerst = false, bool Kurz = false, bool KlasseZeigen = false, string? Titel = null);
+        bool VornameZuerst = false, bool Kurz = false, bool KlasseZeigen = false, string? Titel = null, string? Ausrichtung = null);
 
     /// <summary>Klassen-Sitzplan (Seite „Sitzplan“).</summary>
     public sealed record KlassenplanDaten(int Zeilen, int Spalten, string? Pult, Dictionary<string, int>? Belegung, List<string>? OhneTisch);
@@ -168,7 +168,7 @@ public static class SitzplanApi
         // ---------------------------------------------------------------- Druck (PDF, Schwarz-Weiß)
 
         api.MapGet("/sitzplaene/pdf", (string? bereich, int? unterricht, string? raeume, string? klassen, string? lehrer, string? klasse, string? raum,
-            bool? vornameZuerst, bool? kurz, bool? klasseZeigen, HttpContext c, Paketdienst p, Sitzplandienst sd, Einstellungen es) =>
+            bool? vornameZuerst, bool? kurz, bool? klasseZeigen, string? ausrichtung, HttpContext c, Paketdienst p, Sitzplandienst sd, Einstellungen es) =>
         {
             var b = Kollegium(c);
             var s = Paket(p);
@@ -183,7 +183,8 @@ public static class SitzplanApi
                 raum ?? k.Raeume.FirstOrDefault(), Sitzplandienst.LehrerFuerRaum(b, s, k));
             if (plan is null) return Results.NotFound(new { fehler = "Für diese Stunde ist kein Sitzplan hinterlegt." });
             plan = plan with { Belegung = plan.Belegung.Where(x => ids.Contains(x.Value)).ToDictionary(x => x.Key, x => x.Value) };
-            var pdf = Sitzplandienst.Pdf(Schule(es, s), "Sitzplan", Untertitel(s, k, plan.Bereich), plan, schueler, vornameZuerst ?? false, kurz ?? false, klasseZeigen ?? false, b.Anzeigename);
+            var pdf = Sitzplandienst.Pdf(Schule(es, s), "Sitzplan", Untertitel(s, k, plan.Bereich), plan, schueler, vornameZuerst ?? false, kurz ?? false, klasseZeigen ?? false, b.Anzeigename,
+                PdfBericht.Hochformat(ausrichtung, false));
             return Results.File(pdf, "application/pdf", "sitzplan.pdf");
         });
 
@@ -197,7 +198,7 @@ public static class SitzplanApi
             var (zeilen, spalten, pult, belegung, ohne) = Sitzplandienst.Bereinigen(new SitzplanEingabe(d.Zeilen, d.Spalten, d.Pult, d.Belegung, d.OhneTisch), schueler.Select(x => x.Id).ToHashSet());
             var plan = new Sitzplan(d.Bereich ?? "", "", zeilen, spalten, pult, belegung, ohne, "", "");
             var pdf = Sitzplandienst.Pdf(Schule(es, s), d.Titel is { Length: > 0 and <= 120 } t ? t : "Sitzplan",
-                Untertitel(s, k, Sitzplandienst.IstBereich(d.Bereich) ? d.Bereich : null), plan, schueler, d.VornameZuerst, d.Kurz, d.KlasseZeigen, b.Anzeigename);
+                Untertitel(s, k, Sitzplandienst.IstBereich(d.Bereich) ? d.Bereich : null), plan, schueler, d.VornameZuerst, d.Kurz, d.KlasseZeigen, b.Anzeigename, PdfBericht.Hochformat(d.Ausrichtung, false));
             return Results.File(pdf, "application/pdf", "sitzplan.pdf");
         });
     }

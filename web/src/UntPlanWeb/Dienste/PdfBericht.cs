@@ -4,14 +4,39 @@ using System.Text;
 namespace UntPlanWeb.Dienste;
 
 /// <summary>
-/// Schlanker PDF-Erzeuger für Berichte als schlichtes Schulformular in Schwarz-Weiß (ohne Fremdbibliothek, ohne Logo): A4 quer,
+/// Schlanker PDF-Erzeuger für Berichte als schlichtes Schulformular in Schwarz-Weiß (ohne Fremdbibliothek, ohne Logo): A4 quer oder hoch,
 /// Kopf mit Schule und Erstellungsdatum, schwarze Trennlinie, Titel mit Zeitraum, Tabelle mit umrandeter Kopfzeile (auf jeder Seite
 /// wiederholt), rechtsbündigen Zahlenspalten und feinen Zeilenlinien, Summenzeile, Hinweis, Unterschriftsfeld und Fußzeile „Seite x von y“.
 /// Schrift Helvetica (WinAnsi, Umlaute und ß).
 /// </summary>
 public static partial class PdfBericht
 {
-    private const float Breite = 841.89f, Hoehe = 595.28f, Rand = 40f;
+    private const float A4Lang = 841.89f, A4Kurz = 595.28f, Rand = 40f;
+    /// <summary>Ausrichtung der gerade erzeugten Datei (je Thread, die Erzeugung ist synchron).</summary>
+    [ThreadStatic] private static bool _hoch;
+    private static float Breite => _hoch ? A4Kurz : A4Lang;
+    private static float Hoehe => _hoch ? A4Lang : A4Kurz;
+
+    /// <summary>Ausrichtung aus einer Anfrage: „hoch“ bzw. „quer“, sonst die Vorgabe des Formulars.</summary>
+    public static bool Hochformat(string? ausrichtung, bool vorgabe) => ausrichtung?.Trim().ToLowerInvariant() switch
+    {
+        "hoch" or "hochformat" or "portrait" => true,
+        "quer" or "querformat" or "landscape" => false,
+        _ => vorgabe,
+    };
+
+    private static byte[] MitAusrichtung(bool hoch, Func<byte[]> erzeugen)
+    {
+        var alt = _hoch;
+        _hoch = hoch;
+        try { return erzeugen(); }
+        finally { _hoch = alt; }
+    }
+
+    /// <param name="hochformat">A4 hoch statt quer (schmalere Tabelle, mehr Zeilen je Seite).</param>
+    public static byte[] Erzeugen(string schule, string titel, string untertitel, IReadOnlyList<string> spalten, IReadOnlyList<IReadOnlyList<string>> zeilen,
+        string? hinweis, string? ersteller, bool unterschrift, bool hochformat) =>
+        MitAusrichtung(hochformat, () => Erzeugen(schule, titel, untertitel, spalten, zeilen, hinweis, ersteller, unterschrift));
     private const float Schrift = 8.5f, Zeile = 16f;
     private const string Seitenzahl = "@@SEITEN@@";
 

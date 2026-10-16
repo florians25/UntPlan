@@ -4,7 +4,7 @@
 //   Anmeldehistorie und Konto-Aktionen.
 // - Personen (Lehrkräfte, Schüler*innen, Erziehungsberechtigte, sonstiges Personal) mit Konto-Status; fehlende Konten einzeln oder
 //   gesammelt nach Login-Schema anlegen, Zugangsdaten als CSV bzw. PDF (Schwarz-Weiß).
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, heuteIso, leer, alarm, initialen, herunterladen } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, heuteIso, leer, alarm, initialen, herunterladen, pdfAusrichtung } from '../ui.js';
 
 const ROLLEN = { admin: 'Administration', leitung: 'Schulleitung', lehrer: 'Lehrkraft', schueler: 'Schüler*in / Klasse', eltern: 'Erziehungsberechtigte*r' };
 const KOLLEGIUM = ['admin', 'leitung', 'lehrer'];
@@ -43,8 +43,10 @@ export function zugangsdaten(titel, r) {
     knoepfe: [
       { text: `${icon('csv')} CSV`, aktion: () => { herunterladen(`zugangsdaten-${heuteIso()}.csv`, r.csv); return false; } },
       { text: `${icon('drucken')} PDF (S/W)`, aktion: async () => {
+        const ausrichtung = await pdfAusrichtung('hoch', 'zugangsdaten');
+        if (!ausrichtung) return false;
         const antwort = await fetch('/api/app/admin/personen/zugangsdaten.pdf', { method: 'POST', credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ konten: r.konten, titel }) });
+          body: JSON.stringify({ konten: r.konten, titel, ausrichtung }) });
         if (!antwort.ok) throw new Error((await antwort.json().catch(() => ({}))).fehler ?? 'PDF konnte nicht erzeugt werden.');
         herunterladen(`zugangsdaten-${heuteIso()}.pdf`, await antwort.blob());
         return false;

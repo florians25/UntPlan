@@ -15,6 +15,10 @@ namespace UntPlanWeb.Api;
 /// <c>POST /{id}/termine</c> (manuell), <c>PUT /{id}/termine/{tid}</c> (verschieben), <c>GET /{id}/plan.pdf</c>.</item>
 /// <item>Eltern: <c>GET /{id}/eltern</c> (Kinder, Lehrkräfte, freie Zeitfenster, Einladungen, Termine), <c>POST /{id}/buchen</c>, <c>GET /{id}/elternplan.pdf</c>.</item>
 /// <item><c>DELETE /{id}/termine/{tid}</c>: Storno (Administration, Lehrkraft des Termins, Eltern des Kindes im Anmeldezeitraum).</item>
+/// <item>Absagen: <c>POST /{id}/termine/{tid}/absagen</c> (Termin mit Grund – Eltern bis zum Sprechtag, Lehrkraft, Administration; die andere Seite
+/// erhält eine Mitteilung), <c>POST /{id}/teilnahme/absagen</c> bzw. <c>/teilnahme/wiederaufnehmen</c> (Lehrkraft; Administration mit <c>lehrer</c>),
+/// <c>POST /{id}/absagen</c> (Administration: ganzer Sprechtag, alle Beteiligten werden benachrichtigt).</item>
+/// <item>PDF-Formulare mit <c>?ausrichtung=hoch|quer</c> (Vorgabe: Terminplan einer Lehrkraft und Elternplan hoch, Gesamtplan quer).</item>
 /// </list>
 /// </summary>
 public static class SprechtagApi
@@ -384,7 +388,7 @@ public static class SprechtagApi
             return Results.Json(new { termine, benachrichtigt = n });
         });
 
-        api.MapGet("/{id:int}/plan.pdf", (int id, string? lehrer, bool? leer, HttpContext c, Sprechtagdienst d, Paketdienst p, Benutzerdienst bd, Einstellungen e) =>
+        api.MapGet("/{id:int}/plan.pdf", (int id, string? lehrer, bool? leer, string? ausrichtung, HttpContext c, Sprechtagdienst d, Paketdienst p, Benutzerdienst bd, Einstellungen e) =>
         {
             var b = Ich(c);
             var t = Sichtbar(d, b, id);
@@ -409,7 +413,8 @@ public static class SprechtagApi
             if (alle) spalten.Insert(0, "Lehrkraft");
             var titel = alle ? $"Terminplan {t.Name}" : $"Terminplan {Sprechtagdienst.LehrerName(s, liste[0])}";
             var pdf = PdfBericht.Erzeugen(Schule(e, p), titel, $"{t.Name} · {DatumText(t.Datum)} · {t.Beginn}–{t.Ende} Uhr", spalten, zeilen,
-                leer == true ? "Freie Zeilen: Erziehungsberechtigte ohne Termin können sich hier spontan eintragen." : null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, unterschrift: false);
+                leer == true ? "Freie Zeilen: Erziehungsberechtigte ohne Termin können sich hier spontan eintragen." : null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false,
+                PdfBericht.Hochformat(ausrichtung, !alle));
             return Results.File(pdf, "application/pdf", $"sprechtag-{t.Datum}{(alle ? "" : "-" + liste[0].ToLowerInvariant())}.pdf");
         });
 
@@ -463,7 +468,7 @@ public static class SprechtagApi
             return Results.Json(new { x.Id, x.Lehrer, x.Beginn, x.Ende, x.SchuelerId });
         });
 
-        api.MapGet("/{id:int}/elternplan.pdf", (int id, HttpContext c, Sprechtagdienst d, Paketdienst p, Einstellungen e) =>
+        api.MapGet("/{id:int}/elternplan.pdf", (int id, string? ausrichtung, HttpContext c, Sprechtagdienst d, Paketdienst p, Einstellungen e) =>
         {
             var b = Eltern(c);
             var t = Sichtbar(d, b, id);
@@ -475,7 +480,7 @@ public static class SprechtagApi
                     k is null ? "" : $"{k.Vorname} {k.Name}", k?.Klasse ?? "", x.Bemerkung };
             }).ToList();
             var pdf = PdfBericht.Erzeugen(Schule(e, p), "Meine Termine am Sprechtag", $"{t.Name} · {DatumText(t.Datum)}",
-                new[] { "Zeit", "Lehrkraft", "Raum", "Kind", "Klasse", "Bemerkung" }, zeilen, null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, unterschrift: false);
+                new[] { "Zeit", "Lehrkraft", "Raum", "Kind", "Klasse", "Bemerkung" }, zeilen, null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false, PdfBericht.Hochformat(ausrichtung, true));
             return Results.File(pdf, "application/pdf", $"sprechtag-{t.Datum}-termine.pdf");
         });
     }

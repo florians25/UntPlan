@@ -2,7 +2,7 @@
 // Datumsbereich als Pille mit Kalender (Kalenderwochen, Woche markiert, Wochenende gestrichen), weißer „Heute“-Knopf rechts,
 // Raster mit Zeitspalte und Jetzt-Linie, Legende als schwebende Pillenleiste mit Menü „⋮“ (Symbole anzeigen, Abwesenheiten,
 // Drucken, Öffentlichen Link kopieren), Hilfe unten rechts. Keine A/B-Woche im Kopf.
-import { e, icon, holen, heuteIso, plusTage, montag, lade, dialog, toast } from '../ui.js';
+import { e, icon, holen, heuteIso, plusTage, montag, lade, dialog, toast, druckenMitAusrichtung } from '../ui.js';
 import { wochenGitter, tagAuswahl, kartenBinden } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
 
@@ -182,7 +182,7 @@ export function legendeBinden(wurzel, aus, einst, neuZeichnen) {
     einstellungenSpeichern(einst);
     neuZeichnen(true);
   });
-  wurzel.querySelector('[data-drucken]')?.addEventListener('click', () => { menue.classList.add('d-none'); window.print(); });
+  wurzel.querySelector('[data-drucken]')?.addEventListener('click', () => { menue.classList.add('d-none'); druckenMitAusrichtung('quer', 'stundenplan'); });
   wurzel.querySelector('[data-link]').onclick = async () => {
     menue.classList.add('d-none');
     try { await navigator.clipboard.writeText(location.href); toast('Link in die Zwischenablage kopiert.'); }

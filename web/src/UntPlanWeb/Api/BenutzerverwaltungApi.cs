@@ -14,7 +14,7 @@ public static class BenutzerverwaltungApi
 {
     public sealed record SammelDaten(string? Aktion, List<int>? Ids, string? Rolle);
     public sealed record KontenDaten(string? Art, List<string>? Schluessel, string? Klasse, string? Schema, string? Rolle);
-    public sealed record ZugangsDaten(List<NeuesKonto>? Konten, string? Titel);
+    public sealed record ZugangsDaten(List<NeuesKonto>? Konten, string? Titel, string? Ausrichtung = null);
 
     private static Benutzer Admin(HttpContext c)
     {
@@ -159,7 +159,7 @@ public static class BenutzerverwaltungApi
                 new[] { "Name", "Klasse / Kürzel", "Rolle", "Benutzername", "Startpasswort" },
                 konten.Select(k => (IReadOnlyList<string>)new[] { k.Name, k.Klasse.Length > 0 ? k.Klasse : k.Zuordnung, Rollen.Name(k.Rolle), k.Login, k.Passwort }).ToList(),
                 "Das Startpasswort muss bei der ersten Anmeldung geändert werden. Bitte diese Liste vertraulich behandeln und nach dem Verteilen vernichten.",
-                ich.Anzeigename.Length > 0 ? ich.Anzeigename : ich.Login, unterschrift: false);
+                ich.Anzeigename.Length > 0 ? ich.Anzeigename : ich.Login, false, PdfBericht.Hochformat(d.Ausrichtung, true));
             return Results.File(pdf, "application/pdf", "zugangsdaten.pdf");
         });
     }

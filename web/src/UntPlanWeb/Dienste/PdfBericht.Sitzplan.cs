@@ -5,11 +5,15 @@ namespace UntPlanWeb.Dienste;
 public static partial class PdfBericht
 {
     /// <summary>
-    /// Sitzplan als schlichtes Schwarz-Weiß-Formular (A4 quer, eine Seite): Kopf wie bei Berichten, Titel, Pult als schwarzer Balken
+    /// Sitzplan als schlichtes Schwarz-Weiß-Formular (A4 quer oder hoch, eine Seite): Kopf wie bei Berichten, Titel, Pult als schwarzer Balken
     /// vorne (oben) oder hinten (unten, Sicht vom Pult – Reihen und Plätze gespiegelt), Tische als umrandete Kästen mit Name
     /// (und Klasse), Plätze ohne Tisch bleiben leer, darunter „Ohne Platz“.
     /// </summary>
     /// <param name="plaetze">Alle Plätze (Reihe 1 = am Pult) mit Name, optional Klasse, und ob dort ein Tisch steht.</param>
+    public static byte[] Sitzplan(string schule, string titel, string untertitel, int zeilen, int spalten, bool pultHinten,
+        IReadOnlyList<(int Reihe, int Spalte, string? Name, string? Klasse, bool Tisch)> plaetze, IReadOnlyList<string> ohnePlatz, string? ersteller, bool hochformat) =>
+        MitAusrichtung(hochformat, () => Sitzplan(schule, titel, untertitel, zeilen, spalten, pultHinten, plaetze, ohnePlatz, ersteller));
+
     public static byte[] Sitzplan(string schule, string titel, string untertitel, int zeilen, int spalten, bool pultHinten,
         IReadOnlyList<(int Reihe, int Spalte, string? Name, string? Klasse, bool Tisch)> plaetze, IReadOnlyList<string> ohnePlatz, string? ersteller)
     {

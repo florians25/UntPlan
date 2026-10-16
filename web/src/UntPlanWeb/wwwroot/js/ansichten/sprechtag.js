@@ -269,7 +269,7 @@ async function uebersicht(seite, kontext, info) {
     <div class="nl-tabelle"><table><thead><tr><th>Lehrkraft</th><th>Raum</th><th class="text-end">Termine</th><th class="text-end">Frei</th><th class="text-end">Gesperrt</th><th class="text-end">Einladungen</th><th></th></tr></thead><tbody>
       ${info.uebersicht.map(l => `<tr data-lehrer="${e(l.lehrer)}" tabindex="0"><td><span class="nl-name">${e(l.name)}</span> <span class="nl-tag">${e(l.lehrer)}</span>${abgesagt.has(l.lehrer) ? ' <span class="nl-chip rot">abgesagt</span>' : ''}</td>
         <td>${l.raum ? e(l.raum) : '<span class="nl-unter">–</span>'}</td><td class="text-end">${l.gebucht}</td><td class="text-end">${l.frei}</td><td class="text-end">${l.gesperrt}</td><td class="text-end">${l.einladungen}</td>
-        <td class="text-end text-nowrap"><a class="nl-icon sichtbar" href="${BASIS}/${t.id}/plan.pdf?lehrer=${encodeURIComponent(l.lehrer)}" target="_blank" rel="noopener" title="Terminplan (PDF)" aria-label="Terminplan als PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+        <td class="text-end text-nowrap"><a class="nl-icon sichtbar" href="${BASIS}/${t.id}/plan.pdf?lehrer=${encodeURIComponent(l.lehrer)}" data-pdf="hoch" target="_blank" rel="noopener" title="Terminplan (PDF)" aria-label="Terminplan als PDF"><i class="bi bi-file-earmark-pdf"></i></a>
           <i class="bi bi-chevron-right text-body-tertiary"></i></td></tr>`).join('')}</tbody></table></div>`;
   seite.querySelectorAll('tr[data-lehrer]').forEach(tr => {
     const auf = ev => { if (ev.target.closest('a')) return; kontext.navigieren(`#/sprechtag/${t.id}/lehrer/${encodeURIComponent(tr.dataset.lehrer)}`); };
@@ -377,8 +377,8 @@ async function lehrkraft(seite, kontext, id, lehrer) {
       <section class="st-karte st-termine">
         <header><i class="bi bi-person-video3"></i><h2>Meine Termine</h2><span class="nl-zahl gelb ms-2"><b>${gebucht}</b> gebucht</span>${gesperrt ? `<span class="nl-zahl rot"><b>${gesperrt}</b> gesperrt</span>` : ''}
           <span class="ms-auto d-flex gap-2 flex-wrap">
-            <a class="nl-knopf" href="${BASIS}/${id}/plan.pdf${q}" target="_blank" rel="noopener" title="Liste der gebuchten Termine als PDF">${icon('file-earmark-pdf')}Terminliste</a>
-            <a class="nl-knopf" href="${BASIS}/${id}/plan.pdf?leer=true${qa}" target="_blank" rel="noopener" title="Alle Zeitfenster als PDF, z. B. zum Aushang an der Tür">${icon('printer')}Aushang</a></span></header>
+            <a class="nl-knopf" href="${BASIS}/${id}/plan.pdf${q}" data-pdf="hoch" target="_blank" rel="noopener" title="Liste der gebuchten Termine als PDF">${icon('file-earmark-pdf')}Terminliste</a>
+            <a class="nl-knopf" href="${BASIS}/${id}/plan.pdf?leer=true${qa}" data-pdf="hoch" target="_blank" rel="noopener" title="Alle Zeitfenster als PDF, z. B. zum Aushang an der Tür">${icon('printer')}Aushang</a></span></header>
         <div class="st-tag">${e(t.datumText)}</div>
         <div class="nl-tabelle st-zeitraster"><table><thead><tr><th class="nl-wahl"><span class="visually-hidden">Wahl</span></th><th>Termin</th><th>Schüler*in</th><th>Klasse</th><th>Hinweis</th><th></th></tr></thead>
           <tbody>${d.zeitfenster.map(zeile).join('')}</tbody></table>
@@ -491,7 +491,7 @@ async function eltern(seite, kontext, id) {
   const d = await holen(`${BASIS}/${id}/eltern`);
   const t = d.sprechtag;
   const neu = () => eltern(seite, kontext, id);
-  kontext.titel(t.name, `<a class="nl-knopf" href="${BASIS}/${id}/elternplan.pdf" target="_blank" rel="noopener">${icon('file-earmark-pdf')}Meine Termine (PDF)</a>`);
+  kontext.titel(t.name, `<a class="nl-knopf" href="${BASIS}/${id}/elternplan.pdf" data-pdf="hoch" target="_blank" rel="noopener">${icon('file-earmark-pdf')}Meine Termine (PDF)</a>`);
   const termine = d.termine.slice().sort((a, b) => a.beginn.localeCompare(b.beginn));
   const lehrerZeile = (k, l) => {
     const faecher = l.faecher.length ? l.faecher.join(', ') : '';

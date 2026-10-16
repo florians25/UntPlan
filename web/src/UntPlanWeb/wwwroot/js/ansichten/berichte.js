@@ -1,6 +1,6 @@
 // Klassenbuch → Berichte im nl-design: Filterleiste (Klasse, Schüler*in, Zeitraum), Reiter je Berichtsgruppe, Berichte als ruhige Liste
 // (Symbol, Titel, Beschreibung, rechts Anzeigen/PDF/CSV); Parameter im Seitenpanel. Vorschau oberhalb der Liste.
-import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade } from '../ui.js';
+import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade, pdfAusrichtung, druckenMitAusrichtung } from '../ui.js';
 
 const ALIAS = { fehlzeiten: 'fehlzeiten_schueler', lehrstoff: 'arbeitsbericht_tag' };
 const GRUPPEN = {
@@ -130,13 +130,16 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     if (a.id === 'entschuldigungsschreiben') {
       // Entschuldigungsschreiben: Druckansicht (je Schüler*in eine Seite)
       document.querySelector('.br-panel-huelle')?.remove();
-      if (a.id === art) { window.print(); return; }
+      if (a.id === art) { druckenMitAusrichtung('hoch', 'entschuldigungsschreiben'); return; }
       sessionStorage.setItem('untplan:berichtdruck', '1');
       kontext.navigieren(ziel(a.id, p.klasse, p.von, p.bis, p.schueler, p.n1, p.n2));
       return;
     }
+    // PDF: Hoch- oder Querformat wählen
+    const ausrichtung = format === 'pdf' ? await pdfAusrichtung('quer', 'bericht') : null;
+    if (format === 'pdf' && !ausrichtung) return;
     if (knopf) knopf.disabled = true;
-    try { herunterladen(`${a.id}-${p.klasse || 'alle'}-${p.von}-${p.bis}.${format}`, await holeDatei(`/api/app/berichte/erstellen/${a.id}?${abfrage(p)}&format=${format}`)); }
+    try { herunterladen(`${a.id}-${p.klasse || 'alle'}-${p.von}-${p.bis}.${format}`, await holeDatei(`/api/app/berichte/erstellen/${a.id}?${abfrage(p)}&format=${format}${ausrichtung ? `&ausrichtung=${ausrichtung}` : ''}`)); }
     catch (err) { kontext.fehler(err); }
     finally { if (knopf) knopf.disabled = false; }
   }
@@ -236,6 +239,8 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     vorschau.querySelector('[data-v-pdf]').onclick = ev => exportieren(a, p, 'pdf', ev.currentTarget);
     vorschau.querySelector('[data-v-csv]').onclick = ev => exportieren(a, p, 'csv', ev.currentTarget);
   }
-  vorschau.querySelector('[data-v-drucken]').onclick = () => window.print();
-  if (sessionStorage.getItem('untplan:berichtdruck')) { sessionStorage.removeItem('untplan:berichtdruck'); setTimeout(() => window.print(), 300); }
+  // Druck im Hoch- bzw. Querformat (Entschuldigungsschreiben als Brief hoch, Tabellen quer)
+  const druck = () => druckenMitAusrichtung(art === 'entschuldigungsschreiben' ? 'hoch' : 'quer', art === 'entschuldigungsschreiben' ? 'entschuldigungsschreiben' : 'bericht-druck');
+  vorschau.querySelector('[data-v-drucken]').onclick = druck;
+  if (sessionStorage.getItem('untplan:berichtdruck')) { sessionStorage.removeItem('untplan:berichtdruck'); setTimeout(druck, 300); }
 }

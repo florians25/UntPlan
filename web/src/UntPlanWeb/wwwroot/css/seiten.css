@@ -386,3 +386,19 @@ a.s-pille { text-decoration: none !important; }
 }
 .u-hover-label.grau { background: #eef0f2; color: #24323d; border: 1px solid #d6dbe0; box-shadow: 0 3px 10px rgba(0, 5, 10, .12); font-size: 12.5px; font-weight: 500; padding: 6px 10px; border-radius: 6px; }
 .std .mehr[data-hover] { cursor: default; }
+
+/* Auswahl Hoch-/Querformat vor dem Erstellen eines Formulars */
+.u-pdf-wahl { position: fixed; inset: 0; z-index: 2100; background: rgba(36, 50, 61, .35); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.u-pdf-wahl-box { background: #fff; border-radius: 12px; box-shadow: 0 10px 40px rgba(0, 5, 10, .25); padding: 18px 20px 16px; width: 100%; max-width: 360px; font-family: var(--u-schrift); }
+.u-pdf-wahl-titel { font-weight: 700; color: var(--u-titel, #24323d); margin-bottom: 12px; }
+.u-pdf-wahl-optionen { display: flex; gap: 10px; }
+.u-pdf-option { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px 10px; border: 1.5px solid #d6dbe0; border-radius: 10px; background: #fff; font-size: .85rem; font-weight: 600; color: var(--u-titel, #24323d); }
+.u-pdf-option small { font-weight: 500; color: #8a96a1; font-size: .7rem; margin-top: -4px; }
+.u-pdf-option.aktiv { border-color: var(--u-akzent); background: #fff7f2; }
+.u-pdf-blatt { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 6px; border: 1.5px solid #8a96a1; border-radius: 2px; background: #fff; }
+.u-pdf-blatt.hoch { width: 34px; height: 46px; }
+.u-pdf-blatt.quer { width: 46px; height: 34px; }
+.u-pdf-blatt i { display: block; height: 2px; background: #c3cad0; }
+.u-pdf-option.aktiv .u-pdf-blatt { border-color: var(--u-akzent); }
+.u-pdf-wahl-fuss { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.u-pdf-wahl-fuss .btn { border-radius: 999px; }

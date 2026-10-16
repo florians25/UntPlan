@@ -3,7 +3,7 @@
 // „Meine Abwesenheiten“ (Zeiträume) und „Fehlzeiten“ (je Unterrichtsstunde), Hausaufgaben (Datum + Woche/Monat).
 // Erziehungsberechtigte mit mehreren Kindern wählen das Kind in der Filterleiste. Alle Daten kommen aus /api/app/familie/…,
 // der Server prüft Rolle und Zuordnung.
-import { e, holen, heuteIso, plusTage, toast } from '../ui.js';
+import { e, holen, heuteIso, plusTage, toast, pdfAusrichtung } from '../ui.js';
 
 const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const STATUS = { offen: ['gelb', 'offen'], entschuldigt: ['gruen', 'entschuldigt'], unentschuldigt: ['rot', 'nicht entschuldigt'] };
@@ -130,7 +130,9 @@ export async function abwesenheiten(seite, kontext, [reiterParam, vonParam, stat
   seite.querySelector('[data-alle]')?.addEventListener('change', ev => seite.querySelectorAll('[data-i]').forEach(c => { c.checked = ev.target.checked; }));
   seite.querySelector('[data-brief]')?.addEventListener('click', async () => {
     const ids = [...seite.querySelectorAll('[data-i]:checked')].map(c => zeilen[Number(c.dataset.i)].ids[0]);
-    const url = `/api/app/familie/entschuldigung?schueler=${kind.id}&von=${von}&bis=${bis}${ids.length ? `&ids=${ids.join(',')}` : ''}`;
+    const ausrichtung = await pdfAusrichtung('hoch', 'entschuldigung');
+    if (!ausrichtung) return;
+    const url = `/api/app/familie/entschuldigung?schueler=${kind.id}&von=${von}&bis=${bis}${ids.length ? `&ids=${ids.join(',')}` : ''}&ausrichtung=${ausrichtung}`;
     // Fehler (z. B. nichts zu entschuldigen) als Meldung statt als leere Seite
     const antwort = await fetch(url, { credentials: 'same-origin' });
     if (!antwort.ok) { toast((await antwort.json().catch(() => null))?.fehler ?? 'Das Entschuldigungsschreiben konnte nicht erstellt werden.', true); return; }
