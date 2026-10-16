@@ -19,7 +19,11 @@ public sealed partial class HauptFenster
         var d = Demo.Beispielschule();
         var erg = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 1 });
         d.AktivePeriode.Plan = erg.OrderBy(e => e.Kennzahlen.Bewertung).First().Plan;
+        d.Einstellungen.Adresse = "Asselborner Weg 101, 51429 Bergisch Gladbach";
         AppZustand.Setzen(new Dokument(d));
+        // ein einzelner Plan im kleinen Format: trotzdem das vollständige Formular mit Unterrichtsliste
+        StundenplanDruck.Bilder(ElementTyp.Klasse, new List<int> { d.Klassen[0].Id }, new StundenplanFormat { Typ = ElementTyp.Klasse, Gross = false, Schriftgroesse = 8 })[0]
+            .Save(Path.Combine(ordner, "druck_einzeln_klein.png"));
         foreach (var (typ, name) in new[] { (ElementTyp.Klasse, "klasse"), (ElementTyp.Lehrer, "lehrer"), (ElementTyp.Raum, "raum") })
         {
             var ids = Stammdaten.Sortiert(d, typ).Take(2).Select(e => e.Id).ToList();

@@ -31,7 +31,7 @@ internal static class StundenplanFormular
         var abstand = 28;
         var breite = (r.Width - (ids.Count - 1) * abstand) / Math.Max(1, ids.Count);
         for (var i = 0; i < ids.Count; i++)
-            Plan(g, new Rectangle(r.Left + i * (breite + abstand), oben, breite, unten - oben), d, ix, typ, ids[i], kompakt || ids.Count > 1);
+            Plan(g, new Rectangle(r.Left + i * (breite + abstand), oben, breite, unten - oben), d, ix, typ, ids[i], ids.Count > 1);
     }
 
     // ------------------------------------------------------------------------------------------ Kopf und Fuß
@@ -44,7 +44,7 @@ internal static class StundenplanFormular
         g.DrawString(e.Schulname, fett, Brushes.Black, r.Left, r.Top);
         var zweite = e.Schulname2.Length > 0 ? e.Schulname2 : e.Adresse;
         if (zweite.Length > 0) g.DrawString(zweite, normal, Brushes.Black, r.Left, r.Top + 15);
-        var x2 = r.Left + Math.Max(160, (int)g.MeasureString(e.Schulname, fett).Width + 24);
+        var x2 = r.Left + Math.Max(160, (int)Math.Max(g.MeasureString(e.Schulname, fett).Width, zweite.Length > 0 ? g.MeasureString(zweite, normal).Width : 0) + 28);
         g.DrawString($"Stundenplan {e.SchuljahrVon.Year}/{e.SchuljahrVon.Year + 1}", normal, Brushes.Black, x2, r.Top + 1);
         g.DrawString($"Gilt ab: {d.AktivePeriode.Von.ToString("d. MMMM", De)}", normal, Brushes.Black, x2, r.Top + 15);
         using var rechts = new StringFormat { Alignment = StringAlignment.Far };
@@ -140,7 +140,16 @@ internal static class StundenplanFormular
         var pauseH = 14;
         var anzahlP = zeilen.Count(z => z.Stunde == 0);
         var zeileH = Math.Clamp((r.Height - kopfH - anzahlP * pauseH) / Math.Max(1, stunden), 18, kompakt ? 44 : 48);
-        var stdB = kompakt ? 58 : 70;
+        // Stundenspalte so breit, dass zweistellige Nummern und die Uhrzeit nebeneinander passen
+        float nrB, zeitB;
+        using (var mNr = new Font(Schrift, kompakt ? 13f : 16f, FontStyle.Bold))
+        using (var mZeit = new Font(Schrift, 6.5f))
+        {
+            nrB = Enumerable.Range(1, stunden).Max(st => g.MeasureString((zr.ErsteStundennummer - 1 + st).ToString(De), mNr).Width);
+            zeitB = Enumerable.Range(1, stunden).Select(zr.Zeit).Where(z => z != null)
+                .Select(z => g.MeasureString($"{z!.Beginn:H\\:mm}-{z.Ende:H\\:mm}", mZeit).Width).DefaultIfEmpty(0).Max();
+        }
+        var stdB = (int)Math.Ceiling(Math.Max(kompakt ? 58 : 70, nrB + zeitB + 4));
         var tagB = (r.Width - stdB) / (float)tages(tage);
         var hoehe = kopfH + anzahlP * pauseH + stunden * zeileH;
         var y0 = r.Top;
@@ -208,7 +217,7 @@ internal static class StundenplanFormular
             {
                 var txt = $"{zeit.Beginn:H\\:mm}-{zeit.Ende:H\\:mm}";
                 var zb = g.MeasureString(txt, fZeit);
-                g.DrawString(txt, fZeit, Brushes.Black, r.Left + nb.Width, yy + (hh - zb.Height) / 2 + 2);
+                g.DrawString(txt, fZeit, Brushes.Black, r.Left + nrB, yy + (hh - zb.Height) / 2 + 2);
             }
         }
         // Pausenzeilen über die Tagesspalten
