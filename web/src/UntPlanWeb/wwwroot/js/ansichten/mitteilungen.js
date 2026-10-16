@@ -108,7 +108,7 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   const eintrag = (m, i) => `
     <button type="button" class="mt-eintrag ${ordner === 'eingang' && !m.gelesen ? 'neu' : ''}" data-i="${i}"
       data-text="${e((m.betreff + ' ' + m.absender + ' ' + m.text + ' ' + m.empfaenger.join(' ') + ' ' + (m.empfaengerText || '') + ' ' + (m.anhaenge || []).map(a => a.name).join(' ')).toLowerCase())}">
-      <span class="u-avatar">${e(kuerzel(ordner === 'eingang' ? m.absender : m.empfaenger[0] ?? m.empfaengerText ?? 'E'))}</span>
+      <span class="u-avatar">${e(kuerzel(ordner === 'eingang' ? m.absender : m.empfaengerText || m.empfaenger[0] || 'E'))}</span>
       <span class="rumpf">
         <span class="kopf"><span class="name">${e(kopfName(m))}</span><span class="zeit">${m.anhaenge?.length ? '<i class="bi bi-paperclip" aria-label="mit Anhang"></i>' : ''}${e(zeit(m.erstellt))}</span></span>
         <span class="betreff">${m.wichtig ? '<span class="mt-wichtig">wichtig</span>' : ''}${m.antwortAuf ? '<i class="bi bi-reply mt-antwort-symbol" aria-hidden="true"></i>' : ''}${e(m.betreff || '(ohne Betreff)')}</span>
@@ -224,7 +224,9 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
       try {
         await senden(`${BASIS}/${m.id}/gelesen`, {});
         m.gelesen = new Date().toISOString();
-        seite.querySelector(`[data-i="${i}"]`)?.classList.remove('neu');
+        seite.querySelectorAll(`[data-i="${i}"]`).forEach(x => x.classList.remove('neu'));
+        const z = seite.querySelector('.mt-zaehler');
+        if (z) { const n = Number(z.textContent) - 1; if (n > 0) z.textContent = n; else z.remove(); }
         await kontext.sitzungNeu();
       } catch { /* nicht kritisch */ }
     }

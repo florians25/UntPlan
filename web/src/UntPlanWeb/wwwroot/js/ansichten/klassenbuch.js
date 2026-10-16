@@ -468,6 +468,9 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
     });
     listeEl.querySelectorAll('[data-datumwahl]').forEach(b => b.onclick = () => datumMenue(b));
   };
+  let letzterScroll = 0;
+  const beimScrollen = () => { letzterScroll = performance.now(); if (!seite.isConnected) window.removeEventListener('scroll', beimScrollen); };
+  window.addEventListener('scroll', beimScrollen, { passive: true });
   // Nachladen; Position bleibt beim Voranstellen erhalten
   const nachladen = async richtung => {
     if (ladend) return false;
@@ -477,6 +480,8 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       const a = richtung < 0 ? begrenzt(plusTage(von, -BLOCK)) : plusTage(bis, 1);
       const b = richtung < 0 ? plusTage(von, -1) : begrenzt(plusTage(bis, BLOCK));
       await holeBereich(a, b);
+      // erst zeichnen, wenn das (weiche) Scrollen zur Ruhe gekommen ist – sonst überschreibt die laufende Bewegung die Korrektur
+      while (seite.isConnected && performance.now() - letzterScroll < 180) await new Promise(ok => setTimeout(ok, 60));
       if (!seite.isConnected) return false;
       const anker = ankerMerken();
       if (richtung < 0) von = a; else bis = b;
@@ -502,7 +507,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
   };
   const ankerHerstellen = anker => {
     const x = anker && (listeEl.querySelector(`[data-datum="${anker.datum}"]`) ?? [...listeEl.querySelectorAll('[data-datum]')].find(t => t.dataset.datum >= anker.datum));
-    if (x) window.scrollBy(0, x.getBoundingClientRect().top - anker.top);
+    if (x) window.scrollTo({ top: window.scrollY + x.getBoundingClientRect().top - anker.top, behavior: 'instant' });
   };
   async function aktualisieren() {
     const anker = ankerMerken();
@@ -510,7 +515,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
   }
   const springen = d => {
     const ziel2 = listeEl.querySelector(`[data-datum="${d}"]`) ?? [...listeEl.querySelectorAll('[data-datum]')].find(x => x.dataset.datum >= d);
-    if (ziel2) window.scrollTo(0, ziel2.getBoundingClientRect().top + window.scrollY - (document.getElementById('werkzeug')?.getBoundingClientRect().bottom ?? 0) - 12);
+    if (ziel2) window.scrollTo({ top: ziel2.getBoundingClientRect().top + window.scrollY - (document.getElementById('werkzeug')?.getBoundingClientRect().bottom ?? 0) - 12, behavior: 'instant' });
   };
   // Datumspille: Heute, Schuljahresbeginn, Schuljahresende, Kalender öffnen
   const kalender = seite.querySelector('[data-kalender]');
