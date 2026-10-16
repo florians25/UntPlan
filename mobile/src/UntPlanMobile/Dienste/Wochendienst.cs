@@ -34,10 +34,15 @@ public sealed class Wochendienst
         var res = new List<object>();
         foreach (var c in k.Elemente.Klassen)
             res.Add(new { type = "class", id = c.Kurz, label = c.Kurz, info = KlassenInfo(c, lehrerName), classTeacher = string.Join(", ", c.Leitung ?? new()) });
-        foreach (var l in k.Elemente.Lehrer) res.Add(new { type = "teacher", id = l.Kurz, label = l.Kurz, info = l.Name });
+        // Schüler- und Elternkonten sehen keine Lehrerpläne – die Auswahl bietet sie gar nicht erst an.
+        if (!k.IstSchueler)
+            foreach (var l in k.Elemente.Lehrer) res.Add(new { type = "teacher", id = l.Kurz, label = l.Kurz, info = l.Name });
         foreach (var r in k.Elemente.Raeume) res.Add(new { type = "room", id = r.Kurz, label = r.Kurz, info = r.Name != r.Kurz ? r.Name : "" });
         return res;
     }
+
+    /// <summary>Angaben zum angemeldeten Konto für die Profilseite.</summary>
+    public static object Benutzer(Konto k) => new { login = k.Benutzer.Login, role = k.Benutzer.Rollenname, rolle = k.Benutzer.Rolle, kollegium = k.Kollegium };
 
     /// <summary>Text hinter dem ⓘ einer Klasse: Klassenleitung mit Namen, sonst der Langname.</summary>
     private static string KlassenInfo(ElementKlasse c, IReadOnlyDictionary<string, string> lehrerName)
@@ -61,6 +66,7 @@ public sealed class Wochendienst
     /// <summary>Planart und Element auflösen; „mine“ (oder fehlende Angaben) wird zum eigenen Plan.</summary>
     public static (string Art, string Element) Aufloesen(Konto k, string? type, string? id)
     {
+        if (type == "teacher" && k.IstSchueler) return (k.EigeneArt, k.Kuerzel);   // keine Lehrerpläne für Schüler- und Elternkonten
         if (type is "class" or "teacher" or "room" && !string.IsNullOrWhiteSpace(id)) return (type, id!.Trim());
         return (k.EigeneArt, k.Kuerzel);
     }
@@ -143,7 +149,7 @@ public sealed class Wochendienst
                 today = Kachelbau.Iso(DateOnly.FromDateTime(jetzt)),
                 now = jetzt.ToString("HH:mm", CultureInfo.InvariantCulture),
                 names = Namen(k),
-                user = new { login = k.Benutzer.Login, role = k.Benutzer.Rollenname, kollegium = k.Kollegium },
+                user = Benutzer(k),
             };
         }
         catch (NichtAngemeldetException)

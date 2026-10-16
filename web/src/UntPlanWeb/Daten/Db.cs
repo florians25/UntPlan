@@ -406,6 +406,18 @@ public sealed class Db
         ALTER TABLE fehlzeiten ADD COLUMN eltern_informiert INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE fehlzeiten ADD COLUMN notiz_intern VARCHAR(1000) NOT NULL DEFAULT '';
         """,
+
+        // 8: Minutengenaue Abwesenheiten (abwesend von–bis innerhalb einer Stunde; leer = ganze Stunde) und Zuordnung von
+        //    Schüler- bzw. Elternkonten zu Schüler*innen der Schülerverwaltung – nur Standard-SQL
+        """
+        ALTER TABLE fehlzeiten ADD COLUMN beginn VARCHAR(5) NOT NULL DEFAULT '';
+        ALTER TABLE fehlzeiten ADD COLUMN ende VARCHAR(5) NOT NULL DEFAULT '';
+        CREATE TABLE benutzer_schueler (
+            benutzer_id INTEGER NOT NULL REFERENCES benutzer(id) ON DELETE CASCADE,
+            schueler_id INTEGER NOT NULL,
+            PRIMARY KEY (benutzer_id, schueler_id)
+        );
+        """,
     };
 
 

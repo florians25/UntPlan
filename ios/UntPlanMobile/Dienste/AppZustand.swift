@@ -13,6 +13,10 @@ final class AppZustand: ObservableObject {
     @Published var phase: Phase = .startet
     @Published var sitzung: Sitzung?
     @Published var ungelesen = 0
+    /// Gewählter Reiter der Tab-Leiste.
+    @Published var reiter: AppReiter = .start
+    /// Plan, den der Stundenplan öffnen soll („Im Stundenplan anzeigen“ aus den Stundendetails).
+    @Published var planAnfrage: PlanAuswahl? = nil
 
     let api = ApiClient.shared
 
@@ -24,6 +28,21 @@ final class AppZustand: ObservableObject {
     }
 
     var benutzer: SitzungsBenutzer? { sitzung?.benutzer }
+
+    /// Kollegium (Lehrkräfte, Schulleitung, Administration).
+    var istKollegium: Bool {
+        guard let b = benutzer else { return false }
+        return b.kollegium && !["schueler", "eltern"].contains(b.rolle.lowercased())
+    }
+
+    /// Schüler*innen und Eltern sehen keine Pläne von Lehrkräften.
+    var darfLehrerplaene: Bool { istKollegium }
+
+    /// Plan im Reiter „Stundenplan“ öffnen.
+    func planZeigen(_ plan: PlanAuswahl) {
+        planAnfrage = plan
+        reiter = .stundenplan
+    }
 
     /// Beim Start: bestehende Sitzung prüfen, sonst mit gemerktem Passwort neu anmelden.
     func starten() async {
@@ -81,6 +100,8 @@ final class AppZustand: ObservableObject {
         Schluesselbund.loeschen(konto: Schluesselbund.konto(login: login, server: api.serverAdresse))
         sitzung = nil
         ungelesen = 0
+        reiter = .start
+        planAnfrage = nil
         phase = .abgemeldet
     }
 

@@ -3,22 +3,24 @@ using UntPlanWeb.Daten;
 
 namespace UntPlanWeb.Dienste;
 
-/// <summary>Rollen: Administration, Schulleitung, Lehrkraft, Schüler/Klasse.</summary>
+/// <summary>Rollen: Administration, Schulleitung, Lehrkraft, Schüler*in (bzw. Klasse), Erziehungsberechtigte.</summary>
 public static class Rollen
 {
     public const string Admin = "admin";
     public const string Leitung = "leitung";
     public const string Lehrer = "lehrer";
     public const string Schueler = "schueler";
+    public const string Eltern = "eltern";
 
-    public static readonly string[] Alle = { Admin, Leitung, Lehrer, Schueler };
+    public static readonly string[] Alle = { Admin, Leitung, Lehrer, Schueler, Eltern };
 
     public static string Name(string rolle) => rolle switch
     {
         Admin => "Administration",
         Leitung => "Schulleitung",
         Lehrer => "Lehrkraft",
-        Schueler => "Schüler*in / Klasse",
+        Schueler => "Schüler*in",
+        Eltern => "Erziehungsberechtigte*r",
         _ => rolle,
     };
 }
@@ -32,17 +34,61 @@ public sealed record Benutzer(int Id, string Login, string Anzeigename, string R
     public bool DarfNachrichten => Rolle is Rollen.Admin or Rollen.Leitung;
     /// <summary>Lehrkraft mit Kürzel (eigener Plan, Meldungen, Klassenbuch).</summary>
     public string? LehrerKuerzel => Kollegium && Element.Length > 0 ? Element : null;
-    public string? KlassenKuerzel => Rolle == Rollen.Schueler && Element.Length > 0 ? Element : null;
+    /// <summary>Schüler- bzw. Elternkonto (eigene Seiten: Abwesenheiten, Fehlzeiten, Hausaufgaben des Kindes).</summary>
+    public bool Familie => Rolle is Rollen.Schueler or Rollen.Eltern;
+    /// <summary>Zugeordnete Schüler*innen (Schülerverwaltung): bei Schüler*innen die eigene Person, bei Erziehungsberechtigten die Kinder.</summary>
+    public List<int> SchuelerIds { get; init; } = new();
+    /// <summary>Klassen des Kontos: Klassen der zugeordneten Schüler*innen, sonst (Klassenkonto) die eingetragene Klasse.</summary>
+    public List<string> Klassen { get; init; } = new();
+    /// <summary>Klasse für „Mein Stundenplan“ (erste Klasse des Kontos).</summary>
+    public string? KlassenKuerzel => Familie ? Klassen.FirstOrDefault() ?? (Element.Length > 0 ? Element : null) : null;
+    /// <summary>Darf dieses Konto den Plan der Klasse sehen (eigene Klasse bzw. Klasse eines Kindes)?</summary>
+    public bool HatKlasse(string klasse) => Familie && (Klassen.Contains(klasse, StringComparer.OrdinalIgnoreCase) || (Klassen.Count == 0 && Element.Equals(klasse, StringComparison.OrdinalIgnoreCase)));
 }
 
 public sealed class Benutzerdienst
 {
     private readonly Db _db;
     private readonly Uhr _uhr;
+    private readonly Paketdienst? _pakete;
     private readonly PasswordHasher<string> _hasher = new();
     public const int MaxFehlversuche = 5;
 
-    public Benutzerdienst(Db db, Uhr uhr) { _db = db; _uhr = uhr; }
+    public Benutzerdienst(Db db, Uhr uhr, Paketdienst? pakete = null) { _db = db; _uhr = uhr; _pakete = pakete; }
+
+    /// <summary>Zugeordnete Schüler*innen und deren Klassen (aus der aktuellen Schülerliste) ergänzen.</summary>
+    private Benutzer Ergaenzen(Benutzer b)
+    {
+        if (!b.Familie) return b;
+        var ids = SchuelerVon(b.Id);
+        var schueler = _pakete?.Aktuell?.Schueler;
+        var klassen = schueler is null ? new List<string>() : ids.Select(i => schueler.FirstOrDefault(x => x.Id == i)?.Klasse).Where(k => !string.IsNullOrEmpty(k)).Select(k => k!)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return b with { SchuelerIds = ids, Klassen = klassen };
+    }
+
+    /// <summary>Ids der einem Konto zugeordneten Schüler*innen.</summary>
+    public List<int> SchuelerVon(int benutzerId) =>
+        _db.Liste("SELECT schueler_id FROM benutzer_schueler WHERE benutzer_id = @b ORDER BY schueler_id", r => r.Zahl("schueler_id"), Db.P("@b", benutzerId));
+
+    /// <summary>
+    /// Schüler*innen einem Schüler- bzw. Elternkonto zuordnen (ersetzt die bisherige Zuordnung). Schülerkonten gehören zu genau einer
+    /// Person; Elternkonten können mehrere Kinder haben.
+    /// </summary>
+    public void SchuelerZuordnen(int benutzerId, IEnumerable<int> schuelerIds)
+    {
+        var b = Holen(benutzerId) ?? throw new ArgumentException("Unbekannter Benutzer.");
+        var ids = schuelerIds.Distinct().ToList();
+        if (!b.Familie && ids.Count > 0) throw new ArgumentException("Schüler*innen können nur Schüler- und Elternkonten zugeordnet werden.");
+        if (b.Rolle == Rollen.Schueler && ids.Count > 1) throw new ArgumentException("Ein Schülerkonto gehört zu genau einer Schülerin bzw. einem Schüler.");
+        if (_pakete?.Aktuell is { } s && ids.FirstOrDefault(i => !s.Schueler.Any(x => x.Id == i)) is int unbekannt and not 0)
+            throw new ArgumentException($"Unbekannte Schülerin / unbekannter Schüler ({unbekannt}).");
+        _db.Transaktion(c =>
+        {
+            Db.Ausfuehren(c, "DELETE FROM benutzer_schueler WHERE benutzer_id = @b", Db.P("@b", benutzerId));
+            foreach (var i in ids) Db.Ausfuehren(c, "INSERT INTO benutzer_schueler (benutzer_id, schueler_id) VALUES (@b, @s)", Db.P("@b", benutzerId), Db.P("@s", i));
+        });
+    }
 
     private const string Spalten = "id, login, anzeigename, rolle, element, email, gesperrt, passwort_aendern, ical_token, erstellt, letzte_anmeldung, vorherige_anmeldung, sprache, benachrichtigung";
 
@@ -52,11 +98,21 @@ public sealed class Benutzerdienst
 
     public bool Keiner => Convert.ToInt32(_db.Wert("SELECT COUNT(*) FROM benutzer WHERE rolle = 'admin'")) == 0;
 
-    public Benutzer? Holen(int id) => _db.Einzel($"SELECT {Spalten} FROM benutzer WHERE id = @id", Lesen, Db.P("@id", id));
-    public Benutzer? NachLogin(string login) => _db.Einzel($"SELECT {Spalten} FROM benutzer WHERE login = @l", Lesen, Db.P("@l", login.Trim()));
-    public Benutzer? NachIcal(string token) => string.IsNullOrWhiteSpace(token) ? null : _db.Einzel($"SELECT {Spalten} FROM benutzer WHERE ical_token = @t AND gesperrt = 0", Lesen, Db.P("@t", token));
+    public Benutzer? Holen(int id) => _db.Einzel($"SELECT {Spalten} FROM benutzer WHERE id = @id", Lesen, Db.P("@id", id)) is { } b ? Ergaenzen(b) : null;
+    public Benutzer? NachLogin(string login) => _db.Einzel($"SELECT {Spalten} FROM benutzer WHERE login = @l", Lesen, Db.P("@l", login.Trim())) is { } b ? Ergaenzen(b) : null;
+    public Benutzer? NachIcal(string token) => string.IsNullOrWhiteSpace(token) ? null : _db.Einzel($"SELECT {Spalten} FROM benutzer WHERE ical_token = @t AND gesperrt = 0", Lesen, Db.P("@t", token)) is { } b ? Ergaenzen(b) : null;
 
-    public List<Benutzer> Alle() => _db.Liste($"SELECT {Spalten} FROM benutzer ORDER BY rolle, login COLLATE NOCASE", Lesen);
+    public List<Benutzer> Alle()
+    {
+        var liste = _db.Liste($"SELECT {Spalten} FROM benutzer ORDER BY rolle, login COLLATE NOCASE", Lesen);
+        var zuordnung = _db.Liste("SELECT benutzer_id, schueler_id FROM benutzer_schueler", r => (B: r.Zahl("benutzer_id"), S: r.Zahl("schueler_id"))).ToLookup(x => x.B, x => x.S);
+        var schueler = _pakete?.Aktuell?.Schueler;
+        return liste.Select(b => !b.Familie ? b : b with
+        {
+            SchuelerIds = zuordnung[b.Id].ToList(),
+            Klassen = schueler is null ? new() : zuordnung[b.Id].Select(i => schueler.FirstOrDefault(x => x.Id == i)?.Klasse).Where(k => !string.IsNullOrEmpty(k)).Select(k => k!).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+        }).ToList();
+    }
 
     public Benutzer Anlegen(string login, string passwort, string rolle, string element = "", string anzeigename = "", string email = "", bool passwortAendern = false)
     {
@@ -184,7 +240,7 @@ public sealed class Benutzerdienst
         // Zuordnungsgruppen (Administration): diese Kürzel erhalten die Rolle Schulleitung
         var leitung = (leitungKuerzel ?? Enumerable.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var res = new List<(string, string, string, string, string)>();
-        var vorhanden = Alle().Select(b => (b.Rolle == Rollen.Schueler ? "k:" : "l:") + b.Element.ToLowerInvariant()).ToHashSet();
+        var vorhanden = Alle().Where(b => b.Rolle != Rollen.Eltern).Select(b => (b.Rolle == Rollen.Schueler ? "k:" : "l:") + b.Element.ToLowerInvariant()).ToHashSet();
         if (lehrer)
             foreach (var l in p.Elemente.Lehrer.Where(l => l.Kurz.Length > 0))
             {

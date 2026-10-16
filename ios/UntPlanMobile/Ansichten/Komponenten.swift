@@ -220,3 +220,200 @@ struct ZahlPlakette: View {
             .background(Farben.zahlPlakette, in: Capsule())
     }
 }
+
+// MARK: - Obere Leiste, Konto, Listen
+
+/// Runder Knopf oben links/rechts. In der Navigationsleiste zeichnet ab iOS 26 das System das Glas selbst,
+/// davor (und außerhalb von Leisten) die eigene Glasfläche.
+struct Glasknopf<Inhalt: View>: View {
+    var inLeiste: Bool = true
+    @ViewBuilder let inhalt: () -> Inhalt
+
+    /// Ab iOS 26 zeichnet die Navigationsleiste das Glas selbst.
+    private var systemGlas: Bool {
+        if #available(iOS 26.0, *) { return inLeiste }
+        return false
+    }
+
+    var body: some View {
+        if systemGlas {
+            inhalt()
+                .foregroundStyle(Farben.tinte2)
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
+        } else {
+            inhalt()
+                .foregroundStyle(Farben.tinte2)
+                .frame(width: 40, height: 40)
+                .glas(Circle())
+                .contentShape(Circle())
+        }
+    }
+}
+
+/// Person mit zwei Pfeilen (Konto wechseln), nachgebaut aus SF Symbols.
+struct KontoSymbol: View {
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Image(systemName: "person")
+                .font(.system(size: 17, weight: .regular))
+                .offset(x: -4, y: -3)
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: 9.5, weight: .semibold))
+                .offset(x: 3, y: 2)
+        }
+        .frame(width: 26, height: 26)
+    }
+}
+
+/// Menü „Konto wechseln“: aktuelles Konto und Anmeldung mit einem anderen Konto (meldet ab).
+struct KontoMenue<Beschriftung: View>: View {
+    @EnvironmentObject var zustand: AppZustand
+    @State private var bestaetigen = false
+    @ViewBuilder let beschriftung: () -> Beschriftung
+
+    var body: some View {
+        Menu {
+            if let b = zustand.benutzer {
+                Section(zustand.schulname) {
+                    Button {} label: {
+                        Label(b.rollenname.isEmpty ? b.login : "\(b.login) · \(b.rollenname)", systemImage: "checkmark")
+                    }
+                    .disabled(true)
+                }
+            }
+            Button {
+                bestaetigen = true
+            } label: {
+                Label("Mit anderem Konto anmelden", systemImage: "person.badge.plus")
+            }
+        } label: {
+            beschriftung()
+        }
+        .accessibilityLabel("Konto wechseln")
+        .confirmationDialog("Konto wechseln?", isPresented: $bestaetigen, titleVisibility: .visible) {
+            Button("Abmelden und anderes Konto anmelden", role: .destructive) {
+                Task { await zustand.abmelden() }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Sie werden abgemeldet; ein gemerktes Passwort wird vom Gerät entfernt.")
+        }
+    }
+}
+
+/// Runder Glasknopf oben links (Konto wechseln) auf allen Hauptseiten.
+struct KontoKnopf: View {
+    var body: some View {
+        KontoMenue {
+            Glasknopf { KontoSymbol() }
+        }
+    }
+}
+
+/// Zeile einer weißen Gruppe: Symbol links, Titel (und Untertitel), Zahl, Pfeil.
+struct Listenzeile: View {
+    let symbol: String
+    let titel: String
+    var untertitel: String? = nil
+    var zahl: Int? = nil
+    var pfeil: Bool = true
+    var titelFarbe: Color = Farben.tinte
+
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: symbol)
+                .font(.system(size: 19, weight: .light))
+                .foregroundStyle(Farben.gedaempft)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(titel)
+                    .font(.system(size: 16))
+                    .foregroundStyle(titelFarbe)
+                    .lineLimit(1)
+                if let untertitel, !untertitel.isEmpty {
+                    Text(untertitel)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.tinte2)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            Spacer(minLength: 4)
+            if let zahl {
+                ZahlPlakette(zahl: zahl)
+                    .scaleEffect(0.85)
+            }
+            if pfeil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(Farben.gedaempft)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .frame(minHeight: 50)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Trennlinie zwischen Listenzeilen (eingerückt bis hinter das Symbol).
+struct Zeilentrenner: View {
+    var body: some View {
+        Rectangle()
+            .fill(Farben.trennlinie)
+            .frame(height: 0.5)
+            .padding(.leading, 57)
+            .padding(.trailing, 16)
+    }
+}
+
+/// Weiße Gruppe mit abgerundeten Ecken (Startseite, Profil).
+struct Zeilengruppe<Inhalt: View>: View {
+    @ViewBuilder let inhalt: () -> Inhalt
+
+    var body: some View {
+        VStack(spacing: 0) {
+            inhalt()
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .alsKarte(radius: 20)
+    }
+}
+
+/// Zeile einer weißen Gruppe: beim Drücken leicht grau hinterlegt.
+struct ZeilenKnopfStil: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Farben.trennlinie : Color.clear)
+    }
+}
+
+/// Zweizeiliger Titel für die Navigationsleiste (z. B. „Mi. | 04.11.26“ und Uhrzeit).
+struct Leistentitel: View {
+    let titel: String
+    var untertitel: String? = nil
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(titel)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Farben.tinte2)
+            if let untertitel, !untertitel.isEmpty {
+                Text(untertitel)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Farben.gedaempft)
+            }
+        }
+        .lineLimit(1)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+extension View {
+    /// Inhalt mittig mit höchstens dieser Breite (iPad: nicht über die ganze Breite).
+    func zentriert(maxBreite: CGFloat = 700) -> some View {
+        frame(maxWidth: maxBreite)
+            .frame(maxWidth: .infinity)
+    }
+}

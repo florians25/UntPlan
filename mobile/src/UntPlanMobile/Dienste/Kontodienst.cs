@@ -9,8 +9,8 @@ namespace UntPlanMobile.Dienste;
 /// <summary>Angemeldetes Konto mit Stammdaten (Klassen, Lehrkräfte, Räume, Fächer, Zeitraster, Ferien).</summary>
 public sealed record Konto(Sitzungsbenutzer Benutzer, string Schule, Elemente Elemente)
 {
-    /// <summary>Schüler- bzw. Klassenkonto: eigener Plan ist ein Klassenplan, keine Lehrerpläne.</summary>
-    public bool IstSchueler => Benutzer.Rolle == "schueler";
+    /// <summary>Schüler-, Eltern- bzw. Klassenkonto: eigener Plan ist ein Klassenplan, keine Lehrerpläne.</summary>
+    public bool IstSchueler => Benutzer.Rolle is "schueler" or "eltern";
 
     /// <summary>Planart des eigenen Plans (class oder teacher).</summary>
     public string EigeneArt => IstSchueler ? "class" : "teacher";

@@ -27,6 +27,10 @@ public sealed record Fehlzeit(int Id, string Datum, int Stunde, int Unterricht, 
     public bool ElternInformiert { get; init; }
     /// <summary>Interne Notiz der Klassenleitung (nicht für Schüler*innen sichtbar).</summary>
     public string NotizIntern { get; init; } = "";
+    /// <summary>Minutengenau: abwesend ab (HH:mm) innerhalb der Stunde; leer = ab Stundenbeginn bzw. aus Art und Minuten abgeleitet.</summary>
+    public string Beginn { get; init; } = "";
+    /// <summary>Minutengenau: abwesend bis (HH:mm) innerhalb der Stunde; leer = bis Stundenende bzw. aus Art und Minuten abgeleitet.</summary>
+    public string Ende { get; init; } = "";
 }
 
 /// <summary>Vermerk im Klassenbuch (zur Klasse oder zu einzelnen Schülern), z. B. Ordnungsmaßnahme, Elterngespräch, Lob.</summary>
@@ -36,8 +40,11 @@ public sealed record Vermerk(int Id, string Datum, string Klasse, int? SchuelerI
     public string Zeit { get; init; } = "";
 }
 
-/// <summary>Anwesenheitseintrag beim Speichern (nur Abweichungen: fehlt, verspätet oder vorzeitig gegangen; RestTag = für den Rest des Tages abwesend).</summary>
-public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung, string? Grund = null, bool? RestTag = null);
+/// <summary>
+/// Anwesenheitseintrag beim Speichern (nur Abweichungen: fehlt, verspätet oder vorzeitig gegangen; RestTag = für den Rest des Tages abwesend).
+/// Von/Bis (HH:mm): minutengenau abwesend innerhalb des Blocks – haben Vorrang vor Art und Minuten.
+/// </summary>
+public sealed record AnwesenheitEintrag(int SchuelerId, string Art, int Minuten, string? Bemerkung, string? Grund = null, bool? RestTag = null, string? Von = null, string? Bis = null);
 
 /// <summary>
 /// Klassenbuch: je gehaltener Stunde Unterrichtsinhalt, Hausaufgabe (mit Fälligkeit) und interne Notiz.
@@ -64,6 +71,7 @@ public sealed partial class Klassenbuchdienst
         r.Text("grund"), r.Text("gruppe"))
     {
         Nachweis = r.Text("nachweis"), EntschuldigtAm = r.Text("entschuldigt_am"), ElternInformiert = r.Zahl("eltern_informiert") != 0, NotizIntern = r.Text("notiz_intern"),
+        Beginn = r.Text("beginn"), Ende = r.Text("ende"),
     };
 
     internal static Fehlzeit FehlzeitLesen(System.Data.Common.DbDataReader r) => LesenFehlzeit(r);
@@ -199,12 +207,17 @@ public sealed partial class Klassenbuchdienst
         var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var klassen = karte.Klassen.Select(k => k.K).ToList();
         var fz = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && klassen.Contains(f.Klasse, Ci))
-            .GroupBy(f => f.SchuelerId).Select(g => Zusammenfassen(g.ToList())).ToList();
+            .GroupBy(f => f.SchuelerId).Select(g => Zusammenfassen(g.ToList(), s, Gesamtabwesenheit(g.ToList(), karte))).ToList();
         var eintrag = Zeitraum(d, d).FirstOrDefault(e => e.Unterricht == unterricht && e.Stunde == karte.Von);
+        var (bb, _) = StundenZeit(s, karte.Von);
+        var (_, be) = StundenZeit(s, karte.Bis);
         return new
         {
             schueler = Schueler(s, klassen), fehlzeiten = fz, geprueft = eintrag?.Anwesenheit, vorstunden = Vorstunden(s, d, karte),
             darf = DarfSchreiben(b, s, d, stunde, unterricht) || klassen.Any(k => IstKlassenleitung(b, s, k)),
+            // Klassenleitung: Status und Zeiträume über den Tag hinaus im Abwesenheitsdialog
+            verwalten = klassen.Any(k => IstKlassenleitung(b, s, k)),
+            beginn = karte.Beginn.Length > 0 ? karte.Beginn : Hhmm(bb), ende = karte.Ende.Length > 0 ? karte.Ende : Hhmm(be),
             regeln = Regeln(), laengen = Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).Select(n => StundenLaenge(s, n)).ToList(),
         };
     }
@@ -231,35 +244,39 @@ public sealed partial class Klassenbuchdienst
             var art = e.Art is "verspaetet" or "vorzeitig" ? e.Art : "fehlt";
             var altF = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId);
             var grund = (e.Grund ?? altF?.Grund ?? "").Trim();
-            // Fehlen gilt für alle Stunden des Blocks; Verspätung beginnt mit der ersten, vorzeitiges Gehen endet mit der letzten Stunde.
+            // Minutengenau (Von/Bis): abwesend im Fenster, angebrochene Stunden als Verspätung bzw. vorzeitiges Gehen.
+            // Sonst: Fehlen gilt für alle Stunden des Blocks; Verspätung beginnt mit der ersten, vorzeitiges Gehen endet mit der letzten Stunde.
             // Ganz verpasste Stunden werden Fehlstunden, ab der Schwelle der Verspätungsregeln auch die angebrochene.
-            var zeilen = art == "fehlt"
-                ? Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).Select(n => (Stunde: n, Art: "fehlt", Minuten: 0, Hinweis: "")).ToList()
-                : MinutenVerteilen(s, regeln, karte.Von, karte.Bis, art, Math.Clamp(e.Minuten, 1, 600));
-            foreach (var (n, a, min, hinweis) in zeilen)
+            var block = Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1);
+            var zeilen = Uhrzeit(e.Von) is TimeOnly fv && Uhrzeit(e.Bis) is TimeOnly fb && fb > fv
+                ? AusFenster(s, regeln, block, fv, fb)
+                : art == "fehlt"
+                    ? block.Select(n => new Abschnitt(n, "fehlt", 0, "", "", "")).ToList()
+                    : MinutenVerteilen(s, regeln, karte.Von, karte.Bis, art, Math.Clamp(e.Minuten, 1, 600))
+                        .Select(z => { var (fb2, fe2) = FensterAusMinuten(s, z.Stunde, z.Art, z.Minuten, z.Hinweis); return new Abschnitt(z.Stunde, z.Art, z.Minuten, fb2, fe2, z.Hinweis); }).ToList();
+            foreach (var (n, a, min, fBeginn, fEnde, hinweis) in zeilen)
             {
                 var status = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Stunde == n && f.Art == a)?.Status
                              ?? alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Art == a)?.Status ?? "offen";
                 var bem = string.Join(" – ", new[] { hinweis, (e.Bemerkung ?? "").Trim() }.Where(x => x.Length > 0));
+                var altZeile = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Stunde == n) ?? altF;
                 _db.Ausfuehren("""
-                    INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe)
-                    VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b, @g, @gr)
+                    INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe,
+                        nachweis, entschuldigt_am, eltern_informiert, notiz_intern, beginn, ende)
+                    VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b, @g, @gr, @nw, @ea, @ei, @ni, @be, @en)
                     ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET unterricht = excluded.unterricht, fach = excluded.fach, art = excluded.art,
-                        minuten = excluded.minuten, bemerkung = excluded.bemerkung, lehrer = excluded.lehrer, grund = excluded.grund
+                        minuten = excluded.minuten, bemerkung = excluded.bemerkung, lehrer = excluded.lehrer, grund = excluded.grund, beginn = excluded.beginn, ende = excluded.ende
                     """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", unterricht), Db.P("@sid", e.SchuelerId), Db.P("@k", schueler[e.SchuelerId].Klasse), Db.P("@f", karte.Fach),
                     Db.P("@a", a), Db.P("@m", min), Db.P("@st", status), Db.P("@bem", bem),
-                    Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id), Db.P("@g", grund), Db.P("@gr", altF?.Gruppe ?? ""));
+                    Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id), Db.P("@g", grund), Db.P("@gr", altF?.Gruppe ?? ""),
+                    Db.P("@nw", altZeile?.Nachweis ?? ""), Db.P("@ea", altZeile?.EntschuldigtAm ?? ""), Db.P("@ei", altZeile?.ElternInformiert == true ? 1 : 0),
+                    Db.P("@ni", altZeile?.NotizIntern ?? ""), Db.P("@be", fBeginn), Db.P("@en", fEnde));
             }
             if (art == "vorzeitig" && (e.RestTag ?? regeln.VorzeitigRestTag))
                 RestTagEintragen(b, s, d, karte, e.SchuelerId, schueler[e.SchuelerId].Klasse, lehrer, jetzt, grund);
             anzahl++;
         }
-        _db.Ausfuehren("""
-            INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, geaendert, benutzer_id, anwesenheit)
-            VALUES (@d, @s, @u, @k, @f, @l, @g, @b, @g)
-            ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET anwesenheit = excluded.anwesenheit
-            """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(klassen)), Db.P("@f", karte.Fach),
-            Db.P("@l", lehrer), Db.P("@g", jetzt), Db.P("@b", b.Id));
+        GeprueftMarkieren(b, d, karte, unterricht, lehrer);
         return anzahl;
     }
 
@@ -271,6 +288,8 @@ public sealed partial class Klassenbuchdienst
         if (!IstKlassenleitung(b, s, sch.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann ganze Tage eintragen.");
         if (bis < von || bis.DayNumber - von.DayNumber > 60) throw new ArgumentException("Bitte einen Zeitraum von höchstens 60 Tagen wählen.");
         var anzahl = 0;
+        // eine Abwesenheit über alle Tage (Zeitraum), nicht je Tag
+        var gruppe = GruppenPraefix + Sicherheit.Zufall(10);
         for (var d = von; d <= bis; d = d.AddDays(1))
         {
             if (_plan.Frei(s, d).Frei) continue;
@@ -282,14 +301,15 @@ public sealed partial class Klassenbuchdienst
                 {
                     _db.Ausfuehren("""
                         INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund,
-                            nachweis, entschuldigt_am, eltern_informiert, notiz_intern)
-                        VALUES (@d, @s, @u, @sid, @k, @f, 'fehlt', 0, @st, @bem, @l, @e, @b, @g, @nw, @ea, @ei, @ni)
+                            nachweis, entschuldigt_am, eltern_informiert, notiz_intern, gruppe)
+                        VALUES (@d, @s, @u, @sid, @k, @f, 'fehlt', 0, @st, @bem, @l, @e, @b, @g, @nw, @ea, @ei, @ni, @gr)
                         ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET art = 'fehlt', minuten = 0, status = excluded.status, bemerkung = excluded.bemerkung, grund = excluded.grund,
-                            nachweis = excluded.nachweis, entschuldigt_am = excluded.entschuldigt_am, eltern_informiert = excluded.eltern_informiert, notiz_intern = excluded.notiz_intern
+                            nachweis = excluded.nachweis, entschuldigt_am = excluded.entschuldigt_am, eltern_informiert = excluded.eltern_informiert, notiz_intern = excluded.notiz_intern,
+                            gruppe = excluded.gruppe, beginn = '', ende = ''
                         """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", k.Unterricht), Db.P("@sid", schuelerId), Db.P("@k", sch.Klasse), Db.P("@f", k.Fach),
                         Db.P("@st", Status(status)), Db.P("@bem", (bemerkung ?? "").Trim()), Db.P("@l", b.LehrerKuerzel ?? ""), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id),
                         Db.P("@g", (grund ?? "").Trim()), Db.P("@nw", Klassenbuchverwaltung.Nachweis(nachweis)), Db.P("@ea", Klassenbuchverwaltung.DatumOderLeer(entschuldigtAm)),
-                        Db.P("@ei", elternInformiert ? 1 : 0), Db.P("@ni", (notizIntern ?? "").Trim()));
+                        Db.P("@ei", elternInformiert ? 1 : 0), Db.P("@ni", (notizIntern ?? "").Trim()), Db.P("@gr", gruppe));
                     anzahl++;
                 }
         }
@@ -341,7 +361,12 @@ public sealed partial class Klassenbuchdienst
                 vorzeitig = summe.Vorzeitig, vorzeitigMinuten = summe.VorzeitigMinuten, stundenAusMinuten = summe.StundenAusMinuten, hinweis = summe.Hinweis,
             };
         }).ToList();
-        return new { schueler = summen, eintraege = liste.OrderByDescending(f => f.Datum).ThenBy(f => f.Stunde).ToList(), verwalten = IstKlassenleitung(b, s, klasse), regeln };
+        return new
+        {
+            schueler = summen, eintraege = liste.OrderByDescending(f => f.Datum).ThenBy(f => f.Stunde).ToList(), verwalten = IstKlassenleitung(b, s, klasse), regeln,
+            // je Unterrichtsstunde mit Fehltagen, Fehlstunden und Fehlminuten (Fehlzeitenliste)
+            zeilen = Fehlzeilen(s, liste),
+        };
     }
 
     // ------------------------------------------------------------------------------------------ Vermerke

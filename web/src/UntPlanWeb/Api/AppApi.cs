@@ -35,13 +35,17 @@ public static class AppApi
 
     private static DateOnly Datum(string? s, Uhr uhr) => DateOnly.TryParse(s, out var d) ? d : uhr.Heute;
 
-    /// <summary>Darf der Benutzer den Plan dieses Elements sehen? Schüler-/Klassenkonten: eigene Klasse und Räume.</summary>
-    private static void PlanErlaubt(Benutzer b, string typ, string element)
+    /// <summary>
+    /// Darf der Benutzer den Plan dieses Elements sehen? Schüler-, Eltern- und Klassenkonten: eigene Klasse(n) bzw. die Klassen der Kinder
+    /// und Räume – nie Pläne von Lehrkräften.
+    /// </summary>
+    public static void PlanErlaubt(Benutzer b, string typ, string element)
     {
         if (!Elementtyp.Gueltig(typ)) throw new ArgumentException("Unbekannte Planart.");
         if (b.Kollegium) return;
+        if (typ == Elementtyp.Lehrer) throw new UnauthorizedAccessException("Pläne von Lehrkräften sind für Ihr Konto nicht freigegeben.");
         if (typ == Elementtyp.Raum) return;
-        if (typ == Elementtyp.Klasse && b.KlassenKuerzel is string k && k.Equals(element, StringComparison.OrdinalIgnoreCase)) return;
+        if (typ == Elementtyp.Klasse && b.HatKlasse(element)) return;
         throw new UnauthorizedAccessException("Dieser Plan ist für Ihr Konto nicht freigegeben.");
     }
 
@@ -74,8 +78,10 @@ public static class AppApi
                 schuljahr = p.Aktuell is { } sj && sj.Paket.Schule.SchuljahrVon.Length >= 4 ? new { von = sj.Paket.Schule.SchuljahrVon, bis = sj.Paket.Schule.SchuljahrBis } : null,
                 benutzer = b is null ? null : new
                 {
-                    b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Element, b.Kollegium, admin = b.IstAdmin, nachrichten = b.DarfNachrichten,
-                    passwortAendern = b.PasswortAendern, typ = b.Rolle == Rollen.Schueler ? Elementtyp.Klasse : Elementtyp.Lehrer,
+                    b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Kollegium, admin = b.IstAdmin, nachrichten = b.DarfNachrichten,
+                    passwortAendern = b.PasswortAendern, typ = b.Familie ? Elementtyp.Klasse : Elementtyp.Lehrer,
+                    // Schüler- und Elternkonten: eigene Seiten (Abwesenheiten, Fehlzeiten, Hausaufgaben); Element = Klasse für „Mein Stundenplan“
+                    familie = b.Familie, klassen = b.Klassen, element = b.Kollegium ? b.Element : b.KlassenKuerzel ?? "",
                     // Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten) nur für Klassenleitungen, Schulleitung und Administration
                     fehlzeiten = Klassenbuchdienst.FehlzeitenVerwalten(b, p.Aktuell),
                 },
@@ -145,7 +151,7 @@ public static class AppApi
             var de = StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true);
             return Results.Json(new
             {
-                klassen = s.Paket.Elemente.Klassen.Where(k => b.Kollegium || string.Equals(k.Kurz, b.KlassenKuerzel, StringComparison.OrdinalIgnoreCase))
+                klassen = s.Paket.Elemente.Klassen.Where(k => b.Kollegium || b.HatKlasse(k.Kurz))
                     .OrderBy(k => k.Kurz, de).Select(k => new { kurz = k.Kurz, name = k.Name, k.Jahrgang, leitung = k.Klassenleitung }),
                 lehrer = b.Kollegium ? s.Paket.Elemente.Lehrer.OrderBy(l => l.Kurz, de).Select(l => new { kurz = l.Kurz, name = string.Join(" ", new[] { l.Vorname, l.Name }.Where(x => x.Length > 0)) }).Cast<object>().ToList() : new List<object>(),
                 raeume = s.Paket.Elemente.Raeume.OrderBy(r => r.Kurz, de).Select(r => new { kurz = r.Kurz, name = r.Name }),
@@ -182,8 +188,8 @@ public static class AppApi
             var tageListe = vp.NaechsteTage(s, Datum(datum, uhr), Math.Clamp(tage ?? 1, 1, 7));
             var res = tageListe.Select(d => vp.Tag(s, d, b.Kollegium)).ToList();
             // Klassenkonten: nur die eigene Klasse
-            if (b.KlassenKuerzel is string k)
-                res = res.Select(t => t with { Zeilen = t.Zeilen.Where(z => z.Klassen.Split(", ").Contains(k, StringComparer.OrdinalIgnoreCase)).ToList() }).ToList();
+            if (!b.Kollegium)
+                res = res.Select(t => t with { Zeilen = t.Zeilen.Where(z => z.Klassen.Split(", ").Any(b.HatKlasse)).ToList() }).ToList();
             return Results.Json(new { tage = res });
         });
 
@@ -304,7 +310,7 @@ public static class AppApi
             var s = Paket(p);
             // die nächstliegende Stunde (Blockbeginn) zuerst – bei Kopplungen mit Einzel- und Doppelstunden nicht den Eintrag einer anderen Lehrkraft
             var eintrag = kb.Zeitraum(datum, datum).Where(e => e.Unterricht == unterricht && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
-                                                                         (b.Kollegium || e.Klassen.Contains(b.KlassenKuerzel ?? "", StringComparer.OrdinalIgnoreCase)))
+                                                                         (b.Kollegium || e.Klassen.Any(b.HatKlasse)))
                 .OrderByDescending(e => e.Stunde).FirstOrDefault();
             if (eintrag != null && !b.Kollegium) eintrag = eintrag with { Notiz = "" };
             return Results.Json(new { eintrag, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
@@ -318,7 +324,7 @@ public static class AppApi
             var s = Paket(p);
             var liste = kb.HausaufgabenDerStunde(datum, stunde, Math.Max(stunde, bis ?? stunde), unterricht);
             var kl = (klassen ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            if (!b.Kollegium) { kl = kl.Where(k => k.Equals(b.KlassenKuerzel ?? "", StringComparison.OrdinalIgnoreCase)).ToList(); if (!liste.All(h => h.Klassen.Contains(b.KlassenKuerzel ?? "", StringComparer.OrdinalIgnoreCase))) liste = new(); }
+            if (!b.Kollegium) { kl = kl.Where(b.HatKlasse).ToList(); if (!liste.All(h => h.Klassen.Any(b.HatKlasse))) liste = new(); }
             var faellig = string.IsNullOrEmpty(fach) || kl.Count == 0 ? new List<Hausaufgabe>() : kb.FaelligeHausaufgaben(datum, fach, kl, unterricht);
             return Results.Json(new { liste, faellig, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
         });
@@ -413,14 +419,14 @@ public static class AppApi
         {
             var b = Ich(c);
             // Klassenkonten: nur die eigene Klasse, keine Filter nach Lehrkräften
-            var k = b.Kollegium ? Leer(klasse) : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
+            var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
             return Results.Json(l.Pruefungen(Paket(p), r.OffeneKlausuren(), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null));
         });
 
         api.MapGet("/hausaufgaben", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Listendienst l, Uhr uhr) =>
         {
             var b = Ich(c);
-            var k = b.Kollegium ? Leer(klasse) : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
+            var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
             var liste = l.Hausaufgaben(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(60)), k, b.Kollegium ? Leer(lehrer) : null);
             return Results.Json(b.Kollegium ? liste : liste.Select(e => e with { Notiz = "" }).ToList());
         });

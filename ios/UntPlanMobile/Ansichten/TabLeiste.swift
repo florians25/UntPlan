@@ -136,3 +136,61 @@ private struct LeistenKnopfStil: ButtonStyle {
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
+
+/// Schwebende Kapsel oben mittig (iPad vor iOS 26): nur Text, aktiver Reiter orange auf hellem Feld.
+struct KopfTabLeiste: View {
+    static let hoehe: CGFloat = 40
+
+    @Binding var auswahl: AppReiter
+    let ungelesen: Int
+    @Namespace private var raum
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(AppReiter.allCases, id: \.self) { reiter in
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        auswahl = reiter
+                    }
+                } label: {
+                    eintrag(reiter)
+                }
+                .buttonStyle(LeistenKnopfStil())
+                .accessibilityLabel(reiter == .mitteilungen && ungelesen > 0 ? "\(reiter.titel), \(ungelesen) ungelesen" : reiter.titel)
+                .accessibilityAddTraits(auswahl == reiter ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .frame(height: Self.hoehe)
+        .glas(Capsule())
+    }
+
+    private func eintrag(_ reiter: AppReiter) -> some View {
+        let aktiv = auswahl == reiter
+        return HStack(spacing: 5) {
+            Text(reiter.titel)
+                .font(.system(size: 14.5, weight: aktiv ? .semibold : .medium))
+                .lineLimit(1)
+            if reiter == .mitteilungen && ungelesen > 0 {
+                Text(ungelesen > 99 ? "99+" : "\(ungelesen)")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .frame(minWidth: 16, minHeight: 16)
+                    .background(Farben.heute, in: Capsule())
+            }
+        }
+        .foregroundStyle(aktiv ? Farben.akzent : Farben.leisteText)
+        .padding(.horizontal, 13)
+        .frame(maxHeight: .infinity)
+        .background {
+            if aktiv {
+                Capsule()
+                    .fill(Farben.reiterAktiv)
+                    .matchedGeometryEffect(id: "aktiverKopfReiter", in: raum)
+            }
+        }
+        .contentShape(Capsule())
+    }
+}

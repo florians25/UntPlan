@@ -110,6 +110,13 @@ enum Farben {
     // Untere Leiste (Glas)
     static let leisteText = Color(hell: 0x2B333A, dunkel: 0xC9CED3)
     static let leisteAktiv = Color(hell: 0x253746, dunkel: 0xFFFFFF)
+    /// Helles Feld hinter dem aktiven Reiter der oberen Kapsel (iPad)
+    static let reiterAktiv = Color(hell: 0xF4ECE7, dunkel: 0xFFFFFF, deckkraftHell: 0.95, deckkraftDunkel: 0.13)
+
+    // Raumänderung (gelb-orangener Rand wie in der Vorlage)
+    static let raumRand = Color(hell: 0xE9A23B, dunkel: 0xF0B04A)
+    // Abwesenheit auf der Startseite (graue Fläche)
+    static let abwesendFlaeche = Color(hell: 0x868F99, dunkel: 0x4A5058)
 
     /// Fachfarbe für den Balken, sonst Grau.
     static func fach(_ hex: String) -> Color {
@@ -133,6 +140,11 @@ struct Kartenstil {
             self.init(hintergrund: vergangen ? Farben.entfallVergangen : Farben.entfallHintergrund,
                       rand: Farben.entfallRand, schatten: false, durchgestrichen: true,
                       plakette: "Entfall", plaketteFarbe: Farben.entfallRand)
+        case "geaendert" where Kartenstil.nurRaumGeaendert(karte):
+            // Raumänderung: Karte bleibt weiß, gelb-orangener Rand, neuer Raum als Plakette
+            self.init(hintergrund: vergangen ? Farben.karteVergangen : Farben.karte,
+                      rand: Farben.raumRand, schatten: true, durchgestrichen: false,
+                      plakette: "Raumänderung", plaketteFarbe: Farben.raumRand)
         case "geaendert":
             self.init(hintergrund: vergangen ? Farben.aenderungVergangen : Farben.aenderungHintergrund,
                       rand: Farben.aenderungRand, schatten: true, durchgestrichen: false,
@@ -161,6 +173,14 @@ struct Kartenstil {
             self.init(hintergrund: vergangen ? Farben.karteVergangen : Farben.karte, rand: nil, schatten: true, durchgestrichen: false,
                       plakette: karte.zusaetzlich ? "Zusätzlich" : nil, plaketteFarbe: Farben.gruen)
         }
+    }
+
+    /// Nur der Raum wurde geändert (Lehrkraft, Klasse und Fach wie geplant).
+    static func nurRaumGeaendert(_ karte: Karte) -> Bool {
+        guard karte.raeume.contains(where: { $0.geaendert }) else { return false }
+        if karte.lehrer.contains(where: { $0.geaendert }) || karte.klassen.contains(where: { $0.geaendert }) { return false }
+        if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach { return false }
+        return true
     }
 
     private init(hintergrund: Color, rand: Color?, schatten: Bool, durchgestrichen: Bool, plakette: String?, plaketteFarbe: Color) {

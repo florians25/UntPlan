@@ -106,6 +106,44 @@ final class ApiClient: @unchecked Sendable {
         try await anfrage("GET", "/profil")
     }
 
+    /// POST /passwort – bisheriges und neues Passwort.
+    func passwortAendern(alt: String, neu: String) async throws {
+        let _: OkAntwort = try await anfrage("POST", "/passwort", inhalt: ["alt": alt, "neu": neu])
+    }
+
+    /// Eigene Meldungen (Abwesenheiten, Raumbuchungen …).
+    func meldungen() async throws -> [Meldung] {
+        try await anfrage("GET", "/meldungen")
+    }
+
+    // MARK: Klassenbuch einer Stunde
+
+    func klassenbuchStunde(datum: String, stunde: Int, unterricht: Int, lehrer: String?) async throws -> KlassenbuchStunde {
+        var parameter = ["datum": datum, "stunde": String(stunde), "unterricht": String(unterricht)]
+        if let lehrer, !lehrer.isEmpty { parameter["lehrer"] = lehrer }
+        return try await anfrage("GET", "/klassenbuch/stunde", parameter: parameter)
+    }
+
+    func hausaufgabenDerStunde(datum: String, stunde: Int, bis: Int, unterricht: Int, fach: String, klassen: [String]) async throws -> HausaufgabenDerStunde {
+        var parameter = ["datum": datum, "stunde": String(stunde), "bis": String(bis), "unterricht": String(unterricht)]
+        if !fach.isEmpty { parameter["fach"] = fach }
+        if !klassen.isEmpty { parameter["klassen"] = klassen.joined(separator: ",") }
+        return try await anfrage("GET", "/klassenbuch/hausaufgabenliste", parameter: parameter)
+    }
+
+    func anwesenheit(datum: String, stunde: Int, unterricht: Int) async throws -> Anwesenheitsliste {
+        try await anfrage("GET", "/klassenbuch/anwesenheit",
+                          parameter: ["datum": datum, "stunde": String(stunde), "unterricht": String(unterricht)])
+    }
+
+    func anwesenheitSpeichern(_ daten: AnwesenheitDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("PUT", "/klassenbuch/anwesenheit", koerper: try encoder.encode(daten))
+    }
+
+    func vermerke(klasse: String, von: String, bis: String) async throws -> Vermerkliste {
+        try await anfrage("GET", "/klassenbuch/vermerke", parameter: ["klasse": klasse, "von": von, "bis": bis])
+    }
+
     /// Entfernt die Cookies des Servers (nach dem Abmelden).
     func cookiesLoeschen() {
         guard let url = URL(string: serverAdresse), let speicher = session.configuration.httpCookieStorage else { return }
@@ -129,14 +167,20 @@ final class ApiClient: @unchecked Sendable {
 
     private func anfrage<T: Decodable>(_ methode: String, _ pfad: String, parameter: [String: String] = [:],
                                        inhalt: [String: String]? = nil) async throws -> T {
+        let koerper: Data? = try inhalt.map { try encoder.encode($0) }
+        return try await anfrage(methode, pfad, parameter: parameter, koerper: koerper)
+    }
+
+    private func anfrage<T: Decodable>(_ methode: String, _ pfad: String, parameter: [String: String] = [:],
+                                       koerper: Data?) async throws -> T {
         var req = URLRequest(url: try url(pfad, parameter))
         req.httpMethod = methode
         // Schutzkopf von UntPlanWeb (ohne ihn lehnt der Server ändernde Aufrufe ab)
         req.setValue("1", forHTTPHeaderField: "X-UntPlanWeb")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let inhalt {
+        if let koerper {
             req.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try encoder.encode(inhalt)
+            req.httpBody = koerper
         }
 
         let ergebnis: (Data, URLResponse)

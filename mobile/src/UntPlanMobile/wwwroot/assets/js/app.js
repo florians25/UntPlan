@@ -101,6 +101,7 @@ if (BOOT){
   state.ownName = BOOT.own?.info || '';
   state.ownCode = BOOT.own?.label || '';
   state.ownKind = BOOT.own?.kind || '';
+  state.user = BOOT.user || null;
   state.entities = [own, ...(BOOT.entities || [])];
   state.weekStart = BOOT.weekStart || state.weekStart;
 
@@ -1935,6 +1936,10 @@ function hint(text){
      einzeln umzusetzen kostet nur Rechenzeit und macht die Bewegung nicht
      feiner. */
   let frame = 0, offen = null;
+  /* Die letzten Fingerpositionen mit Zeit — daraus ergibt sich beim
+     Loslassen die Geschwindigkeit des letzten Augenblicks, nicht der
+     Durchschnitt über die ganze Geste. */
+  let proben = [];
 
   const strip = () => $('#colStrip');
   const head  = () => $('#headStrip');
@@ -1957,7 +1962,8 @@ function hint(text){
   };
 
   /* Ruhelage: genau eine Streifenbreite nach links. */
-  const setShift = px => setzen(`translate3d(${-WIDTH() + px}px, 0, 0)`);
+  let lage = 0, basis = 0;          /* aktuelle Verschiebung; Startwert der Geste */
+  const setShift = px => { lage = px; setzen(`translate3d(${-WIDTH() + px}px, 0, 0)`); };
 
   /* Gebündelt schreiben: Der letzte Wert vor dem nächsten Bild gewinnt. */
   const shiftBald = px => {
@@ -1985,23 +1991,6 @@ function hint(text){
     });
   };
 
-  /* Ziel des Gleitens in Pixeln: genau eine Streifenbreite weiter — für
-     beide Streifen derselbe Wert. */
-  const glideTo = (schritte, ms) => {
-    const ziel = -WIDTH() * (1 + schritte);
-    [strip(), head()].forEach(el => {
-      if (!el) return;
-      el.classList.remove('is-dragging');
-      el.style.transitionDuration = ms + 'ms';
-      /* Dieselbe Schreibweise wie beim Ziehen: Wechselt sie zwischen
-         translate3d und translateX, verwirft der Browser die aufgebaute
-         Ebene und zeichnet den ganzen Streifen neu — genau dort ruckelte
-         es am Ende der Bewegung. */
-      el.style.transitionTimingFunction = 'cubic-bezier(.22,.61,.36,1)';
-      el.style.transform = `translate3d(${ziel}px, 0, 0)`;
-    });
-  };
-
   const greifen = an => {
     [strip(), head()].forEach(el => el && el.classList.toggle('is-dragging', an));
   };
@@ -2013,7 +2002,11 @@ function hint(text){
     if (leiste && leiste.scrollWidth > leiste.clientWidth + 1){ active = false; return; }
     x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
     t0 = performance.now();
-    dx = 0; lock = null; active = true; ankerX = 0;
+    dx = 0; lock = null; active = true; ankerX = 0; proben = [];
+    /* Federt der Streifen gerade zurück, wird er dort aufgefangen, wo er
+       steht — kein Sprung in die Ruhelage. */
+    basis = 0;
+    if (federBild){ cancelAnimationFrame(federBild); federBild = 0; basis = lage; dx = lage; }
     if (frame){ cancelAnimationFrame(frame); frame = 0; }
     offen = null;
     breite = WIDTH();          /* einmal messen, nicht bei jeder Bewegung */
@@ -2033,13 +2026,15 @@ function hint(text){
     }
     if (lock !== 'x') return;
 
-    const weg = mx - ankerX;
+    const weg = mx - ankerX + basis;
 
     /* Am Rand des Streifens zäher werden. */
     if (!greifend){ greifen(true); greifend = true; }
     dx = Math.abs(weg) > breite
        ? Math.sign(weg) * (breite + (Math.abs(weg) - breite) * 0.3)
        : weg;
+    proben.push([performance.now(), dx]);
+    if (proben.length > 8) proben.shift();
     shiftBald(dx);
   }, { passive:true });
 
@@ -2122,6 +2117,73 @@ function hint(text){
      schneller einrasten, wie in einer nativen App. */
 
 
+  /* Feder wie beim Blättern in iOS: Der Streifen behält beim Loslassen
+     die Geschwindigkeit des Fingers und läuft gedämpft ins Ziel — ohne
+     festen Zeitplan, deshalb ohne Knick zwischen Ziehen und Gleiten.
+     Geschrieben wird ausschließlich transform, Bild für Bild. */
+  let federBild = 0;
+  const federn = (von, ziel, v0, fertig) => {
+    cancelAnimationFrame(federBild);
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches){
+      setShift(ziel); federBild = 0; fertig && fertig(); return;
+    }
+    greifen(true);
+    const steif = 340, daempf = 2 * Math.sqrt(steif) * 0.94;   /* knapp unter kritisch */
+    let x = von - ziel, v = v0 * 1000, zuletzt = performance.now();
+    const schritt = jetzt => {
+      let dt = Math.min(0.05, (jetzt - zuletzt) / 1000); zuletzt = jetzt;
+      /* In kleinen Teilschritten rechnen — bei 60 und bei 120 Bildern je
+         Sekunde dieselbe Bahn. */
+      while (dt > 0){
+        const h = Math.min(dt, 1 / 240);
+        v += (-steif * x - daempf * v) * h;
+        x += v * h;
+        dt -= h;
+      }
+      if (Math.abs(x) < 0.4 && Math.abs(v) < 12){
+        setShift(ziel);
+        federBild = 0;
+        fertig && fertig();
+        return;
+      }
+      setShift(ziel + x);
+      federBild = requestAnimationFrame(schritt);
+    };
+    federBild = requestAnimationFrame(schritt);
+  };
+
+  /* Geschwindigkeit der letzten rund 80 ms in Pixeln je Millisekunde. */
+  const tempo = () => {
+    if (proben.length < 2) return 0;
+    const [t1, x1] = proben[proben.length - 1];
+    let i = proben.length - 2;
+    while (i > 0 && t1 - proben[i][0] < 80) i--;
+    const [t0p, x0p] = proben[i];
+    /* Wer vor dem Loslassen innehält, hat keinen Schwung mehr. */
+    if (performance.now() - t1 > 90) return 0;
+    return (x1 - x0p) / Math.max(8, t1 - t0p);
+  };
+
+  /* Eine Seite weiter: dieselbe Feder für Wischen, Pfeiltasten und
+     Pfeilknöpfe. dir > 0 = vorwärts (Inhalt wandert nach links). */
+  const blaettern = (dir, von, v0) => {
+    buzz();
+    busy = true;
+    const w = WIDTH();
+    let done = false;
+    federn(von, dir > 0 ? -w : w, v0, () => {
+      if (done) return; done = true;
+      requestAnimationFrame(() => commit(dir));
+    });
+  };
+  window.ttBlaettern = dir => {
+    if (busy || active) return false;
+    if (!strip()) return false;
+    breite = WIDTH();
+    blaettern(dir, 0, 0);
+    return true;
+  };
+
   const release = () => {
     if (!active) return;
     active = false;
@@ -2129,47 +2191,67 @@ function hint(text){
        funken und die Gleitbewegung an den Anfang zurückwerfen. */
     if (frame){ cancelAnimationFrame(frame); frame = 0; }
     if (offen !== null){ setShift(offen); offen = null; }
-    if (lock !== 'x'){ lock = null; return; }
+    if (lock !== 'x'){
+      lock = null;
+      /* Aufgefangen, aber nicht weitergezogen: zurück in die Ruhelage. */
+      if (basis) federn(lage, 0, 0, () => { if (!active){ resetShift(); greifend = false; } });
+      return;
+    }
     lock = null;
 
     const w = WIDTH();
-    const speed = Math.abs(dx) / Math.max(1, performance.now() - t0);   // px je ms
-    const far = Math.abs(dx) > w * 0.22 || speed > 0.32;               // etwas leichter auslösbar
+    const v = tempo();                                   /* px je ms */
+    /* Wohin der Streifen mit diesem Schwung von selbst liefe — wie die
+       Seitenwahl von iOS: halbe Breite oder ein deutlicher Wurf. */
+    const ziel = dx + v * 180;
+    const wurf = Math.abs(v) > 0.35 && Math.sign(v) === Math.sign(dx);
+    const far = Math.abs(ziel) > w * 0.5 || (wurf && Math.abs(dx) > 12);
 
     if (!far){
-      /* Sanft zurückgleiten, ebenfalls mit Schwung. */
-      const back = Math.max(150, Math.min(300, Math.abs(dx) / Math.max(0.8, speed)));
-      glideTo(0, back);
-      setTimeout(() => { if (!active){ resetShift(); greifend = false; } }, back + 40);
+      /* Zurückfedern, mit dem Restschwung. */
+      federn(dx, 0, v, () => { if (!active){ resetShift(); greifend = false; } });
       return;
     }
-
     const dir = dx < 0 ? 1 : -1;
-    buzz();
-    busy = true;
-
-    /* Restweg mit der aktuellen Geschwindigkeit weiterführen. */
-    /* Der Rest des Weges wird mit der Geschwindigkeit weitergeführt, mit
-       der losgelassen wurde — aber in engeren Grenzen als bisher. Wer ganz
-       langsam zieht und loslässt, wartete vorher bis zu 420 ms auf das
-       Einrasten; das wirkte zäh. */
-    const remaining = w - Math.abs(dx);
-    const dur = Math.max(170, Math.min(320, remaining / Math.max(0.9, speed)));
-
-    const st = strip();
-    let done = false;
-    const finish = () => {
-      if (done) return; done = true;
-      requestAnimationFrame(() => commit(dir));
-    };
-    if (st) st.addEventListener('transitionend', finish, { once:true });
-    setTimeout(finish, dur + 120);    /* Rückfall, falls das Ereignis ausbleibt */
-    glideTo(dir > 0 ? 1 : -1, dur);
+    /* Schwung in Gegenrichtung wird nicht mitgenommen. */
+    blaettern(dir, dx, Math.sign(v) === -dir ? v : 0);
   };
 
   area.addEventListener('touchend', release, { passive:true });
   area.addEventListener('touchcancel', release, { passive:true });
 })();
+
+/* Blättern ohne Finger: Pfeiltasten und waagerechtes Wischen auf dem
+   Trackpad (iPad mit Tastatur, Rechner) nehmen dieselbe Feder wie das
+   Wischen. In der Tagesansicht ein Tag, sonst eine Woche. */
+function planBlaettern(dir){
+  if (state.screen !== 'plan') return;
+  if (window.ttBlaettern && window.ttBlaettern(dir)) return;
+  if (state.view === 'day') stepDay(dir); else gotoWeek(dir);
+}
+document.addEventListener('keydown', e => {
+  if (state.screen !== 'plan' || e.altKey || e.metaKey || e.ctrlKey) return;
+  if (e.target.closest && e.target.closest('input, textarea, [contenteditable]')) return;
+  if (document.querySelector('.sheet:not([hidden])')) return;
+  if (e.key === 'ArrowLeft'){ e.preventDefault(); planBlaettern(-1); }
+  if (e.key === 'ArrowRight'){ e.preventDefault(); planBlaettern(1); }
+});
+(() => {
+  let summe = 0, sperre = 0;
+  $('#gridScroll').addEventListener('wheel', e => {
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    const jetzt = performance.now();
+    if (jetzt < sperre) return;                 /* Nachlauf des Trackpads */
+    summe += e.deltaX;
+    if (Math.abs(summe) > 60){
+      planBlaettern(summe > 0 ? 1 : -1);
+      summe = 0; sperre = jetzt + 600;
+    }
+  }, { passive:false });
+})();
+$('#dayPrev').addEventListener('click', e => { e.stopImmediatePropagation(); planBlaettern(-1); }, true);
+$('#dayNext').addEventListener('click', e => { e.stopImmediatePropagation(); planBlaettern(1); }, true);
 
 /* Kurzes Rückmelden beim Antippen von Kacheln und Reitern */
 document.addEventListener('touchstart', e => {
@@ -2181,8 +2263,65 @@ document.addEventListener('touchstart', e => {
 /* =====================================================================
    Screens / Tabbar
    ===================================================================== */
+/* Übergang wie in einer iOS-Navigation. Die Klasse fällt nach der
+   Bewegung wieder weg, damit keine Transform-Ebene stehen bleibt. */
+function iosAnim(el, cls){
+  if (!el) return;
+  el.classList.remove('ios-push', 'ios-pop', 'ios-leave');
+  void el.offsetWidth;
+  el.classList.add(cls);
+  const blatt = el.closest('.sheet');
+  if (blatt) blatt.classList.add('ios-clip');
+  let fertig = false;
+  const ende = e => {
+    if (e && e.target !== el) return;
+    if (fertig) return; fertig = true;
+    el.classList.remove(cls);
+    el.removeEventListener('animationend', ende);
+    if (blatt && !blatt.querySelector('.ios-push, .ios-pop')) blatt.classList.remove('ios-clip');
+  };
+  el.addEventListener('animationend', ende);
+  setTimeout(ende, 700);           /* falls das Ereignis ausbleibt */
+}
+
+/* Unteransichten in Blättern und Seiten schieben sich von rechts herein;
+   wird eine geschlossen, gleitet die Ansicht darunter aus der Tiefe nach. */
+(() => {
+  const paare = [['#detailSub', '#detailBody'], ['#detailAbs', null], ['#detailForm', null],
+                 ['#msgRead', '#msgList'], ['#pickerList', '#pickerRoot']];
+  const offen = el => {
+    const blatt = el.closest('.sheet');
+    if (blatt) return blatt.classList.contains('is-open') && !blatt.hidden;
+    const seite = el.closest('.screen');
+    return !!seite && seite.classList.contains('is-active');
+  };
+  const mo = new MutationObserver(liste => liste.forEach(m => {
+    const el = m.target;
+    const p = paare.find(([sel]) => el.matches(sel));
+    if (!p) return;
+    const warVerborgen = m.oldValue !== null;
+    if (warVerborgen && !el.hidden){ if (offen(el)) iosAnim(el, 'ios-push'); }
+    else if (!warVerborgen && el.hidden && p[1]){
+      const b = $(p[1]);
+      if (b && !b.hidden && offen(el)) iosAnim(b, 'ios-pop');
+    }
+  }));
+  paare.forEach(([sel]) => {
+    const el = $(sel);
+    if (el) mo.observe(el, { attributes:true, attributeFilter:['hidden'], attributeOldValue:true });
+  });
+})();
+
 function showScreen(name){
+  const vorher = state.screen;
   state.screen = name;
+  /* Listen (Termine, Abwesenheiten …) sind Unterseiten der Startseite:
+     hinein von rechts, zurück wieder nach rechts hinaus. */
+  if (name === 'list' && vorher === 'start') iosAnim($('#screenList'), 'ios-push');
+  if (vorher === 'list' && name === 'start'){
+    iosAnim($('#screenList'), 'ios-leave');
+    iosAnim($('#screenStart'), 'ios-pop');
+  }
   /* Schüler*innen haben nur ihren eigenen Plan — dann führt die Auswahl
      ins Leere und die Knöpfe dafür verschwinden. */
   /* Schüler*innen dürfen Klassen- und Raumpläne ansehen; die Auswahl
@@ -3141,8 +3280,17 @@ const SH = {
 /* ---------- Auswahl: erst Kategorie, dann Liste ---------- */
 let pickerType = null;                    // null = Kategorieebene
 
+/* Schüler- und Elternkonten sehen keine Lehrerpläne. Der Server bietet
+   sie dann gar nicht erst an; hier zur Sicherheit noch einmal, falls
+   ältere Daten aus dem Speicher kommen. */
+function keineLehrerplaene(){
+  const r = (state.user && state.user.rolle) || '';
+  return !!state.isStudent || r === 'schueler' || r === 'eltern';
+}
+
 function pickerShowRoot(){
   pickerType = null;
+  if (keineLehrerplaene()) state.entities = state.entities.filter(e => e.type !== 'teacher');
   /* Gibt es zu einer Art gar keine Einträge — bei Schüler*innen etwa keine
      Lehrkräfte —, verschwindet auch der Knopf dafür. */
   $$('#pickerRoot [data-open]').forEach(b => {
@@ -5960,19 +6108,24 @@ document.addEventListener('visibilitychange', () => {
   const name = state.ownName || (state.own && state.own.info) || eigen.info
              || state.ownCode || eigen.code || eigen.label || '';
   const kurz = state.ownCode || eigen.code || '';
-  /* Im Profilblock steht der Name, das Kürzel gehört in die Plakette. */
-  $('#profileName').textContent = name || kurz || 'Profil';
+  /* Wie im Vorbild: groß das Kürzel, in der Kontokarte die Anmeldung mit
+     der Rolle als Plakette. Ohne Kürzel (Administration) steht der Name
+     oben, ohne Anmeldenamen der Name in der Karte. */
+  const login = (state.user && state.user.login) || '';
+  $('#profileName').textContent = login || name || kurz || 'Profil';
   const full = $('#profileFullName');
-  if (full) full.textContent = name || kurz || 'Profil';
+  if (full) full.textContent = kurz || name || 'Profil';
+  const btnKonto = $('#btnSwitchAccount');
+  if (btnKonto && name) btnKonto.title = name;
   /* Ob Schüler*in oder Lehrkraft, sagt die Art des eigenen Plans — ein
      Klassenplan gehört einer Schülerin, ein Lehrerplan einer Lehrkraft. */
   /* Die Art des eigenen Plans entscheidet: Klassenplan → Schüler*in,
      Lehrerplan → Lehrkraft. Das steht vom Laden an fest. */
   const art = state.ownKind || (state.own && state.own.kind) || eigen.kind || '';
   const istSchueler = art ? art === 'class' : !!state.isStudent;
-  $('#profileRole').textContent =
-    [kurz, istSchueler ? 'Schüler*in' : 'Lehrkraft'].filter(Boolean).join(' · ');
-  $('#profileAvatar').textContent = initialen(name || kurz);
+  $('#profileRole').textContent = (state.user && state.user.role)
+    || (istSchueler ? 'Schüler*in' : 'Lehrkraft');
+  $('#profileAvatar').textContent = (login || name || kurz || '?').trim().charAt(0).toUpperCase();
   renderMessages();
 
   /* Ohne Bootdaten (z. B. beim reinen Vorschaubetrieb) den Endpunkt fragen. */
@@ -5989,6 +6142,7 @@ document.addEventListener('visibilitychange', () => {
       state.ownName = m.own?.info || '';
       state.ownCode = m.own?.label || '';
       state.ownKind = m.own?.kind || '';
+      state.user = m.user || state.user || null;
       state.entities = [own, ...(m.entities || [])];
 
       const saved = store.get('entity', null);

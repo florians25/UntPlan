@@ -78,7 +78,7 @@ public sealed class Mitteilungsdienst
             {
                 var kl = k[7..];
                 var leitung = s != null && s.Klassen.TryGetValue(kl, out var x) ? x.Klassenleitung : new List<string>();
-                res.UnionWith(alle.Where(b => (b.KlassenKuerzel is string bk && bk.Equals(kl, StringComparison.OrdinalIgnoreCase)) ||
+                res.UnionWith(alle.Where(b => b.HatKlasse(kl) ||
                                               (b.LehrerKuerzel is string lk && leitung.Contains(lk, StringComparer.OrdinalIgnoreCase))).Select(b => b.Id));
             }
             else if (k.StartsWith("benutzer:") && int.TryParse(k[9..], out var id)) res.Add(id);

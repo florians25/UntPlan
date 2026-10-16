@@ -17,13 +17,15 @@ struct Tagesinfo: Identifiable {
 /// Ziele der Liste auf der Startseite.
 enum Startziel: Hashable {
     case termine
+    case abwesenheiten
     case hausaufgaben
     case aufsichten
     case aenderungen
 }
 
-/// Startseite nach Vorlage: großer Schulname, wischbare Infokarten, Tageskarte mit den nächsten Stunden,
-/// darunter eine weiße Liste (Termine, Hausaufgaben, Aufsichten, Änderungen).
+/// Startseite nach Vorlage: großer Schulname, Infokarten, Tageskarte (Datum links, Tagesinhalt rechts),
+/// darunter eine weiße Liste (Termine, Abwesenheiten, Hausaufgaben, Aufsichten, Änderungen).
+/// Auf dem iPad mittig mit höchstens 700 pt Breite.
 struct StartView: View {
     @EnvironmentObject var zustand: AppZustand
     @State private var heute: Heute? = nil
@@ -45,7 +47,7 @@ struct StartView: View {
                         if heute.paket {
                             infokarten(heute)
                             tageskarte(heute)
-                                .padding(.bottom, 24)
+                                .padding(.bottom, 20)
                             startliste(heute)
                         } else {
                             Fehlerhinweis(text: "Es wurden noch keine Daten aus UntPlan übertragen.")
@@ -58,12 +60,18 @@ struct StartView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 28)
+                .zentriert(maxBreite: 736)
             }
             .scrollIndicators(.hidden)
             .background(Farben.grund.ignoresSafeArea())
             .refreshable { await laden() }
             .task { await laden() }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { KontoKnopf() }
+            }
             .navigationDestination(for: Startziel.self) { ziel in
                 StartlisteView(ziel: ziel, heute: heute) { gewaehlteKarte = $0 }
             }
@@ -78,17 +86,31 @@ struct StartView: View {
 
     private var schulname: some View {
         Text(zustand.schulname)
-            .font(.system(size: 34, weight: .heavy))
-            .tracking(-0.75)
-            .foregroundStyle(Farben.tinte2)
+            .font(.system(size: 30, weight: .heavy))
+            .tracking(-0.6)
+            .foregroundStyle(Farben.titelGrau)
             .lineLimit(2)
             .minimumScaleFactor(0.7)
-            .padding(.top, 52)
-            .padding(.bottom, 20)
+            .padding(.top, 2)
+            .padding(.bottom, 16)
             .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: - Infos zum Tag (.newsstrip)
+
+    /// Hinweis „abwesend …“ bzw. „Klasse abwesend …“ des Tages.
+    private func abwesenheitsHinweis(_ h: Heute) -> String? {
+        h.hinweise.first { hinweis in
+            let klein = hinweis.lowercased()
+            return klein.hasPrefix("abwesend") || klein.hasPrefix("klasse abwesend")
+        }
+    }
+
+    /// Die Tageskarte zeigt statt der Stunden eine graue Fläche „Abwesend“.
+    private func zeigtAbwesenheit(_ h: Heute) -> Bool {
+        guard abwesenheitsHinweis(h) != nil else { return false }
+        return naechsteStunden(h).allSatisfy { $0.status == "abwesend" || $0.istEntfall }
+    }
 
     private func infos(_ h: Heute) -> [Tagesinfo] {
         var liste: [Tagesinfo] = []
@@ -105,7 +127,9 @@ struct StartView: View {
             if !e.klassen.isEmpty { text += " · " + e.klassen.joined(separator: ", ") }
             liste.append(Tagesinfo(art: .veranstaltung, titel: e.titel.isEmpty ? e.art : e.titel, text: text))
         }
-        for hinweis in h.hinweise {
+        // Die eigene Abwesenheit steht bereits in der Tageskarte
+        let abwesend = zeigtAbwesenheit(h) ? abwesenheitsHinweis(h) : nil
+        for hinweis in h.hinweise where hinweis != abwesend {
             liste.append(Tagesinfo(art: .hinweis, titel: "Hinweis", text: hinweis))
         }
         return liste
@@ -128,7 +152,7 @@ struct StartView: View {
                 .scrollTargetLayout()
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
-                .padding(.bottom, 24)
+                .padding(.bottom, 20)
             }
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(.viewAligned)
@@ -148,115 +172,143 @@ struct StartView: View {
     }
 
     private func tageskarte(_ h: Heute) -> some View {
-        let stunden = naechsteStunden(h)
-        let istHeute = Datumsformat.istHeute(h.datum)
-        let sichtbar = alleStunden ? stunden : Array(stunden.prefix(2))
-        let rest = Array(stunden.dropFirst(sichtbar.count))
-        return HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(Datumsformat.anzeige(h.datum, "EEEE"))
-                    .font(.system(size: 15))
+                    .font(.system(size: 13))
                     .foregroundStyle(Farben.tinte2)
                 Text(Datumsformat.anzeige(h.datum, "d"))
-                    .font(.system(size: 42, weight: .bold))
+                    .font(.system(size: 38, weight: .bold))
                     .foregroundStyle(Farben.heute)
                     .padding(.top, -1)
                 Text(Datumsformat.anzeige(h.datum, "MMMM"))
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Farben.heute)
                 if !h.woche.isEmpty {
                     Text(h.woche.count == 1 ? "\(h.woche)-Woche" : h.woche)
-                        .font(.system(size: 14.5, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color(hell: 0x20364F, dunkel: 0xD7E4F7))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(Color(hell: 0xD7E4F7, dunkel: 0x20364F), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        .padding(.top, 10)
+                        .padding(.top, 8)
                 }
             }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
-            .frame(width: 92, alignment: .leading)
+            .frame(width: 84, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 0) {
-                (Text(istHeute ? "Heute" : Datumsformat.anzeige(h.datum, "EEEE"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Farben.tinte2)
-                 + Text("  |  ")
-                    .font(.system(size: 13))
-                    .foregroundColor(Farben.gedaempft.opacity(0.6))
-                 + Text(planname(h))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Farben.tinte2))
-                    .lineLimit(1)
-                    .padding(.bottom, 8)
-
-                if stunden.isEmpty {
-                    keineStunden(h)
-                } else {
-                    ForEach(sichtbar) { karte in
-                        Button {
-                            gewaehlteKarte = karte
-                        } label: {
-                            NaechsteStunde(karte: karte, typ: h.typ)
-                        }
-                        .buttonStyle(GedruecktStil())
-                        .padding(.bottom, 10)
-                    }
-                    if !rest.isEmpty || alleStunden && stunden.count > 2 {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { alleStunden.toggle() }
-                        } label: {
-                            HStack(spacing: 8) {
-                                if !rest.isEmpty {
-                                    HStack(spacing: 3) {
-                                        ForEach(rest.prefix(6)) { karte in
-                                            Capsule()
-                                                .fill(Farben.fach(karte.farbe))
-                                                .frame(width: 4, height: 13)
-                                        }
-                                    }
-                                    Text(rest.count == 1 ? "+1 Stunde" : "+\(rest.count) Stunden")
-                                } else {
-                                    Text("Weniger anzeigen")
-                                }
-                            }
-                            .font(.system(size: 14.5))
-                            .foregroundStyle(Farben.tinte2)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+            if zeigtAbwesenheit(h) {
+                abwesenheitsfeld(h)
+            } else {
+                stundenspalte(h)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.top, 16)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 14)
+        .padding(14)
         .alsKarte()
     }
 
-    private func planname(_ h: Heute) -> String {
-        "Mein Stundenplan"
+    /// Graue Fläche „Abwesend“ (Vorlage) mit Zeitraum und ggf. Grund.
+    private func abwesenheitsfeld(_ h: Heute) -> some View {
+        let hinweis = abwesenheitsHinweis(h) ?? ""
+        var zusatz = hinweis
+        for vorsilbe in ["Klasse abwesend", "abwesend"] where zusatz.lowercased().hasPrefix(vorsilbe.lowercased()) {
+            zusatz = String(zusatz.dropFirst(vorsilbe.count)).trimmingCharacters(in: .whitespaces)
+            break
+        }
+        return VStack(spacing: 3) {
+            Text(hinweis.lowercased().hasPrefix("klasse") ? "Klasse abwesend" : "Abwesend")
+                .font(.system(size: 13, weight: .semibold))
+            if !zusatz.isEmpty {
+                Text(zusatz)
+                    .font(.system(size: 12))
+                    .opacity(0.9)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 82)
+        .background(Farben.abwesendFlaeche, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func stundenspalte(_ h: Heute) -> some View {
+        let stunden = naechsteStunden(h)
+        let istHeute = Datumsformat.istHeute(h.datum)
+        let sichtbar = alleStunden ? stunden : Array(stunden.prefix(2))
+        let rest = Array(stunden.dropFirst(sichtbar.count))
+        return VStack(alignment: .leading, spacing: 0) {
+            (Text(istHeute ? "Heute" : Datumsformat.anzeige(h.datum, "EEEE"))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Farben.tinte2)
+             + Text("  |  ")
+                .font(.system(size: 12))
+                .foregroundColor(Farben.gedaempft.opacity(0.6))
+             + Text("Mein Stundenplan")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Farben.tinte2))
+                .lineLimit(1)
+                .padding(.bottom, 8)
+
+            if stunden.isEmpty {
+                keineStunden(h)
+            } else {
+                ForEach(sichtbar) { karte in
+                    Button {
+                        gewaehlteKarte = karte
+                    } label: {
+                        NaechsteStunde(karte: karte, typ: h.typ)
+                    }
+                    .buttonStyle(GedruecktStil())
+                    .padding(.bottom, 10)
+                }
+                if !rest.isEmpty || alleStunden && stunden.count > 2 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { alleStunden.toggle() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if !rest.isEmpty {
+                                HStack(spacing: 3) {
+                                    ForEach(rest.prefix(6)) { _ in
+                                        Capsule()
+                                            .fill(Farben.karteBalken)
+                                            .frame(width: 4, height: 13)
+                                    }
+                                }
+                                Text(rest.count == 1 ? "+1 Stunde" : "+\(rest.count) Stunden")
+                            } else {
+                                Text("Weniger anzeigen")
+                            }
+                        }
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func keineStunden(_ h: Heute) -> some View {
         VStack(spacing: 3) {
             Image(systemName: "cup.and.saucer")
-                .font(.system(size: 28, weight: .light))
+                .font(.system(size: 26, weight: .light))
                 .foregroundStyle(Farben.tinte2)
             Text("Keine Stunden")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(Farben.tinte)
                 .padding(.top, 5)
             Text(h.karten.isEmpty ? "Heute ist frei." : "Heute keine weiteren Stunden.")
-                .font(.system(size: 14.5))
+                .font(.system(size: 13.5))
                 .foregroundStyle(Farben.tinte2)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
+        .padding(.vertical, 10)
     }
 
     // MARK: - Liste (.rows)
@@ -271,8 +323,11 @@ struct StartView: View {
 
     private func eintraege(_ h: Heute) -> [Listeneintrag] {
         var liste: [Listeneintrag] = [
-            Listeneintrag(ziel: .termine, titel: "Meine Termine", symbol: "calendar.badge.clock", zahl: h.termine.count)
+            Listeneintrag(ziel: .termine, titel: "Meine Termine", symbol: "calendar.badge.clock", zahl: 0)
         ]
+        if zustand.istKollegium {
+            liste.append(Listeneintrag(ziel: .abwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
+        }
         if !h.hausaufgaben.isEmpty || h.typ == "klasse" {
             liste.append(Listeneintrag(ziel: .hausaufgaben, titel: "Hausaufgaben", symbol: "book.closed", zahl: h.hausaufgaben.count))
         }
@@ -287,46 +342,18 @@ struct StartView: View {
 
     private func startliste(_ h: Heute) -> some View {
         let liste = eintraege(h)
-        return VStack(spacing: 0) {
+        return Zeilengruppe {
             ForEach(Array(liste.enumerated()), id: \.element.id) { eintrag in
                 let e = eintrag.element
                 NavigationLink(value: e.ziel) {
-                    HStack(spacing: 13) {
-                        Image(systemName: e.symbol)
-                            .font(.system(size: 21, weight: .light))
-                            .foregroundStyle(Farben.gedaempft)
-                            .frame(width: 30)
-                        Text(e.titel)
-                            .font(.system(size: 17))
-                            .foregroundStyle(Farben.tinte)
-                            .lineLimit(1)
-                        Spacer(minLength: 4)
-                        if e.zahl > 0 {
-                            ZahlPlakette(zahl: e.zahl)
-                        }
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundStyle(Farben.gedaempft)
-                            .padding(.leading, 4)
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 54)
-                    .contentShape(Rectangle())
+                    Listenzeile(symbol: e.symbol, titel: e.titel, zahl: e.zahl > 0 ? e.zahl : nil)
                 }
-                .buttonStyle(ZeilenStil())
-                .overlay(alignment: .bottom) {
-                    if eintrag.offset < liste.count - 1 {
-                        Rectangle()
-                            .fill(Farben.trennlinie)
-                            .frame(height: 0.5)
-                            .padding(.leading, 59)
-                            .padding(.trailing, 16)
-                    }
+                .buttonStyle(ZeilenKnopfStil())
+                if eintrag.offset < liste.count - 1 {
+                    Zeilentrenner()
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .alsKarte()
     }
 
     private func laden() async {
@@ -475,10 +502,14 @@ struct StartlisteView: View {
     let ziel: Startziel
     let heute: Heute?
     let antippen: (Karte) -> Void
+    @EnvironmentObject var zustand: AppZustand
+    @State private var meldungen: [Meldung]? = nil
+    @State private var fehler: String? = nil
 
     private var titel: String {
         switch ziel {
         case .termine: return "Meine Termine"
+        case .abwesenheiten: return "Meine Abwesenheiten"
         case .hausaufgaben: return "Hausaufgaben"
         case .aufsichten: return "Pausenaufsichten"
         case .aenderungen: return "Änderungen heute"
@@ -490,6 +521,7 @@ struct StartlisteView: View {
             if let h = heute {
                 switch ziel {
                 case .termine: termine(h)
+                case .abwesenheiten: abwesenheiten()
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
@@ -502,6 +534,74 @@ struct StartlisteView: View {
         .navigationTitle(titel)
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.visible, for: .navigationBar)
+        .task {
+            if ziel == .abwesenheiten { await meldungenLaden() }
+        }
+    }
+
+    // MARK: Meine Abwesenheiten (eigene Meldungen vom Typ Abwesenheit)
+
+    @ViewBuilder
+    private func abwesenheiten() -> some View {
+        if let fehler {
+            Fehlerhinweis(text: fehler)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+        }
+        if let liste = meldungen?.filter(\.istAbwesenheit) {
+            if liste.isEmpty {
+                leer("Keine Abwesenheiten gemeldet.")
+            }
+            ForEach(liste) { m in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(abwesenheitszeitraum(m))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Farben.tinte)
+                        Spacer()
+                        Text(m.status == "offen" ? "Offen" : (m.status == "quittiert" ? "Bestätigt" : m.status))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(m.status == "offen" ? Farben.heute : Farben.gruen)
+                    }
+                    let grund = [m.grund ?? "", m.text ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+                    if !grund.isEmpty {
+                        Text(grund)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                }
+                .padding(.vertical, 4)
+                .listRowBackground(Farben.flaeche)
+            }
+        } else if fehler == nil {
+            ProgressView()
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Farben.flaeche)
+        }
+    }
+
+    private func abwesenheitszeitraum(_ m: Meldung) -> String {
+        let von = m.von ?? ""
+        let bis = m.bis ?? von
+        var text = Datumsformat.anzeige(von, "EE d.M.yyyy")
+        if !bis.isEmpty && bis.prefix(10) != von.prefix(10) {
+            text += " – " + Datumsformat.anzeige(bis, "EE d.M.yyyy")
+        }
+        if let v = m.stundeVon {
+            let b = m.stundeBis ?? v
+            text += v == b ? ", \(v). Std." : ", \(v).–\(b). Std."
+        }
+        return text
+    }
+
+    private func meldungenLaden() async {
+        do {
+            meldungen = try await zustand.api.meldungen()
+            fehler = nil
+        } catch {
+            if let text = zustand.fehlertext(error) { fehler = text }
+            if meldungen == nil { meldungen = [] }
+        }
     }
 
     @ViewBuilder

@@ -32,12 +32,17 @@ struct HauptView: View {
     }
 }
 
-/// Untere Tab-Leiste: Start, Stundenplan, Mitteilungen, Profil.
-/// Ab iOS 26 die Systemleiste (Liquid Glass), davor eine eigene schwebende Glaskapsel.
+/// Tab-Leiste: Start, Stundenplan, Mitteilungen, Profil.
+/// Ab iOS 26 die Systemleiste (Liquid Glass; auf dem iPad schwebend oben, auf dem iPhone unten),
+/// davor eine eigene schwebende Glaskapsel – auf dem iPad oben mittig, auf dem iPhone unten.
 @MainActor
 struct AppTabView: View {
     @EnvironmentObject var zustand: AppZustand
-    @State private var reiter: AppReiter = .start
+    @Environment(\.horizontalSizeClass) private var groessenklasse
+    /// Bereits geöffnete Reiter (eigene Leiste: erst beim ersten Öffnen laden, danach Zustand behalten)
+    @State private var besucht: Set<AppReiter> = []
+
+    private var istBreit: Bool { groessenklasse == .regular }
 
     var body: some View {
         if #available(iOS 26.0, *) {
@@ -50,7 +55,7 @@ struct AppTabView: View {
     // MARK: - iOS 26: Systemleiste
 
     private var systemLeiste: some View {
-        TabView(selection: $reiter) {
+        TabView(selection: $zustand.reiter) {
             StartView()
                 .tint(Farben.akzent)
                 .tabItem { Label(AppReiter.start.titel, systemImage: AppReiter.start.symbol) }
@@ -75,13 +80,55 @@ struct AppTabView: View {
                 .tabItem { Label(AppReiter.profil.titel, systemImage: AppReiter.profil.symbol) }
                 .tag(AppReiter.profil)
         }
-        // aktiver Reiter dunkel bzw. weiß wie in der Vorlage
-        .tint(Farben.leisteAktiv)
+        // iPad: aktiver Reiter orange wie in der Vorlage; iPhone: dunkel bzw. weiß
+        .tint(istBreit ? Farben.akzent : Farben.leisteAktiv)
     }
 
     // MARK: - Bis iOS 18: eigene Glaskapsel
 
+    @ViewBuilder
+    private func inhalt(_ reiter: AppReiter) -> some View {
+        switch reiter {
+        case .start: StartView()
+        case .stundenplan: StundenplanView()
+        case .mitteilungen: MitteilungenView()
+        case .profil: ProfilView()
+        }
+    }
+
+    /// Alle geöffneten Reiter liegen übereinander, sichtbar ist nur der gewählte (Zustand bleibt erhalten).
+    private var reiterStapel: some View {
+        ZStack {
+            ForEach(AppReiter.allCases, id: \.self) { reiter in
+                let aktiv = zustand.reiter == reiter
+                if aktiv || besucht.contains(reiter) {
+                    inhalt(reiter)
+                        .opacity(aktiv ? 1 : 0)
+                        .allowsHitTesting(aktiv)
+                        .accessibilityHidden(!aktiv)
+                        .zIndex(aktiv ? 1 : 0)
+                }
+            }
+        }
+        .onAppear { besucht.insert(zustand.reiter) }
+        .onChange(of: zustand.reiter) { _, neu in besucht.insert(neu) }
+    }
+
+    @ViewBuilder
     private var eigeneLeiste: some View {
+        if istBreit {
+            // iPad: Kapsel oben mittig in der Zeile der Navigationsleiste (links Konto, rechts Knöpfe)
+            reiterStapel
+                .overlay(alignment: .top) {
+                    KopfTabLeiste(auswahl: $zustand.reiter, ungelesen: zustand.ungelesen)
+                        .padding(.top, 5)
+                }
+        } else {
+            untereLeiste
+        }
+    }
+
+    private var untereLeiste: some View {
         GeometryReader { geo in
             // Bei eingeblendeter Tastatur wächst der Abstand unten stark: dann Leiste ausblenden
             let tastatur = geo.safeAreaInsets.bottom > 120
@@ -89,39 +136,18 @@ struct AppTabView: View {
             // wie .tabbar: max(10px, Sicherheitsabstand - 14px) über dem Rand
             let abstand = max(10, unten - 14)
             let einzug = tastatur ? 0 : max(0, abstand + GlasTabLeiste.hoehe - unten + 8)
-            TabView(selection: $reiter) {
-                StartView()
-                    .ohneSystemleiste(einzug: einzug)
-                    .tag(AppReiter.start)
-                StundenplanView()
-                    .ohneSystemleiste(einzug: einzug)
-                    .tag(AppReiter.stundenplan)
-                MitteilungenView()
-                    .ohneSystemleiste(einzug: einzug)
-                    .tag(AppReiter.mitteilungen)
-                ProfilView()
-                    .ohneSystemleiste(einzug: einzug)
-                    .tag(AppReiter.profil)
-            }
-            .overlay(alignment: .bottom) {
-                GlasTabLeiste(auswahl: $reiter, ungelesen: zustand.ungelesen)
-                    .padding(.bottom, abstand)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .ignoresSafeArea(.container, edges: .bottom)
-                    .opacity(tastatur ? 0 : 1)
-                    .allowsHitTesting(!tastatur)
-            }
+            reiterStapel
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    Color.clear.frame(height: einzug)
+                }
+                .overlay(alignment: .bottom) {
+                    GlasTabLeiste(auswahl: $zustand.reiter, ungelesen: zustand.ungelesen)
+                        .padding(.bottom, abstand)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .ignoresSafeArea(.container, edges: .bottom)
+                        .opacity(tastatur ? 0 : 1)
+                        .allowsHitTesting(!tastatur)
+                }
         }
-    }
-}
-
-private extension View {
-    /// Systemleiste ausblenden und unten Platz für die schwebende Kapsel lassen.
-    func ohneSystemleiste(einzug: CGFloat) -> some View {
-        self
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Color.clear.frame(height: einzug)
-            }
-            .toolbar(.hidden, for: .tabBar)
     }
 }

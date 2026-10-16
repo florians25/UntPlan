@@ -179,7 +179,7 @@ public sealed class Verwaltungsdienst
                     break;
                 case "inaktive_sperren":
                     if (s is null || b.Gesperrt || b.IstAdmin || b.Element.Length == 0) continue;
-                    var vorhanden = b.Rolle == Rollen.Schueler ? s.Klassen.ContainsKey(b.Element) : s.Lehrer.ContainsKey(b.Element);
+                    var vorhanden = b.Familie ? s.Klassen.ContainsKey(b.Element) || b.SchuelerIds.Any(i => s.Schueler.Any(x => x.Id == i)) : s.Lehrer.ContainsKey(b.Element);
                     if (!vorhanden) { _benutzer.Sperren(b.Id, true); n++; }
                     break;
                 default: throw new ArgumentException("Unbekannte Aktion.");
@@ -230,6 +230,7 @@ public sealed class Verwaltungsdienst
         "leitung" or "schulleitung" => Rollen.Leitung,
         "lehrer" or "lehrkraft" or "lehrkräfte" or "lehrerin" or "" => Rollen.Lehrer,
         "schueler" or "schüler" or "schüler*in" or "klasse" or "schüler*innen" => Rollen.Schueler,
+        "eltern" or "erziehungsberechtigte" or "erziehungsberechtigte*r" or "erziehungsberechtigter" => Rollen.Eltern,
         _ => null,
     };
 

@@ -3899,3 +3899,143 @@ html.is-dark .tab.is-active{ color:#fff; }
 .sheet--picker .pk__body{ order:2; }
 #pickerClear{ display:none; }
 .sheet--picker .searchwrap{ border:1px solid color-mix(in srgb, var(--c-ink) 10%, transparent); }
+
+/* =====================================================================
+   iOS-Feinschliff: Systemgrau, gruppierte Listen, Profil wie im Vorbild,
+   Übergänge wie in einer nativen App
+   ---------------------------------------------------------------------
+   Grundflächen in den Systemgrautönen von iOS (hell #f2f2f7, dunkel
+   reines Schwarz mit #1c1c1e für die Gruppen), Listengruppen mit 10 px
+   Radius und eingerückten Trennlinien, die erst beim Text beginnen.
+   ===================================================================== */
+:root{
+  --ios-bg:        #f2f2f7;
+  --ios-group:     #ffffff;
+  --ios-sep:       rgba(60,60,67,.16);
+  --ios-ink-2:     rgba(60,60,67,.6);
+  --ios-spring:    cubic-bezier(.32,.72,0,1);    /* Kurve der Systemblätter */
+}
+html.is-dark{
+  --ios-bg:        #000000;
+  --ios-group:     #1c1c1e;
+  --ios-sep:       rgba(84,84,88,.55);
+  --ios-ink-2:     rgba(235,235,245,.6);
+}
+
+.screen--start,.screen--profile,.screen--list,
+html.is-dark .screen--start,html.is-dark .screen--profile,html.is-dark .screen--list{ background:var(--ios-bg); }
+body:has(.screen--start.is-active) .topbar,
+body:has(.screen--profile.is-active) .topbar,
+body:has(.screen--list.is-active) .topbar,
+body.has-plain-top .topbar{ background:var(--ios-bg); }
+
+/* Gruppierte Listen */
+.screen--start .rows,
+.screen--profile .rows,
+.screen--profile .rows--flat .row--user,
+html.is-dark .screen--start .rows,
+html.is-dark .screen--profile .rows,
+html.is-dark .rows--flat .row--user{
+  background:var(--ios-group);
+  border:0;
+  border-radius:10px;
+  box-shadow:none;
+}
+html.is-dark .screen--start .daycard{ background:var(--ios-group); border:0; }
+.screen--start .daycard{ box-shadow:none; border-radius:12px; }
+.screen--profile .rows--flat{ background:none; }
+.screen--start .rows .row,
+.screen--profile .rows .row{
+  position:relative;
+  border-bottom:0;
+  min-height:46px;
+  padding-top:11px; padding-bottom:11px;
+}
+.screen--start .rows .row:not(:last-child)::after,
+.screen--profile .rows .row:not(:last-child)::after{
+  content:""; position:absolute; right:0; bottom:0;
+  left:58px;                     /* Linie beginnt beim Text, nicht beim Symbol */
+  height:1px; transform:scaleY(.5); transform-origin:bottom;
+  background:var(--ios-sep);
+  pointer-events:none;
+}
+.screen--start .rows .row:active,
+.screen--profile .rows .row--nav:active{ background:color-mix(in srgb, var(--c-ink) 7%, transparent); }
+html.is-dark .row{ border-bottom-color:transparent; }
+
+/* Profil: groß das Kürzel, Kontokarte mit grauem Kreis und Rollenplakette */
+.screen--profile .h1{
+  font-size:30px; font-weight:800; letter-spacing:-.022em;
+  color:var(--c-ink-2);
+  margin:6px 0 12px;
+}
+html.is-dark .screen--profile .h1{ color:#c2ccd4; }
+.screen--profile .rows--flat .row--user{
+  grid-template-columns:38px 1fr 22px; gap:12px;
+  padding:12px 14px;
+}
+.screen--profile .avatar{
+  width:38px; height:38px;
+  background:#8e8e93; color:#fff;
+  font-size:17px; font-weight:600;
+}
+.screen--profile .row--user__main b{ font-size:17px; font-weight:500; }
+.screen--profile .chip{
+  margin-top:3px; padding:1px 8px; border-radius:6px;
+  background:#8e8e93; color:#fff;
+  font-size:11.5px; font-weight:600; letter-spacing:.01em;
+}
+html.is-dark .screen--profile .chip{ background:#636366; color:#fff; }
+
+/* Breite Bildschirme: Inhalt in einer Spalte von rund 700 Punkten */
+@media (min-width:820px){
+  .screen--start .pad,
+  .screen--profile .pad,
+  .lstbody,
+  .lstfilter{ max-width:700px; }
+}
+
+/* Blätter fahren mit der Federkurve von iOS herein */
+.sheet{ transition:transform .42s var(--ios-spring); }
+@media (min-width:700px){
+  .sheet:not(.sheet--menu),
+  .sheet--picker,
+  .sheet--detail{
+    transition:transform .36s var(--ios-spring), opacity .22s ease-out;
+  }
+}
+.scrim{ transition:opacity .3s ease-out; }
+
+/* Unterseiten schieben sich von rechts herein (Navigation wie in iOS);
+   beim Zurückgehen gleitet die darunterliegende Seite aus der Tiefe nach. */
+@keyframes iosPushIn { from{ transform:translate3d(100%,0,0); } to{ transform:none; } }
+@keyframes iosPopIn  { from{ transform:translate3d(-28%,0,0); opacity:.6; } to{ transform:none; opacity:1; } }
+@keyframes iosPushOut{ from{ transform:none; } to{ transform:translate3d(100%,0,0); } }
+.ios-push{ animation:iosPushIn .44s var(--ios-spring) both; will-change:transform; }
+.ios-pop { animation:iosPopIn .44s var(--ios-spring) both; will-change:transform; }
+.ios-leave{
+  display:flex !important; flex-direction:column;
+  position:absolute !important; inset:0; z-index:39;
+  animation:iosPushOut .36s var(--ios-spring) both;
+  pointer-events:none;
+  box-shadow:-8px 0 24px rgba(0,0,0,.12);
+}
+.ios-push{ box-shadow:-8px 0 24px rgba(0,0,0,.10); }
+@media (prefers-reduced-motion: reduce){
+  .ios-push, .ios-pop, .ios-leave{ animation:none; }
+  .sheet{ transition-duration:.01s; }
+}
+
+/* Kein Aufblitzen beim Antippen, kein Textmarkieren in Leisten */
+a, button, [role="button"], label{ -webkit-tap-highlight-color:transparent; }
+.sheet.ios-clip{ overflow:hidden; }
+html.is-dark body:has(.screen--start.is-active) .topbar,
+html.is-dark body:has(.screen--profile.is-active) .topbar,
+html.is-dark body:has(.screen--list.is-active) .topbar,
+html.is-dark body.has-plain-top .topbar{ background:var(--ios-bg); }
+html.is-dark .screen--start .daycard{ box-shadow:none; }
+/* Breite Bildschirme: aktiver Reiter orange auf heller Kapsel — auch im Dunkeln */
+@media (min-width:820px){
+  html.is-dark .tab.is-active{ color:var(--u-orange); }
+}
+html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:none; }

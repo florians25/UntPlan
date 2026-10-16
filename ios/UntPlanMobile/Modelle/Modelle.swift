@@ -412,10 +412,11 @@ struct Heute: Decodable, Sendable {
     var ungelesen: Int
     var offeneStunden: Int
     var hausaufgaben: [Hausaufgabe]
+    var meldungen: [Meldung]
 
     enum CodingKeys: String, CodingKey {
         case paket, datum, wochentag, woche, jetzt, element, typ, karten, aufsichten, hinweise, ereignisse, nachrichten
-        case termine, aenderungen, ungelesen, offeneStunden, hausaufgaben
+        case termine, aenderungen, ungelesen, offeneStunden, hausaufgaben, meldungen
     }
 
     init(from decoder: Decoder) throws {
@@ -437,6 +438,7 @@ struct Heute: Decodable, Sendable {
         ungelesen = c.zahl(.ungelesen) ?? 0
         offeneStunden = c.zahl(.offeneStunden) ?? 0
         hausaufgaben = c.liste(.hausaufgaben)
+        meldungen = c.liste(.meldungen)
     }
 }
 
@@ -595,6 +597,249 @@ struct Profil: Decodable, Sendable {
     }
 }
 
+// MARK: - Meldungen
+
+/// Eigene Meldung an die Planung (GET /api/app/meldungen), z. B. Abwesenheit (typ "absenz").
+struct Meldung: Decodable, Identifiable, Sendable {
+    var id: String
+    var typ: String
+    var erstellt: String
+    var von: String?
+    var bis: String?
+    var stundeVon: Int?
+    var stundeBis: Int?
+    var titel: String?
+    var grund: String?
+    var text: String?
+    var status: String
+
+    enum CodingKeys: String, CodingKey { case id, typ, erstellt, von, bis, stundeVon, stundeBis, titel, grund, text, status }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.textOderNil(.id) ?? UUID().uuidString
+        typ = c.text(.typ)
+        erstellt = c.text(.erstellt)
+        von = c.textOderNil(.von)
+        bis = c.textOderNil(.bis)
+        stundeVon = c.zahl(.stundeVon)
+        stundeBis = c.zahl(.stundeBis)
+        titel = c.textOderNil(.titel)
+        grund = c.textOderNil(.grund)
+        text = c.textOderNil(.text)
+        status = c.text(.status)
+    }
+
+    var istAbwesenheit: Bool { typ == "absenz" }
+}
+
+// MARK: - Klassenbuch einer Stunde
+
+/// Klassenbucheintrag einer Stunde (Lehrstoff, Notizen, online).
+struct Klassenbucheintrag: Decodable, Sendable {
+    var id: Int
+    var datum: String
+    var stunde: Int
+    var thema: String
+    var hausaufgabe: String
+    var notiz: String
+    var notizSchueler: String
+    var online: Bool
+    var lehrform: String
+    var anmerkung: String
+    var anwesenheit: String?
+    var lehrer: String
+
+    enum CodingKeys: String, CodingKey { case id, datum, stunde, thema, hausaufgabe, notiz, notizSchueler, online, lehrform, anmerkung, anwesenheit, lehrer }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? 0
+        datum = c.text(.datum)
+        stunde = c.zahl(.stunde) ?? 0
+        thema = c.text(.thema)
+        hausaufgabe = c.text(.hausaufgabe)
+        notiz = c.text(.notiz)
+        notizSchueler = c.text(.notizSchueler)
+        online = c.wahr(.online)
+        lehrform = c.text(.lehrform)
+        anmerkung = c.text(.anmerkung)
+        anwesenheit = c.textOderNil(.anwesenheit)
+        lehrer = c.text(.lehrer)
+    }
+}
+
+/// GET /api/app/klassenbuch/stunde
+struct KlassenbuchStunde: Decodable, Sendable {
+    var eintrag: Klassenbucheintrag?
+    var darf: Bool
+
+    enum CodingKeys: String, CodingKey { case eintrag, darf }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        eintrag = c.optional(.eintrag)
+        darf = c.wahr(.darf)
+    }
+}
+
+/// Hausaufgabe aus der Liste einer Stunde.
+struct Hausaufgabeneintrag: Decodable, Identifiable, Sendable {
+    var id: Int
+    var datum: String
+    var fach: String
+    var lehrer: String
+    var text: String
+    var faellig: String?
+    var bemerkung: String
+    var erledigt: Bool
+
+    enum CodingKeys: String, CodingKey { case id, datum, fach, lehrer, text, faellig, bemerkung, erledigt }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? Int.random(in: 1_000_000...9_999_999)
+        datum = c.text(.datum)
+        fach = c.text(.fach)
+        lehrer = c.text(.lehrer)
+        text = c.text(.text)
+        faellig = c.textOderNil(.faellig)
+        bemerkung = c.text(.bemerkung)
+        erledigt = c.wahr(.erledigt)
+    }
+}
+
+/// GET /api/app/klassenbuch/hausaufgabenliste
+struct HausaufgabenDerStunde: Decodable, Sendable {
+    var liste: [Hausaufgabeneintrag]
+    var faellig: [Hausaufgabeneintrag]
+    var darf: Bool
+
+    enum CodingKeys: String, CodingKey { case liste, faellig, darf }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        liste = c.liste(.liste)
+        faellig = c.liste(.faellig)
+        darf = c.wahr(.darf)
+    }
+}
+
+struct Schueler: Decodable, Identifiable, Hashable, Sendable {
+    var id: Int
+    var vorname: String
+    var name: String
+    var klasse: String
+
+    enum CodingKeys: String, CodingKey { case id, vorname, name, klasse }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? 0
+        vorname = c.text(.vorname)
+        name = c.text(.name)
+        klasse = c.text(.klasse)
+    }
+
+    /// „Name Vorname“ wie in der Vorlage.
+    var anzeige: String { [name, vorname].filter { !$0.isEmpty }.joined(separator: " ") }
+}
+
+/// Erfasste Fehlzeit einer Schülerin/eines Schülers in der Stunde (art: fehlt, verspaetet, vorzeitig).
+struct Fehlzeiteintrag: Decodable, Sendable {
+    var schuelerId: Int
+    var art: String
+    var minuten: Int
+    var status: String
+    var bemerkung: String
+    var grund: String
+
+    enum CodingKeys: String, CodingKey { case schuelerId, art, minuten, status, bemerkung, grund }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schuelerId = c.zahl(.schuelerId) ?? 0
+        art = c.textOderNil(.art) ?? "fehlt"
+        minuten = c.zahl(.minuten) ?? 0
+        status = c.text(.status)
+        bemerkung = c.text(.bemerkung)
+        grund = c.text(.grund)
+    }
+}
+
+/// GET /api/app/klassenbuch/anwesenheit (nur Kollegium)
+struct Anwesenheitsliste: Decodable, Sendable {
+    var schueler: [Schueler]
+    var fehlzeiten: [Fehlzeiteintrag]
+    var geprueft: String?
+    var darf: Bool
+
+    enum CodingKeys: String, CodingKey { case schueler, fehlzeiten, geprueft, darf }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schueler = c.liste(.schueler)
+        fehlzeiten = c.liste(.fehlzeiten)
+        geprueft = c.textOderNil(.geprueft)
+        darf = c.wahr(.darf)
+    }
+}
+
+/// Eintrag beim Speichern der Anwesenheit (nur Abweichungen).
+struct AnwesenheitEintragDaten: Encodable, Sendable {
+    var schuelerId: Int
+    var art: String
+    var minuten: Int
+    var bemerkung: String?
+    var grund: String?
+}
+
+/// PUT /api/app/klassenbuch/anwesenheit
+struct AnwesenheitDaten: Encodable, Sendable {
+    var datum: String
+    var stunde: Int
+    var unterricht: Int
+    var eintraege: [AnwesenheitEintragDaten]
+}
+
+/// Klassenbucheintrag (Vermerk) zur Klasse oder zu einzelnen Schüler*innen.
+struct Vermerk: Decodable, Identifiable, Sendable {
+    var id: Int
+    var datum: String
+    var klasse: String
+    var schuelerId: Int?
+    var art: String
+    var text: String
+    var lehrer: String
+    var zeit: String
+
+    enum CodingKeys: String, CodingKey { case id, datum, klasse, schuelerId, art, text, lehrer, zeit }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? Int.random(in: 1_000_000...9_999_999)
+        datum = c.text(.datum)
+        klasse = c.text(.klasse)
+        schuelerId = c.zahl(.schuelerId)
+        art = c.text(.art)
+        text = c.text(.text)
+        lehrer = c.text(.lehrer)
+        zeit = c.text(.zeit)
+    }
+}
+
+/// GET /api/app/klassenbuch/vermerke (nur Kollegium)
+struct Vermerkliste: Decodable, Sendable {
+    var vermerke: [Vermerk]
+
+    enum CodingKeys: String, CodingKey { case vermerke }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        vermerke = c.liste(.vermerke)
+    }
+}
+
 // MARK: - Allgemeine Antworten
 
 struct OkAntwort: Decodable, Sendable {
@@ -606,6 +851,11 @@ struct OkAntwort: Decodable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         ok = c.wahr(.ok)
     }
+}
+
+/// Antwort, deren Inhalt nicht gebraucht wird.
+struct BeliebigeAntwort: Decodable, Sendable {
+    init(from decoder: Decoder) throws {}
 }
 
 struct Fehlerantwort: Decodable, Sendable {

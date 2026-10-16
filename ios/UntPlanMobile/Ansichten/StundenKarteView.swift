@@ -15,10 +15,10 @@ struct StundenKarteView: View {
     var body: some View {
         let stil = Kartenstil(karte, vergangen: vergangen)
         ZStack(alignment: .topLeading) {
-            // Balken: links 4, oben 4,7, unten 4, Breite 4, Radius 2
+            // Balken: links 4, oben 4,7, unten 4, Breite 3, Radius 2 – grau wie in der Vorlage
             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(Farben.fach(karte.farbe))
-                .frame(width: 4)
+                .fill(Farben.karteBalken)
+                .frame(width: 3)
                 .padding(.top, 4.7)
                 .padding(.bottom, 4)
                 .padding(.leading, 4)
@@ -32,7 +32,7 @@ struct StundenKarteView: View {
                 }
             }
             .foregroundStyle(Farben.karteText)
-            .padding(.leading, 13)
+            .padding(.leading, 12)
             .padding(.top, 4.5)
             .padding(.trailing, 4)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

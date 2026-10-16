@@ -17,7 +17,7 @@ namespace UntPlanWeb.Api;
 public static class AdminApi
 {
     public sealed record SchulDaten(string Schulname, string SchulId);
-    public sealed record BenutzerDaten(string? Login, string? Passwort, string Rolle, string? Element, string? Anzeigename, string? Email, bool Gesperrt);
+    public sealed record BenutzerDaten(string? Login, string? Passwort, string Rolle, string? Element, string? Anzeigename, string? Email, bool Gesperrt, List<int>? SchuelerIds = null);
     public sealed record StammdatenDaten(bool Lehrer, bool Klassen);
     public sealed record NachrichtDaten(DateOnly Von, DateOnly Bis, string Text, string? Zielgruppe, bool Startseite, bool Monitor,
         string? Betreff = null, int? Wochentag = null, int? Reihenfolge = null, bool? Aufgefaechert = null, bool? Oeffentlich = null, bool? Mobil = null);
@@ -39,7 +39,13 @@ public static class AdminApi
     private static object BenutzerJson(Benutzer b) => new
     {
         b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Element, b.Email, b.Gesperrt, b.PasswortAendern, b.Erstellt, b.LetzteAnmeldung,
+        b.SchuelerIds, b.Klassen,
     };
+
+    /// <summary>Schülerkonto: Klasse der zugeordneten Person als Element merken (Klassenkonto-Kompatibilität, z. B. iCal, ältere Apps).</summary>
+    private static string ElementFuer(BenutzerDaten d, Paketdienst p) =>
+        d.Rolle is Rollen.Schueler or Rollen.Eltern && d.SchuelerIds is { Count: > 0 } ids && p.Aktuell?.Schueler.FirstOrDefault(x => x.Id == ids[0]) is { } sch
+            ? sch.Klasse : d.Rolle == Rollen.Eltern ? "" : d.Element ?? "";
 
     public static void Abbilden(WebApplication app)
     {
@@ -114,20 +120,28 @@ public static class AdminApi
 
         api.MapGet("/benutzer", (HttpContext c, Benutzerdienst bd) => { Admin(c); return Results.Json(bd.Alle().Select(BenutzerJson)); });
 
-        api.MapPost("/benutzer", (BenutzerDaten d, HttpContext c, Benutzerdienst bd, Protokoll prot) =>
+        api.MapPost("/benutzer", (BenutzerDaten d, HttpContext c, Benutzerdienst bd, Paketdienst p, Protokoll prot) =>
         {
             var ich = Admin(c);
             var pw = string.IsNullOrEmpty(d.Passwort) ? Sicherheit.Zufall(10) : d.Passwort;
-            var b = bd.Anlegen(d.Login ?? "", pw, d.Rolle, d.Element ?? "", d.Anzeigename ?? "", d.Email ?? "", string.IsNullOrEmpty(d.Passwort));
+            var b = bd.Anlegen(d.Login ?? "", pw, d.Rolle, ElementFuer(d, p), d.Anzeigename ?? "", d.Email ?? "", string.IsNullOrEmpty(d.Passwort));
+            if (d.SchuelerIds is { Count: > 0 })
+            {
+                try { bd.SchuelerZuordnen(b.Id, d.SchuelerIds); }
+                catch (ArgumentException) { bd.Loeschen(b.Id); throw; }
+                b = bd.Holen(b.Id)!;
+            }
             prot.Schreiben(ich.Login, "Benutzer angelegt", b.Login);
             return Results.Json(new { benutzer = BenutzerJson(b), passwort = string.IsNullOrEmpty(d.Passwort) ? pw : null });
         });
 
-        api.MapPut("/benutzer/{id:int}", (int id, BenutzerDaten d, HttpContext c, Benutzerdienst bd, Protokoll prot) =>
+        api.MapPut("/benutzer/{id:int}", (int id, BenutzerDaten d, HttpContext c, Benutzerdienst bd, Paketdienst p, Protokoll prot) =>
         {
             var ich = Admin(c);
             if (id == ich.Id && (d.Rolle != Rollen.Admin || d.Gesperrt)) throw new ArgumentException("Sie können sich nicht selbst die Administration entziehen oder sperren.");
-            bd.Aendern(id, d.Anzeigename ?? "", d.Rolle, d.Element ?? "", d.Email ?? "", d.Gesperrt);
+            bd.Aendern(id, d.Anzeigename ?? "", d.Rolle, ElementFuer(d, p), d.Email ?? "", d.Gesperrt);
+            // Zuordnung nur ändern, wenn mitgeschickt; bei anderen Rollen entfällt sie
+            if (d.SchuelerIds != null || !(d.Rolle is Rollen.Schueler or Rollen.Eltern)) bd.SchuelerZuordnen(id, d.Rolle is Rollen.Schueler or Rollen.Eltern ? d.SchuelerIds ?? new() : new());
             prot.Schreiben(ich.Login, "Benutzer geändert", bd.Holen(id)?.Login ?? id.ToString());
             return Results.Json(new { ok = true });
         });

@@ -113,7 +113,7 @@ public sealed partial class Klassenbuchdienst
     /// Fasst die Einträge einer Schülerin/eines Schülers in einem Block für die Anwesenheitsliste zusammen: Verspätung bzw. vorzeitiges
     /// Gehen mit den ursprünglich erfassten Minuten (auch wenn Stunden daraus als Fehlstunden gewertet wurden) und dem eigenen Text.
     /// </summary>
-    internal static object Zusammenfassen(IReadOnlyList<Fehlzeit> eintraege)
+    internal static object Zusammenfassen(IReadOnlyList<Fehlzeit> eintraege, Stand? s = null, IReadOnlyList<Fehlzeit>? gesamt = null)
     {
         var liste = eintraege.OrderBy(f => f.Stunde).ToList();
         var f0 = liste[0];
@@ -139,7 +139,24 @@ public sealed partial class Klassenbuchdienst
             fach = haupt.Fach, art, minuten = art == "fehlt" ? 0 : minuten ?? 0, status = f0.Status, bemerkung = text ?? haupt.Bemerkung, lehrer = haupt.Lehrer,
             erstellt = haupt.Erstellt, grund = haupt.Grund, gruppe = haupt.Gruppe,
             fehlstunden = liste.Count(f => f.Art == "fehlt"), stunden = liste.Select(f => f.Stunde).ToList(),
+            // minutengenau: abwesend von–bis in diesem Block und Zeitraum der ganzen Abwesenheit (Abwesenheitsdialog)
+            beginn = s is null ? "" : Hhmm(liste.Min(f => Fenster(s, f).Beginn)), ende = s is null ? "" : Hhmm(liste.Max(f => Fenster(s, f).Ende)),
+            vonDatum = (gesamt ?? liste)[0].Datum, vonZeit = s is null ? "" : Hhmm(Fenster(s, (gesamt ?? liste)[0]).Beginn),
+            bisDatum = (gesamt ?? liste)[^1].Datum, bisZeit = s is null ? "" : Hhmm(Fenster(s, (gesamt ?? liste)[^1]).Ende),
+            text = Klartext(text ?? haupt.Bemerkung), nachweis = haupt.Nachweis, ueberBlock = gesamt?.Count > liste.Count,
         };
+    }
+
+    /// <summary>Alle Fehlzeiten der Abwesenheit, zu der die Einträge eines Blocks gehören (Gruppe bzw. „Rest des Tages“), chronologisch.</summary>
+    private List<Fehlzeit> Gesamtabwesenheit(List<Fehlzeit> block, Karte karte)
+    {
+        var sid = block[0].SchuelerId;
+        var gruppen = block.Select(f => f.Gruppe).Where(g => g.Length > 0).ToHashSet();
+        gruppen.Add($"vorzeitig:{karte.Unterricht ?? 0}:{karte.Von}");
+        var res = block.ToDictionary(f => f.Id);
+        foreach (var g in gruppen)
+            foreach (var f in _db.Liste("SELECT * FROM fehlzeiten WHERE schueler_id = @s AND gruppe = @g", LesenFehlzeit, Db.P("@s", sid), Db.P("@g", g))) res[f.Id] = f;
+        return res.Values.OrderBy(f => f.Datum, StringComparer.Ordinal).ThenBy(f => f.Stunde).ToList();
     }
 
     private static string RestTagGruppe(int unterricht, int stunde) => $"vorzeitig:{unterricht}:{stunde}";
