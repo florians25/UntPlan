@@ -1,6 +1,18 @@
 [
   {
     "datum": "2026-10-16",
+    "titel": "Prüfungen verlegen und löschen, minutengenaue Verspätungen",
+    "punkte": [
+      "Prüfungen lassen sich in den Stundendetails verlegen und löschen; übernommene Prüfungen löscht UntPlan beim nächsten Import.",
+      "Prüfungen liegen auf der Unterrichtsstunde: die Karte zeigt Lehrkraft, Fach und Raum – kein zusätzlicher Block.",
+      "Wer als abwesend eingetragen ist und auf „anwesend“ geklickt wird, bekommt direkt die Verspätung minutengenau erfasst.",
+      "Ein entfernter ursprünglicher Raum kann wieder hinzugefügt werden.",
+      "In der Kopfzeile der Stundendetails führt auch die abwesende Lehrkraft zu ihrem Plan.",
+      "Schriftstärken und -größen näher an der gewohnten Oberfläche; Fußleiste der Stundendetails wie gewohnt."
+    ]
+  },
+  {
+    "datum": "2026-10-16",
     "titel": "Schlichte Formulare und mehr Platz",
     "punkte": [
       "PDF-Berichte als schlichtes Schulformular in Schwarz-Weiß, ohne Logo.",

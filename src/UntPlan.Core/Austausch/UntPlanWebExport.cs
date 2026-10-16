@@ -426,10 +426,17 @@ public static class UntPlanWebExport
         }
         foreach (var m in liste)
         {
-            if (m.Typ is not (WebRueckmeldungsTypen.Raumbuchung or WebRueckmeldungsTypen.Klausur)) { rest.Add(m); continue; }
+            if (m.Typ is not (WebRueckmeldungsTypen.Raumbuchung or WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen)) { rest.Add(m); continue; }
             if (!DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var datum) || !Kalender.IstUnterrichtstag(d, datum)) { nein.Add(m.Id); continue; }
             var von = Math.Clamp(m.StundeVon ?? 1, 1, d.Zeitraster.StundenProTag);
             var bis = Math.Clamp(m.StundeBis ?? von, von, d.Zeitraster.StundenProTag);
+            if (m.Typ == WebRueckmeldungsTypen.KlausurLoeschen)
+            {
+                if (StundenplanAenderungen.KlausurenEntfernen(d, m, datum, von, bis) == 0) { nein.Add(m.Id); continue; }
+                tage.Add(datum);
+                ok.Add(m.Id);
+                continue;
+            }
             var klassen = Ids(ElementTyp.Klasse, m.Klassen);
             var raeume = Ids(ElementTyp.Raum, m.Raeume.Append(m.Raum ?? "").Where(x => x.Length > 0));
             var lehrer = Ids(ElementTyp.Lehrer, new[] { m.Lehrer ?? "" }.Concat(m.WeitereLehrer));

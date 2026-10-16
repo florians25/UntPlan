@@ -159,6 +159,11 @@ public sealed class Plandienst
         return RegelStunden(s, d);
     }
 
+    /// <summary>Räume eines Unterrichts laut Stundenplan (vor Raumänderungen) – damit ein entfernter ursprünglicher Raum wieder gewählt werden kann.</summary>
+    public List<string> UrspruenglicheRaeume(Stand s, DateOnly d, int unterricht, int von, int bis) =>
+        RegelStunden(s, d).Where(r => r.Unterricht == unterricht && r.Stunde >= von && r.Stunde <= bis)
+            .SelectMany(r => r.Raeume.SelectMany(RaumListe)).Where(x => x.Length > 0).Distinct(Ci).ToList();
+
     /// <summary>Stunden laut zuletzt übertragenem Periodenstundenplan (ohne Vertretungen).</summary>
     private List<Rohstunde> RegelStunden(Stand s, DateOnly d)
     {
@@ -205,8 +210,11 @@ public sealed class Plandienst
         static bool GleicherRaum(Rohstunde a, Rohstunde b) => a.Raeume.Count == b.Raeume.Count && a.Raeume.All(x => Enthaelt(b.Raeume, x));
         bool Mitgekoppelt(Rohstunde r) => r.Unterricht is int u && r.Fach.Length > 0 && r.Status is not ("entfall" or "vorgemerkt") &&
             roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz));
+        // vorgemerkte Löschungen von Prüfungen (werden unten angewandt)
+        var loeschungen = roh.Where(r => r.Status == "vorgemerkt" && r.Art == "KlausurLoeschen").ToList();
         foreach (var r in roh)
         {
+            if (r.Art == "KlausurLoeschen") continue;
             WebVertretung? v = r.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vx) ? vx : null;
             var betrifft = typ switch
             {
@@ -268,6 +276,20 @@ public sealed class Plandienst
             // Raumplan des bisherigen Raums: die Stunde findet woanders statt
             if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) status = "abwesend";
             einzel[i] = ziel with { Status = status, Raeume = raeume, Art = ziel.Art.Length > 0 ? ziel.Art : "Raumänderung (vorgemerkt)" };
+        }
+        // zum Löschen vorgemerkte Prüfungen nicht mehr zeigen
+        bool Geloescht(Karte x) => x.Unterricht is null && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))
+            && loeschungen.Any(l => l.Stunde >= x.Von && l.Stunde <= x.Bis && (l.Klassen.Count == 0 || x.Klassen.Any(w => Enthaelt(l.Klassen, w.K))));
+        einzel.RemoveAll(Geloescht);
+        // Übernommene Klausuren (aus UntPlan) liegen auf den Unterrichtsstunden der Klasse: die Stundenkarte wird zur Prüfung
+        // (Lehrkraft, Fach, Raum bleiben), statt einen zusätzlichen Block mit eigenem Text zu zeigen
+        foreach (var kl in einzel.Where(x => x.Unterricht is null && x.Fach.Length == 0 && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))).ToList())
+        {
+            var treffer = einzel.Select((x, i) => (x, i)).Where(t => t.x.Unterricht.HasValue && t.x.Von <= kl.Bis && t.x.Bis >= kl.Von
+                && t.x.Status is not ("entfall" or "abwesend") && t.x.Klassen.Any(w => kl.Klassen.Any(z => Ci.Equals(z.K, w.K)))).ToList();
+            if (treffer.Count == 0) continue;
+            foreach (var (x, i) in treffer) einzel[i] = x with { Status = "klausur", Art = "Klausur", Text = kl.Text };
+            einzel.Remove(kl);
         }
         // Teilnahmen mehrerer Lehrkräfte an derselben Veranstaltung: eine Karte mit allen Beteiligten
         var veranstaltungen = einzel.Where(k => k.Status == "veranstaltung").GroupBy(k => (k.Von, k.Text))

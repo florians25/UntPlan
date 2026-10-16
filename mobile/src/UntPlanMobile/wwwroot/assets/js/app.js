@@ -3985,7 +3985,7 @@ async function raumListeOeffnen(c, op, alt){
   body.innerHTML = '<p class="dsub__read">Freie Räume werden gesucht …</p>';
   const bis = c.lesson + Math.max(1, c.span || 1) - 1;
   try {
-    const r = await fetch(`${ROOM_URL}?action=free&date=${c.date}&from=${c.lesson}&to=${bis}`, { credentials:'same-origin' });
+    const r = await fetch(`${ROOM_URL}?action=free&date=${c.date}&from=${c.lesson}&to=${bis}${c.unterricht ? `&lesson=${c.unterricht}` : ''}`, { credentials:'same-origin' });
     const j = await r.json();
     if (!r.ok || !j.ok) throw new Error(j.error || 'Fehler ' + r.status);
     const belegt = werteListe(c.room).map(x => x.toUpperCase());

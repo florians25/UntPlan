@@ -119,11 +119,18 @@ public sealed class Rueckmeldungsdienst
         (s.Paket.Elemente.Raeume.Any(r => r.Buchbar) ? s.Paket.Elemente.Raeume.Where(r => r.Buchbar) : s.Paket.Elemente.Raeume)
             .Where(r => r.Kurz.Length > 0).DistinctBy(r => r.Kurz, Ci);
 
-    /// <summary>Freie buchbare Räume für einen Zeitraum (für die Buchung).</summary>
-    public List<object> FreieRaeume(Stand s, DateOnly d, int von, int bis) =>
-        Buchbar(s).Where(r => RaumFrei(s, d, r.Kurz, von, bis))
-            .OrderBy(r => r.Kurz, StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true))
-            .Select(r => (object)new { kurz = r.Kurz, name = r.Name, raumart = r.Raumart, kapazitaet = r.Kapazitaet }).ToList();
+    /// <summary>
+    /// Freie buchbare Räume für einen Zeitraum (für die Buchung). Mit Unterricht: dessen eigene Belegung zählt nicht, und seine
+    /// ursprünglichen Räume (laut Stundenplan) stehen immer zur Wahl – auch wenn sie nicht als buchbar markiert sind.
+    /// </summary>
+    public List<object> FreieRaeume(Stand s, DateOnly d, int von, int bis, int? unterricht = null)
+    {
+        var original = unterricht is int u ? _plan.UrspruenglicheRaeume(s, d, u, von, bis) : new List<string>();
+        var kandidaten = Buchbar(s).Concat(s.Paket.Elemente.Raeume.Where(r => original.Contains(r.Kurz, Ci))).DistinctBy(r => r.Kurz, Ci);
+        return kandidaten.Where(r => RaumFrei(s, d, r.Kurz, von, bis, unterricht))
+            .OrderBy(r => original.Contains(r.Kurz, Ci) ? 0 : 1).ThenBy(r => r.Kurz, StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true))
+            .Select(r => (object)new { kurz = r.Kurz, name = r.Name, raumart = r.Raumart, kapazitaet = r.Kapazitaet, urspruenglich = original.Contains(r.Kurz, Ci) }).ToList();
+    }
 
     public Meldung Raumbuchung(Stand s, Benutzer b, DateOnly d, int? stundeVon, int? stundeBis, string raum, IEnumerable<string> klassen, string titel, string text)
     {
@@ -161,9 +168,11 @@ public sealed class Rueckmeldungsdienst
         var neu = raeume.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
         if (neu.FirstOrDefault(x => !s.Raeume.ContainsKey(x)) is { } unbekannt) throw new ArgumentException($"Unbekannter Raum {unbekannt}.");
         neu = neu.Select(x => s.Raeume[x].Kurz).ToList();
+        var original = _plan.UrspruenglicheRaeume(s, d, unterricht, v, bi);
         foreach (var x in neu.Where(x => !bisher.Contains(x, Ci)))
         {
-            if (!Buchbar(s).Any(r => Ci.Equals(r.Kurz, x))) throw new ArgumentException($"Raum {x} ist nicht buchbar.");
+            // der ursprüngliche Raum der Stunde darf immer zurück, auch wenn er nicht buchbar ist
+            if (!original.Contains(x, Ci) && !Buchbar(s).Any(r => Ci.Equals(r.Kurz, x))) throw new ArgumentException($"Raum {x} ist nicht buchbar.");
             if (!RaumFrei(s, d, x, v, bi, unterricht)) throw new ArgumentException($"Raum {x} ist in dieser Zeit nicht frei.");
         }
         // frühere, noch nicht übernommene Raumänderungen derselben Stunde ersetzen
@@ -177,6 +186,35 @@ public sealed class Rueckmeldungsdienst
             Titel = null, Text = null, Unterricht = unterricht,
         });
     }
+
+    /// <summary>
+    /// Prüfung löschen: eine noch nicht übernommene Prüfung (eigene Rückmeldung) wird einfach zurückgezogen; eine schon aus UntPlan
+    /// übertragene Prüfung erhält eine Rückmeldung „klausurloeschen“, die UntPlan beim Import ausführt. Ergebnis: neue Meldung oder null.
+    /// </summary>
+    public Meldung? KlausurLoeschen(Stand s, Benutzer b, DateOnly d, int stundeVon, int stundeBis, IEnumerable<string> klassen, string? titel)
+    {
+        if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Prüfungen löschen.");
+        var (v, bi) = Stunden(s, stundeVon, stundeBis);
+        var k = klassen.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
+        var offen = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausur' AND von = @d AND stunde_von <= @b AND stunde_bis >= @v", Lesen,
+                Db.P("@d", Plandienst.Iso(d)), Db.P("@v", v), Db.P("@b", bi))
+            .Where(m => k.Count == 0 || m.Klassen.Any(x => k.Contains(x, Ci))).ToList();
+        if (offen.Count > 0)
+        {
+            foreach (var m in offen) _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @i", Db.P("@i", m.Id));
+            return null;
+        }
+        if (!s.Paket.Termine.Any(t => PasstKlausur(t, d, v, bi, k))) throw new ArgumentException("Zu dieser Stunde gibt es keine Prüfung.");
+        return Speichern(Neu(WebRueckmeldungsTypen.KlausurLoeschen, b) with
+        {
+            Von = Plandienst.Iso(d), StundeVon = v, StundeBis = bi, Klassen = k, Titel = string.IsNullOrWhiteSpace(titel) ? null : titel.Trim(),
+        });
+    }
+
+    private static bool PasstKlausur(WebTermin t, DateOnly d, int von, int bis, IReadOnlyCollection<string> klassen) =>
+        Ci.Equals(t.Art, "klausur") && DateOnly.TryParse(t.Von, out var tv) && DateOnly.TryParse(string.IsNullOrEmpty(t.Bis) ? t.Von : t.Bis, out var tb)
+        && d >= tv && d <= tb && t.StundeVon <= bis && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= von
+        && (klassen.Count == 0 || t.Klassen.Any(x => klassen.Contains(x, Ci)));
 
     public Meldung Klausur(Stand s, Benutzer b, DateOnly d, int? stundeVon, int? stundeBis, IEnumerable<string> klassen, IEnumerable<string> raeume, IEnumerable<string> aufsicht, string titel, string text)
     {
@@ -228,6 +266,9 @@ public sealed class Rueckmeldungsdienst
     {
         var von = m.StundeVon ?? 1;
         var bis = m.StundeBis ?? von;
+        // Löschung ist übernommen, sobald die Prüfung im Paket fehlt
+        if (m.Typ == WebRueckmeldungsTypen.KlausurLoeschen)
+            return !s.Paket.Termine.Any(t => PasstKlausur(t, d, von, bis, m.Klassen));
         if (m.Typ == WebRueckmeldungsTypen.Klausur)
             return s.Paket.Termine.Any(t => Ci.Equals(t.Art, "klausur") && DateOnly.TryParse(t.Von, out var tv) && DateOnly.TryParse(string.IsNullOrEmpty(t.Bis) ? t.Von : t.Bis, out var tb)
                                             && d >= tv && d <= tb && t.StundeVon <= bis && (t.StundeBis == 0 ? t.StundeVon : t.StundeBis) >= von
@@ -244,7 +285,7 @@ public sealed class Rueckmeldungsdienst
     public IEnumerable<Rohstunde> Vorgemerkt(DateOnly d, Stand? s = null)
     {
         var iso = Plandienst.Iso(d);
-        foreach (var m in _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND von = @d AND typ IN ('raumbuchung', 'klausur') ORDER BY erstellt", Lesen, Db.P("@d", iso)))
+        foreach (var m in _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND von = @d AND typ IN ('raumbuchung', 'klausur', 'klausurloeschen') ORDER BY erstellt", Lesen, Db.P("@d", iso)))
         {
             // schon in UntPlan übernommen und wieder übertragen (auch ohne Quittung, z. B. Import aus Datei): nicht doppelt anzeigen
             if (s != null && SchonUebertragen(s, d, m))
@@ -259,7 +300,7 @@ public sealed class Rueckmeldungsdienst
             for (var st = m.StundeVon ?? 1; st <= (m.StundeBis ?? m.StundeVon ?? 1); st++)
                 yield return new Rohstunde(st, m.Typ == WebRueckmeldungsTypen.Raumbuchung ? m.Unterricht : null, "", m.Klassen, lehrer,
                     m.Raeume.Count > 0 || m.Unterricht.HasValue ? m.Raeume : (m.Raum is null ? new List<string>() : new List<string> { m.Raum }),
-                    "vorgemerkt", null, m.Titel ?? "", m.Typ == WebRueckmeldungsTypen.Klausur ? "Klausur" : "Raumbuchung");
+                    "vorgemerkt", null, m.Titel ?? "", m.Typ switch { WebRueckmeldungsTypen.Klausur => "Klausur", WebRueckmeldungsTypen.KlausurLoeschen => "KlausurLoeschen", _ => "Raumbuchung" });
         }
     }
 }

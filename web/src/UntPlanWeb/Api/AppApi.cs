@@ -16,6 +16,8 @@ public static class AppApi
     public sealed record AbwesenheitDaten(DateOnly Von, DateOnly Bis, int? StundeVon, int? StundeBis, string? Grund, string? Text);
     public sealed record BuchungDaten(DateOnly Datum, int? StundeVon, int? StundeBis, string Raum, List<string>? Klassen, string? Titel, string? Text);
     public sealed record KlausurDaten(DateOnly Datum, int? StundeVon, int? StundeBis, List<string> Klassen, List<string>? Raeume, List<string>? Aufsicht, string? Titel, string? Text);
+    public sealed record KlausurLoeschenDaten(DateOnly Datum, int StundeVon, int StundeBis, List<string>? Klassen, string? Titel);
+    public sealed record KlausurVerlegenDaten(KlausurLoeschenDaten Alt, KlausurDaten Neu);
     public sealed record MitteilungDaten(List<string> Empfaenger, string Betreff, string Text, bool Wichtig);
     public sealed record AnwesenheitDaten(DateOnly Datum, int Stunde, int Unterricht, List<AnwesenheitEintrag>? Eintraege);
     public sealed record FehlenDaten(int SchuelerId, DateOnly Von, DateOnly Bis, string? Status, string? Bemerkung);
@@ -236,10 +238,10 @@ public static class AppApi
             return Results.Json(m);
         });
 
-        api.MapGet("/meldungen/freieraeume", (DateOnly datum, int von, int bis, HttpContext c, Paketdienst p, Rueckmeldungsdienst r) =>
+        api.MapGet("/meldungen/freieraeume", (DateOnly datum, int von, int bis, int? unterricht, HttpContext c, Paketdienst p, Rueckmeldungsdienst r) =>
         {
             if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für Lehrkräfte.");
-            return Results.Json(r.FreieRaeume(Paket(p), datum, Math.Max(1, von), Math.Max(von, bis)));
+            return Results.Json(r.FreieRaeume(Paket(p), datum, Math.Max(1, von), Math.Max(von, bis), unterricht));
         });
 
         api.MapPost("/meldungen/raumbuchung", (BuchungDaten d, HttpContext c, Paketdienst p, Rueckmeldungsdienst r, Protokoll prot) =>
@@ -256,6 +258,25 @@ public static class AppApi
             ErweiterungApi.PruefungssperrePruefen(vw, l, r, Paket(p), b, d.Datum, d.Klassen ?? new());
             var m = r.Klausur(Paket(p), b, d.Datum, d.StundeVon, d.StundeBis, d.Klassen ?? new(), d.Raeume ?? new(), d.Aufsicht ?? new(), d.Titel ?? "", d.Text ?? "");
             prot.Schreiben(b.Login, "Klausur eingetragen", $"{string.Join(",", m.Klassen)} {m.Von}");
+            return Results.Json(m);
+        });
+
+        api.MapPost("/meldungen/klausur/loeschen", (KlausurLoeschenDaten d, HttpContext c, Paketdienst p, Rueckmeldungsdienst r, Protokoll prot) =>
+        {
+            var b = Ich(c);
+            var m = r.KlausurLoeschen(Paket(p), b, d.Datum, d.StundeVon, d.StundeBis, d.Klassen ?? new(), d.Titel);
+            prot.Schreiben(b.Login, "Prüfung gelöscht", $"{string.Join(",", d.Klassen ?? new())} {d.Datum:yyyy-MM-dd} {d.StundeVon}.–{d.StundeBis}.");
+            return Results.Json(new { ok = true, meldung = m?.Id });
+        });
+        // Verlegen = löschen und neu eintragen (eine neue Prüfung wird sofort als vorgemerkt angezeigt)
+        api.MapPost("/meldungen/klausur/verlegen", (KlausurVerlegenDaten d, HttpContext c, Paketdienst p, Rueckmeldungsdienst r, Protokoll prot, Verwaltungsdienst vw, Listendienst l) =>
+        {
+            var b = Ich(c);
+            var neu = d.Neu;
+            ErweiterungApi.PruefungssperrePruefen(vw, l, r, Paket(p), b, neu.Datum, neu.Klassen ?? new());
+            r.KlausurLoeschen(Paket(p), b, d.Alt.Datum, d.Alt.StundeVon, d.Alt.StundeBis, d.Alt.Klassen ?? new(), d.Alt.Titel);
+            var m = r.Klausur(Paket(p), b, neu.Datum, neu.StundeVon, neu.StundeBis, neu.Klassen ?? new(), neu.Raeume ?? new(), neu.Aufsicht ?? new(), neu.Titel ?? "", neu.Text ?? "");
+            prot.Schreiben(b.Login, "Prüfung verlegt", $"{d.Alt.Datum:yyyy-MM-dd} → {neu.Datum:yyyy-MM-dd}");
             return Results.Json(m);
         });
 

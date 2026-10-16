@@ -361,6 +361,18 @@ public class RueckmeldungTests
     }
 
     [Fact]
+    public async Task Vorgemerkte_Pruefung_loeschen_zieht_die_Rueckmeldung_zurueck()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var c = await s.AlsAsync("mue", "lehrer", "MUE");
+        var frei = (await Testserver.HolenAsync(c, "/api/app/meldungen/freieraeume?datum=2026-10-16&von=3&bis=4")).AsArray()[0]!["kurz"]!.GetValue<string>();
+        await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/klausur", new { datum = "2026-10-16", stundeVon = 3, stundeBis = 4, klassen = new[] { "EF" }, raeume = new[] { frei }, aufsicht = new[] { "MUE" }, titel = "Deutsch GK" }));
+        await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/klausur/loeschen", new { datum = "2026-10-16", stundeVon = 3, stundeBis = 4, klassen = new[] { "EF" }, titel = "Deutsch GK" }));
+        var offen = await Testserver.HolenAsync(s.SyncClient(), $"/api/v1/schulen/{Testserver.SchulId}/rueckmeldungen");
+        Assert.DoesNotContain(offen.AsArray(), x => x!["typ"]!.GetValue<string>().StartsWith("klausur"));
+    }
+
+    [Fact]
     public async Task Klausur_wird_als_Rueckmeldung_uebertragen()
     {
         await using var s = await Testserver.StartenAsync();

@@ -34,7 +34,8 @@ public static class RaumApi
             {
                 case "free":
                 {
-                    var liste = await web.GetAsync(c, $"api/app/meldungen/freieraeume?datum={iso}&von={von}&bis={bis}");
+                    var unterricht = int.TryParse(p["lesson"], out var u) ? $"&unterricht={u}" : "";
+                    var liste = await web.GetAsync(c, $"api/app/meldungen/freieraeume?datum={iso}&von={von}&bis={bis}{unterricht}");
                     var raeume = (liste?.AsArray() ?? new JsonArray()).OfType<JsonObject>().Select(r => new
                     {
                         code = r["kurz"]?.GetValue<string>() ?? "",

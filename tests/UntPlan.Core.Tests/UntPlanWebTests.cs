@@ -117,6 +117,13 @@ public class UntPlanWebTests
         Assert.Equal(3, k.StundeBis);
         // Unterricht der Klasse entfällt während der Klausur
         Assert.Contains(d.Vertretungen, v => v.KlausurId == k.Id && v.Datum == tag);
+        // Löschen aus UntPlanWeb entfernt die Prüfung wieder
+        var (ok2, _) = UntPlanWebExport.Uebernehmen(d, new List<WebRueckmeldung>
+        {
+            new() { Id = "kl1", Typ = WebRueckmeldungsTypen.KlausurLoeschen, Von = tag.ToString("yyyy-MM-dd"), StundeVon = 2, StundeBis = 3, Klassen = { klasse.Kurzname }, Titel = "Mathe-Klausur" },
+        });
+        Assert.Equal(new[] { "kl1" }, ok2);
+        Assert.Empty(d.Klausuren);
     }
 
     [Fact]

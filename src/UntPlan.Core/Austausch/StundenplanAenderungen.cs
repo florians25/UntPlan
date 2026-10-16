@@ -34,7 +34,19 @@ public sealed record StplAenderung(WebRueckmeldung Meldung, DateOnly Datum, int 
 /// </summary>
 public static class StundenplanAenderungen
 {
-    public static readonly string[] Typen = { WebRueckmeldungsTypen.Raumbuchung, WebRueckmeldungsTypen.Klausur };
+    public static readonly string[] Typen = { WebRueckmeldungsTypen.Raumbuchung, WebRueckmeldungsTypen.Klausur, WebRueckmeldungsTypen.KlausurLoeschen };
+
+    /// <summary>Prüfungen eines Tages entfernen, die zu Stunden, Klassen und (falls angegeben) Titel der Meldung passen. Ergebnis: Anzahl.</summary>
+    public static int KlausurenEntfernen(Schuldatei d, WebRueckmeldung m, DateOnly datum, int von, int bis)
+    {
+        var klassen = m.Klassen.Select(k => Id(d, ElementTyp.Klasse, k)).OfType<int>().ToHashSet();
+        var titel = (m.Titel ?? "").Trim();
+        var weg = d.Klausuren.Where(k => k.Datum == datum && k.StundeVon <= bis && Math.Max(k.StundeVon, k.StundeBis) >= von
+                                         && (klassen.Count == 0 || k.KlassenIds.Any(klassen.Contains))
+                                         && (titel.Length == 0 || titel.Equals(k.Name, StringComparison.OrdinalIgnoreCase) || titel == "Klausur" || titel == "Prüfung")).ToList();
+        foreach (var k in weg) d.Klausuren.Remove(k);
+        return weg.Count;
+    }
 
     private static int? Id(Schuldatei d, ElementTyp t, string? k) =>
         string.IsNullOrWhiteSpace(k) ? null : d.AlleElemente(t).FirstOrDefault(e => e.Kurzname.Equals(k.Trim(), StringComparison.OrdinalIgnoreCase))?.Id;
@@ -77,7 +89,7 @@ public static class StundenplanAenderungen
         foreach (var k in m.Klassen) if (Id(d, ElementTyp.Klasse, k) is null) fehler ??= $"Klasse {k} unbekannt";
         foreach (var r in raeume) if (Id(d, ElementTyp.Raum, r) is null) fehler ??= $"Raum {r} unbekannt";
         foreach (var l in lehrerNamen) if (Id(d, ElementTyp.Lehrer, l) is null) fehler ??= $"Lehrer {l} unbekannt";
-        var art = m.Typ == WebRueckmeldungsTypen.Klausur ? StplAenderungsArt.Pruefung : StplAenderungsArt.Aktivitaet;
+        var art = m.Typ is WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen ? StplAenderungsArt.Pruefung : StplAenderungsArt.Aktivitaet;
         int? uid = null, zeile = null;
         var fach = m.Fach;
         var klassen = m.Klassen.ToList();
@@ -98,7 +110,7 @@ public static class StundenplanAenderungen
             }
         }
         var titel = string.Join(" – ", new[] { m.Titel, m.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        var text = art == StplAenderungsArt.Unterricht ? $"({m.Absender}) Raumänderung" : titel;
+        var text = art == StplAenderungsArt.Unterricht ? $"({m.Absender}) Raumänderung" : m.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? $"Prüfung löschen: {titel}" : titel;
         var klf = string.Join(", ", klassen) + (string.IsNullOrWhiteSpace(fach) ? "" : " / " + fach);
         return new StplAenderung(m, datum, von, bis, zeit, art, uid, zeile, klf, string.Join(", ", lehrerNamen), string.Join(", ", raeume), "", "", text, m.Absender, uebernommen, fehler);
     }
@@ -171,6 +183,12 @@ public static class StundenplanAenderungen
                     break;
                 default:
                 {
+                    if (m.Typ == WebRueckmeldungsTypen.KlausurLoeschen)
+                    {
+                        if (KlausurenEntfernen(d, m, a.Datum, a.StundeVon, a.StundeBis) == 0) { nein.Add((a.Id, "Prüfung nicht gefunden")); continue; }
+                        tage.Add(a.Datum);
+                        break;
+                    }
                     var k = new Klausur
                     {
                         Id = d.NeueId(), Name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim(), Text = m.Text ?? "", Datum = a.Datum, StundeVon = a.StundeVon,

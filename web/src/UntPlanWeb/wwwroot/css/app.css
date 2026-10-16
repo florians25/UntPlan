@@ -1537,3 +1537,20 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 .u-einstellungen { max-width: none; }
 .heute { max-width: none; }
 .kb-editor { max-width: none; }
+
+.sd-ursprung { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #e3f4ea; color: #0f6b40; font-size: .75rem; font-weight: 500; vertical-align: middle; }
+.sd-pille.rot { color: #a1262b; border-color: #e8a7aa; } .sd-pille.rot:hover { background: #fdecec; }
+
+/* Schriftstärken und -größen wie in der Vorlage (Avenir: 400 = Regular, 600 = Medium, 700 = Demi):
+   Navigation kleiner und kräftiger, Kartenkopf Demi, Kartenzeilen Regular, Stundendetails-Kopf und Reiter Demi */
+.u-nav-punkt { font-size: .9rem; font-weight: 700; min-height: 50px; color: #24323d; }
+.u-nav-unter .u-nav-punkt { font-size: .875rem; }
+.u-nav-kompakt .u-nav-punkt { font-weight: 600; }
+.std .z1 { font-size: 13px; font-weight: 700; color: #24323d; }
+.std .z2 { font-size: 12px; font-weight: 400; color: #414d55; }
+.sd-titel h2 { font-size: 1.3rem; font-weight: 700; }
+.sd-zeile { font-size: .875rem; }
+.sd-reiter button { font-size: .95rem; font-weight: 700; }
+.sd-abschnitt-kopf { font-size: .875rem; font-weight: 700; }
+.u-benutzer b { font-size: 1rem; font-weight: 700; }
+.u-abmelden { font-size: .75rem; font-weight: 700; }

@@ -291,6 +291,8 @@ public static class WebRueckmeldungsTypen
     public const string Nachricht = "nachricht";
     public const string Raumbuchung = "raumbuchung";
     public const string Klausur = "klausur";
+    /// <summary>Prüfung aus UntPlanWeb löschen (Datum, Stunden, Klassen und Titel bestimmen die Prüfung; Verlegen = löschen + neu).</summary>
+    public const string KlausurLoeschen = "klausurloeschen";
 }
 
 public sealed record WebAntwort(bool Ok, int Revision, string? Meldung);

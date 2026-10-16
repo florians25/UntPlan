@@ -6,7 +6,7 @@
 // („Lehrstoffeintragung vorhanden“, „Abwesenheiten wurden kontrolliert“).
 // Details: nur „Findet online statt“, Lehrstoff und Vertretungstext (wenn vorhanden), Hausaufgaben, Notizen für Schüler*innen
 // und für Lehrkräfte; unten „Vorherige Stunde“, „Nächste Stunde“, „Prüfung erstellen“ und „Raum buchen“.
-import { e, heuteIso, holen, senden, toast, WOCHENTAGE } from './ui.js';
+import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui.js';
 
 const PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
 const W = '/img/wu/';
@@ -33,8 +33,10 @@ function planLink(typ, kurz) {
 function wertKopf(liste, max = 6, typ = null) {
   const l = liste || [];
   const teil = l.length > max + 1 ? l.slice(0, max - 2) : l;
-  return teil.map(w => w.alt && !w.k ? `<s class="sd-alt">${e(w.alt)}</s>`
-    : w.alt ? `<s class="sd-alt">${e(w.alt)}</s> <span class="sd-pfeil">→</span> ${planLink(typ, w.k)}` : planLink(typ, w.k)).join(', ')
+  // auch der ersetzte (durchgestrichene) Wert – z. B. die abwesende Lehrkraft – führt zu seinem Plan
+  const alt = w => typ ? `<s class="sd-alt">${planLink(typ, w.alt)}</s>` : `<s class="sd-alt">${e(w.alt)}</s>`;
+  return teil.map(w => w.alt && !w.k ? alt(w)
+    : w.alt ? `${alt(w)} <span class="sd-pfeil">→</span> ${planLink(typ, w.k)}` : planLink(typ, w.k)).join(', ')
     + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
 }
 
@@ -148,7 +150,9 @@ export function karteDialog(karte, kontext = {}) {
       const a = daten.anwesenheit;
       const stoff = !!daten.eintrag?.thema;
       const kontrolliert = !!a?.geprueft;
-      const kannKontrolle = a?.darf && k.datum <= heuteIso();
+      // Kontrolle erst ab Beginn der Stunde (davor steht – wie im Vorbild – „Abwesenheitskontrolle ab: …“)
+      const jetzt = new Date(), jetztMin = jetzt.getHours() * 60 + jetzt.getMinutes();
+      const kannKontrolle = a?.darf && (k.datum < heuteIso() || (k.datum === heuteIso() && (!k.beginn || minutenVon(k.beginn) <= jetztMin)));
       // wie im Vorbild: rechts orange Pille(n), daneben „Abwesenheitskontrolle ab: Datum - Uhrzeit“ (Beginn der Stunde)
       const ab = `${datumDe(k.datum)} - ${e(k.beginn || '')}`;
       return `<div class="sd-fuss sd-status">
@@ -157,14 +161,15 @@ export function karteDialog(karte, kontext = {}) {
         ${kontrolliert ? '<span class="ok"><i class="bi bi-check-circle-fill"></i> Abwesenheiten wurden kontrolliert</span>'
           : kannKontrolle ? '<button type="button" class="sd-orange" data-kontrolle>Abwesenheiten kontrollieren</button>'
           : `<span class="sd-kontrolle"><span>Abwesenheitskontrolle ab:</span><span>${ab}</span></span>`}
-        ${darfPruefung() ? '<button type="button" class="sd-pille" data-pruefung>Prüfung erstellen</button>' : ''}
       </div>`;
     }
     const i = liste.indexOf(k);
     return `<div class="sd-fuss">
       <button type="button" class="sd-pille gross" data-blaettern="-1" ${i <= 0 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i> Vorherige Stunde</button>
       <button type="button" class="sd-pille gross" data-blaettern="1" ${i < 0 || i >= liste.length - 1 ? 'disabled' : ''}>Nächste Stunde <i class="bi bi-chevron-right"></i></button>
-      ${darfPruefung() ? '<button type="button" class="sd-pille gross" data-pruefung>Prüfung erstellen</button>' : ''}
+      ${k.status === 'klausur' && kollegium ? `<button type="button" class="sd-pille gross" data-pruefung-verlegen>Prüfung verlegen</button>
+        <button type="button" class="sd-pille gross rot" data-pruefung-loeschen>Prüfung löschen</button>`
+        : darfPruefung() ? '<button type="button" class="sd-pille gross" data-pruefung>Prüfung erstellen</button>' : ''}
       </div>`;
   }
 
@@ -466,6 +471,37 @@ export function karteDialog(karte, kontext = {}) {
       if (!daten.anwesenheit && k.unterricht) daten.anwesenheit = await holen(`/api/app/klassenbuch/anwesenheit?datum=${k.datum}&stunde=${k.von}&unterricht=${k.unterricht}`).catch(() => null);
       klausurDialog();
     });
+    // Prüfung löschen bzw. verlegen (noch nicht übernommene werden zurückgezogen, übernommene gehen als Rückmeldung an UntPlan)
+    const pruefungAlt = () => ({ datum: k.datum, stundeVon: k.von, stundeBis: k.bis, klassen: kuerzel(k.klassen), titel: k.text || null });
+    q('[data-pruefung-loeschen]')?.addEventListener('click', async () => {
+      if (!await bestaetigen('Prüfung löschen', `Prüfung${k.text ? ` „${k.text}“` : ''} am ${datumDe(k.datum)} (${k.von === k.bis ? `${k.von}.` : `${k.von}.–${k.bis}.`} Stunde) löschen?`)) return;
+      try {
+        await senden('/api/app/meldungen/klausur/loeschen', pruefungAlt());
+        toast('Prüfung gelöscht – UntPlan übernimmt die Löschung beim nächsten Import.');
+        geaendert = true; modal.hide();
+      } catch (err) { toast(err.message, true); }
+    });
+    q('[data-pruefung-verlegen]')?.addEventListener('click', () => {
+      const wahl = (sel) => zeiten.map(z => `<option value="${z.nr}" ${z.nr === sel ? 'selected' : ''}>${z.nr}. (${e(z.beginn)}–${e(z.ende)})</option>`).join('');
+      altDialog('Prüfung verlegen', `
+        <div class="ad-info">${e(k.text || 'Prüfung')} · bisher ${datumDe(k.datum)}, ${k.von === k.bis ? `${k.von}.` : `${k.von}.–${k.bis}.`} Stunde</div>
+        <label class="ad-feld">Neues Datum<input type="date" data-pv-datum value="${k.datum}" min="${heuteIso()}"></label>
+        <div class="ad-reihe"><label class="ad-feld">von Stunde<select data-pv-von>${wahl(k.von)}</select></label>
+          <label class="ad-feld">bis Stunde<select data-pv-bis>${wahl(k.bis)}</select></label></div>
+        <label class="ad-feld">Räume<input data-pv-raeume value="${e(kuerzel(k.raeume.filter(w => w.k)).join(', '))}"></label>
+        <div class="ad-knoepfe"><button type="button" class="ad-pille" data-pv-speichern>Verlegen</button><button type="button" class="ad-pille" data-ad-zu>Schließen</button></div>`, (o, zu) => {
+        o.querySelector('[data-pv-speichern]').onclick = async ev => {
+          const von = Number(o.querySelector('[data-pv-von]').value), bis = Math.max(von, Number(o.querySelector('[data-pv-bis]').value));
+          ev.currentTarget.disabled = true;
+          try {
+            await senden('/api/app/meldungen/klausur/verlegen', { alt: pruefungAlt(), neu: { datum: o.querySelector('[data-pv-datum]').value, stundeVon: von, stundeBis: bis,
+              klassen: kuerzel(k.klassen), raeume: o.querySelector('[data-pv-raeume]').value.split(/[,;\s]+/).filter(Boolean), aufsicht: kuerzel(k.lehrer.filter(w => w.k)), titel: k.text || 'Prüfung', text: '' } });
+            toast('Prüfung verlegt.');
+            zu(); geaendert = true; modal.hide();
+          } catch (err) { toast(err.message, true); ev.currentTarget.disabled = false; }
+        };
+      }, 420);
+    });
     // Kopf: Klasse, Gruppe, Lehrkraft, Raum öffnen den Stundenplan
     alle('[data-plan]', a => a.onclick = ev => {
       ev.preventDefault();
@@ -524,6 +560,8 @@ export function karteDialog(karte, kontext = {}) {
     alle('[data-umschalten]', b => b.onclick = () => {
       const id = Number(b.dataset.umschalten);
       const m = fzKarte();
+      // abwesend → anwesend: gleich die Verspätung minutengenau erfassen (oder ohne Verspätung als anwesend übernehmen)
+      if (m.get(id)?.art === 'fehlt') { verspaetungDialog([id], 'verspaetet', null, true); return; }
       m.has(id) ? m.delete(id) : m.set(id, { art: 'fehlt', minuten: 0 });
       anwesenheitSpeichern(m);
     });
@@ -686,7 +724,7 @@ export function karteDialog(karte, kontext = {}) {
   async function raumWahl(ziel) {
     ziel.innerHTML = '<div class="py-2"></div>';
     let raeume;
-    try { raeume = await holen(`/api/app/meldungen/freieraeume?datum=${k.datum}&von=${k.von}&bis=${k.bis}`); }
+    try { raeume = await holen(`/api/app/meldungen/freieraeume?datum=${k.datum}&von=${k.von}&bis=${k.bis}${k.unterricht ? `&unterricht=${k.unterricht}` : ''}`); }
     catch (err) { ziel.innerHTML = `<p class="small text-danger mt-2">${e(err.message)}</p>`; return; }
     const aktuell = kuerzel(k.raeume.filter(w => w.k));
     raeume = raeume.filter(r => !aktuell.includes(r.kurz));
@@ -698,7 +736,7 @@ export function karteDialog(karte, kontext = {}) {
       const m = raumModus;
       const sichtbar = raeume.filter(r => (!m.suche || `${r.kurz} ${r.name}`.toLowerCase().includes(m.suche)) && (!m.abteilung || abteilung(r) === m.abteilung) && (!m.arten.size || m.arten.has(r.raumart)));
       ziel.querySelector('[data-raumliste]').innerHTML = sichtbar.length ? sichtbar.map(r => `<li><button type="button" class="sd-raumzeile ${m.gewaehlt === r.kurz ? 'gewaehlt' : ''}" data-r="${e(r.kurz)}" role="radio" aria-checked="${m.gewaehlt === r.kurz}">
-          ${maskeIcon('shared_roomEntity.svg')}<span class="name">${e(r.kurz)}${r.name && r.name !== r.kurz ? `<small>${e(r.name)}</small>` : ''}</span><span class="radio" aria-hidden="true"></span></button></li>`).join('')
+          ${maskeIcon('shared_roomEntity.svg')}<span class="name">${e(r.kurz)}${r.urspruenglich ? ' <span class="sd-ursprung">ursprünglicher Raum</span>' : ''}${r.name && r.name !== r.kurz ? `<small>${e(r.name)}</small>` : ''}</span><span class="radio" aria-hidden="true"></span></button></li>`).join('')
         : '<li class="sd-raumleer">In dieser Zeit ist kein passender buchbarer Raum frei.</li>';
       ziel.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { raumModus.gewaehlt = b.dataset.r; zeichneListe(); box.querySelector('[data-raum-speichern]').disabled = false; });
     };
@@ -839,7 +877,7 @@ export function karteDialog(karte, kontext = {}) {
    * Verspätung bzw. vorzeitiges Gehen erfassen: Uhrzeit oder Minuten (gegenseitig umgerechnet), Grund, Text; beim Gehen optional
    * „für den Rest des Tages abwesend“. Die Vorschau zeigt nach den Verspätungsregeln, ob Stunden als Fehlstunden gewertet werden.
    */
-  function verspaetungDialog(ids, art, f = null) {
+  function verspaetungDialog(ids, art, f = null, warAbwesend = false) {
     if (!ids.length) return;
     const regeln = daten.anwesenheit?.regeln ?? { abwesendAbMinuten: 0, vorzeitigRestTag: true };
     const laengen = daten.anwesenheit?.laengen ?? [45];
@@ -865,7 +903,8 @@ export function karteDialog(karte, kontext = {}) {
       <label class="ad-feld">Text<input data-vs-text maxlength="500" value="${e(f?.bemerkung ?? '')}"></label>
       ${spaet ? '' : `<label class="ad-check"><input type="checkbox" data-vs-rest ${regeln.vorzeitigRestTag ? 'checked' : ''}> für den Rest des Tages abwesend</label>`}
       ${f?.erstellt ? `<div class="ad-fuss">Erfasst am ${zeitstempel(f.erstellt)} von ${e(f.lehrer || '')}</div>` : ''}
-      <div class="ad-knoepfe"><button type="button" class="ad-pille" data-vs-speichern>Speichern</button>${f ? '<button type="button" class="ad-pille" data-vs-loeschen>Löschen</button>' : ''}<button type="button" class="ad-pille" data-ad-zu>Schließen</button></div>`, (o, zu) => {
+      ${warAbwesend ? '<div class="ad-info">Die Schülerin bzw. der Schüler war als abwesend eingetragen – mit Speichern wird daraus eine Verspätung.</div>' : ''}
+      <div class="ad-knoepfe"><button type="button" class="ad-pille" data-vs-speichern>Speichern</button>${warAbwesend ? '<button type="button" class="ad-pille" data-vs-anwesend>Anwesend ohne Verspätung</button>' : ''}${f ? '<button type="button" class="ad-pille" data-vs-loeschen>Löschen</button>' : ''}<button type="button" class="ad-pille" data-ad-zu>Schließen</button></div>`, (o, zu) => {
       const zeit = o.querySelector('[data-vs-zeit]'), min = o.querySelector('[data-vs-min]'), vorschau = o.querySelector('[data-vs-vorschau]');
       const setzen = m => {
         m = Math.max(1, Math.min(dauer, Math.round(Number(m) || 1)));
@@ -896,6 +935,7 @@ export function karteDialog(karte, kontext = {}) {
         anwesenheitSpeichern(m);
       };
       o.querySelector('[data-vs-loeschen]')?.addEventListener('click', () => { const m = fzKarte(); ids.forEach(id => m.delete(id)); zu(); anwesenheitSpeichern(m); });
+      o.querySelector('[data-vs-anwesend]')?.addEventListener('click', () => { const m = fzKarte(); ids.forEach(id => m.delete(id)); zu(); anwesenheitSpeichern(m); });
     }, 400);
   }
 
