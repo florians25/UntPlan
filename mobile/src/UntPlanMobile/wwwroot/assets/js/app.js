@@ -6754,8 +6754,9 @@ const planwachtAn = () => !!store.get('notify', false)
 
 async function planwachtHintergrund(an){
   try {
-    const reg = await navigator.serviceWorker.ready;
-    if (!reg.periodicSync) return false;
+    /* getRegistration statt ready: ready wartet ohne Service Worker ewig. */
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg || !reg.periodicSync) return false;
     if (!an){ await reg.periodicSync.unregister('planwacht'); return false; }
     const p = navigator.permissions
       ? await navigator.permissions.query({ name:'periodic-background-sync' }).catch(() => null) : null;

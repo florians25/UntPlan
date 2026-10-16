@@ -258,6 +258,7 @@ function menue() {
       { nav: 'mitteilungen-gesendet', href: '#/mitteilungen/gesendet', text: 'Gesendet', icon: 'gesendet' },
       { nav: 'mitteilungen-entwuerfe', href: '#/mitteilungen/entwuerfe', text: 'Entwürfe', icon: 'entwuerfe' },
       ...(k ? [{ nav: 'mitteilungen-listen', href: '#/mitteilungen/listen', text: 'Listen', icon: 'listen' }] : []),
+      ...(b.rolle === 'admin' ? [{ nav: 'mitteilungen-einstellungen', href: '#/mitteilungen/einstellungen', text: 'Einstellungen', icon: 'verwaltung' }] : []),
     ] },
   ];
   const plaene = [];
@@ -377,7 +378,7 @@ function navAus(teile) {
     case 'plan': return !a || a === 'mein' ? 'plan-mein' : 'plan-' + a;
     case 'tag': return (teile[3] === 'u' ? 'u-tag-' : 'tag-') + (a || 'klasse');
     case 'unterricht': return a === 'klasse' ? 'unterricht-klasse' : 'unterricht';
-    case 'mitteilungen': return a === 'gesendet' || a === 'entwuerfe' || a === 'listen' ? 'mitteilungen-' + a : 'mitteilungen';
+    case 'mitteilungen': return ['gesendet', 'entwuerfe', 'listen', 'einstellungen'].includes(a) ? 'mitteilungen-' + a : 'mitteilungen';
     case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : c && c !== 'uebersicht' ? 'klassenbuch-woche' : 'klassenbuch';
     case 'melden': return 'melden-' + (a || 'abwesenheit');
     case 'buchen': return a === 'stunden' ? 'buchen-unterricht' : 'buchen-' + (a || 'raum');
@@ -570,9 +571,27 @@ function zaehlerAktualisieren() {
 
 // Ungelesene Mitteilungen regelmäßig nachladen
 setInterval(async () => {
-  if (!sitzung?.benutzer || document.hidden) return;
-  try { const s = await holen('/api/app/sitzung'); sitzung.ungelesen = s.ungelesen; zaehlerAktualisieren(); } catch { /* still */ }
+  if (!sitzung?.benutzer || (document.hidden && !sitzung.benutzer.benachrichtigung)) return;
+  try {
+    const s = await holen('/api/app/sitzung');
+    const neu = (s.ungelesen ?? 0) - (sitzung.ungelesen ?? 0);
+    sitzung.ungelesen = s.ungelesen;
+    zaehlerAktualisieren();
+    if (neu > 0) neueMitteilungMelden(neu);
+  } catch { /* still */ }
 }, 120000);
+
+/** Benachrichtigung über neue Mitteilungen: Hinweis in der App, mit Einwilligung (Profil „Benachrichtigung“) auch als Systemmeldung des Browsers. */
+function neueMitteilungMelden(anzahl) {
+  const text = anzahl === 1 ? 'Sie haben eine neue Mitteilung empfangen.' : `Sie haben ${anzahl} neue Mitteilungen empfangen.`;
+  if (!location.hash.startsWith('#/mitteilungen')) toast(text);
+  try {
+    if (sitzung.benutzer?.benachrichtigung && 'Notification' in window && Notification.permission === 'granted') {
+      const n = new Notification('Neue Mitteilung', { body: text, tag: 'untplan-mitteilung' });
+      n.onclick = () => { window.focus(); location.hash = '#/mitteilungen'; n.close(); };
+    }
+  } catch { /* nicht unterstützt */ }
+}
 
 // ------------------------------------------------------------------ Router
 

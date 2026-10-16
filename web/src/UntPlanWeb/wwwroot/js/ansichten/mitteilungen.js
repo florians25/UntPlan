@@ -1,6 +1,25 @@
-// Mitteilungen wie im Original: Posteingang, Gesendet, Entwürfe und Listen; Liste links, Lesebereich rechts; Schreiben mit
-// Empfängern (auch eigene Listen), Anhängen, Entwurf speichern; Antworten, Drucken, Löschen.
+// Mitteilungen wie im Original:
+// - Ordner Posteingang, Gesendet, Entwürfe, Listen (Kollegium) und Einstellungen (Administration); Liste links, Lesebereich rechts, schmal eine Spalte.
+// - Posteingang: „Lesebestätigung erforderlich“ oben, Lesebestätigung senden, Antworten, Allen antworten, Weiterleiten (mit Anhängen),
+//   als ungelesen markieren, Drucken, Löschen. Text mit Markdown (Überschriften, fett, kursiv, durchgestrichen, Links, Listen);
+//   externe Links mit Warnung, interne Links (/heute) ohne.
+// - Gesendet: „Blase“ bestätigt | Empfänger*innen – Klick zeigt die Lesebestätigungsliste.
+// - Neue Mitteilung: „An:“ mit Empfängerauswahl nach Gruppen (Lehrkräfte, Klassen, Schüler*innen, Erziehungsberechtigte, Gruppen, Listen) mit
+//   Suche und Klassenfilter, Betreff, Text mit Vorschau, Lesebestätigung anfordern, wichtig, Anhänge (Größe und Anzahl laut Einstellungen),
+//   Speichern als Entwurf (serverseitig) bzw. Senden.
+// - Einstellungen (Administration): wer an wen schreiben darf, Sperren, Anhänge, Aufbewahrung.
 import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, initialen } from '../ui.js';
+
+const BASIS = '/api/app/mitteilungen';
+
+function stileLaden() {
+  if (document.querySelector('link[data-mitteilungen-css]')) return;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = new URL('../../css/mitteilungen.css', import.meta.url).href;
+  l.dataset.mitteilungenCss = '1';
+  document.head.append(l);
+}
 
 function zeit(s) {
   const d = new Date(String(s).replace(' ', 'T'));
@@ -8,39 +27,108 @@ function zeit(s) {
   const heute = new Date();
   return d.toDateString() === heute.toDateString()
     ? d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: d.getFullYear() === heute.getFullYear() ? undefined : '2-digit' });
+    : d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: d.getFullYear() === heute.getFullYear() ? undefined : 'numeric' });
+}
+const zeitLang = s => { const d = new Date(String(s).replace(' ', 'T')); return isNaN(d) ? s : `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} | ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`; };
+
+const kuerzel = name => initialen(String(name || '?').replace(/\(.*\)/, '').replace(/–.*/, ''));
+const groesse = n => n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const TITEL = { eingang: 'Posteingang', gesendet: 'Gesendete Mitteilungen', entwuerfe: 'Entwürfe', listen: 'Listen', einstellungen: 'Einstellungen Mitteilungen' };
+
+// ------------------------------------------------------------------ Markdown (sicher: erst escapen, dann formatieren)
+
+/** Markdown-Text als HTML: Überschriften, **fett**, *kursiv*, ~~durchgestrichen~~, [Links](…), automatisch erkannte Links, Listen, Zitate („> “). */
+export function markdown(text) {
+  const token = [];
+  const merke = html => `\u0000${token.push(html) - 1}\u0000`;
+  const link = (url, inhalt) => {
+    const u = url.replace(/&amp;/g, '&');
+    if (/^https?:\/\//i.test(u)) return merke(`<a href="${e(u)}" data-extern target="_blank" rel="noopener noreferrer">${inhalt}</a>`);
+    if (u.startsWith('/') && !u.startsWith('//')) return merke(`<a href="#${e(u)}">${inhalt}</a>`);
+    if (u.startsWith('#/')) return merke(`<a href="${e(u)}">${inhalt}</a>`);
+    return inhalt;
+  };
+  const inline = s => {
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => link(u, t));
+    s = s.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)]/gi, u => link(u, u));
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/__(.+?)__/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*(?!\s)(.+?)\*/g, '$1<em>$2</em>').replace(/(^|\W)_(?!\s)(.+?)_(?=\W|$)/g, '$1<em>$2</em>');
+    s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => token[Number(i)]);
+  };
+  const zeilen = e(text).split('\n');
+  const aus = [];
+  let liste = null;
+  const listeZu = () => { if (liste) { aus.push(`<${liste.art}>${liste.punkte.map(p => `<li>${p}</li>`).join('')}</${liste.art}>`); liste = null; } };
+  for (const z of zeilen) {
+    let m;
+    if ((m = z.match(/^(#{1,6})\s+(.*)$/))) { listeZu(); aus.push(`<div class="mt-h mt-h${m[1].length}">${inline(m[2])}</div>`); continue; }
+    if ((m = z.match(/^\s*(?:[-*•])\s+(.*)$/)) || (m = z.match(/^\s*\d+[.)]\s+(.*)$/))) {
+      const art = /^\s*\d/.test(z) ? 'ol' : 'ul';
+      if (liste && liste.art !== art) listeZu();
+      liste ??= { art, punkte: [] };
+      liste.punkte.push(inline(m[1]));
+      continue;
+    }
+    listeZu();
+    if ((m = z.match(/^&gt;\s?(.*)$/))) { aus.push(`<div class="mt-zitat">${inline(m[1]) || '&nbsp;'}</div>`); continue; }
+    aus.push(z.trim() ? `<div>${inline(z)}</div>` : '<div class="mt-leer"></div>');
+  }
+  listeZu();
+  return aus.join('');
 }
 
-const kuerzel = name => initialen(String(name || '?').replace(/\(.*\)/, ''));
-const groesse = n => n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
-const TITEL = { eingang: 'Posteingang', gesendet: 'Gesendete Mitteilungen', entwuerfe: 'Entwürfe', listen: 'Listen' };
+/** Externe Links mit Warnung öffnen, interne direkt. */
+function linksBinden(wurzel) {
+  wurzel.querySelectorAll('a[data-extern]').forEach(a => a.addEventListener('click', async ev => {
+    ev.preventDefault();
+    let host = a.href;
+    try { host = new URL(a.href).host; } catch { /* ungültig */ }
+    if (await bestaetigen('Externer Link', `Sie verlassen UntPlanWeb und öffnen eine externe Seite (${host}). Bitte prüfen Sie, ob Sie der Zielseite vertrauen:\n${a.href}`, 'Link öffnen'))
+      window.open(a.href, '_blank', 'noopener,noreferrer');
+  }));
+}
+
+// ------------------------------------------------------------------ Ansicht
 
 export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
-  const ordner = ['gesendet', 'entwuerfe', 'listen'].includes(ordnerParam) ? ordnerParam : 'eingang';
-  if (ordner === 'listen') return listen(seite, kontext);
-  kontext.titel(TITEL[ordner], `<button class="btn btn-primary" data-neu>${icon('plus')}Neue Mitteilung</button>`);
-  document.querySelector('[data-neu]').onclick = () => schreiben(kontext);
+  stileLaden();
+  if (ordnerParam === 'listen') return listen(seite, kontext);
+  if (ordnerParam === 'einstellungen') return einstellungen(seite, kontext);
+  const ordner = ['gesendet', 'entwuerfe'].includes(ordnerParam) ? ordnerParam : 'eingang';
+  const [liste, optionen] = await Promise.all([holen(`${BASIS}?ordner=${ordner}`), holen(`${BASIS}/optionen`)]);
+  kontext.titel(TITEL[ordner], optionen.darfSenden ? `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : '');
+  document.querySelector('[data-neu]')?.addEventListener('click', () => schreiben(kontext));
 
-  const liste = await holen(`/api/app/mitteilungen?ordner=${ordner}`);
   const ungelesen = liste.filter(m => ordner === 'eingang' && !m.gelesen).length;
-  const kopfName = m => ordner === 'eingang' ? m.absender : ordner === 'entwuerfe' ? 'Entwurf' : 'an ' + m.empfaenger.join(', ');
+  const offenBestaetigen = m => ordner === 'eingang' && m.lesebestaetigung && !m.bestaetigt;
+  const kopfName = m => ordner === 'eingang' ? m.absender : ordner === 'entwuerfe' ? (m.empfaengerText || 'Entwurf') : (m.empfaengerText || m.empfaenger.join(', '));
+  const blase = m => ordner === 'gesendet' && m.lesebestaetigung
+    ? `<span class="mt-blase" role="button" tabindex="0" data-blase="${m.id}" title="Lesebestätigungen anzeigen" aria-label="${m.bestaetigtAnzahl} von ${m.anzahl} Lesebestätigungen">${m.bestaetigtAnzahl} <i></i> ${m.anzahl}</span>` : '';
+  const eintrag = (m, i) => `
+    <button type="button" class="mt-eintrag ${ordner === 'eingang' && !m.gelesen ? 'neu' : ''}" data-i="${i}"
+      data-text="${e((m.betreff + ' ' + m.absender + ' ' + m.text + ' ' + m.empfaenger.join(' ') + ' ' + (m.empfaengerText || '') + ' ' + (m.anhaenge || []).map(a => a.name).join(' ')).toLowerCase())}">
+      <span class="u-avatar">${e(kuerzel(ordner === 'eingang' ? m.absender : m.empfaenger[0] ?? m.empfaengerText ?? 'E'))}</span>
+      <span class="rumpf">
+        <span class="kopf"><span class="name">${e(kopfName(m))}</span><span class="zeit">${m.anhaenge?.length ? '<i class="bi bi-paperclip" aria-label="mit Anhang"></i>' : ''}${e(zeit(m.erstellt))}</span></span>
+        <span class="betreff">${m.wichtig ? '<span class="mt-wichtig">wichtig</span>' : ''}${m.antwortAuf ? '<i class="bi bi-reply mt-antwort-symbol" aria-hidden="true"></i>' : ''}${e(m.betreff || '(ohne Betreff)')}</span>
+        <span class="vorschau">${e(m.text.replace(/[#*_~>`]/g, '').slice(0, 140))}</span>
+        ${blase(m)}
+      </span></button>`;
+  const gruppen = ordner === 'eingang' && liste.some(offenBestaetigen)
+    ? `<div class="mt-gruppe">Lesebestätigung erforderlich</div>${liste.map((m, i) => offenBestaetigen(m) ? eintrag(m, i) : '').join('')}
+       ${liste.some(m => !offenBestaetigen(m)) ? `<div class="mt-gruppe">Weitere Mitteilungen</div>${liste.map((m, i) => offenBestaetigen(m) ? '' : eintrag(m, i)).join('')}` : ''}`
+    : liste.map(eintrag).join('');
   seite.innerHTML = `
     <div class="mt-raster">
-      <section class="u-panel" data-listenspalte>
-        <header><h2>${TITEL[ordner]}</h2>
-          ${ungelesen ? `<span class="u-chip orange ms-auto">${ungelesen} ungelesen</span>` : `<span class="ms-auto small text-body-secondary">${liste.length}</span>`}</header>
-        <div class="px-3 pt-3 pb-2"><input type="search" class="form-control form-control-sm" data-suche placeholder="Inhalt oder Person suchen" aria-label="Mitteilungen durchsuchen"></div>
-        <div class="mt-liste">${liste.length ? liste.map((m, i) => `
-          <button type="button" class="mt-eintrag ${ordner === 'eingang' && !m.gelesen ? 'neu' : ''}" data-i="${i}" data-text="${e((m.betreff + ' ' + m.absender + ' ' + m.text + ' ' + m.empfaenger.join(' ')).toLowerCase())}">
-            <span class="u-avatar">${e(kuerzel(ordner === 'eingang' ? m.absender : m.empfaenger[0] ?? 'E'))}</span>
-            <span class="rumpf">
-              <span class="kopf"><span>${e(kopfName(m))}</span><span class="text-nowrap">${m.anhaenge?.length ? '<i class="bi bi-paperclip"></i> ' : ''}${e(zeit(m.erstellt))}</span></span>
-              <span class="betreff d-block">${m.wichtig ? '<span class="u-chip rot me-1">wichtig</span>' : ''}${e(m.betreff || '(ohne Betreff)')}</span>
-              <span class="vorschau d-block">${e(m.text.slice(0, 120))}</span>
-            </span></button>`).join('')
-          : leer(ordner === 'gesendet' ? 'Noch keine Mitteilungen gesendet.' : ordner === 'entwuerfe' ? 'Keine Entwürfe.' : 'Keine Mitteilungen.', ordner === 'gesendet' ? 'send' : 'inbox')}</div>
+      <section class="u-panel mt-spalte" data-listenspalte>
+        <div class="mt-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" class="form-control form-control-sm" data-suche placeholder="Suchen (Betreff, Text, Person, Anhang)" aria-label="Mitteilungen durchsuchen">
+          ${ungelesen ? `<span class="mt-zaehler" title="ungelesen">${ungelesen}</span>` : ''}</div>
+        <div class="mt-liste">${liste.length ? gruppen
+          : leer(ordner === 'gesendet' ? 'Noch keine Mitteilungen gesendet.' : ordner === 'entwuerfe' ? 'Keine Entwürfe.' : 'Keine Mitteilungen.', ordner === 'gesendet' ? 'send' : 'inbox')}
+          <div class="mt-keine d-none" data-keine>${leer('Keine Treffer.', 'search')}</div></div>
       </section>
-      <section class="u-panel" data-lesespalte><div class="mt-lesen" data-lesen>${leer('Wählen Sie eine Mitteilung aus.', 'envelope')}</div></section>
+      <section class="u-panel mt-spalte" data-lesespalte><div class="mt-lesen" data-lesen>${leer('Wählen Sie eine Mitteilung aus.', 'envelope')}</div></section>
     </div>`;
   const lesen = seite.querySelector('[data-lesen]');
   const schmal = () => window.innerWidth < 992;
@@ -52,42 +140,89 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   ansicht(false);
   seite.querySelector('[data-suche]').oninput = ev => {
     const f = ev.target.value.trim().toLowerCase();
-    seite.querySelectorAll('[data-i]').forEach(b => b.classList.toggle('d-none', !!f && !b.dataset.text.includes(f)));
+    let n = 0;
+    seite.querySelectorAll('[data-i]').forEach(b => { const ja = !f || b.dataset.text.includes(f); b.classList.toggle('d-none', !ja); n += ja; });
+    seite.querySelectorAll('.mt-gruppe').forEach(g => g.classList.toggle('d-none', !!f));
+    seite.querySelector('[data-keine]').classList.toggle('d-none', !f || n > 0 || !liste.length);
   };
+  seite.querySelectorAll('[data-blase]').forEach(b => {
+    const auf = ev => { ev.stopPropagation(); lesebestaetigungen(liste.find(m => String(m.id) === b.dataset.blase)); };
+    b.addEventListener('click', auf);
+    b.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') auf(ev); });
+  });
 
+  const neuLaden = ziel => kontext.navigieren(ziel ?? location.hash);
   const oeffnen = async i => {
     const m = liste[i];
     if (ordner === 'entwuerfe') { schreiben(kontext, { entwurf: m }); return; }
     seite.querySelectorAll('[data-i]').forEach(b => b.classList.toggle('aktiv', Number(b.dataset.i) === i));
     ansicht(true);
+    const eingang = ordner === 'eingang';
+    const kannAntworten = eingang && optionen.darfSenden;
+    const viele = eingang && m.empfaenger.length > 1;
     lesen.innerHTML = `
-      <div class="d-flex flex-wrap gap-2 mb-3 nicht-drucken">
+      <div class="mt-lesekopf nicht-drucken">
         <button class="btn btn-sm btn-outline-secondary d-lg-none" data-zurueck>${icon('links')} Zurück</button>
-        ${ordner === 'eingang' && m.absenderId ? `<button class="btn btn-sm btn-outline-secondary" data-antworten>${icon('senden')}Antworten</button>` : ''}
-        <button class="btn btn-sm btn-outline-secondary" data-weiterleiten>Weiterleiten</button>
-        <button class="btn btn-sm btn-outline-secondary" data-drucken>${icon('drucken')}Drucken</button>
-        <button class="btn btn-sm btn-outline-danger ms-auto" data-loeschen>${icon('loeschen')}Löschen</button>
+        <div class="mt-werkzeuge">
+          ${kannAntworten ? `<button class="btn btn-sm btn-outline-secondary" data-antworten title="Antworten"><i class="bi bi-reply"></i>Antworten</button>` : ''}
+          ${kannAntworten && viele ? `<button class="btn btn-sm btn-outline-secondary" data-alle title="Allen antworten"><i class="bi bi-reply-all"></i>Allen antworten</button>` : ''}
+          ${optionen.darfSenden ? `<button class="btn btn-sm btn-outline-secondary" data-weiterleiten title="Weiterleiten"><i class="bi bi-forward"></i>Weiterleiten</button>` : ''}
+          ${!eingang && m.lesebestaetigung ? `<button class="btn btn-sm btn-outline-secondary" data-liste><i class="bi bi-check2-all"></i>Lesebestätigungen ${m.bestaetigtAnzahl} | ${m.anzahl}</button>` : ''}
+          ${eingang ? `<button class="btn btn-sm btn-icon btn-outline-secondary" data-ungelesen title="Als ungelesen markieren" aria-label="Als ungelesen markieren"><i class="bi bi-envelope"></i></button>` : ''}
+          <button class="btn btn-sm btn-icon btn-outline-secondary" data-drucken title="Drucken" aria-label="Drucken"><i class="bi bi-printer"></i></button>
+          <button class="btn btn-sm btn-icon btn-outline-danger" data-loeschen title="Löschen" aria-label="Löschen"><i class="bi bi-trash"></i></button>
+        </div>
       </div>
-      <h2>${m.wichtig ? '<span class="u-chip rot me-2 align-middle">wichtig</span>' : ''}${e(m.betreff)}</h2>
-      <div class="mt-meta"><span class="u-avatar">${e(kuerzel(m.absender || 'Ich'))}</span>
-        <div><b>${e(m.absender || 'Ich')}</b><div>an ${e(m.empfaenger.join(', '))}</div></div>
-        <span class="ms-auto text-nowrap">${e(new Date(m.erstellt.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }))}</span></div>
-      <div class="mt-text">${e(m.text)}</div>
-      ${m.anhaenge?.length ? `<div class="mt-anhaenge">${m.anhaenge.map(a => `<a class="mt-anhang" href="/api/app/mitteilungen/anhang/${a.id}" download="${e(a.name)}"><i class="bi bi-paperclip"></i>${e(a.name)} <span class="text-body-secondary fw-normal">${groesse(a.groesse)}</span></a>`).join('')}</div>` : ''}`;
+      ${m.bestaetigt ? `<div class="mt-gelesen-band">Gelesen am ${e(zeitLang(m.bestaetigt))}</div>` : ''}
+      <h2 class="mt-titel">${m.wichtig ? '<span class="mt-wichtig gross">wichtig</span>' : ''}${e(m.betreff)}</h2>
+      <div class="mt-meta">
+        <span class="mt-von">${eingang ? 'Von:' : 'An:'}</span>
+        <div class="mt-personen">${eingang ? `<b>${e(m.absender)}</b>${m.absenderRolle ? ` <span class="text-body-secondary">· ${e(m.absenderRolle)}</span>` : ''}
+          <div class="mt-an">an ${e(m.empfaenger.length > 6 ? `${m.empfaenger.slice(0, 6).join(', ')} und ${m.empfaenger.length - 6} weitere` : m.empfaenger.join(', '))}</div>`
+          : `<b>${e(m.empfaengerText || m.empfaenger.join(', '))}</b><div class="mt-an">${m.anzahl} Empfänger*innen · ${m.gelesenAnzahl} gelesen</div>`}</div>
+        <span class="mt-datum">${e(zeitLang(m.erstellt))}</span></div>
+      <div class="mt-text" data-text>${markdown(m.text)}</div>
+      ${m.anhaenge?.length ? `<div class="mt-anhaenge">${m.anhaenge.map(a => `<a class="mt-anhang" href="${BASIS}/anhang/${a.id}" download="${e(a.name)}"><i class="bi bi-file-earmark"></i>${e(a.name)} <span class="mt-groesse">${groesse(a.groesse)}</span></a>`).join('')}</div>` : ''}
+      ${eingang && m.lesebestaetigung && !m.bestaetigt ? `<div class="mt-fuss nicht-drucken"><span class="small text-body-secondary">Der Absender bittet um eine Lesebestätigung.</span>
+        <button class="btn btn-primary" data-bestaetigen>Lesebestätigung senden</button></div>` : ''}`;
+    linksBinden(lesen);
     lesen.querySelector('[data-zurueck]').onclick = () => ansicht(false);
-    lesen.querySelector('[data-antworten]')?.addEventListener('click', () =>
-      schreiben(kontext, { an: 'benutzer:' + m.absenderId, betreff: m.betreff.startsWith('AW:') ? m.betreff : 'AW: ' + m.betreff, zitat: m }));
-    lesen.querySelector('[data-weiterleiten]').onclick = () => schreiben(kontext, { betreff: 'WG: ' + m.betreff, zitat: m });
+    const antworten = async alle => {
+      try { const v = await holen(`${BASIS}/${m.id}/antwort${alle ? '?alle=true' : ''}`); schreiben(kontext, { vorgabe: v }); }
+      catch (err) { toast(err.message, true); }
+    };
+    lesen.querySelector('[data-antworten]')?.addEventListener('click', () => antworten(false));
+    lesen.querySelector('[data-alle]')?.addEventListener('click', () => antworten(true));
+    lesen.querySelector('[data-weiterleiten]')?.addEventListener('click', async () => {
+      try { schreiben(kontext, { entwurf: await senden(`${BASIS}/${m.id}/weiterleiten`, {}), titel: 'Weiterleiten' }); }
+      catch (err) { toast(err.message, true); }
+    });
+    lesen.querySelector('[data-liste]')?.addEventListener('click', () => lesebestaetigungen(m));
+    lesen.querySelector('[data-ungelesen]')?.addEventListener('click', async () => {
+      await senden(`${BASIS}/${m.id}/ungelesen`, {});
+      await kontext.sitzungNeu();
+      toast('Als ungelesen markiert.');
+      neuLaden('#/mitteilungen');
+    });
+    lesen.querySelector('[data-bestaetigen]')?.addEventListener('click', async ev => {
+      ev.currentTarget.disabled = true;
+      try {
+        const r = await senden(`${BASIS}/${m.id}/bestaetigen`, {});
+        m.bestaetigt = r.bestaetigt;
+        toast('Lesebestätigung gesendet.');
+        oeffnen(i);
+      } catch (err) { toast(err.message, true); ev.currentTarget.disabled = false; }
+    });
     lesen.querySelector('[data-drucken]').onclick = () => { document.body.classList.add('mt-druck'); window.print(); setTimeout(() => document.body.classList.remove('mt-druck'), 500); };
     lesen.querySelector('[data-loeschen]').onclick = async () => {
       if (!await bestaetigen('Mitteilung löschen', `„${m.betreff}“ wirklich löschen?`)) return;
-      await api(`/api/app/mitteilungen/${m.id}`, { methode: 'DELETE' });
+      await api(`${BASIS}/${m.id}`, { methode: 'DELETE' });
       toast('Mitteilung gelöscht.');
-      kontext.navigieren(ordner === 'gesendet' ? '#/mitteilungen/gesendet' : '#/mitteilungen');
+      neuLaden(ordner === 'gesendet' ? '#/mitteilungen/gesendet' : '#/mitteilungen');
     };
-    if (ordner === 'eingang' && !m.gelesen) {
+    if (eingang && !m.gelesen) {
       try {
-        await senden(`/api/app/mitteilungen/${m.id}/gelesen`, {});
+        await senden(`${BASIS}/${m.id}/gelesen`, {});
         m.gelesen = new Date().toISOString();
         seite.querySelector(`[data-i="${i}"]`)?.classList.remove('neu');
         await kontext.sitzungNeu();
@@ -97,105 +232,214 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   seite.querySelectorAll('[data-i]').forEach(b => b.onclick = () => oeffnen(Number(b.dataset.i)));
   const gewuenscht = liste.findIndex(m => String(m.id) === idParam);
   if (gewuenscht >= 0) oeffnen(gewuenscht);
-  else if (liste.length && !schmal() && ordner !== 'entwuerfe') oeffnen(0);
+  else if (liste.length && !schmal() && ordner !== 'entwuerfe') oeffnen(Number(seite.querySelector('[data-i]').dataset.i));
 }
 
-/** Empfängerauswahl (Gruppen, Klassen, Listen, Benutzer) mit Suche. */
-function empfaengerHtml(empfaenger, gewaehlt) {
-  const gruppen = [...new Set(empfaenger.map(x => x.art))];
-  const NAMEN = { gruppe: 'Gruppen', klasse: 'Klassen', liste: 'Meine Listen' };
-  return `<div class="d-flex align-items-center mb-2"><label class="form-label mb-0">Empfänger*innen</label>
-      <input type="search" class="form-control form-control-sm ms-auto" data-suche placeholder="Suchen" style="width:200px"></div>
-    <div class="border rounded overflow-auto px-3 py-2" style="max-height:220px">${gruppen.map(g => `<div class="small text-body-secondary fw-bold mt-2 mb-1">${e(NAMEN[g] ?? g)}</div>` + empfaenger.filter(x => x.art === g).map(x => `
-      <div class="form-check" data-name="${e(x.name.toLowerCase())}"><input class="form-check-input" type="checkbox" value="${e(x.id)}" id="mt-${e(x.id)}" ${gewaehlt.includes(x.id) ? 'checked' : ''}>
-        <label class="form-check-label" for="mt-${e(x.id)}">${e(x.name)}</label></div>`).join('')).join('')}</div>`;
+/** Lesebestätigungsliste: wer wann bestätigt bzw. gelesen hat. */
+async function lesebestaetigungen(m) {
+  if (!m) return;
+  const r = await holen(`${BASIS}/${m.id}/lesebestaetigungen`);
+  dialog({
+    titel: `Lesebestätigungen ${r.bestaetigt} | ${r.anzahl}`,
+    inhalt: `<div class="mt-lb-betreff">Betreff: ${e(m.betreff)}</div>
+      <ul class="mt-lb">${r.empfaenger.map(x => `<li class="${x.bestaetigt ? 'ja' : ''}">
+        <span class="mt-lb-symbol">${x.bestaetigt ? '<i class="bi bi-check-circle"></i>' : x.gelesen ? '<i class="bi bi-eye" title="gelesen, nicht bestätigt"></i>' : ''}</span>
+        <span class="mt-lb-name">${e(x.name)} <small>${e(x.rolle)}</small></span>
+        <span class="mt-lb-zeit">${x.bestaetigt ? e(zeitLang(x.bestaetigt)) : x.gelesen ? `gelesen ${e(zeitLang(x.gelesen))}` : '–'}</span></li>`).join('')}</ul>`,
+    knoepfe: [{ text: 'Schließen' }],
+  });
 }
 
-function sucheBinden(box) {
-  box.querySelector('[data-suche]').oninput = ev => {
-    const f = ev.target.value.trim().toLowerCase();
-    box.querySelectorAll('[data-name]').forEach(l => l.classList.toggle('d-none', !!f && !l.dataset.name.includes(f)));
+// ------------------------------------------------------------------ Empfängerauswahl
+
+const KATEGORIEN = [['lehrkraefte', 'Lehrkräfte'], ['klassen', 'Klassen'], ['schueler', 'Schüler*innen'], ['eltern', 'Erziehungsberechtigte'], ['gruppen', 'Gruppen'], ['listen', 'Listen']];
+
+/**
+ * Empfängerauswahl (in einem Bereich des Dialogs): Reiter je Kategorie, Suche, Klassenfilter, alle auswählen; gewaehlt: Map id → Name.
+ * fertig(Map) übernimmt, abbrechen() schließt ohne Änderung.
+ */
+function auswahl(bereich, empfaenger, gewaehlt, fertig, abbrechen) {
+  const kategorien = KATEGORIEN.filter(([k]) => empfaenger.some(x => x.kategorie === k));
+  let reiter = kategorien[0]?.[0];
+  const neu = new Map(gewaehlt);
+  const zeichnen = () => {
+    const inKat = empfaenger.filter(x => x.kategorie === reiter);
+    const klassen = [...new Set(inKat.map(x => x.klasse).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de', { numeric: true }));
+    bereich.innerHTML = `
+      <div class="mt-wahl-kopf"><b>Empfänger*innen</b><span class="text-body-secondary small ms-2" data-anzahl>${neu.size} ausgewählt</span></div>
+      <div class="mt-reiter" role="tablist">${kategorien.map(([k, t]) => `<button type="button" role="tab" class="${k === reiter ? 'aktiv' : ''}" data-reiter="${k}">${t}</button>`).join('')}</div>
+      <div class="mt-wahl-filter"><div class="mt-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" class="form-control form-control-sm" data-wsuche placeholder="Suchen" aria-label="Empfänger suchen"></div>
+        ${klassen.length > 1 ? `<select class="form-select form-select-sm" data-wklasse aria-label="Klasse"><option value="">Alle Klassen</option>${klassen.map(k => `<option>${e(k)}</option>`).join('')}</select>` : ''}</div>
+      <label class="mt-wahl-alle"><input type="checkbox" class="form-check-input" data-walle> Alle auswählen</label>
+      <div class="mt-wahl-liste">${inKat.map(x => `<label class="mt-wahl-zeile" data-name="${e(x.name.toLowerCase())}" data-klasse="${e(x.klasse || '')}">
+          <input type="checkbox" class="form-check-input" value="${e(x.id)}" ${neu.has(x.id) ? 'checked' : ''}>
+          <span class="u-avatar">${e(kuerzel(x.name))}</span><span class="mt-wahl-name">${e(x.name)}</span>${x.art && !['gruppe', 'klasse', 'liste'].includes(x.art) ? `<span class="mt-wahl-art">${e(x.art)}</span>` : ''}</label>`).join('') || leer('Keine Empfänger in dieser Gruppe.', 'people')}</div>
+      <div class="mt-wahl-fuss"><button type="button" class="btn btn-outline-secondary" data-wabbrechen>Abbrechen</button><button type="button" class="btn btn-primary" data-wuebernehmen>Übernehmen</button></div>`;
+    const sichtbar = () => [...bereich.querySelectorAll('.mt-wahl-zeile:not(.d-none) input')];
+    const filtern = () => {
+      const f = bereich.querySelector('[data-wsuche]').value.trim().toLowerCase();
+      const k = bereich.querySelector('[data-wklasse]')?.value ?? '';
+      bereich.querySelectorAll('.mt-wahl-zeile').forEach(z => z.classList.toggle('d-none', (!!f && !z.dataset.name.includes(f)) || (!!k && z.dataset.klasse !== k)));
+      const s = sichtbar();
+      bereich.querySelector('[data-walle]').checked = s.length > 0 && s.every(x => x.checked);
+    };
+    const zaehlen = () => { bereich.querySelector('[data-anzahl]').textContent = `${neu.size} ausgewählt`; filtern(); };
+    bereich.querySelectorAll('[data-reiter]').forEach(b => b.onclick = () => { reiter = b.dataset.reiter; zeichnen(); });
+    bereich.querySelector('[data-wsuche]').oninput = filtern;
+    bereich.querySelector('[data-wklasse]')?.addEventListener('change', filtern);
+    bereich.querySelectorAll('.mt-wahl-zeile input').forEach(c => c.onchange = () => {
+      const x = empfaenger.find(y => y.id === c.value);
+      if (c.checked) neu.set(x.id, x.name); else neu.delete(x.id);
+      zaehlen();
+    });
+    bereich.querySelector('[data-walle]').onchange = ev => {
+      sichtbar().forEach(c => { c.checked = ev.target.checked; const x = empfaenger.find(y => y.id === c.value); if (c.checked) neu.set(x.id, x.name); else neu.delete(x.id); });
+      zaehlen();
+    };
+    bereich.querySelector('[data-wabbrechen]').onclick = abbrechen;
+    bereich.querySelector('[data-wuebernehmen]').onclick = () => fertig(neu);
+    filtern();
+    bereich.querySelector('[data-wsuche]').focus();
   };
+  zeichnen();
 }
 
-async function schreiben(kontext, { an, betreff = '', zitat, entwurf } = {}) {
-  const empfaenger = await holen('/api/app/mitteilungen/empfaenger');
-  if (!empfaenger.length) { toast('Für Ihr Konto sind keine Empfänger verfügbar.', true); return; }
-  const text = entwurf ? entwurf.text : zitat ? `\n\n----- ${zitat.absender || 'Ich'} schrieb: -----\n${zitat.text}` : '';
-  const vorhandeneAnhaenge = entwurf?.anhaenge ?? [];
+// ------------------------------------------------------------------ Schreiben
+
+/**
+ * Mitteilung schreiben. vorgabe: { empfaenger: [{id, name}], betreff, text, antwortAuf } (Antworten); entwurf: gespeicherter Entwurf (auch Weiterleiten);
+ * an: Empfängerkennung (z. B. „liste:3“).
+ */
+async function schreiben(kontext, { an, vorgabe, entwurf, titel } = {}) {
+  const [empfaenger, optionen] = await Promise.all([holen(`${BASIS}/empfaenger`), holen(`${BASIS}/optionen`)]);
+  if (!optionen.darfSenden) { toast('Ihr Konto darf keine Mitteilungen senden.', true); return; }
+  if (!empfaenger.length && !vorgabe?.empfaenger?.length && !entwurf?.antwortAuf) { toast('Für Ihr Konto sind keine Empfänger verfügbar.', true); return; }
+  const namen = new Map(empfaenger.map(x => [x.id, x.name]));
+  const gewaehlt = new Map();
+  for (const x of vorgabe?.empfaenger ?? []) gewaehlt.set(x.id, x.name);
+  for (const id of entwurf?.entwurfEmpfaenger ?? (an ? [an] : [])) gewaehlt.set(id, namen.get(id) ?? 'Empfänger*in');
+  const vorhandeneAnhaenge = [...(entwurf?.anhaenge ?? [])];
   const neueDateien = [];
   let entwurfId = entwurf?.id ?? null;
+  const antwortAuf = vorgabe?.antwortAuf ?? entwurf?.antwortAuf ?? null;
+  let lesebestaetigung = !!entwurf?.lesebestaetigung;
+  let wichtig = !!entwurf?.wichtig;
+  const maxBytes = optionen.maxAnhangMb * 1024 * 1024;
+
   const werte = box => ({
-    empfaenger: [...box.querySelectorAll('[data-name] input:checked')].map(x => x.value),
-    betreff: box.querySelector('[name=betreff]').value, text: box.querySelector('[name=text]').value, wichtig: !!box.querySelector('[name=wichtig]')?.checked,
+    empfaenger: [...gewaehlt.keys()], betreff: box.querySelector('[name=betreff]').value, text: box.querySelector('[name=text]').value,
+    wichtig, lesebestaetigung, antwortAuf,
   });
   const entwurfSpeichern = async box => {
-    entwurfId = (await senden('/api/app/mitteilungen/entwurf', { id: entwurfId, ...werte(box) })).id;
+    entwurfId = (await senden(`${BASIS}/entwurf`, { id: entwurfId, ...werte(box) })).id;
     for (const d of neueDateien.splice(0)) {
       const fd = new FormData();
       fd.append('datei', d);
-      await api(`/api/app/mitteilungen/${entwurfId}/anhaenge`, { methode: 'POST', formular: fd });
+      vorhandeneAnhaenge.push(await api(`${BASIS}/${entwurfId}/anhaenge`, { methode: 'POST', formular: fd }));
     }
     return entwurfId;
   };
   const nachher = ziel => { if (location.hash.startsWith('#/mitteilungen')) kontext.navigieren(ziel); };
-  dialog({
-    titel: entwurf ? 'Entwurf bearbeiten' : 'Neue Mitteilung', breit: true,
-    inhalt: `<div class="mb-3">${empfaengerHtml(empfaenger, entwurf?.entwurfEmpfaenger ?? (an ? [an] : []))}</div>
-      <div class="mb-3"><label class="form-label">Betreff</label><input class="form-control" name="betreff" maxlength="200" value="${e(entwurf?.betreff ?? betreff)}" required></div>
-      <div class="mb-3"><label class="form-label">Nachricht</label><textarea class="form-control" name="text" rows="8" required>${e(text)}</textarea></div>
-      <div class="d-flex flex-wrap gap-3 align-items-center">
-        ${kontext.ich.kollegium ? `<div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="wichtig" id="mt-wichtig" ${entwurf?.wichtig ? 'checked' : ''}><label class="form-check-label" for="mt-wichtig">Als wichtig markieren</label></div>` : ''}
-        <label class="btn btn-sm btn-outline-secondary mb-0 ms-auto"><i class="bi bi-paperclip"></i>Anhang hinzufügen<input type="file" multiple hidden data-dateien></label></div>
-      <div class="mt-anhaenge" data-anhangsliste>${vorhandeneAnhaenge.map(a => `<span class="mt-anhang"><i class="bi bi-paperclip"></i>${e(a.name)}<button type="button" class="btn-close ms-1" style="font-size:.6rem" data-anhang-weg="${a.id}" aria-label="Anhang entfernen"></button></span>`).join('')}</div>`,
-    beimOeffnen: box => {
-      sucheBinden(box);
-      const zeigeDateien = () => {
-        box.querySelectorAll('[data-neu-datei]').forEach(x => x.remove());
-        box.querySelector('[data-anhangsliste]').insertAdjacentHTML('beforeend', neueDateien.map((d, i) => `<span class="mt-anhang" data-neu-datei><i class="bi bi-paperclip"></i>${e(d.name)} <span class="text-body-secondary fw-normal">${groesse(d.size)}</span>
-          <button type="button" class="btn-close ms-1" style="font-size:.6rem" data-datei-weg="${i}" aria-label="Anhang entfernen"></button></span>`).join(''));
-        box.querySelectorAll('[data-datei-weg]').forEach(b => b.onclick = () => { neueDateien.splice(Number(b.dataset.dateiWeg), 1); zeigeDateien(); });
+  const box = dialog({
+    titel: titel ?? (entwurf ? 'Entwurf bearbeiten' : vorgabe ? 'Antworten' : 'Neue Mitteilung'), breit: true,
+    inhalt: `<div class="mt-schreiben" data-schreiben>
+        <div class="mt-an-zeile"><span class="mt-an-label">An:</span><div class="mt-chips" data-chips></div>
+          <button type="button" class="mt-plus" data-plus title="Empfänger*innen auswählen" aria-label="Empfänger*innen auswählen"><i class="bi bi-plus-lg"></i></button></div>
+        <div class="mt-feld-zeile"><label class="mt-an-label" for="mt-betreff">Betreff</label><input class="form-control mt-betreff" id="mt-betreff" name="betreff" maxlength="200" value="${e(entwurf?.betreff ?? vorgabe?.betreff ?? '')}" required></div>
+        <div class="mt-editor">
+          <div class="mt-editor-reiter"><button type="button" class="aktiv" data-modus="text">Text</button><button type="button" data-modus="vorschau">Vorschau</button>
+            <span class="mt-md-hinweis" title="**fett**, *kursiv*, ~~durchgestrichen~~, # Überschrift, - Liste, [Link](https://…)">Markdown: **fett**, *kursiv*, # Überschrift, [Link](…)</span></div>
+          <textarea class="form-control" name="text" rows="10" placeholder="Text hier eingeben" aria-label="Nachricht">${e(entwurf?.text ?? vorgabe?.text ?? '')}</textarea>
+          <div class="mt-text mt-vorschau d-none" data-vorschau></div>
+        </div>
+        <div class="mt-anhaenge" data-anhangsliste></div>
+        <div class="mt-schreib-leiste">
+          <button type="button" class="mt-schalter ${lesebestaetigung ? 'an' : ''}" data-lb aria-pressed="${lesebestaetigung}" title="Lesebestätigung anfordern"><i class="bi bi-envelope-check"></i><span>Lesebestätigung anfordern</span></button>
+          ${optionen.wichtig ? `<button type="button" class="mt-schalter ${wichtig ? 'an' : ''}" data-wichtig aria-pressed="${wichtig}" title="Als wichtig markieren"><i class="bi bi-exclamation-circle"></i><span>Wichtig</span></button>` : ''}
+          <label class="mt-schalter mb-0" title="Anhang hinzufügen (höchstens ${optionen.maxAnhaenge} Dateien, je ${optionen.maxAnhangMb} MB)"><i class="bi bi-paperclip"></i><span>Anhang</span><input type="file" multiple hidden data-dateien></label>
+          <span class="mt-grenze">bis ${optionen.maxAnhaenge} Anhänge · je ${optionen.maxAnhangMb} MB</span>
+        </div>
+      </div>
+      <div class="mt-wahl d-none" data-wahl></div>`,
+    beimOeffnen: b => {
+      const chips = () => {
+        b.querySelector('[data-chips]').innerHTML = [...gewaehlt].map(([id, name]) => `<span class="u-chip-dunkel mt-chip" title="${e(name)}">${e(name.replace(/\s*\(.*?\)\s*/, ' ').replace(/\s+–.*/, '').trim())}<button type="button" data-weg="${e(id)}" aria-label="${e(name)} entfernen">${icon('x')}</button></span>`).join('')
+          || '<span class="mt-an-leer">Empfänger*innen über + auswählen</span>';
+        b.querySelectorAll('[data-weg]').forEach(x => x.onclick = () => { gewaehlt.delete(x.dataset.weg); chips(); });
       };
-      box.querySelector('[data-dateien]').onchange = ev => {
+      chips();
+      const schreibbereich = b.querySelector('[data-schreiben]');
+      const wahl = b.querySelector('[data-wahl]');
+      const fuss = b.querySelector('.modal-footer');
+      const wahlZu = () => { wahl.classList.add('d-none'); schreibbereich.classList.remove('d-none'); fuss?.classList.remove('d-none'); };
+      b.querySelector('[data-plus]').onclick = () => {
+        schreibbereich.classList.add('d-none'); fuss?.classList.add('d-none'); wahl.classList.remove('d-none');
+        auswahl(wahl, empfaenger, gewaehlt, neu => { gewaehlt.clear(); neu.forEach((v, k) => gewaehlt.set(k, v)); chips(); wahlZu(); }, wahlZu);
+      };
+      b.querySelectorAll('[data-modus]').forEach(x => x.onclick = () => {
+        const vorschau = x.dataset.modus === 'vorschau';
+        b.querySelectorAll('[data-modus]').forEach(y => y.classList.toggle('aktiv', y === x));
+        b.querySelector('[name=text]').classList.toggle('d-none', vorschau);
+        const v = b.querySelector('[data-vorschau]');
+        v.classList.toggle('d-none', !vorschau);
+        if (vorschau) { v.innerHTML = markdown(b.querySelector('[name=text]').value) || '<span class="text-body-secondary">Kein Text.</span>'; linksBinden(v); }
+      });
+      const schalter = (sel, setzen) => b.querySelector(sel)?.addEventListener('click', ev => {
+        const an = !ev.currentTarget.classList.contains('an');
+        ev.currentTarget.classList.toggle('an', an); ev.currentTarget.setAttribute('aria-pressed', an); setzen(an);
+      });
+      schalter('[data-lb]', an => { lesebestaetigung = an; });
+      schalter('[data-wichtig]', an => { wichtig = an; });
+      const zeigeAnhaenge = () => {
+        const l = b.querySelector('[data-anhangsliste]');
+        l.innerHTML = vorhandeneAnhaenge.map(a => `<span class="mt-anhang"><i class="bi bi-file-earmark"></i>${e(a.name)} <span class="mt-groesse">${groesse(a.groesse)}</span><button type="button" class="btn-close" data-anhang-weg="${a.id}" aria-label="Anhang entfernen"></button></span>`).join('')
+          + neueDateien.map((d, i) => `<span class="mt-anhang"><i class="bi bi-file-earmark"></i>${e(d.name)} <span class="mt-groesse">${groesse(d.size)}</span><button type="button" class="btn-close" data-datei-weg="${i}" aria-label="Anhang entfernen"></button></span>`).join('');
+        l.querySelectorAll('[data-datei-weg]').forEach(x => x.onclick = () => { neueDateien.splice(Number(x.dataset.dateiWeg), 1); zeigeAnhaenge(); });
+        l.querySelectorAll('[data-anhang-weg]').forEach(x => x.onclick = async () => {
+          await api(`${BASIS}/anhaenge/${x.dataset.anhangWeg}`, { methode: 'DELETE' });
+          vorhandeneAnhaenge.splice(vorhandeneAnhaenge.findIndex(a => String(a.id) === x.dataset.anhangWeg), 1);
+          zeigeAnhaenge();
+        });
+      };
+      zeigeAnhaenge();
+      b.querySelector('[data-dateien]').onchange = ev => {
         for (const d of ev.target.files) {
-          if (d.size > 10 * 1024 * 1024) { toast(`${d.name} ist größer als 10 MB.`, true); continue; }
-          if (neueDateien.length + vorhandeneAnhaenge.length >= 5) { toast('Höchstens 5 Anhänge.', true); break; }
+          if (d.size > maxBytes) { toast(`${d.name} ist größer als ${optionen.maxAnhangMb} MB.`, true); continue; }
+          if (neueDateien.length + vorhandeneAnhaenge.length >= optionen.maxAnhaenge) { toast(`Höchstens ${optionen.maxAnhaenge} Anhänge.`, true); break; }
           neueDateien.push(d);
         }
         ev.target.value = '';
-        zeigeDateien();
+        zeigeAnhaenge();
       };
-      box.querySelectorAll('[data-anhang-weg]').forEach(b => b.onclick = async () => {
-        await api(`/api/app/mitteilungen/anhaenge/${b.dataset.anhangWeg}`, { methode: 'DELETE' });
-        b.closest('.mt-anhang').remove();
-        vorhandeneAnhaenge.splice(vorhandeneAnhaenge.findIndex(a => String(a.id) === b.dataset.anhangWeg), 1);
-      });
     },
     knoepfe: [
-      { text: 'Als Entwurf speichern', aktion: async box => { await entwurfSpeichern(box); toast('Entwurf gespeichert.'); nachher('#/mitteilungen/entwuerfe'); } },
+      { text: 'Speichern', aktion: async b => { await entwurfSpeichern(b); toast('Entwurf gespeichert.'); nachher('#/mitteilungen/entwuerfe'); } },
       { text: 'Abbrechen' },
       {
-        text: 'Senden', art: 'haupt', aktion: async box => {
-          const w = werte(box);
+        text: 'Senden', art: 'haupt', aktion: async b => {
+          const w = werte(b);
           if (!w.empfaenger.length) { toast('Bitte mindestens einen Empfänger auswählen.', true); return false; }
+          if (!w.betreff.trim()) { toast('Bitte einen Betreff eingeben.', true); return false; }
           if (entwurfId || neueDateien.length) {
-            const id = await entwurfSpeichern(box);
-            await senden(`/api/app/mitteilungen/${id}/senden`, {});
-          } else await senden('/api/app/mitteilungen', w);
+            const id = await entwurfSpeichern(b);
+            await senden(`${BASIS}/${id}/senden`, {});
+          } else await senden(BASIS, w);
           toast('Mitteilung gesendet.');
           nachher('#/mitteilungen/gesendet');
         },
       },
     ],
   });
+  box.closest('.modal')?.classList.add('mt-dialog');
+  box.querySelector('[data-knopf="0"]')?.classList.add('me-auto');
 }
 
 // ------------------------------------------------------------------ Listen (eigene Verteiler)
 
 async function listen(seite, kontext) {
   kontext.titel('Listen', `<button class="btn btn-primary" data-neu>${icon('plus')}Erstellen</button>`);
-  const liste = await holen('/api/app/mitteilungen/listen');
-  seite.innerHTML = `<p class="small text-body-secondary">Eigene Listen fassen Empfänger zusammen (Personen, Klassen, Gruppen). Beim Schreiben erscheinen sie unter „Meine Listen“.</p>
+  const liste = await holen(`${BASIS}/listen`);
+  seite.innerHTML = `<p class="small text-body-secondary">Eigene Listen fassen Empfänger zusammen (Personen, Klassen, Gruppen). Beim Schreiben erscheinen sie im Reiter „Listen“.</p>
     <div class="u-tabelle-karte">${liste.length ? `<table class="u-tabelle"><thead><tr><th>Name</th><th>Mitglieder</th><th>erstellt</th><th></th></tr></thead><tbody>
       ${liste.map((l, i) => `<tr><td class="fw-semibold" style="width:auto">${e(l.name)}</td><td class="small">${e(l.namen.join(', '))}</td><td class="small text-body-secondary">${e(zeit(l.erstellt))}</td>
         <td class="text-end text-nowrap"><button class="btn btn-sm btn-outline-secondary" data-schreiben="${i}">${icon('senden')}Schreiben</button>
@@ -204,14 +448,18 @@ async function listen(seite, kontext) {
       : leer('Noch keine Listen angelegt.', 'people')}</div>`;
   const neu = () => kontext.navigieren(location.hash);
   const formular = async l => {
-    const empfaenger = (await holen('/api/app/mitteilungen/empfaenger')).filter(x => x.art !== 'liste');
+    const empfaenger = (await holen(`${BASIS}/empfaenger`)).filter(x => x.art !== 'liste');
+    const gewaehlt = new Map((l?.mitglieder ?? []).map((id, i) => [id, l.namen[i] ?? id]));
     dialog({
       titel: l ? `Liste ${l.name}` : 'Neue Liste', breit: true,
-      inhalt: `<div class="mb-3"><label class="form-label">Name</label><input class="form-control" name="name" value="${e(l?.name ?? '')}" required></div>${empfaengerHtml(empfaenger, l?.mitglieder ?? [])}`,
-      beimOeffnen: sucheBinden,
-      knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
-        const mitglieder = [...box.querySelectorAll('[data-name] input:checked')].map(x => x.value);
-        await senden(l ? `/api/app/mitteilungen/listen/${l.id}` : '/api/app/mitteilungen/listen', { name: box.querySelector('[name=name]').value, mitglieder }, l ? 'PUT' : 'POST');
+      inhalt: `<div class="mb-3"><label class="form-label">Name</label><input class="form-control" name="name" value="${e(l?.name ?? '')}" required></div><div class="mt-wahl eingebettet" data-wahl></div>`,
+      beimOeffnen: b => {
+        const zeichnen = () => auswahl(b.querySelector('[data-wahl]'), empfaenger, gewaehlt, neu => { gewaehlt.clear(); neu.forEach((v, k) => gewaehlt.set(k, v)); toast(`${gewaehlt.size} Mitglieder übernommen.`); zeichnen(); }, () => b.schliessen());
+        zeichnen();
+      },
+      knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async b => {
+        b.querySelectorAll('.mt-wahl-zeile input').forEach(c => { const x = empfaenger.find(y => y.id === c.value); if (c.checked) gewaehlt.set(x.id, x.name); else gewaehlt.delete(x.id); });
+        await senden(l ? `${BASIS}/listen/${l.id}` : `${BASIS}/listen`, { name: b.querySelector('[name=name]').value, mitglieder: [...gewaehlt.keys()] }, l ? 'PUT' : 'POST');
         toast('Liste gespeichert.'); neu();
       } }],
     });
@@ -222,7 +470,58 @@ async function listen(seite, kontext) {
   seite.querySelectorAll('[data-loeschen]').forEach(b => b.onclick = async () => {
     const l = liste[Number(b.dataset.loeschen)];
     if (!await bestaetigen('Liste löschen', `Liste „${l.name}“ löschen?`)) return;
-    await api(`/api/app/mitteilungen/listen/${l.id}`, { methode: 'DELETE' });
+    await api(`${BASIS}/listen/${l.id}`, { methode: 'DELETE' });
     neu();
   });
+}
+
+// ------------------------------------------------------------------ Einstellungen (Administration)
+
+async function einstellungen(seite, kontext) {
+  kontext.titel(TITEL.einstellungen);
+  const { einstellungen: x, benutzer } = await holen(`${BASIS}/einstellungen`);
+  const gesperrt = new Set(x.gesperrt ?? []);
+  const schalter = (name, text, hinweis = '') => `<label class="mt-einst-zeile"><input type="checkbox" class="form-check-input" name="${name}" ${x[name] ? 'checked' : ''}>
+    <span><b>${e(text)}</b>${hinweis ? `<small>${e(hinweis)}</small>` : ''}</span></label>`;
+  seite.innerHTML = `<div class="mt-einst">
+    <section class="u-panel"><header><h2>Wer darf an wen schreiben?</h2></header><div class="mt-einst-rumpf">
+      <div class="mt-einst-gruppe">Lehrkräfte</div>
+      ${schalter('lehrerAnFamilie', 'Lehrkräfte schreiben Schüler*innen und Erziehungsberechtigten', 'Einzelne Personen sowie Schüler*innen bzw. Erziehungsberechtigte einer Klasse. Schulleitung und Konten mit dem Recht „Nachrichten“ dürfen immer.')}
+      ${schalter('lehrerNurEigeneKlassen', 'nur in den eigenen Klassen', 'Klassen mit eigenem Unterricht bzw. eigener Klassenleitung.')}
+      <div class="mt-einst-gruppe">Schüler*innen und Erziehungsberechtigte</div>
+      ${schalter('elternSenden', 'Erziehungsberechtigte dürfen Mitteilungen schreiben')}
+      ${schalter('schuelerSenden', 'Schüler*innen dürfen Mitteilungen schreiben')}
+      ${schalter('familieAnKlassenleitung', 'an die Klassenleitung')}
+      ${schalter('familieAnLehrkraefte', 'an alle Lehrkräfte der Klasse')}
+      ${schalter('familieAnLeitung', 'an die Schulleitung')}
+      ${schalter('familieAntworten', 'auf erhaltene Mitteilungen antworten', 'Auch wenn sie dem Absender sonst nicht schreiben dürften.')}
+    </div></section>
+    <section class="u-panel"><header><h2>Anhänge und Aufbewahrung</h2></header><div class="mt-einst-rumpf mt-einst-zahlen">
+      <label class="u-feld"><span>Größe je Anhang (MB)</span><input type="number" class="form-control" name="maxAnhangMb" min="1" max="25" value="${x.maxAnhangMb}"></label>
+      <label class="u-feld"><span>Anhänge je Mitteilung</span><input type="number" class="form-control" name="maxAnhaenge" min="0" max="10" value="${x.maxAnhaenge}"></label>
+      <label class="u-feld"><span>Automatisch löschen nach (Tagen)</span><input type="number" class="form-control" name="aufbewahrungTage" min="30" max="3650" value="${x.aufbewahrungTage}"></label>
+    </div></section>
+    <section class="u-panel"><header><h2>Sperren</h2><span class="ms-auto small text-body-secondary" data-gesperrt-zahl>${gesperrt.size} gesperrt</span></header><div class="mt-einst-rumpf">
+      <p class="small text-body-secondary mb-2">Gesperrte Konten können Mitteilungen lesen, aber keine senden.</p>
+      <div class="mt-suche mb-2"><i class="bi bi-search" aria-hidden="true"></i><input type="search" class="form-control form-control-sm" data-bsuche placeholder="Konto suchen" aria-label="Konto suchen"></div>
+      <div class="mt-wahl-liste mt-einst-konten">${benutzer.map(b => `<label class="mt-wahl-zeile" data-name="${e((b.name + ' ' + b.rolle).toLowerCase())}">
+        <input type="checkbox" class="form-check-input" value="${b.id}" ${gesperrt.has(b.id) ? 'checked' : ''}><span class="mt-wahl-name">${e(b.name)}</span><span class="mt-wahl-art">${e(b.rolle)}</span></label>`).join('')}</div>
+    </div></section>
+    <div class="d-flex justify-content-end"><button class="btn btn-primary" data-speichern>Speichern</button></div></div>`;
+  seite.querySelector('[data-bsuche]').oninput = ev => {
+    const f = ev.target.value.trim().toLowerCase();
+    seite.querySelectorAll('.mt-einst-konten .mt-wahl-zeile').forEach(z => z.classList.toggle('d-none', !!f && !z.dataset.name.includes(f)));
+  };
+  seite.querySelectorAll('.mt-einst-konten input').forEach(c => c.onchange = () => {
+    if (c.checked) gesperrt.add(Number(c.value)); else gesperrt.delete(Number(c.value));
+    seite.querySelector('[data-gesperrt-zahl]').textContent = `${gesperrt.size} gesperrt`;
+  });
+  seite.querySelector('[data-speichern]').onclick = async ev => {
+    const d = { gesperrt: [...gesperrt] };
+    seite.querySelectorAll('.mt-einst [name]').forEach(f => { d[f.name] = f.type === 'checkbox' ? f.checked : Number(f.value); });
+    ev.currentTarget.disabled = true;
+    try { await senden(`${BASIS}/einstellungen`, d, 'PUT'); toast('Einstellungen gespeichert.'); }
+    catch (err) { toast(err.message, true); }
+    finally { ev.currentTarget.disabled = false; }
+  };
 }

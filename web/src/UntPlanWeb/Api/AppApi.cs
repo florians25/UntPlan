@@ -84,7 +84,7 @@ public static class AppApi
                 schuljahr = p.Aktuell is { } sj && sj.Paket.Schule.SchuljahrVon.Length >= 4 ? new { von = sj.Paket.Schule.SchuljahrVon, bis = sj.Paket.Schule.SchuljahrBis } : null,
                 benutzer = b is null ? null : new
                 {
-                    b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Kollegium, admin = b.IstAdmin, nachrichten = b.DarfNachrichten,
+                    b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Kollegium, admin = b.IstAdmin, nachrichten = b.DarfNachrichten, b.Benachrichtigung,
                     passwortAendern = b.PasswortAendern, typ = b.Familie ? Elementtyp.Klasse : Elementtyp.Lehrer,
                     // Schüler- und Elternkonten: eigene Seiten (Abwesenheiten, Fehlzeiten, Hausaufgaben); Element = Klasse für „Mein Stundenplan“
                     familie = b.Familie, schuelerIds = b.SchuelerIds, klassen = b.Klassen, element = b.Kollegium ? b.Element : b.KlassenKuerzel ?? "",

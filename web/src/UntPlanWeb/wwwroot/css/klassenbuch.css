@@ -375,9 +375,9 @@ button.kbu-kachel:hover { background: #fafbfc; }
 .kbl-menue button.an { color: var(--s-orange); }
 .kbl-trenner .kbl-menue { left: 50%; transform: translateX(-50%); }
 
-.kbl { max-width: 1400px; }
+.kbl { max-width: 1400px; overflow-anchor: none; }
 .kbl-rand { height: 1px; }
-.kbl-tag { margin-bottom: 18px; }
+.kbl-tagblock { margin-bottom: 18px; }
 .kbl-trenner { position: relative; display: flex; align-items: center; gap: 12px; margin: 6px 0 10px; }
 .kbl-kw { flex: none; min-width: 48px; font-size: .78rem; font-weight: 600; color: #8a96a1; }
 .kbl-kw:empty { visibility: hidden; }
@@ -386,7 +386,7 @@ button.kbu-kachel:hover { background: #fafbfc; }
 .kbl-datum:hover { border-color: #8a96a1; }
 .kbl-datum .bi { margin-left: 8px; font-size: .7rem; color: #8a96a1; }
 .kbl-heute { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--s-orange-hell); color: #c2470f; font-size: .72rem; }
-.kbl-tag.heute .kbl-datum { border-color: var(--s-orange); }
+.kbl-tagblock.ist-heute .kbl-datum { border-color: var(--s-orange); }
 
 .kbl-tabelle { --kbl-spalten: 48px minmax(64px, .6fr) minmax(110px, 1.1fr) minmax(80px, .8fr) minmax(150px, 1.7fr) minmax(190px, 1.3fr) minmax(130px, 1.3fr);
   background: #fff; border: 1px solid var(--s-karte-rand); border-radius: 10px; overflow: hidden; }

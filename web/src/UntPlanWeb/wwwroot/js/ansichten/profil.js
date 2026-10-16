@@ -26,13 +26,19 @@ export async function zeigen(seite, kontext, [reiterParam]) {
         <div class="col-md-6"><label class="form-label">Letzte Anmeldung</label><input class="form-control" value="${e(datum(p.vorherigeAnmeldung))}" readonly></div>
       </div>
       <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="benachrichtigung" id="pf-b" ${p.benachrichtigung ? 'checked' : ''}>
-        <label class="form-check-label" for="pf-b">Benachrichtigungen über neue Mitteilungen per E-Mail erhalten</label></div>
+        <label class="form-check-label" for="pf-b">Benachrichtigungen über neue Mitteilungen erhalten (Hinweis im Browser bzw. auf dem Gerät)</label></div>
       <div class="d-flex flex-wrap gap-2 mt-4"><button class="btn btn-primary" type="submit">Speichern</button><button class="btn btn-outline-secondary" type="button" data-passwort>Passwort ändern</button></div>
       </form></div></div>`;
     const form = inhalt.querySelector('[data-profil]');
     form.onsubmit = async ev => {
       ev.preventDefault();
-      try { await senden('/api/app/profil', { email: form.email.value, sprache: form.sprache.value, benachrichtigung: form.benachrichtigung.checked }, 'PUT'); toast('Gespeichert.'); }
+      try {
+        await senden('/api/app/profil', { email: form.email.value, sprache: form.sprache.value, benachrichtigung: form.benachrichtigung.checked }, 'PUT');
+        // Systemmeldungen des Browsers für neue Mitteilungen erlauben
+        if (form.benachrichtigung.checked && 'Notification' in window && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch { /* nicht unterstützt */ } }
+        await kontext.sitzungNeu?.();
+        toast('Gespeichert.');
+      }
       catch (err) { kontext.fehler(err); }
     };
     inhalt.querySelector('[data-passwort]').onclick = () => dialog({

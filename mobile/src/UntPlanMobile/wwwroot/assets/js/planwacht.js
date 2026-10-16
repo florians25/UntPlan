@@ -78,7 +78,7 @@
               : (c._supervision || c.blockType === 'supervision') ? 'Aufsicht'
               : c.blockType === 'standby' ? 'Bereitschaft'
               : (c.changed || []).length === 1 && c.changed[0] === 'room' ? 'Raumänderung'
-              : c.blockType === 'change' ? 'Vertretung' : '';
+              : c.blockType === 'change' ? 'Vertretung' : c.blockType === 'normal' ? 'Regulär' : '';
     const std = c._pausePre ? 'vor der 1. Std.' : c._supervision ? `nach der ${c.lesson}. Std.`
               : `${c.lesson}.${(c.span || 1) > 1 ? '–' + (c.lesson + c.span - 1) + '.' : ''} Std.`;
     const teile = [c.subject, c.class, c.room].filter(Boolean).join(' ');

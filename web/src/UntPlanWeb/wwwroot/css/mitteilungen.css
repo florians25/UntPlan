@@ -1,0 +1,149 @@
+/* Mitteilungen wie im Original: Liste links, Lesebereich rechts (schmal eine Spalte), Schreiben mit „An:“-Chips und Empfängerauswahl. */
+
+.mt-raster { display: grid; grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.mt-spalte { overflow: hidden; }
+.mt-suche { position: relative; display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--u-linie-2, #e8ebee); }
+.mt-suche > i { position: absolute; left: 25px; color: #8a96a1; font-size: .8rem; pointer-events: none; }
+.mt-suche input { padding-left: 30px; border-radius: 999px; }
+.u-panel .mt-suche.mb-2, .mt-wahl-filter .mt-suche { padding: 0; border: 0; }
+.u-panel .mt-suche.mb-2 > i, .mt-wahl-filter .mt-suche > i { left: 11px; }
+.mt-zaehler { flex: none; min-width: 22px; height: 22px; border-radius: 11px; padding: 0 7px; background: var(--u-akzent); color: #fff; font-size: .72rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+
+.mt-liste { max-height: calc(100vh - 210px); overflow-y: auto; }
+.mt-gruppe { padding: 8px 16px 6px; font-size: .72rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: #8a96a1; background: #f7f8f9; border-bottom: 1px solid var(--u-linie-2, #e8ebee); }
+.mt-eintrag { position: relative; display: flex; gap: 12px; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--u-linie-2, #e8ebee); border-left: 3px solid transparent; background: #fff; width: 100%; text-align: left; cursor: pointer; }
+.mt-eintrag:hover { background: #f7f8f9; }
+.mt-eintrag.aktiv { background: #f1f3f5; border-left-color: var(--u-akzent); }
+.mt-eintrag .u-avatar { width: 34px; height: 34px; font-size: .74rem; }
+.mt-eintrag .rumpf { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mt-eintrag .kopf { display: flex; gap: 8px; font-size: .8125rem; color: var(--u-grau, #67747e); }
+.mt-eintrag .kopf .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--u-titel, #24323d); }
+.mt-eintrag .kopf .zeit { flex: none; white-space: nowrap; display: inline-flex; gap: 4px; align-items: center; font-size: .75rem; }
+.mt-eintrag .betreff { display: block; font-weight: 600; font-size: .875rem; color: var(--u-titel, #24323d); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-eintrag .vorschau { display: block; font-size: .8125rem; color: #8a96a1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-eintrag.neu .kopf .name, .mt-eintrag.neu .betreff { font-weight: 700; }
+.mt-eintrag.neu::before { content: ""; position: absolute; left: 5px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--u-akzent); }
+.mt-eintrag.neu::after { display: none; }
+.mt-antwort-symbol { color: #8a96a1; margin-right: 4px; font-size: .8rem; }
+.mt-wichtig { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 1px; background: #fde6e6; color: #c8363b; font-size: .68rem; font-weight: 700; vertical-align: 1px; text-transform: uppercase; letter-spacing: .02em; }
+.mt-wichtig.gross { font-size: .72rem; vertical-align: 3px; }
+
+/* „Blase“ bestätigt | Empfänger*innen */
+.mt-blase { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin-top: 5px; padding: 1px 9px; border: 1.5px solid #d6dbe0; border-radius: 999px; font-size: .72rem; font-weight: 700; color: var(--u-titel, #24323d); background: #fff; cursor: pointer; }
+.mt-blase i { width: 1px; height: 11px; background: #c3cad0; }
+.mt-blase:hover, .mt-blase:focus-visible { border-color: var(--u-akzent); outline: none; }
+
+/* Lesebereich */
+.mt-lesen { padding: 20px 24px 24px; min-height: 360px; display: flex; flex-direction: column; }
+.mt-lesekopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.mt-werkzeuge { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.mt-werkzeuge .btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; }
+.mt-werkzeuge .btn-icon { width: 32px; height: 32px; padding: 0; justify-content: center; }
+.mt-gelesen-band { margin: -4px 0 12px; padding: 6px 12px; border-radius: 6px; background: #8a96a1; color: #fff; font-size: .8125rem; font-weight: 600; text-align: center; }
+.mt-titel { font-size: 1.25rem; font-weight: 700; color: var(--u-titel, #24323d); margin: 0 0 10px; }
+.mt-meta { display: flex; align-items: flex-start; gap: 10px; padding: 0 0 12px; margin-bottom: 14px; border-bottom: 1px solid var(--u-linie-2, #e8ebee); font-size: .8125rem; color: var(--u-grau, #67747e); }
+.mt-von { flex: none; color: #8a96a1; padding-top: 1px; }
+.mt-personen { flex: 1; min-width: 0; }
+.mt-personen b { color: var(--u-titel, #24323d); }
+.mt-an { font-size: .75rem; color: #8a96a1; overflow-wrap: anywhere; }
+.mt-datum { flex: none; white-space: nowrap; color: #8a96a1; }
+.mt-text { line-height: 1.55; color: var(--u-text, #33414c); font-size: .9rem; overflow-wrap: anywhere; white-space: normal; }
+.mt-text .mt-leer { height: .8em; }
+.mt-text .mt-h { font-weight: 700; color: var(--u-titel, #24323d); margin: .5em 0 .2em; line-height: 1.3; }
+.mt-text .mt-h1 { font-size: 1.35rem; } .mt-text .mt-h2 { font-size: 1.2rem; } .mt-text .mt-h3 { font-size: 1.08rem; }
+.mt-text .mt-h4, .mt-text .mt-h5, .mt-text .mt-h6 { font-size: .95rem; }
+.mt-text ul, .mt-text ol { margin: .2em 0 .4em; padding-left: 1.4em; }
+.mt-text .mt-zitat { border-left: 3px solid #d6dbe0; padding-left: 10px; color: #67747e; }
+.mt-text a { color: #1d6fb8; text-decoration: underline; }
+.mt-anhaenge { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.mt-anhaenge:empty { display: none; }
+.mt-anhang { display: inline-flex; align-items: center; gap: 7px; border: 1.5px solid #d6dbe0; border-radius: 999px; padding: 4px 12px; font-weight: 600; font-size: .8125rem; color: var(--u-titel, #24323d); background: #fff; text-decoration: none; }
+.mt-anhang:hover { border-color: #8a96a1; text-decoration: none; color: var(--u-titel, #24323d); }
+.mt-anhang .btn-close { font-size: .55rem; margin-left: 2px; }
+.mt-groesse { font-weight: 400; color: #8a96a1; font-size: .75rem; }
+.mt-fuss { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--u-linie-2, #e8ebee); }
+.mt-fuss .btn { border-radius: 999px; }
+
+/* Lesebestätigungsliste */
+.mt-lb-betreff { font-size: .8125rem; color: #67747e; margin-bottom: 8px; }
+.mt-lb { list-style: none; margin: 0; padding: 0; }
+.mt-lb li { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--u-linie-2, #e8ebee); font-size: .875rem; }
+.mt-lb li.ja { color: var(--u-gruen, #1f9d55); }
+.mt-lb-symbol { width: 18px; flex: none; color: #8a96a1; }
+.mt-lb li.ja .mt-lb-symbol { color: var(--u-gruen, #1f9d55); }
+.mt-lb-name { flex: 1; min-width: 0; }
+.mt-lb-name small { color: #8a96a1; margin-left: 4px; }
+.mt-lb-zeit { flex: none; font-size: .75rem; color: #8a96a1; }
+
+/* Schreiben */
+.mt-dialog .modal-body { padding: 0; }
+.mt-schreiben { display: flex; flex-direction: column; }
+.mt-an-zeile, .mt-feld-zeile { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--u-linie-2, #e8ebee); min-height: 52px; }
+.mt-an-label { flex: none; width: 52px; font-size: .8125rem; color: #8a96a1; margin: 0; }
+.mt-chips { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
+.mt-chip { height: 26px; font-size: .78rem; padding-left: 11px; max-width: 260px; }
+.mt-chip { overflow: hidden; text-overflow: ellipsis; }
+.mt-an-leer { font-size: .8125rem; color: #a3adb5; }
+.mt-plus { flex: none; width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid #c3cad0; background: #fff; color: #67747e; display: inline-flex; align-items: center; justify-content: center; }
+.mt-plus:hover { border-color: var(--u-akzent); color: var(--u-akzent); }
+.mt-betreff { border: 0; box-shadow: none !important; padding-left: 0; font-weight: 600; }
+.mt-editor { padding: 8px 18px 0; }
+.mt-editor-reiter { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.mt-editor-reiter button { border: 0; background: none; padding: 3px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; color: #67747e; }
+.mt-editor-reiter button.aktiv { background: #eef0f2; color: var(--u-titel, #24323d); }
+.mt-md-hinweis { margin-left: auto; font-size: .72rem; color: #a3adb5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-editor textarea { border: 0; box-shadow: none !important; padding: 4px 0; resize: vertical; min-height: 200px; font-size: .9rem; }
+.mt-vorschau { min-height: 200px; padding: 4px 0; }
+.mt-schreiben > .mt-anhaenge { margin: 0; padding: 0 18px 10px; }
+.mt-schreib-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 18px; border-top: 1px solid var(--u-linie-2, #e8ebee); }
+.mt-schalter { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 999px; border: 1.5px solid #d6dbe0; background: #fff; color: #67747e; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.mt-schalter:hover { border-color: #8a96a1; }
+.mt-schalter.an { border-color: var(--u-akzent); background: #fff2eb; color: #c4501c; }
+.mt-grenze { margin-left: auto; font-size: .72rem; color: #a3adb5; }
+.mt-dialog .modal-footer .btn { border-radius: 999px; }
+
+/* Empfängerauswahl */
+.mt-wahl { padding: 14px 18px; }
+.mt-wahl.eingebettet { padding: 0; }
+.mt-wahl-kopf { display: flex; align-items: baseline; margin-bottom: 8px; }
+.mt-reiter { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.mt-reiter button { border: 1.5px solid #d6dbe0; background: #fff; border-radius: 999px; padding: 2px 11px; font-size: .78rem; font-weight: 600; color: #67747e; }
+.mt-reiter button.aktiv { background: #414d55; border-color: #414d55; color: #fff; }
+.mt-wahl-filter { display: flex; gap: 8px; margin-bottom: 8px; }
+.mt-wahl-filter .mt-suche { flex: 1; }
+.mt-wahl-filter select { width: auto; min-width: 130px; border-radius: 999px; }
+.mt-wahl-alle { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: .8125rem; color: #67747e; border-bottom: 1px solid var(--u-linie-2, #e8ebee); }
+.mt-wahl-liste { max-height: 340px; overflow-y: auto; }
+.mt-wahl-zeile { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid #f0f2f4; cursor: pointer; font-size: .8125rem; margin: 0; }
+.mt-wahl-zeile:hover { background: #f7f8f9; }
+.mt-wahl-zeile .form-check-input { margin: 0; flex: none; }
+.mt-wahl-zeile .u-avatar { width: 26px; height: 26px; font-size: .65rem; }
+.mt-wahl-name { flex: 1; min-width: 0; color: var(--u-titel, #24323d); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-wahl-art { flex: none; padding: 0 7px; border-radius: 1px; background: #eef0f2; color: #67747e; font-size: .68rem; font-weight: 600; }
+.mt-wahl-fuss { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.mt-wahl-fuss .btn { border-radius: 999px; }
+
+/* Einstellungen */
+.mt-einst { display: flex; flex-direction: column; gap: 16px; max-width: 860px; }
+.mt-einst-rumpf { padding: 12px 18px 16px; }
+.mt-einst-gruppe { font-size: .72rem; font-weight: 700; text-transform: uppercase; color: #8a96a1; margin: 10px 0 4px; }
+.mt-einst-zeile { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; font-size: .875rem; cursor: pointer; margin: 0; }
+.mt-einst-zeile .form-check-input { margin-top: 3px; flex: none; }
+.mt-einst-zeile small { display: block; color: #8a96a1; font-size: .78rem; }
+.mt-einst-zahlen { display: flex; flex-wrap: wrap; gap: 16px; }
+.mt-einst-zahlen .u-feld { min-width: 180px; }
+.mt-einst-konten { max-height: 280px; border: 1px solid var(--u-linie-2, #e8ebee); border-radius: 6px; padding: 0 8px; }
+
+@media (max-width: 991.98px) {
+  .mt-raster { grid-template-columns: 1fr; }
+  .mt-liste { max-height: none; }
+  .mt-lesen { padding: 14px 16px 18px; }
+  .mt-werkzeuge .btn:not(.btn-icon) { font-size: 0; gap: 0; width: 32px; height: 32px; padding: 0; justify-content: center; }
+  .mt-werkzeuge .btn:not(.btn-icon) i { font-size: .9rem; }
+  .mt-md-hinweis, .mt-grenze { display: none; }
+  .mt-schalter span { display: none; }
+}
+
+@media print {
+  body.mt-druck .mt-lesen { padding: 0; }
+}

@@ -433,7 +433,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       if (!sicht.length) return '';
       const kw = kwVon(t.datum);
       const kwNeu = kw !== letzteKw; letzteKw = kw;
-      return `<section class="kbl-tag ${t.datum === heute ? 'heute' : ''}" data-datum="${t.datum}">
+      return `<section class="kbl-tagblock ${t.datum === heute ? 'ist-heute' : ''}" data-datum="${t.datum}">
         <div class="kbl-trenner"><span class="kbl-kw">${kwNeu ? `KW ${kw}` : ''}</span><span class="kbl-linie"></span>
           <button type="button" class="kbl-datum" data-datumwahl="${t.datum}" aria-haspopup="menu" aria-expanded="false">${e(wtVon(t.datum))}<span class="kbl-trennstrich">|</span>${e(tagText(t.datum))}${t.datum === heute ? ' <span class="kbl-heute">Heute</span>' : ''}<i class="bi bi-chevron-down"></i></button>
           <span class="kbl-linie"></span></div>
@@ -478,10 +478,10 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       const b = richtung < 0 ? plusTage(von, -1) : begrenzt(plusTage(bis, BLOCK));
       await holeBereich(a, b);
       if (!seite.isConnected) return false;
-      const hoehe = document.documentElement.scrollHeight, y = window.scrollY;
+      const anker = ankerMerken();
       if (richtung < 0) von = a; else bis = b;
       zeichnen();
-      if (richtung < 0) window.scrollTo(0, y + document.documentElement.scrollHeight - hoehe);
+      ankerHerstellen(anker);
       return true;
     } catch (err) { toast(err.message, true); return false; }
     finally { ladend = false; }
@@ -495,9 +495,18 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       break;
     }
   };
+  // Lage beim Neuzeichnen halten: oberster sichtbarer Tag bleibt an derselben Stelle
+  const ankerMerken = () => {
+    const x = [...listeEl.querySelectorAll('[data-datum]')].find(t => t.getBoundingClientRect().bottom > 120);
+    return x ? { datum: x.dataset.datum, top: x.getBoundingClientRect().top } : null;
+  };
+  const ankerHerstellen = anker => {
+    const x = anker && (listeEl.querySelector(`[data-datum="${anker.datum}"]`) ?? [...listeEl.querySelectorAll('[data-datum]')].find(t => t.dataset.datum >= anker.datum));
+    if (x) window.scrollBy(0, x.getBoundingClientRect().top - anker.top);
+  };
   async function aktualisieren() {
-    const y = window.scrollY;
-    try { tage.clear(); await holeBereich(von, bis); zeichnen(); window.scrollTo(0, y); } catch (err) { toast(err.message, true); }
+    const anker = ankerMerken();
+    try { tage.clear(); await holeBereich(von, bis); zeichnen(); ankerHerstellen(anker); } catch (err) { toast(err.message, true); }
   }
   const springen = d => {
     const ziel2 = listeEl.querySelector(`[data-datum="${d}"]`) ?? [...listeEl.querySelectorAll('[data-datum]')].find(x => x.dataset.datum >= d);
@@ -515,7 +524,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       if (d >= von && d <= bis && listeEl.querySelector(`[data-datum="${d}"]`)) springen(d); else kontext.navigieren(ziel({ d }));
     });
   }
-  filterBinden(() => { zeichnen(); pruefen(); });
+  filterBinden(() => { const anker = ankerMerken(); zeichnen(); ankerHerstellen(anker); pruefen(); });
 
   von = begrenzt(plusTage(montagVon(ziel_datum), -7));
   bis = begrenzt(plusTage(ziel_datum, BLOCK));
