@@ -32,7 +32,7 @@ public static class AppApi
     public sealed record AbwesenheitEntfernenDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds);
     public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis);
     public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null,
-        string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null);
+        string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null, bool? Online = null);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
 
@@ -322,7 +322,7 @@ public static class AppApi
         });
         // Lehrstoff, Hausaufgabe, Notizen (Lehrkräfte / Schüler*innen), Lehrform, Anmerkung einer Stunde speichern – PUT und POST (Apps).
         // Nicht mitgeschickte Felder (null) bleiben unverändert, z. B. { datum, stunde, unterricht, notizSchueler } ändert nur die Schülernotiz.
-        IResult StundeSpeichern(KlassenbuchDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb)
+        IResult StundeSpeichern(KlassenbuchDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Klassenbuchverwaltung kv)
         {
             var b = Ich(c);
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur Lehrkräfte können das Klassenbuch bearbeiten.");
@@ -330,8 +330,15 @@ public static class AppApi
             var alt = kb.Zeitraum(d.Datum, d.Datum).Where(e => e.Unterricht == d.Unterricht && d.Stunde >= e.Stunde && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase)))
                 .OrderByDescending(e => e.Stunde).FirstOrDefault();
             DateOnly? faellig = d.Hausaufgabe is null && d.Faellig is null ? (DateOnly.TryParse(alt?.Faellig, out var f) ? f : null) : d.Faellig;
-            return Results.Json(kb.Speichern(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? alt?.Thema ?? "", d.Hausaufgabe ?? alt?.Hausaufgabe ?? "", faellig,
-                d.Notiz ?? alt?.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung, d.Lehrer));
+            var e = kb.Speichern(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? alt?.Thema ?? "", d.Hausaufgabe ?? alt?.Hausaufgabe ?? "", faellig,
+                d.Notiz ?? alt?.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung, d.Lehrer);
+            // „Findet online statt“ (nur wenn mitgeschickt)
+            if (d.Online is bool online)
+            {
+                kv.OnlineSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, online);
+                e = kb.Holen(DateOnly.Parse(e.Datum), e.Stunde, e.Unterricht, e.Lehrer) ?? e;
+            }
+            return Results.Json(e);
         }
         api.MapPut("/klassenbuch/stunde", StundeSpeichern);
         api.MapPost("/klassenbuch/stunde", StundeSpeichern);

@@ -1656,3 +1656,45 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .fz-kaestchen { display: inline-block; width: 17px; height: 17px; border-radius: 1px; background: #fff; border: 1.5px solid #c9d0d6; vertical-align: middle; }
 .fz-kaestchen.an { background: #f5845c; border-color: #f5845c; }
 @media (max-width: 700px) { .fm-filter { padding: 12px; gap: 8px; } .fm-raster { grid-template-columns: 1fr; } }
+
+/* Dialoge über den Stundendetails (Abwesenheit, Lehrstoff, Klassenbucheintrag, Prüfung) im neuen Design */
+.sd-altdialog { border: 0; border-radius: 10px; box-shadow: 0 10px 40px rgba(0, 5, 10, .25); font-size: .875rem; overflow: hidden; }
+.sd-altdialog-kopf { background: #fff; border-bottom: 1px solid #e3e7eb; padding: 14px 18px; color: var(--u-titel); font-size: 1.05rem; font-weight: 600; }
+.sd-altdialog-kopf button { color: #67747e; font-size: 24px; }
+.sd-altdialog-rumpf { padding: 16px 18px 18px; }
+.ad-kopf { font-size: .82rem; color: #414d55; }
+.ad-kopf dt { font-weight: 600; }
+.ad-feld { font-size: .8rem; font-weight: 600; color: #414d55; gap: 4px; margin-bottom: 12px; }
+.ad-feld input, .ad-feld select, .ad-feld textarea { font-size: .875rem; font-weight: 400; border: 1.5px solid #c9d0d6; border-radius: 6px; padding: 6px 10px; min-height: 36px; }
+.ad-feld input:focus, .ad-feld select:focus, .ad-feld textarea:focus { outline: 0; border-color: var(--u-akzent); }
+.ad-info { font-size: .82rem; color: #57626b; }
+.ad-fuss { font-size: .78rem; color: #8a96a1; margin-top: 8px; }
+.ad-knoepfe { gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.ad-pille { height: 38px; padding: 0 18px; border: 1.5px solid #c9d0d6; font-size: .9rem; color: var(--u-text); }
+.ad-pille:hover { border-color: #8a96a1; color: var(--u-text); }
+.ad-pille.klein { height: 28px; padding: 0 11px; font-size: .78rem; }
+.ad-pille.rot { color: #a1262b; border-color: #e8a7aa; } .ad-pille.rot:hover { background: #fdecec; }
+.ad-liste { font-size: .82rem; }
+/* Abwesenheitsdialog: klares Formular mit Beschriftungen links */
+.ab-formular { display: grid; grid-template-columns: 140px 1fr; gap: 12px 16px; align-items: center; }
+.ab-formular > label { font-weight: 600; color: #414d55; font-size: .85rem; margin: 0; }
+.ab-wert { font-weight: 600; color: var(--u-titel); }
+.ab-zeile { display: flex; gap: 8px; flex-wrap: wrap; }
+.ab-formular input, .ab-formular select { font: inherit; font-size: .9rem; border: 1.5px solid #c9d0d6; border-radius: 6px; padding: 6px 10px; min-height: 38px; color: var(--u-text); background: #fff; }
+.ab-formular input:focus, .ab-formular select:focus { outline: 0; border-color: var(--u-akzent); }
+.ab-formular input:disabled { background: #f3f5f7; color: #67747e; }
+.ab-zeile input[type=date] { width: 170px; } .ab-zeile input[type=time] { width: 120px; }
+.ab-formular select, .ab-formular #ab-text { width: 100%; }
+.ab-schnell { display: flex; gap: 6px; flex-wrap: wrap; }
+.ab-formular .vs-vorschau { margin: 0; }
+.ab-status { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.ab-radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: .9rem; }
+.ab-radio input { accent-color: var(--u-akzent); width: 16px; height: 16px; min-height: 0; }
+.ab-hinweis { flex-basis: 100%; font-size: .75rem; color: #8a96a1; }
+.ab-knoepfe { justify-content: flex-end; border-top: 1px solid #e3e7eb; padding-top: 14px; }
+@media (max-width: 560px) { .ab-formular { grid-template-columns: 1fr; gap: 6px; } }
+.fz-eingebettet { background: #fbfcfd; }
+.fz-eingebettet thead th { background: #f1f3f5; }
+
+/* Karte: Stunde findet online statt */
+.ecke .ecke-online { display: inline-block; padding: 0 4px; border-radius: 2px; background: var(--u-gruen-label); color: #fff; font-size: 10.5px; font-weight: 600; line-height: 14px; margin-right: 3px; vertical-align: middle; }

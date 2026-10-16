@@ -194,7 +194,16 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   const el = await kontext.elemente();
   const erlaubt = ich.kollegium ? ['klasse', 'lehrer', 'raum'] : ['klasse', 'raum'];
   const mein = !typParam || typParam === 'mein';
-  if (mein && ich.element) { datumParam = /^\d{4}-/.test(elementParam ?? '') ? elementParam : datumParam; typParam = ich.typ; elementParam = ich.element; }
+  // Erziehungsberechtigte mit mehreren Kindern: „Mein Stundenplan“ zeigt die Klasse des gewählten Kindes
+  let meinElement = ich.element;
+  if (kontext.familie && (ich.klassen ?? []).length > 1) {
+    try {
+      const kind = Number(sessionStorage.getItem('untplan:kind'));
+      const k = kind ? (await holen('/api/app/familie/kinder').catch(() => [])).find(x => x.id === kind) : null;
+      if (k) meinElement = k.klasse;
+    } catch { /* privat */ }
+  }
+  if (mein && meinElement) { datumParam = /^\d{4}-/.test(elementParam ?? '') ? elementParam : datumParam; typParam = ich.typ; elementParam = meinElement; }
   const typ = erlaubt.includes(typParam) ? typParam : (ich.typ && erlaubt.includes(ich.typ) ? ich.typ : 'klasse');
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   let element = elementParam;
@@ -207,7 +216,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   }
 
   // eigener Plan ohne Elementauswahl nur unter „Mein Stundenplan“; unter „Lehrkraft“ immer mit Auswahl (auch eigene Lehrkraft)
-  const istMein = mein && typ === ich.typ && !!ich.element && element.toLowerCase() === ich.element.toLowerCase();
+  const istMein = mein && typ === ich.typ && !!meinElement && element.toLowerCase() === meinElement.toLowerCase();
   kontext.titel('');
   document.title = `${istMein ? 'Mein Stundenplan' : `${TYPEN[typ]} ${element}`} – UntPlanWeb`;
 

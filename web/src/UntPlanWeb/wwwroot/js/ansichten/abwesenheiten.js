@@ -12,25 +12,6 @@ export const avatar = (name, gefuellt = true) => {
 };
 const tagKurz = iso => new Date(iso + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
 
-/** Zeilen einer zusammengefassten Abwesenheit (gleiche Gruppe) zu einer Zeile über mehrere Tage verbinden. */
-function zusammenfassen(liste) {
-  const res = [];
-  const gruppen = new Map();
-  for (const z of liste) {
-    if (!z.gruppe) { res.push({ ...z, bis: z.datum }); continue; }
-    const k = `${z.schuelerId}|${z.gruppe}`;
-    const g = gruppen.get(k);
-    if (!g) { const n = { ...z, bis: z.datum, ids: [...z.ids], faecher: [...z.faecher], lehrer: [...z.lehrer], stundenSumme: z.stundeBis - z.stundeVon + 1 }; gruppen.set(k, n); res.push(n); continue; }
-    if (z.datum < g.datum) { g.datum = z.datum; g.stundeVon = z.stundeVon; g.beginn = z.beginn; }
-    if (z.datum > g.bis) { g.bis = z.datum; g.stundeBis = z.stundeBis; g.ende = z.ende; }
-    g.ids.push(...z.ids);
-    g.stundenSumme += z.stundeBis - z.stundeVon + 1;
-    z.faecher.forEach(f => { if (!g.faecher.includes(f)) g.faecher.push(f); });
-    z.lehrer.forEach(f => { if (!g.lehrer.includes(f)) g.lehrer.push(f); });
-  }
-  return res;
-}
-
 /** Nachweisarten einer Entschuldigung. */
 export const NACHWEISE = { attest: 'ärztliches Attest', schriftlich: 'schriftliche Entschuldigung', muendlich: 'mündlich', telefonisch: 'telefonisch', email: 'per E-Mail' };
 
@@ -92,11 +73,12 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   }
 
   const q = `von=${von}&bis=${bis}${klasse ? `&klasse=${encodeURIComponent(klasse)}` : ''}${status ? `&status=${status}` : ''}`;
-  const [roh, gruende] = await Promise.all([holen(`/api/app/abwesenheiten?${q}`), holen('/api/app/abwesenheitsgruende?art=abwesenheit').catch(() => [])]);
+  // Abwesenheiten als Zeiträume (von–bis, minutengenau) vom Server; die Fehlzeiten je Stunde stehen unter „Fehlzeiten“
+  const [zr, gruende] = await Promise.all([holen(`/api/app/abwesenheiten/zeitraeume?${q}`), holen('/api/app/abwesenheitsgruende?art=abwesenheit').catch(() => [])]);
   const grundName = Object.fromEntries(gruende.map(g => [g.kurz, g.name]));
-  const liste = zusammenfassen(roh.filter(z => (!grund || z.grund === grund) && (!art || z.art === art)));
-  const alleZeilen = zusammenfassen(roh);
-  const anzahl = { offen: alleZeilen.filter(z => z.status === 'offen' && z.art === 'fehlt').length, unent: alleZeilen.filter(z => z.status === 'unentschuldigt' && z.art === 'fehlt').length,
+  const roh = zr.map(z => ({ ...z, datum: z.vonDatum, bis: z.bisDatum, beginn: z.vonZeit, ende: z.bisZeit, bemerkung: z.text, stundenSumme: z.fehlstunden }));
+  const liste = roh.filter(z => (!grund || z.grund === grund) && (!art || z.art === art));
+  const anzahl = { offen: roh.filter(z => z.status === 'offen').length, unent: roh.filter(z => z.status === 'unentschuldigt').length,
     spaet: roh.filter(z => z.art === 'verspaetet').length, frueh: roh.filter(z => z.art === 'vorzeitig').length,
     minuten: roh.filter(z => z.art !== 'fehlt').reduce((n, z) => n + z.minuten, 0) };
   const verwalten = roh.some(z => z.verwalten) || ich.admin;
@@ -116,7 +98,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         ${verwalten ? `<button type="button" class="nl-hinzu" data-neu><i class="bi bi-plus-lg"></i>Hinzufügen</button>` : ''}
       </span>
     </div>
-    <p class="nl-hinweis"><i class="bi bi-info-circle"></i> Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || el.klassen[0]?.kurz || '')}/fehlzeiten">Fehlzeiten</a>.</p>
+    <p class="nl-hinweis"><i class="bi bi-info-circle"></i>Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || el.klassen[0]?.kurz || '')}/fehlzeiten">Fehlzeiten</a>.</p>
     <div class="nl-zahlen">
       <button type="button" class="nl-zahl ${status === 'offen' ? 'aktiv' : ''}" data-kz="offen"><b>${anzahl.offen}</b> offen</button>
       <button type="button" class="nl-zahl rot ${status === 'unentschuldigt' ? 'aktiv' : ''}" data-kz="unentschuldigt"><b>${anzahl.unent}</b> nicht entschuldigt</button>
@@ -129,8 +111,8 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       ${liste.map((z, i) => `<tr data-name="${e((z.schueler + ' ' + z.klasse).toLowerCase())}">${verwalten ? `<td class="nl-wahl">${z.verwalten || ich.admin ? `<input type="checkbox" class="nl-rund" data-i="${i}" aria-label="auswählen">` : ''}</td>` : ''}
         <td class="nl-avatar-zelle">${avatar(z.schueler, z.status === 'offen')}</td>
         <td><div class="nl-name">${e(z.schueler)}</div><div class="nl-unter">${e(z.klasse)}${z.lehrer.length ? ` · erfasst von ${e(z.lehrer.join(', '))}` : ''}</div></td>
-        <td class="text-nowrap"><div>${tagKurz(z.datum)}${z.bis !== z.datum ? ` – ${tagKurz(z.bis)}` : ''}</div>
-          <div class="nl-unter">${z.bis !== z.datum ? `${z.stundenSumme} Std.` : stundenText(z.stundeVon, z.stundeBis)}${z.beginn ? ` · ${e(z.beginn)}–${e(z.ende)}` : ''}</div></td>
+        <td class="text-nowrap"><div>${tagKurz(z.datum)} <span class="nl-unter">${e(z.beginn)}</span> – ${z.bis !== z.datum ? `${tagKurz(z.bis)} ` : ''}<span class="nl-unter">${e(z.ende)}</span></div>
+          <div class="nl-unter">${z.fehlstunden} ${z.fehlstunden === 1 ? 'Fehlstunde' : 'Fehlstunden'} · ${z.fehlminuten} min</div></td>
         <td>${artChip(z)}</td>
         <td>${z.grund ? `<span class="nl-tag">${e(grundName[z.grund] ?? z.grund)}</span>` : ''}</td><td>${STATUS[z.status] ?? e(z.status)}</td><td class="nl-text">${e(z.bemerkung)}${detailSymbole(z) ? `<div class="nl-chips mt-1">${detailSymbole(z)}</div>` : ''}</td>
         ${verwalten ? `<td class="text-end text-nowrap nl-aktionen">${z.verwalten || ich.admin ? `<button class="nl-icon" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>
@@ -187,32 +169,34 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
     await senden('/api/app/abwesenheiten/loeschen', { ids: z.ids });
     toast('Gelöscht.'); neu();
   });
+  const zeitfelder = (z = {}) => `
+        <div class="col-sm-6"><label class="form-label">Von</label><div class="d-flex gap-2"><input type="date" class="form-control" name="vonDatum" value="${e(z.datum || heuteIso())}"><input type="time" step="60" class="form-control" style="max-width:120px" name="vonZeit" value="${e(z.beginn || (el.stunden ?? [])[0]?.beginn || '07:45')}"></div></div>
+        <div class="col-sm-6"><label class="form-label">Bis</label><div class="d-flex gap-2"><input type="date" class="form-control" name="bisDatum" value="${e(z.bis || heuteIso())}"><input type="time" step="60" class="form-control" style="max-width:120px" name="bisZeit" value="${e(z.ende || (el.stunden ?? []).at(-1)?.ende || '16:00')}"></div>
+          <div class="form-text">Minutengenau: angebrochene Stunden werden als Verspätung bzw. vorzeitiges Gehen gezählt.</div></div>`;
+  const zeitWerte = box => { const v = n => box.querySelector(`[name=${n}]`).value; return { von: `${v('vonDatum')}T${v('vonZeit')}`, bis: `${v('bisDatum')}T${v('bisZeit')}` }; };
   inhalt.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => {
     const z = liste[Number(b.dataset.bearbeiten)];
-    dialog({ titel: `Abwesenheit ${z.schueler}`, inhalt: `<p class="small text-body-secondary">${datumDe(z.datum)}${z.bis !== z.datum ? ' – ' + datumDe(z.bis) : `, ${stundenText(z.stundeVon, z.stundeBis)} Std.`} · ${e(z.faecher.join(', '))}</p>
-        <div class="row g-3"><div class="col-sm-6"><label class="form-label">Abwesenheitsgrund</label><select class="form-select" name="grund"><option value="">–</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === z.grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select></div>
+    dialog({ titel: `Abwesenheit ${z.schueler}`, breit: true, inhalt: `<p class="small text-body-secondary">${z.fehlstunden} Fehlstunden · ${z.fehlminuten} min · ${e(z.faecher.join(', '))}</p>
+        <div class="row g-3">${zeitfelder(z)}
+        <div class="col-sm-6"><label class="form-label">Abwesenheitsgrund</label><select class="form-select" name="grund"><option value="">–</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === z.grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select></div>
         <div class="col-sm-6"><label class="form-label">Status</label><select class="form-select" name="status">${['offen', 'entschuldigt', 'unentschuldigt'].map(s => `<option value="${s}" ${s === z.status ? 'selected' : ''}>${s === 'unentschuldigt' ? 'nicht entschuldigt' : s}</option>`).join('')}</select></div>
         <div class="col-12"><label class="form-label">Text</label><input class="form-control" name="bemerkung" value="${e(z.bemerkung)}" list="abw-texte">${textListe}</div>
         ${detailFelder(z)}</div>
         ${z.erstellt ? `<p class="small text-body-secondary mt-3 mb-0">Erfasst ${e(z.erstellt.slice(8, 10) + '.' + z.erstellt.slice(5, 7) + '.' + z.erstellt.slice(0, 4) + z.erstellt.slice(10))}${z.lehrer.length ? ` von ${e(z.lehrer.join(', '))}` : ''}</p>` : ''}`,
       knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
         const v = n => box.querySelector(`[name=${n}]`).value;
-        await senden('/api/app/abwesenheiten', { ids: z.ids, grund: v('grund'), status: v('status'), bemerkung: v('bemerkung'), ...detailWerte(box) }, 'PUT');
+        await senden('/api/app/klassenbuch/abwesenheit', { schuelerIds: [z.schuelerId], ...zeitWerte(box), ersetzen: z.ids, grund: v('grund'), status: v('status'), text: v('bemerkung'), ...detailWerte(box) });
         toast('Gespeichert.'); neu();
       } }] });
   });
   document.querySelector('[data-neu]')?.addEventListener('click', async () => {
     const kl = klasse || el.klassen.find(k => ich.element && (k.leitung ?? []).includes(ich.element))?.kurz || el.klassen[0]?.kurz;
     const schueler = kl ? await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(kl)}`) : [];
-    const stunden = el.stunden ?? [];
     dialog({ titel: 'Neue Abwesenheit', breit: true,
       inhalt: `<div class="row g-3">
         <div class="col-sm-4"><label class="form-label">Klasse</label><select class="form-select" name="klasse">${el.klassen.map(k => `<option ${k.kurz === kl ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></div>
         <div class="col-sm-8"><label class="form-label">Schüler*in</label><select class="form-select" name="schuelerId">${schueler.map(s => `<option value="${s.id}">${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select></div>
-        <div class="col-sm-3"><label class="form-label">Von</label><input type="date" class="form-control" name="von" value="${heuteIso()}"></div>
-        <div class="col-sm-3"><label class="form-label">ab Stunde</label><select class="form-select" name="stundeVon">${stunden.map(z => `<option value="${z.nr}">${z.nr}. (${e(z.beginn)})</option>`).join('')}</select></div>
-        <div class="col-sm-3"><label class="form-label">Bis</label><input type="date" class="form-control" name="bis" value="${heuteIso()}"></div>
-        <div class="col-sm-3"><label class="form-label">bis Stunde</label><select class="form-select" name="stundeBis">${stunden.map((z, i) => `<option value="${z.nr}" ${i === stunden.length - 1 ? 'selected' : ''}>${z.nr}. (${e(z.ende)})</option>`).join('')}</select></div>
+        ${zeitfelder()}
         <div class="col-sm-6"><label class="form-label">Abwesenheitsgrund</label><select class="form-select" name="grund"><option value="">–</option>${gruende.map(g => `<option value="${e(g.kurz)}">${e(g.name)}</option>`).join('')}</select></div>
         <div class="col-sm-6"><label class="form-label">Status</label><select class="form-select" name="status"><option value="offen">offen</option><option value="entschuldigt">entschuldigt</option><option value="unentschuldigt">nicht entschuldigt</option></select></div>
         <div class="col-12"><label class="form-label">Text</label><input class="form-control" name="bemerkung" list="abw-texte">${textListe}</div>
@@ -225,11 +209,11 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       },
       knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
         const v = n => box.querySelector(`[name=${n}]`).value;
-        const r = await senden('/api/app/abwesenheiten', { schuelerId: Number(v('schuelerId')), von: v('von'), bis: v('bis'), stundeVon: Number(v('stundeVon')), stundeBis: Number(v('stundeBis')), grund: v('grund'), status: v('status'), bemerkung: v('bemerkung'), ...detailWerte(box) });
-        toast(`${r.stunden} Stunden eingetragen.`); neu();
+        const r = await senden('/api/app/klassenbuch/abwesenheit', { schuelerIds: [Number(v('schuelerId'))], ...zeitWerte(box), grund: v('grund'), status: v('status'), text: v('bemerkung'), ...detailWerte(box) });
+        toast(`${r.stunden} ${r.stunden === 1 ? 'Fehlstunde' : 'Fehlstunden'} eingetragen.`); neu();
       } }] });
   });
   document.querySelector('[data-csv]')?.addEventListener('click', () => herunterladen(`abwesenheiten-${von}-${bis}.csv`,
-    ['Schüler*in;Klasse;Von;Bis;Stunden;Art;Minuten;Grund;Fach;Status;Text;Nachweis;Entschuldigung am;Eltern informiert;erfasst von', ...liste.map(z => [z.schueler, z.klasse, z.datum, z.bis, z.bis !== z.datum ? z.stundenSumme : stundenText(z.stundeVon, z.stundeBis), z.art, z.minuten, grundName[z.grund] ?? z.grund, z.faecher.join(', '), z.status, z.bemerkung, NACHWEISE[z.nachweis] ?? '', z.entschuldigtAm, z.elternInformiert ? 'ja' : '', z.lehrer.join(', ')]
+    ['Schüler*in;Klasse;Von;Bis;Fehlstunden;Art;Minuten;Grund;Fach;Status;Text;Nachweis;Entschuldigung am;Eltern informiert;erfasst von', ...liste.map(z => [z.schueler, z.klasse, `${z.datum} ${z.beginn}`, `${z.bis} ${z.ende}`, z.fehlstunden, z.art, z.art === 'fehlt' ? z.fehlminuten : z.minuten, grundName[z.grund] ?? z.grund, z.faecher.join(', '), z.status, z.bemerkung, NACHWEISE[z.nachweis] ?? '', z.entschuldigtAm, z.elternInformiert ? 'ja' : '', z.lehrer.join(', ')]
       .map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(';'))].join('\r\n')));
 }

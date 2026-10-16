@@ -578,7 +578,7 @@ const RECHTE = [
 async function rechte(ziel) {
   const [liste, regel] = await Promise.all([holen('/api/app/admin/benutzer'), holen('/api/app/admin/einstellungen/passwort')]);
   const zelle = w => w === true ? '<span class="ja"><i class="bi bi-check-lg"></i></span>' : w ? `<span class="small">${e(w)}</span>` : '<span class="nein">–</span>';
-  const PRIVILEG = { admin: 'Administration (alle Rechte)', leitung: 'Lehrerversion, Nachrichten zum Tag, entschuldigen', lehrer: 'Lehrerversion, Klassenbuch', schueler: 'Schülerversion der eigenen Klasse' };
+  const PRIVILEG = { admin: 'Administration (alle Rechte)', leitung: 'Lehrerversion, Nachrichten zum Tag, entschuldigen', lehrer: 'Lehrerversion, Klassenbuch', schueler: 'Schülerversion der eigenen Klasse; mit Zuordnung eigene Abwesenheiten, Fehlzeiten und Hausaufgaben', eltern: 'Daten der zugeordneten Kinder (Klassenplan, Abwesenheiten, Fehlzeiten, Hausaufgaben), keine Lehrerpläne' };
   ziel.innerHTML = `<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Benutzergruppe</th><th>Privileg</th><th>Benutzer</th></tr></thead><tbody>
       ${Object.entries(ROLLEN).map(([r, n]) => `<tr><td class="fw-semibold">${n}</td><td class="small text-body-secondary">${PRIVILEG[r]}</td>
         <td><a href="#/admin/benutzer/${r}">${liste.filter(u => u.rolle === r).length}</a></td></tr>`).join('')}</tbody></table></div></div>

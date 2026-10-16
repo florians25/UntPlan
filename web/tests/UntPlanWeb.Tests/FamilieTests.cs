@@ -196,6 +196,14 @@ public class FamilieTests
         var karte = p["karten"]!.AsArray().First(x => x!["datum"]!.GetValue<string>() == k.Datum && x["von"]!.GetValue<int>() == k.Von && x["unterricht"]?.GetValue<int>() == k.Unterricht)!;
         Assert.Equal("Zirkel mitbringen", karte["notizSchueler"]!.GetValue<string>());
         Assert.True(string.IsNullOrEmpty(karte["notizLehrer"]?.GetValue<string>()));
+
+        // „Findet online statt“ über dieselbe Schnittstelle (Feld online), sichtbar in Eintrag und Karte; Lehrstoff bleibt
+        var on = await Testserver.JsonAsync(await c.PutAsJsonAsync("/api/app/klassenbuch/stunde", new { basis.datum, basis.stunde, basis.unterricht, online = true }));
+        Assert.True(on["online"]!.GetValue<bool>());
+        Assert.Equal("Bruchrechnung", on["thema"]!.GetValue<string>());
+        Assert.True((await Testserver.HolenAsync(schueler, url))["eintrag"]!["online"]!.GetValue<bool>());
+        p = await Testserver.HolenAsync(schueler, $"/api/app/plan?typ=klasse&element=7a&datum={k.Datum}");
+        Assert.True(p["karten"]!.AsArray().First(x => x!["datum"]!.GetValue<string>() == k.Datum && x["von"]!.GetValue<int>() == k.Von && x["unterricht"]?.GetValue<int>() == k.Unterricht)!["online"]!.GetValue<bool>());
     }
 
     [Fact]

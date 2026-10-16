@@ -32,6 +32,8 @@ public sealed record Karte(
     public string NotizLehrer { get; init; } = "";
     /// <summary>Zu dieser Stunde ist eine Hausaufgabe fällig (Hausaufgaben-Symbol auf der Karte).</summary>
     public bool HausaufgabeFaellig { get; init; }
+    /// <summary>Die Stunde findet online statt (Klassenbuch, Schalter „Findet online statt“).</summary>
+    public bool Online { get; init; }
     /// <summary>Zusätzlicher Unterricht (Stunde nicht im Regelplan) – Badge „ZUSÄTZLICHER UNTERRICHT“ in den Stundendetails.</summary>
     public bool Zusaetzlich { get; init; }
     /// <summary>Abwesende Klassen dieser Stunde (Klasse durchgestrichen, Label „abwesend“); die Stunde selbst findet laut Plan statt.</summary>

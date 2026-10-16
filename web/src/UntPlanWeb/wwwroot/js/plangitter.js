@@ -80,7 +80,9 @@ function eckSymbole(k) {
   const info = infoText(k);
   const hw = k.hausaufgabeFaellig ? '<img class="ecke-hw" src="img/wu/exact/tt-homework-icon.svg" alt="" data-hover="Hausaufgabe fällig" data-hover-art="dunkel">' : '';
   const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" data-hover="${e(info)}" data-hover-art="dunkel">` : '';
-  return hw || i ? `<span class="ecke">${hw}${i}</span>` : '';
+  // „Findet online statt“: grünes Label „Online“
+  const online = k.online && !['entfall', 'abwesend'].includes(k.status) ? '<span class="ecke-online" data-hover="Findet online statt" data-hover-art="dunkel">Online</span>' : '';
+  return hw || i || online ? `<span class="ecke">${online}${hw}${i}</span>` : '';
 }
 
 /**

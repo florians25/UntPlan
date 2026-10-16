@@ -155,6 +155,7 @@ public sealed partial class Klassenbuchdienst
                 NotizSchueler = string.Join("\n", e.Select(x => x.NotizSchueler).Where(x => x.Length > 0).Distinct()),
                 NotizLehrer = kollegium ? string.Join("\n", e.Select(x => x.Notiz).Where(x => x.Length > 0).Distinct()) : "",
                 HausaufgabeFaellig = hf,
+                Online = e.Any(x => x.Online),
             };
         }).ToList();
     }

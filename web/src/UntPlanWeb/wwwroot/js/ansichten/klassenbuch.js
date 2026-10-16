@@ -3,6 +3,7 @@ import { e, icon, api, holen, senden, toast, dialog, bestaetigen, alarm, datumKu
 import { karteDialog } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
 import { detailFelder, detailWerte, NACHWEISE } from './abwesenheiten.js';
+import { statusLabel, zaehltKaestchen } from './familie.js';
 
 function verlaufTabelle(liste, kollegium) {
   if (!liste.length) return `<div class="card-body py-0">${leer('Keine Einträge im Zeitraum.')}</div>`;
@@ -106,14 +107,26 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     // aufklappbar mit den einzelnen Fehlstunden (Auswahl, Status setzen, Details bearbeiten)
     const von = /^\d{4}-\d{2}-\d{2}$/.test(vonParam ?? '') ? vonParam : plusTage(datum, -90);
     const f = await holen(`/api/app/klassenbuch/fehlzeiten?klasse=${q}&von=${von}&bis=${datum}`);
+    f.gruende = Object.fromEntries((await holen('/api/app/abwesenheitsgruende').catch(() => [])).map(g => [g.kurz, g.name]));
     const fehlt = f.eintraege.filter(x => x.art === 'fehlt');
     const offen = new Set();
     const ini = x => ((x.name?.[0] ?? '') + (x.vorname?.[0] ?? '')).toUpperCase();
     const zeilen = f.schueler.map(x => {
       const eig = fehlt.filter(y => y.schuelerId === x.id);
-      return { ...x, eig, stunden: eig.length, tage: new Set(eig.map(y => y.datum)).size, offen: eig.filter(y => y.status === 'offen').length,
+      return { ...x, eig, stunden: eig.length, tage: (f.zeilen ?? []).filter(z => z.schuelerId === x.id).reduce((n, z) => n + z.fehltage, 0), offen: eig.filter(y => y.status === 'offen').length,
         entschuldigt: eig.filter(y => y.status === 'entschuldigt').length, unentschuldigt: eig.filter(y => y.status === 'unentschuldigt').length };
-    }).filter(x => x.stunden > 0).sort((a, b) => b.stunden - a.stunden || a.name.localeCompare(b.name, 'de'));
+    }).filter(x => (f.zeilen ?? []).some(z => z.schuelerId === x.id)).sort((a, b) => b.stunden - a.stunden || a.name.localeCompare(b.name, 'de'));
+    // Fehlzeiten je Unterrichtsstunde (Datum, Zeit, Fach, Lehrkraft, Fehltage, Fehlstd., Fehlmin., zählt, Grund, Status, Text) wie in der Fehlzeitenliste
+    const grundName = g => f.gruende?.[g] ?? g;
+    const stundenTabelle = sid => {
+      const zl = (f.zeilen ?? []).filter(z => z.schuelerId === sid);
+      return `<table class="fz-tabelle-neu fz-eingebettet"><thead><tr>${f.verwalten ? '<th class="nl-wahl"></th>' : ''}<th>Datum</th><th>Zeit</th><th>Fach</th><th>Lehrkraft</th><th class="zahl">Fehltage</th><th class="zahl">Fehlstd.</th><th class="zahl">Fehlmin.</th><th class="mitte">zählt</th><th>Abwesenheitsgrund</th><th>Status</th><th>Text</th><th></th></tr></thead><tbody>
+        ${zl.map(z => { const y = f.eintraege.find(q => q.id === z.id) ?? {}; return `<tr>${f.verwalten ? `<td class="nl-wahl"><input type="checkbox" class="nl-rund" data-id="${z.id}" data-von-s="${sid}" aria-label="auswählen"></td>` : ''}
+          <td class="text-nowrap">${e(datumKurz(z.datum))}</td><td class="text-nowrap">${e(z.beginn)} - ${e(z.ende)}${z.abwesendVon !== z.beginn || z.abwesendBis !== z.ende ? `<div class="fz-klein">abwesend ${e(z.abwesendVon)}–${e(z.abwesendBis)}</div>` : ''}</td>
+          <td>${e(z.fach)}</td><td>${e(z.lehrer)}</td><td class="zahl">${z.fehltage}</td><td class="zahl">${z.fehlstunden}</td><td class="zahl">${z.fehlminuten}</td><td class="mitte">${zaehltKaestchen(z.zaehlt)}</td>
+          <td>${e(grundName(z.grund))}</td><td>${statusLabel(z.status)}</td><td class="fz-text">${e(z.text)} ${nachweis(y)}${y.elternInformiert ? ' <span class="nl-tag"><i class="bi bi-telephone me-1"></i>Eltern</span>' : ''}${y.notizIntern ? ` <span class="nl-tag" title="${e(y.notizIntern)}"><i class="bi bi-lock me-1"></i>Notiz</span>` : ''}</td>
+          <td class="text-end">${f.verwalten ? `<button type="button" class="nl-icon sichtbar" data-bearb="${z.id}" title="Details bearbeiten" aria-label="Details bearbeiten">${icon('stift')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>`;
+    };
     const zahl = (n, kl = '') => n ? `<span class="fz-zahl ${kl}">${n}</span>` : '<span class="fz-null">–</span>';
     const nachweis = y => y.nachweis ? `<span class="nl-tag" title="${e(NACHWEISE[y.nachweis] ?? '')}${y.entschuldigtAm ? ` · eingegangen ${e(datumKurz(y.entschuldigtAm))}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[y.nachweis] ?? y.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '';
     const zeichnen = () => {
@@ -136,12 +149,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
               <td class="text-end">${zahl(x.stunden, 'fett')}</td><td class="text-end">${zahl(x.tage)}</td><td class="text-end">${zahl(x.offen, 'gelb')}</td>
               <td class="text-end">${zahl(x.entschuldigt, 'gruen')}</td><td class="text-end">${zahl(x.unentschuldigt, 'rot')}</td>
               <td class="text-end"><i class="bi bi-chevron-${offen.has(x.id) ? 'up' : 'down'} text-body-secondary"></i></td></tr>
-            ${offen.has(x.id) ? x.eig.map(y => `<tr class="fz-stunde">
-              ${f.verwalten ? `<td class="nl-wahl"><input type="checkbox" class="nl-rund" data-id="${y.id}" data-von-s="${x.id}" aria-label="auswählen"></td>` : ''}<td></td>
-              <td><span class="text-nowrap">${e(datumKurz(y.datum))}</span> <span class="nl-unter">· ${y.stunde}. Std. · ${e(y.fach)}${y.lehrer ? ` (${e(y.lehrer)})` : ''}</span></td>
-              <td colspan="3">${y.grund ? `<span class="nl-tag">${e(y.grund)}</span> ` : ''}${e(y.bemerkung)} ${nachweis(y)}${y.elternInformiert ? ' <span class="nl-tag"><i class="bi bi-telephone me-1"></i>Eltern</span>' : ''}${y.notizIntern ? ` <span class="nl-tag" title="${e(y.notizIntern)}"><i class="bi bi-lock me-1"></i>Notiz</span>` : ''}</td>
-              <td colspan="2">${STATUS_BADGE[y.status] ?? ''}</td>
-              <td class="text-end">${f.verwalten ? `<button type="button" class="nl-icon" data-bearb="${y.id}" title="Details bearbeiten" aria-label="Details bearbeiten">${icon('stift')}</button>` : ''}</td></tr>`).join('') : ''}`).join('')}
+            ${offen.has(x.id) ? `<tr class="fz-stunde"><td colspan="${f.verwalten ? 9 : 8}" class="p-0">${stundenTabelle(x.id)}</td></tr>` : ''}`).join('')}
           </tbody></table>
           ${f.verwalten ? `<div class="nl-fuss"><span class="nl-unter me-2">Ausgewählte Fehlstunden:</span><button type="button" class="nl-knopf gruen" data-status="entschuldigt">Entschuldigen</button>
             <button type="button" class="nl-knopf rot" data-status="unentschuldigt">Nicht entschuldigt</button><button type="button" class="nl-knopf" data-status="offen">Offen</button>
@@ -152,7 +160,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     const gewaehlt = () => {
       const ids = new Set([...inhalt.querySelectorAll('[data-id]:checked')].map(c => Number(c.dataset.id)));
       // ganze Schüler*in gewählt (auch zugeklappt): alle Fehlstunden
-      inhalt.querySelectorAll('[data-sw]:checked').forEach(c => zeilen.find(x => x.id === Number(c.dataset.sw))?.eig.forEach(y => ids.add(y.id)));
+      inhalt.querySelectorAll('[data-sw]:checked').forEach(c => (f.zeilen ?? []).filter(z => z.schuelerId === Number(c.dataset.sw)).forEach(y => ids.add(y.id)));
       return [...ids];
     };
     const detailsDialog = (ids, vorlage) => dialog({ titel: ids.length === 1 ? 'Fehlstunde – Details' : `${ids.length} Fehlstunden – Details`,
@@ -182,9 +190,9 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
       inhalt.querySelector('[data-details]')?.addEventListener('click', () => {
         const ids = gewaehlt();
         if (!ids.length) return toast('Bitte zuerst Fehlstunden auswählen.', true);
-        detailsDialog(ids, ids.length === 1 ? fehlt.find(y => y.id === ids[0]) : null);
+        detailsDialog(ids, ids.length === 1 ? f.eintraege.find(y => y.id === ids[0]) : null);
       });
-      inhalt.querySelectorAll('[data-bearb]').forEach(b => b.onclick = () => detailsDialog([Number(b.dataset.bearb)], fehlt.find(y => y.id === Number(b.dataset.bearb))));
+      inhalt.querySelectorAll('[data-bearb]').forEach(b => b.onclick = () => detailsDialog([Number(b.dataset.bearb)], f.eintraege.find(y => y.id === Number(b.dataset.bearb))));
       inhalt.querySelector('[data-tage]')?.addEventListener('click', () => fehlenDialog(f.schueler, null, neuLaden));
     };
     zeichnen();
