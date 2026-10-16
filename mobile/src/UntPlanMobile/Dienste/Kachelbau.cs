@@ -380,7 +380,7 @@ public static class Kachelbau
     private static Kachel Veranstaltung(string datum, int von, int bis, string titel, IEnumerable<string> klassen, IEnumerable<string> lehrer, IEnumerable<string> raeume, string? farbe = null) => new()
     {
         Stunde = von, Dauer = Math.Max(1, bis - von + 1), Datum = datum, Art = "absence", Feld = true, Fach = titel, Info = titel, Typ = "Veranstaltung",
-        Klasse = string.Join(",", klassen.Where(x => x.Length > 0)), Lehrkraft = string.Join(",", lehrer.Where(x => x.Length > 0)),
+        Klasse = string.Join(",", klassen.Where(x => x.Length > 0)), Lehrkraft = string.Join(",", lehrer.Where(x => x.Length > 0 && x != KeineLehrkraft && x != "???")),
         Raum = string.Join(",", raeume.Where(x => x.Length > 0)), Farbe = string.IsNullOrWhiteSpace(farbe) ? null : farbe,
     };
 

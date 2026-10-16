@@ -46,8 +46,8 @@ export function werte(liste, entfall = false) {
 }
 
 function titelText(k) {
-  const w = l => (l || []).map(x => x.alt && x.k ? `${x.k} (statt ${x.alt})` : x.k || '???').join(', ');
-  return [k.fachName || k.fach || k.text, w(k.klassen), w(k.lehrer), w(k.raeume), k.status !== 'regulaer' ? statusText(k) : '', k.fach && k.text].filter(Boolean).join(' · ');
+  const w = l => (l || []).map(x => x.alt && x.k ? `${x.k} (statt ${x.alt})` : x.k || (x.alt ? `${x.alt} fehlt` : '???')).join(', ');
+  return [k.fachName || k.fach || k.text, w([...(k.klassen || []), ...(k.mitklassen || [])]), w(k.lehrer), w(k.raeume), k.status !== 'regulaer' ? statusText(k) : '', k.fach && k.text].filter(Boolean).join(' · ');
 }
 
 /**
@@ -115,7 +115,10 @@ export function karteInhalt(k, typ, kompakt = false) {
   } else if (typ === 'klasse') {
     const lehrer = werte(k.lehrer, entfall);
     oben = lehrer || fach;
-    rest = [lehrer ? fach : '', werte(k.raeume, entfall), k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : ''];
+    // Mitklassen (gekoppelt bzw. parallel identisch, z. B. INF13 auf der Karte von INF12) ganz unten; eine fehlende Mitklasse
+    // steht wie eine abwesende Lehrkraft durchgestrichen im grünen Label
+    const mit = !entfall && (k.mitklassen || []).length ? `<span class="mitklassen">${werte(k.mitklassen)}</span>` : '';
+    rest = [lehrer ? fach : '', werte(k.raeume, entfall), k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : '', mit];
   } else if (typ === 'raum') {
     oben = klassenWerte(k, entfall) || fach;
     rest = [werte(k.lehrer, entfall), k.klassen.length ? fach : ''];

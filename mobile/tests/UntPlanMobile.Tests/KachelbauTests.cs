@@ -163,6 +163,10 @@ public class KachelbauTests
         Assert.Equal("absence", p.Art);
         Assert.Equal("5a,5b", p.Klasse);
         Assert.Equal(10, p.Dauer);
+        // ohne Lehrkraft („---“) steht keine Lehrerzeile auf der Kachel
+        var ohne = Kachelbau.AusKarte(Karte("geaendert", 1, 10, fach: "", text: "Projekttag Medien", unterricht: null, lehrer: new() { new("---") }, raeume: new(),
+            klassen: new() { new("5a") }), "class");
+        Assert.Equal("", ohne.Lehrkraft);
     }
 
     [Fact]

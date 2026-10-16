@@ -4322,3 +4322,36 @@ html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--pr
   .weekhead__kw-no{ white-space:nowrap; font-size:10.5px; letter-spacing:-.01em; }
   .weekhead__month{ font-size:16px; }
 }
+/* Schmale iPhones: Erscheinungsbild-Umschalter passt in die Zeile */
+@media (max-width:400px){
+  .row--seg{ column-gap:10px; }
+  .row--seg > span:nth-child(2){ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .seg button{ padding:5px 8px; font-size:12.5px; }
+}
+
+/* Mitteilungen am iPhone wie in der Vorlage: Liste über die volle Breite,
+   je Mitteilung eine Fläche mit Avatar, Absender, Datum rechts, Betreff
+   und einzeiliger Vorschau; im Dunkeln schwarzer Grund. */
+@media (max-width:699px){
+  .msgtabs{ gap:30px; padding:8px 18px 14px; }
+  .msgtabs button{ font-size:17.5px; }
+  .msgrow{
+    margin:0 0 1px; width:100%; border-radius:0;
+    grid-template-columns:44px 1fr auto; gap:14px; padding:12px 18px 14px;
+    background:var(--c-surface, #fff);
+  }
+  .msgrow__ava{ width:44px; height:44px; font-size:17px; font-weight:500; margin-top:2px; }
+  .msgrow__main b{ font-size:17px; }
+  .msgrow__main span, .msgrow__main em{ font-size:15px; }
+  .msgrow__main span{ color:var(--c-ink); }
+  .msgrow__date{ font-size:15px; color:var(--c-ink-2); }
+}
+html.is-dark .screen--msg, html.is-dark body.is-msgtop{ background:#000; }
+@media (max-width:699px){
+  html.is-dark .msgrow{ background:#1c1c1e; border-bottom:0; }
+  html.is-dark .msgrow__ava{ background:#8a96a0; color:#fff; }
+}
+.msgrow{ grid-template-columns:52px minmax(0,1fr) auto; }
+.msgrow__main{ min-width:0; }
+.msgrow__main em{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width:699px){ .msgrow{ grid-template-columns:44px minmax(0,1fr) auto; } }

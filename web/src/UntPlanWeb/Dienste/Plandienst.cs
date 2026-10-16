@@ -53,6 +53,13 @@ public sealed record Karte(
     /// durchgestrichen im grünen Label. Gilt auch, wenn der Status im eigenen Lehrerplan „abwesend“ lautet.
     /// </summary>
     public bool VertretungOffen { get; init; }
+    /// <summary>
+    /// Mitklassen (nur im Klassenplan): andere Klassen, die zur selben Zeit bei derselben Lehrkraft im selben Fach und Raum Unterricht
+    /// haben (gekoppelt bzw. parallel identisch, z. B. INF13 auf der Karte von INF12). <see cref="Klassen"/> bleibt die eigene Klasse
+    /// (Klassenbuch, Anwesenheit). Fehlt eine Mitklasse (Absenz bzw. Entfall ihrer Stunde): { K = "", Alt = "INF13", Neu = true }
+    /// und die Karte gilt als geändert.
+    /// </summary>
+    public List<Wert> Mitklassen { get; init; } = new();
 }
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
@@ -243,6 +250,7 @@ public sealed class Plandienst
             // vorgemerkte Raumänderung eines Unterrichts: wird unten auf die Stunde gelegt, falls diese im Plan steht
             if (!betrifft && !(r.Status == "vorgemerkt" && r.Unterricht.HasValue && r.Art != "Klausur")) continue;
             var k = KarteBauen(s, d, typ, kurz, r, v, zeiten);
+            if (typ == Elementtyp.Klasse && r.Status != "vorgemerkt") k = MitklassenSetzen(k, r, roh, kurz);
             if (r.Status == "vorgemerkt") vorgemerkt.Add((r, k));
             else
             {
@@ -325,6 +333,34 @@ public sealed class Plandienst
     }
 
     /// <summary>
+    /// Mitklassen einer Stunde im Klassenplan: Stunden anderer Klassen zur selben Zeit mit gleichem Fach, gemeinsamer Lehrkraft und
+    /// gleichem Raum (Kopplung über getrennte Unterrichte bzw. parallel identischer Unterricht). Entfällt die Stunde der Mitklasse,
+    /// fehlt die Mitklasse: sie steht durchgestrichen ({ K = "", Alt = Klasse }) und die eigene Stunde gilt als geändert.
+    /// </summary>
+    internal static Karte MitklassenSetzen(Karte k, Rohstunde r, List<Rohstunde> roh, string kurz)
+    {
+        if (!r.Unterricht.HasValue || r.Fach.Length == 0 || k.Status is "entfall" or "veranstaltung" or "vorgemerkt" or "buchung") return k;
+        static HashSet<string> Personen(Rohstunde x) => new(x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++")), Ci);
+        var eigene = Personen(r);
+        if (eigene.Count == 0) return k;
+        var raeume = r.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
+        var da = new Dictionary<string, bool>(Ci);
+        foreach (var x in roh)
+        {
+            if (ReferenceEquals(x, r) || x.Stunde != r.Stunde || x.Status == "vorgemerkt" || x.Art == "KlausurLoeschen" || x.Klassen.Count == 0 || Enthaelt(x.Klassen, kurz)) continue;
+            if (!Ci.Equals(x.Fach, r.Fach) || !Personen(x).Overlaps(eigene)) continue;
+            var xr = x.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
+            if (x.Status != "entfall" && !xr.SetEquals(raeume)) continue;
+            if (x.Status == "entfall" && xr.Count > 0 && raeume.Count > 0 && !xr.Overlaps(raeume)) continue;
+            foreach (var kl in x.Klassen.Where(c => c.Length > 0 && !Enthaelt(r.Klassen, c)))
+                da[kl] = (da.TryGetValue(kl, out var vorher) && vorher) || x.Status != "entfall";
+        }
+        if (da.Count == 0) return k;
+        var liste = da.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(x => x.Value ? new Wert(x.Key) : new Wert("", x.Key, true)).ToList();
+        return k with { Mitklassen = liste, Status = liste.Any(w => w.K.Length == 0) && k.Status == "regulaer" ? "geaendert" : k.Status };
+    }
+
+    /// <summary>
     /// Veranstaltung einer Klasse (Termin mit Klassen): regulärer Unterricht ohne Vertretung, dessen Klassen alle an der Veranstaltung
     /// teilnehmen, entfällt – auch wenn das Paket (z. B. aus einer älteren UntPlan-Version) dafür keinen Entfall enthält.
     /// </summary>
@@ -357,6 +393,13 @@ public sealed class Plandienst
         return karten.Select(k =>
         {
             if (k.Status is "entfall" or "veranstaltung" or "vorgemerkt" or "buchung") return k;
+            // abwesende Mitklasse: im Plan der anderen Klasse durchgestrichen im grünen Label, Stunde geändert
+            if (k.Mitklassen.Any(w => w.K.Length > 0 && absenzen.Any(a => Ci.Equals(a.Element, w.K) && Trifft(a, k.Von, k.Bis))))
+                k = k with
+                {
+                    Mitklassen = k.Mitklassen.Select(w => w.K.Length > 0 && absenzen.Any(a => Ci.Equals(a.Element, w.K) && Trifft(a, k.Von, k.Bis)) ? new Wert("", w.K, true) : w).ToList(),
+                    Status = k.Status == "regulaer" ? "geaendert" : k.Status,
+                };
             var treffer = absenzen.Where(a => k.Klassen.Any(w => Ci.Equals(w.K, a.Element)) && Trifft(a, k.Von, k.Bis)).ToList();
             if (treffer.Count == 0) return k;
             var grund = treffer.Select(a => a.Grund).FirstOrDefault(g => !string.IsNullOrWhiteSpace(g));
@@ -445,6 +488,7 @@ public sealed class Plandienst
                 Text = string.Join(" · ", texte),
                 Vertretung = liste.Select(x => x.Vertretung).FirstOrDefault(x => x.HasValue),
                 VertretungOffen = liste.Any(x => x.VertretungOffen),
+                Mitklassen = Vereinigen(liste.SelectMany(x => x.Mitklassen)).Where(w => !liste.Any(x => x.Klassen.Any(kl => Ci.Equals(kl.K, w.K.Length > 0 ? w.K : w.Alt)))).ToList(),
             });
         }
         return res;
@@ -610,7 +654,7 @@ public sealed class Plandienst
 
     private static string Schluessel(Karte k) =>
         $"{k.Unterricht}|{k.Status}|{k.Fach}|{k.FachAlt}|{k.Art}|{k.Text}|{string.Join(",", k.Klassen.Select(x => x.K))}|" +
-        $"{string.Join(",", k.Lehrer.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Raeume.Select(x => x.K + "/" + x.Alt))}";
+        $"{string.Join(",", k.Lehrer.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Raeume.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Mitklassen.Select(x => x.K + "/" + x.Alt))}";
 
     private static List<Karte> Zusammenfassen(List<Karte> einzel, Dictionary<int, WebStundenzeit> zeiten)
     {

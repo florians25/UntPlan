@@ -119,7 +119,9 @@ export function karteDialog(karte, kontext = {}) {
 
   function kopf() {
     // „Klassen | Gruppe | Fach“ – Klassen und Gruppe verlinkt („Im Stundenplan anzeigen“)
-    const klassenTeil = k.klassen.length && k.klassen.length < 8 ? wertKopf(k.klassen, 8, kollegium || ich.element ? 'klasse' : null) : '';
+    // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse durchgestrichen im grünen Label
+    const alleKlassen = [...k.klassen, ...(k.mitklassen || [])];
+    const klassenTeil = alleKlassen.length && alleKlassen.length < 8 ? wertKopf(alleKlassen, 8, kollegium || ich.element ? 'klasse' : null, !istEntfall() && (k.mitklassen || []).some(w => !w.k)) : '';
     const ersteKlasse = kuerzel(k.klassen)[0];
     const gruppe = k.gruppe ? (ersteKlasse ? `<a href="#" class="sd-link" data-plan="klasse" data-element="${e(ersteKlasse)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(k.gruppe)}</a>` : e(k.gruppe))
       : k.fachName && k.fachName !== k.fach ? e(k.fachName) : '';

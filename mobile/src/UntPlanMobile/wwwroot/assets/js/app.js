@@ -3391,8 +3391,11 @@ function pickerShowRoot(){
   $$('#pickerRoot [data-open]').forEach(b => {
     b.hidden = !state.entities.some(e => e.type === b.dataset.open);
   });
+  /* Erst leeren, dann das Kreuz im Feld danach richten — sonst blieb es
+     nach einer Suche beim nächsten Öffnen im leeren Feld stehen. */
+  $('#pickerSearch').value = '';
   const wipe = $('#pickerWipe');
-  if (wipe) wipe.hidden = ($('#pickerSearch').value || '').trim() === '';
+  if (wipe) wipe.hidden = true;
   $('#pickerRoot').hidden = false;
   $('#pickerList').hidden = true;
   $('#pickerIndex').hidden = true;
@@ -4105,7 +4108,7 @@ function renderDetail(){
             ? `<p class="dline dline--big">${val('subject')}${plakette ? `<span class="dpill${zusatz && !istVeranstaltung ? ' dpill--hinweis' : ''}">${plakette}</span>` : ''}</p>` : ''}
       ${(c.room || c.roomOrig) ? `<p class="dline">${raumHtml()}</p>` : ''}
       ${istVeranstaltung
-          ? (c.teacher ? `<p class="dline">${liste(c.teacher)}</p>` : '')
+          ? (werteListe(c.teacher).filter(t => t !== '---').length ? `<p class="dline">${werteListe(c.teacher).filter(t => t !== '---').map(esc).join(SEP)}</p>` : '')
           : (c.teacher || c.teacherOrig)
             ? `<p class="dline${koppD ? ' dline--kopp' : ''}">${koppD ? koppHtml() : val('teacher')}</p>` : ''}
     </div>

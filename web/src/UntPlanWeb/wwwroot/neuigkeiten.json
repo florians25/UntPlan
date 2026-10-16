@@ -1,6 +1,17 @@
 [
   {
     "datum": "2026-10-16",
+    "titel": "Offene Vertretungen, Koppelklassen und gleiche Schrift überall",
+    "punkte": [
+      "Offene Vertretung: die abwesende Lehrkraft steht überall (Plan, Tagesübersicht, Stundendetails, Startseite) durchgestrichen im grünen Label.",
+      "Koppelklassen: parallel unterrichtete Klassen stehen unten auf der Karte; fehlt eine davon, wird die Stunde grün und die Klasse durchgestrichen.",
+      "Startseite: „Mein nächster Unterricht“ im neuen Listendesign mit Status-Labels.",
+      "Neuigkeiten und Update-Hinweis erscheinen je Benutzer nur einmal und lassen sich schließen; die Updateprüfung vergleicht mit dem richtigen Image.",
+      "Gleiche Schriftstärken auf allen Geräten und Browsern (keine künstlichen Fettschnitte)."
+    ]
+  },
+  {
+    "datum": "2026-10-16",
     "titel": "Einheitliches Design und bereinigte Prüfungen",
     "punkte": [
       "Mein Unterricht, Unterricht der Klasse und Klassendienste im neuen Listendesign.",
