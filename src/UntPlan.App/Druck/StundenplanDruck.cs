@@ -29,10 +29,10 @@ public static class StundenplanDruck
         var i = 0;
         var seite = 0;
         doc.BeginPrint += (_, _) => { i = 0; seite = 0; };
-        doc.PrintPage += (_, e) =>
+        doc.PrintPage += (sender, e) =>
         {
             seite++;
-            i = SeiteZeichnen(e.Graphics!, e.MarginBounds, typ, ids, i, proSeite, format, woche, seite, seiten);
+            i = SeiteZeichnen(e.Graphics!, ListenDruck.Seitenbereich(sender, e), typ, ids, i, proSeite, format, woche, seite, seiten);
             e.HasMorePages = i < ids.Count;
         };
         ListenDruck.Ausgeben(owner, doc, vorschau);

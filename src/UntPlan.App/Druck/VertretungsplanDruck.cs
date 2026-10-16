@@ -101,7 +101,7 @@ public static class VertretungsplanDruck
         doc.DefaultPageSettings.Margins = new Margins(55, 45, 45, 45);
         var seiten = new Seiten(tage, lehrerVersion, e);
         doc.BeginPrint += (_, _) => seiten.Zuruecksetzen();
-        doc.PrintPage += (_, pe) => pe.HasMorePages = seiten.Zeichnen(pe.Graphics!, pe.MarginBounds);
+        doc.PrintPage += (s, pe) => pe.HasMorePages = seiten.Zeichnen(pe.Graphics!, ListenDruck.Seitenbereich(s, pe));
         ListenDruck.Ausgeben(owner, doc, vorschau);
     }
 

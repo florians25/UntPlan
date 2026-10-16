@@ -40,10 +40,11 @@ public sealed class UebersichtFenster : MdiFenster, IDruckbar
     {
         var doc = new System.Drawing.Printing.PrintDocument { DocumentName = Text };
         doc.DefaultPageSettings.Landscape = true;
-        doc.PrintPage += (_, e) =>
+        doc.PrintPage += (sender, e) =>
         {
-            e.Graphics!.DrawString(Text + " – " + D.Einstellungen.Schulname, Ui.SchriftGross, Brushes.Black, e.MarginBounds.Left, e.MarginBounds.Top - 25);
-            _raster.Zeichnen(e.Graphics!, e.MarginBounds);
+            var bereich = ListenDruck.Seitenbereich(sender, e);
+            e.Graphics!.DrawString(Text + " – " + D.Einstellungen.Schulname, Ui.SchriftGross, Brushes.Black, bereich.Left, bereich.Top - 25);
+            _raster.Zeichnen(e.Graphics!, bereich);
         };
         ListenDruck.Ausgeben(this, doc, vorschau);
     }

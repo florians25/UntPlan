@@ -64,7 +64,7 @@ public static class ListenDruck
         var zeile = 0;
         var seite = 0;
         doc.BeginPrint += (_, _) => { zeile = 0; seite = 0; };
-        doc.PrintPage += (_, e) => e.HasMorePages = SeiteZeichnen(e.Graphics!, e.MarginBounds, layout, k, b, z, leerfelder, ref zeile, ++seite);
+        doc.PrintPage += (s, e) => e.HasMorePages = SeiteZeichnen(e.Graphics!, Seitenbereich(s, e), layout, k, b, z, leerfelder, ref zeile, ++seite);
         Ausgeben(owner, doc, vorschau);
     }
 
@@ -149,6 +149,19 @@ public static class ListenDruck
             }
         }
         return zeile < zeilen.Count;
+    }
+
+    /// <summary>
+    /// Druckbereich genau mittig auf dem Papier: Beim echten Druck beginnt das Koordinatensystem am bedruckbaren Bereich des
+    /// Druckers (Hardware-Rand), nicht an der Papierkante – ohne Ausgleich rutscht alles um diesen Rand nach rechts unten.
+    /// Hier wird auf die Papierkante verschoben, sodass die Seitenränder links/rechts und oben/unten gleich sind.
+    /// </summary>
+    public static Rectangle Seitenbereich(object? sender, PrintPageEventArgs e)
+    {
+        var vorschau = sender is PrintDocument d && d.PrintController?.IsPreview == true;
+        if (!vorschau && e.Graphics is { } g)
+            g.TranslateTransform(-e.PageSettings.HardMarginX, -e.PageSettings.HardMarginY);
+        return e.MarginBounds;
     }
 
     public static void Ausgeben(IWin32Window owner, PrintDocument doc, bool vorschau)
