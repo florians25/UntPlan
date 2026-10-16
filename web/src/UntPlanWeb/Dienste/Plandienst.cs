@@ -305,10 +305,6 @@ public sealed class Plandienst
             einzel[i] = ziel with { Status = status, Raeume = raeume };
         }
         einzel = PruefungenZusammenfuehren(einzel, loeschungen, typ, kurz, roh);
-        // eigene Bereitschaft fällt wegen einer Prüfungsaufsicht weg: neben der Prüfungskarte keine zusätzliche (gestrichelte) Karte
-        if (typ == Elementtyp.Lehrer)
-            einzel.RemoveAll(x => x.Bereitschaft && x.Status == "abwesend" && x.Klassen.Count == 0
-                                  && einzel.Any(p => p.Status == "klausur" && p.Von <= x.Bis && p.Bis >= x.Von && p.Lehrer.Any(w => Ci.Equals(w.K, kurz))));
         // Teilnahmen mehrerer Lehrkräfte an derselben Veranstaltung: eine Karte mit allen Beteiligten
         var veranstaltungen = einzel.Where(k => k.Status == "veranstaltung").GroupBy(k => (k.Von, k.Text))
             .Select(g => g.First() with
