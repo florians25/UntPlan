@@ -241,6 +241,38 @@ Zusätzlich zu Plan, Vertretungen, Klassenbuch und Mitteilungen (alle unter `/ap
 | `/api/app/admin/gruende`, `…/dienstarten`, `…/freietage`, `…/einstellungen/{bereich}`, `…/benutzer/aktion`, `…/import/pruefen`, `…/import/uebernehmen` | Verwaltung (Administration) |
 | `GET /rss/nachrichten.xml` | öffentliche Nachrichten zum Tag als RSS (wenn eingeschaltet) |
 
+### Buchungsmodul (Menü „Buchen“)
+
+Räume, mobile Ressourcen und Aktivitäten buchen – einmalig oder periodisch (Zeitraum, Wiederholung jede/jede 2./… Woche bzw. täglich,
+Wochentage, Stunden oder Uhrzeit; unterrichtsfreie Tage werden übersprungen). Mehrere Termine bilden eine Serie (`serie`), die einzeln oder
+gesamt (kommende Termine) storniert werden kann. Die Konfliktprüfung auf dem Server berücksichtigt Unterricht laut Plan, Klausuren, Termine
+mit Raum, Raumsperren, Vormerkungen und andere Buchungen; bei Ressourcen die Anzahl. „Maximale Belegung %“ zeigt auch Räume, die an höchstens
+so vielen Terminen belegt sind – für diese Termine wird ein anderer Raum gewählt. Lehrkräfte, Schulleitung und Administration buchen; die
+Administration sieht alle Buchungen, storniert jede und pflegt Ressourcenarten, Ressourcen (fest in einem Raum oder mobil mit Anzahl) und
+Raumdaten (Kapazität, Gebäude, Abteilung, Raumgruppe; Raumart und „buchbar“ kommen aus UntPlan). Unter *Unterricht → Neuer Unterricht*
+wird Unterricht angelegt, dessen Stunden als *Zusätzliche Stunden* gebucht werden.
+
+| Aufruf (`/api/app/buchen…`) | Zweck |
+|---|---|
+| `GET /optionen` | Räume mit Stammdaten und festen Ressourcen, Ressourcenarten, Ressourcen, Auswahllisten, Zeitraster |
+| `POST /termine` `{ wiederholung, datum \| von, bis, wochentage, stundeVon, stundeBis \| beginn, ende }` | Einzeltermine eines Zeitbereichs |
+| `POST /suche/raeume`, `POST /suche/ressourcen` `{ zeit, kriterien }` | freie Räume bzw. Ressourcen; je Termin die freien Räume (`freieRaeume`), je Raum `belegt` (Terminindizes) und `prozent` |
+| `POST /hinweise` | Lehrkraft bzw. Klasse hat zur gleichen Zeit schon Unterricht/Aktivität (kein Hindernis) |
+| `POST /` `{ art, termine: [{ datum, stundeVon, stundeBis, raum }], ressourcen: [{ id, menge }], klassen, lehrer, fach, titel, text, benachrichtigen, unterrichtId, beginn, ende }` | speichern (`art`: raum, ressource, aktivitaet, unterricht); belegt → HTTP 400 mit allen Konflikten |
+| `GET /liste?von=&bis=&alle=`, `GET /{id}`, `DELETE /{id}?serie=true` | Meine Buchungen (alle: nur Administration), Storno |
+| `GET /raumuebersicht?datum=&tage=&raumart=&gebaeude=&abteilung=&raumgruppe=&kapazitaet=&ressourcenarten=` | Belegung der buchbaren Räume je Stunde (`art`: unterricht, klausur, termin, buchung, vorgemerkt, gesperrt) |
+| `GET /ressourcenuebersicht?datum=&arten=1,2` | Woche – Ressourcen |
+| `GET/POST /unterricht`, `DELETE /unterricht/{id}` | in UntPlanWeb angelegter Unterricht |
+| `/ressourcenarten`, `/ressourcen` (GET, POST, PUT/DELETE `/{id}`), `PUT /raumdaten/{raum}` | Verwaltung (Administration) |
+
+In den Plänen (Web, `GET /api/app/plan`, `/tag`, `/heute`, `/start` für PWA und iOS) erscheinen Buchungen als zusätzliche Karte ohne
+Vertretung: Raumbuchung und zusätzliche Stunde mit `status: "buchung"`, `art: "Raumbuchung"` bzw. `"Raumbuchung (Zusätzlicher Unterricht)"`,
+Aktivität mit `status: "veranstaltung"`, `art: "Veranstaltung (Aktivität)"`; `text` = Titel, dazu `fach`, `klassen`, `lehrer`, `raeume`,
+`unterricht` und `vertretung` sind `null`. Reine Ressourcenbuchungen erscheinen nur in den Buchungslisten. Nie entsteht ein Vertretungstext
+oder Vertretungsstatus. An UntPlan gehen Raumbuchungen, Aktivitäten und zusätzliche Stunden über die bestehende Rückmeldungs-Schnittstelle
+als Typ `raumbuchung` (Id `buchung-{Nummer}`, mit `fach` bei Aktivitäten); nach dem Quittieren gelten sie als übertragen und werden nicht
+doppelt angezeigt, sobald UntPlan sie im Paket zurückliefert.
+
 ## Installation mit Docker
 
 Voraussetzung: ein Server oder NAS mit Docker (Linux, amd64 oder arm64). Standardmäßig liegt die Datenbank (SQLite) im Container-Volume, ein eigener Datenbankserver ist nicht nötig.
