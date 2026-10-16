@@ -25,6 +25,9 @@
 		5A1F0C000000000000000034 /* StundendetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000033 /* StundendetailView.swift */; };
 		5A1F0C000000000000000036 /* StundenplanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000035 /* StundenplanView.swift */; };
 		5A1F0C000000000000000011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000010 /* Assets.xcassets */; };
+		5A1F0C000000000000000038 /* PlanAuswahlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000037 /* PlanAuswahlView.swift */; };
+		5A1F0C00000000000000003A /* TabLeiste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000039 /* TabLeiste.swift */; };
+		5A1F0C00000000000000003C /* Favoriten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003B /* Favoriten.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +50,9 @@
 		5A1F0C000000000000000033 /* StundendetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StundendetailView.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000035 /* StundenplanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StundenplanView.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5A1F0C000000000000000037 /* PlanAuswahlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanAuswahlView.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000039 /* TabLeiste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabLeiste.swift; sourceTree = "<group>"; };
+		5A1F0C00000000000000003B /* Favoriten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favoriten.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,11 +94,13 @@
 				5A1F0C000000000000000027 /* HauptView.swift */,
 				5A1F0C000000000000000029 /* Komponenten.swift */,
 				5A1F0C00000000000000002B /* MitteilungenView.swift */,
+				5A1F0C000000000000000037 /* PlanAuswahlView.swift */,
 				5A1F0C00000000000000002D /* ProfilView.swift */,
 				5A1F0C00000000000000002F /* StartView.swift */,
 				5A1F0C000000000000000031 /* StundenKarteView.swift */,
 				5A1F0C000000000000000033 /* StundendetailView.swift */,
 				5A1F0C000000000000000035 /* StundenplanView.swift */,
+				5A1F0C000000000000000039 /* TabLeiste.swift */,
 			);
 			path = Ansichten;
 			sourceTree = "<group>";
@@ -103,6 +111,7 @@
 				5A1F0C00000000000000001B /* ApiClient.swift */,
 				5A1F0C00000000000000001D /* AppZustand.swift */,
 				5A1F0C00000000000000001F /* Datumsformat.swift */,
+				5A1F0C00000000000000003B /* Favoriten.swift */,
 				5A1F0C000000000000000021 /* Schluesselbund.swift */,
 			);
 			path = Dienste;
@@ -211,6 +220,9 @@
 				5A1F0C000000000000000032 /* StundenKarteView.swift in Sources */,
 				5A1F0C000000000000000034 /* StundendetailView.swift in Sources */,
 				5A1F0C000000000000000036 /* StundenplanView.swift in Sources */,
+				5A1F0C00000000000000003C /* Favoriten.swift in Sources */,
+				5A1F0C00000000000000003A /* TabLeiste.swift in Sources */,
+				5A1F0C000000000000000038 /* PlanAuswahlView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

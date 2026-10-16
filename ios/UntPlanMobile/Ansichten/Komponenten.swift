@@ -160,21 +160,6 @@ extension View {
     }
 }
 
-/// Runder Knopf (44 pt) im Glas der Leiste, z. B. Plan wechseln oder Menü.
-struct RunderKnopfInhalt: View {
-    let symbol: String
-    var groesse: CGFloat = 44
-
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 19, weight: .regular))
-            .foregroundStyle(Farben.tinte2)
-            .frame(width: groesse, height: groesse)
-            .glas(Circle())
-            .contentShape(Circle())
-    }
-}
-
 /// Kalenderblatt als Linienzeichen mit Tageszahl oder Stern (Reiter „Stundenplan“, „Mein Stundenplan“).
 struct KalenderSymbol: View {
     enum Inhalt {

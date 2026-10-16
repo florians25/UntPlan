@@ -374,7 +374,7 @@ struct WochenrasterView: View {
                 let z = eintrag.element
                 let oben = y(z.beginn, start: start)
                 let unten = y(z.ende, start: start)
-                let naechste = eintrag.offset + 1 < zeiten.count ? zeiten[eintrag.offset + 1] : nil
+                let naechste: Rasterzeit? = eintrag.offset + 1 < zeiten.count ? zeiten[eintrag.offset + 1] : nil
                 let pauseDanach = naechste == nil || (naechste?.beginn ?? 0) > z.ende
 
                 linie(breite: breite)
@@ -426,8 +426,8 @@ struct WochenrasterView: View {
             } else {
                 // Veranstaltungen als durchgehendes Band hinter den Stunden
                 ForEach(tag.ereignisse) { ereignis in
-                    let von = ereignis.ganztaegig ? start : (zeiten.first { $0.nr == ereignis.von }?.beginn ?? start)
-                    let bis = ereignis.ganztaegig ? ende : (zeiten.first { $0.nr == max(ereignis.bis, ereignis.von) }?.ende ?? ende)
+                    let von = ereignis.ganztaegig ? start : (zeiten.first(where: { $0.nr == ereignis.von })?.beginn ?? start)
+                    let bis = ereignis.ganztaegig ? ende : (zeiten.first(where: { $0.nr == max(ereignis.bis, ereignis.von) })?.ende ?? ende)
                     if bis > von {
                         veranstaltungsband(ereignis)
                             .frame(width: breite, height: CGFloat(bis - von) * proMinute)
@@ -455,8 +455,8 @@ struct WochenrasterView: View {
 
     /// Beginn und Ende einer Karte in Minuten (eigene Uhrzeit, sonst aus dem Raster).
     private func zeitraum(_ karte: Karte, zeiten: [Rasterzeit]) -> (beginn: Int, ende: Int) {
-        let vonZeit = zeiten.first { $0.nr == karte.von }
-        let bisZeit = zeiten.first { $0.nr == karte.bis }
+        let vonZeit = zeiten.first(where: { $0.nr == karte.von })
+        let bisZeit = zeiten.first(where: { $0.nr == karte.bis })
         let beginn = Rasterzeit.minuten(karte.beginn) ?? vonZeit?.beginn ?? (zeiten.first?.beginn ?? 480)
         var ende = Rasterzeit.minuten(karte.ende) ?? bisZeit?.ende ?? (beginn + 45)
         if ende <= beginn { ende = beginn + 45 }
@@ -514,7 +514,7 @@ struct WochenrasterView: View {
         TimelineView(.periodic(from: .now, by: 60)) { kontext in
             let minute = Datumsformat.kalender.component(.hour, from: kontext.date) * 60
                 + Datumsformat.kalender.component(.minute, from: kontext.date)
-            let heuteIndex = tage.firstIndex { $0.datum == Datumsformat.iso(kontext.date) }
+            let heuteIndex = tage.firstIndex(where: { $0.datum == Datumsformat.iso(kontext.date) })
             if let heuteIndex, minute >= start, minute <= ende {
                 let hoehe = y(minute, start: start)
                 ZStack(alignment: .topLeading) {

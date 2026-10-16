@@ -17,6 +17,7 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
+      # Der ganze Ordner, also auch Ansichten/PlanAuswahlView.swift, Ansichten/TabLeiste.swift und Dienste/Favoriten.swift
       - path: UntPlanMobile
     settings:
       base:

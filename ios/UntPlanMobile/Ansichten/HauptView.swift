@@ -83,10 +83,12 @@ struct AppTabView: View {
 
     private var eigeneLeiste: some View {
         GeometryReader { geo in
-            let unten = geo.safeAreaInsets.bottom
+            // Bei eingeblendeter Tastatur wächst der Abstand unten stark: dann Leiste ausblenden
+            let tastatur = geo.safeAreaInsets.bottom > 120
+            let unten = tastatur ? 0 : geo.safeAreaInsets.bottom
             // wie .tabbar: max(10px, Sicherheitsabstand - 14px) über dem Rand
             let abstand = max(10, unten - 14)
-            let einzug = max(0, abstand + GlasTabLeiste.hoehe - unten + 8)
+            let einzug = tastatur ? 0 : max(0, abstand + GlasTabLeiste.hoehe - unten + 8)
             TabView(selection: $reiter) {
                 StartView()
                     .ohneSystemleiste(einzug: einzug)
@@ -106,9 +108,10 @@ struct AppTabView: View {
                     .padding(.bottom, abstand)
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .ignoresSafeArea(.container, edges: .bottom)
+                    .opacity(tastatur ? 0 : 1)
+                    .allowsHitTesting(!tastatur)
             }
         }
-        .ignoresSafeArea(.keyboard)
     }
 }
 
