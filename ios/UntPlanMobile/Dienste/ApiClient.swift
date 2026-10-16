@@ -91,7 +91,9 @@ final class ApiClient: @unchecked Sendable {
     func mitteilungen(ordner: String? = nil) async throws -> [Mitteilung] {
         var parameter: [String: String] = [:]
         if let ordner { parameter["ordner"] = ordner }
-        return try await anfrage("GET", "/mitteilungen", parameter: parameter)
+        // Einzelne unlesbare Einträge überspringen statt die ganze Liste zu verwerfen
+        let liste: [Vielleicht<Mitteilung>] = try await anfrage("GET", "/mitteilungen", parameter: parameter)
+        return liste.compactMap(\.wert)
     }
 
     func alsGelesenMarkieren(_ id: Int) async throws {
@@ -113,7 +115,8 @@ final class ApiClient: @unchecked Sendable {
 
     /// Eigene Meldungen (Abwesenheiten, Raumbuchungen …).
     func meldungen() async throws -> [Meldung] {
-        try await anfrage("GET", "/meldungen")
+        let liste: [Vielleicht<Meldung>] = try await anfrage("GET", "/meldungen")
+        return liste.compactMap(\.wert)
     }
 
     // MARK: Klassenbuch einer Stunde
@@ -217,8 +220,10 @@ final class ApiClient: @unchecked Sendable {
             if http.statusCode == 401 && pfad != "/anmelden" { throw ApiFehler.nichtAngemeldet }
             throw ApiFehler.server(meldung ?? "Fehler \(http.statusCode) vom Server.")
         }
+        // Leere Antwort (z. B. 204): als leeres Objekt lesen, damit OkAntwort und BeliebigeAntwort nicht scheitern
+        let inhalt = daten.isEmpty ? Data("{}".utf8) : daten
         do {
-            return try decoder.decode(T.self, from: daten)
+            return try decoder.decode(T.self, from: inhalt)
         } catch {
             throw ApiFehler.antwortUnlesbar
         }

@@ -183,6 +183,14 @@ enum Kachelbau {
         let ich = (plan.element.isEmpty ? element : plan.element).uppercased()
         let karten = plan.karten.filter { $0.datum == tag.datum }
         var kacheln = karten.compactMap { ausKarte($0, typ: typ, ich: ich, raster: raster) }
+        // Bereitschaft im Lehrerplan: hält die Lehrkraft darin eine Vertretung, entfällt nur diese Stunde der Bereitschaft
+        if typ == "lehrer" {
+            var belegt = Set<Int>()
+            for k in karten where ["geaendert", "klausur", "regulaer"].contains(k.status) && !istBereitschaft(k) {
+                for s in k.von...max(k.bis, k.von) { belegt.insert(s) }
+            }
+            if !belegt.isEmpty { kacheln = bereitschaftenKuerzen(kacheln, belegt: belegt, raster: raster) }
+        }
 
         // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen
         for e in tag.ereignisse {
@@ -617,6 +625,41 @@ enum Kachelbau {
         }
         k.balkenHex = ""
         return k
+    }
+
+    /// Bereitschaftsblöcke um die Stunden kürzen, in denen die Lehrkraft Unterricht bzw. eine Vertretung hält.
+    private static func bereitschaftenKuerzen(_ kacheln: [Kachel], belegt: Set<Int>, raster: [Rasterzeit]) -> [Kachel] {
+        var ergebnis: [Kachel] = []
+        for k in kacheln {
+            guard k.art == .bereitschaft, (k.von...k.bis).contains(where: { belegt.contains($0) }) else {
+                ergebnis.append(k)
+                continue
+            }
+            var teilVon: Int? = nil
+            func abschliessen(_ bis: Int) {
+                guard let v = teilVon else { return }
+                var teil = k
+                teil.id = UUID()
+                teil.von = v
+                teil.bis = bis
+                teil.beginn = raster.first(where: { $0.nr == v })?.beginn ?? k.beginn
+                teil.ende = raster.first(where: { $0.nr == bis })?.ende ?? k.ende
+                if let karte = k.karte {
+                    teil.karte = karte.teil(von: v, bis: bis, beginn: Rasterzeit.uhrzeit(teil.beginn), ende: Rasterzeit.uhrzeit(teil.ende))
+                }
+                ergebnis.append(teil)
+                teilVon = nil
+            }
+            for s in k.von...k.bis {
+                if belegt.contains(s) {
+                    abschliessen(s - 1)
+                } else if teilVon == nil {
+                    teilVon = s
+                }
+            }
+            abschliessen(k.bis)
+        }
+        return ergebnis
     }
 
     /// Blöcke, die über die Pause einer Aufsicht hinweg laufen, dort teilen (Veranstaltungen bleiben durchgehend).

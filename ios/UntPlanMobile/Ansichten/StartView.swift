@@ -33,6 +33,7 @@ struct StartView: View {
     @State private var fehler: String? = nil
     @State private var gewaehlteKarte: Karte? = nil
     @State private var alleStunden = false
+    @Environment(\.horizontalSizeClass) private var groessenklasse
 
     var body: some View {
         NavigationStack {
@@ -76,9 +77,9 @@ struct StartView: View {
                 StartlisteView(ziel: ziel, heute: heute) { gewaehlteKarte = $0 }
             }
             .sheet(item: $gewaehlteKarte) { karte in
-                StundendetailView(karte: karte, typ: heute?.typ ?? "klasse")
+                StundendetailView(karte: karte, typ: heute?.typ ?? "klasse", element: heute?.element ?? "")
                     .environmentObject(zustand)
-                    .presentationDetents([.medium, .large])
+                    .festesBlatt(breit: groessenklasse == .regular)
             }
         }
     }

@@ -5,29 +5,71 @@ import SwiftUI
 /// dann Zeilen mit Symbolen (Vertretungstext, Lehrstoff, Schüler*innen, Hausaufgaben, Klassenbucheinträge, Notizen).
 /// Es erscheint nur, was die API für das Konto liefert; Lehrkräfte können Lehrstoff, Notizen und Hausaufgaben bearbeiten.
 struct StundendetailView: View {
+    let karten: [Karte]
+    let typ: String
+    var element: String = ""
+    @EnvironmentObject var zustand: AppZustand
+    /// Gewählter Reiter (bei mehreren Stunden zur selben Zeit)
+    @State private var auswahl: Int
+
+    init(karte: Karte, typ: String, element: String = "") {
+        self.init(karten: [karte], start: 0, typ: typ, element: element)
+    }
+
+    init(karten: [Karte], start: Int, typ: String, element: String = "") {
+        self.karten = karten
+        self.typ = typ
+        self.element = element
+        _auswahl = State(initialValue: min(max(start, 0), max(karten.count - 1, 0)))
+    }
+
+    var body: some View {
+        NavigationStack {
+            if karten.indices.contains(auswahl) {
+                StundendetailInhalt(karte: karten[auswahl], typ: typ, karten: karten, auswahl: $auswahl)
+                    .id(karten[auswahl].id)
+            } else {
+                ContentUnavailableView("Keine Stunde", systemImage: "calendar")
+            }
+        }
+        .environmentObject(zustand)
+        .presentationBackground(Farben.blatt)
+    }
+}
+
+/// Inhalt der Stundendetails für eine Stunde; oben bei mehreren Stunden derselben Zeit die Reiter (z. B. „GF  GF  MB“).
+struct StundendetailInhalt: View {
     let karte: Karte
     let typ: String
+    let karten: [Karte]
+    @Binding var auswahl: Int
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var schliessen
     @StateObject private var daten: Stundendaten
     @State private var onlineFehler: String? = nil
 
-    init(karte: Karte, typ: String) {
+    init(karte: Karte, typ: String, karten: [Karte], auswahl: Binding<Int>) {
         self.karte = karte
         self.typ = typ
+        self.karten = karten
+        _auswahl = auswahl
         _daten = StateObject(wrappedValue: Stundendaten(karte: karte))
     }
 
     private var kollegium: Bool { zustand.istKollegium }
     private var mitUnterricht: Bool { karte.unterricht != nil }
+    private var istVeranstaltung: Bool { karte.status == "veranstaltung" || karte.status == "termin" }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            if karten.count > 1 {
+                reiterleiste
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     kopf
                         .padding(.horizontal, 20)
-                        .padding(.top, 6)
+                        .padding(.top, karten.count > 1 ? 14 : 6)
                         .padding(.bottom, 14)
                     Rectangle()
                         .fill(Farben.trennlinie)
@@ -37,18 +79,63 @@ struct StundendetailView: View {
                         .padding(.bottom, 20)
                 }
             }
-            .background(Farben.blatt.ignoresSafeArea())
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { leiste }
-            .navigationDestination(for: Detailseite.self) { seite in
-                ziel(seite)
-            }
-            .task { await daten.laden(kollegium: kollegium) }
         }
+        .background(Farben.blatt.ignoresSafeArea())
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { leiste }
+        .navigationDestination(for: Detailseite.self) { seite in
+            ziel(seite)
+                .environmentObject(daten)
+                .environmentObject(zustand)
+        }
+        .task { await daten.laden(kollegium: kollegium) }
         .environmentObject(daten)
-        .environmentObject(zustand)
-        .presentationBackground(Farben.blatt)
+    }
+
+    // MARK: - Reiter
+
+    private func reitertitel(_ k: Karte) -> String {
+        if !k.fach.isEmpty { return k.fach }
+        if !k.text.isEmpty { return k.text }
+        return k.art.isEmpty ? "Stunde" : k.art
+    }
+
+    /// Reiterleiste in eigener Zeile unter der Kopfleiste – überlappt den Titel nie.
+    private var reiterleiste: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 22) {
+                ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
+                    let gewaehlt = eintrag.offset == auswahl
+                    Button {
+                        auswahl = eintrag.offset
+                    } label: {
+                        Text(reitertitel(eintrag.element))
+                            .font(.system(size: 16, weight: gewaehlt ? .semibold : .regular))
+                            .strikethrough(eintrag.element.istEntfall)
+                            .foregroundStyle(gewaehlt ? Farben.tinte : Farben.tinte2)
+                            .lineLimit(1)
+                            .padding(.vertical, 10)
+                            .overlay(alignment: .bottom) {
+                                Rectangle()
+                                    .fill(gewaehlt ? Farben.tinte : Color.clear)
+                                    .frame(height: 2)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(gewaehlt ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farben.infoFeld.opacity(0.6))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Farben.trennlinie)
+                .frame(height: 0.5)
+        }
     }
 
     // MARK: - Leiste
@@ -95,6 +182,10 @@ struct StundendetailView: View {
         }
     }
 
+    private var textTitel: String {
+        karte.keineVertretung || karte.status == "regulaer" ? "Hinweis" : "Vertretungstext"
+    }
+
     private var stundentext: String {
         karte.von == karte.bis ? "\(karte.von). Stunde" : "\(karte.von).–\(karte.bis). Stunde"
     }
@@ -122,48 +213,57 @@ struct StundendetailView: View {
 
     // MARK: - Kopf
 
+    /// „Klasse | Gruppe“ (Veranstaltung: Klassen bzw. Anlass).
     private var titelzeile: String {
         var teile = karte.klassen.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k }.filter { !$0.isEmpty }
         if !karte.gruppe.isEmpty { teile.append(karte.gruppe) }
-        return teile.isEmpty ? karte.titel : teile.joined(separator: " | ")
+        if teile.isEmpty {
+            if istVeranstaltung { return karte.lehrer.map(\.k).filter { !$0.isEmpty }.joined(separator: " | ") }
+            return karte.titel
+        }
+        return teile.joined(separator: " | ")
     }
 
+    /// Kopf nach Vorlage: „Klasse | Gruppe“, Fach, Raum, Lehrkraft – in normaler Schrift, Änderungen als „alt → neu“.
     private var kopf: some View {
         let stil = Kartenstil(karte)
-        let fach = karte.fach.isEmpty ? karte.art : karte.fach
-        return VStack(alignment: .leading, spacing: 5) {
-            Text(titelzeile)
-                .font(.system(size: 18))
-                .foregroundStyle(Farben.tinte)
-                .strikethrough(stil.durchgestrichen, color: Farben.entfallRand)
-                .textSelection(.enabled)
+        let fach = istVeranstaltung ? (karte.text.isEmpty ? karte.art : karte.text) : (karte.fach.isEmpty ? karte.art : karte.fach)
+        return VStack(alignment: .leading, spacing: 6) {
+            if !titelzeile.isEmpty {
+                Text(titelzeile)
+                    .font(.system(size: 18))
+                    .foregroundStyle(Farben.tinte)
+                    .strikethrough(stil.durchgestrichen, color: Farben.tinte)
+                    .textSelection(.enabled)
+            }
             if !fach.isEmpty {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach {
                         Text(alt)
-                            .strikethrough(true, color: Farben.entfallRand)
+                            .strikethrough(true)
                             .foregroundStyle(Farben.tinte2)
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 11))
+                        Text("→")
                             .foregroundStyle(Farben.gedaempft)
                     }
                     Text(fach)
-                        .strikethrough(stil.durchgestrichen, color: Farben.entfallRand)
-                    if !karte.fachName.isEmpty && karte.fachName != fach {
-                        Text(karte.fachName)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.tinte2)
-                    }
+                        .strikethrough(stil.durchgestrichen, color: Farben.tinte)
                 }
                 .font(.system(size: 18))
                 .foregroundStyle(Farben.tinte)
             }
+            if !karte.fachName.isEmpty && karte.fachName != fach && !istVeranstaltung {
+                Text(karte.fachName)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Farben.tinte2)
+            }
             if !karte.raeume.isEmpty {
-                Raumlabels(werte: karte.raeume, farbe: stil.wertFarbe, durchgestrichen: stil.durchgestrichen)
+                pfeilText(karte.raeume, durchgestrichen: stil.durchgestrichen)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Farben.tinte2)
             }
             if !karte.lehrer.isEmpty {
-                pfeilText(karte.lehrer, durchgestrichen: stil.durchgestrichen)
-                    .font(.system(size: 13))
+                pfeilText(karte.lehrer, durchgestrichen: stil.durchgestrichen || Kachelbau.istBereitschaftAbwesend(karte))
+                    .font(.system(size: 14))
                     .foregroundStyle(Farben.tinte2)
             }
             let plaketten = plakettenListe(stil)
@@ -173,7 +273,7 @@ struct StundendetailView: View {
                         Plakette(text: p.element.0, farbe: p.element.1)
                     }
                 }
-                .padding(.top, 3)
+                .padding(.top, 2)
             }
             if !karte.abwesendeKlassen.isEmpty {
                 Text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")
@@ -186,9 +286,13 @@ struct StundendetailView: View {
 
     private func plakettenListe(_ stil: Kartenstil) -> [(String, Color)] {
         var liste: [(String, Color)] = []
-        if let p = stil.plakette { liste.append((p, stil.plaketteFarbe)) }
-        if karte.zusaetzlich && !karte.keineVertretung && stil.plakette != "Zusätzlich" {
-            liste.append(("Zusätzlicher Unterricht", Farben.gruen))
+        if istVeranstaltung {
+            liste.append((karte.status == "termin" ? "Termin" : "Veranstaltung", Farben.gruen))
+            return liste
+        }
+        if let p = stil.plakette, p != "Zusätzlich" { liste.append((p, stil.plaketteFarbe)) }
+        if Kachelbau.istZusatzstunde(karte) && !karte.keineVertretung {
+            liste.append(("Zusätzliche Unterrichtsstunde", Farben.gruen))
         }
         return liste
     }
@@ -197,13 +301,13 @@ struct StundendetailView: View {
     private func pfeilText(_ werte: [Wert], durchgestrichen: Bool) -> Text {
         var ergebnis = Text("")
         for (i, w) in werte.enumerated() {
-            if i > 0 { ergebnis = ergebnis + Text(", ") }
+            if i > 0 { ergebnis = ergebnis + Text(" | ") }
             if durchgestrichen {
-                ergebnis = ergebnis + Text(w.k.isEmpty ? (w.alt ?? "") : w.k).strikethrough(true, color: Farben.entfallRand)
+                ergebnis = ergebnis + Text(w.k.isEmpty ? (w.alt ?? "") : w.k).strikethrough(true)
                 continue
             }
             if let alt = w.alt, !alt.isEmpty, alt != w.k {
-                ergebnis = ergebnis + Text(alt).strikethrough(true, color: Farben.entfallRand)
+                ergebnis = ergebnis + Text(alt).strikethrough(true)
                 if !w.k.isEmpty { ergebnis = ergebnis + Text(" → ") }
             }
             if !w.k.isEmpty {
@@ -221,8 +325,8 @@ struct StundendetailView: View {
                 onlineZeile
                 Zeilentrenner()
             }
-            if !karte.text.isEmpty {
-                link(.text, Listenzeile(symbol: "doc.text", titel: karte.keineVertretung ? "Hinweis" : "Vertretungstext", untertitel: karte.text))
+            if !karte.text.isEmpty && !istVeranstaltung {
+                link(.text, Listenzeile(symbol: "doc.text", titel: textTitel, untertitel: karte.text))
             }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 link(.lehrstoff, Listenzeile(symbol: "text.book.closed", titel: "Lehrstoff", untertitel: daten.eintrag?.thema))
@@ -235,7 +339,7 @@ struct StundendetailView: View {
                 link(.hausaufgaben, Listenzeile(symbol: "book.pages", titel: "Hausaufgaben",
                                                 zahl: daten.hausaufgaben == nil ? nil : daten.hausaufgaben?.liste.count))
             }
-            if kollegium && !daten.klassen.isEmpty {
+            if kollegium && !daten.klassen.isEmpty && !istVeranstaltung {
                 link(.klassenbuch, Listenzeile(symbol: "book.closed", titel: "Klassenbucheinträge",
                                                zahl: daten.geladen ? daten.vermerke.count : nil))
             }
@@ -304,7 +408,7 @@ struct StundendetailView: View {
     private func ziel(_ seite: Detailseite) -> some View {
         switch seite {
         case .text:
-            DetailTextSeite(titel: karte.keineVertretung ? "Hinweis" : "Vertretungstext", text: karte.text, karte: karte)
+            DetailTextSeite(titel: textTitel, text: karte.text, karte: karte)
         case .lehrstoff:
             LehrstoffSeite()
         case .schueler:
@@ -318,56 +422,5 @@ struct StundendetailView: View {
         case .notizLehrer:
             NotizSeite(art: .lehrer)
         }
-    }
-}
-
-/// Räume als einzelne Labels: unveränderte Räume grau hinterlegt, ein neuer bzw. hinzugefügter Raum
-/// allein im hervorgehobenen Änderungs-Label, ein ersetzter Raum durchgestrichen davor („C124 → Online“).
-struct Raumlabels: View {
-    let werte: [Wert]
-    var farbe: Color = Farben.gruen
-    var durchgestrichen: Bool = false
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(werte.enumerated()), id: \.offset) { eintrag in
-                let w = eintrag.element
-                if durchgestrichen {
-                    label(w.k.isEmpty ? (w.alt ?? "") : w.k, durchgestrichen: true)
-                } else {
-                    if let alt = w.alt, !alt.isEmpty, alt != w.k {
-                        label(alt, durchgestrichen: true)
-                        if !w.k.isEmpty {
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Farben.gedaempft)
-                        }
-                    }
-                    if !w.k.isEmpty {
-                        if w.geaendert {
-                            Text(w.k)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Farben.gruenSchrift)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(farbe, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-                        } else {
-                            label(w.k, durchgestrichen: false)
-                        }
-                    }
-                }
-            }
-        }
-        .lineLimit(1)
-    }
-
-    private func label(_ text: String, durchgestrichen: Bool) -> some View {
-        Text(text)
-            .font(.system(size: 13))
-            .strikethrough(durchgestrichen, color: Farben.entfallRand)
-            .foregroundStyle(Farben.tinte2)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(Farben.infoFeld, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
     }
 }

@@ -10,7 +10,11 @@ die App nicht; angemeldet wird mit dem Konto von UntPlanWeb.
   Tageskarte mit den nächsten Stunden, Pausenaufsichten, Termine der nächsten zwei Wochen und Hausaufgaben.
 - **Stundenplan**: Wochenraster mit Tagesspalten, Woche vor/zurück (auch per Wischen), Karten mit Fach,
   Lehrkraft/Klasse und Raum, Farbbalken in Fachfarbe. Entfall rot und durchgestrichen, Änderungen grün,
-  Prüfungen gelb, Ferien blau. Antippen öffnet die Stundendetails. Andere Pläne (Klassen, Lehrkräfte, Räume)
+  Prüfungen gelb, Ferien blau. Darstellung wie in UntPlanMobile (`Dienste/Kachelbau.swift`): abgegebene Stunden und
+  Bereitschaften abwesender Lehrkräfte mit Eckklammern und durchgestrichenem Kürzel, Veranstaltungen als hellgrünes Feld
+  über den ganzen Zeitraum, Pausenaufsichten als Pillen in den Pausen, vergangene farbige Stunden ohne Rahmen.
+  Tagesansicht mit großen Karten (Uhrzeit, Fach-Langname, Status, Hinweis). Antippen öffnet die Stundendetails
+  (mehrere Stunden derselben Zeit als Reiter; auf dem iPad als Formblatt mit fester Größe). Andere Pläne (Klassen, Lehrkräfte, Räume)
   lassen sich oben rechts wählen, soweit das Konto sie sehen darf.
 - **Mitteilungen**: Posteingang und Gesendet, Lesen (wird als gelesen markiert), Löschen per Wischen,
   Zähler ungelesener Mitteilungen in der Tab-Leiste.
