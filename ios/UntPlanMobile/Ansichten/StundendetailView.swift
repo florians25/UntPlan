@@ -78,14 +78,27 @@ struct StundendetailInhalt: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     kopfblock
-                        .padding(.horizontal, 20)
-                        .padding(.top, karten.count > 1 ? 14 : 8)
-                        .padding(.bottom, 16)
-                    Rectangle()
-                        .fill(Farben.trennlinie)
-                        .frame(height: 0.5)
+                        .padding(.horizontal, Detailmass.rand)
+                        .padding(.top, karten.count > 1 ? 12 : 10)
+                        .padding(.bottom, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(karte.istEntfall ? Farben.detailEntfallFlaeche : Color.clear)
+                    if karte.istEntfall {
+                        // Original: roter Balken über die volle Breite mit „ENTFÄLLT“
+                        Text("ENTFÄLLT")
+                            .font(.system(size: 17))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 27)
+                            .background(Farben.detailEntfallBalken)
+                            .accessibilityLabel("Entfällt")
+                    } else {
+                        Rectangle()
+                            .fill(Farben.trennlinie)
+                            .frame(height: 1)
+                    }
                     zeilen
-                        .padding(.top, 6)
+                        .padding(.top, 8)
                         .padding(.bottom, 24)
                 }
             }
@@ -113,8 +126,9 @@ struct StundendetailInhalt: View {
         "\(Datumsformat.anzeige(karte.datum, "EE")) | \(Datumsformat.anzeige(karte.datum, "dd.MM.yy"))"
     }
 
+    /// „7:45 - 11:05“ (Stunden ohne führende Null wie im Original).
     private var zeittitel: String {
-        karte.beginn.isEmpty ? stundentext : "\(karte.beginn) - \(karte.ende)"
+        karte.beginn.isEmpty ? stundentext : "\(Detailmass.uhrzeit(karte.beginn)) - \(Detailmass.uhrzeit(karte.ende))"
     }
 
     /// „Do. | 05.11.26 ⌄“ mit Uhrzeit darunter; das Menü nennt Tag und Stunde (und wechselt zwischen gleichzeitigen Stunden).
@@ -138,7 +152,7 @@ struct StundendetailInhalt: View {
                 }
             }
         } label: {
-            Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: true)
+            Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: kollegium || karten.count > 1)
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("\(Datumsformat.anzeige(karte.datum, "EEEE, d. MMMM yyyy")), \(zeittitel)")
@@ -159,7 +173,7 @@ struct StundendetailInhalt: View {
                     }
                 }
             } label: {
-                Rundknopf(symbol: "ellipsis", gewicht: .semibold, groesse: 15, drehung: 90)
+                Rundknopf(symbol: "ellipsis", gewicht: .semibold, groesse: 18, drehung: 90)
             }
             .accessibilityLabel("Weitere Aktionen")
         }
@@ -274,10 +288,18 @@ struct StundendetailInhalt: View {
     /// Offene Vertretung: Lehrkraft ohne neuen Wert (Karte „offen“ bzw. Kürzel leer und alter Wert gesetzt).
     private var lehrerOffen: Bool { karte.istOffeneVertretung }
 
-    /// Kopfzeile mit Koppelklassen: eigene Klasse(n), anwesende Mitklassen als Text, fehlende durchgestrichen im grünen Label.
-    private var titelBausteine: [Wertbaustein]? {
-        guard !karte.mitklassen.isEmpty else { return nil }
+    /// Kopfzeile „Klasse | Gruppe“: eigene Klasse(n), anwesende Mitklassen als Text, fehlende durchgestrichen;
+    /// Trennstrich grau. Veranstaltung ohne Klassen: keine Kopfzeile (Titel steht in der nächsten Zeile).
+    private var titelBausteine: [Wertbaustein] {
         var teile: [Wertbaustein] = []
+        guard !karte.mitklassen.isEmpty else {
+            if titelzeile.isEmpty { return [] }
+            for teil in titelzeile.components(separatedBy: " | ") {
+                if !teile.isEmpty { teile.append(.trenner) }
+                teile.append(.text(teil))
+            }
+            return teile
+        }
         func hinzu(_ b: Wertbaustein) {
             if !teile.isEmpty { teile.append(.trenner) }
             teile.append(b)
@@ -290,66 +312,49 @@ struct StundendetailInhalt: View {
             if !w.k.isEmpty {
                 hinzu(.text(w.k))
             } else if let alt = w.alt, !alt.isEmpty {
-                hinzu(karte.istEntfall ? .weg(alt) : .offen(alt))
+                hinzu(.weg(alt))
             }
         }
         if !karte.gruppe.isEmpty { hinzu(.text(karte.gruppe)) }
-        return teile.isEmpty ? nil : teile
+        return teile
     }
 
-    /// Kopfblock nach Vorlage, links bündig mit 20 pt Rand: Klasse | Gruppe (17 pt), Fach (17 pt), Raum und Lehrkraft
-    /// (13 pt grau). Nur Text, keine Plaketten: Änderungen als „alt → neu“ mit durchgestrichenem altem Wert, fehlende
-    /// Werte durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt.
+    /// Kopfblock genau nach Vorlage (Original 117/118): „Klasse | Gruppe“ und Fach groß (22 pt, schwarz), Raum und
+    /// Lehrkraft 17 pt grau, je Zeile 31 pt hoch. Nur Text, keine Plaketten und keine Durchstreichung des Ganzen
+    /// (Entfall zeigt der rote Balken): Änderungen als „alt → neu“ mit durchgestrichenem altem Wert, fehlende Werte
+    /// durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt.
     private var kopfblock: some View {
-        let stil = Kartenstil(karte)
         let fach = istVeranstaltung ? (karte.text.isEmpty ? karte.art : karte.text) : (karte.fach.isEmpty ? karte.art : karte.fach)
-        let raeume = Wertzeile.bausteine(einmal(karte.raeume), durchgestrichen: stil.durchgestrichen, offenAlsPlakette: false)
-        let lehrer = Wertzeile.bausteine(einmal(karte.lehrer), durchgestrichen: stil.durchgestrichen || Kachelbau.istBereitschaftAbwesend(karte),
+        let raeume = Wertzeile.bausteine(einmal(karte.raeume), durchgestrichen: false, offenAlsPlakette: false)
+        let lehrer = Wertzeile.bausteine(einmal(karte.lehrer), durchgestrichen: Kachelbau.istBereitschaftAbwesend(karte),
                                          offenAlsPlakette: lehrerOffen)
+        var fachteile: [Wertbaustein] = []
+        if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach, !istVeranstaltung {
+            fachteile.append(.weg(alt))
+            fachteile.append(.pfeil)
+        }
+        fachteile.append(.text(fach))
         return VStack(alignment: .leading, spacing: 0) {
-            if let titelBausteine {
-                Wertzeile(bausteine: titelBausteine, schrift: 17, farbe: Farben.tinte)
-                    .padding(.bottom, 4)
-            } else if !titelzeile.isEmpty {
-                EinzeilenScroller {
-                    Text(titelzeile)
-                        .font(.system(size: 17))
-                        .foregroundStyle(Farben.tinte)
-                        .strikethrough(stil.durchgestrichen, color: Farben.tinte)
-                        .textSelection(.enabled)
-                }
-                .padding(.bottom, 4)
+            if !titelBausteine.isEmpty {
+                Wertzeile(bausteine: titelBausteine, schrift: Detailmass.gross, farbe: Farben.detailText)
+                    .frame(height: Detailmass.zeile)
             }
             if !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame) {
-                EinzeilenScroller {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach {
-                            Text(alt)
-                                .strikethrough(true)
-                            Text("→")
-                        }
-                        Text(fach)
-                            .strikethrough(stil.durchgestrichen, color: Farben.tinte)
-                    }
-                    .font(.system(size: 17))
-                    .foregroundStyle(Farben.tinte)
-                }
-                .padding(.bottom, 8)
+                Wertzeile(bausteine: fachteile, schrift: Detailmass.gross, farbe: Farben.detailText)
+                    .frame(height: Detailmass.zeile)
             }
             if !raeume.isEmpty {
-                Wertzeile(bausteine: raeume)
-                    .padding(.bottom, 7)
+                Wertzeile(bausteine: raeume, schrift: Detailmass.klein)
+                    .frame(height: Detailmass.zeile)
             }
             if !lehrer.isEmpty {
-                Wertzeile(bausteine: lehrer)
+                Wertzeile(bausteine: lehrer, schrift: Detailmass.klein)
+                    .frame(height: Detailmass.zeile)
             }
             if !karte.abwesendeKlassen.isEmpty {
-                EinzeilenScroller {
-                    Text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Farben.gedaempft)
-                }
-                .padding(.top, 7)
+                Wertzeile(bausteine: [.text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")],
+                          schrift: Detailmass.klein)
+                    .frame(height: Detailmass.zeile)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

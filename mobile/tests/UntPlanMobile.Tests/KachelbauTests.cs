@@ -550,4 +550,45 @@ public class KachelbauTests
         Assert.Equal("E", entfall.Fach);
         Assert.Equal("WAG", entfall.Lehrkraft);
     }
+    [Fact]
+    public void Raumaenderung_nur_an_der_Art_erkennbar_steht_als_Plakette()
+    {
+        // Prüfung, deren Raum laut Art gewechselt hat: neuer Raum als Plakette
+        var k = Kachelbau.AusKarte(Karte("klausur", 3, art: "Raumänderung", raeume: new() { new("A103") }), "class");
+        Assert.Equal("klausur", k.Art);
+        Assert.Contains("room", k.Geaendert);
+        Assert.Equal("A103", k.Raum);
+        // Raumänderung ohne neuen Raum bleibt offen gekennzeichnet (bisheriger Raum durchgestrichen in der Plakette)
+        var offen = Kachelbau.AusKarte(Karte("geaendert", 3, art: "Raumänderung", raeume: new() { new("A103") }), "class");
+        Assert.Contains("room", offen.Geaendert);
+        Assert.True(offen.RaumOffen);
+        // ohne Raum keine Kennzeichnung
+        var ohne = Kachelbau.AusKarte(Karte("klausur", 3, art: "Raumvertretung", raeume: new()), "class");
+        Assert.DoesNotContain("room", ohne.Geaendert);
+        // gewöhnliche Vertretung ohne Raumwechsel bleibt ohne Raumplakette
+        var vertretung = Kachelbau.AusKarte(Karte("geaendert", 3, art: "Vertretung", lehrer: new() { new("BEC", "HOF", true) }), "class");
+        Assert.DoesNotContain("room", vertretung.Geaendert);
+    }
+
+    [Fact]
+    public void Veranstaltung_nennt_jede_Angabe_nur_einmal()
+    {
+        var k = Kachelbau.AusKarte(Karte("veranstaltung", 1, 2, fach: "", text: "Lehrerkonferenz", unterricht: null,
+            lehrer: new() { new("LAN"), new("MUE"), new("lan"), new("MUE"), new("---") },
+            raeume: new() { new("EDV2"), new("edv2") }, klassen: new() { new("5a"), new("5A"), new("6b") }), "lehrer");
+        Assert.Equal("absence", k.Art);
+        Assert.Equal("LAN,MUE", k.Lehrkraft);
+        Assert.Equal("EDV2", k.Raum);
+        Assert.Equal("5a,6b", k.Klasse);
+    }
+
+    [Fact]
+    public void Kopplung_im_Plan_der_abwesenden_Lehrkraft_zeigt_alle_Lehrkraefte()
+    {
+        // BLU fehlt, ILK vertritt; BIE hält die Stunde weiter – Plan von BLU (Status „abwesend“)
+        var k = Kachelbau.AusKarte(Karte("abwesend", 2, art: "Vertretung", lehrer: new() { new("BIE"), new("ILK", "BLU", true) }), "teacher");
+        Assert.NotNull(k.Kopplung);
+        Assert.Equal(new[] { ("BIE", "ok", (string?)null), ("ILK", "sub", "BLU") }, k.Kopplung!.Select(t => (t.Code, t.Zustand, t.Fuer)));
+        Assert.Equal("change", k.Art);
+    }
 }

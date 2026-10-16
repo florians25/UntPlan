@@ -426,7 +426,18 @@ function koppTokens(card){
   const toks = list.map(t => ({ text:String(t.code || ''), state:t.state || 'ok',
                                 for:String(t.for || ''), open: t.open === undefined ? undefined : !!t.open }))
                    .filter(t => t.text);
-  return toks.length > 1 ? toks : null;
+  /* Jede Lehrkraft nur einmal. Wer vertreten wird, steht schon als
+     durchgestrichenes „für“ neben seiner Vertretung — nicht noch einmal
+     als eigenes, abwesendes Kürzel. */
+  const gross = x => String(x || '').toUpperCase();
+  const vertreten = toks.filter(t => t.state === 'sub' && t.for).map(t => gross(t.for));
+  const ohne = toks.filter((t, i) =>
+    !(t.state === 'absent' && vertreten.includes(gross(t.text)))
+    && toks.findIndex(o => gross(o.text) === gross(t.text) && o.state === t.state) === i);
+  /* Eine Kopplung bleibt eine Kopplung, auch wenn danach nur ein Eintrag
+     übrig ist, der jemanden vertritt: dann stehen die abwesende und die
+     vertretende Lehrkraft nebeneinander. */
+  return (ohne.length > 1 || (ohne.length === 1 && ohne[0].state === 'sub' && ohne[0].for)) ? ohne : null;
 }
 
 /* Die Klassen einer Kopplung mit ihrem Zustand.
@@ -549,7 +560,10 @@ function cardLines(card, kind){
         const neuListe = werteListe(card.roomNew).map(x => x.toUpperCase());
         const neu = x => l.changed && (neuListe.length ? neuListe.includes(x.toUpperCase())
                                        : (!vorher.length || !vorher.includes(x.toUpperCase())));
-        l.tokens  = jetzt.map(x => ({ text:x, state: neu(x) ? 'sub' : 'ok' }));
+        /* Der neue Raum steht vorn: Auf einer schmalen Kachel kürzt sich die
+           Zeile mit „…“, und die grüne Plakette darf dabei nie wegfallen. */
+        l.tokens  = jetzt.map(x => ({ text:x, state: neu(x) ? 'sub' : 'ok' }))
+                         .sort((a, b) => (b.state === 'sub') - (a.state === 'sub'));
         l.text    = jetzt.join(' ');
         l.changed = false;
       }
@@ -1228,7 +1242,7 @@ function renderGrid(){
       /* Zurücktreten gilt für Unterricht, Vertretung, Entfall und
          Verfügungsstunden — nicht für Ferien, Termine und dergleichen,
          die sich über den ganzen Tag ziehen. */
-      if (past && ['normal', 'change', 'cancelled', 'standby', 'supervision', 'gs', 'absence', 'event'].includes(card.blockType))
+      if (past && ['normal', 'change', 'cancelled', 'klausur', 'standby', 'supervision', 'gs', 'absence', 'event'].includes(card.blockType))
         cls.push('is-past');
 
       let style = `top:${topFinal}px;height:${h}px;`;
@@ -1312,7 +1326,12 @@ function renderGrid(){
               const kern  = t.state === 'absent'
                 ? `<span class="badge badge--removed${koppOffen(t, l.tokens) ? ' badge--open' : ''}">${esc(t.text)}</span>`
                 : t.state === 'sub'
-                ? `<span class="badge">${esc(t.text)}</span>`
+                /* Alle Lehrkräfte stehen da: die vertretene durchgestrichen,
+                   daneben die Vertretung als grüne Plakette — auch im Plan
+                   der abwesenden Lehrkraft selbst. */
+                ? (t.for && l.key === 'teacher'
+                    ? `<span class="badge badge--removed">${esc(t.for)}</span><i class="tok__trenn">,</i> <span class="badge">${esc(t.text)}</span>`
+                    : `<span class="badge">${esc(t.text)}</span>`)
                 : esc(t.text);
               return `<span class="tok tok--${t.state}">${kern}${komma}</span>`;
             }).join('')
@@ -3984,7 +4003,7 @@ function renderDetail(){
 
   const klassD = Array.isArray(c.classList) && c.classList.length > 1 ? c.classList : null;
   const klassHtml = () => klassD.map(t =>
-    (t.state === 'absent') ? `<span class="dlab dlab--neu dlab--offen"><s>${esc(t.name)}</s></span>` : esc(t.name)).join('<i>|</i>');
+    (t.state === 'absent') ? `<s>${esc(t.name)}</s>` : esc(t.name)).join('<i>|</i>');
   const klass1 = (c.class || c.classOrig || '').split(',')[0].trim();
   const lehrKurs = werteListe(c.teacher || c.teacherOrig).filter(t => t !== '---')[0] || '';
   const course = c.courseName || [c.subject, klass1, lehrKurs].filter(Boolean).join('_');
@@ -3993,7 +4012,7 @@ function renderDetail(){
      als Titel – nicht noch einmal als Fachzeile darunter. */
   const terminOhneKlasse = !istVeranstaltung && c.blockType === 'event' && !c.class && !c.classOrig;
   const head = istVeranstaltung
-    ? (c.class ? werteListe(c.class).map(esc).join('<i>|</i>') : esc(c.subject || c.info || 'Veranstaltung'))
+    ? (c.class ? werteListe(c.class).filter((x, i, a) => a.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i).map(esc).join('<i>|</i>') : esc(c.subject || c.info || 'Veranstaltung'))
     : terminOhneKlasse ? esc(c.subject || c.info || 'Termin')
     : (c.class
         ? `${klassD ? klassHtml() : werteListe(c.class).map(esc).join('<i>|</i>')}<i>|</i>${esc(course)}`
@@ -4009,15 +4028,9 @@ function renderDetail(){
           && orig.toUpperCase() !== now.toUpperCase());
     if (!now && !orig) return '';
     if (changed && orig && orig.toUpperCase() !== now.toUpperCase()){
-      /* Bei der Lehrkraft steht ein Strich zwischen alt und neu, beim Raum
-         ein Pfeil: der Unterricht zieht wirklich um. */
-      const trenn = key === 'teacher' ? SEP : '<span class="arrow">→</span>';
-      /* Lehrkraft: offene Vertretung durchgestrichen in der grünen Plakette,
-         eingeteilte Vertretung mit der neuen Lehrkraft als grünem Label. */
-      if (key === 'teacher'){
-        if (!now) return `<span class="dlab dlab--neu dlab--offen"><s>${liste(orig)}</s></span>`;
-        return `<s>${liste(orig)}</s>${trenn}${werteListe(now).map(x => `<span class="dlab dlab--neu">${esc(x)}</span>`).join(' ')}`;
-      }
+      /* Im Detail stehen keine Plaketten: alt durchgestrichen → neu, eine
+         offene Vertretung allein durchgestrichen (wie im Original). */
+      const trenn = '<span class="arrow">→</span>';
       if (!now) return `<s>${liste(orig)}</s>`;
       return `<s>${liste(orig)}</s>${trenn}${liste(now)}`;
     }
@@ -4034,25 +4047,26 @@ function renderDetail(){
     const gross = a => a.map(x => x.toUpperCase());
     const weg = vorher.filter(x => !gross(jetzt).includes(x.toUpperCase()));
     const geaendert = (c.changed || []).includes('room');
-    const lab = (x, neu) => `<span class="dlab${neu ? ' dlab--neu' : ''}">${esc(x)}</span>`;
-    const neuListe = gross(werteListe(c.roomNew));
-    const neuer = x => geaendert && jetzt.length > 1 && (neuListe.length ? neuListe.includes(x.toUpperCase())
-                                                         : (!vorher.length || !gross(vorher).includes(x.toUpperCase())));
+    void geaendert;
     if (!jetzt.length && vorher.length) return `<s>${vorher.map(esc).join(SEP)}</s>`;
-    const rechts = jetzt.length > 1 ? jetzt.map(x => lab(x, neuer(x))).join('') : jetzt.map(esc).join(SEP);
+    /* Nur Text, keine Plaketten — mehrere Räume durch „|“ getrennt. */
+    const rechts = jetzt.map(esc).join(SEP);
     if (weg.length) return `<s>${weg.map(esc).join(SEP)}</s><span class="arrow">→</span>${rechts}`;
     return rechts;
   };
 
   const koppD = koppTokens(c);
   const koppHtml = () => koppD.map(t =>
-      t.state === 'absent' ? (koppOffen(t, koppD) ? `<span class="dlab dlab--neu dlab--offen"><s>${esc(t.text)}</s></span>` : `<s>${esc(t.text)}</s>`)
-    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s>${SEP}<span class="dlab dlab--neu">${esc(t.text)}</span>` : `<span class="dlab dlab--neu">${esc(t.text)}</span>`)
+      t.state === 'absent' ? `<s>${esc(t.text)}</s>`
+    : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s><span class="arrow">→</span>${esc(t.text)}` : esc(t.text))
     :                        esc(t.text)).join(SEP);
 
   const banner = { cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '';
-  const plakette = istVeranstaltung ? 'Veranstaltung' : zusatz ? 'Zusätzliche Unterrichtsstunde'
-                 : c.classAbsent ? 'Klasse abwesend' : c.openRoom ? 'Raum offen' : '';
+  /* Keine Plaketten im Detail (wie im Original). Jede Angabe steht nur
+     einmal: doppelte Lehrkräfte, Klassen oder Räume fallen weg. */
+  void zusatz;
+  const einmal = arr => arr.filter((x, i) => arr.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i);
+  const veranstAnlass = istVeranstaltung ? (c.subject || c.info || '').trim() : '';
 
   /* --- Aktionszeilen ----------------------------------------------------
      Alles, was zum Klassenbuch gehört (online, Raum, Lehrstoff,
@@ -4070,8 +4084,11 @@ function renderDetail(){
   if (voll) rows.push({ ico:'online', title:'Findet online statt', key:'online', toggle:!!cbOnline });
   if (voll && c.date >= iso(new Date())) rows.push({ ico:'room', key:'room', chips:werteListe(c.room) });
   if (istVeranstaltung){
-    const anlass = (c.subject || c.info || '').trim();
-    if (anlass) rows.push({ ico:'info', title:'Information zur Stunde', key:'info', sub:anlass });
+    /* Der Anlass steht schon im Kopf — die Information nur, wenn sie
+       darüber hinaus etwas sagt. */
+    const extraInfo = (c.info || '').trim();
+    if (extraInfo && extraInfo.toUpperCase() !== (c.subject || '').trim().toUpperCase())
+      rows.push({ ico:'info', title:'Information zur Stunde', key:'info', sub:extraInfo });
   } else if (c.info){
     /* „Vertretungstext" nur bei einer Vertretung oder einem Entfall —
        Klausuren, Raumbuchungen und gewöhnliche Stunden tragen eine
@@ -4110,14 +4127,16 @@ function renderDetail(){
     <div class="dhead ${(c.blockType === 'cancelled' || c.blockType === 'class-absent') ? 'is-off' : ''}">
       ${head ? `<h2 class="dtitle">${head}</h2>` : ''}
       ${istVeranstaltung
-          ? `<p class="dline dline--pill"><span class="dpill">${plakette}</span></p>`
+          /* Veranstaltung: der Anlass nur dann als eigene Zeile, wenn oben
+             die Klassen stehen — sonst ist er schon die Überschrift. */
+          ? (c.class && veranstAnlass ? `<p class="dline dline--big">${esc(veranstAnlass)}</p>` : '')
           : (c.subject || c.subjectOrig) && !terminOhneKlasse
-            ? `<p class="dline dline--big">${val('subject')}${plakette ? `<span class="dpill${zusatz && !istVeranstaltung ? ' dpill--hinweis' : ''}">${plakette}</span>` : ''}</p>` : ''}
-      ${(c.room || c.roomOrig) ? `<p class="dline">${raumHtml()}</p>` : ''}
+            ? `<p class="dline dline--big">${val('subject')}</p>` : ''}
+      ${(c.room || c.roomOrig) ? `<p class="dline dline--grau">${istVeranstaltung ? einmal(werteListe(c.room)).map(esc).join(SEP) : raumHtml()}</p>` : ''}
       ${istVeranstaltung
-          ? (werteListe(c.teacher).filter(t => t !== '---').length ? `<p class="dline">${werteListe(c.teacher).filter(t => t !== '---').map(esc).join(SEP)}</p>` : '')
+          ? (einmal(werteListe(c.teacher).filter(t => t !== '---')).length ? `<p class="dline dline--grau">${einmal(werteListe(c.teacher).filter(t => t !== '---')).map(esc).join(SEP)}</p>` : '')
           : (c.teacher || c.teacherOrig)
-            ? `<p class="dline${koppD ? ' dline--kopp' : ''}">${koppD ? koppHtml() : val('teacher')}</p>` : ''}
+            ? `<p class="dline dline--grau${koppD ? ' dline--kopp' : ''}">${koppD ? koppHtml() : val('teacher')}</p>` : ''}
     </div>
     ${banner ? `<div class="dbanner">${banner}</div>` : '<div class="detail__sep"></div>'}
     <div class="drows">
@@ -4596,6 +4615,13 @@ function openClassbook(key){
   $('#dsubSave').innerHTML = CB[key].kind === 'students' ? ATT_BESEN
     : '<svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>';
   $('#dsubAddTop').hidden = CB[key].kind !== 'list';
+  /* Suche unter dem Kopf — nur bei den Klassenbucheinträgen. */
+  const sucheBox = $('#dsubSucheBox');
+  if (sucheBox){
+    const mitSuche = CB[key].kind === 'list' && key === 'classbook';
+    if (sucheBox.hidden === mitSuche || !mitSuche) $('#dsubSuche').value = '';
+    sucheBox.hidden = !mitSuche;
+  }
   if (state.isStudent) rechteAnwenden();
   /* Reine Textansichten schließen mit dem Kreuz, Listen führen zurück. */
   const zu = CB[key].kind === 'readonly' || CB[key].kind === 'text';
@@ -4607,7 +4633,7 @@ function openClassbook(key){
   const body = $('#dsubBody');
 
   if (CB[key].kind === 'readonly'){
-    const txt = key === 'info' ? (c.subject || c.info || '') : c.info;
+    const txt = key === 'info' ? (c.info || c.subject || '') : c.info;
     body.innerHTML = txt
       ? `<p class="dsub__read">${esc(txt)}</p>`
       : cbEmpty(key === 'info' ? 'Keine Information' : 'Kein Vertretungstext');
@@ -4673,9 +4699,22 @@ function openClassbook(key){
   }
 
   if (CB[key].kind === 'students') renderAttendance(c);
+  dsubSucheAnwenden();
 
   $('#detailSub').hidden = false;
 }
+
+/* Klassenbucheinträge filtern: Einträge, die den Suchtext nicht enthalten,
+   treten aus der Liste. */
+function dsubSucheAnwenden(){
+  const box = $('#dsubSucheBox'), feld = $('#dsubSuche');
+  if (!box || !feld) return;
+  const q = box.hidden ? '' : feld.value.trim().toLowerCase();
+  $$('#dsubBody .dsub__item').forEach(el => {
+    el.hidden = !!q && !el.textContent.toLowerCase().includes(q);
+  });
+}
+if ($('#dsubSuche')) $('#dsubSuche').addEventListener('input', dsubSucheAnwenden);
 
 /* ---------------------------------------------------------------------
    Anwesenheitskontrolle
@@ -6139,7 +6178,19 @@ $('#btnLogout').addEventListener('click', async () => {
   const apply = () => {
     const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     document.documentElement.style.setProperty('--kb', Math.round(kb) + 'px');
+    /* Stundendetail: Das Blatt behält seine Größe und seinen Platz — die
+       Tastatur legt sich darüber. Wie weit sie in das Blatt hineinragt,
+       steht in --dkb; um so viel bekommt nur der Inhalt unten Luft und
+       rollt innen, statt dass das Blatt springt oder sich staucht. */
+    const blatt = document.getElementById('sheetDetail');
+    if (blatt && !blatt.hidden){
+      const r = blatt.getBoundingClientRect();
+      const ueber = Math.max(0, r.bottom - (vv.offsetTop + vv.height));
+      blatt.style.setProperty('--dkb', Math.round(kb > 0 ? ueber : 0) + 'px');
+    }
   };
+  document.addEventListener('focusin', () => setTimeout(apply, 50));
+  document.addEventListener('focusout', () => setTimeout(apply, 50));
   vv.addEventListener('resize', apply);
   vv.addEventListener('scroll', apply);
   apply();

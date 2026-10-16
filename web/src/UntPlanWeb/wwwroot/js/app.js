@@ -448,13 +448,8 @@ function huelle() {
   const leiste = document.getElementById('seitenleiste');
   const mobilZu = () => huelleEl.classList.remove('offen');
   app.querySelector('[data-abmelden]').onclick = abmelden;
-  // ungelesene Entwicklungsnews als Zahl am Eintrag „Neuigkeiten“
-  import('./ansichten/neuigkeiten.js').then(async m => {
-    const n = await m.neueAnzahl(b.login);
-    // inzwischen auf „Neuigkeiten“ gewechselt bzw. abgemeldet: keine (veraltete) Zahl mehr setzen
-    if (sitzung?.benutzer?.login !== b.login || location.hash.startsWith('#/neuigkeiten')) return;
-    m.zahlSetzen(n);
-  }).catch(() => { /* ohne Zahl */ });
+  // Infocenter (Knopf unten rechts): Infos der Schule und Neuigkeiten, Zahl ungelesener Einträge auch am Eintrag „Neuigkeiten“
+  import('./infocenter.js').then(m => m.starten(kontext)).catch(() => { /* ohne Infocenter */ });
   app.querySelector('[data-menue]').onclick = () => huelleEl.classList.add('offen');
   app.querySelector('[data-schleier]').onclick = mobilZu;
   app.querySelector('[data-einklappen]').onclick = () => {

@@ -46,6 +46,10 @@ enum Farben {
     static let gedaempft = Color(hell: 0x6B7A85, dunkel: 0x8D949C)
     static let rinne = Color(hell: 0x65717A, dunkel: 0x9AA1A8)
     static let titelGrau = Color(hell: 0x5D727F, dunkel: 0x93A6B2)
+    /// Großer Text im Kopfblock der Stundendetails (Original: fast schwarz)
+    static let detailText = Color(hell: 0x1F2328, dunkel: 0xF2F4F6)
+    /// Trennstrich „|“ im Kopfblock (Original: hellgrau)
+    static let detailTrenner = Color(hell: 0x9AA4AD, dunkel: 0x6E7881)
     static let abschnitt = Color(hexWert: 0x8B9AA5)
     static let pfeil = Color(hell: 0x9AA7B1, dunkel: 0x6E7881)
 
@@ -67,7 +71,7 @@ enum Farben {
 
     // Karten im Wochenraster
     static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7382)
-    static let karteVergangen = Color(hell: 0xF2F4F6, dunkel: 0x323D45)
+    static let karteVergangen = Color(hell: 0xF2F3F5, dunkel: 0x2F3B45)
     static let karteBalken = Color(hell: 0xBFC7D2, dunkel: 0xBFC7CE)
     static let karteText = Color(hell: 0x253746, dunkel: 0xF4F6F8)
     static let kartenSchatten = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.30, deckkraftDunkel: 0)
@@ -93,7 +97,7 @@ enum Farben {
     // Veranstaltung, Ferien
     static let veranstaltungHintergrund = Color(hell: 0xDFFEF5, dunkel: 0x054035)
     static let veranstaltungBand = Color(hell: 0xD5EBFE, dunkel: 0x8A9BAF)
-    static let ferienHintergrund = Color(hell: 0xD5EBFE, dunkel: 0x6A82BF)
+    static let ferienHintergrund = Color(hell: 0xD5EBFE, dunkel: 0x6B83C4)
     static let ferienLinie = Color(hell: 0xB3D6F6, dunkel: 0x6A82BF)
     static let ferienTinte = Color(hell: 0x2B3F52, dunkel: 0x161A24)
 
@@ -115,6 +119,12 @@ enum Farben {
 
     // Raumänderung (gelb-orangener Rand wie in der Vorlage)
     static let raumRand = Color(hell: 0xE9A23B, dunkel: 0xF0B04A)
+    /// Raumänderung im Raster (Original): hell gelbe Fläche mit braunem Rahmen, dunkel braun-orange mit orangem Rahmen
+    static let raumKarte = Color(hell: 0xFFF6D5, dunkel: 0x6E300E)
+    static let raumKartenRand = Color(hell: 0xA1512C, dunkel: 0xE9A23B)
+    /// Kopfblock der Stundendetails bei Entfall (Original: hellgrau #dfe1e6) und roter Balken „ENTFÄLLT“
+    static let detailEntfallFlaeche = Color(hell: 0xDFE1E6, dunkel: 0x2C2F36)
+    static let detailEntfallBalken = Color(hexWert: 0xFF0000)
     // Abwesenheit auf der Startseite (graue Fläche)
     static let abwesendFlaeche = Color(hell: 0x868F99, dunkel: 0x4A5058)
 

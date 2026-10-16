@@ -472,6 +472,20 @@ public sealed class Db
             benutzer_id INTEGER, erstellt VARCHAR(30) NOT NULL DEFAULT '', geloescht INTEGER NOT NULL DEFAULT 0
         );
         """,
+
+        // 11: Infocenter – Infos der Schule (Zielgruppe alle/kollegium/schueler/eltern, gültig von/bis, wichtig) und Gelesen-Vermerke
+        //    je Benutzer (Infos „i:<id>“, Neuigkeiten „n:<Schlüssel>“) – nur Standard-SQL
+        """
+        CREATE TABLE infos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, titel VARCHAR(200) NOT NULL, text TEXT NOT NULL, zielgruppe VARCHAR(20) NOT NULL DEFAULT 'alle',
+            von VARCHAR(10), bis VARCHAR(10), wichtig INTEGER NOT NULL DEFAULT 0, erstellt VARCHAR(30) NOT NULL DEFAULT '',
+            autor VARCHAR(200) NOT NULL DEFAULT '', geaendert VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE infocenter_gelesen (
+            benutzer_id INTEGER NOT NULL REFERENCES benutzer(id) ON DELETE CASCADE, schluessel VARCHAR(250) NOT NULL,
+            zeit VARCHAR(30) NOT NULL DEFAULT '', PRIMARY KEY (benutzer_id, schluessel)
+        );
+        """,
     };
 
 

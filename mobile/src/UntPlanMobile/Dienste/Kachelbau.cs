@@ -267,6 +267,8 @@ public static class Kachelbau
         // geänderter oder hinzugefügter Raum (neuer Wert ohne alten) steht in der grünen Plakette
         if (k.Raeume.Any(w => w.Neu || (!string.IsNullOrEmpty(w.Alt) && !Ci.Equals(w.Alt, w.K)))) kachel.Geaendert.Add("room");
         if (!string.IsNullOrEmpty(k.FachAlt) && !Ci.Equals(k.FachAlt, k.Fach)) kachel.Geaendert.Add("subject");
+        // Raumänderung, die nur an der Art erkennbar ist (kein gekennzeichneter Wert): der Raum steht trotzdem in der grünen Plakette
+        if (!kachel.Geaendert.Contains("room") && kachel.Raum.Length > 0 && IstRaumaenderungsArt(k.Art)) kachel.Geaendert.Add("room");
         var buchung = IstRaumbuchung(k);
         if (k.Art.Contains("vorgemerkt", StringComparison.OrdinalIgnoreCase) && !buchung)
             kachel.Info = string.Join(" · ", new[] { k.Art, k.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
@@ -385,12 +387,21 @@ public static class Kachelbau
         return kachel;
     }
 
-    /// <summary>Veranstaltung (Exkursion, Konferenz, Projekttag …) als grün gerahmtes Feld.</summary>
+    /// <summary>Art einer reinen Raumänderung (Raumänderung, Raumvertretung, Raumwechsel).</summary>
+    public static bool IstRaumaenderungsArt(string? art) => !string.IsNullOrEmpty(art) &&
+        (art.Contains("raumänderung", StringComparison.OrdinalIgnoreCase) || art.Contains("raumvertretung", StringComparison.OrdinalIgnoreCase)
+         || art.Contains("raumwechsel", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Werte ohne Leere und ohne Doppelte (Groß-/Kleinschreibung egal), Reihenfolge bleibt.</summary>
+    private static IEnumerable<string> Einmal(IEnumerable<string> werte, params string[] ohne) =>
+        werte.Select(x => x.Trim()).Where(x => x.Length > 0 && !ohne.Contains(x)).Distinct(Ci);
+
+    /// <summary>Veranstaltung (Exkursion, Konferenz, Projekttag …) als grün gerahmtes Feld. Jede Klasse, Lehrkraft und jeder Raum steht nur einmal.</summary>
     private static Kachel Veranstaltung(string datum, int von, int bis, string titel, IEnumerable<string> klassen, IEnumerable<string> lehrer, IEnumerable<string> raeume, string? farbe = null) => new()
     {
         Stunde = von, Dauer = Math.Max(1, bis - von + 1), Datum = datum, Art = "absence", Feld = true, Fach = titel, Info = titel, Typ = "Veranstaltung",
-        Klasse = string.Join(",", klassen.Where(x => x.Length > 0)), Lehrkraft = string.Join(",", lehrer.Where(x => x.Length > 0 && x != KeineLehrkraft && x != "???")),
-        Raum = string.Join(",", raeume.Where(x => x.Length > 0)), Farbe = string.IsNullOrWhiteSpace(farbe) ? null : farbe,
+        Klasse = string.Join(",", Einmal(klassen)), Lehrkraft = string.Join(",", Einmal(lehrer, KeineLehrkraft, "???")),
+        Raum = string.Join(",", Einmal(raeume)), Farbe = string.IsNullOrWhiteSpace(farbe) ? null : farbe,
     };
 
     /// <summary>

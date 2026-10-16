@@ -66,6 +66,8 @@ struct KachelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(a.hintergrund, in: RoundedRectangle(cornerRadius: a.radius, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: a.radius, style: .continuous))
+        // Die ganze Fläche ist antippbar – auch bei durchsichtigen Karten (vergangen, abgegeben, Bereitschaft)
+        .contentShape(Rectangle())
         .overlay { rahmen(a) }
         .overlay(alignment: .bottomTrailing) {
             zeichen(a)
@@ -246,6 +248,7 @@ struct KachelView: View {
         .padding(.trailing, 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(a.hintergrund, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .contentShape(Rectangle())
         .overlay { rahmen(a) }
         .shadow(color: a.schatten == .keiner ? .clear : Farben.kartenSchattenFlach, radius: a.schatten == .keiner ? 0 : 1.5, y: a.schatten == .keiner ? 0 : 1)
     }
@@ -467,9 +470,10 @@ struct Kachelaussehen {
     init(_ k: Kachel, dunkel: Bool) {
         let v = k.vergangen
         let fach = Color(hex: k.balkenHex) ?? Farben.karteBalken
-        balken = fach
-        balkenDeckkraft = v ? 0.7 : 1
-        text = v ? Farben.karteTextVergangen : Farben.karteText
+        // Vergangen (Original): grauer Balken, Schrift unverändert
+        balken = v ? Farben.karteBalken : fach
+        balkenDeckkraft = 1
+        text = Farben.karteText
         switch k.art {
         case .normal:
             hintergrund = v ? Farben.karteVergangen : Farben.karte
@@ -482,9 +486,7 @@ struct Kachelaussehen {
             text = Farben.entfallText
             durchgestrichen = true
         case .klausur:
-            hintergrund = Farben.pruefungHintergrund
-            rand = Farben.pruefungRand
-            schatten = .keiner
+            farbigeKarte(flaeche: Farben.pruefungHintergrund, rand: Farben.pruefungRand, vergangen: v, dunkel: dunkel, schatten: false)
         case .termin:
             hintergrund = Farben.veranstaltungHintergrund
             rand = Farben.terminRand
@@ -541,13 +543,23 @@ struct Kachelaussehen {
                 text = Farben.tinte2
             }
         }
+        // Reine Raumänderung: gelbe Karte mit braunem (dunkel: orangem) Rahmen, der neue Raum bleibt grüne Plakette
+        if k.raumAenderung && (k.art == .aenderung || k.art == .normal) {
+            farbigeKarte(flaeche: Farben.raumKarte, rand: Farben.raumKartenRand, vergangen: v, dunkel: dunkel, schatten: true)
+            text = Farben.karteText
+        }
     }
 
-    /// Farbige Kachel (Vertretung, Entfall, Veranstaltung): künftig Fläche und Rahmen; vergangen fällt – hell wie dunkel –
-    /// nur der farbige Rahmen weg. Fläche, Schriftfarbe und Fachbalken bleiben, nichts wird abgeblendet.
+    /// Farbige Kachel (Vertretung, Entfall, Klausur, Raumänderung, Veranstaltung) wie im Original: künftig farbige Fläche
+    /// mit Rahmen. Vergangen hell: farbige Fläche ohne Rahmen; vergangen dunkel: neutrale Schieferfläche, der farbige
+    /// Rahmen bleibt. Plaketten bleiben grün.
     private mutating func farbigeKarte(flaeche: Color, rand farbe: Color, vergangen: Bool, dunkel: Bool, schatten mitSchatten: Bool) {
         balkenDeckkraft = 1
-        if vergangen {
+        if vergangen && dunkel {
+            hintergrund = Farben.karteVergangen
+            rand = farbe
+            schatten = .keiner
+        } else if vergangen {
             hintergrund = flaeche
             rand = nil
             schatten = .flach

@@ -70,7 +70,7 @@ td > .au.w-auto, td > .au.d-inline-block { vertical-align: middle; }
 .au-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .au-haupt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .au-zweit { font-size: .78rem; font-weight: 400; color: var(--u-grau, #67747e); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.au-option mark { padding: 0; border-radius: 2px; background: var(--u-akzent-hell, #fff1ea); color: inherit; box-shadow: 0 1px 0 rgba(245, 107, 42, .55); }
+.au-option mark { padding: 0; border-radius: 2px; background: #ffdcc8; color: inherit; }
 .au-haken { flex: none; color: var(--u-akzent, #f56b2a); font-size: 1rem; -webkit-text-stroke: .5px; }
 .au-kasten { flex: none; width: 18px; height: 18px; border: 1.5px solid #8a96a1; border-radius: 4px; background: #fff; display: inline-grid; place-content: center; }
 .au-option.gewaehlt .au-kasten { border-color: var(--u-akzent, #f56b2a); background: var(--u-akzent, #f56b2a); }

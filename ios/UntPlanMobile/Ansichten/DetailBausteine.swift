@@ -57,9 +57,29 @@ extension View {
     }
 }
 
+// MARK: - Maße der Stundendetails (Original 117/118, iPhone)
+
+enum Detailmass {
+    /// Linker Rand von Kopfblock und Liste
+    static let rand: CGFloat = 17
+    /// Zeilenhöhe im Kopfblock (Grundlinienabstand im Original ≈ 31 pt)
+    static let zeile: CGFloat = 31
+    /// „Klasse | Gruppe“ und Fach
+    static let gross: CGFloat = 22
+    /// Raum und Lehrkraft
+    static let klein: CGFloat = 17
+    /// Durchmesser der runden Glasknöpfe im Kopf
+    static let knopf: CGFloat = 44
+
+    /// „07:45“ → „7:45“ (ohne führende Null wie im Original).
+    static func uhrzeit(_ text: String) -> String {
+        text.count == 5 && text.hasPrefix("0") ? String(text.dropFirst()) : text
+    }
+}
+
 // MARK: - Kopf des Blatts
 
-/// Runder Glasknopf (36 pt) im Kopf des Blatts: X, Zurück, ⋮ …
+/// Runder Glasknopf (44 pt) im Kopf des Blatts: X, Zurück, ⋮ …
 /// Ab iOS 26 echtes Liquid Glass (interaktiv), davor ein Milchglas-Kreis mit feinem Rand und weichem Schatten.
 struct Rundknopf: View {
     let symbol: String
@@ -73,7 +93,7 @@ struct Rundknopf: View {
                 .font(.system(size: groesse, weight: gewicht))
                 .rotationEffect(.degrees(drehung))
                 .foregroundStyle(Farben.tinte2)
-                .frame(width: 36, height: 36)
+                .frame(width: Detailmass.knopf, height: Detailmass.knopf)
         )
         .contentShape(Circle())
     }
@@ -127,10 +147,10 @@ struct Blattkopf<Mitte: View, Rechts: View>: View {
         ZStack {
             mitte
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 56)
+                .padding(.horizontal, Detailmass.knopf + 12)
             HStack(spacing: 0) {
                 Button(action: aktion) {
-                    Rundknopf(symbol: symbol, gewicht: .light, groesse: symbol == "chevron.left" ? 17 : 16)
+                    Rundknopf(symbol: symbol, gewicht: .light, groesse: 20)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(symbolText)
@@ -138,10 +158,10 @@ struct Blattkopf<Mitte: View, Rechts: View>: View {
                 rechts
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
-        .padding(.bottom, 8)
-        .frame(minHeight: 58)
+        .padding(.horizontal, 15)
+        .padding(.top, 15)
+        .padding(.bottom, 9)
+        .frame(minHeight: 68)
         .background(Farben.blatt)
     }
 }
@@ -152,7 +172,7 @@ extension Blattkopf where Rechts == EmptyView {
     }
 }
 
-/// Titel in der Mitte des Kopfs: oben klein grau-schwarz, darunter klein grau (z. B. Datum und Uhrzeit).
+/// Titel in der Mitte des Kopfs wie im Original: „Do. | 08.10.26“ 17 pt grau, darunter die Uhrzeit 13 pt grau.
 struct Blatttitel: View {
     let titel: String
     var untertitel: String? = nil
@@ -162,18 +182,18 @@ struct Blatttitel: View {
         VStack(spacing: 1) {
             HStack(spacing: 3) {
                 Text(titel)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(Farben.tinte2)
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(Farben.titelGrau)
                 if pfeil {
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Farben.tinte2)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Farben.titelGrau)
                 }
             }
             if let untertitel, !untertitel.isEmpty {
                 Text(untertitel)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Farben.gedaempft)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Farben.titelGrau)
             }
         }
         .lineLimit(1)
@@ -238,13 +258,13 @@ struct SichernKnopf: View {
     var body: some View {
         if speichert {
             ProgressView()
-                .frame(width: 36, height: 36)
+                .frame(width: Detailmass.knopf, height: Detailmass.knopf)
         } else {
             Button(action: aktion) {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(aktiv ? Color.white : Farben.gedaempft)
-                    .frame(width: 36, height: 36)
+                    .frame(width: Detailmass.knopf, height: Detailmass.knopf)
                     .background(aktiv ? Farben.akzent : Farben.knopf, in: Circle())
                     .contentShape(Circle())
             }
@@ -257,23 +277,23 @@ struct SichernKnopf: View {
 
 // MARK: - Zeilen der Liste
 
-/// Graue runde Zahl (#8e8e93) mit weißer Ziffer – auch bei 0.
+/// Graue runde Zahl (Original: Kreis 31 pt, schiefergrau) mit weißer Ziffer – auch bei 0.
 struct GrauePlakette: View {
     let zahl: Int
 
     var body: some View {
         Text("\(zahl)")
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 17))
             .monospacedDigit()
             .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .frame(minWidth: 22, minHeight: 22)
-            .background(Color(hexWert: 0x8E8E93), in: Capsule())
+            .padding(.horizontal, 8)
+            .frame(minWidth: 31, minHeight: 31)
+            .background(Farben.zahlPlakette, in: Capsule())
     }
 }
 
-/// Zeile der Detailliste (weiß, ohne Gruppenhintergrund): Symbol links grau in Linienstil, Titel (und grauer Untertitel),
-/// rechts Zahl und dünner grauer Pfeil. Höhe 52 pt.
+/// Zeile der Detailliste wie im Original (ohne Trennlinien): Symbol links grau in Linienstil (≈ 30 pt), Titel 19 pt,
+/// optional grauer Untertitel 17 pt (einzeilig), rechts runde Zahl und dünner grauer Pfeil. Mindesthöhe 56 pt.
 struct Detailzeile<Rechts: View>: View {
     let symbol: String
     let titel: String
@@ -293,39 +313,40 @@ struct Detailzeile<Rechts: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.system(size: 19, weight: .light))
+                .font(.system(size: 25, weight: .ultraLight))
                 .foregroundStyle(Farben.gedaempft)
-                .frame(width: 28, height: 28)
-            VStack(alignment: .leading, spacing: 2) {
+                .frame(width: 30, height: 30)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(titel)
-                    .font(.system(size: 15.5))
-                    .foregroundStyle(Farben.tinte)
+                    .font(.system(size: 19))
+                    .foregroundStyle(Farben.detailText)
                     .lineLimit(1)
                 if let untertitel, !untertitel.isEmpty {
-                    Text(untertitel)
-                        .font(.system(size: 12.5))
+                    Text(untertitel.replacingOccurrences(of: "\n", with: " "))
+                        .font(.system(size: 17))
                         .foregroundStyle(Farben.gedaempft)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
             Spacer(minLength: 6)
             rechts
             if let zahl {
                 GrauePlakette(zahl: zahl)
+                    .padding(.trailing, 4)
             }
             if pfeil {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .light))
+                    .font(.system(size: 20, weight: .ultraLight))
                     .foregroundStyle(Farben.gedaempft)
             }
         }
-        .padding(.leading, 20)
-        .padding(.trailing, 18)
-        .padding(.vertical, 6)
-        .frame(minHeight: 52)
+        .padding(.leading, Detailmass.rand)
+        .padding(.trailing, 22)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
         .contentShape(Rectangle())
     }
 }
@@ -381,6 +402,7 @@ struct Wertzeile: View {
             Text("→")
         case .trenner:
             Text("|")
+                .foregroundStyle(Farben.detailTrenner)
         }
     }
 

@@ -322,17 +322,22 @@ struct StundenplanView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Farben.rasterOben)
         } else {
-            blaetterflaeche
+            // Das Raster läuft wie im Original bis zum unteren Rand hinter der Tab-Leiste weiter; damit auch die letzte
+            // Stunde über die Leiste gescrollt werden kann, bekommt das Raster unten den verdeckten Bereich als Abstand.
+            GeometryReader { aussen in
+                blaetterflaeche(untenFrei: aussen.safeAreaInsets.bottom)
+                    .ignoresSafeArea(.container, edges: .bottom)
+            }
         }
     }
 
     /// Drei Wochen nebeneinander; sichtbar ist die mittlere. Die Ansicht folgt dem Finger.
-    private var blaetterflaeche: some View {
+    private func blaetterflaeche(untenFrei: CGFloat) -> some View {
         GeometryReader { geo in
             let w = geo.size.width
             HStack(spacing: 0) {
                 ForEach(seiten, id: \.self) { m in
-                    seite(m)
+                    seite(m, untenFrei: untenFrei)
                         .frame(width: w)
                 }
             }
@@ -355,12 +360,13 @@ struct StundenplanView: View {
     }
 
     @ViewBuilder
-    private func seite(_ m: Date) -> some View {
+    private func seite(_ m: Date, untenFrei: CGFloat) -> some View {
         let woche = tagModus ? Datumsformat.montag(m) : m
         if let p = plaene[schluessel(woche)] {
             WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ, element: element,
                              nurTag: tagModus ? Datumsformat.iso(m) : nil,
                              stand: staende[schluessel(woche)] ?? 0,
+                             untenFrei: untenFrei,
                              heuteAntippen: {
                                  if tagModus { tagesansicht(false) } else { heute() }
                              },
@@ -679,6 +685,8 @@ struct WochenrasterView: View {
     var nurTag: String? = nil
     /// Stand der geladenen Woche (für den Vergleich, ob neu gezeichnet werden muss)
     var stand: Int = 0
+    /// Vom unteren Rand verdeckter Bereich (Tab-Leiste, Home-Balken): das Raster läuft darunter weiter
+    var untenFrei: CGFloat = 0
     /// Antippen von „KW / Monat“ (Woche: zur aktuellen Woche, Tag: zurück zur Woche).
     var heuteAntippen: (() -> Void)? = nil
     /// Antippen eines Tageskopfs (Tagesansicht öffnen bzw. schließen).
@@ -726,7 +734,7 @@ struct WochenrasterView: View {
             let spalten = max(tage.count, 1)
             let rand: CGFloat = nurTag == nil ? 0 : 3
             let spaltenBreite = max(kompakt ? 34 : 40, (geo.size.width - rinnenBreite - rand) / CGFloat(spalten))
-            let hoehe = mass.y(ende) + abstandUnten
+            let hoehe = mass.y(ende) + abstandUnten + untenFrei
             VStack(spacing: 0) {
                 // Kopf (KW/Monat und Tage) steht fest über dem scrollenden Raster und wird nie gestaucht
                 wochenkopf(spaltenBreite: spaltenBreite, kacheln: kacheln)
@@ -916,7 +924,8 @@ struct WochenrasterView: View {
         return ZStack(alignment: .topLeading) {
             if tag.frei {
                 ferienfeld(tag)
-                    .frame(width: breite, height: max(mass.y(ende) - mass.y(mass.start) - 2, 20))
+                    // Wie im Original bis zum unteren Rand (auch hinter der Tab-Leiste)
+                    .frame(width: breite, height: max(hoehe - mass.y(mass.start) - 1, 20))
                     .offset(y: mass.y(mass.start) + 1)
             } else {
                 ForEach(belegung.lagen) { lage in
@@ -1082,7 +1091,7 @@ struct WochenrasterView: View {
 extension WochenrasterView: Equatable {
     static func == (l: WochenrasterView, r: WochenrasterView) -> Bool {
         l.plan.montag == r.plan.montag && l.typ == r.typ && l.element == r.element && l.nurTag == r.nurTag
-            && l.stand == r.stand && l.laedt == r.laedt
+            && l.stand == r.stand && l.laedt == r.laedt && l.untenFrei == r.untenFrei
     }
 }
 
@@ -1169,7 +1178,7 @@ struct AufsichtDetailView: View {
                             }
                         }
                     } label: {
-                        Rundknopf(symbol: "ellipsis", gewicht: .semibold, groesse: 15, drehung: 90)
+                        Rundknopf(symbol: "ellipsis", gewicht: .semibold, groesse: 18, drehung: 90)
                     }
                     .accessibilityLabel("Weitere Aktionen")
                 }
@@ -1177,30 +1186,25 @@ struct AufsichtDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(ort)
-                            .font(.system(size: 17))
-                            .foregroundStyle(Farben.tinte)
-                            .padding(.bottom, 4)
-                        Text("Pausenaufsicht")
-                            .font(.system(size: 17))
-                            .foregroundStyle(Farben.tinte)
-                            .padding(.bottom, 8)
-                        Text(aufsicht.beginn.isEmpty ? pause : "\(zeit) · \(pause)")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Farben.gedaempft)
-                            .padding(.bottom, 7)
+                        Wertzeile(bausteine: [.text(ort)], schrift: Detailmass.gross, farbe: Farben.detailText)
+                            .frame(height: Detailmass.zeile)
+                        Wertzeile(bausteine: [.text("Pausenaufsicht")], schrift: Detailmass.gross, farbe: Farben.detailText)
+                            .frame(height: Detailmass.zeile)
+                        Wertzeile(bausteine: [.text(aufsicht.beginn.isEmpty ? pause : "\(zeit) · \(pause)")], schrift: Detailmass.klein)
+                            .frame(height: Detailmass.zeile)
                         if !lehrkraft.isEmpty {
-                            Wertzeile(bausteine: lehrkraft)
+                            Wertzeile(bausteine: lehrkraft, schrift: Detailmass.klein)
+                                .frame(height: Detailmass.zeile)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, Detailmass.rand)
+                    .padding(.top, 10)
+                    .padding(.bottom, 12)
                     .accessibilityElement(children: .combine)
                     Rectangle()
                         .fill(Farben.trennlinie)
-                        .frame(height: 0.5)
+                        .frame(height: 1)
                     VStack(spacing: 0) {
                         if !aufsicht.gang.isEmpty && aufsicht.gang != ort {
                             Detailzeile(symbol: "mappin.and.ellipse", titel: "Ort", untertitel: aufsicht.gang, pfeil: false)
@@ -1215,7 +1219,7 @@ struct AufsichtDetailView: View {
                             .buttonStyle(ZeilenKnopfStil())
                         }
                     }
-                    .padding(.top, 6)
+                    .padding(.top, 8)
                     .padding(.bottom, 24)
                 }
             }
