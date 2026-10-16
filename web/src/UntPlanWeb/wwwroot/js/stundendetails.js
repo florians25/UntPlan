@@ -1,12 +1,12 @@
 // Stundendetails wie im Original (Screenshots „Klassenbuch“ und „Details“):
 // Kopf „Klassen | Unterricht | Fach“, darunter „Wochentag | Datum | Zeit | Raum | Lehrkraft“, Reiter Klassenbuch und Details.
 // Klassenbuch: Schülerkacheln (Foto/Platzhalter, Statuspunkt), Alle auswählen/Auswahl löschen, abwesend/Klassenbucheintrag,
-// Lehrstoff mit Stift, Abwesende Schüler*innen als alte Liste (grau gestreift) mit Verlängern, Hausaufgaben (Liste mit Fälligkeit),
+// Lehrstoff mit Stift, Abwesende Schüler*innen als Tabelle im neuen Design (Fußzeile mit Anzahl und „Verlängern“), Hausaufgaben (Liste mit Fälligkeit),
 // Klassenbucheinträge mit „+“, Klassendienste mit Besen, „Ticket erstellen“, unten die Statusleiste
 // („Lehrstoffeintragung vorhanden“, „Abwesenheiten wurden kontrolliert“).
 // Details: nur „Findet online statt“, Lehrstoff und Vertretungstext (wenn vorhanden), Hausaufgaben, Notizen für Schüler*innen
 // und für Lehrkräfte; unten „Vorherige Stunde“, „Nächste Stunde“, „Prüfung erstellen“ und „Raum buchen“.
-import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE, lehrkraftLabel } from './ui.js';
+import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui.js';
 
 const PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
 const W = '/img/wu/';
@@ -33,12 +33,10 @@ function planLink(typ, kurz) {
   if (!typ || !kurz || KEIN_ELEMENT.test(kurz)) return e(kurz);
   return `<a href="#" class="sd-link" data-plan="${typ}" data-element="${e(kurz)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(kurz)}</a>`;
 }
-function wertKopf(liste, max = 6, typ = null, label = false) {
-  const l = liste || [];
+function wertKopf(liste, max = 6, typ = null) {
+  const l = (liste || []).filter(w => w.k || w.alt);
   const teil = l.length > max + 1 ? l.slice(0, max - 2) : l;
-  // Lehrkräfte wie auf den Plankarten: offene Vertretung → abwesende Lehrkraft durchgestrichen im grünen Label, Vertretung → neue Lehrkraft grün
-  if (label) return teil.map(w => lehrkraftLabel(w, x => planLink(typ, x))).filter(Boolean).join(', ')
-    + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
+  // Kopf ohne Labels: Änderungen nur als Text – alt durchgestrichen → neu, entfallener Wert (z. B. offene Vertretung) nur durchgestrichen
   // auch der ersetzte (durchgestrichene) Wert – z. B. die abwesende Lehrkraft – führt zu seinem Plan
   const alt = w => typ ? `<s class="sd-alt">${planLink(typ, w.alt)}</s>` : `<s class="sd-alt">${e(w.alt)}</s>`;
   return teil.map(w => w.alt && !w.k ? alt(w)
@@ -122,30 +120,29 @@ export function karteDialog(karte, kontext = {}) {
 
   function kopf() {
     // „Klassen | Gruppe | Fach“ – Klassen und Gruppe verlinkt („Im Stundenplan anzeigen“)
-    // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse durchgestrichen im grünen Label
+    // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse nur durchgestrichen (ohne Label)
     const alleKlassen = [...k.klassen, ...(k.mitklassen || [])];
-    const klassenTeil = alleKlassen.length && alleKlassen.length < 8 ? wertKopf(alleKlassen, 8, kollegium || ich.element ? 'klasse' : null, !istEntfall() && (k.mitklassen || []).some(w => !w.k)) : '';
+    const klassenTeil = alleKlassen.length && alleKlassen.length < 8 ? wertKopf(alleKlassen, 8, kollegium || ich.element ? 'klasse' : null) : '';
     const ersteKlasse = kuerzel(k.klassen)[0];
     const gruppe = k.gruppe ? (ersteKlasse ? `<a href="#" class="sd-link" data-plan="klasse" data-element="${e(ersteKlasse)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(k.gruppe)}</a>` : e(k.gruppe))
       : ''; // kein Fach-Langname im Kopf – nur Kürzel
     const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}` : e(k.fach || k.text || k.art || 'Stunde');
     const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
     const zeile = [wochentag(k.datum), datumDe(k.datum), k.beginn ? `${k.beginn}-${k.ende}` : `${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'} Std.`,
-      wertKopf(k.raeume, 6, 'raum'), wertKopf(k.lehrer, 6, kollegium ? 'lehrer' : null, !istEntfall())].filter(Boolean);
-    // Badge statt Zusatzlabel: zusätzlicher Unterricht, Veranstaltung, Prüfung
-    const badge = k.status === 'klausur' ? '<span class="sd-badge">PRÜFUNG</span>'
-      : k.status === 'veranstaltung' ? '<span class="sd-badge voll">VERANSTALTUNG</span>'
-      : k.zusaetzlich || (k.status === 'geaendert' && /zusatz|sondereinsatz|zusätzlich/i.test(k.art || '')) ? '<span class="sd-badge voll">ZUSÄTZLICHER UNTERRICHT</span>' : '';
-    const leiste = istEntfall() ? 'ENTFÄLLT' : '';
+      wertKopf(k.raeume, 6, 'raum'), wertKopf(k.lehrer, 6, kollegium ? 'lehrer' : null)].filter(Boolean);
+    // Keine Labels/Plaketten im Kopf: Änderungen stehen als Text (alt durchgestrichen → neu), der Status höchstens als schlichter Text
+    const statusText = istEntfall() ? 'Entfällt' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung'
+      : k.zusaetzlich || (k.status === 'geaendert' && /zusatz|sondereinsatz|zusätzlich/i.test(k.art || '')) ? 'Zusätzlicher Unterricht' : '';
+    if (statusText) zeile.push(`<span class="sd-status-text">${statusText}</span>`);
+    const leiste = istEntfall() ? 'entfall' : '';
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
     return `<div class="sd-kopf ${leiste ? 'grau' : ''}">
-        <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}${badge ? `<span class="trenn">|</span>${badge}` : ''}</h2>
+        <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}</h2>
           <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
         <div class="sd-knoepfe"><button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>
           <button type="button" data-bs-dismiss="modal" title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>
       </div>
-      ${leiste ? `<div class="sd-leiste">${leiste}</div>` : ''}
       <ul class="nav sd-reiter">${reiterListe.map(([id, t]) => `<li><button type="button" data-reiter="${id}" class="${reiter === id ? 'aktiv' : ''}">${t}</button></li>`).join('')}</ul>`;
   }
 
@@ -276,22 +273,31 @@ export function karteDialog(karte, kontext = {}) {
       const ende = vor ? (zeitVon(f.stunde).ende || '') : f.bisZeit ? f.bisZeit : (bisStunde.ende || k.ende || '');
       const vonD = !vor && f.vonDatum ? f.vonDatum : (f.datum || k.datum), bisD = !vor && f.bisDatum ? f.bisDatum : (f.datum || k.datum);
       const anfang = !vor && f.art === 'fehlt' && fruehere && a.darf
-        ? `<button type="button" class="kb-zeitknopf" data-tagesbeginn="${f.schuelerId}" title="Abwesenheit auf Tagesbeginn verlängern"><img src="${W}legacy/absence-start.png" alt=""></button>` : '';
+        ? `<button type="button" class="sd-kreisknopf klein" data-tagesbeginn="${f.schuelerId}" title="Abwesenheit auf Tagesbeginn verlängern" aria-label="Abwesenheit auf Tagesbeginn verlängern"><i class="bi bi-arrow-bar-left"></i></button>` : '';
       const schluss = vor && a.darf
-        ? `<button type="button" class="kb-zeitknopf" data-bisende="${f.schuelerId}" title="Abwesenheit bis Stundenende verlängern"><img src="${W}legacy/absence-end.png" alt=""></button>` : '';
+        ? `<button type="button" class="sd-kreisknopf klein" data-bisende="${f.schuelerId}" title="Abwesenheit bis Stundenende verlängern" aria-label="Abwesenheit bis Stundenende verlängern"><i class="bi bi-arrow-bar-right"></i></button>` : '';
       const gewertet = f.fehlstunden && f.art !== 'fehlt' ? ` · ${f.fehlstunden === 1 ? 'eine Fehlstunde' : `${f.fehlstunden} Fehlstunden`}` : '';
       const st = { offen: 'offen', entschuldigt: 'entschuldigt', unentschuldigt: 'nicht entschuldigt' }[f.status] ?? '';
-      const status = vor ? 'Vorstunde – verlängern' : f.art === 'verspaetet' ? `${st} · verspätet ${f.minuten} min${gewertet}` : f.art === 'vorzeitig' ? `${st} · vorzeitig gegangen ${f.minuten} min${gewertet}` : st;
-      return `<tr class="${vor ? 'vorstunde' : ''}">
-        <td class="mitte"><input type="checkbox" data-abw="${f.schuelerId}" ${abwAuswahl.has(f.schuelerId) ? 'checked' : ''} aria-label="${e(name(f.schuelerId))} auswählen"></td>
-        <td class="mitte">${a.darf && !vor ? `<button type="button" class="kb-stift" data-abw-bearbeiten="${f.schuelerId}" title="Abwesenheit bearbeiten"><img src="${W}legacy/absence-edit.png" alt="Bearbeiten"></button>` : ''}</td>
-        <td>${e(name(f.schuelerId))}</td><td>${datumDe(vonD)}</td><td class="zeit">${anfang}${e(beginn)}</td><td>${datumDe(bisD)}</td><td class="zeit">${e(ende)}${schluss}</td>
-        <td>${e(grundText(f.grund))}</td><td>${e(status)}</td><td class="text">${e(f.text ?? f.bemerkung)}</td></tr>`;
+      const farbe = { offen: 'gelb', entschuldigt: 'gruen', unentschuldigt: 'rot' }[f.status] ?? 'grau';
+      const label = vor ? '<span class="nl-chip grau">Vorstunde</span>' : st ? `<span class="nl-chip ${farbe}">${st}</span>` : '';
+      const zusatz = vor ? 'verlängern' : f.art === 'verspaetet' ? `verspätet ${f.minuten} min${gewertet}` : f.art === 'vorzeitig' ? `vorzeitig gegangen ${f.minuten} min${gewertet}` : '';
+      return `<tr class="${vor ? 'vorstunde' : ''} ${abwAuswahl.has(f.schuelerId) ? 'nl-gewaehlt' : ''}">
+        <td class="nl-wahl"><input type="checkbox" class="nl-rund" data-abw="${f.schuelerId}" ${abwAuswahl.has(f.schuelerId) ? 'checked' : ''} aria-label="${e(name(f.schuelerId))} auswählen"></td>
+        <td class="sd-abw-name">${e(name(f.schuelerId))}</td>
+        <td class="text-nowrap">${anfang}${datumDe(vonD)} <span class="sd-abw-zeit">${e(beginn)}</span></td>
+        <td class="text-nowrap">${datumDe(bisD)} <span class="sd-abw-zeit">${e(ende)}</span>${schluss}</td>
+        <td>${e(grundText(f.grund) || '–')}</td>
+        <td class="text-nowrap">${label}${zusatz ? `<span class="sd-abw-zusatz">${e(zusatz)}</span>` : ''}</td>
+        <td class="nl-text sd-abw-text" title="${e(f.text ?? f.bemerkung ?? '')}">${e(f.text ?? f.bemerkung)}</td>
+        <td class="text-end">${a.darf && !vor ? `<button type="button" class="sd-kreisknopf" data-abw-bearbeiten="${f.schuelerId}" title="Abwesenheit bearbeiten" aria-label="Abwesenheit von ${e(name(f.schuelerId))} bearbeiten"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`;
     };
-    const tabelle = zeilen.length ? `<div class="table-responsive"><table class="alt-liste kb-abwesend">
-        <thead><tr><th class="mitte">Auswahl<br><input type="checkbox" data-abw-alle aria-label="Alle auswählen" ${abwAuswahl.size && abwAuswahl.size === zeilen.length ? 'checked' : ''}></th><th></th><th>Schüler*innen</th><th>Von</th><th>Beginnzeit</th><th>Bis</th><th>Endzeit</th><th>Abwesenheitsgrund</th><th>Status</th><th>Text</th></tr></thead>
-        <tbody>${zeilen.map(reihe).join('')}</tbody></table></div>
-        ${a.darf ? `<button type="button" class="sd-pille klein grau mt-3" data-verlaengern ${abwAuswahl.size ? '' : 'disabled'}>Verlängern</button>` : ''}`
+    const n = zeilen.length;
+    const tabelle = n ? `<div class="nl-tabelle sd-abw"><table>
+        <thead><tr><th class="nl-wahl"><input type="checkbox" class="nl-rund" data-abw-alle aria-label="Alle auswählen" title="Alle auswählen" ${abwAuswahl.size && abwAuswahl.size === n ? 'checked' : ''}></th>
+          <th>Schüler*in</th><th>Von</th><th>Bis</th><th>Grund</th><th>Status</th><th>Text</th><th class="text-end"><span class="visually-hidden">Bearbeiten</span></th></tr></thead>
+        <tbody>${zeilen.map(reihe).join('')}</tbody></table>
+        <div class="nl-fuss"><span class="sd-abw-anzahl">${n} ${n === 1 ? 'Element' : 'Elemente'}</span>
+          ${a.darf ? `<button type="button" class="nl-knopf ms-auto" data-verlaengern ${abwAuswahl.size ? '' : 'disabled'}><i class="bi bi-arrow-left-right"></i> Verlängern</button>` : ''}</div></div>`
       : '<p class="sd-text small">Keine Abwesenheiten vorhanden</p>';
     return abschnitt(maskeIcon('klassenbuch/chair-1.svg'), 'Abwesende Schüler*innen', (a.fehlzeiten ?? []).length, '', tabelle);
   }

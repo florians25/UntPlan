@@ -79,11 +79,13 @@
 /* ------------------------------------------------------------------ Grundlagen */
 
 /* Gleiche Schriftstärken auf allen Geräten (Windows, macOS, iOS, Android; Chrome, Firefox, Safari): nur die Gewichte 400/600/700
-   (= Regular/Medium/Demi), keine künstlichen Fettschnitte, gleiche Kantenglättung. Alle Gewichte 100–900 sind in schrift.css fest belegt. */
+   (= Regular/Medium/Demi), keine künstlichen Fettschnitte. Alle Gewichte 100–900 sind in schrift.css fest belegt.
+   Bewusst kein -webkit-font-smoothing/-moz-osx-font-smoothing: „antialiased“ macht Schrift unter macOS deutlich dünner – die
+   Standard-Kantenglättung des Systems ergibt überall dieselbe Strichstärke. */
 html { -webkit-text-size-adjust: 100%; font-synthesis: none; font-synthesis-weight: none; font-synthesis-style: none; }
 body {
   background: var(--u-verlauf) fixed; color: var(--u-text); font-family: var(--u-schrift); font-weight: 400;
-  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; min-height: 100vh;
+  min-height: 100vh;
 }
 b, strong, dt, th, legend, optgroup { font-weight: 700; }
 .fw-bold, .fw-bolder { font-weight: 700 !important; }
@@ -1777,24 +1779,33 @@ body:has(.u-app[data-ansicht="plan"]) .ic-panel { bottom: 140px; }
 .ic-link:disabled { color: #b7c0c7; }
 .ic-zu { border: 0; background: none; color: var(--u-grau-2); font-size: 1rem; padding: 2px 4px; line-height: 1; }
 .ic-zu:hover { color: var(--u-titel); }
-.ic-liste { overflow-y: auto; padding: 12px; display: grid; gap: 10px; align-content: start; }
+.ic-liste { overflow-y: auto; padding: 0; display: block; background: #fff; }
 .ic-panel-fuss { display: flex; justify-content: space-between; padding: 10px 18px; background: #fff; border-top: 1px solid #e6e9ec; font-size: .82rem; }
 .ic-panel-fuss a { color: var(--u-akzent-dunkel); font-weight: 600; text-decoration: none; }
 .ic-panel-fuss a[hidden] { display: none; }
-.ic-karte { position: relative; background: #fff; border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(0, 5, 10, .06); border: 1px solid #e8ebee; }
+/* Einträge im Infocenter und auf „Neuigkeiten“: gleich aufgebaute Listeneinträge (Kategorie, Datum, Titel, gekürzter Text) */
+.ic-karte { position: relative; background: #fff; padding: 12px 16px 12px 18px; border-bottom: 1px solid #edf0f2; }
+.ic-karte:last-child { border-bottom: 0; }
 .ic-karte.neu { cursor: pointer; }
-.ic-karte.wichtig { border-left: 3px solid #d9534f; }
-.ic-karte h3 { margin: 6px 0 4px; font-size: .95rem; font-weight: 600; color: var(--u-titel); }
-.ic-text { margin: 0; font-size: .85rem; color: var(--u-text); white-space: normal; }
-.ic-punkte { margin: 4px 0 0; padding-left: 1.1rem; font-size: .84rem; color: var(--u-text); display: grid; gap: 2px; }
-.ic-liste .ic-punkte li:nth-child(n+4) { display: none; }
-.ic-meta { display: flex; align-items: center; gap: 8px; font-size: .75rem; color: var(--u-grau); }
-.ic-kat { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: .7rem; font-weight: 700; letter-spacing: .02em; background: #eef1f4; color: #4a5560; }
+.ic-karte.neu::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--u-akzent); }
+.ic-karte h3 { margin: 6px 0 4px; font-size: .95rem; font-weight: 600; color: var(--u-titel); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ic-koerper { max-height: calc(3 * 1.5em); overflow: hidden; font-size: .85rem; line-height: 1.5; color: var(--u-text); }
+.ic-karte.auf .ic-koerper { max-height: none; }
+.ic-karte.gekuerzt:not(.auf) .ic-koerper { -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+.ic-text { margin: 0; white-space: normal; }
+.ic-punkte { margin: 0; padding-left: 1.1rem; display: grid; gap: 0; }
+.ic-mehr { border: 0; background: none; padding: 2px 0 0; color: var(--u-akzent-dunkel); font-size: .8rem; font-weight: 600; }
+.ic-mehr:hover { text-decoration: underline; }
+.ic-mehr[hidden] { display: none; }
+.ic-meta { display: flex; align-items: center; gap: 8px; min-height: 18px; font-size: .75rem; color: var(--u-grau); }
+.ic-datum { margin-left: auto; white-space: nowrap; }
+.ic-kat { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: .68rem; line-height: 18px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; background: #eef1f4; color: #4a5560; }
 .ic-kat.wichtig { background: #fde8e8; color: #b42318; }
 .ic-kat.info { background: #e8f1fd; color: #1d5fae; }
 .ic-kat.update { background: #fff1ea; color: #c2410c; }
 .ic-punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--u-akzent); flex: none; margin-left: auto; }
-.ic-meta .ic-punkt + .nw-werkzeuge, .ic-meta .nw-werkzeuge { margin-left: 8px; }
+.ic-meta .ic-datum + .ic-punkt { margin-left: 0; }
+.ic-meta .nw-werkzeuge { margin-left: 8px; }
 .ic-leer { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 0; color: var(--u-grau); font-size: .9rem; }
 .ic-leer .bi { font-size: 56px; color: #c3c9ce; line-height: 1; }
 .ic-hinweis { position: fixed; right: 84px; bottom: 22px; z-index: 1037; display: flex; align-items: center; gap: 4px; max-width: 320px; background: var(--u-titel); color: #fff;
@@ -1811,12 +1822,14 @@ body:has(.u-app[data-ansicht="plan"]) .ic-hinweis { bottom: 80px; }
   .ic-hinweis { right: 70px; left: 12px; bottom: 16px; max-width: none; }
 }
 @media print { .ic-wurzel, .ic-hinweis { display: none !important; } }
+/* Glocke (Infocenter) nur auf der Startseite „Heute“ */
+body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:not(:has(.u-app)) :is(.ic-wurzel, .ic-hinweis) { display: none !important; }
 
 /* ===== Neuigkeiten (Seite) ===== */
-.nw-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding-top: 18px; align-items: start; }
-.nw-raster .ic-karte { padding: 16px 18px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 5, 10, .08), 0 3px 10px rgba(0, 5, 10, .05); border-color: transparent; }
-.nw-raster .ic-karte.neu::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--u-akzent); }
-.nw-raster .ic-karte h3 { font-size: 1.02rem; margin-top: 8px; }
+.nw-liste-karte { max-width: 920px; margin-top: 18px; padding: 4px 0; }
+.nw-liste-karte .ic-karte { padding: 16px 22px 16px 24px; }
+.nw-liste-karte .ic-karte h3 { font-size: 1rem; }
+.nw-liste-karte .ic-karte.neu::before { top: 16px; bottom: 16px; }
 .nw-hinweis { color: var(--u-grau); font-size: .88rem; margin: -6px 0 16px; }
 .nw-tabelle td .nw-grau { color: var(--u-grau); font-size: .82rem; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nw-sichtbar { background: #e3f5ea; color: #0f6b40; }
@@ -1828,37 +1841,71 @@ body:has(.u-app[data-ansicht="plan"]) .ic-hinweis { bottom: 80px; }
 .nw-formular .form-label { margin: 8px 0 2px; font-weight: 600; font-size: .88rem; }
 .nw-formular .form-switch { margin-top: 12px; }
 .nw-zeitraum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 700px) { .nw-raster { grid-template-columns: 1fr; } .nw-tabelle { overflow-x: auto; } }
+@media (max-width: 700px) { .nw-liste-karte .ic-karte { padding: 14px 16px 14px 18px; } .nw-tabelle { overflow-x: auto; } }
 
-/* ===== Übersicht (Karten-Dashboard) ===== */
-.ub-raster { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); align-items: start; padding-top: 4px; }
-.ub-karte .fm-inhalt { padding: 4px 16px 14px; }
-.ub-karte > header { padding-bottom: 8px; }
-.ub-zahl { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--u-akzent-hell); color: var(--u-akzent-dunkel); font-size: .72rem; font-weight: 700; display: inline-grid; place-content: center; }
+/* ===== Übersicht (Karten-Dashboard für Lehrkräfte/Administration) =====
+   Koordiniertes Raster: oben zwei breite Karten, darunter drei gleich breite Spalten; Karten einer Reihe gleich hoch,
+   leere Karten kompakt (eine Zeile). Abstände einheitlich 16px, linksbündig mit Max-Breite. */
+.ub-bereich { max-width: 1480px; container-type: inline-size; }
+.ub-bereich > .fm-kopf { margin-bottom: 16px; }
+.ub-raster { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; align-items: stretch; margin-bottom: 16px; }
+.ub-raster > * { min-width: 0; grid-column: span var(--sp, 2); }
+.ub-karte { display: flex; flex-direction: column; }
+.ub-stapel { display: flex; flex-direction: column; gap: 16px; }
+@container (max-width: 980px) { .ub-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ub-raster > * { grid-column: span 1; } .ub-raster > :last-child:nth-child(odd) { grid-column: span 2; }
+  .ub-raster > .ub-stapel:last-child:nth-child(odd) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .ub-stapel > :last-child:nth-child(odd) { grid-column: span 2; } }
+@container (max-width: 640px) { .ub-raster { grid-template-columns: minmax(0, 1fr); } .ub-raster > *, .ub-raster > :last-child:nth-child(odd), .ub-stapel > :last-child:nth-child(odd) { grid-column: auto; } .ub-raster > .ub-stapel:last-child:nth-child(odd) { display: flex; } }
+.ub-karte > header { display: flex; align-items: center; gap: 8px; min-width: 0; height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid #edf0f2; }
+.ub-karte > header .titel { color: var(--u-akzent); font-size: .95rem; white-space: nowrap; }
+.ub-karte > header .unter { flex: 1; min-width: 0; margin-left: 4px; color: var(--u-grau); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ub-karte > header .fm-pfeil { margin-left: 0; flex: none; }
+.ub-inhalt { flex: 1; display: flex; flex-direction: column; padding: 2px 16px 10px; min-width: 0; }
+.ub-karte.leer .ub-inhalt { justify-content: center; padding: 0 16px; }
+.ub-leer { display: flex; align-items: center; gap: 10px; height: 44px; color: var(--u-grau); font-size: .85rem; }
+.ub-leer .bi { font-size: 18px; line-height: 1; color: #b5b5b5; }
+.ub-zahl { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--u-akzent-hell); color: var(--u-akzent-dunkel); font-size: .72rem; font-weight: 700; display: inline-grid; place-content: center; flex: none; }
 .ub-element { color: var(--u-grau); font-size: .88rem; }
-.ub-liste li { gap: 12px; }
+.ub-liste li { gap: 12px; min-height: 40px; padding: 6px 0; }
+.ub-karte .fm-liste li { min-width: 0; }
+.ub-karte .fm-liste li > * { min-width: 0; }
+.ub-karte .fm-liste .ic-punkt { margin-left: 0; flex: none; }
 .ub-stunde { cursor: pointer; border-radius: 4px; }
 .ub-stunde:hover { background: #f7f9fa; }
 .ub-stunde:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
 .ub-balken { width: 4px; align-self: stretch; border-radius: 2px; background: var(--fach, #c9d0d6); flex: none; }
-.ub-zeit { display: flex; flex-direction: column; min-width: 64px; line-height: 1.2; }
+.ub-zeit { display: flex; flex-direction: column; min-width: 64px; line-height: 1.2; flex: none; }
 .ub-zeit b { font-weight: 600; color: var(--u-titel); font-size: .85rem; }
 .ub-zeit small { color: var(--u-grau); font-size: .75rem; }
 .ub-was { display: flex; flex-direction: column; min-width: 0; flex: 1; color: var(--u-titel); }
 .ub-was small { color: var(--u-grau); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ub-stunde.entfall .ub-was { text-decoration: line-through; text-decoration-thickness: .75px; color: var(--u-grau); }
 .ub-tag { min-width: 64px; color: var(--u-grau); font-size: .8rem; flex: none; }
-.ub-hinweis { margin: 0 0 6px; font-size: .88rem; color: var(--u-text); }
-.ub-hinweis b { color: var(--u-akzent-dunkel); font-size: 1.05rem; }
-.ub-mehr { display: inline-block; margin-top: 8px; font-size: .82rem; font-weight: 600; color: var(--u-akzent-dunkel); text-decoration: none; }
+.ub-mehr { margin-top: auto; align-self: flex-start; padding-top: 8px; font-size: .82rem; font-weight: 600; color: var(--u-akzent-dunkel); text-decoration: none; }
+.ub-mehr span { color: var(--u-grau); font-weight: 400; }
+.ub-mehr:hover { text-decoration: underline; }
 .ub-bald { color: var(--u-akzent-dunkel) !important; font-weight: 600; }
-.ub-karte .fm-liste li { min-width: 0; }
-.ub-karte .fm-liste li > * { min-width: 0; }
-.ub-karte .fm-liste .ic-punkt { margin-left: 0; }
-.ub-karte .fm-leer.gross { padding: 14px 0 10px; }
-@media (max-width: 700px) { .ub-raster { grid-template-columns: 1fr; } .ub-zeit, .ub-tag { min-width: 54px; } }
-.ub-karte > header { min-width: 0; }
-.ub-karte > header .titel { white-space: nowrap; }
-.ub-karte > header .unter { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ub-karte { min-width: 0; }
+@media (max-width: 700px) { .ub-zeit, .ub-tag { min-width: 54px; } }
 @media (max-width: 575.98px) { .ic-panel { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); } }
+/* Stundendetails: Status im Kopf nur als schlichter Text; „Abwesende Schüler*innen“ als Tabelle im neuen Design */
+.sd-status-text { color: var(--u-grau); font-weight: 400; }
+.nl-tabelle.sd-abw { border-radius: 6px; font-size: .875rem; overflow-x: auto; }
+.sd-abw thead th { background: #f3f5f7; padding: 10px 12px; font-size: .82rem; font-weight: 600; color: #414d55; }
+.sd-abw td { padding: 8px 12px; background: #fff; }
+.sd-abw tbody tr:hover td { background: #f7f9fa; }
+.sd-abw tbody tr.nl-gewaehlt td { background: #fff6f1; }
+.sd-abw tr.vorstunde td { color: var(--u-grau); }
+.sd-abw .nl-wahl { width: 48px; padding-left: 14px !important; }
+.sd-abw .nl-rund { width: 20px; height: 20px; }
+.sd-abw-name { font-weight: 600; color: var(--u-text); white-space: nowrap; }
+.sd-abw-zeit { color: var(--u-grau); margin-left: 4px; }
+.sd-abw-zusatz { display: inline-block; margin-left: 8px; color: var(--u-grau); font-size: .8rem; }
+.sd-abw-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-abw .nl-fuss { padding: 8px 12px 8px 16px; background: #fff; }
+.sd-abw-anzahl { color: var(--u-grau); font-size: .82rem; }
+.sd-abw .nl-knopf { height: 32px; font-size: .85rem; }
+.sd-abw .nl-knopf:disabled { opacity: .45; cursor: default; }
+.sd-kreisknopf { display: inline-grid; place-content: center; width: 32px; height: 32px; padding: 0; border: 1.5px solid #c9d0d6; border-radius: 50%; background: #fff; color: #414d55; font-size: .9rem; line-height: 1; vertical-align: middle; }
+.sd-kreisknopf:hover { border-color: #8a96a1; color: var(--u-text); background: #f7f9fa; }
+.sd-kreisknopf:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 1px; }
+.sd-kreisknopf.klein { width: 24px; height: 24px; font-size: .78rem; border-width: 1px; margin: 0 6px; }
+@media (max-width: 767.98px) { .nl-tabelle.sd-abw { overflow-x: auto; } }

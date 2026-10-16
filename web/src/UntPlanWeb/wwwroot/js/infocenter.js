@@ -1,4 +1,4 @@
-// Infocenter: runder Knopf unten rechts (Glocke mit Zahl ungelesener Einträge), öffnet ein Panel mit Infos der Schule und
+// Infocenter: runder Knopf unten rechts (Glocke mit Zahl ungelesener Einträge, nur auf der Startseite „Heute“), öffnet ein Panel mit Infos der Schule und
 // Neuigkeiten zu UntPlanWeb als Karten (Kategorie, Datum, Titel, Text, Punkt für ungelesen). Gibt es Neues, erscheint kurz ein
 // Hinweis am Knopf. Gelesen wird je Benutzer auf dem Server vermerkt (GET/POST /api/app/infocenter …).
 import { e, holen, senden, fehler } from './ui.js';
@@ -16,14 +16,33 @@ const hoerer = new Set();
 export const beobachten = f => { hoerer.add(f); return () => hoerer.delete(f); };
 export const daten = () => zustand;
 
-/** Eine Karte im Infocenter bzw. auf der Seite „Neuigkeiten“. */
+/** Ein Eintrag im Infocenter bzw. auf der Seite „Neuigkeiten“ – immer gleich aufgebaut: Kategorie klein links oben,
+ *  Datum rechts (mit Punkt für ungelesen), Titel, Text auf wenige Zeilen gekürzt mit „mehr“. */
 export function karteHtml(x, { werkzeuge = '' } = {}) {
   const text = x.text ? `<p class="ic-text">${e(x.text).replace(/\n/g, '<br>')}</p>` : '';
   const punkte = (x.punkte || []).length ? `<ul class="ic-punkte">${x.punkte.map(p => `<li>${e(p)}</li>`).join('')}</ul>` : '';
   return `<article class="ic-karte ${x.gelesen ? '' : 'neu'} ${x.wichtig ? 'wichtig' : ''}" data-schluessel="${e(x.schluessel)}">
-    <div class="ic-meta"><span class="ic-kat ${KATEGORIE[x.kategorie] ?? ''}">${e(x.kategorie)}</span><span class="ic-datum">${e(datumText(x.datum))}</span>
-      ${x.gelesen ? '' : '<span class="ic-punkt" title="ungelesen" aria-label="ungelesen"></span>'}${werkzeuge}</div>
-    <h3>${e(x.titel)}</h3>${text}${punkte}</article>`;
+    <div class="ic-meta"><span class="ic-kat ${KATEGORIE[x.kategorie] ?? ''}">${e(x.kategorie)}</span>${werkzeuge}<span class="ic-datum">${e(datumText(x.datum))}</span>
+      <span class="ic-punkt" title="ungelesen" aria-label="ungelesen"${x.gelesen ? ' hidden' : ''}></span></div>
+    <h3>${e(x.titel)}</h3>${text || punkte ? `<div class="ic-koerper">${text}${punkte}</div><button type="button" class="ic-mehr" data-ic-mehr hidden>mehr</button>` : ''}</article>`;
+}
+
+/** „mehr“ nur zeigen, wo der Text gekürzt ist; Klick klappt den Eintrag auf bzw. zu. */
+export function mehrBinden(wurzel) {
+  if (!wurzel) return;
+  wurzel.querySelectorAll('.ic-karte').forEach(k => {
+    const t = k.querySelector('.ic-koerper'), m = k.querySelector('[data-ic-mehr]');
+    if (t && m) { m.hidden = t.scrollHeight <= t.clientHeight + 2; k.classList.toggle('gekuerzt', !m.hidden); }
+  });
+  if (wurzel.dataset.mehrGebunden) return;
+  wurzel.dataset.mehrGebunden = '1';
+  wurzel.addEventListener('click', ev => {
+    const m = ev.target.closest('[data-ic-mehr]');
+    if (!m) return;
+    const k = m.closest('.ic-karte');
+    const auf = k.classList.toggle('auf');
+    m.textContent = auf ? 'weniger' : 'mehr';
+  });
 }
 
 function zahlSetzen() {
@@ -46,6 +65,7 @@ function listeZeichnen() {
   if (!l) return;
   l.innerHTML = zustand.eintraege.length ? zustand.eintraege.slice(0, 30).map(x => karteHtml(x)).join('')
     : '<div class="ic-leer"><i class="bi bi-bell-slash" aria-hidden="true"></i><span>Keine Neuigkeiten</span></div>';
+  if (!document.querySelector('[data-ic-panel]')?.hidden) mehrBinden(l);
   document.querySelector('[data-ic-alle]')?.toggleAttribute('disabled', !zustand.ungelesen);
 }
 
@@ -94,7 +114,16 @@ function oeffnen(auf) {
   p.hidden = !offen;
   k.setAttribute('aria-expanded', String(offen));
   document.querySelector('[data-ic-hinweis]')?.remove();
-  if (offen) { listeZeichnen(); p.querySelector('.ic-panel-kopf button')?.focus(); }
+  if (offen) { listeZeichnen(); mehrBinden(p.querySelector('[data-ic-liste]')); p.querySelector('.ic-panel-kopf button')?.focus(); }
+}
+
+/** Der Glocken-Knopf erscheint nur auf der Startseite (Heute); sonst bleibt das Infocenter über „Neuigkeiten“ erreichbar.
+ *  Ein- und Ausblenden übernimmt das CSS (nach der tatsächlich gezeigten Ansicht); hier werden Panel und Hinweis geschlossen. */
+const aufStartseite = () => ['', 'heute'].includes(location.hash.replace(/^#\/?/, '').split(/[/?]/)[0]);
+function sichtbarkeit() {
+  if (aufStartseite()) return;
+  oeffnen(false);
+  document.querySelector('[data-ic-hinweis]')?.remove();
 }
 
 /** Kurzer Hinweis am Knopf, wenn seit dem letzten Besuch etwas Neues dazugekommen ist. */
@@ -106,7 +135,7 @@ function hinweisZeigen() {
   try { bekannt = JSON.parse(localStorage.getItem(merker) || '[]'); } catch { /* privat */ }
   const frisch = neu.filter(x => !bekannt.includes(x.schluessel));
   try { localStorage.setItem(merker, JSON.stringify(neu.map(x => x.schluessel).slice(0, 200))); } catch { /* privat */ }
-  if (!frisch.length || document.querySelector('[data-ic-hinweis]') || location.hash.startsWith('#/neuigkeiten')) return;
+  if (!frisch.length || document.querySelector('[data-ic-hinweis]') || !aufStartseite()) return;
   const h = document.createElement('div');
   h.className = 'ic-hinweis';
   h.dataset.icHinweis = '';
@@ -136,18 +165,20 @@ export async function starten(kontext) {
       <footer class="ic-panel-fuss"><a href="#/neuigkeiten" data-ic-seite>Alle Neuigkeiten</a><a href="#/neuigkeiten/verwalten" data-ic-verwalten hidden>Infos verwalten</a></footer>
     </section>`;
   document.body.append(w);
+  sichtbarkeit();
   w.querySelector('[data-ic-knopf]').onclick = ev => { ev.stopPropagation(); oeffnen(); };
   w.querySelector('[data-ic-zu]').onclick = () => oeffnen(false);
   w.querySelector('[data-ic-alle]').onclick = () => gelesen();
   w.querySelectorAll('.ic-panel-fuss a').forEach(a => a.onclick = () => oeffnen(false));
   w.querySelector('[data-ic-liste]').addEventListener('click', ev => {
     const k = ev.target.closest('.ic-karte.neu');
-    if (k) gelesen([k.dataset.schluessel]);
+    if (k && !ev.target.closest('[data-ic-mehr]')) gelesen([k.dataset.schluessel]);
   });
   if (!window.__infocenterHoerer) {
     window.__infocenterHoerer = true;
     document.addEventListener('click', ev => { if (!ev.target.closest('[data-ic-wurzel], [data-ic-hinweis], .modal')) oeffnen(false); });
     document.addEventListener('keydown', ev => { if (ev.key === 'Escape') oeffnen(false); });
+    window.addEventListener('hashchange', sichtbarkeit);
   }
   await laden();
   w.querySelector('[data-ic-verwalten]').hidden = !zustand.darfVerwalten;

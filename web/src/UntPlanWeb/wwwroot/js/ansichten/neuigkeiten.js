@@ -1,7 +1,7 @@
-// Neuigkeiten: Infos der Schule und Neuigkeiten zu UntPlanWeb als Karten (wie im Infocenter), Filter nach Art.
+// Neuigkeiten: Infos der Schule und Neuigkeiten zu UntPlanWeb als ruhige, einheitliche Liste (wie im Infocenter), Filter nach Art.
 // #/neuigkeiten/verwalten: Infos anlegen, bearbeiten, löschen (Administration, Schulleitung).
 import { e, holen, senden, api, dialog, bestaetigen, toast, fehler } from '../ui.js';
-import { laden, gelesen, karteHtml, datumText, beobachten } from '../infocenter.js';
+import { laden, gelesen, karteHtml, mehrBinden, datumText, beobachten } from '../infocenter.js';
 
 const ZIELGRUPPEN = { alle: 'Alle', kollegium: 'Lehrkräfte', schueler: 'Schüler*innen', eltern: 'Eltern' };
 
@@ -18,8 +18,9 @@ export async function zeigen(seite, kontext, [teil, filterParam]) {
       <span class="ms-auto d-flex gap-2 flex-wrap">${ungelesen.size ? '<button type="button" class="nl-knopf" data-alle-gelesen><i class="bi bi-check2-all"></i> Alle als gelesen markieren</button>' : ''}
       ${d.darfVerwalten ? '<a class="nl-knopf nw-primaer" href="#/neuigkeiten/verwalten"><i class="bi bi-pencil-square"></i> Infos verwalten</a>' : ''}</span></div>
     <nav class="u-reiter fm-reiter">${reiter('alle', 'Alle', zahl())}${reiter('infos', 'Infos der Schule', zahl('info'))}${reiter('updates', 'UntPlanWeb-Updates', zahl('neuigkeit'))}</nav>
-    ${liste.length ? `<div class="nw-raster">${liste.map(x => karteHtml(x)).join('')}</div>`
+    ${liste.length ? `<div class="fm-karte nw-liste-karte" data-nw-liste>${liste.map(x => karteHtml(x)).join('')}</div>`
       : `<div class="fm-karte"><div class="fm-leer gross"><i class="bi bi-bell-slash"></i><span>${filter === 'infos' ? 'Keine Infos der Schule' : 'Keine Neuigkeiten'}</span></div></div>`}`;
+  mehrBinden(seite.querySelector('[data-nw-liste]'));
   seite.querySelector('[data-alle-gelesen]')?.addEventListener('click', async () => { await gelesen(); kontext.navigieren(location.hash); });
   // beim Ansehen gelten die gezeigten Einträge als gelesen; die Markierung bleibt bis zum nächsten Aufruf sichtbar
   const gezeigt = liste.filter(x => !x.gelesen).map(x => x.schluessel);

@@ -75,8 +75,12 @@ public static partial class SchriftApi
     /// <summary>Schriftstapel mit metrisch ähnlichen Ersatzschriften (Avenir Next unter macOS/iOS, Nunito Sans, Segoe UI …).</summary>
     public const string Stapel = "\"" + Familie + "\", \"Avenir Next\", \"Nunito Sans\", \"Segoe UI\", system-ui, -apple-system, Roboto, \"Helvetica Neue\", Arial, sans-serif";
 
-    /// <summary>Einheitliche Darstellung: keine künstlichen Fett-/Kursivschnitte, gleiche Kantenglättung auf allen Geräten.</summary>
-    public const string Darstellung = "html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-synthesis: none; font-synthesis-weight: none; font-synthesis-style: none; }\n";
+    /// <summary>
+    /// Einheitliche Darstellung: keine künstlichen Fett-/Kursivschnitte. Bewusst KEIN -webkit-font-smoothing/-moz-osx-font-smoothing:
+    /// „antialiased“/„grayscale“ lässt Schrift unter macOS deutlich dünner wirken als unter Windows/Linux – die Standard-Kantenglättung
+    /// des Betriebssystems ergibt auf allen Geräten dieselbe Strichstärke.
+    /// </summary>
+    public const string Darstellung = "html { font-synthesis: none; font-synthesis-weight: none; font-synthesis-style: none; }\n";
 
     private static string Format(string datei) => Path.GetExtension(datei).ToLowerInvariant() switch
     {

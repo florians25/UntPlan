@@ -1,0 +1,124 @@
+/* UntPlanWeb – nl-design: zentrale Mitte rechts der Navigation, Stundenplan nah am Vorbild, Seitenleiste.
+   Wird nach app.css geladen und überschreibt dort gezielt einzelne Werte. */
+
+/* ------------------------------------------------------------------ Mitte des Inhaltsbereichs (rechts der Navigation)
+
+   --u-leiste-akt ist die tatsächlich belegte Breite der Navigation: offen 276px, eingeklappt 76px, ohne Navigation (Anmeldung)
+   und auf schmalen Bildschirmen (Navigation als Ausklappmenü) 0. Alles, was mittig über dem Inhalt stehen soll und position:fixed
+   ist, richtet sich nach --u-inhalt-mitte statt nach 50% des Fensters. 100% bezieht sich bei position:fixed auf die Fensterbreite
+   ohne Bildlaufleiste (genauer als 100vw). */
+body {
+  --u-leiste-akt: 0px;
+  --u-inhalt-mitte: calc(var(--u-leiste-akt) + (100% - var(--u-leiste-akt)) / 2);
+}
+body:has(.u-app > .u-leiste) { --u-leiste-akt: var(--u-leiste); }
+body:has(.u-app.zu > .u-leiste) { --u-leiste-akt: var(--u-leiste-zu); }
+@media (max-width: 991.98px) {
+  body:has(.u-app > .u-leiste), body:has(.u-app.zu > .u-leiste) { --u-leiste-akt: 0px; }
+}
+
+/* Benachrichtigungen, Legende: mittig über dem Inhalt */
+.u-toasts { left: var(--u-inhalt-mitte); max-width: calc(100% - var(--u-leiste-akt) - 2rem); }
+.u-legende-leiste, .u-app.zu .u-legende-leiste { left: var(--u-inhalt-mitte); }
+@media (max-width: 991.98px) {
+  .u-legende-leiste, .u-app.zu .u-legende-leiste { left: var(--u-inhalt-mitte); }
+}
+
+/* Dialoge, Dialoghintergrund und Stundendetails beginnen rechts der Navigation – die Dialoge stehen dadurch mittig im Inhalt */
+.modal:not(.stundendetails), .modal-backdrop, .stundendetails.modal,
+body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body.leiste-zu .stundendetails.modal {
+  left: var(--u-leiste-akt); right: 0; width: auto;
+}
+@media (max-width: 991.98px) {
+  /* Telefon: die Kopfleiste liegt über den Dialogen – Dialoge darunter beginnen lassen, damit der Titel sichtbar bleibt */
+  .modal:not(.stundendetails) .modal-dialog { margin-top: calc(var(--u-kopf) + .5rem); }
+  .modal:not(.stundendetails) .modal-dialog-centered { min-height: calc(100% - var(--u-kopf) - 1rem); }
+}
+
+/* Ladeanzeige: Kreis mittig im jeweiligen Bereich */
+.u-laedt { position: relative; }
+.u-laedt::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%;
+  border: 3px solid rgba(var(--u-akzent-rgb), .2); border-top-color: var(--u-akzent); animation: u-dreh .8s linear infinite;
+}
+@keyframes u-dreh { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .u-laedt::after { animation-duration: 2.4s; } }
+
+/* Kopfzeile des Plans: Zeitraum immer genau mittig über dem Inhalt (linke und rechte Spalte gleich breit, auch bei schmaleren Fenstern) */
+@media (min-width: 768px) {
+  .planleiste { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .planleiste .mitte { justify-content: center; }
+}
+
+/* ------------------------------------------------------------------ Stundenplan wie im Vorbild */
+
+:root {
+  /* Hintergrund: diagonaler Verlauf von unten links (dunkler) nach oben rechts (heller) */
+  --u-verlauf: linear-gradient(to top right, #dcdfe5 0%, #e9ebee 50%, #f5f6f8 100%);
+  --tt-linie: #bfc8cf;
+  --u-ferien: #cadeed;
+  --u-rot-hell: #ffe5e5;
+  --u-gelb-hell: #fff9da;
+  --u-gruen-hell: #dff6eb;
+}
+
+/* Kopf: Zeitraum 14px Demi dunkel, Tage 16px grau (Medium), heute fett schwarz */
+.planleiste .zeitraum { font-size: .875rem; font-weight: 700; color: var(--u-titel); letter-spacing: .02em; }
+.tt-tag { font-size: 1rem; font-weight: 600; color: var(--u-grau-2); padding-bottom: 20px; }
+.tt-tag.heute { color: #24323d; font-weight: 700; }
+
+/* Raster: Zeitspalte 44px, 16px zwischen den Tagen, Linien durchgehend über die Lücken (nicht in der Zeitspalte) */
+@media (min-width: 992px) {
+  .u-app[data-ansicht="plan"] .u-inhalt { padding-left: 13px; padding-right: 13px; }
+  [data-ansicht="plan"] .tt { --tt-spalt: 16px; grid-template-columns: 44px repeat(var(--tage), minmax(0, 1fr)); }
+}
+.tt-zeit { left: 3px; font-size: 14px; font-weight: 600; color: var(--u-grau-2); }
+.tt-nr { left: 12px; color: #a3adb6; }
+.tt-linie, .tt-pause { left: calc(var(--tt-spalt, 16px) / -2); right: calc(var(--tt-spalt, 16px) / -2); }
+.tt-achse + .tt-spalte .tt-linie, .tt-achse + .tt-spalte .tt-jetzt:not(.heute) { left: 0; }
+.tt-tag.letzter ~ .tt-spalte:last-child .tt-linie, .tt-spalte:last-child .tt-linie { right: 0; }
+
+/* Karten: weiß, eckig, grauer Balken links (oder Fachfarbe), erste Zeile 14px Medium, weitere Zeilen 12px Medium dunkelgrau */
+.tt .std { border-radius: 0; padding: 7px 24px 6px 18px; }
+.tt .std::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 0; background: var(--fach, #bfc8cf); }
+.tt .std.mit-zeit { padding-left: 46px; }
+.tt .std.mit-zeit::before { left: 36px; }
+.std .z1 { font-size: 14px; font-weight: 600; line-height: 17px; color: #414d55; }
+.std .z2 { font-size: 12px; font-weight: 500; line-height: 15px; color: #414d55; }
+.std .zt { color: var(--u-grau-2); font-weight: 600; }
+.std .lbl { font-weight: 600; }
+/* vergangene Stunden: Fläche leicht grau, Schrift bleibt gleich kräftig */
+.std.vergangen .z1, .std.vergangen .z2 { color: #414d55; }
+
+/* Symbole oben rechts: Entfall rotes Dreieck, Prüfung gelber Punkt, Änderung grünes Quadrat mit Plus */
+.std .mks { top: 8px; right: 9px; }
+.mk-kreis { width: 12px; height: 12px; background: #ffd615; }
+.mk-dreieck { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+
+/* Ferien und freie Tage: hellblau über die volle Höhe, Linien schwach sichtbar, mittig Schloss + Art, Name, Zeitraum */
+.tt-ferien { inset: 1px calc(var(--tt-spalt, 16px) / -4) 0; border-radius: 0; background: var(--u-ferien); color: #414d55; z-index: 1; }
+.tt-spalte.frei .tt-linie { display: block; z-index: 2; border-top-color: rgba(30, 70, 100, .07); }
+.tt-ferien .inhalt { top: 55%; transform: translateY(-50%); gap: 14px; font-size: 14px; font-weight: 600; line-height: 19px; }
+.tt-ferien .art .bi { font-size: 10px; vertical-align: 1px; margin-right: 2px; }
+
+/* Legende unten: dunkle Pillen in weißer Leiste */
+.u-legende-pille { background: #67747e; border-color: #67747e; font-weight: 700; }
+
+/* ------------------------------------------------------------------ Seitenleiste wie im Vorbild: dunkelgraue Texte (Medium), Symbole grau, aktiv orange */
+
+.u-nav-punkt { color: #4a5662; font-weight: 600; font-size: 1rem; }
+.u-nav-unter .u-nav-punkt { font-size: .95rem; }
+.u-nav-kompakt .u-nav-punkt { font-size: .92rem; }
+.u-nav-punkt .u-nav-sym { color: var(--u-grau-2); }
+.u-nav-punkt:hover { color: #36424c; background: #f4f6f8; }
+.u-nav-punkt:hover .u-nav-sym { color: var(--u-grau); }
+.u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover { color: var(--u-akzent); }
+.u-nav-punkt.aktiv .u-nav-sym { color: var(--u-akzent); }
+.u-marke b, .u-unterkopf b { color: #414d55; }
+.u-marke small { color: var(--u-grau-2); }
+.u-benutzer b { color: #4a5662; font-weight: 600; }
+.u-benutzer small { color: var(--u-grau-2); }
+.u-abmelden { color: #4a5662; }
+.u-benutzer:hover, .u-benutzer.aktiv, .u-abmelden:hover, .u-abmelden:focus-visible { background: #f4f6f8; color: #36424c; }
+.u-benutzer:hover b, .u-benutzer.aktiv b { color: #36424c; }
+.u-abmelden:hover .u-sym { color: var(--u-grau); }
