@@ -2422,7 +2422,7 @@ function iosAnim(el, cls){
 /* Unteransichten in Blättern und Seiten schieben sich von rechts herein;
    wird eine geschlossen, gleitet die Ansicht darunter aus der Tiefe nach. */
 (() => {
-  const paare = [['#detailSub', '#detailBody'], ['#detailAbs', null], ['#detailForm', null],
+  const paare = [['#detailSub', '#detailBody'], ['#detailAbsList', '#detailSub'], ['#detailAbs', null], ['#detailForm', null],
                  ['#msgRead', '#msgList'], ['#pickerList', '#pickerRoot']];
   const offen = el => {
     const blatt = el.closest('.sheet');
@@ -3086,7 +3086,7 @@ async function listeZeichnen(){
     return;
   }
   /* In der Vorlage steht dort nur das Ende des Zeitraums. */
-  $('#lstRange').textContent = `bis ${deDate(d.to)}`;
+  $('#lstRange').textContent = d.from ? `${deDate(d.from)} - ${deDate(d.to)}` : `bis ${deDate(d.to)}`;
   /* Die eigenen Klassen für den Filter merken. */
   if (d.classes) listeStand.klassen = d.classes;
 
@@ -3155,17 +3155,20 @@ async function listeZeichnen(){
 
 /* Eine Karte wie in der Vorlage: Datum, Uhrzeit, Anlass, Stand. */
 function karteAbwesenheit(x, mitName){
-  const zeit = x.timeFrom || x.timeTo ? `${esc(x.timeFrom)} – ${esc(x.timeTo)}`
-                                      : `${deDate(x.from)} – ${deDate(x.to)}`;
+  const zeit = x.timeFrom || x.timeTo ? `${esc(x.timeFrom)} - ${esc(x.timeTo)}`
+                                      : `${deDate(x.from)} - ${deDate(x.to)}`;
+  /* „15. Okt. - 16. Okt.“ wie im Original */
+  const tagP = d => { const t = deTag(d); return /\.$/.test(t) ? t : t + '.'; };
+  const anlass = [x.art, x.reason].filter(Boolean).join(' · ');
   return `
     <article class="lstcard">
       <b>${esc(mitName ? x.name : (x.to && x.to !== x.from
-            ? deTag(x.from) + ' – ' + deTag(x.to)
-            : deTag(x.from)))}</b>
+            ? tagP(x.from) + ' - ' + tagP(x.to)
+            : tagP(x.from)))}</b>
       ${mitName ? `<p class="lstcard__sub">${esc(deDate(x.from))}${x.from !== x.to ? ' – ' + esc(deDate(x.to)) : ''}</p>` : ''}
       <p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg>${zeit}${
         x.lessons ? ` <span class="lstcard__sm">(${esc(x.lessons)})</span>` : ''}</p>
-      <p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.4"/><circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none"/></svg>${esc(x.art)}${x.reason ? ' · ' + esc(x.reason) : ''}</p>
+      ${anlass ? `<p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.4"/><circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none"/></svg>${esc(anlass)}</p>` : ''}
       ${x.note ? `<p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg>${esc(x.note)}</p>` : ''}
       <p class="lstcard__line lstcard__stand lstcard__stand--${x.tone}">
         <svg viewBox="0 0 24 24" class="lstcard__ico">${STAND_ICO[x.tone] || ''}</svg>${esc(x.label)}${
@@ -3833,6 +3836,7 @@ function openDetail(date, lesson, uid, quelle){
   $('#detailPart').hidden = true;
   $('#detailMenuPop').hidden = true;
   $('#detailAbs').hidden = true;
+  $('#detailAbsList').hidden = true;
   $('#dabsPick').hidden = true;
   $('#detailForm').hidden = true;
   $('#detailSub').hidden = true;
@@ -4990,7 +4994,7 @@ function drawAttendance(c){
             ${(s.duties || []).length ? `<span class="att__duty">${
                 esc(s.duties.join(' · '))}</span>` : ''}
             ${s.source ? `<span class="att__before">${esc(s.source)}</span>` : ''}
-            ${s.seit ? `<span class="att__before">Davor abwesend</span>` : ''}
+            ${s.seit ? `<span class="att__before att__before--warn">War in Vorstunde abwesend!</span>` : ''}
             ${stand ? `<span class="att__state att__state--ok">${stand}</span>` : ''}
             ${(s.remarks || []).map((r, ri) => `<span class="att__note" data-remark="${ri}">${
                 esc((r.type && r.type !== 'custom' ? r.type + ': ' : '') + r.text)}</span>`).join('')}
@@ -5089,7 +5093,7 @@ function drawAttendance(c){
        Das Fenster steht in diesem Fall nur zum Lesen offen. Vorher fing
        die Sperre schon den Aufruf ab, und gerade die Klassenleitung kam an
        die Angaben zu einer entschuldigten Abwesenheit nicht mehr heran. */
-    if (act === 'absence'){ openAbsence(c, rec); return; }
+    if (act === 'absence'){ openAbsList(c, rec); return; }
 
     if (rec && rec.locked){
       toast('Entschuldigt — geändert wird das dort, wo die Entschuldigung gepflegt ist');
@@ -5311,6 +5315,12 @@ function drawForm(){
       return `<p class="dform__hint">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.4M12 7.9v.1"/></svg>
                 ${esc(x.text)}</p>`;
+    if (x.t === 'people')
+      return `<button class="dform__row dform__row--nav dform__row--people" type="button" data-people>
+                <span class="dform__lab">${esc(x.label)}<small>${esc(x.text || '')}</small></span>
+                <span></span>
+                <svg viewBox="0 0 24 24" class="dform__chev"><path d="m10 6 6 6-6 6"/></svg>
+              </button>`;
     if (x.t === 'text')
       return `<label class="dform__row dform__row--nav">
                 <span class="dform__lab">${esc(x.label)}</span>
@@ -5331,7 +5341,7 @@ function drawForm(){
     if (x.t === 'pick')
       return `<button class="dform__row dform__row--nav" type="button" data-pick="${x.key}">
                 <span class="dform__lab">${esc(x.label)}</span>
-                <span class="dform__val ${x.value ? '' : 'is-empty'}">${esc(x.value || 'Auswählen')}</span>
+                ${x.value ? `<span class="dform__val">${esc(x.value)}</span>` : '<span></span>'}
                 <svg viewBox="0 0 24 24" class="dform__chev"><path d="m10 6 6 6-6 6"/></svg>
               </button>`;
     if (x.t === 'toggle')
@@ -5360,6 +5370,9 @@ function drawForm(){
     x.value = !x.value;
     drawForm();
   }));
+
+  /* „Schüler*innen (n)“ führt zurück zur Liste, um die Auswahl zu ändern. */
+  $$('#dformBody [data-people]').forEach(b => b.addEventListener('click', () => closeForm()));
 
   $$('#dformBody [data-pick]').forEach(b => b.addEventListener('click', () => {
     formCollect();
@@ -5451,12 +5464,15 @@ async function gemeinsamerEintrag(c){
   const arten = await loadRemarkTypes(c);
   const namen = arten.map(t => t.name);
   const gewaehlt = attList.filter(s => attPick.has(s.id));
+  /* Wie im Original: „Neuer Klassenbucheintrag“ mit den gewählten
+     Schüler*innen, der Eintragskategorie und dem Text. */
   openForm({
-    title: 'Klassenbucheintrag',
+    title: 'Neuer Klassenbucheintrag',
+    focus: false,
     fields: [
-      { t:'hint', text: gewaehlt.map(s => s.name).join(', ') },
-      ...(namen.length ? [{ t:'pick', key:'art', label:'Art', value:'', options:namen }] : []),
-      { t:'area', key:'text', label:'Text hier eingeben', value:'' }
+      { t:'people', label:`Schüler*innen (${gewaehlt.length})`, text: gewaehlt.map(s => s.name).join(', ') },
+      ...(namen.length ? [{ t:'pick', key:'art', label:'Eintragskategorie', value:'', options:namen }] : []),
+      { t:'area', key:'text', label:'Hier klicken um Text einzutragen.', value:'' }
     ],
     onSave: async v => {
       const text = (v.text || '').trim();
@@ -5502,7 +5518,8 @@ async function openItemSheet(key, index){
   const alt  = index !== undefined ? itemParse(list[index]) : {};
   const neu  = index === undefined;
 
-  const fields = [{ t:'text', key:'text', label:'Text', value:alt.text || '' }];
+  /* Klassenbucheintrag wie im Original: Eintragskategorie, darunter der Text. */
+  const fields = key === 'homework' ? [{ t:'text', key:'text', label:'Text', value:alt.text || '' }] : [];
   if (key === 'homework'){
     fields.push({ t:'area', key:'note', label:'Bemerkung', value:alt.note || '' });
     fields.push({ t:'hint', text:'Bemerkung ist nicht sichtbar für Schüler*innen und Erziehungsberechtigte' });
@@ -5510,6 +5527,7 @@ async function openItemSheet(key, index){
   } else {
     fields.push({ t:'pick', key:'cat', label:'Eintragskategorie',
                   value:alt.cat || '', options:cbKategorien() });
+    fields.push({ t:'area', key:'text', label:'Hier klicken um Text einzutragen.', value:alt.text || '' });
   }
 
   openForm({
@@ -5570,27 +5588,97 @@ async function absLoadReasons(c){
 const absInitials = name => String(name || '').trim().split(/\s+/)
   .slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '–';
 
-function openAbsence(c, rec){
-  absCard = c; absRec = rec;
+/* ---------------------------------------------------------------------
+   Abwesenheiten einer Schülerin / eines Schülers (Uhr in der Zeile)
+   ---------------------------------------------------------------------
+   Wie im Original: Liste der Abwesenheiten mit Datum, Uhrzeit und Grund,
+   oben rechts „+“ für eine neue, unten die Suche. Ein Eintrag öffnet
+   „Abwesenheit bearbeiten“. Die Klassenleitung sieht alle Zeiträume der
+   letzten Wochen, sonst steht dort die Abwesenheit dieser Stunde.
+   --------------------------------------------------------------------- */
+let ablCard = null, ablRec = null, ablItems = [], ablManage = false;
+
+const hm = t => String(t || '').slice(0, 5).replace(/^0(\d)/, '$1');
+
+async function openAbsList(c, rec){
+  ablCard = c; ablRec = rec; ablItems = []; ablManage = false;
+  $('#dablWho').textContent = rec.name;
+  $('#dablSuche').value = '';
+  $('#dablAdd').hidden = !!rec.locked || state.isStudent;
+  $('#dablBody').innerHTML = '<div class="dsub__empty"><span>Wird geladen …</span></div>';
+  $('#detailAbsList').hidden = false;
+  await ablLaden();
+}
+
+async function ablLaden(){
+  const c = ablCard, rec = ablRec;
+  if (!c || !rec) return;
+  absLoadReasons(c);
+  try {
+    const r = await fetch(CB_URL + '?' + cbParams(c, { action:'absences', student_id:String(rec.id) }), { credentials:'same-origin' });
+    const d = await r.json();
+    if (ablRec !== rec) return;
+    if (!d || !d.ok) throw new Error((d && d.error) || 'Fehler');
+    ablItems = d.items || []; ablManage = !!d.manage;
+  } catch (e){
+    /* Ohne Verbindung: was die Schülerliste schon weiß. */
+    ablItems = rec.state === 'absent' || rec.state === 'late' ? [{
+      fromDate: rec.from_date || c.date, fromTime: rec.from_time || '', toDate: rec.to_date || c.date, toTime: rec.to_time || rec.arrival || '',
+      reason: rec.reason || '', reasonName: attReasonName(rec.reason), text: rec.note || '', current: true, ids: [] }] : [];
+  }
+  ablZeichnen();
+}
+
+function ablZeichnen(){
+  const q = ($('#dablSuche').value || '').trim().toLowerCase();
+  const liste = ablItems.filter(x => !q || JSON.stringify(x).toLowerCase().includes(q));
+  const datum = x => x.toDate && x.toDate !== x.fromDate ? `${deDate(x.fromDate)} – ${deDate(x.toDate)}` : deDate(x.fromDate);
+  $('#dablBody').innerHTML = liste.length ? liste.map(x => `
+    <button type="button" class="dabl__item" data-i="${ablItems.indexOf(x)}">
+      <svg viewBox="0 0 24 24" class="dabl__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg>
+      <span class="dabl__when"><span>${esc(datum(x))}</span><span>${esc(hm(x.fromTime))} - ${esc(hm(x.toTime))}</span></span>
+      <svg viewBox="0 0 24 24" class="ico dabl__chev"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
+      <svg viewBox="0 0 24 24" class="dabl__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.4"/><circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none"/></svg>
+      <span class="dabl__grund">${esc(x.reasonName || attReasonName(x.reason) || 'Ohne Angabe')}${x.text ? ` <i>· ${esc(x.text)}</i>` : ''}</span>
+    </button>`).join('')
+    : cbEmpty(q ? 'Keine Treffer' : 'Keine Abwesenheiten');
+  $$('#dablBody .dabl__item').forEach(b => b.addEventListener('click', () => {
+    openAbsence(ablCard, ablRec, ablItems[+b.dataset.i]);
+  }));
+}
+
+function closeAbsList(){
+  $('#detailAbsList').hidden = true;
+  ablCard = null; ablRec = null; ablItems = [];
+}
+
+$('#dablBack').addEventListener('click', closeAbsList);
+$('#dablAdd').addEventListener('click', () => { if (ablCard && ablRec) openAbsence(ablCard, ablRec, null); });
+$('#dablSuche').addEventListener('input', ablZeichnen);
+
+/* ---------------------------------------------------------------------
+   Abwesenheit bearbeiten – minutengenau von–bis, Grund, Text,
+   „Erziehungsberechtigte benachrichtigt“; Papierkorb löscht, Haken sichert.
+   --------------------------------------------------------------------- */
+let absItem = null;
+
+function openAbsence(c, rec, item){
+  absCard = c; absRec = rec; absItem = item || null;
   /* Nur lesen, wenn die Stunde entschuldigt ist oder das Eintragungsfenster
      noch nicht offen steht. */
-  absNurLesen = !!(rec && rec.locked) || !attWindow(c).open;
-  const t1 = (state.times[c.lesson] || {}).start || '08:00';
-  const t2 = (state.times[Math.min(c.lesson + c.span - 1, 12)] || {}).end || t1;
+  absNurLesen = !!(rec && rec.locked) || (!attWindow(c).open && !(item && ablManage));
+  const t1 = ((state.times[c.lesson] || {}).start || '08:00').slice(0, 5);
+  const t2 = ((state.times[Math.min(c.lesson + c.span - 1, 12)] || {}).end || t1).slice(0, 5);
+  const z = v => v ? ('0' + String(v).slice(0, 5)).slice(-5) : '';
 
-  /* Bei einer Verspätung fehlt jemand vom Stundenbeginn BIS zur Ankunft.
-     Die Ankunftszeit gehört also ans Ende, nicht an den Anfang. */
-  const spät = rec.state === 'late' && rec.arrival;
-  const ende = spät ? ('0' + rec.arrival).slice(-5) : t2;
-
-  absDraft = {
-    fromDate: rec.from_date || c.date,
-    fromTime: (rec.from_time || t1).slice(0, 5),
-    toDate:   rec.to_date   || c.date,
-    toTime:   (rec.to_time  || ende).slice(0, 5),
-    reason:   rec.reason || '',
-    text:     rec.note   || '',
-    notified: !!rec.notified
+  absDraft = item ? {
+    fromDate: item.fromDate || c.date, fromTime: z(item.fromTime) || t1,
+    toDate:   item.toDate || item.fromDate || c.date, toTime: z(item.toTime) || t2,
+    reason:   item.reason || '', text: item.text || '', notified: !!item.notified
+  } : {
+    /* Neu: die ganze Stunde; läuft sie gerade, endet die Fehlzeit nicht vor jetzt. */
+    fromDate: c.date, fromTime: t1, toDate: c.date, toTime: t2,
+    reason: '', text: '', notified: false
   };
 
   drawAbsence();
@@ -5601,7 +5689,7 @@ function openAbsence(c, rec){
 function closeAbsence(){
   $('#dabsPick').hidden = true;
   $('#detailAbs').hidden = true;
-  absCard = null; absRec = null; absDraft = null;
+  absCard = null; absRec = null; absDraft = null; absItem = null;
 }
 
 /* Was im Fenster steht, in den Entwurf zurückschreiben. */
@@ -5622,22 +5710,8 @@ function drawAbsence(){
   const klasse = rec.class || c.class || c.classOrig || '';
   const list = absReasons || ABS_FALLBACK;
   const hit = list.find(r => (r.code || r.name) === d.reason || r.name === d.reason);
-  /* Steht in der Datenbank ein Grund, den die Liste nicht kennt, wird er
-     trotzdem angezeigt — verschluckt wird nichts. */
+  /* Steht ein Grund da, den die Liste nicht kennt, wird er trotzdem gezeigt. */
   const reasonLabel = hit ? hit.name : (d.reason || '');
-
-  /* Der Balken über dem Fenster zeigt, was gerade erfasst ist:
-     gelb bei Verspätung, grün bei Abwesenheit, sonst neutral. */
-  const bar = $('#detailAbs');
-  bar.classList.toggle('is-late',   rec.state === 'late');
-  bar.classList.toggle('is-absent', rec.state === 'absent');
-
-  /* Woran man sieht, was gerade erfasst ist: Endet die Fehlzeit vor dem
-     Stundenschluss und beginnt sie mit der Stunde, ist es eine Verspätung
-     — die Ankunft steht dann im Endfeld. */
-  const t1 = ((state.times[c.lesson] || {}).start || '08:00').slice(0, 5);
-  const t2 = ((state.times[Math.min(c.lesson + c.span - 1, 12)] || {}).end || t1).slice(0, 5);
-  const istSpaet = !!(d.toTime && d.toTime < t2 && (!d.fromTime || d.fromTime <= t1));
 
   $('#dabsBody').innerHTML = `
     ${absNurLesen ? `<p class="dabs__lesen">${
@@ -5651,26 +5725,19 @@ function drawAbsence(){
       </span>
     </div>
 
-    <!-- Abwesend oder verspätet: Bisher ergab sich das nur daraus, ob man
-         die Endzeit von Hand vorzog. Jetzt steht es als Wahl da. -->
-    <div class="dabs__art">
-      <button type="button" data-art="absent" class="${istSpaet ? '' : 'is-on'}">Abwesend</button>
-      <button type="button" data-art="late" class="${istSpaet ? 'is-on' : ''}">Verspätet</button>
-    </div>
-
     <div class="dabs__grid">
       <div>
         <span class="dabs__lab">START</span>
         <div class="dabs__fields">
           <input class="dabs__pill" type="date" id="absFromDate" value="${esc(d.fromDate)}">
-          <input class="dabs__pill" type="time" id="absFromTime" value="${esc(d.fromTime)}">
+          <input class="dabs__pill" type="time" id="absFromTime" step="60" value="${esc(d.fromTime)}">
         </div>
       </div>
       <div>
-        <span class="dabs__lab">${istSpaet ? 'ANKUNFT' : 'ENDE'}</span>
+        <span class="dabs__lab">ENDE</span>
         <div class="dabs__fields">
           <input class="dabs__pill" type="date" id="absToDate" value="${esc(d.toDate)}">
-          <input class="dabs__pill" type="time" id="absToTime" value="${esc(d.toTime)}">
+          <input class="dabs__pill" type="time" id="absToTime" step="60" value="${esc(d.toTime)}">
         </div>
       </div>
     </div>
@@ -5694,162 +5761,118 @@ function drawAbsence(){
   if (absNurLesen){
     $$('#dabsBody input, #dabsBody textarea').forEach(el => { el.disabled = true; });
     $$('#dabsBody button').forEach(el => { el.disabled = true; });
-    $('#dabsDelete').hidden = true;
+    $('#dabsDelete').hidden = true; $('#dabsSave').hidden = true;
     return;
   }
-  $('#dabsDelete').hidden = false;
-
-  /* Jede Änderung geht sofort in die Datenbank — das Fenster hat keinen
-     Zwischenzustand mehr, den man versehentlich verwerfen könnte. */
-  $$('#dabsBody input').forEach(el => el.addEventListener('change', () => {
-    absCollect();
-    absSpeichern();
-  }));
-  $('#absText').addEventListener('blur', () => { absCollect(); absSpeichern(); });
-
-  /* Umschalten zwischen Abwesenheit und Verspätung. Bei der Verspätung
-     zählt die Ankunftszeit: Sie steht zwischen Stundenbeginn und -ende,
-     voreingestellt die aktuelle Uhrzeit, sonst zehn Minuten nach Beginn. */
-  $$('#dabsBody [data-art]').forEach(b => b.addEventListener('click', () => {
-    absCollect();
-    if (b.dataset.art === 'late'){
-      let an = (absRec.arrival || '').slice(0, 5);
-      if (!an || an <= t1 || an >= t2){
-        const jetzt = attNowHM();
-        an = (jetzt > t1 && jetzt < t2) ? jetzt
-           : (() => { const m = (+t1.slice(0, 2)) * 60 + (+t1.slice(3, 5)) + 10;
-                      return String(Math.floor(m / 60)).padStart(2, '0') + ':'
-                           + String(m % 60).padStart(2, '0'); })();
-      }
-      absDraft.fromDate = c.date; absDraft.fromTime = t1;
-      absDraft.toDate   = c.date; absDraft.toTime   = an;
-    } else {
-      absDraft.fromDate = c.date; absDraft.fromTime = t1;
-      absDraft.toDate   = c.date; absDraft.toTime   = t2;
-    }
-    drawAbsence();
-    absSpeichern();
-  }));
+  /* Löschen gibt es nur für eine bestehende Abwesenheit. */
+  $('#dabsDelete').hidden = !absItem;
+  $('#dabsSave').hidden = false;
 
   $('#absNotified').addEventListener('click', () => {
     absCollect();
     absDraft.notified = !absDraft.notified;
     drawAbsence();
-    absSpeichern();
   });
 
   $('#absReason').addEventListener('click', () => {
+    absCollect();
     const pick = $('#dabsPick');
     pick.innerHTML = list.map((r, i) =>
       `<button type="button" data-n="${i}" class="${(r.code || r.name) === d.reason ? 'is-on' : ''}">
          ${esc(r.name)}
        </button>`).join('');
-    /* Die Liste hängt direkt unter der Auswahlzeile — nicht mitten über
-       den Zeitfeldern. */
+    /* Die Liste hängt direkt unter der Auswahlzeile. */
     const host = $('#detailAbs').getBoundingClientRect();
     const r = $('#absReason').getBoundingClientRect();
     pick.style.top = (r.bottom - host.top + 6) + 'px';
     pick.style.maxHeight = Math.max(150, host.bottom - r.bottom - 26) + 'px';
     pick.hidden = false;
     $$('#dabsPick button').forEach(b => b.addEventListener('click', () => {
-      absCollect();
-      const r = list[+b.dataset.n];
-      absDraft.reason = r.code || r.name || '';
+      const r2 = list[+b.dataset.n];
+      absDraft.reason = r2.code || '';
       pick.hidden = true;
       drawAbsence();
-      absSpeichern();
     }));
   });
 }
 
-/* Sichern, ohne das Fenster zu schließen — für jede einzelne Änderung. */
-let absLauft = null;
-function absSpeichern(){
-  if (!absCard || !absRec) return;
-  /* Mehrere Änderungen kurz hintereinander werden zu einem Schreibvorgang
-     zusammengefasst. */
-  clearTimeout(absLauft);
-  absLauft = setTimeout(() => absSchreiben(absCard, absRec, absDraft), 250);
-}
-
-/* Die eigentliche Schreibarbeit — einmal formuliert, von beiden Wegen
-   benutzt: vom Haken oben rechts und von jeder einzelnen Änderung. */
-async function absSchreiben(c, rec, d){
-  if (!c || !rec || !d) return;
-
-  /* Aus den beiden Zeiten geht hervor, was gemeint ist:
-       Ende vor Stundenschluss   → verspätet, Ankunft ist das Ende
-       Beginn nach Stundenbeginn → früher gegangen, Beginn ist die Zeit
-       sonst                     → ganze Stunde abwesend */
+/* Schreiben: Zeitraum von–bis mit Grund, Text und Benachrichtigung. Ob es
+   eine Verspätung ist, ergibt sich aus den Zeiten: endet die Fehlzeit vor
+   dem Stundenschluss und beginnt sie mit der Stunde, ist die Ankunft das Ende. */
+async function absSchreiben(c, rec, d, item){
+  if (!c || !rec || !d) return false;
   const t1 = ((state.times[c.lesson] || {}).start || '').slice(0, 5);
   const t2 = ((state.times[Math.min(c.lesson + c.span - 1, 12)] || {}).end || '').slice(0, 5);
-  const spaeter = t2 && d.toTime   && d.toTime   < t2;
-  const frueher = t1 && d.fromTime && d.fromTime > t1;
-
-  rec.gone = '';
-  if (spaeter && !frueher){
-    rec.state = 'late'; rec.arrival = d.toTime;
-  } else if (frueher && !spaeter){
-    rec.state = 'absent'; rec.arrival = ''; rec.gone = d.fromTime;
-  } else {
-    rec.state = 'absent'; rec.arrival = '';
+  if (`${d.toDate} ${d.toTime}` <= `${d.fromDate} ${d.fromTime}`){
+    toast('Das Ende muss nach dem Beginn liegen');
+    return false;
   }
-  /* Hier wird nie entschuldigt — das entscheidet die Verwaltung. */
-  rec.excused   = false;
-  rec.reason    = d.reason;
-  rec.note      = (d.text || '').trim();
-  rec.from_date = d.fromDate; rec.from_time = d.fromTime;
-  rec.to_date   = d.toDate;   rec.to_time   = d.toTime;
-  rec.notified  = d.notified;
-
-  attChecked = true;
-  drawAttendance(c);
-  if (state.detail === c) renderDetail();
-
+  /* Betrifft der Zeitraum diese Stunde, steht er sofort in der Liste. */
+  const heute = d.fromDate <= c.date && d.toDate >= c.date
+             && (d.fromDate < c.date || d.fromTime < t2) && (d.toDate > c.date || d.toTime > t1);
+  const spaet = heute && d.fromDate === c.date && d.toDate === c.date && d.fromTime <= t1 && d.toTime < t2;
+  const frueh = heute && d.fromDate === c.date && d.toDate === c.date && d.fromTime > t1 && d.toTime >= t2;
+  if (heute){
+    rec.state = spaet ? 'late' : 'absent';
+    rec.arrival = spaet ? d.toTime : '';
+    rec.gone = frueh ? d.fromTime : '';
+    rec.reason = d.reason; rec.note = (d.text || '').trim();
+    rec.from_date = d.fromDate; rec.from_time = d.fromTime;
+    rec.to_date = d.toDate; rec.to_time = d.toTime;
+    rec.notified = d.notified; rec.seit = false;
+    attChecked = true;
+    drawAttendance(c);
+    if (state.detail === c) renderDetail();
+  }
+  /* Ein anderer Zeitraum der Klassenleitung wird über seine Fehlzeiten
+     ersetzt, ohne die Abwesenheit dieser Stunde anzufassen. */
+  const fremd = !!(item && ablManage && !item.current && (item.ids || []).length);
   try {
     await cbPost(c, {
-      action:'attendance', student_id:String(rec.id), state:rec.state,
-      note:rec.note, arrival:rec.arrival || '', reason:rec.reason || '',
-      unexcused:'1',
-      from_date:d.fromDate, from_time:d.fromTime,
-      to_date:d.toDate,     to_time:d.toTime,
-      notified: d.notified ? '1' : '0'
+      action:'attendance', student_id:String(rec.id), state: spaet ? 'late' : 'absent',
+      note:(d.text || '').trim(), arrival: spaet ? d.toTime : '', reason:d.reason || '',
+      from_date:d.fromDate, from_time:d.fromTime, to_date:d.toDate, to_time:d.toTime,
+      notified: d.notified ? '1' : '0',
+      replace: fremd ? item.ids.join(',') : '',
+      scope: fremd ? 'other' : ''
     });
-  } catch (e){ toast('Nicht gespeichert: ' + e.message); }
+    return true;
+  } catch (e){ toast('Nicht gespeichert: ' + e.message); return false; }
 }
 
 /* Der Haken oben rechts: sichern und schließen. */
 async function absSave(){
-  const c = absCard, rec = absRec, d = absDraft;
+  const c = absCard, rec = absRec, d = absDraft, item = absItem;
   if (!c || !rec) return;
   absCollect();
-  clearTimeout(absLauft);
   closeAbsence();
   buzz();
-  await absSchreiben(c, rec, d);
+  if (await absSchreiben(c, rec, d, item)){
+    attRefresh(c);
+    if (ablRec === rec) ablLaden();
+  }
 }
 
-/* Löschen: die Abwesenheit fällt weg, die Person gilt wieder als anwesend. */
+/* Löschen: die Abwesenheit fällt weg. */
 async function absDelete(){
-  const c = absCard, rec = absRec;
-  if (!c || !rec) return;
-
-  rec.state = 'present';
-  rec.arrival = ''; rec.reason = ''; rec.note = '';
-  rec.from_date = rec.from_time = rec.to_date = rec.to_time = '';
-  rec.notified = false;
-
+  const c = absCard, rec = absRec, item = absItem;
+  if (!c || !rec || !item) return;
+  if (!confirm('Abwesenheit löschen?')) return;
+  const hier = !!item.current;
+  if (hier){
+    rec.state = 'present';
+    rec.arrival = ''; rec.gone = ''; rec.reason = ''; rec.note = '';
+    rec.from_date = rec.from_time = rec.to_date = rec.to_time = '';
+    rec.notified = false;
+  }
   closeAbsence();
-  drawAttendance(c);
-  if (state.detail === c) renderDetail();
-
+  if (hier){ drawAttendance(c); if (state.detail === c) renderDetail(); }
   try {
-    await cbPost(c, {
-      action:'attendance', student_id:String(rec.id), state:'present',
-      note:'', arrival:'', reason:'',
-      from_date:'', from_time:'', to_date:'', to_time:'', notified:'0'
-    });
-  } catch (e){ toast('Nicht gespeichert: ' + e.message); }
+    await cbPost(c, { action:'absenceDelete', student_id:String(rec.id),
+                      ids:(item.ids || []).join(','), current: hier ? '1' : '0' });
+    attRefresh(c);
+    if (ablRec === rec) ablLaden();
+  } catch (e){ toast('Nicht gelöscht: ' + e.message); }
 }
 
 $('#dabsClose').addEventListener('click', closeAbsence);
@@ -5864,7 +5887,7 @@ document.addEventListener('click', e => {
 function closeClassbook(){
   const idx = document.getElementById('attIndex'); if (idx) idx.remove();
   $('#detailSub').classList.remove('dsub--raum');
-  closeAbsence(); closeForm();
+  closeAbsence(); closeAbsList(); closeForm();
   $('#detailSub').hidden = true;
   cbCurrent = null;
   if (state.detail) renderDetail();
@@ -5878,7 +5901,7 @@ $('#dsubAddTop').addEventListener('click', () => {
 function closeClassbook(){
   const idx = document.getElementById('attIndex'); if (idx) idx.remove();
   $('#detailSub').classList.remove('dsub--raum');
-  closeAbsence(); closeForm();
+  closeAbsence(); closeAbsList(); closeForm();
   $('#detailSub').hidden = true;
   cbCurrent = null;
   if (state.detail) renderDetail();

@@ -295,7 +295,7 @@ final class Stundendaten: ObservableObject {
         let antwort = try await api.raumAendern(RaumAenderungDaten(
             datum: karte.datum, stundeVon: karte.von, stundeBis: karte.bis, unterricht: u,
             klassen: klassen, aktion: aktion, raum: raum, alt: alt))
-        let original = karte.raeume.map { $0.alt.flatMap { $0.isEmpty ? nil : $0 } ?? $0.k }.filter { !$0.isEmpty }
+        let original = karte.raeume.map { w in (w.alt ?? "").isEmpty ? w.k : (w.alt ?? "") }.filter { !$0.isEmpty }
         if antwort.zurueckgesetzt {
             raeume = nil
         } else {
@@ -620,7 +620,7 @@ struct HausaufgabenSeite: View {
                     .foregroundStyle(Farben.tinte)
                 if let f = ha.faellig, !f.isEmpty {
                     Text("fällig \(Datumsformat.anzeige(f, "EE d.M.yyyy"))")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Farben.heute)
                 }
                 if !ha.bemerkung.isEmpty {
@@ -704,7 +704,7 @@ struct HausaufgabeFormular: View {
                         ProgressView()
                     } else {
                         Button("Sichern") { Task { await speichern() } }
-                            .fontWeight(.semibold)
+                            .fontWeight(.medium)
                             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }

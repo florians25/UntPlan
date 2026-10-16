@@ -117,7 +117,7 @@ struct PlanAuswahlView: View {
             .accessibilityLabel("Schließen")
 
             Text("Stundenplan auswählen")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Color(hell: 0x5D727F, dunkel: 0xC9D1D8))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -130,7 +130,7 @@ struct PlanAuswahlView: View {
                 }
             } label: {
                 Text(imBearbeiten ? "Fertig" : "Bearbeiten")
-                    .font(.system(size: 17, weight: imBearbeiten ? .semibold : .regular))
+                    .font(.system(size: 17, weight: imBearbeiten ? .medium : .regular))
                     .foregroundStyle(Farben.tinte)
                     .lineLimit(1)
                     .fixedSize()
@@ -166,7 +166,7 @@ struct PlanAuswahlView: View {
                 Spacer(minLength: 4)
                 if auswahl == nil {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(Farben.akzent)
                 }
             }
@@ -356,7 +356,7 @@ struct ElementlisteView: View {
                     }
                 } header: {
                     Text(gruppe.buchstabe)
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Farben.gedaempft)
                         .padding(.leading, 2)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -391,7 +391,7 @@ struct ElementlisteView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Zurück")
             Text(kategorie.titel)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Color(hell: 0x5D727F, dunkel: 0xC9D1D8))
                 .frame(maxWidth: .infinity)
             Color.clear.frame(width: 44, height: 44)
@@ -427,7 +427,7 @@ struct Elementzeile: View {
             Button(action: antippen) {
                 HStack(spacing: 13) {
                     Text(String(element.kurz.prefix(4)))
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 13, weight: .medium))
                         .tracking(0.26)
                         .foregroundStyle(.white)
                         .lineLimit(1)
@@ -456,7 +456,7 @@ struct Elementzeile: View {
                     Spacer(minLength: 4)
                     if gewaehlt {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(Farben.akzent)
                     }
                 }

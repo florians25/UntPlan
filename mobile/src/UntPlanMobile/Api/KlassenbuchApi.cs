@@ -485,10 +485,12 @@ public static class KlassenbuchApi
             if (bis <= von) return Fehler("Das Ende der Abwesenheit muss nach dem Beginn liegen.");
             var ersetzen = p["replace"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(x => int.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : 0).Where(i => i > 0).ToList();
+            var andere = p["scope"] == "other" && ersetzen.Count > 0;
             await web.PostAsync(c, "api/app/klassenbuch/abwesenheit", new
             {
                 schuelerIds = new[] { sid }, von, bis, grund = p["reason"].Trim(), text = p["note"].Trim(),
-                datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht,
+                // scope=other: anderer Zeitraum der Klassenleitung – ohne Bezug zu dieser Stunde, ersetzt nur die angegebenen Fehlzeiten
+                datum = andere ? null : Iso(k.Datum), stunde = andere ? (int?)null : k.Stunde, unterricht = andere ? null : k.Unterricht,
                 ersetzen = ersetzen.Count > 0 ? ersetzen : null,
                 elternInformiert = p["notified"] is "1" or "true" ? true : p["notified"] is "0" or "false" ? false : (bool?)null,
             });

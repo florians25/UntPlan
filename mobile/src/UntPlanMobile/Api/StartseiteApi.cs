@@ -47,6 +47,7 @@ public static class StartseiteApi
                 case "home":
                 {
                     var meldungen = k.IstSchueler ? new List<JsonObject>() : await AbwesenheitsmeldungenAsync(c, web);
+                    var eigene = k.IstSchueler ? await EigeneAbwesenheitenRohAsync(c, web, Zeitraum(p, heute).Von, heute) : new List<JsonObject>();
                     var klassen = k.GeleiteteKlassen();
                     var offen = 0;
                     if (klassen.Count is > 0 and <= 3)
@@ -78,12 +79,19 @@ public static class StartseiteApi
                         ok = true,
                         school = k.Schule,
                         news,
-                        absence = new
-                        {
-                            total = meldungen.Count,
-                            days = meldungen.Sum(m => Tage(m)),
-                            open = meldungen.Count(m => m["status"]?.GetValue<string>() == "offen"),
-                        },
+                        absence = k.IstSchueler
+                            ? new
+                            {
+                                total = eigene.Count,
+                                days = eigene.Select(z => (z["vonDatum"]?.GetValue<string>() ?? "", z["bisDatum"]?.GetValue<string>() ?? "")).Sum(t => Tage(t.Item1, t.Item2)),
+                                open = eigene.Count(z => z["status"]?.GetValue<string>() == "offen"),
+                            }
+                            : new
+                            {
+                                total = meldungen.Count,
+                                days = meldungen.Sum(m => Tage(m)),
+                                open = meldungen.Count(m => m["status"]?.GetValue<string>() == "offen"),
+                            },
                         classes = klassen.Select(x => new { id = x.Kurz, name = x.Kurz }),
                         openExcuses = offen,
                     });
@@ -135,7 +143,8 @@ public static class StartseiteApi
                 case "absences":
                 {
                     var (von, bis) = Zeitraum(p, heute);
-                    if (k.IstSchueler) return Results.Json(new { ok = true, to = Iso(bis), items = Array.Empty<object>(), student = true });
+                    // Schüler*innen und Erziehungsberechtigte: eigene Abwesenheiten aus dem Klassenbuch (wie „Meine Abwesenheiten“ im Original)
+                    if (k.IstSchueler) return Results.Json(new { ok = true, from = Iso(von), to = Iso(bis), items = await EigeneAbwesenheitenAsync(c, web, von, bis), student = true });
                     var items = (await AbwesenheitsmeldungenAsync(c, web))
                         .Where(m => string.CompareOrdinal(m["bis"]?.GetValue<string>() ?? "", Iso(von)) >= 0 && string.CompareOrdinal(m["von"]?.GetValue<string>() ?? "", Iso(bis.AddDays(60))) <= 0)
                         .Select(m =>
@@ -186,6 +195,60 @@ public static class StartseiteApi
                     return Fehler("unknown_action");
             }
         });
+    }
+
+    private static int Tage(string von, string bis) =>
+        DateOnly.TryParse(von, CultureInfo.InvariantCulture, out var v) && DateOnly.TryParse(bis, CultureInfo.InvariantCulture, out var b)
+            ? Math.Max(1, b.DayNumber - v.DayNumber + 1) : 1;
+
+    private static readonly string[] Wt = { "So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa." };
+
+    /// <summary>Abwesenheitszeiträume der eigenen Person bzw. des Kindes aus UntPlanWeb (/api/app/familie/abwesenheiten).</summary>
+    private static async Task<List<JsonObject>> EigeneAbwesenheitenRohAsync(HttpContext c, UntPlanWebVerbindung web, DateOnly von, DateOnly bis)
+    {
+        try
+        {
+            var j = await web.GetAsync(c, $"api/app/familie/abwesenheiten?von={Iso(von)}&bis={Iso(bis)}");
+            return (j?["zeilen"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>().ToList();
+        }
+        catch (UntPlanWebFehler) { return new(); }
+    }
+
+    /// <summary>Karten für „Meine Abwesenheiten“: Zeitraum, Uhrzeit (über mehrere Tage mit Wochentag), Grund und Entschuldigungsstand.</summary>
+    private static async Task<List<object>> EigeneAbwesenheitenAsync(HttpContext c, UntPlanWebVerbindung web, DateOnly von, DateOnly bis)
+    {
+        var zeilen = await EigeneAbwesenheitenRohAsync(c, web, von, bis);
+        Dictionary<string, string> gruende;
+        try
+        {
+            gruende = ((await web.GetAsync(c, "api/app/familie/gruende")) as JsonObject ?? new JsonObject())
+                .ToDictionary(x => x.Key, x => x.Value?.GetValue<string>() ?? x.Key, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (UntPlanWebFehler) { gruende = new(StringComparer.OrdinalIgnoreCase); }
+        string S(JsonObject z, string f) => z[f] is JsonValue v && v.GetValueKind() == System.Text.Json.JsonValueKind.String ? v.GetValue<string>() : "";
+        string Tag(string iso) => DateOnly.TryParse(iso, CultureInfo.InvariantCulture, out var d) ? Wt[(int)d.DayOfWeek] + ", " : "";
+        return zeilen.Select(z =>
+        {
+            var vd = S(z, "vonDatum"); var bd = S(z, "bisDatum"); if (bd.Length == 0) bd = vd;
+            var mehr = bd != vd;
+            var status = S(z, "status");
+            var grund = S(z, "grund");
+            var art = S(z, "art");
+            return (object)new
+            {
+                id = S(z, "schluessel"),
+                from = vd, to = bd,
+                timeFrom = (mehr ? Tag(vd) : "") + S(z, "vonZeit"),
+                timeTo = (mehr ? Tag(bd) : "") + S(z, "bisZeit"),
+                art = art == "verspaetet" ? "Verspätung" : art == "vorzeitig" ? "Vorzeitig gegangen" : "",
+                reason = grund.Length > 0 ? gruende.GetValueOrDefault(grund, grund) : "",
+                note = S(z, "text"),
+                status,
+                tone = status switch { "entschuldigt" => "ok", "unentschuldigt" => "no", _ => "open" },
+                label = status switch { "entschuldigt" => "entschuldigt", "unentschuldigt" => "nicht entschuldigt", _ => "offen" },
+                source = "",
+            };
+        }).ToList();
     }
 
     private static int Tage(JsonObject m) =>

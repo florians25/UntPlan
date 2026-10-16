@@ -16,7 +16,7 @@ func werteText(_ werte: [Wert], trenner: String = ", ", offen: Bool = false) -> 
             if !w.k.isEmpty { ergebnis = ergebnis + Text(" ") }
         }
         if w.geaendert {
-            ergebnis = ergebnis + Text(w.k).foregroundColor(Farben.gruen).bold()
+            ergebnis = ergebnis + Text(w.k).foregroundColor(Farben.gruen).fontWeight(.medium)
         } else {
             ergebnis = ergebnis + Text(w.k)
         }
@@ -60,7 +60,7 @@ struct Abschnittstitel: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(text)
-                .font(.title3.weight(.bold))
+                .font(.title3.weight(.medium))
             Spacer()
             if let zusatz {
                 Text(zusatz)
@@ -109,7 +109,7 @@ struct Initialen: View {
 
     var body: some View {
         Text(Self.kuerzel(name))
-            .font(.system(size: groesse * 0.38, weight: .semibold))
+            .font(.system(size: groesse * 0.38, weight: .medium))
             .foregroundStyle(.white)
             .frame(width: groesse, height: groesse)
             .background(Farben.akzent, in: Circle())
@@ -211,13 +211,13 @@ struct KalenderSymbol: View {
                 switch inhalt {
                 case .tag(let tag):
                     Text("\(tag)")
-                        .font(.system(size: b * 0.36, weight: .semibold))
+                        .font(.system(size: b * 0.36, weight: .medium))
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 case .stern:
                     Image(systemName: "star")
-                        .font(.system(size: b * 0.34, weight: .semibold))
+                        .font(.system(size: b * 0.34, weight: .medium))
                 }
             }
             .frame(width: b * 0.8, height: b * 0.5)

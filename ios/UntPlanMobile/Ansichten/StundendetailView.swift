@@ -433,7 +433,7 @@ struct StundendetailInhalt: View {
                                                 zahl: daten.hausaufgaben.map { $0.liste.count } ?? (daten.geladen ? 0 : nil)))
             }
             if kollegium && !daten.klassen.isEmpty && !istVeranstaltung {
-                link(.klassenbuch, Detailzeile(symbol: "SymbolKlassenbuch", titel: "Klassenbucheinträge",
+                link(.klassenbuch, Detailzeile(symbol: "book.closed", titel: "Klassenbucheinträge",
                                                zahl: daten.geladen ? daten.vermerke.count : nil))
             }
             if (kollegium && mitUnterricht) || !daten.notizSchueler.isEmpty {

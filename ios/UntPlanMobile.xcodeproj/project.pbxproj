@@ -31,6 +31,10 @@
 		5A1F0C000000000000000046 /* Schnellaktionen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000045 /* Schnellaktionen.swift */; };
 		5A1F0C00000000000000003E /* StundendetailSeiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003D /* StundendetailSeiten.swift */; };
 		5A1F0C000000000000000044 /* DetailBausteine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000043 /* DetailBausteine.swift */; };
+		5A1F0C000000000000000048 /* Abwesenheitsseiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000047 /* Abwesenheitsseiten.swift */; };
+		5A1F0C00000000000000004A /* RaumSeite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000049 /* RaumSeite.swift */; };
+		5A1F0C00000000000000004C /* MeineAbwesenheitenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000004B /* MeineAbwesenheitenView.swift */; };
+		5A1F0C00000000000000004E /* GeheZuDatumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000004D /* GeheZuDatumView.swift */; };
 		5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003F /* ProfilSeiten.swift */; };
 		5A1F0C000000000000000042 /* Kachelbau.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000041 /* Kachelbau.swift */; };
 /* End PBXBuildFile section */
@@ -61,6 +65,10 @@
 		5A1F0C000000000000000045 /* Schnellaktionen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Schnellaktionen.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000003D /* StundendetailSeiten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StundendetailSeiten.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000043 /* DetailBausteine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailBausteine.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000047 /* Abwesenheitsseiten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Abwesenheitsseiten.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000049 /* RaumSeite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaumSeite.swift; sourceTree = "<group>"; };
+		5A1F0C00000000000000004B /* MeineAbwesenheitenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeineAbwesenheitenView.swift; sourceTree = "<group>"; };
+		5A1F0C00000000000000004D /* GeheZuDatumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeheZuDatumView.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000003F /* ProfilSeiten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilSeiten.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000041 /* Kachelbau.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kachelbau.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -114,6 +122,10 @@
 				5A1F0C00000000000000003F /* ProfilSeiten.swift */,
 				5A1F0C00000000000000003D /* StundendetailSeiten.swift */,
 				5A1F0C000000000000000043 /* DetailBausteine.swift */,
+				5A1F0C000000000000000047 /* Abwesenheitsseiten.swift */,
+				5A1F0C000000000000000049 /* RaumSeite.swift */,
+				5A1F0C00000000000000004B /* MeineAbwesenheitenView.swift */,
+				5A1F0C00000000000000004D /* GeheZuDatumView.swift */,
 			);
 			path = Ansichten;
 			sourceTree = "<group>";
@@ -241,6 +253,10 @@
 				5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */,
 				5A1F0C00000000000000003E /* StundendetailSeiten.swift in Sources */,
 				5A1F0C000000000000000044 /* DetailBausteine.swift in Sources */,
+				5A1F0C000000000000000048 /* Abwesenheitsseiten.swift in Sources */,
+				5A1F0C00000000000000004A /* RaumSeite.swift in Sources */,
+				5A1F0C00000000000000004C /* MeineAbwesenheitenView.swift in Sources */,
+				5A1F0C00000000000000004E /* GeheZuDatumView.swift in Sources */,
 				5A1F0C00000000000000003A /* TabLeiste.swift in Sources */,
 				5A1F0C000000000000000038 /* PlanAuswahlView.swift in Sources */,
 			);

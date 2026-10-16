@@ -86,7 +86,7 @@ struct GlasTabLeiste: View {
                 .overlay(alignment: .topTrailing) {
                     if reiter == .mitteilungen && ungelesen > 0 {
                         Text(ungelesen > 99 ? "99+" : "\(ungelesen)")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 11, weight: .medium))
                             .monospacedDigit()
                             .foregroundStyle(.white)
                             .padding(.horizontal, 4)
@@ -96,7 +96,7 @@ struct GlasTabLeiste: View {
                     }
                 }
             Text(reiter.titel)
-                .font(.system(size: 11.5, weight: aktiv ? .bold : .semibold))
+                .font(.system(size: 11.5, weight: .medium))
                 .tracking(-0.12)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -171,11 +171,11 @@ struct KopfTabLeiste: View {
         let aktiv = auswahl == reiter
         return HStack(spacing: 5) {
             Text(reiter.titel)
-                .font(.system(size: 14.5, weight: aktiv ? .semibold : .medium))
+                .font(.system(size: 14.5, weight: .medium))
                 .lineLimit(1)
             if reiter == .mitteilungen && ungelesen > 0 {
                 Text(ungelesen > 99 ? "99+" : "\(ungelesen)")
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: 10.5, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .padding(.horizontal, 4)

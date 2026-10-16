@@ -82,7 +82,7 @@ struct MitteilungenView: View {
         }
         ToolbarItem(placement: .principal) {
             Text("Mitteilungen")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Farben.titelGrau)
                 .lineLimit(1)
         }
@@ -120,7 +120,7 @@ struct MitteilungenView: View {
                     ordner = o
                 } label: {
                     Text(o.titel)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(aktiv ? Farben.tinte : Farben.gedaempft)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -273,7 +273,7 @@ struct Mitteilungszeile: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(name)
-                        .font(.system(size: 17, weight: ungelesen ? .semibold : .regular))
+                        .font(.system(size: 17, weight: ungelesen ? .medium : .regular))
                         .foregroundStyle(Farben.tinte)
                         .lineLimit(1)
                     Spacer(minLength: 6)
@@ -289,7 +289,7 @@ struct Mitteilungszeile: View {
                             .foregroundStyle(Farben.entfallRand)
                     }
                     Text(mitteilung.betreff.isEmpty ? "(ohne Betreff)" : mitteilung.betreff)
-                        .fontWeight(ungelesen ? .semibold : .regular)
+                        .fontWeight(ungelesen ? .medium : .regular)
                         .foregroundStyle(Farben.tinte2)
                         .lineLimit(1)
                     if !mitteilung.anhaenge.isEmpty {
@@ -395,7 +395,7 @@ struct MitteilungNeuView: View {
                         ProgressView()
                     } else {
                         Button("Senden") { Task { await senden() } }
-                            .fontWeight(.semibold)
+                            .fontWeight(.medium)
                             .disabled(!bereit)
                     }
                 }
@@ -447,13 +447,13 @@ struct MitteilungDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 Text(mitteilung.betreff.isEmpty ? "(ohne Betreff)" : mitteilung.betreff)
-                    .font(.title2.weight(.bold))
+                    .font(.title2.weight(.medium))
                 HStack(spacing: 12) {
                     Initialen(name: gesendet ? (mitteilung.empfaenger.first ?? "?") : mitteilung.absender, groesse: 44)
                     VStack(alignment: .leading, spacing: 2) {
                         if !gesendet {
                             Text(mitteilung.absender)
-                                .font(.subheadline.weight(.semibold))
+                                .font(.subheadline.weight(.medium))
                         }
                         if !mitteilung.empfaenger.isEmpty {
                             Text("An: " + mitteilung.empfaenger.joined(separator: ", "))
@@ -470,7 +470,7 @@ struct MitteilungDetailView: View {
                 if !mitteilung.anhaenge.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Anhänge")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.subheadline.weight(.medium))
                         ForEach(mitteilung.anhaenge) { a in
                             Label(a.name, systemImage: "paperclip")
                                 .font(.subheadline)

@@ -27,12 +27,12 @@ struct AnmeldungView: View {
                 Section {
                     VStack(spacing: 10) {
                         Image(systemName: "calendar")
-                            .font(.system(size: 34, weight: .semibold))
+                            .font(.system(size: 34, weight: .medium))
                             .foregroundStyle(.white)
                             .frame(width: 72, height: 72)
                             .background(Farben.akzent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         Text("UntPlan")
-                            .font(.largeTitle.weight(.bold))
+                            .font(.largeTitle.weight(.medium))
                         Text("Stundenplan, Vertretungen und Mitteilungen Ihrer Schule")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -86,7 +86,7 @@ struct AnmeldungView: View {
                                     .tint(.white)
                             } else {
                                 Text("Anmelden")
-                                    .fontWeight(.semibold)
+                                    .fontWeight(.medium)
                             }
                             Spacer()
                         }

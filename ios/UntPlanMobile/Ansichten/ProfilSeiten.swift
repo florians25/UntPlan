@@ -112,7 +112,7 @@ struct PasswortView: View {
                             ProgressView()
                         } else {
                             Text("Passwort ändern")
-                                .fontWeight(.semibold)
+                                .fontWeight(.medium)
                         }
                         Spacer()
                     }
@@ -180,7 +180,7 @@ struct NeuigkeitenView: View {
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(punkt.titel)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(Farben.tinte)
                         Text(punkt.text)
                             .font(.system(size: 14))

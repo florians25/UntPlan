@@ -40,7 +40,7 @@ struct ProfilView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(grosserTitel)
-                        .font(.system(size: groessenklasse == .compact ? 32 : 30, weight: .heavy))
+                        .font(.system(size: groessenklasse == .compact ? 32 : 30, weight: .medium))
                         .tracking(-0.6)
                         .foregroundStyle(Farben.titelGrau)
                         .lineLimit(1)
@@ -131,7 +131,7 @@ struct ProfilView: View {
         KontoMenue {
             HStack(spacing: 12) {
                 Text(String(login.prefix(1)).uppercased())
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.white)
                     .frame(width: 40, height: 40)
                     .background(Farben.avatar, in: Circle())

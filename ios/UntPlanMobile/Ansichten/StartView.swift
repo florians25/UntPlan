@@ -18,6 +18,8 @@ struct Tagesinfo: Identifiable {
 enum Startziel: Hashable {
     case termine
     case abwesenheiten
+    /// Schüler*innen und Eltern: erfasste Abwesenheiten (Zeiträume mit Status)
+    case familieAbwesenheiten
     case hausaufgaben
     case aufsichten
     case aenderungen
@@ -77,7 +79,12 @@ struct StartView: View {
                 ToolbarItem(placement: .topBarLeading) { KontoKnopf() }
             }
             .navigationDestination(for: Startziel.self) { ziel in
-                StartlisteView(ziel: ziel, heute: heute) { gewaehlteKarte = $0 }
+                if ziel == .familieAbwesenheiten {
+                    MeineAbwesenheitenView()
+                        .environmentObject(zustand)
+                } else {
+                    StartlisteView(ziel: ziel, heute: heute) { gewaehlteKarte = $0 }
+                }
             }
             .sheet(item: $gewaehlteKarte) { karte in
                 StundendetailView(karte: karte, typ: heute?.typ ?? "klasse", element: heute?.element ?? "")
@@ -91,7 +98,7 @@ struct StartView: View {
 
     private var schulname: some View {
         Text(zustand.schulname)
-            .font(.system(size: groessenklasse == .compact ? 32 : 30, weight: .heavy))
+            .font(.system(size: groessenklasse == .compact ? 32 : 30, weight: .medium))
             .tracking(-0.6)
             .foregroundStyle(Farben.titelGrau)
             .lineLimit(2)
@@ -183,15 +190,15 @@ struct StartView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(Farben.tinte2)
                 Text(Datumsformat.anzeige(h.datum, "d"))
-                    .font(.system(size: 38, weight: .bold))
+                    .font(.system(size: 38, weight: .medium))
                     .foregroundStyle(Farben.heute)
                     .padding(.top, -1)
                 Text(Datumsformat.anzeige(h.datum, "MMMM"))
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Farben.heute)
                 if !h.woche.isEmpty {
                     Text(h.woche.count == 1 ? "\(h.woche)-Woche" : h.woche)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Color(hell: 0x20364F, dunkel: 0xD7E4F7))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -223,7 +230,7 @@ struct StartView: View {
         }
         return VStack(spacing: 3) {
             Text(hinweis.lowercased().hasPrefix("klasse") ? "Klasse abwesend" : "Abwesend")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: .medium))
             if !zusatz.isEmpty {
                 Text(zusatz)
                     .font(.system(size: 12))
@@ -246,13 +253,13 @@ struct StartView: View {
         let rest = Array(stunden.dropFirst(sichtbar.count))
         return VStack(alignment: .leading, spacing: 0) {
             (Text(istHeute ? "Heute" : Datumsformat.anzeige(h.datum, "EEEE"))
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Farben.tinte2)
              + Text("  |  ")
                 .font(.system(size: 12))
                 .foregroundColor(Farben.gedaempft.opacity(0.6))
              + Text("Mein Stundenplan")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Farben.tinte2))
                 .lineLimit(1)
                 .padding(.bottom, 8)
@@ -304,7 +311,7 @@ struct StartView: View {
                 .font(.system(size: 26, weight: .light))
                 .foregroundStyle(Farben.tinte2)
             Text("Keine Stunden")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Farben.tinte)
                 .padding(.top, 5)
             Text(h.karten.isEmpty ? "Heute ist frei." : "Heute keine weiteren Stunden.")
@@ -332,6 +339,8 @@ struct StartView: View {
         ]
         if zustand.istKollegium {
             liste.append(Listeneintrag(ziel: .abwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
+        } else if zustand.istFamilie {
+            liste.append(Listeneintrag(ziel: .familieAbwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
         }
         if !h.hausaufgaben.isEmpty || h.typ == "klasse" {
             liste.append(Listeneintrag(ziel: .hausaufgaben, titel: "Hausaufgaben", symbol: "book.closed", zahl: h.hausaufgaben.count))
@@ -419,7 +428,7 @@ struct Infokarte: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(info.titel)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Farben.tinte)
                     .lineLimit(2)
                 Text(info.text)
@@ -451,10 +460,10 @@ struct NaechsteStunde: View {
         VStack(alignment: .leading, spacing: 1) {
             ForEach(Array(zeilen.enumerated()), id: \.offset) { eintrag in
                 zeile(eintrag.element, stil: stil)
-                    .font(.system(size: 15, weight: eintrag.offset == 0 ? .semibold : .regular))
+                    .font(.system(size: 15, weight: eintrag.offset == 0 ? .medium : .regular))
             }
             Text(karte.fach.isEmpty ? karte.titel : karte.fach)
-                .font(.system(size: 15, weight: zeilen.isEmpty ? .semibold : .regular))
+                .font(.system(size: 15, weight: zeilen.isEmpty ? .medium : .regular))
                 .strikethrough(stil.durchgestrichen)
         }
         .lineLimit(1)
@@ -514,7 +523,7 @@ struct StartlisteView: View {
     private var titel: String {
         switch ziel {
         case .termine: return "Meine Termine"
-        case .abwesenheiten: return "Meine Abwesenheiten"
+        case .abwesenheiten, .familieAbwesenheiten: return "Meine Abwesenheiten"
         case .hausaufgaben: return "Hausaufgaben"
         case .aufsichten: return "Pausenaufsichten"
         case .aenderungen: return "Änderungen heute"
@@ -526,7 +535,7 @@ struct StartlisteView: View {
             if let h = heute {
                 switch ziel {
                 case .termine: termine(h)
-                case .abwesenheiten: abwesenheiten()
+                case .abwesenheiten, .familieAbwesenheiten: abwesenheiten()
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
@@ -561,11 +570,11 @@ struct StartlisteView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text(abwesenheitszeitraum(m))
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(Farben.tinte)
                         Spacer()
                         Text(m.status == "offen" ? "Offen" : (m.status == "quittiert" ? "Bestätigt" : m.status))
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(m.status == "offen" ? Farben.heute : Farben.gruen)
                     }
                     let grund = [m.grund ?? "", m.text ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -618,15 +627,15 @@ struct StartlisteView: View {
             HStack(spacing: 12) {
                 VStack(spacing: 0) {
                     Text(Datumsformat.anzeige(t.von, "d"))
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 22, weight: .medium))
                     Text(Datumsformat.anzeige(t.von, "MMM"))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 12, weight: .medium))
                 }
                 .foregroundStyle(Farben.heute)
                 .frame(width: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(t.titel.isEmpty ? t.art : t.titel)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Farben.tinte)
                     Text(termintext(t))
                         .font(.system(size: 13))
@@ -661,12 +670,12 @@ struct StartlisteView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(ha.fach)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Farben.tinte)
                     Spacer()
                     if let f = ha.faellig, !f.isEmpty {
                         Text("fällig \(Datumsformat.anzeige(f, "EE d.M."))")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(Farben.heute)
                     }
                 }
@@ -686,7 +695,7 @@ struct StartlisteView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(a.gangName.isEmpty ? a.gang : a.gangName)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Farben.tinte)
                         .strikethrough(a.status == "vertreten", color: Farben.entfallRand)
                     Text("nach der \(a.nachStunde). Stunde · \(a.beginn) – \(a.ende)")
@@ -744,7 +753,7 @@ struct Stundenzeile: View {
         HStack(spacing: 12) {
             VStack(alignment: .trailing, spacing: 1) {
                 Text(karte.beginn.isEmpty ? "\(karte.von)." : karte.beginn)
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .font(.subheadline.weight(.medium).monospacedDigit())
                 Text(karte.von == karte.bis ? "\(karte.von). Std." : "\(karte.von).–\(karte.bis).")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -755,7 +764,7 @@ struct Stundenzeile: View {
                 .frame(width: 4, height: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(karte.titel)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                     .strikethrough(stil.durchgestrichen, color: Farben.entfallRand)
                     .lineLimit(1)
                 let unten = zeilen.filter { !$0.isEmpty }
@@ -771,7 +780,7 @@ struct Stundenzeile: View {
                 Plakette(text: p, farbe: stil.plaketteFarbe)
             }
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.tertiary)
         }
         .foregroundStyle(Farben.tinte)

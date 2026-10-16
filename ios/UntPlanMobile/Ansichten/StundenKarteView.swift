@@ -146,10 +146,10 @@ struct KachelView: View {
         } else {
             // Woche wie Tag: dieselben Zeilen, in der Tagesansicht nur breiter (keine zusätzlichen Angaben)
             zeilenBlock(a)
-            .padding(.leading, Self.textLinks)
-            .padding(.top, Self.textOben)
-            .padding(.trailing, 3)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.leading, Self.textLinks)
+                .padding(.top, Self.textOben)
+                .padding(.trailing, 3)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -217,7 +217,7 @@ struct KachelView: View {
                 .frame(width: 4)
                 .padding(.vertical, 3)
             Text(kachel.titel)
-                .font(.system(size: gross ? 13.5 : 12.4, weight: .semibold))
+                .font(.system(size: gross ? 13.5 : 12.4, weight: .medium))
                 .foregroundStyle(a.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -236,7 +236,7 @@ struct KachelView: View {
             Spacer(minLength: 0)
             if kachel.art == .aufsicht && kachel.aufsichtsstand != .regulaer {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 9, weight: .medium))
                     .rotationEffect(.degrees(90))
                     .foregroundStyle(Farben.gruenSchrift)
                     .frame(width: 15, height: 13)
@@ -526,7 +526,7 @@ struct ZaehlstreifenView: View {
     var body: some View {
         let farben = farbe
         Text("\(streifen.kacheln.count)")
-            .font(.system(size: 11, weight: .bold))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(farben.text)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(farben.flaeche, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
@@ -553,7 +553,7 @@ struct Kuerzungszeichen: View {
 
     var body: some View {
         Image(systemName: "ellipsis")
-            .font(.system(size: 8, weight: .bold))
+            .font(.system(size: 8, weight: .medium))
             .rotationEffect(.degrees(90))
             .foregroundStyle(gruen ? Farben.gruenSchrift : Farben.infoScheibe)
             .frame(width: 14.5, height: 14.5)
@@ -593,7 +593,7 @@ struct Infozeichen: View {
                 .fill(Farben.infoScheibe)
                 .padding(2.3)
             Text("i")
-                .font(.system(size: 7.5, weight: .bold))
+                .font(.system(size: 7.5, weight: .medium))
                 .foregroundStyle(Farben.infoZeichen)
         }
         .frame(width: 14.5, height: 14.5)

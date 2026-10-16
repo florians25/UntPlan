@@ -262,7 +262,7 @@ struct SichernKnopf: View {
         } else {
             Button(action: aktion) {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(aktiv ? Color.white : Farben.gedaempft)
                     .frame(width: Detailmass.knopf, height: Detailmass.knopf)
                     .background(aktiv ? Farben.akzent : Farben.knopf, in: Circle())

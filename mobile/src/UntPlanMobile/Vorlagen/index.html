@@ -500,6 +500,24 @@
     <div class="dsub__body" id="dsubBody"></div>
   </div>
 
+  <!-- Abwesenheiten einer Schülerin / eines Schülers (Liste) -->
+  <div class="dsub dabl" id="detailAbsList" hidden>
+    <div class="dsub__top">
+      <button class="rndbtn" id="dablBack" aria-label="Zurück">
+        <svg viewBox="0 0 24 24" class="ico"><path d="m14 6-6 6 6 6"/></svg>
+      </button>
+      <div class="detail__when"><b>Abwesenheiten</b><span id="dablWho">–</span></div>
+      <button class="rndbtn" id="dablAdd" aria-label="Neue Abwesenheit">
+        <svg viewBox="0 0 24 24" class="ico"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="dsub__body" id="dablBody"></div>
+    <label class="dabl__suche">
+      <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"/><path d="m15.2 15.2 4.6 4.6"/></svg>
+      <input type="search" id="dablSuche" placeholder="Suchen" autocomplete="off" enterkeyhint="search">
+    </label>
+  </div>
+
   <!-- Abwesenheit einer Schülerin / eines Schülers -->
   <div class="dabs" id="detailAbs" hidden>
     <div class="dabs__top">
