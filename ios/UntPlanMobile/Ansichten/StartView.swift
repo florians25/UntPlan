@@ -796,8 +796,7 @@ private struct ZeilenStil: ButtonStyle {
 /// Leichtes Eindrücken (.nextrow:active { scale(.985) }).
 private struct GedruecktStil: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
+        // Keine Animation und keine Hervorhebung beim Antippen
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

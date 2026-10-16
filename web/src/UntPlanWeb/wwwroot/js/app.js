@@ -448,8 +448,10 @@ function huelle() {
   app.querySelector('[data-abmelden]').onclick = abmelden;
   // ungelesene Entwicklungsnews als Zahl am Eintrag „Neuigkeiten“
   import('./ansichten/neuigkeiten.js').then(async m => {
-    const n = await m.neueAnzahl();
-    if (n > 0 && !location.hash.startsWith('#/neuigkeiten')) app.querySelector('[data-neuigkeiten]')?.insertAdjacentHTML('beforeend', `<span class="nw-zahl">${n}</span>`);
+    const n = await m.neueAnzahl(b.login);
+    // inzwischen auf „Neuigkeiten“ gewechselt bzw. abgemeldet: keine (veraltete) Zahl mehr setzen
+    if (sitzung?.benutzer?.login !== b.login || location.hash.startsWith('#/neuigkeiten')) return;
+    m.zahlSetzen(n);
   }).catch(() => { /* ohne Zahl */ });
   app.querySelector('[data-menue]').onclick = () => huelleEl.classList.add('offen');
   app.querySelector('[data-schleier]').onclick = mobilZu;

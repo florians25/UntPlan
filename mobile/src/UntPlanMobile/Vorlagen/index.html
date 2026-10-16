@@ -221,7 +221,7 @@
     <nav class="msgtabs" id="msgTabs">
       <button class="is-active" data-box="in">Posteingang</button>
       <button data-box="out">Gesendet</button>
-      <button data-box="draft" hidden>Entwürfe</button>
+      <button data-box="draft">Entwürfe</button>
     </nav>
 
     <div id="msgList" class="msglist"></div>
@@ -358,7 +358,14 @@
   <!-- ==================== BOTTOM NAV ==================== -->
   <nav class="tabbar" id="tabbar" role="tablist">
     <button class="tab" data-screen="start" role="tab">
-      <svg class="uic ico" aria-hidden="true"><use href="#ic-navigation-dashboard"></use></svg>
+      <!-- Schulgebäude mit Fahne, wie in der Vorlage -->
+      <svg viewBox="0 0 24 24" class="ico tabico" aria-hidden="true">
+        <path d="M12 6.6V2.9h3.6l-.9 1.1.9 1.1H12"/>
+        <path d="M7.4 10.2 12 6.6l4.6 3.6"/>
+        <path d="M3.6 20.6v-8.2h3.8v-2.2h9.2v2.2h3.8v8.2z"/>
+        <path d="M10.3 20.6v-3.9a1.7 1.7 0 0 1 3.4 0v3.9"/>
+        <path d="M5.9 15.2v.1M5.9 17.9v.1M18.1 15.2v.1M18.1 17.9v.1M10.2 12.9v.1M13.8 12.9v.1" class="tabico__dot"/>
+      </svg>
       <span>Start</span>
     </button>
     <button class="tab is-active" data-screen="plan" role="tab" aria-selected="true">
@@ -375,7 +382,10 @@
       <i class="tab__dot" id="msgDot" hidden></i>
     </button>
     <button class="tab" data-screen="profile" role="tab">
-      <svg class="uic ico" aria-hidden="true"><use href="#ic-my-data"></use></svg>
+      <svg viewBox="0 0 24 24" class="ico tabico" aria-hidden="true">
+        <circle cx="12" cy="7.9" r="3.9"/>
+        <path d="M4.6 20.6c0-4.1 3.3-6.9 7.4-6.9s7.4 2.8 7.4 6.9"/>
+      </svg>
       <span>Profil</span>
     </button>
   </nav>

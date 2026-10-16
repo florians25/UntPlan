@@ -466,10 +466,10 @@ struct Kachelaussehen {
             balken = Farben.bereitschaftBalken
             text = v ? Farben.gedaempft : Farben.karteText
         case .veranstaltung:
-            // Hellgrünes Feld (dunkel: dunkelgrün) mit feinem 1-pt-Rahmen; vergangen fällt nur der Rahmen weg
-            farbigeKarte(flaeche: Farben.veranstaltungFlaeche, rand: Farben.veranstaltungRand, vergangen: v, dunkel: dunkel, schatten: false)
-            randBreite = 1
-            text = Farben.karteText
+            // Wie die grüne Vertretungskarte: hell #e3fff2 mit 2-pt-Rahmen #019169, dunkel dunkelgrün mit türkisem Rahmen;
+            // vergangen fällt nur der Rahmen weg
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            text = Farben.aenderungText
         case .ganztagTermin:
             hintergrund = Farben.veranstaltungHintergrund
             rand = Farben.terminRand

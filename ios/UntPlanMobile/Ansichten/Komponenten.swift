@@ -265,25 +265,29 @@ struct Glasknopf<Inhalt: View>: View {
         } else {
             inhalt()
                 .foregroundStyle(Farben.tinte2)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .glas(Circle())
                 .contentShape(Circle())
         }
     }
 }
 
-/// Person mit zwei Pfeilen (Konto wechseln), nachgebaut aus SF Symbols.
+/// Person mit Auf-/Ab-Pfeilen unten rechts (Konto wechseln) wie in der Vorlage: dünne graue Linien.
 struct KontoSymbol: View {
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .topLeading) {
             Image(systemName: "person")
-                .font(.system(size: 17, weight: .regular))
-                .offset(x: -4, y: -3)
+                .font(.system(size: 18, weight: .light))
+                .frame(width: 20, height: 20)
             Image(systemName: "arrow.up.arrow.down")
-                .font(.system(size: 9.5, weight: .semibold))
-                .offset(x: 3, y: 2)
+                .font(.system(size: 10.5, weight: .light))
+                .frame(width: 13, height: 13)
+                .offset(x: 13, y: 13)
         }
-        .frame(width: 26, height: 26)
+        .foregroundStyle(Farben.gedaempft)
+        .frame(width: 28, height: 28, alignment: .topLeading)
+        .offset(x: 1, y: 1)
+        .accessibilityHidden(true)
     }
 }
 

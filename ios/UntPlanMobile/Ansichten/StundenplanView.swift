@@ -11,6 +11,8 @@ struct StundenplanView: View {
     @State private var auswahl: PlanAuswahl? = nil
     /// Geladene Wochen (Schlüssel: Planart|Element|Montag)
     @State private var plaene: [String: Wochenplan] = [:]
+    /// Stand je geladener Woche (zählt bei jedem Neuladen hoch) – das Raster rechnet nur bei neuem Stand neu
+    @State private var staende: [String: Int] = [:]
     @State private var laedt = false
     @State private var fehler: String? = nil
     /// Geöffnete Stundendetails (mit allen Stunden derselben Zeit als Reiter)
@@ -335,6 +337,7 @@ struct StundenplanView: View {
         if let p = plaene[schluessel(woche)] {
             WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ, element: element,
                              nurTag: tagModus ? Datumsformat.iso(m) : nil,
+                             stand: staende[schluessel(woche)] ?? 0,
                              heuteAntippen: {
                                  if tagModus { tagesansicht(false) } else { heute() }
                              },
@@ -350,6 +353,8 @@ struct StundenplanView: View {
                                  guard !karten.isEmpty else { return }
                                  detail = Detailauswahl(karten: karten, start: min(max(start, 0), karten.count - 1))
                              })
+            // Beim Wischen ändert sich nur die Verschiebung: das Raster wird dann nicht neu berechnet
+            .equatable()
         } else {
             Platzhalterwoche(montag: woche)
         }
@@ -429,6 +434,7 @@ struct StundenplanView: View {
         do {
             let neu = try await zustand.api.plan(typ: t, element: e, datum: m)
             plaene[k(m)] = neu
+            staende[k(m), default: 0] += 1
             fehler = nil
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
@@ -439,6 +445,7 @@ struct StundenplanView: View {
             if Task.isCancelled { return }
             if let p = try? await zustand.api.plan(typ: t, element: e, datum: nachbar) {
                 plaene[k(nachbar)] = p
+                staende[k(nachbar), default: 0] += 1
             }
         }
     }
@@ -603,6 +610,8 @@ struct WochenrasterView: View {
     var laedt: Bool = false
     /// Tagesansicht: nur dieser Tag (yyyy-MM-dd) als eine Spalte über die volle Breite.
     var nurTag: String? = nil
+    /// Stand der geladenen Woche (für den Vergleich, ob neu gezeichnet werden muss)
+    var stand: Int = 0
     /// Antippen von „KW / Monat“ (Woche: zur aktuellen Woche, Tag: zurück zur Woche).
     var heuteAntippen: (() -> Void)? = nil
     /// Antippen eines Tageskopfs (Tagesansicht öffnen bzw. schließen).
@@ -649,7 +658,11 @@ struct WochenrasterView: View {
             let spaltenBreite = max(kompakt ? 34 : 40, (geo.size.width - rinnenBreite - rand) / CGFloat(spalten))
             let hoehe = mass.y(ende) + abstandUnten
             VStack(spacing: 0) {
+                // Kopf (KW/Monat und Tage) steht fest über dem scrollenden Raster und wird nie gestaucht
                 wochenkopf(spaltenBreite: spaltenBreite, kacheln: kacheln)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+                    .zIndex(1)
                 ScrollViewReader { leser in
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
@@ -1029,12 +1042,19 @@ struct WochenrasterView: View {
     }
 }
 
-/// Karte gibt beim Antippen leicht nach.
+/// Raster nur neu berechnen, wenn sich Woche, Planart, Element, Tagesansicht oder Stand ändern
+/// (nicht bei jeder Verschiebung während des Wischens).
+extension WochenrasterView: Equatable {
+    static func == (l: WochenrasterView, r: WochenrasterView) -> Bool {
+        l.plan.montag == r.plan.montag && l.typ == r.typ && l.element == r.element && l.nurTag == r.nurTag
+            && l.stand == r.stand && l.laedt == r.laedt
+    }
+}
+
+/// Karten reagieren beim Antippen ohne Animation und ohne Hervorhebung.
 struct KartenKnopfStil: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

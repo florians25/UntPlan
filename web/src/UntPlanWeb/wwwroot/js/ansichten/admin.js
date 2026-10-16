@@ -124,7 +124,7 @@ async function sync(ziel, kontext, neu) {
     catch (err) { kontext.fehler(err); }
   };
   // Version & Updates (eigene Datei)
-  import('./update.js').then(m => m.einbinden(ziel)).catch(() => { /* Anzeige ist optional */ });
+  import('./update.js').then(m => m.einbinden(ziel, false, kontext.ich?.login)).catch(() => { /* Anzeige ist optional */ });
 }
 
 // ------------------------------------------------------------------ Benutzer

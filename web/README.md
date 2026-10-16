@@ -288,7 +288,7 @@ Anmeldung als `admin` / `admin12345`. Die Beispielwoche wird automatisch auf die
 | `UNTPLANWEB_DB_CONNECTION` | Verbindung zu MySQL/MariaDB: `Server=…;Port=3306;Database=…;User ID=…;Password=…` oder `mysql://benutzer:passwort@host:3306/datenbank` | – |
 | `UNTPLANWEB_DB_WARTEN` | Sekunden, die beim Start auf den Datenbankserver gewartet wird | `60` |
 | `UNTPLANWEB_UPDATE_PRUEFEN` | `0` = nicht nach neuen Versionen suchen | an |
-| `UNTPLANWEB_UPDATE_URL` | Quelle der neuesten Version (GitHub-API `…/releases/latest`, `…/releases`, `…/tags`, `ghcr://besitzer/image` oder eigene Adresse mit `{"version":"…"}` bzw. Text) | `https://api.github.com/repos/florians25/UntPlan/releases/latest` |
+| `UNTPLANWEB_UPDATE_URL` | Quelle der neuesten Version (`ghcr://besitzer/image`, GitHub-API `…/releases/latest`, `…/releases`, `…/tags` oder eigene Adresse mit `{"version":"…"}` bzw. Text) | `ghcr://florians25/untplanweb` |
 | `UNTPLANWEB_UPDATE_TAG_PRAEFIX` | nur Tags mit diesem Präfix berücksichtigen (z. B. `web-v`) | – |
 | `UNTPLANWEB_UPDATE_MODUS` | „Update installieren“: `aus`, `watchtower` oder `datei` | `watchtower`, wenn eine Watchtower-Adresse gesetzt ist, sonst `aus` |
 | `UNTPLANWEB_UPDATE_WATCHTOWER_URL`, `…_TOKEN` | HTTP-API von Watchtower, z. B. `http://watchtower:8080/v1/update`, und deren Token | – |
@@ -347,10 +347,10 @@ Danach lädt es die neuen Images und startet neu; die letzten 14 Sicherungen ble
 Für UntPlanMobile gibt es dasselbe als `mobile/update.sh` (aktualisiert UntPlanWeb und UntPlanMobile gemeinsam).
 
 **Updateanzeige:** Unter *Administration → Übersicht* zeigt die Karte *Version & Updates* die laufende Version, die Datenbank
-mit Schemastand und die neueste veröffentlichte Version (Standard: GitHub-Releases von florians25/UntPlan, alle 6 Stunden geprüft;
-abschaltbar mit `UNTPLANWEB_UPDATE_PRUEFEN=0`, andere Quelle mit `UNTPLANWEB_UPDATE_URL`). Ist ein Update verfügbar, erscheint
-oben ein Hinweis. Passt die Nummerierung der Releases nicht zu der des Images, `UNTPLANWEB_UPDATE_URL=ghcr://florians25/untplanweb`
-(Tags des öffentlichen Images) oder einen Tag-Präfix verwenden.
+mit Schemastand und die neueste veröffentlichte Version (Standard: Tags des öffentlichen Images `ghcr://florians25/untplanweb` –
+gleiche Nummerierung wie die laufende Version –, alle 6 Stunden geprüft; abschaltbar mit `UNTPLANWEB_UPDATE_PRUEFEN=0`, andere
+Quelle mit `UNTPLANWEB_UPDATE_URL`). Ist ein Update verfügbar, erscheint einmal je Benutzer und Version ein schließbarer Hinweis
+unten rechts. Die GitHub-Releases gehören zum Desktop-Programm (eigene Zählung) und taugen daher nicht als Quelle für UntPlanWeb.
 
 **Update aus der Oberfläche** (nur Administration; Aufruf `POST /api/app/admin/update/installieren` mit Kopf `X-UntPlanWeb: 1`).
 Vorher wird SQLite automatisch nach `/data/sicherungen` gesichert (die letzten fünf bleiben). Zwei Wege:

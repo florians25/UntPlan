@@ -144,8 +144,8 @@ public class Program
         app.UseDefaultFiles();
         app.UseStaticFiles(new StaticFileOptions
         {
-            // Oberfläche ohne Build-Schritt: HTML, Skripte und Stile immer neu prüfen (ETag), damit nach einem Update keine alten Module laufen
-            OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = c.File.Name.EndsWith(".html") || c.File.Name.EndsWith(".js") || c.File.Name.EndsWith(".css") ? "no-cache" : "public, max-age=3600",
+            // Oberfläche ohne Build-Schritt: HTML, Skripte, Stile und JSON (z. B. Neuigkeiten) immer neu prüfen (ETag), damit nach einem Update nichts Veraltetes läuft
+            OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = c.File.Name.EndsWith(".html") || c.File.Name.EndsWith(".js") || c.File.Name.EndsWith(".css") || c.File.Name.EndsWith(".json") || c.File.Name.EndsWith(".webmanifest") ? "no-cache" : "public, max-age=3600",
         });
         app.UseAuthentication();
         app.UseAuthorization();

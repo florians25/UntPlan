@@ -4177,3 +4177,50 @@ html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--pr
 .card.is-dk-schmal .dk__wert + .dk__wert{ margin-left:12px; }
 .card.is-dk-schmal .dk__wert i{ font-size:11px; margin-right:4px; }
 .card.is-dk-schmal .dk__hinweis{ font-size:12px; }
+.card.is-dk-schmal .dk__zeit{ margin-left:auto; }
+
+/* =====================================================================
+   Veranstaltungen und Termine wie grüne Stundenkarten (Vertretung)
+   ---------------------------------------------------------------------
+   Keine eigene Mint-Farbe mehr: Fläche #e3fff2 mit 2-px-Rahmen #019169,
+   im Dunkeln wie die grüne Vertretungskarte. Vergangen fällt nur der
+   Rahmen weg — Fläche und Schrift bleiben.
+   ===================================================================== */
+.card--gs, .card--absence, .card--event,
+html.is-dark .card--gs, html.is-dark .card--absence, html.is-dark .card--event{
+  background:var(--chg-bg);
+  border:2px solid var(--chg-border);
+  --bw:2px;
+  box-shadow:none;
+}
+.card--event{
+  padding:calc(var(--card-pad-top) - var(--bw)) calc(var(--card-pad-edge) - var(--bw))
+          calc(var(--card-pad-edge) - var(--bw)) calc(var(--card-pad-left) - var(--bw));
+}
+.card--gs.is-past, .card--absence.is-past, .card--event.is-past,
+html.is-dark .card--gs.is-past, html.is-dark .card--absence.is-past, html.is-dark .card--event.is-past{
+  background:var(--chg-bg);
+  border:0; --bw:0px;
+  box-shadow:none;
+}
+.card--gs .card__line, .card--gs .card__line--primary,
+.card--absence .card__line, .card--absence .card__line--primary,
+.card--event .card__line, .card--event .card__line--primary{ color:var(--c-ink); }
+.card--gs .card__line--primary, .card--absence .card__line--primary, .card--event .card__line--primary{ font-weight:600; }
+html.is-dark .card--gs .card__line, html.is-dark .card--gs .card__line--primary,
+html.is-dark .card--absence .card__line, html.is-dark .card--absence .card__line--primary,
+html.is-dark .card--event .card__line, html.is-dark .card--event .card__line--primary{ color:#eafff8; }
+.sw--event{ background:var(--chg-bg); border:1.5px solid var(--chg-border); }
+.flag--event{ background:var(--chg-bg); }
+
+/* Kein Tipp-Effekt auf Karten: keine Skalierung, keine Deckkraft, keine
+   Hervorhebung — weder vom Browser noch vom System. */
+.card, .card *, .parcount, .daycol, #gridPane{
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;
+}
+.card{ -webkit-user-select:none; user-select:none; }
+.card:active, .card:focus, .card:focus-visible, .card:hover,
+.parcount:active, .parcount:focus{
+  transform:none; opacity:1; filter:none; outline:none;
+}

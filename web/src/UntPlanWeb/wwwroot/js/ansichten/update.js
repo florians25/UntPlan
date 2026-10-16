@@ -1,14 +1,49 @@
 // Administration → Übersicht: Version, Datenbank und Updates (UW-02). Wird von admin.js in die Übersicht eingebunden.
-import { e, icon, holen, senden, toast, bestaetigen, alarm } from '../ui.js';
+// Der Hinweis „Update verfügbar“ erscheint je Benutzer und Version nur einmal als schwebende Meldung (keine Layoutverschiebung)
+// und lässt sich schließen; die Karte „Version & Updates“ wird an ihrem Platz aktualisiert statt neu angehängt.
+import { e, icon, holen, senden, toast, bestaetigen } from '../ui.js';
 
 const zeit = s => s ? new Date(s).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
+const HINWEIS = 'untplan:update-hinweis';
+/** laufende Abfrage je Ziel – ältere (langsamere) Antworten werden verworfen */
+const laeufe = new WeakMap();
 
-/** Karte „Version & Updates“ am Ende der Übersicht anfügen; bei verfügbarem Update zusätzlich einen Hinweis oben. */
-export async function einbinden(ziel, neu = false) {
+function hinweisGeschlossen(login, version) {
+  try { return localStorage.getItem(`${HINWEIS}:${login || '-'}`) === version; } catch { return false; }
+}
+
+/** Schwebender, schließbarer Hinweis (einmal je Benutzer und Version). */
+function hinweisZeigen(u, login) {
+  if (!u.updateVerfuegbar || !u.neueste || hinweisGeschlossen(login, u.neueste) || document.querySelector('[data-update-hinweis]')) return;
+  const h = document.createElement('div');
+  h.className = 'up-hinweis';
+  h.dataset.updateHinweis = '';
+  h.setAttribute('role', 'status');
+  h.innerHTML = `<i class="bi bi-arrow-up-circle" aria-hidden="true"></i>
+    <div><strong>Update verfügbar</strong><span>UntPlanWeb ${e(u.neueste)} (installiert: ${e(u.version)})${u.hinweisurl ? ` · <a href="${e(u.hinweisurl)}" target="_blank" rel="noopener">Änderungen</a>` : ''}</span></div>
+    <button type="button" class="btn-close" aria-label="Hinweis schließen"></button>`;
+  const schliessen = () => {
+    try { localStorage.setItem(`${HINWEIS}:${login || '-'}`, u.neueste); } catch { /* privat */ }
+    h.remove();
+  };
+  h.querySelector('.btn-close').onclick = schliessen;
+  // beim Verlassen der Übersicht verschwindet der Hinweis (er gehört zur Übersicht)
+  const weg = () => { h.remove(); window.removeEventListener('hashchange', weg); };
+  window.addEventListener('hashchange', weg);
+  document.body.append(h);
+}
+
+/** Karte „Version & Updates“ am Ende der Übersicht anfügen bzw. an ihrem Platz aktualisieren. */
+export async function einbinden(ziel, neu = false, login = '') {
+  const lauf = (laeufe.get(ziel) ?? 0) + 1;
+  laeufe.set(ziel, lauf);
+  const alt = ziel.querySelector('[data-update-karte]');
+  alt?.querySelector('[data-update-pruefen]')?.setAttribute('disabled', '');
   let u;
-  try { u = await holen('/api/app/admin/update' + (neu ? '?neu=1' : '')); } catch { return; }
-  ziel.querySelector('[data-update-karte]')?.remove();
-  ziel.querySelector('[data-update-hinweis]')?.remove();
+  try { u = await holen('/api/app/admin/update' + (neu ? '?neu=1' : '')); }
+  catch { alt?.querySelector('[data-update-pruefen]')?.removeAttribute('disabled'); return; }
+  // inzwischen neu geprüft, Seite gewechselt oder neu gezeichnet: nichts mehr anfügen
+  if (laeufe.get(ziel) !== lauf || !ziel.isConnected) return;
 
   const status = !u.pruefungAktiv
     ? '<span class="text-body-secondary">Prüfung abgeschaltet</span>'
@@ -33,20 +68,17 @@ export async function einbinden(ziel, neu = false) {
       ${u.angefordert ? `<tr><th class="fw-normal text-body-secondary">Angefordert</th><td>${e(u.angefordert)} – wartet auf das Update-Skript</td></tr>` : ''}
     </tbody></table>
     <div class="card-body">${aktion}</div></div>`;
-  (ziel.querySelector('.row') ?? ziel).append(karte);
-  if (u.updateVerfuegbar) {
-    const h = document.createElement('div');
-    h.dataset.updateHinweis = '';
-    h.innerHTML = alarm('warning', `<strong>Update verfügbar:</strong> UntPlanWeb ${e(u.neueste)} (installiert: ${e(u.version)}).`, true);
-    ziel.prepend(h);
-  }
+  const vorhanden = ziel.querySelector('[data-update-karte]');
+  if (vorhanden) vorhanden.replaceWith(karte);
+  else (ziel.querySelector('.row') ?? ziel).append(karte);
+  hinweisZeigen(u, login);
 
-  karte.querySelector('[data-update-pruefen]').onclick = () => einbinden(ziel, true);
+  karte.querySelector('[data-update-pruefen]').onclick = () => einbinden(ziel, true, login);
   const knopf = karte.querySelector('[data-update-installieren]');
   if (knopf) knopf.onclick = async () => {
     if (!await bestaetigen('Update installieren', 'Die Datenbank wird gesichert (SQLite) und das neueste Image geladen. UntPlanWeb startet danach neu und ist kurz nicht erreichbar.', 'Installieren')) return;
     knopf.disabled = true;
-    try { const r = await senden('/api/app/admin/update/installieren', {}); toast(r.meldung); await einbinden(ziel); }
+    try { const r = await senden('/api/app/admin/update/installieren', {}); toast(r.meldung); await einbinden(ziel, false, login); }
     catch (err) { toast(err.message, true); knopf.disabled = false; }
   };
 }

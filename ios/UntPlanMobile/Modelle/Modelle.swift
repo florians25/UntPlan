@@ -963,6 +963,30 @@ struct Vermerkliste: Decodable, Sendable {
     }
 }
 
+/// Empfänger einer neuen Mitteilung (id z. B. „benutzer:12“, „klasse:5a“, „gruppe:kollegium“).
+struct Empfaenger: Decodable, Identifiable, Hashable, Sendable {
+    var id: String
+    var name: String
+    var art: String
+
+    enum CodingKeys: String, CodingKey { case id, name, art }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.text(.id)
+        name = c.text(.name)
+        art = c.text(.art)
+    }
+}
+
+/// POST /api/app/mitteilungen
+struct MitteilungNeuDaten: Encodable, Sendable {
+    var empfaenger: [String]
+    var betreff: String
+    var text: String
+    var wichtig: Bool
+}
+
 /// Zuordnung eines Klassendienstes (z. B. Klassensprecher*in) zu einer Schülerin bzw. einem Schüler.
 struct Klassendienstzuordnung: Decodable, Sendable {
     var schuelerId: Int

@@ -112,16 +112,37 @@ public sealed class Updatepruefung
             tokenAntwort.EnsureSuccessStatusCode();
             using var tokenJson = JsonDocument.Parse(await tokenAntwort.Content.ReadAsStringAsync(zeit.Token));
             var token = tokenJson.RootElement.GetProperty("token").GetString();
-            using var anfrage = new HttpRequestMessage(HttpMethod.Get, $"https://ghcr.io/v2/{repo}/tags/list");
-            anfrage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            using var tags = await _http.SendAsync(anfrage, zeit.Token);
-            tags.EnsureSuccessStatusCode();
-            var (v, _) = Auswerten(await tags.Content.ReadAsStringAsync(zeit.Token), TagPraefix);
+            // Die Registry liefert ohne n= nur die ersten 100 Tags (lexikografisch) – neuere Versionen fehlten dann. Daher große
+            // Seiten anfordern und dem Link-Kopf („rel=next“) folgen.
+            var alle = new List<string>();
+            var adresse = $"https://ghcr.io/v2/{repo}/tags/list?n=1000";
+            for (var seite = 0; seite < 20 && adresse != null; seite++)
+            {
+                using var anfrage = new HttpRequestMessage(HttpMethod.Get, adresse);
+                anfrage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var tags = await _http.SendAsync(anfrage, zeit.Token);
+                tags.EnsureSuccessStatusCode();
+                using var json = JsonDocument.Parse(await tags.Content.ReadAsStringAsync(zeit.Token));
+                if (json.RootElement.TryGetProperty("tags", out var liste) && liste.ValueKind == JsonValueKind.Array)
+                    alle.AddRange(liste.EnumerateArray().Where(t => t.ValueKind == JsonValueKind.String).Select(t => t.GetString()!));
+                adresse = NaechsteSeite(tags.Headers.TryGetValues("Link", out var link) ? link.FirstOrDefault() : null);
+            }
+            var (v, _) = Auswerten(JsonSerializer.Serialize(new { tags = alle }), TagPraefix);
             return (v, $"https://ghcr.io/{repo}");
         }
         using var antwort = await _http.GetAsync(Url, zeit.Token);
         antwort.EnsureSuccessStatusCode();
         return Auswerten(await antwort.Content.ReadAsStringAsync(zeit.Token), TagPraefix);
+    }
+
+    /// <summary>Nächste Seite aus dem Link-Kopf der Registry (<c>&lt;/v2/…/tags/list?last=…&amp;n=…&gt;; rel="next"</c>), sonst null.</summary>
+    public static string? NaechsteSeite(string? link)
+    {
+        if (string.IsNullOrEmpty(link)) return null;
+        var m = Regex.Match(link, "<([^>]+)>\\s*;\\s*rel=\"?next\"?", RegexOptions.IgnoreCase);
+        if (!m.Success) return null;
+        var ziel = m.Groups[1].Value;
+        return ziel.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? ziel : "https://ghcr.io" + (ziel.StartsWith('/') ? "" : "/") + ziel;
     }
 
     private static readonly Regex VersionMuster = new(@"(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?", RegexOptions.Compiled);

@@ -96,6 +96,17 @@ final class ApiClient: @unchecked Sendable {
         return liste.compactMap(\.wert)
     }
 
+    /// Mögliche Empfänger einer neuen Mitteilung (Personen, Gruppen, Klassen, Listen).
+    func empfaenger() async throws -> [Empfaenger] {
+        let liste: [Vielleicht<Empfaenger>] = try await anfrage("GET", "/mitteilungen/empfaenger")
+        return liste.compactMap(\.wert)
+    }
+
+    /// POST /mitteilungen – neue Mitteilung senden.
+    func mitteilungSenden(_ daten: MitteilungNeuDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/mitteilungen", koerper: try encoder.encode(daten))
+    }
+
     func alsGelesenMarkieren(_ id: Int) async throws {
         let _: OkAntwort = try await anfrage("POST", "/mitteilungen/\(id)/gelesen")
     }

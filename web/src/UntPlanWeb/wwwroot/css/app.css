@@ -1728,3 +1728,12 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .heute-unterricht tr.entfall td { color: #8a96a1; }
 .heute-unterricht tr.entfall .hu-wert, .heute-unterricht tr.entfall .hu-zeit .nl-name { text-decoration: line-through; text-decoration-thickness: .75px; }
 .heute-unterricht tr.entfall .hu-balken { opacity: .4; }
+
+/* Hinweis „Update verfügbar“ (Administration): schwebend, schließbar, ohne Layoutverschiebung */
+.up-hinweis { position: fixed; right: 24px; bottom: 24px; z-index: 1070; display: flex; align-items: flex-start; gap: 12px; max-width: 400px; padding: 14px 14px 14px 16px;
+  background: #fff; border: 1px solid #dfe3e7; border-left: 4px solid var(--u-akzent); border-radius: 10px; box-shadow: 0 6px 24px rgba(0, 5, 10, .14); font-size: .875rem; color: var(--u-text); }
+.up-hinweis > .bi { font-size: 1.3rem; color: var(--u-akzent); line-height: 1; margin-top: 1px; }
+.up-hinweis strong { display: block; font-weight: 600; color: var(--u-titel); }
+.up-hinweis a { color: var(--u-akzent-dunkel); font-weight: 600; }
+.up-hinweis .btn-close { flex: none; margin-left: 4px; font-size: .7rem; }
+@media (max-width: 575.98px) { .up-hinweis { left: 16px; right: 16px; bottom: 16px; max-width: none; } }

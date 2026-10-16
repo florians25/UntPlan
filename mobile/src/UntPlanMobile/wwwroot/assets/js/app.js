@@ -1221,7 +1221,7 @@ function renderGrid(){
       /* Zurücktreten gilt für Unterricht, Vertretung, Entfall und
          Verfügungsstunden — nicht für Ferien, Termine und dergleichen,
          die sich über den ganzen Tag ziehen. */
-      if (past && ['normal', 'change', 'cancelled', 'standby', 'supervision', 'gs', 'absence'].includes(card.blockType))
+      if (past && ['normal', 'change', 'cancelled', 'standby', 'supervision', 'gs', 'absence', 'event'].includes(card.blockType))
         cls.push('is-past');
 
       let style = `top:${topFinal}px;height:${h}px;`;
@@ -6304,4 +6304,17 @@ document.addEventListener('visibilitychange', () => {
   scrollToNow();
 })();
 
+})();
+
+/* Der Reiter „Stundenplan“ trägt wie in der Vorlage die heutige Tageszahl
+   im Kalendersymbol — beim Start, beim Zurückkommen zur App und nach
+   Mitternacht neu gesetzt. */
+(function tagesZahlImReiter(){
+  const setzen = () => {
+    const n = String(new Date().getDate());
+    document.querySelectorAll('.tab .tabnum').forEach(t => { if (t.textContent !== n) t.textContent = n; });
+  };
+  setzen();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setzen(); });
+  setInterval(setzen, 60000);
 })();

@@ -9,7 +9,8 @@ namespace UntPlanWeb.Dienste;
 /// Einstellungen der Updateanzeige und des optionalen Updaters (Umgebungsvariablen):
 /// <list type="bullet">
 /// <item><c>UNTPLANWEB_UPDATE_PRUEFEN</c> = 0 schaltet die Prüfung auf neue Versionen ab (Standard: an).</item>
-/// <item><c>UNTPLANWEB_UPDATE_URL</c> = Quelle der neuesten Version (Standard: GitHub-Releases von florians25/UntPlan; auch <c>ghcr://florians25/untplanweb</c>).</item>
+/// <item><c>UNTPLANWEB_UPDATE_URL</c> = Quelle der neuesten Version (Standard: Tags des Images <c>ghcr://florians25/untplanweb</c> – dieselbe
+/// Nummerierung wie die laufende Version; die GitHub-Releases gehören zum Desktop-Programm und haben eine eigene Zählung).</item>
 /// <item><c>UNTPLANWEB_UPDATE_TAG_PRAEFIX</c> = nur Tags mit diesem Präfix berücksichtigen (z. B. <c>web-v</c>).</item>
 /// <item><c>UNTPLANWEB_UPDATE_MODUS</c> = <c>aus</c> | <c>watchtower</c> | <c>datei</c> – wie „Update installieren“ ausgelöst wird.</item>
 /// <item><c>UNTPLANWEB_UPDATE_WATCHTOWER_URL</c>, <c>UNTPLANWEB_UPDATE_WATCHTOWER_TOKEN</c> = HTTP-API von Watchtower (<c>http://watchtower:8080/v1/update</c>).</item>
@@ -18,6 +19,9 @@ namespace UntPlanWeb.Dienste;
 /// </summary>
 public sealed class Updateeinstellungen
 {
+    /// <summary>Standardquelle: Tags des Web-Images (Version 1.0.N aus dem Web-Build, passt genau zu <c>docker compose pull</c>).</summary>
+    public const string Standardquelle = "ghcr://florians25/untplanweb";
+
     public bool Pruefen { get; init; } = true;
     public string? Url { get; init; }
     public string TagPraefix { get; init; } = "";
@@ -35,7 +39,7 @@ public sealed class Updateeinstellungen
         return new Updateeinstellungen
         {
             Pruefen = Updatepruefung.Schalter(c["UNTPLANWEB_UPDATE_PRUEFEN"], true),
-            Url = L("UNTPLANWEB_UPDATE_URL"),
+            Url = L("UNTPLANWEB_UPDATE_URL") ?? Standardquelle,
             TagPraefix = L("UNTPLANWEB_UPDATE_TAG_PRAEFIX") ?? "",
             Modus = modus,
             WatchtowerUrl = watchtower,
