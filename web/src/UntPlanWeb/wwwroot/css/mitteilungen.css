@@ -111,7 +111,8 @@
 .mt-reiter button.aktiv { background: #414d55; border-color: #414d55; color: #fff; }
 .mt-wahl-filter { display: flex; gap: 8px; margin-bottom: 8px; }
 .mt-wahl-filter .mt-suche { flex: 1; }
-.mt-wahl-filter select { width: auto; min-width: 130px; border-radius: 999px; }
+.mt-wahl-filter select { flex: 0 0 170px; width: 170px; border-radius: 999px; }
+.mt-wahl-filter .mt-suche input { width: 100%; }
 .mt-wahl-alle { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: .8125rem; color: #67747e; border-bottom: 1px solid var(--u-linie-2, #e8ebee); }
 .mt-wahl-liste { max-height: 340px; overflow-y: auto; }
 .mt-wahl-zeile { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid #f0f2f4; cursor: pointer; font-size: .8125rem; margin: 0; }

@@ -227,3 +227,55 @@ export function lehrkraftLabel(w, inhalt = x => e(x), trenn = '|') {
   if (w.neu) return `<span class="v-lbl">${inhalt(w.k)}</span>`;
   return inhalt(w.k);
 }
+
+// ------------------------------------------------------------------ Hover für abgeschnittene Inhalte
+
+/**
+ * Grauer Hover mit dem vollständigen Text, wenn ein Inhalt nicht auf seine Fläche passt (Plankarten mit abgeschnittenen Zeilen,
+ * Veranstaltungstexte, mit „…“ gekürzte Zeilen in Listen und Tabellen) – nur wenn tatsächlich abgeschnitten, nur mit Maus.
+ * Elemente mit eigenem Hover (data-hover) bzw. title behalten ihren Hinweis.
+ */
+const kuerzungsHover = (() => {
+  if (typeof window === 'undefined' || !window.matchMedia?.('(hover: hover)').matches) return null;
+  let tip = null, ziel = null, timer = 0;
+  const abgeschnitten = el => {
+    const s = getComputedStyle(el);
+    if (s.display === 'inline') return false;
+    const x = (s.overflowX === 'hidden' || s.overflowX === 'clip' || s.textOverflow === 'ellipsis') && el.scrollWidth > el.clientWidth + 1;
+    const y = (s.overflowY === 'hidden' || s.overflowY === 'clip' || (s.webkitLineClamp && s.webkitLineClamp !== 'none')) && el.scrollHeight > el.clientHeight + 2;
+    return x || y;
+  };
+  const verbergen = () => { clearTimeout(timer); if (tip) tip.style.display = 'none'; ziel = null; };
+  const zeigen = (el, text) => {
+    if (!tip) { tip = document.createElement('div'); tip.className = 'u-kuerzung-hover'; tip.setAttribute('role', 'tooltip'); document.body.append(tip); }
+    tip.textContent = text;
+    tip.style.display = 'block';
+    const r = el.getBoundingClientRect(), b = tip.offsetWidth, h = tip.offsetHeight;
+    const links = Math.max(6, Math.min(window.innerWidth - b - 6, r.left));
+    const oben = r.bottom + 6 + h > window.innerHeight - 6 ? Math.max(6, r.top - h - 6) : r.bottom + 6;
+    tip.style.left = `${Math.round(links)}px`;
+    tip.style.top = `${Math.round(oben)}px`;
+  };
+  document.addEventListener('mouseover', ev => {
+    const t = ev.target;
+    if (!(t instanceof Element) || t.closest('[data-hover], [data-hover-pillen], [title], input, textarea, select, .modal-footer, .u-kuerzung-hover')) { if (ziel && !ziel.contains(t)) verbergen(); return; }
+    if (ziel && ziel.contains(t)) return;
+    // vom überfahrenen Element bis zu vier Ebenen nach oben das erste abgeschnittene suchen
+    let el = t, treffer = null;
+    for (let i = 0; el && i < 5 && el !== document.body; i++, el = el.parentElement) {
+      const s = getComputedStyle(el);
+      if (s.overflowY === 'auto' || s.overflowY === 'scroll' || s.position === 'fixed') break;
+      if (abgeschnitten(el)) { treffer = el; break; }
+    }
+    if (!treffer) { verbergen(); return; }
+    const text = (treffer.innerText || '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+    if (!text || text.length > 600) { verbergen(); return; }
+    verbergen();
+    ziel = treffer;
+    timer = setTimeout(() => { if (ziel === treffer) zeigen(treffer, text); }, 350);
+  });
+  document.addEventListener('scroll', verbergen, true);
+  document.addEventListener('mousedown', verbergen, true);
+  return { verbergen };
+})();
+export const hoverVerbergen = () => kuerzungsHover?.verbergen();

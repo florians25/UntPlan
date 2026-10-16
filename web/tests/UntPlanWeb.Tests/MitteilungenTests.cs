@@ -100,7 +100,10 @@ public class MitteilungenTests
         Assert.Contains(liste, x => x!["kategorie"]!.GetValue<string>() == "eltern" && x["name"]!.GetValue<string>().Contains(kind7.Vorname));
 
         await Testserver.JsonAsync(await Senden(lan, new { empfaenger = new[] { "eltern:7a" }, betreff = "Elternbrief", text = "Wandertag", wichtig = true }));
-        Assert.Single((await Testserver.HolenAsync(eltern7, "/api/app/mitteilungen")).AsArray());
+        var beiEltern = (await Testserver.HolenAsync(eltern7, "/api/app/mitteilungen")).AsArray().Single()!;
+        // Elternkonten sehen die übrigen Empfänger*innen (andere Eltern) nicht
+        Assert.Empty(beiEltern["empfaenger"]!.AsArray());
+        Assert.Equal("", beiEltern["empfaengerText"]!.GetValue<string>());
         Assert.Empty((await Testserver.HolenAsync(eltern5, "/api/app/mitteilungen")).AsArray());
         Assert.Empty((await Testserver.HolenAsync(klasse7, "/api/app/mitteilungen")).AsArray());
         var gesendet = (await Testserver.HolenAsync(lan, "/api/app/mitteilungen?ordner=gesendet")).AsArray().Single()!;

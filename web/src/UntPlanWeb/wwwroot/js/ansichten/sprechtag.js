@@ -3,8 +3,9 @@
 //   Termindauer, Pausen, Einladungs- und Anmeldezeitraum, beteiligten Lehrkräften und Räumen, Sichtbarkeit; Übersicht je Lehrkraft.
 // - Lehrkraft (#/sprechtag/<id>, Administration: #/sprechtag/<id>/lehrer/<Kürzel>): Raum, „Gespräche wünschen“ (Einladungen an die Eltern
 //   ausgewählter Schüler*innen per Mitteilung), „Meine Termine“ als Zeitraster (frei/gebucht/gesperrt) mit Sperren, manuellem Eintragen,
-//   Verschieben, Stornieren und Terminplan als PDF (S/W).
-// - Erziehungsberechtigte: Lehrkräfte je Kind mit freien Zeitfenstern, Einladungen, buchen/stornieren, eigener Terminplan als PDF.
+//   Verschieben, Absagen (einzelne Termine mit Grund bzw. die ganze Teilnahme) und Terminplan als PDF (S/W).
+// - Administration: ganzen Sprechtag absagen (alle Beteiligten werden per Mitteilung benachrichtigt).
+// - Erziehungsberechtigte: Lehrkräfte je Kind mit freien Zeitfenstern, Einladungen, buchen, Termin absagen (mit Grund), eigener Terminplan als PDF.
 // - startkarte(): Hinweis „Sprechtag“ auf der Startseite (Heute).
 import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, alarm } from '../ui.js';
 
@@ -25,8 +26,23 @@ const zeitDe = iso => {
 };
 const PHASEN = {
   vorbereitung: ['grau', 'nicht sichtbar'], einladung: ['lila', 'Einladungsphase'], anmeldung: ['gruen', 'Anmeldung läuft'],
-  geschlossen: ['gelb', 'Anmeldung geschlossen'], vorbei: ['grau', 'vorbei'],
+  geschlossen: ['gelb', 'Anmeldung geschlossen'], vorbei: ['grau', 'vorbei'], abgesagt: ['rot', 'abgesagt'],
 };
+/** Termine bzw. Teilnahme können bis zum Ende des Sprechtags abgesagt werden. */
+const absagbar = t => !['vorbei', 'abgesagt'].includes(t.phase);
+
+/** Absage mit optionalem Grund; liefert den Grund ('' = ohne) bzw. null bei Abbruch. */
+function absageDialog(titel, text, knopf = 'Absagen') {
+  return new Promise(ok => {
+    let grund = null;
+    const box = dialog({
+      titel, inhalt: `<p>${e(text)}</p><label class="form-label" for="st-grund">Grund (optional)</label>
+        <textarea class="form-control" id="st-grund" rows="2" maxlength="1000" placeholder="z. B. Erkrankung"></textarea>`,
+      knoepfe: [{ text: 'Abbrechen' }, { text: knopf, art: 'gefahr', aktion: b => { grund = b.querySelector('#st-grund').value.trim(); } }],
+    });
+    box.closest('.modal').addEventListener('hidden.bs.modal', () => ok(grund));
+  });
+}
 const phaseChip = p => `<span class="nl-chip ${PHASEN[p]?.[0] ?? 'grau'}">${e(PHASEN[p]?.[1] ?? p)}</span>`;
 const schuelerName = s => s ? `${s.name}, ${s.vorname}` : '';
 const zeitraum = t => `${t.datumText} · ${t.beginn}–${t.ende} Uhr`;
@@ -234,13 +250,24 @@ async function uebersicht(seite, kontext, info) {
   const t = info.sprechtag;
   kontext.titel(t.name, `<a class="nl-knopf" href="${BASIS}/${t.id}/plan.pdf" target="_blank" rel="noopener">${icon('file-earmark-pdf')}Gesamtplan (PDF)</a>
     <a class="nl-knopf" href="${BASIS}/${t.id}/plan.pdf?leer=true" target="_blank" rel="noopener">${icon('printer')}Aushang</a>
-    <a class="nl-hinzu" href="#/sprechtag/${t.id}/verwalten">${icon('stift')}Bearbeiten</a>`);
+    ${absagbar(t) ? `<button type="button" class="nl-knopf rot" data-absagen>${icon('x')}Sprechtag absagen</button>
+    <a class="nl-hinzu" href="#/sprechtag/${t.id}/verwalten">${icon('stift')}Bearbeiten</a>` : ''}`);
+  document.querySelector('[data-absagen]')?.addEventListener('click', async () => {
+    const grund = await absageDialog('Sprechtag absagen', `„${t.name}“ am ${t.datumText} absagen? Alle gebuchten Termine entfallen; alle beteiligten Lehrkräfte und Erziehungsberechtigten werden per Mitteilung benachrichtigt.`, 'Sprechtag absagen');
+    if (grund === null) return;
+    try {
+      const r = await senden(`${BASIS}/${t.id}/absagen`, { grund });
+      toast(`Sprechtag abgesagt · ${r.termine} Termine entfallen · ${r.benachrichtigt} Konten benachrichtigt.`);
+      kontext.navigieren(location.hash);
+    } catch (err) { kontext.fehler(err); }
+  });
+  const abgesagt = new Set(t.lehrkraefte.filter(l => l.abgesagt).map(l => l.lehrer));
   const summe = k => info.uebersicht.reduce((n, l) => n + l[k], 0);
   seite.innerHTML = `${kopfInfo(t)}
     <div class="nl-zahlen"><span class="nl-zahl"><b>${info.uebersicht.length}</b> Lehrkräfte</span><span class="nl-zahl gelb"><b>${summe('gebucht')}</b> Termine</span>
       <span class="nl-zahl"><b>${summe('frei')}</b> frei</span><span class="nl-zahl rot"><b>${summe('gesperrt')}</b> gesperrt</span><span class="nl-zahl lila"><b>${summe('einladungen')}</b> Einladungen</span></div>
     <div class="nl-tabelle"><table><thead><tr><th>Lehrkraft</th><th>Raum</th><th class="text-end">Termine</th><th class="text-end">Frei</th><th class="text-end">Gesperrt</th><th class="text-end">Einladungen</th><th></th></tr></thead><tbody>
-      ${info.uebersicht.map(l => `<tr data-lehrer="${e(l.lehrer)}" tabindex="0"><td><span class="nl-name">${e(l.name)}</span> <span class="nl-tag">${e(l.lehrer)}</span></td>
+      ${info.uebersicht.map(l => `<tr data-lehrer="${e(l.lehrer)}" tabindex="0"><td><span class="nl-name">${e(l.name)}</span> <span class="nl-tag">${e(l.lehrer)}</span>${abgesagt.has(l.lehrer) ? ' <span class="nl-chip rot">abgesagt</span>' : ''}</td>
         <td>${l.raum ? e(l.raum) : '<span class="nl-unter">–</span>'}</td><td class="text-end">${l.gebucht}</td><td class="text-end">${l.frei}</td><td class="text-end">${l.gesperrt}</td><td class="text-end">${l.einladungen}</td>
         <td class="text-end text-nowrap"><a class="nl-icon sichtbar" href="${BASIS}/${t.id}/plan.pdf?lehrer=${encodeURIComponent(l.lehrer)}" target="_blank" rel="noopener" title="Terminplan (PDF)" aria-label="Terminplan als PDF"><i class="bi bi-file-earmark-pdf"></i></a>
           <i class="bi bi-chevron-right text-body-tertiary"></i></td></tr>`).join('')}</tbody></table></div>`;
@@ -257,6 +284,7 @@ function kopfInfo(t, zusatz = '') {
     einladung: `Einladungen bis ${zeitDe(t.einladungEnde)} · Anmeldung für Eltern ab ${zeitDe(t.anmeldungVon)}`,
     anmeldung: `Anmeldung für Eltern bis ${zeitDe(t.anmeldungBis)}`,
     geschlossen: 'Die Anmeldung ist geschlossen.', vorbei: 'Der Sprechtag ist vorbei.', vorbereitung: 'Noch nicht für Lehrkräfte und Eltern sichtbar.',
+    abgesagt: `Der Sprechtag wurde abgesagt${t.absageGrund ? ` (${t.absageGrund})` : ''}. Alle Termine entfallen.`,
   }[t.phase] ?? '';
   return `<div class="st-kopf"><div class="st-kopf-datum"><b>${e(t.datumText)}</b><span>${e(t.beginn)}–${e(t.ende)} Uhr · Termine à ${t.dauer} Min.${t.pausen.length ? ` · Pause ${t.pausen.map(p => `${p.von}–${p.bis}`).join(', ')}` : ''}</span></div>
     ${phaseChip(t.phase)}<span class="nl-unter">${e(phaseText)}</span>${zusatz}</div>
@@ -272,7 +300,24 @@ async function lehrkraft(seite, kontext, id, lehrer) {
   const t = d.sprechtag;
   const neu = () => lehrkraft(seite, kontext, id, lehrer);
   const mitLehrer = obj => (lehrer ? { ...obj, lehrer } : obj);
-  kontext.titel(lehrer ? `${t.name} · ${d.lehrer.name}` : t.name, d.admin ? `<a class="nl-knopf" href="#/sprechtag/${id}">${icon('zurueck')}Übersicht</a>` : '');
+  const teilnahme = !absagbar(t) ? '' : d.lehrer.abgesagt
+    ? `<button type="button" class="nl-knopf gruen" data-teilnahme="wiederaufnehmen"><i class="bi bi-arrow-counterclockwise"></i>Teilnahme wieder aufnehmen</button>`
+    : `<button type="button" class="nl-knopf rot" data-teilnahme="absagen">${icon('x')}Teilnahme absagen</button>`;
+  kontext.titel(lehrer ? `${t.name} · ${d.lehrer.name}` : t.name, `${teilnahme}${d.admin ? `<a class="nl-knopf" href="#/sprechtag/${id}">${icon('zurueck')}Übersicht</a>` : ''}`);
+  document.querySelector('[data-teilnahme]')?.addEventListener('click', async ev => {
+    if (ev.currentTarget.dataset.teilnahme === 'wiederaufnehmen') {
+      try { await senden(`${BASIS}/${id}/teilnahme/wiederaufnehmen`, mitLehrer({})); toast('Teilnahme wieder aufgenommen – die Zeitfenster sind wieder buchbar.'); neu(); } catch (err) { kontext.fehler(err); }
+      return;
+    }
+    const gebuchte = d.zeitfenster.filter(z => z.status === 'gebucht').length;
+    const grund = await absageDialog('Teilnahme absagen', `${lehrer ? d.lehrer.name : 'Ihre'} Teilnahme am Sprechtag „${t.name}“ absagen? ${gebuchte ? `${gebuchte} gebuchte(r) Termin(e) entfallen; die Erziehungsberechtigten werden per Mitteilung benachrichtigt.` : 'Es sind noch keine Termine gebucht.'}`, 'Teilnahme absagen');
+    if (grund === null) return;
+    try {
+      const r = await senden(`${BASIS}/${id}/teilnahme/absagen`, mitLehrer({ grund }));
+      toast(`Teilnahme abgesagt · ${r.termine} Termine entfallen · ${r.benachrichtigt} Konten benachrichtigt.`);
+      neu();
+    } catch (err) { kontext.fehler(err); }
+  });
   const gebucht = d.zeitfenster.filter(z => z.status === 'gebucht').length;
   const gesperrt = d.zeitfenster.filter(z => z.status === 'gesperrt').length;
   const klassen = sch.klassen;
@@ -307,13 +352,14 @@ async function lehrkraft(seite, kontext, id, lehrer) {
       <td class="nl-unter">${x ? e([x.gebuchtVon ? `gebucht von ${x.gebuchtVon}` : (x.quelle === 'eltern' ? '' : 'eingetragen'), x.bemerkung].filter(Boolean).join(' · ')) : ''}</td>
       <td class="text-end text-nowrap">${x
         ? `<button type="button" class="nl-icon sichtbar" data-verschieben="${x.id}" title="Verschieben" aria-label="Termin verschieben"><i class="bi bi-arrow-left-right"></i></button>
-           <button type="button" class="nl-icon sichtbar rot" data-storno="${x.id}" title="Stornieren" aria-label="Termin stornieren"><i class="bi bi-x-lg"></i></button>`
+           <button type="button" class="nl-icon sichtbar rot" data-storno="${x.id}" title="Absagen" aria-label="Termin absagen"><i class="bi bi-x-lg"></i></button>`
         : z.status === 'frei' ? `<button type="button" class="nl-icon sichtbar" data-eintragen="${z.beginn}" title="Termin eintragen" aria-label="Termin um ${z.beginn} eintragen"><i class="bi bi-plus-lg"></i></button>
            <button type="button" class="nl-icon sichtbar" data-sperren="${z.beginn}" title="Sperren (abwesend)" aria-label="Zeitfenster ${z.beginn} sperren"><i class="bi bi-lock"></i></button>`
           : `<button type="button" class="nl-icon sichtbar" data-freigeben="${z.beginn}" title="Freigeben" aria-label="Zeitfenster ${z.beginn} freigeben"><i class="bi bi-unlock"></i></button>`}</td></tr>`;
   };
 
   seite.innerHTML = `${kopfInfo(t, `<span class="nl-unter">· ${e(d.lehrer.name)}${d.lehrer.raum ? ` · Raum ${e(d.lehrer.raum)}` : ''}</span>`)}
+    ${d.lehrer.abgesagt ? `<div class="nl-hinweis rot"><i class="bi bi-x-circle"></i>Die Teilnahme wurde am ${e(zeitDe(d.lehrer.abgesagt.replace(' ', 'T')))} abgesagt${d.lehrer.absageGrund ? ` (${e(d.lehrer.absageGrund)})` : ''}. Es können keine Termine gebucht werden.</div>` : ''}
     <div class="st-raster">
       <div class="st-links">
         ${raumPanel}
@@ -433,8 +479,9 @@ async function lehrkraft(seite, kontext, id, lehrer) {
   });
   seite.querySelectorAll('[data-storno]').forEach(b => b.onclick = async () => {
     const z = d.zeitfenster.find(x => x.termin?.id === Number(b.dataset.storno));
-    if (!await bestaetigen('Termin stornieren', `Termin um ${z.beginn} Uhr mit ${schuelerName(z.termin.schueler)} stornieren?${z.termin.gebuchtVon ? ' Die Erziehungsberechtigten werden per Mitteilung informiert.' : ''}`, 'Stornieren')) return;
-    try { await api(`${BASIS}/${id}/termine/${z.termin.id}`, { methode: 'DELETE' }); toast('Termin storniert.'); neu(); } catch (err) { kontext.fehler(err); }
+    const grund = await absageDialog('Termin absagen', `Termin um ${z.beginn} Uhr mit ${schuelerName(z.termin.schueler)} absagen? Die Erziehungsberechtigten werden per Mitteilung informiert.`);
+    if (grund === null) return;
+    try { await senden(`${BASIS}/${id}/termine/${z.termin.id}/absagen`, { grund }); toast('Termin abgesagt.'); neu(); } catch (err) { kontext.fehler(err); }
   });
 }
 
@@ -452,7 +499,8 @@ async function eltern(seite, kontext, id) {
       l.eingeladen ? `<span class="nl-chip lila" ${l.einladungText ? `data-hover="${e(l.einladungText)}" data-hover-art="dunkel"` : ''}><i class="bi bi-envelope-paper"></i>Einladung</span>` : ''].join('');
     let termin;
     if (l.termin) termin = `<span class="st-zeit gebucht">${e(l.termin.beginn)}</span> <span class="nl-unter">bis ${e(l.termin.ende)}</span>
-        ${d.buchbar ? `<button type="button" class="nl-knopf rot ms-2" data-storno="${l.termin.id}" data-text="${e(`${l.termin.beginn} Uhr bei ${l.name}`)}">Stornieren</button>` : ''}`;
+        ${absagbar(t) ? `<button type="button" class="nl-knopf rot ms-2" data-storno="${l.termin.id}" data-text="${e(`${l.termin.beginn} Uhr bei ${l.name}`)}">Absagen</button>` : ''}`;
+    else if (l.abgesagt) termin = '<span class="nl-chip rot">Teilnahme abgesagt</span>';
     else if (!d.buchbar) termin = `<span class="nl-unter">${t.phase === 'einladung' ? `Buchung ab ${e(zeitDe(t.anmeldungVon))}` : 'keine Buchung mehr möglich'}</span>`;
     else if (!l.zeitfenster.length) termin = '<span class="nl-unter">keine freien Termine</span>';
     else termin = `<span class="st-buchen"><select class="form-select form-select-sm" data-zeit aria-label="Uhrzeit bei ${e(l.name)}" data-platzhalter="Uhrzeit wählen">
@@ -465,7 +513,7 @@ async function eltern(seite, kontext, id) {
       ${termine.length ? `<div class="nl-tabelle st-flach"><table><thead><tr><th>Zeit</th><th>Lehrkraft</th><th>Raum</th><th>Kind</th><th></th></tr></thead><tbody>
         ${termine.map(x => `<tr><td class="text-nowrap"><span class="st-zeit gebucht">${e(x.beginn)}</span> <span class="nl-unter">– ${e(x.ende)}</span></td><td class="nl-name st-n">${e(x.lehrerName)}</td>
           <td>${x.raum ? e(x.raum) : '–'}</td><td>${e(`${x.schueler.vorname} ${x.schueler.name}`)} <span class="nl-unter">${e(x.schueler.klasse)}</span></td>
-          <td class="text-end">${d.buchbar ? `<button type="button" class="nl-icon sichtbar rot" data-storno="${x.id}" data-text="${e(`${x.beginn} Uhr bei ${x.lehrerName}`)}" title="Stornieren" aria-label="Termin stornieren"><i class="bi bi-x-lg"></i></button>` : ''}</td></tr>`).join('')}
+          <td class="text-end">${absagbar(t) ? `<button type="button" class="nl-knopf rot st-klein" data-storno="${x.id}" data-text="${e(`${x.beginn} Uhr bei ${x.lehrerName}`)}" title="Termin absagen" aria-label="Termin absagen">Absagen</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>` : `<div class="p-3 nl-unter">Noch keine Termine gebucht.</div>`}
     </section>
     ${d.kinder.length ? d.kinder.map(k => `<section class="st-karte"><header><i class="bi bi-people"></i><h2>Lehrkräfte von ${e(`${k.vorname} ${k.name}`)}</h2><span class="nl-tag ms-2">${e(k.klasse)}</span></header>
@@ -484,7 +532,8 @@ async function eltern(seite, kontext, id) {
     } catch (err) { kontext.fehler(err); b.disabled = false; }
   });
   seite.querySelectorAll('[data-storno]').forEach(b => b.onclick = async () => {
-    if (!await bestaetigen('Termin stornieren', `Termin ${b.dataset.text} stornieren?`, 'Stornieren')) return;
-    try { await api(`${BASIS}/${id}/termine/${b.dataset.storno}`, { methode: 'DELETE' }); toast('Termin storniert.'); neu(); } catch (err) { kontext.fehler(err); }
+    const grund = await absageDialog('Termin absagen', `Termin ${b.dataset.text} absagen? Die Lehrkraft wird per Mitteilung informiert.`);
+    if (grund === null) return;
+    try { await senden(`${BASIS}/${id}/termine/${b.dataset.storno}/absagen`, { grund }); toast('Termin abgesagt.'); neu(); } catch (err) { kontext.fehler(err); }
   });
 }

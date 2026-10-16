@@ -301,7 +301,7 @@ public static class AppApi
         api.MapGet("/mitteilungen", (string? ordner, string? suche, HttpContext c, Mitteilungsdienst m) =>
         {
             var b = Ich(c);
-            return Results.Json(ordner == "gesendet" ? m.Gesendet(b.Id, suche) : ordner == "entwuerfe" ? m.Entwuerfe(b.Id, suche) : m.Posteingang(b.Id, suche));
+            return Results.Json(ordner == "gesendet" ? m.Gesendet(b.Id, suche) : ordner == "entwuerfe" ? m.Entwuerfe(b.Id, suche) : m.Posteingang(b.Id, suche, b.Familie));
         });
         api.MapGet("/mitteilungen/empfaenger", (HttpContext c, Mitteilungsdienst m, Paketdienst p) => Results.Json(m.Empfaengerliste(Ich(c), p.Aktuell)));
         api.MapPost("/mitteilungen", (MitteilungDaten d, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>

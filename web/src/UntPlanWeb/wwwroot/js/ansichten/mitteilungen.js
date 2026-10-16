@@ -178,7 +178,7 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
       <div class="mt-meta">
         <span class="mt-von">${eingang ? 'Von:' : 'An:'}</span>
         <div class="mt-personen">${eingang ? `<b>${e(m.absender)}</b>${m.absenderRolle ? ` <span class="text-body-secondary">· ${e(m.absenderRolle)}</span>` : ''}
-          <div class="mt-an">an ${e(m.empfaenger.length > 6 ? `${m.empfaenger.slice(0, 6).join(', ')} und ${m.empfaenger.length - 6} weitere` : m.empfaenger.join(', '))}</div>`
+          <div class="mt-an">${m.empfaenger.length ? 'an ' : ''}${e(m.empfaenger.length > 6 ? `${m.empfaenger.slice(0, 6).join(', ')} und ${m.empfaenger.length - 6} weitere` : m.empfaenger.join(', '))}</div>`
           : `<b>${e(m.empfaengerText || m.empfaenger.join(', '))}</b><div class="mt-an">${m.anzahl} Empfänger*innen · ${m.gelesenAnzahl} gelesen</div>`}</div>
         <span class="mt-datum">${e(zeitLang(m.erstellt))}</span></div>
       <div class="mt-text" data-text>${markdown(m.text)}</div>

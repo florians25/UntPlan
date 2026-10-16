@@ -336,7 +336,8 @@ public sealed class Mitteilungsdienst
                m.Empfaenger.Any(x => x.Contains(f, StringComparison.OrdinalIgnoreCase)) || (m.Anhaenge ?? new()).Any(a => a.Name.Contains(f, StringComparison.OrdinalIgnoreCase));
     }
 
-    public List<Mitteilung> Posteingang(int ich, string? suche = null)
+    /// <param name="vertraulich">Schüler- bzw. Elternkonto: die übrigen Empfänger*innen (z. B. andere Eltern der Klasse) werden nicht angezeigt.</param>
+    public List<Mitteilung> Posteingang(int ich, string? suche = null, bool vertraulich = false)
     {
         Aufraeumen();
         return _db.Liste("""
@@ -346,7 +347,8 @@ public sealed class Mitteilungsdienst
             """, r => new Mitteilung(r.Zahl("id"), r.Zahl("absender_id"), r.Text("absender"), r.Text("betreff"), r.Text("text"), r.Text("erstellt"), r.Wahr("wichtig"),
                 r.TextOderNull("gelesen"), new(), Lesebestaetigung: r.Wahr("lesebestaetigung"), Bestaetigt: r.TextOderNull("bestaetigt"), AntwortAuf: r.ZahlOderNull("antwort_auf"),
                 EmpfaengerText: r.Text("empfaenger_text"), AbsenderRolle: Rollen.Name(r.Text("absender_rolle"))),
-            Db.P("@b", ich)).Select(m => m with { Empfaenger = EmpfaengerNamen(m.Id), Anhaenge = Anhaenge(m.Id) }).Where(m => Passt(m, suche)).ToList();
+            Db.P("@b", ich)).Select(m => m with { Empfaenger = vertraulich ? new() : EmpfaengerNamen(m.Id), EmpfaengerText = vertraulich ? "" : m.EmpfaengerText, Anhaenge = Anhaenge(m.Id) })
+            .Where(m => Passt(m, suche)).ToList();
     }
 
     public List<Mitteilung> Gesendet(int ich, string? suche = null)

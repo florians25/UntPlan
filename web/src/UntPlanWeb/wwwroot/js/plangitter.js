@@ -31,7 +31,9 @@ const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(a
 /** Lange Listen kürzen wie im Original: „BEC, BRA, FIS +12“ (vollständig in den Stundendetails). */
 export function gekuerzt(liste, max = 3, entfall = false, lehrkraft = false) {
   const l = liste || [];
-  return l.length <= max + 1 ? werte(l, entfall, lehrkraft) : `${werte(l.slice(0, max), entfall, lehrkraft)} <span class="mehr">+${l.length - max}</span>`;
+  // gekürzt: „+12“ zeigt beim Überfahren die vollständige Liste (grauer Hover)
+  return l.length <= max + 1 ? werte(l, entfall, lehrkraft)
+    : `${werte(l.slice(0, max), entfall, lehrkraft)} <span class="mehr" data-hover="${e(kuerzelListe(l).join(', '))}" data-hover-art="grau">+${l.length - max}</span>`;
 }
 
 const kuerzelListe = l => (l || []).map(w => w.k || w.alt).filter(Boolean);
@@ -385,6 +387,7 @@ function hoverZeigen(ziel) {
   if (pillen) hoverEl.innerHTML = pillen.split(',').map(x => `<span>${e(x)}</span>`).join('');
   else hoverEl.textContent = text;   // „alt → neu“ bzw. „alt | neu“ ohne Durchstreichung
   hoverEl.classList.toggle('dunkel', ziel.dataset.hoverArt === 'dunkel');
+  hoverEl.classList.toggle('grau', ziel.dataset.hoverArt === 'grau');
   hoverEl.classList.toggle('pillen', !!pillen);
   hoverEl.style.display = 'block';
   const r = ziel.getBoundingClientRect();

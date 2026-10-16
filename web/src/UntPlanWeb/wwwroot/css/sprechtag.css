@@ -74,3 +74,7 @@ tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
 @media print {
   .st-zeitraster .nl-fuss, .st-einladen-felder, .nl-icon { display: none !important; }
 }
+
+/* Absage: Hinweis bei abgesagter Teilnahme bzw. abgesagtem Sprechtag */
+.nl-hinweis.rot { background: #fdecec; color: #a12d31; }
+.nl-hinweis.rot .bi { color: #c8363b; }

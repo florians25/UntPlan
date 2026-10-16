@@ -372,3 +372,17 @@ a.s-pille { text-decoration: none !important; }
 .nl-pille .elementwahl .wahl-knopf { border: 0; height: auto; min-height: 0; padding: 0 0 0 4px; min-width: 0; background: transparent !important; box-shadow: none; }
 .abw-leiste .nl-suche { flex: 1 1 130px; min-width: 130px; }
 .abw-leiste .nl-pille input[type="date"] { width: 122px; }
+
+/* Sprint 20: Labels einen Tick eckiger (Radius 1px), Infomeldungen näher am unteren Rand */
+.std .lbl, .std-lbl, .sd-zeile .lbl, .std.lehrer-abwesend .lbl.weg, .aufsicht .lbl-auf, .vt-zeile .lbl-neu, .ecke .ecke-online, .v-lbl, .sd-lbl-weg, .lbl { border-radius: 1px; }
+.std .z1 .lbl, .std .lbl.weg { border-radius: 1px; }
+.u-toasts { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+
+/* Grauer Hover für abgeschnittene Inhalte (Plankarten, Veranstaltungstexte, gekürzte Zeilen und Labels in Listen) */
+.u-kuerzung-hover {
+  position: fixed; z-index: 2001; display: none; pointer-events: none; max-width: 340px; padding: 6px 10px; border-radius: 6px;
+  background: #eef0f2; color: #24323d; border: 1px solid #d6dbe0; box-shadow: 0 3px 10px rgba(0, 5, 10, .12);
+  font-family: var(--u-schrift); font-size: 12.5px; font-weight: 500; line-height: 1.35; white-space: pre-line; overflow-wrap: anywhere;
+}
+.u-hover-label.grau { background: #eef0f2; color: #24323d; border: 1px solid #d6dbe0; box-shadow: 0 3px 10px rgba(0, 5, 10, .12); font-size: 12.5px; font-weight: 500; padding: 6px 10px; border-radius: 6px; }
+.std .mehr[data-hover] { cursor: default; }
