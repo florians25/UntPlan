@@ -32,7 +32,7 @@ public sealed class PlanAnsicht : Control
         set { _nurTag = value is int t && t >= 0 && t < Tage ? t : null; Invalidate(); }
     }
     private int? _nurTag;
-    private int SichtbareTage => _nurTag.HasValue ? 1 : Tage;
+    private int SichtbareTage => _nurTag.HasValue ? 1 : BisT - VonT + 1;
 
     /// <summary>
     /// Gewählte Stunde. Die Auswahl wird zusätzlich über Unterricht, Tag und Stunde gemerkt, damit sie nach dem Neuladen der Daten
@@ -202,7 +202,7 @@ public sealed class PlanAnsicht : Control
 
     /// <summary>Angezeigte Pausen (eigene schmale Zeilen), nach der Stunde sortiert; „nach der 0. Stunde“ = vor der ersten Stunde (Frühaufsicht).</summary>
     private List<Pause> PausenZeilen() =>
-        Format.PausenAnzeigen ? D.Zeitraster.Pausen.Where(p => p.NachStunde >= 0 && p.NachStunde < Stunden).GroupBy(p => p.NachStunde).Select(g => g.First()).OrderBy(p => p.NachStunde).ToList() : new();
+        Format.PausenAnzeigen && !Transponiert ? D.Zeitraster.Pausen.Where(p => p.NachStunde >= 0 && p.NachStunde < Stunden && p.NachStunde >= VonStd - 1 && p.NachStunde < BisStd).GroupBy(p => p.NachStunde).Select(g => g.First()).OrderBy(p => p.NachStunde).ToList() : new();
 
     // Zellen für das schnelle Zeichnen: Pausen werden je Zeichenvorgang einmal ermittelt
     private List<Pause>? _pausenCache;
@@ -222,6 +222,29 @@ public sealed class PlanAnsicht : Control
     private int Tage => D.Zeitraster.TageProWoche;
     private int Stunden => D.Zeitraster.StundenProTag;
 
+    // Format „Auswahl (Bereich)“: angezeigte Stunden und Tage (ausgeblendete liegen außerhalb des sichtbaren Bereichs)
+    private int VonStd => Math.Clamp(Format.VonStunde, 1, Math.Max(1, Stunden));
+    private int BisStd => Format.BisStunde <= 0 ? Stunden : Math.Clamp(Format.BisStunde, VonStd, Math.Max(VonStd, Stunden));
+    private int SichtbareStunden => Math.Max(1, BisStd - VonStd + 1);
+    private int VonT => Math.Clamp(Format.VonTag, 0, Math.Max(0, Tage - 1));
+    private int BisT => Format.BisTag < 0 ? Tage - 1 : Math.Clamp(Format.BisTag, VonT, Math.Max(VonT, Tage - 1));
+    private bool TagSichtbar(int t) => t >= VonT && t <= BisT;
+    private bool StundeSichtbar(int s) => s >= VonStd && s <= BisStd;
+    /// <summary>Format 10: Stunden waagrecht, Tage senkrecht (nicht im kleinen Stundenplan).</summary>
+    public bool Transponiert => Format.Grundform == Grundform.Format10 && !Format.Klein;
+
+    /// <summary>Für den Selbsttest: sichtbare Stunden und Tage (Format „Auswahl (Bereich)“).</summary>
+    internal (int VonStunde, int BisStunde, int VonTag, int BisTag) SichtbarerBereich => (VonStd, BisStd, VonT, BisT);
+
+    /// <summary>Rechteck über mehrere Stunden eines Tages (in beiden Ausrichtungen).</summary>
+    private RectangleF Bereich(Rectangle bounds, int tag, int von, int bis)
+    {
+        von = Math.Max(von, VonStd);
+        bis = Math.Min(bis, BisStd);
+        if (bis < von) return new RectangleF(-100000, -100000, 0, 0);
+        return RectangleF.Union(Zelle(bounds, tag, von), Zelle(bounds, tag, bis));
+    }
+
     /// <summary>Tagesaktuelle Pläne neu berechnen (nach Änderungen).</summary>
     public void TageNeu()
     {
@@ -239,19 +262,31 @@ public sealed class PlanAnsicht : Control
 
     private RectangleF Zelle(Rectangle bounds, int tag, int stunde)
     {
+        var zeileT = _nurTag is int nt0 ? (tag == nt0 ? 0 : -100000) : TagSichtbar(tag) ? tag - VonT : -100000;
+        var spalteS = StundeSichtbar(stunde) ? stunde - VonStd : -100000;
+        if (Transponiert)
+        {
+            // Format 10: Stunden als Spalten, Tage als Zeilen (ohne Pausenzeilen)
+            var ws = (bounds.Width - KopfBreite - 1) / (float)SichtbareStunden;
+            var ht = Math.Max(_druck ? 4f : MindestZeile, (bounds.Height - KopfHoehe - 1) / (float)SichtbareTage);
+            var tx0 = bounds.X + KopfBreite + (int)Math.Round(spalteS * ws);
+            var tx1 = bounds.X + KopfBreite + (int)Math.Round((spalteS + 1) * ws);
+            var ty0 = bounds.Y + KopfHoehe + (int)Math.Round(zeileT * ht);
+            var ty1 = bounds.Y + KopfHoehe + (int)Math.Round((zeileT + 1) * ht);
+            return new RectangleF(tx0, ty0, tx1 - tx0, ty1 - ty0);
+        }
         var pausen = Pausen;
         var w = (bounds.Width - KopfBreite - 1) / (float)SichtbareTage;
         // Mindestzeilenhöhe: Zeilen werden nie gequetscht – reicht der Platz nicht, scrollt der Plan (StundenplanFenster)
-        var h = Math.Max(_druck ? 4f : MindestZeile, (bounds.Height - KopfHoehe - 1 - pausen.Count * PausenHoehe) / (float)Stunden);
+        var h = Math.Max(_druck ? 4f : MindestZeile, (bounds.Height - KopfHoehe - 1 - pausen.Count * PausenHoehe) / (float)SichtbareStunden);
         var vor = 0;
         foreach (var p in pausen) if (p.NachStunde < stunde) vor++;
         // ganze Pixel, damit die (schwarzen) Rasterlinien gleichmäßig und ohne Lücken zwischen Linie und Zelle liegen
-        // Zeitbereich „Tag“: die übrigen Tage liegen außerhalb des sichtbaren Bereichs (gleiche Größe, damit Schriften gleich bleiben)
-        var spalte = _nurTag is int nt ? (tag == nt ? 0 : -100000) : tag;
-        var x0 = bounds.X + KopfBreite + (int)Math.Round(spalte * w);
-        var x1 = bounds.X + KopfBreite + (int)Math.Round((spalte + 1) * w);
-        var y0 = bounds.Y + KopfHoehe + (int)Math.Round((stunde - 1) * h) + vor * PausenHoehe;
-        var y1 = bounds.Y + KopfHoehe + (int)Math.Round(stunde * h) + vor * PausenHoehe;
+        // Zeitbereich „Tag“ bzw. Formatbereich: die übrigen Tage/Stunden liegen außerhalb des sichtbaren Bereichs (gleiche Größe, damit Schriften gleich bleiben)
+        var x0 = bounds.X + KopfBreite + (int)Math.Round(zeileT * w);
+        var x1 = bounds.X + KopfBreite + (int)Math.Round((zeileT + 1) * w);
+        var y0 = bounds.Y + KopfHoehe + (int)Math.Round(spalteS * h) + vor * PausenHoehe;
+        var y1 = bounds.Y + KopfHoehe + (int)Math.Round((spalteS + 1) * h) + vor * PausenHoehe;
         return new RectangleF(x0, y0, x1 - x0, y1 - y0);
     }
 
@@ -265,9 +300,16 @@ public sealed class PlanAnsicht : Control
     private (int Tag, int Stunde)? Treffer(Point p)
     {
         if (p.X < KopfBreite || p.Y < KopfHoehe) return null;
+        if (Transponiert)
+        {
+            for (var tt = 0; tt < Tage; tt++)
+                for (var ss = VonStd; ss <= BisStd; ss++)
+                    if (Zelle(ClientRectangle, tt, ss).Contains(p)) return RegelTagFrei(tt) ? null : (tt, ss);
+            return null;
+        }
         var w = (Width - KopfBreite - 1) / (float)SichtbareTage;
-        var t = (int)((p.X - KopfBreite) / w);
-        if (_nurTag is int nt) t = t == 0 ? nt : -1;
+        var t = (int)((p.X - KopfBreite) / w) + VonT;
+        if (_nurTag is int nt) t = t == VonT ? nt : -1;
         if (t < 0 || t >= Tage || RegelTagFrei(t)) return null;
         for (var s = 1; s <= Stunden; s++)
         {
@@ -356,8 +398,21 @@ public sealed class PlanAnsicht : Control
 
     private RectangleF TeilRechteck<T>(Rectangle bounds, int tag, PlanBlock<T> f, BlockTeil t)
     {
-        var r = Zelle(bounds, tag, t.Start);
-        var hoehe = t.Laenge == 1 ? r.Height : Zelle(bounds, tag, t.Ende).Bottom - r.Y;
+        var start = Math.Max(t.Start, VonStd);
+        var ende = Math.Min(t.Ende, BisStd);
+        if (ende < start) return new RectangleF(-100000, -100000, 0, 0);
+        var r = Zelle(bounds, tag, start);
+        if (Transponiert)
+        {
+            // Format 10: mehrstündige Felder waagrecht, parallele Stunden übereinander
+            var breiteT = ende == start ? r.Width : Zelle(bounds, tag, ende).Right - r.X;
+            var ty0 = (int)(r.Y + Math.Round(f.Spur * r.Height / f.Spuren));
+            var ty1 = (int)(r.Y + Math.Round((f.Spur + 1) * r.Height / f.Spuren));
+            var tx0 = (int)(r.X + Math.Round(f.StapelIndex * breiteT / f.StapelAnzahl));
+            var tx1 = (int)(r.X + Math.Round((f.StapelIndex + 1) * breiteT / f.StapelAnzahl));
+            return new RectangleF(tx0 + 1, ty0 + 1, tx1 - tx0 - 1, ty1 - ty0 - 1);
+        }
+        var hoehe = ende == start ? r.Height : Zelle(bounds, tag, ende).Bottom - r.Y;
         if (UntisStil)
         {
             // Untis: Feld füllt die Zelle bis an die Rasterlinien, parallele Stunden durch eine Linie getrennt
@@ -437,7 +492,7 @@ public sealed class PlanAnsicht : Control
         : Blockbildung.MindestZeilenHoehe(Format.Schriftgroesse, Format.Klein);
 
     /// <summary>Höhe, unter der der Plan nicht gequetscht, sondern gescrollt wird.</summary>
-    public int MindestHoehe => Blockbildung.MindestHoehe(KopfHoehe, PausenZeilen().Count, PausenHoehe, Stunden, MindestZeile);
+    public int MindestHoehe => Blockbildung.MindestHoehe(KopfHoehe, PausenZeilen().Count, PausenHoehe, Transponiert ? SichtbareTage : SichtbareStunden, MindestZeile);
 
     private void ZeichnenIntern(Graphics g, Rectangle bounds, bool druck)
     {
@@ -451,7 +506,10 @@ public sealed class PlanAnsicht : Control
         var untis = UntisStil;
         using var linie = new Pen(untis ? Color.Black : klein ? Color.FromArgb(150, 150, 150) : Color.FromArgb(160, 170, 185));
         using var duenn = new Pen(untis ? Color.Black : klein ? Color.FromArgb(200, 200, 200) : Color.FromArgb(210, 216, 226));
-        if (untis) UntisKoepfe(g, bounds, druck, linie);
+        GezeichneteLinien.Clear();
+        GezeichneteFelder.Clear();
+        if (Transponiert) TransponierteKoepfe(g, bounds, druck, linie);
+        else if (untis) UntisKoepfe(g, bounds, druck, linie);
         else KoepfeZeichnen(g, bounds, druck, linie);
         var plan = Tagesmodus ? new List<Planstunde>() : Ix.PlanVon(Typ, ElementId).ToList();
         var el = Ix.Element(Typ, ElementId);
@@ -463,7 +521,7 @@ public sealed class PlanAnsicht : Control
             for (var s = 1; s <= Stunden; s++)
             {
                 var r = Zelle(bounds, t, s);
-                var hint = druck || untis ? Color.White : Ui.PlanLeer;
+                var hint = Format.FreieStunden.Grau ? Color.FromArgb(236, 236, 236) : druck || untis ? Color.White : Ui.PlanLeer;
                 var frei = kt?.StundeFrei(s) == true;
                 if (!zr.Verfuegbar(t, s)) hint = Color.FromArgb(225, 225, 225);
                 else if (ferien != null || frei) hint = Color.FromArgb(255, 248, 220);
@@ -498,6 +556,7 @@ public sealed class PlanAnsicht : Control
                 }
                 using (var b = new SolidBrush(hint)) g.FillRectangle(b, r);
                 g.DrawRectangle(duenn, r.X, r.Y, r.Width, r.Height);
+                Relief(g, r, Format.FreieStunden.Raeumlich);
             }
             // zweiter Durchgang: Inhalte; zusammenhängende Stunden (Doppelstunde, Block) werden als ein Feld gezeichnet
             // (außer in der Darstellung „Einzelstunden“), parallele Blöcke nebeneinander
@@ -508,6 +567,7 @@ public sealed class PlanAnsicht : Control
                     {
                         EintragZeichnen(g, fr, f.Erster, datum!.Value, druck, f.Alle.Any(x => IstTagesAuswahl(datum.Value, x)));
                         if (untis) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
+                        Relief(g, fr, Format.BesetzteStunden.Raeumlich);
                     }
             }
             else
@@ -528,6 +588,7 @@ public sealed class PlanAnsicht : Control
                     {
                         StundeZeichnen(g, fr, f.Erster, druck, Enumerable.Range(f.Start, f.Laenge).Any(kollisionen.Contains), f.Alle);
                         if (untis) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
+                        Relief(g, fr, Format.BesetzteStunden.Raeumlich);
                     }
                 // untereinander gestapelte Unterrichte bilden ein gemeinsames Feld: keine Linie zwischen den Zeilen
                 if (untis)
@@ -546,6 +607,7 @@ public sealed class PlanAnsicht : Control
             if (datum is DateOnly dt) FreiZeichnen(g, bounds, t, dt, kt);
         }
         PausenZeichnen(g, bounds, linie);
+        FormatLinien(g, bounds);
         // Untis-Stundenplanmodus: unterrichtsfreier Tag als weiße Spalte mit senkrechtem Datum bzw. Bezeichnung über alle Stunden
         for (var t = 0; t < Tage; t++)
         {
@@ -626,9 +688,8 @@ public sealed class PlanAnsicht : Control
         using var schrift = new Font("Segoe UI", Format.Klein ? 7f : 8.25f, FontStyle.Bold);
         foreach (var (von, bis) in bereiche)
         {
-            var oben = Zelle(bounds, t, von);
-            var unten = Zelle(bounds, t, bis);
-            var r = Rectangle.Round(new RectangleF(oben.X + 1, oben.Y + 1, oben.Width - 2, unten.Bottom - oben.Y - 2));
+            var ber = Bereich(bounds, t, von, bis);
+            var r = Rectangle.Round(new RectangleF(ber.X + 1, ber.Y + 1, ber.Width - 2, ber.Height - 2));
             if (r.Width < 6 || r.Height < 6) continue;
             var platz = r.Width - 4;
             var text = Kalender.FreiText(bez, datum, x => TextRenderer.MeasureText(g, x, schrift, Size.Empty, TextFormatFlags.NoPadding).Width <= platz);
@@ -648,14 +709,12 @@ public sealed class PlanAnsicht : Control
     private void FreiSpalteZeichnen(Graphics g, Rectangle bounds, int t, DateOnly datum, Pen linie)
     {
         if (_nurTag is int nt && nt != t) return;
-        var oben = Zelle(bounds, t, 1);
-        var unten = Zelle(bounds, t, Stunden);
-        if (oben.Right < bounds.X || oben.Width < 4) return;
-        var r = new RectangleF(oben.X, oben.Y, oben.Width, unten.Bottom - oben.Y);
+        var r = Bereich(bounds, t, 1, Stunden);
+        if (r.Right < bounds.X || r.Width < 4) return;
         g.FillRectangle(Brushes.White, r);
         g.DrawRectangle(linie, r.X, r.Y, r.Width, r.Height);
         using var schrift = new Font("Segoe UI", Format.Klein ? 8f : 9f);
-        var platz = r.Height - 8;
+        var platz = (Transponiert ? r.Width : r.Height) - 8;
         var text = Kalender.FreiText(Kalender.FreiBezeichnung(D, datum), datum, x => g.MeasureString(x, schrift).Width <= platz);
         FreiBeschriftungen.RemoveAll(x => x.Tag == t);
         FreiBeschriftungen.Add((t, text));
@@ -665,7 +724,7 @@ public sealed class PlanAnsicht : Control
         {
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
             g.TranslateTransform(r.X + r.Width / 2f, r.Y + r.Height / 2f);
-            g.RotateTransform(-90);
+            if (!Transponiert) g.RotateTransform(-90);
             g.DrawString(text, schrift, Brushes.Black, -groesse.Width / 2f, -groesse.Height / 2f);
         }
         finally { g.Restore(zustand); }
@@ -689,11 +748,119 @@ public sealed class PlanAnsicht : Control
         if (_hover is { } hv && hv.Tag == t)
         {
             var start = Math.Clamp(hv.Stunde - _ziehVersatz, 1, Stunden);
-            var r = Zelle(bounds, t, start);
             var n = Math.Max(1, Math.Min(_ziehLaenge, Stunden - start + 1));
-            var unten = Zelle(bounds, t, start + n - 1).Bottom;
+            var r = Bereich(bounds, t, start, start + n - 1);
             using var p = new Pen(Color.Black, Rahmen) { DashStyle = DashStyle.Dash };
-            g.DrawRectangle(p, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, unten - r.Y - 2);
+            g.DrawRectangle(p, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
+        }
+    }
+
+    /// <summary>Farbe der Überschriften (Tage, Stunden): „Eben: Grau“ = Grundfarbe des Plans, „Weiß“ = weiß (Format, Layout 1).</summary>
+    private Color KopfFarbe => Format.Ueberschrift.Grau ? (UntisStil ? Grund : Ui.Kopf) : Color.White;
+
+    /// <summary>Gezeichnete Felder einer eigenen Stundenplan-Stunde (für den Selbsttest).</summary>
+    internal List<(StundenFeldArt Art, string Text, Rectangle Bereich)> GezeichneteFelder { get; } = new();
+
+    /// <summary>Gezeichnete Formatlinien (für den Selbsttest), z. B. „dick vor 5“.</summary>
+    internal List<string> GezeichneteLinien { get; } = new();
+
+    /// <summary>Räumliche Darstellung (Layout 1): erhaben = hell oben/links und dunkel unten/rechts, versenkt umgekehrt.</summary>
+    private static void Relief(Graphics g, RectangleF r, Raeumlich art)
+    {
+        if (art == Raeumlich.Flach || r.Width < 4 || r.Height < 4 || r.X < -1000 || r.Y < -1000) return;
+        var hell = art == Raeumlich.Erhaben ? Color.White : Color.FromArgb(128, 128, 128);
+        var dunkel = art == Raeumlich.Erhaben ? Color.FromArgb(128, 128, 128) : Color.White;
+        using var ph = new Pen(hell);
+        using var pd = new Pen(dunkel);
+        g.DrawLine(ph, r.X + 1, r.Y + 1, r.Right - 2, r.Y + 1);
+        g.DrawLine(ph, r.X + 1, r.Y + 1, r.X + 1, r.Bottom - 2);
+        g.DrawLine(pd, r.X + 1, r.Bottom - 2, r.Right - 2, r.Bottom - 2);
+        g.DrawLine(pd, r.Right - 2, r.Y + 1, r.Right - 2, r.Bottom - 2);
+    }
+
+    /// <summary>
+    /// Linien aus dem Format (Layout 1): „Linie vor folgenden Stunden“, „Doppelstrich vor Stunden“, „Dicker Strich vor Stunden“,
+    /// Trennstrich zwischen Vor- und Nachmittag und zwischen den Tagen.
+    /// </summary>
+    private void FormatLinien(Graphics g, Rectangle bounds)
+    {
+        var linie = StundenplanFormat.StundenListe(Format.LinieVor);
+        var doppelt = StundenplanFormat.StundenListe(Format.DoppelstrichVor);
+        var dick = StundenplanFormat.StundenListe(Format.DickerStrichVor);
+        if (Format.TrennstrichVormNachm)
+        {
+            var zr = D.Zeitraster;
+            for (var st = VonStd + 1; st <= BisStd; st++)
+                if (zr.Art(0, st) == Tageszeit.Nachmittag || st == zr.LetzteVormittagsstunde + 1) { dick.Add(st); break; }
+        }
+        var tag = _nurTag ?? VonT;
+        foreach (var st in linie.Concat(doppelt).Concat(dick).Distinct().Where(x => x > VonStd && x <= BisStd).OrderBy(x => x))
+        {
+            var r = Zelle(bounds, tag, st);
+            var art = dick.Contains(st) ? "dick" : doppelt.Contains(st) ? "doppelt" : "linie";
+            GezeichneteLinien.Add($"{art} vor {st}");
+            void Strich(float versatz, float staerke)
+            {
+                if (Transponiert) g.FillRectangle(Brushes.Black, r.X + versatz - staerke / 2f, bounds.Y, staerke, bounds.Height - 1);
+                else g.FillRectangle(Brushes.Black, bounds.X, r.Y + versatz - staerke / 2f, bounds.Width - 1, staerke);
+            }
+            switch (art)
+            {
+                case "dick": Strich(0, 3); break;
+                case "doppelt": Strich(-2, 1); Strich(1, 1); break;
+                default: Strich(0, 1.5f); break;
+            }
+        }
+        if (Format.TrennstrichTage && !_nurTag.HasValue)
+            for (var t = VonT + 1; t <= BisT; t++)
+            {
+                var r = Zelle(bounds, t, VonStd);
+                GezeichneteLinien.Add($"tag vor {t}");
+                if (Transponiert) g.FillRectangle(Brushes.Black, bounds.X, r.Y - 1, bounds.Width - 1, 2);
+                else g.FillRectangle(Brushes.Black, r.X - 1, bounds.Y, 2, bounds.Height - 1);
+            }
+    }
+
+    /// <summary>Format 10 (Stunden waagrecht, Tage senkrecht): Stunden als Spaltenköpfe, Tage als Zeilenköpfe.</summary>
+    private void TransponierteKoepfe(Graphics g, Rectangle bounds, bool druck, Pen linie)
+    {
+        var zr = D.Zeitraster;
+        using var kopfB = new SolidBrush(KopfFarbe);
+        using var rosa = new SolidBrush(Rosa);
+        var wahl = druck ? null : GewaehlteZelle();
+        var ecke = new RectangleF(bounds.X, bounds.Y, KopfBreite, KopfHoehe);
+        g.FillRectangle(kopfB, ecke);
+        g.DrawRectangle(linie, ecke.X, ecke.Y, ecke.Width, ecke.Height);
+        var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
+        using var schrift = new Font("Segoe UI", Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f)), FontStyle.Bold);
+        using var zeit = new Font("Segoe UI", 7f);
+        var tag = _nurTag ?? VonT;
+        for (var st = VonStd; st <= BisStd; st++)
+        {
+            var r = Zelle(bounds, tag, st);
+            var kopf = new RectangleF(r.X, bounds.Y, r.Width, KopfHoehe);
+            g.FillRectangle(wahl?.Stunde == st ? rosa : kopfB, kopf);
+            var z = zr.Zeit(st);
+            var kr = Rectangle.Round(kopf);
+            if (Format.ZeitenAnzeigen && z != null && kr.Width > 60)
+            {
+                TextRenderer.DrawText(g, zr.StundenLabel(st), schrift, new Rectangle(kr.X, kr.Y, kr.Width, kr.Height * 3 / 5), Color.Black, flags);
+                TextRenderer.DrawText(g, $"{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}", zeit, new Rectangle(kr.X, kr.Y + kr.Height / 2, kr.Width, kr.Height / 2), Color.Black, flags);
+            }
+            else TextRenderer.DrawText(g, zr.StundenLabel(st), schrift, kr, Color.Black, flags);
+            g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
+            Relief(g, kopf, Format.Ueberschrift.Raeumlich);
+        }
+        for (var t = 0; t < Tage; t++)
+        {
+            var r = Zelle(bounds, t, VonStd);
+            if (r.Bottom < bounds.Y) continue;
+            var kopf = new RectangleF(bounds.X, r.Y, KopfBreite, r.Height);
+            g.FillRectangle(wahl?.Tag == t ? rosa : kopfB, kopf);
+            var text = Planungsdienst.Tagname(D, t, KopfBreite > 60) + (_woche?.AddDays(t) is DateOnly dt && KopfBreite > 60 ? " " + dt.ToString("dd.MM.") : "");
+            TextRenderer.DrawText(g, text, schrift, Rectangle.Round(kopf), Color.Black, flags);
+            g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
+            Relief(g, kopf, Format.Ueberschrift.Raeumlich);
         }
     }
 
@@ -740,7 +907,7 @@ public sealed class PlanAnsicht : Control
             else if (Kalender.IstUnterrichtstag(D, heute)) rosaTag = Kalender.TagIndex(D, heute);
         }
         int? rosaStunde = druck ? null : _hover is { } hv && _status != null ? hv.Stunde : wahl?.Stunde;
-        using var mint = new SolidBrush(Grund);
+        using var mint = new SolidBrush(KopfFarbe);
         using var rosa = new SolidBrush(Rosa);
         var ecke = new RectangleF(bounds.X, bounds.Y, KopfBreite, KopfHoehe);
         g.FillRectangle(mint, ecke);
@@ -763,6 +930,7 @@ public sealed class PlanAnsicht : Control
             if (_nurTag.HasValue && _woche?.AddDays(t) is DateOnly dt) text += " " + dt.ToString("dd.MM.");
             TextRenderer.DrawText(g, text, kopfSchrift, Rectangle.Round(kopf), Color.Black, flags);
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
+            Relief(g, kopf, Format.Ueberschrift.Raeumlich);
         }
         var zh = Zelle(bounds, 0, 1).Height;
         using var nummer = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, zh / 1.7f)) : Math.Max(8f, Math.Min(15f, zh / 2.1f)), klein ? FontStyle.Regular : FontStyle.Bold);
@@ -845,9 +1013,7 @@ public sealed class PlanAnsicht : Control
         var zielStart = Math.Clamp(hv.Stunde - _ziehVersatz, 1, Stunden);
         RectangleF Bereich(int tag, int start)
         {
-            var oben = Zelle(bounds, tag, start);
-            var unten = Zelle(bounds, tag, Math.Min(Stunden, start + laenge - 1));
-            return new RectangleF(oben.X, oben.Y, oben.Width, unten.Bottom - oben.Y);
+            return this.Bereich(bounds, tag, start, Math.Min(Stunden, start + laenge - 1));
         }
         var a = Bereich(q.Tag, q.Stunde);
         var b = Bereich(hv.Tag, zielStart);
@@ -943,11 +1109,17 @@ public sealed class PlanAnsicht : Control
     {
         if (id is null) return "";
         var e = Ix.Element(t, id.Value);
-        return e is null ? "?" : Format.Langname && e.Langname.Length > 0 ? e.Langname : e.Kurzname;
+        if (e is null) return "?";
+        // Art des Namens (Stundenplan-Stunde): Kurz-, Lang- oder Druckname (= Alias, sonst Langname)
+        if (Format.NamensArt == NamensArt.Druckname) return Format.AliasVerwenden && e.Alias.Length > 0 ? e.Alias : e.Langname.Length > 0 ? e.Langname : e.Kurzname;
+        return (Format.Langname || Format.NamensArt == NamensArt.Langname) && e.Langname.Length > 0 ? e.Langname : e.Kurzname;
     }
 
     /// <summary>Präfixe wie in Untis: „.“ = Kopplung (mehrere Kopplungszeilen), „*“ = fixiert.</summary>
-    private static string Praefix(Unterricht? u, bool fixiert) => (u?.Zeilen.Count > 1 ? "." : "") + (fixiert ? "*" : "");
+    private string Praefix(Unterricht? u, bool fixiert) => (Format.KopplungenMitPunkt && u?.Zeilen.Count > 1 ? "." : "") + Stern(fixiert);
+
+    /// <summary>„Fixierung mit * kennzeichnen“ (Format, Layout 2).</summary>
+    private string Stern(bool fixiert) => fixiert && Format.FixierungMitStern ? "*" : "";
 
     /// <summary>Kleiner Stundenplan: nur das Fachkürzel (mit Präfixen), zentriert; Entfall durchgestrichen, Änderungen rot.</summary>
     private void KleinZeichnen(Graphics g, RectangleF r, string text, Color farbe, bool durchgestrichen = false)
@@ -1049,7 +1221,7 @@ public sealed class PlanAnsicht : Control
     /// </summary>
     internal List<List<Teil>> GrossZeilen(Unterricht u, Planstunde p, List<int> zs)
     {
-        var stern = p.Fixiert ? "*" : "";
+        var stern = Stern(p.Fixiert);
         var getrennt = zs.Select(i => u.Zeilen[i].FachId).Distinct().Count() > 1;
         var gruppen = getrennt ? zs.Select(i => new List<int> { i }).ToList() : new List<List<int>> { zs };
         var res = new List<List<Teil>>();
@@ -1208,7 +1380,7 @@ public sealed class PlanAnsicht : Control
         if (Format.Standardformat || Format.Felder.Count == 0)
         {
             var z = u.Zeilen[zeilen[0]];
-            var kopf = (p.Fixiert ? "*" : "") + Kurz(ElementTyp.Fach, z.FachId) + (u.Kursname.Length > 0 && r.Width > 60 ? " " + u.Kursname : "") + (ug != null ? $" ({ug})" : "");
+            var kopf = Stern(p.Fixiert) + Kurz(ElementTyp.Fach, z.FachId) + (u.Kursname.Length > 0 && r.Width > 60 ? " " + u.Kursname : "") + (ug != null ? $" ({ug})" : "");
             var info = Typ switch
             {
                 ElementTyp.Klasse => string.Join(",", zeilen.Select(i => Kurz(ElementTyp.Lehrer, u.Zeilen[i].LehrerId) + ZeilenGruppe(u.Zeilen[i]))),
@@ -1224,7 +1396,7 @@ public sealed class PlanAnsicht : Control
                 for (var i = 0; i < u.Zeilen.Count; i++)
                 {
                     var zz = u.Zeilen[i];
-                    var zeileText = $"{(p.Fixiert && i == 0 ? "*" : "")}{Kurz(ElementTyp.Fach, zz.FachId)} {Kurz(ElementTyp.Lehrer, zz.LehrerId)} {Ix.KKlassen(zz.KlassenIds)} {Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))}{ZeilenGruppe(zz)}";
+                    var zeileText = $"{Stern(p.Fixiert && i == 0)}{Kurz(ElementTyp.Fach, zz.FachId)} {Kurz(ElementTyp.Lehrer, zz.LehrerId)} {Ix.KKlassen(zz.KlassenIds)} {Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))}{ZeilenGruppe(zz)}";
                     TextRenderer.DrawText(g, zeileText, klein, new Rectangle((int)r.X + 2, (int)y, (int)r.Width - 3, (int)zh), text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
                     y += zh;
                 }
@@ -1243,25 +1415,43 @@ public sealed class PlanAnsicht : Control
         }
         else
         {
+            // eigene Stundenplan-Stunde: Felder an ihrer Position (relativ zur Zelle); „Felder in Stunde zentrieren“ verschiebt die
+            // ganze Feldgruppe in die Mitte der Zelle
+            var min = new PointF(Format.Felder.Min(x => x.X), Format.Felder.Min(x => x.Y));
+            var max = new PointF(Format.Felder.Max(x => x.X + x.B), Format.Felder.Max(x => x.Y + x.H));
+            var dx = Format.FelderHorizontalZentrieren ? (1 - (max.X - min.X)) / 2 - min.X : 0;
+            var dy = Format.FelderVertikalZentrieren ? (1 - (max.Y - min.Y)) / 2 - min.Y : 0;
             foreach (var f in Format.Felder)
             {
                 var zi = Math.Clamp(f.Zeile - 1, 0, u.Zeilen.Count - 1);
                 var z = u.Zeilen[zi];
+                var zeit = D.Zeitraster.Zeit(p.Stunde);
                 var wert = f.Art switch
                 {
-                    StundenFeldArt.Fach => (p.Fixiert && zi == 0 ? "*" : "") + Kurz(ElementTyp.Fach, z.FachId),
+                    StundenFeldArt.Fach => Stern(p.Fixiert && zi == 0) + Kurz(ElementTyp.Fach, z.FachId),
                     StundenFeldArt.Lehrer => Kurz(ElementTyp.Lehrer, z.LehrerId),
                     StundenFeldArt.Klasse => Ix.KKlassen(z.KlassenIds),
                     StundenFeldArt.Raum => Kurz(ElementTyp.Raum, p.RaumFuerZeile(zi)),
                     StundenFeldArt.UNr => u.Id.ToString(),
-                    StundenFeldArt.Text => u.Text,
-                    StundenFeldArt.Gruppe => u.Schuelergruppe,
+                    StundenFeldArt.Text or StundenFeldArt.Stundentext or StundenFeldArt.Sondertext => u.Text,
+                    StundenFeldArt.Gruppe or StundenFeldArt.Schuelergruppe => z.Schuelergruppe.Length > 0 ? z.Schuelergruppe : u.Schuelergruppe,
                     StundenFeldArt.Kurs => u.Kursname,
-                    _ => D.Zeitraster.Zeit(p.Stunde)?.Beginn.ToString("H:mm") ?? "",
+                    StundenFeldArt.StudZl => u.MaxSchueler > 0 ? u.MaxSchueler.ToString() : "",
+                    StundenFeldArt.UnterrichtsGruppe => (z.UGruppeId ?? u.UGruppeId) is int ugId ? D.UGruppen.FirstOrDefault(x => x.Id == ugId)?.Kurzname ?? "" : "",
+                    StundenFeldArt.ZeilenText => z.Zeilentext,
+                    StundenFeldArt.ZeilenText2 => u.Statistik,
+                    StundenFeldArt.Beschreibung => u.Kommentar,
+                    StundenFeldArt.Band => u.Band,
+                    StundenFeldArt.Zeitwunsch => u.Zeitwuensche.Get(p.Tag, p.Stunde) is var w && w != 0 ? w.ToString("+0;-0") : "",
+                    StundenFeldArt.Fussnote => "",
+                    _ => zeit is null ? "" : Format.BeginnEndzeit ? $"{zeit.Beginn:H:mm}-{zeit.Ende:H:mm}" : zeit.Beginn.ToString("H:mm"),
                 };
-                var fr = new RectangleF(r.X + f.X * r.Width, r.Y + f.Y * r.Height, f.B * r.Width, f.H * r.Height);
-                using var ff = new Font("Segoe UI", Math.Max(5.5f, Math.Min(Format.Schriftgroesse * f.SchriftProzent / 100f, fr.Height / 1.6f)), f.Fett ? FontStyle.Bold : FontStyle.Regular);
-                TextRenderer.DrawText(g, wert, ff, Rectangle.Round(fr), text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                var fr = new RectangleF(r.X + (f.X + dx) * r.Width, r.Y + (f.Y + dy) * r.Height, f.B * r.Width, f.H * r.Height);
+                var stil = (f.Fett ? FontStyle.Bold : 0) | (f.Kursiv ? FontStyle.Italic : 0) | (f.Unterstrichen ? FontStyle.Underline : 0);
+                using var ff = new Font("Segoe UI", Math.Max(5.5f, Math.Min(Format.Schriftgroesse * f.SchriftProzent / 100f, fr.Height / 1.6f)), stil);
+                var ausrichtung = f.Ausrichtung == 0 ? TextFormatFlags.Left : f.Ausrichtung == 2 ? TextFormatFlags.Right : TextFormatFlags.HorizontalCenter;
+                TextRenderer.DrawText(g, wert, ff, Rectangle.Round(fr), text, ausrichtung | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                if (!druck && wert.Length > 0) GezeichneteFelder.Add((f.Art, wert, Rectangle.Round(fr)));
             }
         }
         if (kollision)
@@ -1337,7 +1527,7 @@ public sealed class PlanAnsicht : Control
         }
         var geaendert = v != null || e.Status == TagesStatus.Zusaetzlich;
         var fixiert = e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true;
-        var praefix = (e.Unterricht?.Zeilen.Count > 1 ? "." : "") + (geaendert || fixiert ? "*" : "");
+        var praefix = (Format.KopplungenMitPunkt && e.Unterricht?.Zeilen.Count > 1 ? "." : "") + Stern(geaendert || fixiert);
         var lehrerIds = entfall && e.LehrerIds.Count == 0 && v?.LehrerId is int ul ? new List<int> { ul } : e.LehrerIds;
         var lehrer = offen ? "???" : v?.Art == VertretungsArt.VertretungOhneLehrer ? "+++" : string.Join(",", lehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
         // ohne Fach (Veranstaltung, Sondereinsatz): erstes Wort des Textes, z. B. „Sportwoche“
@@ -1379,7 +1569,7 @@ public sealed class PlanAnsicht : Control
         using var klein = new Font("Segoe UI", Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
         var v = e.Vertretung;
         var fach = Kurz(ElementTyp.Fach, e.FachId ?? e.Regel?.FachId);
-        var stern = e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true ? "*" : "";
+        var stern = Stern(e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true);
         var lehrer = e.Status == TagesStatus.Offen ? "???" : string.Join(",", e.LehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
         if (v?.Art == VertretungsArt.VertretungOhneLehrer) lehrer = "+++";
         var info = Typ switch

@@ -101,6 +101,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         nurNeu.CheckedChanged += (_, _) => { AppZustand.Einstellungen.Vertretungsdruck.NurNeue = nurNeu.Checked; AppZustand.Einstellungen.Speichern(); };
         einst.DropDownOpening += (_, _) => nurNeu.Checked = AppZustand.Einstellungen.Vertretungsdruck.NurNeue;
         einst.DropDownItems.Add(nurNeu);
+        einst.DropDownItems.Add("Seitenlayout Vertretungsplan…", Symbole.Get("drucken", 16), (_, _) => Druck.SeitenlayoutFenster.Zeigen(this, Von, Bis, _ansicht.SelectedIndex is 1 or 3));
         ts.Items.Add(einst);
 
         // Kopf wie im Vertretungsfenster üblich: Element, Zeitraum (Tag/Woche/Von-Bis), Ansicht einschränken

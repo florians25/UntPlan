@@ -126,8 +126,106 @@ public sealed partial class HauptFenster
             f.FormatAnzeigen(new StundenplanFormat { Name = "Klassenplan Einzelstunden", Typ = ElementTyp.Klasse, Einzelstunden = true, PausenAnzeigen = true, Schriftgroesse = 9 });
             if (AppZustand.D.Stundenplan.FirstOrDefault(p => f.Plan.StundenAm(p.Tag, p.Stunde).Contains(p)) is { } erste) f.StundeAnklicken(erste);
         }, 3);
-        Schritt("09b_Stundenplan_Formatdialog", () =>
-            StundenplanEinstellungenDialog.Anzeigen(this, new StundenplanFormat { Name = "Klassenplan", Typ = ElementTyp.Klasse, Einzelstunden = true, PausenAnzeigen = true, Farbe = FarbeNach.Lehrer }, ElementTyp.Klasse, AppZustand.D.Klassen.First().Id), 3);
+        // Sprint 6: Formatdialog wie Untis (Allgemein | Auswahl (Bereich) | Layout 1 | Layout 2 | HTML), Grundformen, Stundenplan-Stunde
+        Form? formatDialog = null;
+        StundenplanFormat FormatTest() => new() { Name = "Klassenplan", Typ = ElementTyp.Klasse, Einzelstunden = true, PausenAnzeigen = true, Farbe = FarbeNach.Lehrer };
+        Bitmap PlanBild(Steuerelemente.PlanAnsicht pa)
+        {
+            var bmp = new Bitmap(Math.Max(10, pa.Width), Math.Max(10, pa.Height));
+            pa.DrawToBitmap(bmp, new Rectangle(Point.Empty, bmp.Size));
+            return bmp;
+        }
+        T Feld<T>(Form f, string name) where T : Control => StundenplanEinstellungenDialog.AlleKontrollen(f).OfType<T>().First(c => c.Name == name || c.Text == name);
+        void FormatKarte(string karte, Action<Form>? aktion = null)
+        {
+            formatDialog = StundenplanEinstellungenDialog.Anzeigen(this, FormatTest(), ElementTyp.Klasse, AppZustand.D.Klassen.First().Id);
+            if (!formatDialog.Text.StartsWith("Format 01 - Einzelstundenplan Tage waagrecht, Stunden senkrecht")) throw new InvalidOperationException("Titel des Formatdialogs: " + formatDialog.Text);
+            StundenplanEinstellungenDialog.KarteWaehlen(formatDialog, karte);
+            Warten(150);
+            aktion?.Invoke(formatDialog);
+        }
+        Schritt("09b_Stundenplan_Formatdialog", () => FormatKarte("Allgemein"), 3);
+        Schritt("09b1_Format_Auswahl_Bereich", () => FormatKarte("Auswahl (Bereich)", d =>
+        {
+            Feld<TextBox>(d, "VonStunde").Text = "2";
+            Feld<TextBox>(d, "BisStunde").Text = "5";
+            Feld<TextBox>(d, "BisWochenstunde").Text = Core.Planung.Planungsdienst.Tagname(AppZustand.D, 3) + "-5";
+            Warten(100);
+            var v = StundenplanEinstellungenDialog.Vorschau(d);
+            using var _ = PlanBild(v);
+            if (v.SichtbarerBereich != (2, 5, 0, 3)) throw new InvalidOperationException($"Bereich wirkt nicht auf die Vorschau: {v.SichtbarerBereich}");
+            if (Feld<TextBox>(d, "VonWochenstunde").Text != Core.Planung.Planungsdienst.Tagname(AppZustand.D, 0) + "-2") throw new InvalidOperationException("Wochenstunden folgen nicht der Stunden-Nummer: " + Feld<TextBox>(d, "VonWochenstunde").Text);
+            log.Add($"INFO  Format-Bereich: Stunden {v.SichtbarerBereich.VonStunde}–{v.SichtbarerBereich.BisStunde}, Tage {v.SichtbarerBereich.VonTag}–{v.SichtbarerBereich.BisTag}");
+        }), 3);
+        Schritt("09b2_Format_Layout1", () => FormatKarte("Layout 1", d =>
+        {
+            Feld<TextBox>(d, "DickerStrichVor").Text = "3";
+            Feld<TextBox>(d, "DoppelstrichVor").Text = "5";
+            Feld<CheckBox>(d, "TrennstrichTage").Checked = true;
+            var versenkt = StundenplanEinstellungenDialog.AlleKontrollen(d).OfType<GroupBox>().First(g => g.Text == "Freie Stunden").Controls.Cast<Control>()
+                .SelectMany(StundenplanEinstellungenDialog.AlleKontrollen).OfType<RadioButton>().First(r => r.Text == "Versenkt");
+            versenkt.Checked = true;
+            Warten(100);
+            var v = StundenplanEinstellungenDialog.Vorschau(d);
+            using var _ = PlanBild(v);
+            if (!v.GezeichneteLinien.Contains("dick vor 3") || !v.GezeichneteLinien.Contains("doppelt vor 5") || !v.GezeichneteLinien.Any(x => x.StartsWith("tag vor")))
+                throw new InvalidOperationException("Linien aus Layout 1 fehlen: " + string.Join(", ", v.GezeichneteLinien));
+            if (v.Format.FreieStunden.Raeumlich != Raeumlich.Versenkt) throw new InvalidOperationException("Räumliche Gestaltung wird nicht übernommen");
+            log.Add("INFO  Layout 1: " + string.Join(", ", v.GezeichneteLinien));
+        }), 3);
+        Schritt("09b3_Format_Layout2", () => FormatKarte("Layout 2", d =>
+        {
+            var stern = Feld<CheckBox>(d, "Fixierung mit * kennzeichnen");
+            stern.Checked = false;
+            if (StundenplanEinstellungenDialog.Vorschau(d).Format.FixierungMitStern) throw new InvalidOperationException("Layout 2 wird nicht übernommen");
+            stern.Checked = true;
+        }), 3);
+        Schritt("09b4_Format_HTML", () => FormatKarte("HTML"), 3);
+        Schritt("09b5_Stundenplanformate_Grundformen", () =>
+        {
+            var g = StundenplanGrundformDialog.Anzeigen(this);
+            var formen = StundenplanEinstellungenDialog.AlleKontrollen(g).OfType<RadioButton>().Select(r => r.Text).ToList();
+            if (!new[] { "Format 01", "Format 10", "Format 11", "Format 20", "Format 21", "Format 30", "Format 40" }.All(formen.Contains))
+                throw new InvalidOperationException("Grundformen unvollständig: " + string.Join(", ", formen));
+        }, 3);
+        Schritt("09b6_Stundenplan_Stunde_Editor", () =>
+        {
+            var f = FormatTest();
+            var d = StundenplanStundeDialog.Anzeigen(this, f, ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, out var ergebnis);
+            d.WindowState = FormWindowState.Normal;
+            var ed = StundenplanStundeDialog.EditorVon(d);
+            ed.Hinzufuegen(StundenFeldArt.Fach, null);
+            ed.Hinzufuegen(StundenFeldArt.Lehrer, null);
+            ed.Ausgewaehlt!.Kursiv = true;
+            ed.Hinzufuegen(StundenFeldArt.Raum, null);
+            ed.Ausrichten();
+            Warten(150);
+            var neu = ergebnis();
+            if (neu.Felder.Count != 3 || neu.Standardformat) throw new InvalidOperationException($"Editor liefert {neu.Felder.Count} Felder, Standardformat={neu.Standardformat}");
+            if (ed.Felder[1].Beschriftung != "1Lehrer") throw new InvalidOperationException("Beschriftung wie Untis erwartet („1Lehrer“): " + ed.Felder[1].Beschriftung);
+            // der Stundenplan zeichnet die eigenen Felder
+            var plan = new Steuerelemente.PlanAnsicht { Typ = ElementTyp.Klasse, ElementId = AppZustand.D.Klassen.First().Id, Format = neu, Width = 700, Height = 520, Bearbeitbar = false };
+            using (PlanBild(plan)) { }
+            var arten = plan.GezeichneteFelder.Select(x => x.Art).Distinct().ToList();
+            if (!arten.Contains(StundenFeldArt.Lehrer) || !arten.Contains(StundenFeldArt.Fach)) throw new InvalidOperationException("Plan zeichnet die eigenen Felder nicht: " + string.Join(",", arten));
+            log.Add($"INFO  Stundenplan-Stunde: {neu.Felder.Count} Felder, gezeichnet {plan.GezeichneteFelder.Count} (z. B. {string.Join(" | ", plan.GezeichneteFelder.Take(3).Select(x => x.Text))})");
+            plan.Dispose();
+        }, 3);
+        Schritt("09b7_Format10_Stunden_waagrecht", () =>
+        {
+            var f = FormatTest();
+            f.Grundform = Grundform.Format10;
+            f.Name = "Format 10 (Selbsttest)";
+            var sp = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false);
+            sp.WindowState = FormWindowState.Normal;
+            sp.Bounds = new Rectangle(10, 10, 900, 420);
+            sp.Plan.Format = f;
+            Warten(200);
+            sp.Plan.Refresh();
+            using (PlanBild(sp.Plan)) { }
+            if (!sp.Plan.Transponiert) throw new InvalidOperationException("Format 10 nicht transponiert");
+            log.Add("INFO  Format 10: Stunden waagrecht, Tage senkrecht");
+        }, 3);
         Schritt("09c_Tauschpfeil_Stundenplan", () =>
         {
             // Stunde einer Klasse „ziehen“ und über eine Stunde stellen, mit der kollisionsfrei getauscht werden kann
@@ -821,6 +919,61 @@ public sealed partial class HauptFenster
             var bilder = Druck.VertretungsplanDruck.Bilder(tag, tag, false);
             bilder[0].Save(Path.Combine(ordner, "27a_Druck_Klassen.png"));
             Druck.VertretungsplanDruck.Bilder(tag, tag, true)[0].Save(Path.Combine(ordner, "27b_Druck_Lehrer.png"));
+        }, -1);
+        // Sprint 6: Seitenlayout und „Felder der Ansicht“ für den Vertretungsplan (Einstellungen danach wiederherstellen)
+        var druckVorher = System.Text.Json.JsonSerializer.Serialize(AppZustand.Einstellungen.Vertretungsdruck);
+        void DruckZurueck() => AppZustand.Einstellungen.Vertretungsdruck = System.Text.Json.JsonSerializer.Deserialize<Vertretungsdruck>(druckVorher)!;
+        Schritt("27a1_Seitenlayout", () =>
+        {
+            var e = AppZustand.Einstellungen.Vertretungsdruck;
+            e.Felder.Clear();
+            var f = Druck.SeitenlayoutFenster.Zeigen(this, tag, tag, false);
+            f.WindowState = FormWindowState.Maximized;
+            Warten(300);
+            if (f.Seitenzahl == 0) throw new InvalidOperationException("Seitenlayout ohne Vorschau");
+            var standard = new[] { "Element", "Stunde", "Partner", "Abwesend", "Fach", "Raum", "Bemerkung" };
+            if (!f.GedruckteFelder.SequenceEqual(standard)) throw new InvalidOperationException("Standardfelder: " + string.Join(",", f.GedruckteFelder));
+            // Feld „Art“ zusätzlich drucken, Raster und Überschrift je Element: wirkt sofort auf die Vorschau
+            Druck.VertretungsplanDruck.Felder(e).First(x => x.Schluessel == "Art").Drucken = true;
+            e.Raster = true;
+            e.UeberschriftJeElement = true;
+            e.KombinierteKlassen = true;
+            f.Neuzeichnen();
+            Warten(200);
+            if (!f.GedruckteFelder.Contains("Art")) throw new InvalidOperationException("Zusätzliches Feld wird nicht gedruckt: " + string.Join(",", f.GedruckteFelder));
+            var zeilen = Druck.VertretungsplanDruck.ZeilenAm(tag, false);
+            if (zeilen.Count == 0) throw new InvalidOperationException("Keine Druckzeilen am Testtag");
+            // „Nur neue Vertretungen“ bzw. „Druck nur, wenn geändert nach …“ (Zukunft) filtert alle Zeilen
+            e.NurGeaendertNach = DateTime.Now.AddDays(1);
+            var gefiltert = Druck.VertretungsplanDruck.ZeilenAm(tag, false).Count;
+            e.NurGeaendertNach = null;
+            if (gefiltert != 0) throw new InvalidOperationException($"„Druck nur, wenn geändert nach …“ filtert nicht ({gefiltert} Zeilen)");
+            log.Add($"INFO  Seitenlayout: {f.Seitenzahl} Seite(n), Felder {string.Join(",", f.GedruckteFelder)}, {zeilen.Count} Zeilen");
+        }, -1);
+        Schritt("27a2_Felder_der_Ansicht", () =>
+        {
+            var e = AppZustand.Einstellungen.Vertretungsdruck;
+            var lay = Druck.SeitenlayoutFenster.Zeigen(this, tag, tag, false);
+            lay.WindowState = FormWindowState.Maximized;
+            var uebernommen = 0;
+            var d = Druck.FelderDerAnsichtDialog.Anzeigen(lay, Druck.VertretungsplanDruck.Felder(e), k => Druck.VertretungsplanDruck.StandardUeberschrift(k, false), () => { uebernommen++; lay.Neuzeichnen(); }, out var raster);
+            Warten(200);
+            var feld = raster.Rows.Cast<DataGridViewRow>().First(r => (string)r.Cells[0].Value == "Fach");
+            feld.Cells[1].Value = false;
+            d.Controls.OfType<Button>().First(b => b.Text == "Übernahme").PerformClick();
+            Warten(200);
+            if (uebernommen != 1 || lay.GedruckteFelder.Contains("Fach")) throw new InvalidOperationException("„Übernahme“ wirkt nicht: " + string.Join(",", lay.GedruckteFelder));
+            if (!d.Visible) throw new InvalidOperationException("„Übernahme“ hat den Dialog geschlossen");
+        }, -1);
+        Schritt("27a3_Seitenlayout_zurueck", DruckZurueck, -1);
+        Schritt("27a4_Seitenlayout_Liste", () =>
+        {
+            var kopf = new[] { "Name", "Langname", "Stunden" };
+            var zeilen = AppZustand.D.Lehrer.Select(l => new[] { l.Kurzname, l.Langname, "1" }).ToList();
+            var d = ListenDruck.SeitenlayoutAnzeigen(this, "Lehrerliste (Selbsttest)", kopf, new[] { 80, 200, 60 }, zeilen);
+            Warten(400);
+            var bild = d.Controls.OfType<PictureBox>().First(p => p.Name == "Vorschau").Image;
+            if (bild is null) throw new InvalidOperationException("Listen-Seitenlayout ohne Vorschau");
         }, -1);
         Schritt("27c_Symbole", () =>
         {

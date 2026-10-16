@@ -568,6 +568,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     private void FormatNeu()
     {
+        // wie Untis: zuerst die Grundform wählen (Format 01, 10, 11, 20, 21, 30, 40)
+        if (StundenplanGrundformDialog.Zeigen(this, _plan.Format.Grundform) is not { } grundform) return;
         var name = Ui.Eingabe("Name des neuen Stundenplanformats (Kopie des aktuellen Formats):", "Neues Stundenplanformat", _plan.Format.Name + " 2");
         if (string.IsNullOrWhiteSpace(name)) return;
         name = name.Trim();
@@ -575,6 +577,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var f = Kopie(_plan.Format);
         f.Name = name;
         f.Typ = _typ;
+        f.Grundform = grundform;
         Aendern("Neues Stundenplanformat", AenderungsArt.Einstellungen, d => d.Formate.Add(f));
         FormatWaehlen(name);
         FormateFuellen();

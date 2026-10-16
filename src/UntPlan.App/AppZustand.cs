@@ -270,6 +270,50 @@ public sealed class Vertretungsdruck
     public bool Querformat { get; set; }
     /// <summary>Seitenlayout „Nur neue Vertretungen“: nur in dieser Arbeitssitzung angelegte oder geänderte Vertretungen drucken.</summary>
     public bool NurNeue { get; set; }
+
+    // ---- Seitenlayout wie Untis ----
+    /// <summary>Felder (Spalten) des Ausdrucks in Druckreihenfolge; leer = Standardfelder.</summary>
+    public List<DruckFeld> Felder { get; set; } = new();
+    /// <summary>Auswahl der Klassen (Klassenversion) bzw. Lehrer (Lehrerversion); leer = alle.</summary>
+    public List<string> KlassenAuswahl { get; set; } = new();
+    public List<string> LehrerAuswahl { get; set; } = new();
+    /// <summary>„Druck nur, wenn geändert nach …“.</summary>
+    public DateTime? NurGeaendertNach { get; set; }
+    public bool ErsteBeschriftungJedeSeite { get; set; } = true;
+    public bool Raster { get; set; }
+    public bool BeschraenkungSeitenbreite { get; set; } = true;
+    public string Hintergrundbild { get; set; } = "";
+    /// <summary>Eigene Überschrift (leer = Titel aus den Schuldaten).</summary>
+    public string Ueberschrift { get; set; } = "";
+    // Auswahl
+    public bool AbwesendeNichtDrucken { get; set; }
+    public bool AuchElementeOhneVertretung { get; set; }
+    // Gliederung
+    public bool UeberschriftJeElement { get; set; }
+    public bool EineSeiteJeElement { get; set; }
+    public bool ElementueberschriftKomprimiert { get; set; }
+    /// <summary>Gruppierung (= Sortierkriterium 1): Element, Stunde, Vertreter, Fach.</summary>
+    public string Gruppierung { get; set; } = "Element";
+    // Form
+    public bool EntfallslehrerDurchstreichen { get; set; } = true;
+    public bool KombinierteKlassen { get; set; }
+    public bool Stundenbezeichnung { get; set; }
+    public bool StammdatenEinzeln { get; set; } = true;
+    public bool BlockvertretungenZusammenfassen { get; set; } = true;
+    public bool KeinEntfallBeiErsatz { get; set; }
+    // Abwesend
+    public bool LehrerMitAbsenzgrund { get; set; }
+}
+
+/// <summary>Feld (Spalte) im Seitenlayout eines Ausdrucks.</summary>
+public sealed class DruckFeld
+{
+    public string Schluessel { get; set; } = "";
+    /// <summary>Eigene Spaltenüberschrift (leer = Standard).</summary>
+    public string Ueberschrift { get; set; } = "";
+    public bool Drucken { get; set; } = true;
+    /// <summary>Anteil an der Seitenbreite (relativ zu den übrigen gedruckten Feldern).</summary>
+    public float Anteil { get; set; } = 0.1f;
 }
 
 public sealed class Tabellenformat
