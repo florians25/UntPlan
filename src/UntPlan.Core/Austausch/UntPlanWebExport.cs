@@ -74,6 +74,8 @@ public static class UntPlanWebExport
     public static WebPaket PaketErstellen(Schuldatei d, DateOnly ab, WebExportOptionen? o = null, Action<int, int>? fortschritt = null)
     {
         o ??= new WebExportOptionen();
+        // ältere Doppelimporte von Prüfungen beim Hochladen gleich bereinigen
+        StundenplanAenderungen.KlausurDublettenEntfernen(d);
         var ix = new DatenIndex(d);
         var von = ab.AddDays(-Math.Max(0, o.TageZurueck));
         var bis = ExportBis(d, ab, o);

@@ -15,7 +15,9 @@ export function statusText(k) {
 }
 
 /** Zusätzliche Stunde (zusätzlicher Unterricht, Sondereinsatz, Verlegung hierher …) – Marker „+“ statt Änderungsquadrat. */
-const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert' && (k.zusaetzlich || /sondereinsatz|zusatz|verlegung|statt|mitbetreuung/i.test(k.art || '')));
+const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert' && !istVerlegung(k) && (k.zusaetzlich || /sondereinsatz|zusatz|mitbetreuung/i.test(k.art || '')));
+/** Verlegte Stunde (hierher verlegt bzw. von hier weg verlegt): eigenes Verlegungssymbol statt „+“ bzw. Entfall-Dreieck. */
+const istVerlegung = k => /verleg|statt/i.test(k.art || '') || !!k.nach;
 
 /** Hover-Text eines geänderten Werts wie im Original: „B070 → C197“ (erscheint nur beim Überfahren des Labels). */
 const wechsel = (alt, neu) => `${alt} → ${neu}`;
@@ -54,9 +56,12 @@ const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend
 
 function marker(k, typ) {
   const m = [];
-  if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
+  const verlegt = istVerlegung(k) && k.status !== 'klausur';
+  if (verlegt) m.push(`<i class="mk-verlegung ${istEntfall(k, typ) ? 'weg' : ''}" title="${istEntfall(k, typ) ? 'verlegt' : 'Verlegung'}"></i>`);
+  else if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
   if (k.status === 'klausur') m.push('<i class="mk-kreis"></i>');
-  if (istZusatz(k)) m.push('<i class="mk-plus"></i>');
+  if (verlegt) { /* Symbol steht schon */ }
+  else if (istZusatz(k)) m.push('<i class="mk-plus"></i>');
   else if (k.status === 'geaendert' || k.status === 'offen' || k.status === 'buchung') m.push('<i class="mk-quadrat"></i>');
   return m.length ? `<span class="mks" aria-hidden="true">${m.join('')}</span>` : '';
 }
@@ -315,7 +320,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         const titel = `Pausenaufsicht ${a.gangName || a.gang} ${a.beginn}–${a.ende}${a.status === 'vertretung' ? ` (Vertretung für ${a.alt})` : a.status === 'vertreten' ? (ersatz ? ` (vertreten durch ${ersatz})` : ' (entfällt)') : ''}`;
         // Vertretung: grüne Karte mit grünem Label; im Plan der abwesenden Lehrkraft grau gestrichelt mit Label der Vertretung
         const label = a.status === 'vertretung' ? `<span class="lbl-auf">Vertr.</span>` : a.status === 'vertreten' && ersatz ? `<span class="lbl-auf">${e(ersatz)}</span>` : '';
-        html += `<div class="aufsicht ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
+        const vorbei = a.datum < heute || (a.datum === heute && a.ende && minuten(a.ende) <= jetzt);
+        html += `<div class="aufsicht ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
           title="${e(titel)}" aria-label="${e(titel)}"><span>${e(ort)}</span>${label}</div>`;
       });
     }

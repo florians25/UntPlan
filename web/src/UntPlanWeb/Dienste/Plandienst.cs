@@ -188,7 +188,8 @@ public sealed class Plandienst
             }
         }
         // Klausuren aus den Terminen (im tagesaktuellen Plan sind sie bereits enthalten)
-        foreach (var k in s.Paket.Termine.Where(x => x.Art == "klausur" && DateOnly.TryParse(x.Von, out var v) && v == d))
+        foreach (var k in s.Paket.Termine.Where(x => x.Art == "klausur" && DateOnly.TryParse(x.Von, out var v) && v == d)
+                     .DistinctBy(x => (x.StundeVon, x.StundeBis, string.Join(",", x.Klassen.Order()), x.Titel)))
             for (var st = k.StundeVon; st <= Math.Max(k.StundeVon, k.StundeBis); st++)
                 res.Add(new Rohstunde(st, null, "", k.Klassen, k.Lehrer, k.Raeume, "zusaetzlich", null, k.Titel, "Klausur"));
         return res;
@@ -277,6 +278,10 @@ public sealed class Plandienst
             if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) status = "abwesend";
             einzel[i] = ziel with { Status = status, Raeume = raeume, Art = ziel.Art.Length > 0 ? ziel.Art : "Raumänderung (vorgemerkt)" };
         }
+        // doppelt übertragene Prüfungen (ältere Mehrfachimporte) nur einmal zeigen
+        einzel = einzel.GroupBy(x => x.Unterricht is null && x.Fach.Length == 0 && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))
+                ? $"K|{x.Von}|{x.Bis}|{x.Text}|{string.Join(",", x.Klassen.Select(w => w.K).Order())}" : Guid.NewGuid().ToString())
+            .Select(g => g.First()).ToList();
         // zum Löschen vorgemerkte Prüfungen nicht mehr zeigen
         bool Geloescht(Karte x) => x.Unterricht is null && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))
             && loeschungen.Any(l => l.Stunde >= x.Von && l.Stunde <= x.Bis && (l.Klassen.Count == 0 || x.Klassen.Any(w => Enthaelt(l.Klassen, w.K))));

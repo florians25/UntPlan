@@ -124,6 +124,12 @@ public class UntPlanWebTests
         });
         Assert.Equal(new[] { "kl1" }, ok2);
         Assert.Empty(d.Klausuren);
+        // doppelt importierte Prüfungen werden beim nächsten Hochladen auf eine zurückgeführt
+        for (var i = 0; i < 3; i++)
+            d.Klausuren.Add(new Klausur { Id = d.NeueId(), Name = "Doppelt", Datum = tag, StundeVon = 2, StundeBis = 3, KlassenIds = { klasse.Id } });
+        var paket = UntPlanWebExport.PaketErstellen(d, tag);
+        Assert.Single(d.Klausuren);
+        Assert.Single(paket.Termine, t => t.Art == "klausur" && t.Titel == "Doppelt");
     }
 
     [Fact]

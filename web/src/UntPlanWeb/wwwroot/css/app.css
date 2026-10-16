@@ -1554,3 +1554,42 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 .sd-abschnitt-kopf { font-size: .875rem; font-weight: 700; }
 .u-benutzer b { font-size: 1rem; font-weight: 700; }
 .u-abmelden { font-size: .75rem; font-weight: 700; }
+
+/* Verlegung: eigenes Symbol (zwei Pfeile) – grün an der neuen Stelle, rot an der alten */
+.mks .mk-verlegung { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: #1e9e5a center / 10px 10px no-repeat
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3'/%3E%3C/svg%3E"); }
+.mks .mk-verlegung.weg { background-color: #f03e3e; }
+.tt.ohne-aenderung .std .mk-verlegung:not(.weg), .tt.ohne-entfall .std .mk-verlegung.weg { display: none; }
+/* vergangene Pausenaufsichten ausgegraut wie vergangene Stunden */
+.aufsicht.vergangen { opacity: .55; filter: grayscale(.6); }
+/* Ferien/freie Tage: kaum gerundet */
+.tt-ferien { border-radius: 2px; }
+/* Seitenleiste: weichere Schriftfarbe, Avenir sicher auch in Knöpfen */
+.u-leiste, .u-leiste button, .u-leiste a { font-family: var(--u-schrift); }
+.u-nav-punkt { color: #414d55; }
+.u-nav-punkt .u-nav-sym { color: #7b8892; }
+.u-benutzer small { color: #8a96a1; }
+/* Stundendetails unten rechts: Lehrstoff/Abwesenheiten breiter und enger beieinander */
+.sd-fuss.sd-status { gap: .75rem; }
+.sd-status .sd-orange { min-width: 250px; padding: .7rem 1.6rem; text-align: center; }
+
+.nl-hinweis { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; background: #f1f5f8; color: #57626b; font-size: .85rem; line-height: 1.45; }
+.nl-hinweis .bi { color: #7b8892; margin-top: 1px; }
+.nl-hinweis a { color: var(--u-akzent-dunkel); }
+.nl-icon.sichtbar { opacity: 1; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
+/* Ältere Listenseiten (Klassendienste u. a.) im neuen Design: Seitentitel, weiße Karte mit Rand, Filter als Pillen, ruhige Tabelle */
+.u-inhalt .alt-seite { max-width: none; }
+.u-inhalt .alt-seite .alt-kopf h1 { font-size: 1.45rem; font-weight: 400; color: var(--u-titel); margin: 0 0 18px; }
+.u-inhalt .alt-seite .alt-hilfe { display: none; }
+.u-inhalt .alt-seite .alt-karte { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; box-shadow: none; padding: 16px 18px; margin-bottom: 14px; }
+.u-inhalt .alt-seite .alt-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.u-inhalt .alt-seite .alt-filter label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; font-weight: 600; color: #67747e; }
+.u-inhalt .alt-seite .alt-filter select, .u-inhalt .alt-seite .alt-filter input {
+  height: 40px; padding: 0 14px; border: 1.5px solid #c9d0d6; border-radius: 999px; background: #fff; font-size: .92rem; color: var(--u-text); }
+.u-inhalt .alt-seite .alt-liste { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.u-inhalt .alt-seite .alt-liste th { background: none; padding: 12px; font-weight: 600; color: #414d55; border-bottom: 1px solid #e3e7eb; text-align: left; }
+.u-inhalt .alt-seite .alt-liste td { background: none !important; padding: 10px 12px; border-bottom: 1px solid #edf0f2; }
+.u-inhalt .alt-seite .alt-liste tbody tr:hover td { background: #f7f9fa !important; }
+.u-inhalt .alt-seite .ad-pille, .u-inhalt .alt-seite .sd-pille { height: 34px; padding: 0 14px; border: 1.5px solid #c9d0d6; border-radius: 999px; background: #fff; font-weight: 600; font-size: .9rem; }
+.u-inhalt .alt-seite .alt-link { color: var(--u-akzent-dunkel); font-weight: 600; text-decoration: none; }

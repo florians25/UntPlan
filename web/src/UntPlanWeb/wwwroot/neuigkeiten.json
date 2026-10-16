@@ -1,6 +1,18 @@
 [
   {
     "datum": "2026-10-16",
+    "titel": "Einheitliches Design und bereinigte Prüfungen",
+    "punkte": [
+      "Mein Unterricht, Unterricht der Klasse und Klassendienste im neuen Listendesign.",
+      "Doppelt oder mehrfach übertragene Prüfungen werden beim nächsten Hochladen aus UntPlan bereinigt und im Plan nur einmal gezeigt.",
+      "Verlegungen haben ein eigenes Symbol (grün an der neuen, rot an der alten Stelle).",
+      "Vergangene Pausenaufsichten sind ausgegraut, Ferienfelder kaum noch gerundet.",
+      "Fehlzeiten-Seite ohne Reiter, mit Hinweis zum Unterschied zwischen Abwesenheit und Fehlstunden.",
+      "Lehrstoff- und Abwesenheitsknopf in den Stundendetails breiter und enger beieinander, weichere Schriftfarben in der Seitenleiste."
+    ]
+  },
+  {
+    "datum": "2026-10-16",
     "titel": "Prüfungen verlegen und löschen, minutengenaue Verspätungen",
     "punkte": [
       "Prüfungen lassen sich in den Stundendetails verlegen und löschen; übernommene Prüfungen löscht UntPlan beim nächsten Import.",

@@ -36,6 +36,24 @@ public static class StundenplanAenderungen
 {
     public static readonly string[] Typen = { WebRueckmeldungsTypen.Raumbuchung, WebRueckmeldungsTypen.Klausur, WebRueckmeldungsTypen.KlausurLoeschen };
 
+    /// <summary>
+    /// Doppelt bzw. mehrfach vorhandene Prüfungen (gleicher Tag, gleiche Stunden, gleiche Klassen, gleicher Name – z. B. durch
+    /// mehrfachen Import aus älteren Versionen) auf eine zurückführen; die Vertretungen der betroffenen Tage werden neu abgeglichen.
+    /// </summary>
+    public static int KlausurDublettenEntfernen(Schuldatei d)
+    {
+        var weg = d.Klausuren
+            .GroupBy(k => (k.Datum, k.StundeVon, k.StundeBis, Klassen: string.Join(",", k.KlassenIds.OrderBy(x => x)), Name: k.Name.Trim().ToLowerInvariant()))
+            .SelectMany(g => g.OrderByDescending(k => k.WebId != null).ThenBy(k => k.Id).Skip(1)).ToList();
+        foreach (var k in weg)
+        {
+            d.Klausuren.Remove(k);
+            d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
+        }
+        foreach (var t in weg.Select(k => k.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
+        return weg.Count;
+    }
+
     /// <summary>Prüfungen eines Tages entfernen, die zu Stunden, Klassen und (falls angegeben) Titel der Meldung passen. Ergebnis: Anzahl.</summary>
     public static int KlausurenEntfernen(Schuldatei d, WebRueckmeldung m, DateOnly datum, int von, int bis)
     {

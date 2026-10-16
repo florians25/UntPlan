@@ -114,6 +114,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         ${verwalten ? `<button type="button" class="nl-hinzu" data-neu><i class="bi bi-plus-lg"></i>Hinzufügen</button>` : ''}
       </span>
     </div>
+    <p class="nl-hinweis"><i class="bi bi-info-circle"></i> Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || el.klassen[0]?.kurz || '')}/fehlzeiten">Fehlzeiten</a>.</p>
     <div class="nl-zahlen">
       <button type="button" class="nl-zahl ${status === 'offen' ? 'aktiv' : ''}" data-kz="offen"><b>${anzahl.offen}</b> offen</button>
       <button type="button" class="nl-zahl rot ${status === 'unentschuldigt' ? 'aktiv' : ''}" data-kz="unentschuldigt"><b>${anzahl.unent}</b> nicht entschuldigt</button>
