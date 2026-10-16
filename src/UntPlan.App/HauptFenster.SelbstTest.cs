@@ -569,7 +569,8 @@ public sealed partial class HauptFenster
             var sp = StundenplanFenster.Neu(ElementTyp.Klasse, dd.Klassen.First().Id, false);
             sp.WindowState = FormWindowState.Normal;
             var mdi = Controls.OfType<MdiClient>().First().ClientSize;
-            sp.Bounds = new Rectangle(610, 0, Math.Max(400, Math.Min(900, mdi.Width - 610)), Math.Max(300, Math.Min(640, mdi.Height)));
+            // feste Größe statt Bildschirmrest: auf dem kleinen Windows-Runner (1024 px) wäre die Spalte zu schmal für das volle Datum
+            sp.Bounds = new Rectangle(610, 0, 1000, 640);
             var klein = StundenplanFenster.Neu(ElementTyp.Klasse, dd.Klassen.First().Id, false, true);
             klein.WindowState = FormWindowState.Normal;
             klein.Location = new Point(610, Math.Max(0, Math.Min(640, mdi.Height - klein.Height)));
