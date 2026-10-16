@@ -28,14 +28,6 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:Version=1.0.${{ github.run_number }} -o artifacts/UntPlan
 
-      - name: Selbsttest der Oberfläche (alle Fenster öffnen, Bildschirmfotos)
-        shell: pwsh
-        run: |
-          $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/selbsttest" -PassThru
-          if (-not $p.WaitForExit(600000)) { $p.Kill(); throw "Selbsttest hat nicht beendet" }
-          Get-Content artifacts/selbsttest/selbsttest.log
-          if (Select-String -Path artifacts/selbsttest/selbsttest.log -Pattern "^FEHLER") { throw "Selbsttest fehlgeschlagen" }
-
       - name: Portal-Referenzserver veröffentlichen
         run: dotnet publish src/UntPlan.Portal -c Release -o artifacts/UntPlan.Portal
 
@@ -49,6 +41,29 @@ jobs:
       - name: Portable Version packen
         shell: pwsh
         run: Compress-Archive -Path artifacts/UntPlan/* -DestinationPath artifacts/UntPlan-portabel.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UntPlan-Setup
+          path: artifacts/UntPlan-Setup-*.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UntPlan-portabel
+          path: artifacts/UntPlan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UntPlan-Portal
+          path: artifacts/UntPlan.Portal
+
+      - name: Selbsttest der Oberfläche (alle Fenster öffnen, Bildschirmfotos)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/selbsttest" -PassThru
+          if (-not $p.WaitForExit(600000)) { $p.Kill(); throw "Selbsttest hat nicht beendet" }
+          Get-Content artifacts/selbsttest/selbsttest.log
+          if (Select-String -Path artifacts/selbsttest/selbsttest.log -Pattern "^FEHLER") { throw "Selbsttest fehlgeschlagen" }
 
       - name: Release mit Setup-EXE veröffentlichen
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -68,21 +83,6 @@ jobs:
           files: |
             artifacts/UntPlan-Setup-*.exe
             artifacts/UntPlan-portabel.zip
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: UntPlan-Setup
-          path: artifacts/UntPlan-Setup-*.exe
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: UntPlan-portabel
-          path: artifacts/UntPlan
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: UntPlan-Portal
-          path: artifacts/UntPlan.Portal
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -567,13 +567,19 @@ public sealed partial class HauptFenster
             kal.Bounds = new Rectangle(0, 0, 600, 560);
             kal.SelbsttestKalendertag();
             var sp = StundenplanFenster.Neu(ElementTyp.Klasse, dd.Klassen.First().Id, false);
+            sp.WindowState = FormWindowState.Normal;
             var mdi = Controls.OfType<MdiClient>().First().ClientSize;
-            sp.Bounds = new Rectangle(610, 0, Math.Min(900, mdi.Width - 610), Math.Min(640, mdi.Height));
+            sp.Bounds = new Rectangle(610, 0, Math.Max(400, Math.Min(900, mdi.Width - 610)), Math.Max(300, Math.Min(640, mdi.Height)));
             var klein = StundenplanFenster.Neu(ElementTyp.Klasse, dd.Klassen.First().Id, false, true);
-            klein.Location = new Point(610, Math.Min(640, mdi.Height - klein.Height));
+            klein.WindowState = FormWindowState.Normal;
+            klein.Location = new Point(610, Math.Max(0, Math.Min(640, mdi.Height - klein.Height)));
             Warten(400);
-            sp.Plan.Refresh();
-            klein.Plan.Refresh();
+            // unabhängig von Fensterüberdeckung zeichnen (Windows schickt verdeckten MDI-Fenstern kein WM_PAINT)
+            foreach (var pa in new[] { sp.Plan, klein.Plan })
+            {
+                using var bild = new Bitmap(Math.Max(1, pa.Width), Math.Max(1, pa.Height));
+                pa.DrawToBitmap(bild, new Rectangle(Point.Empty, bild.Size));
+            }
             var texte = sp.Plan.FreiBeschriftungen.Select(x => x.Text).ToList();
             var kurz = $"{tage[0].Day}.{tage[0].Month}.{tage[0].Year}";
             if (!texte.Contains(kurz)) throw new InvalidOperationException($"Unterrichtsfrei ohne Bezeichnung zeigt nicht das Datum {kurz}: {string.Join(" | ", texte)}");
