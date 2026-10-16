@@ -60,6 +60,8 @@ public sealed record Karte(
     /// und die Karte gilt als geändert.
     /// </summary>
     public List<Wert> Mitklassen { get; init; } = new();
+    /// <summary>Prüfung aus UntPlan (Klausur-Id), zu der die Karte gehört: Prüfungszeile bzw. wegen der Prüfung entfallener Unterricht.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public int? Klausur { get; init; }
 }
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
@@ -80,7 +82,7 @@ public sealed record Tageszeile(string Kurz, string Name, List<Karte> Karten);
 
 /// <summary>Rohdaten einer Stunde (aus dem tagesaktuellen Plan, dem Regelplan oder einer Vormerkung).</summary>
 public sealed record Rohstunde(int Stunde, int? Unterricht, string Fach, IReadOnlyList<string> Klassen, IReadOnlyList<string> Lehrer, IReadOnlyList<string> Raeume,
-    string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null, bool Bereitschaft = false);
+    string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null, bool Bereitschaft = false, int? Klausur = null);
 
 public static class Elementtyp
 {
@@ -159,7 +161,7 @@ public sealed class Plandienst
 
     public List<Rohstunde> Rohstunden(Stand s, DateOnly d)
     {
-        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft);
+        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft, x.Klausur);
         if (s.Tage.TryGetValue(Iso(d), out var tag) && !tag.NurAenderungen)
             return tag.Unterrichtstag ? tag.Stunden.Select(Aus).ToList() : new List<Rohstunde>();
         if (tag is { NurAenderungen: true })
@@ -302,24 +304,11 @@ public sealed class Plandienst
             if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) status = "abwesend";
             einzel[i] = ziel with { Status = status, Raeume = raeume };
         }
-        // doppelt übertragene Prüfungen (ältere Mehrfachimporte) nur einmal zeigen
-        einzel = einzel.GroupBy(x => x.Unterricht is null && x.Fach.Length == 0 && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))
-                ? $"K|{x.Von}|{x.Bis}|{x.Text}|{string.Join(",", x.Klassen.Select(w => w.K).Order())}" : Guid.NewGuid().ToString())
-            .Select(g => g.First()).ToList();
-        // zum Löschen vorgemerkte Prüfungen nicht mehr zeigen
-        bool Geloescht(Karte x) => x.Unterricht is null && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))
-            && loeschungen.Any(l => l.Stunde >= x.Von && l.Stunde <= x.Bis && (l.Klassen.Count == 0 || x.Klassen.Any(w => Enthaelt(l.Klassen, w.K))));
-        einzel.RemoveAll(Geloescht);
-        // Übernommene Klausuren (aus UntPlan) liegen auf den Unterrichtsstunden der Klasse: die Stundenkarte wird zur Prüfung
-        // (Lehrkraft, Fach, Raum bleiben), statt einen zusätzlichen Block mit eigenem Text zu zeigen
-        foreach (var kl in einzel.Where(x => x.Unterricht is null && x.Fach.Length == 0 && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"))).ToList())
-        {
-            var treffer = einzel.Select((x, i) => (x, i)).Where(t => t.x.Unterricht.HasValue && t.x.Von <= kl.Bis && t.x.Bis >= kl.Von
-                && t.x.Status is not ("entfall" or "abwesend") && t.x.Klassen.Any(w => kl.Klassen.Any(z => Ci.Equals(z.K, w.K)))).ToList();
-            if (treffer.Count == 0) continue;
-            foreach (var (x, i) in treffer) einzel[i] = x with { Status = "klausur", Art = "Klausur", Text = kl.Text };
-            einzel.Remove(kl);
-        }
+        einzel = PruefungenZusammenfuehren(einzel, loeschungen, typ, kurz, roh);
+        // eigene Bereitschaft fällt wegen einer Prüfungsaufsicht weg: neben der Prüfungskarte keine zusätzliche (gestrichelte) Karte
+        if (typ == Elementtyp.Lehrer)
+            einzel.RemoveAll(x => x.Bereitschaft && x.Status == "abwesend" && x.Klassen.Count == 0
+                                  && einzel.Any(p => p.Status == "klausur" && p.Von <= x.Bis && p.Bis >= x.Von && p.Lehrer.Any(w => Ci.Equals(w.K, kurz))));
         // Teilnahmen mehrerer Lehrkräfte an derselben Veranstaltung: eine Karte mit allen Beteiligten
         var veranstaltungen = einzel.Where(k => k.Status == "veranstaltung").GroupBy(k => (k.Von, k.Text))
             .Select(g => g.First() with
@@ -330,6 +319,89 @@ public sealed class Plandienst
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k))).ToList();
         return KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten));
+    }
+
+    private static bool IstPruefungsKarte(Karte x) => x.Unterricht is null && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"));
+
+    /// <summary>
+    /// Entfällt der Unterricht wegen dieser Prüfung? Mit Klausur-Id aus dem Paket eindeutig; ältere Pakete: Entfalltext
+    /// „Klausur &lt;Name&gt;“ passend zum Text der Prüfung.
+    /// </summary>
+    private static bool WegenPruefung(Karte x, Karte pruefung)
+    {
+        if (x.Status != "entfall" || !x.Unterricht.HasValue) return false;
+        if (x.Klausur.HasValue || pruefung.Klausur.HasValue) return x.Klausur == pruefung.Klausur;
+        var t = x.Text.Trim();
+        if (!t.StartsWith("Klausur ", StringComparison.OrdinalIgnoreCase)) return false;
+        var name = t[8..].Trim();
+        return name.Length > 0 && pruefung.Text.Trim().StartsWith(name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Prüfungskarten aufbereiten:
+    /// <list type="bullet">
+    /// <item>doppelt übertragene Prüfungen (ältere Mehrfachimporte, je Aufsicht eine Zeile) nur einmal zeigen,</item>
+    /// <item>zum Löschen vorgemerkte Prüfungen ausblenden,</item>
+    /// <item>übernommene Prüfungen auf die Unterrichtsstunden der Klasse legen: die Stundenkarte wird zur Prüfung (Lehrkraft und Fach
+    ///   bleiben, Raum der Prüfung als „alt → neu“) – auch wenn der Unterricht wegen der Prüfung in UntPlan entfällt. So entsteht genau
+    ///   eine Karte statt Prüfungskarte(n) plus Entfall.</item>
+    /// <item>Raumplan des bisherigen Raums: der wegen der Prüfung entfallene Unterricht findet woanders statt („abwesend“).</item>
+    /// </list>
+    /// </summary>
+    internal static List<Karte> PruefungenZusammenfuehren(List<Karte> einzel, IReadOnlyList<Rohstunde> loeschungen, string typ, string kurz, IReadOnlyList<Rohstunde> roh)
+    {
+        static string Klassen(Karte x) => string.Join(",", x.Klassen.Select(w => w.K.ToLowerInvariant()).Order());
+        bool Gleich(Karte a, Karte b) => a.Von == b.Von && a.Bis == b.Bis && ((a.Klausur.HasValue && a.Klausur == b.Klausur)
+            || (Ci.Equals(a.Text.Trim(), b.Text.Trim()) && Klassen(a) == Klassen(b)));
+        var res = new List<Karte>();
+        foreach (var x in einzel)
+        {
+            var i = IstPruefungsKarte(x) ? res.FindIndex(y => IstPruefungsKarte(y) && Gleich(x, y)) : -1;
+            if (i < 0) { res.Add(x); continue; }
+            // gleiche Prüfung mehrfach (z. B. je Aufsicht eine Zeile): eine Karte mit allen Lehrkräften und Räumen, Fach bevorzugt
+            var y = res[i];
+            res[i] = y with
+            {
+                Fach = y.Fach.Length > 0 ? y.Fach : x.Fach, FachName = y.Fach.Length > 0 ? y.FachName : x.FachName,
+                Lehrer = y.Lehrer.Concat(x.Lehrer).DistinctBy(w => (w.K.ToLowerInvariant(), (w.Alt ?? "").ToLowerInvariant())).ToList(),
+                Raeume = y.Raeume.Concat(x.Raeume).DistinctBy(w => (w.K.ToLowerInvariant(), (w.Alt ?? "").ToLowerInvariant())).ToList(),
+            };
+        }
+        // zum Löschen vorgemerkte Prüfungen nicht mehr zeigen
+        res.RemoveAll(x => IstPruefungsKarte(x) && loeschungen.Any(l => l.Stunde >= x.Von && l.Stunde <= x.Bis && (l.Klassen.Count == 0 || x.Klassen.Any(w => Enthaelt(l.Klassen, w.K)))));
+        foreach (var kl in res.Where(IstPruefungsKarte).ToList())
+        {
+            var treffer = res.Select((x, i) => (x, i)).Where(t => t.x.Unterricht.HasValue && t.x.Von <= kl.Bis && t.x.Bis >= kl.Von
+                && t.x.Klassen.Any(w => kl.Klassen.Any(z => Ci.Equals(z.K, w.K)))
+                && (t.x.Status is not ("entfall" or "abwesend") || WegenPruefung(t.x, kl))).ToList();
+            if (treffer.Count == 0) continue;
+            foreach (var (x, i) in treffer)
+            {
+                var raeume = x.Raeume;
+                // Unterricht entfällt wegen der Prüfung: die Prüfung findet in ihrem Raum statt – bisheriger Raum als Änderung
+                if (WegenPruefung(x, kl) && kl.Raeume.Count > 0)
+                {
+                    var bisher = x.Raeume.Select(w => w.Alt is { Length: > 0 } a && w.K.Length == 0 ? new Wert(a) : w).Where(w => w.K.Length > 0).ToList();
+                    raeume = kl.Raeume.Where(w => w.K.Length > 0).Select(w => bisher.FirstOrDefault(b => Ci.Equals(b.K, w.K)) ?? new Wert(w.K, bisher.FirstOrDefault()?.K, true)).ToList();
+                }
+                res[i] = x with { Status = "klausur", Art = "Klausur", Text = kl.Text, Raeume = raeume, Klausur = x.Klausur ?? kl.Klausur };
+            }
+            res.Remove(kl);
+        }
+        // Raumplan des bisherigen Raums: kein Entfall – die Stunde findet als Prüfung statt (hier, wenn die Prüfung keinen
+        // eigenen Raum hat, sonst in einem anderen Raum)
+        if (typ == Elementtyp.Raum)
+            res = res.Select(x =>
+            {
+                if (x.Status != "entfall" || x.Klausur is not int kid || !x.Unterricht.HasValue) return x;
+                var zeilen = roh.Where(r => r.Klausur == kid && r.Unterricht is null && r.Stunde >= x.Von && r.Stunde <= x.Bis).ToList();
+                if (zeilen.Count == 0) return x;
+                var raeume = zeilen.SelectMany(r => r.Raeume.SelectMany(RaumListe)).ToList();
+                return raeume.Count == 0 || Enthaelt(raeume, kurz)
+                    ? x with { Status = "klausur", Art = "Klausur", Text = zeilen[0].Text }
+                    : x with { Status = "abwesend", Art = "Klausur", Text = zeilen[0].Text };
+            }).ToList();
+        return res;
     }
 
     /// <summary>
@@ -636,7 +708,7 @@ public sealed class Plandienst
         return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
             r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, Gruppe(s, r))
         {
-            Zusaetzlich = zusatz, Bereitschaft = bereitschaft,
+            Zusaetzlich = zusatz, Bereitschaft = bereitschaft, Klausur = r.Klausur,
             // abwesende Lehrkraft: eigene Stunde im Lehrerplan von anderen gehalten bzw. weggefallene Bereitschaft (in jedem Plan)
             LehrerAbwesend = status == "abwesend" && (typ == Elementtyp.Lehrer || bereitschaft),
             VertretungOffen = lehrerOffen,

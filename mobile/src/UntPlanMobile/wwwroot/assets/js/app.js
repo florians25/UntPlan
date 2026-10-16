@@ -769,8 +769,10 @@ function assignParallel(cards){
 function renderWeekHead(){
   const dates = weekDates(state.weekStart);
   const mo = parseISO(state.weekStart);
-  $('#kwNo').textContent = 'KW ' + isoWeek(mo);
-  $('#kwMonth').textContent = MONTHS_SHORT[mo.getMonth()];
+  /* In der Tagesansicht gelten KW und Monat für den gezeigten Tag. */
+  const bezug = (state.view === 'day' && state.day) ? parseISO(state.day) : mo;
+  $('#kwNo').textContent = 'KW ' + isoWeek(bezug);
+  $('#kwMonth').textContent = MONTHS_SHORT[bezug.getMonth()];
 
   const today = iso(new Date());
   /* In der Tagesansicht steht im Kopf nur der gewählte Tag, mittig. */
@@ -786,10 +788,11 @@ function renderWeekHead(){
         style="grid-template-columns:repeat(3, 100%); width:calc(100% - 3px)"></div>`;
     $('#headStrip').innerHTML = trio.map(d => {
       const dd = parseISO(d);
-      /* Großer Kopf wie im Original: Wochentag ausgeschrieben und Datum */
-      return `<button class="dayhead dayhead--single ${d === today ? 'is-today' : ''}" data-day="${d}">
-         <span class="dayhead__name">${WD_LONG[(dd.getDay()+6)%7]}</span>
-         <span class="dayhead__num">${dd.getDate()}. ${MONTHS[dd.getMonth()]}</span>
+      /* Derselbe Kopf wie in der Woche: „Fr.“ über „16“ — nur eben eine
+         einzige, breite Spalte. KW und Monat stehen links wie dort. */
+      return `<button class="dayhead dayhead--day ${d === today ? 'is-today' : ''}" data-day="${d}">
+         <span class="dayhead__name">${WD_SHORT[(dd.getDay()+6)%7]}</span>
+         <span class="dayhead__num">${dd.getDate()}</span>
        </button>`;
     }).join('');
     stripRuhe($('#headStrip'));

@@ -418,6 +418,60 @@ public sealed class Db
             PRIMARY KEY (benutzer_id, schueler_id)
         );
         """,
+
+        // 9: Benutzerverwaltung – Zusatzrechte und Personenzuordnung je Konto, Personenliste (Erziehungsberechtigte, sonstiges Personal),
+        //    Anmeldehistorie – nur Standard-SQL
+        """
+        ALTER TABLE benutzer ADD COLUMN zusatzrechte VARCHAR(500) NOT NULL DEFAULT '';
+        ALTER TABLE benutzer ADD COLUMN person_id INTEGER;
+        CREATE TABLE personen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, art VARCHAR(20) NOT NULL, vorname VARCHAR(100) NOT NULL DEFAULT '', name VARCHAR(100) NOT NULL,
+            funktion VARCHAR(100) NOT NULL DEFAULT '', email VARCHAR(200) NOT NULL DEFAULT '', kinder VARCHAR(1000) NOT NULL DEFAULT '',
+            erstellt VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE benutzer_anmeldungen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, benutzer_id INTEGER NOT NULL REFERENCES benutzer(id) ON DELETE CASCADE,
+            zeit VARCHAR(30) NOT NULL, ergebnis VARCHAR(20) NOT NULL DEFAULT 'ok', adresse VARCHAR(60) NOT NULL DEFAULT '', geraet VARCHAR(200) NOT NULL DEFAULT ''
+        );
+        CREATE INDEX ix_benutzer_anmeldungen ON benutzer_anmeldungen (benutzer_id, id);
+        """,
+
+        // 10: Buchungsmodul – Ressourcenarten, Ressourcen (fest an einem Raum oder mobil mit Anzahl), Raum-Stammdaten aus UntPlanWeb
+        //    (Kapazität, Gebäude, Abteilung, Raumgruppe), Buchungen (Raum, Ressource, Aktivität, zusätzlicher Unterricht; Serie mit
+        //    Serien-ID), gebuchte Ressourcen und in UntPlanWeb angelegter Unterricht – nur Standard-SQL
+        """
+        CREATE TABLE ressourcenarten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(100) NOT NULL, reihenfolge INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE ressourcen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(100) NOT NULL, art_id INTEGER, raum VARCHAR(50) NOT NULL DEFAULT '',
+            anzahl INTEGER NOT NULL DEFAULT 1, bemerkung VARCHAR(500) NOT NULL DEFAULT '', aktiv INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE raum_daten (
+            raum VARCHAR(50) NOT NULL PRIMARY KEY, kapazitaet INTEGER NOT NULL DEFAULT 0, gebaeude VARCHAR(100) NOT NULL DEFAULT '',
+            abteilung VARCHAR(100) NOT NULL DEFAULT '', raumgruppe VARCHAR(100) NOT NULL DEFAULT '', geaendert VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE buchungen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, serie VARCHAR(40) NOT NULL DEFAULT '', art VARCHAR(20) NOT NULL, datum VARCHAR(10) NOT NULL,
+            stunde_von INTEGER NOT NULL, stunde_bis INTEGER NOT NULL, beginn VARCHAR(5) NOT NULL DEFAULT '', ende VARCHAR(5) NOT NULL DEFAULT '',
+            raum VARCHAR(50) NOT NULL DEFAULT '', klassen VARCHAR(1000) NOT NULL DEFAULT '[]', lehrer VARCHAR(50) NOT NULL DEFAULT '',
+            fach VARCHAR(50) NOT NULL DEFAULT '', titel VARCHAR(200) NOT NULL DEFAULT '', text VARCHAR(1000) NOT NULL DEFAULT '',
+            unterricht_id INTEGER, benachrichtigen INTEGER NOT NULL DEFAULT 0, status VARCHAR(20) NOT NULL DEFAULT 'aktiv',
+            uebertragen VARCHAR(30), benutzer_id INTEGER, absender VARCHAR(100) NOT NULL DEFAULT '', erstellt VARCHAR(30) NOT NULL DEFAULT '',
+            storniert VARCHAR(30)
+        );
+        CREATE INDEX ix_buchungen_datum ON buchungen (datum, status);
+        CREATE INDEX ix_buchungen_serie ON buchungen (serie);
+        CREATE TABLE buchung_ressourcen (
+            buchung_id INTEGER NOT NULL REFERENCES buchungen(id) ON DELETE CASCADE, ressource_id INTEGER NOT NULL,
+            menge INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (buchung_id, ressource_id)
+        );
+        CREATE TABLE eigene_unterrichte (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, lehrer VARCHAR(50) NOT NULL, fach VARCHAR(50) NOT NULL, klassen VARCHAR(1000) NOT NULL DEFAULT '[]',
+            gruppe VARCHAR(100) NOT NULL DEFAULT '', text VARCHAR(1000) NOT NULL DEFAULT '', wochenstunden INTEGER NOT NULL DEFAULT 0,
+            benutzer_id INTEGER, erstellt VARCHAR(30) NOT NULL DEFAULT '', geloescht INTEGER NOT NULL DEFAULT 0
+        );
+        """,
     };
 
 

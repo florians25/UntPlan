@@ -132,6 +132,45 @@ public class UntPlanWebTests
         Assert.Single(paket.Termine, t => t.Art == "klausur" && t.Titel == "Doppelt");
     }
 
+    /// <summary>
+    /// Prüfung aus UntPlanWeb: auch doppelt übernommen (automatischer Abgleich und Dialog „Stundenplanänderungen“) entsteht nur eine
+    /// Prüfung; im Paket tragen Prüfungszeilen und der wegen der Prüfung entfallene Unterricht die Klausur-Id (eine Karte im Web).
+    /// </summary>
+    [Fact]
+    public void PruefungAusDemWebNurEinmalUndMitKlausurIdImPaket()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var tp = Vertretungsplanung.Tagesplan.Berechnen(d, tag);
+        var stunde = tp.Eintraege.First(e => e.Unterricht != null && e.KlassenIds.Count == 1 && e.RaumIds.Count == 1 && e.LehrerIds.Count == 1);
+        var klasse = d.Klassen.First(k => k.Id == stunde.KlassenIds[0]);
+        var lehrer = d.Lehrer.First(l => l.Id == stunde.LehrerIds[0]);
+        var raum = d.Raeume.First(r => !tp.Stunde(stunde.Stunde).Any(e => e.RaumIds.Contains(r.Id)));
+        var m = new WebRueckmeldung
+        {
+            Id = "pk1", Typ = WebRueckmeldungsTypen.Klausur, Lehrer = lehrer.Kurzname, Von = tag.ToString("yyyy-MM-dd"), StundeVon = stunde.Stunde, StundeBis = stunde.Stunde,
+            Klassen = { klasse.Kurzname }, Raeume = { raum.Kurzname }, Titel = "IT Klassenarbeit",
+        };
+        Assert.Equal(new[] { "pk1" }, UntPlanWebExport.Uebernehmen(d, new[] { m }).Uebernommen);
+        StundenplanAenderungen.Uebernehmen(d, StundenplanAenderungen.Analysieren(d, new[] { m }, tag.AddDays(-1), tag.AddDays(1), false));
+        UntPlanWebExport.Uebernehmen(d, new[] { m });
+        var k = Assert.Single(d.Klausuren);
+        Assert.Equal("pk1", k.WebId);
+        // ältere Dateien: dieselbe Rückmeldung zweimal (z. B. mit anderem Namen) → beim Hochladen auf eine zurückgeführt
+        d.Klausuren.Add(new Klausur { Id = d.NeueId(), Name = "IT", Datum = tag, StundeVon = stunde.Stunde, StundeBis = stunde.Stunde, KlassenIds = { klasse.Id }, WebId = "pk1" });
+        var paket = UntPlanWebExport.PaketErstellen(d, tag);
+        Assert.Single(d.Klausuren);
+        var stunden = paket.Tage.Single(t => t.Datum == tag.ToString("yyyy-MM-dd")).Stunden.Where(x => x.Stunde == stunde.Stunde && x.Klassen.Contains(klasse.Kurzname)).ToList();
+        var entfall = Assert.Single(stunden, x => x.Status == "entfall");
+        Assert.Equal(k.Id, entfall.Klausur);
+        Assert.Equal(stunde.Unterricht!.Id, entfall.Unterricht);
+        var pruefung = Assert.Single(stunden, x => x.Status == "zusaetzlich");
+        Assert.Equal(k.Id, pruefung.Klausur);
+        Assert.Equal(new[] { raum.Kurzname }, pruefung.Raeume);
+        // übriger Unterricht trägt keine Klausur-Id
+        Assert.All(paket.Tage.SelectMany(t => t.Stunden).Where(x => x.Stunde != stunde.Stunde || !x.Klassen.Contains(klasse.Kurzname)), x => Assert.Null(x.Klausur));
+    }
+
     [Fact]
     public async Task UebertragungUndRueckmeldungen()
     {

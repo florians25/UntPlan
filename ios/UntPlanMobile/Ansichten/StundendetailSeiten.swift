@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Daten einer Stunde
 
@@ -230,6 +231,8 @@ struct NotizSeite: View {
     @State private var speichert = false
     @State private var fehler: String? = nil
     @FocusState private var fokus: Bool
+    /// Teil des Textbereichs, den die Tastatur verdeckt – das Blatt bleibt fest, nur der Text rückt darüber
+    @State private var verdeckt: CGFloat = 0
     @Environment(\.dismiss) private var zurueck
 
     private var bearbeitbar: Bool { daten.darf && daten.karte.unterricht != nil }
@@ -268,24 +271,36 @@ struct NotizSeite: View {
     private var textbereich: some View {
         Group {
             if bearbeitbar {
-                TextEditor(text: $text)
-                    .font(.system(size: 16))
-                    .foregroundStyle(Farben.tinte)
-                    .scrollContentBackground(.hidden)
-                    .focused($fokus)
-                    .padding(.horizontal, 15)
-                    .padding(.top, 8)
-                    .overlay(alignment: .topLeading) {
-                        if text.isEmpty {
-                            Text(art == .schueler ? "Notiz, die Schüler*innen sehen" : "Notiz nur für Lehrkräfte")
-                                .font(.system(size: 16))
-                                .foregroundStyle(Farben.gedaempft)
-                                .padding(.horizontal, 20)
-                                .padding(.top, 16)
-                                .allowsHitTesting(false)
+                GeometryReader { geo in
+                    TextEditor(text: $text)
+                        .font(.system(size: 16))
+                        .foregroundStyle(Farben.tinte)
+                        .scrollContentBackground(.hidden)
+                        .focused($fokus)
+                        .padding(.horizontal, 15)
+                        .padding(.top, 8)
+                        .overlay(alignment: .topLeading) {
+                            if text.isEmpty {
+                                Text(art == .schueler ? "Notiz, die Schüler*innen sehen" : "Notiz nur für Lehrkräfte")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Farben.gedaempft)
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 16)
+                                    .allowsHitTesting(false)
+                            }
                         }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.bottom, verdeckt)
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { meldung in
+                            guard let rahmen = meldung.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+                            let unten = geo.frame(in: .global).maxY
+                            verdeckt = max(0, min(unten - rahmen.minY, geo.size.height - 80))
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                            verdeckt = 0
+                        }
+                }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             } else {
                 ScrollView {
                     Text(text.isEmpty ? "Keine Notiz." : text)
@@ -639,54 +654,156 @@ struct HausaufgabeFormular: View {
 
 struct KlassenbuchSeite: View {
     @EnvironmentObject var daten: Stundendaten
+    @State private var suche = ""
 
     private func schuelerName(_ id: Int?) -> String? {
         guard let id else { return nil }
         return daten.anwesenheit?.schueler.first { $0.id == id }?.anzeige
     }
 
+    /// Überschrift eines Eintrags: Name der Schülerin bzw. des Schülers, sonst die Klasse.
+    private func gruppe(_ v: Vermerk) -> String {
+        if let name = schuelerName(v.schuelerId) { return name }
+        return v.klasse.isEmpty ? "Klasse" : "Klasse \(v.klasse)"
+    }
+
+    private struct Gruppe: Identifiable {
+        let name: String
+        var eintraege: [Vermerk]
+        var id: String { name }
+    }
+
+    /// Einträge nach Name gruppiert (Reihenfolge wie geliefert), gefiltert nach der Suche.
+    private var gruppen: [Gruppe] {
+        let begriff = suche.trimmingCharacters(in: .whitespacesAndNewlines)
+        var liste: [Gruppe] = []
+        for v in daten.vermerke {
+            let name = gruppe(v)
+            if !begriff.isEmpty {
+                let treffer = [name, v.art, v.text, v.lehrer].contains { $0.localizedCaseInsensitiveContains(begriff) }
+                if !treffer { continue }
+            }
+            if let i = liste.firstIndex(where: { $0.name == name }) {
+                liste[i].eintraege.append(v)
+            } else {
+                liste.append(Gruppe(name: name, eintraege: [v]))
+            }
+        }
+        return liste
+    }
+
+    /// Vorlage: Kopf mit Zurück und Titel mittig; die Suche steht als eigene Zeile unter dem Kopf (nicht daneben gequetscht).
     var body: some View {
         DetailSeitenRahmen(titel: "Klassenbucheinträge", untertitel: stundenUntertitel(daten.karte)) {
-            liste
+            VStack(spacing: 0) {
+                suchfeld
+                    .padding(.horizontal, 20)
+                    .padding(.top, 2)
+                    .padding(.bottom, 8)
+                liste
+            }
         }
     }
 
-    private var liste: some View {
-        List {
-            if daten.vermerke.isEmpty {
-                Text("Keine Klassenbucheinträge an diesem Tag.")
-                    .foregroundStyle(Farben.gedaempft)
-            }
-            ForEach(daten.vermerke) { v in
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(v.art.isEmpty ? "Vermerk" : v.art)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Farben.tinte)
-                        Spacer()
-                        Text([v.zeit, v.lehrer].filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.system(size: 12))
-                            .foregroundStyle(Farben.gedaempft)
-                    }
-                    if let name = schuelerName(v.schuelerId) {
-                        Text(name)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Farben.tinte2)
-                    } else if !v.klasse.isEmpty {
-                        Text("Klasse \(v.klasse)")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                    if !v.text.isEmpty {
-                        Text(v.text)
-                            .font(.system(size: 15))
-                            .foregroundStyle(Farben.tinte)
-                    }
+    private var suchfeld: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .regular))
+                .foregroundStyle(Farben.gedaempft)
+            TextField("Suchen", text: $suche)
+                .font(.system(size: 16))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !suche.isEmpty {
+                Button {
+                    suche = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Farben.gedaempft)
                 }
-                .padding(.vertical, 2)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Suche löschen")
             }
         }
-        .listStyle(.plain)
+        .padding(.horizontal, 12)
+        .frame(height: 38)
+        .background(Farben.knopf, in: Capsule())
+    }
+
+    private var liste: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if daten.vermerke.isEmpty {
+                    Text(daten.geladen ? "Keine Klassenbucheinträge an diesem Tag." : "Wird geladen …")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Farben.gedaempft)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                } else if gruppen.isEmpty {
+                    Text("Keine Treffer.")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Farben.gedaempft)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                }
+                ForEach(gruppen) { g in
+                    Text(g.name)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.tinte2)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+                        .padding(.bottom, 6)
+                    Rectangle()
+                        .fill(Farben.trennlinie)
+                        .frame(height: 0.5)
+                        .padding(.horizontal, 20)
+                    ForEach(g.eintraege) { v in
+                        eintrag(v)
+                    }
+                }
+            }
+            .padding(.bottom, 24)
+        }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func eintrag(_ v: Vermerk) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            let wann = [v.datum.isEmpty ? "" : Datumsformat.anzeige(v.datum, "EE, dd.MM.yyyy"), v.zeit, v.lehrer]
+                .filter { !$0.isEmpty }.joined(separator: ", ")
+            if !wann.isEmpty {
+                Label(wann, systemImage: "calendar")
+            }
+            if !v.art.isEmpty {
+                Label(v.art, systemImage: "info.circle")
+            }
+            if !v.text.isEmpty {
+                Text(v.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .font(.system(size: 15))
+        .foregroundStyle(Farben.tinte)
+        .labelStyle(EintragLabelStil())
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Symbol klein und grau vor dem Text (Datum, Art eines Klassenbucheintrags).
+private struct EintragLabelStil: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon
+                .font(.system(size: 13, weight: .light))
+                .foregroundStyle(Farben.gedaempft)
+            configuration.title
+        }
     }
 }
 

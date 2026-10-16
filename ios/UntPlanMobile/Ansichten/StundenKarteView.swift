@@ -8,7 +8,10 @@ import SwiftUI
 ///   neue Lehrkraft als grüne Plakette.
 /// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
 /// - Aufsicht: schmale Pille in der Pause mit lila Balken.
-/// In der Tagesansicht (gross) größer, mit Uhrzeit, Fach-Langname, Hinweis und Status daneben.
+/// Maße wie im Original (Woche auf dem iPhone): Balken 4 pt breit, 4 pt vom Kartenrand, Text 6 pt rechts vom Balken und
+/// 4 pt unter der Oberkante; Schrift 12 pt bei 14 pt Zeilenabstand (iPad 12,4/14,3). Jede Zeile ist einzeilig – was nicht
+/// passt, endet mit „…“ (vollständig in den Details).
+/// In der Tagesansicht (gross) dieselbe Karte, nur breiter: links die Zeilen, rechts Fach-Langname, Uhrzeit, Status und Hinweis.
 struct KachelView: View {
     let kachel: Kachel
     var gross: Bool = false
@@ -19,10 +22,17 @@ struct KachelView: View {
     @Environment(\.horizontalSizeClass) private var groessenklasse
 
     private var dunkel: Bool { schema == .dark }
-    /// iPhone-Woche: schmale Spalten, Schrift 11 pt (Tagesansicht bleibt groß).
-    private var kompakt: Bool { groessenklasse == .compact && !gross }
-    private var schrift: CGFloat { gross ? 15 : (kompakt ? 11 : 12.4) }
-    private var zeilenHoehe: CGFloat { gross ? 19 : (kompakt ? 13 : 14.3) }
+    /// iPhone: Schrift 12 pt bei 14 pt Zeilenabstand wie im Original; iPad 12,4/14,3 (Woche wie Tag).
+    private var kompakt: Bool { groessenklasse == .compact }
+    private var schrift: CGFloat { kompakt ? 12 : 12.4 }
+    private var zeilenHoehe: CGFloat { kompakt ? 14 : 14.3 }
+
+    // Balken und Textbeginn (Original: Balken 4 pt breit, 4 pt vom Rand; Text 6 pt rechts vom Balken)
+    static let balkenRand: CGFloat = 4
+    static let balkenBreite: CGFloat = 4
+    static let textAbstand: CGFloat = 6
+    static var textLinks: CGFloat { balkenRand + balkenBreite + textAbstand }
+    static let textOben: CGFloat = 4
 
     var body: some View {
         let a = Kachelaussehen(kachel, dunkel: dunkel)
@@ -46,10 +56,9 @@ struct KachelView: View {
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(balken)
                     .opacity(a.balkenDeckkraft)
-                    .frame(width: gross ? 4 : (kompakt ? 3 : 3.5))
-                    .padding(.top, 4.7)
-                    .padding(.bottom, 4)
-                    .padding(.leading, kompakt ? 3 : 4)
+                    .frame(width: Self.balkenBreite)
+                    .padding(.vertical, Self.balkenRand)
+                    .padding(.leading, Self.balkenRand)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             }
             inhalt(a)
@@ -86,59 +95,84 @@ struct KachelView: View {
 
     /// Wie viele Zeilen passen in die Kachel?
     private var platzZeilen: Int {
-        max(1, Int((hoehe - (gross ? 10 : 9)) / zeilenHoehe))
+        max(1, Int((hoehe - Self.textOben - 4) / zeilenHoehe))
     }
 
     private var gekuerzt: Bool {
         kachel.art != .bereitschaft && kachel.art != .veranstaltung && kachel.zeilen.count > platzZeilen
     }
 
+    /// Sichtbare Zeilen: passen nicht alle, bleibt die erste Zeile stehen und Zeilen mit wichtigen Änderungen gehen vor
+    /// (Raumänderung mit Plakette, Kopplung mit abwesender bzw. vertretener Lehrkraft, fehlende Koppelklasse); die
+    /// Reihenfolge bleibt erhalten.
+    private var sichtbareZeilen: [Kachelzeile] {
+        let alle = kachel.zeilen
+        guard kachel.art != .veranstaltung, alle.count > platzZeilen else { return alle }
+        var gewaehlt: Set<Int> = [0]
+        for i in alle.indices.dropFirst() where gewaehlt.count < platzZeilen && Self.wichtig(alle[i]) {
+            gewaehlt.insert(i)
+        }
+        for i in alle.indices where gewaehlt.count < platzZeilen {
+            gewaehlt.insert(i)
+        }
+        return alle.indices.filter { gewaehlt.contains($0) }.map { alle[$0] }
+    }
+
+    private static func wichtig(_ z: Kachelzeile) -> Bool {
+        switch z.schluessel {
+        case "raum":
+            return z.teile.contains { $0.stil == .plakette }
+        case "lehrer", "klasse":
+            return z.teile.count > 1 && z.teile.contains { $0.stil != .text }
+        default:
+            return false
+        }
+    }
+
     @ViewBuilder
     private func inhalt(_ a: Kachelaussehen) -> some View {
         if kachel.art == .bereitschaft {
             Text(kachel.titel)
-                .font(.system(size: gross ? 15 : 12.5))
+                .font(.system(size: schrift))
                 .foregroundStyle(a.text)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
                 .padding(4)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if gross && breite >= 300 && kachel.karte != nil {
+        } else if gross && breite >= 240 && kachel.karte != nil {
+            // Tagesansicht: links die Zeilen wie auf der Wochenkarte, rechts die Details
             HStack(alignment: .top, spacing: 12) {
                 zeilenBlock(a)
-                    .frame(width: min(max(breite * 0.36, 130), 230), alignment: .topLeading)
-                Rectangle()
-                    .fill(a.text.opacity(0.15))
-                    .frame(width: 0.5)
-                    .padding(.vertical, 2)
-                TagesDetails(kachel: kachel, textFarbe: a.text, hoehe: hoehe)
+                    .frame(width: min(max(breite * 0.34, 96), 220), alignment: .topLeading)
+                TagesDetails(kachel: kachel, textFarbe: a.text, hoehe: hoehe - Self.textOben - 4,
+                             schrift: schrift, zeilenHoehe: zeilenHoehe)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(.leading, 14)
-            .padding(.top, 6)
-            .padding(.trailing, 22)
+            .padding(.leading, Self.textLinks)
+            .padding(.top, Self.textOben)
+            .padding(.trailing, 20)
             .padding(.bottom, 4)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 zeilenBlock(a)
-                if gross && kachel.karte != nil && hoehe > CGFloat(kachel.zeilen.count) * zeilenHoehe + 30 {
-                    TagesDetails(kachel: kachel, textFarbe: a.text, hoehe: hoehe - CGFloat(kachel.zeilen.count) * zeilenHoehe - 14, kompakt: true)
-                        .padding(.top, 4)
+                let rest = hoehe - Self.textOben - 4 - CGFloat(sichtbareZeilen.count) * zeilenHoehe
+                if gross && kachel.karte != nil && rest >= zeilenHoehe {
+                    TagesDetails(kachel: kachel, textFarbe: a.text, hoehe: rest,
+                                 schrift: schrift, zeilenHoehe: zeilenHoehe, mitLangname: false)
                         .padding(.trailing, 16)
                 }
             }
-            .padding(.leading, gross ? 14 : (kompakt ? 9 : 11.5))
-            .padding(.top, gross ? 6 : (kompakt ? 4 : 4.5))
-            .padding(.trailing, kompakt ? 2 : 4)
+            .padding(.leading, Self.textLinks)
+            .padding(.top, Self.textOben)
+            .padding(.trailing, 3)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
     private func zeilenBlock(_ a: Kachelaussehen) -> some View {
-        let anzahl = kachel.art == .veranstaltung ? kachel.zeilen.count : min(kachel.zeilen.count, platzZeilen)
-        let sichtbar = Array(kachel.zeilen.prefix(anzahl))
+        let sichtbar = sichtbareZeilen
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(sichtbar.enumerated()), id: \.offset) { eintrag in
                 KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift,
@@ -154,7 +188,7 @@ struct KachelView: View {
     private func zeichen(_ a: Kachelaussehen) -> some View {
         let mitInfo = kachel.info && kachel.art != .termin
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
-        if gekuerzt && !gross {
+        if gekuerzt {
             Kuerzungszeichen(gruen: kachel.art == .aenderung || kachel.art == .abgegeben)
         } else if mitInfo || mitHausaufgabe {
             HStack(spacing: 2) {
@@ -244,7 +278,8 @@ struct KachelView: View {
     }
 }
 
-/// Eine Zeile der Kachel: Text, grüne Plaketten, durchgestrichene Werte. Zu lange Zeilen werden am Rand abgeschnitten.
+/// Eine Zeile der Kachel: Text, grüne Plaketten, durchgestrichene Werte. Immer genau eine Zeile – was nicht passt,
+/// endet mit „…“ (vollständig in den Details).
 struct KachelzeileView: View {
     let zeile: Kachelzeile
     let aussehen: Kachelaussehen
@@ -258,23 +293,36 @@ struct KachelzeileView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             } else {
-                HStack(spacing: 0) {
-                    ForEach(Array(zeile.teile.enumerated()), id: \.offset) { eintrag in
-                        teil(eintrag.element)
-                        if !eintrag.element.trenner.isEmpty {
-                            Text(eintrag.element.trenner)
-                                .strikethrough(aussehen.durchgestrichen)
-                        }
+                ViewThatFits(in: .horizontal) {
+                    teileReihe
+                    HStack(spacing: 0) {
+                        teileReihe
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            .clipped()
+                        Text("…")
+                            .fixedSize()
                     }
                 }
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .clipped()
             }
         }
         .font(.system(size: schrift, weight: zeile.fett ? .semibold : .regular))
         .foregroundStyle(titelFarbe ?? aussehen.text)
+    }
+
+    /// Alle Teile nebeneinander in voller Breite (ohne Umbruch).
+    private var teileReihe: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(zeile.teile.enumerated()), id: \.offset) { eintrag in
+                teil(eintrag.element)
+                if !eintrag.element.trenner.isEmpty {
+                    Text(eintrag.element.trenner)
+                        .strikethrough(aussehen.durchgestrichen)
+                }
+            }
+        }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
@@ -302,12 +350,15 @@ struct KachelzeileView: View {
     }
 }
 
-/// Tagesansicht: Fach-Langname, Uhrzeit und Stunden, Status und Hinweis neben bzw. unter den Zeilen.
+/// Tagesansicht: Fach-Langname, Uhrzeit und Stunden, Status und Hinweis rechts neben bzw. unter den Zeilen –
+/// in derselben Schrift und demselben Zeilenabstand wie die Zeilen der Karte, jede Angabe einzeilig.
 struct TagesDetails: View {
     let kachel: Kachel
     let textFarbe: Color
     var hoehe: CGFloat = 80
-    var kompakt: Bool = false
+    var schrift: CGFloat = 12.4
+    var zeilenHoehe: CGFloat = 14.3
+    var mitLangname: Bool = true
 
     private var karte: Karte? { kachel.karte }
 
@@ -326,25 +377,25 @@ struct TagesDetails: View {
         return s
     }
 
-    private var status: (String, Color)? {
+    private var status: String? {
         guard let k = karte else { return nil }
         switch kachel.art {
         case .entfall:
-            return (k.art.isEmpty || k.art.lowercased() == "entfall" ? "Entfall" : "Entfall · \(k.art)", Farben.entfallRand)
+            return k.art.isEmpty || k.art.lowercased() == "entfall" ? "Entfall" : "Entfall · \(k.art)"
         case .aenderung:
-            if k.online { return ("Findet online statt", Farben.gruen) }
-            if kachel.zusatz { return ("Zusätzliche Unterrichtsstunde", Farben.gruen) }
-            if Kartenstil.nurRaumGeaendert(k) { return ("Raumänderung", Farben.gruen) }
-            return (k.art.isEmpty ? "Vertretung" : k.art, Farben.gruen)
+            if k.online { return "Findet online statt" }
+            if kachel.zusatz { return "Zusätzliche Unterrichtsstunde" }
+            if Kartenstil.nurRaumGeaendert(k) { return "Raumänderung" }
+            return k.art.isEmpty ? "Vertretung" : k.art
         case .abgegeben:
             let neu = k.lehrer.map(\.k).filter { !$0.isEmpty }
-            return (neu.isEmpty ? "Vertretung offen" : "Vertretung: \(neu.joined(separator: ", "))", Farben.gruen)
+            return neu.isEmpty ? "Vertretung offen" : "Vertretung: \(neu.joined(separator: ", "))"
         case .bereitschaftAbwesend:
-            return ("Lehrkraft abwesend", Farben.gedaempft)
+            return "Lehrkraft abwesend"
         case .klausur:
-            return (k.art.isEmpty ? "Klausur" : k.art, Farben.pruefungRand)
+            return k.art.isEmpty ? "Klausur" : k.art
         case .termin:
-            return (k.istRaumbuchung || k.status == "buchung" ? "Raumbuchung" : "Termin", Farben.gruen)
+            return k.istRaumbuchung || k.status == "buchung" ? "Raumbuchung" : "Termin"
         default:
             return nil
         }
@@ -363,35 +414,30 @@ struct TagesDetails: View {
         return liste
     }
 
+    /// Zeilen nach Wichtigkeit; es stehen nur so viele da, wie in die Höhe passen.
+    private var zeilen: [(text: String, fett: Bool)] {
+        var liste: [(text: String, fett: Bool)] = []
+        if mitLangname, let langname { liste.append((text: langname, fett: true)) }
+        liste.append((text: zeit, fett: false))
+        if let status { liste.append((text: status, fett: false)) }
+        for h in hinweise { liste.append((text: h, fett: false)) }
+        let platz = max(1, Int(hoehe / zeilenHoehe))
+        return Array(liste.prefix(platz))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if let langname, !kompakt {
-                Text(langname)
-                    .font(.system(size: 15, weight: .semibold))
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(zeilen.enumerated()), id: \.offset) { eintrag in
+                Text(eintrag.element.text.replacingOccurrences(of: "\n", with: " "))
+                    .font(.system(size: schrift, weight: eintrag.element.fett ? .semibold : .regular))
+                    .monospacedDigit()
                     .lineLimit(1)
-            }
-            Text(zeit)
-                .font(.system(size: 13).monospacedDigit())
-                .opacity(0.8)
-                .lineLimit(1)
-            if let status {
-                Text(status.0)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(status.1)
-                    .lineLimit(1)
-            }
-            if hoehe > (kompakt ? 50 : 70) {
-                ForEach(Array(hinweise.enumerated()), id: \.offset) { eintrag in
-                    Text(eintrag.element)
-                        .font(.system(size: 13))
-                        .opacity(0.85)
-                        .lineLimit(hoehe > 120 ? 3 : 1)
-                        .multilineTextAlignment(.leading)
-                }
+                    .truncationMode(.tail)
+                    .frame(height: zeilenHoehe, alignment: .leading)
             }
         }
         .foregroundStyle(textFarbe)
-        .frame(maxHeight: hoehe, alignment: .topLeading)
+        .frame(maxHeight: max(hoehe, zeilenHoehe), alignment: .topLeading)
         .clipped()
     }
 }

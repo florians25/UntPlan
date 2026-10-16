@@ -17,7 +17,8 @@ namespace UntPlanWeb.Api;
 public static class AdminApi
 {
     public sealed record SchulDaten(string Schulname, string SchulId);
-    public sealed record BenutzerDaten(string? Login, string? Passwort, string Rolle, string? Element, string? Anzeigename, string? Email, bool Gesperrt, List<int>? SchuelerIds = null);
+    public sealed record BenutzerDaten(string? Login, string? Passwort, string Rolle, string? Element, string? Anzeigename, string? Email, bool Gesperrt, List<int>? SchuelerIds = null,
+        List<string>? Zusatzrechte = null, int? PersonId = null);
     public sealed record StammdatenDaten(bool Lehrer, bool Klassen);
     public sealed record NachrichtDaten(DateOnly Von, DateOnly Bis, string Text, string? Zielgruppe, bool Startseite, bool Monitor,
         string? Betreff = null, int? Wochentag = null, int? Reihenfolge = null, bool? Aufgefaechert = null, bool? Oeffentlich = null, bool? Mobil = null);
@@ -39,7 +40,7 @@ public static class AdminApi
     private static object BenutzerJson(Benutzer b) => new
     {
         b.Id, b.Login, b.Anzeigename, b.Rolle, rollenname = Rollen.Name(b.Rolle), b.Element, b.Email, b.Gesperrt, b.PasswortAendern, b.Erstellt, b.LetzteAnmeldung,
-        b.SchuelerIds, b.Klassen,
+        b.SchuelerIds, b.Klassen, b.Zusatzrechte, b.PersonId,
     };
 
     /// <summary>Schülerkonto: Klasse der zugeordneten Person als Element merken (Klassenkonto-Kompatibilität, z. B. iCal, ältere Apps).</summary>
@@ -124,6 +125,7 @@ public static class AdminApi
         {
             var ich = Admin(c);
             var pw = string.IsNullOrEmpty(d.Passwort) ? Sicherheit.Zufall(10) : d.Passwort;
+            bd.ZuordnungPruefen(null, d.Rolle, d.Element, d.SchuelerIds, d.PersonId is > 0 ? d.PersonId : null);
             var b = bd.Anlegen(d.Login ?? "", pw, d.Rolle, ElementFuer(d, p), d.Anzeigename ?? "", d.Email ?? "", string.IsNullOrEmpty(d.Passwort));
             if (d.SchuelerIds is { Count: > 0 })
             {
@@ -131,6 +133,9 @@ public static class AdminApi
                 catch (ArgumentException) { bd.Loeschen(b.Id); throw; }
                 b = bd.Holen(b.Id)!;
             }
+            if (d.Zusatzrechte is { Count: > 0 }) bd.ZusatzrechteSetzen(b.Id, d.Zusatzrechte);
+            if (d.PersonId is > 0) bd.PersonSetzen(b.Id, d.PersonId);
+            b = bd.Holen(b.Id)!;
             prot.Schreiben(ich.Login, "Benutzer angelegt", b.Login);
             return Results.Json(new { benutzer = BenutzerJson(b), passwort = string.IsNullOrEmpty(d.Passwort) ? pw : null });
         });
@@ -139,7 +144,10 @@ public static class AdminApi
         {
             var ich = Admin(c);
             if (id == ich.Id && (d.Rolle != Rollen.Admin || d.Gesperrt)) throw new ArgumentException("Sie können sich nicht selbst die Administration entziehen oder sperren.");
+            bd.ZuordnungPruefen(id, d.Rolle, d.Element, d.SchuelerIds, d.PersonId is > 0 ? d.PersonId : null);
             bd.Aendern(id, d.Anzeigename ?? "", d.Rolle, ElementFuer(d, p), d.Email ?? "", d.Gesperrt);
+            if (d.Zusatzrechte != null) bd.ZusatzrechteSetzen(id, d.Zusatzrechte);
+            if (d.PersonId != null) bd.PersonSetzen(id, d.PersonId > 0 ? d.PersonId : null);
             // Zuordnung nur ändern, wenn mitgeschickt; bei anderen Rollen entfällt sie
             if (d.SchuelerIds != null || !(d.Rolle is Rollen.Schueler or Rollen.Eltern)) bd.SchuelerZuordnen(id, d.Rolle is Rollen.Schueler or Rollen.Eltern ? d.SchuelerIds ?? new() : new());
             prot.Schreiben(ich.Login, "Benutzer geändert", bd.Holen(id)?.Login ?? id.ToString());

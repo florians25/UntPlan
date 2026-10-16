@@ -34,6 +34,7 @@ extension View {
         if breit {
             if #available(iOS 18.0, *) {
                 self
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
                     .frame(width: Detailblatt.breite, height: Detailblatt.hoehe)
                     .presentationSizing(.fitted)
                     .presentationCornerRadius(Detailblatt.radius)
@@ -41,11 +42,13 @@ extension View {
             } else {
                 // iOS 17: Formblatt des Systems (540 × 620 pt), nur die Ecken angleichen
                 self
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
                     .presentationCornerRadius(Detailblatt.radius)
                     .presentationBackground(Farben.blatt)
             }
         } else {
             self
+                .ignoresSafeArea(.keyboard, edges: .bottom)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(Detailblatt.radius)
@@ -56,7 +59,8 @@ extension View {
 
 // MARK: - Kopf des Blatts
 
-/// Runder grauer Knopf (36 pt) im Kopf des Blatts: X, Zurück, ⋮ …
+/// Runder Glasknopf (36 pt) im Kopf des Blatts: X, Zurück, ⋮ …
+/// Ab iOS 26 echtes Liquid Glass (interaktiv), davor ein Milchglas-Kreis mit feinem Rand und weichem Schatten.
 struct Rundknopf: View {
     let symbol: String
     var gewicht: Font.Weight = .light
@@ -64,13 +68,40 @@ struct Rundknopf: View {
     var drehung: Double = 0
 
     var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: groesse, weight: gewicht))
-            .rotationEffect(.degrees(drehung))
-            .foregroundStyle(Farben.gedaempft)
-            .frame(width: 36, height: 36)
-            .background(Farben.knopf, in: Circle())
-            .contentShape(Circle())
+        glas(
+            Image(systemName: symbol)
+                .font(.system(size: groesse, weight: gewicht))
+                .rotationEffect(.degrees(drehung))
+                .foregroundStyle(Farben.tinte2)
+                .frame(width: 36, height: 36)
+        )
+        .contentShape(Circle())
+    }
+
+    @ViewBuilder
+    private func glas<V: View>(_ inhalt: V) -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            inhalt.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            milchglas(inhalt)
+        }
+        #else
+        milchglas(inhalt)
+        #endif
+    }
+
+    private func milchglas<V: View>(_ inhalt: V) -> some View {
+        inhalt
+            .background {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color(hell: 0xFFFFFF, dunkel: 0xFFFFFF, deckkraftHell: 0.8, deckkraftDunkel: 0.16), lineWidth: 0.5)
+                    }
+                    .shadow(color: Color(hell: 0x141C24, dunkel: 0x000000, deckkraftHell: 0.14, deckkraftDunkel: 0.4), radius: 6, y: 3)
+            }
     }
 }
 
@@ -185,6 +216,8 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Farben.blatt.ignoresSafeArea())
+        // Das Blatt bleibt fest: die Tastatur verschiebt bzw. staucht es nicht (Textfelder scrollen innen)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .toolbar(.hidden, for: .navigationBar)
     }
 }
@@ -303,36 +336,7 @@ extension Detailzeile where Rechts == EmptyView {
     }
 }
 
-/// Trennlinie der Detailliste, eingerückt bis zum Text (20 + 28 + 14 pt).
-struct DetailTrenner: View {
-    var body: some View {
-        Rectangle()
-            .fill(Farben.trennlinie)
-            .frame(height: 0.5)
-            .padding(.leading, 62)
-    }
-}
-
 // MARK: - Werte im Kopf (Raum, Lehrkraft)
-
-/// Grüne Plakette für die offene Vertretung: alte Lehrkraft durchgestrichen auf Grün (#0b7d65), weiße Schrift.
-struct OffenPlakette: View {
-    let text: String
-    var schrift: CGFloat = 13
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: schrift, weight: .medium))
-            .strikethrough(true, color: Farben.gruenSchrift)
-            .foregroundStyle(Farben.gruenSchrift)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            .background(Farben.gruen, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-            .lineLimit(1)
-            .fixedSize()
-            .accessibilityLabel("\(text), Vertretung offen")
-    }
-}
 
 /// Baustein einer Wertzeile im Kopf der Details.
 enum Wertbaustein: Hashable {
@@ -341,53 +345,42 @@ enum Wertbaustein: Hashable {
     case pfeil
     case trenner
     case offen(String)
-    /// Neue Lehrkraft (Vertretung): grünes Label, nicht durchgestrichen
+    /// Neuer Wert (z. B. Vertretung) – im Detail normaler Text
     case neu(String)
 }
 
-/// Wertzeile im Kopf der Details: „alt → neu“ (alt durchgestrichen); offene Vertretung als grüne Plakette.
+/// Wertzeile im Kopf der Details – nur Text, keine Plaketten: Änderungen als „alt → neu“ (alt durchgestrichen),
+/// fehlende Werte (abwesende Lehrkraft bzw. Klasse) durchgestrichen. Immer genau eine Zeile; bei vielen Werten
+/// lässt sie sich waagrecht scrollen.
 struct Wertzeile: View {
     let bausteine: [Wertbaustein]
     var schrift: CGFloat = 13
     var farbe: Color = Farben.gedaempft
 
     var body: some View {
-        Fliesslayout(abstand: 4, zeilenAbstand: 3) {
-            ForEach(Array(bausteine.enumerated()), id: \.offset) { eintrag in
-                baustein(eintrag.element)
+        EinzeilenScroller {
+            HStack(spacing: 4) {
+                ForEach(Array(bausteine.enumerated()), id: \.offset) { eintrag in
+                    baustein(eintrag.element)
+                }
             }
+            .font(.system(size: schrift))
+            .foregroundStyle(farbe)
         }
-        .font(.system(size: schrift))
-        .foregroundStyle(farbe)
     }
 
     @ViewBuilder
     private func baustein(_ b: Wertbaustein) -> some View {
         switch b {
-        case .text(let t):
+        case .text(let t), .neu(let t):
             Text(t)
-                .fixedSize()
-        case .weg(let t):
+        case .weg(let t), .offen(let t):
             Text(t)
                 .strikethrough(true)
-                .fixedSize()
         case .pfeil:
             Text("→")
-                .fixedSize()
         case .trenner:
             Text("|")
-                .fixedSize()
-        case .offen(let t):
-            OffenPlakette(text: t, schrift: schrift)
-        case .neu(let t):
-            Text(t)
-                .font(.system(size: schrift, weight: .medium))
-                .foregroundStyle(Farben.gruenSchrift)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Farben.gruen, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-                .lineLimit(1)
-                .fixedSize()
         }
     }
 
@@ -420,55 +413,22 @@ struct Wertzeile: View {
     }
 }
 
-/// Einfaches Fließlayout: Elemente nebeneinander, bei Platzmangel in die nächste Zeile (zeilenweise mittig ausgerichtet).
-struct Fliesslayout: Layout {
-    var abstand: CGFloat = 4
-    var zeilenAbstand: CGFloat = 3
+/// Genau eine Zeile: passt der Inhalt nicht in die Breite, lässt er sich waagrecht scrollen (statt umzubrechen).
+struct EinzeilenScroller<Inhalt: View>: View {
+    let inhalt: Inhalt
 
-    private struct Zeile {
-        var indizes: [Int] = []
-        var breite: CGFloat = 0
-        var hoehe: CGFloat = 0
+    init(@ViewBuilder inhalt: () -> Inhalt) {
+        self.inhalt = inhalt()
     }
 
-    private func zeilen(_ maxBreite: CGFloat, _ groessen: [CGSize]) -> [Zeile] {
-        var ergebnis: [Zeile] = []
-        var aktuell = Zeile()
-        for (i, g) in groessen.enumerated() {
-            let noetig = aktuell.indizes.isEmpty ? g.width : aktuell.breite + abstand + g.width
-            if !aktuell.indizes.isEmpty && noetig > maxBreite {
-                ergebnis.append(aktuell)
-                aktuell = Zeile()
-            }
-            aktuell.breite = aktuell.indizes.isEmpty ? g.width : aktuell.breite + abstand + g.width
-            aktuell.hoehe = max(aktuell.hoehe, g.height)
-            aktuell.indizes.append(i)
+    var body: some View {
+        ScrollView(.horizontal) {
+            inhalt
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
-        if !aktuell.indizes.isEmpty { ergebnis.append(aktuell) }
-        return ergebnis
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let groessen = subviews.map { $0.sizeThatFits(.unspecified) }
-        let maxBreite = proposal.width ?? .infinity
-        let liste = zeilen(maxBreite, groessen)
-        let breite = liste.map(\.breite).max() ?? 0
-        let hoehe = liste.map(\.hoehe).reduce(0, +) + CGFloat(max(liste.count - 1, 0)) * zeilenAbstand
-        return CGSize(width: maxBreite.isFinite ? min(breite, maxBreite) : breite, height: hoehe)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let groessen = subviews.map { $0.sizeThatFits(.unspecified) }
-        var y = bounds.minY
-        for zeile in zeilen(bounds.width, groessen) {
-            var x = bounds.minX
-            for i in zeile.indizes {
-                let g = groessen[i]
-                subviews[i].place(at: CGPoint(x: x, y: y + (zeile.hoehe - g.height) / 2), anchor: .topLeading,
-                                  proposal: ProposedViewSize(width: g.width, height: g.height))
-                x += g.width + abstand
-            }
-            y += zeile.hoehe + zeilenAbstand
-        }
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

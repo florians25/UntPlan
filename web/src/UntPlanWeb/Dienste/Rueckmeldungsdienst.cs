@@ -282,7 +282,8 @@ public sealed class Rueckmeldungsdienst
     }
 
     /// <summary>Noch nicht übernommene Raumbuchungen und Klausuren eines Tages als Stunden „vorgemerkt“.</summary>
-    public IEnumerable<Rohstunde> Vorgemerkt(DateOnly d, Stand? s = null)
+    /// <param name="mitBuchungen">Auch die Buchungen aus dem Buchungsmodul (Status „zusaetzlich“, siehe <see cref="Buchungsdienst.Planstunden"/>).</param>
+    public IEnumerable<Rohstunde> Vorgemerkt(DateOnly d, Stand? s = null, bool mitBuchungen = true)
     {
         var iso = Plandienst.Iso(d);
         foreach (var m in _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND von = @d AND typ IN ('raumbuchung', 'klausur', 'klausurloeschen') ORDER BY erstellt", Lesen, Db.P("@d", iso)))
@@ -302,5 +303,7 @@ public sealed class Rueckmeldungsdienst
                     m.Raeume.Count > 0 || m.Unterricht.HasValue ? m.Raeume : (m.Raum is null ? new List<string>() : new List<string> { m.Raum }),
                     "vorgemerkt", null, m.Titel ?? "", m.Typ switch { WebRueckmeldungsTypen.Klausur => "Klausur", WebRueckmeldungsTypen.KlausurLoeschen => "KlausurLoeschen", _ => "Raumbuchung" });
         }
+        if (!mitBuchungen) yield break;
+        foreach (var r in Buchungsdienst.Planstunden(_db, d, () => s is null ? null : _plan.Rohstunden(s, d))) yield return r;
     }
 }

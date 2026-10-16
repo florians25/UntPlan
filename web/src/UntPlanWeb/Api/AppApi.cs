@@ -98,7 +98,7 @@ public static class AppApi
 
         api.MapPost("/anmelden", async (AnmeldeDaten d, HttpContext c, Benutzerdienst bd, Protokoll prot, Verwaltungsdienst vw) =>
         {
-            var (ergebnis, b) = bd.Anmelden(d.Login ?? "", d.Passwort ?? "");
+            var (ergebnis, b) = bd.Anmelden(d.Login ?? "", d.Passwort ?? "", c.Connection.RemoteIpAddress?.ToString(), c.Request.Headers.UserAgent.ToString());
             switch (ergebnis)
             {
                 case Benutzerdienst.Anmeldeergebnis.Ok:

@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Details einer Stunde (Blatt beim Antippen einer Karte) genau nach Vorlage:
 /// Kopf mit rundem X links, in der Mitte „Do. | 05.11.26 ⌄“ und die Uhrzeit, rechts ⋮ („Im Stundenplan anzeigen“);
-/// darunter links bündig Klasse | Gruppe, Fach, Raum und Lehrkraft, eine Trennlinie und die weiße Liste
-/// (Vertretungstext, Findet online statt, Lehrstoff, Schüler*innen, Hausaufgaben, Klassenbucheinträge, Notizen).
+/// darunter links bündig Klasse | Gruppe, Fach, Raum und Lehrkraft (nur Text), eine Trennlinie und die weiße Liste ohne
+/// Trennlinien zwischen den Menüpunkten (Vertretungstext, Findet online statt, Lehrstoff, Schüler*innen, Hausaufgaben, Klassenbucheinträge, Notizen).
 /// Unterseiten öffnen sich im selben Blatt; die Blattgröße bleibt dabei gleich.
 struct StundendetailView: View {
     let karten: [Karte]
@@ -36,6 +36,8 @@ struct StundendetailView: View {
         }
         .environmentObject(zustand)
         .background(Farben.blatt.ignoresSafeArea())
+        // Das Blatt bleibt beim Einblenden der Tastatur fest (keine Größenänderung, kein Springen des Inhalts)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }
 
@@ -238,15 +240,35 @@ struct StundendetailInhalt: View {
 
     // MARK: - Kopfblock
 
-    /// „Klasse | Klasse | Gruppe“ (Veranstaltung: Klassen bzw. Lehrkräfte).
+    /// „Klasse | Klasse | Gruppe“. Veranstaltung: nur die Klassen – die Lehrkräfte stehen einmal unten in ihrer Zeile.
     private var titelzeile: String {
-        var teile = karte.klassen.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k }.filter { !$0.isEmpty }
+        var teile = ohneDoppelte(karte.klassen.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k })
         if !karte.gruppe.isEmpty { teile.append(karte.gruppe) }
         if teile.isEmpty {
-            if istVeranstaltung { return karte.lehrer.map(\.k).filter { !$0.isEmpty }.joined(separator: " | ") }
-            return karte.titel
+            return istVeranstaltung ? "" : karte.titel
         }
         return teile.joined(separator: " | ")
+    }
+
+    /// Werte ohne Leere und ohne Doppelte (Groß-/Kleinschreibung egal), Reihenfolge bleibt.
+    private func ohneDoppelte(_ werte: [String]) -> [String] {
+        var ergebnis: [String] = []
+        for w in werte where !w.isEmpty && !ergebnis.contains(where: { $0.caseInsensitiveCompare(w) == .orderedSame }) {
+            ergebnis.append(w)
+        }
+        return ergebnis
+    }
+
+    /// Veranstaltung: jede Lehrkraft bzw. jeder Raum nur einmal.
+    private func einmal(_ werte: [Wert]) -> [Wert] {
+        guard istVeranstaltung else { return werte }
+        var ergebnis: [Wert] = []
+        for w in werte {
+            let t = w.k.isEmpty ? (w.alt ?? "") : w.k
+            if t.isEmpty || ergebnis.contains(where: { ($0.k.isEmpty ? ($0.alt ?? "") : $0.k).caseInsensitiveCompare(t) == .orderedSame }) { continue }
+            ergebnis.append(w)
+        }
+        return ergebnis
     }
 
     /// Offene Vertretung: Lehrkraft ohne neuen Wert (Karte „offen“ bzw. Kürzel leer und alter Wert gesetzt).
@@ -276,40 +298,42 @@ struct StundendetailInhalt: View {
     }
 
     /// Kopfblock nach Vorlage, links bündig mit 20 pt Rand: Klasse | Gruppe (17 pt), Fach (17 pt), Raum und Lehrkraft
-    /// (13 pt grau); Änderungen als „alt → neu“ mit durchgestrichenem altem Wert.
+    /// (13 pt grau). Nur Text, keine Plaketten: Änderungen als „alt → neu“ mit durchgestrichenem altem Wert, fehlende
+    /// Werte durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt.
     private var kopfblock: some View {
         let stil = Kartenstil(karte)
         let fach = istVeranstaltung ? (karte.text.isEmpty ? karte.art : karte.text) : (karte.fach.isEmpty ? karte.art : karte.fach)
-        let raeume = Wertzeile.bausteine(karte.raeume, durchgestrichen: stil.durchgestrichen, offenAlsPlakette: false)
-        let lehrer = Wertzeile.bausteine(karte.lehrer, durchgestrichen: stil.durchgestrichen || Kachelbau.istBereitschaftAbwesend(karte),
+        let raeume = Wertzeile.bausteine(einmal(karte.raeume), durchgestrichen: stil.durchgestrichen, offenAlsPlakette: false)
+        let lehrer = Wertzeile.bausteine(einmal(karte.lehrer), durchgestrichen: stil.durchgestrichen || Kachelbau.istBereitschaftAbwesend(karte),
                                          offenAlsPlakette: lehrerOffen)
         return VStack(alignment: .leading, spacing: 0) {
             if let titelBausteine {
                 Wertzeile(bausteine: titelBausteine, schrift: 17, farbe: Farben.tinte)
                     .padding(.bottom, 4)
             } else if !titelzeile.isEmpty {
-                Text(titelzeile)
-                    .font(.system(size: 17))
-                    .foregroundStyle(Farben.tinte)
-                    .strikethrough(stil.durchgestrichen, color: Farben.tinte)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                    .padding(.bottom, 4)
+                EinzeilenScroller {
+                    Text(titelzeile)
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.tinte)
+                        .strikethrough(stil.durchgestrichen, color: Farben.tinte)
+                        .textSelection(.enabled)
+                }
+                .padding(.bottom, 4)
             }
             if !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach {
-                        Text(alt)
-                            .strikethrough(true)
-                            .foregroundStyle(Farben.gedaempft)
-                        Text("→")
-                            .foregroundStyle(Farben.gedaempft)
+                EinzeilenScroller {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        if let alt = karte.fachAlt, !alt.isEmpty, alt != karte.fach {
+                            Text(alt)
+                                .strikethrough(true)
+                            Text("→")
+                        }
+                        Text(fach)
+                            .strikethrough(stil.durchgestrichen, color: Farben.tinte)
                     }
-                    Text(fach)
-                        .strikethrough(stil.durchgestrichen, color: Farben.tinte)
+                    .font(.system(size: 17))
+                    .foregroundStyle(Farben.tinte)
                 }
-                .font(.system(size: 17))
-                .foregroundStyle(Farben.tinte)
                 .padding(.bottom, 8)
             }
             if !raeume.isEmpty {
@@ -320,10 +344,12 @@ struct StundendetailInhalt: View {
                 Wertzeile(bausteine: lehrer)
             }
             if !karte.abwesendeKlassen.isEmpty {
-                Text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Farben.entfallRand)
-                    .padding(.top, 7)
+                EinzeilenScroller {
+                    Text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.gedaempft)
+                }
+                .padding(.top, 7)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -339,7 +365,6 @@ struct StundendetailInhalt: View {
             }
             if kollegium && mitUnterricht {
                 onlineZeile
-                DetailTrenner()
             }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 link(.lehrstoff, Detailzeile(symbol: "doc.text", titel: "Lehrstoff", untertitel: daten.eintrag?.thema))
@@ -372,14 +397,12 @@ struct StundendetailInhalt: View {
         }
     }
 
+    /// Menüpunkt ohne Trennlinie (wie in der Vorlage).
     private func link<R: View>(_ seite: Detailseite, _ inhalt: Detailzeile<R>) -> some View {
-        VStack(spacing: 0) {
-            NavigationLink(value: seite) {
-                inhalt
-            }
-            .buttonStyle(ZeilenKnopfStil())
-            DetailTrenner()
+        NavigationLink(value: seite) {
+            inhalt
         }
+        .buttonStyle(ZeilenKnopfStil())
     }
 
     /// „Findet online statt“ – speicherbar für Lehrkräfte mit Schreibrecht (optimistisch, bei Fehler zurück).

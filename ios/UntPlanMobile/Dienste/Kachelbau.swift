@@ -284,6 +284,13 @@ enum Kachelbau {
         w.map(\.k).filter { !$0.isEmpty }
     }
 
+    /// Werte ohne Doppelte (Groß-/Kleinschreibung egal), Reihenfolge bleibt.
+    private static func einmal(_ liste: [String]) -> [String] {
+        var ergebnis: [String] = []
+        for w in liste where !w.isEmpty && !ergebnis.contains(where: { gleich($0, w) }) { ergebnis.append(w) }
+        return ergebnis
+    }
+
     /// Abwesende Koppelklassen: Einträge ohne neuen Wert mit gesetztem alten Wert (ohne Doppelte).
     static func weggefalleneKlassen(_ k: Karte) -> [String] {
         var ergebnis: [String] = []
@@ -361,6 +368,12 @@ enum Kachelbau {
         if k.lehrer.contains(where: { $0.neu }) { geaendert.insert("lehrer") }
         if k.raeume.contains(where: { $0.neu || (!($0.alt ?? "").isEmpty && !gleich($0.alt ?? "", $0.k)) }) { geaendert.insert("raum") }
         if let alt = k.fachAlt, !alt.isEmpty, !gleich(alt, k.fach) { geaendert.insert("fach") }
+        // Raumänderung ohne gekennzeichneten Wert (nur an der Art erkennbar): der Raum steht trotzdem als Plakette da
+        let artKlein = k.art.lowercased()
+        if !geaendert.contains("raum") && !werte(k.raeume).isEmpty
+            && (artKlein.contains("raumänderung") || artKlein.contains("raumvertretung") || artKlein.contains("raumwechsel")) {
+            geaendert.insert("raum")
+        }
 
         let offen = k.vertretungOffen || ((k.status == "offen" || k.status == "abwesend")
             && k.lehrer.contains { $0.neu && $0.k.isEmpty && !($0.alt ?? "").isEmpty })
@@ -444,9 +457,10 @@ enum Kachelbau {
 
     /// Veranstaltung: oben, was man im eigenen Plan nicht schon weiß (Klassenplan: Lehrkräfte, sonst Klassen), darunter
     /// der Anlass, dann die übrigen Teilnehmenden und der Raum.
+    /// Jede Angabe steht nur einmal (keine doppelten Lehrkräfte, Klassen oder Räume).
     private static func veranstaltungsZeilen(_ k: Karte, typ: String, ich: String, anlass: String) -> [Kachelzeile] {
-        let alle = werte(k.lehrer)
-        let klassen = werte(k.klassen)
+        let alle = einmal(werte(k.lehrer))
+        let klassen = einmal(werte(k.klassen))
         let oben = typ == "klasse" ? alle : klassen
         let unten = typ == "klasse"
             ? klassen.filter { $0.uppercased() != ich }
@@ -463,7 +477,7 @@ enum Kachelbau {
             zeilen.append(Kachelzeile(schluessel: typ == "klasse" ? "klasse" : "lehrer",
                                       teile: [Kachelteil(text: unten.joined(separator: ", "))]))
         }
-        let raeume = werte(k.raeume)
+        let raeume = einmal(werte(k.raeume))
         if !raeume.isEmpty {
             zeilen.append(Kachelzeile(schluessel: "raum", teile: [Kachelteil(text: raeume.joined(separator: ", "))]))
         }
@@ -506,29 +520,43 @@ enum Kachelbau {
         for (i, schluessel) in reihenfolge.enumerated() {
             var zeile = Kachelzeile(schluessel: schluessel, teile: [], fett: i == 0)
             var hatListe = false
+            var koppliste = false
             var geaendertWert = geaendert.contains(schluessel)
             switch schluessel {
             case "lehrer":
                 if k.lehrer.count > 1 {
-                    // Kopplung: jedes Kürzel mit eigenem Zustand
+                    // Kopplung: immer alle Lehrkräfte, jedes Kürzel mit eigenem Zustand – auch im Plan der abwesenden
+                    // Lehrkraft. Abwesend ohne Vertretung: durchgestrichen in der grünen Plakette (offen); abwesend mit
+                    // Vertretung: durchgestrichen, daneben die Vertretung als grüne Plakette.
                     var teile: [Kachelteil] = []
+                    func hinzu(_ t: Kachelteil) {
+                        if teile.contains(where: { gleich($0.text, t.text) && $0.stil == t.stil }) { return }
+                        teile.append(t)
+                    }
+                    let offenStil: Kachelteil.Stil = art == .entfall ? .weg : .offen
                     for w in k.lehrer {
-                        if w.neu && w.k.isEmpty {
-                            if let a = w.alt, !a.isEmpty {
-                                teile.append(Kachelteil(text: a, stil: .weg))
-                            } else if k.vertretungOffen {
-                                teile.append(Kachelteil(text: "???", stil: .weg))
+                        let alt = w.alt ?? ""
+                        if w.k.isEmpty {
+                            if !alt.isEmpty {
+                                hinzu(Kachelteil(text: alt, stil: offenStil))
+                            } else if w.neu && k.vertretungOffen {
+                                hinzu(Kachelteil(text: "???", stil: offenStil))
                             }
-                        } else if w.neu && !(w.alt ?? "").isEmpty {
-                            teile.append(Kachelteil(text: w.k, stil: .plakette))
-                        } else if !w.k.isEmpty {
-                            teile.append(Kachelteil(text: w.k))
+                        } else if w.neu && !alt.isEmpty && !gleich(alt, w.k) {
+                            hinzu(Kachelteil(text: alt, stil: .weg))
+                            hinzu(Kachelteil(text: w.k, stil: .plakette))
+                        } else {
+                            hinzu(Kachelteil(text: w.k))
                         }
                     }
+                    // Wer vertreten wird, steht nicht zusätzlich als „offen“ da
+                    let vertreten = teile.filter { $0.stil == .weg }.map { $0.text }
+                    teile.removeAll { t in t.stil == .offen && vertreten.contains { gleich($0, t.text) } }
                     if teile.count > 1 {
-                        for j in 0..<(teile.count - 1) { teile[j].trenner = ", " }
+                        for j in teile.indices { teile[j].trenner = j < teile.count - 1 ? ", " : "" }
                         zeile.teile = teile
                         hatListe = true
+                        koppliste = true
                     }
                 }
                 if !hatListe {
@@ -547,7 +575,7 @@ enum Kachelbau {
                         zeile.teile = wertTeile(jetzt: jetzt, vorher: vorher, geaendert: geaendertWert)
                     }
                 }
-                if lehrerOffen {
+                if lehrerOffen && !koppliste {
                     for j in zeile.teile.indices where zeile.teile[j].stil == .weg {
                         zeile.teile[j].stil = .offen
                     }
@@ -602,8 +630,9 @@ enum Kachelbau {
                     }
                     hatListe = true
                 } else {
+                    // Raumänderung immer mit Plakette (neuer Raum grün) – auch wenn sich sonst nichts geändert hat
                     zeile.teile = wertTeile(jetzt: jetzt.joined(separator: ", "), vorher: vorher.joined(separator: ", "),
-                                            geaendert: geaendertWert && art != .klausur || (geaendertWert && k.istRaumbuchung))
+                                            geaendert: geaendertWert)
                 }
                 // Online-Stunde: Plakette „Online“ in der Raumzeile
                 if k.online && art != .entfall && !jetzt.contains(where: { gleich($0, "Online") }) {

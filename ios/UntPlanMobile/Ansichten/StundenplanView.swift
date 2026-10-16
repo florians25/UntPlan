@@ -696,8 +696,8 @@ struct WochenrasterView: View {
     // Maße aus app.css (iPhone: Zeitspalte 38 pt)
     private var rinnenBreite: CGFloat { kompakt ? 38 : 45 }
     private var tagesLuecke: CGFloat { kompakt ? 2 : 3 }
-    /// Höhe je Minute; in der Tagesansicht größer, damit die Karten mehr Text zeigen.
-    private var proMinute: CGFloat { nurTag == nil ? 1.2704 : 1.75 }
+    /// Höhe je Minute – Woche und Tag gleich (Raster wie im Original).
+    private let proMinute: CGFloat = 1.2704
     private let abstandUnten: CGFloat = 28
 
     private var tage: [Tageskopf] {
@@ -778,7 +778,7 @@ struct WochenrasterView: View {
     @ViewBuilder
     private func wochenkopf(spaltenBreite: CGFloat, kacheln: [String: [Kachel]]) -> some View {
         if let nurTag, let tag = tage.first {
-            tageskopf(tag, iso: nurTag, kacheln: kacheln[tag.datum] ?? [])
+            tageskopf(tag, iso: nurTag, spaltenBreite: spaltenBreite)
         } else {
             HStack(alignment: .bottom, spacing: 0) {
                 kwFeld
@@ -829,72 +829,34 @@ struct WochenrasterView: View {
         .accessibilityHint(nurTag == nil ? "Zur aktuellen Woche" : "Zurück zur Wochenansicht")
     }
 
-    /// Kopf der Tagesansicht: Wochentag und Datum groß, rechts die Übersicht des Tages, darunter Hinweise.
-    private func tageskopf(_ tag: Tageskopf, iso: String, kacheln: [Kachel]) -> some View {
+    /// Kopf der Tagesansicht wie der Wochenkopf: links „KW / Monat“, darüber mittig in der Tagesspalte „Fr.“ und groß
+    /// die Tageszahl (heute orange). Ein Tipp führt zurück zur Woche.
+    private func tageskopf(_ tag: Tageskopf, iso: String, spaltenBreite: CGFloat) -> some View {
         let heute = Datumsformat.istHeute(iso)
-        let stunden = kacheln.filter { [.normal, .aenderung, .klausur, .abgegeben].contains($0.art) }.reduce(0) { $0 + $1.dauer }
-        let entfall = kacheln.filter { $0.art == .entfall }.count
-        let aenderung = kacheln.filter { $0.art == .aenderung || $0.art == .abgegeben }.count
-        let aufsichten = kacheln.filter { $0.art == .aufsicht }.count
-        let veranstaltungen = kacheln.filter { $0.art == .veranstaltung || $0.art == .ganztagTermin || $0.art == .termin }.count
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .bottom, spacing: 10) {
-                kwFeld
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(Datumsformat.anzeige(iso, "EEEE"))
-                        .font(.system(size: 13.5, weight: .medium))
-                        .foregroundStyle(heute ? Farben.heute : Farben.tinte2)
-                    Text(Datumsformat.anzeige(iso, "d. MMMM yyyy"))
-                        .font(.system(size: 22, weight: .bold))
-                        .tracking(-0.4)
-                        .foregroundStyle(heute ? Farben.heute : Farben.tinte)
-                }
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .contentShape(Rectangle())
-                .onTapGesture { tagAntippen?(iso) }
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("Zurück zur Wochenansicht")
-                Spacer(minLength: 6)
-                HStack(spacing: 6) {
-                    if stunden > 0 { tageszahl("\(stunden) Std.", Farben.tinte2) }
-                    if aenderung > 0 { tageszahl(aenderung == 1 ? "1 Änderung" : "\(aenderung) Änderungen", Farben.gruen) }
-                    if entfall > 0 { tageszahl("\(entfall) Entfall", Farben.entfallRand) }
-                    if aufsichten > 0 { tageszahl(aufsichten == 1 ? "1 Aufsicht" : "\(aufsichten) Aufsichten", Farben.aufsichtBalken) }
-                    if veranstaltungen > 0 { tageszahl(veranstaltungen == 1 ? "1 Termin" : "\(veranstaltungen) Termine", Farben.aenderungRand) }
-                }
-                .padding(.trailing, 12)
+        return HStack(alignment: .bottom, spacing: 0) {
+            kwFeld
+            VStack(spacing: kompakt ? 2 : 3) {
+                Text(Datumsformat.anzeige(iso, "EE"))
+                    .font(.system(size: kompakt ? 12 : 12.5, weight: .regular))
+                    .foregroundStyle(heute ? Farben.heute : Farben.tinte2)
+                Text(Datumsformat.anzeige(iso, "d"))
+                    .font(.system(size: kompakt ? 17 : 18, weight: .bold))
+                    .tracking(-0.36)
+                    .foregroundStyle(heute ? Farben.heute : Farben.tinte)
             }
-            let hinweise = tag.hinweise.filter { !$0.isEmpty }
-            if !hinweise.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(hinweise.prefix(3).enumerated()), id: \.offset) { eintrag in
-                        Label(eintrag.element, systemImage: "info.circle")
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(Farben.tinte2)
-                            .lineLimit(2)
-                    }
-                }
-                .padding(.leading, rinnenBreite + 10)
-                .padding(.trailing, 12)
-            }
+            .lineLimit(1)
+            .frame(width: spaltenBreite)
+            .contentShape(Rectangle())
+            .onTapGesture { tagAntippen?(iso) }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Datumsformat.anzeige(iso, "EEEE, d. MMMM"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Zurück zur Wochenansicht")
         }
         .padding(.top, 2)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Farben.leiste)
-    }
-
-    private func tageszahl(_ text: String, _ farbe: Color) -> some View {
-        Text(text)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(farbe)
-            .lineLimit(1)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(farbe.opacity(0.12), in: Capsule())
-            .fixedSize()
     }
 
     // MARK: Zeitspalte und Linien (.slotrow)
@@ -1132,7 +1094,7 @@ struct KartenKnopfStil: ButtonStyle {
 }
 
 /// Details einer Pausenaufsicht im gleichen Aufbau wie alle Stundendetails: Blattkopf mit X, Datum | Zeit und ⋮;
-/// Kopfblock mit Ort, „Pausenaufsicht“, Zeitraum und Lehrkraft (Vertretung: alt durchgestrichen, neu im grünen Label);
+/// Kopfblock mit Ort, „Pausenaufsicht“, Zeitraum und Lehrkraft (nur Text; Vertretung: alt durchgestrichen → neu);
 /// darunter nur „Im Stundenplan anzeigen“ für die beteiligten Lehrkräfte.
 struct AufsichtDetailView: View {
     let aufsicht: Aufsicht
@@ -1156,7 +1118,7 @@ struct AufsichtDetailView: View {
         aufsicht.lehrer == "???" ? "" : aufsicht.lehrer
     }
 
-    /// Lehrkraft-Zeile: regulär als Text; Vertretung alt durchgestrichen und neu im grünen Label; offen alt im grünen Label.
+    /// Lehrkraft-Zeile (nur Text): regulär das Kürzel; Vertretung „alt → neu“ (alt durchgestrichen); offen alt durchgestrichen.
     private var lehrkraft: [Wertbaustein] {
         let alt = aufsicht.alt ?? ""
         switch aufsicht.status {
@@ -1242,7 +1204,6 @@ struct AufsichtDetailView: View {
                     VStack(spacing: 0) {
                         if !aufsicht.gang.isEmpty && aufsicht.gang != ort {
                             Detailzeile(symbol: "mappin.and.ellipse", titel: "Ort", untertitel: aufsicht.gang, pfeil: false)
-                            DetailTrenner()
                         }
                         ForEach(planziele) { plan in
                             Button {
@@ -1252,7 +1213,6 @@ struct AufsichtDetailView: View {
                                 Detailzeile(symbol: "person", titel: "Im Stundenplan anzeigen", untertitel: plan.anzeige)
                             }
                             .buttonStyle(ZeilenKnopfStil())
-                            DetailTrenner()
                         }
                     }
                     .padding(.top, 6)

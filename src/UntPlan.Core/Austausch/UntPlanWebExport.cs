@@ -116,6 +116,10 @@ public static class UntPlanWebExport
                         LehrerAlt = (e.Status is TagesStatus.Vertreten or TagesStatus.Offen) && e.Vertretung?.LehrerId is int alt && !e.LehrerIds.Contains(alt)
                             ? new List<string> { ix.KLehrer(alt) } : new List<string>(),
                         Bereitschaft = Vertretungen.IstBereitschaftsfach(d, e.FachId) || Vertretungen.IstBereitschaftsfach(d, e.Regel?.FachId),
+                        // Prüfungszeile bzw. wegen der Prüfung entfallener Unterricht (nicht: Klausuraufsicht mit eigenem Unterricht)
+                        Klausur = e.Vertretung is { KlausurId: int kid } kv && d.Klausuren.FirstOrDefault(k => k.Id == kid && k.Aktiv) is { } kl
+                            && (kv.Art == VertretungsArt.Klausur || (kv.IstEntfall && kv.Quelle == VertretungsQuelle.Klausur
+                                && ((kv.UnterrichtId.HasValue && kl.UnterrichtId == kv.UnterrichtId) || kl.KlassenIds.Intersect(kv.KlassenIds).Any()))) ? kid : null,
                     });
                 foreach (var z in Vertretungsplan.Zeilen(d, t))
                     vertretungen.Add(new WebVertretung
@@ -458,12 +462,12 @@ public static class UntPlanWebExport
                         Text = string.Join(" – ", new[] { m.Titel, m.Text }.Where(x => !string.IsNullOrWhiteSpace(x))), Benutzer = "UntPlanWeb " + m.Absender,
                     });
             }
-            else
+            else if (!d.Klausuren.Any(k => k.WebId == m.Id)) // dieselbe Rückmeldung nicht doppelt übernehmen
             {
                 d.Klausuren.Add(new Klausur
                 {
                     Id = d.NeueId(), Name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim(), Text = m.Text ?? "", Datum = datum, StundeVon = von, StundeBis = bis,
-                    KlassenIds = klassen, LehrerIds = lehrer, RaumIds = raeume, UnterrichtEntfaellt = true,
+                    KlassenIds = klassen, LehrerIds = lehrer, RaumIds = raeume, UnterrichtEntfaellt = true, WebId = m.Id,
                 });
                 tage.Add(datum);
             }

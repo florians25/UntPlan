@@ -124,7 +124,7 @@ export function karteDialog(karte, kontext = {}) {
     const klassenTeil = alleKlassen.length && alleKlassen.length < 8 ? wertKopf(alleKlassen, 8, kollegium || ich.element ? 'klasse' : null, !istEntfall() && (k.mitklassen || []).some(w => !w.k)) : '';
     const ersteKlasse = kuerzel(k.klassen)[0];
     const gruppe = k.gruppe ? (ersteKlasse ? `<a href="#" class="sd-link" data-plan="klasse" data-element="${e(ersteKlasse)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(k.gruppe)}</a>` : e(k.gruppe))
-      : k.fachName && k.fachName !== k.fach ? e(k.fachName) : '';
+      : ''; // kein Fach-Langname im Kopf – nur Kürzel
     const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}` : e(k.fach || k.text || k.art || 'Stunde');
     const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
     const zeile = [wochentag(k.datum), datumDe(k.datum), k.beginn ? `${k.beginn}-${k.ende}` : `${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'} Std.`,

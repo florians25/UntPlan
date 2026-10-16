@@ -198,6 +198,11 @@ public sealed record WebStunde
     /// UntPlanWeb zeigt sie wie eine Stunde einer abwesenden Lehrkraft (nicht als Entfall). Ältere Pakete: false.
     /// </summary>
     public bool Bereitschaft { get; init; }
+    /// <summary>
+    /// Prüfung (Klausur-Id aus UntPlan), zu der die Stunde gehört: die Prüfungszeile selbst bzw. der wegen der Prüfung entfallene
+    /// Unterricht. UntPlanWeb legt beides auf eine Karte (die Stunde wird zur Prüfung, Raum alt → neu). Ältere Pakete: null.
+    /// </summary>
+    public int? Klausur { get; init; }
 }
 
 public sealed record WebVertretung

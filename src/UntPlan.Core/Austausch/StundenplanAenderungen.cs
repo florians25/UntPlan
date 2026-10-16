@@ -42,9 +42,12 @@ public static class StundenplanAenderungen
     /// </summary>
     public static int KlausurDublettenEntfernen(Schuldatei d)
     {
-        var weg = d.Klausuren
+        // dieselbe Rückmeldung mehrfach übernommen (gleiche WebId) bzw. gleiche Prüfung (Tag, Stunden, Klassen, Name) mehrfach angelegt
+        var weg = d.Klausuren.Where(k => k.Importiert).GroupBy(k => k.WebId)
+            .SelectMany(g => g.OrderBy(k => k.Id).Skip(1)).ToList();
+        weg.AddRange(d.Klausuren.Except(weg)
             .GroupBy(k => (k.Datum, k.StundeVon, k.StundeBis, Klassen: string.Join(",", k.KlassenIds.OrderBy(x => x)), Name: k.Name.Trim().ToLowerInvariant()))
-            .SelectMany(g => g.OrderByDescending(k => k.WebId != null).ThenBy(k => k.Id).Skip(1)).ToList();
+            .SelectMany(g => g.OrderByDescending(k => k.Importiert).ThenBy(k => k.Id).Skip(1)));
         foreach (var k in weg)
         {
             d.Klausuren.Remove(k);
@@ -207,6 +210,8 @@ public static class StundenplanAenderungen
                         tage.Add(a.Datum);
                         break;
                     }
+                    // dieselbe Rückmeldung wurde schon übernommen (z. B. über den automatischen Abgleich): nicht doppelt anlegen
+                    if (d.Klausuren.Any(x => x.WebId == a.Id)) break;
                     var k = new Klausur
                     {
                         Id = d.NeueId(), Name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim(), Text = m.Text ?? "", Datum = a.Datum, StundeVon = a.StundeVon,

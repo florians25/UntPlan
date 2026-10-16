@@ -1069,7 +1069,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 
 /* Stundendetails wie 59/62 */
 .sd-leiste.grau { background: #8a96a1; }
-.sd-rumpf { padding: 40px 120px 40px 100px; }
+.sd-rumpf { padding: 40px 120px 40px 166px; } /* linksbündig mit dem Reiter „Klassenbuch“ (Kopf 166px) */
 .sd-abschnitt { margin-bottom: 2.4rem; max-width: 1440px; }
 .sd-abschnitt-kopf { font-weight: 600; font-size: 15px; gap: 16px; padding-bottom: 14px; margin-bottom: 18px; }
 .sd-abschnitt-rumpf { padding-left: 42px; }
