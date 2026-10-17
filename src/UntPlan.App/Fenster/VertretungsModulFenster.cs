@@ -447,7 +447,12 @@ public sealed class KlausurenFenster : MdiFenster
         var ids = liste.Select(k => k.Id).ToHashSet();
         Aendern("Klausur löschen", AenderungsArt.Vertretung, d =>
         {
-            d.Klausuren.RemoveAll(k => ids.Contains(k.Id));
+            // ohne Reste; zur Klausur gewordene Buchungen kehren zurück
+            foreach (var k in d.Klausuren.Where(k => ids.Contains(k.Id)).ToList())
+            {
+                d.Klausuren.Remove(k);
+                Core.Austausch.StundenplanAenderungen.KlausurZeilenEntfernen(d, k);
+            }
             foreach (var t in liste.Select(k => k.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
         });
     }

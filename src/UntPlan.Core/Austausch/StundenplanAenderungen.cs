@@ -61,8 +61,9 @@ public static class StundenplanAenderungen
             .SelectMany(g => g.OrderByDescending(k => k.Importiert).ThenBy(k => k.Id).Skip(1)));
         foreach (var k in weg)
         {
+            // Dublette: die verbleibende Prüfung deckt deren Buchungen ab
             d.Klausuren.Remove(k);
-            KlausurZeilenEntfernen(d, k);
+            d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
         }
         foreach (var t in weg.Select(k => k.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
         return weg.Count;
