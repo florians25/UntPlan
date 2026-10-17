@@ -47,8 +47,13 @@ function attrappe(rueckmeldungen) {
   const stand = await (await api('/api/dokumente/beispiel', { method: 'POST', body: '{}' }, cookie)).json();
   const dok = `/api/dokumente/${stand.id}`;
   // Tag der Prüfung: nächster Werktag
-  const tag = new Date(); do tag.setDate(tag.getDate() + 1); while ([0, 6].includes(tag.getDay()));
-  const iso = tag.toISOString().slice(0, 10);
+  const tag = new Date();
+  let iso = '';
+  for (let i = 0; i < 120; i++) {
+    tag.setDate(tag.getDate() + 1);
+    iso = tag.toISOString().slice(0, 10);
+    if ((await (await api(`${dok}/pausenaufsicht/vertretung/${iso}`, {}, cookie)).json()).unterrichtstag) break;
+  }
   const el = await (await api(`${dok}/elemente?typen=klasse,lehrer,raum`, {}, cookie)).json();
   const web = await attrappe([{ id: 'klausur-1', typ: 'klausur', absender: 'MÜL', von: iso, stundeVon: 2, stundeBis: 3, titel: 'Mathe-Klausur', klassen: [el.klasse[0].k], lehrer: el.lehrer[0].k, raeume: [el.raum[0].k] }]);
   await api(`${dok}/untplanweb/einstellungen`, { method: 'PUT', body: JSON.stringify({ schulId: '123456', server: '127.0.0.1', port: web.port, https: false, apiSchluessel: 'geheim' }) }, cookie);
@@ -93,6 +98,10 @@ function attrappe(rueckmeldungen) {
 
     // Stundenplanänderungen
     await page.click('.fenster[data-typ=untplanweb] button[data-teil=stpl-aenderungen]');
+    await page.waitForSelector('.fenster[data-typ="untplanweb.stpl"] .t-kopf');
+    await page.waitForTimeout(600);
+    await page.fill('.fenster[data-typ="untplanweb.stpl"] input[type=date] >> nth=1', iso);
+    await page.click('.fenster[data-typ="untplanweb.stpl"] button:text-is("Laden")');
     await page.waitForSelector('.fenster[data-typ="untplanweb.stpl"] .t-zeile:has-text("Mathe-Klausur")', { timeout: 15000 });
     await page.click('.fenster[data-typ="untplanweb.stpl"] button:text-is("Prüfungen markieren")');
     await foto('03-stundenplanaenderungen.png');
@@ -147,7 +156,7 @@ function attrappe(rueckmeldungen) {
     await page.click('.dialog .knopf.primaer');
     await page.waitForTimeout(800);
     await page.click('.fenster[data-typ=pausenaufsicht] .pa-zelle >> nth=0');
-    await page.click('.fenster[data-typ=pausenaufsicht] .fenster-werkzeuge button:has-text("Lehrervorschlag")');
+    await page.click('.fenster[data-typ=pausenaufsicht] .fenster-werkzeuge button:has-text("Vorschlag")');
     await page.waitForSelector('.dialog .pa-vorschlag .t-zeile');
     await foto('11-pausenaufsicht-vorschlag.png');
     await page.click('.dialog .knopf:text-is("Abbrechen")');

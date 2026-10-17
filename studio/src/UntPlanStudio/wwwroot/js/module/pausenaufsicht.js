@@ -29,15 +29,15 @@ function planFenster(f, p) {
   f.werkzeuge.append(minuten);
   f.trenner();
   if (schreiben) {
-    f.werkzeug({ text: 'Lehrervorschlag', symbol: 'lehrer', aktion: () => vorschlag() });
-    f.werkzeug({ text: 'Aufsicht löschen', symbol: 'loeschen', aktion: () => zelleLoeschen() });
-    f.werkzeug({ text: '??? / Keine Aufsicht', symbol: 'abwesenheit', titel: 'Aufsicht (???) bzw. keine Aufsicht', aktion: () => teile(0) });
+    f.werkzeug({ text: 'Vorschlag', symbol: 'lehrer', titel: 'Lehrervorschlag mit Bewertung', aktion: () => vorschlag() });
+    f.werkzeug({ text: 'Entfernen', symbol: 'loeschen', titel: 'Aufsicht löschen', aktion: () => zelleLoeschen() });
+    f.werkzeug({ text: 'Keine Aufsicht', symbol: 'abwesenheit', titel: 'Aufsicht (???) bzw. keine Aufsicht', aktion: () => teile(0) });
     f.werkzeug({ text: 'Teilen', symbol: 'plus', titel: 'Aufsicht teilen', aktion: () => teile(1) });
-    f.werkzeug({ text: 'Teilung entfernen', symbol: 'zeile_loeschen', aktion: () => teile(-1) });
+    f.werkzeug({ text: 'Teilung –', symbol: 'zeile_loeschen', titel: 'Teilung entfernen', aktion: () => teile(-1) });
     f.trenner();
     f.werkzeug({ text: 'Optimierung', symbol: 'optimierung', aktion: optimieren });
     f.werkzeug({ text: 'Gewichtung', symbol: 'statistik', aktion: gewichtung });
-    f.werkzeug({ text: 'Löschen', symbol: 'loeschen', titel: 'Aufsichten des Elements bzw. alle löschen', aktion: () => {
+    f.werkzeug({ text: 'Alle …', symbol: 'loeschen', titel: 'Aufsichten des Elements bzw. alle löschen', aktion: () => {
       const r = f.werkzeuge.getBoundingClientRect();
       menue(r.right - 260, r.bottom, [
         { text: 'Aufsichten dieses Elements löschen', aktion: async () => { if (await frage('Alle Aufsichten dieses Elements löschen?', { gefahr: true, ja: 'Löschen' })) { await api.post(api.dok('/pausenaufsicht/loeschen'), { sicht, id: Number(element.value) }); neu(); } } },

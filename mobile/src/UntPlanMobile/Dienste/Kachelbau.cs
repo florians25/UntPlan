@@ -283,6 +283,7 @@ public static class Kachelbau
     /// <summary>Eine Stundenkarte als Kachel.</summary>
     public static Kachel AusKarte(PlanKarte karte, string art)
     {
+        karte = ZusatzNormalisiert(karte);
         var kachel = AusKarteKern(karte, art);
         Zusaetze(kachel, karte);
         return kachel;
@@ -341,14 +342,21 @@ public static class Kachelbau
             .Where(x => x.Length > 0 && x is not (KeineLehrkraft or "???" or "+" or "+++")).Distinct(Ci)
             .Select(x => new PlanWert(x, null, true, true)).ToList();
 
+    /// <summary>
+    /// Zusatzstunde: alle beteiligten Lehrkräfte mit „+“-Label (keine Durchstreichung, kein „alt | neu“) – nicht bei einer Veranstaltung
+    /// und nicht bei einer Vertretung ohne bzw. noch ohne Lehrkraft (dort steht die bisherige Lehrkraft durchgestrichen im Label).
+    /// </summary>
+    public static PlanKarte ZusatzNormalisiert(PlanKarte k)
+    {
+        if (k.Status != "geaendert" || !IstZusatzstunde(k) || (k.Fach ?? "").Length == 0 || k.VertretungOffen
+            || k.Lehrer.Any(w => w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)))
+            return k;
+        return k with { Lehrer = ZusatzLehrer(k.Lehrer) };
+    }
+
     private static Kachel AusKarteKern(PlanKarte karte, string art)
     {
         var k = karte with { Text = karte.Text ?? "", Art = karte.Art ?? "", Fach = karte.Fach ?? "" };
-        // Zusatzstunde: alle beteiligten Lehrkräfte mit „+“-Label (keine Durchstreichung, kein „alt | neu“)
-        // (nicht bei einer Vertretung ohne bzw. noch ohne Lehrkraft – dort steht die bisherige Lehrkraft durchgestrichen im Label)
-        if (k.Status == "geaendert" && IstZusatzstunde(k) && !(k.Unterricht is null && k.Fach.Length == 0 && k.Text.Length > 0)
-            && !k.VertretungOffen && !k.Lehrer.Any(w => w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)))
-            k = k with { Lehrer = ZusatzLehrer(k.Lehrer) };
         // Offene Raumvertretung („???“ bzw. Raumänderung ohne neuen Raum): wie eine offene Lehrervertretung – bisheriger Raum
         // durchgestrichen in der Plakette
         var raumOffen = k.Raeume.Any(w => w.K == "???") || IstOffeneRaumvertretung(k);

@@ -1,7 +1,7 @@
 /* Modul MultiUser (Präfix mu-) */
 .mu-feld { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .mu-feld .sym { width: 14px; height: 14px; }
-.mu-sperre { color: var(--warnung); margin-left: 4px; }
+.mu-sperre { color: #ffd28a; margin-left: 4px; }
 .mu-fenster { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 12px; background: var(--flaeche); }
 .mu-fenster h3 { margin: 0 0 6px; font-size: 13px; font-weight: var(--mittel); color: var(--akzent); }
 .mu-fenster p { margin: 4px 0; }

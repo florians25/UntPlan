@@ -263,6 +263,22 @@ public sealed class DruckEinstellungenTests : IClassFixture<StudioFabrik>
 
         var tag = d.Einstellungen.SchuljahrVon.AddDays(21);
         while (!Kalender.IstUnterrichtstag(d, tag)) tag = tag.AddDays(1);
+        // eine Vertretung am Tag (manuell, wie im Vertretungsfenster angelegt)
+        var u = d.Unterrichte.First(x => x.Zeilen[0].LehrerId.HasValue && x.Zeilen[0].KlassenIds.Count > 0);
+        var vertreter = d.Lehrer.First(l => l.Id != u.Zeilen[0].LehrerId);
+        var r0 = await c.GetAsync($"{basis}/vertretungsplan?von={tag:yyyy-MM-dd}&version=lehrer");
+        Assert.Equal("application/pdf", r0.Content.Headers.ContentType!.MediaType);
+        Assert.All(r0.Content.Headers.GetValues("Content-Disposition").Single().Split("filename*")[0], ch => Assert.True(ch < 128, "Dateiname im Kopf nur ASCII"));
+        var mitVertretung = Dokument.Klonen(d);
+        mitVertretung.Vertretungen.Add(new Vertretung { Id = mitVertretung.NeueId(), Datum = tag, Stunde = 2, Art = VertretungsArt.Vertretung, Quelle = VertretungsQuelle.Manuell,
+            UnterrichtId = u.Id, LehrerId = u.Zeilen[0].LehrerId, VertreterId = vertreter.Id, FachId = u.Zeilen[0].FachId, KlassenIds = u.Zeilen[0].KlassenIds.ToList(), Text = "Smoketext" });
+        var id2 = await c.BeispielHochladenAsync(mitVertretung);
+        var html2 = await c.GetStringAsync($"/api/dokumente/{id2}/druck/vertretungsplan?von={tag:yyyy-MM-dd}&ausgabe=html&version=lehrer");
+        Assert.Contains("Smoketext", html2);
+        Assert.Contains(vertreter.Kurzname, html2);
+        IstPdf(await c.GetByteArrayAsync($"/api/dokumente/{id2}/druck/vertretungsplan?von={tag:yyyy-MM-dd}&version=lehrer"));
+        var vt = await c.GetJsonAsync($"/api/dokumente/{id2}/druck/bericht/vertretungen?von={tag:yyyy-MM-dd}&bis={tag:yyyy-MM-dd}&ausgabe=json");
+        Assert.Contains("Smoketext", vt["zeilen"]!.ToJsonString());
         var pdf = await c.GetByteArrayAsync($"{basis}/vertretungsplan?von={tag:yyyy-MM-dd}&bis={tag.AddDays(6):yyyy-MM-dd}&version=lehrer");
         IstPdf(pdf, 3);
         var html = await c.GetStringAsync($"{basis}/vertretungsplan?von={tag:yyyy-MM-dd}&ausgabe=html");
