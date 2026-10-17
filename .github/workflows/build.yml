@@ -73,13 +73,7 @@ jobs:
           name: UntPlan 1.0.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: true
-          body: |
-            UntPlan – Stunden- und Vertretungsplanung für Schulen in NRW.
-
-            **Installation:** `UntPlan-Setup-*.exe` herunterladen und ausführen (Windows 10/11, 64 Bit, keine .NET-Installation nötig).
-            Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
-
-            Stand: ${{ github.ref_name }} @ ${{ github.sha }}
+          body_path: docs/RELEASENOTES.md
           files: |
             artifacts/UntPlan-Setup-*.exe
             artifacts/UntPlan-portabel.zip
