@@ -289,7 +289,7 @@ public class EmpfaengerRaumwahlTests
         foreach (var datei in new[] { "app.css", "uebersicht.css", "buchen.css", "kbeinstellungen.css", "klassenbuch.css", "sprechtag.css" })
         {
             var inhalt = Datei("css", datei);
-            foreach (var zeile in inhalt.Split('\n').Where(z => z.Contains(":hover") && z.Contains("text-decoration: underline")))
+            foreach (var zeile in inhalt.Split('\n').Where(z => z.Contains(":hover") && z.Contains("text-decoration: underline") && !z.TrimStart().StartsWith("a:hover {")))
                 Assert.Fail($"{datei}: {zeile.Trim()}");
         }
         // gewöhnliche Links im Text behalten ihre Unterstreichung
