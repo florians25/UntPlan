@@ -19,10 +19,10 @@ const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert'
 /** Verlegte Stunde (hierher verlegt bzw. von hier weg verlegt): eigenes Verlegungssymbol statt „+“ bzw. Entfall-Dreieck. */
 const istVerlegung = k => /verleg|statt/i.test(k.art || '') || !!k.nach;
 
-/** Hover-Text eines geänderten Werts wie im Original: Raum „B070 → C197“, Lehrkraft „LAN | ILK“ (erscheint nur beim Überfahren des Labels). */
-const wechsel = (alt, neu, lehrkraft = false) => `${alt} ${lehrkraft ? '|' : '→'} ${neu}`;
-/** Hover-Attribute eines geänderten Werts: „B070 → C197“ bzw. „LAN | ILK“ (ohne Durchstreichung). */
-const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(alt, neu, lehrkraft))}" data-hover-alt="${e(alt)}"`;
+/** Hover-Text eines geänderten Werts wie im Original: „B070 → C197“, auch bei Lehrkräften „LAN → ILK“ (erscheint nur beim Überfahren des Labels). */
+const wechsel = (alt, neu) => `${alt} → ${neu}`;
+/** Hover-Attribute eines geänderten Werts: „alt → neu“ (ohne Durchstreichung). */
+const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(alt, neu))}" data-hover-alt="${e(alt)}"`;
 
 /**
  * Werte (Klassen, Lehrkräfte, Räume) wie im Original: neuer Wert als grüne Kürzelbox, bei offener Vertretung der
@@ -88,8 +88,9 @@ function eckSymbole(k) {
   const info = infoText(k);
   const hw = k.hausaufgabeFaellig ? '<img class="ecke-hw" src="img/wu/exact/tt-homework-icon.svg" alt="" data-hover="Hausaufgabe fällig" data-hover-art="dunkel">' : '';
   const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" data-hover="${e(info)}" data-hover-art="dunkel">` : '';
-  // „Findet online statt“: grünes Label „Online“
-  const online = k.online && !['entfall', 'abwesend'].includes(k.status) ? '<span class="ecke-online" data-hover="Findet online statt" data-hover-art="dunkel">Online</span>' : '';
+  // „Findet online statt“: kleines Videosymbol
+  const online = k.online && !['entfall', 'abwesend'].includes(k.status)
+    ? '<span class="ecke-online" data-hover="Findet online statt" data-hover-art="dunkel" role="img" aria-label="Findet online statt"><i class="bi bi-camera-video-fill" aria-hidden="true"></i></span>' : '';
   return hw || i || online ? `<span class="ecke">${online}${hw}${i}</span>` : '';
 }
 
@@ -385,7 +386,7 @@ function hoverZeigen(ziel) {
   const pillen = ziel.dataset.hoverPillen;
   const text = ziel.dataset.hover || '';
   if (pillen) hoverEl.innerHTML = pillen.split(',').map(x => `<span>${e(x)}</span>`).join('');
-  else hoverEl.textContent = text;   // „alt → neu“ bzw. „alt | neu“ ohne Durchstreichung
+  else hoverEl.textContent = text;   // „alt → neu“ ohne Durchstreichung
   hoverEl.classList.toggle('dunkel', ziel.dataset.hoverArt === 'dunkel');
   hoverEl.classList.toggle('grau', ziel.dataset.hoverArt === 'grau');
   hoverEl.classList.toggle('pillen', !!pillen);

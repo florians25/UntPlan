@@ -13,6 +13,8 @@ public sealed record Klassenbucheintrag(int Id, string Datum, int Stunde, int Un
     public string Anmerkung { get; init; } = "";
     /// <summary>Wer zuletzt geändert hat (Lehrerkürzel bzw. Anmeldename).</summary>
     public string GeaendertVon { get; init; } = "";
+    /// <summary>Link zum Online-Unterricht (Videokonferenz, http/https) – gilt, solange „Findet online statt“ eingeschaltet ist.</summary>
+    public string OnlineLink { get; init; } = "";
 }
 
 /// <summary>Fehlzeit einer Schülerin/eines Schülers in einer Stunde. Art „fehlt“, „verspaetet“ oder „vorzeitig“, Status offen/entschuldigt/unentschuldigt.</summary>
@@ -64,7 +66,7 @@ public sealed partial class Klassenbuchdienst
     private static Klassenbucheintrag Lesen(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("thema"), r.Text("hausaufgabe"),
         r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"), r.Text("notiz_schueler"), r.Wahr("online"))
-    { Lehrform = r.Text("lehrform"), Anmerkung = r.Text("anmerkung"), GeaendertVon = r.Text("lehrer") };
+    { Lehrform = r.Text("lehrform"), Anmerkung = r.Text("anmerkung"), GeaendertVon = r.Text("lehrer"), OnlineLink = r.Text("online_link") };
 
     private static Fehlzeit LesenFehlzeit(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         r.Zahl("schueler_id"), r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"),
@@ -106,8 +108,8 @@ public sealed partial class Klassenbuchdienst
     /// <summary>Darf der Benutzer zu dieser Stunde schreiben? Lehrkraft muss die Stunde laut Plan halten.</summary>
     public bool DarfSchreiben(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht)
     {
-        if (b.Rolle is Rollen.Admin or Rollen.Leitung) return true;
-        if (b.LehrerKuerzel is not string l) return false;
+        if (Rechtedienst.Darf(b, Recht.KlassenbuchAlle)) return true;
+        if (b.LehrerKuerzel is not string l || !Rechtedienst.Darf(b, Recht.KlassenbuchEigene)) return false;
         return _plan.Karten(s, d, Elementtyp.Lehrer, l).Any(k => k.Unterricht == unterricht && stunde >= k.Von && stunde <= k.Bis && k.Status is not ("entfall" or "abwesend"));
     }
 
@@ -174,12 +176,24 @@ public sealed partial class Klassenbuchdienst
     /// <summary>Klassenleitung, Schulleitung oder Administration?</summary>
     /// <summary>Darf die Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten, Fehlzeitenberichte) nutzen: Klassenleitung mindestens einer Klasse, Schulleitung, Administration.</summary>
     public static bool FehlzeitenVerwalten(Benutzer b, Stand? s) =>
-        b.Rolle is Rollen.Admin or Rollen.Leitung ||
-        (s != null && b.LehrerKuerzel is string l && s.Paket.Elemente.Klassen.Any(k => k.Klassenleitung.Contains(l, Ci)));
+        Rechtedienst.Darf(b, Recht.KlassenbuchAlle) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle) ||
+        (s != null && b.LehrerKuerzel is string l && Rechtedienst.Darf(b, Recht.KlassenbuchKlasse) && s.Paket.Elemente.Klassen.Any(k => k.Klassenleitung.Contains(l, Ci)));
 
+    /// <remarks>Rechte: „Klassenbuch aller Klassen“ (Schreiben) bzw. „Klassenbuch der eigenen Klassen“ (Schreiben) als Klassenleitung.</remarks>
     public static bool IstKlassenleitung(Benutzer b, Stand s, string klasse) =>
-        b.Rolle is Rollen.Admin or Rollen.Leitung ||
-        b.LehrerKuerzel is string l && s.Paket.Elemente.Klassen.Any(k => Ci.Equals(k.Kurz, klasse) && k.Klassenleitung.Contains(l, Ci));
+        Rechtedienst.Darf(b, Recht.KlassenbuchAlle) ||
+        b.LehrerKuerzel is string l && Rechtedienst.Darf(b, Recht.KlassenbuchKlasse) && s.Paket.Elemente.Klassen.Any(k => Ci.Equals(k.Kurz, klasse) && k.Klassenleitung.Contains(l, Ci));
+
+    /// <summary>Abwesenheiten der Klasse entschuldigen: Recht „entschuldigen“ und Klassenleitung bzw. Recht „Abwesenheiten aller Klassen“.</summary>
+    public static bool DarfEntschuldigen(Benutzer b, Stand s, string klasse) =>
+        Rechtedienst.Darf(b, Recht.AbwesenheitEntschuldigen) && (IstKlassenleitung(b, s, klasse) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle));
+
+    /// <summary>Abwesenheiten, die länger als <see cref="Recht.RueckwirkendTage"/> Tage zurückliegen, nur mit dem Recht „rückwirkend bearbeiten“.</summary>
+    public static void RueckwirkendPruefen(Benutzer b, DateOnly datum, DateOnly heute)
+    {
+        if (datum < heute.AddDays(-Recht.RueckwirkendTage) && !Rechtedienst.Darf(b, Recht.AbwesenheitRueckwirkend))
+            throw new UnauthorizedAccessException($"Abwesenheiten, die länger als {Recht.RueckwirkendTage} Tage zurückliegen, darf Ihr Konto nicht bearbeiten.");
+    }
 
     private Karte? KarteZu(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string? lehrerHinweis = null) =>
         Waehlen(_plan.Karten(s, d, Elementtyp.Lehrer, b.LehrerKuerzel ?? ""), stunde, unterricht, lehrerHinweis)
@@ -227,9 +241,10 @@ public sealed partial class Klassenbuchdienst
     {
         var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var klassen = karte.Klassen.Select(k => k.K).ToList();
-        if (!DarfSchreiben(b, s, d, stunde, unterricht) && !klassen.Any(k => IstKlassenleitung(b, s, k)))
+        if (!(DarfSchreiben(b, s, d, stunde, unterricht) && Rechtedienst.Darf(b, Recht.AbwesenheitErfassen)) && !klassen.Any(k => IstKlassenleitung(b, s, k)))
             throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (d > _uhr.Heute) throw new ArgumentException("Fehlzeiten können nicht im Voraus erfasst werden.");
+        RueckwirkendPruefen(b, d, _uhr.Heute);
         var schueler = Schueler(s, klassen).ToDictionary(x => x.Id);
         var alt = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && schueler.ContainsKey(f.SchuelerId)).ToList();
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
@@ -285,8 +300,9 @@ public sealed partial class Klassenbuchdienst
         string grund = "", int stundeVon = 1, int stundeBis = 99, string? nachweis = null, string? entschuldigtAm = null, bool elternInformiert = false, string? notizIntern = null)
     {
         var sch = s.Schueler.FirstOrDefault(x => x.Id == schuelerId) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
-        if (!IstKlassenleitung(b, s, sch.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann ganze Tage eintragen.");
+        if (!IstKlassenleitung(b, s, sch.Klasse) && !Rechtedienst.Darf(b, Recht.AbwesenheitAlle)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann ganze Tage eintragen.");
         if (bis < von || bis.DayNumber - von.DayNumber > 60) throw new ArgumentException("Bitte einen Zeitraum von höchstens 60 Tagen wählen.");
+        RueckwirkendPruefen(b, von, _uhr.Heute);
         var anzahl = 0;
         // eine Abwesenheit über alle Tage (Zeitraum), nicht je Tag
         var gruppe = GruppenPraefix + Sicherheit.Zufall(10);
@@ -326,7 +342,8 @@ public sealed partial class Klassenbuchdienst
         {
             var f = _db.Einzel("SELECT * FROM fehlzeiten WHERE id = @i", LesenFehlzeit, Db.P("@i", id));
             if (f is null) continue;
-            if (!IstKlassenleitung(b, s, f.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann entschuldigen.");
+            if (!DarfEntschuldigen(b, s, f.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann entschuldigen.");
+            if (DateOnly.TryParse(f.Datum, out var fd)) RueckwirkendPruefen(b, fd, _uhr.Heute);
             n += _db.Ausfuehren("UPDATE fehlzeiten SET status = @s WHERE id = @i", Db.P("@s", Status(status)), Db.P("@i", id));
         }
         return n;

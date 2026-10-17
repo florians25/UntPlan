@@ -102,7 +102,7 @@ public sealed class Mitteilungsdienst
     public bool DarfSenden(Benutzer ich, MitteilungsEinstellungen? e = null)
     {
         e ??= Einstellungen();
-        if (e.Gesperrt!.Contains(ich.Id)) return false;
+        if (e.Gesperrt!.Contains(ich.Id) || !Rechtedienst.Darf(ich, Recht.MitteilungSenden)) return false;
         return ich.Rolle switch { Rollen.Eltern => e.ElternSenden, Rollen.Schueler => e.SchuelerSenden, _ => true };
     }
 
@@ -157,14 +157,14 @@ public sealed class Mitteilungsdienst
             res.Add(new("gruppe:kollegium", "Alle Lehrkräfte", "gruppe", "gruppen"));
             res.Add(new("gruppe:leitung", "Schulleitung und Administration", "gruppe", "gruppen"));
             res.Add(new("gruppe:klassenleitungen", "Alle Klassenlehrkräfte", "gruppe", "gruppen"));
-            if (ich.DarfNachrichten)
+            if (Rechtedienst.Darf(ich, Recht.MitteilungAlle))
             {
                 res.Add(new("gruppe:schueler", "Alle Schüler*innen", "gruppe", "gruppen"));
                 res.Add(new("gruppe:eltern", "Alle Erziehungsberechtigten", "gruppe", "gruppen"));
                 res.Add(new("gruppe:alle", "Alle Benutzer", "gruppe", "gruppen"));
             }
-            var familie = ich.DarfNachrichten || e.LehrerAnFamilie;
-            var eigene = ich.DarfNachrichten || !e.LehrerNurEigeneKlassen ? null : EigeneKlassen(s, ich.LehrerKuerzel);
+            var familie = Rechtedienst.Darf(ich, Recht.MitteilungFamilie) || e.LehrerAnFamilie;
+            var eigene = Rechtedienst.Darf(ich, Recht.MitteilungAlle) || !e.LehrerNurEigeneKlassen ? null : EigeneKlassen(s, ich.LehrerKuerzel);
             bool Erlaubt(string k) => eigene is null || eigene.Contains(k);
             foreach (var k in klassen)
             {

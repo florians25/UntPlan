@@ -497,15 +497,15 @@ struct Detailzeile<Rechts: View>: View {
         HStack(spacing: 12) {
             Listensymbol(name: symbol)
             VStack(alignment: .leading, spacing: 3) {
-                // Menütext einen Tick dünner als zuvor
+                // Menütext eine Stufe kräftiger (Regular statt Light), Untertitel etwas dunkler (Vorlage 140)
                 Text(titel)
-                    .font(.system(size: 19, weight: .light))
+                    .font(.system(size: 19, weight: .regular))
                     .foregroundStyle(Farben.detailText)
                     .lineLimit(1)
                 if let untertitel, !untertitel.isEmpty {
                     Text(untertitel.replacingOccurrences(of: "\n", with: " "))
                         .font(.system(size: 17))
-                        .foregroundStyle(Farben.gedaempft)
+                        .foregroundStyle(Farben.detailGrau)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -547,6 +547,8 @@ enum Wertbaustein: Hashable {
     case offen(String)
     /// Neuer Wert (z. B. Vertretung) – im Detail normaler Text
     case neu(String)
+    /// Statuspille rechts neben dem Fach („PRÜFUNG“, „VERANSTALTUNG“) wie in Vorlage 140
+    case pille(String)
 }
 
 /// Wertzeile im Kopf der Details – nur Text, keine Plaketten: Änderungen als „alt → neu“ (alt durchgestrichen),
@@ -555,7 +557,8 @@ enum Wertbaustein: Hashable {
 struct Wertzeile: View {
     let bausteine: [Wertbaustein]
     var schrift: CGFloat = 13
-    var farbe: Color = Farben.gedaempft
+    /// Raum und Lehrkraft eine Stufe dunkler als zuvor (Vorlage 140)
+    var farbe: Color = Farben.detailGrau
 
     var body: some View {
         EinzeilenScroller {
@@ -582,6 +585,9 @@ struct Wertzeile: View {
         case .trenner:
             Text("|")
                 .foregroundStyle(Farben.detailTrenner)
+        case .pille(let t):
+            Statuspille(text: t)
+                .padding(.leading, 12)
         }
     }
 
@@ -612,6 +618,24 @@ struct Wertzeile: View {
             ergebnis.append(contentsOf: teil)
         }
         return ergebnis
+    }
+}
+
+/// Statuspille genau nach Vorlage 140: Großbuchstaben, weiße Schrift auf grauer Kapsel (#8e99a3), rechts neben dem Fach.
+struct Statuspille: View {
+    let text: String
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 14, weight: .regular))
+            .tracking(0.3)
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 8.5)
+            .padding(.vertical, 1.5)
+            .background(Farben.statusPilleFlaeche, in: Capsule())
+            .accessibilityLabel(text)
     }
 }
 

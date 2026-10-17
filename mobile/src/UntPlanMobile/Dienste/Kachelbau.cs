@@ -152,7 +152,24 @@ public static class Kachelbau
         var aufsichten = plan.Aufsichten.Where(a => a.Datum == tag.Datum).ToList();
         if (aufsichten.Count > 0) res = AnPausenTeilen(res, aufsichten.Where(a => a.NachStunde >= 1).Select(a => a.NachStunde).ToHashSet());
         res.AddRange(aufsichten.Select(a => Aufsicht(a, zeiten)));
+        foreach (var k in res) OhneSondereinsatz(k);
         return res;
+    }
+
+    /// <summary>Nur http- und https-Adressen werden als Link zum Online-Unterricht angeboten.</summary>
+    public static string? OnlineLinkGueltig(string? link) =>
+        Uri.TryCreate((link ?? "").Trim(), UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp) ? u.ToString() : null;
+
+    private static readonly System.Text.RegularExpressions.Regex SondereinsatzText =
+        new(@"\(?\bSondereins(a|ä)tz(e)?\b\)?\s*[:–—-]?\s*", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>Die interne Vertretungsart „Sondereinsatz“ erscheint weder auf Kacheln noch in den Details (Text, Art, Titel).</summary>
+    public static void OhneSondereinsatz(Kachel k)
+    {
+        static string Weg(string t) => SondereinsatzText.Replace(t, " ").Trim(' ', '·', ',', ';', '-', '–').Replace("  ", " ");
+        if (SondereinsatzText.IsMatch(k.Info)) k.Info = Weg(k.Info);
+        if (SondereinsatzText.IsMatch(k.Typ)) k.Typ = Weg(k.Typ);
+        if (SondereinsatzText.IsMatch(k.Fach)) k.Fach = Weg(k.Fach);
     }
 
     /// <summary>
@@ -269,6 +286,11 @@ public static class Kachelbau
             kachel.NotizLehrer = string.IsNullOrWhiteSpace(k.NotizLehrer) ? null : k.NotizLehrer;
         }
         if (k.HausaufgabeFaellig) kachel.Hausaufgabe = true;
+        if (k.Online && k.Status is not ("entfall" or "abwesend"))
+        {
+            kachel.Online = true;
+            kachel.OnlineLink = OnlineLinkGueltig(k.OnlineLink);
+        }
         var raumNeu = k.Raeume.Where(w => w.Neu && w.K.Length > 0 && w.K != "???" && !Ci.Equals(w.Alt ?? "", w.K)).Select(w => w.K).Distinct(Ci).ToList();
         if (raumNeu.Count > 0 && !raumOffen) kachel.RaumNeu = string.Join(",", raumNeu);
         if (raumOffen)

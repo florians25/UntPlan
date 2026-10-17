@@ -21,6 +21,8 @@ const bildIcon = (datei, klasse = '') => `<img class="kb-icon ${klasse}" src="${
 /** Uhrzeit „HH:MM“ in Minuten seit Mitternacht bzw. um n Minuten verschoben. */
 const minutenVon = hhmm => { const [h, m] = String(hhmm || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 const uhrPlus = (hhmm, n) => { if (!hhmm) return ''; const x = Math.max(0, Math.min(1439, minutenVon(hhmm) + Number(n || 0))); return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
+/** Link zum Online-Unterricht: nur absolute http-/https-Adressen (wie auf dem Server geprüft). */
+const sichererLink = x => { try { const u = new URL(x); return (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname && !/\s/.test(x); } catch { return false; } };
 const maskeIcon = datei => `<span class="u-sym wu kb-icon" style="--wu:url(${W}${datei})" aria-hidden="true"></span>`;
 /** Weiche Linien-Symbole (dünne, abgerundete Striche) für „abwesend“ bzw. „anwesend“ in den Schülerkacheln. */
 const KREUZ = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.9 5.9l4.2 4.2M10.1 5.9l-4.2 4.2"/></svg>';
@@ -383,9 +385,7 @@ export function karteDialog(karte, kontext = {}) {
     const datei = maskeIcon('klassenbuch/common-file-text.svg');
     const teile = [];
     const unterricht = k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
-    if (unterricht && kollegium && !istEntfall())
-      teile.push(`<div class="sd-detail">${maskeIcon('klassenbuch/online_lesson.svg')}<div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
-          <label class="sd-detail-titel mb-0" for="sd-online">Findet online statt</label><input class="form-check-input ms-1 mt-0" type="checkbox" role="switch" id="sd-online" data-online ${ein?.online ? 'checked' : ''} ${daten.darf ? '' : 'disabled'}></div></div>`);
+    if (unterricht && !istEntfall()) teile.push(onlineHtml(ein));
     if (darfRaum()) {
       const raeume = kuerzel(k.raeume.filter(w => w.k));
       teile.push(`<div class="sd-detail sd-raeume">${maskeIcon('shared_roomEntity.svg')}<div class="d-flex flex-wrap align-items-center gap-2">
@@ -407,6 +407,34 @@ export function karteDialog(karte, kontext = {}) {
     }
     const html = teile.filter(Boolean).join('');
     return html || '<div class="sd-leer"><b>Keine weiteren Details</b><span>Zu dieser Stunde gibt es keine zusätzlichen Informationen.</span></div>';
+  }
+
+  /**
+   * „Findet online statt“: Lehrkräfte der Stunde (bzw. Administration) schalten um und hinterlegen den Link zur Videokonferenz;
+   * alle anderen sehen den Hinweis und – falls hinterlegt – „Online-Unterricht beitreten“ (neuer Tab).
+   */
+  function onlineHtml(ein) {
+    const online = ein ? !!ein.online : !!k.online;
+    const link = (ein ? ein.onlineLink : k.onlineLink) || '';
+    const beitreten = online && sichererLink(link)
+      ? `<a class="sd-online-link" href="${e(link)}" target="_blank" rel="noopener noreferrer" data-online-beitreten><i class="bi bi-camera-video-fill" aria-hidden="true"></i>Online-Unterricht beitreten</a>` : '';
+    const ic = maskeIcon('klassenbuch/online_lesson.svg');
+    if (!kollegium || !daten.darf) {
+      if (!online) return kollegium ? `<div class="sd-detail">${ic}<div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
+          <label class="sd-detail-titel mb-0" for="sd-online">Findet online statt</label><input class="form-check-input ms-1 mt-0" type="checkbox" role="switch" id="sd-online" disabled></div></div>` : '';
+      return `<div class="sd-detail sd-online">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">Findet online statt</div>
+          ${beitreten || '<p class="sd-text sd-online-ohne">Es wurde noch kein Link zum Online-Unterricht hinterlegt.</p>'}</div></div>`;
+    }
+    return `<div class="sd-detail sd-online">${ic}<div class="flex-grow-1">
+        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
+          <label class="sd-detail-titel mb-0" for="sd-online">Findet online statt</label><input class="form-check-input ms-1 mt-0" type="checkbox" role="switch" id="sd-online" data-online ${online ? 'checked' : ''}></div>
+        ${online ? `<div class="sd-online-feld">
+          <label class="form-label small mb-1" for="sd-online-link">Link zum Online-Unterricht (Videokonferenz)</label>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="url" class="form-control form-control-sm" id="sd-online-link" data-online-link inputmode="url" maxlength="1000" placeholder="https://…" value="${e(link)}">
+            <button type="button" class="sd-pille klein primaer" data-online-speichern>Speichern</button></div>
+          <div class="invalid-feedback d-block d-none" data-online-fehler>Bitte einen gültigen Link mit http:// oder https:// angeben.</div>
+          ${beitreten ? `<div class="mt-2">${beitreten}</div>` : ''}</div>` : ''}</div></div>`;
   }
 
   function notizFeld(feld, titel, wert) {
@@ -714,10 +742,35 @@ export function karteDialog(karte, kontext = {}) {
     });
 
     // Details: online, Notizen (Speichern/Abbrechen erscheinen beim Bearbeiten)
+    const onlineMerken = (online, link) => {
+      daten.eintrag = { ...(daten.eintrag ?? {}), online, ...(link !== undefined ? { onlineLink: link } : {}) };
+      k = { ...k, online, onlineLink: online ? daten.eintrag.onlineLink || '' : '' };
+      geaendert = true;
+    };
     q('[data-online]')?.addEventListener('change', async ev => {
-      try { await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: ev.target.checked }, 'PUT'); if (daten.eintrag) daten.eintrag.online = ev.target.checked; geaendert = true; toast(ev.target.checked ? 'Die Stunde findet online statt.' : 'Die Stunde findet im Raum statt.'); }
-      catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, true); }
+      try {
+        await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: ev.target.checked }, 'PUT');
+        onlineMerken(ev.target.checked);
+        toast(ev.target.checked ? 'Die Stunde findet online statt.' : 'Die Stunde findet im Raum statt.');
+        zeichnen();
+        if (ev.target.checked && !daten.eintrag.onlineLink) box.querySelector('[data-online-link]')?.focus();
+      } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, true); }
     });
+    q('[data-online-speichern]')?.addEventListener('click', async () => {
+      const feld = box.querySelector('[data-online-link]'), fehler = box.querySelector('[data-online-fehler]');
+      const link = feld.value.trim();
+      const gueltig = !link || sichererLink(link);
+      feld.classList.toggle('is-invalid', !gueltig);
+      fehler.classList.toggle('d-none', gueltig);
+      if (!gueltig) return feld.focus();
+      try {
+        await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: true, onlineLink: link }, 'PUT');
+        onlineMerken(true, link);
+        toast(link ? 'Link zum Online-Unterricht gespeichert.' : 'Link zum Online-Unterricht entfernt.');
+        zeichnen();
+      } catch (err) { toast(err.message, true); }
+    });
+    q('[data-online-link]')?.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); box.querySelector('[data-online-speichern]')?.click(); } });
     alle('[data-notiz]', t => t.oninput = () => box.querySelector(`[data-notiz-knoepfe="${t.dataset.notiz}"]`)?.classList.remove('d-none'));
     alle('[data-notiz-abbrechen]', b => b.onclick = () => zeichnen());
     alle('[data-notiz-speichern]', b => b.onclick = async () => {

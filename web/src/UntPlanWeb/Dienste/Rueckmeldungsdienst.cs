@@ -149,6 +149,7 @@ public sealed class Rueckmeldungsdienst
     public Meldung Raumbuchung(Stand s, Benutzer b, DateOnly d, int? stundeVon, int? stundeBis, string raum, IEnumerable<string> klassen, string titel, string text)
     {
         if (b.LehrerKuerzel is null && !b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Räume buchen.");
+        if (!Rechtedienst.Darf(b, Recht.BuchungRaum)) throw new UnauthorizedAccessException("Ihr Konto darf keine Räume buchen.");
         if (d < _uhr.Heute) throw new ArgumentException("Räume können nicht rückwirkend gebucht werden.");
         if (!s.Raeume.ContainsKey(raum)) throw new ArgumentException($"Unbekannter Raum {raum}.");
         if (!Buchbar(s).Any(r => Ci.Equals(r.Kurz, raum))) throw new ArgumentException($"Raum {raum} ist nicht buchbar.");
@@ -173,6 +174,7 @@ public sealed class Rueckmeldungsdienst
     public Meldung? Raumaenderung(Stand s, Benutzer b, DateOnly d, int stundeVon, int stundeBis, int unterricht, IEnumerable<string> raeume)
     {
         if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Räume buchen.");
+        if (!Rechtedienst.Darf(b, Recht.BuchungRaum)) throw new UnauthorizedAccessException("Ihr Konto darf keine Räume buchen.");
         if (d < _uhr.Heute) throw new ArgumentException("Räume können nicht rückwirkend gebucht werden.");
         if (_plan.Frei(s, d).Frei) throw new ArgumentException("An diesem Tag ist kein Unterricht.");
         var (v, bi) = Stunden(s, stundeVon, stundeBis);
@@ -210,6 +212,7 @@ public sealed class Rueckmeldungsdienst
     public Meldung? KlausurLoeschen(Stand s, Benutzer b, DateOnly d, int stundeVon, int stundeBis, IEnumerable<string> klassen, string? titel)
     {
         if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Prüfungen löschen.");
+        if (!Rechtedienst.Darf(b, Recht.PruefungAnlegen)) throw new UnauthorizedAccessException("Ihr Konto darf keine Prüfungen eintragen oder löschen.");
         var (v, bi) = Stunden(s, stundeVon, stundeBis);
         var k = klassen.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
         // noch nicht übernommene Prüfung: zurückziehen – außer sie ist schon im Paket (übernommen, aber noch nicht quittiert)
@@ -307,6 +310,7 @@ public sealed class Rueckmeldungsdienst
     public Meldung Klausur(Stand s, Benutzer b, DateOnly d, int? stundeVon, int? stundeBis, IEnumerable<string> klassen, IEnumerable<string> raeume, IEnumerable<string> aufsicht, string titel, string text)
     {
         if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Klausuren eintragen.");
+        if (!Rechtedienst.Darf(b, Recht.PruefungAnlegen)) throw new UnauthorizedAccessException("Ihr Konto darf keine Prüfungen eintragen oder löschen.");
         if (d < _uhr.Heute) throw new ArgumentException("Klausuren können nicht rückwirkend eingetragen werden.");
         if (_plan.Frei(s, d).Frei) throw new ArgumentException("An diesem Tag ist kein Unterricht.");
         var (v, bi) = Stunden(s, stundeVon, stundeBis);

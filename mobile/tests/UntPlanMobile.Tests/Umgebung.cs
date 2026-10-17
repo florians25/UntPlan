@@ -37,6 +37,12 @@ public sealed class Umgebung : IAsyncDisposable
         MobilAdresse = Adresse(mobile);
     }
 
+    /// <summary>Dienste von UntPlanMobile (Kontenspeicher, Pushwache …).</summary>
+    public IServiceProvider MobilDienste => _mobile.Services;
+
+    /// <summary>Dienste von UntPlanWeb.</summary>
+    public IServiceProvider WebDienste => _web.Services;
+
     private static Uri Adresse(WebApplication app) => new(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First());
 
     /// <summary>Wurzel des Repositorys (enthält web/ und mobile/).</summary>
@@ -88,6 +94,9 @@ public sealed class Umgebung : IAsyncDisposable
             b.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["UNTPLANWEB_URL"] = webAdresse.ToString(),
+                ["UNTPLANMOBILE_DATEN"] = Path.Combine(ordner, "mobil"),
+                // Die Pushwache prüft in den Tests nur auf Anforderung (RundeAsync)
+                ["UNTPLANMOBILE_PUSH_INTERVALL"] = "0",
                 ["Logging:LogLevel:Default"] = "Warning",
             });
             b.WebHost.UseUrls("http://127.0.0.1:0");

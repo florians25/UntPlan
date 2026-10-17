@@ -55,7 +55,8 @@ public sealed class Sitzplandienst
         _ => throw new ArgumentException("Unbekannter Wirkungsbereich (klasse, unterricht oder raum)."),
     };
 
-    private static bool Leitung(Benutzer b) => b.Rolle is Rollen.Admin or Rollen.Leitung;
+    private static bool Leitung(Benutzer b) => Rechtedienst.Darf(b, Recht.KlassenbuchAlle);
+    private static bool Eigene(Benutzer b) => Rechtedienst.Darf(b, Recht.SitzplanKlasse);
 
     /// <summary>Lehrkräfte eines Unterrichts (aus allen Zeilen).</summary>
     public static List<string> LehrerVon(Stand s, int unterricht) =>
@@ -67,7 +68,7 @@ public sealed class Sitzplandienst
 
     /// <summary>Eigener Unterricht: die Lehrkraft steht in einer Zeile des Unterrichts (Schulleitung/Administration: jeder).</summary>
     public static bool DarfUnterricht(Benutzer b, Stand s, int unterricht) =>
-        s.Unterricht.ContainsKey(unterricht) && (Leitung(b) || b.LehrerKuerzel is string l && LehrerVon(s, unterricht).Contains(l, Ci));
+        s.Unterricht.ContainsKey(unterricht) && (Leitung(b) || Eigene(b) && b.LehrerKuerzel is string l && LehrerVon(s, unterricht).Contains(l, Ci));
 
     /// <summary>Räume aus den eigenen Unterrichten einer Lehrkraft (Stundenplan aller Perioden).</summary>
     public static HashSet<string> EigeneRaeume(Stand s, string lehrer)
@@ -84,12 +85,12 @@ public sealed class Sitzplandienst
     {
         if (!s.Raeume.ContainsKey(raum)) return false;
         if (Leitung(b)) return true;
-        if (b.LehrerKuerzel is not string l || !Ci.Equals(l, lehrer)) return false;
+        if (!Eigene(b) || b.LehrerKuerzel is not string l || !Ci.Equals(l, lehrer)) return false;
         if (EigeneRaeume(s, l).Contains(raum)) return true;
         return kontext?.Unterricht is int u && DarfUnterricht(b, s, u) && kontext.Raeume.Contains(raum, Ci);
     }
 
-    public static bool DarfKlasse(Benutzer b, Stand s, string klasse) => s.Klassen.ContainsKey(klasse) && Klassenbuchdienst.IstKlassenleitung(b, s, klasse);
+    public static bool DarfKlasse(Benutzer b, Stand s, string klasse) => s.Klassen.ContainsKey(klasse) && (Leitung(b) || Eigene(b) && Klassenbuchdienst.IstKlassenleitung(b, s, klasse));
 
     // ------------------------------------------------------------------------------------------ Lesen
 

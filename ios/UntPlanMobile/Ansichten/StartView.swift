@@ -23,10 +23,13 @@ enum Startziel: Hashable {
     case hausaufgaben
     case aufsichten
     case aenderungen
+    /// Sprechtag (Lehrkräfte: eigene Termine; Erziehungsberechtigte: buchen und absagen)
+    case sprechtag(Int)
 }
 
 /// Startseite nach Vorlage: großer Schulname, Infokarten, Tageskarte (Datum links, Tagesinhalt rechts),
-/// darunter eine weiße Liste (Termine, Abwesenheiten, Hausaufgaben, Aufsichten, Änderungen).
+/// darunter eine weiße Liste (Termine, Abwesenheiten, Hausaufgaben, Sprechtag, Änderungen). Die Pausenaufsichten stehen
+/// im Stundenplan (nicht mehr in der Liste).
 /// Auf dem iPad mittig mit höchstens 700 pt Breite.
 struct StartView: View {
     @EnvironmentObject var zustand: AppZustand
@@ -35,6 +38,8 @@ struct StartView: View {
     @State private var fehler: String? = nil
     @State private var gewaehlteKarte: Karte? = nil
     @State private var alleStunden = false
+    /// Sprechtage für die Startseite (Lehrkräfte bzw. Erziehungsberechtigte)
+    @State private var sprechtage: [SprechtagKarte] = []
     @Environment(\.horizontalSizeClass) private var groessenklasse
 
     /// iPhone: Seitenrand 16 pt (iPad 18 pt, mittig höchstens 736 pt breit).
@@ -79,10 +84,14 @@ struct StartView: View {
                 ToolbarItem(placement: .topBarLeading) { KontoKnopf() }
             }
             .navigationDestination(for: Startziel.self) { ziel in
-                if ziel == .familieAbwesenheiten {
+                switch ziel {
+                case .familieAbwesenheiten:
                     MeineAbwesenheitenView()
                         .environmentObject(zustand)
-                } else {
+                case .sprechtag(let id):
+                    SprechtagView(id: id, titel: sprechtage.first { $0.id == id }?.titel ?? "Sprechtag")
+                        .environmentObject(zustand)
+                default:
                     StartlisteView(ziel: ziel, heute: heute) { gewaehlteKarte = $0 }
                 }
             }
@@ -329,6 +338,7 @@ struct StartView: View {
         let titel: String
         let symbol: String
         let zahl: Int
+        var untertitel: String? = nil
         var id: Startziel { ziel }
     }
 
@@ -344,8 +354,12 @@ struct StartView: View {
         if !h.hausaufgaben.isEmpty || h.typ == "klasse" {
             liste.append(Listeneintrag(ziel: .hausaufgaben, titel: "Hausaufgaben", symbol: "book.closed", zahl: h.hausaufgaben.count))
         }
-        if !h.aufsichten.isEmpty {
-            liste.append(Listeneintrag(ziel: .aufsichten, titel: "Pausenaufsichten", symbol: "figure.walk", zahl: h.aufsichten.count))
+        // Sprechtag statt Pausenaufsichten (die Aufsichten stehen im Stundenplan)
+        for t in sprechtage {
+            let untertitel = [t.datumText.isEmpty ? Datumsformat.anzeige(t.datum, "EE d.M.yyyy") : t.datumText, t.text]
+                .filter { !$0.isEmpty }.joined(separator: " · ")
+            liste.append(Listeneintrag(ziel: .sprechtag(t.id), titel: t.titel, symbol: "person.2", zahl: t.termine,
+                                       untertitel: untertitel))
         }
         if h.aenderungen > 0 {
             liste.append(Listeneintrag(ziel: .aenderungen, titel: "Änderungen heute", symbol: "arrow.triangle.2.circlepath", zahl: h.aenderungen))
@@ -359,7 +373,7 @@ struct StartView: View {
             ForEach(Array(liste.enumerated()), id: \.element.id) { eintrag in
                 let e = eintrag.element
                 NavigationLink(value: e.ziel) {
-                    Listenzeile(symbol: e.symbol, titel: e.titel, zahl: e.zahl > 0 ? e.zahl : nil)
+                    Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil)
                 }
                 .buttonStyle(ZeilenKnopfStil())
                 if eintrag.offset < liste.count - 1 {
@@ -369,17 +383,31 @@ struct StartView: View {
         }
     }
 
+    /// Sprechtag nur für Lehrkräfte und Erziehungsberechtigte.
+    private var mitSprechtag: Bool {
+        zustand.istKollegium || (zustand.benutzer?.rolle.lowercased() ?? "") == "eltern"
+    }
+
     private func laden() async {
         laedt = true
         defer { laedt = false }
+        let api = zustand.api
+        let sprechtagLaden = mitSprechtag
+        @Sendable func holeSprechtage() async -> [SprechtagKarte]? {
+            guard sprechtagLaden else { return [] }
+            return try? await api.sprechtagStart()
+        }
+        async let sprechtagListe = holeSprechtage()
         do {
-            let neu = try await zustand.api.heute()
+            let neu = try await api.heute()
             heute = neu
             zustand.ungelesen = neu.ungelesen
             fehler = nil
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
         }
+        let geladeneSprechtage = await sprechtagListe
+        if let geladeneSprechtage { sprechtage = geladeneSprechtage }
     }
 }
 
@@ -526,6 +554,7 @@ struct StartlisteView: View {
         case .hausaufgaben: return "Hausaufgaben"
         case .aufsichten: return "Pausenaufsichten"
         case .aenderungen: return "Änderungen heute"
+        case .sprechtag: return "Sprechtag"
         }
     }
 
@@ -538,6 +567,7 @@ struct StartlisteView: View {
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
+                case .sprechtag: EmptyView()
                 }
             }
         }

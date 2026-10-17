@@ -124,6 +124,15 @@ export function dialog({ titel, inhalt, knoepfe = [], breit = false, beimOeffnen
     };
   });
   beimOeffnen?.(box);
+  // Über einem bereits offenen Fenster (z. B. Stundendetails): Fenster und abgedunkelter Hintergrund darüber legen,
+  // damit der Hintergrund wie bei allen Dialogen dunkel ist und nicht hinter dem ersten Fenster verschwindet.
+  const offen = [...document.querySelectorAll('.modal.show')].filter(m => m !== el);
+  if (offen.length) {
+    const z = Math.max(1055, ...offen.map(m => Number(getComputedStyle(m).zIndex) || 0)) + 2;
+    el.style.zIndex = z + 1;
+    el.addEventListener('show.bs.modal', () => setTimeout(() => { const bd = [...document.querySelectorAll('.modal-backdrop')].pop(); if (bd) bd.style.zIndex = z; }), { once: true });
+    el.addEventListener('shown.bs.modal', () => { const bd = [...document.querySelectorAll('.modal-backdrop')].pop(); if (bd) bd.style.zIndex = z; }, { once: true });
+  }
   modal.show();
   return box;
 }
@@ -223,7 +232,7 @@ export function lehrkraftLabel(w, inhalt = x => e(x), trenn = '|') {
   if (!w.k && w.alt) return `<span class="v-lbl weg">${inhalt(w.alt)}</span>`;
   if (!w.k) return w.neu ? '<span class="v-lbl">???</span>' : '';
   // Lehrkraft-Wechsel „LAN | ILK“, Raum/Fach „B125 → A300“ (trenn = '→')
-  if (w.alt) return `<s class="v-alt">${inhalt(w.alt)}</s> <span class="v-trenn">${trenn}</span> <span class="v-lbl" data-hover="${e(`${w.alt} ${trenn} ${w.k}`)}" data-hover-art="dunkel">${inhalt(w.k)}</span>`;
+  if (w.alt) return `<s class="v-alt">${inhalt(w.alt)}</s> <span class="v-trenn">${trenn}</span> <span class="v-lbl" data-hover="${e(`${w.alt} → ${w.k}`)}" data-hover-art="dunkel">${inhalt(w.k)}</span>`;
   if (w.neu) return `<span class="v-lbl">${inhalt(w.k)}</span>`;
   return inhalt(w.k);
 }
@@ -238,11 +247,19 @@ export function lehrkraftLabel(w, inhalt = x => e(x), trenn = '|') {
 const kuerzungsHover = (() => {
   if (typeof window === 'undefined' || !window.matchMedia?.('(hover: hover)').matches) return null;
   let tip = null, ziel = null, timer = 0;
+  // Nur Text-Elemente messen: Karten und ihre Zeilen, Labels, Veranstaltungs-/Ferientexte, Plan-Hinweise – nie Raster-Container
+  // (Plan-Gitter, Zeitspalte, Tageskopf, Spalten, Listen), deren Fläche bewusst beschnitten ist.
+  const TEXT = '.std, .std .z1, .std .z2, .std .z3, .lbl, .v-lbl, .tt-ferien .inhalt, .tt-frei, .tt-ereignis, [data-kuerzung]';
+  const RASTER = '.tt, .tt-achse, .tt-spalte, .tt-tag, .tt-ecke, .tt-leiste, .tt-ferien, .tt-liste, .eintrag, .tagplan, .tagplan-gitter, .tagplan-zelle, .tagplan-kopf, .tt-tagwahl, main, .modal-body, .modal-content';
   const abgeschnitten = el => {
+    if (el.matches(RASTER)) return false;
     const s = getComputedStyle(el);
     if (s.display === 'inline') return false;
-    const x = (s.overflowX === 'hidden' || s.overflowX === 'clip' || s.textOverflow === 'ellipsis') && el.scrollWidth > el.clientWidth + 1;
-    const y = (s.overflowY === 'hidden' || s.overflowY === 'clip' || (s.webkitLineClamp && s.webkitLineClamp !== 'none')) && el.scrollHeight > el.clientHeight + 2;
+    const ellipse = s.textOverflow === 'ellipsis';
+    const klammer = !!(s.webkitLineClamp && s.webkitLineClamp !== 'none');
+    if (!ellipse && !klammer && !el.matches(TEXT)) return false;
+    const x = (s.overflowX === 'hidden' || s.overflowX === 'clip' || ellipse) && el.scrollWidth > el.clientWidth + 1;
+    const y = (s.overflowY === 'hidden' || s.overflowY === 'clip' || klammer) && el.scrollHeight > el.clientHeight + 2;
     return x || y;
   };
   const verbergen = () => { clearTimeout(timer); if (tip) tip.style.display = 'none'; ziel = null; };
@@ -264,7 +281,7 @@ const kuerzungsHover = (() => {
     let el = t, treffer = null;
     for (let i = 0; el && i < 5 && el !== document.body; i++, el = el.parentElement) {
       const s = getComputedStyle(el);
-      if (s.overflowY === 'auto' || s.overflowY === 'scroll' || s.position === 'fixed') break;
+      if (s.overflowY === 'auto' || s.overflowY === 'scroll' || s.position === 'fixed' || el.matches(RASTER)) break;
       if (abgeschnitten(el)) { treffer = el; break; }
     }
     if (!treffer) { verbergen(); return; }

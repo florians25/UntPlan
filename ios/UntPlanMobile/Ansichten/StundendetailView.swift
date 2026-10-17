@@ -52,6 +52,7 @@ struct StundendetailInhalt: View {
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var systemSchliessen
     @Environment(\.blattSchliessen) private var blattSchliessen
+    @Environment(\.openURL) private var oeffneURL
     @StateObject private var daten: Stundendaten
     @State private var onlineFehler: String? = nil
     /// Raumliste („Ersetzen“ bzw. „Raum hinzufügen“) aus der Raumzeile
@@ -224,13 +225,14 @@ struct StundendetailInhalt: View {
 
     private func reitertitel(_ k: Karte) -> String {
         if !k.fach.isEmpty { return k.fach }
-        if !k.text.isEmpty { return k.text }
-        return k.art.isEmpty ? "Stunde" : k.art
+        if !k.anzeigeText.isEmpty { return k.anzeigeText }
+        return k.anzeigeArt.isEmpty ? "Stunde" : k.anzeigeArt
     }
 
     /// Reiterleiste in eigener Zeile unter dem Kopf genau nach Vorlage (133): hellgraue Zeile, waagrecht scrollbare
-    /// Text-Reiter (Regular, aktiv Medium), nur unter dem aktiven eine orange Unterstreichung etwas breiter als der Text;
-    /// der aktive Reiter wird beim Wechsel in den sichtbaren Bereich gerollt.
+    /// Text-Reiter (Regular, aktiv Medium), nur unter dem aktiven eine Unterstreichung (dunkelgrau bzw. im Dunkeln weiß)
+    /// etwas breiter als der Text; der Reitertext wird nie durchgestrichen (auch nicht bei Entfall). Der aktive Reiter
+    /// wird beim Wechsel in den sichtbaren Bereich gerollt.
     private var reiterleiste: some View {
         ScrollViewReader { leser in
             ScrollView(.horizontal) {
@@ -243,7 +245,6 @@ struct StundendetailInhalt: View {
                             // Größere Reiter: 17 pt, mindestens 64 pt breit, 44 pt hoch (bequem antippbar)
                             Text(reitertitel(eintrag.element))
                                 .font(.system(size: 17, weight: gewaehlt ? .medium : .regular))
-                                .strikethrough(eintrag.element.istEntfall)
                                 .foregroundStyle(gewaehlt ? Farben.detailText : Farben.tinte2)
                                 .lineLimit(1)
                                 .padding(.horizontal, 14)
@@ -251,7 +252,7 @@ struct StundendetailInhalt: View {
                                 .overlay(alignment: .bottom) {
                                     if gewaehlt {
                                         Capsule()
-                                            .fill(Farben.akzent)
+                                            .fill(Farben.reiterStrich)
                                             .frame(height: 3)
                                             .padding(.horizontal, 8)
                                     }
@@ -280,24 +281,37 @@ struct StundendetailInhalt: View {
         }
     }
 
-    /// „Prüfung“ bzw. „Veranstaltung“ als dezente graue Pille (wie im Web: normale Schreibweise, 13 pt).
-    private func statuspille(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 13, weight: .regular))
-            .foregroundStyle(Farben.pilleText)
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2.5)
-            .background(Farben.pilleFlaeche, in: Capsule())
-            .accessibilityLabel(text)
-    }
-
     private var textTitel: String {
         karte.keineVertretung || karte.status == "regulaer" ? "Information zur Stunde" : "Vertretungstext"
     }
 
     /// Infotext einer Veranstaltung (Zeile „Information“).
     private var veranstaltungsInfo: String { Kachelbau.veranstaltungsInfo(karte) }
+
+    /// Untertitel der Zeile „Prüfung“ (Vorlage 140: das Fach, sonst Text bzw. Art).
+    private var pruefungsUntertitel: String {
+        if !karte.fach.isEmpty { return karte.fach }
+        if !karte.anzeigeText.isEmpty { return karte.anzeigeText }
+        return karte.anzeigeArt
+    }
+
+    /// Angaben zur Prüfung für die Unterseite „Prüfung“.
+    private var pruefungsText: String {
+        var zeilen: [String] = []
+        let art = karte.anzeigeArt.isEmpty ? "Prüfung" : karte.anzeigeArt
+        zeilen.append(art)
+        let fach = karte.fachName.isEmpty ? karte.fach : (karte.fach.isEmpty ? karte.fachName : "\(karte.fachName) (\(karte.fach))")
+        if !fach.isEmpty { zeilen.append("Fach: \(fach)") }
+        let klassen = ohneDoppelte(karte.klassen.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k })
+        if !klassen.isEmpty { zeilen.append((klassen.count == 1 ? "Klasse: " : "Klassen: ") + klassen.joined(separator: ", ")) }
+        let raeume = ohneDoppelte(daten.aktuelleRaeume.map(\.k))
+        if !raeume.isEmpty { zeilen.append((raeume.count == 1 ? "Raum: " : "Räume: ") + raeume.joined(separator: ", ")) }
+        let lehrer = ohneDoppelte(karte.lehrer.map(\.k))
+        if !lehrer.isEmpty { zeilen.append("Lehrkraft: " + lehrer.joined(separator: ", ")) }
+        zeilen.append("Zeit: \(stundentext)" + (karte.beginn.isEmpty ? "" : ", \(karte.beginn) - \(karte.ende)"))
+        if !karte.anzeigeText.isEmpty && karte.anzeigeText != art { zeilen.append("\n" + karte.anzeigeText) }
+        return zeilen.joined(separator: "\n")
+    }
 
     private var stundentext: String {
         karte.von == karte.bis ? "\(karte.von). Stunde" : "\(karte.von).–\(karte.bis). Stunde"
@@ -396,7 +410,8 @@ struct StundendetailInhalt: View {
     /// (Entfall zeigt der rote Balken): Änderungen als „alt → neu“ mit durchgestrichenem altem Wert, fehlende Werte
     /// durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt.
     private var kopfblock: some View {
-        let fach = istVeranstaltung ? (karte.text.isEmpty ? karte.art : karte.text) : (karte.fach.isEmpty ? karte.art : karte.fach)
+        let fach = istVeranstaltung ? (karte.anzeigeText.isEmpty ? karte.anzeigeArt : karte.anzeigeText)
+                                    : (karte.fach.isEmpty ? karte.anzeigeArt : karte.fach)
         // Pfeil „alt → neu“ nur beim Raum; bei Lehrkräften und Fach trennt „|“ (z. B. „LAN | ILK“)
         let raeume = Wertzeile.bausteine(einmal(daten.aktuelleRaeume), durchgestrichen: false, offenAlsPlakette: false, pfeil: true)
         let lehrer = Wertzeile.bausteine(einmal(karte.lehrer), durchgestrichen: Kachelbau.istBereitschaftAbwesend(karte),
@@ -407,19 +422,29 @@ struct StundendetailInhalt: View {
             fachteile.append(.trenner)
         }
         fachteile.append(.text(fach))
+        // Statuspille („PRÜFUNG“, „VERANSTALTUNG“) rechts neben dem Fach (Vorlage 140); ohne Fachzeile neben der Kopfzeile
+        let fachSichtbar = !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame)
+        var kopfteile = titelBausteine
+        if let pille = karte.statusPille {
+            if fachSichtbar {
+                fachteile.append(.pille(pille))
+            } else if !kopfteile.isEmpty {
+                kopfteile.append(.pille(pille))
+            }
+        }
+        let pilleEinzeln = karte.statusPille != nil && !fachSichtbar && kopfteile.isEmpty
         return VStack(alignment: .leading, spacing: 0) {
-            if !titelBausteine.isEmpty {
-                Wertzeile(bausteine: titelBausteine, schrift: Detailmass.gross, farbe: Farben.detailText)
+            if !kopfteile.isEmpty {
+                Wertzeile(bausteine: kopfteile, schrift: Detailmass.gross, farbe: Farben.detailText)
                     .frame(height: Detailmass.zeile)
             }
-            if !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame) {
+            if fachSichtbar {
                 Wertzeile(bausteine: fachteile, schrift: Detailmass.gross, farbe: Farben.detailText)
-                    .frame(height: Detailmass.zeile)
+                    .frame(height: Detailmass.zeile + 4)
             }
-            if let pille = karte.statusPille {
-                statuspille(pille)
-                    .padding(.top, 2)
-                    .padding(.bottom, 4)
+            if pilleEinzeln, let pille = karte.statusPille {
+                Statuspille(text: pille)
+                    .padding(.vertical, 4)
             }
             if !raeume.isEmpty {
                 Wertzeile(bausteine: raeume, schrift: Detailmass.klein)
@@ -447,6 +472,17 @@ struct StundendetailInhalt: View {
         VStack(spacing: 0) {
             if kollegium && mitUnterricht && !istVeranstaltung {
                 onlineZeile
+                // „Findet online statt“: Link zum Online-Unterricht (Lehrkräfte mit Schreibrecht bearbeiten ihn)
+                if daten.istOnline && daten.darf {
+                    OnlineLinkZeile()
+                }
+            }
+            if !istVeranstaltung && daten.istOnline && !(kollegium && daten.darf) {
+                beitretenZeile
+            }
+            // Prüfung: eigene Zeile mit dem Fach als Untertitel (Vorlage 140)
+            if karte.istPruefung && !karte.istEntfall {
+                link(.pruefung, Detailzeile(symbol: "SymbolPruefung", titel: "Prüfung", untertitel: pruefungsUntertitel))
             }
             if kollegium && daten.raumAenderbar && !istVeranstaltung {
                 RaumZeile(raeume: daten.aktuelleRaeume, ziel: $raumZiel)
@@ -455,10 +491,11 @@ struct StundendetailInhalt: View {
                 if !veranstaltungsInfo.isEmpty {
                     link(.info, Detailzeile(symbol: "SymbolInfo", titel: "Information", untertitel: veranstaltungsInfo))
                 }
-            } else if !karte.text.isEmpty {
-                // Information zur Stunde mit dem Info-Zeichen (info.svg), Vertretungstext mit dem Notizblatt
+            } else if !karte.anzeigeText.isEmpty {
+                // Information zur Stunde mit dem Info-Zeichen (info.svg), Vertretungstext mit dem Notizblatt; bloße
+                // Art-Bezeichnungen wie „Sondereinsatz“ erscheinen nicht
                 link(.text, Detailzeile(symbol: textTitel == "Information zur Stunde" ? "SymbolInfo" : "SymbolNotiz",
-                                        titel: textTitel, untertitel: karte.text))
+                                        titel: textTitel, untertitel: karte.anzeigeText))
             }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 let thema = daten.eintrag?.thema ?? ""
@@ -519,7 +556,7 @@ struct StundendetailInhalt: View {
                         do {
                             try await daten.onlineSetzen(neu)
                         } catch {
-                            onlineFehler = zustand.fehlertext(error)
+                            onlineFehler = Stundendaten.speicherFehler(zustand.fehlertext(error))
                         }
                     }
                 }))
@@ -529,11 +566,34 @@ struct StundendetailInhalt: View {
         }
     }
 
+    /// Schüler*innen (und Lehrkräfte ohne Schreibrecht): „Online-Unterricht beitreten“ öffnet den Link; ohne Link nur der Hinweis.
+    @ViewBuilder
+    private var beitretenZeile: some View {
+        if let url = Karte.onlineURL(daten.onlineLink) {
+            Button {
+                oeffneURL(url)
+            } label: {
+                Detailzeile(symbol: "SymbolOnline", titel: "Online-Unterricht beitreten", untertitel: url.host ?? daten.onlineLink) {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.system(size: 20, weight: .light))
+                        .foregroundStyle(Farben.gruen)
+                        .padding(.trailing, 4)
+                }
+            }
+            .buttonStyle(ZeilenKnopfStil())
+            .accessibilityHint("Öffnet den Link zum Online-Unterricht")
+        } else {
+            Detailzeile(symbol: "SymbolOnline", titel: "Findet online statt", untertitel: "Noch kein Link hinterlegt", pfeil: false)
+        }
+    }
+
     @ViewBuilder
     private func ziel(_ seite: Detailseite) -> some View {
         switch seite {
         case .text:
-            DetailTextSeite(titel: textTitel, text: karte.text, karte: karte)
+            DetailTextSeite(titel: textTitel, text: karte.anzeigeText, karte: karte)
+        case .pruefung:
+            DetailTextSeite(titel: "Prüfung", text: pruefungsText, karte: karte)
         case .info:
             DetailTextSeite(titel: "Information", text: veranstaltungsInfo, karte: karte)
         case .lehrstoff:

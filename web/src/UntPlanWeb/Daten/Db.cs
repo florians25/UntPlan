@@ -546,6 +546,29 @@ public sealed class Db
         ALTER TABLE sprechtag_lehrer ADD COLUMN abgesagt VARCHAR(30) NOT NULL DEFAULT '';
         ALTER TABLE sprechtag_lehrer ADD COLUMN absage_grund VARCHAR(1000) NOT NULL DEFAULT '';
         """,
+
+        // 15: Rechte-Modell – Rechte-Profile (Rollen; Systemrollen nur mit geänderten Rechten), Profil und Überschreibungen je Konto;
+        //    Schülerdaten für die Web-Verwaltung und den CSV-Import (externe Nummer, Eintritt/Austritt), Telefon der Erziehungsberechtigten – nur Standard-SQL
+        """
+        CREATE TABLE rechteprofile (
+            id VARCHAR(60) NOT NULL PRIMARY KEY, name VARCHAR(100) NOT NULL, basis VARCHAR(20) NOT NULL, beschreibung VARCHAR(500) NOT NULL DEFAULT '',
+            rechte TEXT NOT NULL, geaendert VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE benutzer_rechte (
+            benutzer_id INTEGER NOT NULL REFERENCES benutzer(id) ON DELETE CASCADE, recht VARCHAR(60) NOT NULL,
+            stufe INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (benutzer_id, recht)
+        );
+        ALTER TABLE benutzer ADD COLUMN rechteprofil VARCHAR(60) NOT NULL DEFAULT '';
+        ALTER TABLE schueler_daten ADD COLUMN extern_id VARCHAR(50) NOT NULL DEFAULT '';
+        ALTER TABLE schueler_daten ADD COLUMN eintritt VARCHAR(10) NOT NULL DEFAULT '';
+        ALTER TABLE schueler_daten ADD COLUMN austritt VARCHAR(10) NOT NULL DEFAULT '';
+        ALTER TABLE personen ADD COLUMN telefon VARCHAR(100) NOT NULL DEFAULT '';
+        """,
+
+        // 16: „Findet online statt“ – Link zum Online-Unterricht (Videokonferenz) je Klassenbucheintrag
+        """
+        ALTER TABLE klassenbuch ADD COLUMN online_link VARCHAR(1000) NOT NULL DEFAULT '';
+        """,
     };
 
 

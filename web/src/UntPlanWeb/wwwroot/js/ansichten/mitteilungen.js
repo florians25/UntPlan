@@ -1,5 +1,6 @@
 // Mitteilungen wie im Original:
-// - Ordner Posteingang, Gesendet, Entwürfe, Listen (Kollegium) und Einstellungen (Administration); Liste links, Lesebereich rechts, schmal eine Spalte.
+// - Ordner Posteingang, Gesendet, Entwürfe, Listen (Kollegium) und Einstellungen (Administration) im Untermenü der Seitenleiste;
+//   Liste mit einer Zeile je Mitteilung, Lesen und Schreiben im großen Fenster.
 // - Posteingang: „Lesebestätigung erforderlich“ oben, Lesebestätigung senden, Antworten, Allen antworten, Weiterleiten (mit Anhängen),
 //   als ungelesen markieren, Drucken, Löschen. Text mit Markdown (Überschriften, fett, kursiv, durchgestrichen, Links, Listen);
 //   externe Links mit Warnung, interne Links (/heute) ohne.
@@ -97,52 +98,41 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   if (ordnerParam === 'einstellungen') return einstellungen(seite, kontext);
   const ordner = ['gesendet', 'entwuerfe'].includes(ordnerParam) ? ordnerParam : 'eingang';
   const [liste, optionen] = await Promise.all([holen(`${BASIS}?ordner=${ordner}`), holen(`${BASIS}/optionen`)]);
-  kontext.titel(TITEL[ordner], optionen.darfSenden ? `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : '');
+  kontext.titel(TITEL[ordner], optionen.darfSenden ? `<button class="btn btn-primary mt-neu" data-neu>${icon('plus')}Neu</button>` : '');
   document.querySelector('[data-neu]')?.addEventListener('click', () => schreiben(kontext));
 
-  const ungelesen = liste.filter(m => ordner === 'eingang' && !m.gelesen).length;
-  const offenBestaetigen = m => ordner === 'eingang' && m.lesebestaetigung && !m.bestaetigt;
-  const kopfName = m => ordner === 'eingang' ? m.absender : ordner === 'entwuerfe' ? (m.empfaengerText || 'Entwurf') : (m.empfaengerText || m.empfaenger.join(', '));
+  const eingang = ordner === 'eingang';
+  const offenBestaetigen = m => eingang && m.lesebestaetigung && !m.bestaetigt;
+  // Kopf der Zeile: Absender (Posteingang) bzw. Empfänger (Gesendet, Entwürfe)
+  const kopfName = m => eingang ? m.absender : ordner === 'entwuerfe' ? (m.empfaengerText || 'Entwurf') : (m.empfaengerText || m.empfaenger.join(', '));
   const blase = m => ordner === 'gesendet' && m.lesebestaetigung
     ? `<span class="mt-blase" role="button" tabindex="0" data-blase="${m.id}" title="Lesebestätigungen anzeigen" aria-label="${m.bestaetigtAnzahl} von ${m.anzahl} Lesebestätigungen">${m.bestaetigtAnzahl} <i></i> ${m.anzahl}</span>` : '';
+  const vorschau = m => m.text.replace(/[#*_~>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 240);
+  // Wie im Original eine Zeile je Mitteilung: Avatar (Initiale) | Absender | fetter Betreff | Vorschautext; rechts dezent Anhang, Zeit
   const eintrag = (m, i) => `
-    <button type="button" class="mt-eintrag ${ordner === 'eingang' && !m.gelesen ? 'neu' : ''}" data-i="${i}"
+    <button type="button" class="mt-zeile ${eingang && !m.gelesen ? 'neu' : ''}" data-i="${i}"
       data-text="${e((m.betreff + ' ' + m.absender + ' ' + m.text + ' ' + m.empfaenger.join(' ') + ' ' + (m.empfaengerText || '') + ' ' + (m.anhaenge || []).map(a => a.name).join(' ')).toLowerCase())}">
-      <span class="u-avatar">${e(kuerzel(ordner === 'eingang' ? m.absender : m.empfaengerText || m.empfaenger[0] || 'E'))}</span>
-      <span class="rumpf">
-        <span class="kopf"><span class="name">${e(kopfName(m))}</span><span class="zeit">${m.anhaenge?.length ? '<i class="bi bi-paperclip" aria-label="mit Anhang"></i>' : ''}${e(zeit(m.erstellt))}</span></span>
-        <span class="betreff">${m.wichtig ? '<span class="mt-wichtig">wichtig</span>' : ''}${m.antwortAuf ? '<i class="bi bi-reply mt-antwort-symbol" aria-hidden="true"></i>' : ''}${e(m.betreff || '(ohne Betreff)')}</span>
-        <span class="vorschau">${e(m.text.replace(/[#*_~>`]/g, '').slice(0, 140))}</span>
-        ${blase(m)}
-      </span></button>`;
-  const gruppen = ordner === 'eingang' && liste.some(offenBestaetigen)
-    ? `<div class="mt-gruppe">Lesebestätigung erforderlich</div>${liste.map((m, i) => offenBestaetigen(m) ? eintrag(m, i) : '').join('')}
-       ${liste.some(m => !offenBestaetigen(m)) ? `<div class="mt-gruppe">Weitere Mitteilungen</div>${liste.map((m, i) => offenBestaetigen(m) ? '' : eintrag(m, i)).join('')}` : ''}`
-    : liste.map(eintrag).join('');
+      <span class="mt-ava" aria-hidden="true">${e(kuerzel(kopfName(m) || 'E').slice(0, 1))}</span>
+      <span class="mt-wer" title="${e(kopfName(m))}">${e(kopfName(m))}</span>
+      ${blase(m)}
+      <span class="mt-was">${m.wichtig ? '<span class="mt-wichtig">wichtig</span>' : ''}${m.antwortAuf ? '<i class="bi bi-reply mt-antwort-symbol" aria-hidden="true"></i>' : ''}<b>${e(m.betreff || '(ohne Betreff)')}</b><span class="mt-sep">|</span>${e(vorschau(m))}</span>
+      <span class="mt-wann">${offenBestaetigen(m) ? '<i class="bi bi-envelope-exclamation mt-lb-offen" title="Lesebestätigung erforderlich" aria-label="Lesebestätigung erforderlich"></i>' : ''}${m.anhaenge?.length ? '<i class="bi bi-paperclip" aria-label="mit Anhang"></i>' : ''}${e(zeit(m.erstellt))}</span>
+    </button>`;
+  // Mitteilungen mit offener Lesebestätigung zuerst
+  const reihe = liste.map((m, i) => [m, i]).sort((a, b) => offenBestaetigen(b[0]) - offenBestaetigen(a[0]));
   seite.innerHTML = `
-    <div class="mt-raster">
-      <section class="u-panel mt-spalte" data-listenspalte>
-        <div class="mt-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" class="form-control form-control-sm" data-suche placeholder="Suchen (Betreff, Text, Person, Anhang)" aria-label="Mitteilungen durchsuchen">
-          ${ungelesen ? `<span class="mt-zaehler" title="ungelesen">${ungelesen}</span>` : ''}</div>
-        <div class="mt-liste">${liste.length ? gruppen
-          : leer(ordner === 'gesendet' ? 'Noch keine Mitteilungen gesendet.' : ordner === 'entwuerfe' ? 'Keine Entwürfe.' : 'Keine Mitteilungen.', ordner === 'gesendet' ? 'send' : 'inbox')}
-          <div class="mt-keine d-none" data-keine>${leer('Keine Treffer.', 'search')}</div></div>
-      </section>
-      <section class="u-panel mt-spalte" data-lesespalte><div class="mt-lesen" data-lesen>${leer('Wählen Sie eine Mitteilung aus.', 'envelope')}</div></section>
+    <div class="mt-seite">
+      <label class="mt-suchfeld"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Inhalt oder Person suchen" aria-label="Inhalt oder Person suchen"></label>
+      <div class="mt-liste" data-liste>${liste.length ? reihe.map(([m, i]) => eintrag(m, i)).join('')
+        : leer(ordner === 'gesendet' ? 'Noch keine Mitteilungen gesendet.' : ordner === 'entwuerfe' ? 'Keine Entwürfe.' : 'Keine Mitteilungen.', ordner === 'gesendet' ? 'send' : 'inbox')}
+        <div class="mt-keine d-none" data-keine>${leer('Keine Treffer.', 'search')}</div></div>
     </div>`;
-  const lesen = seite.querySelector('[data-lesen]');
-  const schmal = () => window.innerWidth < 992;
-  const ansicht = lesemodus => {
-    if (!schmal()) return;
-    seite.querySelector('[data-listenspalte]').classList.toggle('d-none', lesemodus);
-    seite.querySelector('[data-lesespalte]').classList.toggle('d-none', !lesemodus);
-  };
-  ansicht(false);
+  const listeEl = seite.querySelector('[data-liste]');
+  listeEl.classList.toggle('leer', !liste.length);
   seite.querySelector('[data-suche]').oninput = ev => {
     const f = ev.target.value.trim().toLowerCase();
     let n = 0;
     seite.querySelectorAll('[data-i]').forEach(b => { const ja = !f || b.dataset.text.includes(f); b.classList.toggle('d-none', !ja); n += ja; });
-    seite.querySelectorAll('.mt-gruppe').forEach(g => g.classList.toggle('d-none', !!f));
     seite.querySelector('[data-keine]').classList.toggle('d-none', !f || n > 0 || !liste.length);
   };
   seite.querySelectorAll('[data-blase]').forEach(b => {
@@ -152,89 +142,99 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   });
 
   const neuLaden = ziel => kontext.navigieren(ziel ?? location.hash);
-  const oeffnen = async i => {
+  const oeffnen = i => {
     const m = liste[i];
     if (ordner === 'entwuerfe') { schreiben(kontext, { entwurf: m }); return; }
-    seite.querySelectorAll('[data-i]').forEach(b => b.classList.toggle('aktiv', Number(b.dataset.i) === i));
-    ansicht(true);
-    const eingang = ordner === 'eingang';
+    lesenDialog(m, i);
+  };
+
+  /** Mitteilung lesen im großen Fenster wie im Original: Titel, „Von:“ | Datum, Text, Anhänge; unten Drucken und die Aktionen. */
+  function lesenDialog(m, i) {
     const kannAntworten = eingang && optionen.darfSenden;
     const viele = eingang && m.empfaenger.length > 1;
-    lesen.innerHTML = `
-      <div class="mt-lesekopf nicht-drucken">
-        <button class="btn btn-sm btn-outline-secondary d-lg-none" data-zurueck>${icon('links')} Zurück</button>
-        <div class="mt-werkzeuge">
-          ${kannAntworten ? `<button class="btn btn-sm btn-outline-secondary" data-antworten title="Antworten"><i class="bi bi-reply"></i>Antworten</button>` : ''}
-          ${kannAntworten && viele ? `<button class="btn btn-sm btn-outline-secondary" data-alle title="Allen antworten"><i class="bi bi-reply-all"></i>Allen antworten</button>` : ''}
-          ${optionen.darfSenden ? `<button class="btn btn-sm btn-outline-secondary" data-weiterleiten title="Weiterleiten"><i class="bi bi-forward"></i>Weiterleiten</button>` : ''}
-          ${!eingang && m.lesebestaetigung ? `<button class="btn btn-sm btn-outline-secondary" data-liste><i class="bi bi-check2-all"></i>Lesebestätigungen ${m.bestaetigtAnzahl} | ${m.anzahl}</button>` : ''}
-          ${eingang ? `<button class="btn btn-sm btn-icon btn-outline-secondary" data-ungelesen title="Als ungelesen markieren" aria-label="Als ungelesen markieren"><i class="bi bi-envelope"></i></button>` : ''}
-          <button class="btn btn-sm btn-icon btn-outline-secondary" data-drucken title="Drucken" aria-label="Drucken"><i class="bi bi-printer"></i></button>
-          <button class="btn btn-sm btn-icon btn-outline-danger" data-loeschen title="Löschen" aria-label="Löschen"><i class="bi bi-trash"></i></button>
-        </div>
-      </div>
-      ${m.bestaetigt ? `<div class="mt-gelesen-band">Gelesen am ${e(zeitLang(m.bestaetigt))}</div>` : ''}
-      <h2 class="mt-titel">${m.wichtig ? '<span class="mt-wichtig gross">wichtig</span>' : ''}${e(m.betreff)}</h2>
-      <div class="mt-meta">
-        <span class="mt-von">${eingang ? 'Von:' : 'An:'}</span>
-        <div class="mt-personen">${eingang ? `<b>${e(m.absender)}</b>${m.absenderRolle ? ` <span class="text-body-secondary">· ${e(m.absenderRolle)}</span>` : ''}
-          <div class="mt-an">${m.empfaenger.length ? 'an ' : ''}${e(m.empfaenger.length > 6 ? `${m.empfaenger.slice(0, 6).join(', ')} und ${m.empfaenger.length - 6} weitere` : m.empfaenger.join(', '))}</div>`
-          : `<b>${e(m.empfaengerText || m.empfaenger.join(', '))}</b><div class="mt-an">${m.anzahl} Empfänger*innen · ${m.gelesenAnzahl} gelesen</div>`}</div>
-        <span class="mt-datum">${e(zeitLang(m.erstellt))}</span></div>
-      <div class="mt-text" data-text>${markdown(m.text)}</div>
-      ${m.anhaenge?.length ? `<div class="mt-anhaenge">${m.anhaenge.map(a => `<a class="mt-anhang" href="${BASIS}/anhang/${a.id}" download="${e(a.name)}"><i class="bi bi-file-earmark"></i>${e(a.name)} <span class="mt-groesse">${groesse(a.groesse)}</span></a>`).join('')}</div>` : ''}
-      ${eingang && m.lesebestaetigung && !m.bestaetigt ? `<div class="mt-fuss nicht-drucken"><span class="small text-body-secondary">Der Absender bittet um eine Lesebestätigung.</span>
-        <button class="btn btn-primary" data-bestaetigen>Lesebestätigung senden</button></div>` : ''}`;
-    linksBinden(lesen);
-    lesen.querySelector('[data-zurueck]').onclick = () => ansicht(false);
+    const knopf = (daten, symbol, titel, art = '') => `<button type="button" class="mt-aktion ${art}" ${daten} title="${titel}" aria-label="${titel}"><i class="bi bi-${symbol}"></i></button>`;
+    const an = m.empfaenger.length > 6 ? `${m.empfaenger.slice(0, 6).join(', ')} und ${m.empfaenger.length - 6} weitere` : m.empfaenger.join(', ');
+    const box = dialog({
+      titel: m.betreff || '(ohne Betreff)',
+      inhalt: `<div class="mt-meta">
+          <span class="mt-von">${eingang ? 'Von:' : 'An:'}</span>
+          <div class="mt-personen">${eingang ? `<b>${e(m.absender)}</b>${m.absenderRolle ? `<span class="mt-rolle">${e(m.absenderRolle)}</span>` : ''}${m.empfaenger.length ? `<div class="mt-an">an ${e(an)}</div>` : ''}`
+            : `<b>${e(m.empfaengerText || m.empfaenger.join(', '))}</b><div class="mt-an">${m.anzahl} Empfänger*innen · ${m.gelesenAnzahl} gelesen</div>`}</div>
+          <span class="mt-datum">${e(zeitLang(m.erstellt))}</span></div>
+        <div class="mt-lesetext">
+          <div class="mt-text" data-text>${markdown(m.text)}</div>
+          ${m.anhaenge?.length ? `<div class="mt-anhaenge">${m.anhaenge.map(a => `<a class="mt-anhang" href="${BASIS}/anhang/${a.id}" download="${e(a.name)}"><i class="bi bi-file-earmark"></i>${e(a.name)} <span class="mt-groesse">${groesse(a.groesse)}</span></a>`).join('')}</div>` : ''}
+        </div>`,
+    });
+    const modal = box.closest('.modal');
+    modal.classList.add('mt-dialog', 'mt-lesedialog');
+    if (m.wichtig) box.querySelector('.modal-title').insertAdjacentHTML('afterbegin', '<span class="mt-wichtig gross">wichtig</span>');
+    const rechts = eingang && m.lesebestaetigung && !m.bestaetigt
+      ? '<button type="button" class="btn btn-primary mt-pille" data-bestaetigen>Lesebestätigung senden</button>'
+      : m.bestaetigt ? `<span class="mt-gelesen"><i class="bi bi-check2-circle"></i>Lesebestätigung gesendet am ${e(zeitLang(m.bestaetigt))}</span>` : '';
+    box.insertAdjacentHTML('beforeend', `<div class="modal-footer mt-fuss nicht-drucken">
+        ${knopf('data-drucken', 'printer', 'Drucken')}
+        ${kannAntworten ? knopf('data-antworten', 'reply', 'Antworten') : ''}
+        ${kannAntworten && viele ? knopf('data-alle', 'reply-all', 'Allen antworten') : ''}
+        ${optionen.darfSenden ? knopf('data-weiterleiten', 'forward', 'Weiterleiten') : ''}
+        ${!eingang && m.lesebestaetigung ? `<button type="button" class="mt-blase gross" data-liste title="Lesebestätigungen anzeigen">${m.bestaetigtAnzahl} <i></i> ${m.anzahl}</button>` : ''}
+        ${eingang ? knopf('data-ungelesen', 'envelope', 'Als ungelesen markieren') : ''}
+        ${knopf('data-loeschen', 'trash', 'Löschen', 'gefahr')}
+        <span class="mt-fuss-rechts">${rechts}</span></div>`);
+    linksBinden(box);
+    const zu = () => box.schliessen();
     const antworten = async alle => {
-      try { const v = await holen(`${BASIS}/${m.id}/antwort${alle ? '?alle=true' : ''}`); schreiben(kontext, { vorgabe: v }); }
+      try { const v = await holen(`${BASIS}/${m.id}/antwort${alle ? '?alle=true' : ''}`); zu(); schreiben(kontext, { vorgabe: v }); }
       catch (err) { toast(err.message, true); }
     };
-    lesen.querySelector('[data-antworten]')?.addEventListener('click', () => antworten(false));
-    lesen.querySelector('[data-alle]')?.addEventListener('click', () => antworten(true));
-    lesen.querySelector('[data-weiterleiten]')?.addEventListener('click', async () => {
-      try { schreiben(kontext, { entwurf: await senden(`${BASIS}/${m.id}/weiterleiten`, {}), titel: 'Weiterleiten' }); }
+    box.querySelector('[data-antworten]')?.addEventListener('click', () => antworten(false));
+    box.querySelector('[data-alle]')?.addEventListener('click', () => antworten(true));
+    box.querySelector('[data-weiterleiten]')?.addEventListener('click', async () => {
+      try { const w = await senden(`${BASIS}/${m.id}/weiterleiten`, {}); zu(); schreiben(kontext, { entwurf: w, titel: 'Weiterleiten' }); }
       catch (err) { toast(err.message, true); }
     });
-    lesen.querySelector('[data-liste]')?.addEventListener('click', () => lesebestaetigungen(m));
-    lesen.querySelector('[data-ungelesen]')?.addEventListener('click', async () => {
+    box.querySelector('[data-liste]')?.addEventListener('click', () => lesebestaetigungen(m));
+    box.querySelector('[data-ungelesen]')?.addEventListener('click', async () => {
       await senden(`${BASIS}/${m.id}/ungelesen`, {});
       await kontext.sitzungNeu();
       toast('Als ungelesen markiert.');
+      zu();
       neuLaden('#/mitteilungen');
     });
-    lesen.querySelector('[data-bestaetigen]')?.addEventListener('click', async ev => {
-      ev.currentTarget.disabled = true;
+    box.querySelector('[data-bestaetigen]')?.addEventListener('click', async ev => {
+      const b = ev.currentTarget;
+      b.disabled = true;
       try {
         const r = await senden(`${BASIS}/${m.id}/bestaetigen`, {});
         m.bestaetigt = r.bestaetigt;
         toast('Lesebestätigung gesendet.');
-        oeffnen(i);
-      } catch (err) { toast(err.message, true); ev.currentTarget.disabled = false; }
+        b.closest('.mt-fuss-rechts').innerHTML = `<span class="mt-gelesen"><i class="bi bi-check2-circle"></i>Lesebestätigung gesendet am ${e(zeitLang(m.bestaetigt))}</span>`;
+        seite.querySelector(`[data-i="${i}"] .mt-lb-offen`)?.remove();
+      } catch (err) { toast(err.message, true); b.disabled = false; }
     });
-    lesen.querySelector('[data-drucken]').onclick = () => { document.body.classList.add('mt-druck'); window.print(); setTimeout(() => document.body.classList.remove('mt-druck'), 500); };
-    lesen.querySelector('[data-loeschen]').onclick = async () => {
+    box.querySelector('[data-drucken]').onclick = () => {
+      document.body.classList.add('mt-druck');
+      window.print();
+      setTimeout(() => document.body.classList.remove('mt-druck'), 500);
+    };
+    box.querySelector('[data-loeschen]').onclick = async () => {
       if (!await bestaetigen('Mitteilung löschen', `„${m.betreff}“ wirklich löschen?`)) return;
       await api(`${BASIS}/${m.id}`, { methode: 'DELETE' });
       toast('Mitteilung gelöscht.');
+      zu();
       neuLaden(ordner === 'gesendet' ? '#/mitteilungen/gesendet' : '#/mitteilungen');
     };
     if (eingang && !m.gelesen) {
-      try {
-        await senden(`${BASIS}/${m.id}/gelesen`, {});
+      senden(`${BASIS}/${m.id}/gelesen`, {}).then(async () => {
         m.gelesen = new Date().toISOString();
         seite.querySelectorAll(`[data-i="${i}"]`).forEach(x => x.classList.remove('neu'));
-        const z = seite.querySelector('.mt-zaehler');
-        if (z) { const n = Number(z.textContent) - 1; if (n > 0) z.textContent = n; else z.remove(); }
         await kontext.sitzungNeu();
-      } catch { /* nicht kritisch */ }
+      }).catch(() => { /* nicht kritisch */ });
     }
-  };
+  }
   seite.querySelectorAll('[data-i]').forEach(b => b.onclick = () => oeffnen(Number(b.dataset.i)));
   const gewuenscht = liste.findIndex(m => String(m.id) === idParam);
   if (gewuenscht >= 0) oeffnen(gewuenscht);
-  else if (liste.length && !schmal() && ordner !== 'entwuerfe') oeffnen(Number(seite.querySelector('[data-i]').dataset.i));
 }
 
 /** Lesebestätigungsliste: wer wann bestätigt bzw. gelesen hat. */
@@ -345,22 +345,21 @@ async function schreiben(kontext, { an, vorgabe, entwurf, titel } = {}) {
   const box = dialog({
     titel: titel ?? (entwurf ? 'Entwurf bearbeiten' : vorgabe ? 'Antworten' : 'Neue Mitteilung'), breit: true,
     inhalt: `<div class="mt-schreiben" data-schreiben>
-        <div class="mt-an-zeile"><span class="mt-an-label">An:</span><div class="mt-chips" data-chips></div>
-          <button type="button" class="mt-plus" data-plus title="Empfänger*innen auswählen" aria-label="Empfänger*innen auswählen"><i class="bi bi-plus-lg"></i></button></div>
+        <div class="mt-an-zeile"><span class="mt-an-label">An</span><div class="mt-chips" data-chips></div>
+          <button type="button" class="mt-plus" data-plus title="Empfänger*innen auswählen" aria-label="Empfänger*innen auswählen" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>
+          <div class="mt-wahl mt-wahl-pop d-none" data-wahl></div></div>
         <div class="mt-feld-zeile"><label class="mt-an-label" for="mt-betreff">Betreff</label><input class="form-control mt-betreff" id="mt-betreff" name="betreff" maxlength="200" value="${e(entwurf?.betreff ?? vorgabe?.betreff ?? '')}" required></div>
         <div class="mt-editor">
-          <div class="mt-editor-reiter"><button type="button" class="aktiv" data-modus="text">Text</button><button type="button" data-modus="vorschau">Vorschau</button>
-            <span class="mt-md-hinweis" title="**fett**, *kursiv*, ~~durchgestrichen~~, # Überschrift, - Liste, [Link](https://…)">Markdown: **fett**, *kursiv*, # Überschrift, [Link](…)</span></div>
-          <textarea class="form-control" name="text" rows="10" placeholder="Text hier eingeben" aria-label="Nachricht">${e(entwurf?.text ?? vorgabe?.text ?? '')}</textarea>
+          <textarea class="form-control" name="text" rows="14" placeholder="Text hier eingeben" aria-label="Nachricht">${e(entwurf?.text ?? vorgabe?.text ?? '')}</textarea>
           <div class="mt-text mt-vorschau d-none" data-vorschau></div>
         </div>
         <div class="mt-anhaenge" data-anhangsliste></div>
-        <div class="mt-schreib-leiste">
-          <button type="button" class="mt-schalter ${lesebestaetigung ? 'an' : ''}" data-lb aria-pressed="${lesebestaetigung}" title="Lesebestätigung anfordern"><i class="bi bi-envelope-check"></i><span>Lesebestätigung anfordern</span></button>
-          ${optionen.wichtig ? `<button type="button" class="mt-schalter ${wichtig ? 'an' : ''}" data-wichtig aria-pressed="${wichtig}" title="Als wichtig markieren"><i class="bi bi-exclamation-circle"></i><span>Wichtig</span></button>` : ''}
-          <label class="mt-schalter mb-0" title="Anhang hinzufügen (höchstens ${optionen.maxAnhaenge} Dateien, je ${optionen.maxAnhangMb} MB)"><i class="bi bi-paperclip"></i><span>Anhang</span><input type="file" multiple hidden data-dateien></label>
-          <span class="mt-grenze">bis ${optionen.maxAnhaenge} Anhänge · je ${optionen.maxAnhangMb} MB</span>
-        </div>
+      </div>
+      <div class="mt-fuss-werkzeuge d-none" data-werkzeuge>
+        <button type="button" class="mt-aktion ${lesebestaetigung ? 'an' : ''}" data-lb aria-pressed="${lesebestaetigung}" title="Lesebestätigung anfordern" aria-label="Lesebestätigung anfordern"><i class="bi bi-envelope-check"></i></button>
+        ${optionen.wichtig ? `<button type="button" class="mt-aktion ${wichtig ? 'an' : ''}" data-wichtig aria-pressed="${wichtig}" title="Als wichtig markieren" aria-label="Als wichtig markieren"><i class="bi bi-exclamation-circle"></i></button>` : ''}
+        <label class="mt-aktion mb-0" title="Anhang hinzufügen (höchstens ${optionen.maxAnhaenge} Dateien, je ${optionen.maxAnhangMb} MB)" aria-label="Anhang hinzufügen"><i class="bi bi-paperclip"></i><input type="file" multiple hidden data-dateien></label>
+        <button type="button" class="mt-aktion" data-vorschau-knopf aria-pressed="false" title="Vorschau (Markdown: **fett**, *kursiv*, ~~durchgestrichen~~, # Überschrift, - Liste, [Link](https://…))" aria-label="Vorschau"><i class="bi bi-eye"></i></button>
       </div>
       <div class="mt-wahl d-none" data-wahl></div>`,
     beimOeffnen: b => {
@@ -370,22 +369,26 @@ async function schreiben(kontext, { an, vorgabe, entwurf, titel } = {}) {
         b.querySelectorAll('[data-weg]').forEach(x => x.onclick = () => { gewaehlt.delete(x.dataset.weg); chips(); });
       };
       chips();
-      const schreibbereich = b.querySelector('[data-schreiben]');
       const wahl = b.querySelector('[data-wahl]');
-      const fuss = b.querySelector('.modal-footer');
-      const wahlZu = () => { wahl.classList.add('d-none'); schreibbereich.classList.remove('d-none'); fuss?.classList.remove('d-none'); };
-      b.querySelector('[data-plus]').onclick = () => {
-        schreibbereich.classList.add('d-none'); fuss?.classList.add('d-none'); wahl.classList.remove('d-none');
+      const plus = b.querySelector('[data-plus]');
+      // Fußleiste wie im Original: Speichern | Lesebestätigung, Wichtig, Anhang, Vorschau … Abbrechen, Senden
+      const werkzeuge = b.querySelector('[data-werkzeuge]');
+      b.querySelector('.modal-footer [data-knopf="0"]')?.after(werkzeuge);
+      werkzeuge.classList.remove('d-none');
+      const wahlZu = () => { wahl.classList.add('d-none'); plus.setAttribute('aria-expanded', 'false'); };
+      plus.onclick = () => {
+        if (!wahl.classList.contains('d-none')) { wahlZu(); return; }
+        wahl.classList.remove('d-none'); plus.setAttribute('aria-expanded', 'true');
         auswahl(wahl, empfaenger, gewaehlt, neu => { gewaehlt.clear(); neu.forEach((v, k) => gewaehlt.set(k, v)); chips(); wahlZu(); }, wahlZu);
       };
-      b.querySelectorAll('[data-modus]').forEach(x => x.onclick = () => {
-        const vorschau = x.dataset.modus === 'vorschau';
-        b.querySelectorAll('[data-modus]').forEach(y => y.classList.toggle('aktiv', y === x));
+      b.querySelector('[data-vorschau-knopf]').onclick = ev => {
+        const vorschau = ev.currentTarget.getAttribute('aria-pressed') !== 'true';
+        ev.currentTarget.setAttribute('aria-pressed', String(vorschau)); ev.currentTarget.classList.toggle('an', vorschau);
         b.querySelector('[name=text]').classList.toggle('d-none', vorschau);
         const v = b.querySelector('[data-vorschau]');
         v.classList.toggle('d-none', !vorschau);
         if (vorschau) { v.innerHTML = markdown(b.querySelector('[name=text]').value) || '<span class="text-body-secondary">Kein Text.</span>'; linksBinden(v); }
-      });
+      };
       const schalter = (sel, setzen) => b.querySelector(sel)?.addEventListener('click', ev => {
         const an = !ev.currentTarget.classList.contains('an');
         ev.currentTarget.classList.toggle('an', an); ev.currentTarget.setAttribute('aria-pressed', an); setzen(an);
@@ -432,8 +435,9 @@ async function schreiben(kontext, { an, vorgabe, entwurf, titel } = {}) {
       },
     ],
   });
-  box.closest('.modal')?.classList.add('mt-dialog');
-  box.querySelector('[data-knopf="0"]')?.classList.add('me-auto');
+  box.closest('.modal')?.classList.add('mt-dialog', 'mt-schreibdialog');
+  box.querySelector('[data-knopf="0"]')?.classList.add('mt-speichern');
+  box.querySelector('[data-knopf="1"]')?.classList.add('ms-auto');
 }
 
 // ------------------------------------------------------------------ Listen (eigene Verteiler)

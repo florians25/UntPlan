@@ -66,12 +66,14 @@ public static class KlassenbuchApi
             {
                 case "all":
                 {
-                    var (inhalte, darf, online) = await InhalteAsync(c, web, konto, k);
+                    var (inhalte, darf, eintrag) = await InhalteAsync(c, web, konto, k);
+                    var online = eintrag.Online;
+                    var onlineLink = online ? Kachelbau.OnlineLinkGueltig(eintrag.OnlineLink) ?? "" : "";
                     var (schueler, geprueft, _) = konto.Kollegium ? await SchuelerAsync(c, web, konto, k) : (new List<JsonObject>(), false, null);
                     return Results.Json(new
                     {
                         // canEdit: eigene Stunde (UntPlanWeb erlaubt das Klassenbuch), online: „Findet online statt“
-                        ok = true, canEdit = darf && konto.Kollegium, online, data = inhalte, students = schueler, absentClasses = Array.Empty<string>(),
+                        ok = true, canEdit = darf && konto.Kollegium, online, onlineLink, data = inhalte, students = schueler, absentClasses = Array.Empty<string>(),
                         dueHomework = await FaelligAsync(c, web, k), @checked = geprueft,
                         absent = schueler.Count(s => s["state"]?.GetValue<string>() == "absent"), reasons = konto.Kollegium ? await GruendeAsync(c, web) : new List<object>(),
                     });
@@ -101,8 +103,17 @@ public static class KlassenbuchApi
                 {
                     // „Findet online statt“ (Schalter in den Stundendetails) → Klassenbuch der Stunde in UntPlanWeb
                     var an = p["value"] is "1" or "true" or "on";
-                    await web.PutAsync(c, "api/app/klassenbuch/online", new { datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht, online = an });
-                    return Results.Json(new { ok = true, online = an });
+                    // Link zum Online-Unterricht (nur wenn mitgeschickt; leer löscht ihn)
+                    string? link = null;
+                    if (p.Hat("link"))
+                    {
+                        link = p["link"].Trim();
+                        if (link.Length > 0 && !link.Contains("://", StringComparison.Ordinal)) link = "https://" + link;
+                        if (link.Length > 0 && Kachelbau.OnlineLinkGueltig(link) is null) return Fehler("Bitte einen gültigen Link (https://…) eingeben.");
+                    }
+                    var antwort = await web.PutAsync(c, "api/app/klassenbuch/online", new { datum = Iso(k.Datum), stunde = k.Stunde, unterricht = k.Unterricht, online = an, onlineLink = link });
+                    var gespeichert = antwort?["onlineLink"] is JsonValue v && v.GetValueKind() == JsonValueKind.String ? v.GetValue<string>() : link;
+                    return Results.Json(new { ok = true, online = an, onlineLink = an ? gespeichert ?? "" : "" });
                 }
                 case "remarkMany":
                 {
@@ -156,14 +167,15 @@ public static class KlassenbuchApi
 
     // ------------------------------------------------------------------------------------------ Inhalte
 
-    private sealed record Eintrag(string Thema, string Hausaufgabe, string? Faellig, string Notiz, string NotizSchueler = "", bool Online = false);
+    private sealed record Eintrag(string Thema, string Hausaufgabe, string? Faellig, string Notiz, string NotizSchueler = "", bool Online = false, string OnlineLink = "");
 
     private static async Task<(Eintrag Eintrag, bool Darf)> EintragAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k)
     {
         var j = await web.GetAsync(c, $"api/app/klassenbuch/stunde?{Stunde(k)}");
         var e = j?["eintrag"] as JsonObject;
         return (new Eintrag(e?["thema"]?.GetValue<string>() ?? "", e?["hausaufgabe"]?.GetValue<string>() ?? "", e?["faellig"]?.GetValue<string>(),
-            e?["notiz"]?.GetValue<string>() ?? "", e?["notizSchueler"]?.GetValue<string>() ?? "", e?["online"]?.GetValue<bool>() ?? false), j?["darf"]?.GetValue<bool>() ?? false);
+            e?["notiz"]?.GetValue<string>() ?? "", e?["notizSchueler"]?.GetValue<string>() ?? "", e?["online"]?.GetValue<bool>() ?? false,
+            e?["onlineLink"] is JsonValue ol && ol.GetValueKind() == JsonValueKind.String ? ol.GetValue<string>() : ""), j?["darf"]?.GetValue<bool>() ?? false);
     }
 
     /// <summary>Hausaufgaben der Stunde aus der Liste von UntPlanWeb (mit Id, Fälligkeit und Bemerkung).</summary>
@@ -180,7 +192,7 @@ public static class KlassenbuchApi
     private static List<object> Hausaufgaben(IEnumerable<JsonObject> liste) =>
         liste.Select(h => (object)new { text = h["text"]?.GetValue<string>() ?? "", due = h["faellig"]?.GetValue<string>(), note = h["bemerkung"]?.GetValue<string>() ?? "", done = h["erledigt"]?.GetValue<bool>() ?? false }).ToList();
 
-    private static async Task<(object Inhalte, bool Darf, bool Online)> InhalteAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k)
+    private static async Task<(object Inhalte, bool Darf, Eintrag Eintrag)> InhalteAsync(HttpContext c, UntPlanWebVerbindung web, Konto konto, Schluessel k)
     {
         var (e, darf) = await EintragAsync(c, web, k);
         return (new
@@ -190,7 +202,7 @@ public static class KlassenbuchApi
             notes_teachers = konto.Kollegium ? e.Notiz : "",
             homework = Hausaufgaben(await HausaufgabenListeAsync(c, web, k)),
             classbook = konto.Kollegium ? await KlasseneintraegeAsync(c, web, k) : new List<object>(),
-        }, darf, e.Online);
+        }, darf, e);
     }
 
     private static Task EintragSpeichernAsync(HttpContext c, UntPlanWebVerbindung web, Schluessel k, Eintrag e) =>

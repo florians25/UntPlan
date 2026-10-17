@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using UntPlanMobile.Api;
 using UntPlanMobile.Dienste;
@@ -39,6 +40,16 @@ public class Program
         var zone = TimeZoneInfo.FindSystemTimeZoneById(builder.Configuration["UNTPLANMOBILE_ZEITZONE"] is { Length: > 0 } z ? z : "Europe/Berlin");
 
         builder.Services.AddMemoryCache();
+        // Datenordner: Profile je Gerät (verschlüsselte Sitzungen), Push-Abos, VAPID-Schlüssel und Schlüssel der Data Protection
+        var daten = new Datenordner(builder.Configuration);
+        builder.Services.AddSingleton(daten);
+        builder.Services.AddDataProtection().SetApplicationName("UntPlanMobile")
+            .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(daten.Pfad, "schluessel")));
+        builder.Services.AddSingleton<Kontenspeicher>();
+        builder.Services.AddSingleton<Vapid>();
+        builder.Services.AddSingleton<Pushwache>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Pushwache>());
+        builder.Services.AddHttpClient("push", c => c.Timeout = TimeSpan.FromSeconds(20));
         builder.Services.AddSingleton(new Zeitgeber(zone));
         builder.Services.AddSingleton<Huelle>();
         builder.Services.AddTransient<Kontodienst>();
@@ -143,6 +154,8 @@ public class Program
         RaumApi.Abbilden(app);
         StartseiteApi.Abbilden(app);
         MitteilungenApi.Abbilden(app);
+        SprechtagApi.Abbilden(app);
+        PushApi.Abbilden(app);
         SsoApi.Abbilden(app);
         VersionApi.Abbilden(app);
         return app;

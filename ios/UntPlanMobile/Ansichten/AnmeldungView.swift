@@ -1,7 +1,12 @@
 import SwiftUI
 
-/// Anmeldung mit Server-Adresse, Benutzername und Passwort.
+/// Anmeldung mit Server-Adresse, Benutzername und Passwort. Als „Konto hinzufügen“ (eingebettet in die Kontenauswahl)
+/// bleibt das bisherige Konto angemeldet; in der Anmeldemaske stehen die übrigen gespeicherten Konten zum Wechsel bereit.
 struct AnmeldungView: View {
+    /// Weiteres Konto hinzufügen (ohne eigenen NavigationStack, Server vorbelegt, Benutzer leer)
+    var hinzufuegen: Bool = false
+    /// Nach erfolgreicher Anmeldung (z. B. Kontenauswahl schließen)
+    var fertig: (() -> Void)? = nil
     @EnvironmentObject var zustand: AppZustand
     @State private var server = UserDefaults.standard.string(forKey: ApiClient.adresseSchluessel) ?? ""
     @State private var login = UserDefaults.standard.string(forKey: ApiClient.loginSchluessel) ?? ""
@@ -9,6 +14,7 @@ struct AnmeldungView: View {
     @State private var merken = UserDefaults.standard.object(forKey: ApiClient.merkenSchluessel) as? Bool ?? true
     @State private var laedt = false
     @State private var fehler: String? = nil
+    @State private var wechselt: String? = nil
     @FocusState var fokus: Feld?
 
     enum Feld {
@@ -22,8 +28,32 @@ struct AnmeldungView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        if hinzufuegen {
+            formular
+                .navigationTitle("Konto hinzufügen")
+                .navigationBarTitleDisplayMode(.inline)
+                .onAppear {
+                    // Weiteres Konto: gleicher Server vorbelegt, Benutzer und Passwort leer
+                    login = ""
+                    passwort = ""
+                    merken = true
+                }
+        } else {
+            NavigationStack {
+                formular
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+    }
+
+    /// Gespeicherte Konten außer dem vorbelegten (Wechsel ohne erneute Anmeldung, sofern die Sitzung noch gilt).
+    private var andereKonten: [Konto] {
+        zustand.konten.filter { !$0.gleich(server: ApiClient.adresseNormalisieren(server), login: login.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    private var formular: some View {
             Form {
+                if !hinzufuegen {
                 Section {
                     VStack(spacing: 10) {
                         Image(systemName: "calendar")
@@ -41,6 +71,37 @@ struct AnmeldungView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .listRowBackground(Color.clear)
+                }
+                }
+
+                if !hinzufuegen && !andereKonten.isEmpty {
+                    Section {
+                        ForEach(andereKonten) { konto in
+                            Button {
+                                Task {
+                                    wechselt = konto.id
+                                    await zustand.wechseln(zu: konto)
+                                    wechselt = nil
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Initialen(name: konto.name, groesse: 34)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(konto.rollenname.isEmpty ? konto.login : "\(konto.login) · \(konto.rollenname)")
+                                            .foregroundStyle(Farben.tinte)
+                                        Text(konto.schulname.isEmpty ? konto.serverKurz : konto.schulname)
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if wechselt == konto.id { ProgressView() }
+                                }
+                            }
+                            .disabled(wechselt != nil)
+                        }
+                    } header: {
+                        Text("Gespeicherte Konten")
+                    }
                 }
 
                 Section {
@@ -100,11 +161,12 @@ struct AnmeldungView: View {
                         Text(fehler)
                             .foregroundStyle(Farben.entfallRand)
                             .font(.footnote)
+                    } else if hinzufuegen {
+                        Text("Das bisherige Konto bleibt angemeldet; Sie können jederzeit über den Profilwechsel oben links zurückwechseln.")
+                            .font(.footnote)
                     }
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-        }
     }
 
     private func anmelden() async {
@@ -115,6 +177,7 @@ struct AnmeldungView: View {
         do {
             try await zustand.anmelden(server: server, login: login, passwort: passwort, merken: merken)
             passwort = ""
+            fertig?()
         } catch {
             fehler = error.localizedDescription
         }

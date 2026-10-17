@@ -347,16 +347,30 @@ public sealed class Klassenbuchverwaltung
 
     // ------------------------------------------------------------------------------------------ Findet online statt
 
-    public void OnlineSetzen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, bool online)
+    /// <summary>
+    /// „Findet online statt“ setzen und optional den Link zum Online-Unterricht (Videokonferenz). link = null lässt den gespeicherten
+    /// Link unverändert, "" entfernt ihn. Nur Lehrkräfte der Stunde sowie Schulleitung/Administration (Klassenbuch aller Stunden).
+    /// </summary>
+    public void OnlineSetzen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, bool online, string? link = null)
     {
         if (!_kb.DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
-        var e = _kb.Zeitraum(d, d).FirstOrDefault(x => x.Unterricht == unterricht && stunde >= x.Stunde && (b.LehrerKuerzel is null || Ci.Equals(x.Lehrer, b.LehrerKuerzel)));
-        if (e is null)
-        {
-            var neu = _kb.Speichern(b, s, d, stunde, unterricht, "", "", null, "");
-            _db.Ausfuehren("UPDATE klassenbuch SET online = @o WHERE id = @i", Db.P("@o", online), Db.P("@i", neu.Id));
-        }
-        else _db.Ausfuehren("UPDATE klassenbuch SET online = @o WHERE id = @i", Db.P("@o", online), Db.P("@i", e.Id));
+        var url = link is null ? null : OnlineLinkPruefen(link);
+        var e = _kb.Zeitraum(d, d).Where(x => x.Unterricht == unterricht && stunde >= x.Stunde && (b.LehrerKuerzel is null || Ci.Equals(x.Lehrer, b.LehrerKuerzel)))
+            .OrderByDescending(x => x.Stunde).FirstOrDefault();
+        var id = e?.Id ?? _kb.Speichern(b, s, d, stunde, unterricht, "", "", null, "").Id;
+        if (url is null) _db.Ausfuehren("UPDATE klassenbuch SET online = @o WHERE id = @i", Db.P("@o", online), Db.P("@i", id));
+        else _db.Ausfuehren("UPDATE klassenbuch SET online = @o, online_link = @l WHERE id = @i", Db.P("@o", online), Db.P("@l", url), Db.P("@i", id));
+    }
+
+    /// <summary>Link zum Online-Unterricht prüfen: leer oder eine absolute http-/https-Adresse (höchstens 1000 Zeichen).</summary>
+    public static string OnlineLinkPruefen(string link)
+    {
+        var t = link.Trim();
+        if (t.Length == 0) return "";
+        if (t.Length > 1000) throw new ArgumentException("Der Link ist zu lang (höchstens 1000 Zeichen).");
+        if (!Uri.TryCreate(t, UriKind.Absolute, out var u) || (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) || string.IsNullOrEmpty(u.Host) || t.Any(char.IsWhiteSpace))
+            throw new ArgumentException("Bitte einen gültigen Link mit http:// oder https:// angeben.");
+        return t;
     }
 
     // ------------------------------------------------------------------------------------------ Berichte

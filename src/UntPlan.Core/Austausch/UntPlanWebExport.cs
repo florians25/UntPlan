@@ -112,7 +112,7 @@ public static class UntPlanWebExport
                             TagesStatus.Vertreten => "vertreten", TagesStatus.Offen => "offen", TagesStatus.Entfall => "entfall",
                             TagesStatus.Zusaetzlich => "zusaetzlich", TagesStatus.Frei => "frei", _ => "regulaer",
                         },
-                        Vertretung = e.Vertretung?.Id, Text = e.Vertretung?.Text ?? "",
+                        Vertretung = e.Vertretung?.Id, Text = StundenplanAenderungen.ExportText(e.Vertretung?.Text),
                         LehrerAlt = (e.Status is TagesStatus.Vertreten or TagesStatus.Offen) && e.Vertretung?.LehrerId is int alt && !e.LehrerIds.Contains(alt)
                             ? new List<string> { ix.KLehrer(alt) } : new List<string>(),
                         Bereitschaft = Vertretungen.IstBereitschaftsfach(d, e.FachId) || Vertretungen.IstBereitschaftsfach(d, e.Regel?.FachId),
@@ -125,7 +125,7 @@ public static class UntPlanWebExport
                     vertretungen.Add(new WebVertretung
                     {
                         Id = z.Id, Datum = D(t), Stunde = z.Stunde, Art = z.Art, Klassen = Kl(z.KlassenIds), Lehrer = z.Lehrer, Vertreter = z.Vertreter,
-                        Fach = z.Fach, NeuesFach = z.NeuesFach, Raum = z.Raum, NeuerRaum = z.NeuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = z.Text,
+                        Fach = z.Fach, NeuesFach = z.NeuesFach, Raum = z.Raum, NeuerRaum = z.NeuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = StundenplanAenderungen.ExportText(z.Text),
                         NurLehrer = z.Art == Vertretungsplan.ArtText(d, VertretungsArt.Pausenaufsicht),
                     });
             }

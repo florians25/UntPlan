@@ -19,7 +19,9 @@ struct HauptView: View {
             case .abgemeldet:
                 AnmeldungView()
             case .angemeldet:
+                // Neuer Aufbau je Konto: beim Kontowechsel starten alle Reiter frisch (keine Daten des vorigen Kontos)
                 AppTabView()
+                    .id(zustand.kontoStand)
             }
         }
         .task {
@@ -38,9 +40,14 @@ struct HauptView: View {
             }
         }
         // Eigene Änderung in der App (z. B. Raum in den Stundendetails ersetzt): Stand übernehmen, nicht melden
+        // Kontowechsel: Plan des neuen Kontos prüfen (eigener Stand je Konto)
+        .onChange(of: zustand.kontoStand) { _, _ in
+            guard zustand.phase == .angemeldet else { return }
+            Task { await zustand.planPruefen() }
+        }
         .onChange(of: zustand.planGeaendert) { _, _ in
             guard zustand.darfPlanmitteilungen else { return }
-            Task { _ = await Planpruefer.shared.pruefen(melden: false) }
+            Task { _ = await Planpruefer.shared.pruefen(melden: false, erzwingen: true) }
         }
         // Angetippte Mitteilung über eine Planänderung: Tag im eigenen Plan öffnen
         .onReceive(NotificationCenter.default.publisher(for: Planmitteilungen.tippBenachrichtigung)) { _ in
@@ -53,8 +60,12 @@ struct HauptView: View {
         .onChange(of: zustand.phase) { _, neu in
             schnellaktionAusfuehren()
             tagOeffnen()
-            // Nach der Anmeldung bzw. beim Start einmal den eigenen Plan prüfen (Lehrkräfte)
-            if neu == .angemeldet { Task { await zustand.planPruefen() } }
+            // Nach der Anmeldung bzw. beim Start einmal den eigenen Plan prüfen (Lehrkräfte) und das Gerät für
+            // Push-Mitteilungen beim Server hinterlegen
+            if neu == .angemeldet {
+                zustand.pushTokenMelden()
+                Task { await zustand.planPruefen() }
+            }
         }
         .onAppear {
             schnellaktionAusfuehren()

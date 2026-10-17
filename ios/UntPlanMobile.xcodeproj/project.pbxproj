@@ -38,6 +38,10 @@
 		5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000003F /* ProfilSeiten.swift */; };
 		5A1F0C000000000000000042 /* Kachelbau.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000041 /* Kachelbau.swift */; };
 		5A1F0C000000000000000050 /* Planmitteilungen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000004F /* Planmitteilungen.swift */; };
+		5A1F0C000000000000000053 /* Konten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000052 /* Konten.swift */; };
+		5A1F0C000000000000000055 /* SprechtagModelle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000054 /* SprechtagModelle.swift */; };
+		5A1F0C000000000000000057 /* SprechtagView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000056 /* SprechtagView.swift */; };
+		5A1F0C000000000000000059 /* KontenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000058 /* KontenView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -74,6 +78,10 @@
 		5A1F0C000000000000000041 /* Kachelbau.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kachelbau.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000004F /* Planmitteilungen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Planmitteilungen.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000051 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5A1F0C000000000000000052 /* Konten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Konten.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000054 /* SprechtagModelle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprechtagModelle.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000056 /* SprechtagView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprechtagView.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000058 /* KontenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KontenView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +138,8 @@
 				5A1F0C000000000000000049 /* RaumSeite.swift */,
 				5A1F0C00000000000000004B /* MeineAbwesenheitenView.swift */,
 				5A1F0C00000000000000004D /* GeheZuDatumView.swift */,
+				5A1F0C000000000000000058 /* KontenView.swift */,
+				5A1F0C000000000000000056 /* SprechtagView.swift */,
 			);
 			path = Ansichten;
 			sourceTree = "<group>";
@@ -145,6 +155,7 @@
 				5A1F0C000000000000000041 /* Kachelbau.swift */,
 				5A1F0C00000000000000004F /* Planmitteilungen.swift */,
 				5A1F0C000000000000000021 /* Schluesselbund.swift */,
+				5A1F0C000000000000000052 /* Konten.swift */,
 			);
 			path = Dienste;
 			sourceTree = "<group>";
@@ -154,6 +165,7 @@
 			children = (
 				5A1F0C000000000000000017 /* Dekodierung.swift */,
 				5A1F0C000000000000000019 /* Modelle.swift */,
+				5A1F0C000000000000000054 /* SprechtagModelle.swift */,
 			);
 			path = Modelle;
 			sourceTree = "<group>";
@@ -256,6 +268,10 @@
 				5A1F0C000000000000000046 /* Schnellaktionen.swift in Sources */,
 				5A1F0C000000000000000042 /* Kachelbau.swift in Sources */,
 				5A1F0C000000000000000050 /* Planmitteilungen.swift in Sources */,
+				5A1F0C000000000000000059 /* KontenView.swift in Sources */,
+				5A1F0C000000000000000057 /* SprechtagView.swift in Sources */,
+				5A1F0C000000000000000055 /* SprechtagModelle.swift in Sources */,
+				5A1F0C000000000000000053 /* Konten.swift in Sources */,
 				5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */,
 				5A1F0C00000000000000003E /* StundendetailSeiten.swift in Sources */,
 				5A1F0C000000000000000044 /* DetailBausteine.swift in Sources */,

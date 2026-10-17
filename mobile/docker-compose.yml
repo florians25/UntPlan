@@ -50,6 +50,11 @@ services:
       UNTPLANWEB_URL: http://untplanweb:8080
       # Updateprüfung abschalten:
       # UNTPLANMOBILE_UPDATE_PRUEFEN: "0"
+      # Kontakt für die Push-Dienste (Benachrichtigungen bei Planänderungen), mailto: oder https:
+      # UNTPLANMOBILE_VAPID_KONTAKT: "mailto:verwaltung@schule.example"
+    volumes:
+      # Profile je Gerät, Push-Abos und Schlüssel (VAPID, Data Protection)
+      - untplanmobile-daten:/data
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
@@ -70,3 +75,4 @@ services:
 
 volumes:
   untplanweb-daten:
+  untplanmobile-daten:

@@ -31,9 +31,7 @@ public static class OffeneStunden
     public static bool Gueltig(string? bereich) => bereich != null && Bereiche.Any(b => b.Id == bereich);
 
     /// <summary>Darf die offenen Stunden aller Lehrkräfte sehen.</summary>
-    public static bool DarfAlle(Benutzer b) =>
-        b.Rolle is Rollen.Admin or Rollen.Leitung ||
-        (b.Kollegium && (b.Zusatzrechte.Contains(Zusatzrechte.KlassenbuchAlle) || b.Zusatzrechte.Contains(Zusatzrechte.OffeneStunden)));
+    public static bool DarfAlle(Benutzer b) => Rechtedienst.Darf(b, Recht.OffeneStundenAlle);
 
     /// <summary>Zeitraum eines Bereichs bis heute; „individuell“ verwendet von/bis (ohne Angabe: aktuelle Woche).</summary>
     public static (DateOnly Von, DateOnly Bis) Zeitraum(string bereich, DateOnly heute, DateOnly schuljahrVon, DateOnly? von = null, DateOnly? bis = null)

@@ -1562,10 +1562,12 @@ public static class Vertretungsplan
         // Vertreter hatte zu der Stunde Bereitschaft
         if (art.Length == 0 && v.VertreterId is int vl && bereitschaften?.Contains((vl, v.Stunde)) == true && v.Art is VertretungsArt.Vertretung or VertretungsArt.StattVertretung)
             art = "Bereitschaft";
-        // ein freier Text ersetzt die Standardbemerkung nicht, sondern ergänzt sie
-        if (string.IsNullOrWhiteSpace(v.Text)) return art;
-        if (art.Length == 0 || v.Text.Contains(art, StringComparison.CurrentCultureIgnoreCase)) return v.Text;
-        return $"{art} – {v.Text}";
+        // ein freier Text ersetzt die Standardbemerkung nicht, sondern ergänzt sie (ohne den automatischen Hinweis älterer Versionen
+        // „(Benutzer) Raumänderung“ – eine Raumänderung aus einer Buchung hat keinen Vertretungstext)
+        var text = Austausch.StundenplanAenderungen.ExportText(v.Text);
+        if (string.IsNullOrWhiteSpace(text)) return art;
+        if (art.Length == 0 || text.Contains(art, StringComparison.CurrentCultureIgnoreCase)) return text;
+        return $"{art} – {text}";
     }
 
     public static string StundeText(Vertretung v) => v.Art == VertretungsArt.Pausenaufsicht ? $"{v.Stunde}/{v.Stunde + 1}" : v.Stunde.ToString();

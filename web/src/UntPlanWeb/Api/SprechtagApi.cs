@@ -44,7 +44,7 @@ public static class SprechtagApi
     private static Benutzer Admin(HttpContext c)
     {
         var b = Ich(c);
-        if (!b.IstAdmin) throw new UnauthorizedAccessException("Nur für die Administration.");
+        if (!Rechtedienst.Darf(b, Recht.SprechtagVerwalten)) throw new UnauthorizedAccessException("Nur für die Administration.");
         return b;
     }
 
@@ -59,7 +59,7 @@ public static class SprechtagApi
     private static Sprechtag Sichtbar(Sprechtagdienst d, Benutzer b, int id)
     {
         var t = d.Pflicht(id);
-        if (!t.Sichtbar && !b.IstAdmin) throw new ArgumentException("Unbekannter Sprechtag.");
+        if (!t.Sichtbar && !Rechtedienst.Darf(b, Recht.SprechtagVerwalten)) throw new ArgumentException("Unbekannter Sprechtag.");
         return t;
     }
 
@@ -69,7 +69,7 @@ public static class SprechtagApi
         if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für Lehrkräfte.");
         var gewuenscht = string.IsNullOrWhiteSpace(lehrer) ? b.LehrerKuerzel : lehrer.Trim();
         if (gewuenscht is null) throw new ArgumentException("Bitte eine Lehrkraft wählen.");
-        if (!b.IstAdmin && !Ci.Equals(gewuenscht, b.LehrerKuerzel)) throw new UnauthorizedAccessException("Sie können nur Ihren eigenen Terminplan bearbeiten.");
+        if (!Rechtedienst.Darf(b, Recht.SprechtagVerwalten) && !Ci.Equals(gewuenscht, b.LehrerKuerzel)) throw new UnauthorizedAccessException("Sie können nur Ihren eigenen Terminplan bearbeiten.");
         return Sprechtagdienst.Beteiligt(t, gewuenscht)?.Lehrer ?? throw new UnauthorizedAccessException("Sie sind an diesem Sprechtag nicht beteiligt.");
     }
 
@@ -114,7 +114,7 @@ public static class SprechtagApi
                 if (b.Kollegium)
                 {
                     var l = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel);
-                    if (l is null && !b.IstAdmin) continue;
+                    if (l is null && !Rechtedienst.Darf(b, Recht.SprechtagVerwalten)) continue;
                     var eigene = l is null ? termine.Count : termine.Count(x => Ci.Equals(x.Lehrer, l.Lehrer));
                     var text = phase switch
                     {
@@ -151,10 +151,10 @@ public static class SprechtagApi
         {
             var b = Ich(c);
             var s = p.Aktuell;
-            var liste = d.Alle().Where(t => b.IstAdmin || t.Sichtbar).ToList();
+            var liste = d.Alle().Where(t => Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Sichtbar).ToList();
             return Results.Json(new
             {
-                admin = b.IstAdmin, ich = b.LehrerKuerzel ?? "", eltern = b.Rolle == Rollen.Eltern,
+                admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten), ich = b.LehrerKuerzel ?? "", eltern = b.Rolle == Rollen.Eltern,
                 sprechtage = liste.Select(t =>
                 {
                     var termine = d.Termine(t.Id);
@@ -162,7 +162,7 @@ public static class SprechtagApi
                     {
                         sprechtag = Json(d, t, s),
                         beteiligt = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel) != null,
-                        termine = b.IstAdmin ? termine.Count : b.Rolle == Rollen.Eltern ? termine.Count(x => b.SchuelerIds.Contains(x.SchuelerId)) : termine.Count(x => Ci.Equals(x.Lehrer, b.LehrerKuerzel)),
+                        termine = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) ? termine.Count : b.Rolle == Rollen.Eltern ? termine.Count(x => b.SchuelerIds.Contains(x.SchuelerId)) : termine.Count(x => Ci.Equals(x.Lehrer, b.LehrerKuerzel)),
                     };
                 }),
             });
@@ -214,10 +214,10 @@ public static class SprechtagApi
             var einladungen = d.Einladungen(id);
             return Results.Json(new
             {
-                sprechtag = Json(d, t, s), admin = b.IstAdmin, ich = b.LehrerKuerzel ?? "", beteiligt = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel) != null,
+                sprechtag = Json(d, t, s), admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten), ich = b.LehrerKuerzel ?? "", beteiligt = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel) != null,
                 eltern = b.Rolle == Rollen.Eltern,
                 // Übersicht je Lehrkraft (nur Administration)
-                uebersicht = b.IstAdmin ? t.Lehrkraefte.Select(l =>
+                uebersicht = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) ? t.Lehrkraefte.Select(l =>
                 {
                     var raster = d.Raster(t, l.Lehrer);
                     return new
@@ -226,7 +226,7 @@ public static class SprechtagApi
                         frei = raster.Count(x => x.Status == "frei"), einladungen = einladungen.Count(e => Ci.Equals(e.Lehrer, l.Lehrer)),
                     };
                 }) : null,
-                termine = b.IstAdmin ? termine.Count : 0,
+                termine = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) ? termine.Count : 0,
             });
         });
 
@@ -243,10 +243,10 @@ public static class SprechtagApi
             var einladungen = d.Einladungen(id).Where(e => Ci.Equals(e.Lehrer, kurz)).ToList();
             return Results.Json(new
             {
-                sprechtag = Json(d, t, s), admin = b.IstAdmin,
+                sprechtag = Json(d, t, s), admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten),
                 lehrer = new { kurz, name = Sprechtagdienst.LehrerName(s, kurz), l.Raum, l.Abgesagt, l.AbsageGrund },
-                darfRaum = b.IstAdmin || t.Raumwahl,
-                raeume = b.IstAdmin || t.Raumwahl ? (s?.Paket.Elemente.Raeume ?? new()).OrderBy(r => r.Kurz, Ci).Select(r => new { r.Kurz, r.Name }).ToList<object>() : new List<object>(),
+                darfRaum = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Raumwahl,
+                raeume = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Raumwahl ? (s?.Paket.Elemente.Raeume ?? new()).OrderBy(r => r.Kurz, Ci).Select(r => new { r.Kurz, r.Name }).ToList<object>() : new List<object>(),
                 einladenMoeglich = t.Sichtbar && uhr.Jetzt <= Sprechtagdienst.EinladungEnde(t),
                 zeitfenster = d.Raster(t, kurz).Select(x => new { x.Beginn, x.Ende, x.Status, termin = x.Termin is null ? null : TerminJson(s, bd, x.Termin) }),
                 einladungen = einladungen.Select(e => new
@@ -262,7 +262,7 @@ public static class SprechtagApi
             var b = Ich(c);
             var t = Sichtbar(d, b, id);
             var kurz = Lehrkraft(b, t, daten.Lehrer);
-            if (!b.IstAdmin && !t.Raumwahl) throw new UnauthorizedAccessException("Den Raum legt die Administration fest.");
+            if (!Rechtedienst.Darf(b, Recht.SprechtagVerwalten) && !t.Raumwahl) throw new UnauthorizedAccessException("Den Raum legt die Administration fest.");
             d.RaumSetzen(p.Aktuell, t, kurz, daten.Raum);
             return Results.Json(new { ok = true });
         });
@@ -393,7 +393,7 @@ public static class SprechtagApi
             var b = Ich(c);
             var t = Sichtbar(d, b, id);
             var s = p.Aktuell;
-            var alle = b.IstAdmin && string.IsNullOrWhiteSpace(lehrer);
+            var alle = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) && string.IsNullOrWhiteSpace(lehrer);
             var liste = alle ? t.Lehrkraefte.Select(l => l.Lehrer).ToList() : new List<string> { Lehrkraft(b, t, lehrer) };
             var zeilen = new List<IReadOnlyList<string>>();
             foreach (var kurz in liste)

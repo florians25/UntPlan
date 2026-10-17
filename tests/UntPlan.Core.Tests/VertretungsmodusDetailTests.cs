@@ -370,7 +370,7 @@ public class VertretungsmodusDetailTests
         Assert.Empty(nein);
         var rv = d.Vertretungen.Single(v => v.WebId == "B510");
         Assert.Equal(VertretungsArt.Raumvertretung, rv.Art);
-        Assert.Equal("(admin) Raumänderung", rv.Text);
+        Assert.Equal("", rv.Text);   // Raumänderung aus einer Buchung: kein Vertretungstext
         Assert.Equal(freierRaum.Id, rv.VertretungsraumId);
         var k = Assert.Single(d.Klausuren);
         Assert.True(k.Importiert);
@@ -385,6 +385,45 @@ public class VertretungsmodusDetailTests
         Assert.Empty(ok2);
         Assert.Single(d.Klausuren);
         Assert.Single(d.Vertretungen, v => v.WebId == "B510");
+    }
+
+    [Fact]
+    public void RaumaenderungAusBuchungHatImDesktopUndImExportKeinenVertretungstext()
+    {
+        var (d, tag) = Daten();
+        var r = Normale(d, tag)[0];
+        var tp = Tagesplan.Berechnen(d, tag);
+        var freierRaum = d.Raeume.First(x => !tp.Stunde(r.Stunde).Any(e => e.RaumIds.Contains(x.Id)));
+        var lehrer = d.Lehrer.First(l => l.Id == r.LehrerId);
+        var m = new WebRueckmeldung { Id = "B900", Typ = WebRueckmeldungsTypen.Raumbuchung, Absender = "lan", Lehrer = lehrer.Kurzname, Von = tag.ToString("yyyy-MM-dd"),
+            StundeVon = r.Stunde, StundeBis = r.Stunde, UnterrichtNr = r.Unterricht.Id, Raeume = { freierRaum.Kurzname }, Raum = freierRaum.Kurzname };
+        var z = StundenplanAenderungen.Zeile(d, m);
+        Assert.Equal(StplAenderungsArt.Unterricht, z.Art);
+        var (ok, _) = StundenplanAenderungen.Uebernehmen(d, new[] { z }, "lan");
+        Assert.Equal(new[] { "B900" }, ok);
+        var v = Assert.Single(d.Vertretungen, x => x.WebId == "B900");
+        Assert.Equal(VertretungsArt.Raumvertretung, v.Art);
+        Assert.Equal("", v.Text);
+        // Desktop: Aushang-Bemerkung nur die Art, kein Vertretungstext
+        var zeile = Vertretungsplan.Zeilen(d, tag).Single(x => x.Id == v.Id);
+        Assert.Equal("", zeile.Text);
+        Assert.Equal("Raumänderung", Vertretungsplan.Bemerkung(d, v));
+        // Export: weder Vertretungszeile noch Stunde tragen einen Text
+        var paket = UntPlanWebExport.PaketErstellen(d, tag);
+        Assert.Equal("", paket.Vertretungen.Single(x => x.Id == v.Id).Text);
+        Assert.All(paket.Tage.Single(t => t.Datum == tag.ToString("yyyy-MM-dd")).Stunden.Where(x => x.Vertretung == v.Id), x => Assert.Equal("", x.Text));
+
+        // ältere Dateien mit dem automatischen Hinweis „(lan) Raumänderung“: wird nicht exportiert und nicht als Bemerkung gezeigt
+        v.Text = "(lan) Raumänderung";
+        Assert.True(StundenplanAenderungen.IstRaumaenderungsHinweis(v.Text));
+        Assert.False(StundenplanAenderungen.IstRaumaenderungsHinweis("Raumänderung wegen Wasserschaden"));
+        Assert.Equal("Raumänderung", Vertretungsplan.Bemerkung(d, v));
+        paket = UntPlanWebExport.PaketErstellen(d, tag);
+        Assert.Equal("", paket.Vertretungen.Single(x => x.Id == v.Id).Text);
+        Assert.All(paket.Tage.Single(t => t.Datum == tag.ToString("yyyy-MM-dd")).Stunden.Where(x => x.Vertretung == v.Id), x => Assert.Equal("", x.Text));
+        // ein eigener Text der Lehrkraft bleibt erhalten
+        v.Text = "Bitte Laptops mitbringen";
+        Assert.Equal("Bitte Laptops mitbringen", UntPlanWebExport.PaketErstellen(d, tag).Vertretungen.Single(x => x.Id == v.Id).Text);
     }
 
     [Fact]

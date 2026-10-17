@@ -433,7 +433,7 @@ public sealed class Sprechtagdienst
             Pruefen(s, t, l.Lehrer, schuelerId, beginn, null, null, gesperrteErlaubt: true);
             // ein manuell eingetragener Termin in einem gesperrten Fenster hebt die Sperre auf
             _db.Ausfuehren("DELETE FROM sprechtag_sperren WHERE sprechtag_id = @id AND lehrer = @l AND beginn = @b", Db.P("@id", t.Id), Db.P("@l", l.Lehrer), Db.P("@b", beginn));
-            return Einfuegen(t, l.Lehrer, schuelerId, beginn, null, text, ich.IstAdmin && !Ci.Equals(ich.LehrerKuerzel, l.Lehrer) ? "verwaltung" : "lehrkraft");
+            return Einfuegen(t, l.Lehrer, schuelerId, beginn, null, text, Rechtedienst.Darf(ich, Recht.SprechtagVerwalten) && !Ci.Equals(ich.LehrerKuerzel, l.Lehrer) ? "verwaltung" : "lehrkraft");
         }
     }
 
@@ -471,7 +471,7 @@ public sealed class Sprechtagdienst
 
     /// <summary>Darf das Konto diesen Termin ändern bzw. stornieren?</summary>
     public static bool DarfTermin(Sprechtag t, Benutzer ich, SprechtagTermin x) =>
-        ich.IstAdmin || (ich.Kollegium && Ci.Equals(ich.LehrerKuerzel, x.Lehrer)) || (ich.Rolle == Rollen.Eltern && ich.SchuelerIds.Contains(x.SchuelerId));
+        Rechtedienst.Darf(ich, Recht.SprechtagVerwalten) || (ich.Kollegium && Ci.Equals(ich.LehrerKuerzel, x.Lehrer)) || (ich.Rolle == Rollen.Eltern && ich.SchuelerIds.Contains(x.SchuelerId));
 
     // ------------------------------------------------------------------------------------------ Absagen
 
@@ -577,7 +577,7 @@ public sealed class Sprechtagdienst
     /// </summary>
     public (int Termine, int Benachrichtigt) SprechtagAbsagen(Stand? s, Sprechtag t, Benutzer ich, string? grund)
     {
-        if (!ich.IstAdmin) throw new UnauthorizedAccessException("Nur die Administration kann den Sprechtag absagen.");
+        if (!Rechtedienst.Darf(ich, Recht.SprechtagVerwalten)) throw new UnauthorizedAccessException("Nur die Administration kann den Sprechtag absagen.");
         if (t.Abgesagt.Length > 0) throw new ArgumentException("Der Sprechtag wurde bereits abgesagt.");
         if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
         var g = Grund(grund);
@@ -665,7 +665,7 @@ public sealed class Sprechtagdienst
     public void EinladungLoeschen(Sprechtag t, Benutzer ich, int einladungId)
     {
         var e = Einladungen(t.Id).FirstOrDefault(x => x.Id == einladungId) ?? throw new ArgumentException("Unbekannte Einladung.");
-        if (!ich.IstAdmin && !Ci.Equals(ich.LehrerKuerzel, e.Lehrer)) throw new UnauthorizedAccessException("Diese Einladung dürfen Sie nicht löschen.");
+        if (!Rechtedienst.Darf(ich, Recht.SprechtagVerwalten) && !Ci.Equals(ich.LehrerKuerzel, e.Lehrer)) throw new UnauthorizedAccessException("Diese Einladung dürfen Sie nicht löschen.");
         _db.Ausfuehren("DELETE FROM sprechtag_einladungen WHERE id = @id", Db.P("@id", einladungId));
     }
 

@@ -59,11 +59,11 @@ public class OberflaecheTests
         Assert.Null(rm["text"]);
         Assert.Null(rm["titel"]);
 
-        // im Raumplan des neuen Raums steht die Stunde, im alten Raum ist sie verlegt
+        // im Raumplan des neuen Raums steht die Stunde, im alten Raum erscheint sie nicht mehr
         var neu = await Testserver.HolenAsync(c, $"/api/app/plan?typ=raum&element={neuerRaum}&datum=2026-10-16");
         Assert.Contains(Karten(neu, "2026-10-16", k.Von), x => x["unterricht"]?.GetValue<int>() == k.Unterricht);
         var alt = await Testserver.HolenAsync(c, $"/api/app/plan?typ=raum&element={alterRaum}&datum=2026-10-16");
-        Assert.Equal("abwesend", Karten(alt, "2026-10-16", k.Von).Single(x => x["unterricht"]?.GetValue<int>() == k.Unterricht)["status"]!.GetValue<string>());
+        Assert.DoesNotContain(Karten(alt, "2026-10-16", k.Von), x => x["unterricht"]?.GetValue<int>() == k.Unterricht);
 
         // zusätzlichen Raum buchen: beide Räume, eine Karte; zurück auf den alten Raum: keine offene Buchung mehr
         var zweiter = frei.AsArray().Select(x => x!["kurz"]!.GetValue<string>()).First(x => x != alterRaum && x != neuerRaum);

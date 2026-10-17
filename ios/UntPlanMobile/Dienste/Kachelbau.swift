@@ -134,6 +134,8 @@ struct Kachel: Identifiable {
     var zusatz: Bool = false
     /// Nur der Raum hat sich geändert (grüne Karte wie eine Änderung, neuer Raum als grüne Plakette – nie gelb wie eine Prüfung)
     var raumAenderung: Bool = false
+    /// Stunde findet online statt: Videosymbol unten rechts
+    var online: Bool = false
 
     /// Zeigt Text beim Antippen (alles außer der Ganztags-Pille).
     var antippbar: Bool { art != .ganztagTermin }
@@ -186,7 +188,11 @@ enum Kachelbau {
     static func tag(_ tag: Tageskopf, plan: Wochenplan, raster: [Rasterzeit], typ: String, element: String, jetzt: Date) -> [Kachel] {
         guard !tag.frei, let erste = raster.first, let letzte = raster.last else { return [] }
         let ich = (plan.element.isEmpty ? element : plan.element).uppercased()
-        let karten = plan.karten.filter { $0.datum == tag.datum }
+        var karten = plan.karten.filter { $0.datum == tag.datum }
+        // Raumplan: Stunden, die aus diesem Raum genommen wurden (Raum nur noch als alter Wert), erscheinen nicht mehr
+        if typ == "raum" && !ich.isEmpty {
+            karten = karten.filter { !ausRaumGenommen($0, raum: ich) }
+        }
         var kacheln = karten.compactMap { ausKarte($0, typ: typ, ich: ich, raster: raster) }
         // Bereitschaft im Lehrerplan: hält die Lehrkraft darin eine Vertretung, entfällt nur diese Stunde der Bereitschaft
         if typ == "lehrer" {
@@ -270,6 +276,13 @@ enum Kachelbau {
         return !k.lehrer.isEmpty && k.lehrer.allSatisfy { $0.k.isEmpty && !($0.alt ?? "").isEmpty }
     }
 
+    /// Steht der Raum nur noch als alter (weggefallener) Wert in der Stunde – die Stunde wurde aus dem Raum genommen?
+    static func ausRaumGenommen(_ k: Karte, raum: String) -> Bool {
+        guard !raum.isEmpty else { return false }
+        if k.raeume.contains(where: { gleich($0.k, raum) }) { return false }
+        return k.raeume.contains { gleich($0.alt ?? "", raum) }
+    }
+
     private static let zusatzArten = ["sondereinsatz", "zusatz", "verlegung", "statt", "mitbetreuung"]
 
     static func istZusatzstunde(_ k: Karte) -> Bool {
@@ -328,14 +341,17 @@ enum Kachelbau {
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
                             beginn: lage.beginn, ende: lage.ende)
         kachel.balkenHex = k.farbe
-        kachel.info = (!k.text.isEmpty && !istEntfaelltText(k.text)) || !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty
+        // Info-Zeichen nur bei echtem Text (nicht bei bloßer Art wie „Sondereinsatz“) bzw. Notizen
+        kachel.info = (!k.anzeigeText.isEmpty && !istEntfaelltText(k.anzeigeText)) || !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty
         kachel.hausaufgabe = k.hausaufgabeFaellig
+        kachel.online = k.online && !k.istEntfall && k.status != "abwesend"
 
         // Veranstaltung: Feld über den ganzen Zeitraum
-        if k.status == "veranstaltung" || (k.status == "geaendert" && k.unterricht == nil && k.fach.isEmpty && !k.text.isEmpty) {
+        if k.status == "veranstaltung" || (k.status == "geaendert" && k.unterricht == nil && k.fach.isEmpty && !k.anzeigeText.isEmpty) {
             kachel.art = .veranstaltung
             kachel.feld = true
-            kachel.titel = k.text.isEmpty ? k.art : k.text
+            kachel.online = false
+            kachel.titel = k.anzeigeText.isEmpty ? k.anzeigeArt : k.anzeigeText
             kachel.zeilen = veranstaltungsZeilen(k, typ: typ, ich: ich, anlass: kachel.titel)
             // Infotext der Veranstaltung (in den Details als Zeile „Information“): Info-Zeichen unten rechts
             kachel.info = !veranstaltungsInfo(k).isEmpty
@@ -347,8 +363,9 @@ enum Kachelbau {
         if istBereitschaft(k) {
             let titel = k.fach.isEmpty ? "Bereitschaft" : k.fach
             kachel.titel = titel
-            kachel.info = !k.text.isEmpty && !istEntfaelltText(k.text)
+            kachel.info = !k.anzeigeText.isEmpty && !istEntfaelltText(k.anzeigeText)
             kachel.hausaufgabe = false
+            kachel.online = false
             if istBereitschaftAbwesend(k) {
                 kachel.art = .bereitschaftAbwesend
                 var zeilen = [Kachelzeile(schluessel: "fach", teile: [Kachelteil(text: titel)], fett: true)]
@@ -420,7 +437,8 @@ enum Kachelbau {
         // Reine Raumänderung (keine Raumbuchung, nicht online, keine offene Vertretung): grüne Karte wie eine Änderung
         kachel.raumAenderung = geaendert == ["raum"] && !offen && !k.online && !k.istRaumbuchung && !kachel.zusatz
             && (kachel.art == .aenderung || kachel.art == .normal)
-        if titel.isEmpty { titel = k.art }
+        // Bloße Art-Bezeichnungen (Sondereinsatz, zusätzlicher Unterricht) erscheinen nie als Titel
+        if titel.isEmpty { titel = k.anzeigeArt }
         kachel.titel = titel
 
         // Im eigenen Plan: Stunde wird von jemand anderem übernommen (oder ist noch offen) → läuft ohne mich
@@ -455,7 +473,7 @@ enum Kachelbau {
     /// Infotext einer Veranstaltung: Text bzw. Art und Notizen (ohne Doppelte).
     static func veranstaltungsInfo(_ k: Karte) -> String {
         var teile: [String] = []
-        for t in [k.text.isEmpty ? k.art : k.text, k.notizSchueler, k.notizLehrer] {
+        for t in [k.anzeigeText.isEmpty ? k.anzeigeArt : k.anzeigeText, k.notizSchueler, k.notizLehrer] {
             let w = t.trimmingCharacters(in: .whitespacesAndNewlines)
             if !w.isEmpty && !teile.contains(where: { gleich($0, w) }) { teile.append(w) }
         }

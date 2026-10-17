@@ -20,10 +20,14 @@ LABEL org.opencontainers.image.title="UntPlanMobile" \
       org.opencontainers.image.source="https://github.com/florians25/UntPlan"
 ENV ASPNETCORE_HTTP_PORTS=8081 \
     UNTPLANWEB_URL=http://untplanweb:8080 \
+    UNTPLANMOBILE_DATEN=/data \
     TZ=Europe/Berlin \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 WORKDIR /app
 COPY --from=build /app ./
+# Datenordner: Profile je Gerät, Push-Abos, VAPID- und Data-Protection-Schlüssel
+RUN mkdir -p /data && chown app:app /data
+VOLUME /data
 USER app
 EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD ["dotnet", "UntPlanMobile.dll", "--gesundheitspruefung"]

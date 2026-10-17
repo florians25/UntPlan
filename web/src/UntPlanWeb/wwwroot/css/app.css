@@ -1740,7 +1740,14 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 @media (max-width: 767.98px) { .fz-tabelle tr.fz-stunde > td { padding: 0 8px 10px 8px !important; } .fz-unter { overflow-x: auto; } }
 
 /* Karte: Stunde findet online statt */
-.ecke .ecke-online { display: inline-block; padding: 0 4px; border-radius: 2px; background: var(--u-gruen-label); color: #fff; font-size: 10.5px; font-weight: 600; line-height: 14px; margin-right: 3px; vertical-align: middle; }
+.ecke .ecke-online { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 14px; color: #2d6fa3; font-size: 13px; line-height: 1; margin-right: 3px; vertical-align: middle; }
+.ecke .ecke-online .bi { display: block; line-height: 1; }
+/* Stundendetails: Link zum Online-Unterricht */
+.sd-online-feld { margin-top: .6rem; max-width: 560px; }
+.sd-online-feld input[type="url"] { flex: 1 1 260px; min-width: 0; }
+.sd-online-link { display: inline-flex; align-items: center; gap: .45rem; padding: .35rem 1rem; border-radius: 999px; background: var(--u-akzent); color: #fff; font-weight: 600; font-size: .9rem; text-decoration: none; }
+.sd-online-link:hover, .sd-online-link:focus-visible { background: var(--u-akzent-dunkel); color: #fff; }
+.sd-online-ohne { color: var(--u-grau-2); }
 
 /* ------------------------------------------------------------------ Vertretungs-Labels außerhalb der Karten (Stundendetails, Heute)
    Offene Vertretung: abwesende Lehrkraft durchgestrichen im grünen Label; eingeteilte Vertretung: neue Lehrkraft als grünes Label. */
@@ -1924,9 +1931,9 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
    Prüfung/Veranstaltung als dezente graue Kapsel im Kopf; „Abwesende Schüler*innen“ als Tabelle im neuen Design */
 .sd-kopf.grau { background: #dfe2e8; padding-bottom: 16px; }
 .sd-entfall-leiste { background: #f00; color: #fff; font-size: 1rem; font-weight: 500; letter-spacing: .02em; line-height: 22px; padding: 5px 16px; text-align: center; }
-/* Leiste bündig mit Kopf, Reitern und Inhalt (gleicher linker und rechter Einzug wie .sd-rumpf) statt über die volle Breite */
-.modal .sd-entfall-leiste { margin: 0 120px 0 166px; border-radius: 2px; }
-@media (max-width: 991.98px) { .modal .sd-entfall-leiste { margin: 0 16px; } }
+/* Leiste durchgängig über die volle Breite; der Text „ENTFÄLLT“ steht linksbündig auf Linie mit Kopf und Inhalt (Einzug 166px wie .sd-kopf/.sd-rumpf) */
+.modal .sd-entfall-leiste { margin: 0; border-radius: 0; text-align: left; padding-left: 166px; padding-right: 28px; }
+@media (max-width: 991.98px) { .modal .sd-entfall-leiste { padding-left: 16px; padding-right: 16px; } }
 .sd-kopf.grau + .sd-entfall-leiste + .sd-reiter { margin-top: 2px; }
 .sd-statuspille { display: inline-block; margin-left: .75rem; padding: 1px 10px; border-radius: 999px; background: #e6e9ed; color: #4a5662; font-size: .8125rem; font-weight: 400; line-height: 20px; vertical-align: 1px; }
 .sd-kopf.grau .sd-statuspille { background: #fff; }

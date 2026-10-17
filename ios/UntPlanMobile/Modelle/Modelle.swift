@@ -184,8 +184,10 @@ struct Karte: Decodable, Identifiable, Sendable {
     var zusaetzlich: Bool
     var abwesendeKlassen: [String]
     var abwesendText: String
-    /// Stunde findet online statt (Klassenbuch) – Karte grün mit Plakette „Online“.
+    /// Stunde findet online statt (Klassenbuch) – Karte grün mit Plakette „Online“ und Videosymbol.
     var online: Bool
+    /// Link zum Online-Unterricht (leer = keiner; tolerant aus onlineLink/onlineUrl gelesen).
+    var onlineLink: String
     /// Die eingeteilte Lehrkraft ist abwesend (z. B. Bereitschaft der abwesenden Lehrkraft) – falls der Server es liefert.
     var lehrerAbwesend: Bool
     /// Bereitschaftsstunde (falls der Server es ausdrücklich liefert; sonst aus Status bzw. Fach abgeleitet).
@@ -195,6 +197,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
         case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
         case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen
+        case onlineLink, onlineUrl, onlinelink
     }
 
     /// Karte ohne Server-Antwort (Veranstaltung aus den Tagesdaten, geteilte Blöcke).
@@ -228,6 +231,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         self.abwesendeKlassen = []
         self.abwesendText = ""
         self.online = false
+        self.onlineLink = ""
         self.lehrerAbwesend = false
         self.bereitschaft = false
     }
@@ -275,6 +279,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         abwesendeKlassen = c.texte(.abwesendeKlassen)
         abwesendText = c.text(.abwesendText)
         online = c.wahr(.online)
+        onlineLink = Karte.linkText(c.textOderNil(.onlineLink) ?? c.textOderNil(.onlineUrl) ?? c.textOderNil(.onlinelink))
         lehrerAbwesend = c.wahr(.lehrerAbwesend) || c.wahr(.bereitschaftAbwesend) || c.wahr(.standbyAbsent)
         bereitschaft = c.wahr(.bereitschaft)
     }
@@ -291,7 +296,45 @@ struct Karte: Decodable, Identifiable, Sendable {
     var istVeranstaltung: Bool {
         if status == "veranstaltung" || status == "termin" { return true }
         if art.lowercased().hasPrefix("veranstaltung") && !istPruefung { return true }
-        return status == "geaendert" && unterricht == nil && fach.isEmpty && !text.isEmpty
+        return status == "geaendert" && unterricht == nil && fach.isEmpty && !anzeigeText.isEmpty
+    }
+
+    /// Bloße Art-Bezeichnungen, die nie als Text auf Karten oder in den Details erscheinen (Sondereinsatz,
+    /// zusätzlicher Unterricht): Groß-/Kleinschreibung, Leerzeichen und Satzzeichen am Ende egal.
+    static func istArtText(_ text: String) -> Bool {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        while let letztes = t.last, ".:!-–".contains(letztes) { t.removeLast() }
+        t = t.trimmingCharacters(in: .whitespaces)
+        return ["sondereinsatz", "sondereinsätze", "zusätzlicher unterricht", "zusaetzlicher unterricht", "zusatzunterricht",
+                "zusätzliche stunde", "zusätzliche unterrichtsstunde", "zusatzstunde", "zusätzlich"].contains(t)
+    }
+
+    /// Text der Karte ohne bloße Art-Bezeichnung (z. B. „Sondereinsatz“) – nur echter Text.
+    var anzeigeText: String {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Karte.istArtText(t) ? "" : t
+    }
+
+    /// Art der Karte ohne bloße Art-Bezeichnung (z. B. „Sondereinsatz“ wird nie als Titel gezeigt).
+    var anzeigeArt: String {
+        Karte.istArtText(art) ? "" : art
+    }
+
+    /// Link nachsichtig lesen: Leerzeichen am Rand entfernen, „null“ bzw. leer = kein Link.
+    static func linkText(_ roh: String?) -> String {
+        let t = (roh ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, t != "null" else { return "" }
+        return t
+    }
+
+    /// Adresse zum Öffnen des Online-Unterrichts (nil = kein gültiger Link).
+    static func onlineURL(_ link: String) -> URL? {
+        let t = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return nil }
+        let mitSchema = t.contains("://") ? t : "https://" + t
+        guard let url = URL(string: mitSchema), let schema = url.scheme?.lowercased(), ["http", "https"].contains(schema),
+              url.host != nil else { return nil }
+        return url
     }
 
     /// Dezente graue Pille im Kopf der Stundendetails (wie im Web): „Prüfung“ bzw. „Veranstaltung“, nie bei Entfall.
@@ -329,7 +372,8 @@ struct Karte: Decodable, Identifiable, Sendable {
     var titel: String {
         if !fachName.isEmpty { return fachName }
         if !fach.isEmpty { return fach }
-        return art
+        if !anzeigeArt.isEmpty { return anzeigeArt }
+        return anzeigeText
     }
 }
 
@@ -783,8 +827,13 @@ struct Klassenbucheintrag: Decodable, Sendable {
     var anwesenheit: String?
     var lehrer: String
     var faellig: String?
+    /// Link zum Online-Unterricht (tolerant aus onlineLink/onlineUrl gelesen)
+    var onlineLink: String
 
-    enum CodingKeys: String, CodingKey { case id, datum, stunde, thema, hausaufgabe, notiz, notizSchueler, online, lehrform, anmerkung, anwesenheit, lehrer, faellig }
+    enum CodingKeys: String, CodingKey {
+        case id, datum, stunde, thema, hausaufgabe, notiz, notizSchueler, online, lehrform, anmerkung, anwesenheit, lehrer, faellig
+        case onlineLink, onlineUrl, onlinelink
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -801,6 +850,7 @@ struct Klassenbucheintrag: Decodable, Sendable {
         anwesenheit = c.textOderNil(.anwesenheit)
         lehrer = c.text(.lehrer)
         faellig = c.textOderNil(.faellig)
+        onlineLink = Karte.linkText(c.textOderNil(.onlineLink) ?? c.textOderNil(.onlineUrl) ?? c.textOderNil(.onlinelink))
     }
 }
 
@@ -1213,6 +1263,8 @@ struct KlassenbuchDaten: Encodable, Sendable {
     var anmerkung: String?
     var lehrer: String?
     var online: Bool? = nil
+    /// Link zum Online-Unterricht (nil = unverändert, "" = entfernen)
+    var onlineLink: String? = nil
 }
 
 /// POST /api/app/klassenbuch/hausaufgabenliste
@@ -1322,6 +1374,15 @@ struct Klassendienstliste: Decodable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         zuordnungen = c.liste(.zuordnungen)
     }
+}
+
+/// POST /api/app/push/geraet – Geräte-Token für Push-Mitteilungen (APNs).
+struct PushGeraetDaten: Encodable, Sendable {
+    var token: String
+    var plattform: String = "ios"
+    /// „sandbox“ (Entwicklung) bzw. „production“
+    var umgebung: String
+    var bundle: String
 }
 
 // MARK: - Allgemeine Antworten

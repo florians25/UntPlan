@@ -251,7 +251,70 @@ final class ApiClient: @unchecked Sendable {
         try await anfrage("GET", "/klassendienste", parameter: ["klasse": klasse, "von": von, "bis": bis])
     }
 
-    /// Entfernt die Cookies des Servers (nach dem Abmelden).
+    // MARK: Sprechtag
+
+    /// GET /sprechtag/start – Sprechtage für die Startseite (Lehrkräfte bzw. Erziehungsberechtigte).
+    func sprechtagStart() async throws -> [SprechtagKarte] {
+        let liste: [Vielleicht<SprechtagKarte>] = try await anfrage("GET", "/sprechtag/start")
+        return liste.compactMap(\.wert).filter { $0.id > 0 }
+    }
+
+    /// GET /sprechtag/{id}/lehrkraft – eigenes Zeitraster mit Terminen.
+    func sprechtagLehrkraft(_ id: Int) async throws -> SprechtagLehrkraftDaten {
+        try await anfrage("GET", "/sprechtag/\(id)/lehrkraft")
+    }
+
+    /// GET /sprechtag/{id}/eltern – Kinder, Lehrkräfte, freie Zeitfenster und eigene Termine.
+    func sprechtagEltern(_ id: Int) async throws -> SprechtagElternDaten {
+        try await anfrage("GET", "/sprechtag/\(id)/eltern")
+    }
+
+    /// POST /sprechtag/{id}/buchen
+    func sprechtagBuchen(_ id: Int, _ daten: SprechtagBuchDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/buchen", koerper: try encoder.encode(daten))
+    }
+
+    /// POST /sprechtag/{id}/termine/{tid}/absagen – Termin mit (optionalem) Grund absagen; die andere Seite wird benachrichtigt.
+    func sprechtagTerminAbsagen(_ id: Int, termin: Int, grund: String?) async throws {
+        let text = (grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/termine/\(termin)/absagen",
+                                                    koerper: try encoder.encode(SprechtagAbsageDaten(grund: text.isEmpty ? nil : text)))
+    }
+
+    /// PUT /sprechtag/{id}/sperren – Zeitfenster der eigenen Lehrkraft sperren bzw. freigeben.
+    func sprechtagSperren(_ id: Int, beginne: [String], gesperrt: Bool) async throws {
+        let _: BeliebigeAntwort = try await anfrage("PUT", "/sprechtag/\(id)/sperren",
+                                                    koerper: try encoder.encode(SprechtagSperrDaten(beginne: beginne, gesperrt: gesperrt)))
+    }
+
+    // MARK: Push (Vorbereitung für Sofort-Mitteilungen über APNs)
+
+    /// POST /push/geraet – Geräte-Token für Push-Mitteilungen beim Server hinterlegen (Endpunkt ist Server-Aufgabe;
+    /// fehlt er, wird der Fehler vom Aufrufer ignoriert).
+    func pushGeraetMelden(_ daten: PushGeraetDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/push/geraet", koerper: try encoder.encode(daten))
+    }
+
+    /// DELETE /push/geraet?token=… – Token beim Abmelden entfernen.
+    func pushGeraetAbmelden(token: String) async throws {
+        let _: BeliebigeAntwort = try await anfrage("DELETE", "/push/geraet", parameter: ["token": token])
+    }
+
+    // MARK: Cookies (Sitzung je Konto)
+
+    /// Cookies des aktuellen Servers.
+    func cookies() -> [HTTPCookie] {
+        guard let url = URL(string: serverAdresse), let speicher = session.configuration.httpCookieStorage else { return [] }
+        return speicher.cookies(for: url) ?? []
+    }
+
+    /// Cookies setzen (gesicherte Sitzung eines Kontos).
+    func cookiesSetzen(_ liste: [HTTPCookie]) {
+        guard let speicher = session.configuration.httpCookieStorage else { return }
+        for cookie in liste { speicher.setCookie(cookie) }
+    }
+
+    /// Entfernt die Cookies des Servers (nach dem Abmelden bzw. vor dem Wechsel in ein anderes Konto).
     func cookiesLoeschen() {
         guard let url = URL(string: serverAdresse), let speicher = session.configuration.httpCookieStorage else { return }
         for cookie in speicher.cookies(for: url) ?? [] {

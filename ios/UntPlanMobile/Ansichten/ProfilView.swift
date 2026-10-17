@@ -129,12 +129,14 @@ struct ProfilView: View {
                 }
                 Button("Abbrechen", role: .cancel) {}
             } message: {
-                Text("Ein gemerktes Passwort wird vom Gerät entfernt.")
+                Text(zustand.konten.count > 1
+                     ? "Dieses Konto wird vom Gerät entfernt (ein gemerktes Passwort wird gelöscht); die App wechselt in Ihr nächstes Konto."
+                     : "Ein gemerktes Passwort wird vom Gerät entfernt.")
             }
         }
     }
 
-    /// Karte mit Avatar, Anmeldename, Rollen-Plakette und Konto-Wechsel (⌃⌄).
+    /// Karte mit Avatar, Anmeldename, Rollen-Plakette und Konto-Wechsel (⌃⌄) – öffnet die Kontenauswahl.
     private var kontokarte: some View {
         KontoMenue {
             HStack(spacing: 12) {

@@ -56,7 +56,10 @@ public sealed record Benutzer(int Id, string Login, string Anzeigename, string R
     /// <summary>Kollegium (Lehrkräfte, Schulleitung, Administration): alle Pläne, Lehrerversion des Vertretungsplans.</summary>
     public bool Kollegium => Rolle is Rollen.Admin or Rollen.Leitung or Rollen.Lehrer;
     public bool IstAdmin => Rolle == Rollen.Admin;
-    public bool DarfNachrichten => Rolle is Rollen.Admin or Rollen.Leitung || (Kollegium && Zusatzrechte.Contains(UntPlanWeb.Dienste.Zusatzrechte.Nachrichten));
+    /// <summary>Nachrichten zum Tag pflegen (Recht „nachrichten.pflegen“; bisher Schulleitung, Administration und Zusatzrecht „Nachrichten“).</summary>
+    public bool DarfNachrichten => Rechtedienst.Darf(this, Recht.NachrichtenPflegen);
+    /// <summary>Effektive Rechte (Rechte-Modell, siehe <see cref="Rechtedienst"/>); null = Standardprofil der Basisrolle.</summary>
+    public IReadOnlyDictionary<string, int>? Rechte { get; init; }
     /// <summary>Zusatzrechte des Kontos (siehe <see cref="UntPlanWeb.Dienste.Zusatzrechte"/>).</summary>
     public List<string> Zusatzrechte { get; init; } = new();
     /// <summary>Zugeordnete Person aus der Personenliste (sonstiges Personal, Erziehungsberechtigte) – Lehrkräfte über das Kürzel, Schüler*innen über die Schülerzuordnung.</summary>
@@ -88,6 +91,7 @@ public sealed class Benutzerdienst
     /// <summary>Zugeordnete Schüler*innen und deren Klassen (aus der aktuellen Schülerliste) ergänzen.</summary>
     private Benutzer Ergaenzen(Benutzer b)
     {
+        b = b with { Rechte = Rechtedienst.Laden(_db, b) };
         if (!b.Familie) return b;
         var ids = SchuelerVon(b.Id);
         var schueler = _pakete?.Aktuell?.Schueler;
@@ -140,6 +144,7 @@ public sealed class Benutzerdienst
         var liste = _db.Liste($"SELECT {Spalten} FROM benutzer ORDER BY rolle, login COLLATE NOCASE", Lesen);
         var zuordnung = _db.Liste("SELECT benutzer_id, schueler_id FROM benutzer_schueler", r => (B: r.Zahl("benutzer_id"), S: r.Zahl("schueler_id"))).ToLookup(x => x.B, x => x.S);
         var schueler = _pakete?.Aktuell?.Schueler;
+        liste = Rechtedienst.Laden(_db, liste);
         return liste.Select(b => !b.Familie ? b : b with
         {
             SchuelerIds = zuordnung[b.Id].ToList(),

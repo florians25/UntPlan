@@ -289,40 +289,24 @@ struct KontoSymbol: View {
     }
 }
 
-/// Menü „Konto wechseln“: aktuelles Konto und Anmeldung mit einem anderen Konto (meldet ab).
+/// Profilwechsel: öffnet die Kontenauswahl (mehrere Konten gleichzeitig angemeldet – wechseln ohne Abmelden,
+/// Konto hinzufügen bzw. entfernen).
 struct KontoMenue<Beschriftung: View>: View {
     @EnvironmentObject var zustand: AppZustand
-    @State private var bestaetigen = false
+    @State private var zeigen = false
     @ViewBuilder let beschriftung: () -> Beschriftung
 
     var body: some View {
-        Menu {
-            if let b = zustand.benutzer {
-                Section(zustand.schulname) {
-                    Button {} label: {
-                        Label(b.rollenname.isEmpty ? b.login : "\(b.login) · \(b.rollenname)", systemImage: "checkmark")
-                    }
-                    .disabled(true)
-                }
-            }
-            Button {
-                bestaetigen = true
-            } label: {
-                Label("Mit anderem Konto anmelden", systemImage: "person.badge.plus")
-            }
+        Button {
+            zeigen = true
         } label: {
             beschriftung()
         }
-        // Symbole im Menü schwarz bzw. weiß je nach Modus (nicht orange bzw. grau)
-        .tint(Color.primary)
         .accessibilityLabel("Konto wechseln")
-        .confirmationDialog("Konto wechseln?", isPresented: $bestaetigen, titleVisibility: .visible) {
-            Button("Abmelden und anderes Konto anmelden", role: .destructive) {
-                Task { await zustand.abmelden() }
-            }
-            Button("Abbrechen", role: .cancel) {}
-        } message: {
-            Text("Sie werden abgemeldet; ein gemerktes Passwort wird vom Gerät entfernt.")
+        .accessibilityHint("Öffnet die Kontenauswahl")
+        .sheet(isPresented: $zeigen) {
+            KontenauswahlView()
+                .environmentObject(zustand)
         }
     }
 }

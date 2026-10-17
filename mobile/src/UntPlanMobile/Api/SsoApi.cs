@@ -32,7 +32,7 @@ public static class SsoApi
             return Results.Redirect($"{web}/sso/mobil?ruecksprung={Uri.EscapeDataString(Ruecksprung(c))}&state={state}");
         });
 
-        app.MapGet("/sso/rueckkehr", async (string? code, string? state, HttpContext c, UntPlanWebVerbindung web) =>
+        app.MapGet("/sso/rueckkehr", async (string? code, string? state, HttpContext c, UntPlanWebVerbindung web, Kontenspeicher speicher) =>
         {
             var erwartet = c.Request.Cookies[StateCookie];
             c.Response.Cookies.Delete(StateCookie, new CookieOptions { Path = "/sso", Secure = c.Request.IsHttps, SameSite = SameSiteMode.Lax, HttpOnly = true });
@@ -41,7 +41,10 @@ public static class SsoApi
                 return Results.Redirect("/?sso=fehler");
             try
             {
+                if (UntPlanWebVerbindung.Sitzung(c) is { } bisher && speicher.MitSitzung(Kontenspeicher.GeraetVon(c, false), bisher) is null)
+                    await MobilApi.ProfilMerkenAsync(c, web, speicher);
                 await web.AufrufAsync(c, HttpMethod.Post, "api/app/sso/einloesen", new { code, ruecksprung = Ruecksprung(c) }, anmeldungNoetig: false);
+                await MobilApi.ProfilMerkenAsync(c, web, speicher);
                 return Results.Redirect("/");
             }
             catch (UntPlanWebFehler) { return Results.Redirect("/?sso=fehler"); }

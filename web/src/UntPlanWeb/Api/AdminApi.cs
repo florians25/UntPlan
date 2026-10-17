@@ -31,10 +31,13 @@ public static class AdminApi
         return b.IstAdmin ? b : throw new UnauthorizedAccessException("Nur für die Administration.");
     }
 
+    /// <summary>Benutzerverwaltung: Administration bzw. Recht „Benutzerverwaltung“.</summary>
+    private static Benutzer Benutzerverwaltung(HttpContext c) => RechtePruefung.Verlangen(c.Ich() ?? throw new NichtAngemeldetException(), Recht.AdminBenutzer, meldung: "Nur für die Administration.");
+
     private static Benutzer Leitung(HttpContext c)
     {
         var b = c.Ich() ?? throw new NichtAngemeldetException();
-        return b.DarfNachrichten ? b : throw new UnauthorizedAccessException("Nur für Schulleitung und Administration.");
+        return Rechtedienst.Darf(b, Recht.NachrichtenPflegen) ? b : throw new UnauthorizedAccessException("Nur für Schulleitung und Administration.");
     }
 
     private static object BenutzerJson(Benutzer b) => new
@@ -119,11 +122,12 @@ public static class AdminApi
 
         // ---------------------------------------------------------------- Benutzer
 
-        api.MapGet("/benutzer", (HttpContext c, Benutzerdienst bd) => { Admin(c); return Results.Json(bd.Alle().Select(BenutzerJson)); });
+        api.MapGet("/benutzer", (HttpContext c, Benutzerdienst bd) => { Benutzerverwaltung(c); return Results.Json(bd.Alle().Select(BenutzerJson)); });
 
         api.MapPost("/benutzer", (BenutzerDaten d, HttpContext c, Benutzerdienst bd, Paketdienst p, Protokoll prot) =>
         {
-            var ich = Admin(c);
+            var ich = Benutzerverwaltung(c);
+            RechtePruefung.AdminSchuetzen(ich, null, d.Rolle);
             var pw = string.IsNullOrEmpty(d.Passwort) ? Sicherheit.Zufall(10) : d.Passwort;
             bd.ZuordnungPruefen(null, d.Rolle, d.Element, d.SchuelerIds, d.PersonId is > 0 ? d.PersonId : null);
             var b = bd.Anlegen(d.Login ?? "", pw, d.Rolle, ElementFuer(d, p), d.Anzeigename ?? "", d.Email ?? "", string.IsNullOrEmpty(d.Passwort));
@@ -142,7 +146,8 @@ public static class AdminApi
 
         api.MapPut("/benutzer/{id:int}", (int id, BenutzerDaten d, HttpContext c, Benutzerdienst bd, Paketdienst p, Protokoll prot) =>
         {
-            var ich = Admin(c);
+            var ich = Benutzerverwaltung(c);
+            RechtePruefung.AdminSchuetzen(ich, bd.Holen(id), d.Rolle);
             if (id == ich.Id && (d.Rolle != Rollen.Admin || d.Gesperrt)) throw new ArgumentException("Sie können sich nicht selbst die Administration entziehen oder sperren.");
             bd.ZuordnungPruefen(id, d.Rolle, d.Element, d.SchuelerIds, d.PersonId is > 0 ? d.PersonId : null);
             bd.Aendern(id, d.Anzeigename ?? "", d.Rolle, ElementFuer(d, p), d.Email ?? "", d.Gesperrt);
@@ -156,7 +161,8 @@ public static class AdminApi
 
         api.MapPost("/benutzer/{id:int}/passwort", (int id, HttpContext c, Benutzerdienst bd, Protokoll prot) =>
         {
-            var ich = Admin(c);
+            var ich = Benutzerverwaltung(c);
+            RechtePruefung.AdminSchuetzen(ich, bd.Holen(id));
             var pw = Sicherheit.Zufall(10);
             bd.PasswortSetzen(id, pw, mussAendern: true);
             prot.Schreiben(ich.Login, "Passwort zurückgesetzt", bd.Holen(id)?.Login ?? id.ToString());
@@ -165,7 +171,8 @@ public static class AdminApi
 
         api.MapDelete("/benutzer/{id:int}", (int id, HttpContext c, Benutzerdienst bd, Protokoll prot) =>
         {
-            var ich = Admin(c);
+            var ich = Benutzerverwaltung(c);
+            RechtePruefung.AdminSchuetzen(ich, bd.Holen(id));
             if (id == ich.Id) throw new ArgumentException("Sie können sich nicht selbst löschen.");
             var login = bd.Holen(id)?.Login ?? id.ToString();
             bd.Loeschen(id);
@@ -175,7 +182,7 @@ public static class AdminApi
 
         api.MapPost("/benutzer/stammdaten", (StammdatenDaten d, HttpContext c, Benutzerdienst bd, Paketdienst p, Protokoll prot, Verwaltungsdienst vw) =>
         {
-            var ich = Admin(c);
+            var ich = Benutzerverwaltung(c);
             var s = p.Aktuell ?? throw new ArgumentException("Es wurden noch keine Stammdaten aus UntPlan übertragen.");
             var neu = bd.AusStammdaten(s.Paket, d.Lehrer, d.Klassen, vw.Text("zuordnung", "leitungKuerzel").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries));
             prot.Schreiben(ich.Login, "Konten aus Stammdaten angelegt", neu.Count.ToString());

@@ -31,7 +31,7 @@ public static class InfocenterApi
     private static Benutzer Verwalter(HttpContext c)
     {
         var b = Ich(c);
-        if (!b.DarfNachrichten) throw new UnauthorizedAccessException("Infos dürfen nur Administration und Schulleitung verwalten.");
+        if (!Rechtedienst.Darf(b, Recht.InfocenterVerwalten)) throw new UnauthorizedAccessException("Infos dürfen nur Administration und Schulleitung verwalten.");
         return b;
     }
 
@@ -48,7 +48,7 @@ public static class InfocenterApi
         {
             var b = Ich(c);
             var l = Dienst(c).Fuer(b);
-            return Results.Json(new { eintraege = l, ungelesen = l.Count(x => !x.Gelesen), darfVerwalten = b.DarfNachrichten });
+            return Results.Json(new { eintraege = l, ungelesen = l.Count(x => !x.Gelesen), darfVerwalten = Rechtedienst.Darf(b, Recht.InfocenterVerwalten) });
         });
 
         api.MapPost("/gelesen", (GelesenDaten d, HttpContext c) =>

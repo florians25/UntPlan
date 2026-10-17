@@ -43,7 +43,9 @@ public sealed class Paketdienst
             .ToDictionary(x => x.Id);
         var liste = new List<WebSchueler>();
         var gesehen = new HashSet<int>();
-        foreach (var x in _stand.Paket.Elemente.Schueler)
+        // Quelle „Web-Verwaltung“ (Administration → Import): der Export aus UntPlan überschreibt die Schüler*innen nicht
+        var web = SchuelerImport.WebVerwaltung(_db);
+        foreach (var x in web ? Enumerable.Empty<WebSchueler>() : _stand.Paket.Elemente.Schueler)
         {
             if (!gesehen.Add(x.Id)) continue;
             if (!aenderungen.TryGetValue(x.Id, out var a)) liste.Add(x);

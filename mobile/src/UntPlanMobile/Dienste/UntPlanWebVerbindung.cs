@@ -24,16 +24,24 @@ public sealed class UntPlanWebVerbindung
 {
     public const string Cookie = "untplanmobile";
     public const string WebCookie = "untplanweb";
+    public const string CookieAblauf = "untplanmobile:ablauf";
 
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _http;
+    private readonly Kontenspeicher? _speicher;
 
-    public UntPlanWebVerbindung(HttpClient http) { _http = http; }
+    public UntPlanWebVerbindung(HttpClient http, Kontenspeicher? speicher = null) { _http = http; _speicher = speicher; }
 
     public Uri? Adresse => _http.BaseAddress;
 
-    public static string? Sitzung(HttpContext c) => c.Request.Cookies.TryGetValue(Cookie, out var v) && !string.IsNullOrEmpty(v) ? v : null;
+    /// <summary>
+    /// Sitzung der laufenden Anfrage: eine in dieser Anfrage neu gesetzte (Anmeldung, Profilwechsel, Hintergrundprüfung) hat Vorrang
+    /// vor dem Cookie des Browsers.
+    /// </summary>
+    public static string? Sitzung(HttpContext c) =>
+        c.Items.TryGetValue(Cookie, out var neu) && neu is string n ? (n.Length > 0 ? n : null)
+        : c.Request.Cookies.TryGetValue(Cookie, out var v) && !string.IsNullOrEmpty(v) ? v : null;
 
     /// <summary>Aufruf an UntPlanWeb. Ohne Anmeldung (oder bei 401 von UntPlanWeb) folgt <see cref="NichtAngemeldetException"/>.</summary>
     public async Task<JsonNode?> AufrufAsync(HttpContext c, HttpMethod methode, string pfad, object? daten = null, bool anmeldungNoetig = true)
@@ -54,12 +62,13 @@ public sealed class UntPlanWebVerbindung
 
         using (antwort)
         {
-            CookieUebernehmen(c, antwort);
+            CookieUebernehmen(c, antwort, anmeldungNoetig);
             var text = await antwort.Content.ReadAsStringAsync(c.RequestAborted);
             JsonNode? json = null;
             try { json = text.Length > 0 ? JsonNode.Parse(text) : null; } catch (JsonException) { }
             if (antwort.StatusCode == HttpStatusCode.Unauthorized && anmeldungNoetig)
             {
+                if (sitzung != null) _speicher?.SitzungUngueltig(sitzung);
                 SitzungLoeschen(c);
                 throw new NichtAngemeldetException();
             }
@@ -84,8 +93,9 @@ public sealed class UntPlanWebVerbindung
     public Task<JsonNode?> DeleteAsync(HttpContext c, string pfad) => AufrufAsync(c, HttpMethod.Delete, pfad);
 
     /// <summary>Set-Cookie „untplanweb“ von UntPlanWeb als eigenes Cookie an den Browser weitergeben.</summary>
-    private static void CookieUebernehmen(HttpContext c, HttpResponseMessage antwort)
+    private void CookieUebernehmen(HttpContext c, HttpResponseMessage antwort, bool erneuerung)
     {
+        var alt = Sitzung(c);
         if (!antwort.Headers.TryGetValues("Set-Cookie", out var zeilen)) return;
         foreach (var zeile in zeilen)
         {
@@ -98,12 +108,20 @@ public sealed class UntPlanWebVerbindung
                 if (t.StartsWith("expires=", StringComparison.OrdinalIgnoreCase) &&
                     DateTimeOffset.TryParse(t[8..], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var a)) ablauf = a;
             if (wert.Length == 0 || ablauf < DateTimeOffset.UtcNow) SitzungLoeschen(c);
-            else SitzungSetzen(c, wert, ablauf ?? DateTimeOffset.UtcNow.AddDays(14));
+            else
+            {
+                SitzungSetzen(c, wert, ablauf ?? DateTimeOffset.UtcNow.AddDays(14));
+                // gespeicherte Profile (mehrere Konten je Gerät, Benachrichtigungen) behalten die erneuerte Sitzung –
+                // nicht bei Anmeldung bzw. Einmalanmeldung, dort kommt die Sitzung eines anderen Kontos
+                if (alt != null && erneuerung) _speicher?.SitzungErneuert(alt, wert, ablauf ?? DateTimeOffset.UtcNow.AddDays(14));
+            }
         }
     }
 
     public static void SitzungSetzen(HttpContext c, string wert, DateTimeOffset ablauf)
     {
+        c.Items[Cookie] = wert;
+        c.Items[CookieAblauf] = ablauf;
         if (c.Response.HasStarted) return;
         c.Response.Cookies.Append(Cookie, wert, new CookieOptions
         {
@@ -113,6 +131,7 @@ public sealed class UntPlanWebVerbindung
 
     public static void SitzungLoeschen(HttpContext c)
     {
+        c.Items[Cookie] = "";
         if (c.Response.HasStarted) return;
         c.Response.Cookies.Delete(Cookie, new CookieOptions { Path = "/", Secure = c.Request.IsHttps, SameSite = SameSiteMode.Lax, HttpOnly = true });
     }

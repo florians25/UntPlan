@@ -172,6 +172,7 @@ public sealed partial class Klassenbuchdienst
                 NotizLehrer = kollegium ? string.Join("\n", e.Select(x => x.Notiz).Where(x => x.Length > 0).Distinct()) : "",
                 HausaufgabeFaellig = hf,
                 Online = e.Any(x => x.Online),
+                OnlineLink = e.Where(x => x.Online).Select(x => x.OnlineLink).FirstOrDefault(x => x.Length > 0) ?? "",
             };
         }).ToList();
     }

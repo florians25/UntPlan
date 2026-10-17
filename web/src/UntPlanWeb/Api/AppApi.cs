@@ -33,7 +33,7 @@ public static class AppApi
     public sealed record AbwesenheitStatusDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Status);
     public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis);
     public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null,
-        string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null, bool? Online = null);
+        string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null, bool? Online = null, string? OnlineLink = null);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
 
@@ -90,6 +90,8 @@ public static class AppApi
                     familie = b.Familie, schuelerIds = b.SchuelerIds, klassen = b.Klassen, element = b.Kollegium ? b.Element : b.KlassenKuerzel ?? "",
                     // Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten) nur für Klassenleitungen, Schulleitung und Administration
                     fehlzeiten = Klassenbuchdienst.FehlzeitenVerwalten(b, p.Aktuell),
+                    // effektive Rechte (Rechte-Modell) für die Oberfläche: Recht → Stufe (1 = Lesen, 2 = Ja/Schreiben)
+                    rechte = Rechtedienst.Liste(b),
                 },
                 ungelesen = b is null ? 0 : m.Ungelesen(b.Id),
                 // Ansichtseinstellungen der Administration (Wochenende, Uhrzeiten auf Karten, Startseite)
@@ -319,7 +321,7 @@ public static class AppApi
             var eintrag = kb.Zeitraum(datum, datum).Where(e => e.Unterricht == unterricht && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
                                                                          (b.Kollegium || e.Klassen.Any(b.HatKlasse)))
                 .OrderByDescending(e => e.Stunde).FirstOrDefault();
-            if (eintrag != null && !b.Kollegium) eintrag = eintrag with { Notiz = "" };
+            if (eintrag != null && !b.Kollegium) eintrag = eintrag with { Notiz = "", OnlineLink = eintrag.Online ? eintrag.OnlineLink : "" };
             return Results.Json(new { eintrag, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
         });
         // Lehrstoff, Hausaufgabe, Notizen (Lehrkräfte / Schüler*innen), Lehrform, Anmerkung einer Stunde speichern – PUT und POST (Apps).
@@ -328,16 +330,17 @@ public static class AppApi
         {
             var b = Ich(c);
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur Lehrkräfte können das Klassenbuch bearbeiten.");
+            if (d.OnlineLink is not null) Klassenbuchverwaltung.OnlineLinkPruefen(d.OnlineLink);   // vor dem Speichern prüfen
             var eigener = b.LehrerKuerzel ?? d.Lehrer;
             var alt = kb.Zeitraum(d.Datum, d.Datum).Where(e => e.Unterricht == d.Unterricht && d.Stunde >= e.Stunde && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase)))
                 .OrderByDescending(e => e.Stunde).FirstOrDefault();
             DateOnly? faellig = d.Hausaufgabe is null && d.Faellig is null ? (DateOnly.TryParse(alt?.Faellig, out var f) ? f : null) : d.Faellig;
             var e = kb.Speichern(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? alt?.Thema ?? "", d.Hausaufgabe ?? alt?.Hausaufgabe ?? "", faellig,
                 d.Notiz ?? alt?.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung, d.Lehrer);
-            // „Findet online statt“ (nur wenn mitgeschickt)
-            if (d.Online is bool online)
+            // „Findet online statt“ und Link zum Online-Unterricht (nur wenn mitgeschickt; Link: http/https, "" entfernt ihn)
+            if (d.Online is not null || d.OnlineLink is not null)
             {
-                kv.OnlineSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, online);
+                kv.OnlineSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online ?? alt?.Online ?? false, d.OnlineLink);
                 e = kb.Holen(DateOnly.Parse(e.Datum), e.Stunde, e.Unterricht, e.Lehrer) ?? e;
             }
             return Results.Json(e);

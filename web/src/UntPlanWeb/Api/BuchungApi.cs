@@ -36,7 +36,7 @@ public static class BuchungApi
     private static Benutzer Admin(HttpContext c)
     {
         var b = Ich(c);
-        if (!b.IstAdmin) throw new UnauthorizedAccessException("Nur für die Administration.");
+        if (!Rechtedienst.Darf(b, Recht.BuchungVerwalten)) throw new UnauthorizedAccessException("Nur für die Administration.");
         return b;
     }
 
@@ -65,8 +65,8 @@ public static class BuchungApi
             List<string> Werte(Func<Raumdaten, string> f) => raeume.Select(f).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, de).ToList();
             return Results.Json(new
             {
-                admin = b.IstAdmin, ich = b.LehrerKuerzel ?? "",
-                raeume, ressourcenarten = bu.Arten(), ressourcen = bu.Ressourcen(!b.IstAdmin),
+                admin = Rechtedienst.Darf(b, Recht.BuchungVerwalten), andere = Rechtedienst.Darf(b, Recht.BuchungAndere), ich = b.LehrerKuerzel ?? "",
+                raeume, ressourcenarten = bu.Arten(), ressourcen = bu.Ressourcen(!Rechtedienst.Darf(b, Recht.BuchungVerwalten)),
                 raumarten = Werte(r => r.Raumart), gebaeude = Werte(r => r.Gebaeude), abteilungen = Werte(r => r.Abteilung), raumgruppen = Werte(r => r.Raumgruppe),
                 zeitraster = plan.Zeitraster(s), tageProWoche = Math.Max(5, s.Paket.Zeitraster.TageProWoche),
                 maxTermine = Buchungsdienst.MaxTermine,
@@ -165,7 +165,7 @@ public static class BuchungApi
         api.MapPut("/ressourcenarten/{id:int}", (int id, ArtDaten d, HttpContext c, Buchungsdienst bu) => { Admin(c); return Results.Json(bu.ArtSpeichern(id, d.Name, d.Reihenfolge)); });
         api.MapDelete("/ressourcenarten/{id:int}", (int id, HttpContext c, Buchungsdienst bu) => { Admin(c); bu.ArtLoeschen(id); return Results.Json(new { ok = true }); });
 
-        api.MapGet("/ressourcen", (HttpContext c, Buchungsdienst bu) => { var b = Ich(c); return Results.Json(bu.Ressourcen(!b.IstAdmin)); });
+        api.MapGet("/ressourcen", (HttpContext c, Buchungsdienst bu) => { var b = Ich(c); return Results.Json(bu.Ressourcen(!Rechtedienst.Darf(b, Recht.BuchungVerwalten))); });
         api.MapPost("/ressourcen", (RessourceDaten d, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
         {
             Admin(c);

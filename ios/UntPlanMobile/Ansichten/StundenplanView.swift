@@ -947,6 +947,9 @@ struct WochenrasterView: View {
         return nurTage.compactMap { iso in plan.tage.first { $0.datum == iso } }
     }
 
+    /// Aufsichten dicht am Plan: Tagesansicht und iPhone (alle Ansichten).
+    private var dichteAufsicht: Bool { nurTage?.count == 1 || kompakt }
+
     private var montagDatum: Date {
         Datumsformat.datum(plan.montag) ?? Datumsformat.datum(tage.first?.datum ?? "") ?? Date()
     }
@@ -969,8 +972,8 @@ struct WochenrasterView: View {
             uniquingKeysWith: { erste, _ in erste })
         let vorErster = kacheln.values.contains { liste in liste.contains { $0.vorErsterStunde } }
         let pausenAufsichten = kacheln.values.flatMap { $0 }.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
-        // Tagesansicht: Aufsicht vor der 1. Stunde sitzt dichter am Plan, der Streifen darüber bleibt gleich hoch
-        let mass = Rastermass(oben: vorErster ? (nurTage?.count == 1 ? 31 : 34) : 15, start: start, proMinute: proMinute,
+        // Tagesansicht und iPhone: Aufsicht vor der 1. Stunde sitzt dichter am Plan, der Streifen darüber bleibt gleich hoch
+        let mass = Rastermass(oben: vorErster ? (dichteAufsicht ? 31 : 34) : 15, start: start, proMinute: proMinute,
                               dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: proMinute,
                                                               mindestens: nurTage == nil ? 24 : 30))
         GeometryReader { geo in
@@ -1243,9 +1246,9 @@ struct WochenrasterView: View {
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
             // Direkt über der Linie der 1. Stunde (im freien Streifen vor ihr), nie nach oben in den Tageskopf;
-            // in der Tagesansicht noch dichter an der 1. Stunde (1 pt statt 4 pt Abstand zur Linie)
+            // in der Tagesansicht und auf dem iPhone noch dichter an der 1. Stunde (1 pt statt 4 pt Abstand zur Linie)
             h = 22
-            y = max(3, mass.y(mass.start) - h - (nurTage?.count == 1 ? 1 : 4))
+            y = max(3, mass.y(mass.start) - h - (dichteAufsicht ? 1 : 4))
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar
             let oben = mass.yEnde(k.beginn)
@@ -1396,6 +1399,11 @@ enum Kachelspeicher {
         if speicher.count > 160 { speicher.removeAll(keepingCapacity: true) }
         speicher[schluessel] = neu
         return neu
+    }
+
+    /// Alles verwerfen (z. B. beim Wechsel in ein anderes Konto).
+    static func leeren() {
+        speicher.removeAll()
     }
 }
 

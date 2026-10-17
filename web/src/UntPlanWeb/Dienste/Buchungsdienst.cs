@@ -338,6 +338,7 @@ public sealed class Buchungsdienst
     public object RaumSuche(Stand s, Benutzer b, Zeitangabe zeit, Kriterien? kriterien)
     {
         Kollegium(b);
+        if (!Rechtedienst.Darf(b, Recht.BuchungRaum)) throw new UnauthorizedAccessException("Ihr Konto darf keine Räume buchen.");
         var (termine, weg) = Termine(s, zeit);
         if (termine.Count == 0) throw new ArgumentException("Im gewählten Zeitraum gibt es keinen Unterrichtstag.");
         var k = kriterien ?? new Kriterien();
@@ -365,6 +366,7 @@ public sealed class Buchungsdienst
     public object RessourcenSuche(Stand s, Benutzer b, Zeitangabe zeit, Kriterien? kriterien)
     {
         Kollegium(b);
+        if (!Rechtedienst.Darf(b, Recht.BuchungRessourcen)) throw new UnauthorizedAccessException("Ihr Konto darf keine Ressourcen buchen.");
         var (termine, weg) = Termine(s, zeit);
         if (termine.Count == 0) throw new ArgumentException("Im gewählten Zeitraum gibt es keinen Unterrichtstag.");
         var k = kriterien ?? new Kriterien();
@@ -418,6 +420,9 @@ public sealed class Buchungsdienst
     public (List<Buchung> Buchungen, List<string> Hinweise) Speichern(Stand s, Benutzer b, BuchungDaten d)
     {
         Kollegium(b);
+        if (!Rechtedienst.Darf(b, Recht.BuchungRaum) && (d.Termine ?? new()).Any(t => !string.IsNullOrWhiteSpace(t.Raum)))
+            throw new UnauthorizedAccessException("Ihr Konto darf keine Räume buchen.");
+        if (!Rechtedienst.Darf(b, Recht.BuchungRessourcen) && d.Ressourcen is { Count: > 0 }) throw new UnauthorizedAccessException("Ihr Konto darf keine Ressourcen buchen.");
         var art = (d.Art ?? "").Trim().ToLowerInvariant();
         if (!Buchungsarten.Alle.Contains(art)) throw new ArgumentException("Unbekannte Buchungsart.");
         var eingabe = d.Termine ?? new();
@@ -442,7 +447,7 @@ public sealed class Buchungsdienst
         if (art == Buchungsarten.Unterricht)
         {
             eu = EigenerUnterrichtHolen(d.UnterrichtId ?? 0) ?? throw new ArgumentException("Unbekannter Unterricht.");
-            if (!b.IstAdmin && eu.BenutzerId != b.Id && !Ci.Equals(eu.Lehrer, b.LehrerKuerzel ?? "")) throw new UnauthorizedAccessException("Nur für eigenen Unterricht.");
+            if (!Rechtedienst.Darf(b, Recht.BuchungAndere) && eu.BenutzerId != b.Id && !Ci.Equals(eu.Lehrer, b.LehrerKuerzel ?? "")) throw new UnauthorizedAccessException("Nur für eigenen Unterricht.");
         }
         var klassen = eu?.Klassen ?? (d.Klassen ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
         if (klassen.FirstOrDefault(x => !s.Klassen.ContainsKey(x)) is { } uk) throw new ArgumentException($"Unbekannte Klasse {uk}.");
@@ -560,7 +565,7 @@ public sealed class Buchungsdienst
     public int Stornieren(Benutzer b, int id, bool serie)
     {
         var x = Holen(id) ?? throw new ArgumentException("Unbekannte Buchung.");
-        if (!b.IstAdmin && x.BenutzerId != b.Id) throw new UnauthorizedAccessException("Nur eigene Buchungen können storniert werden.");
+        if (!Rechtedienst.Darf(b, Recht.BuchungAndere) && x.BenutzerId != b.Id) throw new UnauthorizedAccessException("Nur eigene Buchungen können storniert werden.");
         if (x.Status != "aktiv") throw new ArgumentException("Die Buchung ist bereits storniert.");
         var heute = Plandienst.Iso(_uhr.Heute);
         List<int> ids;
@@ -568,7 +573,7 @@ public sealed class Buchungsdienst
             ids = _db.Liste("SELECT id FROM buchungen WHERE serie = @s AND status = 'aktiv' AND datum >= @h", r => r.Zahl("id"), Db.P("@s", x.Serie), Db.P("@h", heute));
         else
         {
-            if (!b.IstAdmin && string.CompareOrdinal(x.Datum, heute) < 0) throw new ArgumentException("Vergangene Termine können nicht storniert werden.");
+            if (!Rechtedienst.Darf(b, Recht.BuchungAndere) && string.CompareOrdinal(x.Datum, heute) < 0) throw new ArgumentException("Vergangene Termine können nicht storniert werden.");
             ids = new() { x.Id };
         }
         foreach (var i in ids)
@@ -612,7 +617,7 @@ public sealed class Buchungsdienst
         MitRessourcen(_db.Liste($"""
             SELECT {Spalten} FROM buchungen WHERE datum >= @von AND datum <= @bis AND (@alle = 1 OR benutzer_id = @b OR (lehrer <> '' AND lehrer = @l))
             ORDER BY datum, stunde_von, id LIMIT 3000
-            """, Lesen, Db.P("@von", Plandienst.Iso(von)), Db.P("@bis", Plandienst.Iso(bis)), Db.P("@alle", alle && b.IstAdmin), Db.P("@b", b.Id), Db.P("@l", b.LehrerKuerzel ?? "\u0001")));
+            """, Lesen, Db.P("@von", Plandienst.Iso(von)), Db.P("@bis", Plandienst.Iso(bis)), Db.P("@alle", alle && Rechtedienst.Darf(b, Recht.BuchungAndere)), Db.P("@b", b.Id), Db.P("@l", b.LehrerKuerzel ?? "\u0001")));
 
     // ------------------------------------------------------------------------------------------ Pläne
 
@@ -755,7 +760,7 @@ public sealed class Buchungsdienst
     /// <summary>Eigene Unterrichte (angelegt bzw. als Lehrkraft eingetragen); die Administration sieht alle.</summary>
     public List<EigenerUnterricht> EigeneUnterrichte(Benutzer b) =>
         _db.Liste(UnterrichtSql + " AND (@alle = 1 OR u.benutzer_id = @b OR u.lehrer = @l) ORDER BY u.lehrer, u.fach, u.id", UnterrichtLesen,
-            Db.P("@alle", b.IstAdmin), Db.P("@b", b.Id), Db.P("@l", b.LehrerKuerzel ?? "\u0001"));
+            Db.P("@alle", Rechtedienst.Darf(b, Recht.BuchungAndere)), Db.P("@b", b.Id), Db.P("@l", b.LehrerKuerzel ?? "\u0001"));
 
     public EigenerUnterricht UnterrichtAnlegen(Stand s, Benutzer b, string? lehrer, string? fach, IEnumerable<string>? klassen, string? gruppe, string? text, int? wochenstunden)
     {
@@ -782,7 +787,7 @@ public sealed class Buchungsdienst
     public void UnterrichtLoeschen(Benutzer b, int id)
     {
         var u = EigenerUnterrichtHolen(id) ?? throw new ArgumentException("Unbekannter Unterricht.");
-        if (!b.IstAdmin && u.BenutzerId != b.Id) throw new UnauthorizedAccessException("Nur selbst angelegten Unterricht löschen.");
+        if (!Rechtedienst.Darf(b, Recht.BuchungAndere) && u.BenutzerId != b.Id) throw new UnauthorizedAccessException("Nur selbst angelegten Unterricht löschen.");
         _db.Ausfuehren("UPDATE buchungen SET status = 'storniert', storniert = @z WHERE unterricht_id = @id AND status = 'aktiv' AND datum >= @h",
             Db.P("@z", Jetzt), Db.P("@id", id), Db.P("@h", Plandienst.Iso(_uhr.Heute)));
         _db.Ausfuehren("UPDATE eigene_unterrichte SET geloescht = 1 WHERE id = @id", Db.P("@id", id));

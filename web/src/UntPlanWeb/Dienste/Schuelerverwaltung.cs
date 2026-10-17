@@ -39,7 +39,7 @@ public sealed class Schuelerverwaltung
     private Dictionary<int, Zeile> Gespeichert() => _db.Liste("SELECT * FROM schueler_daten", r => new Zeile(r.Zahl("id"), r.Text("vorname"), r.Text("name"), r.Text("klasse"),
         r.Text("geschlecht"), r.Text("geburtsdatum"), r.Text("email"), r.Text("bemerkung"), r.Wahr("eigen"), r.Wahr("geloescht"), r.Text("geaendert"))).ToDictionary(z => z.Id);
 
-    public static bool Verwalten(Benutzer b) => b.Rolle is Rollen.Admin or Rollen.Leitung || (b.Kollegium && b.Zusatzrechte.Contains(Zusatzrechte.Schuelerverwaltung));
+    public static bool Verwalten(Benutzer b) => Rechtedienst.Darf(b, Recht.SchuelerVerwalten);
 
     /// <summary>Darf der Benutzer Schüler*innen dieser Klasse bearbeiten (persönliche Angaben)?</summary>
     public static bool DarfBearbeiten(Benutzer b, Stand s, string klasse) => Verwalten(b) || (b.Rolle == Rollen.Lehrer && Klassenbuchdienst.IstKlassenleitung(b, s, klasse));

@@ -34,6 +34,8 @@ public sealed record Karte(
     public bool HausaufgabeFaellig { get; init; }
     /// <summary>Die Stunde findet online statt (Klassenbuch, Schalter „Findet online statt“).</summary>
     public bool Online { get; init; }
+    /// <summary>Link zum Online-Unterricht (Videokonferenz, http/https), nur bei <see cref="Online"/>; sonst leer.</summary>
+    public string OnlineLink { get; init; } = "";
     /// <summary>Zusätzlicher Unterricht (Stunde nicht im Regelplan) – Badge „ZUSÄTZLICHER UNTERRICHT“ in den Stundendetails.</summary>
     public bool Zusaetzlich { get; init; }
     /// <summary>Abwesende Klassen dieser Stunde (Klasse durchgestrichen, Label „abwesend“); die Stunde selbst findet laut Plan statt.</summary>
@@ -98,8 +100,15 @@ public sealed class Plandienst
     /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft („+++“), wenn kein anderer Text vorhanden ist.</summary>
     public const string OhneLehrkraftText = "Vertr. o. Lehrkr.";
 
-    /// <summary>Älterer Hinweistext aus früheren UntPlan-Versionen → aktuelle Bezeichnung.</summary>
-    public static string TextNormal(string text) => text.Replace("Vertr. o. Lehrkraft", OhneLehrkraftText, StringComparison.Ordinal);
+    /// <summary>
+    /// Älterer Hinweistext aus früheren UntPlan-Versionen → aktuelle Bezeichnung. Der automatische Hinweis „(Benutzer) Raumänderung“
+    /// älterer Desktop-Versionen (Raumänderung aus einer Buchung) ist kein Vertretungstext und entfällt.
+    /// </summary>
+    public static string TextNormal(string text) =>
+        string.Join(" · ", text.Replace("Vertr. o. Lehrkraft", OhneLehrkraftText, StringComparison.Ordinal)
+            .Split(" · ").Where(t => !RaumaenderungsHinweis.IsMatch(t.Trim())));
+
+    private static readonly System.Text.RegularExpressions.Regex RaumaenderungsHinweis = new(@"^\([^()]*\)\s*Raumänderung$", System.Text.RegularExpressions.RegexOptions.Compiled);
     /// <summary>Lehrkraft eines zusätzlichen Unterrichts, für den (noch) keine Lehrkraft eingetragen ist.</summary>
     public const string OhneLehrkraftZusatz = "---";
     public static readonly string[] Wochentage = { "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag" };
@@ -308,6 +317,9 @@ public sealed class Plandienst
             einzel[i] = ziel with { Status = status, Raeume = raeume };
         }
         einzel = PruefungenZusammenfuehren(einzel, loeschungen, typ, kurz, roh);
+        // Raumplan: Stunden, die aus diesem Raum genommen wurden (Raumänderung bzw. Raumbuchung weg, Prüfung in einem anderen Raum),
+        // erscheinen hier gar nicht mehr – weder als Entfall noch als „findet woanders statt“
+        if (typ == Elementtyp.Raum) einzel.RemoveAll(k => AusRaumGenommen(k, kurz));
         // Teilnahmen mehrerer Lehrkräfte an derselben Veranstaltung: eine Karte mit allen Beteiligten
         var veranstaltungen = einzel.Where(k => k.Status == "veranstaltung").GroupBy(k => (k.Von, k.Text))
             .Select(g => g.First() with
@@ -319,6 +331,9 @@ public sealed class Plandienst
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k))).ToList();
         return KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten));
     }
+
+    /// <summary>Stunde findet nicht (mehr) in diesem Raum statt (im Raumplan „abwesend“; weggefallene Bereitschaften ausgenommen).</summary>
+    internal static bool AusRaumGenommen(Karte k, string raum) => k.Status == "abwesend" && !k.Bereitschaft;
 
     private static bool IstPruefungsKarte(Karte x) => x.Unterricht is null && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"));
 

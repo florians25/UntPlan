@@ -299,6 +299,33 @@ function nurRaumKeinePruefung(c){
   return c;
 }
 
+/* Aus dem Raum genommene Stunde im Raumplan.
+   ---------------------------------------------------------------------
+   Wird eine Stunde in einen anderen Raum verlegt oder ihr Raum entfernt,
+   gehört sie nicht mehr in den Plan dieses Raums. Der Server lässt sie
+   inzwischen weg; ältere Stände (und gespeicherte Wochen) brachten sie
+   noch mit — der Raum stand dann nur noch durchgestrichen auf der Kachel. */
+function ausRaumGenommen(c, entity){
+  if (!c || !entity || entity.type !== 'room' || c.holiday || c.blockType === 'holiday') return false;
+  const id = String(entity.id || '').toUpperCase();
+  if (!id) return false;
+  const jetzt = werteListe(c.room).map(x => x.toUpperCase());
+  const vorher = werteListe(c.roomOrig).map(x => x.toUpperCase());
+  return !jetzt.includes(id) && vorher.includes(id);
+}
+
+/* „Sondereinsatz“ ist eine interne Vertretungsart von UntPlan und steht
+   weder auf der Kachel noch in den Details. */
+const SONDEREINSATZ = /\(?\bSondereins(?:a|ä)tz(?:e)?\b\)?\s*[:–—-]?\s*/gi;
+function ohneSondereinsatz(c){
+  if (!c) return c;
+  ['info', 'type', 'subject'].forEach(k => {
+    if (typeof c[k] === 'string' && /sondereins(a|ä)tz/i.test(c[k]))
+      c[k] = c[k].replace(SONDEREINSATZ, ' ').replace(/\s{2,}/g, ' ').replace(/^[\s·,;–-]+|[\s·,;–-]+$/g, '');
+  });
+  return c;
+}
+
 let bootUsed = false;
 /* Wie loadWeek, aber ohne Meldungen — für das stille Vorladen der
    Nachbarwochen. */
@@ -319,7 +346,11 @@ async function loadWeek(entity, weekStart, token){
   const aktuell = () => token === undefined || token === renderToken;
   const fertig = (byDate, bands) => {
     /* Auch gespeicherte Wochen von früher durchlaufen die Prüfung. */
-    Object.values(byDate || {}).forEach(l => (l || []).forEach(nurRaumKeinePruefung));
+    Object.keys(byDate || {}).forEach(d => {
+      const l = (byDate[d] || []).filter(c => !ausRaumGenommen(c, entity));
+      l.forEach(c => { nurRaumKeinePruefung(c); ohneSondereinsatz(c); });
+      byDate[d] = l;
+    });
     return { byDate, bands: bands || [], key: weekKey(entity, weekStart) };
   };
 
@@ -408,6 +439,7 @@ const viewKind = e => {
    einmal in der Symbolsammlung und werden nur per <use> verwiesen — keine
    Kopie des Pfads je Kachel. Farben (hell/dunkel) über fill/color. */
 const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-info-icon"></use></svg>';
+const KACHEL_VIDEO = '<svg class="ticon ticon--video" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="6.4" width="12.6" height="11.2" rx="2.4"/><path d="m15.4 10.6 5.8-3.4v9.6l-5.8-3.4z"/></svg>';
 const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-homework-icon"></use></svg>';
 
 /* TRENNER-BEGINN (wird von den Tests ausgeführt) */
@@ -1284,7 +1316,9 @@ function renderGrid(){
       const h   = isHoliday ? L.total
                 : card._pausePre ? PRE_PILLE
                 : (byTime && card._supervision)
-                    ? Math.max(18, Math.min(SUP_H, supGap - 3))
+                    /* Dicht an den Stunden darüber und darunter: je ein
+                       Punkt Luft – die Pille gehört sichtbar zum Plan. */
+                    ? Math.max(18, Math.min(SUP_H, supGap - 1))
                 : card._supervision ? SUP_H            /* Aufsicht: immer schmale Pille */
                 : byTime    ? Math.max(16, atTime(card.to) - atTime(card.from) - 1)
                 :             Math.max(0, L.height(card.lesson, card.span) - 1);
@@ -1461,17 +1495,6 @@ function renderGrid(){
       const timeA = (state.times[card.lesson] || {}).start || '';
       const timeB = (state.times[Math.min(card.lesson + card.span - 1, 12)] || {}).end || '';
 
-      const aufsichtLabel = k => {
-        if (!(k._supSub || k._supAbsent)) return '';
-        const neu = werteListe(k.teacher).filter(t => t !== '???' && t !== '---');
-        const alt = werteListe(k.teacherOrig);
-        if (!neu.length && !alt.length) return '';
-        const html = neu.length
-          ? alt.map(t => `<span class="badge badge--removed">${esc(t)}</span>`).join('')
-            + neu.map(t => `<span class="badge">${esc(t)}</span>`).join('')
-          : alt.map(t => `<span class="badge badge--removed badge--open">${esc(t)}</span>`).join('');
-        return `<span class="sup-lab">${html}</span>`;
-      };
       const DOTS = '<svg viewBox="0 0 12 12"><circle cx="6" cy="2.4" r="1.05"/><circle cx="6" cy="6" r="1.05"/><circle cx="6" cy="9.6" r="1.05"/></svg>';
 
       /* Inhalt einer Kartenzeile: Plaketten, Kopplungs-Kürzel oder Text. */
@@ -1482,7 +1505,7 @@ function renderGrid(){
       const zeileInnen = l => {
         const offenGruen = l.removed && (l.key === 'teacher' || l.key === 'room')
           && card.blockType !== 'cancelled';
-        const cls2 = 'badge' + (l.removed ? ' badge--removed' : '') + (offenGruen ? ' badge--open' : '');
+        const cls2 = 'badge' + (l.removed ? ' badge--removed' : '') + (offenGruen ? ' badge--open' : '') + (l.key === 'room' ? ' badge--raum' : '');
         return l.tokens
           ? l.tokens.map((t, ti) => {
               /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
@@ -1495,7 +1518,7 @@ function renderGrid(){
                    der abwesenden Lehrkraft selbst. */
                 ? (t.for && l.key === 'teacher'
                     ? `<span class="badge badge--removed">${esc(t.for)}</span><i class="tok__trenn">,</i> <span class="badge">${esc(t.text)}</span>`
-                    : `<span class="badge">${esc(t.text)}</span>`)
+                    : `<span class="badge${l.key === 'room' ? ' badge--raum' : ''}">${esc(t.text)}</span>`)
                 : esc(t.text);
               return `<span class="tok tok--${t.state}">${kern}${komma}</span>`;
             }).join('')
@@ -1522,7 +1545,9 @@ function renderGrid(){
            daneben die Vertretung im grünen Label. Ist noch niemand
            eingeteilt, steht das alte Kürzel durchgestrichen im Label. */
         : (card.blockType === 'supervision' || card._supervision)
-        ? `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>${aufsichtLabel(card)}`
+        /* Vertretung (eingesprungen oder abgegeben): nur der Ort und ganz
+           rechts das grüne „…“ – wer vertritt, steht im Detail. */
+        ? `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>${(card._supSub || card._supAbsent) ? `<span class="sup-menu" aria-hidden="true">${DOTS}</span>` : ''}`
         : isStandby
         ? `<span class="card__line">${esc(card.subject || 'Bereitschaft')}</span>`
         : (card.blockType === 'absence' || card.blockType === 'gs')
@@ -1620,11 +1645,17 @@ function renderGrid(){
         eckzeichen = `<span class="card__ecke">${ikon('ic-tt-info-icon')}</span>`;
       }
 
+      /* „Findet online statt“: Videosymbol oben rechts auf der Kachel. */
+      const video = card.online && !isHoliday && !isSup && card.blockType !== 'cancelled' && !released;
+      if (video) cls.push('has-video');
+      const videoHtml = video ? `<span class="card__video" aria-label="Online-Unterricht">${KACHEL_VIDEO}</span>` : '';
+
       const tag = isHoliday ? 'div' : 'button';
       html += `<${tag} class="${cls.join(' ')}" style="${style}"
                  data-date="${date}" data-lesson="${card.lesson}" data-idx="${card._uid}"
                  ${isHoliday ? '' : 'type="button"'}>
         ${body}
+        ${videoHtml}
         ${eckzeichen}
         ${(released || (isStandby && card.standbyAbsent)) ? '<span class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : ''}
         ${(isHoliday || isSup) ? '' : `<span class="card__times"><span>${timeA}</span><span>${timeB}</span></span>`}
@@ -4080,8 +4111,8 @@ function rechteAnwenden(){
     /* Diese beiden bleiben offen: Der Vertretungstext ist ohnehin nur zu
        lesen, und hinter den Hausaufgaben steht eine Liste, die in eine
        Zeile nicht passt. */
-    if (['substitution', 'info', 'homework', 'lehrstoff', 'notes_students'].includes(z.dataset.key)) return;
-    if (['students', 'classbook', 'notes_teachers', 'online'].includes(z.dataset.key)){
+    if (['substitution', 'info', 'exam', 'join', 'homework', 'lehrstoff', 'notes_students'].includes(z.dataset.key)) return;
+    if (['students', 'classbook', 'notes_teachers', 'online', 'onlinelink'].includes(z.dataset.key)){
       z.remove();
       return;
     }
@@ -4108,6 +4139,8 @@ function detailFuerSchueler(rows){
       if (r.sub && String(r.sub).trim()) out.push(r);
       return out;
     }
+    /* Prüfung und der Link zum Online-Unterricht gelten für alle. */
+    if (r.key === 'exam' || r.key === 'join'){ out.push(r); return out; }
     /* Lehrstoff und Notizen für Schüler*innen nur, wenn etwas hinterlegt
        ist — und ohne Häkchen, denn abhaken darf hier niemand. */
     if (r.key === 'lehrstoff' || r.key === 'notes_students'){
@@ -4277,9 +4310,11 @@ function renderDetail(){
   void zusatz;
   const einmal = arr => arr.filter((x, i) => arr.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i);
   const veranstAnlass = istVeranstaltung ? (c.subject || c.info || '').trim() : '';
-  /* Art der Stunde als dezente graue Pille unter der Überschrift – in
-     normaler Schreibweise, nicht als Versal-Plakette. */
+  /* Art der Stunde als graue Pille in Großbuchstaben rechts neben dem Fach
+     (Veranstaltung: neben dem Anlass) – wie im Original. Gibt es keine
+     solche Zeile, steht sie allein unter der Überschrift. */
   const artPille = c.blockType === 'klausur' ? 'Prüfung' : istVeranstaltung ? 'Veranstaltung' : '';
+  const pilleHtml = artPille ? `<span class="dpill dpill--art">${esc(artPille.toUpperCase())}</span>` : '';
 
   /* --- Aktionszeilen ----------------------------------------------------
      Alles, was zum Klassenbuch gehört (online, Raum, Lehrstoff,
@@ -4294,8 +4329,19 @@ function renderDetail(){
   const voll = eigen && !off;
   const rows = [];
 
-  if (voll) rows.push({ ico:'online', title:'Findet online statt', key:'online', toggle:!!cbOnline });
+  if (voll){
+    rows.push({ ico:'online', title:'Findet online statt', key:'online', toggle:!!cbOnline });
+    /* Mit eingeschaltetem Schalter: Feld für den Link zur Videokonferenz. */
+    if (cbOnline) rows.push({ key:'onlinelink', link: cbOnlineLink });
+  }
+  /* Schüler*innen (und alle anderen): Online-Unterricht mit Link beitreten. */
+  const beitreten = (cbOnline || c.online) ? (cbOnlineLink || c.onlineLink || '') : '';
+  if (beitreten && !voll && !off)
+    rows.push({ ico:'online', title:'Online-Unterricht beitreten', key:'join', sub: linkKurz(beitreten), link: beitreten });
   if (voll && c.date >= iso(new Date())) rows.push({ ico:'room', key:'room', chips:werteListe(c.room) });
+  /* Prüfung: eigene Zeile mit dem Fach, wie im Original. */
+  if (c.blockType === 'klausur')
+    rows.push({ ico:'exam', title:'Prüfung', key:'exam', sub: c.subject || c.subjectOrig || '' });
   if (istVeranstaltung){
     /* Der Infotext der Veranstaltung steht immer als eigene Zeile mit
        Info-Symbol da – auch wenn er dem Anlass im Kopf gleicht. Auf der
@@ -4339,13 +4385,14 @@ function renderDetail(){
   $('#detailBody').innerHTML = `
     <div class="dhead ${(c.blockType === 'cancelled' || c.blockType === 'class-absent') ? 'is-off' : ''}">
       ${head ? `<h2 class="dtitle">${head}</h2>` : ''}
-      ${artPille ? `<p class="dline dline--pill"><span class="dpill dpill--dezent">${artPille}</span></p>` : ''}
       ${istVeranstaltung
           /* Veranstaltung: der Anlass nur dann als eigene Zeile, wenn oben
              die Klassen stehen — sonst ist er schon die Überschrift. */
-          ? (c.class && veranstAnlass ? `<p class="dline dline--big">${esc(veranstAnlass)}</p>` : '')
+          ? (c.class && veranstAnlass ? `<p class="dline dline--big dline--mitpill"><span class="dline__txt">${esc(veranstAnlass)}</span>${pilleHtml}</p>`
+             : pilleHtml ? `<p class="dline dline--pill">${pilleHtml}</p>` : '')
           : (c.subject || c.subjectOrig) && !terminOhneKlasse
-            ? `<p class="dline dline--big">${val('subject')}</p>` : ''}
+            ? `<p class="dline dline--big dline--mitpill"><span class="dline__txt">${val('subject')}</span>${pilleHtml}</p>`
+            : pilleHtml ? `<p class="dline dline--pill">${pilleHtml}</p>` : ''}
       ${(c.room || c.roomOrig) ? `<p class="dline dline--grau">${istVeranstaltung ? einmal(werteListe(c.room)).map(esc).join(SEP) : raumHtml()}</p>` : ''}
       ${istVeranstaltung
           ? (einmal(werteListe(c.teacher).filter(t => t !== '---')).length ? `<p class="dline dline--grau">${einmal(werteListe(c.teacher).filter(t => t !== '---')).map(esc).join(SEP)}</p>` : '')
@@ -4354,7 +4401,14 @@ function renderDetail(){
     </div>
     ${banner ? `<div class="dbanner">${banner}</div>` : '<div class="detail__sep"></div>'}
     <div class="drows">
-      ${zeilen.map(r => r.key === 'room' ? `
+      ${zeilen.map(r => r.key === 'onlinelink' ? `
+        <div class="drow2 drow2--link" data-key="onlinelink">
+          <span class="drow2__ico">${DICO.link}</span>
+          <input type="url" class="dlink" id="dOnlineLink" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"
+                 enterkeyhint="done" placeholder="Link zum Online-Unterricht (https://…)" value="${esc(r.link || '')}">
+          ${r.link ? `<a class="dlink__go" href="${esc(r.link)}" target="_blank" rel="noopener noreferrer" aria-label="Link öffnen">
+            <svg viewBox="0 0 24 24" class="ico"><path d="M14 4.5h5.5V10M19.5 4.5 11 13M17.5 13.5v4.2a1.8 1.8 0 0 1-1.8 1.8H6.3a1.8 1.8 0 0 1-1.8-1.8V8.3a1.8 1.8 0 0 1 1.8-1.8h4.2"/></svg></a>` : '<span></span>'}
+        </div>` : r.key === 'room' ? `
         <div class="drow2 drow2--room" data-key="room">
           ${ico(r)}
           <span class="droom">${r.chips.length ? r.chips.map((x, i) =>
@@ -4384,7 +4438,18 @@ function renderDetail(){
       el.addEventListener('click', () => onlineUmschalten(c));
       return;
     }
-    if (state.isStudent && !['substitution', 'info', 'homework', 'lehrstoff', 'notes_students'].includes(key)) return;
+    if (key === 'onlinelink'){
+      onlineLinkBinden(c, el);
+      return;
+    }
+    if (key === 'join'){
+      el.addEventListener('click', () => {
+        const l = (zeilen.find(r => r.key === 'join') || {}).link;
+        if (l) window.open(l, '_blank', 'noopener');
+      });
+      return;
+    }
+    if (state.isStudent && !['substitution', 'info', 'exam', 'homework', 'lehrstoff', 'notes_students'].includes(key)) return;
     if (el.classList.contains('is-readonly')) return;
     el.addEventListener('click', () => openClassbook(key));
   });
@@ -4419,7 +4484,9 @@ const DICO = (() => {
     /* Info wie im Original (img/wu/exact/info.svg ohne Feld): volle Scheibe
        mit ausgespartem „i“, auf die Scheibe zugeschnitten. */
     info:          '<svg viewBox="1.1429 1.1429 13.7143 13.7143" class="ico dico dico--info" aria-hidden="true"><use href="#ic-tt-info-icon"></use></svg>',
-    room:          u('ic-shared-roomentity')
+    room:          u('ic-shared-roomentity'),
+    exam:          u('ic-examinations'),
+    link:          linie('<path d="M12.2 15.8a4.6 4.6 0 0 0 6.5 0l3.6-3.6a4.6 4.6 0 0 0-6.5-6.5l-1.5 1.5"/><path d="M15.8 12.2a4.6 4.6 0 0 0-6.5 0l-3.6 3.6a4.6 4.6 0 0 0 6.5 6.5l1.5-1.5"/>')
   };
 })();
 
@@ -4441,6 +4508,7 @@ const CB = {
   students:       { title:'Schüler*innen',             kind:'students' },
   substitution:   { title:'Vertretungstext',           kind:'readonly' },
   info:           { title:'Information zur Stunde',    kind:'readonly' },
+  exam:           { title:'Prüfung',                   kind:'readonly' },
   room:           { title:'Raum ersetzen',             kind:'room' }
 };
 
@@ -4640,6 +4708,43 @@ let cbFaellig = [];               /* heute fällige Hausaufgaben */
 let cbCurrent = null;
 let cbEdit = null;                /* eigene Stunde? (null = noch nicht geladen) */
 let cbOnline = false;             /* „Findet online statt“ */
+let cbOnlineLink = '';            /* Link zum Online-Unterricht */
+
+/* UntPlanWeb nimmt Klassenbucheinträge höchstens zwei Wochen im Voraus an. */
+const CB_VORAUS_TAGE = 14;
+function cbZuWeit(c){ return !!c && c.date > iso(addDays(new Date(), CB_VORAUS_TAGE)); }
+/* Ab wann sich für eine Stunde etwas eintragen lässt. */
+function cbAbDatum(c){ return iso(addDays(parseISO(c.date), -CB_VORAUS_TAGE)); }
+
+/* Link zum Online-Unterricht kurz: nur der Rechnername. */
+function linkKurz(l){
+  try { const u = new URL(l); return u.host + (u.pathname.length > 1 ? '/…' : ''); } catch (e){ return String(l || ''); }
+}
+
+/* Feld für den Link: gespeichert wird beim Verlassen und mit der Eingabetaste. */
+function onlineLinkBinden(c, row){
+  const inp = row.querySelector('input');
+  if (!inp) return;
+  let alt = inp.value.trim();
+  const sichern = async () => {
+    let wert = inp.value.trim();
+    if (wert === alt) return;
+    if (wert && !/^[a-z][a-z0-9+.-]*:\/\//i.test(wert)) wert = 'https://' + wert;
+    if (wert && !/^https?:\/\/[^\s]+\.[^\s]+/i.test(wert)){ toast('Bitte einen gültigen Link (https://…) eingeben'); return; }
+    alt = wert;
+    try {
+      const r = await cbPost(c, { action:'online', value:'1', link: wert });
+      cbOnlineLink = r.onlineLink !== undefined ? r.onlineLink : wert;
+      [c, state.detail, state.detailFull].filter(Boolean).forEach(x => { x.online = true; x.onlineLink = cbOnlineLink || null; });
+      toast(cbOnlineLink ? 'Link gespeichert' : 'Link entfernt');
+      renderDetail();
+      wochenVergessen(); planNachladen();
+    } catch (e){ toast('Nicht gespeichert: ' + e.message); }
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); inp.blur(); } });
+  inp.addEventListener('blur', sichern);
+  inp.addEventListener('click', e => e.stopPropagation());
+}
 
 /* Eigene Stunde: Das sagt UntPlanWeb beim Laden. Bis dahin gilt als eigen,
    was die eigene Lehrkraft trägt – so stehen die Zeilen gleich da. */
@@ -4654,7 +4759,14 @@ async function onlineUmschalten(c){
   const neu = !cbOnline;
   cbOnline = neu;
   renderDetail();
-  try { await cbPost(c, { action:'online', value: neu ? '1' : '0' }); }
+  /* Eingeschaltet ohne Link: gleich ins Feld für den Link. */
+  if (neu && !cbOnlineLink) setTimeout(() => { const f = $('#dOnlineLink'); if (f) f.focus(); }, 60);
+  try {
+    const r = await cbPost(c, { action:'online', value: neu ? '1' : '0' });
+    if (r && r.onlineLink !== undefined) cbOnlineLink = r.onlineLink || '';
+    [c, state.detail, state.detailFull].filter(Boolean).forEach(x => { x.online = neu || null; if (!neu) x.onlineLink = null; });
+    wochenVergessen(); planNachladen();
+  }
   catch (e){ cbOnline = !neu; renderDetail(); toast('Nicht gespeichert: ' + e.message); }
 }
 
@@ -4683,7 +4795,7 @@ function cbParams(c, extra){
 
 async function cbLoadAll(c){
   cbCache = {};
-  cbEdit = null; cbOnline = false;
+  cbEdit = null; cbOnline = !!c.online; cbOnlineLink = c.onlineLink || '';
   /* Zuerst der Gerätespeicher, damit sofort etwas dasteht. */
   Object.keys(CB).forEach(k => {
     const v = store.get(cbLocalKey(c, k), null);
@@ -4702,6 +4814,7 @@ async function cbLoadAll(c){
     cbCache = Object.assign(cbCache, data.data);
     if (typeof data.canEdit === 'boolean') cbEdit = data.canEdit;
     cbOnline = !!data.online;
+    cbOnlineLink = data.onlineLink || '';
     /* Der Gerätespeicher wird auf den Stand des Servers gebracht — sonst
        blitzt beim nächsten Öffnen wieder der alte Text auf. */
     Object.keys(data.data).forEach(k2 => store.set(cbLocalKey(c, k2), data.data[k2]));
@@ -4883,22 +4996,32 @@ function openClassbook(key){
   const body = $('#dsubBody');
 
   if (CB[key].kind === 'readonly'){
-    const txt = key === 'info' ? (c.info || c.subject || '') : c.info;
+    const txt = key === 'exam'
+      ? [longName('subject', c.subject || c.subjectOrig || ''), (c.info || '').trim()].filter(Boolean).join('\n')
+      : key === 'info' ? (c.info || c.subject || '') : c.info;
     body.innerHTML = txt
       ? `<p class="dsub__read">${esc(txt)}</p>`
-      : cbEmpty(key === 'info' ? 'Keine Information' : 'Kein Vertretungstext');
+      : cbEmpty(key === 'info' ? 'Keine Information' : key === 'exam' ? 'Keine Angaben' : 'Kein Vertretungstext');
   }
 
   if (CB[key].kind === 'text'){
     /* Schüler*innen lesen nur: kein Schreibrecht, keine Tastatur, kein
        leeres Feld mit Aufforderung zum Eintippen. */
-    const nurLesen = state.isStudent;
+    /* Eintragen geht auch für kommende Stunden — UntPlanWeb nimmt
+       Einträge höchstens zwei Wochen im Voraus an. Liegt die Stunde
+       weiter weg, steht der Hinweis da und das Feld bleibt zu. */
+    const zuWeit = !state.isStudent && cbZuWeit(c);
+    const nurLesen = state.isStudent || zuWeit;
     const txt = cbText(key);
-    body.innerHTML = nurLesen
-      ? (txt.trim() ? `<p class="dsub__read">${esc(txt)}</p>` : cbEmpty('Nichts hinterlegt'))
+    const hinweis = state.isStudent ? ''
+      : zuWeit ? `<p class="dsub__hinweis">Einträge sind höchstens zwei Wochen im Voraus möglich – für diese Stunde ab ${deDate(cbAbDatum(c))}.</p>`
+      : c.date > iso(new Date()) ? '<p class="dsub__hinweis">Eintrag für eine kommende Stunde – möglich bis zu zwei Wochen im Voraus.</p>' : '';
+    body.innerHTML = hinweis + (nurLesen
+      ? (txt.trim() ? `<p class="dsub__read">${esc(txt)}</p>` : (zuWeit ? '' : cbEmpty('Nichts hinterlegt')))
       : `<textarea class="dsub__area" id="dsubText"
-           placeholder="Text hier eingeben">${esc(txt)}</textarea>`;
-    if (!nurLesen) setTimeout(() => $('#dsubText').focus(), 120);
+           placeholder="Text hier eingeben">${esc(txt)}</textarea>`);
+    $('#dsubSave').hidden = nurLesen;
+    if (!nurLesen) setTimeout(() => $('#dsubText') && $('#dsubText').focus(), 120);
   }
 
   if (CB[key].kind === 'list'){

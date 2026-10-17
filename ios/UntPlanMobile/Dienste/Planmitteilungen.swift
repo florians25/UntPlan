@@ -6,10 +6,13 @@ import UserNotifications
 /// Lokale Mitteilungen, sobald sich etwas im eigenen Stundenplan geändert hat – nur für angemeldete Lehrkräfte
 /// (nie für Schüler*innen und Eltern).
 ///
-/// Ablauf: Beim Öffnen bzw. Zurückkehren in den Vordergrund und im Hintergrund (BGAppRefreshTask, etwa alle 30–60 min,
-/// das System entscheidet über den genauen Zeitpunkt) lädt die App den eigenen Plan der aktuellen und der nächsten Woche,
-/// vergleicht ihn mit dem zuletzt gespeicherten Stand (Entfall, Vertretung, Raumänderung, neue Stunde, Prüfung …) und
-/// sendet je Änderung – ab vier Änderungen gebündelt – eine lokale Mitteilung („Mo 3. Std. D 7a: Raum R105 → R201“).
+/// Ablauf: Beim Öffnen bzw. Zurückkehren in den Vordergrund, im Hintergrund (BGAppRefreshTask, frühestens alle 15 min,
+/// das System entscheidet über den genauen Zeitpunkt) und bei einer stillen Push-Mitteilung des Servers (APNs,
+/// „content-available“ – sobald der Server nach einem Import aus UntPlan pusht) fragt die App zuerst den leichten
+/// Planstand der Sitzung ab (Revision und Empfangszeit des letzten Imports). Nur wenn er sich geändert hat (bzw. spätestens
+/// nach einigen Stunden), lädt sie den eigenen Plan der aktuellen und der nächsten Woche, vergleicht ihn mit dem zuletzt
+/// gespeicherten Stand (Entfall, Vertretung, Raumänderung, neue Stunde, Prüfung …) und sendet je Änderung – ab vier
+/// Änderungen gebündelt – eine lokale Mitteilung („Mo 3. Std. D 7a: Raum R105 → R201“).
 /// Ein Tipp auf die Mitteilung öffnet den Tag im Stundenplan.
 enum Planmitteilungen {
     /// Kennung der Hintergrund-Aufgabe (muss in Info.plist unter BGTaskSchedulerPermittedIdentifiers stehen).
@@ -24,8 +27,10 @@ enum Planmitteilungen {
     static let tippBenachrichtigung = Notification.Name("UntPlanPlanmitteilung")
     /// Noch nicht geöffneter Tag aus einer angetippten Mitteilung (z. B. beim Kaltstart).
     static var ausstehenderTag: String? = nil
-    /// Frühester Abstand bis zur nächsten Hintergrund-Prüfung.
-    static let abstand: TimeInterval = 30 * 60
+    /// Frühester Abstand bis zur nächsten Hintergrund-Prüfung (das System kann später ausführen).
+    static let abstand: TimeInterval = 15 * 60
+    /// Spätestens nach dieser Zeit wird der Plan auch ohne neuen Import wieder ganz geladen (Raumbuchungen u. Ä.).
+    static let hoechstalter: TimeInterval = 3 * 3600
 
     static var aktiv: Bool {
         UserDefaults.standard.object(forKey: schalterSchluessel) as? Bool ?? true
@@ -52,7 +57,7 @@ enum Planmitteilungen {
         }
     }
 
-    /// Nächste Hintergrund-Prüfung frühestens in 30 Minuten anmelden.
+    /// Nächste Hintergrund-Prüfung frühestens in 15 Minuten anmelden.
     static func planen() {
         guard aktiv else { return }
         let anfrage = BGAppRefreshTaskRequest(identifier: kennung)
@@ -169,7 +174,8 @@ actor Planpruefer {
     private var laeuft = false
 
     /// - Parameter melden: false = nur den Stand übernehmen (z. B. nach einer eigenen Raumänderung in der App).
-    func pruefen(melden: Bool = true) async -> Ergebnis {
+    /// - Parameter erzwingen: Plan auch dann laden, wenn der Planstand (Revision des letzten Imports) unverändert ist.
+    func pruefen(melden: Bool = true, erzwingen: Bool = false) async -> Ergebnis {
         guard Planmitteilungen.aktiv else { return .nichtBerechtigt }
         guard !laeuft else { return .erledigt(0) }
         laeuft = true
@@ -177,16 +183,27 @@ actor Planpruefer {
         let api = ApiClient.shared
         guard !api.serverAdresse.isEmpty else { return .nichtBerechtigt }
         do {
-            guard let benutzer = try await angemeldeterBenutzer(api) else { return .nichtBerechtigt }
+            guard let sitzung = try await angemeldeteSitzung(api), let benutzer = sitzung.benutzer else { return .nichtBerechtigt }
             guard Planmitteilungen.berechtigt(benutzer) else { return .nichtBerechtigt }
             let jetzt = Date()
             let montag = Datumsformat.montag(jetzt)
+            let besitzer = "\(api.serverAdresse)|\(benutzer.login)|\(benutzer.element)"
+            // Leichter Planstand zuerst: ohne neuen Import (Revision/Empfangszeit gleich) den Plan nicht laden
+            let revision = Planstand.revision(sitzung)
+            let alt = Planstand.laden()
+            if melden && !erzwingen, let alt, alt.besitzer == besitzer, !revision.isEmpty, alt.revision == revision,
+               alt.montag == Datumsformat.iso(montag), let geladen = alt.geladen,
+               jetzt.timeIntervalSince(geladen) < Planmitteilungen.hoechstalter {
+                return .erledigt(0)
+            }
             async let diese = api.plan(typ: "lehrer", element: benutzer.element, datum: montag)
             async let naechste = api.plan(typ: "lehrer", element: benutzer.element, datum: Datumsformat.tage(7, nach: montag))
             let plaene = try await [diese, naechste]
             try Task.checkCancellation()
-            let neu = Planstand(besitzer: "\(api.serverAdresse)|\(benutzer.login)|\(benutzer.element)", plaene: plaene)
-            let alt = Planstand.laden()
+            var neu = Planstand(besitzer: besitzer, plaene: plaene)
+            neu.revision = revision
+            neu.geladen = jetzt
+            neu.montag = Datumsformat.iso(montag)
             neu.speichern()
             guard melden, let alt, alt.besitzer == neu.besitzer else { return .erledigt(0) }
             let aenderungen = Planvergleich.aenderungen(alt: alt, neu: neu, jetzt: jetzt)
@@ -197,16 +214,17 @@ actor Planpruefer {
         }
     }
 
-    /// Bestehende Sitzung, sonst mit gemerktem Passwort neu anmelden (wie beim Start der App).
-    private func angemeldeterBenutzer(_ api: ApiClient) async throws -> SitzungsBenutzer? {
-        if let sitzung = try? await api.sitzung(), let b = sitzung.benutzer { return b }
+    /// Bestehende Sitzung (des aktiven Kontos), sonst mit gemerktem Passwort neu anmelden (wie beim Start der App).
+    private func angemeldeteSitzung(_ api: ApiClient) async throws -> Sitzung? {
+        if let sitzung = try? await api.sitzung(), sitzung.benutzer != nil { return sitzung }
         try Task.checkCancellation()
         let login = UserDefaults.standard.string(forKey: ApiClient.loginSchluessel) ?? ""
-        guard !login.isEmpty,
-              let passwort = Schluesselbund.lesen(konto: Schluesselbund.konto(login: login, server: api.serverAdresse))
-        else { return nil }
+        let konto = Schluesselbund.konto(login: login, server: api.serverAdresse)
+        guard !login.isEmpty, let passwort = Schluesselbund.lesen(konto: konto) else { return nil }
         try await api.anmelden(login: login, passwort: passwort)
-        return try await api.sitzung().benutzer
+        let neu = try await api.sitzung()
+        if neu.benutzer != nil { Kontenspeicher.sitzungSichern(fuer: konto) }
+        return neu
     }
 }
 
@@ -266,6 +284,18 @@ struct Planstand: Codable {
     /// Enthaltene Tage (yyyy-MM-dd) – verglichen werden nur Tage, die in beiden Ständen vorkommen
     var tage: [String]
     var stunden: [String: Stundeneintrag]
+    /// Planstand des Servers beim Laden (Revision und Empfangszeit des letzten Imports)
+    var revision: String? = nil
+    /// Zeitpunkt des letzten vollständigen Ladens
+    var geladen: Date? = nil
+    /// Montag der geladenen Woche (yyyy-MM-dd)
+    var montag: String? = nil
+
+    /// Leichter Planstand aus der Sitzung (leer = unbekannt, dann wird immer geladen).
+    static func revision(_ s: Sitzung) -> String {
+        guard let p = s.paket else { return "" }
+        return [p.revision ?? "", p.empfangen ?? ""].filter { !$0.isEmpty }.joined(separator: "|")
+    }
 
     init(besitzer: String, plaene: [Wochenplan]) {
         self.besitzer = besitzer
@@ -395,6 +425,65 @@ enum Planvergleich {
         case "geaendert", "offen": return "Vertretung" + raum
         case "buchung": return nil
         default: return "neue Stunde" + raum
+        }
+    }
+}
+
+// MARK: - Push (APNs)
+
+/// Vorbereitung für Sofort-Mitteilungen: Geräte-Token beim Server hinterlegen und stille Pushes („content-available“)
+/// in eine Planprüfung übersetzen. Echte Pushes brauchen die Push-Berechtigung (Xcode → Signing & Capabilities →
+/// Push Notifications), einen APNs-Schlüssel und den Server-Endpunkt POST /api/app/push/geraet samt Versand nach dem Import.
+enum Push {
+    static let tokenSchluessel = "pushGeraeteToken"
+
+    /// Zuletzt vom System erhaltenes Geräte-Token (hex).
+    static var token: String? {
+        get { UserDefaults.standard.string(forKey: tokenSchluessel) }
+        set { UserDefaults.standard.set(newValue, forKey: tokenSchluessel) }
+    }
+
+    /// Entwicklungs- bzw. Produktionsumgebung von APNs (Debug-Build: Sandbox).
+    static var umgebung: String {
+        #if DEBUG
+        return "sandbox"
+        #else
+        return "production"
+        #endif
+    }
+
+    /// Token beim Server des aktiven Kontos hinterlegen (Fehler – z. B. fehlender Endpunkt – werden ignoriert).
+    static func tokenMelden() {
+        guard let token, !token.isEmpty, !ApiClient.shared.serverAdresse.isEmpty else { return }
+        let daten = PushGeraetDaten(token: token, umgebung: umgebung, bundle: Bundle.main.bundleIdentifier ?? "")
+        Task.detached {
+            try? await ApiClient.shared.pushGeraetMelden(daten)
+        }
+    }
+}
+
+extension AppDelegate {
+    /// Geräte-Token von APNs erhalten: merken und dem Server melden.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+        let neu = hex != Push.token
+        Push.token = hex
+        if neu { Push.tokenMelden() }
+    }
+
+    /// Ohne Push-Berechtigung (Entitlement) bzw. im Simulator: keine Sofort-Mitteilungen, die Prüfung läuft weiter.
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {}
+
+    /// Stille Push-Mitteilung (z. B. nach einem Import aus UntPlan): eigenen Plan sofort prüfen.
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        Task {
+            let ergebnis = await Planpruefer.shared.pruefen(erzwingen: true)
+            switch ergebnis {
+            case .erledigt(let anzahl): completionHandler(anzahl > 0 ? .newData : .noData)
+            case .nichtBerechtigt: completionHandler(.noData)
+            case .fehler: completionHandler(.failed)
+            }
         }
     }
 }

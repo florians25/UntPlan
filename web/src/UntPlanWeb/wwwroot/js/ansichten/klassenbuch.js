@@ -284,7 +284,7 @@ export function abwesenheitTags(s, kommend) {
     const unent = s.unentschuldigt ?? 0;
     const offen = s.abwesend - s.entschuldigt - unent;
     const [farbe, text] = unent ? ['rot', 'Nicht entschuldigt'] : offen ? ['gelb', 'Offen'] : ['gruen', 'Entschuldigt'];
-    teile.push(`<span class="kbl-tag ${farbe}" title="${s.abwesend} abwesend: ${s.entschuldigt} entschuldigt, ${offen} offen, ${unent} nicht entschuldigt"><b>${offen + unent}</b><i class="kbl-trenn"></i><b>${s.abwesend}</b> ${text}</span>`);
+    teile.push(`<span class="kbl-tag zahl ${farbe}" title="${s.abwesend} abwesend: ${s.entschuldigt} entschuldigt, ${offen} offen, ${unent} nicht entschuldigt"><b class="kbl-offen">${offen + unent}</b><i class="kbl-trenn"></i><b>${s.abwesend}</b> ${text}</span>`);
   }
   if (s.verspaetet) teile.push(`<span class="kbl-tag" title="${s.verspaetet} verspätet bzw. vorzeitig gegangen"><i class="bi bi-clock"></i>${s.verspaetet} verspätet</span>`);
   if (teile.length) return teile.join('');
@@ -418,6 +418,8 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
     return (!filter.has('lehrstoff') || !s.lehrstoff) && (!filter.has('kontrolle') || !s.geprueft);
   };
   const karten = [];
+  // eigene Unterrichte ohne Spalte „Lehrkräfte“ (wie im Original); bei fremder Lehrkraft bzw. Suche mit
+  const mitLehrer = suchModus || fremd;
   seite.innerHTML = `<div class="kbl">
     <div class="kbl-rand" data-oben></div>
     <div data-liste>${lade()}</div>
@@ -434,11 +436,11 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       const kw = kwVon(t.datum);
       const kwNeu = kw !== letzteKw; letzteKw = kw;
       return `<section class="kbl-tagblock ${t.datum === heute ? 'ist-heute' : ''}" data-datum="${t.datum}">
-        <div class="kbl-trenner"><span class="kbl-kw">${kwNeu ? `KW ${kw}` : ''}</span><span class="kbl-linie"></span>
+        <div class="kbl-trenner"><span class="kbl-links"><span class="kbl-kw">${kwNeu ? `KW ${kw}` : ''}</span><span class="kbl-linie"></span></span>
           <button type="button" class="kbl-datum" data-datumwahl="${t.datum}" aria-haspopup="menu" aria-expanded="false">${e(wtVon(t.datum))}<span class="kbl-trennstrich">|</span>${e(tagText(t.datum))}${t.datum === heute ? ' <span class="kbl-heute">Heute</span>' : ''}<i class="bi bi-chevron-down"></i></button>
           <span class="kbl-linie"></span></div>
-        <div class="kbl-tabelle" role="table" aria-label="${e(`${wtVon(t.datum)}, ${tagText(t.datum)}`)}">
-          <div class="kbl-kopfzeile" role="row"><span role="columnheader">h</span><span role="columnheader">Fach</span><span role="columnheader">Lehrkräfte</span><span role="columnheader">Klassen</span>
+        <div class="kbl-tabelle ${mitLehrer ? '' : 'ohne-lehrer'}" role="table" aria-label="${e(`${wtVon(t.datum)}, ${tagText(t.datum)}`)}">
+          <div class="kbl-kopfzeile" role="row"><span role="columnheader">h</span><span role="columnheader">Fach</span>${mitLehrer ? '<span role="columnheader">Lehrkräfte</span>' : ''}<span role="columnheader">Klassen</span>
             <span role="columnheader">Lehrstoff</span><span role="columnheader">Abwesenheiten</span><span role="columnheader">Hausaufgaben</span></div>
           ${sicht.map(s => {
             const i = karten.length;
@@ -449,9 +451,9 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
             return `<div class="kbl-zeile ${entfall ? 'entfall' : ''} ${spaeter ? 'kommend' : ''}" role="row" tabindex="0" data-k="${i}" aria-label="${e(`${s.von}. Stunde ${s.fach} ${s.klassen.join(', ')}`)}">
               <span role="cell" class="kbl-h">${s.von === s.bis ? s.von : `${s.von}–${s.bis}`}</span>
               <span role="cell" class="kbl-fach" style="${farbe ? `--fach:${farbe}` : ''}">${e(s.fach)}</span>
-              <span role="cell" class="kbl-lehrer">${e(s.lehrer.map(l => lehrerName(l)).join(', '))}</span>
+              ${mitLehrer ? `<span role="cell" class="kbl-lehrer">${e(s.lehrer.map(l => lehrerName(l)).join(', '))}</span>` : ''}
               <span role="cell" class="kbl-klassen">${e(s.klassen.join(', '))}</span>
-              <span role="cell" class="kbl-stoff">${entfall ? `<span class="kbl-tag rot">${e(s.art || 'Entfall')}</span>` : s.lehrstoff ? `<span class="kbl-text" title="${e(s.lehrstoff)}">${e(s.lehrstoff)}</span>` : spaeter ? '' : '<span class="kbl-fehlt">Lehrstoff fehlt</span>'}</span>
+              <span role="cell" class="kbl-stoff">${entfall ? `<span class="kbl-tag rot">${e(s.art || 'Entfall')}</span>` : s.lehrstoff ? `<span class="kbl-text" title="${e(s.lehrstoff)}">${e(s.lehrstoff)}</span>` : ''}</span>
               <span role="cell" class="kbl-abw">${abwesenheitTags(s, spaeter)}</span>
               <span role="cell" class="kbl-hw">${s.hausaufgaben ? `<span class="kbl-text" title="${e(s.hausaufgaben)}">${e(s.hausaufgaben)}</span>` : ''}</span></div>`;
           }).join('')}

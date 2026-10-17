@@ -18,7 +18,8 @@ namespace UntPlanWeb.Api;
 /// </summary>
 public static class ErweiterungApi
 {
-    public sealed record OnlineDaten(DateOnly Datum, int Stunde, int Unterricht, bool Online);
+    /// <summary>„Findet online statt“ einer Stunde; Link (optional) = Videokonferenz-Adresse (http/https), null = unverändert, "" = entfernen.</summary>
+    public sealed record OnlineDaten(DateOnly Datum, int Stunde, int Unterricht, bool Online, string? Link = null, string? OnlineLink = null);
     public sealed record AbwesenheitNeuDaten(int SchuelerId, DateOnly Von, DateOnly Bis, int? StundeVon, int? StundeBis, string? Grund, string? Status, string? Bemerkung,
         string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null);
     public sealed record AbwesenheitAenderDaten(List<int> Ids, string? Grund, string? Bemerkung, string? Status,
@@ -64,7 +65,7 @@ public static class ErweiterungApi
         (DateOnly Datum, int Von, int Bis)? ohne = null)
     {
         if (!vw.Wahr("pruefungssperren", "aktiv")) return;
-        if (b.Rolle is Rollen.Admin or Rollen.Leitung && vw.Wahr("pruefungssperren", "leitungAusnehmen")) return;
+        if (Rechtedienst.Darf(b, Recht.PruefungSperrenUmgehen) && vw.Wahr("pruefungssperren", "leitungAusnehmen")) return;
         var maxTag = vw.Zahl("pruefungssperren", "maxProTag");
         var maxWoche = vw.Zahl("pruefungssperren", "maxProWoche");
         var mo = Plandienst.Montag(d);
@@ -121,7 +122,7 @@ public static class ErweiterungApi
                             klassen = k.Klassen, lehrer = k.Lehrer, raeume = k.Raeume, k.Unterricht, von = k.Von, bis = k.Bis, k.Farbe, k.Gruppe, k.Zusaetzlich,
                             k.NotizSchueler, notizLehrer = b.Kollegium ? k.NotizLehrer : "", k.HausaufgabeFaellig, k.LehrerAbwesend, k.VertretungOffen,
                             lehrstoff = e?.Thema ?? "", hausaufgabe = string.Join(" · ", hw.Select(h => h.Text).DefaultIfEmpty(e?.Hausaufgabe ?? "").Where(x => x.Length > 0)),
-                            geprueft = e?.Anwesenheit != null, online = e?.Online == true,
+                            geprueft = e?.Anwesenheit != null, online = e?.Online == true, onlineLink = e?.Online == true ? e.OnlineLink : "",
                         });
                     }
             }
@@ -162,7 +163,7 @@ public static class ErweiterungApi
 
         api.MapPut("/klassenbuch/online", (OnlineDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
         {
-            kv.OnlineSetzen(Kollegium(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online);
+            kv.OnlineSetzen(Kollegium(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online, d.OnlineLink ?? d.Link);
             return Results.Json(new { ok = true });
         });
 
@@ -419,7 +420,7 @@ public static class ErweiterungApi
         });
         admin.MapPost("/import/pruefen", async (HttpContext c, Verwaltungsdienst vw) =>
         {
-            Admin(c);
+            RechtePruefung.Verlangen(Ich(c), Recht.AdminImport, meldung: "Nur für die Administration.");
             if (!c.Request.HasFormContentType) throw new ArgumentException("Bitte eine CSV-Datei auswählen.");
             var form = await c.Request.ReadFormAsync();
             var datei = form.Files.FirstOrDefault() ?? throw new ArgumentException("Bitte eine CSV-Datei auswählen.");
@@ -430,7 +431,9 @@ public static class ErweiterungApi
         });
         admin.MapPost("/import/uebernehmen", (ImportDaten d, HttpContext c, Verwaltungsdienst vw, Protokoll prot) =>
         {
-            var b = Admin(c);
+            var b = RechtePruefung.Verlangen(Ich(c), Recht.AdminImport, meldung: "Nur für die Administration.");
+            // ohne Administration keine Administrationskonten anlegen oder überschreiben
+            if (!b.IstAdmin && (d.Zeilen ?? new()).Any(z => z.Rolle == Rollen.Admin)) throw new UnauthorizedAccessException("Administrationskonten verwaltet nur die Administration.");
             var (neu, akt, ueber) = vw.ImportUebernehmen(d.Zeilen ?? new(), d.Ersetzen);
             prot.Schreiben(b.Login, "Benutzer importiert", $"{neu.Count} neu, {akt} aktualisiert");
             var csv = new StringBuilder("Benutzername;Startpasswort\r\n");

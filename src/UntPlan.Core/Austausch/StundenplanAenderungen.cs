@@ -29,12 +29,23 @@ public sealed record StplAenderung(WebRueckmeldung Meldung, DateOnly Datum, int 
 /// <summary>
 /// Stundenplanänderungen aus UntPlanWeb: Raumbuchungen, zusätzliche Unterrichte (Aktivitäten) und Prüfungen. Quelle sind die
 /// Rückmeldungen (<see cref="UntPlanWebExport.RueckmeldungenAsync"/>). Beim Übernehmen entsteht eine Raumvertretung
-/// („(Benutzer) Raumänderung“), ein Sondereinsatz oder eine Klausur; übernommene und ignorierte Änderungen werden in der
+/// (ohne Vertretungstext), ein Sondereinsatz oder eine Klausur; übernommene und ignorierte Änderungen werden in der
 /// Datei vermerkt und nicht erneut importiert.
 /// </summary>
 public static class StundenplanAenderungen
 {
     public static readonly string[] Typen = { WebRueckmeldungsTypen.Raumbuchung, WebRueckmeldungsTypen.Klausur, WebRueckmeldungsTypen.KlausurLoeschen };
+
+    /// <summary>
+    /// Automatischer Hinweis „(Benutzer) Raumänderung“, den ältere Versionen beim Übernehmen einer Raumänderung aus UntPlanWeb als
+    /// Vertretungstext eingetragen haben. Eine Raumänderung aus einer Buchung hat keinen Vertretungstext: der Hinweis wird beim
+    /// Übernehmen nicht mehr gesetzt und beim Export nicht übertragen.
+    /// </summary>
+    public static bool IstRaumaenderungsHinweis(string? text) =>
+        !string.IsNullOrWhiteSpace(text) && System.Text.RegularExpressions.Regex.IsMatch(text.Trim(), @"^\([^()]*\)\s*Raumänderung$");
+
+    /// <summary>Vertretungstext für den Export: ohne den automatischen Raumänderungs-Hinweis.</summary>
+    public static string ExportText(string? text) => IstRaumaenderungsHinweis(text) ? "" : text ?? "";
 
     /// <summary>
     /// Doppelt bzw. mehrfach vorhandene Prüfungen (gleicher Tag, gleiche Stunden, gleiche Klassen, gleicher Name – z. B. durch
@@ -206,7 +217,8 @@ public static class StundenplanAenderungen
                     var neu = Raumvertretungen.Zuordnen(d, a.UnterrichtId!.Value, a.ZeilenIndex ?? 0, a.Datum, stunden, haupt, false, RaumKollisionsLoesung.MitKollision, benutzer);
                     foreach (var v in neu.Where(v => v.UnterrichtId == a.UnterrichtId))
                     {
-                        v.Text = a.Text;
+                        // reine Raumänderung aus einer Buchung: kein Vertretungstext (ein vorhandener eigener Text der Stunde bleibt)
+                        if (IstRaumaenderungsHinweis(v.Text)) v.Text = "";
                         v.WebId = a.Id;
                         v.ZusatzraumIds = zusatz.ToList();
                     }

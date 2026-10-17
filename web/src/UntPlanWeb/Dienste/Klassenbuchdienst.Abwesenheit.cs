@@ -280,14 +280,15 @@ public sealed partial class Klassenbuchdienst
         if (bis <= von) throw new ArgumentException("Das Ende der Abwesenheit muss nach dem Beginn liegen.");
         if (bis.Date.Subtract(von.Date).TotalDays > 60) throw new ArgumentException("Bitte einen Zeitraum von höchstens 60 Tagen wählen.");
         if ((text ?? "").Length > 500) throw new ArgumentException("Der Text darf höchstens 500 Zeichen lang sein.");
-        var kl = IstKlassenleitung(b, s, sch.Klasse);
+        var kl = IstKlassenleitung(b, s, sch.Klasse) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle);
+        RueckwirkendPruefen(b, DateOnly.FromDateTime(von), _uhr.Heute);
         Karte? karte = null;
         var darfStunde = false;
         if (stunde is var (d, n, u))
         {
             karte = KarteZu(b, s, d, n, u) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
             if (!karte.Klassen.Any(k => Ci.Equals(k.K, sch.Klasse))) throw new ArgumentException("Die Schülerin bzw. der Schüler gehört nicht zu dieser Stunde.");
-            darfStunde = DarfSchreiben(b, s, d, n, u);
+            darfStunde = DarfSchreiben(b, s, d, n, u) && Rechtedienst.Darf(b, Recht.AbwesenheitErfassen);
             if (!kl && !darfStunde) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
             if (!kl && (DateOnly.FromDateTime(von) != d || DateOnly.FromDateTime(bis) != d))
                 throw new UnauthorizedAccessException("Abwesenheiten über den Tag der Stunde hinaus trägt die Klassenleitung ein.");
@@ -380,7 +381,8 @@ public sealed partial class Klassenbuchdienst
         {
             var sch = s.Schueler.FirstOrDefault(x => x.Id == sid && klassen.Contains(x.Klasse, Ci));
             if (sch is null) continue;
-            if (!IstKlassenleitung(b, s, sch.Klasse)) throw new UnauthorizedAccessException("Den Entschuldigungsstatus setzt die Klassenleitung.");
+            if (!DarfEntschuldigen(b, s, sch.Klasse)) throw new UnauthorizedAccessException("Den Entschuldigungsstatus setzt die Klassenleitung.");
+            RueckwirkendPruefen(b, d, _uhr.Heute);
             foreach (var f in AlteAbwesenheit(b, s, sid, karte, d, null, true))
                 n += _db.Ausfuehren("UPDATE fehlzeiten SET status = @s WHERE id = @i", Db.P("@s", status), Db.P("@i", f.Id));
         }
@@ -392,13 +394,14 @@ public sealed partial class Klassenbuchdienst
     {
         var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var klassen = karte.Klassen.Select(k => k.K).ToList();
-        var darfStunde = DarfSchreiben(b, s, d, stunde, unterricht);
+        var darfStunde = DarfSchreiben(b, s, d, stunde, unterricht) && Rechtedienst.Darf(b, Recht.AbwesenheitErfassen);
+        RueckwirkendPruefen(b, d, _uhr.Heute);
         var n = 0;
         foreach (var sid in schuelerIds.Distinct())
         {
             var sch = s.Schueler.FirstOrDefault(x => x.Id == sid && klassen.Contains(x.Klasse, Ci));
             if (sch is null) continue;
-            var kl = IstKlassenleitung(b, s, sch.Klasse);
+            var kl = IstKlassenleitung(b, s, sch.Klasse) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle);
             if (!kl && !darfStunde) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
             foreach (var f in AlteAbwesenheit(b, s, sid, karte, d, null, kl)) n += _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
         }

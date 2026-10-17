@@ -185,7 +185,14 @@ struct KachelView: View {
     private var zeichenHoehe: CGFloat {
         let mitInfo = kachel.info && kachel.art != .termin
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft && (!mitInfo || breite >= 96)
-        return !gekuerzt && mitInfo && !mitHausaufgabe ? Self.infoGroesse : Self.zeichenGroesse
+        return !gekuerzt && mitInfo && !mitHausaufgabe && !mitOnline ? Self.infoGroesse : Self.zeichenGroesse
+    }
+
+    /// Videosymbol „findet online statt“ (unten rechts, vor Hausaufgabe und Info; auf schmalen Karten nur ohne weitere Zeichen).
+    private var mitOnline: Bool {
+        guard kachel.online && !gekuerzt else { return false }
+        let weitere = (kachel.info && kachel.art != .termin) || (kachel.hausaufgabe && kachel.art != .bereitschaft)
+        return !weitere || breite >= 80
     }
 
     /// Breite der Zeichen unten rechts (0 = keine) – wie in `zeichen(_:)`.
@@ -194,7 +201,8 @@ struct KachelView: View {
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
         if gekuerzt { return Self.zeichenGroesse }
         var summe: CGFloat = 0
-        if mitHausaufgabe && (!mitInfo || breite >= 96) { summe += Self.zeichenGroesse }
+        if mitOnline { summe += Self.zeichenGroesse }
+        if mitHausaufgabe && (!mitInfo || breite >= 96) { summe += (summe > 0 ? 2 : 0) + Self.zeichenGroesse }
         if mitInfo { summe += (summe > 0 ? 2 : 0) + Self.infoGroesse }
         return summe
     }
@@ -207,8 +215,11 @@ struct KachelView: View {
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
         if gekuerzt {
             Kuerzungszeichen(gruen: kachel.art == .aenderung || kachel.art == .abgegeben)
-        } else if mitInfo || mitHausaufgabe {
+        } else if mitInfo || mitHausaufgabe || mitOnline {
             HStack(alignment: .center, spacing: 2) {
+                if mitOnline {
+                    Onlinezeichen(groesse: Self.zeichenGroesse)
+                }
                 if mitHausaufgabe && (!mitInfo || breite >= 96) {
                     Hausaufgabenzeichen(groesse: Self.zeichenGroesse)
                 }
@@ -227,33 +238,12 @@ struct KachelView: View {
                 .fill(a.balken ?? Farben.aufsichtBalken)
                 .frame(width: 4)
                 .padding(.vertical, 3)
+            // Immer der Ortsname – bei Vertretung kein Kürzel-Label auf der Karte (Details beim Antippen)
             Text(kachel.titel)
                 .font(.system(size: gross ? 13.5 : 12.4, weight: .medium))
                 .foregroundStyle(a.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if let v = aufsichtVertretung {
-                // Vertretung wie auf den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grüne Plakette
-                // (offen: abwesendes Kürzel durchgestrichen in der grünen Plakette)
-                HStack(spacing: 3) {
-                    if v.vertreter.isEmpty {
-                        if !v.abwesend.isEmpty {
-                            Plakettenwert(text: v.abwesend, durchgestrichen: true)
-                        }
-                    } else {
-                        if !v.abwesend.isEmpty {
-                            Text(v.abwesend)
-                                .strikethrough(true)
-                                .foregroundStyle(a.text)
-                                .fixedSize()
-                        }
-                        Plakettenwert(text: v.vertreter)
-                    }
-                }
-                .font(.system(size: gross ? 13.5 : 12.4))
-                .lineLimit(1)
-                .layoutPriority(1)
-            }
             // Tagesansicht: keine Uhrzeiten auf der Aufsichtskarte (die Pause zeigt das Raster selbst)
             if gross && kachel.art != .aufsicht {
                 Text("\(Rasterzeit.uhrzeit(kachel.beginn))–\(Rasterzeit.uhrzeit(kachel.ende))")
@@ -262,6 +252,11 @@ struct KachelView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
+            // Vertretung (übernommen bzw. abgegeben): grünes „…“ ganz rechts
+            if kachel.art == .aufsicht && kachel.aufsichtsstand != .regulaer {
+                Kuerzungszeichen(gruen: true, waagrecht: true)
+                    .layoutPriority(1)
+            }
         }
         .padding(.leading, 4)
         .padding(.trailing, 3)
@@ -271,15 +266,6 @@ struct KachelView: View {
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
         .shadow(color: a.schatten == .keiner ? .clear : Farben.kartenSchattenFlach, radius: a.schatten == .keiner ? 0 : 1.5, y: a.schatten == .keiner ? 0 : 1)
-    }
-
-    /// Vertretene bzw. übernommene Aufsicht: abwesende Lehrkraft und Vertretung (leer = offen).
-    private var aufsichtVertretung: (abwesend: String, vertreter: String)? {
-        guard kachel.art == .aufsicht, kachel.aufsichtsstand != .regulaer, let a = kachel.aufsicht else { return nil }
-        let vertreter = a.lehrer == "???" ? "" : a.lehrer
-        let abwesend = a.alt ?? ""
-        guard !(vertreter.isEmpty && abwesend.isEmpty) else { return nil }
-        return (abwesend, vertreter)
     }
 
     private var aufsichtHinweis: String? {
@@ -304,6 +290,7 @@ struct KachelView: View {
         default: break
         }
         teile.append(contentsOf: kachel.zeilen.map(\.text))
+        if kachel.online { teile.append("findet online statt") }
         teile.append("\(Rasterzeit.uhrzeit(kachel.beginn)) bis \(Rasterzeit.uhrzeit(kachel.ende))")
         if let h = aufsichtHinweis { teile.append(h) }
         return teile.joined(separator: ", ")
@@ -376,7 +363,8 @@ struct KachelzeileView: View {
                 Text(t.text)
                     .truncationMode(.tail)
             case .plakette:
-                Plakettenwert(text: t.text, kuerzbar: kuerzbar)
+                // Raumänderung: grünes Raum-Label einen Tick größer
+                Plakettenwert(text: t.text, kuerzbar: kuerzbar, gross: zeile.schluessel == "raum")
             case .weg:
                 // Wegfallender Wert (z. B. vertretene Lehrkraft): durchgestrichen, ohne grüne Fläche
                 Text(t.text)
@@ -577,14 +565,29 @@ struct ZaehlstreifenView: View {
     }
 }
 
-/// Kürzungszeichen (.card__cut): drei Punkte – auf Vertretungen grün.
+/// Videosymbol auf der Karte: die Stunde findet online statt (grünes Feld mit weißer Kamera).
+struct Onlinezeichen: View {
+    var groesse: CGFloat = KachelView.zeichenGroesse
+
+    var body: some View {
+        Image(systemName: "video.fill")
+            .font(.system(size: groesse * 0.5, weight: .medium))
+            .foregroundStyle(Farben.gruenSchrift)
+            .frame(width: groesse, height: groesse)
+            .background(Farben.gruen, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Kürzungszeichen (.card__cut): drei Punkte – auf Vertretungen grün. `waagrecht`: „…“ (Vertretung auf der Aufsichtskarte).
 struct Kuerzungszeichen: View {
     var gruen = false
+    var waagrecht = false
 
     var body: some View {
         Image(systemName: "ellipsis")
             .font(.system(size: 8, weight: .medium))
-            .rotationEffect(.degrees(90))
+            .rotationEffect(.degrees(waagrecht ? 0 : 90))
             .foregroundStyle(gruen ? Farben.gruenSchrift : Farben.infoScheibe)
             .frame(width: 14.5, height: 14.5)
             .background(gruen ? Farben.gruen : Farben.infoFeld, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
@@ -598,6 +601,8 @@ struct Plakettenwert: View {
     var durchgestrichen: Bool = false
     /// Darf der Text innerhalb der Plakette mit „…“ gekürzt werden (sonst volle Breite)?
     var kuerzbar: Bool = false
+    /// Etwas größere Plakette (Raumänderung): mehr Polster, nicht übertrieben
+    var gross: Bool = false
 
     var body: some View {
         // Schriftstärke wie die Zeile (oben Medium, sonst Regular)
@@ -606,9 +611,10 @@ struct Plakettenwert: View {
             .foregroundStyle(Farben.gruenSchrift)
             .lineLimit(1)
             .truncationMode(.tail)
-            .padding(.horizontal, 2.27)
-            .padding(.top, 0.33)
-            .background(farbe, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
+            .padding(.horizontal, gross ? 3.4 : 2.27)
+            .padding(.top, gross ? 0.9 : 0.33)
+            .padding(.bottom, gross ? 0.5 : 0)
+            .background(farbe, in: RoundedRectangle(cornerRadius: gross ? 2.5 : 2, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
     }
 }

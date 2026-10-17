@@ -50,6 +50,8 @@ enum Farben {
     static let titelGrau = Color(hell: 0x5D727F, dunkel: 0x93A6B2)
     /// Großer Text im Kopfblock der Stundendetails (Original: fast schwarz)
     static let detailText = Color(hell: 0x1F2328, dunkel: 0xF2F4F6)
+    /// Grauer Text in den Stundendetails (Raum, Lehrkraft, Untertitel) – eine Stufe dunkler als `gedaempft`
+    static let detailGrau = Color(hell: 0x55636E, dunkel: 0xA9B0B8)
     /// Trennstrich „|“ im Kopfblock (Original: hellgrau)
     static let detailTrenner = Color(hell: 0x9AA4AD, dunkel: 0x6E7881)
     static let abschnitt = Color(hexWert: 0x8B9AA5)
@@ -126,8 +128,12 @@ enum Farben {
     /// Statuspille „Prüfung“/„Veranstaltung“ im Kopf der Stundendetails (Web: #e6e9ed / #4a5662)
     static let pilleFlaeche = Color(hell: 0xE6E9ED, dunkel: 0x3A3F45)
     static let pilleText = Color(hell: 0x4A5662, dunkel: 0xD3D9DF)
+    /// Statuspille „PRÜFUNG“/„VERANSTALTUNG“ rechts neben dem Fach (Vorlage 140: graue Kapsel, weiße Großbuchstaben)
+    static let statusPilleFlaeche = Color(hell: 0x8E99A3, dunkel: 0x6E7881)
     /// Zeile der Reiter (mehrere Stunden zur selben Zeit) in den Stundendetails
     static let reiterGrund = Color(hell: 0xF3F5F7, dunkel: 0x242427)
+    /// Unterstreichung des aktiven Reiters: dunkelgrau im hellen, weiß im dunklen Modus
+    static let reiterStrich = Color(hell: 0x3A4550, dunkel: 0xFFFFFF)
 
     // Raumbuchung (gelb-orangener Rand). Raumänderungen erscheinen grün wie eine Änderung (aenderungHintergrund/-Rand).
     static let raumRand = Color(hell: 0xE9A23B, dunkel: 0xF0B04A)
@@ -250,7 +256,7 @@ struct Kartenstil {
                       plakette: "Bereitschaft", plaketteFarbe: Farben.gedaempft)
         default:
             self.init(hintergrund: vergangen ? Farben.karteVergangen : Farben.karte, rand: nil, schatten: true, durchgestrichen: false,
-                      plakette: karte.zusaetzlich ? "Zusätzlich" : nil, plaketteFarbe: Farben.gruen)
+                      plakette: nil, plaketteFarbe: Farben.gruen)
         }
     }
 

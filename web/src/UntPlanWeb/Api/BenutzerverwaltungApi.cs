@@ -18,8 +18,8 @@ public static class BenutzerverwaltungApi
 
     private static Benutzer Admin(HttpContext c)
     {
-        var b = c.Ich() ?? throw new NichtAngemeldetException();
-        return b.IstAdmin ? b : throw new UnauthorizedAccessException("Nur für die Administration.");
+        // Administration bzw. Recht „Benutzerverwaltung“ (Rechte-Modell)
+        return RechtePruefung.Verlangen(c.Ich() ?? throw new NichtAngemeldetException(), Recht.AdminBenutzer, meldung: "Nur für die Administration.");
     }
 
     private static string[] LeitungKuerzel(Verwaltungsdienst vw) =>
@@ -76,7 +76,10 @@ public static class BenutzerverwaltungApi
         {
             var ich = Admin(c);
             var ids = (d.Ids ?? new()).Distinct().ToList();
+            // ohne Administration: Administrationskonten bleiben unberührt
+            if (!ich.IstAdmin) ids = ids.Where(i => bd.Holen(i) is { IstAdmin: false }).ToList();
             var aktion = d.Aktion ?? "";
+            if (aktion == "rolle") RechtePruefung.AdminSchuetzen(ich, null, d.Rolle);
             if (ids.Count == 0 && aktion != "inaktive_sperren") throw new ArgumentException("Bitte zuerst Benutzer auswählen.");
             var neu = new List<NeuesKonto>();
             var n = 0;
@@ -143,6 +146,7 @@ public static class BenutzerverwaltungApi
         api.MapPost("/personen/konten", (KontenDaten d, HttpContext c, Personendienst pd, Verwaltungsdienst vw, Protokoll prot) =>
         {
             var ich = Admin(c);
+            RechtePruefung.AdminSchuetzen(ich, null, d.Rolle);
             var neu = pd.KontenAnlegen(d.Art ?? "", d.Schluessel, d.Klasse, d.Schema, d.Rolle, LeitungKuerzel(vw));
             prot.Schreiben(ich.Login, "Konten für Personen angelegt", $"{d.Art}: {neu.Count}");
             return Results.Json(KontenErgebnis(neu));

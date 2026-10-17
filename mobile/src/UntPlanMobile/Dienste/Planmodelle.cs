@@ -21,7 +21,9 @@ public sealed record PlanKarte(
     // Koppelklassen (nur im Klassenplan): anwesend {k:"INF13"}, fehlend {k:"", alt:"INF13", neu:true}; klassen[] bleibt die eigene Klasse
     List<PlanWert>? Mitklassen = null,
     // offene Vertretung (noch keine Lehrkraft eingeteilt) – auch bei Status „abwesend“ im eigenen Lehrerplan
-    bool VertretungOffen = false);
+    bool VertretungOffen = false,
+    // „Findet online statt“ mit Link zum Online-Unterricht (Klassenbuch der Stunde)
+    bool Online = false, string? OnlineLink = null);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 public sealed record PlanAufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
@@ -131,6 +133,9 @@ public sealed class Kachel
     [JsonPropertyName("hasNote")] public bool? Notiz { get; set; }
     [JsonPropertyName("noteStudents")] public string? NotizSchueler { get; set; }
     [JsonPropertyName("noteTeachers")] public string? NotizLehrer { get; set; }
+    /// <summary>„Findet online statt“: Videosymbol auf der Kachel; mit Link „Online-Unterricht beitreten“ in den Details.</summary>
+    [JsonPropertyName("online")] public bool? Online { get; set; }
+    [JsonPropertyName("onlineLink")] public string? OnlineLink { get; set; }
 
     public Kachel Kopie()
     {

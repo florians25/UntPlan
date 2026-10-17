@@ -21,6 +21,9 @@ public sealed class Parameter
 
     public string this[string name] => _werte.TryGetValue(name, out var v) ? v : "";
 
+    /// <summary>Wurde der Parameter mitgeschickt (auch leer)?</summary>
+    public bool Hat(string name) => _werte.ContainsKey(name);
+
     public string Text(string name, string standard = "") => _werte.TryGetValue(name, out var v) && v.Length > 0 ? v : standard;
 
     public int? Zahl(string name) => int.TryParse(this[name], NumberStyles.Integer, CultureInfo.InvariantCulture, out var z) ? z : null;
