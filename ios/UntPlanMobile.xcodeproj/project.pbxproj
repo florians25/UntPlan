@@ -42,6 +42,8 @@
 		5A1F0C000000000000000053 /* Konten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000052 /* Konten.swift */; };
 		5A1F0C000000000000000055 /* SprechtagModelle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000054 /* SprechtagModelle.swift */; };
 		5A1F0C000000000000000057 /* SprechtagView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000056 /* SprechtagView.swift */; };
+		5A1F0C000000000000000071 /* EntschuldigungenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000070 /* EntschuldigungenView.swift */; };
+		5A1F0C000000000000000073 /* EntschuldigungModelle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000072 /* EntschuldigungModelle.swift */; };
 		5A1F0C000000000000000059 /* KontenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000058 /* KontenView.swift */; };
 /* End PBXBuildFile section */
 
@@ -83,6 +85,8 @@
 		5A1F0C000000000000000052 /* Konten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Konten.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000054 /* SprechtagModelle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprechtagModelle.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000056 /* SprechtagView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprechtagView.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000070 /* EntschuldigungenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntschuldigungenView.swift; sourceTree = "<group>"; };
+		5A1F0C000000000000000072 /* EntschuldigungModelle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntschuldigungModelle.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000058 /* KontenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KontenView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -143,6 +147,7 @@
 				5A1F0C00000000000000004D /* GeheZuDatumView.swift */,
 				5A1F0C000000000000000058 /* KontenView.swift */,
 				5A1F0C000000000000000056 /* SprechtagView.swift */,
+				5A1F0C000000000000000070 /* EntschuldigungenView.swift */,
 			);
 			path = Ansichten;
 			sourceTree = "<group>";
@@ -169,6 +174,7 @@
 				5A1F0C000000000000000017 /* Dekodierung.swift */,
 				5A1F0C000000000000000019 /* Modelle.swift */,
 				5A1F0C000000000000000054 /* SprechtagModelle.swift */,
+				5A1F0C000000000000000072 /* EntschuldigungModelle.swift */,
 			);
 			path = Modelle;
 			sourceTree = "<group>";
@@ -275,6 +281,8 @@
 				5A1F0C000000000000000059 /* KontenView.swift in Sources */,
 				5A1F0C000000000000000057 /* SprechtagView.swift in Sources */,
 				5A1F0C000000000000000055 /* SprechtagModelle.swift in Sources */,
+				5A1F0C000000000000000071 /* EntschuldigungenView.swift in Sources */,
+				5A1F0C000000000000000073 /* EntschuldigungModelle.swift in Sources */,
 				5A1F0C000000000000000053 /* Konten.swift in Sources */,
 				5A1F0C000000000000000040 /* ProfilSeiten.swift in Sources */,
 				5A1F0C00000000000000003E /* StundendetailSeiten.swift in Sources */,

@@ -82,7 +82,7 @@ public static class AppApi
 
         // ---------------------------------------------------------------- Sitzung und Einrichtung
 
-        api.MapGet("/sitzung", (HttpContext c, Einstellungen e, Benutzerdienst bd, Paketdienst p, Mitteilungsdienst m, Verwaltungsdienst vw) =>
+        api.MapGet("/sitzung", (HttpContext c, Einstellungen e, Benutzerdienst bd, Paketdienst p, Mitteilungsdienst m, Verwaltungsdienst vw, Entschuldigungsdienst ed) =>
         {
             var b = c.Ich();
             return Results.Json(new
@@ -100,6 +100,8 @@ public static class AppApi
                     familie = b.Familie, schuelerIds = b.SchuelerIds, klassen = b.Klassen, element = b.Kollegium ? b.Element : b.KlassenKuerzel ?? "",
                     // Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten) nur für Klassenleitungen, Schulleitung und Administration
                     fehlzeiten = Klassenbuchdienst.FehlzeitenVerwalten(b, p.Aktuell),
+                    // Fachlehrer-Entschuldigungen (Modul eingeschaltet und Recht „Fehlstunden im eigenen Unterricht entschuldigen“)
+                    fachlehrerEntschuldigungen = ed.FachlehrerAktiv(b),
                     // effektive Rechte (Rechte-Modell) für die Oberfläche: Recht → Stufe (1 = Lesen, 2 = Ja/Schreiben)
                     rechte = Rechtedienst.Liste(b),
                     // Planfenster der Rolle: Wochen zurück bzw. voraus (null = unbegrenzt, 0 = nur die aktuelle Woche)
@@ -543,7 +545,12 @@ public static class AppApi
             var b = Ich(c);
             // Klassenkonten: nur die eigene Klasse, keine Filter nach Lehrkräften
             var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
-            return Results.Json(l.Pruefungen(Paket(p), r.OffeneKlausuren(Paket(p)), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null, r.OffeneLoeschungen()));
+            var st = Paket(p);
+            var liste = l.Pruefungen(st, r.OffeneKlausuren(st), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null, r.OffeneLoeschungen());
+            // Löschen/Verlegen: Ersteller, Lehrkraft der Prüfung, Administration – nur heutige und künftige Prüfungen
+            return Results.Json(b.Kollegium
+                ? liste.Select(x => DateOnly.TryParse(x.Datum, out var pd) && pd >= uhr.Heute && r.DarfKlausurLoeschen(b, st, pd, x.StundeVon, x.StundeBis, x.Klassen) ? x with { DarfLoeschen = true } : x).ToList()
+                : liste);
         });
 
         api.MapGet("/hausaufgaben", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Listendienst l, Uhr uhr) =>

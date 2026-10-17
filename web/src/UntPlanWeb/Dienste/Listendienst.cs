@@ -18,6 +18,8 @@ public sealed record Pruefung(string Datum, int StundeVon, int StundeBis, string
     public string Fach { get; init; } = "";
     /// <summary>Eingetragen am (yyyy-MM-dd), bei in UntPlanWeb vorgemerkten Prüfungen.</summary>
     public string Aufgegeben { get; init; } = "";
+    /// <summary>Darf das angemeldete Konto die Prüfung löschen bzw. verlegen (Ersteller, Lehrkraft der Prüfung, Administration)?</summary>
+    public bool DarfLoeschen { get; init; }
 }
 
 /// <summary>Abwesenheit einer Schülerin/eines Schülers an einem Tag (aufeinanderfolgende Stunden zusammengefasst).</summary>

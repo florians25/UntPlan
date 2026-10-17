@@ -187,6 +187,7 @@ public class Program
         SchuelerImportApi.Abbilden(app);
         PushApi.Abbilden(app);
         KlassenbuchEinstellungenApi.Abbilden(app);
+        EntschuldigungApi.Abbilden(app);
         UnterrichtKlassenApi.Abbilden(app);
         WartungApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }

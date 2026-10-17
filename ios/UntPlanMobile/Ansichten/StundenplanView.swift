@@ -690,9 +690,9 @@ struct StundenplanView: View {
     }
 }
 
-/// Gesperrte Woche (außerhalb des Plan-Fensters der Rolle): mittig ein Kreis (hell weiß) mit grauem Schloss, darunter
-/// genau „Es werden hier keine Termine angezeigt.“ und kleiner der Hinweis des Servers (`sperrhinweis`); fehlt er,
-/// steht dort der Standardsatz.
+/// Gesperrte Woche (außerhalb des Plan-Fensters der Rolle) im Stil der Startseiten-Fläche (Vorlage „Genieße die
+/// Zeit!“): flache Fläche mit Kalender-Symbol oben mittig, Titel genau „Es werden hier keine Termine angezeigt.“ (Medium)
+/// und darunter grau, zweizeilig der Hinweis des Servers (`sperrhinweis`); fehlt er, steht dort der Standardsatz.
 struct Sperrhinweis: View {
     let hinweis: String?
 
@@ -705,27 +705,9 @@ struct Sperrhinweis: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Image(systemName: "lock")
-                .font(.system(size: 26, weight: .regular))
-                .foregroundStyle(Farben.gedaempft)
-                .frame(width: 72, height: 72)
-                .background(Circle().fill(Color(hell: 0xFFFFFF, dunkel: 0x2E3A45)))
-                .shadow(color: Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.10, deckkraftDunkel: 0.25), radius: 6, y: 2)
-                .padding(.bottom, 16)
-            Text(Self.titel)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Farben.tinte)
-                .multilineTextAlignment(.center)
-            Text(erklaerung)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(Farben.tinte2)
-                .multilineTextAlignment(.center)
-                .padding(.top, 6)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 32)
-        .accessibilityElement(children: .combine)
+        Hinweisfeld(titel: Self.titel, text: erklaerung, flaeche: Color(hell: 0xFFFFFF, dunkel: 0x313D44))
+            .frame(maxWidth: 300)
+            .padding(.horizontal, 24)
     }
 }
 
@@ -1357,30 +1339,30 @@ struct WochenrasterView: View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
             .fill(Farben.ferienHintergrund)
             .overlay {
-                // Bezeichnung (14,5 pt halbfett), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
-                VStack(spacing: 3) {
+                // Bezeichnung (12,5 pt Medium, Zeitraum 11 pt Regular), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
+                VStack(spacing: 2) {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.bottom, 2)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .padding(.bottom, 1)
                     Text(freiTitel(tag))
-                        .font(.system(size: 14.5, weight: .semibold))
+                        .font(.system(size: 12.5, weight: .medium))
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                     if let grund = tag.freiGrund, !grund.isEmpty, grund.lowercased() != freiTitel(tag).lowercased() {
                         Text(grund)
-                            .font(.system(size: 14.5, weight: .semibold))
+                            .font(.system(size: 12.5, weight: .medium))
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let von = tag.freiVon, let bis = tag.freiBis, !von.isEmpty, !bis.isEmpty {
                         Text(von == bis ? Datumsformat.anzeige(von, "dd.MM.") : "\(Datumsformat.anzeige(von, "dd.MM.")) bis \(Datumsformat.anzeige(bis, "dd.MM."))")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11, weight: .regular))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
-                            .padding(.top, 4)
+                            .padding(.top, 3)
                     }
                 }
                 .foregroundStyle(Farben.ferienTinte)

@@ -205,55 +205,75 @@ struct KachelView: View {
     /// Abstand der Zeichen zum unteren und rechten Kartenrand (Vorlage: Info-Feld ≈ 3 pt vom Rand).
     static let zeichenRand: CGFloat = 3
 
-    /// Höhe der Zeichen unten rechts.
-    private var zeichenHoehe: CGFloat {
-        let mitInfo = kachel.info && kachel.art != .termin
-        let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft && (!mitInfo || breite >= 96)
-        if gekuerzt { return Self.zeichenGroesse }
-        var h: CGFloat = 0
-        if mitOnline { h = max(h, Self.onlineGroesse) }
-        if mitHausaufgabe { h = max(h, Self.zeichenGroesse) }
-        if mitInfo { h = max(h, Self.infoGroesse) }
-        return h > 0 ? h : Self.zeichenGroesse
+    /// Zeichen unten rechts.
+    enum Eckzeichen: Hashable {
+        case online
+        case verlegt(String)
+        case hausaufgabe
+        case info
+
+        var groesse: CGFloat {
+            switch self {
+            case .online: return KachelView.onlineGroesse
+            case .info: return KachelView.infoGroesse
+            default: return KachelView.zeichenGroesse
+            }
+        }
     }
 
-    /// Videosymbol „findet online statt“ (unten rechts, vor Hausaufgabe und Info; auf schmalen Karten nur ohne weitere Zeichen).
-    private var mitOnline: Bool {
-        guard kachel.online && !gekuerzt else { return false }
-        let weitere = (kachel.info && kachel.art != .termin) || (kachel.hausaufgabe && kachel.art != .bereitschaft)
-        return !weitere || breite >= 80
+    /// Sichtbare Zeichen unten rechts in der Anzeigereihenfolge Online, Verlegung, Hausaufgabe, Info. Reicht die Breite
+    /// nicht für alle (links bleibt der Balken frei), fällt zuerst die Hausaufgabe weg, dann das Online-Zeichen;
+    /// Verlegung und Info bleiben am längsten stehen.
+    private var eckzeichen: [Eckzeichen] {
+        guard !gekuerzt else { return [] }
+        var vorrang: [Eckzeichen] = []
+        if let v = kachel.verlegung, kachel.art != .aufsicht { vorrang.append(.verlegt(v)) }
+        if kachel.info && kachel.art != .termin { vorrang.append(.info) }
+        if kachel.online { vorrang.append(.online) }
+        if kachel.hausaufgabe && kachel.art != .bereitschaft { vorrang.append(.hausaufgabe) }
+        let platz = max(1, Int((breite - (Self.balkenRand + Self.balkenBreite + 2) - Self.zeichenRand + 2) / (Self.zeichenGroesse + 2)))
+        let gewaehlt = Array(vorrang.prefix(platz))
+        let reihenfolge: [(Eckzeichen) -> Bool] = [
+            { if case .online = $0 { return true }; return false },
+            { if case .verlegt = $0 { return true }; return false },
+            { if case .hausaufgabe = $0 { return true }; return false },
+            { if case .info = $0 { return true }; return false }
+        ]
+        return reihenfolge.compactMap { passt in gewaehlt.first(where: passt) }
+    }
+
+    /// Höhe der Zeichen unten rechts.
+    private var zeichenHoehe: CGFloat {
+        if gekuerzt { return Self.zeichenGroesse }
+        return eckzeichen.map(\.groesse).max() ?? Self.zeichenGroesse
     }
 
     /// Breite der Zeichen unten rechts (0 = keine) – wie in `zeichen(_:)`.
     private var zeichenBreite: CGFloat {
-        let mitInfo = kachel.info && kachel.art != .termin
-        let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
         if gekuerzt { return Self.zeichenGroesse }
-        var summe: CGFloat = 0
-        if mitOnline { summe += Self.onlineGroesse }
-        if mitHausaufgabe && (!mitInfo || breite >= 96) { summe += (summe > 0 ? 2 : 0) + Self.zeichenGroesse }
-        if mitInfo { summe += (summe > 0 ? 2 : 0) + Self.infoGroesse }
-        return summe
+        let liste = eckzeichen
+        guard !liste.isEmpty else { return 0 }
+        return liste.map(\.groesse).reduce(0, +) + CGFloat(liste.count - 1) * 2
     }
 
-    // MARK: - Zeichen unten rechts (Info, Hausaufgabe, Kürzung)
+    // MARK: - Zeichen unten rechts (Online, Verlegung, Hausaufgabe, Info, Kürzung)
 
     @ViewBuilder
     private func zeichen(_ a: Kachelaussehen) -> some View {
-        let mitInfo = kachel.info && kachel.art != .termin
-        let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
         if gekuerzt {
             Kuerzungszeichen(gruen: kachel.art == .aenderung || kachel.art == .abgegeben)
-        } else if mitInfo || mitHausaufgabe || mitOnline {
-            HStack(alignment: .center, spacing: 2) {
-                if mitOnline {
-                    Onlinezeichen(groesse: Self.onlineGroesse)
-                }
-                if mitHausaufgabe && (!mitInfo || breite >= 96) {
-                    Hausaufgabenzeichen(groesse: Self.zeichenGroesse)
-                }
-                if mitInfo {
-                    Infozeichen(groesse: Self.infoGroesse)
+        } else {
+            let liste = eckzeichen
+            if !liste.isEmpty {
+                HStack(alignment: .center, spacing: 2) {
+                    ForEach(liste, id: \.self) { z in
+                        switch z {
+                        case .online: Onlinezeichen(groesse: z.groesse)
+                        case .verlegt(let richtung): Verlegungszeichen(richtung: richtung, groesse: z.groesse)
+                        case .hausaufgabe: Hausaufgabenzeichen(groesse: z.groesse)
+                        case .info: Infozeichen(groesse: z.groesse)
+                        }
+                    }
                 }
             }
         }
@@ -267,12 +287,21 @@ struct KachelView: View {
                 .fill(a.balken ?? Farben.aufsichtBalken)
                 .frame(width: 4)
                 .padding(.vertical, 3)
-            // Immer der Ortsname – bei Vertretung kein Kürzel-Label auf der Karte (Details beim Antippen)
+            // Ortsname; bei abwesender Lehrkraft daneben die Kürzel wie auf einer Stundenkarte (abwesend durchgestrichen,
+            // Vertretung als grüne Plakette bzw. offen: durchgestrichen in der grünen Plakette)
             Text(kachel.titel)
                 .font(.system(size: gross ? 13.5 : 12.4, weight: .medium))
                 .foregroundStyle(a.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
+            if kachel.art == .aufsicht, kachel.zeilen.count > 1 {
+                KachelzeileView(zeile: kachel.zeilen[1], aussehen: a, schrift: gross ? 13.5 : 12.4,
+                                zeilenHoehe: gross ? 15.5 : 14)
+                    .fixedSize(horizontal: false, vertical: true)
+                    // direkt hinter dem Ort, Abstand etwa ein Leerzeichen (nicht rechtsbündig)
+                    .padding(.leading, -2.5)
+                    .layoutPriority(1)
+            }
             // Tagesansicht: keine Uhrzeiten auf der Aufsichtskarte (die Pause zeigt das Raster selbst)
             if gross && kachel.art != .aufsicht {
                 Text("\(Rasterzeit.uhrzeit(kachel.beginn))–\(Rasterzeit.uhrzeit(kachel.ende))")
@@ -281,11 +310,6 @@ struct KachelView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
-            // Vertretung (übernommen bzw. abgegeben): grünes „…“ ganz rechts
-            if kachel.art == .aufsicht && kachel.aufsichtsstand != .regulaer {
-                Kuerzungszeichen(gruen: true, waagrecht: true)
-                    .layoutPriority(1)
-            }
         }
         .padding(.leading, 4)
         .padding(.trailing, 3)
@@ -430,16 +454,13 @@ struct Kachelaussehen {
     var balken: Color? = Farben.karteBalken
     var balkenDeckkraft: Double = 1
 
-    /// Deckkraft des grauen Balkens vergangener Stunden (Original: #78828a auf #313d44 bzw. #d8dfe3 auf #f2f4f5).
-    static let balkenVergangen: Double = 0.5
-
     init(_ k: Kachel, dunkel: Bool) {
         let v = k.vergangen
         let fach = Color(hex: k.balkenHex) ?? Farben.karteBalken
-        // Vergangen (Original, nachgemessen hell und dunkel): grauer Balken zur Hälfte deckend (die Fläche scheint
-        // durch – auf getönten Karten wirkt er getönt); Schrift hell etwas weicher, dunkel unverändert
-        balken = v ? Farben.karteBalken : fach
-        balkenDeckkraft = v ? Self.balkenVergangen : 1
+        // Der Balken links bleibt auch bei vergangenen Stunden in der Fachfarbe und voll deckend (keine Abschwächung);
+        // Schrift vergangener Stunden hell etwas weicher, dunkel unverändert
+        balken = fach
+        balkenDeckkraft = 1
         text = v ? Farben.karteTextVergangen : Farben.karteText
         switch k.art {
         case .normal:
@@ -495,18 +516,28 @@ struct Kachelaussehen {
             balken = Farben.aenderungRand
             text = Farben.terminTitel
         case .aufsicht:
+            // Aufsicht wie eine Stundenkarte mit abwesender Lehrkraft (gleiche Logik und Optik); der Text verblasst auch
+            // nach dem Ende der Aufsicht nicht
             balken = Farben.aufsichtBalken
             balkenDeckkraft = 1
+            text = Farben.karteText
             switch k.aufsichtsstand {
             case .regulaer:
                 hintergrund = v ? Farben.karteVergangen : Farben.karte
                 schatten = .flach
-            case .vertretung, .abgegeben:
-                // Vertretung (übernommen bzw. abgegeben) wie eine Vertretungskarte: nicht verblasst, grüne Fläche mit
-                // grünem Rahmen; Kürzel stehen als Plakette bzw. durchgestrichen in der Pille
-                farbigeKarte(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: false)
+            case .vertretung:
+                // Eingesprungen: grüne Änderungskarte, abwesende Lehrkraft durchgestrichen, Vertretung als grüne Plakette
+                farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen,
+                             rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: false)
                 randBreite = 1.5
                 text = Farben.aenderungText
+            case .abgegeben:
+                // Eigene Aufsicht übernimmt jemand anderes: wie die abgegebene Stunde durchsichtig mit Eckklammern,
+                // eigenes Kürzel durchgestrichen, Vertretung als grüne Plakette
+                hintergrund = .clear
+                schatten = .keiner
+                ecken = true
+                radius = 0
             }
         }
         // Reine Raumänderung: wie eine Änderung/Vertretung (grüne Fläche mit grünem Rahmen), der neue Raum als grüne
@@ -522,8 +553,6 @@ struct Kachelaussehen {
     /// Rahmen bleibt. Plaketten bleiben grün.
     private mutating func farbigeKarte(flaeche: Color, vergangeneFlaeche: Color? = nil, rand farbe: Color, vergangen: Bool, dunkel: Bool,
                                        schatten mitSchatten: Bool) {
-        // Vergangen: Deckkraft des Balkens bleibt wie gesetzt (grau halb deckend; Aufsicht: lila voll)
-        if !vergangen { balkenDeckkraft = 1 }
         if vergangen && dunkel {
             hintergrund = Farben.karteVergangen
             rand = farbe
@@ -600,6 +629,35 @@ struct ZaehlstreifenView: View {
         if streifen.entfall { return (Farben.entfallRand, .white, nil) }
         if streifen.aenderung { return (Farben.zaehlerAenderungFlaeche, Farben.zaehlerAenderungText, Farben.aenderungRand) }
         return (Farben.zaehlerFlaeche, Farben.zaehlerText, nil)
+    }
+}
+
+/// Verlegungszeichen auf der Karte: abgerundetes Feld mit weißem Pfeil – ursprüngliche Stunde („von“, von hier weg
+/// verlegt) rot mit Pfeil nach rechts, Zielstunde („nach“, hierher verlegt) grün mit Pfeil nach links.
+struct Verlegungszeichen: View {
+    let richtung: String
+    var groesse: CGFloat = KachelView.zeichenGroesse
+
+    private var nachRechts: Bool { richtung == "von" }
+
+    var body: some View {
+        Canvas { ctx, size in
+            let e = size.width / 14
+            var p = Path()
+            if nachRechts {
+                p.move(to: CGPoint(x: 3.4 * e, y: 7 * e)); p.addLine(to: CGPoint(x: 10.4 * e, y: 7 * e))
+                p.move(to: CGPoint(x: 7.6 * e, y: 4.2 * e)); p.addLine(to: CGPoint(x: 10.4 * e, y: 7 * e))
+                p.addLine(to: CGPoint(x: 7.6 * e, y: 9.8 * e))
+            } else {
+                p.move(to: CGPoint(x: 10.6 * e, y: 7 * e)); p.addLine(to: CGPoint(x: 3.6 * e, y: 7 * e))
+                p.move(to: CGPoint(x: 6.4 * e, y: 4.2 * e)); p.addLine(to: CGPoint(x: 3.6 * e, y: 7 * e))
+                p.addLine(to: CGPoint(x: 6.4 * e, y: 9.8 * e))
+            }
+            ctx.stroke(p, with: .color(.white), style: StrokeStyle(lineWidth: 1.5 * e, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: groesse, height: groesse)
+        .background(nachRechts ? Farben.verlegtVon : Farben.verlegtNach, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 

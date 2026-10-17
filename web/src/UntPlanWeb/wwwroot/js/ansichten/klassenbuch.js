@@ -1,7 +1,9 @@
 // Klassenbuch: Wochenübersicht mit Anwesenheit, Fehlzeitenverwaltung, Vermerke, Inhalte/Hausaufgaben; Hausaufgaben für Klassenkonten.
-import { e, icon, api, holen, senden, toast, dialog, bestaetigen, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis } from '../ui.js';
+import { e, icon, api, holen, senden, toast, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis } from '../ui.js';
+import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { karteDialog } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
+import { kalenderOeffnen } from '../kalender.js';
 import { detailFelder, detailWerte, NACHWEISE, abwZeitraum } from './abwesenheiten.js';
 import { statusLabel, zaehltKaestchen } from './familie.js';
 
@@ -526,7 +528,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
     if (knopf.getAttribute('aria-expanded') === 'true') return;
     kalender.value = knopf.dataset.datumwahl;
     menueOeffnen(knopf, [{ html: 'Heute', d: heute }, { html: 'Schuljahresbeginn', d: sjVon }, { html: 'Schuljahresende', d: sjBis }, { html: 'Kalender öffnen', kal: true }], x => {
-      if (x.kal) { try { kalender.showPicker(); } catch { kalender.focus(); kalender.click(); } return; }
+      if (x.kal) { setTimeout(() => kalenderOeffnen(knopf, { wert: knopf.dataset.datumwahl, min: sjVon, max: sjBis, fokusSetzen: true, beiWahl: d => { kalender.value = d; kalender.onchange(); } })); return; }
       const d = begrenzt(x.d);
       if (d >= von && d <= bis && listeEl.querySelector(`[data-datum="${d}"]`)) springen(d); else kontext.navigieren(ziel({ d }));
     });

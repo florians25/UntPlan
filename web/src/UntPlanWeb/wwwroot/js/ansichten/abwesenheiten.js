@@ -1,6 +1,7 @@
 // Klassenbuch → Abwesenheiten wie im Original: Liste der Schülerabwesenheiten mit Filter (Klasse, Schüler*in, Zeitraum, Grund, Status),
 // Neu/Bearbeiten/Löschen, Zusammenfassen und Entschuldigen durch die Klassenleitung, CSV; Reiter „Meine Abwesenheiten“ (eigene Meldungen).
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen, infoHinweis } from '../ui.js';
+import { e, icon, holen, senden, api, toast, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen, infoHinweis } from '../ui.js';
+import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const STATUS = { offen: '<span class="u-chip gelb">offen</span>', entschuldigt: '<span class="u-chip gruen">entschuldigt</span>', unentschuldigt: '<span class="u-chip rot">nicht entschuldigt</span>' };
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
@@ -86,7 +87,10 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
 
   const q = `von=${von}&bis=${bis}${klasse ? `&klasse=${encodeURIComponent(klasse)}` : ''}${status ? `&status=${status}` : ''}`;
   // Abwesenheiten als Zeiträume (von–bis, minutengenau) vom Server; die Fehlzeiten je Stunde stehen unter „Fehlzeiten“
-  const [zr, gruende] = await Promise.all([holen(`/api/app/abwesenheiten/zeitraeume?${q}`), holen('/api/app/abwesenheitsgruende?art=abwesenheit').catch(() => [])]);
+  const [zr, gruende, fe] = await Promise.all([holen(`/api/app/abwesenheiten/zeitraeume?${q}`), holen('/api/app/abwesenheitsgruende?art=abwesenheit').catch(() => []),
+    // Fachlehrer-Entschuldigungen: Stand je Abwesenheit („1/3 Lehrer bearbeitet“, mehrdeutig) – nur wenn das Modul eingeschaltet ist
+    holen('/api/app/entschuldigungen/einstellungen').then(x => x.aktiv ? holen(`/api/app/entschuldigungen/abwesenheiten?${q}`) : null).catch(() => null)]);
+  const feNach = fe ? Object.fromEntries(fe.map(x => [x.schluessel, x])) : null;
   const grundName = Object.fromEntries(gruende.map(g => [g.kurz, g.name]));
   const roh = zr.map(z => ({ ...z, datum: z.vonDatum, bis: z.bisDatum, beginn: z.vonZeit, ende: z.bisZeit, bemerkung: z.text, stundenSumme: z.fehlstunden }));
   const liste = roh.filter(z => (!grund || z.grund === grund) && (!art || z.art === art));
@@ -119,14 +123,15 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       <span class="nl-zahl still"><b>${anzahl.minuten}</b> Minuten</span>
     </div>
     <div class="nl-tabelle">${liste.length ? `<table><thead><tr>${verwalten ? '<th class="nl-wahl"><input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></th>' : ''}
-        <th colspan="2">Name</th><th>Zeitraum</th><th>Art</th><th>Grund</th><th>Status</th><th>Text</th>${verwalten ? '<th></th>' : ''}</tr></thead><tbody>
+        <th colspan="2">Name</th><th>Zeitraum</th><th>Art</th><th>Grund</th><th>Status</th>${feNach ? '<th>Fehlzeiten</th>' : ''}<th>Text</th>${verwalten ? '<th></th>' : ''}</tr></thead><tbody>
       ${liste.map((z, i) => `<tr data-name="${e((z.schueler + ' ' + z.klasse).toLowerCase())}">${verwalten ? `<td class="nl-wahl">${z.verwalten || ich.admin ? `<input type="checkbox" class="nl-rund" data-i="${i}" aria-label="auswählen">` : ''}</td>` : ''}
         <td class="nl-avatar-zelle">${avatar(z.schueler, z.status === 'offen')}</td>
         <td><div class="nl-name">${e(z.schueler)}</div><div class="nl-unter">${e(z.klasse)}${z.lehrer.length ? ` · erfasst von ${e(z.lehrer.join(', '))}` : ''}</div></td>
         <td class="text-nowrap"><div>${tagKurz(z.datum)} <span class="nl-unter">${e(z.beginn)}</span> – ${z.bis !== z.datum ? `${tagKurz(z.bis)} ` : ''}<span class="nl-unter">${e(z.ende)}</span></div>
           <div class="nl-unter">${z.fehlstunden} ${z.fehlstunden === 1 ? 'Fehlstunde' : 'Fehlstunden'} · ${z.fehlminuten} min</div></td>
         <td>${artChip(z)}</td>
-        <td>${z.grund ? `<span class="nl-tag">${e(grundName[z.grund] ?? z.grund)}</span>` : ''}</td><td>${z.statusGemischt ? `<span class="u-chip gelb" title="${z.entschuldigt} entschuldigt, ${z.unentschuldigt} nicht entschuldigt, ${z.fehlstunden - z.entschuldigt - z.unentschuldigt} offen (wie in den Fehlzeiten)">teilweise</span><div class="nl-unter">${z.entschuldigt}/${z.fehlstunden} entschuldigt</div>` : STATUS[z.status] ?? e(z.status)}</td><td class="nl-text">${e(z.bemerkung)}${detailSymbole(z) ? `<div class="nl-chips mt-1">${detailSymbole(z)}</div>` : ''}</td>
+        <td>${z.grund ? `<span class="nl-tag">${e(grundName[z.grund] ?? z.grund)}</span>` : ''}</td><td>${z.statusGemischt ? `<span class="u-chip gelb" title="${z.entschuldigt} entschuldigt, ${z.unentschuldigt} nicht entschuldigt, ${z.fehlstunden - z.entschuldigt - z.unentschuldigt} offen (wie in den Fehlzeiten)">teilweise</span><div class="nl-unter">${z.entschuldigt}/${z.fehlstunden} entschuldigt</div>` : STATUS[z.status] ?? e(z.status)}${feNach?.[z.schluessel]?.mehrdeutig ? '<div class="fe-mehrdeutig">(mehrdeutig)</div>' : ''}</td>
+        ${feNach ? `<td>${feNach[z.schluessel]?.lehrerGesamt ? `<button type="button" class="fe-link" data-fe="${e(z.schluessel)}" title="Fehlzeiten der Abwesenheit anzeigen">${feNach[z.schluessel].lehrerBearbeitet}/${feNach[z.schluessel].lehrerGesamt} Lehrer bearbeitet</button>` : ''}</td>` : ''}<td class="nl-text">${e(z.bemerkung)}${detailSymbole(z) ? `<div class="nl-chips mt-1">${detailSymbole(z)}</div>` : ''}</td>
         ${verwalten ? `<td class="text-end text-nowrap nl-aktionen">${z.verwalten || ich.admin ? `<button class="nl-icon" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>
           <button class="nl-icon rot" data-loeschen="${i}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}</td>` : ''}</tr>`).join('')}
       </tbody></table>
@@ -156,6 +161,12 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
     const auswahl = gewaehlt();
     if (!auswahl.length) return toast('Bitte zuerst Abwesenheiten auswählen.', true);
     const ids = auswahl.flatMap(z => z.ids);
+    // Fachlehrer-Entschuldigungen eingeschaltet: Entschuldigung der ganzen Abwesenheit mit Text und Warnung beim Überschreiben
+    if (feNach && auswahl.every(z => feNach[z.schluessel])) {
+      const { abwesenheitDialog } = await import('./entschuldigungen.js');
+      abwesenheitDialog(auswahl.map(z => feNach[z.schluessel]), { status: b.dataset.setzen, nachweise: NACHWEISE, fertig: neu });
+      return;
+    }
     if (b.dataset.setzen !== 'entschuldigt') {
       try { await senden('/api/app/klassenbuch/fehlzeiten/status', { ids, status: b.dataset.setzen }); toast('Status geändert.'); neu(); } catch (err) { toast(err.message, true); }
       return;
@@ -169,6 +180,10 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         await senden('/api/app/abwesenheiten', { ids, status: 'entschuldigt', bemerkung: t || null, nachweis: nw || null, entschuldigtAm: am || null }, 'PUT');
         toast('Entschuldigt.'); neu();
       } }] });
+  });
+  inhalt.querySelectorAll('[data-fe]').forEach(b => b.onclick = async () => {
+    const { seitenleiste } = await import('./entschuldigungen.js');
+    seitenleiste(feNach[b.dataset.fe], g => grundName[g] ?? g);
   });
   inhalt.querySelector('[data-zusammen]')?.addEventListener('click', async () => {
     const auswahl = gewaehlt();

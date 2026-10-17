@@ -1,7 +1,8 @@
 // Unterricht → Prüfungskalender (UW-08) wie im Original: links Prüfungsart, Zeitbereich, Planung („Alle Ihre Prüfungen anzeigen“)
 // und „Mein Unterricht“ als Auswahl; rechts das Jahresraster (Monate August–Juli × Tage 1–31, Wochentag in jeder Zelle,
 // Wochenenden und Ferien grau) mit farbigen Prüfungstagen und Legende darunter.
-import { e, holen, heuteIso } from '../ui.js';
+import { e, holen, heuteIso, dialog } from '../ui.js';
+import { pruefungLoeschen } from './pruefungen.js';
 
 const MONATE = ['August', 'September', 'Oktober', 'November', 'Dezember', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli'];
 const WT = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'];
@@ -56,7 +57,7 @@ export async function zeigen(seite, kontext) {
         const liste = proTag.get(iso) ?? [];
         const k = rang.find(r => liste.some(x => x.k === r));
         const titel = liste.map(x => `${x.p.titel} (${x.p.klassen.join(', ')}${x.p.lehrer.length ? ', ' + x.p.lehrer.join(', ') : ''})`).join('\n');
-        raster += `<td class="${we ? 'we' : ''} ${istFerien(iso) && !we ? 'ferien' : ''} ${k ? 'p-' + k : ''} ${iso === heuteIso() ? 'heute' : ''}" ${titel ? `title="${e(datumDe(iso) + '\n' + titel)}"` : ''}>${WT[d.getDay()]}${liste.length > 1 ? `<sup>${liste.length}</sup>` : ''}</td>`;
+        raster += `<td class="${we ? 'we' : ''} ${istFerien(iso) && !we ? 'ferien' : ''} ${k ? 'p-' + k : ''} ${iso === heuteIso() ? 'heute' : ''}" ${titel ? `title="${e(datumDe(iso) + '\n' + titel)}" data-tag="${iso}" tabindex="0" role="button"` : ''}>${WT[d.getDay()]}${liste.length > 1 ? `<sup>${liste.length}</sup>` : ''}</td>`;
       }
       raster += '</tr>';
     }
@@ -76,6 +77,25 @@ export async function zeigen(seite, kontext) {
     seite.querySelector('[data-art]').onchange = ev => { art = ev.target.value; zeichnen(); };
     seite.querySelector('[data-alle]').onchange = ev => { alleEigenen = ev.target.checked; zeichnen(); };
     seite.querySelectorAll('[name=pk-u]').forEach(r => r.onchange = () => { gewaehlt = Number(r.value); zeichnen(); });
+    // Tag mit Prüfungen: Liste mit „Löschen“ (Ersteller, Lehrkraft der Prüfung, Administration)
+    const tagOeffnen = iso => {
+      const liste = (proTag.get(iso) ?? []).map(x => x.p);
+      const box = dialog({ titel: `Prüfungen am ${datumDe(iso)}`, inhalt: `<ul class="u-liste">${liste.map((p, i) => `<li><div class="u-zeilentext"><div class="titel">${e(p.titel)}${p.status === 'vorgemerkt' ? ' <span class="u-chip">vorgemerkt</span>' : ''}</div>
+          <div class="unter">${p.stundeVon === p.stundeBis ? `${p.stundeVon}.` : `${p.stundeVon}.–${p.stundeBis}.`} Stunde · ${e(p.klassen.join(', '))}${p.lehrer.length ? ' · ' + e(p.lehrer.join(', ')) : ''}${p.raeume.length ? ' · ' + e(p.raeume.join(', ')) : ''}</div></div>
+          ${p.darfLoeschen ? `<button type="button" class="nl-knopf rot" data-pk-loeschen="${i}"><i class="bi bi-trash" aria-hidden="true"></i>Löschen</button>` : ''}</li>`).join('')}</ul>`,
+        knoepfe: [{ text: 'Schließen' }] });
+      box.querySelectorAll('[data-pk-loeschen]').forEach(b => b.onclick = async () => {
+        const p = liste[Number(b.dataset.pkLoeschen)];
+        if (!await pruefungLoeschen(p)) return;
+        pruefungen.splice(pruefungen.indexOf(p), 1);
+        box.schliessen();
+        zeichnen();
+      });
+    };
+    seite.querySelectorAll('[data-tag]').forEach(td => {
+      td.onclick = () => tagOeffnen(td.dataset.tag);
+      td.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); tagOeffnen(td.dataset.tag); } };
+    });
   };
   zeichnen();
 }

@@ -112,6 +112,12 @@ export async function zeigen(seite, kontext, [reiterParam]) {
       ${zeile('Entschuldigungstext vor Unterschrift', text('textVorUnterschrift'), '', id('textVorUnterschrift'))}
       ${zeile('Entschuldigungstext nach Unterschrift', text('textNachUnterschrift'), 'Beide Textblöcke erscheinen auf den Entschuldigungsberichten.', id('textNachUnterschrift'))}
       ${zeile('Entschuldigungsschreiben für Schüler*innen', auswahl('entschuldigungsschreiben', [['sichtbar', 'sichtbar'], ['ausgeblendet', 'ausgeblendet']]), '', id('entschuldigungsschreiben'))}`)}
+    ${karte('Fachlehrer-Entschuldigungen', 'person-check', `
+      ${schalter('fachlehrerEntschuldigungen', 'Fachlehrer-Entschuldigungen aktivieren', 'Lehrkräfte entschuldigen einzelne Fehlstunden aus ihrem Unterricht unter Klassenbuch → Fehlzeiten bzw. in der App (Recht „Fehlstunden im eigenen Unterricht entschuldigen“). Gilt ohne Einschränkung für alle Jahrgänge.')}
+      ${schalter('fachlehrerJahrgangEinschraenken', 'Einschränkung auf Jahrgangsstufen', 'Nur Fehlstunden von Klassen in diesen Jahrgangsstufen. Die Stammdaten der Klassen müssen eine Jahrgangsstufe enthalten.')}
+      ${zeile('Jahrgangsstufen von – bis', `<span class="kbe-bereich">${zahl('fachlehrerJahrgangVon', { max: 20, leer: '–' })}<span>bis</span>${zahl('fachlehrerJahrgangBis', { max: 20, leer: '–' })}</span>`)}
+      <div class="kbe-info"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div>
+        <b>Deaktivieren während des Schuljahres:</b> Bitte vorher alle Abwesenheiten von der Klassenleitung kontrollieren und bestätigen lassen. Ein einmal gesetzter Status bleibt erhalten; Abwesenheiten mit unterschiedlichen Status der Stunden bleiben „offen“ (mehrdeutig). Wir empfehlen, die Funktion nicht im laufenden Schuljahr zu deaktivieren.</div></div>`)}
     ${karte('Automatische Erinnerung bei offenen Stunden', 'bell', `
       ${schalter('erinnerung', 'Automatische Erinnerung über offene Stunden des aktuellen Schuljahres')}
       ${zeile('Versand jeden', auswahl('erinnerungTag', WOCHENTAGE.map((t, i) => [i + 1, t])), '', id('erinnerungTag'))}

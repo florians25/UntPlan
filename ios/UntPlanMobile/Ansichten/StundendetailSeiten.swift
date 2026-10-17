@@ -1491,17 +1491,33 @@ struct BuchPlusSymbol: View {
     }
 }
 
-// MARK: - Wischzeile (An-/Abwesenheit)
+// MARK: - Wischzeile (An-/Abwesenheit, Entschuldigen)
+
+/// Beschriftung einer Wischrichtung (Symbol, Text, Farbe der runden Pill).
+struct Wischaktion {
+    var symbol: String
+    var text: String
+    var farbe: Color
+
+    static let anwesend = Wischaktion(symbol: "checkmark.circle", text: "Anwesend", farbe: Farben.gruen)
+    static let abwesend = Wischaktion(symbol: "clock", text: "Abwesend", farbe: Farben.entfallRand)
+    static let entschuldigen = Wischaktion(symbol: "checkmark.seal", text: "Entschuldigen", farbe: Farben.entschuldigen)
+}
 
 /// Zeile mit Wischgeste wie im Original: nach rechts → anwesend (grüne Fläche mit Haken), nach links → abwesend (rote
-/// Fläche mit Uhr). Ab 80 pt löst das Loslassen aus; beim Erreichen der Schwelle und beim Auslösen gibt es eine Haptik.
-/// Senkrechtes Scrollen der Liste bleibt frei (Richtung wird zu Beginn festgelegt); in die gesperrte Richtung gibt die
-/// Zeile nur mit Widerstand nach. Für VoiceOver gibt es dieselben Aktionen.
-private struct WischZeile<Inhalt: View>: View {
+/// Fläche mit Uhr) bzw. – bei abwesenden Schüler*innen und in Abwesenheitslisten – „Entschuldigen“. Ab 80 pt löst das
+/// Loslassen aus; beim Erreichen der Schwelle und beim Auslösen gibt es eine Haptik. Senkrechtes Scrollen der Liste
+/// bleibt frei (Richtung wird zu Beginn festgelegt); in die gesperrte Richtung gibt die Zeile nur mit Widerstand nach.
+/// Für VoiceOver gibt es dieselben Aktionen.
+struct WischZeile<Inhalt: View>: View {
+    typealias Aktion = Wischaktion
+
     let rechtsMoeglich: Bool
     let linksMoeglich: Bool
     let rechts: () -> Void
     let links: () -> Void
+    var rechtsAktion: Aktion = .anwesend
+    var linksAktion: Aktion = .abwesend
     let inhalt: Inhalt
 
     @State private var versatz: CGFloat = 0
@@ -1512,11 +1528,14 @@ private struct WischZeile<Inhalt: View>: View {
     private let schwelle: CGFloat = 80
 
     init(rechtsMoeglich: Bool, linksMoeglich: Bool, rechts: @escaping () -> Void, links: @escaping () -> Void,
+         rechtsAktion: Aktion = .anwesend, linksAktion: Aktion = .abwesend,
          @ViewBuilder inhalt: () -> Inhalt) {
         self.rechtsMoeglich = rechtsMoeglich
         self.linksMoeglich = linksMoeglich
         self.rechts = rechts
         self.links = links
+        self.rechtsAktion = rechtsAktion
+        self.linksAktion = linksAktion
         self.inhalt = inhalt()
     }
 
@@ -1537,8 +1556,8 @@ private struct WischZeile<Inhalt: View>: View {
             .sensoryFeedback(.selection, trigger: ueberSchwelle)
             .sensoryFeedback(.success, trigger: ausgeloest)
             .accessibilityActions {
-                if rechtsMoeglich { Button("Anwesend") { rechts() } }
-                if linksMoeglich { Button("Abwesend") { links() } }
+                if rechtsMoeglich { Button(rechtsAktion.text) { rechts() } }
+                if linksMoeglich { Button(linksAktion.text) { links() } }
             }
     }
 
@@ -1549,16 +1568,16 @@ private struct WischZeile<Inhalt: View>: View {
     private var hintergrund: some View {
         if versatz > 0 {
             HStack(spacing: 0) {
-                wischPill(symbol: "checkmark.circle", text: "Anwesend",
-                          farbe: rechtsMoeglich ? Farben.gruen : Farben.zahlPlakette, breite: versatz)
+                wischPill(symbol: rechtsAktion.symbol, text: rechtsAktion.text,
+                          farbe: rechtsMoeglich ? rechtsAktion.farbe : Farben.zahlPlakette, breite: versatz)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if versatz < 0 {
             HStack(spacing: 0) {
                 Spacer(minLength: 0)
-                wischPill(symbol: "clock", text: "Abwesend",
-                          farbe: linksMoeglich ? Farben.entfallRand : Farben.zahlPlakette, breite: -versatz)
+                wischPill(symbol: linksAktion.symbol, text: linksAktion.text,
+                          farbe: linksMoeglich ? linksAktion.farbe : Farben.zahlPlakette, breite: -versatz)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -1571,7 +1590,7 @@ private struct WischZeile<Inhalt: View>: View {
             Image(systemName: symbol)
                 .font(.system(size: 20, weight: .regular))
                 .scaleEffect(ueberSchwelle ? 1.15 : 1)
-            if innen > 118 {
+            if innen > CGFloat(text.count) * 8.6 + 44 {
                 Text(text)
                     .font(.system(size: 15, weight: .medium))
                     .lineLimit(1)

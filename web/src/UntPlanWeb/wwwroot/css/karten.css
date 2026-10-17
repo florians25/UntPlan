@@ -1,0 +1,107 @@
+/* UntPlanWeb – Stundenplan-Karten, Pausenaufsichten und Stundendetails (Sprint 26).
+   Wird zuletzt geladen und überschreibt app.css/nl-design.css gezielt. Abschnitt „macOS“ gilt nur mit <html class="is-mac">
+   (js/plattform.js) – unter Windows, Linux und auf Telefonen bleibt die Darstellung unverändert. Nur Regular/Medium. */
+
+/* ------------------------------------------------------------------ Karten: Zeilen etwas enger, gleich große Zeichen
+
+   Zeilenabstand je 1px enger (Label ↔ Label untereinander 1px Luft statt 2px). Ziffern immer in Versalhöhe (lining), damit Raum-
+   und Klassenkürzel („R105“, „INF12“) gleich groß wirken; Uhrzeiten mit gleich breiten Ziffern. Labels in derselben Schriftgröße
+   wie der Text ihrer Zeile, gleich kräftig wie der Text daneben. */
+.std, .aufsicht, .sd-zeile, .sd-titel h2 { font-variant-numeric: lining-nums; }
+.std .zt, .tt-zeit, .tt-jetzt-zeit { font-variant-numeric: lining-nums tabular-nums; }
+.std .z1 { margin-bottom: 0; }
+.std .z2 + .z2 { margin-top: 0; }
+.std .z1 .lbl { font-size: 14px; -webkit-text-stroke: .25px currentColor; }
+.std .z2 .lbl, .std .z2 .kl-weg { font-size: 12px; }
+.std .abw-label { font-size: 12px; line-height: 15px; padding: 0 3px; margin-top: 1px; border-radius: 1.5px; }
+
+/* ------------------------------------------------------------------ Online-Unterricht: nur das Symbol unten auf der Karte */
+.std .ecke .ecke-online { width: 20px; height: 20px; margin: -2px -1px; display: block; color: inherit; font-size: 0; }
+
+/* ------------------------------------------------------------------ Marker oben rechts: feine Linien-Symbole
+
+   „+“ (zusätzliche Stunde) und Verlegung als weiche Linien (runde Enden) in einem 12px-Quadrat mit Radius 3px.
+   Verlegung: ursprüngliche Stunde rot mit Pfeil nach rechts, Zielstunde grün mit Pfeil nach links. */
+.mk-plus { border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M8 3v10M3 8h10'/%3E%3C/svg%3E"); }
+.mk-plus::before, .mk-plus::after { content: none; }
+.mks .mk-verlegung { width: 12px; height: 12px; border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.5 8h-9M7 4.5 3.5 8 7 11.5'/%3E%3C/svg%3E"); }
+.mks .mk-verlegung.von { background-color: #f03e3e;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8h9M9 4.5 12.5 8 9 11.5'/%3E%3C/svg%3E"); }
+.std .mks [data-hover] { cursor: default; }
+
+/* ------------------------------------------------------------------ Pausenaufsichten
+
+   Ort und Vertretungs-Label in einer Textzeile: Label direkt hinter dem Ort (ein Leerzeichen), wie auf den Stundenkarten (grün,
+   Hover „ALT → NEU“), gleiche Schriftgröße wie der Ort. Vergangene Aufsichten verblassen nicht – nur die Fläche wird leicht grau. */
+.aufsicht .auf-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aufsicht .lbl, .aufsicht .lbl-auf { display: inline-block; overflow: visible; margin: 0; padding: 0 3px; font-size: inherit; line-height: 18px; font-weight: 600; color: #fff;
+  background: var(--u-gruen-label); border-radius: 1.5px; vertical-align: baseline; text-decoration: none; }
+.aufsicht .lbl[data-hover] { cursor: default; }
+.aufsicht.vergangen, .aufsicht.vergangen.vertretung, .aufsicht.vergangen.vertreten { opacity: 1; filter: none; }
+.aufsicht.vergangen:not(.vertretung):not(.vertreten) { background: #f3f5f7; }
+.aufsicht.vergangen .auf-text { color: inherit; }
+
+/* ------------------------------------------------------------------ Stundendetails */
+
+/* Lehrkraft-Wechsel wie beim Raum: alt (durchgestrichen) → neu */
+.sd-pfeil-lehrer { color: var(--u-titel); }
+
+/* Schalter „Findet online statt“: flacher Toggle im Portal-Stil (graue Spur aus, orange an, weißer Knopf mit sanftem Schatten) */
+.sd-schalter { position: relative; display: inline-flex; align-items: center; gap: 12px; margin: 0; cursor: pointer; user-select: none; min-height: 24px; }
+.sd-schalter .sd-detail-titel { margin: 0; }
+.sd-schalter input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.sd-schalter-spur { position: relative; flex: none; width: 36px; height: 20px; border-radius: 10px; background: #c9d0d6; transition: background-color .2s ease; }
+.sd-schalter-spur::after {
+  content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 30, 40, .22), 0 1px 1px rgba(20, 30, 40, .06); transition: transform .2s cubic-bezier(.4, 0, .2, 1);
+}
+.sd-schalter:hover .sd-schalter-spur { background: #bcc4cb; }
+.sd-schalter input:checked + .sd-schalter-spur { background: var(--u-akzent); }
+.sd-schalter:hover input:checked + .sd-schalter-spur { background: var(--u-akzent-dunkel); }
+.sd-schalter input:checked + .sd-schalter-spur::after { transform: translateX(16px); }
+.sd-schalter input:focus-visible + .sd-schalter-spur { box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .3); }
+.sd-schalter:has(input:disabled) { cursor: default; }
+.sd-schalter input:disabled + .sd-schalter-spur { opacity: .55; }
+@media (prefers-reduced-motion: reduce) { .sd-schalter-spur, .sd-schalter-spur::after { transition: none; } }
+.sd-online-link-sym { width: 20px; height: 20px; margin: -2px 0 -2px -4px; color: #fff; }
+
+/* Plus-Knöpfe: runde Knöpfe mit feinem Linien-Plus, genau mittig */
+.sd-plus, .sd-raum-plus { display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; border: 1px solid #b7c0c8;
+  background: #fff; color: #5b6770; line-height: 0; transition: border-color .15s, color .15s, background-color .15s; }
+.sd-plus { width: 32px; height: 32px; }
+.sd-raum-plus { width: 40px; height: 40px; }
+.sd-plus:hover, .sd-raum-plus:hover, .sd-plus:focus-visible, .sd-raum-plus:focus-visible { border-color: var(--u-akzent); color: var(--u-akzent); background: var(--u-akzent-hell); }
+.sd-plus-sym { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.sd-raum-plus .sd-plus-sym { width: 18px; height: 18px; }
+
+/* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
+
+   Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
+   Durchstreichung der Schrift liegt nicht in der Mitte der Kürzel. Korrekturen nur mit html.is-mac:
+   - Labels: Textkasten auf Versalhöhe und Grundlinie beschneiden (text-box), Innenabstand oben/unten gleich – Text genau mittig.
+     Ältere Browser ohne text-box: Text um ~0,04em nach unten.
+   - Durchstreichung als Linie auf halber Versalhöhe (Unterstreichung mit negativem Abstand zur Grundlinie, ohne Aussparungen). */
+html:root.is-mac .std .lbl, html:root.is-mac .aufsicht .lbl, html:root.is-mac .std .abw-label, html:root.is-mac .sd-lbl-weg, html:root.is-mac .std-lbl { --lbl-h: 15px; }
+html:root.is-mac .std .z1 .lbl { --lbl-h: 18px; }
+html:root.is-mac .aufsicht .lbl, html:root.is-mac .sd-lbl-weg { --lbl-h: 18px; }
+html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .std-lbl) {
+  padding-top: .04em; padding-bottom: 0; line-height: calc(var(--lbl-h) - .04em);
+}
+@supports (text-box: trim-both cap alphabetic) {
+  html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .std-lbl) {
+    text-box: trim-both cap alphabetic; line-height: var(--lbl-h);
+    padding-top: calc((var(--lbl-h) - 1cap) / 2); padding-bottom: calc((var(--lbl-h) - 1cap) / 2);
+  }
+}
+html:root.is-mac :is(.std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1, .z2, .zt), .std .lbl.weg, .std .kl-weg, .sd-lbl-weg, .sd-lbl-weg .sd-link,
+  .sd-alt, .std-lbl.weg, .vt-zeile .lbl-neu.weg, .v-lbl.weg) {
+  --strich: 1px;
+  text-decoration-line: underline; text-decoration-style: solid; text-decoration-skip-ink: none; text-underline-position: auto;
+  text-decoration-thickness: var(--strich);
+  text-underline-offset: -.36em;
+  text-underline-offset: calc(-.5cap - var(--strich) / 2);
+}
+html:root.is-mac .std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1, .z2, .zt) { --strich: .75px; }
+html:root.is-mac .sd-alt { text-decoration-color: #b3bcc4; }

@@ -541,3 +541,51 @@ private struct LadebalkenLauf: View {
         .frame(height: hoehe)
     }
 }
+
+/// Hinweisfläche nach Vorlage (Startseite „Genieße die Zeit!“, nachgemessen): flache, abgerundete Fläche (dunkel
+/// #313d44, hell zartgrau), oben mittig das Kalender-Symbol mit Stern (24 pt), darunter der Titel (14 pt Medium) und
+/// ein grauer, höchstens zweizeiliger Text (12 pt Regular), alles zentriert. Dient auch für Ferien, gesperrte Tage und
+/// gesperrte Wochen im Stundenplan.
+struct Hinweisfeld: View {
+    let titel: String
+    let text: String
+    /// Mindesthöhe der Fläche (Startseite: wie die Tageskarte)
+    var minHoehe: CGFloat = 0
+    /// Farbe der Fläche (im Stundenplan hell weiß auf dem grauen Raster)
+    var flaeche: Color = Hinweisfeld.standardFlaeche
+
+    static let standardFlaeche = Color(hell: 0xEEF1F4, dunkel: 0x313D44)
+    static let symbolFarbe = Color(hell: 0x5D727F, dunkel: 0xD9E3E9)
+    static let titelFarbe = Color(hell: 0x253746, dunkel: 0xE1E3E5)
+    static let textFarbe = Color(hell: 0x5D6B76, dunkel: 0xBDC5CC)
+
+    var body: some View {
+        VStack(spacing: 0) {
+            KalenderSymbol(inhalt: .stern, groesse: 24, strich: 1.5)
+                .foregroundStyle(Self.symbolFarbe)
+                .frame(width: 24, height: 24)
+                .accessibilityHidden(true)
+            Text(titel)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Self.titelFarbe)
+                .multilineTextAlignment(.center)
+                .padding(.top, 9)
+            if !text.isEmpty {
+                Text(text)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Self.textFarbe)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .padding(.top, 8)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 14)
+        .padding(.top, 20)
+        .padding(.bottom, 21)
+        .frame(maxWidth: .infinity, minHeight: minHoehe)
+        .background(flaeche, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}

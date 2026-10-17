@@ -4,9 +4,11 @@
 // Abwesenheitskontrolle („Prüfen“) | Lehrstoff („Eingeben“ → Seitenleiste mit Vorstunden, Pfeile blättern). Klick auf eine Zeile öffnet die
 // Stundendetails. Rechte und der gespeicherte Zeitbereich liegen auf dem Server (/api/app/klassenbuch/offene-stunden).
 // Adresse: #/offen/<bereich | ->/<art>/<Lehrkräfte, | ->/<Klasse | ->/<von>/<bis>
-import { e, icon, holen, senden, toast, herunterladen, dialog, lade } from '../ui.js';
+import { e, icon, holen, senden, toast, herunterladen, lade } from '../ui.js';
+import { kbDialog as dialog } from '../kbdialog.js';
 import { karteDialog } from '../plangitter.js';
 import { LEHRFORMEN } from '../stundendetails.js';
+import { kalenderOeffnen, offenerKalender } from '../kalender.js';
 
 const ART = {
   offen: 'Offene Stunden',
@@ -21,8 +23,6 @@ const istDatum = s => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '');
 const passtArt = (art, z) => art === 'kontrolle' ? !z.geprueft : art === 'lehrstoff' ? !z.lehrstoff : art === 'alle' ? true : !z.geprueft || !z.lehrstoff;
 const erledigt = text => `<span class="os-status ok" title="${e(text)}"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">${e(text)}</span></span>`;
 const ART_WAHL = [['offen', 'Alle'], ['kontrolle', 'Abwesenheiten'], ['lehrstoff', 'Lehrstoff'], ['alle', 'Auch vollständige']];
-const MONATE = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
-const isoVon = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerParam, klasseParam, vonParam, bisParam]) {
   let art = ART[artParam] ? artParam : 'offen';
@@ -74,7 +74,6 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
       </div>
       <div class="os-zeit">
         <button type="button" class="os-zeitraum" data-zeitraum aria-haspopup="dialog" title="Zeitraum wählen"><span>${datumDe(r.von)} - ${datumDe(r.bis)}</span></button>
-        <div class="os-kalender" data-zeitwahl hidden role="dialog" aria-label="Zeitraum wählen"></div>
         <label class="os-bereich"><span class="visually-hidden">Zeitbereich</span>
           <select data-bereich>${r.bereiche.map(b => `<option value="${b.id}" ${b.id === r.bereich ? 'selected' : ''}>${e(b.text)}</option>`).join('')}</select></label>
       </div></div>`);
@@ -215,53 +214,18 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
   w.querySelector('[data-suchfeld]').addEventListener('click', ev => { if (!ev.target.closest('button')) suche.focus(); });
 
   // ---------------------------------------------------------------- Zeitraum: Klick aufs Datum öffnet einen Kalender mit zwei Monaten
-  const zeitwahl = w.querySelector('[data-zeitwahl]');
   const zeitKnopf = w.querySelector('[data-zeitraum]');
-  const kal = { von: r.von, bis: r.bis, monat: (() => { const d = new Date(`${r.bis}T12:00`); d.setDate(1); d.setMonth(d.getMonth() - 1); return d; })() };
-  const monatHtml = (start, pfeile) => {
-    const tage = [];
-    const erster = new Date(start);
-    const versatz = (erster.getDay() + 6) % 7;
-    const d = new Date(erster); d.setDate(1 - versatz);
-    for (let i = 0; i < 42; i++) { tage.push(new Date(d)); d.setDate(d.getDate() + 1); }
-    return `<div class="os-k-monat"><div class="os-k-kopf"><b>${MONATE[erster.getMonth()]} ${erster.getFullYear()}</b>
-        <span>${pfeile ? '<button type="button" data-k-schritt="-1" aria-label="Früher"><i class="bi bi-chevron-left"></i></button><button type="button" data-k-schritt="1" aria-label="Später"><i class="bi bi-chevron-right"></i></button>' : ''}</span></div>
-      <div class="os-k-raster">${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(t => `<span class="os-k-wt">${t}</span>`).join('')}
-        ${tage.map(t => { const iso = isoVon(t); const fremd = t.getMonth() !== erster.getMonth(); const im = kal.von && iso >= kal.von && iso <= (kal.bis || kal.von);
-          return `<button type="button" data-k-tag="${iso}" class="${fremd ? 'fremd' : ''} ${im ? 'im' : ''} ${iso === kal.von ? 'anfang' : ''} ${iso === (kal.bis || kal.von) ? 'ende' : ''} ${iso === r.heute ? 'heute' : ''}" ${iso > r.heute ? 'disabled' : ''}>${t.getDate()}</button>`; }).join('')}</div></div>`;
+  zeitKnopf.setAttribute('aria-expanded', 'false');
+  zeitKnopf.onclick = ev => {
+    if (offenerKalender()?.anker === zeitKnopf) { offenerKalender().schliessen(); return; }
+    kalenderOeffnen(zeitKnopf, { modus: 'bereich', von: r.von, bis: r.bis, max: r.heute, monate: innerWidth >= 720 ? 2 : 1, fokusSetzen: ev.detail === 0,
+      beiWahl: ({ von, bis }) => bereichSetzen('individuell', von, bis) });
   };
-  const kalZeichnen = () => {
-    const zweiter = new Date(kal.monat); zweiter.setMonth(zweiter.getMonth() + 1);
-    zeitwahl.innerHTML = `<button type="button" class="os-k-zu" data-zeit-ab aria-label="Schließen"><i class="bi bi-x-lg"></i></button>
-      <div class="os-k-monate">${monatHtml(kal.monat, true)}${monatHtml(zweiter, true)}</div>
-      <div class="os-k-fuss"><span>${kal.von ? `${datumDe(kal.von)} - ${datumDe(kal.bis || kal.von)}` : 'Beginn wählen'}</span><button type="button" class="os-k-ok" data-zeit-ok>Ok</button></div>`;
-    zeitwahl.querySelectorAll('[data-k-schritt]').forEach(b => b.onclick = () => { kal.monat.setMonth(kal.monat.getMonth() + Number(b.dataset.kSchritt)); kalZeichnen(); });
-    zeitwahl.querySelectorAll('[data-k-tag]').forEach(b => b.onclick = () => {
-      const d = b.dataset.kTag;
-      if (!kal.von || kal.bis) { kal.von = d; kal.bis = null; } else if (d < kal.von) { kal.bis = kal.von; kal.von = d; } else kal.bis = d;
-      kalZeichnen();
-    });
-    zeitwahl.querySelector('[data-zeit-ab]').onclick = zeitZu;
-    zeitwahl.querySelector('[data-zeit-ok]').onclick = () => {
-      if (!kal.von) { toast('Bitte Beginn und Ende wählen.', true); return; }
-      zeitZu();
-      bereichSetzen('individuell', kal.von, kal.bis || kal.von);
-    };
-  };
-  const zeitZu = () => { zeitwahl.hidden = true; zeitKnopf.setAttribute('aria-expanded', 'false'); };
-  zeitKnopf.onclick = () => {
-    zeitwahl.hidden = !zeitwahl.hidden;
-    zeitKnopf.setAttribute('aria-expanded', String(!zeitwahl.hidden));
-    if (!zeitwahl.hidden) { kalZeichnen(); zeitwahl.querySelector('.anfang, [data-k-tag]:not(:disabled)')?.focus(); }
-  };
-  zeitwahl.onkeydown = ev => { if (ev.key === 'Escape') { zeitZu(); zeitKnopf.focus(); } };
   w.querySelector('[data-bereich]').onchange = ev => {
     if (ev.target.value === 'individuell') { ev.target.value = r.bereich; zeitKnopf.click(); return; }
     bereichSetzen(ev.target.value);
   };
   w.querySelector('[data-artwahl]').onchange = ev => kontext.navigieren(ziel({ art: ev.target.value }));
-  const aussen = ev => { if (!document.body.contains(w) || !w.contains(zeitwahl)) { document.removeEventListener('mousedown', aussen); return; } if (!zeitwahl.hidden && !ev.target.closest('.os-zeit')) zeitZu(); };
-  document.addEventListener('mousedown', aussen);
 
   // ---------------------------------------------------------------- Lehrstoff in der Seitenleiste eintragen (Pfeile: vorige/nächste Stunde der Liste)
   async function lehrstoffLeiste(liste, start) {

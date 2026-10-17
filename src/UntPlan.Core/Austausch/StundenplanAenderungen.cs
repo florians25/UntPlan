@@ -21,7 +21,8 @@ public sealed record StplAenderung(WebRueckmeldung Meldung, DateOnly Datum, int 
 {
     public string Id => Meldung.Id;
     public string Stunde => StundeVon == StundeBis ? StundeVon.ToString() : $"{StundeVon}-{StundeBis}";
-    public string ArtText => Art switch { StplAenderungsArt.Unterricht => "Unterricht", StplAenderungsArt.Aktivitaet => "Aktivität", _ => "Prüfung" };
+    public string ArtText => Meldung.Typ == WebRueckmeldungsTypen.BuchungStorno ? "Storno"
+        : Art switch { StplAenderungsArt.Unterricht => "Unterricht", StplAenderungsArt.Aktivitaet => "Aktivität", _ => "Prüfung" };
     /// <summary>Bereits übernommen oder ignoriert.</summary>
     public bool Erledigt => Uebernommen.HasValue;
 }
@@ -34,7 +35,80 @@ public sealed record StplAenderung(WebRueckmeldung Meldung, DateOnly Datum, int 
 /// </summary>
 public static class StundenplanAenderungen
 {
-    public static readonly string[] Typen = { WebRueckmeldungsTypen.Raumbuchung, WebRueckmeldungsTypen.Klausur, WebRueckmeldungsTypen.KlausurLoeschen };
+    public static readonly string[] Typen = { WebRueckmeldungsTypen.Raumbuchung, WebRueckmeldungsTypen.Klausur, WebRueckmeldungsTypen.KlausurLoeschen, WebRueckmeldungsTypen.BuchungStorno };
+
+    /// <summary>Löschmeldungen (Prüfung löschen, Buchung storniert) werden vor allen anderen Meldungen desselben Imports ausgeführt.</summary>
+    public static bool IstLoeschung(WebRueckmeldung m) => m.Typ is WebRueckmeldungsTypen.KlausurLoeschen or WebRueckmeldungsTypen.BuchungStorno;
+
+    /// <summary>Präfix der Kennung einer Storno-Rückmeldung („storno-buchung-42“ bezieht sich auf „buchung-42“).</summary>
+    public const string StornoPraefix = "storno-";
+
+    /// <summary>Kennung der ursprünglichen (stornierten) Rückmeldung: <see cref="WebRueckmeldung.BezugId"/>, sonst aus der Kennung abgeleitet.</summary>
+    public static string? BezugId(WebRueckmeldung m) =>
+        !string.IsNullOrWhiteSpace(m.BezugId) ? m.BezugId.Trim()
+        : m.Id.StartsWith(StornoPraefix, StringComparison.Ordinal) && m.Id.Length > StornoPraefix.Length ? m.Id[StornoPraefix.Length..] : null;
+
+    /// <summary>
+    /// Stornierte Buchung aus UntPlanWeb entfernen (Rückmeldung <see cref="WebRueckmeldungsTypen.BuchungStorno"/>): alle Zeilen, die aus der
+    /// ursprünglichen Rückmeldung entstanden sind (gleiche Web-Kennung) – Raumbuchung, Sondereinsatz (Aktivität, zusätzlicher Unterricht) bzw.
+    /// Raumänderung eines Unterrichts –, auch zu einer Prüfung gewordene Buchungen (sie kehren beim Löschen der Prüfung nicht zurück).
+    /// Eine Raumänderung in einer sonst geänderten Stunde (z. B. mit Vertretungslehrkraft) behält die Zeile, nur der ursprüngliche Raum
+    /// kehrt zurück. Ohne gespeicherte Kennung (ältere Übernahmen) wird die Buchung über Datum, Stunden, Raum, Lehrkraft und Klassen gesucht –
+    /// nur Raumbuchungen und Sondereinsätze ohne Unterricht und ohne fremde Web-Kennung. Idempotent: ist nichts (mehr) vorhanden, ändert sich nichts.
+    /// Betroffene Tage kommen nach <paramref name="tage"/>. Ergebnis: Anzahl entfernter bzw. zurückgesetzter Zeilen.
+    /// </summary>
+    public static int BuchungStornieren(Schuldatei d, WebRueckmeldung m, ISet<DateOnly> tage)
+    {
+        var bezug = BezugId(m);
+        var zeilen = string.IsNullOrEmpty(bezug) ? new List<Vertretung>() : d.Vertretungen.Where(v => v.KlausurId is null && v.WebId == bezug).ToList();
+        var inKlausur = 0;
+        if (!string.IsNullOrEmpty(bezug))
+            foreach (var k in d.Klausuren)
+            {
+                var n = k.Buchungen.RemoveAll(b => b.WebId == bezug);
+                if (n > 0) { inKlausur += n; tage.Add(k.Datum); }
+            }
+        if (zeilen.Count == 0 && inKlausur == 0) zeilen = BuchungSuchen(d, m);
+        foreach (var v in zeilen)
+        {
+            tage.Add(v.Datum);
+            var art = v.ArtVorKlassenabwesenheit ?? v.Art;
+            var reineBuchung = art == VertretungsArt.Raumbuchung || (art == VertretungsArt.Sondereinsatz && v.UnterrichtId is null)
+                               || (art == VertretungsArt.Raumvertretung && (v.VertreterId is null || v.VertreterId == v.LehrerId));
+            if (reineBuchung) { d.Vertretungen.Remove(v); continue; }
+            // Raumänderung in einer sonst geänderten Stunde: nur den ursprünglichen Raum wiederherstellen
+            v.VertretungsraumId = v.RaumId;
+            v.ZusatzraumIds.Clear();
+            v.RaumVerdraengt = false;
+            v.WebId = "";
+            v.Geaendert = DateTime.Now;
+        }
+        return zeilen.Count + inKlausur;
+    }
+
+    /// <summary>Übernommene Buchung ohne gespeicherte Web-Kennung über ihre Daten wiederfinden (nur eindeutig beschriebene Buchungen).</summary>
+    private static List<Vertretung> BuchungSuchen(Schuldatei d, WebRueckmeldung m)
+    {
+        var leer = new List<Vertretung>();
+        if (!DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var datum) || m.StundeVon is not int von) return leer;
+        var bis = Math.Max(von, m.StundeBis ?? von);
+        var raumNamen = m.Raeume.Append(m.Raum ?? "").Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var raeume = raumNamen.Select(r => Id(d, ElementTyp.Raum, r)).ToList();
+        var lehrer = string.IsNullOrWhiteSpace(m.Lehrer) ? null : Id(d, ElementTyp.Lehrer, m.Lehrer);
+        var klassen = m.Klassen.Select(k => Id(d, ElementTyp.Klasse, k)).ToList();
+        // unbekannte Elemente bzw. weder Raum noch Lehrkraft: nicht raten
+        if (raeume.Any(r => r is null) || klassen.Any(k => k is null) || (!string.IsNullOrWhiteSpace(m.Lehrer) && lehrer is null)) return leer;
+        if (raeume.Count == 0 && lehrer is null) return leer;
+        var klassenSet = klassen.OfType<int>().ToHashSet();
+        var titel = string.Join(" – ", new[] { m.Titel, m.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return d.Vertretungen.Where(v => v.KlausurId is null && string.IsNullOrEmpty(v.WebId) && v.Datum == datum && v.Stunde >= von && v.Stunde <= bis
+                                         && (v.Art == VertretungsArt.Raumbuchung || (v.Art == VertretungsArt.Sondereinsatz && v.UnterrichtId is null))
+                                         && (raeume.Count == 0 || v.VertretungsraumId == raeume[0])
+                                         && (lehrer is null || v.VertreterId == lehrer)
+                                         && (klassenSet.Count == 0 || v.KlassenIds.ToHashSet().SetEquals(klassenSet))
+                                         && (titel.Length == 0 || string.IsNullOrWhiteSpace(v.Text) || TitelPasst(titel, v.Text) || TitelPasst(m.Titel, v.Text)))
+            .ToList();
+    }
 
     /// <summary>
     /// Automatischer Hinweis „(Benutzer) Raumänderung“, den ältere Versionen beim Übernehmen einer Raumänderung aus UntPlanWeb als
@@ -254,7 +328,19 @@ public static class StundenplanAenderungen
     /// </summary>
     public static int KlausurenEntfernen(Schuldatei d, WebRueckmeldung m, DateOnly datum, int von, int bis, IReadOnlySet<string>? geschuetzt = null)
     {
+        // Bezug auf eine bestimmte Prüfung (Web-Kennung): nur diese
+        if (!string.IsNullOrWhiteSpace(m.BezugId) && d.Klausuren.Where(k => k.WebId == m.BezugId.Trim()).ToList() is { Count: > 0 } bezogen)
+        {
+            foreach (var k in bezogen)
+            {
+                d.Klausuren.Remove(k);
+                KlausurZeilenEntfernen(d, k);
+            }
+            return bezogen.Count;
+        }
         var klassen = m.Klassen.Select(k => Id(d, ElementTyp.Klasse, k)).OfType<int>().ToHashSet();
+        // genannte, aber unbekannte Klassen: nicht auf „alle Klassen“ ausweiten (sonst träfe die Meldung fremde Prüfungen)
+        if (m.Klassen.Any(k => !string.IsNullOrWhiteSpace(k)) && klassen.Count == 0) return 0;
         var raeume = m.Raeume.Append(m.Raum ?? "").Select(r => Id(d, ElementTyp.Raum, r)).OfType<int>().ToHashSet();
         var kandidaten = d.Klausuren.Where(k => k.Datum == datum && k.StundeVon <= bis && Math.Max(k.StundeVon, k.StundeBis) >= von
                                                 && (klassen.Count == 0 || k.KlassenIds.Any(klassen.Contains)) && TitelPasst(m.Titel, k.Name)
@@ -310,14 +396,20 @@ public static class StundenplanAenderungen
         var zeit = z1 != null && z2 != null ? $"{z1.Beginn:HH\\:mm} - {z2.Ende:HH\\:mm}" : "";
         var raeume = m.Raeume.Append(m.Raum ?? "").Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
         var lehrerNamen = new[] { m.Lehrer ?? "" }.Concat(m.WeitereLehrer).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
-        foreach (var k in m.Klassen) if (Id(d, ElementTyp.Klasse, k) is null) fehler ??= $"Klasse {k} unbekannt";
-        foreach (var r in raeume) if (Id(d, ElementTyp.Raum, r) is null) fehler ??= $"Raum {r} unbekannt";
-        foreach (var l in lehrerNamen) if (Id(d, ElementTyp.Lehrer, l) is null) fehler ??= $"Lehrer {l} unbekannt";
+        var storno = m.Typ == WebRueckmeldungsTypen.BuchungStorno;
+        // Storno: unbekannte Elemente bzw. ein inzwischen freier Tag hindern das Entfernen nicht
+        if (storno) fehler = fehler == "kein Unterrichtstag" || BezugId(m) != null ? null : fehler;
+        else
+        {
+            foreach (var k in m.Klassen) if (Id(d, ElementTyp.Klasse, k) is null) fehler ??= $"Klasse {k} unbekannt";
+            foreach (var r in raeume) if (Id(d, ElementTyp.Raum, r) is null) fehler ??= $"Raum {r} unbekannt";
+            foreach (var l in lehrerNamen) if (Id(d, ElementTyp.Lehrer, l) is null) fehler ??= $"Lehrer {l} unbekannt";
+        }
         var art = m.Typ is WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen ? StplAenderungsArt.Pruefung : StplAenderungsArt.Aktivitaet;
         int? uid = null, zeile = null;
         var fach = m.Fach;
         var klassen = m.Klassen.ToList();
-        if (art == StplAenderungsArt.Aktivitaet && fehler is null)
+        if (art == StplAenderungsArt.Aktivitaet && fehler is null && !storno)
         {
             // Bezieht sich die Buchung auf einen bestehenden Unterricht der Lehrkraft? Dann ist es eine Raumänderung.
             var lehrer = Id(d, ElementTyp.Lehrer, m.Lehrer);
@@ -334,7 +426,8 @@ public static class StundenplanAenderungen
             }
         }
         var titel = string.Join(" – ", new[] { m.Titel, m.Text }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        var text = art == StplAenderungsArt.Unterricht ? $"({m.Absender}) Raumänderung" : m.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? $"Prüfung löschen: {titel}" : titel;
+        var text = storno ? $"Buchung storniert: {titel}".TrimEnd(' ', ':')
+            : art == StplAenderungsArt.Unterricht ? $"({m.Absender}) Raumänderung" : m.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? $"Prüfung löschen: {titel}" : titel;
         var klf = string.Join(", ", klassen) + (string.IsNullOrWhiteSpace(fach) ? "" : " / " + fach);
         return new StplAenderung(m, datum, von, bis, zeit, art, uid, zeile, klf, string.Join(", ", lehrerNamen), string.Join(", ", raeume), "", "", text, m.Absender, uebernommen, fehler);
     }
@@ -360,12 +453,20 @@ public static class StundenplanAenderungen
         // Termin einer verlegten Prüfung – sind vor ihnen geschützt
         var alle = liste.ToList();
         var neueIds = alle.Where(a => a.Meldung.Typ == WebRueckmeldungsTypen.Klausur).Select(a => a.Id).ToHashSet();
-        foreach (var alt in alle.OrderBy(a => a.Meldung.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? 0 : 1))
+        foreach (var alt in alle.OrderBy(a => IstLoeschung(a.Meldung) ? 0 : 1))
         {
             if (Erledigt(p.StplAenderungen, alt.Meldung) != null) continue;
             var a = Zeile(d, alt.Meldung);
             if (a.Fehler != null) { nein.Add((a.Id, a.Fehler)); continue; }
             var m = a.Meldung;
+            if (m.Typ == WebRueckmeldungsTypen.BuchungStorno)
+            {
+                // stornierte Buchung entfernen – auch wenn sie nicht (mehr) vorhanden ist: erledigt und quittiert (idempotent)
+                BuchungStornieren(d, m, tage);
+                p.StplAenderungen.Add(new StplAenderungsEintrag { Id = a.Id, Uebernommen = true, Benutzer = benutzer, Meldung = m });
+                ok.Add(a.Id);
+                continue;
+            }
             var raeume = m.Raeume.Append(m.Raum ?? "").Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Id(d, ElementTyp.Raum, x)!.Value).Distinct().ToList();
             var lehrer = new[] { m.Lehrer ?? "" }.Concat(m.WeitereLehrer).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Id(d, ElementTyp.Lehrer, x)!.Value).Distinct().ToList();
             var klassen = m.Klassen.Select(k => Id(d, ElementTyp.Klasse, k)!.Value).ToList();

@@ -1,5 +1,6 @@
 // Klassenbucheinträge: Vermerke (Lob, Ordnungsmaßnahme, Elterngespräch …) über alle oder eine Klasse, mit Filter und neuem Eintrag.
-import { e, icon, api, holen, senden, toast, dialog, bestaetigen, leer, filterFeld, datumKurz, heuteIso, plusTage } from '../ui.js';
+import { e, icon, api, holen, senden, toast, leer, filterFeld, datumKurz, heuteIso, plusTage } from '../ui.js';
+import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const FARBE = { Lob: 'gruen', 'Ordnungsmaßnahme': 'rot', 'Elterngespräch': 'orange', 'Hausaufgabe fehlt': 'gelb', 'Material vergessen': 'gelb' };
 

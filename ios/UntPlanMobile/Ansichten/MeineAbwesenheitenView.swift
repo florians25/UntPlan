@@ -2,7 +2,8 @@ import SwiftUI
 
 /// „Meine Abwesenheiten“ für Schüler*innen und Erziehungsberechtigte (Vorlage): Kopf mit Zurück, Titel und Zeitraum,
 /// rechts der Filter (Zeitraum, Status, bei mehreren Kindern das Kind). Je Abwesenheit eine Karte: Datum groß
-/// („15. Okt. - 16. Okt.“), Uhrzeit, Grund und Status (entschuldigt grün, offen orange, nicht entschuldigt rot).
+/// („15. Okt. - 16. Okt.“), Uhrzeit, Grund, die Bemerkung als eigene Zeile (nur wenn vorhanden) und der Status
+/// (entschuldigt grün, offen orange, nicht entschuldigt rot).
 struct MeineAbwesenheitenView: View {
     @EnvironmentObject var zustand: AppZustand
     @State private var daten: FamilieAbwesenheiten? = nil
@@ -165,15 +166,19 @@ struct Abwesenheitskarte: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(titel)
-                .font(.system(size: 19, weight: .regular))
+                .font(.system(size: 21, weight: .regular))
                 .foregroundStyle(Farben.tinte)
                 .padding(.bottom, 2)
             zeileMitSymbol("clock", zeit, farbe: Farben.tinte2)
-            let info = [grund, zeile.text].filter { !$0.isEmpty }.joined(separator: " – ")
-            if !info.isEmpty {
-                zeileMitSymbol("info.circle", info, farbe: Farben.tinte2)
+            if !grund.isEmpty {
+                zeileMitSymbol("info.circle", grund, farbe: Farben.tinte2)
+            }
+            // Bemerkung bzw. Text als eigene Zeile – nur wenn vorhanden
+            let bemerkung = zeile.bemerkung.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !bemerkung.isEmpty {
+                zeileMitSymbol("text.bubble", bemerkung, farbe: Farben.tinte2)
             }
             zeileMitSymbol(status.symbol, status.text, farbe: Farben.tinte2, symbolFarbe: status.farbe)
         }
@@ -187,12 +192,13 @@ struct Abwesenheitskarte: View {
     private func zeileMitSymbol(_ symbol: String, _ text: String, farbe: Color, symbolFarbe: Color? = nil) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .regular))
+                .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(symbolFarbe ?? Farben.gedaempft)
+                .frame(width: 18, alignment: .leading)
             Text(text)
-                .font(.system(size: 14))
+                .font(.system(size: 16))
                 .foregroundStyle(farbe)
-                .lineLimit(3)
+                .lineLimit(4)
         }
     }
 }

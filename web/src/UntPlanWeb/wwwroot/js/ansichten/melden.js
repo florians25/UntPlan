@@ -157,8 +157,15 @@ export async function zeigen(seite, kontext, [bereichParam]) {
         ${liste.map(m => `<tr><td>${e(meldungText(m))}${m.text && m.typ !== 'nachricht' ? `<div class="small text-body-secondary">${e(m.text)}</div>` : ''}</td>
           <td class="text-body-secondary small text-nowrap">${e(new Date(m.erstellt.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</td>
           <td>${statusMarker(m.status)}</td>
-          <td class="text-end">${m.status === 'offen' ? `<button class="btn btn-sm btn-outline-danger" data-zurueck="${e(m.id)}">Zurückziehen</button>` : ''}</td></tr>`).join('')}
+          <td class="text-end">${m.typ === 'klausur' && (m.von ?? '') >= heuteIso() ? `<button class="btn btn-sm btn-outline-danger" data-klausur-loeschen="${e(m.id)}">Löschen</button>`
+            : m.status === 'offen' ? `<button class="btn btn-sm btn-outline-danger" data-zurueck="${e(m.id)}">Zurückziehen</button>` : ''}</td></tr>`).join('')}
       </tbody></table></div>` : `<div class="card-body py-0">${leer('Noch keine Meldungen.')}</div>`}</div>`;
+    // Prüfung löschen – vor der Übernahme zurückziehen, danach Löschmeldung an UntPlan
+    ziel.querySelectorAll('[data-klausur-loeschen]').forEach(b => b.onclick = async () => {
+      const m = liste.find(x => x.id === b.dataset.klausurLoeschen);
+      const { pruefungLoeschen } = await import('./pruefungen.js');
+      if (await pruefungLoeschen({ datum: m.von, stundeVon: m.stundeVon ?? 1, stundeBis: m.stundeBis ?? m.stundeVon ?? 1, klassen: m.klassen ?? [], titel: m.titel })) kontext.navigieren(location.hash);
+    });
     ziel.querySelectorAll('[data-zurueck]').forEach(b => b.onclick = async () => {
       if (!await bestaetigen('Meldung zurückziehen', 'Soll die Meldung zurückgezogen werden?', 'Zurückziehen')) return;
       try { await api(`/api/app/meldungen/${encodeURIComponent(b.dataset.zurueck)}`, { methode: 'DELETE' }); toast('Meldung zurückgezogen.'); kontext.navigieren(location.hash); }

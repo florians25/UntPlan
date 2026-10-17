@@ -2,6 +2,7 @@
 // Untermenüs, Schuljahr-Pille, Benutzer unten, Konto wechseln) und Hash-Router.
 import { LOGO, icon, e, holen, senden, api, fehler, alarm, lade, initialen, toast } from './ui.js';
 import { beobachten as auswahlBeobachten } from './auswahl.js';
+import { beobachten as kalenderBeobachten } from './kalender.js';
 
 const ANSICHTEN = {
   heute: () => import('./ansichten/heute.js'),
@@ -22,6 +23,7 @@ const ANSICHTEN = {
   hausaufgaben: () => import('./ansichten/hausaufgaben.js'),
   dienste: () => import('./ansichten/dienste.js'),
   abwesenheiten: () => import('./ansichten/abwesenheiten.js'),
+  entschuldigen: () => import('./ansichten/entschuldigungen.js'),
   befreiungen: () => import('./ansichten/befreiungen.js'),
   berichte: () => import('./ansichten/berichte.js'),
   sitzplan: () => import('./ansichten/sitzplan.js'),
@@ -305,6 +307,8 @@ function menue() {
       { nav: 'klassenbuch-woche', href: '#/klassenbuch/-/woche', text: 'Wochenübersicht', icon: 'woche' },
       ...(b.fehlzeiten ? [{ nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' },
         { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' }] : []),
+      // Fachlehrer-Entschuldigungen: Fehlstunden des eigenen Unterrichts entschuldigen
+      ...(b.fachlehrerEntschuldigungen ? [{ nav: 'entschuldigen', href: '#/entschuldigen', text: b.fehlzeiten ? 'Fehlzeiten eigener Unterricht' : 'Fehlzeiten', icon: 'fehlzeiten' }] : []),
       { nav: 'befreiungen', href: '#/befreiungen', text: 'Befreiungen', icon: 'befreiungen' },
       { nav: 'sitzplan', href: '#/sitzplan', text: 'Sitzplan', icon: 'sitzplan', verborgen: true },
       ...(b.admin || b.rechte?.['klassenbuch.einstellungen'] ? [{ nav: 'kbeinstellungen', href: '#/kbeinstellungen', text: 'Einstellungen', icon: 'verwaltung' }] : []),
@@ -697,6 +701,8 @@ kontext.aktuell = () => { const s = laufendeAnsicht; return () => s === laufende
 
 // Einheitliche Auswahl: alle nativen Selects und Suchfelder werden automatisch ersetzt bzw. vereinheitlicht
 auswahlBeobachten(document.body);
+// Einheitlicher Kalender: alle Datumsfelder (<input type="date">, "datetime-local") erhalten den eigenen Datumswähler
+kalenderBeobachten(document.body);
 start();
 
 

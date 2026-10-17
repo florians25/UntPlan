@@ -215,6 +215,8 @@ public sealed class Rueckmeldungsdienst
         if (!Rechtedienst.Darf(b, Recht.PruefungAnlegen)) throw new UnauthorizedAccessException("Ihr Konto darf keine Prüfungen eintragen oder löschen.");
         var (v, bi) = Stunden(s, stundeVon, stundeBis);
         var k = klassen.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
+        if (!DarfKlausurLoeschen(b, s, d, v, bi, k))
+            throw new UnauthorizedAccessException("Eine Prüfung löschen bzw. verlegen nur die Person, die sie eingetragen hat, die Lehrkraft der Prüfung und die Administration.");
         // noch nicht übernommene Prüfung: zurückziehen – außer sie ist schon im Paket (übernommen, aber noch nicht quittiert)
         var offen = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'klausur' AND von = @d AND stunde_von <= @b AND stunde_bis >= @v", Lesen,
                 Db.P("@d", Plandienst.Iso(d)), Db.P("@v", v), Db.P("@b", bi))
@@ -238,6 +240,22 @@ public sealed class Rueckmeldungsdienst
                 Titel = string.IsNullOrWhiteSpace(t.Titel) ? (string.IsNullOrWhiteSpace(titel) ? null : titel.Trim()) : t.Titel.Trim(), Grund = Exakt,
             });
         return letzte;
+    }
+
+    /// <summary>
+    /// Darf das Konto die Prüfung löschen bzw. verlegen? Administration immer; sonst mit dem Recht „Prüfungen anlegen“ die Person, die sie in UntPlanWeb
+    /// eingetragen hat (vor und nach der Übernahme in UntPlan), bzw. eine Lehrkraft der Prüfung laut UntPlan (in UntPlan angelegte Prüfungen).
+    /// </summary>
+    public bool DarfKlausurLoeschen(Benutzer b, Stand s, DateOnly d, int von, int bis, IReadOnlyCollection<string> klassen)
+    {
+        if (b.IstAdmin) return true;
+        if (!b.Kollegium || !Rechtedienst.Darf(b, Recht.PruefungAnlegen)) return false;
+        var eigene = _db.Liste("SELECT * FROM rueckmeldungen WHERE typ = 'klausur' AND benutzer_id = @u AND von = @d AND stunde_von <= @b AND stunde_bis >= @v", Lesen,
+            Db.P("@u", b.Id), Db.P("@d", Plandienst.Iso(d)), Db.P("@v", von), Db.P("@b", bis));
+        if (eigene.Any(m => klassen.Count == 0 || m.Klassen.Any(x => klassen.Contains(x, Ci)))) return true;
+        // fremde, noch nicht übernommene Prüfung: nur die Person, die sie eingetragen hat
+        if (b.LehrerKuerzel is not { Length: > 0 } l) return false;
+        return s.Paket.Termine.Any(t => PasstKlausur(t, d, von, bis, klassen) && t.Lehrer.Contains(l, Ci));
     }
 
     private static bool PasstKlausur(WebTermin t, DateOnly d, int von, int bis, IReadOnlyCollection<string> klassen) =>

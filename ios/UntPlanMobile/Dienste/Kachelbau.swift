@@ -134,8 +134,10 @@ struct Kachel: Identifiable {
     var zusatz: Bool = false
     /// Nur der Raum hat sich geändert (grüne Karte wie eine Änderung, neuer Raum als grüne Plakette – nie gelb wie eine Prüfung)
     var raumAenderung: Bool = false
-    /// Stunde findet online statt: Videosymbol unten rechts
+    /// Stunde findet online statt: Online-Zeichen unten rechts
     var online: Bool = false
+    /// Verlegung: „von“ (ursprüngliche Stunde, Pfeil nach rechts) bzw. „nach“ (Zielstunde, Pfeil nach links)
+    var verlegung: String? = nil
 
     /// Zeigt Text beim Antippen (alles außer der Ganztags-Pille).
     var antippbar: Bool { art != .ganztagTermin }
@@ -247,7 +249,7 @@ enum Kachelbau {
         if !aufsichten.isEmpty {
             let pausen = Set(aufsichten.map(\.nachStunde).filter { $0 >= 1 })
             kacheln = anPausenTeilen(kacheln, pausen: pausen, raster: raster)
-            kacheln.append(contentsOf: aufsichten.map { aufsichtKachel($0, raster: raster) })
+            kacheln.append(contentsOf: aufsichten.map { aufsichtKachel($0, raster: raster, ich: ich) })
         }
 
         // Vergangene Stunden
@@ -371,12 +373,16 @@ enum Kachelbau {
         kachel.info = (!k.anzeigeText.isEmpty && !istEntfaelltText(k.anzeigeText)) || !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty
         kachel.hausaufgabe = k.hausaufgabeFaellig
         kachel.online = k.online && !k.istEntfall && k.status != "abwesend"
+        kachel.verlegung = k.verlegung
+        // Zusatzstunde: kein Vertretungstext – das Info-Zeichen nur für Notizen
+        if k.istZusatzstunde { kachel.info = !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty }
 
         // Veranstaltung: Feld über den ganzen Zeitraum
         if k.status == "veranstaltung" || (k.status == "geaendert" && k.unterricht == nil && k.fach.isEmpty && !k.anzeigeText.isEmpty) {
             kachel.art = .veranstaltung
             kachel.feld = true
             kachel.online = false
+            kachel.verlegung = nil
             kachel.titel = k.anzeigeText.isEmpty ? k.anzeigeArt : k.anzeigeText
             kachel.zeilen = veranstaltungsZeilen(k, typ: typ, ich: ich, anlass: kachel.titel)
             // Infotext der Veranstaltung (in den Details als Zeile „Information“): Info-Zeichen unten rechts
@@ -392,6 +398,7 @@ enum Kachelbau {
             kachel.info = !k.anzeigeText.isEmpty && !istEntfaelltText(k.anzeigeText)
             kachel.hausaufgabe = false
             kachel.online = false
+            kachel.verlegung = nil
             if istBereitschaftAbwesend(k) {
                 kachel.art = .bereitschaftAbwesend
                 var zeilen = [Kachelzeile(schluessel: "fach", teile: [Kachelteil(text: titel)], fett: true)]
@@ -458,10 +465,9 @@ enum Kachelbau {
             kachel.art = .normal
             kachel.zusatz = false
         }
-        // Online-Unterricht: grün wie eine Änderung, Plakette „Online“
-        if k.online && kachel.art == .normal { kachel.art = .aenderung }
+        // Online-Unterricht: keine eigene Kartenfarbe und kein Raum-Label – nur das Online-Zeichen unten rechts
         // Reine Raumänderung (keine Raumbuchung, nicht online, keine offene Vertretung): grüne Karte wie eine Änderung
-        kachel.raumAenderung = geaendert == ["raum"] && !offen && !k.online && !k.istRaumbuchung && !kachel.zusatz
+        kachel.raumAenderung = geaendert == ["raum"] && !offen && !k.istRaumbuchung && !kachel.zusatz
             && (kachel.art == .aenderung || kachel.art == .normal)
         // Bloße Art-Bezeichnungen (Sondereinsatz, zusätzlicher Unterricht) erscheinen nie als Titel
         if titel.isEmpty { titel = k.anzeigeArt }
@@ -702,14 +708,10 @@ enum Kachelbau {
                     zeile.teile = wertTeile(jetzt: jetzt.joined(separator: ", "), vorher: vorher.joined(separator: ", "),
                                             geaendert: geaendertWert)
                 }
-                // Online-Stunde: Plakette „Online“ in der Raumzeile
-                if k.online && art != .entfall && !jetzt.contains(where: { gleich($0, "Online") }) {
-                    if let letzter = zeile.teile.indices.last { zeile.teile[letzter].trenner = " " }
-                    zeile.teile.append(Kachelteil(text: "Online", stil: .plakette))
-                    hatListe = true
-                }
             }
             if zeile.teile.isEmpty || zeile.text.trimmingCharacters(in: .whitespaces).isEmpty { continue }
+            // Online-Stunde: keine Raumzeile (kein Raum-Label) – nur das Online-Zeichen unten auf der Karte
+            if schluessel == "raum" && k.online && art != .entfall && k.status != "abwesend" { continue }
 
             // Vertretungskachel im Lehrerplan: das eigene Kürzel steht als Plakette (ich halte diese Stunde)
             if schluessel == letzte && !hatListe && art == .aenderung && typ == "lehrer" && !klassenAbwesend
@@ -740,7 +742,7 @@ enum Kachelbau {
     // MARK: Aufsichten
 
     /// Pausenaufsicht als Pille in der Pause nach der Stunde (vor der ersten Stunde: über dem Raster).
-    static func aufsichtKachel(_ a: Aufsicht, raster: [Rasterzeit]) -> Kachel {
+    static func aufsichtKachel(_ a: Aufsicht, raster: [Rasterzeit], ich: String = "") -> Kachel {
         let erste = raster.first
         var beginn = Rasterzeit.minuten(a.beginn)
         var ende = Rasterzeit.minuten(a.ende)
@@ -768,8 +770,42 @@ enum Kachelbau {
         case "vertretung": k.aufsichtsstand = .vertretung
         default: k.aufsichtsstand = .regulaer
         }
+        if let lehrer = aufsichtLehrerZeile(a, stand: k.aufsichtsstand, ich: ich) { k.zeilen.append(lehrer) }
         k.balkenHex = ""
         return k
+    }
+
+    /// Kürzelzeile einer vertretenen Aufsicht – wie bei einer Stundenkarte mit abwesender Lehrkraft: abwesendes Kürzel
+    /// durchgestrichen, daneben (durch „|“ getrennt) die Vertretung als grüne Plakette; ohne Vertretung das abwesende
+    /// Kürzel durchgestrichen in der grünen Plakette (offen). Reguläre Aufsicht: keine Zeile.
+    static func aufsichtLehrerZeile(_ a: Aufsicht, stand: Aufsichtsstand, ich: String) -> Kachelzeile? {
+        let lehrer = a.lehrer.trimmingCharacters(in: .whitespaces)
+        let alt = (a.alt ?? "").trimmingCharacters(in: .whitespaces)
+        let offen = lehrer.isEmpty || lehrer == "???"
+        let abwesend: String
+        let vertretung: String
+        switch stand {
+        case .regulaer:
+            return nil
+        case .abgegeben:
+            // Eigene Aufsicht: abwesend bin ich (bzw. der gemeldete alte Wert), `lehrer` übernimmt
+            abwesend = !alt.isEmpty ? alt : ich
+            vertretung = offen ? "" : lehrer
+        case .vertretung:
+            // Eingesprungen: `alt` ist abwesend, ich (bzw. `lehrer`) übernehme
+            abwesend = alt
+            vertretung = offen ? ich : lehrer
+        }
+        var teile: [Kachelteil] = []
+        if vertretung.isEmpty {
+            if !abwesend.isEmpty { teile.append(Kachelteil(text: abwesend, stil: .offen)) }
+        } else {
+            if !abwesend.isEmpty && !gleich(abwesend, vertretung) {
+                teile.append(Kachelteil(text: abwesend, stil: .weg, trenner: "\u{2009}|\u{2009}"))
+            }
+            teile.append(Kachelteil(text: vertretung, stil: .plakette))
+        }
+        return teile.isEmpty ? nil : Kachelzeile(schluessel: "lehrer", teile: teile)
     }
 
     /// Bereitschaftsblöcke um die Stunden kürzen, in denen die Lehrkraft Unterricht bzw. eine Vertretung hält.

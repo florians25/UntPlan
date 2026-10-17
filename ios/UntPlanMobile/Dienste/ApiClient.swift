@@ -301,6 +301,55 @@ final class ApiClient: @unchecked Sendable {
         return liste.compactMap(\.wert)
     }
 
+    // MARK: Entschuldigungen (Fachlehrkraft und Klassenleitung)
+
+    /// GET /entschuldigungen/einstellungen – Rechte des Kontos (ältere Server ohne Endpunkt: nichts erlaubt).
+    func entschuldigungsrechte() async throws -> Entschuldigungsrechte {
+        try await anfrage("GET", "/entschuldigungen/einstellungen")
+    }
+
+    /// GET /entschuldigungen/fehlzeiten – Fehlstunden aus dem eigenen Unterricht (Fachlehrer-Sicht).
+    func fehlstunden(von: String?, bis: String?, klasse: String?, status: String? = nil, nurOffene: Bool = false) async throws -> Fehlstundenliste {
+        var p: [String: String] = [:]
+        if let von, !von.isEmpty { p["von"] = von }
+        if let bis, !bis.isEmpty { p["bis"] = bis }
+        if let klasse, !klasse.isEmpty { p["klasse"] = klasse }
+        if let status, !status.isEmpty { p["status"] = status }
+        if nurOffene { p["nurOffene"] = "true" }
+        return try await anfrage("GET", "/entschuldigungen/fehlzeiten", parameter: p)
+    }
+
+    /// POST /entschuldigungen/fehlzeiten – Fachlehrkraft entschuldigt eine oder mehrere Stunden.
+    func fehlstundenEntschuldigen(_ daten: FehlstundenEntschuldigenDaten) async throws -> EntschuldigungsAntwort {
+        try await anfrage("POST", "/entschuldigungen/fehlzeiten", koerper: try encoder.encode(daten))
+    }
+
+    /// GET /entschuldigungen/abwesenheiten – Abwesenheiten der eigenen Klassen (Klassenleitungs-Sicht).
+    func entschuldigungsAbwesenheiten(von: String?, bis: String?, klasse: String?, status: String? = nil) async throws -> [EntschuldigungsAbwesenheit] {
+        var p: [String: String] = [:]
+        if let von, !von.isEmpty { p["von"] = von }
+        if let bis, !bis.isEmpty { p["bis"] = bis }
+        if let klasse, !klasse.isEmpty { p["klasse"] = klasse }
+        if let status, !status.isEmpty { p["status"] = status }
+        let liste: [Vielleicht<EntschuldigungsAbwesenheit>] = try await anfrage("GET", "/entschuldigungen/abwesenheiten", parameter: p)
+        return liste.compactMap(\.wert)
+    }
+
+    /// GET /entschuldigungen/abwesenheit?ids=… – eine Abwesenheit mit ihren Stunden (Detail).
+    func entschuldigungsAbwesenheit(ids: [Int]) async throws -> EntschuldigungsAbwesenheit {
+        try await anfrage("GET", "/entschuldigungen/abwesenheit", parameter: ["ids": ids.map(String.init).joined(separator: ",")])
+    }
+
+    /// POST /entschuldigungen/abwesenheit – Klassenleitung entschuldigt bzw. ändert ganze Abwesenheiten.
+    func abwesenheitEntschuldigen(_ daten: AbwesenheitEntschuldigenDaten) async throws -> EntschuldigungsAntwort {
+        try await anfrage("POST", "/entschuldigungen/abwesenheit", koerper: try encoder.encode(daten))
+    }
+
+    /// POST /entschuldigungen/zuruecknehmen – Klassenleitung nimmt Entschuldigungen zurück (alle Stunden wieder offen).
+    func entschuldigungZuruecknehmen(ids: [Int]) async throws -> EntschuldigungsAntwort {
+        try await anfrage("POST", "/entschuldigungen/zuruecknehmen", koerper: try encoder.encode(IdsDaten(ids: ids)))
+    }
+
     // MARK: Meine Abwesenheiten (Schüler*innen und Eltern)
 
     func familieKinder() async throws -> [Kind] {

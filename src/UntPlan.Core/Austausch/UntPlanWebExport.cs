@@ -467,11 +467,19 @@ public static class UntPlanWebExport
         var alle = liste.GroupBy(m => m.Id).Select(g => g.First()).ToList();
         // Löschungen zuerst; im selben Import neu angelegte Prüfungen (neuer Termin einer verlegten Prüfung) sind vor ihnen geschützt
         var neueIds = alle.Where(m => m.Typ == WebRueckmeldungsTypen.Klausur).Select(m => m.Id).ToHashSet();
-        foreach (var m in alle.OrderBy(m => m.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? 0 : 1))
+        foreach (var m in alle.OrderBy(m => StundenplanAenderungen.IstLoeschung(m) ? 0 : 1))
         {
-            if (m.Typ is not (WebRueckmeldungsTypen.Raumbuchung or WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen)) { rest.Add(m); continue; }
+            if (!StundenplanAenderungen.Typen.Contains(m.Typ)) { rest.Add(m); continue; }
             // schon über den Dialog „Stundenplanänderungen“ übernommen bzw. ignoriert: nicht noch einmal anwenden
             if (StundenplanAenderungen.Erledigt(protokoll, m) is { } erledigt) { if (erledigt.Uebernommen) ok.Add(m.Id); else nein.Add(m.Id); continue; }
+            if (m.Typ == WebRueckmeldungsTypen.BuchungStorno)
+            {
+                // stornierte Buchung (per Web-Kennung) entfernen; nicht (mehr) vorhanden: trotzdem erledigt und quittiert
+                StundenplanAenderungen.BuchungStornieren(d, m, tage);
+                ok.Add(m.Id);
+                protokoll.Add(new StplAenderungsEintrag { Id = m.Id, Uebernommen = true, Benutzer = "UntPlanWeb", Meldung = m });
+                continue;
+            }
             if (!DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var datum) || !Kalender.IstUnterrichtstag(d, datum)) { nein.Add(m.Id); continue; }
             var von = Math.Clamp(m.StundeVon ?? 1, 1, d.Zeitraster.StundenProTag);
             var bis = Math.Clamp(m.StundeBis ?? von, von, d.Zeitraster.StundenProTag);
