@@ -418,11 +418,6 @@ enum Kachelbau {
         }
         if typ == "raum" { k = raumplanNormalisiert(k) }
         k = raumaenderungNormalisiert(k)
-        // Eigener Plan einer Lehrkraft (Vertrag Karten 27, Abschnitt 9): die eigene Lehrkraft nie als Label – auch nicht als
-        // Vertretung {k: ich, alt: andere, neu} (grüne Karte und Änderungs-Quadrat zeigen die Vertretung)
-        if typ == "lehrer" && !ich.isEmpty {
-            k.lehrer = k.lehrer.map { w in gleich(w.k, ich) ? Wert(k: w.k) : w }
-        }
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
                             beginn: lage.beginn, ende: lage.ende)
@@ -792,8 +787,14 @@ enum Kachelbau {
             // Online-Stunde: keine Raumzeile (kein Raum-Label) – nur das Online-Zeichen unten auf der Karte
             if schluessel == "raum" && k.online && art != .entfall && k.status != "abwesend" { continue }
 
-            // Eigener Plan (Lehrkraft): das eigene Kürzel bekommt nur dann ein Label, wenn es selbst geändert ist (z. B. ich
-            // vertrete: alter Wert einer anderen Lehrkraft) – nie nur, weil sich an der Stunde etwas anderes geändert hat
+            // Vertretungskachel im eigenen Lehrerplan: das eigene Kürzel steht als grünes Label (ich halte diese Stunde) –
+            // ausdrücklicher Wunsch, wie vor Sprint 27; nicht bei einer reinen Raumänderung
+            if schluessel == letzte && !hatListe && art == .aenderung && typ == "lehrer" && !klassenAbwesend
+                && !(!geaendert.isEmpty && geaendert.allSatisfy { $0 == "raum" })
+                && zeile.text.uppercased() == ich && !ich.isEmpty {
+                if zeile.teile.count == 1 && zeile.teile[0].stil == .text { zeile.teile[0].stil = .plakette }
+                geaendertWert = true
+            }
             // Die letzte Zeile entfällt, wenn sie nur das betrachtete Element wiederholt
             let wiederholt = !ich.isEmpty && zeile.text.uppercased() == ich && zeile.nurText && !hatListe
             if schluessel == letzte && wiederholt && !geaendertWert { continue }
