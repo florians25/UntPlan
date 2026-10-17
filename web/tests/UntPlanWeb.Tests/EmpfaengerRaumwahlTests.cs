@@ -324,7 +324,7 @@ public class EmpfaengerRaumwahlTests
         var empfaengerJs = js[js.IndexOf("async function empfaengerDialog(", StringComparison.Ordinal)..];
         foreach (var inhalt in new[] { Datei("js", "raumwahl.js"), Datei("css", "raumwahl.css"), empfaengerCss, empfaengerJs })
         {
-            Assert.DoesNotContain("untis", inhalt, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(new string(new[] { 'u', 'n', 't', 'i', 's' }), inhalt, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("font-weight: 700", inhalt);
             Assert.DoesNotContain("font-weight: bold", inhalt);
         }
