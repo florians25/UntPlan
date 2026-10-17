@@ -6,6 +6,25 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Weißer Streifen über der Titelleiste und Hochrutschen beim Maximieren behoben (auch bei unterschiedlicher Monitorskalierung).
+- Gelöschte Klausuren verschwinden im Dialog „Klausuren“ sofort.
+- In UntPlanWeb stornierte Buchungen werden beim Abgleich im Desktop gelöscht; Löschmeldungen für Prüfungen werden sicherer verarbeitet.
+
+### UntPlanWeb
+- Modul Fachlehrer-Entschuldigungen: Fachlehrkräfte entschuldigen Fehlstunden im eigenen Unterricht, die Klassenleitung entschuldigt ganze Abwesenheiten oder nimmt zurück.
+- Prüfungen lassen sich überall löschen; nach der Übernahme geht eine Löschmeldung an den Desktop.
+- Einheitliche Dialoge im Klassenbuch.
+- Eigener Kalender für alle Datumsfelder (Woche, Zeitraum, Datum mit Uhrzeit), Ferien und Feiertage sichtbar.
+- Neue Anmeldeseite, bessere Darstellung auf kleineren Notebook-Bildschirmen.
+- Stundenkarten: Online-Stunden mit Symbol statt Raum, Zusatzstunden mit Badge, Verlegungspfeile, Aufsichten mit Label hinter dem Ort, neuer Schalter „Findet online statt“.
+
+### Apps (iOS und Web-App)
+- Klassenleitungen erfassen Entschuldigungen direkt in der App, auch per Wischgeste.
+- Ferien im Start-Widget, Einzelstunden über das Titelmenü der Stundendetails, Info-Symbol nach Vorlage, Online-Symbol, Verlegungspfeile, Badge für Zusatzstunden.
+
+## Vorherige Version
+
+### Desktop
 - Klausurimport aus UntPlanWeb gehärtet: genau eine Zeile pro Klausurstunde, erneuter Import aktualisiert statt neu anzulegen, vorhandene Raumbuchungen werden zur Klausur, gelöschte oder verlegte Klausuren werden ohne Reste entfernt; Parallelkurse einer Klasse bleiben bestehen.
 - „Entfall rückgängig“ direkt im Stundenplan (Kontextmenü, Doppelklick, Taste „-“), auch für Blöcke und Kopplungen; manueller Entfall wird wieder zum Unterricht, bei abwesender Lehrkraft zur offenen Vertretung.
 - Rückfrage beim Entfall eines Sondereinsatzes: Sondereinsatz löschen oder als Entfall führen.
