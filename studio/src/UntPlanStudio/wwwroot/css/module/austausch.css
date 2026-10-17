@@ -1,0 +1,10 @@
+/* Modul Import/Export (Präfix ax-) */
+.ax-inhalt { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; background: var(--leiste); }
+.ax-karte { background: var(--flaeche); border: 1px solid var(--rand-leise); border-radius: var(--radius); padding: 8px 12px 10px; }
+.ax-karte h3 { margin: 0 0 6px; font-size: 13px; font-weight: var(--mittel); color: var(--akzent); }
+.ax-karte p { margin: 0 0 8px; }
+.ax-reihe { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ax-reihe + .ax-reihe { margin-top: 8px; }
+.ax-knopf { display: inline-flex; align-items: center; gap: 6px; }
+.ax-ical .eingabe { width: auto; }
+.ax-protokoll { max-height: 180px; overflow: auto; font-size: 12px; white-space: pre-wrap; }

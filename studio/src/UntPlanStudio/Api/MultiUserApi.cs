@@ -102,9 +102,11 @@ public sealed class MultiUserApi : IStudioModul
                 var pfad = http.Request.Path.Value ?? "";
                 var basis = $"/api/dokumente/{dok}";
                 var rest = pfad.Length > basis.Length ? pfad[basis.Length..].Trim('/') : "";
-                var segment = rest.Split('/')[0].ToLowerInvariant();
+                var teile = rest.Split('/');
+                var segment = teile[0].ToLowerInvariant();
+                var unter = teile.Length > 1 ? teile[1].ToLowerInvariant() : "";
                 if (segment != "ereignisse") mu.Lebenszeichen(dok!, benutzer);
-                if (!HttpMethods.IsGet(http.Request.Method) && !HttpMethods.IsHead(http.Request.Method) && mu.Pruefen(dok!, benutzer, segment) is { } fehler)
+                if (!HttpMethods.IsGet(http.Request.Method) && !HttpMethods.IsHead(http.Request.Method) && mu.Pruefen(dok!, benutzer, segment, unter) is { } fehler)
                     throw new StudioFehler(fehler.Status, fehler.Meldung);
                 if (segment == "schliessen") mu.Abmelden(dok!, benutzer);
             }

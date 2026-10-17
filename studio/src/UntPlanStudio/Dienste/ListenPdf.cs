@@ -24,7 +24,7 @@ public static class ListenPdf
         var y = Rand;
         s.Text(Rand, y + 10, 10.5f, d.Einstellungen.Schulname, true);
         s.TextRechts(s.Breite - Rand, y + 10, 8, $"Erstellt am {DateTime.Now:dd.MM.yyyy} um {DateTime.Now:HH:mm} Uhr");
-        s.TextRechts(s.Breite - Rand, y + 20, 8, $"Periode {d.AktivePeriode.Name}");
+        s.TextRechts(s.Breite - Rand, y + 20, 8, PeriodeText(d));
         y += 26;
         s.Linie(Rand, y, s.Breite - Rand, y, 0.8f);
         y += seite == 1 ? 20 : 14;
@@ -142,8 +142,9 @@ public static class ListenPdf
             y0 += 8;
             var nutz = s.Breite - 2 * Rand;
             var cw = (nutz - nameB) / spalten;
-            var rh = 13f;
-            var platz = (int)((s.Hoehe - Rand - 18 - y0 - kopf) / rh);
+            var verfuegbar = s.Hoehe - Rand - 18 - y0 - kopf;
+            var rh = Math.Clamp(verfuegbar / Math.Max(1, elemente.Count - i), 13f, 22f);
+            var platz = (int)(verfuegbar / rh);
             var teil = elemente.Skip(i).Take(Math.Max(1, platz)).ToList();
             var g = Math.Clamp(cw / 4.2f, 4f, 6.5f);
             s.Flaeche(Rand, y0, nutz, kopf, Farbe.Grau(0.92f));
@@ -182,6 +183,10 @@ public static class ListenPdf
         } while (i < elemente.Count);
         return pdf.Erzeugen();
     }
+
+    /// <summary>„Periode 1“ bzw. „Periode Halbjahr 2“ (ohne doppeltes „Periode“).</summary>
+    public static string PeriodeText(Schuldatei d) =>
+        d.AktivePeriode.Name.StartsWith("Periode", StringComparison.CurrentCultureIgnoreCase) ? d.AktivePeriode.Name : $"Periode {d.AktivePeriode.Name}";
 
     public static string TypText(ElementTyp t) => t switch
     {

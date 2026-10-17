@@ -279,6 +279,7 @@ function laufFenster(f) {
   function zeichnen() {
     const a = auftrag;
     const laeuft = a?.status === 'laeuft';
+    if (a?.ergebnisse?.length && (!gewaehlt || !a.ergebnisse.some((e) => e.nummer === gewaehlt))) gewaehlt = a.ergebnisse[0].nummer;
     kAbbrechen.disabled = !laeuft || !schreiben;
     kUebernehmen.disabled = !schreiben || !a?.ergebnisse?.length || !gewaehlt || laeuft;
     kVergleich.disabled = !a?.ergebnisse?.length || !gewaehlt;
@@ -303,7 +304,6 @@ function laufFenster(f) {
         a.dokumentGeaendert && a.ergebnisse && a.status === 'fertig' ? h('div', { class: 'op-hinweis' }, 'Das Dokument wurde seit dem Start geändert – beim Übernehmen gehen diese Stundenplanänderungen verloren.') : null));
     leeren(ergebnis);
     if (!a.ergebnisse?.length) return;
-    if (!gewaehlt || !a.ergebnisse.some((e) => e.nummer === gewaehlt)) gewaehlt = a.ergebnisse[0].nummer;
     const besser = (k, wert) => (a.aktuell?.[k] ?? 0) - wert;
     const tbody = h('tbody');
     const zeile = (name, k, extra, nummer) => {
@@ -344,6 +344,7 @@ function laufFenster(f) {
       const erg = await api.post(api.dok('/optimierung/auftrag/uebernehmen'), { nummer: gewaehlt, trotzAenderung: trotz });
       hinweis(`Plan ${erg.nummer} übernommen (${zahl(erg.planstunden)} Stunden) – Strg+Z macht es rückgängig.`, 'ok', 4000);
       await abfragen();
+      vergleich?.neu();
     } catch (e) {
       if (e.status === 409 && (await frage(`${e.message}\n\nTrotzdem übernehmen?`, { gefahr: true, ja: 'Übernehmen', nein: 'Abbrechen' }))) return uebernehmen(true);
       if (e.status !== 409) throw e;

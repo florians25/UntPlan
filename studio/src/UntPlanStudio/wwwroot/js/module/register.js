@@ -11,6 +11,17 @@ import stundenplan from './stundenplan.js';
 import optimierung from './optimierung.js';
 import planung from './planung.js';
 import zeitwuensche from './zeitwuensche.js';
+import abrechnung from './abrechnung.js';
+import austausch from './austausch.js';
+import kommentare from './kommentare.js';
+import kursplanung from './kursplanung.js';
+import multiuser from './multiuser.js';
+import pausenaufsicht from './pausenaufsicht.js';
+import untplanweb from './untplanweb.js';
+import druck from './druck.js';
+import einstellungen from './einstellungen.js';
+import formate from './formate.js';
+import uebersicht from './uebersicht.js';
 // ── ERWEITERUNGSSTELLE: weitere Module hier importieren (je Modul eine Zeile, alphabetisch), z. B.
 // import abrechnung from './abrechnung.js';
 // import druck from './druck.js';
@@ -26,5 +37,16 @@ export const module = [
   optimierung,
   planung,
   zeitwuensche,
+  abrechnung,
+  austausch,
+  kommentare,
+  kursplanung,
+  multiuser,
+  pausenaufsicht,
+  untplanweb,
+  druck,
+  einstellungen,
+  formate,
+  uebersicht,
   // ── ERWEITERUNGSSTELLE: und hier anfügen
 ];

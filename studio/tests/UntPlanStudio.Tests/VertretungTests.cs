@@ -78,7 +78,7 @@ public sealed class VertretungTests : IClassFixture<StudioFabrik>
         Assert.NotEmpty(kandidaten);
         Assert.Matches(@"^-?\d+\.\d{3}$", S(kandidaten[0]!["vertr"]));
         Assert.Equal(3, kandidaten[0]!["s"]!.AsArray().Count);
-        var vertreter = kandidaten.First(k => !k!["rot"]!.GetValue<bool>()) ?? kandidaten[0]!;
+        var vertreter = kandidaten.FirstOrDefault(k => !k!["rot"]!.GetValue<bool>()) ?? kandidaten[0]!;
         await c.PostJsonAsync($"{basis}/vorschlag/{vid}/uebernehmen", new { lehrer = vertreter!["lehrer"]!.GetValue<int>(), ids = new[] { vid } });
         var nachher = Zeilen(await c.GetJsonAsync($"{basis}/liste?von={datum}")).Single(z => Vid(z) == vid);
         Assert.Equal(S(vertreter["name"]), S(nachher["Vertreter"]));
@@ -172,8 +172,8 @@ public sealed class VertretungTests : IClassFixture<StudioFabrik>
         await c.PostJsonAsync($"{vbasis}/{vaId}", new { feld = "T", wert = "Pädagogischer Tag" });
         var liste = await c.GetJsonAsync($"{vbasis}?von={datum}");
         var va = liste["zeilen"]!.AsArray().Single(z => z!["id"]!.GetValue<int>() == vaId)!;
-        Assert.Equal("Alle Lehrkräfte", S(va["L"]));
-        Assert.Equal("Alle Klassen", S(va["K"]));
+        Assert.Equal("Alle Lehrkräfte", S(va["l"]));
+        Assert.Equal("Alle Klassen", S(va["k"]));
 
         // Vertretungsliste: Entfälle/Freisetzungen der Veranstaltung je Tag in Sammelzeilen
         var gesammelt = Zeilen(await c.GetJsonAsync($"{basis}/liste?von={datum}&sammeln=true"));
@@ -192,7 +192,7 @@ public sealed class VertretungTests : IClassFixture<StudioFabrik>
         var nf = abs["nachfragen"]!.AsArray().Single(x => S(x!["art"]) == "veranstaltung")!;
         await c.PostJsonAsync($"{basis}/absenzen/nachfrage", new { art = "veranstaltung", va = nf["va"]!.GetValue<int>(), lehrer = nf["lehrer"]!.GetValue<int>(), tage = nf["tage"], absenz = nf["absenz"]!.GetValue<int>() });
         va = (await c.GetJsonAsync($"{vbasis}?von={datum}"))["zeilen"]!.AsArray().Single(z => z!["id"]!.GetValue<int>() == vaId)!;
-        Assert.Contains("???", S(va["L"]));
+        Assert.Contains("???", S(va["l"]));
         Assert.NotNull(va["offen"]);
 
         // Löschen der Veranstaltung entfernt die Sammelzeilen
@@ -281,7 +281,7 @@ public sealed class VertretungTests : IClassFixture<StudioFabrik>
         await (await c.PutAsJsonAsync($"{basis}/einstellungen", new { einstellungen = e })).JsonAsync();
         Assert.Equal(42, (await c.GetJsonAsync($"{basis}/einstellungen"))["einstellungen"]!["vorschlag"]!["hatKlasse"]!.GetValue<int>());
 
-        // Leser darf nicht ändern
-        Assert.Equal(HttpStatusCode.BadRequest, (await _f.Client(false).PostAsJsonAsync($"{basis}/entfall", new { ids = new[] { 1 } })).StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized ? HttpStatusCode.BadRequest : HttpStatusCode.OK);
+        // ohne Schutzkopfzeile keine Änderung
+        Assert.Contains((await _f.Client(false).PostAsJsonAsync($"{basis}/entfall", new { ids = new[] { 1 } })).StatusCode, new[] { HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized });
     }
 }

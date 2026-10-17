@@ -305,7 +305,7 @@ public sealed class MultiUserDienst
     /// Prüft eine ändernde Anfrage gegen Exklusivbetrieb, Bereichssperren anderer Benutzer und die Rechte (Gruppe). Liefert
     /// (Status, Meldung) oder null, wenn die Anfrage erlaubt ist.
     /// </summary>
-    public (int Status, string Meldung)? Pruefen(string dok, string benutzer, string segment)
+    public (int Status, string Meldung)? Pruefen(string dok, string benutzer, string segment, string unter = "")
     {
         if (Frei(segment)) return null;
         Aufraeumen(dok);
@@ -315,6 +315,8 @@ public sealed class MultiUserDienst
         var (r, gruppe) = RechteVon(benutzer);
         if (segment == "austausch" && !r.Hat(Recht.DatenImportExport)) return (403, $"Ihrer Gruppe {gruppe} fehlt das Recht „{Rechte.Text(Recht.DatenImportExport)}“.");
         if (segment == "untplanweb" && !r.Hat(Recht.WebExport) && !r.DarfBearbeiten(Rechtebereich.Vertretungsplanung)) return (403, $"Ihrer Gruppe {gruppe} fehlt das Recht „{Rechte.Text(Recht.WebExport)}“.");
+        // Export an UntPlanWeb und Verbindungsprüfung ändern keine Plandaten (nur die Revision): keine Bereichssperre
+        if (segment == "untplanweb" && unter is "export" or "pruefen" or "einstellungen" or "anfangsdatum" or "abgleich") return null;
         if (bereich is Rechtebereich b)
         {
             if (!(segment == "untplanweb" && r.Hat(Recht.WebExport)) && !r.DarfBearbeiten(b))

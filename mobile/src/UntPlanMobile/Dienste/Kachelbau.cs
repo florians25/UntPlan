@@ -332,9 +332,23 @@ public static class Kachelbau
         return a is null || b is null ? null : $"{a} → {b}";
     }
 
+    /// <summary>
+    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal als hinzugekommener Wert („+CS“, „+GA“, „+SN“) – auch ein als ersetzt
+    /// gemeldeter alter Wert; nie durchgestrichen, nie „alt | neu“. „---“ bzw. „???“ zählen nicht (ohne Lehrkraft bleibt die Liste leer).
+    /// </summary>
+    public static List<PlanWert> ZusatzLehrer(IEnumerable<PlanWert> lehrer) =>
+        lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Select(x => x.Trim())
+            .Where(x => x.Length > 0 && x is not (KeineLehrkraft or "???" or "+" or "+++")).Distinct(Ci)
+            .Select(x => new PlanWert(x, null, true, true)).ToList();
+
     private static Kachel AusKarteKern(PlanKarte karte, string art)
     {
         var k = karte with { Text = karte.Text ?? "", Art = karte.Art ?? "", Fach = karte.Fach ?? "" };
+        // Zusatzstunde: alle beteiligten Lehrkräfte mit „+“-Label (keine Durchstreichung, kein „alt | neu“)
+        // (nicht bei einer Vertretung ohne bzw. noch ohne Lehrkraft – dort steht die bisherige Lehrkraft durchgestrichen im Label)
+        if (k.Status == "geaendert" && IstZusatzstunde(k) && !(k.Unterricht is null && k.Fach.Length == 0 && k.Text.Length > 0)
+            && !k.VertretungOffen && !k.Lehrer.Any(w => w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)))
+            k = k with { Lehrer = ZusatzLehrer(k.Lehrer) };
         // Offene Raumvertretung („???“ bzw. Raumänderung ohne neuen Raum): wie eine offene Lehrervertretung – bisheriger Raum
         // durchgestrichen in der Plakette
         var raumOffen = k.Raeume.Any(w => w.K == "???") || IstOffeneRaumvertretung(k);
@@ -393,7 +407,8 @@ public static class Kachelbau
         if (k.Lehrer.Any(Geaendert)) kachel.Geaendert.Add("teacher");
         // geänderter oder hinzugefügter Raum (neuer Wert ohne alten) steht in der grünen Plakette
         if (k.Raeume.Any(w => w.Neu || (!string.IsNullOrEmpty(w.Alt) && !Ci.Equals(w.Alt, w.K)))) kachel.Geaendert.Add("room");
-        if (!string.IsNullOrEmpty(k.FachAlt) && !Ci.Equals(k.FachAlt, k.Fach)) kachel.Geaendert.Add("subject");
+        // Fachänderung: kein grünes Label und kein durchgestrichenes Fach – eine Fachänderung steht ohnehin als eigener (neuer) Block da;
+        // das bisherige Fach (subjectOrig) nennen nur die Details
         // Raumänderung, die nur an der Art erkennbar ist (kein gekennzeichneter Wert): der Raum steht trotzdem in der grünen Plakette
         if (!kachel.Geaendert.Contains("room") && kachel.Raum.Length > 0 && IstRaumaenderungsArt(k.Art)) kachel.Geaendert.Add("room");
         var buchung = IstRaumbuchung(k);
@@ -603,7 +618,14 @@ public static class Kachelbau
             k.Bis = zeiten[0].Beginn;
         }
         else if (string.IsNullOrEmpty(a.Ende) && !string.IsNullOrEmpty(a.Beginn)) k.Bis = Minus(a.Beginn, -15);
-        if (a.Status == "vertreten")
+        if (a.Status == "entfall")
+        {
+            // Entfallene Aufsicht: Entfall-Stil (rosa, Ort durchgestrichen), keine Kürzel auf der Kachel; Anlass in den Details
+            k.AufsichtEntfall = true;
+            k.Lehrkraft = a.Lehrer is "???" or "---" ? "" : a.Lehrer;
+            k.Info = string.IsNullOrWhiteSpace(a.Grund) ? "Aufsicht entfällt" : $"Aufsicht entfällt – {a.Grund.Trim()}";
+        }
+        else if (a.Status == "vertreten")
         {
             k.AufsichtAbgegeben = true;
             k.Lehrkraft = a.Lehrer is "???" or "" ? "" : a.Lehrer;

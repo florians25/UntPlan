@@ -48,7 +48,7 @@ export class Vorschlagsliste {
     leeren(this.el);
     if (this.treffer.length === 0) this.el.append(h('div', { class: 'v-leer' }, 'Kein passender Eintrag'));
     this.treffer.forEach((e, i) => {
-      this.el.append(h('div', { class: 'v-eintrag', role: 'option', onclick: () => this.waehlen(i) }, h('span', { class: 'k' }, e.k), h('span', { class: 'l' }, e.l || '')));
+      this.el.append(h('div', { class: `v-eintrag${e.c ? ` v-${e.c}` : ''}`, role: 'option', onclick: () => this.waehlen(i) }, h('span', { class: 'k' }, e.k), h('span', { class: 'l' }, e.l || '')));
     });
     this.fokus = t && this.treffer.length ? 0 : -1;
     this.markieren();

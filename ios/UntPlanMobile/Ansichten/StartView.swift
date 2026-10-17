@@ -826,7 +826,7 @@ struct StartlisteView: View {
                     Text(a.gangName.isEmpty ? a.gang : a.gangName)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Farben.tinte)
-                        .strikethrough(a.status == "vertreten", color: Farben.entfallRand)
+                        .strikethrough(a.status == "vertreten" || a.status == "entfall", color: Farben.entfallRand)
                     Text("nach der \(a.nachStunde). Stunde · \(a.beginn) – \(a.ende)")
                         .font(.system(size: 13))
                         .foregroundStyle(Farben.tinte2)
@@ -836,6 +836,8 @@ struct StartlisteView: View {
                     Plakette(text: "Vertretung", farbe: Farben.gruen)
                 } else if a.status == "vertreten" {
                     Plakette(text: "Vertreten", farbe: Farben.entfallRand)
+                } else if a.status == "entfall" {
+                    Plakette(text: "Entfällt", farbe: Farben.entfallRand)
                 }
             }
             .padding(.vertical, 4)

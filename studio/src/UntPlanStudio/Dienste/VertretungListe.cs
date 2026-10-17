@@ -12,13 +12,13 @@ public sealed class ListeAnfrage
     public DateOnly Von { get; set; }
     public DateOnly? Bis { get; set; }
     /// <summary>0 Klasse – Standard, 1 Lehrer – Standard, 2 Druck – Klasse, 3 Druck – Lehrer, 4 Pausenaufsichten.</summary>
-    public int Ansicht { get; set; }
-    public bool Offen { get; set; }
-    public bool Kollisionen { get; set; }
+    public int? Ansicht { get; set; }
+    public bool? Offen { get; set; }
+    public bool? Kollisionen { get; set; }
     /// <summary>Element-Auswahl: Klasse (Klassenansichten) bzw. Lehrkraft (Lehreransichten).</summary>
     public int? Element { get; set; }
     /// <summary>„Veranstaltungen zusammenfassen“ (Entfälle/Freisetzungen einer Veranstaltung je Tag in einer Zeile).</summary>
-    public bool Sammeln { get; set; } = true;
+    public bool? Sammeln { get; set; }
     /// <summary>Gerade bearbeitete Zeilen (Vtr-Nr., durch Komma getrennt) bleiben sichtbar, auch wenn sie nicht mehr zum Filter passen.</summary>
     public string? Behalten { get; set; }
     /// <summary>Spalten mit Anzeige als Langname (durch Komma getrennt).</summary>
@@ -26,7 +26,7 @@ public sealed class ListeAnfrage
     /// <summary>Ausgeblendete Vertretungsarten (Enum-Namen, durch Komma getrennt).</summary>
     public string? ArtenAus { get; set; }
     /// <summary>Regulär stattfindenden Unterricht zeigen (Art „Unterricht“).</summary>
-    public bool Unterricht { get; set; }
+    public bool? Unterricht { get; set; }
 }
 
 /// <summary>Eine Spalte der Vertretungsliste („Felder der Ansicht“).</summary>
@@ -72,6 +72,8 @@ public sealed class VertretungListe
     private readonly DatenIndex _ix;
     private readonly ListeAnfrage _a;
     private readonly DateOnly _bis;
+    private readonly int _ansicht;
+    private readonly bool _offen, _kollisionen, _sammeln, _unterricht;
     private readonly HashSet<int> _behalten;
     private readonly HashSet<string> _lang;
     private readonly HashSet<string> _artenAus;
@@ -88,6 +90,11 @@ public sealed class VertretungListe
         _ix = doc.Index;
         _a = a;
         _bis = a.Bis is DateOnly b && b >= a.Von ? b : a.Von;
+        _ansicht = Math.Clamp(a.Ansicht ?? 0, 0, Ansichten.Length - 1);
+        _offen = a.Offen == true;
+        _kollisionen = a.Kollisionen == true;
+        _sammeln = a.Sammeln != false;
+        _unterricht = a.Unterricht == true;
         _behalten = Liste(a.Behalten).Select(s => int.TryParse(s, out var i) ? i : 0).Where(i => i > 0).ToHashSet();
         _lang = Liste(a.Lang).ToHashSet(StringComparer.OrdinalIgnoreCase);
         _artenAus = Liste(a.ArtenAus).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -95,7 +102,7 @@ public sealed class VertretungListe
 
     private static IEnumerable<string> Liste(string? s) => (s ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-    private bool LehrerSicht => _a.Ansicht is 1 or 3;
+    private bool LehrerSicht => _ansicht is 1 or 3;
 
     public Tagesplan Plan(DateOnly datum)
     {
@@ -135,14 +142,14 @@ public sealed class VertretungListe
     // ---------------------------------------------------------------------------------------------
     // Filter und Zeilen
 
-    private bool ArtSichtbar(VertretungsArt a) => a == VertretungsArt.Unterricht ? _a.Unterricht : !_artenAus.Contains(a.ToString());
+    private bool ArtSichtbar(VertretungsArt a) => a == VertretungsArt.Unterricht ? _unterricht : !_artenAus.Contains(a.ToString());
 
     private bool Passt(Vertretung v)
     {
-        if (_a.Ansicht == 4 && v.Art != VertretungsArt.Pausenaufsicht) return false;
+        if (_ansicht == 4 && v.Art != VertretungsArt.Pausenaufsicht) return false;
         var behalten = _behalten.Contains(v.Id);
-        if (_a.Offen && !v.OffenOderRaumOffen && !behalten) return false;
-        if (_a.Kollisionen && KollisionEinzeln(v) is null && !behalten) return false;
+        if (_offen && !v.OffenOderRaumOffen && !behalten) return false;
+        if (_kollisionen && KollisionEinzeln(v) is null && !behalten) return false;
         if (v.Art == VertretungsArt.Veranstaltung) return false;
         if (!ArtSichtbar(v.Art)) return false;
         if (Vertretungen.NichtInListe(_d, v) && !behalten) return false;
@@ -162,7 +169,7 @@ public sealed class VertretungListe
     {
         var res = new List<Vertretung>();
         foreach (var g in liste.GroupBy(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va ? $"VA{va}/{v.Datum}"
-                     : _a.Sammeln && Veranstaltungsfolge(v) ? $"VE{v.VeranstaltungId}/{v.Datum}/{v.Art}/{v.Text}" : $"#{v.Id}"))
+                     : _sammeln && Veranstaltungsfolge(v) ? $"VE{v.VeranstaltungId}/{v.Datum}/{v.Art}/{v.Text}" : $"#{v.Id}"))
         {
             var zeilen = g.OrderBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
             if (g.Key.StartsWith("VE", StringComparison.Ordinal) && zeilen.Count < VaSammelAb)
@@ -217,8 +224,8 @@ public sealed class VertretungListe
     public object Berechnen()
     {
         IEnumerable<Vertretung> liste = TauschZusammenfassen(Zusammenfassen(Vertretungen.ImZeitraum(_d, _a.Von, _bis).Where(Passt).ToList()));
-        if (_a.Ansicht is 2 or 3) liste = liste.Where(v => !v.NichtDrucken || _behalten.Contains(v.Id));
-        if (_a.Unterricht && _a.Ansicht != 4 && !_a.Offen && !_a.Kollisionen) liste = liste.Concat(Unterrichtszeilen());
+        if (_ansicht is 2 or 3) liste = liste.Where(v => !v.NichtDrucken || _behalten.Contains(v.Id));
+        if (_unterricht && _ansicht != 4 && !_offen && !_kollisionen) liste = liste.Concat(Unterrichtszeilen());
         var vergleich = StringComparer.Create(Format.De, true);
         var sortiert = (LehrerSicht
             ? liste.OrderBy(v => v.Datum).ThenBy(v => _ix.KLehrer(v.VertreterId ?? v.LehrerId), vergleich).ThenBy(v => v.Stunde)
@@ -226,7 +233,7 @@ public sealed class VertretungListe
         return new
         {
             von = _a.Von, bis = _bis,
-            ansicht = Ansichten[Math.Clamp(_a.Ansicht, 0, Ansichten.Length - 1)],
+            ansicht = Ansichten[Math.Clamp(_ansicht, 0, Ansichten.Length - 1)],
             spalten = Spalten.Select(s => new { schluessel = s.Schluessel, titel = s.Titel, feld = s.Feld, breite = s.Breite, nurLesen = s.NurLesen, standard = s.Standard, lang = s.Lang }),
             zeilen = sortiert.Select(Zeile).ToList(),
             offen = sortiert.Count(v => v.OffenOderRaumOffen && v.Id != 0),

@@ -30,7 +30,8 @@ public sealed class DruckApi : IStudioModul
     // ------------------------------------------------------------------------------------------ Antworten
 
     private static string Dateiname(string name) =>
-        string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' ? c : '_')).Trim('_') is { Length: > 0 } n ? n : "ausgabe";
+        string.Concat(name.Replace("ä", "ae").Replace("ö", "oe").Replace("ü", "ue").Replace("Ä", "Ae").Replace("Ö", "Oe").Replace("Ü", "Ue").Replace("ß", "ss")
+            .Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' ? c : '_')).Trim('_') is { Length: > 0 } n ? n : "ausgabe";
 
     /// <summary>Datei-Antwort; PDF/HTML dürfen in der Druckvorschau des Studios (gleicher Ursprung) eingebettet werden.</summary>
     private static IResult Datei(HttpContext ctx, byte[] inhalt, string typ, string name, bool herunterladen)
@@ -109,7 +110,7 @@ public sealed class DruckApi : IStudioModul
     internal static Bericht BerichtErzeugen(Schuldatei d, DatenIndex ix, string id, DateOnly von, DateOnly bis)
     {
         var zeitraum = $"{Format.Datum(von)} – {Format.Datum(bis)}";
-        var periode = $"Periode {d.AktivePeriode.Name}";
+        var periode = ListenPdf.PeriodeText(d);
         var cmp = StringComparer.Create(De, true);
         switch (id)
         {

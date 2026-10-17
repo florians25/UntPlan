@@ -71,10 +71,12 @@ enum Kachelart: Equatable {
 
 enum Aufsichtsstand {
     case regulaer
-    /// eingesprungen (grün)
+    /// eingesprungen (grün, „…“ rechts)
     case vertretung
-    /// abgegeben (durchsichtig, Eckklammern)
+    /// abgegeben (durchsichtig, Eckklammern, „…“ rechts)
     case abgegeben
+    /// entfällt (rosa, roter Rahmen, Ort durchgestrichen – wie eine entfallene Stunde)
+    case entfall
 }
 
 /// Teil einer Kartenzeile: Text, grüne Plakette oder durchgestrichener (wegfallender) Wert.
@@ -377,6 +379,31 @@ enum Kachelbau {
         return k
     }
 
+    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal als hinzugekommener Wert („+CS“, „+GA“, „+SN“) – auch ein als
+    /// ersetzt gemeldeter alter Wert; nie durchgestrichen, nie „alt | neu“. „---“ und „???“ zählen nicht.
+    static func zusatzLehrer(_ lehrer: [Wert]) -> [Wert] {
+        var namen: [String] = []
+        for w in lehrer {
+            for x in [w.k, w.alt ?? ""] {
+                let t = x.trimmingCharacters(in: .whitespaces)
+                guard !t.isEmpty, !["---", "???", "+", "+++"].contains(t), !namen.contains(where: { gleich($0, t) }) else { continue }
+                namen.append(t)
+            }
+        }
+        return namen.map { Wert(k: $0, alt: nil, neu: true, plus: true) }
+    }
+
+    /// Zusatzstunde: alle beteiligten Lehrkräfte mit „+“-Label (keine Durchstreichung, kein „alt | neu“) – nicht bei einer
+    /// Veranstaltung und nicht bei einer Vertretung ohne bzw. noch ohne Lehrkraft (dort bleibt die bisherige durchgestrichen).
+    static func zusatzNormalisiert(_ original: Karte) -> Karte {
+        var k = original
+        guard k.status == "geaendert", k.istZusatzstunde, !k.fach.isEmpty, !k.vertretungOffen,
+              !k.lehrer.contains(where: { $0.k.isEmpty && !($0.alt ?? "").isEmpty }) else { return k }
+        let neu = zusatzLehrer(k.lehrer)
+        if !neu.isEmpty { k.lehrer = neu }
+        return k
+    }
+
     /// Raumplan: Stunden mit abwesender Lehrkraft erscheinen wie im Klassenplan als Änderung (grün) – nie als Entfall
     /// oder abgegebene Stunde. Ältere Antworten melden sie noch mit Status „abwesend“ (ohne `lehrerAbwesend`): mit
     /// Vertretung wird daraus „geaendert“ (abwesende Lehrkraft durchgestrichen, Vertretung als grüne Plakette), ohne
@@ -416,6 +443,7 @@ enum Kachelbau {
         }
         if typ == "raum" { k = raumplanNormalisiert(k) }
         k = raumaenderungNormalisiert(k)
+        k = zusatzNormalisiert(k)
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
                             beginn: lage.beginn, ende: lage.ende)
@@ -735,12 +763,12 @@ enum Kachelbau {
                                             geaendert: geaendertWert)
                 }
             case "fach":
+                // Fachänderung: nie als grünes Label und nie durchgestrichen – eine Fachänderung steht ohnehin als eigener
+                // (neuer) Block da; das bisherige Fach nennen nur die Details
                 let vorher = k.fachAlt ?? ""
-                if titel.isEmpty && !vorher.isEmpty {
-                    zeile.teile = [Kachelteil(text: vorher, stil: .weg)]
-                } else if !titel.isEmpty {
-                    zeile.teile = [Kachelteil(text: titel, stil: geaendertWert && art != .klausur ? .plakette : .text)]
-                }
+                let fach = titel.isEmpty ? vorher : titel
+                if !fach.isEmpty { zeile.teile = [Kachelteil(text: fach)] }
+                geaendertWert = false
             default: // raum
                 let jetzt = werte(k.raeume)
                 let vorher = alte(k.raeume)
@@ -853,47 +881,21 @@ enum Kachelbau {
         k.vorErsterStunde = vorErster
         k.titel = !a.gangName.isEmpty ? a.gangName : (!a.gang.isEmpty ? a.gang : "Aufsicht")
         k.zeilen = [Kachelzeile(schluessel: "fach", teile: [Kachelteil(text: k.titel)], fett: true)]
-        switch a.status {
-        case "vertreten": k.aufsichtsstand = .abgegeben
-        case "vertretung": k.aufsichtsstand = .vertretung
-        default: k.aufsichtsstand = .regulaer
-        }
-        if let lehrer = aufsichtLehrerZeile(a, stand: k.aufsichtsstand, ich: ich) { k.zeilen.append(lehrer) }
+        k.aufsichtsstand = Kachelbau.aufsichtsstand(a.status)
+        // Auf der Karte steht immer nur der Ort (Vertretung: ganz rechts das grüne „…“, Entfall: Entfall-Stil) – keine Kürzel,
+        // keine Plaketten, nichts Durchgestrichenes; wer vertritt bzw. warum sie entfällt, zeigen die Details beim Antippen
         k.balkenHex = ""
         return k
     }
 
-    /// Kürzelzeile einer vertretenen Aufsicht – wie bei einer Stundenkarte mit abwesender Lehrkraft: abwesendes Kürzel
-    /// durchgestrichen, daneben (durch „|“ getrennt) die Vertretung als grüne Plakette; ohne Vertretung das abwesende
-    /// Kürzel durchgestrichen in der grünen Plakette (offen). Reguläre Aufsicht: keine Zeile.
-    static func aufsichtLehrerZeile(_ a: Aufsicht, stand: Aufsichtsstand, ich: String) -> Kachelzeile? {
-        let lehrer = a.lehrer.trimmingCharacters(in: .whitespaces)
-        let alt = (a.alt ?? "").trimmingCharacters(in: .whitespaces)
-        let offen = lehrer.isEmpty || lehrer == "???"
-        let abwesend: String
-        let vertretung: String
-        switch stand {
-        case .regulaer:
-            return nil
-        case .abgegeben:
-            // Eigene Aufsicht: abwesend bin ich (bzw. der gemeldete alte Wert), `lehrer` übernimmt
-            abwesend = !alt.isEmpty ? alt : ich
-            vertretung = offen ? "" : lehrer
-        case .vertretung:
-            // Eingesprungen: `alt` ist abwesend, ich (bzw. `lehrer`) übernehme
-            abwesend = alt
-            vertretung = offen ? ich : lehrer
+    /// Zustand einer Aufsicht laut Server-Status (regulaer, vertreten, vertretung, entfall).
+    static func aufsichtsstand(_ status: String) -> Aufsichtsstand {
+        switch status {
+        case "vertreten": return .abgegeben
+        case "vertretung": return .vertretung
+        case "entfall", "entfaellt", "entfällt": return .entfall
+        default: return .regulaer
         }
-        var teile: [Kachelteil] = []
-        if vertretung.isEmpty {
-            if !abwesend.isEmpty { teile.append(Kachelteil(text: abwesend, stil: .offen)) }
-        } else {
-            if !abwesend.isEmpty && !gleich(abwesend, vertretung) {
-                teile.append(Kachelteil(text: abwesend, stil: .weg, trenner: "\u{2009}|\u{2009}"))
-            }
-            teile.append(Kachelteil(text: vertretung, stil: .plakette))
-        }
-        return teile.isEmpty ? nil : Kachelzeile(schluessel: "lehrer", teile: teile)
     }
 
     /// Bereitschaftsblöcke um die Stunden kürzen, in denen die Lehrkraft Unterricht bzw. eine Vertretung hält.

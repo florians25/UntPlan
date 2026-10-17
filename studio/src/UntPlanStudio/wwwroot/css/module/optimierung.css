@@ -99,3 +99,4 @@
   .op-plaene { grid-template-columns: 1fr; }
   .op-lauf-kopf { flex-direction: column; align-items: stretch; }
 }
+.op-kennzahlen th:not(:first-child) { text-align: right; }

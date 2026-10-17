@@ -534,31 +534,26 @@ function lineValue(card, key){
 }
 
 /* AUFSICHT-BEGINN (wird von den Tests ausgeführt) */
-/* Kürzel auf einer vertretenen Pausenaufsicht — wie auf einer Stundenkarte
-   mit abwesender Lehrkraft: das abwesende Kürzel durchgestrichen, daneben
-   die Vertretung als grüne Plakette; ist noch niemand eingeteilt, steht das
-   abwesende Kürzel durchgestrichen in der grünen Plakette. Abgegeben: ich
-   (bzw. der gemeldete alte Wert) bin abwesend, `teacher` übernimmt.
-   Eingesprungen: `teacherOrig` fehlt, ich übernehme. */
-function aufsichtKuerzel(card, ich, schmal){
-  if (!card._supSub && !card._supAbsent) return '';
-  const lehrer = String(card.teacher || '').trim();
-  const alt = String(card.teacherOrig || '').trim();
-  const offen = !lehrer || lehrer === '???';
-  const abw  = card._supAbsent ? (alt || ich || '') : alt;
-  const vert = card._supAbsent ? (offen ? '' : lehrer) : (offen ? (ich || '') : lehrer);
-  let innen = '';
-  if (!vert && abw) innen = `<span class="badge badge--removed badge--open">${esc(abw)}</span>`;
-  else if (vert){
-    /* In der schmalen Wochenspalte nur die Vertretung — sonst bliebe vom
-       Ort nichts übrig; das abwesende Kürzel steht in den Details. */
-    innen = (abw && !schmal && abw.toUpperCase() !== vert.toUpperCase()
-      ? `<span class="sup-weg">${esc(abw)}</span><i class="tok__trenn">,</i> ` : '')
-      + `<span class="badge">${esc(vert)}</span>`;
-  }
-  return innen ? `<span class="sup-lab">${innen}</span>` : '';
+/* Inhalt einer Pausenaufsicht auf der Kachel: immer nur der Ort. Bei einer
+   Vertretung (eingesprungen oder abgegeben) steht ganz rechts das grüne
+   „…“ — wer vertritt bzw. wer fehlt, steht in den Details (Tippen). Keine
+   Kürzel, keine Labels, nichts Durchgestrichenes auf der Kachel. Eine
+   entfallene Aufsicht (`_supCancelled`) trägt kein Zeichen: Sie steht im
+   Entfall-Stil da (rosa, Ort durchgestrichen), der Anlass in den Details. */
+const AUFSICHT_DOTS = '<svg viewBox="0 0 12 12"><circle cx="2.4" cy="6" r="1.05"/><circle cx="6" cy="6" r="1.05"/><circle cx="9.6" cy="6" r="1.05"/></svg>';
+function aufsichtInhalt(card){
+  const ort = `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>`;
+  const vertreten = !card._supCancelled && (card._supSub || card._supAbsent);
+  return ort + (vertreten ? `<span class="sup-menu" aria-hidden="true">${AUFSICHT_DOTS}</span>` : '');
 }
-if (typeof window !== 'undefined') window.UntPlanAufsicht = { kuerzel: aufsichtKuerzel };
+/* CSS-Klassen der Aufsichtskachel nach ihrem Zustand. */
+function aufsichtKlassen(card){
+  if (card._supCancelled) return ['is-cancelled'];
+  if (card._supSub) return ['is-sub'];
+  if (card._supAbsent) return ['is-absent', 'is-abgegeben'];
+  return [];
+}
+if (typeof window !== 'undefined') window.UntPlanAufsicht = { inhalt: aufsichtInhalt, klassen: aufsichtKlassen };
 /* AUFSICHT-ENDE */
 
 /* Die Kürzel einer Kopplung mit ihrem Zustand.
@@ -1582,8 +1577,7 @@ function renderGrid(){
          unterwegs überschrieben worden sein, die Kachel bleibt trotzdem eine
          Aufsicht. */
       if (isSup)                             cls.push('card--supervision');
-      if (isSup && card._supSub)             cls.push('is-sub');
-      if (isSup && card._supAbsent)          cls.push('is-absent', 'is-abgegeben');
+      if (isSup)                             cls.push(...aufsichtKlassen(card));
       if (isStandby)                         cls.push('card--standby');
       if (isStandby && card.standbyAbsent)   cls.push('is-absent');
       if (card.blockType === 'absence')      cls.push('card--gs');
@@ -1723,14 +1717,11 @@ function renderGrid(){
         : (isStandby && card.standbyAbsent)
         ? `<span class="card__line card__line--primary">${esc(card.subject || 'Bereitschaft')}</span>
            ${card.teacherOrig ? `<span class="card__line card__line--badge"><span class="badge badge--removed badge--open">${esc(card.teacherOrig)}</span></span>` : ''}`
-        /* Aufsichtsvertretung (eingesprungen oder abgegeben): Wie auf jeder
-           Vertretungskarte steht die abwesende Lehrkraft durchgestrichen,
-           daneben die Vertretung im grünen Label. Ist noch niemand
-           eingeteilt, steht das alte Kürzel durchgestrichen im Label. */
+        /* Pausenaufsicht: immer nur der Ort; bei einer Vertretung
+           (eingesprungen oder abgegeben) ganz rechts das grüne „…“ – wer
+           vertritt, steht im Detail. Entfallen: Entfall-Stil, kein Zeichen. */
         : (card.blockType === 'supervision' || card._supervision)
-        /* Vertretung (eingesprungen oder abgegeben): nur der Ort und ganz
-           rechts das grüne „…“ – wer vertritt, steht im Detail. */
-        ? `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>${aufsichtKuerzel(card, myCode, colPx / Math.max(1, card._n || 1) < 120)}`
+        ? aufsichtInhalt(card)
         : isStandby
         ? `<span class="card__line">${esc(card.subject || 'Bereitschaft')}</span>`
         : (card.blockType === 'absence' || card.blockType === 'gs')
@@ -5806,7 +5797,8 @@ function renderDetail(){
     : t.state === 'sub'    ? (t.for ? `<s>${esc(t.for)}</s>${SEP}${esc(t.text)}` : esc(t.text))
     :                        esc(t.text)).join(SEP);
 
-  const banner = { cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '';
+  /* Entfallene Pausenaufsicht: dasselbe Banner wie eine entfallene Stunde. */
+  const banner = c._supCancelled ? 'ENTFÄLLT' : ({ cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '');
   /* Keine Plaketten im Detail (wie im Original). Jede Angabe steht nur
      einmal: doppelte Lehrkräfte, Klassen oder Räume fallen weg. */
   const einmal = arr => arr.filter((x, i) => arr.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i);

@@ -1,0 +1,86 @@
+/* Modul Einstellungen (Schuldaten, Zeitraster, Kalender/Ferien, Perioden, Unterrichtsgruppen). Präfix es-. Schrift nur 400/500. */
+.es-zweispaltig { display: flex; flex: 1; min-height: 0; }
+.es-baum { flex: none; width: 190px; border-right: 1px solid var(--rand-leise); background: var(--leiste); padding: 6px 0; overflow-y: auto; }
+.es-knoten { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 5px 12px; font: inherit; color: var(--text); cursor: pointer; }
+.es-knoten.kind { padding-left: 28px; }
+.es-knoten:hover { background: var(--hover); }
+.es-knoten.aktiv { background: var(--akzent-hell); font-weight: var(--mittel); }
+.es-seite { flex: 1; min-width: 0; overflow: auto; padding: 10px 14px 16px; }
+.es-seite h3 { font-size: 13px; font-weight: var(--mittel); margin: 14px 0 6px; color: var(--akzent); }
+.es-seite h3:first-child { margin-top: 2px; }
+.es-seite .formular { max-width: 640px; }
+.es-nurlesen .es-seite input, .es-nurlesen .es-seite select { pointer-events: none; }
+.es-gewichtung { display: grid; grid-template-columns: minmax(220px, max-content) 180px 24px; gap: 4px 12px; align-items: center; }
+.es-gewichtung label { font-size: 12.5px; color: #4b5563; }
+.es-wert { font-variant-numeric: tabular-nums; text-align: right; }
+.es-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.es-zeile { display: flex; gap: 6px; align-items: center; margin: 8px 0; }
+.es-wz-text { margin-left: 10px; font-size: 12px; }
+
+.es-reiter { flex: none; display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid var(--rand); background: var(--leiste); }
+.es-reiterknopf { border: 1px solid transparent; border-bottom: 0; background: none; padding: 5px 14px; font: inherit; cursor: pointer; border-radius: var(--radius) var(--radius) 0 0; color: var(--text); }
+.es-reiterknopf:hover { background: var(--hover); }
+.es-reiterknopf.aktiv { background: var(--flaeche); border-color: var(--rand); margin-bottom: -1px; font-weight: var(--mittel); }
+
+/* Zeitraster */
+.es-zr-kopf { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 10px; }
+.es-zr-kopf .formular { min-width: 0; }
+.es-eintragung { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rand); border-radius: var(--radius); padding: 4px 8px 8px; }
+.es-eintragung legend { font-size: 12px; color: var(--text-leise); }
+.es-zr-rahmen { overflow-x: auto; }
+.es-zr { border-collapse: collapse; user-select: none; }
+.es-zr th, .es-zr td { border: 1px solid var(--rasterlinie); padding: 0; text-align: center; font-size: 12px; min-width: 56px; height: 24px; }
+.es-zr th { background: var(--kopf); font-weight: var(--mittel); padding: 0 6px; }
+.es-zr th.links { text-align: left; min-width: 96px; }
+.es-zeit { width: 54px; border: 0; background: transparent; text-align: center; font: inherit; font-size: 12px; }
+.es-zeit:focus { outline: 2px solid var(--akzent-leuchtend); background: #fff; }
+.es-zr-zelle { cursor: cell; }
+.es-zr-V { background: var(--vormittag); }
+.es-zr-N { background: var(--nachmittag); }
+.es-zr-L { background: #fff; }
+.es-zr-zelle.gewaehlt { box-shadow: inset 0 0 0 2px var(--akzent); filter: brightness(.92); }
+button.es-zr-V, button.es-zr-N { color: var(--text); }
+
+/* Tabellen */
+.es-liste { border-collapse: collapse; font-size: 12.5px; }
+.es-liste th { background: var(--kopf); font-weight: var(--mittel); text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--rand); white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+.es-liste td { padding: 2px 4px; border-bottom: 1px solid var(--rand-leise); }
+.es-liste td.mitte, .es-liste th.mitte { text-align: center; }
+.es-liste td.zahl { text-align: right; font-variant-numeric: tabular-nums; padding-right: 8px; }
+.es-liste tr.gewaehlt td { background: var(--auswahl); }
+.es-liste tr.neu td { background: #fcfcec; }
+.es-liste .eingabe { height: 24px; padding: 1px 4px; }
+.es-liste tr { cursor: default; }
+
+/* Kalender / Ferien */
+.es-ferien { display: flex; flex: 1; min-height: 0; }
+.es-ferien-links { flex: 0 0 520px; display: flex; flex-direction: column; border-right: 1px solid var(--rand-leise); min-height: 0; }
+.es-ferienliste { flex: 1; overflow: auto; }
+.es-ferienliste .es-liste { width: 100%; }
+.es-jahresdaten { flex: none; display: flex; gap: 10px; padding: 8px; background: var(--leiste); border-top: 1px solid var(--rand-leise); font-size: 12px; }
+.es-jahresdaten fieldset { border: 1px solid var(--rand); border-radius: var(--radius); padding: 2px 10px 6px; flex: 1; }
+.es-jahresdaten legend { color: var(--akzent); font-weight: var(--mittel); }
+.es-ferien-rechts { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.es-tag { flex: none; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--rand-leise); background: var(--leiste); min-height: 36px; }
+.es-tag label { display: inline-flex; gap: 4px; align-items: center; }
+.es-kalender { flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 10px 14px; padding: 10px; align-content: start; user-select: none; }
+.es-monat { border-collapse: collapse; font-size: 11.5px; width: 100%; }
+.es-monat caption { font-weight: var(--mittel); color: var(--akzent); text-align: left; padding-bottom: 2px; }
+.es-monat th { font-weight: var(--normal); color: var(--text-leise); padding: 1px; }
+.es-monat td { text-align: center; padding: 2px 0; border: 1px solid #fff; cursor: pointer; }
+.es-monat .kw { color: #9aa3ad; font-size: 10px; cursor: default; }
+.es-monat td.we { font-weight: var(--mittel); color: #6b7280; }
+.es-monat td.schultag { background: #e5f4e7; }
+.es-monat td.ferien { background: #ffd8a8; }
+.es-monat td.feiertag { background: #f7a5a5; }
+.es-monat td.auswahl { box-shadow: inset 0 0 0 2px var(--akzent-leuchtend); }
+.es-monat td.aktiv { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.es-legende { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }
+.es-legende i { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--rand); margin-left: 8px; }
+.es-legende i.ferien { background: #ffd8a8; } .es-legende i.feiertag { background: #f7a5a5; } .es-legende i.schultag { background: #e5f4e7; }
+.es-legende i.auswahl { box-shadow: inset 0 0 0 2px var(--akzent-leuchtend); }
+
+/* Perioden */
+.es-zweispaltig.breit .es-perioden-liste { flex: 0 0 560px; overflow: auto; padding: 8px; border-right: 1px solid var(--rand-leise); }
+.es-perioden-liste .es-liste { width: 100%; }
+.es-perioden-liste tr { cursor: pointer; }

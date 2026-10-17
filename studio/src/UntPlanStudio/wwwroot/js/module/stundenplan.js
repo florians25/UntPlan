@@ -48,7 +48,7 @@ function stundenplanFenster(f, p) {
   let fussBasis = [];
   function fussZeigen() {
     const n = raster.markiert.size ? raster.markierte().length : 0;
-    f.fuss.replaceChildren(...fussBasis, n ? h('span', { class: 'pl-markiert' }, `${n} Stunden markiert`) : null);
+    f.fuss.replaceChildren(...fussBasis, ...(n ? [h('span', { class: 'pl-markiert' }, `${n} Stunden markiert`)] : []));
   }
 
   async function laden_() {

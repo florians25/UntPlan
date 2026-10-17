@@ -302,6 +302,8 @@ export class Tabelle {
       else if (s.ausrichtung === 'rechts' || s.art === 'Ganzzahl' || s.art === 'Dezimal') kl.push('rechts');
       if (!neu && (s.art === 'NurLesen' || s.editierbar === false)) kl.push('nurlesen');
       if (r === this.akt.r && c === this.akt.c) kl.push('aktiv');
+      const zk = !neu && s.klasse?.(z); // zusätzliche CSS-Klasse je Zelle (z. B. offene Vertretung rot)
+      if (zk) kl.push(zk);
       const zelle = h('div', { class: kl.join(' '), style: { width: `${s.breite}px` } });
       if (!neu && s.art === 'Bool') zelle.append(h('span', { class: `t-haken${text === 'X' || text === 'true' ? ' an' : ''}` }));
       else if (!neu && s.art === 'Farbe' && text) zelle.append(h('span', { class: 'farbpunkt', style: { background: text } }), h('span', null, text));

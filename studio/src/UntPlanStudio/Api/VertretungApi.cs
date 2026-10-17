@@ -1123,7 +1123,7 @@ public sealed class VertretungApi : IStudioModul
         g.MapPut("/einstellungen", (Arbeitsdokument a, JsonElement body, ClaimsPrincipal p) =>
             a.AendernAsync(B(p), "Einstellungen Vertretungsplanung", AenderungsArt.Einstellungen, d =>
             {
-                var opt = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+                var opt = new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
                 if (body.TryGetProperty("einstellungen", out var ein))
                 {
                     var neu = ein.Deserialize<VertretungsEinstellungen>(opt) ?? throw StudioFehler.Ungueltig("Ungültige Einstellungen.");

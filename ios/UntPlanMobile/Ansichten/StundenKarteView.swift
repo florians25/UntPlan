@@ -7,8 +7,9 @@ import SwiftUI
 /// - Abgegebene Stunde und Bereitschaft der abwesenden Lehrkraft: durchsichtig mit feinen Eckklammern, Kürzel durchgestrichen,
 ///   neue Lehrkraft als grüne Plakette.
 /// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
-/// - Aufsicht: schmale Pille in der Pause mit lila Balken; Vertretung (übernommen oder abgegeben) grün wie eine
-///   Vertretungskarte, abwesendes Kürzel durchgestrichen, Vertretung als grüne Plakette.
+/// - Aufsicht: schmale Pille in der Pause mit lila Balken, darauf immer nur der Ort; Vertretung (übernommen: grün,
+///   abgegeben: durchsichtig mit Eckklammern) mit dem grünen „…“ ganz rechts – keine Kürzel, keine Plaketten (wer vertritt,
+///   zeigen die Details); entfallene Aufsicht wie eine entfallene Stunde (rosa, roter Rahmen, Ort durchgestrichen).
 /// - Erste Zeile Semibold (auch in Plaketten), weitere Zeilen Regular; Info-Zeichen (info.svg), 4 pt vom Rand unten rechts.
 /// Maße wie im Original (nachgemessen an den Vorlagen, Woche und Tag gleich): Balken 4 pt breit, oben, links und unten je
 /// 4 pt vom Kartenrand; Text 4 pt rechts vom Balken (Glyphe ≈ 12,8 pt von der Kante) und 4 pt unter der Oberkante; Schrift
@@ -291,21 +292,13 @@ struct KachelView: View {
                 .fill(a.balken ?? Farben.aufsichtBalken)
                 .frame(width: 4)
                 .padding(.vertical, 3)
-            // Ortsname; bei abwesender Lehrkraft daneben die Kürzel wie auf einer Stundenkarte (abwesend durchgestrichen,
-            // Vertretung als grüne Plakette bzw. offen: durchgestrichen in der grünen Plakette)
+            // Immer nur der Ortsname (keine Kürzel, keine Plaketten); entfallene Aufsicht durchgestrichen
             Text(kachel.titel)
                 .font(.system(size: gross ? 13.5 : 12.4, weight: .medium))
+                .strikethrough(a.durchgestrichen, color: a.text)
                 .foregroundStyle(a.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if kachel.art == .aufsicht, kachel.zeilen.count > 1 {
-                KachelzeileView(zeile: kachel.zeilen[1], aussehen: a, schrift: gross ? 13.5 : 12.4,
-                                zeilenHoehe: gross ? 15.5 : 14)
-                    .fixedSize(horizontal: false, vertical: true)
-                    // direkt hinter dem Ort, Abstand etwa ein Leerzeichen (nicht rechtsbündig)
-                    .padding(.leading, -2.5)
-                    .layoutPriority(1)
-            }
             // Tagesansicht: keine Uhrzeiten auf der Aufsichtskarte (die Pause zeigt das Raster selbst)
             if gross && kachel.art != .aufsicht {
                 Text("\(Rasterzeit.uhrzeit(kachel.beginn))–\(Rasterzeit.uhrzeit(kachel.ende))")
@@ -314,6 +307,11 @@ struct KachelView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
+            // Vertretung (übernommen oder abgegeben): ganz rechts das grüne „…“ – Details beim Antippen
+            if kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben) {
+                Kuerzungszeichen(gruen: true, waagrecht: true)
+                    .layoutPriority(1)
+            }
         }
         .padding(.leading, 4)
         .padding(.trailing, 3)
@@ -330,6 +328,7 @@ struct KachelView: View {
         switch kachel.aufsichtsstand {
         case .abgegeben: return a.lehrer.isEmpty || a.lehrer == "???" ? "Vertretung offen" : "Vertretung: \(a.lehrer)"
         case .vertretung: return (a.alt ?? "").isEmpty ? "Vertretung" : "Vertretung für \(a.alt ?? "")"
+        case .entfall: return (a.grund ?? "").isEmpty ? "Aufsicht entfällt" : "Aufsicht entfällt, \(a.grund ?? "")"
         case .regulaer: return nil
         }
     }
@@ -537,12 +536,18 @@ struct Kachelaussehen {
                 randBreite = 1.5
                 text = Farben.aenderungText
             case .abgegeben:
-                // Eigene Aufsicht übernimmt jemand anderes: wie die abgegebene Stunde durchsichtig mit Eckklammern,
-                // eigenes Kürzel durchgestrichen, Vertretung als grüne Plakette
+                // Eigene Aufsicht übernimmt jemand anderes: wie die abgegebene Stunde durchsichtig mit Eckklammern
                 hintergrund = .clear
                 schatten = .keiner
                 ecken = true
                 radius = 0
+            case .entfall:
+                // Entfallene Aufsicht: wie eine entfallene Stunde (rosa, roter Rahmen, Ort durchgestrichen); Balken bleibt lila
+                farbigeKarte(flaeche: Farben.entfallHintergrund, vergangeneFlaeche: Farben.entfallVergangen,
+                             rand: Farben.entfallRand, vergangen: v, dunkel: dunkel, schatten: false)
+                randBreite = 1.5
+                text = v ? Farben.karteTextVergangen : Farben.entfallText
+                durchgestrichen = true
             }
         }
         // Reine Raumänderung: wie eine Änderung/Vertretung (grüne Fläche mit grünem Rahmen), der neue Raum als grüne

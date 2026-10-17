@@ -60,7 +60,8 @@ public class KachelbauTests
         Assert.Equal("R105", k.Raum);
         Assert.Equal("R101", k.RaumAlt);
         Assert.Equal("M", k.FachAlt);
-        Assert.Equal(new[] { "teacher", "room", "subject" }, k.Geaendert);
+        // Fachänderung: kein Label (eigener neuer Block) – das alte Fach bleibt nur für die Details
+        Assert.Equal(new[] { "teacher", "room" }, k.Geaendert);
         Assert.False(k.Offen);
     }
 
@@ -597,7 +598,8 @@ public class KachelbauTests
         Assert.Equal(2, kacheln.Count);
         var aenderung = kacheln.Single(x => x.Art == "change");
         Assert.Equal("M", aenderung.Fach);
-        Assert.Contains("subject", aenderung.Geaendert);
+        // das neue Fach steht nie als grünes Label (die Änderung zeigt schon der eigene Block)
+        Assert.DoesNotContain("subject", aenderung.Geaendert);
         var entfall = kacheln.Single(x => x.Art == "cancelled");
         Assert.Equal("E", entfall.Fach);
         Assert.Equal("WAG", entfall.Lehrkraft);

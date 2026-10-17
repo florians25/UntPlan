@@ -163,3 +163,11 @@ html:root.is-mac :is(.std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1,
 html:root.is-mac .std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1, .z2, .zt) { --strich: .75px; }
 html:root.is-mac .sd-alt { text-decoration-color: #b3bcc4; }
 
+
+/* ------------------------------------------------------------------ Entfallene Pausenaufsicht
+
+   Findet die Aufsicht nicht statt (z. B. Abwesenheit bzw. Veranstaltung ohne Vertretung, Vertretung „---“), sieht sie aus wie eine
+   entfallene Stunde: rosa Fläche, Ort durchgestrichen. Kein Label – Anlass im Tooltip. Auch vergangen bleibt sie erkennbar. */
+.aufsicht.entfall, .aufsicht.entfall.vergangen:not(.vertretung):not(.vertreten) { background: var(--u-rot-hell); color: var(--tt-text, #24323d); box-shadow: var(--u-schatten-karte); opacity: 1; filter: none; }
+.aufsicht.entfall .auf-text { text-decoration: line-through; text-decoration-thickness: .75px; }
+html:root.is-mac .aufsicht.entfall .auf-text { text-decoration-thickness: .75px; }

@@ -5967,3 +5967,34 @@ html.is-dark .spt__phase--angekuendigt{ background:rgba(245,107,42,.2); color:#f
 }
 .sheet--detail .dtitle.is-offen,
 .sheet--detail .dline.is-offen{ white-space:normal; overflow-x:visible; }
+
+/* =====================================================================
+   Pausenaufsicht: Vertretung nur mit „…“, Entfall im Entfall-Stil
+   ---------------------------------------------------------------------
+   Auf der Aufsichtskachel steht immer nur der Ort. Bei einer Vertretung
+   (eingesprungen oder abgegeben) ganz rechts das grüne „…“ — wer vertritt,
+   steht in den Details. Keine Kürzel, keine Labels, nichts
+   Durchgestrichenes. Eine entfallene Aufsicht (Abwesenheit, Veranstaltung
+   ohne Vertretung) sieht aus wie eine entfallene Stunde: rosa Fläche, roter
+   Rahmen, Ort durchgestrichen; der Balken bleibt magenta.
+   ===================================================================== */
+.card.card--supervision.is-sub,
+.card.card--supervision.is-absent{ padding-right:21px; }
+.card.card--supervision.is-sub .sup-menu,
+.card.card--supervision.is-absent .sup-menu{
+  display:grid !important; position:absolute; right:3px; top:50%; transform:translateY(-50%);
+  width:15px; height:13px; place-items:center; border-radius:3px;
+  background:var(--green) !important; opacity:1 !important;
+}
+.card.card--supervision .sup-menu svg{ width:11px; height:11px; display:block; }
+.card.card--supervision .sup-menu circle{ fill:var(--green-ink) !important; }
+.card.card--supervision.is-cancelled,
+.card.card--supervision.is-cancelled.is-past{
+  background:var(--cnc-bg); border:1.5px solid var(--cnc-border); --bw:1.5px; box-shadow:none;
+}
+html.is-dark .card.card--supervision.is-cancelled.is-past{ background:var(--card-bg-past); }
+.card.card--supervision.is-cancelled .card__line,
+.card.card--supervision.is-cancelled.is-past .card__line{
+  text-decoration:line-through; text-decoration-thickness:var(--strike, 1px); color:var(--c-ink); opacity:1;
+}
+html.is-dark .card.card--supervision.is-cancelled .card__line{ color:#ffffff; }
