@@ -174,7 +174,7 @@
 .u-suchfilter > .os-vorschlaege { top: calc(100% + 6px); }
 @media (max-width: 767.98px) {
   .u-sf-leiste { gap: 10px; }
-  :is(.u-sf-leiste, .nl-leiste, .u-filter) > .u-suchfilter { flex: 1 1 100%; max-width: none; }
+  .u-suchfilter.u-suchfilter { flex: 1 1 100%; max-width: none; }
   .u-sf-leiste > .u-suchfilter { flex: 1 1 100%; max-width: none; }
   .u-sf-leiste > .u-sf-rechts { margin-left: 0; flex-wrap: nowrap; }
   .u-sf-leiste > .u-sf-rechts.os-zeit { width: 100%; justify-content: space-between; }

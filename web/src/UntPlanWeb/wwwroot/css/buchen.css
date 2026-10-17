@@ -513,3 +513,14 @@ a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
 .bu-symbolwahl span small { font-size: .6rem; color: #8a96a1; line-height: 1; }
 .bu-symbolwahl input:checked + span { border-color: var(--u-akzent); background: #fff3ec; color: var(--u-akzent-dunkel); }
 .bu-symbolwahl input:focus-visible + span { box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .25); }
+.bu-res-text:has(.bu-res-symbol) { flex-direction: row; align-items: center; gap: 10px; }
+.bu-res-text > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.bu-res-symbol { display: inline-grid; place-content: center; flex: none; width: 34px; height: 34px; border-radius: 9px; font-size: 1.05rem; }
+.bu-res-symbol.ton-orange { background: #fff1e8; color: var(--u-akzent-dunkel); }
+.bu-res-symbol.ton-blau { background: #e7f0fb; color: #2a62a8; }
+.bu-res-symbol.ton-lila { background: #f0ebfc; color: #6a4bc4; }
+.bu-res-symbol.ton-gruen { background: #e5f6ec; color: #17724a; }
+.bu-res-symbol.ton-tuerkis { background: #e0f3f5; color: #1d7584; }
+.bu-res-symbol.ton-rot { background: #fdecec; color: #b42318; }
+.bu-res-symbol.ton-gelb { background: #fff5d6; color: #8a6100; }
+.bu-verwaltung td .nl-chip { white-space: nowrap; }

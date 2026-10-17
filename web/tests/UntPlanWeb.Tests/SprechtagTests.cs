@@ -87,9 +87,10 @@ public class SprechtagTests
         await Testserver.JsonAsync(await lan.PutAsJsonAsync($"/api/app/sprechtag/{id}/raum", new { raum }));
         Assert.Equal(raum, (await Testserver.HolenAsync(lan, $"/api/app/sprechtag/{id}/lehrkraft"))["lehrer"]!["raum"]!.GetValue<string>());
 
-        // Schüler*innen sehen Sprechtage nur mit Option „sichtbar für Schüler*innen“ (Standard aus)
+        // Schüler*innen sehen freigegebene Sprechtage standardmäßig (Option „sichtbar für Schüler*innen“, Standard an) – nur lesen,
+        // keine Verwaltungs- und Lehrkraftansicht
         var schueler = await s.AlsAsync("klasse-7a", "schueler", "7a");
-        Assert.Empty((await Testserver.HolenAsync(schueler, "/api/app/sprechtag"))["sprechtage"]!.AsArray());
+        Assert.Single((await Testserver.HolenAsync(schueler, "/api/app/sprechtag"))["sprechtage"]!.AsArray());
         await FehlerAsync(await schueler.GetAsync($"/api/app/sprechtag/{id}"));
         await FehlerAsync(await schueler.GetAsync($"/api/app/sprechtag/{id}/lehrkraft"), HttpStatusCode.Forbidden);
 

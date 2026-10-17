@@ -3,7 +3,7 @@
 // Rollen & Rechte: Rechte in Abschnitten je Gruppe (Überschrift mit Symbol und Anzahl), Suche und Filter, fixierte Spaltenköpfe
 // (Rollen mit Farbe und Symbol), Stufen „Kein Zugriff / Lesen / Schreiben“ als Segment-Pillen. Auf kleinen Bildschirmen (und auf Wunsch)
 // Rolle für Rolle statt der breiten Matrix. Alle Rechte kommen aus dem Katalog des Servers – neue Rechte und Gruppen erscheinen automatisch.
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, formularWerte, suchfeld, segment, segmentSetzen, infoHinweis } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, formularWerte, suchfeld, suchfeldMitFilter, suchfeldMitFilterBinden, segment, segmentSetzen, infoHinweis } from '../ui.js';
 
 const STUFE = { 0: 'Nein', 1: 'Lesen', 2: 'Ja' };
 const STUFE2 = { 0: 'Nein', 1: 'Lesen', 2: 'Schreiben' };
@@ -266,9 +266,10 @@ async function rollen(box, kontext) {
   };
 
   box.innerHTML = `<div class="rm-leiste">
-      ${suchfeld({ platzhalter: 'Recht suchen …', label: 'Recht suchen', attr: 'data-suche' })}
-      <select class="form-select rm-gruppenwahl" data-gruppenwahl aria-label="Gruppe"><option value="">Alle Gruppen</option>${['Stundenplan-Zeitraum', ...gruppen].map(g => `<option value="${e(g)}">${e(g)}</option>`).join('')}</select>
-      ${segment([['alle', 'Alle'], ['abweichend', 'Abweichend vom Standard', { titel: 'Rechte, bei denen eine Rolle vom Standard ihrer Basisrolle abweicht' }], ['ungespeichert', 'Ungespeichert']], zustand.filter, { attr: 'data-filter', label: 'Filter' })}
+      ${suchfeldMitFilter({ platzhalter: 'Recht suchen …', label: 'Recht suchen', filter: [
+        { name: 'gruppe', label: 'Gruppe', alle: 'Alle Gruppen', optionen: ['Stundenplan-Zeitraum', ...gruppen].map(g => [g, g]) },
+        { name: 'filter', label: 'Filter', alle: null, standard: 'alle', wert: zustand.filter, optionen: [['alle', 'Alle Rechte'], ['abweichend', 'Abweichend vom Standard'], ['ungespeichert', 'Ungespeichert']] },
+      ] })}
     </div>
     <div class="rm-legende"><span class="rm-l s0"><i class="bi bi-slash-circle"></i>Kein Zugriff</span><span class="rm-l s1"><i class="bi bi-eye"></i>Lesen</span><span class="rm-l s2"><i class="bi bi-pencil"></i>Schreiben bzw. Zugriff</span>
       <span class="rm-trenn"></span><span>${k.rechte.length} Rechte in ${gruppen.length} Gruppen · Administration hat immer alle Rechte</span>
@@ -328,10 +329,11 @@ async function rollen(box, kontext) {
   };
 
   // Suche und Filter zeichnen nur den Inhalt neu – das Suchfeld behält den Fokus
-  const such = box.querySelector('[data-suche]');
-  such.addEventListener('input', () => { zustand.suche = such.value; zeichnen(); });
-  box.querySelector('[data-gruppenwahl]').onchange = ev => { zustand.gruppe = ev.target.value; zeichnen(); };
-  box.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { zustand.filter = b.dataset.wert; segmentSetzen(b.parentElement, zustand.filter); zeichnen(); });
+  // gemeinsames Suchfeld mit Filter: Gruppe und „Abweichend/Ungespeichert“ als Dropdowns im Suchfeld
+  suchfeldMitFilterBinden(box.querySelector('.rm-leiste'), {
+    beiSuche: t => { zustand.suche = t; zeichnen(); },
+    beiFilter: (name, wert) => { zustand[name] = wert; zeichnen(); },
+  });
   box.querySelectorAll('[data-ansicht]').forEach(b => b.onclick = () => { zustand.ansicht = b.dataset.wert; ansichtMerken.schreiben(zustand.ansicht); segmentSetzen(b.parentElement, zustand.ansicht); zeichnen(); });
   const wechsel = () => { if (box.isConnected) zeichnen(); else schmal.removeEventListener('change', wechsel); };
   schmal.addEventListener('change', wechsel);

@@ -76,7 +76,7 @@ function listeZeichnen() {
   const l = document.querySelector('[data-ic-liste]');
   if (!l) return;
   // Zahl der ungelesenen Einträge je Art in den Optionen des Dropdowns
-  document.querySelectorAll('[data-ic-filter] select[data-filter="art"] option').forEach(o => {
+  document.querySelectorAll('[data-ic-filter] select[data-sf="art"] option').forEach(o => {
     const id = o.value || 'alle';
     const n = zustand.eintraege.filter(x => !x.gelesen && (id === 'alle' || x.art === ART[id])).length;
     const t = { alle: 'Alle', infos: 'Infos', updates: 'Updates' }[id];

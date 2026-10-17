@@ -371,7 +371,7 @@ async function assistent(seite, kontext, art, rest) {
         const status = !r.belegt.length ? `<span class="rw-status frei">${r.frei} verfügbar</span>` : aus ? '<span class="rw-status belegt">ausgebucht</span>' : `<span class="rw-status teil">${n - r.belegt.length} von ${n} Terminen</span>`;
         return `<div class="bu-res ${an ? 'gewaehlt' : ''} ${aus ? 'aus' : ''}" data-res="${r.id}">
           <label class="bu-res-wahl"><input type="checkbox" class="nl-rund" data-wahl="${r.id}" ${an ? 'checked' : ''} ${aus ? 'disabled' : ''} aria-label="${e(r.name)} wählen"></label>
-          <div class="bu-res-text"><b>${e(r.name)}</b><small>${e([r.art, r.bemerkung].filter(Boolean).join(' · '))}</small></div>
+          <div class="bu-res-text"><span class="bu-res-symbol ton-${resTon(r)}"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span><span><b>${e(r.name)}</b><small>${e([r.art, r.standort ? `Standort: ${r.standort}` : '', r.bemerkung].filter(Boolean).join(' · '))}</small></span></div>
           <label class="bu-res-menge" title="Menge">${r.anzahl > 1 ? `<input type="number" class="form-control" min="1" max="${maxMenge}" value="${zustand.ressourcen.get(r.id) ?? 1}" data-menge="${r.id}" aria-label="Menge"><span>von ${r.anzahl}</span>` : ''}</label>
           ${status}</div>`;
       }).join('')}</div>`

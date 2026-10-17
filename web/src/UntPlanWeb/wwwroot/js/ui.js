@@ -231,7 +231,7 @@ export const suchfeldMitFilter = ({ platzhalter = 'Suchen', wert = '', attr = 'd
     const w = String(f.wert ?? standard);
     const optionen = [...(f.alle === null ? [] : [[standard, f.alle ?? 'Alle']]), ...f.optionen];
     const gewaehlt = w !== standard;
-    return `<span class="u-trenn" aria-hidden="true"></span><span class="u-sf-filter ${gewaehlt ? 'gewaehlt' : ''}"><select data-filter="${e(f.name)}" ${f.attr ?? ''} data-standard="${e(standard)}" aria-label="${e(f.label ?? f.name)}">${optionen.map(([ow, ot]) =>
+    return `<span class="u-trenn" aria-hidden="true"></span><span class="u-sf-filter ${gewaehlt ? 'gewaehlt' : ''}"><select data-sf="${e(f.name)}" ${f.attr ?? ''} data-standard="${e(standard)}" aria-label="${e(f.label ?? f.name)}">${optionen.map(([ow, ot]) =>
       `<option value="${e(ow)}" ${String(ow) === w ? 'selected' : ''}>${e(ot)}</option>`).join('')}</select><button type="button" class="u-sf-weg" data-sf-weg aria-label="Filter ${e(f.label ?? f.name)} zurücksetzen" ${gewaehlt ? '' : 'hidden'}><i class="bi bi-x" aria-hidden="true"></i></button></span>`;
   }).join('')}${zusatz}</div>`;
 
@@ -244,14 +244,14 @@ export function suchfeldMitFilterBinden(wurzel, { beiSuche, beiFilter, beiChipWe
   const feld = wurzel?.matches?.('[data-suchfilter]') ? wurzel : wurzel?.querySelector('[data-suchfilter]');
   if (!feld) return null;
   const input = feld.querySelector('input[type=search]');
-  const selects = [...feld.querySelectorAll('select[data-filter]')];
+  const selects = [...feld.querySelectorAll('select[data-sf]')];
   const markieren = sel => {
     const an = sel.value !== sel.dataset.standard;
     sel.closest('.u-sf-filter')?.classList.toggle('gewaehlt', an);
     const x = sel.closest('.u-sf-filter')?.querySelector('[data-sf-weg]');
     if (x) x.hidden = !an;
   };
-  selects.forEach(sel => sel.addEventListener('change', () => { markieren(sel); beiFilter?.(sel.dataset.filter, sel.value, sel); }));
+  selects.forEach(sel => sel.addEventListener('change', () => { markieren(sel); beiFilter?.(sel.dataset.sf, sel.value, sel); }));
   feld.querySelectorAll('[data-sf-weg]').forEach(x => x.addEventListener('click', ev => {
     ev.stopPropagation();
     const sel = x.closest('.u-sf-filter').querySelector('select');
@@ -270,8 +270,8 @@ export function suchfeldMitFilterBinden(wurzel, { beiSuche, beiFilter, beiChipWe
   feld.addEventListener('click', ev => { if (ev.target === feld || ev.target.matches('.bi-search, .u-sym, .u-trenn')) input?.focus(); });
   return {
     feld, input,
-    wert: name => feld.querySelector(`select[data-filter="${name}"]`)?.value ?? '',
-    setzen: (name, w) => { const sel = feld.querySelector(`select[data-filter="${name}"]`); if (sel) { sel.value = w; markieren(sel); } },
+    wert: name => feld.querySelector(`select[data-sf="${name}"]`)?.value ?? '',
+    setzen: (name, w) => { const sel = feld.querySelector(`select[data-sf="${name}"]`); if (sel) { sel.value = w; markieren(sel); } },
   };
 }
 

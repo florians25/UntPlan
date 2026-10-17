@@ -77,7 +77,7 @@ async function hausaufgabenListe(seite, kontext, bereichParam) {
         <select data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
     <div data-ha-inhalt></div>`;
   const inhalt = seite.querySelector('[data-ha-inhalt]');
-  const klasseWahl = seite.querySelector('select[data-filter="klasse"]');
+  const klasseWahl = seite.querySelector('select[data-sf="klasse"]');
   seite.querySelector('[data-bereich]').onchange = ev => kontext.navigieren(`${basis}/${ev.target.value}`);
   let wahl = ich.element ? 'meine' : 'alle';
   let filter = '';

@@ -55,7 +55,7 @@ export async function zeigen(seite, kontext, [artParam]) {
   let text = '';
   suchfeldMitFilterBinden(seite, { beiSuche: t => { text = t.toLowerCase(); filtern(); }, beiFilter: () => filtern() });
   const filtern = () => {
-    const wahl = [...seite.querySelectorAll('select[data-filter]')].filter(x => x.value).map(x => `${x.dataset.filter}=${x.value}`);
+    const wahl = [...seite.querySelectorAll('select[data-sf]')].filter(x => x.value).map(x => `${x.dataset.sf}=${x.value}`);
     seite.querySelectorAll('[data-zeile]').forEach(z => {
       const werte = z.dataset.filter.split('|');
       z.classList.toggle('d-none', (!!text && !z.dataset.text.includes(text)) || !wahl.every(w => werte.includes(w)));
