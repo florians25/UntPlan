@@ -9,7 +9,7 @@ namespace UntPlanWeb.Api;
 /// Ressourcen, Auswahllisten, Zeitraster.</item>
 /// <item><c>POST /suche/raeume</c> { zeit, kriterien } → { termine: [{ termin, freieRaeume }], raeume: [{ kurz, …, belegt: [Terminindex], prozent }], uebersprungen }</item>
 /// <item><c>POST /suche/ressourcen</c> { zeit, kriterien } → { termine, ressourcen: [{ id, name, art, anzahl, verfuegbar: [je Termin], frei, belegt, prozent }] }</item>
-/// <item><c>GET  /raumstatus?datum&amp;von&amp;bis&amp;unterricht</c> → [{ kurz, name, raumart, kapazitaet, buchbar, eigen, frei, belegt: [{ stunde, art, text }] }]
+/// <item><c>GET  /raumstatus?datum&amp;von&amp;bis&amp;unterricht</c> → [{ kurz, name, raumart, kapazitaet, gebaeude, abteilung, buchbar, eigen, frei, belegt: [{ stunde, art, text }] }]
 /// (Raumwahl beim Eintragen einer Prüfung; eigene Stunde des Unterrichts zählt nicht).</item>
 /// <item><c>POST /hinweise</c> { termine, lehrer, klassen } → [Text] (Lehrkraft bzw. Klasse hat zur gleichen Zeit schon Unterricht/Aktivität)</item>
 /// <item><c>POST /</c> BuchungDaten → { serie, buchungen, hinweise }; belegter Raum bzw. Ressource → 400 mit allen Konflikten.</item>
@@ -58,7 +58,7 @@ public static class BuchungApi
     {
         var api = app.MapGroup("/api/app/buchen");
 
-        api.MapGet("/optionen", (HttpContext c, Paketdienst p, Buchungsdienst bu, Plandienst plan) =>
+        api.MapGet("/optionen", (HttpContext c, Paketdienst p, Buchungsdienst bu, Plandienst plan, Uhr uhr) =>
         {
             var b = Ich(c);
             var s = Paket(p);
@@ -72,6 +72,8 @@ public static class BuchungApi
                 raumarten = Werte(r => r.Raumart), gebaeude = Werte(r => r.Gebaeude), abteilungen = Werte(r => r.Abteilung), raumgruppen = Werte(r => r.Raumgruppe),
                 zeitraster = plan.Zeitraster(s), tageProWoche = Math.Max(5, s.Paket.Zeitraster.TageProWoche),
                 maxTermine = Buchungsdienst.MaxTermine,
+                // erster Unterrichtstag ab heute (Vorbelegung des Datums, damit der Assistent nicht auf Wochenende oder Ferien startet)
+                naechsterTag = Plandienst.Iso(Enumerable.Range(0, 120).Select(i => uhr.Heute.AddDays(i)).FirstOrDefault(t => !plan.Frei(s, t).Frei, uhr.Heute)),
             });
         });
 

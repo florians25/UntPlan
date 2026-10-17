@@ -3,7 +3,14 @@ using UntPlan.Web.Contracts;
 namespace UntPlanWeb.Dienste;
 
 /// <summary>Ein angezeigter Wert (Klasse, Lehrkraft, Raum); Alt = ursprünglicher Wert (durchgestrichen), Neu = geändert.</summary>
-public sealed record Wert(string K, string? Alt = null, bool Neu = false);
+public sealed record Wert(string K, string? Alt = null, bool Neu = false)
+{
+    /// <summary>Hinzugefügtes Element (z. B. zusätzlicher Raum): neu, ohne ersetzten Wert – Anzeige „+B070“.</summary>
+    public bool Plus => Neu && K.Length > 0 && string.IsNullOrEmpty(Alt);
+}
+
+/// <summary>Eine Seite einer Verlegung (Ursprung bzw. Ziel): Datum, Beginn/Ende des Blocks und dessen Stunden.</summary>
+public sealed record Verlegungszeit(string Datum, string Beginn, string Ende, int Stunde, int BisStunde);
 
 /// <summary>
 /// Stundenkarte im Plan.
@@ -42,8 +49,45 @@ public sealed record Karte(
     /// Verlegung: "von" = ursprüngliche Stunde (von hier weg verlegt; Symbol Pfeil nach rechts), "nach" = Zielstunde (hierher verlegt;
     /// Symbol Pfeil nach links), null = keine Verlegung. Aus der Vertretungsart („Verlegung“, „Statt-Vertretung“), nie bei Prüfungen.
     /// </summary>
-    public string? Verlegung => !IstVerlegungsArt(Art) || Status == "klausur" ? null
+    public string? Verlegung => !(IstVerlegungsArt(Art) || VerlegungsZeile) || Status == "klausur" ? null
         : Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend) ? "von" : "nach";
+
+    /// <summary>Die Vertretung gehört zu einer Verlegung (Desktop: „verlegt auf“ an der entfallenen Ursprungsstunde, „verlegt von“ am Ziel).</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool VerlegungsZeile { get; init; }
+    /// <summary>Verlegung: ursprüngliche Stunde (Datum, Zeiten) – bei <see cref="Verlegung"/> gesetzt, sonst null (Gegenseite unbekannt: null).</summary>
+    public Verlegungszeit? VerlegungVon { get; init; }
+    /// <summary>Verlegung: Zielstunde (Datum, Zeiten) – siehe <see cref="VerlegungVon"/>.</summary>
+    public Verlegungszeit? VerlegungNach { get; init; }
+
+    /// <summary>Zusätzliche Stunde (Marker „+“): Veranstaltung, zusätzlicher Unterricht, Sondereinsatz, Mitbetreuung – nicht bei Verlegungen.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool IstZusatz => Status == "veranstaltung" || (Status == "geaendert" && Verlegung is null &&
+        (Zusaetzlich || System.Text.RegularExpressions.Regex.IsMatch(Art ?? "", "sondereinsatz|zusatz|mitbetreuung", System.Text.RegularExpressions.RegexOptions.IgnoreCase)));
+
+    /// <summary>Ein Wert der Stunde hat sich geändert (Fach alt → neu, Wert ersetzt, hinzugefügt oder entfernt).</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool WertGeaendert => !string.IsNullOrEmpty(FachAlt) ||
+        Klassen.Concat(Lehrer).Concat(Raeume).Concat(Mitklassen).Any(w => !string.IsNullOrEmpty(w.Alt) || w.Plus || (w.K.Length == 0 && w.Neu));
+
+    /// <summary>
+    /// Symbole oben rechts, untereinander in dieser Reihenfolge: verlegungVon (rot, Pfeil), verlegungNach (grün, Pfeil), entfall
+    /// (rotes Dreieck), pruefung (gelber Kreis), plus (grünes „+“), aenderung (grünes Quadrat). Prüfung, Zusatzstunde und Zielstunde
+    /// einer Verlegung bekommen zusätzlich „aenderung“, wenn sich ein Wert geändert hat (z. B. Prüfung mit Raumänderung).
+    /// </summary>
+    public List<string> Marker
+    {
+        get
+        {
+            var m = new List<string>();
+            var verlegung = Verlegung;
+            if (verlegung == "von") m.Add("verlegungVon");
+            else if (verlegung == "nach") m.Add("verlegungNach");
+            else if (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend)) m.Add("entfall");
+            if (Status == "klausur") { m.Add("pruefung"); if (WertGeaendert) m.Add("aenderung"); }
+            else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
+            else if (verlegung is null && IstZusatz) { m.Add("plus"); if (WertGeaendert && Status != "veranstaltung") m.Add("aenderung"); }
+            else if (verlegung is null && Status is "geaendert" or "offen" or "buchung") m.Add("aenderung");
+            return m;
+        }
+    }
 
     /// <summary>Vertretungsart einer Verlegung (Verlegung, Wegverlegung, Statt-Vertretung).</summary>
     public static bool IstVerlegungsArt(string? art) => !string.IsNullOrEmpty(art) &&
@@ -220,16 +264,45 @@ public sealed class Plandienst
                 && (x.Klausur.HasValue || (x.Unterricht is null && x.Status is "zusaetzlich" or "vertreten"))));
             foreach (var x in tag.Stunden)
             {
-                var betroffen = new HashSet<string>(x.Lehrer.Concat(x.LehrerAlt ?? new List<string>()), Ci);
-                var gleich = basis.Where(b => b.Stunde == x.Stunde && b.Unterricht == x.Unterricht && x.Unterricht.HasValue).ToList();
-                var treffer = gleich.Where(b => b.Lehrer.Any(betroffen.Contains)).ToList();
-                if (treffer.Count == 0) treffer = gleich.Where(b => Ci.Equals(b.Fach, x.Fach)).Take(1).ToList();
-                foreach (var b in treffer) basis.Remove(b);
+                foreach (var b in ErsetzteZeilen(s, basis, x)) basis.Remove(b);
                 basis.Add(Aus(x));
             }
             return basis.OrderBy(b => b.Stunde).ToList();
         }
         return RegelStunden(s, d);
+    }
+
+    /// <summary>
+    /// „Nur Änderungen“: Zeilen des Stundenplans, die eine geänderte Stunde ersetzt. Bei Kopplungen (mehrere Zeilen desselben
+    /// Unterrichts zur selben Zeit) genau die betroffene Zeile – alle anderen Blöcke bleiben nebeneinander stehen:
+    /// zuerst die Zeile der abwesenden bzw. ursprünglichen Lehrkraft (LehrerAlt, Lehrkraft der Vertretung) – nie die Zeile einer
+    /// Kollegin, nur weil sie vertritt –, dann die Zeile derselben Lehrkraft (z. B. Raumänderung), dann gleiches Fach und gleicher
+    /// Raum, zuletzt die einzige Zeile mit gleichem Fach. Zusätzliche Stunden ersetzen ohne eindeutige Zuordnung nichts.
+    /// </summary>
+    internal static List<Rohstunde> ErsetzteZeilen(Stand s, IReadOnlyList<Rohstunde> basis, WebStunde x)
+    {
+        if (!x.Unterricht.HasValue) return new();
+        var gleich = basis.Where(b => b.Stunde == x.Stunde && b.Unterricht == x.Unterricht && b.Art != "Klausur").ToList();
+        if (gleich.Count == 0) return gleich;
+        WebVertretung? v = x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vx) ? vx : null;
+        var alt = new HashSet<string>((x.LehrerAlt ?? new List<string>()).Where(l => l.Length > 0), Ci);
+        if (v != null && v.Lehrer.Length > 0) alt.Add(v.Lehrer);
+        var treffer = gleich.Where(b => b.Lehrer.Any(alt.Contains)).ToList();
+        if (treffer.Count > 1 && treffer.Any(b => Ci.Equals(b.Fach, x.Fach))) treffer = treffer.Where(b => Ci.Equals(b.Fach, x.Fach)).ToList();
+        if (treffer.Count == 0) treffer = gleich.Where(b => b.Lehrer.Any(l => Enthaelt(x.Lehrer, l))).ToList();
+        if (treffer.Count == 0 && x.Status == "zusaetzlich") return treffer;
+        static HashSet<string> R(IEnumerable<string> l) => l.SelectMany(RaumListe).ToHashSet(Ci);
+        if (treffer.Count == 0)
+        {
+            var raeume = R(x.Raeume.Concat(v != null ? new[] { v.Raum } : Array.Empty<string>()));
+            treffer = gleich.Where(b => Ci.Equals(b.Fach, x.Fach) && raeume.Count > 0 && R(b.Raeume).Overlaps(raeume)).Take(1).ToList();
+        }
+        if (treffer.Count == 0)
+        {
+            var fach = gleich.Where(b => Ci.Equals(b.Fach, x.Fach) || (v != null && Ci.Equals(b.Fach, v.Fach))).ToList();
+            if (fach.Count == 1 || gleich.Count == 1) treffer = fach.Count == 1 ? fach : gleich;
+        }
+        return treffer;
     }
 
     /// <summary>Räume eines Unterrichts laut Stundenplan (vor Raumänderungen) – damit ein entfernter ursprünglicher Raum wieder gewählt werden kann.</summary>
@@ -662,7 +735,7 @@ public sealed class Plandienst
         {
             Status = "entfall", Fach = k.FachAlt!, FachAlt = null, FachName = k.FachAlt!, Farbe = k.Farbe, Lehrer = lehrer, Raeume = raeume,
             Klassen = k.Klassen.Select(w => new Wert(w.Alt is { Length: > 0 } a ? a : w.K)).Where(w => w.K.Length > 0).ToList(),
-            Art = "Entfall", Text = "", Unterricht = null,
+            Art = "Entfall", Text = "", Unterricht = null, VerlegungsZeile = false, VerlegungVon = null, VerlegungNach = null,
         };
     }
 
@@ -854,11 +927,13 @@ public sealed class Plandienst
         // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
         if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
         text = TextNormal(text);
-        // zusätzliche Unterrichtsstunde: kein Vertretungstext (Badge „Zusätzl. Unterrichtsstunde“ statt Text)
-        if (zusatz && fach.Length > 0) text = "";
+        // zusätzliche Unterrichtsstunde: kein automatisch erzeugter Vertretungstext (Badge „Zusätzl. Unterrichtsstunde“ statt Text);
+        // von Hand eingegebene Texte bleiben (Info-Symbol auf der Karte)
+        if (zusatz && fach.Length > 0) text = ZusatzText(text, art);
         s.Faecher.TryGetValue(fach, out var fe);
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
-        return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
+        var verlegungsZeile = v != null && (v.Nach.Trim().Length > 0 || v.VertrVon.Trim().Length > 0) && status != "klausur";
+        var karte = new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
             r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, Gruppe(s, r))
         {
             Zusaetzlich = zusatz, Bereitschaft = bereitschaft, Klausur = r.Klausur,
@@ -866,8 +941,68 @@ public sealed class Plandienst
             // Tagesansichten); im Raumplan nie – dort ist die Stunde wie im Klassenplan „geaendert“ bzw. „offen“
             LehrerAbwesend = status == "abwesend" && typ != Elementtyp.Raum && (typ == Elementtyp.Lehrer || bereitschaft),
             VertretungOffen = lehrerOffen,
+            VerlegungsZeile = verlegungsZeile,
         };
+        return karte.Verlegung is null ? karte : VerlegungSetzen(karte, d, v, zeiten);
     }
+
+    /// <summary>
+    /// Ursprung und Ziel einer Verlegung: die eigene Seite aus der Karte, die Gegenseite aus der Vertretung („VertrVon“ bzw. „Nach“,
+    /// Format „Fr-09.10. / 4“). Unbekannte Gegenseite: null.
+    /// </summary>
+    internal static Karte VerlegungSetzen(Karte k, DateOnly d, WebVertretung? v, IReadOnlyDictionary<int, WebStundenzeit> zeiten)
+    {
+        var eigen = new Verlegungszeit(k.Datum, k.Beginn, k.Ende, k.Von, k.Bis);
+        var von = VerlegungsZeitLesen(v?.VertrVon, d, zeiten);
+        var nach = VerlegungsZeitLesen(v?.Nach, d, zeiten);
+        return k.Verlegung == "von"
+            ? k with { VerlegungVon = eigen, VerlegungNach = nach }
+            : k with { VerlegungVon = von, VerlegungNach = eigen };
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex VerlegungsAngabe = new(@"(\d{1,2})\.(\d{1,2})\.?(\d{2,4})?\s*(?:/\s*(\d+))?", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>„Fr-09.10. / 4“ → Datum (Jahr: das dem Bezugsdatum nächstliegende) mit Beginn und Ende der Stunde; null, wenn leer bzw. unlesbar.</summary>
+    internal static Verlegungszeit? VerlegungsZeitLesen(string? text, DateOnly bezug, IReadOnlyDictionary<int, WebStundenzeit> zeiten)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var m = VerlegungsAngabe.Match(text);
+        if (!m.Success) return null;
+        var tag = int.Parse(m.Groups[1].Value);
+        var monat = int.Parse(m.Groups[2].Value);
+        if (monat is < 1 or > 12 || tag < 1) return null;
+        DateOnly? datum = null;
+        if (m.Groups[3].Success)
+        {
+            var j = int.Parse(m.Groups[3].Value);
+            if (j < 100) j += 2000;
+            if (tag <= DateTime.DaysInMonth(j, monat)) datum = new DateOnly(j, monat, tag);
+        }
+        else
+            datum = new[] { bezug.Year - 1, bezug.Year, bezug.Year + 1 }.Where(j => tag <= DateTime.DaysInMonth(j, monat))
+                .Select(j => new DateOnly(j, monat, tag)).OrderBy(x => Math.Abs(x.DayNumber - bezug.DayNumber)).Cast<DateOnly?>().FirstOrDefault();
+        if (datum is not DateOnly dt) return null;
+        var stunde = m.Groups[4].Success ? int.Parse(m.Groups[4].Value) : 0;
+        var z = zeiten.TryGetValue(stunde, out var x) ? x : null;
+        return new Verlegungszeit(Iso(dt), z?.Beginn ?? "", z?.Ende ?? "", stunde, stunde);
+    }
+
+    /// <summary>Verlegung über mehrere Stunden (Block): Gegenseite um die nächste Stunde verlängern, wenn sie direkt anschließt.</summary>
+    private static Verlegungszeit? VerlegungVerbinden(Verlegungszeit? a, Verlegungszeit? b) =>
+        a is null || b is null ? a : a.Datum == b.Datum && b.Stunde == a.BisStunde + 1 ? a with { BisStunde = b.BisStunde, Ende = b.Ende } : a;
+
+    /// <summary>
+    /// Automatisch erzeugte Standardtexte (Desktop bzw. Web), die bei einer zusätzlichen Unterrichtsstunde nicht als Vertretungstext
+    /// erscheinen – dort steht das Badge „Zusätzl. Unterrichtsstunde“. Von Hand eingegebene Texte bleiben erhalten.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex ZusatzStandardtext = new(
+        @"^(wegen sondereinsatz|sondereinsatz|vertretung durch verlegung|vorziehung|vertr\. o\. lehrkr\.?|vertr\. o\. lehrkraft|zusatzunterricht|zusätzlicher unterricht|zusätzl\. unterrichtsstunde|zusätzliche unterrichtsstunde|mitbetreuung|aus vertretung \d+.*)$",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Vertretungstext einer zusätzlichen Unterrichtsstunde: nur von Hand eingegebene Teile (ohne Standardtexte und ohne die Art selbst).</summary>
+    internal static string ZusatzText(string text, string art) =>
+        string.Join(" · ", text.Split(" · ").Select(t => t.Trim())
+            .Where(t => t.Length > 0 && !ZusatzStandardtext.IsMatch(t) && !string.Equals(t, art.Trim(), StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>Schülergruppe des Unterrichts (Kopplungszeile mit gleichem Fach bzw. gleicher Lehrkraft), sonst leer.</summary>
     private static string Gruppe(Stand s, Rohstunde r)
@@ -892,7 +1027,12 @@ public sealed class Plandienst
             {
                 if (offen != null && k.Von == offen.Bis + 1)
                 {
-                    offen = offen with { Bis = k.Bis, Ende = k.Ende };
+                    offen = offen with
+                    {
+                        Bis = k.Bis, Ende = k.Ende,
+                        VerlegungVon = offen.Verlegung == "von" && offen.VerlegungVon is { } ev ? ev with { BisStunde = k.Bis, Ende = k.Ende } : VerlegungVerbinden(offen.VerlegungVon, k.VerlegungVon),
+                        VerlegungNach = offen.Verlegung == "nach" && offen.VerlegungNach is { } en ? en with { BisStunde = k.Bis, Ende = k.Ende } : VerlegungVerbinden(offen.VerlegungNach, k.VerlegungNach),
+                    };
                     continue;
                 }
                 if (offen != null) res.Add(offen);

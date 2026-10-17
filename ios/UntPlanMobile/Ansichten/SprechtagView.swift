@@ -7,9 +7,14 @@ import SwiftUI
 ///   gebuchte Termine absagen (mit Grund, die Eltern werden benachrichtigt), freie Zeiten sperren bzw. wieder freigeben.
 /// - Erziehungsberechtigte: eigene Termine (absagen), je Kind Karten der Lehrkräfte mit den freien Zeiten als Chips –
 ///   Antippen bucht nach Rückfrage (nur im Anmeldezeitraum).
+/// - Schüler*innen: dieselbe Familiensicht, nur lesend (falls die Schule den Sprechtag für sie sichtbar macht).
+/// - Angekündigt (freigegeben, Anmeldung beginnt erst später): Hinweis mit Anmeldebeginn, Zeiten nur als Vorschau.
 struct SprechtagView: View {
     let id: Int
     let titel: String
+    /// Karte von der Startseite – Rückfall, falls die Details (noch) nicht geladen werden können (z. B. angekündigter
+    /// Sprechtag ohne eigene Zeiten)
+    var karte: SprechtagKarte? = nil
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var systemSchliessen
     @Environment(\.blattSchliessen) private var blattSchliessen
@@ -60,24 +65,38 @@ struct SprechtagView: View {
         if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
     }
 
-    /// Erziehungsberechtigte (sonst Lehrkraft-Sicht).
+    /// Familiensicht: Erziehungsberechtigte und Schüler*innen (sonst Lehrkraft-Sicht).
     private var istEltern: Bool {
-        !zustand.istKollegium && (zustand.benutzer?.rolle.lowercased() ?? "") == "eltern"
+        !zustand.istKollegium
+    }
+
+    /// Schüler*innen sehen den Sprechtag nur lesend (keine Buchung, keine Absage).
+    private var nurLesen: Bool {
+        istEltern && (zustand.benutzer?.rolle.lowercased() ?? "") != "eltern"
     }
 
     private var info: SprechtagInfo? { istEltern ? eltern?.sprechtag : lehrkraft?.sprechtag }
 
-    /// Änderungen möglich (nicht vorbei, nicht abgesagt).
+    /// Änderungen möglich (nicht vorbei, nicht abgesagt; nicht für Schüler*innen).
     private var aenderbar: Bool {
-        guard let info else { return false }
-        return !info.abgesagt && info.phase != "vorbei"
+        guard let info, !nurLesen else { return false }
+        return !info.abgesagt && info.phase != "vorbei" && info.status != "vorbei"
     }
 
     /// Untertitel im Kopf: „Do. 12.11.26 | 15:00 – 19:00“.
     private var zeitraum: String? {
         guard let info else { return nil }
         let tag = info.datum.isEmpty ? info.datumText : Datumsformat.anzeige(info.datum, "EE dd.MM.yy")
-        let zeit = info.beginn.isEmpty ? "" : (info.ende.isEmpty ? info.beginn : "\(info.beginn) – \(info.ende)")
+        let zeit = info.zeitenText
+        let text = [tag, zeit].filter { !$0.isEmpty }.joined(separator: " | ")
+        return text.isEmpty ? nil : text
+    }
+
+    /// Untertitel aus der Startkarte, solange keine Details vorliegen.
+    private var kartenZeitraum: String? {
+        guard let karte else { return nil }
+        let tag = karte.datum.isEmpty ? karte.datumText : Datumsformat.anzeige(karte.datum, "EE dd.MM.yy")
+        let zeit = karte.beginn.isEmpty ? "" : (karte.ende.isEmpty ? karte.beginn : "\(karte.beginn) – \(karte.ende)")
         let text = [tag, zeit].filter { !$0.isEmpty }.joined(separator: " | ")
         return text.isEmpty ? nil : text
     }
@@ -85,7 +104,7 @@ struct SprechtagView: View {
     var body: some View {
         VStack(spacing: 0) {
             Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, laedt: laedt || !geladen) {
-                Blatttitel(titel: info?.titel ?? titel, untertitel: zeitraum)
+                Blatttitel(titel: info?.titel ?? titel, untertitel: zeitraum ?? kartenZeitraum)
             } rechts: {
                 menue
             }
@@ -93,7 +112,10 @@ struct SprechtagView: View {
                 segment(d)
             }
             List {
-                if let fehler {
+                // Ohne Details, aber mit Startkarte (z. B. angekündigt, keine eigenen Zeiten): die Ankündigung statt des Fehlers
+                if fehler != nil, info == nil, let karte {
+                    kartenUebersicht(karte)
+                } else if let fehler {
                     Section {
                         Fehlerhinweis(text: fehler)
                     }
@@ -214,7 +236,8 @@ struct SprechtagView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Plakette(text: info.phaseText,
-                             farbe: info.abgesagt ? Farben.entfallRand : (info.phase == "anmeldung" ? Farben.gruen : Farben.gedaempft))
+                             farbe: info.abgesagt ? Farben.entfallRand
+                                 : (info.buchbar ? Farben.gruen : (info.angekuendigt ? Farben.akzent : Farben.gedaempft)))
                     if !istEltern, let l = lehrkraft?.lehrer, !l.abgesagt.isEmpty {
                         Plakette(text: "Teilnahme abgesagt", farbe: Farben.entfallRand)
                     }
@@ -230,16 +253,26 @@ struct SprechtagView: View {
                     Text(info.datumText.isEmpty ? Datumsformat.anzeige(info.datum, "EEEE, d. MMMM yyyy") : info.datumText)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Farben.tinte)
-                    if !info.beginn.isEmpty {
-                        Text("\(info.beginn) – \(info.ende) Uhr" + (info.dauer > 0 ? " · je \(info.dauer) Minuten" : ""))
+                    if !info.zeitenText.isEmpty {
+                        Text("\(info.zeitenText) Uhr" + (info.dauer > 0 ? " · je \(info.dauer) Minuten" : ""))
                             .font(.system(size: 14))
                             .foregroundStyle(Farben.tinte2)
                     }
-                    if istEltern && !info.anmeldungBis.isEmpty && info.phase != "vorbei" && !info.abgesagt {
+                    if !info.ort.isEmpty {
+                        Text(info.ort)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                    if istEltern && !info.anmeldungBis.isEmpty && info.phase != "vorbei" && !info.abgesagt && !info.angekuendigt {
                         Text("Anmeldung bis \(Datumsformat.anzeige(info.anmeldungBis, "d.M.yyyy"))")
                             .font(.system(size: 14))
                             .foregroundStyle(Farben.tinte2)
                     }
+                }
+                if info.angekuendigt && !info.abgesagt {
+                    Label(info.ankuendigungText, systemImage: "megaphone")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
                 }
                 if !istEltern, let d = lehrkraft, !d.zeitfenster.isEmpty {
                     HStack(spacing: 0) {
@@ -257,6 +290,42 @@ struct SprechtagView: View {
                 }
                 if !info.hinweis.isEmpty {
                     Label(info.hinweis, systemImage: "info.circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
+                }
+            }
+            .padding(.vertical, 6)
+            .listRowBackground(Farben.flaeche)
+        }
+    }
+
+    /// Ankündigung aus der Startkarte (ohne Details).
+    private func kartenUebersicht(_ k: SprechtagKarte) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                Plakette(text: k.angekuendigt ? "Angekündigt" : (k.buchbar ? "Anmeldung geöffnet" : "Sprechtag"),
+                         farbe: k.buchbar ? Farben.gruen : (k.angekuendigt ? Farben.akzent : Farben.gedaempft))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(k.datumText.isEmpty ? Datumsformat.anzeige(k.datum, "EEEE, d. MMMM yyyy") : k.datumText)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Farben.tinte)
+                    if !k.beginn.isEmpty {
+                        Text(k.ende.isEmpty ? "\(k.beginn) Uhr" : "\(k.beginn) – \(k.ende) Uhr")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                    if !k.ort.isEmpty {
+                        Text(k.ort)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                }
+                if !k.text.isEmpty {
+                    Label(k.text, systemImage: k.angekuendigt ? "megaphone" : "info.circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
+                } else if k.angekuendigt && !k.anmeldungVonText.isEmpty {
+                    Label("Anmeldung ab \(k.anmeldungVonText)", systemImage: "megaphone")
                         .font(.system(size: 14))
                         .foregroundStyle(Farben.tinte2)
                 }
@@ -400,7 +469,7 @@ struct SprechtagView: View {
         Section {
             if d.termine.isEmpty {
                 leer("Noch keine Termine", symbol: "calendar.badge.plus",
-                     text: d.buchbar ? "Tippen Sie unten bei einer Lehrkraft auf eine freie Zeit, um einen Termin zu buchen."
+                     text: d.buchbar && !nurLesen ? "Tippen Sie unten bei einer Lehrkraft auf eine freie Zeit, um einen Termin zu buchen."
                          : "Gebuchte Termine erscheinen hier.")
             }
             ForEach(d.termine.sorted { $0.beginn < $1.beginn }) { t in
@@ -428,20 +497,26 @@ struct SprechtagView: View {
         } header: {
             Text("Meine Termine")
         } footer: {
-            if !d.buchbar && aenderbar {
-                if info?.phase == "einladung" {
+            if nurLesen {
+                Text("Termine buchen Ihre Erziehungsberechtigten.")
+            } else if !d.buchbar && aenderbar {
+                if info?.angekuendigt == true, let von = info?.anmeldungVonText, !von.isEmpty {
+                    Text("Termine können ab \(von) gebucht werden. Die Zeiten unten sind eine Vorschau.")
+                } else if info?.phase == "einladung" || info?.angekuendigt == true {
                     Text("Termine können erst im Anmeldezeitraum gebucht werden.")
                 } else {
                     Text("Termine können nur im Anmeldezeitraum gebucht werden.")
                 }
             } else if aenderbar && !d.termine.isEmpty {
-                Text("Nach links wischen oder lange drücken: Termin absagen.")
+                Text(d.maxTermine > 0 ? "Nach links wischen oder lange drücken: Termin absagen. Höchstens \(d.maxTermine) Termine je Familie."
+                     : "Nach links wischen oder lange drücken: Termin absagen.")
             }
         }
         if d.kinder.isEmpty {
             Section {
-                leer("Keine Kinder", symbol: "person.crop.circle.badge.questionmark",
-                     text: "Für Ihr Konto sind keine Kinder für diesen Sprechtag hinterlegt.")
+                leer(nurLesen ? "Keine Lehrkräfte" : "Keine Kinder", symbol: "person.crop.circle.badge.questionmark",
+                     text: nurLesen ? "Für Ihr Konto sind keine Lehrkräfte für diesen Sprechtag hinterlegt."
+                         : "Für Ihr Konto sind keine Kinder für diesen Sprechtag hinterlegt.")
             }
         }
         ForEach(d.kinder) { kind in
@@ -471,7 +546,7 @@ struct SprechtagView: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Farben.tinte)
                     .lineLimit(1)
-                let zusatz = [t.schueler?.anzeige ?? "", t.raum.isEmpty ? "" : "Raum \(t.raum)"].filter { !$0.isEmpty }
+                let zusatz = [t.schueler?.anzeige ?? "", t.online ? "Online" : (t.raum.isEmpty ? "" : "Raum \(t.raum)")].filter { !$0.isEmpty }
                 if !zusatz.isEmpty {
                     Text(zusatz.joined(separator: " · "))
                         .font(.system(size: 13))
@@ -484,6 +559,13 @@ struct SprechtagView: View {
                         .italic()
                         .foregroundStyle(Farben.tinte2)
                         .lineLimit(3)
+                }
+                if t.online, let url = Karte.onlineURL(t.link) {
+                    Link(destination: url) {
+                        Label("Online-Termin öffnen", systemImage: "video")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Farben.akzent)
+                    }
                 }
             }
             Spacer(minLength: 4)
@@ -516,7 +598,8 @@ struct SprechtagView: View {
                             Plakette(text: "Eingeladen", farbe: Farben.akzent)
                         }
                     }
-                    let unten = [l.faecher.joined(separator: ", "), l.klassenleitung ? "Klassenleitung" : "", l.raum.isEmpty ? "" : "Raum \(l.raum)"]
+                    let unten = [l.faecher.joined(separator: ", "), l.klassenleitung ? "Klassenleitung" : "",
+                                 l.online ? "Online" : (l.raum.isEmpty ? "" : "Raum \(l.raum)"), l.dauer > 0 ? "\(l.dauer) Min." : ""]
                         .filter { !$0.isEmpty }
                     if !unten.isEmpty {
                         Text(unten.joined(separator: " · "))
@@ -537,8 +620,8 @@ struct SprechtagView: View {
                 Statusmarke(text: "Gebucht: \(t.beginn)–\(t.ende) Uhr", farbe: Farben.akzent)
             } else if l.abgesagt {
                 Statusmarke(text: "Nimmt nicht teil", farbe: Farben.gedaempft)
-            } else if l.zeitfenster.isEmpty {
-                Statusmarke(text: "Keine freien Zeiten", farbe: Farben.gedaempft)
+            } else if l.zeitfenster.isEmpty || l.ausgebucht {
+                Statusmarke(text: l.ausgebucht ? "Ausgebucht" : "Keine freien Zeiten", farbe: Farben.gedaempft)
             } else if buchbar {
                 Fliesslayout(abstand: 6) {
                     ForEach(l.zeitfenster) { f in

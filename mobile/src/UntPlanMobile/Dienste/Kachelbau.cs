@@ -26,6 +26,19 @@ public static class Kachelbau
     /// <summary>Lehrkraft einer Zusatzstunde, für die (noch) keine Lehrkraft eingeteilt ist – nur bei Zusatzstunden (Kachel und Details).</summary>
     public const string KeineLehrkraft = "---";
 
+    /// <summary>
+    /// Automatisch erzeugte Standardtexte einer Zusatzstunde („wegen Sondereinsatz“, „Vertretung durch Verlegung“, „Vorziehung“,
+    /// „Vertr. o. Lehrkr.“, „aus Vertretung …“, „Zusatzunterricht“, „Sondereinsatz“, „Zusätzl. Unterrichtsstunde“). Sie entfallen –
+    /// die Plakette „Zusätzl. Unterrichtsstunde“ sagt dasselbe; manuell eingegebene Vertretungstexte bleiben stehen.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex ZusatzStandardtext =
+        new(@"^\s*(\(?\s*wegen\s+sondereins(a|ä)tz(e)?\s*\)?|sondereins(a|ä)tz(e)?|vertretung\s+durch\s+verlegung|vorziehung|vertr\.\s*o\.\s*lehrkr\.?|aus\s+vertretung\b.*|zusatzunterricht|zus(ä|ae)tzl(\.|iche)\s*unterrichtsstunde)\s*\.?\s*$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>Standardtext einer Zusatzstunde (leer, einer der festen Texte oder gleich der Vertretungsart)?</summary>
+    public static bool IstZusatzStandardtext(string? text, string? art) =>
+        string.IsNullOrWhiteSpace(text) || ZusatzStandardtext.IsMatch(text) || Ci.Equals(text.Trim(), (art ?? "").Trim());
+
     /// <summary>Vertretungsarten, die eine zusätzliche Stunde bedeuten (wie in UntPlanWeb: Marker „+“ statt Änderungsquadrat).</summary>
     private static readonly System.Text.RegularExpressions.Regex ZusatzArt =
         new("sondereinsatz|zusatz|verlegung|statt|mitbetreuung", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
@@ -268,6 +281,56 @@ public static class Kachelbau
     /// <summary>Eine Stundenkarte als Kachel.</summary>
     public static Kachel AusKarte(PlanKarte karte, string art)
     {
+        var kachel = AusKarteKern(karte, art);
+        Zusaetze(kachel, karte);
+        return kachel;
+    }
+
+    /// <summary>
+    /// Verlegung (Ursprung und Ziel mit Text), Zeichen oben rechts (vom Server berechnet) und hinzugekommene Werte („+“-Labels).
+    /// </summary>
+    private static void Zusaetze(Kachel kachel, PlanKarte k)
+    {
+        if (kachel.Verlegung != null)
+        {
+            kachel.VerlegungVon = Verlegungsseite(k.VerlegungVon);
+            kachel.VerlegungNach = Verlegungsseite(k.VerlegungNach);
+            kachel.VerlegungText = VerlegungText(k.VerlegungVon, k.VerlegungNach);
+        }
+        if (k.Marker is { Count: > 0 })
+            kachel.Marker = k.Marker.Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim()).Distinct().ToList();
+        static string? Plus(IEnumerable<PlanWert>? w) =>
+            w?.Where(x => x.Plus && x.K.Length > 0 && x.K != "???").Select(x => x.K).Distinct(Ci).ToList() is { Count: > 0 } l ? string.Join(",", l) : null;
+        // Veranstaltungen zeigen keine Plaketten – dort auch kein „+“
+        if (kachel.Feld == true) return;
+        kachel.KlassePlus = Plus((k.Klassen ?? new()).Concat(k.Mitklassen ?? new()));
+        kachel.LehrkraftPlus = Plus(k.Lehrer);
+        kachel.RaumPlus = kachel.RaumOffen == true ? null : Plus(k.Raeume);
+    }
+
+    private static KachelVerlegung? Verlegungsseite(PlanVerlegung? v) =>
+        v is null || string.IsNullOrWhiteSpace(v.Datum) ? null : new KachelVerlegung(v.Datum, v.Beginn ?? "", v.Ende ?? "");
+
+    /// <summary>
+    /// Verlegung als Text, immer Ursprung → Ziel: „09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15 - 13:00“ (ohne Ende nur der Beginn).
+    /// Fehlt eine Seite, gibt es keinen Text (dann nur das Zeichen).
+    /// </summary>
+    public static string? VerlegungText(PlanVerlegung? von, PlanVerlegung? nach)
+    {
+        static string? Seite(PlanVerlegung? v)
+        {
+            if (v is null || !DateOnly.TryParse(v.Datum, CultureInfo.InvariantCulture, out var d)) return null;
+            var zeit = string.IsNullOrWhiteSpace(v.Ende) ? v.Beginn ?? "" : $"{v.Beginn} - {v.Ende}";
+            var datum = d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+            return string.IsNullOrWhiteSpace(zeit) ? datum : $"{datum} | {zeit}";
+        }
+        var a = Seite(von);
+        var b = Seite(nach);
+        return a is null || b is null ? null : $"{a} → {b}";
+    }
+
+    private static Kachel AusKarteKern(PlanKarte karte, string art)
+    {
         var k = karte with { Text = karte.Text ?? "", Art = karte.Art ?? "", Fach = karte.Fach ?? "" };
         // Offene Raumvertretung („???“ bzw. Raumänderung ohne neuen Raum): wie eine offene Lehrervertretung – bisheriger Raum
         // durchgestrichen in der Plakette
@@ -374,8 +437,9 @@ public static class Kachelbau
                 if (IstZusatzstunde(k))
                 {
                     kachel.Zusatz = true;
-                    // Zusätzliche Unterrichtsstunde: Plakette „Zusätzl. Unterrichtsstunde“ statt Vertretungstext
-                    kachel.Info = "";
+                    // Zusätzliche Unterrichtsstunde: Plakette „Zusätzl. Unterrichtsstunde“; nur Standardtexte entfallen,
+                    // ein manuell eingegebener Vertretungstext bleibt (Info-Zeichen auf der Kachel)
+                    if (IstZusatzStandardtext(kachel.Info, k.Art)) kachel.Info = "";
                     // Zusatzstunde ohne Lehrkraft: „---“ statt einer leeren Zeile (nicht bei „+++“ – dort steht die bisherige Lehrkraft durchgestrichen)
                     if (k.Lehrer.All(w => w.K.Length == 0 && string.IsNullOrEmpty(w.Alt))) kachel.Lehrkraft = KeineLehrkraft;
                 }
@@ -420,11 +484,11 @@ public static class Kachelbau
                 break;
         }
 
-        // Zusätzliche Unterrichtsstunde laut UntPlanWeb (auch bei offener Vertretung): Plakette, nie ein Vertretungstext
+        // Zusätzliche Unterrichtsstunde laut UntPlanWeb (auch bei offener Vertretung): Plakette; nur Standardtexte entfallen
         if (k.Zusaetzlich && kachel.Art is "change" or "normal")
         {
             kachel.Zusatz = true;
-            kachel.Info = "";
+            if (IstZusatzStandardtext(kachel.Info, k.Art)) kachel.Info = "";
         }
 
         // Raumbuchung (auch zu einem Unterricht gebucht oder als zusätzlicher Raum): keine Vertretung – die Kachel bleibt
@@ -439,14 +503,17 @@ public static class Kachelbau
         // Kopplungen: mehrere Lehrkräfte bzw. Klassen in derselben Stunde
         if (k.Lehrer.Count > 1)
             kachel.Kopplung = k.Lehrer.Select(w => w.Neu && w.K.Length == 0 ? new KoppEintrag(string.IsNullOrEmpty(w.Alt) ? "???" : w.Alt, "absent", Offen: true)
-                : w.Neu && !string.IsNullOrEmpty(w.Alt) ? new KoppEintrag(w.K, "sub", w.Alt) : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
+                : w.Neu && !string.IsNullOrEmpty(w.Alt) ? new KoppEintrag(w.K, "sub", w.Alt)
+                // hinzugekommene Lehrkraft: grünes Label mit „+“
+                : w.Plus ? new KoppEintrag(w.K, "sub", Plus: true)
+                : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
         // Koppelklassen: alle Klassen der Stunde (eigene aus klassen[], die übrigen aus mitklassen[]); eine abwesende Klasse
         // ({k:"", alt:"INF13"}) steht durchgestrichen in der grünen Plakette
         var alleKlassen = k.Mitklassen is { Count: > 0 } ? k.Klassen.Concat(k.Mitklassen).ToList() : k.Klassen;
         if (alleKlassen.Count > 1)
         {
             kachel.Klassenliste = alleKlassen
-                .Select(w => w.K.Length > 0 ? new KlassenEintrag(w.K) : !string.IsNullOrEmpty(w.Alt) ? new KlassenEintrag(w.Alt!, "absent") : null)
+                .Select(w => w.K.Length > 0 ? new KlassenEintrag(w.K, Plus: w.Plus ? true : null) : !string.IsNullOrEmpty(w.Alt) ? new KlassenEintrag(w.Alt!, "absent") : null)
                 .Where(e => e != null).Select(e => e!).DistinctBy(e => e.Name, Ci).ToList();
             // Im Plan der anderen (anwesenden) Klasse wird die Stunde grün – wie bei einer abwesenden Lehrkraft
             if (art == "class" && kachel.Art is "normal" or "change" && kachel.Klassenliste.Any(e => e.Zustand == "absent") && kachel.Klassenliste.Any(e => e.Zustand == "ok"))

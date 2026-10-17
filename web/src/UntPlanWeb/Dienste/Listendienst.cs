@@ -35,7 +35,16 @@ public sealed record Abwesenheitszeile(int SchuelerId, string Schueler, string K
 }
 
 /// <summary>Klassenbucheintrag (Vermerk) mit Klasse und Name für Listen über mehrere Klassen.</summary>
-public sealed record Vermerkzeile(int Id, string Datum, string Klasse, int? SchuelerId, string Schueler, string Art, string Text, string Lehrer);
+public sealed record Vermerkzeile(int Id, string Datum, string Klasse, int? SchuelerId, string Schueler, string Art, string Text, string Lehrer)
+{
+    /// <summary>Uhrzeit des Eintrags (leer = keine Angabe), Stunde laut Zeitraster (0 = außerhalb), Zeitstempel der Erfassung.</summary>
+    public string Zeit { get; init; } = "";
+    public int Stunde { get; init; }
+    public string Erstellt { get; init; } = "";
+    /// <summary>Detaildialog: Bearbeiten bzw. Löschen erlaubt (Verfasser, Klassenleitung, Löschsperre).</summary>
+    public bool Bearbeiten { get; init; }
+    public bool Loeschen { get; init; }
+}
 
 /// <summary>Zeile des Fehlzeitenberichts (Summen je Schülerin/Schüler).</summary>
 public sealed record Fehlzeitensumme(string Klasse, int SchuelerId, string Name, string Vorname, int Stunden, int Tage, int Entschuldigt, int Unentschuldigt,
@@ -163,13 +172,21 @@ public sealed class Listendienst
             .OrderBy(e => e.Faellig ?? e.Datum).ThenBy(e => e.Datum).ThenBy(e => e.Stunde).ToList();
 
     /// <summary>Klassenbucheinträge (Vermerke) einer oder aller Klassen, neueste zuerst.</summary>
-    public List<Vermerkzeile> Vermerke(Stand s, DateOnly von, DateOnly bis, string? klasse, string? art)
+    public List<Vermerkzeile> Vermerke(Stand s, DateOnly von, DateOnly bis, string? klasse, string? art, Benutzer? b = null)
     {
+        var raster = s.Paket.Zeitraster.Stunden;
+        int StundeZu(string zeit) => zeit.Length == 5 ? raster.FirstOrDefault(z => string.CompareOrdinal(z.Beginn, zeit) <= 0 && string.CompareOrdinal(zeit, z.Ende) < 0)?.Nr ?? 0 : 0;
         var namen = s.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => $"{g.First().Name}, {g.First().Vorname}");
         var klassen = string.IsNullOrEmpty(klasse) ? s.Paket.Elemente.Klassen.Select(k => k.Kurz).ToList() : new List<string> { klasse };
         return klassen.SelectMany(k => _kb.Vermerke(k, von, bis))
             .Where(v => string.IsNullOrEmpty(art) || Ci.Equals(v.Art, art))
-            .Select(v => new Vermerkzeile(v.Id, v.Datum, v.Klasse, v.SchuelerId, v.SchuelerId is int i ? namen.GetValueOrDefault(i, "") : "", v.Art, v.Text, v.Lehrer))
+            .Select(v =>
+            {
+                var (bearbeiten, loeschen) = b is null ? (false, false) : _kb.VermerkRechte(b, s, v);
+                var zeit = v.Zeit.Length == 5 ? v.Zeit : "";
+                return new Vermerkzeile(v.Id, v.Datum, v.Klasse, v.SchuelerId, v.SchuelerId is int i ? namen.GetValueOrDefault(i, "") : "", v.Art, v.Text, v.Lehrer)
+                    { Zeit = zeit, Stunde = StundeZu(zeit), Erstellt = v.Erstellt, Bearbeiten = bearbeiten, Loeschen = loeschen };
+            })
             .OrderByDescending(v => v.Datum).ThenByDescending(v => v.Id).ToList();
     }
 

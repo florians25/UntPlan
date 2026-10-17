@@ -7,8 +7,14 @@ namespace UntPlanMobile.Dienste;
 // das UntPlanWeb liefert; gelesen wird ohne Rücksicht auf Groß- und Kleinschreibung.
 // ---------------------------------------------------------------------------------------------
 
-/// <summary>Angezeigter Wert (Klasse, Lehrkraft, Raum); Alt = ursprünglicher Wert, Neu = geändert.</summary>
-public sealed record PlanWert(string K, string? Alt = null, bool Neu = false);
+/// <summary>
+/// Angezeigter Wert (Klasse, Lehrkraft, Raum); Alt = ursprünglicher Wert, Neu = geändert,
+/// Plus = hinzugekommen (neu, ohne alten Wert – z. B. zusätzlicher Raum): grünes Label mit „+“ davor.
+/// </summary>
+public sealed record PlanWert(string K, string? Alt = null, bool Neu = false, bool Plus = false);
+
+/// <summary>Eine Seite einer Verlegung (ursprüngliche Stunde bzw. Zielstunde). Ende kann leer sein.</summary>
+public sealed record PlanVerlegung(string Datum, string Beginn, string Ende = "", int Stunde = 0, int BisStunde = 0);
 
 /// <summary>Stundenkarte aus UntPlanWeb (Status regulaer, geaendert, offen, entfall, abwesend, klausur, bereitschaft, buchung, vorgemerkt, veranstaltung).</summary>
 public sealed record PlanKarte(
@@ -27,7 +33,11 @@ public sealed record PlanKarte(
     // zusätzliche Unterrichtsstunde (nicht im Regelplan): Badge „Zusätzl. Unterrichtsstunde“, nie ein Vertretungstext
     bool Zusaetzlich = false,
     // Verlegung: "von" = ursprüngliche Stunde (Pfeil nach rechts), "nach" = Zielstunde (Pfeil nach links), sonst null
-    string? Verlegung = null);
+    string? Verlegung = null,
+    // Verlegung: ursprüngliche Stunde und Zielstunde (Datum, Beginn, Ende); die Gegenseite kann fehlen
+    PlanVerlegung? VerlegungVon = null, PlanVerlegung? VerlegungNach = null,
+    // Zeichen oben rechts in Anzeigereihenfolge (verlegungVon, verlegungNach, entfall, pruefung, plus, aenderung)
+    List<string>? Marker = null);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 public sealed record PlanAufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
@@ -72,11 +82,21 @@ public sealed record KoppEintrag(
     [property: JsonPropertyName("state")] string Zustand,
     [property: JsonPropertyName("for")] string? Fuer = null,
     /// <summary>Offene Vertretung (noch keine Lehrkraft eingeteilt): Kürzel durchgestrichen in der grünen Plakette.</summary>
-    [property: JsonPropertyName("open")] bool? Offen = null);
+    [property: JsonPropertyName("open")] bool? Offen = null,
+    /// <summary>Hinzugekommene Lehrkraft: grünes Label mit „+“ davor.</summary>
+    [property: JsonPropertyName("plus")] bool? Plus = null);
 
 public sealed record KlassenEintrag(
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("state")] string Zustand = "ok");
+    [property: JsonPropertyName("state")] string Zustand = "ok",
+    /// <summary>Hinzugekommene Klasse: grünes Label mit „+“ davor.</summary>
+    [property: JsonPropertyName("plus")] bool? Plus = null);
+
+/// <summary>Eine Seite einer Verlegung im Format der Oberfläche (Datum, Beginn, Ende; Ende kann leer sein).</summary>
+public sealed record KachelVerlegung(
+    [property: JsonPropertyName("date")] string Datum,
+    [property: JsonPropertyName("from")] string Beginn,
+    [property: JsonPropertyName("to")] string Ende);
 
 /// <summary>
 /// Eine Kachel im Raster. blockType: normal, change, cancelled, klausur, event, absence (Veranstaltung),
@@ -113,6 +133,17 @@ public sealed class Kachel
     [JsonPropertyName("extra")] public bool? Zusatz { get; set; }
     /// <summary>Verlegung: "von" = ursprüngliche Stunde (Zeichen mit Pfeil nach rechts), "nach" = Zielstunde (Pfeil nach links).</summary>
     [JsonPropertyName("moved")] public string? Verlegung { get; set; }
+    /// <summary>Verlegung: ursprüngliche Stunde (von) und Zielstunde (nach); fehlt die Gegenseite, nur das Zeichen.</summary>
+    [JsonPropertyName("movedFrom")] public KachelVerlegung? VerlegungVon { get; set; }
+    [JsonPropertyName("movedTo")] public KachelVerlegung? VerlegungNach { get; set; }
+    /// <summary>Verlegung als Text, immer Ursprung → Ziel: „09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15 - 13:00“.</summary>
+    [JsonPropertyName("movedText")] public string? VerlegungText { get; set; }
+    /// <summary>Zeichen oben rechts in Anzeigereihenfolge: verlegungVon, verlegungNach, entfall, pruefung, plus, aenderung.</summary>
+    [JsonPropertyName("markers")] public List<string>? Marker { get; set; }
+    /// <summary>Hinzugekommene Werte (ohne alten Wert): grünes Label mit „+“ davor (Komma-Listen).</summary>
+    [JsonPropertyName("classPlus")] public string? KlassePlus { get; set; }
+    [JsonPropertyName("teacherPlus")] public string? LehrkraftPlus { get; set; }
+    [JsonPropertyName("roomPlus")] public string? RaumPlus { get; set; }
     /// <summary>Klasse abwesend (Freisetzung): Klasse durchgestrichen, Kachel grün; im Lehrerplan wie eine abgegebene Stunde.</summary>
     [JsonPropertyName("classAbsent")] public bool? KlasseAbwesend { get; set; }
     /// <summary>Offene Raumvertretung: noch kein Raum eingeteilt, bisheriger Raum durchgestrichen.</summary>
@@ -151,6 +182,7 @@ public sealed class Kachel
     {
         var k = (Kachel)MemberwiseClone();
         k.Geaendert = new List<string>(Geaendert);
+        if (Marker != null) k.Marker = new List<string>(Marker);
         return k;
     }
 }

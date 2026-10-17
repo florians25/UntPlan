@@ -47,6 +47,8 @@ public sealed record Vermerk(int Id, string Datum, string Klasse, int? SchuelerI
 {
     /// <summary>Uhrzeit des Eintrags (Dialog „Klassenbucheintrag“), leer = Erstellungszeit.</summary>
     public string Zeit { get; init; } = "";
+    /// <summary>Konto, das den Eintrag angelegt hat (0 = unbekannt, ältere Einträge).</summary>
+    public int BenutzerId { get; init; }
 }
 
 /// <summary>
@@ -122,7 +124,7 @@ public sealed partial class Klassenbuchdienst
     internal static Fehlzeit FehlzeitLesen(System.Data.Common.DbDataReader r) => LesenFehlzeit(r);
 
     private static Vermerk LesenVermerk(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Text("klasse"), r.ZahlOderNull("schueler_id"),
-        r.Text("art"), r.Text("text"), r.Text("lehrer"), r.Text("erstellt")) { Zeit = r.Text("zeit") };
+        r.Text("art"), r.Text("text"), r.Text("lehrer"), r.Text("erstellt")) { Zeit = r.Text("zeit"), BenutzerId = r.ZahlOderNull("benutzer_id") ?? 0 };
 
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
     public static readonly string[] VermerkArten = { "Vermerk", "Ordnungsmaßnahme", "Elterngespräch", "Lob", "Material vergessen", "Hausaufgabe fehlt" };
@@ -505,6 +507,37 @@ public sealed partial class Klassenbuchdienst
         var id = _db.Einfuegen("INSERT INTO vermerke (datum, klasse, schueler_id, art, text, lehrer, erstellt, benutzer_id, zeit) VALUES (@d, @k, @s, @a, @t, @l, @e, @b, @z)", Db.P("@d", d), Db.P("@k", s.Klassen[klasse].Kurz), Db.P("@s", schuelerId), Db.P("@a", a), Db.P("@t", text!.Trim()),
             Db.P("@l", b.LehrerKuerzel ?? b.Anzeigename), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id), Db.P("@z", zeit ?? ""));
         return _db.Einzel("SELECT * FROM vermerke WHERE id = @i", LesenVermerk, Db.P("@i", id))!;
+    }
+
+    public Vermerk? VermerkLesen(int id) => _db.Einzel("SELECT * FROM vermerke WHERE id = @i", LesenVermerk, Db.P("@i", id));
+
+    /// <summary>
+    /// Rechte an einem Klassenbucheintrag (Detaildialog): Bearbeiten für den Verfasser bzw. die Klassenleitung (Recht „Klassenbuch aller Klassen“
+    /// eingeschlossen) – Löschen zusätzlich nur innerhalb der Löschsperre der Klassenbuch-Einstellungen.
+    /// </summary>
+    public (bool Bearbeiten, bool Loeschen) VermerkRechte(Benutzer b, Stand s, Vermerk v)
+    {
+        if (!b.Kollegium) return (false, false);
+        var darf = b.IstAdmin || (v.BenutzerId != 0 && v.BenutzerId == b.Id) || IstKlassenleitung(b, s, v.Klasse);
+        if (!darf) return (false, false);
+        try { Einstellungen().LoeschenPruefen(b, v.Erstellt, _uhr.Jetzt); return (true, true); }
+        catch (UnauthorizedAccessException) { return (true, false); }
+    }
+
+    /// <summary>Klassenbucheintrag ändern (Datum, Uhrzeit, betroffene Schüler*in, Art, Text) – Verfasser bzw. Klassenleitung.</summary>
+    public Vermerk VermerkAendern(Benutzer b, Stand s, int id, DateOnly d, int? schuelerId, string art, string text, string? zeit = null)
+    {
+        var v = VermerkLesen(id) ?? throw new ArgumentException("Der Klassenbucheintrag existiert nicht mehr.");
+        if (!VermerkRechte(b, s, v).Bearbeiten) throw new UnauthorizedAccessException("Keine Berechtigung.");
+        if (text?.Length > 1000) throw new ArgumentException("Der Klassenbucheintrag darf höchstens 1000 Zeichen lang sein.");
+        if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte einen Text eingeben.");
+        if (!string.IsNullOrEmpty(zeit) && !System.Text.RegularExpressions.Regex.IsMatch(zeit, @"^\d{2}:\d{2}$")) throw new ArgumentException("Ungültige Uhrzeit.");
+        Einstellungen().EingabePruefen(b, d, _uhr.Heute);
+        if (schuelerId is int sid && !s.Schueler.Any(x => x.Id == sid && Ci.Equals(x.Klasse, v.Klasse))) throw new ArgumentException("Schüler gehört nicht zur Klasse.");
+        var a = VermerkArten.FirstOrDefault(x => Ci.Equals(x, art)) ?? v.Art;
+        _db.Ausfuehren("UPDATE vermerke SET datum = @d, schueler_id = @s, art = @a, text = @t, zeit = @z WHERE id = @i",
+            Db.P("@d", d), Db.P("@s", schuelerId), Db.P("@a", a), Db.P("@t", text!.Trim()), Db.P("@z", zeit ?? v.Zeit), Db.P("@i", id));
+        return VermerkLesen(id)!;
     }
 
     public bool VermerkLoeschen(Benutzer b, Stand s, int id)

@@ -112,6 +112,11 @@ enum Farben {
     static let verlegtVon = Color(hell: 0xF03E3E, dunkel: 0xE5484D)
     static let verlegtNach = Color(hell: 0x1E9E5A, dunkel: 0x22A866)
 
+    // Marker oben rechts auf den Karten (wie im Web: Prüfung gelber Kreis, Entfall rotes Dreieck, Änderung/Zusatz grün)
+    static let markerGelb = Color(hell: 0xF7C600, dunkel: 0xF2C200)
+    static let markerRot = Color(hell: 0xF03E3E, dunkel: 0xE5484D)
+    static let markerGruen = Color(hell: 0x1F9D55, dunkel: 0x22A866)
+
     // Info-Zeichen auf den Karten
     static let infoFeld = Color(hell: 0xF2F4F6, dunkel: 0x2B3138)
     static let infoScheibe = Color(hell: 0x828E9B, dunkel: 0x9AA6B2)

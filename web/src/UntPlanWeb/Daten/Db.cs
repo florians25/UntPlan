@@ -693,6 +693,27 @@ public sealed class Db
         );
         ALTER TABLE buchungen ADD COLUMN storno_uebertragen VARCHAR(30);
         """),
+
+        // 23: Sprechtag – Ort, Optionen (JSON: Puffer, Höchstzahl je Familie, Warteliste, Erinnerung, Sichtbarkeit, Ankündigung, Reihe),
+        //    Termindauer/Online-Link je Lehrkraft, Erinnerungsvermerk je Termin, Warteliste; öffentliche Hinweise für die Anmeldeseite – nur Standard-SQL
+        Nr(23, """
+        ALTER TABLE sprechtage ADD COLUMN ort VARCHAR(300) NOT NULL DEFAULT '';
+        ALTER TABLE sprechtage ADD COLUMN optionen VARCHAR(2000) NOT NULL DEFAULT '';
+        ALTER TABLE sprechtag_lehrer ADD COLUMN dauer INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE sprechtag_lehrer ADD COLUMN online INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE sprechtag_lehrer ADD COLUMN link VARCHAR(500) NOT NULL DEFAULT '';
+        ALTER TABLE sprechtag_termine ADD COLUMN erinnert VARCHAR(30) NOT NULL DEFAULT '';
+        CREATE TABLE sprechtag_warteliste (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sprechtag_id INTEGER NOT NULL REFERENCES sprechtage(id) ON DELETE CASCADE,
+            lehrer VARCHAR(50) NOT NULL, schueler_id INTEGER NOT NULL, benutzer_id INTEGER, erstellt VARCHAR(30) NOT NULL DEFAULT '',
+            benachrichtigt VARCHAR(30) NOT NULL DEFAULT '', UNIQUE (sprechtag_id, lehrer, schueler_id)
+        );
+        CREATE TABLE oeffentliche_hinweise (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, titel VARCHAR(120) NOT NULL, text VARCHAR(1000) NOT NULL DEFAULT '',
+            von VARCHAR(10) NOT NULL DEFAULT '', bis VARCHAR(10) NOT NULL DEFAULT '', aktiv INTEGER NOT NULL DEFAULT 1,
+            reihenfolge INTEGER NOT NULL DEFAULT 0, erstellt VARCHAR(30) NOT NULL DEFAULT '', geaendert VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        """),
     };
 
 

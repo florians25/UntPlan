@@ -49,20 +49,46 @@ export function gekuerzt(liste, max = 3, entfall = false, lehrkraft = false) {
 const kuerzelListe = l => (l || []).map(w => w.k || w.alt).filter(Boolean);
 
 export function werte(liste, entfall = false, lehrkraft = false) {
-  return (liste || []).map(w => {
-    if (entfall) return e(w.alt || w.k);
-    if (w.alt && !w.k) return `<span class="lbl weg">${e(w.alt)}</span>`;
-    if (!w.k && w.neu) return '<span class="lbl">???</span>';
-    if (w.alt) return `<span class="lbl" ${wechselHover(w.alt, w.k, lehrkraft)}>${e(w.k)}</span>`;
-    if (w.neu) return `<span class="lbl" data-hover="${e('+ ' + w.k)}">${e(w.k)}</span>`;
-    return e(w.k);
-  }).join(', ');
+  return (liste || []).map(w => wertHtml(w, entfall, lehrkraft)).join(', ');
 }
+
+/** Ein Wert: grünes Label bei Änderung („alt → neu“ im Hover), „+B070“ bei hinzugefügtem Wert, entfernter Wert durchgestrichen. */
+function wertHtml(w, entfall = false, lehrkraft = false) {
+  if (entfall) return e(w.alt || w.k);
+  if (w.alt && !w.k) return `<span class="lbl weg">${e(w.alt)}</span>`;
+  if (!w.k && w.neu) return '<span class="lbl">???</span>';
+  if (w.alt) return `<span class="lbl" ${wechselHover(w.alt, w.k, lehrkraft)}>${e(w.k)}</span>`;
+  // hinzugefügt (z. B. zusätzlicher Raum): „+“ im Label
+  if (w.neu) return `<span class="lbl lbl-plus">+${e(w.k)}</span>`;
+  return e(w.k);
+}
+
+/** Pille eines Werts im Hover einer gekürzten Liste: grau, geändert grün, abwesend/entfernt grün durchgestrichen. */
+function wertPille(w, entfall = false) {
+  if (entfall) return { t: w.alt || w.k };
+  if (w.alt && !w.k) return { t: w.alt, a: 'weg' };
+  if (!w.k && w.neu) return { t: '???', a: 'neu' };
+  if (w.alt) return { t: w.k, a: 'neu' };
+  if (w.neu) return { t: `+${w.k}`, a: 'neu' };
+  return { t: w.k };
+}
+
+/**
+ * Liste von Werten in einer Kartenzeile (mehrere Lehrkräfte bzw. Klassen): alle Werte in einer Zeile, was nicht passt, endet mit „…“
+ * und „+5“ (Anzahl der ganz verdeckten Werte, nach dem Zeichnen gemessen – listenKuerzen). Hover über die gekürzte Zeile: alle Werte
+ * als Pillen. html = Inhalt je Wert, pillen = { t, a } je Wert.
+ */
+function liste(html, pillen) {
+  if (html.length < 2) return html.join('');
+  return { liste: true, html: `<span class="z-namen">${html.map((h, i) => `<span class="z-w">${h}${i < html.length - 1 ? ', ' : ''}</span>`).join('')}</span><span class="mehr" hidden></span>`,
+    inline: html.join(', '), pillen };
+}
+const werteListe = (l, entfall = false, lehrkraft = false) => liste((l || []).map(w => wertHtml(w, entfall, lehrkraft)), (l || []).map(w => wertPille(w, entfall)));
 
 function titelText(k) {
   const w = l => (l || []).map(x => x.alt && x.k ? `${x.k} (statt ${x.alt})` : x.k || (x.alt ? `${x.alt} fehlt` : '???')).join(', ');
   return [k.fachName || k.fach || k.text, w([...(k.klassen || []), ...(k.mitklassen || [])]), w(k.lehrer), k.online ? 'findet online statt' : w(k.raeume),
-    k.status !== 'regulaer' ? statusText(k) : '', k.fach && !k.zusaetzlich && k.text].filter(Boolean).join(' · ');
+    k.status !== 'regulaer' ? statusText(k) : '', k.fach && k.text].filter(Boolean).join(' · ');
 }
 
 /**
@@ -74,16 +100,32 @@ export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && (typ === 'l
 /** Echter Entfall (rot, durchgestrichen); im Raumplan gilt eine verlegte Stunde weiter als Entfall. */
 const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend' && !lehrerAbwesend(k, typ));
 
+/** Ein Wert der Stunde hat sich geändert (Fach, ersetzter, hinzugefügter bzw. entfernter Wert) – wie Karte.WertGeaendert im Server. */
+const wertGeaendert = k => !!k.fachAlt || [...(k.klassen || []), ...(k.lehrer || []), ...(k.raeume || []), ...(k.mitklassen || [])].some(w => w.alt || w.neu);
+
+/** „09.10.2026 | 11:30 - 13:00“ – eine Seite einer Verlegung. */
+const verlegungsZeit = z => `${datumDe(z.datum)}${z.beginn ? ` | ${z.beginn}${z.ende ? ` - ${z.ende}` : ''}` : ''}`;
+/** Hover einer Verlegung: Ursprung → Ziel (ohne Angaben des Servers ein allgemeiner Hinweis). */
+const verlegungsText = (k, richtung) => k.verlegungVon && k.verlegungNach ? `${verlegungsZeit(k.verlegungVon)} → ${verlegungsZeit(k.verlegungNach)}`
+  : richtung === 'von' ? 'Verlegt (ursprüngliche Stunde)' : 'Verlegung (hierher verlegt)';
+
+/**
+ * Symbole oben rechts, untereinander: Verlegung (rot bzw. grün, Pfeil nach rechts, Hover „Ursprung → Ziel“), Entfall-Dreieck,
+ * Prüfung (gelber Kreis), „+“ (zusätzliche Stunde), Änderung (grünes Quadrat). Prüfung, Zusatzstunde und Zielstunde einer Verlegung
+ * zeigen darunter zusätzlich das grüne Quadrat, wenn sich ein Wert geändert hat (wie Karte.Marker im Server).
+ */
 function marker(k, typ) {
   const m = [];
   const verlegt = istVerlegung(k) && k.status !== 'klausur';
   const richtung = verlegt ? verlegungsRichtung(k, typ) : '';
-  // ursprüngliche Stunde: rot mit Pfeil nach rechts; Zielstunde: grün mit Pfeil nach links
-  if (verlegt) m.push(`<i class="mk-verlegung ${richtung} ${richtung === 'von' ? 'weg' : ''}" data-hover="${richtung === 'von' ? 'Verlegt (ursprüngliche Stunde)' : 'Verlegung (hierher verlegt)'}" data-hover-art="dunkel"></i>`);
+  if (verlegt) m.push(`<i class="mk-verlegung ${richtung} ${richtung === 'von' ? 'weg' : ''}" data-hover="${e(verlegungsText(k, richtung))}"${richtung === 'von' ? ' data-hover-art="rot"' : ''} data-hover-mitte></i>`);
   else if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
-  if (k.status === 'klausur') m.push('<i class="mk-kreis"></i>');
-  if (verlegt) { /* Symbol steht schon */ }
-  else if (istZusatz(k)) m.push(`<i class="mk-plus"${k.zusaetzlich ? ` data-hover="${ZUSATZ_TEXT}" data-hover-art="dunkel"` : ''}></i>`);
+  if (k.status === 'klausur') { m.push('<i class="mk-kreis"></i>'); if (wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>'); }
+  else if (verlegt) { if (richtung === 'nach' && (k.status === 'geaendert' || k.status === 'offen') && wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>'); }
+  else if (istZusatz(k)) {
+    m.push(`<i class="mk-plus"${k.zusaetzlich ? ` data-hover="${ZUSATZ_TEXT}" data-hover-art="dunkel"` : ''}></i>`);
+    if (k.status !== 'veranstaltung' && wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>');
+  }
   else if (k.status === 'geaendert' || k.status === 'offen' || k.status === 'buchung') m.push('<i class="mk-quadrat"></i>');
   return m.length ? `<span class="mks" aria-hidden="true">${m.join('')}</span>` : '';
 }
@@ -91,7 +133,8 @@ function marker(k, typ) {
 /** Text für das Info-Symbol: Vertretungstext und Notizen (wie im Original unten rechts auf der Karte). */
 export function infoText(k) {
   const z = [];
-  if (k.text && k.fach && !k.zusaetzlich && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
+  // Zusatzstunden: der Server liefert nur von Hand eingegebene Texte (Standardtexte entfallen) – diese erscheinen wie sonst auch
+  if (k.text && k.fach && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
   if (k.notizLehrer) z.push(`Notizen für Lehrkräfte: ${k.notizLehrer}`);
   if (k.notizSchueler) z.push(`Notizen für Schüler*innen: ${k.notizSchueler}`);
   return z.join('\n');
@@ -118,23 +161,37 @@ const abwesend = k => new Set((k.abwesendeKlassen || []).map(x => x.toLowerCase(
 /** Klassen mit durchgestrichenen abwesenden Klassen. */
 function klassenWerte(k, entfall) {
   const weg = abwesend(k);
-  if (!weg.size || entfall) return werte(k.klassen, entfall);
-  return (k.klassen || []).map(w => weg.has((w.k || '').toLowerCase()) ? `<span class="kl-weg">${e(w.k)}</span>` : werte([w])).join(', ');
+  if (!weg.size || entfall) return werteListe(k.klassen, entfall);
+  const l = k.klassen || [];
+  return liste(l.map(w => weg.has((w.k || '').toLowerCase()) ? `<span class="kl-weg">${e(w.k)}</span>` : werte([w])),
+    l.map(w => weg.has((w.k || '').toLowerCase()) ? { t: w.k, a: 'aus' } : wertPille(w)));
 }
+
+/** Kartenzeile: Text bzw. Werteliste ({ liste, html, inline, pillen }); voll = vollständiger Text für den Hover einer gekürzten Zeile. */
+function zeileHtml(klasse, x, kompakt = false, voll = '') {
+  if (x && typeof x === 'object') {
+    if (kompakt) return `<div class="${klasse}">${x.inline}</div>`;
+    return `<div class="${klasse} z-liste" data-pillen="${e(JSON.stringify(x.pillen))}">${x.html}</div>`;
+  }
+  return `<div class="${klasse}"${voll ? ` data-voll="${e(voll)}"` : ''}>${x}</div>`;
+}
+const zeilenText = x => x && typeof x === 'object' ? x.inline : x;
 
 export function karteInhalt(k, typ, kompakt = false) {
   const entfall = istEntfall(k, typ);
   // online: kein Raumlabel (auch kein künstliches) – nur das Symbol unten auf der Karte
   const raum = istOnline(k, typ) ? '' : werte(k.raeume, entfall);
   const fach = k.fachAlt && !entfall ? `<span class="lbl" ${wechselHover(k.fachAlt, k.fach)}>${e(k.fach)}</span>` : e(k.fach || '');
+  // gekürzte Fachzeile: Hover mit dem vollständigen Fachnamen
+  const fachVoll = k.fachName && k.fachName !== k.fach ? k.fachName : '';
   const ohneFach = !k.fach;
   let oben, rest;
   if (ohneFach) {
     // Veranstaltung, Klausur, Buchung: Bezeichnung, dann Klassen, Lehrkräfte (gekürzt) und Raum
     oben = e(k.text || k.art || '—');
-    rest = [gekuerzt(k.klassen, 4, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? gekuerzt(k.lehrer, 3, entfall, true) : '', raum];
+    rest = [werteListe(k.klassen, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? werteListe(k.lehrer, entfall, true) : '', raum];
   } else if (typ === 'klasse') {
-    const lehrer = werte(k.lehrer, entfall, true);
+    const lehrer = werteListe(k.lehrer, entfall, true);
     oben = lehrer || fach;
     // Mitklassen (gekoppelt bzw. parallel identisch, z. B. INF13 auf der Karte von INF12) ganz unten; eine fehlende Mitklasse
     // steht wie eine abwesende Lehrkraft durchgestrichen im grünen Label
@@ -142,25 +199,25 @@ export function karteInhalt(k, typ, kompakt = false) {
     rest = [lehrer ? fach : '', raum, k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : '', mit];
   } else if (typ === 'raum') {
     oben = klassenWerte(k, entfall) || fach;
-    rest = [werte(k.lehrer, entfall, true), k.klassen.length ? fach : ''];
+    rest = [werteListe(k.lehrer, entfall, true), k.klassen.length ? fach : ''];
   } else {
     oben = klassenWerte(k, entfall) || fach;
     // Eigene Abwesenheit: die vertretende Lehrkraft als grünes Label (Hover „HOF → BEC“); ohne Vertretung (Vertretung ohne
     // Lehrkraft, weggefallene Bereitschaft) das eigene Kürzel durchgestrichen. Kopplung: alle Lehrkräfte.
-    const lehrerZeile = lehrerAbwesend(k, typ) ? (k.lehrer.filter(w => w.alt || w.k).map(w => w.k && w.alt
+    const abw = k.lehrer.filter(w => w.alt || w.k);
+    const lehrerZeile = lehrerAbwesend(k, typ) ? (abw.length ? liste(abw.map(w => w.k && w.alt
         ? `<span class="lbl" ${wechselHover(w.alt, w.k, true)}>${e(w.k)}</span>`
-        : `<span class="lbl weg">${e(w.alt || w.k)}</span>`).join(' ') || '')
-      : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werte(k.lehrer, entfall, true) : '';
+        : `<span class="lbl weg">${e(w.alt || w.k)}</span>`), abw.map(w => w.k && w.alt ? { t: w.k, a: 'neu' } : { t: w.alt || w.k, a: 'weg' })) : '')
+      : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werteListe(k.lehrer, entfall, true) : '';
     rest = [k.klassen.length ? fach : '', raum, lehrerZeile];
   }
   const zeilen = rest.filter(x => x);
   // abwesende Klasse: Label „abwesend …“ (Hover mit den Klassen)
   if (abwesend(k).size && !entfall) zeilen.push(`<span class="abw-label" data-hover="${e([...abwesend(k)].join(', ') + ' ' + (k.abwesendText || 'abwesend'))}" data-hover-art="dunkel">${e(k.abwesendText || 'abwesend')}</span>`);
-  const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.join(' · ')}</div>` : '') : zeilen.map(x => `<div class="z2">${x}</div>`).join('');
-  // mehrere Klassen (Kopplung, Kurs): beim Zeigen auf die erste Zeile alle Klassen als Pillen (gekürzte Anzeige)
-  const kl = kuerzelListe(k.klassen);
-  const pillen = kl.length > 1 && typ !== 'klasse' ? ` data-hover-pillen="${e(kl.join(','))}"` : '';
-  return `${marker(k, typ)}<div class="z1"${pillen}>${oben}</div>${rumpf}${eckSymbole(k, typ)}`;
+  // Hover einer gekürzten Zeile: jede Zeile für sich (Werteliste als Pillen, Fach mit vollem Namen, sonst der vollständige Text)
+  const voll = x => x === fach && fachVoll ? fachVoll : '';
+  const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(' · ')}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
+  return `${marker(k, typ)}${zeileHtml('z1', oben, false, voll(oben))}${rumpf}${eckSymbole(k, typ)}`;
 }
 
 /** CSS-Klassen einer Karte (Status, Lehrkraft abwesend, vergangen). */
@@ -297,7 +354,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
   const ausgewaehlt = gewaehlterTag ?? Math.max(0, tage.findIndex(t => t.datum === heute));
   const jetztY = tage.some(t => t.datum === heute) ? jetztPosition(zeiten, aufbau, jetzt) : null;
   // „abwesend …“ steht nicht zusätzlich über dem Tag – die Karten zeigen die Abwesenheit bereits
-  const hinweise = t => plan.typ === 'lehrer' ? t.hinweise.filter(h => !/^abwesend\b/i.test(h)) : t.hinweise;
+  // ebenso keine „Raum gesperrt …“ bzw. „Klasse abwesend …“ über dem Tag (die Karten zeigen das)
+  const hinweise = t => t.hinweise.filter(h => !/^(abwesend|raum gesperrt|klasse abwesend)\b/i.test(h));
   const mitLeiste = tage.some(t => hinweise(t).length);
 
   let html = `<div class="tt" style="--tage:${tage.length}"><div class="tt-ecke"></div>`;
@@ -397,23 +455,35 @@ export function tagAuswahl(plan, gewaehlt) {
  * nicht von der Karte abgeschnitten wird.
  */
 let hoverEl = null, hoverZiel = null, hoverTimer = 0;
-function hoverZeigen(ziel) {
+/**
+ * Hover zeigen. ziel = Element mit data-hover (Label, Symbol) oder eine gekürzte Kartenzeile (Pillen bzw. vollständiger Text);
+ * anker = Element, über dem der Hover steht (Verlegung beim Zeigen auf die Karte: das Symbol oben rechts).
+ */
+function hoverZeigen(ziel, anker = ziel) {
   clearTimeout(hoverTimer);
   if (!hoverEl) { hoverEl = document.createElement('div'); hoverEl.className = 'u-hover-label'; hoverEl.setAttribute('role', 'tooltip'); document.body.append(hoverEl); }
   if (hoverZiel === ziel && hoverEl.style.display === 'block') return;   // ruhig stehen lassen, kein Flackern beim Bewegen
   hoverZiel = ziel;
-  const pillen = ziel.dataset.hoverPillen;
-  const text = ziel.dataset.hover || '';
-  if (pillen) hoverEl.innerHTML = pillen.split(',').map(x => `<span>${e(x)}</span>`).join('');
-  else hoverEl.textContent = text;   // „alt → neu“ ohne Durchstreichung
-  hoverEl.classList.toggle('dunkel', ziel.dataset.hoverArt === 'dunkel');
-  hoverEl.classList.toggle('grau', ziel.dataset.hoverArt === 'grau');
+  const zeile = ziel.classList.contains('z1') || ziel.classList.contains('z2');
+  let pillen = null;
+  if (zeile && ziel.dataset.pillen) try { pillen = JSON.parse(ziel.dataset.pillen); } catch { pillen = null; }
+  if (!pillen && ziel.dataset.hoverPillen) pillen = ziel.dataset.hoverPillen.split(',').map(t => ({ t }));
+  const art = zeile ? 'zeile' : ziel.dataset.hoverArt || '';
+  if (pillen) hoverEl.innerHTML = pillen.map(p => `<span class="${p.a ? 'p-' + e(p.a) : ''}">${e(p.t)}</span>`).join('');
+  else hoverEl.textContent = zeile ? (ziel.dataset.voll || ziel.textContent.trim()) : ziel.dataset.hover || '';   // „alt → neu“ ohne Durchstreichung
+  hoverEl.classList.toggle('dunkel', art === 'dunkel');
+  hoverEl.classList.toggle('grau', art === 'grau' && !pillen);
+  hoverEl.classList.toggle('zeile', art === 'zeile' && !pillen);
+  hoverEl.classList.toggle('rot', art === 'rot');
   hoverEl.classList.toggle('pillen', !!pillen);
   hoverEl.style.display = 'block';
-  const r = ziel.getBoundingClientRect();
+  const r = anker.getBoundingClientRect();
   const b = hoverEl.offsetWidth, h = hoverEl.offsetHeight;
   const unten = ziel.dataset.hoverPos === 'unten';
-  const links = Math.max(6, Math.min(window.innerWidth - b - 6, unten || pillen ? r.left : ziel.dataset.hoverArt === 'dunkel' ? r.right - b : r.left - 4));
+  // grüne bzw. rote Labels und Symbole: genau mittig über dem Element; Info (dunkel): rechtsbündig; Zeilen und Pillen: linksbündig
+  const mitte = !zeile && !pillen && !unten && (art === '' || art === 'rot' || 'hoverMitte' in ziel.dataset);
+  const x = unten || pillen || zeile ? r.left : mitte ? r.left + r.width / 2 - b / 2 : art === 'dunkel' ? r.right - b : r.left - 4;
+  const links = Math.max(6, Math.min(window.innerWidth - b - 6, x));
   hoverEl.style.left = `${Math.round(links)}px`;
   hoverEl.style.top = `${Math.round(unten ? r.bottom + 6 : Math.max(6, r.top - h - 6))}px`;
 }
@@ -422,16 +492,56 @@ function hoverVerbergen(sofort = false) {
   const weg = () => { if (hoverEl) hoverEl.style.display = 'none'; hoverZiel = null; };
   if (sofort) weg(); else hoverTimer = setTimeout(weg, 80);
 }
+/** Kartenzeile gekürzt (Text endet mit „…“ bzw. Werteliste mit „+5“)? */
+function zeileGekuerzt(z) {
+  const t = z.querySelector(':scope > .z-namen') ?? z;
+  return t.scrollWidth > t.clientWidth + 1;
+}
 document.addEventListener('mouseover', ev => {
-  const z = ev.target.closest?.('[data-hover], [data-hover-pillen]');
-  if (z && z.closest('.std, .tt-liste, .tagplan, .sd-kopf, .u-hover-bereich')) hoverZeigen(z); else if (hoverZiel) hoverVerbergen();
+  const t = ev.target;
+  const z = t.closest?.('[data-hover], [data-hover-pillen]');
+  if (z && z.closest('.std, .tt-liste, .tagplan, .sd-kopf, .u-hover-bereich')) { hoverZeigen(z); return; }
+  const karte = t.closest?.('.std');
+  if (karte) {
+    // jede gekürzte Zeile hat ihren eigenen Hover (über der Zeile)
+    const zeile = t.closest('.z1, .z2');
+    if (zeile && karte.contains(zeile) && zeileGekuerzt(zeile)) { hoverZeigen(zeile); return; }
+    // Verlegung: Hover „Ursprung → Ziel“ auch beim Zeigen auf die Karte (über dem Symbol)
+    const v = karte.querySelector('.mks .mk-verlegung[data-hover]');
+    if (v) { hoverZeigen(v); return; }
+  }
+  if (hoverZiel) hoverVerbergen();
 });
 document.addEventListener('scroll', () => hoverVerbergen(true), true);
 document.addEventListener('click', () => hoverVerbergen(true), true);
 
+/**
+ * Wertelisten auf den Karten kürzen: alle Werte stehen in einer Zeile; passt die Liste nicht, endet sie mit „…“ und „+5“ –
+ * Anzahl der Werte, die ganz verdeckt sind. Nach jedem Zeichnen und bei Größenänderung neu gemessen.
+ */
+export function listenKuerzen(wurzel) {
+  for (const z of wurzel.querySelectorAll('.std .z-liste')) {
+    const namen = z.querySelector(':scope > .z-namen'), mehr = z.querySelector(':scope > .mehr');
+    if (!namen || !mehr) continue;
+    mehr.hidden = true;
+    if (namen.scrollWidth <= namen.clientWidth + 1) continue;
+    // Platz für „+N“ freihalten, dann zählen, welche Werte ganz hinter dem Rand liegen
+    mehr.textContent = '+0'; mehr.hidden = false;
+    const rechts = namen.getBoundingClientRect().right;
+    const verdeckt = [...namen.querySelectorAll(':scope > .z-w')].filter(w => w.getBoundingClientRect().left >= rechts - 8).length;
+    if (verdeckt > 0) mehr.textContent = `+${verdeckt}`; else mehr.hidden = true;
+  }
+}
+
 /** Klick auf eine Karte öffnet den Detaildialog. */
 export function kartenBinden(wurzel, karten, kontext, typ = null) {
   const oeffnen = el => { const k = karten[Number(el.dataset.karte)]; if (k) karteDialog(k, { ...kontext, liste: karten, typ }); };
+  listenKuerzen(wurzel);
+  if (!wurzel.__kuerzen && typeof ResizeObserver === 'function') {
+    let warte = 0;
+    wurzel.__kuerzen = new ResizeObserver(() => { cancelAnimationFrame(warte); warte = requestAnimationFrame(() => listenKuerzen(wurzel)); });
+    wurzel.__kuerzen.observe(wurzel);
+  }
   wurzel.querySelectorAll('[data-karte]').forEach(el => {
     el.addEventListener('click', () => oeffnen(el));
     el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); oeffnen(el); } });

@@ -77,6 +77,7 @@ public class Program
         // Klassenbuch: Erinnerung an offene Stunden und automatische Entschuldigung (Hintergrunddienst)
         builder.Services.AddSingleton<Klassenbucherinnerung>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Klassenbucherinnerung>());
+        builder.Services.AddHostedService<Sprechtagerinnerung>();
         builder.Services.AddSingleton<Unterrichtsgruppen>();
         builder.Services.AddSingleton<Systemwartung>();
 
@@ -182,6 +183,7 @@ public class Program
         BenutzerverwaltungApi.Abbilden(app);
         InfocenterApi.Abbilden(app);
         SprechtagApi.Abbilden(app);
+        HinweisApi.Abbilden(app);
         OffeneStundenApi.Abbilden(app);
         RechteApi.Abbilden(app);
         SchuelerImportApi.Abbilden(app);

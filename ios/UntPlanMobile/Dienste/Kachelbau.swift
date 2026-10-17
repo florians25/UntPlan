@@ -103,6 +103,31 @@ struct Kachelzeile: Hashable {
     var nurText: Bool { teile.allSatisfy { $0.stil == .text } }
 }
 
+/// Marker oben rechts auf der Karte (Feld `marker` der Karte, Reihenfolge vom Server).
+enum Kachelmarker: String, Hashable {
+    case verlegungVon
+    case verlegungNach
+    case entfall
+    case pruefung
+    case plus
+    case aenderung
+
+    /// Nachsichtig lesen (Groß-/Kleinschreibung, Umlaute, Bindestriche); Unbekanntes entfällt.
+    static func lesen(_ roh: String) -> Kachelmarker? {
+        let t = roh.lowercased().replacingOccurrences(of: "-", with: "").replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "ü", with: "ue").replacingOccurrences(of: "ä", with: "ae")
+        switch t {
+        case "verlegungvon", "von": return .verlegungVon
+        case "verlegungnach", "nach": return .verlegungNach
+        case "entfall": return .entfall
+        case "pruefung", "klausur": return .pruefung
+        case "plus", "zusatz": return .plus
+        case "aenderung", "geaendert": return .aenderung
+        default: return nil
+        }
+    }
+}
+
 /// Eine Kachel im Raster.
 struct Kachel: Identifiable {
     var id = UUID()
@@ -136,8 +161,10 @@ struct Kachel: Identifiable {
     var raumAenderung: Bool = false
     /// Stunde findet online statt: Online-Zeichen unten rechts
     var online: Bool = false
-    /// Verlegung: „von“ (ursprüngliche Stunde, Pfeil nach rechts) bzw. „nach“ (Zielstunde, Pfeil nach links)
+    /// Verlegung: „von“ (ursprüngliche Stunde, rotes Feld) bzw. „nach“ (Zielstunde, grünes Feld), Pfeil nach rechts
     var verlegung: String? = nil
+    /// Marker oben rechts (untereinander) laut Server; nil = älterer Server ohne Marker (Verlegung dann unten rechts)
+    var marker: [Kachelmarker]? = nil
 
     /// Zeigt Text beim Antippen (alles außer der Ganztags-Pille).
     var antippbar: Bool { art != .ganztagTermin }
@@ -374,8 +401,16 @@ enum Kachelbau {
         kachel.hausaufgabe = k.hausaufgabeFaellig
         kachel.online = k.online && !k.istEntfall && k.status != "abwesend"
         kachel.verlegung = k.verlegung
-        // Zusatzstunde: kein Vertretungstext – das Info-Zeichen nur für Notizen
-        if k.istZusatzstunde { kachel.info = !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty }
+        if let m = k.marker {
+            var liste: [Kachelmarker] = []
+            for roh in m { if let x = Kachelmarker.lesen(roh), !liste.contains(x) { liste.append(x) } }
+            kachel.marker = liste
+        }
+        // Zusatzstunde: automatische Standardtexte erscheinen nicht – manuell eingegebene Vertretungstexte (und Notizen)
+        // zeigen das Info-Zeichen
+        if k.istZusatzstunde {
+            kachel.info = !k.zusatzText.isEmpty || !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty
+        }
 
         // Veranstaltung: Feld über den ganzen Zeitraum
         if k.status == "veranstaltung" || (k.status == "geaendert" && k.unterricht == nil && k.fach.isEmpty && !k.anzeigeText.isEmpty) {
@@ -419,9 +454,9 @@ enum Kachelbau {
 
         // Geänderte Werte
         var geaendert: Set<String> = []
-        if k.klassen.contains(where: { $0.neu }) { geaendert.insert("klasse") }
-        if k.lehrer.contains(where: { $0.neu }) { geaendert.insert("lehrer") }
-        if k.raeume.contains(where: { $0.neu || (!($0.alt ?? "").isEmpty && !gleich($0.alt ?? "", $0.k)) }) { geaendert.insert("raum") }
+        if k.klassen.contains(where: { $0.neu || $0.plus }) { geaendert.insert("klasse") }
+        if k.lehrer.contains(where: { $0.neu || $0.plus }) { geaendert.insert("lehrer") }
+        if k.raeume.contains(where: { $0.neu || $0.plus || (!($0.alt ?? "").isEmpty && !gleich($0.alt ?? "", $0.k)) }) { geaendert.insert("raum") }
         if let alt = k.fachAlt, !alt.isEmpty, !gleich(alt, k.fach) { geaendert.insert("fach") }
         // Raumänderung ohne gekennzeichneten Wert (nur an der Art erkennbar): der Raum steht trotzdem als Plakette da
         let artKlein = k.art.lowercased()
@@ -726,6 +761,23 @@ enum Kachelbau {
             if typ == "raum" && schluessel == "raum" && wiederholt && !geaendertWert { continue }
             ergebnis.append(zeile)
         }
+        // Hinzugekommene Werte (plus): grünes Label mit „+“ davor, z. B. „+B070“
+        if art != .entfall {
+            let plusWerte: [String: [String]] = [
+                "lehrer": k.lehrer.filter(\.plus).map(\.k),
+                "klasse": (k.klassen + k.mitklassen).filter(\.plus).map(\.k),
+                "raum": k.raeume.filter(\.plus).map(\.k)
+            ]
+            for i in ergebnis.indices {
+                guard let plus = plusWerte[ergebnis[i].schluessel], !plus.isEmpty else { continue }
+                for j in ergebnis[i].teile.indices {
+                    let t = ergebnis[i].teile[j]
+                    guard t.stil == .text || t.stil == .plakette, plus.contains(where: { gleich($0, t.text) }) else { continue }
+                    ergebnis[i].teile[j].stil = .plakette
+                    ergebnis[i].teile[j].text = "+" + t.text
+                }
+            }
+        }
         // Die erste verbleibende Zeile ist fett
         for i in ergebnis.indices { ergebnis[i].fett = i == 0 }
         return ergebnis
@@ -916,6 +968,7 @@ enum Kachelbau {
         }
         var spur: [UUID: Int] = [:]
         var spuren: [UUID: Int] = [:]
+        var kopplungGeaendert: Set<UUID> = []
         var gruppen: [[Kachel]] = []
         for k in stunden {
             let treffer = gruppen.indices.filter { gi in gruppen[gi].contains { $0.ueberlappt(k) } }
@@ -943,6 +996,11 @@ enum Kachelbau {
                 }
             }
             for k in g { spuren[k.id] = spalten.count }
+            // Kopplung mit Änderung (Vertretung, Raumänderung, offene Vertretung, Entfall einer Zeile): alle Blöcke bleiben
+            // nebeneinander stehen, keiner tritt hinter einen Zählstreifen zurück
+            if g.count > 1 && g.contains(where: { istGeaenderteKachel($0) }) {
+                for k in g { kopplungGeaendert.insert(k.id) }
+            }
         }
 
         let felder = stunden.filter { $0.feld }
@@ -982,6 +1040,8 @@ enum Kachelbau {
 
         // Wochenansicht
         let passt = max(1, Int(spaltenBreite / 62))
+        // Gekoppelte Blöcke mit Änderung: schmaler (mind. 22 pt je Block), dafür alle nebeneinander
+        let passtKopplung = max(passt, Int(spaltenBreite / 22))
         var verdraengt: [(karte: Kachel, vorne: Kachel)] = []
         var vorneIds: Set<UUID> = []
         // Veranstaltungsfeld: auf breiten Spalten (iPad) Feld links, entfallende Stunden und Aufsichten rechts daneben
@@ -1019,7 +1079,8 @@ enum Kachelbau {
             }
             let n = spuren[k.id] ?? 1
             let i = spur[k.id] ?? 0
-            if n > passt && i > 0 && !k.feld {
+            let grenze = kopplungGeaendert.contains(k.id) ? passtKopplung : passt
+            if n > grenze && i > 0 && !k.feld {
                 if let vorne = stunden.first(where: { (spur[$0.id] ?? 0) == 0 && $0.ueberlappt(k) }) {
                     verdraengt.append((k, vorne))
                     vorneIds.insert(vorne.id)
@@ -1027,7 +1088,7 @@ enum Kachelbau {
                 }
             }
             var lage = Kachellage(kachel: k)
-            if n > 1 && n <= passt {
+            if n > 1 && n <= grenze {
                 lage = spurLage(lage, n: n, i: i, von: 0, bis: 1, luecke: 2)
             } else if n > 1 {
                 let mehr = stunden.contains { $0.id != k.id && (spur[$0.id] ?? 0) > 0 && $0.ueberlappt(k) }
@@ -1068,6 +1129,12 @@ enum Kachelbau {
             }
         }
         return belegung
+    }
+
+    /// Geänderte Stunde (für Kopplungen): Änderung, Entfall, abgegeben bzw. ein geänderter Wert (Rang 0).
+    private static func istGeaenderteKachel(_ k: Kachel) -> Bool {
+        k.art == .aenderung || k.art == .entfall || k.art == .abgegeben || k.raumAenderung || k.rang == 0
+            || (k.karte?.istOffeneVertretung ?? false)
     }
 
     /// Überlappende Kacheln innerhalb einer Liste durchnummerieren.

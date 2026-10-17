@@ -537,12 +537,13 @@ struct GrauePlakette: View {
     let zahl: Int
 
     var body: some View {
+        // Einen Ticken kleiner als zuvor (31 pt / 17 pt)
         Text("\(zahl)")
-            .font(.system(size: 17))
+            .font(.system(size: 15.5))
             .monospacedDigit()
             .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .frame(minWidth: 31, minHeight: 31)
+            .padding(.horizontal, 7)
+            .frame(minWidth: 28, minHeight: 28)
             .background(Farben.zahlPlakette, in: Capsule())
     }
 }
@@ -685,7 +686,8 @@ struct Wertzeile: View {
                     teil.append(.weg(alt))
                     teil.append(pfeil ? .pfeil : .trenner)
                 }
-                if !w.k.isEmpty { teil.append(.text(w.k)) }
+                // Hinzugekommener Wert (plus) mit „+“ davor, z. B. „+B070“
+                if !w.k.isEmpty { teil.append(.text(w.plus ? "+" + w.k : w.k)) }
             }
             guard !teil.isEmpty else { continue }
             if !ergebnis.isEmpty { ergebnis.append(.trenner) }
@@ -792,19 +794,20 @@ struct SchuelerPlakette: View {
     let kontrolliert: Bool
 
     var body: some View {
+        // Einen Ticken kleiner als zuvor (31 pt / 17 pt)
         Text("\(zahl)")
-            .font(.system(size: 17))
+            .font(.system(size: 15.5))
             .monospacedDigit()
             .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .frame(minWidth: 31, minHeight: 31)
+            .padding(.horizontal, 7)
+            .frame(minWidth: 28, minHeight: 28)
             .background(zahl > 0 ? Farben.abwesendRot : Farben.zahlPlakette, in: Capsule())
             .overlay(alignment: .topTrailing) {
                 if kontrolliert {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 7, weight: .medium))
+                        .font(.system(size: 6.5, weight: .medium))
                         .foregroundStyle(.white)
-                        .frame(width: 13, height: 13)
+                        .frame(width: 12, height: 12)
                         .background(Farben.zahlPlakette, in: Circle())
                         .overlay { Circle().strokeBorder(Farben.blatt, lineWidth: 1) }
                         .offset(x: 3, y: -3)

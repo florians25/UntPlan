@@ -27,9 +27,36 @@
 .mk-plus::before, .mk-plus::after { content: none; }
 .mks .mk-verlegung { width: 12px; height: 12px; border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.5 8h-9M7 4.5 3.5 8 7 11.5'/%3E%3C/svg%3E"); }
-.mks .mk-verlegung.von { background-color: #f03e3e;
+.mks .mk-verlegung.von { background-color: #f03e3e; }
+/* Sprint 27: beide Seiten einer Verlegung mit weißem Pfeil nach RECHTS (Ursprung rot, Ziel grün); Hover „Ursprung → Ziel“ */
+.mks .mk-verlegung, .mks .mk-verlegung.von {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8h9M9 4.5 12.5 8 9 11.5'/%3E%3C/svg%3E"); }
 .std .mks [data-hover] { cursor: default; }
+/* mehrere Symbole untereinander (z. B. „+“ und Änderung, Prüfung und Änderung) */
+.std .mks { gap: 4px; }
+
+/* ------------------------------------------------------------------ Hinzugefügte Werte: „+B070“ im grünen Label */
+.std .lbl.lbl-plus { letter-spacing: 0; }
+
+/* ------------------------------------------------------------------ Wertelisten (mehrere Lehrkräfte bzw. Klassen)
+
+   Alle Werte in einer Zeile; was nicht passt, endet mit „…“, dahinter „+5“ (ganz verdeckte Werte, js listenKuerzen). */
+.std .z-liste { display: flex; align-items: baseline; min-width: 0; }
+.std .z-liste > .z-namen { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.std .z-liste > .mehr { flex: none; margin-left: 4px; font-weight: 500; }
+.std .z-liste > .mehr[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ Hover (Sprint 27)
+
+   Schrift Medium. Rot: Ursprung einer Verlegung. Grau: vollständiger Text einer gekürzten Zeile (z. B. „Sexualpädagogik“).
+   Pillen: alle Werte einer gekürzten Liste in Reihen – dunkelgrau, geändert grün, abwesend/entfernt grün durchgestrichen. */
+.u-hover-label { font-weight: 500; }
+.u-hover-label.rot { background: #f44336; color: #fff; font-size: 15px; font-weight: 500; padding: 7px 12px; border-radius: 3px; }
+.u-hover-label.zeile { background: #6b7680; color: #fff; font-size: 13px; font-weight: 500; padding: 6px 10px; border-radius: 3px; white-space: nowrap; max-width: none; }
+.u-hover-label.pillen { max-width: 360px; gap: 4px; }
+.u-hover-label.pillen span { background: #6b7680; color: #fff; font-size: 13px; font-weight: 500; line-height: 16px; padding: 4px 8px; border-radius: 3px; box-shadow: 0 2px 6px rgba(0, 5, 10, .2); }
+.u-hover-label.pillen span.p-neu, .u-hover-label.pillen span.p-weg { background: var(--u-gruen-label); }
+.u-hover-label.pillen span.p-weg, .u-hover-label.pillen span.p-aus { text-decoration: line-through; text-decoration-thickness: 1px; }
 
 /* ------------------------------------------------------------------ Pausenaufsichten
 

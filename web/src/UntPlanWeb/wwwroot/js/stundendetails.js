@@ -10,7 +10,7 @@ import { e, heuteIso, holen, senden, toast, WOCHENTAGE } from './ui.js';
 import { kbDialog, kbBestaetigen as bestaetigen, stufe, fussUebernehmen } from './kbdialog.js';
 import * as sitz from './ansichten/sitzplan.js';
 import { hausaufgabeDetails, hausaufgabeFormular } from './hausaufgabe.js';
-import { raumwahl } from './raumwahl.js';
+import { raumwahl, raumListe } from './raumwahl.js';
 
 // Prüfungsarten und Notenschemen aus den Stammdaten (einmal je Sitzung geladen; bis dahin der Grundbestand)
 let PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'].map(name => ({ name, schema: '' }));
@@ -111,7 +111,8 @@ export function karteDialog(karte, kontext = {}) {
   let offen = null;          // geöffneter Editor: 'thema', 'hausaufgaben', 'vermerk', 'ticket', 'abw:<id>'
   let hwBearbeiten = null;   // Id der bearbeiteten Hausaufgabe
   let sortierung = 'name';
-  let raumModus = null;      // Raumwahl: { art: 'ersetzen' | 'hinzufuegen', raum, gewaehlt, suche, abteilung, arten:Set }
+  let raumModus = null;      // Raumwahl: { art: 'ersetzen' | 'hinzufuegen', raum, gewaehlt, filter }
+  const raumFilter = {};     // Filter der Raumliste (Suche, Gebäude, Abteilung, Kapazität, nur freie) – bleibt für das Fenster erhalten
   // Doppel-/Blockstunden: null = ganzer Block, sonst die gewählte Einzelstunde (Einträge gelten dann nur für sie)
   let einzel = null;
 
@@ -260,7 +261,7 @@ export function karteDialog(karte, kontext = {}) {
     return `<div class="sd-fuss">
       <button type="button" class="sd-pille gross" data-blaettern="-1" ${i <= 0 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i> Vorherige Stunde</button>
       <button type="button" class="sd-pille gross" data-blaettern="1" ${i < 0 || i >= liste.length - 1 ? 'disabled' : ''}>Nächste Stunde <i class="bi bi-chevron-right"></i></button>
-      ${(k.status === 'klausur' || (k.status === 'vorgemerkt' && /^klausur/i.test(k.art || ''))) && kollegium && k.datum >= heuteIso() ? `<button type="button" class="sd-pille gross" data-pruefung-verlegen>Prüfung verlegen</button>
+      ${(k.status === 'klausur' || (k.status === 'vorgemerkt' && /^klausur/i.test(k.art || ''))) && kollegium && k.datum >= heuteIso() ? `<button type="button" class="sd-pille gross" data-pruefung-editieren>Prüfung editieren</button>
         <button type="button" class="sd-pille gross rot" data-pruefung-loeschen>Prüfung löschen</button>`
         : darfPruefung() ? '<button type="button" class="sd-pille gross" data-pruefung>Prüfung erstellen</button>' : ''}
       </div>`;
@@ -670,36 +671,51 @@ export function karteDialog(karte, kontext = {}) {
       if (!daten.anwesenheit && k.unterricht) daten.anwesenheit = await holen(`/api/app/klassenbuch/anwesenheit?datum=${k.datum}&stunde=${k.von}&unterricht=${k.unterricht}${ep()}`).catch(() => null);
       klausurDialog();
     });
-    // Prüfung löschen bzw. verlegen (noch nicht übernommene werden zurückgezogen, übernommene gehen als Rückmeldung an UntPlan)
+    // Prüfung löschen bzw. editieren (noch nicht übernommene werden zurückgezogen, übernommene gehen als Rückmeldung an UntPlan)
     const pruefungAlt = () => ({ datum: k.datum, stundeVon: k.von, stundeBis: k.bis, klassen: kuerzel(k.klassen), titel: k.text || null });
-    q('[data-pruefung-loeschen]')?.addEventListener('click', async () => {
-      if (!await bestaetigen('Prüfung löschen', `Prüfung${k.text ? ` „${k.text}“` : ''} am ${datumDe(k.datum)} (${k.von === k.bis ? `${k.von}.` : `${k.von}.–${k.bis}.`} Stunde) löschen?`)) return;
+    const stdText = (v, b) => v === b ? `${v}.` : `${v}.–${b}.`;
+    /** Prüfung löschen (mit Rückfrage; Rechte und Ablauf wie Rueckmeldungsdienst.KlausurLoeschen). Ergebnis: gelöscht? */
+    const pruefungLoeschen = async () => {
+      if (!await bestaetigen('Prüfung löschen', `Prüfung${k.text ? ` „${k.text}“` : ''} am ${datumDe(k.datum)} (${stdText(k.von, k.bis)} Stunde) löschen?`)) return false;
       try {
         await senden('/api/app/meldungen/klausur/loeschen', pruefungAlt());
         toast('Prüfung gelöscht – UntPlan übernimmt die Löschung beim nächsten Import.');
         geaendert = true; modal.hide();
-      } catch (err) { toast(err.message, true); }
-    });
-    q('[data-pruefung-verlegen]')?.addEventListener('click', () => {
-      const wahl = (sel) => zeiten.map(z => `<option value="${z.nr}" ${z.nr === sel ? 'selected' : ''}>${z.nr}. (${e(z.beginn)}–${e(z.ende)})</option>`).join('');
-      altDialog('Prüfung verlegen', `
-        <div class="ad-info">${e(k.text || 'Prüfung')} · bisher ${datumDe(k.datum)}, ${k.von === k.bis ? `${k.von}.` : `${k.von}.–${k.bis}.`} Stunde</div>
-        <label class="ad-feld">Neues Datum<input type="date" data-pv-datum value="${k.datum}" min="${heuteIso()}"></label>
-        <div class="ad-reihe"><label class="ad-feld">von Stunde<select data-pv-von>${wahl(k.von)}</select></label>
-          <label class="ad-feld">bis Stunde<select data-pv-bis>${wahl(k.bis)}</select></label></div>
-        <label class="ad-feld">Räume<input data-pv-raeume value="${e(kuerzel(k.raeume.filter(w => w.k)).join(', '))}"></label>
-        <div class="ad-knoepfe"><button type="button" class="ad-pille" data-pv-speichern>Verlegen</button><button type="button" class="ad-pille" data-ad-zu>Schließen</button></div>`, (o, zu) => {
+        return true;
+      } catch (err) { toast(err.message, true); return false; }
+    };
+    q('[data-pruefung-loeschen]')?.addEventListener('click', pruefungLoeschen);
+    // Prüfung editieren: Name, Datum, Stunden, Räume (Raumwahl mit Belegung), Aufsicht – Speichern verlegt bzw. ändert, Löschen links im Fuß
+    q('[data-pruefung-editieren]')?.addEventListener('click', () => {
+      const wahl = (sel) => zeiten.map(z => `<option value="${z.nr}" ${z.nr === sel ? 'selected' : ''} data-zweit="${e(z.beginn)}–${e(z.ende)}">${z.nr}. Stunde</option>`).join('');
+      altDialog('Prüfung editieren', `
+        <div class="ad-info">${e(k.text || 'Prüfung')} · bisher ${datumDe(k.datum)}, ${stdText(k.von, k.bis)} Stunde</div>
+        <label class="ad-feld">Name<input name="titel" maxlength="200" value="${e(k.text || '')}" placeholder="Prüfung"></label>
+        <label class="ad-feld">Datum<input type="date" name="datum" value="${k.datum}" min="${heuteIso()}"></label>
+        <div class="ad-reihe"><label class="ad-feld">von Stunde<select name="von">${wahl(k.von)}</select></label>
+          <label class="ad-feld">bis Stunde<select name="bis">${wahl(k.bis)}</select></label></div>
+        <label class="ad-feld">Räume<input name="raeume" value="${e(kuerzel(k.raeume.filter(w => w.k)).join(', '))}"></label>
+        <label class="ad-feld">Aufsicht<input name="aufsicht" value="${e(kuerzel(k.lehrer.filter(w => w.k)).join(', '))}"></label>
+        <div class="ad-knoepfe"><button type="button" class="ad-pille rot" data-pe-loeschen><i class="bi bi-trash" aria-hidden="true"></i> Löschen</button>
+          <button type="button" class="ad-pille" data-ad-zu>Abbrechen</button><button type="button" class="ad-pille" data-pv-speichern>Speichern</button></div>`, (o, zu) => {
+        const f = n => o.querySelector(`[name=${n}]`).value;
+        const listeVon = n => f(n).split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+        o.querySelector('[name=von]').addEventListener('change', () => { if (Number(f('bis')) < Number(f('von'))) o.querySelector('[name=bis]').value = f('von'); });
+        raumwahl(o.querySelector('[name=raeume]'), { wurzel: o });
+        o.querySelector('[data-pe-loeschen]').onclick = async () => { if (await pruefungLoeschen()) zu(); };
         o.querySelector('[data-pv-speichern]').onclick = async ev => {
-          const von = Number(o.querySelector('[data-pv-von]').value), bis = Math.max(von, Number(o.querySelector('[data-pv-bis]').value));
-          ev.currentTarget.disabled = true;
+          const knopf = ev.currentTarget;
+          const von = Number(f('von')), bis = Math.max(von, Number(f('bis')));
+          if (!f('datum')) { toast('Bitte ein Datum wählen.', true); return; }
+          knopf.disabled = true;
           try {
-            await senden('/api/app/meldungen/klausur/verlegen', { alt: pruefungAlt(), neu: { datum: o.querySelector('[data-pv-datum]').value, stundeVon: von, stundeBis: bis,
-              klassen: kuerzel(k.klassen), raeume: o.querySelector('[data-pv-raeume]').value.split(/[,;\s]+/).filter(Boolean), aufsicht: kuerzel(k.lehrer.filter(w => w.k)), titel: k.text || 'Prüfung', text: '' } });
-            toast('Prüfung verlegt.');
+            await senden('/api/app/meldungen/klausur/verlegen', { alt: pruefungAlt(), neu: { datum: f('datum'), stundeVon: von, stundeBis: bis,
+              klassen: kuerzel(k.klassen), raeume: listeVon('raeume'), aufsicht: listeVon('aufsicht'), titel: f('titel').trim() || k.text || 'Prüfung', text: '' } });
+            toast(f('datum') !== k.datum || von !== k.von || bis !== k.bis ? 'Prüfung verlegt.' : 'Prüfung gespeichert.');
             zu(); geaendert = true; modal.hide();
-          } catch (err) { toast(err.message, true); ev.currentTarget.disabled = false; }
+          } catch (err) { toast(err.message, true); knopf.disabled = false; }
         };
-      }, 420);
+      }, 480);
     });
     // Kopf: Klasse, Gruppe, Lehrkraft, Raum öffnen den Stundenplan
     alle('[data-plan]', a => a.onclick = ev => {
@@ -717,9 +733,9 @@ export function karteDialog(karte, kontext = {}) {
       m.classList.toggle('d-none', !auf);
       b.setAttribute('aria-expanded', String(auf));
     });
-    alle('[data-raum-ersetzen]', b => b.onclick = () => { raumModus = { art: 'ersetzen', raum: b.dataset.raumErsetzen, gewaehlt: null, suche: '', abteilung: '', arten: new Set() }; reiter = 'raum'; zeichnen(); });
+    alle('[data-raum-ersetzen]', b => b.onclick = () => { raumModus = { art: 'ersetzen', raum: b.dataset.raumErsetzen, gewaehlt: null, filter: raumFilter }; reiter = 'raum'; zeichnen(); });
     alle('[data-raum-loeschen]', b => b.onclick = () => raumAendern(kuerzel(k.raeume.filter(w => w.k)).filter(x => x !== b.dataset.raumLoeschen), `Raum ${b.dataset.raumLoeschen} entfernt.`));
-    q('[data-raum-plus]')?.addEventListener('click', () => { raumModus = { art: 'hinzufuegen', raum: null, gewaehlt: null, suche: '', abteilung: '', arten: new Set() }; reiter = 'raum'; zeichnen(); });
+    q('[data-raum-plus]')?.addEventListener('click', () => { raumModus = { art: 'hinzufuegen', raum: null, gewaehlt: null, filter: raumFilter }; reiter = 'raum'; zeichnen(); });
     q('[data-raum-speichern]')?.addEventListener('click', () => {
       const aktuell = kuerzel(k.raeume.filter(w => w.k));
       const neu = raumModus.art === 'ersetzen' ? aktuell.map(x => x === raumModus.raum ? raumModus.gewaehlt : x) : [...aktuell, raumModus.gewaehlt];
@@ -932,40 +948,26 @@ export function karteDialog(karte, kontext = {}) {
     } finally { raumLaeuft = false; }
   }
 
-  /** Auswahlliste wie im Original: Suche, Abteilung als Auswahl-Pille, Raumarten als Pillen, Zeilen mit Radio-Auswahl. */
+  /**
+   * Raumbuchung (Raum ersetzen bzw. hinzufügen): gemeinsame Raumliste (raumwahl.js) mit Suche und Filtern Gebäude, Abteilung, Raumart,
+   * Kapazität und „Nur freie“ (einheitliche Auswahl-Pillen); je Raum Kapazität und Status frei/belegt zur Zeit der Stunde – wählbar sind
+   * freie buchbare Räume und die ursprünglichen Räume der Stunde.
+   */
   async function raumWahl(ziel) {
     ziel.innerHTML = '<div class="py-2"></div>';
     let raeume;
-    try { raeume = await holen(`/api/app/meldungen/freieraeume?datum=${k.datum}&von=${k.von}&bis=${k.bis}${k.unterricht ? `&unterricht=${k.unterricht}` : ''}`); }
+    try { raeume = await holen(`/api/app/buchen/raumstatus?datum=${k.datum}&von=${k.von}&bis=${k.bis}${k.unterricht ? `&unterricht=${k.unterricht}` : ''}`); }
     catch (err) { ziel.innerHTML = `<p class="small text-danger mt-2">${e(err.message)}</p>`; return; }
     const aktuell = kuerzel(k.raeume.filter(w => w.k));
-    raeume = raeume.filter(r => !aktuell.includes(r.kurz));
-    const abteilung = r => (r.kurz.match(/^[A-Za-zÄÖÜäöü]+/)?.[0] ?? '').toUpperCase();
-    const abteilungen = [...new Set(raeume.map(abteilung).filter(Boolean))].sort();
-    const arten = [...new Set(raeume.map(r => r.raumart).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-    const titel = raumModus.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen';
-    const zeichneListe = () => {
-      const m = raumModus;
-      const sichtbar = raeume.filter(r => (!m.suche || `${r.kurz} ${r.name}`.toLowerCase().includes(m.suche)) && (!m.abteilung || abteilung(r) === m.abteilung) && (!m.arten.size || m.arten.has(r.raumart)));
-      ziel.querySelector('[data-raumliste]').innerHTML = sichtbar.length ? sichtbar.map(r => `<li><button type="button" class="sd-raumzeile ${m.gewaehlt === r.kurz ? 'gewaehlt' : ''}" data-r="${e(r.kurz)}" role="radio" aria-checked="${m.gewaehlt === r.kurz}">
-          ${maskeIcon('shared_roomEntity.svg')}<span class="name">${e(r.kurz)}${r.urspruenglich ? ' <span class="sd-ursprung">ursprünglicher Raum</span>' : ''}${r.name && r.name !== r.kurz ? `<small>${e(r.name)}</small>` : ''}</span><span class="radio" aria-hidden="true"></span></button></li>`).join('')
-        : '<li class="sd-raumleer">In dieser Zeit ist kein passender buchbarer Raum frei.</li>';
-      ziel.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { raumModus.gewaehlt = b.dataset.r; zeichneListe(); box.querySelector('[data-raum-speichern]').disabled = false; });
-    };
-    ziel.innerHTML = `<div class="sd-raumwahl"><h3>${e(titel)}</h3>
-      <div class="sd-raumsuche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-raumsuche placeholder="Suchen Sie einen Raum" aria-label="Raum suchen"></div>
-      <div class="sd-raumfilter" role="group" aria-label="Filter">
-        <label class="sd-filterpille wahl"><select data-abteilung aria-label="Abteilung"><option value="">Abteilung</option>${abteilungen.map(a => `<option>${e(a)}</option>`).join('')}</select></label>
-        ${arten.map(a => `<button type="button" class="sd-filterpille" data-art="${e(a)}" aria-pressed="false">${e(a)}</button>`).join('')}</div>
-      <ul class="sd-raumliste" role="radiogroup" aria-label="Räume" data-raumliste></ul></div>`;
-    ziel.querySelector('[data-raumsuche]').oninput = ev => { raumModus.suche = ev.target.value.trim().toLowerCase(); zeichneListe(); };
-    ziel.querySelector('[data-abteilung]').onchange = ev => { raumModus.abteilung = ev.target.value; ev.target.closest('.sd-filterpille').classList.toggle('an', !!ev.target.value); zeichneListe(); };
-    ziel.querySelectorAll('[data-art]').forEach(b => b.onclick = () => {
-      if (raumModus.arten.has(b.dataset.art)) raumModus.arten.delete(b.dataset.art); else raumModus.arten.add(b.dataset.art);
-      b.classList.toggle('an'); b.setAttribute('aria-pressed', String(b.classList.contains('an'))); zeichneListe();
+    raeume = raeume.filter(r => (r.buchbar || r.eigen) && !aktuell.includes(r.kurz));
+    raumModus.filter ??= {};
+    const liste = raumListe(ziel, {
+      raeume, titel: raumModus.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen', gewaehlt: raumModus.gewaehlt, filter: raumModus.filter,
+      waehlbar: r => r.frei, zusatz: r => r.eigen ? '<span class="sd-ursprung">ursprünglicher Raum</span>' : '',
+      leerText: 'In dieser Zeit ist kein passender buchbarer Raum frei.',
+      beiWahl: kurz => { raumModus.gewaehlt = kurz; box.querySelector('[data-raum-speichern]').disabled = !kurz; },
     });
-    zeichneListe();
-    ziel.querySelector('[data-raumsuche]').focus();
+    liste.fokus();
   }
 
   // ---------------------------------------------------------------- Dialoge wie im alten Klassenbuch (Lehrstoff, Abwesenheit, Klassenbucheintrag)

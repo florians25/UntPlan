@@ -321,6 +321,45 @@ struct StundendetailInhalt: View {
         }
     }
 
+    /// Vertretungstext bzw. Information der Stunde (Zusatzstunde: nur manuell eingegebene Texte).
+    private var detailText: String {
+        karte.istZusatzstunde ? karte.zusatzText : karte.anzeigeText
+    }
+
+    /// Zeile „Verlegt“ bzw. „Hierher verlegt“: Ursprung und Ziel untereinander (fehlt die Gegenseite, nur der Titel).
+    private func verlegungZeile(_ richtung: String) -> some View {
+        HStack(spacing: 12) {
+            Listensymbol(name: "arrow.right.square")
+            VStack(alignment: .leading, spacing: 3) {
+                Text(richtung == "von" ? "Verlegt" : "Hierher verlegt")
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(Farben.detailText)
+                    .lineLimit(1)
+                if let von = karte.verlegungVon?.text, !von.isEmpty, let nach = karte.verlegungNach?.text, !nach.isEmpty {
+                    Text("Von: \(von)")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.detailGrau)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text("Nach: \(nach)")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.detailGrau)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            Spacer(minLength: 6)
+            Verlegungszeichen(richtung: richtung, groesse: 22)
+                .padding(.trailing, 4)
+        }
+        .padding(.leading, Detailmass.rand)
+        .padding(.trailing, 22)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(karte.verlegungText.map { "Verlegung: \($0)" } ?? (richtung == "von" ? "Verlegt" : "Hierher verlegt"))
+    }
+
     private var textTitel: String {
         karte.keineVertretung || karte.status == "regulaer" ? "Information zur Stunde" : "Vertretungstext"
     }
@@ -524,6 +563,10 @@ struct StundendetailInhalt: View {
             if karte.istPruefung && !karte.istEntfall {
                 link(.pruefung, Detailzeile(symbol: "SymbolPruefung", titel: "Prüfung", untertitel: pruefungsUntertitel))
             }
+            // Verlegung: Ursprung → Ziel mit Datum und Uhrzeit, rechts das Verlegungszeichen wie auf der Karte
+            if let richtung = karte.verlegung, !istVeranstaltung {
+                verlegungZeile(richtung)
+            }
             if kollegium && daten.raumAenderbar && !istVeranstaltung {
                 RaumZeile(raeume: daten.aktuelleRaeume, ziel: $raumZiel)
             }
@@ -531,12 +574,12 @@ struct StundendetailInhalt: View {
                 if !veranstaltungsInfo.isEmpty {
                     link(.info, Detailzeile(symbol: "SymbolInfo", titel: "Information", untertitel: veranstaltungsInfo))
                 }
-            } else if !karte.anzeigeText.isEmpty && !karte.istZusatzstunde {
+            } else if !detailText.isEmpty {
                 // Information zur Stunde mit dem Info-Zeichen (info.svg), Vertretungstext mit dem Notizblatt; bloße
-                // Art-Bezeichnungen wie „Sondereinsatz“ erscheinen nicht; Zusatzstunde: nur die Plakette
-                // „Zusätzl. Unterrichtsstunde“ im Kopf, kein Vertretungstext
+                // Art-Bezeichnungen wie „Sondereinsatz“ erscheinen nicht; Zusatzstunde: Plakette
+                // „Zusätzl. Unterrichtsstunde“ im Kopf, dazu nur ein manuell eingegebener Vertretungstext
                 link(.text, Detailzeile(symbol: textTitel == "Information zur Stunde" ? "SymbolInfo" : "SymbolNotiz",
-                                        titel: textTitel, untertitel: karte.anzeigeText))
+                                        titel: textTitel, untertitel: detailText))
             }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 let thema = daten.eintrag?.thema ?? ""
@@ -546,7 +589,7 @@ struct StundendetailInhalt: View {
                                              untertitel: thema.isEmpty && !geerbt.isEmpty ? "Block: \(geerbt)" : thema) {
                     if !thema.isEmpty {
                         Image(systemName: "checkmark.circle")
-                            .font(.system(size: 24, weight: .light))
+                            .font(.system(size: 21.5, weight: .light))
                             .foregroundStyle(Farben.gedaempft)
                             .padding(.trailing, 4)
                             .accessibilityLabel("Lehrstoff eingetragen")
@@ -635,7 +678,7 @@ struct StundendetailInhalt: View {
     private func ziel(_ seite: Detailseite) -> some View {
         switch seite {
         case .text:
-            DetailTextSeite(titel: textTitel, text: karte.anzeigeText, karte: karte)
+            DetailTextSeite(titel: textTitel, text: detailText, karte: karte)
         case .pruefung:
             DetailTextSeite(titel: "Prüfung", text: pruefungsText, karte: karte)
         case .info:

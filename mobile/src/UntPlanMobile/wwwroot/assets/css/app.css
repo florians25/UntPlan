@@ -5913,3 +5913,15 @@ html.is-dark .ent__segbtn--no.is-on{ color:#ff6b86; }
   background:#eceef1; color:#c0113a; font:inherit; font-size:16px; font-weight:500; }
 html.is-dark .ent__zurueck{ background:#2a2a2e; color:#ff6b86; }
 html.is-dark .dpart, html.is-dark .sheet--detail .dpart{ background:#2c2c2e; box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 .5px rgba(255,255,255,.08); }
+
+/* =====================================================================
+   Sprint 27 – Gleichstand mit der iOS-App
+   ===================================================================== */
+/* Kacheln: die unteren Zeilen (ab der zweiten) einen Hauch höher, die erste bleibt (iOS: 0,8 pt) */
+.card .card__line ~ .card__line{ position:relative; top:-.8px; }
+/* Stundendetails: Häkchen (Lehrstoff) und Zahl der Abwesenden rechts einen Ticken kleiner */
+html body .sheet--detail .drow2__done{ width:23px !important; height:23px !important; }
+html body .sheet--detail .drow2__count, html.is-dark body .sheet--detail .drow2__count{
+  min-width:28px; height:28px; border-radius:14px; padding:0 7px; font-size:15px;
+}
+html body .sheet--detail .drow2__count.is-checked::after{ top:-4px; right:-4px; width:13px; height:13px; }

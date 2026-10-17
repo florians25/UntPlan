@@ -317,7 +317,7 @@ public sealed class Buchungsdienst
                 var b = belegung.Where(x => x.Stunde >= von && x.Stunde <= bis && Ci.Equals(x.Raum, r.Kurz)).ToList();
                 return new
                 {
-                    kurz = r.Kurz, name = r.Name, raumart = r.Raumart, kapazitaet = r.Kapazitaet, gebaeude = r.Gebaeude, buchbar = buchbar.Contains(r.Kurz),
+                    kurz = r.Kurz, name = r.Name, raumart = r.Raumart, kapazitaet = r.Kapazitaet, gebaeude = r.Gebaeude, abteilung = r.Abteilung, buchbar = buchbar.Contains(r.Kurz),
                     eigen = eigen.Contains(r.Kurz), frei = b.Count == 0,
                     belegt = b.OrderBy(x => x.Stunde).Select(x => new { stunde = x.Stunde, art = x.Art, text = x.Text }).DistinctBy(x => (x.art, x.text)).Take(3).ToList(),
                 };
