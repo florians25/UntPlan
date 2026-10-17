@@ -432,11 +432,7 @@ enum Kachelbau {
         kachel.hausaufgabe = k.hausaufgabeFaellig
         kachel.online = k.online && !k.istEntfall && k.status != "abwesend"
         kachel.verlegung = k.verlegung
-        if let m = k.marker {
-            var liste: [Kachelmarker] = []
-            for roh in m { if let x = Kachelmarker.lesen(roh), !liste.contains(x) { liste.append(x) } }
-            kachel.marker = liste
-        }
+        // Server-Marker (oben rechts) zeigt nur das Web – iOS-Karten haben oben rechts nie ein Zeichen
         // Zusatzstunde: automatische Standardtexte erscheinen nicht – manuell eingegebene Vertretungstexte (und Notizen)
         // zeigen das Info-Zeichen
         if k.istZusatzstunde {

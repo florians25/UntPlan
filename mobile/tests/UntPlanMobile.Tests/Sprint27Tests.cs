@@ -6,7 +6,7 @@ using UntPlanMobile.Dienste;
 namespace UntPlanMobile.Tests;
 
 /// <summary>
-/// Sprint 27 (Parität zur iOS-App, Vertrag Stundenkarten und Sprechtag): Verlegung mit Ursprung und Ziel, Marker oben rechts,
+/// Sprint 27 (Parität zur iOS-App, Vertrag Stundenkarten und Sprechtag): Verlegung mit Ursprung und Ziel (ohne Marker oben rechts),
 /// hinzugekommene Werte mit „+“, manuelle Vertretungstexte bei Zusatzstunden, Kopplungen nebeneinander, nur geänderte Werte im
 /// grünen Label, Sprechtag „angekündigt“ auf der Startseite, andere Klassenpläne für Schüler*innen, neues App-Symbol.
 /// </summary>
@@ -46,7 +46,6 @@ public class Sprint27Tests
         // ohne Ende nur der Beginn
         Assert.Equal("13.10.2026 | 12:15", k.VerlegungNach!.Text);
         Assert.Equal("09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15", k.VerlegungText);
-        Assert.Equal(new[] { "verlegungNach", "aenderung" }, k.Marker);
         // hinzugekommener Raum: grünes Label mit „+“
         Assert.Equal("B070", k.RaumPlus);
         Assert.Null(k.LehrkraftPlus);
@@ -60,7 +59,8 @@ public class Sprint27Tests
         // Felder im Format der Oberfläche
         var aus = JsonSerializer.SerializeToNode(k)!.AsObject();
         Assert.Equal("09.10.2026 | 11:30 - 13:00", aus["movedFrom"]!["text"]!.GetValue<string>());
-        Assert.Equal("verlegungNach", aus["markers"]![0]!.GetValue<string>());
+        // Marker des Servers (oben rechts) bleiben unbeachtet – die Karten der App tragen oben rechts nie ein Zeichen
+        Assert.Null(aus["markers"]);
         Assert.Equal("B070", aus["roomPlus"]!.GetValue<string>());
     }
 
@@ -173,31 +173,26 @@ public class Sprint27Tests
     }
 
     [Fact]
-    public void Marker_und_Plus_in_der_Oberflaeche()
+    public void Plus_und_Verlegung_in_der_Oberflaeche_ohne_Marker_oben_rechts()
     {
         var js = AppJs;
-        var verlegt = js[js.IndexOf("const KACHEL_VERLEGT", StringComparison.Ordinal)..];
-        verlegt = verlegt[..(verlegt.IndexOf('\n') + 1)];
-        JsPruefen(verlegt + Abschnitt(js, "MARKER") + Abschnitt(js, "PLUS") + """
-            const m = window.UntPlanMarker, p = window.UntPlanPlus;
-            pruefe(m.kachelMarker({ markers:['verlegungNach', 'aenderung', 'unbekannt', 'aenderung'] }), ['verlegungNach', 'aenderung']);
-            pruefe(m.kachelMarker({ markers:['Prüfung', 'PLUS'] }), ['pruefung', 'plus']);
-            pruefe(m.kachelMarker({}), []);
-            // 10 px, 3 px Abstand, 4 px Rand; unten bleibt Platz für die Zeichen
-            pruefe(m.markerPlatz(60, 70, 0), 4);
-            pruefe(m.markerPlatz(60, 70, 17), 3);
-            pruefe(m.markerPlatz(60, 20, 0), 0);
+        JsPruefen(Abschnitt(js, "PLUS") + """
+            const p = window.UntPlanPlus;
             pruefe(p.plusWert({ roomPlus:'B070' }, 'room', 'b070'), '+b070');
             pruefe(p.plusWert({ roomPlus:'B070' }, 'room', 'R101'), 'R101');
             pruefe(p.plusWert({}, 'teacher', 'MUE'), 'MUE');
             """);
-        // Verlegung immer mit Pfeil nach rechts (Ursprung → Ziel), Marker oben rechts untereinander, Detailzeile „Verlegt“
+        // Verlegung immer mit Pfeil nach rechts (Ursprung → Ziel) unten rechts, Detailzeile „Verlegt“
         Assert.DoesNotContain("M10.6 7h-7", js);
+        Assert.Contains("const zeigVerlegt = (card.moved === 'von' || card.moved === 'nach') && !isHoliday && !isSup;", js);
         Assert.Contains("'Hierher verlegt'", js);
         Assert.Contains("['Von: ' + von, 'Nach: ' + nach]", js);
+        // oben rechts nie ein Zeichen, Zeilen lassen dort keinen Platz frei
+        Assert.DoesNotContain("card__marker", js);
+        Assert.DoesNotContain("card.markers", js);
         var css = AppCss;
-        Assert.Contains(".card .card__marker{ position:absolute; top:4px; right:4px;", css);
-        Assert.Contains(".card.mk-2 > .card__line:nth-of-type(-n+2)", css);
+        Assert.DoesNotContain("card__marker", css);
+        Assert.DoesNotContain(".card.mk-", css);
     }
 
     [Fact]

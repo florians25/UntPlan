@@ -467,40 +467,6 @@ const KACHEL_ONLINE = '<svg class="ticon ticon--online" viewBox="0 0 28 28" aria
 /* Sprint 27: beide Seiten mit Pfeil nach rechts (Ursprung → Ziel, wie im Web) – Ursprung rot, Ziel grün. */
 const KACHEL_VERLEGT = r => `<svg class="ticon ticon--verlegt ticon--${r === 'von' ? 'von' : 'nach'}" viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="3"/><path d="M3.4 7h7M7.6 4.2 10.4 7 7.6 9.8"/></svg>`;
 
-/* MARKER-BEGINN (wird von den Tests ausgeführt) */
-/* Marker oben rechts auf der Kachel (Feld `markers`, Reihenfolge vom Server):
-   Verlegung rotes bzw. grünes Feld mit Pfeil, Entfall rotes Dreieck, Prüfung
-   gelber Kreis, Zusatzstunde grünes Feld mit „+“, Änderung grünes Viereck.
-   Nachsichtig gelesen, Unbekanntes und Doppeltes entfällt. */
-const MARKER_ART = { verlegungvon:'verlegungVon', von:'verlegungVon', verlegungnach:'verlegungNach', nach:'verlegungNach',
-  entfall:'entfall', pruefung:'pruefung', klausur:'pruefung', plus:'plus', zusatz:'plus', aenderung:'aenderung', geaendert:'aenderung' };
-function kachelMarker(card){
-  const roh = Array.isArray(card && card.markers) ? card.markers : [];
-  const aus = [];
-  roh.forEach(m => {
-    const t = String(m || '').toLowerCase().replace(/[-_\s]/g, '').replace(/ü/g, 'ue').replace(/ä/g, 'ae');
-    const a = MARKER_ART[t];
-    if (a && !aus.includes(a)) aus.push(a);
-  });
-  return aus;
-}
-const MARKER_SVG = {
-  verlegungVon:  KACHEL_VERLEGT('von'),
-  verlegungNach: KACHEL_VERLEGT('nach'),
-  entfall:   '<svg class="mk mk--entfall" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.2 9.6 9H.4z"/></svg>',
-  pruefung:  '<svg class="mk mk--pruefung" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5"/></svg>',
-  plus:      '<svg class="mk mk--plus" viewBox="0 0 12 12" aria-hidden="true"><rect width="12" height="12" rx="2.2"/><path d="M2.2 6h7.6M6 2.2v7.6"/></svg>',
-  aenderung: '<svg class="mk mk--aenderung" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" rx="1.8"/></svg>'
-};
-/* Wie viele Marker passen untereinander (10 px, 3 px Abstand, 4 px Rand)?
-   Unten bleibt Platz für die Zeichen unten rechts; sehr schmale Kacheln ohne. */
-function markerPlatz(hoehe, breite, untenFrei){
-  if (breite < 9 + 10 + 8) return 0;
-  const platz = hoehe - 4 - Math.max(4, untenFrei || 0);
-  return Math.max(0, Math.floor((platz + 3) / 13));
-}
-if (typeof window !== 'undefined') window.UntPlanMarker = { kachelMarker, markerPlatz };
-/* MARKER-ENDE */
 
 /* PLUS-BEGINN (wird von den Tests ausgeführt) */
 /* Hinzugekommene Werte (classPlus, teacherPlus, roomPlus): grünes Label mit
@@ -1742,11 +1708,7 @@ function renderGrid(){
          also je die halbe Breite. */
       const zeigHw = !!card.hasHw && !isHoliday && !isStandby && !isSup;
       const zeigInfo = showInfo && !isHoliday;
-      /* Marker oben rechts (Sprint 27): Kommen die Verlegungsmarker vom
-         Server, entfällt das Verlegungszeichen unten rechts. */
-      const markerAlle = (isHoliday || isSup || card._pause || card.fullday) ? [] : kachelMarker(card);
-      const verlegungOben = markerAlle.includes('verlegungVon') || markerAlle.includes('verlegungNach');
-      const zeigVerlegt = (card.moved === 'von' || card.moved === 'nach') && !isHoliday && !isSup && !verlegungOben;
+      const zeigVerlegt = (card.moved === 'von' || card.moved === 'nach') && !isHoliday && !isSup;
       const kachelBreit = colPx / Math.max(1, card._n || 1);
 
       let eckzeichen = '';
@@ -1773,24 +1735,11 @@ function renderGrid(){
       }
       if (online) cls.push('has-online');
 
-      /* Marker oben rechts untereinander, so viele wie in die Höhe passen
-         (unten bleibt Platz für die Zeichen unten rechts). Zeilen auf ihrer
-         Höhe lassen rechts Platz (`mk-N`: die ersten N Zeilen). */
-      const marker = markerAlle.slice(0, markerPlatz(h, kachelBreit, eckzeichen ? 17 : 0));
-      let markerHtml = '';
-      if (marker.length){
-        markerHtml = `<span class="card__marker" aria-hidden="true">${marker.map(m => `<i class="card__mk card__mk--${m}">${MARKER_SVG[m]}</i>`).join('')}</span>`;
-        const unten = 4 + marker.length * 10 + (marker.length - 1) * 3;
-        const zeilen = Math.max(1, Math.ceil((unten - 1 - 4.5) / karteZeile()));
-        cls.push('has-marker', 'mk-' + Math.min(4, zeilen));
-      }
-
       const tag = isHoliday ? 'div' : 'button';
       html += `<${tag} class="${cls.join(' ')}" style="${style}"
                  data-date="${date}" data-lesson="${card.lesson}" data-idx="${card._uid}"
                  ${isHoliday ? '' : 'type="button"'}>
         ${body}
-        ${markerHtml}
         ${eckzeichen}
         ${(released || (isStandby && card.standbyAbsent) || (isSup && card._supAbsent)) ? '<span class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : ''}
         ${(isHoliday || isSup) ? '' : `<span class="card__times"><span>${timeA}</span><span>${timeB}</span></span>`}

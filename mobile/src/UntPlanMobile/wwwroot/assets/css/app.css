@@ -5926,30 +5926,6 @@ html body .sheet--detail .drow2__count, html.is-dark body .sheet--detail .drow2_
 }
 html body .sheet--detail .drow2__count.is-checked::after{ top:-4px; right:-4px; width:13px; height:13px; }
 
-/* Marker oben rechts untereinander (wie iOS: 10 px, 3 px Abstand, 4 px Rand) –
-   Verlegung rot/grün mit Pfeil, Entfall rotes Dreieck, Prüfung gelber Kreis,
-   Zusatzstunde grünes Feld mit „+“, Änderung grünes Viereck. Flach. */
-.card .card__marker{ position:absolute; top:4px; right:4px; z-index:3; display:flex; flex-direction:column; gap:3px; pointer-events:none; }
-.card .card__mk{ display:block; width:10px; height:10px; }
-.card .card__mk svg{ display:block; width:10px; height:10px; }
-.card .card__mk .ticon--verlegt rect{ rx:2px; }
-.card .mk--entfall path{ fill:#f03e3e; stroke:#f03e3e; stroke-width:1.2; stroke-linejoin:round; }
-.card .mk--pruefung circle{ fill:#f7c600; }
-.card .mk--plus rect, .card .mk--aenderung rect{ fill:#1f9d55; }
-.card .mk--plus path{ fill:none; stroke:#fff; stroke-width:1.8; }
-html.is-dark .card .mk--entfall path{ fill:#e5484d; stroke:#e5484d; }
-html.is-dark .card .mk--pruefung circle{ fill:#f2c200; }
-html.is-dark .card .mk--plus rect, html.is-dark .card .mk--aenderung rect{ fill:#22a866; }
-/* Zeilen auf Höhe der Marker lassen rechts Platz (Text endet sonst mit „…“ davor) */
-.card.mk-1 > .card__line:nth-of-type(-n+1),
-.card.mk-2 > .card__line:nth-of-type(-n+2),
-.card.mk-3 > .card__line:nth-of-type(-n+3),
-.card.mk-4 > .card__line:nth-of-type(-n+4){ padding-right:12px; box-sizing:border-box; }
-.card.mk-1 > .card__line--scroll:nth-of-type(-n+1),
-.card.mk-2 > .card__line--scroll:nth-of-type(-n+2),
-.card.mk-3 > .card__line--scroll:nth-of-type(-n+3),
-.card.mk-4 > .card__line--scroll:nth-of-type(-n+4){ max-width:calc(100% - 12px); padding-right:0; }
-
 /* Stundendetails: Zeile „Verlegt“ / „Hierher verlegt“ mit Ursprung und Ziel, rechts das Verlegungszeichen */
 .sheet--detail .drow2--moved{ cursor:default; }
 .drow2__mk .ticon--verlegt{ display:block; width:22px; height:22px; }

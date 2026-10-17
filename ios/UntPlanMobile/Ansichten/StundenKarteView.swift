@@ -92,48 +92,7 @@ struct KachelView: View {
                     .allowsHitTesting(false)
             }
         }
-        // Marker oben rechts untereinander (z. B. Zusatzstunde „+“ und darunter die Änderung; Prüfung gelber Kreis und
-        // darunter das grüne Viereck bei einer Raumänderung)
-        .overlay(alignment: .topTrailing) {
-            let liste = sichtbareMarker
-            if !liste.isEmpty {
-                VStack(spacing: Self.markerAbstand) {
-                    ForEach(liste, id: \.self) { m in
-                        Markerzeichen(marker: m, groesse: Self.markerGroesse)
-                    }
-                }
-                .padding(.top, Self.markerRand)
-                .padding(.trailing, Self.markerRand)
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
-    /// Kantenlänge, Abstand und Randabstand der Marker oben rechts.
-    static let markerGroesse: CGFloat = 10
-    static let markerAbstand: CGFloat = 3
-    static let markerRand: CGFloat = 4
-
-    /// Marker laut Server, so viele wie in die Höhe passen (unten bleiben die Zeichen frei); sehr schmale Karten ohne.
-    private var sichtbareMarker: [Kachelmarker] {
-        guard let alle = kachel.marker, !alle.isEmpty, kachel.art != .aufsicht, kachel.art != .ganztagTermin,
-              breite >= Self.textLinks + Self.markerGroesse + 2 * Self.markerRand else { return [] }
-        let untenFrei = zeichenBreite > 0 && zeichenFaktor > 0 ? zeichenHoehe * zeichenFaktor + Self.zeichenRand : 0
-        let platz = hoehe - Self.markerRand - max(Self.markerRand, untenFrei)
-        let anzahl = Int((platz + Self.markerAbstand) / (Self.markerGroesse + Self.markerAbstand))
-        return Array(alle.prefix(max(0, anzahl)))
-    }
-
-    /// Unterkante der Marker oben rechts (0 = keine).
-    private var markerUnten: CGFloat {
-        let n = sichtbareMarker.count
-        guard n > 0 else { return 0 }
-        return Self.markerRand + CGFloat(n) * Self.markerGroesse + CGFloat(n - 1) * Self.markerAbstand
-    }
-
-    /// Kommen die Verlegungsmarker oben rechts vom Server, entfällt das Verlegungszeichen unten rechts.
-    private var verlegungOben: Bool {
-        kachel.marker?.contains { $0 == .verlegungVon || $0 == .verlegungNach } ?? false
+        // Oben rechts nie ein Zeichen (ausdrücklicher Wunsch): die Server-Marker zeigt nur das Web
     }
 
     /// Verkleinerung der Zeichen unten rechts, falls die Karte zu niedrig bzw. zu schmal ist (0 = ausblenden).
@@ -226,16 +185,12 @@ struct KachelView: View {
         // Zeichen unten rechts (4 pt vom Rand): Zeilen auf ihrer Höhe lassen rechts Platz, damit nichts verdeckt wird
         let breiteZeichen = zeichenBreite
         let zeichenOben = hoehe - Self.zeichenRand - zeichenHoehe
-        // Marker oben rechts: Zeilen auf ihrer Höhe lassen rechts Platz (Text endet sonst mit „…“ davor)
-        let markerBis = markerUnten
-        let markerFrei = Self.markerGroesse + Self.markerRand + 1 - 3
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(sichtbar.enumerated()), id: \.offset) { eintrag in
                 let oben = Self.textOben + CGFloat(eintrag.offset) * zeilenHoehe
                 let unten = oben + zeilenHoehe
                 let freiUnten: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + Self.zeichenRand - 1 : 0
-                let freiOben: CGFloat = markerBis > 0 && oben < markerBis - 1 ? markerFrei : 0
-                let frei = max(freiUnten, freiOben)
+                let frei = freiUnten
                 // Erste Zeile (oberer Wert) Semibold, alle weiteren Regular
                 KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift, oben: eintrag.offset == 0,
                                 titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil,
@@ -280,7 +235,7 @@ struct KachelView: View {
     private var eckzeichen: [Eckzeichen] {
         guard !gekuerzt else { return [] }
         var vorrang: [Eckzeichen] = []
-        if let v = kachel.verlegung, kachel.art != .aufsicht, !verlegungOben { vorrang.append(.verlegt(v)) }
+        if let v = kachel.verlegung, kachel.art != .aufsicht { vorrang.append(.verlegt(v)) }
         if kachel.info && kachel.art != .termin { vorrang.append(.info) }
         if kachel.online { vorrang.append(.online) }
         if kachel.hausaufgabe && kachel.art != .bereitschaft { vorrang.append(.hausaufgabe) }
@@ -710,49 +665,6 @@ struct Verlegungszeichen: View {
     }
 }
 
-/// Marker oben rechts auf der Karte (wie im Web): Verlegung rotes bzw. grünes Feld mit Pfeil, Entfall rotes Dreieck,
-/// Prüfung gelber Kreis, Zusatzstunde grünes Feld mit „+“, Änderung grünes Viereck. Flach, ohne Schatten.
-struct Markerzeichen: View {
-    let marker: Kachelmarker
-    var groesse: CGFloat = KachelView.markerGroesse
-
-    var body: some View {
-        Group {
-            switch marker {
-            case .verlegungVon:
-                Verlegungszeichen(richtung: "von", groesse: groesse)
-            case .verlegungNach:
-                Verlegungszeichen(richtung: "nach", groesse: groesse)
-            case .entfall:
-                Canvas { ctx, size in
-                    let w = size.width, h = size.height
-                    var p = Path()
-                    p.move(to: CGPoint(x: w / 2, y: h * 0.12))
-                    p.addLine(to: CGPoint(x: w * 0.96, y: h * 0.9))
-                    p.addLine(to: CGPoint(x: w * 0.04, y: h * 0.9))
-                    p.closeSubpath()
-                    ctx.fill(p, with: .color(Farben.markerRot))
-                    ctx.stroke(p, with: .color(Farben.markerRot), style: StrokeStyle(lineWidth: w * 0.12, lineJoin: .round))
-                }
-            case .pruefung:
-                Circle().fill(Farben.markerGelb)
-            case .plus:
-                Canvas { ctx, size in
-                    let e = size.width / 12
-                    var p = Path()
-                    p.move(to: CGPoint(x: 2.2 * e, y: 6 * e)); p.addLine(to: CGPoint(x: 9.8 * e, y: 6 * e))
-                    p.move(to: CGPoint(x: 6 * e, y: 2.2 * e)); p.addLine(to: CGPoint(x: 6 * e, y: 9.8 * e))
-                    ctx.stroke(p, with: .color(.white), style: StrokeStyle(lineWidth: 1.8 * e, lineCap: .butt))
-                }
-                .background(Farben.markerGruen, in: RoundedRectangle(cornerRadius: max(1.5, groesse * 0.18), style: .continuous))
-            case .aenderung:
-                RoundedRectangle(cornerRadius: max(1.5, groesse * 0.18), style: .continuous).fill(Farben.markerGruen)
-            }
-        }
-        .frame(width: groesse, height: groesse)
-        .accessibilityHidden(true)
-    }
-}
 
 /// Online-Zeichen auf der Karte: die Stunde findet online statt (online_lesson.svg, flach und grau, ohne Feld –
 /// kein zusätzliches Raum-Label). Steht unten rechts nach derselben Logik wie Info und Hausaufgabe.

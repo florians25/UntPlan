@@ -287,7 +287,8 @@ public static class Kachelbau
     }
 
     /// <summary>
-    /// Verlegung (Ursprung und Ziel mit Text), Zeichen oben rechts (vom Server berechnet) und hinzugekommene Werte („+“-Labels).
+    /// Verlegung (Ursprung und Ziel mit Text) und hinzugekommene Werte („+“-Labels). Die Marker des Servers (oben rechts) bleiben
+    /// unbeachtet: Die Karten der App tragen oben rechts nie ein Zeichen.
     /// </summary>
     private static void Zusaetze(Kachel kachel, PlanKarte k)
     {
@@ -297,8 +298,6 @@ public static class Kachelbau
             kachel.VerlegungNach = Verlegungsseite(k.VerlegungNach);
             kachel.VerlegungText = VerlegungText(k.VerlegungVon, k.VerlegungNach);
         }
-        if (k.Marker is { Count: > 0 })
-            kachel.Marker = k.Marker.Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim()).Distinct().ToList();
         static string? Plus(IEnumerable<PlanWert>? w) =>
             w?.Where(x => x.Plus && x.K.Length > 0 && x.K != "???").Select(x => x.K).Distinct(Ci).ToList() is { Count: > 0 } l ? string.Join(",", l) : null;
         // Veranstaltungen zeigen keine Plaketten – dort auch kein „+“

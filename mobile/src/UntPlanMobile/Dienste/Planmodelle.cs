@@ -36,7 +36,7 @@ public sealed record PlanKarte(
     string? Verlegung = null,
     // Verlegung: ursprüngliche Stunde und Zielstunde (Datum, Beginn, Ende); die Gegenseite kann fehlen
     PlanVerlegung? VerlegungVon = null, PlanVerlegung? VerlegungNach = null,
-    // Zeichen oben rechts in Anzeigereihenfolge (verlegungVon, verlegungNach, entfall, pruefung, plus, aenderung)
+    // Zeichen oben rechts laut Server (Web); die App zeigt oben rechts nie ein Zeichen und beachtet das Feld nicht
     List<string>? Marker = null);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
@@ -140,8 +140,6 @@ public sealed class Kachel
     [JsonPropertyName("movedTo")] public KachelVerlegung? VerlegungNach { get; set; }
     /// <summary>Verlegung als Text, immer Ursprung → Ziel: „09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15 - 13:00“.</summary>
     [JsonPropertyName("movedText")] public string? VerlegungText { get; set; }
-    /// <summary>Zeichen oben rechts in Anzeigereihenfolge: verlegungVon, verlegungNach, entfall, pruefung, plus, aenderung.</summary>
-    [JsonPropertyName("markers")] public List<string>? Marker { get; set; }
     /// <summary>Hinzugekommene Werte (ohne alten Wert): grünes Label mit „+“ davor (Komma-Listen).</summary>
     [JsonPropertyName("classPlus")] public string? KlassePlus { get; set; }
     [JsonPropertyName("teacherPlus")] public string? LehrkraftPlus { get; set; }
@@ -184,7 +182,6 @@ public sealed class Kachel
     {
         var k = (Kachel)MemberwiseClone();
         k.Geaendert = new List<string>(Geaendert);
-        if (Marker != null) k.Marker = new List<string>(Marker);
         return k;
     }
 }
