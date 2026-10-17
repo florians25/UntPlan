@@ -88,11 +88,12 @@ public sealed class Tagesplan
         var zusaetzlich = new List<Vertretung>();
         foreach (var v in vertretungen)
         {
-            // Sondereinsatz zu einem regulären Unterricht („Stunde ändern“, andere Lehrkraft) ersetzt diesen Unterricht
+            // Sondereinsatz zu einem regulären Unterricht („Stunde ändern“, andere Lehrkraft) ersetzt diesen Unterricht, ebenso eine
+            // Prüfung, die den Unterricht ihrer Aufsicht ersetzt (Prüfungszeile mit Unterricht)
             // wegen abwesender Klasse entfallene Zeile: zugeordnet wird nach der ursprünglichen Art
             var art = v.ArtVorKlassenabwesenheit ?? v.Art;
             if (v.UnterrichtId is int uid && art is not (VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.SondereinsatzVormerkung
-                    or VertretungsArt.Klausur or VertretungsArt.Veranstaltung) && !(art == VertretungsArt.Sondereinsatz && v.LehrerId is null) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
+                    or VertretungsArt.Veranstaltung) && !(art == VertretungsArt.Klausur && v.Quelle != VertretungsQuelle.Klausur) && !(art == VertretungsArt.Sondereinsatz && v.LehrerId is null) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
             {
                 var key = (uid, v.ZeilenIndex, v.Stunde);
                 if (!zuRegel.TryGetValue(key, out var l)) zuRegel[key] = l = new();

@@ -27,9 +27,15 @@ export async function zeigen(seite, kontext, [klasseParam]) {
       ${l.map(s => `<tr><td class="fw-semibold">${e(s.name)}</td><td>${e(s.vorname)}</td><td>${e(s.klasse)}</td><td>${e(GESCHLECHT[s.geschlecht] ?? s.geschlecht)}</td>
         <td>${datumDe(s.geburtsdatum)}</td><td>${e(s.email)}</td><td class="small">${e(s.bemerkung)}</td><td class="small text-body-secondary">${e(s.quelle)}</td>
         <td class="text-end text-nowrap">${s.bearbeiten ? `<button class="btn btn-sm btn-outline-secondary" data-bearbeiten="${s.id}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>` : ''}
+          ${d.klassenwechsel ? `<button class="btn btn-sm btn-outline-secondary" data-wechsel="${s.id}" title="Klassenwechsel" aria-label="Klassenwechsel"><i class="bi bi-arrow-left-right" aria-hidden="true"></i></button>` : ''}
           ${d.loeschen ? `<button class="btn btn-sm btn-outline-danger" data-loeschen="${s.id}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}</td></tr>`).join('')}</tbody></table>`
       : leer('Keine Schüler*innen gefunden.', 'people');
     inhalt.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => formular(d.schueler.find(s => s.id === Number(b.dataset.bearbeiten))));
+    // Klassenwechsel ab Datum mit Verlauf (unterrichtklassen.js)
+    inhalt.querySelectorAll('[data-wechsel]').forEach(b => b.onclick = async () => {
+      try { (await import('./unterrichtklassen.js')).klassenwechselDialog(d.schueler.find(s => s.id === Number(b.dataset.wechsel)), d.klassen, () => kontext.navigieren(location.hash)); }
+      catch (err) { kontext.fehler(err); }
+    });
     inhalt.querySelectorAll('[data-loeschen]').forEach(b => b.onclick = async () => {
       const s = d.schueler.find(x => x.id === Number(b.dataset.loeschen));
       if (!await bestaetigen('Schüler*in löschen', `${s.name}, ${s.vorname} (${s.klasse}) aus UntPlanWeb entfernen?`)) return;

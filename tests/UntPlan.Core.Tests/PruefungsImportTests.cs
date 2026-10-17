@@ -138,4 +138,165 @@ public class PruefungsImportTests
         // die Meldung steht im Protokoll und wird im Dialog nicht noch einmal angeboten
         Assert.Empty(StundenplanAenderungen.Analysieren(u.D, new[] { m }, u.Tag.AddDays(-1), u.Tag.AddDays(1), false));
     }
+
+    /// <summary>Zeilen der Vertretungsliste der Klasse in der Stunde der Prüfung.</summary>
+    private static List<PlanZeile> Liste(Umgebung u, int? stunde = null) =>
+        Vertretungsplan.Zeilen(u.D, u.Tag, true).Where(z => z.Stunde == (stunde ?? u.Stunde.Stunde) && z.KlassenIds.Contains(u.Klasse.Id)).ToList();
+
+    private static WebRueckmeldung Buchung(Umgebung u, string id, Raum raum, bool mitKlasse = false) => new()
+    {
+        Id = id, Typ = WebRueckmeldungsTypen.Raumbuchung, Lehrer = u.Lehrer.Kurzname, Von = u.Datum, StundeVon = u.Stunde.Stunde, StundeBis = u.Stunde.Stunde,
+        Raum = raum.Kurzname, Klassen = mitKlasse ? new() { u.Klasse.Kurzname } : new(), Titel = "Klausur", Erstellt = new DateTime(2026, 10, 14, 9, 0, 0),
+    };
+
+    /// <summary>
+    /// Fehlerbild aus dem Betrieb: Prüfung aus UntPlanWeb, Aufsicht ist die Lehrkraft des Unterrichts (z. B. SL, IT in B125, Prüfung in A300).
+    /// Bisher standen je Stunde eine Zeile „Klausur“ und zusätzlich „Entfall … Klausur IT“ in der Liste. Jetzt: genau eine Zeile
+    /// (Art Klausur, Lehrer/Fach/Raum des Unterrichts, neuer Raum der Prüfung) – auch nach mehrfachem Import über beide Wege.
+    /// </summary>
+    [Fact]
+    public void Pruefung_im_eigenen_Unterricht_ergibt_genau_eine_Zeile_je_Stunde()
+    {
+        var u = Aufbauen();
+        var m = Pruefung(u, "p1", u.Raum1, "IT", "Klassenarbeit: 1. KA - IT");
+        for (var i = 0; i < 2; i++)
+        {
+            UntPlanWebExport.Uebernehmen(u.D, new[] { m });
+            Dialog(u, m);
+            UntPlanWebExport.PaketErstellen(u.D, u.Tag);
+        }
+        var k = Assert.Single(u.D.Klausuren);
+        var z = Assert.Single(Liste(u));
+        Assert.Equal("Klausur", z.Art);
+        Assert.Equal(u.Lehrer.Kurzname, z.Lehrer);
+        Assert.Equal(u.Lehrer.Kurzname, z.Vertreter);
+        Assert.Equal(u.Raum1.Kurzname, z.NeuerRaum);
+        Assert.Equal("IT Klassenarbeit: 1. KA - IT", z.Text);
+        Assert.DoesNotContain(u.D.Vertretungen, v => v.Datum == u.Tag && v.IstEntfall && v.KlausurId == k.Id);
+        // Tagesplan: der Unterricht findet als Prüfung im Prüfungsraum statt (Raum der Prüfung belegt, bisheriger Raum frei)
+        var e = Assert.Single(Tagesplan.Berechnen(u.D, u.Tag).Stunde(u.Stunde.Stunde), x => x.Findetstatt && x.LehrerIds.Contains(u.Lehrer.Id));
+        Assert.Equal(new[] { u.Raum1.Id }, e.RaumIds);
+        // Paket für UntPlanWeb unverändert: entfallener Unterricht + Prüfungsstunde mit Klausur-Id (eine Karte im Web)
+        var stunden = UntPlanWebExport.PaketErstellen(u.D, u.Tag).Tage.Single(t => t.Datum == u.Datum).Stunden
+            .Where(x => x.Stunde == u.Stunde.Stunde && x.Klassen.Contains(u.Klasse.Kurzname)).ToList();
+        Assert.Equal(u.Stunde.Unterricht!.Id, Assert.Single(stunden, x => x.Status == "entfall").Unterricht);
+        Assert.Equal(new[] { u.Raum1.Kurzname }, Assert.Single(stunden, x => x.Status == "zusaetzlich").Raeume);
+        Assert.All(stunden, x => Assert.Equal(k.Id, x.Klausur));
+        // Zählung: Prüfung im eigenen Unterricht ist weder Mehrleistung noch Entfall
+        var zaehl = Zaehlung.Lehrer(u.D, u.Lehrer, u.Tag, u.Tag);
+        Assert.DoesNotContain(zaehl.Zeilen, x => x.Stunde == u.Stunde.Stunde && x.Zaehlt);
+    }
+
+    [Fact]
+    public void Gleiche_Pruefung_mit_neuer_Kennung_wird_nur_aktualisiert()
+    {
+        var u = Aufbauen();
+        UntPlanWebExport.Uebernehmen(u.D, new[] { Pruefung(u, "p1", u.Raum1, "IT") });
+        // dieselbe Prüfung (Klasse, Tag, Stunden, Titel) erneut gemeldet – mit anderer Kennung und anderem Raum
+        Dialog(u, Pruefung(u, "p2", u.Raum2, "IT", "1. KA"));
+        UntPlanWebExport.Uebernehmen(u.D, new[] { Pruefung(u, "p3", u.Raum2, "IT", "1. KA") });
+        var k = Assert.Single(u.D.Klausuren);
+        Assert.Equal("p1", k.WebId);
+        Assert.Equal(new[] { u.Raum2.Id }, k.RaumIds);
+        Assert.Equal("1. KA", k.Text);
+        Assert.Equal(u.Raum2.Kurzname, Assert.Single(Liste(u)).NeuerRaum);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Gleiche_Kennung_mit_neuem_Termin_verlegt_die_Pruefung_ohne_Reste(bool dialog)
+    {
+        var u = Aufbauen();
+        var andere = Tagesplan.Regulaer(u.D, u.Tag).First(r => r.Stunde != u.Stunde.Stunde && r.KlassenIds.Contains(u.Klasse.Id)).Stunde;
+        var m = Pruefung(u, "p1", u.Raum1, "IT");
+        UntPlanWebExport.Uebernehmen(u.D, new[] { m });
+        var verlegt = new WebRueckmeldung
+        {
+            Id = "p1", Typ = m.Typ, Lehrer = m.Lehrer, Von = m.Von, StundeVon = andere, StundeBis = andere, Klassen = m.Klassen, Raeume = m.Raeume, Titel = m.Titel,
+        };
+        if (dialog) Dialog(u, verlegt); else UntPlanWebExport.Uebernehmen(u.D, new[] { verlegt });
+        var k = Assert.Single(u.D.Klausuren);
+        Assert.Equal((andere, andere), (k.StundeVon, k.StundeBis));
+        Assert.DoesNotContain(u.D.Vertretungen, v => v.Datum == u.Tag && v.Stunde == u.Stunde.Stunde && v.KlausurId.HasValue);
+        Assert.Empty(Liste(u));
+        Assert.NotEmpty(Liste(u, andere));
+        // erneut gemeldet: nichts mehr zu tun
+        UntPlanWebExport.Uebernehmen(u.D, new[] { verlegt });
+        Assert.Empty(StundenplanAenderungen.Analysieren(u.D, new[] { verlegt }, u.Tag.AddDays(-1), u.Tag.AddDays(1), false));
+        Assert.Single(u.D.Klausuren);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Bestehende_Raumbuchung_wird_zur_Pruefung(bool dialog, bool mitKlasse)
+    {
+        var u = Aufbauen();
+        // zuerst die Buchung des Prüfungsraums (automatischer Abgleich: Raumbuchung bzw. Dialog: Raumänderung des Unterrichts)
+        var b = Buchung(u, "b1", u.Raum1, mitKlasse);
+        if (dialog) Dialog(u, b); else UntPlanWebExport.Uebernehmen(u.D, new[] { b });
+        Assert.Contains(u.D.Vertretungen, v => v.WebId == "b1");
+        // dann die Prüfung: die Buchung wird zur Prüfung, kein zusätzlicher Block
+        if (dialog) Dialog(u, Pruefung(u, "p1", u.Raum1, "IT")); else UntPlanWebExport.Uebernehmen(u.D, new[] { Pruefung(u, "p1", u.Raum1, "IT") });
+        Assert.Single(u.D.Klausuren);
+        Assert.DoesNotContain(u.D.Vertretungen, v => v.WebId == "b1");
+        Assert.Equal("Klausur", Assert.Single(Liste(u)).Art);
+        Assert.Single(Tagesplan.Berechnen(u.D, u.Tag).Stunde(u.Stunde.Stunde), x => x.Findetstatt && x.RaumIds.Contains(u.Raum1.Id));
+    }
+
+    [Fact]
+    public void Pruefung_ohne_Raum_uebernimmt_den_Raum_der_Buchung()
+    {
+        var u = Aufbauen();
+        UntPlanWebExport.Uebernehmen(u.D, new[] { Buchung(u, "b1", u.Raum1) });
+        var p = Pruefung(u, "p1", u.Raum1, "IT");
+        p.Raeume.Clear();
+        UntPlanWebExport.Uebernehmen(u.D, new[] { p });
+        Assert.Equal(new[] { u.Raum1.Id }, Assert.Single(u.D.Klausuren).RaumIds);
+        Assert.DoesNotContain(u.D.Vertretungen, v => v.WebId == "b1");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Buchung_nach_der_Pruefung_wird_nicht_zusaetzlich_angelegt(bool dialog)
+    {
+        var u = Aufbauen();
+        UntPlanWebExport.Uebernehmen(u.D, new[] { Pruefung(u, "p1", u.Raum1, "IT") });
+        var b = Buchung(u, "b1", u.Raum1);
+        var (ok, nein) = dialog ? Dialog(u, b) : (UntPlanWebExport.Uebernehmen(u.D, new[] { b }).Uebernommen, new());
+        Assert.Contains("b1", ok);
+        Assert.Empty(nein);
+        Assert.DoesNotContain(u.D.Vertretungen, v => v.WebId == "b1");
+        Assert.Single(Liste(u));
+    }
+
+    [Fact]
+    public void Geloeschte_Pruefung_stellt_den_Unterricht_ohne_Reste_wieder_her()
+    {
+        var u = Aufbauen();
+        Dialog(u, Pruefung(u, "p1", u.Raum1));
+        Assert.Single(Liste(u));
+        Dialog(u, Loeschen(u, "l1", "Mathe Klausur", u.Raum1, exakt: true));
+        Assert.Empty(u.D.Klausuren);
+        Assert.DoesNotContain(u.D.Vertretungen, v => v.KlausurId.HasValue || v.Quelle == VertretungsQuelle.Klausur);
+        Assert.Empty(Liste(u));
+        var e = Assert.Single(Tagesplan.Berechnen(u.D, u.Tag).Stunde(u.Stunde.Stunde), x => x.Unterricht?.Id == u.Stunde.Unterricht!.Id);
+        Assert.Equal(TagesStatus.Regulaer, e.Status);
+    }
+
+    [Fact]
+    public void Aeltere_Datei_mit_Entfall_neben_der_Pruefung_wird_bereinigt()
+    {
+        var u = Aufbauen();
+        var k = new Klausur { Id = u.D.NeueId(), Name = "IT", Datum = u.Tag, StundeVon = u.Stunde.Stunde, StundeBis = u.Stunde.Stunde, KlassenIds = { u.Klasse.Id }, LehrerIds = { u.Lehrer.Id }, RaumIds = { u.Raum1.Id }, WebId = "alt" };
+        u.D.Klausuren.Add(k);
+        // Stand älterer Versionen: Prüfungszeile ohne Unterricht + Entfall des Unterrichts
+        u.D.Vertretungen.Add(new Vertretung { Id = u.D.NeueId(), Datum = u.Tag, Stunde = u.Stunde.Stunde, Art = VertretungsArt.Klausur, Quelle = VertretungsQuelle.Klausur, KlausurId = k.Id, VertreterId = u.Lehrer.Id, KlassenIds = { u.Klasse.Id }, VertretungsraumId = u.Raum1.Id, Text = "IT" });
+        u.D.Vertretungen.Add(new Vertretung { Id = u.D.NeueId(), Datum = u.Tag, Stunde = u.Stunde.Stunde, Art = VertretungsArt.Entfall, Quelle = VertretungsQuelle.Klausur, KlausurId = k.Id, UnterrichtId = u.Stunde.Unterricht!.Id, ZeilenIndex = u.Stunde.Regel!.ZeilenIndex, LehrerId = u.Lehrer.Id, KlassenIds = { u.Klasse.Id }, Text = "Klausur IT", Bearbeitet = true });
+        Vertretungen.Aktualisieren(u.D, u.Tag);
+        Assert.Equal("Klausur", Assert.Single(Liste(u)).Art);
+    }
 }

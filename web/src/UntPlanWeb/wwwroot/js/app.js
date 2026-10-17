@@ -11,6 +11,7 @@ const ANSICHTEN = {
   vertretungen: () => import('./ansichten/vertretungen.js'),
   mitteilungen: () => import('./ansichten/mitteilungen.js'),
   unterricht: () => import('./ansichten/unterricht.js'),
+  unterrichtklassen: () => import('./ansichten/unterrichtklassen.js'),
   offen: () => import('./ansichten/offen.js'),
   pruefungen: () => import('./ansichten/pruefungen.js'),
   pruefungskalender: () => import('./ansichten/pruefungskalender.js'),
@@ -31,6 +32,7 @@ const ANSICHTEN = {
   profil: () => import('./ansichten/profil.js'),
   neuigkeiten: () => import('./ansichten/neuigkeiten.js'),
   sprechtag: () => import('./ansichten/sprechtag.js'),
+  kbeinstellungen: () => import('./ansichten/kbeinstellungen.js'),
 };
 
 const app = document.getElementById('app');
@@ -177,6 +179,10 @@ function anmeldung() {
       <button type="button" class="lg-vergessen" data-vergessen aria-expanded="false">Passwort vergessen?</button>
       <p class="lg-hinweis d-none" data-vergessen-text>Ein neues Passwort vergibt die Administration Ihrer Schule. Bitte wenden Sie sich dorthin.</p>
     </form>`);
+  // Zugriff gesperrt (Wartungsmodus): Hinweis der Administration über dem Formular
+  holen('/api/app/zugriff').then(z => {
+    if (z.gesperrt) form.querySelector('[data-meldung]').insertAdjacentHTML('beforebegin', `<div class="lg-wartung" role="status"><i class="bi bi-lock" aria-hidden="true"></i><span>${e(z.hinweis)}</span></div>`);
+  }).catch(() => { /* ohne Hinweis */ });
   form.querySelector('[data-vergessen]').onclick = ev => {
     const t = form.querySelector('[data-vergessen-text]');
     t.classList.toggle('d-none');
@@ -277,12 +283,15 @@ function menue() {
       { nav: 'unterricht', href: '#/unterricht', text: b.element ? 'Mein Unterricht' : 'Unterricht', icon: 'meineunterrichte' },
       { nav: 'buchen-unterricht', href: '#/buchen/unterricht', text: 'Neuer Unterricht', icon: 'meineunterrichte' },
       { nav: 'unterricht-klasse', href: '#/unterricht/klasse', text: 'Klasse', icon: 'klasse' },
+      // Unterricht Klassen (unterrichtklassen.js): Schülergruppen, Abmeldungen, befristeter Unterrichtswechsel
+      ...(b.rechte?.['unterricht.klassen'] ? [{ nav: 'unterrichtklassen', href: '#/unterrichtklassen', text: 'Unterricht Klassen', icon: 'benutzer' }] : []),
       { nav: 'schueler', href: '#/schueler', text: 'Schüler*in', icon: 'benutzer' },
       { nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'klausur' },
       { nav: 'pruefungskalender', href: '#/pruefungskalender', text: 'Prüfungskalender', icon: 'pruefung' },
       { nav: 'aufgaben', href: '#/aufgaben', text: 'Aufgaben', icon: 'vertretungen' },
       { nav: 'u-tag-lehrer', href: '#/tag/lehrer/-/u', text: 'Lehrkraft - Tag', icon: 'taglehrer' },
       { nav: 'u-tag-klasse', href: '#/tag/klasse/-/u', text: 'Klasse - Tag', icon: 'tagklassen' },
+      ...(b.admin || b.rechte?.['klassenbuch.einstellungen'] ? [{ nav: 'kbeinstellungen-unterricht', href: '#/kbeinstellungen/unterricht', text: 'Einstellungen', icon: 'verwaltung' }] : []),
     ] });
     m.push({ id: 'klassenbuch', text: 'Klassenbuch', icon: 'klassenbuchnav', unter: [
       { nav: 'klassenbuch', href: '#/klassenbuch', text: 'Übersicht', icon: 'uebersicht' },
@@ -296,6 +305,7 @@ function menue() {
         { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' }] : []),
       { nav: 'befreiungen', href: '#/befreiungen', text: 'Befreiungen', icon: 'befreiungen' },
       { nav: 'sitzplan', href: '#/sitzplan', text: 'Sitzplan', icon: 'sitzplan', verborgen: true },
+      ...(b.admin || b.rechte?.['klassenbuch.einstellungen'] ? [{ nav: 'kbeinstellungen', href: '#/kbeinstellungen', text: 'Einstellungen', icon: 'verwaltung' }] : []),
     ] });
     m.push({ id: 'melden', text: 'Melden', icon: 'ruckmeldung', unter: [
       { nav: 'melden-abwesenheit', href: '#/melden/abwesenheit', text: 'Abwesenheit melden', icon: 'abwesend' },
@@ -341,6 +351,8 @@ function menue() {
       { nav: 'stammdaten-versionen', href: '#/stammdaten/versionen', text: 'Stundenplan-Versionen', icon: 'versionen' },
       { nav: 'stammdaten-gruende', href: '#/stammdaten/gruende', text: 'Abwesenheitsgründe', icon: 'abwesenheiten' },
       { nav: 'stammdaten-dienste', href: '#/stammdaten/dienste', text: 'Dienste', icon: 'klassendienste' },
+      { nav: 'stammdaten-notenschemen', href: '#/stammdaten/notenschemen', text: 'Notenschemen', icon: 'berichte' },
+      { nav: 'stammdaten-pruefungsarten', href: '#/stammdaten/pruefungsarten', text: 'Prüfungsarten', icon: 'klausur' },
     ] });
     m.push({ id: 'admin', text: 'Administration', icon: 'verwaltung', unter: [
       { nav: 'admin-sync', href: '#/admin/sync', text: 'Übersicht & Synchronisation', icon: 'synchron' },
@@ -349,6 +361,8 @@ function menue() {
       { nav: 'admin-import', href: '#/admin/import', text: 'Import', icon: 'import' },
       { nav: 'admin-export', href: '#/admin/export', text: 'Export', icon: 'export' },
       { nav: 'admin-aktive', href: '#/admin/aktive', text: 'Aktive Benutzer', icon: 'aktive' },
+      { nav: 'admin-zugriff', href: '#/admin/zugriff', text: 'Zugriff ent-/sperren', icon: 'sperre' },
+      { nav: 'admin-ueber', href: '#/admin/ueber', text: 'Über UntPlan', icon: 'info' },
       { nav: 'admin-rechte', href: '#/admin/rechte', text: 'Rechte und Rollen', icon: 'rechte' },
       { nav: 'admin-benutzer', href: '#/admin/benutzer', text: 'Benutzer', icon: 'benutzer' },
       { nav: 'admin-personen', href: '#/admin/personen', text: 'Personen & Konten', icon: 'lehrkraft' },
@@ -366,6 +380,8 @@ function menue() {
     const unter = [];
     if (b.nachrichten) unter.push({ nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' });
     if (r['admin.import']) unter.push({ nav: 'admin-import', href: '#/admin/import', text: 'Import', icon: 'import' });
+    if (r['admin.wartung']) unter.push({ nav: 'admin-aktive', href: '#/admin/aktive', text: 'Aktive Benutzer', icon: 'aktive' },
+      { nav: 'admin-zugriff', href: '#/admin/zugriff', text: 'Zugriff ent-/sperren', icon: 'sperre' }, { nav: 'admin-ueber', href: '#/admin/ueber', text: 'Über UntPlan', icon: 'info' });
     if (r['admin.benutzer']) unter.push({ nav: 'admin-benutzer', href: '#/admin/benutzer', text: 'Benutzer', icon: 'benutzer' }, { nav: 'admin-personen', href: '#/admin/personen', text: 'Personen & Konten', icon: 'lehrkraft' });
     if (unter.length === 1) m.push({ id: 'admin', ...unter[0] });
     else if (unter.length) m.push({ id: 'admin', text: 'Administration', icon: 'verwaltung', unter });
@@ -392,6 +408,7 @@ function navAus(teile) {
     case 'melden': return 'melden-' + (a || 'abwesenheit');
     case 'buchen': return a === 'stunden' ? 'buchen-unterricht' : 'buchen-' + (a || 'raum');
     case 'stammdaten': return 'stammdaten-' + (a || 'klassen');
+    case 'kbeinstellungen': return a === 'unterricht' ? 'kbeinstellungen-unterricht' : 'kbeinstellungen';
     case 'admin': return 'admin-' + (a || (b.admin ? 'sync' : 'nachrichten'));
     default: return name || 'heute';
   }

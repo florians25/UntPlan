@@ -2,7 +2,7 @@
 // als weiße Karten mit Schaltern, Auswahlfeldern und Hilfetexten; unten eine feste Leiste mit „Speichern“. Unterricht | Einstellungen
 // (#/kbeinstellungen/unterricht) zeigt denselben Reiter „Unterricht“ (Prüfungen). Ohne Recht sind alle Felder nur lesbar.
 // Leere Zahlenfelder bedeuten „unbegrenzt“ (Standard) – so bleiben Lehrstoff, Notizen und „Findet online statt“ ohne Wochengrenze.
-import { e, icon, holen, senden, toast, lade, WOCHENTAGE } from '../ui.js';
+import { e, holen, senden, toast, lade, WOCHENTAGE } from '../ui.js';
 
 /** Stile der Einstellungs- und Stammdatenseiten (einmal nachladen). */
 export function cssLaden() {
@@ -218,5 +218,4 @@ export async function zeigen(seite, kontext, [reiterParam]) {
   // ungespeicherte Änderungen beim Verlassen nicht stillschweigend verwerfen
   const warnen = ev => { if (!document.body.contains(seite) || !seite.querySelector('.kbe')) { window.removeEventListener('beforeunload', warnen); return; } if (geaendert()) { ev.preventDefault(); ev.returnValue = ''; } };
   window.addEventListener('beforeunload', warnen);
-  void icon;
 }

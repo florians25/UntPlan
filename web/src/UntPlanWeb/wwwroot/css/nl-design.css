@@ -113,17 +113,12 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .mk-dreieck { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 
 /* Ferien und freie Tage wie im Original: halbtransparente hellblaue Fläche (#bedaedb3) über dem Raster – die Linien laufen ohne
-   Unterbrechung weiter und scheinen durch; aufeinanderfolgende freie Tage bilden eine durchgehende Fläche (auch über die Lücken),
-   4px über die Spalte hinaus, Radius 4px; mittig Schloss + Art, Name, Zeitraum (16px Abstand). Tagesansicht: Fläche je Tag. */
+   Unterbrechung weiter und scheinen durch; je Tag eine eigene Fläche mit eigenem Text (keine Zusammenfassung über mehrere Tage),
+   4px über die Spalte hinaus, Radius 4px; mittig Schloss + Art, Name, Zeitraum (16px Abstand). */
 .tt-ferien { inset: 0 auto 0 -4px; width: calc(100% + 8px); border-radius: 4px; background: rgba(190, 218, 237, .7); color: #414d55; z-index: 3; }
-.tt-ferien.gesamt { width: calc(var(--frei-tage, 1) * 100% + (var(--frei-tage, 1) - 1) * var(--tt-spalt, 16px) + 8px); }
-.tt-ferien.einzeln { display: none; }
-@media (max-width: 767.98px) {
-  .tt-ferien.gesamt { display: none; }
-  .tt-ferien.einzeln { display: block; left: 0; width: 100%; }
-}
+@media (max-width: 767.98px) { .tt-ferien { left: 0; width: 100%; } }
 .tt-spalte.frei .tt-linie { display: block; }
-.tt-ferien .inhalt { top: 50%; transform: translateY(-50%); gap: 16px; font-size: 14px; font-weight: 600; line-height: 19px; }
+.tt-ferien .inhalt { top: 50%; transform: translateY(-50%); gap: 16px; font-size: 14px; font-weight: 500; line-height: 19px; }
 .tt-ferien .art { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .tt-ferien .art .bi { font-size: 10px; vertical-align: 0; margin: 0; }
 

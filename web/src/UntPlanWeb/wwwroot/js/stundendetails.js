@@ -10,7 +10,31 @@ import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui
 import * as sitz from './ansichten/sitzplan.js';
 import { hausaufgabeDetails, hausaufgabeFormular } from './hausaufgabe.js';
 
-const PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
+// Prüfungsarten und Notenschemen aus den Stammdaten (einmal je Sitzung geladen; bis dahin der Grundbestand)
+let PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'].map(name => ({ name, schema: '' }));
+let NOTENSCHEMEN = [];
+let pruefungsartenGeladen = null;
+const pruefungsartenLaden = () => pruefungsartenGeladen ??= Promise.all([holen('/api/app/pruefungsarten'), holen('/api/app/notenschemen')]).then(([a, n]) => {
+  if (a.arten?.length) PRUEFUNGSARTEN = a.arten.map(x => ({ name: x.name || x.kurz, schema: x.notenschema }));
+  NOTENSCHEMEN = (n.schemen ?? []).filter(x => x.aktiv);
+}).catch(() => { pruefungsartenGeladen = null; });
+/** Text einer neuen Prüfung: „Art: Text – Notenschema: … – Teilnehmende: …“. */
+const pruefungText = (f, teil) => [f('art') ? `${f('art')}${f('text') ? ': ' + f('text') : ''}` : f('text'),
+  f('notenschema') ? `Notenschema: ${f('notenschema')}` : '', teil].filter(Boolean).join(' – ');
+/** Prüfungsart ohne Notenschema: die Lehrkraft wählt ein individuelles Schema (Auswahl nur dann sichtbar). */
+function notenschemaBinden(wurzel) {
+  const art = wurzel.querySelector('[name=art]');
+  const feld = wurzel.querySelectorAll('[data-ns]');
+  if (!art || !feld.length) return;
+  const zeigen = () => {
+    const a = PRUEFUNGSARTEN.find(x => x.name === art.value);
+    const ohne = !!a && !a.schema;
+    feld.forEach(x => { x.hidden = !ohne; });
+    if (!ohne) wurzel.querySelector('[name=notenschema]').value = '';
+  };
+  art.addEventListener('change', zeigen);
+  zeigen();
+}
 const W = '/img/wu/';
 
 const wochentag = iso => WOCHENTAGE[(new Date(iso + 'T12:00').getDay() + 6) % 7];
@@ -125,6 +149,7 @@ export function karteDialog(karte, kontext = {}) {
       daten.einzelstunden = st.einzelstunden ?? []; daten.einzelEintraege = st.einzelEintraege ?? [];
     }
     if (hw) daten.hausaufgaben = hw;
+    if (kollegium) pruefungsartenLaden();
     if (mitKlassenbuch()) {
       const [anw, verm, dienste, gruende, befreit] = await Promise.all([
         holen(`/api/app/klassenbuch/anwesenheit?datum=${k.datum}&stunde=${k.von}&unterricht=${k.unterricht}${ep()}`).catch(() => null),
@@ -134,7 +159,14 @@ export function karteDialog(karte, kontext = {}) {
         holen(`/api/app/klassenbuch/befreit?datum=${k.datum}&klassen=${encodeURIComponent(kl.join(','))}&fach=${encodeURIComponent(k.fach || '')}&beginn=${encodeURIComponent(k.beginn || '')}`).catch(() => []),
       ]);
       daten.anwesenheit = anw;
-      daten.vermerke = verm.filter(Boolean).flatMap(v => v.vermerke ?? []).sort((a, b) => b.datum.localeCompare(a.datum) || b.id - a.id);
+      // Klassenbuch-Einstellungen der Hauptseite: Sortierung (Vorgabe), Einträge ab, fällige Hausaufgaben
+      const kbe = anw?.einstellungen;
+      if (kbe) {
+        sitz.schulVorgabeSetzen?.({ sortierung: kbe.sortierung === 'vorname' ? 'vorname' : 'name', richtung: kbe.richtung, nachKlasse: !!kbe.nachKlasse });
+        if (kbe.faelligeHausaufgaben === false) daten.hausaufgaben = { ...daten.hausaufgaben, faellig: [] };
+      }
+      daten.vermerke = verm.filter(Boolean).flatMap(v => v.vermerke ?? []).filter(v => !kbe?.eintraegeAb || v.datum >= kbe.eintraegeAb)
+        .sort((a, b) => b.datum.localeCompare(a.datum) || b.id - a.id);
       daten.arten = verm.find(Boolean)?.arten ?? [];
       daten.dienste = dienste.filter(Boolean).flatMap(d => d.zuordnungen ?? []);
       daten.gruende = (gruende ?? []).filter(g => g.aktiv !== false);
@@ -273,7 +305,7 @@ export function karteDialog(karte, kontext = {}) {
         ${status}${zusatz}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
         <span class="sd-name">${sitz.nameHtml(s, sitzW)}</span>
-        ${darf ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
+        ${darf && daten.anwesenheit?.einstellungen?.direkteEingabe !== false ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
     };
     const kacheln = sl.map(kachel).join('');
@@ -333,8 +365,10 @@ export function karteDialog(karte, kontext = {}) {
     const zeilen = [
       ...(a.fehlzeiten ?? []).map(f => ({ f, vor: false })),
       ...(a.vorstunden ?? []).map(f => ({ f, vor: true })),
+      // Einstellung „Alle Abwesenheiten des Tages anzeigen“: Abwesenheiten späterer Stunden (nur zur Information)
+      ...(a.weitere ?? []).map(f => ({ f, vor: true, spaeter: true })),
     ];
-    const reihe = ({ f, vor }) => {
+    const reihe = ({ f, vor, spaeter }) => {
       const sv = vor ? zeitVon(f.stunde) : vonStunde;
       // minutengenau: Zeitraum der ganzen Abwesenheit (vom Server), sonst aus der Stunde
       const beginn = !vor && f.vonZeit ? f.vonZeit : (sv.beginn || b.beginn || '');
@@ -342,15 +376,15 @@ export function karteDialog(karte, kontext = {}) {
       const vonD = !vor && f.vonDatum ? f.vonDatum : (f.datum || k.datum), bisD = !vor && f.bisDatum ? f.bisDatum : (f.datum || k.datum);
       const anfang = !vor && f.art === 'fehlt' && fruehere && a.darf
         ? `<button type="button" class="sd-kreisknopf klein" data-tagesbeginn="${f.schuelerId}" title="Abwesenheit auf Tagesbeginn verlängern" aria-label="Abwesenheit auf Tagesbeginn verlängern"><i class="bi bi-arrow-bar-left"></i></button>` : '';
-      const schluss = vor && a.darf
+      const schluss = vor && !spaeter && a.darf
         ? `<button type="button" class="sd-kreisknopf klein" data-bisende="${f.schuelerId}" title="Abwesenheit bis Stundenende verlängern" aria-label="Abwesenheit bis Stundenende verlängern"><i class="bi bi-arrow-bar-right"></i></button>` : '';
       const gewertet = f.fehlstunden && f.art !== 'fehlt' ? ` · ${f.fehlstunden === 1 ? 'eine Fehlstunde' : `${f.fehlstunden} Fehlstunden`}` : '';
       const st = { offen: 'offen', entschuldigt: 'entschuldigt', unentschuldigt: 'nicht entschuldigt' }[f.status] ?? '';
       const farbe = { offen: 'gelb', entschuldigt: 'gruen', unentschuldigt: 'rot' }[f.status] ?? 'grau';
-      const label = vor ? '<span class="nl-chip grau">Vorstunde</span>' : st ? `<span class="nl-chip ${farbe}">${st}</span>` : '';
-      const zusatz = vor ? 'verlängern' : f.art === 'verspaetet' ? `verspätet ${f.minuten} min${gewertet}` : f.art === 'vorzeitig' ? `vorzeitig gegangen ${f.minuten} min${gewertet}` : '';
+      const label = spaeter ? '<span class="nl-chip grau">spätere Stunde</span>' : vor ? '<span class="nl-chip grau">Vorstunde</span>' : st ? `<span class="nl-chip ${farbe}">${st}</span>` : '';
+      const zusatz = spaeter ? `${f.stunde}. Stunde` : vor ? 'verlängern' : f.art === 'verspaetet' ? `verspätet ${f.minuten} min${gewertet}` : f.art === 'vorzeitig' ? `vorzeitig gegangen ${f.minuten} min${gewertet}` : '';
       return `<tr class="${vor ? 'vorstunde' : ''} ${abwAuswahl.has(f.schuelerId) ? 'nl-gewaehlt' : ''}">
-        <td class="nl-wahl"><input type="checkbox" class="nl-rund" data-abw="${f.schuelerId}" ${abwAuswahl.has(f.schuelerId) ? 'checked' : ''} aria-label="${e(name(f.schuelerId))} auswählen"></td>
+        <td class="nl-wahl">${spaeter ? '' : `<input type="checkbox" class="nl-rund" data-abw="${f.schuelerId}" ${abwAuswahl.has(f.schuelerId) ? 'checked' : ''} aria-label="${e(name(f.schuelerId))} auswählen">`}</td>
         <td class="sd-abw-name">${e(name(f.schuelerId))}</td>
         <td class="text-nowrap">${anfang}${datumDe(vonD)} <span class="sd-abw-zeit">${e(beginn)}</span></td>
         <td class="text-nowrap">${datumDe(bisD)} <span class="sd-abw-zeit">${e(ende)}</span>${schluss}</td>
@@ -509,7 +543,9 @@ export function karteDialog(karte, kontext = {}) {
     return `<div class="sd-formular">
       <label>Name</label><input class="form-control" name="name" value="${e(k.fach || '')}">
       <label>Text</label><input class="form-control" name="text">
-      <label>Prüfungsart</label><select class="form-select" name="art"><option value=""></option>${PRUEFUNGSARTEN.map(a => `<option>${a}</option>`).join('')}</select>
+      <label>Prüfungsart</label><select class="form-select" name="art"><option value=""></option>${PRUEFUNGSARTEN.map(a => `<option value="${e(a.name)}">${e(a.name)}${a.schema ? ` (${e(a.schema)})` : ''}</option>`).join('')}</select>
+      <label data-ns hidden>Notenschema</label><div data-ns hidden><select class="form-select" name="notenschema"><option value="">– individuell (im Text beschreiben) –</option>${NOTENSCHEMEN.map(n => `<option value="${e(n.name)}">${e(n.name)}</option>`).join('')}</select>
+        <div class="small text-body-secondary mt-1">Für diese Prüfungsart ist kein Notenschema hinterlegt – bitte ein Notenschema für diese Prüfung wählen.</div></div>
       <label>Datum</label><div class="d-flex flex-wrap gap-2 align-items-center"><input type="date" class="form-control" style="width:auto" name="datum" value="${k.datum}">
         <span class="small">Stunde</span><div style="width:90px">${std('von', k.von)}</div><span>–</span><div style="width:90px">${std('bis', k.bis)}</div></div>
       <label>Raum</label><input class="form-control" name="raeume" value="${e(kuerzel(k.raeume).join(', '))}">
@@ -590,6 +626,7 @@ export function karteDialog(karte, kontext = {}) {
   function binden() {
     const q = s => box.querySelector(s);
     const alle = (s, f) => box.querySelectorAll(s).forEach(f);
+    if (reiter === 'pruefung') notenschemaBinden(box);
     box.onclick = ev => {
       if (!ev.target.closest('.sd-raumchip')) box.querySelectorAll('.sd-raummenue').forEach(x => x.classList.add('d-none'));
       if (!ev.target.closest('.sd-blockwahl')) { box.querySelector('.sd-blockwahl-menue')?.classList.add('d-none'); box.querySelector('[data-blockwahl]')?.setAttribute('aria-expanded', 'false'); }
@@ -691,7 +728,7 @@ export function karteDialog(karte, kontext = {}) {
       const sl = daten.anwesenheit?.schueler ?? [];
       const teil = sl.length && pruefungSchueler.size < sl.length
         ? `Teilnehmende: ${sl.filter(s => pruefungSchueler.has(s.id)).map(s => `${s.vorname} ${s.name}`).join(', ')}` : '';
-      const text = [f('art') ? `${f('art')}${f('text') ? ': ' + f('text') : ''}` : f('text'), teil].filter(Boolean).join(' – ');
+      const text = pruefungText(f, teil);
       const knopf = ev.currentTarget;
       knopf.disabled = true;
       try {
@@ -957,6 +994,7 @@ export function karteDialog(karte, kontext = {}) {
       <div class="ad-knoepfe justify-content-end"><button type="button" class="ad-pille" data-ad-zu>Abbrechen</button>
         <button type="button" class="sd-orange" data-klausur-speichern>Speichern</button></div>`, (o, zu) => {
       o.querySelector('[name=raeume]')?.setAttribute('list', 'sd-klausur-raeume');
+      notenschemaBinden(o);
       o.querySelectorAll('[data-chip]').forEach(c => c.onclick = () => {
         const id = Number(c.dataset.chip);
         pruefungSchueler.has(id) ? pruefungSchueler.delete(id) : pruefungSchueler.add(id);
@@ -968,7 +1006,7 @@ export function karteDialog(karte, kontext = {}) {
         const sl = daten.anwesenheit?.schueler ?? [];
         const teil = sl.length && pruefungSchueler.size < sl.length
           ? `Teilnehmende: ${sl.filter(s => pruefungSchueler.has(s.id)).map(s => `${s.vorname} ${s.name}`).join(', ')}` : '';
-        const text = [f('art') ? `${f('art')}${f('text') ? ': ' + f('text') : ''}` : f('text'), teil].filter(Boolean).join(' – ');
+        const text = pruefungText(f, teil);
         const knopf = ev.currentTarget;
         knopf.disabled = true;
         try {
@@ -1034,12 +1072,18 @@ export function karteDialog(karte, kontext = {}) {
     const start = a.beginn || b.beginn || zeitVon(b.von).beginn || '08:00', ende = a.ende || b.ende || zeitVon(b.bis).ende || '08:45';
     const tagesende = zeiten.length ? zeiten[zeiten.length - 1].ende : ende;
     const namen = ids.map(schuelerName).filter(Boolean);
-    const vorgabe = { vonDatum: f?.vonDatum || k.datum, vonZeit: f?.vonZeit || start, bisDatum: f?.bisDatum || k.datum, bisZeit: f?.bisZeit || ende };
+    // Klassenbuch-Einstellungen: Ende einer neuen Abwesenheit (Stundenende, Tagesende, fixer Zeitpunkt), Standardgrund, Grund/Text gesperrt
+    const kbe = a.einstellungen ?? {};
+    const endeVorgabe = kbe.abwesenheitEnde === 'tag' ? (tagesende > ende ? tagesende : ende)
+      : kbe.abwesenheitEnde === 'zeit' && kbe.abwesenheitEndeZeit > ende ? kbe.abwesenheitEndeZeit : ende;
+    const vorgabe = { vonDatum: f?.vonDatum || k.datum, vonZeit: f?.vonZeit || start, bisDatum: f?.bisDatum || k.datum, bisZeit: f?.bisZeit || endeVorgabe };
+    const grundGesperrt = !!kbe.grundTextGesperrt && !verwalten;
+    const grundVorgabe = f ? f.grund : (a.standardgruende?.abwesend ?? '');
     const status = f?.status || 'offen';
     const jetzt = new Date(), jetztMin = jetzt.getHours() * 60 + jetzt.getMinutes();
     const laeuft = k.datum === heuteIso() && jetztMin > minutenVon(start) && jetztMin < minutenVon(ende);
     const jetztZeit = `${String(jetzt.getHours()).padStart(2, '0')}:${String(jetzt.getMinutes()).padStart(2, '0')}`;
-    const gruendeWahl = `<option value="">–</option>${daten.gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === f?.grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}`;
+    const gruendeWahl = `<option value="">–</option>${daten.gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grundVorgabe ? 'selected' : ''}>${e(g.name)}</option>`).join('')}`;
     // Status als Segment-Schalter; bei einer bestehenden Abwesenheit entschuldigt die Klassenleitung damit direkt (ohne Speichern)
     const radio = (wert, text) => `<label class="ab-radio ab-seg-${wert}"><input type="radio" name="ab-status" value="${wert}" ${status === wert ? 'checked' : ''} ${verwalten ? '' : 'disabled'}><span>${text}</span></label>`;
     altDialog('Abwesenheit', `
@@ -1052,8 +1096,8 @@ export function karteDialog(karte, kontext = {}) {
           ${laeuft ? '<button type="button" class="ad-pille klein" data-ab-schnell="spaet" title="abwesend von Stundenbeginn bis jetzt">verspätet bis jetzt</button><button type="button" class="ad-pille klein" data-ab-schnell="frueh" title="abwesend ab jetzt bis Stundenende">ab jetzt gegangen</button>' : ''}
           <button type="button" class="ad-pille klein" data-ab-schnell="rest" title="abwesend bis ${e(tagesende)}">Rest des Tages</button></div>
         <span></span><div class="vs-vorschau" data-ab-vorschau></div>
-        <label for="ab-grund">Abwesenheitsgrund</label><select id="ab-grund" data-ab-grund>${gruendeWahl}</select>
-        <label for="ab-text">Text</label><input id="ab-text" data-ab-text maxlength="500" value="${e(f?.text ?? '')}">
+        <label for="ab-grund">Abwesenheitsgrund</label><select id="ab-grund" data-ab-grund ${grundGesperrt ? 'disabled' : ''}>${gruendeWahl}</select>
+        <label for="ab-text">Text</label><input id="ab-text" data-ab-text maxlength="500" value="${e(f?.text ?? '')}" ${grundGesperrt ? 'disabled title="Grund und Text trägt die Klassenleitung ein."' : ''}>
         <label>Status</label><div class="ab-status ab-segment ${verwalten ? '' : 'gesperrt'}" role="radiogroup" aria-label="Entschuldigungsstatus">${radio('entschuldigt', 'entschuldigt')}${radio('unentschuldigt', 'nicht entschuldigt')}${radio('offen', 'offen')}
           ${verwalten ? (f ? '<div class="ab-hinweis">Wird sofort gespeichert.</div>' : '') : '<div class="ab-hinweis"><i class="bi bi-lock"></i> Entschuldigen und Zeiträume über den Tag hinaus nur durch die Klassenleitung.</div>'}</div>
       </div>

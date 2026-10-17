@@ -3,8 +3,8 @@ using UntPlanWeb.Dienste;
 namespace UntPlanWeb.Tests;
 
 /// <summary>
-/// Ferien als eine Fläche (Regression): eine ganze freie Woche erscheint im Wochenraster als eine durchgehende Fläche, nicht je Tag –
-/// auch wenn die Tage aus mehreren Einträgen bestehen (tageweise eingetragene unterrichtsfreie Tage, Ferien + Feiertag).
+/// Ferien je Tag: jeder freie Tag (Ferien, Feiertag, unterrichtsfrei) erscheint im Wochenraster als eigene Fläche mit eigenem Text
+/// (Art, Name, Zeitraum) – aufeinanderfolgende freie Tage werden nicht mehr zu einer Fläche über mehrere Spalten zusammengefasst.
 /// </summary>
 public class FerienFlaecheTests
 {
@@ -34,16 +34,19 @@ public class FerienFlaecheTests
     }
 
     [Fact]
-    public void Raster_fasst_aufeinanderfolgende_freie_Tage_zu_einer_Flaeche_zusammen()
+    public void Raster_zeigt_jeden_freien_Tag_als_eigene_Flaeche()
     {
         var js = Datei("js", "plangitter.js");
         var css = Datei("css", "nl-design.css");
-        // eine Fläche über n Tage (--frei-tage) und je Tag eine Fläche nur für die Tagesansicht
-        Assert.Contains("tt-ferien gesamt\" style=\"--frei-tage:${n}\"", js);
-        // zusammengefasst wird jeder freie Folgetag mit Ferien/Feiertag/unterrichtsfrei – nicht nur bei gleichem Eintrag
-        Assert.Contains("while (freiFlaeche(tage[i + n])) n++;", js);
-        // Desktop: Einzelflächen aus, Gesamtfläche über die Spalten; Tagesansicht umgekehrt
-        Assert.Contains(".tt-ferien.einzeln { display: none; }", css);
-        Assert.Contains(".tt-ferien.gesamt { width: calc(var(--frei-tage, 1) * 100%", css);
+        // je Tag eine Fläche mit dem eigenen Inhalt, keine Gesamtfläche über n Tage
+        Assert.Contains("return `<div class=\"tt-ferien tag\">${freiInhalt([t])}</div>`;", js);
+        Assert.Contains("if (t.frei) html += freiUeberlagerung(t);", js);
+        Assert.DoesNotContain("tt-ferien gesamt", js);
+        Assert.DoesNotContain("--frei-tage", js);
+        Assert.DoesNotContain("--frei-tage", css);
+        Assert.DoesNotContain(".tt-ferien.einzeln { display: none; }", css);
+        // Fläche nur so breit wie die eigene Spalte (4px Überstand je Seite), Schrift höchstens Medium
+        Assert.Contains(".tt-ferien { inset: 0 auto 0 -4px; width: calc(100% + 8px);", css);
+        Assert.Contains(".tt-ferien .inhalt { top: 50%; transform: translateY(-50%); gap: 16px; font-size: 14px; font-weight: 500;", css);
     }
 }

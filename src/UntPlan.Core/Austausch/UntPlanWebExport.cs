@@ -103,7 +103,8 @@ public static class UntPlanWebExport
             {
                 var tp = Tagesplan.Berechnen(d, t);
                 foreach (var e in tp.Eintraege.Where(e => !nurAenderungen || e.Status != TagesStatus.Regulaer).OrderBy(e => e.Stunde))
-                    tag.Stunden.Add(new WebStunde
+                {
+                    var ws = new WebStunde
                     {
                         Stunde = e.Stunde, Unterricht = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId, Fach = K(ElementTyp.Fach, e.FachId),
                         Klassen = Kl(KlassenDerStunde(e)), Lehrer = e.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = e.RaumIds.Select(ix.KRaum).ToList(),
@@ -120,7 +121,29 @@ public static class UntPlanWebExport
                         Klausur = e.Vertretung is { KlausurId: int kid } kv && d.Klausuren.FirstOrDefault(k => k.Id == kid && k.Aktiv) is { } kl
                             && (kv.Art == VertretungsArt.Klausur || (kv.IstEntfall && kv.Quelle == VertretungsQuelle.Klausur
                                 && ((kv.UnterrichtId.HasValue && kl.UnterrichtId == kv.UnterrichtId) || kl.KlassenIds.Intersect(kv.KlassenIds).Any()))) ? kid : null,
-                    });
+                    };
+                    // Prüfung ersetzt den Unterricht ihrer Aufsicht (eine Zeile im Desktop): im Paket wie gewohnt als entfallener
+                    // Unterricht (mit Klausur-Id) und Prüfungsstunde – UntPlanWeb fasst beides zu einer Karte zusammen
+                    if (e.Vertretung is { Art: VertretungsArt.Klausur, Quelle: VertretungsQuelle.Klausur, UnterrichtId: int, KlausurId: int pk } pz && e.Regel is { } rg
+                        && d.Klausuren.FirstOrDefault(k => k.Id == pk) is { } pkl)
+                    {
+                        tag.Stunden.Add(new WebStunde
+                        {
+                            Stunde = e.Stunde, Unterricht = rg.Unterricht.Id, Fach = K(ElementTyp.Fach, rg.FachId), Klassen = Kl(rg.KlassenIds.Count > 0 ? rg.KlassenIds : rg.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct()),
+                            Lehrer = rg.LehrerId is int rl ? new List<string> { ix.KLehrer(rl) } : new(), Raeume = rg.RaumId is int rr ? new List<string> { ix.KRaum(rr) } : new(),
+                            Status = "entfall", Vertretung = pz.Id, Text = "Klausur " + pkl.Name,
+                            Bereitschaft = Vertretungen.IstBereitschaftsfach(d, rg.FachId), Klausur = pk,
+                        });
+                        tag.Stunden.Add(new WebStunde
+                        {
+                            Stunde = e.Stunde, Fach = "", Klassen = Kl(pkl.KlassenIds), Lehrer = pz.VertreterId is int pv ? new List<string> { ix.KLehrer(pv) } : new(),
+                            Raeume = pkl.RaumIds.Select(ix.KRaum).ToList(), Status = "zusaetzlich", Vertretung = pz.Id,
+                            Text = StundenplanAenderungen.ExportText(pz.Text), Klausur = pk,
+                        });
+                        continue;
+                    }
+                    tag.Stunden.Add(ws);
+                }
                 foreach (var z in Vertretungsplan.Zeilen(d, t))
                     vertretungen.Add(new WebVertretung
                     {
@@ -439,7 +462,7 @@ public static class UntPlanWebExport
         {
             if (m.Typ is not (WebRueckmeldungsTypen.Raumbuchung or WebRueckmeldungsTypen.Klausur or WebRueckmeldungsTypen.KlausurLoeschen)) { rest.Add(m); continue; }
             // schon über den Dialog „Stundenplanänderungen“ übernommen bzw. ignoriert: nicht noch einmal anwenden
-            if (protokoll.Any(x => x.Id == m.Id)) { if (protokoll.Last(x => x.Id == m.Id).Uebernommen) ok.Add(m.Id); else nein.Add(m.Id); continue; }
+            if (StundenplanAenderungen.Erledigt(protokoll, m) is { } erledigt) { if (erledigt.Uebernommen) ok.Add(m.Id); else nein.Add(m.Id); continue; }
             if (!DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var datum) || !Kalender.IstUnterrichtstag(d, datum)) { nein.Add(m.Id); continue; }
             var von = Math.Clamp(m.StundeVon ?? 1, 1, d.Zeitraster.StundenProTag);
             var bis = Math.Clamp(m.StundeBis ?? von, von, d.Zeitraster.StundenProTag);
@@ -458,6 +481,14 @@ public static class UntPlanWebExport
             if (m.Typ == WebRueckmeldungsTypen.Raumbuchung)
             {
                 if (raeume.Count == 0) { nein.Add(m.Id); continue; }
+                // Buchung für eine schon eingetragene Prüfung (gleiche Zeit, Aufsicht, Raum bzw. Klasse): durch die Prüfung abgedeckt
+                if (StundenplanAenderungen.KlausurFuerBuchung(d, datum, von, bis, lehrer, raeume, klassen) != null)
+                {
+                    tage.Add(datum);
+                    ok.Add(m.Id);
+                    protokoll.Add(new StplAenderungsEintrag { Id = m.Id, Uebernommen = true, Benutzer = "UntPlanWeb", Meldung = m });
+                    continue;
+                }
                 // Raum muss in allen Stunden frei sein (kein Unterricht, keine andere Buchung)
                 var tp = Tagesplan.Berechnen(d, datum);
                 if (Enumerable.Range(von, bis - von + 1).Any(s => tp.Stunde(s).Any(e => e.Findetstatt && e.RaumIds.Contains(raeume[0])))) { nein.Add(m.Id); continue; }
@@ -466,18 +497,11 @@ public static class UntPlanWebExport
                     {
                         Id = d.NeueId(), Datum = datum, Stunde = s, Art = VertretungsArt.Raumbuchung, Quelle = VertretungsQuelle.Manuell, Bearbeitet = true,
                         VertreterId = lehrer.FirstOrDefault() is int l and > 0 ? l : null, KlassenIds = klassen, VertretungsraumId = raeume[0], ZusatzraumIds = raeume.Skip(1).ToList(),
-                        Text = string.Join(" – ", new[] { m.Titel, m.Text }.Where(x => !string.IsNullOrWhiteSpace(x))), Benutzer = "UntPlanWeb " + m.Absender,
+                        Text = string.Join(" – ", new[] { m.Titel, m.Text }.Where(x => !string.IsNullOrWhiteSpace(x))), Benutzer = "UntPlanWeb " + m.Absender, WebId = m.Id,
                     });
             }
-            else if (!d.Klausuren.Any(k => k.WebId == m.Id)) // dieselbe Rückmeldung nicht doppelt übernehmen
-            {
-                d.Klausuren.Add(new Klausur
-                {
-                    Id = d.NeueId(), Name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim(), Text = m.Text ?? "", Datum = datum, StundeVon = von, StundeBis = bis,
-                    KlassenIds = klassen, LehrerIds = lehrer, RaumIds = raeume, UnterrichtEntfaellt = true, WebId = m.Id,
-                });
-                tage.Add(datum);
-            }
+            else // dieselbe Prüfung nicht doppelt anlegen, sondern aktualisieren; bestehende Buchungen werden zur Prüfung
+                StundenplanAenderungen.KlausurUebernehmen(d, m, datum, von, bis, klassen, lehrer, raeume, tage, "UntPlanWeb");
             ok.Add(m.Id);
             // vermerken, damit der Dialog „Stundenplanänderungen“ die Meldung nicht noch einmal anbietet (keine Dubletten)
             protokoll.Add(new StplAenderungsEintrag { Id = m.Id, Uebernommen = true, Benutzer = "UntPlanWeb", Meldung = m });

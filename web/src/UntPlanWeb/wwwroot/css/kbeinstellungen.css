@@ -1,0 +1,122 @@
+/* UntPlanWeb – Klassenbuch-/Unterricht-Einstellungen und Stammdaten Notenschemen/Prüfungsarten (nl-design: weiße Karten,
+   Schalter, ruhige Tabellen). Schrift nur Regular (400) und Medium (500). Nachgeladen von kbeinstellungen.js. */
+
+.kbe { max-width: 1040px; padding-bottom: 72px; }
+
+/* Reiter als Segment-Pillen */
+.kbe-reiter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 4px; background: #fff; border: 1px solid var(--u-linie); border-radius: 999px; width: fit-content; max-width: 100%; }
+.kbe-reiter button { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--u-text); font: inherit; font-size: .9rem; font-weight: 500; cursor: pointer; }
+.kbe-reiter button:hover { background: var(--u-hover); }
+.kbe-reiter button.an { background: var(--u-akzent); color: #fff; }
+.kbe-reiter button:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+
+/* Karten */
+.kbe-karte { background: var(--u-flaeche); border: 1px solid #dfe3e7; border-radius: 10px; margin: 0 0 16px; overflow: hidden; }
+.kbe-karte > header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--u-linie-2); }
+.kbe-karte > header h2 { margin: 0; font-size: 1rem; font-weight: 500; color: var(--u-titel); }
+.kbe-symbol { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--u-akzent-hell); color: var(--u-akzent-dunkel); flex: none; }
+.kbe-rumpf { padding: 4px 0; }
+.kbe-text { margin: 12px 18px; color: var(--u-text); font-size: .9rem; line-height: 1.5; }
+
+/* Zeilen: Beschriftung links, Eingabe rechts (Telefon: untereinander) */
+.kbe-zeile { display: grid; grid-template-columns: minmax(180px, 320px) minmax(0, 1fr); gap: 8px 24px; align-items: start; padding: 12px 18px; }
+.kbe-zeile + .kbe-zeile { border-top: 1px solid #f0f2f4; }
+.kbe-label { padding-top: 7px; font-size: .9rem; font-weight: 500; color: var(--u-titel); }
+.kbe-label label, .kbe-label span { margin: 0; }
+.kbe-wert { min-width: 0; }
+.kbe-hilfe { margin: 6px 0 0; font-size: .8rem; line-height: 1.45; color: var(--u-grau); }
+.kbe-schalterzeile { display: block; }
+.kbe-schalterzeile .kbe-hilfe { margin-left: 52px; }
+@media (max-width: 767.98px) {
+  .kbe-zeile { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .kbe-label { padding-top: 0; }
+}
+
+/* Schalter */
+.kbe-schalter { display: flex; align-items: center; gap: 12px; margin: 0; cursor: pointer; }
+.kbe-schalter input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.kbe-schiene { position: relative; flex: none; width: 40px; height: 22px; border-radius: 999px; background: var(--u-grau-3); transition: background .15s; }
+.kbe-schiene::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: transform .15s; }
+.kbe-schalter input:checked + .kbe-schiene { background: var(--u-akzent); }
+.kbe-schalter input:checked + .kbe-schiene::after { transform: translateX(18px); }
+.kbe-schalter input:focus-visible + .kbe-schiene { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.kbe-schalter input:disabled + .kbe-schiene { opacity: .55; }
+.kbe-schalter-text { font-size: .9rem; font-weight: 500; color: var(--u-titel); }
+@media (prefers-reduced-motion: reduce) { .kbe-schiene, .kbe-schiene::after { transition: none; } }
+
+/* Auswahl, Zahlen, Datum */
+.kbe-radios { display: flex; flex-direction: column; gap: 8px; }
+.kbe-radios.waagrecht { flex-direction: row; flex-wrap: wrap; gap: 8px 20px; }
+.kbe-radio { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: .9rem; cursor: pointer; }
+.kbe-radio input { width: 18px; height: 18px; accent-color: var(--u-akzent); margin: 0; }
+.kbe-zeit { width: 120px; height: 34px; }
+.kbe-nachsatz { display: inline-flex; align-items: center; gap: 8px; }
+.kbe-zahl { display: inline-flex; align-items: center; gap: 8px; }
+.kbe-zahl input { width: 110px; height: 36px; }
+.kbe-zahl span { font-size: .85rem; color: var(--u-grau); }
+.kbe-zahl + .kbe-auswahl, .kbe-zahl + .au { margin-left: 10px; }
+.kbe-datum { width: 160px; height: 36px; }
+.kbe-bereich { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kbe-bereich > span { font-size: .85rem; color: var(--u-grau); }
+.kbe-auswahl { max-width: 380px; }
+.kbe-kurz { width: 110px; }
+.kbe-reihe { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.kbe-info { display: flex; gap: 10px; margin: 6px 18px 12px; padding: 12px 14px; border-radius: 8px; background: #f1f5f8; color: #57626b; font-size: .85rem; line-height: 1.5; }
+.kbe-info b { font-weight: 500; color: var(--u-titel); }
+.kbe-info .bi { color: #7b8892; margin-top: 2px; }
+.kbe-karte > header .nl-knopf { text-decoration: none; }
+
+/* Notenschemen in der Übersicht (Reiter „Noten“) */
+.kbe-schemen { list-style: none; margin: 0 18px 8px; padding: 0; }
+.kbe-schemen li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0; border-top: 1px solid #f0f2f4; font-size: .9rem; }
+.kbe-schemen li:first-child { border-top: 0; }
+.kbe-schemen b { font-weight: 500; color: var(--u-titel); }
+.kbe-schemen li > span:not(.nl-chip) { color: var(--u-grau); }
+
+/* feste Leiste unten mit Speichern */
+.kbe-leiste { position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 14px;
+  background: #fff; border: 1px solid #dfe3e7; border-radius: 999px; box-shadow: var(--u-schatten); }
+.kbe-stand { margin-right: auto; padding-left: 6px; font-size: .85rem; color: var(--u-grau); }
+.kbe-leiste .nl-knopf:disabled { opacity: .45; cursor: default; }
+
+/* Tabellen der Stammdaten */
+.kbe-tabelle td { font-size: .9rem; }
+.kbe-tabelle .nl-wahl { width: 44px; }
+.kbe-anzahl { font-size: .85rem; color: var(--u-grau); }
+.kbe-link { padding: 0; border: 0; background: none; color: var(--u-titel); font: inherit; font-weight: 500; cursor: pointer; text-align: left; }
+.kbe-link:hover { color: var(--u-akzent-dunkel); text-decoration: underline; }
+.kbe-iknopf { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: transparent; color: var(--u-grau); cursor: pointer; }
+.kbe-iknopf:hover:not(:disabled) { background: var(--u-hover); color: var(--u-titel); }
+.kbe-iknopf.rot:hover:not(:disabled) { background: #fdecec; color: #c62828; }
+.kbe-iknopf.gruen { color: #0f7b47; }
+.kbe-iknopf:disabled { opacity: .3; cursor: default; }
+.kbe-iknopf:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 1px; }
+.kbe-ja { color: var(--u-gruen); font-size: 1.1rem; }
+.kbe-leise { color: var(--u-grau-2); font-size: .85rem; }
+.kbe-noten { display: flex; flex-wrap: wrap; gap: 4px; }
+.kbe-note { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 8px; border-radius: 6px; background: #eef1f4; font-size: .8rem; font-weight: 500; color: var(--u-text); }
+.kbe-note small { font-weight: 400; color: var(--u-grau); }
+.kbe-art { display: inline-block; min-width: 44px; padding: 3px 10px; border: 1px solid rgba(0, 0, 0, .12); border-radius: 6px; font: inherit; font-size: .85rem; font-weight: 500; text-align: center; cursor: pointer; }
+.kbe-art.gross { padding: 6px 14px; cursor: default; }
+
+/* Formulare (Notenschema, Prüfungsart) */
+.kbe-formular { display: flex; flex-direction: column; gap: 14px; }
+.kbe-unter { margin: 8px 0 0; font-size: .95rem; font-weight: 500; color: var(--u-akzent-dunkel); }
+.kbe-check { display: inline-flex; align-items: center; gap: 8px; margin: 0 16px 6px 0; font-size: .9rem; cursor: pointer; }
+.kbe-gruppe { display: flex; flex-wrap: wrap; gap: 4px 0; }
+.kbe-gruppe > .form-label { width: 100%; }
+.kbe-farben label { margin: 0; }
+.kbe-farben .form-control-color { width: 64px; height: 38px; }
+.kbe-notentabelle { width: 100%; border-collapse: collapse; }
+.kbe-notentabelle th { padding: 6px 8px; font-size: .85rem; font-weight: 500; color: var(--u-grau); text-align: left; }
+.kbe-notentabelle td { padding: 4px 8px; border-top: 1px solid #f0f2f4; }
+.kbe-notentabelle td:first-child { width: 76px; }
+.kbe-notentabelle .kbe-neuzeile td { background: #fbfcfd; }
+.kbe-wertfeld { width: 100px; }
+.kbe-maxraster { display: flex; flex-direction: column; gap: 8px; }
+.kbe-max { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: .9rem; }
+.kbe-max > span:first-child { width: 170px; }
+.kbe-max input[type="number"] { width: 76px; }
+.kbe-zwischen { font-size: .85rem; color: var(--u-grau); }
+@media (max-width: 575.98px) { .kbe-max > span:first-child { width: 100%; } .kbe-reiter { border-radius: 14px; } }

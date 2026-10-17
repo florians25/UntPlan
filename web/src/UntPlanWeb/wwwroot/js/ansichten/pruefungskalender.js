@@ -5,7 +5,7 @@ import { e, holen, heuteIso } from '../ui.js';
 
 const MONATE = ['August', 'September', 'Oktober', 'November', 'Dezember', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli'];
 const WT = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'];
-const ARTEN = ['Klausur', 'Klassenarbeit', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
+let ARTEN = ['Klausur', 'Klassenarbeit', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'];
 const z2 = n => String(n).padStart(2, '0');
 const datumDe = iso => iso.split('-').reverse().join('.');
 
@@ -19,6 +19,8 @@ export async function zeigen(seite, kontext) {
     holen(`/api/app/pruefungen?von=${von}&bis=${bis}`),
     kontext.elemente(),
     ich.kollegium && ich.element ? holen(`/api/app/unterricht?lehrer=${encodeURIComponent(ich.element)}`).catch(() => []) : Promise.resolve([]),
+    // Prüfungsarten aus den Stammdaten (Kollegium; sonst der Grundbestand)
+    ich.kollegium ? holen('/api/app/pruefungsarten').then(r => { if (r.arten?.length) ARTEN = r.arten.map(a => a.name || a.kurz); }).catch(() => null) : null,
   ]);
   let art = 'alle', alleEigenen = true, gewaehlt = 0;
   const wahlen = unterricht.filter(u => u.klassen.length).map(u => ({ text: `${u.fach} - ${u.klassen.join(', ')}${u.kurs ? ' - ' + u.kurs : ''}`, klassen: u.klassen, fach: u.fach }));

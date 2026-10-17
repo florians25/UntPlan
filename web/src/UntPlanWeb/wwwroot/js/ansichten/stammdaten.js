@@ -1,5 +1,6 @@
 // Stammdaten (Administration): Klassen, Schüler*innen, Lehrkräfte, Fächer und Räume aus UntPlan (nur lesen – gepflegt wird in UntPlan),
-// Stundenplan-Versionen (Übertragungsverlauf) sowie die in UntPlanWeb gepflegten Abwesenheits-/Befreiungsgründe und Klassendienste.
+// Stundenplan-Versionen (Übertragungsverlauf) sowie die in UntPlanWeb gepflegten Abwesenheits-/Befreiungsgründe und Klassendienste;
+// Notenschemen und Prüfungsarten zeigt noten.js.
 import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, herunterladen } from '../ui.js';
 
 const ARTEN = {
@@ -22,6 +23,8 @@ const anzeige = (schluessel, wert) => {
 };
 
 export async function zeigen(seite, kontext, [artParam]) {
+  // Notenschemen und Prüfungsarten (in UntPlanWeb gepflegt) – eigene Seiten in noten.js
+  if (artParam === 'notenschemen' || artParam === 'pruefungsarten') return (await import('./noten.js')).zeigen(seite, kontext, artParam);
   const art = ARTEN[artParam] ? artParam : 'klassen';
   const a = ARTEN[art];
   const bearbeitbar = art === 'gruende' || art === 'dienste';

@@ -150,10 +150,24 @@ public class VertretungErweitertTests
     {
         var (d, tag) = Daten();
         var r = ErsteNormaleStunde(d, tag);
-        d.Klausuren.Add(new Klausur { Id = d.NeueId(), Name = "Mathe-Arbeit", Datum = tag, StundeVon = r.Stunde, StundeBis = r.Stunde, KlassenIds = r.KlassenIds.ToList(), LehrerIds = new() { r.LehrerId!.Value }, UnterrichtId = r.Unterricht.Id });
+        // Aufsicht durch eine andere Lehrkraft: Prüfungszeile der Aufsicht und Entfall des Unterrichts
+        var andere = d.Lehrer.First(l => l.Id != r.LehrerId);
+        var k = new Klausur { Id = d.NeueId(), Name = "Mathe-Arbeit", Datum = tag, StundeVon = r.Stunde, StundeBis = r.Stunde, KlassenIds = r.KlassenIds.ToList(), LehrerIds = new() { andere.Id }, UnterrichtId = r.Unterricht.Id };
+        d.Klausuren.Add(k);
         Vertretungen.Aktualisieren(d, tag);
-        Assert.Contains(d.Vertretungen, v => v.Datum == tag && v.Art == VertretungsArt.Klausur && v.VertreterId == r.LehrerId);
+        Assert.Contains(d.Vertretungen, v => v.Datum == tag && v.Art == VertretungsArt.Klausur && v.VertreterId == andere.Id);
         Assert.Contains(d.Vertretungen, v => v.Datum == tag && v.UnterrichtId == r.Unterricht.Id && v.Art == VertretungsArt.Entfall);
+        // Aufsicht durch die Lehrkraft des Unterrichts: die Prüfung ersetzt den Unterricht – genau eine Zeile (Klausur) statt Klausur + Entfall
+        k.LehrerIds = new() { r.LehrerId!.Value };
+        Vertretungen.Aktualisieren(d, tag);
+        var zeilen = d.Vertretungen.Where(v => v.Datum == tag && v.Stunde == r.Stunde && v.KlausurId == k.Id).ToList();
+        var z = Assert.Single(zeilen);
+        Assert.Equal(VertretungsArt.Klausur, z.Art);
+        Assert.Equal((r.Unterricht.Id, r.LehrerId, r.LehrerId, r.FachId), (z.UnterrichtId!.Value, z.LehrerId, z.VertreterId, z.FachId));
+        Assert.DoesNotContain(d.Vertretungen, v => v.Datum == tag && v.UnterrichtId == r.Unterricht.Id && v.IstEntfall);
+        // im Tagesplan findet der Unterricht als Prüfung statt (kein regulärer Unterricht daneben)
+        var e = Assert.Single(Tagesplan.Berechnen(d, tag).Stunde(r.Stunde), x => x.Unterricht?.Id == r.Unterricht.Id || x.Vertretung?.KlausurId == k.Id);
+        Assert.Equal(TagesStatus.Vertreten, e.Status);
     }
 
     [Fact]

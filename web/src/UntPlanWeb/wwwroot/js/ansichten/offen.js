@@ -25,7 +25,7 @@ const MONATE = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 
 const isoVon = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerParam, klasseParam, vonParam, bisParam]) {
-  const art = ART[artParam] ? artParam : 'offen';
+  let art = ART[artParam] ? artParam : 'offen';
   const lehrerWahl = lehrerParam && lehrerParam !== '-' ? decodeURIComponent(lehrerParam).split(',').filter(Boolean) : [];
   const klasseWahl = klasseParam && klasseParam !== '-' ? decodeURIComponent(klasseParam) : '';
   const bereichWahl = bereichParam && bereichParam !== '-' ? bereichParam : '';
@@ -39,6 +39,8 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
   if (lehrerWahl.length) q.set('lehrer', lehrerWahl.join(','));
   if (klasseWahl) q.set('klasse', klasseWahl);
   const [r, el] = await Promise.all([holen(`/api/app/klassenbuch/offene-stunden?${q}`), kontext.elemente()]);
+  // Vorgabe der Klassenbuch-Einstellungen „Offene Stunden anzeigen für“ (Abwesenheitskontrolle, Lehrstoff oder beides)
+  if (!ART[artParam] && (r.offenFuer === 'kontrolle' || r.offenFuer === 'lehrstoff')) art = r.offenFuer;
 
   const zustand = { bereich: r.bereich, art, lehrer: r.lehrer.filter(l => r.alle || lehrerWahl.includes(l)), klasse: r.klasse ?? '', von: r.von, bis: r.bis };
   if (!r.alle) zustand.lehrer = [];

@@ -3,7 +3,7 @@
 // Raster mit Zeitspalte und Jetzt-Linie, Legende als schwebende Pillenleiste mit Menü „⋮“ (Symbole anzeigen, Abwesenheiten,
 // Drucken, Öffentlichen Link kopieren), Hilfe unten rechts. Keine A/B-Woche im Kopf.
 import { e, icon, holen, heuteIso, plusTage, montag, lade, dialog, toast, druckenMitAusrichtung } from '../ui.js';
-import { wochenGitter, tagAuswahl, kartenBinden } from '../plangitter.js';
+import { wochenGitter, tagAuswahl, kartenBinden, karteDialog } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
 
 const TYPEN = { klasse: 'Klasse', lehrer: 'Lehrkraft', raum: 'Raum' };
@@ -202,7 +202,7 @@ function elementInfo(typ, x) {
   return x.name && x.name !== x.kurz ? x.name : '';
 }
 
-export async function zeigen(seite, kontext, [typParam, elementParam, datumParam]) {
+export async function zeigen(seite, kontext, [typParam, elementParam, datumParam, stundeParam]) {
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const erlaubt = ich.kollegium ? ['klasse', 'lehrer', 'raum'] : ['klasse', 'raum'];
@@ -297,6 +297,10 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
     if (menueOffen) inhalt.querySelector('[data-legende-menue]')?.classList.remove('d-none');
   };
   zeichnen();
+  // Link direkt zur Stunde (#/plan/<typ>/<element>/<datum>/<stunde>, z. B. aus der Erinnerung an offene Stunden): Stundendetails öffnen
+  const nr = Number(stundeParam);
+  const stundeKarte = nr > 0 ? plan.karten.find(x => x.datum === datum && x.von <= nr && x.bis >= nr && x.unterricht && !x.ereignis) : null;
+  if (stundeKarte) karteDialog(stundeKarte, { ...kontext, liste: plan.karten, typ });
   // Jetzt-Linie minütlich nachführen
   const takt = setInterval(() => { if (!document.body.contains(inhalt)) { clearInterval(takt); return; } if (!document.querySelector('.modal.show') && inhalt.querySelector('[data-legende-menue].d-none')) zeichnen(); }, 60000);
 }

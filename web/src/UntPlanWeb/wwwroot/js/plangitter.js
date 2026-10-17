@@ -239,22 +239,15 @@ function abschnitte(k, aufbau, index, durchgaengig = false) {
 const FREI = { ferien: 'Ferien', feiertag: 'Feiertag', frei: 'Unterrichtsfrei' };
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 
-/** Ferien, Feiertage und freie Tage wie im Original: hellblaue Spalte, mittig Schloss + Art, Name und Zeitraum. */
-const freiFlaeche = x => !!(x && x.frei && FREI[x.freiArt]);
 /** automatisch benannter einzelner freier Tag aus UntPlan („19.10.2026“) – kein eigener Name */
 const nurDatum = n => /^\d{1,2}\.\d{1,2}\.(\d{2,4})?$/.test((n || '').trim());
 
-function freiUeberlagerung(t, tage = [t], i = 0) {
+/** Ferien, Feiertage und freie Tage wie im Original: hellblaue Fläche je Tag, mittig Schloss + Art, Name und Zeitraum. */
+function freiUeberlagerung(t) {
   const titel = FREI[t.freiArt];
   if (!titel) return t.freiGrund ? `<div class="tt-frei">${e(t.freiGrund)}</div>` : '';
-  // wie im Original eine durchgehende Fläche über alle aufeinanderfolgenden freien Tage (auch über die Lücken zwischen den Spalten) –
-  // auch wenn die Tage aus mehreren Einträgen bestehen (Ferien + Feiertag, tageweise eingetragene unterrichtsfreie Tage);
-  // in der Tagesansicht (nur eine Spalte sichtbar) die Fläche je Tag
-  let n = 1;
-  while (freiFlaeche(tage[i + n])) n++;
-  const einzeln = `<div class="tt-ferien einzeln">${freiInhalt([t])}</div>`;
-  if (freiFlaeche(tage[i - 1])) return einzeln;
-  return `<div class="tt-ferien gesamt" style="--frei-tage:${n}">${freiInhalt(tage.slice(i, i + n))}</div>${einzeln}`;
+  // je Tag eine eigene Fläche mit eigenem Text (Art, Name, Zeitraum) – aufeinanderfolgende freie Tage werden nicht zusammengefasst
+  return `<div class="tt-ferien tag">${freiInhalt([t])}</div>`;
 }
 
 /** Inhalt einer freien Fläche über einen oder mehrere Tage: Art (Ferien vor Feiertag vor unterrichtsfrei), Namen, Zeitraum. */
@@ -318,7 +311,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     html += `<div class="tt-spalte ${t.frei ? 'frei ' + e(t.freiArt || '') : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}" style="height:${aufbau.hoehe}px">`;
     html += [...linien].map(y => `<div class="tt-linie" style="top:${y}px"></div>`).join('');
     html += [...aufbau.pause.values()].map(y => `<div class="tt-pause" style="top:${y}px;height:${PAUSE}px"></div>`).join('');
-    if (t.frei) html += freiUeberlagerung(t, tage, i);
+    if (t.frei) html += freiUeberlagerung(t);
     const karten = plan.karten.filter(k => k.datum === t.datum && index.has(k.von));
     // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen – als grüne Zusatzkarte
     const ereignisKarten = t.ereignisse.filter(x => index.has(Math.max(x.von, zeiten[0].nr)) && !karten.some(k => k.text === x.titel && k.von <= x.bis && k.bis >= x.von))

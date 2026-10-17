@@ -4485,7 +4485,7 @@ function renderPicker(){
   /* Alphabet-Register A–Z am rechten Rand (wie in der iOS-App): immer alle
      Buchstaben; fehlt einer, springt das Register zum nächsten vorhandenen.
      Tippen und Ziehen springen. */
-  pkRegister(letters, pickerType !== 'mine' && list.length > 8);
+  pkRegister(letters, pickerType !== 'mine' && list.length > 1);
 
   $$('#pickerList .picker-item').forEach(b => b.addEventListener('click', () => {
     const neu = state.entities.find(e => e.type === b.dataset.type && String(e.id) === b.dataset.id);

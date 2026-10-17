@@ -104,6 +104,10 @@ public static class Zaehlung
                         res.Sondereinsaetze++;
                         Zeile("+Y", wert, e.SondereinsaetzeZaehlen && !nichtZaehlen, v.Mehrarbeit);
                         break;
+                    case VertretungsArt.Klausur when v.LehrerId == l.Id:
+                        // Prüfung im eigenen Unterricht (ersetzt ihn): weder Mehrleistung noch Entfall
+                        Zeile("+K", wert, false);
+                        break;
                     case VertretungsArt.Klausur:
                         var neutral = e.KlausurenNeutral && d.Vertretungen.Any(x => x.KlausurId == v.KlausurId && x.LehrerId == l.Id && x.Datum == v.Datum && x.Stunde == v.Stunde && x.IstEntfall);
                         Zeile("+K", wert, !neutral && !nichtZaehlen, v.Mehrarbeit);

@@ -8,7 +8,9 @@ const BEREICHE = [
   { id: 'freietage', text: 'Freie Tage & Ferien', admin: true },
   { id: 'import', text: 'Import', admin: true, recht: 'admin.import' },
   { id: 'export', text: 'Export', admin: true },
-  { id: 'aktive', text: 'Aktive Benutzer', admin: true },
+  { id: 'aktive', text: 'Aktive Benutzer', admin: true, recht: 'admin.wartung' },
+  { id: 'zugriff', text: 'Zugriff ent-/sperren', admin: true, recht: 'admin.wartung' },
+  { id: 'ueber', text: 'Über UntPlan', admin: true, recht: 'admin.wartung' },
   { id: 'rechte', text: 'Rechte und Rollen', admin: true },
   { id: 'benutzer', text: 'Benutzer', admin: true, recht: 'admin.benutzer' },
   { id: 'personen', text: 'Personen & Konten', admin: true, recht: 'admin.benutzer' },
@@ -49,7 +51,7 @@ export async function zeigen(seite, kontext, [bereichParam, ...weitere]) {
   seite.innerHTML = '<div data-bereich></div>';
   const ziel = seite.querySelector('[data-bereich]');
   const neu = () => kontext.navigieren(location.hash);
-  await ({ sync, benutzer, personen, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, rechte, zuordnung, sperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
+  await ({ sync, benutzer, personen, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, zugriff, ueber, rechte, zuordnung, sperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
   ziel.querySelectorAll('[data-kopie]').forEach(b => b.onclick = () => kopieren(b.dataset.kopie));
 }
 
@@ -388,20 +390,10 @@ async function exportieren(ziel) {
 
 // ------------------------------------------------------------------ Aktive Benutzer
 
-async function aktive(ziel) {
-  const liste = await holen('/api/app/admin/benutzer');
-  const sortiert = liste.slice().sort((a, b) => String(b.letzteAnmeldung ?? '').localeCompare(String(a.letzteAnmeldung ?? '')));
-  const vor = tage => { const d = new Date(Date.now() - tage * 864e5); const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
-  ziel.innerHTML = `<div class="u-kacheln">
-      <div class="u-kennzahl">${icon('benutzer')}<span><b>${liste.length}</b><small>Benutzerkonten</small></span></div>
-      <div class="u-kennzahl">${icon('aktive')}<span><b>${liste.filter(u => !u.gesperrt).length}</b><small>aktiv, nicht gesperrt</small></span></div>
-      <div class="u-kennzahl">${icon('fehlzeiten')}<span><b>${liste.filter(u => (u.letzteAnmeldung ?? '') >= vor(1)).length}</b><small>in den letzten 24 Stunden</small></span></div>
-      <div class="u-kennzahl">${icon('stundenplan')}<span><b>${liste.filter(u => (u.letzteAnmeldung ?? '') >= vor(7)).length}</b><small>in den letzten 7 Tagen</small></span></div>
-    </div>
-    <div class="card"><div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Benutzer</th><th>Name</th><th>Rolle</th><th>aktiv</th><th>gesperrt</th><th>Letzte Anmeldung</th></tr></thead><tbody>
-    ${sortiert.map(u => `<tr><td class="fw-semibold">${e(u.login)}</td><td>${e(u.anzeigename)}</td><td>${e(u.rollenname)}</td><td>${u.gesperrt ? '' : '<i class="bi bi-check-lg text-success"></i>'}</td>
-      <td>${u.gesperrt ? '<i class="bi bi-check-lg"></i>' : ''}</td><td class="small text-body-secondary">${u.letzteAnmeldung ? e(kurzZeit(u.letzteAnmeldung)) : 'nie'}</td></tr>`).join('')}</tbody></table></div></div>`;
-}
+// Wartung (wartung.js): aktive Sitzungen, Zugriff ent-/sperren, Über UntPlan
+async function aktive(ziel, kontext, neu, weitere = []) { return (await import('./wartung.js')).aktive(ziel, kontext, neu, weitere); }
+async function zugriff(ziel, kontext, neu) { return (await import('./wartung.js')).zugriff(ziel, kontext, neu); }
+async function ueber(ziel) { return (await import('./wartung.js')).ueber(ziel); }
 
 // ------------------------------------------------------------------ Rechte und Rollen
 

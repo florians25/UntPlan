@@ -68,6 +68,109 @@ public static class StundenplanAenderungen
         return weg.Count;
     }
 
+    /// <summary>
+    /// Eintrag im Protokoll, der die Rückmeldung bereits erledigt (übernommen bzw. ignoriert) – oder null. Eine übernommene Prüfung,
+    /// die UntPlanWeb mit derselben Kennung, aber geändertem Inhalt (Termin, Stunden, Klassen, Räume, Aufsicht, Titel) erneut meldet,
+    /// gilt nicht als erledigt: sie wird als Aktualisierung übernommen.
+    /// </summary>
+    public static StplAenderungsEintrag? Erledigt(IEnumerable<StplAenderungsEintrag> protokoll, WebRueckmeldung m)
+    {
+        var e = protokoll.LastOrDefault(x => x.Id == m.Id);
+        if (e is null) return null;
+        if (e.Uebernommen && m.Typ == WebRueckmeldungsTypen.Klausur && e.Meldung.Typ == WebRueckmeldungsTypen.Klausur && Inhalt(e.Meldung) != Inhalt(m)) return null;
+        return e;
+    }
+
+    private static string Inhalt(WebRueckmeldung m)
+    {
+        static string L(IEnumerable<string?> x) => string.Join(",", x.Where(y => !string.IsNullOrWhiteSpace(y)).Select(y => y!.Trim().ToLowerInvariant()).Distinct().OrderBy(y => y));
+        return $"{m.Von}|{m.StundeVon}|{m.StundeBis ?? m.StundeVon}|{L(m.Klassen)}|{L(m.Raeume.Append(m.Raum))}|{L(m.WeitereLehrer.Append(m.Lehrer))}|{(m.Titel ?? "").Trim()}|{(m.Text ?? "").Trim()}|{m.Fach}";
+    }
+
+    /// <summary>
+    /// Prüfung aus einer Rückmeldung übernehmen – ohne Dubletten: Gibt es die Prüfung schon (gleiche Kennung aus UntPlanWeb oder gleiche
+    /// Klassen, gleicher Tag, gleiche Stunden und passender Titel), wird sie nur aktualisiert (bei geändertem Termin samt ihrer
+    /// Vertretungszeilen verlegt). Bestehende Raumbuchungen für die Prüfung werden zur Prüfung (<see cref="BuchungenInKlausurUmwandeln"/>).
+    /// Betroffene Tage kommen nach <paramref name="tage"/>.
+    /// </summary>
+    public static Klausur KlausurUebernehmen(Schuldatei d, WebRueckmeldung m, DateOnly datum, int von, int bis, List<int> klassen, List<int> lehrer, List<int> raeume,
+        ISet<DateOnly> tage, string benutzer = "", bool pausenaufsichten = false)
+    {
+        var name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim();
+        var k = d.Klausuren.FirstOrDefault(x => x.WebId == m.Id)
+                ?? d.Klausuren.FirstOrDefault(x => x.Datum == datum && x.StundeVon == von && Math.Max(x.StundeVon, x.StundeBis) == bis
+                                                   && x.KlassenIds.ToHashSet().SetEquals(klassen) && TitelPasst(name, x.Name));
+        if (k is null)
+        {
+            k = new Klausur { Id = d.NeueId(), WebId = m.Id, UnterrichtEntfaellt = true };
+            d.Klausuren.Add(k);
+        }
+        else if (k.Datum != datum || k.StundeVon != von || Math.Max(k.StundeVon, k.StundeBis) != bis)
+        {
+            // verlegt: Zeilen des alten Termins (auch Pausenaufsichten vor/nach der Prüfung) restlos entfernen
+            tage.Add(k.Datum);
+            d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
+        }
+        if (string.IsNullOrEmpty(k.WebId)) k.WebId = m.Id;
+        k.Name = name;
+        k.Text = m.Text ?? "";
+        k.Datum = datum;
+        k.StundeVon = von;
+        k.StundeBis = bis;
+        k.KlassenIds = klassen.ToList();
+        k.LehrerIds = lehrer.ToList();
+        if (raeume.Count > 0 || k.RaumIds.Count == 0) k.RaumIds = raeume.ToList();
+        k.Aktiv = true;
+        BuchungenInKlausurUmwandeln(d, k);
+        tage.Add(datum);
+        if (pausenaufsichten) PausenaufsichtenPruefen(d, k, benutzer);
+        return k;
+    }
+
+    /// <summary>Aus UntPlanWeb übernommene Buchung: Raumbuchung, Sondereinsatz (Aktivität) bzw. Raumänderung eines Unterrichts.</summary>
+    private static bool IstBuchung(Vertretung v) =>
+        v.KlausurId is null && (v.Art == VertretungsArt.Raumbuchung || (!string.IsNullOrEmpty(v.WebId) && (v.Art == VertretungsArt.Raumvertretung
+            || (v.Art == VertretungsArt.Sondereinsatz && v.UnterrichtId is null))));
+
+    private static bool BuchungPasst(Klausur k, int? lehrer, IEnumerable<int> raeume, IEnumerable<int> klassen)
+    {
+        var lehrerOk = lehrer is not int l || k.LehrerIds.Count == 0 || k.LehrerIds.Contains(l);
+        var raumOk = raeume.Any(k.RaumIds.Contains);
+        var klasseOk = klassen.Any(k.KlassenIds.Contains);
+        return lehrerOk && (raumOk || (klasseOk && lehrer.HasValue) || (k.RaumIds.Count == 0 && lehrer.HasValue && k.LehrerIds.Contains(lehrer.Value)));
+    }
+
+    /// <summary>
+    /// Bestehende Raumbuchungen, die zur Prüfung gehören (gleicher Tag, Stunden der Prüfung, Lehrkraft der Aufsicht und gleicher Raum bzw.
+    /// gleiche Klasse), werden zur Prüfung: die Buchungszeilen entfallen, ihr Raum geht auf die Prüfung über, falls diese noch keinen hat.
+    /// Ergebnis: Anzahl umgewandelter Zeilen.
+    /// </summary>
+    public static int BuchungenInKlausurUmwandeln(Schuldatei d, Klausur k)
+    {
+        var bis = Math.Max(k.StundeVon, k.StundeBis);
+        var weg = d.Vertretungen.Where(v => v.Datum == k.Datum && v.Stunde >= k.StundeVon && v.Stunde <= bis && IstBuchung(v)
+                                            && BuchungPasst(k, v.VertreterId, Raeume(v), v.KlassenIds)).ToList();
+        if (weg.Count == 0) return 0;
+        if (k.RaumIds.Count == 0) k.RaumIds = weg.SelectMany(Raeume).Distinct().ToList();
+        foreach (var v in weg) d.Vertretungen.Remove(v);
+        return weg.Count;
+    }
+
+    private static IEnumerable<int> Raeume(Vertretung v) => new[] { v.VertretungsraumId }.OfType<int>().Concat(v.ZusatzraumIds);
+
+    /// <summary>
+    /// Prüfung, für die eine (neue) Raumbuchung gemeldet wird: gleicher Tag, Stunden innerhalb der Prüfung, Lehrkraft der Aufsicht und
+    /// gleicher Raum bzw. gleiche Klasse. Die Buchung ist dann schon durch die Prüfung abgedeckt und wird nicht zusätzlich angelegt; hat die
+    /// Prüfung noch keinen Raum, übernimmt sie den gebuchten.
+    /// </summary>
+    public static Klausur? KlausurFuerBuchung(Schuldatei d, DateOnly datum, int von, int bis, IReadOnlyCollection<int> lehrer, IReadOnlyCollection<int> raeume, IReadOnlyCollection<int> klassen)
+    {
+        var k = d.Klausuren.FirstOrDefault(k => k.Aktiv && k.Datum == datum && k.StundeVon <= von && Math.Max(k.StundeVon, k.StundeBis) >= bis
+                                                && (lehrer.Count == 0 ? BuchungPasst(k, null, raeume, klassen) : lehrer.Any(l => BuchungPasst(k, l, raeume, klassen))));
+        if (k != null && k.RaumIds.Count == 0 && raeume.Count > 0) k.RaumIds = raeume.ToList();
+        return k;
+    }
+
     /// <summary>Kennzeichen (Feld Grund) einer Löschmeldung aus UntPlanWeb, die den Termin genau beschreibt (Stunden, Räume, Titel).</summary>
     public const string Exakt = "exakt";
 
@@ -119,6 +222,8 @@ public static class StundenplanAenderungen
         foreach (var m in liste)
         {
             protokoll.TryGetValue(m.Id, out var p);
+            // übernommene Prüfung mit geändertem Inhalt: als Aktualisierung erneut anbieten
+            if (p != null && Erledigt(new[] { p }, m) is null) p = null;
             if (p != null && !erledigteAnzeigen) continue;
             var z = Zeile(d, m, p?.Uebernommen);
             if (z.Datum < von || z.Datum > bis) continue;
@@ -194,7 +299,7 @@ public static class StundenplanAenderungen
         var neueIds = alle.Where(a => a.Meldung.Typ == WebRueckmeldungsTypen.Klausur).Select(a => a.Id).ToHashSet();
         foreach (var alt in alle.OrderBy(a => a.Meldung.Typ == WebRueckmeldungsTypen.KlausurLoeschen ? 0 : 1))
         {
-            if (alt.Erledigt || p.StplAenderungen.Any(x => x.Id == alt.Id)) continue;
+            if (Erledigt(p.StplAenderungen, alt.Meldung) != null) continue;
             var a = Zeile(d, alt.Meldung);
             if (a.Fehler != null) { nein.Add((a.Id, a.Fehler)); continue; }
             var m = a.Meldung;
@@ -203,6 +308,21 @@ public static class StundenplanAenderungen
             var klassen = m.Klassen.Select(k => Id(d, ElementTyp.Klasse, k)!.Value).ToList();
             var fach = Id(d, ElementTyp.Fach, m.Fach);
             var stunden = Enumerable.Range(a.StundeVon, a.StundeBis - a.StundeVon + 1).ToList();
+            // Buchung für eine schon eingetragene Prüfung (gleiche Zeit, Aufsicht, Raum bzw. Klasse): die Prüfung deckt sie ab – nicht
+            // zusätzlich anlegen (auch keine Raumänderung des Unterrichts, den die Prüfung ersetzt)
+            if (a.Art != StplAenderungsArt.Pruefung)
+            {
+                var buchKlassen = klassen.ToList();
+                if (a.UnterrichtId is int bu)
+                    buchKlassen.AddRange(Tagesplan.Regulaer(d, a.Datum).Where(r => r.Unterricht.Id == bu).SelectMany(r => r.KlassenIds));
+                if (KlausurFuerBuchung(d, a.Datum, a.StundeVon, a.StundeBis, lehrer, raeume, buchKlassen) != null)
+                {
+                    tage.Add(a.Datum);
+                    p.StplAenderungen.Add(new StplAenderungsEintrag { Id = a.Id, Uebernommen = true, Benutzer = benutzer, Meldung = m });
+                    ok.Add(a.Id);
+                    continue;
+                }
+            }
             switch (a.Art)
             {
                 case StplAenderungsArt.Unterricht:
@@ -250,16 +370,8 @@ public static class StundenplanAenderungen
                         tage.Add(a.Datum);
                         break;
                     }
-                    // dieselbe Rückmeldung wurde schon übernommen (z. B. über den automatischen Abgleich): nicht doppelt anlegen
-                    if (d.Klausuren.Any(x => x.WebId == a.Id)) break;
-                    var k = new Klausur
-                    {
-                        Id = d.NeueId(), Name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim(), Text = m.Text ?? "", Datum = a.Datum, StundeVon = a.StundeVon,
-                        StundeBis = a.StundeBis, KlassenIds = klassen, LehrerIds = lehrer, RaumIds = raeume, UnterrichtEntfaellt = true, WebId = a.Id,
-                    };
-                    d.Klausuren.Add(k);
-                    tage.Add(a.Datum);
-                    PausenaufsichtenPruefen(d, k, benutzer);
+                    // dieselbe Prüfung schon vorhanden (z. B. über den automatischen Abgleich übernommen): nur aktualisieren
+                    KlausurUebernehmen(d, m, a.Datum, a.StundeVon, a.StundeBis, klassen, lehrer, raeume, tage, benutzer, pausenaufsichten: true);
                     break;
                 }
             }

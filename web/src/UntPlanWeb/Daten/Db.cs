@@ -228,7 +228,7 @@ public sealed class Db
     private static (int Nummer, string Skript)[] Nummeriert => _nummeriert ??= Nummerieren(Migrationen);
     private static (int Nummer, string Skript)[]? _nummeriert;
 
-    internal static (int Nummer, string Skript)[] Nummerieren(IReadOnlyList<string> migrationen)
+    public static (int Nummer, string Skript)[] Nummerieren(IReadOnlyList<string> migrationen)
     {
         var fest = new List<(int Nummer, string Skript)>();
         var offen = new List<string>();

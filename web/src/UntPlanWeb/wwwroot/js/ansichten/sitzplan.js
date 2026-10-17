@@ -22,9 +22,13 @@ export function cssLaden() {
 const SCHLUESSEL = 'untplan:klassenbuch-einstellungen';
 const VORGABE = { ansicht: 'liste', sortierung: 'name', nachKlasse: false, richtung: 'zeilen', namen: 'nachname', klasseZeigen: false };
 
+/** Vorgabe der Schule (Klassenbuch | Einstellungen: Sortierung, Anordnung, nach Klasse) – gilt, solange das Gerät nichts anderes gespeichert hat. */
+let schulVorgabe = {};
+export function schulVorgabeSetzen(w) { schulVorgabe = { ...w }; }
+
 /** Klassenbuch-Einstellungen dieses Geräts (Ansicht, Sortierung, Namensdarstellung). */
 export function einstellungen() {
-  try { return { ...VORGABE, ...JSON.parse(localStorage.getItem(SCHLUESSEL) || '{}') }; } catch { return { ...VORGABE }; }
+  try { return { ...VORGABE, ...schulVorgabe, ...JSON.parse(localStorage.getItem(SCHLUESSEL) || '{}') }; } catch { return { ...VORGABE, ...schulVorgabe }; }
 }
 export function einstellungenSpeichern(w) {
   try { localStorage.setItem(SCHLUESSEL, JSON.stringify(w)); } catch { /* privat */ }

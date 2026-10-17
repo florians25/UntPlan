@@ -5613,3 +5613,5 @@ html.is-dark .to__pill.is-on{ background:#f2f2f7; color:#1c1c1e; border-color:#f
 .to__pop button{ display:block; width:100%; text-align:left; padding:10px 18px; font-size:17px; color:var(--c-ink); }
 .to__pop button.is-on{ font-weight:500; }
 .to__pop button.is-on::after{ content:"✓"; float:right; color:var(--u-orange); }
+/* Detail einer Mitteilung: oben nur der Zurück-Knopf (wie iOS) */
+body.is-msgread .msghead__title{ visibility:hidden; }

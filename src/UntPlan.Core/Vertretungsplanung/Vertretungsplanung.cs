@@ -150,6 +150,19 @@ public static class Vertretungen
                 ((k.UnterrichtEntfaellt && k.KlassenIds.Intersect(r.KlassenIds).Any()) || k.UnterrichtId == u.Id));
             if (klausur != null)
             {
+                // Die Lehrkraft des Unterrichts führt selbst Aufsicht: die Prüfung ersetzt den Unterricht – genau eine Zeile (Art Klausur)
+                // mit bisherigem Lehrer, Fach und Raum statt Prüfungszeile und zusätzlichem Entfall
+                if (r.LehrerId is int kl && klausur.LehrerIds.Contains(kl) && benoetigt.FirstOrDefault(b => b.Art == VertretungsArt.Klausur && b.KlausurId == klausur.Id
+                        && b.Stunde == r.Stunde && b.VertreterId == kl && b.UnterrichtId is null) is { } kz)
+                {
+                    kz.UnterrichtId = u.Id;
+                    kz.ZeilenIndex = r.ZeilenIndex;
+                    kz.LehrerId = kl;
+                    kz.FachId = r.FachId;
+                    kz.RaumId = r.RaumId;
+                    kz.Schuelergruppe = u.Schuelergruppe;
+                    continue;
+                }
                 basis.Art = VertretungsArt.Entfall;
                 basis.Quelle = VertretungsQuelle.Klausur;
                 basis.KlausurId = klausur.Id;
@@ -389,7 +402,8 @@ public static class Vertretungen
                 if (!v.Bearbeitet) v.Text = b.Text;
                 return;
             }
-            if (!v.Bearbeitet)
+            // Unterricht wird durch die Prüfung ersetzt (ältere Dateien: Entfall-Zeile neben der Prüfungszeile): folgt der Prüfung
+            if (!v.Bearbeitet || (b.Art == VertretungsArt.Klausur && b.UnterrichtId.HasValue && v.Art != VertretungsArt.Klausur))
             {
                 v.Art = b.Art;
                 v.VertreterId = b.VertreterId;
