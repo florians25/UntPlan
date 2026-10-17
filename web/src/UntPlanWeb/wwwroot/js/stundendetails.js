@@ -1031,19 +1031,26 @@ export function karteDialog(karte, kontext = {}) {
   async function lehrstoffDialog() {
     const ein = daten.eintrag ?? {};
     let vorstunden = [];
-    try { vorstunden = await holen(`/api/app/klassenbuch/lehrstoff/vorstunden?datum=${k.datum}&stunde=${bereich().von}&unterricht=${k.unterricht}`); } catch { /* ohne Vorstunden */ }
+    try { vorstunden = await holen(`/api/app/klassenbuch/lehrstoff/vorstunden?datum=${k.datum}&stunde=${bereich().von}&unterricht=${k.unterricht}${einzigeLehrkraft()}`); } catch { /* ohne Vorstunden */ }
     const wt = iso => WT_KURZ[(new Date(iso + 'T12:00').getDay() + 6) % 7];
     const b = bereich();
     altDialog('Lehrstoff', `${kopfDl(`<dt>Datum</dt><dd>${datumDe(k.datum)} ${e(b.beginn || '')}${b.ende ? ' - ' + e(b.ende) : ''}${istBlock() ? ` (${einzel ? `nur ${einzel}. Stunde` : `ganzer Block ${k.von}.–${k.bis}. Stunde`})` : ''}</dd>`)}
       <label class="ad-feld">Lehrstoff<textarea rows="4" data-ad-thema maxlength="2000">${e(ein.thema ?? '')}</textarea></label>
-      <div class="ad-feld">Vorstunden<table class="ad-liste">${vorstunden.length ? vorstunden.map((v, i) => `<tr><td>${datumDe(v.datum)}</td><td>${wt(v.datum)}</td>
-        <td class="text" title="${e(v.thema)}">${e(v.thema || '–')}</td><td class="mitte">${v.thema ? `<button type="button" data-ad-kopie="${i}" title="Lehrstoff übernehmen" aria-label="Lehrstoff übernehmen"><img src="${W}legacy/absence-edit.png" alt=""></button>` : ''}</td></tr>`).join('')
-        : '<tr><td class="leer">Keine Vorstunden</td></tr>'}</table></div>
+      <div class="ad-feld">Lehrstoff aus Vorwochen<table class="ad-liste ad-vorwochen">${vorstunden.length ? vorstunden.map((v, i) => `<tr><td>${wt(v.datum)} ${datumDe(v.datum)}</td><td>${v.stunde}.</td>
+        <td class="text" title="${e(v.thema)}">${e(v.thema)}</td><td class="mitte"><button type="button" class="ad-vw-knopf" data-ad-kopie="${i}" title="Lehrstoff übernehmen (ersetzt den Text)">Übernehmen</button>
+        <button type="button" class="ad-vw-knopf" data-ad-anhaengen="${i}" title="Lehrstoff an den Text anhängen">Anhängen</button></td></tr>`).join('')
+        : '<tr><td class="leer">Kein Lehrstoff aus Vorwochen</td></tr>'}</table></div>
       <label class="ad-feld">Lehrform<select data-ad-lehrform><option value="">&lt;Auswahl&gt;</option>${LEHRFORMEN.map(l => `<option ${l === ein.lehrform ? 'selected' : ''}>${e(l)}</option>`).join('')}</select></label>
       <label class="ad-feld">Anmerkung<input data-ad-anmerkung maxlength="1000" value="${e(ein.anmerkung ?? '')}"></label>
       <div class="ad-knoepfe"><button type="button" class="ad-pille" data-ad-speichern="1">Speichern</button><button type="button" class="ad-pille" data-ad-speichern="0">Übernehmen</button><button type="button" class="ad-pille" data-ad-zu>Schließen</button></div>
       ${ein.geaendert ? `<div class="ad-fuss">Geändert am ${zeitstempel(ein.geaendert)} von ${e(ein.geaendertVon || ein.lehrer || '')}</div>` : ''}`, (o, zu) => {
-      o.querySelectorAll('[data-ad-kopie]').forEach(b => b.onclick = () => { o.querySelector('[data-ad-thema]').value = vorstunden[Number(b.dataset.adKopie)].thema; o.querySelector('[data-ad-thema]').focus(); });
+      const feld = o.querySelector('[data-ad-thema]');
+      o.querySelectorAll('[data-ad-kopie]').forEach(b => b.onclick = () => { feld.value = vorstunden[Number(b.dataset.adKopie)].thema; feld.focus(); });
+      // anhängen: neue Zeile unter den bisherigen Text
+      o.querySelectorAll('[data-ad-anhaengen]').forEach(b => b.onclick = () => {
+        const t = vorstunden[Number(b.dataset.adAnhaengen)].thema;
+        feld.value = feld.value.trim() ? `${feld.value.replace(/\s+$/, '')}\n${t}` : t; feld.focus();
+      });
       o.querySelectorAll('[data-ad-speichern]').forEach(b => b.onclick = async () => {
         const ok = await eintragSpeichern({ thema: o.querySelector('[data-ad-thema]').value, lehrform: o.querySelector('[data-ad-lehrform]').value, anmerkung: o.querySelector('[data-ad-anmerkung]').value });
         if (!ok) return;
@@ -1052,7 +1059,7 @@ export function karteDialog(karte, kontext = {}) {
         const f = o.querySelector('.ad-fuss');
         if (f) f.textContent = t; else o.querySelector('.kbd-rumpf').insertAdjacentHTML('beforeend', `<div class="ad-fuss">${e(t)}</div>`);
       });
-    }, 400);
+    }, 600);   // etwas breiter (Lehrstoff aus Vorwochen mit Übernehmen/Anhängen)
   }
 
   async function abwesenheitEntfernen(ids) {

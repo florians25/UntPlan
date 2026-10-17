@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Net;
 using System.Text.Json.Nodes;
 using UntPlanWeb.Dienste;
@@ -353,5 +354,45 @@ public class KartenSprint27Tests
         var css = Datei("css", "karten.css");
         Assert.Contains(".sd-titel h2 .sd-statuspille:not(.sd-einzelpille), .sd-kopf.grau .sd-titel h2 .sd-statuspille:not(.sd-einzelpille) { background: #6b7680; color: #fff; }", css);
         Assert.Contains(".sd-fuss.sd-status .sd-orange { height: 46px; min-height: 46px;", css);
+    }
+    // ------------------------------------------------------------------ Lehrstoff aus Vorwochen
+
+    [Fact]
+    public async Task Lehrstoff_aus_Vorwochen_nur_mit_Text_neueste_zuerst_und_je_Lehrkraft()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var plan = s.Dienst<Plandienst>();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var tage = Enumerable.Range(0, 14).Select(i => new DateOnly(2026, 10, 12).AddDays(i));
+        // Unterricht der 7a mit mindestens drei regulären Stunden ab heute (Mi 14.10.) und einer Lehrkraft
+        var alle = tage.Where(d => d >= new DateOnly(2026, 10, 14)).SelectMany(d => plan.Karten(stand, d, Elementtyp.Klasse, "7a"))
+            .Where(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count == 1)
+            .GroupBy(x => x.Unterricht).Select(g => g.OrderBy(x => x.Datum).ThenBy(x => x.Von).ToList()).First(g => g.Count >= 3);
+        var lehrer = alle[0].Lehrer[0].K;
+        var c = await s.AlsAsync(lehrer.ToLowerInvariant(), "lehrer", lehrer);
+        async Task Eintragen(Karte k, string thema, string ha = "") =>
+            await Testserver.JsonAsync(await c.PutAsJsonAsync("/api/app/klassenbuch/stunde", new { datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht, thema, hausaufgabe = ha }));
+        await Eintragen(alle[0], "Thema eins");
+        await Eintragen(alle[1], "", "nur Hausaufgabe");      // ohne Lehrstoff: erscheint nicht
+        var ziel = alle[2];
+        var liste = (await Testserver.HolenAsync(c, $"/api/app/klassenbuch/lehrstoff/vorstunden?datum={ziel.Datum}&stunde={ziel.Von}&unterricht={ziel.Unterricht}")).AsArray();
+        Assert.Single(liste);
+        Assert.Equal("Thema eins", liste[0]!["thema"]!.GetValue<string>());
+        Assert.Equal(alle[0].Datum, liste[0]!["datum"]!.GetValue<string>());
+        // gleiche Lehrkraft: weiter dabei; andere Lehrkraft (gekoppelter Unterricht): nicht
+        Assert.Single((await Testserver.HolenAsync(c, $"/api/app/klassenbuch/lehrstoff/vorstunden?datum={ziel.Datum}&stunde={ziel.Von}&unterricht={ziel.Unterricht}&lehrer={lehrer}")).AsArray());
+        Assert.Empty((await Testserver.HolenAsync(c, $"/api/app/klassenbuch/lehrstoff/vorstunden?datum={ziel.Datum}&stunde={ziel.Von}&unterricht={ziel.Unterricht}&lehrer=XYZ")).AsArray());
+    }
+
+    [Fact]
+    public void Web_Lehrstoff_Dialog_breiter_mit_Uebernehmen_und_Anhaengen()
+    {
+        var sd = Datei("js", "stundendetails.js");
+        Assert.Contains("Lehrstoff aus Vorwochen", sd);
+        Assert.Contains("data-ad-anhaengen=", sd);
+        Assert.Contains("data-ad-kopie=", sd);
+        Assert.Contains("/api/app/klassenbuch/lehrstoff/vorstunden?datum=${k.datum}&stunde=${bereich().von}&unterricht=${k.unterricht}${einzigeLehrkraft()}", sd);
+        Assert.Contains("}, 600);   // etwas breiter", sd);
+        Assert.Contains(".ad-liste.ad-vorwochen .ad-vw-knopf", Datei("css", "karten.css"));
     }
 }

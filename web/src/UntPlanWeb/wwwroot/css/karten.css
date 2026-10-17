@@ -114,6 +114,12 @@
 .sd-titel h2 .sd-statuspille { margin-left: .75rem; padding: 0 10px; font-size: 13px; font-weight: 500; line-height: 22px; vertical-align: middle; border-radius: 999px; }
 .sd-titel h2 .sd-statuspille:not(.sd-einzelpille), .sd-kopf.grau .sd-titel h2 .sd-statuspille:not(.sd-einzelpille) { background: #6b7680; color: #fff; }
 .sd-fuss.sd-status .sd-orange { height: 46px; min-height: 46px; padding: 0 18px; font-size: .875rem; }
+/* Lehrstoff-Dialog: Lehrstoff aus Vorwochen mit „Übernehmen“ (ersetzt) und „Anhängen“ */
+.ad-liste.ad-vorwochen td { padding: 3px 6px; vertical-align: middle; }
+.ad-liste.ad-vorwochen td.text { max-width: 0; width: 100%; }   /* passt sich an, lange Texte mit „…“ (voller Text im title) */
+.ad-liste.ad-vorwochen .ad-vw-knopf { border: 1px solid #c3cbd2; border-radius: 999px; background: #fff; color: #414d55; font-size: 12px; font-weight: 500; line-height: 18px; padding: 0 8px; }
+.ad-liste.ad-vorwochen .ad-vw-knopf:hover, .ad-liste.ad-vorwochen .ad-vw-knopf:focus-visible { border-color: var(--u-akzent); color: var(--u-akzent-dunkel); }
+.ad-liste.ad-vorwochen .ad-vw-knopf + .ad-vw-knopf { margin-left: 4px; }
 
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
