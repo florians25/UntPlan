@@ -12,13 +12,46 @@ public sealed class ElementWahl : Panel
     private readonly TextBox _text = new() { Left = 0, Top = 0 };
     private readonly Button _knopf = new() { Text = "…", Width = 26 };
     private readonly ElementTyp _typ;
+    /// <summary>Schnellauswahl (alle, nach Abteilung, Jahrgang, Gruppe …), null = ohne.</summary>
+    private readonly Button? _schnell;
 
-    public ElementWahl(ElementTyp typ, IEnumerable<int>? ids = null)
+    /// <param name="gruppen">Gruppen für die Schnellauswahl (Knopf „+“): Klick ergänzt die Elemente der Gruppe.</param>
+    public ElementWahl(ElementTyp typ, IEnumerable<int>? ids = null, Func<IEnumerable<ElementGruppe>>? gruppen = null)
     {
         _typ = typ;
         Height = 24;
         Controls.Add(_text);
         Controls.Add(_knopf);
+        if (gruppen != null)
+        {
+            _schnell = new Button { Text = "+", Width = 24 };
+            new ToolTip().SetToolTip(_schnell, $"Schnell hinzufügen: {VeranstaltungsAuswahl.AlleText(typ)}, nach Abteilung, Jahrgang, Gruppe …");
+            Controls.Add(_schnell);
+            _schnell.Click += (_, _) =>
+            {
+                var m = new ContextMenuStrip { Font = Ui.Schrift };
+                foreach (var b in gruppen().GroupBy(g => g.Bereich))
+                {
+                    var ziel = m.Items;
+                    if (b.Key.Length > 0)
+                    {
+                        var sub = new ToolStripMenuItem("Nach " + b.Key);
+                        m.Items.Add(sub);
+                        ziel = sub.DropDownItems;
+                    }
+                    foreach (var g in b)
+                    {
+                        var name = b.Key.Length > 0 && g.Name.StartsWith(b.Key + " ") ? g.Name[(b.Key.Length + 1)..] : g.Name;
+                        var gruppe = g;
+                        ziel.Add($"{name}  ({g.Ids.Count})", null, (_, _) => Hinzufuegen(gruppe.Ids));
+                    }
+                }
+                m.Items.Add(new ToolStripSeparator());
+                m.Items.Add("Keine (leeren)", null, (_, _) => Ids = new List<int>());
+                m.Closed += (_, _) => BeginInvoke(m.Dispose);
+                m.Show(_schnell, new Point(0, _schnell.Height));
+            };
+        }
         _knopf.Click += (_, _) =>
         {
             var w = AuswahlDialog.Mehrere(FindForm()!, _typ, Ui.TypName(_typ, true) + " wählen", Ids);
@@ -36,10 +69,17 @@ public sealed class ElementWahl : Panel
 
     private void Anordnen()
     {
-        _text.Width = Math.Max(40, Width - _knopf.Width - 2);
+        var rechts = _knopf.Width + 2 + (_schnell is null ? 0 : _schnell.Width + 2);
+        _text.Width = Math.Max(40, Width - rechts);
         _knopf.Left = _text.Width + 2;
         _knopf.Height = _text.Height;
+        if (_schnell is null) return;
+        _schnell.Left = _knopf.Right + 2;
+        _schnell.Height = _text.Height;
     }
+
+    /// <summary>Elemente ergänzen (bereits eingetragene bleiben, keine Doppelten).</summary>
+    public void Hinzufuegen(IEnumerable<int> ids) => Ids = VeranstaltungsAuswahl.Ergaenzen(Ids, ids);
 
     public List<int> Ids
     {
@@ -472,7 +512,7 @@ public static class VeranstaltungDialog
     public static bool Zeigen(IWin32Window owner, Veranstaltung v)
     {
         var d = AppZustand.D;
-        using var f = new Dialog("Veranstaltung", 480, 392);
+        using var f = new Dialog("Veranstaltung", 480, 426);
         var y = 14;
         var tx = Ui.Zeile(f, "Bezeichnung:", new TextBox { Text = v.Text }, ref y, 140, 300);
         var von = Ui.Zeile(f, "von:", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = v.Von.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 110);
@@ -488,10 +528,30 @@ public static class VeranstaltungDialog
         f.Controls.Add(new Label { Text = "bis Std.", Left = bis.Right + 12, Top = bis.Top + 3, AutoSize = true });
         f.Controls.Add(sb);
         von.ValueChanged += (_, _) => { if (bis.Value < von.Value) bis.Value = von.Value; };
-        var kl = Ui.Zeile(f, "Klasse (entfällt):", new ElementWahl(ElementTyp.Klasse, v.KlassenIds), ref y, 140, 300);
-        var kt = Ui.Zeile(f, "Kl-Teil (parallel):", new ElementWahl(ElementTyp.Klasse, v.KlassenteilIds), ref y, 140, 300);
-        var le = Ui.Zeile(f, "Lehrer:", new ElementWahl(ElementTyp.Lehrer, v.LehrerIds), ref y, 140, 300);
-        var ra = Ui.Zeile(f, "Räume:", new ElementWahl(ElementTyp.Raum, v.RaumIds), ref y, 140, 300);
+        // Schnellauswahl (+): alle bzw. nach Abteilung/Jahrgang/Gruppe – bezogen auf die im Dialog eingetragenen Werte
+        ElementWahl? kl = null, kt = null, le = null, ra = null;
+        Veranstaltung Stand() => new()
+        {
+            Von = DateOnly.FromDateTime(von.Value), Bis = DateOnly.FromDateTime(bis.Value), StundeVon = (int)sv.Value,
+            StundeBis = (int)sb.Value >= d.Zeitraster.StundenProTag ? 99 : (int)sb.Value,
+            KlassenIds = kl?.Ids ?? new(), KlassenteilIds = kt?.Ids ?? new(), LehrerIds = le?.Ids ?? new(), RaumIds = ra?.Ids ?? new(),
+        };
+        Func<IEnumerable<ElementGruppe>> Gruppen(ElementTyp typ) => () => VeranstaltungsAuswahl.Gruppen(d, typ, Stand());
+        kl = Ui.Zeile(f, "Klasse (entfällt):", new ElementWahl(ElementTyp.Klasse, v.KlassenIds, Gruppen(ElementTyp.Klasse)), ref y, 140, 300);
+        kt = Ui.Zeile(f, "Kl-Teil (parallel):", new ElementWahl(ElementTyp.Klasse, v.KlassenteilIds, Gruppen(ElementTyp.Klasse)), ref y, 140, 300);
+        le = Ui.Zeile(f, "Lehrer:", new ElementWahl(ElementTyp.Lehrer, v.LehrerIds, Gruppen(ElementTyp.Lehrer)), ref y, 140, 300);
+        ra = Ui.Zeile(f, "Räume:", new ElementWahl(ElementTyp.Raum, v.RaumIds, Gruppen(ElementTyp.Raum)), ref y, 140, 300);
+        var ausStunden = Ui.Zeile(f, "", new Button { Text = "Alle aus den Stunden übernehmen", AutoSize = true }, ref y, 140);
+        ausStunden.Click += (_, _) =>
+        {
+            // Klassen, Lehrkräfte und Räume der regulären Stunden, die in die Veranstaltung fallen
+            var e = VeranstaltungsAuswahl.AusStunden(d, Stand());
+            if (e.Leer) { Ui.Info("In den Stunden der Veranstaltung findet kein passender Unterricht statt."); return; }
+            var teil = kt.Ids.ToHashSet();
+            kl.Hinzufuegen(e.KlassenIds.Where(k => !teil.Contains(k)));
+            le.Hinzufuegen(e.LehrerIds);
+            ra.Hinzufuegen(e.RaumIds);
+        };
         var gr = Ui.Zeile(f, "Absenzgrund:", ElementListe.Combo(ElementTyp.Abwesenheitsgrund, v.GrundId), ref y, 140, 300);
         var sg = Ui.Zeile(f, "Schülergruppe:", new TextBox { Text = v.Schuelergruppe }, ref y, 140, 150);
         var z = Ui.Zeile(f, "", new CheckBox { Text = "Stunden der Lehrer positiv zählen", Checked = v.Zaehlen, AutoSize = true }, ref y, 140);

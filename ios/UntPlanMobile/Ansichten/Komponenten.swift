@@ -11,7 +11,7 @@ func werteText(_ werte: [Wert], trenner: String = ", ", offen: Bool = false) -> 
             ergebnis = ergebnis + offenText(alt.isEmpty ? "???" : alt)
             continue
         }
-        if let alt = w.alt, !alt.isEmpty, alt != w.k {
+        if let alt = w.alt, !alt.isEmpty, alt.caseInsensitiveCompare(w.k) != .orderedSame {
             ergebnis = ergebnis + Text(alt).strikethrough(true, color: Farben.entfallRand)
             if !w.k.isEmpty { ergebnis = ergebnis + Text(" ") }
         }

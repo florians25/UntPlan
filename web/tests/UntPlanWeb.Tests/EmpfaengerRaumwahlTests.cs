@@ -268,7 +268,7 @@ public class EmpfaengerRaumwahlTests
         Assert.Contains("Plätze", rw);
         Assert.Contains("'Raum der Stunde', 'Buchbare Räume', 'Weitere Räume'", rw);
         var sd = Datei("js", "stundendetails.js");
-        Assert.Contains("import { raumwahl } from './raumwahl.js';", sd);
+        Assert.Contains("import { raumwahl, raumListe } from './raumwahl.js';", sd);
         Assert.Contains("raumwahl(box.querySelector('[name=raeume]'), { wurzel: box, unterricht: k.unterricht })", sd);
         Assert.Contains("raumwahl(o.querySelector('[name=raeume]'), { wurzel: o, unterricht: k.unterricht })", sd);
         Assert.DoesNotContain("sd-klausur-raeume", sd);

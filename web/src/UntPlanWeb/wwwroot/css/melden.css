@@ -93,3 +93,4 @@
   .mp-leiste .mf-segment { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 }
 @media (max-width: 640px) { .mf-kacheln { grid-template-columns: minmax(0, 1fr); } }
+.mf-seite.mf-meine { max-width: 1180px; }

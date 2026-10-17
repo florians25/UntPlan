@@ -3,6 +3,7 @@ namespace UntPlan.App.Steuerelemente;
 /// <summary>
 /// Aufklappliste unter einer Tabellenzelle (wie die Auswahlbox der Vorbild-Spalten): Kurzname und Langname nebeneinander,
 /// mit gedrückter Strg-Taste (bzw. Umschalt) mehrere Einträge wählen, Enter oder Doppelklick übernimmt, Esc bricht ab.
+/// Bei Mehrfachauswahl oben „Alle“, „Keine“, „Umkehren“ und „Übernehmen“.
 /// </summary>
 public static class MehrfachAuswahl
 {
@@ -32,8 +33,38 @@ public static class MehrfachAuswahl
             Ui.ListenText(e.Graphics, x.Kurz, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 4, e.Bounds.Y, breiteKurz, e.Bounds.Height), farbe, false);
             Ui.ListenText(e.Graphics, x.Lang, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 4 + breiteKurz, e.Bounds.Y, e.Bounds.Width - breiteKurz - 4, e.Bounds.Height), farbe);
         };
-        var host = new ToolStripControlHost(liste) { AutoSize = false, Margin = Padding.Empty, Padding = Padding.Empty };
-        host.Size = new Size(Math.Min(420, Math.Max(g.Columns[spalte].Width, breiteKurz + breiteLang + 24)), Math.Min(18 * 17 + 4, Math.Max(3, eintraege.Count) * 17 + 4));
+        var breite = Math.Min(420, Math.Max(Math.Max(g.Columns[spalte].Width, mehrfach ? 230 : 0), breiteKurz + breiteLang + 24));
+        var hoehe = Math.Min(18 * 17 + 4, Math.Max(3, eintraege.Count) * 17 + 4);
+        // Mehrfachauswahl: oben „Alle“, „Keine“, „Umkehren“ und „Übernehmen“ (schnell alle Klassen/Lehrkräfte/Räume wählen)
+        Control inhalt = liste;
+        if (mehrfach)
+        {
+            var leiste = new FlowLayoutPanel { Dock = DockStyle.Top, Height = LeistenHoehe, Padding = new Padding(2, 2, 0, 0), WrapContents = false, BackColor = Color.FromArgb(240, 244, 248) };
+            LinkLabel Link(string text, Action aktion)
+            {
+                var l = new LinkLabel { Text = text, AutoSize = true, Margin = new Padding(4, 1, 6, 0), LinkBehavior = LinkBehavior.HoverUnderline };
+                l.LinkClicked += (_, _) => { aktion(); liste.Focus(); };
+                leiste.Controls.Add(l);
+                return l;
+            }
+            Link("Alle", () => AlleSetzen(liste, true));
+            Link("Keine", () => AlleSetzen(liste, false));
+            Link("Umkehren", () =>
+            {
+                liste.BeginUpdate();
+                for (var i = 0; i < liste.Items.Count; i++) liste.SetSelected(i, !liste.GetSelected(i));
+                liste.EndUpdate();
+            });
+            Link("Übernehmen", () => _uebernehmen?.Invoke());
+            liste.Dock = DockStyle.Fill;
+            var panel = new Panel { Size = new Size(breite, hoehe + LeistenHoehe), Margin = Padding.Empty, Padding = Padding.Empty };
+            panel.Controls.Add(liste);
+            panel.Controls.Add(leiste);
+            inhalt = panel;
+            hoehe += LeistenHoehe;
+        }
+        var host = new ToolStripControlHost(inhalt) { AutoSize = false, Margin = Padding.Empty, Padding = Padding.Empty };
+        host.Size = new Size(breite, hoehe);
         var dd = new ToolStripDropDown { Padding = Padding.Empty, AutoClose = true, DropShadowEnabled = true };
         dd.Items.Add(host);
         var uebernommen = false;
@@ -41,10 +72,15 @@ public static class MehrfachAuswahl
         {
             if (uebernommen) return;
             uebernommen = true;
+            _uebernehmen = null;
+            Offen = null;
             var res = liste.SelectedItems.Cast<Eintrag>().Select(e => e.Kurz).ToList();
             dd.Close();
             fertig(res);
         }
+        _uebernehmen = Uebernehmen;
+        Offen = liste;
+        dd.Closed += (_, _) => { if (ReferenceEquals(Offen, liste)) { Offen = null; _uebernehmen = null; } };
         liste.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Enter) { e.Handled = true; Uebernehmen(); }
@@ -62,6 +98,28 @@ public static class MehrfachAuswahl
         dd.Show(g, new Point(r.Left, r.Bottom));
         liste.Focus();
         if (liste.SelectedIndex >= 0) liste.TopIndex = Math.Max(0, liste.SelectedIndex - 3);
+    }
+
+    private const int LeistenHoehe = 22;
+    private static Action? _uebernehmen;
+
+    /// <summary>Geöffnete Auswahlliste (Selbsttest), null wenn keine offen ist.</summary>
+    internal static ListBox? Offen { get; private set; }
+
+    /// <summary>Selbsttest: in der offenen Liste alle bzw. keine Einträge wählen und übernehmen.</summary>
+    internal static bool SelbsttestAlleUebernehmen(bool alle)
+    {
+        if (Offen is not { } l || _uebernehmen is not { } u) return false;
+        AlleSetzen(l, alle);
+        u();
+        return true;
+    }
+
+    private static void AlleSetzen(ListBox liste, bool an)
+    {
+        liste.BeginUpdate();
+        for (var i = 0; i < liste.Items.Count; i++) liste.SetSelected(i, an);
+        liste.EndUpdate();
     }
 
     /// <summary>Kleines Aufklappdreieck rechts in einer Zelle zeichnen (aktuelle Zelle).</summary>

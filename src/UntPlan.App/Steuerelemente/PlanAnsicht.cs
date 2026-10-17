@@ -1701,7 +1701,6 @@ public sealed class PlanAnsicht : Control
         else if (e.Button == MouseButtons.Right)
         {
             if (p != null && p != Ausgewaehlt && !Mehrfach.Contains(p)) { Ausgewaehlt = p; Mehrfach.Clear(); Invalidate(); AuswahlGeaendert?.Invoke(p); }
-            if (p is null && _zelle is { } rz) { Invalidate(); LeereZelleGewaehlt?.Invoke(rz.Tag, rz.Stunde); }
             Kontext?.Invoke(e.Location, p);
         }
     }

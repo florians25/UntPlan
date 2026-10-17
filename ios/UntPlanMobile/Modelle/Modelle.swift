@@ -164,11 +164,21 @@ struct Wert: Decodable, Hashable, Sendable {
         plus = false
     }
 
-    /// Wurde der Wert geändert (neu, hinzugekommen oder mit abweichendem altem Wert)?
+    /// Wurde genau dieses Element geändert? Ersetzt (alter Wert ≠ neuer Wert), hinzugekommen (plus bzw. neu ohne alten
+    /// Wert), entfernt bzw. offen (kein neuer Wert, alter gesetzt). „neu“ mit unverändertem Wert (alt == k, Groß-/
+    /// Kleinschreibung egal) zählt nicht – z. B. bei einer reinen Raumänderung bekommt die Lehrkraft kein Label.
     var geaendert: Bool {
-        if neu || plus { return true }
-        if let alt, !alt.isEmpty, alt != k { return true }
-        return false
+        if plus { return true }
+        let a = (alt ?? "").trimmingCharacters(in: .whitespaces)
+        if k.isEmpty { return !a.isEmpty || neu }
+        if !a.isEmpty { return a.caseInsensitiveCompare(k) != .orderedSame }
+        return neu
+    }
+
+    /// Ersetzter Wert (neuer Wert mit abweichendem altem Wert), z. B. Vertretung „MUE → LN“ bzw. Raum „C009 → A103“.
+    var ersetzt: Bool {
+        let a = (alt ?? "").trimmingCharacters(in: .whitespaces)
+        return !k.isEmpty && !a.isEmpty && a.caseInsensitiveCompare(k) != .orderedSame
     }
 }
 

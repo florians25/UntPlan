@@ -163,6 +163,31 @@ public class KartenSprint27Tests
         Assert.Contains(raeume, r => r!["k"]!.GetValue<string>() == "R109" && r["plus"]!.GetValue<bool>());
         Assert.Contains(raeume, r => r!["k"]!.GetValue<string>() == "R105" && !r["plus"]!.GetValue<bool>());
         Assert.Equal(new[] { "aenderung" }, Marker(k));
+        // nur der Raum hat sich geändert: die Lehrkraft bleibt ein normaler Wert (kein Label)
+        Assert.All(k["lehrer"]!.AsArray(), w => { Assert.Null(w!["alt"]); Assert.False(w["neu"]!.GetValue<bool>()); Assert.False(w["plus"]!.GetValue<bool>()); });
+    }
+
+    [Fact]
+    public async Task Raumaenderung_neuer_Raum_als_Label_Lehrkraft_ohne_Label()
+    {
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 76;
+        var s = Stunden(paket, "2026-10-12", "7a", 1).Single();     // D bei LAN in R105
+        s["status"] = "vertreten"; s["raeume"] = new JsonArray("R109"); s["vertretung"] = 9270;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9270, "2026-10-12", 1, "Raum-Vtr.", "LAN", "???", "D", "R105", "R109", "", "", "", "7a"));
+        foreach (var (typ, element) in new[] { ("klasse", "7a"), ("lehrer", "LAN") })
+        {
+            var plan = await PlanAsync(paket, typ, element, "2026-10-12");
+            var k = Karten(plan, "2026-10-12", 1).Single();
+            var raum = k["raeume"]!.AsArray().Single()!;
+            Assert.Equal("R109", raum["k"]!.GetValue<string>());          // neuer Raum: grünes Label, Hover „R105 → R109“
+            Assert.Equal("R105", raum["alt"]!.GetValue<string>());
+            var lehrer = k["lehrer"]!.AsArray().Single()!;
+            Assert.Equal("LAN", lehrer["k"]!.GetValue<string>());
+            Assert.Null(lehrer["alt"]);
+            Assert.False(lehrer["neu"]!.GetValue<bool>());
+            Assert.Equal(new[] { "aenderung" }, Marker(k));
+        }
     }
 
     // ------------------------------------------------------------------ Kopplung: alle Blöcke bleiben
@@ -294,6 +319,9 @@ public class KartenSprint27Tests
         Assert.Contains("if (zeile && karte.contains(zeile) && zeileGekuerzt(zeile)) { hoverZeigen(zeile); return; }", js);
         Assert.Contains("data-pillen=", js);
         Assert.Contains("const fachVoll = k.fachName && k.fachName !== k.fach ? k.fachName : '';", js);
+        // im eigenen Plan der Lehrkraft nie die eigene Lehrkraft als Label
+        Assert.Contains("const lehrerOhneEigene = (l, element) =>", js);
+        Assert.Contains("karteInhalt(k, plan.typ, h < 60, plan.element || '')", js);
         // grüne Labels genau mittig über dem Label
         Assert.Contains("r.left + r.width / 2 - b / 2", js);
         // keine „Raum gesperrt“/„Klasse abwesend“ über dem Tag

@@ -171,8 +171,9 @@ struct Kachel: Identifiable {
 
     var dauer: Int { max(1, bis - von + 1) }
 
+    /// Überlappen sich die Zeiträume (Minuten)? Aneinanderstoßende Blöcke (Ende = Beginn) überlappen nicht.
     func ueberlappt(_ o: Kachel) -> Bool {
-        von <= o.bis && o.von <= bis
+        beginn < o.ende && o.beginn < ende
     }
 }
 
@@ -185,6 +186,11 @@ struct Kachellage: Identifiable {
     var luecke: CGFloat = 0
     var spur: Int = 0
     var spuren: Int = 1
+    /// Breite in Spuren (dehnt sich über freie Spuren rechts daneben)
+    var spanne: Int = 1
+    /// Gleichzeitige Blöcke untereinander geteilt: Zahl der Blöcke und Platz von oben
+    var stapel: Int = 1
+    var stapelIndex: Int = 0
     /// Platz rechts für den Zählstreifen
     var mitZaehler = false
 
@@ -345,13 +351,32 @@ enum Kachelbau {
         return ergebnis
     }
 
-    /// Ursprungswerte geänderter Einträge (ohne Doppelte).
+    /// Ursprungswerte geänderter Einträge (ohne Doppelte; ein „alter“ Wert gleich dem neuen zählt nicht).
     private static func alte(_ w: [Wert]) -> [String] {
         var ergebnis: [String] = []
-        for x in w where x.neu {
-            if let a = x.alt, !a.isEmpty, !ergebnis.contains(where: { gleich($0, a) }) { ergebnis.append(a) }
+        for x in w where x.neu || x.k.isEmpty {
+            if let a = x.alt, !a.isEmpty, !gleich(a, x.k), !ergebnis.contains(where: { gleich($0, a) }) { ergebnis.append(a) }
         }
         return ergebnis
+    }
+
+    /// Vertretungsart einer reinen Raumänderung (nur der Raum ändert sich; Lehrkraft, Klasse und Fach bleiben).
+    static func istRaumaenderungsArt(_ art: String) -> Bool {
+        let a = art.lowercased()
+        return ["raumänderung", "raumaenderung", "raumvertretung", "raum-vertretung", "raumwechsel", "raumtausch"]
+            .contains { a.contains($0) }
+    }
+
+    /// Reine Raumänderung laut Vertretungsart: Lehrkräfte tragen dann kein Änderungs-Label (auch wenn ein Wert als „neu“
+    /// gekennzeichnet ist), der Raum dagegen immer – offene bzw. entfernte Lehrkräfte bleiben, wie sie sind.
+    static func raumaenderungNormalisiert(_ original: Karte) -> Karte {
+        var k = original
+        guard istRaumaenderungsArt(k.art), k.status != "entfall", !k.istOffeneVertretung else { return k }
+        k.lehrer = k.lehrer.map { w in
+            guard !w.k.isEmpty, w.ersetzt || w.plus || w.neu else { return w }
+            return Wert(k: w.k)
+        }
+        return k
     }
 
     /// Raumplan: Stunden mit abwesender Lehrkraft erscheinen wie im Klassenplan als Änderung (grün) – nie als Entfall
@@ -392,6 +417,7 @@ enum Kachelbau {
             if !k.abwesendeKlassen.contains(where: { gleich($0, ich) }) { k.abwesendeKlassen.append(ich) }
         }
         if typ == "raum" { k = raumplanNormalisiert(k) }
+        k = raumaenderungNormalisiert(k)
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
                             beginn: lage.beginn, ende: lage.ende)
@@ -452,16 +478,15 @@ enum Kachelbau {
             return kachel
         }
 
-        // Geänderte Werte
+        // Geänderte Werte – je Element (Klasse, Lehrkraft, Raum, Fach) nur, was sich laut Server tatsächlich geändert hat:
+        // ersetzt (alt ≠ k), hinzugekommen (plus), entfernt bzw. offen (k leer, alt gesetzt). „neu“ mit alt == k zählt nicht.
         var geaendert: Set<String> = []
-        if k.klassen.contains(where: { $0.neu || $0.plus }) { geaendert.insert("klasse") }
-        if k.lehrer.contains(where: { $0.neu || $0.plus }) { geaendert.insert("lehrer") }
-        if k.raeume.contains(where: { $0.neu || $0.plus || (!($0.alt ?? "").isEmpty && !gleich($0.alt ?? "", $0.k)) }) { geaendert.insert("raum") }
+        if k.klassen.contains(where: \.geaendert) { geaendert.insert("klasse") }
+        if k.lehrer.contains(where: \.geaendert) { geaendert.insert("lehrer") }
+        if k.raeume.contains(where: \.geaendert) { geaendert.insert("raum") }
         if let alt = k.fachAlt, !alt.isEmpty, !gleich(alt, k.fach) { geaendert.insert("fach") }
         // Raumänderung ohne gekennzeichneten Wert (nur an der Art erkennbar): der Raum steht trotzdem als Plakette da
-        let artKlein = k.art.lowercased()
-        if !geaendert.contains("raum") && !werte(k.raeume).isEmpty
-            && (artKlein.contains("raumänderung") || artKlein.contains("raumvertretung") || artKlein.contains("raumwechsel")) {
+        if !geaendert.contains("raum") && !werte(k.raeume).isEmpty && istRaumaenderungsArt(k.art) {
             geaendert.insert("raum")
         }
 
@@ -729,32 +754,45 @@ enum Kachelbau {
                 let jetzt = werte(k.raeume)
                 let vorher = alte(k.raeume)
                 if jetzt.count > 1 {
-                    // Mehrere Räume: jeder für sich; hervorgehoben nur, was neu hinzugekommen ist
-                    let neue = k.raeume.filter { $0.neu && !$0.k.isEmpty && !gleich($0.alt ?? "", $0.k) }.map { $0.k.uppercased() }
-                    let vorherGross = vorher.map { $0.uppercased() }
+                    // Mehrere Räume: jeder für sich; hervorgehoben nur, was ersetzt bzw. hinzugekommen ist. Ist kein Raum
+                    // gekennzeichnet (Raumänderung nur an der Art erkennbar), stehen alle Räume im Label.
+                    let neue = k.raeume.filter { !$0.k.isEmpty && $0.geaendert }.map { $0.k.uppercased() }
+                    let markiert = k.raeume.contains(where: \.geaendert)
                     zeile.teile = jetzt.enumerated().map { j, r in
-                        let neu = geaendertWert && (!neue.isEmpty ? neue.contains(r.uppercased())
-                                                                  : (vorherGross.isEmpty || !vorherGross.contains(r.uppercased())))
+                        let neu = geaendertWert && (markiert ? neue.contains(r.uppercased()) : true)
                         return Kachelteil(text: r, stil: neu ? .plakette : .text, trenner: j < jetzt.count - 1 ? " " : "")
                     }
                     hatListe = true
                 } else {
-                    // Raumänderung immer mit Plakette (neuer Raum grün) – auch wenn sich sonst nichts geändert hat
+                    // Raumänderung immer mit Plakette (neuer Raum grün) – auch wenn sich sonst nichts geändert hat. Wurde nur
+                    // ein anderer Raum entfernt, bleibt der verbleibende Raum ohne Label.
+                    let markiert = k.raeume.contains(where: \.geaendert)
+                    let raumNeu = geaendertWert
+                        && (jetzt.isEmpty || !markiert || k.raeume.contains { !$0.k.isEmpty && $0.geaendert })
                     zeile.teile = wertTeile(jetzt: jetzt.joined(separator: ", "), vorher: vorher.joined(separator: ", "),
-                                            geaendert: geaendertWert)
+                                            geaendert: raumNeu)
+                    // Offene Raumvertretung (kein neuer Raum, bisheriger Raum gesetzt): durchgestrichen in der grünen Plakette
+                    if jetzt.isEmpty && art != .entfall && k.status == "offen" {
+                        for j in zeile.teile.indices where zeile.teile[j].stil == .weg { zeile.teile[j].stil = .offen }
+                    }
+                }
+                // Entfernte Räume ({k:"", alt}) neben einem verbleibenden Raum: durchgestrichen dahinter
+                if !jetzt.isEmpty && art != .entfall {
+                    let entfernt = einmal(k.raeume.filter { $0.k.isEmpty }.compactMap { $0.alt }
+                        .filter { a in !a.isEmpty && a != "???" && !jetzt.contains { gleich($0, a) } })
+                    if !entfernt.isEmpty {
+                        if let letzter = zeile.teile.indices.last { zeile.teile[letzter].trenner = " " }
+                        zeile.teile += liste(entfernt, stil: .weg, trenner: " ")
+                        hatListe = true
+                    }
                 }
             }
             if zeile.teile.isEmpty || zeile.text.trimmingCharacters(in: .whitespaces).isEmpty { continue }
             // Online-Stunde: keine Raumzeile (kein Raum-Label) – nur das Online-Zeichen unten auf der Karte
             if schluessel == "raum" && k.online && art != .entfall && k.status != "abwesend" { continue }
 
-            // Vertretungskachel im Lehrerplan: das eigene Kürzel steht als Plakette (ich halte diese Stunde)
-            if schluessel == letzte && !hatListe && art == .aenderung && typ == "lehrer" && !klassenAbwesend
-                && !(!geaendert.isEmpty && geaendert.allSatisfy { $0 == "raum" })
-                && zeile.text.uppercased() == ich && !ich.isEmpty {
-                if zeile.teile.count == 1 && zeile.teile[0].stil == .text { zeile.teile[0].stil = .plakette }
-                geaendertWert = true
-            }
+            // Eigener Plan (Lehrkraft): das eigene Kürzel bekommt nur dann ein Label, wenn es selbst geändert ist (z. B. ich
+            // vertrete: alter Wert einer anderen Lehrkraft) – nie nur, weil sich an der Stunde etwas anderes geändert hat
             // Die letzte Zeile entfällt, wenn sie nur das betrachtete Element wiederholt
             let wiederholt = !ich.isEmpty && zeile.text.uppercased() == ich && zeile.nurText && !hatListe
             if schluessel == letzte && wiederholt && !geaendertWert { continue }
@@ -951,151 +989,191 @@ enum Kachelbau {
 
     // MARK: - Anordnung
 
-    /// Kacheln einer Tagesspalte anordnen.
-    /// - Wochenansicht: parallele Stunden nebeneinander, solange der Platz reicht (mind. 62 pt je Kachel); sonst steht vorne,
-    ///   was stattfindet, und ein Zählstreifen zeigt die Zahl der verdeckten Stunden. Aufsichten unter einem Feld entfallen.
-    /// - Tagesansicht: Feld links, betroffene Stunden rechts daneben; sonst alle nebeneinander.
-    static func anordnen(_ alle: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool) -> Tagesbelegung {
-        var belegung = Tagesbelegung()
-        let pausen = alle.filter { $0.inPause }
-        var stunden = alle.filter { !$0.inPause }
+    /// Lage in einer Gruppe überlappender Kacheln: Spur (Spalte), Zahl der Spuren, Breite in Spuren (dehnt sich nach rechts
+    /// über freie Spuren) bzw. senkrechter Stapel (gleiche Zeit, untereinander geteilt wie im Original).
+    struct Spurlage: Equatable {
+        var spur: Int = 0
+        var spuren: Int = 1
+        var spanne: Int = 1
+        var stapel: Int = 1
+        var stapelIndex: Int = 0
+    }
 
-        // Spuren wie in der PWA: nach Rang, dann Beginn; zusammenhängende Ketten; in Spalten packen
-        stunden.sort { a, b in
-            if a.rang != b.rang { return a.rang < b.rang }
-            if a.von != b.von { return a.von < b.von }
-            return a.dauer > b.dauer
+    /// Mindesthöhe je Block, damit gleichzeitige Blöcke untereinander geteilt werden (drei Zeilen: 4 + 3 × 14 pt).
+    static let stapelMindestHoehe: CGFloat = 46
+    /// Mindestbreite einer Spur (Woche bzw. Tag); passen nicht alle Spuren, treten die übrigen hinter einen Zählstreifen.
+    static let spurMindestBreiteWoche: CGFloat = 18
+    static let spurMindestBreiteTag: CGFloat = 40
+
+    /// Spuren wie in Kalender-Apps: Kacheln mit überlappender Zeit (Minuten, nicht Stundennummern) bilden zusammenhängende
+    /// Gruppen; innerhalb einer Gruppe kommt jede Kachel in die erste Spur, in der sie mit nichts überlappt (vorne/links, was
+    /// stattfindet: Rang, dann Beginn, dann längere Blöcke, dann Reihenfolge der Daten). Danach dehnt sich jede Kachel über
+    /// freie Spuren rechts von ihr. Haben alle Blöcke einer Gruppe genau dieselbe Zeit (2–3 Blöcke, z. B. Kopplung WW/PK) und
+    /// reicht die Höhe für je drei Zeilen, werden sie wie im Original untereinander geteilt. Nichts wird zusammengefasst oder
+    /// ausgeblendet; das Ergebnis hängt nur von den Daten ab (stabil bei Vertretung, Entfall, Doppelstunden).
+    static func spurenVerteilen(_ liste: [Kachel], hoehe: ((Kachel) -> CGFloat)? = nil) -> [UUID: Spurlage] {
+        var ergebnis: [UUID: Spurlage] = [:]
+        guard !liste.isEmpty else { return ergebnis }
+        let reihenfolge = Dictionary(liste.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
+        func vorher(_ a: Kachel, _ b: Kachel) -> Bool {
+            (reihenfolge[a.id] ?? 0) < (reihenfolge[b.id] ?? 0)
         }
-        var spur: [UUID: Int] = [:]
-        var spuren: [UUID: Int] = [:]
-        var kopplungGeaendert: Set<UUID> = []
+        // Zusammenhängende Gruppen (transitiv überlappend) per Durchlauf nach Beginn
+        let nachZeit = liste.sorted { a, b in
+            if a.beginn != b.beginn { return a.beginn < b.beginn }
+            if a.ende != b.ende { return a.ende > b.ende }
+            return vorher(a, b)
+        }
         var gruppen: [[Kachel]] = []
-        for k in stunden {
-            let treffer = gruppen.indices.filter { gi in gruppen[gi].contains { $0.ueberlappt(k) } }
-            if treffer.isEmpty {
+        var gruppenEnde = Int.min
+        for k in nachZeit {
+            if gruppen.isEmpty || k.beginn >= gruppenEnde {
                 gruppen.append([k])
-                continue
+                gruppenEnde = k.ende
+            } else {
+                gruppen[gruppen.count - 1].append(k)
+                gruppenEnde = max(gruppenEnde, k.ende)
             }
-            var g = gruppen[treffer[0]]
-            g.append(k)
-            for gi in treffer.dropFirst() { g.append(contentsOf: gruppen[gi]) }
-            for gi in treffer.dropFirst().reversed() { gruppen.remove(at: gi) }
-            let reihenfolge = Dictionary(uniqueKeysWithValues: stunden.enumerated().map { ($1.id, $0) })
-            g.sort { (reihenfolge[$0.id] ?? 0) < (reihenfolge[$1.id] ?? 0) }
-            gruppen[treffer[0]] = g
         }
         for g in gruppen {
-            var spalten: [[Kachel]] = []
-            for k in g {
-                if let s = spalten.firstIndex(where: { spalte in spalte.allSatisfy { !$0.ueberlappt(k) } }) {
-                    spalten[s].append(k)
-                    spur[k.id] = s
-                } else {
-                    spalten.append([k])
-                    spur[k.id] = spalten.count - 1
+            if g.count == 1 {
+                ergebnis[g[0].id] = Spurlage()
+                continue
+            }
+            let geordnet = g.sorted { a, b in
+                if a.rang != b.rang { return a.rang < b.rang }
+                if a.beginn != b.beginn { return a.beginn < b.beginn }
+                if a.ende - a.beginn != b.ende - b.beginn { return a.ende - a.beginn > b.ende - b.beginn }
+                return vorher(a, b)
+            }
+            // Gleiche Zeit: untereinander geteilt, wenn jeder Block mindestens drei Zeilen hoch bleibt
+            if let hoehe, g.count <= 3, !g.contains(where: { $0.feld }),
+               g.allSatisfy({ $0.beginn == g[0].beginn && $0.ende == g[0].ende }) {
+                let n = CGFloat(g.count)
+                if (hoehe(g[0]) - (n - 1) * 2) / n >= stapelMindestHoehe {
+                    for (i, k) in geordnet.enumerated() {
+                        ergebnis[k.id] = Spurlage(spur: 0, spuren: 1, spanne: 1, stapel: g.count, stapelIndex: i)
+                    }
+                    continue
                 }
             }
-            for k in g { spuren[k.id] = spalten.count }
-            // Kopplung mit Änderung (Vertretung, Raumänderung, offene Vertretung, Entfall einer Zeile): alle Blöcke bleiben
-            // nebeneinander stehen, keiner tritt hinter einen Zählstreifen zurück
-            if g.count > 1 && g.contains(where: { istGeaenderteKachel($0) }) {
-                for k in g { kopplungGeaendert.insert(k.id) }
+            var spuren: [[Kachel]] = []
+            var spurVon: [UUID: Int] = [:]
+            for k in geordnet {
+                if let s = spuren.firstIndex(where: { spur in spur.allSatisfy { !$0.ueberlappt(k) } }) {
+                    spuren[s].append(k)
+                    spurVon[k.id] = s
+                } else {
+                    spuren.append([k])
+                    spurVon[k.id] = spuren.count - 1
+                }
+            }
+            let n = spuren.count
+            for k in g {
+                let s = spurVon[k.id] ?? 0
+                var spanne = 1
+                while s + spanne < n && spuren[s + spanne].allSatisfy({ !$0.ueberlappt(k) }) { spanne += 1 }
+                ergebnis[k.id] = Spurlage(spur: s, spuren: n, spanne: spanne)
             }
         }
+        return ergebnis
+    }
 
-        let felder = stunden.filter { $0.feld }
+    /// Kacheln einer Tagesspalte anordnen.
+    /// - Alle gleichzeitigen Blöcke (Kopplung, Gruppen, Vertretung neben Entfall, unterschiedliche Längen) stehen in Spuren
+    ///   nebeneinander bzw. bei genau gleicher Zeit untereinander geteilt (`spurenVerteilen`). Nur wenn mehr Spuren nötig sind,
+    ///   als bei der Mindestbreite in die Spalte passen, treten die hinteren hinter einen Zählstreifen.
+    /// - Veranstaltungsfeld: auf breiten Spalten (iPad, Tagesansicht) Feld links, betroffene Stunden rechts daneben; auf schmalen
+    ///   Spalten (iPhone-Woche) treten sie hinter das Feld zurück (Zählstreifen, Aufsichten unter dem Feld ausgeblendet).
+    /// - `hoehe`: Höhe einer Kachel in Punkten (für das Teilen untereinander); nil = immer nebeneinander.
+    static func anordnen(_ alle: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool,
+                         hoehe: ((Kachel) -> CGFloat)? = nil) -> Tagesbelegung {
+        var belegung = Tagesbelegung()
+        let pausen = alle.filter { $0.inPause }
+        let stunden = alle.filter { !$0.inPause }
+        let luecke: CGFloat = tagesansicht ? 4 : 2
+        let mindestBreite = tagesansicht ? spurMindestBreiteTag : spurMindestBreiteWoche
+
+        func passen(_ breite: CGFloat) -> Int {
+            max(1, Int((breite + luecke) / (mindestBreite + luecke)))
+        }
         func aufsichtenIm(_ f: Kachel) -> [Kachel] {
             pausen.filter { !$0.vorErsterStunde && $0.art == .aufsicht && $0.beginn >= f.beginn && $0.ende <= f.ende }
         }
 
-        if tagesansicht {
-            var seitlich: [UUID: (spur: Int, spuren: Int)] = [:]
-            var feldMitTreffern: Set<UUID> = []
-            for f in felder {
-                let treffer = stunden.filter { !$0.feld && $0.ueberlappt(f) }
-                let aufs = aufsichtenIm(f)
-                if treffer.isEmpty && aufs.isEmpty { continue }
-                feldMitTreffern.insert(f.id)
-                for (k, s) in gruppenSpuren(treffer) { seitlich[k] = s }
-                for a in aufs { seitlich[a.id] = (0, 1) }
-            }
-            for k in stunden {
-                var lage = Kachellage(kachel: k)
-                if k.feld && feldMitTreffern.contains(k.id) {
-                    lage = spurLage(lage, n: 2, i: 0, von: 0, bis: 1, luecke: 4)
-                } else if let s = seitlich[k.id] {
-                    lage = spurLage(lage, n: s.spuren, i: s.spur, von: 0.5, bis: 1, luecke: 4)
-                } else {
-                    lage = spurLage(lage, n: spuren[k.id] ?? 1, i: spur[k.id] ?? 0, von: 0, bis: 1, luecke: 4)
-                }
-                belegung.lagen.append(lage)
-            }
-            for p in pausen {
-                var lage = Kachellage(kachel: p)
-                if seitlich[p.id] != nil { lage = spurLage(lage, n: 1, i: 0, von: 0.5, bis: 1, luecke: 4) }
-                belegung.lagen.append(lage)
-            }
-            return belegung
-        }
-
-        // Wochenansicht
-        let passt = max(1, Int(spaltenBreite / 62))
-        // Gekoppelte Blöcke mit Änderung: schmaler (mind. 22 pt je Block), dafür alle nebeneinander
-        let passtKopplung = max(passt, Int(spaltenBreite / 22))
-        var verdraengt: [(karte: Kachel, vorne: Kachel)] = []
-        var vorneIds: Set<UUID> = []
-        // Veranstaltungsfeld: auf breiten Spalten (iPad) Feld links, entfallende Stunden und Aufsichten rechts daneben
-        // (halbe Spalte); auf schmalen Spalten (iPhone) treten sie hinter das Feld zurück (Zählstreifen, Aufsichten ausgeblendet).
+        // Veranstaltungsfelder
+        let felder = stunden.filter { $0.feld }
+        let feldDaneben = tagesansicht || spaltenBreite >= 124
         var feldLinks: Set<UUID> = []
-        var feldSeite: [UUID: (spur: Int, spuren: Int)] = [:]
+        var seitlich: Set<UUID> = []
         var feldVerdeckt: [UUID: Kachel] = [:]
         var verdeckteAufsichten: Set<UUID> = []
-        for f in felder {
-            let treffer = stunden.filter { !$0.feld && $0.ueberlappt(f) && feldSeite[$0.id] == nil && feldVerdeckt[$0.id] == nil }
+        var seitlicheAufsichten: Set<UUID> = []
+        for f in felder where !seitlich.contains(f.id) && feldVerdeckt[f.id] == nil {
+            let treffer = stunden.filter { !$0.feld && $0.ueberlappt(f) && !seitlich.contains($0.id) && feldVerdeckt[$0.id] == nil }
             let aufs = aufsichtenIm(f)
-            if passt >= 2 {
-                if treffer.isEmpty && aufs.isEmpty { continue }
+            if treffer.isEmpty && aufs.isEmpty { continue }
+            if feldDaneben {
                 feldLinks.insert(f.id)
-                for (k, s) in gruppenSpuren(treffer) { feldSeite[k] = s }
-                for a in aufs { feldSeite[a.id] = (0, 1) }
+                for t in treffer { seitlich.insert(t.id) }
+                for a in aufs { seitlicheAufsichten.insert(a.id) }
             } else {
                 for t in treffer { feldVerdeckt[t.id] = f }
                 for a in aufs { verdeckteAufsichten.insert(a.id) }
             }
         }
-        for k in stunden {
-            if feldLinks.contains(k.id) {
-                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: 2, i: 0, von: 0, bis: 1, luecke: 2))
-                continue
-            }
-            if let s = feldSeite[k.id] {
-                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: s.spuren, i: s.spur, von: 0.5, bis: 1, luecke: 2))
-                continue
-            }
-            if let f = feldVerdeckt[k.id] {
-                verdraengt.append((k, f))
-                vorneIds.insert(f.id)
-                continue
-            }
-            let n = spuren[k.id] ?? 1
-            let i = spur[k.id] ?? 0
-            let grenze = kopplungGeaendert.contains(k.id) ? passtKopplung : passt
-            if n > grenze && i > 0 && !k.feld {
-                if let vorne = stunden.first(where: { (spur[$0.id] ?? 0) == 0 && $0.ueberlappt(k) }) {
-                    verdraengt.append((k, vorne))
-                    vorneIds.insert(vorne.id)
-                    continue
+
+        var verdraengt: [(karte: Kachel, vorne: Kachel)] = []
+        var vorneIds: Set<UUID> = []
+
+        /// Spuren in einem Bereich (Anteile der Spalte) setzen; überzählige Spuren hinter einen Zählstreifen.
+        func setzen(_ liste: [Kachel], von: CGFloat, bis: CGFloat) {
+            let lagen = spurenVerteilen(liste, hoehe: hoehe)
+            let grenze = passen(spaltenBreite * (bis - von))
+            for k in liste {
+                let s = lagen[k.id] ?? Spurlage()
+                var lage = Kachellage(kachel: k)
+                if s.spuren > grenze {
+                    if s.spur >= grenze {
+                        // Vorne steht die Kachel der ersten Spur (bzw. die erste sichtbare), die zur selben Zeit liegt
+                        let vorne = liste.first { o in
+                            let so = lagen[o.id] ?? Spurlage()
+                            return so.spur == 0 && o.ueberlappt(k)
+                        } ?? liste.first { o in (lagen[o.id]?.spur ?? 0) < grenze && o.ueberlappt(k) }
+                        if let vorne {
+                            verdraengt.append((k, vorne))
+                            vorneIds.insert(vorne.id)
+                            continue
+                        }
+                    }
+                    lage = spurLage(lage, n: grenze, i: min(s.spur, grenze - 1), von: von, bis: bis, luecke: luecke)
+                    lage.spanne = max(1, min(s.spanne, grenze - lage.spur))
+                } else {
+                    lage = spurLage(lage, n: s.spuren, i: s.spur, von: von, bis: bis, luecke: luecke)
+                    lage.spanne = s.spanne
+                    lage.stapel = s.stapel
+                    lage.stapelIndex = s.stapelIndex
                 }
+                belegung.lagen.append(lage)
             }
-            var lage = Kachellage(kachel: k)
-            if n > 1 && n <= grenze {
-                lage = spurLage(lage, n: n, i: i, von: 0, bis: 1, luecke: 2)
-            } else if n > 1 {
-                let mehr = stunden.contains { $0.id != k.id && (spur[$0.id] ?? 0) > 0 && $0.ueberlappt(k) }
-                if mehr { lage.mitZaehler = true }
-            }
-            belegung.lagen.append(lage)
         }
+
+        // Feld links (halbe Spalte), betroffene Stunden rechts daneben in eigenen Spuren
+        for f in felder where feldLinks.contains(f.id) {
+            belegung.lagen.append(spurLage(Kachellage(kachel: f), n: 2, i: 0, von: 0, bis: 1, luecke: luecke))
+        }
+        let seitliche = stunden.filter { seitlich.contains($0.id) }
+        if !seitliche.isEmpty { setzen(seitliche, von: 0.5, bis: 1) }
+        // Hinter einem Feld verdeckte Stunden (schmale Spalten)
+        for k in stunden {
+            guard let f = feldVerdeckt[k.id] else { continue }
+            verdraengt.append((k, f))
+            vorneIds.insert(f.id)
+        }
+        // Alle übrigen Stunden (auch Felder ohne betroffene Stunden): Spuren über die ganze Spalte
+        let uebrige = stunden.filter { !feldLinks.contains($0.id) && !seitlich.contains($0.id) && feldVerdeckt[$0.id] == nil }
+        setzen(uebrige, von: 0, bis: 1)
+
         for i in belegung.lagen.indices where vorneIds.contains(belegung.lagen[i].kachel.id) {
             belegung.lagen[i].mitZaehler = true
         }
@@ -1122,36 +1200,13 @@ enum Kachelbau {
             }
         }
         for p in pausen where !verdeckteAufsichten.contains(p.id) {
-            if feldSeite[p.id] != nil {
-                belegung.lagen.append(spurLage(Kachellage(kachel: p), n: 1, i: 0, von: 0.5, bis: 1, luecke: 2))
+            if seitlicheAufsichten.contains(p.id) {
+                belegung.lagen.append(spurLage(Kachellage(kachel: p), n: 1, i: 0, von: 0.5, bis: 1, luecke: luecke))
             } else {
                 belegung.lagen.append(Kachellage(kachel: p))
             }
         }
         return belegung
-    }
-
-    /// Geänderte Stunde (für Kopplungen): Änderung, Entfall, abgegeben bzw. ein geänderter Wert (Rang 0).
-    private static func istGeaenderteKachel(_ k: Kachel) -> Bool {
-        k.art == .aenderung || k.art == .entfall || k.art == .abgegeben || k.raumAenderung || k.rang == 0
-            || (k.karte?.istOffeneVertretung ?? false)
-    }
-
-    /// Überlappende Kacheln innerhalb einer Liste durchnummerieren.
-    private static func gruppenSpuren(_ liste: [Kachel]) -> [UUID: (spur: Int, spuren: Int)] {
-        var gruppen: [[Kachel]] = []
-        for k in liste.sorted(by: { ($0.von, -$0.dauer) < ($1.von, -$1.dauer) }) {
-            if let gi = gruppen.firstIndex(where: { g in g.contains { $0.ueberlappt(k) } }) {
-                gruppen[gi].append(k)
-            } else {
-                gruppen.append([k])
-            }
-        }
-        var ergebnis: [UUID: (spur: Int, spuren: Int)] = [:]
-        for g in gruppen {
-            for (i, k) in g.enumerated() { ergebnis[k.id] = (i, g.count) }
-        }
-        return ergebnis
     }
 
     /// Lage einer Spur: Bereich von…bis (Anteile der Spalte), n Spuren, Luft dazwischen wird von der Breite abgezogen.

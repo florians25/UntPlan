@@ -114,7 +114,8 @@ public class Sprint26Tests
         var js = AppJs;
         // Zusatzstunde: Plakette statt Vertretungstext
         Assert.Contains("'Zusätzl. Unterrichtsstunde'", js);
-        Assert.Contains("} else if (c.info && !zusatz){", js);
+        // Sprint 27: manuelle Vertretungstexte stehen auch bei Zusatzstunden (Standardtexte filtert der Server)
+        Assert.Contains("} else if (c.info){", js);
         // Einzelstunden über das Auswahlmenü im Titel, kein Segmentschalter mehr
         Assert.Contains("function detailTeilbar(ganz)", js);
         Assert.Contains("role=\"option\" data-l=", js);

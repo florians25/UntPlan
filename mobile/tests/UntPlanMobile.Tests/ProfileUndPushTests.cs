@@ -200,7 +200,8 @@ public class ProfileUndPushTests
 
         // Schülerkonten dürfen nicht, fremde Pfade gibt es nicht
         var klasse = await u.AngemeldetAsync("5a");
-        Assert.Equal(HttpStatusCode.Forbidden, (await klasse.GetAsync($"/api/sprechtag/{id}/eltern")).StatusCode);
+        // (Sprint 27: nur lesend und nur, wenn der Sprechtag für Schüler*innen sichtbar ist – hier nicht)
+        Assert.False((await klasse.GetAsync($"/api/sprechtag/{id}/eltern")).IsSuccessStatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await lk.GetAsync("/api/sprechtag/..%2Fadmin")).StatusCode);
     }
 }

@@ -1220,7 +1220,9 @@ struct WochenrasterView: View {
 
     private func tagesspalte(_ tag: Tageskopf, kacheln: [Kachel], zeiten: [Rasterzeit], mass: Rastermass,
                              ende: Int, breite: CGFloat, hoehe: CGFloat) -> some View {
-        let belegung = Kachelbau.anordnen(kacheln, spaltenBreite: breite, tagesansicht: nurTage?.count == 1)
+        // Höhe einer Kachel im Raster: gleichzeitige Blöcke werden untereinander geteilt, wenn jeder hoch genug bleibt
+        let belegung = Kachelbau.anordnen(kacheln, spaltenBreite: breite, tagesansicht: nurTage?.count == 1,
+                                          hoehe: { k in mass.yEnde(k.ende) - mass.y(k.beginn) - 1 })
         let vorErste = belegung.lagen.filter { $0.kachel.vorErsterStunde }.map(\.kachel.id)
         return ZStack(alignment: .topLeading) {
             if tag.frei {
@@ -1288,8 +1290,11 @@ struct WochenrasterView: View {
         var x = breite * lage.links
         let bereich = breite * lage.breite
         let n = CGFloat(max(1, lage.spuren))
-        var w = (bereich - (n - 1) * lage.luecke) / n
-        x += CGFloat(lage.spur) * (w + lage.luecke)
+        let spurBreite = (bereich - (n - 1) * lage.luecke) / n
+        x += CGFloat(lage.spur) * (spurBreite + lage.luecke)
+        // Über freie Spuren rechts daneben gedehnt
+        let spanne = CGFloat(max(1, min(lage.spanne, max(1, lage.spuren - lage.spur))))
+        var w = spurBreite * spanne + (spanne - 1) * lage.luecke
         if lage.mitZaehler { w -= 14 }
         var y: CGFloat
         var h: CGFloat
@@ -1313,6 +1318,13 @@ struct WochenrasterView: View {
         } else {
             y = mass.y(k.beginn) + 1
             h = max(16, mass.yEnde(k.ende) - mass.y(k.beginn) - 1)
+            if lage.stapel > 1 {
+                // Gleichzeitige Blöcke untereinander geteilt (wie im Original), 2 pt Luft dazwischen
+                let anzahl = CGFloat(lage.stapel)
+                let teil = (h - (anzahl - 1) * 2) / anzahl
+                y += CGFloat(lage.stapelIndex) * (teil + 2)
+                h = max(16, teil)
+            }
         }
         return CGRect(x: x, y: y, width: max(w, 8), height: h)
     }

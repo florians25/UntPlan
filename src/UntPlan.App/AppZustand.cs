@@ -17,6 +17,8 @@ public static class AppZustand
     public static event Action<ElementTyp, int, object>? ElementGewaehlt;
     /// <summary>Eine Stunde wurde in einem Stundenplan aktiviert (Stundenplan-Synchronisation).</summary>
     public static event Action<Unterricht, Planstunde?, object>? StundeGewaehlt;
+    /// <summary>Eine leere Zelle (nicht verplante Stunde) wurde in einem Stundenplan angeklickt (Stundenplan-Synchronisation).</summary>
+    public static event Action<Core.Planung.PlanZelle, ElementTyp, int, object>? ZelleGewaehlt;
 
     public static Schuldatei D => Doc.Daten;
 
@@ -107,6 +109,12 @@ public static class AppZustand
     }
 
     public static void Waehlen(ElementTyp typ, int id, object quelle) => ElementGewaehlt?.Invoke(typ, id, quelle);
+
+    /// <summary>
+    /// Leere Zelle gewählt (Tag/Stunde ohne Unterricht des angezeigten Elements <paramref name="typ"/>/<paramref name="id"/>):
+    /// verknüpfte Pläne behalten ihr Element, heben ihre Auswahl auf und markieren dieselbe Stunde.
+    /// </summary>
+    public static void ZelleWaehlen(Core.Planung.PlanZelle zelle, ElementTyp typ, int id, object quelle) => ZelleGewaehlt?.Invoke(zelle, typ, id, quelle);
     /// <summary>
     /// Stunde gewählt. Optional mit den Elementen der angeklickten Zeile (z. B. im Lehrerplan nur die Klassen dieses Lehrers)
     /// und dem Datum (tagesaktueller Plan) – damit synchronisierte Pläne genau die passende Klasse bzw. Lehrkraft zeigen.

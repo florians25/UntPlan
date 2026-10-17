@@ -211,13 +211,13 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
         <button type="button" class="btn btn-outline-secondary s-knopf" data-v-drucken>${icon('drucken')}Drucken</button>
         <a class="br-vzu" href="${ziel(null)}" title="Vorschau schließen" aria-label="Vorschau schließen"><i class="bi bi-x-lg"></i></a></div></header>`;
   // gegliederte Berichte (r.arten): Gruppenkopf über die ganze Breite, Zwischensumme je Schüler*in, Summe je Klasse; Zahlenspalten rechtsbündig
-  const arten = r.arten ?? null;
-  const zahlSpalte = r.spalten.map((_, i) => r.zeilen.some((z, n) => !arten?.[n] && z[i] !== '' && z[i] != null)
-    && r.zeilen.every((z, n) => arten?.[n] || z[i] === '' || z[i] == null || typeof z[i] === 'number'));
-  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle ${arten ? 'br-gegliedert' : ''}"><thead><tr>${r.spalten.map((s, i) => `<th class="${arten && zahlSpalte[i] ? 'text-end' : ''}">${e(s)}</th>`).join('')}</tr></thead><tbody>
-    ${zeilen.map((z, n) => arten?.[n] === 'gruppe'
+  const zeilenArten = r.arten ?? null;
+  const zahlSpalte = r.spalten.map((_, i) => r.zeilen.some((z, n) => !zeilenArten?.[n] && z[i] !== '' && z[i] != null)
+    && r.zeilen.every((z, n) => zeilenArten?.[n] || z[i] === '' || z[i] == null || typeof z[i] === 'number'));
+  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle ${zeilenArten ? 'br-gegliedert' : ''}"><thead><tr>${r.spalten.map((s, i) => `<th class="${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(s)}</th>`).join('')}</tr></thead><tbody>
+    ${zeilen.map((z, n) => zeilenArten?.[n] === 'gruppe'
       ? `<tr class="br-gruppe"><td colspan="${r.spalten.length}">${e(z[0] ?? '')}</td></tr>`
-      : `<tr class="${arten?.[n] ? `br-${arten[n]}` : ''}">${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''} ${arten && zahlSpalte[i] ? 'text-end' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      : `<tr class="${zeilenArten?.[n] ? `br-${zeilenArten[n]}` : ''}">${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''} ${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   if (art === 'entschuldigungsschreiben') {
     // je Schüler*in eine Seite mit Unterschriftsfeld
     const proSchueler = new Map();
@@ -229,7 +229,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
         <div class="d-flex gap-4 small pt-4"><span class="border-top pt-1 flex-fill">Datum</span><span class="border-top pt-1 flex-fill">Unterschrift Erziehungsberechtigte</span></div></div>`).join('')
         : leer('Keine offenen Fehlstunden im Zeitraum.', 'check2-circle')}</div>`;
   } else {
-    const datenzeilen = arten ? arten.filter(x => !x).length : r.zeilen.length;
+    const datenzeilen = zeilenArten ? zeilenArten.filter(x => !x).length : r.zeilen.length;
     vorschau.innerHTML = `<div class="br-vorschau s-karte">${kopf}${vkopf(`${datenzeilen} ${datenzeilen === 1 ? 'Zeile' : 'Zeilen'}`)}
       ${r.hinweis ? `<div class="br-vhinweis"><i class="bi bi-info-circle"></i> ${e(r.hinweis)}</div>` : ''}
       ${r.zeilen.length ? tabelle(r.zeilen) : leer('Keine Daten für diese Auswahl.', 'file-earmark')}</div>`;
