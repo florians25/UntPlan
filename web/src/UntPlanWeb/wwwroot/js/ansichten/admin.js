@@ -364,7 +364,7 @@ async function importieren(ziel, kontext, neu, weitere = []) {
 async function exportieren(ziel) {
   const csv = zeilen => zeilen.map(z => z.map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
   ziel.innerHTML = `<div class="u-raster-2">
-    ${[['benutzer', 'Benutzer', 'Alle Benutzerkonten mit Rolle, Kürzel, E-Mail und letzter Anmeldung.'], ['rollen', 'Rechte und Rollen', 'Rollen mit Anzahl der Benutzer und Rechten.'],
+    ${[['benutzer', 'Benutzer', 'Alle Benutzerkonten mit Rolle, Kürzel, E-Mail und letzter Anmeldung.'], ['rollen', 'Rechte und Rollen', 'Alle Rollen (Rechte-Profile) mit Basisrolle, Anzahl der Benutzer und Stufe je Recht.'],
       ['nachrichten', 'Nachrichten zum Tag', 'Alle Nachrichten mit Zeitraum, Betreff und Anzeigebereich.'], ['rueckmeldungen', 'Rückmeldungen', 'Meldungen an UntPlan (Abwesenheiten, Buchungen, Klausuren).'],
       ['protokoll', 'Protokoll', 'Die letzten 300 Einträge des Protokolls.']].map(([id, t, x]) => `<div class="card"><div class="card-body">
       <h2 class="h6 fw-bold">${t}</h2><p class="small text-body-secondary">${x}</p><button class="btn btn-outline-secondary btn-sm" data-export="${id}">${icon('herunterladen')}CSV herunterladen</button></div></div>`).join('')}</div>`;
@@ -372,7 +372,13 @@ async function exportieren(ziel) {
     const id = b.dataset.export;
     let zeilen;
     if (id === 'benutzer') zeilen = [['Benutzername', 'Name', 'Rolle', 'Kürzel', 'E-Mail', 'gesperrt', 'erstellt', 'Letzte Anmeldung'], ...(await holen('/api/app/admin/benutzer')).map(u => [u.login, u.anzeigename, u.rollenname, u.element, u.email, u.gesperrt ? 'ja' : 'nein', u.erstellt, u.letzteAnmeldung ?? ''])];
-    else if (id === 'rollen') { const l = await holen('/api/app/admin/benutzer'); zeilen = [['Rolle', 'Benutzer', 'Rechte'], ...Object.entries(ROLLEN).map(([r, n]) => [n, l.filter(u => u.rolle === r).length, RECHTE.filter(x => x[1][r]).map(x => x[0]).join(', ')])]; }
+    else if (id === 'rollen') {
+      // Rechte-Modell: je Rolle (Rechte-Profil) Basisrolle, Anzahl Konten und Stufe je Recht
+      const k = await holen('/api/app/admin/rechte/katalog');
+      const stufe = (r, s) => s === 0 ? 'Nein' : s === 1 ? 'Lesen' : r.zweistufig ? 'Schreiben' : 'Ja';
+      zeilen = [['Rolle', 'Art', 'Basisrolle', 'Benutzer', 'Beschreibung', ...k.rechte.map(r => `${r.gruppe}: ${r.name}`)],
+        ...k.profile.map(p => [p.name, p.system ? 'Systemrolle' : 'eigene Rolle', p.basisName, p.benutzer, p.beschreibung, ...k.rechte.map(r => stufe(r, p.rechte[r.id] ?? 0))])];
+    }
     else if (id === 'nachrichten') zeilen = [['Von', 'Bis', 'Wochentag', 'Betreff', 'Text', 'Für', 'Öffentlich', 'Startseite', 'Monitor'], ...(await holen('/api/app/admin/nachrichten')).map(n => [n.von, n.bis, n.wochentag ? WOCHENTAGE[n.wochentag - 1] : 'jeden Tag', n.betreff, n.text, n.zielgruppe, n.oeffentlich ? 'ja' : 'nein', n.startseite ? 'ja' : 'nein', n.monitor ? 'ja' : 'nein'])];
     else if (id === 'rueckmeldungen') zeilen = [['Meldung', 'Von', 'Erstellt', 'Status'], ...(await holen('/api/app/admin/rueckmeldungen')).map(m => [meldungText(m), m.absender, m.erstellt, m.status])];
     else zeilen = [['Zeit', 'Benutzer', 'Aktion', 'Details'], ...(await holen('/api/app/admin/protokoll')).map(p => [p.zeit, p.benutzer, p.aktion, p.details])];
@@ -399,25 +405,6 @@ async function aktive(ziel) {
 
 // ------------------------------------------------------------------ Rechte und Rollen
 
-/** Rechte je Rolle (fest in UntPlanWeb): [Recht, { admin, leitung, lehrer, schueler }]. */
-const RECHTE = [
-  ['Eigener Stundenplan', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
-  ['Stundenpläne aller Klassen, Lehrkräfte und Räume', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
-  ['Raumpläne', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
-  ['Tagesübersichten (Tag - Klassen/Lehrkräfte/Räume)', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
-  ['Vertretungsplan: Lehrerversion', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
-  ['Vertretungsplan: Schülerversion (eigene Klasse)', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
-  ['Klassenbuch: eigene Stunden eintragen', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
-  ['Klassenbuch: entschuldigen, Klassendienste, Befreiungen, Sitzplan', { admin: true, leitung: true, lehrer: 'Klassenleitung', schueler: false, eltern: false }],
-  ['Hausaufgaben und Lehrstoff der Klasse sehen', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
-  ['Melden & Buchen (Abwesenheit, Raum, Prüfung)', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
-  ['Mitteilungen an alle Benutzer', { admin: true, leitung: true, lehrer: false, schueler: false, eltern: false }],
-  ['Mitteilungen an Kollegium, Klassen, eigene Listen', { admin: true, leitung: true, lehrer: true, schueler: false, eltern: false }],
-  ['Mitteilungen an Klassenleitung und Schulleitung', { admin: true, leitung: true, lehrer: true, schueler: true, eltern: true }],
-  ['Nachrichten zum Tag pflegen', { admin: true, leitung: true, lehrer: false, schueler: false, eltern: false }],
-  ['Eigene Abwesenheiten, Fehlzeiten und Hausaufgaben (bzw. die der Kinder)', { admin: false, leitung: false, lehrer: false, schueler: 'mit Zuordnung', eltern: true }],
-  ['Stammdaten und Administration', { admin: true, leitung: false, lehrer: false, schueler: false, eltern: false }],
-];
 
 async function rechte(ziel, kontext, neu, weitere = []) {
   // Rechte-Modell (rechte.js): Rollen × Rechte, Rechte einzelner Benutzer, Passwortregeln

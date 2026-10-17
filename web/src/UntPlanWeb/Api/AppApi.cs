@@ -48,10 +48,18 @@ public static class AppApi
     public static void PlanErlaubt(Benutzer b, string typ, string element)
     {
         if (!Elementtyp.Gueltig(typ)) throw new ArgumentException("Unbekannte Planart.");
-        if (b.Kollegium) return;
-        if (typ == Elementtyp.Lehrer) throw new UnauthorizedAccessException("Pläne von Lehrkräften sind für Ihr Konto nicht freigegeben.");
-        if (typ == Elementtyp.Raum) return;
-        if (typ == Elementtyp.Klasse && b.HatKlasse(element)) return;
+        // Rechte-Modell: eigener Plan, Pläne aller Klassen, der Lehrkräfte, Raumpläne
+        var eigen = Rechtedienst.Darf(b, Recht.PlanEigen) && (typ == Elementtyp.Lehrer
+            ? b.LehrerKuerzel is string l && string.Equals(l, element, StringComparison.OrdinalIgnoreCase)
+            : typ == Elementtyp.Klasse && b.HatKlasse(element));
+        if (eigen) return;
+        if (typ == Elementtyp.Lehrer)
+        {
+            if (Rechtedienst.Darf(b, Recht.PlanLehrer)) return;
+            throw new UnauthorizedAccessException("Pläne von Lehrkräften sind für Ihr Konto nicht freigegeben.");
+        }
+        if (typ == Elementtyp.Raum && Rechtedienst.Darf(b, Recht.PlanRaeume)) return;
+        if (typ == Elementtyp.Klasse && Rechtedienst.Darf(b, Recht.PlanKlassen)) return;
         throw new UnauthorizedAccessException("Dieser Plan ist für Ihr Konto nicht freigegeben.");
     }
 
@@ -184,7 +192,7 @@ public static class AppApi
         {
             var b = Ich(c);
             if (!Elementtyp.Gueltig(typ)) throw new ArgumentException("Unbekannte Ansicht.");
-            if (!b.Kollegium) throw new UnauthorizedAccessException("Die Tagesübersicht steht nur dem Kollegium zur Verfügung.");
+            if (!Rechtedienst.Darf(b, Recht.PlanTag)) throw new UnauthorizedAccessException("Die Tagesübersicht steht nur dem Kollegium zur Verfügung.");
             var st = Paket(p);
             return Results.Json(plan.Tag(st, typ, Datum(datum, uhr), b.Kollegium, d => r.Vorgemerkt(d, st)));
         });
@@ -194,7 +202,10 @@ public static class AppApi
             var b = Ich(c);
             var s = Paket(p);
             var tageListe = vp.NaechsteTage(s, Datum(datum, uhr), Math.Clamp(tage ?? 1, 1, 7));
-            var res = tageListe.Select(d => vp.Tag(s, d, b.Kollegium)).ToList();
+            // Rechte-Modell: Lehrerversion bzw. Schülerversion
+            var lehrerVersion = Rechtedienst.Darf(b, Recht.VertretungLehrer);
+            if (!lehrerVersion && !Rechtedienst.Darf(b, Recht.VertretungSchueler)) throw new UnauthorizedAccessException("Der Vertretungsplan ist für Ihr Konto nicht freigegeben.");
+            var res = tageListe.Select(d => vp.Tag(s, d, lehrerVersion)).ToList();
             // Klassenkonten: nur die eigene Klasse
             if (!b.Kollegium)
                 res = res.Select(t => t with { Zeilen = t.Zeilen.Where(z => z.Klassen.Split(", ").Any(b.HatKlasse)).ToList() }).ToList();
@@ -350,7 +361,7 @@ public static class AppApi
         // Hausaufgaben einer Stunde (Liste wie im Original) und die in dieser Stunde fälligen Hausaufgaben
         api.MapGet("/klassenbuch/hausaufgabenliste", (DateOnly datum, int stunde, int unterricht, int? bis, string? fach, string? klassen, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
-            var b = Ich(c);
+            var b = RechtePruefung.Verlangen(Ich(c), Recht.HausaufgabenSehen);
             var s = Paket(p);
             var liste = kb.HausaufgabenDerStunde(datum, stunde, Math.Max(stunde, bis ?? stunde), unterricht);
             var kl = (klassen ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
@@ -481,7 +492,7 @@ public static class AppApi
 
         api.MapGet("/hausaufgaben", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Listendienst l, Uhr uhr) =>
         {
-            var b = Ich(c);
+            var b = RechtePruefung.Verlangen(Ich(c), Recht.HausaufgabenSehen);
             var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
             var liste = l.Hausaufgaben(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(60)), k, b.Kollegium ? Leer(lehrer) : null);
             return Results.Json(b.Kollegium ? liste : liste.Select(e => e with { Notiz = "" }).ToList());
@@ -490,7 +501,7 @@ public static class AppApi
         // Hausaufgaben mit Id, Bemerkung, Erledigt und Bearbeitungsrecht (Liste und Detailfenster unter Klassenbuch → Hausaufgaben)
         api.MapGet("/hausaufgaben/eintraege", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
         {
-            var b = Ich(c);
+            var b = RechtePruefung.Verlangen(Ich(c), Recht.HausaufgabenSehen);
             var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
             var s = b.Kollegium ? Paket(p) : null;
             var liste = kb.Hausaufgabenliste(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(60)), k, b.Kollegium ? Leer(lehrer) : null);
@@ -546,12 +557,13 @@ public static class AppApi
         {
             var b = Ich(c);
             NurKollegium(b);
+            RechtePruefung.Verlangen(b, Recht.BerichteSehen);
             var st = Paket(p);
             if (!Klassenbuchdienst.FehlzeitenVerwalten(b, st)) throw new UnauthorizedAccessException("Fehlzeitenberichte stehen den Klassenleitungen zur Verfügung.");
             var v = Von(von, uhr.Heute.AddDays(-90));
             var bi = Von(bis, uhr.Heute);
             var liste = l.Fehlzeitenbericht(st, v, bi, Leer(klasse))
-                .Where(z => b.Rolle is Rollen.Admin or Rollen.Leitung || Klassenbuchdienst.IstKlassenleitung(b, st, z.Klasse)).ToList();
+                .Where(z => Rechtedienst.Darf(b, Recht.AbwesenheitAlle) || Klassenbuchdienst.IstKlassenleitung(b, st, z.Klasse)).ToList();
             return format == "csv"
                 ? Results.File(Listendienst.FehlzeitenCsv(liste), "text/csv; charset=utf-8", $"fehlzeiten-{Leer(klasse) ?? "alle"}-{v:yyyy-MM-dd}-{bi:yyyy-MM-dd}.csv")
                 : Results.Json(new { von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste });
@@ -561,6 +573,7 @@ public static class AppApi
         {
             var b = Ich(c);
             NurKollegium(b);
+            RechtePruefung.Verlangen(b, Recht.BerichteSehen);
             var v = Von(von, uhr.Heute.AddDays(-28));
             var bi = Von(bis, uhr.Heute);
             var liste = kb.Klasse(klasse ?? "", v, bi).OrderBy(e => e.Datum).ThenBy(e => e.Stunde).ToList();

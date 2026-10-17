@@ -181,4 +181,77 @@ public class RechteModellTests
         Assert.Throws<UnauthorizedAccessException>(() => s.Dienst<Buchungsdienst>().RaumSuche(s.Dienst<Paketdienst>().Aktuell!, lehrer,
             new Zeitangabe(null, new DateOnly(2026, 10, 15), null, null, null, 1, 1), null));
     }
+
+    [Fact]
+    public async Task Benutzerimport_ohne_Administration_schuetzt_Administrationskonten()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var bd = s.Dienst<Benutzerdienst>();
+        var lehrer = await s.AlsAsync("lan", "lehrer", "LAN");
+        Rechtedienst.UeberschreibungenSetzen(s.Dienst<Db>(), bd.NachLogin("lan")!.Id, new() { [Recht.AdminImport] = 2 });
+        object Zeile(string login, string rolle, bool ersetzen) => new
+        {
+            zeilen = new[] { new { zeile = 1, login, anzeigename = "Neu", rolle, element = "", email = "x@example.org", passwort = (string?)null, fehler = (string?)null, vorhanden = true } },
+            ersetzen,
+        };
+        // vorhandenes Administrationskonto ersetzen: abgelehnt, Daten unverändert
+        Assert.Equal(HttpStatusCode.Forbidden, (await lehrer.PostAsJsonAsync("/api/app/admin/import/uebernehmen", Zeile("admin", "lehrer", true))).StatusCode);
+        Assert.Equal("Administration", bd.NachLogin("admin")!.Anzeigename);
+        Assert.Equal("", bd.NachLogin("admin")!.Email);
+        // neues Administrationskonto anlegen: abgelehnt
+        Assert.Equal(HttpStatusCode.Forbidden, (await lehrer.PostAsJsonAsync("/api/app/admin/import/uebernehmen", Zeile("boss", "admin", false))).StatusCode);
+        Assert.Null(bd.NachLogin("boss"));
+        // ohne Ersetzen wird das vorhandene Konto nur übersprungen; normale Konten sind erlaubt
+        Assert.Equal(HttpStatusCode.OK, (await lehrer.PostAsJsonAsync("/api/app/admin/import/uebernehmen", Zeile("admin", "lehrer", false))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await lehrer.PostAsJsonAsync("/api/app/admin/import/uebernehmen", Zeile("neu1", "lehrer", true))).StatusCode);
+        Assert.NotNull(bd.NachLogin("neu1"));
+        // die Administration darf weiterhin ersetzen (die Rolle Administration bleibt erhalten)
+        var admin = await s.AlsAsync("admin");
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/app/admin/import/uebernehmen", Zeile("admin", "lehrer", true))).StatusCode);
+        Assert.Equal(Rollen.Admin, bd.NachLogin("admin")!.Rolle);
+    }
+
+    [Fact]
+    public async Task Plan_Vertretungs_Hausaufgaben_und_Berichtsrechte_werden_durchgesetzt()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var bd = s.Dienst<Benutzerdienst>();
+        var db = s.Dienst<Db>();
+        var c = await s.AlsAsync("lan", "lehrer", "LAN");
+        var id = bd.NachLogin("lan")!.Id;
+        var st = s.Dienst<Paketdienst>().Aktuell!;
+        var klasse = st.Klassen.Keys.First();
+        var raum = st.Raeume.Keys.First();
+        var anderer = st.Lehrer.Keys.First(k => k != "LAN");
+        string[] pfade = {
+            "/api/app/plan?typ=lehrer&element=LAN&datum=2026-10-14", $"/api/app/plan?typ=lehrer&element={anderer}&datum=2026-10-14",
+            $"/api/app/plan?typ=klasse&element={klasse}&datum=2026-10-14", $"/api/app/plan?typ=raum&element={raum}&datum=2026-10-14",
+            "/api/app/tag?typ=klasse&datum=2026-10-14", "/api/app/vertretungen?datum=2026-10-14", "/api/app/hausaufgaben", "/api/app/hausaufgaben/eintraege",
+            "/api/app/berichte/liste",
+        };
+        // Standard: alles wie bisher erlaubt
+        foreach (var p in pfade) Assert.True((await c.GetAsync(p)).IsSuccessStatusCode, p);
+
+        Rechtedienst.UeberschreibungenSetzen(db, id, new()
+        {
+            [Recht.PlanLehrer] = 0, [Recht.PlanKlassen] = 0, [Recht.PlanRaeume] = 0, [Recht.PlanTag] = 0,
+            [Recht.VertretungLehrer] = 0, [Recht.VertretungSchueler] = 0, [Recht.HausaufgabenSehen] = 0, [Recht.BerichteSehen] = 0,
+        });
+        // eigener Plan bleibt
+        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync(pfade[0])).StatusCode);
+        foreach (var p in pfade.Skip(1)) Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync(p)).StatusCode);
+
+        // Schülerversion des Vertretungsplans: ohne Lehrerversion keine Lehrkräfte-Details, aber erlaubt
+        Rechtedienst.UeberschreibungenSetzen(db, id, new() { [Recht.VertretungLehrer] = 0, [Recht.HausaufgabenEintragen] = 0 });
+        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/api/app/vertretungen?datum=2026-10-14")).StatusCode);
+        Assert.Throws<UnauthorizedAccessException>(() => s.Dienst<Klassenbuchdienst>().HausaufgabeAnlegen(bd.Holen(id)!, st, new DateOnly(2026, 10, 14), 1, 1, "x", null, ""));
+
+        // Familienkonten: unverändert eigene Klasse und Räume, keine Lehrerpläne
+        var sch = await s.AlsAsync("klasse-x", "schueler", klasse);
+        Assert.Equal(HttpStatusCode.OK, (await sch.GetAsync($"/api/app/plan?typ=klasse&element={klasse}&datum=2026-10-14")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sch.GetAsync($"/api/app/plan?typ=raum&element={raum}&datum=2026-10-14")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await sch.GetAsync("/api/app/plan?typ=lehrer&element=LAN&datum=2026-10-14")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sch.GetAsync("/api/app/vertretungen?datum=2026-10-14")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sch.GetAsync("/api/app/hausaufgaben")).StatusCode);
+    }
 }

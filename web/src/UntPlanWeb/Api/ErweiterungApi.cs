@@ -250,11 +250,11 @@ public static class ErweiterungApi
 
         // ---------------------------------------------------------------- Berichte
 
-        api.MapGet("/berichte/liste", (HttpContext c) => { Kollegium(c); return Results.Json(Klassenbuchverwaltung.Berichtsarten); });
+        api.MapGet("/berichte/liste", (HttpContext c) => { RechtePruefung.Verlangen(Kollegium(c), Recht.BerichteSehen); return Results.Json(Klassenbuchverwaltung.Berichtsarten); });
         api.MapGet("/berichte/erstellen/{art}", (string art, string? von, string? bis, string? klasse, int? schueler, int? n1, int? n2, string? format, string? ausrichtung,
             HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Uhr uhr, Einstellungen es) =>
         {
-            var b = Kollegium(c);
+            var b = RechtePruefung.Verlangen(Kollegium(c), Recht.BerichteSehen);
             var v = D(von, uhr.Heute.AddDays(-30));
             var bi = D(bis, uhr.Heute);
             var bericht = kv.BerichtErstellen(Paket(p), b, art, v, bi, Leer(klasse), schueler, n1 ?? 0, n2 ?? 0);

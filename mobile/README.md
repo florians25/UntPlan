@@ -239,6 +239,12 @@ vorn – UntPlan übernimmt ihn als Vertretungsraum, die übrigen als Zusatzräu
 eine offene Raumänderung; ergibt sich wieder die ursprüngliche Raumliste, wird sie nur zurückgezogen. Neue Räume müssen
 buchbar und frei sein.
 
+## Mehrere Profile und Benachrichtigungen (Web-Push)
+
+- **Mehrere Profile je Gerät:** Unter „Profil → Weiteres Profil anmelden“ meldet sich ein weiteres Konto an, ohne das bisherige abzumelden. Gewechselt wird über das Personensymbol oben links. Die Sitzungen liegen verschlüsselt (ASP.NET Data Protection) im Datenordner von UntPlanMobile; das Gerät trägt nur eine Zufallskennung als Cookie. „Abmelden“ meldet nur das aktuelle Profil ab.
+- **Benachrichtigung sofort nach dem Import:** UntPlanMobile prüft jede Minute (`UNTPLANMOBILE_PUSH_INTERVALL`, Sekunden, `0` = aus) den Planstand von UntPlanWeb. Ändert sich der eigene Plan eines Profils mit eingeschalteten Benachrichtigungen, geht ein Web-Push (RFC 8291/8292, eigene Implementierung ohne Fremdbibliothek) an das Gerät. Am iPhone/iPad funktioniert das in der App vom Homescreen ab iOS 16.4; HTTPS ist Voraussetzung.
+- **Datenordner:** `UNTPLANMOBILE_DATEN` (im Container `/data`, Volume `untplanmobile-daten`) enthält `konten.json`, `vapid.json` (VAPID-Schlüssel, beim ersten Start erzeugt) und die Data-Protection-Schlüssel. Kontakt für die Push-Dienste: `UNTPLANMOBILE_VAPID_KONTAKT` (`mailto:` oder `https:`).
+
 ## Entwicklung
 
 ```bash

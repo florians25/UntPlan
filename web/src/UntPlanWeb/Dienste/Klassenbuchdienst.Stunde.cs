@@ -67,6 +67,7 @@ public sealed partial class Klassenbuchdienst
 
     public Hausaufgabe HausaufgabeAnlegen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string text, DateOnly? faellig, string bemerkung)
     {
+        RechtePruefung.Verlangen(b, Recht.HausaufgabenEintragen);
         if (!DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte die Hausaufgabe eingeben.");
         if (faellig is DateOnly f && f < d) throw new ArgumentException("Die Hausaufgabe kann nicht vor der Stunde fällig sein.");
@@ -84,6 +85,7 @@ public sealed partial class Klassenbuchdienst
 
     private Hausaufgabe EigeneHausaufgabe(Benutzer b, Stand s, int id)
     {
+        RechtePruefung.Verlangen(b, Recht.HausaufgabenEintragen);
         var h = _db.Einzel("SELECT * FROM hausaufgaben_eintraege WHERE id = @i", LesenHausaufgabe, Db.P("@i", id)) ?? throw new ArgumentException("Unbekannte Hausaufgabe.");
         if (!DarfSchreiben(b, s, DateOnly.Parse(h.Datum), h.Stunde, h.Unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         return h;
