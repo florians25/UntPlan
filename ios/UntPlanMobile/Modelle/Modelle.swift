@@ -205,12 +205,15 @@ struct Karte: Decodable, Identifiable, Sendable {
     var lehrerAbwesend: Bool
     /// Bereitschaftsstunde (falls der Server es ausdrücklich liefert; sonst aus Status bzw. Fach abgeleitet).
     var bereitschaft: Bool
+    /// Verlegung laut Server: „von“ (ursprüngliche Stunde) bzw. „nach“ (Zielstunde), sonst leer.
+    var verlegungRoh: String = ""
 
     enum CodingKeys: String, CodingKey {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
         case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
         case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen
         case onlineLink, onlineUrl, onlinelink
+        case verlegung, moved
     }
 
     /// Karte ohne Server-Antwort (Veranstaltung aus den Tagesdaten, geteilte Blöcke).
@@ -295,6 +298,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         onlineLink = Karte.linkText(c.textOderNil(.onlineLink) ?? c.textOderNil(.onlineUrl) ?? c.textOderNil(.onlinelink))
         lehrerAbwesend = c.wahr(.lehrerAbwesend) || c.wahr(.bereitschaftAbwesend) || c.wahr(.standbyAbsent)
         bereitschaft = c.wahr(.bereitschaft)
+        verlegungRoh = (c.textOderNil(.verlegung) ?? c.textOderNil(.moved) ?? "").trimmingCharacters(in: .whitespaces).lowercased()
     }
 
     var istEntfall: Bool { status == "entfall" }
@@ -350,13 +354,33 @@ struct Karte: Decodable, Identifiable, Sendable {
         return url
     }
 
-    /// Dezente graue Pille im Kopf der Stundendetails (wie im Web): „Prüfung“ bzw. „Veranstaltung“, nie bei Entfall.
+    /// Dezente graue Pille im Kopf der Stundendetails (wie im Web): „Prüfung“, „Veranstaltung“ bzw. bei einer
+    /// Zusatzstunde „Zusätzl. Unterrichtsstunde“; nie bei Entfall.
     var statusPille: String? {
         guard !istEntfall else { return nil }
         if istPruefung { return "Prüfung" }
         if istVeranstaltung { return "Veranstaltung" }
+        if istZusatzstunde { return "Zusätzl. Unterrichtsstunde" }
         return nil
     }
+
+    /// Zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): Plakette „Zusätzl. Unterrichtsstunde“,
+    /// nie ein Vertretungstext.
+    var istZusatzstunde: Bool {
+        zusaetzlich || (Kachelbau.istZusatzstunde(self) && verlegung == nil)
+    }
+
+    /// Verlegung: „von“ = ursprüngliche Stunde (von hier weg verlegt; Zeichen mit Pfeil nach rechts), „nach“ =
+    /// Zielstunde (hierher verlegt; Pfeil nach links), nil = keine. Feld `verlegung` des Servers; ältere Server: aus der
+    /// Vertretungsart („Verlegung“, „Statt-Vertretung“), nie bei Prüfungen.
+    var verlegung: String? {
+        if verlegungRoh == "von" || verlegungRoh == "nach" { return verlegungRoh }
+        let a = art.lowercased()
+        guard a.contains("verleg") || a.contains("statt"), status != "klausur" else { return nil }
+        return status == "entfall" || (status == "abwesend" && !lehrerAbwesend) ? "von" : "nach"
+    }
+
+    var istVerlegung: Bool { verlegung != nil }
 
     /// Raumbuchung (eigene Karte oder gebuchter Raum für eine Stunde) – nie als Vertretung darstellen.
     var istRaumbuchung: Bool {
@@ -615,10 +639,15 @@ struct Heute: Decodable, Sendable {
     var meldungen: [Meldung]
     /// Heute liegt außerhalb des Plan-Fensters der Rolle (keine Stunden geliefert).
     var gesperrt: Bool
+    /// Erklärung zur Sperre (falls der Server sie liefert).
+    var sperrhinweis: String?
+    /// Ferien am Tag (falls der Server sie liefert; sonst ermittelt die Startseite sie aus dem Wochenplan).
+    var ferien: Ferienzeit?
 
     enum CodingKeys: String, CodingKey {
         case paket, datum, wochentag, woche, jetzt, element, typ, karten, aufsichten, hinweise, ereignisse, nachrichten
-        case termine, aenderungen, ungelesen, offeneStunden, hausaufgaben, meldungen, gesperrt
+        case termine, aenderungen, ungelesen, offeneStunden, hausaufgaben, meldungen, gesperrt, sperrhinweis
+        case ferien, frei, freiArt, freiGrund, freiVon, freiBis
     }
 
     init(from decoder: Decoder) throws {
@@ -642,6 +671,45 @@ struct Heute: Decodable, Sendable {
         hausaufgaben = c.liste(.hausaufgaben)
         meldungen = c.liste(.meldungen)
         gesperrt = c.wahr(.gesperrt)
+        sperrhinweis = c.textOderNil(.sperrhinweis)
+        // Ferien tolerant: Objekt „ferien“ ({titel|name|grund, von, bis}) oder die Felder wie im Tageskopf
+        if let f: Ferienzeit = c.optional(.ferien), !f.titel.isEmpty || !f.von.isEmpty {
+            ferien = f
+        } else if c.wahr(.frei), (c.textOderNil(.freiArt) ?? "").lowercased() == "ferien" {
+            ferien = Ferienzeit(titel: c.text(.freiGrund), von: String(c.text(.freiVon).prefix(10)), bis: String(c.text(.freiBis).prefix(10)))
+        } else {
+            ferien = nil
+        }
+    }
+}
+
+/// Ferien (Bezeichnung wie „Herbstferien“ und Zeitraum als ISO-Datum).
+struct Ferienzeit: Decodable, Sendable {
+    var titel: String
+    var von: String
+    var bis: String
+
+    enum CodingKeys: String, CodingKey { case titel, name, grund, bezeichnung, von, bis }
+
+    init(titel: String, von: String, bis: String) {
+        self.titel = titel
+        self.von = von
+        self.bis = bis
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        titel = c.textOderNil(.titel) ?? c.textOderNil(.name) ?? c.textOderNil(.bezeichnung) ?? c.text(.grund)
+        von = String(c.text(.von).prefix(10))
+        bis = String(c.text(.bis).prefix(10))
+    }
+
+    /// „19.10. bis 01.11.“ (ein Tag: nur das Datum).
+    var zeitraum: String {
+        guard !von.isEmpty else { return "" }
+        let a = Datumsformat.anzeige(von, "dd.MM.")
+        guard !bis.isEmpty, bis != von else { return a }
+        return "\(a) bis \(Datumsformat.anzeige(bis, "dd.MM.yyyy"))"
     }
 }
 
@@ -1278,11 +1346,17 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
     var ids: [Int]
     var verwalten: Bool
     var elternInformiert: Bool
+    /// Bemerkung zur Abwesenheit (Text bzw. eigenes Feld „bemerkung“, falls der Server es liefert)
+    var bemerkungRoh: String = ""
 
     var id: String { schluessel }
 
+    /// Bemerkung bzw. Text der Abwesenheit (leer = keine).
+    var bemerkung: String { bemerkungRoh.isEmpty ? text : bemerkungRoh }
+
     enum CodingKeys: String, CodingKey {
         case schluessel, schuelerId, schueler, klasse, vonDatum, vonZeit, bisDatum, bisZeit, art, minuten, grund, status, text, ids, verwalten, elternInformiert
+        case bemerkung, notiz
     }
 
     init(from decoder: Decoder) throws {
@@ -1303,6 +1377,7 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
         ids = c.liste(.ids)
         verwalten = c.wahr(.verwalten)
         elternInformiert = c.wahr(.elternInformiert)
+        bemerkungRoh = c.textOderNil(.bemerkung) ?? c.textOderNil(.notiz) ?? ""
     }
 }
 

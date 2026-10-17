@@ -140,7 +140,9 @@ public class WischenUndSperreTests
         var start = css.IndexOf("Vergangene Stunden und Plaketten – Feinabgleich", StringComparison.Ordinal);
         Assert.True(start > 0);
         var teil = css[start..];
-        Assert.Contains(".card.is-past::before{ opacity:.5; }", teil);
+        // Sprint 26: Balken auch vergangen in voller Fachfarbe (keine Abschwächung auf 50 %)
+        Assert.Contains(".card.is-past::before{ opacity:1; }", teil);
+        Assert.DoesNotContain(".card.is-past::before{ opacity:.5; }", teil);
         Assert.Contains("color:#3c4950;", teil);
         Assert.Contains("color:#dee6ee;", teil);
         Assert.Contains("html.is-dark .card--change.is-past{ border-color:#0b7b67; }", teil);

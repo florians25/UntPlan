@@ -89,6 +89,23 @@ public sealed record KlassenbuchEinstellungen
     /// <summary>Entschuldigungsschreiben für Schüler*innen: sichtbar | ausgeblendet.</summary>
     public string Entschuldigungsschreiben { get; init; } = "sichtbar";
 
+    // ---------------------------------------------------------------- Fachlehrer-Entschuldigungen
+    /// <summary>Lehrkräfte entschuldigen einzelne Fehlstunden aus ihrem Unterricht (Seite „Fehlzeiten“, App); gilt für alle Jahrgänge.</summary>
+    public bool FachlehrerEntschuldigungen { get; init; }
+    /// <summary>Nur Fehlstunden von Klassen in den Jahrgangsstufen <see cref="FachlehrerJahrgangVon"/> bis <see cref="FachlehrerJahrgangBis"/>.</summary>
+    public bool FachlehrerJahrgangEinschraenken { get; init; }
+    public int? FachlehrerJahrgangVon { get; init; }
+    public int? FachlehrerJahrgangBis { get; init; }
+
+    /// <summary>Gilt das Modul für eine Klasse mit dieser Jahrgangsstufe (Stammdaten der Klasse, z. B. „11“ oder „Jg11“)?</summary>
+    public bool FachlehrerJahrgangErlaubt(string? jahrgang)
+    {
+        if (!FachlehrerJahrgangEinschraenken) return true;
+        var m = Regex.Match(jahrgang ?? "", @"\d+");
+        if (!m.Success || !int.TryParse(m.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var j)) return false;
+        return (FachlehrerJahrgangVon is not int v || j >= v) && (FachlehrerJahrgangBis is not int b || j <= b);
+    }
+
     // ---------------------------------------------------------------- Erinnerung an offene Stunden
     public bool Erinnerung { get; init; }
     /// <summary>Wochentag des Versands (1 = Montag … 7 = Sonntag).</summary>
@@ -261,6 +278,13 @@ public static class Klassenbucheinstellungen
         return t.Length <= max ? t : throw new ArgumentException($"„{feld}“ ist zu lang (höchstens {max} Zeichen).");
     }
 
+    private static int? Jahrgang(int? j) => j switch
+    {
+        null => null,
+        < 0 or > 20 => throw new ArgumentException("Bitte für die Jahrgangsstufen eine Zahl von 0 bis 20 eingeben."),
+        _ => j,
+    };
+
     private static void Bereich(string von, string bis, string feld)
     {
         if (von.Length > 0 && bis.Length > 0 && string.CompareOrdinal(von, bis) > 0) throw new ArgumentException($"Beim {feld} liegt das Ende vor dem Beginn.");
@@ -310,7 +334,13 @@ public static class Klassenbucheinstellungen
             PruefungVon = DatumOderLeer(e.PruefungVon, "Erlaubter Datumsbereich für Prüfungseingaben"),
             PruefungBis = DatumOderLeer(e.PruefungBis, "Erlaubter Datumsbereich für Prüfungseingaben"),
             UebernahmeTage = Tage(e.UebernahmeTage, "Prüfungsübernahme Tage in die Zukunft"),
+            FachlehrerJahrgangVon = Jahrgang(e.FachlehrerJahrgangVon),
+            FachlehrerJahrgangBis = Jahrgang(e.FachlehrerJahrgangBis),
         };
+        if (r.FachlehrerJahrgangEinschraenken && r.FachlehrerJahrgangVon is null && r.FachlehrerJahrgangBis is null)
+            throw new ArgumentException("Bitte für die Einschränkung auf Jahrgangsstufen mindestens eine Jahrgangsstufe (von bzw. bis) angeben.");
+        if (r.FachlehrerJahrgangVon is int jv && r.FachlehrerJahrgangBis is int jb && jv > jb)
+            throw new ArgumentException("Bei den Jahrgangsstufen liegt „bis“ vor „von“.");
         Bereich(r.DatumVon, r.DatumBis, "erlaubten Datumsbereich");
         Bereich(r.PruefungVon, r.PruefungBis, "Datumsbereich für Prüfungseingaben");
         return r;

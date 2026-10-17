@@ -11,13 +11,23 @@ export const STATUSTEXT = {
 
 /** Allgemeiner Status (die interne Vertretungsart wird im Web bewusst nicht angezeigt). */
 export function statusText(k) {
+  if (k.zusaetzlich && k.status === 'geaendert') return ZUSATZ_TEXT;
   return STATUSTEXT[k.status] ?? '';
 }
 
 /** Zusätzliche Stunde (zusätzlicher Unterricht, Sondereinsatz, Verlegung hierher …) – Marker „+“ statt Änderungsquadrat. */
 const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert' && !istVerlegung(k) && (k.zusaetzlich || /sondereinsatz|zusatz|mitbetreuung/i.test(k.art || '')));
 /** Verlegte Stunde (hierher verlegt bzw. von hier weg verlegt): eigenes Verlegungssymbol statt „+“ bzw. Entfall-Dreieck. */
-const istVerlegung = k => /verleg|statt/i.test(k.art || '') || !!k.nach;
+const istVerlegung = k => !!k.verlegung || /verleg|statt/i.test(k.art || '') || !!k.nach;
+/**
+ * Richtung der Verlegung (Server-Feld verlegung): "von" = ursprüngliche Stunde (von hier weg verlegt, Pfeil nach rechts),
+ * "nach" = Zielstunde (hierher verlegt, Pfeil nach links). Ältere Server ohne das Feld: Entfall = ursprüngliche Stunde.
+ */
+const verlegungsRichtung = (k, typ) => k.verlegung === 'von' || k.verlegung === 'nach' ? k.verlegung : istEntfall(k, typ) ? 'von' : 'nach';
+/** Online-Unterricht: kein Raumlabel auf der Karte, nur das Symbol unten (nicht bei Entfall bzw. abwesend). */
+const istOnline = (k, typ) => !!k.online && !istEntfall(k, typ) && k.status !== 'abwesend';
+/** Badge bzw. Hinweis einer zusätzlichen Unterrichtsstunde (kein Vertretungstext). */
+export const ZUSATZ_TEXT = 'Zusätzl. Unterrichtsstunde';
 
 /** Hover-Text eines geänderten Werts wie im Original: „B070 → C197“, auch bei Lehrkräften „LAN → ILK“ (erscheint nur beim Überfahren des Labels). */
 const wechsel = (alt, neu) => `${alt} → ${neu}`;
@@ -51,7 +61,8 @@ export function werte(liste, entfall = false, lehrkraft = false) {
 
 function titelText(k) {
   const w = l => (l || []).map(x => x.alt && x.k ? `${x.k} (statt ${x.alt})` : x.k || (x.alt ? `${x.alt} fehlt` : '???')).join(', ');
-  return [k.fachName || k.fach || k.text, w([...(k.klassen || []), ...(k.mitklassen || [])]), w(k.lehrer), w(k.raeume), k.status !== 'regulaer' ? statusText(k) : '', k.fach && k.text].filter(Boolean).join(' · ');
+  return [k.fachName || k.fach || k.text, w([...(k.klassen || []), ...(k.mitklassen || [])]), w(k.lehrer), k.online ? 'findet online statt' : w(k.raeume),
+    k.status !== 'regulaer' ? statusText(k) : '', k.fach && !k.zusaetzlich && k.text].filter(Boolean).join(' · ');
 }
 
 /**
@@ -66,11 +77,13 @@ const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend
 function marker(k, typ) {
   const m = [];
   const verlegt = istVerlegung(k) && k.status !== 'klausur';
-  if (verlegt) m.push(`<i class="mk-verlegung ${istEntfall(k, typ) ? 'weg' : ''}" title="${istEntfall(k, typ) ? 'verlegt' : 'Verlegung'}"></i>`);
+  const richtung = verlegt ? verlegungsRichtung(k, typ) : '';
+  // ursprüngliche Stunde: rot mit Pfeil nach rechts; Zielstunde: grün mit Pfeil nach links
+  if (verlegt) m.push(`<i class="mk-verlegung ${richtung} ${richtung === 'von' ? 'weg' : ''}" data-hover="${richtung === 'von' ? 'Verlegt (ursprüngliche Stunde)' : 'Verlegung (hierher verlegt)'}" data-hover-art="dunkel"></i>`);
   else if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
   if (k.status === 'klausur') m.push('<i class="mk-kreis"></i>');
   if (verlegt) { /* Symbol steht schon */ }
-  else if (istZusatz(k)) m.push('<i class="mk-plus"></i>');
+  else if (istZusatz(k)) m.push(`<i class="mk-plus"${k.zusaetzlich ? ` data-hover="${ZUSATZ_TEXT}" data-hover-art="dunkel"` : ''}></i>`);
   else if (k.status === 'geaendert' || k.status === 'offen' || k.status === 'buchung') m.push('<i class="mk-quadrat"></i>');
   return m.length ? `<span class="mks" aria-hidden="true">${m.join('')}</span>` : '';
 }
@@ -78,20 +91,20 @@ function marker(k, typ) {
 /** Text für das Info-Symbol: Vertretungstext und Notizen (wie im Original unten rechts auf der Karte). */
 export function infoText(k) {
   const z = [];
-  if (k.text && k.fach && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
+  if (k.text && k.fach && !k.zusaetzlich && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
   if (k.notizLehrer) z.push(`Notizen für Lehrkräfte: ${k.notizLehrer}`);
   if (k.notizSchueler) z.push(`Notizen für Schüler*innen: ${k.notizSchueler}`);
   return z.join('\n');
 }
 
 /** Symbole unten rechts: fällige Hausaufgabe und Info (Original-Icons). */
-function eckSymbole(k) {
+function eckSymbole(k, typ) {
   const info = infoText(k);
   const hw = k.hausaufgabeFaellig ? '<img class="ecke-hw" src="img/wu/exact/tt-homework-icon.svg" alt="" data-hover="Hausaufgabe fällig" data-hover-art="dunkel">' : '';
   const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" data-hover="${e(info)}" data-hover-art="dunkel">` : '';
-  // „Findet online statt“: kleines Videosymbol
-  const online = k.online && !['entfall', 'abwesend'].includes(k.status)
-    ? '<span class="ecke-online" data-hover="Findet online statt" data-hover-art="dunkel" role="img" aria-label="Findet online statt"><i class="bi bi-camera-video-fill" aria-hidden="true"></i></span>' : '';
+  // „Findet online statt“: Symbol online_lesson unten auf der Karte (statt eines Raumlabels)
+  const online = istOnline(k, typ)
+    ? '<img class="ecke-online" src="img/wu/klassenbuch/online_lesson.svg" alt="Findet online statt" data-hover="Findet online statt" data-hover-art="dunkel">' : '';
   return hw || i || online ? `<span class="ecke">${online}${hw}${i}</span>` : '';
 }
 
@@ -111,20 +124,22 @@ function klassenWerte(k, entfall) {
 
 export function karteInhalt(k, typ, kompakt = false) {
   const entfall = istEntfall(k, typ);
+  // online: kein Raumlabel (auch kein künstliches) – nur das Symbol unten auf der Karte
+  const raum = istOnline(k, typ) ? '' : werte(k.raeume, entfall);
   const fach = k.fachAlt && !entfall ? `<span class="lbl" ${wechselHover(k.fachAlt, k.fach)}>${e(k.fach)}</span>` : e(k.fach || '');
   const ohneFach = !k.fach;
   let oben, rest;
   if (ohneFach) {
     // Veranstaltung, Klausur, Buchung: Bezeichnung, dann Klassen, Lehrkräfte (gekürzt) und Raum
     oben = e(k.text || k.art || '—');
-    rest = [gekuerzt(k.klassen, 4, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? gekuerzt(k.lehrer, 3, entfall, true) : '', werte(k.raeume, entfall)];
+    rest = [gekuerzt(k.klassen, 4, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? gekuerzt(k.lehrer, 3, entfall, true) : '', raum];
   } else if (typ === 'klasse') {
     const lehrer = werte(k.lehrer, entfall, true);
     oben = lehrer || fach;
     // Mitklassen (gekoppelt bzw. parallel identisch, z. B. INF13 auf der Karte von INF12) ganz unten; eine fehlende Mitklasse
     // steht wie eine abwesende Lehrkraft durchgestrichen im grünen Label
     const mit = !entfall && (k.mitklassen || []).length ? `<span class="mitklassen">${werte(k.mitklassen)}</span>` : '';
-    rest = [lehrer ? fach : '', werte(k.raeume, entfall), k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : '', mit];
+    rest = [lehrer ? fach : '', raum, k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : '', mit];
   } else if (typ === 'raum') {
     oben = klassenWerte(k, entfall) || fach;
     rest = [werte(k.lehrer, entfall, true), k.klassen.length ? fach : ''];
@@ -136,7 +151,7 @@ export function karteInhalt(k, typ, kompakt = false) {
         ? `<span class="lbl" ${wechselHover(w.alt, w.k, true)}>${e(w.k)}</span>`
         : `<span class="lbl weg">${e(w.alt || w.k)}</span>`).join(' ') || '')
       : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werte(k.lehrer, entfall, true) : '';
-    rest = [k.klassen.length ? fach : '', werte(k.raeume, entfall), lehrerZeile];
+    rest = [k.klassen.length ? fach : '', raum, lehrerZeile];
   }
   const zeilen = rest.filter(x => x);
   // abwesende Klasse: Label „abwesend …“ (Hover mit den Klassen)
@@ -145,7 +160,7 @@ export function karteInhalt(k, typ, kompakt = false) {
   // mehrere Klassen (Kopplung, Kurs): beim Zeigen auf die erste Zeile alle Klassen als Pillen (gekürzte Anzeige)
   const kl = kuerzelListe(k.klassen);
   const pillen = kl.length > 1 && typ !== 'klasse' ? ` data-hover-pillen="${e(kl.join(','))}"` : '';
-  return `${marker(k, typ)}<div class="z1"${pillen}>${oben}</div>${rumpf}${eckSymbole(k)}`;
+  return `${marker(k, typ)}<div class="z1"${pillen}>${oben}</div>${rumpf}${eckSymbole(k, typ)}`;
 }
 
 /** CSS-Klassen einer Karte (Status, Lehrkraft abwesend, vergangen). */
@@ -351,8 +366,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
         const label = aufsichtLabel(a);
         const vorbei = a.datum < heute || (a.datum === heute && a.ende && minuten(a.ende) <= jetzt);
-        html += `<div class="aufsicht ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
-          title="${e(titel)}" aria-label="${e(titel)}"><span>${e(ort)}</span>${label}</div>`;
+        // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip
+        html += `<div class="aufsicht u-hover-bereich ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
+          ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${e(ort)}${label ? ' ' + label : ''}</span></div>`;
       });
     }
     if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>${t.datum === heute ? `<div class="tt-jetzt heute" style="top:${jetztY}px"></div>` : ''}`;
@@ -462,13 +478,16 @@ function aufsichtOrt(a) {
   return ohne || roh || 'Aufsicht';
 }
 
-/** Vertretene Pausenaufsicht: abwesendes Kürzel durchgestrichen und Vertretung als grünes Label; ohne Vertretung das Kürzel durchgestrichen im Label. */
+/**
+ * Vertretene Pausenaufsicht: die Vertretung als grünes Label wie auf den Stundenkarten (Hover „ALT → NEU“). Die abwesende Lehrkraft
+ * steht nicht auf der Karte (nur im Hover); ohne Vertretung kein Label (gestrichelte Karte, Hinweis im Tooltip).
+ */
 function aufsichtLabel(a) {
   if (a.status !== 'vertretung' && a.status !== 'vertreten') return '';
   const ersatz = a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
   const alt = a.alt && !/^[?+-]+$/.test(a.alt) ? a.alt : '';
-  if (!ersatz) return alt ? `<span class="auf-wechsel"><span class="lbl-auf weg">${e(alt)}</span></span>` : '';
-  return `<span class="auf-wechsel">${alt ? `<s class="auf-alt">${e(alt)}</s>` : ''}<span class="lbl-auf">${e(ersatz)}</span></span>`;
+  if (!ersatz) return '';
+  return `<span class="lbl lbl-auf" data-hover="${e(alt ? wechsel(alt, ersatz) : '+ ' + ersatz)}"${alt ? ` data-hover-alt="${e(alt)}"` : ''}>${e(ersatz)}</span>`;
 }
 
 /** Liste eines Tages (Übersicht) mit denselben Karten, Veranstaltungen und Pausenaufsichten. */
@@ -483,7 +502,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
         <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && k.status !== 'abwesend' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
-        <div class="aufsicht ${e(a.status)}"><span>${e(a.gangName)}</span>${aufsichtLabel(a)}</div></div>` })),
+        <div class="aufsicht ${e(a.status)}"><span class="auf-text">${e(a.gangName)}${aufsichtLabel(a) ? ' ' + aufsichtLabel(a) : ''}</span></div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);
   return `<div class="tt-liste">${eintraege.map(x => x.html).join('')}</div>`;
 }

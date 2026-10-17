@@ -33,7 +33,20 @@ final class AppZustand: ObservableObject {
     /// Zählt bei jedem Kontowechsel hoch – die Oberfläche wird für das neue Konto frisch aufgebaut
     @Published var kontoStand = 0
 
+    /// Rechte für Entschuldigungen (Fachlehrkraft bzw. Klassenleitung); nil = noch nicht geladen.
+    @Published var entschuldigungsrechte: Entschuldigungsrechte? = nil
+
     let api = ApiClient.shared
+
+    /// Rechte für Entschuldigungen laden (nur Kollegium; ohne Endpunkt bzw. bei Fehlern: nichts erlaubt).
+    @discardableResult
+    func entschuldigungsrechteLaden(neu: Bool = false) async -> Entschuldigungsrechte {
+        if !neu, let r = entschuldigungsrechte { return r }
+        guard istKollegium else { return Entschuldigungsrechte() }
+        let r = (try? await api.entschuldigungsrechte()) ?? Entschuldigungsrechte()
+        entschuldigungsrechte = r
+        return r
+    }
 
     nonisolated init() {}
 
@@ -157,6 +170,7 @@ final class AppZustand: ObservableObject {
                 Kontenspeicher.sitzungSichern(fuer: konto.id)
                 _ = kontoMerken(server: konto.server, login: konto.login, merken: konto.merken, sitzung: s)
                 kontoStand += 1
+                entschuldigungsrechte = nil
                 uebernehmen(s)
                 pushTokenMelden()
                 return true
@@ -279,6 +293,7 @@ final class AppZustand: ObservableObject {
         if neuesKonto {
             oberflaecheZuruecksetzen()
             kontoStand += 1
+            entschuldigungsrechte = nil
         }
         uebernehmen(s)
         pushTokenMelden()

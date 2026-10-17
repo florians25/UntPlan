@@ -36,8 +36,18 @@ public sealed record Karte(
     public bool Online { get; init; }
     /// <summary>Link zum Online-Unterricht (Videokonferenz, http/https), nur bei <see cref="Online"/>; sonst leer.</summary>
     public string OnlineLink { get; init; } = "";
-    /// <summary>Zusätzlicher Unterricht (Stunde nicht im Regelplan) – Badge „ZUSÄTZLICHER UNTERRICHT“ in den Stundendetails.</summary>
+    /// <summary>Zusätzlicher Unterricht (Stunde nicht im Regelplan) – Badge „Zusätzl. Unterrichtsstunde“, nie ein Vertretungstext.</summary>
     public bool Zusaetzlich { get; init; }
+    /// <summary>
+    /// Verlegung: "von" = ursprüngliche Stunde (von hier weg verlegt; Symbol Pfeil nach rechts), "nach" = Zielstunde (hierher verlegt;
+    /// Symbol Pfeil nach links), null = keine Verlegung. Aus der Vertretungsart („Verlegung“, „Statt-Vertretung“), nie bei Prüfungen.
+    /// </summary>
+    public string? Verlegung => !IstVerlegungsArt(Art) || Status == "klausur" ? null
+        : Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend) ? "von" : "nach";
+
+    /// <summary>Vertretungsart einer Verlegung (Verlegung, Wegverlegung, Statt-Vertretung).</summary>
+    public static bool IstVerlegungsArt(string? art) => !string.IsNullOrEmpty(art) &&
+        (art.Contains("verleg", StringComparison.OrdinalIgnoreCase) || art.Contains("statt", StringComparison.OrdinalIgnoreCase));
     /// <summary>Abwesende Klassen dieser Stunde (Klasse durchgestrichen, Label „abwesend“); die Stunde selbst findet laut Plan statt.</summary>
     public List<string> AbwesendeKlassen { get; init; } = new();
     /// <summary>Text des Labels bei abwesender Klasse, z. B. „abwesend“ bzw. „abwesend – Exkursion“ (Grund nur fürs Kollegium).</summary>
@@ -844,6 +854,8 @@ public sealed class Plandienst
         // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
         if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
         text = TextNormal(text);
+        // zusätzliche Unterrichtsstunde: kein Vertretungstext (Badge „Zusätzl. Unterrichtsstunde“ statt Text)
+        if (zusatz && fach.Length > 0) text = "";
         s.Faecher.TryGetValue(fach, out var fe);
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
         return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",

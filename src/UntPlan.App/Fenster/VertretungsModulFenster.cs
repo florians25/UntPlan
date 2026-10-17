@@ -363,8 +363,16 @@ public sealed class KlausurenFenster : MdiFenster
 
     private void Neuaufbau()
     {
+        if (_auswahlNachLoeschen is not null) BearbeitungVerwerfen();
         if (_g.IsCurrentCellInEditMode) return;
         var pos = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 0);
+        if (_auswahlNachLoeschen is { } nach)
+        {
+            // nach dem Löschen: die nachfolgende Klausur (bzw. die letzte) auswählen, nicht die Leerzeile für neue Klausuren
+            var anzahl = D.Klausuren.Count;
+            pos = (anzahl == 0 ? 0 : Math.Min(nach.Zeile, anzahl - 1), nach.Spalte);
+            _auswahlNachLoeschen = null;
+        }
         _laedt = true;
         _g.Rows.Clear();
         foreach (var k in D.Klausuren.OrderBy(k => k.Datum).ThenBy(k => k.StundeVon))
@@ -443,9 +451,16 @@ public sealed class KlausurenFenster : MdiFenster
     private void Loeschen()
     {
         var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Klausur>().Distinct().ToList();
+        if (liste.Count == 0 && _g.CurrentRow?.Tag is Klausur aktuell) liste.Add(aktuell);
         if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Klausur(en) löschen?")) return;
         var ids = liste.Select(k => k.Id).ToHashSet();
-        Aendern("Klausur löschen", AenderungsArt.Vertretung, d =>
+        // Ein Klick auf eine Zelle startet die Bearbeitung – die offene Bearbeitung verwerfen, sonst bliebe der Neuaufbau aus und die
+        // gelöschte Klausur stünde weiter in der Liste. Danach die Zeile an der Stelle der ersten gelöschten Klausur auswählen.
+        var erste = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Klausur k && ids.Contains(k.Id)).Select(r => r.Index).DefaultIfEmpty(0).Min();
+        var spalte = _g.CurrentCell?.ColumnIndex ?? 0;
+        BearbeitungVerwerfen();
+        _auswahlNachLoeschen = (erste, spalte);
+        if (!Aendern("Klausur löschen", AenderungsArt.Vertretung, d =>
         {
             // ohne Reste; zur Klausur gewordene Buchungen kehren zurück
             foreach (var k in d.Klausuren.Where(k => ids.Contains(k.Id)).ToList())
@@ -454,8 +469,42 @@ public sealed class KlausurenFenster : MdiFenster
                 Core.Austausch.StundenplanAenderungen.KlausurZeilenEntfernen(d, k);
             }
             foreach (var t in liste.Select(k => k.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
-        });
+        }))
+        {
+            _auswahlNachLoeschen = null;
+            return;
+        }
+        // sofort neu aufbauen (nicht erst nach der verzögerten Benachrichtigung)
+        Neuaufbau();
     }
+
+    /// <summary>Zeile/Spalte, die nach dem Löschen ausgewählt wird (Index der ersten gelöschten Zeile, bzw. die letzte Klausur).</summary>
+    private (int Zeile, int Spalte)? _auswahlNachLoeschen;
+
+    private void BearbeitungVerwerfen()
+    {
+        if (!_g.IsCurrentCellInEditMode) return;
+        _laedt = true;
+        try { _g.CancelEdit(); _g.EndEdit(); }
+        catch (InvalidOperationException) { }
+        finally { _laedt = false; }
+    }
+
+    /// <summary>Selbsttest: Klausur auswählen (mit offener Zellbearbeitung wie nach einem Klick) und ohne Rückfrage löschen.</summary>
+    internal int SelbsttestLoeschen(int klausurId)
+    {
+        var zeile = _g.Rows.Cast<DataGridViewRow>().First(r => r.Tag is Klausur k && k.Id == klausurId);
+        _g.CurrentCell = zeile.Cells[0];
+        _g.BeginEdit(true);
+        var frage = Ui.FrageAntwort;
+        Ui.FrageAntwort = (_, _) => true;
+        try { Loeschen(); }
+        finally { Ui.FrageAntwort = frage; }
+        return _g.Rows.Cast<DataGridViewRow>().Count(r => r.Tag is Klausur k && k.Id == klausurId);
+    }
+
+    /// <summary>Index der aktuellen Zeile (Selbsttest).</summary>
+    internal int SelbsttestAktuelleZeile => _g.CurrentCell?.RowIndex ?? -1;
 }
 
 /// <summary>Vormerkungen: beiseitegelegte bzw. noch zu verplanende Stunden. Ziehen in den tagesaktuellen Stundenplan verplant die Vormerkung.</summary>

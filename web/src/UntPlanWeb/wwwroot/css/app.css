@@ -272,8 +272,9 @@ tr[role=button] { cursor: pointer; }
 .u-zurueck:hover { background: var(--u-hover); color: var(--u-titel); }
 
 /* Schuljahr-Pille */
-.u-jahrzeile { padding: 8px 0 22px 71px; min-height: 52px; }
-.mit-unter .u-jahrzeile { padding-left: 76px; padding-top: 12px; }
+/* zwischen Logo bzw. Untermenü-Kopf und Schuljahr-Pille etwas Luft (+7px) */
+.u-jahrzeile { padding: 15px 0 22px 71px; min-height: 59px; }
+.mit-unter .u-jahrzeile { padding-left: 76px; padding-top: 19px; }
 .u-jahr {
   display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e3e6ea; background: #f3f5f7; color: var(--u-text); border-radius: 999px;
   padding: 3px 16px; font-weight: 600; font-size: .9rem; cursor: default; letter-spacing: .01em;
@@ -1009,46 +1010,23 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .planleiste .zeitraum { border: 0; background: none; padding: 4px 6px; border-radius: 999px; }
 .planleiste .zeitraum.pille { border: 1.5px solid var(--u-grau-2); background: #fff; padding: 3px 14px; height: 32px; }
 .planleiste .zeitraum.pille:hover { border-color: var(--u-text); }
-.element-pill .wahl-knopf { background: transparent !important; border: 1.5px solid var(--u-grau-2) !important; box-shadow: none !important; height: 32px; min-width: 110px; padding: 0 14px !important; overflow: visible; }
-.element-pill .wahl-knopf:hover { border-color: var(--u-text) !important; }
+/* Klassen-/Lehrkraft-/Raumwahl im Kopf des Stundenplans: rahmenlos, Rahmen nur beim Überfahren, bei Fokus und bei offener Liste */
+.element-pill .wahl-knopf { background: transparent !important; border: 1.5px solid transparent !important; box-shadow: none !important; height: 32px; min-width: 110px; padding: 0 14px !important; overflow: visible;
+  transition: border-color .15s ease, background-color .15s ease; }
+.element-pill .wahl-knopf:is(:hover, :focus-visible, [aria-expanded="true"]) { border-color: var(--u-text) !important; background: rgba(255, 255, 255, .55) !important; }
 .wahl-info { position: relative; display: inline-flex; width: 16px; height: 16px; flex: none; }
 .wahl-info img { width: 16px; height: 16px; opacity: .6; }
 .wahl-info::after { content: attr(data-tip); position: absolute; left: -48px; top: calc(100% + 12px); background: #5c6670; color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; padding: 5px 9px; border-radius: 4px; display: none; z-index: 40; box-shadow: 0 2px 6px rgba(0, 5, 10, .15); }
 .wahl-info:hover::after, .wahl-knopf:focus-visible .wahl-info::after { display: block; }
 .wahl-info:hover img { opacity: 1; }
 
-/* Auswahlkalender wie im Original: Popover mit Schatten und kleinem Pfeil unter dem Datumsbereich-Pill, Kopf „Nov 2026“ + ‹ ›,
-   KW-Spalte grau, Wochenende grau durchgestrichen, andere Monate grau, gewählte Woche rosa Zeile, Zeile beim Überfahren hellgrau abgerundet */
-.zeitraum.kal-pille, .planleiste .zeitraum.kal-pille { display: inline-flex; align-items: center; height: 32px; padding: 0 16px; border: 1px solid #67747e; border-radius: 999px;
-  background: transparent; color: var(--u-titel); font-size: .875rem; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; cursor: pointer; }
-.zeitraum.kal-pille:hover, .zeitraum.kal-pille[aria-expanded="true"] { border-color: var(--u-text); background: rgba(255, 255, 255, .55); }
-.zeitraum.kal-pille:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
-.u-kalender { position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 60; background: #fff; border-radius: 4px; padding: 14px 16px 12px; width: 360px;
-  box-shadow: 0 2px 6px rgba(0, 5, 10, .08), 0 10px 30px rgba(0, 5, 10, .16); cursor: default; }
-.u-kalender::before { content: ""; position: absolute; top: -6px; left: 50%; width: 12px; height: 12px; margin-left: -6px; background: #fff; transform: rotate(45deg);
-  border-radius: 2px 0 0 0; box-shadow: -2px -2px 4px rgba(0, 5, 10, .05); }
-.kal-kopf { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 12px 8px; color: #24323d; font-size: 15px; }
-.kal-kopf b { font-weight: 600; }
-.kal-kopf span { display: flex; gap: 4px; }
-.kal-kopf button { border: 0; background: none; color: #8a96a1; width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-content: center; font-size: 15px; }
-.kal-kopf button:hover { background: #f1f3f5; color: var(--u-text); }
-.kal { width: 100%; border-collapse: separate; border-spacing: 0; text-align: center; font-size: 14px; }
-.kal th { font-weight: 400; color: #414d55; padding: 4px 0 10px; font-size: 14px; }
-.kal td { padding: 0; height: 32px; }
-.kal td.kw { color: #b3bcc4; font-size: 13.5px; width: 40px; }
-.kal button { border: 0; background: none; width: 36px; height: 30px; padding: 0; color: #414d55; font-size: 14px; border-radius: 15px; }
-.kal button.fremd { color: #b3bcc4; }
-.kal button.we { color: #b3bcc4; text-decoration: line-through; text-decoration-thickness: 1px; }
-.kal button.ist-heute { font-weight: 600; color: var(--u-titel); }
-.kal button.fremd.ist-heute, .kal button.we.ist-heute { color: #8a96a1; }
-.kal.wochenwahl tbody tr { cursor: pointer; }
-.kal.wochenwahl tbody tr:hover td { background: #f1f2f4; }
-.kal.wochenwahl tbody tr:hover td:first-child { border-radius: 16px 0 0 16px; }
-.kal.wochenwahl tbody tr:hover td:last-child { border-radius: 0 16px 16px 0; }
-.kal.wochenwahl tbody tr.gewaehlt td, .kal.wochenwahl tbody tr.gewaehlt:hover td { background: #fde4dc; border-radius: 0; }
-.kal.wochenwahl button:hover { background: none; }
-.kal.tageswahl button:hover { background: #f1f2f4; }
-.kal.tageswahl button.gewaehlt { background: #fde4dc; color: var(--u-titel); }
+/* Datumsbereich-Pille im Kopf des Stundenplans (öffnet den eigenen Kalender, js/kalender.js – Stile in kalender.css).
+   Rahmenlos; der Rahmen erscheint erst beim Überfahren, bei Tastaturfokus und bei offenem Kalender. */
+.zeitraum.kal-pille, .planleiste .zeitraum.kal-pille { display: inline-flex; align-items: center; height: 32px; padding: 0 16px; border: 1px solid transparent; border-radius: 999px;
+  background: transparent; color: var(--u-titel); font-size: .875rem; font-weight: 500; letter-spacing: .02em; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease; }
+.zeitraum.kal-pille:hover, .zeitraum.kal-pille[aria-expanded="true"] { border-color: #67747e; background: rgba(255, 255, 255, .55); }
+.zeitraum.kal-pille:focus-visible { border-color: #67747e; outline: 2px solid var(--u-akzent); outline-offset: 2px; }
 
 /* Stundenkarten: weiß, leicht abgerundet, keine Hover-Reaktion; Uhrzeiten klein links wie 57.png */
 .std, .tagplan .std, .tt-liste .std { border-radius: 4px; }
@@ -1156,8 +1134,6 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
   .sd-abschnitt-rumpf { padding-left: 0; }
   .sd-fuss, .sd-fuss.sd-status { padding: 10px 16px; gap: 1rem; font-size: .95rem; }
   .kb-formular { grid-template-columns: 1fr; }
-  .u-kalender { left: 0; transform: none; width: min(360px, calc(100vw - 2rem)); }
-  .u-kalender::before { display: none; }
   .u-nav-punkt.aktiv, .u-nav-punkt:hover { width: 100%; }
 }
 
@@ -1498,7 +1474,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .nl-tag { display: inline-block; padding: 3px 10px; border-radius: 6px; background: #eef1f4; color: #24323d; font-size: .8rem; font-weight: 600; }
 .nl-text { max-width: 240px; font-size: .85rem; color: #414d55; }
 .nl-icon { border: 0; background: none; width: 32px; height: 32px; border-radius: 50%; color: #67747e; opacity: 0; transition: none; }
-.nl-tabelle tr:hover .nl-icon, .nl-icon:focus-visible { opacity: 1; }
+.nl-tabelle tr:hover .nl-icon, .u-tabelle tr:hover .nl-icon, .nl-icon:focus-visible { opacity: 1; }
 .nl-icon:hover { background: #eef1f4; color: var(--u-text); } .nl-icon.rot:hover { color: #a1262b; }
 .nl-fuss { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid #e3e7eb; background: #fbfcfd; }
 .nl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .8rem; font-weight: 600; }

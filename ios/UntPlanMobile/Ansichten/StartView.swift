@@ -25,6 +25,8 @@ enum Startziel: Hashable {
     case aenderungen
     /// Sprechtag (Lehrkräfte: eigene Termine; Erziehungsberechtigte: buchen und absagen)
     case sprechtag(Int)
+    /// Entschuldigungen (Klassenleitung: Abwesenheiten der eigenen Klassen; Fachlehrkraft: eigene Fehlstunden)
+    case entschuldigungen
 }
 
 /// Startseite nach Vorlage: großer Schulname, Infokarten, Tageskarte (Datum links, Tagesinhalt rechts),
@@ -38,6 +40,8 @@ struct StartView: View {
     @State private var fehler: String? = nil
     @State private var gewaehlteKarte: Karte? = nil
     @State private var alleStunden = false
+    /// Ferien am angezeigten Tag bzw. ab dem nächsten Schultag (aus der Tagesantwort oder dem Wochenplan)
+    @State private var ferien: Ferienzeit? = nil
     /// Sprechtage für die Startseite (Lehrkräfte bzw. Erziehungsberechtigte)
     @State private var sprechtage: [SprechtagKarte] = []
     /// Geöffneter Sprechtag (als Blatt wie die Stundendetails)
@@ -95,6 +99,9 @@ struct StartView: View {
                 switch ziel {
                 case .familieAbwesenheiten:
                     MeineAbwesenheitenView()
+                        .environmentObject(zustand)
+                case .entschuldigungen:
+                    EntschuldigungenView()
                         .environmentObject(zustand)
                 case .sprechtag(let id):
                     // Rückfall (sonst als Blatt): Kopf mit Zurück statt X über dieselbe Ansicht
@@ -240,6 +247,10 @@ struct StartView: View {
 
             if zeigtAbwesenheit(h) {
                 abwesenheitsfeld(h)
+            } else if naechsteStunden(h).isEmpty {
+                // Keine (weiteren) Stunden: Fläche wie im Original („Genieße die Zeit!“), in den Ferien deren Name und
+                // Zeitraum, außerhalb des Plan-Fensters der Sperrhinweis
+                freiFeld(h)
             } else {
                 stundenspalte(h)
             }
@@ -333,6 +344,22 @@ struct StartView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Fläche rechts in der Tageskarte, wenn keine Stunden anstehen (Vorlage 154).
+    private func freiFeld(_ h: Heute) -> some View {
+        let inhalt: (titel: String, text: String)
+        if h.gesperrt {
+            let hinweis = (h.sperrhinweis ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            inhalt = (Sperrhinweis.titel, hinweis.isEmpty ? Sperrhinweis.standardHinweis : hinweis)
+        } else if let f = h.ferien ?? ferien {
+            inhalt = (f.titel.isEmpty ? "Ferien" : f.titel, f.zeitraum)
+        } else if h.karten.isEmpty {
+            inhalt = ("Genieße die Zeit!", Datumsformat.istHeute(h.datum) ? "Heute ist kein Unterricht geplant." : "An diesem Tag ist kein Unterricht geplant.")
+        } else {
+            inhalt = ("Genieße die Zeit!", "Heute stehen keine weiteren Stunden an.")
+        }
+        return Hinweisfeld(titel: inhalt.titel, text: inhalt.text, minHoehe: 112)
+    }
+
     private func keineStunden(_ h: Heute) -> some View {
         VStack(spacing: 3) {
             Image(systemName: "cup.and.saucer")
@@ -368,6 +395,9 @@ struct StartView: View {
         ]
         if zustand.istKollegium {
             liste.append(Listeneintrag(ziel: .abwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
+            if zustand.entschuldigungsrechte?.irgendwas == true {
+                liste.append(Listeneintrag(ziel: .entschuldigungen, titel: "Entschuldigungen", symbol: "checkmark.seal", zahl: 0))
+            }
         } else if zustand.istFamilie {
             liste.append(Listeneintrag(ziel: .familieAbwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
         }
@@ -427,16 +457,42 @@ struct StartView: View {
             return try? await api.sprechtagStart()
         }
         async let sprechtagListe = holeSprechtage()
+        await zustand.entschuldigungsrechteLaden(neu: true)
         do {
             let neu = try await api.heute()
             heute = neu
             zustand.ungelesen = neu.ungelesen
             fehler = nil
+            if neu.ferien == nil {
+                ferien = await ferienSuchen(neu)
+            } else {
+                ferien = nil
+            }
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
         }
         let geladeneSprechtage = await sprechtagListe
         if let geladeneSprechtage { sprechtage = geladeneSprechtage }
+    }
+
+    /// Ferien für die Tageskarte aus dem Wochenplan: Liegt der angezeigte Tag bzw. der nächste Wochentag (Mo–Fr)
+    /// ab diesem Tag in den Ferien, gelten deren Name und Zeitraum. Nur ohne Stunden und ohne Sperre (sonst nil).
+    private func ferienSuchen(_ h: Heute) async -> Ferienzeit? {
+        guard h.paket, !h.gesperrt, h.karten.isEmpty, let element = h.element, !element.isEmpty,
+              let tag = Datumsformat.datum(h.datum) else { return nil }
+        let typ = h.typ.isEmpty ? "klasse" : h.typ
+        var tage: [Tageskopf] = []
+        for versatz in [0, 7] {
+            guard let d = Datumsformat.kalender.date(byAdding: .day, value: versatz, to: tag),
+                  let plan = try? await zustand.api.plan(typ: typ, element: element, datum: d) else { continue }
+            tage += plan.tage
+        }
+        // Erster Tag (ab dem angezeigten) im Plan: frei wegen Ferien → Ferien; sonst keine
+        guard let erster = tage.filter({ $0.datum >= h.datum }).sorted(by: { $0.datum < $1.datum }).first,
+              erster.frei, (erster.freiArt ?? "").lowercased() == "ferien" else { return nil }
+        let grund = (erster.freiGrund ?? "").trimmingCharacters(in: .whitespaces)
+        let titel = grund.isEmpty ? "Ferien" : grund
+        return Ferienzeit(titel: titel, von: erster.freiVon ?? erster.datum, bis: erster.freiBis ?? "")
     }
 }
 
@@ -584,6 +640,7 @@ struct StartlisteView: View {
         case .aufsichten: return "Pausenaufsichten"
         case .aenderungen: return "Änderungen heute"
         case .sprechtag: return "Sprechtag"
+        case .entschuldigungen: return "Entschuldigungen"
         }
     }
 
@@ -596,7 +653,7 @@ struct StartlisteView: View {
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
-                case .sprechtag: EmptyView()
+                case .sprechtag, .entschuldigungen: EmptyView()
                 }
             }
         }
@@ -625,21 +682,29 @@ struct StartlisteView: View {
                 leer("Keine Abwesenheiten gemeldet.")
             }
             ForEach(liste) { m in
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(abwesenheitszeitraum(m))
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 17.5, weight: .medium))
                             .foregroundStyle(Farben.tinte)
                         Spacer()
                         Text(m.status == "offen" ? "Offen" : (m.status == "quittiert" ? "Bestätigt" : m.status))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(m.status == "offen" ? Farben.heute : Farben.gruen)
                     }
-                    let grund = [m.grund ?? "", m.text ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+                    let grund = (m.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                     if !grund.isEmpty {
                         Text(grund)
-                            .font(.system(size: 14))
+                            .font(.system(size: 16))
                             .foregroundStyle(Farben.tinte2)
+                    }
+                    // Bemerkung bzw. Text als eigene Zeile – nur wenn vorhanden
+                    let bemerkung = (m.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !bemerkung.isEmpty {
+                        Text(bemerkung)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Farben.gedaempft)
+                            .lineLimit(4)
                     }
                 }
                 .padding(.vertical, 4)

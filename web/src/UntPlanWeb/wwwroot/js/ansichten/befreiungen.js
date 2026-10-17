@@ -1,6 +1,7 @@
 // Klassenbuch → Befreiungen vom Unterricht: Liste mit Filter (Klasse, Schüler*in, Zeitraum, Grund), Neu/Bearbeiten/Löschen
 // durch die Klassenleitung, Bericht. Befreite Schüler*innen sind in den Stundendetails gekennzeichnet.
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, filterFeld, heuteIso, plusTage, leer, WOCHENTAGE } from '../ui.js';
+import { e, icon, holen, senden, api, toast, filterFeld, heuteIso, plusTage, leer, WOCHENTAGE } from '../ui.js';
+import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 

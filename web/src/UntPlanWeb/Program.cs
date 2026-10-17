@@ -62,6 +62,7 @@ public class Program
         builder.Services.AddSingleton<Monitordienst>();
         builder.Services.AddSingleton<Verwaltungsdienst>();
         builder.Services.AddSingleton<Klassenbuchverwaltung>();
+        builder.Services.AddSingleton<Entschuldigungsdienst>();
         builder.Services.AddSingleton<Sitzplandienst>();
         builder.Services.AddHttpClient("update");
         builder.Services.AddSingleton(Updateeinstellungen.Laden(builder.Configuration));
@@ -186,6 +187,7 @@ public class Program
         SchuelerImportApi.Abbilden(app);
         PushApi.Abbilden(app);
         KlassenbuchEinstellungenApi.Abbilden(app);
+        EntschuldigungApi.Abbilden(app);
         UnterrichtKlassenApi.Abbilden(app);
         WartungApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }

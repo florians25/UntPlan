@@ -60,7 +60,23 @@ public static class Kachelbau
 
     /// <summary>Zusatzstunde: siehe <see cref="IstZusatzstunde"/>. Klassenabwesenheit: siehe <see cref="IstKlassenabwesenheit"/>.</summary>
     public static bool IstZusatzstunde(PlanKarte k) =>
-        k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && (ZusatzArt.IsMatch(k.Art ?? "") || k.Unterricht is null);
+        k.Zusaetzlich || (k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && Verlegung(k) is null
+                          && (ZusatzArt.IsMatch(k.Art ?? "") || k.Unterricht is null));
+
+    /// <summary>Vertretungsart einer Verlegung (Verlegung, Wegverlegung, Statt-Vertretung).</summary>
+    private static readonly System.Text.RegularExpressions.Regex VerlegungsArt =
+        new("verleg|statt", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Verlegung: "von" = ursprüngliche Stunde (von hier weg verlegt), "nach" = Zielstunde (hierher verlegt), sonst null.
+    /// UntPlanWeb liefert das Feld; ältere Server: aus der Vertretungsart („Verlegung“, „Statt-Vertretung“), nie bei Prüfungen.
+    /// </summary>
+    public static string? Verlegung(PlanKarte k)
+    {
+        if (k.Verlegung is "von" or "nach") return k.Verlegung;
+        if (k.Zusaetzlich || !VerlegungsArt.IsMatch(k.Art ?? "") || k.Status is "klausur" or "regulaer" or "bereitschaft" or "buchung") return null;
+        return k.Status == "entfall" || (k.Status == "abwesend" && !k.LehrerAbwesend) ? "von" : "nach";
+    }
 
     /// <summary>
     /// Bereitschaft, die wegfällt, weil die Lehrkraft abwesend ist (UntPlanWeb: Status „abwesend“ mit Kennzeichen bereitschaft;
@@ -277,6 +293,7 @@ public static class Kachelbau
             Typ = k.Art,
             Eintrag = k.Unterricht,
             Unterricht = k.Unterricht,
+            Verlegung = Verlegung(k),
         };
         // Notizen für Schüler*innen und Lehrkräfte sowie fällige Hausaufgaben: Zeichen unten rechts auf der Kachel
         if (!string.IsNullOrWhiteSpace(k.NotizSchueler) || !string.IsNullOrWhiteSpace(k.NotizLehrer))
@@ -357,6 +374,8 @@ public static class Kachelbau
                 if (IstZusatzstunde(k))
                 {
                     kachel.Zusatz = true;
+                    // Zusätzliche Unterrichtsstunde: Plakette „Zusätzl. Unterrichtsstunde“ statt Vertretungstext
+                    kachel.Info = "";
                     // Zusatzstunde ohne Lehrkraft: „---“ statt einer leeren Zeile (nicht bei „+++“ – dort steht die bisherige Lehrkraft durchgestrichen)
                     if (k.Lehrer.All(w => w.K.Length == 0 && string.IsNullOrEmpty(w.Alt))) kachel.Lehrkraft = KeineLehrkraft;
                 }
@@ -399,6 +418,13 @@ public static class Kachelbau
             default:
                 kachel.Art = "change";
                 break;
+        }
+
+        // Zusätzliche Unterrichtsstunde laut UntPlanWeb (auch bei offener Vertretung): Plakette, nie ein Vertretungstext
+        if (k.Zusaetzlich && kachel.Art is "change" or "normal")
+        {
+            kachel.Zusatz = true;
+            kachel.Info = "";
         }
 
         // Raumbuchung (auch zu einem Unterricht gebucht oder als zusätzlicher Raum): keine Vertretung – die Kachel bleibt

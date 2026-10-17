@@ -5624,9 +5624,8 @@ body.is-msgread .msghead__title{ visibility:hidden; }
    Vergangene Stunden und Plaketten – Feinabgleich (Original 116/119,
    eigene iOS-App 150), nachgemessen im Maßstab 920/402
    ---------------------------------------------------------------------
-   · Balken: Vergangen steht er mit halber Deckkraft da — hell (218,222,227)
-     auf #f2f4f5 statt (193,198,210) auf Weiß, dunkel (119,131,138) auf
-     #313d44. Beides entspricht derselben Balkenfarbe bei 50 %.
+   · Balken: Auch vergangen in der Fachfarbe und voll deckend (Sprint 26:
+     die frühere Abschwächung auf 50 % ist zurückgenommen).
    · Schrift: Vergangen eine Spur zurückgenommen — hell Schiefer #3c4950
      statt der vollen Kachelschrift, dunkel #dee6ee statt fast Weiß.
      Fläche und Rahmen bleiben, wie sie sind.
@@ -5637,7 +5636,7 @@ body.is-msgread .msghead__title{ visibility:hidden; }
      Die Zeile darunter rückt nur um den Bruchteil eines Punkts weiter als
      zwischen zwei gewöhnlichen Zeilen.
    ===================================================================== */
-.card.is-past::before{ opacity:.5; }
+.card.is-past::before{ opacity:1; }
 .card.is-past .card__line,
 .card.is-past .card__line--primary,
 .card--change.is-past .card__line, .card--change.is-past .card__line--primary,
@@ -5668,3 +5667,249 @@ html.is-dark .card--exam.is-past{ border-color:#c27c07; }
 .nextnone b{ font-weight:500; }
 .nextnone--sperre .sperre__kreis{ display:flex; width:48px; height:48px; margin:0 auto; }
 .nextnone--sperre .sperre__kreis svg{ width:24px; height:24px; }
+
+/* =====================================================================
+   Sprint 26 – Gleichstand mit der iOS-App
+   ===================================================================== */
+
+/* Zeichen unten rechts: alle 14 px, 3 px Abstand, 4 px vom Rand. */
+.card .card__ecke{ right:4px; bottom:4px; gap:3px; }
+.card .card__ecke .card__ic,
+.card .card__ecke .card__ic.card__ic--exakt{ width:14px; height:14px; }
+
+/* Info-Zeichen wie im Original: abgerundetes Feld in der Farbe der
+   Zeichenfläche, graue Scheibe mit ausgespartem „i“ (Punkt und Schaft mit
+   Fuß). Hell Feld #f3f5f7 / Scheibe #818e9c, dunkel #313d44 / #818f9a. */
+.card .ticon.ticon--info{ display:block; width:100%; height:100%; }
+.card .ticon--info .ticon__feld{ fill:#f3f5f7; }
+.card .ticon--info .ticon__scheibe{ fill:#818e9c; }
+html.is-dark .card .ticon--info .ticon__feld{ fill:#313d44; }
+html.is-dark .card .ticon--info .ticon__scheibe{ fill:#818f9a; }
+
+/* Online-Unterricht: Zeichen online_lesson.svg statt eines Raumlabels. */
+.card .ticon.ticon--online{ display:block; width:100%; height:100%; fill:none; stroke:#8a96a1; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+html.is-dark .card .ticon.ticon--online{ stroke:#a3aeb9; }
+
+/* Verlegung: Ursprung rotes Feld mit Pfeil nach rechts, Ziel grünes Feld
+   mit Pfeil nach links (14 × 14 px, Radius 3 px). */
+.card .ticon.ticon--verlegt{ display:block; width:100%; height:100%; }
+.card .ticon--verlegt rect{ fill:#1e9e5a; stroke:none; }
+.card .ticon--verlegt.ticon--von rect{ fill:#f03e3e; }
+.card .ticon--verlegt path{ fill:none; stroke:#ffffff; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+
+/* Raumlabel (untere Zeilen): so knapp gepolstert wie jedes andere Label,
+   Schrift unverändert. */
+.card .badge.badge--raum:not(.badge--removed){ padding:0.33px 2.27px 0; border-radius:2px; }
+
+/* Pausenaufsicht mit abwesender Lehrkraft wie eine Stundenkarte mit
+   abwesender Lehrkraft: Ort, daneben das abwesende Kürzel durchgestrichen
+   und die Vertretung als grüne Plakette (offen: durchgestrichen in der
+   Plakette). Kein Menüzeichen mehr. */
+.card.card--supervision .sup-menu{ display:none !important; }
+.card.card--supervision.is-sub,
+.card.card--supervision.is-absent{ padding-right:3px; }
+.card.card--supervision .sup-lab{ flex:0 0 auto; }
+.card.card--supervision .sup-weg{ text-decoration:line-through; text-decoration-thickness:var(--strike, 1px); }
+.card.card--supervision .sup-lab .tok__trenn{ font-style:normal; margin-right:1px; }
+/* Abgegebene Aufsicht (jemand anderes übernimmt): durchsichtig mit
+   Eckklammern wie die abgegebene Stunde. */
+.card.card--supervision.is-abgegeben,
+.card.card--supervision.is-abgegeben.is-past,
+html.is-dark .card.card--supervision.is-abgegeben,
+html.is-dark .card.card--supervision.is-abgegeben.is-past{
+  background:transparent; border:0; --bw:0px; box-shadow:none; border-radius:0;
+}
+/* Vergangene Aufsichten verblassen nicht. */
+.card.card--supervision.is-past .card__line,
+.card.card--supervision.is-past .sup-lab{ color:var(--c-ink); opacity:1; }
+html.is-dark .card.card--supervision.is-past .card__line,
+html.is-dark .card.card--supervision.is-past .sup-lab{ color:#f4f6f8; }
+
+/* Ferien: Texte eine Spur kleiner. */
+.card--holiday .card__line, .card--holiday .card__line:first-of-type{ font-size:13px; line-height:16px; }
+.card--holiday .card__line.holiday-range{ font-size:10px !important; line-height:13px; }
+
+/* Gekürzte Kachel mit Verlegung: Pfeilzeichen und Kürzungszeichen nebeneinander. */
+.card .card__ecke--cut .card__cut{ position:static; width:14px; height:14px; }
+.card .card__ecke--cut .card__ic{ width:14px; height:14px; }
+
+/* Aufsicht: vom Ort bleiben mindestens zwei Zeichen stehen. */
+.card.card--supervision > .card__line{ min-width:22px; }
+.card.card--supervision .sup-lab{ margin-left:4px; margin-right:0; }
+
+/* Stundendetails, Online-Unterricht: statt des Raums das Zeichen. */
+.sheet--detail .dline--online{ display:flex; align-items:center; }
+.dline--online .ticon--online{ width:26px; height:26px; fill:none; stroke:#8a96a1; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+html.is-dark .dline--online .ticon--online{ stroke:#a3aeb9; }
+
+/* Einzelstundenauswahl im Titel: Pfeil nach unten wie über dem Plan
+   („ASL ⌄“), Auswahlmenü mittig darunter. */
+.detail__when.is-pick b::after,
+.sheet--detail .detail__when.is-pick b::after{
+  content:""; display:inline-block; vertical-align:3px; margin-left:8px;
+  width:6.5px; height:6.5px; border:0; opacity:.8;
+  border-right:1.7px solid currentColor; border-bottom:1.7px solid currentColor;
+  transform:rotate(45deg);
+}
+.dpart button b{ display:flex; align-items:center; gap:7px; }
+.dpart .dteil__punkt{ position:static; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--u-orange); }
+
+/* Startseite „Genieße die Zeit!“ und Ferien – wie das Original (154):
+   Fläche #313d44 (dunkel), Zeichen mittig, Titel Medium, Text darunter
+   kleiner und mittig. */
+.nextnone{ padding:20px 16px 22px; border-radius:8px; }
+html.is-dark .nextnone{ background:#313d44; }
+.nextnone .ico{ display:block; margin:0 auto; width:30px; height:30px; }
+.nextnone b{ margin-top:10px; font-size:15px; line-height:1.3; font-weight:500; }
+.nextnone span{ margin-top:6px; font-size:13.5px; line-height:1.35; color:var(--c-ink-2); }
+/* Ferienzeile vor den nächsten Stunden: blauer Balken wie das Ferienfeld. */
+.nextrow.nextrow--ferien{ cursor:default; }
+.nextrow.nextrow--ferien:active{ transform:none; }
+.nextrow--ferien .nextrow__bar{ background:var(--u-blue); }
+
+/* Gesperrte Woche im Stil der Startseiten-Kachel (154): abgerundete Fläche,
+   Schloss mittig, Titel Medium, Hinweis kleiner darunter. */
+.sperre__inhalt{ padding:0 12px; }
+.sperre .sperre__karte{
+  width:100%; max-width:300px; box-sizing:border-box;
+  display:flex; flex-direction:column; align-items:center;
+  padding:22px 16px 24px; border-radius:8px;
+  background:#eef1f4; box-shadow:none;
+}
+html.is-dark .sperre .sperre__karte{ background:#313d44; }
+.sperre .sperre__kreis{ width:auto; height:auto; background:none; box-shadow:none; border-radius:0; color:var(--c-ink-2); }
+html.is-dark .sperre .sperre__kreis{ background:none; box-shadow:none; color:#c9d1d8; }
+.sperre .sperre__kreis svg{ width:30px; height:30px; stroke-width:1.5; }
+.sperre .sperre__text{ margin:10px 0 0; font-size:15px; line-height:1.3; font-weight:500; }
+.sperre .sperre__hinweis{ margin:6px 0 0; font-size:13.5px; line-height:1.35; color:var(--c-ink-2); }
+html.is-dark .sperre .sperre__hinweis{ color:#c9d1d8; }
+.nextnone--sperre .sperre__kreis{ width:auto; height:auto; background:none; box-shadow:none; color:var(--c-ink-2); }
+html.is-dark .nextnone--sperre .sperre__kreis{ background:none; box-shadow:none; color:#c9d1d8; }
+.nextnone--sperre .sperre__kreis svg{ width:30px; height:30px; stroke-width:1.5; }
+
+/* „Meine Abwesenheiten“ (und Klassenleitung): größere Texte wie in der
+   iOS-App – Titel 21 px, Zeilen 16 px; die Bemerkung als eigene Zeile
+   (nur wenn vorhanden), darf umbrechen. */
+.lstcard{ padding:12px 14px; border-radius:10px; }
+.lstcard b{ font-size:21px; line-height:1.25; }
+.lstcard__sub{ font-size:15px; }
+.lstcard__sm{ font-size:15px; }
+.lstcard__line{ margin-top:6px; font-size:16px; line-height:1.3; }
+.lstcard__ico{ width:18px; height:18px; flex:0 0 18px; }
+.lstcard__line--note{ align-items:flex-start; }
+.lstcard__line--note .lstcard__ico{ margin-top:1px; }
+.lstcard__line--note span{ min-width:0; overflow-wrap:anywhere; white-space:pre-line; }
+
+/* Kartentexte etwas enger: Zeilenabstand 13,8 px (iPhone 13,5 px) wie in der
+   iOS-App; karteZeile() rechnet mit denselben Werten. */
+.card .card__line{ line-height:13.8px; }
+.card.card--supervision > .card__line{ line-height:1; }
+.card--holiday .card__line, .card--holiday .card__line:first-of-type{ line-height:16px; }
+.card--holiday .card__line.holiday-range{ line-height:13px; }
+@media (max-width:699px){
+  .card .card__line{ line-height:13.5px; }
+  .card.card--supervision > .card__line{ line-height:1; }
+  .card--holiday .card__line, .card--holiday .card__line:first-of-type{ line-height:16px; }
+  .card--holiday .card__line.holiday-range{ line-height:13px; }
+}
+
+/* =====================================================================
+   Sprint 26 – Textgrößen wie in der iOS-App (Werte aus den Swift-Ansichten,
+   pt ≈ px). Schrift Regular bzw. Medium; Semibold nur erste Kartenzeile,
+   Plaketten und Beschriftung der Tableiste.
+   ===================================================================== */
+/* Tableiste: Beschriftung 12,5 px */
+html body .tabbar .tab > span{ font-size:12.5px; font-weight:600; letter-spacing:-.15px; }
+/* Startseite */
+html body #startSchool{ font-size:32px; letter-spacing:-.6px; }
+html body .daycard__wd{ font-size:13px; }
+html body .daycard__num{ font-size:38px; line-height:1.05; }
+html body .daycard__mon{ font-size:14px; }
+html body .nextday{ font-size:14px; font-weight:500; }
+html body .nextrow__main span{ font-size:15px; font-weight:400; }
+html body .nextrow__main span:first-child{ font-weight:500; }
+html body .nextrow__times span{ font-size:14.5px; }
+html body .screen--start .row__main b{ font-size:16px; font-weight:400; }
+html body .screen--start .row__main i{ font-size:13px; }
+/* Stundenplan: Kopf und Zeitspalte */
+html body #entityLabel{ font-size:19px; font-weight:500; }
+html body #kwNo{ font-size:12px; font-weight:400; }
+html body #kwMonth{ font-size:18px; font-weight:500; }
+html body .dayhead__name{ font-size:12px; font-weight:400; }
+html body .dayhead__num{ font-size:17px; font-weight:500; }
+html body .slotrow__time{ font-size:10.5px; font-weight:500; }
+html body .slotrow__no{ font-size:14.5px; font-weight:400; }
+/* Stundendetails */
+html body .sheet--detail #detailDate{ font-size:17px; font-weight:400; }
+html body .sheet--detail #detailTime{ font-size:13px; }
+html body .sheet--detail .dtitle,
+html body .sheet--detail .dline--big .dline__txt{ font-size:22px; font-weight:400; }
+html body .sheet--detail .dline--grau{ font-size:17px; font-weight:400; }
+html body .sheet--detail .drow2__main b{ font-size:19px; font-weight:400; }
+html body .sheet--detail .drow2__main span{ font-size:17px; }
+html body .sheet--detail .dtabs__t{ font-size:17px; font-weight:400; }
+html body .sheet--detail .dtabs__t.is-on{ font-weight:500; }
+/* Mitteilungen */
+html body .msgrow__ava{ font-size:20px; font-weight:400; }
+html body .msgrow__main b{ font-size:18px; }
+html body .msgrow__main span,
+html body .msgrow__main em{ font-size:17px; }
+html body .msgrow__date{ font-size:14px; }
+/* Profil */
+html body #profileFullName{ font-size:32px; }
+html body #profileName{ font-size:17px; font-weight:400; }
+html body #profileRole{ font-size:11px; font-weight:500; }
+html body .screen--profile .row__main b{ font-size:16px; font-weight:400; }
+html body .screen--profile .row__main i,
+html body .screen--profile .row__main small{ font-size:13px; }
+
+/* =====================================================================
+   Sprint 26 – Entschuldigungen der Klassenleitung: Liste mit Wischgesten
+   (rechts „Entschuldigt“, links „Nicht entschuldigt“/„Zurücknehmen“) und
+   Dialog wie „Abwesenheit bearbeiten“.
+   ===================================================================== */
+.ent__tipp{ margin:2px 4px 10px; font-size:13px; color:var(--c-muted); }
+.ent-row{ position:relative; overflow:hidden; border-radius:10px; margin-bottom:12px; }
+.ent-row .ent-row__front{ position:relative; z-index:1; margin-bottom:0; touch-action:pan-y; user-select:none; -webkit-user-select:none;
+  transition:transform .22s ease; cursor:pointer; }
+.ent-row__acts{ position:absolute; top:0; bottom:0; display:flex; visibility:hidden; }
+.ent-row__acts--l{ left:0; }
+.ent-row__acts--r{ right:0; }
+.ent-row.zeigt-l .ent-row__acts--l, .ent-row.zeigt-r .ent-row__acts--r{ visibility:visible; }
+.ent-row__act{ width:92px; border:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+  font:inherit; font-size:13.5px; font-weight:500; color:#fff; text-align:center; padding:0 6px; }
+.ent-row__act .ico{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.ent-row__act.is-gruen{ background:#34c759; }
+.ent-row__act.is-rot{ background:#ff3b30; }
+.ent-row__act.is-grau{ background:#8e8e93; }
+/* Die Gruppe füllt bei vollem Wischen die ganze Breite: Hintergrund der ersten Aktion. */
+.ent-row.zeigt-l{ background:#34c759; }
+.ent-row.zeigt-r{ background:#ff3b30; }
+
+.sheet--ent .ent__body{ padding-bottom:calc(var(--sab, 0px) + 24px); }
+.ent__zeit{ margin:0 0 6px; font-size:16px; color:var(--c-ink); }
+.ent__text{ margin:0 0 14px; font-size:15px; color:var(--c-ink-2); white-space:pre-line; }
+.ent__seg{ display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; padding:3px; margin-bottom:20px;
+  border-radius:10px; background:#eceef1; }
+html.is-dark .ent__seg{ background:#2a2a2e; }
+.ent__segbtn{ border:0; border-radius:8px; padding:9px 4px; font:inherit; font-size:15px; font-weight:400; color:var(--c-ink); background:transparent; }
+.ent__segbtn.is-on{ background:var(--c-bar); font-weight:500; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+html.is-dark .ent__segbtn.is-on{ background:#4a4a50; }
+.ent__segbtn--ok.is-on{ color:#157d68; }
+.ent__segbtn--no.is-on{ color:#c0113a; }
+html.is-dark .ent__segbtn--ok.is-on{ color:#4fd1a8; }
+html.is-dark .ent__segbtn--no.is-on{ color:#ff6b86; }
+.sheet--ent select.dabs__pill{ appearance:none; -webkit-appearance:none; width:100%; font:inherit; }
+.ent__stunden{ list-style:none; margin:0 0 18px; padding:0; }
+.ent__stunde{ display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:.5px solid var(--c-line); }
+.ent__punkt{ width:10px; height:10px; border-radius:50%; margin-top:6px; flex:0 0 10px; background:#8b9aa5; }
+.ent__punkt--ok{ background:#20a37f; }
+.ent__punkt--no{ background:#e5254d; }
+.ent__std{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ent__std b{ font-size:15px; font-weight:500; color:var(--c-ink); }
+.ent__std span{ font-size:14px; color:var(--c-ink-2); }
+.ent__std em{ font-size:14px; font-style:normal; color:var(--c-ink-2); overflow-wrap:anywhere; }
+.ent__zurueck{ display:block; width:100%; margin-top:6px; padding:13px; border:0; border-radius:12px;
+  background:#eceef1; color:#c0113a; font:inherit; font-size:16px; font-weight:500; }
+html.is-dark .ent__zurueck{ background:#2a2a2e; color:#ff6b86; }
+html.is-dark .dpart, html.is-dark .sheet--detail .dpart{ background:#2c2c2e; box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 .5px rgba(255,255,255,.08); }

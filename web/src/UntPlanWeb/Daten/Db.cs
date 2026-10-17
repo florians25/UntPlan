@@ -681,6 +681,18 @@ public sealed class Db
         Nr(21, """
         ALTER TABLE mitteilungen ADD COLUMN keine_antwort INTEGER NOT NULL DEFAULT 0;
         """),
+
+        // 22: Fachlehrer-Entschuldigungen – Entschuldigung je Fehlstunde (Status, Text, Lehrkraft, Rolle; Schlüssel Schüler*in, Datum, Stunde
+        //    überdauert das Neuspeichern der Anwesenheit) und Stornierung übertragener Buchungen an UntPlan – nur Standard-SQL
+        Nr(22, """
+        CREATE TABLE fehlzeit_entschuldigungen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, schueler_id INTEGER NOT NULL, datum VARCHAR(10) NOT NULL, stunde INTEGER NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'offen', text VARCHAR(1000) NOT NULL DEFAULT '', lehrer VARCHAR(60) NOT NULL DEFAULT '',
+            rolle VARCHAR(20) NOT NULL DEFAULT 'fachlehrer', entschuldigt_am VARCHAR(10) NOT NULL DEFAULT '', erstellt VARCHAR(30) NOT NULL DEFAULT '',
+            benutzer_id INTEGER, UNIQUE (schueler_id, datum, stunde)
+        );
+        ALTER TABLE buchungen ADD COLUMN storno_uebertragen VARCHAR(30);
+        """),
     };
 
 

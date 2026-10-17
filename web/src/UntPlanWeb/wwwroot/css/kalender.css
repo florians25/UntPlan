@@ -1,0 +1,140 @@
+/* UntPlanWeb – Kalender (js/kalender.js): eigener Datumswähler im Portal-Design.
+   Weiße Karte mit weichem Schatten, Kopf mit Monat und runden Pfeilen, Spalte „KW“, heute als orangener Ring,
+   Auswahl als orangener Kreis, Bereiche hellorange, Ferien hellblau und Feiertage mit Punkt – nur Regular und Medium. */
+
+.kal-pop {
+  --kal-zelle: 36px;
+  --kal-akzent: var(--u-akzent, #f56b2a);
+  --kal-akzent-hell: #fde6da;
+  --kal-ferien: rgba(190, 218, 237, .42);
+  --kal-frei: #eceff2;
+  position: fixed; z-index: 1090; top: 0; left: 0;
+  width: max-content; max-width: calc(100vw - 16px); padding: 12px 14px 10px;
+  background: #fff; color: var(--u-text, #414d55); border: 1px solid #e6e9ed; border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0, 5, 10, .16), 0 2px 6px rgba(0, 5, 10, .06);
+  font-family: var(--u-schrift); font-size: 14px; font-weight: 400; line-height: 1.2; user-select: none;
+}
+.kal-pop.kal-ein { animation: kal-ein .14s cubic-bezier(.2, .7, .3, 1); transform-origin: top center; }
+.kal-pop.kal-ein.kal-oben { transform-origin: bottom center; }
+@keyframes kal-ein { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.kal-pop button { font: inherit; color: inherit; }
+.kal-pop button:focus-visible { outline: 2px solid var(--kal-akzent); outline-offset: 1px; }
+
+/* Kopf: ‹ Oktober 2026 ˅ › */
+.kal-kopf { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.kal-titelzeile { flex: 1; display: flex; justify-content: center; gap: 12px; min-width: 0; }
+.kal-zwei .kal-titelzeile { justify-content: space-around; }
+.kal-titel { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: none;
+  color: var(--u-titel, #24323d) !important; font-size: 15px; font-weight: 500; white-space: nowrap; }
+button.kal-titel:hover { background: #f3f5f7; }
+.kal-titel i { font-size: 11px; color: var(--u-grau, #67747e); }
+.kal-pfeil { width: 32px; height: 32px; flex: none; display: inline-grid; place-content: center; border: 0; border-radius: 50%; background: none; color: var(--u-grau, #67747e) !important; }
+.kal-pfeil:hover { background: #f3f5f7; color: var(--u-titel, #24323d) !important; }
+
+/* Monatsraster: KW-Spalte + 7 Tage */
+.kal-monate { display: flex; gap: 20px; }
+.kal-monat { display: grid; gap: 2px; }
+.kal-zeile { display: grid; grid-template-columns: 30px repeat(7, var(--kal-zelle)); align-items: center; border-radius: 999px; }
+.kal-wt { margin-bottom: 2px; }
+.kal-wt span { text-align: center; font-size: 12px; font-weight: 500; color: #8a96a1; padding: 4px 0; }
+.kal-wt span.k-we { color: #b3bcc4; }
+.kal-kw { text-align: center; font-size: 11.5px; color: #b3bcc4; font-variant-numeric: tabular-nums; }
+.kal-wt .kal-kw { font-size: 10.5px; letter-spacing: .04em; color: #c3cad0; }
+
+.kal-tag { position: relative; height: 34px; width: var(--kal-zelle); padding: 0; border: 0; background: none; border-radius: 50%;
+  font-variant-numeric: tabular-nums; color: var(--u-titel, #24323d) !important; z-index: 0; }
+.kal-tag::before { content: ""; position: absolute; inset: 1px 2px; border-radius: 999px; z-index: -1; }
+.kal-tag.k-we { color: #8a96a1 !important; }
+.kal-tag.k-fremd { color: #c3cad0 !important; }
+.kal-tag:disabled { color: #d6dbe0 !important; cursor: not-allowed; }
+.kal-tag:not(:disabled):hover::before { background: #f1f3f5; }
+/* Ferien hellblau, unterrichtsfreie Tage grau, Feiertage mit kleinem Punkt */
+.kal-tag.k-frei-ferien::before { background: var(--kal-ferien); }
+.kal-tag.k-frei-frei::before { background: var(--kal-frei); }
+.kal-tag.k-frei-feiertag::after { content: ""; position: absolute; left: 50%; bottom: 4px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--kal-akzent); opacity: .75; }
+.kal-tag.k-fremd.k-frei::before { opacity: .45; }
+/* heute: orangener Ring */
+.kal-tag.k-heute { font-weight: 500; }
+.kal-tag.k-heute::before { box-shadow: inset 0 0 0 1.5px var(--kal-akzent); }
+/* Auswahl */
+.kal-tag.k-gewaehlt, .kal-tag.k-anfang, .kal-tag.k-ende { color: #fff !important; font-weight: 500; }
+.kal-tag.k-gewaehlt::before, .kal-tag.k-anfang::before, .kal-tag.k-ende::before,
+.kal-tag.k-gewaehlt:hover::before, .kal-tag.k-anfang:hover::before, .kal-tag.k-ende:hover::before { background: var(--kal-akzent); box-shadow: none; }
+.kal-tag.k-gewaehlt::after, .kal-tag.k-anfang::after, .kal-tag.k-ende::after { background: #fff; }
+/* Bereich: durchgehendes hellorangenes Band zwischen Beginn und Ende */
+.kal-tag.k-im, .kal-tag.k-vorschau { border-radius: 0; background: var(--kal-akzent-hell); }
+.kal-tag.k-im.k-anfang, .kal-tag.k-vorschau.k-anfang { border-radius: 999px 0 0 999px; }
+.kal-tag.k-im.k-ende { border-radius: 0 999px 999px 0; }
+.kal-tag.k-anfang.k-ende { border-radius: 50%; background: none; }
+.kal-tag.k-vorschau:not(.k-anfang):not(.k-im) { background: #fdf1ea; }
+.kal-tag.k-im:not(.k-anfang):not(.k-ende)::before { background: transparent; }
+.kal-tag.k-im.k-frei-ferien:not(.k-anfang):not(.k-ende)::before { background: rgba(190, 218, 237, .4); }
+/* Wochenauswahl: ganze Zeile reagiert, gewählte Woche hellorange */
+.kal-m-woche .kal-zeile[data-mo] { cursor: pointer; }
+.kal-m-woche .kal-zeile[data-mo]:hover { background: #f3f5f7; }
+.kal-m-woche .kal-zeile[data-mo]:hover .kal-tag:hover::before { background: transparent; }
+.kal-m-woche .kal-zeile.k-gewaehlt, .kal-m-woche .kal-zeile.k-gewaehlt:hover { background: var(--kal-akzent-hell); }
+.kal-m-woche .kal-zeile.k-gewaehlt .kal-kw { color: var(--kal-akzent); font-weight: 500; }
+
+/* Monats- und Jahresübersicht */
+.kal-raster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: calc(30px + 7 * var(--kal-zelle)); padding: 4px 0; }
+.kal-zwei .kal-raster { width: calc(2 * (30px + 7 * var(--kal-zelle)) + 20px); grid-template-columns: repeat(4, 1fr); }
+.kal-raster button { height: 44px; border: 0; border-radius: 999px; background: none; color: var(--u-titel, #24323d) !important; }
+.kal-raster button:hover:not(:disabled) { background: #f3f5f7; }
+.kal-raster button.k-heute { box-shadow: inset 0 0 0 1.5px var(--kal-akzent); }
+.kal-raster button.k-gewaehlt { background: var(--kal-akzent-hell); color: #b2410f !important; font-weight: 500; }
+.kal-raster button:disabled { color: #d6dbe0 !important; }
+
+/* Fuß: Info links, Aktionen rechts */
+.kal-fuss { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #eef0f2; min-height: 40px; }
+.kal-info { flex: 1; min-width: 0; font-size: 12.5px; color: var(--u-grau, #67747e); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 6px; }
+.kal-hinweis { color: var(--kal-akzent); }
+.kal-punkt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--kal-ferien); }
+.kal-punkt.k-frei-feiertag { background: var(--kal-akzent); opacity: .75; }
+.kal-punkt.k-frei-frei { background: #cfd5db; }
+.kal-aktionen { display: inline-flex; gap: 6px; flex: none; }
+.kal-heute, .kal-ok, .kal-leeren { height: 30px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.kal-heute { border: 1.5px solid #d3d9de; background: #fff; color: var(--u-titel, #24323d) !important; }
+.kal-heute:hover:not(:disabled) { border-color: var(--u-titel, #24323d); }
+.kal-heute:disabled { opacity: .45; }
+.kal-leeren { border: 0; background: none; color: var(--u-grau, #67747e) !important; padding: 0 8px; }
+.kal-leeren:hover { color: var(--u-titel, #24323d) !important; background: #f3f5f7; }
+.kal-ok { border: 0; background: var(--kal-akzent); color: #fff !important; }
+.kal-ok:hover { filter: brightness(.95); }
+.kal-zeit input { height: 30px; padding: 0 8px; border: 1.5px solid #d3d9de; border-radius: 8px; font: inherit; font-size: 13px; color: var(--u-titel, #24323d); }
+.kal-zeit input:focus { outline: 0; border-color: var(--kal-akzent); }
+
+/* Telefon: Kalender als Blatt am unteren Rand mit größeren Tagen */
+.kal-schleier { position: fixed; inset: 0; z-index: 1089; background: rgba(0, 5, 10, .28); animation: kal-schleier .16s ease; }
+@keyframes kal-schleier { from { opacity: 0; } }
+.kal-pop.kal-blatt { --kal-zelle: calc((100vw - 28px - 34px) / 7); left: 0 !important; right: 0; top: auto !important; bottom: 0; width: auto; max-width: none;
+  border-radius: 20px 20px 0 0; padding: 6px 14px calc(12px + env(safe-area-inset-bottom)); animation: kal-blatt .2s cubic-bezier(.2, .7, .3, 1); }
+@keyframes kal-blatt { from { transform: translateY(24px); opacity: .4; } }
+.kal-blatt .kal-tag { height: 42px; }
+.kal-blatt .kal-zeile { grid-template-columns: 34px repeat(7, var(--kal-zelle)); }
+.kal-blatt .kal-raster { width: 100%; }
+.kal-griff { width: 40px; height: 4px; margin: 2px auto 8px; border-radius: 4px; background: #d3d9de; }
+@media (prefers-reduced-motion: reduce) { .kal-pop, .kal-schleier { animation: none !important; } }
+
+/* ------------------------------------------------------------------ Datumsfelder (umgestellte <input type="date">) */
+
+input.kal-eingabe { cursor: pointer; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+input.kal-eingabe:disabled { cursor: default; }
+input.kal-eingabe::placeholder { color: #a7b1ba; opacity: 1; }
+/* Kalendersymbol rechts in Feldern mit Rahmen (nicht in Pillen und Leisten, dort steht die Beschriftung davor) */
+input.kal-eingabe:is(.form-control, .kbe-datum),
+.kd-feld input.kal-eingabe, .kd-dfeld input.kal-eingabe, .ug-felder input.kal-eingabe, .ad-feld input.kal-eingabe, .ab-zeile input.kal-eingabe {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2367747e' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5M2 2a1 1 0 0 0-1 1v1h14V3a1 1 0 0 0-1-1zm13 3H1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z'/%3E%3Cpath d='M11 7.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; background-size: 14px 14px; padding-right: 34px;
+}
+input.kal-eingabe.form-control-sm { background-position: right 9px center; padding-right: 28px; }
+input.kal-eingabe[aria-expanded="true"] { border-color: var(--u-akzent, #f56b2a); }
+input.kal-eingabe.form-control[aria-expanded="true"] { box-shadow: 0 0 0 .2rem rgba(245, 107, 42, .15); }
+/* Breiten wie bei den bisherigen Datumsfeldern */
+.ab-zeile input.kal-eingabe { width: 170px; }
+.abw-leiste .nl-pille input.kal-eingabe { width: 92px; }
+.nl-pille input.kal-eingabe { width: 92px; padding-right: 0; }
+.fm-datum input.kal-eingabe { width: 130px; }
+.ug-dialog .nl-tabelle input.kal-eingabe { height: 32px; padding: 2px 8px; border: 1.5px solid #dfe3e7; border-radius: 8px; font: inherit; font-size: .85rem; max-width: 150px; }
+.ug-dialog .nl-tabelle input.kal-eingabe:focus { border-color: var(--u-akzent); outline: 0; }
+input.kal-eingabe[style*="width:auto"], input.kal-eingabe[style*="width: auto"] { width: 150px !important; }

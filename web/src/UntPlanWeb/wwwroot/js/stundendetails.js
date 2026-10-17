@@ -6,7 +6,8 @@
 // („Lehrstoffeintragung vorhanden“, „Abwesenheiten wurden kontrolliert“).
 // Details: nur „Findet online statt“, Lehrstoff und Vertretungstext (wenn vorhanden), Hausaufgaben, Notizen für Schüler*innen
 // und für Lehrkräfte; unten „Vorherige Stunde“, „Nächste Stunde“, „Prüfung erstellen“ und „Raum buchen“.
-import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui.js';
+import { e, heuteIso, holen, senden, toast, WOCHENTAGE } from './ui.js';
+import { kbDialog, kbBestaetigen as bestaetigen, stufe, fussUebernehmen } from './kbdialog.js';
 import * as sitz from './ansichten/sitzplan.js';
 import { hausaufgabeDetails, hausaufgabeFormular } from './hausaufgabe.js';
 import { raumwahl } from './raumwahl.js';
@@ -52,6 +53,8 @@ const maskeIcon = datei => `<span class="u-sym wu kb-icon" style="--wu:url(${W}$
 /** Weiche Linien-Symbole (dünne, abgerundete Striche) für „abwesend“ bzw. „anwesend“ in den Schülerkacheln. */
 const KREUZ = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.9 5.9l4.2 4.2M10.1 5.9l-4.2 4.2"/></svg>';
 const HAKEN = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.3 8.2l1.9 1.9 3.6-3.9"/></svg>';
+/** Plus als feines Linien-Symbol (runde Enden, genau mittig im runden Knopf). */
+const PLUS_SYM = '<svg class="sd-plus-sym" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.25v9.5M3.25 8h9.5"/></svg>';
 
 /**
  * Wert im Kopf wie im Original, ohne zusätzliches Label: geänderter Wert „B070 → C197“ mit altem Wert grau durchgestrichen,
@@ -68,8 +71,8 @@ function wertKopf(liste, max = 6, typ = null, lehrkraft = typ === 'lehrer') {
   // Kopf ohne Labels: Änderungen nur als Text – alt durchgestrichen → neu, entfallener Wert (z. B. offene Vertretung) nur durchgestrichen
   // auch der ersetzte (durchgestrichene) Wert – z. B. die abwesende Lehrkraft – führt zu seinem Plan
   const alt = w => typ ? `<s class="sd-alt">${planLink(typ, w.alt)}</s>` : `<s class="sd-alt">${e(w.alt)}</s>`;
-  // Lehrkraft-Wechsel wie im Original „abwesend | Vertretung“, nur bei Raum (und Fach) ein Pfeil
-  const zwischen = lehrkraft ? '<span class="sd-strich">|</span>' : '<span class="sd-pfeil">→</span>';
+  // Wechsel bei Lehrkraft, Raum und Fach einheitlich mit Pfeil: „alt (durchgestrichen) → neu“
+  const zwischen = `<span class="sd-pfeil${lehrkraft ? ' sd-pfeil-lehrer' : ''}">→</span>`;
   return teil.map(w => w.alt && !w.k ? alt(w)
     : w.alt ? `${alt(w)} ${zwischen} ${planLink(typ, w.k)}` : planLink(typ, w.k)).join(', ')
     + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
@@ -203,7 +206,8 @@ export function karteDialog(karte, kontext = {}) {
       wertKopf(k.raeume, 6, 'raum'), lehrerKopf()].filter(Boolean);
     // Wie im Original: bei Entfall Kopf hellgrau und darunter roter Balken „ENTFÄLLT“; Prüfung/Veranstaltung als dezente graue Pille,
     // sonst keine Labels (Änderungen stehen als Text: alt durchgestrichen | neu bzw. → beim Raum)
-    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : '';
+    // zusätzliche Unterrichtsstunde: Badge statt Vertretungstext
+    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';
     const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
@@ -256,7 +260,7 @@ export function karteDialog(karte, kontext = {}) {
     return `<div class="sd-fuss">
       <button type="button" class="sd-pille gross" data-blaettern="-1" ${i <= 0 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i> Vorherige Stunde</button>
       <button type="button" class="sd-pille gross" data-blaettern="1" ${i < 0 || i >= liste.length - 1 ? 'disabled' : ''}>Nächste Stunde <i class="bi bi-chevron-right"></i></button>
-      ${k.status === 'klausur' && kollegium ? `<button type="button" class="sd-pille gross" data-pruefung-verlegen>Prüfung verlegen</button>
+      ${(k.status === 'klausur' || (k.status === 'vorgemerkt' && /^klausur/i.test(k.art || ''))) && kollegium && k.datum >= heuteIso() ? `<button type="button" class="sd-pille gross" data-pruefung-verlegen>Prüfung verlegen</button>
         <button type="button" class="sd-pille gross rot" data-pruefung-loeschen>Prüfung löschen</button>`
         : darfPruefung() ? '<button type="button" class="sd-pille gross" data-pruefung>Prüfung erstellen</button>' : ''}
       </div>`;
@@ -415,7 +419,7 @@ export function karteDialog(karte, kontext = {}) {
 
   function hausaufgabenHtml() {
     const hw = daten.hausaufgaben;
-    const plus = hw.darf ? '<button type="button" class="sd-plus" data-hw-neu title="Neue Hausaufgabe" aria-label="Neue Hausaufgabe"><i class="bi bi-plus-lg"></i></button>' : '';
+    const plus = hw.darf ? `<button type="button" class="sd-plus" data-hw-neu title="Neue Hausaufgabe" aria-label="Neue Hausaufgabe">${PLUS_SYM}</button>` : '';
     const liste = hw.liste.length ? hw.liste.map(hausaufgabeZeile).join('') : '<p class="sd-text small">Keine Hausaufgaben vorhanden</p>';
     const faellig = hw.faellig.length ? `<div class="kb-hw-faellig"><div class="small fw-semibold mb-1">Fällige Hausaufgaben</div>${hw.faellig.map(hausaufgabeZeile).join('')}</div>` : '';
     return abschnitt(maskeIcon('klassenbuch/common-file-text-home-kopie.svg'), 'Hausaufgaben', hw.liste.length || null, plus, liste + faellig);
@@ -423,7 +427,7 @@ export function karteDialog(karte, kontext = {}) {
 
   function vermerkeHtml() {
     const v = daten.vermerke;
-    const plus = kollegium ? '<button type="button" class="sd-plus" data-vermerk-neu title="Klassenbucheintrag erfassen" aria-label="Klassenbucheintrag erfassen"><i class="bi bi-plus-lg"></i></button>' : '';
+    const plus = kollegium ? `<button type="button" class="sd-plus" data-vermerk-neu title="Klassenbucheintrag erfassen" aria-label="Klassenbucheintrag erfassen">${PLUS_SYM}</button>` : '';
     const kurz = (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t;
     const tabelle = v.length ? `<div class="table-responsive"><table class="alt-liste kb-eintraege"><tbody>${v.map(x => `<tr title="${e(x.text)}">
         <td>${e(x.schuelerId ? schuelerName(x.schuelerId) || '–' : 'Klasse ' + x.klasse)}</td><td>${datumDe(x.datum)}</td><td>${e((x.erstellt || '').slice(11, 16))}</td>
@@ -474,7 +478,7 @@ export function karteDialog(karte, kontext = {}) {
         ${raeume.map(x => `<div class="sd-raumchip"><button type="button" class="sd-chipknopf" data-raum-menue="${e(x)}" aria-haspopup="menu" aria-expanded="false">${e(x)}</button>
           <div class="sd-raummenue d-none" role="menu" data-menue-fuer="${e(x)}"><button type="button" role="menuitem" data-raum-ersetzen="${e(x)}">Ersetzen</button>
           <button type="button" role="menuitem" data-raum-loeschen="${e(x)}">Löschen</button></div></div>`).join('')}
-        <button type="button" class="sd-raum-plus" data-raum-plus title="Raum hinzufügen" aria-label="Raum hinzufügen"><i class="bi bi-plus-lg"></i></button></div></div>`);
+        <button type="button" class="sd-raum-plus" data-raum-plus title="Raum hinzufügen" aria-label="Raum hinzufügen">${PLUS_SYM}</button></div></div>`);
     }
     const vertretung = k.text && (k.fach || k.status !== 'veranstaltung') ? k.text : '';
     if (vertretung && k.status !== 'klausur') teile.push(reihe(datei, k.fach ? 'Vertretungstext' : 'Bezeichnung', `<p class="sd-text">${e(vertretung)}</p>`));
@@ -498,6 +502,10 @@ export function karteDialog(karte, kontext = {}) {
    * „Findet online statt“: Lehrkräfte der Stunde (bzw. Administration) schalten um und hinterlegen den Link zur Videokonferenz;
    * alle anderen sehen den Hinweis und – falls hinterlegt – „Online-Unterricht beitreten“ (neuer Tab).
    */
+  /** Schalter „Findet online statt“ im Portal-Stil: graue Spur (aus), orange Spur (an), weißer Knopf mit sanftem Schatten. */
+  const onlineSchalter = (an, attr = '') => `<label class="sd-schalter" for="sd-online"><span class="sd-detail-titel">Findet online statt</span>
+      <input type="checkbox" role="switch" id="sd-online" ${attr} ${an ? 'checked' : ''}><span class="sd-schalter-spur" aria-hidden="true"></span></label>`;
+
   function onlineHtml(ein) {
     // Findet der ganze Block online statt, gilt das auch für jede Einzelstunde (nur Anzeige)
     const blockOnline = einzel && daten.blockEintrag?.online;
@@ -505,17 +513,15 @@ export function karteDialog(karte, kontext = {}) {
     const online = ein ? !!ein.online : !einzel && !!k.online;
     const link = (ein ? ein.onlineLink : einzel ? '' : k.onlineLink) || '';
     const beitreten = online && sichererLink(link)
-      ? `<a class="sd-online-link" href="${e(link)}" target="_blank" rel="noopener noreferrer" data-online-beitreten><i class="bi bi-camera-video-fill" aria-hidden="true"></i>Online-Unterricht beitreten</a>` : '';
+      ? `<a class="sd-online-link" href="${e(link)}" target="_blank" rel="noopener noreferrer" data-online-beitreten><span class="u-sym wu sd-online-link-sym" style="--wu:url(${W}klassenbuch/online_lesson.svg)" aria-hidden="true"></span>Online-Unterricht beitreten</a>` : '';
     const ic = maskeIcon('klassenbuch/online_lesson.svg');
     if (!kollegium || !daten.darf || blockOnline) {
-      if (!online) return kollegium ? `<div class="sd-detail">${ic}<div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
-          <label class="sd-detail-titel mb-0" for="sd-online">Findet online statt</label><input class="form-check-input ms-1 mt-0" type="checkbox" role="switch" id="sd-online" disabled></div></div>` : '';
+      if (!online) return kollegium ? `<div class="sd-detail sd-online">${ic}<div class="flex-grow-1">${onlineSchalter(false, 'disabled')}</div></div>` : '';
       return `<div class="sd-detail sd-online">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">Findet online statt${blockOnline ? ' <span class="sd-ebene-marke">Ganzer Block</span>' : ''}</div>
           ${beitreten || '<p class="sd-text sd-online-ohne">Es wurde noch kein Link zum Online-Unterricht hinterlegt.</p>'}</div></div>`;
     }
     return `<div class="sd-detail sd-online">${ic}<div class="flex-grow-1">
-        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2 ps-0">
-          <label class="sd-detail-titel mb-0" for="sd-online">Findet online statt</label><input class="form-check-input ms-1 mt-0" type="checkbox" role="switch" id="sd-online" data-online ${online ? 'checked' : ''}></div>
+        ${onlineSchalter(online, 'data-online')}
         ${online ? `<div class="sd-online-feld">
           <label class="form-label small mb-1" for="sd-online-link">Link zum Online-Unterricht (Videokonferenz)</label>
           <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -964,23 +970,15 @@ export function karteDialog(karte, kontext = {}) {
 
   // ---------------------------------------------------------------- Dialoge wie im alten Klassenbuch (Lehrstoff, Abwesenheit, Klassenbucheintrag)
 
-  /** Kleiner Dialog über den Stundendetails (Kopf bleibt frei, Navigation bleibt sichtbar). */
+  /**
+   * Klassenbuch-Dialog über den Stundendetails – gemeinsame Modal-Komponente (kbdialog.js): Kopf mit Titel und X, Inhalt, die Knopfleiste
+   * des Inhalts („.ad-knoepfe“) im einheitlichen Fuß (Speichern rechts, Abbrechen davor, Löschen links), ESC/Hintergrund schließen.
+   */
   function altDialog(titel, inhalt, beimOeffnen, breite = 380) {
-    box.querySelector('.sd-overlay')?.remove();
-    const o = document.createElement('div');
-    o.className = 'sd-overlay';
-    o.style.top = `${box.querySelector('.modal-header')?.offsetHeight ?? 0}px`;
-    o.innerHTML = `<div class="sd-altdialog" role="dialog" aria-modal="true" aria-label="${e(titel)}" style="width:min(${breite}px, calc(100% - 24px))">
-      <div class="sd-altdialog-kopf"><span>${e(titel)}</span><button type="button" data-ad-zu title="Schließen" aria-label="Schließen">×</button></div>
-      <div class="sd-altdialog-rumpf">${inhalt}</div></div>`;
-    box.append(o);
-    const zu = () => o.remove();
-    o.querySelectorAll('[data-ad-zu]').forEach(b => b.onclick = zu);
-    o.addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.stopPropagation(); zu(); } });
-    o.addEventListener('click', ev => { if (ev.target === o) zu(); });
-    beimOeffnen(o, zu);
-    o.querySelector('textarea, input:not([readonly]):not([disabled]), select:not([disabled])')?.focus();
-    return o;
+    const fenster = kbDialog({ titel, inhalt, breite: stufe(breite), wurzel: el });
+    fussUebernehmen(fenster);
+    beimOeffnen(fenster, () => fenster.schliessen());
+    return fenster;
   }
 
   /**
@@ -1044,7 +1042,7 @@ export function karteDialog(karte, kontext = {}) {
         if (b.dataset.adSpeichern === '1') { zu(); zeichnen(); return; }
         const t = `Geändert am ${zeitstempel(daten.eintrag?.geaendert)} von ${daten.eintrag?.geaendertVon ?? ''}`;
         const f = o.querySelector('.ad-fuss');
-        if (f) f.textContent = t; else o.querySelector('.sd-altdialog-rumpf').insertAdjacentHTML('beforeend', `<div class="ad-fuss">${e(t)}</div>`);
+        if (f) f.textContent = t; else o.querySelector('.kbd-rumpf').insertAdjacentHTML('beforeend', `<div class="ad-fuss">${e(t)}</div>`);
       });
     }, 400);
   }
@@ -1161,7 +1159,7 @@ export function karteDialog(karte, kontext = {}) {
           toast({ entschuldigt: 'Als entschuldigt markiert.', unentschuldigt: 'Als nicht entschuldigt markiert.', offen: 'Status auf offen gesetzt.' }[r.value]);
           await anwesenheitNeu();
           zeichnen();
-          if (!o.isConnected) box.append(o); // Dialog bleibt offen
+          // Dialog bleibt offen (liegt über den Stundendetails und überdauert das Neuzeichnen)
         } catch (err) { toast(err.message, true); }
       });
     }, 520);

@@ -292,6 +292,11 @@ public sealed record WebRueckmeldung
     public string? Fach { get; init; }
     /// <summary>Unterrichtsnummer, falls sich die Änderung auf einen bestehenden Unterricht bezieht (z. B. Raumänderung).</summary>
     public int? UnterrichtNr { get; init; }
+    /// <summary>
+    /// Bezug auf eine frühere, schon übernommene Rückmeldung (Id), z. B. bei <see cref="WebRueckmeldungsTypen.BuchungStorno"/>
+    /// die Id der stornierten Buchung („buchung-42“). Sonst null.
+    /// </summary>
+    public string? BezugId { get; init; }
 }
 
 /// <summary>Arten der Rückmeldungen.</summary>
@@ -303,6 +308,12 @@ public static class WebRueckmeldungsTypen
     public const string Klausur = "klausur";
     /// <summary>Prüfung aus UntPlanWeb löschen (Datum, Stunden, Klassen und Titel bestimmen die Prüfung; Verlegen = löschen + neu).</summary>
     public const string KlausurLoeschen = "klausurloeschen";
+    /// <summary>
+    /// Eine schon übernommene Buchung aus UntPlanWeb (Raumbuchung, Aktivität, zusätzlicher Unterricht) wurde storniert bzw. gelöscht:
+    /// <see cref="WebRueckmeldung.BezugId"/> nennt die Id der ursprünglichen Rückmeldung („buchung-{Nummer}“), die übrigen Felder beschreiben
+    /// die Buchung. UntPlan entfernt die übernommene Änderung und quittiert die Meldung.
+    /// </summary>
+    public const string BuchungStorno = "buchungstorno";
 }
 
 public sealed record WebAntwort(bool Ok, int Revision, string? Meldung);

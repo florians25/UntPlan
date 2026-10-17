@@ -456,7 +456,15 @@ const viewKind = e => {
    ausgespartem „i“ bzw. dem Haus, flach (kein Schatten, kein Verlauf). Sie liegen
    einmal in der Symbolsammlung und werden nur per <use> verwiesen — keine
    Kopie des Pfads je Kachel. Farben (hell/dunkel) über fill/color. */
-const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-info-icon" width="16" height="16"></use></svg>';
+/* Info-Zeichen wie im Original (nachgemessen 116/108): abgerundetes Feld in
+   der Farbe der Zeichenfläche, darin eine graue Scheibe mit ausgespartem
+   „i“ (Punkt, Schaft mit Fuß). Hell: Feld #f3f5f7, dunkel #313d44. */
+const KACHEL_INFO = '<svg class="ticon ticon--info" viewBox="0 0 16 16" aria-hidden="true"><rect class="ticon__feld" width="16" height="16" rx="3.4"/><circle class="ticon__scheibe" cx="8" cy="8" r="6.2"/><circle class="ticon__feld" cx="8" cy="5.05" r="0.98"/><path class="ticon__feld" d="M6.55 6.75H8.72V10.3H9.45V11.35H6.5V10.3H7.25V7.8H6.55Z"/></svg>';
+/* Online-Unterricht (online_lesson.svg): Kamera im abgerundeten Quadrat. */
+const KACHEL_ONLINE = '<svg class="ticon ticon--online" viewBox="0 0 28 28" aria-hidden="true"><path d="m20 11.011-3 1v-1a1.5 1.5 0 0 0-1.5-1.5h-6a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5v-1l3 1v-6z"/><path d="M8 24.511a4.5 4.5 0 0 1-4.5-4.5v-12a4.5 4.5 0 0 1 4.5-4.5h12a4.5 4.5 0 0 1 4.5 4.5v12a4.5 4.5 0 0 1-4.5 4.5H8z"/></svg>';
+/* Verlegung: Ursprungsstunde mit Pfeil nach rechts (rotes Feld), Zielstunde
+   mit Pfeil nach links (grünes Feld). */
+const KACHEL_VERLEGT = r => `<svg class="ticon ticon--verlegt ticon--${r === 'von' ? 'von' : 'nach'}" viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="3"/><path d="${r === 'von' ? 'M3.4 7h7M7.6 4.2 10.4 7 7.6 9.8' : 'M10.6 7h-7M6.4 4.2 3.6 7l2.8 2.8'}"/></svg>`;
 const KACHEL_VIDEO = '<svg class="ticon ticon--video" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="6.4" width="12.6" height="11.2" rx="2.4"/><path d="m15.4 10.6 5.8-3.4v9.6l-5.8-3.4z"/></svg>';
 /* Schloss (Linien) für gesperrte Wochen. */
 const SPERRE_SCHLOSS = '<svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8.4 10.5V7.8a3.6 3.6 0 0 1 7.2 0v2.7"/><path d="M12 14.2v2.2"/></svg>';
@@ -509,6 +517,34 @@ function lineValue(card, key){
   if (changed && !now && orig) return { text:orig, removed:true, changed:true };
   return { text:now || orig, removed:false, changed };
 }
+
+/* AUFSICHT-BEGINN (wird von den Tests ausgeführt) */
+/* Kürzel auf einer vertretenen Pausenaufsicht — wie auf einer Stundenkarte
+   mit abwesender Lehrkraft: das abwesende Kürzel durchgestrichen, daneben
+   die Vertretung als grüne Plakette; ist noch niemand eingeteilt, steht das
+   abwesende Kürzel durchgestrichen in der grünen Plakette. Abgegeben: ich
+   (bzw. der gemeldete alte Wert) bin abwesend, `teacher` übernimmt.
+   Eingesprungen: `teacherOrig` fehlt, ich übernehme. */
+function aufsichtKuerzel(card, ich, schmal){
+  if (!card._supSub && !card._supAbsent) return '';
+  const lehrer = String(card.teacher || '').trim();
+  const alt = String(card.teacherOrig || '').trim();
+  const offen = !lehrer || lehrer === '???';
+  const abw  = card._supAbsent ? (alt || ich || '') : alt;
+  const vert = card._supAbsent ? (offen ? '' : lehrer) : (offen ? (ich || '') : lehrer);
+  let innen = '';
+  if (!vert && abw) innen = `<span class="badge badge--removed badge--open">${esc(abw)}</span>`;
+  else if (vert){
+    /* In der schmalen Wochenspalte nur die Vertretung — sonst bliebe vom
+       Ort nichts übrig; das abwesende Kürzel steht in den Details. */
+    innen = (abw && !schmal && abw.toUpperCase() !== vert.toUpperCase()
+      ? `<span class="sup-weg">${esc(abw)}</span><i class="tok__trenn">,</i> ` : '')
+      + `<span class="badge">${esc(vert)}</span>`;
+  }
+  return innen ? `<span class="sup-lab">${innen}</span>` : '';
+}
+if (typeof window !== 'undefined') window.UntPlanAufsicht = { kuerzel: aufsichtKuerzel };
+/* AUFSICHT-ENDE */
 
 /* Die Kürzel einer Kopplung mit ihrem Zustand.
 
@@ -724,9 +760,10 @@ function cardLines(card, kind){
                    && label && l.text.toUpperCase() === label));
 }
 
-/* Zeilenabstand der Kachel wie in app.css: am iPhone 14 px (Vorlage), sonst 14,3 px. */
+/* Zeilenabstand der Kachel wie in app.css. */
 const KARTE_SCHMAL = window.matchMedia ? window.matchMedia('(max-width:699px)') : null;
-const karteZeile = () => (KARTE_SCHMAL && KARTE_SCHMAL.matches) ? 14 : 14.3;
+/* Sprint 26: Kartentexte etwas enger – 13,5 px am iPhone, sonst 13,8 px (wie iOS). */
+const karteZeile = () => (KARTE_SCHMAL && KARTE_SCHMAL.matches) ? 13.5 : 13.8;
 
 function cardEndDate(card){
   const t = state.times[Math.min(card.lesson + card.span - 1, 12)] || state.times[card.lesson];
@@ -1419,6 +1456,10 @@ function renderGrid(){
                     && !isStandby && !isSup && !isMovedTarget;
 
       let lines = cardLines(card, kind);
+      /* Online-Unterricht: keine Raumzeile und kein Raumlabel — nur das
+         Zeichen unten auf der Kachel sagt „findet online statt“. */
+      const online = !!card.online && !isHoliday && !isSup && card.blockType !== 'cancelled';
+      if (online) lines = lines.filter(l => l.key !== 'room');
       /* Tagesansicht wie im Original: dieselbe Kachel wie in der Woche —
          Balken, Zeilen, Plaketten —, nur breiter. Keine Zusatzdetails. */
 
@@ -1440,7 +1481,7 @@ function renderGrid(){
          Aufsicht. */
       if (isSup)                             cls.push('card--supervision');
       if (isSup && card._supSub)             cls.push('is-sub');
-      if (isSup && card._supAbsent)          cls.push('is-absent');
+      if (isSup && card._supAbsent)          cls.push('is-absent', 'is-abgegeben');
       if (isStandby)                         cls.push('card--standby');
       if (isStandby && card.standbyAbsent)   cls.push('is-absent');
       if (card.blockType === 'absence')      cls.push('card--gs');
@@ -1526,7 +1567,7 @@ function renderGrid(){
          Zeichen legte sich über den Raum. Wer hier landet, wird nach dem
          Zeichnen genau vermessen; wo nichts im Weg steht, fällt das
          Polster dort wieder weg. */
-      if ((showInfo || cut || card.hasHw) && textBottom > h - 21) cls.push('pad-last', 'pad-check');
+      if ((showInfo || cut || card.hasHw || online || card.moved) && textBottom > h - 21) cls.push('pad-last', 'pad-check');
 
       const timeA = (state.times[card.lesson] || {}).start || '';
       const timeB = (state.times[Math.min(card.lesson + card.span - 1, 12)] || {}).end || '';
@@ -1583,7 +1624,7 @@ function renderGrid(){
         : (card.blockType === 'supervision' || card._supervision)
         /* Vertretung (eingesprungen oder abgegeben): nur der Ort und ganz
            rechts das grüne „…“ – wer vertritt, steht im Detail. */
-        ? `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>${(card._supSub || card._supAbsent) ? `<span class="sup-menu" aria-hidden="true">${DOTS}</span>` : ''}`
+        ? `<span class="card__line">${esc(card.subject || 'Aufsicht')}</span>${aufsichtKuerzel(card, myCode, colPx / Math.max(1, card._n || 1) < 120)}`
         : isStandby
         ? `<span class="card__line">${esc(card.subject || 'Bereitschaft')}</span>`
         : (card.blockType === 'absence' || card.blockType === 'gs')
@@ -1659,41 +1700,40 @@ function renderGrid(){
          also je die halbe Breite. */
       const zeigHw = !!card.hasHw && !isHoliday && !isStandby && !isSup;
       const zeigInfo = showInfo && !isHoliday;
+      const zeigVerlegt = (card.moved === 'von' || card.moved === 'nach') && !isHoliday && !isSup;
       const kachelBreit = colPx / Math.max(1, card._n || 1);
-      const beidePassen = kachelBreit >= 96;
 
       let eckzeichen = '';
       const dots = `<span class="card__cut" aria-hidden="true">${DOTS}</span>`;
-      /* Originalgrafiken (Feld mit Scheibe bzw. Haus), wie in der iOS-App. */
-      const ikon = n => `<span class="card__ic card__ic--exakt">${n === 'ic-tt-homework-icon' ? KACHEL_HA : KACHEL_INFO}</span>`;
+      /* Zeichen unten rechts: Online, Verlegung, Hausaufgabe, Info — in
+         dieser Reihenfolge von links nach rechts. Reicht die Breite nicht für
+         alle (je 14 px und 3 px Abstand, links bleibt der Balken frei), fällt
+         zuerst die Hausaufgabe weg, dann das Onlinezeichen; Verlegung und
+         Info bleiben am längsten stehen. Wurde wirklich gekürzt, steht allein
+         das Kürzungszeichen dort. */
+      const platz = Math.max(1, Math.floor((kachelBreit - 18 + 3) / 17));
+      const vorrang = [zeigVerlegt && 'verlegt', zeigInfo && 'info', online && 'online', zeigHw && 'hw'].filter(Boolean).slice(0, platz);
+      const ikon = n => n === 'online' ? `<span class="card__ic card__ic--online">${KACHEL_ONLINE}</span>`
+                      : n === 'verlegt' ? `<span class="card__ic card__ic--verlegt">${KACHEL_VERLEGT(card.moved)}</span>`
+                      : n === 'hw' ? `<span class="card__ic card__ic--exakt">${KACHEL_HA}</span>`
+                      : `<span class="card__ic card__ic--info">${KACHEL_INFO}</span>`;
 
       if (cut && !card._supervision && card.blockType !== 'supervision'){
-        eckzeichen = dots;
-      } else if (zeigInfo && zeigHw){
-        /* Passen nicht beide nebeneinander, behält die schmale Kachel das
-           Info-Zeichen (Notizen, Vertretungstext) – die Hausaufgabe steht im Detail. */
-        eckzeichen = beidePassen
-          ? `<span class="card__ecke">${ikon('ic-tt-info-icon')}${ikon('ic-tt-homework-icon')}</span>`
-          : `<span class="card__ecke">${ikon('ic-tt-info-icon')}</span>`;
-      } else if (zeigHw){
-        eckzeichen = `<span class="card__ecke">${ikon('ic-tt-homework-icon')}</span>`;
-      } else if (zeigInfo){
-        eckzeichen = `<span class="card__ecke">${ikon('ic-tt-info-icon')}</span>`;
+        /* Die Verlegung bleibt auch auf einer gekürzten Kachel erkennbar. */
+        eckzeichen = zeigVerlegt && kachelBreit >= 52
+          ? `<span class="card__ecke card__ecke--cut">${ikon('verlegt')}${dots}</span>` : dots;
+      } else if (vorrang.length){
+        eckzeichen = `<span class="card__ecke">${['online', 'verlegt', 'hw', 'info'].filter(n => vorrang.includes(n)).map(ikon).join('')}</span>`;
       }
-
-      /* „Findet online statt“: Videosymbol oben rechts auf der Kachel. */
-      const video = card.online && !isHoliday && !isSup && card.blockType !== 'cancelled' && !released;
-      if (video) cls.push('has-video');
-      const videoHtml = video ? `<span class="card__video" aria-label="Online-Unterricht">${KACHEL_VIDEO}</span>` : '';
+      if (online) cls.push('has-online');
 
       const tag = isHoliday ? 'div' : 'button';
       html += `<${tag} class="${cls.join(' ')}" style="${style}"
                  data-date="${date}" data-lesson="${card.lesson}" data-idx="${card._uid}"
                  ${isHoliday ? '' : 'type="button"'}>
         ${body}
-        ${videoHtml}
         ${eckzeichen}
-        ${(released || (isStandby && card.standbyAbsent)) ? '<span class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : ''}
+        ${(released || (isStandby && card.standbyAbsent) || (isSup && card._supAbsent)) ? '<span class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : ''}
         ${(isHoliday || isSup) ? '' : `<span class="card__times"><span>${timeA}</span><span>${timeB}</span></span>`}
       </${tag}>`;
 
@@ -1821,9 +1861,11 @@ function renderGrid(){
     if (w && w.gesperrt){
       html += `<div class="sperre" style="left:${colAt(i)};width:calc(${colW} * ${j - i})">
         <div class="sperre__inhalt" style="top:${sperrY}px">
-          <span class="sperre__kreis" aria-hidden="true">${SPERRE_SCHLOSS}</span>
-          <p class="sperre__text">${SPERRE_TITEL}</p>
-          <p class="sperre__hinweis">${esc(sperrErklaerung(w.sperrhinweis))}</p>
+          <div class="sperre__karte">
+            <span class="sperre__kreis" aria-hidden="true">${SPERRE_SCHLOSS}</span>
+            <p class="sperre__text">${SPERRE_TITEL}</p>
+            <p class="sperre__hinweis">${esc(sperrErklaerung(w.sperrhinweis))}</p>
+          </div>
         </div>
       </div>`;
     }
@@ -2857,15 +2899,25 @@ let startWeek = null, startFor = null;
 async function startPlanLaden(){
   const eigen = state.entities.find(e => e.type === 'mine') || state.entities[0];
   if (!eigen) return;
-  const k = weekKey(eigen, state.weekStart);
+  /* „In den nächsten 7 Tagen“: die laufende und die folgende Woche, damit
+     am Wochenende auch der Montag und kommende Ferien zu sehen sind. */
+  const mo = iso(mondayOf(new Date()));
+  const mo2 = iso(addDays(parseISO(mo), 7));
+  const k = weekKey(eigen, mo);
   if (startFor === k) return;
   startFor = k;
   try {
-    const w = await loadWeekShared(eigen, state.weekStart);
+    const w = await loadWeekShared(eigen, mo);
     /* Zwischenzeitlich kann eine andere Woche angefordert worden sein. */
     if (startFor !== k) return;
     if (w.key && w.key !== k) return;
-    startWeek = w;
+    let w2 = null;
+    try { w2 = await loadWeekShared(eigen, mo2); } catch (e){ w2 = null; }
+    if (startFor !== k) return;
+    startWeek = Object.assign({}, w, {
+      byDate: Object.assign({}, (w2 && !w2.gesperrt && w2.byDate) || {}, w.byDate || {}),
+      thisWeek: w.byDate || {}
+    });
     if (state.screen === 'start') renderStart();
   } catch (e){ startFor = null; /* ohne Verbindung bleibt die Karte, wie sie ist */ }
 }
@@ -2890,6 +2942,7 @@ function renderStart(){
   const quelle = (startWeek && startWeek.byDate)
               || (istIch ? (state.allByDate || state.week.byDate) : {});
   const todayCards = quelle[iso(now)] || [];
+  const bis7 = iso(addDays(now, 7));
   const free = todayCards.some(c => c.holiday);
   const tag = $('#startTag');
   tag.hidden = !free;
@@ -2904,9 +2957,26 @@ function renderStart(){
   /* Die nächsten vier Stunden ab jetzt, Ferien und Felder ausgenommen. */
   const upcoming = all.filter(c => {
     const e = cardEndDate(c);
-    return e && e >= now && !c.holiday && !c.overlay
+    return e && e >= now && c.date < bis7 && !c.holiday && !c.overlay
         && c.blockType !== 'holiday' && c.blockType !== 'standby';
   }).slice(0, 4);
+
+  /* Ferien und Feiertage der nächsten 7 Tage (je Zeitraum einmal): Liegen
+     sie vor der nächsten Stunde, stehen sie in der Karte — ohne Stunden
+     als ganze Fläche wie „Genieße die Zeit!“, sonst als Zeile davor. */
+  const ferien = [];
+  Object.keys(quelle).sort().forEach(d => {
+    if (d < iso(now) || d >= bis7) return;
+    const f = (quelle[d] || []).find(c => c.holiday || c.blockType === 'holiday');
+    if (!f) return;
+    const name = String(f.holidayName || '').replace(/\u00ad/g, '') || f.subject || 'Ferien';
+    const letzte = ferien[ferien.length - 1];
+    if (letzte && letzte.name === name && letzte.range === (f.holidayRange || '')) return;
+    ferien.push({ date:d, name, art:f.subject || 'Ferien', range:f.holidayRange || '' });
+  });
+  const ferienVorher = ferien.filter(f => !upcoming.length || f.date <= upcoming[0].date);
+  const ferienText = f => f.range ? (f.name !== f.art ? `${f.art} ${f.range}` : f.range)
+                                 : `${WD[parseISO(f.date).getDay()]}, ${parseISO(f.date).getDate()}. ${MONTHS[parseISO(f.date).getMonth()]}`;
 
   const box = $('#startNext');
   /* Liegt die Woche außerhalb des Plan-Fensters der Rolle, gibt es nichts
@@ -2920,6 +2990,17 @@ function renderStart(){
       <span>${SPERRE_TITEL}</span></div>`;
     return;
   }
+  if (!upcoming.length && ferienVorher.length){
+    const f = ferienVorher[0];
+    box.innerHTML = `<div class="nextnone nextnone--ferien">
+      <svg viewBox="0 0 24 24" class="ico"><rect x="3.5" y="5" width="17" height="15.5" rx="2.4"/>
+        <path d="M3.5 9.6h17M8 3.4v3.4M16 3.4v3.4"/>
+        <path d="m12 12.4 1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3z"/></svg>
+      <b>${esc(f.name)}</b>
+      <span>${esc(ferienText(f))}</span>
+      ${ferienVorher.slice(1).map(g => `<span>${esc(g.name)} · ${esc(ferienText(g))}</span>`).join('')}</div>`;
+    return;
+  }
   if (!upcoming.length){
     box.innerHTML = `<div class="nextnone">
       <svg viewBox="0 0 24 24" class="ico"><rect x="3.5" y="5" width="17" height="15.5" rx="2.4"/>
@@ -2931,7 +3012,15 @@ function renderStart(){
   }
 
   let last = '';
-  box.innerHTML = upcoming.map(c => {
+  /* Ferienzeile vor den Stunden: blauer Balken, Name und Zeitraum. */
+  const ferienZeile = f => `<div class="nextrow nextrow--ferien">
+      <span class="nextrow__bar"></span>
+      <span class="nextrow__main"><span>${esc(f.name)}</span><span>${esc(ferienText(f))}</span></span>
+      <span class="nextrow__times"></span>
+    </div>`;
+  /* Ferien nach den nächsten Stunden (innerhalb der 7 Tage) stehen darunter. */
+  const ferienNachher = ferien.filter(f => !ferienVorher.includes(f));
+  box.innerHTML = ferienVorher.map(ferienZeile).join('') + upcoming.map(c => {
     const dd = parseISO(c.date);
     /* Die Karte zeigt immer den eigenen Plan — der Zusatz sagt das auch,
        selbst wenn im Stundenplan gerade eine fremde Klasse ausgewählt ist. */
@@ -2949,7 +3038,7 @@ function renderStart(){
       <span class="nextrow__main">${lines.map(l => `<span>${esc(l)}</span>`).join('')}</span>
       <span class="nextrow__times"><span>${t1}</span><span>${t2}</span></span>
     </button>`;
-  }).join('');
+  }).join('') + ferienNachher.map(ferienZeile).join('');
 
   $$('#startNext .nextrow').forEach(el => el.addEventListener('click', () => {
     showScreen('plan');
@@ -3622,7 +3711,11 @@ async function listeZeichnen(){
 
   let d;
   try {
-    d = await homeFetch(art, art === 'leadabsent' || art === 'classlead'
+    /* Klassenleitung: Abwesenheiten mit Stand der Fachlehrer-Entschuldigungen
+       (UntPlanWeb, Entschuldigungen). Ältere Server kennen den Endpunkt
+       nicht — dann bleibt es bei der bisherigen Liste. */
+    const ent = art === 'leadabsent' ? await entLaden().catch(() => null) : null;
+    d = ent ? ent : await homeFetch(art, art === 'leadabsent' || art === 'classlead'
                               ? { class: listeStand.klasse || '',
                                   scope: listeStand.umfang || 'mine' } : null);
   } catch (e){
@@ -3671,6 +3764,10 @@ async function listeZeichnen(){
     return;
   }
 
+  if (art === 'leadabsent' && d.entschuldigungen){
+    entListeZeichnen(d.entschuldigungen);
+    return;
+  }
   if (art === 'leadabsent'){
     const stL = listeStand.stand || 'alle';
     const G = [['pending','Offen'], ['approved','Entschuldigt'], ['rejected','Nicht anerkannt']]
@@ -3697,6 +3794,286 @@ async function listeZeichnen(){
   }
 }
 
+/* =====================================================================
+   Entschuldigungen der Klassenleitung
+   ---------------------------------------------------------------------
+   Abwesenheiten (Zeiträume) der eigenen Klassen mit dem Stand der
+   Fachlehrer-Entschuldigungen. Wischen nach rechts entschuldigt, nach
+   links stehen „Nicht entschuldigt“ und „Zurücknehmen“; Tippen öffnet
+   den Dialog „Entschuldigung erfassen“ (wie „Abwesenheit bearbeiten“)
+   mit Status, Datum, Nachweis und Text. Rechte prüft UntPlanWeb.
+   ===================================================================== */
+const ENT_URL = 'api/entschuldigungen/';
+const ENT_STATUS = { offen:'offen', entschuldigt:'entschuldigt', unentschuldigt:'nicht entschuldigt' };
+const ENT_TON = { offen:'open', entschuldigt:'ok', unentschuldigt:'no' };
+const ENT_NACHWEIS = [['', 'Kein Nachweis'], ['attest', 'Attest'], ['schriftlich', 'Schriftlich'], ['muendlich', 'Mündlich'],
+                      ['telefonisch', 'Telefonisch'], ['email', 'E-Mail']];
+let entListe = [];
+let entOffen = null;     /* Abwesenheit im Dialog */
+let entEntwurf = null;   /* { status, datum, nachweis, text } */
+
+async function entFetch(pfad, body){
+  const r = await fetch(ENT_URL + pfad, body ? {
+    method:'POST', credentials:'same-origin',
+    headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body)
+  } : { credentials:'same-origin' });
+  const d = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((d && (d.fehler || d.error)) || ('Fehler ' + r.status));
+  return d;
+}
+
+async function entLaden(){
+  const e = await entFetch('einstellungen');
+  if (!e || !e.klassenleitung) return null;
+  const heute = new Date();
+  const sj = new Date(heute.getMonth() >= 7 ? heute.getFullYear() : heute.getFullYear() - 1, 7, 1);
+  const p = new URLSearchParams({ von: listeStand.von || iso(sj), bis: listeStand.bis || iso(heute) });
+  if (listeStand.umfang !== 'all' && listeStand.klasse) p.set('klasse', listeStand.klasse);
+  if ((listeStand.stand || 'alle') === 'offen') p.set('status', 'offen');
+  const liste = await entFetch('abwesenheiten?' + p);
+  if (!Array.isArray(liste)) return null;
+  return { from: p.get('von'), to: p.get('bis'), entschuldigungen: liste,
+           classes: (e.klassen || []).map(k => ({ id:k, name:k })) };
+}
+
+/* „Mo., 12.10.  08:00 – 13:15“ bzw. über mehrere Tage mit Wochentag. */
+function entZeitraum(a){
+  const tag = d => { const x = parseISO(d); return `${WD_SHORT[(x.getDay() + 6) % 7]}, ${deDate(d)}`; };
+  return (!a.bisDatum || a.bisDatum === a.vonDatum)
+    ? `${tag(a.vonDatum)}  ${a.vonZeit || ''} – ${a.bisZeit || ''}`
+    : `${tag(a.vonDatum)} ${a.vonZeit || ''} – ${tag(a.bisDatum)} ${a.bisZeit || ''}`;
+}
+
+function entKarte(a, i){
+  const ton = a.mehrdeutig ? 'open' : (ENT_TON[a.status] || 'open');
+  const stand = a.mehrdeutig ? 'offen – Lehrkräfte uneinig' : (ENT_STATUS[a.status] || a.status || 'offen');
+  const text = String(a.text || '').trim();
+  const darf = a.darf !== false;
+  const zurueck = darf && (a.status !== 'offen' || (a.stunden || []).some(s => s.status !== 'offen'));
+  return `<div class="ent-row" data-i="${i}">
+      ${darf ? `<div class="ent-row__acts ent-row__acts--l">
+        <button type="button" class="ent-row__act is-gruen" data-ent="entschuldigt">
+          <svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Entschuldigt</button>
+      </div>
+      <div class="ent-row__acts ent-row__acts--r">
+        <button type="button" class="ent-row__act is-rot" data-ent="unentschuldigt">
+          <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>Nicht entsch.</button>
+        ${zurueck ? `<button type="button" class="ent-row__act is-grau" data-ent="offen">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12"/></svg>Zurück&shy;nehmen</button>` : ''}
+      </div>` : ''}
+      <article class="lstcard ent-row__front" role="button" tabindex="0">
+        <b>${esc(a.schueler || '')}</b>
+        <p class="lstcard__sub">${esc(a.klasse || '')}${a.fehlstunden ? ` · ${a.fehlstunden} ${a.fehlstunden === 1 ? 'Stunde' : 'Stunden'}` : ''}</p>
+        <p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg>${esc(entZeitraum(a))}</p>
+        ${text ? `<p class="lstcard__line lstcard__line--note"><svg viewBox="0 0 24 24" class="lstcard__ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg><span>${esc(text)}</span></p>` : ''}
+        <p class="lstcard__line lstcard__stand lstcard__stand--${ton}">
+          <svg viewBox="0 0 24 24" class="lstcard__ico">${STAND_ICO[ton] || ''}</svg>${esc(stand)}${
+          a.lehrerGesamt ? ` <span class="lstcard__sm">· ${a.lehrerBearbeitet || 0}/${a.lehrerGesamt} Lehrkräfte bearbeitet</span>` : ''}</p>
+      </article>
+    </div>`;
+}
+
+function entListeZeichnen(liste){
+  const st = listeStand.stand || 'alle';
+  entListe = (liste || []).filter(a => st === 'alle' || (st === 'offen' && (a.status === 'offen' || a.mehrdeutig))
+                                                     || (st === 'ok' && a.status !== 'offen' && !a.mehrdeutig));
+  if (lstSuche) entListe = entListe.filter(a => JSON.stringify(a).toLowerCase().includes(lstSuche));
+  const gruppen = [['offen', 'Offen'], ['entschuldigt', 'Entschuldigt'], ['unentschuldigt', 'Nicht entschuldigt']];
+  let html = entListe.length ? '<p class="ent__tipp">Nach rechts wischen: entschuldigt · nach links: nicht entschuldigt oder zurücknehmen · Tippen: bearbeiten</p>' : '';
+  gruppen.forEach(([k, n]) => {
+    const teil = entListe.map((a, i) => [a, i]).filter(([a]) => (a.mehrdeutig ? 'offen' : a.status) === k);
+    if (!teil.length) return;
+    html += `<h3 class="lst__group">${n} (${teil.length})</h3>` + teil.map(([a, i]) => entKarte(a, i)).join('');
+  });
+  $('#lstBody').innerHTML = html || LEER('Keine Abwesenheiten', 'Im gewählten Zeitraum ist niemand abwesend');
+  $$('#lstBody .ent-row').forEach(z => {
+    const a = entListe[+z.dataset.i];
+    entWischen(z, () => entOeffnen(a), status => entSetzen(a, status));
+    z.querySelectorAll('[data-ent]').forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      entSetzen(a, b.dataset.ent);
+    }));
+  });
+}
+
+/* Wischen nach beiden Seiten: rechts (Inhalt nach rechts) liegt
+   „Entschuldigt“, links „Nicht entschuldigt“ und „Zurücknehmen“. Ganz
+   durchgewischt löst die erste Aktion der Seite sofort aus. */
+function entWischen(zeile, beimTippen, ausloesen){
+  const vorn = zeile.querySelector('.ent-row__front');
+  const seite = k => (zeile.querySelector('.ent-row__acts--' + k) || {}).offsetWidth || 0;
+  let x0 = 0, y0 = 0, dx = 0, start = 0, aktiv = false, quer = null, id = null;
+  const setze = (x, weich) => {
+    vorn.style.transition = weich ? '' : 'none';
+    vorn.style.transform = x ? `translateX(${x}px)` : '';
+    zeile.classList.toggle('zeigt-l', x > 0);
+    zeile.classList.toggle('zeigt-r', x < 0);
+  };
+  const lage = () => zeile.classList.contains('is-auf-l') ? seite('l') : zeile.classList.contains('is-auf-r') ? -seite('r') : 0;
+  vorn.addEventListener('pointerdown', e => {
+    if (!seite('l') && !seite('r')) return;
+    $$('#lstBody .ent-row.is-auf-l, #lstBody .ent-row.is-auf-r').forEach(r => {
+      if (r === zeile) return;
+      r.classList.remove('is-auf-l', 'is-auf-r', 'zeigt-l', 'zeigt-r');
+      r.querySelector('.ent-row__front').style.transform = '';
+    });
+    x0 = e.clientX; y0 = e.clientY; dx = 0; quer = null; aktiv = true; id = e.pointerId; start = lage();
+  });
+  vorn.addEventListener('pointermove', e => {
+    if (!aktiv || e.pointerId !== id) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (quer === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)){
+      quer = Math.abs(mx) > Math.abs(my);
+      if (quer) try { vorn.setPointerCapture(id); } catch (err){}
+    }
+    if (!quer) return;
+    dx = mx;
+    const w = zeile.offsetWidth;
+    setze(Math.max(seite('r') ? -w : 0, Math.min(seite('l') ? w : 0, start + dx)), false);
+  });
+  const ende = () => {
+    if (!aktiv) return;
+    aktiv = false;
+    if (!quer) return;
+    const x = start + dx, w = zeile.offsetWidth;
+    zeile.dataset.gewischt = '1';
+    setTimeout(() => { delete zeile.dataset.gewischt; }, 350);
+    zeile.classList.remove('is-auf-l', 'is-auf-r');
+    if (x > w * 0.55 && seite('l')){ setze(0, true); buzz(); ausloesen('entschuldigt'); return; }
+    if (x < -w * 0.55 && seite('r')){ setze(0, true); buzz(); ausloesen('unentschuldigt'); return; }
+    if (x > seite('l') / 2 && seite('l')){ zeile.classList.add('is-auf-l'); setze(seite('l'), true); return; }
+    if (x < -seite('r') / 2 && seite('r')){ zeile.classList.add('is-auf-r'); setze(-seite('r'), true); return; }
+    setze(0, true);
+  };
+  vorn.addEventListener('pointerup', ende);
+  vorn.addEventListener('pointercancel', ende);
+  vorn.addEventListener('click', () => {
+    if (zeile.dataset.gewischt) return;
+    if (lage()){ zeile.classList.remove('is-auf-l', 'is-auf-r'); setze(0, true); return; }
+    beimTippen();
+  });
+}
+
+/* Status der ganzen Abwesenheit setzen (überschreibt die Fachlehrkräfte;
+   abweichende Stunden werden vorher genannt). „offen“ nimmt zurück. */
+async function entSetzen(a, status, extra){
+  if (!a) return false;
+  try {
+    if (status === 'offen'){
+      await entFetch('zuruecknehmen', { ids: a.ids });
+      toast('Entschuldigung zurückgenommen');
+    } else {
+      const anders = (a.stunden || []).filter(s => s.entschuldigung && s.status !== 'offen' && s.status !== status);
+      if (anders.length && !confirm(`${anders.length === 1 ? 'Eine Stunde ist' : anders.length + ' Stunden sind'} von Fachlehrkräften anders eingetragen (${
+            anders.map(s => `${s.stunde}. ${s.fach || ''} ${s.lehrer || ''}: ${ENT_STATUS[s.status] || s.status}`.trim()).join('; ')}). Trotzdem für die ganze Abwesenheit übernehmen?`))
+        return false;
+      await entFetch('abwesenheit', Object.assign({ ids: a.ids, status, datum: iso(new Date()) }, extra || {}));
+      toast(status === 'entschuldigt' ? 'Entschuldigt' : 'Als nicht entschuldigt eingetragen');
+    }
+    buzz();
+    listeZeichnen();
+    return true;
+  } catch (e){
+    toast('Nicht gespeichert: ' + e.message);
+    listeZeichnen();
+    return false;
+  }
+}
+
+function entOeffnen(a){
+  entOffen = a;
+  entEntwurf = { status: a.mehrdeutig ? 'offen' : (a.status || 'offen'), datum: a.entschuldigtAm || iso(new Date()),
+                 nachweis: a.nachweis || '', text: '' };
+  entZeichnen();
+  SH.ent.open();
+}
+
+function entSammeln(){
+  if (!entEntwurf) return;
+  const d = $('#entDatum'), n = $('#entNachweis'), t = $('#entText');
+  if (d) entEntwurf.datum = d.value;
+  if (n) entEntwurf.nachweis = n.value;
+  if (t) entEntwurf.text = t.value;
+}
+
+function entZeichnen(){
+  const a = entOffen, d = entEntwurf;
+  if (!a || !d) return;
+  const darf = a.darf !== false;
+  const ton = s => ENT_TON[s] || 'open';
+  const stunden = (a.stunden || []).map(s => `
+      <li class="ent__stunde">
+        <span class="ent__punkt ent__punkt--${ton(s.status)}"></span>
+        <span class="ent__std"><b>${esc(deDate(s.datum))} · ${s.stunde}. Std.</b>
+          <span>${esc([s.fach, s.lehrer].filter(Boolean).join(' · '))} – ${esc(ENT_STATUS[s.status] || s.status)}</span>
+          ${s.entschuldigung && s.entschuldigung.text ? `<em>„${esc(s.entschuldigung.text)}“ (${esc(s.entschuldigung.lehrer || '')})</em>` : ''}
+        </span>
+      </li>`).join('');
+  $('#entTitel').textContent = 'Entschuldigung';
+  $('#entBody').innerHTML = `
+    <div class="dabs__who">
+      <span class="dabs__ava">${esc(absInitials(a.schueler || ''))}</span>
+      <span class="dabs__id"><b>${esc(a.schueler || '')}</b>${a.klasse ? `<span class="dabs__chip">${esc(a.klasse)}</span>` : ''}</span>
+    </div>
+    <p class="ent__zeit">${esc(entZeitraum(a))}${a.fehlstunden ? ` · ${a.fehlstunden} ${a.fehlstunden === 1 ? 'Stunde' : 'Stunden'}` : ''}</p>
+    ${String(a.text || '').trim() ? `<p class="ent__text">${esc(a.text)}</p>` : ''}
+
+    <span class="dabs__lab">STATUS</span>
+    <div class="ent__seg" role="radiogroup">
+      ${['offen', 'entschuldigt', 'unentschuldigt'].map(k => `<button type="button" role="radio" data-st="${k}"
+        class="ent__segbtn ent__segbtn--${ton(k)} ${d.status === k ? 'is-on' : ''}" aria-checked="${d.status === k}">${
+        k === 'offen' ? 'Offen' : k === 'entschuldigt' ? 'Entschuldigt' : 'Nicht entsch.'}</button>`).join('')}
+    </div>
+
+    <div class="dabs__grid">
+      <div>
+        <span class="dabs__lab">EINGANG</span>
+        <div class="dabs__fields"><input class="dabs__pill" type="date" id="entDatum" value="${esc(d.datum)}"></div>
+      </div>
+      <div>
+        <span class="dabs__lab">NACHWEIS</span>
+        <div class="dabs__fields"><select class="dabs__pill" id="entNachweis">${ENT_NACHWEIS.map(([v, n]) =>
+          `<option value="${v}"${d.nachweis === v ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+      </div>
+    </div>
+
+    <span class="dabs__lab">TEXT DER ENTSCHULDIGUNG</span>
+    <textarea class="dabs__area" id="entText" maxlength="1000" placeholder="Text hier eingeben">${esc(d.text)}</textarea>
+
+    ${stunden ? `<span class="dabs__lab">STUNDEN${a.lehrerGesamt ? ` · ${a.lehrerBearbeitet || 0}/${a.lehrerGesamt} LEHRKRÄFTE BEARBEITET` : ''}</span>
+    <ul class="ent__stunden">${stunden}</ul>` : ''}
+
+    ${darf && (a.status !== 'offen' || (a.stunden || []).some(s => s.status !== 'offen'))
+      ? '<button type="button" class="ent__zurueck" id="entZurueck">Entschuldigung zurücknehmen</button>' : ''}`;
+
+  if (!darf){
+    $$('#entBody input, #entBody textarea, #entBody select, #entBody button').forEach(el => { el.disabled = true; });
+    $('#entSave').hidden = true;
+    return;
+  }
+  $('#entSave').hidden = false;
+  $$('#entBody [data-st]').forEach(b => b.addEventListener('click', () => {
+    entSammeln();
+    entEntwurf.status = b.dataset.st;
+    entZeichnen();
+  }));
+  const z = $('#entZurueck');
+  if (z) z.addEventListener('click', async () => {
+    if (await entSetzen(entOffen, 'offen')) SH.ent.close();
+  });
+}
+
+$('#entClose').addEventListener('click', () => SH.ent.close());
+$('#entSave').addEventListener('click', async () => {
+  entSammeln();
+  const a = entOffen, d = entEntwurf;
+  if (!a || !d) return;
+  const ok = await entSetzen(a, d.status, d.status === 'offen' ? null
+    : { datum: d.datum || iso(new Date()), nachweis: d.nachweis || '', text: (d.text || '').trim() });
+  if (ok) SH.ent.close();
+});
+if (typeof window !== 'undefined') window.UntPlanEntschuldigung = { zeitraum: entZeitraum, status: ENT_STATUS, nachweis: ENT_NACHWEIS };
+
 /* Eine Karte wie in der Vorlage: Datum, Uhrzeit, Anlass, Stand. */
 function karteAbwesenheit(x, mitName){
   const zeit = x.timeFrom || x.timeTo ? `${esc(x.timeFrom)} - ${esc(x.timeTo)}`
@@ -3713,7 +4090,7 @@ function karteAbwesenheit(x, mitName){
       <p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg>${zeit}${
         x.lessons ? ` <span class="lstcard__sm">(${esc(x.lessons)})</span>` : ''}</p>
       ${anlass ? `<p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.4"/><circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none"/></svg>${esc(anlass)}</p>` : ''}
-      ${x.note ? `<p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg>${esc(x.note)}</p>` : ''}
+      ${String(x.note || '').trim() ? `<p class="lstcard__line lstcard__line--note"><svg viewBox="0 0 24 24" class="lstcard__ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg><span>${esc(String(x.note).trim())}</span></p>` : ''}
       <p class="lstcard__line lstcard__stand lstcard__stand--${x.tone}">
         <svg viewBox="0 0 24 24" class="lstcard__ico">${STAND_ICO[x.tone] || ''}</svg>${esc(x.label)}${
         x.source ? ` <span class="lstcard__sm">· ${esc(x.source)}</span>` : ''}</p>
@@ -4351,7 +4728,8 @@ const SH = {
   legend: bindSheet('#sheetLegend', '#scrimLegend'),
   write:  bindSheet('#sheetWrite',  '#scrimWrite'),
   to:     bindSheet('#sheetTo',     '#scrimTo'),
-  info:   bindSheet('#sheetInfo',   '#scrimInfo')
+  info:   bindSheet('#sheetInfo',   '#scrimInfo'),
+  ent:    bindSheet('#sheetEnt',    '#scrimEnt')
 };
 $('#infoClose').addEventListener('click', () => SH.info.close());
 
@@ -5060,8 +5438,10 @@ function renderDetail(){
   /* Bei einem Block lässt sich oben auf eine einzelne Stunde umstellen —
      Eintragungen gehören dann nur zu dieser Stunde. */
   const ganz = state.detailFull || c;
-  const teilbar = (ganz.span || 1) > 1;
+  /* Nur bei Unterricht mit Klassenbuch — Termine und Aufsichten haben keins. */
+  const teilbar = detailTeilbar(ganz);
   $('#detailWhen').classList.toggle('is-pick', teilbar);
+  $('#detailWhen').setAttribute('aria-haspopup', teilbar ? 'listbox' : 'false');
   $('#detailWhen').disabled = !teilbar;
 
   /* --- Umschalter zwischen gleichzeitigen Stunden ----------------------
@@ -5150,13 +5530,15 @@ function renderDetail(){
   const banner = { cancelled:'ENTFÄLLT', 'class-absent':'KLASSE ABWESEND' }[c.blockType] || '';
   /* Keine Plaketten im Detail (wie im Original). Jede Angabe steht nur
      einmal: doppelte Lehrkräfte, Klassen oder Räume fallen weg. */
-  void zusatz;
   const einmal = arr => arr.filter((x, i) => arr.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i);
   const veranstAnlass = istVeranstaltung ? (c.subject || c.info || '').trim() : '';
   /* Art der Stunde als graue Pille in Großbuchstaben rechts neben dem Fach
      (Veranstaltung: neben dem Anlass) – wie im Original. Gibt es keine
      solche Zeile, steht sie allein unter der Überschrift. */
-  const artPille = c.blockType === 'klausur' ? 'Prüfung' : istVeranstaltung ? 'Veranstaltung' : '';
+  /* Zusätzliche Unterrichtsstunde: Plakette „Zusätzl. Unterrichtsstunde“
+     statt eines Vertretungstexts (nie beim Entfall). */
+  const artPille = c.blockType === 'klausur' ? 'Prüfung' : istVeranstaltung ? 'Veranstaltung'
+                 : (zusatz && c.blockType !== 'cancelled') ? 'Zusätzl. Unterrichtsstunde' : '';
   const pilleHtml = artPille ? `<span class="dpill dpill--art">${esc(artPille.toUpperCase())}</span>` : '';
 
   /* --- Aktionszeilen ----------------------------------------------------
@@ -5167,6 +5549,7 @@ function renderDetail(){
      Sollbildern nur Vertretungstext bzw. Information, Hausaufgaben und –
      wenn hinterlegt – die Notizen für Schüler*innen. */
   const off = c.blockType === 'cancelled';
+  const onlineD = !!(c.online || cbOnline) && !off && !istVeranstaltung;
   const hatKb = !!(c.unterricht || c.entryId) && !istVeranstaltung;
   const eigen = !state.isStudent && hatKb && cbDarf(c);
   const voll = eigen && !off;
@@ -5191,7 +5574,7 @@ function renderDetail(){
        Kachel zeigt das Info-Symbol, dass es ihn gibt. */
     const extraInfo = (c.info || '').trim();
     if (extraInfo) rows.push({ ico:'info', title:'Information zur Stunde', key:'info', sub:extraInfo });
-  } else if (c.info){
+  } else if (c.info && !zusatz){
     /* „Vertretungstext" nur bei einer Vertretung oder einem Entfall —
        Klausuren, Raumbuchungen und gewöhnliche Stunden tragen eine
        Information, keinen Vertretungstext. */
@@ -5236,7 +5619,10 @@ function renderDetail(){
           : (c.subject || c.subjectOrig) && !terminOhneKlasse
             ? `<p class="dline dline--big dline--mitpill"><span class="dline__txt">${val('subject')}</span>${pilleHtml}</p>`
             : pilleHtml ? `<p class="dline dline--pill">${pilleHtml}</p>` : ''}
-      ${(c.room || c.roomOrig) ? `<p class="dline dline--grau">${istVeranstaltung ? einmal(werteListe(c.room)).map(esc).join(SEP) : raumHtml()}</p>` : ''}
+      ${onlineD
+          /* Online-Unterricht: kein Raum, nur das Zeichen (wie auf der Kachel). */
+          ? `<p class="dline dline--grau dline--online" aria-label="Online-Unterricht">${KACHEL_ONLINE}</p>`
+          : (c.room || c.roomOrig) ? `<p class="dline dline--grau">${istVeranstaltung ? einmal(werteListe(c.room)).map(esc).join(SEP) : raumHtml()}</p>` : ''}
       ${istVeranstaltung
           ? (einmal(werteListe(c.teacher).filter(t => t !== '---')).length ? `<p class="dline dline--grau">${einmal(werteListe(c.teacher).filter(t => t !== '---')).map(esc).join(SEP)}</p>` : '')
           : (c.teacher || c.teacherOrig)
@@ -7149,9 +7535,16 @@ function detailTeilCard(ganz, lesson){
   return Object.assign({}, ganz, { lesson, span:1, entryId:eigen, _teil:lesson });
 }
 
+/* Einzelstundenauswahl über das Auswahlmenü im Titel (Datum und Uhrzeit,
+   mittig mit Pfeil): nur bei einem Block mit Klassenbuch, nicht für
+   Schüler*innen. Der frühere Segmentschalter darunter entfällt. */
+function detailTeilbar(ganz){
+  return !!ganz && (ganz.span || 1) > 1 && !!ganz.unterricht && !state.isStudent;
+}
+
 function detailTeilOeffnen(){
   const ganz = state.detailFull;
-  if (!ganz || (ganz.span || 1) < 2) return;
+  if (!detailTeilbar(ganz)) return;
 
   const pop = $('#detailPart');
   const zeit = n => {
@@ -7162,14 +7555,15 @@ function detailTeilOeffnen(){
   const jetzt = state.detail._teil ? state.detail.lesson : null;
   const bis = (state.times[Math.min(ganz.lesson + ganz.span - 1, 12)] || {}).end || '';
 
-  let html = `<button type="button" data-l="" class="${jetzt === null ? 'is-on' : ''}">
+  const eigen = new Set(((cbTeil && cbTeil.parts) || []).filter(t => t.own).map(t => t.lesson));
+  let html = `<button type="button" role="option" data-l="" class="${jetzt === null ? 'is-on' : ''}" aria-selected="${jetzt === null}">
                 <b>Ganzer Block</b>
                 <span>${esc((zeit(ganz.lesson).split('–')[0] || '').trim())} – ${esc(bis)}</span>
               </button>`;
   for (let i = 0; i < ganz.span; i++){
     const n = ganz.lesson + i;
-    html += `<button type="button" data-l="${n}" class="${jetzt === n ? 'is-on' : ''}">
-               <b>${n}. Stunde</b><span>${esc(zeit(n))}</span>
+    html += `<button type="button" role="option" data-l="${n}" class="${jetzt === n ? 'is-on' : ''}" aria-selected="${jetzt === n}">
+               <b>${n}. Stunde${eigen.has(n) ? '<i class="dteil__punkt" aria-label="eigene Einträge"></i>' : ''}</b><span>${esc(zeit(n))}</span>
              </button>`;
   }
   pop.innerHTML = html;
@@ -7184,7 +7578,7 @@ function detailTeilOeffnen(){
 /* Auf den ganzen Block (null) oder eine Einzelstunde umstellen. */
 function detailTeilWaehlen(v){
   const ganz = state.detailFull;
-  if (!ganz || (ganz.span || 1) < 2) return;
+  if (!detailTeilbar(ganz)) return;
   const jetztTeil = state.detail._teil || null;
   if (v === jetztTeil) return;
   const neu = detailTeilCard(ganz, v);
@@ -7199,26 +7593,14 @@ function detailTeilWaehlen(v){
   cbLoadAll(neu).then(() => { if (state.detail === neu) renderDetail(); });
 }
 
-/* Auswahl oben in den Stundendetails (wie iOS): „Ganzer Block“ und je
-   Stunde des Blocks ein Knopf. Ein Punkt zeigt, dass eine Einzelstunde
-   eigene Einträge hat. */
+/* Früher stand unter dem Kopf ein Segmentschalter „Ganzer Block“ / „n. Stunde“.
+   Die Auswahl steckt jetzt im Auswahlmenü des Titels (detailTeilOeffnen);
+   die Leiste bleibt leer und verborgen. */
 function renderDetailTeil(){
   const box = $('#detailTeil');
   if (!box) return;
-  const ganz = state.detailFull;
-  const span = ganz ? (ganz.span || 1) : 1;
-  /* Nur bei Unterricht mit Klassenbuch — Termine und Aufsichten haben keins. */
-  if (!ganz || span < 2 || !ganz.unterricht || state.isStudent){ box.hidden = true; box.innerHTML = ''; return; }
-  const jetzt = state.detail && state.detail._teil ? state.detail.lesson : null;
-  const eigen = new Set(((cbTeil && cbTeil.parts) || []).filter(t => t.own).map(t => t.lesson));
-  let html = `<button type="button" role="tab" data-l="" class="${jetzt === null ? 'is-on' : ''}" aria-selected="${jetzt === null}">Ganzer Block</button>`;
-  for (let i = 0; i < span; i++){
-    const n = ganz.lesson + i;
-    html += `<button type="button" role="tab" data-l="${n}" class="${jetzt === n ? 'is-on' : ''}" aria-selected="${jetzt === n}">${n}. Stunde${
-      eigen.has(n) ? '<i class="dteil__punkt" aria-label="eigene Einträge"></i>' : ''}</button>`;
-  }
-  box.innerHTML = html;
-  box.hidden = false;
+  box.hidden = true;
+  box.innerHTML = '';
 }
 $('#detailTeil').addEventListener('click', e => {
   const b = e.target.closest('button[data-l]');

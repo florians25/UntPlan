@@ -666,7 +666,8 @@ public class KachelbauTests
         var k = tage["2026-10-14"].OrderBy(x => x.Stunde).ToList();
         Assert.All(k, x => Assert.DoesNotContain("ondereins", x.Info + x.Typ + x.Fach, StringComparison.OrdinalIgnoreCase));
         Assert.Equal("", k[0].Info);
-        Assert.Equal("Projekt Medien", k[1].Info);
+        // Zusatzstunde (Sondereinsatz): kein Vertretungstext – die Plakette „Zusätzl. Unterrichtsstunde“ sagt alles
+        Assert.Equal("", k[1].Info);
         Assert.Equal("Projekt", k[2].Info);
         // die Zusatzstunde bleibt erkennbar (Plakette in den Details)
         Assert.True(k[0].Zusatz);
@@ -681,5 +682,36 @@ public class KachelbauTests
         // nur http(s)-Links, beim Entfall kein Online-Unterricht
         Assert.Null(Kachelbau.AusKarte(Karte("regulaer", 3) with { Online = true, OnlineLink = "javascript:alert(1)" }, "class").OnlineLink);
         Assert.Null(Kachelbau.AusKarte(Karte("entfall", 3) with { Online = true, OnlineLink = "https://x.example" }, "class").Online);
+    }
+    [Fact]
+    public void Zusaetzliche_Unterrichtsstunde_aus_dem_Kennzeichen_ohne_Vertretungstext()
+    {
+        // UntPlanWeb kennzeichnet zusätzlichen Unterricht mit „zusaetzlich“ – Plakette, kein Text, kein Info-Zeichen
+        var k = Kachelbau.AusKarte(Karte("geaendert", 3, text: "Zusatzunterricht Mathe", art: "Vertretung") with { Zusaetzlich = true }, "class");
+        Assert.True(k.Zusatz);
+        Assert.Equal("", k.Info);
+        Assert.Null(k.Verlegung);
+        // ältere Server: aus der Art erkannt, Text fällt ebenso weg
+        var alt = Kachelbau.AusKarte(Karte("geaendert", 3, text: "Förderstunde", art: "Zusatzunterricht"), "class");
+        Assert.True(alt.Zusatz);
+        Assert.Equal("", alt.Info);
+        // eine gewöhnliche Vertretung behält ihren Text
+        Assert.Equal("Aufgaben im Raum", Kachelbau.AusKarte(Karte("geaendert", 3, text: "Aufgaben im Raum", art: "Vertretung"), "class").Info);
+    }
+
+    [Fact]
+    public void Verlegung_kennzeichnet_Ursprung_und_Ziel()
+    {
+        // aus dem Feld von UntPlanWeb
+        Assert.Equal("von", Kachelbau.AusKarte(Karte("entfall", 2, art: "Verlegung") with { Verlegung = "von" }, "class").Verlegung);
+        Assert.Equal("nach", Kachelbau.AusKarte(Karte("geaendert", 5, art: "Verlegung") with { Verlegung = "nach" }, "class").Verlegung);
+        // ältere Server: aus der Vertretungsart; die Zielstunde ist keine Zusatzstunde
+        var ziel = Kachelbau.AusKarte(Karte("geaendert", 5, art: "Verlegung"), "class");
+        Assert.Equal("nach", ziel.Verlegung);
+        Assert.Null(ziel.Zusatz);
+        Assert.Equal("von", Kachelbau.AusKarte(Karte("entfall", 2, art: "Statt-Vertretung"), "class").Verlegung);
+        // keine Verlegung: Vertretung, Prüfung
+        Assert.Null(Kachelbau.AusKarte(Karte("geaendert", 2, art: "Vertretung"), "class").Verlegung);
+        Assert.Null(Kachelbau.AusKarte(Karte("klausur", 2, art: "Verlegung Klausur"), "class").Verlegung);
     }
 }

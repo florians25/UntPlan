@@ -80,17 +80,13 @@ struct StundendetailInhalt: View {
     var body: some View {
         VStack(spacing: 0) {
             Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() },
-                      laedt: karten.count <= 1 && !mitBereichswahl && laedt, mitte: {
+                      laedt: karten.count <= 1 && laedt, mitte: {
                 datumsMenue
             }, rechts: {
                 weitereAktionen
             })
             if karten.count > 1 {
                 reiterleiste
-                    .overlay(alignment: .bottom) { Ladebalken(aktiv: laedt && !mitBereichswahl) }
-            }
-            if mitBereichswahl {
-                bereichsleiste
                     .overlay(alignment: .bottom) { Ladebalken(aktiv: laedt) }
             }
             ScrollView {
@@ -169,12 +165,16 @@ struct StundendetailInhalt: View {
         "\(Datumsformat.anzeige(karte.datum, "EE")) | \(Datumsformat.anzeige(karte.datum, "dd.MM.yy"))"
     }
 
-    /// „7:45 - 11:05“ (Stunden ohne führende Null wie im Original).
+    /// „7:45 - 11:05“ (Stunden ohne führende Null wie im Original); bei gewählter Einzelstunde deren Zeit mit „3. Std.“.
     private var zeittitel: String {
-        karte.beginn.isEmpty ? stundentext : "\(Detailmass.uhrzeit(karte.beginn)) - \(Detailmass.uhrzeit(karte.ende))"
+        if mitBereichswahl, let nr = daten.einzelstunde, let s = daten.blockStunden.first(where: { $0.stunde == nr }) {
+            return s.beginn.isEmpty ? "\(nr). Std." : "\(nr). Std. · \(Detailmass.uhrzeit(s.beginn)) - \(Detailmass.uhrzeit(s.ende))"
+        }
+        return karte.beginn.isEmpty ? stundentext : "\(Detailmass.uhrzeit(karte.beginn)) - \(Detailmass.uhrzeit(karte.ende))"
     }
 
-    /// „Do. | 05.11.26 ⌄“ mit Uhrzeit darunter; das Menü nennt Tag und Stunde (und wechselt zwischen gleichzeitigen Stunden).
+    /// „Do. | 05.11.26 ⌄“ mit Uhrzeit darunter; das Menü nennt Tag und Stunde, wechselt zwischen gleichzeitigen Stunden
+    /// und wählt bei Doppel- bzw. Blockstunden, ob Einträge für den ganzen Block oder nur eine Einzelstunde gelten.
     private var datumsMenue: some View {
         Menu {
             Section(Datumsformat.anzeige(karte.datum, "EEEE, d. MMMM yyyy")) {
@@ -182,6 +182,24 @@ struct StundendetailInhalt: View {
                     Label(karte.beginn.isEmpty ? stundentext : "\(stundentext) · \(karte.beginn) - \(karte.ende)", systemImage: "clock")
                 }
                 .disabled(true)
+            }
+            if mitBereichswahl {
+                Section("Einträge gelten für") {
+                    Button {
+                        bereichBinding.wrappedValue = 0
+                    } label: {
+                        Label("Ganzer Block (\(karte.von).–\(karte.bis). Stunde)",
+                              systemImage: daten.einzelstunde == nil ? "checkmark" : "square.stack")
+                    }
+                    ForEach(daten.blockStunden) { s in
+                        Button {
+                            bereichBinding.wrappedValue = s.stunde
+                        } label: {
+                            Label(stundentitel(s, mitZeit: true) + (s.eintrag ? " •" : ""),
+                                  systemImage: daten.einzelstunde == s.stunde ? "checkmark" : "clock")
+                        }
+                    }
+                }
             }
             if karten.count > 1 {
                 Section("Stunden zur selben Zeit") {
@@ -195,7 +213,7 @@ struct StundendetailInhalt: View {
                 }
             }
         } label: {
-            Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: kollegium || karten.count > 1)
+            Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: kollegium || karten.count > 1 || mitBereichswahl)
                 .contentShape(Rectangle())
         }
         // Symbole im Menü schwarz bzw. weiß je nach Modus (nicht orange bzw. grau)
@@ -227,7 +245,8 @@ struct StundendetailInhalt: View {
 
     // MARK: - Ganzer Block / Einzelstunde
 
-    /// Doppel- bzw. Blockstunde: Lehrkräfte wählen oben, ob Einträge für den ganzen Block oder nur eine Stunde gelten.
+    /// Doppel- bzw. Blockstunde: Lehrkräfte wählen im mittigen Menü (Titel mit ⌄), ob Einträge für den ganzen Block
+    /// oder nur eine Stunde gelten.
     private var mitBereichswahl: Bool { kollegium && mitUnterricht && !istVeranstaltung && daten.hatEinzelstunden }
 
     /// „3. Std.“ bzw. mit Uhrzeit im Menü.
@@ -240,49 +259,6 @@ struct StundendetailInhalt: View {
         Binding(get: { daten.einzelstunde ?? 0 }, set: { neu in
             Task { await daten.bereichWaehlen(neu == 0 ? nil : neu, kollegium: kollegium) }
         })
-    }
-
-    /// Auswahl unter dem Kopf: Segmente „Ganzer Block | 3. Std. | 4. Std.“ (bei langen Blöcken ein Menü). Stunden mit
-    /// eigenem Eintrag tragen einen Punkt.
-    private var bereichsleiste: some View {
-        let stunden = daten.blockStunden
-        return HStack(spacing: 10) {
-            if stunden.count <= 3 {
-                let eintraege: [(Int, String)] = [(0, "Ganzer Block")]
-                    + stunden.map { s -> (Int, String) in (s.stunde, stundentitel(s, mitZeit: false) + (s.eintrag ? " •" : "")) }
-                Segmentschalter(auswahl: bereichBinding, eintraege)
-                    .accessibilityLabel("Einträge gelten für")
-            } else {
-                Menu {
-                    Picker("Einträge gelten für", selection: bereichBinding) {
-                        Text("Ganzer Block (\(karte.von).–\(karte.bis). Stunde)").tag(0)
-                        ForEach(stunden) { s in
-                            Text(stundentitel(s, mitZeit: true) + (s.eintrag ? " •" : "")).tag(s.stunde)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(daten.einzelstunde.map { "Nur \($0). Stunde" } ?? "Ganzer Block (\(karte.von).–\(karte.bis). Stunde)")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Farben.tinte)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Farben.gedaempft)
-                    }
-                    .padding(.horizontal, 14)
-                    .frame(height: 32)
-                    .background(Farben.segmentGrund, in: Capsule())
-                    .contentShape(Capsule())
-                }
-                .tint(Color.primary)
-                Spacer(minLength: 0)
-            }
-        }
-        .padding(.horizontal, Detailmass.rand)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farben.blatt)
     }
 
     // MARK: - Reiter
@@ -555,9 +531,10 @@ struct StundendetailInhalt: View {
                 if !veranstaltungsInfo.isEmpty {
                     link(.info, Detailzeile(symbol: "SymbolInfo", titel: "Information", untertitel: veranstaltungsInfo))
                 }
-            } else if !karte.anzeigeText.isEmpty {
+            } else if !karte.anzeigeText.isEmpty && !karte.istZusatzstunde {
                 // Information zur Stunde mit dem Info-Zeichen (info.svg), Vertretungstext mit dem Notizblatt; bloße
-                // Art-Bezeichnungen wie „Sondereinsatz“ erscheinen nicht
+                // Art-Bezeichnungen wie „Sondereinsatz“ erscheinen nicht; Zusatzstunde: nur die Plakette
+                // „Zusätzl. Unterrichtsstunde“ im Kopf, kein Vertretungstext
                 link(.text, Detailzeile(symbol: textTitel == "Information zur Stunde" ? "SymbolInfo" : "SymbolNotiz",
                                         titel: textTitel, untertitel: karte.anzeigeText))
             }

@@ -1,5 +1,5 @@
 // Stundenpläne (Klasse, Lehrkraft, Raum) wie im Original: Elementwahl als Pille mit Info-Symbol (z. B. „Klassenlehrkraft: KM“),
-// Datumsbereich als Pille mit Kalender (Kalenderwochen, Woche markiert, Wochenende gestrichen), weißer „Heute“-Knopf rechts,
+// Datumsbereich als Pille mit eigenem Kalender (Wochenauswahl mit KW-Spalte), weißer „Heute“-Knopf rechts,
 // Raster mit Zeitspalte und Jetzt-Linie, Legende als schwebende Pillenleiste mit Menü „⋮“ (Symbole anzeigen, Abwesenheiten,
 // Drucken, Öffentlichen Link kopieren), Hilfe unten rechts. Keine A/B-Woche im Kopf.
 import { e, icon, holen, heuteIso, plusTage, montag, lade, dialog, toast, druckenMitAusrichtung } from '../ui.js';
@@ -8,7 +8,6 @@ import { elementWahl } from '../elementwahl.js';
 
 const TYPEN = { klasse: 'Klasse', lehrer: 'Lehrkraft', raum: 'Raum' };
 const LISTE = { klasse: 'klassen', lehrer: 'lehrer', raum: 'raeume' };
-const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
 /** Langname ohne vorangestelltes Kürzel („7a – Klasse 7a“ → „Klasse 7a“). */
 function langname(plan) {
@@ -24,71 +23,9 @@ export function wochenText(mo) {
   return `${t(mo)} - ${t(so)} ${so.slice(0, 4)}`;
 }
 
-/** Kalenderwoche nach ISO 8601. */
-export function kalenderwoche(iso) {
-  const d = new Date(iso + 'T12:00:00Z');
-  const tag = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - tag + 3);
-  const ersterDo = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-  return 1 + Math.round(((d - ersterDo) / 864e5 - 3 + ((ersterDo.getUTCDay() + 6) % 7)) / 7);
-}
-
-const isoVon = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-/**
- * Auswahlkalender wie im Original: Kopf „Nov 2026“ mit ‹ ›, graue Spalte KW, Mo–So, Wochenende grau durchgestrichen, Tage anderer Monate
- * grau. modus 'woche': gewählte Woche als rosa Zeile, Zeile beim Überfahren hellgrau abgerundet, Klick auf die Zeile wählt die Woche;
- * modus 'tag': gewählter Tag rosa.
- */
-export function kalenderHtml(jahr, monat, gewaehlt, modus = 'woche') {
-  const erster = new Date(jahr, monat, 1, 12);
-  const start = new Date(erster); start.setDate(1 - ((erster.getDay() + 6) % 7));
-  let zeilen = '';
-  for (let w = 0; w < 6; w++) {
-    const mo = new Date(start); mo.setDate(start.getDate() + w * 7);
-    const moIso = isoVon(mo);
-    if (w === 5 && mo.getMonth() !== monat) break;
-    let z = `<tr class="${modus === 'woche' && moIso === gewaehlt ? 'gewaehlt' : ''}" ${modus === 'woche' ? `data-woche-mo="${moIso}"` : ''}><td class="kw">${kalenderwoche(moIso)}</td>`;
-    for (let t = 0; t < 7; t++) {
-      const d = new Date(mo); d.setDate(mo.getDate() + t);
-      const iso = isoVon(d);
-      const kl = [d.getMonth() !== monat ? 'fremd' : '', t >= 5 ? 'we' : '', iso === heuteIso() ? 'ist-heute' : '', modus === 'tag' && iso === gewaehlt ? 'gewaehlt' : ''].filter(Boolean).join(' ');
-      z += `<td><button type="button" data-tag="${iso}" class="${kl}" ${modus === 'tag' && iso === gewaehlt ? 'aria-current="date"' : ''}>${d.getDate()}</button></td>`;
-    }
-    zeilen += z + '</tr>';
-  }
-  return `<div class="kal-kopf"><b>${MONATE[monat]}&nbsp; ${jahr}</b><span><button type="button" data-monat="-1" aria-label="Vorheriger Monat"><i class="bi bi-chevron-left"></i></button>
-      <button type="button" data-monat="1" aria-label="Nächster Monat"><i class="bi bi-chevron-right"></i></button></span></div>
-    <table class="kal ${modus === 'woche' ? 'wochenwahl' : 'tageswahl'}"><thead><tr><th class="kw"></th>${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${zeilen}</tbody></table>`;
-}
-
-/** Kalender an einen Pillen-Knopf hängen; beiWahl(iso). modus 'woche' (gewaehlt = Montag) oder 'tag' (gewaehlt = Datum). */
-export function kalenderBinden(knopf, gewaehlt, beiWahl, modus = 'woche') {
-  const pop = document.createElement('div');
-  pop.className = 'u-kalender d-none';
-  pop.setAttribute('role', 'dialog');
-  pop.setAttribute('aria-label', modus === 'woche' ? 'Woche wählen' : 'Datum wählen');
-  knopf.parentElement.append(pop);
-  knopf.classList.add('kal-pille');
-  let [j, m] = gewaehlt.split('-').map(Number); m -= 1;
-  const schliessen = () => { pop.classList.add('d-none'); knopf.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', zu, true); };
-  const zeichnen = () => {
-    pop.innerHTML = kalenderHtml(j, m, gewaehlt, modus);
-    pop.querySelectorAll('[data-monat]').forEach(b => b.onclick = ev => { ev.stopPropagation(); m += Number(b.dataset.monat); if (m < 0) { m = 11; j--; } if (m > 11) { m = 0; j++; } zeichnen(); });
-    pop.querySelectorAll('[data-tag]').forEach(b => b.onclick = ev => { ev.stopPropagation(); schliessen(); beiWahl(b.dataset.tag); });
-    // Woche: Klick irgendwo in der Zeile (auch auf die KW) wählt die Woche
-    pop.querySelectorAll('[data-woche-mo]').forEach(tr => tr.onclick = () => { schliessen(); beiWahl(tr.dataset.wocheMo); });
-  };
-  const zu = ev => { if (!pop.contains(ev.target) && ev.target !== knopf && !knopf.contains(ev.target)) schliessen(); };
-  knopf.setAttribute('aria-expanded', 'false');
-  knopf.onclick = () => {
-    if (!pop.classList.contains('d-none')) { schliessen(); return; }
-    zeichnen(); pop.classList.remove('d-none'); knopf.setAttribute('aria-expanded', 'true');
-    document.addEventListener('mousedown', zu, true);
-  };
-  knopf.addEventListener('keydown', ev => { if (ev.key === 'Escape') schliessen(); });
-  pop.addEventListener('keydown', ev => { if (ev.key === 'Escape') { schliessen(); knopf.focus(); } });
-}
+// Kalender (Wochenauswahl im Kopf, Tageswahl in den Tagesansichten): eigene Komponente in kalender.js
+export { kalenderwoche, kalenderBinden } from '../kalender.js';
+import { kalenderBinden } from '../kalender.js';
 
 /** Einstellungen der Legende (je Gerät). */
 export function planEinstellungen() {

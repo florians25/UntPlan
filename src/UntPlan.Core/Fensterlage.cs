@@ -88,6 +88,43 @@ public static class Fensterlage
     }
 
     /// <summary>
+    /// Clientbereich des Hauptfensters mit eigener Titelleiste (Antwort auf WM_NCCALCSIZE, Bildschirmkoordinaten).
+    /// <paramref name="fenster"/> ist das vorgeschlagene Fensterrechteck, <paramref name="systemClient"/> der vom System berechnete
+    /// Clientbereich (Systemrahmen links, rechts und unten samt Titelleiste oben).
+    /// <list type="bullet">
+    /// <item>Fenstermodus: Rahmen links, rechts und unten wie vom System (Schatten, Greifränder, Andocken), oben kein Rahmen – der
+    /// Programmkopf beginnt an der Oberkante des Fensters. Ein oben stehen gelassener Rahmen erschiene als weißer Streifen.</item>
+    /// <item>Maximiert: Windows legt das Fenster um die Rahmendicke über den Bildschirm hinaus. Der Clientbereich ist dann genau der
+    /// Arbeitsbereich des Bildschirms (ohne Taskleiste) – unabhängig von DPI-Skalierung und Systemmetriken; ist die Taskleiste
+    /// automatisch ausgeblendet (<paramref name="autoTaskleiste"/>: 0 links, 1 oben, 2 rechts, 3 unten), bleibt an ihrer Kante
+    /// ein Pixel frei, damit sie sich weiterhin einblenden lässt.</item>
+    /// </list>
+    /// </summary>
+    public static Rectangle ClientBereich(Rectangle fenster, Rectangle systemClient, bool maximiert, Rectangle arbeitsbereich, int? autoTaskleiste = null)
+    {
+        if (!maximiert)
+            return Rectangle.FromLTRB(systemClient.Left, fenster.Top, Math.Max(systemClient.Left, systemClient.Right), Math.Max(fenster.Top, systemClient.Bottom));
+        // ohne Arbeitsbereich: oben dieselbe Rahmendicke wie links (vom System für die DPI des Fensters berechnet)
+        var rahmen = Math.Max(0, systemClient.Left - fenster.Left);
+        var r = Rectangle.FromLTRB(systemClient.Left, fenster.Top + rahmen, systemClient.Right, systemClient.Bottom);
+        if (BereichGueltig(arbeitsbereich))
+        {
+            var s = Rectangle.Intersect(fenster, arbeitsbereich);
+            if (s.Width > 0 && s.Height > 0) r = s;
+        }
+        if (autoTaskleiste is int k && r.Width > 2 && r.Height > 2)
+            r = k switch
+            {
+                0 => Rectangle.FromLTRB(r.Left + 1, r.Top, r.Right, r.Bottom),
+                1 => Rectangle.FromLTRB(r.Left, r.Top + 1, r.Right, r.Bottom),
+                2 => Rectangle.FromLTRB(r.Left, r.Top, r.Right - 1, r.Bottom),
+                3 => Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom - 1),
+                _ => r,
+            };
+        return r;
+    }
+
+    /// <summary>
     /// Arbeitsfenster im MDI-Bereich (Clientkoordinaten, Ursprung oben links unter dem Menüband): vollständig im sichtbaren
     /// Bereich; bei einer Größenänderung (bzw. <paramref name="groesseAnpassen"/>) höchstens so groß wie der Bereich, beim reinen
     /// Verschieben bleibt die Größe – ein zu großes Fenster steht dann oben links.

@@ -1,6 +1,7 @@
 // Klassenbuch → Berichte im nl-design: Filterleiste (Klasse, Schüler*in, Zeitraum), Reiter je Berichtsgruppe, Berichte als ruhige Liste
 // (Symbol, Titel, Beschreibung, rechts Anzeigen/PDF/CSV); Parameter im Seitenpanel. Vorschau oberhalb der Liste.
 import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade, pdfAusrichtung, druckenMitAusrichtung } from '../ui.js';
+import { kbDialog as dialog } from '../kbdialog.js';
 
 const ALIAS = { fehlzeiten: 'fehlzeiten_schueler', lehrstoff: 'arbeitsbericht_tag' };
 const GRUPPEN = {
@@ -122,14 +123,14 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
 
   function anzeigen(a, p) {
     if (a.klasseNoetig && !p.klasse) { kontext.fehler(new Error('Für diesen Bericht bitte eine Klasse wählen.')); return; }
-    document.querySelector('.br-panel-huelle')?.remove();
+    document.querySelector('.br-dialog')?.closest('.kbd-overlay')?.remove();
     kontext.navigieren(ziel(a.id, p.klasse, p.von, p.bis, p.schueler, a.parameter ? p.n1 : 0, a.parameter ? p.n2 : 0));
   }
   async function exportieren(a, p, format, knopf) {
     if (a.klasseNoetig && !p.klasse) { kontext.fehler(new Error('Für diesen Bericht bitte eine Klasse wählen.')); return; }
     if (a.id === 'entschuldigungsschreiben') {
       // Entschuldigungsschreiben: Druckansicht (je Schüler*in eine Seite)
-      document.querySelector('.br-panel-huelle')?.remove();
+      document.querySelector('.br-dialog')?.closest('.kbd-overlay')?.remove();
       if (a.id === art) { druckenMitAusrichtung('hoch', 'entschuldigungsschreiben'); return; }
       sessionStorage.setItem('untplan:berichtdruck', '1');
       kontext.navigieren(ziel(a.id, p.klasse, p.von, p.bis, p.schueler, p.n1, p.n2));
@@ -144,21 +145,17 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     finally { if (knopf) knopf.disabled = false; }
   }
 
-  /** Seitenpanel rechts: Beschreibung, Parameter (Klasse, Schüler*in, Zeitraum, Schwellenwerte) und gleich große Knöpfe. */
+  /** Berichtsdialog (gemeinsame Modal-Komponente): Beschreibung, Parameter (Klasse, Schüler*in, Zeitraum, Schwellenwerte), Fuß mit CSV, PDF, Anzeigen. */
   async function panel(a) {
-    document.querySelector('.br-panel-huelle')?.remove();
+    document.querySelector('.br-dialog')?.closest('.kbd-overlay')?.remove();
     const g = GRUPPEN[a.gruppe] ?? GRUPPEN.Weitere;
     const p = standard(a);
-    const h = document.createElement('div');
-    h.className = 'br-panel-huelle';
     const param = a.parameter ? e(a.parameter)
       .replace('{n1}', `<input type="number" min="1" class="form-control br-zahl" data-p-n1 value="${p.n1}" aria-label="Wert 1">`)
       .replace('{n2}', `<input type="number" min="1" class="form-control br-zahl" data-p-n2 value="${p.n2}" aria-label="Wert 2">`) : '';
-    h.innerHTML = `<div class="br-panel-schleier" data-zu></div>
-      <aside class="br-panel" role="dialog" aria-modal="true" aria-labelledby="br-panel-titel">
-        <header><span class="br-symbol ${g.farbe}"><i class="bi bi-${g.symbol}" aria-hidden="true"></i></span>
-          <div><small>${e(a.gruppe)}</small><h2 id="br-panel-titel">${e(a.titel)}</h2></div>
-          <button type="button" class="btn-close" data-zu aria-label="Schließen"></button></header>
+    // gemeinsame Modal-Komponente des Klassenbuchs (Kopf mit Titel und X, Fuß rechts mit Hauptknopf „Anzeigen“)
+    const h = dialog({ titel: a.titel, breite: 'm', klasse: 'br-dialog',
+      inhalt: `<div class="br-dialog-gruppe"><span class="br-symbol ${g.farbe}"><i class="bi bi-${g.symbol}" aria-hidden="true"></i></span><small>${e(a.gruppe)}</small></div>
         <div class="br-panel-rumpf">
           <p class="br-panel-text">${e(BESCHREIBUNG[a.id] ?? '')}</p>
           <label class="kd-dfeld"><span>Klasse${a.klasseNoetig ? ' <b class="text-danger">*</b>' : ''}</span><select class="form-select" data-p-klasse>${a.klasseNoetig ? '' : '<option value="">Alle Klassen</option>'}${el.klassen.map(k => `<option ${k.kurz === (p.klasse || (a.klasseNoetig ? el.klassen[0]?.kurz : '')) ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
@@ -169,19 +166,12 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
           </div>
           <div class="kd-schnell"><button type="button" class="s-pille" data-zeit="30">30 Tage</button><button type="button" class="s-pille" data-zeit="hj">Halbjahr</button><button type="button" class="s-pille" data-zeit="sj">Schuljahr</button></div>
           ${param ? `<div class="kd-dfeld"><span>Schwellenwert</span><div class="br-param">${param}</div></div>` : ''}
-        </div>
-        <footer><button type="button" class="btn btn-primary s-knopf" data-p-anzeigen><i class="bi bi-eye"></i>Anzeigen</button>
-          <button type="button" class="btn btn-outline-secondary s-knopf" data-p-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button>
-          <button type="button" class="btn btn-outline-secondary s-knopf" data-p-csv ${a.id === 'entschuldigungsschreiben' ? 'disabled' : ''}><i class="bi bi-filetype-csv"></i>CSV</button></footer>
-      </aside>`;
-    document.body.append(h);
-    requestAnimationFrame(() => h.classList.add('offen'));
+        </div>`,
+      fuss: `<button type="button" class="nl-knopf" data-p-csv ${a.id === 'entschuldigungsschreiben' ? 'disabled' : ''}><i class="bi bi-filetype-csv"></i>CSV</button>
+        <button type="button" class="nl-knopf" data-p-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button>
+        <button type="button" class="nl-knopf nw-primaer" data-p-anzeigen><i class="bi bi-eye"></i>Anzeigen</button>` });
     const q = x => h.querySelector(x);
-    const zu = () => { h.classList.remove('offen'); setTimeout(() => h.remove(), 200); document.removeEventListener('keydown', taste); };
-    const taste = ev => { if (ev.key === 'Escape') zu(); };
-    document.addEventListener('keydown', taste);
-    window.addEventListener('hashchange', () => h.remove(), { once: true });
-    h.querySelectorAll('[data-zu]').forEach(x => x.onclick = zu);
+    window.addEventListener('hashchange', () => h.schliessen(), { once: true });
     const schuelerLaden = async () => {
       const k = q('[data-p-klasse]').value;
       const liste = await schuelerVon(k);

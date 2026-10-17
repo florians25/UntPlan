@@ -1,7 +1,8 @@
 // Hausaufgaben als Fenster (nl-design): Detailfenster (Fach, Klasse, Lehrkraft, Aufgabedatum, Fälligkeit, Text, Bemerkung, Anhänge,
 // Erledigt-Status; Bearbeiten/Löschen für die Lehrkraft) und Formular zum Anlegen bzw. Bearbeiten. Gemeinsam für
 // Klassenbuch → Hausaufgaben und die Stundendetails.
-import { e, holen, senden, api, toast, dialog, bestaetigen, heuteIso, plusTage } from './ui.js';
+import { e, holen, senden, api, toast, heuteIso, plusTage } from './ui.js';
+import { kbDialog as dialog, kbBestaetigen as bestaetigen } from './kbdialog.js';
 
 const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
@@ -46,7 +47,6 @@ export function hausaufgabeDetails(h, { darf = !!h.darf, geaendert = () => {} } 
       { text: 'Schließen', art: 'haupt' },
     ],
     beimOeffnen: b => {
-      b.closest('.modal')?.classList.add('hw-fenster');
       b.querySelector('[data-erledigt]')?.addEventListener('change', async ev => {
         try {
           await senden(`/api/app/klassenbuch/hausaufgabenliste/${h.id}`, { erledigt: ev.target.checked }, 'PUT');
@@ -99,7 +99,6 @@ export function hausaufgabeFormular({ h = null, stunde = null, lehrer = '', geae
       geaendert();
     } }],
     beimOeffnen: b => {
-      b.closest('.modal')?.classList.add('hw-fenster');
       if (fest) return;
       // Stunden der Lehrkraft an diesem Tag (ohne Entfall)
       const datum = b.querySelector('[name=datum]'), wahl = b.querySelector('[name=stunde]'), faellig = b.querySelector('[name=faellig]');

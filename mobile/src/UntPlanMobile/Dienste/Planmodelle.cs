@@ -23,7 +23,11 @@ public sealed record PlanKarte(
     // offene Vertretung (noch keine Lehrkraft eingeteilt) – auch bei Status „abwesend“ im eigenen Lehrerplan
     bool VertretungOffen = false,
     // „Findet online statt“ mit Link zum Online-Unterricht (Klassenbuch der Stunde)
-    bool Online = false, string? OnlineLink = null);
+    bool Online = false, string? OnlineLink = null,
+    // zusätzliche Unterrichtsstunde (nicht im Regelplan): Badge „Zusätzl. Unterrichtsstunde“, nie ein Vertretungstext
+    bool Zusaetzlich = false,
+    // Verlegung: "von" = ursprüngliche Stunde (Pfeil nach rechts), "nach" = Zielstunde (Pfeil nach links), sonst null
+    string? Verlegung = null);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 public sealed record PlanAufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
@@ -105,8 +109,10 @@ public sealed class Kachel
     /// die bisherige steht immer durchgestrichen in der grünen Plakette – auf Karten und im Kopf der Stundendetails.
     /// </summary>
     [JsonPropertyName("teacherOpen")] public bool? LehrkraftOffen { get; set; }
-    /// <summary>Zusatzstunde (zusätzlicher Unterricht): Plakette „Zusätzliche Unterrichtsstunde“ in den Details.</summary>
+    /// <summary>Zusatzstunde (zusätzlicher Unterricht): Plakette „Zusätzl. Unterrichtsstunde“ in den Details, kein Vertretungstext.</summary>
     [JsonPropertyName("extra")] public bool? Zusatz { get; set; }
+    /// <summary>Verlegung: "von" = ursprüngliche Stunde (Zeichen mit Pfeil nach rechts), "nach" = Zielstunde (Pfeil nach links).</summary>
+    [JsonPropertyName("moved")] public string? Verlegung { get; set; }
     /// <summary>Klasse abwesend (Freisetzung): Klasse durchgestrichen, Kachel grün; im Lehrerplan wie eine abgegebene Stunde.</summary>
     [JsonPropertyName("classAbsent")] public bool? KlasseAbwesend { get; set; }
     /// <summary>Offene Raumvertretung: noch kein Raum eingeteilt, bisheriger Raum durchgestrichen.</summary>

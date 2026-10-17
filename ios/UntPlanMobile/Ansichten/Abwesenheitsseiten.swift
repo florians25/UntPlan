@@ -226,6 +226,8 @@ struct AbwesenheitsEintrag: Identifiable, Hashable {
     var text: String
     var ids: [Int]
     var elternInformiert: Bool
+    /// Fehlzeit dieser Stunde (Eintrag aus der Stunde ohne Zeitraum) – zum Entschuldigen
+    var fehlzeitId: Int? = nil
 
     init(_ f: Fehlzeiteintrag, datum: String) {
         id = "stunde:\(f.schuelerId):\(f.id)"
@@ -237,6 +239,7 @@ struct AbwesenheitsEintrag: Identifiable, Hashable {
         text = f.text
         ids = []
         elternInformiert = false
+        fehlzeitId = f.id
     }
 
     init(_ z: Abwesenheitszeitraum) {
@@ -269,6 +272,7 @@ struct AbwesenheitsEintrag: Identifiable, Hashable {
 
 /// Vorlage „Abwesenheiten“: Kopf mit Zurück, Titel und Name, rechts „+“; je Abwesenheit Datum, Uhrzeit und Grund mit
 /// Pfeil; unten das Suchfeld. Lehrkräfte sehen die Abwesenheit dieser Stunde, Klassenleitungen alle der letzten 30 Tage.
+/// Nach links wischen öffnet den Entschuldigungsdialog (runde Pill „Entschuldigen“).
 struct SchuelerAbwesenheitenView: View {
     let schueler: Schueler
     @EnvironmentObject var daten: Stundendaten
@@ -276,6 +280,8 @@ struct SchuelerAbwesenheitenView: View {
     @State private var zeitraeume: [Abwesenheitszeitraum] = []
     @State private var suche = ""
     @State private var bearbeiten: AbwesenheitsZiel? = nil
+    @State private var entschuldigung: Entschuldigungsauftrag? = nil
+    @State private var rechte = Entschuldigungsrechte()
 
     /// Ziel der Bearbeitung: neue Abwesenheit (eintrag nil) oder bestehende.
     struct AbwesenheitsZiel: Hashable, Identifiable {
@@ -315,12 +321,21 @@ struct SchuelerAbwesenheitenView: View {
                                 .padding(.top, 14)
                         }
                         ForEach(eintraege) { e in
-                            Button {
-                                bearbeiten = AbwesenheitsZiel(eintrag: e)
-                            } label: {
-                                zeile(e)
+                            // Nach links wischen: runde Pill „Entschuldigen“ (Klassenleitung bzw. Fachlehrkraft)
+                            WischZeile(rechtsMoeglich: false, linksMoeglich: entschuldigungsziel(e) != nil,
+                                       rechts: {}, links: {
+                                           if let z = entschuldigungsziel(e) {
+                                               entschuldigung = Entschuldigungsauftrag(ziel: z, name: schueler.anzeige, klasse: schueler.klasse)
+                                           }
+                                       },
+                                       linksAktion: .entschuldigen) {
+                                Button {
+                                    bearbeiten = AbwesenheitsZiel(eintrag: e)
+                                } label: {
+                                    zeile(e)
+                                }
+                                .buttonStyle(ZeilenKnopfStil())
                             }
-                            .buttonStyle(ZeilenKnopfStil())
                         }
                     }
                 }
@@ -342,7 +357,17 @@ struct SchuelerAbwesenheitenView: View {
                 .environmentObject(daten)
                 .environmentObject(zustand)
         }
+        .detailPraesentation(item: $entschuldigung, breit: Geraet.istPad, art: .formular) { a in
+            EntschuldigenView(auftrag: a) {
+                Task {
+                    await zeitraeumeLaden()
+                    await daten.anwesenheitLaden()
+                }
+            }
+            .environmentObject(zustand)
+        }
         .task {
+            rechte = await zustand.entschuldigungsrechteLaden()
             await daten.gruendeLaden()
             await zeitraeumeLaden()
         }
@@ -396,6 +421,17 @@ struct SchuelerAbwesenheitenView: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+
+    /// Was sich entschuldigen lässt: Klassenleitung die ganze Abwesenheit (Fehlzeit-IDs), Fachlehrkraft bzw. ein
+    /// Eintrag nur aus dieser Stunde die Fehlzeit der Stunde (der Dialog sucht die passende Abwesenheit).
+    private func entschuldigungsziel(_ e: AbwesenheitsEintrag) -> Entschuldigungsziel? {
+        if rechte.leitet(schueler.klasse), !e.ids.isEmpty { return .ids(e.ids) }
+        if let id = e.fehlzeitId ?? (e.ids.contains(daten.fehlzeit(schueler)?.id ?? -1) ? daten.fehlzeit(schueler)?.id : nil),
+           rechte.leitet(schueler.klasse) || rechte.fachlehrer {
+            return .fehlzeit(id: id, klasse: schueler.klasse, datum: daten.karte.datum)
+        }
+        return nil
     }
 
     /// Klassenleitung: Abwesenheiten der letzten 30 Tage (bis zum Tag der Stunde) als Zeiträume.

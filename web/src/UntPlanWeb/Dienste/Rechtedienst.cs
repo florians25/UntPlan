@@ -24,7 +24,7 @@ public static class Recht
     public const string KlassenbuchEigene = "klassenbuch.eigene", KlassenbuchKlasse = "klassenbuch.klasse", KlassenbuchAlle = "klassenbuch.alle";
     public const string KlassenbuchEinstellungen = "klassenbuch.einstellungen";
     public const string AbwesenheitErfassen = "abwesenheit.erfassen", AbwesenheitEntschuldigen = "abwesenheit.entschuldigen",
-        AbwesenheitRueckwirkend = "abwesenheit.rueckwirkend", AbwesenheitAlle = "abwesenheit.alle";
+        AbwesenheitRueckwirkend = "abwesenheit.rueckwirkend", AbwesenheitAlle = "abwesenheit.alle", AbwesenheitFachlehrer = "abwesenheit.fachlehrer";
     public const string HausaufgabenSehen = "hausaufgaben.sehen", HausaufgabenEintragen = "hausaufgaben.eintragen";
     public const string PruefungSehen = "pruefung.sehen", PruefungAnlegen = "pruefung.anlegen", PruefungSperrenUmgehen = "pruefung.sperren_umgehen";
     public const string BuchungRaum = "buchung.raum", BuchungRessourcen = "buchung.ressourcen", BuchungAndere = "buchung.andere", BuchungVerwalten = "buchung.verwalten";
@@ -62,6 +62,7 @@ public static class Recht
         new(AbwesenheitErfassen, "Abwesenheiten", "Abwesenheiten erfassen", "Abwesenheiten in den eigenen Stunden eintragen.", false, true, S(J, J, J, N, N)),
         new(AbwesenheitEntschuldigen, "Abwesenheiten", "Abwesenheiten entschuldigen", "Entschuldigungsstatus setzen (in den eigenen Klassen bzw. mit „alle Klassen“ überall).", false, true, S(J, J, J, N, N)),
         new(AbwesenheitRueckwirkend, "Abwesenheiten", "Rückwirkend bearbeiten", $"Abwesenheiten bearbeiten, die länger als {RueckwirkendTage} Tage zurückliegen.", false, true, S(J, J, J, N, N)),
+        new(AbwesenheitFachlehrer, "Abwesenheiten", "Fehlstunden im eigenen Unterricht entschuldigen", "Fachlehrer-Entschuldigungen: einzelne Fehlstunden aus dem eigenen Unterricht entschuldigen (wenn in den Klassenbuch-Einstellungen eingeschaltet).", false, true, S(J, J, J, N, N)),
         new(AbwesenheitAlle, "Abwesenheiten", "Abwesenheiten aller Klassen", "Abwesenheiten und Fehlzeiten aller Klassen verwalten.", false, true, S(J, J, N, N, N)),
         new(HausaufgabenSehen, "Hausaufgaben", "Hausaufgaben sehen", "Hausaufgaben und Lehrstoff der Klasse sehen.", false, false, S(J, J, J, J, J)),
         new(HausaufgabenEintragen, "Hausaufgaben", "Hausaufgaben eintragen", "Hausaufgaben in den eigenen Stunden eintragen.", false, true, S(J, J, J, N, N)),

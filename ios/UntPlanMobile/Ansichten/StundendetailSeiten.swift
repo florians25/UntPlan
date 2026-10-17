@@ -1177,7 +1177,8 @@ private struct EintragLabelStil: LabelStyle {
 /// Abschnitte nach Anfangsbuchstaben mit A–Z-Leiste rechts.
 /// Jede Zeile: grüner Haken-Kreis (anwesend) bzw. rote Uhr (abwesend), Name, darunter „Abwesend (verspätet)“ bzw.
 /// „Abwesend (fehlt)“ oder der Hinweis „War in Vorstunde abwesend!“, rechts Buch mit Plus (neuer Klassenbucheintrag)
-/// und Uhr (Abwesenheiten der Person). Wischen von links nach rechts: anwesend (grün), von rechts nach links: abwesend (rot).
+/// und Uhr (Abwesenheiten der Person). Wischen von links nach rechts: anwesend (grün), von rechts nach links: abwesend (rot)
+/// bzw. bei abwesenden Schüler*innen „Entschuldigen“ (runde Pill, öffnet den Entschuldigungsdialog).
 struct SchuelerSeite: View {
     enum Filter: Hashable {
         case alle
@@ -1199,6 +1200,9 @@ struct SchuelerSeite: View {
     @State private var fehler: String? = nil
     @State private var eintrag: Eintragsvorlage? = nil
     @State private var abwesenheitenVon: Schueler? = nil
+    /// Entschuldigungsdialog (Wischen nach links bei abwesenden Schüler*innen)
+    @State private var entschuldigung: Entschuldigungsauftrag? = nil
+    @State private var rechte = Entschuldigungsrechte()
 
     private var liste: Anwesenheitsliste? { daten.anwesenheit }
 
@@ -1254,6 +1258,13 @@ struct SchuelerSeite: View {
                 .environmentObject(daten)
                 .environmentObject(zustand)
         }
+        .detailPraesentation(item: $entschuldigung, breit: Geraet.istPad, art: .formular) { a in
+            EntschuldigenView(auftrag: a) {
+                Task { await daten.anwesenheitLaden() }
+            }
+            .environmentObject(zustand)
+        }
+        .task { rechte = await zustand.entschuldigungsrechteLaden() }
         .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -1286,11 +1297,22 @@ struct SchuelerSeite: View {
                                 ForEach(gruppe.liste) { s in
                                     // Wischen wie im Original: nach rechts anwesend (grün, Haken), nach links abwesend
                                     // (rot, Uhr); die Farbe läuft über die ganze Zeilenbreite
-                                    let abwesend = daten.fehlzeit(s) != nil
+                                    // – bei abwesenden Schüler*innen nach links: „Entschuldigen“ (Klassenleitung bzw. Fachlehrkraft)
+                                    let fehlzeit = daten.fehlzeit(s)
+                                    let abwesend = fehlzeit != nil
                                     WischZeile(rechtsMoeglich: bearbeitbar && abwesend,
-                                               linksMoeglich: bearbeitbar && !abwesend,
+                                               linksMoeglich: abwesend ? darfEntschuldigen(s) : bearbeitbar,
                                                rechts: { Task { await ausfuehren(s) { try await daten.anwesendSetzen(s) } } },
-                                               links: { Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } } }) {
+                                               links: {
+                                                   if let f = fehlzeit {
+                                                       entschuldigung = Entschuldigungsauftrag(
+                                                           ziel: .fehlzeit(id: f.id, klasse: s.klasse, datum: daten.karte.datum),
+                                                           name: s.anzeige, klasse: s.klasse)
+                                                   } else {
+                                                       Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
+                                                   }
+                                               },
+                                               linksAktion: abwesend ? .entschuldigen : .abwesend) {
                                         zeile(s)
                                             .padding(.leading, 16)
                                             .padding(.trailing, 26)
@@ -1430,6 +1452,11 @@ struct SchuelerSeite: View {
         .contentShape(Rectangle())
     }
 
+    /// Entschuldigen: Klassenleitung der Klasse oder Fachlehrkraft dieser Stunde (Modul aktiv).
+    private func darfEntschuldigen(_ s: Schueler) -> Bool {
+        rechte.leitet(s.klasse) || (rechte.fachlehrer && liste?.darf == true)
+    }
+
     /// Buchstabenleiste A–Z am rechten Rand.
     private func buchstabenleiste(_ proxy: ScrollViewProxy) -> some View {
         VStack(spacing: 1) {
@@ -1491,17 +1518,33 @@ struct BuchPlusSymbol: View {
     }
 }
 
-// MARK: - Wischzeile (An-/Abwesenheit)
+// MARK: - Wischzeile (An-/Abwesenheit, Entschuldigen)
+
+/// Beschriftung einer Wischrichtung (Symbol, Text, Farbe der runden Pill).
+struct Wischaktion {
+    var symbol: String
+    var text: String
+    var farbe: Color
+
+    static let anwesend = Wischaktion(symbol: "checkmark.circle", text: "Anwesend", farbe: Farben.gruen)
+    static let abwesend = Wischaktion(symbol: "clock", text: "Abwesend", farbe: Farben.entfallRand)
+    static let entschuldigen = Wischaktion(symbol: "checkmark.seal", text: "Entschuldigen", farbe: Farben.entschuldigen)
+}
 
 /// Zeile mit Wischgeste wie im Original: nach rechts → anwesend (grüne Fläche mit Haken), nach links → abwesend (rote
-/// Fläche mit Uhr). Ab 80 pt löst das Loslassen aus; beim Erreichen der Schwelle und beim Auslösen gibt es eine Haptik.
-/// Senkrechtes Scrollen der Liste bleibt frei (Richtung wird zu Beginn festgelegt); in die gesperrte Richtung gibt die
-/// Zeile nur mit Widerstand nach. Für VoiceOver gibt es dieselben Aktionen.
-private struct WischZeile<Inhalt: View>: View {
+/// Fläche mit Uhr) bzw. – bei abwesenden Schüler*innen und in Abwesenheitslisten – „Entschuldigen“. Ab 80 pt löst das
+/// Loslassen aus; beim Erreichen der Schwelle und beim Auslösen gibt es eine Haptik. Senkrechtes Scrollen der Liste
+/// bleibt frei (Richtung wird zu Beginn festgelegt); in die gesperrte Richtung gibt die Zeile nur mit Widerstand nach.
+/// Für VoiceOver gibt es dieselben Aktionen.
+struct WischZeile<Inhalt: View>: View {
+    typealias Aktion = Wischaktion
+
     let rechtsMoeglich: Bool
     let linksMoeglich: Bool
     let rechts: () -> Void
     let links: () -> Void
+    var rechtsAktion: Aktion = .anwesend
+    var linksAktion: Aktion = .abwesend
     let inhalt: Inhalt
 
     @State private var versatz: CGFloat = 0
@@ -1512,11 +1555,14 @@ private struct WischZeile<Inhalt: View>: View {
     private let schwelle: CGFloat = 80
 
     init(rechtsMoeglich: Bool, linksMoeglich: Bool, rechts: @escaping () -> Void, links: @escaping () -> Void,
+         rechtsAktion: Aktion = .anwesend, linksAktion: Aktion = .abwesend,
          @ViewBuilder inhalt: () -> Inhalt) {
         self.rechtsMoeglich = rechtsMoeglich
         self.linksMoeglich = linksMoeglich
         self.rechts = rechts
         self.links = links
+        self.rechtsAktion = rechtsAktion
+        self.linksAktion = linksAktion
         self.inhalt = inhalt()
     }
 
@@ -1537,8 +1583,8 @@ private struct WischZeile<Inhalt: View>: View {
             .sensoryFeedback(.selection, trigger: ueberSchwelle)
             .sensoryFeedback(.success, trigger: ausgeloest)
             .accessibilityActions {
-                if rechtsMoeglich { Button("Anwesend") { rechts() } }
-                if linksMoeglich { Button("Abwesend") { links() } }
+                if rechtsMoeglich { Button(rechtsAktion.text) { rechts() } }
+                if linksMoeglich { Button(linksAktion.text) { links() } }
             }
     }
 
@@ -1549,16 +1595,16 @@ private struct WischZeile<Inhalt: View>: View {
     private var hintergrund: some View {
         if versatz > 0 {
             HStack(spacing: 0) {
-                wischPill(symbol: "checkmark.circle", text: "Anwesend",
-                          farbe: rechtsMoeglich ? Farben.gruen : Farben.zahlPlakette, breite: versatz)
+                wischPill(symbol: rechtsAktion.symbol, text: rechtsAktion.text,
+                          farbe: rechtsMoeglich ? rechtsAktion.farbe : Farben.zahlPlakette, breite: versatz)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if versatz < 0 {
             HStack(spacing: 0) {
                 Spacer(minLength: 0)
-                wischPill(symbol: "clock", text: "Abwesend",
-                          farbe: linksMoeglich ? Farben.entfallRand : Farben.zahlPlakette, breite: -versatz)
+                wischPill(symbol: linksAktion.symbol, text: linksAktion.text,
+                          farbe: linksMoeglich ? linksAktion.farbe : Farben.zahlPlakette, breite: -versatz)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -1571,7 +1617,7 @@ private struct WischZeile<Inhalt: View>: View {
             Image(systemName: symbol)
                 .font(.system(size: 20, weight: .regular))
                 .scaleEffect(ueberSchwelle ? 1.15 : 1)
-            if innen > 118 {
+            if innen > CGFloat(text.count) * 8.6 + 44 {
                 Text(text)
                     .font(.system(size: 15, weight: .medium))
                     .lineLimit(1)

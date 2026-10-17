@@ -9,7 +9,8 @@ namespace UntPlan.App;
 /// Fensterknöpfe (Minimieren, Maximieren/Wiederherstellen, Schließen). Darunter die Registerleiste in derselben Farbe.
 /// Unter Windows ist es trotzdem ein echtes Windows-Fenster: Es behält den Systemrahmen (WS_THICKFRAME) – also Schatten,
 /// abgerundete Ecken unter Windows 11, Andocken (Snap), unsichtbare Greifränder und Maximieren bis zur Taskleiste –,
-/// nur der Titelbereich wird über WM_NCCALCSIZE dem Programmkopf überlassen. Lage und Zustand werden gemerkt.
+/// nur der Titelbereich wird über WM_NCCALCSIZE dem Programmkopf überlassen (<see cref="Fensterlage.ClientBereich"/>: im
+/// Fenstermodus ohne oberen Rahmen, maximiert genau der Arbeitsbereich). Lage und Zustand werden gemerkt.
 /// </summary>
 public partial class HauptFenster
 {
@@ -247,6 +248,7 @@ public partial class HauptFenster
         BackColor = Ui.Titel;
         _schnell.BackColor = Ui.Titel;
         _ribbon.Rechts.BackColor = Ui.Titel;
+        KopfFarbeAnSystem();
         Invalidate();
     }
 
@@ -299,16 +301,72 @@ public partial class HauptFenster
 
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct NcCalcSizeParams { public Rect R0, R1, R2; public IntPtr Pos; }
-    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr nach, int x, int y, int cx, int cy, uint flags);
 
-    /// <summary>Breite des (unsichtbaren) Systemrahmens – um so viel ragt ein maximiertes Fenster über den Bildschirm hinaus.</summary>
-    private static int Rahmendicke => GetSystemMetrics(33 /* SM_CYFRAME */) + GetSystemMetrics(92 /* SM_CXPADDEDBORDER */);
+    [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Groesse; public Rect Monitor, Arbeit; public uint Flags; }
+    [StructLayout(LayoutKind.Sequential)] private struct AppBarData { public int Groesse; public IntPtr Hwnd; public uint Nachricht, Kante; public Rect R; public IntPtr LParam; }
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromRect(ref Rect r, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+    [DllImport("shell32.dll")] private static extern IntPtr SHAppBarMessage(uint nachricht, ref AppBarData daten);
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int wert, int groesse);
+
+    private static Rectangle Rechteck(Rect r) => Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom);
+    private static Rect Rect_(Rectangle r) => new() { Left = r.Left, Top = r.Top, Right = r.Right, Bottom = r.Bottom };
+
+    /// <summary>Arbeitsbereich (ohne Taskleiste) und Bildschirm des Monitors, auf dem das Fensterrechteck überwiegend liegt.</summary>
+    private static (Rectangle Arbeit, Rectangle Monitor) MonitorBereich(Rectangle fenster)
+    {
+        try
+        {
+            var r = Rect_(fenster);
+            var mon = MonitorFromRect(ref r, 2 /* MONITOR_DEFAULTTONEAREST */);
+            var info = new MonitorInfo { Groesse = Marshal.SizeOf<MonitorInfo>() };
+            if (mon != IntPtr.Zero && GetMonitorInfo(mon, ref info)) return (Rechteck(info.Arbeit), Rechteck(info.Monitor));
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        return (Rectangle.Empty, Rectangle.Empty);
+    }
+
+    /// <summary>Kante einer automatisch ausgeblendeten Taskleiste auf diesem Monitor (0 links, 1 oben, 2 rechts, 3 unten) bzw. null.</summary>
+    private static int? AutoTaskleiste(Rectangle monitor)
+    {
+        try
+        {
+            const uint ABM_GETSTATE = 4, ABM_GETAUTOHIDEBAREX = 11, ABS_AUTOHIDE = 1;
+            var a = new AppBarData { Groesse = Marshal.SizeOf<AppBarData>() };
+            if (((uint)(long)SHAppBarMessage(ABM_GETSTATE, ref a) & ABS_AUTOHIDE) == 0) return null;
+            for (uint kante = 0; kante < 4; kante++)
+            {
+                var b = new AppBarData { Groesse = Marshal.SizeOf<AppBarData>(), Kante = kante, R = Rect_(monitor) };
+                if (SHAppBarMessage(ABM_GETAUTOHIDEBAREX, ref b) != IntPtr.Zero) return (int)kante;
+            }
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        return null;
+    }
+
+    /// <summary>
+    /// Farbe der (verdeckten) Windows-Titelleiste = Farbe des Programmkopfs (Windows 11): Sollte Windows je einen Streifen des
+    /// Nicht-Client-Bereichs zeigen (z. B. kurz beim Maximieren/Wiederherstellen), erscheint er in der Kopffarbe statt weiß.
+    /// Der Fensterrand bleibt in der Standardfarbe.
+    /// </summary>
+    private void KopfFarbeAnSystem()
+    {
+        if (!NativerRahmen || !IsHandleCreated || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
+        try
+        {
+            var c = Ui.Titel;
+            var farbe = c.R | (c.G << 8) | (c.B << 16);
+            DwmSetWindowAttribute(Handle, 35 /* DWMWA_CAPTION_COLOR */, ref farbe, 4);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+    }
 
     /// <summary>Nach dem Erzeugen des Fensters: Nicht-Client-Bereich neu berechnen lassen (aus OnHandleCreated aufgerufen).</summary>
     private void RahmenAnwenden()
     {
         if (!NativerRahmen) return;
+        KopfFarbeAnSystem();
         // neuen Nicht-Client-Bereich sofort berechnen lassen (ohne Titelleiste)
         const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOZORDER = 4, SWP_FRAMECHANGED = 0x20;
         try { SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED); }
@@ -321,11 +379,19 @@ public partial class HauptFenster
         if (m.Msg == WM_WINDOWPOSCHANGING && m.LParam != IntPtr.Zero) LageBeimVerschiebenKlemmen(m.LParam);
         if (NativerRahmen && m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero)
         {
-            // Systemrahmen links, rechts und unten behalten (Schatten, Greifränder, Snap), die Titelleiste dem Programmkopf geben
+            // Systemrahmen links, rechts und unten behalten (Schatten, Greifränder, Snap), die Titelleiste dem Programmkopf geben.
+            // Maximiert genau der Arbeitsbereich des Monitors. Der Zustand kommt von IsZoomed: WindowState ist beim Maximieren bzw.
+            // Wiederherstellen hier noch der alte (erst WM_SIZE aktualisiert ihn) – mit dem alten Zustand rutschte der Programmkopf
+            // beim Maximieren um die Rahmendicke über den Bildschirmrand, und nach dem Wiederherstellen blieb oben ein weißer Streifen
+            // des Systemrahmens stehen.
             var vorher = Marshal.PtrToStructure<NcCalcSizeParams>(m.LParam);
             base.WndProc(ref m);
             var p = Marshal.PtrToStructure<NcCalcSizeParams>(m.LParam);
-            p.R0.Top = vorher.R0.Top + (WindowState == FormWindowState.Maximized ? Rahmendicke : 0);
+            var fenster = Rechteck(vorher.R0);
+            var maximiert = IsZoomed(Handle);
+            var (arbeit, monitor) = maximiert ? MonitorBereich(fenster) : (Rectangle.Empty, Rectangle.Empty);
+            var client = Fensterlage.ClientBereich(fenster, Rechteck(p.R0), maximiert, arbeit, maximiert && !monitor.IsEmpty ? AutoTaskleiste(monitor) : null);
+            p.R0 = Rect_(client);
             Marshal.StructureToPtr(p, m.LParam, false);
             m.Result = IntPtr.Zero;
             return;

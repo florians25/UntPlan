@@ -105,6 +105,13 @@ enum Farben {
     static let ferienLinie = Color(hell: 0xB3D6F6, dunkel: 0x6A82BF)
     static let ferienTinte = Color(hell: 0x2B3F52, dunkel: 0x161A24)
 
+    /// Runde Pill „Entschuldigen“ beim Wischen (Schüler- und Abwesenheitslisten)
+    static let entschuldigen = Color(hell: 0x2E7BCF, dunkel: 0x3A86D6)
+
+    // Verlegungszeichen auf den Karten (ursprüngliche Stunde rot, Zielstunde grün – wie im Web)
+    static let verlegtVon = Color(hell: 0xF03E3E, dunkel: 0xE5484D)
+    static let verlegtNach = Color(hell: 0x1E9E5A, dunkel: 0x22A866)
+
     // Info-Zeichen auf den Karten
     static let infoFeld = Color(hell: 0xF2F4F6, dunkel: 0x2B3138)
     static let infoScheibe = Color(hell: 0x828E9B, dunkel: 0x9AA6B2)
@@ -203,13 +210,7 @@ struct Kartenstil {
                       plakette: "Raumbuchung", plaketteFarbe: Farben.raumRand)
             return
         }
-        if karte.online && !["entfall", "abwesend"].contains(karte.status) {
-            // Online-Unterricht: grün wie in der Vorlage, Plakette „Online“
-            self.init(hintergrund: vergangen ? Farben.aenderungVergangen : Farben.aenderungHintergrund,
-                      rand: Farben.aenderungRand, schatten: true, durchgestrichen: false,
-                      plakette: "Online", plaketteFarbe: Farben.gruen)
-            return
-        }
+        // Online-Unterricht: keine eigene Farbe und kein Label (nur das Online-Zeichen)
         if Kachelbau.istBereitschaftAbwesend(karte) {
             self.init(hintergrund: Color.clear, rand: Farben.eckklammer, schatten: false, durchgestrichen: false,
                       plakette: "Lehrkraft abwesend", plaketteFarbe: Farben.gedaempft)

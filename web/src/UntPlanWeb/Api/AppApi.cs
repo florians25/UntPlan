@@ -82,7 +82,7 @@ public static class AppApi
 
         // ---------------------------------------------------------------- Sitzung und Einrichtung
 
-        api.MapGet("/sitzung", (HttpContext c, Einstellungen e, Benutzerdienst bd, Paketdienst p, Mitteilungsdienst m, Verwaltungsdienst vw) =>
+        api.MapGet("/sitzung", (HttpContext c, Einstellungen e, Benutzerdienst bd, Paketdienst p, Mitteilungsdienst m, Verwaltungsdienst vw, Entschuldigungsdienst ed) =>
         {
             var b = c.Ich();
             return Results.Json(new
@@ -100,6 +100,8 @@ public static class AppApi
                     familie = b.Familie, schuelerIds = b.SchuelerIds, klassen = b.Klassen, element = b.Kollegium ? b.Element : b.KlassenKuerzel ?? "",
                     // Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten) nur für Klassenleitungen, Schulleitung und Administration
                     fehlzeiten = Klassenbuchdienst.FehlzeitenVerwalten(b, p.Aktuell),
+                    // Fachlehrer-Entschuldigungen (Modul eingeschaltet und Recht „Fehlstunden im eigenen Unterricht entschuldigen“)
+                    fachlehrerEntschuldigungen = ed.FachlehrerAktiv(b),
                     // effektive Rechte (Rechte-Modell) für die Oberfläche: Recht → Stufe (1 = Lesen, 2 = Ja/Schreiben)
                     rechte = Rechtedienst.Liste(b),
                     // Planfenster der Rolle: Wochen zurück bzw. voraus (null = unbegrenzt, 0 = nur die aktuelle Woche)
@@ -161,6 +163,21 @@ public static class AppApi
             bd.PasswortSetzen(b.Id, d.Neu);
             prot.Schreiben(b.Login, "Passwort geändert");
             return Results.Json(new { ok = true });
+        });
+
+        // Datumswähler der Oberfläche: Ferien, Feiertage und freie Tage (dezent markiert) sowie das Schuljahr
+        api.MapGet("/kalender", (HttpContext c, Paketdienst p, Verwaltungsdienst vw) =>
+        {
+            Ich(c);
+            var s = p.Aktuell;
+            var eigene = vw.FreieTage().Select(f => new { name = f.Name, von = f.Von, bis = f.Bis, art = f.Art });
+            var tage = s is null ? eigene
+                : s.Paket.Ferien.Select(f => new { name = f.Name, von = f.Von, bis = f.Bis, art = f.Feiertag ? "feiertag" : "ferien" }).Concat(eigene);
+            return Results.Json(new
+            {
+                freieTage = tage.Where(f => f.von.Length == 10 && f.bis.Length == 10).OrderBy(f => f.von, StringComparer.Ordinal).ToList(),
+                schuljahr = s is { } sj && sj.Paket.Schule.SchuljahrVon.Length >= 4 ? new { von = sj.Paket.Schule.SchuljahrVon, bis = sj.Paket.Schule.SchuljahrBis } : null,
+            });
         });
 
         // ---------------------------------------------------------------- Stammdaten und Pläne
@@ -528,7 +545,12 @@ public static class AppApi
             var b = Ich(c);
             // Klassenkonten: nur die eigene Klasse, keine Filter nach Lehrkräften
             var k = b.Kollegium ? Leer(klasse) : Leer(klasse) is string w && b.HatKlasse(w) ? w : b.KlassenKuerzel ?? throw new UnauthorizedAccessException("Ihrem Konto ist keine Klasse zugeordnet.");
-            return Results.Json(l.Pruefungen(Paket(p), r.OffeneKlausuren(Paket(p)), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null, r.OffeneLoeschungen()));
+            var st = Paket(p);
+            var liste = l.Pruefungen(st, r.OffeneKlausuren(st), Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute.AddDays(120)), k, b.Kollegium ? Leer(lehrer) : null, r.OffeneLoeschungen());
+            // Löschen/Verlegen: Ersteller, Lehrkraft der Prüfung, Administration – nur heutige und künftige Prüfungen
+            return Results.Json(b.Kollegium
+                ? liste.Select(x => DateOnly.TryParse(x.Datum, out var pd) && pd >= uhr.Heute && r.DarfKlausurLoeschen(b, st, pd, x.StundeVon, x.StundeBis, x.Klassen) ? x with { DarfLoeschen = true } : x).ToList()
+                : liste);
         });
 
         api.MapGet("/hausaufgaben", (string? von, string? bis, string? klasse, string? lehrer, HttpContext c, Listendienst l, Uhr uhr) =>

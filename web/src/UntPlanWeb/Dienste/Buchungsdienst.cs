@@ -688,23 +688,43 @@ public sealed class Buchungsdienst
     /// Aktivität bzw. zusätzlicher Unterricht mit Fach, Lehrkraft und Klassen (Raum optional). Reine Ressourcenbuchungen und
     /// stornierte Buchungen werden nicht übertragen. Id: „buchung-{Nummer}“.
     /// </summary>
+    /// <remarks>
+    /// Dazu Stornierungen schon übertragener Buchungen als Rückmeldung „buchungstorno“ (Id „storno-buchung-{Nummer}“, BezugId „buchung-{Nummer}“),
+    /// bis UntPlan sie quittiert – UntPlan entfernt dann die übernommene Änderung (Vertrag vertrag_storno.md).
+    /// </remarks>
     public List<WebRueckmeldung> Rueckmeldungen() =>
         _db.Liste("SELECT * FROM buchungen WHERE status = 'aktiv' AND uebertragen IS NULL AND art <> @r ORDER BY erstellt, id", Lesen, Db.P("@r", Buchungsarten.Ressource))
             .Where(b => b.Raum.Length > 0 || b.Art != Buchungsarten.Raum)
-            .Select(b => new WebRueckmeldung
+            .Select(b => AlsRueckmeldung(b, WebRueckmeldungsTypen.Raumbuchung, RueckmeldungsPraefix + b.Id, b.Erstellt))
+            .Concat(Stornierungen().Select(b => AlsRueckmeldung(b, WebRueckmeldungsTypen.BuchungStorno, StornoPraefix + b.Id, b.Storniert ?? b.Erstellt) with
             {
-                Id = RueckmeldungsPraefix + b.Id, Typ = WebRueckmeldungsTypen.Raumbuchung, Erstellt = DateTime.TryParse(b.Erstellt, out var e) ? e : DateTime.MinValue,
-                Absender = b.Absender, Lehrer = b.Lehrer.Length > 0 ? b.Lehrer : null, Von = b.Datum, StundeVon = b.StundeVon, StundeBis = b.StundeBis,
-                Raum = b.Raum.Length > 0 ? b.Raum : null, Raeume = b.Raum.Length > 0 ? new() { b.Raum } : new(), Klassen = b.Klassen,
-                Fach = b.Fach.Length > 0 ? b.Fach : null, Titel = b.Titel, Text = b.Text.Length > 0 ? b.Text : null,
-            }).ToList();
+                BezugId = RueckmeldungsPraefix + b.Id, Grund = "storniert",
+            })).ToList();
 
-    /// <summary>Von UntPlan quittierte Buchungen als übertragen vermerken. Ergebnis: Anzahl.</summary>
+    private static WebRueckmeldung AlsRueckmeldung(Buchung b, string typ, string id, string zeit) => new()
+    {
+        Id = id, Typ = typ, Erstellt = DateTime.TryParse(zeit, out var e) ? e : DateTime.MinValue,
+        Absender = b.Absender, Lehrer = b.Lehrer.Length > 0 ? b.Lehrer : null, Von = b.Datum, StundeVon = b.StundeVon, StundeBis = b.StundeBis,
+        Raum = b.Raum.Length > 0 ? b.Raum : null, Raeume = b.Raum.Length > 0 ? new() { b.Raum } : new(), Klassen = b.Klassen,
+        Fach = b.Fach.Length > 0 ? b.Fach : null, Titel = b.Titel, Text = b.Text.Length > 0 ? b.Text : null,
+    };
+
+    /// <summary>Präfix der Rückmeldungs-Id einer Stornierung (Schnittstelle zu UntPlan).</summary>
+    public const string StornoPraefix = "storno-" + RueckmeldungsPraefix;
+
+    /// <summary>Stornierte Buchungen, die UntPlan schon übernommen hat und deren Stornierung noch nicht quittiert ist.</summary>
+    public List<Buchung> Stornierungen() =>
+        _db.Liste("SELECT * FROM buchungen WHERE status = 'storniert' AND uebertragen IS NOT NULL AND storno_uebertragen IS NULL AND art <> @r ORDER BY storniert, id", Lesen,
+            Db.P("@r", Buchungsarten.Ressource));
+
+    /// <summary>Von UntPlan quittierte Buchungen bzw. Stornierungen als übertragen vermerken. Ergebnis: Anzahl.</summary>
     public int Quittieren(IEnumerable<string> ids)
     {
         var n = 0;
         foreach (var id in ids.Distinct())
-            if (id.StartsWith(RueckmeldungsPraefix, StringComparison.Ordinal) && int.TryParse(id[RueckmeldungsPraefix.Length..], out var i))
+            if (id.StartsWith(StornoPraefix, StringComparison.Ordinal) && int.TryParse(id[StornoPraefix.Length..], out var si))
+                n += _db.Ausfuehren("UPDATE buchungen SET storno_uebertragen = @z WHERE id = @id AND status = 'storniert' AND storno_uebertragen IS NULL", Db.P("@z", Jetzt), Db.P("@id", si));
+            else if (id.StartsWith(RueckmeldungsPraefix, StringComparison.Ordinal) && int.TryParse(id[RueckmeldungsPraefix.Length..], out var i))
                 n += _db.Ausfuehren("UPDATE buchungen SET uebertragen = @z WHERE id = @id AND uebertragen IS NULL", Db.P("@z", Jetzt), Db.P("@id", i));
         return n;
     }
