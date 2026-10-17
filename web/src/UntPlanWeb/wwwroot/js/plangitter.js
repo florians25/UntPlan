@@ -178,11 +178,7 @@ function zeileHtml(klasse, x, kompakt = false, voll = '') {
 }
 const zeilenText = x => x && typeof x === 'object' ? x.inline : x;
 
-/**
- * element = Kürzel des angezeigten Plans: im eigenen Plan einer Lehrkraft steht die eigene Lehrkraft nie als Label (nur tatsächlich
- * geänderte Werte anderer bekommen ein Label – z. B. bei einer reinen Raumänderung nur der neue Raum).
- */
-export function karteInhalt(k, typ, kompakt = false, element = '') {
+export function karteInhalt(k, typ, kompakt = false) {
   const entfall = istEntfall(k, typ);
   // online: kein Raumlabel (auch kein künstliches) – nur das Symbol unten auf der Karte
   const raum = istOnline(k, typ) ? '' : werte(k.raeume, entfall);
@@ -216,8 +212,9 @@ export function karteInhalt(k, typ, kompakt = false, element = '') {
     const lehrerZeile = lehrerAbwesend(k, typ) ? (abw.length ? liste(abw.map(w => w.k && w.alt
         ? `<span class="lbl" ${wechselHover(w.alt, w.k, true)}>${e(w.k)}</span>`
         : `<span class="lbl weg">${e(w.alt || w.k)}</span>`), abw.map(w => w.k && w.alt ? { t: w.k, a: 'neu' } : { t: w.alt || w.k, a: 'weg' })) : '')
-      : lehrerOhneEigene(k.lehrer, element).length > 1 || lehrerOhneEigene(k.lehrer, element).some(w => w.alt || w.neu)
-        ? werteListe(lehrerOhneEigene(k.lehrer, element), entfall, true) : '';
+      // Vertretung: die vertretende Lehrkraft als grünes Label – auch im eigenen Plan der vertretenden Lehrkraft (bei reiner
+      // Raumänderung liefert der Server die Lehrkraft ohne Änderung, dann kein Label)
+      : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werteListe(k.lehrer, entfall, true) : '';
     rest = [k.klassen.length ? fach : '', raum, lehrerZeile];
   }
   const zeilen = rest.filter(x => x);
@@ -228,9 +225,6 @@ export function karteInhalt(k, typ, kompakt = false, element = '') {
   const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(' · ')}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
   return `${marker(k, typ)}${zeileHtml('z1', oben, false, voll(oben))}${rumpf}${eckSymbole(k, typ)}`;
 }
-
-/** Lehrkräfte einer Karte im Plan der Lehrkraft „element“: die eigene Lehrkraft ohne Label (als normaler Wert). */
-const lehrerOhneEigene = (l, element) => !element ? (l || []) : (l || []).map(w => w.k && w.k.toLowerCase() === element.toLowerCase() && (w.alt || w.neu) ? { k: w.k } : w);
 
 /** CSS-Klassen einer Karte (Status, Lehrkraft abwesend, vergangen). */
 export function kartenKlasse(k, typ, jetztIso, jetzt) {
@@ -416,7 +410,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         const mitZeit = kartenZeiten && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
-          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60, plan.element || '')}</div>`;
+          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
       }
     }
     // Pausenaufsichten in der Pausenzeile
@@ -584,7 +578,7 @@ export function tagesGitter(tag) {
       for (let n = z.nr + 1; n <= bis; n++) belegt.add(n);
       html += `<div class="tagplan-zelle" style="grid-column:span ${bis - z.nr + 1}">` + hier.map(k => {
         alle.push(k);
-        return `<div class="std ${e(kartenKlasse(k, tag.typ, jetztIso, jetzt))}" data-karte="${alle.length - 1}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, tag.typ, false, zeile.kurz)}</div>`;
+        return `<div class="std ${e(kartenKlasse(k, tag.typ, jetztIso, jetzt))}" data-karte="${alle.length - 1}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, tag.typ)}</div>`;
       }).join('') + '</div>';
     }
   }

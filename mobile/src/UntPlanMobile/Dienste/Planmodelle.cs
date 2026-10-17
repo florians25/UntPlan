@@ -117,6 +117,8 @@ public sealed class Kachel
     [JsonPropertyName("roomOrig")] public string RaumAlt { get; set; } = "";
     /// <summary>Neu hinzugekommene bzw. gebuchte Räume (nur diese stehen hervorgehoben, die übrigen als eigene Labels daneben).</summary>
     [JsonPropertyName("roomNew")] public string? RaumNeu { get; set; }
+    /// <summary>Entfernte Räume neben verbleibenden (durchgestrichen in der grünen Plakette; die verbleibenden ohne Label).</summary>
+    [JsonPropertyName("roomRemoved")] public string? RaumEntfernt { get; set; }
     [JsonPropertyName("subject")] public string Fach { get; set; } = "";
     [JsonPropertyName("subjectOrig")] public string FachAlt { get; set; } = "";
     [JsonPropertyName("subjectLong")] public string? FachLang { get; set; }

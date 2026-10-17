@@ -1,6 +1,6 @@
 // Neuigkeiten: Infos der Schule und Neuigkeiten zu UntPlanWeb als ruhige, einheitliche Liste (wie im Infocenter), Filter nach Art.
 // #/neuigkeiten/verwalten: Infos anlegen, bearbeiten, löschen (Administration, Schulleitung).
-import { e, holen, senden, api, dialog, bestaetigen, toast, fehler } from '../ui.js';
+import { e, holen, senden, api, dialog, bestaetigen, toast, fehler, suchfeldMitFilter, suchfeldMitFilterBinden, zeilenFiltern } from '../ui.js';
 import { laden, gelesen, karteHtml, mehrBinden, datumText, beobachten, leerHtml } from '../infocenter.js';
 
 const ZIELGRUPPEN = { alle: 'Alle', kollegium: 'Lehrkräfte', schueler: 'Schüler*innen', eltern: 'Eltern' };
@@ -13,17 +13,22 @@ export async function zeigen(seite, kontext, [teil, filterParam]) {
   const ungelesen = new Set(d.eintraege.filter(x => !x.gelesen).map(x => x.schluessel));
   const zahl = art => d.eintraege.filter(x => !x.gelesen && (!art || x.art === art)).length;
   const anzahl = art => d.eintraege.filter(x => !art || x.art === art).length;
-  const pille = (id, text, art) => `<a href="#/neuigkeiten${id === 'alle' ? '' : '/' + id}" role="tab" aria-selected="${filter === id}" class="s-pille ${filter === id ? 'an' : ''}">${text}
-    <span class="nw-anzahl">${anzahl(art)}</span>${zahl(art) ? `<span class="s-zahl" title="ungelesen">${zahl(art)}</span>` : ''}</a>`;
+  const optionText = (text, art) => `${text} (${anzahl(art)}${zahl(art) ? `, ${zahl(art)} neu` : ''})`;
   kontext.titel('Neuigkeiten', `${ungelesen.size ? '<button type="button" class="btn btn-outline-secondary" data-alle-gelesen><i class="bi bi-check2-all"></i>Alle als gelesen markieren</button>' : ''}
     ${d.darfVerwalten ? '<a class="btn btn-primary" href="#/neuigkeiten/verwalten"><i class="bi bi-pencil-square"></i>Infos verwalten</a>' : ''}`, ungelesen.size ? `${ungelesen.size} ungelesen` : '');
   seite.innerHTML = `<div class="nw-seite">
     <p class="nw-unterzeile">Infos der Schule und Neuerungen in UntPlanWeb – neue Einträge sind mit einem Punkt markiert.</p>
-    <nav class="s-pillen" role="tablist" aria-label="Filter">${pille('alle', 'Alle')}${pille('infos', 'Infos der Schule', 'info')}${pille('updates', 'UntPlanWeb-Updates', 'neuigkeit')}</nav>
+    <div class="u-sf-leiste">${suchfeldMitFilter({ platzhalter: 'Neuigkeiten durchsuchen', label: 'Neuigkeiten durchsuchen', filter: [
+      { name: 'art', label: 'Art', alle: optionText('Alle'), standard: '', wert: filter === 'alle' ? '' : filter, optionen: [['infos', optionText('Infos der Schule', 'info')], ['updates', optionText('UntPlanWeb-Updates', 'neuigkeit')]] },
+    ] })}</div>
     ${liste.length ? `<div class="nw-liste-karte" data-nw-liste>${liste.map(x => karteHtml(x)).join('')}</div>`
       : `<div class="nw-liste-karte">${leerHtml(filter === 'infos' ? 'Keine Infos der Schule' : 'Keine Neuigkeiten', filter === 'infos' ? 'Die Schule hat aktuell keine Infos veröffentlicht.' : 'Sobald es etwas Neues gibt, erscheint es hier.', filter === 'infos' ? 'megaphone' : 'bell-slash')}</div>`}
   </div>`;
   mehrBinden(seite.querySelector('[data-nw-liste]'));
+  suchfeldMitFilterBinden(seite, {
+    beiSuche: t => zeilenFiltern(seite.querySelectorAll('[data-nw-liste] .ic-karte'), t),
+    beiFilter: (_, wert) => kontext.navigieren(`#/neuigkeiten${wert ? '/' + wert : ''}`),
+  });
   document.querySelector('[data-alle-gelesen]')?.addEventListener('click', async () => { await gelesen(); kontext.navigieren(location.hash); });
   // beim Ansehen gelten die gezeigten Einträge als gelesen; die Markierung bleibt bis zum nächsten Aufruf sichtbar
   const gezeigt = liste.filter(x => !x.gelesen).map(x => x.schluessel);

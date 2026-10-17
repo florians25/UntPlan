@@ -69,7 +69,9 @@ public static class Kachelbau
     public static bool IstOffeneRaumvertretung(PlanKarte k) =>
         k.Status is "geaendert" or "offen" && System.Text.RegularExpressions.Regex.IsMatch(k.Art ?? "", "raum", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
         && !(k.Art ?? "").Contains("vorgemerkt", StringComparison.OrdinalIgnoreCase)
-        && !k.Raeume.Any(w => w.Neu && w.K.Length > 0 && w.K != "???");
+        && !k.Raeume.Any(w => w.Neu && w.K.Length > 0 && w.K != "???")
+        // ein ausdrücklich entfernter Raum ({k:"", alt:"R2"}) neben einem verbleibenden Raum ist keine offene Raumvertretung
+        && !(k.Raeume.Any(w => w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)) && k.Raeume.Any(w => w.K.Length > 0 && w.K != "???"));
 
     /// <summary>Zusatzstunde: siehe <see cref="IstZusatzstunde"/>. Klassenabwesenheit: siehe <see cref="IstKlassenabwesenheit"/>.</summary>
     public static bool IstZusatzstunde(PlanKarte k) =>
@@ -374,6 +376,11 @@ public static class Kachelbau
         }
         var raumNeu = k.Raeume.Where(w => w.Neu && w.K.Length > 0 && w.K != "???" && !Ci.Equals(w.Alt ?? "", w.K)).Select(w => w.K).Distinct(Ci).ToList();
         if (raumNeu.Count > 0 && !raumOffen) kachel.RaumNeu = string.Join(",", raumNeu);
+        // Entfernter Raum neben verbleibenden Räumen ({k:"", alt:"R2"} neben „R1“): durchgestrichen in der grünen Plakette, der
+        // verbleibende Raum bleibt ohne Label (roomOrig allein sähe aus wie „R2 → R1“)
+        var raumEntfernt = k.Raeume.Where(w => w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt) && w.Alt != "???").Select(w => w.Alt!)
+            .Where(a => !k.Raeume.Any(x => Ci.Equals(x.K, a))).Distinct(Ci).ToList();
+        if (!raumOffen && raumEntfernt.Count > 0 && k.Raeume.Any(w => w.K.Length > 0 && w.K != "???")) kachel.RaumEntfernt = string.Join(",", raumEntfernt);
         if (raumOffen)
         {
             kachel.RaumOffen = true;

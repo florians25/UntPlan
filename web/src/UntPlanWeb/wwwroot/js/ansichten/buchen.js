@@ -725,8 +725,9 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
       ${segment([['tag', 'Tag', { symbol: 'calendar-day' }], ['woche', 'Woche', { symbol: 'calendar-week' }]], woche ? 'woche' : 'tag', { attr: 'data-ansicht', label: 'Zeitraum' })}
       ${suchfeld({ platzhalter: 'Raum suchen', wert: k.suche, attr: 'data-raumsuche', label: 'Raum suchen', klasse: 'bu-raumsuche' })}
       <span class="bu-ru-zoom ms-auto">${segment(ZOOM, zoom, { attr: 'data-zoom', label: 'Darstellung' })}</span>
+      <button type="button" class="nl-knopf bu-filter-auf ${filterAktiv() ? 'aktiv' : ''}" data-filter-auf aria-expanded="false"><i class="bi bi-funnel"></i>Filter${filterAktiv() ? `<span class="bu-anzahl">${RAUM_SERVERFILTER.filter(n => k[n]).length + (k.frei ? 1 : 0) || ''}</span>` : ''}</button>
     </div>
-    <div class="nl-leiste bu-filterleiste">
+    <div class="nl-leiste bu-filterleiste bu-ru-filter">
       ${sel('gebaeude', 'Gebäude', opt.gebaeude)}${sel('abteilung', 'Abteilung', opt.abteilungen)}${sel('raumart', 'Raumart', opt.raumarten)}${sel('raumgruppe', 'Raumgruppe', opt.raumgruppen)}
       ${opt.ressourcenarten.length ? pille(`<select data-f="ressourcenarten" aria-label="Ausstattung">${optionen(opt.ressourcenarten.map(a => [String(a.id), a.name]), k.ressourcenarten, 'Ausstattung: alle')}</select>`, !!k.ressourcenarten) : ''}
       ${pille(`<select data-f="kapazitaet" aria-label="Kapazität">${optionen([10, 15, 20, 25, 30, 40, 60].map(x => [String(x), `ab ${x} Plätzen`]), k.kapazitaet, 'Kapazität: alle')}</select>`, !!k.kapazitaet)}
@@ -741,6 +742,10 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
   seite.querySelector('[data-datum]').onchange = ev => ev.target.value && kontext.navigieren(ziel(ev.target.value));
   seite.querySelectorAll('[data-ansicht]').forEach(b => b.onclick = () => kontext.navigieren(ziel(datum, b.dataset.wert === 'woche')));
   seite.querySelectorAll('[data-f]').forEach(f => f.onchange = () => { raumFilter[f.dataset.f] = f.value; kontext.navigieren(ziel(), true); });
+  seite.querySelector('[data-filter-auf]').onclick = ev => {
+    const auf = seite.querySelector('.bu-ru-filter').classList.toggle('offen');
+    ev.currentTarget.setAttribute('aria-expanded', String(auf));
+  };
   seite.querySelector('[data-filter-weg]').onclick = () => { Object.keys(raumFilter).forEach(x => { raumFilter[x] = ''; }); kontext.navigieren(ziel(), true); };
 
   const u = await holen(`/api/app/buchen/raumuebersicht?${q}`);
@@ -834,7 +839,7 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
   const tabelle = (liste, gruppieren) => {
     const n = tage.length * raster.length;
     const kopf = woche
-      ? `<tr class="bu-kopf1"><th class="bu-raumkopf" rowspan="2" scope="col">Raum<small>${liste.length} ${liste.length === 1 ? 'Raum' : 'Räume'}</small></th>${tage.map(t => `<th colspan="${raster.length}" class="bu-tagkopf ${t.frei ? 'frei' : ''} ${t.datum === heute ? 'heute' : ''} ${t.datum === datum ? 'gewaehlt' : ''}" scope="colgroup"><a href="${ziel(t.datum, false)}" title="Tagesansicht">${e(tagKurz(t.datum))}</a></th>`).join('')}</tr>
+      ? `<tr class="bu-kopf1"><th class="bu-raumkopf" rowspan="2" scope="col">Raum<small>${liste.length} ${liste.length === 1 ? 'Raum' : 'Räume'}</small></th>${tage.map(t => `<th colspan="${raster.length}" class="bu-tagkopf ${t.frei ? 'frei' : ''} ${t.datum === heute ? 'heute' : ''}" scope="colgroup"><a href="${ziel(t.datum, false)}" title="Tagesansicht">${e(tagKurz(t.datum))}</a></th>`).join('')}</tr>
          <tr class="bu-kopf2">${tage.map(t => raster.map((z, j) => `<th class="bu-stdkopf ${j === 0 ? 'tagstart' : ''} ${istJetzt(t, z) ? 'jetzt' : ''}" title="${e(z.beginn)}–${e(z.ende)}" scope="col">${z.nr}</th>`).join('')).join('')}</tr>`
       : `<tr class="bu-kopf1"><th class="bu-raumkopf" scope="col">Raum<small>${liste.length} ${liste.length === 1 ? 'Raum' : 'Räume'}</small></th>${raster.map(z => `<th class="bu-stdkopf ${istJetzt(tage[0], z) ? 'jetzt' : ''} ${String(z.nr) === k.frei ? 'gewaehlt' : ''}" scope="col"><b>${z.nr}.</b><small>${e(z.beginn)}–${e(z.ende)}</small></th>`).join('')}</tr>`;
     let gruppe = null;
@@ -857,6 +862,11 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
       gruppe = g;
       return `${kopf}<article class="bu-ru-raum"><header><div><b>${e(d.r.kurz)}</b><small>${e(raumMeta(d.r))}</small></div>${freiZahl(d)}</header>
         ${tage.map((t, i) => `<div class="bu-ru-tag ${t.datum === heute ? 'heute' : ''}">${woche ? `<span class="bu-ru-tagname">${e(tagKurz(t.datum))}</span>` : ''}<div class="bu-ru-chips">${d.tl[i].map(b => chip(d, b)).join('')}</div></div>`).join('')}
+        ${woche ? '' : (() => {
+          // Tag: belegte Blöcke mit Text darunter (auf dem Telefon gibt es kein Überfahren)
+          const belegt = d.tl[0].filter(b => !['frei', 'vergangen', 'tagfrei'].includes(b.art));
+          return belegt.length ? `<ul class="bu-ru-belegt">${belegt.map(b => `<li><i class="bu-punkt ${e(b.art)}"></i><b>${stdText(b.von, b.bis)}</b><span>${e(b.text ?? '')}</span></li>`).join('')}</ul>` : '';
+        })()}
       </article>`;
     }).join('')}</div>`;
   };
@@ -1007,12 +1017,13 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       ${segment([['tag', 'Tag', { symbol: 'calendar-day' }], ['woche', 'Woche', { symbol: 'calendar-week' }]], woche ? 'woche' : 'tag', { attr: 'data-ansicht', label: 'Zeitraum' })}
       <label class="nl-pille bu-zr ${ganzerTag() ? '' : 'aktiv'}"><i class="bi bi-clock" aria-hidden="true"></i>${stdWahl('von', f.von)}<span aria-hidden="true">–</span>${stdWahl('bis', f.bis)}</label>
       ${suchfeld({ platzhalter: 'Ressource oder Standort suchen', wert: f.suche, attr: 'data-res-suche', label: 'Ressourcen durchsuchen', klasse: 'bu-res-suche' })}
-      <span class="ms-auto">${segment([['karten', 'Karten', { symbol: 'grid-3x2-gap' }], ['liste', 'Liste', { symbol: 'list-ul' }]], ansicht, { attr: 'data-darstellung', label: 'Darstellung' })}</span>
     </div>
-    <div class="nl-leiste bu-filterleiste bu-artchips" ${arten.length > 1 ? '' : 'hidden'}>
-      <button type="button" class="bu-filterchip ${f.arten.size ? '' : 'an'}" data-resart="" aria-pressed="${!f.arten.size}">Alle<span class="bu-anzahl">${u.ressourcen.length}</span></button>
+    <div class="nl-leiste bu-filterleiste bu-artzeile">
+      <div class="bu-artchips" ${arten.length > 1 ? '' : 'hidden'}><button type="button" class="bu-filterchip ${f.arten.size ? '' : 'an'}" data-resart="" aria-pressed="${!f.arten.size}">Alle<span class="bu-anzahl">${u.ressourcen.length}</span></button>
       ${arten.map(a => `<button type="button" class="bu-filterchip ${f.arten.has(a.id) ? 'an' : ''}" data-resart="${a.id}" aria-pressed="${f.arten.has(a.id)}"><i class="bi bi-${e(a.symbol)}" aria-hidden="true"></i>${e(a.name)}<span class="bu-anzahl">${u.ressourcen.filter(r => (r.artId ?? 0) === a.id).length}</span></button>`).join('')}
-      <label class="rw-schalter ms-auto"><input type="checkbox" data-res-nurfrei ${f.nurFrei ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Nur verfügbare</label>
+</div>
+      <div class="bu-artzeile-rechts"><label class="rw-schalter"><input type="checkbox" data-res-nurfrei ${f.nurFrei ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Nur verfügbare</label>
+        ${segment([['karten', 'Karten', { symbol: 'grid-3x2-gap' }], ['liste', 'Liste', { symbol: 'list-ul' }]], ansicht, { attr: 'data-darstellung', label: 'Darstellung' })}</div>
     </div>
     <div class="bu-ru-kopf"><div class="bu-ru-zahlen" data-zahlen aria-live="polite"></div>
       <div class="bu-legende" aria-label="Legende"><span><i class="bu-punkt rfrei"></i>verfügbar</span><span><i class="bu-punkt rteil"></i>teilweise gebucht</span><span><i class="bu-punkt rvoll"></i>ausgebucht bzw. Raum belegt</span><span><i class="bu-punkt zr"></i>gewählter Zeitraum</span></div></div>
@@ -1026,12 +1037,37 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
   const gebucht = (r, d, st) => r.gebucht?.[d]?.[st] ?? 0;
   /** Verfügbare Menge im gewählten Zeitraum (kleinster Wert über die Stunden). */
   const verfuegbar = (r, d = datum) => Math.min(...raster.filter(z => z.nr >= f.von && z.nr <= f.bis).map(z => r.anzahl - gebucht(r, d, z.nr)));
+  /** Freie Stunden des Tages als Blöcke [[von, bis], …] (mindestens ein Stück frei). */
+  const freieBloecke = (r, d = datum) => {
+    const bl = [];
+    for (const z of raster) {
+      if (r.anzahl - gebucht(r, d, z.nr) <= 0) continue;
+      const l = bl[bl.length - 1];
+      if (l && l[1] === raster[raster.indexOf(z) - 1]?.nr) l[1] = z.nr; else bl.push([z.nr, z.nr]);
+    }
+    return bl;
+  };
+  const blockText = bl => bl.map(([v, b]) => v === b ? `${v}.` : `${v}.–${b}.`).join(', ');
+  /**
+   * Zustand im gewählten Zeitraum. „Ganzer Tag“ (Vorgabe): ganztägig verfügbar, teilweise (freie Stunden) bzw. ausgebucht; für einen
+   * bestimmten Zeitraum: verfügbare Menge über alle gewählten Stunden. v = buchbare Menge, wahl = vorgeschlagene Stunden zum Buchen.
+   */
   const zustand = r => {
     if (tag?.frei) return { klasse: 'tagfrei', text: tag.grund || 'unterrichtsfrei', v: 0 };
+    if (ganzerTag()) {
+      const bl = freieBloecke(r);
+      const voll = Math.max(0, verfuegbar(r));
+      const wahl = bl[0] ?? [f.von, f.bis];
+      const anzahlFrei = bl.reduce((s, [v, b]) => s + raster.filter(z => z.nr >= v && z.nr <= b).length, 0);
+      if (voll >= r.anzahl) return { klasse: 'frei', text: r.mobil ? 'ganztägig verfügbar' : 'Raum ganztägig frei', v: voll, wahl, frei: 'ganztägig' };
+      if (!bl.length) return { klasse: 'belegt', text: r.mobil ? 'ausgebucht' : 'Raum belegt', v: 0, wahl, frei: '' };
+      return { klasse: 'teil', text: `${anzahlFrei} von ${raster.length} Std. frei`, v: Math.max(1, voll), wahl, frei: blockText(bl) };
+    }
     const v = Math.max(0, verfuegbar(r));
-    if (!r.mobil) return v > 0 ? { klasse: 'frei', text: 'Raum frei', v } : { klasse: 'belegt', text: 'Raum belegt', v };
-    if (v >= r.anzahl) return { klasse: 'frei', text: r.anzahl > 1 ? `alle ${r.anzahl} verfügbar` : 'verfügbar', v };
-    return v > 0 ? { klasse: 'teil', text: `${v} von ${r.anzahl} verfügbar`, v } : { klasse: 'belegt', text: 'ausgebucht', v };
+    const wahl = [f.von, f.bis];
+    if (!r.mobil) return v > 0 ? { klasse: 'frei', text: 'Raum frei', v, wahl } : { klasse: 'belegt', text: 'Raum belegt', v, wahl };
+    if (v >= r.anzahl) return { klasse: 'frei', text: r.anzahl > 1 ? `alle ${r.anzahl} verfügbar` : 'verfügbar', v, wahl };
+    return v > 0 ? { klasse: 'teil', text: `${v} von ${r.anzahl} verfügbar`, v, wahl } : { klasse: 'belegt', text: 'ausgebucht', v, wahl };
   };
   const darfBuchen = (r, d) => r.mobil && opt.ressourcenBuchen !== false && d >= heute;
   const ort = r => r.mobil ? (r.standort ? `<span><i class="bi bi-geo-alt" aria-hidden="true"></i>${e(r.standort)}</span>` : '<span class="nl-unter"><i class="bi bi-geo-alt" aria-hidden="true"></i>kein Standort</span>')
@@ -1041,7 +1077,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
   const strahl = (r, t) => `<div class="bu-strahl ${t.datum === datum ? 'gewaehlt' : ''}">${raster.map(z => {
     const g = gebucht(r, t.datum, z.nr);
     const q = t.frei ? 'tagfrei' : g <= 0 ? 'rfrei' : g >= r.anzahl ? 'rvoll' : 'rteil';
-    const zr = t.datum === datum && z.nr >= f.von && z.nr <= f.bis ? ' zr' : '';
+    const zr = t.datum === datum && !ganzerTag() && z.nr >= f.von && z.nr <= f.bis ? ' zr' : '';
     const klick = !t.frei && q !== 'rvoll' && darfBuchen(r, t.datum);
     const attr = `class="bu-seg ${q}${zr}${t.datum < heute ? ' vergangen' : ''}" data-info="${r.id}|${t.datum}|${z.nr}" style="--anteil:${t.frei ? 0 : Math.min(1, g / r.anzahl)}"`;
     return klick ? `<button type="button" ${attr} data-res-buchen="${r.id}|${t.datum}|${z.nr}|${z.nr}" aria-label="${e(r.name)} am ${e(tagKurz(t.datum))}, ${z.nr}. Stunde buchen"><i></i></button>`
@@ -1055,10 +1091,11 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
   const tagesBuchungen = r => (r.belegung[datum] ?? []);
   const knopf = (r, z) => {
     if (z.klasse === 'tagfrei') return '';
-    if (!r.mobil) return opt.raumBuchen === false || datum < heute ? '' : `<a class="nl-knopf klein" href="#/buchen/raum/${datum}/${f.von}/${f.bis}/${encodeURIComponent(r.raum)}"><i class="bi bi-door-open"></i>Raum buchen</a>`;
+    const [v, b] = z.wahl;
+    if (!r.mobil) return opt.raumBuchen === false || datum < heute || z.v <= 0 ? '' : `<a class="nl-knopf klein" href="#/buchen/raum/${datum}/${v}/${b}/${encodeURIComponent(r.raum)}"><i class="bi bi-door-open"></i>Raum buchen</a>`;
     if (!darfBuchen(r, datum)) return '';
-    return z.v > 0 ? `<button type="button" class="nl-hinzu bu-klein" data-res-buchen="${r.id}|${datum}|${f.von}|${f.bis}"><i class="bi bi-plus-lg"></i>Buchen</button>`
-      : `<button type="button" class="nl-knopf klein" data-res-buchen="${r.id}|${datum}|${f.von}|${f.bis}" title="Anderen Zeitraum wählen"><i class="bi bi-clock"></i>Andere Zeit</button>`;
+    return z.v > 0 ? `<button type="button" class="nl-hinzu bu-klein" data-res-buchen="${r.id}|${datum}|${v}|${b}"><i class="bi bi-plus-lg"></i>Buchen</button>`
+      : `<button type="button" class="nl-knopf klein" data-res-buchen="${r.id}|${datum}|${v}|${b}" title="Anderen Zeitraum oder Tag wählen"><i class="bi bi-clock"></i>Andere Zeit</button>`;
   };
   const karte = r => {
     const z = zustand(r);
@@ -1067,7 +1104,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       <div class="bu-rk-kopf"><span class="bu-rk-symbol ton-${resTon(r)}"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span>
         <div class="bu-rk-titel"><b>${e(r.name)}</b><small>${e(r.art || 'Ohne Art')}</small></div>
         <span class="rw-status ${z.klasse === 'tagfrei' ? '' : z.klasse}">${e(z.text)}</span></div>
-      <div class="bu-rk-meta">${ort(r)}<span><i class="bi bi-stack" aria-hidden="true"></i>${r.anzahl} Stück</span>${r.mobil && !tag?.frei ? `<span class="bu-rk-verf"><b>${z.v}</b>/${r.anzahl} frei · ${e(zrText())}</span>` : ''}</div>
+      <div class="bu-rk-meta">${ort(r)}<span><i class="bi bi-stack" aria-hidden="true"></i>${r.anzahl} Stück</span>${tag?.frei ? '' : ganzerTag() ? (z.frei && z.frei !== 'ganztägig' ? `<span class="bu-rk-verf">frei: <b>${e(z.frei)}</b> Std.</span>` : '') : r.mobil ? `<span class="bu-rk-verf"><b>${z.v}</b>/${r.anzahl} frei · ${e(zrText())}</span>` : ''}</div>
       ${r.bemerkung ? `<p class="bu-rk-bem">${e(r.bemerkung)}</p>` : ''}
       <div class="bu-rk-strahl">${zeitstrahl(r)}</div>
       <div class="bu-rk-fuss"><span class="nl-unter">${tag?.frei ? '' : r.mobil ? (n ? `${n} ${n === 1 ? 'Buchung' : 'Buchungen'} am ${e(tagKurz(datum))}` : `Am ${e(tagKurz(datum))} nicht gebucht`) : `Belegung von ${e(r.raum)}`}</span>${knopf(r, z)}</div>
@@ -1079,7 +1116,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       <span class="bu-rk-symbol ton-${resTon(r)}" role="cell"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span>
       <div class="bu-rk-titel" role="cell"><b>${e(r.name)}</b><small>${e(r.art || 'Ohne Art')}</small></div>
       <div class="bu-rl-ort" role="cell">${ort(r)}</div>
-      <div class="bu-rl-menge" role="cell">${tag?.frei ? '' : r.mobil ? `<b>${z.v}</b><span>/${r.anzahl}</span>` : ''}<span class="rw-status ${z.klasse === 'tagfrei' ? '' : z.klasse}">${e(z.text)}</span></div>
+      <div class="bu-rl-menge" role="cell">${tag?.frei || ganzerTag() ? '' : r.mobil ? `<b>${z.v}</b><span>/${r.anzahl}</span>` : ''}<span class="rw-status ${z.klasse === 'tagfrei' ? '' : z.klasse}">${e(z.text)}</span></div>
       <div class="bu-rl-strahl" role="cell">${zeitstrahl(r, true)}</div>
       <div class="bu-rl-aktion" role="cell">${knopf(r, z)}</div></div>`;
   };
@@ -1106,7 +1143,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       && (!f.nurFrei || zustand(r).v > 0));
     const frei = sichtbar.filter(r => zustand(r).v > 0).length;
     seite.querySelector('[data-zahlen]').innerHTML = u.ressourcen.length ? `<b>${sichtbar.length}</b> ${sichtbar.length === 1 ? 'Ressource' : 'Ressourcen'}${sichtbar.length < u.ressourcen.length ? ` von ${u.ressourcen.length}` : ''}
-      ${tag?.frei ? `<span class="nl-chip grau">${e(tagKurz(datum))}: ${e(tag.grund || 'unterrichtsfrei')}</span>` : `<span class="bu-ru-jetzt"><i class="bi bi-check2-circle"></i>${frei} verfügbar am ${e(tagKurz(datum))}, ${e(zrText())}</span>`}` : '';
+      ${tag?.frei ? `<span class="nl-chip grau">${e(tagKurz(datum))}: ${e(tag.grund || 'unterrichtsfrei')}</span>` : `<span class="bu-ru-jetzt"><i class="bi bi-check2-circle"></i>${frei} ${ganzerTag() ? 'mit freien Stunden' : 'verfügbar'} am ${e(tagKurz(datum))}${ganzerTag() ? '' : `, ${e(zrText())}`}</span>`}` : '';
     if (!u.ressourcen.length) {
       box.innerHTML = `<div class="bu-leer"><i class="bi bi-box-seam" aria-hidden="true"></i><b>Es sind noch keine Ressourcen angelegt.</b>
         <span>${opt.admin ? 'Legen Sie mobile Geräte wie Beamer, Laptopwagen oder Tablet-Koffer an – oder übernehmen Sie zum Start typische Beispiele.' : 'Die Administration legt buchbare Geräte wie Beamer oder Laptopwagen an.'}</span>

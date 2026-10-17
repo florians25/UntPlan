@@ -53,7 +53,7 @@ export async function zeigen(seite, kontext, [artParam]) {
       </tbody></table>` : leer('Keine Einträge vorhanden.')}</div>`;
   // gemeinsames Suchfeld mit Filter: Freitext über alle Spalten, je nach Bereich ein passender Filter (Klasse, Jahrgang, Art …)
   let text = '';
-  const sf = suchfeldMitFilterBinden(seite, { beiSuche: t => { text = t.toLowerCase(); filtern(); }, beiFilter: () => filtern() });
+  suchfeldMitFilterBinden(seite, { beiSuche: t => { text = t.toLowerCase(); filtern(); }, beiFilter: () => filtern() });
   const filtern = () => {
     const wahl = [...seite.querySelectorAll('select[data-filter]')].filter(x => x.value).map(x => `${x.dataset.filter}=${x.value}`);
     seite.querySelectorAll('[data-zeile]').forEach(z => {
@@ -61,7 +61,6 @@ export async function zeigen(seite, kontext, [artParam]) {
       z.classList.toggle('d-none', (!!text && !z.dataset.text.includes(text)) || !wahl.every(w => werte.includes(w)));
     });
   };
-  void sf;
   document.querySelector('[data-csv]').onclick = () => herunterladen(`${art}.csv`, [a.spalten.map(([, t]) => t).join(';'),
     ...liste.map(x => a.spalten.map(([k]) => `"${String(typeof x[k] === 'boolean' ? (x[k] ? 'ja' : 'nein') : x[k] ?? '').replace(/"/g, '""')}"`).join(';'))].join('\r\n'));
   if (!bearbeitbar) return;

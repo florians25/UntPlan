@@ -759,18 +759,19 @@ enum Kachelbau {
                         && (jetzt.isEmpty || !markiert || k.raeume.contains { !$0.k.isEmpty && $0.geaendert })
                     zeile.teile = wertTeile(jetzt: jetzt.joined(separator: ", "), vorher: vorher.joined(separator: ", "),
                                             geaendert: raumNeu)
-                    // Offene Raumvertretung (kein neuer Raum, bisheriger Raum gesetzt): durchgestrichen in der grünen Plakette
-                    if jetzt.isEmpty && art != .entfall && k.status == "offen" {
+                    // Offene Raumvertretung bzw. entfernter Raum (kein neuer Raum, bisheriger Raum {k:"", alt, neu}):
+                    // durchgestrichen in der grünen Plakette – wie im Web
+                    if jetzt.isEmpty && art != .entfall && (k.status == "offen" || k.raeume.contains { $0.k.isEmpty && $0.neu }) {
                         for j in zeile.teile.indices where zeile.teile[j].stil == .weg { zeile.teile[j].stil = .offen }
                     }
                 }
-                // Entfernte Räume ({k:"", alt}) neben einem verbleibenden Raum: durchgestrichen dahinter
+                // Entfernte Räume ({k:"", alt}) neben einem verbleibenden Raum: durchgestrichen in der grünen Plakette dahinter
                 if !jetzt.isEmpty && art != .entfall {
                     let entfernt = einmal(k.raeume.filter { $0.k.isEmpty }.compactMap { $0.alt }
                         .filter { a in !a.isEmpty && a != "???" && !jetzt.contains { gleich($0, a) } })
                     if !entfernt.isEmpty {
                         if let letzter = zeile.teile.indices.last { zeile.teile[letzter].trenner = " " }
-                        zeile.teile += liste(entfernt, stil: .weg, trenner: " ")
+                        zeile.teile += liste(entfernt, stil: .offen, trenner: " ")
                         hatListe = true
                     }
                 }

@@ -256,25 +256,30 @@ button.bu-zusammenfassung:hover { border-color: rgba(var(--u-akzent-rgb), .6); b
 
 /* Farbpunkte (Legende, Hover) */
 .bu-punkt { display: inline-block; flex: none; width: 14px; height: 14px; border-radius: 4px; background: #fff; box-shadow: inset 0 0 0 1px #c9d0d6; }
-.bu-punkt.unterricht { background: #e4ebf3; box-shadow: inset 3px 0 0 #6f8aa8; }
-.bu-punkt.buchung { background: #ffe6d6; box-shadow: inset 3px 0 0 var(--u-akzent); }
-.bu-punkt.klausur { background: #ece5fb; box-shadow: inset 3px 0 0 #7f5fd0; }
-.bu-punkt.termin { background: #dcf1f3; box-shadow: inset 3px 0 0 #2f97a8; }
-.bu-punkt.vorgemerkt { background: #fff2c9; box-shadow: inset 3px 0 0 #d9a514; }
-.bu-punkt.gesperrt { background: repeating-linear-gradient(135deg, #f9d2d0 0 3px, #fff4f3 3px 6px); box-shadow: inset 3px 0 0 #d64040; }
+.bu-punkt.unterricht { background: #c9d6e4; box-shadow: inset 0 0 0 1.5px #6f8aa8; }
+.bu-punkt.buchung { background: #ffcfb3; box-shadow: inset 0 0 0 1.5px var(--u-akzent); }
+.bu-punkt.klausur { background: #dccff7; box-shadow: inset 0 0 0 1.5px #7f5fd0; }
+.bu-punkt.termin { background: #c3e7eb; box-shadow: inset 0 0 0 1.5px #2f97a8; }
+.bu-punkt.vorgemerkt { background: #ffe9a3; box-shadow: inset 0 0 0 1.5px #d9a514; }
+.bu-punkt.gesperrt { background: repeating-linear-gradient(135deg, #f4b5b1 0 3px, #fff4f3 3px 6px); box-shadow: inset 0 0 0 1.5px #d64040; }
 .bu-punkt.frei { background: #fff; box-shadow: inset 0 0 0 1.5px #9fd8b6; }
 .bu-punkt.vergangen, .bu-punkt.tagfrei { background: #eef0f2; box-shadow: none; }
 
 /* Raster */
-.bu-uebersicht { --bu-raumb: 184px; --bu-sp: 96px; --bu-h: 52px; --bu-kopf1: 46px;
+.bu-uebersicht { --bu-raumb: 184px; --bu-sp: 88px; --bu-h: 52px; --bu-kopf1: 46px;
   position: relative; background: #fff; border: 1px solid #dfe3e7; border-radius: 12px; overflow: auto; max-height: calc(100vh - 250px); min-height: 220px;
   overscroll-behavior: contain; outline: 0; }
 .bu-uebersicht:focus-visible { box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .25); }
 .bu-uebersicht.zoom-kompakt { --bu-sp: 52px; --bu-h: 32px; --bu-raumb: 150px; }
 .bu-uebersicht.zoom-gross { --bu-sp: 136px; --bu-h: 68px; }
-.bu-uebersicht.woche { --bu-sp: 26px; --bu-h: 40px; --bu-kopf1: 34px; }
-.bu-uebersicht.woche.zoom-kompakt { --bu-sp: 17px; --bu-h: 26px; }
-.bu-uebersicht.woche.zoom-gross { --bu-sp: 38px; --bu-h: 50px; }
+.bu-uebersicht.woche { --bu-sp: 20px; --bu-h: 40px; --bu-kopf1: 34px; }
+.bu-uebersicht.woche.zoom-kompakt { --bu-sp: 14px; --bu-h: 26px; }
+.bu-uebersicht.woche.zoom-gross { --bu-sp: 34px; --bu-h: 50px; }
+.woche .bu-zelle.unterricht .bu-block { background: #cfdbe8; }
+.woche .bu-zelle.buchung .bu-block { background: #ffcbad; }
+.woche .bu-zelle.klausur .bu-block { background: #dccff7; }
+.woche .bu-zelle.termin .bu-block { background: #c3e7eb; }
+.woche .bu-zelle.vorgemerkt .bu-block { background: #ffe9a3; }
 .bu-uebersicht table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: calc(var(--bu-raumb) + var(--bu-n) * var(--bu-sp)); min-width: 100%; }
 .bu-uebersicht col.bu-col-raum { width: var(--bu-raumb); }
 .bu-uebersicht th, .bu-uebersicht td { border-bottom: 1px solid #eef1f3; border-right: 1px solid #f1f3f5; }
@@ -382,6 +387,9 @@ td.bu-zelle { height: var(--bu-h); padding: 3px; font-size: .75rem; line-height:
 .bu-zr { gap: 4px; }
 .bu-zr > i { color: #8a96a1; margin-right: 4px; }
 .bu-zr select { padding-right: 18px; }
+.bu-artzeile { align-items: center; }
+.bu-artchips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.bu-artzeile-rechts { display: flex; align-items: center; gap: 14px; margin-left: auto; }
 .bu-artchips .bu-filterchip { display: inline-flex; align-items: center; gap: 6px; height: 34px; }
 .bu-artchips .bu-filterchip i { font-size: .95rem; }
 .bu-filterchip .bu-anzahl { margin-left: 2px; }
@@ -476,7 +484,32 @@ a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
   .bu-rl-zeile > .bu-rl-strahl { grid-area: z; }
   .bu-rl-zeile > .bu-rl-ort { grid-area: o; display: block; }
   .bu-rl-zeile > .bu-rl-aktion { grid-area: a; }
-  .bu-artchips { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .bu-artchips { flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .bu-artzeile-rechts { flex: 1 1 100%; justify-content: space-between; }
   .bu-artchips .bu-filterchip { flex: none; }
   .bu-zr { flex: 1 1 100%; }
 }
+.bu-filter-auf { display: none; }
+.bu-filter-auf.aktiv { border-color: var(--u-akzent); color: var(--u-akzent-dunkel); }
+.bu-ru-belegt { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid #f0f2f4; display: grid; gap: 4px; font-size: .78rem; color: #414d55; }
+.bu-ru-belegt li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bu-ru-belegt .bu-punkt { width: 10px; height: 10px; border-radius: 3px; }
+.bu-ru-belegt b { flex: none; font-weight: 500; color: var(--u-titel); min-width: 56px; }
+.bu-ru-belegt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 767.98px) {
+  .bu-filter-auf { display: inline-flex; }
+  .bu-ru-filter:not(.offen) { display: none !important; }
+  .bu-rk-titel b { white-space: normal; }
+}
+
+/* Verwaltung: Symbol je Ressourcenart, Ressourcen mit Symbol */
+.bu-artsymbol { width: 22px; text-align: center; color: var(--u-akzent-dunkel); font-size: 1.05rem; }
+.bu-vw-name { display: flex; align-items: center; gap: 10px; }
+.bu-vw-symbol { display: inline-grid; place-content: center; flex: none; width: 34px; height: 34px; border-radius: 9px; background: #fff1e8; color: var(--u-akzent-dunkel); font-size: 1.05rem; }
+.bu-symbolwahl { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px; }
+.bu-symbolwahl label { margin: 0; cursor: pointer; }
+.bu-symbolwahl input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.bu-symbolwahl span { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 46px; border: 1.5px solid #e1e5e9; border-radius: 10px; font-size: 1.2rem; color: #414d55; }
+.bu-symbolwahl span small { font-size: .6rem; color: #8a96a1; line-height: 1; }
+.bu-symbolwahl input:checked + span { border-color: var(--u-akzent); background: #fff3ec; color: var(--u-akzent-dunkel); }
+.bu-symbolwahl input:focus-visible + span { box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .25); }

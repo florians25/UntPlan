@@ -627,6 +627,31 @@ function klassTokens(card, kind, alle){
    Lehrerplan    Klasse    · Fach · Raum · Lehrkraft
    Der letzte Wert entfällt, wenn er die betrachtete Entität selbst ist
    und sich nichts geändert hat. */
+/* RAUMTOKENS-BEGINN (wird von den Tests ausgeführt) */
+/* Mehrere Räume bzw. ein entfernter Raum neben einem verbleibenden: jeder
+   Raum für sich, nicht mit Komma zu einem Wert verschmolzen. Hervorgehoben
+   wird nur, was neu hinzugekommen bzw. ersetzt ist — der bisherige Raum
+   bleibt ein gewöhnliches Label daneben. Ein entfernter Raum (roomRemoved)
+   steht durchgestrichen in der grünen Plakette dahinter. null = eine
+   gewöhnliche Raumzeile. */
+function raumTokens(card, changed){
+  const gross = x => x.toUpperCase();
+  const jetzt = werteListe(card && card.room);
+  const weg = werteListe(card && card.roomRemoved).filter(x => !jetzt.some(y => gross(y) === gross(x)));
+  if (jetzt.length < 2 && !(jetzt.length && weg.length)) return null;
+  const vorher = werteListe(card.roomOrig).map(gross).filter(x => !weg.some(y => gross(y) === x));
+  const neuListe = werteListe(card.roomNew).map(gross);
+  const neu = x => !!changed && (neuListe.length ? neuListe.includes(gross(x))
+                                 : !weg.length && (!vorher.length || !vorher.includes(gross(x))));
+  /* Der neue Raum steht vorn: Auf einer schmalen Kachel kürzt sich die
+     Zeile mit „…“, und die grüne Plakette darf dabei nie wegfallen. */
+  return jetzt.map(x => ({ text:x, state: neu(x) ? 'sub' : 'ok' }))
+    .sort((a, b) => (b.state === 'sub') - (a.state === 'sub'))
+    .concat(weg.map(x => ({ text:x, state:'absent', open:true })));
+}
+if (typeof window !== 'undefined') window.UntPlanRaum = { raumTokens };
+/* RAUMTOKENS-ENDE */
+
 function cardLines(card, kind){
   /* Veranstaltung, Klassenabwesenheit, Freisetzung.
 
@@ -717,17 +742,10 @@ function cardLines(card, kind){
        verschmolzen. Hervorgehoben wird nur, was neu hinzugekommen ist —
        der bisherige Raum bleibt ein gewöhnliches Label daneben. */
     if (key === 'room' && !l.removed){
-      const jetzt = werteListe(card.room);
-      if (jetzt.length > 1){
-        const vorher = werteListe(card.roomOrig).map(x => x.toUpperCase());
-        const neuListe = werteListe(card.roomNew).map(x => x.toUpperCase());
-        const neu = x => l.changed && (neuListe.length ? neuListe.includes(x.toUpperCase())
-                                       : (!vorher.length || !vorher.includes(x.toUpperCase())));
-        /* Der neue Raum steht vorn: Auf einer schmalen Kachel kürzt sich die
-           Zeile mit „…“, und die grüne Plakette darf dabei nie wegfallen. */
-        l.tokens  = jetzt.map(x => ({ text:x, state: neu(x) ? 'sub' : 'ok' }))
-                         .sort((a, b) => (b.state === 'sub') - (a.state === 'sub'));
-        l.text    = jetzt.join(' ');
+      const rt = raumTokens(card, l.changed);
+      if (rt){
+        l.tokens  = rt;
+        l.text    = rt.map(t => t.text).join(' ');
         l.changed = false;
       }
     }

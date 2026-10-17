@@ -169,6 +169,22 @@ public class KartenSprint27Tests
     }
 
     [Fact]
+    public async Task Vertretung_im_eigenen_Plan_der_Vertretung_mit_Lehrer_Label()
+    {
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 77;
+        var har = Stunden(paket, "2026-10-12", "7a", 2).Single(z => z["lehrer"]!.AsArray().Any(l => l!.GetValue<string>() == "HAR"));
+        har["status"] = "vertreten"; har["lehrer"] = new JsonArray("MUE"); har["lehrerAlt"] = new JsonArray("HAR"); har["vertretung"] = 9280;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9280, "2026-10-12", 2, "Vertretung", "HAR", "MUE", "KR", "R105", "R105", "", "", "", "7a", "7b"));
+        var plan = await PlanAsync(paket, "lehrer", "MUE", "2026-10-12");
+        var k = Karten(plan, "2026-10-12", 2).Single(x => x["fach"]!.GetValue<string>() == "KR");
+        // die vertretende Lehrkraft steht als geänderter Wert (grünes Label „MUE“, Hover „HAR → MUE“) – auch in ihrem eigenen Plan
+        var w = k["lehrer"]!.AsArray().Single(x => x!["k"]!.GetValue<string>() == "MUE")!;
+        Assert.Equal("HAR", w["alt"]!.GetValue<string>());
+        Assert.True(w["neu"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public async Task Raumaenderung_neuer_Raum_als_Label_Lehrkraft_ohne_Label()
     {
         var paket = Testserver.Beispielpaket();
@@ -322,9 +338,9 @@ public class KartenSprint27Tests
         Assert.Contains("if (zeile && karte.contains(zeile) && zeileGekuerzt(zeile)) { hoverZeigen(zeile); return; }", js);
         Assert.Contains("data-pillen=", js);
         Assert.Contains("const fachVoll = k.fachName && k.fachName !== k.fach ? k.fachName : '';", js);
-        // im eigenen Plan der Lehrkraft nie die eigene Lehrkraft als Label
-        Assert.Contains("const lehrerOhneEigene = (l, element) =>", js);
-        Assert.Contains("karteInhalt(k, plan.typ, h < 60, plan.element || '')", js);
+        // Vertretung: Label der vertretenden Lehrkraft auch in deren eigenem Plan (keine Ausnahme für die eigene Lehrkraft)
+        Assert.DoesNotContain("lehrerOhneEigene", js);
+        Assert.Contains(": k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werteListe(k.lehrer, entfall, true) : '';", js);
         // grüne Labels genau mittig über dem Label
         Assert.Contains("r.left + r.width / 2 - b / 2", js);
         // keine „Raum gesperrt“/„Klasse abwesend“ über dem Tag
@@ -334,7 +350,7 @@ public class KartenSprint27Tests
         var css = Datei("css", "karten.css");
         Assert.Contains(".u-hover-label.rot { background: #f44336;", css);
         Assert.Contains(".u-hover-label.klein { font-size: 13px;", css);
-        Assert.Contains("M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M8 16.5h10M14 12.5l4 4-4 4'", css);
+        Assert.Contains("M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M7.4 16h11.2M14.2 11.6l4.4 4.4-4.4 4.4' fill='none' stroke='%23fff' stroke-width='2.5'", css);
         Assert.Contains(".u-hover-label.pillen span { background: #6b7680;", css);
         Assert.Contains(".u-hover-label.pillen span.p-weg, .u-hover-label.pillen span.p-aus { text-decoration: line-through;", css);
         Assert.Contains(".std .z-liste > .z-namen", css);
