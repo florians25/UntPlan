@@ -25,6 +25,11 @@ final class Stundendaten: ObservableObject {
     /// Klassendienste am Tag der Stunde je Schüler-ID (z. B. „Klassensprecher*in“)
     @Published var dienste: [Int: [String]] = [:]
     @Published var geladen = false
+    /// Gewählte Einzelstunde einer Doppel- bzw. Blockstunde (nil = ganzer Block): Lehrstoff, Notizen, Online,
+    /// Hausaufgaben und Abwesenheiten gelten dann nur für diese Stunde.
+    @Published var einzelstunde: Int? = nil
+    /// Stunden des Blocks für die Auswahl (vom Server; bleibt beim Wechsel des Bereichs erhalten)
+    @Published var blockStunden: [Einzelstundeninfo] = []
 
     nonisolated init(karte: Karte) {
         self.karte = karte
@@ -44,6 +49,38 @@ final class Stundendaten: ObservableObject {
 
     var eintrag: Klassenbucheintrag? { klassenbuch?.eintrag }
 
+    /// Doppel- bzw. Blockstunde, deren Stunden einzeln eingetragen werden können (Server liefert die Stunden des Blocks).
+    var hatEinzelstunden: Bool { karte.bis > karte.von && blockStunden.count > 1 }
+
+    /// Blockeintrag, der in der Einzelstunde nur lesend (geerbt) gilt.
+    var geerbterEintrag: Klassenbucheintrag? { einzelstunde == nil ? nil : klassenbuch?.blockEintrag }
+
+    /// Zeiten der gewählten Einzelstunde (nil = ganzer Block).
+    var gewaehlteStunde: Einzelstundeninfo? {
+        guard let einzelstunde else { return nil }
+        return blockStunden.first { $0.stunde == einzelstunde }
+    }
+
+    /// „3. Stunde“ bzw. „3.–4. Stunde“ für den gewählten Bereich.
+    var bereichText: String {
+        if let einzelstunde { return "\(einzelstunde). Stunde" }
+        return karte.von == karte.bis ? "\(karte.von). Stunde" : "\(karte.von).–\(karte.bis). Stunde"
+    }
+
+    /// Bereich wechseln (ganzer Block bzw. eine Stunde): Zwischenstände verwerfen und alles für den Bereich neu laden.
+    func bereichWaehlen(_ stunde: Int?, kollegium: Bool) async {
+        guard stunde != einzelstunde else { return }
+        einzelstunde = stunde
+        notizSchuelerGespeichert = nil
+        notizLehrerGespeichert = nil
+        onlineLinkGespeichert = nil
+        online = nil
+        hausaufgaben = nil
+        anwesenheit = nil
+        geladen = false
+        await laden(kollegium: kollegium)
+    }
+
     /// Darf das Konto Lehrstoff, Notizen und Hausaufgaben dieser Stunde bearbeiten?
     var darf: Bool { klassenbuch?.darf == true || hausaufgaben?.darf == true }
 
@@ -51,16 +88,17 @@ final class Stundendaten: ObservableObject {
     @Published var notizSchuelerGespeichert: String? = nil
     @Published var notizLehrerGespeichert: String? = nil
 
+    /// In der Einzelstunde nur der eigene Eintrag (die Notiz der Karte enthält Block und alle Stunden).
     var notizSchueler: String {
         if let n = notizSchuelerGespeichert { return n }
         if let n = eintrag?.notizSchueler, !n.isEmpty { return n }
-        return karte.notizSchueler
+        return einzelstunde == nil ? karte.notizSchueler : ""
     }
 
     var notizLehrer: String {
         if let n = notizLehrerGespeichert { return n }
         if let n = eintrag?.notiz, !n.isEmpty { return n }
-        return karte.notizLehrer
+        return einzelstunde == nil ? karte.notizLehrer : ""
     }
 
     var abwesendAnzahl: Int { anwesenheit?.fehlzeiten.count ?? 0 }
@@ -87,12 +125,16 @@ final class Stundendaten: ObservableObject {
     /// Beginn und Ende des Blocks (HH:mm).
     var blockBeginn: String {
         let b = anwesenheit?.beginn ?? ""
-        return b.isEmpty ? karte.beginn : b
+        if !b.isEmpty { return b }
+        if let s = gewaehlteStunde, !s.beginn.isEmpty { return s.beginn }
+        return karte.beginn
     }
 
     var blockEnde: String {
         let e = anwesenheit?.ende ?? ""
-        return e.isEmpty ? karte.ende : e
+        if !e.isEmpty { return e }
+        if let s = gewaehlteStunde, !s.ende.isEmpty { return s.ende }
+        return karte.ende
     }
 
     /// Lädt alle Teile gleichzeitig (statt nacheinander): Klassenbuch, Hausaufgaben und – für Lehrkräfte – Anwesenheit,
@@ -107,15 +149,17 @@ final class Stundendaten: ObservableObject {
         let fach = karte.fach
         let klassenliste = klassen
         let lehrer = lehrerHinweis
+        let einzeln = einzelstunde
         @Sendable func holeKlassenbuch() async -> KlassenbuchStunde? {
-            try? await api.klassenbuchStunde(datum: datum, stunde: von, unterricht: u, lehrer: lehrer)
+            try? await api.klassenbuchStunde(datum: datum, stunde: von, unterricht: u, lehrer: lehrer, einzelstunde: einzeln)
         }
         @Sendable func holeHausaufgaben() async -> HausaufgabenDerStunde? {
-            try? await api.hausaufgabenDerStunde(datum: datum, stunde: von, bis: bis, unterricht: u, fach: fach, klassen: klassenliste)
+            try? await api.hausaufgabenDerStunde(datum: datum, stunde: von, bis: bis, unterricht: u, fach: fach, klassen: klassenliste,
+                                                 einzelstunde: einzeln)
         }
         @Sendable func holeAnwesenheit() async -> Anwesenheitsliste? {
             guard kollegium else { return nil }
-            return try? await api.anwesenheit(datum: datum, stunde: von, unterricht: u)
+            return try? await api.anwesenheit(datum: datum, stunde: von, unterricht: u, einzelstunde: einzeln)
         }
         async let kb = holeKlassenbuch()
         async let hw = holeHausaufgaben()
@@ -131,7 +175,12 @@ final class Stundendaten: ObservableObject {
         async let dienstListe: Void = holeDienste()
         async let vermerkListe: Void = holeVermerke()
         let (neuKlassenbuch, neuHausaufgaben, neuAnwesenheit) = await (kb, hw, anw)
-        if let neuKlassenbuch { klassenbuch = neuKlassenbuch }
+        // Bereich inzwischen gewechselt: veraltete Antwort verwerfen (das neue Laden läuft bereits)
+        guard einzeln == einzelstunde else { return }
+        if let neuKlassenbuch {
+            klassenbuch = neuKlassenbuch
+            if !neuKlassenbuch.einzelstunden.isEmpty { blockStunden = neuKlassenbuch.einzelstunden }
+        }
         if let neuHausaufgaben { hausaufgaben = neuHausaufgaben }
         if let neuAnwesenheit { anwesenheit = neuAnwesenheit }
         _ = await (dienstListe, vermerkListe)
@@ -162,14 +211,14 @@ final class Stundendaten: ObservableObject {
     func hausaufgabenLaden() async {
         guard let u = karte.unterricht else { return }
         if let h = try? await api.hausaufgabenDerStunde(datum: karte.datum, stunde: karte.von, bis: karte.bis, unterricht: u,
-                                                         fach: karte.fach, klassen: klassen) {
+                                                         fach: karte.fach, klassen: klassen, einzelstunde: einzelstunde) {
             hausaufgaben = h
         }
     }
 
     func anwesenheitLaden() async {
         guard let u = karte.unterricht else { return }
-        if let a = try? await api.anwesenheit(datum: karte.datum, stunde: karte.von, unterricht: u) {
+        if let a = try? await api.anwesenheit(datum: karte.datum, stunde: karte.von, unterricht: u, einzelstunde: einzelstunde) {
             anwesenheit = a
         }
     }
@@ -203,9 +252,12 @@ final class Stundendaten: ObservableObject {
                                      anmerkung: anmerkung,
                                      lehrer: lehrerHinweis,
                                      online: online,
-                                     onlineLink: onlineLink)
+                                     onlineLink: onlineLink,
+                                     einzelstunde: einzelstunde)
         let neu = try await api.klassenbuchSpeichern(daten)
-        klassenbuch = KlassenbuchStunde(eintrag: neu, darf: klassenbuch?.darf ?? true)
+        var stand = klassenbuch ?? KlassenbuchStunde(eintrag: nil, darf: true)
+        stand.eintrag = neu
+        klassenbuch = stand
         if let notizSchueler { notizSchuelerGespeichert = notizSchueler }
         if let notiz { notizLehrerGespeichert = notiz }
         if let onlineLink { onlineLinkGespeichert = onlineLink }
@@ -230,7 +282,13 @@ final class Stundendaten: ObservableObject {
     /// „Findet online statt“ – optimistisch umschalten, bei Fehler zurück.
     @Published var online: Bool? = nil
 
-    var istOnline: Bool { online ?? eintrag?.online ?? karte.online }
+    /// In der Einzelstunde gilt ohne eigenen Eintrag der Blockeintrag.
+    var istOnline: Bool {
+        if let online { return online }
+        if let e = eintrag { return e.online }
+        if einzelstunde != nil { return klassenbuch?.blockEintrag?.online ?? karte.online }
+        return karte.online
+    }
 
     func onlineSetzen(_ wert: Bool) async throws {
         let vorher = istOnline
@@ -247,7 +305,8 @@ final class Stundendaten: ObservableObject {
     func hausaufgabeAnlegen(text: String, faellig: Date?, bemerkung: String) async throws {
         guard let u = karte.unterricht else { return }
         _ = try await api.hausaufgabeAnlegen(HausaufgabeNeuDaten(datum: karte.datum, stunde: karte.von, unterricht: u, text: text,
-                                                                 faellig: faellig.map { Datumsformat.iso($0) }, bemerkung: bemerkung))
+                                                                 faellig: faellig.map { Datumsformat.iso($0) }, bemerkung: bemerkung,
+                                                                 einzelstunde: einzelstunde))
         await hausaufgabenLaden()
     }
 
@@ -280,7 +339,8 @@ final class Stundendaten: ObservableObject {
     /// Wischgeste nach rechts: anwesend – die Abwesenheit in dieser Stunde wird entfernt.
     func anwesendSetzen(_ s: Schueler) async throws {
         guard let u = karte.unterricht, fehlzeit(s) != nil else { return }
-        try await api.abwesenheitEntfernen(AbwesenheitEntfernenDaten(datum: karte.datum, stunde: karte.von, unterricht: u, schuelerIds: [s.id]))
+        try await api.abwesenheitEntfernen(AbwesenheitEntfernenDaten(datum: karte.datum, stunde: karte.von, unterricht: u, schuelerIds: [s.id],
+                                                                         einzelstunde: einzelstunde))
         await anwesenheitLaden()
     }
 
@@ -289,7 +349,7 @@ final class Stundendaten: ObservableObject {
         guard let u = karte.unterricht, fehlzeit(s) == nil else { return }
         try await api.abwesenheitErfassen(AbwesenheitZeitraumDaten(
             schuelerIds: [s.id], von: Self.zeitpunkt(zeit(blockBeginn)), bis: Self.zeitpunkt(zeit(blockEnde)),
-            grund: nil, text: nil, datum: karte.datum, stunde: karte.von, unterricht: u))
+            grund: nil, text: nil, datum: karte.datum, stunde: karte.von, unterricht: u, einzelstunde: einzelstunde))
         await anwesenheitLaden()
     }
 
@@ -299,7 +359,7 @@ final class Stundendaten: ObservableObject {
         try await api.abwesenheitErfassen(AbwesenheitZeitraumDaten(
             schuelerIds: [s.id], von: Self.zeitpunkt(von), bis: Self.zeitpunkt(bis),
             grund: grund, text: text, datum: karte.datum, stunde: karte.von, unterricht: u,
-            ersetzen: (ersetzen ?? []).isEmpty ? nil : ersetzen, elternInformiert: eltern))
+            ersetzen: (ersetzen ?? []).isEmpty ? nil : ersetzen, elternInformiert: eltern, einzelstunde: einzelstunde))
         await anwesenheitLaden()
     }
 
@@ -308,7 +368,8 @@ final class Stundendaten: ObservableObject {
         if let ids, !ids.isEmpty, anwesenheit?.verwalten == true {
             try await api.abwesenheitenLoeschen(ids)
         } else if let u = karte.unterricht {
-            try await api.abwesenheitEntfernen(AbwesenheitEntfernenDaten(datum: karte.datum, stunde: karte.von, unterricht: u, schuelerIds: [s.id]))
+            try await api.abwesenheitEntfernen(AbwesenheitEntfernenDaten(datum: karte.datum, stunde: karte.von, unterricht: u, schuelerIds: [s.id],
+                                                                         einzelstunde: einzelstunde))
         }
         await anwesenheitLaden()
     }
@@ -322,7 +383,8 @@ final class Stundendaten: ObservableObject {
                                            bemerkung: f.text.isEmpty ? nil : f.text, grund: f.grund.isEmpty ? nil : f.grund,
                                            von: minutengenau ? f.beginn : nil, bis: minutengenau ? f.ende : nil)
         }
-        try await api.anwesenheitSpeichern(AnwesenheitDaten(datum: karte.datum, stunde: karte.von, unterricht: u, eintraege: eintraege))
+        try await api.anwesenheitSpeichern(AnwesenheitDaten(datum: karte.datum, stunde: karte.von, unterricht: u, eintraege: eintraege,
+                                                            einzelstunde: einzelstunde))
         await anwesenheitLaden()
     }
 
@@ -468,10 +530,25 @@ struct NotizSeite: View {
     /// Notizen für Lehrkräfte sind für Schüler*innen und Eltern nie sichtbar.
     private var sichtbar: Bool { art != .lehrer || zustand.istKollegium }
 
+    /// Inhalt des Blockeintrags, der in der gewählten Einzelstunde mit gilt (nur lesend).
+    private var geerbt: String {
+        guard let b = daten.geerbterEintrag else { return "" }
+        switch art {
+        case .schueler: return b.notizSchueler
+        case .lehrer: return sichtbar ? b.notiz : ""
+        case .lehrstoff: return b.thema
+        }
+    }
+
     /// Vorlage (Seite „Notizen“): X links, Titel mittig grau, darunter ein großer weißer Textbereich.
     var body: some View {
-        DetailSeitenRahmen(titel: art.titel, symbol: "xmark", zurueck: { Task { await schliessen() } }) {
+        // Einzelstunde eines Blocks: Untertitel nennt die Stunde, darüber (nur lesend) der geerbte Blockeintrag
+        DetailSeitenRahmen(titel: art.titel, untertitel: daten.einzelstunde == nil ? nil : "Nur \(daten.bereichText)",
+                           symbol: "xmark", zurueck: { Task { await schliessen() } }) {
             VStack(spacing: 0) {
+                if !geerbt.isEmpty {
+                    GeerbterBlockText(text: geerbt)
+                }
                 // Auch künftige Stunden sind ohne Datumsgrenze bearbeitbar (beliebig weit im Voraus)
                 textbereich
             }
@@ -557,11 +634,12 @@ struct NotizSeite: View {
             switch art {
             case .schueler:
                 try await daten.speichern(notizSchueler: wert)
-                // Info-Zeichen auf der Karte sofort zeigen bzw. entfernen (Plan lokal anpassen und neu laden)
-                zustand.notizGespeichert(daten.karte, schueler: wert, lehrer: nil)
+                // Info-Zeichen auf der Karte sofort zeigen bzw. entfernen (Plan lokal anpassen und neu laden); bei einer
+                // Einzelstunde setzt der Server die Notiz der Karte zusammen („4. Std.: …“) – dann nur neu laden
+                zustand.notizGespeichert(daten.karte, schueler: daten.einzelstunde == nil ? wert : nil, lehrer: nil)
             case .lehrer:
                 try await daten.speichern(notiz: wert)
-                zustand.notizGespeichert(daten.karte, schueler: nil, lehrer: wert)
+                zustand.notizGespeichert(daten.karte, schueler: nil, lehrer: daten.einzelstunde == nil ? wert : nil)
             case .lehrstoff:
                 try await daten.speichern(thema: wert)
             }
@@ -573,6 +651,31 @@ struct NotizSeite: View {
             fehler = zustand.fehlertext(error)
             return false
         }
+    }
+}
+
+/// Geerbter Blockeintrag über dem Textbereich einer Einzelstunde (nur lesend).
+struct GeerbterBlockText: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Gilt für den ganzen Block")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Farben.gedaempft)
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundStyle(Farben.tinte2)
+                .lineLimit(4)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Farben.knopf, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 15)
+        .padding(.top, 10)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -687,7 +790,8 @@ struct HausaufgabenSeite: View {
     private var bearbeitbar: Bool { daten.hausaufgaben?.darf == true }
 
     var body: some View {
-        DetailSeitenRahmen(titel: "Hausaufgaben", untertitel: stundenUntertitel(daten.karte), laedt: !daten.geladen) {
+        DetailSeitenRahmen(titel: "Hausaufgaben", untertitel: daten.einzelstunde == nil ? stundenUntertitel(daten.karte) : "Nur \(daten.bereichText)",
+                           laedt: !daten.geladen) {
             hausaufgabenliste
         } rechts: {
             if bearbeitbar {
@@ -790,6 +894,12 @@ struct HausaufgabenSeite: View {
                     Text(ha.bemerkung)
                         .font(.system(size: 13))
                         .foregroundStyle(Farben.tinte2)
+                }
+                // Doppel-/Blockstunde: gilt die Hausaufgabe für den ganzen Block oder nur für eine Stunde?
+                if daten.hatEinzelstunden {
+                    Text(ha.einzelstunde.map { "Nur \($0). Stunde" } ?? "Ganzer Block")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Farben.gedaempft)
                 }
                 if !ha.fach.isEmpty || !ha.lehrer.isEmpty {
                     Text([ha.fach, ha.lehrer].filter { !$0.isEmpty }.joined(separator: " · "))
@@ -1129,7 +1239,9 @@ struct SchuelerSeite: View {
     }
 
     var body: some View {
-        DetailSeitenRahmen(titel: "Schüler*innen", untertitel: stundenUntertitel(daten.karte), laedt: liste == nil) {
+        DetailSeitenRahmen(titel: "Schüler*innen", untertitel: daten.einzelstunde == nil ? stundenUntertitel(daten.karte)
+                               : "Nur \(daten.bereichText)" + (daten.blockBeginn.isEmpty ? "" : ", \(daten.blockBeginn) - \(daten.blockEnde)"),
+                           laedt: liste == nil) {
             inhalt
         }
         .detailPraesentation(item: $eintrag, breit: Geraet.istPad, art: .formular) { v in

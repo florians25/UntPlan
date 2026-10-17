@@ -30,13 +30,15 @@ public static class OffeneStundenApi
         var api = app.MapGroup("/api/app/klassenbuch/offene-stunden");
 
         api.MapGet("", (string? bereich, string? von, string? bis, string? lehrer, string? klasse, string? art,
-            HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Einstellungen e, Uhr uhr) =>
+            HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Einstellungen e, Uhr uhr, Klassenbuchdienst kb) =>
         {
             var b = Kollegium(c);
             var s = Paket(p);
             var alle = OffeneStunden.DarfAlle(b);
-            // Startwert: Berechtigte immer aktuelle Woche, Lehrkräfte ihr gespeicherter Zeitbereich
-            var (gBereich, gVon, gBis) = alle ? (OffeneStunden.Vorgabe, null, null) : OffeneStunden.Gespeichert(e, b.Id);
+            // Startwert: Vorgabe der Klassenbuch-Einstellungen („Offene Stunden anzeigen ab“, Standard: Beginn der Woche); Lehrkräfte ihr gespeicherter Zeitbereich
+            var einst = kb.Einstellungen();
+            var vorgabe = einst.OffenVorgabe(uhr.Heute);
+            var (gBereich, gVon, gBis) = alle || e.Lesen($"offene_stunden.zeitbereich.{b.Id}") is not { Length: > 0 } ? vorgabe : OffeneStunden.Gespeichert(e, b.Id);
             var wahl = OffeneStunden.Gueltig(bereich) ? bereich! : gBereich;
             var (v, bi) = OffeneStunden.Zeitraum(wahl, uhr.Heute, s.SchuljahrVon, D(von) ?? gVon, D(bis) ?? gBis);
             if (wahl == "individuell" && bi > uhr.Heute) bi = uhr.Heute;
@@ -50,7 +52,9 @@ public static class OffeneStundenApi
             var erweitert = alle || (k != null && Klassenbuchdienst.IstKlassenleitung(b, s, k));
 
             var zeilen = kv.Stunden(s, b, v, bi, erweitert ? lehrerWahl : Array.Empty<string>(), k);
-            var offen = zeilen.Count(z => !z.Geprueft || !z.Lehrstoff);
+            // ohne Abwesenheitskontrolle (Klassenbuch-Einstellungen) zählt nur der Lehrstoff
+            if (!einst.Abwesenheitskontrolle) zeilen = zeilen.Select(z => z with { Geprueft = true }).ToList();
+            var offen = zeilen.Count(z => einst.Offen(z.Geprueft, z.Lehrstoff));
             var ohneKontrolle = zeilen.Count(z => !z.Geprueft);
             var ohneLehrstoff = zeilen.Count(z => !z.Lehrstoff);
             var gefiltert = (art ?? "offen") switch
@@ -58,13 +62,14 @@ public static class OffeneStundenApi
                 "kontrolle" => zeilen.Where(z => !z.Geprueft),
                 "lehrstoff" => zeilen.Where(z => !z.Lehrstoff),
                 "alle" => zeilen,
-                _ => zeilen.Where(z => !z.Geprueft || !z.Lehrstoff),
+                _ => zeilen.Where(z => einst.Offen(z.Geprueft, z.Lehrstoff)),
             };
             return Results.Json(new
             {
                 bereich = wahl, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), heute = Plandienst.Iso(uhr.Heute),
                 bereiche = OffeneStunden.Bereiche.Select(x => new { id = x.Id, text = x.Text }),
                 alle, gespeichert = !alle, klassenleitung, klasse = k,
+                abwesenheitskontrolle = einst.Abwesenheitskontrolle, offenFuer = einst.Abwesenheitskontrolle ? einst.OffenFuer : "lehrstoff",
                 lehrer = erweitert ? lehrerWahl.Where(l => s.Lehrer.ContainsKey(l)).ToList() : b.LehrerKuerzel is string l2 ? new List<string> { l2 } : new List<string>(),
                 gesamt = zeilen.Count, offen, ohneKontrolle, ohneLehrstoff,
                 vollstaendig = zeilen.Count == 0 ? 100 : (int)Math.Round((zeilen.Count - offen) * 100.0 / zeilen.Count),

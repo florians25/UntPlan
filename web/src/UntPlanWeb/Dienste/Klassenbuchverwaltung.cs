@@ -142,13 +142,18 @@ public sealed class Klassenbuchverwaltung
         string? nachweis = null, string? entschuldigtAm = null, bool? elternInformiert = null, string? notizIntern = null)
     {
         var n = 0;
+        var einst = _kb.Einstellungen();
         foreach (var f in FehlzeitenNachIds(b, s, ids))
+        {
+            // „Entschuldigungsstatus immer mit Abwesenheitsgrund ändern“: neuer Grund ohne ausdrücklichen Status
+            if (status is null && grund is not null && _kb.StatusNachGrund(einst, f.Status, f.Grund, grund.Trim()) is var sg && sg != f.Status) status = sg;
             n += _db.Ausfuehren("UPDATE fehlzeiten SET grund = COALESCE(@g, grund), bemerkung = COALESCE(@b, bemerkung), status = COALESCE(@s, status), " +
                 "nachweis = COALESCE(@n, nachweis), entschuldigt_am = COALESCE(@ea, entschuldigt_am), eltern_informiert = COALESCE(@ei, eltern_informiert), " +
                 "notiz_intern = COALESCE(@ni, notiz_intern) WHERE id = @i",
                 Db.P("@g", grund?.Trim()), Db.P("@b", bemerkung?.Trim()), Db.P("@s", status is "offen" or "entschuldigt" or "unentschuldigt" ? status : null),
                 Db.P("@n", nachweis is null ? null : Nachweis(nachweis)), Db.P("@ea", entschuldigtAm is null ? null : DatumOderLeer(entschuldigtAm)),
                 Db.P("@ei", elternInformiert is null ? null : elternInformiert.Value ? 1 : 0), Db.P("@ni", notizIntern?.Trim()), Db.P("@i", f.Id));
+        }
         return n;
     }
 
@@ -160,7 +165,10 @@ public sealed class Klassenbuchverwaltung
     public int AbwesenheitenLoeschen(Benutzer b, Stand s, IEnumerable<int> ids)
     {
         var n = 0;
-        foreach (var f in FehlzeitenNachIds(b, s, ids)) n += _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
+        var liste = FehlzeitenNachIds(b, s, ids);
+        var einst = _kb.Einstellungen();
+        foreach (var f in liste) einst.LoeschenPruefen(b, f.Erstellt, _uhr.Jetzt);
+        foreach (var f in liste) n += _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
         return n;
     }
 
@@ -351,13 +359,19 @@ public sealed class Klassenbuchverwaltung
     /// „Findet online statt“ setzen und optional den Link zum Online-Unterricht (Videokonferenz). link = null lässt den gespeicherten
     /// Link unverändert, "" entfernt ihn. Nur Lehrkräfte der Stunde sowie Schulleitung/Administration (Klassenbuch aller Stunden).
     /// </summary>
-    public void OnlineSetzen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, bool online, string? link = null)
+    public void OnlineSetzen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, bool online, string? link = null, int? einzelstunde = null)
     {
         if (!_kb.DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         var url = link is null ? null : OnlineLinkPruefen(link);
-        var e = _kb.Zeitraum(d, d).Where(x => x.Unterricht == unterricht && stunde >= x.Stunde && (b.LehrerKuerzel is null || Ci.Equals(x.Lehrer, b.LehrerKuerzel)))
-            .OrderByDescending(x => x.Stunde).FirstOrDefault();
-        var id = e?.Id ?? _kb.Speichern(b, s, d, stunde, unterricht, "", "", null, "").Id;
+        // Einzelstunde eines Blocks: eigener Eintrag nur dieser Stunde
+        var block = einzelstunde.HasValue ? _kb.Blockkarte(b, s, d, stunde, unterricht) : null;
+        var einzeln = block != null && block.Von < block.Bis;
+        if (einzeln && (einzelstunde < block!.Von || einzelstunde > block.Bis)) throw new ArgumentException("Die Einzelstunde gehört nicht zu diesem Block.");
+        var e = einzeln
+            ? _kb.EinzelEintraege(d, unterricht, einzelstunde!.Value, einzelstunde.Value, b.LehrerKuerzel).FirstOrDefault()
+            : _kb.Zeitraum(d, d).Where(x => x.Unterricht == unterricht && stunde >= x.Stunde && (b.LehrerKuerzel is null || Ci.Equals(x.Lehrer, b.LehrerKuerzel)))
+                .OrderByDescending(x => x.Stunde).FirstOrDefault();
+        var id = e?.Id ?? _kb.Speichern(b, s, d, stunde, unterricht, "", "", null, "", einzelstunde: einzeln ? einzelstunde : null).Id;
         if (url is null) _db.Ausfuehren("UPDATE klassenbuch SET online = @o WHERE id = @i", Db.P("@o", online), Db.P("@i", id));
         else _db.Ausfuehren("UPDATE klassenbuch SET online = @o, online_link = @l WHERE id = @i", Db.P("@o", online), Db.P("@l", url), Db.P("@i", id));
     }
@@ -407,7 +421,7 @@ public sealed class Klassenbuchverwaltung
         if (bis.DayNumber - von.DayNumber > 400) throw new ArgumentException("Bitte einen Zeitraum von höchstens einem Schuljahr wählen.");
         var namen = Schueler(s);
         var klassen = string.IsNullOrEmpty(klasse) ? s.Paket.Elemente.Klassen.Select(k => k.Kurz).ToList() : new List<string> { klasse };
-        var schuelerListe = Klassenbuchdienst.Schueler(s, klassen).Where(x => schueler is null || x.Id == schueler).ToList();
+        var schuelerListe = Klassenzugehoerigkeit.ImZeitraum(s, klassen, von, bis).Where(x => schueler is null || x.Id == schueler).ToList();
         List<Fehlzeit> Fz(DateOnly v, DateOnly bi) => _kb.FehlzeitenZeitraum(v, bi, string.IsNullOrEmpty(klasse) ? null : klasse).Where(f => schueler is null || f.SchuelerId == schueler).ToList();
         string N(int id) => Name(namen, id);
         string Datum(string iso) => DateOnly.TryParse(iso, out var d) ? d.ToString("dd.MM.yyyy") : iso;

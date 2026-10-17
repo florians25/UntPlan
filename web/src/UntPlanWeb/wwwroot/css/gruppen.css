@@ -1,0 +1,75 @@
+/* UntPlanWeb – Unterricht Klassen, Schülergruppen, befristeter Unterrichtswechsel, Klassenwechsel und Wartung (Aktive Benutzer,
+   Zugriff ent-/sperren, Über UntPlan). Baut auf den nl-Klassen aus app.css auf; Schrift nur Regular (400) und Medium (500). */
+
+.ug-nr { font-variant-numeric: tabular-nums; color: #67747e; font-size: .85rem; }
+.ug-termine { display: flex; flex-wrap: wrap; gap: 4px; max-width: 220px; }
+.ug-termin { display: inline-block; padding: 1px 7px; border-radius: 5px; background: #f1f3f5; color: #414d55; font-size: .78rem; font-weight: 400; white-space: nowrap; }
+.ug-zahlknopf { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 1.5px solid #dfe3e7; border-radius: 999px; background: #fff;
+  color: #24323d; font-size: .85rem; font-weight: 500; white-space: nowrap; }
+.ug-zahlknopf:hover { border-color: #8a96a1; }
+.ug-zahlknopf .bi { color: #67747e; }
+.ug-zahlknopf.markiert { border-color: #f0b49a; background: #fff6f1; }
+.ug-fach { display: inline-flex; align-items: center; gap: 6px; }
+.ug-fach i { display: inline-block; width: 4px; height: 18px; border-radius: 2px; background: var(--fach, #bfc8cf); }
+.ug-kopf { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 12px; color: #414d55; font-size: .9rem; }
+.ug-kopf b { font-weight: 500; color: var(--u-text); }
+.ug-dialog .nl-tabelle td, .ug-dialog .nl-tabelle th { padding-top: 8px; padding-bottom: 8px; }
+.ug-dialog .nl-tabelle input[type=date] { height: 32px; padding: 2px 8px; border: 1.5px solid #dfe3e7; border-radius: 8px; font: inherit; font-size: .85rem; max-width: 150px; }
+.ug-dialog .nl-tabelle input[type=date]:focus { border-color: var(--u-akzent); outline: 0; }
+.ug-dialog .nl-tabelle tr.ug-aus td { color: #8a96a1; }
+.ug-dialog .nl-suche { max-width: none; height: 38px; margin-bottom: 10px; }
+.ug-name { font-weight: 500; color: var(--u-text); }
+.ug-hinweis { font-size: .82rem; color: #67747e; margin: 10px 0 0; }
+
+/* Assistent: Schrittanzeige, Schülerliste mit Mehrfachauswahl */
+.ug-schritte { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.ug-schritt { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px 0 4px; border-radius: 999px; background: #f1f3f5; color: #67747e; font-size: .82rem; font-weight: 500; }
+.ug-schritt b { display: inline-grid; place-content: center; width: 20px; height: 20px; border-radius: 50%; background: #fff; color: #67747e; font-weight: 500; font-size: .75rem; }
+.ug-schritt.aktiv { background: #fff0ea; color: var(--u-akzent); }
+.ug-schritt.aktiv b { background: var(--u-akzent); color: #fff; }
+.ug-schritt.fertig b { background: #56616b; color: #fff; }
+.ug-frage { font-weight: 500; color: var(--u-titel); margin-bottom: 12px; }
+.ug-liste { max-height: 340px; overflow: auto; border: 1px solid #dfe3e7; border-radius: 10px; background: #fff; }
+.ug-liste label { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #edf0f2; cursor: pointer; margin: 0; }
+.ug-liste label:last-child { border-bottom: 0; }
+.ug-liste label:hover { background: #f7f9fa; }
+.ug-liste label.gewaehlt { background: #fff6f1; }
+.ug-liste small { margin-left: auto; color: #67747e; }
+.ug-felder { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.ug-felder label { display: grid; gap: 4px; font-size: .85rem; color: #414d55; }
+.ug-felder input, .ug-felder select { height: 40px; padding: 0 12px; border: 1.5px solid #c9d0d6; border-radius: 10px; background: #fff; font: inherit; color: var(--u-text); min-width: 170px; }
+.ug-felder input:focus, .ug-felder select:focus { border-color: var(--u-akzent); outline: 0; }
+
+/* Klassenwechsel: Verlauf */
+.ug-verlauf { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .9rem; }
+.ug-verlauf th { font-weight: 500; color: #414d55; padding: 6px 8px; border-bottom: 1px solid #e3e7eb; text-align: left; }
+.ug-verlauf td { padding: 7px 8px; border-bottom: 1px solid #edf0f2; }
+.ug-verlauf tr.aktuell td { background: #fff6f1; }
+
+/* Wartung */
+.wt-status { display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; margin-bottom: 14px; }
+.wt-status .wt-symbol { display: inline-grid; place-content: center; width: 52px; height: 52px; border-radius: 50%; background: #e5f6ec; color: #0f7b47; font-size: 1.4rem; flex: none; }
+.wt-status.gesperrt .wt-symbol { background: #fdecec; color: #c62828; }
+.wt-status h3 { margin: 0 0 2px; font-size: 1.1rem; font-weight: 500; color: var(--u-titel); }
+.wt-status p { margin: 0; color: #67747e; font-size: .9rem; }
+.wt-karte { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+.wt-karte h4 { font-size: 1rem; font-weight: 500; color: var(--u-titel); margin: 0 0 12px; }
+.wt-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.wt-wert small { display: block; color: #67747e; font-size: .8rem; }
+.wt-wert b { font-weight: 500; font-size: 1.05rem; color: var(--u-text); }
+.wt-schalter { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; font-weight: 500; cursor: pointer; }
+.wt-schalter input { appearance: none; -webkit-appearance: none; width: 44px; height: 24px; border-radius: 12px; background: #c9d0d6; position: relative; cursor: pointer; flex: none; }
+.wt-schalter input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.wt-schalter input:checked { background: #c62828; }
+.wt-schalter input:checked::after { left: 23px; }
+.wt-karte textarea { width: 100%; min-height: 84px; padding: 10px 12px; border: 1.5px solid #c9d0d6; border-radius: 10px; font: inherit; }
+.wt-karte textarea:focus { border-color: var(--u-akzent); outline: 0; }
+.wt-module { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.wt-modul { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; background: #f7f9fa; }
+.wt-modul .bi { margin-top: 2px; color: #0f7b47; }
+.wt-modul.aus .bi { color: #a3adb6; }
+.wt-modul small { display: block; color: #67747e; }
+.wt-online { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2fb36d; margin-right: 6px; }
+.wt-online.aus { background: #c9d0d6; }
+.lg-wartung { display: flex; gap: 10px; padding: 10px 12px; margin-bottom: 14px; border-radius: 8px; background: #fff4d6; color: #6b4e00; font-size: .9rem; }
+@media (max-width: 767.98px) { .ug-termine { max-width: none; } .wt-status { align-items: flex-start; } }

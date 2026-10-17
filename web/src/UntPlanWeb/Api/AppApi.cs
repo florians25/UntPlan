@@ -18,22 +18,24 @@ public static class AppApi
     public sealed record KlausurDaten(DateOnly Datum, int? StundeVon, int? StundeBis, List<string> Klassen, List<string>? Raeume, List<string>? Aufsicht, string? Titel, string? Text);
     public sealed record KlausurLoeschenDaten(DateOnly Datum, int StundeVon, int StundeBis, List<string>? Klassen, string? Titel);
     public sealed record KlausurVerlegenDaten(KlausurLoeschenDaten Alt, KlausurDaten Neu);
-    public sealed record MitteilungDaten(List<string> Empfaenger, string Betreff, string Text, bool Wichtig, bool Lesebestaetigung = false, int? AntwortAuf = null);
-    public sealed record AnwesenheitDaten(DateOnly Datum, int Stunde, int Unterricht, List<AnwesenheitEintrag>? Eintraege);
+    public sealed record MitteilungDaten(List<string> Empfaenger, string Betreff, string Text, bool Wichtig, bool Lesebestaetigung = false, int? AntwortAuf = null,
+        bool AntwortErlaubt = true);
+    // Einzelstunde: optional Stunde eines Blocks, für die der Eintrag allein gilt (ohne Angabe: ganzer Block)
+    public sealed record AnwesenheitDaten(DateOnly Datum, int Stunde, int Unterricht, List<AnwesenheitEintrag>? Eintraege, int? Einzelstunde = null);
     public sealed record FehlenDaten(int SchuelerId, DateOnly Von, DateOnly Bis, string? Status, string? Bemerkung);
     public sealed record FehlzeitStatusDaten(List<int> Ids, string Status);
     public sealed record VermerkDaten(DateOnly Datum, string Klasse, int? SchuelerId, string? Art, string Text, string? Zeit = null);
-    public sealed record HausaufgabeDaten(DateOnly Datum, int Stunde, int Unterricht, string? Text, DateOnly? Faellig, string? Bemerkung);
+    public sealed record HausaufgabeDaten(DateOnly Datum, int Stunde, int Unterricht, string? Text, DateOnly? Faellig, string? Bemerkung, int? Einzelstunde = null);
     public sealed record HausaufgabeAenderDaten(string? Text, DateOnly? Faellig, string? Bemerkung, bool? Erledigt);
     /// <summary>Abwesenheitsdialog: Zeitraum (Datum + Uhrzeit, ISO „yyyy-MM-ddTHH:mm“), Grund, Text, Status; optional Stunde (Stundendetails) bzw. zu ersetzende Fehlzeiten.</summary>
     public sealed record AbwesenheitZeitraumDaten(List<int>? SchuelerIds, DateTime Von, DateTime Bis, string? Grund, string? Text, string? Status,
         DateOnly? Datum = null, int? Stunde = null, int? Unterricht = null, List<int>? Ersetzen = null,
-        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null);
-    public sealed record AbwesenheitEntfernenDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds);
-    public sealed record AbwesenheitStatusDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Status);
-    public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis);
+        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null, int? Einzelstunde = null);
+    public sealed record AbwesenheitEntfernenDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, int? Einzelstunde = null);
+    public sealed record AbwesenheitStatusDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Status, int? Einzelstunde = null);
+    public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis, int? Einzelstunde = null);
     public sealed record KlassenbuchDaten(DateOnly Datum, int Stunde, int Unterricht, string? Thema, string? Hausaufgabe, DateOnly? Faellig, string? Notiz, string? NotizSchueler = null,
-        string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null, bool? Online = null, string? OnlineLink = null);
+        string? Lehrform = null, string? Anmerkung = null, string? Lehrer = null, bool? Online = null, string? OnlineLink = null, int? Einzelstunde = null);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
 
@@ -328,22 +330,43 @@ public static class AppApi
         });
         api.MapGet("/mitteilungen/empfaenger", (HttpContext c, Mitteilungsdienst m, Paketdienst p) => Results.Json(m.Empfaengerliste(Ich(c), p.Aktuell)));
         api.MapPost("/mitteilungen", (MitteilungDaten d, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
-            Results.Json(new { id = m.Senden(Ich(c), p.Aktuell, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig, d.Lesebestaetigung, d.AntwortAuf) }));
+            Results.Json(new { id = m.Senden(Ich(c), p.Aktuell, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig, d.Lesebestaetigung, d.AntwortAuf, d.AntwortErlaubt) }));
         api.MapPost("/mitteilungen/{id:int}/gelesen", (int id, HttpContext c, Mitteilungsdienst m) => { m.Gelesen(Ich(c).Id, id); return Results.Json(new { ok = true }); });
         api.MapDelete("/mitteilungen/{id:int}", (int id, HttpContext c, Mitteilungsdienst m) => { m.Loeschen(Ich(c).Id, id); return Results.Json(new { ok = true }); });
 
         // ---------------------------------------------------------------- Klassenbuch
 
-        api.MapGet("/klassenbuch/stunde", (DateOnly datum, int stunde, int unterricht, string? lehrer, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        // Ohne einzelstunde: Eintrag des ganzen Blocks (wie bisher). Mit einzelstunde (Stunde eines Doppel-/Blocks): Eintrag nur dieser Stunde,
+        // dazu immer blockEintrag (gilt für alle Stunden), block, einzelstunden (Auswahlmenü) und einzelEintraege.
+        api.MapGet("/klassenbuch/stunde", (DateOnly datum, int stunde, int unterricht, string? lehrer, int? einzelstunde, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = Ich(c);
             var s = Paket(p);
+            Klassenbucheintrag Sichtbar(Klassenbucheintrag e) => b.Kollegium ? e : e with { Notiz = "", OnlineLink = e.Online ? e.OnlineLink : "" };
             // die nächstliegende Stunde (Blockbeginn) zuerst – bei Kopplungen mit Einzel- und Doppelstunden nicht den Eintrag einer anderen Lehrkraft
-            var eintrag = kb.Zeitraum(datum, datum).Where(e => e.Unterricht == unterricht && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
+            var blockEintrag = kb.Zeitraum(datum, datum).Where(e => e.Unterricht == unterricht && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
                                                                          (b.Kollegium || e.Klassen.Any(b.HatKlasse)))
-                .OrderByDescending(e => e.Stunde).FirstOrDefault();
-            if (eintrag != null && !b.Kollegium) eintrag = eintrag with { Notiz = "", OnlineLink = eintrag.Online ? eintrag.OnlineLink : "" };
-            return Results.Json(new { eintrag, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
+                .OrderByDescending(e => e.Stunde).FirstOrDefault() is { } be ? Sichtbar(be) : null;
+            var karte = kb.Blockkarte(b, s, datum, stunde, unterricht, lehrer);
+            var istBlock = karte != null && karte.Von < karte.Bis;
+            int? einzel = istBlock && einzelstunde is int n ? n : null;
+            if (einzel is int en && (en < karte!.Von || en > karte.Bis)) throw new ArgumentException("Die Einzelstunde gehört nicht zu diesem Block.");
+            var einzelEintraege = istBlock
+                ? kb.EinzelEintraege(datum, unterricht, karte!.Von, karte.Bis, lehrer).Where(e => b.Kollegium || e.Klassen.Any(b.HatKlasse)).OrderBy(e => e.Stunde).Select(Sichtbar).ToList()
+                : new List<Klassenbucheintrag>();
+            var eintrag = einzel is int x ? einzelEintraege.FirstOrDefault(e => e.Stunde == x) : blockEintrag;
+            var einzelstunden = istBlock
+                ? Enumerable.Range(karte!.Von, karte.Bis - karte.Von + 1).Select(nr => Klassenbuchdienst.Einzeln(s, karte, nr)).Select(k => new
+                {
+                    stunde = k.Von, beginn = k.Beginn, ende = k.Ende,
+                    eintrag = einzelEintraege.Any(e => e.Stunde == k.Von && (e.Thema.Length > 0 || e.Notiz.Length > 0 || e.NotizSchueler.Length > 0 || e.Online || e.Anwesenheit != null)),
+                }).ToList()
+                : new();
+            return Results.Json(new
+            {
+                eintrag, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, einzel ?? stunde, unterricht),
+                einzelstunde = einzel, blockEintrag, block = karte is null ? null : Klassenbuchdienst.Block(s, karte), einzelstunden, einzelEintraege,
+            });
         });
         // Lehrstoff, Hausaufgabe, Notizen (Lehrkräfte / Schüler*innen), Lehrform, Anmerkung einer Stunde speichern – PUT und POST (Apps).
         // Nicht mitgeschickte Felder (null) bleiben unverändert, z. B. { datum, stunde, unterricht, notizSchueler } ändert nur die Schülernotiz.
@@ -353,34 +376,39 @@ public static class AppApi
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur Lehrkräfte können das Klassenbuch bearbeiten.");
             if (d.OnlineLink is not null) Klassenbuchverwaltung.OnlineLinkPruefen(d.OnlineLink);   // vor dem Speichern prüfen
             var eigener = b.LehrerKuerzel ?? d.Lehrer;
-            var alt = kb.Zeitraum(d.Datum, d.Datum).Where(e => e.Unterricht == d.Unterricht && d.Stunde >= e.Stunde && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase)))
-                .OrderByDescending(e => e.Stunde).FirstOrDefault();
+            // Einzelstunde nur bei Blöcken (sonst gilt der Eintrag ohnehin genau dieser Stunde)
+            int? einzel = d.Einzelstunde is int en && kb.Blockkarte(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Lehrer) is { } bk && bk.Von < bk.Bis ? en : null;
+            var alt = einzel is int x
+                ? kb.EinzelEintraege(d.Datum, d.Unterricht, x, x, eigener).FirstOrDefault()
+                : kb.Zeitraum(d.Datum, d.Datum).Where(e => e.Unterricht == d.Unterricht && d.Stunde >= e.Stunde && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase)))
+                    .OrderByDescending(e => e.Stunde).FirstOrDefault();
             DateOnly? faellig = d.Hausaufgabe is null && d.Faellig is null ? (DateOnly.TryParse(alt?.Faellig, out var f) ? f : null) : d.Faellig;
             var e = kb.Speichern(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? alt?.Thema ?? "", d.Hausaufgabe ?? alt?.Hausaufgabe ?? "", faellig,
-                d.Notiz ?? alt?.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung, d.Lehrer);
+                d.Notiz ?? alt?.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung, d.Lehrer, einzel);
             // „Findet online statt“ und Link zum Online-Unterricht (nur wenn mitgeschickt; Link: http/https, "" entfernt ihn)
             if (d.Online is not null || d.OnlineLink is not null)
             {
-                kv.OnlineSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online ?? alt?.Online ?? false, d.OnlineLink);
-                e = kb.Holen(DateOnly.Parse(e.Datum), e.Stunde, e.Unterricht, e.Lehrer) ?? e;
+                kv.OnlineSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online ?? alt?.Online ?? false, d.OnlineLink, einzel);
+                e = kb.Holen(DateOnly.Parse(e.Datum), e.SpeicherStunde, e.Unterricht, e.Lehrer) ?? e;
             }
             return Results.Json(e);
         }
         api.MapPut("/klassenbuch/stunde", StundeSpeichern);
         api.MapPost("/klassenbuch/stunde", StundeSpeichern);
         // Hausaufgaben einer Stunde (Liste wie im Original) und die in dieser Stunde fälligen Hausaufgaben
-        api.MapGet("/klassenbuch/hausaufgabenliste", (DateOnly datum, int stunde, int unterricht, int? bis, string? fach, string? klassen, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        // Hausaufgaben des Blocks und seiner Einzelstunden (mit einzelstunde: nur die dieser Stunde); jede mit „einzelstunde“ (null = ganzer Block)
+        api.MapGet("/klassenbuch/hausaufgabenliste", (DateOnly datum, int stunde, int unterricht, int? bis, string? fach, string? klassen, int? einzelstunde, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = RechtePruefung.Verlangen(Ich(c), Recht.HausaufgabenSehen);
             var s = Paket(p);
-            var liste = kb.HausaufgabenDerStunde(datum, stunde, Math.Max(stunde, bis ?? stunde), unterricht);
+            var liste = kb.HausaufgabenMitEinzelstunden(datum, stunde, Math.Max(stunde, bis ?? stunde), unterricht, einzelstunde);
             var kl = (klassen ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
             if (!b.Kollegium) { kl = kl.Where(b.HatKlasse).ToList(); if (!liste.All(h => h.Klassen.Any(b.HatKlasse))) liste = new(); }
             var faellig = string.IsNullOrEmpty(fach) || kl.Count == 0 ? new List<Hausaufgabe>() : kb.FaelligeHausaufgaben(datum, fach, kl, unterricht);
-            return Results.Json(new { liste, faellig, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, stunde, unterricht) });
+            return Results.Json(new { liste, faellig, darf = b.Kollegium && kb.DarfSchreiben(b, s, datum, einzelstunde ?? stunde, unterricht) });
         });
         api.MapPost("/klassenbuch/hausaufgabenliste", (HausaufgabeDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
-            Results.Json(kb.HausaufgabeAnlegen(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Text ?? "", d.Faellig, d.Bemerkung ?? "")));
+            Results.Json(kb.HausaufgabeAnlegen(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Text ?? "", d.Faellig, d.Bemerkung ?? "", d.Einzelstunde)));
         api.MapPut("/klassenbuch/hausaufgabenliste/{id:int}", (int id, HausaufgabeAenderDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(kb.HausaufgabeAendern(Ich(c), Paket(p), id, d.Text, d.Faellig, d.Bemerkung, d.Erledigt)));
         api.MapDelete("/klassenbuch/hausaufgabenliste/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
@@ -390,7 +418,7 @@ public static class AppApi
         });
         // Abwesenheiten verlängern (aus der Vorstunde bis Stundenende bzw. bis zum Tagesbeginn)
         api.MapPost("/klassenbuch/abwesenheit/verlaengern", (VerlaengernDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
-            Results.Json(new { stunden = kb.AbwesenheitVerlaengern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Bis == "tagesbeginn" ? "tagesbeginn" : "stunde") }));
+            Results.Json(new { stunden = kb.AbwesenheitVerlaengern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Bis == "tagesbeginn" ? "tagesbeginn" : "stunde", d.Einzelstunde) }));
         // Abwesenheitsdialog (minutengenau von–bis; Verspätung = ab Stundenbeginn bis Ankunft, vorzeitig = ab Uhrzeit bis Stundenende)
         api.MapPost("/klassenbuch/abwesenheit", (AbwesenheitZeitraumDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
@@ -401,7 +429,7 @@ public static class AppApi
             if (ids.Count == 0) throw new ArgumentException("Bitte eine Schülerin bzw. einen Schüler wählen.");
             (DateOnly, int, int)? stunde = d.Datum is DateOnly dt && d.Stunde is int st && d.Unterricht is int u ? (dt, st, u) : null;
             var n = ids.Distinct().Sum(id => kb.AbwesenheitErfassen(b, s, id, d.Von, d.Bis, d.Grund, d.Text, d.Status, stunde, ids.Count == 1 ? d.Ersetzen : null,
-                d.Nachweis, d.EntschuldigtAm, d.ElternInformiert, d.NotizIntern));
+                d.Nachweis, d.EntschuldigtAm, d.ElternInformiert, d.NotizIntern, d.Einzelstunde));
             return Results.Json(new { stunden = n });
         });
         // Entschuldigungsstatus direkt im Abwesenheitsdialog (Segment-Schalter) – nur Klassenleitung, Schulleitung, Administration
@@ -409,13 +437,13 @@ public static class AppApi
         {
             var b = Ich(c);
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
-            return Results.Json(new { geaendert = kb.AbwesenheitStatusSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Status ?? "") });
+            return Results.Json(new { geaendert = kb.AbwesenheitStatusSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Status ?? "", d.Einzelstunde) });
         });
         api.MapPost("/klassenbuch/abwesenheit/loeschen", (AbwesenheitEntfernenDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = Ich(c);
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
-            return Results.Json(new { geloescht = kb.AbwesenheitEntfernen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new()) });
+            return Results.Json(new { geloescht = kb.AbwesenheitEntfernen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Einzelstunde) });
         });
         api.MapGet("/klassenbuch/klasse", (string klasse, string? von, string? bis, HttpContext c, Klassenbuchdienst kb, Uhr uhr) =>
         {
@@ -442,14 +470,14 @@ public static class AppApi
             var d = Datum(datum, uhr);
             return Results.Json(kb.Woche(Paket(p), klasse, d.AddDays(-(((int)d.DayOfWeek + 6) % 7))));
         });
-        api.MapGet("/klassenbuch/anwesenheit", (DateOnly datum, int stunde, int unterricht, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        api.MapGet("/klassenbuch/anwesenheit", (DateOnly datum, int stunde, int unterricht, int? einzelstunde, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = Ich(c);
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
-            return Results.Json(kb.Anwesenheit(b, Paket(p), datum, stunde, unterricht));
+            return Results.Json(kb.Anwesenheit(b, Paket(p), datum, stunde, unterricht, einzelstunde));
         });
         api.MapPut("/klassenbuch/anwesenheit", (AnwesenheitDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
-            Results.Json(new { fehlend = kb.AnwesenheitSpeichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Eintraege ?? new()) }));
+            Results.Json(new { fehlend = kb.AnwesenheitSpeichern(Ich(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Eintraege ?? new(), d.Einzelstunde) }));
         api.MapGet("/klassenbuch/fehlzeiten", (string klasse, string? von, string? bis, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var b = Ich(c);
@@ -472,10 +500,11 @@ public static class AppApi
             Results.Json(kb.VermerkAnlegen(Ich(c), Paket(p), d.Datum, d.Klasse ?? "", d.SchuelerId, d.Art ?? "Vermerk", d.Text ?? "", d.Zeit)));
         api.MapDelete("/klassenbuch/vermerke/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(new { ok = kb.VermerkLoeschen(Ich(c), Paket(p), id) }));
-        api.MapGet("/klassenbuch/schueler", (string klasse, HttpContext c, Paketdienst p) =>
+        api.MapGet("/klassenbuch/schueler", (string klasse, string? datum, HttpContext c, Paketdienst p) =>
         {
             if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
-            return Results.Json(Klassenbuchdienst.Schueler(Paket(p), new[] { klasse }));
+            // mit Datum: Klassenzugehörigkeit an diesem Tag (Klassenwechsel ab Datum), sonst von heute
+            return Results.Json(DateOnly.TryParse(datum, out var d) ? Klassenzugehoerigkeit.Am(Paket(p), new[] { klasse }, d) : Klassenbuchdienst.Schueler(Paket(p), new[] { klasse }));
         });
 
         // ---------------------------------------------------------------- Listen wie im Vorbild (Unterricht, Prüfungen, Hausaufgaben, Einträge, Abwesenheiten, Berichte)

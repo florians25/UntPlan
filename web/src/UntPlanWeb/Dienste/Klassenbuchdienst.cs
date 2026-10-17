@@ -15,6 +15,13 @@ public sealed record Klassenbucheintrag(int Id, string Datum, int Stunde, int Un
     public string GeaendertVon { get; init; } = "";
     /// <summary>Link zum Online-Unterricht (Videokonferenz, http/https) – gilt, solange „Findet online statt“ eingeschaltet ist.</summary>
     public string OnlineLink { get; init; } = "";
+    /// <summary>
+    /// Einzelstunde eines Blocks, für die der Eintrag allein gilt (dann <see cref="Stunde"/> = diese Stunde); null = Eintrag des ganzen Blocks
+    /// (gilt für alle Stunden des Blocks, <see cref="Stunde"/> = Blockbeginn).
+    /// </summary>
+    public int? Einzelstunde { get; init; }
+    /// <summary>Stundennummer in der Tabelle (Einzelstunde negativ, siehe <see cref="Klassenbuchdienst.Schluessel"/>).</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public int SpeicherStunde => Einzelstunde is int n ? -n : Stunde;
 }
 
 /// <summary>Fehlzeit einer Schülerin/eines Schülers in einer Stunde. Art „fehlt“, „verspaetet“ oder „vorzeitig“, Status offen/entschuldigt/unentschuldigt.</summary>
@@ -63,10 +70,46 @@ public sealed partial class Klassenbuchdienst
 
     public Klassenbuchdienst(Db db, Uhr uhr, Plandienst plan) { _db = db; _uhr = uhr; _plan = plan; }
 
-    private static Klassenbucheintrag Lesen(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
+    private static Klassenbucheintrag Lesen(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), Math.Abs(r.Zahl("stunde")), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("thema"), r.Text("hausaufgabe"),
         r.TextOderNull("faellig"), r.Text("notiz"), r.Text("geaendert"), r.TextOderNull("anwesenheit"), r.Text("notiz_schueler"), r.Wahr("online"))
-    { Lehrform = r.Text("lehrform"), Anmerkung = r.Text("anmerkung"), GeaendertVon = r.Text("lehrer"), OnlineLink = r.Text("online_link") };
+    {
+        Lehrform = r.Text("lehrform"), Anmerkung = r.Text("anmerkung"), GeaendertVon = r.Text("lehrer"), OnlineLink = r.Text("online_link"),
+        Einzelstunde = r.Zahl("stunde") < 0 ? -r.Zahl("stunde") : null,
+    };
+
+    // ------------------------------------------------------------------------------------------ Einzelstunden in Blöcken
+    //
+    // Einträge (Lehrstoff, Notizen, Online, Hausaufgaben, Abwesenheitskontrolle) gehören standardmäßig zum ganzen Block (Doppel-/Blockstunde)
+    // und liegen unter der Nummer des Blockbeginns. Für eine Einzelstunde eines Blocks liegen sie unter der negativen Stundennummer
+    // (−4 = nur 4. Stunde) – ohne Schemaänderung und ohne Konflikt mit dem Blockeintrag (UNIQUE datum, stunde, unterricht, lehrer).
+    // Abfragen über Stundenbereiche (stunde BETWEEN von AND bis) sehen deshalb weiterhin nur Blockeinträge; Fehlzeiten liegen ohnehin je Stunde.
+
+    /// <summary>Stundennummer, unter der Einträge zur Karte gespeichert werden: Blockbeginn bzw. −Einzelstunde.</summary>
+    public static int Schluessel(Karte k) => k.Einzelstunde is int n ? -n : k.Von;
+
+    /// <summary>
+    /// Karte auf eine Einzelstunde des Blocks einschränken (Von = Bis = n, Zeiten der Stunde). Ohne Angabe bzw. bei einer Einzelstunde
+    /// (Von = Bis) bleibt die Karte unverändert.
+    /// </summary>
+    public static Karte Einzeln(Stand s, Karte k, int? einzelstunde)
+    {
+        if (einzelstunde is not int n || k.Von == k.Bis) return k;
+        if (n < k.Von || n > k.Bis) throw new ArgumentException("Die Einzelstunde gehört nicht zu diesem Block.");
+        var (b, e) = StundenZeit(s, n);
+        return k with { Von = n, Bis = n, Beginn = Hhmm(b), Ende = Hhmm(e), Einzelstunde = n };
+    }
+
+    /// <summary>Block der Karte mit seinen Einzelstunden (für die Auswahl „Ganzer Block“ / „3. Stunde 09:35–10:20“ in den Stundendetails).</summary>
+    public static object Block(Stand s, Karte k) => new
+    {
+        von = k.Von, bis = k.Bis,
+        beginn = k.Beginn.Length > 0 ? k.Beginn : Hhmm(StundenZeit(s, k.Von).Beginn),
+        ende = k.Ende.Length > 0 ? k.Ende : Hhmm(StundenZeit(s, k.Bis).Ende),
+    };
+
+    /// <summary>Karte (Block) einer Stunde für die Stundendetails bzw. die App-API.</summary>
+    public Karte? Blockkarte(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string? lehrerHinweis = null) => KarteZu(b, s, d, stunde, unterricht, lehrerHinweis);
 
     private static Fehlzeit LesenFehlzeit(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         r.Zahl("schueler_id"), r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"),
@@ -84,12 +127,20 @@ public sealed partial class Klassenbuchdienst
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
     public static readonly string[] VermerkArten = { "Vermerk", "Ordnungsmaßnahme", "Elterngespräch", "Lob", "Material vergessen", "Hausaufgabe fehlt" };
 
-    public List<Klassenbucheintrag> Zeitraum(DateOnly von, DateOnly bis) =>
-        _db.Liste("SELECT * FROM klassenbuch WHERE datum >= @v AND datum <= @b ORDER BY datum, stunde", Lesen, Db.P("@v", von), Db.P("@b", bis));
+    /// <summary>Einträge im Zeitraum – ohne <paramref name="mitEinzelstunden"/> nur Blockeinträge (wie vor den Einzelstunden: Listen, Berichte, Abgleich mit UntPlan).</summary>
+    public List<Klassenbucheintrag> Zeitraum(DateOnly von, DateOnly bis, bool mitEinzelstunden = false) =>
+        _db.Liste("SELECT * FROM klassenbuch WHERE datum >= @v AND datum <= @b AND (@e = 1 OR stunde >= 0) ORDER BY datum, stunde", Lesen,
+            Db.P("@v", von), Db.P("@b", bis), Db.P("@e", mitEinzelstunden ? 1 : 0)).OrderBy(e => e.Datum, StringComparer.Ordinal).ThenBy(e => e.Stunde).ThenBy(e => e.Einzelstunde.HasValue).ToList();
+
+    /// <summary>Einzelstunden-Einträge eines Blocks (Unterricht, Tag, Stunden von–bis).</summary>
+    public List<Klassenbucheintrag> EinzelEintraege(DateOnly d, int unterricht, int von, int bis, string? lehrer = null) =>
+        _db.Liste("SELECT * FROM klassenbuch WHERE datum = @d AND unterricht = @u AND stunde <= @v AND stunde >= @b ORDER BY stunde DESC", Lesen,
+                Db.P("@d", d), Db.P("@u", unterricht), Db.P("@v", -von), Db.P("@b", -bis))
+            .Where(e => lehrer is null || Ci.Equals(e.Lehrer, lehrer)).ToList();
 
     /// <summary>Einträge einer Klasse (neueste zuerst).</summary>
     public List<Klassenbucheintrag> Klasse(string klasse, DateOnly von, DateOnly bis) =>
-        Zeitraum(von, bis).Where(e => e.Klassen.Contains(klasse, StringComparer.OrdinalIgnoreCase)).OrderByDescending(e => e.Datum).ThenByDescending(e => e.Stunde).ToList();
+        Zeitraum(von, bis, true).Where(e => e.Klassen.Contains(klasse, StringComparer.OrdinalIgnoreCase)).OrderByDescending(e => e.Datum).ThenByDescending(e => e.Stunde).ToList();
 
     /// <summary>Offene Hausaufgaben einer Klasse (fällig ab heute bzw. in den letzten 14 Tagen erteilt).</summary>
     public List<Klassenbucheintrag> Hausaufgaben(string klasse)
@@ -114,23 +165,28 @@ public sealed partial class Klassenbuchdienst
     }
 
     public Klassenbucheintrag Speichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string thema, string hausaufgabe, DateOnly? faellig, string notiz, string? notizSchueler = null,
-        string? lehrform = null, string? anmerkung = null, string? lehrerHinweis = null)
+        string? lehrform = null, string? anmerkung = null, string? lehrerHinweis = null, int? einzelstunde = null)
     {
         if (!DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         // keine zeitliche Begrenzung: Lehrstoff, Notizen und „Findet online statt“ auch weit im Voraus (Stunde laut Plan vorausgesetzt)
         if (faellig is DateOnly f && f < d) throw new ArgumentException("Die Hausaufgabe kann nicht vor der Stunde fällig sein.");
-        var karte = KarteZu(b, s, d, stunde, unterricht, lehrerHinweis);
+        var karte = KarteZu(b, s, d, stunde, unterricht, lehrerHinweis, einzelstunde);
         if (karte is null) throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var schluessel = Schluessel(karte);
         // Schulleitung/Administration trägt für die Lehrkraft der Karte ein (bei Kopplungen die gewählte)
         var lehrer = b.LehrerKuerzel ?? (!string.IsNullOrEmpty(lehrerHinweis) && karte.Lehrer.Any(w => Ci.Equals(w.K, lehrerHinweis)) ? lehrerHinweis : karte.Lehrer.FirstOrDefault()?.K) ?? "";
         var klassen = JsonSerializer.Serialize(karte.Klassen.Select(k => k.K).ToList());
-        var vorher = Holen(d, karte.Von, unterricht, lehrer);
+        var vorher = Holen(d, schluessel, unterricht, lehrer);
+        // Klassenbuch-Einstellungen: Eingabezeitraum, Lehrstoff (Tage zurück, Zukunft) – Standard unbegrenzt
+        var einst = Einstellungen();
+        einst.EingabePruefen(b, d, _uhr.Heute);
+        if ((thema ?? "").Trim().Length > 0 && (thema ?? "").Trim() != (vorher?.Thema ?? "")) einst.LehrstoffPruefen(b, d, _uhr.Heute);
         _db.Ausfuehren("""
             INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, thema, hausaufgabe, faellig, notiz, geaendert, benutzer_id, notiz_schueler)
             VALUES (@d, @s, @u, @k, @f, @l, @t, @h, @fa, @n, @g, @b, COALESCE(@ns, ''))
             ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET thema = excluded.thema, hausaufgabe = excluded.hausaufgabe, faellig = excluded.faellig,
                 notiz = excluded.notiz, notiz_schueler = CASE WHEN @ns IS NULL THEN klassenbuch.notiz_schueler ELSE excluded.notiz_schueler END, klassen = excluded.klassen, fach = excluded.fach, geaendert = excluded.geaendert, benutzer_id = excluded.benutzer_id
-            """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@k", klassen), Db.P("@f", karte.Fach), Db.P("@l", lehrer),
+            """, Db.P("@d", d), Db.P("@s", schluessel), Db.P("@u", unterricht), Db.P("@k", klassen), Db.P("@f", karte.Fach), Db.P("@l", lehrer),
             Db.P("@t", (thema ?? "").Trim()), Db.P("@h", (hausaufgabe ?? "").Trim()), Db.P("@fa", faellig), Db.P("@n", (notiz ?? "").Trim()), Db.P("@ns", notizSchueler?.Trim()),
             Db.P("@g", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
         // Einzelne Hausaufgabe über das alte Feld (z. B. UntPlanMobile): Liste der Hausaufgaben angleichen
@@ -139,8 +195,8 @@ public sealed partial class Klassenbuchdienst
         // Lehrform und Anmerkung (nur wenn mitgeschickt)
         if (lehrform != null || anmerkung != null)
             _db.Ausfuehren("UPDATE klassenbuch SET lehrform = COALESCE(@lf, lehrform), anmerkung = COALESCE(@an, anmerkung) WHERE datum = @d AND stunde = @s AND unterricht = @u AND lehrer = @l",
-                Db.P("@lf", lehrform?.Trim()), Db.P("@an", anmerkung?.Trim()), Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@l", lehrer));
-        return Holen(d, karte.Von, unterricht, lehrer)!;
+                Db.P("@lf", lehrform?.Trim()), Db.P("@an", anmerkung?.Trim()), Db.P("@d", d), Db.P("@s", schluessel), Db.P("@u", unterricht), Db.P("@l", lehrer));
+        return Holen(d, schluessel, unterricht, lehrer)!;
     }
 
     /// <summary>Gehaltene Stunden einer Lehrkraft ohne Unterrichtsinhalt (standardmäßig letzte 14 Tage bis heute).</summary>
@@ -148,8 +204,9 @@ public sealed partial class Klassenbuchdienst
     {
         var heute = _uhr.Heute;
         tage = Math.Clamp(tage, 1, 120);
-        var eintraege = Zeitraum(heute.AddDays(-tage), heute).Where(e => e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase) && e.Thema.Length > 0)
-            .Select(e => (e.Datum, e.Stunde, e.Unterricht)).ToHashSet();
+        var alle = Zeitraum(heute.AddDays(-tage), heute, true).Where(e => e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase) && e.Thema.Length > 0).ToList();
+        var eintraege = alle.Where(e => e.Einzelstunde is null).Select(e => (e.Datum, e.Stunde, e.Unterricht)).ToHashSet();
+        var einzeln = alle.Where(e => e.Einzelstunde is not null).Select(e => (e.Datum, e.Stunde, e.Unterricht)).ToHashSet();
         var res = new List<object>();
         for (var d = heute.AddDays(-tage); d <= heute; d = d.AddDays(1))
         {
@@ -157,7 +214,9 @@ public sealed partial class Klassenbuchdienst
             foreach (var k in _plan.Karten(s, d, Elementtyp.Lehrer, lehrer).Where(k => k.Unterricht.HasValue && k.Status is "regulaer" or "geaendert"))
             {
                 if (d == heute && string.CompareOrdinal(k.Ende, _uhr.Jetzt.ToString("HH:mm")) > 0) continue;
-                if (!eintraege.Contains((k.Datum, k.Von, k.Unterricht!.Value))) res.Add(new { k.Datum, k.Von, k.Bis, k.Fach, klassen = k.Klassen.Select(x => x.K), unterricht = k.Unterricht, k.Beginn, k.Ende, k.FachName, k.Farbe, raeume = k.Raeume.Select(x => x.K) });
+                // Lehrstoff des Blocks oder jeder einzelnen Stunde des Blocks
+                if (!eintraege.Contains((k.Datum, k.Von, k.Unterricht!.Value)) && !Enumerable.Range(k.Von, k.Bis - k.Von + 1).All(n => einzeln.Contains((k.Datum, n, k.Unterricht!.Value))))
+                    res.Add(new { k.Datum, k.Von, k.Bis, k.Fach, klassen = k.Klassen.Select(x => x.K), unterricht = k.Unterricht, k.Beginn, k.Ende, k.FachName, k.Farbe, raeume = k.Raeume.Select(x => x.K) });
             }
         }
         return res;
@@ -172,6 +231,10 @@ public sealed partial class Klassenbuchdienst
         var de = StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true);
         return s.Schueler.Where(x => k.Contains(x.Klasse)).OrderBy(x => x.Klasse, de).ThenBy(x => x.Name, de).ThenBy(x => x.Vorname, de).ToList();
     }
+
+    /// <summary>Teilnehmer*innen einer Stunde am Tag: Klassenzugehörigkeit an diesem Tag, Schülergruppen des Unterrichts (Abmeldungen, Gäste).</summary>
+    public static List<WebSchueler> SchuelerDerStunde(Stand s, Karte karte, DateOnly d) =>
+        Klassenzugehoerigkeit.DerStunde(s, karte.Unterricht, karte.Klassen.Select(k => k.K), d);
 
     /// <summary>Klassenleitung, Schulleitung oder Administration?</summary>
     /// <summary>Darf die Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten, Fehlzeitenberichte) nutzen: Klassenleitung mindestens einer Klasse, Schulleitung, Administration.</summary>
@@ -195,9 +258,10 @@ public sealed partial class Klassenbuchdienst
             throw new UnauthorizedAccessException($"Abwesenheiten, die länger als {Recht.RueckwirkendTage} Tage zurückliegen, darf Ihr Konto nicht bearbeiten.");
     }
 
-    private Karte? KarteZu(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string? lehrerHinweis = null) =>
-        Waehlen(_plan.Karten(s, d, Elementtyp.Lehrer, b.LehrerKuerzel ?? ""), stunde, unterricht, lehrerHinweis)
-        ?? Waehlen(s.Paket.Elemente.Klassen.SelectMany(k => _plan.Karten(s, d, Elementtyp.Klasse, k.Kurz)), stunde, unterricht, lehrerHinweis);
+    private Karte? KarteZu(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string? lehrerHinweis = null, int? einzelstunde = null) =>
+        (Waehlen(_plan.Karten(s, d, Elementtyp.Lehrer, b.LehrerKuerzel ?? ""), stunde, unterricht, lehrerHinweis)
+         ?? Waehlen(s.Paket.Elemente.Klassen.SelectMany(k => _plan.Karten(s, d, Elementtyp.Klasse, k.Kurz)), stunde, unterricht, lehrerHinweis)) is { } gefunden
+            ? Einzeln(s, gefunden, einzelstunde) : null;
 
     /// <summary>
     /// Karte einer Stunde wählen. Bei Kopplungen mit mehreren Lehrkräften und unterschiedlichen Blöcken (z. B. KR als Doppelstunde, ER einzeln)
@@ -216,18 +280,31 @@ public sealed partial class Klassenbuchdienst
             Db.P("@v", von), Db.P("@b", bis), Db.P("@k", klasse));
 
     /// <summary>Anwesenheitsliste einer Stunde: Schüler der Klassen mit erfassten Fehlzeiten.</summary>
-    public object Anwesenheit(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht)
+    public object Anwesenheit(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, int? einzelstunde = null)
     {
-        var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var block = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var karte = Einzeln(s, block, einzelstunde);
         var klassen = karte.Klassen.Select(k => k.K).ToList();
-        var fz = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && klassen.Contains(f.Klasse, Ci))
+        var teilnehmer = SchuelerDerStunde(s, karte, d);
+        var teilnehmerIds = teilnehmer.Select(x => x.Id).ToHashSet();
+        var fz = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && teilnehmerIds.Contains(f.SchuelerId))
             .GroupBy(f => f.SchuelerId).Select(g => Zusammenfassen(g.ToList(), s, Gesamtabwesenheit(g.ToList(), karte))).ToList();
-        var eintrag = Zeitraum(d, d).FirstOrDefault(e => e.Unterricht == unterricht && e.Stunde == karte.Von);
+        var eintrag = Zeitraum(d, d).FirstOrDefault(e => e.Unterricht == unterricht && e.Stunde == block.Von);
+        // Kontrolle des Blocks gilt für alle Stunden; Einzelstunde: eigene Kontrolle, Block: auch wenn jede Einzelstunde kontrolliert wurde
+        var einzelKontrolle = EinzelEintraege(d, unterricht, block.Von, block.Bis).Where(e => e.Anwesenheit != null).ToList();
+        var geprueft = karte.Einzelstunde is int en
+            ? einzelKontrolle.Where(e => e.Stunde == en).Select(e => e.Anwesenheit).Max(StringComparer.Ordinal) ?? eintrag?.Anwesenheit
+            : eintrag?.Anwesenheit ?? (block.Von < block.Bis && Enumerable.Range(block.Von, block.Bis - block.Von + 1).All(n => einzelKontrolle.Any(e => e.Stunde == n))
+                ? einzelKontrolle.Select(e => e.Anwesenheit).Max(StringComparer.Ordinal) : null);
         var (bb, _) = StundenZeit(s, karte.Von);
         var (_, be) = StundenZeit(s, karte.Bis);
+        var einst = Einstellungen();
         return new
         {
-            schueler = Schueler(s, klassen), fehlzeiten = fz, geprueft = eintrag?.Anwesenheit, vorstunden = Vorstunden(s, d, karte),
+            schueler = teilnehmer, gaeste = Klassenzugehoerigkeit.Gaeste(s, karte.Unterricht, d), fehlzeiten = fz, geprueft, vorstunden = Vorstunden(s, d, karte),
+            einstellungen = einst.Hauptseite(d, s.SchuljahrVon), standardgruende = new { abwesend = einst.GrundAbwesend, spaeter = einst.GrundSpaeter, frueher = einst.GrundFrueher },
+            weitere = einst.AlleAbwesenheitenDesTages ? UebrigeDesTages(d, karte, klassen) : new List<Fehlzeit>(),
+            einzelstunde = karte.Einzelstunde, block = Block(s, block),
             darf = DarfSchreiben(b, s, d, stunde, unterricht) || klassen.Any(k => IstKlassenleitung(b, s, k)),
             // Klassenleitung: Status und Zeiträume über den Tag hinaus im Abwesenheitsdialog
             verwalten = klassen.Any(k => IstKlassenleitung(b, s, k)),
@@ -237,16 +314,28 @@ public sealed partial class Klassenbuchdienst
     }
 
     /// <summary>Anwesenheit speichern: ersetzt die Fehlzeiten der Stunde (Entschuldigungsstatus bleibt erhalten) und markiert die Stunde als geprüft.</summary>
-    public int AnwesenheitSpeichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, List<AnwesenheitEintrag> eintraege)
+    public int AnwesenheitSpeichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, List<AnwesenheitEintrag> eintraege, int? einzelstunde = null)
     {
-        var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var karte = KarteZu(b, s, d, stunde, unterricht, null, einzelstunde) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var klassen = karte.Klassen.Select(k => k.K).ToList();
         if (!(DarfSchreiben(b, s, d, stunde, unterricht) && Rechtedienst.Darf(b, Recht.AbwesenheitErfassen)) && !klassen.Any(k => IstKlassenleitung(b, s, k)))
             throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (d > _uhr.Heute) throw new ArgumentException("Fehlzeiten können nicht im Voraus erfasst werden.");
         RueckwirkendPruefen(b, d, _uhr.Heute);
-        var schueler = Schueler(s, klassen).ToDictionary(x => x.Id);
+        var schueler = SchuelerDerStunde(s, karte, d).ToDictionary(x => x.Id);
         var alt = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && schueler.ContainsKey(f.SchuelerId)).ToList();
+        // Klassenbuch-Einstellungen: nur bei Änderungen (die reine Abwesenheitskontrolle bleibt immer möglich)
+        var einst = Einstellungen();
+        var kl = klassen.Any(k => IstKlassenleitung(b, s, k));
+        var neuIds = eintraege.Where(x => schueler.ContainsKey(x.SchuelerId)).Select(x => x.SchuelerId).ToHashSet();
+        var entfernt = alt.Where(f => !neuIds.Contains(f.SchuelerId)).ToList();
+        if (entfernt.Count > 0 || neuIds.Any(i => alt.All(f => f.SchuelerId != i)))
+        {
+            einst.EingabePruefen(b, d, _uhr.Heute);
+            if (!kl) NurInStundePruefen(einst, b, s, d, karte);
+        }
+        foreach (var f in entfernt) einst.LoeschenPruefen(b, f.Erstellt, _uhr.Jetzt);
+        foreach (var sid in entfernt.Select(f => f.SchuelerId).Distinct()) BisEndeEntfernen(d, karte, sid);
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
         var jetzt = _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm");
         foreach (var f in alt) _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
@@ -259,6 +348,12 @@ public sealed partial class Klassenbuchdienst
             var art = e.Art is "verspaetet" or "vorzeitig" ? e.Art : "fehlt";
             var altF = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId);
             var grund = (e.Grund ?? altF?.Grund ?? "").Trim();
+            // Grund und Text gesperrt (Fachlehrkräfte): bisherige Angaben bzw. Standardgrund; neue Abwesenheit ohne Grund: Standardgrund
+            var gesperrt = einst.GrundTextGesperrt && !kl && !b.IstAdmin;
+            if (gesperrt) grund = altF?.Grund ?? einst.Standardgrund(art);
+            else if (altF is null && grund.Length == 0) grund = einst.Standardgrund(art);
+            var text = gesperrt ? (altF is null ? "" : Klartext(altF.Bemerkung)) : (e.Bemerkung ?? "").Trim();
+            var statusNeu = altF is null ? StatusNeu(einst, grund) : null;
             // Minutengenau (Von/Bis): abwesend im Fenster, angebrochene Stunden als Verspätung bzw. vorzeitiges Gehen.
             // Sonst: Fehlen gilt für alle Stunden des Blocks; Verspätung beginnt mit der ersten, vorzeitiges Gehen endet mit der letzten Stunde.
             // Ganz verpasste Stunden werden Fehlstunden, ab der Schwelle der Verspätungsregeln auch die angebrochene.
@@ -272,8 +367,9 @@ public sealed partial class Klassenbuchdienst
             foreach (var (n, a, min, fBeginn, fEnde, hinweis) in zeilen)
             {
                 var status = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Stunde == n && f.Art == a)?.Status
-                             ?? alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Art == a)?.Status ?? "offen";
-                var bem = string.Join(" – ", new[] { hinweis, (e.Bemerkung ?? "").Trim() }.Where(x => x.Length > 0));
+                             ?? alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Art == a)?.Status ?? statusNeu ?? "offen";
+                if (altF != null) status = StatusNachGrund(einst, status, altF.Grund, grund);
+                var bem = string.Join(" – ", new[] { hinweis, text }.Where(x => x.Length > 0));
                 var altZeile = alt.FirstOrDefault(f => f.SchuelerId == e.SchuelerId && f.Stunde == n) ?? altF;
                 _db.Ausfuehren("""
                     INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe,
@@ -289,6 +385,9 @@ public sealed partial class Klassenbuchdienst
             }
             if (art == "vorzeitig" && (e.RestTag ?? regeln.VorzeitigRestTag))
                 RestTagEintragen(b, s, d, karte, e.SchuelerId, schueler[e.SchuelerId].Klasse, lehrer, jetzt, grund);
+            // Vorgabe „Tagesende“ bzw. fixer Zeitpunkt: neue Abwesenheit gilt auch für die folgenden Stunden (dort verkürzen)
+            if (art == "fehlt" && altF is null && Uhrzeit(e.Von) is null && einst.AbwesenheitEnde is "tag" or "zeit")
+                BisEndeEintragen(b, s, d, karte, e.SchuelerId, schueler[e.SchuelerId].Klasse, lehrer, jetzt, grund, statusNeu ?? "offen", einst.EndeZeit, regeln);
             anzahl++;
         }
         GeprueftMarkieren(b, d, karte, unterricht, lehrer);
@@ -354,6 +453,7 @@ public sealed partial class Klassenbuchdienst
         var f = _db.Einzel("SELECT * FROM fehlzeiten WHERE id = @i", LesenFehlzeit, Db.P("@i", id));
         if (f is null) return false;
         if (!IstKlassenleitung(b, s, f.Klasse) && !Ci.Equals(f.Lehrer, b.LehrerKuerzel ?? "")) throw new UnauthorizedAccessException("Keine Berechtigung.");
+        Einstellungen().LoeschenPruefen(b, f.Erstellt, _uhr.Jetzt);
         return _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", id)) > 0;
     }
 
@@ -361,7 +461,7 @@ public sealed partial class Klassenbuchdienst
     public object Fehlzeitenuebersicht(Stand s, Benutzer b, string klasse, DateOnly von, DateOnly bis)
     {
         var liste = FehlzeitenZeitraum(von, bis, klasse);
-        var schueler = Schueler(s, new[] { klasse });
+        var schueler = Klassenzugehoerigkeit.ImZeitraum(s, new[] { klasse }, von, bis);
         var regeln = Regeln();
         var summen = schueler.Select(x =>
         {
@@ -397,6 +497,7 @@ public sealed partial class Klassenbuchdienst
         if (text?.Length > 1000) throw new ArgumentException("Der Klassenbucheintrag darf höchstens 1000 Zeichen lang sein.");
         if (!string.IsNullOrEmpty(zeit) && !System.Text.RegularExpressions.Regex.IsMatch(zeit, @"^\d{2}:\d{2}$")) throw new ArgumentException("Ungültige Uhrzeit.");
         if (!b.Kollegium) throw new UnauthorizedAccessException("Nur das Kollegium kann Vermerke eintragen.");
+        Einstellungen().EingabePruefen(b, d, _uhr.Heute);
         if (!s.Klassen.ContainsKey(klasse)) throw new ArgumentException($"Unbekannte Klasse {klasse}.");
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte einen Text eingeben.");
         if (schuelerId is int sid && !s.Schueler.Any(x => x.Id == sid && Ci.Equals(x.Klasse, klasse))) throw new ArgumentException("Schüler gehört nicht zur Klasse.");
@@ -412,6 +513,7 @@ public sealed partial class Klassenbuchdienst
         if (v is null) return false;
         var eigen = Convert.ToInt64(_db.Wert("SELECT COALESCE(benutzer_id, 0) FROM vermerke WHERE id = @i", Db.P("@i", id)) ?? 0L) == b.Id;
         if (!eigen && !IstKlassenleitung(b, s, v.Klasse)) throw new UnauthorizedAccessException("Keine Berechtigung.");
+        Einstellungen().LoeschenPruefen(b, v.Erstellt, _uhr.Jetzt);
         return _db.Ausfuehren("DELETE FROM vermerke WHERE id = @i", Db.P("@i", id)) > 0;
     }
 

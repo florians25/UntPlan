@@ -328,33 +328,49 @@ struct ElementlisteView: View {
         return ergebnis
     }
 
+    /// Register am rechten Rand nur ohne Suche und bei mehreren Gruppen (wie in den Kontakten).
+    private var mitRegister: Bool { suche.isEmpty && gruppen.count > 1 }
+
     var body: some View {
-        List {
-            if elemente == nil {
-                // Lädt noch (Ladebalken unter dem Suchfeld)
-                EmptyView()
-            } else if gruppen.isEmpty {
-                Text(suche.isEmpty ? "Keine Einträge." : "Keine Treffer für „\(suche)“.")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Farben.gedaempft)
-                    .frame(maxWidth: .infinity)
-                    .auswahlZeile(oben: 30, unten: 30)
-            }
-            ForEach(gruppen) { gruppe in
-                Section {
-                    ForEach(gruppe.liste) { e in
-                        Elementzeile(element: e, kategorie: kategorie, zeigeArt: false,
-                                     gewaehlt: auswahl?.typ == kategorie.rawValue && auswahl?.element == e.kurz) {
-                            waehlen(PlanAuswahl(typ: kategorie.rawValue, element: e.kurz, name: e.name))
-                        }
-                        .auswahlZeile(oben: 0, unten: 0)
-                    }
-                } header: {
-                    Text(gruppe.buchstabe)
-                        .font(.system(size: 13, weight: .medium))
+        ScrollViewReader { leser in
+            List {
+                if elemente == nil {
+                    // Lädt noch (Ladebalken unter dem Suchfeld)
+                    EmptyView()
+                } else if gruppen.isEmpty {
+                    Text(suche.isEmpty ? "Keine Einträge." : "Keine Treffer für „\(suche)“.")
+                        .font(.system(size: 16))
                         .foregroundStyle(Farben.gedaempft)
-                        .padding(.leading, 2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity)
+                        .auswahlZeile(oben: 30, unten: 30)
+                }
+                ForEach(gruppen) { gruppe in
+                    Section {
+                        ForEach(gruppe.liste) { e in
+                            Elementzeile(element: e, kategorie: kategorie, zeigeArt: false,
+                                         gewaehlt: auswahl?.typ == kategorie.rawValue && auswahl?.element == e.kurz) {
+                                waehlen(PlanAuswahl(typ: kategorie.rawValue, element: e.kurz, name: e.name))
+                            }
+                            .auswahlZeile(oben: 0, unten: 0, rechts: mitRegister ? Alphabetregister.breite + 6 : 14)
+                        }
+                    } header: {
+                        Text(gruppe.buchstabe)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Farben.gedaempft)
+                            .padding(.leading, 2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .id(Alphabetregister.kennung(gruppe.buchstabe))
+                }
+            }
+            // Alphabet-Register am rechten Rand: Antippen oder Ziehen springt zum Buchstaben
+            .overlay(alignment: .trailing) {
+                if mitRegister {
+                    Alphabetregister(vorhanden: gruppen.map(\.buchstabe)) { buchstabe in
+                        leser.scrollTo(Alphabetregister.kennung(buchstabe), anchor: .top)
+                    }
+                    .padding(.vertical, 8)
+                    .transition(.opacity)
                 }
             }
         }
@@ -555,10 +571,98 @@ struct Suchleiste: View {
 
 private extension View {
     /// Listenzeile ohne Trennlinie und Hintergrund, Einzug 16 pt (iPhone-Vorlage).
-    func auswahlZeile(oben: CGFloat, unten: CGFloat) -> some View {
+    func auswahlZeile(oben: CGFloat, unten: CGFloat, rechts: CGFloat = 14) -> some View {
         self
-            .listRowInsets(EdgeInsets(top: oben, leading: 16, bottom: unten, trailing: 14))
+            .listRowInsets(EdgeInsets(top: oben, leading: 16, bottom: unten, trailing: rechts))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
+    }
+}
+
+// MARK: - Alphabet-Register
+
+/// Register A–Z am rechten Rand einer Liste wie in den Kontakten: Antippen oder Ziehen über die Buchstaben springt zur
+/// Gruppe des Buchstabens (fehlt er, zur nächsten folgenden, sonst zur letzten davor). „#“ steht oben, wenn es Gruppen
+/// mit Ziffern oder Zeichen gibt (z. B. Klassen „10a“). Beim Wechsel des Buchstabens gibt es eine leichte Rückmeldung.
+struct Alphabetregister: View {
+    /// Vorhandene Gruppen in Listenreihenfolge (Anfangsbuchstaben in Großschreibung).
+    let vorhanden: [String]
+    let springen: (String) -> Void
+    @State private var aktiv: String? = nil
+    @State private var rueckmeldung = 0
+
+    static let breite: CGFloat = 22
+    static let buchstaben: [String] = (65...90).map { String(UnicodeScalar(UInt8($0))) }
+
+    /// Kennung der Gruppe in der Liste (für `ScrollViewReader.scrollTo`).
+    static func kennung(_ buchstabe: String) -> String { "register-" + buchstabe }
+
+    private static func istBuchstabe(_ b: String) -> Bool { buchstaben.contains(b) }
+
+    /// Einträge des Registers: „#“ (nur bei Gruppen ohne Buchstaben A–Z) und A–Z.
+    private var eintraege: [String] {
+        (vorhanden.contains { !Self.istBuchstabe($0) } ? ["#"] : []) + Self.buchstaben
+    }
+
+    /// Gruppe, zu der ein Eintrag springt.
+    private func ziel(_ eintrag: String) -> String? {
+        if eintrag == "#" { return vorhanden.first { !Self.istBuchstabe($0) } ?? vorhanden.first }
+        if vorhanden.contains(eintrag) { return eintrag }
+        let buchstabenGruppen = vorhanden.filter(Self.istBuchstabe)
+        if let folgend = buchstabenGruppen.first(where: { $0 > eintrag }) { return folgend }
+        return buchstabenGruppen.last ?? vorhanden.last
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let liste = eintraege
+            let zelle = min(16, max(geo.size.height / CGFloat(max(liste.count, 1)), 9))
+            let hoehe = zelle * CGFloat(liste.count)
+            let oben = (geo.size.height - hoehe) / 2
+            VStack(spacing: 0) {
+                ForEach(liste, id: \.self) { eintrag in
+                    Text(eintrag)
+                        .font(.system(size: min(11.5, zelle * 0.78), weight: .medium))
+                        .foregroundStyle(Farben.akzent)
+                        .frame(width: Self.breite, height: zelle)
+                        .scaleEffect(aktiv == eintrag ? 1.25 : 1)
+                }
+            }
+            .frame(width: Self.breite, height: hoehe)
+            .background {
+                Capsule()
+                    .fill(Farben.knopf.opacity(aktiv == nil ? 0 : 0.9))
+                    .padding(.vertical, -4)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                    .onChanged { wert in
+                        let index = Int((wert.location.y / zelle).rounded(.down))
+                        let eintrag = liste[min(max(index, 0), liste.count - 1)]
+                        guard eintrag != aktiv else { return }
+                        aktiv = eintrag
+                        rueckmeldung += 1
+                        if let ziel = ziel(eintrag) { springen(ziel) }
+                    }
+                    .onEnded { _ in
+                        withAnimation(.easeOut(duration: 0.2)) { aktiv = nil }
+                    }
+            )
+            .position(x: geo.size.width - Self.breite / 2 - 2, y: oben + hoehe / 2)
+        }
+        .frame(width: Self.breite + 4)
+        .sensoryFeedback(.selection, trigger: rueckmeldung)
+        .accessibilityElement()
+        .accessibilityLabel("Register")
+        .accessibilityValue(aktiv ?? "")
+        .accessibilityHint("Nach oben oder unten wischen, um zu einem Buchstaben zu springen")
+        .accessibilityAdjustableAction { richtung in
+            let liste = eintraege
+            let jetzt = aktiv.flatMap { liste.firstIndex(of: $0) } ?? -1
+            let neu = richtung == .increment ? min(jetzt + 1, liste.count - 1) : max(jetzt - 1, 0)
+            aktiv = liste[neu]
+            if let ziel = ziel(liste[neu]) { springen(ziel) }
+        }
     }
 }

@@ -44,8 +44,42 @@ public sealed class UntPlanWebVerbindung
         : c.Request.Cookies.TryGetValue(Cookie, out var v) && !string.IsNullOrEmpty(v) ? v : null;
 
     /// <summary>Aufruf an UntPlanWeb. Ohne Anmeldung (oder bei 401 von UntPlanWeb) folgt <see cref="NichtAngemeldetException"/>.</summary>
-    public async Task<JsonNode?> AufrufAsync(HttpContext c, HttpMethod methode, string pfad, object? daten = null, bool anmeldungNoetig = true)
+    public Task<JsonNode?> AufrufAsync(HttpContext c, HttpMethod methode, string pfad, object? daten = null, bool anmeldungNoetig = true) =>
+        AufrufMitInhaltAsync(c, methode, pfad, daten != null ? JsonContent.Create(daten, daten.GetType(), options: Json) : null, anmeldungNoetig);
+
+    /// <summary>Datei als multipart/form-data an UntPlanWeb (z. B. Anhang einer Mitteilung).</summary>
+    public Task<JsonNode?> HochladenAsync(HttpContext c, string pfad, string feld, string dateiname, string typ, Stream inhalt)
     {
+        var form = new MultipartFormDataContent();
+        var datei = new StreamContent(inhalt);
+        datei.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.TryParse(typ, out var t) ? t : new("application/octet-stream");
+        form.Add(datei, feld, dateiname);
+        return AufrufMitInhaltAsync(c, HttpMethod.Post, pfad, form, true);
+    }
+
+    /// <summary>Datei von UntPlanWeb laden (z. B. Anhang): Inhalt und Dateiname aus Content-Disposition.</summary>
+    public async Task<(byte[] Daten, string? Name)> DateiAsync(HttpContext c, string pfad)
+    {
+        var sitzung = Sitzung(c) ?? throw new NichtAngemeldetException();
+        using var anfrage = new HttpRequestMessage(HttpMethod.Get, pfad.TrimStart('/'));
+        anfrage.Headers.Add("X-UntPlanWeb", "1");
+        anfrage.Headers.Add("Cookie", $"{WebCookie}={sitzung}");
+        HttpResponseMessage antwort;
+        try { antwort = await _http.SendAsync(anfrage, c.RequestAborted); }
+        catch (HttpRequestException ex) { throw new UntPlanWebFehler(502, $"UntPlanWeb ist nicht erreichbar ({ex.Message})."); }
+        using (antwort)
+        {
+            CookieUebernehmen(c, antwort, true);
+            if (antwort.StatusCode == HttpStatusCode.Unauthorized) throw new NichtAngemeldetException();
+            if (!antwort.IsSuccessStatusCode) throw new UntPlanWebFehler((int)antwort.StatusCode, "Der Anhang ist nicht (mehr) vorhanden.");
+            var cd = antwort.Content.Headers.ContentDisposition;
+            return (await antwort.Content.ReadAsByteArrayAsync(c.RequestAborted), (cd?.FileNameStar ?? cd?.FileName)?.Trim('"'));
+        }
+    }
+
+    private async Task<JsonNode?> AufrufMitInhaltAsync(HttpContext c, HttpMethod methode, string pfad, HttpContent? inhalt, bool anmeldungNoetig)
+    {
+        using var _inhalt = inhalt;
         var sitzung = Sitzung(c);
         if (sitzung is null && anmeldungNoetig) throw new NichtAngemeldetException();
         using var anfrage = new HttpRequestMessage(methode, pfad.TrimStart('/'));
@@ -53,7 +87,7 @@ public sealed class UntPlanWebVerbindung
         anfrage.Headers.Add("X-UntPlanWeb", "1");
         anfrage.Headers.Accept.ParseAdd("application/json");
         if (sitzung != null) anfrage.Headers.Add("Cookie", $"{WebCookie}={sitzung}");
-        if (daten != null) anfrage.Content = JsonContent.Create(daten, daten.GetType(), options: Json);
+        if (inhalt != null) anfrage.Content = inhalt;
 
         HttpResponseMessage antwort;
         try { antwort = await _http.SendAsync(anfrage, c.RequestAborted); }

@@ -725,8 +725,10 @@ struct Anhang: Decodable, Identifiable, Sendable {
     var name: String
     var typ: String
     var groesse: Int
+    /// Download-Pfad (Detail), z. B. „/api/app/mitteilungen/anhang/12“
+    var url: String?
 
-    enum CodingKeys: String, CodingKey { case id, name, typ, groesse }
+    enum CodingKeys: String, CodingKey { case id, name, typ, groesse, url }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -734,7 +736,20 @@ struct Anhang: Decodable, Identifiable, Sendable {
         name = c.text(.name)
         typ = c.text(.typ)
         groesse = c.zahl(.groesse) ?? 0
+        url = c.textOderNil(.url)
     }
+
+    /// Lokaler Anhang im Editor (noch nicht hochgeladen).
+    init(id: Int, name: String, typ: String, groesse: Int) {
+        self.id = id
+        self.name = name
+        self.typ = typ
+        self.groesse = groesse
+        url = nil
+    }
+
+    var istPdf: Bool { typ.lowercased().contains("pdf") || name.lowercased().hasSuffix(".pdf") }
+    var istBild: Bool { typ.lowercased().hasPrefix("image/") }
 }
 
 /// GET /api/app/mitteilungen?ordner=…
@@ -750,8 +765,25 @@ struct Mitteilung: Decodable, Identifiable, Sendable {
     var gelesen: String?
     var empfaenger: [String]
     var anhaenge: [Anhang]
+    /// Der Absender hat eine Lesebestätigung angefordert.
+    var lesebestaetigung: Bool
+    /// Posteingang: Zeitpunkt der eigenen Lesebestätigung.
+    var bestaetigt: String?
+    /// Antworten auf diese Mitteilung sind erlaubt (fehlt das Feld: ja; „Antwort nicht erlaubt“ = false).
+    var antwortErlaubt: Bool
+    /// Detail: das Konto darf antworten (fehlt das Feld: wie `antwortErlaubt`)
+    var darfAntworten: Bool
+    var antwortAuf: Int?
+    /// Gewählte Empfänger in Worten (z. B. „Kolleg*innen“, „Erziehungsberechtigte 7a“).
+    var empfaengerText: String
+    var absenderRolle: String
+    /// Kürzel des Absenders (fehlt das Feld: aus dem Namen „Name (KÜR)“ bzw. der Name selbst).
+    var absenderKuerzelFeld: String
 
-    enum CodingKeys: String, CodingKey { case id, absenderId, absender, betreff, text, erstellt, wichtig, gelesen, empfaenger, anhaenge }
+    enum CodingKeys: String, CodingKey {
+        case id, absenderId, absender, betreff, text, erstellt, wichtig, gelesen, empfaenger, anhaenge, lesebestaetigung, bestaetigt
+        case antwortErlaubt, darfAntworten, antwortAuf, empfaengerText, absenderRolle, absenderKuerzel
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -765,9 +797,24 @@ struct Mitteilung: Decodable, Identifiable, Sendable {
         gelesen = c.textOderNil(.gelesen)
         empfaenger = c.texte(.empfaenger)
         anhaenge = c.liste(.anhaenge)
+        lesebestaetigung = c.wahr(.lesebestaetigung)
+        bestaetigt = c.textOderNil(.bestaetigt)
+        antwortErlaubt = c.contains(.antwortErlaubt) && (try? c.decodeNil(forKey: .antwortErlaubt)) == false
+            ? c.wahr(.antwortErlaubt) : true
+        darfAntworten = c.contains(.darfAntworten) && (try? c.decodeNil(forKey: .darfAntworten)) == false
+            ? c.wahr(.darfAntworten) : antwortErlaubt
+        antwortAuf = c.zahl(.antwortAuf)
+        empfaengerText = c.text(.empfaengerText)
+        absenderRolle = c.text(.absenderRolle)
+        absenderKuerzelFeld = c.text(.absenderKuerzel)
     }
 
     var ungelesen: Bool { gelesen == nil }
+
+    /// Kürzel des Absenders für Liste und Detail („Von NEU“).
+    var absenderKuerzel: String {
+        absenderKuerzelFeld.isEmpty ? Empfaenger.kuerzel(aus: absender) : absenderKuerzelFeld
+    }
 }
 
 // MARK: - Profil
@@ -862,10 +909,12 @@ struct Klassenbucheintrag: Decodable, Sendable {
     var faellig: String?
     /// Link zum Online-Unterricht (tolerant aus onlineLink/onlineUrl gelesen)
     var onlineLink: String
+    /// Eintrag nur dieser Stunde eines Blocks (nil = gilt für den ganzen Block)
+    var einzelstunde: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, datum, stunde, thema, hausaufgabe, notiz, notizSchueler, online, lehrform, anmerkung, anwesenheit, lehrer, faellig
-        case onlineLink, onlineUrl, onlinelink
+        case onlineLink, onlineUrl, onlinelink, einzelstunde
     }
 
     init(from decoder: Decoder) throws {
@@ -884,25 +933,85 @@ struct Klassenbucheintrag: Decodable, Sendable {
         lehrer = c.text(.lehrer)
         faellig = c.textOderNil(.faellig)
         onlineLink = Karte.linkText(c.textOderNil(.onlineLink) ?? c.textOderNil(.onlineUrl) ?? c.textOderNil(.onlinelink))
+        einzelstunde = c.zahl(.einzelstunde)
     }
 }
 
-/// GET /api/app/klassenbuch/stunde
+/// Zeiten eines Blocks bzw. einer Einzelstunde ({ von, bis, beginn, ende }).
+struct Blockzeit: Decodable, Sendable {
+    var von: Int
+    var bis: Int
+    var beginn: String
+    var ende: String
+
+    enum CodingKeys: String, CodingKey { case von, bis, beginn, ende }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        von = c.zahl(.von) ?? 0
+        bis = c.zahl(.bis) ?? von
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
+    }
+}
+
+/// Stunde eines Blocks für die Auswahl „Ganzer Block“ / Einzelstunde ({ stunde, beginn, ende, eintrag }).
+struct Einzelstundeninfo: Decodable, Identifiable, Hashable, Sendable {
+    var stunde: Int
+    var beginn: String
+    var ende: String
+    /// Es gibt einen eigenen Eintrag nur für diese Stunde
+    var eintrag: Bool
+
+    var id: Int { stunde }
+
+    enum CodingKeys: String, CodingKey { case stunde, beginn, ende, eintrag }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        stunde = c.zahl(.stunde) ?? 0
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
+        eintrag = c.wahr(.eintrag)
+    }
+}
+
+/// GET /api/app/klassenbuch/stunde[?einzelstunde=4]
 struct KlassenbuchStunde: Decodable, Sendable {
+    /// Eintrag des gewählten Bereichs (Block bzw. nur die Einzelstunde)
     var eintrag: Klassenbucheintrag?
     var darf: Bool
+    /// Gewählte Einzelstunde (nil = ganzer Block)
+    var einzelstunde: Int?
+    /// Immer der Blockeintrag – in der Einzelstunde als geerbter Inhalt (nur lesend)
+    var blockEintrag: Klassenbucheintrag?
+    var block: Blockzeit?
+    /// Stunden des Blocks für die Auswahl (leer bei Einzelstunden-Karten bzw. älteren Servern)
+    var einzelstunden: [Einzelstundeninfo]
+    /// Alle Einzelstunden-Einträge des Blocks
+    var einzelEintraege: [Klassenbucheintrag]
 
-    enum CodingKeys: String, CodingKey { case eintrag, darf }
+    enum CodingKeys: String, CodingKey { case eintrag, darf, einzelstunde, blockEintrag, block, einzelstunden, einzelEintraege }
 
     init(eintrag: Klassenbucheintrag?, darf: Bool) {
         self.eintrag = eintrag
         self.darf = darf
+        einzelstunde = nil
+        blockEintrag = nil
+        block = nil
+        einzelstunden = []
+        einzelEintraege = []
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         eintrag = c.optional(.eintrag)
         darf = c.wahr(.darf)
+        einzelstunde = c.zahl(.einzelstunde)
+        blockEintrag = c.optional(.blockEintrag)
+        block = c.optional(.block)
+        einzelstunden = c.liste(.einzelstunden)
+        einzelEintraege = c.liste(.einzelEintraege)
     }
 }
 
@@ -916,8 +1025,10 @@ struct Hausaufgabeneintrag: Decodable, Identifiable, Sendable {
     var faellig: String?
     var bemerkung: String
     var erledigt: Bool
+    /// Hausaufgabe nur dieser Stunde eines Blocks (nil = ganzer Block)
+    var einzelstunde: Int?
 
-    enum CodingKeys: String, CodingKey { case id, datum, fach, lehrer, text, faellig, bemerkung, erledigt }
+    enum CodingKeys: String, CodingKey { case id, datum, fach, lehrer, text, faellig, bemerkung, erledigt, einzelstunde }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -929,6 +1040,7 @@ struct Hausaufgabeneintrag: Decodable, Identifiable, Sendable {
         faellig = c.textOderNil(.faellig)
         bemerkung = c.text(.bemerkung)
         erledigt = c.wahr(.erledigt)
+        einzelstunde = c.zahl(.einzelstunde)
     }
 }
 
@@ -1049,8 +1161,10 @@ struct Anwesenheitsliste: Decodable, Sendable {
     /// Beginn und Ende des Blocks (HH:mm)
     var beginn: String
     var ende: String
+    /// Gewählte Einzelstunde (nil = ganzer Block)
+    var einzelstunde: Int?
 
-    enum CodingKeys: String, CodingKey { case schueler, fehlzeiten, geprueft, darf, vorstunden, verwalten, beginn, ende }
+    enum CodingKeys: String, CodingKey { case schueler, fehlzeiten, geprueft, darf, vorstunden, verwalten, beginn, ende, einzelstunde }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -1062,6 +1176,7 @@ struct Anwesenheitsliste: Decodable, Sendable {
         verwalten = c.wahr(.verwalten)
         beginn = c.text(.beginn)
         ende = c.text(.ende)
+        einzelstunde = c.zahl(.einzelstunde)
     }
 
     /// Wurden die Abwesenheiten der Stunde bereits kontrolliert?
@@ -1093,6 +1208,8 @@ struct AbwesenheitZeitraumDaten: Encodable, Sendable {
     var unterricht: Int?
     var ersetzen: [Int]? = nil
     var elternInformiert: Bool? = nil
+    /// Nur diese Stunde eines Blocks (nil = ganzer Block)
+    var einzelstunde: Int? = nil
 }
 
 /// POST /api/app/klassenbuch/abwesenheit/loeschen – Abwesenheit in dieser Stunde entfernen (anwesend).
@@ -1101,6 +1218,7 @@ struct AbwesenheitEntfernenDaten: Encodable, Sendable {
     var stunde: Int
     var unterricht: Int
     var schuelerIds: [Int]
+    var einzelstunde: Int? = nil
 }
 
 /// POST /api/app/abwesenheiten/loeschen
@@ -1280,6 +1398,7 @@ struct AnwesenheitDaten: Encodable, Sendable {
     var stunde: Int
     var unterricht: Int
     var eintraege: [AnwesenheitEintragDaten]
+    var einzelstunde: Int? = nil
 }
 
 /// PUT /api/app/klassenbuch/stunde – Lehrstoff und Notizen einer Stunde.
@@ -1298,6 +1417,8 @@ struct KlassenbuchDaten: Encodable, Sendable {
     var online: Bool? = nil
     /// Link zum Online-Unterricht (nil = unverändert, "" = entfernen)
     var onlineLink: String? = nil
+    /// Nur diese Stunde eines Blocks (nil = ganzer Block)
+    var einzelstunde: Int? = nil
 }
 
 /// POST /api/app/klassenbuch/hausaufgabenliste
@@ -1308,6 +1429,7 @@ struct HausaufgabeNeuDaten: Encodable, Sendable {
     var text: String
     var faellig: String?
     var bemerkung: String
+    var einzelstunde: Int? = nil
 }
 
 /// PUT /api/app/klassenbuch/hausaufgabenliste/{id} (nil = unverändert)
@@ -1359,28 +1481,240 @@ struct Vermerkliste: Decodable, Sendable {
     }
 }
 
-/// Empfänger einer neuen Mitteilung (id z. B. „benutzer:12“, „klasse:5a“, „gruppe:kollegium“).
+/// Rollen-Pill einer Person („Lehrkraft“, „Klassenlehrkraft | DTI1A“) – als Objekt { art, text, klassen } oder als Text.
+struct Rollenpill: Decodable, Hashable, Sendable {
+    var art: String
+    var text: String
+    var klassen: [String]
+
+    enum CodingKeys: String, CodingKey { case art, text, klassen }
+
+    init(art: String = "", text: String, klassen: [String] = []) {
+        self.art = art
+        self.text = text
+        self.klassen = klassen
+    }
+
+    init(from decoder: Decoder) throws {
+        if let einzeln = try? decoder.singleValueContainer().decode(String.self) {
+            self.init(text: einzeln)
+            return
+        }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        art = c.text(.art)
+        text = c.text(.text)
+        klassen = c.texte(.klassen)
+        if text.isEmpty { text = art }
+    }
+}
+
+/// Empfänger in der Auswahl: Person aus GET /api/app/mitteilungen/personen bzw. Eintrag aus /mitteilungen/empfaenger
+/// (id z. B. „benutzer:12“, „klasse:5a“, „gruppe:kollegium“, „liste:3“). Alle Zusatzfelder optional und nachsichtig gelesen.
 struct Empfaenger: Decodable, Identifiable, Hashable, Sendable {
     var id: String
+    /// Anzeigetext in der Liste (Kürzel der Lehrkraft, sonst Anzeigename)
     var name: String
+    var anzeigenameFeld: String
+    var kuerzelFeld: String
+    var initialenFeld: String
+    /// Reiter der Auswahl: lehrkraefte, klassen, schueler, eltern, gruppen, listen
+    var kategorie: String
+    /// Rolle in Worten (alte Liste: „Lehrkraft“ bzw. „gruppe“, „klasse“, „liste“)
     var art: String
+    /// Zugehörige Klasse (alte Liste)
+    var klasse: String?
+    var rollen: [Rollenpill]
+    /// Klassen der Person (unterrichtet bzw. Klassenleitung; Schüler*innen/Eltern: eigene Klasse) – Filter „Klasse“
+    var klassen: [String]
+    /// Abteilungen – Filter „Abteilung“
+    var abteilungen: [String]
 
-    enum CodingKeys: String, CodingKey { case id, name, art }
+    enum CodingKeys: String, CodingKey {
+        case id, name, anzeigename, kuerzel, initialen, kategorie, art, rolle, klasse, rollen, klassen, abteilungen
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.text(.id)
         name = c.text(.name)
+        anzeigenameFeld = c.text(.anzeigename)
+        kuerzelFeld = c.text(.kuerzel)
+        initialenFeld = c.text(.initialen)
+        kategorie = c.text(.kategorie)
         art = c.text(.art)
+        klasse = c.textOderNil(.klasse).flatMap { $0.isEmpty ? nil : $0 }
+        rollen = c.liste(.rollen)
+        klassen = c.texte(.klassen)
+        abteilungen = c.texte(.abteilungen)
+    }
+
+    /// Empfänger aus einer Antwort-Vorlage bzw. dem Absender einer Mitteilung.
+    init(id: String, name: String) {
+        self.id = id
+        self.name = name
+        anzeigenameFeld = ""
+        kuerzelFeld = ""
+        initialenFeld = ""
+        kategorie = ""
+        art = ""
+        klasse = nil
+        rollen = []
+        klassen = []
+        abteilungen = []
+    }
+
+    var istPerson: Bool { id.hasPrefix("benutzer:") }
+
+    /// Text in der Zeile und in der Pill „An“: Kürzel, sonst „Name (KÜR)“ → „KÜR“, sonst der Name.
+    var kuerzel: String {
+        if !kuerzelFeld.isEmpty { return kuerzelFeld }
+        return Self.kuerzel(aus: name)
+    }
+
+    /// Anzeigename ohne angehängtes „(Login)“ (für die Suche).
+    var anzeigename: String {
+        if !anzeigenameFeld.isEmpty { return anzeigenameFeld }
+        guard let auf = name.lastIndex(of: "("), name.hasSuffix(")"), auf > name.startIndex else { return name }
+        return name[..<auf].trimmingCharacters(in: .whitespaces)
+    }
+
+    /// 1–2 Buchstaben im Avatar.
+    var initialen: String {
+        if !initialenFeld.isEmpty { return initialenFeld }
+        return kuerzel.first.map { String($0).uppercased() } ?? "?"
+    }
+
+    /// Rollen-Pills (alte Liste: die Rolle einer Person).
+    var pills: [Rollenpill] {
+        if !rollen.isEmpty { return rollen }
+        return istPerson && !art.isEmpty ? [Rollenpill(text: art)] : []
+    }
+
+    /// Alle Klassen für den Filter „Klasse“.
+    var alleKlassen: [String] {
+        var k = klassen + rollen.flatMap(\.klassen)
+        if let klasse { k.append(klasse) }
+        return k
+    }
+
+    /// Suchtext (Kürzel, Name, Anzeigename, Rollen).
+    func passt(_ suche: String) -> Bool {
+        guard !suche.isEmpty else { return true }
+        return [name, anzeigename, kuerzel].contains { $0.localizedCaseInsensitiveContains(suche) }
+            || pills.contains { $0.text.localizedCaseInsensitiveContains(suche) }
+    }
+
+    /// „Erika Muster (MUS)“ → „MUS“; ohne Klammer der Name.
+    static func kuerzel(aus name: String) -> String {
+        if let auf = name.lastIndex(of: "("), name.hasSuffix(")") {
+            let innen = name[name.index(after: auf)..<name.index(before: name.endIndex)].trimmingCharacters(in: .whitespaces)
+            if !innen.isEmpty { return innen }
+        }
+        return name
     }
 }
 
-/// POST /api/app/mitteilungen
+/// GET /api/app/mitteilungen/personen?typ=kollegium|individuell – Personen (und Gruppen) mit Filtern.
+struct Personenauswahl: Decodable, Sendable {
+    struct Filter: Decodable, Sendable {
+        var listen: [Mitteilungsliste]
+        var klassen: [String]
+        var abteilungen: [String]
+
+        enum CodingKeys: String, CodingKey { case listen, klassen, abteilungen }
+
+        init(listen: [Mitteilungsliste] = [], klassen: [String] = [], abteilungen: [String] = []) {
+            self.listen = listen
+            self.klassen = klassen
+            self.abteilungen = abteilungen
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            listen = c.liste(.listen)
+            klassen = c.texte(.klassen)
+            abteilungen = c.texte(.abteilungen)
+        }
+    }
+
+    var personen: [Empfaenger]
+    var gruppen: [Empfaenger]
+    var filter: Filter
+
+    enum CodingKeys: String, CodingKey { case personen, gruppen, filter }
+
+    init(personen: [Empfaenger], gruppen: [Empfaenger], filter: Filter) {
+        self.personen = personen
+        self.gruppen = gruppen
+        self.filter = filter
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        personen = c.liste(.personen)
+        gruppen = c.liste(.gruppen)
+        filter = c.optional(.filter) ?? Filter()
+    }
+}
+
+/// GET /api/app/mitteilungen/{id}/antwort – Vorschlag für eine Antwort.
+struct Antwortvorlage: Decodable, Sendable {
+    var empfaenger: [Empfaenger]
+    var antwortAuf: Int?
+    var betreff: String
+    var text: String
+
+    enum CodingKeys: String, CodingKey { case empfaenger, antwortAuf, betreff, text }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        empfaenger = c.liste(.empfaenger)
+        antwortAuf = c.zahl(.antwortAuf)
+        betreff = c.text(.betreff)
+        text = c.text(.text)
+    }
+}
+
+/// Eigene Verteilerliste (GET /api/app/mitteilungen/listen).
+/// `id`: „liste:3“ (Filter der Personenauswahl) bzw. „3“ (Listenverwaltung).
+struct Mitteilungsliste: Decodable, Identifiable, Hashable, Sendable {
+    var id: String
+    var name: String
+    var mitglieder: [String]
+
+    enum CodingKeys: String, CodingKey { case id, name, mitglieder }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.text(.id)
+        name = c.text(.name)
+        mitglieder = c.texte(.mitglieder)
+    }
+}
+
+/// POST /api/app/mitteilungen (ohne Anhänge) bzw. POST /api/app/mitteilungen/entwurf (mit `id`, für Anhänge).
 struct MitteilungNeuDaten: Encodable, Sendable {
+    var id: Int? = nil
     var empfaenger: [String]
     var betreff: String
     var text: String
     var wichtig: Bool
+    var lesebestaetigung: Bool = false
+    var antwortAuf: Int? = nil
+    /// false = „Antwort nicht erlaubt“ (nil = Vorgabe des Servers: erlaubt)
+    var antwortErlaubt: Bool? = nil
+}
+
+/// Antwort mit neuer Kennung ({ "id": 12 }).
+struct IdAntwort: Decodable, Sendable {
+    var id: Int?
+
+    enum CodingKeys: String, CodingKey { case id }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id)
+    }
 }
 
 /// Zuordnung eines Klassendienstes (z. B. Klassensprecher*in) zu einer Schülerin bzw. einem Schüler.

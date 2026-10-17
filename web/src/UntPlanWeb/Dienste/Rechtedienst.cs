@@ -22,6 +22,7 @@ public static class Recht
     public const string PlanEigen = "plan.eigen", PlanKlassen = "plan.klassen", PlanLehrer = "plan.lehrer", PlanRaeume = "plan.raeume", PlanTag = "plan.tag";
     public const string VertretungSchueler = "vertretung.schueler", VertretungLehrer = "vertretung.lehrer";
     public const string KlassenbuchEigene = "klassenbuch.eigene", KlassenbuchKlasse = "klassenbuch.klasse", KlassenbuchAlle = "klassenbuch.alle";
+    public const string KlassenbuchEinstellungen = "klassenbuch.einstellungen";
     public const string AbwesenheitErfassen = "abwesenheit.erfassen", AbwesenheitEntschuldigen = "abwesenheit.entschuldigen",
         AbwesenheitRueckwirkend = "abwesenheit.rueckwirkend", AbwesenheitAlle = "abwesenheit.alle";
     public const string HausaufgabenSehen = "hausaufgaben.sehen", HausaufgabenEintragen = "hausaufgaben.eintragen";
@@ -32,9 +33,11 @@ public static class Recht
     public const string SprechtagVerwalten = "sprechtag.verwalten";
     public const string BerichteSehen = "berichte.sehen";
     public const string SchuelerVerwalten = "schueler.verwalten", SitzplanKlasse = "sitzplan.klasse";
+    public const string UnterrichtKlassen = "unterricht.klassen";
     public const string OffeneStundenAlle = "offenestunden.alle";
     public const string AdminBenutzer = "admin.benutzer", AdminStammdaten = "admin.stammdaten", AdminImport = "admin.import", AdminExport = "admin.export",
         AdminEinstellungen = "admin.einstellungen";
+    public const string AdminWartung = "admin.wartung";
 
     /// <summary>Tage, die Abwesenheiten ohne das Recht „rückwirkend bearbeiten“ zurückliegen dürfen.</summary>
     public const int RueckwirkendTage = 7;
@@ -55,6 +58,7 @@ public static class Recht
         new(KlassenbuchEigene, "Klassenbuch", "Klassenbuch eigener Stunden", "Einträge in den eigenen Stunden (laut Plan) lesen bzw. schreiben.", true, true, S(J, J, J, N, N)),
         new(KlassenbuchKlasse, "Klassenbuch", "Klassenbuch der eigenen Klassen", "Als Klassenleitung: Klassenbuch, Dienste, Befreiungen und Schülerdaten der eigenen Klassen.", true, true, S(J, J, J, N, N)),
         new(KlassenbuchAlle, "Klassenbuch", "Klassenbuch aller Klassen", "Lesen: Klassenbuch aller Klassen einsehen. Schreiben: wie Schulleitung in allen Klassen eintragen.", true, true, S(J, J, N, N, N)),
+        new(KlassenbuchEinstellungen, "Klassenbuch", "Klassenbuch-Einstellungen", "Einstellungen des Klassenbuchs (Hauptseite, Allgemein, Erinnerung an offene Stunden) und der Prüfungen ändern.", false, true, S(J, N, N, N, N)),
         new(AbwesenheitErfassen, "Abwesenheiten", "Abwesenheiten erfassen", "Abwesenheiten in den eigenen Stunden eintragen.", false, true, S(J, J, J, N, N)),
         new(AbwesenheitEntschuldigen, "Abwesenheiten", "Abwesenheiten entschuldigen", "Entschuldigungsstatus setzen (in den eigenen Klassen bzw. mit „alle Klassen“ überall).", false, true, S(J, J, J, N, N)),
         new(AbwesenheitRueckwirkend, "Abwesenheiten", "Rückwirkend bearbeiten", $"Abwesenheiten bearbeiten, die länger als {RueckwirkendTage} Tage zurückliegen.", false, true, S(J, J, J, N, N)),
@@ -77,12 +81,14 @@ public static class Recht
         new(BerichteSehen, "Berichte", "Berichte", "Berichte und Auswertungen (Fehlzeiten, Klassenbuch) aufrufen.", false, true, S(J, J, J, N, N)),
         new(SchuelerVerwalten, "Schüler*innen", "Schülerverwaltung", "Schüler*innen aller Klassen anlegen, bearbeiten und löschen.", false, true, S(J, J, N, N, N)),
         new(SitzplanKlasse, "Schüler*innen", "Sitzplan der Klasse", "Sitzpläne der eigenen Klassen bzw. des eigenen Unterrichts bearbeiten.", false, true, S(J, J, J, N, N)),
+        new(UnterrichtKlassen, "Schüler*innen", "Unterricht Klassen und Schülergruppen", "Lesen: Unterrichte je Klasse mit Schülergruppen ansehen. Schreiben: Schülergruppen bearbeiten (Abmeldung vom Unterricht) und befristete Unterrichtswechsel anlegen.", true, true, S(J, J, R, N, N)),
         new(OffeneStundenAlle, "Offene Stunden", "Offene Stunden aller Lehrkräfte", "Offene Stunden aller Lehrkräfte kontrollieren und Lehrkräfte erinnern.", false, true, S(J, J, N, N, N)),
         new(AdminBenutzer, "Administration", "Benutzerverwaltung", "Konten und Personen anlegen, ändern, sperren und löschen.", false, true, S(J, N, N, N, N)),
         new(AdminStammdaten, "Administration", "Stammdaten", "Stammdaten (Klassen, Lehrkräfte, Räume, Gründe, Dienste) pflegen.", false, true, S(J, N, N, N, N)),
         new(AdminImport, "Administration", "Import", "Benutzer und Schüler*innen aus CSV-Dateien importieren.", false, true, S(J, N, N, N, N)),
         new(AdminExport, "Administration", "Export", "Daten als CSV exportieren.", false, true, S(J, N, N, N, N)),
         new(AdminEinstellungen, "Administration", "Einstellungen", "Einstellungen der Administration ändern.", false, true, S(J, N, N, N, N)),
+        new(AdminWartung, "Administration", "Systemwartung", "Aktive Benutzer ansehen, den Zugriff sperren bzw. freigeben (Wartungsmodus) und „Über UntPlan“ aufrufen; bei gesperrtem Zugriff weiterhin anmelden.", false, true, S(J, N, N, N, N)),
     };
 
     public static readonly Dictionary<string, RechtInfo> NachId = Katalog.ToDictionary(r => r.Id);

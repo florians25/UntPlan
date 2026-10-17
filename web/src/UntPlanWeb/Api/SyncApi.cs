@@ -50,8 +50,9 @@ public static class SyncApi
         });
 
         // Rückmeldungen und noch nicht übertragene Buchungen (Buchungsmodul, Typ „raumbuchung“, Id „buchung-…“)
-        api.MapGet("/schulen/{schule}/rueckmeldungen", (string schule, HttpContext ctx, Einstellungen e, Rueckmeldungsdienst r, Buchungsdienst bu) =>
-            Pruefen(schule, ctx, e) ?? Results.Json(r.Offene().Select(m => m.AlsVertrag()).Concat(bu.Rueckmeldungen()), UntPlanWebSchema.Json));
+        // Prüfungen nach Unterricht | Einstellungen (Tage in die Zukunft, nur vertretungsrelevante); zurückgehaltene folgen später
+        api.MapGet("/schulen/{schule}/rueckmeldungen", (string schule, HttpContext ctx, Einstellungen e, Rueckmeldungsdienst r, Buchungsdienst bu, Daten.Db db, Uhr uhr) =>
+            Pruefen(schule, ctx, e) ?? Results.Json(r.Offene().Where(Klassenbucheinstellungen.Laden(db).Uebergabefilter(uhr.Heute)).Select(m => m.AlsVertrag()).Concat(bu.Rueckmeldungen()), UntPlanWebSchema.Json));
 
         api.MapPost("/schulen/{schule}/rueckmeldungen/quittieren", async (string schule, HttpContext ctx, Einstellungen e, Rueckmeldungsdienst r, Buchungsdienst bu, Protokoll prot) =>
         {

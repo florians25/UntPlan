@@ -214,27 +214,46 @@
         <button class="rndbtn" id="msgSearch" aria-label="Suchen">
           <svg viewBox="0 0 24 24" class="ico"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4 4"/></svg>
         </button>
-        <button class="rndbtn" id="msgNew" aria-label="Neue Mitteilung">
-          <svg viewBox="0 0 24 24" class="ico"><path d="M12 5v14M5 12h14"/></svg>
+        <button class="rndbtn" id="msgNew" aria-label="Neue Mitteilung" aria-haspopup="menu">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M11 4.8H6.6a2 2 0 0 0-2 2v10.6a2 2 0 0 0 2 2h10.6a2 2 0 0 0 2-2V13"/><path d="M17.5 3.9a1.9 1.9 0 0 1 2.7 2.7l-8 8-3.5.9.9-3.5z"/></svg>
         </button>
       </span>
     </header>
+
+    <!-- Verfassen: An wen? (Popover wie iOS) -->
+    <div class="msgpop" id="msgNewPop" role="menu" hidden>
+      <p class="msgpop__frage">An wen soll die Mitteilung gesendet werden?</p>
+      <button type="button" role="menuitem" data-typ="kollegium">Kolleg*innen</button>
+      <button type="button" role="menuitem" data-typ="individuell">Individuell</button>
+    </div>
 
     <div class="msgfind" id="msgFind" hidden>
       <input type="search" id="msgQuery" placeholder="Inhalt oder Person suchen"
              autocapitalize="none" autocorrect="off" enterkeyhint="search">
     </div>
 
+    <!-- Ordner: Titel „Posteingang“, Tippen wechselt zu Gesendet / Entwürfe -->
     <nav class="msgtabs" id="msgTabs">
-      <button class="is-active" data-box="in">Posteingang</button>
-      <button data-box="out">Gesendet</button>
-      <button data-box="draft">Entwürfe</button>
+      <button type="button" class="msgbox" id="msgBoxBtn" aria-haspopup="menu">Posteingang</button>
     </nav>
+    <div class="msgpop msgpop--box" id="msgBoxPop" role="menu" hidden>
+      <button type="button" role="menuitemradio" data-box="in" class="is-on">Posteingang</button>
+      <button type="button" role="menuitemradio" data-box="out">Gesendet</button>
+      <button type="button" role="menuitemradio" data-box="draft">Entwürfe</button>
+    </div>
 
     <div id="msgList" class="msglist"></div>
 
     <!-- Eine geöffnete Mitteilung füllt die Seite, wie im Vorbild. -->
     <article id="msgRead" class="msgread" hidden></article>
+    <div class="glasgrp msgread__acts" id="msgReadActs" hidden>
+      <button type="button" id="msgReply" aria-label="Antworten">
+        <svg viewBox="0 0 24 24" class="ico"><path d="M9.6 5.2 3.8 10.6l5.8 5.4v-3.3c4.6-.2 7.7 1.1 10.6 5.1-.7-5.6-3.6-9.4-10.6-9.8z"/></svg>
+      </button>
+      <button type="button" id="msgDelete" aria-label="Löschen">
+        <svg viewBox="0 0 24 24" class="ico"><path d="M4.8 6.6h14.4M9.4 6.6V4.6h5.2v2M6.6 6.6l.9 13h9l.9-13"/><path d="M10.3 10v6.6M13.7 10v6.6"/></svg>
+      </button>
+    </div>
   </main>
 
   <!-- ==================== SCREEN: PROFIL ==================== -->
@@ -491,6 +510,8 @@
   </div>
   <!-- Umschalter zwischen den Stunden, die zur selben Zeit liegen -->
   <div class="dtabs" id="detailTabs" role="tablist" hidden></div>
+  <!-- Doppel-/Blockstunde: Eintragungen für den ganzen Block oder eine einzelne Stunde -->
+  <div class="dteil" id="detailTeil" role="tablist" aria-label="Eintragungen gelten für" hidden></div>
   <div class="detail" id="detailBody"></div>
 
   <!-- Klassenbuch-Unteransicht -->
@@ -683,26 +704,56 @@
       <span class="write__toVal" id="msgTo"></span>
       <svg viewBox="0 0 24 24" class="ico"><path d="m10 6 6 6-6 6"/></svg>
     </button>
-    <input type="text" id="msgSubject" class="write__subject" placeholder="Betreff">
+    <input type="text" id="msgSubject" class="write__subject" placeholder="Betreff" enterkeyhint="next">
     <textarea id="msgBody" class="write__body" placeholder="Text hier eingeben"></textarea>
     <div class="write__files" id="msgFiles"></div>
-    <div class="write__tools">
-      <label class="write__clip" aria-label="Anhang" hidden>
-        <svg viewBox="0 0 24 24" class="ico"><path d="M20 11.5 12 19.4a4.6 4.6 0 0 1-6.5-6.5l8.4-8.3a3 3 0 1 1 4.3 4.3l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1l7.6-7.6"/></svg>
-        <input type="file" id="msgAttach" multiple hidden>
-      </label>
-      <button class="write__draft" id="msgDraft" type="button" hidden>Entwurf</button>
+    <div class="write__bar">
+      <div class="glasgrp">
+        <button type="button" class="write__opt" id="msgOptReceipt" aria-pressed="false" aria-label="Lesebestätigung anfordern" title="Lesebestätigung anfordern">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M19.6 11V7.1a1.6 1.6 0 0 0-1.6-1.6H5.6A1.6 1.6 0 0 0 4 7.1v8.8a1.6 1.6 0 0 0 1.6 1.6h6"/><path d="m4.6 6.4 7.2 5.6 7.2-5.6"/><circle cx="17.4" cy="17.4" r="3.7"/><path d="M16.3 16.5a1.1 1.1 0 1 1 1.6 1c-.36.17-.5.42-.5.8"/><circle cx="17.4" cy="19.5" r=".3" fill="currentColor"/></svg>
+        </button>
+        <button type="button" class="write__opt" id="msgOptNoReply" aria-pressed="false" aria-label="Antwort nicht erlaubt" title="Antwort nicht erlaubt">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M19.6 11V7.1a1.6 1.6 0 0 0-1.6-1.6H5.6A1.6 1.6 0 0 0 4 7.1v8.8a1.6 1.6 0 0 0 1.6 1.6h6"/><path d="m4.6 6.4 7.2 5.6 7.2-5.6"/><circle cx="17.4" cy="17.4" r="3.7"/><path d="m16.1 16.1 2.6 2.6M18.7 16.1l-2.6 2.6"/></svg>
+        </button>
+      </div>
+      <div class="glasgrp">
+        <label class="write__add" aria-label="Foto aufnehmen" title="Foto aufnehmen">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M3.8 8.6A1.6 1.6 0 0 1 5.4 7h2.4l1.4-2h5.6l1.4 2h2.4a1.6 1.6 0 0 1 1.6 1.6v8.8a1.6 1.6 0 0 1-1.6 1.6H5.4a1.6 1.6 0 0 1-1.6-1.6z"/><circle cx="12" cy="12.8" r="3.4"/></svg>
+          <input type="file" id="msgCamera" accept="image/*" capture="environment" hidden>
+        </label>
+        <label class="write__add" aria-label="Foto auswählen" title="Foto auswählen">
+          <svg viewBox="0 0 24 24" class="ico"><rect x="6.6" y="7.6" width="13.4" height="11.4" rx="1.6"/><path d="M4 15.4V6.6A1.6 1.6 0 0 1 5.6 5h11"/><path d="m6.8 17 3.9-3.7 2.8 2.5 2-1.8 4.3 3.9"/><circle cx="16.2" cy="10.9" r="1.05"/></svg>
+          <input type="file" id="msgPhoto" accept="image/*" multiple hidden>
+        </label>
+        <label class="write__add" aria-label="Datei anhängen" title="Datei anhängen">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M20 11.5 12 19.4a4.6 4.6 0 0 1-6.5-6.5l8.4-8.3a3 3 0 1 1 4.3 4.3l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1l7.6-7.6"/></svg>
+          <input type="file" id="msgAttach" multiple hidden>
+        </label>
+      </div>
     </div>
   </div>
+</section>
 
-  <!-- Empfänger wählen -->
-  <div class="write__pane" id="msgPaneTo" hidden>
-    <input type="search" id="msgRecQuery" class="write__find"
-           placeholder="Person oder Liste suchen" autocapitalize="none" autocorrect="off">
-    <div class="write__chosen" id="msgChosen"></div>
-    <div class="write__hits" id="msgRecHits"></div>
-    <button class="write__ok" id="msgToDone" type="button">Fertig</button>
-  </div>
+<!-- ==================== EMPFÄNGER WÄHLEN ==================== -->
+<div class="scrim" id="scrimTo" hidden></div>
+<section class="sheet sheet--to" id="sheetTo" role="dialog" aria-modal="true" aria-label="Empfänger wählen" hidden>
+  <div class="sheet__grab sheet__grab--phone" aria-hidden="true"></div>
+  <header class="to__top">
+    <button class="rndbtn" id="toClose" aria-label="Abbrechen">
+      <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <span class="to__title"><span>Mitteilung an</span><small id="toSub">Kolleg*innen</small></span>
+    <button class="rndbtn" id="toOk" aria-label="Übernehmen">
+      <svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
+    </button>
+  </header>
+  <div class="to__filter" id="toFilter" role="toolbar" aria-label="Filter"></div>
+  <div class="to__list" id="toList"></div>
+  <label class="to__search">
+    <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4 4"/></svg>
+    <input type="search" id="toQuery" placeholder="Suchen" autocomplete="off" autocapitalize="none" autocorrect="off" enterkeyhint="search">
+  </label>
+  <div class="to__pop" id="toPop" role="menu" hidden></div>
 </section>
 
 <!-- ==================== ANMELDUNG ==================== -->

@@ -102,9 +102,95 @@ final class ApiClient: @unchecked Sendable {
         return liste.compactMap(\.wert)
     }
 
-    /// POST /mitteilungen – neue Mitteilung senden.
-    func mitteilungSenden(_ daten: MitteilungNeuDaten) async throws {
-        let _: BeliebigeAntwort = try await anfrage("POST", "/mitteilungen", koerper: try encoder.encode(daten))
+    /// POST /mitteilungen – neue Mitteilung senden (Antwort: neue Kennung).
+    @discardableResult
+    func mitteilungSenden(_ daten: MitteilungNeuDaten) async throws -> Int? {
+        let antwort: IdAntwort = try await anfrage("POST", "/mitteilungen", koerper: try encoder.encode(daten))
+        return antwort.id
+    }
+
+    /// POST /mitteilungen/entwurf – Entwurf anlegen bzw. ändern (für Anhänge vor dem Senden); Antwort: Kennung.
+    func entwurfSpeichern(_ daten: MitteilungNeuDaten) async throws -> Int {
+        let antwort: IdAntwort = try await anfrage("POST", "/mitteilungen/entwurf", koerper: try encoder.encode(daten))
+        guard let id = antwort.id else { throw ApiFehler.antwortUnlesbar }
+        return id
+    }
+
+    /// POST /mitteilungen/{id}/senden – Entwurf (mit Anhängen) senden.
+    func entwurfSenden(_ id: Int) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/mitteilungen/\(id)/senden")
+    }
+
+    /// POST /mitteilungen/{id}/anhaenge – Datei als multipart/form-data an einen eigenen Entwurf hängen.
+    func anhangHochladen(mitteilung id: Int, name: String, typ: String, daten: Data) async throws {
+        let grenze = "UntPlan-\(UUID().uuidString)"
+        var koerper = Data()
+        let sicher = name.replacingOccurrences(of: "\"", with: "")
+        koerper.append(Data("--\(grenze)\r\n".utf8))
+        koerper.append(Data("Content-Disposition: form-data; name=\"datei\"; filename=\"\(sicher)\"\r\n".utf8))
+        koerper.append(Data("Content-Type: \(typ.isEmpty ? "application/octet-stream" : typ)\r\n\r\n".utf8))
+        koerper.append(daten)
+        koerper.append(Data("\r\n--\(grenze)--\r\n".utf8))
+        var req = URLRequest(url: try url("/mitteilungen/\(id)/anhaenge", [:]))
+        req.httpMethod = "POST"
+        req.timeoutInterval = 120
+        req.setValue("multipart/form-data; boundary=\(grenze)", forHTTPHeaderField: "Content-Type")
+        req.httpBody = koerper
+        _ = try await rohAnfrage(req, pfad: "/mitteilungen/\(id)/anhaenge")
+    }
+
+    /// GET /mitteilungen/anhang/{id} – Inhalt eines Anhangs (nur Absender und Empfänger*innen).
+    func anhangLaden(_ id: Int) async throws -> Data {
+        var req = URLRequest(url: try url("/mitteilungen/anhang/\(id)", [:]))
+        req.httpMethod = "GET"
+        req.timeoutInterval = 120
+        return try await rohAnfrage(req, pfad: "/mitteilungen/anhang/\(id)")
+    }
+
+    /// GET /mitteilungen/personen?typ=kollegium|individuell – Personen mit Rollen und Filtern für die Empfängerauswahl.
+    /// Ältere Server ohne diesen Endpunkt: die bisherige Empfängerliste (Kolleg*innen = Lehrkräfte) und die eigenen Listen.
+    func personen(typ: String) async throws -> Personenauswahl {
+        do {
+            return try await anfrage("GET", "/mitteilungen/personen", parameter: ["typ": typ])
+        } catch ApiFehler.nichtAngemeldet {
+            throw ApiFehler.nichtAngemeldet
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            let alle = try await empfaenger()
+            let listen = (try? await mitteilungslisten()) ?? []
+            let personen = alle.filter { typ == "kollegium" ? $0.kategorie == "lehrkraefte" || ($0.istPerson && $0.kategorie == "gruppen")
+                                                           : $0.istPerson }
+            let gruppen = typ == "kollegium" ? [] : alle.filter { !$0.istPerson }
+            let klassen = Array(Set(alle.compactMap(\.klasse))).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            return Personenauswahl(personen: personen, gruppen: gruppen,
+                                   filter: .init(listen: listen.map { l in
+                                       var neu = l
+                                       if !neu.id.hasPrefix("liste:") { neu.id = "liste:" + neu.id }
+                                       return neu
+                                   }, klassen: klassen))
+        }
+    }
+
+    /// GET /mitteilungen/{id} – eine Mitteilung (markiert nicht als gelesen).
+    func mitteilung(_ id: Int) async throws -> Mitteilung {
+        try await anfrage("GET", "/mitteilungen/\(id)")
+    }
+
+    /// GET /mitteilungen/{id}/antwort – Vorschlag (Empfänger, „AW: …“, zitierter Text).
+    func antwortvorlage(_ id: Int, alle: Bool = false) async throws -> Antwortvorlage {
+        try await anfrage("GET", "/mitteilungen/\(id)/antwort", parameter: alle ? ["alle": "true"] : [:])
+    }
+
+    /// POST /mitteilungen/{id}/bestaetigen – Lesebestätigung senden.
+    func lesebestaetigungSenden(_ id: Int) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/mitteilungen/\(id)/bestaetigen")
+    }
+
+    /// GET /mitteilungen/listen – eigene Verteilerlisten (Filter „Liste“ der Empfängerauswahl).
+    func mitteilungslisten() async throws -> [Mitteilungsliste] {
+        let liste: [Vielleicht<Mitteilungsliste>] = try await anfrage("GET", "/mitteilungen/listen")
+        return liste.compactMap(\.wert)
     }
 
     func alsGelesenMarkieren(_ id: Int) async throws {
@@ -132,22 +218,27 @@ final class ApiClient: @unchecked Sendable {
 
     // MARK: Klassenbuch einer Stunde
 
-    func klassenbuchStunde(datum: String, stunde: Int, unterricht: Int, lehrer: String?) async throws -> KlassenbuchStunde {
+    /// `einzelstunde`: nur diese Stunde eines Blocks (nil = ganzer Block).
+    func klassenbuchStunde(datum: String, stunde: Int, unterricht: Int, lehrer: String?, einzelstunde: Int? = nil) async throws -> KlassenbuchStunde {
         var parameter = ["datum": datum, "stunde": String(stunde), "unterricht": String(unterricht)]
         if let lehrer, !lehrer.isEmpty { parameter["lehrer"] = lehrer }
+        if let einzelstunde { parameter["einzelstunde"] = String(einzelstunde) }
         return try await anfrage("GET", "/klassenbuch/stunde", parameter: parameter)
     }
 
-    func hausaufgabenDerStunde(datum: String, stunde: Int, bis: Int, unterricht: Int, fach: String, klassen: [String]) async throws -> HausaufgabenDerStunde {
+    func hausaufgabenDerStunde(datum: String, stunde: Int, bis: Int, unterricht: Int, fach: String, klassen: [String],
+                               einzelstunde: Int? = nil) async throws -> HausaufgabenDerStunde {
         var parameter = ["datum": datum, "stunde": String(stunde), "bis": String(bis), "unterricht": String(unterricht)]
+        if let einzelstunde { parameter["einzelstunde"] = String(einzelstunde) }
         if !fach.isEmpty { parameter["fach"] = fach }
         if !klassen.isEmpty { parameter["klassen"] = klassen.joined(separator: ",") }
         return try await anfrage("GET", "/klassenbuch/hausaufgabenliste", parameter: parameter)
     }
 
-    func anwesenheit(datum: String, stunde: Int, unterricht: Int) async throws -> Anwesenheitsliste {
-        try await anfrage("GET", "/klassenbuch/anwesenheit",
-                          parameter: ["datum": datum, "stunde": String(stunde), "unterricht": String(unterricht)])
+    func anwesenheit(datum: String, stunde: Int, unterricht: Int, einzelstunde: Int? = nil) async throws -> Anwesenheitsliste {
+        var parameter = ["datum": datum, "stunde": String(stunde), "unterricht": String(unterricht)]
+        if let einzelstunde { parameter["einzelstunde"] = String(einzelstunde) }
+        return try await anfrage("GET", "/klassenbuch/anwesenheit", parameter: parameter)
     }
 
     /// PUT /klassenbuch/anwesenheit – ersetzt die Fehlzeiten der Stunde und markiert sie als kontrolliert.
@@ -333,6 +424,29 @@ final class ApiClient: @unchecked Sendable {
         }
         guard let url = teile.url else { throw ApiFehler.ungueltigeAdresse }
         return url
+    }
+
+    /// Anfrage ohne JSON-Auswertung (Hochladen, Herunterladen): liefert die Rohdaten oder wirft den Fehler des Servers.
+    private func rohAnfrage(_ anfrage: URLRequest, pfad: String) async throws -> Data {
+        var req = anfrage
+        req.setValue("1", forHTTPHeaderField: "X-UntPlanWeb")
+        let ergebnis: (Data, URLResponse)
+        do {
+            ergebnis = try await session.data(for: req)
+        } catch let fehler as URLError where fehler.code == .cancelled {
+            throw CancellationError()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ApiFehler.nichtErreichbar(error.localizedDescription)
+        }
+        guard let http = ergebnis.1 as? HTTPURLResponse else { throw ApiFehler.antwortUnlesbar }
+        if !(200..<300).contains(http.statusCode) {
+            if http.statusCode == 401 { throw ApiFehler.nichtAngemeldet }
+            let meldung = (try? decoder.decode(Fehlerantwort.self, from: ergebnis.0))?.fehler
+            throw ApiFehler.server(meldung ?? "Fehler \(http.statusCode) vom Server.")
+        }
+        return ergebnis.0
     }
 
     private func anfrage<T: Decodable>(_ methode: String, _ pfad: String, parameter: [String: String] = [:],

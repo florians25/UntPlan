@@ -72,6 +72,12 @@ public class Program
         builder.Services.AddSingleton<Sprechtagdienst>();
         builder.Services.AddSingleton<SchuelerImport>();
         builder.Services.AddSingleton<Pushdienst>();
+        builder.Services.AddSingleton<Notendienst>();
+        // Klassenbuch: Erinnerung an offene Stunden und automatische Entschuldigung (Hintergrunddienst)
+        builder.Services.AddSingleton<Klassenbucherinnerung>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Klassenbucherinnerung>());
+        builder.Services.AddSingleton<Unterrichtsgruppen>();
+        builder.Services.AddSingleton<Systemwartung>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>
         {
@@ -179,6 +185,9 @@ public class Program
         RechteApi.Abbilden(app);
         SchuelerImportApi.Abbilden(app);
         PushApi.Abbilden(app);
+        KlassenbuchEinstellungenApi.Abbilden(app);
+        UnterrichtKlassenApi.Abbilden(app);
+        WartungApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
         app.MapGet("/gesundheit", () => Results.Ok(new { ok = true }));
@@ -218,7 +227,10 @@ public static class Kontext
 
     public static async Task AnmeldenAsync(this HttpContext c, Benutzer b)
     {
-        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, b.Id.ToString()), new(ClaimTypes.Name, b.Login), new(ClaimTypes.Role, b.Rolle) };
+        // Zugriff gesperrt (Wartungsmodus): neue Anmeldungen nur für die Administration
+        c.RequestServices.GetService<Systemwartung>()?.AnmeldungPruefen(b);
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, b.Id.ToString()), new(ClaimTypes.Name, b.Login), new(ClaimTypes.Role, b.Rolle),
+            new(Systemwartung.SitzungsClaim, Guid.NewGuid().ToString("N")) };
         await c.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)),
             new AuthenticationProperties { IsPersistent = true });
     }

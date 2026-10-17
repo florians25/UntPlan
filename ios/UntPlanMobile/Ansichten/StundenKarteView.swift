@@ -638,17 +638,20 @@ struct Plakettenwert: View {
     }
 }
 
-/// Info-Zeichen (.card__info): Vektorgrafik info.svg – weißes abgerundetes Feld mit grauer Scheibe und ausgespartem „i“,
-/// flach auf der Karte (ohne Schatten, Verlauf oder Glanz; dunkel eigene Variante) als Originalbild ohne Einfärbung.
+/// Info-Zeichen (.card__info): abgerundetes Feld mit grauem Kreis und grauem „i“ als Linie (nicht invertiert: kein
+/// gefüllter Kreis mit ausgespartem „i“), flach auf der Karte wie das Hausaufgabenzeichen; dunkel eigene Variante.
+/// Immer als Originalbild – keine Einfärbung als Vorlage und keine Umkehr durch „Farben umkehren“.
 struct Infozeichen: View {
     var groesse: CGFloat = KachelView.infoGroesse
 
     var body: some View {
         Image("KartenInfo")
+            .renderingMode(.original)
             .resizable()
             .interpolation(.high)
             .scaledToFit()
             .frame(width: groesse, height: groesse)
+            .accessibilityIgnoresInvertColors(true)
             .accessibilityHidden(true)
     }
 }

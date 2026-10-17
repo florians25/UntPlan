@@ -6,7 +6,11 @@ namespace UntPlanWeb.Dienste;
 
 /// <summary>Hausaufgabe einer Stunde (mehrere je Stunde möglich): Text, Fälligkeit, Bemerkung, erledigt.</summary>
 public sealed record Hausaufgabe(int Id, string Datum, int Stunde, int Unterricht, List<string> Klassen, string Fach, string Lehrer,
-    string Text, string? Faellig, string Bemerkung, bool Erledigt, string Erstellt);
+    string Text, string? Faellig, string Bemerkung, bool Erledigt, string Erstellt)
+{
+    /// <summary>Einzelstunde eines Blocks, für die die Hausaufgabe allein gilt (dann <see cref="Stunde"/> = diese Stunde); null = ganzer Block.</summary>
+    public int? Einzelstunde { get; init; }
+}
 
 /// <summary>
 /// Klassenbuch einer Stunde wie im Original:
@@ -19,14 +23,33 @@ public sealed record Hausaufgabe(int Id, string Datum, int Stunde, int Unterrich
 /// </summary>
 public sealed partial class Klassenbuchdienst
 {
-    private static Hausaufgabe LesenHausaufgabe(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
+    private static Hausaufgabe LesenHausaufgabe(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), Math.Abs(r.Zahl("stunde")), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("text"), r.TextOderNull("faellig"),
-        r.Text("bemerkung"), r.Wahr("erledigt"), r.Text("erstellt"));
+        r.Text("bemerkung"), r.Wahr("erledigt"), r.Text("erstellt")) { Einzelstunde = r.Zahl("stunde") < 0 ? -r.Zahl("stunde") : null };
 
     /// <summary>Hausaufgaben, die in einer Stunde (Block Von–Bis) aufgegeben wurden.</summary>
     public List<Hausaufgabe> HausaufgabenDerStunde(DateOnly d, int von, int bis, int unterricht) =>
         _db.Liste("SELECT * FROM hausaufgaben_eintraege WHERE datum = @d AND unterricht = @u AND stunde >= @v AND stunde <= @b ORDER BY id", LesenHausaufgabe,
             Db.P("@d", d), Db.P("@u", unterricht), Db.P("@v", von), Db.P("@b", bis));
+
+    /// <summary>Hausaufgaben genau zur Karte: Block (Stunden von–bis) bzw. nur die Einzelstunde.</summary>
+    private List<Hausaufgabe> HausaufgabenDerKarte(DateOnly d, Karte k) => k.Einzelstunde is int n
+        ? _db.Liste("SELECT * FROM hausaufgaben_eintraege WHERE datum = @d AND unterricht = @u AND stunde = @s ORDER BY id", LesenHausaufgabe,
+            Db.P("@d", d), Db.P("@u", k.Unterricht ?? 0), Db.P("@s", -n))
+        : HausaufgabenDerStunde(d, k.Von, k.Bis, k.Unterricht ?? 0);
+
+    /// <summary>
+    /// Hausaufgaben für die Stundendetails: die des Blocks (gelten für alle Stunden) und die der Einzelstunden – ohne
+    /// <paramref name="einzelstunde"/> alle Einzelstunden von–bis, sonst nur diese.
+    /// </summary>
+    public List<Hausaufgabe> HausaufgabenMitEinzelstunden(DateOnly d, int von, int bis, int unterricht, int? einzelstunde = null)
+    {
+        var (ev, eb) = einzelstunde is int n ? (n, n) : (von, bis);
+        return HausaufgabenDerStunde(d, von, bis, unterricht)
+            .Concat(_db.Liste("SELECT * FROM hausaufgaben_eintraege WHERE datum = @d AND unterricht = @u AND stunde <= @v AND stunde >= @b ORDER BY id", LesenHausaufgabe,
+                Db.P("@d", d), Db.P("@u", unterricht), Db.P("@v", -ev), Db.P("@b", -eb)))
+            .OrderBy(h => h.Id).ToList();
+    }
 
     /// <summary>
     /// Hausaufgaben einer Klasse im Zeitraum: aufgegeben oder fällig im Zeitraum (nachFaelligkeit: nur fällig im Zeitraum bzw. ohne
@@ -62,21 +85,21 @@ public sealed partial class Klassenbuchdienst
             .Where(h => Ci.Equals(h.Fach, fach) && h.Klassen.Any(k.Contains) && !(h.Datum == Plandienst.Iso(d) && h.Unterricht == ausserUnterricht)).ToList();
     }
 
-    private Karte StundeZu(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht) =>
-        KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+    private Karte StundeZu(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, int? einzelstunde = null) =>
+        KarteZu(b, s, d, stunde, unterricht, null, einzelstunde) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
 
-    public Hausaufgabe HausaufgabeAnlegen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string text, DateOnly? faellig, string bemerkung)
+    public Hausaufgabe HausaufgabeAnlegen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string text, DateOnly? faellig, string bemerkung, int? einzelstunde = null)
     {
         RechtePruefung.Verlangen(b, Recht.HausaufgabenEintragen);
         if (!DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte die Hausaufgabe eingeben.");
         if (faellig is DateOnly f && f < d) throw new ArgumentException("Die Hausaufgabe kann nicht vor der Stunde fällig sein.");
-        var karte = StundeZu(b, s, d, stunde, unterricht);
+        var karte = StundeZu(b, s, d, stunde, unterricht, einzelstunde);
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
         var id = (int)_db.Einfuegen("""
             INSERT INTO hausaufgaben_eintraege (datum, stunde, unterricht, klassen, fach, lehrer, text, faellig, bemerkung, erledigt, erstellt, benutzer_id)
             VALUES (@d, @s, @u, @k, @f, @l, @t, @fa, @bem, 0, @e, @b)
-            """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(x => x.K).ToList())),
+            """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(x => x.K).ToList())),
             Db.P("@f", karte.Fach), Db.P("@l", lehrer), Db.P("@t", text.Trim()), Db.P("@fa", faellig ?? d.AddDays(7)), Db.P("@bem", (bemerkung ?? "").Trim()),
             Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
         Abgleichen(b, karte, d, lehrer);
@@ -112,28 +135,28 @@ public sealed partial class Klassenbuchdienst
     private void AbgleichenNach(Benutzer b, Stand s, Hausaufgabe h)
     {
         var d = DateOnly.Parse(h.Datum);
-        var karte = KarteZu(b, s, d, h.Stunde, h.Unterricht);
+        var karte = KarteZu(b, s, d, h.Stunde, h.Unterricht, null, h.Einzelstunde);
         if (karte != null) Abgleichen(b, karte, d, b.LehrerKuerzel ?? h.Lehrer);
     }
 
     /// <summary>Feld „Hausaufgabe“ im Klassenbuch (Listen, Berichte, Export an UntPlan) aus der Liste der Hausaufgaben übernehmen.</summary>
     private void Abgleichen(Benutzer b, Karte karte, DateOnly d, string lehrer)
     {
-        var liste = HausaufgabenDerStunde(d, karte.Von, karte.Bis, karte.Unterricht ?? 0);
+        var liste = HausaufgabenDerKarte(d, karte);
         var text = string.Join("\n", liste.Select(h => h.Text));
         var faellig = liste.Select(h => h.Faellig).Where(f => f != null).OrderBy(f => f).FirstOrDefault();
         _db.Ausfuehren("""
             INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, hausaufgabe, faellig, geaendert, benutzer_id)
             VALUES (@d, @s, @u, @k, @f, @l, @h, @fa, @g, @b)
             ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET hausaufgabe = excluded.hausaufgabe, faellig = excluded.faellig, geaendert = excluded.geaendert
-            """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", karte.Unterricht ?? 0), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(x => x.K).ToList())),
+            """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", karte.Unterricht ?? 0), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(x => x.K).ToList())),
             Db.P("@f", karte.Fach), Db.P("@l", lehrer), Db.P("@h", text), Db.P("@fa", faellig), Db.P("@g", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
     }
 
     /// <summary>Altes Einzelfeld geändert: höchstens eine Hausaufgabe in der Liste ersetzen bzw. anlegen oder löschen.</summary>
     private void HausaufgabeAusFeld(Benutzer b, Karte karte, DateOnly d, string lehrer, string text, DateOnly? faellig)
     {
-        var liste = HausaufgabenDerStunde(d, karte.Von, karte.Bis, karte.Unterricht ?? 0);
+        var liste = HausaufgabenDerKarte(d, karte);
         if (liste.Count > 1) return;
         if (liste.Count == 1 && text.Length == 0) _db.Ausfuehren("DELETE FROM hausaufgaben_eintraege WHERE id = @i", Db.P("@i", liste[0].Id));
         else if (liste.Count == 1) _db.Ausfuehren("UPDATE hausaufgaben_eintraege SET text = @t, faellig = @f WHERE id = @i", Db.P("@t", text), Db.P("@f", faellig), Db.P("@i", liste[0].Id));
@@ -141,7 +164,7 @@ public sealed partial class Klassenbuchdienst
             _db.Ausfuehren("""
                 INSERT INTO hausaufgaben_eintraege (datum, stunde, unterricht, klassen, fach, lehrer, text, faellig, erstellt, benutzer_id)
                 VALUES (@d, @s, @u, @k, @f, @l, @t, @fa, @e, @b)
-                """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", karte.Unterricht ?? 0), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(x => x.K).ToList())),
+                """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", karte.Unterricht ?? 0), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(x => x.K).ToList())),
                 Db.P("@f", karte.Fach), Db.P("@l", lehrer), Db.P("@t", text), Db.P("@fa", faellig), Db.P("@e", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@b", b.Id));
     }
 
@@ -156,7 +179,7 @@ public sealed partial class Klassenbuchdienst
         if (mitUnterricht.Count == 0) return karten;
         var von = DateOnly.Parse(mitUnterricht.Min(k => k.Datum)!);
         var bis = DateOnly.Parse(mitUnterricht.Max(k => k.Datum)!);
-        var eintraege = Zeitraum(von, bis);
+        var eintraege = Zeitraum(von, bis, true);
         var faellig = _db.Liste("SELECT * FROM hausaufgaben_eintraege WHERE faellig >= @v AND faellig <= @b", LesenHausaufgabe, Db.P("@v", von), Db.P("@b", bis));
         return karten.Select(k =>
         {
@@ -170,8 +193,9 @@ public sealed partial class Klassenbuchdienst
                                                                                  && !(h.Datum == k.Datum && h.Unterricht == u));
             return k with
             {
-                NotizSchueler = string.Join("\n", e.Select(x => x.NotizSchueler).Where(x => x.Length > 0).Distinct()),
-                NotizLehrer = kollegium ? string.Join("\n", e.Select(x => x.Notiz).Where(x => x.Length > 0).Distinct()) : "",
+                // Notizen einer Einzelstunde des Blocks mit „4. Std.: “ davor (Blocknotizen gelten für alle Stunden)
+                NotizSchueler = string.Join("\n", e.Where(x => x.NotizSchueler.Length > 0).Select(x => NotizMitStunde(k, x, x.NotizSchueler)).Distinct()),
+                NotizLehrer = kollegium ? string.Join("\n", e.Where(x => x.Notiz.Length > 0).Select(x => NotizMitStunde(k, x, x.Notiz)).Distinct()) : "",
                 HausaufgabeFaellig = hf,
                 Online = e.Any(x => x.Online),
                 OnlineLink = e.Where(x => x.Online).Select(x => x.OnlineLink).FirstOrDefault(x => x.Length > 0) ?? "",
@@ -179,13 +203,17 @@ public sealed partial class Klassenbuchdienst
         }).ToList();
     }
 
+    private static string NotizMitStunde(Karte k, Klassenbucheintrag e, string text) =>
+        e.Einzelstunde is int n && k.Von < k.Bis ? $"{n}. Std.: {text}" : text;
+
     // ------------------------------------------------------------------------------------------ Abwesenheiten verlängern
 
     /// <summary>Fehlzeiten früherer Stunden desselben Tages, die in dieser Stunde (noch) nicht eingetragen sind („Vorstunde – verlängern“).</summary>
     public List<Fehlzeit> Vorstunden(Stand s, DateOnly d, Karte karte)
     {
         var klassen = karte.Klassen.Select(k => k.K).ToHashSet(Ci);
-        var tag = FehlzeitenZeitraum(d, d).Where(f => klassen.Contains(f.Klasse) && f.Art == "fehlt").ToList();
+        var gaeste = Klassenzugehoerigkeit.Gaeste(s, karte.Unterricht, d);
+        var tag = FehlzeitenZeitraum(d, d).Where(f => (klassen.Contains(f.Klasse) || gaeste.Contains(f.SchuelerId)) && f.Art == "fehlt").ToList();
         var hier = tag.Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis).Select(f => f.SchuelerId).ToHashSet();
         return tag.Where(f => f.Stunde < karte.Von && !hier.Contains(f.SchuelerId))
             .GroupBy(f => f.SchuelerId).Select(g => g.OrderByDescending(f => f.Stunde).First()).ToList();
@@ -195,14 +223,14 @@ public sealed partial class Klassenbuchdienst
     /// Abwesenheiten verlängern. bis = "stunde": Fehlen aus einer früheren Stunde des Tages bis zum Ende dieser Stunde fortschreiben;
     /// bis = "tagesbeginn": Fehlen dieser Stunde auf alle früheren Stunden des Tages ausdehnen. Grund, Text und Status werden übernommen.
     /// </summary>
-    public int AbwesenheitVerlaengern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds, string bis)
+    public int AbwesenheitVerlaengern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds, string bis, int? einzelstunde = null)
     {
-        var karte = StundeZu(b, s, d, stunde, unterricht);
+        var karte = StundeZu(b, s, d, stunde, unterricht, einzelstunde);
         var klassen = karte.Klassen.Select(k => k.K).ToList();
         if (!DarfSchreiben(b, s, d, stunde, unterricht) && !klassen.Any(k => IstKlassenleitung(b, s, k)))
             throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (d > _uhr.Heute) throw new ArgumentException("Fehlzeiten können nicht im Voraus erfasst werden.");
-        var schueler = Schueler(s, klassen).ToDictionary(x => x.Id);
+        var schueler = SchuelerDerStunde(s, karte, d).ToDictionary(x => x.Id);
         var tag = FehlzeitenZeitraum(d, d);
         var jetzt = _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm");
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
@@ -240,7 +268,7 @@ public sealed partial class Klassenbuchdienst
             INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, geaendert, benutzer_id, anwesenheit)
             VALUES (@d, @s, @u, @k, @f, @l, @g, @b, @g)
             ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET anwesenheit = excluded.anwesenheit
-            """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(klassen)), Db.P("@f", karte.Fach),
+            """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(klassen)), Db.P("@f", karte.Fach),
             Db.P("@l", lehrer), Db.P("@g", jetzt), Db.P("@b", b.Id));
         return anzahl;
     }

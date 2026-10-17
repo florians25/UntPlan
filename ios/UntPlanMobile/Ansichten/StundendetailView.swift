@@ -80,13 +80,17 @@ struct StundendetailInhalt: View {
     var body: some View {
         VStack(spacing: 0) {
             Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() },
-                      laedt: karten.count <= 1 && laedt, mitte: {
+                      laedt: karten.count <= 1 && !mitBereichswahl && laedt, mitte: {
                 datumsMenue
             }, rechts: {
                 weitereAktionen
             })
             if karten.count > 1 {
                 reiterleiste
+                    .overlay(alignment: .bottom) { Ladebalken(aktiv: laedt && !mitBereichswahl) }
+            }
+            if mitBereichswahl {
+                bereichsleiste
                     .overlay(alignment: .bottom) { Ladebalken(aktiv: laedt) }
             }
             ScrollView {
@@ -219,6 +223,65 @@ struct StundendetailInhalt: View {
             .tint(Color.primary)
             .accessibilityLabel("Weitere Aktionen")
         }
+    }
+
+    // MARK: - Ganzer Block / Einzelstunde
+
+    /// Doppel- bzw. Blockstunde: Lehrkräfte wählen oben, ob Einträge für den ganzen Block oder nur eine Stunde gelten.
+    private var mitBereichswahl: Bool { kollegium && mitUnterricht && !istVeranstaltung && daten.hatEinzelstunden }
+
+    /// „3. Std.“ bzw. mit Uhrzeit im Menü.
+    private func stundentitel(_ s: Einzelstundeninfo, mitZeit: Bool) -> String {
+        guard mitZeit, !s.beginn.isEmpty else { return "\(s.stunde). Std." }
+        return "\(s.stunde). Stunde \(Detailmass.uhrzeit(s.beginn))–\(Detailmass.uhrzeit(s.ende))"
+    }
+
+    private var bereichBinding: Binding<Int> {
+        Binding(get: { daten.einzelstunde ?? 0 }, set: { neu in
+            Task { await daten.bereichWaehlen(neu == 0 ? nil : neu, kollegium: kollegium) }
+        })
+    }
+
+    /// Auswahl unter dem Kopf: Segmente „Ganzer Block | 3. Std. | 4. Std.“ (bei langen Blöcken ein Menü). Stunden mit
+    /// eigenem Eintrag tragen einen Punkt.
+    private var bereichsleiste: some View {
+        let stunden = daten.blockStunden
+        return HStack(spacing: 10) {
+            if stunden.count <= 3 {
+                Segmentschalter(auswahl: bereichBinding,
+                                [(0, "Ganzer Block")] + stunden.map { ($0.stunde, stundentitel($0, mitZeit: false) + ($0.eintrag ? " •" : "")) })
+                    .accessibilityLabel("Einträge gelten für")
+            } else {
+                Menu {
+                    Picker("Einträge gelten für", selection: bereichBinding) {
+                        Text("Ganzer Block (\(karte.von).–\(karte.bis). Stunde)").tag(0)
+                        ForEach(stunden) { s in
+                            Text(stundentitel(s, mitZeit: true) + (s.eintrag ? " •" : "")).tag(s.stunde)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(daten.einzelstunde.map { "Nur \($0). Stunde" } ?? "Ganzer Block (\(karte.von).–\(karte.bis). Stunde)")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Farben.tinte)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Farben.gedaempft)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 32)
+                    .background(Farben.segmentGrund, in: Capsule())
+                    .contentShape(Capsule())
+                }
+                .tint(Color.primary)
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, Detailmass.rand)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farben.blatt)
     }
 
     // MARK: - Reiter
@@ -499,7 +562,10 @@ struct StundendetailInhalt: View {
             }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 let thema = daten.eintrag?.thema ?? ""
-                link(.lehrstoff, Detailzeile(symbol: "SymbolLehrstoff", titel: "Lehrstoff", untertitel: thema) {
+                // Einzelstunde ohne eigenen Lehrstoff: der Lehrstoff des ganzen Blocks gilt (grau, nur lesend)
+                let geerbt = daten.geerbterEintrag?.thema ?? ""
+                link(.lehrstoff, Detailzeile(symbol: "SymbolLehrstoff", titel: "Lehrstoff",
+                                             untertitel: thema.isEmpty && !geerbt.isEmpty ? "Block: \(geerbt)" : thema) {
                     if !thema.isEmpty {
                         Image(systemName: "checkmark.circle")
                             .font(.system(size: 24, weight: .light))

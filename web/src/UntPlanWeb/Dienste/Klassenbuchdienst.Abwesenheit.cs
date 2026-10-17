@@ -52,7 +52,7 @@ public sealed partial class Klassenbuchdienst
     /// <summary>Gruppe einer Abwesenheit (über mehrere Stunden bzw. Tage), die in UntPlanWeb als Zeitraum erfasst wurde.</summary>
     public const string GruppenPraefix = "abw:";
 
-    private static bool Zeitraumgruppe(string g) => g.Length > 0 && !g.StartsWith("vorzeitig:", StringComparison.Ordinal);
+    private static bool Zeitraumgruppe(string g) => g.Length > 0 && !g.StartsWith("vorzeitig:", StringComparison.Ordinal) && !g.StartsWith(TagesendePraefix, StringComparison.Ordinal);
 
     /// <summary>Beginn und Ende einer Stunde laut Zeitraster (ohne Angabe: 45 Minuten ab 08:00 je Stunde).</summary>
     public static (TimeOnly Beginn, TimeOnly Ende) StundenZeit(Stand s, int nr)
@@ -274,7 +274,7 @@ public sealed partial class Klassenbuchdienst
     /// </summary>
     public int AbwesenheitErfassen(Benutzer b, Stand s, int schuelerId, DateTime von, DateTime bis, string? grund, string? text, string? status,
         (DateOnly Datum, int Stunde, int Unterricht)? stunde = null, IEnumerable<int>? ersetzen = null,
-        string? nachweis = null, string? entschuldigtAm = null, bool? elternInformiert = null, string? notizIntern = null)
+        string? nachweis = null, string? entschuldigtAm = null, bool? elternInformiert = null, string? notizIntern = null, int? einzelstunde = null)
     {
         var sch = s.Schueler.FirstOrDefault(x => x.Id == schuelerId) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
         if (bis <= von) throw new ArgumentException("Das Ende der Abwesenheit muss nach dem Beginn liegen.");
@@ -282,17 +282,21 @@ public sealed partial class Klassenbuchdienst
         if ((text ?? "").Length > 500) throw new ArgumentException("Der Text darf höchstens 500 Zeichen lang sein.");
         var kl = IstKlassenleitung(b, s, sch.Klasse) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle);
         RueckwirkendPruefen(b, DateOnly.FromDateTime(von), _uhr.Heute);
+        var einst = Einstellungen();
+        einst.EingabePruefen(b, DateOnly.FromDateTime(von), _uhr.Heute);
+        einst.EingabePruefen(b, DateOnly.FromDateTime(bis.AddMinutes(-1)), _uhr.Heute);
         Karte? karte = null;
         var darfStunde = false;
         if (stunde is var (d, n, u))
         {
-            karte = KarteZu(b, s, d, n, u) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+            karte = KarteZu(b, s, d, n, u, null, einzelstunde) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
             if (!karte.Klassen.Any(k => Ci.Equals(k.K, sch.Klasse))) throw new ArgumentException("Die Schülerin bzw. der Schüler gehört nicht zu dieser Stunde.");
             darfStunde = DarfSchreiben(b, s, d, n, u) && Rechtedienst.Darf(b, Recht.AbwesenheitErfassen);
             if (!kl && !darfStunde) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
             if (!kl && (DateOnly.FromDateTime(von) != d || DateOnly.FromDateTime(bis) != d))
                 throw new UnauthorizedAccessException("Abwesenheiten über den Tag der Stunde hinaus trägt die Klassenleitung ein.");
             if (!kl && d > _uhr.Heute) throw new ArgumentException("Fehlzeiten können nicht im Voraus erfasst werden.");
+            if (!kl) NurInStundePruefen(einst, b, s, d, karte);
         }
         else if (!kl) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann Abwesenheiten eintragen.");
 
@@ -300,9 +304,10 @@ public sealed partial class Klassenbuchdienst
         var alt = AlteAbwesenheit(b, s, schuelerId, karte, stunde?.Datum, ersetzen, kl);
         var vorlage = alt.FirstOrDefault();
         var gruppe = alt.Select(f => f.Gruppe).FirstOrDefault(g => g.StartsWith(GruppenPraefix, StringComparison.Ordinal)) ?? GruppenPraefix + Sicherheit.Zufall(10);
-        var st = kl ? Status(status, vorlage?.Status ?? "offen") : vorlage?.Status ?? "offen";
-        var g = (grund ?? vorlage?.Grund ?? "").Trim();
-        var t = (text ?? (vorlage is null ? "" : Klartext(vorlage.Bemerkung))).Trim();
+        var gesperrt = einst.GrundTextGesperrt && !kl && !b.IstAdmin;
+        var g = gesperrt ? vorlage?.Grund ?? einst.Standardgrund("fehlt") : (grund ?? vorlage?.Grund ?? "").Trim();
+        var t = gesperrt || text is null ? (vorlage is null ? "" : Klartext(vorlage.Bemerkung)) : text.Trim();
+        var st = kl ? Status(status, vorlage?.Status ?? StatusNeu(einst, g)) : vorlage is null ? StatusNeu(einst, g) : StatusNachGrund(einst, vorlage.Status, vorlage.Grund, g);
         var nw = kl && nachweis != null ? Klassenbuchverwaltung.Nachweis(nachweis) : vorlage?.Nachweis ?? "";
         var ea = kl && entschuldigtAm != null ? Klassenbuchverwaltung.DatumOderLeer(entschuldigtAm) : vorlage?.EntschuldigtAm ?? "";
         var ei = kl && elternInformiert != null ? elternInformiert.Value : vorlage?.ElternInformiert ?? false;
@@ -361,9 +366,14 @@ public sealed partial class Klassenbuchdienst
         }
         var gruppen = res.Values.Select(f => f.Gruppe).Where(g => g.Length > 0).ToHashSet();
         if (karte != null) gruppen.Add($"vorzeitig:{karte.Unterricht ?? 0}:{karte.Von}");
+        if (karte != null) gruppen.Add(TagesendeGruppe(karte.Unterricht ?? 0, karte.Von));
         foreach (var g in gruppen)
             foreach (var f in _db.Liste("SELECT * FROM fehlzeiten WHERE schueler_id = @s AND gruppe = @g", LesenFehlzeit, Db.P("@s", schuelerId), Db.P("@g", g)))
+            {
+                // bis Tagesende fortgeschrieben: in einer Folgestunde verkürzen – frühere Stunden bleiben
+                if (karte != null && g.StartsWith(TagesendePraefix, StringComparison.Ordinal) && f.Stunde < karte.Von) continue;
                 if (kl || tag is DateOnly t2 && f.Datum == Plandienst.Iso(t2)) res[f.Id] = f;
+            }
         return res.Values.OrderBy(f => f.Datum, StringComparer.Ordinal).ThenBy(f => f.Stunde).ToList();
     }
 
@@ -371,10 +381,10 @@ public sealed partial class Klassenbuchdienst
     /// Entschuldigungsstatus direkt aus den Stundendetails setzen (Segment-Schalter im Abwesenheitsdialog): ändert den Status der Fehlzeiten
     /// der Stunde samt der zugehörigen Abwesenheit (auch über mehrere Tage). Nur Klassenleitung, Schulleitung und Administration.
     /// </summary>
-    public int AbwesenheitStatusSetzen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds, string status)
+    public int AbwesenheitStatusSetzen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds, string status, int? einzelstunde = null)
     {
         if (status is not ("entschuldigt" or "unentschuldigt" or "offen")) throw new ArgumentException("Unbekannter Status.");
-        var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var karte = KarteZu(b, s, d, stunde, unterricht, null, einzelstunde) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var klassen = karte.Klassen.Select(k => k.K).ToList();
         var n = 0;
         foreach (var sid in schuelerIds.Distinct())
@@ -390,12 +400,14 @@ public sealed partial class Klassenbuchdienst
     }
 
     /// <summary>Abwesenheit (aus den Stundendetails) entfernen: Fehlzeiten der Stunde und der zugehörigen Abwesenheit.</summary>
-    public int AbwesenheitEntfernen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds)
+    public int AbwesenheitEntfernen(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, IEnumerable<int> schuelerIds, int? einzelstunde = null)
     {
-        var karte = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var karte = KarteZu(b, s, d, stunde, unterricht, null, einzelstunde) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var klassen = karte.Klassen.Select(k => k.K).ToList();
         var darfStunde = DarfSchreiben(b, s, d, stunde, unterricht) && Rechtedienst.Darf(b, Recht.AbwesenheitErfassen);
         RueckwirkendPruefen(b, d, _uhr.Heute);
+        var einst = Einstellungen();
+        einst.EingabePruefen(b, d, _uhr.Heute);
         var n = 0;
         foreach (var sid in schuelerIds.Distinct())
         {
@@ -403,7 +415,10 @@ public sealed partial class Klassenbuchdienst
             if (sch is null) continue;
             var kl = IstKlassenleitung(b, s, sch.Klasse) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle);
             if (!kl && !darfStunde) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
-            foreach (var f in AlteAbwesenheit(b, s, sid, karte, d, null, kl)) n += _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
+            if (!kl) NurInStundePruefen(einst, b, s, d, karte);
+            var weg = AlteAbwesenheit(b, s, sid, karte, d, null, kl);
+            foreach (var f in weg) einst.LoeschenPruefen(b, f.Erstellt, _uhr.Jetzt);
+            foreach (var f in weg) n += _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
         }
         if (darfStunde) GeprueftMarkieren(b, d, karte, unterricht, b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "");
         return n;
@@ -417,7 +432,7 @@ public sealed partial class Klassenbuchdienst
             INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, geaendert, benutzer_id, anwesenheit)
             VALUES (@d, @s, @u, @k, @f, @l, @g, @b, @g)
             ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET anwesenheit = excluded.anwesenheit
-            """, Db.P("@d", d), Db.P("@s", karte.Von), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(k => k.K).ToList())), Db.P("@f", karte.Fach),
+            """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(k => k.K).ToList())), Db.P("@f", karte.Fach),
             Db.P("@l", lehrer), Db.P("@g", jetzt), Db.P("@b", b.Id));
     }
 }

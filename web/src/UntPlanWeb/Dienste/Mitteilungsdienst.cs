@@ -14,7 +14,19 @@ namespace UntPlanWeb.Dienste;
 /// <param name="EmpfaengerText">Gewählte Empfänger (Gruppen bzw. Personen) in Worten, z. B. „Erziehungsberechtigte 7a“.</param>
 public sealed record Mitteilung(int Id, int AbsenderId, string Absender, string Betreff, string Text, string Erstellt, bool Wichtig, string? Gelesen, List<string> Empfaenger,
     List<Anhang>? Anhaenge = null, List<string>? EntwurfEmpfaenger = null, bool Lesebestaetigung = false, string? Bestaetigt = null, int Anzahl = 0, int GelesenAnzahl = 0,
-    int BestaetigtAnzahl = 0, int? AntwortAuf = null, string EmpfaengerText = "", string AbsenderRolle = "");
+    int BestaetigtAnzahl = 0, int? AntwortAuf = null, string EmpfaengerText = "", string AbsenderRolle = "")
+{
+    /// <summary>false = der Absender hat „Antwort nicht erlaubt“ gewählt (kein Antworten bzw. Allen antworten).</summary>
+    public bool AntwortErlaubt { get; init; } = true;
+}
+
+/// <summary>Rollen-Pill einer Person in der Empfängerauswahl, z. B. „Lehrkraft“ oder „Klassenlehrkraft | DTI1A“.</summary>
+/// <param name="Art">lehrkraft, klassenlehrkraft, schulleitung, administration, schueler, eltern.</param>
+public sealed record Rollenpill(string Art, string Text, List<string>? Klassen = null);
+
+/// <summary>Person in der Empfängerauswahl der Apps (Kolleg*innen bzw. Individuell) mit Rollen-Pills, Klassen und Abteilungen für die Filter.</summary>
+public sealed record Empfaengerperson(string Id, string Name, string Anzeigename, string Login, string Kuerzel, string Initialen, string Kategorie, string Rolle,
+    List<Rollenpill> Rollen, List<string> Klassen, List<string> Abteilungen);
 
 /// <summary>Anhang einer Mitteilung (ohne Inhalt).</summary>
 public sealed record Anhang(int Id, string Name, string Typ, int Groesse);
@@ -203,13 +215,70 @@ public sealed class Mitteilungsdienst
         return res;
     }
 
+    private static string Initialen(string name)
+    {
+        var teile = name.Split(new[] { ' ', '_', '-', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        return teile.Length >= 2 && char.IsLetter(teile[0][0]) && char.IsLetter(teile[1][0])
+            ? $"{char.ToUpperInvariant(teile[0][0])}{char.ToUpperInvariant(teile[1][0])}"
+            : name.Length > 0 ? char.ToUpperInvariant(name[0]).ToString() : "?";
+    }
+
+    /// <summary>
+    /// Personen für die Empfängerauswahl der Apps: typ „kollegium“ nur Kolleg*innen, „individuell“ alle erlaubten Personen
+    /// (dazu die Gruppen). Je Person Rollen-Pills (Lehrkraft, Klassenlehrkraft | Klassen, Schulleitung …), Klassen und Abteilungen
+    /// (Abteilung des Stammraums der Klassen laut Raum-Stammdaten) für die Filter Klasse und Abteilung.
+    /// </summary>
+    public (List<Empfaengerperson> Personen, List<Empfaenger> Gruppen) Personen(Benutzer ich, Stand? s, string? typ)
+    {
+        var individuell = typ == "individuell";
+        var erlaubt = Empfaengerliste(ich, s, false);
+        var konten = _benutzer.Alle().ToDictionary(b => b.Id);
+        var leitung = new Dictionary<string, List<string>>(Ci);
+        foreach (var k in s?.Paket.Elemente.Klassen ?? new())
+            foreach (var l in k.Klassenleitung) (leitung.TryGetValue(l, out var kl) ? kl : leitung[l] = new()).Add(k.Kurz);
+        var abteilungRaum = _db.Liste("SELECT raum, abteilung FROM raum_daten WHERE abteilung <> ''", r => (Raum: r.Text("raum"), Abteilung: r.Text("abteilung")))
+            .GroupBy(x => x.Raum, Ci).ToDictionary(g => g.Key, g => g.First().Abteilung, Ci);
+        var abteilungKlasse = (s?.Paket.Elemente.Klassen ?? new()).Where(k => abteilungRaum.ContainsKey(k.Stammraum)).ToDictionary(k => k.Kurz, k => abteilungRaum[k.Stammraum], Ci);
+        var de = StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("de-DE"), true);
+        var personen = new List<Empfaengerperson>();
+        foreach (var e in erlaubt.Where(x => x.Id.StartsWith("benutzer:")))
+        {
+            if (!int.TryParse(e.Id[9..], out var id) || !konten.TryGetValue(id, out var b)) continue;
+            if (!individuell && !b.Kollegium) continue;
+            var pills = new List<Rollenpill>();
+            List<string> klassen;
+            var kuerzel = b.Kollegium ? b.LehrerKuerzel ?? "" : "";
+            if (b.Kollegium)
+            {
+                if (b.Rolle == Rollen.Admin) pills.Add(new("administration", Rollen.Name(b.Rolle)));
+                if (b.Rolle == Rollen.Leitung) pills.Add(new("schulleitung", Rollen.Name(b.Rolle)));
+                if (kuerzel.Length > 0) pills.Add(new("lehrkraft", Rollen.Name(Rollen.Lehrer)));
+                var geleitet = kuerzel.Length > 0 && leitung.TryGetValue(kuerzel, out var gl) ? gl.OrderBy(x => x, de).ToList() : new List<string>();
+                if (geleitet.Count > 0) pills.Add(new("klassenlehrkraft", $"Klassenlehrkraft | {string.Join(", ", geleitet)}", geleitet));
+                klassen = EigeneKlassen(s, kuerzel.Length > 0 ? kuerzel : null).OrderBy(x => x, de).ToList();
+            }
+            else
+            {
+                pills.Add(new(b.Rolle == Rollen.Eltern ? "eltern" : "schueler", Rollen.Name(b.Rolle)));
+                klassen = (b.Klassen.Count > 0 ? b.Klassen : b.KlassenKuerzel is string kk ? new List<string> { kk } : new List<string>()).ToList();
+            }
+            var anzeigename = b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login;
+            var name = kuerzel.Length > 0 ? kuerzel : anzeigename;
+            personen.Add(new(e.Id, name, anzeigename, b.Login, kuerzel, Initialen(name), e.Kategorie, b.Rolle, pills, klassen,
+                klassen.Where(abteilungKlasse.ContainsKey).Select(k => abteilungKlasse[k]).Distinct(Ci).OrderBy(x => x, de).ToList()));
+        }
+        var gruppen = individuell ? erlaubt.Where(x => !x.Id.StartsWith("benutzer:")).ToList() : new List<Empfaenger>();
+        return (personen.OrderBy(p => p.Name, de).ToList(), gruppen);
+    }
+
     /// <summary>Zusätzlich erlaubte Empfänger einer Antwort: Absender (und bei „Allen antworten“ die übrigen Empfänger*innen) der beantworteten Mitteilung.</summary>
     private HashSet<int> Antwortempfaenger(Benutzer ich, int? antwortAuf, bool alle)
     {
         var res = new HashSet<int>();
         if (antwortAuf is not int id) return res;
         var absender = _db.Wert("""
-            SELECT m.absender_id FROM mitteilungen m JOIN mitteilung_empfaenger e ON e.mitteilung_id = m.id WHERE m.id = @m AND e.benutzer_id = @b AND m.entwurf = 0
+            SELECT m.absender_id FROM mitteilungen m JOIN mitteilung_empfaenger e ON e.mitteilung_id = m.id
+            WHERE m.id = @m AND e.benutzer_id = @b AND m.entwurf = 0 AND m.keine_antwort = 0
             """, Db.P("@m", id), Db.P("@b", ich.Id));
         if (absender is null) return res;
         if (ich.Kollegium || Einstellungen().FamilieAntworten) res.Add(Convert.ToInt32(absender));
@@ -279,6 +348,14 @@ public sealed class Mitteilungsdienst
 
     // ------------------------------------------------------------------------------------------ Senden
 
+    /// <summary>„Antwort nicht erlaubt“: die beantwortete Mitteilung hat ein anderes Konto mit dieser Sperre an mich gesendet.</summary>
+    private bool AntwortGesperrt(Benutzer ich, int? antwortAuf) => antwortAuf is int id && _db.Wert("""
+        SELECT 1 FROM mitteilungen m JOIN mitteilung_empfaenger e ON e.mitteilung_id = m.id
+        WHERE m.id = @m AND e.benutzer_id = @b AND m.absender_id <> @b AND m.keine_antwort = 1
+        """, Db.P("@m", id), Db.P("@b", ich.Id)) != null;
+
+    private const string KeineAntwort = "Auf diese Mitteilung ist keine Antwort erlaubt.";
+
     private static void Pruefen(string betreff, string text)
     {
         if (string.IsNullOrWhiteSpace(betreff)) throw new ArgumentException("Bitte einen Betreff eingeben.");
@@ -286,13 +363,15 @@ public sealed class Mitteilungsdienst
         if (betreff.Length > 200 || text.Length > 20000) throw new ArgumentException("Betreff oder Text ist zu lang.");
     }
 
-    public int Senden(Benutzer ich, Stand? s, IEnumerable<string> empfaenger, string betreff, string text, bool wichtig, bool lesebestaetigung = false, int? antwortAuf = null)
+    public int Senden(Benutzer ich, Stand? s, IEnumerable<string> empfaenger, string betreff, string text, bool wichtig, bool lesebestaetigung = false, int? antwortAuf = null,
+        bool antwortErlaubt = true)
     {
         Pruefen(betreff, text);
+        if (AntwortGesperrt(ich, antwortAuf)) throw new ArgumentException(KeineAntwort);
         var kennungen = empfaenger.ToList();
         var ids = Aufloesen(ich, s, kennungen, antwortAuf);
         if (ids.Count == 0) throw new ArgumentException("Bitte mindestens einen Empfänger wählen.");
-        return Zustellen(ich, ids, betreff, text, wichtig, lesebestaetigung, antwortAuf, EmpfaengerText(ich, s, kennungen));
+        return Zustellen(ich, ids, betreff, text, wichtig, lesebestaetigung, antwortAuf, EmpfaengerText(ich, s, kennungen), antwortErlaubt);
     }
 
     /// <summary>Benachrichtigung des Systems (Sprechtag, Buchungen) an einzelne Konten – unabhängig von den Schreibrechten des auslösenden Kontos.</summary>
@@ -304,16 +383,17 @@ public sealed class Mitteilungsdienst
         return Zustellen(absender, ids, betreff, text, false, false, null, "");
     }
 
-    private int Zustellen(Benutzer ich, HashSet<int> ids, string betreff, string text, bool wichtig, bool lesebestaetigung, int? antwortAuf, string empfaengerText)
+    private int Zustellen(Benutzer ich, HashSet<int> ids, string betreff, string text, bool wichtig, bool lesebestaetigung, int? antwortAuf, string empfaengerText,
+        bool antwortErlaubt = true)
     {
         var neu = 0L;
         _db.Transaktion(c =>
         {
             Db.Ausfuehren(c, """
-                INSERT INTO mitteilungen (absender_id, betreff, text, erstellt, wichtig, lesebestaetigung, antwort_auf, empfaenger_text)
-                VALUES (@a, @b, @t, @e, @w, @l, @af, @et)
+                INSERT INTO mitteilungen (absender_id, betreff, text, erstellt, wichtig, lesebestaetigung, antwort_auf, empfaenger_text, keine_antwort)
+                VALUES (@a, @b, @t, @e, @w, @l, @af, @et, @ka)
                 """, Db.P("@a", ich.Id), Db.P("@b", betreff.Trim()), Db.P("@t", text.Trim()), Db.P("@e", Jetzt), Db.P("@w", wichtig && ich.Kollegium),
-                Db.P("@l", lesebestaetigung), Db.P("@af", antwortAuf), Db.P("@et", empfaengerText));
+                Db.P("@l", lesebestaetigung), Db.P("@af", antwortAuf), Db.P("@et", empfaengerText), Db.P("@ka", antwortErlaubt ? 0 : 1));
             neu = Db.LetzteId(c);
             foreach (var id in ids) Db.Ausfuehren(c, "INSERT INTO mitteilung_empfaenger (mitteilung_id, benutzer_id) VALUES (@m, @b)", Db.P("@m", neu), Db.P("@b", id));
         });
@@ -346,7 +426,7 @@ public sealed class Mitteilungsdienst
             WHERE e.benutzer_id = @b AND e.geloescht = 0 ORDER BY m.id DESC LIMIT 300
             """, r => new Mitteilung(r.Zahl("id"), r.Zahl("absender_id"), r.Text("absender"), r.Text("betreff"), r.Text("text"), r.Text("erstellt"), r.Wahr("wichtig"),
                 r.TextOderNull("gelesen"), new(), Lesebestaetigung: r.Wahr("lesebestaetigung"), Bestaetigt: r.TextOderNull("bestaetigt"), AntwortAuf: r.ZahlOderNull("antwort_auf"),
-                EmpfaengerText: r.Text("empfaenger_text"), AbsenderRolle: Rollen.Name(r.Text("absender_rolle"))),
+                EmpfaengerText: r.Text("empfaenger_text"), AbsenderRolle: Rollen.Name(r.Text("absender_rolle"))) { AntwortErlaubt = !r.Wahr("keine_antwort") },
             Db.P("@b", ich)).Select(m => m with { Empfaenger = vertraulich ? new() : EmpfaengerNamen(m.Id), EmpfaengerText = vertraulich ? "" : m.EmpfaengerText, Anhaenge = Anhaenge(m.Id) })
             .Where(m => Passt(m, suche)).ToList();
     }
@@ -361,7 +441,7 @@ public sealed class Mitteilungsdienst
             FROM mitteilungen m WHERE m.absender_id = @b AND m.geloescht_absender = 0 AND m.entwurf = 0 ORDER BY m.id DESC LIMIT 300
             """, r => new Mitteilung(r.Zahl("id"), r.Zahl("absender_id"), "", r.Text("betreff"), r.Text("text"), r.Text("erstellt"), r.Wahr("wichtig"), "", new(),
                 Lesebestaetigung: r.Wahr("lesebestaetigung"), Anzahl: r.Zahl("anzahl"), GelesenAnzahl: r.Zahl("gelesen_anzahl"), BestaetigtAnzahl: r.Zahl("bestaetigt_anzahl"),
-                AntwortAuf: r.ZahlOderNull("antwort_auf"), EmpfaengerText: r.Text("empfaenger_text")),
+                AntwortAuf: r.ZahlOderNull("antwort_auf"), EmpfaengerText: r.Text("empfaenger_text")) { AntwortErlaubt = !r.Wahr("keine_antwort") },
             Db.P("@b", ich)).Select(m => m with { Empfaenger = EmpfaengerNamen(m.Id), Anhaenge = Anhaenge(m.Id) }).Where(m => Passt(m, suche)).ToList();
     }
 
@@ -396,6 +476,7 @@ public sealed class Mitteilungsdienst
     {
         var m = Posteingang(ich.Id).FirstOrDefault(x => x.Id == id) ?? throw new ArgumentException("Unbekannte Mitteilung.");
         if (!DarfSenden(ich)) throw new UnauthorizedAccessException("Ihr Konto darf keine Mitteilungen senden.");
+        if (!m.AntwortErlaubt && m.AbsenderId != ich.Id) throw new ArgumentException(KeineAntwort);
         var ids = Antwortempfaenger(ich, id, alle);
         var namen = Empfaengerliste(ich, s).ToDictionary(x => x.Id, x => x.Name);
         foreach (var x in namen.Keys.Where(k => k.StartsWith("benutzer:") && alle).ToList())
@@ -435,17 +516,27 @@ public sealed class Mitteilungsdienst
         return Entwuerfe(ich.Id).First(x => x.Id == neu);
     }
 
+    /// <summary>Eine Mitteilung des eigenen Kontos (Posteingang, Gesendet oder Entwürfe) mit dem Ordner; null = nicht vorhanden.</summary>
+    public (Mitteilung Mitteilung, string Ordner)? Detail(Benutzer ich, int id)
+    {
+        if (Posteingang(ich.Id, null, ich.Familie).FirstOrDefault(x => x.Id == id) is { } p) return (p, "posteingang");
+        if (Gesendet(ich.Id).FirstOrDefault(x => x.Id == id) is { } g) return (g, "gesendet");
+        if (Entwuerfe(ich.Id).FirstOrDefault(x => x.Id == id) is { } e) return (e, "entwuerfe");
+        return null;
+    }
+
     // ------------------------------------------------------------------------------------------ Entwürfe
 
     public List<Mitteilung> Entwuerfe(int ich, string? suche = null) => _db.Liste("""
         SELECT m.* FROM mitteilungen m WHERE m.absender_id = @b AND m.geloescht_absender = 0 AND m.entwurf = 1 ORDER BY m.id DESC LIMIT 300
         """, r => new Mitteilung(r.Zahl("id"), r.Zahl("absender_id"), "", r.Text("betreff"), r.Text("text"), r.Text("erstellt"), r.Wahr("wichtig"), "", new(),
             null, JsonSerializer.Deserialize<List<string>>(r.Text("entwurf_empfaenger")) ?? new(), Lesebestaetigung: r.Wahr("lesebestaetigung"),
-            AntwortAuf: r.ZahlOderNull("antwort_auf"), EmpfaengerText: r.Text("empfaenger_text")),
+            AntwortAuf: r.ZahlOderNull("antwort_auf"), EmpfaengerText: r.Text("empfaenger_text")) { AntwortErlaubt = !r.Wahr("keine_antwort") },
         Db.P("@b", ich)).Select(m => m with { Anhaenge = Anhaenge(m.Id) }).Where(m => Passt(m, suche)).ToList();
 
     /// <summary>Entwurf anlegen bzw. ändern. Empfänger werden nur geprüft (aufgelöst wird erst beim Senden).</summary>
-    public int EntwurfSpeichern(Benutzer ich, Stand? s, int? id, IEnumerable<string> empfaenger, string betreff, string text, bool wichtig, bool lesebestaetigung = false, int? antwortAuf = null)
+    public int EntwurfSpeichern(Benutzer ich, Stand? s, int? id, IEnumerable<string> empfaenger, string betreff, string text, bool wichtig, bool lesebestaetigung = false, int? antwortAuf = null,
+        bool antwortErlaubt = true)
     {
         if ((betreff ?? "").Length > 200 || (text ?? "").Length > 20000) throw new ArgumentException("Betreff oder Text ist zu lang.");
         if (!DarfSenden(ich)) throw new UnauthorizedAccessException("Ihr Konto darf keine Mitteilungen senden.");
@@ -458,14 +549,16 @@ public sealed class Mitteilungsdienst
             throw new ArgumentException("Unzulässiger Empfänger.");
         var p = new[] { Db.P("@a", ich.Id), Db.P("@b", (betreff ?? "").Trim()), Db.P("@t", (text ?? "").Trim()), Db.P("@e", Jetzt),
             Db.P("@w", wichtig && ich.Kollegium), Db.P("@em", JsonSerializer.Serialize(liste)), Db.P("@id", id), Db.P("@l", lesebestaetigung), Db.P("@af", antwortAuf),
-            Db.P("@et", EmpfaengerText(ich, s, liste)) };
+            Db.P("@et", EmpfaengerText(ich, s, liste)), Db.P("@ka", antwortErlaubt ? 0 : 1) };
+        if (AntwortGesperrt(ich, antwortAuf)) throw new ArgumentException(KeineAntwort);
         if (id is null)
             return (int)_db.Einfuegen("""
-                INSERT INTO mitteilungen (absender_id, betreff, text, erstellt, wichtig, entwurf, entwurf_empfaenger, lesebestaetigung, antwort_auf, empfaenger_text)
-                VALUES (@a, @b, @t, @e, @w, 1, @em, @l, @af, @et)
+                INSERT INTO mitteilungen (absender_id, betreff, text, erstellt, wichtig, entwurf, entwurf_empfaenger, lesebestaetigung, antwort_auf, empfaenger_text, keine_antwort)
+                VALUES (@a, @b, @t, @e, @w, 1, @em, @l, @af, @et, @ka)
                 """, p);
         if (_db.Ausfuehren("""
-                UPDATE mitteilungen SET betreff = @b, text = @t, erstellt = @e, wichtig = @w, entwurf_empfaenger = @em, lesebestaetigung = @l, antwort_auf = @af, empfaenger_text = @et
+                UPDATE mitteilungen SET betreff = @b, text = @t, erstellt = @e, wichtig = @w, entwurf_empfaenger = @em, lesebestaetigung = @l, antwort_auf = @af, empfaenger_text = @et,
+                    keine_antwort = @ka
                 WHERE id = @id AND absender_id = @a AND entwurf = 1
                 """, p) == 0)
             throw new ArgumentException("Unbekannter Entwurf.");

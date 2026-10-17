@@ -20,8 +20,8 @@ public sealed class Db
     /// <summary>SQLite: Pfad der Datenbankdatei; MySQL: leer.</summary>
     public string Datei { get; }
 
-    /// <summary>Anzahl der bekannten Migrationen (= Schemastand nach dem Start).</summary>
-    public static int Schemastand => Migrationen.Length;
+    /// <summary>Höchste bekannte Migrationsnummer (= Schemastand nach dem Start).</summary>
+    public static int Schemastand => Nummeriert[^1].Nummer;
 
     /// <summary>SQLite-Datenbank im angegebenen Ordner.</summary>
     public Db(string ordner, string dateiname = "untplanweb.db") : this(Datenbankart.Sqlite, ordner, null, null, dateiname) { }
@@ -214,8 +214,57 @@ public sealed class Db
     }
 
     // ------------------------------------------------------------------------------------------
-    // Migrationen: nur anhängen, nie ändern
+    // Migrationen: nur anhängen, nie ändern. Ab Nummer 19 mit fester Nummer eintragen – Nr(19, """…""") –, damit parallel
+    // entstandene Migrationen unabhängig von der Reihenfolge im Quelltext aufsteigend laufen. Einträge ohne Nr(…) erhalten die
+    // kleinste noch freie Nummer. Ausgeführt wird jede Nummer, die in schema_version noch fehlt (aufsteigend).
     // ------------------------------------------------------------------------------------------
+
+    private const string NummernPraefix = "#migration ";
+
+    /// <summary>Migration mit fester Nummer (unabhängig von der Position im Array).</summary>
+    private static string Nr(int nummer, string skript) => $"{NummernPraefix}{nummer}\n{skript}";
+
+    /// <summary>Die Migrationen aufsteigend nach Nummer, ohne Nummernvermerk.</summary>
+    private static (int Nummer, string Skript)[] Nummeriert => _nummeriert ??= Nummerieren(Migrationen);
+    private static (int Nummer, string Skript)[]? _nummeriert;
+
+    internal static (int Nummer, string Skript)[] Nummerieren(IReadOnlyList<string> migrationen)
+    {
+        var fest = new List<(int Nummer, string Skript)>();
+        var offen = new List<string>();
+        for (var i = 0; i < migrationen.Count; i++)
+        {
+            var m = migrationen[i];
+            if (m.StartsWith(NummernPraefix, StringComparison.Ordinal))
+            {
+                var zeile = m.IndexOf('\n');
+                var nummer = int.Parse(m[NummernPraefix.Length..zeile]);
+                if (fest.Any(f => f.Nummer == nummer)) throw new InvalidOperationException($"Migration {nummer} doppelt vergeben.");
+                fest.Add((nummer, m[(zeile + 1)..]));
+            }
+            else offen.Add(m);
+        }
+        var vergeben = fest.Select(f => f.Nummer).ToHashSet();
+        var alle = fest.ToList();
+        var naechste = 1;
+        foreach (var skript in offen)
+        {
+            while (vergeben.Contains(naechste)) naechste++;
+            vergeben.Add(naechste);
+            alle.Add((naechste, skript));
+        }
+        return alle.OrderBy(a => a.Nummer).ToArray();
+    }
+
+    private static HashSet<int> Ausgefuehrt(DbConnection c)
+    {
+        var stand = new HashSet<int>();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT version FROM schema_version";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) stand.Add(Convert.ToInt32(r[0]));
+        return stand;
+    }
 
     private static readonly string[] Migrationen =
     {
@@ -584,6 +633,54 @@ public sealed class Db
         ALTER TABLE rechteprofile ADD COLUMN plan_wochen_zurueck INTEGER;
         ALTER TABLE rechteprofile ADD COLUMN plan_wochen_vor INTEGER;
         """,
+
+        // 19: Notenschemen (Noten mit optionalem Wert als JSON) und Prüfungsarten (Höchstzahlen je Schüler*in, Farben, Notenschema, Gewichtung);
+        //    Grundbestand der bisher fest hinterlegten Prüfungsarten – nur Standard-SQL
+        Nr(19, """
+        CREATE TABLE notenschemen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(100) NOT NULL, aktiv INTEGER NOT NULL DEFAULT 1, reihenfolge INTEGER NOT NULL DEFAULT 0,
+            noten TEXT NOT NULL
+        );
+        CREATE TABLE pruefungsarten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, kurz VARCHAR(20) NOT NULL, name VARCHAR(100) NOT NULL DEFAULT '', aktiv INTEGER NOT NULL DEFAULT 1,
+            muendlich INTEGER NOT NULL DEFAULT 0, angekuendigt INTEGER NOT NULL DEFAULT 1, uebergeben INTEGER NOT NULL DEFAULT 1,
+            vordergrund VARCHAR(7) NOT NULL DEFAULT '#000000', hintergrund VARCHAR(7) NOT NULL DEFAULT '#ffffff',
+            max_tag INTEGER NOT NULL DEFAULT 0, max_woche INTEGER NOT NULL DEFAULT 0, max_zeitraum INTEGER NOT NULL DEFAULT 0, zeitraum_tage INTEGER NOT NULL DEFAULT 0,
+            gruppierung INTEGER NOT NULL DEFAULT 0, freie_tage INTEGER NOT NULL DEFAULT 0, mit_wochenende INTEGER NOT NULL DEFAULT 1, notenschema_id INTEGER,
+            gewichtung REAL NOT NULL DEFAULT 1, reihenfolge INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO pruefungsarten (kurz, name, reihenfolge) VALUES ('KA', 'Klassenarbeit', 10);
+        INSERT INTO pruefungsarten (kurz, name, reihenfolge) VALUES ('KL', 'Klausur', 20);
+        INSERT INTO pruefungsarten (kurz, name, reihenfolge) VALUES ('T', 'Test', 30);
+        INSERT INTO pruefungsarten (kurz, name, reihenfolge) VALUES ('AP', 'Abschlussprüfung', 40);
+        INSERT INTO pruefungsarten (kurz, name, muendlich, reihenfolge) VALUES ('PR', 'Präsentation', 1, 50);
+        INSERT INTO pruefungsarten (kurz, name, muendlich, reihenfolge) VALUES ('REF', 'Referat', 1, 60);
+        INSERT INTO pruefungsarten (kurz, name, reihenfolge) VALUES ('VA', 'Vergleichsarbeit', 70);
+        """),
+
+        // 20: Zeitabhängige Klassenzugehörigkeit (Klassenwechsel ab Datum), Schülergruppen je Unterricht (Standardgruppe mit Abweichungen,
+        //    befristete Gast-Schülergruppen) mit Mitgliedern von/bis, Teile je Übertragung („Über UntPlan“) – nur Standard-SQL
+        Nr(20, """
+        CREATE TABLE klassenwechsel (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, schueler_id INTEGER NOT NULL, klasse VARCHAR(50) NOT NULL, klasse_vorher VARCHAR(50) NOT NULL DEFAULT '',
+            von VARCHAR(10) NOT NULL, erstellt VARCHAR(30) NOT NULL DEFAULT '', benutzer_id INTEGER, UNIQUE (schueler_id, von)
+        );
+        CREATE TABLE schuelergruppen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, unterricht INTEGER NOT NULL, name VARCHAR(100) NOT NULL DEFAULT '', art VARCHAR(20) NOT NULL DEFAULT 'standard',
+            von VARCHAR(10) NOT NULL DEFAULT '', bis VARCHAR(10) NOT NULL DEFAULT '', erstellt VARCHAR(30) NOT NULL DEFAULT '', benutzer_id INTEGER
+        );
+        CREATE INDEX ix_schuelergruppen_unterricht ON schuelergruppen (unterricht);
+        CREATE TABLE schuelergruppe_mitglieder (
+            gruppe_id INTEGER NOT NULL REFERENCES schuelergruppen(id) ON DELETE CASCADE, schueler_id INTEGER NOT NULL,
+            von VARCHAR(10) NOT NULL DEFAULT '', bis VARCHAR(10) NOT NULL DEFAULT '', ausgeschlossen INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (gruppe_id, schueler_id)
+        );
+        ALTER TABLE paket_verlauf ADD COLUMN teile VARCHAR(200) NOT NULL DEFAULT '';
+        """),
+
+        // 21: Mitteilungen – „Antwort nicht erlaubt“ (Absender lässt keine Antwort zu) – nur Standard-SQL
+        Nr(21, """
+        ALTER TABLE mitteilungen ADD COLUMN keine_antwort INTEGER NOT NULL DEFAULT 0;
+        """),
     };
 
 
@@ -598,12 +695,12 @@ public sealed class Db
             return;
         }
         Ausfuehren(c, "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);");
-        var stand = Convert.ToInt32(Wert(c, "SELECT COALESCE(MAX(version), 0) FROM schema_version"));
-        for (var i = stand; i < Migrationen.Length; i++)
+        var stand = Ausgefuehrt(c);
+        foreach (var (nummer, skript) in Nummeriert.Where(m => !stand.Contains(m.Nummer)))
         {
             using var t = c.BeginTransaction();
-            Ausfuehren(c, Migrationen[i]);
-            Ausfuehren(c, "INSERT INTO schema_version (version) VALUES (@v)", P("@v", i + 1));
+            Ausfuehren(c, skript);
+            Ausfuehren(c, "INSERT INTO schema_version (version) VALUES (@v)", P("@v", nummer));
             t.Commit();
         }
     }
@@ -615,11 +712,11 @@ public sealed class Db
     private static void MigrierenMySql(DbConnection c)
     {
         Ausfuehren(c, $"CREATE TABLE IF NOT EXISTS schema_version (version BIGINT NOT NULL) {MySqlDialekt.Tabellenoptionen}");
-        var stand = Convert.ToInt32(Wert(c, "SELECT COALESCE(MAX(version), 0) FROM schema_version"));
+        var stand = Ausgefuehrt(c);
         var dialekt = (MySqlDialekt)Dialekt.MySql;
-        for (var i = stand; i < Migrationen.Length; i++)
+        foreach (var (nummer, skript) in Nummeriert.Where(m => !stand.Contains(m.Nummer)))
         {
-            var befehle = dialekt.MigrationUebersetzen(Migrationen[i],
+            var befehle = dialekt.MigrationUebersetzen(skript,
                 (tabelle, spalte) => Wert(c, "SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @t AND COLUMN_NAME = @s",
                     P("@t", tabelle), P("@s", spalte)) as string,
                 index => Wert(c, "SELECT TABLE_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME = @i LIMIT 1", P("@i", index)) as string);
@@ -628,14 +725,17 @@ public sealed class Db
                 using var cmd = c.CreateCommand();
                 cmd.CommandText = b;
                 try { cmd.ExecuteNonQuery(); }
-                catch (MySqlException ex) { throw new InvalidOperationException($"Migration {i + 1} fehlgeschlagen ({ex.Message}): {b}", ex); }
+                catch (MySqlException ex) { throw new InvalidOperationException($"Migration {nummer} fehlgeschlagen ({ex.Message}): {b}", ex); }
             }
-            Ausfuehren(c, "INSERT INTO schema_version (version) VALUES (@v)", P("@v", i + 1));
+            Ausfuehren(c, "INSERT INTO schema_version (version) VALUES (@v)", P("@v", nummer));
         }
     }
 
-    /// <summary>Für Tests und die Dokumentation: die Migrationen im SQLite-Dialekt.</summary>
-    public static IReadOnlyList<string> MigrationsSkripte => Migrationen;
+    /// <summary>Für Tests und die Dokumentation: die Migrationen im SQLite-Dialekt, aufsteigend nach Nummer (Index i = Nummer i + 1, solange lückenlos).</summary>
+    public static IReadOnlyList<string> MigrationsSkripte => Nummeriert.Select(m => m.Skript).ToArray();
+
+    /// <summary>Für Tests: die Migrationsnummern aufsteigend.</summary>
+    public static IReadOnlyList<int> Migrationsnummern => Nummeriert.Select(m => m.Nummer).ToArray();
 }
 
 public static class LeserErweiterungen

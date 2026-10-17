@@ -2927,20 +2927,28 @@ function tile(c){
    ===================================================================== */
 const MSG_URL = 'api/messages';
 const MSG_FACH = { in:'inbox', out:'sent', draft:'drafts' };
+const MSG_FACH_NAME = { in:'Posteingang', out:'Gesendet', draft:'Entwürfe' };
+const MSG_TYP_NAME = { kollegium:'Kolleg*innen', individuell:'Individuell' };
 
 let msgBox = 'in';
 let msgSuche = '';
 let msgOffen = null;          /* gerade gelesene Mitteilung */
 let msgEntwurf = 0;           /* Entwurf, der bearbeitet wird */
-let msgEmpfaenger = [];       /* gewählte Empfänger */
+let msgEmpfaenger = [];       /* gewählte Empfänger {token, label, initials} */
 let msgAnhaenge = [];         /* Dateien, die mitgehen */
 let msgSucheTimer = 0;
+let msgTyp = 'kollegium';     /* Kolleg*innen oder Individuell */
+let msgAntwortAuf = 0;        /* Antwort auf diese Mitteilung */
+let msgOpt = { receipt:false, noReply:false };
+let msgMax = { files:5, mb:7 };
 
-/* Kürzel aus dem Namen: „Scheibel Florian-Fynn" wird zu „SF". */
+/* Kürzel aus dem Namen: „Scheibel Florian-Fynn" wird zu „SF", ein
+   Kürzel wie „NEU" zu „N" (wie in der iOS-App). */
 function initialen(name){
   const t = String(name || '').replace(/[^\p{L}\s-]/gu, ' ').trim().split(/[\s-]+/).filter(Boolean);
   if (!t.length) return '?';
-  return (t[0][0] + (t[1] ? t[1][0] : '')).toUpperCase();
+  if (t.length === 1) return t[0][0].toUpperCase();
+  return (t[0][0] + t[1][0]).toUpperCase();
 }
 
 async function msgFetch(action, extra, post){
@@ -2956,13 +2964,13 @@ async function msgFetch(action, extra, post){
   return d;
 }
 
-/* Datum in der Liste: Tag und Monat, wie im Vorbild. */
+/* Datum in der Liste: Tag und Monat; im Detail „19.01.26 | 07:24". */
 function msgDatum(iso, lang){
   const d = new Date(String(iso || '').replace(' ', 'T'));
   if (isNaN(d)) return '';
   if (lang)
     return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.'
-         + String(d.getFullYear()).slice(-2) + '  |  '
+         + String(d.getFullYear()).slice(-2) + '<i class="msgread__trenn">|</i>'
          + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
   return d.getDate() + '. ' + MONTHS_SHORT[d.getMonth()];
 }
@@ -2977,25 +2985,32 @@ function msgText(roh){
     .replace(/\n/g, '<br>');
 }
 
+const MSG_CLIP = '<svg viewBox="0 0 24 24" class="ico msgrow__clip" aria-label="Anhang"><path d="M20 11.5 12 19.4a4.6 4.6 0 0 1-6.5-6.5l8.4-8.3a3 3 0 1 1 4.3 4.3l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1l7.6-7.6"/></svg>';
+const MSG_PDF = '<svg viewBox="0 0 24 24" class="ico msgfile__ico" aria-hidden="true"><rect x="4.6" y="3.4" width="14.8" height="17.2" rx="2"/><path d="M8.4 16.6c2.2-1.2 4.6-4.4 3.8-6.6-.5-1.4-2-.4-1.3 1.9.8 2.6 3.3 4.4 4.8 4.3 1.3-.1.7-1.6-1.4-1.4-2.4.2-4.6 1.4-5.9 1.8"/></svg>';
+const MSG_DATEI = '<svg viewBox="0 0 24 24" class="ico msgfile__ico" aria-hidden="true"><path d="M7 3.4h6.8l4.6 4.6v11a1.6 1.6 0 0 1-1.6 1.6H7a1.6 1.6 0 0 1-1.6-1.6V5A1.6 1.6 0 0 1 7 3.4z"/><path d="M13.6 3.6V8.2h4.6"/></svg>';
+
 /* ------------------------------------------------------------------
-   Liste
+   Liste — Posteingang wie in der iOS-App: Avatar mit Initiale, Absender,
+   Betreff, Vorschau, Büroklammer bei Anhängen
    ------------------------------------------------------------------ */
 function msgZeile(m){
   /* Im Posteingang zählt, wer geschrieben hat; in Gesendet und Entwürfen,
      an wen es geht. */
   const wer = msgBox === 'in'
     ? (m.sender || '?')
-    : ((m.recipients || []).map(r => r.label).join(', ') || 'Ohne Empfänger');
+    : (m.recipientsText || (m.recipients || []).map(r => r.label).join(', ') || 'Ohne Empfänger');
   const vorschau = String(m.body || '').replace(/\s+/g, ' ').trim();
   return `<button class="msgrow ${m.read === false ? 'is-unread' : ''}" data-msg="${m.id}">
-      <span class="msgrow__ava">${esc(initialen(wer))}</span>
+      <span class="msgrow__ava">${esc(msgBox === 'in' && m.initials ? m.initials : initialen(wer))}</span>
       <span class="msgrow__main">
         <b>${esc(wer)}</b>
         <span>${esc(m.subject || 'Ohne Betreff')}</span>
-        <em>${esc(vorschau.slice(0, 120))}</em>
+        <em>${esc(vorschau.slice(0, 160))}</em>
       </span>
-      <span class="msgrow__date">${esc(msgDatum(m.sentAt || m.updatedAt))}${
-        m.attachmentCount ? ' <span class="msgrow__clip">📎</span>' : ''}</span>
+      <span class="msgrow__side">
+        <span class="msgrow__date">${esc(msgDatum(m.sentAt || m.updatedAt))}</span>
+        ${m.attachmentCount ? MSG_CLIP : ''}
+      </span>
     </button>`;
 }
 
@@ -3009,10 +3024,7 @@ function msgLeer(){
   const [t1, t2] = MSG_LEER[msgBox];
   return `<div class="msgempty">
       <span class="msgempty__ico">
-        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.4" rx="7.2" ry="2.8"/>
-          <path d="M4.8 6.4v5.4c0 1.5 3.2 2.8 7.2 2.8"/>
-          <path d="M19.2 6.4v4.2"/><circle cx="16.6" cy="16.4" r="4.2"/>
-          <path d="M16.6 18.4v.1M15.4 15.1a1.3 1.3 0 0 1 2.4.6c0 .9-1.2 1-1.2 1.8"/></svg>
+        <svg viewBox="0 0 24 24"><rect x="3.6" y="5.6" width="16.8" height="12.8" rx="2"/><path d="m4.4 6.6 7.6 6 7.6-6"/></svg>
       </span>
       <b>${t1}</b><span>${t2}</span>
     </div>`;
@@ -3020,6 +3032,9 @@ function msgLeer(){
 
 async function renderMessages(){
   msgLesenSchliessen();
+  msgPopsZu();
+  $('#msgBoxBtn').textContent = MSG_FACH_NAME[msgBox];
+  $$('#msgBoxPop [data-box]').forEach(b => b.classList.toggle('is-on', b.dataset.box === msgBox));
   const ziel = $('#msgList');
   let d;
   try {
@@ -3041,23 +3056,39 @@ async function msgPunktHolen(){
   try { msgPunkt((await msgFetch('list', { box:'inbox' })).items); } catch (e) {}
 }
 
+/* Popover (Verfassen, Ordner) schließen. */
+function msgPopsZu(){
+  $('#msgNewPop').hidden = true;
+  $('#msgBoxPop').hidden = true;
+}
+
 /* ------------------------------------------------------------------
-   Lesen — füllt die Seite, mit Absender links und Datum rechts
+   Lesen — füllt die Seite: Zurück oben links, „Von NEU" und Datum,
+   Betreff, Text, Anhänge als Pille; unten rechts Antworten und Löschen
    ------------------------------------------------------------------ */
 function msgLesenSchliessen(){
   $('#msgRead').hidden = true;
+  $('#msgReadActs').hidden = true;
   $('#msgList').hidden = false;
   $('#msgTabs').hidden = false;
   $('#msgBack').hidden = true;
   $('#msgSearch').hidden = false;
   $('#msgNew').hidden = false;
+  document.body.classList.remove('is-msgread');
   /* Beim Lesen nimmt der Pfeil zurück den Platz des Kontoknopfes ein —
      zwei Knöpfe nebeneinander wären dort zu eng. */
   $('#btnSwitchEntity').hidden = false;
   msgOffen = null;
 }
 
+function msgAnhangPille(a){
+  const pdf = /pdf/i.test(a.type || '') || /\.pdf$/i.test(a.name || '');
+  return `<a class="msgfile" href="${MSG_URL}?action=attachment&id=${a.id}" download="${esc(a.name || 'Anhang')}">
+       ${pdf ? MSG_PDF : MSG_DATEI}<span>${esc(a.name || 'Anhang')}</span></a>`;
+}
+
 async function msgOeffnen(id){
+  msgPopsZu();
   let d;
   try { d = await msgFetch('detail', { id }); }
   catch (e) { toast('Mitteilung nicht gefunden.'); return; }
@@ -3067,132 +3098,104 @@ async function msgOeffnen(id){
   if (m.status === 'draft'){ msgSchreiben(m); return; }
 
   msgOffen = m;
-  const anhang = (m.attachments || []).map(a =>
-    `<a class="msgread__file" href="${MSG_URL}?action=attachment&id=${a.id}" download>
-       <svg viewBox="0 0 24 24" class="ico"><path d="M20 11.5 12 19.4a4.6 4.6 0 0 1-6.5-6.5l8.4-8.3a3 3 0 1 1 4.3 4.3l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1l7.6-7.6"/></svg>
-       <span>${esc(a.name)}</span><em>${Math.max(1, Math.round(a.size / 1024))} kB</em></a>`).join('');
-
+  const eingang = m.box ? m.box === 'posteingang' : msgBox === 'in';
+  const wer = eingang ? `Von<b>${esc(m.sender || '')}</b>`
+                      : `An<b>${esc(m.recipientsText || (m.recipients || []).map(r => r.label).join(', '))}</b>`;
   $('#msgRead').innerHTML = `
     <div class="msgread__head">
-      <span class="msgread__from">Von&nbsp; <b>${esc(m.sender || '')}</b></span>
-      <span class="msgread__date">${esc(msgDatum(m.sentAt, true))}</span>
+      <span class="msgread__from">${wer}</span>
+      <span class="msgread__date">${msgDatum(m.sentAt, true)}</span>
     </div>
     <h2 class="msgread__subject">${esc(m.subject || 'Ohne Betreff')}</h2>
     <div class="msgread__body">${msgText(m.body)}</div>
-    ${(m.recipients || []).length ? `<p class="msgread__to">An: ${
-        esc(m.recipients.map(r => r.label).join(', '))}</p>` : ''}
-    ${anhang}
-    <div class="msgread__acts">
-      <button class="lstbtn" id="msgReply">Antworten</button>
-      <button class="lstbtn" id="msgDelete">Löschen</button>
-    </div>`;
+    ${(m.attachments || []).length ? `<div class="msgread__files">${m.attachments.map(msgAnhangPille).join('')}</div>` : ''}`;
 
   $('#msgList').hidden = true;
   $('#msgTabs').hidden = true;
+  $('#msgFind').hidden = true;
   $('#msgRead').hidden = false;
+  $('#msgRead').scrollTop = 0;
+  $('#msgReadActs').hidden = false;
+  /* Antworten nur, wenn der Absender es erlaubt (und im Posteingang). */
+  $('#msgReply').hidden = !(eingang && m.canReply !== false && m.replyAllowed !== false);
   $('#msgBack').hidden = false;
   $('#msgSearch').hidden = true;
   $('#msgNew').hidden = true;
   $('#btnSwitchEntity').hidden = true;
-  $('#msgReply').addEventListener('click', msgAntworten);
-  $('#msgDelete').addEventListener('click', msgLoeschen);
+  document.body.classList.add('is-msgread');
   msgPunktHolen();
 }
 
 /* ------------------------------------------------------------------
-   Schreiben
+   Schreiben — Editor wie in der iOS-App
    ------------------------------------------------------------------ */
 function msgEmpfaengerZeigen(){
-  $('#msgTo').textContent = msgEmpfaenger.length
-    ? msgEmpfaenger.map(e => e.label).join(', ') : '';
-  $('#msgChosen').innerHTML = msgEmpfaenger.map((e, i) =>
-    `<span class="msgchip">${esc(e.label)}<button data-weg="${i}" aria-label="Entfernen">×</button></span>`).join('');
-  $$('#msgChosen [data-weg]').forEach(b => b.addEventListener('click', () => {
-    msgEmpfaenger.splice(+b.dataset.weg, 1);
-    msgEmpfaengerZeigen();
-  }));
-  /* Die Überschrift nennt, an wen es geht — wie im Vorbild. */
-  const art = new Set(msgEmpfaenger.map(e => e.kind));
-  $('#msgWriteTitle').textContent =
-    !msgEmpfaenger.length ? 'Neue Mitteilung'
-    : art.size > 1        ? 'Mitteilung an mehrere'
-    : art.has('teacher')  ? 'Mitteilung an Lehrkraft'
-    : art.has('student')  ? 'Mitteilung an Schüler*in'
-    : 'Neue Mitteilung';
+  const max = 3;
+  const pillen = msgEmpfaenger.slice(0, max).map(e => `<span class="msgpill">${esc(e.label)}</span>`).join('');
+  const mehr = msgEmpfaenger.length > max ? `<span class="msgpill msgpill--mehr">+${msgEmpfaenger.length - max}</span>` : '';
+  $('#msgTo').innerHTML = pillen + mehr;
+  $('#msgWriteTitle').textContent = 'Mitteilung an ' + (MSG_TYP_NAME[msgTyp] || 'Kolleg*innen');
 }
 
 function msgDateienZeigen(){
   $('#msgFiles').innerHTML = msgAnhaenge.map((f, i) =>
-    `<span class="msgchip">${esc(f.name)}<button data-datei="${i}" aria-label="Entfernen">×</button></span>`).join('');
+    `<span class="msgchip">${esc(f.name)}<button type="button" data-datei="${i}" aria-label="Entfernen">×</button></span>`).join('');
   $$('#msgFiles [data-datei]').forEach(b => b.addEventListener('click', () => {
     msgAnhaenge.splice(+b.dataset.datei, 1);
     msgDateienZeigen();
   }));
 }
 
-function msgPane(an){
-  $('#msgPaneWrite').hidden = an;
-  $('#msgPaneTo').hidden    = !an;
-  $('#msgSend').hidden      = an;
+function msgOptZeigen(){
+  $('#msgOptReceipt').setAttribute('aria-pressed', String(msgOpt.receipt));
+  $('#msgOptNoReply').setAttribute('aria-pressed', String(msgOpt.noReply));
+  $('#msgOptReceipt').classList.toggle('is-on', msgOpt.receipt);
+  $('#msgOptNoReply').classList.toggle('is-on', msgOpt.noReply);
 }
 
-function msgSchreiben(entwurf){
+function msgSchreiben(entwurf, typ){
   msgEntwurf    = entwurf && entwurf.status === 'draft' ? entwurf.id : 0;
-  msgEmpfaenger = entwurf ? (entwurf.recipients || []).map(r =>
-      ({ token:r.token, label:r.label, kind:r.kind })) : [];
+  msgTyp        = typ || (entwurf ? 'individuell' : 'kollegium');
+  msgAntwortAuf = entwurf && entwurf.replyTo ? entwurf.replyTo : 0;
+  msgEmpfaenger = entwurf ? (entwurf.recipients || []).filter(r => r.token).map(r =>
+      ({ token:r.token, label:r.label, initials:initialen(r.label) })) : [];
   msgAnhaenge = [];
+  msgOpt = { receipt: !!(entwurf && entwurf.readReceipt), noReply: !!(entwurf && entwurf.replyAllowed === false) };
   $('#msgSubject').value  = entwurf ? (entwurf.subject || '') : '';
   $('#msgBody').value     = entwurf ? (entwurf.body || '') : '';
-  $('#msgRecQuery').value = '';
-  $('#msgRecHits').innerHTML = '';
   msgEmpfaengerZeigen();
   msgDateienZeigen();
-  msgPane(false);
+  msgOptZeigen();
   SH.write.open();
 }
 
-/* Antworten: Absender als Empfänger, „Re:" vor den Betreff. */
-function msgAntworten(){
-  const m = msgOffen;
-  if (!m) return;
-  msgSchreiben(null);
-  if (m.senderToken)
-    msgEmpfaenger = [{ token:m.senderToken, label:m.sender || m.senderToken, kind:'teacher' }];
-  $('#msgSubject').value = /^re:/i.test(m.subject || '') ? m.subject : 'Re: ' + (m.subject || '');
-  msgEmpfaengerZeigen();
+/* Verfassen: erst wählen, an wen (Kolleg*innen / Individuell), dann
+   öffnet sich der Editor mit der Empfängerauswahl darüber. */
+function msgNeu(typ){
+  msgPopsZu();
+  toDaten = null;               /* frisch laden (Konto kann gewechselt haben) */
+  msgSchreiben(null, typ);
+  msgToOeffnen();
 }
 
-async function msgEmpfaengerSuchen(){
-  const q = $('#msgRecQuery').value.trim();
-  const kasten = $('#msgRecHits');
-  if (q.length < 2){ kasten.innerHTML = '<p class="write__hint">Mindestens zwei Zeichen eingeben</p>'; return; }
-  let d;
-  try { d = await msgFetch('recipients', { q }); } catch (e) { return; }
-  const gewaehlt = new Set(msgEmpfaenger.map(e => e.token));
-  const treffer = [...(d.lists || []).filter(l => l.name.toLowerCase().includes(q.toLowerCase()))
-                     .map(l => ({ token:'list:' + l.id, label:l.name, detail:l.count + ' Personen', kind:'list', id:l.id })),
-                   ...d.items.filter(x => !gewaehlt.has(x.token))].slice(0, 60);
-  kasten.innerHTML = treffer.length
-    ? treffer.map((x, i) => `<button class="msghit" data-i="${i}">
-         <span class="msghit__ava">${esc(initialen(x.label))}</span>
-         <span><b>${esc(x.label)}</b><span>${esc(x.detail || '')}</span></span></button>`).join('')
-    : '<p class="write__hint">Nichts gefunden</p>';
-  $$('#msgRecHits [data-i]').forEach(b => b.addEventListener('click', async () => {
-    const x = treffer[+b.dataset.i];
-    if (x.kind === 'list'){
-      /* Eine Liste wird in ihre Mitglieder aufgelöst — verschickt wird an
-         Personen, nicht an einen Namen. */
-      try {
-        const l = await msgFetch('list_members', { id:x.id });
-        l.items.forEach(m => { if (!msgEmpfaenger.some(e => e.token === m.token)) msgEmpfaenger.push(m); });
-      } catch (e) { toast('Liste konnte nicht geladen werden.'); }
-    } else if (!msgEmpfaenger.some(e => e.token === x.token)) {
-      msgEmpfaenger.push({ token:x.token, label:x.label, kind:x.kind });
-    }
-    $('#msgRecQuery').value = '';
-    $('#msgRecHits').innerHTML = '';
-    msgEmpfaengerZeigen();
-  }));
+/* Antworten: Vorschlag des Servers (Empfänger, „AW: …", zitierter Text). */
+async function msgAntworten(){
+  const m = msgOffen;
+  if (!m) return;
+  let v = null;
+  try { v = await msgFetch('reply', { id:m.id }); }
+  catch (e) {
+    if (/keine Antwort/i.test(e.message)) { toast(e.message); return; }
+  }
+  msgSchreiben(null, 'individuell');
+  msgAntwortAuf = (v && v.replyTo) || m.id;
+  msgEmpfaenger = v && v.recipients && v.recipients.length
+    ? v.recipients.map(r => ({ token:r.token, label:r.label, initials:initialen(r.label) }))
+    : (m.senderToken ? [{ token:m.senderToken, label:m.sender || m.senderToken, initials:initialen(m.sender) }] : []);
+  $('#msgSubject').value = v && v.subject ? v.subject
+    : (/^(re|aw):/i.test(m.subject || '') ? m.subject : 'AW: ' + (m.subject || ''));
+  if (v && v.body) $('#msgBody').value = v.body;
+  msgEmpfaengerZeigen();
 }
 
 async function msgAbschicken(senden){
@@ -3201,7 +3204,12 @@ async function msgAbschicken(senden){
   daten.set('body',    $('#msgBody').value);
   daten.set('recipients', JSON.stringify(msgEmpfaenger.map(e => e.token)));
   daten.set('draft_id', String(msgEntwurf || 0));
-  msgAnhaenge.forEach(f => daten.append('attachments[]', f));
+  daten.set('read_receipt', msgOpt.receipt ? '1' : '0');
+  daten.set('no_reply', msgOpt.noReply ? '1' : '0');
+  if (msgAntwortAuf) daten.set('reply_to', String(msgAntwortAuf));
+  msgAnhaenge.forEach(f => daten.append('attachments[]', f, f.name));
+  const knopf = $('#msgSend');
+  knopf.disabled = true;
   try {
     await msgFetch(senden ? 'send' : 'save_draft', {}, daten);
     SH.write.close();
@@ -3211,7 +3219,9 @@ async function msgAbschicken(senden){
   } catch (e) {
     const text = { recipient_required:'Bitte Empfänger wählen.',
                    subject_required:'Bitte einen Betreff angeben.' }[e.message];
-    toast(text || 'Nicht gesendet.');
+    toast(text || (e.message && e.message !== 'Fehler' ? e.message : 'Nicht gesendet.'));
+  } finally {
+    knopf.disabled = false;
   }
 }
 
@@ -3224,14 +3234,202 @@ async function msgLoeschen(){
   } catch (e) { toast('Nicht gelöscht.'); }
 }
 
-$$('#msgTabs button').forEach(b => b.addEventListener('click', () => {
+function msgDateienDazu(liste){
+  const neu = [...liste];
+  const zuGross = neu.filter(f => f.size > msgMax.mb * 1024 * 1024);
+  if (zuGross.length) toast(`Ein Anhang darf höchstens ${msgMax.mb} MB groß sein.`);
+  const passend = neu.filter(f => f.size <= msgMax.mb * 1024 * 1024);
+  if (msgAnhaenge.length + passend.length > msgMax.files) toast(`Höchstens ${msgMax.files} Anhänge.`);
+  msgAnhaenge = msgAnhaenge.concat(passend.slice(0, Math.max(0, msgMax.files - msgAnhaenge.length)));
+  msgDateienZeigen();
+}
+
+/* ------------------------------------------------------------------
+   Empfänger wählen — Blatt wie in der iOS-App: Filter-Pillen
+   (Ausgewählt, Liste, Klasse, Abteilung), „Alle auswählen", Zeilen mit
+   Auswahlkreis, Avatar, Kürzel und Rollen; Suchfeld schwebt unten.
+   ------------------------------------------------------------------ */
+/* TO-BEGINN – Filter der Empfängerauswahl (in sich geschlossen; die Tests
+   führen diesen Abschnitt mit Node aus). */
+function toFiltern(personen, f, gewaehlt){
+  const q = String(f.q || '').trim().toLowerCase();
+  const liste = f.liste ? new Set(f.liste.members || []) : null;
+  return personen.filter(p => {
+    if (f.ausgewaehlt && !gewaehlt.has(p.token)) return false;
+    if (liste && !liste.has(p.token)) return false;
+    if (f.klasse && !(p.classes || []).includes(f.klasse)) return false;
+    if (f.abteilung && !(p.departments || []).includes(f.abteilung)) return false;
+    if (q){
+      const text = [p.label, p.fullName, p.short, ...(p.roles || []).map(r => r.text), ...(p.classes || [])]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!text.includes(q)) return false;
+    }
+    return true;
+  });
+}
+if (typeof window !== 'undefined') window.UntPlanEmpfaenger = { filtern: toFiltern };
+/* TO-ENDE */
+
+let toDaten = null;           /* Antwort von action=people */
+let toTypGeladen = '';
+let toWahl = new Map();       /* token → {token, label, initials} */
+let toFilter = { ausgewaehlt:false, liste:null, klasse:'', abteilung:'', q:'' };
+let toErstes = false;         /* erstes Öffnen direkt nach „Verfassen" */
+
+function toAlle(){
+  if (!toDaten) return [];
+  return [...(toDaten.items || []), ...(toDaten.groups || [])];
+}
+
+async function msgToOeffnen(){
+  toErstes = !msgEmpfaenger.length;
+  toWahl = new Map(msgEmpfaenger.map(e => [e.token, e]));
+  toFilter = { ausgewaehlt:false, liste:null, klasse:'', abteilung:'', q:'' };
+  $('#toQuery').value = '';
+  $('#toSub').textContent = MSG_TYP_NAME[msgTyp] || 'Kolleg*innen';
+  $('#toPop').hidden = true;
+  SH.to.open();
+  if (!toDaten || toTypGeladen !== msgTyp){
+    toDaten = null;
+    $('#toList').innerHTML = '<p class="to__hint">Wird geladen …</p>';
+    $('#toFilter').innerHTML = '';
+    try {
+      toDaten = await msgFetch('people', { type: msgTyp });
+      toTypGeladen = msgTyp;
+    } catch (e) {
+      $('#toList').innerHTML = '<p class="to__hint">Die Empfänger ließen sich nicht laden.</p>';
+      return;
+    }
+  }
+  toZeigen();
+}
+
+const TO_CHEV = '<svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>';
+const TO_HAKEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 12.5 3.8 3.8L17.5 9"/></svg>';
+
+function toZeigen(){
+  if (!toDaten) return;
+  const f = toFilter;
+  const pill = (key, text, an, menue) =>
+    `<button type="button" class="to__pill ${an ? 'is-on' : ''}" data-f="${key}" aria-pressed="${an}">${esc(text)}${menue ? TO_CHEV : ''}</button>`;
+  let html = pill('ausgewaehlt', 'Ausgewählt', f.ausgewaehlt, false);
+  if ((toDaten.lists || []).length) html += pill('liste', f.liste ? f.liste.name : 'Liste', !!f.liste, true);
+  if ((toDaten.classes || []).length) html += pill('klasse', f.klasse || 'Klasse', !!f.klasse, true);
+  if ((toDaten.departments || []).length) html += pill('abteilung', f.abteilung || 'Abteilung', !!f.abteilung, true);
+  $('#toFilter').innerHTML = html;
+
+  const sichtbar = toFiltern(toAlle(), f, new Set(toWahl.keys()));
+  const alleAn = sichtbar.length > 0 && sichtbar.every(p => toWahl.has(p.token));
+  const radio = an => `<span class="to__radio ${an ? 'is-on' : ''}">${an ? TO_HAKEN : ''}</span>`;
+  const zeile = (p, i) => {
+    const an = toWahl.has(p.token);
+    const rollen = (p.roles || []).filter(r => r.text).map(r =>
+      `<span class="to__rolle ${String(r.text).length > 34 ? 'is-lang' : ''}">${esc(r.text)}</span>`).join('');
+    return `<button type="button" class="to__row" data-i="${i}" role="checkbox" aria-checked="${an}">
+        ${radio(an)}
+        <span class="to__ava">${esc(p.initials || initialen(p.label))}</span>
+        <span class="to__main"><span class="to__name">${esc(p.label)}</span>${rollen ? `<span class="to__rollen">${rollen}</span>` : ''}</span>
+      </button>`;
+  };
+  $('#toList').innerHTML = sichtbar.length
+    ? `<button type="button" class="to__row to__row--alle" data-alle role="checkbox" aria-checked="${alleAn}">${radio(alleAn)}<span class="to__alle">Alle auswählen</span></button>`
+      + sichtbar.map(zeile).join('')
+    : '<p class="to__hint">Keine Treffer.</p>';
+  $('#toList')._sichtbar = sichtbar;
+  $('#toOk').disabled = toWahl.size === 0;
+}
+
+function toMenue(key, knopf){
+  const pop = $('#toPop');
+  if (!pop.hidden && pop.dataset.f === key){ pop.hidden = true; return; }
+  let werte = [];
+  if (key === 'liste') werte = (toDaten.lists || []).map(l => ({ v:l.token, t:l.name, an: toFilter.liste && toFilter.liste.token === l.token }));
+  if (key === 'klasse') werte = (toDaten.classes || []).map(k => ({ v:k, t:k, an: toFilter.klasse === k }));
+  if (key === 'abteilung') werte = (toDaten.departments || []).map(a => ({ v:a, t:a, an: toFilter.abteilung === a }));
+  pop.dataset.f = key;
+  pop.innerHTML = `<button type="button" data-v="" class="${werte.some(w => w.an) ? '' : 'is-on'}">Alle</button>`
+    + werte.map(w => `<button type="button" data-v="${esc(w.v)}" class="${w.an ? 'is-on' : ''}">${esc(w.t)}</button>`).join('');
+  const rb = knopf.getBoundingClientRect(), rs = $('#sheetTo').getBoundingClientRect();
+  pop.style.top = (rb.bottom - rs.top + 6) + 'px';
+  pop.style.left = Math.max(10, Math.min(rb.left - rs.left, rs.width - 230)) + 'px';
+  pop.hidden = false;
+}
+
+$('#toFilter').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]');
+  if (!b || !toDaten) return;
+  const key = b.dataset.f;
+  if (key === 'ausgewaehlt'){ toFilter.ausgewaehlt = !toFilter.ausgewaehlt; $('#toPop').hidden = true; toZeigen(); return; }
+  toMenue(key, b);
+});
+$('#toPop').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]');
+  if (!b) return;
+  const key = $('#toPop').dataset.f, v = b.dataset.v;
+  if (key === 'liste') toFilter.liste = v ? (toDaten.lists || []).find(l => l.token === v) || null : null;
+  if (key === 'klasse') toFilter.klasse = v;
+  if (key === 'abteilung') toFilter.abteilung = v;
+  $('#toPop').hidden = true;
+  toZeigen();
+});
+$('#toList').addEventListener('click', e => {
+  const b = e.target.closest('.to__row');
+  if (!b) return;
+  $('#toPop').hidden = true;
+  const sichtbar = $('#toList')._sichtbar || [];
+  if (b.hasAttribute('data-alle')){
+    const alleAn = sichtbar.every(p => toWahl.has(p.token));
+    sichtbar.forEach(p => { if (alleAn) toWahl.delete(p.token); else toWahl.set(p.token, { token:p.token, label:p.label, initials:p.initials }); });
+  } else {
+    const p = sichtbar[+b.dataset.i];
+    if (!p) return;
+    if (toWahl.has(p.token)) toWahl.delete(p.token);
+    else toWahl.set(p.token, { token:p.token, label:p.label, initials:p.initials });
+  }
+  const top = $('#toList').scrollTop;
+  toZeigen();
+  $('#toList').scrollTop = top;
+});
+$('#toQuery').addEventListener('input', () => {
+  clearTimeout(msgSucheTimer);
+  msgSucheTimer = setTimeout(() => { toFilter.q = $('#toQuery').value; toZeigen(); }, 120);
+});
+$('#toOk').addEventListener('click', () => {
+  msgEmpfaenger = [...toWahl.values()];
+  msgEmpfaengerZeigen();
+  toErstes = false;
+  SH.to.close();
+});
+$('#toClose').addEventListener('click', () => {
+  SH.to.close();
+  /* Direkt nach „Verfassen" ohne Auswahl abgebrochen: auch der Editor geht zu. */
+  if (toErstes && !msgEmpfaenger.length && !$('#msgSubject').value.trim() && !$('#msgBody').value.trim()) SH.write.close();
+  toErstes = false;
+});
+$('#sheetTo').addEventListener('click', e => {
+  const pop = $('#toPop');
+  if (!pop.hidden && !e.target.closest('#toPop') && !e.target.closest('[data-f]')) pop.hidden = true;
+});
+
+/* ------------------------------------------------------------------
+   Bedienung
+   ------------------------------------------------------------------ */
+$('#msgBoxBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  $('#msgNewPop').hidden = true;
+  const pop = $('#msgBoxPop');
+  pop.hidden = !pop.hidden;
+});
+$$('#msgBoxPop [data-box]').forEach(b => b.addEventListener('click', () => {
   msgBox = b.dataset.box;
-  $$('#msgTabs button').forEach(x => x.classList.toggle('is-active', x === b));
   renderMessages();
 }));
 
 $('#msgBack').addEventListener('click', msgLesenSchliessen);
+$('#msgReply').addEventListener('click', msgAntworten);
+$('#msgDelete').addEventListener('click', msgLoeschen);
 $('#msgSearch').addEventListener('click', () => {
+  msgPopsZu();
   const f = $('#msgFind');
   f.hidden = !f.hidden;
   if (!f.hidden) $('#msgQuery').focus();
@@ -3241,23 +3439,36 @@ $('#msgQuery').addEventListener('input', () => {
   clearTimeout(msgSucheTimer);
   msgSucheTimer = setTimeout(() => { msgSuche = $('#msgQuery').value.trim(); renderMessages(); }, 260);
 });
-$('#msgNew').addEventListener('click', () => msgSchreiben(null));
-$('#msgClose').addEventListener('click', () => {
-  if ($('#msgPaneTo').hidden) SH.write.close(); else msgPane(false);
+$('#msgNew').addEventListener('click', e => {
+  e.stopPropagation();
+  $('#msgBoxPop').hidden = true;
+  /* Schüler*innen und Erziehungsberechtigte schreiben nur den erlaubten
+     Lehrkräften — für sie gibt es keine Wahl „Kolleg*innen". */
+  if (state.isStudent){ msgNeu('individuell'); return; }
+  const pop = $('#msgNewPop');
+  pop.hidden = !pop.hidden;
 });
-$('#msgToRow').addEventListener('click', () => { msgPane(true); $('#msgRecQuery').focus(); });
-$('#msgToDone').addEventListener('click', () => msgPane(false));
+$$('#msgNewPop [data-typ]').forEach(b => b.addEventListener('click', () => msgNeu(b.dataset.typ)));
+document.addEventListener('click', e => {
+  if (!e.target.closest('#msgNewPop, #msgNew, #msgBoxPop, #msgBoxBtn')) msgPopsZu();
+});
+$('#msgClose').addEventListener('click', () => SH.write.close());
+$('#msgToRow').addEventListener('click', msgToOeffnen);
 $('#msgSend').addEventListener('click', () => msgAbschicken(true));
-$('#msgDraft').addEventListener('click', () => msgAbschicken(false));
-$('#msgRecQuery').addEventListener('input', () => {
-  clearTimeout(msgSucheTimer);
-  msgSucheTimer = setTimeout(msgEmpfaengerSuchen, 240);
+$('#msgOptReceipt').addEventListener('click', () => {
+  msgOpt.receipt = !msgOpt.receipt; msgOptZeigen();
+  toast(msgOpt.receipt ? 'Lesebestätigung wird angefordert.' : 'Ohne Lesebestätigung.');
 });
-$('#msgAttach').addEventListener('change', e => {
-  msgAnhaenge = msgAnhaenge.concat([...e.target.files].slice(0, 5 - msgAnhaenge.length));
+$('#msgOptNoReply').addEventListener('click', () => {
+  msgOpt.noReply = !msgOpt.noReply; msgOptZeigen();
+  toast(msgOpt.noReply ? 'Antwort nicht erlaubt.' : 'Antwort erlaubt.');
+});
+['#msgAttach', '#msgPhoto', '#msgCamera'].forEach(sel => $(sel).addEventListener('change', e => {
+  msgDateienDazu(e.target.files);
   e.target.value = '';
-  msgDateienZeigen();
-});
+}));
+/* Grenzen für Anhänge vom Server (still, mit Vorgaben als Rückhalt). */
+msgFetch('options').then(o => { msgMax = { files: o.maxAttachments || 5, mb: o.maxAttachmentMb || 7 }; }).catch(() => {});
 
 $('#btnAbout').addEventListener('click', () =>
   toast('UntPlanMobile · Fassung ' + BUILD));
@@ -4069,6 +4280,7 @@ const SH = {
   week:   bindSheet('#sheetWeek',   '#scrimWeek'),
   legend: bindSheet('#sheetLegend', '#scrimLegend'),
   write:  bindSheet('#sheetWrite',  '#scrimWrite'),
+  to:     bindSheet('#sheetTo',     '#scrimTo'),
   info:   bindSheet('#sheetInfo',   '#scrimInfo')
 };
 $('#infoClose').addEventListener('click', () => SH.info.close());
@@ -4115,6 +4327,102 @@ function pickerOpen(type){
   renderPicker();
 }
 
+/* REGISTER-BEGINN – Alphabet-Register der Planauswahl (in sich
+   geschlossen; die Tests führen diesen Abschnitt mit Node aus). */
+const PK_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+/* Buchstabe fürs Register: Umlaute zum Grundbuchstaben, Ziffern und
+   Zeichen unter „#“. */
+function pkBuchstabe(label){
+  const z = String(label || '').trim().charAt(0).toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return /[A-Z]/.test(z) ? z : '#';
+}
+/* Ziel eines Registerbuchstabens: der Buchstabe selbst oder der nächste
+   vorhandene danach (am Ende der letzte davor). */
+function pkZiel(l, vorhanden){
+  if (!vorhanden || !vorhanden.length) return null;
+  const i = PK_ALPHABET.indexOf(l);
+  if (i < 0) return vorhanden[0];
+  for (let k = i; k < PK_ALPHABET.length; k++) if (vorhanden.includes(PK_ALPHABET[k])) return PK_ALPHABET[k];
+  for (let k = i - 1; k >= 0; k--) if (vorhanden.includes(PK_ALPHABET[k])) return PK_ALPHABET[k];
+  return vorhanden[0];
+}
+window.UntPlanRegister = { alphabet: PK_ALPHABET, buchstabe: pkBuchstabe, ziel: pkZiel };
+/* REGISTER-ENDE */
+
+let pkLetzter = null;
+function pkSpringen(l, vorhanden){
+  const ziel = pkZiel(l, vorhanden);
+  if (!ziel || ziel === pkLetzter) return;
+  pkLetzter = ziel;
+  const t = document.getElementById('pk-l-' + ziel);
+  const body = $('#pickerBody');
+  if (!t || !body) return;
+  /* Der Buchstabenkopf klebt oben (sticky) und meldet dann nicht seine
+     eigentliche Lage — gemessen wird deshalb an der ersten Zeile darunter. */
+  const kopf = t.classList.contains('picker-letter');
+  const zeile = kopf ? (t.nextElementSibling || t) : t;
+  const delta = zeile.getBoundingClientRect().top - body.getBoundingClientRect().top - (kopf ? t.offsetHeight : 0);
+  body.scrollTop = Math.max(0, body.scrollTop + delta - 2);
+  if (navigator.vibrate) try { navigator.vibrate(4); } catch (e) {}
+}
+
+function pkRegister(vorhanden, zeigen){
+  const idx = $('#pickerIndex');
+  if (!zeigen){ idx.hidden = true; idx.innerHTML = ''; return; }
+  const zeichen = PK_ALPHABET.filter(l => l !== '#' || vorhanden.includes('#'));
+  idx.hidden = false;
+  idx.setAttribute('role', 'navigation');
+  idx.setAttribute('aria-label', 'Alphabet-Register');
+  idx.innerHTML = zeichen.map(l =>
+    `<button type="button" data-l="${l}" class="${vorhanden.includes(l) ? '' : 'is-leer'}" aria-label="Zu ${l === '#' ? 'Ziffern' : l}">${l}</button>`).join('');
+  idx._vorhanden = vorhanden;
+}
+
+/* Tippen und Ziehen über das Register — einmal gebunden, liest die
+   aktuell vorhandenen Buchstaben jeweils neu. */
+(function pkRegisterBinden(){
+  const idx = $('#pickerIndex');
+  if (!idx) return;
+  const unter = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const b = el && el.closest ? el.closest('#pickerIndex button') : null;
+    if (b) return b.dataset.l;
+    /* Neben die Buchstaben gezogen: nach der Höhe zuordnen. */
+    const btns = $$('#pickerIndex button');
+    if (!btns.length) return null;
+    const r0 = btns[0].getBoundingClientRect(), r1 = btns[btns.length - 1].getBoundingClientRect();
+    if (y <= r0.top) return btns[0].dataset.l;
+    if (y >= r1.bottom) return btns[btns.length - 1].dataset.l;
+    return null;
+  };
+  let aktiv = false;
+  const los = (x, y) => {
+    const l = unter(x, y);
+    if (!l) return;
+    idx.classList.add('is-ziehen');
+    $$('#pickerIndex button').forEach(b => b.classList.toggle('is-on', b.dataset.l === l));
+    pkSpringen(l, idx._vorhanden || []);
+  };
+  const ende = () => {
+    aktiv = false; pkLetzter = null;
+    idx.classList.remove('is-ziehen');
+    $$('#pickerIndex button.is-on').forEach(b => b.classList.remove('is-on'));
+  };
+  idx.addEventListener('pointerdown', e => {
+    aktiv = true; pkLetzter = null;
+    try { idx.setPointerCapture(e.pointerId); } catch (x) {}
+    e.preventDefault();
+    los(e.clientX, e.clientY);
+  });
+  idx.addEventListener('pointermove', e => { if (aktiv){ e.preventDefault(); los(e.clientX, e.clientY); } });
+  idx.addEventListener('pointerup', ende);
+  idx.addEventListener('pointercancel', ende);
+  /* Ziehen darf das Blatt nicht verschieben. */
+  idx.addEventListener('touchstart', e => e.stopPropagation(), { passive:true });
+  idx.addEventListener('touchmove', e => { e.preventDefault(); e.stopPropagation(); }, { passive:false });
+})();
+
 function renderPicker(){
   const q = $('#pickerSearch').value.trim().toLowerCase();
 
@@ -4153,13 +4461,17 @@ function renderPicker(){
   let letter = null;
   const letters = [];
   list.forEach(e => {
-    const l = (e.label || '?').charAt(0).toUpperCase();
-    if (grouped && l !== letter){
+    const l = pkBuchstabe(e.label);
+    /* Erste Zeile je Buchstabe trägt den Anker für das Register — auch in
+       den Suchergebnissen, die keine Buchstabenköpfe zeigen. */
+    let anker = '';
+    if (l !== letter){
       letter = l; letters.push(l);
-      html += `<div class="picker-letter" id="pk-l-${esc(letter)}">${esc(letter)}</div>`;
+      if (grouped) html += `<div class="picker-letter" id="pk-l-${esc(letter)}">${esc(letter)}</div>`;
+      else anker = ` id="pk-l-${esc(letter)}"`;
     }
     const active = e === state.entity;
-    html += `<button class="picker-item ${active ? 'is-active' : ''}"
+    html += `<button class="picker-item ${active ? 'is-active' : ''}"${anker}
       data-type="${e.type}" data-id="${e.id}">
       <span class="picker-item__ava picker-item__ava--sym">${PICK_SYM[e.type] ? `<svg class="uic" viewBox="0 0 28 28" aria-hidden="true"><use href="#${PICK_SYM[e.type]}"></use></svg>` : esc((e.label || '?').slice(0, 3).toUpperCase())}</span>
       <span class="picker-item__main"><b>${esc(e.label)}</b>
@@ -4170,21 +4482,10 @@ function renderPicker(){
   });
   $('#pickerList').innerHTML = html;
 
-  /* Buchstabenleiste nur, wenn die Liste lang genug ist */
-  if (grouped && letters.length > 6){
-    idx.hidden = false;
-    idx.innerHTML = letters.map(l => `<button data-l="${esc(l)}">${esc(l)}</button>`).join('');
-    $$('#pickerIndex button').forEach(b => b.addEventListener('click', () => {
-      const t = document.getElementById('pk-l-' + b.dataset.l);
-      const body = $('#pickerBody');
-      if (t && body){
-        const delta = t.getBoundingClientRect().top - body.getBoundingClientRect().top;
-        body.scrollTo({ top: Math.max(0, body.scrollTop + delta - 6), behavior:'smooth' });
-      }
-    }));
-  } else {
-    idx.hidden = true;
-  }
+  /* Alphabet-Register A–Z am rechten Rand (wie in der iOS-App): immer alle
+     Buchstaben; fehlt einer, springt das Register zum nächsten vorhandenen.
+     Tippen und Ziehen springen. */
+  pkRegister(letters, pickerType !== 'mine' && list.length > 8);
 
   $$('#pickerList .picker-item').forEach(b => b.addEventListener('click', () => {
     const neu = state.entities.find(e => e.type === b.dataset.type && String(e.id) === b.dataset.id);
@@ -4699,6 +5000,7 @@ function renderDetail(){
      Leiste über dem Inhalt zu jeder von ihnen. Vorher sah man nur die,
      die man zufällig getroffen hatte. */
   renderDetailTabs(c);
+  renderDetailTeil();
 
   /* Kopfblock nach den Mobile-Sollbildern:
        Klasse | Kursbezeichnung
@@ -4828,7 +5130,7 @@ function renderDetail(){
                 key:'substitution', sub:c.info });
   }
   if (voll){
-    rows.push({ ico:'lehrstoff', title:'Lehrstoff', key:'lehrstoff', sub:cbText('lehrstoff'),
+    rows.push({ ico:'lehrstoff', title:'Lehrstoff', key:'lehrstoff', sub:cbText('lehrstoff') || cbErbe('lehrstoff'),
                 done:!!cbText('lehrstoff') });
     rows.push({ ico:'students', title:'Schüler*innen', key:'students',
                 count:attAbsentCount(), tone:attAbsentCount() ? 'red' : '',
@@ -4842,12 +5144,12 @@ function renderDetail(){
   if (voll) rows.push({ ico:'classbook', title:'Klassenbucheinträge', key:'classbook', count:cbCount('classbook') });
   /* Notizen gehören auch zur eigenen ausgefallenen Stunde – dort steht oft
      erst recht etwas zu sagen. */
-  if (eigen || cbText('notes_students'))
+  if (eigen || cbText('notes_students') || cbErbe('notes_students'))
     rows.push({ ico:'notes_students', title:'Notizen für Schüler*innen', key:'notes_students',
-                sub:cbText('notes_students') });
+                sub:cbText('notes_students') || cbErbe('notes_students') });
   if (eigen && !state.isStudent)
     rows.push({ ico:'notes_teachers', title:'Notizen für Lehrkräfte', key:'notes_teachers',
-                sub:cbText('notes_teachers') });
+                sub:cbText('notes_teachers') || cbErbe('notes_teachers') });
 
   const zeilen = state.isStudent ? detailFuerSchueler(rows) : rows;
   const ico = r => `<span class="drow2__ico">${DICO[r.ico] || DICO.note}</span>`;
@@ -4952,9 +5254,10 @@ const DICO = (() => {
     students:      u('ic-lessons-classes'),
     homework:      u('ic-homework'),
     classbook:     u('ic-navigation-class-register'),
-    /* Info wie im Original (img/wu/exact/info.svg ohne Feld): volle Scheibe
-       mit ausgespartem „i“, auf die Scheibe zugeschnitten. */
-    info:          '<svg viewBox="1.1429 1.1429 13.7143 13.7143" class="ico dico dico--info" aria-hidden="true"><use href="#ic-tt-info-icon"></use></svg>',
+    /* Info zur Stunde: normal gezeichnet — Kreis mit „i“ als Linienzeichen
+       wie die übrigen Zeilen, keine gefüllte Scheibe mit ausgespartem „i“
+       (die wirkte, besonders im Dunkelmodus, invertiert). */
+    info:          linie('<circle cx="14" cy="14" r="10.25"/><path d="M14 12.6v7"/><circle cx="14" cy="8.9" r=".55" fill="currentColor"/>'),
     room:          u('ic-shared-roomentity'),
     exam:          u('ic-examinations'),
     link:          linie('<path d="M12.2 15.8a4.6 4.6 0 0 0 6.5 0l3.6-3.6a4.6 4.6 0 0 0-6.5-6.5l-1.5 1.5"/><path d="M15.8 12.2a4.6 4.6 0 0 0-6.5 0l-3.6 3.6a4.6 4.6 0 0 0 6.5 6.5l1.5-1.5"/>')
@@ -5172,8 +5475,9 @@ async function planNachladenNachRaum(c){
   } catch (e){ /* der Stand in den Details bleibt */ }
 }
 
-const cbLocalKey = (c, key) => `cb.${c.date}.${c.lesson}.${key}`;
+const cbLocalKey = (c, key) => `cb.${c.date}.${c.lesson}${c._teil ? 'e' : ''}.${key}`;
 let cbCache = {};                 /* Inhalte der geöffneten Stunde */
+let cbTeil = null;                /* Ganzer Block / Einzelstunde (lessonPart vom Server) */
 let attWegKlassen = [];           /* Klassen mit Abwesenheit in dieser Stunde */
 let cbFaellig = [];               /* heute fällige Hausaufgaben */
 let cbCurrent = null;
@@ -5256,11 +5560,15 @@ function cbParams(c, extra){
   /* Gilt die Eintragung für einen Block, bekommt der Server dessen Länge
      und schreibt in jede Stunde — genauso wie die Desktop-Version. */
   if (!c._teil && (c.span || 1) > 1) p.span = String(c.span);
+  /* Einzelstunde eines Blocks (Vertrag Einzelstunde): Lehrstoff, Notizen,
+     Online, Hausaufgaben und Abwesenheiten gelten dann nur für diese Stunde. */
+  if (c._teil) p.einzelstunde = String(c._teil);
   return new URLSearchParams(Object.assign(p, extra || {}));
 }
 
 async function cbLoadAll(c){
   cbCache = {};
+  cbTeil = null;
   cbEdit = null; cbOnline = !!c.online; cbOnlineLink = c.onlineLink || '';
   /* Zuerst der Gerätespeicher, damit sofort etwas dasteht. */
   Object.keys(CB).forEach(k => {
@@ -5278,6 +5586,9 @@ async function cbLoadAll(c){
     if (state.detail && attKey(state.detail) !== attKey(c)) return cbCache;
 
     cbCache = Object.assign(cbCache, data.data);
+    /* Ganzer Block / Einzelstunde: Stunden des Blocks (mit Kennzeichen für
+       eigene Einträge) und in der Einzelstunde der geerbte Blockeintrag. */
+    cbTeil = data.lessonPart || null;
     if (typeof data.canEdit === 'boolean') cbEdit = data.canEdit;
     cbOnline = !!data.online;
     cbOnlineLink = data.onlineLink || '';
@@ -5305,6 +5616,13 @@ async function cbLoadAll(c){
 }
 
 const cbText  = key => (typeof cbCache[key] === 'string' ? cbCache[key] : '');
+/* In einer Einzelstunde gilt der Eintrag des ganzen Blocks mit — er steht
+   (nur lesend) da, solange die Stunde keinen eigenen hat. */
+const cbErbe = key => {
+  const e = state.detail && state.detail._teil && cbTeil && cbTeil.inherited;
+  const t = e && typeof e[key] === 'string' ? e[key].trim() : '';
+  return t ? 'Ganzer Block: ' + t : '';
+};
 const cbCount = key => (Array.isArray(cbCache[key]) ? cbCache[key].length : 0);
 
 async function cbPost(c, body){
@@ -5404,8 +5722,12 @@ const cbEmpty = titel => `
   </div>`;
 
 function cbItemRow(key, o, i){
+  /* Gilt eine Hausaufgabe nur für eine Stunde des Blocks bzw. (in einer
+     Einzelstunde) für den ganzen Block, steht das dabei. */
+  const geltung = key !== 'homework' || !state.detailFull || (state.detailFull.span || 1) < 2 ? ''
+    : (o.part ? o.part + '. Stunde' : (state.detail && state.detail._teil ? 'Ganzer Block' : ''));
   const zeile2 = key === 'homework'
-    ? [o.due ? 'fällig ' + deDate(o.due) : '', o.note || ''].filter(Boolean).join(' · ')
+    ? [geltung, o.due ? 'fällig ' + deDate(o.due) : '', o.note || ''].filter(Boolean).join(' · ')
     : [o.cat || '', o.at ? deDate(o.at.slice(0, 10)) : ''].filter(Boolean).join(' · ');
   return `
     <div class="dsub__item ${o.done ? 'is-done' : ''}" data-i="${i}">
@@ -5562,7 +5884,7 @@ const ATT_BESEN = '<svg viewBox="0 0 24 24" class="ico"><path d="M19.6 4.4 13 11
    das zeigte die Übersicht die Werte der zuletzt geöffneten Stunde. */
 let attChecked = false, attAbsent = 0, attFor = null;
 
-const attKey = c => c ? `${c.date}#${c.lesson}#${c.class || c.classOrig || ''}` : null;
+const attKey = c => c ? `${c.date}#${c.lesson}${c._teil ? 'e' : ''}#${c.class || c.classOrig || ''}` : null;
 
 /* „hart" wirft auch dann alles weg, wenn dieselbe Stunde noch einmal
    geöffnet wird. Sonst bliebe eine Liste stehen, die inzwischen am
@@ -6784,20 +7106,55 @@ function detailTeilOeffnen(){
   pop.hidden = false;
 
   $$('#detailPart button').forEach(b => b.addEventListener('click', () => {
-    const v = b.dataset.l === '' ? null : +b.dataset.l;
     pop.hidden = true;
-    const jetztTeil = state.detail._teil || null;
-    if (v === jetztTeil) return;
-    const neu = detailTeilCard(ganz, v);
-    state.detail = neu;
-    cbCache = {};
-    attReset(neu, true);
-    $('#detailSub').hidden = true;
-    cbCurrent = null;
-    renderDetail();
-    cbLoadAll(neu).then(() => { if (state.detail === neu) renderDetail(); });
+    detailTeilWaehlen(b.dataset.l === '' ? null : +b.dataset.l);
   }));
 }
+
+/* Auf den ganzen Block (null) oder eine Einzelstunde umstellen. */
+function detailTeilWaehlen(v){
+  const ganz = state.detailFull;
+  if (!ganz || (ganz.span || 1) < 2) return;
+  const jetztTeil = state.detail._teil || null;
+  if (v === jetztTeil) return;
+  const neu = detailTeilCard(ganz, v);
+  state.detail = neu;
+  cbCache = {};
+  cbTeil = null;
+  attReset(neu, true);
+  $('#detailSub').hidden = true;
+  closeAbsence(); closeForm();
+  cbCurrent = null;
+  renderDetail();
+  cbLoadAll(neu).then(() => { if (state.detail === neu) renderDetail(); });
+}
+
+/* Auswahl oben in den Stundendetails (wie iOS): „Ganzer Block“ und je
+   Stunde des Blocks ein Knopf. Ein Punkt zeigt, dass eine Einzelstunde
+   eigene Einträge hat. */
+function renderDetailTeil(){
+  const box = $('#detailTeil');
+  if (!box) return;
+  const ganz = state.detailFull;
+  const span = ganz ? (ganz.span || 1) : 1;
+  /* Nur bei Unterricht mit Klassenbuch — Termine und Aufsichten haben keins. */
+  if (!ganz || span < 2 || !ganz.unterricht || state.isStudent){ box.hidden = true; box.innerHTML = ''; return; }
+  const jetzt = state.detail && state.detail._teil ? state.detail.lesson : null;
+  const eigen = new Set(((cbTeil && cbTeil.parts) || []).filter(t => t.own).map(t => t.lesson));
+  let html = `<button type="button" role="tab" data-l="" class="${jetzt === null ? 'is-on' : ''}" aria-selected="${jetzt === null}">Ganzer Block</button>`;
+  for (let i = 0; i < span; i++){
+    const n = ganz.lesson + i;
+    html += `<button type="button" role="tab" data-l="${n}" class="${jetzt === n ? 'is-on' : ''}" aria-selected="${jetzt === n}">${n}. Stunde${
+      eigen.has(n) ? '<i class="dteil__punkt" aria-label="eigene Einträge"></i>' : ''}</button>`;
+  }
+  box.innerHTML = html;
+  box.hidden = false;
+}
+$('#detailTeil').addEventListener('click', e => {
+  const b = e.target.closest('button[data-l]');
+  if (!b) return;
+  detailTeilWaehlen(b.dataset.l === '' ? null : +b.dataset.l);
+});
 
 $('#detailWhen').addEventListener('click', e => {
   e.stopPropagation();

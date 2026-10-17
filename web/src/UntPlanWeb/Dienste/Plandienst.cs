@@ -64,6 +64,11 @@ public sealed record Karte(
     public List<Wert> Mitklassen { get; init; } = new();
     /// <summary>Prüfung aus UntPlan (Klausur-Id), zu der die Karte gehört: Prüfungszeile bzw. wegen der Prüfung entfallener Unterricht.</summary>
     [System.Text.Json.Serialization.JsonIgnore] public int? Klausur { get; init; }
+    /// <summary>
+    /// Nur Klassenbuch: die Karte steht für eine Einzelstunde eines Blocks (Von = Bis = diese Stunde) – Einträge gelten nur für sie
+    /// (Speicherung mit negativer Stundennummer, siehe <see cref="Klassenbuchdienst.Schluessel"/>).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore] public int? Einzelstunde { get; init; }
 }
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>

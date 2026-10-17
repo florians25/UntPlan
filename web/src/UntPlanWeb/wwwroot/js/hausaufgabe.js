@@ -89,7 +89,7 @@ export function hausaufgabeFormular({ h = null, stunde = null, lehrer = '', geae
       const daten = { text: v('text').trim(), faellig: v('faellig') || null, bemerkung: v('bemerkung').trim() };
       if (!daten.text) { toast('Bitte die Hausaufgabe eingeben.', true); return false; }
       if (!neu) await senden(`/api/app/klassenbuch/hausaufgabenliste/${h.id}`, daten, 'PUT');
-      else if (fest) await senden('/api/app/klassenbuch/hausaufgabenliste', { datum: fest.datum, stunde: fest.von, unterricht: fest.unterricht, ...daten });
+      else if (fest) await senden('/api/app/klassenbuch/hausaufgabenliste', { datum: fest.datum, stunde: fest.von, unterricht: fest.unterricht, ...daten, ...(fest.einzelstunde ? { einzelstunde: fest.einzelstunde } : {}) });
       else {
         const s = stunden[Number(v('stunde'))];
         if (!s) { toast('Bitte eine Stunde wählen.', true); return false; }

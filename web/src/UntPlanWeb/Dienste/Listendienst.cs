@@ -209,7 +209,7 @@ public sealed class Listendienst
         var liste = _kb.FehlzeitenZeitraum(von, bis, string.IsNullOrEmpty(klasse) ? null : klasse);
         var klassen = string.IsNullOrEmpty(klasse) ? s.Paket.Elemente.Klassen.Select(k => k.Kurz) : new[] { klasse };
         var regeln = _kb.Regeln();
-        return Klassenbuchdienst.Schueler(s, klassen).Select(x =>
+        return Klassenzugehoerigkeit.ImZeitraum(s, klassen, von, bis).Select(x =>
         {
             var f = liste.Where(y => y.SchuelerId == x.Id).ToList();
             return Summe(regeln, x.Klasse, x.Id, x.Name, x.Vorname, f);

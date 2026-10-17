@@ -19,7 +19,7 @@ namespace UntPlanWeb.Api;
 public static class ErweiterungApi
 {
     /// <summary>„Findet online statt“ einer Stunde; Link (optional) = Videokonferenz-Adresse (http/https), null = unverändert, "" = entfernen.</summary>
-    public sealed record OnlineDaten(DateOnly Datum, int Stunde, int Unterricht, bool Online, string? Link = null, string? OnlineLink = null);
+    public sealed record OnlineDaten(DateOnly Datum, int Stunde, int Unterricht, bool Online, string? Link = null, string? OnlineLink = null, int? Einzelstunde = null);
     public sealed record AbwesenheitNeuDaten(int SchuelerId, DateOnly Von, DateOnly Bis, int? StundeVon, int? StundeBis, string? Grund, string? Status, string? Bemerkung,
         string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null);
     public sealed record AbwesenheitAenderDaten(List<int> Ids, string? Grund, string? Bemerkung, string? Status,
@@ -29,7 +29,8 @@ public static class ErweiterungApi
     public sealed record DienstWocheDaten(int DienstId, int SchuelerId, DateOnly Datum, bool An);
     public sealed record DienstAutoDaten(string Klasse, int DienstId, DateOnly Von, DateOnly Bis, int? ProWoche);
     public sealed record BefreiungDaten(int SchuelerId, DateOnly Von, DateOnly Bis, int? Wochentag, string? Fach, string? Beginn, string? Ende, string? Grund, string? Text);
-    public sealed record EntwurfDaten(int? Id, List<string>? Empfaenger, string? Betreff, string? Text, bool Wichtig, bool Lesebestaetigung = false, int? AntwortAuf = null);
+    public sealed record EntwurfDaten(int? Id, List<string>? Empfaenger, string? Betreff, string? Text, bool Wichtig, bool Lesebestaetigung = false, int? AntwortAuf = null,
+        bool AntwortErlaubt = true);
     public sealed record ListeDaten(string Name, List<string>? Mitglieder);
     public sealed record ProfilDaten(string? Email, string? Sprache, bool Benachrichtigung);
     public sealed record GrundDaten(string Kurz, string Name, string? Art, bool Entschuldigt, int? Reihenfolge, bool? Aktiv);
@@ -164,7 +165,7 @@ public static class ErweiterungApi
 
         api.MapPut("/klassenbuch/online", (OnlineDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
         {
-            kv.OnlineSetzen(Kollegium(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online, d.OnlineLink ?? d.Link);
+            kv.OnlineSetzen(Kollegium(c), Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online, d.OnlineLink ?? d.Link, d.Einzelstunde);
             return Results.Json(new { ok = true });
         });
 
@@ -277,7 +278,7 @@ public static class ErweiterungApi
         // ---------------------------------------------------------------- Mitteilungen: Entwürfe, Listen, Anhänge
 
         api.MapPost("/mitteilungen/entwurf", (EntwurfDaten d, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
-            Results.Json(new { id = m.EntwurfSpeichern(Ich(c), p.Aktuell, d.Id, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig, d.Lesebestaetigung, d.AntwortAuf) }));
+            Results.Json(new { id = m.EntwurfSpeichern(Ich(c), p.Aktuell, d.Id, d.Empfaenger ?? new(), d.Betreff ?? "", d.Text ?? "", d.Wichtig, d.Lesebestaetigung, d.AntwortAuf, d.AntwortErlaubt) }));
         api.MapPost("/mitteilungen/{id:int}/senden", (int id, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
             Results.Json(new { id = m.EntwurfSenden(Ich(c), p.Aktuell, id) }));
         api.MapGet("/mitteilungen/listen", (HttpContext c, Mitteilungsdienst m, Paketdienst p) => Results.Json(m.Listen(Ich(c), p.Aktuell)));

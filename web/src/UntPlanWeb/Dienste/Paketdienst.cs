@@ -57,6 +57,19 @@ public sealed class Paketdienst
         // Quelle „Export“: aus dem Export entfernte Schüler*innen entfallen; in UntPlanWeb angelegte (eigen) bleiben
         liste.AddRange(aenderungen.Values.Where(a => !a.Geloescht && !gesehen.Contains(a.Id) && (web || a.Eigen || a.Id >= Schuelerverwaltung.ErsteEigeneId)).Select(a => a.Schueler));
         _stand.Schueler = liste;
+        ZuordnungenLaden();
+    }
+
+    /// <summary>
+    /// Klassenwechsel ab Datum und Schülergruppen je Unterricht (Tabellen klassenwechsel, schuelergruppen) in den Stand übernehmen;
+    /// die Schülerliste erhält die Klasse von heute (siehe <see cref="Klassenzugehoerigkeit"/>).
+    /// </summary>
+    public void ZuordnungenLaden()
+    {
+        if (_stand is null) return;
+        _stand.Zuordnungen = Zuordnungen.Laden(_db, _uhr.Heute);
+        if (_stand.Zuordnungen.Wechsel.Count > 0)
+            _stand.Schueler = _stand.Schueler.Select(x => x with { Klasse = Klassenzugehoerigkeit.KlasseAm(_stand, x, _uhr.Heute) }).ToList();
     }
 
     /// <summary>In UntPlanWeb gepflegte freie Tage (Administration → Freie Tage &amp; Ferien) in den aktuellen Stand übernehmen.</summary>
@@ -68,7 +81,15 @@ public sealed class Paketdienst
     }
 
     /// <summary>Aktuelles Paket mit Nachschlagetabellen (null = noch nichts übertragen).</summary>
-    public Stand? Aktuell => _stand;
+    public Stand? Aktuell
+    {
+        get
+        {
+            // Klassenwechsel ab Datum: an einem neuen Tag gilt ggf. eine andere Klasse
+            if (_stand is { } s && s.Zuordnungen.Tag != _uhr.Heute && s.Zuordnungen.Wechsel.Count > 0) lock (_sperre) ZuordnungenLaden();
+            return _stand;
+        }
+    }
 
     public int Revision => _stand?.Paket.Revision ?? 0;
 
@@ -91,6 +112,7 @@ public sealed class Paketdienst
         lock (_sperre)
         {
             var vorher = _stand;
+            var teile = paket.Teile.ToList();
             if (revisionPruefen && _stand != null && paket.Revision <= _stand.Paket.Revision) throw new VeralteteRevisionException(paket.Revision, _stand.Paket.Revision);
             var json = JsonSerializer.Serialize(paket, UntPlanWebSchema.Json);
             if (paket.Teile.Count > 0 && _stand != null && JsonNode.Parse(json) is JsonObject neu &&
@@ -124,9 +146,9 @@ public sealed class Paketdienst
             var tageVon = paket.Tage.Select(t => t.Datum).DefaultIfEmpty("").Min() ?? "";
             var tageBis = paket.Tage.Select(t => t.Datum).DefaultIfEmpty("").Max() ?? "";
             _db.Ausfuehren("""
-                INSERT INTO paket_verlauf (revision, empfangen, programmversion, klassen, lehrer, raeume, tage, vertretungen, von, bis)
-                VALUES (@r, @e, @p, @k, @l, @ra, @t, @v, @vo, @bi)
-                """, Db.P("@r", paket.Revision), Db.P("@e", empfangen), Db.P("@p", paket.Programmversion), Db.P("@k", paket.Elemente.Klassen.Count),
+                INSERT INTO paket_verlauf (revision, empfangen, programmversion, klassen, lehrer, raeume, tage, vertretungen, von, bis, teile)
+                VALUES (@r, @e, @p, @k, @l, @ra, @t, @v, @vo, @bi, @te)
+                """, Db.P("@te", string.Join(",", teile)), Db.P("@r", paket.Revision), Db.P("@e", empfangen), Db.P("@p", paket.Programmversion), Db.P("@k", paket.Elemente.Klassen.Count),
                 Db.P("@l", paket.Elemente.Lehrer.Count), Db.P("@ra", paket.Elemente.Raeume.Count), Db.P("@t", paket.Tage.Count), Db.P("@v", paket.Vertretungen.Count),
                 Db.P("@vo", tageVon), Db.P("@bi", tageBis));
             return (vorher, _stand);
@@ -216,8 +238,10 @@ public sealed class Stand
     public DateOnly SchuljahrBis { get; }
     /// <summary>Zusätzliche freie Tage aus UntPlanWeb (werden wie Ferien bzw. Feiertage behandelt).</summary>
     public List<WebFerien> Zusatzferien { get; set; } = new();
-    /// <summary>Schüler*innen: Liste aus UntPlan mit den Änderungen der Schülerverwaltung in UntPlanWeb.</summary>
+    /// <summary>Schüler*innen: Liste aus UntPlan mit den Änderungen der Schülerverwaltung in UntPlanWeb (Klasse von heute).</summary>
     public List<WebSchueler> Schueler { get; set; }
+    /// <summary>Klassenwechsel ab Datum und Schülergruppen je Unterricht aus UntPlanWeb.</summary>
+    public Zuordnungen Zuordnungen { get; set; } = Zuordnungen.Leer;
 
     public Stand(WebPaket p, string empfangen)
     {

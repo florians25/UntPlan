@@ -312,6 +312,9 @@ public sealed class Rueckmeldungsdienst
         if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Klausuren eintragen.");
         if (!Rechtedienst.Darf(b, Recht.PruefungAnlegen)) throw new UnauthorizedAccessException("Ihr Konto darf keine Prüfungen eintragen oder löschen.");
         if (d < _uhr.Heute) throw new ArgumentException("Klausuren können nicht rückwirkend eingetragen werden.");
+        // Unterricht | Einstellungen: erlaubter Datumsbereich, Raumkonflikt zulassen
+        var einst = Klassenbucheinstellungen.Laden(_db);
+        einst.PruefungPruefen(d);
         if (_plan.Frei(s, d).Frei) throw new ArgumentException("An diesem Tag ist kein Unterricht.");
         var (v, bi) = Stunden(s, stundeVon, stundeBis);
         var k = klassen.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
@@ -327,7 +330,7 @@ public sealed class Rueckmeldungsdienst
         var belegt = _plan.Rohstunden(s, d).Concat(Vorgemerkt(d, s))
             .Where(x => x.Stunde >= v && x.Stunde <= bi && x.Status != "entfall" && !x.Klassen.Any(kl => k.Contains(kl, Ci)))
             .SelectMany(x => x.Raeume.SelectMany(Plandienst.RaumListe)).ToHashSet(Ci);
-        if (r.FirstOrDefault(belegt.Contains) is { } voll) throw new ArgumentException($"Raum {voll} ist in dieser Zeit schon belegt.");
+        if (!einst.Raumkonflikt && r.FirstOrDefault(belegt.Contains) is { } voll) throw new ArgumentException($"Raum {voll} ist in dieser Zeit schon belegt.");
         if (r.FirstOrDefault(x => s.Paket.Absenzen.Any(a => a.Art == "raum" && Ci.Equals(a.Element, x) && DateOnly.TryParse(a.Von, out var av) && DateOnly.TryParse(a.Bis, out var ab)
                                                        && d >= av && d <= ab && a.StundeVon <= bi && (a.StundeBis >= v || a.StundeBis < a.StundeVon))) is { } gesperrt)
             throw new ArgumentException($"Raum {gesperrt} ist in dieser Zeit gesperrt.");

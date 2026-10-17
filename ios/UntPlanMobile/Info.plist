@@ -6,6 +6,8 @@
 	<array>
 		<string>de.untplan.mobile.planpruefung</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Die Kamera wird verwendet, um Fotos als Anhang an eine Mitteilung zu hängen.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
