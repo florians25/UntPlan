@@ -56,7 +56,8 @@ const artChip = z => z.art === 'verspaetet' ? `<span class="u-chip gelb"><i clas
 
 export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, statusParam, grundParam, artParam]) {
   // Schüler*innen und Erziehungsberechtigte: Reiter „Meine Abwesenheiten“ | „Fehlzeiten“
-  if (kontext.familie) return (await import('./familie.js')).abwesenheiten(seite, kontext, [reiterParam, vonParam, bisParam]);
+  // (Familien-URL: #/abwesenheiten/<reiter>/<von>/<status>/<bis>)
+  if (kontext.familie) return (await import('./familie.js')).abwesenheiten(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam]);
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const reiter = reiterParam === 'meine' && ich.element ? 'meine' : 'schueler';

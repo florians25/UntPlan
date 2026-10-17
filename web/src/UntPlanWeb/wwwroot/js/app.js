@@ -413,8 +413,8 @@ function menue() {
     m.push({ id: 'hausaufgaben', nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' });
     m.push({ id: 'pruefungen', nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'pruefung' });
   }
-  // Sprechtag (sprechtag.js): Lehrkräfte, Schulleitung, Administration und Erziehungsberechtigte
-  if (k || b.rolle === 'eltern') m.push({ id: 'sprechtag', nav: 'sprechtag', href: '#/sprechtag', text: 'Sprechtag', icon: 'aktive' });
+  // Sprechtag (sprechtag.js): Lehrkräfte, Schulleitung, Administration, Erziehungsberechtigte und Schüler*innen (nur lesen – Ankündigung, eigene Termine)
+  if (k || b.rolle === 'eltern' || b.rolle === 'schueler') m.push({ id: 'sprechtag', nav: 'sprechtag', href: '#/sprechtag', text: 'Sprechtag', icon: 'aktive' });
   if (b.admin) {
     m.push({ id: 'stammdaten', text: 'Stammdaten', icon: 'stammdaten', unter: [
       { nav: 'stammdaten-klassen', href: '#/stammdaten/klassen', text: 'Klassen', icon: 'klasse' },

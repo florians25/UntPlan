@@ -57,7 +57,32 @@ const ohneZuordnung = seite => { seite.innerHTML = '<div class="fm-karte"><div c
 
 // ------------------------------------------------------------------ Abwesenheiten (Reiter „Meine Abwesenheiten“ | „Fehlzeiten“)
 
-export async function abwesenheiten(seite, kontext, [reiterParam, vonParam, statusParam]) {
+/** Summen des Zeitraums (Server: summen) als Kachelzeile: Fehltage, Fehlstunden je Status, Verspätungen. */
+export function summenLeiste(su) {
+  if (!su) return '';
+  const kachel = (zahl, text, farbe = '', titel = '') => `<div class="fm-summe ${farbe}" ${titel ? `title="${e(titel)}"` : ''}><b>${zahl}</b><span>${text}</span></div>`;
+  return `<div class="fm-karte fm-summen" aria-label="Summen im Zeitraum">
+    ${kachel(su.fehltage, su.fehltage === 1 ? 'Fehltag' : 'Fehltage', '', 'Tage, an denen alle Unterrichtsstunden gefehlt wurden')}
+    ${kachel(su.fehlstunden, su.fehlstunden === 1 ? 'Fehlstunde' : 'Fehlstunden', '', `${su.fehlminuten} Fehlminuten insgesamt`)}
+    ${kachel(su.entschuldigt, 'entschuldigt', 'gruen', 'Fehlstunden')}
+    ${kachel(su.unentschuldigt, 'nicht entschuldigt', 'rot', 'Fehlstunden')}
+    ${kachel(su.offen, 'offen', 'gelb', `Fehlstunden; ${su.offeneAbwesenheiten} ${su.offeneAbwesenheiten === 1 ? 'Abwesenheit' : 'Abwesenheiten'} noch nicht entschieden`)}
+    ${kachel(su.verspaetet, su.verspaetet === 1 ? 'Verspätung' : 'Verspätungen', '', su.verspaetet ? `${su.verspaetetMinuten} Minuten insgesamt` : '')}
+  </div>`;
+}
+
+/** Status einer Abwesenheit: bei einzeln (z. B. von Fachlehrkräften) entschuldigten Stunden „teilweise“ mit Anzahl. */
+const zeitraumStatus = z => z.statusGemischt
+  ? `<span class="fz-label gelb" title="${z.entschuldigt} entschuldigt, ${z.unentschuldigt} nicht entschuldigt, ${z.fehlstunden - z.entschuldigt - z.unentschuldigt} offen">teilweise</span><div class="fz-klein">${z.entschuldigt}/${z.fehlstunden} entschuldigt</div>`
+  : statusLabel(z.status);
+
+/** Stunden einer Abwesenheit (Details beim Aufklappen): Datum, Zeit, Fach, Lehrkraft, Status. */
+const stundenDetails = (stunden, spalten) => `<tr class="fm-details"><td></td><td colspan="${spalten - 1}">${stunden.length
+  ? `<table class="fm-stunden"><tbody>${stunden.map(f => `<tr><td class="text-nowrap">${datumZelle(f.datum)}</td><td class="text-nowrap fz-grau">${e(f.stunde)}. Std. ${e(f.abwesendVon)}–${e(f.abwesendBis)}</td>
+      <td>${e(f.fach)}</td><td>${e(f.lehrer)}</td><td>${f.zaehlt ? `${f.fehlminuten} min` : `<span class="fz-grau">${f.art === 'verspaetet' ? 'verspätet' : 'vorzeitig'} ${f.fehlminuten} min</span>`}</td><td>${statusLabel(f.status)}</td></tr>`).join('')}</tbody></table>`
+  : '<span class="fz-grau">Keine Unterrichtsstunden laut Stundenplan.</span>'}</td></tr>`;
+
+export async function abwesenheiten(seite, kontext, [reiterParam, vonParam, statusParam, bisParam]) {
   kontext.titel('');
   const { liste, kind } = await kinder();
   if (!kind) return ohneZuordnung(seite);
@@ -65,20 +90,25 @@ export async function abwesenheiten(seite, kontext, [reiterParam, vonParam, stat
   const sj = kontext.schuljahr;
   const start = sj?.von && sj.von <= heuteIso() ? sj.von : plusTage(heuteIso(), -90);
   const von = /^\d{4}-\d{2}-\d{2}$/.test(vonParam ?? '') ? vonParam : start;
-  const bis = sj?.bis && sj.bis > von ? sj.bis : plusTage(von, 365);
+  // Ende: gewählt (Filter „bis“) bzw. Ende des Schuljahres – so erscheinen auch schon eingetragene künftige Abwesenheiten
+  const bisWahl = /^\d{4}-\d{2}-\d{2}$/.test(bisParam ?? '') && bisParam >= von ? bisParam : '';
+  const bis = bisWahl || (sj?.bis && sj.bis > von ? sj.bis : plusTage(von, 365));
   const status = ['offen', 'entschuldigt', 'unentschuldigt'].includes(statusParam) ? statusParam : '';
-  const ziel = (r, v = von, s = status) => `#/abwesenheiten/${r}/${v}/${s || '-'}`;
+  const ziel = (r, v = von, s = status, b = bisWahl) => `#/abwesenheiten/${r}/${v}/${s || '-'}${b ? `/${b}` : ''}`;
   const q = `schueler=${kind.id}&von=${von}&bis=${bis}${status ? `&status=${status}` : ''}`;
-  const [daten, gruende] = await Promise.all([holen(`/api/app/familie/${reiter === 'meine' ? 'abwesenheiten' : 'fehlzeiten'}?${q}`), holen('/api/app/familie/gruende').catch(() => ({}))]);
+  // „Meine Abwesenheiten“ lädt die Fehlzeiten (je Stunde) mit, damit jede Abwesenheit ihre Stunden aufklappen kann
+  const [daten, gruende, stundenDaten] = await Promise.all([holen(`/api/app/familie/${reiter === 'meine' ? 'abwesenheiten' : 'fehlzeiten'}?${q}`), holen('/api/app/familie/gruende').catch(() => ({})),
+    reiter === 'meine' ? holen(`/api/app/familie/fehlzeiten?schueler=${kind.id}&von=${von}&bis=${bis}`).catch(() => null) : null]);
+  const stundenVon = new Map((stundenDaten?.zeilen ?? []).map(f => [f.id, f]));
   const grundName = g => gruende[g] ?? g;
   const zeilen = daten.zeilen;
   const export_ = (format, sym, titel) => `<a class="fm-export" href="/api/app/familie/export?liste=${reiter === 'meine' ? 'abwesenheiten' : 'fehlzeiten'}&format=${format}&${q}" download title="${titel}" aria-label="${titel}"><i class="bi ${sym}"></i></a>`;
   const tabelle = reiter === 'meine'
-    ? (zeilen.length ? `<table class="fz-tabelle-neu"><thead><tr><th class="nl-wahl"><input type="checkbox" class="fm-check" data-alle aria-label="Alle auswählen"></th><th><i class="bi bi-caret-down-fill fz-sort"></i>Von</th><th>Bis</th><th>Abwesenheitsgrund</th><th>Status</th><th class="zahl">Fehlstd.</th><th>Text</th></tr></thead><tbody>
-        ${zeilen.map((z, i) => `<tr><td class="nl-wahl"><input type="checkbox" class="fm-check" data-i="${i}" aria-label="Abwesenheit auswählen"></td>
+    ? (zeilen.length ? `<table class="fz-tabelle-neu fm-abw"><thead><tr><th class="nl-wahl"><input type="checkbox" class="fm-check" data-alle aria-label="Alle auswählen"></th><th><i class="bi bi-caret-down-fill fz-sort"></i>Von</th><th>Bis</th><th>Abwesenheitsgrund</th><th>Status</th><th class="zahl">Fehlstd.</th><th>Text</th><th></th></tr></thead><tbody>
+        ${zeilen.map((z, i) => `<tr class="fm-zeile" data-zeile="${i}" tabindex="0" aria-expanded="false" title="Stunden anzeigen"><td class="nl-wahl"><input type="checkbox" class="fm-check" data-i="${i}" aria-label="Abwesenheit auswählen"></td>
           <td class="text-nowrap">${datumZelle(z.vonDatum, z.vonZeit)}</td><td class="text-nowrap">${datumZelle(z.bisDatum, z.bisZeit, 'bis ')}</td>
           <td>${e(grundName(z.grund))}${z.art !== 'fehlt' ? ` <span class="fz-grau">(${z.art === 'verspaetet' ? 'verspätet' : 'vorzeitig gegangen'} ${z.minuten} min)</span>` : ''}</td>
-          <td>${statusLabel(z.status)}</td><td class="zahl">${z.fehlstunden}</td><td class="fz-text">${e(z.text)}</td></tr>`).join('')}</tbody></table>`
+          <td>${zeitraumStatus(z)}</td><td class="zahl">${z.fehlstunden}</td><td class="fz-text">${e(z.text)}</td><td class="fm-auf"><i class="bi bi-chevron-down" aria-hidden="true"></i></td></tr>`).join('')}</tbody></table>`
       : '<div class="fz-leer">Keine Abwesenheiten im Zeitraum.</div>')
     : fehlzeitenTabelle(zeilen, grundName);
   seite.innerHTML = `
@@ -87,15 +117,30 @@ export async function abwesenheiten(seite, kontext, [reiterParam, vonParam, stat
       <button type="button" class="fm-pfeiltaste" data-monat="-1" title="Einen Monat früher" aria-label="Einen Monat früher"><i class="bi bi-arrow-left"></i></button>
       <label class="fm-datum"><span class="visually-hidden">Ab Datum</span><input type="date" data-von value="${von}"></label>
       <button type="button" class="fm-pfeiltaste" data-monat="1" title="Einen Monat später" aria-label="Einen Monat später"><i class="bi bi-arrow-right"></i></button>
+      <label class="fm-datum fm-bis"><span class="fz-grau small">bis</span><span class="visually-hidden">Bis Datum</span><input type="date" data-bis value="${bis}" min="${von}"></label>
       ${kindWahl(liste, kind)}
       <label class="fm-wahl"><span class="visually-hidden">Status</span><select data-status><option value="">- Alle -</option>${Object.entries(STATUS).map(([k, [, t]]) => `<option value="${k}" ${k === status ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <span class="ms-auto d-flex gap-1">${export_('pdf', 'bi-file-earmark-pdf', 'Als PDF exportieren')}${export_('csv', 'bi-file-earmark-excel', 'Für Excel exportieren')}${export_('csv', 'bi-filetype-csv', 'Als CSV exportieren')}</span>
     </div>
+    ${summenLeiste(daten.summen)}
     <div class="fm-karte fm-tabelle">${tabelle}<div class="fm-fuss">${zeilen.length} ${zeilen.length === 1 ? 'Element' : 'Elemente'}</div></div>
     ${reiter === 'meine' ? `<div class="fm-karte fm-aktionen"><button type="button" class="fm-pille" data-brief>Entschuldigungsschreiben drucken <i class="bi bi-caret-up-fill"></i></button>
       <span class="fz-grau small">Ohne Auswahl: alle noch nicht entschuldigten Abwesenheiten im Zeitraum.</span></div>` : ''}`;
-  const neu = (v = von, s = status) => kontext.navigieren(ziel(reiter, v, s));
+  const neu = (v = von, s = status, b = bisWahl) => kontext.navigieren(ziel(reiter, v, s, b && b >= v ? b : ''));
   seite.querySelector('[data-von]').onchange = ev => ev.target.value && neu(ev.target.value);
+  seite.querySelector('[data-bis]').onchange = ev => neu(von, status, ev.target.value);
+  // Details: Klick auf eine Abwesenheit klappt ihre Stunden auf (nicht beim Ankreuzen)
+  seite.querySelectorAll('[data-zeile]').forEach(tr => {
+    const umschalten = () => {
+      const offen = tr.nextElementSibling?.classList.contains('fm-details');
+      if (offen) tr.nextElementSibling.remove();
+      else tr.insertAdjacentHTML('afterend', stundenDetails(zeilen[Number(tr.dataset.zeile)].ids.map(id => stundenVon.get(id)).filter(Boolean), tr.children.length));
+      tr.setAttribute('aria-expanded', String(!offen));
+      tr.classList.toggle('auf', !offen);
+    };
+    tr.addEventListener('click', ev => { if (!ev.target.closest('input')) umschalten(); });
+    tr.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && !ev.target.closest('input')) { ev.preventDefault(); umschalten(); } });
+  });
   seite.querySelectorAll('[data-monat]').forEach(b => b.onclick = () => neu(monatPlus(von, Number(b.dataset.monat))));
   seite.querySelector('[data-status]').onchange = ev => neu(von, ev.target.value);
   kindBinden(seite, () => kontext.navigieren(location.hash));

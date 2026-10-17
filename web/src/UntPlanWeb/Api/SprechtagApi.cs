@@ -20,7 +20,8 @@ namespace UntPlanWeb.Api;
 /// <c>POST /{id}/absagen</c> (Administration: ganzer Sprechtag, alle Beteiligten werden benachrichtigt).</item>
 /// <item>PDF-Formulare mit <c>?ausrichtung=hoch|quer</c> (Vorgabe: Terminplan einer Lehrkraft und Elternplan hoch, Gesamtplan quer).</item>
 /// <item>Status „angekündigt“ (<c>status</c>): freigegeben, Anmeldung beginnt erst – Startseite, Liste und Familienansicht zeigen Datum, Zeit, Ort
-/// und Anmeldebeginn. Schüler*innen sehen Sprechtage mit Option <c>sichtbarSchueler</c> (nur lesen).</item>
+/// und Anmeldebeginn. Erziehungsberechtigte und Schüler*innen sehen die Ankündigung standardmäßig (Optionen <c>ankuendigen</c>, <c>sichtbarEltern</c>,
+/// <c>sichtbarSchueler</c> sind an, fehlende gespeicherte Optionen gelten als an); Schüler*innen nur lesend.</item>
 /// <item>Warteliste: <c>POST /{id}/warteliste</c>, <c>DELETE /{id}/warteliste/{wid}</c>.</item>
 /// </list>
 /// </summary>

@@ -1671,6 +1671,23 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .fz-label.gruen { background: #3fae49; } .fz-label.rot { background: #d9534f; } .fz-label.gelb { background: #f0ad4e; }
 .fz-kaestchen { display: inline-block; width: 17px; height: 17px; border-radius: 1px; background: #fff; border: 1.5px solid #c9d0d6; vertical-align: middle; }
 .fz-kaestchen.an { background: #f5845c; border-color: #f5845c; }
+/* Abwesenheiten (Schüler*innen, Eltern): Summen des Zeitraums, „bis“-Datum, aufklappbare Stunden je Abwesenheit */
+.fm-summen { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 16px; }
+.fm-summe { display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-left: 1px solid #edf0f2; min-width: 0; }
+.fm-summe:first-child { border-left: 0; }
+.fm-summe b { font-size: 1.45rem; font-weight: 500; line-height: 1.15; color: var(--u-text); font-variant-numeric: tabular-nums; }
+.fm-summe span { font-size: .78rem; color: #6b7780; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fm-summe.gruen b { color: #2d8a3e; } .fm-summe.rot b { color: #c0392b; } .fm-summe.gelb b { color: #c27c0e; }
+.fm-bis { display: inline-flex; align-items: center; gap: 4px; }
+.fm-abw tr.fm-zeile { cursor: pointer; }
+.fm-abw tr.fm-zeile.auf td { background: #f7f9fa; border-bottom-color: transparent; }
+.fm-abw .fm-auf { color: #a3adb5; width: 28px; }
+.fm-abw tr.fm-zeile.auf .fm-auf .bi { display: inline-block; transform: rotate(180deg); }
+.fm-abw tr.fm-details > td { background: #f7f9fa; padding-top: 0; }
+.fm-stunden { width: auto; border-collapse: collapse; font-size: .78rem; }
+.fm-stunden td { padding: 5px 22px 5px 0; border-bottom: 1px solid #e9ecef; }
+.fm-stunden tr:last-child td { border-bottom: 0; }
+@media (max-width: 760px) { .fm-summen { grid-template-columns: repeat(3, minmax(0, 1fr)); } .fm-summe:nth-child(4) { border-left: 0; } .fm-summe:nth-child(n+4) { border-top: 1px solid #edf0f2; } }
 @media (max-width: 700px) { .fm-filter { padding: 12px; gap: 8px; } .fm-raster { grid-template-columns: 1fr; } }
 
 /* Dialoge über den Stundendetails (Abwesenheit, Lehrstoff, Klassenbucheintrag, Prüfung) im neuen Design */

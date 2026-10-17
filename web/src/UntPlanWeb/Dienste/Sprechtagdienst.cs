@@ -42,8 +42,11 @@ public sealed record SprechtagOptionen
     public int ErinnerungStunden { get; init; }
     /// <summary>Für Erziehungsberechtigte sichtbar (Ankündigung, Buchung).</summary>
     public bool SichtbarEltern { get; init; } = true;
-    /// <summary>Für Schüler*innen sichtbar (nur Ankündigung und eigene Termine).</summary>
-    public bool SichtbarSchueler { get; init; }
+    /// <summary>
+    /// Für Schüler*innen sichtbar (nur Ankündigung und eigene Termine). Standard an – auch für gespeicherte Sprechtage ohne diese Option,
+    /// damit die Ankündigung Eltern und Schüler*innen gleichermaßen erreicht.
+    /// </summary>
+    public bool SichtbarSchueler { get; init; } = true;
     /// <summary>Schon vor dem Anmeldezeitraum allen Beteiligten ankündigen (Status „angekündigt“).</summary>
     public bool Ankuendigen { get; init; } = true;
     /// <summary>Reihe mehrtägiger Sprechtage (Id des ersten Tages; 0 = keine Reihe).</summary>

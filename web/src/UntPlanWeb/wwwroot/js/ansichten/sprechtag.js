@@ -159,7 +159,7 @@ async function formular(seite, kontext, id) {
   const t = vorhanden?.sprechtag ?? {
     name: 'Elternsprechtag', datum: '', beginn: '15:00', ende: '19:00', dauer: 10, pausen: [], zeitbloecke: [{ von: '15:00', bis: '17:00' }, { von: '17:15', bis: '19:00' }],
     einladungBis: '', anmeldungVon: '', anmeldungBis: '', sichtbar: false, raumwahl: false, hinweis: '', ort: '', lehrkraefte: [], reihe: [],
-    optionen: { puffer: 0, maxTermineFamilie: 0, warteliste: false, erinnerungStunden: 24, sichtbarEltern: true, sichtbarSchueler: false, ankuendigen: true },
+    optionen: { puffer: 0, maxTermineFamilie: 0, warteliste: false, erinnerungStunden: 24, sichtbarEltern: true, sichtbarSchueler: true, ankuendigen: true },
   };
   const o = t.optionen ?? {};
   const gewaehlt = new Map(t.lehrkraefte.map(l => [l.lehrer, l]));
@@ -203,7 +203,7 @@ async function formular(seite, kontext, id) {
         <div class="col-md-6">${schalter('sichtbar', t.sichtbar, '<b>Freigegeben</b> – für Lehrkräfte und Familien sichtbar (Startseite und Menü)')}</div>
         <div class="col-md-6">${schalter('ankuendigen', o.ankuendigen ?? true, 'Schon vor der Anmeldung <b>ankündigen</b> (Datum, Zeit, Ort, Anmeldebeginn)')}</div>
         <div class="col-md-6">${schalter('sichtbarEltern', o.sichtbarEltern ?? true, 'Für <b>Erziehungsberechtigte</b> sichtbar (Buchung)')}</div>
-        <div class="col-md-6">${schalter('sichtbarSchueler', o.sichtbarSchueler, 'Für <b>Schüler*innen</b> sichtbar (nur Information und eigene Termine)')}</div>
+        <div class="col-md-6">${schalter('sichtbarSchueler', o.sichtbarSchueler ?? true, 'Für <b>Schüler*innen</b> sichtbar (nur Information und eigene Termine)')}</div>
       </div>
     </section>
     <section class="st-karte">

@@ -234,8 +234,10 @@ export async function zeigen(seite, kontext) {
     erledigen.push(gruppe({
       titel: 'Offene Abwesenheiten', href: '#/abwesenheiten', leer: 'Keine offenen Abwesenheiten',
       zeilen: familie
-        ? offeneAbw.map(z => zeile({ links: e(tagKurz(z.vonDatum)), titel: 'Abwesend', neben: z.bisDatum && z.bisDatum !== z.vonDatum ? `bis ${e(tagKurz(z.bisDatum))}` : e(z.vonZeit && z.bisZeit ? `${z.vonZeit}–${z.bisZeit}` : z.vonZeit ? `ab ${z.vonZeit}` : 'ganztägig'),
-          rechts: `<span class="nl-chip gelb">${z.status === 'offen' || !z.status ? 'nicht entschuldigt' : e(z.status)}</span>` }))
+        // Art wie in „Meine Abwesenheiten“ (verspätet/vorzeitig mit Minuten); Status „offen“ = noch nicht entschieden (nicht „nicht entschuldigt“)
+        ? offeneAbw.map(z => zeile({ links: e(tagKurz(z.vonDatum)), titel: z.art === 'verspaetet' ? 'Verspätet' : z.art === 'vorzeitig' ? 'Vorzeitig gegangen' : 'Abwesend',
+          neben: z.bisDatum && z.bisDatum !== z.vonDatum ? `bis ${e(tagKurz(z.bisDatum))}` : z.art === 'verspaetet' ? `${e(z.minuten)} min (${e(z.vonZeit)}–${e(z.bisZeit)})` : z.art === 'vorzeitig' ? `ab ${e(z.vonZeit)}` : e(z.vonZeit && z.bisZeit ? `${z.vonZeit}–${z.bisZeit}` : z.vonZeit ? `ab ${z.vonZeit}` : 'ganztägig'),
+          rechts: `<span class="nl-chip gelb">${z.statusGemischt ? 'teilweise entschuldigt' : 'offen'}</span>` }))
         : offeneAbw.map(z => zeile({ links: e(tagKurz(z.vonDatum)), titel: e(z.schueler), neben: e(z.klasse), rechts: z.bisDatum && z.bisDatum !== z.vonDatum ? `bis ${e(datumKurz(z.bisDatum))}` : e(z.vonZeit && z.bisZeit ? `${z.vonZeit}–${z.bisZeit}` : '') })),
     }));
   if (element)
