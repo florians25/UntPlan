@@ -243,6 +243,9 @@ public class RaumaenderungenTests
                 var plan = await Testserver.HolenAsync(c, $"/api/app/plan?typ={typ}&element={Uri.EscapeDataString(el)}&datum={iso}");
                 var karten = plan["karten"]!.AsArray().Select(k => k!).Where(k => k["datum"]!.GetValue<string>() == iso && k["von"]!.GetValue<int>() <= f.Stunde
                     && k["bis"]!.GetValue<int>() >= f.Stunde && k["unterricht"]?.GetValue<int>() == f.Unterricht).ToList();
+                // Kopplung: im Klassenplan je Gruppe eine Karte – die der betroffenen Lehrkraft
+                if (karten.Count > 1)
+                    karten = karten.Where(k => k["lehrer"]!.AsArray().Any(w => w!["k"]!.GetValue<string>() == f.Lehrer || w["alt"]?.GetValue<string>() == f.Lehrer)).ToList();
                 var ist = string.Join("; ", karten.Select(k => k["status"]!.GetValue<string>() + " " + string.Join(",", k["raeume"]!.AsArray().Select(w => Text(w!)))));
                 var soll = f.Status + " " + string.Join(",", f.Erwartet.Select(w => w.Plus ? "+" + w.K : w.Alt is null ? w.K : $"{w.Alt}→{(w.K.Length == 0 ? "∅" : w.K)}"));
                 var ok = karten.Count == 1 && ist == soll;

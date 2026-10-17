@@ -1,5 +1,5 @@
 // Hausaufgaben: nach Fälligkeit geordnet, Filter nach Zeitraum, Klasse und Lehrkraft; Klassenkonten zusätzlich mit Reiter „Lehrstoff“.
-import { e, icon, holen, leer, filterFeld, datumKachel, datumKurz, heuteIso, plusTage, montag } from '../ui.js';
+import { e, icon, holen, leer, filterFeld, datumKachel, datumKurz, heuteIso, plusTage, montag, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { hausaufgabeDetails, hausaufgabeFormular } from '../hausaufgabe.js';
 
 export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, lehrerParam]) {
@@ -67,36 +67,50 @@ async function hausaufgabenListe(seite, kontext, bereichParam) {
   const bereich = BEREICHE[bereichParam] ? bereichParam : 'woche';
   const [von, bis] = bereich === 'jahr' ? [sj?.von ?? heuteIso(), sj?.bis ?? heuteIso()] : BEREICHE[bereich][1]();
   const basis = location.hash.startsWith('#/aufgaben') ? '#/aufgaben' : '#/hausaufgaben';
-  const w = kontext.werkzeug(`<div class="u-suche">${icon('suchen')}<input type="search" data-suche placeholder="Suche" aria-label="Suche">
-      <span class="u-trenn"></span><select data-wahl aria-label="Auswahl"><option value="meine">${ich.element ? 'Meine' : 'Alle'}</option>${ich.element ? '<option value="alle">Alle</option>' : ''}</select></div>
-    <div class="u-zeitraum"><span>${datumDe(von)} - ${datumDe(bis)}</span>
-      <span class="u-pillenwahl"><select data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich ? 'selected' : ''}>${t}</option>`).join('')}</select></span></div>`);
-  w.querySelector('[data-bereich]').onchange = ev => kontext.navigieren(`${basis}/${ev.target.value}`);
+  // gemeinsames Suchfeld mit Filter (Muster für alle Listenseiten): Auswahl Meine/Alle und Klasse als Dropdowns im Suchfeld
+  seite.innerHTML = `<div class="u-sf-leiste">
+      ${suchfeldMitFilter({ platzhalter: 'Suche', label: 'Hausaufgaben durchsuchen', filter: [
+        { name: 'wahl', label: 'Auswahl', alle: null, standard: ich.element ? 'meine' : 'alle', optionen: ich.element ? [['meine', 'Meine'], ['alle', 'Alle']] : [['alle', 'Alle']] },
+        { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', optionen: [] },
+      ] })}
+      <div class="u-sf-rechts"><span class="u-sf-zeit">${datumDe(von)} - ${datumDe(bis)}</span>
+        <select data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
+    <div data-ha-inhalt></div>`;
+  const inhalt = seite.querySelector('[data-ha-inhalt]');
+  const klasseWahl = seite.querySelector('select[data-filter="klasse"]');
+  seite.querySelector('[data-bereich]').onchange = ev => kontext.navigieren(`${basis}/${ev.target.value}`);
   let wahl = ich.element ? 'meine' : 'alle';
   let filter = '';
+  let klasse = '';
   let daten = [];
   const laden = async () => {
     daten = await holen(`/api/app/hausaufgaben/eintraege?von=${von}&bis=${bis}${wahl === 'meine' && ich.element ? `&lehrer=${encodeURIComponent(ich.element)}` : ''}`);
+    // Klassen der geladenen Hausaufgaben als Optionen (gewählte Klasse bleibt erhalten)
+    const klassen = [...new Set(daten.flatMap(h => h.klassen))].sort((x, y) => x.localeCompare(y, 'de', { numeric: true }));
+    if (klasse && !klassen.includes(klasse)) klassen.unshift(klasse);
+    klasseWahl.innerHTML = `<option value="">Alle Klassen</option>${klassen.map(k => `<option ${k === klasse ? 'selected' : ''}>${e(k)}</option>`).join('')}`;
     zeichnen();
   };
   // Zeile anklicken → Detailfenster; Anlegen über ein Fenster (Datum und Stunde aus den eigenen Unterrichten)
   const zeichnen = () => {
-    const l = daten.filter(h => !filter || `${h.fach} ${h.lehrer} ${h.text} ${h.bemerkung} ${h.klassen.join(' ')}`.toLowerCase().includes(filter));
+    const l = daten.filter(h => (!klasse || h.klassen.includes(klasse)) && (!filter || `${h.fach} ${h.lehrer} ${h.text} ${h.bemerkung} ${h.klassen.join(' ')}`.toLowerCase().includes(filter)));
     kontext.titel(basis === '#/aufgaben' ? 'Aufgaben' : 'Hausaufgaben', ich.element ? `<button type="button" class="btn btn-primary" data-hw-neu>${icon('plus')}Neue Hausaufgabe</button>` : '', String(l.length));
     document.querySelector('[data-hw-neu]')?.addEventListener('click', () => hausaufgabeFormular({ lehrer: ich.element, geaendert: laden }));
     const heute = heuteIso();
-    seite.innerHTML = `<div class="u-tabelle-karte">${l.length ? `<table class="u-tabelle ha-liste"><thead><tr><th>Aufgabendatum</th><th>Fälligkeitsdatum</th><th>Fach</th><th>Klasse</th><th>Erstellt von</th><th>Hausaufgabe</th><th>Anhänge</th><th class="ha-st"><span class="visually-hidden">Status</span></th></tr></thead><tbody>
+    inhalt.innerHTML = `<div class="u-tabelle-karte">${l.length ? `<table class="u-tabelle ha-liste"><thead><tr><th>Aufgabendatum</th><th>Fälligkeitsdatum</th><th>Fach</th><th>Klasse</th><th>Erstellt von</th><th>Hausaufgabe</th><th>Anhänge</th><th class="ha-st"><span class="visually-hidden">Status</span></th></tr></thead><tbody>
       ${l.map((h, i) => `<tr data-i="${i}" tabindex="0" class="${h.erledigt ? 'erledigt' : ''}" aria-label="${e(`Hausaufgabe ${h.fach} ${h.klassen.join(', ')} öffnen`)}"><td>${datumDe(h.datum)}</td><td class="${h.faellig && h.faellig < heute && !h.erledigt ? 'ha-ueber' : ''}">${datumDe(h.faellig)}</td><td>${e(h.fach)}</td><td>${e(h.klassen.join(', '))}</td><td>${e(h.lehrer)}</td>
         <td class="ha-text" title="${e(h.text)}">${e(h.text)}</td><td></td>
         <td class="ha-st">${h.erledigt ? '<i class="bi bi-check-circle-fill" title="Erledigt" aria-label="Erledigt"></i>' : ''}</td></tr>`).join('')}</tbody></table>`
-      : leer('Keine Hausaufgaben im Zeitraum.', 'hausaufgaben')}</div>`;
-    seite.querySelectorAll('tr[data-i]').forEach(tr => {
+      : leer(filter || klasse ? 'Keine Hausaufgabe passt zur Suche.' : 'Keine Hausaufgaben im Zeitraum.', 'hausaufgaben')}</div>`;
+    inhalt.querySelectorAll('tr[data-i]').forEach(tr => {
       const oeffnen = () => hausaufgabeDetails(l[Number(tr.dataset.i)], { geaendert: aendern => aendern ? (daten = daten.slice(), zeichnen()) : laden() });
       tr.onclick = oeffnen;
       tr.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); oeffnen(); } };
     });
   };
-  w.querySelector('[data-wahl]').onchange = ev => { wahl = ev.target.value; laden(); };
-  w.querySelector('[data-suche]').oninput = ev => { filter = ev.target.value.trim().toLowerCase(); zeichnen(); };
+  suchfeldMitFilterBinden(seite, {
+    beiSuche: t => { filter = t.toLowerCase(); zeichnen(); },
+    beiFilter: (name, wert) => { if (name === 'wahl') { wahl = wert; laden(); } else { klasse = wert; zeichnen(); } },
+  });
   await laden();
 }

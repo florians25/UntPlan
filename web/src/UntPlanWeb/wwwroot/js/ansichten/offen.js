@@ -1,10 +1,11 @@
-// Klassenbuch → Offene Stunden im Original-Look (nl-design): oben die Suchleiste mit Filter-Chips (Lehrkraft, Klasse, offene Einträge;
-// Klassenleitungen bekommen „Meine Klassen“ zuerst), daneben die Art der Anzeige als Segment-Auswahl, rechts der Zeitraum zum Anklicken (Kalender mit zwei Monaten)
+// Klassenbuch → Offene Stunden im Original-Look (nl-design): oben – direkt auf dem grauen Seitengrund wie bei allen Listenseiten – das gemeinsame
+// Suchfeld mit Filter (ui.js suchfeldMitFilter): Chips für Lehrkraft und Klasse (Klassenleitungen bekommen „Meine Klassen“ zuerst), die Art der
+// Anzeige als Dropdown im Suchfeld wie bei den Hausaufgaben, rechts der Zeitraum zum Anklicken (Kalender mit zwei Monaten)
 // und die Auswahlbox mit vordefinierten Zeitbereichen. Darunter eine schlichte Tabelle ○ | Lehrkraft | Klasse | Fach | Datum | Art | Raum |
 // Abwesenheitskontrolle („Prüfen“) | Lehrstoff („Eingeben“ → Seitenleiste mit Vorstunden, Pfeile blättern). Klick auf eine Zeile öffnet die
 // Stundendetails. Rechte und der gespeicherte Zeitbereich liegen auf dem Server (/api/app/klassenbuch/offene-stunden).
 // Adresse: #/offen/<bereich | ->/<art>/<Lehrkräfte, | ->/<Klasse | ->/<von>/<bis>
-import { e, icon, holen, senden, toast, herunterladen, lade, segment } from '../ui.js';
+import { e, icon, holen, senden, toast, herunterladen, lade, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog } from '../kbdialog.js';
 import { karteDialog } from '../plangitter.js';
 import { LEHRFORMEN } from '../stundendetails.js';
@@ -22,7 +23,7 @@ const wochentag = iso => WT[new Date(`${iso}T12:00:00`).getDay()] ?? '';
 const istDatum = s => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '');
 const passtArt = (art, z) => art === 'kontrolle' ? !z.geprueft : art === 'lehrstoff' ? !z.lehrstoff : art === 'alle' ? true : !z.geprueft || !z.lehrstoff;
 const erledigt = text => `<span class="os-status ok" title="${e(text)}"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">${e(text)}</span></span>`;
-const ART_WAHL = [['offen', 'Offen'], ['kontrolle', 'Abwesenheiten'], ['lehrstoff', 'Lehrstoff'], ['alle', 'Alle Stunden']];
+const ART_WAHL = [['offen', 'Offen'], ['kontrolle', 'Abwesenheiten fehlen'], ['lehrstoff', 'Lehrstoff fehlt'], ['alle', 'Alle Stunden']];
 
 export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerParam, klasseParam, vonParam, bisParam]) {
   let art = ART[artParam] ? artParam : 'offen';
@@ -61,20 +62,23 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
     ...zustand.lehrer.map(l => ({ typ: 'lehrer', wert: l, text: l })),
     ...(zustand.klasse ? [{ typ: 'klasse', wert: zustand.klasse, text: `Klasse ${zustand.klasse}` }] : []),
   ];
-  const w = kontext.werkzeug(`<div class="os-leiste">
-      <div class="os-suche" data-suchfeld>
-        ${icon('suchen')}
-        ${chips.map(c => `<span class="os-chip">${e(c.text)}<button type="button" data-chip-weg="${c.typ}:${e(c.wert)}" aria-label="Filter ${e(c.text)} entfernen"><i class="bi bi-x"></i></button></span>`).join('')}
-        <input type="search" data-suche autocomplete="off" placeholder="${r.alle ? 'Lehrkraft, Klasse oder Fach suchen' : 'Klasse oder Fach suchen'}" aria-label="Suche" aria-expanded="false" aria-controls="os-vorschlaege">
-        ${chips.length ? '<button type="button" class="os-leeren" data-leeren title="Alle Filter entfernen" aria-label="Alle Filter entfernen"><i class="bi bi-x-circle-fill"></i></button>' : ''}
-        <div class="os-vorschlaege" id="os-vorschlaege" role="listbox" hidden></div>
-      </div>
-      <div class="os-art">${segment(ART_WAHL.map(([a, t]) => [a, t, { titel: ART[a] }]), art, { attr: 'data-artwahl', label: 'Anzeigen' })}</div>
-      <div class="os-zeit">
+  // Art der Anzeige: Standard ist die Vorgabe der Klassenbuch-Einstellungen; eine andere Wahl erscheint als Chip im Suchfeld
+  const artStandard = r.offenFuer === 'kontrolle' || r.offenFuer === 'lehrstoff' ? r.offenFuer : 'offen';
+  seite.innerHTML = `<div class="u-sf-leiste os-filter">
+      ${suchfeldMitFilter({
+        platzhalter: r.alle ? 'Lehrkraft, Klasse oder Fach suchen' : 'Klasse oder Fach suchen', label: 'Suche',
+        chips: chips.map(c => ({ wert: `${c.typ}:${c.wert}`, text: c.text })),
+        filter: [{ name: 'art', label: 'Anzeigen', alle: null, standard: artStandard, wert: art, optionen: ART_WAHL }],
+        zusatz: '<div class="os-vorschlaege" id="os-vorschlaege" role="listbox" hidden></div>',
+      })}
+      <div class="u-sf-rechts os-zeit">
         <button type="button" class="os-zeitraum" data-zeitraum aria-haspopup="dialog" title="Zeitraum wählen"><span>${datumDe(r.von)} - ${datumDe(r.bis)}</span></button>
         <label class="os-bereich"><span class="visually-hidden">Zeitbereich</span>
           <select data-bereich>${r.bereiche.map(b => `<option value="${b.id}" ${b.id === r.bereich ? 'selected' : ''}>${e(b.text)}</option>`).join('')}</select></label>
-      </div></div>`);
+      </div></div>
+    <div data-os-inhalt></div>`;
+  const w = seite.querySelector('.os-filter');
+  const inhalt = seite.querySelector('[data-os-inhalt]');
 
   // ---------------------------------------------------------------- Inhalt
   const auswahl = new Set();
@@ -87,7 +91,7 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
     kontext.titel('Offene Stunden', `${nachricht ? `<button type="button" class="btn btn-outline-secondary" data-nachricht ${liste.length ? '' : 'disabled'}>Nachricht senden</button>` : ''}
       <button type="button" class="btn btn-outline-secondary" data-bericht ${liste.length ? '' : 'disabled'}>Bericht</button>`, `${liste.length}`);
     const alleGewaehlt = liste.length > 0 && liste.every(z => auswahl.has(z.i));
-    seite.innerHTML = `<div class="os-seite os-original">
+    inhalt.innerHTML = `<div class="os-seite os-original">
       ${liste.length ? `<div class="os-tabelle"><table>
         <thead><tr>
           <th class="os-wahl"><input type="checkbox" class="nl-rund" data-alle ${alleGewaehlt ? 'checked' : ''} aria-label="Alle auswählen"></th>
@@ -162,8 +166,6 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
     const g = [];
     const meine = r.klassenleitung.filter(k => passt(k) && k !== zustand.klasse);
     if (meine.length) g.push(['Meine Klassen', meine.map(k => ({ typ: 'klasse', wert: k, text: k, info: 'alle Stunden der Klasse' }))]);
-    const filter = ['kontrolle', 'lehrstoff'].filter(a => a !== art && passt(ART[a])).map(a => ({ typ: 'art', wert: a, text: ART[a] }));
-    if (filter.length) g.push(['Filter', filter]);
     const klassen = el.klassen.filter(k => !r.klassenleitung.includes(k.kurz) && k.kurz !== zustand.klasse && passt(k.kurz, k.name)).slice(0, t ? 12 : 6)
       .map(k => ({ typ: 'klasse', wert: k.kurz, text: k.kurz, info: k.name && k.name !== k.kurz ? k.name : '' }));
     if (klassen.length) g.push(['Klassen', klassen]);
@@ -204,12 +206,13 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
       l[markiert]?.scrollIntoView({ block: 'nearest' });
     } else if (ev.key === 'Enter' && markiert >= 0 && l[markiert]) { ev.preventDefault(); waehlen(l[markiert].dataset.vorschlag); }
     else if (ev.key === 'Escape') { vorschlaege.hidden = true; }
-    else if (ev.key === 'Backspace' && !suche.value && chips.length) { const c = chips[chips.length - 1]; chipWeg(c.typ, c.wert); }
   };
-  const chipWeg = (typ, wert) => kontext.navigieren(ziel(typ === 'lehrer' ? { lehrer: zustand.lehrer.filter(l => l !== wert) } : typ === 'klasse' ? { klasse: '' } : { art: 'offen' }));
-  w.querySelectorAll('[data-chip-weg]').forEach(b => b.onclick = () => { const [typ, ...rest] = b.dataset.chipWeg.split(':'); chipWeg(typ, rest.join(':')); });
-  w.querySelector('[data-leeren]')?.addEventListener('click', () => kontext.navigieren(ziel({ lehrer: [], klasse: '', art: 'offen' })));
-  w.querySelector('[data-suchfeld]').addEventListener('click', ev => { if (!ev.target.closest('button')) suche.focus(); });
+  const chipWeg = (typ, wert) => kontext.navigieren(ziel(typ === 'lehrer' ? { lehrer: zustand.lehrer.filter(l => l !== wert) } : { klasse: '' }));
+  // gemeinsames Verhalten: x an den Chips, Rücktaste im leeren Feld, Art-Dropdown (Tastatur über die einheitliche Auswahl)
+  suchfeldMitFilterBinden(w, {
+    beiChipWeg: c => { const [typ, ...rest] = c.split(':'); chipWeg(typ, rest.join(':')); },
+    beiFilter: (name, wert) => { if (name === 'art') kontext.navigieren(ziel({ art: wert })); },
+  });
 
   // ---------------------------------------------------------------- Zeitraum: Klick aufs Datum öffnet einen Kalender mit zwei Monaten
   const zeitKnopf = w.querySelector('[data-zeitraum]');
@@ -223,8 +226,6 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
     if (ev.target.value === 'individuell') { ev.target.value = r.bereich; zeitKnopf.click(); return; }
     bereichSetzen(ev.target.value);
   };
-  // Art der Anzeige: einheitliche Segment-Auswahl (statt Auswahlliste in der Suche)
-  w.querySelectorAll('[data-artwahl]').forEach(b => b.onclick = () => kontext.navigieren(ziel({ art: b.dataset.wert })));
 
   // ---------------------------------------------------------------- Lehrstoff in der Seitenleiste eintragen (Pfeile: vorige/nächste Stunde der Liste)
   async function lehrstoffLeiste(liste, start) {

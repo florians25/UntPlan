@@ -150,13 +150,18 @@ public static class UntPlanWebExport
                 // Unterrichts – diese stehen an der entfallenen Stunde im Plan)
                 var ersetzt = d.Vertretungen.Where(v => v.Datum == t && v.Art == VertretungsArt.Klausur && v.Quelle == VertretungsQuelle.Klausur && v.UnterrichtId.HasValue)
                     .Select(v => v.Id).ToHashSet();
+                // offene Raumvertretung (gesperrter bzw. für einen anderen Unterricht freigegebener Raum, noch ohne Ersatzraum): neuer Raum
+                // „???“ wie im Vertretungsfenster – sonst stünde dort der bisherige Raum und UntPlanWeb zeigte keine Raumänderung
+                var raumOffen = d.Vertretungen.Where(v => v.Datum == t && v.RaumOffen && !v.IstEntfall && v.Art != VertretungsArt.Pausenaufsicht)
+                    .GroupBy(v => v.Id).ToDictionary(g => g.Key, g => g.First());
                 foreach (var z in Vertretungsplan.Zeilen(d, t))
                 {
                     var pr = ersetzt.Contains(z.Id);
+                    var neuerRaum = raumOffen.TryGetValue(z.Id, out var ro) ? string.Join(",", ro.ZusatzraumIds.Select(ix.KRaum).Prepend("???")) : z.NeuerRaum;
                     vertretungen.Add(new WebVertretung
                     {
                         Id = z.Id, Datum = D(t), Stunde = z.Stunde, Art = z.Art, Klassen = Kl(z.KlassenIds), Lehrer = pr ? "" : z.Lehrer, Vertreter = z.Vertreter,
-                        Fach = pr ? "" : z.Fach, NeuesFach = pr ? "" : z.NeuesFach, Raum = pr ? "" : z.Raum, NeuerRaum = z.NeuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = StundenplanAenderungen.ExportText(z.Text),
+                        Fach = pr ? "" : z.Fach, NeuesFach = pr ? "" : z.NeuesFach, Raum = pr ? "" : z.Raum, NeuerRaum = neuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = StundenplanAenderungen.ExportText(z.Text),
                         NurLehrer = z.Art == Vertretungsplan.ArtText(d, VertretungsArt.Pausenaufsicht),
                     });
                 }

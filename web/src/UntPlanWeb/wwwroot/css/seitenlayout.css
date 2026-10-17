@@ -124,6 +124,9 @@
 
 .u-sf-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 16px; min-width: 0; }
 .u-sf-leiste > .u-sf-rechts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-left: auto; }
+.u-sf-rechts .au { display: inline-block; width: auto; min-width: 0; }
+.u-sf-rechts > .u-feld { margin: 0; }
+.u-sf-zeit { color: #57626b; font-weight: 500; font-size: .9rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .u-suchfilter { position: relative; display: flex; align-items: center; gap: 8px; flex: 1 1 360px; max-width: 640px; min-width: 0; min-height: 42px; padding: 4px 6px 4px 14px;
   background: #f2f4f6; border: 1px solid transparent; border-radius: 21px; color: #24323d; cursor: text; transition: background-color .12s, border-color .12s, box-shadow .12s; }
 .u-suchfilter:hover { background: #eceff2; }
@@ -152,7 +155,7 @@
 .u-sf-filter > .au { display: inline-block; width: auto; min-width: 0; max-width: 100%; }
 .u-sf-filter .au-knopf { min-height: 0; height: 32px; padding: 0 8px 0 10px; gap: 6px; border: 0; border-radius: 999px; background: transparent; box-shadow: none !important;
   font-size: .9rem; font-weight: 500; color: #24323d; }
-.u-sf-filter .au-knopf.leer .au-wert-text { color: inherit; }
+.u-sf-filter .au-knopf.leer .au-wert-text, .u-sf-filter .au-platzhalter { color: inherit; }
 .u-sf-filter .au-pfeil { color: #414d55; }
 .u-sf-filter .au-knopf:hover { background: rgba(255, 255, 255, .65); }
 .u-sf-filter .au.offen > .au-knopf, .u-sf-filter .au-knopf:focus-visible { background: #fff; box-shadow: inset 0 0 0 1.5px rgba(var(--u-akzent-rgb, 245, 107, 42), .6) !important; }
@@ -167,7 +170,8 @@
 @media (max-width: 767.98px) {
   .u-sf-leiste { gap: 10px; }
   .u-sf-leiste > .u-suchfilter { flex: 1 1 100%; max-width: none; }
-  .u-sf-leiste > .u-sf-rechts { margin-left: 0; }
+  .u-sf-leiste > .u-sf-rechts { margin-left: 0; flex-wrap: nowrap; }
+  .u-sf-leiste > .u-sf-rechts.os-zeit { width: 100%; justify-content: space-between; }
 }
 @media (max-width: 575.98px) {
   /* mehrere Dropdowns: Eingabe in der ersten Zeile, Dropdowns darunter im selben Feld */

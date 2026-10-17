@@ -885,6 +885,11 @@ public sealed class Plandienst
             }
             else if (raeume.Count == 0 && (v.Raum.Length > 0 || v.NeuerRaum.Length > 0))
                 raeume.Add(new Wert(v.NeuerRaum.Length > 0 && status != "entfall" ? v.NeuerRaum : v.Raum));
+            // Raum gelöscht bzw. für einen anderen Unterricht freigegeben (ältere Exporte ohne „???“): die vertretene Stunde hat keinen
+            // Raum mehr, die Vertretung nennt aber weiter den bisherigen Raum als neuen – bisheriger Raum durchgestrichen im grünen Label
+            var raumWeg = status == "geaendert" && r.Status == "vertreten" && r.Raeume.Count == 0 && alteR.Count > 0
+                          && alteR.Count == neueR.Count && alteR.All(x => neueR.Contains(x, Ci));
+            if (raumWeg) raeume = alteR.Select(x => new Wert("", x, true)).ToList();
             // offene Raumvertretung (Raum „???“): wie eine offene Lehrervertretung – bisheriger Raum durchgestrichen
             if (status != "entfall" && (v.NeuerRaum == "???" || raeume.Any(x => x.K == "???")))
             {
@@ -899,7 +904,7 @@ public sealed class Plandienst
                 status = "abwesend";
             // (Raumplan: nur bei echter Raumänderung – fehlen die Räume der Stunde und bleibt der Raum laut Vertretung gleich, findet die
             // vertretene Stunde weiter hier statt und erscheint wie im Klassenplan als Änderung)
-            var raumBleibt = r.Raeume.Count == 0 && (v.NeuerRaum.Length == 0 || RaumListe(v.NeuerRaum).Contains(kurz, Ci));
+            var raumBleibt = !raumWeg && r.Raeume.Count == 0 && (v.NeuerRaum.Length == 0 || RaumListe(v.NeuerRaum).Contains(kurz, Ci));
             if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && ((status is "geaendert" && !raumBleibt) || buchung))
                 status = "abwesend";
         }

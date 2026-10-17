@@ -77,13 +77,17 @@ public class SprechtagOptionenTests
         Assert.False(sicht["buchbar"]!.GetValue<bool>());
         Assert.Contains("Anmeldezeitraum", await FehlerAsync(await eltern.PostAsJsonAsync($"/api/app/sprechtag/{id}/buchen", new { lehrer = "LAN", schuelerId = kind.Id, beginn = "15:00" })));
 
-        // Schüler*innen: ohne Option nichts, mit Option nur lesen
-        Assert.Empty((await Testserver.HolenAsync(schueler, "/api/app/sprechtag/start")).AsArray());
-        await Testserver.JsonAsync(await admin.PutAsJsonAsync($"/api/app/sprechtag/{id}", Daten(anmeldungVon: "2026-10-16T08:00", optionen: new { sichtbarSchueler = true })));
+        // Schüler*innen sehen die Ankündigung standardmäßig (Startseite, /heute, Liste) – nur lesen; mit „sichtbar für Schüler*innen“ = aus nicht
+        Assert.True((await Testserver.HolenAsync(admin, $"/api/app/sprechtag/{id}"))["sprechtag"]!["optionen"]!["sichtbarSchueler"]!.GetValue<bool>());
         Assert.Equal("angekuendigt", Assert.Single((await Testserver.HolenAsync(schueler, "/api/app/sprechtag/start")).AsArray())!["status"]!.GetValue<string>());
+        Assert.Equal(id, Assert.Single((await Testserver.HolenAsync(schueler, "/api/app/heute"))["sprechtage"]!.AsArray())!["id"]!.GetValue<int>());
+        Assert.Single((await Testserver.HolenAsync(schueler, "/api/app/sprechtag"))["sprechtage"]!.AsArray());
         var lesen = await Testserver.HolenAsync(schueler, $"/api/app/sprechtag/{id}/eltern");
         Assert.True(lesen["nurLesen"]!.GetValue<bool>());
         await FehlerAsync(await schueler.PostAsJsonAsync($"/api/app/sprechtag/{id}/buchen", new { lehrer = "LAN", schuelerId = kind.Id, beginn = "15:00" }), HttpStatusCode.Forbidden);
+        await Testserver.JsonAsync(await admin.PutAsJsonAsync($"/api/app/sprechtag/{id}", Daten(anmeldungVon: "2026-10-16T08:00", optionen: new { sichtbarSchueler = false })));
+        Assert.Empty((await Testserver.HolenAsync(schueler, "/api/app/sprechtag/start")).AsArray());
+        Assert.Single((await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray());
 
         // ohne „ankündigen“: Eltern ohne Einladung sehen nichts; ohne „sichtbar für Eltern“ auch nicht in der Anmeldung
         await Testserver.JsonAsync(await admin.PutAsJsonAsync($"/api/app/sprechtag/{id}", Daten(anmeldungVon: "2026-10-16T08:00", optionen: new { ankuendigen = false })));
@@ -91,6 +95,30 @@ public class SprechtagOptionenTests
         await Testserver.JsonAsync(await admin.PutAsJsonAsync($"/api/app/sprechtag/{id}", Daten(optionen: new { sichtbarEltern = false })));
         Assert.Empty((await Testserver.HolenAsync(eltern, "/api/app/sprechtag"))["sprechtage"]!.AsArray());
         await FehlerAsync(await eltern.GetAsync($"/api/app/sprechtag/{id}/eltern"));
+    }
+
+    [Fact]
+    public async Task Ankuendigung_ohne_gespeicherte_Optionen_fuer_Eltern_und_Schueler_sichtbar()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var kind = s.Dienst<Paketdienst>().Aktuell!.Schueler.First(x => x.Klasse == "7a");
+        var admin = await s.AlsAsync("admin");
+        var (eltern, _) = await KontoAsync(s, admin, "eltern-alt", "eltern", kind.Id);
+        var (schueler, _) = await KontoAsync(s, admin, "schueler-alt", "schueler", kind.Id);
+        // angelegt ohne Optionen (wie im Formular ohne Änderungen) und ein älterer Sprechtag ohne gespeicherte Optionen
+        var neu = await AnlegenAsync(admin, Daten(anmeldungVon: "2026-10-16T08:00"));
+        var alt = await AnlegenAsync(admin, Daten(anmeldungVon: "2026-10-18T08:00"));
+        s.Dienst<UntPlanWeb.Daten.Db>().Ausfuehren("UPDATE sprechtage SET optionen = '' WHERE id = @id", ("@id", alt));
+        var o = (await Testserver.HolenAsync(admin, $"/api/app/sprechtag/{alt}"))["sprechtag"]!["optionen"]!;
+        Assert.True(o["ankuendigen"]!.GetValue<bool>() && o["sichtbarEltern"]!.GetValue<bool>() && o["sichtbarSchueler"]!.GetValue<bool>());
+        foreach (var c in new[] { eltern, schueler })
+        {
+            var karten = (await Testserver.HolenAsync(c, "/api/app/sprechtag/start")).AsArray();
+            Assert.Equal(new[] { neu, alt }.OrderBy(x => x), karten.Select(k => k!["id"]!.GetValue<int>()).OrderBy(x => x));
+            Assert.All(karten, k => Assert.Equal("angekuendigt", k!["status"]!.GetValue<string>()));
+            Assert.All(karten, k => Assert.StartsWith("Angekündigt", k!["text"]!.GetValue<string>()));
+            Assert.Equal(2, (await Testserver.HolenAsync(c, "/api/app/heute"))["sprechtage"]!.AsArray().Count);
+        }
     }
 
     [Fact]

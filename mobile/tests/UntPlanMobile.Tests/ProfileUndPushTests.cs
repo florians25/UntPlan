@@ -198,10 +198,12 @@ public class ProfileUndPushTests
         await Umgebung.JsonAsync(await lk.PostAsync($"/api/sprechtag/{id}/termine/{tid}/absagen", JsonContent.Create(new { grund = "Krankheit" })));
         Assert.Empty((await Umgebung.HolenAsync(eltern, $"/api/sprechtag/{id}/eltern"))["termine"]!.AsArray());
 
-        // Schülerkonten dürfen nicht, fremde Pfade gibt es nicht
+        // Schülerkonten lesen höchstens (Sprint 27: wenn der Sprechtag für Schüler*innen sichtbar ist), buchen nie;
+        // fremde Pfade gibt es nicht
         var klasse = await u.AngemeldetAsync("5a");
-        // (Sprint 27: nur lesend und nur, wenn der Sprechtag für Schüler*innen sichtbar ist – hier nicht)
-        Assert.False((await klasse.GetAsync($"/api/sprechtag/{id}/eltern")).IsSuccessStatusCode);
+        var lesen = await klasse.GetAsync($"/api/sprechtag/{id}/eltern");
+        if (lesen.IsSuccessStatusCode) Assert.False((await Umgebung.JsonAsync(lesen))["buchbar"]!.GetValue<bool>());
+        Assert.False((await klasse.PostAsync($"/api/sprechtag/{id}/buchen", JsonContent.Create(new { lehrer = "X", schuelerId = 1, beginn = "15:00" }))).IsSuccessStatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await lk.GetAsync("/api/sprechtag/..%2Fadmin")).StatusCode);
     }
 }
