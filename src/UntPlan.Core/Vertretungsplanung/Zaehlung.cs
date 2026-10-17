@@ -147,7 +147,9 @@ public static class Zaehlung
                     continue;
                 }
                 if (v.Art == VertretungsArt.BereitschaftEntfaellt) continue;
-                var eigeneAbsenz = v.AbwesenheitId.HasValue || (v.Quelle == VertretungsQuelle.Veranstaltung && v.VeranstaltungId is int vid && d.Veranstaltungen.FirstOrDefault(x => x.Id == vid)?.LehrerIds.Contains(l.Id) == true);
+                var eigeneAbsenz = v.AbwesenheitId.HasValue || (v.Quelle == VertretungsQuelle.Veranstaltung && v.VeranstaltungId is int vid && d.Veranstaltungen.FirstOrDefault(x => x.Id == vid) is { } vx
+                    // auch an diesem Tag zusätzlich eingetragene Lehrkräfte nehmen teil (kein gewöhnlicher Entfall)
+                    && (vx.LehrerIds.Contains(l.Id) || vx.NimmtTeil(l.Id, v.Datum)));
                 bool zaehlt;
                 if (fach?.EntfallNichtZaehlen == true) zaehlt = false;
                 else if (eigeneAbsenz) zaehlt = grund?.EntfallZaehlen == true || (grund is null && !e.EntfallNurMitGrund);
@@ -189,9 +191,11 @@ public static class Statistik
     /// </summary>
     public sealed record MehrarbeitMonat(int Jahr, int Monat, int Geleistet, int Minder, int Saldo, decimal Grenze, int Verguetungsfaehig);
 
-    public static List<MehrarbeitMonat> MehrarbeitNrw(Schuldatei d, Lehrer l, DateOnly von, DateOnly bis)
+    public static List<MehrarbeitMonat> MehrarbeitNrw(Schuldatei d, Lehrer l, DateOnly von, DateOnly bis) => MehrarbeitNrw(d, l, Zaehlung.Lehrer(d, l, von, bis));
+
+    /// <summary>Mehrarbeit NRW aus einer bereits berechneten Zählung (Abrechnung: nicht zweimal zählen).</summary>
+    public static List<MehrarbeitMonat> MehrarbeitNrw(Schuldatei d, Lehrer l, ZaehlSumme z)
     {
-        var z = Zaehlung.Lehrer(d, l, von, bis);
         var grenze = Math.Round(d.Einstellungen.Mehrarbeitsgrenze * Teilzeitquote(d, l), 1);
         var res = new List<MehrarbeitMonat>();
         foreach (var m in z.Zeilen.GroupBy(x => (x.Datum.Year, x.Datum.Month)).OrderBy(g => g.Key))
@@ -211,7 +215,7 @@ public static class Statistik
         {
             var z = Zaehlung.Lehrer(d, l, von, bis);
             if (z.Zeilen.Count == 0) continue;
-            var verg = MehrarbeitNrw(d, l, von, bis).Sum(m => m.Verguetungsfaehig);
+            var verg = MehrarbeitNrw(d, l, z).Sum(m => m.Verguetungsfaehig);
             res.Add(new LehrerZeile(l, z.Vertretungen, z.Mehrarbeit, z.Betreuungen, z.Sondereinsaetze, z.Pausenaufsichten, z.Entfaelle, z.Freisetzungen, z.Summe, verg));
         }
         return res.OrderBy(r => r.Lehrer.Kurzname, StringComparer.Create(Format.De, true)).ToList();

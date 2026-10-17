@@ -12,20 +12,20 @@
   color: #67747e; font: inherit; font-size: .9rem; cursor: default; }
 .bu-schritte li.fertig button { cursor: pointer; color: var(--u-text); }
 .bu-schritte li.fertig button:hover .bu-sname { color: var(--u-akzent-dunkel); }
-.bu-nr { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid #c9d0d6; background: #fff; font-weight: 600; color: #67747e; }
+.bu-nr { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid #c9d0d6; background: #fff; font-weight: 500; color: #67747e; }
 .bu-schritte li.aktiv .bu-nr { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; box-shadow: 0 0 0 4px rgba(var(--u-akzent-rgb), .15); }
-.bu-schritte li.aktiv .bu-sname { color: var(--u-titel); font-weight: 600; }
+.bu-schritte li.aktiv .bu-sname { color: var(--u-titel); font-weight: 500; }
 .bu-schritte li.fertig .bu-nr { border-color: var(--u-akzent); color: var(--u-akzent); }
 
 /* Karten */
 .bu-karte { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 18px 22px; margin-bottom: 14px; }
 .bu-karte > header { display: flex; align-items: center; gap: 10px; margin: -2px 0 14px; color: var(--u-titel); }
 .bu-karte > header > i { font-size: 1.15rem; color: var(--u-akzent); }
-.bu-karte > header h2 { font-size: 1.08rem; font-weight: 600; margin: 0; }
+.bu-karte > header h2 { font-size: 1.08rem; font-weight: 500; margin: 0; }
 .bu-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 18px; align-items: start; }
 .bu-raster .breit, .bu-breit { grid-column: 1 / -1; }
 .bu-feld { display: flex; flex-direction: column; gap: 5px; margin: 0; min-width: 0; }
-.bu-feld > span { font-size: .85rem; font-weight: 600; color: #414d55; }
+.bu-feld > span { font-size: .85rem; font-weight: 500; color: #414d55; }
 .bu-feld small { font-size: .78rem; line-height: 1.3; }
 .bu-zeile { margin-bottom: 14px; }
 
@@ -33,12 +33,12 @@
 .bu-segment { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 999px; background: #eef1f4; }
 .bu-segment button { border: 0; background: transparent; border-radius: 999px; padding: 7px 14px; font: inherit; font-size: .9rem; color: #414d55; white-space: nowrap; }
 .bu-segment button:hover { background: #e2e6ea; }
-.bu-segment button.an { background: #fff; color: var(--u-titel); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 5, 10, .15); }
+.bu-segment button.an { background: #fff; color: var(--u-titel); font-weight: 500; box-shadow: 0 1px 3px rgba(0, 5, 10, .15); }
 .bu-segment.klein button { padding: 5px 12px; font-size: .85rem; }
 
 /* Wochentage */
 .bu-tage { display: flex; flex-wrap: wrap; gap: 6px; }
-.bu-tag { width: 46px; height: 38px; border-radius: 999px; border: 1.5px solid #c9d0d6; background: #fff; font: inherit; font-weight: 600; color: #414d55; }
+.bu-tag { width: 46px; height: 38px; border-radius: 999px; border: 1.5px solid #c9d0d6; background: #fff; font: inherit; font-weight: 500; color: #414d55; }
 .bu-tag.an { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; }
 .bu-tag:focus-visible, .bu-segment button:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
 
@@ -59,7 +59,7 @@
 .nl-hinzu[disabled] { opacity: .6; }
 .bu-schalter { display: inline-flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; }
 .bu-schalter .form-check-input { margin: 0; width: 1.15em; height: 1.15em; }
-.bu-ohne { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; margin: 0; }
+.bu-ohne { display: inline-flex; align-items: center; gap: 10px; font-weight: 500; cursor: pointer; margin: 0; }
 
 /* Tabellen im Assistenten */
 .bu-tabelle tbody tr[data-raum], .bu-tabelle tbody tr[data-res] { cursor: pointer; }
@@ -75,57 +75,10 @@
 .bu-zf-raster { display: grid; gap: 8px; }
 .bu-zf { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f2f4; }
 .bu-zf > span { color: #67747e; }
-.bu-zf > b { font-weight: 600; color: var(--u-text); }
+.bu-zf > b { font-weight: 500; color: var(--u-text); }
 .bu-erfolg { text-align: center; padding: 34px 22px; }
-.bu-erfolg h2 { font-size: 1.3rem; font-weight: 600; color: var(--u-titel); margin: 12px 0 6px; }
+.bu-erfolg h2 { font-size: 1.3rem; font-weight: 500; color: var(--u-titel); margin: 12px 0 6px; }
 .bu-erfolg-symbol { display: inline-grid; place-content: center; width: 64px; height: 64px; border-radius: 50%; background: #e5f6ec; color: #0f7b47; font-size: 2rem; }
-
-/* Raumübersicht */
-.bu-datumwahl { display: inline-flex; align-items: center; gap: 6px; }
-.bu-legende { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 10px; font-size: .82rem; color: #67747e; }
-.bu-legende span { display: inline-flex; align-items: center; gap: 6px; }
-.bu-legende .bu-zelle { display: inline-block; width: 16px; height: 12px; border-radius: 3px; border: 1px solid #dfe3e7; }
-.bu-uebersicht { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; overflow: auto; max-height: calc(100vh - 230px); }
-.bu-uebersicht table { border-collapse: separate; border-spacing: 0; width: 100%; }
-.bu-uebersicht th, .bu-uebersicht td { border-bottom: 1px solid #edf0f2; border-right: 1px solid #f2f4f6; }
-.bu-uebersicht thead th { position: sticky; top: 0; z-index: 2; background: #fbfcfd; font-weight: 600; font-size: .85rem; color: #414d55; padding: 8px 6px; text-align: center; }
-.bu-uebersicht.woche thead tr:nth-child(2) th { top: 35px; }
-.bu-stdkopf small { display: block; font-weight: 400; color: #8a96a1; font-size: .72rem; }
-.bu-stdkopf.klein { min-width: 22px; padding: 4px 2px !important; font-size: .72rem !important; }
-.bu-tagkopf.frei { color: #8a96a1; }
-.bu-raumkopf, .bu-raumname { position: sticky; left: 0; z-index: 1; background: #fff; text-align: left !important; min-width: 120px; }
-.bu-uebersicht thead .bu-raumkopf { z-index: 3; background: #fbfcfd; }
-.bu-raumname { padding: 6px 12px; }
-.bu-raumname b { display: block; color: var(--u-titel); }
-.bu-raumname small { color: #8a96a1; font-weight: 400; font-size: .75rem; }
-td.bu-zelle { height: 46px; min-width: 74px; padding: 2px 4px; font-size: .75rem; line-height: 1.15; vertical-align: middle; overflow: hidden; }
-.woche td.bu-zelle { min-width: 22px; height: 40px; padding: 0; }
-td.bu-zelle span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.bu-zelle.unterricht { background: #eef1f4; color: #414d55; }
-.bu-zelle.buchung { background: #ffe8dc; color: #8a3a12; }
-.bu-zelle.klausur { background: #efe8fb; color: #5b3fa0; }
-.bu-zelle.termin { background: #e3eef8; color: #1f4f78; }
-.bu-zelle.vorgemerkt { background: #fff4d6; color: #6b4600; }
-.bu-zelle.gesperrt { background: repeating-linear-gradient(135deg, #fdecec 0 6px, #fff 6px 12px); color: #a1262b; }
-.bu-zelle.tagfrei { background: #f3f5f7; }
-.bu-zelle.vergangen { background: #fafbfc; }
-.bu-zelle.frei { background: #fff; }
-.bu-zelle.frei button { width: 100%; height: 100%; min-height: 36px; border: 0; background: transparent; color: transparent; border-radius: 6px; font-size: 1.1rem; }
-.bu-zelle.frei button:hover, .bu-zelle.frei button:focus-visible { background: #e5f6ec; color: #0f7b47; outline: none; }
-
-/* Ressourcenübersicht */
-.bu-uebersicht-rahmen { display: grid; grid-template-columns: 1fr 260px; gap: 16px; align-items: start; }
-.bu-arten { position: sticky; top: 80px; }
-.bu-artenliste { display: grid; gap: 8px; }
-.bu-woche th, .bu-woche td { vertical-align: top; }
-.bu-woche thead th.heute { color: var(--u-akzent); }
-.bu-woche tbody th { min-width: 170px; font-weight: 400; padding: 10px 12px; }
-.bu-woche td { min-width: 120px; }
-.bu-eintrag { padding: 4px 8px; margin-bottom: 4px; border-radius: 6px; background: #ffe8dc; color: #8a3a12; font-size: .8rem; line-height: 1.3; }
-.bu-eintrag.fest { background: #eef1f4; color: #414d55; }
-.bu-eintrag small { color: inherit; opacity: .75; }
-.bu-frei { font-size: .8rem; color: #0f7b47; }
-.bu-tagfrei { background: #f6f7f9; }
 
 /* Verwaltung */
 .bu-verwaltung { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
@@ -136,8 +89,7 @@ td.bu-zelle span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orie
 .bu-raumdaten input.form-control { min-width: 110px; }
 
 @media (max-width: 991.98px) {
-  .bu-uebersicht-rahmen, .bu-verwaltung { grid-template-columns: 1fr; }
-  .bu-arten { position: static; }
+  .bu-verwaltung { grid-template-columns: 1fr; }
 }
 @media (max-width: 767.98px) {
   .bu-karte { padding: 14px; }
@@ -150,10 +102,6 @@ td.bu-zelle span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orie
   .bu-segment { border-radius: 14px; }
 }
 .bu-karte .bu-raster + .bu-feld { margin-top: 14px; }
-.bu-uebersicht.woche .tagstart, .bu-uebersicht.woche .bu-tagkopf { border-left: 2px solid #d3d9de; }
-.bu-raumname small { white-space: nowrap; }
-.bu-legende i.bu-zelle { border-color: #c9d0d6; }
-.bu-arten .nl-knopf, .bu-arten .nl-hinzu { white-space: nowrap; }
 .bu-artenpflege li .nl-unter { white-space: nowrap; }
 .bu-artenpflege .nl-tag { white-space: nowrap; }
 @media (min-width: 992px) { .bu-verwaltung { grid-template-columns: 360px 1fr; } }
@@ -161,3 +109,426 @@ td.bu-zelle span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orie
   .bu-schritte li:not(.aktiv) .bu-sname { display: none; }
   .bu-schritte li { min-width: 52px; }
 }
+
+/* ------------------------------------------------------------------ Sprint 27: Assistent in drei Schritten, Liste „Meine Buchungen“,
+   Schnellbuchung und Storno im Dialog, responsive. Schrift nur Regular/Medium. */
+.bu-assistent { max-width: 1100px; }
+.bu-schritte { max-width: 720px; margin-left: auto; margin-right: auto; }
+button.bu-zusammenfassung { width: 100%; text-align: left; font: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
+button.bu-zusammenfassung:hover { border-color: rgba(var(--u-akzent-rgb), .6); background: #fff1e8; }
+.bu-aendern { margin-left: auto; color: var(--u-akzent-dunkel); font-size: .85rem; }
+.bu-zusammenfassung.statisch { cursor: default; }
+.bu-vorschau-kopf.leer i { color: #b42318; }
+.bu-tagwahl { margin-top: 14px; }
+.bu-raumkarte .rw-eingebettet { max-height: 460px; }
+.bu-raster.zwei { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nl-knopf.klein { height: 32px; padding: 0 12px; font-size: .8125rem; gap: 6px; }
+.nl-knopf.rund { width: 42px; padding: 0; justify-content: center; }
+.nl-hinzu.bu-gross { height: 42px; padding: 0 22px; font-size: .95rem; }
+
+/* Ersatzräume je belegtem Termin */
+.bu-ersatzliste { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 14px; }
+.bu-ersatz { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 10px; }
+.bu-ersatz-tag { display: flex; flex-direction: column; line-height: 1.2; }
+.bu-ersatz-tag b { font-weight: 500; color: var(--u-titel); }
+.bu-ersatz-tag small { color: #8a96a1; font-size: .75rem; }
+
+/* Ressourcen */
+.bu-resfilter { margin-bottom: 10px; }
+.bu-filterchip { height: 32px; padding: 0 12px; border: 1.5px solid #d3d9de; border-radius: 999px; background: #fff; font: inherit; font-size: .8125rem; color: #414d55; }
+.bu-filterchip.an { border-color: var(--u-akzent); background: #fff3ec; color: var(--u-akzent-dunkel); font-weight: 500; }
+.bu-resliste { border: 1px solid #e1e5e9; border-radius: 10px; overflow: hidden; }
+.bu-res { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; }
+.bu-res + .bu-res { border-top: 1px solid #eef1f3; }
+.bu-res:hover { background: #f8f9fa; }
+.bu-res.gewaehlt { background: rgba(var(--u-akzent-rgb), .06); }
+.bu-res.aus { cursor: default; opacity: .7; }
+.bu-res-wahl { margin: 0; }
+.bu-res-text { display: flex; flex-direction: column; min-width: 0; }
+.bu-res-text b { font-weight: 500; color: var(--u-titel); }
+.bu-res-text small { color: #7a8792; font-size: .78rem; }
+.bu-res-menge { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: #7a8792; font-size: .78rem; }
+.bu-res-menge input { width: 70px; height: 32px; }
+
+/* Angaben & buchen */
+.bu-abschluss { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.bu-abschluss.ohne-formular { grid-template-columns: minmax(0, 640px); }
+.bu-zf-karte { position: sticky; top: 80px; }
+.bu-zf-karte .bu-zf { grid-template-columns: 110px minmax(0, 1fr); gap: 10px; font-size: .875rem; }
+.bu-zf > div { color: var(--u-text); min-width: 0; }
+.bu-zf-info { margin: 12px 0 0; font-size: .8rem; }
+.bu-warnung small { display: block; margin-top: 4px; opacity: .8; }
+
+/* Meine Buchungen */
+.bu-leiste .bu-segment { height: 42px; align-items: center; }
+.bu-anzahl { margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: rgba(36, 50, 61, .08); font-size: .72rem; color: #67747e; }
+.bu-leiste2 { margin-top: -4px; }
+.bu-leiste2 .nl-pille { height: 36px; font-size: .875rem; }
+.bu-liste { background: #fff; border: 1px solid #e1e5e9; border-radius: 12px; overflow: hidden; }
+.bu-monat { padding: 10px 18px 6px; background: #fafbfc; border-bottom: 1px solid #eef1f3; color: #7a8792; font-size: .75rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.bu-monat:not(:first-child) { border-top: 1px solid #eef1f3; }
+.bu-eintrag-zeile { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto 130px; align-items: center; gap: 16px; padding: 12px 18px; }
+.bu-eintrag-zeile + .bu-eintrag-zeile, .bu-serie + .bu-eintrag-zeile, .bu-eintrag-zeile + .bu-serie, .bu-serie + .bu-serie { border-top: 1px solid #eef1f3; }
+.bu-datum { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 56px; border-radius: 10px; background: #fff3ec; color: var(--u-akzent-dunkel); line-height: 1.05; }
+.bu-datum b { font-size: 1.2rem; font-weight: 500; }
+.bu-datum span { font-size: .72rem; }
+.bu-datum small { font-size: .68rem; color: #a0613e; }
+.bu-eintrag-zeile.vergangen .bu-datum, .bu-eintrag-zeile.storniert .bu-datum { background: #f1f3f5; color: #67747e; }
+.bu-eintrag-zeile.vergangen .bu-datum small, .bu-eintrag-zeile.storniert .bu-datum small { color: #8a96a1; }
+.bu-haupt { min-width: 0; }
+.bu-titelzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bu-titel { font-weight: 500; color: var(--u-titel); }
+.bu-eintrag-zeile.storniert .bu-titel { text-decoration: line-through; color: #8a96a1; }
+.bu-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 3px; color: #67747e; font-size: .8125rem; }
+.bu-meta i { margin-right: 4px; color: #9aa5ae; }
+.bu-meta a { color: inherit; text-decoration: none; }
+.bu-meta a:hover { color: var(--u-akzent-dunkel); }
+.bu-text { margin-top: 3px; color: #7a8792; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bu-status .rw-status { display: inline-block; }
+.bu-status .rw-status:not(.frei):not(.belegt):not(.teil) { background: #eef1f4; color: #67747e; }
+.bu-aktionen { display: flex; justify-content: flex-end; }
+.bu-serienkopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 18px 12px 86px; margin-top: -4px; }
+.bu-serie-knopf { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: #f3eefc; color: #5b3fa0; font: inherit; font-size: .8rem; }
+.bu-serie-knopf:hover { background: #ebe3fa; }
+.bu-chevron { transition: transform .15s; }
+.bu-serie.auf .bu-chevron { transform: rotate(180deg); }
+.bu-kinder { margin: 0 18px 12px 86px; border-left: 2px solid #e6dcf7; }
+.bu-kinder .bu-eintrag-zeile { padding: 8px 0 8px 14px; grid-template-columns: 44px minmax(0, 1fr) auto 130px; }
+.bu-kinder .bu-datum { width: 44px; height: 46px; }
+.bu-kinder .bu-datum b { font-size: 1rem; }
+.bu-leer { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 44px 16px; border: 1px dashed #d3d9de; border-radius: 12px; background: #fff; color: #67747e; text-align: center; font-size: .875rem; }
+.bu-leer > i { font-size: 1.7rem; color: #b5bec6; }
+.bu-leer b { font-weight: 500; color: var(--u-titel); font-size: .95rem; }
+
+/* Storno-Dialog */
+.bu-storno-kopf { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; background: #f6f8fa; }
+.bu-storno-kopf b { font-weight: 500; color: var(--u-titel); }
+.bu-storno-kopf span { color: #67747e; font-size: .85rem; }
+.bu-storno-wahl { display: grid; gap: 8px; }
+.bu-storno-wahl label { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px; border: 1.5px solid #e1e5e9; border-radius: 10px; cursor: pointer; }
+.bu-storno-wahl label:has(input:checked) { border-color: var(--u-akzent); background: #fff8f4; }
+.bu-storno-wahl input { margin-top: 3px; accent-color: var(--u-akzent); }
+.bu-storno-wahl span { display: flex; flex-direction: column; }
+.bu-storno-wahl b { font-weight: 500; color: var(--u-titel); font-size: .9rem; }
+.bu-storno-wahl small { color: #7a8792; font-size: .78rem; }
+
+/* Schnellbuchung (Raum bzw. Ressource) */
+.bu-schnell-kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.bu-schnell-kopf > div { display: flex; flex-direction: column; }
+.bu-schnell-kopf b { font-weight: 500; color: var(--u-titel); }
+.bu-schnell-kopf span:not(.mf-symbol) { color: #67747e; font-size: .85rem; }
+.bu-symbol { display: inline-grid; place-content: center; width: 42px; height: 42px; border-radius: 12px; background: #fff3ec; color: var(--u-akzent); font-size: 1.2rem; flex: none; }
+
+@media (max-width: 991.98px) {
+  .bu-abschluss { grid-template-columns: minmax(0, 1fr); }
+  .bu-zf-karte { position: static; }
+}
+@media (max-width: 767.98px) {
+  .bu-raster.zwei { grid-template-columns: minmax(0, 1fr); }
+  .bu-eintrag-zeile, .bu-kinder .bu-eintrag-zeile { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px 12px; padding: 12px 14px; }
+  .bu-aktionen { grid-column: 2 / -1; justify-content: flex-start; }
+  .bu-aktionen:empty { display: none; }
+  .bu-serienkopf { padding: 0 14px 12px 74px; }
+  .bu-kinder { margin: 0 14px 12px 40px; }
+  .bu-leiste .bu-segment { height: auto; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .bu-raumsuche { max-width: none; }
+  .bu-res { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .bu-res-menge { grid-column: 2; }
+}
+.bu-assistent .nl-chip, .bu-liste .nl-chip, .bu-zf-karte .nl-chip { font-weight: 500; }
+
+/* ------------------------------------------------------------------ Raumübersicht: Belegungsraster Räume × Stunden (Tag) bzw. Raum × Wochentage
+   (Woche) mit fester Kopfzeile und Raumspalte, klaren Farben je Belegungsart, Hover-Details, Zoom (Kompakt/Normal/Groß), Gruppen je Gebäude;
+   auf dem Telefon eine Liste je Raum. Farben: Unterricht blaugrau, Buchung orange, Prüfung lila, Termin türkis, vorgemerkt gelb,
+   gesperrt rot schraffiert, frei weiß (grün beim Überfahren). */
+.bu-ru-leiste { align-items: center; }
+.bu-raumsuche.u-suchfeld, .bu-res-suche.u-suchfeld { flex: 1 1 220px; max-width: 320px; }
+.bu-ru-leiste.u-sf-leiste { margin-bottom: 12px; }
+.bu-filterleiste { margin-top: -4px; gap: 8px !important; }
+.bu-filterleiste .nl-pille { height: 36px; font-size: .875rem; padding: 0 12px; }
+.bu-filterleiste .nl-pille select { max-width: 230px; text-overflow: ellipsis; }
+.bu-filter-weg { color: #67747e; }
+.bu-ru-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; margin: 4px 0 10px; }
+.bu-ru-zahlen { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: #67747e; font-size: .875rem; }
+.bu-ru-zahlen b { font-weight: 500; color: var(--u-titel); }
+.bu-ru-jetzt { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; background: #e3f5ea; color: #17724a; font-size: .8rem; font-weight: 500; }
+.bu-legende { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; font-size: .8rem; color: #67747e; }
+.bu-legende span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+/* Farbpunkte (Legende, Hover) */
+.bu-punkt { display: inline-block; flex: none; width: 14px; height: 14px; border-radius: 4px; background: #fff; box-shadow: inset 0 0 0 1px #c9d0d6; }
+.bu-punkt.unterricht { background: #c9d6e4; box-shadow: inset 0 0 0 1.5px #6f8aa8; }
+.bu-punkt.buchung { background: #ffcfb3; box-shadow: inset 0 0 0 1.5px var(--u-akzent); }
+.bu-punkt.klausur { background: #dccff7; box-shadow: inset 0 0 0 1.5px #7f5fd0; }
+.bu-punkt.termin { background: #c3e7eb; box-shadow: inset 0 0 0 1.5px #2f97a8; }
+.bu-punkt.vorgemerkt { background: #ffe9a3; box-shadow: inset 0 0 0 1.5px #d9a514; }
+.bu-punkt.gesperrt { background: repeating-linear-gradient(135deg, #f4b5b1 0 3px, #fff4f3 3px 6px); box-shadow: inset 0 0 0 1.5px #d64040; }
+.bu-punkt.frei { background: #fff; box-shadow: inset 0 0 0 1.5px #9fd8b6; }
+.bu-punkt.vergangen, .bu-punkt.tagfrei { background: #eef0f2; box-shadow: none; }
+
+/* Raster */
+.bu-uebersicht { --bu-raumb: 184px; --bu-sp: 88px; --bu-h: 52px; --bu-kopf1: 46px;
+  position: relative; background: #fff; border: 1px solid #dfe3e7; border-radius: 12px; overflow: auto; max-height: calc(100vh - 250px); min-height: 220px;
+  overscroll-behavior: contain; outline: 0; }
+.bu-uebersicht:focus-visible { box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .25); }
+.bu-uebersicht.zoom-kompakt { --bu-sp: 52px; --bu-h: 32px; --bu-raumb: 150px; }
+.bu-uebersicht.zoom-gross { --bu-sp: 136px; --bu-h: 68px; }
+.bu-uebersicht.woche { --bu-sp: 20px; --bu-h: 40px; --bu-kopf1: 34px; }
+.bu-uebersicht.woche.zoom-kompakt { --bu-sp: 14px; --bu-h: 26px; }
+.bu-uebersicht.woche.zoom-gross { --bu-sp: 34px; --bu-h: 50px; }
+.woche .bu-zelle.unterricht .bu-block { background: #cfdbe8; }
+.woche .bu-zelle.buchung .bu-block { background: #ffcbad; }
+.woche .bu-zelle.klausur .bu-block { background: #dccff7; }
+.woche .bu-zelle.termin .bu-block { background: #c3e7eb; }
+.woche .bu-zelle.vorgemerkt .bu-block { background: #ffe9a3; }
+.bu-uebersicht table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: calc(var(--bu-raumb) + var(--bu-n) * var(--bu-sp)); min-width: 100%; }
+.bu-uebersicht col.bu-col-raum { width: var(--bu-raumb); }
+.bu-uebersicht th, .bu-uebersicht td { border-bottom: 1px solid #eef1f3; border-right: 1px solid #f1f3f5; }
+.bu-uebersicht thead th { position: sticky; top: 0; z-index: 3; height: var(--bu-kopf1); background: #f8f9fa; font-weight: 500; font-size: .8125rem; color: #414d55;
+  padding: 6px 4px; text-align: center; border-bottom: 1px solid #dfe3e7; white-space: nowrap; overflow: hidden; }
+.bu-uebersicht.woche thead tr.bu-kopf2 th { top: var(--bu-kopf1); height: 24px; padding: 2px 0; font-size: .7rem; color: #67747e; z-index: 3; }
+.bu-uebersicht thead .bu-raumkopf { left: 0; z-index: 5; text-align: left; padding: 6px 12px; vertical-align: middle; box-shadow: 1px 0 0 #dfe3e7; }
+.bu-raumkopf small { display: block; font-weight: 400; color: #8a96a1; font-size: .72rem; }
+.bu-stdkopf b { display: block; font-weight: 500; color: var(--u-titel); line-height: 1.2; }
+.bu-stdkopf small { display: block; font-weight: 400; color: #8a96a1; font-size: .7rem; line-height: 1.2; }
+.zoom-kompakt .bu-stdkopf small { display: none; }
+.bu-uebersicht thead th.jetzt { background: #fff1e8; color: var(--u-akzent-dunkel); box-shadow: inset 0 -2px 0 var(--u-akzent); }
+.bu-uebersicht thead th.jetzt b { color: var(--u-akzent-dunkel); }
+.bu-uebersicht thead th.gewaehlt { background: #e7f6ee; box-shadow: inset 0 -2px 0 #2e9e63; }
+.bu-tagkopf a { color: inherit; text-decoration: none; }
+.bu-tagkopf a:hover { color: var(--u-akzent-dunkel); }
+.bu-tagkopf.heute { color: var(--u-akzent-dunkel) !important; background: #fff1e8 !important; }
+.bu-tagkopf.frei { color: #8a96a1 !important; }
+.bu-uebersicht.woche .tagstart, .bu-uebersicht.woche .bu-tagkopf { border-left: 2px solid #d3d9de; }
+.bu-raumname { position: sticky; left: 0; z-index: 2; background: #fff; text-align: left; font-weight: 400; padding: 4px 10px 4px 12px; height: var(--bu-h);
+  box-shadow: 1px 0 0 #dfe3e7; overflow: hidden; }
+.bu-rn { display: flex; align-items: center; gap: 6px; }
+.bu-rn b { font-weight: 500; color: var(--u-titel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bu-raumname small { display: block; color: #8a96a1; font-size: .72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zoom-kompakt .bu-raumname small { display: none; }
+.bu-frei-zahl { margin-left: auto; flex: none; padding: 0 7px; border-radius: 999px; background: #e3f5ea; color: #17724a; font-size: .68rem; font-weight: 500; line-height: 18px; white-space: nowrap; }
+.bu-frei-zahl.wenig { background: #fff4d6; color: #7a5200; }
+.bu-frei-zahl.null { background: #f1f3f5; color: #8a96a1; }
+.bu-uebersicht tbody tr:hover .bu-raumname { background: #fbfaf8; }
+.bu-uebersicht tbody tr:hover td.frei { background: #fcfdfc; }
+.bu-gruppe th { position: sticky; left: 0; z-index: 1; height: 30px; padding: 0; background: #f4f6f8; text-align: left; border-bottom: 1px solid #e6e9ec; }
+.bu-gruppe th > span { position: sticky; left: 0; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; font-size: .75rem; font-weight: 500; color: #414d55;
+  letter-spacing: .02em; }
+.bu-gruppe small { color: #8a96a1; font-weight: 400; }
+
+/* Zellen */
+td.bu-zelle { height: var(--bu-h); padding: 3px; font-size: .75rem; line-height: 1.2; vertical-align: middle; overflow: hidden; }
+.woche td.bu-zelle { padding: 2px 1px; }
+.bu-block { display: flex; align-items: center; width: 100%; height: 100%; min-height: calc(var(--bu-h) - 6px); padding: 3px 6px 3px 8px; border-radius: 6px;
+  border: 0; font: inherit; text-align: left; overflow: hidden; }
+.woche .bu-block { padding: 0; border-radius: 4px; }
+.bu-zt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.zoom-gross .bu-zt { -webkit-line-clamp: 3; }
+.zoom-kompakt .bu-zt { display: none; }
+.bu-zelle.unterricht .bu-block { background: #e4ebf3; color: #2f4760; box-shadow: inset 3px 0 0 #6f8aa8; }
+.bu-zelle.buchung .bu-block { background: #ffe6d6; color: #8a3a12; box-shadow: inset 3px 0 0 var(--u-akzent); }
+.bu-zelle.klausur .bu-block { background: #ece5fb; color: #4f3594; box-shadow: inset 3px 0 0 #7f5fd0; }
+.bu-zelle.termin .bu-block { background: #dcf1f3; color: #1d5866; box-shadow: inset 3px 0 0 #2f97a8; }
+.bu-zelle.vorgemerkt .bu-block { background: #fff2c9; color: #6b4e00; box-shadow: inset 3px 0 0 #d9a514; }
+.bu-zelle.gesperrt .bu-block { background: repeating-linear-gradient(135deg, #fbdcda 0 6px, #fff4f3 6px 12px); color: #a1262b; box-shadow: inset 3px 0 0 #d64040; }
+.bu-zelle.tagfrei .bu-block { background: #f1f3f5; color: #8a96a1; justify-content: center; }
+.woche .bu-zelle .bu-block { box-shadow: none; }
+.bu-zelle.vergangen { background: repeating-linear-gradient(135deg, #f6f7f8 0 5px, #fbfbfc 5px 10px); }
+.bu-zelle.frei button { display: grid; place-content: center; width: 100%; height: 100%; min-height: calc(var(--bu-h) - 6px); border: 1px dashed transparent; background: transparent;
+  color: transparent; border-radius: 6px; font-size: 1rem; padding: 0; }
+.bu-zelle.frei button:hover, .bu-zelle.frei button:focus-visible { background: #e3f5ea; border-color: #9fd8b6; color: #17724a; outline: none; }
+.bu-zelle.jetzt { background: #fffaf6; }
+.bu-belegt-knopf { cursor: pointer; }
+.bu-belegt-knopf:hover, .bu-belegt-knopf:focus-visible { outline: 2px solid rgba(221, 87, 24, .45); outline-offset: -2px; }
+
+/* Hover-Details */
+.bu-hover { position: fixed; z-index: 2000; display: none; max-width: 300px; min-width: 190px; padding: 10px 12px; border-radius: 10px; background: #fff; color: var(--u-text);
+  border: 1px solid #dfe3e7; box-shadow: 0 10px 28px rgba(16, 24, 32, .16); font-size: .8125rem; line-height: 1.35; pointer-events: none; }
+.bu-hover-kopf { display: flex; align-items: center; gap: 8px; }
+.bu-hover-kopf b { font-weight: 500; color: var(--u-titel); }
+.bu-hover-kopf span { color: #67747e; font-size: .75rem; }
+.bu-hover-zeit { margin-top: 4px; color: #67747e; font-size: .78rem; }
+.bu-hover-text { margin-top: 6px; color: var(--u-text); overflow-wrap: anywhere; }
+.bu-hover-raum { margin-top: 4px; color: #8a96a1; font-size: .75rem; }
+.bu-hover-raum:empty { display: none; }
+.bu-hover-tipp { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 7px; border-top: 1px solid #f0f2f4; color: var(--u-akzent-dunkel); font-size: .75rem; }
+.bu-hover-liste { margin: 6px 0 0; padding-left: 1rem; }
+.bu-hover-liste small { color: #8a96a1; }
+.bu-hover-liste b { font-weight: 500; }
+
+/* Telefon: Liste je Raum mit Stunden-Chips */
+.bu-ru-liste { display: grid; gap: 10px; }
+.bu-ru-gruppe { display: flex; align-items: center; gap: 8px; margin: 6px 2px -2px; color: #67747e; font-size: .75rem; font-weight: 500; letter-spacing: .03em; text-transform: uppercase; }
+.bu-ru-raum { padding: 12px 14px; border: 1px solid #e1e5e9; border-radius: 12px; background: #fff; }
+.bu-ru-raum header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.bu-ru-raum header > div { display: flex; flex-direction: column; min-width: 0; }
+.bu-ru-raum header b { font-weight: 500; color: var(--u-titel); }
+.bu-ru-raum header small { color: #8a96a1; font-size: .75rem; }
+.bu-ru-tag { display: flex; align-items: center; gap: 8px; }
+.bu-ru-tag + .bu-ru-tag { margin-top: 6px; }
+.bu-ru-tagname { flex: 0 0 74px; font-size: .75rem; color: #67747e; }
+.bu-ru-tag.heute .bu-ru-tagname { color: var(--u-akzent-dunkel); font-weight: 500; }
+.bu-ru-chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.bu-chip { flex: 0 0 auto; min-width: calc(var(--n, 1) * 34px + (var(--n, 1) - 1) * 4px); height: 34px; padding: 0 6px; border: 0; border-radius: 8px; font: inherit;
+  font-size: .78rem; font-weight: 500; color: #414d55; background: #f1f3f5; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bu-chip.frei { background: #fff; color: #17724a; box-shadow: inset 0 0 0 1.5px #9fd8b6; }
+.bu-chip.frei:active, .bu-chip.frei:focus-visible { background: #e3f5ea; outline: none; }
+.bu-chip.unterricht { background: #e4ebf3; color: #2f4760; }
+.bu-chip.buchung { background: #ffe6d6; color: #8a3a12; }
+.bu-chip.klausur { background: #ece5fb; color: #4f3594; }
+.bu-chip.termin { background: #dcf1f3; color: #1d5866; }
+.bu-chip.vorgemerkt { background: #fff2c9; color: #6b4e00; }
+.bu-chip.gesperrt { background: repeating-linear-gradient(135deg, #fbdcda 0 5px, #fff4f3 5px 10px); color: #a1262b; }
+.bu-chip.vergangen { background: #f6f7f8; color: #b5bec6; }
+.bu-chip.tagfrei { flex: 1; color: #8a96a1; font-weight: 400; }
+.woche .bu-chip { min-width: calc(var(--n, 1) * 26px + (var(--n, 1) - 1) * 4px); height: 28px; font-size: .7rem; padding: 0 3px; }
+
+/* ------------------------------------------------------------------ Ressourcenübersicht: Karten bzw. Liste mit Symbol je Art, Standort,
+   Verfügbarkeit im gewählten Zeitraum und Belegungs-Zeitstrahl (Füllhöhe = gebuchter Anteil) */
+.bu-zr { gap: 4px; }
+.bu-zr > i { color: #8a96a1; margin-right: 4px; }
+.bu-zr select { padding-right: 18px; }
+.bu-artzeile { align-items: center; }
+.bu-artchips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.bu-artzeile-rechts { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+.bu-artchips .bu-filterchip { display: inline-flex; align-items: center; gap: 6px; height: 34px; }
+.bu-artchips .bu-filterchip i { font-size: .95rem; }
+.bu-filterchip .bu-anzahl { margin-left: 2px; }
+.bu-punkt.rfrei { background: #d5f0df; box-shadow: none; }
+.bu-punkt.rteil { background: linear-gradient(to top, #f2b33d 50%, #fdf3dc 50%); box-shadow: none; }
+.bu-punkt.rvoll { background: #f08a5d; box-shadow: none; }
+.bu-punkt.zr { background: #fff; box-shadow: inset 0 0 0 2px var(--u-titel); }
+
+.bu-rkarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.bu-rk { display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 14px; border: 1px solid #e1e5e9; border-radius: 12px; background: #fff; transition: box-shadow .15s, border-color .15s; }
+.bu-rk:hover { border-color: #d3d9de; box-shadow: 0 4px 16px rgba(16, 24, 32, .06); }
+.bu-rk.belegt { background: #fdfdfd; }
+.bu-rk-kopf { display: flex; align-items: flex-start; gap: 12px; }
+.bu-rk-symbol { display: inline-grid; place-content: center; flex: none; width: 44px; height: 44px; border-radius: 12px; font-size: 1.3rem; }
+.bu-rk-symbol.ton-orange { background: #fff1e8; color: var(--u-akzent-dunkel); }
+.bu-rk-symbol.ton-blau { background: #e7f0fb; color: #2a62a8; }
+.bu-rk-symbol.ton-lila { background: #f0ebfc; color: #6a4bc4; }
+.bu-rk-symbol.ton-gruen { background: #e5f6ec; color: #17724a; }
+.bu-rk-symbol.ton-tuerkis { background: #e0f3f5; color: #1d7584; }
+.bu-rk-symbol.ton-rot { background: #fdecec; color: #b42318; }
+.bu-rk-symbol.ton-gelb { background: #fff5d6; color: #8a6100; }
+.bu-rk-titel { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.bu-rk-titel b { font-weight: 500; color: var(--u-titel); font-size: .98rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bu-rk-titel small { color: #7a8792; font-size: .8rem; }
+.bu-rk-kopf .rw-status { flex: none; margin-top: 2px; }
+.bu-rk-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: #5d6a74; font-size: .8125rem; }
+.bu-rk-meta i { margin-right: 5px; color: #9aa5ae; }
+.bu-rk-verf { margin-left: auto; color: #67747e; }
+.bu-rk-verf b { font-weight: 500; color: var(--u-titel); }
+.bu-rk-bem { margin: -4px 0 0; color: #8a96a1; font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bu-rk-strahl { padding: 10px 10px 6px; border-radius: 10px; background: #f8f9fa; }
+.bu-rk-fuss { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; margin-top: auto; }
+.bu-rk-fuss .nl-unter { font-size: .78rem; }
+
+.bu-strahl { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; height: 26px; }
+.bu-seg { position: relative; display: block; height: 100%; padding: 0; border: 0; border-radius: 4px; background: #d5f0df; overflow: hidden; }
+.bu-seg > i { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--anteil, 0) * 100%); background: #f2b33d; }
+.bu-seg.rvoll > i { background: #f08a5d; }
+.bu-seg.tagfrei { background: #e9ecef; }
+.bu-seg.vergangen { opacity: .45; }
+.bu-seg.zr { box-shadow: 0 0 0 2px var(--u-titel); z-index: 1; }
+button.bu-seg { cursor: pointer; }
+button.bu-seg:hover, button.bu-seg:focus-visible { outline: 2px solid #17724a; outline-offset: 1px; z-index: 2; }
+.bu-strahl-achse { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; margin-top: 3px; }
+.bu-strahl-achse span { text-align: center; font-size: .65rem; color: #8a96a1; line-height: 1.2; }
+.bu-strahl-woche { display: grid; gap: 4px; }
+.bu-strahl-zeile { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 6px; }
+.bu-strahl-zeile .bu-strahl { height: 16px; gap: 2px; }
+.bu-strahl-zeile .bu-strahl-achse { gap: 2px; margin-top: 0; }
+.bu-strahl-tag { font-size: .7rem; color: #67747e; text-decoration: none; }
+a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
+.bu-strahl-zeile.gewaehlt .bu-strahl-tag { color: var(--u-titel); font-weight: 500; }
+.bu-strahl-zeile.heute .bu-strahl-tag { color: var(--u-akzent-dunkel); }
+
+/* Liste */
+.bu-rl { border: 1px solid #e1e5e9; border-radius: 12px; background: #fff; overflow: hidden; }
+.bu-rl-kopf, .bu-rl-zeile { display: grid; grid-template-columns: 44px minmax(160px, 1.2fr) minmax(120px, .9fr) 170px minmax(240px, 2fr) 130px; align-items: center; gap: 14px; padding: 10px 16px; }
+.bu-rl-kopf { padding-top: 9px; padding-bottom: 9px; background: #f8f9fa; border-bottom: 1px solid #e6e9ec; color: #67747e; font-size: .75rem; font-weight: 500; }
+.bu-rl-zeile + .bu-rl-zeile { border-top: 1px solid #eef1f3; }
+.bu-rl-zeile .bu-rk-symbol { width: 40px; height: 40px; font-size: 1.15rem; border-radius: 10px; }
+.bu-rl-ort { color: #5d6a74; font-size: .8125rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bu-rl-ort i { margin-right: 5px; color: #9aa5ae; }
+.bu-rl-menge { display: flex; align-items: baseline; gap: 2px; flex-wrap: wrap; }
+.bu-rl-menge > b { font-size: 1.05rem; font-weight: 500; color: var(--u-titel); }
+.bu-rl-menge > span:not(.rw-status) { color: #8a96a1; font-size: .8rem; margin-right: 8px; }
+.bu-rl-aktion { display: flex; justify-content: flex-end; }
+.bu-rl .bu-strahl { height: 20px; }
+
+/* Verfügbarkeit im Buchungsdialog */
+.bu-verf { display: flex; align-items: center; min-height: 38px; padding: 0 12px; border-radius: 8px; background: #f1f3f5; color: #67747e; font-size: .875rem; font-weight: 500; }
+.bu-verf.frei { background: #e3f5ea; color: #17724a; }
+.bu-verf.teil { background: #fff4d6; color: #7a5200; }
+.bu-verf.belegt { background: #fdeceb; color: #b42318; font-weight: 400; }
+
+@media (max-width: 1279.98px) {
+  .bu-rl-kopf, .bu-rl-zeile { grid-template-columns: 40px minmax(140px, 1fr) 150px minmax(200px, 1.6fr) 120px; }
+  .bu-rl-kopf > :nth-child(3), .bu-rl-ort { display: none; }
+}
+@media (max-width: 767.98px) {
+  .bu-raumsuche.u-suchfeld, .bu-res-suche.u-suchfeld { max-width: none; }
+  .bu-ru-zoom { display: none; }
+  .bu-filterleiste .nl-pille { flex: 1 1 calc(50% - 8px); min-width: 0; }
+  .bu-filterleiste .nl-pille select { width: 100%; max-width: none; }
+  .bu-ru-kopf { flex-direction: column; align-items: flex-start; }
+  .bu-legende { gap: 4px 10px; font-size: .75rem; }
+  .bu-rkarten { grid-template-columns: minmax(0, 1fr); }
+  .bu-rl-kopf { display: none; }
+  .bu-rl-zeile { grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "s t m" "z z z" "o o a"; gap: 8px 12px; padding: 12px 14px; }
+  .bu-rl-zeile > .bu-rk-symbol { grid-area: s; }
+  .bu-rl-zeile > .bu-rk-titel { grid-area: t; }
+  .bu-rl-zeile > .bu-rl-menge { grid-area: m; }
+  .bu-rl-zeile > .bu-rl-strahl { grid-area: z; }
+  .bu-rl-zeile > .bu-rl-ort { grid-area: o; display: block; }
+  .bu-rl-zeile > .bu-rl-aktion { grid-area: a; }
+  .bu-artchips { flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .bu-artzeile-rechts { flex: 1 1 100%; justify-content: space-between; }
+  .bu-artchips .bu-filterchip { flex: none; }
+  .bu-zr { flex: 1 1 100%; }
+}
+.bu-filter-auf { display: none; }
+.bu-filter-auf.aktiv { border-color: var(--u-akzent); color: var(--u-akzent-dunkel); }
+.bu-ru-belegt { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid #f0f2f4; display: grid; gap: 4px; font-size: .78rem; color: #414d55; }
+.bu-ru-belegt li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bu-ru-belegt .bu-punkt { width: 10px; height: 10px; border-radius: 3px; }
+.bu-ru-belegt b { flex: none; font-weight: 500; color: var(--u-titel); min-width: 56px; }
+.bu-ru-belegt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 767.98px) {
+  .bu-filter-auf { display: inline-flex; }
+  .bu-ru-filter:not(.offen) { display: none !important; }
+  .bu-rk-titel b { white-space: normal; }
+}
+
+/* Verwaltung: Symbol je Ressourcenart, Ressourcen mit Symbol */
+.bu-artsymbol { width: 22px; text-align: center; color: var(--u-akzent-dunkel); font-size: 1.05rem; }
+.bu-vw-name { display: flex; align-items: center; gap: 10px; }
+.bu-vw-symbol { display: inline-grid; place-content: center; flex: none; width: 34px; height: 34px; border-radius: 9px; background: #fff1e8; color: var(--u-akzent-dunkel); font-size: 1.05rem; }
+.bu-symbolwahl { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px; }
+.bu-symbolwahl label { margin: 0; cursor: pointer; }
+.bu-symbolwahl input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.bu-symbolwahl span { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 46px; border: 1.5px solid #e1e5e9; border-radius: 10px; font-size: 1.2rem; color: #414d55; }
+.bu-symbolwahl span small { font-size: .6rem; color: #8a96a1; line-height: 1; }
+.bu-symbolwahl input:checked + span { border-color: var(--u-akzent); background: #fff3ec; color: var(--u-akzent-dunkel); }
+.bu-symbolwahl input:focus-visible + span { box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .25); }
+.bu-res-text:has(.bu-res-symbol) { flex-direction: row; align-items: center; gap: 10px; }
+.bu-res-text > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.bu-res-symbol { display: inline-grid; place-content: center; flex: none; width: 34px; height: 34px; border-radius: 9px; font-size: 1.05rem; }
+.bu-res-symbol.ton-orange { background: #fff1e8; color: var(--u-akzent-dunkel); }
+.bu-res-symbol.ton-blau { background: #e7f0fb; color: #2a62a8; }
+.bu-res-symbol.ton-lila { background: #f0ebfc; color: #6a4bc4; }
+.bu-res-symbol.ton-gruen { background: #e5f6ec; color: #17724a; }
+.bu-res-symbol.ton-tuerkis { background: #e0f3f5; color: #1d7584; }
+.bu-res-symbol.ton-rot { background: #fdecec; color: #b42318; }
+.bu-res-symbol.ton-gelb { background: #fff5d6; color: #8a6100; }
+.bu-verwaltung td .nl-chip { white-space: nowrap; }
+.bu-ru-kopf .bu-legende { margin-left: auto; }
+.bu-ru-zoom .u-segment > button { height: 30px; padding: 0 11px; font-size: .8125rem; }
+.bu-ru-leiste.u-sf-leiste > .u-suchfilter { flex-basis: 420px; }
+@media (max-width: 767.98px) { .bu-ru-leiste.u-sf-leiste > .u-suchfilter { flex-basis: 100%; } }
+.bu-verwaltung > * { min-width: 0; }
+.bu-verwaltung .nl-tabelle { overflow-x: auto; }
+.bu-verwaltung td[data-label="Standort"] { white-space: nowrap; }

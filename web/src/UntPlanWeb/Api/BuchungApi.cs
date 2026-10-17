@@ -9,22 +9,23 @@ namespace UntPlanWeb.Api;
 /// Ressourcen, Auswahllisten, Zeitraster.</item>
 /// <item><c>POST /suche/raeume</c> { zeit, kriterien } → { termine: [{ termin, freieRaeume }], raeume: [{ kurz, …, belegt: [Terminindex], prozent }], uebersprungen }</item>
 /// <item><c>POST /suche/ressourcen</c> { zeit, kriterien } → { termine, ressourcen: [{ id, name, art, anzahl, verfuegbar: [je Termin], frei, belegt, prozent }] }</item>
-/// <item><c>GET  /raumstatus?datum&amp;von&amp;bis&amp;unterricht</c> → [{ kurz, name, raumart, kapazitaet, buchbar, eigen, frei, belegt: [{ stunde, art, text }] }]
+/// <item><c>GET  /raumstatus?datum&amp;von&amp;bis&amp;unterricht</c> → [{ kurz, name, raumart, kapazitaet, gebaeude, abteilung, buchbar, eigen, frei, belegt: [{ stunde, art, text }] }]
 /// (Raumwahl beim Eintragen einer Prüfung; eigene Stunde des Unterrichts zählt nicht).</item>
 /// <item><c>POST /hinweise</c> { termine, lehrer, klassen } → [Text] (Lehrkraft bzw. Klasse hat zur gleichen Zeit schon Unterricht/Aktivität)</item>
 /// <item><c>POST /</c> BuchungDaten → { serie, buchungen, hinweise }; belegter Raum bzw. Ressource → 400 mit allen Konflikten.</item>
 /// <item><c>GET  /liste?von&amp;bis&amp;alle</c> (Meine Buchungen; alle nur Administration), <c>DELETE /{id}?serie=true</c> (Storno).</item>
-/// <item><c>GET  /raumuebersicht?datum&amp;tage&amp;…Kriterien</c>, <c>GET /ressourcenuebersicht?datum&amp;arten=1,2</c>.</item>
+/// <item><c>GET  /raumuebersicht?datum&amp;tage&amp;…Kriterien</c>, <c>GET /ressourcenuebersicht?datum&amp;arten=1,2&amp;tage=1</c> (Woche bzw. ein Tag, mit gebuchter Menge je Stunde).</item>
 /// <item><c>GET/POST/DELETE /unterricht</c>: in UntPlanWeb angelegter Unterricht (Unterricht | Neuer Unterricht).</item>
-/// <item>Administration: <c>/ressourcenarten</c>, <c>/ressourcen</c> (GET, POST, PUT /{id}, DELETE /{id}), <c>PUT /raumdaten/{raum}</c>.</item>
+/// <item>Administration: <c>/ressourcenarten</c> (mit Symbol, erlaubte Symbole: <c>GET /symbole</c>), <c>/ressourcen</c> (GET, POST, PUT /{id}, DELETE /{id};
+/// mit Standort), <c>POST /ressourcen/beispiele</c> (Beispiel-Ressourcen, solange keine angelegt sind), <c>PUT /raumdaten/{raum}</c>.</item>
 /// </list>
 /// </summary>
 public static class BuchungApi
 {
     public sealed record SuchAnfrage(Zeitangabe Zeit, Kriterien? Kriterien);
     public sealed record HinweisAnfrage(List<TerminWahl> Termine, string? Lehrer, List<string>? Klassen);
-    public sealed record ArtDaten(string Name, int? Reihenfolge);
-    public sealed record RessourceDaten(string Name, int? ArtId, string? Raum, int? Anzahl, string? Bemerkung, bool? Aktiv);
+    public sealed record ArtDaten(string Name, int? Reihenfolge, string? Symbol = null);
+    public sealed record RessourceDaten(string Name, int? ArtId, string? Raum, int? Anzahl, string? Bemerkung, bool? Aktiv, string? Standort = null);
     public sealed record RaumDaten(int? Kapazitaet, string? Gebaeude, string? Abteilung, string? Raumgruppe);
     public sealed record UnterrichtDaten(string? Lehrer, string Fach, List<string>? Klassen, string? Gruppe, string? Text, int? Wochenstunden);
 
@@ -58,7 +59,7 @@ public static class BuchungApi
     {
         var api = app.MapGroup("/api/app/buchen");
 
-        api.MapGet("/optionen", (HttpContext c, Paketdienst p, Buchungsdienst bu, Plandienst plan) =>
+        api.MapGet("/optionen", (HttpContext c, Paketdienst p, Buchungsdienst bu, Plandienst plan, Uhr uhr) =>
         {
             var b = Ich(c);
             var s = Paket(p);
@@ -67,11 +68,14 @@ public static class BuchungApi
             List<string> Werte(Func<Raumdaten, string> f) => raeume.Select(f).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, de).ToList();
             return Results.Json(new
             {
-                admin = Rechtedienst.Darf(b, Recht.BuchungVerwalten), andere = Rechtedienst.Darf(b, Recht.BuchungAndere), ich = b.LehrerKuerzel ?? "",
+                admin = Rechtedienst.Darf(b, Recht.BuchungVerwalten), raumBuchen = Rechtedienst.Darf(b, Recht.BuchungRaum),
+                ressourcenBuchen = Rechtedienst.Darf(b, Recht.BuchungRessourcen), andere = Rechtedienst.Darf(b, Recht.BuchungAndere), ich = b.LehrerKuerzel ?? "",
                 raeume, ressourcenarten = bu.Arten(), ressourcen = bu.Ressourcen(!Rechtedienst.Darf(b, Recht.BuchungVerwalten)),
                 raumarten = Werte(r => r.Raumart), gebaeude = Werte(r => r.Gebaeude), abteilungen = Werte(r => r.Abteilung), raumgruppen = Werte(r => r.Raumgruppe),
                 zeitraster = plan.Zeitraster(s), tageProWoche = Math.Max(5, s.Paket.Zeitraster.TageProWoche),
                 maxTermine = Buchungsdienst.MaxTermine,
+                // erster Unterrichtstag ab heute (Vorbelegung des Datums, damit der Assistent nicht auf Wochenende oder Ferien startet)
+                naechsterTag = Plandienst.Iso(Enumerable.Range(0, 120).Select(i => uhr.Heute.AddDays(i)).FirstOrDefault(t => !plan.Frei(s, t).Frei, uhr.Heute)),
             });
         });
 
@@ -148,11 +152,11 @@ public static class BuchungApi
             return Results.Json(bu.Raumuebersicht(Paket(p), d, tage ?? 1, new Kriterien(Zahlen(ressourcenarten), raumart, kapazitaet, null, abteilung, gebaeude, raumgruppe)));
         });
 
-        api.MapGet("/ressourcenuebersicht", (string? datum, string? arten, HttpContext c, Paketdienst p, Buchungsdienst bu, Uhr uhr) =>
+        api.MapGet("/ressourcenuebersicht", (string? datum, string? arten, int? tage, HttpContext c, Paketdienst p, Buchungsdienst bu, Uhr uhr) =>
         {
             Ich(c);
             var d = DateOnly.TryParse(datum, out var x) ? x : uhr.Heute;
-            return Results.Json(bu.Ressourcenuebersicht(Paket(p), d, Zahlen(arten)));
+            return Results.Json(bu.Ressourcenuebersicht(Paket(p), d, Zahlen(arten), tage));
         });
 
         // ---------------------------------------------------------------- Neuer Unterricht (zusätzliche Stunden = Buchungen der Art „unterricht“)
@@ -170,20 +174,29 @@ public static class BuchungApi
         // ---------------------------------------------------------------- Administration: Ressourcenarten, Ressourcen, Raum-Stammdaten
 
         api.MapGet("/ressourcenarten", (HttpContext c, Buchungsdienst bu) => { Ich(c); return Results.Json(bu.Arten()); });
-        api.MapPost("/ressourcenarten", (ArtDaten d, HttpContext c, Buchungsdienst bu) => { Admin(c); return Results.Json(bu.ArtSpeichern(null, d.Name, d.Reihenfolge)); });
-        api.MapPut("/ressourcenarten/{id:int}", (int id, ArtDaten d, HttpContext c, Buchungsdienst bu) => { Admin(c); return Results.Json(bu.ArtSpeichern(id, d.Name, d.Reihenfolge)); });
+        api.MapPost("/ressourcenarten", (ArtDaten d, HttpContext c, Buchungsdienst bu) => { Admin(c); return Results.Json(bu.ArtSpeichern(null, d.Name, d.Reihenfolge, d.Symbol)); });
+        api.MapPut("/ressourcenarten/{id:int}", (int id, ArtDaten d, HttpContext c, Buchungsdienst bu) => { Admin(c); return Results.Json(bu.ArtSpeichern(id, d.Name, d.Reihenfolge, d.Symbol)); });
         api.MapDelete("/ressourcenarten/{id:int}", (int id, HttpContext c, Buchungsdienst bu) => { Admin(c); bu.ArtLoeschen(id); return Results.Json(new { ok = true }); });
 
         api.MapGet("/ressourcen", (HttpContext c, Buchungsdienst bu) => { var b = Ich(c); return Results.Json(bu.Ressourcen(!Rechtedienst.Darf(b, Recht.BuchungVerwalten))); });
         api.MapPost("/ressourcen", (RessourceDaten d, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
         {
             Admin(c);
-            return Results.Json(bu.RessourceSpeichern(p.Aktuell, null, d.Name, d.ArtId, d.Raum, d.Anzahl, d.Bemerkung, d.Aktiv ?? true));
+            return Results.Json(bu.RessourceSpeichern(p.Aktuell, null, d.Name, d.ArtId, d.Raum, d.Anzahl, d.Bemerkung, d.Aktiv ?? true, d.Standort));
         });
         api.MapPut("/ressourcen/{id:int}", (int id, RessourceDaten d, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
         {
             Admin(c);
-            return Results.Json(bu.RessourceSpeichern(p.Aktuell, id, d.Name, d.ArtId, d.Raum, d.Anzahl, d.Bemerkung, d.Aktiv ?? true));
+            return Results.Json(bu.RessourceSpeichern(p.Aktuell, id, d.Name, d.ArtId, d.Raum, d.Anzahl, d.Bemerkung, d.Aktiv ?? true, d.Standort));
+        });
+        api.MapGet("/symbole", (HttpContext c) => { Admin(c); return Results.Json(Buchungsdienst.Symbole); });
+        api.MapPost("/ressourcen/beispiele", (HttpContext c, Paketdienst p, Buchungsdienst bu, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var n = bu.BeispieleAnlegen(p.Aktuell);
+            if (n == 0) throw new ArgumentException("Es sind schon Ressourcen angelegt.");
+            prot.Schreiben(b.Login, "Beispiel-Ressourcen angelegt", $"{n} Ressourcen");
+            return Results.Json(new { ok = true, angelegt = n });
         });
         api.MapDelete("/ressourcen/{id:int}", (int id, HttpContext c, Buchungsdienst bu) => { Admin(c); bu.RessourceLoeschen(id); return Results.Json(new { ok = true }); });
 

@@ -95,12 +95,11 @@ public class Sprint26Tests
         Assert.Contains("const KACHEL_ONLINE = '<svg class=\"ticon ticon--online\" viewBox=\"0 0 28 28\"", js);
         Assert.Contains("dline--online", js);
         Assert.DoesNotContain("card__video", js);
-        // Verlegung: Ursprung Pfeil nach rechts, Ziel Pfeil nach links
-        Assert.Contains("ticon--${r === 'von' ? 'von' : 'nach'}", js);
-        Assert.Contains("card.moved === 'von' || card.moved === 'nach'", js);
+        // Sprint 27: kein Verlegungszeichen auf der Kachel (wie iOS) – die Verlegung steht in den Details
+        Assert.DoesNotContain("ticon--verlegt", js);
+        Assert.DoesNotContain("card__ic--verlegt", js);
         var css = AppCss;
-        Assert.Contains(".card .ticon--verlegt.ticon--von rect{ fill:#f03e3e; }", css);
-        Assert.Contains(".card .ticon--verlegt rect{ fill:#1e9e5a; stroke:none; }", css);
+        Assert.DoesNotContain(".card .ticon--verlegt", css);
         // vergangene Stunden: Balken voll deckend, Kartentexte enger (13,5 bzw. 13,8 px wie iOS)
         Assert.Contains(".card.is-past::before{ opacity:1; }", css);
         Assert.Contains("? 13.5 : 13.8;", js);
@@ -114,7 +113,8 @@ public class Sprint26Tests
         var js = AppJs;
         // Zusatzstunde: Plakette statt Vertretungstext
         Assert.Contains("'Zusätzl. Unterrichtsstunde'", js);
-        Assert.Contains("} else if (c.info && !zusatz){", js);
+        // Sprint 27: manuelle Vertretungstexte stehen auch bei Zusatzstunden (Standardtexte filtert der Server)
+        Assert.Contains("} else if (c.info){", js);
         // Einzelstunden über das Auswahlmenü im Titel, kein Segmentschalter mehr
         Assert.Contains("function detailTeilbar(ganz)", js);
         Assert.Contains("role=\"option\" data-l=", js);

@@ -39,8 +39,43 @@ public static class FamilieApi
         var v = D(von, start);
         var bi = D(bis, uhr.Heute);
         if (bi < v) (v, bi) = (bi, v);
-        if (bi.DayNumber - v.DayNumber > 400) v = bi.AddDays(-400);
+        // Obergrenze: höchstens gut ein Jahr in die Zukunft (eingetragene Beurlaubungen); der Beginn bleibt wie gewählt – früher wurde
+        // bei langen Zeiträumen (z. B. „Alles“ in der App) der Beginn verschoben und die Liste war leer.
+        if (bi > uhr.Heute.AddDays(400)) bi = uhr.Heute.AddDays(400);
+        if (bi < v) bi = v;
         return (v, bi);
+    }
+
+    /// <summary>
+    /// Summen eines Zeitraums für die Übersicht (unabhängig vom Statusfilter): Abwesenheiten, Fehltage, Fehlstunden und -minuten, Fehlstunden
+    /// je Status (entschuldigt, nicht entschuldigt, offen), Verspätungen und vorzeitiges Gehen (Anzahl, Minuten) sowie noch offene Abwesenheiten.
+    /// </summary>
+    public static object Summen(List<Fehlzeile> zeilen, List<Abwesenheitszeitraum> zeitraeume)
+    {
+        var gezaehlt = zeilen.Where(z => z.Zaehlt).ToList();
+        return new
+        {
+            abwesenheiten = zeitraeume.Count,
+            fehltage = zeilen.Sum(z => z.Fehltage),
+            fehlstunden = gezaehlt.Count,
+            fehlminuten = zeilen.Sum(z => z.Fehlminuten),
+            entschuldigt = gezaehlt.Count(z => z.Status == "entschuldigt"),
+            unentschuldigt = gezaehlt.Count(z => z.Status == "unentschuldigt"),
+            offen = gezaehlt.Count(z => z.Status is not ("entschuldigt" or "unentschuldigt")),
+            verspaetet = zeitraeume.Count(z => z.Art == "verspaetet"),
+            verspaetetMinuten = zeitraeume.Where(z => z.Art == "verspaetet").Sum(z => z.Minuten),
+            vorzeitig = zeitraeume.Count(z => z.Art == "vorzeitig"),
+            offeneAbwesenheiten = zeitraeume.Count(z => z.Status == "offen"),
+        };
+    }
+
+    /// <summary>Fehlzeiten und Abwesenheiten eines Kindes im Zeitraum samt Summen.</summary>
+    private static (List<Fehlzeile> Zeilen, List<Abwesenheitszeitraum> Zeitraeume, object Summen) Daten(Klassenbuchdienst kb, Stand s, int kind, DateOnly v, DateOnly bi)
+    {
+        var roh = kb.FehlzeitenVon(kind, v, bi);
+        var zeilen = kb.Fehlzeilen(s, roh);
+        var zeitraeume = kb.Zeitraeume(s, roh, _ => false);
+        return (zeilen, zeitraeume, Summen(zeilen, zeitraeume));
     }
 
     public static void Abbilden(WebApplication app)
@@ -78,17 +113,18 @@ public static class FamilieApi
         {
             var (_, s, kind) = Kind(c, p, schueler);
             var (v, bi) = Zeitraum(s, uhr, von, bis);
-            var liste = kb.Zeitraeume(s, kb.FehlzeitenVon(kind.Id, v, bi), _ => false)
-                .Where(z => string.IsNullOrEmpty(status) || z.Status == status).ToList();
-            return Results.Json(new { schueler = kind, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste });
+            var d = Daten(kb, s, kind.Id, v, bi);
+            var liste = d.Zeitraeume.Where(z => string.IsNullOrEmpty(status) || z.Status == status).ToList();
+            return Results.Json(new { schueler = kind, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste, summen = d.Summen });
         });
 
         api.MapGet("/fehlzeiten", (int? schueler, string? von, string? bis, string? status, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var (_, s, kind) = Kind(c, p, schueler);
             var (v, bi) = Zeitraum(s, uhr, von, bis);
-            var liste = kb.Fehlzeilen(s, kb.FehlzeitenVon(kind.Id, v, bi)).Where(z => string.IsNullOrEmpty(status) || z.Status == status).ToList();
-            return Results.Json(new { schueler = kind, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste });
+            var d = Daten(kb, s, kind.Id, v, bi);
+            var liste = d.Zeilen.Where(z => string.IsNullOrEmpty(status) || z.Status == status).ToList();
+            return Results.Json(new { schueler = kind, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste, summen = d.Summen });
         });
 
         api.MapGet("/hausaufgaben", (int? schueler, string? von, string? bis, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
@@ -101,13 +137,15 @@ public static class FamilieApi
         });
 
         // Export der Listen (CSV für Excel, PDF als Schwarz-Weiß-Formular)
-        api.MapGet("/export", (string liste, string? format, int? schueler, string? von, string? bis, string? ausrichtung, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Klassenbuchverwaltung kv,
+        api.MapGet("/export", (string liste, string? format, int? schueler, string? von, string? bis, string? ausrichtung, string? status, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Klassenbuchverwaltung kv,
             Einstellungen e, Uhr uhr) =>
         {
             var (b, s, kind) = Kind(c, p, schueler);
             var (v, bi) = Zeitraum(s, uhr, von, bis);
             var gruende = kv.Gruende().GroupBy(g => g.Kurz, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
             string G(string g) => gruende.GetValueOrDefault(g, g);
+            // gleicher Statusfilter wie die Liste auf der Seite
+            bool Passt(string st) => string.IsNullOrEmpty(status) || st == status;
             List<string> spalten;
             List<List<string>> zeilen;
             string titel;
@@ -115,14 +153,14 @@ public static class FamilieApi
             {
                 titel = "Fehlzeiten";
                 spalten = new() { "Datum", "Zeit", "Fach", "Lehrkraft", "Fehltage", "Fehlstd.", "Fehlmin.", "zählt", "Abwesenheitsgrund", "Status", "Text" };
-                zeilen = kb.Fehlzeilen(s, kb.FehlzeitenVon(kind.Id, v, bi)).Select(z => new List<string> { Datum(z.Datum), $"{z.Beginn} - {z.Ende}", z.Fach, z.Lehrer,
+                zeilen = kb.Fehlzeilen(s, kb.FehlzeitenVon(kind.Id, v, bi)).Where(z => Passt(z.Status)).Select(z => new List<string> { Datum(z.Datum), $"{z.Beginn} - {z.Ende}", z.Fach, z.Lehrer,
                     z.Fehltage.ToString(De), z.Fehlstunden.ToString(De), z.Fehlminuten.ToString(De), z.Zaehlt ? "ja" : "nein", G(z.Grund), StatusText(z.Status), z.Text }).ToList();
             }
             else if (liste == "abwesenheiten")
             {
                 titel = "Abwesenheiten";
                 spalten = new() { "Von", "Bis", "Abwesenheitsgrund", "Status", "Fehlstunden", "Fehlminuten", "Text" };
-                zeilen = kb.Zeitraeume(s, kb.FehlzeitenVon(kind.Id, v, bi), _ => false).Select(z => new List<string> { $"{Datum(z.VonDatum)} {z.VonZeit}", $"{Datum(z.BisDatum)} {z.BisZeit}",
+                zeilen = kb.Zeitraeume(s, kb.FehlzeitenVon(kind.Id, v, bi), _ => false).Where(z => Passt(z.Status)).Select(z => new List<string> { $"{Datum(z.VonDatum)} {z.VonZeit}", $"{Datum(z.BisDatum)} {z.BisZeit}",
                     G(z.Grund), StatusText(z.Status), z.Fehlstunden.ToString(De), z.Fehlminuten.ToString(De), z.Text }).ToList();
             }
             else throw new ArgumentException("Unbekannte Liste.");

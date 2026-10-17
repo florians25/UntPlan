@@ -74,8 +74,8 @@ enum Farben {
     static let rasterUnten = Color(hell: 0xE7E9EF, dunkel: 0x1C1C1E)
 
     // Karten im Wochenraster
-    static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7382)
-    static let karteVergangen = Color(hell: 0xF2F4F5, dunkel: 0x2F3B45)
+    static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7383)
+    static let karteVergangen = Color(hell: 0xF2F4F5, dunkel: 0x323D45)
     static let karteBalken = Color(hell: 0xBFC7D2, dunkel: 0xBFC7CE)
     static let karteText = Color(hell: 0x253746, dunkel: 0xF4F6F8)
     static let kartenSchatten = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.30, deckkraftDunkel: 0)
@@ -108,9 +108,10 @@ enum Farben {
     /// Runde Pill „Entschuldigen“ beim Wischen (Schüler- und Abwesenheitslisten)
     static let entschuldigen = Color(hell: 0x2E7BCF, dunkel: 0x3A86D6)
 
-    // Verlegungszeichen auf den Karten (ursprüngliche Stunde rot, Zielstunde grün – wie im Web)
-    static let verlegtVon = Color(hell: 0xF03E3E, dunkel: 0xE5484D)
-    static let verlegtNach = Color(hell: 0x1E9E5A, dunkel: 0x22A866)
+    // Marker oben rechts auf den Karten (wie im Web: Prüfung gelber Kreis, Entfall rotes Dreieck, Änderung/Zusatz grün)
+    static let markerGelb = Color(hell: 0xF7C600, dunkel: 0xF2C200)
+    static let markerRot = Color(hell: 0xF03E3E, dunkel: 0xE5484D)
+    static let markerGruen = Color(hell: 0x1F9D55, dunkel: 0x22A866)
 
     // Info-Zeichen auf den Karten
     static let infoFeld = Color(hell: 0xF2F4F6, dunkel: 0x2B3138)

@@ -1,5 +1,5 @@
 // Klassenbuch: Wochenübersicht mit Anwesenheit, Fehlzeitenverwaltung, Vermerke, Inhalte/Hausaufgaben; Hausaufgaben für Klassenkonten.
-import { e, icon, api, holen, senden, toast, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis } from '../ui.js';
+import { e, icon, api, holen, senden, toast, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { karteDialog } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
@@ -94,12 +94,22 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     const zahl = (n, kl = '') => n ? `<span class="fz-zahl ${kl}">${n}</span>` : '<span class="fz-null">–</span>';
     const nachweis = y => y.nachweis ? `<span class="nl-tag" title="${e(NACHWEISE[y.nachweis] ?? '')}${y.entschuldigtAm ? ` · eingegangen ${e(datumKurz(y.entschuldigtAm))}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[y.nachweis] ?? y.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '';
     const klWahl = seite.querySelector('.u-filter .u-feld')?.lastElementChild;
+    // gemeinsames Suchfeld mit Filter (Name, Status) – Stand bleibt beim Auf-/Zuklappen erhalten
+    const fzSuche = { text: '', status: '' };
+    const fzFiltern = () => inhalt.querySelectorAll('tr.fz-schueler').forEach(tr => {
+      const x = zeilen.find(z => z.id === Number(tr.dataset.s));
+      const aus = (fzSuche.text && !`${x.name} ${x.vorname}`.toLowerCase().includes(fzSuche.text)) || (fzSuche.status && !x[fzSuche.status]);
+      tr.hidden = !!aus;
+      if (tr.nextElementSibling?.classList.contains('fz-stunde')) tr.nextElementSibling.hidden = !!aus;
+    });
     const zeichnen = () => {
       // kompakter Kopf: Klasse, Von, Bis, (i)-Hinweis und Kennzahlen in einer Zeile, rechts der Knopf
       inhalt.innerHTML = `<div class="nl-leiste fz-kopfzeile">
           <span class="nl-pille" data-klwahl><span class="me-1 text-body-secondary">Klasse</span></span>
           <label class="nl-pille"><span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}"></label>
           <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${datum}"></label>
+          ${suchfeldMitFilter({ platzhalter: 'Schüler*in suchen', label: 'Schüler*in suchen', wert: fzSuche.text, filter: [
+            { name: 'status', label: 'Status', alle: 'Alle mit Fehlzeiten', wert: fzSuche.status, optionen: [['offen', 'mit offenen Stunden'], ['unentschuldigt', 'mit nicht entschuldigten']] }] })}
           ${infoHinweis(`<b>Fehlstunden</b> entstehen aus einer Abwesenheit und dem Stundenplan: gezählt werden die Unterrichtsstunden, in denen die Schülerin bzw. der Schüler hätte anwesend sein müssen (z. B. ganzer Mittwoch abwesend, laut Plan 4 Stunden → 4 Fehlstunden). Den Zeitraum selbst erfassen Sie unter <a href="#/abwesenheiten/schueler/${von}/${datum}/${encodeURIComponent(klasse)}">Abwesenheiten</a> – beide Bereiche zeigen dieselben Daten.`)}
           ${f.schueler.length ? `<span class="nl-zahlen kompakt"><span class="nl-zahl still" title="Schüler*innen mit Fehlzeiten"><b>${zeilen.length}/${f.schueler.length}</b> mit Fehlzeiten</span>
           <span class="nl-zahl rot still"><b>${fehlt.length}</b> Fehlstd.</span>
@@ -125,6 +135,11 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
       // Klassenwahl aus dem Seitenkopf in die Filterzeile übernehmen
       if (klWahl) { inhalt.querySelector('[data-klwahl]').append(klWahl); seite.querySelector('.u-filter')?.classList.add('d-none'); }
       else inhalt.querySelector('[data-klwahl]')?.remove();
+      suchfeldMitFilterBinden(inhalt.querySelector('.fz-kopfzeile'), {
+        beiSuche: t => { fzSuche.text = t.toLowerCase(); fzFiltern(); },
+        beiFilter: (_, w) => { fzSuche.status = w; fzFiltern(); },
+      });
+      fzFiltern();
       binden();
     };
     const gewaehlt = () => {

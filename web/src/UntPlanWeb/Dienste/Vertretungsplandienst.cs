@@ -118,7 +118,9 @@ public sealed class Vertretungsplandienst
                 var von = DateOnly.Parse(t.Von) == d ? t.StundeVon : 1;
                 var bis = DateOnly.Parse(t.Bis) == d ? t.StundeBis : 99;
                 var std = von <= 1 && bis >= 20 ? "ganztägig" : bis >= 20 ? $"ab {von}. Std." : von == bis ? $"{von}. Std." : $"{von}.–{bis}. Std.";
-                var wer = t.Klassen.Count > 0 ? string.Join(", ", t.Klassen) : t.Lehrer.Count > 0 && kollegium ? (t.Lehrer.Count > 8 ? $"{t.Lehrer.Count} Lehrkräfte" : string.Join(", ", t.Lehrer)) : "";
+                // alle Klassen bzw. alle Lehrkräfte (Kennzeichen aus UntPlan, ältere Pakete: false): Bezeichnung statt endloser Liste
+                var wer = t.AlleKlassen ? "alle Klassen" : t.Klassen.Count > 0 ? string.Join(", ", t.Klassen)
+                    : t.Lehrer.Count > 0 && kollegium ? (t.AlleLehrer ? "alle Lehrkräfte" : t.Lehrer.Count > 8 ? $"{t.Lehrer.Count} Lehrkräfte" : string.Join(", ", t.Lehrer)) : "";
                 return $"{t.Titel} ({std}{(wer.Length > 0 ? ", " + wer : "")}{(t.Raeume.Count > 0 ? ", " + string.Join(", ", t.Raeume) : "")})";
             }).ToList();
 

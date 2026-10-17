@@ -20,6 +20,8 @@ public sealed record RechtInfo(string Id, string Gruppe, string Name, string Bes
 public static class Recht
 {
     public const string PlanEigen = "plan.eigen", PlanKlassen = "plan.klassen", PlanLehrer = "plan.lehrer", PlanRaeume = "plan.raeume", PlanTag = "plan.tag";
+    /// <summary>Schüler- und Elternkonten: Stundenpläne anderer Klassen ansehen (Pläne der Lehrkräfte bleiben gesperrt).</summary>
+    public const string PlanKlassenSchueler = "plan.klassen.schueler";
     public const string VertretungSchueler = "vertretung.schueler", VertretungLehrer = "vertretung.lehrer";
     public const string KlassenbuchEigene = "klassenbuch.eigene", KlassenbuchKlasse = "klassenbuch.klasse", KlassenbuchAlle = "klassenbuch.alle";
     public const string KlassenbuchEinstellungen = "klassenbuch.einstellungen";
@@ -50,6 +52,7 @@ public static class Recht
     {
         new(PlanEigen, "Stundenplan", "Eigener Stundenplan", "Mein Stundenplan (Lehrkraft, Klasse bzw. Kinder).", false, false, S(J, J, J, J, J)),
         new(PlanKlassen, "Stundenplan", "Pläne aller Klassen", "Stundenpläne aller Klassen ansehen.", false, true, S(J, J, J, N, N)),
+        new(PlanKlassenSchueler, "Stundenplan", "Andere Klassenpläne (Schüler*innen, Eltern)", "Schüler- und Elternkonten dürfen die Stundenpläne anderer Klassen ansehen – Pläne der Lehrkräfte bleiben gesperrt.", false, false, S(N, N, N, N, N)),
         new(PlanLehrer, "Stundenplan", "Pläne der Lehrkräfte", "Stundenpläne aller Lehrkräfte ansehen.", false, true, S(J, J, J, N, N)),
         new(PlanRaeume, "Stundenplan", "Raumpläne", "Raumpläne ansehen.", false, false, S(J, J, J, J, J)),
         new(PlanTag, "Stundenplan", "Tagesübersichten", "Tagesübersicht über Klassen, Lehrkräfte und Räume.", false, true, S(J, J, J, N, N)),

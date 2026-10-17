@@ -1,6 +1,6 @@
 // Klassenbuch → Befreiungen vom Unterricht: Liste mit Filter (Klasse, Schüler*in, Zeitraum, Grund), Neu/Bearbeiten/Löschen
 // durch die Klassenleitung, Bericht. Befreite Schüler*innen sind in den Stundendetails gekennzeichnet.
-import { e, icon, holen, senden, api, toast, filterFeld, heuteIso, plusTage, leer, WOCHENTAGE } from '../ui.js';
+import { e, icon, holen, senden, api, toast, heuteIso, plusTage, leer, WOCHENTAGE, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
@@ -21,11 +21,12 @@ export async function zeigen(seite, kontext, [klasseParam, vonParam, bisParam, g
   kontext.titel('Befreiungen vom Unterricht', `${d.verwalten ? `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : ''}
     <a class="btn btn-outline-secondary" href="#/berichte/befreiungen/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Bericht Befreiungen</a>`, `${liste.length}`);
   seite.innerHTML = `
-    <div class="u-filter">
-      ${filterFeld('Klasse', `<select class="form-select" data-klasse><option value="">alle</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)}
-      ${filterFeld('Von', `<input type="date" class="form-control" data-von value="${von}">`)}
-      ${filterFeld('Bis', `<input type="date" class="form-control" data-bis value="${bis}">`)}
-      ${filterFeld('Befreiungsgrund', `<select class="form-select" data-grund><option value="">- Alle -</option>${d.gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select>`)}
+    <div class="u-sf-leiste">
+      ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Fach oder Text suchen', label: 'Befreiungen durchsuchen', filter: [
+        { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
+        { name: 'grund', label: 'Befreiungsgrund', alle: 'Alle Gründe', wert: grund, optionen: d.gruende.map(g => [g.kurz, g.name]) },
+      ] })}
+      ${zeitraumPillen(von, bis)}
     </div>
     <div class="u-tabelle-karte">${liste.length ? `<table class="u-tabelle"><thead><tr><th>Schüler*in</th><th>Klasse</th><th>Von</th><th>Bis</th><th>Wochentag</th><th>Fach</th><th>Beginn</th><th>Ende</th><th>Befreiungsgrund</th><th>Text</th><th></th></tr></thead><tbody>
       ${liste.map(b => `<tr><td class="fw-semibold" style="width:auto">${e(b.schueler)}</td><td>${e(b.klasse)}</td><td>${datumDe(b.von)}</td><td>${datumDe(b.bis)}</td>
@@ -35,7 +36,12 @@ export async function zeigen(seite, kontext, [klasseParam, vonParam, bisParam, g
           <button class="btn btn-sm btn-outline-danger" data-loeschen="${b.id}" title="Löschen">${icon('loeschen')}</button>` : ''}</td></tr>`).join('')}
       </tbody></table>` : leer('Keine Befreiungen gefunden.', 'file-earmark-x')}</div>`;
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-  seite.querySelectorAll('.u-filter select, .u-filter input').forEach(x => x.onchange = () => kontext.navigieren(ziel(f('klasse'), f('von') || von, f('bis') || bis, f('grund'))));
+  const sf = suchfeldMitFilterBinden(seite, {
+    beiSuche: t => zeilenFiltern(seite.querySelectorAll('.u-tabelle tbody tr'), t),
+    beiFilter: () => filterNeu(),
+  });
+  const filterNeu = () => kontext.navigieren(ziel(sf.wert('klasse'), f('von') || von, f('bis') || bis, sf.wert('grund')));
+  seite.querySelectorAll('[data-von], [data-bis]').forEach(x => x.onchange = filterNeu);
   const neu = () => kontext.navigieren(location.hash);
 
   async function formular(b = null) {

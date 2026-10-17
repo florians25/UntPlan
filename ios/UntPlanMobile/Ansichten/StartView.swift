@@ -105,7 +105,8 @@ struct StartView: View {
                         .environmentObject(zustand)
                 case .sprechtag(let id):
                     // Rückfall (sonst als Blatt): Kopf mit Zurück statt X über dieselbe Ansicht
-                    SprechtagView(id: id, titel: sprechtage.first { $0.id == id }?.titel ?? "Sprechtag")
+                    SprechtagView(id: id, titel: sprechtage.first { $0.id == id }?.titel ?? "Sprechtag",
+                                  karte: sprechtage.first { $0.id == id })
                         .environmentObject(zustand)
                 default:
                     StartlisteView(ziel: ziel, heute: heute) { gewaehlteKarte = $0 }
@@ -118,7 +119,7 @@ struct StartView: View {
             // Sprechtag: iPhone randloses 90-%-Blatt, iPad festes Detailblatt (eigener Navigationsstapel im Blatt)
             .detailPraesentation(item: $sprechtagWahl, breit: groessenklasse == .regular) { wahl in
                 NavigationStack {
-                    SprechtagView(id: wahl.id, titel: wahl.titel)
+                    SprechtagView(id: wahl.id, titel: wahl.titel, karte: sprechtage.first { $0.id == wahl.id })
                 }
                 .environmentObject(zustand)
             }
@@ -405,11 +406,10 @@ struct StartView: View {
             liste.append(Listeneintrag(ziel: .hausaufgaben, titel: "Hausaufgaben", symbol: "book.closed", zahl: h.hausaufgaben.count))
         }
         // Sprechtag statt Pausenaufsichten (die Aufsichten stehen im Stundenplan)
+        // Auch angekündigte Sprechtage (noch keine Buchung möglich) erscheinen mit Datum, Ort und Anmeldebeginn
         for t in sprechtage {
-            let untertitel = [t.datumText.isEmpty ? Datumsformat.anzeige(t.datum, "EE d.M.yyyy") : t.datumText, t.text]
-                .filter { !$0.isEmpty }.joined(separator: " · ")
-            liste.append(Listeneintrag(ziel: .sprechtag(t.id), titel: t.titel, symbol: "person.2", zahl: t.termine,
-                                       untertitel: untertitel))
+            liste.append(Listeneintrag(ziel: .sprechtag(t.id), titel: t.titel, symbol: t.angekuendigt ? "megaphone" : "person.2",
+                                       zahl: t.termine, untertitel: t.untertitel))
         }
         if h.aenderungen > 0 {
             liste.append(Listeneintrag(ziel: .aenderungen, titel: "Änderungen heute", symbol: "arrow.triangle.2.circlepath", zahl: h.aenderungen))
@@ -442,9 +442,10 @@ struct StartView: View {
         }
     }
 
-    /// Sprechtag nur für Lehrkräfte und Erziehungsberechtigte.
+    /// Sprechtage für alle Rollen laden – der Server entscheidet, was sichtbar ist (Lehrkräfte, Erziehungsberechtigte,
+    /// Schüler*innen nur bei Freigabe durch die Schule).
     private var mitSprechtag: Bool {
-        zustand.istKollegium || (zustand.benutzer?.rolle.lowercased() ?? "") == "eltern"
+        zustand.benutzer != nil
     }
 
     private func laden() async {
@@ -472,7 +473,12 @@ struct StartView: View {
             if let text = zustand.fehlertext(error) { fehler = text }
         }
         let geladeneSprechtage = await sprechtagListe
-        if let geladeneSprechtage { sprechtage = geladeneSprechtage }
+        // Neuere Server liefern die Sprechtage auch in /heute (gleiche Karten); sonst /sprechtag/start
+        if let ausHeute = heute?.sprechtage, !ausHeute.isEmpty || geladeneSprechtage == nil {
+            sprechtage = ausHeute
+        } else if let geladeneSprechtage {
+            sprechtage = geladeneSprechtage
+        }
     }
 
     /// Ferien für die Tageskarte aus dem Wochenplan: Liegt der angezeigte Tag bzw. der nächste Wochentag (Mo–Fr)

@@ -209,6 +209,102 @@ export function datumKachel(isoDatum) {
   return `<div class="u-datum ${isoDatum === heuteIso() ? 'heute' : ''}"><small>${WOCHENTAGE_KURZ[(d.getDay() + 6) % 7]}</small><b>${d.getDate()}</b><small>${['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][d.getMonth()]}</small></div>`;
 }
 
+/**
+ * Einheitliches Suchfeld (gemeinsame Komponente .u-suchfeld): großes graues Feld mit Lupe links, runden Ecken, Löschen-X rechts
+ * (ergänzt auswahl.js automatisch) und dezentem Fokus-Ring. attr: zusätzliche Attribute als Text (z. B. 'data-suche'), klasse: Zusatzklassen.
+ */
+export const suchfeld = ({ platzhalter = 'Suchen', wert = '', attr = 'data-suche', label = '', klasse = '' } = {}) =>
+  `<label class="u-suchfeld ${klasse}"><i class="bi bi-search" aria-hidden="true"></i><input type="search" ${attr} value="${e(wert)}" placeholder="${e(platzhalter)}" aria-label="${e(label || platzhalter)}" autocomplete="off"></label>`;
+
+/**
+ * Suchfeld mit Filter (gemeinsame Komponente .u-suchfilter, Muster der Hausaufgaben): graues, rundes Feld mit Lupe, Chips der gewählten
+ * Filter, Eingabe, Löschen-X (ergänzt auswahl.js) und rechts – durch einen Strich getrennt – ein oder mehrere Dropdowns (native Selects,
+ * die auswahl.js zur einheitlichen Auswahl mit Tastatur ↑ ↓ Enter Esc aufwertet). Ein gewählter Filter (Wert ≠ Standard) erscheint als dunkler
+ * Chip mit x zum Zurücksetzen. Verhalten bindet suchfeldMitFilterBinden().
+ * filter: [{ name, label, optionen: [[wert, text]], wert, standard = '', alle = 'Alle' (Text der Standard-Option; null = keine), attr }]
+ * chips: [{ wert, text }] – zusätzliche entfernbare Chips vor der Eingabe (z. B. gewählte Lehrkräfte), Klick auf x → beiChipWeg(wert).
+ */
+export const suchfeldMitFilter = ({ platzhalter = 'Suchen', wert = '', attr = 'data-suche', label = '', klasse = '', filter = [], chips = [], zusatz = '' } = {}) =>
+  `<div class="u-suchfilter ${filter.length > 1 ? 'mehrere' : ''} ${klasse}" style="--sf-n:${filter.length}" data-suchfilter>${icon('suchen')}${chips.map(c =>
+    `<span class="u-sf-chip">${e(c.text)}<button type="button" data-chip-weg="${e(c.wert)}" aria-label="Filter ${e(c.text)} entfernen"><i class="bi bi-x" aria-hidden="true"></i></button></span>`).join('')}<input type="search" ${attr} value="${e(wert)}" placeholder="${e(platzhalter)}" aria-label="${e(label || platzhalter)}" autocomplete="off">${filter.map(f => {
+    const standard = String(f.standard ?? '');
+    const w = String(f.wert ?? standard);
+    const optionen = [...(f.alle === null ? [] : [[standard, f.alle ?? 'Alle']]), ...f.optionen];
+    const gewaehlt = w !== standard;
+    return `<span class="u-trenn" aria-hidden="true"></span><span class="u-sf-filter ${gewaehlt ? 'gewaehlt' : ''}"><select data-sf="${e(f.name)}" ${f.attr ?? ''} data-standard="${e(standard)}" aria-label="${e(f.label ?? f.name)}">${optionen.map(([ow, ot]) =>
+      `<option value="${e(ow)}" ${String(ow) === w ? 'selected' : ''}>${e(ot)}</option>`).join('')}</select><button type="button" class="u-sf-weg" data-sf-weg aria-label="Filter ${e(f.label ?? f.name)} zurücksetzen" ${gewaehlt ? '' : 'hidden'}><i class="bi bi-x" aria-hidden="true"></i></button></span>`;
+  }).join('')}${zusatz}</div>`;
+
+/**
+ * Verhalten des Suchfelds mit Filter: Eingabe → beiSuche(text), Dropdown → beiFilter(name, wert), x am Filter-Chip setzt auf den Standard
+ * zurück, x an einem Chip → beiChipWeg(wert), Rücktaste im leeren Feld entfernt den letzten Chip bzw. Filter, Klick auf die Fläche fokussiert.
+ * Liefert { feld, input, wert(name), setzen(name, wert) }.
+ */
+export function suchfeldMitFilterBinden(wurzel, { beiSuche, beiFilter, beiChipWeg } = {}) {
+  const feld = wurzel?.matches?.('[data-suchfilter]') ? wurzel : wurzel?.querySelector('[data-suchfilter]');
+  if (!feld) return null;
+  const input = feld.querySelector('input[type=search]');
+  const selects = [...feld.querySelectorAll('select[data-sf]')];
+  const markieren = sel => {
+    const an = sel.value !== sel.dataset.standard;
+    sel.closest('.u-sf-filter')?.classList.toggle('gewaehlt', an);
+    const x = sel.closest('.u-sf-filter')?.querySelector('[data-sf-weg]');
+    if (x) x.hidden = !an;
+  };
+  selects.forEach(sel => sel.addEventListener('change', () => { markieren(sel); beiFilter?.(sel.dataset.sf, sel.value, sel); }));
+  feld.querySelectorAll('[data-sf-weg]').forEach(x => x.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const sel = x.closest('.u-sf-filter').querySelector('select');
+    sel.value = sel.dataset.standard;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  }));
+  feld.querySelectorAll('[data-chip-weg]').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); beiChipWeg?.(b.dataset.chipWeg); }));
+  input?.addEventListener('input', () => beiSuche?.(input.value.trim()));
+  input?.addEventListener('keydown', ev => {
+    if (ev.key !== 'Backspace' || input.value) return;
+    const chips = feld.querySelectorAll('[data-chip-weg]');
+    const filterX = [...feld.querySelectorAll('[data-sf-weg]:not([hidden])')];
+    if (chips.length && beiChipWeg) { ev.preventDefault(); beiChipWeg(chips[chips.length - 1].dataset.chipWeg); }
+    else if (filterX.length) { ev.preventDefault(); filterX[filterX.length - 1].click(); input.focus(); }
+  });
+  feld.addEventListener('click', ev => { if (ev.target === feld || ev.target.matches('.bi-search, .u-sym, .u-trenn')) input?.focus(); });
+  return {
+    feld, input,
+    wert: name => feld.querySelector(`select[data-sf="${name}"]`)?.value ?? '',
+    setzen: (name, w) => { const sel = feld.querySelector(`select[data-sf="${name}"]`); if (sel) { sel.value = w; markieren(sel); } },
+  };
+}
+
+/** Zeitraum als zwei Datums-Pillen (data-von, data-bis) neben dem Suchfeld mit Filter. */
+export const zeitraumPillen = (von, bis) => ['Von', 'Bis'].map((t, i) =>
+  `<label class="nl-pille u-sf-datum"><span class="visually-hidden">${t}</span><input type="date" data-${t.toLowerCase()} value="${e(i ? bis : von)}" aria-label="${t}"></label>`).join('');
+
+/** Freitextsuche in einer gerenderten Liste: blendet Zeilen ohne Treffer aus (alle Wörter müssen vorkommen); Ergebnis: Anzahl sichtbarer Zeilen. */
+export function zeilenFiltern(zeilen, text) {
+  const woerter = String(text ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  let n = 0;
+  for (const z of zeilen) {
+    const t = (z.dataset.suchtext ?? z.textContent).toLowerCase();
+    z.hidden = woerter.length > 0 && !woerter.every(w => t.includes(w));
+    if (!z.hidden) n++;
+  }
+  return n;
+}
+
+/**
+ * Segment-Auswahl (gemeinsame Komponente .u-segment): Pillen in einer grauen Schiene, die gewählte weiß hervorgehoben.
+ * optionen: [[wert, text, { symbol, titel, klasse }]]; attr: Attribut je Knopf (Wert steht in data-wert). Für wenige, gleichrangige Optionen
+ * (Art der Anzeige, Rechte-Stufen) statt eines Dropdowns.
+ */
+export const segment = (optionen, wahl, { attr = 'data-segment', label = '', klasse = '', deaktiviert = false } = {}) =>
+  `<div class="u-segment ${klasse}" role="group" ${label ? `aria-label="${e(label)}"` : ''}>${optionen.map(([w, t, o = {}]) =>
+    `<button type="button" class="${String(w) === String(wahl) ? 'an' : ''} ${o.klasse ?? ''}" ${attr} data-wert="${e(w)}" aria-pressed="${String(w) === String(wahl)}" ${o.titel ? `title="${e(o.titel)}"` : ''} ${deaktiviert ? 'disabled' : ''}>${o.symbol ? `<i class="bi bi-${o.symbol}" aria-hidden="true"></i>` : ''}<span>${e(t)}</span></button>`).join('')}</div>`;
+
+/** Gewählte Pille eines Segments setzen (ohne neu zu zeichnen). */
+export function segmentSetzen(wurzel, wert) {
+  wurzel?.querySelectorAll('button[data-wert]').forEach(b => { const an = b.dataset.wert === String(wert); b.classList.toggle('an', an); b.setAttribute('aria-pressed', String(an)); });
+}
+
 /** Feld in einer Filterleiste: Beschriftung über dem Steuerelement. */
 export const filterFeld = (beschriftung, html) => `<label class="u-feld"><span>${e(beschriftung)}</span>${html}</label>`;
 
@@ -276,7 +372,8 @@ const kuerzungsHover = (() => {
   };
   document.addEventListener('mouseover', ev => {
     const t = ev.target;
-    if (!(t instanceof Element) || t.closest('[data-hover], [data-hover-pillen], [title], input, textarea, select, .modal-footer, .u-kuerzung-hover')) { if (ziel && !ziel.contains(t)) verbergen(); return; }
+    // Stundenkarten (.std): eigener dunkelgrauer Hover je gekürzter Zeile (plangitter.js) – hier keinen zweiten, hellen zeigen
+    if (!(t instanceof Element) || t.closest('[data-hover], [data-hover-pillen], [title], input, textarea, select, .modal-footer, .u-kuerzung-hover, .std')) { if (ziel && !ziel.contains(t)) verbergen(); return; }
     if (ziel && ziel.contains(t)) return;
     // vom überfahrenen Element bis zu vier Ebenen nach oben das erste abgeschnittene suchen
     let el = t, treffer = null;

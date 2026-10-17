@@ -165,6 +165,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _plan.Format = FormatHolen();
         FormateFuellen();
         _plan.AuswahlGeaendert += AuswahlGeaendert;
+        _plan.LeereZelleGewaehlt += LeereZelleGewaehlt;
         _plan.Abgelegt += Abgelegt;
         _plan.Doppelklick += p => { var u = Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId); if (u != null) UnterrichtFenster.Zeigen(_typ is ElementTyp.Raum ? ElementTyp.Unterricht : _typ, _typ is ElementTyp.Raum ? null : _id); };
         _plan.Kontext += Kontextmenue;
@@ -296,6 +297,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         Neuaufbau();
         AppZustand.ElementGewaehlt += ElementGewaehlt;
         AppZustand.StundeGewaehlt += StundeGewaehlt;
+        AppZustand.ZelleGewaehlt += ZelleGewaehlt;
         AppZustand.DatumGewechselt += DatumGewechselt;
         AppZustand.ModusGewechselt += ModusAnwenden;
         AppZustand.VertretungGewaehlt += VertretungGewaehlt;
@@ -304,6 +306,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             AppZustand.VertretungGewaehlt -= VertretungGewaehlt;
             AppZustand.ElementGewaehlt -= ElementGewaehlt;
             AppZustand.StundeGewaehlt -= StundeGewaehlt;
+            AppZustand.ZelleGewaehlt -= ZelleGewaehlt;
             AppZustand.DatumGewechselt -= DatumGewechselt;
             AppZustand.ModusGewechselt -= ModusAnwenden;
         };
@@ -737,6 +740,38 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         else _plan.Ausgewaehlt = null;
         _plan.Invalidate();
         if (neu is not null) LupeFuellen(p);
+    }
+
+    /// <summary>Nicht verplante Stunde angeklickt: verknüpfte Pläne auf denselben Tag und dieselbe Stunde setzen.</summary>
+    private void LeereZelleGewaehlt(int spalte, int stunde)
+    {
+        _plan.MarkierterUnterricht = null;
+        if (_plan.Tagesmodus) TagesLupe(null);
+        else LupeFuellen(null);
+        if (Core.Planung.PlanSynchronisation.AusSpalte(D, spalte, stunde, _plan.Woche) is { } z) AppZustand.ZelleWaehlen(z, _typ, _id, this);
+    }
+
+    /// <summary>
+    /// Stundenplan-Synchronisation für leere Zellen: das angezeigte Element bleibt, die bisherige Auswahl wird aufgehoben und dieselbe
+    /// Stunde am selben (Wochen-)Tag markiert – auch wenn das Element dort keinen Unterricht hat.
+    /// </summary>
+    private void ZelleGewaehlt(Core.Planung.PlanZelle z, ElementTyp typ, int id, object quelle)
+    {
+        if (quelle == this || !Verknuepft || _reiter.Visible || IsDisposed) return;
+        var spalte = Core.Planung.PlanSynchronisation.ZielSpalte(D, z, _plan.Woche, _plan.Spalten);
+        if (spalte is int s) _plan.ZelleMarkieren(s, z.Stunde);
+        else _plan.AuswahlLeeren();
+        _plan.MarkierterUnterricht = null;
+        if (_plan.Tagesmodus) TagesLupe(null);
+        else LupeFuellen(null);
+    }
+
+    /// <summary>Selbsttest: leere Zelle (Spalte, Stunde) anklicken wie mit der Maus.</summary>
+    internal void LeereZelleAnklicken(int spalte, int stunde)
+    {
+        _plan.ZelleMarkieren(spalte, stunde);
+        AuswahlGeaendert(null);
+        LeereZelleGewaehlt(spalte, stunde);
     }
 
     /// <summary>Gewählte Vertretung: Klassenplan der Klasse, Lehrerpläne von (Lehrer) und Vertreter, Raumplan – tagesaktuell zur Woche der Vertretung.</summary>

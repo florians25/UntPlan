@@ -2233,7 +2233,7 @@ body.show-card-times .card__times{ display:flex; }
 
   html.is-dark {
     /* Werte am Muster abgenommen: Grund #1c1c1e, Leiste schwarz,
-       Kachel #5e7382, Balken #bfc7ce, Änderung #035641,
+       Kachel #5e7383, Balken #bfc7ce, Änderung #035641,
        Plakette #22c0a1, Ferien #6a82bf. */
     --c-bg:            #1c1c1e;
     --c-bar:           #000000;
@@ -2250,7 +2250,7 @@ body.show-card-times .card__times{ display:flex; }
     --c-muted:         #8d949c;
     --c-gutter:        #9aa1a8;
 
-    --card-bg:         #5e7382;
+    --card-bg:         #5e7383;
     --card-bg-past:    #323d45;   /* deutlich dunkler als eine laufende Stunde */
     --shadow-past:     0 1px 2px rgba(0,0,0,.34), 0 2px 5px rgba(0,0,0,.24);
     --card-accent:     #bfc7ce;
@@ -4393,13 +4393,13 @@ html.is-dark .screen--msg, html.is-dark body.is-msgtop{ background:#000; }
 .card--exam.is-past{ background:var(--exam-bg); border:0; --bw:0px; }
 .card--gs.is-past, .card--absence.is-past{ background:var(--chg-bg); border:0; --bw:0px; }
 .card.is-past::before{ opacity:1; }
-html.is-dark .card.is-past{ background:#313d44; box-shadow:none; }
+html.is-dark .card.is-past{ background:var(--card-bg-past); box-shadow:none; }
 html.is-dark .card.is-past .card__line,
 html.is-dark .card.is-past .card__line--primary{ color:#f4f6f8; }
-html.is-dark .card--change.is-past{ background:#313d44; border:2px solid var(--chg-border); --bw:2px; }
-html.is-dark .card--cancelled.is-past{ background:#313d44; border:2px solid var(--cnc-border); --bw:2px; }
-html.is-dark .card--exam.is-past{ background:#313d44; border:2px solid var(--exam-border); --bw:2px; }
-html.is-dark .card--gs.is-past, html.is-dark .card--absence.is-past{ background:#313d44; border:1px solid #3d6457; --bw:1px; }
+html.is-dark .card--change.is-past{ background:var(--card-bg-past); border:2px solid var(--chg-border); --bw:2px; }
+html.is-dark .card--cancelled.is-past{ background:var(--card-bg-past); border:2px solid var(--cnc-border); --bw:2px; }
+html.is-dark .card--exam.is-past{ background:var(--card-bg-past); border:2px solid var(--exam-border); --bw:2px; }
+html.is-dark .card--gs.is-past, html.is-dark .card--absence.is-past{ background:var(--card-bg-past); border:1px solid #3d6457; --bw:1px; }
 html.is-dark .card--released.is-past, html.is-dark .card--standby.is-absent.is-past{ background:transparent; border-color:transparent; }
 .card--released.is-past{ background:transparent; }
 /* Vergangene Stunden bleiben antippbar */
@@ -5690,12 +5690,7 @@ html.is-dark .card .ticon--info .ticon__scheibe{ fill:#818f9a; }
 .card .ticon.ticon--online{ display:block; width:100%; height:100%; fill:none; stroke:#8a96a1; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 html.is-dark .card .ticon.ticon--online{ stroke:#a3aeb9; }
 
-/* Verlegung: Ursprung rotes Feld mit Pfeil nach rechts, Ziel grünes Feld
-   mit Pfeil nach links (14 × 14 px, Radius 3 px). */
-.card .ticon.ticon--verlegt{ display:block; width:100%; height:100%; }
-.card .ticon--verlegt rect{ fill:#1e9e5a; stroke:none; }
-.card .ticon--verlegt.ticon--von rect{ fill:#f03e3e; }
-.card .ticon--verlegt path{ fill:none; stroke:#ffffff; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+/* Sprint 27: kein Verlegungszeichen auf der Kachel (wie iOS) – die Verlegung steht in den Details. */
 
 /* Raumlabel (untere Zeilen): so knapp gepolstert wie jedes andere Label,
    Schrift unverändert. */
@@ -5913,3 +5908,50 @@ html.is-dark .ent__segbtn--no.is-on{ color:#ff6b86; }
   background:#eceef1; color:#c0113a; font:inherit; font-size:16px; font-weight:500; }
 html.is-dark .ent__zurueck{ background:#2a2a2e; color:#ff6b86; }
 html.is-dark .dpart, html.is-dark .sheet--detail .dpart{ background:#2c2c2e; box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 .5px rgba(255,255,255,.08); }
+
+/* =====================================================================
+   Sprint 27 – Gleichstand mit der iOS-App
+   ===================================================================== */
+/* Kacheln: die unteren Zeilen (ab der zweiten) einen Hauch höher, die erste bleibt (iOS: 0,8 pt) */
+.card .card__line ~ .card__line{ position:relative; top:-.8px; }
+/* Stundendetails: Häkchen (Lehrstoff) und Zahl der Abwesenden rechts einen Ticken kleiner */
+html body .sheet--detail .drow2__done{ width:23px !important; height:23px !important; }
+html body .sheet--detail .drow2__count, html.is-dark body .sheet--detail .drow2__count{
+  min-width:28px; height:28px; border-radius:14px; padding:0 7px; font-size:15px;
+}
+html body .sheet--detail .drow2__count.is-checked::after{ top:-4px; right:-4px; width:13px; height:13px; }
+
+/* Stundendetails: Zeile „Verlegt“ / „Hierher verlegt“ mit Ursprung und Ziel (ohne Verlegungszeichen) */
+.sheet--detail .drow2--moved{ cursor:default; }
+
+/* Sprechtag: Status „angekündigt“ (freigegeben, Anmeldung beginnt erst später), Ort, Vorschau der Zeiten, Online-Termin */
+.spt__phase--angekuendigt{ background:rgba(245,107,42,.12); color:#c2511b; }
+.spt__phase--angekuendigt i{ background:#f56b2a; }
+html.is-dark .spt__phase--angekuendigt{ background:rgba(245,107,42,.2); color:#ff9a66; }
+.spt__hinweis--ankuendigung{ display:flex; align-items:flex-start; gap:8px; }
+.spt__hinweis--ankuendigung .ico{ width:18px; height:18px; flex:0 0 18px; margin-top:1px; stroke-width:1.6; color:#f56b2a; }
+.spt__slots--vorschau .spt__slot.is-vorschau{ display:flex; align-items:center; justify-content:center; opacity:.55; pointer-events:none; }
+.spt__link{ display:inline-flex; align-items:center; gap:5px; margin-top:3px; font-size:13px; font-weight:500; color:var(--c-accent, #f56b2a); text-decoration:none; }
+.spt__link .ico{ width:15px; height:15px; stroke-width:1.7; }
+#btnSprechtag.is-angekuendigt .row__ico .ico{ color:#f56b2a; }
+
+/* Meine Abwesenheiten (Schüler*innen, Eltern): Summen des Zeitraums über der Liste */
+.abssum{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:1px; background:rgba(21,33,44,.08);
+  border-radius:14px; overflow:hidden; margin-bottom:14px; box-shadow:0 1px 3px rgba(21,33,44,.10); }
+.abssum__k{ background:var(--c-bar); padding:10px 12px; display:flex; flex-direction:column; gap:1px; min-width:0; }
+.abssum__k b{ font-size:22px; font-weight:400; line-height:1.15; color:var(--c-ink); font-variant-numeric:tabular-nums; }
+.abssum__k span{ font-size:13px; color:#8b9aa5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.abssum__k--ok b{ color:#157d68; } .abssum__k--no b{ color:#c0113a; } .abssum__k--open b{ color:#b86a00; }
+.abskind{ display:flex; flex-wrap:wrap; gap:7px; margin:0 0 12px; }
+.is-dark .abssum{ background:#2c2c31; box-shadow:none; }
+.is-dark .abssum__k{ background:var(--c-surface); }
+
+/* Stundendetails: sehr lange Wertelisten im Kopf (alle Lehrkräfte, alle
+   Klassen) enden mit „… +N“; aufgeklappt bricht die Zeile um. */
+.sheet--detail .dmehr{
+  font:inherit; font-weight:400; color:var(--d-muted, #6b7a86);
+  background:none; border:0; padding:0 0 0 6px; margin:0; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.sheet--detail .dtitle.is-offen,
+.sheet--detail .dline.is-offen{ white-space:normal; overflow-x:visible; }

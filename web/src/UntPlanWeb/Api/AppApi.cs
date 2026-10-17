@@ -30,7 +30,8 @@ public static class AppApi
     /// <summary>Abwesenheitsdialog: Zeitraum (Datum + Uhrzeit, ISO „yyyy-MM-ddTHH:mm“), Grund, Text, Status; optional Stunde (Stundendetails) bzw. zu ersetzende Fehlzeiten.</summary>
     public sealed record AbwesenheitZeitraumDaten(List<int>? SchuelerIds, DateTime Von, DateTime Bis, string? Grund, string? Text, string? Status,
         DateOnly? Datum = null, int? Stunde = null, int? Unterricht = null, List<int>? Ersetzen = null,
-        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null, int? Einzelstunde = null);
+        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null, int? Einzelstunde = null,
+        bool? Ganztaegig = null);
     public sealed record AbwesenheitEntfernenDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, int? Einzelstunde = null);
     public sealed record AbwesenheitStatusDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Status, int? Einzelstunde = null);
     public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis, int? Einzelstunde = null);
@@ -62,8 +63,13 @@ public static class AppApi
         }
         if (typ == Elementtyp.Raum && Rechtedienst.Darf(b, Recht.PlanRaeume)) return;
         if (typ == Elementtyp.Klasse && Rechtedienst.Darf(b, Recht.PlanKlassen)) return;
+        if (typ == Elementtyp.Klasse && AndereKlassen(b)) return;
         throw new UnauthorizedAccessException("Dieser Plan ist für Ihr Konto nicht freigegeben.");
     }
+
+    /// <summary>Darf das Konto die Pläne aller Klassen sehen? Kollegium mit „Pläne aller Klassen“, Schüler/Eltern mit „Andere Klassenpläne“.</summary>
+    public static bool AndereKlassen(Benutzer b) =>
+        b.Kollegium ? Rechtedienst.Darf(b, Recht.PlanKlassen) : b.Familie && Rechtedienst.Darf(b, Recht.PlanKlassenSchueler);
 
     public static void Abbilden(WebApplication app)
     {
@@ -190,12 +196,14 @@ public static class AppApi
             var de = StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true);
             return Results.Json(new
             {
-                klassen = s.Paket.Elemente.Klassen.Where(k => b.Kollegium || b.HatKlasse(k.Kurz))
+                klassen = s.Paket.Elemente.Klassen.Where(k => b.Kollegium || b.HatKlasse(k.Kurz) || AndereKlassen(b))
                     .OrderBy(k => k.Kurz, de).Select(k => new { kurz = k.Kurz, name = k.Name, k.Jahrgang, leitung = k.Klassenleitung }),
                 lehrer = b.Kollegium ? s.Paket.Elemente.Lehrer.OrderBy(l => l.Kurz, de).Select(l => new { kurz = l.Kurz, name = string.Join(" ", new[] { l.Vorname, l.Name }.Where(x => x.Length > 0)) }).Cast<object>().ToList() : new List<object>(),
                 raeume = s.Paket.Elemente.Raeume.OrderBy(r => r.Kurz, de).Select(r => new { kurz = r.Kurz, name = r.Name }),
                 faecher = s.Paket.Elemente.Faecher.Select(f => new { kurz = f.Kurz, name = f.Name, farbe = f.Farbe }),
                 stunden = s.Paket.Zeitraster.Stunden,
+                // Pläne anderer Klassen erlaubt (Kollegium bzw. Recht „Andere Klassenpläne“ bei Schüler- und Elternkonten)
+                andereKlassen = AndereKlassen(b),
                 // Ferien und Feiertage mit Zeitraum (z. B. für die Ferienfelder in UntPlanMobile)
                 ferien = s.Paket.Ferien.Select(f => new { name = f.Name, von = f.Von, bis = f.Bis, feiertag = f.Feiertag }),
             });
@@ -242,11 +250,13 @@ public static class AppApi
 
         // ---------------------------------------------------------------- Startseite
 
-        api.MapGet("/heute", (HttpContext c, Paketdienst p, Plandienst plan, Vertretungsplandienst vp, Rueckmeldungsdienst r, Mitteilungsdienst m, Klassenbuchdienst kb, Uhr uhr) =>
+        api.MapGet("/heute", (HttpContext c, Paketdienst p, Plandienst plan, Vertretungsplandienst vp, Rueckmeldungsdienst r, Mitteilungsdienst m, Klassenbuchdienst kb, Uhr uhr, Sprechtagdienst st) =>
         {
             var b = Ich(c);
             var s = p.Aktuell;
-            if (s is null) return Results.Json(new { paket = false, ungelesen = m.Ungelesen(b.Id) });
+            // Sprechtag-Karten (angekündigt, Anmeldung, eigene Termine) wie /api/app/sprechtag/start
+            var sprechtage = SprechtagApi.StartKarten(st, b);
+            if (s is null) return Results.Json(new { paket = false, ungelesen = m.Ungelesen(b.Id), sprechtage });
             var heute = uhr.Heute;
             var tag = vp.NaechsteTage(s, heute, 1).FirstOrDefault(heute);
             var typ = b.KlassenKuerzel != null ? Elementtyp.Klasse : Elementtyp.Lehrer;
@@ -279,6 +289,7 @@ public static class AppApi
                 ungelesen = m.Ungelesen(b.Id),
                 offeneStunden = b.LehrerKuerzel is string l ? kb.OffeneStunden(s, l).Count : 0,
                 hausaufgaben = b.KlassenKuerzel is string k ? kb.Hausaufgaben(k).Take(10).ToList() : new List<Klassenbucheintrag>(),
+                sprechtage,
             });
         });
 
@@ -447,7 +458,9 @@ public static class AppApi
             var ids = d.SchuelerIds ?? new();
             if (ids.Count == 0) throw new ArgumentException("Bitte eine Schülerin bzw. einen Schüler wählen.");
             (DateOnly, int, int)? stunde = d.Datum is DateOnly dt && d.Stunde is int st && d.Unterricht is int u ? (dt, st, u) : null;
-            var n = ids.Distinct().Sum(id => kb.AbwesenheitErfassen(b, s, id, d.Von, d.Bis, d.Grund, d.Text, d.Status, stunde, ids.Count == 1 ? d.Ersetzen : null,
+            // Ganztägig (z. B. Krankmeldung vor Unterrichtsbeginn): ganzer Schultag bzw. alle Tage von–bis, d. h. alle Unterrichtsstunden laut Plan
+            var (von, bis) = d.Ganztaegig == true ? Klassenbuchdienst.Ganztaegig(d.Von, d.Bis) : (d.Von, d.Bis);
+            var n = ids.Distinct().Sum(id => kb.AbwesenheitErfassen(b, s, id, von, bis, d.Grund, d.Text, d.Status, stunde, ids.Count == 1 ? d.Ersetzen : null,
                 d.Nachweis, d.EntschuldigtAm, d.ElternInformiert, d.NotizIntern, d.Einzelstunde));
             return Results.Json(new { stunden = n });
         });
@@ -517,6 +530,8 @@ public static class AppApi
         });
         api.MapPost("/klassenbuch/vermerke", (VermerkDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(kb.VermerkAnlegen(Ich(c), Paket(p), d.Datum, d.Klasse ?? "", d.SchuelerId, d.Art ?? "Vermerk", d.Text ?? "", d.Zeit)));
+        api.MapPut("/klassenbuch/vermerke/{id:int}", (int id, VermerkDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+            Results.Json(kb.VermerkAendern(Ich(c), Paket(p), id, d.Datum, d.SchuelerId, d.Art ?? "", d.Text ?? "", d.Zeit)));
         api.MapDelete("/klassenbuch/vermerke/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(new { ok = kb.VermerkLoeschen(Ich(c), Paket(p), id) }));
         api.MapGet("/klassenbuch/schueler", (string klasse, string? datum, HttpContext c, Paketdienst p) =>
@@ -579,7 +594,7 @@ public static class AppApi
         {
             var b = Ich(c);
             NurKollegium(b);
-            return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, eintraege = l.Vermerke(Paket(p), Von(von, uhr.Heute.AddDays(-30)), Von(bis, uhr.Heute), Leer(klasse), Leer(art)) });
+            return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, eintraege = l.Vermerke(Paket(p), Von(von, uhr.Heute.AddDays(-30)), Von(bis, uhr.Heute), Leer(klasse), Leer(art), b) });
         });
 
         api.MapGet("/abwesenheiten", (string? von, string? bis, string? klasse, string? status, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>

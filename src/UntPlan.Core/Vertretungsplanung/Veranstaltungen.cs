@@ -190,6 +190,31 @@ public static class VeranstaltungsLogik
         return string.Join(trenner, namen.Distinct().Where(n => n != offen).Concat(namen.Where(n => n == offen)));
     }
 
+    /// <summary>
+    /// Wie <see cref="LehrerText"/>, aber kompakt für Veranstaltungen mit vielen Lehrkräften: „Alle Lehrkräfte“ bzw. „Alle Lehrkräfte
+    /// außer A, B“ statt einer endlosen Liste; offene Plätze folgen als „?“ (bzw. <paramref name="offen"/>).
+    /// </summary>
+    public static string LehrerKurztext(Schuldatei d, Veranstaltung va, DateOnly datum, string trenner = ",", string offen = "?")
+    {
+        var text = VeranstaltungsAuswahl.Kurztext(d, ElementTyp.Lehrer, va.LehrerAm(datum), va.Von, va.Bis, trenner);
+        var teile = new List<string>();
+        if (text.Length > 0) teile.Add(text);
+        teile.AddRange(Enumerable.Repeat(offen, va.OffenAm(datum).Count));
+        return string.Join(trenner, teile);
+    }
+
+    /// <summary>Klassen (Spalte Klasse und Kl-Teil) kompakt: „Alle Klassen“, „Alle Klassen außer …“ oder Liste.</summary>
+    public static string KlassenKurztext(Schuldatei d, Veranstaltung va, string trenner = ",") =>
+        VeranstaltungsAuswahl.Kurztext(d, ElementTyp.Klasse, va.AlleKlassenIds, va.Von, va.Bis, trenner);
+
+    /// <summary>Nehmen alle (wählbaren) Lehrkräfte an diesem Tag teil?</summary>
+    public static bool AlleLehrer(Schuldatei d, Veranstaltung va, DateOnly? datum = null) =>
+        VeranstaltungsAuswahl.UmfasstAlle(d, ElementTyp.Lehrer, datum is DateOnly t ? va.LehrerAm(t) : va.LehrerIds, va.Von, va.Bis);
+
+    /// <summary>Sind alle (wählbaren) Klassen beteiligt (Spalte Klasse oder Kl-Teil)?</summary>
+    public static bool AlleKlassen(Schuldatei d, Veranstaltung va) =>
+        VeranstaltungsAuswahl.UmfasstAlle(d, ElementTyp.Klasse, va.AlleKlassenIds, va.Von, va.Bis);
+
     /// <summary>Kopie einer Veranstaltung auf ein anderes Datum (Strg+C / Strg+V): Zeitraum wird verschoben, entfernte Lehrkräfte nicht übernommen.</summary>
     public static Veranstaltung Kopieren(Veranstaltung va, DateOnly ab)
     {

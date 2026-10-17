@@ -11,6 +11,8 @@ namespace UntPlan.App.Fenster;
 /// Von, ab St., Bis, bis St., Grund, Text, zählen, Schülergruppe). Mehrere Klassen/Lehrer mit Komma oder in der Auswahlliste mit
 /// Strg-Klick, Elemente aus dem Element-Rollup per Drag &amp; Drop, Strg+C / Strg+V kopiert eine Veranstaltung auf das eingestellte Datum.
 /// Ist eine Lehrkraft wegen einer Absenz entfernt worden, steht im Feld „Lehrer“ rot „???“, bis eine Ersatzlehrkraft eingetragen ist.
+/// Schnellauswahl („Hinzufügen“ bzw. Kontextmenü einer Spalte): alle Lehrkräfte/Klassen/Räume, nach Abteilung, Jahrgang, Gruppe …,
+/// alles aus den Stunden der Veranstaltung oder aus der gewählten Stunde übernehmen.
 /// </summary>
 public sealed class VeranstaltungenFenster : MdiFenster
 {
@@ -42,6 +44,21 @@ public sealed class VeranstaltungenFenster : MdiFenster
             "L" => ElementTyp.Lehrer, "R" => ElementTyp.Raum, _ => ElementTyp.Klasse,
         })));
         ts.Items.Add(Knopf("Vertretungen", "vertretung", () => HauptFenster.Oeffnen("vertr", () => new VertretungenFenster())));
+        ts.Items.Add(new ToolStripSeparator());
+        // Schnellauswahl: alle Klassen/Lehrkräfte/Räume, nach Abteilung, Jahrgang, Gruppe … bzw. alles aus den Stunden übernehmen
+        var schnell = new ToolStripDropDownButton("Hinzufügen", Symbole.Get("plus", 16))
+        {
+            DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+            ToolTipText = "Schnell hinzufügen: alle Lehrkräfte, Klassen, Räume, nach Abteilung/Jahrgang/Gruppe oder alle aus Stunde/Unterricht",
+        };
+        schnell.DropDownItems.Add("…");
+        schnell.DropDownOpening += (_, _) =>
+        {
+            schnell.DropDownItems.Clear();
+            schnell.DropDownItems.AddRange(SchnellMenue(null).ToArray());
+        };
+        ts.Items.Add(schnell);
+        ts.Items.Add(Knopf("Alle aus den Stunden der Veranstaltung übernehmen (Klassen, Lehrkräfte, Räume)", "unterricht", AusStundenUebernehmen));
 
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
@@ -77,6 +94,19 @@ public sealed class VeranstaltungenFenster : MdiFenster
             if (MehrfachAuswahl.AufPfeil(_g, e)) AuswahlZeigen(e.RowIndex, e.ColumnIndex);
         };
         _g.KeyDown += Taste;
+        // Kontextmenü: Schnellauswahl für die angeklickte Spalte (Klasse, Kl-Teil, Lehrer, Raum)
+        _g.CellMouseDown += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (!_g.IsCurrentCellInEditMode) _g.CurrentCell = _g.Rows[e.RowIndex].Cells[e.ColumnIndex];
+            var m = new ContextMenuStrip { Font = Ui.Schrift };
+            m.Items.AddRange(SchnellMenue(FeldVon(_g.Columns[e.ColumnIndex].Name)).ToArray());
+            m.Closed += (_, _) => BeginInvoke(m.Dispose);
+            m.Show(_g, _g.PointToClient(Cursor.Position));
+        };
+        AppZustand.StundeGewaehlt += StundeGewaehlt;
+        AppZustand.VertretungGewaehlt += VertretungGewaehlt;
+        FormClosed += (_, _) => { AppZustand.StundeGewaehlt -= StundeGewaehlt; AppZustand.VertretungGewaehlt -= VertretungGewaehlt; };
         // Drag & Drop aus dem Element-Rollup
         _g.AllowDrop = true;
         _g.DragOver += (_, e) => e.Effect = e.Data?.GetData(DataFormats.Text) is string s && s.StartsWith("elemente:") ? DragDropEffects.Copy : DragDropEffects.None;
@@ -122,8 +152,15 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private string LehrerText(Veranstaltung v)
     {
         var tag = OffenerTag(v);
-        return tag is DateOnly t ? VeranstaltungsLogik.LehrerText(D, v, t, ",\n", "???") : string.Join(",\n", v.LehrerIds.Select(Ix.KLehrer));
+        var trenner = Trenner(v.LehrerIds.Count);
+        return tag is DateOnly t ? VeranstaltungsLogik.LehrerKurztext(D, v, t, trenner, "???") : VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Lehrer, v.LehrerIds, v.Von, v.Bis, trenner);
     }
+
+    /// <summary>Wenige Elemente untereinander, viele (z. B. 40 Klassen) fortlaufend – sonst würde die Zeile Dutzende Zeilen hoch.</summary>
+    private static string Trenner(int anzahl) => anzahl > 6 ? ", " : ",\n";
+
+    /// <summary>Klassen/Räume kompakt: „Alle Klassen“, „Alle Klassen außer 5a“ bzw. Liste (wieder einlesbar, siehe <see cref="VeranstaltungsAuswahl.Lesen"/>).</summary>
+    private string Feldtext(Veranstaltung v, ElementTyp typ, List<int> ids) => VeranstaltungsAuswahl.Kurztext(D, typ, ids, v.Von, v.Bis, Trenner(ids.Count));
 
     /// <summary>Erster angezeigter Tag, an dem die Veranstaltung einen offenen Platz hat.</summary>
     private DateOnly? OffenerTag(Veranstaltung v) =>
@@ -154,8 +191,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.Rows.Clear();
         foreach (var v in D.Veranstaltungen.Where(v => v.Bis >= Von && v.Von <= Bis).OrderBy(v => v.Von).ThenBy(v => v.Id))
         {
-            var r = _g.Rows.Add(v.Id, Ix.KKlassen(v.KlassenIds).Replace(",", ",\n"), Ix.KKlassen(v.KlassenteilIds).Replace(",", ",\n"), LehrerText(v),
-                string.Join(",", v.RaumIds.Select(Ix.KRaum)), Datum(v.Von), v.StundeVon, Datum(v.Bis), v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
+            var r = _g.Rows.Add(v.Id, Feldtext(v, ElementTyp.Klasse, v.KlassenIds), Feldtext(v, ElementTyp.Klasse, v.KlassenteilIds), LehrerText(v),
+                Feldtext(v, ElementTyp.Raum, v.RaumIds), Datum(v.Von), v.StundeVon, Datum(v.Bis), v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
                 D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.Schuelergruppe);
             _g.Rows[r].Tag = v;
         }
@@ -212,6 +249,19 @@ public sealed class VeranstaltungenFenster : MdiFenster
             eintraege = Stammdaten.Sortiert(D, typ).Where(x => !x.Ignorieren).Select(x => new MehrfachAuswahl.Eintrag(x.Kurzname, x is Lehrer l ? l.VollerName : x.Langname)).ToList();
         }
         var aktuell = (_g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "").Split(new[] { ',', '\n', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        // gespeicherte Veranstaltung: Auswahl aus den Ids (die Zelle zeigt ggf. „Alle Lehrkräfte“ bzw. „Alle Klassen außer …“)
+        if (_g.Rows[zeile].Tag is Veranstaltung va && name is "K" or "KT" or "L" or "R")
+        {
+            var offenTag = name == "L" ? OffenerTag(va) : null;
+            var (typ, ids) = name switch
+            {
+                "K" => (ElementTyp.Klasse, va.KlassenIds),
+                "KT" => (ElementTyp.Klasse, va.KlassenteilIds),
+                "R" => (ElementTyp.Raum, va.RaumIds),
+                _ => (ElementTyp.Lehrer, offenTag is DateOnly ot ? va.LehrerAm(ot) : va.LehrerIds),
+            };
+            aktuell = ids.Select(i => Ix.K(typ, i)).Concat(offenTag is DateOnly ot2 ? Enumerable.Repeat("???", va.OffenAm(ot2).Count) : Enumerable.Empty<string>()).ToArray();
+        }
         if (name == "SG") aktuell = new[] { _g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "" };
         MehrfachAuswahl.Zeigen(_g, zeile, spalte, eintraege, aktuell, name != "SG", gewaehlt =>
         {
@@ -225,6 +275,170 @@ public sealed class VeranstaltungenFenster : MdiFenster
             ZelleGeaendert(_g, new DataGridViewCellEventArgs(spalte, zeile));
         });
     }
+
+    // ---------------------------------------------------------------- Schnellauswahl
+
+    /// <summary>Zuletzt in einem Stundenplan bzw. in der Vertretungsliste gewählte Stunde (zum Übernehmen ihrer Elemente).</summary>
+    private (Unterricht U, Planstunde? P)? _letzteStunde;
+
+    private void StundeGewaehlt(Unterricht u, Planstunde? p, object quelle) => _letzteStunde = (u, p);
+
+    private void VertretungGewaehlt(Vertretung? v)
+    {
+        if (v?.UnterrichtId is not int uid || !Ix.Unterrichte.TryGetValue(uid, out var u)) return;
+        var tag = Kalender.TagIndex(D, v.Datum);
+        _letzteStunde = (u, D.Stundenplan.FirstOrDefault(x => x.UnterrichtId == uid && x.Tag == tag && x.Stunde == v.Stunde));
+    }
+
+    private static VeranstaltungsAuswahl.Feld? FeldVon(string spalte) => spalte switch
+    {
+        "K" => VeranstaltungsAuswahl.Feld.Klassen,
+        "KT" => VeranstaltungsAuswahl.Feld.Klassenteil,
+        "L" => VeranstaltungsAuswahl.Feld.Lehrer,
+        "R" => VeranstaltungsAuswahl.Feld.Raeume,
+        _ => null,
+    };
+
+    private static string FeldText(VeranstaltungsAuswahl.Feld f) => f switch
+    {
+        VeranstaltungsAuswahl.Feld.Klassen => "Klassen (entfällt)",
+        VeranstaltungsAuswahl.Feld.Klassenteil => "Kl-Teil (parallel)",
+        VeranstaltungsAuswahl.Feld.Lehrer => "Lehrkräfte",
+        _ => "Räume",
+    };
+
+    private Veranstaltung? AktuelleVeranstaltung => _g.CurrentRow?.Tag as Veranstaltung;
+
+    /// <summary>
+    /// Menü der Schnellauswahl: mit Feld (Kontextmenü einer Spalte) die Gruppen dieses Feldes direkt, sonst je Feld ein Untermenü;
+    /// dazu „Alle aus den Stunden der Veranstaltung“ und „Aus gewählter Stunde“.
+    /// </summary>
+    private List<ToolStripItem> SchnellMenue(VeranstaltungsAuswahl.Feld? feld)
+    {
+        var va = AktuelleVeranstaltung;
+        var res = new List<ToolStripItem>();
+        if (feld is VeranstaltungsAuswahl.Feld f)
+        {
+            res.AddRange(GruppenEintraege(f, va));
+            var leeren = new ToolStripMenuItem($"{FeldText(f)} leeren") { Enabled = va != null && Ids(va, f).Count > 0 };
+            leeren.Click += (_, _) => Schnell(f, Array.Empty<int>(), true);
+            res.Add(new ToolStripSeparator());
+            res.Add(leeren);
+        }
+        else
+            foreach (var x in new[] { VeranstaltungsAuswahl.Feld.Klassen, VeranstaltungsAuswahl.Feld.Klassenteil, VeranstaltungsAuswahl.Feld.Lehrer, VeranstaltungsAuswahl.Feld.Raeume })
+            {
+                var m = new ToolStripMenuItem(FeldText(x), Symbole.Get(x switch
+                {
+                    VeranstaltungsAuswahl.Feld.Lehrer => "lehrer", VeranstaltungsAuswahl.Feld.Raeume => "raeume", _ => "klassen",
+                }, 16));
+                m.DropDownItems.AddRange(GruppenEintraege(x, va).ToArray());
+                res.Add(m);
+            }
+        res.Add(new ToolStripSeparator());
+        var aus = new ToolStripMenuItem("Alle aus den Stunden der Veranstaltung übernehmen", Symbole.Get("unterricht", 16)) { Enabled = va != null };
+        aus.Click += (_, _) => AusStundenUebernehmen();
+        res.Add(aus);
+        var st = _letzteStunde;
+        var ausStunde = new ToolStripMenuItem(st is { } s ? $"Alle aus gewählter Stunde übernehmen (U-Nr. {s.U.Id}: {Ix.KKlassen(s.U.KlassenIds.ToList())})" : "Alle aus gewählter Stunde übernehmen (zuerst eine Stunde im Stundenplan wählen)")
+        {
+            Enabled = st != null,
+        };
+        ausStunde.Click += (_, _) => AusStundeUebernehmen();
+        res.Add(ausStunde);
+        return res;
+    }
+
+    private static List<int> Ids(Veranstaltung va, VeranstaltungsAuswahl.Feld f) => f switch
+    {
+        VeranstaltungsAuswahl.Feld.Klassen => va.KlassenIds,
+        VeranstaltungsAuswahl.Feld.Klassenteil => va.KlassenteilIds,
+        VeranstaltungsAuswahl.Feld.Lehrer => va.LehrerIds,
+        _ => va.RaumIds,
+    };
+
+    /// <summary>Gruppen eines Feldes: „Alle …“ und Gruppen ohne Bereich direkt, die übrigen je Bereich (Abteilung, Jahrgang …) in einem Untermenü.</summary>
+    private List<ToolStripItem> GruppenEintraege(VeranstaltungsAuswahl.Feld f, Veranstaltung? va)
+    {
+        var res = new List<ToolStripItem>();
+        var gruppen = VeranstaltungsAuswahl.Gruppen(D, VeranstaltungsAuswahl.TypVon(f), va);
+        ToolStripMenuItem Eintrag(ElementGruppe g)
+        {
+            var name = g.Bereich.Length > 0 && g.Name.StartsWith(g.Bereich + " ") ? g.Name[(g.Bereich.Length + 1)..] : g.Name;
+            var m = new ToolStripMenuItem($"{name}  ({g.Ids.Count})") { ToolTipText = string.Join(", ", g.Ids.Take(40).Select(i => Ix.K(g.Typ, i))) + (g.Ids.Count > 40 ? " …" : "") };
+            m.Click += (_, _) => Schnell(f, g.Ids);
+            return m;
+        }
+        foreach (var g in gruppen.Where(g => g.Bereich.Length == 0)) res.Add(Eintrag(g));
+        foreach (var b in gruppen.Where(g => g.Bereich.Length > 0).GroupBy(g => g.Bereich))
+        {
+            var m = new ToolStripMenuItem("Nach " + b.Key);
+            m.DropDownItems.AddRange(b.Select(Eintrag).ToArray<ToolStripItem>());
+            res.Add(m);
+        }
+        if (res.Count == 0) res.Add(new ToolStripMenuItem("(keine Elemente)") { Enabled = false });
+        return res;
+    }
+
+    /// <summary>Elemente in ein Feld der aktuellen Veranstaltung übernehmen (in der leeren Zeile: neue Veranstaltung am eingestellten Datum).</summary>
+    internal void Schnell(VeranstaltungsAuswahl.Feld feld, IReadOnlyList<int> ids, bool ersetzen = false)
+    {
+        if (_g.IsCurrentCellInEditMode) _g.EndEdit();
+        var alt = AktuelleVeranstaltung;
+        var v = alt is null ? new Veranstaltung { Von = Von, Bis = Von, StundeVon = 1, StundeBis = 99 } : Kopie(alt);
+        var n = VeranstaltungsAuswahl.Uebernehmen(v, feld, ids, ersetzen);
+        if (n == 0 && !ersetzen) { Ui.Info("Diese Elemente sind bereits eingetragen."); return; }
+        if (alt is null && v.KlassenIds.Count == 0 && v.KlassenteilIds.Count == 0 && v.LehrerIds.Count == 0 && v.RaumIds.Count == 0) return;
+        Speichern(v, alt);
+    }
+
+    /// <summary>Alle Klassen, Lehrkräfte und Räume der Stunden übernehmen, die in die Veranstaltung fallen.</summary>
+    internal void AusStundenUebernehmen()
+    {
+        if (_g.IsCurrentCellInEditMode) _g.EndEdit();
+        if (AktuelleVeranstaltung is not { } alt) { Ui.Info("Bitte zuerst eine Veranstaltung wählen."); return; }
+        var e = VeranstaltungsAuswahl.AusStunden(D, alt);
+        if (e.Leer) { Ui.Info("In den Stunden der Veranstaltung findet kein passender Unterricht statt."); return; }
+        var v = Kopie(alt);
+        if (VeranstaltungsAuswahl.AllesUebernehmen(v, e) == 0) { Ui.Info("Alle Elemente der Stunden sind bereits eingetragen."); return; }
+        Speichern(v, alt);
+    }
+
+    /// <summary>Klassen, Lehrkräfte und Räume der zuletzt im Stundenplan bzw. in der Vertretungsliste gewählten Stunde übernehmen.</summary>
+    internal void AusStundeUebernehmen(Unterricht? u = null, Planstunde? p = null)
+    {
+        if (_g.IsCurrentCellInEditMode) _g.EndEdit();
+        if (u is null && _letzteStunde is { } st) (u, p) = st;
+        if (u is null) { Ui.Info("Bitte zuerst im Stundenplan eine Stunde wählen."); return; }
+        var alt = AktuelleVeranstaltung;
+        var v = alt is null ? new Veranstaltung { Von = Von, Bis = Von, StundeVon = p?.Stunde ?? 1, StundeBis = p?.Stunde ?? 99 } : Kopie(alt);
+        if (VeranstaltungsAuswahl.AllesUebernehmen(v, VeranstaltungsAuswahl.AusUnterricht(D, u, p)) == 0) { Ui.Info("Alle Elemente der Stunde sind bereits eingetragen."); return; }
+        Speichern(v, alt);
+    }
+
+    /// <summary>Selbsttest: Veranstaltung wählen (Zeile) und Auswahlliste einer Spalte öffnen.</summary>
+    internal void SelbsttestWaehlen(int id, string spalte = "K")
+    {
+        foreach (DataGridViewRow r in _g.Rows)
+            if (r.Tag is Veranstaltung x && x.Id == id) _g.CurrentCell = r.Cells[spalte];
+    }
+
+    /// <summary>Selbsttest: angezeigter Text einer Zelle der Veranstaltung.</summary>
+    internal string SelbsttestZelltext(int id, string spalte) =>
+        _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Veranstaltung x && x.Id == id)?.Cells[spalte].FormattedValue?.ToString() ?? "";
+
+    /// <summary>Selbsttest: leere Zeile (neue Veranstaltung) wählen.</summary>
+    internal void SelbsttestNeueZeile() => _g.CurrentCell = _g.Rows[_g.Rows.Count - 1].Cells["K"];
+
+    internal void SelbsttestAuswahlZeigen(string spalte)
+    {
+        if (_g.CurrentCell is { } c) AuswahlZeigen(c.RowIndex, _g.Columns[spalte]!.Index);
+    }
+
+    /// <summary>Selbsttest: Einträge des Schnellauswahl-Menüs (Toolbar).</summary>
+    internal List<string> SelbsttestMenue(VeranstaltungsAuswahl.Feld? feld) =>
+        SchnellMenue(feld).OfType<ToolStripMenuItem>().SelectMany(m => m.DropDownItems.Count > 0
+            ? m.DropDownItems.OfType<ToolStripMenuItem>().Select(x => $"{m.Text} > {x.Text}").Prepend(m.Text ?? "") : new[] { m.Text ?? "" }).ToList();
 
     private void Fallenlassen(object? sender, DragEventArgs e)
     {
@@ -269,10 +483,10 @@ public sealed class VeranstaltungenFenster : MdiFenster
                 case "B": v.Bis = Ui.DatumLesen(wert, v.Bis); if (v.Bis < v.Von) v.Von = v.Bis; break;
                 case "SV": v.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, Math.Max(1, D.Zeitraster.StundenProTag)); break;
                 case "SB": v.StundeBis = wert.Length == 0 || int.Parse(wert) >= D.Zeitraster.StundenProTag ? 99 : Math.Max(1, int.Parse(wert)); break;
-                case "K": v.KlassenIds = Kurznamen(ElementTyp.Klasse, wert); v.KlassenteilIds.RemoveAll(v.KlassenIds.Contains); break;
-                case "KT": v.KlassenteilIds = Kurznamen(ElementTyp.Klasse, wert); v.KlassenIds.RemoveAll(v.KlassenteilIds.Contains); break;
+                case "K": v.KlassenIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Klasse, wert, v.Von, v.Bis); v.KlassenteilIds.RemoveAll(v.KlassenIds.Contains); break;
+                case "KT": v.KlassenteilIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Klasse, wert, v.Von, v.Bis); v.KlassenIds.RemoveAll(v.KlassenteilIds.Contains); break;
                 case "L":
-                    var namen = Kurznamen(ElementTyp.Lehrer, wert.Replace("???", ""));
+                    var namen = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Lehrer, wert.Replace("???", ""), v.Von, v.Bis);
                     if (alt != null && OffenerTag(alt) is DateOnly tag)
                     {
                         // offene Plätze: neu eingetragene Lehrkräfte sind Ersatzlehrkräfte (nur für die Tage mit entfernter Lehrkraft)
@@ -282,7 +496,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
                     }
                     else v.LehrerIds = namen;
                     break;
-                case "R": v.RaumIds = Kurznamen(ElementTyp.Raum, wert); break;
+                case "R": v.RaumIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Raum, wert, v.Von, v.Bis); break;
                 case "G": v.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
                 case "Z": v.Zaehlen = wert == "1"; break;
                 case "SG": v.Schuelergruppe = wert; break;
@@ -300,11 +514,18 @@ public sealed class VeranstaltungenFenster : MdiFenster
         {
             var id = alt.Id;
             var tage = alt.Ersatz.Where(x => x.ErsatzId is null && x.Datum >= Von && x.Datum <= Bis).OrderBy(x => x.Datum).ToList();
+            // mehr neue Lehrkräfte als offene Plätze (z. B. „Alle“ gewählt): die übrigen nehmen zusätzlich an der Veranstaltung teil
+            var zusaetzlich = ersatz.Skip(tage.Count).ToList();
             Aendern("Ersatzlehrkraft für Veranstaltung", AenderungsArt.Vertretung, d =>
             {
                 var i = 0;
                 foreach (var x in tage)
                     VeranstaltungsLogik.ErsatzSetzen(d, id, x.Datum, x.LehrerId, ersatz[Math.Min(i++, ersatz.Count - 1)]);
+                if (zusaetzlich.Count > 0 && d.Veranstaltungen.FirstOrDefault(x => x.Id == id) is { } va)
+                {
+                    VeranstaltungsAuswahl.Uebernehmen(va, VeranstaltungsAuswahl.Feld.Lehrer, zusaetzlich);
+                    Vertretungen.Aktualisieren(d, va.Von, va.Bis);
+                }
             });
             NachZellwechsel(Neuaufbau);
             return;
@@ -327,14 +548,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         NachZellwechsel(Neuaufbau);
     }
 
-    internal static List<int> Kurznamen(ElementTyp typ, string text)
-    {
-        var alle = AppZustand.D.AlleElemente(typ).ToList();
-        var res = new List<int>();
-        foreach (var k in text.Split(new[] { ',', ' ', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
-            res.Add(alle.FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id ?? throw new FormatException($"{Ui.TypName(typ)} {k} unbekannt"));
-        return res.Distinct().ToList();
-    }
+    /// <summary>Kurznamen bzw. „Alle …“ / „Alle … außer …“ lesen.</summary>
+    internal static List<int> Kurznamen(ElementTyp typ, string text) => VeranstaltungsAuswahl.Lesen(AppZustand.D, typ, text);
 
     private static Veranstaltung Kopie(Veranstaltung v) => System.Text.Json.JsonSerializer.Deserialize<Veranstaltung>(System.Text.Json.JsonSerializer.Serialize(v))!;
 

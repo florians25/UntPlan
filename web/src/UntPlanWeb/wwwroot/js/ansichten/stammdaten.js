@@ -1,7 +1,7 @@
 // Stammdaten (Administration): Klassen, Schüler*innen, Lehrkräfte, Fächer und Räume aus UntPlan (nur lesen – gepflegt wird in UntPlan),
 // Stundenplan-Versionen (Übertragungsverlauf) sowie die in UntPlanWeb gepflegten Abwesenheits-/Befreiungsgründe und Klassendienste;
 // Notenschemen und Prüfungsarten zeigt noten.js.
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, herunterladen } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, herunterladen, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 
 const ARTEN = {
   klassen: { titel: 'Klassen', spalten: [['kurz', 'Klasse'], ['name', 'Langname'], ['jahrgang', 'Jahrgang'], ['leitung', 'Klassenleitung'], ['schueler', 'Schüler*innen']] },
@@ -13,6 +13,18 @@ const ARTEN = {
   gruende: { titel: 'Abwesenheitsgründe', spalten: [['kurz', 'Kürzel'], ['name', 'Bezeichnung'], ['art', 'Art'], ['entschuldigt', 'gilt als entschuldigt'], ['reihenfolge', 'Reihenfolge'], ['aktiv', 'aktiv']] },
   dienste: { titel: 'Dienste', spalten: [['kurz', 'Kürzel'], ['name', 'Bezeichnung'], ['reihenfolge', 'Reihenfolge'], ['aktiv', 'aktiv']] },
 };
+
+// Filter-Dropdowns je Bereich im Suchfeld (Werte aus den geladenen Daten)
+const FILTER = {
+  schueler: [['klasse', 'Klasse', 'Alle Klassen']],
+  klassen: [['jahrgang', 'Jahrgang', 'Alle Jahrgänge']],
+  raeume: [['buchbar', 'Buchbar', 'Alle Räume', { true: 'buchbar', false: 'nicht buchbar' }]],
+  gruende: [['art', 'Art', 'Alle Arten', { abwesenheit: 'Abwesenheit', befreiung: 'Befreiung' }], ['aktiv', 'Aktiv', 'Aktiv und inaktiv', { true: 'aktiv', false: 'inaktiv' }]],
+  dienste: [['aktiv', 'Aktiv', 'Aktiv und inaktiv', { true: 'aktiv', false: 'inaktiv' }]],
+};
+const filterFuer = (art, liste) => (FILTER[art] ?? []).map(([k, label, alle, texte]) => ({ name: k, label, alle,
+  optionen: [...new Set(liste.map(x => String(x[k] ?? '')).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de', { numeric: true })).map(w => [w, texte?.[w] ?? w]) }));
+const filterWerte = (art, x) => (FILTER[art] ?? []).map(([k]) => `${k}=${x[k] ?? ''}`).join('|');
 
 const anzeige = (schluessel, wert) => {
   if (typeof wert === 'boolean') return wert ? '<i class="bi bi-check-lg text-success"></i>' : '';
@@ -33,15 +45,21 @@ export async function zeigen(seite, kontext, [artParam]) {
   seite.innerHTML = `
     ${!bearbeitbar && art !== 'versionen' ? '<p class="small text-body-secondary">Diese Stammdaten werden in UntPlan gepflegt und mit jeder Übertragung aktualisiert.</p>' : ''}
     ${art === 'versionen' ? '<p class="small text-body-secondary">Jede Übertragung aus UntPlan erzeugt eine neue Version des Stundenplans; aktiv ist immer die zuletzt empfangene.</p>' : ''}
-    <div class="u-filter"><label class="u-feld"><span>Suche</span><input type="search" class="form-control" data-suche placeholder="Suchen"></label></div>
+    <div class="u-sf-leiste">${suchfeldMitFilter({ platzhalter: 'Suchen', label: `${a.titel} durchsuchen`, filter: filterFuer(art, liste) })}</div>
     <div class="u-tabelle-karte">${liste.length ? `<table class="u-tabelle"><thead><tr>${a.spalten.map(([, t]) => `<th>${e(t)}</th>`).join('')}${bearbeitbar ? '<th></th>' : ''}</tr></thead><tbody>
-      ${liste.map((x, i) => `<tr data-zeile="${i}" data-text="${e(Object.values(x).join(' ').toLowerCase())}">${a.spalten.map(([k], j) => `<td class="${j === 0 ? 'fw-semibold' : ''}" style="${j === 0 ? 'width:auto' : ''}">${anzeige(k, x[k])}${art === 'versionen' && j === 0 && i === 0 ? ' <span class="u-chip gruen ms-1">aktiv</span>' : ''}</td>`).join('')}
+      ${liste.map((x, i) => `<tr data-zeile="${i}" data-filter="${e(filterWerte(art, x))}" data-text="${e(Object.values(x).join(' ').toLowerCase())}">${a.spalten.map(([k], j) => `<td class="${j === 0 ? 'fw-semibold' : ''}" style="${j === 0 ? 'width:auto' : ''}">${anzeige(k, x[k])}${art === 'versionen' && j === 0 && i === 0 ? ' <span class="u-chip gruen ms-1">aktiv</span>' : ''}</td>`).join('')}
         ${bearbeitbar ? `<td class="text-end text-nowrap"><button class="btn btn-sm btn-outline-secondary" data-bearbeiten="${i}" title="Bearbeiten">${icon('stift')}</button>
           <button class="btn btn-sm btn-outline-danger" data-loeschen="${i}" title="Löschen">${icon('loeschen')}</button></td>` : ''}</tr>`).join('')}
       </tbody></table>` : leer('Keine Einträge vorhanden.')}</div>`;
-  seite.querySelector('[data-suche]').oninput = ev => {
-    const f = ev.target.value.trim().toLowerCase();
-    seite.querySelectorAll('[data-zeile]').forEach(z => z.classList.toggle('d-none', !!f && !z.dataset.text.includes(f)));
+  // gemeinsames Suchfeld mit Filter: Freitext über alle Spalten, je nach Bereich ein passender Filter (Klasse, Jahrgang, Art …)
+  let text = '';
+  suchfeldMitFilterBinden(seite, { beiSuche: t => { text = t.toLowerCase(); filtern(); }, beiFilter: () => filtern() });
+  const filtern = () => {
+    const wahl = [...seite.querySelectorAll('select[data-sf]')].filter(x => x.value).map(x => `${x.dataset.sf}=${x.value}`);
+    seite.querySelectorAll('[data-zeile]').forEach(z => {
+      const werte = z.dataset.filter.split('|');
+      z.classList.toggle('d-none', (!!text && !z.dataset.text.includes(text)) || !wahl.every(w => werte.includes(w)));
+    });
   };
   document.querySelector('[data-csv]').onclick = () => herunterladen(`${art}.csv`, [a.spalten.map(([, t]) => t).join(';'),
     ...liste.map(x => a.spalten.map(([k]) => `"${String(typeof x[k] === 'boolean' ? (x[k] ? 'ja' : 'nein') : x[k] ?? '').replace(/"/g, '""')}"`).join(';'))].join('\r\n'));

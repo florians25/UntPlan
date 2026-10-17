@@ -287,9 +287,10 @@ public sealed class AbwesenheitenFenster : MdiFenster
             {
                 var elemente = Art switch
                 {
-                    AbwesenheitsArt.Lehrer => string.Join(",", va.LehrerIds.Select(Ix.KLehrer)),
-                    AbwesenheitsArt.Klasse => Ix.KKlassen(va.AlleKlassenIds.ToList()),
-                    _ => string.Join(",", va.RaumIds.Select(Ix.KRaum)),
+                    // viele Elemente kompakt („Alle Lehrkräfte“, „Alle Klassen außer 5a“)
+                    AbwesenheitsArt.Lehrer => VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Lehrer, va.LehrerIds, va.Von, va.Bis),
+                    AbwesenheitsArt.Klasse => VeranstaltungsLogik.KlassenKurztext(D, va),
+                    _ => VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Raum, va.RaumIds, va.Von, va.Bis),
                 };
                 if (elemente.Length == 0) continue;
                 var r = _g.Rows.Add($"VA {va.Id}", "", TagText(va.Von), va.StundeVon, TagText(va.Bis), va.StundeBis >= 99 ? LetzteStunde.ToString() : va.StundeBis.ToString(),

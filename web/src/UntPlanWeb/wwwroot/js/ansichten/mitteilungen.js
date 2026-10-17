@@ -9,7 +9,7 @@
 //   Suche und Klassenfilter, Betreff, Text mit Vorschau, Lesebestätigung anfordern, wichtig, Anhänge (Größe und Anzahl laut Einstellungen),
 //   Speichern als Entwurf (serverseitig) bzw. Senden.
 // - Einstellungen (Administration): wer an wen schreiben darf, Sperren, Anhänge, Aufbewahrung.
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, initialen } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, initialen, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 
 const BASIS = '/api/app/mitteilungen';
 
@@ -118,7 +118,7 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   const vorschau = m => m.text.replace(/[#*_~>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 240);
   // Wie im Original eine Zeile je Mitteilung: Avatar (Initiale) | Absender | fetter Betreff | Vorschautext; rechts dezent Anhang, Zeit
   const eintrag = (m, i) => `
-    <button type="button" class="mt-zeile ${eingang && !m.gelesen ? 'neu' : ''}" data-i="${i}"
+    <button type="button" class="mt-zeile ${eingang && !m.gelesen ? 'neu' : ''}" data-i="${i}" data-merkmale="${[eingang && !m.gelesen ? 'ungelesen' : '', m.wichtig ? 'wichtig' : '', m.anhaenge?.length ? 'anhang' : '', offenBestaetigen(m) ? 'bestaetigen' : ''].join(' ')}"
       data-text="${e((m.betreff + ' ' + m.absender + ' ' + m.text + ' ' + m.empfaenger.join(' ') + ' ' + (m.empfaengerText || '') + ' ' + (m.anhaenge || []).map(a => a.name).join(' ')).toLowerCase())}">
       <span class="mt-ava" aria-hidden="true">${e(kuerzel(kopfName(m) || 'E').slice(0, 1))}</span>
       <span class="mt-wer" title="${e(kopfName(m))}">${e(kopfName(m))}</span>
@@ -130,19 +130,26 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   const reihe = liste.map((m, i) => [m, i]).sort((a, b) => offenBestaetigen(b[0]) - offenBestaetigen(a[0]));
   seite.innerHTML = `
     <div class="mt-seite">
-      <label class="mt-suchfeld"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Inhalt oder Person suchen" aria-label="Inhalt oder Person suchen"></label>
+      <div class="u-sf-leiste">${suchfeldMitFilter({ platzhalter: 'Inhalt oder Person suchen', label: 'Inhalt oder Person suchen', klasse: 'voll', filter: [
+        { name: 'merkmal', label: 'Anzeigen', alle: 'Alle', optionen: [...(eingang ? [['ungelesen', 'Ungelesen'], ['bestaetigen', 'Lesebestätigung offen']] : []), ['wichtig', 'Wichtig'], ['anhang', 'Mit Anhang']] },
+      ] })}</div>
       <div class="mt-liste" data-liste>${liste.length ? reihe.map(([m, i]) => eintrag(m, i)).join('')
         : leer(ordner === 'gesendet' ? 'Noch keine Mitteilungen gesendet.' : ordner === 'entwuerfe' ? 'Keine Entwürfe.' : 'Keine Mitteilungen.', ordner === 'gesendet' ? 'send' : 'inbox')}
         <div class="mt-keine d-none" data-keine>${leer('Keine Treffer.', 'search')}</div></div>
     </div>`;
   const listeEl = seite.querySelector('[data-liste]');
   listeEl.classList.toggle('leer', !liste.length);
-  seite.querySelector('[data-suche]').oninput = ev => {
-    const f = ev.target.value.trim().toLowerCase();
+  // gemeinsames Suchfeld mit Filter: Freitext und Dropdown (Ungelesen, Wichtig, Mit Anhang …) im Suchfeld
+  let suchtext = '', merkmal = '';
+  const filtern = () => {
     let n = 0;
-    seite.querySelectorAll('[data-i]').forEach(b => { const ja = !f || b.dataset.text.includes(f); b.classList.toggle('d-none', !ja); n += ja; });
-    seite.querySelector('[data-keine]').classList.toggle('d-none', !f || n > 0 || !liste.length);
+    seite.querySelectorAll('[data-i]').forEach(b => {
+      const ja = (!suchtext || b.dataset.text.includes(suchtext)) && (!merkmal || b.dataset.merkmale.split(' ').includes(merkmal));
+      b.classList.toggle('d-none', !ja); n += ja;
+    });
+    seite.querySelector('[data-keine]').classList.toggle('d-none', !(suchtext || merkmal) || n > 0 || !liste.length);
   };
+  suchfeldMitFilterBinden(seite, { beiSuche: t => { suchtext = t.toLowerCase(); filtern(); }, beiFilter: (_, w) => { merkmal = w; filtern(); } });
   seite.querySelectorAll('[data-blase]').forEach(b => {
     const auf = ev => { ev.stopPropagation(); lesebestaetigungen(liste.find(m => String(m.id) === b.dataset.blase)); };
     b.addEventListener('click', auf);

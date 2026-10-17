@@ -148,6 +148,28 @@ public sealed class PlanAnsicht : Control
 
     public event Action<Planstunde?>? AuswahlGeaendert;
     public event Action<DateOnly, TagesEintrag?>? TagesAuswahlGeaendert;
+    /// <summary>Eine Zelle ohne Unterricht (nicht verplante Stunde) wurde angeklickt: Spalte (Tag bzw. Tag der Woche) und Stunde.</summary>
+    public event Action<int, int>? LeereZelleGewaehlt;
+
+    /// <summary>Zuletzt angeklickte bzw. aus einem verknüpften Plan übernommene Zelle (Spalte, Stunde).</summary>
+    public (int Tag, int Stunde)? MarkierteZelle => _zelle;
+
+    /// <summary>Anzahl der Tagesspalten (Tage pro Woche).</summary>
+    public int Spalten => Tage;
+
+    /// <summary>
+    /// Leere Zelle aus einem verknüpften Plan übernehmen: bisherige Auswahl aufheben und dieselbe Stunde gestrichelt markieren
+    /// (Tag und Stunde rosa) – das angezeigte Element bleibt.
+    /// </summary>
+    public void ZelleMarkieren(int tag, int stunde)
+    {
+        Ausgewaehlt = null;
+        Mehrfach.Clear();
+        TagesAuswahl = null;
+        MarkierterUnterricht = null;
+        _zelle = tag >= 0 && tag < Tage && stunde >= 1 && stunde <= Stunden ? (tag, stunde) : null;
+        Invalidate();
+    }
     public event Action<string, int, int>? Abgelegt;
     public event Action<Planstunde>? Doppelklick;
     public event Action<Point, Planstunde?>? Kontext;
@@ -262,6 +284,8 @@ public sealed class PlanAnsicht : Control
     public void TageNeu()
     {
         _tage.Clear();
+        _eintraegeCache.Clear();
+        _vaTexte.Clear();
         if (_woche is DateOnly w)
         {
             for (var t = 0; t < Tage; t++)
@@ -336,9 +360,23 @@ public sealed class PlanAnsicht : Control
         Ix.PlanVon(Typ, ElementId).Where(p => p.Tag == tag && p.Stunde == stunde).ToList();
 
     /// <summary>Einträge des Elements im tagesaktuellen Plan (inkl. Entfälle zur Anzeige).</summary>
+    /// <summary>
+    /// Einträge je Tag und Stunde zwischengespeichert: Zeichnen, Trefferprüfung bei Mausbewegung und Anordnung fragen sie sehr oft ab
+    /// (bei einer Veranstaltung mit allen Lehrkräften Tausende Einträge je Tag). Verworfen mit <see cref="TageNeu"/>.
+    /// </summary>
+    private readonly Dictionary<(ElementTyp, int, int, int), List<TagesEintrag>> _eintraegeCache = new();
+
     public List<TagesEintrag> EintraegeAm(int tag, int stunde)
     {
-        if (!_tage.TryGetValue(tag, out var tp)) return new();
+        if (!_tage.ContainsKey(tag)) return new();
+        var key = (Typ, ElementId, tag, stunde);
+        if (!_eintraegeCache.TryGetValue(key, out var liste)) _eintraegeCache[key] = liste = EintraegeBerechnen(tag, stunde);
+        return liste.ToList();
+    }
+
+    private List<TagesEintrag> EintraegeBerechnen(int tag, int stunde)
+    {
+        var tp = _tage[tag];
         return tp.Stunde(stunde).Where(e => Typ switch
         {
             ElementTyp.Klasse => e.KlassenIds.Contains(ElementId) || (e.Regel?.KlassenIds.Contains(ElementId) ?? false),
@@ -354,6 +392,29 @@ public sealed class PlanAnsicht : Control
     /// Vorbild-Darstellung: die Einträge einer Veranstaltung (je beteiligte Lehrkraft eine Zeile) erscheinen im Klassen- und
     /// Raumplan als eine Stunde statt als viele schmale Spuren.
     /// </summary>
+    private readonly Dictionary<(int, DateOnly, ElementTyp), string> _vaTexte = new();
+
+    private Veranstaltung? VeranstaltungVon(TagesEintrag e) =>
+        e.Vertretung is { Art: VertretungsArt.Veranstaltung, VeranstaltungId: int id } ? D.Veranstaltungen.FirstOrDefault(x => x.Id == id) : null;
+
+    /// <summary>Klassen eines Eintrags; bei einer Veranstaltung kompakt („Alle Klassen“ statt Dutzender Kurznamen).</summary>
+    private string KlassenText(TagesEintrag e)
+    {
+        if (e.KlassenIds.Count < 3 || VeranstaltungVon(e) is not { } va) return Ix.KKlassen(e.KlassenIds);
+        var key = (va.Id, e.Vertretung!.Datum, ElementTyp.Klasse);
+        if (!_vaTexte.TryGetValue(key, out var t)) _vaTexte[key] = t = VeranstaltungsLogik.KlassenKurztext(D, va);
+        return t;
+    }
+
+    /// <summary>Klassen- und Raumplan: die Veranstaltung steht als eine Stunde – mit allen Lehrkräften („Alle Lehrkräfte“) statt der ersten.</summary>
+    private string? VeranstaltungsLehrer(TagesEintrag e)
+    {
+        if (Typ == ElementTyp.Lehrer || VeranstaltungVon(e) is not { } va) return null;
+        var key = (va.Id, e.Vertretung!.Datum, ElementTyp.Lehrer);
+        if (!_vaTexte.TryGetValue(key, out var t)) _vaTexte[key] = t = VeranstaltungsLogik.LehrerKurztext(D, va, e.Vertretung.Datum);
+        return t;
+    }
+
     private int? VeranstaltungsSchluessel(TagesEintrag e) =>
         KlassikStil && Typ != ElementTyp.Lehrer && e.Vertretung?.VeranstaltungId is int va ? int.MinValue / 2 - va : null;
 
@@ -1542,11 +1603,11 @@ public sealed class PlanAnsicht : Control
         var fixiert = e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true;
         var praefix = (Format.KopplungenMitPunkt && e.Unterricht?.Zeilen.Count > 1 ? "." : "") + Stern(geaendert || fixiert);
         var lehrerIds = entfall && e.LehrerIds.Count == 0 && v?.LehrerId is int ul ? new List<int> { ul } : e.LehrerIds;
-        var lehrer = offen ? "???" : v?.Art == VertretungsArt.VertretungOhneLehrer ? "+++" : string.Join(",", lehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
+        var lehrer = offen ? "???" : v?.Art == VertretungsArt.VertretungOhneLehrer ? "+++" : VeranstaltungsLehrer(e) ?? string.Join(",", lehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
         // ohne Fach (Veranstaltung, Sondereinsatz): erstes Wort des Textes, z. B. „Sportwoche“
         var fach = Kurz(ElementTyp.Fach, e.FachId ?? e.Regel?.FachId);
         if (fach.Length == 0 && !string.IsNullOrWhiteSpace(v?.Text)) fach = v.Text.Trim().Split(' ')[0];
-        var werte = KlassikWerte(praefix, Ix.KKlassen(e.KlassenIds), fach, lehrer,
+        var werte = KlassikWerte(praefix, KlassenText(e), fach, lehrer,
             Typ == ElementTyp.Raum ? "" : string.Join(",", e.RaumIds.Select(x => Kurz(ElementTyp.Raum, x))));
         // offene Vertretung im Plan der abwesenden Lehrkraft: „???“
         if (Format.Klein && offen && Typ == ElementTyp.Lehrer) werte = new List<string> { praefix + "???" };
@@ -1641,7 +1702,12 @@ public sealed class PlanAnsicht : Control
             TagesAuswahl = te;
             Invalidate();
             if (te is { } x) TagesAuswahlGeaendert?.Invoke(x.Datum, x.Eintrag);
-            else if (h is { } h2 && _woche is DateOnly w2) TagesAuswahlGeaendert?.Invoke(w2.AddDays(h2.Tag), null);
+            else if (h is { } h2 && _woche is DateOnly w2)
+            {
+                TagesAuswahlGeaendert?.Invoke(w2.AddDays(h2.Tag), null);
+                // nicht verplante Stunde: verknüpfte Pläne trotzdem auf Tag und Stunde setzen
+                LeereZelleGewaehlt?.Invoke(h2.Tag, h2.Stunde);
+            }
             if (e.Button == MouseButtons.Left) { _down = e.Location; _downEintrag = te; }
             else if (e.Button == MouseButtons.Right && h is { } h3 && _woche is DateOnly w3) TagesKontext?.Invoke(e.Location, w3.AddDays(h3.Tag), h3.Stunde, te?.Eintrag);
             return;
@@ -1667,6 +1733,9 @@ public sealed class PlanAnsicht : Control
                 Invalidate();
                 AuswahlGeaendert?.Invoke(p);
             }
+            else if (p is null) Invalidate();
+            // nicht verplante Stunde: verknüpfte Pläne trotzdem auf Tag und Stunde setzen
+            if (p is null && _zelle is { } lz) LeereZelleGewaehlt?.Invoke(lz.Tag, lz.Stunde);
         }
         else if (e.Button == MouseButtons.Right)
         {

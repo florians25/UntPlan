@@ -57,9 +57,15 @@ struct PlanAuswahlView: View {
 
     private var imBearbeiten: Bool { bearbeiten == .active }
 
-    /// Schüler*innen und Eltern sehen keine Pläne von Lehrkräften.
+    /// Schüler*innen und Eltern sehen keine Pläne von Lehrkräften. Klassen (und Räume) zeigt die Auswahl ihnen genau
+    /// dann, wenn der Server sie in /api/app/elemente liefert (die Schule kann andere Klassenpläne für Schüler*innen
+    /// freigeben); leere Listen blenden die Planart für sie aus.
     private var kategorien: [Plankategorie] {
-        Plankategorie.allCases.filter { $0 != .lehrer || zustand.darfLehrerplaene }
+        Plankategorie.allCases.filter { k in
+            guard k != .lehrer || zustand.darfLehrerplaene else { return false }
+            guard !zustand.istKollegium, let elemente else { return true }
+            return !k.liste(elemente).isEmpty
+        }
     }
 
     var body: some View {

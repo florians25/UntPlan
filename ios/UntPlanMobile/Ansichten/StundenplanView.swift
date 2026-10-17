@@ -216,7 +216,9 @@ struct StundenplanView: View {
                 AufsichtDetailView(aufsicht: a)
                     .environmentObject(zustand)
             }
-            // Planauswahl, Info und Hilfe: am iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails
+            // Planauswahl, Info und Hilfe: am iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails.
+            // Ein Planwechsel ändert nur `auswahl` – `datum` bleibt, man bleibt also in der angezeigten Woche (bzw. an den
+            // angezeigten Tagen) und springt nicht zur heutigen Woche.
             .blattPraesentation(isPresented: $zeigeAuswahl, breit: istBreit) {
                 PlanAuswahlView(auswahl: $auswahl)
                     .environmentObject(zustand)
@@ -1220,6 +1222,7 @@ struct WochenrasterView: View {
 
     private func tagesspalte(_ tag: Tageskopf, kacheln: [Kachel], zeiten: [Rasterzeit], mass: Rastermass,
                              ende: Int, breite: CGFloat, hoehe: CGFloat) -> some View {
+        // Gleichzeitige Stunden (Kopplungen, Vertretung neben Entfall …) nebeneinander in gleich breiten Spuren wie im Web
         let belegung = Kachelbau.anordnen(kacheln, spaltenBreite: breite, tagesansicht: nurTage?.count == 1)
         let vorErste = belegung.lagen.filter { $0.kachel.vorErsterStunde }.map(\.kachel.id)
         return ZStack(alignment: .topLeading) {
@@ -1288,9 +1291,10 @@ struct WochenrasterView: View {
         var x = breite * lage.links
         let bereich = breite * lage.breite
         let n = CGFloat(max(1, lage.spuren))
-        var w = (bereich - (n - 1) * lage.luecke) / n
-        x += CGFloat(lage.spur) * (w + lage.luecke)
-        if lage.mitZaehler { w -= 14 }
+        let spurBreite = (bereich - (n - 1) * lage.luecke) / n
+        x += CGFloat(lage.spur) * (spurBreite + lage.luecke)
+        // Jede Kachel genau eine Spur breit (wie im Web: width = 100 % / Zahl der Spuren)
+        var w = spurBreite
         var y: CGFloat
         var h: CGFloat
         if k.vorErsterStunde {
@@ -1321,7 +1325,7 @@ struct WochenrasterView: View {
         let beginn = zeiten.first(where: { $0.nr == st.von })?.beginn ?? st.kacheln.map(\.beginn).min() ?? mass.start
         let ende = zeiten.first(where: { $0.nr == st.bis })?.ende ?? st.kacheln.map(\.ende).max() ?? (beginn + 45)
         let y = mass.y(beginn) + 1
-        return CGRect(x: breite - 12, y: y, width: 12, height: max(16, mass.yEnde(ende) - mass.y(beginn) - 1))
+        return CGRect(x: breite - Kachelbau.zaehlerBreite, y: y, width: Kachelbau.zaehlerBreite, height: max(16, mass.yEnde(ende) - mass.y(beginn) - 1))
     }
 
     /// Art des freien Tages als Überschrift („Ferien“, „Feiertag“ …).

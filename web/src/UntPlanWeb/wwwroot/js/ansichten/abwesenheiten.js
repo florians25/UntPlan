@@ -1,6 +1,6 @@
 // Klassenbuch → Abwesenheiten wie im Original: Liste der Schülerabwesenheiten mit Filter (Klasse, Schüler*in, Zeitraum, Grund, Status),
 // Neu/Bearbeiten/Löschen, Zusammenfassen und Entschuldigen durch die Klassenleitung, CSV; Reiter „Meine Abwesenheiten“ (eigene Meldungen).
-import { e, icon, holen, senden, api, toast, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen, infoHinweis } from '../ui.js';
+import { e, icon, holen, senden, api, toast, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const STATUS = { offen: '<span class="u-chip gelb">offen</span>', entschuldigt: '<span class="u-chip gruen">entschuldigt</span>', unentschuldigt: '<span class="u-chip rot">nicht entschuldigt</span>' };
@@ -56,7 +56,8 @@ const artChip = z => z.art === 'verspaetet' ? `<span class="u-chip gelb"><i clas
 
 export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, statusParam, grundParam, artParam]) {
   // Schüler*innen und Erziehungsberechtigte: Reiter „Meine Abwesenheiten“ | „Fehlzeiten“
-  if (kontext.familie) return (await import('./familie.js')).abwesenheiten(seite, kontext, [reiterParam, vonParam, bisParam]);
+  // (Familien-URL: #/abwesenheiten/<reiter>/<von>/<status>/<bis>)
+  if (kontext.familie) return (await import('./familie.js')).abwesenheiten(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam]);
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const reiter = reiterParam === 'meine' && ich.element ? 'meine' : 'schueler';
@@ -102,13 +103,14 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const pille = (name, inhaltHtml, aktiv) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}"><span class="visually-hidden">${name}</span>${inhaltHtml}</label>`;
   inhalt.innerHTML = `
     <div class="nl-leiste abw-leiste">
-      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Suchen" aria-label="Schüler*in suchen"></label>
-      ${pille('Klasse', `<select data-klasse><option value="">Klasse</option>${el.klassen.map(k => `<option value="${e(k.kurz)}" ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`, klasse)}
+      ${suchfeldMitFilter({ platzhalter: 'Suchen', label: 'Schüler*in suchen', filter: [
+        { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
+        { name: 'status', label: 'Status', alle: 'Jeder Status', wert: status, optionen: [['offen', 'offen'], ['entschuldigt', 'entschuldigt'], ['unentschuldigt', 'nicht entschuldigt']] },
+        { name: 'art', label: 'Art', alle: 'Alle Arten', wert: art, optionen: Object.entries(ARTEN) },
+        { name: 'grund', label: 'Abwesenheitsgrund', alle: 'Alle Gründe', wert: grund, optionen: gruende.map(g => [g.kurz, g.name]) },
+      ] })}
       ${pille('Von', `<input type="date" data-von value="${von}">`, false)}
       ${pille('Bis', `<input type="date" data-bis value="${bis}">`, false)}
-      ${pille('Abwesenheitsgrund', `<select data-grund><option value="">Abwesenheitsgrund</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select>`, grund)}
-      ${pille('Art', `<select data-art><option value="">Art</option>${Object.entries(ARTEN).map(([k, t]) => `<option value="${k}" ${k === art ? 'selected' : ''}>${t}</option>`).join('')}</select>`, art)}
-      ${pille('Status', `<select data-status><option value="">Status</option>${['offen', 'entschuldigt', 'unentschuldigt'].map(x => `<option value="${x}" ${x === status ? 'selected' : ''}>${x === 'unentschuldigt' ? 'nicht entschuldigt' : x}</option>`).join('')}</select>`, status)}
       ${infoHinweis(`Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || gemeinsam?.klasse || el.klassen[0]?.kurz || '')}/fehlzeiten/${bis}/${von}">Fehlzeiten</a> – mit denselben Daten.`)}
       <span class="ms-auto d-flex gap-2">
         <button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen">${icon('csv')}Bericht</button>
@@ -140,12 +142,13 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         <button class="nl-knopf" data-setzen="offen">Offen</button><button class="nl-knopf" data-zusammen>Zusammenfassen</button>
         <a class="nl-knopf ms-auto" href="#/berichte/abwesenheiten/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Berichte</a></div>` : ''}`
       : `<div class="p-3">${leer('Keine Abwesenheiten im Zeitraum.', 'person-check')}</div>`}</div>`;
-  inhalt.querySelector('[data-suche]')?.addEventListener('input', ev => {
-    const t = ev.target.value.trim().toLowerCase();
-    inhalt.querySelectorAll('.nl-tabelle tbody tr').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); });
-  });
   const f = n => inhalt.querySelector(`[data-${n}]`)?.value ?? '';
-  inhalt.querySelectorAll('.nl-pille input, .nl-pille select').forEach(x => x.onchange = () => kontext.navigieren(ziel('schueler', f('von') || von, f('bis') || bis, f('klasse'), f('status'), f('grund'), f('art'))));
+  const sf = suchfeldMitFilterBinden(inhalt, {
+    beiSuche: t => { t = t.toLowerCase(); inhalt.querySelectorAll('.nl-tabelle tbody tr').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); }); },
+    beiFilter: () => filterNeu(),
+  });
+  const filterNeu = () => kontext.navigieren(ziel('schueler', f('von') || von, f('bis') || bis, sf.wert('klasse'), sf.wert('status'), sf.wert('grund'), sf.wert('art')));
+  inhalt.querySelectorAll('.nl-pille input, .nl-pille select').forEach(x => x.onchange = filterNeu);
   inhalt.querySelectorAll('[data-kz]').forEach(b => b.onclick = () => {
     const kz = b.dataset.kz;
     if (kz === 'offen' || kz === 'unentschuldigt') kontext.navigieren(ziel('schueler', von, bis, klasse, status === kz ? '' : kz, grund, status === kz ? art : 'fehlt'));
@@ -199,17 +202,32 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const zeitfelder = (z = {}) => `
         <div class="col-sm-6"><label class="form-label">Von</label><div class="d-flex gap-2"><input type="date" class="form-control" name="vonDatum" value="${e(z.datum || heuteIso())}"><input type="time" step="60" class="form-control" style="max-width:120px" name="vonZeit" value="${e(z.beginn || (el.stunden ?? [])[0]?.beginn || '07:45')}"></div></div>
         <div class="col-sm-6"><label class="form-label">Bis</label><div class="d-flex gap-2"><input type="date" class="form-control" name="bisDatum" value="${e(z.bis || heuteIso())}"><input type="time" step="60" class="form-control" style="max-width:120px" name="bisZeit" value="${e(z.ende || (el.stunden ?? []).at(-1)?.ende || '16:00')}"></div>
-          <div class="form-text">Minutengenau: angebrochene Stunden werden als Verspätung bzw. vorzeitiges Gehen gezählt.</div></div>`;
-  const zeitWerte = box => { const v = n => box.querySelector(`[name=${n}]`).value; return { von: `${v('vonDatum')}T${v('vonZeit')}`, bis: `${v('bisDatum')}T${v('bisZeit')}` }; };
+          <div class="form-text">Minutengenau: angebrochene Stunden werden als Verspätung bzw. vorzeitiges Gehen gezählt.</div></div>
+        <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="abw-ganz" name="ganztaegig" ${z.ganztaegig ? 'checked' : ''}>
+          <label class="form-check-label" for="abw-ganz">Ganztägig</label><span class="form-text ms-2">alle Unterrichtsstunden der gewählten Tage (z. B. Krankmeldung vor Unterrichtsbeginn)</span></div></div>`;
+  // Ganztägig: Uhrzeiten auf den ganzen Schultag setzen und sperren; der Server trägt alle Stunden der Tage ein
+  const tagesbeginn = (el.stunden ?? [])[0]?.beginn || '07:45', tagesende = (el.stunden ?? []).at(-1)?.ende || '16:00';
+  const istGanztaegig = z => !!z.beginn && !!z.ende && z.beginn <= tagesbeginn && z.ende >= tagesende;
+  const ganzBinden = box => {
+    const sw = box.querySelector('[name=ganztaegig]');
+    const setzen = () => {
+      ['vonZeit', 'bisZeit'].forEach(n => { box.querySelector(`[name=${n}]`).disabled = sw.checked; });
+      if (sw.checked) { box.querySelector('[name=vonZeit]').value = tagesbeginn; box.querySelector('[name=bisZeit]').value = tagesende; }
+    };
+    sw.onchange = setzen; setzen();
+  };
+  const zeitWerte = box => { const v = n => box.querySelector(`[name=${n}]`).value; const ganz = box.querySelector('[name=ganztaegig]')?.checked;
+    return { von: `${v('vonDatum')}T${v('vonZeit')}`, bis: `${v('bisDatum')}T${v('bisZeit')}`, ganztaegig: ganz || null }; };
   inhalt.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => {
     const z = liste[Number(b.dataset.bearbeiten)];
     dialog({ titel: `Abwesenheit ${z.schueler}`, breit: true, inhalt: `<p class="small text-body-secondary">${z.fehlstunden} Fehlstunden · ${z.fehlminuten} min · ${e(z.faecher.join(', '))}</p>
-        <div class="row g-3">${zeitfelder(z)}
+        <div class="row g-3">${zeitfelder({ ...z, ganztaegig: istGanztaegig(z) })}
         <div class="col-sm-6"><label class="form-label">Abwesenheitsgrund</label><select class="form-select" name="grund"><option value="">–</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === z.grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select></div>
         <div class="col-sm-6"><label class="form-label">Status</label><select class="form-select" name="status">${['offen', 'entschuldigt', 'unentschuldigt'].map(s => `<option value="${s}" ${s === z.status ? 'selected' : ''}>${s === 'unentschuldigt' ? 'nicht entschuldigt' : s}</option>`).join('')}</select></div>
         <div class="col-12"><label class="form-label">Text</label><input class="form-control" name="bemerkung" value="${e(z.bemerkung)}" list="abw-texte">${textListe}</div>
         ${detailFelder(z)}</div>
         ${z.erstellt ? `<p class="small text-body-secondary mt-3 mb-0">Erfasst ${e(z.erstellt.slice(8, 10) + '.' + z.erstellt.slice(5, 7) + '.' + z.erstellt.slice(0, 4) + z.erstellt.slice(10))}${z.lehrer.length ? ` von ${e(z.lehrer.join(', '))}` : ''}</p>` : ''}`,
+      beimOeffnen: ganzBinden,
       knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
         const v = n => box.querySelector(`[name=${n}]`).value;
         await senden('/api/app/klassenbuch/abwesenheit', { schuelerIds: [z.schuelerId], ...zeitWerte(box), ersetzen: z.ids, grund: v('grund'), status: v('status'), text: v('bemerkung'), ...detailWerte(box) });
@@ -229,6 +247,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         <div class="col-12"><label class="form-label">Text</label><input class="form-control" name="bemerkung" list="abw-texte">${textListe}</div>
         ${detailFelder()}</div>`,
       beimOeffnen: box => {
+        ganzBinden(box);
         box.querySelector('[name=klasse]').onchange = async ev => {
           const s = await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(ev.target.value)}`);
           box.querySelector('[name=schuelerId]').innerHTML = s.map(x => `<option value="${x.id}">${e(x.name)} ${e(x.vorname)}</option>`).join('');

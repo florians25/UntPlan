@@ -75,8 +75,38 @@ tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
 .nl-hinzu.st-klein, .nl-knopf.st-klein { height: 32px; padding: 0 14px; font-size: .9rem; }
 .st-karte .st-flach .nl-hinzu.st-klein { height: 32px; min-height: 32px; }
 
-/* Formular der Administration */
+/* Formular der Administration: zweispaltig – links die Angaben, rechts mitlaufend die Vorschau der Zeitslots */
 .st-formular { max-width: 1100px; }
+.st-formular.st-form-raster { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 16px; align-items: start; }
+.st-form-links { min-width: 0; }
+.st-form-rechts { position: sticky; top: 12px; min-width: 0; }
+.st-vorschau-karte { max-height: calc(100vh - 24px); overflow: hidden; }
+.st-vorschau-karte [data-vorschau] { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; margin: 0 -20px -20px; padding: 0 20px 20px; }
+.st-vzahlen { margin-bottom: 6px; }
+.st-vzeile { font-size: .9rem; line-height: 1.4; }
+.st-phasen { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; gap: 6px; }
+.st-phasen li { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.st-phasen .nl-chip { min-width: 96px; justify-content: center; font-weight: 500; }
+.st-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid #e3e7eb; }
+.st-slot { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 8px; border-radius: 8px; background: #fafbfc; border: 1px solid #eceff2; font-size: .78rem; }
+.st-slot-pause { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: #fff6f1; color: #8a3a0c; font-size: .8rem; font-weight: 500; }
+.st-weitere { display: flex; gap: 8px; }
+.st-weitere .form-control { min-width: 0; }
+.st-weiterliste { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.st-weiterliste .nl-chip { display: inline-flex; align-items: center; gap: 4px; }
+.st-chip-x { border: 0; background: none; padding: 0 0 0 2px; line-height: 1; color: inherit; }
+.st-reihe { line-height: 38px; }
+.st-lehrerwahl .st-dauerzelle { width: 130px; }
+.st-lehrerwahl .st-onlinezelle { width: 260px; }
+.st-online { display: flex; align-items: center; gap: 8px; }
+.st-online .form-control { min-width: 0; }
+.st-hinweistext { white-space: pre-line; max-width: 640px; }
+@media (max-width: 1199.98px) {
+  .st-formular.st-form-raster { grid-template-columns: minmax(0, 1fr); }
+  .st-form-rechts { position: static; order: -1; }
+  .st-vorschau-karte { max-height: none; }
+  .st-slots { max-height: 220px; overflow-y: auto; }
+}
 .st-vorschau { height: 38px; }
 .st-pausen { display: flex; flex-direction: column; gap: 10px; }
 .st-pause { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
@@ -105,3 +135,11 @@ tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
 /* Absage: Hinweis bei abgesagter Teilnahme bzw. abgesagtem Sprechtag */
 .nl-hinweis.rot { background: #fdecec; color: #a12d31; }
 .nl-hinweis.rot .bi { color: #c8363b; }
+
+/* angekündigter Sprechtag (Familien, Startseite) und Online-Termine */
+.st-ankuendigung { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 20px; }
+.st-ankuendigung div { display: flex; flex-direction: column; gap: 2px; }
+.st-ankuendigung span { font-size: .78rem; color: #67747e; }
+.st-ankuendigung b { font-weight: 500; color: var(--u-titel); }
+.st-start-chip { margin-left: 6px; vertical-align: middle; height: 20px; font-size: .72rem; }
+.st-link { font-size: .85rem; overflow-wrap: anywhere; }

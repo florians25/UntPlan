@@ -1,176 +1,236 @@
-// Meldungen an UntPlan: Abwesenheit melden, Raum buchen, Klausur eintragen, eigene Meldungen verfolgen.
-import { e, holen, senden, api, toast, bestaetigen, heuteIso, plusTage, meldungText, statusMarker, leer, lade, alarm } from '../ui.js';
+// Melden im Portal-Design: Übersicht der Meldearten als Kacheln (Abwesenheit melden, Prüfung eintragen, Raum buchen, Meine Meldungen)
+// mit den letzten Meldungen, einheitliche Formulare (Karte mit Kopf, Feldraster, Fuß mit Abbrechen/Absenden, Auswahlen über die
+// gemeinsame Auswahl-Komponente, Raumwahl mit Belegung) und „Meine Meldungen“ mit Suche, Status- und Art-Filter, Status-Pills und
+// leeren Zuständen. Raum buchen führt in das Buchungsmodul.
+import { e, holen, senden, api, toast, bestaetigen, heuteIso, plusTage, meldungText, datumLang, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { raumwahl, raumTokens } from '../raumwahl.js';
 
-const BEREICHE = [
-  { id: 'abwesenheit', text: 'Abwesenheit' },
-  { id: 'raum', text: 'Raum buchen' },
-  { id: 'klausur', text: 'Klausur' },
-  { id: 'meine', text: 'Meine Meldungen' },
-];
+const BEREICHE = ['uebersicht', 'abwesenheit', 'klausur', 'meine'];
+const TITEL = { uebersicht: 'Melden', abwesenheit: 'Abwesenheit melden', klausur: 'Prüfung eintragen', meine: 'Meine Meldungen' };
+const GRUENDE = ['Krankheit', 'Fortbildung', 'Dienstlicher Termin', 'Klassenfahrt / Exkursion', 'Sonderurlaub', 'Sonstiges'];
+const STATUS = { offen: { text: 'offen', klasse: 'offen' }, quittiert: { text: 'übernommen', klasse: 'ok' }, abgelehnt: { text: 'abgelehnt', klasse: 'nein' } };
+const ART = {
+  absenz: { text: 'Abwesenheit', symbol: 'person-dash' }, klausur: { text: 'Prüfung', symbol: 'journal-check' }, klausurloeschen: { text: 'Prüfung löschen', symbol: 'journal-x' },
+  raumbuchung: { text: 'Raumbuchung', symbol: 'door-open' }, buchungstorno: { text: 'Storno', symbol: 'x-circle' }, nachricht: { text: 'Nachricht', symbol: 'chat-left-text' },
+};
+const artVon = m => ART[m.typ] ?? ART.nachricht;
+const titelVon = m => meldungText(m).replace(/^Klausur /, 'Prüfung ');
 
-function stundenAuswahl(stunden, name, wert) {
-  return `<select class="form-select" name="${name}">${stunden.map(s => `<option value="${s.nr}" ${s.nr === wert ? 'selected' : ''}>${e(s.bezeichnung || s.nr)}. Stunde${s.beginn ? ` (${e(s.beginn)})` : ''}</option>`).join('')}</select>`;
+function stileLaden() {
+  if (document.querySelector('link[data-melden-css]')) return;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = 'css/melden.css';
+  l.dataset.meldenCss = '1';
+  document.head.append(l);
 }
 
-function mehrfachAuswahl(name, eintraege) {
-  return `<div class="border rounded overflow-auto px-2 py-1 bg-white" data-mehrfach="${name}" style="max-height:180px">${eintraege.map(x => `
-    <div class="form-check"><input class="form-check-input" type="checkbox" value="${e(x.kurz)}" id="${name}-${e(x.kurz)}">
-      <label class="form-check-label" for="${name}-${e(x.kurz)}"><span class="fw-semibold">${e(x.kurz)}</span> <span class="text-body-secondary small">${e(x.name && x.name !== x.kurz ? x.name : '')}</span></label></div>`).join('')}</div>`;
+const feld = (beschriftung, html, { klasse = '', optional = false, fuer = '' } = {}) =>
+  `<div class="mf-feld ${klasse}"><label ${fuer ? `for="${fuer}"` : ''}>${e(beschriftung)}${optional ? ' <span class="mf-optional">optional</span>' : ''}</label>${html}</div>`;
+const stundenAuswahl = (stunden, name, wert) => `<select class="form-select" name="${name}">${stunden.map(s => `<option value="${s.nr}" ${s.nr === wert ? 'selected' : ''} ${s.beginn ? `data-zweit="${e(s.beginn)}${s.ende ? `–${e(s.ende)}` : ''}"` : ''}>${e(s.bezeichnung || s.nr)}. Stunde</option>`).join('')}</select>`;
+const mehrfach = (name, eintraege, platzhalter) => `<select class="form-select" name="${name}" multiple data-platzhalter="${e(platzhalter)}">${eintraege.map(x => `<option value="${e(x.kurz)}" ${x.name && x.name !== x.kurz ? `data-zweit="${e(x.name)}"` : ''}>${e(x.kurz)}</option>`).join('')}</select>`;
+const karte = (symbol, titel, unter, inhalt) => `<form class="mf-karte" novalidate>
+    <header class="mf-kopf"><span class="mf-symbol"><i class="bi bi-${symbol}" aria-hidden="true"></i></span><div><h2>${e(titel)}</h2><p>${e(unter)}</p></div></header>
+    <div class="mf-rumpf">${inhalt}</div></form>`;
+const fussLeiste = text => `<footer class="mf-fuss"><a class="nl-knopf" href="#/melden">Abbrechen</a><button class="nl-hinzu" type="submit"><i class="bi bi-send" aria-hidden="true"></i>${e(text)}</button></footer>`;
+const statusPill = s => { const x = STATUS[s] ?? { text: s, klasse: '' }; return `<span class="mp-status ${x.klasse}">${e(x.text)}</span>`; };
+const erstelltText = m => { const d = new Date(String(m.erstellt ?? '').replace(' ', 'T')); return isNaN(d) ? '' : d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }); };
+
+/** Absenden mit gesperrtem Knopf (kein Doppelklick) und Fehlermeldung. */
+async function absenden(form, kontext, aktion) {
+  const knopf = form.querySelector('[type=submit]');
+  knopf.disabled = true;
+  try { await aktion(); } catch (err) { kontext.fehler(err); } finally { knopf.disabled = false; }
 }
-const gewaehlt = (wurzel, name) => [...wurzel.querySelectorAll(`[data-mehrfach="${name}"] input:checked`)].map(x => x.value);
-const karte = (titel, inhalt) => `<div class="card" style="max-width:860px"><div class="card-header">${titel}</div><div class="card-body">${inhalt}</div></div>`;
 
 export async function zeigen(seite, kontext, [bereichParam]) {
-  const bereich = BEREICHE.some(b => b.id === bereichParam) ? bereichParam : 'abwesenheit';
-  kontext.titel({ abwesenheit: 'Abwesenheit melden', raum: 'Raum buchen', klausur: 'Prüfung eintragen', meine: 'Meine Meldungen' }[bereich]);
+  stileLaden();
+  if (bereichParam === 'raum') { kontext.navigieren('#/buchen/raum', true); return; }
+  const bereich = BEREICHE.includes(bereichParam) ? bereichParam : 'uebersicht';
+  kontext.titel(TITEL[bereich]);
   const el = await kontext.elemente();
-  const stunden = (el.stunden ?? []).map(s => ({ nr: s.nr, bezeichnung: s.bezeichnung, beginn: s.beginn })).filter(s => s.nr > 0);
+  const stunden = (el.stunden ?? []).map(s => ({ nr: s.nr, bezeichnung: s.bezeichnung, beginn: s.beginn, ende: s.ende })).filter(s => s.nr > 0);
   if (!stunden.length) for (let i = 1; i <= 10; i++) stunden.push({ nr: i, bezeichnung: String(i) });
   const letzte = stunden[stunden.length - 1].nr;
-
-  // Die Bereiche stehen im Untermenü „Melden & Buchen“ der Navigation
-  seite.innerHTML = '<div data-bereich></div>';
+  seite.innerHTML = `<div class="mf-seite mf-${bereich}" data-bereich></div>`;
   const ziel = seite.querySelector('[data-bereich]');
 
+  // ---------------------------------------------------------------- Übersicht: Meldearten als Kacheln, letzte Meldungen
+
+  if (bereich === 'uebersicht') {
+    const liste = await holen('/api/app/meldungen').catch(() => []);
+    const offen = liste.filter(m => m.status === 'offen').length;
+    const kachel = (href, symbol, titel, text, zusatz = '') => `<a class="mf-kachel" href="${href}"><span class="mf-symbol"><i class="bi bi-${symbol}" aria-hidden="true"></i></span>
+        <span class="mf-kachel-text"><b>${e(titel)}</b><span>${e(text)}</span></span>${zusatz}<i class="bi bi-chevron-right mf-pfeil" aria-hidden="true"></i></a>`;
+    const letzteMeldungen = liste.slice(0, 4);
+    ziel.innerHTML = `
+      <p class="mf-einleitung">Was möchten Sie melden? Meldungen gehen an die Planung und erscheinen nach der Übernahme im Stundenplan.</p>
+      <div class="mf-kacheln">
+        ${kachel('#/melden/abwesenheit', 'person-dash', 'Abwesenheit melden', 'Krankheit, Fortbildung oder Termin – ganztägig oder für einzelne Stunden')}
+        ${kachel('#/melden/klausur', 'journal-check', 'Prüfung eintragen', 'Klassenarbeit, Klausur oder Test mit Raum und Aufsicht')}
+        ${kachel('#/buchen/raum', 'door-open', 'Raum buchen', 'Freien Raum für eine Stunde oder als Serie buchen')}
+        ${kachel('#/melden/meine', 'list-check', 'Meine Meldungen', 'Status verfolgen, offene Meldungen zurückziehen', offen ? `<span class="mf-zaehler" title="offene Meldungen">${offen}</span>` : '')}
+      </div>
+      <section class="mf-block">
+        <header><h2>Zuletzt gemeldet</h2>${liste.length ? '<a href="#/melden/meine">Alle anzeigen</a>' : ''}</header>
+        ${letzteMeldungen.length ? `<ul class="mp-liste kompakt">${letzteMeldungen.map(m => meldungZeile(m, false)).join('')}</ul>`
+          : `<div class="mf-leer"><i class="bi bi-inbox" aria-hidden="true"></i><b>Noch keine Meldungen</b><span>Ihre Meldungen erscheinen hier mit ihrem Status.</span></div>`}
+      </section>`;
+    return;
+  }
+
+  // ---------------------------------------------------------------- Abwesenheit melden
+
   if (bereich === 'abwesenheit') {
-    ziel.innerHTML = karte('Abwesenheit melden', `
-      <p class="small text-body-secondary">Die Meldung wird an die Vertretungsplanung übermittelt und dort als Abwesenheit übernommen.</p>
-      <form>
-        <div class="row g-3 mb-3">
-          <div class="col-sm-6"><label class="form-label">Von</label><input type="date" class="form-control" name="von" value="${heuteIso()}" required></div>
-          <div class="col-sm-6"><label class="form-label">Bis</label><input type="date" class="form-control" name="bis" value="${heuteIso()}" required></div>
-        </div>
-        <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="ganz" id="ganz" checked><label class="form-check-label" for="ganz">ganztägig</label></div>
-        <div class="row g-3 mb-3 d-none" data-stunden>
-          <div class="col-sm-6"><label class="form-label">ab</label>${stundenAuswahl(stunden, 'stundeVon', 1)}</div>
-          <div class="col-sm-6"><label class="form-label">bis</label>${stundenAuswahl(stunden, 'stundeBis', letzte)}</div>
-        </div>
-        <div class="mb-3"><label class="form-label">Grund</label><select class="form-select" name="grund"><option>Krankheit</option><option>Fortbildung</option><option>Dienstlicher Termin</option><option>Klassenfahrt / Exkursion</option><option>Sonderurlaub</option><option>Sonstiges</option></select></div>
-        <div class="mb-3"><label class="form-label">Hinweise für die Vertretung <span class="text-body-secondary">(optional)</span></label><textarea class="form-control" name="text" rows="3"></textarea></div>
-        <button class="btn btn-primary" type="submit">Abwesenheit melden</button>
-      </form>`);
+    ziel.innerHTML = karte('person-dash', 'Abwesenheit melden', 'Die Meldung geht an die Vertretungsplanung und wird dort als Abwesenheit übernommen.', `
+      <div class="mf-raster">
+        ${feld('Von', `<input type="date" class="form-control" name="von" value="${heuteIso()}" required>`)}
+        ${feld('Bis', `<input type="date" class="form-control" name="bis" value="${heuteIso()}" required>`)}
+        ${feld('Umfang', `<div class="mf-segment" role="radiogroup" aria-label="Umfang">
+            <button type="button" role="radio" aria-checked="true" class="an" data-umfang="ganz">Ganztägig</button>
+            <button type="button" role="radio" aria-checked="false" data-umfang="stunden">Einzelne Stunden</button></div>`, { klasse: 'breit' })}
+        <div class="mf-unterraster breit d-none" data-stunden>
+          ${feld('Ab', stundenAuswahl(stunden, 'stundeVon', 1))}${feld('Bis', stundenAuswahl(stunden, 'stundeBis', letzte))}</div>
+        ${feld('Grund', `<div class="mf-chips" role="radiogroup" aria-label="Grund">${GRUENDE.map((g, i) => `<button type="button" role="radio" class="mf-chip ${i === 0 ? 'an' : ''}" aria-checked="${i === 0}" data-grund="${e(g)}">${e(g)}</button>`).join('')}</div>`, { klasse: 'breit' })}
+        ${feld('Hinweise für die Vertretung', '<textarea class="form-control" name="text" rows="3" maxlength="1000" placeholder="z. B. Material liegt im Fach, Aufgaben im Kurs"></textarea>', { klasse: 'breit', optional: true })}
+      </div>
+      <div class="mf-zusammenfassung" data-zf></div>
+      ${fussLeiste('Abwesenheit melden')}`);
     const form = ziel.querySelector('form');
-    form.ganz.onchange = () => ziel.querySelector('[data-stunden]').classList.toggle('d-none', form.ganz.checked);
-    form.von.onchange = () => { if (form.bis.value < form.von.value) form.bis.value = form.von.value; };
-    form.onsubmit = async ev => {
+    let ganz = true, grund = GRUENDE[0];
+    const zf = () => {
+      const zeitraum = form.von.value === form.bis.value || !form.bis.value ? datumLang(form.von.value) : `${datumLang(form.von.value)} bis ${datumLang(form.bis.value)}`;
+      form.querySelector('[data-zf]').innerHTML = form.von.value ? `<i class="bi bi-info-circle" aria-hidden="true"></i><span>${e(zeitraum)}${ganz ? ', ganztägig' : `, ${form.stundeVon.value}.–${form.stundeBis.value}. Stunde`} · ${e(grund)}</span>` : '';
+    };
+    form.querySelectorAll('[data-umfang]').forEach(b => b.onclick = () => {
+      ganz = b.dataset.umfang === 'ganz';
+      form.querySelectorAll('[data-umfang]').forEach(x => { x.classList.toggle('an', x === b); x.setAttribute('aria-checked', String(x === b)); });
+      form.querySelector('[data-stunden]').classList.toggle('d-none', ganz);
+      zf();
+    });
+    form.querySelectorAll('[data-grund]').forEach(b => b.onclick = () => {
+      grund = b.dataset.grund;
+      form.querySelectorAll('[data-grund]').forEach(x => { x.classList.toggle('an', x === b); x.setAttribute('aria-checked', String(x === b)); });
+      zf();
+    });
+    form.von.onchange = () => { if (form.bis.value < form.von.value) form.bis.value = form.von.value; zf(); };
+    form.bis.onchange = form.stundeVon.onchange = form.stundeBis.onchange = () => {
+      if (Number(form.stundeBis.value) < Number(form.stundeVon.value)) form.stundeBis.value = form.stundeVon.value;
+      zf();
+    };
+    zf();
+    form.onsubmit = ev => {
       ev.preventDefault();
-      try {
+      if (!form.von.value || !form.bis.value) { toast('Bitte den Zeitraum angeben.', true); return; }
+      absenden(form, kontext, async () => {
         await senden('/api/app/meldungen/abwesenheit', {
-          von: form.von.value, bis: form.bis.value, grund: form.grund.value, text: form.text.value,
-          stundeVon: form.ganz.checked ? null : Number(form.stundeVon.value), stundeBis: form.ganz.checked ? null : Number(form.stundeBis.value),
+          von: form.von.value, bis: form.bis.value, grund, text: form.text.value,
+          stundeVon: ganz ? null : Number(form.stundeVon.value), stundeBis: ganz ? null : Number(form.stundeBis.value),
         });
         toast('Abwesenheit gemeldet.');
         kontext.navigieren('#/melden/meine');
-      } catch (err) { kontext.fehler(err); }
+      });
     };
   }
 
-  if (bereich === 'raum') {
-    ziel.innerHTML = karte('Raum buchen', `
-      <form>
-        <div class="row g-3 mb-3">
-          <div class="col-sm-4"><label class="form-label">Datum</label><input type="date" class="form-control" name="datum" value="${plusTage(heuteIso(), 1)}" min="${heuteIso()}" required></div>
-          <div class="col-sm-4"><label class="form-label">Von</label>${stundenAuswahl(stunden, 'stundeVon', 1)}</div>
-          <div class="col-sm-4"><label class="form-label">Bis</label>${stundenAuswahl(stunden, 'stundeBis', 1)}</div>
-        </div>
-        <div class="mb-3"><label class="form-label">Freie Räume</label><div data-raeume>${lade()}</div></div>
-        <div class="row g-3 mb-3">
-          <div class="col-sm-6"><label class="form-label">Titel</label><input class="form-control" name="titel"></div>
-          <div class="col-sm-6"><label class="form-label">Klasse(n) <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="klassen" placeholder="z. B. 7a, 7b" list="klassenliste"></div>
-        </div>
-        <datalist id="klassenliste">${el.klassen.map(k => `<option value="${e(k.kurz)}">`).join('')}</datalist>
-        <div class="mb-3"><label class="form-label">Bemerkung <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="text"></div>
-        <button class="btn btn-primary" type="submit">Raum buchen</button>
-        <div class="form-text">Die Buchung erscheint sofort als „vorgemerkt“ im Raumplan und wird von UntPlan übernommen.</div>
-      </form>`);
-    const form = ziel.querySelector('form');
-    let raum = null;
-    const laden = async () => {
-      if (Number(form.stundeBis.value) < Number(form.stundeVon.value)) form.stundeBis.value = form.stundeVon.value;
-      const box = ziel.querySelector('[data-raeume]');
-      raum = null;
-      try {
-        const frei = await holen(`/api/app/meldungen/freieraeume?datum=${form.datum.value}&von=${form.stundeVon.value}&bis=${form.stundeBis.value}`);
-        box.innerHTML = frei.length ? `<div class="d-flex flex-wrap gap-2">${frei.map(r => `<input type="radio" class="btn-check" name="raumwahl" id="r-${e(r.kurz)}" value="${e(r.kurz)}" autocomplete="off">
-            <label class="btn btn-sm btn-outline-secondary" for="r-${e(r.kurz)}" title="${e(r.name ?? '')}">${e(r.kurz)}</label>`).join('')}</div>`
-          : alarm('warning', 'In diesem Zeitraum ist kein Raum frei.');
-        box.querySelectorAll('[name=raumwahl]').forEach(b => b.onchange = () => { raum = b.value; });
-      } catch (err) { box.innerHTML = alarm('danger', err.message); }
-    };
-    form.datum.onchange = form.stundeVon.onchange = form.stundeBis.onchange = laden;
-    laden();
-    form.onsubmit = async ev => {
-      ev.preventDefault();
-      if (!raum) { toast('Bitte einen freien Raum auswählen.', true); return; }
-      try {
-        await senden('/api/app/meldungen/raumbuchung', {
-          datum: form.datum.value, stundeVon: Number(form.stundeVon.value), stundeBis: Number(form.stundeBis.value), raum,
-          klassen: form.klassen.value.split(/[,;\s]+/).filter(Boolean), titel: form.titel.value, text: form.text.value,
-        });
-        toast(`Raum ${raum} gebucht.`);
-        kontext.navigieren('#/melden/meine');
-      } catch (err) { kontext.fehler(err); }
-    };
-  }
+  // ---------------------------------------------------------------- Prüfung eintragen
 
   if (bereich === 'klausur') {
-    ziel.innerHTML = karte('Klausur eintragen', `
-      <form>
-        <div class="row g-3 mb-3">
-          <div class="col-sm-4"><label class="form-label">Datum</label><input type="date" class="form-control" name="datum" value="${plusTage(heuteIso(), 7)}" min="${heuteIso()}" required></div>
-          <div class="col-sm-4"><label class="form-label">Von</label>${stundenAuswahl(stunden, 'stundeVon', 3)}</div>
-          <div class="col-sm-4"><label class="form-label">Bis</label>${stundenAuswahl(stunden, 'stundeBis', 4)}</div>
-        </div>
-        <div class="mb-3"><label class="form-label">Titel</label><input class="form-control" name="titel" placeholder="z. B. Deutsch GK" required></div>
-        <div class="row g-3 mb-3">
-          <div class="col-md-4"><label class="form-label">Klassen / Kurse</label>${mehrfachAuswahl('klassen', el.klassen)}</div>
-          <div class="col-md-4"><label class="form-label" for="mk-raeume">Räume <span class="text-body-secondary">(optional)</span></label><input class="form-control" id="mk-raeume" name="raeume"></div>
-          <div class="col-md-4"><label class="form-label">Aufsicht <span class="text-body-secondary">(optional)</span></label>${mehrfachAuswahl('aufsicht', el.lehrer)}</div>
-        </div>
-        <div class="mb-3"><label class="form-label">Bemerkung <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="text"></div>
-        <button class="btn btn-primary" type="submit">Klausur eintragen</button>
-      </form>`);
+    ziel.innerHTML = karte('journal-check', 'Prüfung eintragen', 'Die Prüfung steht sofort im Stundenplan und wird von UntPlan übernommen.', `
+      <div class="mf-raster">
+        ${feld('Titel', '<input class="form-control" name="titel" maxlength="200" placeholder="z. B. Deutsch Klassenarbeit" required>', { klasse: 'breit' })}
+        ${feld('Datum', `<input type="date" class="form-control" name="datum" value="${plusTage(heuteIso(), 7)}" min="${heuteIso()}" required>`)}
+        <div class="mf-unterraster">${feld('Von', stundenAuswahl(stunden, 'stundeVon', 3))}${feld('Bis', stundenAuswahl(stunden, 'stundeBis', 4))}</div>
+        ${feld('Klassen / Kurse', mehrfach('klassen', el.klassen, 'Klassen wählen'))}
+        ${feld('Räume', '<input class="form-control" id="mk-raeume" name="raeume">', { optional: true, fuer: 'mk-raeume' })}
+        ${feld('Aufsicht', mehrfach('aufsicht', el.lehrer, 'Lehrkräfte wählen'), { optional: true })}
+        ${feld('Bemerkung', '<input class="form-control" name="text" maxlength="500">', { optional: true })}
+      </div>
+      ${fussLeiste('Prüfung eintragen')}`);
     const form = ziel.querySelector('form');
-    form.stundeVon.onchange = () => { if (Number(form.stundeBis.value) < Number(form.stundeVon.value)) form.stundeBis.value = form.stundeVon.value; };
+    form.stundeVon.addEventListener('change', () => { if (Number(form.stundeBis.value) < Number(form.stundeVon.value)) form.stundeBis.value = form.stundeVon.value; });
     // Raumwahl mit Suche und Belegung zur gewählten Zeit (Datum, Von, Bis)
     raumwahl(form.raeume, { wurzel: form, felder: { datum: 'datum', von: 'stundeVon', bis: 'stundeBis' } });
-    form.onsubmit = async ev => {
+    const werte = name => [...form[name].selectedOptions].map(o => o.value);
+    form.onsubmit = ev => {
       ev.preventDefault();
-      const klassen = gewaehlt(ziel, 'klassen');
+      if (!form.titel.value.trim()) { toast('Bitte einen Titel angeben.', true); form.titel.focus(); return; }
+      const klassen = werte('klassen');
       if (!klassen.length) { toast('Bitte mindestens eine Klasse auswählen.', true); return; }
-      try {
+      absenden(form, kontext, async () => {
         await senden('/api/app/meldungen/klausur', {
           datum: form.datum.value, stundeVon: Number(form.stundeVon.value), stundeBis: Number(form.stundeBis.value),
-          klassen, raeume: raumTokens(form.raeume.value), aufsicht: gewaehlt(ziel, 'aufsicht'), titel: form.titel.value, text: form.text.value,
+          klassen, raeume: raumTokens(form.raeume.value), aufsicht: werte('aufsicht'), titel: form.titel.value.trim(), text: form.text.value,
         });
-        toast('Klausur eingetragen.');
+        toast('Prüfung eingetragen.');
         kontext.navigieren('#/melden/meine');
-      } catch (err) { kontext.fehler(err); }
+      });
     };
   }
+
+  // ---------------------------------------------------------------- Meine Meldungen
 
   if (bereich === 'meine') {
     const liste = await holen('/api/app/meldungen');
-    ziel.innerHTML = `<div class="card"><div class="card-header">Meine Meldungen</div>
-      ${liste.length ? `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Meldung</th><th>Erstellt</th><th>Status</th><th></th></tr></thead><tbody>
-        ${liste.map(m => `<tr><td>${e(meldungText(m))}${m.text && m.typ !== 'nachricht' ? `<div class="small text-body-secondary">${e(m.text)}</div>` : ''}</td>
-          <td class="text-body-secondary small text-nowrap">${e(new Date(m.erstellt.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</td>
-          <td>${statusMarker(m.status)}</td>
-          <td class="text-end">${m.typ === 'klausur' && (m.von ?? '') >= heuteIso() ? `<button class="btn btn-sm btn-outline-danger" data-klausur-loeschen="${e(m.id)}">Löschen</button>`
-            : m.status === 'offen' ? `<button class="btn btn-sm btn-outline-danger" data-zurueck="${e(m.id)}">Zurückziehen</button>` : ''}</td></tr>`).join('')}
-      </tbody></table></div>` : `<div class="card-body py-0">${leer('Noch keine Meldungen.')}</div>`}</div>`;
-    // Prüfung löschen – vor der Übernahme zurückziehen, danach Löschmeldung an UntPlan
-    ziel.querySelectorAll('[data-klausur-loeschen]').forEach(b => b.onclick = async () => {
-      const m = liste.find(x => x.id === b.dataset.klausurLoeschen);
-      const { pruefungLoeschen } = await import('./pruefungen.js');
-      if (await pruefungLoeschen({ datum: m.von, stundeVon: m.stundeVon ?? 1, stundeBis: m.stundeBis ?? m.stundeVon ?? 1, klassen: m.klassen ?? [], titel: m.titel })) kontext.navigieren(location.hash);
+    const filter = { suche: '', status: '', art: '' };
+    const arten = [...new Set(liste.map(m => (ART[m.typ] ? m.typ : 'nachricht')))];
+    kontext.titel('Meine Meldungen', '', String(liste.length));
+    const anzahl = s => liste.filter(m => !s || m.status === s).length;
+    ziel.innerHTML = `
+      <div class="nl-leiste mp-leiste">
+        ${suchfeldMitFilter({ platzhalter: 'Meldungen durchsuchen', label: 'Meldungen durchsuchen', filter: [
+          { name: 'status', label: 'Status', alle: `Jeder Status (${anzahl('')})`, optionen: [['offen', 'Offen'], ['quittiert', 'Übernommen'], ['abgelehnt', 'Abgelehnt']].map(([w, t]) => [w, `${t} (${anzahl(w)})`]) },
+          ...(arten.length > 1 ? [{ name: 'art', label: 'Art', alle: 'Alle Arten', optionen: arten.map(a => [a, ART[a].text]) }] : []),
+        ] })}
+        <span class="ms-auto d-flex gap-2"><a class="nl-hinzu" href="#/melden"><i class="bi bi-plus-lg" aria-hidden="true"></i>Neue Meldung</a></span>
+      </div>
+      <div data-liste></div>`;
+    const sichtbar = () => liste.filter(m => (!filter.status || m.status === filter.status) && (!filter.art || (ART[m.typ] ? m.typ : 'nachricht') === filter.art)
+      && (!filter.suche || `${titelVon(m)} ${m.text ?? ''} ${artVon(m).text}`.toLowerCase().includes(filter.suche)));
+    const zeichnen = () => {
+      const l = sichtbar();
+      const box = ziel.querySelector('[data-liste]');
+      box.innerHTML = !liste.length
+        ? `<div class="mf-leer gross"><i class="bi bi-inbox" aria-hidden="true"></i><b>Noch keine Meldungen</b><span>Melden Sie eine Abwesenheit oder tragen Sie eine Prüfung ein – hier sehen Sie dann den Status.</span><a class="nl-hinzu" href="#/melden"><i class="bi bi-plus-lg" aria-hidden="true"></i>Neue Meldung</a></div>`
+        : l.length ? `<ul class="mp-liste">${l.map(m => meldungZeile(m, true)).join('')}</ul>`
+          : `<div class="mf-leer gross"><i class="bi bi-funnel" aria-hidden="true"></i><b>Keine Meldungen für diesen Filter</b><button type="button" class="nl-knopf" data-reset>Filter zurücksetzen</button></div>`;
+      box.querySelector('[data-reset]')?.addEventListener('click', () => {
+        Object.assign(filter, { suche: '', status: '', art: '' });
+        ziel.querySelector('[data-suche]').value = '';
+        sf.setzen('status', ''); sf.setzen('art', '');
+        zeichnen();
+      });
+      // Prüfung löschen – vor der Übernahme zurückziehen, danach Löschmeldung an UntPlan
+      box.querySelectorAll('[data-klausur-loeschen]').forEach(b => b.onclick = async () => {
+        const m = liste.find(x => x.id === b.dataset.klausurLoeschen);
+        const { pruefungLoeschen } = await import('./pruefungen.js');
+        if (await pruefungLoeschen({ datum: m.von, stundeVon: m.stundeVon ?? 1, stundeBis: m.stundeBis ?? m.stundeVon ?? 1, klassen: m.klassen ?? [], titel: m.titel })) kontext.navigieren(location.hash);
+      });
+      box.querySelectorAll('[data-zurueck]').forEach(b => b.onclick = async () => {
+        if (!await bestaetigen('Meldung zurückziehen', 'Soll die Meldung zurückgezogen werden?', 'Zurückziehen')) return;
+        try { await api(`/api/app/meldungen/${encodeURIComponent(b.dataset.zurueck)}`, { methode: 'DELETE' }); toast('Meldung zurückgezogen.'); kontext.navigieren(location.hash); }
+        catch (err) { kontext.fehler(err); }
+      });
+    };
+    // gemeinsames Suchfeld mit Filter: Status und Art als Dropdowns im Suchfeld (gewählt = Chip mit x)
+    const sf = suchfeldMitFilterBinden(ziel, {
+      beiSuche: t => { filter.suche = t.toLowerCase(); zeichnen(); },
+      beiFilter: (name, wert) => { filter[name] = wert; zeichnen(); },
     });
-    ziel.querySelectorAll('[data-zurueck]').forEach(b => b.onclick = async () => {
-      if (!await bestaetigen('Meldung zurückziehen', 'Soll die Meldung zurückgezogen werden?', 'Zurückziehen')) return;
-      try { await api(`/api/app/meldungen/${encodeURIComponent(b.dataset.zurueck)}`, { methode: 'DELETE' }); toast('Meldung zurückgezogen.'); kontext.navigieren(location.hash); }
-      catch (err) { kontext.fehler(err); }
-    });
+    zeichnen();
   }
 }
 
+/** Zeile einer Meldung: Symbol der Art, Text, Zusatz, erstellt, Status-Pill, Aktionen (Prüfung löschen bzw. zurückziehen). */
+function meldungZeile(m, mitAktionen) {
+  const a = artVon(m);
+  const aktion = !mitAktionen ? '' : m.typ === 'klausur' && (m.von ?? '') >= heuteIso()
+    ? `<button type="button" class="nl-knopf rot klein" data-klausur-loeschen="${e(m.id)}"><i class="bi bi-trash" aria-hidden="true"></i>Löschen</button>`
+    : m.status === 'offen' ? `<button type="button" class="nl-knopf klein" data-zurueck="${e(m.id)}"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>Zurückziehen</button>` : '';
+  return `<li class="mp-zeile ${e(m.status)}">
+      <span class="mp-symbol ${e(m.typ)}" title="${e(a.text)}"><i class="bi bi-${a.symbol}" aria-hidden="true"></i></span>
+      <div class="mp-text"><div class="mp-titel">${e(titelVon(m))}</div>
+        <div class="mp-unter"><span>${e(a.text)}</span>${erstelltText(m) ? `<span>gemeldet ${e(erstelltText(m))}</span>` : ''}${m.text && m.typ !== 'nachricht' ? `<span class="mp-notiz">${e(m.text)}</span>` : ''}</div></div>
+      ${statusPill(m.status)}
+      ${mitAktionen ? `<div class="mp-aktion">${aktion}</div>` : ''}</li>`;
+}

@@ -1,0 +1,96 @@
+/* Melden (js/ansichten/melden.js) im Portal-Design: Kacheln der Meldearten, einheitliche Formularkarten, „Meine Meldungen“ mit Status-Pills.
+   Schrift nur Regular/Medium; Akzent orange. */
+.mf-seite { max-width: 980px; }
+.mf-einleitung { margin: 0 0 16px; color: #67747e; font-size: .95rem; }
+
+/* Kacheln */
+.mf-kacheln { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 26px; }
+.mf-kachel { position: relative; display: flex; align-items: center; gap: 14px; min-height: 96px; padding: 18px 44px 18px 18px; border: 1px solid #e1e5e9; border-radius: 12px;
+  background: #fff; color: var(--u-text); text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.mf-kachel:hover, .mf-kachel:focus-visible { border-color: rgba(var(--u-akzent-rgb), .55); box-shadow: 0 6px 18px rgba(36, 50, 61, .08); color: var(--u-text); outline: 0; }
+.mf-kachel:active { transform: translateY(1px); }
+.mf-kachel-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mf-kachel-text b { font-weight: 500; font-size: 1rem; color: var(--u-titel); }
+.mf-kachel-text span { color: #67747e; font-size: .85rem; line-height: 1.35; }
+.mf-symbol { flex: none; display: inline-grid; place-content: center; width: 44px; height: 44px; border-radius: 12px; background: #fff3ec; color: var(--u-akzent); font-size: 1.25rem; }
+.mf-pfeil { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: #b5bec6; transition: color .15s, transform .15s; }
+.mf-kachel:hover .mf-pfeil { color: var(--u-akzent); transform: translate(2px, -50%); }
+.mf-zaehler { position: absolute; top: 12px; right: 14px; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--u-akzent); color: #fff;
+  font-size: .75rem; font-weight: 500; display: inline-grid; place-content: center; }
+
+/* Abschnitt „Zuletzt gemeldet“ */
+.mf-block > header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.mf-block > header h2 { margin: 0; font-size: 1rem; font-weight: 500; color: var(--u-titel); }
+.mf-block > header a { font-size: .875rem; color: var(--u-akzent-dunkel); text-decoration: none; }
+
+/* Formularkarte */
+.mf-karte { background: #fff; border: 1px solid #e1e5e9; border-radius: 12px; max-width: 860px; }
+.mf-kopf { display: flex; align-items: flex-start; gap: 14px; padding: 20px 24px 16px; border-bottom: 1px solid #eef1f3; }
+.mf-kopf h2 { margin: 2px 0 2px; font-size: 1.1rem; font-weight: 500; color: var(--u-titel); }
+.mf-kopf p { margin: 0; color: #67747e; font-size: .875rem; }
+.mf-rumpf { padding: 20px 24px 0; }
+.mf-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.mf-raster .breit { grid-column: 1 / -1; }
+.mf-unterraster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.mf-feld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mf-feld > label { margin: 0; font-size: .85rem; font-weight: 500; color: #414d55; }
+.mf-optional { margin-left: 4px; color: #8a96a1; font-weight: 400; font-size: .78rem; }
+.mf-fuss { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin: 22px -24px 0; padding: 14px 24px; border-top: 1px solid #eef1f3; }
+.mf-fuss .nl-hinzu[disabled] { opacity: .6; }
+.mf-zusammenfassung { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding: 10px 14px; border-radius: 8px; background: #f6f8fa; color: #414d55; font-size: .875rem; }
+.mf-zusammenfassung:empty { display: none; }
+.mf-zusammenfassung i { color: var(--u-akzent); }
+
+/* Segmentwahl und Chips */
+.mf-segment { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 999px; background: #eef1f4; width: fit-content; max-width: 100%; }
+.mf-segment button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: .875rem; color: #414d55; white-space: nowrap; }
+.mf-segment button:hover { background: #e2e6ea; }
+.mf-segment button.an { background: #fff; color: var(--u-titel); font-weight: 500; box-shadow: 0 1px 3px rgba(0, 5, 10, .14); }
+.mf-segment button:focus-visible, .mf-chip:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.mf-anzahl { min-width: 18px; padding: 0 5px; border-radius: 999px; background: rgba(36, 50, 61, .08); font-size: .72rem; color: #67747e; text-align: center; }
+.mf-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.mf-chip { height: 34px; padding: 0 14px; border: 1.5px solid #d3d9de; border-radius: 999px; background: #fff; font: inherit; font-size: .875rem; color: #414d55; }
+.mf-chip:hover { border-color: #aab4bc; }
+.mf-chip.an { border-color: var(--u-akzent); background: #fff3ec; color: var(--u-akzent-dunkel); font-weight: 500; }
+
+/* Meine Meldungen */
+.mp-leiste .mf-segment { height: 42px; align-items: center; }
+.mp-liste { list-style: none; margin: 0; padding: 0; background: #fff; border: 1px solid #e1e5e9; border-radius: 12px; overflow: hidden; }
+.mp-zeile { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 12px 18px; }
+.mp-liste.kompakt .mp-zeile { grid-template-columns: 40px minmax(0, 1fr) auto; }
+.mp-zeile + .mp-zeile { border-top: 1px solid #eef1f3; }
+.mp-symbol { display: inline-grid; place-content: center; width: 40px; height: 40px; border-radius: 10px; background: #f1f4f6; color: #52606b; font-size: 1.05rem; }
+.mp-symbol.absenz { background: #eef4fb; color: #2f6aa3; }
+.mp-symbol.klausur, .mp-symbol.klausurloeschen { background: #f3eefc; color: #6a4bb0; }
+.mp-symbol.raumbuchung { background: #fff3ec; color: var(--u-akzent-dunkel); }
+.mp-text { min-width: 0; }
+.mp-titel { color: var(--u-titel); font-weight: 500; font-size: .925rem; overflow: hidden; text-overflow: ellipsis; }
+.mp-unter { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; color: #7a8792; font-size: .8rem; }
+.mp-notiz { flex-basis: 100%; color: #67747e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-status { justify-self: end; padding: 3px 10px; border-radius: 999px; font-size: .75rem; font-weight: 500; white-space: nowrap; background: #eef1f4; color: #414d55; }
+.mp-status.offen { background: #fff4d6; color: #7a5200; }
+.mp-status.ok { background: #e3f5ea; color: #17724a; }
+.mp-status.nein { background: #fdeceb; color: #b42318; }
+.mp-aktion { display: flex; justify-content: flex-end; min-width: 128px; }
+.nl-knopf.klein { height: 32px; padding: 0 12px; font-size: .8125rem; gap: 6px; }
+
+/* Leere Zustände */
+.mf-leer { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 16px; border: 1px dashed #d3d9de; border-radius: 12px; background: #fff; color: #67747e;
+  text-align: center; font-size: .875rem; }
+.mf-leer > i { font-size: 1.7rem; color: #b5bec6; }
+.mf-leer b { font-weight: 500; color: var(--u-titel); font-size: .95rem; }
+.mf-leer.gross { padding: 48px 16px; }
+.mf-leer .nl-hinzu, .mf-leer .nl-knopf { margin-top: 8px; }
+
+@media (max-width: 767.98px) {
+  .mf-raster { grid-template-columns: minmax(0, 1fr); }
+  .mf-kopf, .mf-rumpf { padding-left: 16px; padding-right: 16px; }
+  .mf-fuss { margin: 20px -16px 0; padding: 12px 16px; position: sticky; bottom: 0; background: #fff; border-radius: 0 0 12px 12px; }
+  .mf-fuss > * { flex: 1 1 0; justify-content: center; white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+  .mp-zeile { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; padding: 12px 14px; }
+  .mp-aktion { grid-column: 2 / -1; justify-content: flex-start; min-width: 0; }
+  .mp-aktion:empty { display: none; }
+  .mp-leiste .mf-segment { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+}
+@media (max-width: 640px) { .mf-kacheln { grid-template-columns: minmax(0, 1fr); } }
+.mf-seite.mf-meine { max-width: 1180px; }

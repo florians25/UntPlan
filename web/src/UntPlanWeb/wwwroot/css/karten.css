@@ -21,15 +21,47 @@
 /* ------------------------------------------------------------------ Marker oben rechts: feine Linien-Symbole
 
    „+“ (zusätzliche Stunde) und Verlegung als weiche Linien (runde Enden) in einem 12px-Quadrat mit Radius 3px.
-   Verlegung: ursprüngliche Stunde rot mit Pfeil nach rechts, Zielstunde grün mit Pfeil nach links. */
+   Verlegung (Sprint 27): beide Seiten mit weißem Pfeil nach rechts – ursprüngliche Stunde rot, Zielstunde grün; Hover „Ursprung → Ziel“. */
 .mk-plus { border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M8 3v10M3 8h10'/%3E%3C/svg%3E"); }
 .mk-plus::before, .mk-plus::after { content: none; }
 .mks .mk-verlegung { width: 12px; height: 12px; border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
-  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.5 8h-9M7 4.5 3.5 8 7 11.5'/%3E%3C/svg%3E"); }
-.mks .mk-verlegung.von { background-color: #f03e3e;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8h9M9 4.5 12.5 8 9 11.5'/%3E%3C/svg%3E"); }
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8h9M9 4.5 12.5 8 9 11.5'/%3E%3C/svg%3E"); }
+.mks .mk-verlegung.von { background-color: #f03e3e; }
+/* Ursprungsstunde: rotes Entfall-Dreieck mit weißem Pfeil nach rechts (statt rotem Quadrat) – Pfeil gleich groß und kräftig wie im
+   grünen Quadrat (Länge 5,6px, Strich 1,25px), auf den Schwerpunkt des Dreiecks gesetzt (etwas tiefer als die Mitte) */
+.mks .mk-verlegung.von { width: 13px; height: 12px; border-radius: 0; background: transparent center / contain no-repeat
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M7.4 16h11.2M14.2 11.6l4.4 4.4-4.4 4.4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 .std .mks [data-hover] { cursor: default; }
+/* mehrere Symbole untereinander (z. B. „+“ und Änderung, Prüfung und Änderung) */
+.std .mks { gap: 4px; }
+
+/* ------------------------------------------------------------------ Hinzugefügte Werte: „+B070“ im grünen Label */
+.std .lbl.lbl-plus { letter-spacing: 0; }
+
+/* ------------------------------------------------------------------ Wertelisten (mehrere Lehrkräfte bzw. Klassen)
+
+   Alle Werte in einer Zeile; was nicht passt, endet mit „…“, dahinter „+5“ (ganz verdeckte Werte, js listenKuerzen). */
+.std .z-liste { display: flex; align-items: baseline; min-width: 0; }
+.std .z-liste > .z-namen { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.std .z-liste > .mehr { flex: none; margin-left: 4px; font-weight: 500; }
+.std .z-liste > .mehr[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ Hover (Sprint 27)
+
+   Schrift Medium. Rot: Ursprung einer Verlegung. Grau: vollständiger Text einer gekürzten Zeile (z. B. „Sexualpädagogik“).
+   Pillen: alle Werte einer gekürzten Liste in Reihen – dunkelgrau, geändert grün, abwesend/entfernt grün durchgestrichen. */
+.u-hover-label { font-weight: 500; }
+/* Labels und Verlegung: eine Zeile („09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15“) */
+.u-hover-label:not(.dunkel):not(.pillen) { white-space: nowrap; max-width: none; }
+.u-hover-label.rot { background: #f44336; color: #fff; font-size: 15px; font-weight: 500; padding: 7px 12px; border-radius: 3px; }
+/* Verlegung (grün bzw. rot): etwas kleiner */
+.u-hover-label.klein { font-size: 13px; line-height: 1.2; padding: 5px 9px; border-radius: 3px; }
+.u-hover-label.zeile { background: #6b7680; color: #fff; font-size: 13px; font-weight: 500; padding: 6px 10px; border-radius: 3px; white-space: nowrap; max-width: none; }
+.u-hover-label.pillen { max-width: 360px; gap: 4px; }
+.u-hover-label.pillen span { background: #6b7680; color: #fff; font-size: 13px; font-weight: 500; line-height: 16px; padding: 4px 8px; border-radius: 3px; box-shadow: 0 2px 6px rgba(0, 5, 10, .2); }
+.u-hover-label.pillen span.p-neu, .u-hover-label.pillen span.p-weg { background: var(--u-gruen-label); }
+.u-hover-label.pillen span.p-weg, .u-hover-label.pillen span.p-aus { text-decoration: line-through; text-decoration-thickness: 1px; }
 
 /* ------------------------------------------------------------------ Pausenaufsichten
 
@@ -76,6 +108,31 @@
 .sd-plus-sym { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .sd-raum-plus .sd-plus-sym { width: 18px; height: 18px; }
 
+/* ------------------------------------------------------------------ Stundendetails (Sprint 27)
+
+   Badges („Prüfung“, „Veranstaltung“, „Zusätzl. Unterrichtsstunde“) in der oberen Zeile bei Klasse/Fach, dunkelgrau mit weißer Schrift.
+   Knöpfe „Lehrstoff eingeben“ / „Abwesenheiten kontrollieren“ unten rechts einen Tick kleiner. */
+.sd-titel h2 .sd-statuspille { margin-left: .75rem; padding: 0 10px; font-size: 13px; font-weight: 500; line-height: 22px; vertical-align: middle; border-radius: 999px; }
+.sd-titel h2 .sd-statuspille:not(.sd-einzelpille), .sd-kopf.grau .sd-titel h2 .sd-statuspille:not(.sd-einzelpille) { background: #6b7680; color: #fff; }
+.sd-fuss.sd-status .sd-orange { height: 46px; min-height: 46px; padding: 0 18px; font-size: .875rem; }
+/* Lehrstoff-Dialog: Lehrstoff aus Vorwochen mit „Übernehmen“ (ersetzt) und „Anhängen“ */
+.ad-liste.ad-vorwochen td { padding: 3px 6px; vertical-align: middle; }
+.ad-liste.ad-vorwochen td.text { max-width: 0; width: 100%; }   /* passt sich an, lange Texte mit „…“ (voller Text im title) */
+.ad-liste.ad-vorwochen .ad-vw-knopf { border: 1px solid #c3cbd2; border-radius: 999px; background: #fff; color: #414d55; font-size: 12px; font-weight: 500; line-height: 18px; padding: 0 8px; }
+.ad-liste.ad-vorwochen .ad-vw-knopf:hover, .ad-liste.ad-vorwochen .ad-vw-knopf:focus-visible { border-color: var(--u-akzent); color: var(--u-akzent-dunkel); }
+.ad-liste.ad-vorwochen .ad-vw-knopf + .ad-vw-knopf { margin-left: 4px; }
+
+/* ------------------------------------------------------------------ Gestrichelte Karten, Aufsichtsbalken, Kopf-Kürzungen (Sprint 27)
+
+   Alle gestrichelten Karten (Lehrkraft abwesend/abgegeben, Bereitschaft, vorgemerkt) mit Hintergrund #f1f5f8. Farbbalken der
+   Pausenaufsichten wie bei den Stundenkarten: 4px breit, 6px Abstand (links/oben/unten), Radius 2px; gestrichelte (vertretene)
+   Aufsicht mit derselben Farbe wie die reguläre. Stundendetails-Kopf: „… +N“ mit Hover der vollständigen Liste. */
+.std.vorgemerkt, .std.lehrer-abwesend, .std.bereitschaft { background: #f1f5f8 !important; }
+.tt .aufsicht::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 2px; }
+/* vertretene (gestrichelte) Aufsicht behält ihre Farbe – wie gestrichelte Stundenkarten ihre Fachfarbe behalten */
+.tt .aufsicht.vertreten::before { background: #b26cd8; }
+.sd-kopf .sd-mehr { color: var(--u-grau-2); cursor: default; white-space: nowrap; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
@@ -105,3 +162,4 @@ html:root.is-mac :is(.std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1,
 }
 html:root.is-mac .std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1, .z2, .zt) { --strich: .75px; }
 html:root.is-mac .sd-alt { text-decoration-color: #b3bcc4; }
+

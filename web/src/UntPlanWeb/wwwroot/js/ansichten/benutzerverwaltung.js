@@ -4,7 +4,7 @@
 //   Anmeldehistorie und Konto-Aktionen.
 // - Personen (Lehrkräfte, Schüler*innen, Erziehungsberechtigte, sonstiges Personal) mit Konto-Status; fehlende Konten einzeln oder
 //   gesammelt nach Login-Schema anlegen, Zugangsdaten als CSV bzw. PDF (Schwarz-Weiß).
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, heuteIso, leer, alarm, initialen, herunterladen, pdfAusrichtung } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, heuteIso, leer, alarm, initialen, herunterladen, pdfAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 
 const ROLLEN = { admin: 'Administration', leitung: 'Schulleitung', lehrer: 'Lehrkraft', schueler: 'Schüler*in / Klasse', eltern: 'Erziehungsberechtigte*r' };
 const KOLLEGIUM = ['admin', 'leitung', 'lehrer'];
@@ -85,11 +85,12 @@ export async function benutzer(ziel, kontext, neu, [rolleParam, idParam]) {
   const anzahl = r => liste.filter(b => b.rolle === r).length;
   ziel.innerHTML = `
     <div class="nl-leiste">
-      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Benutzername, Name, Kürzel oder E-Mail" aria-label="Benutzer suchen"></label>
-      ${pille('Rolle', `<select data-f="rolle"><option value="">Alle Rollen</option>${optionen(ROLLEN, zustand.rolle)}</select>`, zustand.rolle)}
-      ${pille('Status', `<select data-f="status"><option value="">Status</option>${optionen({ aktiv: 'Aktiv', gesperrt: 'Gesperrt', start: 'Startpasswort offen' })}</select>`)}
-      ${pille('Zuordnung', `<select data-f="zuordnung"><option value="">Zuordnung</option>${optionen({ ohne: 'Ohne Zuordnung', mit: 'Mit Zuordnung' })}</select>`)}
-      ${pille('Letzte Anmeldung', `<select data-f="anmeldung"><option value="">Letzte Anmeldung</option>${optionen({ '7': 'In den letzten 7 Tagen', '30': 'In den letzten 30 Tagen', alt: 'Vor mehr als 90 Tagen', nie: 'Noch nie angemeldet' })}</select>`)}
+      ${suchfeldMitFilter({ platzhalter: 'Benutzername, Name, Kürzel oder E-Mail', label: 'Benutzer suchen', filter: [
+        { name: 'rolle', attr: 'data-f="rolle"', label: 'Rolle', alle: 'Alle Rollen', wert: zustand.rolle, optionen: Object.entries(ROLLEN) },
+        { name: 'status', attr: 'data-f="status"', label: 'Status', alle: 'Jeder Status', optionen: [['aktiv', 'Aktiv'], ['gesperrt', 'Gesperrt'], ['start', 'Startpasswort offen']] },
+        { name: 'zuordnung', attr: 'data-f="zuordnung"', label: 'Zuordnung', alle: 'Jede Zuordnung', optionen: [['ohne', 'Ohne Zuordnung'], ['mit', 'Mit Zuordnung']] },
+        { name: 'anmeldung', attr: 'data-f="anmeldung"', label: 'Letzte Anmeldung', alle: 'Jede Anmeldung', optionen: [['7', 'In den letzten 7 Tagen'], ['30', 'In den letzten 30 Tagen'], ['alt', 'Vor mehr als 90 Tagen'], ['nie', 'Noch nie angemeldet']] },
+      ] })}
       <span class="ms-auto d-flex gap-2 flex-wrap">
         <button type="button" class="nl-knopf" data-bericht>${icon('csv')}Bericht</button>
         <a class="nl-knopf" href="#/admin/personen">${icon('lehrkraft')}Personen & Konten</a>
@@ -171,8 +172,10 @@ export async function benutzer(ziel, kontext, neu, [rolleParam, idParam]) {
     ziel.querySelectorAll('[data-kz]').forEach(k => k.classList.toggle('aktiv', k.dataset.kz === zustand.rolle && (k.dataset.kz !== '' || (!zustand.status && !zustand.zuordnung))));
     ziel.querySelector('[data-kz-status]').classList.toggle('aktiv', zustand.status === 'gesperrt');
     ziel.querySelector('[data-kz-zuordnung]').classList.toggle('aktiv', zustand.zuordnung === 'ohne');
-    ziel.querySelectorAll('[data-f]').forEach(s => s.closest('.nl-pille')?.classList.toggle('aktiv', !!s.value));
+    ziel.querySelectorAll('select[data-sf]').forEach(s => sf?.setzen(s.dataset.sf, s.value));
   };
+  // gemeinsames Suchfeld mit Filter: x am Filter-Chip, Rücktaste, Tastatur (die Werte laufen über die data-f-Auswahlen)
+  const sf = suchfeldMitFilterBinden(ziel);
   const filterSetzen = (feld, wert) => { zustand[feld] = wert; const s = ziel.querySelector(`[data-f="${feld}"]`); if (s) s.value = wert; zeichnen(); };
 
   ziel.querySelector('[data-suche]').addEventListener('input', ev => { zustand.suche = ev.target.value; zeichnen(); });
@@ -403,9 +406,10 @@ export async function personen(ziel, kontext, neu, [artParam]) {
   ziel.innerHTML = `
     <nav class="u-reiter mb-3">${Object.entries(ARTEN).map(([a, t]) => { const l = alle.filter(p => p.art === a); return `<a href="#/admin/personen/${a}" class="${a === art ? 'aktiv' : ''}">${t} <span class="bv-reiterzahl">${l.length}</span></a>`; }).join('')}</nav>
     <div class="nl-leiste">
-      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Name${art === 'lehrer' ? ', Kürzel' : ''} oder Benutzername" aria-label="Personen suchen"></label>
-      ${art === 'schueler' ? pille('Klasse', `<select data-f="klasse"><option value="">Klasse</option>${[...new Set(schueler.map(s => s.klasse))].map(k => `<option value="${e(k)}">${e(k)}</option>`).join('')}</select>`) : ''}
-      ${pille('Konto', `<select data-f="konto"><option value="">Konto</option><option value="fehlt">Ohne Konto</option><option value="vorhanden">Mit Konto</option></select>`)}
+      ${suchfeldMitFilter({ platzhalter: `Name${art === 'lehrer' ? ', Kürzel' : ''} oder Benutzername`, label: 'Personen suchen', filter: [
+        ...(art === 'schueler' ? [{ name: 'klasse', attr: 'data-f="klasse"', label: 'Klasse', alle: 'Alle Klassen', optionen: [...new Set(schueler.map(s => s.klasse))].map(k => [k, k]) }] : []),
+        { name: 'konto', attr: 'data-f="konto"', label: 'Konto', alle: 'Mit und ohne Konto', optionen: [['fehlt', 'Ohne Konto'], ['vorhanden', 'Mit Konto']] },
+      ] })}
       <span class="ms-auto d-flex gap-2 flex-wrap">
         <a class="nl-knopf" href="#/admin/benutzer">${icon('benutzer')}Benutzer</a>
         ${verwaltet ? `<button type="button" class="nl-knopf" data-person-neu>${icon('plus')}${art === 'eltern' ? 'Erziehungsberechtigte*n' : 'Person'} erfassen</button>` : ''}
@@ -454,10 +458,11 @@ export async function personen(ziel, kontext, neu, [artParam]) {
     const alleBox = ziel.querySelector('[data-alle]');
     alleBox.checked = ohneKonto.length > 0 && ohneKonto.every(p => gewaehlt.has(p.schluessel));
     ziel.querySelectorAll('[data-kz]').forEach(k => k.classList.toggle('aktiv', k.dataset.kz === zustand.konto));
-    ziel.querySelectorAll('[data-f]').forEach(s => s.closest('.nl-pille')?.classList.toggle('aktiv', !!s.value));
+    ziel.querySelectorAll('select[data-sf]').forEach(s => sfp?.setzen(s.dataset.sf, s.value));
   };
   ziel.querySelector('[data-suche]').addEventListener('input', ev => { zustand.suche = ev.target.value; zeichnen(); });
   ziel.querySelectorAll('[data-f]').forEach(s => s.addEventListener('change', () => { zustand[s.dataset.f] = s.value; zeichnen(); }));
+  const sfp = suchfeldMitFilterBinden(ziel);
   ziel.querySelectorAll('[data-kz]').forEach(k => k.onclick = () => { zustand.konto = k.dataset.kz; ziel.querySelector('[data-f="konto"]').value = zustand.konto; zeichnen(); });
   ziel.querySelector('[data-alle]').onchange = ev => { sichtbar().filter(p => !p.konto).forEach(p => (ev.target.checked ? gewaehlt.add(p.schluessel) : gewaehlt.delete(p.schluessel))); zeichnen(); };
   tbody.addEventListener('change', ev => { const c = ev.target.closest('[data-wahl]'); if (!c) return; if (c.checked) gewaehlt.add(c.dataset.wahl); else gewaehlt.delete(c.dataset.wahl); zeichnen(); });

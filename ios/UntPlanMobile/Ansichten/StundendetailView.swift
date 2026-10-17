@@ -264,6 +264,8 @@ struct StundendetailInhalt: View {
     // MARK: - Reiter
 
     private func reitertitel(_ k: Karte) -> String {
+        // Veranstaltung: die Bezeichnung steht nur unten in „Information zur Stunde“, nicht im Reiter (wie die PWA)
+        if k.istVeranstaltung { return "Veranstaltung" }
         if !k.fach.isEmpty { return k.fach }
         if !k.anzeigeText.isEmpty { return k.anzeigeText }
         return k.anzeigeArt.isEmpty ? "Stunde" : k.anzeigeArt
@@ -321,11 +323,48 @@ struct StundendetailInhalt: View {
         }
     }
 
+    /// Vertretungstext bzw. Information der Stunde (Zusatzstunde: nur manuell eingegebene Texte).
+    private var detailText: String {
+        karte.istZusatzstunde ? karte.zusatzText : karte.anzeigeText
+    }
+
+    /// Zeile „Verlegt“ bzw. „Hierher verlegt“: Ursprung und Ziel untereinander (fehlt die Gegenseite, nur der Titel).
+    private func verlegungZeile(_ richtung: String) -> some View {
+        HStack(spacing: 12) {
+            Listensymbol(name: "arrow.right.square")
+            VStack(alignment: .leading, spacing: 3) {
+                Text(richtung == "von" ? "Verlegt" : "Hierher verlegt")
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(Farben.detailText)
+                    .lineLimit(1)
+                if let von = karte.verlegungVon?.text, !von.isEmpty, let nach = karte.verlegungNach?.text, !nach.isEmpty {
+                    Text("Von: \(von)")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.detailGrau)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text("Nach: \(nach)")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.detailGrau)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            Spacer(minLength: 6)
+        }
+        .padding(.leading, Detailmass.rand)
+        .padding(.trailing, 22)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(karte.verlegungText.map { "Verlegung: \($0)" } ?? (richtung == "von" ? "Verlegt" : "Hierher verlegt"))
+    }
+
     private var textTitel: String {
         karte.keineVertretung || karte.status == "regulaer" ? "Information zur Stunde" : "Vertretungstext"
     }
 
-    /// Infotext einer Veranstaltung (Zeile „Information“).
+    /// Infotext einer Veranstaltung (Zeile „Information zur Stunde“) – nur hier steht die Bezeichnung der Veranstaltung.
     private var veranstaltungsInfo: String { Kachelbau.veranstaltungsInfo(karte) }
 
     /// Untertitel der Zeile „Prüfung“ (Vorlage 140: das Fach, sonst Text bzw. Art).
@@ -411,11 +450,19 @@ struct StundendetailInhalt: View {
         return ergebnis
     }
 
+    /// Fach einer Veranstaltung für die Fachzeile: nur ein eingetragenes Fach, nie die Bezeichnung der Veranstaltung.
+    private var veranstaltungsFach: String {
+        let f = karte.fach.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !f.isEmpty else { return "" }
+        let bezeichnung = karte.anzeigeText.isEmpty ? karte.anzeigeArt : karte.anzeigeText
+        return f.caseInsensitiveCompare(bezeichnung) == .orderedSame ? "" : f
+    }
+
     /// Offene Vertretung: Lehrkraft ohne neuen Wert (Karte „offen“ bzw. Kürzel leer und alter Wert gesetzt).
     private var lehrerOffen: Bool { karte.istOffeneVertretung }
 
     /// Kopfzeile „Klasse | Gruppe“: eigene Klasse(n), anwesende Mitklassen als Text, fehlende durchgestrichen;
-    /// Trennstrich grau. Veranstaltung ohne Klassen: keine Kopfzeile (Titel steht in der nächsten Zeile).
+    /// Trennstrich grau. Veranstaltung ohne Klassen: keine Kopfzeile.
     private var titelBausteine: [Wertbaustein] {
         var teile: [Wertbaustein] = []
         guard !karte.mitklassen.isEmpty else {
@@ -448,9 +495,12 @@ struct StundendetailInhalt: View {
     /// Kopfblock genau nach Vorlage (Original 117/118): „Klasse | Gruppe“ und Fach groß (22 pt, schwarz), Raum und
     /// Lehrkraft 17 pt grau, je Zeile 31 pt hoch. Nur Text, keine Plaketten und keine Durchstreichung des Ganzen
     /// (Entfall zeigt der rote Balken): Änderungen als „alt → neu“ mit durchgestrichenem altem Wert, fehlende Werte
-    /// durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt.
+    /// durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt;
+    /// sehr viele Werte (z. B. alle Lehrkräfte oder Klassen) werden auf „… +N“ gekürzt und lassen sich aufklappen.
+    /// Veranstaltung: oben keine Bezeichnung (die steht nur unten in „Information zur Stunde“) – Kopf- und Fachzeile
+    /// erscheinen nur, wenn Klassen bzw. ein Fach eingetragen sind, wie bei einer normalen Stunde.
     private var kopfblock: some View {
-        let fach = istVeranstaltung ? (karte.anzeigeText.isEmpty ? karte.anzeigeArt : karte.anzeigeText)
+        let fach = istVeranstaltung ? veranstaltungsFach
                                     : (karte.fach.isEmpty ? karte.anzeigeArt : karte.fach)
         // Pfeil „alt → neu“ nur beim Raum; bei Lehrkräften und Fach trennt „|“ (z. B. „LAN | ILK“)
         let raeume = Wertzeile.bausteine(einmal(daten.aktuelleRaeume), durchgestrichen: false, offenAlsPlakette: false, pfeil: true)
@@ -472,11 +522,13 @@ struct StundendetailInhalt: View {
                 kopfteile.append(.pille(pille))
             }
         }
-        let pilleEinzeln = karte.statusPille != nil && !fachSichtbar && kopfteile.isEmpty
+        // Veranstaltung ohne Fach und Klassen: oben gar nichts (auch keine allein stehende Pille)
+        let pilleEinzeln = karte.statusPille != nil && !fachSichtbar && kopfteile.isEmpty && !istVeranstaltung
         return VStack(alignment: .leading, spacing: 0) {
             if !kopfteile.isEmpty {
-                Wertzeile(bausteine: kopfteile, schrift: Detailmass.gross, farbe: Farben.detailText)
-                    .frame(height: Detailmass.zeile)
+                Wertzeile(bausteine: kopfteile, schrift: Detailmass.gross, farbe: Farben.detailText,
+                          kuerzenAb: Wertzeile.kuerzungsgrenze)
+                    .frame(minHeight: Detailmass.zeile)
             }
             if fachSichtbar {
                 Wertzeile(bausteine: fachteile, schrift: Detailmass.gross, farbe: Farben.detailText)
@@ -487,12 +539,12 @@ struct StundendetailInhalt: View {
                     .padding(.vertical, 4)
             }
             if !raeume.isEmpty {
-                Wertzeile(bausteine: raeume, schrift: Detailmass.klein)
-                    .frame(height: Detailmass.zeile)
+                Wertzeile(bausteine: raeume, schrift: Detailmass.klein, kuerzenAb: Wertzeile.kuerzungsgrenze)
+                    .frame(minHeight: Detailmass.zeile)
             }
             if !lehrer.isEmpty {
-                Wertzeile(bausteine: lehrer, schrift: Detailmass.klein)
-                    .frame(height: Detailmass.zeile)
+                Wertzeile(bausteine: lehrer, schrift: Detailmass.klein, kuerzenAb: Wertzeile.kuerzungsgrenze)
+                    .frame(minHeight: Detailmass.zeile)
             }
             if !karte.abwesendeKlassen.isEmpty {
                 Wertzeile(bausteine: [.text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")],
@@ -524,19 +576,23 @@ struct StundendetailInhalt: View {
             if karte.istPruefung && !karte.istEntfall {
                 link(.pruefung, Detailzeile(symbol: "SymbolPruefung", titel: "Prüfung", untertitel: pruefungsUntertitel))
             }
+            // Verlegung: Ursprung → Ziel mit Datum und Uhrzeit (ohne Verlegungszeichen)
+            if let richtung = karte.verlegung, !istVeranstaltung {
+                verlegungZeile(richtung)
+            }
             if kollegium && daten.raumAenderbar && !istVeranstaltung {
                 RaumZeile(raeume: daten.aktuelleRaeume, ziel: $raumZiel)
             }
             if istVeranstaltung {
                 if !veranstaltungsInfo.isEmpty {
-                    link(.info, Detailzeile(symbol: "SymbolInfo", titel: "Information", untertitel: veranstaltungsInfo))
+                    link(.info, Detailzeile(symbol: "SymbolInfo", titel: "Information zur Stunde", untertitel: veranstaltungsInfo))
                 }
-            } else if !karte.anzeigeText.isEmpty && !karte.istZusatzstunde {
+            } else if !detailText.isEmpty {
                 // Information zur Stunde mit dem Info-Zeichen (info.svg), Vertretungstext mit dem Notizblatt; bloße
-                // Art-Bezeichnungen wie „Sondereinsatz“ erscheinen nicht; Zusatzstunde: nur die Plakette
-                // „Zusätzl. Unterrichtsstunde“ im Kopf, kein Vertretungstext
+                // Art-Bezeichnungen wie „Sondereinsatz“ erscheinen nicht; Zusatzstunde: Plakette
+                // „Zusätzl. Unterrichtsstunde“ im Kopf, dazu nur ein manuell eingegebener Vertretungstext
                 link(.text, Detailzeile(symbol: textTitel == "Information zur Stunde" ? "SymbolInfo" : "SymbolNotiz",
-                                        titel: textTitel, untertitel: karte.anzeigeText))
+                                        titel: textTitel, untertitel: detailText))
             }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 let thema = daten.eintrag?.thema ?? ""
@@ -546,7 +602,7 @@ struct StundendetailInhalt: View {
                                              untertitel: thema.isEmpty && !geerbt.isEmpty ? "Block: \(geerbt)" : thema) {
                     if !thema.isEmpty {
                         Image(systemName: "checkmark.circle")
-                            .font(.system(size: 24, weight: .light))
+                            .font(.system(size: 21.5, weight: .light))
                             .foregroundStyle(Farben.gedaempft)
                             .padding(.trailing, 4)
                             .accessibilityLabel("Lehrstoff eingetragen")
@@ -635,11 +691,11 @@ struct StundendetailInhalt: View {
     private func ziel(_ seite: Detailseite) -> some View {
         switch seite {
         case .text:
-            DetailTextSeite(titel: textTitel, text: karte.anzeigeText, karte: karte)
+            DetailTextSeite(titel: textTitel, text: detailText, karte: karte)
         case .pruefung:
             DetailTextSeite(titel: "Prüfung", text: pruefungsText, karte: karte)
         case .info:
-            DetailTextSeite(titel: "Information", text: veranstaltungsInfo, karte: karte)
+            DetailTextSeite(titel: "Information zur Stunde", text: veranstaltungsInfo, karte: karte)
         case .lehrstoff:
             NotizSeite(art: .lehrstoff)
         case .schueler:

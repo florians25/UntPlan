@@ -87,9 +87,15 @@ public class SprechtagTests
         await Testserver.JsonAsync(await lan.PutAsJsonAsync($"/api/app/sprechtag/{id}/raum", new { raum }));
         Assert.Equal(raum, (await Testserver.HolenAsync(lan, $"/api/app/sprechtag/{id}/lehrkraft"))["lehrer"]!["raum"]!.GetValue<string>());
 
-        // Schüler*innen haben keinen Zugang
+        // Schüler*innen sehen freigegebene Sprechtage standardmäßig (Option „sichtbar für Schüler*innen“, Standard an) – nur lesen,
+        // keine Verwaltungs- und Lehrkraftansicht
         var schueler = await s.AlsAsync("klasse-7a", "schueler", "7a");
-        await FehlerAsync(await schueler.GetAsync("/api/app/sprechtag"), HttpStatusCode.Forbidden);
+        Assert.Single((await Testserver.HolenAsync(schueler, "/api/app/sprechtag"))["sprechtage"]!.AsArray());
+        var lesen = await Testserver.HolenAsync(schueler, $"/api/app/sprechtag/{id}");
+        Assert.True(lesen["schueler"]!.GetValue<bool>());
+        Assert.Null(lesen["uebersicht"]);
+        Assert.Equal(0, lesen["termine"]!.GetValue<int>());
+        await FehlerAsync(await schueler.GetAsync($"/api/app/sprechtag/{id}/lehrkraft"), HttpStatusCode.Forbidden);
 
         // löschen
         await Testserver.JsonAsync(await admin.DeleteAsync($"/api/app/sprechtag/{id}"));
@@ -207,8 +213,10 @@ public class SprechtagTests
         var karte = Assert.Single((await Testserver.HolenAsync(lan, "/api/app/sprechtag/start")).AsArray())!;
         Assert.Equal("einladung", karte["phase"]!.GetValue<string>());
         Assert.Contains("15.10.2026 20:00", karte["text"]!.GetValue<string>());
-        // Eltern ohne Einladung sehen in der Einladungsphase noch keine Karte
-        Assert.Empty((await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray());
+        // Eltern ohne Einladung sehen den Sprechtag schon als „angekündigt“ (Datum, Zeit, Anmeldebeginn)
+        var ankuendigung = Assert.Single((await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray())!;
+        Assert.Equal("angekuendigt", ankuendigung["status"]!.GetValue<string>());
+        Assert.Contains("Anmeldung ab 16.10.2026 08:00", ankuendigung["text"]!.GetValue<string>());
 
         var auswahl = await Testserver.HolenAsync(lan, Url("/schueler"));
         Assert.Contains("7a", auswahl["eigeneKlassen"]!.AsArray().Select(k => k!.GetValue<string>()));

@@ -1,6 +1,6 @@
 // Klassenbuch → Berichte im nl-design: Filterleiste (Klasse, Schüler*in, Zeitraum), Reiter je Berichtsgruppe, Berichte als ruhige Liste
 // (Symbol, Titel, Beschreibung, rechts Anzeigen/PDF/CSV); Parameter im Seitenpanel. Vorschau oberhalb der Liste.
-import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade, pdfAusrichtung, druckenMitAusrichtung } from '../ui.js';
+import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade, pdfAusrichtung, druckenMitAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog } from '../kbdialog.js';
 
 const ALIAS = { fehlzeiten: 'fehlzeiten_schueler', lehrstoff: 'arbeitsbericht_tag' };
@@ -15,13 +15,13 @@ const BESCHREIBUNG = {
   fehlzeiten_schueler: 'Fehlstunden, Fehltage und Entschuldigungsstatus je Schüler*in im gewählten Zeitraum.',
   fehlzeiten_klasse: 'Summen der Fehlzeiten je Klasse – geeignet für Konferenzen und Zeugnisse.',
   fehlzeiten_fach: 'Fehlstunden aufgeschlüsselt nach Fächern.',
-  fehltage_klasse: 'Ganze Fehltage je Klasse und Schüler*in.',
+  fehltage_klasse: 'Fehltage je Klasse und Schüler*in mit Datum, Stunden und Status, Summen je Schüler*in (mit Schultagen) und je Klasse.',
   verspaetungen: 'Alle Verspätungen und vorzeitigen Abgänge mit Minuten.',
   verspaetungen_auffaellig: 'Schüler*innen, die im Zeitraum auffällig oft zu spät kamen.',
   abwesenheitsueberschreitung: 'Wer in einem gleitenden Zeitraum mehr Fehlstunden als erlaubt hat.',
   abwesenheiten: 'Abwesenheiten als Zeiträume mit Grund, Text und Status.',
   anwesenheiten: 'Anwesenheit je Schüler*in über alle erfassten Stunden.',
-  unentschuldigt: 'Abwesenheiten, die schon länger nicht entschuldigt sind.',
+  unentschuldigt: 'Zusammenhängende Abwesenheiten ohne Entschuldigung je Schüler*in mit Beginn, Ende, Tagen, Stunden und Grund; Summen je Klasse.',
   statusuebersicht: 'Fehlzeiten gruppiert nach offen, entschuldigt und nicht entschuldigt.',
   entschuldigungsschreiben: 'Vordruck je Schüler*in mit den offenen Fehlstunden und Unterschriftsfeld.',
   klassenbucheintraege: 'Klassenbucheinträge wie Lob, Vermerke und Ordnungsmaßnahmen je Klasse.',
@@ -59,7 +59,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   try { gruppe = sessionStorage.getItem('untplan:berichtgruppe') || 'alle'; } catch { /* privat */ }
   if (gruppe !== 'alle' && !gruppen.includes(gruppe)) gruppe = 'alle';
   let suche = '';
-  const vorgabe = (a, n) => n === 1 ? (a.id === art && n1 ? n1 : a.id === 'unentschuldigt' ? 3 : 16) : (a.id === art && n2 ? n2 : 4);
+  const vorgabe = (a, n) => n === 1 ? (a.id === art && n1 ? n1 : a.id === 'unentschuldigt' ? 1 : 16) : (a.id === art && n2 ? n2 : 4);
   const abfrage = (p) => `klasse=${encodeURIComponent(p.klasse)}&von=${p.von}&bis=${p.bis}${p.schueler ? `&schueler=${p.schueler}` : ''}&n1=${p.n1}&n2=${p.n2}`;
   const standard = a => ({ klasse, schueler, von, bis, n1: vorgabe(a, 1), n2: vorgabe(a, 2) });
 
@@ -70,10 +70,11 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       <label class="kd-feld"><span>Schüler*in</span><select data-schueler ${klasse ? '' : 'disabled'}><option value="">Alle</option>${schuelerListe.map(s => `<option value="${s.id}" ${String(s.id) === schueler ? 'selected' : ''}>${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select></label>
       <label class="kd-feld"><span>Von</span><input type="date" data-von value="${von}"></label>
       <label class="kd-feld"><span>Bis</span><input type="date" data-bis value="${bis}"></label>
-      <label class="br-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Bericht suchen" aria-label="Bericht suchen"></label>
     </div>
     <div data-vorschau class="br-vorschau-bereich">${art ? lade() : ''}</div>
-    <div class="s-pillen nicht-drucken" role="tablist" aria-label="Berichtsgruppe" data-gruppen></div>
+    <div class="u-sf-leiste nicht-drucken" data-gruppen>${suchfeldMitFilter({ platzhalter: 'Bericht suchen', label: 'Bericht suchen', filter: [
+      { name: 'gruppe', label: 'Berichtsgruppe', alle: `Alle Berichte (${arten.length})`, standard: 'alle', wert: gruppe, optionen: gruppen.map(g => [g, `${g} (${arten.filter(a => a.gruppe === g).length})`]) },
+    ] })}</div>
     <div class="br-raster nicht-drucken" data-raster></div>
     <p class="br-fussnote nicht-drucken"><i class="bi bi-info-circle"></i> Notfallliste, BAföG- und Fahrkostenbescheinigungen benötigen Adress- bzw. Kontaktdaten, die UntPlan nicht überträgt.</p>
   </div>`;
@@ -98,24 +99,25 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   const rasterZeichnen = () => {
     const q = suche.trim().toLowerCase();
     const sicht = arten.filter(a => (gruppe === 'alle' || a.gruppe === gruppe) && (!q || `${a.titel} ${BESCHREIBUNG[a.id] ?? ''}`.toLowerCase().includes(q)));
-    seite.querySelector('[data-gruppen]').innerHTML = ['alle', ...gruppen].map(g => `<button type="button" role="tab" class="s-pille ${g === gruppe ? 'an' : ''}" aria-selected="${g === gruppe}" data-gruppe="${e(g)}">
-      ${g === 'alle' ? 'Alle Berichte' : e(g)} <span class="br-anzahl">${g === 'alle' ? arten.length : arten.filter(a => a.gruppe === g).length}</span></button>`).join('');
     raster.innerHTML = sicht.length ? (gruppe === 'alle' && !q
       ? gruppen.map(g => `<section class="br-abschnitt"><h2>${e(g)}</h2><div class="br-liste" role="list">${arten.filter(a => a.gruppe === g).map(karte).join('')}</div></section>`).join('')
       : `<div class="br-liste" role="list">${sicht.map(karte).join('')}</div>`)
       : `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-search"></i></span><b>Kein Bericht gefunden</b><p>Für „${e(suche)}“ gibt es keinen passenden Bericht.</p></div>`;
-    seite.querySelectorAll('[data-gruppe]').forEach(b => b.onclick = () => {
-      gruppe = b.dataset.gruppe;
-      try { sessionStorage.setItem('untplan:berichtgruppe', gruppe); } catch { /* privat */ }
-      rasterZeichnen();
-    });
     raster.querySelectorAll('[data-panel]').forEach(b => b.onclick = () => panel(arten.find(a => a.id === b.dataset.panel)));
     raster.querySelectorAll('[data-anzeigen]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.anzeigen); anzeigen(a, standard(a)); });
     raster.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.pdf); exportieren(a, standard(a), 'pdf', b); });
     raster.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.csv); exportieren(a, standard(a), 'csv', b); });
   };
   rasterZeichnen();
-  seite.querySelector('[data-suche]').oninput = ev => { suche = ev.target.value; rasterZeichnen(); };
+  // gemeinsames Suchfeld mit Filter: Freitext und Berichtsgruppe als Dropdown im Suchfeld
+  suchfeldMitFilterBinden(seite.querySelector('[data-gruppen]'), {
+    beiSuche: t => { suche = t; rasterZeichnen(); },
+    beiFilter: (_, wert) => {
+      gruppe = wert || 'alle';
+      try { sessionStorage.setItem('untplan:berichtgruppe', gruppe); } catch { /* privat */ }
+      rasterZeichnen();
+    },
+  });
 
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
   seite.querySelectorAll('.kd-filter select, .kd-filter input[type=date]').forEach(x => x.onchange = () =>
@@ -210,8 +212,14 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       <div class="br-vaktionen">${art !== 'entschuldigungsschreiben' ? '<button type="button" class="btn btn-outline-secondary s-knopf" data-v-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button><button type="button" class="btn btn-outline-secondary s-knopf" data-v-csv><i class="bi bi-filetype-csv"></i>CSV</button>' : ''}
         <button type="button" class="btn btn-outline-secondary s-knopf" data-v-drucken>${icon('drucken')}Drucken</button>
         <a class="br-vzu" href="${ziel(null)}" title="Vorschau schließen" aria-label="Vorschau schließen"><i class="bi bi-x-lg"></i></a></div></header>`;
-  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle"><thead><tr>${r.spalten.map(s => `<th>${e(s)}</th>`).join('')}</tr></thead><tbody>
-    ${zeilen.map(z => `<tr>${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  // gegliederte Berichte (r.arten): Gruppenkopf über die ganze Breite, Zwischensumme je Schüler*in, Summe je Klasse; Zahlenspalten rechtsbündig
+  const zeilenArten = r.arten ?? null;
+  const zahlSpalte = r.spalten.map((_, i) => r.zeilen.some((z, n) => !zeilenArten?.[n] && z[i] !== '' && z[i] != null)
+    && r.zeilen.every((z, n) => zeilenArten?.[n] || z[i] === '' || z[i] == null || typeof z[i] === 'number'));
+  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle ${zeilenArten ? 'br-gegliedert' : ''}"><thead><tr>${r.spalten.map((s, i) => `<th class="${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(s)}</th>`).join('')}</tr></thead><tbody>
+    ${zeilen.map((z, n) => zeilenArten?.[n] === 'gruppe'
+      ? `<tr class="br-gruppe"><td colspan="${r.spalten.length}">${e(z[0] ?? '')}</td></tr>`
+      : `<tr class="${zeilenArten?.[n] ? `br-${zeilenArten[n]}` : ''}">${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''} ${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   if (art === 'entschuldigungsschreiben') {
     // je Schüler*in eine Seite mit Unterschriftsfeld
     const proSchueler = new Map();
@@ -223,7 +231,8 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
         <div class="d-flex gap-4 small pt-4"><span class="border-top pt-1 flex-fill">Datum</span><span class="border-top pt-1 flex-fill">Unterschrift Erziehungsberechtigte</span></div></div>`).join('')
         : leer('Keine offenen Fehlstunden im Zeitraum.', 'check2-circle')}</div>`;
   } else {
-    vorschau.innerHTML = `<div class="br-vorschau s-karte">${kopf}${vkopf(`${r.zeilen.length} ${r.zeilen.length === 1 ? 'Zeile' : 'Zeilen'}`)}
+    const datenzeilen = zeilenArten ? zeilenArten.filter(x => !x).length : r.zeilen.length;
+    vorschau.innerHTML = `<div class="br-vorschau s-karte">${kopf}${vkopf(`${datenzeilen} ${datenzeilen === 1 ? 'Zeile' : 'Zeilen'}`)}
       ${r.hinweis ? `<div class="br-vhinweis"><i class="bi bi-info-circle"></i> ${e(r.hinweis)}</div>` : ''}
       ${r.zeilen.length ? tabelle(r.zeilen) : leer('Keine Daten für diese Auswahl.', 'file-earmark')}</div>`;
     vorschau.querySelector('[data-v-pdf]').onclick = ev => exportieren(a, p, 'pdf', ev.currentTarget);

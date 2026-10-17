@@ -19,11 +19,16 @@ namespace UntPlanWeb.Api;
 /// erhält eine Mitteilung), <c>POST /{id}/teilnahme/absagen</c> bzw. <c>/teilnahme/wiederaufnehmen</c> (Lehrkraft; Administration mit <c>lehrer</c>),
 /// <c>POST /{id}/absagen</c> (Administration: ganzer Sprechtag, alle Beteiligten werden benachrichtigt).</item>
 /// <item>PDF-Formulare mit <c>?ausrichtung=hoch|quer</c> (Vorgabe: Terminplan einer Lehrkraft und Elternplan hoch, Gesamtplan quer).</item>
+/// <item>Status „angekündigt“ (<c>status</c>): freigegeben, Anmeldung beginnt erst – Startseite, Liste und Familienansicht zeigen Datum, Zeit, Ort
+/// und Anmeldebeginn. Erziehungsberechtigte und Schüler*innen sehen die Ankündigung standardmäßig (Optionen <c>ankuendigen</c>, <c>sichtbarEltern</c>,
+/// <c>sichtbarSchueler</c> sind an, fehlende gespeicherte Optionen gelten als an); Schüler*innen nur lesend.</item>
+/// <item>Warteliste: <c>POST /{id}/warteliste</c>, <c>DELETE /{id}/warteliste/{wid}</c>.</item>
 /// </list>
 /// </summary>
 public static class SprechtagApi
 {
-    public sealed record RaumDaten(string? Lehrer, string? Raum);
+    public sealed record RaumDaten(string? Lehrer, string? Raum, bool? Online = null, string? Link = null);
+    public sealed record WarteDaten(string? Lehrer, int SchuelerId);
     public sealed record SperrDaten(string? Lehrer, List<string>? Beginne, bool Gesperrt);
     public sealed record EinladungDaten(string? Lehrer, List<int>? SchuelerIds, string? Text);
     public sealed record TerminDaten(string? Lehrer, int SchuelerId, string? Beginn, string? Bemerkung);
@@ -34,10 +39,11 @@ public static class SprechtagApi
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
 
-    private static Benutzer Ich(HttpContext c)
+    private static Benutzer Ich(HttpContext c, bool schuelerErlaubt = false)
     {
         var b = c.Ich() ?? throw new NichtAngemeldetException();
-        if (!b.Kollegium && b.Rolle != Rollen.Eltern) throw new UnauthorizedAccessException("Der Sprechtag steht Lehrkräften, Schulleitung, Administration und Erziehungsberechtigten zur Verfügung.");
+        if (!b.Kollegium && b.Rolle != Rollen.Eltern && !(schuelerErlaubt && b.Rolle == Rollen.Schueler))
+            throw new UnauthorizedAccessException("Der Sprechtag steht Lehrkräften, Schulleitung, Administration und Erziehungsberechtigten zur Verfügung.");
         return b;
     }
 
@@ -59,7 +65,7 @@ public static class SprechtagApi
     private static Sprechtag Sichtbar(Sprechtagdienst d, Benutzer b, int id)
     {
         var t = d.Pflicht(id);
-        if (!t.Sichtbar && !Rechtedienst.Darf(b, Recht.SprechtagVerwalten)) throw new ArgumentException("Unbekannter Sprechtag.");
+        if (!Sprechtagdienst.SichtbarFuer(t, b)) throw new ArgumentException("Unbekannter Sprechtag.");
         return t;
     }
 
@@ -78,13 +84,122 @@ public static class SprechtagApi
     private static string DatumText(string iso) => DateOnly.TryParse(iso, Inv, out var d) ? $"{Plandienst.Wochentage[Plandienst.TagIndex(d)]}, {d:dd.MM.yyyy}" : iso;
     private static string ZeitText(string iso) => DateTime.TryParse(iso, Inv, DateTimeStyles.None, out var d) ? d.ToString("dd.MM.yyyy HH:mm", Inv) : iso;
 
-    private static object Json(Sprechtagdienst d, Sprechtag t, Stand? s) => new
+    /// <summary>Statuszeile für die Anzeige (z. B. „Angekündigt – Anmeldung ab …“).</summary>
+    public static string StatusText(Sprechtagdienst d, Sprechtag t) => d.Status(t) switch
     {
-        t.Id, t.Name, t.Datum, datumText = DatumText(t.Datum), t.Beginn, t.Ende, t.Dauer, t.Pausen, t.EinladungBis, t.AnmeldungVon, t.AnmeldungBis,
-        einladungEnde = Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv), t.Sichtbar, t.Raumwahl, t.Hinweis, phase = d.Phase(t), t.Abgesagt, t.AbsageGrund,
-        lehrkraefte = t.Lehrkraefte.Select(l => new { l.Lehrer, l.Raum, name = Sprechtagdienst.LehrerName(s, l.Lehrer), l.Abgesagt, l.AbsageGrund }),
-        zeitfenster = Sprechtagdienst.Zeitfenster(t).Count,
+        Sprechtagdienst.Angekuendigt => $"Angekündigt – Anmeldung ab {ZeitText(t.AnmeldungVon)}",
+        Sprechtagdienst.Anmeldung => $"Anmeldung bis {ZeitText(t.AnmeldungBis)}",
+        Sprechtagdienst.Geschlossen => "Anmeldung geschlossen",
+        Sprechtagdienst.Vorbei => "vorbei",
+        Sprechtagdienst.Abgesagt => "abgesagt",
+        _ => "in Vorbereitung (nicht sichtbar)",
     };
+
+    /// <summary>Sprechtag als JSON; der Online-Link einer Lehrkraft nur für die Verwaltung und die Lehrkraft selbst.</summary>
+    private static object Json(Sprechtagdienst d, Sprechtag t, Stand? s, Benutzer? b = null)
+    {
+        var verwaltung = b != null && Rechtedienst.Darf(b, Recht.SprechtagVerwalten);
+        return new
+        {
+            t.Id, t.Name, t.Datum, datumText = DatumText(t.Datum), t.Beginn, t.Ende, t.Dauer, t.Pausen, t.EinladungBis, t.AnmeldungVon, t.AnmeldungBis,
+            einladungEnde = Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv), t.Sichtbar, t.Raumwahl, t.Hinweis, phase = d.Phase(t), t.Abgesagt, t.AbsageGrund,
+            status = d.Status(t), statusText = StatusText(d, t), t.Ort, anmeldungVonText = ZeitText(t.AnmeldungVon), anmeldungBisText = ZeitText(t.AnmeldungBis),
+            buchbar = d.Phase(t) == Sprechtagdienst.Anmeldung, zeitbloecke = Sprechtagdienst.Zeitbloecke(t),
+            optionen = new
+            {
+                t.Optionen.Puffer, t.Optionen.MaxTermineFamilie, t.Optionen.Warteliste, t.Optionen.ErinnerungStunden, t.Optionen.SichtbarEltern,
+                t.Optionen.SichtbarSchueler, t.Optionen.Ankuendigen,
+            },
+            reihe = d.Reihe(t).Select(x => new { x.Id, x.Datum, datumText = DatumText(x.Datum) }),
+            lehrkraefte = t.Lehrkraefte.Select(l => new
+            {
+                l.Lehrer, l.Raum, name = Sprechtagdienst.LehrerName(s, l.Lehrer), l.Abgesagt, l.AbsageGrund, l.Dauer, dauerEffektiv = Sprechtagdienst.DauerVon(t, l.Lehrer),
+                l.Online, link = verwaltung || (b?.LehrerKuerzel is string k && Ci.Equals(k, l.Lehrer)) ? l.Link : "",
+            }),
+            zeitfenster = Sprechtagdienst.Zeitfenster(t).Count,
+        };
+    }
+
+    private static string Termine(int n) => $"{n} {(n == 1 ? "Termin" : "Termine")}";
+
+    /// <summary>Ankündigungstext: Datum, Uhrzeit, Ort und Anmeldebeginn.</summary>
+    private static string Ankuendigung(Sprechtag t) =>
+        $"Angekündigt: {DatumText(t.Datum)}, {t.Beginn}–{t.Ende} Uhr{(t.Ort.Length > 0 ? $" · {t.Ort}" : "")}. Anmeldung ab {ZeitText(t.AnmeldungVon)}.";
+
+    /// <summary>
+    /// Hinweiskarten „Sprechtag“ für die Startseite (Web und Apps, auch in <c>/api/app/heute</c>): beteiligte Lehrkräfte und Verwaltung,
+    /// Erziehungsberechtigte (angekündigt, Anmeldung, eigene Termine bzw. Einladungen) und Schüler*innen (Option „sichtbar für Schüler*innen“).
+    /// </summary>
+    public static List<object> StartKarten(Sprechtagdienst d, Benutzer b)
+    {
+        var karten = new List<object>();
+        if (!b.Kollegium && b.Rolle is not (Rollen.Eltern or Rollen.Schueler)) return karten;
+        foreach (var t in d.Alle().Where(t => t.Sichtbar && Sprechtagdienst.SichtbarFuer(t, b)).OrderBy(t => t.Datum, StringComparer.Ordinal))
+        {
+            var phase = d.Phase(t);
+            if (phase is Sprechtagdienst.Vorbei or Sprechtagdienst.Vorbereitung) continue;
+            var termine = d.TermineVon(t);
+            int eigene, einladungen = 0;
+            string text;
+            if (b.Kollegium)
+            {
+                var l = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel);
+                var verwaltung = Rechtedienst.Darf(b, Recht.SprechtagVerwalten);
+                // nicht beteiligte Lehrkräfte: nur die Ankündigung (Option „ankündigen“) bzw. der Hinweis auf die laufende Anmeldung
+                if (l is null && !verwaltung && !(t.Optionen.Ankuendigen && phase is Sprechtagdienst.Einladung or Sprechtagdienst.Anmeldung)) continue;
+                eigene = l is null ? (verwaltung ? termine.Count : 0) : termine.Count(x => Ci.Equals(x.Lehrer, l.Lehrer));
+                text = phase switch
+                {
+                    Sprechtagdienst.Einladung when l is null && !verwaltung => Ankuendigung(t) + " Sie sind an diesem Sprechtag nicht beteiligt.",
+                    Sprechtagdienst.Anmeldung when l is null && !verwaltung => $"{DatumText(t.Datum)}, {t.Beginn}–{t.Ende} Uhr{(t.Ort.Length > 0 ? $" · {t.Ort}" : "")}. Anmeldung für Erziehungsberechtigte bis {ZeitText(t.AnmeldungBis)}; Sie sind nicht beteiligt.",
+                    Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt." + (t.AbsageGrund.Length > 0 ? $" Grund: {t.AbsageGrund}" : ""),
+                    _ when l is { Abgesagt.Length: > 0 } => "Sie haben Ihre Teilnahme abgesagt.",
+                    Sprechtagdienst.Einladung when l != null => $"Hier können Sie bis {ZeitText(Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv))} Erziehungsberechtigte zum Gespräch einladen.",
+                    Sprechtagdienst.Einladung => $"Einladungsphase der Lehrkräfte; Anmeldung für Erziehungsberechtigte ab {ZeitText(t.AnmeldungVon)}.",
+                    Sprechtagdienst.Anmeldung => $"Anmeldung für Erziehungsberechtigte bis {ZeitText(t.AnmeldungBis)} · {Termine(eigene)} gebucht.",
+                    _ => $"Anmeldung geschlossen · {Termine(eigene)}.",
+                };
+            }
+            else if (b.Rolle == Rollen.Eltern)
+            {
+                eigene = termine.Count(x => b.SchuelerIds.Contains(x.SchuelerId));
+                einladungen = d.Einladungen(t.Id).Count(e => b.SchuelerIds.Contains(e.SchuelerId));
+                // angekündigt: allen Erziehungsberechtigten (Option „ankündigen“), sonst nur mit Einladung bzw. Termin
+                if (phase == Sprechtagdienst.Einladung && !t.Optionen.Ankuendigen && eigene == 0 && einladungen == 0) continue;
+                if (phase is Sprechtagdienst.Geschlossen or Sprechtagdienst.Abgesagt && eigene == 0 && einladungen == 0) continue;
+                text = phase switch
+                {
+                    Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt." + (t.AbsageGrund.Length > 0 ? $" Grund: {t.AbsageGrund}" : ""),
+                    Sprechtagdienst.Anmeldung => $"Hier können Sie bis {ZeitText(t.AnmeldungBis)} Gesprächstermine buchen" + (eigene > 0 ? $" · {Termine(eigene)} gebucht." : "."),
+                    Sprechtagdienst.Einladung when einladungen > 0 => $"Sie haben {einladungen} {(einladungen == 1 ? "Einladung" : "Einladungen")} erhalten. Die Anmeldung beginnt am {ZeitText(t.AnmeldungVon)}.",
+                    Sprechtagdienst.Einladung => Ankuendigung(t),
+                    _ => $"{Termine(eigene)} gebucht.",
+                };
+            }
+            else
+            {
+                // Schüler*innen: nur Information und eigene Termine (Buchung durch die Erziehungsberechtigten)
+                eigene = termine.Count(x => b.SchuelerIds.Contains(x.SchuelerId));
+                if (phase == Sprechtagdienst.Einladung && !t.Optionen.Ankuendigen && eigene == 0) continue;
+                text = phase switch
+                {
+                    Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt.",
+                    Sprechtagdienst.Einladung => Ankuendigung(t),
+                    Sprechtagdienst.Anmeldung => $"Deine Erziehungsberechtigten können bis {ZeitText(t.AnmeldungBis)} Termine buchen" + (eigene > 0 ? $" · {Termine(eigene)} gebucht." : "."),
+                    _ => eigene > 0 ? $"{Termine(eigene)} gebucht." : "Anmeldung geschlossen.",
+                };
+            }
+            karten.Add(new
+            {
+                t.Id, t.Name, t.Datum, datumText = DatumText(t.Datum), t.Beginn, t.Ende, t.Ort, phase, status = d.Status(t), text, termine = eigene, einladungen,
+                t.AnmeldungVon, anmeldungVonText = ZeitText(t.AnmeldungVon), t.AnmeldungBis, anmeldungBisText = ZeitText(t.AnmeldungBis),
+                buchbar = phase == Sprechtagdienst.Anmeldung && b.Rolle == Rollen.Eltern,
+                online = b.Kollegium ? Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel)?.Online == true
+                    : termine.Any(x => b.SchuelerIds.Contains(x.SchuelerId) && Sprechtagdienst.Beteiligt(t, x.Lehrer)?.Online == true),
+            });
+        }
+        return karten;
+    }
 
     private static object? SchuelerJson(Stand? s, int id) => s?.Schueler.FirstOrDefault(x => x.Id == id) is { } x ? new { x.Id, x.Vorname, x.Name, x.Klasse } : new { Id = id, Vorname = "", Name = $"Nr. {id}", Klasse = "" };
 
@@ -100,69 +215,26 @@ public static class SprechtagApi
 
         // ---------------------------------------------------------------- Startseite
 
-        api.MapGet("/start", (HttpContext c, Sprechtagdienst d, Paketdienst p) =>
-        {
-            var b = c.Ich() ?? throw new NichtAngemeldetException();
-            var s = p.Aktuell;
-            var karten = new List<object>();
-            if (!b.Kollegium && b.Rolle != Rollen.Eltern) return Results.Json(karten);
-            foreach (var t in d.Alle().Where(t => t.Sichtbar).OrderBy(t => t.Datum, StringComparer.Ordinal))
-            {
-                var phase = d.Phase(t);
-                if (phase is Sprechtagdienst.Vorbei or Sprechtagdienst.Vorbereitung) continue;
-                var termine = d.Termine(t.Id);
-                if (b.Kollegium)
-                {
-                    var l = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel);
-                    if (l is null && !Rechtedienst.Darf(b, Recht.SprechtagVerwalten)) continue;
-                    var eigene = l is null ? termine.Count : termine.Count(x => Ci.Equals(x.Lehrer, l.Lehrer));
-                    var text = phase switch
-                    {
-                        Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt." + (t.AbsageGrund.Length > 0 ? $" Grund: {t.AbsageGrund}" : ""),
-                        _ when l is { Abgesagt.Length: > 0 } => "Sie haben Ihre Teilnahme abgesagt.",
-                        Sprechtagdienst.Einladung when l != null => $"Hier können Sie bis {ZeitText(Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv))} Erziehungsberechtigte zum Gespräch einladen.",
-                        Sprechtagdienst.Einladung => $"Einladungsphase der Lehrkräfte; Anmeldung für Erziehungsberechtigte ab {ZeitText(t.AnmeldungVon)}.",
-                        Sprechtagdienst.Anmeldung => $"Anmeldung für Erziehungsberechtigte bis {ZeitText(t.AnmeldungBis)} · {eigene} {(eigene == 1 ? "Termin" : "Termine")} gebucht.",
-                        _ => $"Anmeldung geschlossen · {eigene} {(eigene == 1 ? "Termin" : "Termine")}.",
-                    };
-                    karten.Add(new { t.Id, t.Name, t.Datum, datumText = DatumText(t.Datum), phase, text, termine = eigene });
-                }
-                else
-                {
-                    var eigene = termine.Count(x => b.SchuelerIds.Contains(x.SchuelerId));
-                    var einladungen = d.Einladungen(t.Id).Count(e => b.SchuelerIds.Contains(e.SchuelerId));
-                    if (phase != Sprechtagdienst.Anmeldung && eigene == 0 && einladungen == 0) continue;
-                    var text = phase switch
-                    {
-                        Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt." + (t.AbsageGrund.Length > 0 ? $" Grund: {t.AbsageGrund}" : ""),
-                        Sprechtagdienst.Anmeldung => $"Hier können Sie bis {ZeitText(t.AnmeldungBis)} Gesprächstermine buchen" + (eigene > 0 ? $" · {eigene} {(eigene == 1 ? "Termin" : "Termine")} gebucht." : "."),
-                        Sprechtagdienst.Einladung => $"Sie haben {einladungen} {(einladungen == 1 ? "Einladung" : "Einladungen")} erhalten. Die Anmeldung beginnt am {ZeitText(t.AnmeldungVon)}.",
-                        _ => $"{eigene} {(eigene == 1 ? "Termin" : "Termine")} gebucht.",
-                    };
-                    karten.Add(new { t.Id, t.Name, t.Datum, datumText = DatumText(t.Datum), phase, text, termine = eigene, einladungen });
-                }
-            }
-            return Results.Json(karten);
-        });
+        api.MapGet("/start", (HttpContext c, Sprechtagdienst d) => Results.Json(StartKarten(d, c.Ich() ?? throw new NichtAngemeldetException())));
 
         // ---------------------------------------------------------------- Liste, Verwaltung
 
         api.MapGet("/", (HttpContext c, Sprechtagdienst d, Paketdienst p) =>
         {
-            var b = Ich(c);
+            var b = Ich(c, schuelerErlaubt: true);
             var s = p.Aktuell;
-            var liste = d.Alle().Where(t => Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Sichtbar).ToList();
+            var liste = d.Alle().Where(t => Sprechtagdienst.SichtbarFuer(t, b)).ToList();
             return Results.Json(new
             {
-                admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten), ich = b.LehrerKuerzel ?? "", eltern = b.Rolle == Rollen.Eltern,
+                admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten), ich = b.LehrerKuerzel ?? "", eltern = b.Rolle == Rollen.Eltern, schueler = b.Rolle == Rollen.Schueler,
                 sprechtage = liste.Select(t =>
                 {
                     var termine = d.Termine(t.Id);
                     return new
                     {
-                        sprechtag = Json(d, t, s),
+                        sprechtag = Json(d, t, s, b),
                         beteiligt = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel) != null,
-                        termine = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) ? termine.Count : b.Rolle == Rollen.Eltern ? termine.Count(x => b.SchuelerIds.Contains(x.SchuelerId)) : termine.Count(x => Ci.Equals(x.Lehrer, b.LehrerKuerzel)),
+                        termine = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) ? termine.Count : b.Familie ? termine.Count(x => b.SchuelerIds.Contains(x.SchuelerId)) : termine.Count(x => Ci.Equals(x.Lehrer, b.LehrerKuerzel)),
                     };
                 }),
             });
@@ -185,7 +257,7 @@ public static class SprechtagApi
             var b = Admin(c);
             var t = d.Speichern(p.Aktuell, null, daten);
             prot.Schreiben(b.Login, "Sprechtag angelegt", $"{t.Name} {t.Datum}");
-            return Results.Json(Json(d, t, p.Aktuell));
+            return Results.Json(Json(d, t, p.Aktuell, b));
         });
 
         api.MapPut("/{id:int}", (int id, SprechtagDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p, Protokoll prot) =>
@@ -193,7 +265,7 @@ public static class SprechtagApi
             var b = Admin(c);
             var t = d.Speichern(p.Aktuell, id, daten);
             prot.Schreiben(b.Login, "Sprechtag geändert", $"{t.Name} {t.Datum}");
-            return Results.Json(Json(d, t, p.Aktuell));
+            return Results.Json(Json(d, t, p.Aktuell, b));
         });
 
         api.MapDelete("/{id:int}", (int id, HttpContext c, Sprechtagdienst d, Protokoll prot) =>
@@ -207,14 +279,15 @@ public static class SprechtagApi
 
         api.MapGet("/{id:int}", (int id, HttpContext c, Sprechtagdienst d, Paketdienst p) =>
         {
-            var b = Ich(c);
+            var b = Ich(c, schuelerErlaubt: true);
             var t = Sichtbar(d, b, id);
             var s = p.Aktuell;
-            var termine = d.Termine(id);
+            var termine = d.TermineVon(t);
             var einladungen = d.Einladungen(id);
+            var warteliste = d.Warteliste(id);
             return Results.Json(new
             {
-                sprechtag = Json(d, t, s), admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten), ich = b.LehrerKuerzel ?? "", beteiligt = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel) != null,
+                sprechtag = Json(d, t, s, b), schueler = b.Rolle == Rollen.Schueler, admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten), ich = b.LehrerKuerzel ?? "", beteiligt = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel) != null,
                 eltern = b.Rolle == Rollen.Eltern,
                 // Übersicht je Lehrkraft (nur Administration)
                 uebersicht = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) ? t.Lehrkraefte.Select(l =>
@@ -224,6 +297,7 @@ public static class SprechtagApi
                     {
                         l.Lehrer, name = Sprechtagdienst.LehrerName(s, l.Lehrer), l.Raum, gebucht = raster.Count(x => x.Status == "gebucht"), gesperrt = raster.Count(x => x.Status == "gesperrt"),
                         frei = raster.Count(x => x.Status == "frei"), einladungen = einladungen.Count(e => Ci.Equals(e.Lehrer, l.Lehrer)),
+                        dauer = Sprechtagdienst.DauerVon(t, l.Lehrer), l.Online, warteliste = warteliste.Count(w => Ci.Equals(w.Lehrer, l.Lehrer)),
                     };
                 }) : null,
                 termine = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) ? termine.Count : 0,
@@ -239,12 +313,14 @@ public static class SprechtagApi
             var kurz = Lehrkraft(b, t, lehrer);
             var s = p.Aktuell;
             var l = Sprechtagdienst.Beteiligt(t, kurz)!;
-            var termine = d.Termine(id);
+            var termine = d.TermineVon(t);
+            var warteliste = d.Warteliste(id).Where(w => Ci.Equals(w.Lehrer, kurz)).ToList();
             var einladungen = d.Einladungen(id).Where(e => Ci.Equals(e.Lehrer, kurz)).ToList();
             return Results.Json(new
             {
-                sprechtag = Json(d, t, s), admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten),
-                lehrer = new { kurz, name = Sprechtagdienst.LehrerName(s, kurz), l.Raum, l.Abgesagt, l.AbsageGrund },
+                sprechtag = Json(d, t, s, b), admin = Rechtedienst.Darf(b, Recht.SprechtagVerwalten),
+                lehrer = new { kurz, name = Sprechtagdienst.LehrerName(s, kurz), l.Raum, l.Abgesagt, l.AbsageGrund, dauer = Sprechtagdienst.DauerVon(t, kurz), l.Online, l.Link },
+                warteliste = warteliste.Select(w => new { w.Id, schueler = SchuelerJson(s, w.SchuelerId), w.Erstellt, w.Benachrichtigt }),
                 darfRaum = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Raumwahl,
                 raeume = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Raumwahl ? (s?.Paket.Elemente.Raeume ?? new()).OrderBy(r => r.Kurz, Ci).Select(r => new { r.Kurz, r.Name }).ToList<object>() : new List<object>(),
                 einladenMoeglich = t.Sichtbar && uhr.Jetzt <= Sprechtagdienst.EinladungEnde(t),
@@ -263,7 +339,7 @@ public static class SprechtagApi
             var t = Sichtbar(d, b, id);
             var kurz = Lehrkraft(b, t, daten.Lehrer);
             if (!Rechtedienst.Darf(b, Recht.SprechtagVerwalten) && !t.Raumwahl) throw new UnauthorizedAccessException("Den Raum legt die Administration fest.");
-            d.RaumSetzen(p.Aktuell, t, kurz, daten.Raum);
+            d.RaumSetzen(p.Aktuell, t, kurz, daten.Raum, daten.Online, daten.Link);
             return Results.Json(new { ok = true });
         });
 
@@ -422,19 +498,25 @@ public static class SprechtagApi
 
         api.MapGet("/{id:int}/eltern", (int id, HttpContext c, Sprechtagdienst d, Paketdienst p, Benutzerdienst bd) =>
         {
-            var b = Eltern(c);
+            // Erziehungsberechtigte; Schüler*innen nur lesend (Option „sichtbar für Schüler*innen“)
+            var b = Ich(c, schuelerErlaubt: true);
+            if (!b.Familie) throw new UnauthorizedAccessException("Diese Seite steht Erziehungsberechtigten zur Verfügung.");
             var t = Sichtbar(d, b, id);
             var s = p.Aktuell;
-            var termine = d.Termine(id);
+            var termine = d.TermineVon(t);
             var einladungen = d.Einladungen(id);
+            var warteliste = d.Warteliste(id);
             var phase = d.Phase(t);
+            var eltern = b.Rolle == Rollen.Eltern;
             // eigene Familie: Termine aller eigenen Kinder und eigene Buchungen (für Überschneidungen)
             var meine = termine.Where(x => b.SchuelerIds.Contains(x.SchuelerId) || x.BenutzerId == b.Id).ToList();
-            bool Konflikt(string beginn) => meine.Any(x => Sprechtagdienst.Minuten(x.Beginn) < Sprechtagdienst.Minuten(beginn) + t.Dauer && Sprechtagdienst.Minuten(beginn) < Sprechtagdienst.Minuten(x.Beginn) + t.Dauer);
+            bool Konflikt(string beginn, string ende) => meine.Any(x => Sprechtagdienst.Minuten(x.Beginn) < Sprechtagdienst.Minuten(ende) && Sprechtagdienst.Minuten(beginn) < Sprechtagdienst.Minuten(x.Ende));
             var kinder = b.SchuelerIds.Select(i => s?.Schueler.FirstOrDefault(x => x.Id == i)).Where(x => x != null).Select(x => x!).ToList();
+            var gebuchtFamilie = kinder.Count == 0 ? 0 : d.FamilienTermine(t, kinder[0].Id, b.Id);
             return Results.Json(new
             {
-                sprechtag = Json(d, t, s), buchbar = phase == Sprechtagdienst.Anmeldung,
+                sprechtag = Json(d, t, s, b), buchbar = phase == Sprechtagdienst.Anmeldung && eltern, nurLesen = !eltern,
+                maxTermine = t.Optionen.MaxTermineFamilie, gebuchtFamilie, warteliste = t.Optionen.Warteliste,
                 kinder = kinder.Select(k => new
                 {
                     k.Id, k.Vorname, k.Name, k.Klasse,
@@ -442,21 +524,48 @@ public static class SprechtagApi
                     {
                         var termin = termine.FirstOrDefault(x => Ci.Equals(x.Lehrer, l.Kurz) && x.SchuelerId == k.Id);
                         var einladung = einladungen.FirstOrDefault(e => Ci.Equals(e.Lehrer, l.Kurz) && e.SchuelerId == k.Id);
+                        var raster = d.Raster(t, l.Kurz);
+                        var platz = warteliste.FirstOrDefault(w => Ci.Equals(w.Lehrer, l.Kurz) && w.SchuelerId == k.Id);
+                        var lk = Sprechtagdienst.Beteiligt(t, l.Kurz);
                         return new
                         {
-                            l.Kurz, l.Name, l.Faecher, l.Klassenleitung, l.Raum, abgesagt = Sprechtagdienst.Beteiligt(t, l.Kurz)?.Abgesagt.Length > 0,
+                            l.Kurz, l.Name, l.Faecher, l.Klassenleitung, l.Raum, abgesagt = lk?.Abgesagt.Length > 0,
                             eingeladen = einladung != null, einladungText = einladung?.Text ?? "",
                             termin = termin is null ? null : new { termin.Id, termin.Beginn, termin.Ende },
-                            zeitfenster = termin != null ? null : d.Raster(t, l.Kurz).Where(x => x.Status == "frei").Select(x => new { x.Beginn, x.Ende, konflikt = Konflikt(x.Beginn) }),
+                            dauer = Sprechtagdienst.DauerVon(t, l.Kurz), online = lk?.Online == true,
+                            ausgebucht = termin is null && lk?.Abgesagt.Length == 0 && !raster.Any(x => x.Status == "frei"),
+                            warteliste = platz is null ? null : new { platz.Id, position = Sprechtagdienst.Position(warteliste, platz) },
+                            zeitfenster = termin != null || !eltern ? null : raster.Where(x => x.Status == "frei").Select(x => new { x.Beginn, x.Ende, konflikt = Konflikt(x.Beginn, x.Ende) }),
                         };
                     }),
                 }),
-                termine = meine.Where(x => b.SchuelerIds.Contains(x.SchuelerId)).Select(x => new
+                termine = meine.Where(x => b.SchuelerIds.Contains(x.SchuelerId)).Select(x =>
                 {
-                    x.Id, x.Beginn, x.Ende, x.Lehrer, lehrerName = Sprechtagdienst.LehrerName(s, x.Lehrer), raum = Sprechtagdienst.Beteiligt(t, x.Lehrer)?.Raum ?? "",
-                    schueler = SchuelerJson(s, x.SchuelerId), x.Bemerkung, eigene = x.BenutzerId == b.Id,
+                    var lk = Sprechtagdienst.Beteiligt(t, x.Lehrer);
+                    return new
+                    {
+                        x.Id, x.Beginn, x.Ende, x.Lehrer, lehrerName = Sprechtagdienst.LehrerName(s, x.Lehrer), raum = lk?.Raum ?? "",
+                        schueler = SchuelerJson(s, x.SchuelerId), x.Bemerkung, eigene = x.BenutzerId == b.Id,
+                        online = lk?.Online == true, link = lk?.Online == true ? lk.Link : "",
+                    };
                 }),
             });
+        });
+
+        api.MapPost("/{id:int}/warteliste", (int id, WarteDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p, Protokoll prot) =>
+        {
+            var b = Eltern(c);
+            var t = Sichtbar(d, b, id);
+            var w = d.WartelisteEintragen(p.Aktuell, t, b, (daten.Lehrer ?? "").Trim(), daten.SchuelerId);
+            prot.Schreiben(b.Login, "Sprechtag: Warteliste", $"{t.Name} {w.Lehrer}");
+            return Results.Json(new { w.Id, w.Lehrer, w.SchuelerId, position = Sprechtagdienst.Position(d.Warteliste(id), w) });
+        });
+
+        api.MapDelete("/{id:int}/warteliste/{wid:int}", (int id, int wid, HttpContext c, Sprechtagdienst d) =>
+        {
+            var b = Ich(c);
+            d.WartelisteLoeschen(Sichtbar(d, b, id), b, wid);
+            return Results.Json(new { ok = true });
         });
 
         api.MapPost("/{id:int}/buchen", (int id, BuchDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p, Protokoll prot) =>
@@ -473,13 +582,14 @@ public static class SprechtagApi
             var b = Eltern(c);
             var t = Sichtbar(d, b, id);
             var s = p.Aktuell;
-            var zeilen = d.Termine(id).Where(x => b.SchuelerIds.Contains(x.SchuelerId)).OrderBy(x => x.Beginn, StringComparer.Ordinal).Select(x =>
+            var zeilen = d.TermineVon(t).Where(x => b.SchuelerIds.Contains(x.SchuelerId)).OrderBy(x => x.Beginn, StringComparer.Ordinal).Select(x =>
             {
                 var k = s?.Schueler.FirstOrDefault(y => y.Id == x.SchuelerId);
-                return (IReadOnlyList<string>)new List<string> { $"{x.Beginn}–{x.Ende}", Sprechtagdienst.LehrerName(s, x.Lehrer), Sprechtagdienst.Beteiligt(t, x.Lehrer)?.Raum ?? "",
+                var lk = Sprechtagdienst.Beteiligt(t, x.Lehrer);
+                return (IReadOnlyList<string>)new List<string> { $"{x.Beginn}–{x.Ende}", Sprechtagdienst.LehrerName(s, x.Lehrer), lk is { Online: true } ? (lk.Link.Length > 0 ? $"online: {lk.Link}" : "online") : lk?.Raum ?? "",
                     k is null ? "" : $"{k.Vorname} {k.Name}", k?.Klasse ?? "", x.Bemerkung };
             }).ToList();
-            var pdf = PdfBericht.Erzeugen(Schule(e, p), "Meine Termine am Sprechtag", $"{t.Name} · {DatumText(t.Datum)}",
+            var pdf = PdfBericht.Erzeugen(Schule(e, p), "Meine Termine am Sprechtag", $"{t.Name} · {DatumText(t.Datum)}{(t.Ort.Length > 0 ? $" · {t.Ort}" : "")}",
                 new[] { "Zeit", "Lehrkraft", "Raum", "Kind", "Klasse", "Bemerkung" }, zeilen, null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false, PdfBericht.Hochformat(ausrichtung, true));
             return Results.File(pdf, "application/pdf", $"sprechtag-{t.Datum}-termine.pdf");
         });

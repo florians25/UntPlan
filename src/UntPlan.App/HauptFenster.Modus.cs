@@ -27,7 +27,7 @@ public sealed partial class HauptFenster
             E("Heute", "kalender", () => AppZustand.DatumSetzen(DateOnly.FromDateTime(DateTime.Today))),
             E("Nächster Unterrichtstag", "vor", () => AppZustand.DatumSetzen(Kalender.NaechsterUnterrichtstag(AppZustand.D, AppZustand.Datum))),
         }));
-        g.Eintraege.Add(new RibbonEintrag { Text = "Datum", IstDatum = true, Hinweis = "Planungsdatum: ◂ ▸ blättern, Klick öffnet den Kalender" });
+        g.Eintraege.Add(new RibbonEintrag { Text = "Datum", IstDatum = true, Hinweis = "Planungsdatum: ◂ ▸ blättern (Strg+Bild↑ / Strg+Bild↓), Klick öffnet den Kalender" });
 
         g = Gruppe(vp, "Vertretungsplanung");
         g.Eintraege.Add(E("Absenzen", "absenz", () => VertretungsFensterOeffnen("abw"), true, new()

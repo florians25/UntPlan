@@ -203,6 +203,12 @@ public sealed record WebStunde
     /// Unterricht. UntPlanWeb legt beides auf eine Karte (die Stunde wird zur Prüfung, Raum alt → neu). Ältere Pakete: null.
     /// </summary>
     public int? Klausur { get; init; }
+    /// <summary>
+    /// Veranstaltung (Nummer aus UntPlan = <see cref="WebTermin.Id"/>), zu der die Stunde gehört: die Veranstaltungsstunde selbst
+    /// (je Veranstaltung und Stunde EINE Stunde mit allen teilnehmenden Lehrkräften in <see cref="Lehrer"/>) bzw. der wegen der
+    /// Veranstaltung entfallene Unterricht. Ältere Pakete: null (und je teilnehmender Lehrkraft eine eigene Stunde).
+    /// </summary>
+    public int? Veranstaltung { get; init; }
 }
 
 public sealed record WebVertretung
@@ -223,6 +229,16 @@ public sealed record WebVertretung
     public string Text { get; init; } = "";
     /// <summary>Nur in der Lehrerversion anzeigen (z. B. Pausenaufsichten).</summary>
     public bool NurLehrer { get; init; }
+    /// <summary>
+    /// Zeile einer Veranstaltung (Nummer = <see cref="WebTermin.Id"/>): je Veranstaltung und Stunde EINE Zeile, <see cref="Vertreter"/>
+    /// enthält „Alle Lehrkräfte“, „Alle Lehrkräfte außer …“ oder die Kurznamen (Komma), <see cref="Klassen"/> bleibt vollständig.
+    /// Ältere Pakete: null (und je teilnehmender Lehrkraft eine eigene Zeile).
+    /// </summary>
+    public int? Veranstaltung { get; init; }
+    /// <summary>Veranstaltung mit allen Klassen: Anzeige „Alle Klassen“ statt der Liste. Ältere Pakete: false.</summary>
+    public bool AlleKlassen { get; init; }
+    /// <summary>Veranstaltung mit allen Lehrkräften: Anzeige „Alle Lehrkräfte“. Ältere Pakete: false.</summary>
+    public bool AlleLehrer { get; init; }
 }
 
 public sealed record WebAbsenz
@@ -250,6 +266,12 @@ public sealed record WebTermin
     public List<string> Klassen { get; init; } = new();
     public List<string> Lehrer { get; init; } = new();
     public List<string> Raeume { get; init; } = new();
+    /// <summary>Nummer der Veranstaltung bzw. Prüfung in UntPlan (Bezug für <see cref="WebStunde.Veranstaltung"/>). Ältere Pakete: null.</summary>
+    public int? Id { get; init; }
+    /// <summary>Alle Klassen nehmen teil: als „Alle Klassen“ anzeigen (<see cref="Klassen"/> bleibt vollständig). Ältere Pakete: false.</summary>
+    public bool AlleKlassen { get; init; }
+    /// <summary>Alle Lehrkräfte nehmen teil: als „Alle Lehrkräfte“ anzeigen (<see cref="Lehrer"/> bleibt vollständig). Ältere Pakete: false.</summary>
+    public bool AlleLehrer { get; init; }
 }
 
 public sealed record WebTagestext(string Datum, int GueltigTage, string Text, string Fuer, List<string> Elemente)

@@ -194,6 +194,20 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Veranstaltung_traegt_eingetragenes_Fach_fuer_die_Details()
+    {
+        // Mit Fach: eigenes Feld für den Kopf der Stundendetails (subject bleibt die Bezeichnung)
+        var mit = Kachelbau.AusKarte(Karte("veranstaltung", 3, 4, fach: "M", text: "Mathe-Wettbewerb", unterricht: null, klassen: new() { new("7a") }), "class");
+        Assert.Equal("Mathe-Wettbewerb", mit.Fach);
+        Assert.Equal("M", mit.VeranstaltungFach);
+        // Ohne Fach bzw. Fach gleich der Bezeichnung: kein Feld
+        var ohne = Kachelbau.AusKarte(Karte("veranstaltung", 3, 4, fach: "", text: "Projekttag", unterricht: null, klassen: new()), "class");
+        Assert.Null(ohne.VeranstaltungFach);
+        var gleich = Kachelbau.AusKarte(Karte("veranstaltung", 3, 4, fach: "projekttag", text: "Projekttag", unterricht: null, klassen: new()), "class");
+        Assert.Null(gleich.VeranstaltungFach);
+    }
+
+    [Fact]
     public void Bereitschaft_wird_standby_und_entfaellt_in_der_Stunde_einer_Vertretung()
     {
         var plan = Plan("lehrer", new()
@@ -666,8 +680,8 @@ public class KachelbauTests
         var k = tage["2026-10-14"].OrderBy(x => x.Stunde).ToList();
         Assert.All(k, x => Assert.DoesNotContain("ondereins", x.Info + x.Typ + x.Fach, StringComparison.OrdinalIgnoreCase));
         Assert.Equal("", k[0].Info);
-        // Zusatzstunde (Sondereinsatz): kein Vertretungstext – die Plakette „Zusätzl. Unterrichtsstunde“ sagt alles
-        Assert.Equal("", k[1].Info);
+        // Zusatzstunde (Sondereinsatz): der Standardtext entfällt, ein manuell ergänzter Text bleibt (ohne „Sondereinsatz“)
+        Assert.Equal("Projekt Medien", k[1].Info);
         Assert.Equal("Projekt", k[2].Info);
         // die Zusatzstunde bleibt erkennbar (Plakette in den Details)
         Assert.True(k[0].Zusatz);
@@ -684,17 +698,26 @@ public class KachelbauTests
         Assert.Null(Kachelbau.AusKarte(Karte("entfall", 3) with { Online = true, OnlineLink = "https://x.example" }, "class").Online);
     }
     [Fact]
-    public void Zusaetzliche_Unterrichtsstunde_aus_dem_Kennzeichen_ohne_Vertretungstext()
+    public void Zusaetzliche_Unterrichtsstunde_aus_dem_Kennzeichen_ohne_Standardtext()
     {
-        // UntPlanWeb kennzeichnet zusätzlichen Unterricht mit „zusaetzlich“ – Plakette, kein Text, kein Info-Zeichen
-        var k = Kachelbau.AusKarte(Karte("geaendert", 3, text: "Zusatzunterricht Mathe", art: "Vertretung") with { Zusaetzlich = true }, "class");
-        Assert.True(k.Zusatz);
-        Assert.Equal("", k.Info);
-        Assert.Null(k.Verlegung);
-        // ältere Server: aus der Art erkannt, Text fällt ebenso weg
+        // UntPlanWeb kennzeichnet zusätzlichen Unterricht mit „zusaetzlich“ – Plakette; Standardtexte entfallen
+        foreach (var std in new[] { "wegen Sondereinsatz", "Vertretung durch Verlegung", "Vorziehung", "Vertr. o. Lehrkr.", "aus Vertretung 3. Std.",
+                                    "Zusatzunterricht", "Sondereinsatz", "Zusätzl. Unterrichtsstunde", "Vertretung" })
+        {
+            var k = Kachelbau.AusKarte(Karte("geaendert", 3, text: std, art: "Vertretung") with { Zusaetzlich = true }, "class");
+            Assert.True(k.Zusatz);
+            Assert.Equal("", k.Info);
+            Assert.Null(k.Verlegung);
+        }
+        // manuell eingegebener Vertretungstext bleibt (Info-Zeichen auf der Kachel, Vertretungstext in den Details)
+        var manuell = Kachelbau.AusKarte(Karte("geaendert", 3, text: "Zusatzunterricht Mathe", art: "Vertretung") with { Zusaetzlich = true }, "class");
+        Assert.True(manuell.Zusatz);
+        Assert.Equal("Zusatzunterricht Mathe", manuell.Info);
+        // ältere Server: aus der Art erkannt; ein eigener Text bleibt, der Standardtext fällt weg
         var alt = Kachelbau.AusKarte(Karte("geaendert", 3, text: "Förderstunde", art: "Zusatzunterricht"), "class");
         Assert.True(alt.Zusatz);
-        Assert.Equal("", alt.Info);
+        Assert.Equal("Förderstunde", alt.Info);
+        Assert.Equal("", Kachelbau.AusKarte(Karte("geaendert", 3, text: "Zusatzunterricht", art: "Zusatzunterricht"), "class").Info);
         // eine gewöhnliche Vertretung behält ihren Text
         Assert.Equal("Aufgaben im Raum", Kachelbau.AusKarte(Karte("geaendert", 3, text: "Aufgaben im Raum", art: "Vertretung"), "class").Info);
     }

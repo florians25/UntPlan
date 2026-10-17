@@ -28,8 +28,9 @@ struct KachelView: View {
     /// iPhone: Schrift 12 pt bei 14 pt Zeilenabstand wie im Original; iPad 12,4/14,3 (Woche wie Tag).
     private var kompakt: Bool { groessenklasse == .compact }
     private var schrift: CGFloat { kompakt ? 12 : 12.4 }
-    /// Zeilenabstand einen Hauch enger als die Vorlage (14/14,3), damit untereinander stehende Plaketten dichter liegen.
-    private var zeilenHoehe: CGFloat { kompakt ? 13.5 : 13.8 }
+    /// Zeilenabstand wie im Original nachgemessen (iPhone 33 px bei 2,34 px/pt ≈ 14 pt, iPad 14,3 pt) – die Labels darin
+    /// 13,7 pt hoch (etwas größer als in Sprint 26, dort 12,7 pt bei 13,5 pt Zeilenabstand).
+    private var zeilenHoehe: CGFloat { kompakt ? 14 : 14.3 }
 
     // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
     static let balkenRand: CGFloat = 4
@@ -37,6 +38,8 @@ struct KachelView: View {
     static let textAbstand: CGFloat = 4
     static var textLinks: CGFloat { balkenRand + balkenBreite + textAbstand }
     static let textOben: CGFloat = 4
+    /// Untere Zeilen (ab der zweiten) sitzen um diesen Betrag höher (nur optisch, ohne Einfluss auf das Layout).
+    static let untereZeilenHub: CGFloat = 0
 
     var body: some View {
         let a = Kachelaussehen(kachel, dunkel: dunkel)
@@ -89,6 +92,7 @@ struct KachelView: View {
                     .allowsHitTesting(false)
             }
         }
+        // Oben rechts nie ein Zeichen (ausdrücklicher Wunsch): die Server-Marker zeigt nur das Web
     }
 
     /// Verkleinerung der Zeichen unten rechts, falls die Karte zu niedrig bzw. zu schmal ist (0 = ausblenden).
@@ -183,14 +187,18 @@ struct KachelView: View {
         let zeichenOben = hoehe - Self.zeichenRand - zeichenHoehe
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(sichtbar.enumerated()), id: \.offset) { eintrag in
-                let unten = Self.textOben + CGFloat(eintrag.offset + 1) * zeilenHoehe
-                let frei: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + Self.zeichenRand - 1 : 0
+                let oben = Self.textOben + CGFloat(eintrag.offset) * zeilenHoehe
+                let unten = oben + zeilenHoehe
+                let freiUnten: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + Self.zeichenRand - 1 : 0
+                let frei = freiUnten
                 // Erste Zeile (oberer Wert) Semibold, alle weiteren Regular
                 KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift, oben: eintrag.offset == 0,
                                 titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil,
                                 zeilenHoehe: zeilenHoehe)
                     .padding(.trailing, frei)
                     .frame(height: zeilenHoehe, alignment: .leading)
+                    // Untere Zeilen (Labels) einen Hauch höher, die erste Zeile bleibt
+                    .offset(y: eintrag.offset == 0 ? 0 : -Self.untereZeilenHub)
             }
         }
     }
@@ -208,7 +216,6 @@ struct KachelView: View {
     /// Zeichen unten rechts.
     enum Eckzeichen: Hashable {
         case online
-        case verlegt(String)
         case hausaufgabe
         case info
 
@@ -221,13 +228,12 @@ struct KachelView: View {
         }
     }
 
-    /// Sichtbare Zeichen unten rechts in der Anzeigereihenfolge Online, Verlegung, Hausaufgabe, Info. Reicht die Breite
-    /// nicht für alle (links bleibt der Balken frei), fällt zuerst die Hausaufgabe weg, dann das Online-Zeichen;
-    /// Verlegung und Info bleiben am längsten stehen.
+    /// Sichtbare Zeichen unten rechts in der Anzeigereihenfolge Online, Hausaufgabe, Info (ein Verlegungszeichen gibt es in
+    /// iOS nicht). Reicht die Breite nicht für alle (links bleibt der Balken frei), fällt zuerst die Hausaufgabe weg, dann das
+    /// Online-Zeichen; Info bleibt am längsten stehen.
     private var eckzeichen: [Eckzeichen] {
         guard !gekuerzt else { return [] }
         var vorrang: [Eckzeichen] = []
-        if let v = kachel.verlegung, kachel.art != .aufsicht { vorrang.append(.verlegt(v)) }
         if kachel.info && kachel.art != .termin { vorrang.append(.info) }
         if kachel.online { vorrang.append(.online) }
         if kachel.hausaufgabe && kachel.art != .bereitschaft { vorrang.append(.hausaufgabe) }
@@ -235,7 +241,6 @@ struct KachelView: View {
         let gewaehlt = Array(vorrang.prefix(platz))
         let reihenfolge: [(Eckzeichen) -> Bool] = [
             { if case .online = $0 { return true }; return false },
-            { if case .verlegt = $0 { return true }; return false },
             { if case .hausaufgabe = $0 { return true }; return false },
             { if case .info = $0 { return true }; return false }
         ]
@@ -256,7 +261,7 @@ struct KachelView: View {
         return liste.map(\.groesse).reduce(0, +) + CGFloat(liste.count - 1) * 2
     }
 
-    // MARK: - Zeichen unten rechts (Online, Verlegung, Hausaufgabe, Info, Kürzung)
+    // MARK: - Zeichen unten rechts (Online, Hausaufgabe, Info, Kürzung)
 
     @ViewBuilder
     private func zeichen(_ a: Kachelaussehen) -> some View {
@@ -269,7 +274,6 @@ struct KachelView: View {
                     ForEach(liste, id: \.self) { z in
                         switch z {
                         case .online: Onlinezeichen(groesse: z.groesse)
-                        case .verlegt(let richtung): Verlegungszeichen(richtung: richtung, groesse: z.groesse)
                         case .hausaufgabe: Hausaufgabenzeichen(groesse: z.groesse)
                         case .info: Infozeichen(groesse: z.groesse)
                         }
@@ -344,6 +348,7 @@ struct KachelView: View {
         }
         teile.append(contentsOf: kachel.zeilen.map(\.text))
         if kachel.online { teile.append("findet online statt") }
+        if let v = kachel.karte?.verlegungText { teile.append("verlegt: \(v)") }
         teile.append("\(Rasterzeit.uhrzeit(kachel.beginn)) bis \(Rasterzeit.uhrzeit(kachel.ende))")
         if let h = aufsichtHinweis { teile.append(h) }
         return teile.joined(separator: ", ")
@@ -632,35 +637,6 @@ struct ZaehlstreifenView: View {
     }
 }
 
-/// Verlegungszeichen auf der Karte: abgerundetes Feld mit weißem Pfeil – ursprüngliche Stunde („von“, von hier weg
-/// verlegt) rot mit Pfeil nach rechts, Zielstunde („nach“, hierher verlegt) grün mit Pfeil nach links.
-struct Verlegungszeichen: View {
-    let richtung: String
-    var groesse: CGFloat = KachelView.zeichenGroesse
-
-    private var nachRechts: Bool { richtung == "von" }
-
-    var body: some View {
-        Canvas { ctx, size in
-            let e = size.width / 14
-            var p = Path()
-            if nachRechts {
-                p.move(to: CGPoint(x: 3.4 * e, y: 7 * e)); p.addLine(to: CGPoint(x: 10.4 * e, y: 7 * e))
-                p.move(to: CGPoint(x: 7.6 * e, y: 4.2 * e)); p.addLine(to: CGPoint(x: 10.4 * e, y: 7 * e))
-                p.addLine(to: CGPoint(x: 7.6 * e, y: 9.8 * e))
-            } else {
-                p.move(to: CGPoint(x: 10.6 * e, y: 7 * e)); p.addLine(to: CGPoint(x: 3.6 * e, y: 7 * e))
-                p.move(to: CGPoint(x: 6.4 * e, y: 4.2 * e)); p.addLine(to: CGPoint(x: 3.6 * e, y: 7 * e))
-                p.addLine(to: CGPoint(x: 6.4 * e, y: 9.8 * e))
-            }
-            ctx.stroke(p, with: .color(.white), style: StrokeStyle(lineWidth: 1.5 * e, lineCap: .round, lineJoin: .round))
-        }
-        .frame(width: groesse, height: groesse)
-        .background(nachRechts ? Farben.verlegtVon : Farben.verlegtNach, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-        .accessibilityHidden(true)
-    }
-}
-
 /// Online-Zeichen auf der Karte: die Stunde findet online statt (online_lesson.svg, flach und grau, ohne Feld –
 /// kein zusätzliches Raum-Label). Steht unten rechts nach derselben Logik wie Info und Hausaufgabe.
 struct Onlinezeichen: View {
@@ -693,16 +669,17 @@ struct Kuerzungszeichen: View {
     }
 }
 
-/// Hinterlegter Wert (.badge), an der Vorlage nachgemessen (Raum „A103“: 13,7 pt hoch bei 14 pt Zeile, links/rechts
-/// je ≈ 2,2 pt, oben/unten je ≈ 2,6 pt um die Versalhöhe): Höhe knapp unter dem Zeilenabstand, damit untereinander
-/// stehende Plaketten nicht aneinanderstoßen; Radius 2, grün.
+/// Hinterlegter Wert (.badge), am Original nachgemessen (iPhone, 2,34 px/pt): „LN“ 47 × 32 px = 20,1 × 13,7 pt,
+/// „A103“ 72 × 32 px = 30,8 × 13,7 pt bei 12 pt Schrift und 14,1 pt Zeilenabstand; Innenabstand links/rechts 2,2 pt,
+/// Versalhöhe mittig; Radius ≈ 2 pt (Ecke 3 px). iPad (161: „ASL“ 20 px bei 1,46 px/pt) ebenso 13,7 pt.
+/// Untereinander stehende Labels bleiben durch den Zeilenabstand 0,3 pt (iPad 0,6 pt) getrennt.
 struct Plakettenwert: View {
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
     /// Darf der Text innerhalb der Plakette mit „…“ gekürzt werden (sonst volle Breite)?
     var kuerzbar: Bool = false
-    /// Zeilenabstand der Karte: die Plakette bleibt 0,8 pt darunter (höchstens 13,7 pt wie im Original)
+    /// Zeilenabstand der Karte: die Plakette bleibt mindestens 0,3 pt darunter (höchstens 13,7 pt wie im Original)
     var zeilenHoehe: CGFloat = 14
 
     var body: some View {
@@ -713,7 +690,7 @@ struct Plakettenwert: View {
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.horizontal, 2.2)
-            .frame(height: min(13.7, zeilenHoehe - 0.8))
+            .frame(height: min(13.7, zeilenHoehe - 0.3))
             .background(farbe, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
     }

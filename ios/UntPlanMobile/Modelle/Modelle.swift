@@ -124,18 +124,21 @@ struct SitzungsBenutzer: Decodable, Sendable {
 
 // MARK: - Plan
 
-/// Angezeigter Wert (Klasse, Lehrkraft, Raum); alt = ursprünglicher Wert, neu = geändert.
+/// Angezeigter Wert (Klasse, Lehrkraft, Raum); alt = ursprünglicher Wert, neu = geändert,
+/// plus = hinzugekommen (z. B. zusätzlicher Raum; Anzeige als grünes Label „+B070“).
 struct Wert: Decodable, Hashable, Sendable {
     var k: String
     var alt: String?
     var neu: Bool
+    var plus: Bool = false
 
-    enum CodingKeys: String, CodingKey { case k, alt, neu }
+    enum CodingKeys: String, CodingKey { case k, alt, neu, plus }
 
-    init(k: String, alt: String? = nil, neu: Bool = false) {
+    init(k: String, alt: String? = nil, neu: Bool = false, plus: Bool = false) {
         self.k = k
         self.alt = alt
         self.neu = neu
+        self.plus = plus
     }
 
     init(from decoder: Decoder) throws {
@@ -144,6 +147,8 @@ struct Wert: Decodable, Hashable, Sendable {
             k = c.text(.k)
             alt = c.textOderNil(.alt)
             neu = c.wahr(.neu)
+            // Nur ein hinzugekommener Wert mit Kürzel ist „plus“ (nie ein ersetzter oder entfernter)
+            plus = c.wahr(.plus) && !k.isEmpty && (alt ?? "").isEmpty
             return
         }
         let einzeln = try decoder.singleValueContainer()
@@ -156,13 +161,24 @@ struct Wert: Decodable, Hashable, Sendable {
         }
         alt = nil
         neu = false
+        plus = false
     }
 
-    /// Wurde der Wert geändert (neu oder mit abweichendem altem Wert)?
+    /// Wurde genau dieses Element geändert? Ersetzt (alter Wert ≠ neuer Wert), hinzugekommen (plus bzw. neu ohne alten
+    /// Wert), entfernt bzw. offen (kein neuer Wert, alter gesetzt). „neu“ mit unverändertem Wert (alt == k, Groß-/
+    /// Kleinschreibung egal) zählt nicht – z. B. bei einer reinen Raumänderung bekommt die Lehrkraft kein Label.
     var geaendert: Bool {
-        if neu { return true }
-        if let alt, !alt.isEmpty, alt != k { return true }
-        return false
+        if plus { return true }
+        let a = (alt ?? "").trimmingCharacters(in: .whitespaces)
+        if k.isEmpty { return !a.isEmpty || neu }
+        if !a.isEmpty { return a.caseInsensitiveCompare(k) != .orderedSame }
+        return neu
+    }
+
+    /// Ersetzter Wert (neuer Wert mit abweichendem altem Wert), z. B. Vertretung „MUE → LN“ bzw. Raum „C009 → A103“.
+    var ersetzt: Bool {
+        let a = (alt ?? "").trimmingCharacters(in: .whitespaces)
+        return !k.isEmpty && !a.isEmpty && a.caseInsensitiveCompare(k) != .orderedSame
     }
 }
 
@@ -207,13 +223,19 @@ struct Karte: Decodable, Identifiable, Sendable {
     var bereitschaft: Bool
     /// Verlegung laut Server: „von“ (ursprüngliche Stunde) bzw. „nach“ (Zielstunde), sonst leer.
     var verlegungRoh: String = ""
+    /// Ursprung und Ziel einer Verlegung (nil = unbekannt bzw. keine Verlegung).
+    var verlegungVon: Verlegungsseite? = nil
+    var verlegungNach: Verlegungsseite? = nil
+    /// Marker oben rechts in Anzeigereihenfolge (vom Server berechnet): verlegungVon, verlegungNach, entfall, pruefung,
+    /// plus, aenderung. nil = Feld fehlt (älterer Server: keine Marker oben rechts, Verlegung unten rechts).
+    var marker: [String]? = nil
 
     enum CodingKeys: String, CodingKey {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
         case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
         case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen
         case onlineLink, onlineUrl, onlinelink
-        case verlegung, moved
+        case verlegung, moved, verlegungVon, verlegungNach, marker
     }
 
     /// Karte ohne Server-Antwort (Veranstaltung aus den Tagesdaten, geteilte Blöcke).
@@ -299,6 +321,11 @@ struct Karte: Decodable, Identifiable, Sendable {
         lehrerAbwesend = c.wahr(.lehrerAbwesend) || c.wahr(.bereitschaftAbwesend) || c.wahr(.standbyAbsent)
         bereitschaft = c.wahr(.bereitschaft)
         verlegungRoh = (c.textOderNil(.verlegung) ?? c.textOderNil(.moved) ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        verlegungVon = c.optional(.verlegungVon)
+        verlegungNach = c.optional(.verlegungNach)
+        if c.contains(.marker) {
+            marker = c.texte(.marker).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        }
     }
 
     var istEntfall: Bool { status == "entfall" }
@@ -382,6 +409,31 @@ struct Karte: Decodable, Identifiable, Sendable {
 
     var istVerlegung: Bool { verlegung != nil }
 
+    /// Verlegung in Worten, immer Ursprung → Ziel: „09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15 - 13:00“
+    /// (nil = Gegenseite unbekannt).
+    var verlegungText: String? {
+        guard verlegung != nil, let von = verlegungVon, let nach = verlegungNach else { return nil }
+        let a = von.text, b = nach.text
+        guard !a.isEmpty, !b.isEmpty else { return nil }
+        return "\(a) → \(b)"
+    }
+
+    /// Automatisch erzeugte Standardtexte einer Zusatzstunde (erscheinen nie als Vertretungstext); manuell
+    /// eingegebene Texte bleiben.
+    var istZusatzStandardtext: Bool {
+        var t = anzeigeText.lowercased()
+        while let letztes = t.last, ".:!-–".contains(letztes) { t.removeLast() }
+        t = t.trimmingCharacters(in: .whitespaces)
+        if t.isEmpty { return true }
+        if t == art.trimmingCharacters(in: .whitespaces).lowercased() { return true }
+        let feste = ["wegen sondereinsatz", "vertretung durch verlegung", "vorziehung", "vertr. o. lehrkr", "vertr. o. lehrkr.",
+                     "zusatzunterricht", "sondereinsatz", "zusätzl. unterrichtsstunde", "zusaetzl. unterrichtsstunde"]
+        return feste.contains(t) || t.hasPrefix("aus vertretung")
+    }
+
+    /// Text, der bei einer Zusatzstunde als Vertretungstext erscheint (leer = keiner).
+    var zusatzText: String { istZusatzStandardtext ? "" : anzeigeText }
+
     /// Raumbuchung (eigene Karte oder gebuchter Raum für eine Stunde) – nie als Vertretung darstellen.
     var istRaumbuchung: Bool {
         let a = art.lowercased()
@@ -411,6 +463,36 @@ struct Karte: Decodable, Identifiable, Sendable {
         if !fach.isEmpty { return fach }
         if !anzeigeArt.isEmpty { return anzeigeArt }
         return anzeigeText
+    }
+}
+
+/// Eine Seite einer Verlegung (Ursprung bzw. Ziel): Datum, Uhrzeiten und Stunden.
+struct Verlegungsseite: Decodable, Hashable, Sendable {
+    var datum: String
+    var beginn: String
+    var ende: String
+    var stunde: Int?
+    var bisStunde: Int?
+
+    enum CodingKeys: String, CodingKey { case datum, beginn, ende, stunde, bisStunde }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        datum = String(c.text(.datum).prefix(10))
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
+        stunde = c.zahl(.stunde)
+        bisStunde = c.zahl(.bisStunde)
+    }
+
+    /// „09.10.2026 | 11:30 - 13:00“ (ohne Ende nur der Beginn; ohne Uhrzeit die Stunde).
+    var text: String {
+        let tag = datum.isEmpty ? "" : Datumsformat.anzeige(datum, "dd.MM.yyyy")
+        var zeit = beginn.isEmpty ? "" : (ende.isEmpty ? beginn : "\(beginn) - \(ende)")
+        if zeit.isEmpty, let s = stunde {
+            zeit = (bisStunde ?? s) > s ? "\(s).–\(bisStunde ?? s). Stunde" : "\(s). Stunde"
+        }
+        return [tag, zeit].filter { !$0.isEmpty }.joined(separator: " | ")
     }
 }
 
@@ -643,11 +725,14 @@ struct Heute: Decodable, Sendable {
     var sperrhinweis: String?
     /// Ferien am Tag (falls der Server sie liefert; sonst ermittelt die Startseite sie aus dem Wochenplan).
     var ferien: Ferienzeit?
+    /// Sprechtage für die Startseite (wie /sprechtag/start); nil = Feld fehlt (älterer Server).
+    var sprechtage: [SprechtagKarte]?
 
     enum CodingKeys: String, CodingKey {
         case paket, datum, wochentag, woche, jetzt, element, typ, karten, aufsichten, hinweise, ereignisse, nachrichten
         case termine, aenderungen, ungelesen, offeneStunden, hausaufgaben, meldungen, gesperrt, sperrhinweis
         case ferien, frei, freiArt, freiGrund, freiVon, freiBis
+        case sprechtage
     }
 
     init(from decoder: Decoder) throws {
@@ -680,6 +765,8 @@ struct Heute: Decodable, Sendable {
         } else {
             ferien = nil
         }
+        let sprechtagListe: [SprechtagKarte] = c.liste(.sprechtage)
+        sprechtage = c.contains(.sprechtage) ? sprechtagListe : nil
     }
 }
 
@@ -1348,6 +1435,12 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
     var elternInformiert: Bool
     /// Bemerkung zur Abwesenheit (Text bzw. eigenes Feld „bemerkung“, falls der Server es liefert)
     var bemerkungRoh: String = ""
+    /// Fehlstunden der Abwesenheit (als Fehlstunde gezählt; Verspätungen unter der Schwelle zählen nicht)
+    var fehlstunden: Int = 0
+    /// Stunden mit verschiedenem Status (z. B. einzeln von Fachlehrkräften entschuldigt) – Status ist dann „offen“
+    var statusGemischt: Bool = false
+    /// Davon entschuldigte Fehlstunden (bei gemischtem Status)
+    var entschuldigt: Int = 0
 
     var id: String { schluessel }
 
@@ -1357,6 +1450,7 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schluessel, schuelerId, schueler, klasse, vonDatum, vonZeit, bisDatum, bisZeit, art, minuten, grund, status, text, ids, verwalten, elternInformiert
         case bemerkung, notiz
+        case fehlstunden, statusGemischt, entschuldigt
     }
 
     init(from decoder: Decoder) throws {
@@ -1378,6 +1472,41 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
         verwalten = c.wahr(.verwalten)
         elternInformiert = c.wahr(.elternInformiert)
         bemerkungRoh = c.textOderNil(.bemerkung) ?? c.textOderNil(.notiz) ?? ""
+        fehlstunden = c.zahl(.fehlstunden) ?? 0
+        statusGemischt = c.wahr(.statusGemischt)
+        entschuldigt = c.zahl(.entschuldigt) ?? 0
+    }
+}
+
+/// Summen der Abwesenheiten im Zeitraum (GET /api/app/familie/abwesenheiten, Feld „summen“; ältere Server: fehlt).
+struct Abwesenheitssummen: Decodable, Sendable {
+    var abwesenheiten = 0
+    var fehltage = 0
+    var fehlstunden = 0
+    var fehlminuten = 0
+    var entschuldigt = 0
+    var unentschuldigt = 0
+    var offen = 0
+    var verspaetet = 0
+    var verspaetetMinuten = 0
+    var offeneAbwesenheiten = 0
+
+    enum CodingKeys: String, CodingKey {
+        case abwesenheiten, fehltage, fehlstunden, fehlminuten, entschuldigt, unentschuldigt, offen, verspaetet, verspaetetMinuten, offeneAbwesenheiten
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        abwesenheiten = c.zahl(.abwesenheiten) ?? 0
+        fehltage = c.zahl(.fehltage) ?? 0
+        fehlstunden = c.zahl(.fehlstunden) ?? 0
+        fehlminuten = c.zahl(.fehlminuten) ?? 0
+        entschuldigt = c.zahl(.entschuldigt) ?? 0
+        unentschuldigt = c.zahl(.unentschuldigt) ?? 0
+        offen = c.zahl(.offen) ?? 0
+        verspaetet = c.zahl(.verspaetet) ?? 0
+        verspaetetMinuten = c.zahl(.verspaetetMinuten) ?? 0
+        offeneAbwesenheiten = c.zahl(.offeneAbwesenheiten) ?? 0
     }
 }
 
@@ -1406,14 +1535,16 @@ struct FamilieAbwesenheiten: Decodable, Sendable {
     var von: String
     var bis: String
     var zeilen: [Abwesenheitszeitraum]
+    var summen: Abwesenheitssummen?
 
-    enum CodingKeys: String, CodingKey { case von, bis, zeilen }
+    enum CodingKeys: String, CodingKey { case von, bis, zeilen, summen }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         von = String(c.text(.von).prefix(10))
         bis = String(c.text(.bis).prefix(10))
         zeilen = c.liste(.zeilen)
+        summen = try? c.decodeIfPresent(Abwesenheitssummen.self, forKey: .summen)
     }
 }
 

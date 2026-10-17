@@ -698,6 +698,12 @@ public sealed partial class HauptFenster : Form
             case Keys.F1 when ActiveMdiChild is null:
                 HilfeFenster.Zeigen("");
                 return true;
+            // Vertretungsmodus: Planungsdatum ohne Maus blättern (vorheriger/nächster Unterrichtstag) – alle Fenster folgen
+            case Keys.Control | Keys.PageUp when AppZustand.Vertretungsmodus:
+            case Keys.Control | Keys.PageDown when AppZustand.Vertretungsmodus:
+                AppZustand.DatumSetzen(Kalender.NaechsterUnterrichtstag(AppZustand.D, AppZustand.Datum, (keyData & Keys.KeyCode) == Keys.PageUp ? -1 : 1));
+                _ribbon.Invalidate();
+                return true;
         }
         if (_ribbon.TasteVerarbeiten(keyData)) return true;
         return base.ProcessCmdKey(ref msg, keyData);

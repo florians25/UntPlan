@@ -201,6 +201,12 @@
 .br-vzu:hover { background: #f1f4f6; color: #24323d; }
 .br-vhinweis { padding: 10px 16px 0; font-size: .82rem; color: #67747e; }
 .br-tabelle th { font-size: .75rem; color: #67747e; font-weight: 600; white-space: nowrap; }
+/* gegliederte Berichte (Fehltage pro Klasse, Unentschuldigte Abwesenheiten): Gruppenkopf, Zwischensumme je Schüler*in, Summe je Klasse */
+.br-gegliedert .br-gruppe td { background: var(--bs-tertiary-bg, #f4f6f8); font-weight: 500; font-size: .9rem; padding-top: 12px; border-bottom: 1px solid var(--bs-border-color, #d7dde2); }
+.br-gegliedert .br-zwischensumme td { font-weight: 500; border-top: 1px solid var(--bs-border-color, #d7dde2); color: var(--bs-secondary-color, #4b5862); }
+.br-gegliedert .br-summe td { font-weight: 500; background: var(--bs-secondary-bg, #e9ecef); border-top: 1.5px solid var(--bs-emphasis-color, #1f2a33); }
+.br-gegliedert td.fw-semibold { font-weight: 500 !important; }
+@media print { .br-gegliedert .br-gruppe td, .br-gegliedert .br-summe td { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .br-panel-huelle { position: fixed; inset: 0; z-index: 1060; }
 .br-panel-schleier { position: absolute; inset: 0; background: rgba(36, 50, 61, .28); opacity: 0; transition: opacity .2s; }
 .br-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: #fff; display: flex; flex-direction: column; box-shadow: -8px 0 30px rgba(0, 5, 10, .15);

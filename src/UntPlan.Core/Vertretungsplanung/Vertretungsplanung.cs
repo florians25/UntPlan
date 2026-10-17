@@ -119,6 +119,11 @@ public static class Vertretungen
                     .Concat(va.Zusatz.Where(z => z.Datum == datum).Select(z => (Lehrer: (int?)z.LehrerId, Fuer: (int?)null)))
                     .DistinctBy(p => p.Fuer.HasValue ? $"E{p.Fuer}" : $"L{p.Lehrer}").ToList();
                 if (plaetze.Count == 0) plaetze.Add((null, null));
+                // je Veranstaltung einmal bestimmen (bei allen Lehrkräften und Klassen Tausende Zeilen am Tag)
+                var vaKlassen = va.AlleKlassenIds.ToArray();
+                var vaRaum = va.RaumIds.Cast<int?>().FirstOrDefault();
+                var vaZusatzraeume = va.RaumIds.Skip(1).ToArray();
+                var vaGrund = GrundText(d, va.GrundId);
                 for (var s = 1; s <= d.Zeitraster.StundenProTag; s++)
                 {
                     if (!va.Deckt(datum, s) || !d.Zeitraster.Verfuegbar(tag, s)) continue;
@@ -126,9 +131,9 @@ public static class Vertretungen
                         benoetigt.Add(new Vertretung
                         {
                             Datum = datum, Stunde = s, Art = VertretungsArt.Veranstaltung, Quelle = VertretungsQuelle.Veranstaltung, VeranstaltungId = va.Id,
-                            VertreterId = l, ErsatzFuerLehrerId = fuer, LehrerId = fuer ?? l, KlassenIds = va.AlleKlassenIds.ToList(),
-                            VertretungsraumId = va.RaumIds.Cast<int?>().FirstOrDefault(), ZusatzraumIds = va.RaumIds.Skip(1).ToList(),
-                            GrundId = va.GrundId, Grund = GrundText(d, va.GrundId), Text = va.Text, Schuelergruppe = va.Schuelergruppe, Wert = va.Wert,
+                            VertreterId = l, ErsatzFuerLehrerId = fuer, LehrerId = fuer ?? l, KlassenIds = vaKlassen.ToList(),
+                            VertretungsraumId = vaRaum, ZusatzraumIds = vaZusatzraeume.ToList(),
+                            GrundId = va.GrundId, Grund = vaGrund, Text = va.Text, Schuelergruppe = va.Schuelergruppe, Wert = va.Wert,
                         });
                 }
             }
@@ -273,25 +278,38 @@ public static class Vertretungen
         var vorhanden = d.Vertretungen.Where(v => v.Datum == datum && IstAbgeleitet(v)).ToList();
         // nur ergänzen: Unterrichte mit verwaister Zeile (Stunde verschoben) überlässt man der Nacherfassung – sonst doppelte Zeilen
         var verwaist = new HashSet<int>();
+        // Zuordnung über den Schlüssel (je Schlüssel in der Reihenfolge der Berechnung) – bei Veranstaltungen mit allen Lehrkräften
+        // und Klassen sind das Tausende Zeilen am Tag, die lineare Suche war quadratisch
+        var offen = new Dictionary<string, Queue<Vertretung>>();
+        foreach (var b in benoetigt)
+            if (Schluessel(b) is { } bk)
+            {
+                if (!offen.TryGetValue(bk, out var q)) offen[bk] = q = new Queue<Vertretung>();
+                q.Enqueue(b);
+            }
+        var zugeordnet = new HashSet<Vertretung>(ReferenceEqualityComparer.Instance);
+        var weg = new HashSet<Vertretung>(ReferenceEqualityComparer.Instance);
         foreach (var v in vorhanden)
         {
             var key = Schluessel(v);
-            var b = key is null ? null : benoetigt.FirstOrDefault(x => Schluessel(x) == key);
+            var b = key is not null && offen.TryGetValue(key, out var q) && q.Count > 0 ? q.Dequeue() : null;
             if (b is null)
             {
                 if (v.VerlegungsId.HasValue) v.Quelle = VertretungsQuelle.Verlegung;
-                else if (entfernen) d.Vertretungen.Remove(v);
+                else if (entfernen) weg.Add(v);
                 else if (v.UnterrichtId is int vu) verwaist.Add(vu);
                 continue;
             }
-            benoetigt.Remove(b);
-            var vorher = Inhalt(v);
+            zugeordnet.Add(b);
+            var vorher = Inhalt.Von(v);
             Abgleichen(v, b);
             // Kennzeichen „Neue Vertretung“: auch eine durch die Neuberechnung geänderte Zeile gilt in dieser Sitzung als geändert
-            if (Inhalt(v) != vorher) v.Geaendert = DateTime.Now;
+            if (!vorher.Gleich(v)) v.Geaendert = DateTime.Now;
         }
+        if (weg.Count > 0) d.Vertretungen.RemoveAll(weg.Contains);
         foreach (var b in benoetigt)
         {
+            if (zugeordnet.Contains(b)) continue;
             if (!entfernen && b.UnterrichtId is int bu && verwaist.Contains(bu)) continue;
             b.Id = d.NeueId();
             d.Vertretungen.Add(b);
@@ -374,8 +392,17 @@ public static class Vertretungen
     }
 
     /// <summary>Inhalt einer Zeile, der für das Kennzeichen „Neue Vertretung“ zählt.</summary>
-    private static string Inhalt(Vertretung v) =>
-        $"{v.Art}|{v.VertreterId}|{v.LehrerId}|{v.VertretungsraumId}|{v.RaumId}|{v.FachId}|{v.Text}|{string.Join(",", v.KlassenIds)}|{string.Join(",", v.ZusatzraumIds)}|{v.Mitbetreuung}";
+    /// <remarks>Ohne Zeichenketten (früher je Zeile zweimal alle Klassen als Text – bei Veranstaltungen mit allen Klassen spürbar).</remarks>
+    private readonly record struct Inhalt(VertretungsArt Art, int? VertreterId, int? LehrerId, int? VertretungsraumId, int? RaumId, int? FachId, string Text,
+        int[] KlassenIds, int[] ZusatzraumIds, bool Mitbetreuung)
+    {
+        public static Inhalt Von(Vertretung v) => new(v.Art, v.VertreterId, v.LehrerId, v.VertretungsraumId, v.RaumId, v.FachId, v.Text, v.KlassenIds.ToArray(), v.ZusatzraumIds.ToArray(), v.Mitbetreuung);
+
+        public bool Gleich(Vertretung v) => Art == v.Art && VertreterId == v.VertreterId && LehrerId == v.LehrerId && VertretungsraumId == v.VertretungsraumId &&
+            RaumId == v.RaumId && FachId == v.FachId && Text == v.Text && Mitbetreuung == v.Mitbetreuung &&
+            KlassenIds.AsSpan().SequenceEqual(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(v.KlassenIds)) &&
+            ZusatzraumIds.AsSpan().SequenceEqual(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(v.ZusatzraumIds));
+    }
 
     /// <summary>Vorhandene abgeleitete Zeile an die neu berechnete angleichen (bearbeitete Zeilen behalten Vertreter, Raum und Text).</summary>
     private static void Abgleichen(Vertretung v, Vertretung b)
@@ -1562,7 +1589,15 @@ public static class VertretungsVorschlag
 
 public sealed record PlanZeile(DateOnly Datum, int Stunde, string Klassen, string Lehrer, string Vertreter, string Fach, string NeuesFach, string Raum, string NeuerRaum,
     string Art, string Text, IReadOnlyList<int> KlassenIds, int? LehrerId, int? VertreterId, string VertrVon = "", string Nach = "", string Grund = "", int Id = 0,
-    string Gruppe = "", string Bemerkung = "", VertretungsArt ArtWert = VertretungsArt.Vertretung);
+    string Gruppe = "", string Bemerkung = "", VertretungsArt ArtWert = VertretungsArt.Vertretung)
+{
+    /// <summary>Zeile einer Veranstaltung (zusammengefasst je Stunde, nicht je Lehrkraft): deren Nummer.</summary>
+    public int? VeranstaltungId { get; init; }
+    /// <summary>Veranstaltung mit allen (wählbaren) Klassen – <see cref="Klassen"/> lautet dann „Alle Klassen“.</summary>
+    public bool AlleKlassen { get; init; }
+    /// <summary>Veranstaltung mit allen (wählbaren) Lehrkräften – <see cref="Vertreter"/> lautet dann „Alle Lehrkräfte“.</summary>
+    public bool AlleLehrer { get; init; }
+}
 
 /// <summary>Ausgabe des Vertretungsplans (Aushang, Monitor, HTML, Portal).</summary>
 public static class Vertretungsplan
@@ -1651,10 +1686,29 @@ public static class Vertretungsplan
         var bereitUnterricht = (periode.Unterrichte ?? d.Unterrichte).Where(u => u.Zeilen.Any(z => Vertretungen.IstBereitschaftsfach(d, z.FachId))).ToDictionary(u => u.Id);
         var bereitschaften = periode.Plan.Where(p => p.Tag == tagIndex && bereitUnterricht.ContainsKey(p.UnterrichtId))
             .SelectMany(p => bereitUnterricht[p.UnterrichtId].Zeilen.Where(z => z.LehrerId.HasValue).Select(z => (z.LehrerId!.Value, p.Stunde))).ToHashSet();
-        return Vertretungen.Am(d, datum)
+        var gruende = d.Abwesenheitsgruende.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => g.First());
+        var am = Vertretungen.Am(d, datum);
+        // Veranstaltung: je Veranstaltung und Stunde eine Zeile statt einer je teilnehmender Lehrkraft (Lehrkräftekonferenz,
+        // pädagogischer Tag: sonst Hunderte gleicher Zeilen). Nummer der Zeile ist die kleinste Vtr-Nr. der Stunde (auch im Export).
+        var vaNummer = am.Where(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId.HasValue)
+            .GroupBy(v => (Va: v.VeranstaltungId!.Value, v.Stunde)).ToDictionary(g => g.Key, g => g.Min(v => v.Id));
+        var veranstaltungen = d.Veranstaltungen.GroupBy(v => v.Id).ToDictionary(g => g.Key, g => g.First());
+        var gefiltert = am
             .Where(v => mitNichtDrucken || (!v.NichtDrucken && !(v.FachId is int f && nichtDruckFaecher.Contains(f))))
             .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue)
-            .Select(v => new PlanZeile(
+            .ToList();
+        var vaZeilen = gefiltert.Where(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va && veranstaltungen.ContainsKey(va))
+            .GroupBy(v => (Va: v.VeranstaltungId!.Value, v.Stunde)).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.ToList());
+        var res = new List<PlanZeile>();
+        foreach (var v in gefiltert)
+        {
+            if (v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int vaId && vaZeilen.TryGetValue((vaId, v.Stunde), out var gruppe))
+            {
+                if (!ReferenceEquals(gruppe[0], v)) continue;
+                res.Add(VeranstaltungsZeile(d, ix, veranstaltungen[vaId], gruppe, vaNummer[(vaId, v.Stunde)], gruende));
+                continue;
+            }
+            res.Add(new PlanZeile(
                 v.Datum, v.Stunde, ix.KKlassen(v.NeueKlassenIds), ix.KLehrer(v.LehrerId),
                 v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++" :
                 v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : "???",
@@ -1665,8 +1719,30 @@ public static class Vertretungsplan
                 ArtText(d, v.Art), v.Text, v.NeueKlassenIds, v.LehrerId, v.VertreterId,
                 v.VonDatum.HasValue ? $"{Planung.Planungsdienst.TageKurz[((int)v.VonDatum.Value.DayOfWeek + 6) % 7]}-{v.VonDatum:dd.MM.} / {v.VonStunde}" : "",
                 v.NachDatum.HasValue ? $"{Planung.Planungsdienst.TageKurz[((int)v.NachDatum.Value.DayOfWeek + 6) % 7]}-{v.NachDatum:dd.MM.} / {v.NachStunde}" : "",
-                d.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId) is { Vertraulich: true } ? "" : v.Grund, v.Id,
-                v.Schuelergruppe, Bemerkung(d, v, bereitschaften), v.Art))
-            .OrderBy(z => z.Klassen, StringComparer.Create(Format.De, true)).ThenBy(z => z.Stunde).ToList();
+                v.GrundId is int gid && gruende.TryGetValue(gid, out var gr) && gr.Vertraulich ? "" : v.Grund, v.Id,
+                v.Schuelergruppe, Bemerkung(d, v, bereitschaften), v.Art) { VeranstaltungId = v.Art == VertretungsArt.Veranstaltung ? v.VeranstaltungId : null });
+        }
+        return res.OrderBy(z => z.Klassen, StringComparer.Create(Format.De, true)).ThenBy(z => z.Stunde).ToList();
+    }
+
+    /// <summary>
+    /// Eine Zeile für alle Teilnahmen an einer Veranstaltung in einer Stunde: Vertreter „Alle Lehrkräfte“ bzw. die Liste der
+    /// Lehrkräfte (offene Plätze „???“), Klassen „Alle Klassen“ bzw. die Liste; die Klassen-Ids bleiben vollständig (Filter, Export).
+    /// </summary>
+    private static PlanZeile VeranstaltungsZeile(Schuldatei d, DatenIndex ix, Veranstaltung va, List<Vertretung> gruppe, int nummer, Dictionary<int, Abwesenheitsgrund> gruende)
+    {
+        var v = gruppe[0];
+        var lehrer = gruppe.Where(x => x.VertreterId.HasValue).Select(x => x.VertreterId!.Value).Distinct().ToList();
+        var offen = gruppe.Count(x => x.VertreterId is null);
+        var alleLehrer = VeranstaltungsAuswahl.UmfasstAlle(d, ElementTyp.Lehrer, lehrer, va.Von, va.Bis);
+        var vertreter = string.Join(",", new[] { VeranstaltungsAuswahl.Kurztext(d, ElementTyp.Lehrer, lehrer, va.Von, va.Bis) }.Where(t => t.Length > 0)
+            .Concat(Enumerable.Repeat("???", offen)));
+        var klassen = v.NeueKlassenIds;
+        var alleKlassen = VeranstaltungsAuswahl.UmfasstAlle(d, ElementTyp.Klasse, klassen, va.Von, va.Bis);
+        var klassenText = klassen.Count >= 3 ? VeranstaltungsAuswahl.Kurztext(d, ElementTyp.Klasse, klassen, va.Von, va.Bis) : ix.KKlassen(klassen);
+        var raum = string.Join(",", new[] { v.VertretungsraumId ?? v.RaumId }.Concat(v.ZusatzraumIds.Cast<int?>()).Where(x => x.HasValue).Select(x => ix.KRaum(x)));
+        return new PlanZeile(v.Datum, v.Stunde, klassenText, "", vertreter, ix.KFach(v.FachId), ix.KFach(v.VertretungsfachId ?? v.FachId), ix.KRaum(v.RaumId), raum,
+            ArtText(d, v.Art), v.Text, klassen, null, null, "", "", v.GrundId is int gid && gruende.TryGetValue(gid, out var gr) && gr.Vertraulich ? "" : v.Grund, nummer,
+            v.Schuelergruppe, Bemerkung(d, v), v.Art) { VeranstaltungId = va.Id, AlleKlassen = alleKlassen, AlleLehrer = alleLehrer };
     }
 }

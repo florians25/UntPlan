@@ -219,6 +219,16 @@ public sealed class Vertretung
     [JsonIgnore] public bool OffenOderRaumOffen => Offen || RaumOffen;
     [JsonIgnore] public bool IstEntfall => Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung or VertretungsArt.BereitschaftEntfaellt;
     [JsonIgnore] public IReadOnlyList<int> NeueKlassenIds => VertretungsKlassenIds ?? KlassenIds;
+
+    /// <summary>Tiefe Kopie (eigene Listen) – schneller als eine JSON-Kopie, z. B. für Probeberechnungen.</summary>
+    public Vertretung Kopie()
+    {
+        var k = (Vertretung)MemberwiseClone();
+        k.KlassenIds = KlassenIds.ToList();
+        k.VertretungsKlassenIds = VertretungsKlassenIds?.ToList();
+        k.ZusatzraumIds = ZusatzraumIds.ToList();
+        return k;
+    }
 }
 
 public sealed class Pausenaufsicht
