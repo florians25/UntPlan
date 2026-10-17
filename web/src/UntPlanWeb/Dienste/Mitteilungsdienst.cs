@@ -24,9 +24,11 @@ public sealed record Mitteilung(int Id, int AbsenderId, string Absender, string 
 /// <param name="Art">lehrkraft, klassenlehrkraft, schulleitung, administration, schueler, eltern.</param>
 public sealed record Rollenpill(string Art, string Text, List<string>? Klassen = null);
 
-/// <summary>Person in der Empfängerauswahl der Apps (Kolleg*innen bzw. Individuell) mit Rollen-Pills, Klassen und Abteilungen für die Filter.</summary>
+/// <summary>Person in der Empfängerauswahl der Apps (Kolleg*innen bzw. Individuell) mit Rollen-Pills, Klassen und Abteilungen für die Filter.
+/// <c>Gruppen</c>: Kennungen der Personengruppen für den Filter „Gruppe“ (kollegium, leitung, klassenleitungen, schueler, eltern sowie
+/// <c>profil:…</c> für ein eigenes Rechte-Profil des Kontos).</summary>
 public sealed record Empfaengerperson(string Id, string Name, string Anzeigename, string Login, string Kuerzel, string Initialen, string Kategorie, string Rolle,
-    List<Rollenpill> Rollen, List<string> Klassen, List<string> Abteilungen);
+    List<Rollenpill> Rollen, List<string> Klassen, List<string> Abteilungen, List<string>? Gruppen = null);
 
 /// <summary>Anhang einer Mitteilung (ohne Inhalt).</summary>
 public sealed record Anhang(int Id, string Name, string Typ, int Groesse);
@@ -116,6 +118,24 @@ public sealed class Mitteilungsdienst
         e ??= Einstellungen();
         if (e.Gesperrt!.Contains(ich.Id) || !Rechtedienst.Darf(ich, Recht.MitteilungSenden)) return false;
         return ich.Rolle switch { Rollen.Eltern => e.ElternSenden, Rollen.Schueler => e.SchuelerSenden, _ => true };
+    }
+
+    /// <summary>
+    /// Darf das Konto auf erhaltene Mitteilungen antworten? Wer senden darf, immer; Schüler*innen und Erziehungsberechtigte ohne Senderecht
+    /// (Einstellungen bzw. Rechte-Modell) nur lesen und – mit „FamilieAntworten“ – dem Absender antworten. Gesperrte Konten nie.
+    /// </summary>
+    public bool DarfAntworten(Benutzer ich, MitteilungsEinstellungen? e = null)
+    {
+        e ??= Einstellungen();
+        return DarfSenden(ich, e) || (ich.Familie && e.FamilieAntworten && !e.Gesperrt!.Contains(ich.Id));
+    }
+
+    /// <summary>Senderecht prüfen; ohne Senderecht ist nur eine Antwort (antwortAuf) mit <see cref="DarfAntworten"/> erlaubt.</summary>
+    private void SendenOderAntwortenPruefen(Benutzer ich, int? antwortAuf)
+    {
+        var e = Einstellungen();
+        if (!DarfSenden(ich, e) && !(antwortAuf is not null && DarfAntworten(ich, e)))
+            throw new UnauthorizedAccessException("Ihr Konto darf keine Mitteilungen senden.");
     }
 
     // ------------------------------------------------------------------------------------------ Empfänger
@@ -240,6 +260,9 @@ public sealed class Mitteilungsdienst
             .GroupBy(x => x.Raum, Ci).ToDictionary(g => g.Key, g => g.First().Abteilung, Ci);
         var abteilungKlasse = (s?.Paket.Elemente.Klassen ?? new()).Where(k => abteilungRaum.ContainsKey(k.Stammraum)).ToDictionary(k => k.Kurz, k => abteilungRaum[k.Stammraum], Ci);
         var de = StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("de-DE"), true);
+        // eigene Rechte-Profile (z. B. „Sekretariat“) als zusätzliche Gruppe; Systemrollen sind bereits über Rolle/Pills abgedeckt
+        var profile = _db.Liste("SELECT id, rechteprofil FROM benutzer WHERE rechteprofil IS NOT NULL AND rechteprofil <> ''", r => (Id: r.Zahl("id"), P: r.Text("rechteprofil")))
+            .Where(x => !UntPlanWeb.Dienste.Rollen.Gueltig(x.P)).ToDictionary(x => x.Id, x => x.P);
         var personen = new List<Empfaengerperson>();
         foreach (var e in erlaubt.Where(x => x.Id.StartsWith("benutzer:")))
         {
@@ -264,8 +287,15 @@ public sealed class Mitteilungsdienst
             }
             var anzeigename = b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login;
             var name = kuerzel.Length > 0 ? kuerzel : anzeigename;
+            var gruppenIds = new List<string>();
+            if (b.Kollegium) gruppenIds.Add("kollegium");
+            if (b.Rolle is Rollen.Leitung or Rollen.Admin) gruppenIds.Add("leitung");
+            if (pills.Any(x => x.Art == "klassenlehrkraft")) gruppenIds.Add("klassenleitungen");
+            if (b.Rolle == Rollen.Schueler) gruppenIds.Add("schueler");
+            if (b.Rolle == Rollen.Eltern) gruppenIds.Add("eltern");
+            if (profile.TryGetValue(b.Id, out var profil)) gruppenIds.Add("profil:" + profil);
             personen.Add(new(e.Id, name, anzeigename, b.Login, kuerzel, Initialen(name), e.Kategorie, b.Rolle, pills, klassen,
-                klassen.Where(abteilungKlasse.ContainsKey).Select(k => abteilungKlasse[k]).Distinct(Ci).OrderBy(x => x, de).ToList()));
+                klassen.Where(abteilungKlasse.ContainsKey).Select(k => abteilungKlasse[k]).Distinct(Ci).OrderBy(x => x, de).ToList(), gruppenIds));
         }
         var gruppen = individuell ? erlaubt.Where(x => !x.Id.StartsWith("benutzer:")).ToList() : new List<Empfaenger>();
         return (personen.OrderBy(p => p.Name, de).ToList(), gruppen);
@@ -292,7 +322,7 @@ public sealed class Mitteilungsdienst
     public HashSet<int> Aufloesen(Benutzer ich, Stand? s, IEnumerable<string> kennungen, int? antwortAuf = null)
     {
         var erlaubt = Empfaengerliste(ich, s).Select(x => x.Id).ToHashSet();
-        if (!DarfSenden(ich)) throw new UnauthorizedAccessException("Ihr Konto darf keine Mitteilungen senden.");
+        SendenOderAntwortenPruefen(ich, antwortAuf);
         var antwort = Antwortempfaenger(ich, antwortAuf, true);
         var alle = _benutzer.Alle().Where(b => !b.Gesperrt).ToList();
         var res = new HashSet<int>();
@@ -475,7 +505,7 @@ public sealed class Mitteilungsdienst
     public object Antwort(Benutzer ich, Stand? s, int id, bool alle)
     {
         var m = Posteingang(ich.Id).FirstOrDefault(x => x.Id == id) ?? throw new ArgumentException("Unbekannte Mitteilung.");
-        if (!DarfSenden(ich)) throw new UnauthorizedAccessException("Ihr Konto darf keine Mitteilungen senden.");
+        if (!DarfAntworten(ich)) throw new UnauthorizedAccessException("Ihr Konto darf keine Mitteilungen senden.");
         if (!m.AntwortErlaubt && m.AbsenderId != ich.Id) throw new ArgumentException(KeineAntwort);
         var ids = Antwortempfaenger(ich, id, alle);
         var namen = Empfaengerliste(ich, s).ToDictionary(x => x.Id, x => x.Name);
@@ -539,10 +569,10 @@ public sealed class Mitteilungsdienst
         bool antwortErlaubt = true)
     {
         if ((betreff ?? "").Length > 200 || (text ?? "").Length > 20000) throw new ArgumentException("Betreff oder Text ist zu lang.");
-        if (!DarfSenden(ich)) throw new UnauthorizedAccessException("Ihr Konto darf keine Mitteilungen senden.");
         var erlaubt = Empfaengerliste(ich, s).Select(x => x.Id).ToHashSet();
         if (id is int vorhanden && antwortAuf is null)
             antwortAuf = Entwuerfe(ich.Id).FirstOrDefault(m => m.Id == vorhanden)?.AntwortAuf;
+        SendenOderAntwortenPruefen(ich, antwortAuf);
         var antwort = Antwortempfaenger(ich, antwortAuf, true);
         var liste = empfaenger.Distinct().ToList();
         if (liste.Any(e => !erlaubt.Contains(e) && !(e.StartsWith("benutzer:") && int.TryParse(e[9..], out var b) && antwort.Contains(b))))

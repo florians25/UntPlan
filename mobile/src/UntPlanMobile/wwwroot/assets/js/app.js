@@ -2390,8 +2390,28 @@ function hint(text){
     [strip(), head()].forEach(el => el && el.classList.toggle('is-dragging', an));
   };
 
+  /* Senkrechtes Rollen während einer waagerechten Geste sperren.
+     Hauptweg ist preventDefault im touchmove; falls ein Browser das
+     Ereignis nicht mehr abbrechen lässt (das Rollen lief schon), hält
+     der scroll-Wächter die Rollposition fest, auch im Nachlauf kurz
+     nach dem Loslassen. Die Klasse nimmt dem Raster zusätzlich das
+     Überlaufen, damit Safari keinen Schwung mehr aufbaut. */
+  let sperrTop = 0, sperrBis = 0, gesperrt = false;
+  const rollSperre = an => {
+    gesperrt = an;
+    if (an){ sperrTop = area.scrollTop; sperrBis = 0; }
+    else sperrBis = performance.now() + 450;
+    area.classList.toggle('is-wischsperre', an);
+  };
+  area.addEventListener('scroll', () => {
+    if ((gesperrt || performance.now() < sperrBis) && area.scrollTop !== sperrTop)
+      area.scrollTop = sperrTop;
+  }, { passive:true });
+  window.ttRollSperre = () => gesperrt;
+
   area.addEventListener('touchstart', e => {
     if (busy || e.touches.length !== 1) return;
+    sperrBis = 0;
     /* In einer rollbaren Lehrerleiste wischt man die Leiste, nicht die Woche. */
     const leiste = e.target.closest && e.target.closest('.card__line--scroll');
     if (leiste && leiste.scrollWidth > leiste.clientWidth + 1){ active = false; return; }
@@ -2418,8 +2438,18 @@ function hint(text){
       /* Ab hier zählt der Weg — der Weg bis zur Erkennung nicht. */
       ankerX = mx;
       t0 = performance.now();
+      if (lock === 'x') rollSperre(true);
     }
     if (lock !== 'x') return;
+    /* Waagerecht erkannt: Bis der Finger losgelassen wird, rollt das
+       Raster nicht mehr senkrecht mit. Der Listener ist dafür bewusst
+       nicht passiv — Safari auf dem iPhone beendet das Rollen nur über
+       preventDefault, touch-action allein reicht dort nicht. Vor der
+       Erkennung wird nichts verhindert: Ein abgefangenes erstes
+       touchmove sperrte in manchen Browsern auch das senkrechte Rollen
+       einer eindeutig senkrechten Geste. */
+    if (e.cancelable) e.preventDefault();
+    if (area.scrollTop !== sperrTop) area.scrollTop = sperrTop;
 
     const weg = mx - ankerX + basis;
 
@@ -2431,7 +2461,7 @@ function hint(text){
     proben.push([performance.now(), dx]);
     if (proben.length > 8) proben.shift();
     shiftBald(dx);
-  }, { passive:true });
+  }, { passive:false });
 
   /* Nach dem Gleiten still neu aufbauen — der Streifen steht dann schon
      an der richtigen Stelle, es ruckelt nichts. */
@@ -2580,6 +2610,7 @@ function hint(text){
   };
 
   const release = () => {
+    if (gesperrt) rollSperre(false);
     if (!active) return;
     active = false;
     /* Ein noch offener Schreibvorgang würde nach dem Loslassen dazwischen-

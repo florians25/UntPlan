@@ -42,6 +42,8 @@ public sealed class ElementRollup : Form
 
     private ElementRollup()
     {
+        // Auswahllisten mit weicher Listenschrift und geglätteter Darstellung (wie in allen Fenstern)
+        Load += (_, _) => Ui.ListenGestalten(this);
         Text = "Element-Rollup";
         Font = Ui.Schrift;
         FormBorderStyle = FormBorderStyle.SizableToolWindow;

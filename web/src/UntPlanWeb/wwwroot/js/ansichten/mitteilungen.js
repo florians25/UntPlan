@@ -97,9 +97,17 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
   if (ordnerParam === 'listen') return listen(seite, kontext);
   if (ordnerParam === 'einstellungen') return einstellungen(seite, kontext);
   const ordner = ['gesendet', 'entwuerfe'].includes(ordnerParam) ? ordnerParam : 'eingang';
+  // „Verfassen“ (Untermenü): Posteingang zeigen und gleich das Schreibfenster öffnen
+  const verfassen = ordnerParam === 'verfassen';
   const [liste, optionen] = await Promise.all([holen(`${BASIS}?ordner=${ordner}`), holen(`${BASIS}/optionen`)]);
   kontext.titel(TITEL[ordner], optionen.darfSenden ? `<button class="btn btn-primary mt-neu" data-neu>${icon('plus')}Neu</button>` : '');
   document.querySelector('[data-neu]')?.addEventListener('click', () => schreiben(kontext));
+  if (verfassen && optionen.darfSenden) {
+    // nach dem Schließen zurück auf den Posteingang, damit „Verfassen“ erneut auswählbar ist
+    schreiben(kontext).then(() => document.querySelector('.mt-schreibdialog')?.addEventListener('hidden.bs.modal', () => {
+      if (location.hash === '#/mitteilungen/verfassen') kontext.navigieren('#/mitteilungen', true);
+    }, { once: true })).catch(kontext.fehler ?? (() => {}));
+  }
 
   const eingang = ordner === 'eingang';
   const offenBestaetigen = m => eingang && m.lesebestaetigung && !m.bestaetigt;
@@ -306,6 +314,168 @@ function auswahl(bereich, empfaenger, gewaehlt, fertig, abbrechen) {
   zeichnen();
 }
 
+// ------------------------------------------------------------------ Empfänger*innen (Personensuche wie im Original)
+
+/** Rollen-Pills, die dunkel dargestellt werden (Grundrolle); weitere Pills (Klassenlehrkraft | Klasse) heller. */
+const PILL_DUNKEL = new Set(['lehrkraft', 'schulleitung', 'administration', 'schueler', 'eltern']);
+/** Filter-Pills mit Ausklappmenü: Schlüssel, Beschriftung, Optionen aus der Antwort von /personen, Prüfung je Person. */
+const EW_FILTER = [
+  ['liste', 'Liste (indiv.)', d => d.filter.listen.map(l => ({ id: l.id, name: l.name })), (p, w, d) => (d.filter.listen.find(l => l.id === w)?.mitglieder ?? []).includes(p.id)],
+  ['klasse', 'Klasse', d => d.filter.klassen.map(k => ({ id: k, name: k })), (p, w) => p.klassen.includes(w)],
+  ['abteilung', 'Abteilung', d => d.filter.abteilungen.map(a => ({ id: a, name: a })), (p, w) => p.abteilungen.includes(w)],
+  ['rolle', 'Rolle', d => d.filter.rollen ?? [], (p, w) => p.rollen.some(r => r.art === w)],
+  ['gruppe', 'Gruppe', d => d.filter.gruppen ?? [], (p, w) => (p.gruppen ?? []).includes(w)],
+];
+/** Anzeigename einer Person für die Chips im Feld „An“ (Kürzel in Klammern wird dort ausgeblendet). */
+const ewChipName = p => p.kuerzel && p.anzeigename && p.anzeigename !== p.kuerzel ? `${p.anzeigename} (${p.kuerzel})` : (p.anzeigename || p.name);
+
+/**
+ * Dialog „Empfänger*innen“: großes Suchfeld (Kürzel, Name, Anmeldename, Klasse), Filter-Pills Ausgewählt, Liste (indiv.), Klasse,
+ * Abteilung, Rolle, Gruppe; „Alle auswählen“; je Person runder Auswahlkreis, Avatar mit Initiale, Kürzel und Rollen-Pills.
+ * Gruppen/Klassen als Empfänger (Kollegium) stehen unter den Personen. gewaehlt: Map id → Name; fertig(Map) beim Übernehmen.
+ * Tastatur: ↓/↑ zwischen Suchfeld und Zeilen, Leertaste/Enter wählt, Esc schließt (Menü bzw. Dialog).
+ */
+async function empfaengerDialog(kollegium, gewaehlt, fertig) {
+  const d = await holen(`${BASIS}/personen?typ=${kollegium ? 'individuell' : 'kollegium'}`);
+  const neu = new Map(gewaehlt);
+  const filter = { ausgewaehlt: false };
+  const menge = d.personen;
+  const gruppen = (d.gruppen ?? []).filter(g => g.art !== 'liste');
+  const suchtext = p => `${p.name} ${p.anzeigename} ${p.login} ${p.kuerzel} ${p.klassen.join(' ')} ${p.rollen.map(r => r.text).join(' ')}`.toLowerCase();
+  const filterAktiv = () => EW_FILTER.some(([k]) => filter[k]);
+  const passt = (p, f) => (!f || suchtext(p).includes(f)) && (!filter.ausgewaehlt || neu.has(p.id))
+    && EW_FILTER.every(([k, , , pruef]) => !filter[k] || pruef(p, filter[k], d));
+  // Gruppen und Klassen als Empfänger: nur ohne Personenfilter (Klassenfilter grenzt auf die Klasse ein)
+  const gruppePasst = (g, f) => !(filter.liste || filter.abteilung || filter.rolle || filter.gruppe) && (!filter.klasse || g.klasse === filter.klasse)
+    && (!filter.ausgewaehlt || neu.has(g.id)) && (!f || g.name.toLowerCase().includes(f));
+  const zeile = (id, avatar, titel, pills, langname) => `<div class="mt-ew-zeile" role="checkbox" tabindex="-1" aria-checked="${neu.has(id)}" data-id="${e(id)}"${langname ? ` title="${e(langname)}"` : ''}>
+      <span class="mt-ew-kreis" aria-hidden="true"></span><span class="mt-ew-avatar" aria-hidden="true">${avatar}</span>
+      <span class="mt-ew-text"><span class="mt-ew-name">${e(titel)}</span>${pills ? `<span class="mt-ew-pills">${pills}</span>` : ''}</span></div>`;
+  const personZeile = p => zeile(p.id, e(p.initialen || kuerzel(p.name)), p.name,
+    p.rollen.map(r => `<span class="mt-ew-pill ${PILL_DUNKEL.has(r.art) ? 'dunkel' : ''}">${e(r.text)}</span>`).join(''), p.anzeigename !== p.name ? p.anzeigename : '');
+  const gruppeZeile = g => zeile(g.id, '<i class="bi bi-people"></i>', g.name, `<span class="mt-ew-pill">${g.art === 'klasse' ? 'Klasse' : 'Gruppe'}</span>`);
+
+  const box = dialog({
+    titel: 'Empfänger*innen', breit: true,
+    inhalt: `<div class="mt-ew">
+        <div class="mt-ew-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-ew-suche placeholder="${kollegium ? 'Kolleg*innen suchen' : 'Lehrkräfte suchen'}" aria-label="${kollegium ? 'Kolleg*innen suchen' : 'Lehrkräfte suchen'}" autocomplete="off"></div>
+        <div class="mt-ew-filter" data-ew-filter></div>
+        <div class="mt-ew-liste" data-ew-liste role="group" aria-label="Empfänger*innen"></div>
+      </div>`,
+    knoepfe: [{ text: 'Abbrechen' }, { text: 'Übernehmen', art: 'haupt', aktion: () => fertig(neu) }],
+  });
+  box.closest('.modal')?.classList.add('mt-dialog', 'mt-ew-dialog');
+  const suche = box.querySelector('[data-ew-suche]');
+  const filterLeiste = box.querySelector('[data-ew-filter]');
+  const liste = box.querySelector('[data-ew-liste]');
+  let menue = null;
+
+  const pillsZeichnen = () => {
+    filterLeiste.innerHTML = `<button type="button" class="mt-ew-fpill erste ${filter.ausgewaehlt ? 'an' : ''}" data-ew-aus aria-pressed="${filter.ausgewaehlt}">Ausgewählt${neu.size ? ` (${neu.size})` : ''}</button>`
+      + EW_FILTER.map(([k, titel, optionen]) => {
+        if (!optionen(d).length) return '';
+        const wert = filter[k] ? optionen(d).find(o => o.id === filter[k])?.name ?? filter[k] : '';
+        return `<button type="button" class="mt-ew-fpill ${wert ? 'an' : ''}" data-ew-menue="${k}" aria-haspopup="listbox" aria-expanded="false">${e(wert ? `${titel.replace(/ \(.*\)/, '')}: ${wert}` : titel)}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>`;
+      }).join('');
+    filterLeiste.querySelector('[data-ew-aus]').onclick = () => { filter.ausgewaehlt = !filter.ausgewaehlt; pillsZeichnen(); listeZeichnen(); };
+    filterLeiste.querySelectorAll('[data-ew-menue]').forEach(b => b.onclick = () => menueOeffnen(b));
+  };
+  const menueZu = (fokus = false) => {
+    if (!menue) return;
+    const knopf = menue.knopf;
+    menue.remove(); menue = null;
+    knopf.setAttribute('aria-expanded', 'false');
+    if (fokus) knopf.focus();
+  };
+  const menueOeffnen = knopf => {
+    const k = knopf.dataset.ewMenue;
+    if (menue?.knopf === knopf) { menueZu(); return; }
+    menueZu();
+    const [, titel, optionen] = EW_FILTER.find(f => f[0] === k);
+    const opts = [{ id: '', name: `Alle (${titel.replace(/ \(.*\)/, '')})` }, ...optionen(d)];
+    menue = document.createElement('div');
+    menue.className = 'mt-ew-menue';
+    menue.setAttribute('role', 'listbox');
+    menue.innerHTML = (opts.length > 12 ? '<input type="search" class="mt-ew-menue-suche" placeholder="Suchen" aria-label="Optionen durchsuchen">' : '')
+      + `<div class="mt-ew-menue-liste">${opts.map(o => `<button type="button" role="option" aria-selected="${(filter[k] ?? '') === o.id}" data-wert="${e(o.id)}" data-text="${e(o.name.toLowerCase())}">${e(o.name)}${(filter[k] ?? '') === o.id ? '<i class="bi bi-check2" aria-hidden="true"></i>' : ''}</button>`).join('')}</div>`;
+    menue.knopf = knopf;
+    knopf.setAttribute('aria-expanded', 'true');
+    // Menü im Dialoginhalt (nicht in der Pill-Leiste, die mobil waagerecht scrollt) unter der Pill ausrichten
+    const wurzel = box.querySelector('.mt-ew');
+    wurzel.append(menue);
+    const r = knopf.getBoundingClientRect(), w = wurzel.getBoundingClientRect();
+    menue.style.left = `${Math.max(8, Math.min(r.left - w.left, w.width - menue.offsetWidth - 8))}px`;
+    menue.style.top = `${r.bottom - w.top + 4}px`;
+    const knoepfe = () => [...menue.querySelectorAll('[role=option]:not([hidden])')];
+    menue.querySelectorAll('[role=option]').forEach(o => o.onclick = () => {
+      filter[k] = o.dataset.wert || undefined;
+      menueZu(); pillsZeichnen(); listeZeichnen();
+      filterLeiste.querySelector(`[data-ew-menue="${k}"]`)?.focus();
+    });
+    const ms = menue.querySelector('.mt-ew-menue-suche');
+    if (ms) ms.oninput = () => { const f = ms.value.trim().toLowerCase(); menue.querySelectorAll('[role=option]').forEach(o => { o.hidden = !!f && !o.dataset.text.includes(f); }); };
+    menue.addEventListener('keydown', ev => {
+      const l = knoepfe(), i = l.indexOf(document.activeElement);
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); (l[i + 1] ?? l[0])?.focus(); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); (i <= 0 ? (ms ?? l[l.length - 1]) : l[i - 1])?.focus(); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); menueZu(true); }
+      else if (ev.key === 'Tab') menueZu();
+    });
+    (ms ?? menue.querySelector('[aria-selected=true]') ?? knoepfe()[0])?.focus();
+  };
+
+  const zeilen = () => [...liste.querySelectorAll('.mt-ew-zeile')];
+  const listeZeichnen = () => {
+    const f = suche.value.trim().toLowerCase();
+    const personen = menge.filter(p => passt(p, f));
+    const grp = gruppen.filter(g => gruppePasst(g, f));
+    const alle = personen.length > 0 && personen.every(p => neu.has(p.id));
+    liste.innerHTML = (personen.length ? `<div class="mt-ew-zeile mt-ew-alle" role="checkbox" tabindex="-1" aria-checked="${alle}" data-alle><span class="mt-ew-kreis" aria-hidden="true"></span><span class="mt-ew-name">Alle auswählen</span></div>` : '')
+      + personen.map(personZeile).join('')
+      + (grp.length ? `<div class="mt-ew-abschnitt">Gruppen und Klassen</div>${grp.map(gruppeZeile).join('')}` : '')
+      || `<div class="mt-ew-leer">${f || filterAktiv() || filter.ausgewaehlt ? 'Keine Treffer.' : 'Keine Empfänger*innen verfügbar.'}</div>`;
+  };
+  const umschalten = z => {
+    if (!z) return;
+    if (z.hasAttribute('data-alle')) {
+      const f = suche.value.trim().toLowerCase();
+      const sichtbar = menge.filter(p => passt(p, f));
+      const an = z.getAttribute('aria-checked') !== 'true';
+      sichtbar.forEach(p => { if (an) neu.set(p.id, ewChipName(p)); else neu.delete(p.id); });
+    } else {
+      const id = z.dataset.id;
+      if (neu.has(id)) neu.delete(id);
+      else { const p = menge.find(x => x.id === id); const g = gruppen.find(x => x.id === id); neu.set(id, p ? ewChipName(p) : g?.name ?? id); }
+    }
+    // Zustand ohne Neuaufbau aktualisieren (Fokus und Bildlauf bleiben stehen)
+    zeilen().forEach(x => { if (x.dataset.id) x.setAttribute('aria-checked', String(neu.has(x.dataset.id))); });
+    const alleZ = liste.querySelector('[data-alle]');
+    if (alleZ) { const ps = zeilen().filter(x => x.dataset.id && menge.some(p => p.id === x.dataset.id)); alleZ.setAttribute('aria-checked', String(ps.length > 0 && ps.every(x => neu.has(x.dataset.id)))); }
+    const aus = filterLeiste.querySelector('[data-ew-aus]');
+    if (aus) aus.textContent = `Ausgewählt${neu.size ? ` (${neu.size})` : ''}`;
+  };
+  liste.addEventListener('click', ev => umschalten(ev.target.closest('.mt-ew-zeile')));
+  liste.addEventListener('keydown', ev => {
+    const l = zeilen(), i = l.indexOf(document.activeElement);
+    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); umschalten(l[i]); }
+    else if (ev.key === 'ArrowDown') { ev.preventDefault(); l[Math.min(i + 1, l.length - 1)]?.focus(); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); if (i <= 0) suche.focus(); else l[i - 1].focus(); }
+    else if (ev.key === 'Home') { ev.preventDefault(); l[0]?.focus(); }
+    else if (ev.key === 'End') { ev.preventDefault(); l[l.length - 1]?.focus(); }
+  });
+  // Rovierender Fokus: nur die zuletzt fokussierte Zeile ist per Tab erreichbar
+  liste.addEventListener('focusin', ev => { const z = ev.target.closest('.mt-ew-zeile'); if (z) zeilen().forEach(x => { x.tabIndex = x === z ? 0 : -1; }); });
+  suche.addEventListener('input', listeZeichnen);
+  suche.addEventListener('keydown', ev => {
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); (liste.querySelector('.mt-ew-zeile:not([data-alle])') ?? zeilen()[0])?.focus(); }
+    else if (ev.key === 'Enter') { ev.preventDefault(); const erste = liste.querySelector('.mt-ew-zeile:not([data-alle])'); if (erste) { umschalten(erste); erste.focus(); } }
+  });
+  // Klick außerhalb schließt das Filtermenü; Esc im Menü schließt nur das Menü (nicht den Dialog)
+  box.addEventListener('mousedown', ev => { if (menue && !menue.contains(ev.target) && ev.target.closest('[data-ew-menue]') !== menue.knopf) menueZu(); });
+  pillsZeichnen();
+  listeZeichnen();
+}
+
 // ------------------------------------------------------------------ Schreiben
 
 /**
@@ -314,7 +484,9 @@ function auswahl(bereich, empfaenger, gewaehlt, fertig, abbrechen) {
  */
 async function schreiben(kontext, { an, vorgabe, entwurf, titel } = {}) {
   const [empfaenger, optionen] = await Promise.all([holen(`${BASIS}/empfaenger`), holen(`${BASIS}/optionen`)]);
-  if (!optionen.darfSenden) { toast('Ihr Konto darf keine Mitteilungen senden.', true); return; }
+  // ohne Senderecht (Schüler*innen/Erziehungsberechtigte laut Einstellungen) nur Antworten an den Absender
+  const nurAntwort = !optionen.darfSenden;
+  if (nurAntwort && !(optionen.darfAntworten && (vorgabe?.antwortAuf || entwurf?.antwortAuf))) { toast('Ihr Konto darf keine Mitteilungen senden.', true); return; }
   if (!empfaenger.length && !vorgabe?.empfaenger?.length && !entwurf?.antwortAuf) { toast('Für Ihr Konto sind keine Empfänger verfügbar.', true); return; }
   const namen = new Map(empfaenger.map(x => [x.id, x.name]));
   const gewaehlt = new Map();
@@ -346,7 +518,7 @@ async function schreiben(kontext, { an, vorgabe, entwurf, titel } = {}) {
     titel: titel ?? (entwurf ? 'Entwurf bearbeiten' : vorgabe ? 'Antworten' : 'Neue Mitteilung'), breit: true,
     inhalt: `<div class="mt-schreiben" data-schreiben>
         <div class="mt-an-zeile"><span class="mt-an-label">An</span><div class="mt-chips" data-chips></div>
-          <button type="button" class="mt-plus" data-plus title="Empfänger*innen auswählen" aria-label="Empfänger*innen auswählen" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>
+          ${nurAntwort ? '' : '<button type="button" class="mt-plus" data-plus title="Empfänger*innen auswählen" aria-label="Empfänger*innen auswählen" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>'}
           <div class="mt-wahl mt-wahl-pop d-none" data-wahl></div></div>
         <div class="mt-feld-zeile"><label class="mt-an-label" for="mt-betreff">Betreff</label><input class="form-control mt-betreff" id="mt-betreff" name="betreff" maxlength="200" value="${e(entwurf?.betreff ?? vorgabe?.betreff ?? '')}" required></div>
         <div class="mt-editor">
@@ -375,11 +547,14 @@ async function schreiben(kontext, { an, vorgabe, entwurf, titel } = {}) {
       const werkzeuge = b.querySelector('[data-werkzeuge]');
       b.querySelector('.modal-footer [data-knopf="0"]')?.after(werkzeuge);
       werkzeuge.classList.remove('d-none');
-      const wahlZu = () => { wahl.classList.add('d-none'); plus.setAttribute('aria-expanded', 'false'); };
-      plus.onclick = () => {
-        if (!wahl.classList.contains('d-none')) { wahlZu(); return; }
-        wahl.classList.remove('d-none'); plus.setAttribute('aria-expanded', 'true');
-        auswahl(wahl, empfaenger, gewaehlt, neu => { gewaehlt.clear(); neu.forEach((v, k) => gewaehlt.set(k, v)); chips(); wahlZu(); }, wahlZu);
+      const wahlZu = () => { wahl.classList.add('d-none'); plus?.setAttribute('aria-expanded', 'false'); };
+      // „+“ öffnet den Dialog „Empfänger*innen“ (Personensuche mit Filtern) über dem Schreibfenster
+      if (plus) plus.onclick = async () => {
+        plus.setAttribute('aria-expanded', 'true');
+        try {
+          await empfaengerDialog(!!optionen.listen, gewaehlt, neu => { gewaehlt.clear(); neu.forEach((v, k) => gewaehlt.set(k, v)); chips(); });
+          document.querySelector('.mt-ew-dialog')?.addEventListener('hidden.bs.modal', () => { wahlZu(); plus.focus(); }, { once: true });
+        } catch (err) { wahlZu(); throw err; }
       };
       b.querySelector('[data-vorschau-knopf]').onclick = ev => {
         const vorschau = ev.currentTarget.getAttribute('aria-pressed') !== 'true';

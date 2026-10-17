@@ -267,14 +267,16 @@ public sealed class Buchungsdienst
 
     // ------------------------------------------------------------------------------------------ Belegung
 
-    /// <summary>Belegung aller Räume an einem Tag: Unterricht laut Plan, Klausuren, Termine mit Raum, Vormerkungen, Raumsperren und Buchungen.</summary>
-    public List<Belegt> RaumBelegung(Stand s, DateOnly d, int? ohneBuchung = null)
+    /// <summary>Belegung aller Räume an einem Tag: Unterricht laut Plan, Klausuren, Termine mit Raum, Vormerkungen, Raumsperren und Buchungen.
+    /// ohneUnterricht: Stunden und Vormerkungen dieses Unterrichts zählen nicht (eigene Stunde bei der Raumwahl einer Prüfung).</summary>
+    public List<Belegt> RaumBelegung(Stand s, DateOnly d, int? ohneBuchung = null, int? ohneUnterricht = null)
     {
         var res = new List<Belegt>();
         var paket = _plan.Rohstunden(s, d);
         foreach (var r in paket.Concat(_rm.Vorgemerkt(d, s, mitBuchungen: false)))
         {
             if (r.Status == "entfall" || r.Art == "KlausurLoeschen") continue;
+            if (ohneUnterricht is int ou && r.Unterricht == ou) continue;
             var art = Plandienst.IstKlausur(r.Art) ? "klausur" : r.Status == "vorgemerkt" ? "vorgemerkt" : r.Unterricht.HasValue ? "unterricht"
                 : Plandienst.IstBuchung(r.Art) ? "buchung" : "termin";
             var text = r.Unterricht.HasValue && r.Fach.Length > 0
@@ -297,6 +299,31 @@ public sealed class Buchungsdienst
             for (var st = b.StundeVon; st <= b.StundeBis; st++)
                 res.Add(new Belegt(st, b.Raum, "buchung", $"{(b.Titel.Length > 0 ? b.Titel : b.ArtName)} ({b.Absender})", b.Id));
         return res;
+    }
+
+    /// <summary>
+    /// Raumwahl (z. B. Prüfung eintragen): alle Räume mit Kapazität, buchbar und frei/belegt im Zeitraum laut <see cref="RaumBelegung"/>
+    /// (Plan, Prüfungen, Termine, Vormerkungen, Sperren, Buchungen). Mit Unterricht zählt dessen eigene Belegung nicht, seine Räume laut
+    /// Plan stehen als „eigen“ vorn. Reihenfolge: eigene Räume, buchbare vor nicht buchbaren, darin freie vor belegten, dann Kürzel.
+    /// </summary>
+    public List<object> RaumStatus(Stand s, DateOnly d, int von, int bis, int? unterricht = null)
+    {
+        if (bis < von) (von, bis) = (bis, von);
+        var belegung = RaumBelegung(s, d, ohneUnterricht: unterricht);
+        var eigen = unterricht is int u ? _plan.UrspruenglicheRaeume(s, d, u, von, bis).ToHashSet(Ci) : new HashSet<string>(Ci);
+        var buchbar = Rueckmeldungsdienst.Buchbar(s).Select(r => r.Kurz).ToHashSet(Ci);
+        return Raeume(s).Where(r => r.Kurz.Length > 0).Select(r =>
+            {
+                var b = belegung.Where(x => x.Stunde >= von && x.Stunde <= bis && Ci.Equals(x.Raum, r.Kurz)).ToList();
+                return new
+                {
+                    kurz = r.Kurz, name = r.Name, raumart = r.Raumart, kapazitaet = r.Kapazitaet, gebaeude = r.Gebaeude, buchbar = buchbar.Contains(r.Kurz),
+                    eigen = eigen.Contains(r.Kurz), frei = b.Count == 0,
+                    belegt = b.OrderBy(x => x.Stunde).Select(x => new { stunde = x.Stunde, art = x.Art, text = x.Text }).DistinctBy(x => (x.art, x.text)).Take(3).ToList(),
+                };
+            })
+            .OrderByDescending(x => x.eigen).ThenByDescending(x => x.buchbar).ThenByDescending(x => x.frei).ThenBy(x => x.kurz, De)
+            .Cast<object>().ToList();
     }
 
     private static bool Belegt(List<Belegt> belegung, string raum, int von, int bis) =>

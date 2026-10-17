@@ -169,6 +169,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _plan.Doppelklick += p => { var u = Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId); if (u != null) UnterrichtFenster.Zeigen(_typ is ElementTyp.Raum ? ElementTyp.Unterricht : _typ, _typ is ElementTyp.Raum ? null : _id); };
         _plan.Kontext += Kontextmenue;
         _plan.TagesKontext += TagesKontextmenue;
+        _plan.TagesDoppelklick += (datum, e) => EntfallDirektAufheben(datum, e);
         _plan.TagesAuswahlGeaendert += (datum, e) =>
         {
             TagesLupe(e);
@@ -608,9 +609,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         e.DrawBackground();
         using var fett = new Font(e.Font ?? _format.Font, FontStyle.Bold);
         var text = o is string n ? FormatAnzeige(n) : o.ToString() ?? "";
-        TextRenderer.DrawText(e.Graphics, text, o is FormatBefehl && !imFeld ? fett : e.Font ?? _format.Font, e.Bounds,
-            (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : _format.ForeColor,
-            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        Ui.ListenText(e.Graphics, text, o is FormatBefehl && !imFeld ? fett : e.Font ?? _format.Font, new Rectangle(e.Bounds.X + 1, e.Bounds.Y, e.Bounds.Width - 2, e.Bounds.Height),
+            (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : _format.ForeColor);
         e.DrawFocusRectangle();
     }
 
@@ -1453,7 +1453,12 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>Kontextmenü des tagesaktuellen Stundenplans (wie im Original).</summary>
-    private void TagesKontextmenue(Point pt, DateOnly datum, int stunde, TagesEintrag? e)
+    private void TagesKontextmenue(Point pt, DateOnly datum, int stunde, TagesEintrag? e) => TagesMenue(datum, stunde, e).Show(_plan, pt);
+
+    /// <summary>Selbsttest: Kontextmenü des tagesaktuellen Plans für eine Stunde aufbauen (ohne es anzuzeigen).</summary>
+    internal ContextMenuStrip SelbsttestTagesMenue(DateOnly datum, int stunde, TagesEintrag? e) => TagesMenue(datum, stunde, e);
+
+    private ContextMenuStrip TagesMenue(DateOnly datum, int stunde, TagesEintrag? e)
     {
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         var uid = e?.Unterricht?.Id ?? e?.Vertretung?.UnterrichtId;
@@ -1477,21 +1482,30 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         });
         var entfall = cm.Items.Add("Stunde entfallen lassen", Symbole.Get("entfall"), (_, _) =>
         {
-            if (uid is not int uu) return;
-            if (VerlegungsAbfrage.VorEntfall(datum, stunde, uu, Aendern)) { Neuaufbau(false); return; }
-            var zi = _typ == ElementTyp.Lehrer ? zeile : (int?)null;
-            var seLoeschen = SondereinsatzLoeschenFragen(Vertretungen.SondereinsaetzeBeiEntfall(D, uu, zi, datum, stunde));
-            Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uu, zi, datum, stunde, AppZustand.Benutzer, seLoeschen));
-            Neuaufbau(false);
+            if (uid is int uu) StundeEntfallenLassen(datum, stunde, uu, zeile);
         });
         entfall.Enabled = findet && uid is int;
-        // Entfall rückgängig wie in der Vertretungsliste
-        if (!findet && uid is int ue && Vertretungen.EntfallZeilen(D, ue, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde).Count > 0)
-            cm.Items.Add("Entfall rückgängig", Symbole.Get("rueckgaengig"), (_, _) =>
+        // Entfall rückgängig: angeklickte entfallene Stunde bzw. alle entfallenen Stunden der Zelle (auch Kopplungszeilen und
+        // Entfälle neben einer stattfindenden Stunde); bei Doppelstunden/Blöcken wahlweise der ganze Block
+        var kandidaten = EntfallKandidaten(datum, stunde, e);
+        foreach (var k in kandidaten)
+        {
+            var name = kandidaten.Count > 1 ? $"Entfall rückgängig: {EntfallBeschreibung(k.Eintrag)}" : "Entfall rückgängig";
+            var hinweis = EntfallWirkungText(datum, stunde, k.Unterricht, k.Zeile);
+            var block = Entfallaufhebung.Block(D, k.Unterricht, k.Zeile, datum, stunde);
+            if (block.Count > 1)
             {
-                Aendern("Entfall aufgehoben", AenderungsArt.Vertretung, d => Vertretungen.EntfallRueckgaengig(d, ue, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde, AppZustand.Benutzer));
-                Neuaufbau(false);
-            });
+                var b = (ToolStripMenuItem)cm.Items.Add($"{name} (Block {block[0]}.–{block[^1]}. Stunde)", Symbole.Get("rueckgaengig"), (_, _) => EntfallAufheben(datum, stunde, k.Unterricht, k.Zeile, true));
+                b.ToolTipText = hinweis;
+                var einzeln = (ToolStripMenuItem)cm.Items.Add($"{name} (nur {stunde}. Stunde)", null, (_, _) => EntfallAufheben(datum, stunde, k.Unterricht, k.Zeile, false));
+                einzeln.ToolTipText = hinweis;
+            }
+            else
+            {
+                var i = (ToolStripMenuItem)cm.Items.Add(name, Symbole.Get("rueckgaengig"), (_, _) => EntfallAufheben(datum, stunde, k.Unterricht, k.Zeile, false));
+                i.ToolTipText = hinweis;
+            }
+        }
         cm.Items.Add("Klausur erstellen", Symbole.Get("klausur"), (_, _) => KlausurDialog.Neu(this, datum, stunde, e));
         var std = new ToolStripMenuItem("Stpl-Stunde: Standardformat") { Checked = _plan.Format.Standardformat };
         std.Click += (_, _) => { var f = Kopie(_plan.Format); f.Standardformat = !f.Standardformat; FormatSpeichern(f, f.Name); };
@@ -1518,7 +1532,73 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             cm.Items.Add("Änderungen rückgängig", Symbole.Get("rueckgaengig"), (_, _) => AenderungenRueckgaengig());
         }
         if (cm.Items[^1] is ToolStripSeparator) cm.Items.RemoveAt(cm.Items.Count - 1);
-        cm.Show(_plan, pt);
+        return cm;
+    }
+
+    /// <summary>„Stunde entfallen lassen“ (Kontextmenü, Taste „-“).</summary>
+    private void StundeEntfallenLassen(DateOnly datum, int stunde, int uid, int zeile)
+    {
+        if (VerlegungsAbfrage.VorEntfall(datum, stunde, uid, Aendern)) { Neuaufbau(false); return; }
+        var zi = _typ == ElementTyp.Lehrer ? zeile : (int?)null;
+        var seLoeschen = SondereinsatzLoeschenFragen(Vertretungen.SondereinsaetzeBeiEntfall(D, uid, zi, datum, stunde));
+        Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uid, zi, datum, stunde, AppZustand.Benutzer, seLoeschen));
+        Neuaufbau(false);
+    }
+
+    /// <summary>
+    /// Entfallene Stunden einer Zelle, die sich wiederherstellen lassen: zuerst die angeklickte, dann weitere Entfälle der Zelle.
+    /// Im Lehrerplan je Kopplungszeile der Lehrkraft, sonst je Unterricht (alle entfallenen Kopplungszeilen).
+    /// </summary>
+    internal List<(int Unterricht, int? Zeile, TagesEintrag Eintrag)> EntfallKandidaten(DateOnly datum, int stunde, TagesEintrag? e)
+    {
+        var res = new List<(int Unterricht, int? Zeile, TagesEintrag Eintrag)>();
+        void Pruefen(TagesEintrag x)
+        {
+            if ((x.Unterricht?.Id ?? x.Vertretung?.UnterrichtId) is not int u) return;
+            int? zi = _typ == ElementTyp.Lehrer ? x.Regel?.ZeilenIndex ?? x.Vertretung?.ZeilenIndex ?? 0 : null;
+            if (res.Any(r => r.Unterricht == u && r.Zeile == zi)) return;
+            if (Entfallaufhebung.Moeglich(D, u, zi, datum, stunde)) res.Add((u, zi, x));
+        }
+        if (e != null) Pruefen(e);
+        foreach (var x in _plan.EintraegeAmDatum(datum, stunde).Where(x => x.Status == TagesStatus.Entfall)) Pruefen(x);
+        return res;
+    }
+
+    private string EntfallBeschreibung(TagesEintrag e) =>
+        string.Join(" ", new[] { Ix.KFach(e.FachId), string.Join(",", (e.Regel?.LehrerId is int l ? new[] { l } : e.LehrerIds.ToArray()).Select(Ix.KLehrer)), Ix.KKlassen(e.KlassenIds) }.Where(t => t.Length > 0));
+
+    private string EntfallWirkungText(DateOnly datum, int stunde, int uid, int? zeile)
+    {
+        var zeilen = Entfallaufhebung.Zeilen(D, uid, zeile, datum, stunde);
+        var offen = zeilen.Count(v => Entfallaufhebung.WirkungVon(D, v) == Entfallaufhebung.Wirkung.Offen);
+        return offen == 0 ? "Die Stunde findet wieder regulär statt."
+            : offen == zeilen.Count ? "Die Lehrkraft ist abwesend: Die Stunde wird zur offenen Vertretung (???)."
+            : "Teilweise: Stunden anwesender Lehrkräfte finden wieder statt, die übrigen werden offene Vertretungen (???).";
+    }
+
+    /// <summary>Entfall aufheben (Kontextmenü, Doppelklick, Taste „-“): wieder regulärer Unterricht bzw. offene Vertretung.</summary>
+    internal int EntfallAufheben(DateOnly datum, int stunde, int uid, int? zeile, bool block)
+    {
+        var stunden = block ? Entfallaufhebung.Block(D, uid, zeile, datum, stunde) : new List<int> { stunde };
+        if (stunden.Count == 0) return 0;
+        var hinweis = EntfallWirkungText(datum, stunde, uid, zeile);
+        var n = 0;
+        if (!Aendern(stunden.Count > 1 ? $"Entfall aufgehoben ({stunden.Count} Stunden)" : "Entfall aufgehoben", AenderungsArt.Vertretung,
+                d => { n = 0; foreach (var s in stunden) n += Entfallaufhebung.Aufheben(d, uid, zeile, datum, s, AppZustand.Benutzer); })) return 0;
+        Neuaufbau(false);
+        _plan.TagesAuswaehlen(datum, stunde, uid);
+        AppZustand.Haupt?.StatusMelden($"Entfall aufgehoben ({Format.Datum(datum)}, {stunden[0]}.{(stunden.Count > 1 ? $"–{stunden[^1]}." : "")} Stunde): {hinweis}");
+        return n;
+    }
+
+    /// <summary>Doppelklick bzw. Taste „-“ auf eine entfallene Stunde: Entfall des ganzen Blocks aufheben.</summary>
+    private bool EntfallDirektAufheben(DateOnly datum, TagesEintrag e)
+    {
+        if (e.Status != TagesStatus.Entfall) return false;
+        var k = EntfallKandidaten(datum, e.Stunde, e).FirstOrDefault(x => x.Eintrag == e);
+        if (k.Eintrag is null) return false;
+        EntfallAufheben(datum, e.Stunde, k.Unterricht, k.Zeile, true);
+        return true;
     }
 
     private void TextZurVertretung(DateOnly datum, int stunde, TagesEintrag e)
@@ -1576,6 +1656,16 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        // tagesaktueller Plan: „-“ wie in der Vertretungsliste – Stunde entfallen lassen bzw. Entfall wieder aufheben
+        if (_plan.Tagesmodus && ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.None &&
+            e.KeyCode is Keys.OemMinus or Keys.Subtract && _plan.TagesAuswahl is { } ta)
+        {
+            if (!EntfallDirektAufheben(ta.Datum, ta.Eintrag) && ta.Eintrag.Findetstatt && (ta.Eintrag.Unterricht?.Id ?? ta.Eintrag.Vertretung?.UnterrichtId) is int u)
+                StundeEntfallenLassen(ta.Datum, ta.Eintrag.Stunde, u, ta.Eintrag.Regel?.ZeilenIndex ?? ta.Eintrag.Vertretung?.ZeilenIndex ?? 0);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
         // Entf = entplanen, F = fixieren (nicht während einer Texteingabe)
         if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.None && !RegelplanNurAnzeige)
         {

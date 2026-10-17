@@ -36,18 +36,18 @@
 .ub-karte > header h2 { margin: 0; font-size: 1rem; line-height: 1.2; font-weight: 500; color: var(--u-titel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ub-link { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: .82rem; color: var(--u-akzent-dunkel); text-decoration: none; white-space: nowrap; }
 .ub-link .bi { font-size: .7rem; }
-.ub-link:hover { text-decoration: underline; }
+.ub-link:hover { color: var(--u-akzent); text-decoration: none; }
 .ub-koerper { flex: 1; padding: 4px 18px 12px; min-width: 0; }
 
 /* Gruppen mit Überschrift (Titel, Anzahl, „Alle anzeigen“) */
 .ub-gruppe + .ub-gruppe { margin-top: 10px; }
 .ub-gruppe h3 { display: flex; align-items: center; gap: 8px; height: 36px; margin: 0; border-bottom: 1px solid #edf0f2; font-size: .8rem; font-weight: 500; color: var(--u-grau); }
 .ub-gruppe h3 a { color: inherit; text-decoration: none; }
-.ub-gruppe h3 > a:first-child:hover { color: var(--u-titel); text-decoration: underline; }
+.ub-gruppe h3 > a:first-child:hover { color: var(--u-titel); text-decoration: none; }
 .ub-anz { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; background: #eef1f4; color: var(--u-dunkel-2); font-size: .72rem; display: inline-grid; place-content: center; }
 .ub-alle { margin-left: auto; font-weight: 400; color: var(--u-akzent-dunkel) !important; }
 .ub-alle span { color: var(--u-grau); }
-.ub-alle:hover { text-decoration: underline !important; }
+.ub-alle:hover { color: var(--u-akzent) !important; text-decoration: none; }
 
 /* Zeilen: immer eine Zeile, gleiche Höhe */
 .ub-liste { list-style: none; margin: 0; padding: 0; }
@@ -58,7 +58,7 @@
 .ub-z-haupt { flex: 1; display: flex; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
 .ub-z-titel { flex: 0 0 auto; max-width: 70%; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--u-titel); }
 .ub-z-titel a { color: inherit; text-decoration: none; }
-.ub-z-titel a:hover { text-decoration: underline; }
+.ub-z-titel a:hover { color: var(--u-akzent-dunkel); text-decoration: none; }
 .ub-z-neben { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--u-grau); }
 .ub-z-rechts { flex: none; display: flex; align-items: center; gap: 8px; color: var(--u-grau); font-size: .82rem; white-space: nowrap; }
 .ub-z .nl-chip, .ub-z .fz-label { padding: 2px 8px; font-size: .75rem; font-weight: 500; }

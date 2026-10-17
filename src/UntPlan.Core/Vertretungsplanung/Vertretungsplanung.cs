@@ -619,16 +619,12 @@ public static class Vertretungen
             (zeilenIndex is null || (e.Regel?.ZeilenIndex ?? v.ZeilenIndex) == zeilenIndex)).Select(e => e.Vertretung!).Distinct().ToList();
 
     /// <summary>
-    /// Entfall-Zeilen einer Stunde im Stundenplan (Unterricht, im Lehrerplan nur die Zeile der Lehrkraft) rückgängig machen – wie
-    /// „Entfall rückgängig machen“ in der Vertretungsliste (<see cref="EntfallUmschalten"/>). Verlegte Stunden bleiben unberührt.
-    /// Ergebnis: Anzahl.
+    /// Entfall-Zeilen einer Stunde im Stundenplan (Unterricht, im Lehrerplan nur die Zeile der Lehrkraft) rückgängig machen: Ist die
+    /// Lehrkraft anwesend, findet die Stunde wieder regulär statt, sonst wird sie zur offenen Vertretung (<see cref="Entfallaufhebung"/>).
+    /// Verlegte Stunden bleiben unberührt. Ergebnis: Anzahl.
     /// </summary>
-    public static int EntfallRueckgaengig(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde, string benutzer = "")
-    {
-        var liste = EntfallZeilen(d, unterrichtId, zeilenIndex, datum, stunde);
-        foreach (var v in liste) EntfallUmschalten(d, v, benutzer);
-        return liste.Count;
-    }
+    public static int EntfallRueckgaengig(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde, string benutzer = "") =>
+        Entfallaufhebung.Aufheben(d, unterrichtId, zeilenIndex, datum, stunde, benutzer);
 
     /// <summary>Zeilen, die <see cref="EntfallRueckgaengig"/> zurücknehmen würde.</summary>
     public static List<Vertretung> EntfallZeilen(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde) =>

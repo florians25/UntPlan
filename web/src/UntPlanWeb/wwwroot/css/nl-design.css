@@ -176,3 +176,14 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 @media (max-width: 991.98px) { .tt-sperre { left: 58px; padding-top: 72px; } }
 .tag-gesperrt { min-height: 360px; }
 .tag-gesperrt .tt-sperre { left: 0; top: 0; padding-top: 64px; }
+
+/* ------------------------------------------------------------------ Schaltflächen nie unterstrichen
+
+   Buttons, Link-Buttons, Pillen, Reiter und Menüpunkte zeigen beim Überfahren/Fokussieren keine Unterstreichung (Rückmeldung über
+   Farbe/Fläche). Gewöhnliche Links im Fließtext (<a> ohne Klasse, z. B. in Mitteilungstexten) behalten ihre Unterstreichung.
+   :is() übernimmt die Spezifität des stärksten Arguments (a[class] = 0,1,1) – zusammen mit dem Zustand 0,2,1, damit stärker als
+   die Einzelregeln der Module (meist 0,2,0). Bewusste Durchstreichungen (line-through) an Kindelementen bleiben unberührt. */
+:is(button, .btn, .nav-link, .dropdown-item, .page-link, .badge, label.btn, [role="button"], [role="tab"], [role="menuitem"], [role="option"], a[class]):is(:hover, :focus, :focus-visible, :active) {
+  text-decoration: none;
+}
+.btn-link, .btn-link:hover, .btn-link:focus-visible { text-decoration: none; }

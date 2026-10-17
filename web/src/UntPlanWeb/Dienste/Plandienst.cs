@@ -204,6 +204,10 @@ public sealed class Plandienst
             // nur Vertretungen übertragen: die geänderten Stunden über den zuletzt übertragenen Stundenplan legen
             if (!tag.Unterrichtstag) return new List<Rohstunde>();
             var basis = RegelStunden(s, d);
+            // Prüfungen stehen als geänderte Stunden (Prüfungszeile, entfallener Unterricht) bereits im Tag: die Prüfungszeilen aus den
+            // Terminen (RegelStunden) dann nicht zusätzlich – sonst erschiene die Prüfung als zweiter Block neben der Stunde
+            basis.RemoveAll(b => b.Art == "Klausur" && b.Unterricht is null && tag.Stunden.Any(x => x.Stunde == b.Stunde && x.Klassen.Any(k => Enthaelt(b.Klassen, k))
+                && (x.Klausur.HasValue || (x.Unterricht is null && x.Status is "zusaetzlich" or "vertreten"))));
             foreach (var x in tag.Stunden)
             {
                 var betroffen = new HashSet<string>(x.Lehrer.Concat(x.LehrerAlt ?? new List<string>()), Ci);
@@ -323,8 +327,10 @@ public sealed class Plandienst
                                                                       && x.Klassen.Any(w => Enthaelt(r.Klassen, w.K)));
             if (i < 0)
             {
-                // reine Raumbuchung ohne Unterricht: nur im Raumplan, kein zusätzlicher Eintrag im eigenen Stundenplan
-                if (!raumbuchung || typ == Elementtyp.Raum) einzel.Add(k);
+                // reine Raumbuchung ohne Unterricht: nur im Raumplan, kein zusätzlicher Eintrag im eigenen Stundenplan.
+                // Vorgemerkte Prüfung ohne Stunde darunter (z. B. Raumplan des Prüfungsraums): gleich als gelbe Prüfungskarte
+                if (!raumbuchung) einzel.Add(k with { Status = "klausur", Art = VorgemerktePruefung });
+                else if (typ == Elementtyp.Raum) einzel.Add(k);
                 continue;
             }
             var ziel = einzel[i];
@@ -332,7 +338,7 @@ public sealed class Plandienst
             {
                 var kr = r.Raeume.Count == 0 ? ziel.Raeume
                     : r.Raeume.Select(x => ziel.Raeume.FirstOrDefault(w => Ci.Equals(w.K, x)) ?? new Wert(x, ziel.Raeume.FirstOrDefault()?.K ?? "", true)).ToList();
-                einzel[i] = ziel with { Status = "klausur", Art = "Klausur (vorgemerkt)", Text = r.Text, Raeume = kr };
+                einzel[i] = ziel with { Status = "klausur", Art = VorgemerktePruefung, Text = r.Text, Raeume = kr };
                 continue;
             }
             var raeume = RaeumeNachBuchung(ziel.Raeume, r.Raeume);
@@ -360,6 +366,9 @@ public sealed class Plandienst
 
     /// <summary>Stunde findet nicht (mehr) in diesem Raum statt (im Raumplan „abwesend“; weggefallene Bereitschaften ausgenommen).</summary>
     internal static bool AusRaumGenommen(Karte k, string raum) => k.Status == "abwesend" && !k.Bereitschaft;
+
+    /// <summary>Art einer in UntPlanWeb eingetragenen, noch nicht aus UntPlan übertragenen Prüfung (Status „klausur“, gelb).</summary>
+    public const string VorgemerktePruefung = "Klausur (vorgemerkt)";
 
     private static bool IstPruefungsKarte(Karte x) => x.Unterricht is null && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"));
 
@@ -457,7 +466,7 @@ public sealed class Plandienst
             var x = a.Where(r => r.Length > 0).Distinct(Ci).ToList();
             return x.Count == b.Distinct(Ci).Count() && x.All(r => b.Contains(r, Ci));
         }
-        var pruefungen = einzel.Where(x => IstPruefungsKarte(x) && x.Status != "vorgemerkt").ToList();
+        var pruefungen = einzel.Where(x => IstPruefungsKarte(x) && x.Status != "vorgemerkt" && x.Art != VorgemerktePruefung).ToList();
         var weg = new HashSet<Karte>(ReferenceEqualityComparer.Instance);
         foreach (var g in loeschungen.GroupBy(l => (string.Join(",", l.Klassen), string.Join(",", l.Raeume), l.Text)))
         {

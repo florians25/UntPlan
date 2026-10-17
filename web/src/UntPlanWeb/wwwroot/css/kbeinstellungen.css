@@ -85,7 +85,7 @@
 .kbe-tabelle .nl-wahl { width: 44px; }
 .kbe-anzahl { font-size: .85rem; color: var(--u-grau); }
 .kbe-link { padding: 0; border: 0; background: none; color: var(--u-titel); font: inherit; font-weight: 500; cursor: pointer; text-align: left; }
-.kbe-link:hover { color: var(--u-akzent-dunkel); text-decoration: underline; }
+.kbe-link:hover { color: var(--u-akzent-dunkel); text-decoration: none; }
 .kbe-iknopf { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: transparent; color: var(--u-grau); cursor: pointer; }
 .kbe-iknopf:hover:not(:disabled) { background: var(--u-hover); color: var(--u-titel); }
 .kbe-iknopf.rot:hover:not(:disabled) { background: #fdecec; color: #c62828; }

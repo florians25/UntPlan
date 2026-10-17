@@ -43,6 +43,7 @@ public static class ListenSuche
             z.Langname = langname;
             if (cb.DropDownStyle == ComboBoxStyle.DropDownList) cb.DropDownStyle = ComboBoxStyle.DropDown;
             cb.AutoCompleteMode = AutoCompleteMode.None;
+            Ui.ListenSchriftSetzen(cb);
             cb.DrawMode = DrawMode.OwnerDrawFixed;
             return;
         }
@@ -52,6 +53,7 @@ public static class ListenSuche
         if (cb.DropDownStyle == ComboBoxStyle.DropDownList) cb.DropDownStyle = ComboBoxStyle.DropDown;
         if (auswahl >= 0 && auswahl < cb.Items.Count && cb.SelectedIndex != auswahl) cb.SelectedIndex = auswahl;
         cb.AutoCompleteMode = AutoCompleteMode.None;
+        Ui.ListenSchriftSetzen(cb);
         cb.DrawMode = DrawMode.OwnerDrawFixed;
         cb.ItemHeight = Math.Max(cb.ItemHeight, 19);
         cb.IntegralHeight = false;
@@ -235,10 +237,10 @@ public static class ListenSuche
         // Kurzname in fester Spalte, damit die Langnamen bündig stehen
         using var fett = new Font(cb.Font, FontStyle.Bold);
         var kurzBreite = string.IsNullOrEmpty(zusatz) ? r.Width - 4 : Math.Min(Math.Max(64, KurzSpalte(cb, fett)), r.Width / 2);
-        TextRenderer.DrawText(e.Graphics, text, string.IsNullOrEmpty(zusatz) ? cb.Font : fett, new Rectangle(r.X + 4, r.Y, kurzBreite, r.Height), vorder, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        // geglättet (ClearType bzw. Kantenglättung) – weicher als die GDI-Darstellung
+        Ui.ListenText(e.Graphics, text, string.IsNullOrEmpty(zusatz) ? cb.Font : fett, new Rectangle(r.X + 4, r.Y, kurzBreite, r.Height), vorder);
         if (!string.IsNullOrEmpty(zusatz))
-            TextRenderer.DrawText(e.Graphics, zusatz, cb.Font, new Rectangle(r.X + 10 + kurzBreite, r.Y, r.Width - kurzBreite - 12, r.Height),
-                ausgewaehlt ? vorder : Color.FromArgb(55, 62, 72), TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            Ui.ListenText(e.Graphics, zusatz, cb.Font, new Rectangle(r.X + 10 + kurzBreite, r.Y, r.Width - kurzBreite - 12, r.Height), ausgewaehlt ? vorder : Color.FromArgb(55, 62, 72));
         if ((e.State & DrawItemState.Focus) != 0) e.DrawFocusRectangle();
     }
 }

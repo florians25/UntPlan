@@ -304,7 +304,7 @@ a.s-pille { text-decoration: none !important; }
 .lg-auge:hover { color: #414d55; background: rgba(0, 0, 0, .04); }
 .lg-feld:has(.lg-auge) span { max-width: calc(100% - 60px); }
 .lg-login { height: 44px; margin-top: 16px; font-size: 1rem; border-radius: 999px; }
-.lg-vergessen { align-self: center; margin-top: 26px; border: 0; background: none; color: #24323d; font-weight: 600; font-size: .875rem; text-decoration: underline; text-underline-offset: 3px; }
+.lg-vergessen { align-self: center; margin-top: 26px; border: 0; background: none; color: #24323d; font-weight: 600; font-size: .875rem; text-decoration: none; }
 .lg-vergessen:hover { color: var(--s-orange); }
 .lg-hinweis { margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; background: #f1f5f8; color: #57626b; font-size: .82rem; text-align: center; }
 .lg-form .alert { margin: -8px 0 8px; }
