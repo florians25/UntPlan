@@ -817,6 +817,60 @@ function groupOverlaps(list){
   groups.forEach(g => g.forEach((c, i) => { c._i = i; c._n = g.length; }));
 }
 
+/* PARALLEL-BEGINN (wird von den Tests ausgeführt) */
+/* Läuft die Stunde ohne mich — abgegeben, offen vertreten, Kopplung ohne
+   mich, Klasse abwesend? Dann zeigt der Plan sie mit Eckklammern statt als
+   grüne Änderung. Gemeinsam genutzt von der Darstellung und der Rangfolge
+   paralleler Karten (grüne Karten stehen vorne). */
+function freigegeben(card, kind){
+  const isStandby = card.blockType === 'standby';
+  const myCode = (state.entity.code || state.entity.label || '').toUpperCase();
+  const handedOver = kind !== 'class'
+    && (card.changed || []).includes('teacher')
+    && (card.teacherOrig || '').toUpperCase() === myCode
+    && (card.teacher || '').toUpperCase() !== myCode;
+  /* Der verlegte Block am Zielort bleibt eine grüne Änderung, auch wenn
+     die Stunde damit formal aus dem eigenen Plan wandert. */
+  const isMovedTarget = card._isNewPlace
+    || (/verleg/i.test(card.type || '') && card.blockType === 'change');
+  /* Fehle ich in einer Kopplung, die die übrigen weiterhalten, läuft
+     die Stunde ohne mich — dieselbe Darstellung wie bei jeder anderen
+     abgegebenen Stunde: Eckklammern, kein Entfall. Auch dann, wenn die
+     Zeile für mich als Entfall hereinkommt. */
+  const koppL = Array.isArray(card.teacherList) ? card.teacherList : null;
+  const koppOhneMich = !!koppL && kind !== 'class' && !!myCode
+    && koppL.some(t => String(t.code || '').toUpperCase() === myCode
+                    && (t.state || 'ok') === 'absent')
+    && koppL.some(t => (t.state || 'ok') !== 'absent');
+  /* Eine Aufsicht wird nicht „abgegeben“ — sie findet statt oder nicht.
+     Die Eckklammern-Darstellung würde ihr die eigene Kennzeichnung
+     nehmen: Balkenfarbe und Menüzeichen hängen an `card--supervision`,
+     und die wurde für freigegebene Karten nicht gesetzt. */
+  const isSup = card.blockType === 'supervision' || !!card._supervision;
+  /* Ist die eigene Klasse abwesend, der Unterricht läuft aber mit der
+     gekoppelten Klasse weiter, ist das kein Entfall: Die Stunde findet
+     statt, nur ohne uns. Dieselbe Darstellung wie bei einer Lehrkraft,
+     deren Kopplung ohne sie weiterläuft. */
+  const klasseWeg = kind === 'class' && !!card._klasseWeg;
+  /* Ist die Klasse abwesend (Freisetzung), läuft die Stunde im Lehrer- und
+     Raumplan wie eine abgegebene Stunde (Eckklammern, Klasse durchgestrichen
+     in der Plakette); im Klassenplan bleibt sie eine grüne Änderung. Nur ein
+     echter Entfall ist rot. */
+  /* `teacherAbsent` liefert der Server, wenn die Stunde im eigenen Plan
+     ohne die (abwesende) Lehrkraft läuft – gleiche Darstellung. */
+  /* Im Raumplan ist eine abwesende Lehrkraft (offen oder vertreten) eine
+     grüne Änderung wie im Klassenplan – keine Eckklammern, kein Entfall. */
+  const lehrerWegHier = (card.openSub || card.teacherAbsent) && kind !== 'room';
+  return (((lehrerWegHier || handedOver || koppOhneMich || card.classAbsent) && kind !== 'class')
+                    || klasseWeg)
+                && !isStandby && !isSup && !isMovedTarget;
+}
+
+/* Grün gezeigte Karte: Änderung, Vertretung, Raumänderung, Zusatzstunde. */
+function istGrueneKarte(card, kind){
+  return card.blockType === 'change' && !freigegeben(card, kind);
+}
+
 /* Überlappende Karten nebeneinander legen.
    Nach Uhrzeit gesetzte Einträge — Bereitschaften, Aufsichten — bleiben außen
    vor: sie liegen meist in einer Pause und dürfen nicht hinter einer
@@ -874,12 +928,19 @@ function assignParallel(cards){
     if (c.blockType === 'change' || (c.changed || []).length) return 0;
     return 1;                          /* findet unverändert statt */
   };
+  /* Grüne Karten (Änderung, Vertretung, Raumänderung, Zusatzstunde) haben
+     bei parallelen Blöcken immer Vorrang: Sie stehen ganz links, und wenn
+     wegen Platzmangel nur ein Block mit Zählkarte bleibt, ist es die grüne.
+     Danach gilt die übrige Rangfolge wie bisher. Eine Kopplung, in der
+     niemand mehr hält, bleibt ein Entfall. */
+  const kind = viewKind(state.entity);
+  const vorrang = c => rank(c) < 4 && istGrueneKarte(c, kind) ? -1 : rank(c);
   /* Der Rang entscheidet vor der Anfangsstunde. Ein vierstündiger Entfall
      beginnt früher als die grüne Stunde, die in der 3. und 4. hineingezogen
      wurde — nach Startzeit sortiert stünde er deshalb vorn und die Stunde,
      die tatsächlich stattfindet, dahinter. Vorne steht, was stattfindet. */
   const sorted = cards.slice().sort((a,b) =>
-    rank(a) - rank(b) || a.lesson - b.lesson || b.span - a.span);
+    vorrang(a) - vorrang(b) || a.lesson - b.lesson || b.span - a.span);
   /* Zusammenhängende Ketten bilden: alles, was sich über Zwischenschritte
      berührt, gehört in dieselbe Gruppe.
 
@@ -930,6 +991,8 @@ function assignParallel(cards){
   });
   return sorted.concat(timed);
 }
+if (typeof window !== 'undefined') window.UntPlanParallel = { assignParallel, istGrueneKarte };
+/* PARALLEL-ENDE */
 
 /* =====================================================================
    Rendering: Wochenkopf
@@ -1444,45 +1507,10 @@ function renderGrid(){
          Vergleichen taugt nur das Kürzel dahinter. Genau hier fehlte es,
          weshalb die durchscheinende Darstellung dort ausblieb. */
       const myCode = (state.entity.code || state.entity.label || '').toUpperCase();
-      const handedOver = kind !== 'class'
-        && (card.changed || []).includes('teacher')
-        && (card.teacherOrig || '').toUpperCase() === myCode
-        && (card.teacher || '').toUpperCase() !== myCode;
-      /* Der verlegte Block am Zielort bleibt eine grüne Änderung, auch wenn
-         die Stunde damit formal aus dem eigenen Plan wandert. */
-      const isMovedTarget = card._isNewPlace
-        || (/verleg/i.test(card.type || '') && card.blockType === 'change');
-      /* Fehle ich in einer Kopplung, die die übrigen weiterhalten, läuft
-         die Stunde ohne mich — dieselbe Darstellung wie bei jeder anderen
-         abgegebenen Stunde: Eckklammern, kein Entfall. Auch dann, wenn die
-         Zeile für mich als Entfall hereinkommt. */
-      const koppL = Array.isArray(card.teacherList) ? card.teacherList : null;
-      const koppOhneMich = !!koppL && kind !== 'class' && !!myCode
-        && koppL.some(t => String(t.code || '').toUpperCase() === myCode
-                        && (t.state || 'ok') === 'absent')
-        && koppL.some(t => (t.state || 'ok') !== 'absent');
-      /* Eine Aufsicht wird nicht „abgegeben“ — sie findet statt oder nicht.
-         Die Eckklammern-Darstellung würde ihr die eigene Kennzeichnung
-         nehmen: Balkenfarbe und Menüzeichen hängen an `card--supervision`,
-         und die wurde für freigegebene Karten nicht gesetzt. */
       const isSup = card.blockType === 'supervision' || !!card._supervision;
-      /* Ist die eigene Klasse abwesend, der Unterricht läuft aber mit der
-         gekoppelten Klasse weiter, ist das kein Entfall: Die Stunde findet
-         statt, nur ohne uns. Dieselbe Darstellung wie bei einer Lehrkraft,
-         deren Kopplung ohne sie weiterläuft. */
-      const klasseWeg = kind === 'class' && !!card._klasseWeg;
-      /* Ist die Klasse abwesend (Freisetzung), läuft die Stunde im Lehrer- und
-         Raumplan wie eine abgegebene Stunde (Eckklammern, Klasse durchgestrichen
-         in der Plakette); im Klassenplan bleibt sie eine grüne Änderung. Nur ein
-         echter Entfall ist rot. */
-      /* `teacherAbsent` liefert der Server, wenn die Stunde im eigenen Plan
-         ohne die (abwesende) Lehrkraft läuft – gleiche Darstellung. */
-      /* Im Raumplan ist eine abwesende Lehrkraft (offen oder vertreten) eine
-         grüne Änderung wie im Klassenplan – keine Eckklammern, kein Entfall. */
-      const lehrerWegHier = (card.openSub || card.teacherAbsent) && kind !== 'room';
-      card._released = (((lehrerWegHier || handedOver || koppOhneMich || card.classAbsent) && kind !== 'class')
-                        || klasseWeg)
-                    && !isStandby && !isSup && !isMovedTarget;
+      /* Läuft die Stunde ohne mich (bzw. ohne die eigene Klasse)? Dieselbe
+         Regel entscheidet in `assignParallel`, ob die Karte grün ist. */
+      card._released = freigegeben(card, kind);
 
       let lines = cardLines(card, kind);
       /* Online-Unterricht: keine Raumzeile und kein Raumlabel — nur das
