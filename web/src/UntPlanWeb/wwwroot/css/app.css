@@ -1474,7 +1474,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .nl-tag { display: inline-block; padding: 3px 10px; border-radius: 6px; background: #eef1f4; color: #24323d; font-size: .8rem; font-weight: 600; }
 .nl-text { max-width: 240px; font-size: .85rem; color: #414d55; }
 .nl-icon { border: 0; background: none; width: 32px; height: 32px; border-radius: 50%; color: #67747e; opacity: 0; transition: none; }
-.nl-tabelle tr:hover .nl-icon, .nl-icon:focus-visible { opacity: 1; }
+.nl-tabelle tr:hover .nl-icon, .u-tabelle tr:hover .nl-icon, .nl-icon:focus-visible { opacity: 1; }
 .nl-icon:hover { background: #eef1f4; color: var(--u-text); } .nl-icon.rot:hover { color: #a1262b; }
 .nl-fuss { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid #e3e7eb; background: #fbfcfd; }
 .nl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .8rem; font-weight: 600; }
