@@ -758,9 +758,10 @@ function cardLines(card, kind){
                    && label && l.text.toUpperCase() === label));
 }
 
-/* Zeilenabstand der Kachel wie in app.css: am iPhone 14 px (Vorlage), sonst 14,3 px. */
+/* Zeilenabstand der Kachel wie in app.css. */
 const KARTE_SCHMAL = window.matchMedia ? window.matchMedia('(max-width:699px)') : null;
-const karteZeile = () => (KARTE_SCHMAL && KARTE_SCHMAL.matches) ? 14 : 14.3;
+/* Sprint 26: Kartentexte etwas enger – 13,5 px am iPhone, sonst 13,8 px (wie iOS). */
+const karteZeile = () => (KARTE_SCHMAL && KARTE_SCHMAL.matches) ? 13.5 : 13.8;
 
 function cardEndDate(card){
   const t = state.times[Math.min(card.lesson + card.span - 1, 12)] || state.times[card.lesson];
@@ -3799,7 +3800,7 @@ function karteAbwesenheit(x, mitName){
       <p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg>${zeit}${
         x.lessons ? ` <span class="lstcard__sm">(${esc(x.lessons)})</span>` : ''}</p>
       ${anlass ? `<p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.4"/><circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none"/></svg>${esc(anlass)}</p>` : ''}
-      ${x.note ? `<p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg>${esc(x.note)}</p>` : ''}
+      ${String(x.note || '').trim() ? `<p class="lstcard__line lstcard__line--note"><svg viewBox="0 0 24 24" class="lstcard__ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg><span>${esc(String(x.note).trim())}</span></p>` : ''}
       <p class="lstcard__line lstcard__stand lstcard__stand--${x.tone}">
         <svg viewBox="0 0 24 24" class="lstcard__ico">${STAND_ICO[x.tone] || ''}</svg>${esc(x.label)}${
         x.source ? ` <span class="lstcard__sm">· ${esc(x.source)}</span>` : ''}</p>

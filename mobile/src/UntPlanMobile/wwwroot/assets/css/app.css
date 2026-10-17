@@ -5786,3 +5786,29 @@ html.is-dark .sperre .sperre__hinweis{ color:#c9d1d8; }
 .nextnone--sperre .sperre__kreis{ width:auto; height:auto; background:none; box-shadow:none; color:var(--c-ink-2); }
 html.is-dark .nextnone--sperre .sperre__kreis{ background:none; box-shadow:none; color:#c9d1d8; }
 .nextnone--sperre .sperre__kreis svg{ width:30px; height:30px; stroke-width:1.5; }
+
+/* „Meine Abwesenheiten“ (und Klassenleitung): größere Texte wie in der
+   iOS-App – Titel 21 px, Zeilen 16 px; die Bemerkung als eigene Zeile
+   (nur wenn vorhanden), darf umbrechen. */
+.lstcard{ padding:12px 14px; border-radius:10px; }
+.lstcard b{ font-size:21px; line-height:1.25; }
+.lstcard__sub{ font-size:15px; }
+.lstcard__sm{ font-size:15px; }
+.lstcard__line{ margin-top:6px; font-size:16px; line-height:1.3; }
+.lstcard__ico{ width:18px; height:18px; flex:0 0 18px; }
+.lstcard__line--note{ align-items:flex-start; }
+.lstcard__line--note .lstcard__ico{ margin-top:1px; }
+.lstcard__line--note span{ min-width:0; overflow-wrap:anywhere; white-space:pre-line; }
+
+/* Kartentexte etwas enger: Zeilenabstand 13,8 px (iPhone 13,5 px) wie in der
+   iOS-App; karteZeile() rechnet mit denselben Werten. */
+.card .card__line{ line-height:13.8px; }
+.card.card--supervision > .card__line{ line-height:1; }
+.card--holiday .card__line, .card--holiday .card__line:first-of-type{ line-height:16px; }
+.card--holiday .card__line.holiday-range{ line-height:13px; }
+@media (max-width:699px){
+  .card .card__line{ line-height:13.5px; }
+  .card.card--supervision > .card__line{ line-height:1; }
+  .card--holiday .card__line, .card--holiday .card__line:first-of-type{ line-height:16px; }
+  .card--holiday .card__line.holiday-range{ line-height:13px; }
+}
