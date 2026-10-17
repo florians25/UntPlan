@@ -1435,6 +1435,12 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
     var elternInformiert: Bool
     /// Bemerkung zur Abwesenheit (Text bzw. eigenes Feld „bemerkung“, falls der Server es liefert)
     var bemerkungRoh: String = ""
+    /// Fehlstunden der Abwesenheit (als Fehlstunde gezählt; Verspätungen unter der Schwelle zählen nicht)
+    var fehlstunden: Int = 0
+    /// Stunden mit verschiedenem Status (z. B. einzeln von Fachlehrkräften entschuldigt) – Status ist dann „offen“
+    var statusGemischt: Bool = false
+    /// Davon entschuldigte Fehlstunden (bei gemischtem Status)
+    var entschuldigt: Int = 0
 
     var id: String { schluessel }
 
@@ -1444,6 +1450,7 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schluessel, schuelerId, schueler, klasse, vonDatum, vonZeit, bisDatum, bisZeit, art, minuten, grund, status, text, ids, verwalten, elternInformiert
         case bemerkung, notiz
+        case fehlstunden, statusGemischt, entschuldigt
     }
 
     init(from decoder: Decoder) throws {
@@ -1465,6 +1472,41 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
         verwalten = c.wahr(.verwalten)
         elternInformiert = c.wahr(.elternInformiert)
         bemerkungRoh = c.textOderNil(.bemerkung) ?? c.textOderNil(.notiz) ?? ""
+        fehlstunden = c.zahl(.fehlstunden) ?? 0
+        statusGemischt = c.wahr(.statusGemischt)
+        entschuldigt = c.zahl(.entschuldigt) ?? 0
+    }
+}
+
+/// Summen der Abwesenheiten im Zeitraum (GET /api/app/familie/abwesenheiten, Feld „summen“; ältere Server: fehlt).
+struct Abwesenheitssummen: Decodable, Sendable {
+    var abwesenheiten = 0
+    var fehltage = 0
+    var fehlstunden = 0
+    var fehlminuten = 0
+    var entschuldigt = 0
+    var unentschuldigt = 0
+    var offen = 0
+    var verspaetet = 0
+    var verspaetetMinuten = 0
+    var offeneAbwesenheiten = 0
+
+    enum CodingKeys: String, CodingKey {
+        case abwesenheiten, fehltage, fehlstunden, fehlminuten, entschuldigt, unentschuldigt, offen, verspaetet, verspaetetMinuten, offeneAbwesenheiten
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        abwesenheiten = c.zahl(.abwesenheiten) ?? 0
+        fehltage = c.zahl(.fehltage) ?? 0
+        fehlstunden = c.zahl(.fehlstunden) ?? 0
+        fehlminuten = c.zahl(.fehlminuten) ?? 0
+        entschuldigt = c.zahl(.entschuldigt) ?? 0
+        unentschuldigt = c.zahl(.unentschuldigt) ?? 0
+        offen = c.zahl(.offen) ?? 0
+        verspaetet = c.zahl(.verspaetet) ?? 0
+        verspaetetMinuten = c.zahl(.verspaetetMinuten) ?? 0
+        offeneAbwesenheiten = c.zahl(.offeneAbwesenheiten) ?? 0
     }
 }
 
@@ -1493,14 +1535,16 @@ struct FamilieAbwesenheiten: Decodable, Sendable {
     var von: String
     var bis: String
     var zeilen: [Abwesenheitszeitraum]
+    var summen: Abwesenheitssummen?
 
-    enum CodingKeys: String, CodingKey { case von, bis, zeilen }
+    enum CodingKeys: String, CodingKey { case von, bis, zeilen, summen }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         von = String(c.text(.von).prefix(10))
         bis = String(c.text(.bis).prefix(10))
         zeilen = c.liste(.zeilen)
+        summen = try? c.decodeIfPresent(Abwesenheitssummen.self, forKey: .summen)
     }
 }
 

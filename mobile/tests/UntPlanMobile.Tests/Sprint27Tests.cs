@@ -127,11 +127,14 @@ public class Sprint27Tests
         Assert.Equal(3, tag.Count);
         Assert.Equal(new[] { "ER", "KR", "PL" }, tag.Select(x => x.Fach).OrderBy(x => x));
 
-        // Oberfläche: gleichzeitige Blöcke in Spuren nebeneinander (mind. 22 px je Block), Veranstaltungsfelder ausgenommen
+        // Oberfläche: nebeneinander nur, solange jeder Block mindestens 40 px breit bleibt, sonst erster Block + Zählkarte
         var js = AppJs;
-        Assert.Contains("const kopp = g.length > 1 && !g.some(c => c.overlay);", js);
-        Assert.Contains("const fitKopp = Math.max(1, Math.floor(colPx / 22));", js);
+        Assert.Contains("const MIN_CARD = 40;", js);
+        Assert.Contains("const grenzeFuer = () => fitSide;", js);
         Assert.Contains("card._n > grenzeFuer(cards, card) && card._i > 0", js);
+        Assert.DoesNotContain("_koppAend", js);
+        Assert.DoesNotContain("x.takeover) ? Math.max(fitSide, 2)", js);
+        Assert.Contains("data-more=\"${date}\"", js);
     }
 
     private static string? Node()
@@ -174,7 +177,7 @@ public class Sprint27Tests
     }
 
     [Fact]
-    public void Plus_und_Verlegung_in_der_Oberflaeche_ohne_Marker_oben_rechts()
+    public void Plus_und_Verlegung_ohne_Zeichen_auf_der_Kachel()
     {
         var js = AppJs;
         JsPruefen(Abschnitt(js, "PLUS") + """
@@ -183,9 +186,10 @@ public class Sprint27Tests
             pruefe(p.plusWert({ roomPlus:'B070' }, 'room', 'R101'), 'R101');
             pruefe(p.plusWert({}, 'teacher', 'MUE'), 'MUE');
             """);
-        // Verlegung immer mit Pfeil nach rechts (Ursprung → Ziel) unten rechts, Detailzeile „Verlegt“
-        Assert.DoesNotContain("M10.6 7h-7", js);
-        Assert.Contains("const zeigVerlegt = (card.moved === 'von' || card.moved === 'nach') && !isHoliday && !isSup;", js);
+        // kein Verlegungszeichen auf der Kachel und in den Details; die Verlegung steht als Detailzeile „Verlegt“
+        Assert.DoesNotContain("KACHEL_VERLEGT", js);
+        Assert.DoesNotContain("zeigVerlegt", js);
+        Assert.Contains("const vorrang = [zeigInfo && 'info', online && 'online', zeigHw && 'hw']", js);
         Assert.Contains("'Hierher verlegt'", js);
         Assert.Contains("['Von: ' + von, 'Nach: ' + nach]", js);
         // oben rechts nie ein Zeichen, Zeilen lassen dort keinen Platz frei

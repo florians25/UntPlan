@@ -3,6 +3,7 @@
      (die Seite „Heute“ und der Stundenplan behalten ihr eigenes Layout),
    • Suchfeld (.u-suchfeld): großes graues Feld mit Lupe links, runden Ecken, Löschen-X rechts, dezenter Fokus-Ring –
      bestehende Suchfeld-Varianten (.nl-suche, .au-suchfeld …) übernehmen dieselbe Darstellung,
+   • Suchfeld mit Filter (.u-suchfilter, ui.js suchfeldMitFilter): Suche mit integrierten Dropdowns und Filter-Chips auf allen Listenseiten,
    • Segment-Auswahl (.u-segment) für wenige gleichrangige Optionen,
    • schmale Bildschirme: Tabellen scrollen im Container bzw. werden zu Karten (.u-karten-tabelle), Filterleisten brechen um. */
 
@@ -117,13 +118,67 @@
 .u-segment.klein { padding: 2px; }
 .u-segment.klein > button { height: 28px; padding: 0 10px; font-size: .8rem; gap: 5px; }
 
-/* ------------------------------------------------------------------ Offene Stunden: Art als Segment neben der Suche */
+/* ------------------------------------------------------------------ Suchfeld mit Filter (gemeinsame Komponente, Muster der Hausaufgaben)
+   Graues, rundes Feld: Lupe, Chips der gewählten Filter, Eingabe, Löschen-X, Strich, Dropdown(s). Gewählter Filter = dunkler Chip mit x.
+   Leiste .u-sf-leiste: Suchfeld links, weitere Bedienelemente (Zeitraum, Knöpfe) daneben – direkt auf dem grauen Seitengrund. */
 
-.os-leiste .os-suche { flex: 1 1 240px; max-width: 560px; }
-.os-leiste .os-art { flex: none; }
-.os-leiste .os-art .u-segment > button { padding: 0 12px; }
-@media (max-width: 991.98px) { .os-leiste .os-art { order: 3; width: 100%; } .os-leiste .os-art .u-segment { width: 100%; } .os-leiste .os-art .u-segment > button { flex: 1 0 auto; } }
-@media (max-width: 575.98px) { .os-leiste .os-art .u-segment > button { flex: 1 1 auto; padding: 0 8px; font-size: .8rem; } }
+.u-sf-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 16px; min-width: 0; }
+.u-sf-leiste > .u-sf-rechts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-left: auto; }
+.u-suchfilter { position: relative; display: flex; align-items: center; gap: 8px; flex: 1 1 360px; max-width: 640px; min-width: 0; min-height: 42px; padding: 4px 6px 4px 14px;
+  background: #f2f4f6; border: 1px solid transparent; border-radius: 21px; color: #24323d; cursor: text; transition: background-color .12s, border-color .12s, box-shadow .12s; }
+.u-suchfilter:hover { background: #eceff2; }
+.u-inhalt .u-suchfilter { background: #e8ebee; }
+.u-inhalt .u-suchfilter:hover { background: #e1e5e9; }
+.u-inhalt :is(.card, .u-panel, .nl-tabelle, .u-tabelle-karte, .list-group, .kbd-fenster, .nl-karte, .modal-body) .u-suchfilter { background: #f2f4f6; }
+.u-suchfilter.u-suchfilter:focus-within { background: #fff; border-color: rgba(var(--u-akzent-rgb, 245, 107, 42), .55); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb, 245, 107, 42), .12); }
+.u-suchfilter > :is(.bi-search, .u-sym) { flex: none; width: auto; height: auto; color: #67747e; font-size: 1rem; line-height: 1; pointer-events: none; }
+.u-suchfilter > .u-sym { width: 18px; height: 18px; }
+.u-suchfilter > input { flex: 1 1 120px; min-width: 72px; height: 32px; padding: 0; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: 0;
+  font: inherit; font-size: .9rem; font-weight: 500; color: #24323d; }
+.u-suchfilter > input::placeholder { color: #8a96a1; font-weight: 500; opacity: 1; }
+.u-suchfilter > input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.u-suchfilter.au-mit-x > .au-x { position: static; transform: none; flex: none; width: 24px; height: 24px; border-radius: 50%; background: #dfe3e8; color: #414d55; font-size: .62rem; }
+.u-suchfilter.au-mit-x > .au-x:hover { background: #c9d0d6; color: #24323d; }
+.u-suchfilter .u-trenn { flex: none; width: 1px; height: 20px; margin: 0 2px; background: #c9d0d6; }
+/* Chips (gewählte Lehrkräfte, Klassen …) */
+.u-sf-chip { display: inline-flex; align-items: center; gap: 2px; flex: none; max-width: 180px; height: 30px; padding: 0 4px 0 12px; border-radius: 999px; background: #414d55; color: #fff;
+  font-size: .85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.u-sf-chip button, .u-sf-weg { display: inline-grid; place-content: center; flex: none; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #fff; font-size: .95rem; line-height: 1; }
+.u-sf-chip button:hover, .u-sf-weg:hover { background: rgba(255, 255, 255, .18); }
+.u-sf-chip button:focus-visible, .u-sf-weg:focus-visible { outline: 2px solid rgba(255, 255, 255, .8); outline-offset: -2px; }
+.u-sf-weg[hidden] { display: none; }
+/* Dropdown im Feld: schlicht mit Pfeil; gewählt (≠ Standard) als dunkler Chip mit x */
+.u-sf-filter { display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; max-width: 46%; height: 32px; border-radius: 999px; transition: background-color .12s; }
+.u-sf-filter > .au { display: inline-block; width: auto; min-width: 0; max-width: 100%; }
+.u-sf-filter .au-knopf { min-height: 0; height: 32px; padding: 0 8px 0 10px; gap: 6px; border: 0; border-radius: 999px; background: transparent; box-shadow: none !important;
+  font-size: .9rem; font-weight: 500; color: #24323d; }
+.u-sf-filter .au-knopf.leer .au-wert-text { color: inherit; }
+.u-sf-filter .au-pfeil { color: #414d55; }
+.u-sf-filter .au-knopf:hover { background: rgba(255, 255, 255, .65); }
+.u-sf-filter .au.offen > .au-knopf, .u-sf-filter .au-knopf:focus-visible { background: #fff; box-shadow: inset 0 0 0 1.5px rgba(var(--u-akzent-rgb, 245, 107, 42), .6) !important; }
+.u-sf-filter.gewaehlt { background: #414d55; padding-right: 4px; }
+.u-sf-filter.gewaehlt .au-knopf { color: #fff; padding-right: 4px; }
+.u-sf-filter.gewaehlt .au-knopf:hover, .u-sf-filter.gewaehlt .au.offen > .au-knopf { background: transparent; }
+.u-sf-filter.gewaehlt .au-knopf:focus-visible { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .8) !important; }
+.u-sf-filter.gewaehlt .au-pfeil { color: rgba(255, 255, 255, .8); }
+.u-sf-filter.gewaehlt .au.offen .au-pfeil { color: #fff; }
+/* Vorschlagsliste unter dem Feld (z. B. Offene Stunden: Lehrkräfte, Klassen) */
+.u-suchfilter > .os-vorschlaege { top: calc(100% + 6px); }
+@media (max-width: 767.98px) {
+  .u-sf-leiste { gap: 10px; }
+  .u-sf-leiste > .u-suchfilter { flex: 1 1 100%; max-width: none; }
+  .u-sf-leiste > .u-sf-rechts { margin-left: 0; }
+}
+@media (max-width: 575.98px) {
+  /* mehrere Dropdowns: Eingabe in der ersten Zeile, Dropdowns darunter im selben Feld */
+  .u-suchfilter.mehrere { flex-wrap: wrap; row-gap: 2px; border-radius: 18px; padding-top: 4px; padding-bottom: 4px; }
+  .u-suchfilter.mehrere > input { flex-basis: calc(100% - 64px); }
+  .u-suchfilter.mehrere > .u-trenn:first-of-type { display: none; }
+  .u-suchfilter.mehrere > .u-trenn:first-of-type + .u-sf-filter { margin-left: 18px; }
+  .u-suchfilter.mehrere > .u-sf-filter { max-width: calc(50% - 24px); }
+  .u-suchfilter:not(.mehrere) > .u-sf-filter { max-width: 48%; }
+  .u-sf-filter .au-knopf { font-size: .85rem; padding: 0 6px 0 8px; }
+}
 
 /* ------------------------------------------------------------------ Klassenbucheinträge: Liste und Detaildialog */
 

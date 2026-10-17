@@ -714,6 +714,12 @@ public sealed class Db
             reihenfolge INTEGER NOT NULL DEFAULT 0, erstellt VARCHAR(30) NOT NULL DEFAULT '', geaendert VARCHAR(30) NOT NULL DEFAULT ''
         );
         """),
+
+        // 28: Buchungsmodul – Standort mobiler Ressourcen (Ausgabe-/Lagerort) und Symbol je Ressourcenart – nur Standard-SQL
+        Nr(28, """
+        ALTER TABLE ressourcen ADD COLUMN standort VARCHAR(100) NOT NULL DEFAULT '';
+        ALTER TABLE ressourcenarten ADD COLUMN symbol VARCHAR(40) NOT NULL DEFAULT '';
+        """),
     };
 
 

@@ -464,8 +464,6 @@ const KACHEL_INFO = '<svg class="ticon ticon--info" viewBox="0 0 16 16" aria-hid
 const KACHEL_ONLINE = '<svg class="ticon ticon--online" viewBox="0 0 28 28" aria-hidden="true"><path d="m20 11.011-3 1v-1a1.5 1.5 0 0 0-1.5-1.5h-6a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5v-1l3 1v-6z"/><path d="M8 24.511a4.5 4.5 0 0 1-4.5-4.5v-12a4.5 4.5 0 0 1 4.5-4.5h12a4.5 4.5 0 0 1 4.5 4.5v12a4.5 4.5 0 0 1-4.5 4.5H8z"/></svg>';
 /* Verlegung: Ursprungsstunde mit Pfeil nach rechts (rotes Feld), Zielstunde
    mit Pfeil nach links (grünes Feld). */
-/* Sprint 27: beide Seiten mit Pfeil nach rechts (Ursprung → Ziel, wie im Web) – Ursprung rot, Ziel grün. */
-const KACHEL_VERLEGT = r => `<svg class="ticon ticon--verlegt ticon--${r === 'von' ? 'von' : 'nach'}" viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="3"/><path d="M3.4 7h7M7.6 4.2 10.4 7 7.6 9.8"/></svg>`;
 
 
 /* PLUS-BEGINN (wird von den Tests ausgeführt) */
@@ -911,15 +909,6 @@ function assignParallel(cards){
       c._i = k;
     });
     g.forEach(c => { c._n = cols.length; });
-    /* Kopplungsunterricht (Sprint 27): alle gleichzeitigen Blöcke einer
-       Stunde stehen nebeneinander in Spuren – auch bei Vertretung,
-       Raumänderung, offener Vertretung, Entfall einer Zeile oder
-       Doppelstunden, die nur teilweise vertreten werden. Keiner tritt
-       hinter die Zählkarte zurück, solange je Block 22 px bleiben. Ein
-       Veranstaltungsfeld ist keine Kopplung: dahinter treten die
-       entfallenden Stunden weiterhin zurück. */
-    const kopp = g.length > 1 && !g.some(c => c.overlay);
-    g.forEach(c => { if (kopp) c._koppAend = true; else delete c._koppAend; });
   });
   return sorted.concat(timed);
 }
@@ -1192,8 +1181,13 @@ function renderGrid(){
   /* Wie viele Kacheln passen nebeneinander in eine Spalte, ohne dass der
      Text unlesbar wird? Auf dem Telefon ist das eine, auf breiten Geräten
      wie dem iPad sind es mehrere. Erst wenn es nicht mehr reicht, tritt die
-     Zählkarte an die Stelle der verdrängten Kacheln. */
-  const MIN_CARD = 62;
+     Zählkarte an die Stelle der verdrängten Kacheln. Sprint 27: Nebeneinander
+     nur, solange jeder Block mindestens 40 px breit bleibt – sonst vorne der
+     erste Block und daneben die Zählkarte (Tippen öffnet den Tag mit allen
+     parallelen Stunden). Das gilt für Kopplungen, Vertretungen und Entfälle
+     gleichermaßen; die iPhone-Woche zeigt damit meist einen Block mit
+     Zählkarte, Tagesansicht und iPad stehen nebeneinander. */
+  const MIN_CARD = 40;
   const gutterPx = zeitspalteBreite();
   const colPx = Math.max(1, (($('#gridScroll').clientWidth || 402) - gutterPx) / cols);
   /* Breite Wochenspalte: Platz für eine halbe Kachel neben einem Feld. */
@@ -1201,15 +1195,7 @@ function renderGrid(){
   const weekPx = colPx * cols;
   const fitSide = Math.max(1, Math.floor(colPx / MIN_CARD));
 
-  /* Eine gehaltene Vertretung und die eigene Stunde, die dafür ausfällt,
-     gehören immer nebeneinander — auch wenn die Spalte eigentlich zu schmal
-     dafür ist. Freisetzungen (GS) und andere Überlagerungen folgen dagegen
-     dem normalen Platz: auf dem iPad nebeneinander, auf dem Handy als Zahl. */
-  const fitPair = list =>
-    list.some(x => x.takeover) ? Math.max(fitSide, 2) : fitSide;
-  /* Gekoppelte Blöcke: schmaler (mind. 22 px je Block), dafür alle nebeneinander. */
-  const fitKopp = Math.max(1, Math.floor(colPx / 22));
-  const grenzeFuer = (list, c) => c && c._koppAend ? Math.max(fitPair(list), fitKopp) : fitPair(list);
+  const grenzeFuer = () => fitSide;
 
   /* Nebeneinanderliegende Kacheln: die Luft dazwischen wird von der Breite
      abgezogen, nicht angehängt. Dadurch endet die letzte Kachel genau dort,
@@ -1592,7 +1578,7 @@ function renderGrid(){
          Zeichen legte sich über den Raum. Wer hier landet, wird nach dem
          Zeichnen genau vermessen; wo nichts im Weg steht, fällt das
          Polster dort wieder weg. */
-      if ((showInfo || cut || card.hasHw || online || card.moved) && textBottom > h - 21) cls.push('pad-last', 'pad-check');
+      if ((showInfo || cut || card.hasHw || online) && textBottom > h - 21) cls.push('pad-last', 'pad-check');
 
       const timeA = (state.times[card.lesson] || {}).start || '';
       const timeB = (state.times[Math.min(card.lesson + card.span - 1, 12)] || {}).end || '';
@@ -1729,30 +1715,27 @@ function renderGrid(){
          also je die halbe Breite. */
       const zeigHw = !!card.hasHw && !isHoliday && !isStandby && !isSup;
       const zeigInfo = showInfo && !isHoliday;
-      const zeigVerlegt = (card.moved === 'von' || card.moved === 'nach') && !isHoliday && !isSup;
       const kachelBreit = colPx / Math.max(1, card._n || 1);
 
       let eckzeichen = '';
       const dots = `<span class="card__cut" aria-hidden="true">${DOTS}</span>`;
-      /* Zeichen unten rechts: Online, Verlegung, Hausaufgabe, Info — in
-         dieser Reihenfolge von links nach rechts. Reicht die Breite nicht für
-         alle (je 14 px und 3 px Abstand, links bleibt der Balken frei), fällt
-         zuerst die Hausaufgabe weg, dann das Onlinezeichen; Verlegung und
-         Info bleiben am längsten stehen. Wurde wirklich gekürzt, steht allein
-         das Kürzungszeichen dort. */
+      /* Zeichen unten rechts: Online, Hausaufgabe, Info — in dieser
+         Reihenfolge von links nach rechts. Reicht die Breite nicht für alle
+         (je 14 px und 3 px Abstand, links bleibt der Balken frei), fällt
+         zuerst die Hausaufgabe weg, dann das Onlinezeichen; Info bleibt am
+         längsten stehen. Wurde wirklich gekürzt, steht allein das
+         Kürzungszeichen dort. Ein Verlegungszeichen gibt es auf der Kachel
+         nicht (wie iOS) – die Verlegung steht in den Details. */
       const platz = Math.max(1, Math.floor((kachelBreit - 18 + 3) / 17));
-      const vorrang = [zeigVerlegt && 'verlegt', zeigInfo && 'info', online && 'online', zeigHw && 'hw'].filter(Boolean).slice(0, platz);
+      const vorrang = [zeigInfo && 'info', online && 'online', zeigHw && 'hw'].filter(Boolean).slice(0, platz);
       const ikon = n => n === 'online' ? `<span class="card__ic card__ic--online">${KACHEL_ONLINE}</span>`
-                      : n === 'verlegt' ? `<span class="card__ic card__ic--verlegt">${KACHEL_VERLEGT(card.moved)}</span>`
                       : n === 'hw' ? `<span class="card__ic card__ic--exakt">${KACHEL_HA}</span>`
                       : `<span class="card__ic card__ic--info">${KACHEL_INFO}</span>`;
 
       if (cut && !card._supervision && card.blockType !== 'supervision'){
-        /* Die Verlegung bleibt auch auf einer gekürzten Kachel erkennbar. */
-        eckzeichen = zeigVerlegt && kachelBreit >= 52
-          ? `<span class="card__ecke card__ecke--cut">${ikon('verlegt')}${dots}</span>` : dots;
+        eckzeichen = dots;
       } else if (vorrang.length){
-        eckzeichen = `<span class="card__ecke">${['online', 'verlegt', 'hw', 'info'].filter(n => vorrang.includes(n)).map(ikon).join('')}</span>`;
+        eckzeichen = `<span class="card__ecke">${['online', 'hw', 'info'].filter(n => vorrang.includes(n)).map(ikon).join('')}</span>`;
       }
       if (online) cls.push('has-online');
 
@@ -5734,7 +5717,7 @@ function renderDetail(){
   if (c.blockType === 'klausur')
     rows.push({ ico:'exam', title:'Prüfung', key:'exam', sub: c.subject || c.subjectOrig || '' });
   /* Verlegung: Ursprung und Ziel untereinander (fehlt die Gegenseite, nur
-     der Titel), rechts das Verlegungszeichen wie auf der Kachel. */
+     der Titel). Ein Verlegungszeichen gibt es in der PWA nicht. */
   if ((c.moved === 'von' || c.moved === 'nach') && !istVeranstaltung){
     const von = c.movedFrom && c.movedFrom.text, nach = c.movedTo && c.movedTo.text;
     rows.push({ key:'moved', moved:c.moved, title: c.moved === 'von' ? 'Verlegt' : 'Hierher verlegt',
@@ -5815,7 +5798,6 @@ function renderDetail(){
         <div class="drow2 drow2--moved" data-key="moved" aria-label="${esc([r.title].concat(r.lines).join(', '))}">
           <span class="drow2__ico">${DICO.moved}</span>
           <span class="drow2__main"><b>${esc(r.title)}</b>${r.lines.map(t => `<span>${esc(t)}</span>`).join('')}</span>
-          <span class="drow2__end drow2__mk">${KACHEL_VERLEGT(r.moved)}</span>
         </div>` : r.key === 'room' ? `
         <div class="drow2 drow2--room" data-key="room">
           ${ico(r)}
@@ -5895,8 +5877,8 @@ const DICO = (() => {
     info:          linie('<circle cx="14" cy="14" r="10.25"/><path d="M14 12.6v7"/><circle cx="14" cy="8.9" r=".55" fill="currentColor"/>'),
     room:          u('ic-shared-roomentity'),
     exam:          u('ic-examinations'),
-    /* Verlegung: Feld mit Pfeil nach rechts (Ursprung → Ziel) */
-    moved:         linie('<rect x="3.75" y="3.75" width="20.5" height="20.5" rx="4.5"/><path d="M8.6 14h10.2M14.8 9.9l4 4.1-4 4.1"/>'),
+    /* Verlegung: Pfeil nach rechts (Ursprung → Ziel) */
+    moved:         linie('<path d="M4.5 14h17.5M16.5 8.5 22 14l-5.5 5.5"/>'),
     link:          linie('<path d="M12.2 15.8a4.6 4.6 0 0 0 6.5 0l3.6-3.6a4.6 4.6 0 0 0-6.5-6.5l-1.5 1.5"/><path d="M15.8 12.2a4.6 4.6 0 0 0-6.5 0l-3.6 3.6a4.6 4.6 0 0 0 6.5 6.5l1.5-1.5"/>')
   };
 })();

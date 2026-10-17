@@ -5690,12 +5690,7 @@ html.is-dark .card .ticon--info .ticon__scheibe{ fill:#818f9a; }
 .card .ticon.ticon--online{ display:block; width:100%; height:100%; fill:none; stroke:#8a96a1; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 html.is-dark .card .ticon.ticon--online{ stroke:#a3aeb9; }
 
-/* Verlegung: Ursprung rotes Feld mit Pfeil nach rechts, Ziel grünes Feld
-   mit Pfeil nach links (14 × 14 px, Radius 3 px). */
-.card .ticon.ticon--verlegt{ display:block; width:100%; height:100%; }
-.card .ticon--verlegt rect{ fill:#1e9e5a; stroke:none; }
-.card .ticon--verlegt.ticon--von rect{ fill:#f03e3e; }
-.card .ticon--verlegt path{ fill:none; stroke:#ffffff; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+/* Sprint 27: kein Verlegungszeichen auf der Kachel (wie iOS) – die Verlegung steht in den Details. */
 
 /* Raumlabel (untere Zeilen): so knapp gepolstert wie jedes andere Label,
    Schrift unverändert. */
@@ -5926,13 +5921,8 @@ html body .sheet--detail .drow2__count, html.is-dark body .sheet--detail .drow2_
 }
 html body .sheet--detail .drow2__count.is-checked::after{ top:-4px; right:-4px; width:13px; height:13px; }
 
-/* Stundendetails: Zeile „Verlegt“ / „Hierher verlegt“ mit Ursprung und Ziel, rechts das Verlegungszeichen */
+/* Stundendetails: Zeile „Verlegt“ / „Hierher verlegt“ mit Ursprung und Ziel (ohne Verlegungszeichen) */
 .sheet--detail .drow2--moved{ cursor:default; }
-.drow2__mk .ticon--verlegt{ display:block; width:22px; height:22px; }
-.drow2__mk .ticon--verlegt rect{ fill:#1e9e5a; stroke:none; }
-.drow2__mk .ticon--verlegt.ticon--von rect{ fill:#f03e3e; }
-.drow2__mk .ticon--verlegt path{ fill:none; stroke:#fff; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
-.sheet--detail .drow2--moved .drow2__end{ padding-right:4px; }
 
 /* Sprechtag: Status „angekündigt“ (freigegeben, Anmeldung beginnt erst später), Ort, Vorschau der Zeiten, Online-Termin */
 .spt__phase--angekuendigt{ background:rgba(245,107,42,.12); color:#c2511b; }

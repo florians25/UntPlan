@@ -3,7 +3,7 @@ import SwiftUI
 // Übersetzt den Wochenplan (Karten, Tagesköpfe, Aufsichten) in Kacheln für das Raster – nach derselben Logik wie
 // UntPlanMobile (Dienste/Kachelbau.cs und app.js): Art der Kachel, Zeilen mit Plaketten, Durchstreichungen,
 // abgegebene Stunden (Eckklammern), Bereitschaften, Veranstaltungen als Feld, Pausenaufsichten als Pillen,
-// vergangene Stunden und die Anordnung paralleler Stunden (Spuren nebeneinander wie im Web, „+N“-Streifen).
+// vergangene Stunden und die Anordnung paralleler Stunden (Spuren nebeneinander wie im Web, Zählerkarte).
 
 // MARK: - Zeitraster
 
@@ -161,9 +161,7 @@ struct Kachel: Identifiable {
     var raumAenderung: Bool = false
     /// Stunde findet online statt: Online-Zeichen unten rechts
     var online: Bool = false
-    /// Verlegung: „von“ (ursprüngliche Stunde, rotes Feld) bzw. „nach“ (Zielstunde, grünes Feld), Pfeil nach rechts
-    var verlegung: String? = nil
-    /// Marker oben rechts (untereinander) laut Server; nil = älterer Server ohne Marker (Verlegung dann unten rechts)
+    /// Marker oben rechts (untereinander) laut Server; nil = älterer Server ohne Marker (iOS zeigt sie nicht)
     var marker: [Kachelmarker]? = nil
     /// An einer Pause geteilter Teil einer Karte: Kennung der ganzen Karte (alle Teile bekommen dieselbe Spur wie im Web)
     var stamm: UUID? = nil
@@ -193,8 +191,8 @@ struct Kachellage: Identifiable {
     var id: UUID { kachel.id }
 }
 
-/// „+N“-Streifen am rechten Rand der Tagesspalte: so viele Stunden liegen dahinter (nur wenn nicht alle Spuren
-/// mit Mindestbreite in die Spalte passen).
+/// Zählerkarte am rechten Rand der Tagesspalte: so viele Stunden liegen dahinter (nur wenn nicht alle gleichzeitigen
+/// Blöcke mit Mindestbreite nebeneinander in die Spalte passen).
 struct Zaehlstreifen: Identifiable {
     /// Feste Kennung aus vorderer Kachel und Stunden: bleibt beim erneuten Anordnen gleich (keine neuen Ansichten)
     var id: String { "\(vorne.id.uuidString)-\(von)-\(bis)" }
@@ -423,7 +421,6 @@ enum Kachelbau {
         kachel.info = (!k.anzeigeText.isEmpty && !istEntfaelltText(k.anzeigeText)) || !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty
         kachel.hausaufgabe = k.hausaufgabeFaellig
         kachel.online = k.online && !k.istEntfall && k.status != "abwesend"
-        kachel.verlegung = k.verlegung
         // Server-Marker (oben rechts) zeigt nur das Web – iOS-Karten haben oben rechts nie ein Zeichen
         // Zusatzstunde: automatische Standardtexte erscheinen nicht – manuell eingegebene Vertretungstexte (und Notizen)
         // zeigen das Info-Zeichen
@@ -436,7 +433,6 @@ enum Kachelbau {
             kachel.art = .veranstaltung
             kachel.feld = true
             kachel.online = false
-            kachel.verlegung = nil
             kachel.titel = k.anzeigeText.isEmpty ? k.anzeigeArt : k.anzeigeText
             kachel.zeilen = veranstaltungsZeilen(k, typ: typ, ich: ich, anlass: kachel.titel)
             // Infotext der Veranstaltung (in den Details als Zeile „Information“): Info-Zeichen unten rechts
@@ -452,7 +448,6 @@ enum Kachelbau {
             kachel.info = !k.anzeigeText.isEmpty && !istEntfaelltText(k.anzeigeText)
             kachel.hausaufgabe = false
             kachel.online = false
-            kachel.verlegung = nil
             if istBereitschaftAbwesend(k) {
                 kachel.art = .bereitschaftAbwesend
                 var zeilen = [Kachelzeile(schluessel: "fach", teile: [Kachelteil(text: titel)], fett: true)]
@@ -996,13 +991,14 @@ enum Kachelbau {
         var spuren: Int = 1
     }
 
-    /// Mindestbreite einer Spur (Woche bzw. Tag). Erst wenn mehr Spuren nötig sind, als bei dieser Breite in die Spalte
-    /// passen, treten die hinteren hinter einen „+N“-Streifen.
-    static let spurMindestBreiteWoche: CGFloat = 20
-    static let spurMindestBreiteTag: CGFloat = 22
-    /// Breite des „+N“-Streifens am rechten Rand und der dafür freigehaltene Platz (Streifen + Luft).
-    static let zaehlerBreite: CGFloat = 14
-    static let zaehlerPlatz: CGFloat = 16
+    /// Mindestbreite eines Blocks, damit er lesbar bleibt (Woche und Tag). Nebeneinander stehen gleichzeitige Blöcke nur,
+    /// solange jeder mindestens so breit ist; sonst steht vorne der erste Block (Web-Reihenfolge) mit der Zählerkarte daneben
+    /// (iPhone-Woche in der Regel 1 Block + Zählerkarte wie im Original, iPad und Tagesansicht nebeneinander).
+    static let spurMindestBreiteWoche: CGFloat = 40
+    static let spurMindestBreiteTag: CGFloat = 40
+    /// Breite der Zählerkarte am rechten Rand und der dafür freigehaltene Platz (Karte + Luft) – wie im Original.
+    static let zaehlerBreite: CGFloat = 12
+    static let zaehlerPlatz: CGFloat = 14
 
     /// Spurverteilung genau wie `spuren()` in plangitter.js (Web) – reine Funktion, leicht prüfbar:
     /// 1. Einträge nach Beginn sortieren, bei gleichem Beginn die längeren zuerst, sonst Reihenfolge der Daten (stabil).
@@ -1067,6 +1063,34 @@ enum Kachelbau {
         return ergebnis
     }
 
+    /// Überlauf (reine Funktion, leicht prüfbar): dieselbe Verteilung wie `spurenRechnen` (gleiche Sortierung), aber mit
+    /// höchstens `maxSpuren` sichtbaren Spuren. Ein Eintrag, für den keine sichtbare Spur frei ist, liegt hinter dem
+    /// sichtbaren Eintrag der niedrigsten Spur, der zu seiner Zeit läuft (`vorne` = dessen Index) – es gibt ihn immer, weil
+    /// dann jede sichtbare Spur zu seinem Beginn belegt ist. Ergebnis je Eintrag: sichtbare Spur oder Index des vorderen.
+    static func spurenBegrenzen(_ zeiten: [(beginn: Int, ende: Int)], maxSpuren: Int) -> [(spur: Int?, vorne: Int?)] {
+        var ergebnis: [(spur: Int?, vorne: Int?)] = Array(repeating: (spur: nil, vorne: nil), count: zeiten.count)
+        let anzahl = max(1, maxSpuren)
+        let sortiert = zeiten.indices.sorted { a, b in
+            if zeiten[a].beginn != zeiten[b].beginn { return zeiten[a].beginn < zeiten[b].beginn }
+            if zeiten[a].ende != zeiten[b].ende { return zeiten[a].ende > zeiten[b].ende }
+            return a < b
+        }
+        // je sichtbarer Spur: Ende und Index des letzten Eintrags
+        var enden = Array(repeating: Int.min, count: anzahl)
+        var letzter: [Int?] = Array(repeating: nil, count: anzahl)
+        for i in sortiert {
+            let z = zeiten[i]
+            if let frei = enden.firstIndex(where: { $0 <= z.beginn }) {
+                enden[frei] = z.ende
+                letzter[frei] = i
+                ergebnis[i].spur = frei
+            } else {
+                ergebnis[i].vorne = letzter.compactMap { $0 }.first ?? i
+            }
+        }
+        return ergebnis
+    }
+
     /// Zahl der Spuren, die bei der Mindestbreite in eine Breite passen (mindestens eine).
     static func spurenPassend(_ breite: CGFloat, mindestBreite: CGFloat, luecke: CGFloat) -> Int {
         max(1, Int((breite + luecke) / (mindestBreite + luecke)))
@@ -1075,8 +1099,9 @@ enum Kachelbau {
     /// Kacheln einer Tagesspalte anordnen – wie das Web (plangitter.js):
     /// - Alle Stunden (auch Kopplungsteile, Vertretung neben Entfall, Veranstaltungen) stehen nebeneinander in gleich breiten
     ///   Spuren in der Reihenfolge der Daten (`spurenVerteilen`). Nichts wird zusammengefasst oder untereinander geteilt.
-    /// - Nur wenn eine Gruppe mehr Spuren braucht, als bei der Mindestbreite in die Spalte passen, bleiben rechts ein
-    ///   „+N“-Streifen und links so viele Spuren wie passen; die übrigen Stunden liegen hinter dem Streifen.
+    /// - Braucht eine Gruppe mehr Spuren, als bei der Mindestbreite (40 pt) in die Spalte passen, bleibt rechts die
+    ///   Zählerkarte wie im Original; links stehen so viele Spuren, wie dann noch passen (iPhone-Woche: der erste Block),
+    ///   die übrigen Stunden liegen hinter der Zählerkarte (Tipp: Details mit allen parallelen Stunden als Reiter).
     /// - Pausenaufsichten unter einer durchgehenden Veranstaltung stehen schmal in der rechten Hälfte (Web: `.aufsicht.schmal`).
     static func anordnen(_ alle: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool) -> Tagesbelegung {
         var belegung = Tagesbelegung()
@@ -1085,30 +1110,28 @@ enum Kachelbau {
         let luecke: CGFloat = tagesansicht ? 4 : 2
         let mindestBreite = tagesansicht ? spurMindestBreiteTag : spurMindestBreiteWoche
         let grenze = spurenPassend(spaltenBreite, mindestBreite: mindestBreite, luecke: luecke)
-        // bei Überlauf: Platz für den Streifen rechts freihalten, links so viele Spuren wie dann noch passen
+        // bei Überlauf: Platz für die Zählerkarte rechts freihalten, links so viele Spuren wie dann noch passen
         let restBreite = max(0, spaltenBreite - zaehlerPlatz)
         let grenzeMitZaehler = spurenPassend(restBreite, mindestBreite: mindestBreite, luecke: luecke)
         let restAnteil: CGFloat = spaltenBreite > 0 ? restBreite / spaltenBreite : 1
 
         let lagen = spurenVerteilen(stunden)
+        // Gruppen mit zu vielen Spuren gemeinsam begrenzen (verschiedene Gruppen überlappen sich nie)
+        let ueberlauf = stunden.filter { (lagen[$0.id]?.spuren ?? 1) > grenze }
+        let begrenzt = spurenBegrenzen(ueberlauf.map { (beginn: $0.beginn, ende: max($0.ende, $0.beginn + 1)) },
+                                       maxSpuren: grenzeMitZaehler)
         var verdraengt: [(karte: Kachel, vorne: Kachel)] = []
-        for k in stunden {
+        for (i, k) in ueberlauf.enumerated() {
+            if let spur = begrenzt[i].spur {
+                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: grenzeMitZaehler, i: spur, von: 0, bis: restAnteil, luecke: luecke))
+            } else {
+                let v = begrenzt[i].vorne ?? i
+                verdraengt.append((k, ueberlauf[v]))
+            }
+        }
+        for k in stunden where (lagen[k.id]?.spuren ?? 1) <= grenze {
             let s = lagen[k.id] ?? Spurlage()
-            if s.spuren <= grenze {
-                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: s.spuren, i: s.spur, von: 0, bis: 1, luecke: luecke))
-                continue
-            }
-            if s.spur < grenzeMitZaehler {
-                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: grenzeMitZaehler, i: s.spur, von: 0, bis: restAnteil, luecke: luecke))
-                continue
-            }
-            // Hinter dem Streifen: vorne steht die sichtbare Stunde derselben Zeit (bevorzugt die erste Spur)
-            let sichtbar = stunden.filter { o in
-                let so = lagen[o.id] ?? Spurlage()
-                return so.spuren > grenze && so.spur < grenzeMitZaehler && o.ueberlappt(k)
-            }
-            let vorne = sichtbar.first { (lagen[$0.id]?.spur ?? 0) == 0 } ?? sichtbar.first ?? k
-            verdraengt.append((k, vorne))
+            belegung.lagen.append(spurLage(Kachellage(kachel: k), n: s.spuren, i: s.spur, von: 0, bis: 1, luecke: luecke))
         }
 
         // Je vorderer Kachel ein Streifen; überlappende Streifen verschmelzen

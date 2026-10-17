@@ -24,6 +24,10 @@ struct MeineAbwesenheitenView: View {
                     Fehlerhinweis(text: fehler)
                 }
                 if let daten {
+                    // Summen des Zeitraums (unabhängig vom Statusfilter): Fehltage, Fehlstunden je Status, Verspätungen
+                    if let summen = daten.summen {
+                        Abwesenheitssummenkarte(summen: summen)
+                    }
                     if daten.zeilen.isEmpty {
                         Text(filter.status.isEmpty ? "Keine Abwesenheiten im gewählten Zeitraum." : "Keine Abwesenheiten mit diesem Status.")
                             .font(.system(size: 15))
@@ -149,15 +153,31 @@ struct Abwesenheitskarte: View {
         return "\(von) - \(Datumsformat.anzeige(zeile.bisDatum, "d. MMM"))"
     }
 
-    /// „7:45 - 21:00“ bzw. über mehrere Tage „Do., 07:45 - Fr., 21:00“.
+    /// „7:45 - 21:00“ bzw. über mehrere Tage „Do., 07:45 - Fr., 21:00“, dahinter die Fehlstunden.
     private var zeit: String {
+        let stunden = zeile.fehlstunden > 0 ? " (\(zeile.fehlstunden) \(zeile.fehlstunden == 1 ? "Fehlstunde" : "Fehlstunden"))" : ""
         if zeile.bisDatum.isEmpty || zeile.bisDatum == zeile.vonDatum {
-            return "\(Detailmass.uhrzeit(zeile.vonZeit)) - \(Detailmass.uhrzeit(zeile.bisZeit))"
+            return "\(Detailmass.uhrzeit(zeile.vonZeit)) - \(Detailmass.uhrzeit(zeile.bisZeit))" + stunden
         }
-        return "\(Datumsformat.anzeige(zeile.vonDatum, "EE")), \(zeile.vonZeit) - \(Datumsformat.anzeige(zeile.bisDatum, "EE")), \(zeile.bisZeit)"
+        return "\(Datumsformat.anzeige(zeile.vonDatum, "EE")), \(zeile.vonZeit) - \(Datumsformat.anzeige(zeile.bisDatum, "EE")), \(zeile.bisZeit)" + stunden
+    }
+
+    /// Grund, bei Verspätung bzw. vorzeitigem Gehen mit Minuten („Verspätung (12 min) · Krankheit“).
+    private var anlass: String {
+        let art: String
+        switch zeile.art {
+        case "verspaetet": art = zeile.minuten > 0 ? "Verspätung (\(zeile.minuten) min)" : "Verspätung"
+        case "vorzeitig": art = zeile.minuten > 0 ? "Vorzeitig gegangen (\(zeile.minuten) min)" : "Vorzeitig gegangen"
+        default: art = ""
+        }
+        return [art, grund].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private var status: (text: String, symbol: String, farbe: Color) {
+        // einzelne Stunden entschuldigt (z. B. von Fachlehrkräften), andere nicht: „teilweise entschuldigt“ mit Anzahl
+        if zeile.statusGemischt {
+            return ("teilweise entschuldigt (\(zeile.entschuldigt)/\(zeile.fehlstunden))", "circle.lefthalf.filled", Farben.orange)
+        }
         switch zeile.status {
         case "entschuldigt": return ("entschuldigt", "checkmark.circle", Farben.gruen)
         case "unentschuldigt": return ("nicht entschuldigt", "xmark.circle", Farben.entfallRand)
@@ -172,8 +192,8 @@ struct Abwesenheitskarte: View {
                 .foregroundStyle(Farben.tinte)
                 .padding(.bottom, 2)
             zeileMitSymbol("clock", zeit, farbe: Farben.tinte2)
-            if !grund.isEmpty {
-                zeileMitSymbol("info.circle", grund, farbe: Farben.tinte2)
+            if !anlass.isEmpty {
+                zeileMitSymbol("info.circle", anlass, farbe: Farben.tinte2)
             }
             // Bemerkung bzw. Text als eigene Zeile – nur wenn vorhanden
             let bemerkung = zeile.bemerkung.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -200,6 +220,55 @@ struct Abwesenheitskarte: View {
                 .foregroundStyle(farbe)
                 .lineLimit(4)
         }
+    }
+}
+
+/// Summen der Abwesenheiten im Zeitraum: Fehltage, Fehlstunden, Verspätungen und Fehlstunden je Status (entschuldigt grün,
+/// nicht entschuldigt rot, offen orange) – zwei Reihen mit je drei Werten.
+struct Abwesenheitssummenkarte: View {
+    let summen: Abwesenheitssummen
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                wert(summen.fehltage, summen.fehltage == 1 ? "Fehltag" : "Fehltage", Farben.tinte)
+                trenner
+                wert(summen.fehlstunden, summen.fehlstunden == 1 ? "Fehlstunde" : "Fehlstunden", Farben.tinte)
+                trenner
+                wert(summen.verspaetet, summen.verspaetet == 1 ? "Verspätung" : "Verspätungen", Farben.tinte)
+            }
+            Divider()
+            HStack(spacing: 0) {
+                wert(summen.entschuldigt, "entschuldigt", Farben.gruen)
+                trenner
+                wert(summen.unentschuldigt, "nicht entsch.", Farben.entfallRand)
+                trenner
+                wert(summen.offen, "offen", Farben.orange)
+            }
+        }
+        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Im Zeitraum: \(summen.fehltage) Fehltage, \(summen.fehlstunden) Fehlstunden, davon \(summen.entschuldigt) entschuldigt, \(summen.unentschuldigt) nicht entschuldigt, \(summen.offen) offen; \(summen.verspaetet) Verspätungen")
+    }
+
+    private var trenner: some View {
+        Rectangle().fill(Farben.gedaempft.opacity(0.2)).frame(width: 1)
+    }
+
+    private func wert(_ zahl: Int, _ text: String, _ farbe: Color) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("\(zahl)")
+                .font(.system(size: 21, weight: .regular))
+                .monospacedDigit()
+                .foregroundStyle(farbe)
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Farben.gedaempft)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 }
 

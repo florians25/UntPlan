@@ -349,8 +349,6 @@ struct StundendetailInhalt: View {
                 }
             }
             Spacer(minLength: 6)
-            Verlegungszeichen(richtung: richtung, groesse: 22)
-                .padding(.trailing, 4)
         }
         .padding(.leading, Detailmass.rand)
         .padding(.trailing, 22)
@@ -563,7 +561,7 @@ struct StundendetailInhalt: View {
             if karte.istPruefung && !karte.istEntfall {
                 link(.pruefung, Detailzeile(symbol: "SymbolPruefung", titel: "Prüfung", untertitel: pruefungsUntertitel))
             }
-            // Verlegung: Ursprung → Ziel mit Datum und Uhrzeit, rechts das Verlegungszeichen wie auf der Karte
+            // Verlegung: Ursprung → Ziel mit Datum und Uhrzeit (ohne Verlegungszeichen)
             if let richtung = karte.verlegung, !istVeranstaltung {
                 verlegungZeile(richtung)
             }

@@ -216,7 +216,6 @@ struct KachelView: View {
     /// Zeichen unten rechts.
     enum Eckzeichen: Hashable {
         case online
-        case verlegt(String)
         case hausaufgabe
         case info
 
@@ -229,13 +228,12 @@ struct KachelView: View {
         }
     }
 
-    /// Sichtbare Zeichen unten rechts in der Anzeigereihenfolge Online, Verlegung, Hausaufgabe, Info. Reicht die Breite
-    /// nicht für alle (links bleibt der Balken frei), fällt zuerst die Hausaufgabe weg, dann das Online-Zeichen;
-    /// Verlegung und Info bleiben am längsten stehen.
+    /// Sichtbare Zeichen unten rechts in der Anzeigereihenfolge Online, Hausaufgabe, Info (ein Verlegungszeichen gibt es in
+    /// iOS nicht). Reicht die Breite nicht für alle (links bleibt der Balken frei), fällt zuerst die Hausaufgabe weg, dann das
+    /// Online-Zeichen; Info bleibt am längsten stehen.
     private var eckzeichen: [Eckzeichen] {
         guard !gekuerzt else { return [] }
         var vorrang: [Eckzeichen] = []
-        if let v = kachel.verlegung, kachel.art != .aufsicht { vorrang.append(.verlegt(v)) }
         if kachel.info && kachel.art != .termin { vorrang.append(.info) }
         if kachel.online { vorrang.append(.online) }
         if kachel.hausaufgabe && kachel.art != .bereitschaft { vorrang.append(.hausaufgabe) }
@@ -243,7 +241,6 @@ struct KachelView: View {
         let gewaehlt = Array(vorrang.prefix(platz))
         let reihenfolge: [(Eckzeichen) -> Bool] = [
             { if case .online = $0 { return true }; return false },
-            { if case .verlegt = $0 { return true }; return false },
             { if case .hausaufgabe = $0 { return true }; return false },
             { if case .info = $0 { return true }; return false }
         ]
@@ -264,7 +261,7 @@ struct KachelView: View {
         return liste.map(\.groesse).reduce(0, +) + CGFloat(liste.count - 1) * 2
     }
 
-    // MARK: - Zeichen unten rechts (Online, Verlegung, Hausaufgabe, Info, Kürzung)
+    // MARK: - Zeichen unten rechts (Online, Hausaufgabe, Info, Kürzung)
 
     @ViewBuilder
     private func zeichen(_ a: Kachelaussehen) -> some View {
@@ -277,7 +274,6 @@ struct KachelView: View {
                     ForEach(liste, id: \.self) { z in
                         switch z {
                         case .online: Onlinezeichen(groesse: z.groesse)
-                        case .verlegt(let richtung): Verlegungszeichen(richtung: richtung, groesse: z.groesse)
                         case .hausaufgabe: Hausaufgabenzeichen(groesse: z.groesse)
                         case .info: Infozeichen(groesse: z.groesse)
                         }
@@ -619,10 +615,8 @@ struct ZaehlstreifenView: View {
 
     var body: some View {
         let farben = farbe
-        Text("+\(streifen.kacheln.count)")
+        Text("\(streifen.kacheln.count)")
             .font(.system(size: 11, weight: .medium))
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
             .foregroundStyle(farben.text)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(farben.flaeche, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
@@ -642,31 +636,6 @@ struct ZaehlstreifenView: View {
         return (Farben.zaehlerFlaeche, Farben.zaehlerText, nil)
     }
 }
-
-/// Verlegungszeichen auf der Karte: abgerundetes Feld mit weißem Pfeil nach rechts (wie im Web, Ursprung → Ziel) –
-/// ursprüngliche Stunde („von“, von hier weg verlegt) rot, Zielstunde („nach“, hierher verlegt) grün.
-struct Verlegungszeichen: View {
-    let richtung: String
-    var groesse: CGFloat = KachelView.zeichenGroesse
-
-    private var ursprung: Bool { richtung == "von" }
-
-    var body: some View {
-        Canvas { ctx, size in
-            let e = size.width / 14
-            var p = Path()
-            p.move(to: CGPoint(x: 3.4 * e, y: 7 * e)); p.addLine(to: CGPoint(x: 10.4 * e, y: 7 * e))
-            p.move(to: CGPoint(x: 7.6 * e, y: 4.2 * e)); p.addLine(to: CGPoint(x: 10.4 * e, y: 7 * e))
-            p.addLine(to: CGPoint(x: 7.6 * e, y: 9.8 * e))
-            ctx.stroke(p, with: .color(.white), style: StrokeStyle(lineWidth: 1.5 * e, lineCap: .round, lineJoin: .round))
-        }
-        .frame(width: groesse, height: groesse)
-        .background(ursprung ? Farben.verlegtVon : Farben.verlegtNach,
-                    in: RoundedRectangle(cornerRadius: max(2, groesse * 0.2), style: .continuous))
-        .accessibilityHidden(true)
-    }
-}
-
 
 /// Online-Zeichen auf der Karte: die Stunde findet online statt (online_lesson.svg, flach und grau, ohne Feld –
 /// kein zusätzliches Raum-Label). Steht unten rechts nach derselben Logik wie Info und Hausaufgabe.
