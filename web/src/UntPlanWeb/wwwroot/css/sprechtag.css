@@ -90,10 +90,10 @@ tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
 .st-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid #e3e7eb; }
 .st-slot { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 8px; border-radius: 8px; background: #fafbfc; border: 1px solid #eceff2; font-size: .78rem; }
 .st-slot-pause { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: #fff6f1; color: #8a3a0c; font-size: .8rem; font-weight: 500; }
-.st-tage { display: flex; gap: 8px; }
-.st-tage .form-control { min-width: 0; }
-.st-tagliste { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.st-tagliste .nl-chip { display: inline-flex; align-items: center; gap: 4px; }
+.st-weitere { display: flex; gap: 8px; }
+.st-weitere .form-control { min-width: 0; }
+.st-weiterliste { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.st-weiterliste .nl-chip { display: inline-flex; align-items: center; gap: 4px; }
 .st-chip-x { border: 0; background: none; padding: 0 0 0 2px; line-height: 1; color: inherit; }
 .st-reihe { line-height: 38px; }
 .st-lehrerwahl .st-dauerzelle { width: 130px; }

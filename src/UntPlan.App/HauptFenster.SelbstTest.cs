@@ -286,6 +286,42 @@ public sealed partial class HauptFenster
             _ = un;
             _ = st;
         }, 3);
+        // Sprint 27: Klick auf eine nicht verplante Stunde (leere Zelle) aktualisiert die verknüpften Pläne trotzdem
+        void LeereZellePruefen(bool tages)
+        {
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            var kl = StundenplanFenster.Neu(ElementTyp.Klasse, dd.Klassen.First().Id, false);
+            var le = StundenplanFenster.Neu(ElementTyp.Lehrer, null, false);
+            var ra = StundenplanFenster.Neu(ElementTyp.Raum, null, false);
+            LayoutMdi(MdiLayout.TileVertical);
+            Warten(200);
+            if (tages != kl.Plan.Tagesmodus) throw new InvalidOperationException($"Leere Zelle: Plan ist {(kl.Plan.Tagesmodus ? "" : "nicht ")}tagesaktuell.");
+            // zuerst eine Stunde wählen (die anderen Pläne folgen), dann eine leere Zelle desselben Klassenplans
+            var p = ix.PlanVon(ElementTyp.Klasse, kl.ElementId).OrderBy(x => x.Tag).ThenBy(x => x.Stunde).First();
+            kl.StundeAnklicken(p);
+            Warten(150);
+            var lehrer = le.ElementId;
+            var raum = ra.ElementId;
+            var belegt = ix.PlanVon(ElementTyp.Klasse, kl.ElementId).Select(x => (x.Tag, x.Stunde)).ToHashSet();
+            var leer = Enumerable.Range(0, dd.Zeitraster.TageProWoche).SelectMany(t => Enumerable.Range(1, dd.Zeitraster.StundenProTag).Select(st => (Tag: t, Stunde: st)))
+                .Where(z => !belegt.Contains(z)).OrderByDescending(z => z.Stunde).ThenBy(z => z.Tag).First();
+            // tagesaktuell: Spalte = Tage ab Montag der angezeigten Woche
+            var spalte = tages ? (leer.Tag + dd.Zeitraster.ErsterSchultag) % 7 : leer.Tag;
+            kl.LeereZelleAnklicken(spalte, leer.Stunde);
+            Warten(150);
+            foreach (var (f, id, name) in new[] { (le, lehrer, "Lehrerplan"), (ra, raum, "Raumplan") })
+            {
+                if (f.ElementId != id) throw new InvalidOperationException($"Leere Zelle: {name} hat das Element gewechselt.");
+                if (f.Plan.Ausgewaehlt != null || f.Plan.TagesAuswahl != null || f.Plan.MarkierterUnterricht != null)
+                    throw new InvalidOperationException($"Leere Zelle: {name} behält die vorherige Auswahl.");
+                if (f.Plan.MarkierteZelle != (spalte, leer.Stunde))
+                    throw new InvalidOperationException($"Leere Zelle: {name} markiert nicht Tag {spalte}/Stunde {leer.Stunde} (sondern {f.Plan.MarkierteZelle}).");
+            }
+            if (kl.Plan.Ausgewaehlt != null) throw new InvalidOperationException("Leere Zelle: Klassenplan behält die vorherige Stunde.");
+            log.Add($"INFO  Leere Zelle ({(tages ? "tagesaktuell" : "Regelplan")}): Tag {spalte}, Stunde {leer.Stunde} – Lehrer- und Raumplan synchron, Element unverändert");
+        }
+        Schritt("27b_Leere_Zelle_Synchronisation", () => LeereZellePruefen(false), 3);
         // ---------------------------------------------------------------- UP5: Stundenplanmodus nach Vorbild (65/66)
         StundenplanFenster[] DreiPlaene(bool klein, bool gross)
         {
@@ -577,6 +613,7 @@ public sealed partial class HauptFenster
         }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
+        Schritt("27c_Leere_Zelle_Synchronisation_tagesaktuell", () => LeereZellePruefen(true), -1);
         Schritt("19a1_Kleine_Stundenplaene", () =>
         {
             var vertr = FensterOeffnen("vertr")!;
@@ -660,6 +697,82 @@ public sealed partial class HauptFenster
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
         Schritt("19d1_Veranstaltungen", () => Max(FensterOeffnen("veranst")!), -1);
         Schritt("19d2_Klausuren", () => Max(FensterOeffnen("klaus")!), -1);
+        Schritt("27a_Veranstaltung_Schnellauswahl", () =>
+        {
+            // Sprint 27: in einer Veranstaltung schnell alle Lehrkräfte / Klassen / Räume, nach Gruppe oder alles aus den Stunden hinzufügen
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            try
+            {
+                var dd = AppZustand.D;
+                var va = dd.Veranstaltungen.First(v => v.Text == "Sportwoche");
+                var f = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
+                Max(f);
+                Warten(150);
+                f.SelbsttestWaehlen(va.Id, "R");
+                var menue = f.SelbsttestMenue(null);
+                foreach (var erwartet in new[] { "Lehrkräfte > Alle Lehrkräfte", "Klassen (entfällt) > Alle Klassen", "Räume > Alle Räume", "Klassen (entfällt) > Nach Jahrgang", "Alle aus den Stunden der Veranstaltung übernehmen" })
+                    if (!menue.Any(m => m.StartsWith(erwartet))) throw new InvalidOperationException($"Schnellauswahl ohne „{erwartet}“: {string.Join(" | ", menue)}");
+                if (!f.SelbsttestMenue(Core.Vertretungsplanung.VeranstaltungsAuswahl.Feld.Lehrer).Any(m => m.StartsWith("Lehrkräfte der Klassen")))
+                    throw new InvalidOperationException("Kontextmenü Lehrer ohne „Lehrkräfte der Klassen“.");
+                // alle Räume
+                f.Schnell(Core.Vertretungsplanung.VeranstaltungsAuswahl.Feld.Raeume, Core.Vertretungsplanung.VeranstaltungsAuswahl.Alle(dd, ElementTyp.Raum));
+                Warten(150);
+                var nachher = AppZustand.D.Veranstaltungen.First(v => v.Id == va.Id);
+                if (nachher.RaumIds.Count != AppZustand.D.Raeume.Count(r => !r.Ignorieren)) throw new InvalidOperationException($"Alle Räume: {nachher.RaumIds.Count} statt {AppZustand.D.Raeume.Count}.");
+                // Jahrgang 6 dazu (Gruppe)
+                var jg = Core.Vertretungsplanung.VeranstaltungsAuswahl.Gruppen(AppZustand.D, ElementTyp.Klasse, nachher).First(g => g.Bereich == "Jahrgang" && g.Name != "Jahrgang 5");
+                f.SelbsttestWaehlen(va.Id, "K");
+                f.Schnell(Core.Vertretungsplanung.VeranstaltungsAuswahl.Feld.Klassen, jg.Ids);
+                Warten(150);
+                nachher = AppZustand.D.Veranstaltungen.First(v => v.Id == va.Id);
+                if (!jg.Ids.All(nachher.KlassenIds.Contains)) throw new InvalidOperationException($"{jg.Name} wurde nicht übernommen.");
+                // alles aus den Stunden der Veranstaltung
+                f.SelbsttestWaehlen(va.Id, "L");
+                var lehrerVorher = nachher.LehrerIds.Count;
+                f.AusStundenUebernehmen();
+                Warten(150);
+                nachher = AppZustand.D.Veranstaltungen.First(v => v.Id == va.Id);
+                if (nachher.LehrerIds.Count <= lehrerVorher) throw new InvalidOperationException("Aus den Stunden wurden keine Lehrkräfte übernommen.");
+                // Auswahlliste der Spalte Lehrer: „Alle“ wählen und übernehmen
+                f.SelbsttestWaehlen(va.Id, "L");
+                f.SelbsttestAuswahlZeigen("L");
+                Warten(150);
+                if (Steuerelemente.MehrfachAuswahl.Offen is null) throw new InvalidOperationException("Auswahlliste Lehrer öffnet nicht.");
+                if (Steuerelemente.MehrfachAuswahl.Offen.Parent?.Controls.OfType<FlowLayoutPanel>().FirstOrDefault()?.Controls.OfType<LinkLabel>().Select(l => l.Text).Take(2).SequenceEqual(new[] { "Alle", "Keine" }) != true)
+                    throw new InvalidOperationException("Auswahlliste ohne „Alle“/„Keine“.");
+                Steuerelemente.MehrfachAuswahl.SelbsttestAlleUebernehmen(true);
+                Warten(200);
+                nachher = AppZustand.D.Veranstaltungen.First(v => v.Id == va.Id);
+                var alleLehrer = AppZustand.D.Lehrer.Count(l => !l.Ignorieren);
+                // offener Platz (???) wird mit der ersten neuen Lehrkraft besetzt, die übrigen nehmen zusätzlich teil
+                var teilnehmer = nachher.LehrerIds.Concat(nachher.Ersatz.Where(x => x.ErsatzId.HasValue).Select(x => x.ErsatzId!.Value)).Distinct().Count();
+                if (teilnehmer < alleLehrer) throw new InvalidOperationException($"„Alle“ in der Auswahlliste: {teilnehmer} von {alleLehrer} Lehrkräften.");
+                // „Keine“ leert die Spalte Räume
+                f.SelbsttestWaehlen(va.Id, "R");
+                f.SelbsttestAuswahlZeigen("R");
+                Warten(100);
+                Steuerelemente.MehrfachAuswahl.SelbsttestAlleUebernehmen(false);
+                Warten(200);
+                if (AppZustand.D.Veranstaltungen.First(v => v.Id == va.Id).RaumIds.Count != 0) throw new InvalidOperationException("„Keine“ hat die Räume nicht geleert.");
+                // aus einer im Stundenplan gewählten Stunde: neue Veranstaltung in der leeren Zeile
+                var r = Core.Vertretungsplanung.Tagesplan.Regulaer(AppZustand.D, tag).First(x => x.LehrerId.HasValue && x.KlassenIds.Count > 0);
+                var anzahl = AppZustand.D.Veranstaltungen.Count;
+                f.SelbsttestNeueZeile();
+                f.AusStundeUebernehmen(r.Unterricht, r.Planstunde);
+                Warten(150);
+                if (AppZustand.D.Veranstaltungen.Count != anzahl + 1) throw new InvalidOperationException("Aus der gewählten Stunde wurde keine Veranstaltung angelegt.");
+                var neu = AppZustand.D.Veranstaltungen.OrderBy(v => v.Id).Last();
+                if (!r.Unterricht.LehrerIds.All(neu.LehrerIds.Contains) || !r.Unterricht.KlassenIds.All(neu.KlassenIds.Contains))
+                    throw new InvalidOperationException("Aus der gewählten Stunde: Klassen bzw. Lehrkräfte fehlen.");
+                f.SelbsttestWaehlen(va.Id, "L");
+                log.Add($"INFO  Veranstaltung Schnellauswahl: {nachher.LehrerIds.Count} Lehrkräfte, {nachher.KlassenIds.Count} Klassen; aus Stunde U{r.Unterricht.Id} → VA {neu.Id}");
+            }
+            finally
+            {
+                Warten(100);
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
         Schritt("19d2a_Klausur_loeschen_Liste", () =>
         {
             // gelöschte Klausur verschwindet sofort aus der Liste – auch wenn eine Zelle gerade bearbeitet wird

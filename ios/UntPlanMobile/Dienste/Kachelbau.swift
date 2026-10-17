@@ -418,6 +418,11 @@ enum Kachelbau {
         }
         if typ == "raum" { k = raumplanNormalisiert(k) }
         k = raumaenderungNormalisiert(k)
+        // Eigener Plan einer Lehrkraft (Vertrag Karten 27, Abschnitt 9): die eigene Lehrkraft nie als Label – auch nicht als
+        // Vertretung {k: ich, alt: andere, neu} (grüne Karte und Änderungs-Quadrat zeigen die Vertretung)
+        if typ == "lehrer" && !ich.isEmpty {
+            k.lehrer = k.lehrer.map { w in gleich(w.k, ich) ? Wert(k: w.k) : w }
+        }
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
                             beginn: lage.beginn, ende: lage.ende)
@@ -1002,7 +1007,7 @@ enum Kachelbau {
     /// Mindesthöhe je Block, damit gleichzeitige Blöcke untereinander geteilt werden (drei Zeilen: 4 + 3 × 14 pt).
     static let stapelMindestHoehe: CGFloat = 46
     /// Mindestbreite einer Spur (Woche bzw. Tag); passen nicht alle Spuren, treten die übrigen hinter einen Zählstreifen.
-    static let spurMindestBreiteWoche: CGFloat = 18
+    static let spurMindestBreiteWoche: CGFloat = 22
     static let spurMindestBreiteTag: CGFloat = 40
 
     /// Spuren wie in Kalender-Apps: Kacheln mit überlappender Zeit (Minuten, nicht Stundennummern) bilden zusammenhängende

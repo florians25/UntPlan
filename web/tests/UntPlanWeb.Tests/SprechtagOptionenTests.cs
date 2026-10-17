@@ -59,6 +59,13 @@ public class SprechtagOptionenTests
         Assert.False(karte["buchbar"]!.GetValue<bool>());
         Assert.Contains("15:00–17:00", karte["text"]!.GetValue<string>());
 
+        // nicht beteiligte Lehrkraft sieht die Ankündigung ebenfalls (auch in /heute)
+        var kle = await s.AlsAsync("kle", "lehrer", "KLE");
+        var kleKarte = Assert.Single((await Testserver.HolenAsync(kle, "/api/app/sprechtag/start")).AsArray())!;
+        Assert.Equal("angekuendigt", kleKarte["status"]!.GetValue<string>());
+        Assert.Contains("nicht beteiligt", kleKarte["text"]!.GetValue<string>());
+        Assert.Single((await Testserver.HolenAsync(kle, "/api/app/heute"))["sprechtage"]!.AsArray());
+
         // /heute liefert dieselben Karten
         var heute = await Testserver.HolenAsync(eltern, "/api/app/heute");
         Assert.Equal(id, Assert.Single(heute["sprechtage"]!.AsArray())!["id"]!.GetValue<int>());

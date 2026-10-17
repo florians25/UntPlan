@@ -403,6 +403,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
             if (r.Tag is Veranstaltung x && x.Id == id) _g.CurrentCell = r.Cells[spalte];
     }
 
+    /// <summary>Selbsttest: leere Zeile (neue Veranstaltung) wählen.</summary>
+    internal void SelbsttestNeueZeile() => _g.CurrentCell = _g.Rows[_g.Rows.Count - 1].Cells["K"];
+
     internal void SelbsttestAuswahlZeigen(string spalte)
     {
         if (_g.CurrentCell is { } c) AuswahlZeigen(c.RowIndex, _g.Columns[spalte]!.Index);
@@ -487,11 +490,18 @@ public sealed class VeranstaltungenFenster : MdiFenster
         {
             var id = alt.Id;
             var tage = alt.Ersatz.Where(x => x.ErsatzId is null && x.Datum >= Von && x.Datum <= Bis).OrderBy(x => x.Datum).ToList();
+            // mehr neue Lehrkräfte als offene Plätze (z. B. „Alle“ gewählt): die übrigen nehmen zusätzlich an der Veranstaltung teil
+            var zusaetzlich = ersatz.Skip(tage.Count).ToList();
             Aendern("Ersatzlehrkraft für Veranstaltung", AenderungsArt.Vertretung, d =>
             {
                 var i = 0;
                 foreach (var x in tage)
                     VeranstaltungsLogik.ErsatzSetzen(d, id, x.Datum, x.LehrerId, ersatz[Math.Min(i++, ersatz.Count - 1)]);
+                if (zusaetzlich.Count > 0 && d.Veranstaltungen.FirstOrDefault(x => x.Id == id) is { } va)
+                {
+                    VeranstaltungsAuswahl.Uebernehmen(va, VeranstaltungsAuswahl.Feld.Lehrer, zusaetzlich);
+                    Vertretungen.Aktualisieren(d, va.Von, va.Bis);
+                }
             });
             NachZellwechsel(Neuaufbau);
             return;

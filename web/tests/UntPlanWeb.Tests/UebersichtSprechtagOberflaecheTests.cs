@@ -71,7 +71,7 @@ public class UebersichtSprechtagOberflaecheTests
         var js = Datei("js", "ansichten", "sprechtag.js");
         var css = Datei("css", "sprechtag.css");
         // Kopf: oben Datum, Pill und Phasentext auf einer Linie, darunter Zeiten und Zusatz
-        Assert.Contains("<div class=\"st-kopf-zeile\"><b class=\"st-kopf-datum\">${e(t.datumText)}</b>${phaseChip(t.phase)}", js);
+        Assert.Contains("<div class=\"st-kopf-zeile\"><b class=\"st-kopf-datum\">${e(t.datumText)}</b>${statusChip(t, familie)}", js);
         Assert.Contains("<div class=\"st-kopf-zeile st-kopf-unter\">", js);
         Assert.Contains(".st-kopf-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 28px;", css);
         // doppeltes Datum in „Meine Termine“ entfällt, Knöpfe im Kopf auf einer Linie

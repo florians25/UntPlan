@@ -143,10 +143,14 @@ public static class SprechtagApi
             if (b.Kollegium)
             {
                 var l = Sprechtagdienst.Beteiligt(t, b.LehrerKuerzel);
-                if (l is null && !Rechtedienst.Darf(b, Recht.SprechtagVerwalten)) continue;
-                eigene = l is null ? termine.Count : termine.Count(x => Ci.Equals(x.Lehrer, l.Lehrer));
+                var verwaltung = Rechtedienst.Darf(b, Recht.SprechtagVerwalten);
+                // nicht beteiligte Lehrkräfte: nur die Ankündigung (Option „ankündigen“) bzw. der Hinweis auf die laufende Anmeldung
+                if (l is null && !verwaltung && !(t.Optionen.Ankuendigen && phase is Sprechtagdienst.Einladung or Sprechtagdienst.Anmeldung)) continue;
+                eigene = l is null ? (verwaltung ? termine.Count : 0) : termine.Count(x => Ci.Equals(x.Lehrer, l.Lehrer));
                 text = phase switch
                 {
+                    Sprechtagdienst.Einladung when l is null && !verwaltung => Ankuendigung(t) + " Sie sind an diesem Sprechtag nicht beteiligt.",
+                    Sprechtagdienst.Anmeldung when l is null && !verwaltung => $"{DatumText(t.Datum)}, {t.Beginn}–{t.Ende} Uhr{(t.Ort.Length > 0 ? $" · {t.Ort}" : "")}. Anmeldung für Erziehungsberechtigte bis {ZeitText(t.AnmeldungBis)}; Sie sind nicht beteiligt.",
                     Sprechtagdienst.Abgesagt => "Der Sprechtag wurde abgesagt." + (t.AbsageGrund.Length > 0 ? $" Grund: {t.AbsageGrund}" : ""),
                     _ when l is { Abgesagt.Length: > 0 } => "Sie haben Ihre Teilnahme abgesagt.",
                     Sprechtagdienst.Einladung when l != null => $"Hier können Sie bis {ZeitText(Sprechtagdienst.EinladungEnde(t).ToString("yyyy-MM-dd'T'HH:mm", Inv))} Erziehungsberechtigte zum Gespräch einladen.",

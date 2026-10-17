@@ -65,7 +65,7 @@ export async function zeigen(seite, kontext, teile = []) {
   const info = await holen(`${BASIS}/${id}`);
   if (info.beteiligt && !info.admin) return lehrkraft(seite, kontext, id, null);
   if (info.admin) return uebersicht(seite, kontext, info);
-  seite.innerHTML = alarm('info', 'Sie sind an diesem Sprechtag nicht beteiligt.');
+  seite.innerHTML = `${kopfInfo(info.sprechtag, '', true)}${alarm('info', 'Sie sind an diesem Sprechtag nicht beteiligt.')}`;
   kontext.titel(info.sprechtag.name);
 }
 
@@ -179,7 +179,7 @@ async function formular(seite, kontext, id) {
         <div class="col-md-5"><label class="form-label" for="st-datum">Datum</label><input class="form-control" type="date" id="st-datum" name="datum" value="${e(t.datum)}" required></div>
         <div class="col-md-7"><label class="form-label" for="st-ort">Ort (optional)</label><input class="form-control" id="st-ort" name="ort" maxlength="300" value="${e(t.ort ?? '')}" placeholder="z. B. Hauptgebäude, 1. OG"></div>
         <div class="col-md-5">${id ? (t.reihe?.length > 1 ? `<label class="form-label">Reihe</label><div class="nl-unter st-reihe">${t.reihe.map(r => r.id === t.id ? `<b>${e(r.datumText)}</b>` : `<a href="#/sprechtag/${r.id}/verwalten">${e(r.datumText)}</a>`).join(' · ')}</div>` : '')
-          : `<label class="form-label" for="st-tag-neu">Weitere Tage (optional)</label><div class="st-tage"><input class="form-control" type="date" id="st-tag-neu" data-tag-neu aria-label="Weiteren Tag hinzufügen"><button type="button" class="nl-knopf" data-tag-plus>${icon('plus')}Tag</button></div><div class="st-tagliste" data-tage></div>`}</div>
+          : `<label class="form-label" for="st-weiterer-tag">Weitere Tage (optional)</label><div class="st-weitere"><input class="form-control" type="date" id="st-weiterer-tag" data-tag-neu aria-label="Weiteren Tag hinzufügen"><button type="button" class="nl-knopf" data-tag-plus>${icon('plus')}Tag</button></div><div class="st-weiterliste" data-tage></div>`}</div>
         <div class="col-12"><label class="form-label" for="st-hinweis">Hinweis für Lehrkräfte und Eltern (optional)</label><textarea class="form-control" id="st-hinweis" name="hinweis" rows="2" maxlength="2000">${e(t.hinweis)}</textarea></div>
       </div>
     </section>
