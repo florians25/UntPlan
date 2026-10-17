@@ -73,8 +73,13 @@
 .u-suchfeld.u-suchfeld.voll { max-width: none; width: 100%; }
 :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):hover { background: #eceff2; }
 :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):focus-within {
-  background: #fff; border-color: rgba(var(--u-akzent-rgb, 245, 107, 42), .55); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb, 245, 107, 42), .12);
+  background: #fff !important; border-color: rgba(var(--u-akzent-rgb, 245, 107, 42), .55); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb, 245, 107, 42), .12);
 }
+/* direkt auf dem grauen Seitengrund etwas kräftiger, auf weißen Flächen (Karten, Tabellen, Dialoge) das helle Grau */
+.u-inhalt :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche) { background: #e8ebee; }
+.u-inhalt :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):hover { background: #e1e5e9; }
+.u-inhalt :is(.card, .u-panel, .nl-tabelle, .u-tabelle-karte, .rm-rollenkarte, .list-group, .kbd-fenster, .bv-karte, .nl-karte) :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche) { background: #f2f4f6; }
+.u-inhalt :is(.card, .u-panel, .nl-tabelle, .u-tabelle-karte, .rm-rollenkarte, .list-group, .kbd-fenster, .bv-karte, .nl-karte) :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche):hover { background: #eceff2; }
 :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche) > :is(.bi-search, .bi, .au-lupe, .u-sym) {
   position: static !important; transform: none !important; flex: none; width: auto; height: auto; color: #67747e !important; font-size: 1rem; line-height: 1; pointer-events: none;
 }
@@ -90,9 +95,6 @@
 }
 :is(.u-suchfeld, .au-suchfeld, .nl-suche, .br-suche, .sp-suche, .mt-suche, .mt-ew-suche, .mt-suchfeld, .sd-raumsuche).au-mit-x > .au-x:hover { background: #c9d0d6; color: #24323d; }
 .au-suchfeld.au-sm.au-sm { height: 34px; border-radius: 17px; padding-left: 12px; }
-/* auf grauem Grund (Mitteilungen-Seitenleiste): weißes Feld */
-.mt-suchfeld.mt-suchfeld { background: #fff; }
-.mt-suchfeld.mt-suchfeld:hover { background: #fff; border-color: #dfe3e7; }
 .mt-ew-suche.mt-ew-suche { margin: 0 24px; }
 .sd-raumsuche.sd-raumsuche { margin-bottom: .7rem; }
 /* Suchleisten mit Filter-Chips (Klassenbuch-Werkzeugleiste): gleiche Fläche und gleicher Fokus */
@@ -134,7 +136,7 @@
 .ke-tabelle .ke-aktion { white-space: nowrap; }
 .ke-tabelle .ke-pfeil { margin-left: 10px; color: #b7c0c7; font-size: .8rem; transition: color .12s, transform .12s; }
 .ke-tabelle tbody tr:hover .ke-pfeil { color: var(--u-akzent); transform: translateX(2px); }
-@media (max-width: 767.98px) { .ke-tabelle .ke-text { max-width: none; -webkit-line-clamp: 3; } .ke-tabelle .ke-pfeil { margin-left: 6px; } }
+@media (max-width: 767.98px) { table.u-karten-tabelle.ke-tabelle .ke-text { display: flex; max-width: none; } .ke-tabelle .ke-pfeil { margin-left: 6px; } }
 .ke-detail .ke-kopf { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .ke-detail .ke-kopf-klasse { font-size: .85rem; color: #67747e; font-weight: 500; }
 .ke-detail .ke-volltext { margin: 0 0 18px; padding: 14px 16px; border-radius: 10px; background: #f6f7f9; color: #24323d; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }

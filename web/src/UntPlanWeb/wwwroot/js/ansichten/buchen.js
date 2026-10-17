@@ -350,7 +350,7 @@ async function assistent(seite, kontext, art, rest) {
       ${zeitLeiste()}
       <section class="bu-karte">
         <header><i class="bi bi-box-seam"></i><h2>Ressourcen wählen</h2></header>
-        <div class="rw-filter bu-resfilter">
+        <div class="rw-filter bu-resfilter" ${s.ressourcen.length ? '' : 'hidden'}>
           ${arten.map(a => `<button type="button" class="bu-filterchip ${f.arten.has(a) ? 'an' : ''}" aria-pressed="${f.arten.has(a)}" data-resart="${e(a)}">${e(a)}</button>`).join('')}
           <label class="rw-schalter ms-auto"><input type="checkbox" data-res-nurfrei ${f.nurFrei ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>${n > 1 ? 'Nur an allen Terminen verfügbar' : 'Nur verfügbare'}</label>
         </div>
@@ -373,7 +373,8 @@ async function assistent(seite, kontext, art, rest) {
           ${status}</div>`;
       }).join('')}</div>`
         : `<div class="rw-leer gross"><i class="bi bi-box-seam" aria-hidden="true"></i><span>${opt.ressourcen.some(r => !r.raum) ? 'Keine passende Ressource ist verfügbar.' : 'Es sind noch keine mobilen Ressourcen angelegt.'}</span>
-          ${f.arten.size || f.nurFrei ? '<button type="button" class="nl-knopf" data-res-alle>Alle zeigen</button>' : ''}</div>`;
+          ${s.ressourcen.length && (f.arten.size || f.nurFrei) ? '<button type="button" class="nl-knopf" data-res-alle>Alle zeigen</button>' : ''}
+          ${opt.admin && !s.ressourcen.length ? '<a class="nl-knopf" href="#/buchen/verwaltung">Ressourcen verwalten</a>' : ''}</div>`;
       inhalt.querySelector('[data-res-alle]')?.addEventListener('click', () => { f.arten.clear(); f.nurFrei = false; ressourcenSchritt(); });
       inhalt.querySelectorAll('[data-wahl]').forEach(c => c.onchange = () => {
         const id = Number(c.dataset.wahl);
@@ -597,8 +598,8 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
         const auf = offenSerien.has(b.serie);
         const kommend = gruppe.filter(x => x.status === 'aktiv' && x.datum >= heute);
         html.push(`<div class="bu-serie ${auf ? 'auf' : ''}">${zeile(b)}
-          <div class="bu-serienkopf"><button type="button" class="bu-serie-knopf" data-serie-auf="${e(b.serie)}" aria-expanded="${auf}"><i class="bi bi-arrow-repeat"></i>Serie · ${gruppe.length} von ${serien.get(b.serie)} Terminen hier
-            · bis ${e(tagKurz(gruppe[gruppe.length - 1].datum))}<i class="bi bi-chevron-down bu-chevron"></i></button>
+          <div class="bu-serienkopf"><button type="button" class="bu-serie-knopf" data-serie-auf="${e(b.serie)}" aria-expanded="${auf}"><i class="bi bi-arrow-repeat"></i>Serie · ${gruppe.length === serien.get(b.serie) ? `${gruppe.length} Termine` : `${gruppe.length} von ${serien.get(b.serie)} Terminen`}
+            · bis ${e(tagKurz(gruppe[gruppe.length - 1].datum))} · ${auf ? 'zuklappen' : 'alle zeigen'}<i class="bi bi-chevron-down bu-chevron"></i></button>
             ${kommend.length && darf(kommend[0]) ? `<button type="button" class="nl-knopf klein rot" data-serie-storno="${kommend[0].id}"><i class="bi bi-trash"></i>Serie stornieren</button>` : ''}</div>
           ${auf ? `<div class="bu-kinder">${gruppe.slice(1).map(x => zeile(x, true)).join('')}</div>` : ''}</div>`);
       } else html.push(zeile(b));

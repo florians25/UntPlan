@@ -770,31 +770,10 @@ function cardLines(card, kind){
     return l;
   })
     .filter(l => l.text)
-    /* Auf einer Vertretungskachel steht der eigene Wert als Plakette: Er
-       sagt, dass ich diese Stunde halte beziehungsweise dass sie in dieser
-       Klasse stattfindet. Bei einer Anstelle-Vertretung ändert sich Klasse
-       und Fach, die Lehrkraft bleibt ich — `changed` enthält dann kein
-       `teacher`, und die Zeile wäre sonst weggefallen. */
-    /* Nicht bei einer reinen Raumänderung: Dort bleibt die Lehrkraft
-       dieselbe, und eine Plakette mit dem eigenen Kürzel behauptete eine
-       Vertretung, die es nicht gibt. */
-    /* Und nicht, wenn allein eine der gekoppelten Klassen fehlt: An der
-       Lehrkraft ändert sich dabei nichts, sie hält die Stunde wie geplant.
-       Eine Plakette auf dem eigenen Kürzel sagte dort das Gegenteil. Hat
-       die Lehrkraft wirklich gewechselt, steht `changed` ohnehin schon —
-       diese Regel fügt nur hinzu, sie nimmt nichts weg. */
-    .map(l => (label && l.key === last && !l.tokens && card.blockType === 'change'
-               && kind === 'teacher' && !card.classAbsent
-               && !(ktoks && ktoks.some(t => (t.state || 'ok') === 'absent')
-                    && !(card.changed || []).includes('teacher'))
-               && !((card.changed || []).length
-                    && (card.changed || []).every(k => k === 'room'))
-               && l.text.toUpperCase() === label)
-              /* `removed` bleibt erhalten: Bei einer offenen Vertretung ist
-                 die Plakette durchgestrichen — sie sagt, dass die Lehrkraft
-                 wegfällt und noch niemand eingeteilt ist. Das galt auch für
-                 die abwesende Lehrkraft selbst und ging hier verloren. */
-              ? { ...l, changed:true } : l)
+    /* Sprint 27: Nur tatsächlich geänderte Werte stehen im grünen Label. Das
+       eigene Kürzel im eigenen Plan bekommt keins mehr (vorher bei jeder
+       Vertretungskachel) – eine reine Raumänderung zeigt allein den Raum
+       hervorgehoben. */
     /* Sonst fällt die letzte Zeile weg, wenn sie nur die betrachtete
        Entität wiederholt — im eigenen Plan also das eigene Kürzel. */
     .filter(l => !(label && l.key === last && !l.changed && !l.tokens
@@ -945,14 +924,14 @@ function assignParallel(cards){
       c._i = k;
     });
     g.forEach(c => { c._n = cols.length; });
-    /* Kopplung mit Änderung (Vertretung, Raumänderung, offene Vertretung,
-       Entfall einer Zeile): alle Blöcke bleiben nebeneinander stehen,
-       keiner tritt hinter die Zählkarte zurück (wie iOS, Sprint 27). */
-    const geaendert = c => c.blockType === 'change' || c.blockType === 'cancelled'
-      || (c.changed || []).length > 0 || !!c.openSub || !!c.teacherAbsent || !!c.classAbsent;
-    /* Ein Veranstaltungsfeld ist keine Kopplung: dahinter treten die
+    /* Kopplungsunterricht (Sprint 27): alle gleichzeitigen Blöcke einer
+       Stunde stehen nebeneinander in Spuren – auch bei Vertretung,
+       Raumänderung, offener Vertretung, Entfall einer Zeile oder
+       Doppelstunden, die nur teilweise vertreten werden. Keiner tritt
+       hinter die Zählkarte zurück, solange je Block 22 px bleiben. Ein
+       Veranstaltungsfeld ist keine Kopplung: dahinter treten die
        entfallenden Stunden weiterhin zurück. */
-    const kopp = g.length > 1 && !g.some(c => c.overlay) && g.some(geaendert);
+    const kopp = g.length > 1 && !g.some(c => c.overlay);
     g.forEach(c => { if (kopp) c._koppAend = true; else delete c._koppAend; });
   });
   return sorted.concat(timed);
@@ -1241,8 +1220,7 @@ function renderGrid(){
      dem normalen Platz: auf dem iPad nebeneinander, auf dem Handy als Zahl. */
   const fitPair = list =>
     list.some(x => x.takeover) ? Math.max(fitSide, 2) : fitSide;
-  /* Gekoppelte Blöcke mit Änderung: schmaler (mind. 22 px je Block), dafür
-     alle nebeneinander. */
+  /* Gekoppelte Blöcke: schmaler (mind. 22 px je Block), dafür alle nebeneinander. */
   const fitKopp = Math.max(1, Math.floor(colPx / 22));
   const grenzeFuer = (list, c) => c && c._koppAend ? Math.max(fitPair(list), fitKopp) : fitPair(list);
 

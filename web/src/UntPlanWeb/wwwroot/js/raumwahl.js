@@ -18,6 +18,9 @@ function stileLaden() {
   document.head.append(l);
 }
 
+// Stile gleich beim Laden des Moduls (auch Status-Pills in Listen, die nur raumZeile bzw. die Klassen nutzen)
+stileLaden();
+
 const TRENNER = /[,;]+/;
 const tokens = wert => String(wert || '').split(TRENNER).map(x => x.trim()).filter(Boolean);
 const gleich = (a, b) => a.localeCompare(b, 'de', { sensitivity: 'accent' }) === 0;

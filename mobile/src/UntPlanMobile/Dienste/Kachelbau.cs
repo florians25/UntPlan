@@ -380,8 +380,11 @@ public static class Kachelbau
             kachel.RaumOffen = true;
             if (!kachel.Geaendert.Contains("room")) kachel.Geaendert.Add("room");
         }
-        if (k.Klassen.Any(w => w.Neu)) kachel.Geaendert.Add("class");
-        if (k.Lehrer.Any(w => w.Neu)) kachel.Geaendert.Add("teacher");
+        // Nur tatsächlich geänderte Werte bekommen ein grünes Label: „neu“ mit unverändertem Wert (alt == k) zählt nicht
+        // (z. B. bei einer reinen Raumänderung keine Plakette an der Lehrkraft)
+        static bool Geaendert(PlanWert w) => w.Neu && (w.K.Length == 0 || string.IsNullOrEmpty(w.Alt) || !Ci.Equals(w.Alt, w.K));
+        if (k.Klassen.Any(Geaendert)) kachel.Geaendert.Add("class");
+        if (k.Lehrer.Any(Geaendert)) kachel.Geaendert.Add("teacher");
         // geänderter oder hinzugefügter Raum (neuer Wert ohne alten) steht in der grünen Plakette
         if (k.Raeume.Any(w => w.Neu || (!string.IsNullOrEmpty(w.Alt) && !Ci.Equals(w.Alt, w.K)))) kachel.Geaendert.Add("room");
         if (!string.IsNullOrEmpty(k.FachAlt) && !Ci.Equals(k.FachAlt, k.Fach)) kachel.Geaendert.Add("subject");

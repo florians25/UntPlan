@@ -148,6 +148,28 @@ public sealed class PlanAnsicht : Control
 
     public event Action<Planstunde?>? AuswahlGeaendert;
     public event Action<DateOnly, TagesEintrag?>? TagesAuswahlGeaendert;
+    /// <summary>Eine Zelle ohne Unterricht (nicht verplante Stunde) wurde angeklickt: Spalte (Tag bzw. Tag der Woche) und Stunde.</summary>
+    public event Action<int, int>? LeereZelleGewaehlt;
+
+    /// <summary>Zuletzt angeklickte bzw. aus einem verknüpften Plan übernommene Zelle (Spalte, Stunde).</summary>
+    public (int Tag, int Stunde)? MarkierteZelle => _zelle;
+
+    /// <summary>Anzahl der Tagesspalten (Tage pro Woche).</summary>
+    public int Spalten => Tage;
+
+    /// <summary>
+    /// Leere Zelle aus einem verknüpften Plan übernehmen: bisherige Auswahl aufheben und dieselbe Stunde gestrichelt markieren
+    /// (Tag und Stunde rosa) – das angezeigte Element bleibt.
+    /// </summary>
+    public void ZelleMarkieren(int tag, int stunde)
+    {
+        Ausgewaehlt = null;
+        Mehrfach.Clear();
+        TagesAuswahl = null;
+        MarkierterUnterricht = null;
+        _zelle = tag >= 0 && tag < Tage && stunde >= 1 && stunde <= Stunden ? (tag, stunde) : null;
+        Invalidate();
+    }
     public event Action<string, int, int>? Abgelegt;
     public event Action<Planstunde>? Doppelklick;
     public event Action<Point, Planstunde?>? Kontext;
@@ -1641,7 +1663,12 @@ public sealed class PlanAnsicht : Control
             TagesAuswahl = te;
             Invalidate();
             if (te is { } x) TagesAuswahlGeaendert?.Invoke(x.Datum, x.Eintrag);
-            else if (h is { } h2 && _woche is DateOnly w2) TagesAuswahlGeaendert?.Invoke(w2.AddDays(h2.Tag), null);
+            else if (h is { } h2 && _woche is DateOnly w2)
+            {
+                TagesAuswahlGeaendert?.Invoke(w2.AddDays(h2.Tag), null);
+                // nicht verplante Stunde: verknüpfte Pläne trotzdem auf Tag und Stunde setzen
+                LeereZelleGewaehlt?.Invoke(h2.Tag, h2.Stunde);
+            }
             if (e.Button == MouseButtons.Left) { _down = e.Location; _downEintrag = te; }
             else if (e.Button == MouseButtons.Right && h is { } h3 && _woche is DateOnly w3) TagesKontext?.Invoke(e.Location, w3.AddDays(h3.Tag), h3.Stunde, te?.Eintrag);
             return;
@@ -1667,10 +1694,14 @@ public sealed class PlanAnsicht : Control
                 Invalidate();
                 AuswahlGeaendert?.Invoke(p);
             }
+            else if (p is null) Invalidate();
+            // nicht verplante Stunde: verknüpfte Pläne trotzdem auf Tag und Stunde setzen
+            if (p is null && _zelle is { } lz) LeereZelleGewaehlt?.Invoke(lz.Tag, lz.Stunde);
         }
         else if (e.Button == MouseButtons.Right)
         {
             if (p != null && p != Ausgewaehlt && !Mehrfach.Contains(p)) { Ausgewaehlt = p; Mehrfach.Clear(); Invalidate(); AuswahlGeaendert?.Invoke(p); }
+            if (p is null && _zelle is { } rz) { Invalidate(); LeereZelleGewaehlt?.Invoke(rz.Tag, rz.Stunde); }
             Kontext?.Invoke(e.Location, p);
         }
     }

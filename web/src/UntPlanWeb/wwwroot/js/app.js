@@ -729,7 +729,8 @@ async function route() {
   let nav = navAus([name, ...teile.slice(1)]);
   // Klassenkonten: frühere Adresse #/klassenbuch zeigt die Hausaufgaben
   if (name === 'klassenbuch' && !sitzung.benutzer.kollegium) { name = 'hausaufgaben'; nav = 'hausaufgaben'; }
-  const erlaubt = name === 'profil' || name === 'neuigkeiten' || allePunkte().some(p => p.nav === nav);
+  // Sprechtag für Schüler*innen ohne Menüpunkt (Option „sichtbar für Schüler*innen“; Zugang über die Karten auf Heute/Übersicht, der Server prüft)
+  const erlaubt = name === 'profil' || name === 'neuigkeiten' || (name === 'sprechtag' && sitzung.benutzer.rolle === 'schueler') || allePunkte().some(p => p.nav === nav);
   if (!ANSICHTEN[name] || !erlaubt) { name = 'heute'; nav = 'heute'; }
   aktiverPunkt = nav;
   // passendes Untermenü öffnen (wie im Original: Stundenplan, Klassenbuch … mit Zurück-Knopf)
