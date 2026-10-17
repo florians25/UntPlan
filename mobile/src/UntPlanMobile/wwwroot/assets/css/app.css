@@ -4985,63 +4985,155 @@ html.is-dark .card .card__video .ticon--video{ stroke:#b3bbc2; }
 .card--supervision.is-sub .sup-menu,
 .card--supervision.is-absent .sup-menu{ display:grid !important; right:3px; }
 
-/* ---- Sprechtag (Startseite → eigene Liste) ---------------------------- */
+/* ---- Sprechtag (Startseite → eigene Liste) ----------------------------
+   iOS-Aufbau: Zusammenfassung als Karte, grauer Segmentschalter, die
+   Zeitfenster als gruppierte Liste (Uhrzeit groß, Status-Punkt, Name),
+   Wischen/Tippen für Sperren, Freigeben, Absagen; Eltern sehen je
+   Lehrkraft eine Karte mit den freien Zeiten als Chips. */
 .screen--list.is-spt #lstFilter, .screen--list.is-spt .lstsearch, .screen--list.is-spt #lstFilterBar{ display:none !important; }
-.spt{ display:flex; flex-direction:column; gap:10px; }
-.spt__kopf, .spt__tag{
-  display:flex; flex-direction:column; gap:3px; text-align:left;
-  background:var(--c-bar); border-radius:14px; padding:14px 16px; border:0;
-  box-shadow:0 1px 3px rgba(21,33,44,.10); color:var(--c-ink); font:inherit;
+.screen--list.is-spt .lsthead__when b{ max-width:62vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:0 auto; }
+.spt{
+  --spt-grp:#ffffff; --spt-ink:#1c1c1e; --spt-ink2:#6c6c70; --spt-muted:#8e8e93; --spt-line:rgba(60,60,67,.18);
+  --spt-frei:#34c759; --spt-frei-ink:#1f8a3e; --spt-geb:#ff9500; --spt-geb-ink:#c76a00; --spt-sperr:#aeaeb2;
+  --spt-seg:rgba(118,118,128,.12); --spt-seg-on:#ffffff; --spt-chip:rgba(52,199,89,.12);
+  display:flex; flex-direction:column; gap:0; padding-bottom:12px;
 }
-.spt__kopf b, .spt__tag b{ font-size:19px; font-weight:500; }
-.spt__kopf span, .spt__tag span{ font-size:15px; color:var(--c-ink-2); }
-.spt__phase{ align-self:flex-start; margin-top:6px; padding:3px 10px; border-radius:999px; background:#eceef1; color:#4d5a65 !important; font-size:13px !important; font-weight:500; }
-.spt__phase--anmeldung{ background:var(--chg-bg, #e2f5ea); color:#0f6b3a !important; }
-.spt__phase--abgesagt{ background:#fde3e3; color:#b3261e !important; }
-.spt__hinweis{ margin:8px 0 0; padding:9px 11px; border-radius:10px; background:#eef1f4; color:#3f4b55; font-size:14px; line-height:1.4; }
-.spt__hinweis--rot{ background:#fde3e3; color:#8c1d18; }
-.spt__zahlen{ display:flex; gap:8px; }
-.spt__zahl{ flex:1; text-align:center; padding:9px 4px; border-radius:12px; background:var(--c-bar); box-shadow:0 1px 3px rgba(21,33,44,.08); font-size:13px; color:var(--c-ink-2); }
-.spt__zahl b{ display:block; font-size:20px; font-weight:500; color:var(--c-ink); }
-.spt__zahl--gebucht b{ color:#0f6b3a; }
-.spt__gruppe{ margin:10px 2px 0; font-size:14px; font-weight:600; color:var(--c-ink-2); text-transform:none; }
-.spt__liste{ display:flex; flex-direction:column; background:var(--c-bar); border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(21,33,44,.10); }
-.spt__fenster + .spt__fenster{ border-top:1px solid var(--c-line-soft, #e3e6ea); }
-.spt__zeile{
-  display:grid; grid-template-columns:52px 1fr auto; align-items:center; gap:12px;
-  width:100%; padding:11px 14px; border:0; background:transparent; text-align:left; font:inherit; color:var(--c-ink);
+html.is-dark .spt{
+  --spt-grp:#1c1c1e; --spt-ink:#f2f2f7; --spt-ink2:#aeaeb2; --spt-muted:#8e8e93; --spt-line:rgba(84,84,88,.55);
+  --spt-frei:#30d158; --spt-frei-ink:#5fe08a; --spt-geb:#ff9f0a; --spt-geb-ink:#ffb340; --spt-sperr:#636366;
+  --spt-seg:rgba(118,118,128,.24); --spt-seg-on:#636366; --spt-chip:rgba(48,209,88,.16);
 }
-.spt__zeile--lk{ grid-template-columns:1fr auto; }
-.spt__zeit{ display:flex; flex-direction:column; font-size:16px; font-weight:500; font-variant-numeric:tabular-nums; }
-.spt__zeit small{ font-size:12.5px; font-weight:400; color:var(--c-muted); }
-.spt__was{ display:flex; flex-direction:column; min-width:0; }
-.spt__was b{ font-size:16px; font-weight:450; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.spt__was b.is-leise{ font-weight:400; color:var(--c-muted); }
-.spt__was span{ font-size:13.5px; color:var(--c-ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.spt__status{ font-size:13px; font-weight:500; padding:3px 9px; border-radius:999px; background:#eceef1; color:#55626d; white-space:nowrap; }
-.spt__fenster--frei .spt__status, .spt__status--frei{ background:transparent; color:#0f6b3a; box-shadow:inset 0 0 0 1.5px #3aa76d; }
-.spt__fenster--gebucht .spt__status, .spt__status--gebucht{ background:var(--u-green, #1f8a4c); color:#fff; }
-.spt__fenster--gesperrt .spt__status{ background:#d9dde2; color:#56616b; }
-.spt__fenster--gesperrt .spt__zeit{ color:var(--c-muted); }
-.spt__einl{ font-style:normal; font-size:12px; font-weight:500; padding:1px 7px; margin-left:4px; border-radius:999px; background:#fff1d6; color:#7a4b00; vertical-align:1px; }
-.spt__aktion, .spt__slots{ display:flex; flex-wrap:wrap; gap:8px; padding:0 14px 12px 78px; }
-.spt__slots{ padding-left:14px; }
-.spt__knopf{
-  height:36px; padding:0 14px; border-radius:10px; border:0; font:inherit; font-size:15px; font-weight:500;
-  background:#e7ebef; color:var(--c-ink);
+.spt__laden{ height:120px; border-radius:14px; background:var(--spt-grp); opacity:.6; animation:sptPuls 1.2s ease-in-out infinite alternate; }
+@keyframes sptPuls{ to{ opacity:.25; } }
+
+/* Zusammenfassung */
+.spt__kopf{ background:var(--spt-grp); border-radius:14px; padding:14px 16px; color:var(--spt-ink); display:flex; flex-direction:column; gap:10px; }
+.spt__kopfZeile{ display:grid; grid-template-columns:52px 1fr; gap:14px; align-items:center; }
+.spt__kal{ width:52px; height:56px; border-radius:12px; background:color-mix(in srgb, var(--spt-ink) 6%, transparent); display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; }
+.spt__kal i{ font-style:normal; font-size:11.5px; font-weight:600; color:#ff3b30; text-transform:uppercase; letter-spacing:.04em; }
+.spt__kal b{ font-size:24px; font-weight:500; line-height:1.05; font-variant-numeric:tabular-nums; }
+.spt__kopfText{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.spt__kopfText > b{ font-size:18px; font-weight:600; line-height:1.25; }
+.spt__kopfText > span{ display:flex; align-items:center; gap:6px; font-size:14.5px; color:var(--spt-ink2); }
+.spt__kopfText .ico{ width:15px; height:15px; flex:0 0 auto; stroke-width:1.7; }
+.spt__phase{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px;
+  background:color-mix(in srgb, var(--spt-ink) 7%, transparent); color:var(--spt-ink2); font-size:13px; font-weight:500; }
+.spt__phase i{ width:7px; height:7px; border-radius:50%; background:var(--spt-muted); }
+.spt__phase--anmeldung{ background:var(--spt-chip); color:var(--spt-frei-ink); }
+.spt__phase--anmeldung i{ background:var(--spt-frei); }
+.spt__phase--einladung i{ background:var(--spt-geb); }
+.spt__phase--abgesagt{ background:rgba(255,59,48,.12); color:#d70015; }
+.spt__phase--abgesagt i{ background:#ff3b30; }
+.spt__hinweis{ margin:0; padding:9px 12px; border-radius:10px; background:color-mix(in srgb, var(--spt-ink) 5%, transparent); color:var(--spt-ink2); font-size:14px; line-height:1.4; }
+.spt__hinweis--frei{ margin-top:12px; background:var(--spt-grp); }
+.spt__hinweis--rot{ background:rgba(255,59,48,.12); color:#c4000f; }
+html.is-dark .spt__hinweis--rot{ color:#ff8a80; }
+
+/* Segmentschalter */
+.spt__seg{ display:grid; grid-template-columns:repeat(3, 1fr); gap:0; margin:16px 0 4px; padding:2px; border-radius:9px; background:var(--spt-seg); }
+.spt__seg button{ height:30px; border:0; border-radius:7px; background:transparent; font:inherit; font-size:13.5px; font-weight:500; color:var(--spt-ink);
+  display:flex; align-items:center; justify-content:center; gap:5px; transition:background .2s ease, box-shadow .2s ease; }
+.spt__seg button i{ font-style:normal; font-size:12px; color:var(--spt-muted); font-variant-numeric:tabular-nums; }
+.spt__seg button.is-on{ background:var(--spt-seg-on); font-weight:600; box-shadow:0 3px 8px rgba(0,0,0,.12), 0 .5px 1px rgba(0,0,0,.08); }
+.spt__seg button.is-on i{ color:var(--spt-ink2); }
+
+/* Gruppenkopf */
+.spt__gruppe{ display:flex; justify-content:space-between; align-items:baseline; margin:20px 16px 7px; font-size:13px; font-weight:400; color:var(--spt-muted); text-transform:uppercase; letter-spacing:.02em; }
+.spt__gruppe span{ text-transform:none; letter-spacing:0; }
+.spt__fuss{ margin:8px 16px 0; font-size:12.5px; line-height:1.4; color:var(--spt-muted); }
+
+/* Gruppierte Liste */
+.spt__liste{ display:flex; flex-direction:column; background:var(--spt-grp); border-radius:12px; overflow:hidden; }
+.spt-row{ position:relative; overflow:hidden; }
+.spt-row + .spt-row .spt-row__front::before{ content:""; position:absolute; top:0; right:0; left:86px; height:.5px; background:var(--spt-line); }
+.spt-row__front{
+  position:relative; z-index:1; display:grid; grid-template-columns:58px 10px 1fr auto; align-items:center; gap:0 12px;
+  min-height:62px; padding:9px 12px 9px 16px; background:var(--spt-grp); color:var(--spt-ink);
+  transition:transform .32s var(--ios-spring, cubic-bezier(.2,.9,.25,1)), background .15s ease; cursor:pointer; touch-action:pan-y;
 }
-.spt__knopf--rot{ background:#fde3e3; color:#b3261e; }
-.spt__knopf--klein{ height:32px; padding:0 11px; font-size:14px; }
-.spt__slot{
-  min-width:62px; height:36px; padding:0 10px; border-radius:10px; font:inherit; font-size:15px; font-weight:500;
-  border:1.5px solid #3aa76d; background:transparent; color:#0f6b3a; font-variant-numeric:tabular-nums;
-}
-.spt__slot.is-konflikt{ border-color:#c9cfd5; color:#8a96a1; }
-.spt__leer{ margin:2px 4px; font-size:14px; color:var(--c-muted); }
-html.is-dark .spt__phase, html.is-dark .spt__hinweis, html.is-dark .spt__knopf{ background:#2f3338; color:#d3d8dc !important; }
-html.is-dark .spt__fenster--gesperrt .spt__status{ background:#3a3f45; color:#b8c0c7; }
-html.is-dark .spt__slot, html.is-dark .spt__fenster--frei .spt__status{ color:#7fd6a4; }
-html.is-dark .spt__knopf--rot, html.is-dark .spt__hinweis--rot{ background:#4a2523; color:#ffb4ab !important; }
+.spt-row__front:active{ background:color-mix(in srgb, var(--spt-ink) 6%, var(--spt-grp)); }
+.spt__zeit{ display:flex; flex-direction:column; line-height:1.1; font-variant-numeric:tabular-nums; }
+.spt__zeit b{ font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.spt__zeit small{ font-size:12px; color:var(--spt-muted); margin-top:3px; }
+.spt__punkt{ width:10px; height:10px; border-radius:50%; background:var(--spt-frei); }
+.spt-row--gebucht .spt__punkt{ background:var(--spt-geb); }
+.spt-row--gesperrt .spt__punkt{ background:transparent; box-shadow:inset 0 0 0 2px var(--spt-sperr); }
+.spt-row--gesperrt .spt__zeit b, .spt-row--gesperrt .spt__was b{ color:var(--spt-muted); }
+.spt__was{ display:flex; flex-direction:column; min-width:0; gap:2px; }
+.spt__was b{ font-size:16.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spt-row--frei .spt__was b{ font-weight:400; color:var(--spt-frei-ink); }
+.spt__was > span{ font-size:13.5px; color:var(--spt-ink2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spt__chev{ width:18px; height:18px; color:color-mix(in srgb, var(--spt-muted) 70%, transparent); stroke-width:2; }
+.spt-row__acts{ position:absolute; inset:0 0 0 auto; display:flex; }
+.spt-row__act{ width:88px; border:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font:inherit; font-size:13px; font-weight:500; color:#fff; }
+.spt-row__act .ico{ width:22px; height:22px; stroke-width:1.8; }
+.spt-row__act.is-rot{ background:#ff3b30; }
+.spt-row__act.is-gruen{ background:#34c759; }
+.spt-row__act.is-grau{ background:#8e8e93; }
+
+/* Mehrere Sprechtage */
+.spt__tag{ display:grid; grid-template-columns:44px 1fr auto; gap:12px; align-items:center; width:100%; padding:11px 12px 11px 16px; border:0; background:var(--spt-grp); color:var(--spt-ink); font:inherit; text-align:left; }
+.spt__tag + .spt__tag{ border-top:.5px solid var(--spt-line); }
+.spt__tagDatum{ display:flex; flex-direction:column; align-items:center; line-height:1.05; }
+.spt__tagDatum b{ font-size:22px; font-weight:500; }
+.spt__tagDatum i{ font-style:normal; font-size:11.5px; font-weight:600; color:#ff3b30; text-transform:uppercase; }
+
+/* Leere Zustände */
+.spt__leerBox{ display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; padding:30px 24px; margin-top:8px; border-radius:12px; background:var(--spt-grp); color:var(--spt-ink); }
+.spt__leerBox .ico{ width:34px; height:34px; color:var(--spt-muted); stroke-width:1.4; margin-bottom:4px; }
+.spt__leerBox b{ font-size:16.5px; font-weight:600; }
+.spt__leerBox span{ font-size:14px; color:var(--spt-ink2); line-height:1.4; max-width:300px; }
+.spt__leerBox--klein{ padding:20px 20px; margin-top:0; }
+
+/* Eltern: Karte je Lehrkraft */
+.spt__karte{ background:var(--spt-grp); border-radius:12px; padding:12px 14px 14px; color:var(--spt-ink); display:flex; flex-direction:column; gap:10px; }
+.spt__karte + .spt__karte{ margin-top:10px; }
+.spt__karte.is-aus{ opacity:.7; }
+.spt__karteKopf{ display:grid; grid-template-columns:40px 1fr auto; gap:12px; align-items:center; }
+.spt__ava{ width:40px; height:40px; border-radius:50%; display:grid; place-items:center; font-size:15px; font-weight:600; color:#fff;
+  background:linear-gradient(180deg, #a5abb3, #858b93); }
+html.is-dark .spt__ava{ background:linear-gradient(180deg, #6e737a, #50555c); }
+.spt__badge{ font-size:13px; font-weight:600; padding:4px 10px; border-radius:999px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.spt__badge--frei{ background:var(--spt-chip); color:var(--spt-frei-ink); }
+.spt__badge--gebucht{ background:color-mix(in srgb, var(--spt-geb) 16%, transparent); color:var(--spt-geb-ink); }
+.spt__badge--grau{ background:color-mix(in srgb, var(--spt-ink) 7%, transparent); color:var(--spt-ink2); font-weight:500; }
+.spt__karteText{ margin:0; font-size:14px; color:var(--spt-ink2); display:flex; align-items:center; gap:7px; }
+.spt__karteText .ico{ width:16px; height:16px; stroke-width:1.7; }
+.spt__karteText--ok{ color:var(--spt-geb-ink); font-weight:500; }
+.spt__einl{ font-style:normal; font-size:11.5px; font-weight:600; padding:2px 7px; margin-left:4px; border-radius:999px; background:color-mix(in srgb, var(--spt-geb) 16%, transparent); color:var(--spt-geb-ink); vertical-align:1px; }
+.spt__slots{ display:grid; grid-template-columns:repeat(auto-fill, minmax(68px, 1fr)); gap:8px; }
+.spt__slot{ height:36px; border:0; border-radius:9px; font:inherit; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums;
+  background:var(--spt-chip); color:var(--spt-frei-ink); transition:transform .12s ease, background .15s ease; }
+.spt__slot:active{ transform:scale(.95); background:color-mix(in srgb, var(--spt-frei) 26%, transparent); }
+.spt__slot.is-konflikt{ background:color-mix(in srgb, var(--spt-ink) 6%, transparent); color:var(--spt-muted); text-decoration:line-through; text-decoration-thickness:1px; }
+
+/* Aktionsblatt (Bestätigungen) wie in iOS */
+.iosas{ position:fixed; inset:0; z-index:90; }
+.iosas__scrim{ position:absolute; inset:0; background:rgba(0,0,0,.32); opacity:0; transition:opacity .25s ease; }
+.iosas__panel{ position:absolute; left:8px; right:8px; bottom:calc(var(--sab, 0px) + 8px); max-width:520px; margin:0 auto;
+  display:flex; flex-direction:column; gap:8px; transform:translateY(110%); transition:transform .38s var(--ios-spring, cubic-bezier(.2,.9,.25,1)); }
+.iosas.is-open .iosas__scrim{ opacity:1; }
+.iosas.is-open .iosas__panel{ transform:none; }
+.iosas__group{ border-radius:14px; overflow:hidden; background:rgba(242,242,247,.86); backdrop-filter:saturate(180%) blur(28px); -webkit-backdrop-filter:saturate(180%) blur(28px); }
+html.is-dark .iosas__group{ background:rgba(44,44,46,.86); }
+.iosas__head{ display:flex; flex-direction:column; gap:4px; padding:14px 18px 13px; text-align:center; white-space:pre-line; }
+.iosas__head b{ font-size:13.5px; font-weight:600; color:#3c3c43; }
+.iosas__head span{ font-size:13px; color:#6c6c70; line-height:1.35; }
+html.is-dark .iosas__head b{ color:#ebebf5; }
+html.is-dark .iosas__head span{ color:#aeaeb2; }
+.iosas__feld{ padding:0 14px 12px; }
+.iosas__feld textarea{ width:100%; box-sizing:border-box; resize:none; border:0; border-radius:10px; padding:9px 11px; font:inherit; font-size:16px;
+  background:#fff; color:#1c1c1e; outline:none; }
+html.is-dark .iosas__feld textarea{ background:#1c1c1e; color:#f2f2f7; }
+.iosas__btn{ display:block; width:100%; height:56px; border:0; border-top:.5px solid rgba(60,60,67,.29); background:transparent; font:inherit; font-size:19px; color:#007aff; }
+html.is-dark .iosas__btn{ border-top-color:rgba(84,84,88,.6); color:#0a84ff; }
+.iosas__btn:active{ background:rgba(0,0,0,.06); }
+.iosas__btn.is-rot{ color:#ff3b30; }
+.iosas__btn.is-fett{ font-weight:600; }
+.iosas__btn--abbr{ border:0; border-radius:14px; font-weight:600; background:#fff; }
+html.is-dark .iosas__btn--abbr{ background:#2c2c2e; }
+.iosas__group > .iosas__btn:first-child{ border-top:0; }
+@media (prefers-reduced-motion: reduce){ .iosas__panel, .iosas__scrim{ transition:none; } }
 
 /* Anmeldemaske beim Hinzufügen eines Profils */
 .login__cancel{
@@ -5049,3 +5141,108 @@ html.is-dark .spt__knopf--rot, html.is-dark .spt__hinweis--rot{ background:#4a25
   background:transparent; color:var(--c-ink-2); font:inherit; font-size:16px; font-weight:500;
 }
 .login.is-add .login__sso, .login.is-add .login__oder{ display:none; }
+
+/* =====================================================================
+   Info- und Hausaufgabenzeichen auf der Kachel: flach — ohne Feld, ohne
+   Schatten —, nur die graue Scheibe bzw. das Haus, 4 px vom Kartenrand.
+   ===================================================================== */
+.card .card__ecke{ right:4px; bottom:4px; gap:3px; background:none; box-shadow:none; filter:none; }
+.card .card__ic.card__ic--exakt{ width:12px; height:12px; background:none; box-shadow:none; }
+.card .ticon.ticon--exakt, html.is-dark .card .ticon.ticon--exakt{ fill:transparent; filter:none; }
+.card .ticon.ticon--exakt{ color:#8a96a1; }
+html.is-dark .card .ticon.ticon--exakt{ color:#9aa6b2; }
+
+/* =====================================================================
+   iPhone: alle Blätter wie das Stundendetail — randlos über die volle
+   Breite, unten bündig, 90 % hoch, oben runde Ecken und Griff.
+   Planauswahl, Datum, Hilfe, Info, Neue Mitteilung und Konten.
+   ===================================================================== */
+.sheet__grab--phone{ display:none; }
+@media (max-width:699px){
+  .sheet:not(#sheetMenu){
+    left:0; right:0; top:auto; bottom:0; width:100%; margin:0;
+    height:90vh; height:90svh; min-height:0;
+    max-height:90vh; max-height:90svh;
+    border:0; border-radius:14px 14px 0 0;
+    padding-top:0; padding-bottom:calc(var(--sab) + 12px);
+    display:flex; flex-direction:column; overflow:hidden;
+    opacity:1; transform:translateY(100%);
+    transition:transform .42s var(--ios-spring);
+  }
+  .sheet:not(#sheetMenu).is-open{ transform:translateY(0); }
+  .sheet:not(#sheetMenu):not(#sheetDetail){
+    background:var(--c-bar);
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+    box-shadow:0 -6px 30px rgba(21,33,44,.16);
+  }
+  html.is-dark .sheet:not(#sheetMenu):not(#sheetDetail){ background:#1c1c1e; box-shadow:0 -6px 30px rgba(0,0,0,.5); }
+  .sheet:not(#sheetMenu) .sheet__grab,
+  .sheet:not(#sheetMenu) .sheet__grab--phone{
+    display:block; flex:0 0 auto; width:36px; height:5px; border-radius:3px; margin:6px auto 4px;
+    background:color-mix(in srgb, #8b98a3 55%, transparent);
+  }
+  /* Datum: Kalender oben im Blatt, ohne Pfeilspitze des Popovers */
+  #sheetWeek::before{ display:none; }
+  #sheetWeek.sheet{ padding-left:8px; padding-right:8px; overflow-y:auto; }
+  #sheetWeek .datepop__top{ padding:4px 10px 12px; }
+  .sheet--legend.sheet{ overflow-y:auto; }
+  .sheet--write .write__pane:not([hidden]){ flex:1 1 auto; min-height:0; }
+  /* Konten (Profil wechseln): dasselbe Blatt von unten */
+  .profpop{
+    left:0; right:0; top:auto; bottom:0; width:100%;
+    height:90vh; height:90svh; max-height:90svh;
+    border:0; border-radius:14px 14px 0 0;
+    padding:0 6px calc(var(--sab) + 12px);
+    background:var(--c-bar); backdrop-filter:none; -webkit-backdrop-filter:none;
+    box-shadow:0 0 0 100vmax rgba(0,0,0,.28), 0 -6px 30px rgba(21,33,44,.16);
+    animation:profHoch .42s var(--ios-spring) both;
+  }
+  html.is-dark .profpop{ background:#1c1c1e; box-shadow:0 0 0 100vmax rgba(0,0,0,.45); }
+  .profpop::before{ content:""; display:block; width:36px; height:5px; border-radius:3px; margin:6px auto 12px;
+    background:color-mix(in srgb, #8b98a3 55%, transparent); }
+  .profpop__title{ font-size:17px; font-weight:600; color:var(--c-ink); text-align:center; margin:0 0 12px; }
+}
+@keyframes profHoch{ from{ transform:translateY(100%); } to{ transform:none; } }
+@media (prefers-reduced-motion: reduce){ .profpop{ animation:none; } }
+
+/* Info zum Plan */
+.sheet--info .info__top{ display:grid; grid-template-columns:48px 1fr 48px; align-items:center; gap:8px; padding:6px 14px 10px; flex:0 0 auto; }
+.sheet--info .info__title{ text-align:center; font-size:17px; font-weight:600; color:var(--c-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sheet--info .info__body{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:6px 16px 16px; }
+.info__group{ border-radius:12px; background:color-mix(in srgb, var(--c-ink) 5%, transparent); overflow:hidden; }
+.info__row{ margin:0; padding:13px 16px; font-size:16.5px; color:var(--c-ink); line-height:1.35; }
+.info__row + .info__row{ border-top:.5px solid color-mix(in srgb, var(--c-ink) 14%, transparent); }
+.info__leer{ text-align:center; color:#8b98a3; font-size:15px; margin:30px 0; }
+
+/* =====================================================================
+   Kopfknöpfe in Blättern (Planauswahl, Info, Neue Mitteilung): derselbe
+   Glas-Stil wie die Knöpfe im Stundendetail.
+   ===================================================================== */
+#pickerBack, #pickerClear, #infoClose, #msgClose, #msgSend{
+  width:44px; height:44px; border-radius:50%;
+  background:rgba(255,255,255,.55);
+  backdrop-filter:blur(18px) saturate(180%);
+  -webkit-backdrop-filter:blur(18px) saturate(180%);
+  border:.5px solid rgba(255,255,255,.85);
+  box-shadow:0 3px 12px rgba(20,28,36,.14), inset 0 .5px 0 rgba(255,255,255,.9);
+  color:#6b7a86;
+}
+#pickerClear{ width:48px; height:48px; }
+html.is-dark #pickerBack, html.is-dark #pickerClear, html.is-dark #infoClose, html.is-dark #msgClose, html.is-dark #msgSend{
+  background:rgba(58,58,62,.5);
+  border-color:rgba(255,255,255,.16);
+  box-shadow:0 3px 12px rgba(0,0,0,.4), inset 0 .5px 0 rgba(255,255,255,.12);
+  color:#c9ced3;
+}
+#pickerBack:active, #pickerClear:active, #infoClose:active, #msgClose:active, #msgSend:active{ transform:scale(.92); }
+.sheet--picker .pk__top{ grid-template-columns:44px 1fr 44px; padding:8px 14px 10px; }
+
+/* =====================================================================
+   iPad: Stundendetail etwas länger — 620 breit, rund 740 hoch.
+   ===================================================================== */
+@media (min-width:700px){
+  #sheetDetail.sheet{
+    width:min(620px, 94vw);
+    height:min(740px, 92vh); min-height:min(740px, 92vh); max-height:92vh;
+  }
+}
