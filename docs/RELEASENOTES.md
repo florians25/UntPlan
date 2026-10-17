@@ -6,6 +6,28 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Veranstaltungen mit allen Lehrkräften oder Klassen: kompakte Darstellung („Alle Lehrkräfte“, „Alle Klassen“, „außer …“) in Vertretungsliste, Aushang, Plänen und Export; Sammelzeilen, kleineres Export-Paket.
+- Schnell alle Lehrkräfte, Klassen oder Räume (auch nach Abteilung, Jahrgang, Fachgruppe) in eine Veranstaltung übernehmen; „Alle/Keine/Umkehren“ in Mehrfachauswahl-Listen.
+- Klick auf eine leere Stunde aktualisiert die verknüpften Pläne.
+- Deutlich schnellerer Tageswechsel und schnellere Neuberechnung; Strg+Bild↑/↓ blättert die Unterrichtstage.
+- Offene und gelöschte Raumvertretungen werden korrekt an UntPlanWeb übertragen.
+
+### UntPlanWeb
+- Stundenkarten: Verlegungen mit Pfeil-Symbol und Hover, „+“-Labels für hinzugefügte Elemente, Labels bei allen Raumänderungen, Kopplungen bleiben nebeneinander, Tooltip bei gekürzten Texten.
+- Einheitliches Seitenlayout, gemeinsames Suchfeld mit Filter auf allen Listenseiten, übersichtlichere Rechteverwaltung.
+- Melden- und Buchen-Modul überarbeitet: neue Raumwahl, Raum- und Ressourcenübersicht, Prüfung editieren und löschen.
+- Sprechtage: Ankündigung vor der Buchungsphase, mehr Optionen (Zeitblöcke, Termindauer je Lehrkraft, Warteliste, Online-Termine), öffentliche Hinweise auf der Anmeldeseite.
+- Neue Abwesenheitsberichte (Fehltage pro Klasse, unentschuldigte Abwesenheiten), Fehlzeiten-Übersicht für Schüler*innen und Eltern mit Summen, ganztägige Abwesenheiten.
+- Optional dürfen Schüler*innen andere Klassenpläne sehen; Lehrstoff aus Vorwochen übernehmen.
+
+### Apps (iOS und Web-App)
+- Neues App-Symbol, Mitteilungsmodul nach Vorlage, Kopplungen nebeneinander bzw. Zählerkarte bei wenig Platz.
+- Labels nur für geänderte Elemente, Raumänderungen mit Raum-Label, Dunkelmodus-Farben angepasst.
+- Sprechtag-Ankündigung, Fehlzeiten-Summen mit Kind-Auswahl.
+
+## Vorherige Version
+
+### Desktop
 - Weißer Streifen über der Titelleiste und Hochrutschen beim Maximieren behoben (auch bei unterschiedlicher Monitorskalierung).
 - Gelöschte Klausuren verschwinden im Dialog „Klausuren“ sofort.
 - In UntPlanWeb stornierte Buchungen werden beim Abgleich im Desktop gelöscht; Löschmeldungen für Prüfungen werden sicherer verarbeitet.
@@ -22,29 +44,3 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Klassenleitungen erfassen Entschuldigungen direkt in der App, auch per Wischgeste.
 - Ferien im Start-Widget, Einzelstunden über das Titelmenü der Stundendetails, Info-Symbol nach Vorlage, Online-Symbol, Verlegungspfeile, Badge für Zusatzstunden.
 
-## Vorherige Version
-
-### Desktop
-- Klausurimport aus UntPlanWeb gehärtet: genau eine Zeile pro Klausurstunde, erneuter Import aktualisiert statt neu anzulegen, vorhandene Raumbuchungen werden zur Klausur, gelöschte oder verlegte Klausuren werden ohne Reste entfernt; Parallelkurse einer Klasse bleiben bestehen.
-- „Entfall rückgängig“ direkt im Stundenplan (Kontextmenü, Doppelklick, Taste „-“), auch für Blöcke und Kopplungen; manueller Entfall wird wieder zum Unterricht, bei abwesender Lehrkraft zur offenen Vertretung.
-- Rückfrage beim Entfall eines Sondereinsatzes: Sondereinsatz löschen oder als Entfall führen.
-- Fensterpositionen werden im sichtbaren Bereich gehalten (Laden, Verschieben, Fensteranordnungen, DPI- und Monitorwechsel).
-- Weichere Schrift in allen Auswahllisten.
-
-### UntPlanWeb
-- Neue Übersicht für alle Rollen: Tageszeile, Kennzahlen, „Heute & nächste Tage“, „Zu erledigen“, Termine, Mitteilungen.
-- Klassenbuch-Einstellungen (Hauptseite, Allgemein, Prüfungen) mit automatischer Erinnerung an offene Stunden.
-- Notenschemen und Prüfungsarten in den Stammdaten.
-- Unterricht Klassen mit Schülergruppen, Klassenwechsel mit Datum und befristetem Unterrichtswechsel.
-- Administration: aktive Benutzer, Wartungsmodus, „Über UntPlan“.
-- Plan-Zeitraum pro Rolle einstellbar (Wochen zurück/voraus) mit Sperrhinweis.
-- Einträge für Einzelstunden innerhalb von Doppel- und Blockstunden.
-- Prüfungen erscheinen sofort im Plan; neue Raumsuche mit frei/belegt.
-- Mitteilungen: neue Empfängerauswahl mit Filtern, Lesebestätigung, Antwortsperre, Mitteilungen auch für Schüler*innen und Eltern.
-- Ferien wieder tageweise, Sprechtag-Ansicht überarbeitet, Sidebar-Animation.
-
-### Apps (iOS und Web-App)
-- Mitteilungsmodul mit Posteingang, Empfängerauswahl, Anhängen und Lesebestätigung.
-- Einzelstundenauswahl in den Stundendetails, Alphabet-Register in der Suche.
-- Ruhigeres Wischen zwischen Wochen, vergangene Stunden nach Vorlage, Sperrhinweis bei eingeschränktem Plan-Zeitraum.
-- Keine Wochengrenze mehr für „Findet online statt“, Lehrstoff und Notizen.

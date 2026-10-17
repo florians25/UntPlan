@@ -119,6 +119,11 @@ public static class Vertretungen
                     .Concat(va.Zusatz.Where(z => z.Datum == datum).Select(z => (Lehrer: (int?)z.LehrerId, Fuer: (int?)null)))
                     .DistinctBy(p => p.Fuer.HasValue ? $"E{p.Fuer}" : $"L{p.Lehrer}").ToList();
                 if (plaetze.Count == 0) plaetze.Add((null, null));
+                // je Veranstaltung einmal bestimmen (bei allen Lehrkräften und Klassen Tausende Zeilen am Tag)
+                var vaKlassen = va.AlleKlassenIds.ToArray();
+                var vaRaum = va.RaumIds.Cast<int?>().FirstOrDefault();
+                var vaZusatzraeume = va.RaumIds.Skip(1).ToArray();
+                var vaGrund = GrundText(d, va.GrundId);
                 for (var s = 1; s <= d.Zeitraster.StundenProTag; s++)
                 {
                     if (!va.Deckt(datum, s) || !d.Zeitraster.Verfuegbar(tag, s)) continue;
@@ -126,9 +131,9 @@ public static class Vertretungen
                         benoetigt.Add(new Vertretung
                         {
                             Datum = datum, Stunde = s, Art = VertretungsArt.Veranstaltung, Quelle = VertretungsQuelle.Veranstaltung, VeranstaltungId = va.Id,
-                            VertreterId = l, ErsatzFuerLehrerId = fuer, LehrerId = fuer ?? l, KlassenIds = va.AlleKlassenIds.ToList(),
-                            VertretungsraumId = va.RaumIds.Cast<int?>().FirstOrDefault(), ZusatzraumIds = va.RaumIds.Skip(1).ToList(),
-                            GrundId = va.GrundId, Grund = GrundText(d, va.GrundId), Text = va.Text, Schuelergruppe = va.Schuelergruppe, Wert = va.Wert,
+                            VertreterId = l, ErsatzFuerLehrerId = fuer, LehrerId = fuer ?? l, KlassenIds = vaKlassen.ToList(),
+                            VertretungsraumId = vaRaum, ZusatzraumIds = vaZusatzraeume.ToList(),
+                            GrundId = va.GrundId, Grund = vaGrund, Text = va.Text, Schuelergruppe = va.Schuelergruppe, Wert = va.Wert,
                         });
                 }
             }
@@ -296,10 +301,10 @@ public static class Vertretungen
                 continue;
             }
             zugeordnet.Add(b);
-            var vorher = Inhalt(v);
+            var vorher = Inhalt.Von(v);
             Abgleichen(v, b);
             // Kennzeichen „Neue Vertretung“: auch eine durch die Neuberechnung geänderte Zeile gilt in dieser Sitzung als geändert
-            if (Inhalt(v) != vorher) v.Geaendert = DateTime.Now;
+            if (!vorher.Gleich(v)) v.Geaendert = DateTime.Now;
         }
         if (weg.Count > 0) d.Vertretungen.RemoveAll(weg.Contains);
         foreach (var b in benoetigt)
@@ -387,8 +392,17 @@ public static class Vertretungen
     }
 
     /// <summary>Inhalt einer Zeile, der für das Kennzeichen „Neue Vertretung“ zählt.</summary>
-    private static string Inhalt(Vertretung v) =>
-        $"{v.Art}|{v.VertreterId}|{v.LehrerId}|{v.VertretungsraumId}|{v.RaumId}|{v.FachId}|{v.Text}|{string.Join(",", v.KlassenIds)}|{string.Join(",", v.ZusatzraumIds)}|{v.Mitbetreuung}";
+    /// <remarks>Ohne Zeichenketten (früher je Zeile zweimal alle Klassen als Text – bei Veranstaltungen mit allen Klassen spürbar).</remarks>
+    private readonly record struct Inhalt(VertretungsArt Art, int? VertreterId, int? LehrerId, int? VertretungsraumId, int? RaumId, int? FachId, string Text,
+        int[] KlassenIds, int[] ZusatzraumIds, bool Mitbetreuung)
+    {
+        public static Inhalt Von(Vertretung v) => new(v.Art, v.VertreterId, v.LehrerId, v.VertretungsraumId, v.RaumId, v.FachId, v.Text, v.KlassenIds.ToArray(), v.ZusatzraumIds.ToArray(), v.Mitbetreuung);
+
+        public bool Gleich(Vertretung v) => Art == v.Art && VertreterId == v.VertreterId && LehrerId == v.LehrerId && VertretungsraumId == v.VertretungsraumId &&
+            RaumId == v.RaumId && FachId == v.FachId && Text == v.Text && Mitbetreuung == v.Mitbetreuung &&
+            KlassenIds.AsSpan().SequenceEqual(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(v.KlassenIds)) &&
+            ZusatzraumIds.AsSpan().SequenceEqual(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(v.ZusatzraumIds));
+    }
 
     /// <summary>Vorhandene abgeleitete Zeile an die neu berechnete angleichen (bearbeitete Zeilen behalten Vertreter, Raum und Text).</summary>
     private static void Abgleichen(Vertretung v, Vertretung b)

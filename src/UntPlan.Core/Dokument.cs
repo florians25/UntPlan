@@ -114,11 +114,7 @@ public sealed class Dokument
     {
         var p = new Schuldatei();
         foreach (var e in SchuldateiEigenschaften) e.SetValue(p, e.GetValue(d));
-        var imZeitraum = d.Vertretungen.Where(v => v.Datum >= von && v.Datum <= bis).ToList();
-        var kopien = JsonKopie(imZeitraum);
-        var ersetzt = new Dictionary<object, Vertretung>(ReferenceEqualityComparer.Instance);
-        for (var i = 0; i < imZeitraum.Count; i++) ersetzt[imZeitraum[i]] = kopien[i];
-        p.Vertretungen = d.Vertretungen.Select(v => ersetzt.TryGetValue(v, out var k) ? k : v).ToList();
+        p.Vertretungen = d.Vertretungen.Select(v => v.Datum >= von && v.Datum <= bis ? v.Kopie() : v).ToList();
         p.Veranstaltungen = d.Veranstaltungen.Select(va => va.Bis >= von && va.Von <= bis ? JsonKopie(va) : va).ToList();
         return p;
     }
