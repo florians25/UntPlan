@@ -76,6 +76,7 @@
 .ub-gruppe ~ .ub-ruhig, .ub-hinweis + .ub-ruhig { margin-top: 6px; border-top: 1px solid #edf0f2; }
 .ub-hinweis { margin-top: 10px; min-height: 36px; padding: 0 10px; border-radius: 4px; background: #f1f6fa; color: #2d5f86; }
 .ub-koerper > .ub-hinweis:first-child { margin-top: 8px; }
+.ub-hinweis + .ub-gruppe { margin-top: 6px; }
 
 /* Schmal: einspaltig, Kennzahlen zu zweit */
 @container (max-width: 760px) {

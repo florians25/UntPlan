@@ -70,13 +70,13 @@ function ruhig(texte, symbol = 'check2') {
 }
 
 /** Karte mit neutralem Kopf (Symbol im Akzent, dunkelgrauer Titel, Link rechts) und Gruppen. */
-function karte({ klasse, symbol, titel, href = '', linkText = '', gruppen = [], zusatz = '', leerSymbol = 'check2' }) {
+function karte({ klasse, symbol, titel, href = '', linkText = '', gruppen = [], zusatz = '', zusatzVorne = false, leerSymbol = 'check2' }) {
   const voll = gruppen.filter(g => g.html);
   const leer = gruppen.filter(g => !g.html).map(g => g.leer);
   return `<section class="ub-karte ${klasse}" aria-label="${e(titel)}">
     <header><i class="bi bi-${symbol}" aria-hidden="true"></i><h2>${e(titel)}</h2>
       ${href ? `<a class="ub-link" href="${href}">${e(linkText || 'Öffnen')}<i class="bi bi-chevron-right" aria-hidden="true"></i></a>` : ''}</header>
-    <div class="ub-koerper">${voll.map(g => g.html).join('')}${zusatz}${ruhig(leer, leerSymbol)}</div></section>`;
+    <div class="ub-koerper">${zusatzVorne ? zusatz : ''}${voll.map(g => g.html).join('')}${zusatzVorne ? '' : zusatz}${ruhig(leer, leerSymbol)}</div></section>`;
 }
 
 /** Kennzahl der Leiste: Zahl und Bezeichnung; 0 bleibt zurückhaltend grau. */
@@ -130,12 +130,17 @@ export async function zeigen(seite, kontext) {
   ]);
 
   // ---------------------------------------------------------------- Daten aufbereiten
-  const alleKarten = [...(w1.karten ?? []), ...(w2.karten ?? [])];
-  const alleTage = [...(w1.tage ?? []), ...(w2.tage ?? [])].sort((a, b) => a.datum.localeCompare(b.datum));
+  const plaene = [w1, w2];
+  // in den Ferien: zusätzlich die Woche nach Ferienende laden, damit der nächste Unterrichtstag erscheint
+  const ferienVorab = element ? ferienAb([...(w1.tage ?? []), ...(w2.tage ?? [])].sort((a, b) => a.datum.localeCompare(b.datum)), heute) : null;
+  if (ferienVorab && ferienVorab.bis >= plusTage(mo, 13) && ![...(w1.karten ?? []), ...(w2.karten ?? [])].some(k => k.datum >= heute))
+    plaene.push(await plan(montag(plusTage(ferienVorab.bis, 3))));
+  const alleKarten = plaene.flatMap(p => p.karten ?? []);
+  const alleTage = plaene.flatMap(p => p.tage ?? []).sort((a, b) => a.datum.localeCompare(b.datum));
   const kartenAm = d => alleKarten.filter(k => k.datum === d).sort((a, b) => a.von - b.von);
   // „Heute & nächste Tage“: höchstens zwei Unterrichtstage ab heute (heute zählt, solange dort Stunden stehen)
   const unterrichtstage = alleTage.filter(t => t.datum >= heute && !t.frei && kartenAm(t.datum).length).slice(0, 2).map(t => t.datum);
-  const aenderungen = alleKarten.filter(k => k.datum >= heute && !OHNE_AENDERUNG.includes(k.status)).sort((a, b) => a.datum.localeCompare(b.datum) || a.von - b.von);
+  const aenderungen = [...(w1.karten ?? []), ...(w2.karten ?? [])].filter(k => k.datum >= heute && !OHNE_AENDERUNG.includes(k.status)).sort((a, b) => a.datum.localeCompare(b.datum) || a.von - b.von);
   const weitere = aenderungen.filter(k => !unterrichtstage.includes(k.datum));
   const ferien = element ? ferienAb(alleTage, heute) : null;
   const gesperrt = [w1, w2].some(p => p.gesperrt) && !alleKarten.length;
@@ -211,10 +216,11 @@ export async function zeigen(seite, kontext) {
       titel: tagTitel(d, heute), zeilen: kartenAm(d).map(k => stundeZeile(k, false)), href: '#/plan/mein', mehrHref: '#/plan/mein',
       zahl: kartenAm(d).filter(k => !ENTFALL.includes(k.status)).length,
     }));
-    gruppen.push(gruppe({ titel: 'Weitere Änderungen', zeilen: weitere.map(k => stundeZeile(k, true)), href: kollegium ? '#/vertretungen' : '#/plan/mein', leer: unterrichtstage.length ? '' : 'Keine Änderungen' }));
+    gruppen.push(gruppe({ titel: 'Weitere Änderungen', zeilen: weitere.map(k => stundeZeile(k, true)), href: kollegium ? '#/vertretungen' : '#/plan/mein', leer: '' }));
     if (!unterrichtstage.length) gruppen.unshift({ leer: gesperrt ? 'Die Anzeige des Stundenplans ist beschränkt' : ferien?.laeuft ? '' : 'Kein Unterricht in den nächsten Tagen' });
-    const ferienZeile = ferien ? `<p class="ub-hinweis"><i class="bi bi-sun" aria-hidden="true"></i><span>${e(ferien.text)}</span></p>` : '';
-    karten.push(karte({ klasse: 'ub-heute', symbol: 'calendar3', titel: 'Heute & nächste Tage', href: '#/plan/mein', linkText: 'Stundenplan', gruppen, zusatz: ferienZeile, leerSymbol: gesperrt ? 'lock' : 'calendar-x' }));
+    // Ferienhinweis in der Karte nur, wenn er nicht schon in der Tageszeile steht
+    const ferienZeile = ferien && (!ferienPille || !unterrichtstage.length || unterrichtstage[0] > ferien.bis) ? `<p class="ub-hinweis"><i class="bi bi-sun" aria-hidden="true"></i><span>${e(ferien.text)}</span></p>` : '';
+    karten.push(karte({ klasse: 'ub-heute', symbol: 'calendar3', titel: 'Heute & nächste Tage', href: '#/plan/mein', linkText: 'Stundenplan', gruppen, zusatz: ferienZeile, zusatzVorne: !!ferien && (!unterrichtstage.length || unterrichtstage[0] > ferien.bis), leerSymbol: gesperrt ? 'lock' : 'calendar-x' }));
   }
 
   // Zu erledigen: Klassenbuch-Hinweise, offene Abwesenheiten, Hausaufgaben
