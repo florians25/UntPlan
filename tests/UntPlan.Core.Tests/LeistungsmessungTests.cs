@@ -57,14 +57,14 @@ public class LeistungsmessungTests
         var bis = tag.AddDays(6);
         var gesamt = new Dictionary<string, long>
         {
-            ["Vertretungen einer Woche berechnen"] = Messen("Vertretungen einer Woche berechnen (Aktualisieren)", () => Vertretungen.Aktualisieren(d, tag, bis), 3),
-            ["Tag neu berechnen"] = Messen("Tag mit pädagogischem Tag neu berechnen", () => Vertretungen.Aktualisieren(d, tag), 5),
-            ["Tagesplan"] = Messen("Tagesplan.Berechnen (Tag mit Veranstaltung)", () => Tagesplan.Berechnen(d, tag), 10),
-            ["Vertretungsplan"] = Messen("Vertretungsplan.Zeilen (Aushang des Tages)", () => Vertretungsplan.Zeilen(d, tag), 5),
-            ["Klonen"] = Messen("Dokument.Klonen (Tageswechsel im Vertretungsfenster)", () => Dokument.Klonen(d), 3),
-            ["Speichern"] = Messen("Datei speichern (JSON)", () => System.Text.Json.JsonSerializer.Serialize(d, Dokument.JsonOptionen), 3),
-            ["Export"] = Messen("Export-Paket (14 Tage)", () => UntPlanWebExport.PaketErstellen(d, tag, new WebExportOptionen { TageVoraus = 14, TageZurueck = 0 }), 3),
-            ["Abrechnung"] = Messen("Vertretungsabrechnung (Woche, alle Lehrkräfte)", () => Statistik.Abrechnung(d, tag, bis), 3),
+            ["Vertretungen einer Woche berechnen"] = Messen("Vertretungen einer Woche berechnen (Aktualisieren)", () => Vertretungen.Aktualisieren(d, tag, bis), 7),
+            ["Tag neu berechnen"] = Messen("Tag mit pädagogischem Tag neu berechnen", () => Vertretungen.Aktualisieren(d, tag), 15),
+            ["Tagesplan"] = Messen("Tagesplan.Berechnen (Tag mit Veranstaltung)", () => Tagesplan.Berechnen(d, tag), 30),
+            ["Vertretungsplan"] = Messen("Vertretungsplan.Zeilen (Aushang des Tages)", () => Vertretungsplan.Zeilen(d, tag), 15),
+            ["Klonen"] = Messen("Dokument.Klonen (Tageswechsel im Vertretungsfenster)", () => Dokument.Klonen(d), 7),
+            ["Speichern"] = Messen("Datei speichern (JSON)", () => System.Text.Json.JsonSerializer.Serialize(d, Dokument.JsonOptionen), 7),
+            ["Export"] = Messen("Export-Paket (14 Tage)", () => UntPlanWebExport.PaketErstellen(d, tag, new WebExportOptionen { TageVoraus = 14, TageZurueck = 0 }), 7),
+            ["Abrechnung"] = Messen("Vertretungsabrechnung (Woche, alle Lehrkräfte)", () => Statistik.Abrechnung(d, tag, bis), 7),
         };
         var json = UntPlanWebExport.Json(UntPlanWebExport.PaketErstellen(d, tag, new WebExportOptionen { TageVoraus = 14, TageZurueck = 0 }));
         _aus.WriteLine($"Paketgröße (14 Tage): {json.Length / 1024} KB, Vertretungen am Tag: {d.Vertretungen.Count(v => v.Datum == tag)}");
