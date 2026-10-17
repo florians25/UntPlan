@@ -127,7 +127,7 @@ public class SeitenlayoutTests
     }
 
     [Fact]
-    public void Offene_Stunden_Art_als_Dropdown_im_Suchfeld_auf_grauem_Seitengrund()
+    public void Offene_Stunden_Art_als_Dropdown_im_Suchfeld_im_weissen_Kopf()
     {
         var js = Datei("js", "ansichten", "offen.js");
         // Art der Anzeige als Dropdown im gemeinsamen Suchfeld (wie Hausaufgaben) statt Pillen-Gruppe
@@ -137,9 +137,9 @@ public class SeitenlayoutTests
         Assert.DoesNotContain("segment(ART_WAHL", js);
         Assert.DoesNotContain("data-artwahl", js);
         Assert.DoesNotContain("os-artwahl", js);
-        // Leiste direkt im Seiteninhalt (grauer Seitengrund wie alle Listenseiten), nicht in der weißen Werkzeugleiste
+        // Leiste als Teil des weißen Kopfes (u-kopfteil, app.js/seitenlayout.css), nicht mehr in der nachträglich gefüllten Werkzeugleiste
         Assert.DoesNotContain("kontext.werkzeug(", js);
-        Assert.Contains("<div class=\"u-sf-leiste os-filter\">", js);
+        Assert.Contains("<div class=\"u-sf-leiste u-kopfteil os-filter\">", js);
     }
 
     [Fact]
@@ -167,6 +167,106 @@ public class SeitenlayoutTests
         Assert.Contains("suchfeldMitFilterBinden(", Datei("js", "infocenter.js"));
         // keine weiße Werkzeugleiste mehr auf den Listenseiten
         foreach (var datei in new[] { "hausaufgaben.js", "pruefungen.js", "offen.js" }) Assert.DoesNotContain("kontext.werkzeug(", Datei("js", "ansichten", datei));
+    }
+
+    // ------------------------------------------------------------------ Sprint 28: weißer Kopf der Klassenbuch-Verwaltungsseiten
+
+    [Fact]
+    public void Klassenbuch_Verwaltungsseiten_haben_weissen_Kopf_ohne_Springen()
+    {
+        var app = Datei("js", "app.js");
+        // Kopf steht sofort beim Seitenwechsel (vor dem Laden des Moduls): Titel aus dem Menü, Platzhalter für die Suchleiste
+        Assert.Contains("const WEISSER_KOPF = {", app);
+        Assert.Contains("id=\"kopfplatz\"", app);
+        var route = app[app.IndexOf("async function route()", StringComparison.Ordinal)..];
+        Assert.True(route.IndexOf("weisserKopf(nav)", StringComparison.Ordinal) < route.IndexOf("await ANSICHTEN[name]()", StringComparison.Ordinal));
+        Assert.Contains("kopfMerken(kopf)", route);
+        Assert.Contains("sessionStorage", app[app.IndexOf("function weisserKopf", StringComparison.Ordinal)..]);
+        foreach (var nav in new[] { "offen", "hausaufgaben", "pruefungen", "abwesenheiten", "fehlzeiten", "eintraege", "dienste", "befreiungen", "berichte", "entschuldigen", "kbeinstellungen" })
+            Assert.Matches($"[{{ ,]'?{nav}'?: {{ suche", app);
+
+        var css = Datei("css", "seitenlayout.css");
+        Assert.Contains(".u-app.u-kopf-weiss :is(#seitenkopf, #kopfplatz, #seite .u-kopfteil)::after", css);
+        Assert.Contains("inset: 0 -100vmax", css);                     // volle Breite …
+        Assert.Contains(".u-app.u-kopf-weiss .u-haupt { overflow-x: clip; }", css);   // … ohne waagrechtes Scrollen
+        Assert.Contains(":not(:has(#seite .u-kopfteil, #seite > .alert)) #kopfplatz { display: block; height: var(--kopfplatz-h", css);
+        Assert.Contains("height: 82px", css);                          // feste Höhe der Titelzeile (Aktionen kommen später)
+        Assert.DoesNotContain("font-weight: 600", css);
+
+        // jede Seite zeichnet ihre Suchleiste als Teil des Kopfes, keine nachträglich gefüllte Werkzeugleiste
+        foreach (var datei in new[] { "offen.js", "hausaufgaben.js", "pruefungen.js", "abwesenheiten.js", "eintraege.js", "dienste.js", "befreiungen.js", "berichte.js", "entschuldigungen.js", "klassenbuch.js" })
+        {
+            var js = Datei("js", "ansichten", datei);
+            Assert.True(js.Contains("u-kopfteil"), datei);
+            if (datei != "klassenbuch.js") Assert.DoesNotContain("kontext.werkzeug(", js);
+        }
+        // Abwesenheiten: Reiter gehört zum Kopf, Platzhalter der Suchleiste während des Ladens
+        var abw = Datei("js", "ansichten", "abwesenheiten.js");
+        Assert.Contains("u-kopfreiter", abw);
+        Assert.Contains("u-kopfskelett", abw);
+    }
+
+    // ------------------------------------------------------------------ Sprint 28: eigene Abwesenheit im Stundenplan
+
+    [Fact]
+    public async Task Eigener_Plan_liefert_eigene_Abwesenheiten_der_Lehrkraft()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var stunden = stand.Paket.Zeitraster.Stunden.Where(z => z.Beginn.Length > 0).OrderBy(z => z.Nr).ToList();
+        // Beispielpaket: WAG abwesend am 14.10. in der 1.–3. Stunde
+        var wag = await s.AlsAsync("wag", "lehrer", "WAG");
+        var a = (await Testserver.HolenAsync(wag, "/api/app/plan?typ=lehrer&element=WAG&datum=2026-10-14"))["abwesenheiten"]!.AsArray();
+        var tag = a.Single(x => x!["datum"]!.GetValue<string>() == "2026-10-14")!;
+        Assert.Equal(stunden.First().Beginn, tag["von"]!.GetValue<string>());
+        Assert.Equal(stunden.First(z => z.Nr == 3).Ende, tag["bis"]!.GetValue<string>());
+        Assert.Equal("fehlt", tag["art"]!.GetValue<string>());
+        // nur im eigenen Plan: andere Lehrkraft bzw. Administration sehen im Plan von WAG keine Abwesenheitsfläche
+        Assert.Empty((await Testserver.HolenAsync(await s.AlsAsync("mue", "lehrer", "MUE"), "/api/app/plan?typ=lehrer&element=WAG&datum=2026-10-14"))["abwesenheiten"]!.AsArray());
+        Assert.Empty((await Testserver.HolenAsync(await s.AlsAsync("admin"), "/api/app/plan?typ=lehrer&element=WAG&datum=2026-10-14"))["abwesenheiten"]!.AsArray());
+        // ganztägig (bis zur letzten Stunde) über zwei Tage: HOF 12.–13.10.
+        var hof = (await Testserver.HolenAsync(await s.AlsAsync("hof", "lehrer", "HOF"), "/api/app/plan?typ=lehrer&element=HOF&datum=2026-10-13"))["abwesenheiten"]!.AsArray();
+        Assert.Equal(new[] { "2026-10-12", "2026-10-13" }, hof.Select(x => x!["datum"]!.GetValue<string>()).ToArray());
+        Assert.All(hof, x => Assert.Equal(stunden.Last().Ende, x!["bis"]!.GetValue<string>()));
+    }
+
+    [Fact]
+    public async Task Eigener_Plan_liefert_eigene_Abwesenheiten_der_Schuelerin()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var kind = stand.Schueler.First(x => x.Klasse == "7a");
+        var admin = await s.AlsAsync("admin");
+        await Testserver.JsonAsync(await admin.PostAsJsonAsync("/api/app/admin/benutzer", new { login = "kind-7a", passwort = "familie-passwort", rolle = "schueler", anzeigename = "Kind", gesperrt = false, schuelerIds = new[] { kind.Id } }));
+        var neu = await Testserver.JsonAsync(await admin.PostAsJsonAsync("/api/app/abwesenheiten", new { schuelerId = kind.Id, von = "2026-10-15", bis = "2026-10-15", status = "offen", grund = "K" }));
+        Assert.True(neu["stunden"]!.GetValue<int>() > 0);
+        var c = s.Client();
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/app/anmelden", new { login = "kind-7a", passwort = "familie-passwort" })).StatusCode);
+        var a = (await Testserver.HolenAsync(c, "/api/app/plan?typ=klasse&element=7a&datum=2026-10-15"))["abwesenheiten"]!.AsArray();
+        var tag = Assert.Single(a)!;
+        Assert.Equal("2026-10-15", tag["datum"]!.GetValue<string>());
+        Assert.False(string.IsNullOrEmpty(tag["von"]!.GetValue<string>()));
+        Assert.True(string.CompareOrdinal(tag["von"]!.GetValue<string>(), tag["bis"]!.GetValue<string>()) < 0);
+        // Klassenkonto bzw. Lehrkraft sehen im Klassenplan keine Abwesenheit einzelner Schüler*innen
+        Assert.Empty((await Testserver.HolenAsync(await s.AlsAsync("mue", "lehrer", "MUE"), "/api/app/plan?typ=klasse&element=7a&datum=2026-10-15"))["abwesenheiten"]!.AsArray());
+    }
+
+    [Fact]
+    public void Abwesenheit_als_Flaeche_hinter_den_Stunden_und_im_Menue_ausblendbar()
+    {
+        var gitter = Datei("js", "plangitter.js");
+        Assert.Contains("function abwesenheitFlaechen(", gitter);
+        Assert.Contains("plan.abwesenheiten", gitter);
+        // vor den Karten eingefügt (liegt hinter den Stunden), Text im freien Bereich
+        Assert.Contains("html = html.slice(0, vorKarten) + abw + html.slice(vorKarten)", gitter);
+        Assert.Contains("tt-abw-text", gitter);
+        var plan = Datei("js", "ansichten", "plan.js");
+        Assert.Contains("Abwesenheiten anzeigen</button>", plan);
+        Assert.Contains("localStorage.setItem('untplan:planeinstellungen'", plan);
+        var css = Datei("css", "app.css");
+        Assert.Contains(".tt.ohne-abwesenheiten .tt-abw { display: none; }", css);
+        var regel = css.Split('\n').First(z => z.StartsWith(".tt-abw {", StringComparison.Ordinal));
+        Assert.DoesNotContain("z-index", regel);
     }
 
     [Fact]

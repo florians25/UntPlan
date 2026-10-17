@@ -1,0 +1,66 @@
+/* Dialoge, Formulare, Kontextmenüs, Auswahllisten, Hinweise. */
+
+.dialog-hintergrund {
+  position: fixed; inset: 0; z-index: 3000; background: rgba(15, 30, 40, .28); display: flex; align-items: center; justify-content: center;
+  animation: blenden .1s ease-out;
+}
+@keyframes blenden { from { opacity: 0; } to { opacity: 1; } }
+.dialog {
+  min-width: 340px; max-width: min(760px, calc(100vw - 40px)); max-height: calc(100vh - 60px); display: flex; flex-direction: column;
+  background: #fff; border-radius: 8px; box-shadow: var(--schatten); overflow: hidden;
+}
+.dialog .d-titel { height: 32px; flex: none; display: flex; align-items: center; padding: 0 6px 0 14px; background: var(--akzent-titel); color: #fff; user-select: none; }
+.dialog .d-titel .text { flex: 1; font-weight: var(--mittel); }
+.dialog .d-titel button { width: 28px; height: 24px; border: 0; background: transparent; color: inherit; cursor: pointer; border-radius: 3px; }
+.dialog .d-titel button:hover { background: #e81123; }
+.dialog .d-inhalt { padding: 16px 18px; overflow: auto; line-height: 1.45; }
+.dialog .d-inhalt p { margin: 0 0 8px; }
+.dialog .d-knoepfe { flex: none; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; background: var(--leiste); border-top: 1px solid var(--rand-leise); }
+
+.formular { display: grid; grid-template-columns: max-content 1fr; gap: 8px 12px; align-items: center; min-width: 320px; }
+.formular > label { color: #4b5563; font-size: 12.5px; }
+.formular .voll { grid-column: 1 / -1; }
+.formular .eingabe { width: 100%; }
+.formular .hinweis { grid-column: 2; font-size: 11.5px; color: var(--text-leise); margin-top: -4px; }
+
+.menue {
+  position: fixed; z-index: 4000; min-width: 190px; padding: 4px 0; background: #fff; border: 1px solid var(--rand); border-radius: 6px;
+  box-shadow: var(--schatten); user-select: none; max-height: 70vh; overflow-y: auto;
+}
+.menue .m-eintrag {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 14px 5px 8px; border: 0; background: transparent; text-align: left; cursor: pointer; font-size: 12.5px;
+  white-space: nowrap;
+}
+.menue .m-eintrag:hover:not(:disabled), .menue .m-eintrag.fokus { background: var(--hover); }
+.menue .m-eintrag:disabled { color: #a0a0a0; cursor: default; }
+.menue .m-eintrag svg { width: 16px; height: 16px; flex: none; }
+.menue .m-eintrag .haken { width: 16px; text-align: center; color: var(--akzent); flex: none; }
+.menue .m-eintrag .taste { margin-left: auto; padding-left: 18px; color: var(--text-leise); font-size: 11.5px; }
+.menue .m-trenner { height: 1px; margin: 4px 0; background: var(--rand-leise); }
+.menue .m-titel { padding: 4px 12px; font-size: 11px; color: var(--text-leise); text-transform: uppercase; letter-spacing: .4px; }
+
+.vorschlaege {
+  position: fixed; z-index: 4100; min-width: 160px; max-height: 260px; overflow-y: auto; background: #fff; border: 1px solid var(--rand);
+  border-radius: 4px; box-shadow: var(--schatten-klein); font-size: 12.5px;
+}
+.vorschlaege .v-eintrag { display: flex; gap: 10px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+.vorschlaege .v-eintrag .k { min-width: 56px; font-weight: var(--mittel); }
+.vorschlaege .v-eintrag .l { color: var(--text-leise); overflow: hidden; text-overflow: ellipsis; }
+.vorschlaege .v-eintrag.fokus, .vorschlaege .v-eintrag:hover { background: var(--hover); }
+.vorschlaege .v-leer { padding: 6px 8px; color: var(--text-leise); }
+
+.hinweise { position: fixed; right: 16px; bottom: 34px; z-index: 5000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.hinweise .h-eintrag {
+  max-width: 380px; padding: 10px 14px; border-radius: 6px; background: #263238; color: #fff; box-shadow: var(--schatten-klein); font-size: 12.5px;
+  animation: blenden .15s ease-out; pointer-events: auto;
+}
+.hinweise .h-eintrag.fehler { background: #b3261e; }
+.hinweise .h-eintrag.ok { background: #2e6b3a; }
+.hinweise .h-eintrag.warnung { background: #8a5a00; }
+
+.ladeanzeige { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.6); z-index: 20; }
+.ladeanzeige::after {
+  content: ""; width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--akzent-hell); border-top-color: var(--akzent);
+  animation: drehen .8s linear infinite;
+}
+@keyframes drehen { to { transform: rotate(360deg); } }

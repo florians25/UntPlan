@@ -254,7 +254,7 @@
 .u-app.u-kopf-weiss :is(#seitenkopf, #kopfplatz, #seite .u-kopfteil)::after {
   content: ""; position: absolute; inset: 0 -100vmax; z-index: -1; background: #fff; pointer-events: none;
 }
-.u-app.u-kopf-weiss #seitenkopf { display: flex !important; margin-bottom: 0; padding: 24px 0 16px; min-height: 80px; }
+.u-app.u-kopf-weiss #seitenkopf { display: flex !important; flex-wrap: nowrap; margin-bottom: 0; padding: 24px 0 16px; height: 82px; min-height: 0; }
 /* Unterkante: feine Linie über die volle Breite am letzten Teil des Kopfes */
 .u-app.u-kopf-weiss:not(.u-kopf-suche) #seitenkopf::after, .u-app.u-kopf-weiss :is(#kopfplatz, #seite .u-kopfteil)::after { border-bottom: 1px solid #e5e8ec; }
 .u-app.u-kopf-weiss:not(.u-kopf-suche) #seitenkopf { margin-bottom: 24px; }
@@ -278,13 +278,26 @@
 /* Fehlzeiten: die Klassenwahl steht in der Kopfzeile (die Zeile darüber entfällt) */
 .u-app.u-kopf-weiss[data-ansicht="klassenbuch"] #seite > .u-filter { display: none; }
 @media (max-width: 991.98px) {
-  .u-app.u-kopf-weiss #seitenkopf { padding: 18px 0 12px; min-height: 66px; }
+  .u-app.u-kopf-weiss #seitenkopf { padding: 16px 0 12px; height: 70px; }
+  /* Titel und Aktionen in einer Zeile (die Aktionen kommen erst nach dem Laden – so ändert sich die Höhe des Kopfes nicht) */
+  .u-app.u-kopf-weiss #seitenkopf { flex-wrap: nowrap; gap: 10px; }
+  .u-app.u-kopf-weiss #seitenkopf h1 { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .u-app.u-kopf-weiss #seitenkopf h1:empty { display: block; }
+  .u-app.u-kopf-weiss #seitenkopf .u-aktionen { width: auto; flex: 0 1 auto; min-width: 0; margin-left: auto; flex-wrap: nowrap; justify-content: flex-end;
+    overflow-x: auto; scrollbar-width: none; }
+  .u-app.u-kopf-weiss #seitenkopf .u-aktionen::-webkit-scrollbar { display: none; }
+  .u-app.u-kopf-weiss #seitenkopf .u-aktionen > :is(.btn, a, button) { flex: none; white-space: nowrap; padding: 5px 12px; font-size: .85rem; }
   .u-app.u-kopf-weiss #seite .u-kopfteil { margin-bottom: 18px; padding-bottom: 14px; }
   .u-app.u-kopf-weiss.u-kopf-suche .u-inhalt:not(:has(#seite .u-kopfteil, #seite > .alert)) #kopfplatz { height: var(--kopfplatz-h, 56px); margin-bottom: 18px; }
 }
 @media (max-width: 767.98px) {
   .u-app.u-kopf-weiss.u-kopf-suche .u-inhalt:not(:has(#seite .u-kopfteil, #seite > .alert)) #kopfplatz { height: var(--kopfplatz-h, 108px); }
   .u-app.u-kopf-weiss #seite .u-kopfteil.u-kopfskelett { height: var(--kopfplatz-h, 104px); }
+  /* Telefon: der Titel steht in der Kopfleiste; im weißen Kopf zeigt die erste Zeile die Aktionen (ohne Aktionen den Titel) –
+     gleich hoch, ob die Aktionen schon da sind oder nicht */
+  .u-app.u-kopf-weiss #seitenkopf { height: 62px; padding: 12px 0 8px; }
+  .u-app.u-kopf-weiss #seitenkopf:not(:has(.u-aktionen:empty)) h1 { display: none; }
+  .u-app.u-kopf-weiss #seitenkopf .u-aktionen { flex: 1 1 auto; margin-left: 0; justify-content: flex-start; }
 }
 @media print {
   .u-app.u-kopf-weiss :is(#seitenkopf, #seite .u-kopfteil)::after { display: none; }

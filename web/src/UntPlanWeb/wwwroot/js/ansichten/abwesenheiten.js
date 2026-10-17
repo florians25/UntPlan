@@ -74,7 +74,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const ziel = (r, v = von, b = bis, k = klasse, s = status, g = grund, a = art) => `#/abwesenheiten/${r}/${v}/${b}/${encodeURIComponent(k || '-')}/${s || '-'}/${encodeURIComponent(g || '-')}${a ? `/${a}` : ''}`;
   // weißer Kopf (app.js): Reiter und Suchleiste gehören zum Kopf; die Zeile der Suchleiste ist beim Laden schon frei (kein Springen)
   seite.innerHTML = `
-    ${ich.element ? `<nav class="u-reiter u-kopfteil ${reiter === 'schueler' ? 'u-kopfreiter' : ''} mb-3"><a href="${ziel('schueler')}" class="${reiter === 'schueler' ? 'aktiv' : ''}">Schüler*innen</a><a href="${ziel('meine')}" class="${reiter === 'meine' ? 'aktiv' : ''}">Meine Abwesenheiten</a></nav>` : ''}
+    ${ich.element ? `<div class="u-kopfteil ${reiter === 'schueler' ? 'u-kopfreiter' : ''}"><nav class="u-reiter"><a href="${ziel('schueler')}" class="${reiter === 'schueler' ? 'aktiv' : ''}">Schüler*innen</a><a href="${ziel('meine')}" class="${reiter === 'meine' ? 'aktiv' : ''}">Meine Abwesenheiten</a></nav></div>` : ''}
     <div data-inhalt>${reiter === 'schueler' ? '<div class="u-kopfteil u-kopfskelett" aria-hidden="true"></div>' : ''}</div>`;
   const inhalt = seite.querySelector('[data-inhalt]');
 

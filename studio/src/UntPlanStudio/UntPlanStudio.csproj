@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- UntPlan Studio (Beta): die Desktop-Anwendung als Browser-Anwendung. Die gesamte Fachlogik kommt aus UntPlan.Core. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>UntPlanStudio</RootNamespace>
+    <AssemblyName>UntPlanStudio</AssemblyName>
+    <Product>UntPlan Studio</Product>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\UntPlan.Core\UntPlan.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\UntPlan.Web.Contracts\UntPlan.Web.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="UntPlanStudio.Tests" />
+  </ItemGroup>
+</Project>

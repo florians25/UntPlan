@@ -1,0 +1,4 @@
+# Arbeitsdaten des lokalen Studio-Servers (Dokumente, Benutzer)
+daten/
+src/UntPlanStudio/daten/
+tests/smoke/node_modules/
