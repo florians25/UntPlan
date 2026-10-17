@@ -1496,15 +1496,16 @@ struct Rollenpill: Decodable, Hashable, Sendable {
     }
 
     init(from decoder: Decoder) throws {
+        // Nur delegierend initialisieren (kein Mischen von self.init und direkter Zuweisung – Compilerfehler
+        // „'self' used before 'self.init' call“)
         if let einzeln = try? decoder.singleValueContainer().decode(String.self) {
             self.init(text: einzeln)
             return
         }
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        art = c.text(.art)
-        text = c.text(.text)
-        klassen = c.texte(.klassen)
-        if text.isEmpty { text = art }
+        let art = c.text(.art)
+        let text = c.text(.text)
+        self.init(art: art, text: text.isEmpty ? art : text, klassen: c.texte(.klassen))
     }
 }
 

@@ -75,7 +75,7 @@ enum Farben {
 
     // Karten im Wochenraster
     static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7382)
-    static let karteVergangen = Color(hell: 0xF2F3F5, dunkel: 0x2F3B45)
+    static let karteVergangen = Color(hell: 0xF2F4F5, dunkel: 0x2F3B45)
     static let karteBalken = Color(hell: 0xBFC7D2, dunkel: 0xBFC7CE)
     static let karteText = Color(hell: 0x253746, dunkel: 0xF4F6F8)
     static let kartenSchatten = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.30, deckkraftDunkel: 0)
@@ -83,19 +83,19 @@ enum Farben {
 
     // Änderung grün
     static let aenderungHintergrund = Color(hell: 0xE3FFF2, dunkel: 0x005840)
-    static let aenderungVergangen = Color(hell: 0xE3FFF2, dunkel: 0x323D45)
+    static let aenderungVergangen = Color(hell: 0xE4FFF2, dunkel: 0x323D45)
     static let aenderungRand = Color(hell: 0x019169, dunkel: 0x20C0A2)
     static let gruen = Color(hell: 0x0B7D65, dunkel: 0x22C0A1)
     static let gruenSchrift = Color(hell: 0xFFFFFF, dunkel: 0x05201A)
 
     // Entfall rot
     static let entfallHintergrund = Color(hell: 0xFFF3F2, dunkel: 0x81012F)
-    static let entfallVergangen = Color(hell: 0xFFF3F2, dunkel: 0x323D45)
+    static let entfallVergangen = Color(hell: 0xFFF4F3, dunkel: 0x323D45)
     static let entfallRand = Color(hell: 0xE00047, dunkel: 0xDF0047)
 
     // Prüfung
     static let pruefungHintergrund = Color(hell: 0xFFF6D5, dunkel: 0x4A3F22)
-    static let pruefungVergangen = Color(hell: 0xFFF6D5, dunkel: 0x323D45)
+    static let pruefungVergangen = Color(hell: 0xFEF7D7, dunkel: 0x323D45)
     static let pruefungRand = Color(hell: 0xA1512C, dunkel: 0xD9962A)
 
     // Veranstaltung, Ferien
@@ -150,7 +150,7 @@ enum Farben {
     static let eingabeFeld = Color(hell: 0xF1F3F5, dunkel: 0x323D47)
 
     // Kacheln im Raster (app.css: .card--event, .corners, .card--supervision, .card--standby, Zählkarte)
-    static let karteTextVergangen = Color(hell: 0x48606F, dunkel: 0xF4F6F8)
+    static let karteTextVergangen = Color(hell: 0x3D4F59, dunkel: 0xF4F6F8)
     static let aenderungText = Color(hell: 0x253746, dunkel: 0xEAFFF8)
     static let entfallText = Color(hell: 0x253746, dunkel: 0xFFFFFF)
     static let entfallPlakettenText = Color(hell: 0x48606F, dunkel: 0xFFFFFF)
@@ -162,7 +162,7 @@ enum Farben {
     static let bereitschaftRand = Color(hell: 0x5F7180, dunkel: 0xC3CCD4)
     static let bereitschaftRandVergangen = Color(hell: 0xB7C2CB, dunkel: 0x4A5560)
     static let bereitschaftText = Color(hell: 0x5D727F, dunkel: 0xCFD6DC)
-    static let kartenSchattenFlach = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.22, deckkraftDunkel: 0.30)
+    static let kartenSchattenFlach = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.30, deckkraftDunkel: 0.30)
     static let veranstaltungFlaeche = Color(hell: 0xE0FDF3, dunkel: 0x22352F)
     static let veranstaltungRand = Color(hell: 0xA9DCCB, dunkel: 0x3D6457)
     static let zaehlerFlaeche = Color(hell: 0xF4F6F7, dunkel: 0x323D45)

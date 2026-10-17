@@ -67,6 +67,8 @@ struct StundenplanView: View {
     @State private var verschiebung: CGFloat = 0
     @State private var seitenBreite: CGFloat = 0
     @State private var richtung: Wischrichtung? = nil
+    /// Waagrechtes Wischen erkannt: senkrechtes Scrollen des Rasters bis zum Ende der Geste gesperrt (Richtungssperre)
+    @State private var senkrechtGesperrt = false
     @State private var blaettert = false
     /// Ziel eines Sprungs über mehrere Seiten („Heute“, „Gehe zu Datum“): ersetzt während der Animation die Nachbarseite
     @State private var sprungZiel: Date? = nil
@@ -483,6 +485,7 @@ struct StundenplanView: View {
             // Geste abgebrochen (z. B. vom senkrechten Scrollen übernommen): zurückfedern
             guard !neu else { return }
             richtung = nil
+            senkrechtGesperrt = false
             if tippsperre.wischt { tippsperre.bewegungEnde(nachlauf: 0.15) }
             if !blaettert && verschiebung != 0 {
                 withAnimation(feder) { verschiebung = 0 }
@@ -533,6 +536,7 @@ struct StundenplanView: View {
     private func raster(_ p: Wochenplan, nurTage: [String]?, stand: Int, untenFrei: CGFloat) -> some View {
         WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ, element: element,
                          tippsperre: tippsperre,
+                         senkrechtGesperrt: senkrechtGesperrt,
                          nurTage: nurTage,
                          stand: stand,
                          untenFrei: untenFrei,
@@ -555,16 +559,20 @@ struct StundenplanView: View {
         .equatable()
     }
 
+    /// Wischen mit Richtungssperre: Die Richtung wird zu Beginn der Geste festgelegt und gilt bis zum Loslassen.
+    /// Waagrecht → Wochen- bzw. Tageswechsel, das senkrechte Scrollen des Rasters ist so lange gesperrt (kein gleichzeitiges
+    /// Rauf/Runter); senkrecht → nur Scrollen, kein Blättern.
     private var wischen: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 8)
             .updating($zieht) { _, status, _ in status = true }
             .onChanged { wert in
                 guard !blaettert else { return }
                 if richtung == nil {
                     let dx = abs(wert.translation.width)
                     let dy = abs(wert.translation.height)
-                    guard dx > 8 || dy > 8 else { return }
+                    guard dx > 6 || dy > 6 else { return }
                     richtung = dx > dy * 1.2 ? .waagrecht : .senkrecht
+                    if richtung == .waagrecht { senkrechtGesperrt = true }
                     // Ab jetzt ist es eine Wisch- bzw. Scrollbewegung: kein Antippen einer Stunde auslösen
                     tippsperre.wischt = true
                 }
@@ -575,6 +583,7 @@ struct StundenplanView: View {
             .onEnded { wert in
                 let war = richtung
                 richtung = nil
+                senkrechtGesperrt = false
                 // Kurzes Nachlaufen (Senkrecht: Schwung des Scrollens, solange keine Scrollphase gemeldet wird)
                 tippsperre.bewegungEnde(nachlauf: war == .senkrecht ? 0.35 : 0.15)
                 guard war == .waagrecht, !blaettert else { return }
@@ -681,10 +690,19 @@ struct StundenplanView: View {
     }
 }
 
-/// Gesperrte Woche (außerhalb des Plan-Fensters der Rolle): mittig ein weißer Kreis mit grauem Schloss, darunter der
-/// Hinweis und kleiner die Erklärung des Servers.
+/// Gesperrte Woche (außerhalb des Plan-Fensters der Rolle): mittig ein Kreis (hell weiß) mit grauem Schloss, darunter
+/// genau „Es werden hier keine Termine angezeigt.“ und kleiner der Hinweis des Servers (`sperrhinweis`); fehlt er,
+/// steht dort der Standardsatz.
 struct Sperrhinweis: View {
     let hinweis: String?
+
+    static let titel = "Es werden hier keine Termine angezeigt."
+    static let standardHinweis = "Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt"
+
+    private var erklaerung: String {
+        let text = (hinweis ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? Self.standardHinweis : text
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -693,19 +711,17 @@ struct Sperrhinweis: View {
                 .foregroundStyle(Farben.gedaempft)
                 .frame(width: 72, height: 72)
                 .background(Circle().fill(Color(hell: 0xFFFFFF, dunkel: 0x2E3A45)))
-                .shadow(color: Color.black.opacity(0.08), radius: 6, y: 2)
+                .shadow(color: Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.10, deckkraftDunkel: 0.25), radius: 6, y: 2)
                 .padding(.bottom, 16)
-            Text("Es werden hier keine Termine angezeigt.")
+            Text(Self.titel)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(Farben.tinte)
                 .multilineTextAlignment(.center)
-            if let hinweis, !hinweis.isEmpty {
-                Text(hinweis)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Farben.tinte2)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 6)
-            }
+            Text(erklaerung)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(Farben.tinte2)
+                .multilineTextAlignment(.center)
+                .padding(.top, 6)
         }
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 32)
@@ -955,6 +971,8 @@ struct WochenrasterView: View {
     var element: String = ""
     /// Sperre für das Antippen während bzw. kurz nach Wischen und Scrollen
     var tippsperre: Tippsperre = Tippsperre()
+    /// Während eines waagrechten Wischens: senkrechtes Scrollen aus (Richtungssperre)
+    var senkrechtGesperrt: Bool = false
     var laedt: Bool = false
     /// Tageweise Ansicht: nur diese Tage (yyyy-MM-dd), Spalten über die volle Breite (nil = ganze Woche).
     var nurTage: [String]? = nil
@@ -1061,6 +1079,8 @@ struct WochenrasterView: View {
                     .animation(.easeOut(duration: 0.18), value: laedt)
                 }
                 .scrollIndicators(.hidden)
+                // Richtungssperre: beim waagrechten Wischen scrollt das Raster nicht mit
+                .scrollDisabled(senkrechtGesperrt)
                 .modifier(Scrollsperre(sperre: tippsperre))
                 .background(
                     LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
@@ -1465,6 +1485,7 @@ extension WochenrasterView: Equatable {
     static func == (l: WochenrasterView, r: WochenrasterView) -> Bool {
         l.plan.montag == r.plan.montag && l.typ == r.typ && l.element == r.element && l.nurTage == r.nurTage
             && l.stand == r.stand && l.laedt == r.laedt && l.untenFrei == r.untenFrei
+            && l.senkrechtGesperrt == r.senkrechtGesperrt
     }
 }
 

@@ -419,26 +419,32 @@ struct Kachelaussehen {
     var balken: Color? = Farben.karteBalken
     var balkenDeckkraft: Double = 1
 
+    /// Deckkraft des grauen Balkens vergangener Stunden (Original: #78828a auf #313d44 bzw. #d8dfe3 auf #f2f4f5).
+    static let balkenVergangen: Double = 0.5
+
     init(_ k: Kachel, dunkel: Bool) {
         let v = k.vergangen
         let fach = Color(hex: k.balkenHex) ?? Farben.karteBalken
-        // Vergangen (Original): grauer Balken, Schrift unverändert
+        // Vergangen (Original, nachgemessen hell und dunkel): grauer Balken zur Hälfte deckend (die Fläche scheint
+        // durch – auf getönten Karten wirkt er getönt); Schrift hell etwas weicher, dunkel unverändert
         balken = v ? Farben.karteBalken : fach
-        balkenDeckkraft = 1
-        text = Farben.karteText
+        balkenDeckkraft = v ? Self.balkenVergangen : 1
+        text = v ? Farben.karteTextVergangen : Farben.karteText
         switch k.art {
         case .normal:
             hintergrund = v ? Farben.karteVergangen : Farben.karte
             schatten = v ? .flach : .voll
         case .aenderung:
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
-            text = Farben.aenderungText
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            text = v ? Farben.karteTextVergangen : Farben.aenderungText
         case .entfall:
-            farbigeKarte(flaeche: Farben.entfallHintergrund, rand: Farben.entfallRand, vergangen: v, dunkel: dunkel, schatten: false)
-            text = Farben.entfallText
+            farbigeKarte(flaeche: Farben.entfallHintergrund, vergangeneFlaeche: Farben.entfallVergangen, rand: Farben.entfallRand,
+                         vergangen: v, dunkel: dunkel, schatten: false)
+            text = v ? Farben.karteTextVergangen : Farben.entfallText
             durchgestrichen = true
         case .klausur:
-            farbigeKarte(flaeche: Farben.pruefungHintergrund, rand: Farben.pruefungRand, vergangen: v, dunkel: dunkel, schatten: false)
+            farbigeKarte(flaeche: Farben.pruefungHintergrund, vergangeneFlaeche: Farben.pruefungVergangen, rand: Farben.pruefungRand,
+                         vergangen: v, dunkel: dunkel, schatten: false)
         case .termin:
             hintergrund = Farben.veranstaltungHintergrund
             rand = Farben.terminRand
@@ -468,8 +474,8 @@ struct Kachelaussehen {
         case .veranstaltung:
             // Wie die grüne Vertretungskarte: hell #e3fff2 mit 2-pt-Rahmen #019169, dunkel dunkelgrün mit türkisem Rahmen;
             // vergangen fällt nur der Rahmen weg
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
-            text = Farben.aenderungText
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            text = v ? Farben.karteTextVergangen : Farben.aenderungText
         case .ganztagTermin:
             hintergrund = Farben.veranstaltungHintergrund
             rand = Farben.terminRand
@@ -495,22 +501,24 @@ struct Kachelaussehen {
         // Reine Raumänderung: wie eine Änderung/Vertretung (grüne Fläche mit grünem Rahmen), der neue Raum als grüne
         // Plakette – nie gelb/braun (das ist ausschließlich Prüfungen bzw. Klausuren vorbehalten)
         if k.raumAenderung && (k.art == .aenderung || k.art == .normal) {
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
-            text = Farben.aenderungText
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            text = v ? Farben.karteTextVergangen : Farben.aenderungText
         }
     }
 
     /// Farbige Kachel (Vertretung, Raumänderung, Entfall, Klausur, Veranstaltung) wie im Original: künftig farbige Fläche
     /// mit Rahmen. Vergangen hell: farbige Fläche ohne Rahmen; vergangen dunkel: neutrale Schieferfläche, der farbige
     /// Rahmen bleibt. Plaketten bleiben grün.
-    private mutating func farbigeKarte(flaeche: Color, rand farbe: Color, vergangen: Bool, dunkel: Bool, schatten mitSchatten: Bool) {
-        balkenDeckkraft = 1
+    private mutating func farbigeKarte(flaeche: Color, vergangeneFlaeche: Color? = nil, rand farbe: Color, vergangen: Bool, dunkel: Bool,
+                                       schatten mitSchatten: Bool) {
+        // Vergangen: Deckkraft des Balkens bleibt wie gesetzt (grau halb deckend; Aufsicht: lila voll)
+        if !vergangen { balkenDeckkraft = 1 }
         if vergangen && dunkel {
             hintergrund = Farben.karteVergangen
             rand = farbe
             schatten = .keiner
         } else if vergangen {
-            hintergrund = flaeche
+            hintergrund = vergangeneFlaeche ?? flaeche
             rand = nil
             schatten = .flach
         } else {
