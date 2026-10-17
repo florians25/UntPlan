@@ -5944,3 +5944,14 @@ html.is-dark .spt__phase--angekuendigt{ background:rgba(245,107,42,.2); color:#f
 .spt__link{ display:inline-flex; align-items:center; gap:5px; margin-top:3px; font-size:13px; font-weight:500; color:var(--c-accent, #f56b2a); text-decoration:none; }
 .spt__link .ico{ width:15px; height:15px; stroke-width:1.7; }
 #btnSprechtag.is-angekuendigt .row__ico .ico{ color:#f56b2a; }
+
+/* Meine Abwesenheiten (Schüler*innen, Eltern): Summen des Zeitraums über der Liste */
+.abssum{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:1px; background:rgba(21,33,44,.08);
+  border-radius:14px; overflow:hidden; margin-bottom:14px; box-shadow:0 1px 3px rgba(21,33,44,.10); }
+.abssum__k{ background:var(--c-bar); padding:10px 12px; display:flex; flex-direction:column; gap:1px; min-width:0; }
+.abssum__k b{ font-size:22px; font-weight:400; line-height:1.15; color:var(--c-ink); font-variant-numeric:tabular-nums; }
+.abssum__k span{ font-size:13px; color:#8b9aa5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.abssum__k--ok b{ color:#157d68; } .abssum__k--no b{ color:#c0113a; } .abssum__k--open b{ color:#b86a00; }
+.abskind{ display:flex; flex-wrap:wrap; gap:7px; margin:0 0 12px; }
+.is-dark .abssum{ background:#2c2c31; box-shadow:none; }
+.is-dark .abssum__k{ background:var(--c-surface); }

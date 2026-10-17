@@ -26,10 +26,12 @@ public static class Buchungsarten
     };
 }
 
-public sealed record Ressourcenart(int Id, string Name, int Reihenfolge);
+/// <summary>Ressourcenart mit Symbol (Bootstrap-Icon-Name ohne „bi-“, leer = aus dem Namen abgeleitet).</summary>
+public sealed record Ressourcenart(int Id, string Name, int Reihenfolge, string Symbol = "");
 
-/// <summary>Ressource: fest einem Raum zugeordnet (Raum gesetzt, z. B. Internet) oder mobil (Raum leer, z. B. mobiler Projektor) mit Anzahl.</summary>
-public sealed record Ressource(int Id, string Name, int? ArtId, string Art, string Raum, int Anzahl, string Bemerkung, bool Aktiv)
+/// <summary>Ressource: fest einem Raum zugeordnet (Raum gesetzt, z. B. Internet) oder mobil (Raum leer, z. B. mobiler Projektor) mit Anzahl,
+/// Standort (Ausgabe- bzw. Lagerort mobiler Geräte, z. B. „Medienraum“) und dem Symbol ihrer Art.</summary>
+public sealed record Ressource(int Id, string Name, int? ArtId, string Art, string Raum, int Anzahl, string Bemerkung, bool Aktiv, string Standort = "", string Symbol = "")
 {
     public bool Mobil => Raum.Length == 0;
 }
@@ -110,22 +112,38 @@ public sealed class Buchungsdienst
     // ------------------------------------------------------------------------------------------ Ressourcenarten und Ressourcen
 
     public List<Ressourcenart> Arten() =>
-        _db.Liste("SELECT * FROM ressourcenarten ORDER BY reihenfolge, name", r => new Ressourcenart(r.Zahl("id"), r.Text("name"), r.Zahl("reihenfolge")));
+        _db.Liste("SELECT * FROM ressourcenarten ORDER BY reihenfolge, name", r => new Ressourcenart(r.Zahl("id"), r.Text("name"), r.Zahl("reihenfolge"), r.Text("symbol")));
 
-    public Ressourcenart ArtSpeichern(int? id, string name, int? reihenfolge)
+    /// <summary>Erlaubte Symbole für Ressourcenarten (Bootstrap Icons).</summary>
+    public static readonly string[] Symbole =
+    {
+        "projector", "laptop", "tablet", "camera-video", "camera", "speaker", "mic", "headphones", "display", "easel", "pc-display",
+        "printer", "router", "wifi", "controller", "badge-vr", "robot", "cpu", "lightbulb", "tools", "boxes", "box-seam", "cart3", "bag", "music-note-beamed", "globe2",
+    };
+
+    private static string SymbolPruefen(string? symbol)
+    {
+        var x = (symbol ?? "").Trim();
+        if (x.StartsWith("bi-", StringComparison.Ordinal)) x = x[3..];
+        return x.Length == 0 || Symbole.Contains(x) ? x : throw new ArgumentException("Unbekanntes Symbol.");
+    }
+
+    public Ressourcenart ArtSpeichern(int? id, string name, int? reihenfolge, string? symbol = null)
     {
         name = (name ?? "").Trim();
         if (name.Length == 0) throw new ArgumentException("Bitte einen Namen eingeben.");
         if (name.Length > 100) throw new ArgumentException("Der Name ist zu lang.");
         if (Arten().Any(a => a.Id != id && Ci.Equals(a.Name, name))) throw new ArgumentException($"Die Ressourcenart „{name}“ gibt es bereits.");
+        var sym = SymbolPruefen(symbol);
         if (id is int i)
         {
-            if (_db.Ausfuehren("UPDATE ressourcenarten SET name = @n, reihenfolge = @r WHERE id = @id", Db.P("@n", name), Db.P("@r", reihenfolge ?? 0), Db.P("@id", i)) == 0)
+            if (symbol is null) sym = Arten().FirstOrDefault(a => a.Id == i)?.Symbol ?? "";
+            if (_db.Ausfuehren("UPDATE ressourcenarten SET name = @n, reihenfolge = @r, symbol = @s WHERE id = @id", Db.P("@n", name), Db.P("@r", reihenfolge ?? 0), Db.P("@s", sym), Db.P("@id", i)) == 0)
                 throw new ArgumentException("Unbekannte Ressourcenart.");
-            return new Ressourcenart(i, name, reihenfolge ?? 0);
+            return new Ressourcenart(i, name, reihenfolge ?? 0, sym);
         }
-        var neu = _db.Einfuegen("INSERT INTO ressourcenarten (name, reihenfolge) VALUES (@n, @r)", Db.P("@n", name), Db.P("@r", reihenfolge ?? 0));
-        return new Ressourcenart((int)neu, name, reihenfolge ?? 0);
+        var neu = _db.Einfuegen("INSERT INTO ressourcenarten (name, reihenfolge, symbol) VALUES (@n, @r, @s)", Db.P("@n", name), Db.P("@r", reihenfolge ?? 0), Db.P("@s", sym));
+        return new Ressourcenart((int)neu, name, reihenfolge ?? 0, sym);
     }
 
     public void ArtLoeschen(int id)
@@ -135,14 +153,15 @@ public sealed class Buchungsdienst
     }
 
     private static Ressource RessourceLesen(DbDataReader r) =>
-        new(r.Zahl("id"), r.Text("name"), r.ZahlOderNull("art_id"), r.Text("art"), r.Text("raum"), Math.Max(1, r.Zahl("anzahl")), r.Text("bemerkung"), r.Wahr("aktiv"));
+        new(r.Zahl("id"), r.Text("name"), r.ZahlOderNull("art_id"), r.Text("art"), r.Text("raum"), Math.Max(1, r.Zahl("anzahl")), r.Text("bemerkung"), r.Wahr("aktiv"),
+            r.Text("standort"), r.Text("symbol"));
 
     public List<Ressource> Ressourcen(bool nurAktive = false) => _db.Liste($"""
-        SELECT x.*, COALESCE(a.name, '') AS art FROM ressourcen x LEFT JOIN ressourcenarten a ON a.id = x.art_id
+        SELECT x.*, COALESCE(a.name, '') AS art, COALESCE(a.symbol, '') AS symbol FROM ressourcen x LEFT JOIN ressourcenarten a ON a.id = x.art_id
         {(nurAktive ? "WHERE x.aktiv = 1" : "")} ORDER BY x.name
         """, RessourceLesen);
 
-    public Ressource RessourceSpeichern(Stand? s, int? id, string name, int? artId, string? raum, int? anzahl, string? bemerkung, bool aktiv)
+    public Ressource RessourceSpeichern(Stand? s, int? id, string name, int? artId, string? raum, int? anzahl, string? bemerkung, bool aktiv, string? standort = null)
     {
         name = (name ?? "").Trim();
         if (name.Length == 0) throw new ArgumentException("Bitte einen Namen eingeben.");
@@ -157,15 +176,19 @@ public sealed class Buchungsdienst
         var n = Math.Clamp(anzahl ?? 1, 1, 999);
         var bem = (bemerkung ?? "").Trim();
         if (bem.Length > 500) bem = bem[..500];
+        // Standort nur bei mobilen Ressourcen (feste stehen in ihrem Raum); null = beim Ändern unverändert lassen
+        var ort = (standort ?? (id is int alt ? Ressourcen().FirstOrDefault(x => x.Id == alt)?.Standort : null) ?? "").Trim();
+        if (ort.Length > 100) ort = ort[..100];
+        if (raum.Length > 0) ort = "";
         if (id is int i)
         {
-            if (_db.Ausfuehren("UPDATE ressourcen SET name = @n, art_id = @a, raum = @r, anzahl = @z, bemerkung = @b, aktiv = @ak WHERE id = @id",
-                    Db.P("@n", name), Db.P("@a", artId), Db.P("@r", raum), Db.P("@z", n), Db.P("@b", bem), Db.P("@ak", aktiv), Db.P("@id", i)) == 0)
+            if (_db.Ausfuehren("UPDATE ressourcen SET name = @n, art_id = @a, raum = @r, anzahl = @z, bemerkung = @b, aktiv = @ak, standort = @o WHERE id = @id",
+                    Db.P("@n", name), Db.P("@a", artId), Db.P("@r", raum), Db.P("@z", n), Db.P("@b", bem), Db.P("@ak", aktiv), Db.P("@o", ort), Db.P("@id", i)) == 0)
                 throw new ArgumentException("Unbekannte Ressource.");
         }
         else
-            id = (int)_db.Einfuegen("INSERT INTO ressourcen (name, art_id, raum, anzahl, bemerkung, aktiv) VALUES (@n, @a, @r, @z, @b, @ak)",
-                Db.P("@n", name), Db.P("@a", artId), Db.P("@r", raum), Db.P("@z", n), Db.P("@b", bem), Db.P("@ak", aktiv));
+            id = (int)_db.Einfuegen("INSERT INTO ressourcen (name, art_id, raum, anzahl, bemerkung, aktiv, standort) VALUES (@n, @a, @r, @z, @b, @ak, @o)",
+                Db.P("@n", name), Db.P("@a", artId), Db.P("@r", raum), Db.P("@z", n), Db.P("@b", bem), Db.P("@ak", aktiv), Db.P("@o", ort));
         return Ressourcen().First(x => x.Id == id);
     }
 
@@ -174,6 +197,68 @@ public sealed class Buchungsdienst
     {
         _db.Ausfuehren("DELETE FROM buchung_ressourcen WHERE ressource_id = @id", Db.P("@id", id));
         _db.Ausfuehren("DELETE FROM ressourcen WHERE id = @id", Db.P("@id", id));
+    }
+
+    /// <summary>
+    /// Beispiel-Ressourcen (Demo bzw. Knopf „Beispiele anlegen“ in der Verwaltung): typische Ressourcenarten mit Symbol und mobile Geräte
+    /// mit Anzahl und Standort, dazu feste Ausstattung in vorhandenen Fachräumen. Nur, solange noch keine Ressourcen angelegt sind.
+    /// Ergebnis: Anzahl angelegter Ressourcen (0 = es gab schon welche).
+    /// </summary>
+    public int BeispieleAnlegen(Stand? s)
+    {
+        if (Ressourcen().Count > 0) return 0;
+        var arten = Arten();
+        int Art(string name, string symbol)
+        {
+            var a = arten.FirstOrDefault(x => Ci.Equals(x.Name, name)) ?? ArtSpeichern(null, name, (arten.Count + 1) * 10, symbol);
+            if (!arten.Contains(a)) arten.Add(a);
+            return a.Id;
+        }
+        var beamer = Art("Beamer", "projector");
+        var laptop = Art("Laptopwagen", "laptop");
+        var tablet = Art("Tablet-Koffer", "tablet");
+        var kamera = Art("Dokumentenkamera", "camera-video");
+        var audio = Art("Audio", "speaker");
+        var vr = Art("VR-Brillen", "badge-vr");
+        var tafel = Art("Interaktive Tafel", "display");
+        var n = 0;
+        void Neu(string name, int art, int anzahl, string standort, string bemerkung, string raum = "")
+        {
+            if (raum.Length > 0 && (s is null || !s.Raeume.ContainsKey(raum))) return;
+            RessourceSpeichern(s, null, name, art, raum, anzahl, bemerkung, true, standort);
+            n++;
+        }
+        Neu("Beamer mobil 1", beamer, 1, "Medienraum", "mit HDMI- und USB-C-Adapter");
+        Neu("Beamer mobil 2", beamer, 1, "Medienraum", "mit HDMI- und USB-C-Adapter");
+        Neu("Beamer mobil 3", beamer, 1, "Lehrerzimmer", "Kurzdistanz, mit Lautsprecher");
+        Neu("Laptopwagen A", laptop, 1, "Medienraum", "16 Laptops, Ladeschrank");
+        Neu("Laptopwagen B", laptop, 1, "Neubau, 1. OG", "16 Laptops, Ladeschrank");
+        Neu("iPad-Koffer", tablet, 4, "Sekretariat", "je Koffer 15 iPads mit Stift");
+        Neu("Dokumentenkamera", kamera, 3, "Medienraum", "");
+        Neu("Lautsprecherbox", audio, 2, "Musikraum", "Bluetooth, mit Mikrofon");
+        Neu("VR-Brillen-Set", vr, 1, "Informatik-Sammlung", "10 Brillen");
+        Neu("Interaktive Tafel PH1", tafel, 1, "", "", "PH1");
+        Neu("Interaktive Tafel EDV1", tafel, 1, "", "", "EDV1");
+        return n;
+    }
+
+    /// <summary>Beispiel-Raumdaten (Demo): Gebäude und Abteilung aus Raumart bzw. Kürzel, solange noch keine Raumdaten gepflegt sind.</summary>
+    public int BeispielRaumdatenAnlegen(Stand s)
+    {
+        if (Convert.ToInt32(_db.Wert("SELECT COUNT(*) FROM raum_daten")) > 0) return 0;
+        var n = 0;
+        foreach (var r in s.Paket.Elemente.Raeume.Where(r => r.Kurz.Length > 0).DistinctBy(r => r.Kurz, Ci))
+        {
+            var art = r.Raumart.ToLowerInvariant();
+            var (geb, abt) = art.Contains("sport") ? ("Sporthalle", "Sport")
+                : r.Kurz.StartsWith("EDV", StringComparison.OrdinalIgnoreCase) || art.Contains("edv") ? ("Neubau", "Informatik")
+                : r.Kurz is "PH1" or "CH1" or "BI1" ? ("Neubau", "Naturwissenschaften")
+                : r.Kurz is "KU1" or "MU1" ? ("Altbau", "Musik & Kunst")
+                : ("Hauptgebäude", "Unter- und Mittelstufe");
+            RaumdatenSpeichern(s, r.Kurz, 0, geb, abt, art.Contains("fach") ? "Fachräume" : "");
+            n++;
+        }
+        return n;
     }
 
     // ------------------------------------------------------------------------------------------ Raum-Stammdaten
@@ -410,7 +495,7 @@ public sealed class Buchungsdienst
             .OrderBy(x => x.Belegt.Count).ThenBy(x => x.R.Art, De).ThenBy(x => x.R.Name, De)
             .Select(x => new
             {
-                id = x.R.Id, name = x.R.Name, art = x.R.Art, artId = x.R.ArtId, anzahl = x.R.Anzahl, bemerkung = x.R.Bemerkung,
+                id = x.R.Id, name = x.R.Name, art = x.R.Art, artId = x.R.ArtId, anzahl = x.R.Anzahl, bemerkung = x.R.Bemerkung, standort = x.R.Standort, symbol = x.R.Symbol,
                 verfuegbar = x.Verfuegbar, frei = x.Verfuegbar.DefaultIfEmpty(0).Min(), belegt = x.Belegt, prozent = (int)Math.Round(x.Belegt.Count * 100.0 / termine.Count),
             }).ToList();
         return new { termine = termine.Select(t => TerminJson(t, s)), ressourcen = liste, uebersprungen = weg.Select(Plandienst.Iso) };
@@ -753,14 +838,33 @@ public sealed class Buchungsdienst
         };
     }
 
-    /// <summary>Ressourcenübersicht (Woche – Ressourcen): Buchungen mobiler Ressourcen, bei festen Ressourcen die Belegung ihres Raums.</summary>
-    public object Ressourcenuebersicht(Stand s, DateOnly datum, List<int>? arten)
+    /// <summary>
+    /// Ressourcenübersicht: Buchungen mobiler Ressourcen, bei festen Ressourcen die Belegung ihres Raums – für die Woche (Standard) bzw.
+    /// mit tage = 1 nur für den gewählten Tag. Je Ressource und Tag zusätzlich die gebuchte Menge je Stunde (gebucht: { "3": 2 }), daraus
+    /// berechnet die Oberfläche die Verfügbarkeit für einen gewählten Zeitraum und den Belegungs-Zeitstrahl.
+    /// </summary>
+    public object Ressourcenuebersicht(Stand s, DateOnly datum, List<int>? arten, int? tage = null)
     {
         var montag = Plandienst.Montag(datum);
-        var daten = Enumerable.Range(0, Math.Clamp(s.Paket.Zeitraster.TageProWoche, 5, 7)).Select(montag.AddDays).ToList();
+        var daten = tage == 1 ? new List<DateOnly> { datum }
+            : Enumerable.Range(0, Math.Clamp(s.Paket.Zeitraster.TageProWoche, 5, 7)).Select(montag.AddDays).ToList();
         var ressourcen = Ressourcen(true).Where(r => arten is not { Count: > 0 } || (r.ArtId is int a && arten.Contains(a))).ToList();
         var buchungen = daten.ToDictionary(d => d, AktiveAm);
         var belegung = daten.ToDictionary(d => d, d => ressourcen.Any(r => !r.Mobil) && !_plan.Frei(s, d).Frei ? RaumBelegung(s, d) : new List<Belegt>());
+        // gebuchte Menge je Stunde (feste Ressource: ganze Anzahl, solange ihr Raum belegt ist)
+        Dictionary<string, int> Gebucht(Ressource r, DateOnly d)
+        {
+            var res = new Dictionary<string, int>();
+            if (r.Mobil)
+            {
+                foreach (var b in buchungen[d])
+                    foreach (var x in b.Ressourcen.Where(x => x.Id == r.Id))
+                        for (var st = b.StundeVon; st <= b.StundeBis; st++) res[st.ToString()] = res.GetValueOrDefault(st.ToString()) + x.Menge;
+            }
+            else
+                foreach (var st in belegung[d].Where(x => Ci.Equals(x.Raum, r.Raum)).Select(x => x.Stunde).Distinct()) res[st.ToString()] = r.Anzahl;
+            return res;
+        }
         object Eintraege(Ressource r, DateOnly d)
         {
             if (r.Mobil)
@@ -786,8 +890,9 @@ public sealed class Buchungsdienst
             tage = daten.Select(d => new { datum = Plandienst.Iso(d), wochentag = Plandienst.Wochentage[Plandienst.TagIndex(d)], frei = _plan.Frei(s, d).Frei, grund = _plan.Frei(s, d).Grund }),
             ressourcen = ressourcen.Select(r => new
             {
-                id = r.Id, name = r.Name, art = r.Art, artId = r.ArtId, raum = r.Raum, anzahl = r.Anzahl, mobil = r.Mobil,
+                id = r.Id, name = r.Name, art = r.Art, artId = r.ArtId, raum = r.Raum, anzahl = r.Anzahl, mobil = r.Mobil, standort = r.Standort, symbol = r.Symbol, bemerkung = r.Bemerkung,
                 belegung = daten.ToDictionary(d => Plandienst.Iso(d), d => Eintraege(r, d)),
+                gebucht = daten.ToDictionary(d => Plandienst.Iso(d), d => Gebucht(r, d)),
             }),
         };
     }

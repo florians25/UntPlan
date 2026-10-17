@@ -3672,7 +3672,7 @@ $('#btnSwitchEntity2').addEventListener('click', openPicker);
    Anlass und Stand.
    ===================================================================== */
 const HOME_URL = new URL('api/home', location.href).href;
-let listeStand = { art:null, von:null, bis:null, klasse:null, zeitraum:null, stand:'alle', umfang:'mine' };
+let listeStand = { art:null, von:null, bis:null, klasse:null, zeitraum:null, stand:'alle', umfang:'mine', kind:null };
 
 async function homeFetch(action, extra){
   const p = new URLSearchParams(Object.assign({ action }, extra || {}));
@@ -3746,7 +3746,8 @@ async function listeZeichnen(){
     const ent = art === 'leadabsent' ? await entLaden().catch(() => null) : null;
     d = ent ? ent : await homeFetch(art, art === 'leadabsent' || art === 'classlead'
                               ? { class: listeStand.klasse || '',
-                                  scope: listeStand.umfang || 'mine' } : null);
+                                  scope: listeStand.umfang || 'mine' }
+                              : art === 'absences' && listeStand.kind ? { student: String(listeStand.kind) } : null);
   } catch (e){
     $('#lstBody').innerHTML = `<div class="lst__empty"><b>Nicht erreichbar</b><span>${esc(e.message)}</span></div>`;
     return;
@@ -3784,12 +3785,19 @@ async function listeZeichnen(){
       || (st === 'ok'    && x.tone === 'ok'));
     /* map() reicht den Index als zweites Argument weiter — ohne die
        Klammer hier hielte die Karte ihn für „mit Namen". */
-    $('#lstBody').innerHTML = d.items.length ? d.items.map(x => karteAbwesenheit(x)).join('')
+    /* Schüler*innen/Eltern: Kind wählen (mehrere Kinder) und Summen des
+       Zeitraums über der Liste (Fehltage, Fehlstunden je Stand, Verspätungen). */
+    const kopf = d.student ? absKinder(d) + absSummen(d.summary) : '';
+    $('#lstBody').innerHTML = kopf + (d.items.length ? d.items.map(x => karteAbwesenheit(x)).join('')
       : (d.student
           ? LEER('Keine Daten', 'Derzeit gibt es hier noch nichts')
           : `<div class="lst__empty"><b>Kein Schülerkonto zugeordnet</b>
                <span>Dieses Konto ist mit keinem Schüler verknüpft — deshalb
-               lassen sich keine Abwesenheiten anzeigen.</span></div>`);
+               lassen sich keine Abwesenheiten anzeigen.</span></div>`));
+    $$('#lstBody [data-kind]').forEach(b => b.addEventListener('click', () => {
+      listeStand.kind = +b.dataset.kind;
+      listeZeichnen();
+    }));
     return;
   }
 
@@ -4102,6 +4110,29 @@ $('#entSave').addEventListener('click', async () => {
   if (ok) SH.ent.close();
 });
 if (typeof window !== 'undefined') window.UntPlanEntschuldigung = { zeitraum: entZeitraum, status: ENT_STATUS, nachweis: ENT_NACHWEIS };
+
+/* Summen der eigenen Abwesenheiten (bzw. des Kindes) im gewählten Zeitraum. */
+function absSummen(s){
+  if (!s) return '';
+  const k = (zahl, text, ton) => `<div class="abssum__k${ton ? ' abssum__k--' + ton : ''}"><b>${zahl || 0}</b><span>${esc(text)}</span></div>`;
+  return `<section class="abssum" aria-label="Summen im Zeitraum">
+      ${k(s.days, s.days === 1 ? 'Fehltag' : 'Fehltage')}
+      ${k(s.hours, s.hours === 1 ? 'Fehlstunde' : 'Fehlstunden')}
+      ${k(s.late, s.late === 1 ? 'Verspätung' : 'Verspätungen')}
+      ${k(s.excused, 'entschuldigt', 'ok')}
+      ${k(s.unexcused, 'nicht entsch.', 'no')}
+      ${k(s.pending, 'offen', 'open')}
+    </section>`;
+}
+
+/* Erziehungsberechtigte mit mehreren Kindern: Kind über der Liste wählen. */
+function absKinder(d){
+  const kinder = d.children || [];
+  if (kinder.length < 2) return '';
+  listeStand.kind = d.selected || kinder[0].id;
+  return `<div class="abskind" role="group" aria-label="Kind">${kinder.map(k =>
+    `<button type="button" class="lstchip${k.id === listeStand.kind ? ' is-on' : ''}" data-kind="${k.id}" aria-pressed="${k.id === listeStand.kind}">${esc(k.name)}${k.class ? ' (' + esc(k.class) + ')' : ''}</button>`).join('')}</div>`;
+}
 
 /* Eine Karte wie in der Vorlage: Datum, Uhrzeit, Anlass, Stand. */
 function karteAbwesenheit(x, mitName){
@@ -4713,7 +4744,9 @@ $('#lstFilter').addEventListener('click', () => {
       if (!f.total) sub.textContent = 'Keine im Zeitraum';
       else {
         const teile = [`${f.total} ${f.total === 1 ? 'Eintrag' : 'Einträge'}`];
-        if (f.days)  teile.push(`${f.days} ${f.days === 1 ? 'Tag' : 'Tage'}`);
+        /* days = Fehltage laut Stundenplan (nicht Kalendertage), hours = Fehlstunden */
+        if (f.days)  teile.push(`${f.days} ${f.days === 1 ? 'Fehltag' : 'Fehltage'}`);
+        if (f.hours) teile.push(`${f.hours} Std.`);
         if (f.open)  teile.push(`${f.open} offen`);
         sub.textContent = teile.join(' · ');
       }
