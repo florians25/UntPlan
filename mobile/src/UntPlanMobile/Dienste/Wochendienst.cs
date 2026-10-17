@@ -3,10 +3,13 @@ using System.Text.Json.Nodes;
 
 namespace UntPlanMobile.Dienste;
 
-/// <summary>Eine Woche im Format der Oberfläche (wie api/mobile.php?action=week der Vorlage).</summary>
+/// <summary>
+/// Eine Woche im Format der Oberfläche (wie api/mobile.php?action=week der Vorlage). Gesperrt (nur gesetzt, wenn wahr):
+/// Woche außerhalb der Wochenbegrenzung der Rolle – leere Tage, die Oberfläche zeigt das Schloss mit dem Sperrhinweis.
+/// </summary>
 public sealed record WochenAntwort(
     bool Ok, string WeekStart, string Kind, object Entity, Dictionary<string, object> LessonTimes,
-    Dictionary<string, List<Kachel>> Days, List<object> Bands);
+    Dictionary<string, List<Kachel>> Days, List<object> Bands, bool? Gesperrt = null, string? Sperrhinweis = null);
 
 /// <summary>Wochen, Stammdaten und Startdaten (TT_BOOT) für die Oberfläche.</summary>
 public sealed class Wochendienst
@@ -41,8 +44,12 @@ public sealed class Wochendienst
         return res;
     }
 
-    /// <summary>Angaben zum angemeldeten Konto für die Profilseite.</summary>
-    public static object Benutzer(Konto k) => new { login = k.Benutzer.Login, role = k.Benutzer.Rollenname, rolle = k.Benutzer.Rolle, kollegium = k.Kollegium };
+    /// <summary>Angaben zum angemeldeten Konto für die Profilseite; dazu die Wochenbegrenzung der Rolle (null = unbegrenzt, dann weggelassen).</summary>
+    public static object Benutzer(Konto k) => new
+    {
+        login = k.Benutzer.Login, role = k.Benutzer.Rollenname, rolle = k.Benutzer.Rolle, kollegium = k.Kollegium,
+        planWochenZurueck = k.PlanWochenZurueck, planWochenVor = k.PlanWochenVor,
+    };
 
     /// <summary>Text hinter dem ⓘ einer Klasse: Klassenleitung mit Namen, sonst der Langname.</summary>
     private static string KlassenInfo(ElementKlasse c, IReadOnlyDictionary<string, string> lehrerName)
@@ -96,6 +103,15 @@ public sealed class Wochendienst
         }
         var plan = await _web.HolenAsync<Wochenplan>(c,
             $"api/app/plan?typ={Kachelbau.Typ(art)}&element={Uri.EscapeDataString(element)}&datum={Kachelbau.Iso(datum)}");
+        if (plan.Gesperrt)
+        {
+            // Außerhalb der Wochenbegrenzung der Rolle: keine Termine, nur der Sperrhinweis (die Wochennavigation bleibt)
+            var mo = DateOnly.TryParse(plan.Montag, CultureInfo.InvariantCulture, out var m) ? m : montag;
+            var leer = Enumerable.Range(0, 5).ToDictionary(i => Kachelbau.Iso(mo.AddDays(i)), _ => new List<Kachel>());
+            return new WochenAntwort(true, Kachelbau.Iso(mo), art, Entitaet(k, art, plan.Element.Length > 0 ? plan.Element : element),
+                Kachelbau.Stundenzeiten(plan.Zeitraster.Count > 0 ? plan.Zeitraster : zeiten), leer, new List<object>(),
+                true, string.IsNullOrWhiteSpace(plan.Sperrhinweis) ? null : plan.Sperrhinweis.Trim());
+        }
         var tage = Kachelbau.Woche(plan, k.Elemente.Ferien);
         if (!k.Kollegium) Kachelbau.NurSchuelerNotizen(tage);
         if (art == "class") await HausaufgabenMarkieren(c, element, plan, tage);
@@ -146,6 +162,8 @@ public sealed class Wochendienst
                 weekStart = woche.WeekStart,
                 days = woche.Days,
                 bands = woche.Bands,
+                gesperrt = woche.Gesperrt,
+                sperrhinweis = woche.Sperrhinweis,
                 today = Kachelbau.Iso(DateOnly.FromDateTime(jetzt)),
                 now = jetzt.ToString("HH:mm", CultureInfo.InvariantCulture),
                 names = Namen(k),

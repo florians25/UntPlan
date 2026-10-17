@@ -195,12 +195,12 @@ struct KachelView: View {
 
     /// Kantenlänge der Zeichen unten rechts (Hausaufgabe, Kürzung).
     static let zeichenGroesse: CGFloat = 14.5
-    /// Kantenlänge des Info-Zeichens (info.svg flach: nur die graue Scheibe mit ausgespartem „i“, ohne Feld dahinter).
-    static let infoGroesse: CGFloat = 12.5
+    /// Kantenlänge des Info-Zeichens (info.svg: weißes abgerundetes Feld mit grauer Scheibe, flach wie die Hausaufgabe).
+    static let infoGroesse: CGFloat = 14.5
     /// Abstand der Zeichen zum unteren und rechten Kartenrand.
     static let zeichenRand: CGFloat = 4
 
-    /// Höhe der Zeichen unten rechts (das flache Info-Zeichen allein ist etwas kleiner).
+    /// Höhe der Zeichen unten rechts.
     private var zeichenHoehe: CGFloat {
         let mitInfo = kachel.info && kachel.art != .termin
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft && (!mitInfo || breite >= 96)
@@ -638,8 +638,8 @@ struct Plakettenwert: View {
     }
 }
 
-/// Info-Zeichen (.card__info): flache Vektorgrafik info.svg (graue Scheibe mit ausgespartem „i“, ohne Feld, Schatten
-/// oder Glanz; dunkel eigene Variante) als Originalbild ohne Einfärbung.
+/// Info-Zeichen (.card__info): Vektorgrafik info.svg – weißes abgerundetes Feld mit grauer Scheibe und ausgespartem „i“,
+/// flach auf der Karte (ohne Schatten, Verlauf oder Glanz; dunkel eigene Variante) als Originalbild ohne Einfärbung.
 struct Infozeichen: View {
     var groesse: CGFloat = KachelView.infoGroesse
 
@@ -653,7 +653,7 @@ struct Infozeichen: View {
     }
 }
 
-/// Zeichen „Hausaufgabe fällig“ auf den Karten exakt wie im Original (tt-homework-icon.svg, dunkel eigene Variante).
+/// Zeichen „Hausaufgabe fällig“ auf den Karten (tt-homework-icon.svg mit weißem Feld, flach; dunkel eigene Variante).
 struct Hausaufgabenzeichen: View {
     var groesse: CGFloat = KachelView.zeichenGroesse
 

@@ -556,7 +556,7 @@ struct StundendetailInhalt: View {
                         do {
                             try await daten.onlineSetzen(neu)
                         } catch {
-                            onlineFehler = Stundendaten.speicherFehler(zustand.fehlertext(error))
+                            onlineFehler = zustand.fehlertext(error)
                         }
                     }
                 }))

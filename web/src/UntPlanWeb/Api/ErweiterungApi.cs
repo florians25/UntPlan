@@ -102,6 +102,7 @@ public static class ErweiterungApi
             if (s != null && element != null)
                 for (var d = heute; d <= heute.AddDays(14); d = d.AddDays(1))
                 {
+                    if (!Rechtedienst.PlanSichtbar(b, d, heute)) break;   // Planfenster der Rolle
                     if (plan.Frei(s, d).Frei) continue;
                     karten = kb.Anreichern(plan.Karten(s, d, typ, element, r.Vorgemerkt(d, s)), b.Kollegium);
                     tag = d;

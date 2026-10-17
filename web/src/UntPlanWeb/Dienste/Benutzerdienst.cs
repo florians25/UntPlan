@@ -60,6 +60,8 @@ public sealed record Benutzer(int Id, string Login, string Anzeigename, string R
     public bool DarfNachrichten => Rechtedienst.Darf(this, Recht.NachrichtenPflegen);
     /// <summary>Effektive Rechte (Rechte-Modell, siehe <see cref="Rechtedienst"/>); null = Standardprofil der Basisrolle.</summary>
     public IReadOnlyDictionary<string, int>? Rechte { get; init; }
+    /// <summary>Planfenster der Rolle: Wochen zurück bzw. voraus, die der Stundenplan angezeigt wird (Standard: unbegrenzt).</summary>
+    public Planfenster Planfenster { get; init; }
     /// <summary>Zusatzrechte des Kontos (siehe <see cref="UntPlanWeb.Dienste.Zusatzrechte"/>).</summary>
     public List<string> Zusatzrechte { get; init; } = new();
     /// <summary>Zugeordnete Person aus der Personenliste (sonstiges Personal, Erziehungsberechtigte) – Lehrkräfte über das Kürzel, Schüler*innen über die Schülerzuordnung.</summary>
@@ -91,7 +93,7 @@ public sealed class Benutzerdienst
     /// <summary>Zugeordnete Schüler*innen und deren Klassen (aus der aktuellen Schülerliste) ergänzen.</summary>
     private Benutzer Ergaenzen(Benutzer b)
     {
-        b = b with { Rechte = Rechtedienst.Laden(_db, b) };
+        b = b with { Rechte = Rechtedienst.Laden(_db, b), Planfenster = Rechtedienst.PlanfensterLaden(_db, b) };
         if (!b.Familie) return b;
         var ids = SchuelerVon(b.Id);
         var schueler = _pakete?.Aktuell?.Schueler;

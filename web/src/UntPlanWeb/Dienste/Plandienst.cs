@@ -69,7 +69,11 @@ public sealed record Karte(
 /// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
 public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
 
-public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise, List<Ereignis> Ereignisse, string? FreiArt = null, string? FreiVon = null, string? FreiBis = null);
+public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise, List<Ereignis> Ereignisse, string? FreiArt = null, string? FreiVon = null, string? FreiBis = null)
+{
+    /// <summary>Nur Datum und Wochentag (gesperrte Woche).</summary>
+    public static Tageskopf Leer(Tageskopf k) => new(k.Datum, k.Wochentag, k.Woche, false, null, false, new(), new());
+}
 
 /// <summary>Veranstaltung an einem Tag: ganztägig (Leiste über dem Tag) oder in bestimmten Stunden (Karte im Raster).</summary>
 public sealed record Ereignis(string Titel, string Art, int Von, int Bis, bool Ganztaegig, List<string> Klassen, List<string> Lehrer, List<string> Raeume);
@@ -77,9 +81,26 @@ public sealed record Ereignis(string Titel, string Art, int Von, int Bis, bool G
 public sealed record Zeit(int Nr, string Bezeichnung, string Beginn, string Ende);
 
 public sealed record Wochenplan(string Typ, string Element, string Name, string Montag, string Woche, List<Zeit> Zeitraster, List<Tageskopf> Tage,
-    List<Karte> Karten, List<Aufsicht> Aufsichten);
+    List<Karte> Karten, List<Aufsicht> Aufsichten)
+{
+    /// <summary>Woche außerhalb des Planfensters der Rolle: leeres Raster (keine Karten, Aufsichten, Hinweise) mit <see cref="Sperrhinweis"/>.</summary>
+    public bool Gesperrt { get; init; }
+    public string? Sperrhinweis { get; init; }
 
-public sealed record Tagesuebersicht(string Typ, string Datum, Tageskopf Kopf, List<Zeit> Zeitraster, List<Tageszeile> Zeilen);
+    public Wochenplan Sperren() => this with
+    {
+        Tage = Tage.Select(Tageskopf.Leer).ToList(), Karten = new(), Aufsichten = new(), Gesperrt = true, Sperrhinweis = Planfenster.Sperrhinweis,
+    };
+}
+
+public sealed record Tagesuebersicht(string Typ, string Datum, Tageskopf Kopf, List<Zeit> Zeitraster, List<Tageszeile> Zeilen)
+{
+    /// <summary>Tag außerhalb des Planfensters der Rolle (siehe <see cref="Wochenplan.Gesperrt"/>).</summary>
+    public bool Gesperrt { get; init; }
+    public string? Sperrhinweis { get; init; }
+
+    public Tagesuebersicht Sperren() => this with { Kopf = Tageskopf.Leer(Kopf), Zeilen = new(), Gesperrt = true, Sperrhinweis = Planfenster.Sperrhinweis };
+}
 public sealed record Tageszeile(string Kurz, string Name, List<Karte> Karten);
 
 /// <summary>Rohdaten einer Stunde (aus dem tagesaktuellen Plan, dem Regelplan oder einer Vormerkung).</summary>

@@ -186,6 +186,8 @@ public sealed class Pushwache : BackgroundService
             foreach (var montag in Planvergleich.Wochen(zeit.Heute))
             {
                 var w = await wochen.WocheAsync(c, k, "mine", null, montag);
+                // gesperrte Woche (Wochenbegrenzung): kein Vergleich – sonst erschienen alle Stunden als weggefallen
+                if (w.Gesperrt == true) continue;
                 foreach (var (tag, liste) in Planvergleich.Stand(w.Days, zeit.Heute)) neu[tag] = liste;
             }
         }

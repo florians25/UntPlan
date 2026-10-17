@@ -100,6 +100,8 @@ public static class AppApi
                     fehlzeiten = Klassenbuchdienst.FehlzeitenVerwalten(b, p.Aktuell),
                     // effektive Rechte (Rechte-Modell) für die Oberfläche: Recht → Stufe (1 = Lesen, 2 = Ja/Schreiben)
                     rechte = Rechtedienst.Liste(b),
+                    // Planfenster der Rolle: Wochen zurück bzw. voraus (null = unbegrenzt, 0 = nur die aktuelle Woche)
+                    planWochenZurueck = b.Planfenster.Zurueck, planWochenVor = b.Planfenster.Vor,
                 },
                 ungelesen = b is null ? 0 : m.Ungelesen(b.Id),
                 // Ansichtseinstellungen der Administration (Wochenende, Uhrzeiten auf Karten, Startseite)
@@ -183,7 +185,10 @@ public static class AppApi
             var b = Ich(c);
             PlanErlaubt(b, typ, element);
             var s = Paket(p);
-            var w = plan.Wochenplan(s, typ, element, Datum(datum, uhr), b.Kollegium, d => r.Vorgemerkt(d, s));
+            var tag = Datum(datum, uhr);
+            // Planfenster der Rolle: außerhalb nur das leere Raster mit Hinweis (gesperrt, sperrhinweis)
+            if (!Rechtedienst.PlanSichtbar(b, tag, uhr.Heute)) return Results.Json(plan.Wochenplan(s, typ, element, tag, b.Kollegium).Sperren());
+            var w = plan.Wochenplan(s, typ, element, tag, b.Kollegium, d => r.Vorgemerkt(d, s));
             // Notizen und fällige Hausaufgaben für die Symbole auf den Karten
             return Results.Json(w with { Karten = kb.Anreichern(w.Karten, b.Kollegium) });
         });
@@ -194,7 +199,9 @@ public static class AppApi
             if (!Elementtyp.Gueltig(typ)) throw new ArgumentException("Unbekannte Ansicht.");
             if (!Rechtedienst.Darf(b, Recht.PlanTag)) throw new UnauthorizedAccessException("Die Tagesübersicht steht nur dem Kollegium zur Verfügung.");
             var st = Paket(p);
-            return Results.Json(plan.Tag(st, typ, Datum(datum, uhr), b.Kollegium, d => r.Vorgemerkt(d, st)));
+            var tag = Datum(datum, uhr);
+            var t = plan.Tag(st, typ, tag, b.Kollegium, d => r.Vorgemerkt(d, st));
+            return Results.Json(Rechtedienst.PlanSichtbar(b, tag, uhr.Heute) ? t : t.Sperren());
         });
 
         api.MapGet("/vertretungen", (string? datum, int? tage, HttpContext c, Paketdienst p, Vertretungsplandienst vp, Uhr uhr) =>
@@ -222,9 +229,11 @@ public static class AppApi
             var heute = uhr.Heute;
             var tag = vp.NaechsteTage(s, heute, 1).FirstOrDefault(heute);
             var typ = b.KlassenKuerzel != null ? Elementtyp.Klasse : Elementtyp.Lehrer;
+            // Planfenster der Rolle (z. B. Freitag → Montag bei „0 Wochen voraus“): keine Stunden
+            var gesperrt = !Rechtedienst.PlanSichtbar(b, tag, heute);
             var element = b.KlassenKuerzel ?? b.LehrerKuerzel;
-            var karten = element is null ? new List<Karte>() : kb.Anreichern(plan.Karten(s, tag, typ, element, r.Vorgemerkt(tag, s)), b.Kollegium);
-            var aufsichten = element is not null && typ == Elementtyp.Lehrer ? plan.Aufsichten(s, tag, element) : new List<Aufsicht>();
+            var karten = element is null || gesperrt ? new List<Karte>() : kb.Anreichern(plan.Karten(s, tag, typ, element, r.Vorgemerkt(tag, s)), b.Kollegium);
+            var aufsichten = element is not null && !gesperrt && typ == Elementtyp.Lehrer ? plan.Aufsichten(s, tag, element) : new List<Aufsicht>();
             var termine = s.Paket.Termine.Where(t => DateOnly.TryParse(t.Von, out var v) && v >= heute && v <= heute.AddDays(14) &&
                     (element is null || (typ == Elementtyp.Klasse ? t.Klassen.Contains(element, StringComparer.OrdinalIgnoreCase) : t.Lehrer.Contains(element, StringComparer.OrdinalIgnoreCase))))
                 .OrderBy(t => t.Von).Take(8).Select(t => new { t.Art, t.Titel, t.Von, t.Bis, t.StundeVon, t.StundeBis, klassen = t.Klassen });
@@ -237,6 +246,7 @@ public static class AppApi
                 jetzt = uhr.Jetzt.ToString("HH:mm"),
                 element,
                 typ,
+                gesperrt,
                 karten,
                 aufsichten,
                 hinweise = element is null ? new List<string>() : plan.Hinweise(s, tag, typ, element, b.Kollegium),
@@ -592,6 +602,7 @@ public static class AppApi
             {
                 b.Login, b.Anzeigename, b.Email, rolle = Rollen.Name(b.Rolle), b.Element, b.LetzteAnmeldung, ical = $"{basis}/ical/{b.IcalToken}.ics",
                 b.VorherigeAnmeldung, b.Sprache, b.Benachrichtigung, b.Kollegium,
+                planWochenZurueck = b.Planfenster.Zurueck, planWochenVor = b.Planfenster.Vor,
             });
         });
         api.MapPost("/profil/ical", (HttpContext c, Benutzerdienst bd) =>
@@ -624,12 +635,12 @@ public static class AppApi
             if (bd.NachIcal(token) is not { } b || p.Aktuell is not { } s) return Results.NotFound();
             var typ = b.KlassenKuerzel != null ? Elementtyp.Klasse : Elementtyp.Lehrer;
             var element = b.KlassenKuerzel ?? b.LehrerKuerzel;
-            return Results.Text(Kalender(s, plan, e.Schulname, typ, element, uhr.Heute), "text/calendar; charset=utf-8");
+            return Results.Text(Kalender(s, plan, e.Schulname, typ, element, uhr.Heute, d => Rechtedienst.PlanSichtbar(b, d, uhr.Heute)), "text/calendar; charset=utf-8");
         });
     }
 
-    /// <summary>iCalendar mit den Stunden der nächsten vier Wochen (Entfälle als abgesagt).</summary>
-    private static string Kalender(Stand s, Plandienst plan, string schule, string typ, string? element, DateOnly heute)
+    /// <summary>iCalendar mit den Stunden der nächsten vier Wochen (Entfälle als abgesagt), nur Tage im Planfenster der Rolle.</summary>
+    private static string Kalender(Stand s, Plandienst plan, string schule, string typ, string? element, DateOnly heute, Func<DateOnly, bool> sichtbar)
     {
         var sb = new StringBuilder();
         void Z(string zeile) => sb.Append(zeile).Append("\r\n");
@@ -641,7 +652,7 @@ public static class AppApi
         Z("CALSCALE:GREGORIAN");
         if (element != null)
             for (var d = Plandienst.Montag(heute); d < heute.AddDays(28); d = d.AddDays(1))
-                foreach (var k in plan.Karten(s, d, typ, element))
+                foreach (var k in sichtbar(d) ? plan.Karten(s, d, typ, element) : new List<Karte>())
                 {
                     if (k.Beginn.Length == 0 || k.Ende.Length == 0) continue;
                     var titel = $"{k.Fach} {(typ == Elementtyp.Lehrer ? string.Join(",", k.Klassen.Select(x => x.K)) : string.Join(",", k.Lehrer.Select(x => x.K)))}".Trim();

@@ -117,7 +117,7 @@ public sealed partial class Klassenbuchdienst
         string? lehrform = null, string? anmerkung = null, string? lehrerHinweis = null)
     {
         if (!DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
-        if (d > _uhr.Heute.AddDays(14)) throw new ArgumentException("Einträge sind höchstens zwei Wochen im Voraus möglich.");
+        // keine zeitliche Begrenzung: Lehrstoff, Notizen und „Findet online statt“ auch weit im Voraus (Stunde laut Plan vorausgesetzt)
         if (faellig is DateOnly f && f < d) throw new ArgumentException("Die Hausaufgabe kann nicht vor der Stunde fällig sein.");
         var karte = KarteZu(b, s, d, stunde, unterricht, lehrerHinweis);
         if (karte is null) throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");

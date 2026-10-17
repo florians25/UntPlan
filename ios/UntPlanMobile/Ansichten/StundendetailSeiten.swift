@@ -187,27 +187,6 @@ final class Stundendaten: ObservableObject {
         dienste = ergebnis
     }
 
-    /// Klassenbuch-Einträge sind höchstens zwei Wochen im Voraus möglich (Server: heute + 14 Tage).
-    static let vorausTage = 14
-
-    /// Liegt die Stunde weiter als zwei Wochen in der Zukunft (der Server lehnt Einträge dann ab)?
-    var zuWeitImVoraus: Bool {
-        guard let tag = Datumsformat.datum(karte.datum),
-              let grenze = Datumsformat.kalender.date(byAdding: .day, value: Self.vorausTage,
-                                                       to: Datumsformat.kalender.startOfDay(for: Date())) else { return false }
-        return tag > grenze
-    }
-
-    /// Fehlertext beim Speichern: Ablehnung wegen „zu weit im Voraus“ verständlich erklären.
-    static func speicherFehler(_ text: String?) -> String? {
-        guard let text else { return nil }
-        let klein = text.lowercased()
-        if klein.contains("voraus") || klein.contains("zukunft") || klein.contains("zukünftig") {
-            return "Einträge sind höchstens zwei Wochen im Voraus möglich. Bitte tragen Sie Lehrstoff bzw. Notiz später ein."
-        }
-        return text
-    }
-
     /// Lehrstoff bzw. Notizen speichern (nil = unverändert lassen).
     func speichern(thema: String? = nil, lehrform: String? = nil, anmerkung: String? = nil,
                    notiz: String? = nil, notizSchueler: String? = nil, online: Bool? = nil, onlineLink: String? = nil) async throws {
@@ -493,17 +472,7 @@ struct NotizSeite: View {
     var body: some View {
         DetailSeitenRahmen(titel: art.titel, symbol: "xmark", zurueck: { Task { await schliessen() } }) {
             VStack(spacing: 0) {
-                // Auch künftige Stunden sind bearbeitbar; der Server nimmt Einträge bis zwei Wochen im Voraus an
-                if bearbeitbar && daten.zuWeitImVoraus {
-                    Text("Einträge sind höchstens zwei Wochen im Voraus möglich.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Farben.tinte2)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .padding(.horizontal, 12)
-                        .background(Farben.kontrollLeiste)
-                }
+                // Auch künftige Stunden sind ohne Datumsgrenze bearbeitbar (beliebig weit im Voraus)
                 textbereich
             }
         } rechts: {
@@ -601,7 +570,7 @@ struct NotizSeite: View {
             fokus = false
             return true
         } catch {
-            fehler = Stundendaten.speicherFehler(zustand.fehlertext(error))
+            fehler = zustand.fehlertext(error)
             return false
         }
     }
@@ -702,7 +671,7 @@ struct OnlineLinkZeile: View {
             withAnimation { daten.hinweis = wert.isEmpty ? "Link entfernt" : "Link gespeichert" }
             zustand.planGeaendert += 1
         } catch {
-            fehler = Stundendaten.speicherFehler(zustand.fehlertext(error))
+            fehler = zustand.fehlertext(error)
         }
     }
 }

@@ -115,8 +115,45 @@ public static class Recht
     }
 }
 
-/// <summary>Rechte-Profil (Rolle): Basisrolle und Stufe je Recht.</summary>
-public sealed record Rechteprofil(string Id, string Name, string Basis, string Beschreibung, bool System, Dictionary<string, int> Rechte, int Benutzer = 0);
+/// <summary>Rechte-Profil (Rolle): Basisrolle, Stufe je Recht und das Planfenster (Wochen zurück bzw. voraus, null = unbegrenzt).</summary>
+public sealed record Rechteprofil(string Id, string Name, string Basis, string Beschreibung, bool System, Dictionary<string, int> Rechte, int Benutzer = 0)
+{
+    public int? PlanWochenZurueck { get; init; }
+    public int? PlanWochenVor { get; init; }
+    public Planfenster Planfenster => new(PlanWochenZurueck, PlanWochenVor);
+}
+
+/// <summary>
+/// Planfenster einer Rolle: wie viele Kalenderwochen (Wochenbeginn Montag) vor bzw. nach der aktuellen Woche der Stundenplan angezeigt wird.
+/// null = unbegrenzt (Standard), 0 = keine Woche in diese Richtung (nur die aktuelle Woche), n = n Wochen.
+/// </summary>
+public readonly record struct Planfenster(int? Zurueck, int? Vor)
+{
+    /// <summary>Größter einstellbarer Wert (zehn Jahre).</summary>
+    public const int Hoechstens = 520;
+    public static readonly Planfenster Unbegrenzt = new(null, null);
+
+    /// <summary>Hinweis, wenn eine Woche außerhalb des Fensters liegt (Web, Apps).</summary>
+    public const string Sperrhinweis = "Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt";
+
+    public bool IstUnbegrenzt => Zurueck is null && Vor is null;
+
+    /// <summary>Liegt die Woche des Datums im Fenster um die Woche von <paramref name="heute"/>?</summary>
+    public bool Erlaubt(DateOnly datum, DateOnly heute)
+    {
+        if (IstUnbegrenzt) return true;
+        var wochen = (Plandienst.Montag(datum).DayNumber - Plandienst.Montag(heute).DayNumber) / 7;
+        return (Zurueck is not int z || wochen >= -z) && (Vor is not int v || wochen <= v);
+    }
+
+    /// <summary>Eingabe prüfen: leer = unbegrenzt, sonst 0–<see cref="Hoechstens"/>.</summary>
+    public static int? Pruefen(int? wochen, string richtung) => wochen switch
+    {
+        null => null,
+        < 0 or > Hoechstens => throw new ArgumentException($"Bitte für „Wochen {richtung}“ eine Zahl von 0 bis {Hoechstens} eingeben oder das Feld leer lassen (unbegrenzt)."),
+        _ => wochen,
+    };
+}
 
 /// <summary>Effektives Recht eines Kontos mit Herkunft (Vorschau „effektive Rechte“).</summary>
 public sealed record EffektivesRecht(string Recht, int Profil, int? Ueberschreibung, int Zusatz, int Effektiv, string Quelle);
@@ -208,13 +245,35 @@ public static class Rechtedienst
             var profile = db.Liste("SELECT id, rechteprofil FROM benutzer", r => (Id: r.Zahl("id"), P: r.Text("rechteprofil"))).ToDictionary(x => x.Id, x => x.P);
             var ueber = db.Liste("SELECT benutzer_id, recht, stufe FROM benutzer_rechte", r => (B: r.Zahl("benutzer_id"), R: r.Text("recht"), S: r.Zahl("stufe")))
                 .GroupBy(x => x.B).ToDictionary(g => g.Key, g => (IReadOnlyDictionary<string, int>)g.ToDictionary(x => x.R, x => x.S));
-            return liste.Select(b => b with
+            return liste.Select(b =>
             {
-                Rechte = Berechnen(b, Profil(db, profile.GetValueOrDefault(b.Id) is { Length: > 0 } p ? p : b.Rolle), ueber.GetValueOrDefault(b.Id)),
+                var profil = Profil(db, profile.GetValueOrDefault(b.Id) is { Length: > 0 } p ? p : b.Rolle);
+                return b with { Rechte = Berechnen(b, profil, ueber.GetValueOrDefault(b.Id)), Planfenster = FensterAus(b, profil) };
             }).ToList();
         }
         catch (System.Data.Common.DbException) { return liste; }
     }
+
+    // ---------------------------------------------------------------- Planfenster
+
+    /// <summary>Planfenster eines Kontos aus seinem Profil (bzw. der Systemrolle seiner Basisrolle); Administration immer unbegrenzt.</summary>
+    public static Planfenster PlanfensterLaden(Db db, Benutzer b)
+    {
+        if (b.IstAdmin) return Planfenster.Unbegrenzt;
+        try
+        {
+            var profilId = ProfilVon(db, b.Id);
+            return FensterAus(b, Profil(db, profilId.Length > 0 ? profilId : b.Rolle));
+        }
+        catch (System.Data.Common.DbException) { return Planfenster.Unbegrenzt; }
+    }
+
+    // wie bei den Rechten: passt das Profil nicht zur Basisrolle, gilt der Standard (unbegrenzt)
+    private static Planfenster FensterAus(Benutzer b, Rechteprofil? profil) =>
+        !b.IstAdmin && profil != null && profil.Basis == b.Rolle ? profil.Planfenster : Planfenster.Unbegrenzt;
+
+    /// <summary>Darf das Konto die Woche dieses Datums im Stundenplan sehen?</summary>
+    public static bool PlanSichtbar(Benutzer b, DateOnly datum, DateOnly heute) => b.IstAdmin || b.Planfenster.Erlaubt(datum, heute);
 
     // ---------------------------------------------------------------- Profile
 
@@ -224,16 +283,19 @@ public static class Rechtedienst
         lock (z)
         {
             if (z.Profile != null && DateTime.UtcNow - z.Geladen < TimeSpan.FromSeconds(30)) return z.Profile;
-            var gespeichert = db.Liste("SELECT id, name, basis, beschreibung, rechte FROM rechteprofile",
-                r => (Id: r.Text("id"), Name: r.Text("name"), Basis: r.Text("basis"), Beschreibung: r.Text("beschreibung"), Rechte: r.Text("rechte")));
+            var gespeichert = db.Liste("SELECT id, name, basis, beschreibung, rechte, plan_wochen_zurueck, plan_wochen_vor FROM rechteprofile",
+                r => (Id: r.Text("id"), Name: r.Text("name"), Basis: r.Text("basis"), Beschreibung: r.Text("beschreibung"), Rechte: r.Text("rechte"),
+                    Zurueck: r.ZahlOderNull("plan_wochen_zurueck"), Vor: r.ZahlOderNull("plan_wochen_vor")));
             var res = new Dictionary<string, Rechteprofil>(StringComparer.OrdinalIgnoreCase);
             foreach (var rolle in Rollen.Alle)
             {
                 var g = gespeichert.FirstOrDefault(x => x.Id == rolle);
-                res[rolle] = new Rechteprofil(rolle, Rollen.Name(rolle), rolle, g.Id is null ? "" : g.Beschreibung, true, Aufloesen(rolle, rolle == Rollen.Admin ? null : g.Rechte));
+                // Administration: immer alle Rechte und unbegrenztes Planfenster
+                res[rolle] = new Rechteprofil(rolle, Rollen.Name(rolle), rolle, g.Id is null ? "" : g.Beschreibung, true, Aufloesen(rolle, rolle == Rollen.Admin ? null : g.Rechte))
+                    { PlanWochenZurueck = rolle == Rollen.Admin ? null : g.Zurueck, PlanWochenVor = rolle == Rollen.Admin ? null : g.Vor };
             }
             foreach (var g in gespeichert.Where(x => !Rollen.Gueltig(x.Id) && Rollen.Gueltig(x.Basis)))
-                res[g.Id] = new Rechteprofil(g.Id, g.Name, g.Basis, g.Beschreibung, false, Aufloesen(g.Basis, g.Rechte));
+                res[g.Id] = new Rechteprofil(g.Id, g.Name, g.Basis, g.Beschreibung, false, Aufloesen(g.Basis, g.Rechte)) { PlanWochenZurueck = g.Zurueck, PlanWochenVor = g.Vor };
             z.Profile = res;
             z.Geladen = DateTime.UtcNow;
             return res;
@@ -280,9 +342,15 @@ public static class Rechtedienst
         return JsonSerializer.Serialize(aufgeloest, Json);
     }
 
-    /// <summary>Profil anlegen (<paramref name="id"/> = null) bzw. ändern. Systemrollen: nur Rechte und Beschreibung; Administration ist nicht änderbar.</summary>
-    public static Rechteprofil Speichern(Db db, string? id, string? name, string? basis, string? beschreibung, Dictionary<string, int>? rechte, string jetzt)
+    /// <summary>
+    /// Profil anlegen (<paramref name="id"/> = null) bzw. ändern. Systemrollen: nur Rechte, Beschreibung und Planfenster; Administration ist nicht änderbar.
+    /// Planfenster: Wochen zurück bzw. voraus (null = unbegrenzt, 0 = nur die aktuelle Woche).
+    /// </summary>
+    public static Rechteprofil Speichern(Db db, string? id, string? name, string? basis, string? beschreibung, Dictionary<string, int>? rechte, string jetzt,
+        int? planZurueck = null, int? planVor = null)
     {
+        planZurueck = Planfenster.Pruefen(planZurueck, "zurück");
+        planVor = Planfenster.Pruefen(planVor, "voraus");
         beschreibung = (beschreibung ?? "").Trim();
         if (beschreibung.Length > 500) throw new ArgumentException("Die Beschreibung ist zu lang (höchstens 500 Zeichen).");
         if (id is null)
@@ -295,8 +363,9 @@ public static class Rechtedienst
             if (slug.Length == 0) slug = "rolle";
             var neu = "p-" + slug;
             for (var i = 2; Profil(db, neu) != null; i++) neu = $"p-{slug}-{i}";
-            db.Ausfuehren("INSERT INTO rechteprofile (id, name, basis, beschreibung, rechte, geaendert) VALUES (@i, @n, @b, @d, @r, @g)",
-                Db.P("@i", neu), Db.P("@n", name), Db.P("@b", basis), Db.P("@d", beschreibung), Db.P("@r", RechteJson(rechte, basis!)), Db.P("@g", jetzt));
+            db.Ausfuehren("INSERT INTO rechteprofile (id, name, basis, beschreibung, rechte, geaendert, plan_wochen_zurueck, plan_wochen_vor) VALUES (@i, @n, @b, @d, @r, @g, @pz, @pv)",
+                Db.P("@i", neu), Db.P("@n", name), Db.P("@b", basis), Db.P("@d", beschreibung), Db.P("@r", RechteJson(rechte, basis!)), Db.P("@g", jetzt),
+                Db.P("@pz", planZurueck), Db.P("@pv", planVor));
             Vergessen(db);
             return Profil(db, neu)!;
         }
@@ -306,16 +375,17 @@ public static class Rechtedienst
         if (p.System)
         {
             db.Ausfuehren("DELETE FROM rechteprofile WHERE id = @i", Db.P("@i", p.Id));
-            db.Ausfuehren("INSERT INTO rechteprofile (id, name, basis, beschreibung, rechte, geaendert) VALUES (@i, @n, @b, @d, @r, @g)",
-                Db.P("@i", p.Id), Db.P("@n", p.Name), Db.P("@b", p.Basis), Db.P("@d", beschreibung), Db.P("@r", json), Db.P("@g", jetzt));
+            db.Ausfuehren("INSERT INTO rechteprofile (id, name, basis, beschreibung, rechte, geaendert, plan_wochen_zurueck, plan_wochen_vor) VALUES (@i, @n, @b, @d, @r, @g, @pz, @pv)",
+                Db.P("@i", p.Id), Db.P("@n", p.Name), Db.P("@b", p.Basis), Db.P("@d", beschreibung), Db.P("@r", json), Db.P("@g", jetzt),
+                Db.P("@pz", planZurueck), Db.P("@pv", planVor));
         }
         else
         {
             name = string.IsNullOrWhiteSpace(name) ? p.Name : name.Trim();
             if (name.Length is < 2 or > 100) throw new ArgumentException("Bitte einen Namen mit 2–100 Zeichen eingeben.");
             if (Profile(db).Values.Any(x => x.Id != p.Id && x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException($"Die Rolle „{name}“ gibt es bereits.");
-            db.Ausfuehren("UPDATE rechteprofile SET name = @n, beschreibung = @d, rechte = @r, geaendert = @g WHERE id = @i",
-                Db.P("@i", p.Id), Db.P("@n", name), Db.P("@d", beschreibung), Db.P("@r", json), Db.P("@g", jetzt));
+            db.Ausfuehren("UPDATE rechteprofile SET name = @n, beschreibung = @d, rechte = @r, geaendert = @g, plan_wochen_zurueck = @pz, plan_wochen_vor = @pv WHERE id = @i",
+                Db.P("@i", p.Id), Db.P("@n", name), Db.P("@d", beschreibung), Db.P("@r", json), Db.P("@g", jetzt), Db.P("@pz", planZurueck), Db.P("@pv", planVor));
         }
         Vergessen(db);
         return Profil(db, p.Id)!;
@@ -336,7 +406,7 @@ public static class Rechtedienst
         if (p.Id == Rollen.Admin) throw new ArgumentException("Die Administration kann nicht kopiert werden.");
         var neu = string.IsNullOrWhiteSpace(name) ? p.Name + " (Kopie)" : name;
         for (var i = 2; Profile(db).Values.Any(x => x.Name.Equals(neu, StringComparison.OrdinalIgnoreCase)); i++) neu = $"{p.Name} (Kopie {i})";
-        return Speichern(db, null, neu, p.Basis, p.Beschreibung, p.Rechte, jetzt);
+        return Speichern(db, null, neu, p.Basis, p.Beschreibung, p.Rechte, jetzt, p.PlanWochenZurueck, p.PlanWochenVor);
     }
 
     /// <summary>Eigene Rolle löschen; deren Konten erhalten wieder das Standardprofil ihrer Basisrolle.</summary>

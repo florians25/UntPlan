@@ -342,7 +342,7 @@ struct StartView: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Farben.tinte)
                 .padding(.top, 5)
-            Text(h.karten.isEmpty ? "Heute ist frei." : "Heute keine weiteren Stunden.")
+            Text(h.gesperrt ? "Es werden hier keine Termine angezeigt." : (h.karten.isEmpty ? "Heute ist frei." : "Heute keine weiteren Stunden."))
                 .font(.system(size: 13.5))
                 .foregroundStyle(Farben.tinte2)
                 .multilineTextAlignment(.center)

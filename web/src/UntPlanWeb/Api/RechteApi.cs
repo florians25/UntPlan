@@ -9,7 +9,8 @@ namespace UntPlanWeb.Api;
 /// </summary>
 public static class RechteApi
 {
-    public sealed record ProfilDaten(string? Name, string? Basis, string? Beschreibung, Dictionary<string, int>? Rechte);
+    /// <summary>Planfenster: Wochen zurück bzw. voraus, die der Stundenplan angezeigt wird (null = unbegrenzt, 0 = nur die aktuelle Woche).</summary>
+    public sealed record ProfilDaten(string? Name, string? Basis, string? Beschreibung, Dictionary<string, int>? Rechte, int? PlanWochenZurueck = null, int? PlanWochenVor = null);
     public sealed record KopieDaten(string? Name);
     public sealed record KontoRechteDaten(string? Profil, Dictionary<string, int?>? Ueberschreibungen);
 
@@ -23,6 +24,7 @@ public static class RechteApi
     private static object ProfilJson(Rechteprofil p) => new
     {
         p.Id, p.Name, p.Basis, basisName = Rollen.Name(p.Basis), p.Beschreibung, p.System, aenderbar = p.Id != Rollen.Admin, p.Rechte, p.Benutzer,
+        p.PlanWochenZurueck, p.PlanWochenVor,
     };
 
     private static object VorschauJson(Db db, Benutzer b, List<EffektivesRecht> liste, string profil, Dictionary<string, int> ueber) => new
@@ -58,20 +60,21 @@ public static class RechteApi
                 basisrollen = Rollen.Alle.Select(r => new { id = r, name = Rollen.Name(r) }),
                 profile = Rechtedienst.ProfilListe(db).Select(ProfilJson),
                 rueckwirkendTage = Recht.RueckwirkendTage,
+                planWochenHoechstens = Planfenster.Hoechstens,
             });
         });
 
         admin.MapPost("/profile", (ProfilDaten d, HttpContext c, Db db, Uhr uhr, Protokoll prot) =>
         {
             var ich = Admin(c);
-            var p = Rechtedienst.Speichern(db, null, d.Name, d.Basis, d.Beschreibung, d.Rechte, uhr.Jetzt.ToString("yyyy-MM-dd HH:mm"));
+            var p = Rechtedienst.Speichern(db, null, d.Name, d.Basis, d.Beschreibung, d.Rechte, uhr.Jetzt.ToString("yyyy-MM-dd HH:mm"), d.PlanWochenZurueck, d.PlanWochenVor);
             prot.Schreiben(ich.Login, "Rolle angelegt", p.Name);
             return Results.Json(ProfilJson(p));
         });
         admin.MapPut("/profile/{id}", (string id, ProfilDaten d, HttpContext c, Db db, Uhr uhr, Protokoll prot) =>
         {
             var ich = Admin(c);
-            var p = Rechtedienst.Speichern(db, id, d.Name, null, d.Beschreibung, d.Rechte, uhr.Jetzt.ToString("yyyy-MM-dd HH:mm"));
+            var p = Rechtedienst.Speichern(db, id, d.Name, null, d.Beschreibung, d.Rechte, uhr.Jetzt.ToString("yyyy-MM-dd HH:mm"), d.PlanWochenZurueck, d.PlanWochenVor);
             prot.Schreiben(ich.Login, "Rolle geändert", p.Name);
             return Results.Json(ProfilJson(p));
         });

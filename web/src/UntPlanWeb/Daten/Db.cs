@@ -578,6 +578,12 @@ public sealed class Db
             erstellt VARCHAR(30) NOT NULL DEFAULT '', aktualisiert VARCHAR(30) NOT NULL DEFAULT '', PRIMARY KEY (benutzer_id, token)
         );
         """,
+
+        // 18: Planfenster je Rolle – wie viele Wochen zurück bzw. voraus der Stundenplan angezeigt wird (NULL = unbegrenzt) – nur Standard-SQL
+        """
+        ALTER TABLE rechteprofile ADD COLUMN plan_wochen_zurueck INTEGER;
+        ALTER TABLE rechteprofile ADD COLUMN plan_wochen_vor INTEGER;
+        """,
     };
 
 

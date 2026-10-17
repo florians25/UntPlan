@@ -12,8 +12,11 @@ struct Sitzung: Decodable, Sendable {
     var schuljahr: Schuljahr?
     var benutzer: SitzungsBenutzer?
     var ungelesen: Int
+    /// Plan-Fenster der Rolle in Wochen (nil = unbegrenzt) – auf oberster Ebene oder im Benutzer geliefert.
+    var planWochenZurueck: Int?
+    var planWochenVor: Int?
 
-    enum CodingKeys: String, CodingKey { case eingerichtet, schule, paket, schuljahr, benutzer, ungelesen }
+    enum CodingKeys: String, CodingKey { case eingerichtet, schule, paket, schuljahr, benutzer, ungelesen, planWochenZurueck, planWochenVor }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -23,6 +26,10 @@ struct Sitzung: Decodable, Sendable {
         schuljahr = c.optional(.schuljahr)
         benutzer = c.optional(.benutzer)
         ungelesen = c.zahl(.ungelesen) ?? 0
+        planWochenZurueck = c.zahl(.planWochenZurueck) ?? benutzer?.planWochenZurueck
+        planWochenVor = c.zahl(.planWochenVor) ?? benutzer?.planWochenVor
+        if benutzer?.planWochenZurueck == nil { benutzer?.planWochenZurueck = planWochenZurueck }
+        if benutzer?.planWochenVor == nil { benutzer?.planWochenVor = planWochenVor }
     }
 }
 
@@ -84,9 +91,13 @@ struct SitzungsBenutzer: Decodable, Sendable {
     var familie: Bool
     /// Fehlzeitenverwaltung (Klassenleitung, Schulleitung, Administration)
     var fehlzeiten: Bool
+    /// Plan-Fenster der Rolle: so viele Wochen zurück bzw. voraus einsehbar (nil = unbegrenzt)
+    var planWochenZurueck: Int?
+    var planWochenVor: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, login, anzeigename, rolle, rollenname, element, kollegium, admin, nachrichten, passwortAendern, typ, familie, fehlzeiten
+        case planWochenZurueck, planWochenVor
     }
 
     init(from decoder: Decoder) throws {
@@ -104,6 +115,8 @@ struct SitzungsBenutzer: Decodable, Sendable {
         typ = c.text(.typ)
         familie = c.wahr(.familie)
         fehlzeiten = c.wahr(.fehlzeiten)
+        planWochenZurueck = c.zahl(.planWochenZurueck)
+        planWochenVor = c.zahl(.planWochenVor)
     }
 
     var name: String { anzeigename.isEmpty ? login : anzeigename }
@@ -500,8 +513,12 @@ struct Wochenplan: Decodable, Sendable {
     var tage: [Tageskopf]
     var karten: [Karte]
     var aufsichten: [Aufsicht]
+    /// Woche liegt außerhalb des Plan-Fensters der Rolle: keine Stunden, statt der Karten der Sperrhinweis.
+    var gesperrt: Bool
+    /// Erklärung zur Sperre (vom Server), z. B. bis wann der Plan einsehbar ist.
+    var sperrhinweis: String?
 
-    enum CodingKeys: String, CodingKey { case typ, element, name, montag, woche, zeitraster, tage, karten, aufsichten }
+    enum CodingKeys: String, CodingKey { case typ, element, name, montag, woche, zeitraster, tage, karten, aufsichten, gesperrt, sperrhinweis }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -514,6 +531,12 @@ struct Wochenplan: Decodable, Sendable {
         tage = c.liste(.tage)
         karten = c.liste(.karten)
         aufsichten = c.liste(.aufsichten)
+        gesperrt = c.wahr(.gesperrt)
+        sperrhinweis = c.textOderNil(.sperrhinweis).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        if gesperrt {
+            karten = []
+            aufsichten = []
+        }
     }
 }
 
@@ -590,10 +613,12 @@ struct Heute: Decodable, Sendable {
     var offeneStunden: Int
     var hausaufgaben: [Hausaufgabe]
     var meldungen: [Meldung]
+    /// Heute liegt außerhalb des Plan-Fensters der Rolle (keine Stunden geliefert).
+    var gesperrt: Bool
 
     enum CodingKeys: String, CodingKey {
         case paket, datum, wochentag, woche, jetzt, element, typ, karten, aufsichten, hinweise, ereignisse, nachrichten
-        case termine, aenderungen, ungelesen, offeneStunden, hausaufgaben, meldungen
+        case termine, aenderungen, ungelesen, offeneStunden, hausaufgaben, meldungen, gesperrt
     }
 
     init(from decoder: Decoder) throws {
@@ -616,6 +641,7 @@ struct Heute: Decodable, Sendable {
         offeneStunden = c.zahl(.offeneStunden) ?? 0
         hausaufgaben = c.liste(.hausaufgaben)
         meldungen = c.liste(.meldungen)
+        gesperrt = c.wahr(.gesperrt)
     }
 }
 
@@ -757,8 +783,13 @@ struct Profil: Decodable, Sendable {
     var vorherigeAnmeldung: String?
     var ical: String
     var kollegium: Bool
+    /// Plan-Fenster der Rolle in Wochen (nil = unbegrenzt)
+    var planWochenZurueck: Int?
+    var planWochenVor: Int?
 
-    enum CodingKeys: String, CodingKey { case login, anzeigename, email, rolle, element, letzteAnmeldung, vorherigeAnmeldung, ical, kollegium }
+    enum CodingKeys: String, CodingKey {
+        case login, anzeigename, email, rolle, element, letzteAnmeldung, vorherigeAnmeldung, ical, kollegium, planWochenZurueck, planWochenVor
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -771,6 +802,8 @@ struct Profil: Decodable, Sendable {
         vorherigeAnmeldung = c.textOderNil(.vorherigeAnmeldung)
         ical = c.text(.ical)
         kollegium = c.wahr(.kollegium)
+        planWochenZurueck = c.zahl(.planWochenZurueck)
+        planWochenVor = c.zahl(.planWochenVor)
     }
 }
 

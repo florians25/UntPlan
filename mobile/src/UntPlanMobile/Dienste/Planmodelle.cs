@@ -35,8 +35,12 @@ public sealed record PlanTag(string Datum, string Wochentag, string Woche, bool 
 
 public sealed record PlanZeit(int Nr, string Bezeichnung, string Beginn, string Ende);
 
+/// <summary>
+/// Wochenplan aus /api/app/plan. Gesperrt: Die Woche liegt außerhalb der Wochenbegrenzung der Rolle (UntPlanWeb setzt sie durch) –
+/// dann ohne Stunden, mit Sperrhinweis.
+/// </summary>
 public sealed record Wochenplan(string Typ, string Element, string Name, string Montag, string Woche, List<PlanZeit> Zeitraster,
-    List<PlanTag> Tage, List<PlanKarte> Karten, List<PlanAufsicht> Aufsichten);
+    List<PlanTag> Tage, List<PlanKarte> Karten, List<PlanAufsicht> Aufsichten, bool Gesperrt = false, string? Sperrhinweis = null);
 
 public sealed record Ferienzeit(string Name, string Von, string Bis, bool Feiertag);
 

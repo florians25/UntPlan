@@ -516,7 +516,11 @@ struct StundenplanView: View {
             p.tage += w.tage
             p.karten += w.karten
             p.aufsichten += w.aufsichten
+            if p.zeitraster.isEmpty { p.zeitraster = w.zeitraster }
         }
+        // Gesperrt nur, wenn keine der Wochen einsehbar ist (sonst zeigt die freigegebene Woche ihre Stunden)
+        p.gesperrt = wochen.allSatisfy(\.gesperrt)
+        p.sperrhinweis = wochen.first(where: \.gesperrt)?.sperrhinweis
         return p
     }
 
@@ -674,6 +678,38 @@ struct StundenplanView: View {
             plaene[k(datum)] = plan
             staende[k(datum), default: 0] += 1
         }
+    }
+}
+
+/// Gesperrte Woche (außerhalb des Plan-Fensters der Rolle): mittig ein weißer Kreis mit grauem Schloss, darunter der
+/// Hinweis und kleiner die Erklärung des Servers.
+struct Sperrhinweis: View {
+    let hinweis: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Image(systemName: "lock")
+                .font(.system(size: 26, weight: .regular))
+                .foregroundStyle(Farben.gedaempft)
+                .frame(width: 72, height: 72)
+                .background(Circle().fill(Color(hell: 0xFFFFFF, dunkel: 0x2E3A45)))
+                .shadow(color: Color.black.opacity(0.08), radius: 6, y: 2)
+                .padding(.bottom, 16)
+            Text("Es werden hier keine Termine angezeigt.")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Farben.tinte)
+                .multilineTextAlignment(.center)
+            if let hinweis, !hinweis.isEmpty {
+                Text(hinweis)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Farben.tinte2)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 6)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 32)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -992,6 +1028,16 @@ struct WochenrasterView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
                     .zIndex(1)
+                if plan.gesperrt {
+                    // Woche außerhalb des Plan-Fensters: statt der Karten der Sperrhinweis (Blättern bleibt möglich)
+                    Sperrhinweis(hinweis: plan.sperrhinweis)
+                        .padding(.bottom, untenFrei)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(
+                            LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
+                                .ignoresSafeArea(edges: .bottom)
+                        )
+                } else {
                 ScrollViewReader { leser in
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
@@ -1025,6 +1071,7 @@ struct WochenrasterView: View {
                     DispatchQueue.main.async {
                         leser.scrollTo(Self.ersteStundeAnker, anchor: .top)
                     }
+                }
                 }
                 }
             }
@@ -1290,26 +1337,26 @@ struct WochenrasterView: View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
             .fill(Farben.ferienHintergrund)
             .overlay {
-                // Bezeichnung groß (16 pt), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
+                // Bezeichnung (14,5 pt halbfett), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
                 VStack(spacing: 3) {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 12, weight: .medium))
                         .padding(.bottom, 2)
                     Text(freiTitel(tag))
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14.5, weight: .semibold))
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                     if let grund = tag.freiGrund, !grund.isEmpty, grund.lowercased() != freiTitel(tag).lowercased() {
                         Text(grund)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14.5, weight: .semibold))
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let von = tag.freiVon, let bis = tag.freiBis, !von.isEmpty, !bis.isEmpty {
                         Text(von == bis ? Datumsformat.anzeige(von, "dd.MM.") : "\(Datumsformat.anzeige(von, "dd.MM.")) bis \(Datumsformat.anzeige(bis, "dd.MM."))")
-                            .font(.system(size: 13))
+                            .font(.system(size: 12, weight: .medium))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)

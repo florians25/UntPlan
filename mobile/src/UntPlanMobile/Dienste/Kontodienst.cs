@@ -23,6 +23,10 @@ public sealed record Konto(Sitzungsbenutzer Benutzer, string Schule, Elemente El
 
     public bool Leitung => Benutzer.Rolle is "admin" or "leitung";
 
+    /// <summary>Wochenbegrenzung der Rolle aus /api/app/sitzung: so viele Wochen zurück bzw. voraus sind sichtbar (null = unbegrenzt).</summary>
+    public int? PlanWochenZurueck { get; init; }
+    public int? PlanWochenVor { get; init; }
+
     /// <summary>Voller Name zum eigenen Kürzel (Lehrkraft), sonst der Anzeigename.</summary>
     public string Name =>
         !IstSchueler && Elemente.Lehrer.FirstOrDefault(l => string.Equals(l.Kurz, Kuerzel, StringComparison.OrdinalIgnoreCase)) is { } l && l.Name.Length > 0
@@ -58,9 +62,27 @@ public sealed class Kontodienst
         }
         var benutzer = b.Deserialize<Sitzungsbenutzer>(UntPlanWebVerbindung.Json)!;
         var elemente = await _web.HolenAsync<Elemente>(c, "api/app/elemente");
-        k = new Konto(benutzer, s["schule"]?["name"]?.GetValue<string>() ?? "", elemente);
+        k = new Konto(benutzer, s["schule"]?["name"]?.GetValue<string>() ?? "", elemente)
+        {
+            PlanWochenZurueck = Wochenzahl(s, b, "planWochenZurueck"),
+            PlanWochenVor = Wochenzahl(s, b, "planWochenVor"),
+        };
         _cache.Set(Schluessel(sitzung), k, TimeSpan.FromSeconds(30));
         return k;
+    }
+
+    /// <summary>Wochenbegrenzung aus der Sitzung – oben oder im Benutzer, als Zahl oder Zahltext; sonst null (unbegrenzt).</summary>
+    public static int? Wochenzahl(JsonNode? sitzung, JsonNode? benutzer, string name)
+    {
+        foreach (var quelle in new[] { sitzung, benutzer, sitzung?["begrenzung"], sitzung?["wochenbegrenzung"] })
+        {
+            if (quelle is not JsonObject o) continue;
+            var wert = o.FirstOrDefault(x => string.Equals(x.Key, name, StringComparison.OrdinalIgnoreCase)).Value;
+            if (wert is not JsonValue v) continue;
+            if (v.GetValueKind() == JsonValueKind.Number && v.TryGetValue<int>(out var n)) return Math.Max(0, n);
+            if (v.GetValueKind() == JsonValueKind.String && int.TryParse(v.GetValue<string>(), out var t)) return Math.Max(0, t);
+        }
+        return null;
     }
 
     public void Vergessen(HttpContext c)
