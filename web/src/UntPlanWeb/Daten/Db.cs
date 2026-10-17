@@ -569,6 +569,15 @@ public sealed class Db
         """
         ALTER TABLE klassenbuch ADD COLUMN online_link VARCHAR(1000) NOT NULL DEFAULT '';
         """,
+
+        // 17: Sofort-Benachrichtigungen (iOS) – Gerätetokens je Konto (ein Token kann mehreren Konten gehören) – nur Standard-SQL
+        """
+        CREATE TABLE push_geraete (
+            benutzer_id INTEGER NOT NULL REFERENCES benutzer(id) ON DELETE CASCADE, token VARCHAR(200) NOT NULL,
+            plattform VARCHAR(20) NOT NULL DEFAULT 'ios', umgebung VARCHAR(20) NOT NULL DEFAULT 'production', bundle VARCHAR(200) NOT NULL DEFAULT '',
+            erstellt VARCHAR(30) NOT NULL DEFAULT '', aktualisiert VARCHAR(30) NOT NULL DEFAULT '', PRIMARY KEY (benutzer_id, token)
+        );
+        """,
     };
 
 

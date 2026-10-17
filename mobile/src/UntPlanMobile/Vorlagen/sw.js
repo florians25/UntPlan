@@ -148,14 +148,26 @@ self.addEventListener('message', e => {
    periodicsync: Wo der Browser es anbietet (Chrome/Edge bei installierter
    App), prüft der Service Worker auch im Hintergrund. Safari kennt das
    nicht — dort wird beim Öffnen und Zurückkehren in die App geprüft.
-   push: vorbereitet für echte Push-Nachrichten vom Server; dann genügt
-   ein Anstoß, die Prüfung selbst läuft wie gewohnt.
+   push: echte Push-Nachrichten vom Server (siehe unten).
    ===================================================================== */
 self.addEventListener('periodicsync', e => {
   if (e.tag === 'planwacht' && self.PlanWacht) e.waitUntil(self.PlanWacht.pruefen().catch(() => null));
 });
 
+/* Web-Push vom Server (RFC 8291, verschlüsselt): Die Nachricht bringt
+   Titel und Text mit und wird direkt angezeigt. Ohne Inhalt prüft die
+   Planwache selbst. Safari verlangt zu jedem Push eine sichtbare Meldung. */
 self.addEventListener('push', e => {
+  let d = null;
+  try { d = e.data ? e.data.json() : null; } catch (x){ d = e.data ? { body: e.data.text() } : null; }
+  if (d && (d.title || d.body)){
+    e.waitUntil(self.registration.showNotification(d.title || 'Stundenplan', {
+      body: d.body || '', tag: d.tag || 'planwacht', renotify: true,
+      icon: './assets/icons/icon-192.png', badge: './assets/icons/icon-192.png',
+      data: { url: d.url || './' }
+    }));
+    return;
+  }
   if (!self.PlanWacht) return;
   e.waitUntil(self.PlanWacht.pruefen().catch(() => null));
 });

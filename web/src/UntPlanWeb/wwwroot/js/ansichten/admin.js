@@ -6,12 +6,12 @@ const BEREICHE = [
   { id: 'sync', text: 'Übersicht', admin: true },
   { id: 'nachrichten', text: 'Nachrichten zum Tag', admin: false },
   { id: 'freietage', text: 'Freie Tage & Ferien', admin: true },
-  { id: 'import', text: 'Import', admin: true },
+  { id: 'import', text: 'Import', admin: true, recht: 'admin.import' },
   { id: 'export', text: 'Export', admin: true },
   { id: 'aktive', text: 'Aktive Benutzer', admin: true },
   { id: 'rechte', text: 'Rechte und Rollen', admin: true },
-  { id: 'benutzer', text: 'Benutzer', admin: true },
-  { id: 'personen', text: 'Personen & Konten', admin: true },
+  { id: 'benutzer', text: 'Benutzer', admin: true, recht: 'admin.benutzer' },
+  { id: 'personen', text: 'Personen & Konten', admin: true, recht: 'admin.benutzer' },
   { id: 'zuordnung', text: 'Zuordnungsgruppen', admin: true },
   { id: 'rueckmeldungen', text: 'Rückmeldungen', admin: true },
   { id: 'sperren', text: 'Prüfungssperren', admin: true },
@@ -41,7 +41,8 @@ const kopierfeld = (wert, anzeige = wert) => `<div class="input-group"><input cl
 
 export async function zeigen(seite, kontext, [bereichParam, ...weitere]) {
   const ich = kontext.ich;
-  const erlaubt = BEREICHE.filter(b => ich.admin || !b.admin);
+  // Rechte-Modell: einzelne Bereiche auch mit dem passenden Recht (z. B. Import, Benutzerverwaltung)
+  const erlaubt = BEREICHE.filter(b => ich.admin || !b.admin || (b.recht && ich.rechte?.[b.recht]));
   const bereich = erlaubt.find(b => b.id === bereichParam) ?? erlaubt[0];
   // Die Bereiche stehen im Untermenü „Administration“ der Navigation
   kontext.titel(bereich.id === 'sync' ? 'Übersicht & Synchronisation' : bereich.text);
@@ -314,8 +315,16 @@ async function freietage(ziel, kontext, neu) {
 
 // ------------------------------------------------------------------ Import (Benutzer aus CSV)
 
-async function importieren(ziel, kontext) {
-  ziel.innerHTML = `<div class="card u-einstellungen mb-3"><div class="card-header">Benutzer importieren (CSV)</div><div class="card-body">
+async function importieren(ziel, kontext, neu, weitere = []) {
+  // Reiter: Benutzer (CSV, unten) und Schüler*innen (import.js)
+  const reiter = weitere[0] === 'schueler' ? 'schueler' : 'benutzer';
+  const nav = `<ul class="nav nav-tabs mb-3"><li class="nav-item"><a class="nav-link ${reiter === 'benutzer' ? 'active' : ''}" href="#/admin/import">Benutzer</a></li>
+    <li class="nav-item"><a class="nav-link ${reiter === 'schueler' ? 'active' : ''}" href="#/admin/import/schueler">Schüler*innen</a></li></ul>`;
+  if (reiter === 'schueler') {
+    ziel.innerHTML = nav + '<div data-schuelerimport></div>';
+    return (await import('./import.js')).zeigen(ziel.querySelector('[data-schuelerimport]'), kontext);
+  }
+  ziel.innerHTML = nav + `<div class="card u-einstellungen mb-3"><div class="card-header">Benutzer importieren (CSV)</div><div class="card-body">
       <p class="small text-body-secondary">Spalten: <code>Benutzername;Name;Rolle;Kürzel;E-Mail;Passwort</code> (Semikolon oder Komma, UTF-8 oder Windows-1252, erste Zeile darf eine Kopfzeile sein).
         Rolle: Administration, Schulleitung, Lehrkraft oder Klasse. Ohne Passwort wird ein Startpasswort erzeugt, das bei der ersten Anmeldung geändert werden muss.</p>
       <div class="d-flex flex-wrap gap-2 align-items-center"><label class="btn btn-outline-secondary mb-0">${icon('hochladen')}Datei wählen und prüfen<input type="file" accept=".csv,text/csv,text/plain" data-datei hidden></label>
@@ -410,22 +419,9 @@ const RECHTE = [
   ['Stammdaten und Administration', { admin: true, leitung: false, lehrer: false, schueler: false, eltern: false }],
 ];
 
-async function rechte(ziel) {
-  const [liste, regel] = await Promise.all([holen('/api/app/admin/benutzer'), holen('/api/app/admin/einstellungen/passwort')]);
-  const zelle = w => w === true ? '<span class="ja"><i class="bi bi-check-lg"></i></span>' : w ? `<span class="small">${e(w)}</span>` : '<span class="nein">–</span>';
-  const PRIVILEG = { admin: 'Administration (alle Rechte)', leitung: 'Lehrerversion, Nachrichten zum Tag, entschuldigen', lehrer: 'Lehrerversion, Klassenbuch', schueler: 'Schülerversion der eigenen Klasse; mit Zuordnung eigene Abwesenheiten, Fehlzeiten und Hausaufgaben', eltern: 'Daten der zugeordneten Kinder (Klassenplan, Abwesenheiten, Fehlzeiten, Hausaufgaben), keine Lehrerpläne' };
-  ziel.innerHTML = `<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Benutzergruppe</th><th>Privileg</th><th>Benutzer</th></tr></thead><tbody>
-      ${Object.entries(ROLLEN).map(([r, n]) => `<tr><td class="fw-semibold">${n}</td><td class="small text-body-secondary">${PRIVILEG[r]}</td>
-        <td><a href="#/admin/benutzer/${r}">${liste.filter(u => u.rolle === r).length}</a></td></tr>`).join('')}</tbody></table></div></div>
-    <div class="card mb-3"><div class="card-header">Rechte der Rollen</div><div class="table-responsive"><table class="table table-sm table-card align-middle u-rechte"><thead><tr><th>Recht</th>${Object.values(ROLLEN).map(n => `<th>${n}</th>`).join('')}</tr></thead><tbody>
-      ${RECHTE.map(([t, w]) => `<tr><td>${e(t)}</td>${Object.keys(ROLLEN).map(r => `<td>${zelle(w[r])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-      <div class="card-footer small text-body-secondary">Unabhängig davon sehen alle die ausdrücklich öffentlichen Daten (Monitore, RSS-Feed). Die Rollen sind fest mit den Rechten in UntPlan abgestimmt.</div></div>
-    <div class="card u-einstellungen"><div class="card-header">Sicherheitsrichtlinie (Passwortregeln)</div><div class="card-body"><form data-regel>
-      <div class="row g-3 mb-2"><div class="col-sm-5"><label class="form-label">Mindestlänge</label><input type="number" class="form-control" name="minLaenge" min="8" max="64" value="${regel.minLaenge}"></div></div>
-      ${schalter('grossbuchstaben', 'Großbuchstaben erforderlich', regel)}${schalter('ziffern', 'Ziffern erforderlich', regel)}${schalter('sonderzeichen', 'Sonderzeichen erforderlich', regel)}
-      <p class="small text-body-secondary mt-2 mb-3">Gilt für selbst gewählte Passwörter (Passwort ändern). Startpasswörter erzeugt UntPlanWeb zufällig.</p>
-      <button class="btn btn-primary" type="submit">Speichern</button></form></div></div>`;
-  einstellungBinden(ziel.querySelector('[data-regel]'), 'passwort');
+async function rechte(ziel, kontext, neu, weitere = []) {
+  // Rechte-Modell (rechte.js): Rollen × Rechte, Rechte einzelner Benutzer, Passwortregeln
+  return (await import('./rechte.js')).zeigen(ziel, kontext, weitere[0] || 'rollen');
 }
 
 // ------------------------------------------------------------------ Zuordnungsgruppen, Prüfungssperren, Ansicht
@@ -479,8 +475,9 @@ async function ansicht(ziel, kontext) {
     <div class="row g-3 my-1"><div class="col-sm-6"><label class="form-label">Startseite nach der Anmeldung</label><select class="form-select" name="startseite">
       <option value="heute" ${w.startseite === 'heute' ? 'selected' : ''}>Heute</option><option value="stundenplan" ${w.startseite === 'stundenplan' ? 'selected' : ''}>Mein Stundenplan</option></select></div></div>
     <button class="btn btn-primary mt-2" type="submit">Speichern</button></form></div></div>
-    <div class="card u-einstellungen mt-3"><div class="card-header">Schrift</div><div class="card-body" data-schriften></div></div>`;
+    <div class="card u-einstellungen mt-3"><div class="card-header">Schrift</div><div class="card-body" data-schriften></div></div><div class="mt-3" data-schuelerquelle></div>`;
   einstellungBinden(ziel.querySelector('form'), 'ansicht', () => kontext.sitzungNeu());
+  import('./import.js').then(m => m.quelleKarte(ziel.querySelector('[data-schuelerquelle]'))).catch(() => { /* ohne Schülerquelle */ });
   schriften(ziel.querySelector('[data-schriften]'));
 }
 

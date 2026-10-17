@@ -360,7 +360,16 @@ function menue() {
       { nav: 'admin-monitore', href: '#/admin/monitore', text: 'Monitoransichten', icon: 'monitor' },
       { nav: 'admin-protokoll', href: '#/admin/protokoll', text: 'Protokoll', icon: 'protokoll' },
     ] });
-  } else if (b.nachrichten) m.push({ id: 'admin', nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' });
+  } else {
+    // Rechte-Modell: einzelne Administrationsbereiche auch ohne Administration (Nachrichten zum Tag, Import, Benutzerverwaltung)
+    const r = b.rechte ?? {};
+    const unter = [];
+    if (b.nachrichten) unter.push({ nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' });
+    if (r['admin.import']) unter.push({ nav: 'admin-import', href: '#/admin/import', text: 'Import', icon: 'import' });
+    if (r['admin.benutzer']) unter.push({ nav: 'admin-benutzer', href: '#/admin/benutzer', text: 'Benutzer', icon: 'benutzer' }, { nav: 'admin-personen', href: '#/admin/personen', text: 'Personen & Konten', icon: 'lehrkraft' });
+    if (unter.length === 1) m.push({ id: 'admin', ...unter[0] });
+    else if (unter.length) m.push({ id: 'admin', text: 'Administration', icon: 'verwaltung', unter });
+  }
   return m;
 }
 

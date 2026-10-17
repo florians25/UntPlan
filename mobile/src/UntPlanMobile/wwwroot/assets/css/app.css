@@ -4909,3 +4909,143 @@ body.show-card-times .card--supervision .card__times{ display:none; }
 .row__txt{ display:flex; flex-direction:column; min-width:0; }
 .row__txt small{ font-size:12.5px; color:var(--c-muted); margin-top:2px; line-height:1.25; }
 .row--switch input:disabled ~ .switch{ opacity:.45; }
+
+/* =====================================================================
+   Sprint 21
+   ===================================================================== */
+
+/* Reiter paralleler Stunden: Unterstreichung dunkelgrau (im Dunkeln
+   weiß) statt orange; der Reitertext wird nie durchgestrichen – auch
+   nicht bei einer entfallenen Stunde. */
+.sheet--detail .dtabs__t.is-on::after{ background:#3d4852; }
+html.is-dark .sheet--detail .dtabs__t.is-on::after{ background:#fff; }
+.sheet--detail .dtabs__t, .sheet--detail .dtabs__t *,
+.is-dark .sheet--detail .dtabs__t, .is-dark .sheet--detail .dtabs__t *{ text-decoration:none !important; }
+
+/* Art der Stunde wie im Original: graue Pille in Großbuchstaben rechts
+   neben dem Fach (Prüfung) bzw. dem Anlass (Veranstaltung). */
+.sheet--detail .dline--mitpill{ display:flex; align-items:center; gap:14px; margin-top:6px; }
+.sheet--detail .dline--mitpill .dline__txt{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sheet--detail .dpill.dpill--art, .is-dark .sheet--detail .dpill.dpill--art{
+  display:inline-flex; align-items:center; flex:0 0 auto;
+  height:23px; margin:0; padding:0 10px;
+  border-radius:999px;
+  background:#7b8794; color:#fff;
+  font-size:14.5px; font-weight:500; line-height:1; letter-spacing:.03em;
+  text-transform:uppercase;
+}
+.is-dark .sheet--detail .dpill.dpill--art{ background:#5d6873; color:#f2f3f4; }
+.sheet--detail .dline--pill{ margin-top:6px; margin-bottom:2px; }
+
+/* Detailtexte eine Spur kräftiger: dunklere Grautöne, Zeilentitel und
+   Überschrift minimal fetter. */
+.sheet--detail .dtitle, .sheet--detail .dline--big{ font-weight:450; color:#1f2a33; }
+html.is-dark .sheet--detail .dtitle, html.is-dark .sheet--detail .dline--big{ color:#f4f5f6; }
+.sheet--detail .dline--grau{ color:#566370; font-weight:430; }
+html.is-dark .sheet--detail .dline--grau{ color:#b9c0c6; }
+.sheet--detail .drow2__main b{ font-weight:450; color:#1f2a33; }
+html.is-dark .sheet--detail .drow2__main b{ color:#f4f5f6; }
+.sheet--detail .drow2__main span{ color:#4f5c67; font-weight:430; }
+html.is-dark .sheet--detail .drow2__main span{ color:#bcc3c9; }
+.sheet--detail .drow2__ico{ color:#5f6c77; }
+html.is-dark .sheet--detail .drow2__ico{ color:#b3bbc2; }
+.dsub__read{ color:#1f2a33; }
+html.is-dark .dsub__read{ color:#f2f3f4; }
+
+/* Link zum Online-Unterricht (Lehrkräfte) */
+.sheet--detail .drow2.drow2--link{ display:grid; grid-template-columns:30px 1fr auto; align-items:center; gap:12px; min-height:52px; }
+.sheet--detail .dlink{
+  width:100%; min-width:0; box-sizing:border-box;
+  height:40px; padding:0 12px;
+  border:1px solid var(--d-line, #dedee0); border-radius:10px;
+  background:transparent; color:var(--d-ink, #1f2a33);
+  font:inherit; font-size:16px;
+}
+.sheet--detail .dlink:focus{ outline:none; border-color:#7b8794; }
+.sheet--detail .dlink__go{ display:grid; place-items:center; width:36px; height:36px; color:var(--d-ink-2, #6b7a86); }
+.sheet--detail .dlink__go .ico{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.dsub__hinweis{
+  margin:4px 0 12px; padding:10px 12px; border-radius:10px;
+  background:#eef1f4; color:#3f4b55; font-size:14.5px; line-height:1.4;
+}
+html.is-dark .dsub__hinweis{ background:#2f3338; color:#d3d8dc; }
+
+/* Videosymbol oben rechts auf der Kachel: Stunde findet online statt. */
+.card .card__video{ position:absolute; top:3px; right:3px; width:13px; height:13px; pointer-events:none; }
+.card .card__video .ticon--video{ display:block; width:13px; height:13px; fill:none; stroke:#6b7a86; stroke-width:1.9; stroke-linejoin:round; }
+html.is-dark .card .card__video .ticon--video{ stroke:#b3bbc2; }
+.card.has-video .card__line:first-child{ padding-right:13px; }
+
+/* Raumänderung auf der Kachel: grüne Plakette einen Tick größer. */
+.card .badge.badge--raum:not(.badge--removed){ padding:1px 3.4px 1px; border-radius:2.5px; font-size:1.04em; }
+
+/* Aufsichtsvertretung: Ort und ganz rechts das grüne „…“, kein Label. */
+.card--supervision.is-sub,
+.card--supervision.is-absent{ padding-right:21px; }
+.card--supervision.is-sub .sup-menu,
+.card--supervision.is-absent .sup-menu{ display:grid !important; right:3px; }
+
+/* ---- Sprechtag (Startseite → eigene Liste) ---------------------------- */
+.screen--list.is-spt #lstFilter, .screen--list.is-spt .lstsearch, .screen--list.is-spt #lstFilterBar{ display:none !important; }
+.spt{ display:flex; flex-direction:column; gap:10px; }
+.spt__kopf, .spt__tag{
+  display:flex; flex-direction:column; gap:3px; text-align:left;
+  background:var(--c-bar); border-radius:14px; padding:14px 16px; border:0;
+  box-shadow:0 1px 3px rgba(21,33,44,.10); color:var(--c-ink); font:inherit;
+}
+.spt__kopf b, .spt__tag b{ font-size:19px; font-weight:500; }
+.spt__kopf span, .spt__tag span{ font-size:15px; color:var(--c-ink-2); }
+.spt__phase{ align-self:flex-start; margin-top:6px; padding:3px 10px; border-radius:999px; background:#eceef1; color:#4d5a65 !important; font-size:13px !important; font-weight:500; }
+.spt__phase--anmeldung{ background:var(--chg-bg, #e2f5ea); color:#0f6b3a !important; }
+.spt__phase--abgesagt{ background:#fde3e3; color:#b3261e !important; }
+.spt__hinweis{ margin:8px 0 0; padding:9px 11px; border-radius:10px; background:#eef1f4; color:#3f4b55; font-size:14px; line-height:1.4; }
+.spt__hinweis--rot{ background:#fde3e3; color:#8c1d18; }
+.spt__zahlen{ display:flex; gap:8px; }
+.spt__zahl{ flex:1; text-align:center; padding:9px 4px; border-radius:12px; background:var(--c-bar); box-shadow:0 1px 3px rgba(21,33,44,.08); font-size:13px; color:var(--c-ink-2); }
+.spt__zahl b{ display:block; font-size:20px; font-weight:500; color:var(--c-ink); }
+.spt__zahl--gebucht b{ color:#0f6b3a; }
+.spt__gruppe{ margin:10px 2px 0; font-size:14px; font-weight:600; color:var(--c-ink-2); text-transform:none; }
+.spt__liste{ display:flex; flex-direction:column; background:var(--c-bar); border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(21,33,44,.10); }
+.spt__fenster + .spt__fenster{ border-top:1px solid var(--c-line-soft, #e3e6ea); }
+.spt__zeile{
+  display:grid; grid-template-columns:52px 1fr auto; align-items:center; gap:12px;
+  width:100%; padding:11px 14px; border:0; background:transparent; text-align:left; font:inherit; color:var(--c-ink);
+}
+.spt__zeile--lk{ grid-template-columns:1fr auto; }
+.spt__zeit{ display:flex; flex-direction:column; font-size:16px; font-weight:500; font-variant-numeric:tabular-nums; }
+.spt__zeit small{ font-size:12.5px; font-weight:400; color:var(--c-muted); }
+.spt__was{ display:flex; flex-direction:column; min-width:0; }
+.spt__was b{ font-size:16px; font-weight:450; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spt__was b.is-leise{ font-weight:400; color:var(--c-muted); }
+.spt__was span{ font-size:13.5px; color:var(--c-ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spt__status{ font-size:13px; font-weight:500; padding:3px 9px; border-radius:999px; background:#eceef1; color:#55626d; white-space:nowrap; }
+.spt__fenster--frei .spt__status, .spt__status--frei{ background:transparent; color:#0f6b3a; box-shadow:inset 0 0 0 1.5px #3aa76d; }
+.spt__fenster--gebucht .spt__status, .spt__status--gebucht{ background:var(--u-green, #1f8a4c); color:#fff; }
+.spt__fenster--gesperrt .spt__status{ background:#d9dde2; color:#56616b; }
+.spt__fenster--gesperrt .spt__zeit{ color:var(--c-muted); }
+.spt__einl{ font-style:normal; font-size:12px; font-weight:500; padding:1px 7px; margin-left:4px; border-radius:999px; background:#fff1d6; color:#7a4b00; vertical-align:1px; }
+.spt__aktion, .spt__slots{ display:flex; flex-wrap:wrap; gap:8px; padding:0 14px 12px 78px; }
+.spt__slots{ padding-left:14px; }
+.spt__knopf{
+  height:36px; padding:0 14px; border-radius:10px; border:0; font:inherit; font-size:15px; font-weight:500;
+  background:#e7ebef; color:var(--c-ink);
+}
+.spt__knopf--rot{ background:#fde3e3; color:#b3261e; }
+.spt__knopf--klein{ height:32px; padding:0 11px; font-size:14px; }
+.spt__slot{
+  min-width:62px; height:36px; padding:0 10px; border-radius:10px; font:inherit; font-size:15px; font-weight:500;
+  border:1.5px solid #3aa76d; background:transparent; color:#0f6b3a; font-variant-numeric:tabular-nums;
+}
+.spt__slot.is-konflikt{ border-color:#c9cfd5; color:#8a96a1; }
+.spt__leer{ margin:2px 4px; font-size:14px; color:var(--c-muted); }
+html.is-dark .spt__phase, html.is-dark .spt__hinweis, html.is-dark .spt__knopf{ background:#2f3338; color:#d3d8dc !important; }
+html.is-dark .spt__fenster--gesperrt .spt__status{ background:#3a3f45; color:#b8c0c7; }
+html.is-dark .spt__slot, html.is-dark .spt__fenster--frei .spt__status{ color:#7fd6a4; }
+html.is-dark .spt__knopf--rot, html.is-dark .spt__hinweis--rot{ background:#4a2523; color:#ffb4ab !important; }
+
+/* Anmeldemaske beim Hinzufügen eines Profils */
+.login__cancel{
+  display:block; width:100%; margin-top:10px; height:46px; border-radius:12px; border:0;
+  background:transparent; color:var(--c-ink-2); font:inherit; font-size:16px; font-weight:500;
+}
+.login.is-add .login__sso, .login.is-add .login__oder{ display:none; }

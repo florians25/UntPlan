@@ -17,6 +17,9 @@ public sealed class Paketdienst
     private readonly object _sperre = new();
     private Stand? _stand;
 
+    /// <summary>Nach jedem gespeicherten Paket (vorheriger Stand, neuer Stand) – z. B. Sofort-Benachrichtigungen; darf nicht werfen.</summary>
+    public event Action<Stand?, Stand>? Gespeichert;
+
     public Paketdienst(Db db, Uhr uhr)
     {
         _db = db;
@@ -38,8 +41,8 @@ public sealed class Paketdienst
     public void SchuelerLaden()
     {
         if (_stand is null) return;
-        var aenderungen = _db.Liste("SELECT id, vorname, name, klasse, geloescht FROM schueler_daten",
-            r => (Id: r.Zahl("id"), Schueler: new WebSchueler(r.Zahl("id"), r.Text("vorname"), r.Text("name"), r.Text("klasse")), Geloescht: r.Wahr("geloescht")))
+        var aenderungen = _db.Liste("SELECT id, vorname, name, klasse, geloescht, eigen FROM schueler_daten",
+            r => (Id: r.Zahl("id"), Schueler: new WebSchueler(r.Zahl("id"), r.Text("vorname"), r.Text("name"), r.Text("klasse")), Geloescht: r.Wahr("geloescht"), Eigen: r.Wahr("eigen")))
             .ToDictionary(x => x.Id);
         var liste = new List<WebSchueler>();
         var gesehen = new HashSet<int>();
@@ -51,7 +54,8 @@ public sealed class Paketdienst
             if (!aenderungen.TryGetValue(x.Id, out var a)) liste.Add(x);
             else if (!a.Geloescht) liste.Add(a.Schueler);
         }
-        liste.AddRange(aenderungen.Values.Where(a => !a.Geloescht && !gesehen.Contains(a.Id)).Select(a => a.Schueler));
+        // Quelle „Export“: aus dem Export entfernte Schüler*innen entfallen; in UntPlanWeb angelegte (eigen) bleiben
+        liste.AddRange(aenderungen.Values.Where(a => !a.Geloescht && !gesehen.Contains(a.Id) && (web || a.Eigen || a.Id >= Schuelerverwaltung.ErsteEigeneId)).Select(a => a.Schueler));
         _stand.Schueler = liste;
     }
 
@@ -76,9 +80,17 @@ public sealed class Paketdienst
     /// <summary>Paket übernehmen. Wirft bei veralteter Revision; Teilpakete werden mit dem bisherigen Stand zusammengeführt.</summary>
     public Stand Speichern(WebPaket paket, bool revisionPruefen = true)
     {
+        var (alt, neu) = SpeichernIntern(paket, revisionPruefen);
+        try { Gespeichert?.Invoke(alt, neu); } catch { /* Benachrichtigungen dürfen den Import nie scheitern lassen */ }
+        return neu;
+    }
+
+    private (Stand? Alt, Stand Neu) SpeichernIntern(WebPaket paket, bool revisionPruefen)
+    {
         if (paket.Schema != UntPlanWebSchema.Schema) throw new InvalidDataException($"Schema {UntPlanWebSchema.Schema} erwartet.");
         lock (_sperre)
         {
+            var vorher = _stand;
             if (revisionPruefen && _stand != null && paket.Revision <= _stand.Paket.Revision) throw new VeralteteRevisionException(paket.Revision, _stand.Paket.Revision);
             var json = JsonSerializer.Serialize(paket, UntPlanWebSchema.Json);
             if (paket.Teile.Count > 0 && _stand != null && JsonNode.Parse(json) is JsonObject neu &&
@@ -117,7 +129,7 @@ public sealed class Paketdienst
                 """, Db.P("@r", paket.Revision), Db.P("@e", empfangen), Db.P("@p", paket.Programmversion), Db.P("@k", paket.Elemente.Klassen.Count),
                 Db.P("@l", paket.Elemente.Lehrer.Count), Db.P("@ra", paket.Elemente.Raeume.Count), Db.P("@t", paket.Tage.Count), Db.P("@v", paket.Vertretungen.Count),
                 Db.P("@vo", tageVon), Db.P("@bi", tageBis));
-            return _stand;
+            return (vorher, _stand);
         }
     }
 

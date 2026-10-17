@@ -7,11 +7,11 @@
    Benachrichtigung. Der Stand liegt im Cache Storage — den erreichen
    Seite und Service Worker gleichermaßen.
 
-   Nur für angemeldete Lehrkräfte; die Seite schaltet die Wache ein und
-   aus (Schalter im Profil). Echte Push-Nachrichten vom Server gibt es
-   (noch) nicht: geprüft wird beim Öffnen, beim Zurückkehren in die App,
-   alle 15 Minuten während sie offen ist und — wo der Browser es kann —
-   im Hintergrund über „periodic background sync“.
+   Rückfall für Browser ohne Web-Push (sonst meldet sich der Server
+   selbst, siehe Pushwache in UntPlanMobile). Die Seite schaltet die Wache
+   ein und aus (Schalter im Profil); geprüft wird beim Öffnen, beim
+   Zurückkehren in die App, alle 15 Minuten während sie offen ist und —
+   wo der Browser es kann — im Hintergrund über „periodic background sync“.
    ===================================================================== */
 (function (g){
   const CACHE = 'untplan-planwacht';

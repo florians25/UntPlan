@@ -429,11 +429,12 @@ public static class ErweiterungApi
             var zeilen = vw.ImportPruefen(ms.ToArray());
             return Results.Json(new { zeilen, fehler = zeilen.Count(z => z.Fehler != null), neu = zeilen.Count(z => z.Fehler == null && !z.Vorhanden), vorhanden = zeilen.Count(z => z.Vorhanden) });
         });
-        admin.MapPost("/import/uebernehmen", (ImportDaten d, HttpContext c, Verwaltungsdienst vw, Protokoll prot) =>
+        admin.MapPost("/import/uebernehmen", (ImportDaten d, HttpContext c, Verwaltungsdienst vw, Benutzerdienst bd, Protokoll prot) =>
         {
             var b = RechtePruefung.Verlangen(Ich(c), Recht.AdminImport, meldung: "Nur für die Administration.");
-            // ohne Administration keine Administrationskonten anlegen oder überschreiben
-            if (!b.IstAdmin && (d.Zeilen ?? new()).Any(z => z.Rolle == Rollen.Admin)) throw new UnauthorizedAccessException("Administrationskonten verwaltet nur die Administration.");
+            // ohne Administration keine Administrationskonten anlegen oder überschreiben (Name, E-Mail, Rolle, Sperre, Passwort)
+            foreach (var z in d.Zeilen ?? new())
+                RechtePruefung.AdminSchuetzen(b, d.Ersetzen ? bd.NachLogin(z.Login ?? "") : null, z.Rolle);
             var (neu, akt, ueber) = vw.ImportUebernehmen(d.Zeilen ?? new(), d.Ersetzen);
             prot.Schreiben(b.Login, "Benutzer importiert", $"{neu.Count} neu, {akt} aktualisiert");
             var csv = new StringBuilder("Benutzername;Startpasswort\r\n");

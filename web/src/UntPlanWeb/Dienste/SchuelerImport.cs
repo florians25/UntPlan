@@ -259,9 +259,8 @@ public sealed class SchuelerImport
     }
 
     /// <summary>Geschlecht lesen: m/w/d (auch männlich, weiblich, divers, male, female, x); leer = "", unbekannt = null.</summary>
-    public static string? Geschlecht(string? s) => Normalisieren(s ?? "") switch
+    public static string? Geschlecht(string? s) => (s ?? "").Trim().Length == 0 ? "" : Normalisieren(s!) switch
     {
-        "" => "",
         "m" or "maennlich" or "male" or "mann" or "junge" or "j" => "m",
         "w" or "weiblich" or "female" or "f" or "frau" or "maedchen" => "w",
         "d" or "divers" or "x" or "diverse" or "o" or "ohne" => "d",

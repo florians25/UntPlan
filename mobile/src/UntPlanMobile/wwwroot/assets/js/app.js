@@ -3279,6 +3279,9 @@ const LEER = (titel, text) => `
 
 async function listeZeichnen(){
   const art = listeStand.art;
+  /* Sprechtag: eigene Ansicht ohne Filter und Suche. */
+  $('#screenList').classList.toggle('is-spt', art === 'sprechtag');
+  if (art === 'sprechtag') return sprechtagZeichnen();
   const titel = { exams:'Meine Termine', absences:'Meine Abwesenheiten',
                   leadabsent:'Abwesenheiten', classlead:'Klassenleitung' }[art] || '';
   $('#lstTitle').textContent = titel;
@@ -3391,7 +3394,236 @@ function karteAbwesenheit(x, mitName){
 $('#btnAppointments').addEventListener('click', () => listeOeffnen('exams'));
 $('#btnAbsences').addEventListener('click', () => listeOeffnen('absences'));
 $('#btnClassLead').addEventListener('click', () => listeOeffnen('leadabsent'));
-$('#lstBack').addEventListener('click', () => showScreen('start'));
+
+/* =====================================================================
+   Sprechtag (Elternsprechtag)
+   ---------------------------------------------------------------------
+   Eintrag auf der Startseite, sobald ein Sprechtag läuft (Einladung,
+   Anmeldung oder mit Terminen). Lehrkräfte sehen ihr Zeitraster — frei,
+   gebucht, gesperrt —, sperren oder geben Zeitfenster frei und sagen
+   Termine ab. Erziehungsberechtigte buchen freie Zeitfenster bei den
+   Lehrkräften ihrer Kinder und sagen gebuchte Termine ab. Alles läuft
+   über api/sprechtag (dahinter UntPlanWeb, das auch die Rechte prüft).
+   ===================================================================== */
+const SPT_URL = new URL('api/sprechtag', location.href).href;
+const spt = { liste:null, id:0, daten:null, offen:'', eltern:false };
+
+async function sptFetch(pfad, methode, body){
+  const r = await fetch(SPT_URL + pfad, {
+    method: methode || 'GET', credentials:'same-origin', cache:'no-store',
+    headers: body ? { 'Content-Type':'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const d = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((d && (d.error || d.fehler)) || ('HTTP ' + r.status));
+  return d;
+}
+
+const sptZeit = t => String(t || '').slice(0, 5);
+const sptKind = k => k ? [k.vorname, k.name].filter(Boolean).join(' ') + (k.klasse ? ` (${k.klasse})` : '') : '';
+
+/* Startseite: Eintrag nur zeigen, wenn es etwas zu tun oder zu sehen gibt. */
+async function sptStart(){
+  const row = $('#btnSprechtag');
+  if (!row || state.source !== 'db') return;
+  try {
+    const karten = await sptFetch('/start');
+    if (!Array.isArray(karten) || !karten.length){ row.hidden = true; return; }
+    const k = karten[0];
+    $('#sptSub').textContent = [k.datumText, k.text].filter(Boolean).join(' · ');
+    row.hidden = false;
+  } catch (e){ row.hidden = true; }
+}
+$('#btnSprechtag').addEventListener('click', () => listeOeffnen('sprechtag'));
+
+async function sprechtagZeichnen(){
+  const body = $('#lstBody');
+  $('#lstTitle').textContent = 'Sprechtag';
+  $('#lstRange').textContent = '';
+  try {
+    if (!spt.liste) spt.liste = await sptFetch('');
+  } catch (e){
+    body.innerHTML = `<div class="lst__empty"><b>Nicht erreichbar</b><span>${esc(e.message)}</span></div>`;
+    return;
+  }
+  spt.eltern = !!spt.liste.eltern;
+  const tage = (spt.liste.sprechtage || [])
+    .filter(x => spt.eltern || x.beteiligt)
+    .filter(x => x.sprechtag && x.sprechtag.phase !== 'vorbereitung');
+  if (!tage.length){ body.innerHTML = LEER('Kein Sprechtag', 'Derzeit ist kein Sprechtag geplant.'); return; }
+  if (!spt.id && tage.length === 1) spt.id = tage[0].sprechtag.id;
+  if (!spt.id){
+    /* Mehrere Sprechtage: erst auswählen. */
+    body.innerHTML = `<div class="spt">${tage.map(x => `
+      <button class="spt__tag" data-id="${x.sprechtag.id}">
+        <b>${esc(x.sprechtag.name)}</b>
+        <span>${esc(x.sprechtag.datumText)} · ${esc(sptZeit(x.sprechtag.beginn))}–${esc(sptZeit(x.sprechtag.ende))} Uhr</span>
+        <span>${x.termine} ${x.termine === 1 ? 'Termin' : 'Termine'}</span>
+      </button>`).join('')}</div>`;
+    $$('#lstBody .spt__tag').forEach(b => b.addEventListener('click', () => { spt.id = +b.dataset.id; sprechtagZeichnen(); }));
+    return;
+  }
+  try {
+    spt.daten = await sptFetch(`/${spt.id}/${spt.eltern ? 'eltern' : 'lehrkraft'}`);
+  } catch (e){
+    body.innerHTML = `<div class="lst__empty"><b>Nicht verfügbar</b><span>${esc(e.message)}</span></div>`;
+    return;
+  }
+  spt.eltern ? sptElternZeichnen() : sptLehrkraftZeichnen();
+}
+
+const SPT_PHASE = { einladung:'Einladungsphase', anmeldung:'Anmeldung läuft', geschlossen:'Anmeldung geschlossen',
+                    vorbei:'Vorbei', abgesagt:'Abgesagt', vorbereitung:'In Vorbereitung' };
+
+function sptKopf(t, zusatz){
+  return `<div class="spt__kopf">
+      <b>${esc(t.name)}</b>
+      <span>${esc(t.datumText)} · ${esc(sptZeit(t.beginn))}–${esc(sptZeit(t.ende))} Uhr${zusatz ? ' · ' + esc(zusatz) : ''}</span>
+      <span class="spt__phase spt__phase--${esc(t.phase)}">${esc(SPT_PHASE[t.phase] || t.phase)}</span>
+      ${t.abgesagt ? `<p class="spt__hinweis spt__hinweis--rot">Der Sprechtag wurde abgesagt.${t.absageGrund ? ' Grund: ' + esc(t.absageGrund) : ''}</p>`
+        : t.hinweis ? `<p class="spt__hinweis">${esc(t.hinweis)}</p>` : ''}
+    </div>`;
+}
+
+/* Lehrkraft: Zeitraster mit Status, Tippen klappt die Möglichkeiten auf. */
+function sptLehrkraftZeichnen(){
+  const d = spt.daten, t = d.sprechtag, l = d.lehrer || {};
+  const fenster = d.zeitfenster || [];
+  const zahl = st => fenster.filter(f => f.status === st).length;
+  const vorbei = t.phase === 'vorbei' || t.phase === 'abgesagt';
+  $('#lstBody').innerHTML = `<div class="spt">
+    ${sptKopf(t, l.raum ? 'Raum ' + l.raum : '')}
+    ${l.abgesagt ? `<p class="spt__hinweis spt__hinweis--rot">Sie haben Ihre Teilnahme abgesagt.${l.absageGrund ? ' Grund: ' + esc(l.absageGrund) : ''}</p>` : ''}
+    <div class="spt__zahlen">
+      <span class="spt__zahl spt__zahl--gebucht"><b>${zahl('gebucht')}</b> gebucht</span>
+      <span class="spt__zahl spt__zahl--frei"><b>${zahl('frei')}</b> frei</span>
+      <span class="spt__zahl spt__zahl--gesperrt"><b>${zahl('gesperrt')}</b> gesperrt</span>
+    </div>
+    <div class="spt__liste">${fenster.map(f => {
+      const offen = spt.offen === f.beginn;
+      const x = f.termin;
+      const was = f.status === 'gebucht' && x
+        ? `<b>${esc(sptKind(x.schueler))}</b>${x.gebuchtVon ? `<span>gebucht von ${esc(x.gebuchtVon)}</span>` : ''}${x.bemerkung ? `<span>${esc(x.bemerkung)}</span>` : ''}`
+        : f.status === 'gesperrt' ? '<b class="is-leise">Gesperrt</b>' : '<b class="is-leise">Frei</b>';
+      const knoepfe = vorbei || l.abgesagt ? '' : f.status === 'gebucht'
+        ? `<button class="spt__knopf spt__knopf--rot" data-absagen="${x ? x.id : ''}">Termin absagen</button>`
+        : f.status === 'gesperrt'
+        ? `<button class="spt__knopf" data-sperren="0">Freigeben</button>`
+        : `<button class="spt__knopf" data-sperren="1">Sperren</button>`;
+      return `<div class="spt__fenster spt__fenster--${f.status}${offen ? ' is-offen' : ''}" data-beginn="${esc(f.beginn)}">
+          <button class="spt__zeile" type="button">
+            <span class="spt__zeit">${esc(sptZeit(f.beginn))}<small>${esc(sptZeit(f.ende))}</small></span>
+            <span class="spt__was">${was}</span>
+            <span class="spt__status">${f.status === 'gebucht' ? 'gebucht' : f.status === 'gesperrt' ? 'gesperrt' : 'frei'}</span>
+          </button>
+          ${offen && knoepfe ? `<div class="spt__aktion">${knoepfe}</div>` : ''}
+        </div>`;
+    }).join('')}</div>
+  </div>`;
+
+  $$('#lstBody .spt__zeile').forEach(b => b.addEventListener('click', () => {
+    const beginn = b.parentElement.dataset.beginn;
+    spt.offen = spt.offen === beginn ? '' : beginn;
+    sptLehrkraftZeichnen();
+  }));
+  $$('#lstBody [data-sperren]').forEach(b => b.addEventListener('click', async () => {
+    const beginn = b.closest('.spt__fenster').dataset.beginn;
+    try {
+      await sptFetch(`/${spt.id}/sperren`, 'PUT', { beginne:[beginn], gesperrt: b.dataset.sperren === '1' });
+      spt.offen = ''; buzz();
+      await sprechtagZeichnen();
+    } catch (e){ toast('Nicht gespeichert: ' + e.message); }
+  }));
+  $$('#lstBody [data-absagen]').forEach(b => b.addEventListener('click', () => sptAbsagen(+b.dataset.absagen)));
+}
+
+async function sptAbsagen(tid){
+  if (!tid) return;
+  const grund = window.prompt('Termin absagen – Grund (wird mitgeteilt):', '');
+  if (grund === null) return;
+  try {
+    await sptFetch(`/${spt.id}/termine/${tid}/absagen`, 'POST', { grund });
+    spt.offen = ''; buzz();
+    toast('Termin abgesagt');
+    spt.liste = null;
+    await sprechtagZeichnen();
+    sptStart();
+  } catch (e){ toast('Nicht möglich: ' + e.message); }
+}
+
+/* Eltern: eigene Termine oben, darunter je Kind die Lehrkräfte mit freien
+   Zeitfenstern zum Buchen. */
+function sptElternZeichnen(){
+  const d = spt.daten, t = d.sprechtag;
+  const termine = (d.termine || []).slice().sort((a, b) => String(a.beginn).localeCompare(String(b.beginn)));
+  const absagbar = t.phase !== 'vorbei' && t.phase !== 'abgesagt';
+  const html = [`<div class="spt">${sptKopf(t)}`];
+  html.push('<p class="spt__gruppe">Meine Termine</p>');
+  html.push(termine.length ? `<div class="spt__liste">${termine.map(x => `
+      <div class="spt__fenster spt__fenster--gebucht">
+        <div class="spt__zeile">
+          <span class="spt__zeit">${esc(sptZeit(x.beginn))}<small>${esc(sptZeit(x.ende))}</small></span>
+          <span class="spt__was"><b>${esc(x.lehrerName || x.lehrer)}</b><span>${esc([sptKind(x.schueler), x.raum ? 'Raum ' + x.raum : ''].filter(Boolean).join(' · '))}</span></span>
+          ${absagbar ? `<button class="spt__knopf spt__knopf--rot spt__knopf--klein" data-absagen="${x.id}">Absagen</button>` : '<span></span>'}
+        </div>
+      </div>`).join('')}</div>` : '<p class="spt__leer">Noch keine Termine gebucht.</p>');
+
+  (d.kinder || []).forEach(k => {
+    html.push(`<p class="spt__gruppe">${esc(sptKind(k))}</p><div class="spt__liste">`);
+    (k.lehrkraefte || []).forEach(l => {
+      const schl = k.id + ':' + l.kurz;
+      const offen = spt.offen === schl;
+      const fenster = l.zeitfenster || [];
+      const zusatz = [ (l.faecher || []).join(', '), l.klassenleitung ? 'Klassenleitung' : '', l.raum ? 'Raum ' + l.raum : '' ].filter(Boolean).join(' · ');
+      const status = l.abgesagt ? '<span class="spt__status">nimmt nicht teil</span>'
+        : l.termin ? `<span class="spt__status spt__status--gebucht">${esc(sptZeit(l.termin.beginn))} Uhr</span>`
+        : d.buchbar ? `<span class="spt__status spt__status--frei">${fenster.filter(f => !f.konflikt).length} frei</span>`
+        : '<span class="spt__status"></span>';
+      html.push(`<div class="spt__fenster${offen ? ' is-offen' : ''}" data-l="${esc(schl)}">
+          <button class="spt__zeile spt__zeile--lk" type="button">
+            <span class="spt__was"><b>${esc(l.name || l.kurz)}${l.eingeladen ? ' <i class="spt__einl">eingeladen</i>' : ''}</b>${zusatz ? `<span>${esc(zusatz)}</span>` : ''}</span>
+            ${status}
+          </button>
+          ${offen && !l.abgesagt && !l.termin && d.buchbar ? `<div class="spt__slots">${fenster.length ? fenster.map(f =>
+              `<button class="spt__slot${f.konflikt ? ' is-konflikt' : ''}" data-kind="${k.id}" data-lehrer="${esc(l.kurz)}" data-beginn="${esc(f.beginn)}"
+                 ${f.konflikt ? 'title="Überschneidet sich mit einem anderen Termin"' : ''}>${esc(sptZeit(f.beginn))}</button>`).join('')
+              : '<p class="spt__leer">Keine freien Zeiten mehr.</p>'}</div>` : ''}
+          ${offen && l.eingeladen && l.einladungText ? `<p class="spt__hinweis">${esc(l.einladungText)}</p>` : ''}
+        </div>`);
+    });
+    html.push('</div>');
+  });
+  if (!d.buchbar && t.phase !== 'vorbei') html.push(`<p class="spt__leer">${t.phase === 'einladung' ? 'Die Anmeldung hat noch nicht begonnen.' : 'Die Anmeldung ist geschlossen.'}</p>`);
+  html.push('</div>');
+  $('#lstBody').innerHTML = html.join('');
+
+  $$('#lstBody .spt__zeile--lk').forEach(b => b.addEventListener('click', () => {
+    const schl = b.parentElement.dataset.l;
+    spt.offen = spt.offen === schl ? '' : schl;
+    sptElternZeichnen();
+  }));
+  $$('#lstBody .spt__slot').forEach(b => b.addEventListener('click', async () => {
+    if (b.classList.contains('is-konflikt') && !window.confirm('Diese Zeit überschneidet sich mit einem anderen Termin. Trotzdem buchen?')) return;
+    try {
+      await sptFetch(`/${spt.id}/buchen`, 'POST', { lehrer: b.dataset.lehrer, schuelerId: +b.dataset.kind, beginn: b.dataset.beginn });
+      spt.offen = ''; buzz();
+      toast(`Termin um ${sptZeit(b.dataset.beginn)} Uhr gebucht`);
+      spt.liste = null;
+      await sprechtagZeichnen();
+      sptStart();
+    } catch (e){ toast('Nicht gebucht: ' + e.message); }
+  }));
+  $$('#lstBody [data-absagen]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); sptAbsagen(+b.dataset.absagen); }));
+}
+$('#lstBack').addEventListener('click', () => {
+  /* Sprechtag mit mehreren Terminen: erst zurück zur Auswahl. */
+  if (listeStand.art === 'sprechtag' && spt.id && spt.liste
+      && (spt.liste.sprechtage || []).filter(x => spt.eltern || x.beteiligt).length > 1){
+    spt.id = 0; spt.offen = ''; sprechtagZeichnen(); return;
+  }
+  if (listeStand.art === 'sprechtag'){ spt.id = 0; spt.offen = ''; spt.liste = null; }
+  showScreen('start');
+});
 
 /* Suche in der Liste: filtert die bereits geladenen Einträge. */
 let lstSuche = '';
@@ -3478,6 +3710,7 @@ $('#lstFilter').addEventListener('click', () => {
 /* Klassenleitung nur zeigen, wenn es eine gibt. */
 (async () => {
   try {
+    sptStart();
     const d = await homeFetch('home');
     if (d.school) $('#startSchool').textContent = d.school;
     newsZeichnen(d.news || []);
@@ -3810,8 +4043,10 @@ async function profilListe(){
     return;
   }
   const list = (d && d.accounts) || [];
-  if (!list.length){
-    box.innerHTML = '<p class="profpop__hint">Bisher ist nur dieses Konto angemeldet.</p>';
+  if (list.length < 2){
+    box.innerHTML = '<p class="profpop__hint">Bisher ist nur dieses Konto angemeldet.</p>'
+      + '<button class="profrow profrow--add" id="profAdd"><span class="profrow__mark"></span><span class="profrow__main"><b>Weiteres Profil anmelden</b></span></button>';
+    $('#profAdd').addEventListener('click', e => { e.stopPropagation(); profilHinzufuegen(); });
     return;
   }
   box.innerHTML = list.map(a => `
@@ -3831,9 +4066,19 @@ async function profilListe(){
     if (e.target.closest('[data-del]')){
       e.stopPropagation();
       const t = e.target.closest('[data-del]').dataset.del;
-      await fetch(ACC_URL, { method:'POST', credentials:'same-origin',
+      const aktuell = b.classList.contains('is-on');
+      if (aktuell && !window.confirm('Dieses Profil auf dem Gerät abmelden?')) return;
+      const r = await fetch(ACC_URL, { method:'POST', credentials:'same-origin',
         headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
-        body:new URLSearchParams({ action:'remove', token:t }) }).catch(() => {});
+        body:new URLSearchParams({ action:'remove', token:t }) }).then(x => x.json()).catch(() => null);
+      /* Das laufende Profil entfernt: ein anderes übernimmt oder es geht
+         zur Anmeldung — in beiden Fällen sauber neu aufbauen. */
+      if (r && (r.switched || r.loggedOut)){
+        try { localStorage.clear(); } catch (e2){}
+        if (r.loggedOut) try { sessionStorage.setItem('sso:versucht', '1'); } catch (e2){}
+        location.reload();
+        return;
+      }
       profilListe();
       return;
     }
@@ -3846,6 +4091,9 @@ async function profilListe(){
       if (!r.ok) throw new Error(r.error || 'Fehler');
       $('#profPop').hidden = true;
       buzz();
+      /* Gemerkte Wochen und Einstellungen des anderen Kontos verwerfen,
+         das Erscheinungsbild bleibt. */
+      try { const th = localStorage.getItem('tt.theme'); localStorage.clear(); if (th) localStorage.setItem('tt.theme', th); } catch (e2){}
       /* Nach dem Wechsel gehört alles einem anderen Konto — sauber neu
          aufbauen, statt Reste des alten stehen zu lassen. */
       location.reload();
@@ -3871,17 +4119,26 @@ $('#btnSwitchAccount').addEventListener('click', () => {
 
 /* Ein weiteres Konto wird auf der Profilseite hinzugefügt — nicht im
    Wechselfenster. Dort geht es ums Wechseln, nicht ums Einrichten. */
-$('#btnAddProfile').addEventListener('click', () => {
+function profilHinzufuegen(){
   $('#profPop').hidden = true;
   /* Anmeldemaske zeigen, ohne das laufende Konto abzumelden — das neue
-     wird danach zusätzlich hinterlegt. */
+     wird danach zusätzlich hinterlegt (serverseitig je Gerät). Mit
+     „Abbrechen“ geht es zurück zum bisherigen Konto. */
   const ov = $('#login');
   if (ov){
     ov.hidden = false;
+    ov.classList.add('is-add');
+    $('#loginCancel').hidden = false;
     const u = $('#loginUser'); if (u){ u.value = ''; setTimeout(() => u.focus(), 120); }
     const pw = $('#loginPass'); if (pw) pw.value = '';
     const er = $('#loginError'); if (er) er.hidden = true;
   } else toast('Anmeldung nicht verfügbar');
+}
+$('#btnAddProfile').addEventListener('click', profilHinzufuegen);
+$('#loginCancel').addEventListener('click', () => {
+  const ov = $('#login');
+  ov.hidden = true; ov.classList.remove('is-add');
+  $('#loginCancel').hidden = true;
 });
 document.addEventListener('click', e => {
   const pop = $('#profPop');
@@ -6585,7 +6842,11 @@ async function doLogin(){
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok){
-      /* Neu laden: die Seite bringt die Woche dann gleich als Livedaten mit. */
+      /* Neu laden: die Seite bringt die Woche dann gleich als Livedaten mit.
+         Kam ein weiteres Profil hinzu, gehören die gemerkten Wochen dem
+         bisherigen Konto. */
+      if ($('#login').classList.contains('is-add'))
+        try { const th = localStorage.getItem('tt.theme'); localStorage.clear(); if (th) localStorage.setItem('tt.theme', th); } catch (e2){}
       location.reload();
       return;
     }
@@ -6608,16 +6869,20 @@ $('#loginSubmit').addEventListener('click', doLogin);
   $(sel).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); }));
 
 $('#btnLogout').addEventListener('click', async () => {
+  /* Benachrichtigungen dieses Profils enden mit der Abmeldung. */
+  try { await pushAus(true); } catch (e){}
+  let r = null;
   try {
-    await fetch(LOGIN_URL, {
+    r = await fetch(LOGIN_URL, {
       method:'POST', credentials:'same-origin',
       headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ action:'logout' })
-    });
+    }).then(x => x.json());
   } catch (e){}
-  try { localStorage.clear(); } catch (e){}
-  /* nach dem Abmelden nicht sofort wieder automatisch über UntPlanWeb anmelden */
-  try { sessionStorage.setItem('sso:versucht', '1'); } catch (e){}
+  try { const th = localStorage.getItem('tt.theme'); localStorage.clear(); if (th) localStorage.setItem('tt.theme', th); } catch (e){}
+  /* nach dem Abmelden nicht sofort wieder automatisch über UntPlanWeb
+     anmelden — außer ein weiteres Profil des Geräts hat übernommen */
+  if (!(r && r.switched)) try { sessionStorage.setItem('sso:versucht', '1'); } catch (e){}
   location.reload();
 });
 
@@ -6856,24 +7121,84 @@ document.addEventListener('visibilitychange', () => {
 /* =====================================================================
    Benachrichtigungen bei Änderungen im eigenen Plan
    ---------------------------------------------------------------------
-   Nur für angemeldete Lehrkräfte. Nach der Erlaubnis des Browsers merkt
-   sich die App den Stand der laufenden und der nächsten Woche und
-   vergleicht ihn beim Öffnen, beim Zurückkehren in die App, alle 15
-   Minuten während sie offen ist und — wo es der Browser anbietet — im
-   Hintergrund (periodic background sync im Service Worker). Am iPhone
-   gibt es Benachrichtigungen nur in der zum Homescreen hinzugefügten App.
+   Für alle mit eigenem Plan (Lehrkräfte, Klassen). Wo der Browser Web-Push
+   kann (Chrome, Edge, Firefox, Safari; am iPhone/iPad die App vom
+   Homescreen ab iOS 16.4), abonniert die App beim Server: UntPlanMobile
+   prüft jede Minute den Planstand von UntPlanWeb und schickt sofort nach
+   einem Import eine Nachricht, wenn sich im eigenen Plan etwas ändert.
+   Ohne Push merkt sich die App den Stand der laufenden und der nächsten
+   Woche und vergleicht ihn beim Öffnen, beim Zurückkehren, alle 15
+   Minuten und — wo möglich — im Hintergrund (periodic background sync).
    ===================================================================== */
 function planwachtMoeglich(){
-  const art = state.ownKind || '';
-  const lehrkraft = art ? art === 'teacher' : ((state.user && state.user.rolle) === 'lehrer');
-  return state.source === 'db' && lehrkraft && !keineLehrerplaene() && !!window.PlanWacht;
+  /* Wer einen eigenen Plan hat (Lehrkraft oder Klasse), kann sich über
+     Änderungen darin benachrichtigen lassen. */
+  const eigen = (BOOT && BOOT.own && BOOT.own.id) || state.ownCode;
+  return state.source === 'db' && !!eigen && !!window.PlanWacht;
 }
 function planwachtUnterstuetzt(){
   return 'Notification' in window && 'serviceWorker' in navigator && 'caches' in window;
 }
+/* Echtes Web-Push: der Server meldet sich sofort nach einem Import. */
+function pushUnterstuetzt(){
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
 function planwachtKonto(){ return state.ownCode || (state.user && state.user.login) || ''; }
 const planwachtAn = () => !!store.get('notify', false)
   && planwachtUnterstuetzt() && Notification.permission === 'granted';
+
+const PUSH_URL = new URL('api/push', location.href).href;
+async function pushApi(action, felder){
+  const r = await fetch(PUSH_URL + (felder ? '' : '?action=' + action), felder ? {
+    method:'POST', credentials:'same-origin', cache:'no-store',
+    headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+    body:new URLSearchParams(Object.assign({ action }, felder))
+  } : { credentials:'same-origin', cache:'no-store' });
+  const d = await r.json().catch(() => null);
+  if (!r.ok || !d || d.ok === false) throw new Error((d && d.error) || ('HTTP ' + r.status));
+  return d;
+}
+function b64urlBytes(s){
+  const b = atob(String(s).replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+/* Registrierung des Service Workers – `ready` wartet ohne ihn ewig. */
+async function swBereit(){
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (reg && reg.active) return reg;
+  return await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 6000))]);
+}
+/* Abo des Geräts anlegen (bzw. das vorhandene nehmen) und beim Server hinterlegen. */
+async function pushAbonnieren(key){
+  const reg = await swBereit();
+  if (!reg || !reg.pushManager) throw new Error('Service Worker nicht bereit');
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && sub.options && sub.options.applicationServerKey){
+    /* Anderer Serverschlüssel (z. B. neu eingerichtet): neu abonnieren. */
+    const alt = new Uint8Array(sub.options.applicationServerKey), neu = b64urlBytes(key);
+    if (alt.length !== neu.length || alt.some((x, i) => x !== neu[i])){ await sub.unsubscribe(); sub = null; }
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: b64urlBytes(key) });
+  await pushApi('subscribe', { subscription: JSON.stringify(sub.toJSON ? sub.toJSON() : sub) });
+  return sub;
+}
+/* Für das laufende Profil ausschalten; bekommt kein Profil des Geräts
+   mehr Nachrichten, wird das Abo des Browsers gekündigt. */
+async function pushAus(still){
+  if (!pushUnterstuetzt() || state.source !== 'db') return;
+  let andere = false;
+  try { andere = !!(await pushApi('off', {})).others; } catch (e){ if (!still) throw e; }
+  if (andere) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && reg.pushManager ? await reg.pushManager.getSubscription() : null;
+    if (sub){
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await pushApi('unsubscribe', { endpoint }).catch(() => null);
+    }
+  } catch (e){ /* nichts weiter */ }
+}
 
 async function planwachtHintergrund(an){
   try {
@@ -6894,8 +7219,10 @@ function planwachtHinweis(text){
 }
 
 let planwachtZuletzt = 0;
+let pushAktiv = false;
 function planwachtPruefen(){
-  if (!planwachtMoeglich() || !planwachtAn()) return;
+  /* Mit Web-Push meldet sich der Server; die Prüfung in der App entfällt. */
+  if (pushAktiv || !planwachtMoeglich() || !planwachtAn()) return;
   if (Date.now() - planwachtZuletzt < 60 * 1000) return;   /* nicht doppelt kurz hintereinander */
   planwachtZuletzt = Date.now();
   window.PlanWacht.pruefen().catch(() => null);
@@ -6906,7 +7233,7 @@ function planwachtStart(){
   if (!row || !el) return;
   row.hidden = !planwachtMoeglich();
   if (row.hidden){
-    /* Kein Lehrerkonto (mehr): eine früher eingeschaltete Wache ruht. */
+    /* Kein eigener Plan (mehr): eine früher eingeschaltete Wache ruht. */
     if (window.PlanWacht && state.source === 'db' && store.get('notify', false)){
       store.set('notify', false);
       window.PlanWacht.einstellen(false, planwachtKonto()).catch(() => null);
@@ -6915,17 +7242,71 @@ function planwachtStart(){
     return;
   }
 
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (!planwachtUnterstuetzt()){
     el.checked = false; el.disabled = true;
-    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    planwachtHinweis(ios ? 'Nur in der App vom Homescreen' : 'Von diesem Browser nicht unterstützt');
+    /* iPhone und iPad: Push gibt es nur in der App vom Homescreen (ab iOS 16.4). */
+    planwachtHinweis(ios ? 'Nur in der App vom Homescreen (ab iOS 16.4)' : 'Von diesem Browser nicht unterstützt');
     return;
   }
-  if (Notification.permission === 'denied'){
-    planwachtHinweis('Im Browser nicht erlaubt');
-  }
-  el.checked = planwachtAn();
+  if (Notification.permission === 'denied') planwachtHinweis('Im Browser nicht erlaubt');
 
+  if (pushUnterstuetzt()){
+    /* ---- Web-Push ------------------------------------------------------ */
+    let key = '';
+    el.checked = false;
+    pushApi('status').then(async st => {
+      key = st.key;
+      pushAktiv = !!st.on && Notification.permission === 'granted';
+      el.checked = pushAktiv;
+      if (pushAktiv){
+        planwachtHinweis('Sofort bei Änderungen im eigenen Plan');
+        /* Abo fehlt dem Server oder dem Browser (neu installiert)? Nachholen. */
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          const sub = reg && reg.pushManager ? await reg.pushManager.getSubscription() : null;
+          if (!sub || !st.subscribed) await pushAbonnieren(key);
+        } catch (e){ /* beim nächsten Start erneut */ }
+        /* Die lokale Wache wird nicht mehr gebraucht. */
+        if (store.get('notify', false)){ store.set('notify', false); window.PlanWacht.einstellen(false, planwachtKonto()).catch(() => null); planwachtHintergrund(false); }
+      } else if (st.on){
+        planwachtHinweis('Im Browser nicht erlaubt');
+      }
+    }).catch(() => { el.disabled = true; planwachtHinweis('Derzeit nicht erreichbar'); });
+
+    el.addEventListener('change', async () => {
+      if (el.checked){
+        let erlaubnis = Notification.permission;
+        if (erlaubnis === 'default'){
+          try { erlaubnis = await Notification.requestPermission(); } catch (e){ erlaubnis = 'denied'; }
+        }
+        if (erlaubnis !== 'granted'){
+          el.checked = false;
+          planwachtHinweis('Im Browser nicht erlaubt');
+          toast('Benachrichtigungen sind für diese Seite nicht erlaubt');
+          return;
+        }
+        try {
+          if (!key) key = (await pushApi('status')).key;
+          await pushAbonnieren(key);
+          pushAktiv = true;
+          planwachtHinweis('Sofort bei Änderungen im eigenen Plan');
+          toast('Benachrichtigungen eingeschaltet');
+        } catch (e){
+          el.checked = false;
+          planwachtHinweis(ios && !window.navigator.standalone ? 'Nur in der App vom Homescreen (ab iOS 16.4)' : 'Einschalten nicht möglich');
+          toast('Benachrichtigungen nicht möglich: ' + e.message);
+        }
+      } else {
+        try { await pushAus(false); pushAktiv = false; planwachtHinweis('Bei Änderungen im eigenen Plan'); }
+        catch (e){ el.checked = true; toast('Nicht gespeichert: ' + e.message); }
+      }
+    });
+    return;
+  }
+
+  /* ---- Ohne Push: Prüfung in der App (beim Öffnen, im Hintergrund wo möglich) */
+  el.checked = planwachtAn();
   el.addEventListener('change', async () => {
     if (el.checked){
       let erlaubnis = Notification.permission;
@@ -6964,7 +7345,6 @@ function planwachtStart(){
   document.addEventListener('visibilitychange', () => { if (!document.hidden) planwachtPruefen(); });
   setInterval(() => { if (!document.hidden) planwachtPruefen(); }, 15 * 60 * 1000);
 }
-
 })();
 
 /* Der Reiter „Stundenplan“ trägt wie in der Vorlage die heutige Tageszahl

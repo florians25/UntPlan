@@ -71,6 +71,7 @@ public class Program
         builder.Services.AddSingleton<Personendienst>();
         builder.Services.AddSingleton<Sprechtagdienst>();
         builder.Services.AddSingleton<SchuelerImport>();
+        builder.Services.AddSingleton<Pushdienst>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>
         {
@@ -112,6 +113,8 @@ public class Program
         builder.WebHost.ConfigureKestrel(k => k.Limits.MaxRequestBodySize = 64 * 1024 * 1024);
 
         var app = builder.Build();
+        // Sofort-Benachrichtigungen hängen sich an den Paketdienst (Versand nach jedem Paket-Import)
+        app.Services.GetRequiredService<Pushdienst>();
         app.UseForwardedHeaders();
         app.Use(async (ctx, next) =>
         {
@@ -175,6 +178,7 @@ public class Program
         OffeneStundenApi.Abbilden(app);
         RechteApi.Abbilden(app);
         SchuelerImportApi.Abbilden(app);
+        PushApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
         app.MapGet("/gesundheit", () => Results.Ok(new { ok = true }));

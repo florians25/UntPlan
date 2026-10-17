@@ -154,6 +154,12 @@
           <span class="row__main"><b>Klassenleitung</b><i id="clSub"></i></span>
           <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
         </button>
+        <!-- Sprechtag: Lehrkräfte sehen ihre Termine (frei, gebucht, gesperrt), Eltern buchen -->
+        <button class="row row--nav" id="btnSprechtag" hidden>
+          <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><circle cx="8.4" cy="8" r="2.9"/><path d="M3.4 18.6c.4-3 2.4-4.8 5-4.8s4.6 1.8 5 4.8"/><path d="M14 5.2h6.2a1 1 0 0 1 1 1v4.4a1 1 0 0 1-1 1h-2.6L15.4 13.4v-1.8H14"/></svg></span>
+          <span class="row__main"><b>Sprechtag</b><i id="sptSub"></i></span>
+          <svg viewBox="0 0 24 24" class="ico ico--chev2"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
       </div>
     </div>
   </main>
@@ -340,7 +346,7 @@
         </button>
       </div>
 
-      <div class="rows" hidden>
+      <div class="rows">
         <button class="row row--nav" id="btnAddProfile">
           <span class="row__ico"><svg viewBox="0 0 24 24" class="ico"><circle cx="10" cy="7.6" r="3.2"/><path d="M3.8 18.4c0-3.2 2.8-5.2 6.2-5.2 1 0 1.9.2 2.7.5"/><path d="M18 14v6M15 17h6"/></svg></span>
           <span>Weiteres Profil anmelden</span>
@@ -708,6 +714,7 @@
     <p class="login__error" id="loginError" hidden></p>
 
     <button class="login__submit" id="loginSubmit">Anmelden</button>
+    <button class="login__cancel" id="loginCancel" type="button" hidden>Abbrechen</button>
   </div>
 </section>
 

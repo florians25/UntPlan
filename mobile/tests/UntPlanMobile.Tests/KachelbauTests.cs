@@ -629,4 +629,33 @@ public class KachelbauTests
         Assert.Equal(new[] { ("BIE", "ok", (string?)null), ("ILK", "sub", "BLU") }, k.Kopplung!.Select(t => (t.Code, t.Zustand, t.Fuer)));
         Assert.Equal("change", k.Art);
     }
+
+    [Fact]
+    public void Sondereinsatz_steht_weder_auf_der_Kachel_noch_in_den_Details()
+    {
+        var tage = Kachelbau.Woche(Plan("lehrer", new()
+        {
+            Karte("geaendert", 2, text: "Sondereinsatz", art: "Sondereinsatz"),
+            Karte("geaendert", 3, text: "Sondereinsatz: Projekt Medien", art: "Sondereinsatz"),
+            Karte("geaendert", 4, text: "Projekt (Sondereinsatz)", art: "Vertretung"),
+        }));
+        var k = tage["2026-10-14"].OrderBy(x => x.Stunde).ToList();
+        Assert.All(k, x => Assert.DoesNotContain("ondereins", x.Info + x.Typ + x.Fach, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("", k[0].Info);
+        Assert.Equal("Projekt Medien", k[1].Info);
+        Assert.Equal("Projekt", k[2].Info);
+        // die Zusatzstunde bleibt erkennbar (Plakette in den Details)
+        Assert.True(k[0].Zusatz);
+    }
+
+    [Fact]
+    public void Online_mit_Link_auf_der_Kachel()
+    {
+        var k = Kachelbau.AusKarte(Karte("regulaer", 3) with { Online = true, OnlineLink = "https://meet.example.org/abc" }, "class");
+        Assert.True(k.Online);
+        Assert.Equal("https://meet.example.org/abc", k.OnlineLink);
+        // nur http(s)-Links, beim Entfall kein Online-Unterricht
+        Assert.Null(Kachelbau.AusKarte(Karte("regulaer", 3) with { Online = true, OnlineLink = "javascript:alert(1)" }, "class").OnlineLink);
+        Assert.Null(Kachelbau.AusKarte(Karte("entfall", 3) with { Online = true, OnlineLink = "https://x.example" }, "class").Online);
+    }
 }
