@@ -335,6 +335,19 @@ public static class VertretungsplanDruck
         catch (Exception ex) when (ex is OutOfMemoryException or IOException or ArgumentException) { }
     }
 
+    /// <summary>
+    /// Zusammengefasste Veranstaltungszeile („Alle Klassen“, „Alle Lehrkräfte außer A, B“) für eine Auswahl von Klassen bzw. Lehrkräften:
+    /// gilt für jedes gewählte Element, das nicht hinter „außer“ steht.
+    /// </summary>
+    internal static bool AlleTrifft(string element, ICollection<string> auswahl)
+    {
+        if (!element.StartsWith("Alle ", StringComparison.Ordinal)) return false;
+        var i = element.IndexOf(" außer ", StringComparison.Ordinal);
+        if (i < 0) return true;
+        var ausser = element[(i + 7)..].Split(',').Select(x => x.Trim()).ToHashSet();
+        return auswahl.Any(a => !ausser.Contains(a));
+    }
+
     internal static string SchriftartPruefen(string name) =>
         FontFamily.Families.Any(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ? name : "Segoe UI";
 
@@ -380,12 +393,12 @@ public static class VertretungsplanDruck
         // Auswahl der Klassen bzw. Lehrer
         var auswahl = lehrer ? e.LehrerAuswahl : e.KlassenAuswahl;
         if (auswahl.Count > 0)
-            zeilen = zeilen.Where(z => z.Element.Split(',').Any(x => auswahl.Contains(x.Trim()))).ToList();
+            zeilen = zeilen.Where(z => z.Element.Split(',').Any(x => auswahl.Contains(x.Trim())) || AlleTrifft(z.Element, auswahl)).ToList();
         // „Auch Elemente ohne Vertretung“
         if (e.AuchElementeOhneVertretung)
         {
             var alle = lehrer ? d.Lehrer.Select(x => x.Kurzname) : d.Klassen.Select(x => x.Kurzname);
-            foreach (var name in alle.Where(n => (auswahl.Count == 0 || auswahl.Contains(n)) && !zeilen.Any(z => z.Element.Split(',').Contains(n))))
+            foreach (var name in alle.Where(n => (auswahl.Count == 0 || auswahl.Contains(n)) && !zeilen.Any(z => z.Element.Split(',').Contains(n) || AlleTrifft(z.Element, new[] { n }))))
                 zeilen.Add(new Zeile(name, "", null, "", "", false, "", "", "", "", "keine Vertretung", "", ""));
         }
         var cmp = StringComparer.Create(Format.De, true);

@@ -773,6 +773,58 @@ public sealed partial class HauptFenster
                 AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
             }
         }, -1);
+        Schritt("27s_Veranstaltung_alle_Lehrkraefte", () =>
+        {
+            // Lehrkräftekonferenz bzw. pädagogischer Tag mit allen Lehrkräften und allen Klassen: eine Zeile statt Hunderter,
+            // „Alle Lehrkräfte“/„Alle Klassen“ statt endloser Listen – im Vertretungs- und Veranstaltungsfenster, im Aushang und im Export
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            try
+            {
+                var vaId = 0;
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                AppZustand.Doc.Aendern("Lehrkräftekonferenz (Selbsttest)", AenderungsArt.Vertretung, x =>
+                {
+                    var va = new Veranstaltung
+                    {
+                        Id = x.NeueId(), Text = "Lehrkräftekonferenz", Von = tag, Bis = tag, StundeVon = 1, StundeBis = 99,
+                        KlassenIds = Core.Vertretungsplanung.VeranstaltungsAuswahl.Alle(x, ElementTyp.Klasse, tag, tag),
+                        LehrerIds = Core.Vertretungsplanung.VeranstaltungsAuswahl.Alle(x, ElementTyp.Lehrer, tag, tag),
+                    };
+                    x.Veranstaltungen.Add(va);
+                    vaId = va.Id;
+                    Core.Vertretungsplanung.Vertretungen.Aktualisieren(x, tag);
+                });
+                var anlegen = sw.ElapsedMilliseconds;
+                var vf = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+                Warten(300);
+                log.Add("INFO  " + vf.SelbsttestVeranstaltungAlle(vaId, tag, () => Warten(300)));
+                var f = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
+                Max(f);
+                Warten(200);
+                var lehrerText = f.SelbsttestZelltext(vaId, "L");
+                var klassenText = f.SelbsttestZelltext(vaId, "K");
+                if (lehrerText != "Alle Lehrkräfte" || klassenText != "Alle Klassen")
+                    throw new InvalidOperationException($"Veranstaltungsfenster: Lehrer „{lehrerText}“, Klassen „{klassenText}“ statt „Alle …“.");
+                // Aushang: je Stunde eine Zeile „Alle Lehrkräfte“ statt einer je Lehrkraft
+                var aushang = Core.Vertretungsplanung.Vertretungsplan.Zeilen(AppZustand.D, tag).Where(z => z.VeranstaltungId == vaId).ToList();
+                if (aushang.Count == 0 || aushang.Count > AppZustand.D.Zeitraster.StundenProTag || aushang.Any(z => z.Vertreter != "Alle Lehrkräfte" || z.Klassen != "Alle Klassen"))
+                    throw new InvalidOperationException($"Aushang: {aushang.Count} Zeile(n) der Veranstaltung: {string.Join(" | ", aushang.Take(3).Select(z => $"{z.Stunde} {z.Vertreter} {z.Klassen}"))}");
+                // Export: je Stunde eine Veranstaltungsstunde und eine Vertretungszeile, Termin mit „alle“-Kennzeichen
+                var paket = Core.Austausch.UntPlanWebExport.PaketErstellen(AppZustand.D, tag, new Core.Austausch.WebExportOptionen { TageVoraus = 1, TageZurueck = 0 });
+                var tagIso = tag.ToString("yyyy-MM-dd");
+                var stunden = paket.Tage.Single(t => t.Datum == tagIso).Stunden.Count(x => x.Veranstaltung == vaId && x.Status == "zusaetzlich");
+                var zeilenExport = paket.Vertretungen.Count(x => x.Veranstaltung == vaId && x.Datum == tagIso);
+                var termin = paket.Termine.Single(t => t.Id == vaId);
+                if (stunden != aushang.Count || zeilenExport != aushang.Count || !termin.AlleLehrer || !termin.AlleKlassen)
+                    throw new InvalidOperationException($"Export: {stunden} Stunden, {zeilenExport} Vertretungszeilen, Termin alle Lehrer {termin.AlleLehrer}, alle Klassen {termin.AlleKlassen}.");
+                log.Add($"INFO  Lehrkräftekonferenz: {AppZustand.D.Vertretungen.Count(v => v.Datum == tag && v.VeranstaltungId == vaId)} Zeilen in den Daten, Aushang {aushang.Count}, Export {stunden} Stunden; anlegen {anlegen} ms");
+            }
+            finally
+            {
+                Warten(100);
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
         Schritt("19d2a_Klausur_loeschen_Liste", () =>
         {
             // gelöschte Klausur verschwindet sofort aus der Liste – auch wenn eine Zelle gerade bearbeitet wird

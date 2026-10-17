@@ -31,6 +31,14 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private string? _sortSpalte;
     private bool _sortAbsteigend;
     private readonly CheckBox _kollisionen = new() { Text = "Kollisionen", AutoSize = true };
+    /// <summary>Entfälle/Freisetzungen einer Veranstaltung je Tag in einer Zeile (siehe <see cref="Benutzereinstellungen.VeranstaltungenZusammenfassen"/>).</summary>
+    private readonly CheckBox _vaSammeln = new() { Text = "Veranstaltungen zusammenfassen", AutoSize = true };
+    /// <summary>Stellvertreter-Ids zusammengefasster Entfälle/Freisetzungen einer Veranstaltung (nur Anzeige, Text bearbeitbar).</summary>
+    private readonly HashSet<int> _vaSammel = new();
+    /// <summary>Ab so vielen Entfällen/Freisetzungen einer Veranstaltung an einem Tag werden sie zusammengefasst.</summary>
+    private const int VaSammelAb = 4;
+    /// <summary>„Felder der Ansicht“ während eines Neuaufbaus (sonst je Zelle neu gelesen).</summary>
+    private Dictionary<string, string>? _felder;
     private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
     private readonly ToolStripButton _inhalt = new("Felder mit Inhalt", Symbole.Get("uebersicht", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Felder mit Inhalt: alle Spalten mit einer Eingabe zeigen – erneuter Klick stellt die ursprünglichen Spalten wieder her" };
     /// <summary>Spalten, die vor „Felder mit Inhalt“ sichtbar waren.</summary>
@@ -120,7 +128,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         filter.Controls.Add(_elementGruppe);
         filter.Controls.Add(Gruppe("Von-Bis", _zeitraum));
         _offen.Padding = _kollisionen.Padding = new Padding(2, 4, 6, 0);
-        filter.Controls.Add(Gruppe("Ansicht einschränken auf …", _offen, _kollisionen));
+        _vaSammeln.Padding = new Padding(2, 4, 6, 0);
+        _vaSammeln.Checked = AppZustand.Einstellungen.VeranstaltungenZusammenfassen;
+        new ToolTip().SetToolTip(_vaSammeln, "Entfälle und Freisetzungen einer Veranstaltung (z. B. Lehrkräftekonferenz, pädagogischer Tag) je Tag in einer Zeile zeigen – „Alle Klassen“, Stunde „1-6“. Ausschalten zeigt jede Stunde einzeln.");
+        filter.Controls.Add(Gruppe("Ansicht einschränken auf …", _offen, _kollisionen, _vaSammeln));
 
         // Fußleiste wie im Vorbild: Vtr-Nr. links, Ansicht ganz rechts (keine Zeilen-/Offen-Zählung)
         var unten = new Steuerelemente.Fussleiste { BackColor = Ui.Kopf };
@@ -181,6 +192,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             if (v.Fixiert) { e.Cancel = true; _status.Text = $"Vertretung {v.Id} ist fixiert (X) – zum Ändern zuerst lösen."; }
             var spalte = _g.Columns[e.ColumnIndex].Name;
             if (v.Art == VertretungsArt.Veranstaltung && spalte != "Vertreter" && spalte != "Text") e.Cancel = true;
+            // zusammengefasste Entfälle einer Veranstaltung: nur der Text (gilt für alle Stunden); einzeln bearbeiten nach „Veranstaltungen zusammenfassen“ aus
+            if (_vaSammel.Contains(v.Id) && spalte is not ("Text" or "Text2" or "Kz"))
+            {
+                e.Cancel = true;
+                _status.Text = "Zusammengefasste Zeile einer Veranstaltung – zum Bearbeiten einzelner Stunden „Veranstaltungen zusammenfassen“ ausschalten (Doppelklick).";
+            }
             if (v.Art == VertretungsArt.Freisetzung && spalte is "Vertreter" or "NFach" or "NRaum") e.Cancel = true;
         };
         _g.EditingControlShowing += EditorZeigen;
@@ -210,7 +227,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             if (!_laedt && _g.CurrentRow?.Tag is Vertretung cur && _behalten.Zeilenwechsel(cur.Id)) NachZellwechsel(Neuaufbau);
         };
-        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && (e.ColumnIndex < 0 || _g.Columns[e.ColumnIndex].ReadOnly)) VorschlagOeffnen(); };
+        _g.CellDoubleClick += (_, e) =>
+        {
+            if (e.RowIndex < 0) return;
+            // zusammengefasste Entfälle einer Veranstaltung: Doppelklick zeigt die Stunden einzeln (statt Vertretungsvorschlag)
+            if (_g.Rows[e.RowIndex].Tag is Vertretung { Id: var id } && _vaSammel.Contains(id)) { _vaSammeln.Checked = false; return; }
+            if (e.ColumnIndex < 0 || _g.Columns[e.ColumnIndex].ReadOnly) VorschlagOeffnen();
+        };
         _g.KeyPress += TastenDruck;
         _g.KeyDown += (_, e) =>
         {
@@ -234,6 +257,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _zeitraum.Geaendert += ZeitraumGeaendert;
         _offen.CheckedChanged += (_, _) => { _behalten.Leeren(); Neuaufbau(true); };
         _kollisionen.CheckedChanged += (_, _) => { _behalten.Leeren(); Neuaufbau(true); };
+        _vaSammeln.CheckedChanged += (_, _) =>
+        {
+            AppZustand.Einstellungen.VeranstaltungenZusammenfassen = _vaSammeln.Checked;
+            AppZustand.Einstellungen.Speichern();
+            Neuaufbau(true);
+        };
         _element.SelectedIndexChanged += (_, _) => { if (_laedt) return; _behalten.Leeren(); Neuaufbau(true); };
         _ansicht.SelectedIndexChanged += (_, _) =>
         {
@@ -308,7 +337,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return f;
     }
 
-    private bool Langname(string spalte) => FeldEinstellungen().TryGetValue(spalte, out var x) && x.Contains('L');
+    private bool Langname(string spalte) => (_felder ?? FeldEinstellungen()).TryGetValue(spalte, out var x) && x.Contains('L');
 
     /// <summary>Spalten laut „Felder der Ansicht“ ein- bzw. ausblenden.</summary>
     private void FelderAnwenden()
@@ -625,8 +654,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var vorher = AuswahlSignatur();
         _kollisionen2.Clear();
         _gruppen.Clear();
+        _vaSammel.Clear();
         _weg.Clear();
-        var liste = Zeilenliste();
+        _felder = FeldEinstellungen();
+        List<Vertretung> liste;
+        try { liste = Zeilenliste(); }
+        finally { _felder = null; }
         var alt = _g.Rows.Cast<DataGridViewRow>().Select(r => Schluessel(r) ?? "").ToList();
         var amOrt = Listenabgleich.AmOrt(alt, liste, Schluessel, neuSortieren);
         _laedt = true;
@@ -748,13 +781,55 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private List<Vertretung> Zusammenfassen(List<Vertretung> liste)
     {
         var res = new List<Vertretung>();
-        foreach (var g in liste.GroupBy(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va ? $"VA{va}/{v.Datum}" : $"#{v.Id}"))
+        var sammeln = _vaSammeln.Checked;
+        foreach (var g in liste.GroupBy(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va ? $"VA{va}/{v.Datum}"
+                     : sammeln && Veranstaltungsfolge(v) ? $"VE{v.VeranstaltungId}/{v.Datum}/{v.Art}/{v.Text}" : $"#{v.Id}"))
         {
             var zeilen = g.OrderBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
+            // Entfälle/Freisetzungen einer Veranstaltung: erst ab einigen Zeilen zusammenfassen, sonst wie bisher einzeln
+            if (g.Key.StartsWith("VE", StringComparison.Ordinal) && zeilen.Count < VaSammelAb)
+            {
+                res.AddRange(zeilen);
+                continue;
+            }
             res.Add(zeilen[0]);
             if (zeilen.Count > 1 || zeilen[0].Art == VertretungsArt.Veranstaltung) _gruppen[zeilen[0].Id] = zeilen;
+            if (g.Key.StartsWith("VE", StringComparison.Ordinal)) _vaSammel.Add(zeilen[0].Id);
         }
         return res;
+    }
+
+    /// <summary>
+    /// Entfall bzw. Freisetzung, die eine Veranstaltung auslöst (Unterricht findet als Veranstaltung statt, Klasse nimmt teil) – wird bei
+    /// vielen Stunden je Tag zusammengefasst (gleicher Text). Fixierte, verlegte bzw. gerade bearbeitete Zeilen bleiben einzeln.
+    /// </summary>
+    private bool Veranstaltungsfolge(Vertretung v) =>
+        v.VeranstaltungId.HasValue && v.Quelle == VertretungsQuelle.Veranstaltung && v.Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung
+        && !v.Fixiert && v.NachDatum is null && !_behalten.Enthaelt(v.Id);
+
+    /// <summary>Anzeige einer zusammengefassten Zeile: Klassen und Lehrkräfte als „Alle …“ bzw. Liste, Fach/Raum nur, wenn überall gleich.</summary>
+    private void SammelWerte(object?[] werte, Vertretung v, List<Vertretung> gruppe)
+    {
+        var va = D.Veranstaltungen.FirstOrDefault(x => x.Id == v.VeranstaltungId);
+        void Setzen(string spalte, object? wert)
+        {
+            var i = _g.Columns[spalte]?.Index ?? -1;
+            if (i >= 0 && i < werte.Length) werte[i] = wert;
+        }
+        string Liste(ElementTyp typ, IEnumerable<int> ids) => VeranstaltungsAuswahl.Kurztext(D, typ, ids.Distinct().ToList(), va?.Von, va?.Bis, ", ");
+        string Gleich(Func<Vertretung, int?> wert, ElementTyp typ) => gruppe.Select(wert).Distinct().ToList() is { Count: 1 } l && l[0] is int id ? Ix.K(typ, id) : "";
+        var klassen = Liste(ElementTyp.Klasse, gruppe.SelectMany(x => x.KlassenIds));
+        var lehrer = Liste(ElementTyp.Lehrer, gruppe.Where(x => x.LehrerId.HasValue).Select(x => x.LehrerId!.Value));
+        Setzen("Art", $"{Vertretungsplan.ArtText(D, v.Art)} ({gruppe.Count})");
+        Setzen("AKlassen", klassen);
+        Setzen("Klassen", v.Art == VertretungsArt.Freisetzung && klassen.Length > 0 ? $"({klassen})" : klassen);
+        Setzen("Lehrer", lehrer);
+        Setzen("Vertreter", v.Art == VertretungsArt.Freisetzung ? lehrer : "---");
+        Setzen("Fach", Gleich(x => x.FachId, ElementTyp.Fach));
+        Setzen("Raum", Gleich(x => x.RaumId, ElementTyp.Raum));
+        Setzen("UText", "");
+        Setzen("UZText", "");
+        if (va != null && string.IsNullOrWhiteSpace(v.Text)) Setzen("Text", va.Text);
     }
 
     /// <summary>Arten, bei denen Unterricht an eine andere Position kommt (geänderte Felder magenta wie im Vorbild).</summary>
@@ -837,7 +912,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var abteilung = v.NeueKlassenIds.Select(k => Ix.Klassen.GetValueOrDefault(k)?.AbteilungId).FirstOrDefault(x => x.HasValue);
         var benachrichtigen = v.VertreterId is int vt && v.Datum == DateOnly.FromDateTime(DateTime.Today) &&
                               !Plan(v.Datum).VonLehrer(vt).Any(e => e.Stunde < v.Stunde && e.Vertretung != v) ? "X" : "";
-        return new object?[]
+        var werte = new object?[]
         {
             v.Id == 0 ? "" : v.Id, Vertretungsplan.ArtText(D, v.Art), $"{v.Datum:dd.MM.}", tag, stunde, zeit,
             // „Fach“ bleibt wie im Vorbild leer, solange kein Vertretungsfach eingetragen ist (der Druck setzt dann das ursprüngliche Fach ein)
@@ -851,6 +926,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             v.Fixiert ? "X" : "", v.NichtDrucken ? "N" : "", v.Text2, benachrichtigen, zaehler, "", v.Wert?.ToString("0.##") ?? "",
             Anzeige(ElementTyp.Abteilung, abteilung, "Abt"), v.Benutzer, v.Mehrarbeit ? "x" : "",
         };
+        if (gruppe != null && _vaSammel.Contains(v.Id)) SammelWerte(werte, v, gruppe);
+        return werte;
     }
 
     /// <summary>Hintergrund des Vertreterfeldes einer Pausenaufsicht (wie im Vorbild türkis).</summary>
@@ -1539,6 +1616,41 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.ClearSelection();
         _g.CurrentCell = r0.Cells["Nr"];
         return $"Tausch: {tausch.Count} Zeilen, von {von}, nach {nach}, ({r0.Cells["Lehrer"].FormattedValue}) → {r0.Cells["Vertreter"].FormattedValue}";
+    }
+
+    /// <summary>
+    /// Selbsttest: Veranstaltung mit allen Lehrkräften und Klassen – ihre Entfälle/Freisetzungen stehen je Tag in wenigen Zeilen
+    /// („Veranstaltungen zusammenfassen“), sind dort nicht als einzelne Vertretung bearbeitbar und lassen sich einzeln zeigen.
+    /// </summary>
+    internal string SelbsttestVeranstaltungAlle(int vaId, DateOnly datum, Action warten)
+    {
+        _offen.Checked = _kollisionen.Checked = false;
+        DatumGewechselt(datum);
+        _vaSammeln.Checked = true;
+        warten();
+        List<DataGridViewRow> Zeilen() => _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung v && v.VeranstaltungId == vaId).ToList();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Neuaufbau(true);
+        var ms = sw.ElapsedMilliseconds;
+        var gesammelt = Zeilen();
+        var sammel = gesammelt.Where(r => _vaSammel.Contains(((Vertretung)r.Tag!).Id)).ToList();
+        if (sammel.Count == 0) throw new InvalidOperationException("Veranstaltung mit allen Lehrkräften: keine zusammengefasste Zeile.");
+        var klassen = sammel[0].Cells["AKlassen"].FormattedValue?.ToString() ?? "";
+        var stunde = sammel[0].Cells["Std"].FormattedValue?.ToString() ?? "";
+        // Einzelbearbeitung der Sammelzeile ist gesperrt (nur Text)
+        _g.CurrentCell = sammel[0].Cells["Vertreter"];
+        _g.BeginEdit(false);
+        var gesperrt = !_g.IsCurrentCellInEditMode;
+        _g.CancelEdit();
+        _g.EndEdit();
+        if (!gesperrt) throw new InvalidOperationException("Zusammengefasste Zeile einer Veranstaltung lässt sich als Vertretung bearbeiten.");
+        _vaSammeln.Checked = false;
+        warten();
+        var einzeln = Zeilen().Count;
+        _vaSammeln.Checked = true;
+        warten();
+        if (einzeln <= gesammelt.Count) throw new InvalidOperationException($"Zusammenfassen: {gesammelt.Count} Zeilen zusammengefasst, {einzeln} einzeln.");
+        return $"Veranstaltung alle: {einzeln} Zeilen → {gesammelt.Count} ({sammel.Count} zusammengefasst, Std. {stunde}, Klassen „{(klassen.Length > 40 ? klassen[..40] + "…" : klassen)}“), Neuaufbau {ms} ms";
     }
 
     internal string SelbsttestListenbreite(Action warten)

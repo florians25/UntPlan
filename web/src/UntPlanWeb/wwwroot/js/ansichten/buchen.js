@@ -1070,7 +1070,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       const anzahlFrei = bl.reduce((s, [v, b]) => s + raster.filter(z => z.nr >= v && z.nr <= b).length, 0);
       if (voll >= r.anzahl) return { klasse: 'frei', text: r.mobil ? 'ganztägig verfügbar' : 'Raum ganztägig frei', v: voll, wahl, frei: 'ganztägig' };
       if (!bl.length) return { klasse: 'belegt', text: r.mobil ? 'ausgebucht' : 'Raum belegt', v: 0, wahl, frei: '' };
-      return { klasse: 'teil', text: `${anzahlFrei} von ${raster.length} Std. frei`, v: Math.max(1, voll), wahl, frei: blockText(bl) };
+      return { klasse: 'teil', text: anzahlFrei >= raster.length ? 'teilweise gebucht' : `${anzahlFrei} von ${raster.length} Std. frei`, v: Math.max(1, voll), wahl, frei: blockText(bl) };
     }
     const v = Math.max(0, verfuegbar(r));
     const wahl = [f.von, f.bis];

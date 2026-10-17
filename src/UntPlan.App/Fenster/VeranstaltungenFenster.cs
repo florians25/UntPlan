@@ -152,8 +152,15 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private string LehrerText(Veranstaltung v)
     {
         var tag = OffenerTag(v);
-        return tag is DateOnly t ? VeranstaltungsLogik.LehrerText(D, v, t, ",\n", "???") : string.Join(",\n", v.LehrerIds.Select(Ix.KLehrer));
+        var trenner = Trenner(v.LehrerIds.Count);
+        return tag is DateOnly t ? VeranstaltungsLogik.LehrerKurztext(D, v, t, trenner, "???") : VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Lehrer, v.LehrerIds, v.Von, v.Bis, trenner);
     }
+
+    /// <summary>Wenige Elemente untereinander, viele (z. B. 40 Klassen) fortlaufend – sonst würde die Zeile Dutzende Zeilen hoch.</summary>
+    private static string Trenner(int anzahl) => anzahl > 6 ? ", " : ",\n";
+
+    /// <summary>Klassen/Räume kompakt: „Alle Klassen“, „Alle Klassen außer 5a“ bzw. Liste (wieder einlesbar, siehe <see cref="VeranstaltungsAuswahl.Lesen"/>).</summary>
+    private string Feldtext(Veranstaltung v, ElementTyp typ, List<int> ids) => VeranstaltungsAuswahl.Kurztext(D, typ, ids, v.Von, v.Bis, Trenner(ids.Count));
 
     /// <summary>Erster angezeigter Tag, an dem die Veranstaltung einen offenen Platz hat.</summary>
     private DateOnly? OffenerTag(Veranstaltung v) =>
@@ -184,8 +191,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.Rows.Clear();
         foreach (var v in D.Veranstaltungen.Where(v => v.Bis >= Von && v.Von <= Bis).OrderBy(v => v.Von).ThenBy(v => v.Id))
         {
-            var r = _g.Rows.Add(v.Id, Ix.KKlassen(v.KlassenIds).Replace(",", ",\n"), Ix.KKlassen(v.KlassenteilIds).Replace(",", ",\n"), LehrerText(v),
-                string.Join(",", v.RaumIds.Select(Ix.KRaum)), Datum(v.Von), v.StundeVon, Datum(v.Bis), v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
+            var r = _g.Rows.Add(v.Id, Feldtext(v, ElementTyp.Klasse, v.KlassenIds), Feldtext(v, ElementTyp.Klasse, v.KlassenteilIds), LehrerText(v),
+                Feldtext(v, ElementTyp.Raum, v.RaumIds), Datum(v.Von), v.StundeVon, Datum(v.Bis), v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
                 D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.Schuelergruppe);
             _g.Rows[r].Tag = v;
         }
@@ -242,6 +249,19 @@ public sealed class VeranstaltungenFenster : MdiFenster
             eintraege = Stammdaten.Sortiert(D, typ).Where(x => !x.Ignorieren).Select(x => new MehrfachAuswahl.Eintrag(x.Kurzname, x is Lehrer l ? l.VollerName : x.Langname)).ToList();
         }
         var aktuell = (_g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "").Split(new[] { ',', '\n', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        // gespeicherte Veranstaltung: Auswahl aus den Ids (die Zelle zeigt ggf. „Alle Lehrkräfte“ bzw. „Alle Klassen außer …“)
+        if (_g.Rows[zeile].Tag is Veranstaltung va && name is "K" or "KT" or "L" or "R")
+        {
+            var offenTag = name == "L" ? OffenerTag(va) : null;
+            var (typ, ids) = name switch
+            {
+                "K" => (ElementTyp.Klasse, va.KlassenIds),
+                "KT" => (ElementTyp.Klasse, va.KlassenteilIds),
+                "R" => (ElementTyp.Raum, va.RaumIds),
+                _ => (ElementTyp.Lehrer, offenTag is DateOnly ot ? va.LehrerAm(ot) : va.LehrerIds),
+            };
+            aktuell = ids.Select(i => Ix.K(typ, i)).Concat(offenTag is DateOnly ot2 ? Enumerable.Repeat("???", va.OffenAm(ot2).Count) : Enumerable.Empty<string>()).ToArray();
+        }
         if (name == "SG") aktuell = new[] { _g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "" };
         MehrfachAuswahl.Zeigen(_g, zeile, spalte, eintraege, aktuell, name != "SG", gewaehlt =>
         {
@@ -403,6 +423,10 @@ public sealed class VeranstaltungenFenster : MdiFenster
             if (r.Tag is Veranstaltung x && x.Id == id) _g.CurrentCell = r.Cells[spalte];
     }
 
+    /// <summary>Selbsttest: angezeigter Text einer Zelle der Veranstaltung.</summary>
+    internal string SelbsttestZelltext(int id, string spalte) =>
+        _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Veranstaltung x && x.Id == id)?.Cells[spalte].FormattedValue?.ToString() ?? "";
+
     /// <summary>Selbsttest: leere Zeile (neue Veranstaltung) wählen.</summary>
     internal void SelbsttestNeueZeile() => _g.CurrentCell = _g.Rows[_g.Rows.Count - 1].Cells["K"];
 
@@ -459,10 +483,10 @@ public sealed class VeranstaltungenFenster : MdiFenster
                 case "B": v.Bis = Ui.DatumLesen(wert, v.Bis); if (v.Bis < v.Von) v.Von = v.Bis; break;
                 case "SV": v.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, Math.Max(1, D.Zeitraster.StundenProTag)); break;
                 case "SB": v.StundeBis = wert.Length == 0 || int.Parse(wert) >= D.Zeitraster.StundenProTag ? 99 : Math.Max(1, int.Parse(wert)); break;
-                case "K": v.KlassenIds = Kurznamen(ElementTyp.Klasse, wert); v.KlassenteilIds.RemoveAll(v.KlassenIds.Contains); break;
-                case "KT": v.KlassenteilIds = Kurznamen(ElementTyp.Klasse, wert); v.KlassenIds.RemoveAll(v.KlassenteilIds.Contains); break;
+                case "K": v.KlassenIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Klasse, wert, v.Von, v.Bis); v.KlassenteilIds.RemoveAll(v.KlassenIds.Contains); break;
+                case "KT": v.KlassenteilIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Klasse, wert, v.Von, v.Bis); v.KlassenIds.RemoveAll(v.KlassenteilIds.Contains); break;
                 case "L":
-                    var namen = Kurznamen(ElementTyp.Lehrer, wert.Replace("???", ""));
+                    var namen = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Lehrer, wert.Replace("???", ""), v.Von, v.Bis);
                     if (alt != null && OffenerTag(alt) is DateOnly tag)
                     {
                         // offene Plätze: neu eingetragene Lehrkräfte sind Ersatzlehrkräfte (nur für die Tage mit entfernter Lehrkraft)
@@ -472,7 +496,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
                     }
                     else v.LehrerIds = namen;
                     break;
-                case "R": v.RaumIds = Kurznamen(ElementTyp.Raum, wert); break;
+                case "R": v.RaumIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Raum, wert, v.Von, v.Bis); break;
                 case "G": v.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
                 case "Z": v.Zaehlen = wert == "1"; break;
                 case "SG": v.Schuelergruppe = wert; break;
@@ -524,14 +548,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         NachZellwechsel(Neuaufbau);
     }
 
-    internal static List<int> Kurznamen(ElementTyp typ, string text)
-    {
-        var alle = AppZustand.D.AlleElemente(typ).ToList();
-        var res = new List<int>();
-        foreach (var k in text.Split(new[] { ',', ' ', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
-            res.Add(alle.FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id ?? throw new FormatException($"{Ui.TypName(typ)} {k} unbekannt"));
-        return res.Distinct().ToList();
-    }
+    /// <summary>Kurznamen bzw. „Alle …“ / „Alle … außer …“ lesen.</summary>
+    internal static List<int> Kurznamen(ElementTyp typ, string text) => VeranstaltungsAuswahl.Lesen(AppZustand.D, typ, text);
 
     private static Veranstaltung Kopie(Veranstaltung v) => System.Text.Json.JsonSerializer.Deserialize<Veranstaltung>(System.Text.Json.JsonSerializer.Serialize(v))!;
 

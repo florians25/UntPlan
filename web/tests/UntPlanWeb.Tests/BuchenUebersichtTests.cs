@@ -117,7 +117,7 @@ public class BuchenUebersichtTests
         foreach (var art in new[] { "unterricht", "buchung", "klausur", "termin", "vorgemerkt", "gesperrt" })
             Assert.Contains($".bu-zelle.{art} .bu-block", css);
         // Filter: Verfügbarkeit (frei in Stunde), Zoom, Hover-Details, Telefon: Liste je Raum, Schnellbuchung bleibt
-        Assert.Contains("data-frei aria-label=\"Verfügbarkeit\"", js);
+        Assert.Contains("{ name: 'frei', label: 'Verfügbarkeit'", js);
         Assert.Contains("const ZOOM = [['kompakt', 'Kompakt'", js);
         Assert.Contains(".bu-uebersicht.zoom-kompakt", css);
         Assert.Contains("function hoverVerbinden(wurzel, inhalt)", js);
@@ -135,6 +135,12 @@ public class BuchenUebersichtTests
         Assert.Contains("name=\"standort\"", vw);
         Assert.Contains("bu-symbolwahl", vw);
         Assert.Contains("/api/app/buchen/ressourcen/beispiele", vw);
+        // gemeinsame Suchfeld-mit-Filter-Komponente statt eigener Suchfelder
+        Assert.Contains("<div class=\"u-sf-leiste bu-leiste\">", js);
+        Assert.Contains("<div class=\"u-sf-leiste bu-ru-leiste\">", js);
+        Assert.Contains("suchfeldMitFilterBinden(", vw);
+        Assert.DoesNotContain("nl-suche", js);
+        Assert.DoesNotContain("nl-suche", vw);
         // Browser-Speicher nur mit try/catch
         Assert.Contains("try { localStorage.setItem(`untplan:buchen:", js);
     }
