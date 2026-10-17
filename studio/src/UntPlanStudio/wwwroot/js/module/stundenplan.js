@@ -1,5 +1,6 @@
 // Modul „Stundenplan“: Stundenplanfenster je Klasse, Lehrkraft, Raum oder Fach (Wochenraster, Blöcke, Kopplungen nebeneinander).
-// Manuelles Planen per Drag & Drop: Stunden verschieben/tauschen, nicht verplante Stunden setzen, Kontextmenü (fixieren, entplanen).
+// Manuelles Planen per Drag & Drop: Stunden/Blöcke verschieben/tauschen, nicht verplante Blöcke setzen, Mehrfachauswahl,
+// Kontextmenü wie im Desktop (fixieren, entplanen, Raum zuordnen, Tauschvorschläge …) – Planungslogik in planung.js.
 import { h, leeren } from '../kern/dom.js';
 import { api } from '../kern/api.js';
 import { zustand, darfSchreiben } from '../kern/zustand.js';
@@ -7,7 +8,9 @@ import { betrifft } from '../kern/ereignisse.js';
 import { Stundenplanraster, TYP_UNTERRICHT } from '../kern/raster.js';
 import { menue, hinweis, fehlerMelden, laden } from '../kern/dialog.js';
 import { fensterverwaltung } from '../kern/fenster.js';
+import { befehl } from '../kern/modulsystem.js';
 import { elementAuswahl } from './unterricht.js';
+import * as planung from './planung.js';
 
 const TYPEN = { klasse: ['Klasse', 'klassen'], lehrer: ['Lehrkraft', 'lehrer'], raum: ['Raum', 'raeume'], fach: ['Fach', 'faecher'] };
 
@@ -23,33 +26,29 @@ function stundenplanFenster(f, p) {
     typ,
     kompakt: !!p.kompakt,
     ziehen: planen,
-    beiZiehenStart: (d) => api.get(api.dok(`/stundenplan/zielstatus?unterricht=${d.u}${d.tag !== undefined ? `&tag=${d.tag}&stunde=${d.stunde}` : ''}`)),
+    mehrfach: true,
+    beiZiehenStart: (d) => planung.zielstatus(d),
     beiAblegen: (d) => ablegen(d).catch(fehlerMelden),
-    beiDoppelklick: (e) => fensterverwaltung.oeffnen('unterricht', { sicht: typ === 'raum' ? 'alle' : typ, element: typ === 'raum' ? undefined : element }),
-    kontextmenue: (e, tag, stunde, ev) => menue(ev.clientX, ev.clientY, [
-      { titel: `U-Nr. ${e.u} · ${e.fach} ${e.klassen}` },
-      { text: e.fix ? 'Fixierung aufheben' : 'Stunde fixieren', symbol: 'fixieren', deaktiviert: !schreiben, aktion: () => aendern('/stundenplan/fixieren', { unterricht: e.u, tag, stunde, fixieren: !e.fix }) },
-      { text: 'Stunde entplanen', symbol: 'loeschen', deaktiviert: !schreiben || e.fix, aktion: () => aendern('/stundenplan/entplanen', { unterricht: e.u, tag, stunde }) },
-      null,
-      { text: 'Unterricht anzeigen', symbol: 'unterricht', aktion: () => fensterverwaltung.oeffnen('unterricht', { sicht: 'alle' }) },
-    ]),
+    beiDoppelklick: (e) => fensterverwaltung.oeffnen('unterricht', { sicht: typ === 'raum' || typ === 'fach' ? 'alle' : typ, element: typ === 'raum' || typ === 'fach' ? undefined : element }),
+    kontextmenue: (e, tag, stunde, ev) => menue(ev.clientX, ev.clientY, planung.kontextEintraege(ctx, e, tag, stunde)),
+    feldKontextmenue: (tag, stunde, ev) => menue(ev.clientX, ev.clientY, planung.feldEintraege(ctx)),
+    beiMarkierung: () => fussZeigen(),
   });
   f.inhalt.append(nv);
-
-  async function aendern(pfad, daten) {
-    await api.post(api.dok(pfad), daten, { quelle: f.id });
-    await laden_();
-  }
+  // Kontext für planung.js und Menüband-Befehle (Tauschvorschläge, Raum zuordnen beziehen sich auf die gewählte Stunde)
+  const ctx = { f, raster, typ, schreiben, element: () => element, planen: () => planen, neuLaden: () => laden_() };
+  f.planung = ctx;
+  f.beimSchliessen(() => raster.entfernen());
+  raster.el.addEventListener('keydown', (ev) => { if (planung.taste(ctx, ev)) { ev.preventDefault(); ev.stopPropagation(); } });
 
   async function ablegen(d) {
-    if (d.tag !== undefined) {
-      if (d.tag === d.zielTag && d.stunde === d.zielStunde) return;
-      await aendern('/stundenplan/verschieben', { unterricht: d.u, tag: d.tag, stunde: d.stunde, zielTag: d.zielTag, zielStunde: d.zielStunde, tauschen: true });
-      hinweis('Stunde verschoben – Strg+Z macht es rückgängig.', 'ok', 2000);
-    } else {
-      await aendern('/stundenplan/verplanen', { unterricht: d.u, tag: d.zielTag, stunde: d.zielStunde });
-      hinweis('Stunde verplant – Strg+Z macht es rückgängig.', 'ok', 2000);
-    }
+    if (await planung.ablegen(d, f.id)) await laden_();
+  }
+
+  let fussBasis = [];
+  function fussZeigen() {
+    const n = raster.markiert.size ? raster.markierte().length : 0;
+    f.fuss.replaceChildren(...fussBasis, ...(n ? [h('span', { class: 'pl-markiert' }, `${n} Stunden markiert`)] : []));
   }
 
   async function laden_() {
@@ -60,15 +59,31 @@ function stundenplanFenster(f, p) {
       f.titel(`${TYPEN[typ][0]} ${plan.element.kurz}${plan.element.lang ? ` (${plan.element.lang})` : ''} / Stundenplan`);
       raster.setzen(plan);
       leeren(nv);
+      // nicht verplante Stunden je offenem Block (Doppelstunde = 2 Std.), gleiche Blocklängen zusammengefasst
       for (const n of plan.nichtVerplant) {
-        const el = h('span', { class: 'nv', draggable: planen ? 'true' : null, title: `U-Nr. ${n.u}: ${n.anzahl} Stunde(n) nicht verplant` }, h('b', null, `${n.anzahl}×`), ` ${n.text}`);
-        el.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData(TYP_UNTERRICHT, JSON.stringify({ u: n.u })); raster.ziehenBeginnt({ u: n.u }); });
-        el.addEventListener('dragend', () => raster.ziehenEndet());
-        nv.append(el);
+        const bloecke = n.bloecke?.length ? n.bloecke : Array(n.anzahl).fill(1);
+        const laengen = [...new Set(bloecke)].sort((a, b) => b - a);
+        for (const laenge of laengen) {
+          const anzahl = bloecke.filter((b) => b === laenge).length;
+          const el = h('span', { class: `nv${laenge > 1 ? ' block' : ''}`, draggable: planen ? 'true' : null, title: `U-Nr. ${n.u}: ${n.anzahl} Stunde(n) nicht verplant${laenge > 1 ? ` – Block mit ${laenge} Stunden` : ''}` },
+            h('b', null, `${anzahl}×`), laenge > 1 ? h('i', null, ` ${laenge} Std.`) : null, ` ${n.text}`);
+          el.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData(TYP_UNTERRICHT, JSON.stringify({ u: n.u, laenge })); raster.ziehenBeginnt({ u: n.u, laenge }); });
+          el.addEventListener('dragend', () => raster.ziehenEndet());
+          el.addEventListener('contextmenu', (ev) => {
+            ev.preventDefault();
+            menue(ev.clientX, ev.clientY, [
+              { titel: `U-Nr. ${n.u}` },
+              { text: 'Unterricht bearbeiten …', symbol: 'unterricht', aktion: () => fensterverwaltung.oeffnen('unterricht', { sicht: typ === 'raum' || typ === 'fach' ? 'alle' : typ, element: typ === 'raum' || typ === 'fach' ? undefined : element }) },
+              { text: 'Zeitwünsche des Unterrichts', symbol: 'zeitwunsch', aktion: () => befehl('zeitwuensche.oeffnen', { typ: 'unterricht', element: n.u }) },
+            ]);
+          });
+          nv.append(el);
+        }
       }
       const summe = plan.zellen.reduce((a, z) => a + new Set(z.eintraege.map((e) => e.u)).size, 0);
-      f.fuss.replaceChildren(...[h('span', null, `${summe} Stunden verplant`), plan.nichtVerplant.length ? h('span', null, `${plan.nichtVerplant.reduce((a, n) => a + n.anzahl, 0)} nicht verplant`) : null,
-        h('span', { class: 'rechts' }, plan.periode)].filter(Boolean));
+      fussBasis = [h('span', null, `${summe} Stunden verplant`), plan.nichtVerplant.length ? h('span', null, `${plan.nichtVerplant.reduce((a, n) => a + n.anzahl, 0)} nicht verplant`) : null,
+        h('span', { class: 'rechts' }, plan.periode)].filter(Boolean);
+      fussZeigen();
     } finally { weg(); }
   }
 
@@ -93,6 +108,14 @@ function stundenplanFenster(f, p) {
     raster.setzen(raster.plan);
   } });
   kp.classList.toggle('gedrueckt', !!p.kompakt);
+  if (schreiben) {
+    f.trenner();
+    const planAktion = async (fn) => { if (await fn()) await laden_(); };
+    f.werkzeug({ text: '', symbol: 'fixieren', nurSymbol: true, titel: 'Unterr.-Std. fixieren / lösen (F)', aktion: () => planAktion(() => planung.fixieren(raster.markierte(), f.id)) });
+    f.werkzeug({ text: '', symbol: 'raeume', nurSymbol: true, titel: 'Raum zuordnen / löschen', aktion: () => { const a = raster.auswahl(); return a ? planAktion(() => planung.raumDialog(a, f.id)) : hinweis('Bitte zuerst eine Stunde anklicken.', 'warnung'); } });
+    f.werkzeug({ text: '', symbol: 'tausch', nurSymbol: true, titel: 'Tauschvorschläge', aktion: () => { const a = raster.auswahl(); return a ? planAktion(() => planung.tauschDialog(a, f.id)) : hinweis('Bitte zuerst eine Stunde anklicken.', 'warnung'); } });
+    f.werkzeug({ text: '', symbol: 'loeschen', nurSymbol: true, titel: 'Stunde entplanen (Entf)', aktion: () => planAktion(() => planung.entplanen(raster.markierte(), f.id)) });
+  }
   if (typ !== 'raum') f.werkzeug({ text: 'Unterricht', symbol: 'unterricht', aktion: () => fensterverwaltung.oeffnen('unterricht', { sicht: typ, element }) });
 
   let auswahl = null;

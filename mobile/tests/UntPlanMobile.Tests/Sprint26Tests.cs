@@ -60,30 +60,34 @@ public class Sprint26Tests
     }
 
     [Fact]
-    public void Vertretene_Aufsicht_zeigt_Kuerzel_wie_eine_Stundenkarte()
+    public void Vertretene_Aufsicht_zeigt_nur_den_Ort_und_das_gruene_Menuezeichen()
     {
         MitNode(Abschnitt(AppJs, "AUFSICHT"), """
-            const k = window.UntPlanAufsicht.kuerzel;
-            // reguläre Aufsicht: keine Kürzel
-            pruefe(k({ subject:'Hof' }, 'LAN', false), '');
-            // eingesprungen: abwesende Lehrkraft durchgestrichen, ich als grüne Plakette
-            pruefe(k({ _supSub:true, teacher:'LAN', teacherOrig:'SNE' }, 'LAN', false),
-              '<span class="sup-lab"><span class="sup-weg">SNE</span><i class="tok__trenn">,</i> <span class="badge">LAN</span></span>');
-            // schmale Spalte: nur die Vertretung
-            pruefe(k({ _supSub:true, teacher:'LAN', teacherOrig:'SNE' }, 'LAN', true), '<span class="sup-lab"><span class="badge">LAN</span></span>');
-            // abgegeben, noch offen: eigenes Kürzel durchgestrichen in der grünen Plakette
-            pruefe(k({ _supAbsent:true, teacher:'', teacherOrig:'LAN' }, 'LAN', false),
-              '<span class="sup-lab"><span class="badge badge--removed badge--open">LAN</span></span>');
-            // abgegeben an MEY
-            pruefe(k({ _supAbsent:true, teacher:'MEY', teacherOrig:'LAN' }, 'LAN', true), '<span class="sup-lab"><span class="badge">MEY</span></span>');
+            const { inhalt, klassen } = window.UntPlanAufsicht;
+            const ort = '<span class="card__line">Hof</span>';
+            const menu = '<span class="sup-menu" aria-hidden="true">' + AUFSICHT_DOTS + '</span>';
+            // reguläre Aufsicht: nur der Ort
+            pruefe(inhalt({ subject:'Hof' }), ort);
+            pruefe(klassen({ subject:'Hof' }), []);
+            // eingesprungen bzw. abgegeben: nur der Ort und ganz rechts „…“ – keine Kürzel, nichts Durchgestrichenes
+            pruefe(inhalt({ subject:'Hof', _supSub:true, teacher:'LAN', teacherOrig:'SNE' }), ort + menu);
+            pruefe(inhalt({ subject:'Hof', _supAbsent:true, teacher:'', teacherOrig:'LAN' }), ort + menu);
+            pruefe(inhalt({ subject:'Hof', _supAbsent:true, teacher:'MEY', teacherOrig:'LAN' }), ort + menu);
+            pruefe(klassen({ _supSub:true }), ['is-sub']);
+            pruefe(klassen({ _supAbsent:true }), ['is-absent', 'is-abgegeben']);
+            // entfallen: Entfall-Stil, kein Zeichen
+            pruefe(inhalt({ subject:'Hof', _supCancelled:true }), ort);
+            pruefe(klassen({ _supCancelled:true }), ['is-cancelled']);
             """);
         var js = AppJs;
-        // kein grünes „…“-Menü mehr, abgegebene Aufsicht mit Eckklammern
-        Assert.DoesNotContain("<span class=\"sup-menu\"", js);
-        Assert.Contains("cls.push('is-absent', 'is-abgegeben')", js);
+        Assert.DoesNotContain("aufsichtKuerzel", js);
+        Assert.DoesNotContain("sup-weg", js);
+        Assert.Contains("cls.push(...aufsichtKlassen(card))", js);
         var css = AppCss;
         Assert.Contains(".card.card--supervision.is-past .card__line,", css);
         Assert.Contains(".card.card--supervision.is-abgegeben,", css);
+        Assert.Contains(".card.card--supervision.is-sub .sup-menu,", css);
+        Assert.Contains(".card.card--supervision.is-cancelled .card__line,", css);
     }
 
     [Fact]

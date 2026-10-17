@@ -1,0 +1,41 @@
+/* Modul Zeitwünsche: Raster-Editor (+3 … −3, Farben wie im Desktop) und unbestimmte Zeitwünsche. */
+
+.zw-flaeche { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
+.zw-name { font-weight: var(--mittel); font-size: 14px; }
+.zw-typ { width: 110px; }
+.zw-element { min-width: 170px; max-width: 280px; }
+.fenster-werkzeuge .zw-wert { min-width: 30px; justify-content: center; font-weight: var(--mittel); padding: 0 4px; }
+.fenster-werkzeuge .zw-wert.gedrueckt { outline: 2px solid var(--akzent); outline-offset: 1px; }
+
+.zw-raster { overflow: auto; outline: none; touch-action: none; user-select: none; }
+.zw-tabelle { border-collapse: collapse; font-size: 12px; }
+.zw-tabelle th { font-weight: var(--mittel); padding: 3px 6px; border: 1px solid var(--rasterlinie); background: var(--kopf); color: #3c4450; }
+.zw-tabelle th.zw-vm { background: #ffe8cd; }
+.zw-tabelle th.zw-nm { background: #d6f5f8; }
+.zw-tabelle th.zw-tag { text-align: left; min-width: 92px; }
+.zw-tabelle th.zw-ganz { background: #f5f5f5; min-width: 52px; }
+.zw-zelle { width: 34px; min-width: 34px; height: 26px; text-align: center; border: 1px solid var(--rasterlinie); cursor: crosshair; font-weight: var(--mittel); }
+.zw-ganzzelle { background: #f5f5f5; cursor: pointer; }
+.zw-ganzzelle:hover { background: var(--hover); }
+.zw-w3 { background: rgb(0, 176, 80); color: #fff; }
+.zw-w2 { background: rgb(102, 204, 102); color: #fff; }
+.zw-w1 { background: rgb(198, 239, 206); color: #000; }
+.zw-w0 { background: #fff; color: #000; }
+.zw-w-1 { background: rgb(255, 199, 206); color: #000; }
+.zw-w-2 { background: rgb(255, 124, 128); color: #fff; }
+.zw-w-3 { background: rgb(230, 40, 40); color: #fff; }
+.zw-zelle.zw-aus { background: rgb(200, 200, 200); color: #555; }
+.fenster-werkzeuge .zw-wert.zw-w0 { background: #fff; }
+.zw-hilfe { font-size: 11.5px; color: var(--text-leise); }
+
+.zw-unbestimmt { border-top: 1px solid var(--rand-leise); padding-top: 6px; }
+.zw-utitel { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; font-size: 12.5px; }
+.zw-utabelle { width: auto; }
+.zw-utabelle td { overflow: visible; }
+.zw-anzahl { width: 60px; }
+.fenster-werkzeuge .wz-knopf.zw-w3 { background: rgb(0, 176, 80); color: #fff; }
+.fenster-werkzeuge .wz-knopf.zw-w2 { background: rgb(102, 204, 102); color: #fff; }
+.fenster-werkzeuge .wz-knopf.zw-w1 { background: rgb(198, 239, 206); color: #000; }
+.fenster-werkzeuge .wz-knopf.zw-w-1 { background: rgb(255, 199, 206); color: #000; }
+.fenster-werkzeuge .wz-knopf.zw-w-2 { background: rgb(255, 124, 128); color: #fff; }
+.fenster-werkzeuge .wz-knopf.zw-w-3 { background: rgb(230, 40, 40); color: #fff; }

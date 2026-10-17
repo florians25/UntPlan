@@ -68,6 +68,14 @@ public sealed record Karte(
         Klassen.Concat(Lehrer).Concat(Raeume).Concat(Mitklassen).Any(w => !string.IsNullOrEmpty(w.Alt) || w.Plus || (w.K.Length == 0 && w.Neu));
 
     /// <summary>
+    /// Wie <see cref="WertGeaendert"/>, bei einer zusätzlichen Unterrichtsstunde (Marker „+“, keine Verlegung) aber ohne die Lehrkräfte: Dort stehen alle beteiligten
+    /// Lehrkräfte als „+“-Label (hinzugekommen) – das ist keine Änderung eines Werts.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool ZusatzWertGeaendert => !string.IsNullOrEmpty(FachAlt) ||
+        Klassen.Concat(Raeume).Concat(Mitklassen).Concat(Zusaetzlich ? new List<Wert>() : Lehrer)
+            .Any(w => !string.IsNullOrEmpty(w.Alt) || w.Plus || (w.K.Length == 0 && w.Neu));
+
+    /// <summary>
     /// Symbole oben rechts, untereinander in dieser Reihenfolge: verlegungVon (rot, Pfeil), verlegungNach (grün, Pfeil), entfall
     /// (rotes Dreieck), pruefung (gelber Kreis), plus (grünes „+“), aenderung (grünes Quadrat). Prüfung, Zusatzstunde und Zielstunde
     /// einer Verlegung bekommen zusätzlich „aenderung“, wenn sich ein Wert geändert hat (z. B. Prüfung mit Raumänderung).
@@ -83,7 +91,7 @@ public sealed record Karte(
             else if (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend)) m.Add("entfall");
             if (Status == "klausur") { m.Add("pruefung"); if (WertGeaendert) m.Add("aenderung"); }
             else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
-            else if (verlegung is null && IstZusatz) { m.Add("plus"); if (WertGeaendert && Status != "veranstaltung") m.Add("aenderung"); }
+            else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert && Status != "veranstaltung") m.Add("aenderung"); }
             else if (verlegung is null && Status is "geaendert" or "offen" or "buchung") m.Add("aenderung");
             return m;
         }
@@ -125,8 +133,16 @@ public sealed record Karte(
     [System.Text.Json.Serialization.JsonIgnore] public int? Einzelstunde { get; init; }
 }
 
-/// <summary>Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg), vertretung (zusätzlich übernommen).</summary>
-public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt);
+/// <summary>
+/// Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg, Lehrer = Vertretung bzw. „???“, Alt = eigene
+/// Lehrkraft), vertretung (zusätzlich übernommen, Alt = abwesende Lehrkraft), entfall (findet nicht statt, Lehrer = eingeteilte Lehrkraft;
+/// Grund z. B. „Abwesenheit“ bzw. Titel der Veranstaltung, sonst null).
+/// </summary>
+public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt)
+{
+    /// <summary>Nur bei Status „entfall“: Anlass (Abwesenheit, Veranstaltung bzw. Text der Vertretung); sonst null.</summary>
+    public string? Grund { get; init; }
+}
 
 public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise, List<Ereignis> Ereignisse, string? FreiArt = null, string? FreiVon = null, string? FreiBis = null)
 {
@@ -960,6 +976,8 @@ public sealed class Plandienst
             VertretungOffen = lehrerOffen,
             VerlegungsZeile = verlegungsZeile,
         };
+        // zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): alle beteiligten Lehrkräfte als „+“-Label
+        if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer) };
         return karte.Verlegung is null ? karte : VerlegungSetzen(karte, d, v, zeiten);
     }
 
@@ -1061,7 +1079,46 @@ public sealed class Plandienst
         return res.GroupBy(k => (k.Von, k.Bis, Schluessel(k))).Select(g => g.First()).OrderBy(k => k.Von).ThenBy(k => k.Fach).ToList();
     }
 
-    /// <summary>Pausenaufsichten einer Lehrkraft an einem Tag (regelmäßige und Vertretungen).</summary>
+    /// <summary>
+    /// Lehrkräfte einer zusätzlichen Unterrichtsstunde: alle Beteiligten (auch ein als „ersetzt“ gemeldeter alter Wert) je einmal als
+    /// hinzugekommener Wert ({ k, neu } → „+CS“) – nie durchgestrichen und nie „alt → neu“. Ohne Lehrkraft: „---“.
+    /// </summary>
+    public static List<Wert> ZusatzLehrer(IEnumerable<Wert> lehrer)
+    {
+        var alle = lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Select(x => x.Trim())
+            .Where(x => x.Length > 0 && x is not ("---" or "???" or "+" or "+++")).Distinct(Ci).ToList();
+        return alle.Count == 0 ? new List<Wert> { new(OhneLehrkraftZusatz) } : alle.Select(x => new Wert(x, null, true)).ToList();
+    }
+
+    /// <summary>Nimmt eine Abwesenheit (Lehrkraft) bzw. Veranstaltung am Tag d die Pause nach Stunde <paramref name="nach"/> ein?</summary>
+    private static bool PauseBelegt(DateOnly d, string von, string bis, int stundeVon, int stundeBis, int nach)
+    {
+        if (!DateOnly.TryParse(von, out var v) || !DateOnly.TryParse(bis, out var b) || d < v || d > b) return false;
+        // erster Tag ab StundeVon, letzter Tag bis StundeBis (0 bzw. ≥ 20 = bis Tagesende), dazwischen ganztägig
+        var ab = d == v ? Math.Max(1, stundeVon) : 1;
+        var ende = d == b && stundeBis > 0 && stundeBis < 20 ? stundeBis : int.MaxValue;
+        // die Pause nach Stunde n liegt zwischen n und n + 1 (vor der 1. Stunde: n = 0)
+        return ab <= Math.Max(1, nach) && ende >= nach + 1;
+    }
+
+    /// <summary>
+    /// Grund, aus dem eine Aufsicht ohne Vertretung entfällt: die Lehrkraft ist abwesend bzw. nimmt an einer Veranstaltung teil, die die
+    /// Pause einschließt; null = findet statt.
+    /// </summary>
+    private static string? AufsichtEntfallGrund(Stand s, DateOnly d, string lehrer, int nach)
+    {
+        if (s.Paket.Absenzen.Any(a => a.Art == "lehrer" && Ci.Equals(a.Element, lehrer) && PauseBelegt(d, a.Von, a.Bis, a.StundeVon, a.StundeBis, nach)))
+            return "Abwesenheit";
+        var t = s.Paket.Termine.FirstOrDefault(x => x.Art == "veranstaltung" && (x.AlleLehrer || Enthaelt(x.Lehrer, lehrer))
+                                                    && PauseBelegt(d, x.Von, x.Bis, x.StundeVon, x.StundeBis, nach));
+        return t is null ? null : t.Titel.Trim().Length > 0 ? t.Titel.Trim() : "Veranstaltung";
+    }
+
+    /// <summary>
+    /// Pausenaufsichten einer Lehrkraft an einem Tag (regelmäßige und Vertretungen). Status: regulaer, vertreten (jemand anderes bzw.
+    /// noch niemand – „???“ – übernimmt), vertretung (zusätzlich übernommen), entfall (findet nicht statt: Vertretung „---“ bzw. ohne
+    /// Vertretung, weil die Lehrkraft abwesend ist oder an einer Veranstaltung teilnimmt – Grund in <see cref="Aufsicht.Grund"/>).
+    /// </summary>
     public List<Aufsicht> Aufsichten(Stand s, DateOnly d, string lehrer)
     {
         var res = new List<Aufsicht>();
@@ -1076,7 +1133,13 @@ public sealed class Plandienst
         {
             var (b, e) = Pause(a.NachStunde);
             var v = vertretungen.FirstOrDefault(x => x.Stunde == a.NachStunde && Ci.Equals(x.Lehrer, lehrer));
-            res.Add(v is null
+            // ausdrücklich entfallen („---“ bzw. Art „Entfall“) oder ohne Vertretung bei Abwesenheit bzw. Veranstaltung
+            var entfall = v != null
+                ? (v.Vertreter.Trim() == "---" || v.Art.Contains("Entfall", StringComparison.OrdinalIgnoreCase) ? (v.Text.Trim().Length > 0 ? v.Text.Trim() : "") : null)
+                : AufsichtEntfallGrund(s, d, lehrer, a.NachStunde);
+            res.Add(entfall is not null
+                ? new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "entfall", lehrer, null) { Grund = entfall.Length > 0 ? entfall : null }
+                : v is null
                 ? new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "regulaer", lehrer, null)
                 : new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "vertreten", v.Vertreter is "" or "???" ? "???" : v.Vertreter, lehrer));
         }

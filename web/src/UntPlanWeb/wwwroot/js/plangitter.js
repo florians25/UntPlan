@@ -102,6 +102,8 @@ const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend
 
 /** Ein Wert der Stunde hat sich geändert (Fach, ersetzter, hinzugefügter bzw. entfernter Wert) – wie Karte.WertGeaendert im Server. */
 const wertGeaendert = k => !!k.fachAlt || [...(k.klassen || []), ...(k.lehrer || []), ...(k.raeume || []), ...(k.mitklassen || [])].some(w => w.alt || w.neu);
+/** Zusätzliche Unterrichtsstunde: alle Lehrkräfte stehen als „+“-Label (hinzugekommen) – das allein ist keine Änderung (Karte.ZusatzWertGeaendert). */
+const zusatzWertGeaendert = k => !!k.fachAlt || [...(k.klassen || []), ...(k.zusaetzlich ? [] : k.lehrer || []), ...(k.raeume || []), ...(k.mitklassen || [])].some(w => w.alt || w.neu);
 
 /** „09.10.2026 | 11:30 - 13:00“ – eine Seite einer Verlegung. */
 const verlegungsZeit = z => `${datumDe(z.datum)}${z.beginn ? ` | ${z.beginn}${z.ende ? ` - ${z.ende}` : ''}` : ''}`;
@@ -125,7 +127,7 @@ function marker(k, typ) {
   else if (verlegt) { if (richtung === 'nach' && (k.status === 'geaendert' || k.status === 'offen') && wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>'); }
   else if (istZusatz(k)) {
     m.push(`<i class="mk-plus"${k.zusaetzlich ? ` data-hover="${ZUSATZ_TEXT}" data-hover-art="dunkel"` : ''}></i>`);
-    if (k.status !== 'veranstaltung' && wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>');
+    if (k.status !== 'veranstaltung' && zusatzWertGeaendert(k)) m.push('<i class="mk-quadrat"></i>');
   }
   else if (k.status === 'geaendert' || k.status === 'offen' || k.status === 'buchung') m.push('<i class="mk-quadrat"></i>');
   return m.length ? `<span class="mks" aria-hidden="true">${m.join('')}</span>` : '';
@@ -492,10 +494,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     for (const [nach, liste] of proPause) {
       const breite = 100 / liste.length;
       liste.forEach((a, j) => {
-        const ersatz = a.lehrer && !/^[?+]+$/.test(a.lehrer) ? a.lehrer : '';
         // auf der Karte nur der Aufsichtsbereich (z. B. „Hof“) – nicht „Früh …“ bzw. der lange Name; Details im Tooltip
         const ort = aufsichtOrt(a);
-        const titel = `Pausenaufsicht ${a.gangName || a.gang} ${a.beginn}–${a.ende}${a.status === 'vertretung' ? ` (Vertretung für ${a.alt})` : a.status === 'vertreten' ? (ersatz ? ` (vertreten durch ${ersatz})` : ' (entfällt)') : ''}`;
+        const titel = aufsichtTitel(a);
         // Vertretung wie bei den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grünes Label (ohne Vertretung
         // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
         const label = aufsichtLabel(a);
@@ -667,6 +668,18 @@ function aufsichtOrt(a) {
 }
 
 /**
+ * Tooltip bzw. Bezeichnung einer Pausenaufsicht: Ort, Zeit und Zustand – Vertretung, vertreten durch …, Vertretung offen bzw. entfällt
+ * (mit Anlass, z. B. „Abwesenheit“ oder der Titel der Veranstaltung).
+ */
+export function aufsichtTitel(a) {
+  const ersatz = a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
+  const zustand = a.status === 'vertretung' ? ` (Vertretung für ${a.alt})`
+    : a.status === 'vertreten' ? (ersatz ? ` (vertreten durch ${ersatz})` : ' (Vertretung offen)')
+    : a.status === 'entfall' ? ` (entfällt${a.grund ? ' – ' + a.grund : ''})` : '';
+  return `Pausenaufsicht ${a.gangName || a.gang} ${a.beginn}–${a.ende}${zustand}`;
+}
+
+/**
  * Vertretene Pausenaufsicht: die Vertretung als grünes Label wie auf den Stundenkarten (Hover „ALT → NEU“). Die abwesende Lehrkraft
  * steht nicht auf der Karte (nur im Hover); ohne Vertretung kein Label (gestrichelte Karte, Hinweis im Tooltip).
  */
@@ -690,7 +703,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
         <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && k.status !== 'abwesend' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
-        <div class="aufsicht ${e(a.status)}"><span class="auf-text">${e(a.gangName)}${aufsichtLabel(a) ? ' ' + aufsichtLabel(a) : ''}</span></div></div>` })),
+        <div class="aufsicht ${e(a.status)}" ${aufsichtLabel(a) ? '' : `title="${e(aufsichtTitel(a))}"`}><span class="auf-text">${e(a.gangName)}${aufsichtLabel(a) ? ' ' + aufsichtLabel(a) : ''}</span></div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);
   return `<div class="tt-liste">${eintraege.map(x => x.html).join('')}</div>`;
 }

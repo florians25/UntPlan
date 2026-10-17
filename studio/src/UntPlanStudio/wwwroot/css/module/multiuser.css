@@ -1,0 +1,20 @@
+/* Modul MultiUser (Präfix mu-) */
+.mu-feld { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.mu-feld .sym { width: 14px; height: 14px; }
+.mu-sperre { color: #ffd28a; margin-left: 4px; }
+.mu-fenster { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 12px; background: var(--flaeche); }
+.mu-fenster h3 { margin: 0 0 6px; font-size: 13px; font-weight: var(--mittel); color: var(--akzent); }
+.mu-fenster p { margin: 4px 0; }
+.mu-tabelle { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.mu-tabelle th, .mu-tabelle td { border-bottom: 1px solid var(--rand-leise); padding: 4px 6px; text-align: left; }
+.mu-tabelle th { background: var(--kopf); font-weight: var(--mittel); }
+.mu-tabelle .knopf + .knopf { margin-left: 4px; }
+.mu-inaktiv { color: var(--text-leise); }
+.mu-gesperrt { background: #fff3e0; }
+.mu-punkt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b0b8c0; margin-right: 6px; }
+.mu-punkt.an { background: var(--ok); }
+.mu-warnung { color: var(--warnung); font-weight: var(--mittel); }
+.mu-nachrichten { max-height: 160px; overflow: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.mu-nachrichten b { font-weight: var(--mittel); }
+.mu-spalten { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.mu-spalten fieldset { border: 1px solid var(--rand-leise); border-radius: var(--radius); display: flex; flex-direction: column; gap: 4px; }

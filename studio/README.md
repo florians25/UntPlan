@@ -13,6 +13,9 @@ Server mit derselben Fachlogik (`src/UntPlan.Core`); Schuldateien (`.up`) sind z
 herunterladen, BAL-Import, Rückgängig/Wiederholen, Autospeicherung), Stammdaten (Klassen, Lehrkräfte, Räume, Fächer,
 Raumgruppen, Gänge, Abteilungen, Abwesenheitsgründe, Schüler), Unterricht (inkl. Kopplungen), Stundenpläne je Klasse,
 Lehrkraft, Raum, Fach mit manuellem Planen per Drag & Drop, Fensteranordnungen, Stundenplan-/Vertretungsmodus.
+Einstellungen der Schuldatei (Schuldaten, Zeitraster mit Pausen, Kalender/Ferien mit NRW-Vorschlag, Perioden,
+Unterrichtsgruppen), Druck als PDF direkt vom Server (Stundenpläne im Schwarz-Weiß-Layout des Desktop-Drucks, Vertretungsplan
+nach Seitenlayout, Übersichtspläne, Berichte; dazu HTML, Info-Stundenplan, iCalendar), Übersichtspläne quer, eigene Stundenplanformate.
 Ausgegraute Knöpfe im Menüband folgen in weiteren Ausbaustufen (siehe `ARCHITEKTUR.md`).
 
 ## Lokal starten
@@ -34,6 +37,7 @@ Tests:
 dotnet test studio/tests/UntPlanStudio.Tests -c Release      # API-Tests, Syntaxprüfung aller JS-Module (Node), Verweise
 # Oberflächen-Smoke-Test (Server muss laufen, Playwright + Chromium nötig):
 NODE_PATH=$(npm root -g) STUDIO_PASSWORT=geheim123 node studio/tests/smoke/smoke.cjs
+NODE_PATH=$(npm root -g) STUDIO_PASSWORT=geheim123 node studio/tests/smoke/druck.cjs   # Einstellungen, Druck, Übersicht, Formate
 ```
 
 ## Container

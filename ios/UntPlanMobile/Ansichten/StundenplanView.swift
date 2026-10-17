@@ -1626,9 +1626,20 @@ struct AufsichtDetailView: View {
                 teile.append(.neu(neueLehrkraft))
             }
             return teile
+        case "entfall":
+            // Entfallene Aufsicht: die eingeteilte Lehrkraft durchgestrichen (wie bei einer entfallenen Stunde)
+            return neueLehrkraft.isEmpty || neueLehrkraft == "---" ? [] : [.weg(neueLehrkraft)]
         default:
             return neueLehrkraft.isEmpty ? [] : [.text(neueLehrkraft)]
         }
+    }
+
+    /// Entfallene Aufsicht (Statuspille „ENTFÄLLT“ neben „Pausenaufsicht“).
+    private var entfaellt: Bool { Kachelbau.aufsichtsstand(aufsicht.status) == .entfall }
+
+    /// Anlass einer entfallenen Aufsicht (z. B. „Abwesenheit“ bzw. Titel der Veranstaltung); sonst leer.
+    private var entfallGrund: String {
+        entfaellt ? (aufsicht.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines) : ""
     }
 
     private var planziele: [PlanAuswahl] {
@@ -1671,8 +1682,13 @@ struct AufsichtDetailView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Wertzeile(bausteine: [.text(ort)], schrift: Detailmass.gross, farbe: Farben.detailText)
                             .frame(height: Detailmass.zeile)
-                        Wertzeile(bausteine: [.text("Pausenaufsicht")], schrift: Detailmass.gross, farbe: Farben.detailText)
+                        Wertzeile(bausteine: entfaellt ? [.text("Pausenaufsicht"), .pille("ENTFÄLLT")] : [.text("Pausenaufsicht")],
+                                  schrift: Detailmass.gross, farbe: Farben.detailText)
                             .frame(height: Detailmass.zeile)
+                        if !entfallGrund.isEmpty {
+                            Wertzeile(bausteine: [.text(entfallGrund)], schrift: Detailmass.klein)
+                                .frame(height: Detailmass.zeile)
+                        }
                         Wertzeile(bausteine: [.text(aufsicht.beginn.isEmpty ? pause : "\(zeit) · \(pause)")], schrift: Detailmass.klein)
                             .frame(height: Detailmass.zeile)
                         if !lehrkraft.isEmpty {

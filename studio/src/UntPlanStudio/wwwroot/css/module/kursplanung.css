@@ -1,0 +1,7 @@
+/* Modul Kursplanung (Präfix kp-) */
+.kp-flaeche { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.kp-baender { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.kp-status { flex: none; padding: 4px 8px; background: var(--kopf); border-top: 1px solid var(--rand-leise); font-size: 12px; }
+.kp-status.kp-kollision { color: #8b0000; }
+.km-zeile { display: flex; gap: 6px; }
+.km-zeile select { flex: 1; }

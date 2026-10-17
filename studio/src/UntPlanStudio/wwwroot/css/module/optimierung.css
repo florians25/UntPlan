@@ -1,0 +1,102 @@
+/* Modul Optimierung: Diagnose-Fenster, Gewichtung, Steuerdaten, Fortschritt und Ergebnisvergleich. */
+
+/* Diagnose */
+.op-diagnose { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 340px) 1fr; }
+.op-links { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rand); background: #fff; }
+.op-reiter { display: flex; gap: 2px; padding: 4px 4px 0; background: var(--leiste); border-bottom: 1px solid var(--rand); flex: none; }
+.op-reiter button { border: 1px solid transparent; border-bottom: 0; background: transparent; padding: 5px 12px; border-radius: 4px 4px 0 0; cursor: pointer; }
+.op-reiter button.aktiv { background: #fff; border-color: var(--rand); margin-bottom: -1px; font-weight: var(--mittel); }
+.op-reiter .op-anz { margin-left: 6px; font-size: 11px; color: var(--text-leise); }
+.op-liste { flex: 1; overflow: auto; outline: none; }
+.op-zeile { display: grid; grid-template-columns: 1fr 44px 50px; gap: 4px; padding: 3px 8px; font-size: 12.5px; border-bottom: 1px solid var(--rand-leise); }
+.op-zeile .z { text-align: right; font-variant-numeric: tabular-nums; }
+.op-zeile.kopf { position: sticky; top: 0; background: var(--kopf); font-weight: var(--mittel); color: #3c4450; border-bottom-color: var(--rand); }
+.op-zeile.gruppe { background: var(--kopf); font-weight: var(--mittel); }
+.op-zeile.punkt { padding-left: 20px; cursor: default; }
+.op-zeile.punkt:hover { background: var(--hover); }
+.op-zeile.punkt.gewaehlt { background: var(--auswahl); }
+.op-zeile.punkt.leer { color: #999; }
+.op-zeile.punkt.schwer { color: #8b0000; }
+.op-leer { padding: 16px; color: var(--text-leise); }
+.op-rechts { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.op-titel { flex: none; padding: 6px 10px; font-weight: var(--mittel); background: var(--leiste); border-bottom: 1px solid var(--rand-leise); }
+.op-beschreibung { flex: none; min-height: 48px; max-height: 96px; overflow: auto; padding: 6px 10px; background: #fafaf0; border-bottom: 1px solid var(--rand-leise); font-size: 12.5px; line-height: 1.4; }
+.op-faelle { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.op-faelle .tabelle { flex: 1; }
+
+/* Gewichtung */
+.op-gewichtung { display: grid; grid-template-columns: 170px 1fr; gap: 12px; min-height: 380px; }
+.op-karten { display: flex; flex-direction: column; border: 1px solid var(--rand); border-radius: var(--radius); overflow: auto; background: #fff; }
+.op-karten button { text-align: left; border: 0; background: transparent; padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--rand-leise); }
+.op-karten button:hover { background: var(--hover); }
+.op-karten button.aktiv { background: var(--auswahl); font-weight: var(--mittel); }
+.op-regler { min-width: 0; overflow: auto; max-height: 60vh; }
+.op-skala { display: grid; grid-template-columns: 1fr 200px 60px; font-size: 11px; color: var(--text-leise); }
+.op-skala span:first-child { grid-column: 2; }
+.op-skala span:last-child { grid-column: 2; justify-self: end; margin-top: -14px; }
+.op-reglerzeile { display: grid; grid-template-columns: 1fr 200px 22px 34px; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--rand-leise); }
+.op-reglerzeile .text { font-size: 12.5px; }
+.op-reglerzeile input[type=range] { width: 100%; accent-color: var(--akzent); }
+.op-wert { text-align: center; font-size: 14px; color: var(--akzent); }
+.op-standard { font-size: 11px; color: var(--text-leise); }
+.op-verteilung { display: flex; align-items: flex-end; gap: 18px; height: 220px; padding: 12px 12px 0; border-left: 1px solid #333; border-bottom: 1px solid #333; margin-top: 10px; }
+.op-saeule { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+.op-saeule .balken { width: 50%; background: #6464f0; min-height: 1px; }
+.op-saeule .n { font-size: 12px; margin-bottom: 2px; }
+.op-saeule .z { position: absolute; bottom: -20px; font-size: 12px; }
+.op-achse { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-leise); margin-top: 24px; }
+.op-analyse td:first-child { white-space: normal; }
+
+/* Steuerdaten */
+.op-steuerdaten { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+.op-spalte { display: flex; flex-direction: column; gap: 8px; }
+.op-gruppe { border: 1px solid var(--rand); border-radius: var(--radius); padding: 6px 10px 8px; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.op-gruppe legend { font-size: 11.5px; color: var(--text-leise); padding: 0 4px; }
+.op-gruppe.aus { opacity: .55; }
+.op-block { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.op-zeile2 { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.op-zahl { width: 64px; flex: none; }
+.op-haken { font-size: 12.5px; }
+.op-warnung { grid-column: 1 / -1; margin: 0; color: #8b1e1e; font-size: 12px; }
+
+/* Fortschritt und Ergebnis */
+.op-lauf { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; overflow: auto; background: #fff; }
+.op-lauf-kopf { display: flex; gap: 14px; align-items: center; }
+.op-gross {
+  flex: none; min-width: 150px; padding: 6px 14px; text-align: center; font-size: 20px; font-weight: var(--mittel);
+  border: 1px solid var(--rand); border-radius: var(--radius); background: var(--leiste); color: var(--akzent);
+}
+.op-gross.fertig { background: #fff064; color: #1e3cc8; }
+.op-gross.laeuft { font-size: 15px; }
+.op-gross.fehler, .op-gross.abgebrochen { color: var(--gefahr); font-size: 16px; }
+.op-gross.uebernommen { background: #e2f6e2; color: var(--ok); font-size: 15px; }
+.op-info { font-size: 12.5px; line-height: 1.5; }
+.op-hinweis { color: var(--warnung); }
+.op-balken { height: 14px; border: 1px solid var(--rand); border-radius: 7px; overflow: hidden; background: var(--leiste); flex: none; }
+.op-balken-innen { height: 100%; width: 0; background: var(--akzent-leuchtend); transition: width .4s ease; }
+.op-balken.laeuft .op-balken-innen {
+  background-image: linear-gradient(45deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.35) 75%, transparent 75%);
+  background-size: 18px 18px; animation: op-streifen 1s linear infinite;
+}
+@keyframes op-streifen { to { background-position: 18px 0; } }
+.op-ergebnis .op-rollen { overflow: auto; border: 1px solid var(--rand); border-radius: var(--radius); }
+.op-kennzahlen tr.aktuell td { background: #f0f0f0; }
+.op-vergleich { display: flex; flex-direction: column; gap: 6px; min-height: 340px; }
+.op-vergleich-kopf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.op-plaene { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-height: 300px; }
+.op-plaene > div { display: flex; flex-direction: column; min-width: 0; }
+.op-plan-titel { font-weight: var(--mittel); padding: 2px 0 4px; }
+.op-plan { flex: 1; min-height: 280px; display: flex; flex-direction: column; border: 1px solid var(--rand); border-radius: var(--radius); overflow: hidden; }
+.op-plan .raster .r-feld.op-anders { background: rgba(255, 196, 0, .35); box-shadow: inset 0 0 0 2px rgba(230, 150, 0, .8); }
+
+@media (max-width: 760px) {
+  .op-diagnose { grid-template-columns: 1fr; grid-template-rows: minmax(160px, 40%) 1fr; }
+  .op-links { border-right: 0; border-bottom: 1px solid var(--rand); }
+  .op-gewichtung { grid-template-columns: 1fr; }
+  .op-karten { flex-direction: row; flex-wrap: wrap; }
+  .op-reglerzeile { grid-template-columns: 1fr 120px 22px 30px; }
+  .op-steuerdaten { grid-template-columns: 1fr; }
+  .op-plaene { grid-template-columns: 1fr; }
+  .op-lauf-kopf { flex-direction: column; align-items: stretch; }
+}
+.op-kennzahlen th:not(:first-child) { text-align: right; }

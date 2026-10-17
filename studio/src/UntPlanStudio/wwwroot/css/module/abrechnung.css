@@ -1,0 +1,18 @@
+/* Modul Wertrechnung / Vertretungsstatistik (Präfix abr-) */
+.abr-reiter, .pa-reiter, .kp-reiter { flex: none; display: flex; gap: 2px; padding: 4px 6px 0; background: var(--leiste); border-bottom: 1px solid var(--rand); }
+.abr-reiter button, .pa-reiter button, .kp-reiter button { border: 1px solid transparent; border-bottom: 0; background: none; padding: 4px 12px; border-radius: var(--radius) var(--radius) 0 0; cursor: pointer; font: inherit; }
+.abr-reiter button.aktiv, .pa-reiter button.aktiv, .kp-reiter button.aktiv { background: var(--flaeche); border-color: var(--rand); font-weight: var(--mittel); margin-bottom: -1px; }
+.abr-werkzeug, .kp-werkzeug { flex: none; display: flex; gap: 8px; align-items: center; padding: 4px 8px; }
+.abr-werkzeug:empty { display: none; }
+.abr-werkzeug select.eingabe { width: 160px; }
+.abr-flaeche { flex: 1; min-height: 0; display: flex; }
+.abr-links { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.abr-rechts { width: 380px; flex: none; display: flex; flex-direction: column; border-left: 1px solid var(--rand); }
+.abr-titel { padding: 4px 6px; font-weight: var(--mittel); background: var(--kopf); }
+.abr-summe { flex: none; padding: 5px 8px; background: var(--kopf); border-top: 1px solid var(--rand-leise); font-size: 12px; }
+.abr-summe.gross { min-height: 44px; }
+.tabelle .t-zeile.abr-zuwenig .t-zelle { color: #8b0000; }
+.tabelle .t-zeile.abr-zuviel .t-zelle { color: #00008b; }
+.tabelle .t-zeile.abr-verguetung { background: #fff0c8; }
+.tabelle .t-zeile.abr-minus .t-zelle { color: var(--gefahr); }
+.tabelle .t-zeile.abr-gruppe { font-weight: var(--mittel); background: var(--kopf); }

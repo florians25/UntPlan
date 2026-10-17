@@ -79,7 +79,8 @@ export class Ribbon {
       const inhalt = h('div', { class: 'eintraege' });
       let spalte = null;
       for (const e of liste) {
-        const k = this._knopf(e);
+        // eigenes Steuerelement (z. B. Datumsauswahl der Vertretungsplanung): e.element() liefert das DOM-Element
+        const k = e.element ? e.element() : this._knopf(e);
         if (e.gross) { inhalt.append(k); spalte = null; continue; }
         if (!spalte || spalte.childElementCount >= 3) { spalte = h('div', { class: 'spalte' }); inhalt.append(spalte); }
         spalte.append(k);

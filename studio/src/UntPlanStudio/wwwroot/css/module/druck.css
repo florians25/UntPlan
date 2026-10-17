@@ -1,0 +1,27 @@
+/* Modul Druck (Druckauswahl, Vorschau, Berichte, Vertretungsplan-Ausgabe). Präfix dr-. */
+.dr-vorschau { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; }
+.dr-auswahl { display: flex; flex: 1; min-height: 0; }
+.dr-optionen { flex: 0 0 380px; overflow: auto; padding: 8px 14px; border-right: 1px solid var(--rand-leise); }
+.dr-optionen h3, .dr-layout h3, .dr-berichtliste h3 { font-size: 13px; font-weight: var(--mittel); color: var(--akzent); margin: 12px 0 6px; }
+.dr-optionen h3:first-child, .dr-berichtliste h3:first-child { margin-top: 2px; }
+.dr-typen, .dr-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.dr-elemente { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dr-listenkopf { flex: none; display: flex; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--rand-leise); background: var(--leiste); }
+.dr-listenkopf input { flex: 1; }
+.dr-liste { flex: 1; overflow: auto; padding: 4px 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); align-content: start; gap: 0 10px; }
+.dr-element { display: flex; gap: 6px; align-items: center; padding: 2px 0; white-space: nowrap; overflow: hidden; }
+.dr-element b { font-weight: var(--mittel); min-width: 36px; }
+.dr-element .leise { overflow: hidden; text-overflow: ellipsis; }
+.dr-berichte { display: flex; flex: 1; min-height: 0; }
+.dr-berichtliste { flex: 0 0 250px; overflow: auto; padding: 8px 10px; border-right: 1px solid var(--rand-leise); background: var(--leiste); }
+.dr-bericht { display: block; width: 100%; text-align: left; border: 0; background: none; font: inherit; padding: 5px 8px; border-radius: var(--radius); cursor: pointer; color: var(--text); }
+.dr-bericht:hover { background: var(--hover); }
+.dr-bericht.aktiv { background: var(--akzent-hell); font-weight: var(--mittel); }
+.dr-berichtvorschau { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dr-berichtkopf { flex: none; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--rand-leise); }
+.dr-zeitraum { display: flex; gap: 6px; align-items: center; }
+.dr-aushang { display: flex; flex: 1; min-height: 0; }
+.dr-layout { flex: 0 0 470px; overflow: auto; padding: 8px 12px; border-right: 1px solid var(--rand-leise); }
+.dr-schalterliste { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; margin: 8px 0; font-size: 12.5px; }
+.dr-schalter { display: flex; gap: 4px; align-items: center; }
+.dr-felder .eingabe { width: 140px; }

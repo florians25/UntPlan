@@ -144,7 +144,7 @@ export async function zeigen(seite, kontext) {
   const weitere = aenderungen.filter(k => !unterrichtstage.includes(k.datum));
   const ferien = element ? ferienAb(alleTage, heute) : null;
   const gesperrt = [w1, w2].some(p => p.gesperrt) && !alleKarten.length;
-  const aufsichten = [...(w1.aufsichten ?? []), ...(w2.aufsichten ?? [])].filter(a => a.datum >= heute && a.datum <= plusTage(heute, 6) && a.status !== 'vertreten')
+  const aufsichten = [...(w1.aufsichten ?? []), ...(w2.aufsichten ?? [])].filter(a => a.datum >= heute && a.datum <= plusTage(heute, 6) && a.status !== 'vertreten' && a.status !== 'entfall')
     .sort((a, b) => a.datum.localeCompare(b.datum) || a.nachStunde - b.nachStunde);
   const offeneHa = familie
     ? (fam.hausaufgaben ?? []).map(h => ({ fach: h.fach, hausaufgabe: h.text, faellig: h.faellig, klassen: [] }))

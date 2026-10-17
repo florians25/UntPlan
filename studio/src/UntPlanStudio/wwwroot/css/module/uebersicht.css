@@ -1,0 +1,21 @@
+/* Modul Übersichtspläne (Elemente × Tage/Stunden, virtualisiert). Präfix ue-. */
+.ue-rahmen { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--flaeche); }
+.ue-kopf { flex: none; height: 36px; overflow: hidden; position: relative; background: var(--kopf); border-bottom: 1px solid var(--rand); }
+.ue-kopf-innen { position: relative; height: 36px; }
+.ue-ecke { position: absolute; left: 0; top: 0; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--text-leise); font-size: 11px; background: var(--kopf); z-index: 2; border-right: 1px solid var(--rand); }
+.ue-tag { position: absolute; top: 0; height: 36px; text-align: center; font-weight: var(--mittel); font-size: 12px; line-height: 18px; border-left: 1px solid #7f8a96; overflow: hidden; }
+.ue-stunden { display: flex; font-weight: var(--normal); font-size: 10.5px; color: var(--text-leise); }
+.ue-stunden span { flex: none; text-align: center; }
+.ue-koerper { flex: 1; overflow: auto; position: relative; }
+.ue-platz { position: relative; }
+.ue-zeile { position: absolute; left: 0; right: 0; border-bottom: 1px solid var(--rand-leise); background: var(--flaeche); }
+.ue-zeile.wechsel { background: var(--zelle-wechsel); }
+.ue-name { position: sticky; left: 0; z-index: 1; height: 100%; display: flex; align-items: center; padding: 0 6px; font-weight: var(--mittel); font-size: 12px; background: inherit; border-right: 1px solid var(--rand); cursor: pointer; overflow: hidden; white-space: nowrap; }
+.ue-name.aktiv { background: var(--auswahl-aktiv); }
+.ue-taglinie { position: absolute; top: 0; bottom: 0; width: 1px; background: #9aa4b0; }
+.ue-zelle { position: absolute; top: 1px; bottom: 1px; background: #d2dcf0; border-radius: 2px; font-size: 10.5px; line-height: 20px; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: clip; cursor: grab; }
+.ue-zelle.fix { cursor: default; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+.ue-zelle:hover { outline: 2px solid var(--hover-rand); z-index: 1; }
+.ue-ziel { position: absolute; z-index: 3; pointer-events: none; box-shadow: inset 0 0 0 2px var(--ok); background: rgba(46, 125, 50, .12); }
+.ue-ziel.ungueltig { box-shadow: inset 0 0 0 2px var(--gefahr); background: rgba(198, 40, 40, .1); }
+.ue-hinweis { margin-left: 10px; font-size: 12px; }

@@ -32,6 +32,8 @@ export class Vorschlagsliste {
   async zeigen(alle = false) {
     const t = alle ? '' : this.token().toLowerCase();
     const liste = await this.o.optionen();
+    // inzwischen geschlossen (Eingabe beendet, bevor die Liste geladen war): nicht mehr anzeigen
+    if (this._entfernt || !this.input.isConnected) return;
     const a = [], b = [], c = [];
     for (const e of liste) {
       const k = e.k.toLowerCase();
@@ -48,7 +50,7 @@ export class Vorschlagsliste {
     leeren(this.el);
     if (this.treffer.length === 0) this.el.append(h('div', { class: 'v-leer' }, 'Kein passender Eintrag'));
     this.treffer.forEach((e, i) => {
-      this.el.append(h('div', { class: 'v-eintrag', role: 'option', onclick: () => this.waehlen(i) }, h('span', { class: 'k' }, e.k), h('span', { class: 'l' }, e.l || '')));
+      this.el.append(h('div', { class: `v-eintrag${e.c ? ` v-${e.c}` : ''}`, role: 'option', onclick: () => this.waehlen(i) }, h('span', { class: 'k' }, e.k), h('span', { class: 'l' }, e.l || '')));
     });
     this.fokus = t && this.treffer.length ? 0 : -1;
     this.markieren();
@@ -107,6 +109,7 @@ export class Vorschlagsliste {
   }
 
   entfernen() {
+    this._entfernt = true;
     this.schliessen();
     this.input.removeEventListener('input', this._eingabe);
     this.input.removeEventListener('blur', this._blur);

@@ -504,12 +504,14 @@ struct Aufsicht: Decodable, Identifiable, Sendable {
     var ende: String
     var gang: String
     var gangName: String
-    /// regulaer, vertreten, vertretung
+    /// regulaer, vertreten, vertretung, entfall (findet nicht statt – z. B. Abwesenheit bzw. Veranstaltung ohne Vertretung)
     var status: String
     var lehrer: String
     var alt: String?
+    /// Nur bei „entfall“: Anlass (z. B. „Abwesenheit“ bzw. Titel der Veranstaltung); ältere Server: nil
+    var grund: String?
 
-    enum CodingKeys: String, CodingKey { case datum, nachStunde, beginn, ende, gang, gangName, status, lehrer, alt }
+    enum CodingKeys: String, CodingKey { case datum, nachStunde, beginn, ende, gang, gangName, status, lehrer, alt, grund }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -524,6 +526,7 @@ struct Aufsicht: Decodable, Identifiable, Sendable {
         status = rohStatus.isEmpty ? "regulaer" : rohStatus
         lehrer = c.text(.lehrer)
         alt = c.textOderNil(.alt)
+        grund = c.textOderNil(.grund)
     }
 }
 
