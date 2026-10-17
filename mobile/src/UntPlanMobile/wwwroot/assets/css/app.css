@@ -4104,7 +4104,7 @@ html.is-dark .screen--list .lstcard{ background:var(--ios-group); box-shadow:non
     max-height:min(640px, 88vh);
     overflow:hidden;
   }
-  .sheet.sheet--week, .sheet.sheet--legend{ width:min(560px, 94vw); }
+  .sheet.sheet--week, .sheet.sheet--legend, .sheet.sheet--info{ width:min(560px, 94vw); }
   .sheet.sheet--legend{ overflow-y:auto; }
 }
 
@@ -5129,6 +5129,7 @@ html.is-dark .iosas__feld textarea{ background:#1c1c1e; color:#f2f2f7; }
 html.is-dark .iosas__btn{ border-top-color:rgba(84,84,88,.6); color:#0a84ff; }
 .iosas__btn:active{ background:rgba(0,0,0,.06); }
 .iosas__btn.is-rot{ color:#ff3b30; }
+html.is-dark .iosas__btn.is-rot{ color:#ff453a; }
 .iosas__btn.is-fett{ font-weight:600; }
 .iosas__btn--abbr{ border:0; border-radius:14px; font-weight:600; background:#fff; }
 html.is-dark .iosas__btn--abbr{ background:#2c2c2e; }
@@ -5144,7 +5145,8 @@ html.is-dark .iosas__btn--abbr{ background:#2c2c2e; }
 
 /* =====================================================================
    Info- und Hausaufgabenzeichen auf der Kachel: flach — ohne Feld, ohne
-   Schatten —, nur die graue Scheibe bzw. das Haus, 4 px vom Kartenrand.
+   Schatten —, nur die graue Scheibe bzw. das Haus, 4 px innerhalb des
+   Kartenrands (bei gerahmten Karten innerhalb des Rahmens).
    ===================================================================== */
 .card .card__ecke{ right:4px; bottom:4px; gap:3px; background:none; box-shadow:none; filter:none; }
 .card .card__ic.card__ic--exakt{ width:12px; height:12px; background:none; box-shadow:none; }
