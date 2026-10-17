@@ -28,8 +28,9 @@ struct KachelView: View {
     /// iPhone: Schrift 12 pt bei 14 pt Zeilenabstand wie im Original; iPad 12,4/14,3 (Woche wie Tag).
     private var kompakt: Bool { groessenklasse == .compact }
     private var schrift: CGFloat { kompakt ? 12 : 12.4 }
-    /// Zeilenabstand einen Hauch enger als die Vorlage (14/14,3), damit untereinander stehende Plaketten dichter liegen.
-    private var zeilenHoehe: CGFloat { kompakt ? 13.5 : 13.8 }
+    /// Zeilenabstand wie im Original nachgemessen (iPhone 33 px bei 2,34 px/pt ≈ 14 pt, iPad 14,3 pt) – die Labels darin
+    /// 13,7 pt hoch (etwas größer als in Sprint 26, dort 12,7 pt bei 13,5 pt Zeilenabstand).
+    private var zeilenHoehe: CGFloat { kompakt ? 14 : 14.3 }
 
     // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
     static let balkenRand: CGFloat = 4
@@ -38,7 +39,7 @@ struct KachelView: View {
     static var textLinks: CGFloat { balkenRand + balkenBreite + textAbstand }
     static let textOben: CGFloat = 4
     /// Untere Zeilen (ab der zweiten) sitzen um diesen Betrag höher (nur optisch, ohne Einfluss auf das Layout).
-    static let untereZeilenHub: CGFloat = 0.8
+    static let untereZeilenHub: CGFloat = 0
 
     var body: some View {
         let a = Kachelaussehen(kachel, dunkel: dunkel)
@@ -785,16 +786,17 @@ struct Kuerzungszeichen: View {
     }
 }
 
-/// Hinterlegter Wert (.badge), an der Vorlage nachgemessen (Raum „A103“: 13,7 pt hoch bei 14 pt Zeile, links/rechts
-/// je ≈ 2,2 pt, oben/unten je ≈ 2,6 pt um die Versalhöhe): Höhe knapp unter dem Zeilenabstand, damit untereinander
-/// stehende Plaketten nicht aneinanderstoßen; Radius 2, grün.
+/// Hinterlegter Wert (.badge), am Original nachgemessen (iPhone, 2,34 px/pt): „LN“ 47 × 32 px = 20,1 × 13,7 pt,
+/// „A103“ 72 × 32 px = 30,8 × 13,7 pt bei 12 pt Schrift und 14,1 pt Zeilenabstand; Innenabstand links/rechts 2,2 pt,
+/// Versalhöhe mittig; Radius ≈ 2 pt (Ecke 3 px). iPad (161: „ASL“ 20 px bei 1,46 px/pt) ebenso 13,7 pt.
+/// Untereinander stehende Labels bleiben durch den Zeilenabstand 0,3 pt (iPad 0,6 pt) getrennt.
 struct Plakettenwert: View {
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
     /// Darf der Text innerhalb der Plakette mit „…“ gekürzt werden (sonst volle Breite)?
     var kuerzbar: Bool = false
-    /// Zeilenabstand der Karte: die Plakette bleibt 0,8 pt darunter (höchstens 13,7 pt wie im Original)
+    /// Zeilenabstand der Karte: die Plakette bleibt mindestens 0,3 pt darunter (höchstens 13,7 pt wie im Original)
     var zeilenHoehe: CGFloat = 14
 
     var body: some View {
@@ -805,7 +807,7 @@ struct Plakettenwert: View {
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.horizontal, 2.2)
-            .frame(height: min(13.7, zeilenHoehe - 0.8))
+            .frame(height: min(13.7, zeilenHoehe - 0.3))
             .background(farbe, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
     }

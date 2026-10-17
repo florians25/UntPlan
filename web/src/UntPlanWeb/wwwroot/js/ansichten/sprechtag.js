@@ -270,7 +270,7 @@ async function formular(seite, kontext, id) {
     const phasen = [
       form.sichtbar.checked && form.ankuendigen.checked ? ['lila', 'Angekündigt', 'sobald freigegeben'] : null,
       form.anmeldungVon.value ? ['gruen', 'Anmeldung', `${zeitDe(form.anmeldungVon.value)} – ${zeitDe(form.anmeldungBis.value) || '…'}`] : null,
-      form.datum.value ? ['gelb', 'Sprechtag', [datumLang(form.datum.value), ...tage.map(datumLang)].join(' · ')] : null,
+      form.datum.value ? ['gelb', 'Sprechtag', [datumLang(form.datum.value), ...tage.map(datumLang), ...(t.reihe ?? []).filter(r => r.id !== t.id).map(r => r.datumText)].join(' · ')] : null,
     ].filter(Boolean);
     form.querySelector('[data-vorschau]').innerHTML = `
       <div class="nl-zahlen st-vzahlen"><span class="nl-zahl"><b>${fenster.length}</b> Termine je Lehrkraft</span><span class="nl-zahl gelb"><b>${kapazitaet}</b> Termine gesamt</span></div>
@@ -279,7 +279,9 @@ async function formular(seite, kontext, id) {
       <div class="st-vzeile nl-unter">Termine à ${dauer} Min.${puffer ? ` + ${puffer} Min. Puffer` : ''}${abweichend ? ` · ${abweichend} mit eigener Dauer` : ''}${online ? ` · ${online} online` : ''}${Number(form.maxTermineFamilie.value) > 0 ? ` · max. ${Number(form.maxTermineFamilie.value)} je Familie` : ''}</div>
       ${phasen.length ? `<ol class="st-phasen">${phasen.map(([f, n, x]) => `<li><span class="nl-chip ${f}">${e(n)}</span><span class="nl-unter">${e(x)}</span></li>`).join('')}</ol>` : ''}
       <div class="st-slots" aria-label="Zeitslots">${fenster.length ? fenster.map(([v, b], i) => {
-        const pause = i > 0 && v - fenster[i - 1][1] > puffer ? `<div class="st-slot-pause"><i class="bi bi-cup-hot"></i>Pause ${zeitText(fenster[i - 1][1])}–${zeitText(v)}</div>` : '';
+        // Pause aus den Zeitblöcken (Lücke zwischen zwei Blöcken vor diesem Zeitfenster)
+        const luecke = i > 0 ? gueltig.slice(1).map((x, j) => [minuten(gueltig[j].bis), minuten(x.von)]).find(([pv, pb]) => pb > pv && pv >= fenster[i - 1][1] - puffer && pb <= v) : null;
+        const pause = luecke ? `<div class="st-slot-pause"><i class="bi bi-cup-hot"></i>Pause ${zeitText(luecke[0])}–${zeitText(luecke[1])}</div>` : '';
         return `${pause}<div class="st-slot"><span class="st-zeit">${zeitText(v)}</span><span class="nl-unter">bis ${zeitText(b)}</span></div>`;
       }).join('') : '<div class="nl-unter p-2">Keine Zeitfenster – bitte Zeitblock und Termindauer prüfen.</div>'}</div>`;
   };

@@ -410,7 +410,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
 
     /// <summary>Selbsttest: Einträge des Schnellauswahl-Menüs (Toolbar).</summary>
     internal List<string> SelbsttestMenue(VeranstaltungsAuswahl.Feld? feld) =>
-        SchnellMenue(feld).OfType<ToolStripMenuItem>().SelectMany(m => m.DropDownItems.Count > 0 ? m.DropDownItems.OfType<ToolStripMenuItem>().Select(x => m.Text + " > " + x.Text).Prepend(m.Text) : new[] { m.Text }).ToList();
+        SchnellMenue(feld).OfType<ToolStripMenuItem>().SelectMany(m => m.DropDownItems.Count > 0
+            ? m.DropDownItems.OfType<ToolStripMenuItem>().Select(x => $"{m.Text} > {x.Text}").Prepend(m.Text ?? "") : new[] { m.Text ?? "" }).ToList();
 
     private void Fallenlassen(object? sender, DragEventArgs e)
     {
