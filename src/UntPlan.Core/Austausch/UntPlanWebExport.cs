@@ -131,7 +131,7 @@ public static class UntPlanWebExport
                         {
                             Stunde = e.Stunde, Unterricht = rg.Unterricht.Id, Fach = K(ElementTyp.Fach, rg.FachId), Klassen = Kl(rg.KlassenIds.Count > 0 ? rg.KlassenIds : rg.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct()),
                             Lehrer = rg.LehrerId is int rl ? new List<string> { ix.KLehrer(rl) } : new(), Raeume = rg.RaumId is int rr ? new List<string> { ix.KRaum(rr) } : new(),
-                            Status = "entfall", Vertretung = pz.Id, Text = "Klausur " + pkl.Name,
+                            Status = "entfall", Text = "Klausur " + pkl.Name,
                             Bereitschaft = Vertretungen.IstBereitschaftsfach(d, rg.FachId), Klausur = pk,
                         });
                         tag.Stunden.Add(new WebStunde
