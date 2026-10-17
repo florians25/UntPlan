@@ -75,7 +75,7 @@ function planFenster(f, p) {
       title: [`${e.u ? `U-Nr. ${e.u}` : ''}${e.vtr ? ` · Vtr-Nr. ${e.vtr}` : ''}`, `${e.fach} – ${e.klassen} – ${e.lehrer || '???'}${e.raum ? ` – ${e.raum}` : ''}`,
         e.art ? `${e.art}${e.text ? `: ${e.text}` : ''}` : e.text, e.lehrerAlt ? `statt ${e.lehrerAlt}` : '', e.fix ? 'fixiert' : ''].filter(Boolean).join('\n'),
     },
-    h('span', { class: `fach${e.fachAlt ? ' vt-rottext' : ''}` }, e.fach || '—'),
+    h('span', { class: `fach${e.fachAlt ? ' vt-rottext' : ''}` }, e.fach || e.art || '—'),
     h('span', { class: 'zeile2' }, ...wert(zeilen[0], alt[0], e)),
     kompakt ? null : h('span', { class: 'zeile3' }, ...wert(zeilen[1], alt[1], e)),
     e.fix ? h('span', { class: 'fix' }, '*') : null);

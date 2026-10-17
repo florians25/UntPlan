@@ -215,9 +215,9 @@ function absenzFenster(f, p) {
 
   tabelle.el.addEventListener('keydown', (e) => {
     if (tabelle.editor) return;
-    if (e.key === 'Escape' && entwurf) { e.preventDefault(); e.stopPropagation(); entwurf = null; laden(); }
-    else if (e.key === 'Enter' && e.ctrlKey && entwurf) { e.preventDefault(); e.stopPropagation(); entwurfUebernehmen(); }
-    else if (e.key === 'Delete' && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); loeschen(); }
+    if (e.key === 'Escape' && entwurf) { e.preventDefault(); e.stopImmediatePropagation(); entwurf = null; laden(); }
+    else if (e.key === 'Enter' && e.ctrlKey && entwurf) { e.preventDefault(); e.stopImmediatePropagation(); entwurfUebernehmen(); }
+    else if (e.key === 'Delete' && e.ctrlKey) { e.preventDefault(); e.stopImmediatePropagation(); loeschen(); }
     else if (e.key === 'Insert' && schreiben) { e.preventDefault(); neuDialog(); }
   }, true);
   f.beimSchliessen(() => { entwurfUebernehmen(); });

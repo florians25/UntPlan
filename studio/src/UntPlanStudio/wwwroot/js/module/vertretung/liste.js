@@ -451,16 +451,16 @@ function vertretungenFenster(f, p) {
     const s = tabelle.aktiveSpalte();
     const z = tabelle.aktiveZeile();
     if ((e.key === '+' || e.key === '-') && !e.ctrlKey && schreiben && (s?.schluessel === 'Vertreter' || !editierbar(z || { m: {} }, s?.schluessel))) {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault(); e.stopImmediatePropagation();
       (e.key === '+' ? ohneLehrer : entfall)().catch(fehlerMelden);
     } else if (e.key === 'F3') {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault(); e.stopImmediatePropagation();
       naechsteOffene(e.shiftKey ? -1 : 1);
     } else if (e.key === 'Enter' && z && !editierbar(z, s?.schluessel)) {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault(); e.stopImmediatePropagation();
       vorschlagOeffnen();
     } else if (e.key === 'Delete' && z && (s?.schluessel === 'Vertreter' || !editierbar(z, s?.schluessel)) && schreiben) {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault(); e.stopImmediatePropagation();
       zuruecksetzen().catch(fehlerMelden);
     }
   }, true);

@@ -32,6 +32,8 @@ export class Vorschlagsliste {
   async zeigen(alle = false) {
     const t = alle ? '' : this.token().toLowerCase();
     const liste = await this.o.optionen();
+    // inzwischen geschlossen (Eingabe beendet, bevor die Liste geladen war): nicht mehr anzeigen
+    if (this._entfernt || !this.input.isConnected) return;
     const a = [], b = [], c = [];
     for (const e of liste) {
       const k = e.k.toLowerCase();
@@ -107,6 +109,7 @@ export class Vorschlagsliste {
   }
 
   entfernen() {
+    this._entfernt = true;
     this.schliessen();
     this.input.removeEventListener('input', this._eingabe);
     this.input.removeEventListener('blur', this._blur);

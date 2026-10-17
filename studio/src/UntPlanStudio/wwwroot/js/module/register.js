@@ -22,6 +22,8 @@ import druck from './druck.js';
 import einstellungen from './einstellungen.js';
 import formate from './formate.js';
 import uebersicht from './uebersicht.js';
+import veranstaltungen from './veranstaltungen.js';
+import vertretung from './vertretung.js';
 // ── ERWEITERUNGSSTELLE: weitere Module hier importieren (je Modul eine Zeile, alphabetisch), z. B.
 // import abrechnung from './abrechnung.js';
 // import druck from './druck.js';
@@ -48,5 +50,7 @@ export const module = [
   einstellungen,
   formate,
   uebersicht,
+  vertretung,
+  veranstaltungen,
   // ── ERWEITERUNGSSTELLE: und hier anfügen
 ];

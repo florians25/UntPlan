@@ -1,0 +1,161 @@
+/* Vertretungsplanung (Vertretungsmodus) und Veranstaltungen – Klassen mit Präfix vt-. Schrift nur Regular/Medium. */
+
+.vt-kopf { flex: none; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: flex-end; padding: 4px 8px 6px; background: var(--kopf); border-bottom: 1px solid var(--rand-leise); font-size: 12px; }
+.vt-gruppe { display: inline-flex; align-items: center; gap: 6px; padding: 10px 8px 4px; border: 1px solid var(--rand-leise); border-radius: var(--radius); position: relative; background: var(--flaeche); }
+.vt-gtitel { position: absolute; top: -8px; left: 6px; padding: 0 4px; background: var(--kopf); color: var(--text-leise); font-size: 11px; }
+.vt-gruppe label { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.vt-kopf select, .vt-kopf input:not([type=checkbox]) { height: 24px; min-height: 24px; padding: 0 6px; font-size: 12px; }
+.vt-zeitraum { display: inline-flex; align-items: center; gap: 4px; }
+.vt-zeitraum.ein-tag .vt-bis, .vt-zeitraum.ein-tag input:last-child { display: none; }
+.vt-kw { width: 56px; }
+.vt-nr { width: 70px; height: 20px; min-height: 20px; padding: 0 4px; font-size: 12px; }
+.vt-status { color: var(--text-leise); }
+.vt-status.warnung { color: var(--warnung); }
+.vt-status.fehler { color: var(--gefahr); }
+.leise, .vt-tabelle tr.leise td { color: var(--text-leise); }
+.fett { font-weight: var(--mittel); }
+
+/* Reiter wie im Desktop */
+.vt-reiter { flex: none; display: flex; gap: 1px; padding: 3px 6px 0; background: var(--akzent-hell); border-bottom: 1px solid var(--rand); }
+.vt-reiter button { border: 1px solid var(--rand); border-bottom: 0; background: var(--akzent-sehrhell); padding: 3px 12px; border-radius: 3px 3px 0 0; font: inherit; font-size: 12px; cursor: pointer; color: var(--text); }
+.vt-reiter button.aktiv { background: var(--flaeche); position: relative; top: 1px; font-weight: var(--mittel); }
+
+/* Tabellenzellen der Vertretungsliste */
+.tabelle .t-zelle.vt-rot { color: #e00000; }
+.tabelle .t-zelle.vt-weiss { color: #fff; font-weight: var(--mittel); }
+.tabelle .t-zelle.vt-kollrand { box-shadow: inset 0 0 0 2px #e00000; }
+.tabelle .t-zeile.vt-unterricht { color: #6b7280; }
+.tabelle .t-zeile.vt-behalten { box-shadow: inset 3px 0 0 var(--akzent-leuchtend); }
+.tabelle .t-zeile.vt-sammel .t-zelle:first-child { font-style: normal; }
+.tabelle .t-zeile.vt-va { background: #e2f0e2; color: #285a28; }
+.tabelle .t-zeile.vt-entwurf { background: #fff8d6; }
+.tabelle .t-zeile.vt-markiert { background: var(--auswahl-aktiv); }
+.tabelle .t-zeile.leise { color: #8a9099; }
+
+/* Auswahllisten mit Status (Vertreter/Raum) */
+.vorschlaege .v-eintrag.v-rot { background: #e12828; color: #fff; }
+.vorschlaege .v-eintrag.v-rot .l { color: #ffe9e9; }
+.vorschlaege .v-eintrag.v-rosa { background: #ffcdcd; }
+.vorschlaege .v-eintrag.v-gruen { background: #c8f0c8; }
+.vorschlaege .v-eintrag.v-rot.fokus, .vorschlaege .v-eintrag.v-rot:hover { background: #c41f1f; }
+
+/* Listen-Tabelle (Vorschlag, Kalender, Bereitschaften, Vormerkungen) */
+.vt-tabelle { flex: 1; min-height: 0; overflow: auto; outline: none; background: var(--zelle); position: relative; }
+.vt-tabelle table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.vt-tabelle th { position: sticky; top: 0; z-index: 1; background: #fff; border-bottom: 1px solid #696969; border-right: 1px solid var(--rasterlinie); padding: 2px 4px; text-align: left; font-weight: var(--normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vt-tabelle td { border-bottom: 1px solid var(--rand-leise); border-right: 1px solid var(--rand-leise); padding: 2px 4px; white-space: nowrap; height: 20px; }
+.vt-tabelle tr:nth-child(even) td { background-color: var(--zelle-wechsel); }
+.vt-tabelle tr.aktiv td { background-color: var(--auswahl-aktiv); }
+.vt-tabelle td.rechts { text-align: right; font-variant-numeric: tabular-nums; }
+.vt-tabelle td.mitte { text-align: center; }
+.vt-tabelle td.vt-rot { color: #b22222; }
+.vt-tabelle td.vt-haken { color: #3caa3c; }
+.vt-tabelle td.vt-mini { text-align: center; }
+.vt-tabelle td.vt-mini.entfallen { color: #e00000; text-decoration: line-through; }
+.vt-tabelle td.vt-mini.ziel { outline: 2px dashed #ff9600; outline-offset: -2px; }
+.vt-tabelle td.vt-kennz { color: #fff; background: #285ab4 !important; }
+.vt-tabelle tr.vt-besetzt td { color: #9a3b3b; }
+.vt-tabelle tr.vt-ausweich td:first-child { font-weight: var(--mittel); }
+.vt-tabelle tr.vt-frei td { color: #8a9099; }
+.vt-tabelle tr.vt-heute td { background-color: #ffdede; }
+.vt-tabelle tr.vt-b-frei td { background-color: #dcf2dc; }
+.vt-tabelle tr.vt-b-eingesetzt td { background-color: #fff0d2; }
+.vt-tabelle tr.vt-b-abwesend td { background-color: #f0f0f0; color: #8a9099; }
+.vt-leer { position: absolute; top: 34px; left: 0; right: 0; text-align: center; color: var(--text-leise); pointer-events: none; }
+
+/* Vertretungsvorschlag */
+.vt-vorschlag { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 2px 6px 4px; gap: 3px; background: var(--akzent-sehrhell); }
+.vt-klapp { flex: none; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 1px solid #a0a0a0; background: #fff; padding: 3px 8px; font: inherit; font-weight: var(--mittel); cursor: pointer; border-radius: 2px; }
+.vt-klapp .pfeil { font-size: 10px; }
+.vt-details { flex: none; background: #fff; padding: 4px 8px; font-size: 12px; border: 1px solid var(--rand-leise); }
+.vt-optionen { flex: none; display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 2px 6px; font-size: 12px; }
+.vt-optionen label { display: inline-flex; align-items: center; gap: 4px; }
+.vt-optionen .nur-1, .vt-optionen .nur-2 { display: none; }
+.vt-optionen.reiter-1 .nur-1, .vt-optionen.reiter-2 .nur-2 { display: inline-flex; }
+.vt-vorschlag .vt-reiter { background: #afdfcc; }
+.vt-vorschlag-flaeche { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--rand-leise); background: #fff; }
+.vt-vorschlag-flaeche > .vt-tabelle[hidden] { display: none; }
+.vt-vorz { flex: none; height: 150px; display: flex; flex-direction: column; border: 1px solid var(--rand-leise); }
+
+/* Datumsauswahl im Menüband */
+.vt-rb-datumsauswahl { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px 6px 2px; min-width: 210px; }
+.vt-rb-datumsauswahl.aus { opacity: .45; pointer-events: none; }
+.vt-rb-zeile { display: flex; align-items: center; gap: 2px; }
+.vt-rb-pfeil { border: 1px solid transparent; background: transparent; border-radius: 3px; padding: 2px 5px; font-size: 12px; cursor: pointer; color: var(--akzent); }
+.vt-rb-pfeil:hover { background: var(--hover); border-color: var(--hover-rand); }
+.vt-rb-mitte { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--rand); border-radius: 3px; background: #fff; cursor: pointer; font-weight: var(--mittel); font-size: 13px; }
+.vt-rb-mitte svg { width: 18px; height: 18px; }
+.vt-rb-datum { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.vt-rb-unter { font-size: 11px; color: var(--text-leise); }
+
+/* Kalender */
+.vt-kal-oben { flex: 0 0 auto; height: 52%; display: flex; flex-direction: column; min-height: 120px; border-bottom: 1px solid var(--rand); }
+.vt-kal-unten { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.vt-texte, .vt-kaltag { flex: 1; min-height: 0; overflow: auto; padding: 4px 6px; }
+.vt-texte[hidden], .vt-kaltag[hidden] { display: none; }
+.vt-eingabetabelle { border-collapse: collapse; width: 100%; font-size: 12px; }
+.vt-eingabetabelle th { text-align: left; font-weight: var(--normal); color: var(--text-leise); padding: 2px 4px; border-bottom: 1px solid var(--rand); white-space: nowrap; }
+.vt-eingabetabelle td { padding: 1px 2px; border-bottom: 1px solid var(--rand-leise); }
+.vt-eingabetabelle td.mitte { text-align: center; }
+.vt-eingabetabelle input.eingabe, .vt-eingabetabelle select.eingabe { width: 100%; height: 22px; min-height: 22px; padding: 0 4px; font-size: 12px; }
+.vt-eingabetabelle tr.fett input { font-weight: var(--mittel); }
+.vt-kalrahmen { border: 1px solid var(--rand); padding: 10px 14px; background: var(--akzent-sehrhell); display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+.vt-kaltitel { font-size: 14px; font-weight: var(--mittel); }
+.vt-radio { display: inline-flex; align-items: center; gap: 4px; min-width: 250px; }
+.vt-zeile { display: flex; align-items: center; gap: 8px; }
+.vt-zeile .eingabe { flex: 1; }
+
+/* Tagesaktueller Stundenplan */
+.vt-planinfo { flex: none; padding: 3px 8px; font-size: 11.5px; color: var(--text-leise); background: var(--akzent-sehrhell); border-bottom: 1px solid var(--rand-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.raster.vt-plan .r-kopf.vt-heute { background: var(--auswahl-aktiv); }
+.raster.vt-plan .r-kopf.vt-frei { color: #8a9099; }
+.raster.vt-plan .r-block { flex-wrap: wrap; }
+.raster.vt-plan .r-eintrag.vt-geaendert { background: #fff; border-color: #e07070; }
+.raster.vt-plan .r-eintrag.vt-st-Offen { background: #ffe9e9; }
+.raster.vt-plan .r-eintrag.vt-st-Zusaetzlich { background: #fff6dc; }
+.raster.vt-plan .r-eintrag.vt-st-Entfall, .raster.vt-plan .r-eintrag.vt-durch { background: #f4f4f4; color: #8a9099; }
+.raster.vt-plan .r-eintrag.vt-st-Entfall .fach, .raster.vt-plan .r-eintrag.vt-durch .fach { text-decoration: line-through; text-decoration-color: #e00000; color: #e00000; }
+.raster.vt-plan .vt-rottext { color: #e00000; }
+.raster.vt-plan .vt-alt { color: #8a9099; text-decoration: line-through; }
+
+/* Dialoge */
+.vt-frage p { margin: 0 0 4px; }
+.vt-felder table, .vt-arten { font-size: 12px; }
+.vt-felder { max-height: 60vh; overflow: auto; }
+.vt-felder table { border-collapse: collapse; width: 100%; }
+.vt-felder th { position: sticky; top: 0; background: #fff; text-align: left; font-weight: var(--normal); color: var(--text-leise); border-bottom: 1px solid var(--rand); padding: 2px 4px; }
+.vt-felder td { padding: 1px 4px; border-bottom: 1px solid var(--rand-leise); }
+.vt-felder td.mitte { text-align: center; }
+.vt-felder select { height: 22px; min-height: 22px; font-size: 12px; }
+.vt-artenliste { display: flex; flex-direction: column; gap: 2px; max-height: 50vh; overflow: auto; border: 1px solid var(--rand-leise); padding: 4px 8px; }
+.vt-raumdialog { display: flex; flex-direction: column; gap: 6px; }
+.vt-raumliste { width: 100%; font-size: 12px; }
+.vt-raumliste option.besetzt { color: #9a3b3b; }
+.vt-raumliste option.ausweich { font-weight: var(--mittel); }
+.vt-sondereinsatz { display: flex; flex-direction: column; gap: 6px; }
+.vt-tabwrap { max-height: 48vh; overflow: auto; border: 1px solid var(--rand-leise); }
+.vt-offen { display: flex; gap: 14px; font-size: 12px; }
+.vt-einstellungen { display: flex; flex-direction: column; min-height: 440px; }
+.vt-seite { padding: 10px 4px; max-height: 60vh; overflow: auto; }
+.vt-seite[hidden] { display: none; }
+.vt-seite.formular { align-content: start; }
+.vt-seite .voll { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; }
+.vt-zeitraster { border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+.vt-zeitraster th { background: var(--kopf); font-weight: var(--normal); padding: 2px 10px; border: 1px solid var(--rand-leise); }
+.vt-zeitraster td { width: 74px; height: 22px; text-align: center; border: 1px solid var(--rand-leise); cursor: pointer; background: #fff; }
+.vt-zeitraster td.vt-regel-Entfall { background: #ffd2d2; }
+.vt-zeitraster td.vt-regel-Eigenverantwortlich { background: #fff0be; }
+
+/* Bereitschaftsplanung */
+.vt-bp { flex: 1; min-height: 0; display: flex; }
+.vt-bp-links { flex: 0 0 58%; overflow: auto; border-right: 1px solid var(--rand); }
+.vt-bp-rechts { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px; font-size: 12px; }
+.vt-bp-rechts select[size] { flex: 0 0 auto; height: 110px; }
+.vt-bpraster { border-collapse: collapse; width: 100%; font-size: 12px; }
+.vt-bpraster th { background: var(--kopf); font-weight: var(--normal); border: 1px solid var(--rand-leise); padding: 3px 6px; }
+.vt-bpraster td { border: 1px solid var(--rand-leise); height: 38px; padding: 2px 4px; vertical-align: top; cursor: pointer; white-space: normal; }
+.vt-bpraster td.gesperrt { background: var(--zelle-gesperrt); }
+.vt-bpraster td.fehlt { background: #ffe3e3; }
+.vt-bpraster td.voll { background: #e3f5e3; }
+.vt-bpraster td.aktiv { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.vt-bpraster td b { font-weight: var(--mittel); }

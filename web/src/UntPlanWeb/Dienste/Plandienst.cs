@@ -68,7 +68,7 @@ public sealed record Karte(
         Klassen.Concat(Lehrer).Concat(Raeume).Concat(Mitklassen).Any(w => !string.IsNullOrEmpty(w.Alt) || w.Plus || (w.K.Length == 0 && w.Neu));
 
     /// <summary>
-    /// Wie <see cref="WertGeaendert"/>, bei einer zusätzlichen Unterrichtsstunde aber ohne die Lehrkräfte: Dort stehen alle beteiligten
+    /// Wie <see cref="WertGeaendert"/>, bei einer zusätzlichen Unterrichtsstunde (Marker „+“, keine Verlegung) aber ohne die Lehrkräfte: Dort stehen alle beteiligten
     /// Lehrkräfte als „+“-Label (hinzugekommen) – das ist keine Änderung eines Werts.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore] public bool ZusatzWertGeaendert => !string.IsNullOrEmpty(FachAlt) ||
@@ -954,7 +954,7 @@ public sealed class Plandienst
         }
         // zusätzlicher Unterricht ohne Lehrkraft: „---“
         var zusatz = r.Status == "zusaetzlich" && status == "geaendert";
-        if (zusatz) lehrer = ZusatzLehrer(lehrer);
+        if (zusatz && lehrer.Count == 0) lehrer.Add(new Wert(OhneLehrkraftZusatz));
         var text = buchung ? "" : string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
         if (buchung) art = "";
         // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
@@ -976,6 +976,8 @@ public sealed class Plandienst
             VertretungOffen = lehrerOffen,
             VerlegungsZeile = verlegungsZeile,
         };
+        // zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): alle beteiligten Lehrkräfte als „+“-Label
+        if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer) };
         return karte.Verlegung is null ? karte : VerlegungSetzen(karte, d, v, zeiten);
     }
 
@@ -1081,7 +1083,7 @@ public sealed class Plandienst
     /// Lehrkräfte einer zusätzlichen Unterrichtsstunde: alle Beteiligten (auch ein als „ersetzt“ gemeldeter alter Wert) je einmal als
     /// hinzugekommener Wert ({ k, neu } → „+CS“) – nie durchgestrichen und nie „alt → neu“. Ohne Lehrkraft: „---“.
     /// </summary>
-    internal static List<Wert> ZusatzLehrer(IEnumerable<Wert> lehrer)
+    public static List<Wert> ZusatzLehrer(IEnumerable<Wert> lehrer)
     {
         var alle = lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Select(x => x.Trim())
             .Where(x => x.Length > 0 && x is not ("---" or "???" or "+" or "+++")).Distinct(Ci).ToList();
