@@ -244,6 +244,12 @@ public class PruefungsImportTests
         Assert.DoesNotContain(u.D.Vertretungen, v => v.WebId == "b1");
         Assert.Equal("Klausur", Assert.Single(Liste(u)).Art);
         Assert.Single(Tagesplan.Berechnen(u.D, u.Tag).Stunde(u.Stunde.Stunde), x => x.Findetstatt && x.RaumIds.Contains(u.Raum1.Id));
+        // Prüfung im Web gelöscht: keine Reste der Prüfung, die vorher bestehende Buchung (bzw. Raumänderung) gilt wieder
+        if (dialog) Dialog(u, Loeschen(u, "l1", "IT")); else UntPlanWebExport.Uebernehmen(u.D, new[] { Loeschen(u, "l1", "IT") });
+        Assert.Empty(u.D.Klausuren);
+        Assert.DoesNotContain(u.D.Vertretungen, v => v.KlausurId.HasValue);
+        Assert.Single(u.D.Vertretungen, v => v.WebId == "b1");
+        Assert.Single(Tagesplan.Berechnen(u.D, u.Tag).Stunde(u.Stunde.Stunde), x => x.Findetstatt && x.RaumIds.Contains(u.Raum1.Id));
     }
 
     [Fact]
