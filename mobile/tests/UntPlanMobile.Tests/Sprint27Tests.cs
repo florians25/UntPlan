@@ -89,10 +89,11 @@ public class Sprint27Tests
         var v = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Vertretung", lehrer: new() { new("MUE", "WEB", true) }), "class");
         Assert.Contains("teacher", v.Geaendert);
 
-        // Oberfläche: kein Label mehr am eigenen Kürzel, nur weil die Kachel eine Vertretung ist
+        // Oberfläche: im eigenen Plan der vertretenden Lehrkraft steht ihr Kürzel als grünes Label auf der Vertretungskachel
+        // (wie iOS) – nicht bei einer reinen Raumänderung
         var js = AppJs;
-        Assert.Contains("Sprint 27: Nur tatsächlich geänderte Werte stehen im grünen Label.", js);
-        Assert.DoesNotContain("? { ...l, changed:true } : l)", js);
+        Assert.Contains("? { ...l, changed:true } : l)", js);
+        Assert.Contains("&& (card.changed || []).every(k => k === 'room'))", js);
     }
 
     [Fact]

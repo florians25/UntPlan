@@ -736,10 +736,31 @@ function cardLines(card, kind){
     return l;
   })
     .filter(l => l.text)
-    /* Sprint 27: Nur tatsächlich geänderte Werte stehen im grünen Label. Das
-       eigene Kürzel im eigenen Plan bekommt keins mehr (vorher bei jeder
-       Vertretungskachel) – eine reine Raumänderung zeigt allein den Raum
-       hervorgehoben. */
+    /* Auf einer Vertretungskachel steht der eigene Wert als Plakette: Er
+       sagt, dass ich diese Stunde halte beziehungsweise dass sie in dieser
+       Klasse stattfindet. Bei einer Anstelle-Vertretung ändert sich Klasse
+       und Fach, die Lehrkraft bleibt ich — `changed` enthält dann kein
+       `teacher`, und die Zeile wäre sonst weggefallen. */
+    /* Nicht bei einer reinen Raumänderung: Dort bleibt die Lehrkraft
+       dieselbe, und eine Plakette mit dem eigenen Kürzel behauptete eine
+       Vertretung, die es nicht gibt. */
+    /* Und nicht, wenn allein eine der gekoppelten Klassen fehlt: An der
+       Lehrkraft ändert sich dabei nichts, sie hält die Stunde wie geplant.
+       Eine Plakette auf dem eigenen Kürzel sagte dort das Gegenteil. Hat
+       die Lehrkraft wirklich gewechselt, steht `changed` ohnehin schon —
+       diese Regel fügt nur hinzu, sie nimmt nichts weg. */
+    .map(l => (label && l.key === last && !l.tokens && card.blockType === 'change'
+               && kind === 'teacher' && !card.classAbsent
+               && !(ktoks && ktoks.some(t => (t.state || 'ok') === 'absent')
+                    && !(card.changed || []).includes('teacher'))
+               && !((card.changed || []).length
+                    && (card.changed || []).every(k => k === 'room'))
+               && l.text.toUpperCase() === label)
+              /* `removed` bleibt erhalten: Bei einer offenen Vertretung ist
+                 die Plakette durchgestrichen — sie sagt, dass die Lehrkraft
+                 wegfällt und noch niemand eingeteilt ist. Das galt auch für
+                 die abwesende Lehrkraft selbst und ging hier verloren. */
+              ? { ...l, changed:true } : l)
     /* Sonst fällt die letzte Zeile weg, wenn sie nur die betrachtete
        Entität wiederholt — im eigenen Plan also das eigene Kürzel. */
     .filter(l => !(label && l.key === last && !l.changed && !l.tokens
