@@ -28,7 +28,8 @@ struct KachelView: View {
     /// iPhone: Schrift 12 pt bei 14 pt Zeilenabstand wie im Original; iPad 12,4/14,3 (Woche wie Tag).
     private var kompakt: Bool { groessenklasse == .compact }
     private var schrift: CGFloat { kompakt ? 12 : 12.4 }
-    private var zeilenHoehe: CGFloat { kompakt ? 14 : 14.3 }
+    /// Zeilenabstand einen Hauch enger als die Vorlage (14/14,3), damit untereinander stehende Plaketten dichter liegen.
+    private var zeilenHoehe: CGFloat { kompakt ? 13.5 : 13.8 }
 
     // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
     static let balkenRand: CGFloat = 4
@@ -186,7 +187,8 @@ struct KachelView: View {
                 let frei: CGFloat = breiteZeichen > 0 && unten > zeichenOben + 1 ? breiteZeichen + Self.zeichenRand - 1 : 0
                 // Erste Zeile (oberer Wert) Semibold, alle weiteren Regular
                 KachelzeileView(zeile: eintrag.element, aussehen: a, schrift: schrift, oben: eintrag.offset == 0,
-                                titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil)
+                                titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil,
+                                zeilenHoehe: zeilenHoehe)
                     .padding(.trailing, frei)
                     .frame(height: zeilenHoehe, alignment: .leading)
             }
@@ -195,16 +197,24 @@ struct KachelView: View {
 
     /// Kantenlänge der Zeichen unten rechts (Hausaufgabe, Kürzung).
     static let zeichenGroesse: CGFloat = 14.5
-    /// Kantenlänge des Info-Zeichens (info.svg: weißes abgerundetes Feld mit grauer Scheibe, flach wie die Hausaufgabe).
+    /// Kantenlänge des Info-Zeichens (Vorlage nachgemessen: abgerundetes Feld in Kartengrau ≈ 14,5 pt, darin die graue
+    /// Scheibe mit ausgespartem „i“).
     static let infoGroesse: CGFloat = 14.5
-    /// Abstand der Zeichen zum unteren und rechten Kartenrand.
-    static let zeichenRand: CGFloat = 4
+    /// Kantenlänge des Online-Zeichens (online_lesson.svg, flach, ohne Feld).
+    static let onlineGroesse: CGFloat = 15
+    /// Abstand der Zeichen zum unteren und rechten Kartenrand (Vorlage: Info-Feld ≈ 3 pt vom Rand).
+    static let zeichenRand: CGFloat = 3
 
     /// Höhe der Zeichen unten rechts.
     private var zeichenHoehe: CGFloat {
         let mitInfo = kachel.info && kachel.art != .termin
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft && (!mitInfo || breite >= 96)
-        return !gekuerzt && mitInfo && !mitHausaufgabe && !mitOnline ? Self.infoGroesse : Self.zeichenGroesse
+        if gekuerzt { return Self.zeichenGroesse }
+        var h: CGFloat = 0
+        if mitOnline { h = max(h, Self.onlineGroesse) }
+        if mitHausaufgabe { h = max(h, Self.zeichenGroesse) }
+        if mitInfo { h = max(h, Self.infoGroesse) }
+        return h > 0 ? h : Self.zeichenGroesse
     }
 
     /// Videosymbol „findet online statt“ (unten rechts, vor Hausaufgabe und Info; auf schmalen Karten nur ohne weitere Zeichen).
@@ -220,7 +230,7 @@ struct KachelView: View {
         let mitHausaufgabe = kachel.hausaufgabe && kachel.art != .bereitschaft
         if gekuerzt { return Self.zeichenGroesse }
         var summe: CGFloat = 0
-        if mitOnline { summe += Self.zeichenGroesse }
+        if mitOnline { summe += Self.onlineGroesse }
         if mitHausaufgabe && (!mitInfo || breite >= 96) { summe += (summe > 0 ? 2 : 0) + Self.zeichenGroesse }
         if mitInfo { summe += (summe > 0 ? 2 : 0) + Self.infoGroesse }
         return summe
@@ -237,7 +247,7 @@ struct KachelView: View {
         } else if mitInfo || mitHausaufgabe || mitOnline {
             HStack(alignment: .center, spacing: 2) {
                 if mitOnline {
-                    Onlinezeichen(groesse: Self.zeichenGroesse)
+                    Onlinezeichen(groesse: Self.onlineGroesse)
                 }
                 if mitHausaufgabe && (!mitInfo || breite >= 96) {
                     Hausaufgabenzeichen(groesse: Self.zeichenGroesse)
@@ -326,6 +336,8 @@ struct KachelzeileView: View {
     /// Erste (obere) Zeile der Karte: Medium, sonst Regular
     var oben: Bool = false
     var titelFarbe: Color? = nil
+    /// Zeilenabstand der Karte (Höhe der Plaketten bleibt knapp darunter)
+    var zeilenHoehe: CGFloat = 14
 
     var body: some View {
         Group {
@@ -382,8 +394,7 @@ struct KachelzeileView: View {
                 Text(t.text)
                     .truncationMode(.tail)
             case .plakette:
-                // Raumänderung: grünes Raum-Label einen Tick größer
-                Plakettenwert(text: t.text, kuerzbar: kuerzbar, gross: zeile.schluessel == "raum")
+                Plakettenwert(text: t.text, kuerzbar: kuerzbar, zeilenHoehe: zeilenHoehe)
             case .weg:
                 // Wegfallender Wert (z. B. vertretene Lehrkraft): durchgestrichen, ohne grüne Fläche
                 Text(t.text)
@@ -391,7 +402,7 @@ struct KachelzeileView: View {
                     .truncationMode(.tail)
             case .offen:
                 // Offene Vertretung: abwesende Lehrkraft durchgestrichen in grüner Plakette
-                Plakettenwert(text: t.text, durchgestrichen: true, kuerzbar: kuerzbar)
+                Plakettenwert(text: t.text, durchgestrichen: true, kuerzbar: kuerzbar, zeilenHoehe: zeilenHoehe)
             }
         }
     }
@@ -592,16 +603,19 @@ struct ZaehlstreifenView: View {
     }
 }
 
-/// Videosymbol auf der Karte: die Stunde findet online statt (grünes Feld mit weißer Kamera).
+/// Online-Zeichen auf der Karte: die Stunde findet online statt (online_lesson.svg, flach und grau, ohne Feld –
+/// kein zusätzliches Raum-Label). Steht unten rechts nach derselben Logik wie Info und Hausaufgabe.
 struct Onlinezeichen: View {
-    var groesse: CGFloat = KachelView.zeichenGroesse
+    var groesse: CGFloat = KachelView.onlineGroesse
 
     var body: some View {
-        Image(systemName: "video.fill")
-            .font(.system(size: groesse * 0.5, weight: .medium))
-            .foregroundStyle(Farben.gruenSchrift)
+        Image("KartenOnline")
+            .renderingMode(.original)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
             .frame(width: groesse, height: groesse)
-            .background(Farben.gruen, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+            .accessibilityIgnoresInvertColors(true)
             .accessibilityHidden(true)
     }
 }
@@ -621,34 +635,35 @@ struct Kuerzungszeichen: View {
     }
 }
 
-/// Hinterlegter Wert (.badge): Polster 0,33/2,27, Radius 2, Schrift mittel, grün.
+/// Hinterlegter Wert (.badge), an der Vorlage nachgemessen (Raum „A103“: 13,7 pt hoch bei 14 pt Zeile, links/rechts
+/// je ≈ 2,2 pt, oben/unten je ≈ 2,6 pt um die Versalhöhe): Höhe knapp unter dem Zeilenabstand, damit untereinander
+/// stehende Plaketten nicht aneinanderstoßen; Radius 2, grün.
 struct Plakettenwert: View {
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
     /// Darf der Text innerhalb der Plakette mit „…“ gekürzt werden (sonst volle Breite)?
     var kuerzbar: Bool = false
-    /// Etwas größere Plakette (Raumänderung): mehr Polster, nicht übertrieben
-    var gross: Bool = false
+    /// Zeilenabstand der Karte: die Plakette bleibt 0,8 pt darunter (höchstens 13,7 pt wie im Original)
+    var zeilenHoehe: CGFloat = 14
 
     var body: some View {
-        // Schriftstärke wie die Zeile (oben Medium, sonst Regular)
+        // Schriftstärke wie die Zeile (oben Semibold, sonst Regular)
         Text(text)
             .strikethrough(durchgestrichen, color: Farben.gruenSchrift)
             .foregroundStyle(Farben.gruenSchrift)
             .lineLimit(1)
             .truncationMode(.tail)
-            .padding(.horizontal, gross ? 3.4 : 2.27)
-            .padding(.top, gross ? 0.9 : 0.33)
-            .padding(.bottom, gross ? 0.5 : 0)
-            .background(farbe, in: RoundedRectangle(cornerRadius: gross ? 2.5 : 2, style: .continuous))
+            .padding(.horizontal, 2.2)
+            .frame(height: min(13.7, zeilenHoehe - 0.8))
+            .background(farbe, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
     }
 }
 
-/// Info-Zeichen (.card__info): abgerundetes Feld mit grauem Kreis und grauem „i“ als Linie (nicht invertiert: kein
-/// gefüllter Kreis mit ausgespartem „i“), flach auf der Karte wie das Hausaufgabenzeichen; dunkel eigene Variante.
-/// Immer als Originalbild – keine Einfärbung als Vorlage und keine Umkehr durch „Farben umkehren“.
+/// Info-Zeichen (.card__info) wie im Original nachgemessen: abgerundetes Feld in Kartengrau (hell #f3f5f7, dunkel
+/// #313d44, auch auf grünen, roten und gelben Karten), darin eine gefüllte graue Scheibe (#818e9c) mit ausgespartem
+/// Serifen-„i“; flach, ohne Schatten. Immer als Originalbild – keine Einfärbung und keine Umkehr durch „Farben umkehren“.
 struct Infozeichen: View {
     var groesse: CGFloat = KachelView.infoGroesse
 

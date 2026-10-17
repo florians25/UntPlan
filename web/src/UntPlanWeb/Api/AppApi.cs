@@ -163,6 +163,21 @@ public static class AppApi
             return Results.Json(new { ok = true });
         });
 
+        // Datumswähler der Oberfläche: Ferien, Feiertage und freie Tage (dezent markiert) sowie das Schuljahr
+        api.MapGet("/kalender", (HttpContext c, Paketdienst p, Verwaltungsdienst vw) =>
+        {
+            Ich(c);
+            var s = p.Aktuell;
+            var eigene = vw.FreieTage().Select(f => new { name = f.Name, von = f.Von, bis = f.Bis, art = f.Art });
+            var tage = s is null ? eigene
+                : s.Paket.Ferien.Select(f => new { name = f.Name, von = f.Von, bis = f.Bis, art = f.Feiertag ? "feiertag" : "ferien" }).Concat(eigene);
+            return Results.Json(new
+            {
+                freieTage = tage.Where(f => f.von.Length == 10 && f.bis.Length == 10).OrderBy(f => f.von, StringComparer.Ordinal).ToList(),
+                schuljahr = s is { } sj && sj.Paket.Schule.SchuljahrVon.Length >= 4 ? new { von = sj.Paket.Schule.SchuljahrVon, bis = sj.Paket.Schule.SchuljahrBis } : null,
+            });
+        });
+
         // ---------------------------------------------------------------- Stammdaten und Pläne
 
         api.MapGet("/elemente", (HttpContext c, Paketdienst p) =>

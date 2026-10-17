@@ -660,6 +660,20 @@ public sealed partial class HauptFenster
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
         Schritt("19d1_Veranstaltungen", () => Max(FensterOeffnen("veranst")!), -1);
         Schritt("19d2_Klausuren", () => Max(FensterOeffnen("klaus")!), -1);
+        Schritt("19d2a_Klausur_loeschen_Liste", () =>
+        {
+            // gelöschte Klausur verschwindet sofort aus der Liste – auch wenn eine Zelle gerade bearbeitet wird
+            var kl = AppZustand.D.Klassen[0].Id;
+            var a = new Klausur { Name = "Selbsttest A", Datum = tag, StundeVon = 1, StundeBis = 1, KlassenIds = { kl } };
+            var b = new Klausur { Name = "Selbsttest B", Datum = tag, StundeVon = 2, StundeBis = 2, KlassenIds = { kl } };
+            AppZustand.Doc.Aendern("Klausuren (Selbsttest)", AenderungsArt.Vertretung, x => { a.Id = x.NeueId(); x.Klausuren.Add(a); b.Id = x.NeueId(); x.Klausuren.Add(b); });
+            var f = (KlausurenFenster)FensterOeffnen("klaus")!;
+            Warten(100);
+            if (f.SelbsttestLoeschen(a.Id) != 0) throw new InvalidOperationException("Gelöschte Klausur steht noch in der Liste.");
+            if (AppZustand.D.Klausuren.Any(k => k.Id == a.Id)) throw new InvalidOperationException("Klausur wurde nicht gelöscht.");
+            if (f.SelbsttestAktuelleZeile < 0) throw new InvalidOperationException("Nach dem Löschen ist keine Zeile ausgewählt.");
+            if (f.SelbsttestLoeschen(b.Id) != 0) throw new InvalidOperationException("Zweite gelöschte Klausur steht noch in der Liste.");
+        }, -1);
         Schritt("19d3_Raum_zuordnen_Vertretung", () =>
         {
             var r = Core.Vertretungsplanung.Tagesplan.Regulaer(AppZustand.D, tag).First(x => x.RaumId.HasValue);

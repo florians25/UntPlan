@@ -62,6 +62,7 @@ public class Program
         builder.Services.AddSingleton<Monitordienst>();
         builder.Services.AddSingleton<Verwaltungsdienst>();
         builder.Services.AddSingleton<Klassenbuchverwaltung>();
+        builder.Services.AddSingleton<Entschuldigungsdienst>();
         builder.Services.AddSingleton<Sitzplandienst>();
         builder.Services.AddHttpClient("update");
         builder.Services.AddSingleton(Updateeinstellungen.Laden(builder.Configuration));

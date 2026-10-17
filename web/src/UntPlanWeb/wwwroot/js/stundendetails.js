@@ -68,8 +68,8 @@ function wertKopf(liste, max = 6, typ = null, lehrkraft = typ === 'lehrer') {
   // Kopf ohne Labels: Änderungen nur als Text – alt durchgestrichen → neu, entfallener Wert (z. B. offene Vertretung) nur durchgestrichen
   // auch der ersetzte (durchgestrichene) Wert – z. B. die abwesende Lehrkraft – führt zu seinem Plan
   const alt = w => typ ? `<s class="sd-alt">${planLink(typ, w.alt)}</s>` : `<s class="sd-alt">${e(w.alt)}</s>`;
-  // Lehrkraft-Wechsel wie im Original „abwesend | Vertretung“, nur bei Raum (und Fach) ein Pfeil
-  const zwischen = lehrkraft ? '<span class="sd-strich">|</span>' : '<span class="sd-pfeil">→</span>';
+  // Wechsel bei Lehrkraft, Raum und Fach einheitlich mit Pfeil: „alt (durchgestrichen) → neu“
+  const zwischen = `<span class="sd-pfeil${lehrkraft ? ' sd-pfeil-lehrer' : ''}">→</span>`;
   return teil.map(w => w.alt && !w.k ? alt(w)
     : w.alt ? `${alt(w)} ${zwischen} ${planLink(typ, w.k)}` : planLink(typ, w.k)).join(', ')
     + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
@@ -203,7 +203,8 @@ export function karteDialog(karte, kontext = {}) {
       wertKopf(k.raeume, 6, 'raum'), lehrerKopf()].filter(Boolean);
     // Wie im Original: bei Entfall Kopf hellgrau und darunter roter Balken „ENTFÄLLT“; Prüfung/Veranstaltung als dezente graue Pille,
     // sonst keine Labels (Änderungen stehen als Text: alt durchgestrichen | neu bzw. → beim Raum)
-    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : '';
+    // zusätzliche Unterrichtsstunde: Badge statt Vertretungstext
+    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';
     const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
