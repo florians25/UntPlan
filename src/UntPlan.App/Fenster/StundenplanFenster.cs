@@ -608,7 +608,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         }
         e.DrawBackground();
         using var fett = new Font(e.Font ?? _format.Font, FontStyle.Bold);
-        var text = o is string n ? FormatAnzeige(n) : o.ToString() ?? "";
+        var text = o is string n ? FormatAnzeige(n) : o?.ToString() ?? "";
         Ui.ListenText(e.Graphics, text, o is FormatBefehl && !imFeld ? fett : e.Font ?? _format.Font, new Rectangle(e.Bounds.X + 1, e.Bounds.Y, e.Bounds.Width - 2, e.Bounds.Height),
             (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : _format.ForeColor);
         e.DrawFocusRectangle();

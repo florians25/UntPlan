@@ -73,43 +73,6 @@ public static class Ui
             cb.Font = f.Bold ? ListenSchriftFett : ListenSchrift;
     }
 
-    /// <summary>
-    /// Auswahlliste einheitlich gestalten: weiche Listenschrift, Suche in der Liste (Auswahllisten) und geglättete Darstellung –
-    /// Listen ohne eigene Zeichnung werden geglättet selbst gezeichnet.
-    /// </summary>
-    public static void ListeGestalten(ComboBox cb, bool suche = true)
-    {
-        if (cb.IsDisposed) return;
-        ListenSchriftSetzen(cb);
-        if (suche) Suchliste(cb);
-        if (cb.DrawMode != DrawMode.Normal) return;
-        cb.DrawMode = DrawMode.OwnerDrawFixed;
-        cb.ItemHeight = Math.Max(cb.ItemHeight, 18);
-        cb.DrawItem += WeichZeichnen;
-    }
-
-    /// <summary>Alle Auswahllisten unterhalb von <paramref name="wurzel"/> einheitlich gestalten (ohne die Listensuche einzurichten).</summary>
-    public static void ListenGestalten(Control wurzel)
-    {
-        foreach (Control c in wurzel.Controls)
-        {
-            if (c is ComboBox cb) ListeGestalten(cb, false);
-            if (c is ToolStrip ts) foreach (var item in ts.Items.OfType<ToolStripComboBox>()) ListeGestalten(item.ComboBox, false);
-            if (c.HasChildren && c is not DataGridView) ListenGestalten(c);
-        }
-    }
-
-    private static void WeichZeichnen(object? sender, DrawItemEventArgs e)
-    {
-        if (sender is not ComboBox cb) return;
-        e.DrawBackground();
-        if (e.Index < 0 || e.Index >= cb.Items.Count) return;
-        var gewaehlt = (e.State & DrawItemState.Selected) != 0;
-        var farbe = !cb.Enabled ? SystemColors.GrayText : gewaehlt ? SystemColors.HighlightText : cb.ForeColor;
-        ListenText(e.Graphics, cb.GetItemText(cb.Items[e.Index]) ?? "", cb.Font, new Rectangle(e.Bounds.X + 3, e.Bounds.Y, e.Bounds.Width - 4, e.Bounds.Height), farbe);
-        if ((e.State & DrawItemState.Focus) != 0 && (e.State & DrawItemState.NoFocusRect) == 0) e.DrawFocusRectangle();
-    }
-
     /// <summary>Vertretungsmodus aktiv: Oberfläche in Grün (wie ein eigenes Programm innerhalb von UntPlan).</summary>
     public static bool Vertretungsmodus { get; set; }
 
@@ -276,11 +239,11 @@ public static class Ui
     {
         foreach (Control c in wurzel.Controls)
         {
-            if (c is ComboBox cb) ListeGestalten(cb);
+            if (c is ComboBox cb) { ListenSchriftSetzen(cb); Suchliste(cb); }
             // Auswahlspalten in Tabellen ebenfalls mit Suche und Langnamen
             if (c is DataGridView g && !Steuerelemente.SuchKombi.IstAktiv(g)) Steuerelemente.SuchKombi.Aktivieren(g);
             if (c is ToolStrip ts)
-                foreach (var item in ts.Items.OfType<ToolStripComboBox>()) ListeGestalten(item.ComboBox);
+                foreach (var item in ts.Items.OfType<ToolStripComboBox>()) { ListenSchriftSetzen(item.ComboBox); Suchliste(item.ComboBox); }
             if (c.HasChildren && c is not DataGridView) SucheAktivieren(c);
         }
     }

@@ -141,6 +141,8 @@ public static class Auswahlbreite
         switch (c)
         {
             case ComboBox cb:
+                // einheitlich weiche Listenschrift in allen Auswahllisten (auch Dialoge, Symbolleisten, Tabellen-Editoren)
+                Ui.ListenSchriftSetzen(cb);
                 // überall gleich: Auswahllisten mit Stammdaten-Kürzeln zeigen beim ersten Betreten Kurz- und Langnamen mit Direktsuche
                 // (nicht erst beim Mausklick: ein Umbau des Felds mitten im Klick würde das Öffnen verschlucken)
                 if (cb.Parent is not DataGridView)

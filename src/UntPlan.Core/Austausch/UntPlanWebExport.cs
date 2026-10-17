@@ -76,6 +76,8 @@ public static class UntPlanWebExport
         o ??= new WebExportOptionen();
         // ältere Doppelimporte von Prüfungen beim Hochladen gleich bereinigen
         StundenplanAenderungen.KlausurDublettenEntfernen(d);
+        // ältere Importe: Prüfung im eigenen Kurs ließ parallelen Unterricht der Klasse entfallen (zweite Prüfung im Web)
+        StundenplanAenderungen.ImportierteKlausurenZuordnen(d);
         var ix = new DatenIndex(d);
         var von = ab.AddDays(-Math.Max(0, o.TageZurueck));
         var bis = ExportBis(d, ab, o);

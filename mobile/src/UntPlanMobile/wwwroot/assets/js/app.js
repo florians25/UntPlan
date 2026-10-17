@@ -460,6 +460,19 @@ const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hi
 const KACHEL_VIDEO = '<svg class="ticon ticon--video" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="6.4" width="12.6" height="11.2" rx="2.4"/><path d="m15.4 10.6 5.8-3.4v9.6l-5.8-3.4z"/></svg>';
 /* Schloss (Linien) für gesperrte Wochen. */
 const SPERRE_SCHLOSS = '<svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8.4 10.5V7.8a3.6 3.6 0 0 1 7.2 0v2.7"/><path d="M12 14.2v2.2"/></svg>';
+/* SPERRE-BEGINN (wird von den Tests ausgeführt) */
+/* Gesperrte Woche oder gesperrter Tag (außerhalb des Plan-Fensters der
+   Rolle): genau dieser Satz, darunter kleiner der Hinweis des Servers
+   (`sperrhinweis`). Fehlt er oder ist er leer, steht dort derselbe
+   Standardsatz wie in der iOS-App und am Rechner. */
+const SPERRE_TITEL = 'Es werden hier keine Termine angezeigt.';
+const SPERRE_STANDARD = 'Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt';
+function sperrErklaerung(hinweis){
+  const t = String(hinweis ?? '').trim();
+  return t || SPERRE_STANDARD;
+}
+window.UntPlanSperre = { titel: SPERRE_TITEL, standard: SPERRE_STANDARD, erklaerung: sperrErklaerung };
+/* SPERRE-ENDE */
 const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-homework-icon" width="16" height="16"></use></svg>';
 
 /* TRENNER-BEGINN (wird von den Tests ausgeführt) */
@@ -1809,8 +1822,8 @@ function renderGrid(){
       html += `<div class="sperre" style="left:${colAt(i)};width:calc(${colW} * ${j - i})">
         <div class="sperre__inhalt" style="top:${sperrY}px">
           <span class="sperre__kreis" aria-hidden="true">${SPERRE_SCHLOSS}</span>
-          <p class="sperre__text">Es werden hier keine Termine angezeigt.</p>
-          ${w.sperrhinweis ? `<p class="sperre__hinweis">${esc(w.sperrhinweis)}</p>` : ''}
+          <p class="sperre__text">${SPERRE_TITEL}</p>
+          <p class="sperre__hinweis">${esc(sperrErklaerung(w.sperrhinweis))}</p>
         </div>
       </div>`;
     }
@@ -2307,6 +2320,21 @@ function hint(text){
    Wischen wandert der ganze Streifen mit dem Finger, die Nachbarwoche ist
    also schon sichtbar, bevor man loslässt.
    ===================================================================== */
+/* WISCHRICHTUNG-BEGINN (wird von den Tests ausgeführt) */
+/* Richtung einer Geste, sobald der Finger sich weit genug bewegt hat:
+   null = noch offen, 'x' = waagerecht (Woche/Tag blättern, senkrechtes
+   Rollen bis zum Loslassen gesperrt), 'y' = senkrecht (Plan rollt, kein
+   Wochenwechsel). Waagerecht zählt nur eine deutlich waagerechte Geste —
+   schräg nach unten bleibt Rollen. Einmal entschieden, gilt die Richtung
+   bis zum Ende der Geste. */
+const WISCH_SCHWELLE = 8;
+function wischRichtung(mx, my){
+  const ax = Math.abs(mx), ay = Math.abs(my);
+  if (ax < WISCH_SCHWELLE && ay < WISCH_SCHWELLE) return null;
+  return ax > ay * 1.2 ? 'x' : 'y';
+}
+window.UntPlanWischen = { richtung: wischRichtung, schwelle: WISCH_SCHWELLE };
+/* WISCHRICHTUNG-ENDE */
 (() => {
   const area = $('#gridScroll');
   /* Eine Woche ist so breit wie der Streifen selbst — nicht wie die ganze
@@ -2433,8 +2461,8 @@ function hint(text){
     const my = e.touches[0].clientY - y0;
 
     if (lock === null){
-      if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
-      lock = Math.abs(mx) > Math.abs(my) * 1.2 ? 'x' : 'y';
+      lock = wischRichtung(mx, my);
+      if (lock === null) return;
       /* Ab hier zählt der Weg — der Weg bis zur Erkennung nicht. */
       ankerX = mx;
       t0 = performance.now();
@@ -2881,6 +2909,17 @@ function renderStart(){
   }).slice(0, 4);
 
   const box = $('#startNext');
+  /* Liegt die Woche außerhalb des Plan-Fensters der Rolle, gibt es nichts
+     zu genießen — wie in der iOS-App steht dann der Sperrsatz. */
+  const gesperrt = !!((startWeek && startWeek.byDate === quelle) ? startWeek.gesperrt
+                     : (istIch && state.week && state.week.gesperrt));
+  if (!upcoming.length && gesperrt){
+    box.innerHTML = `<div class="nextnone nextnone--sperre">
+      <span class="sperre__kreis" aria-hidden="true">${SPERRE_SCHLOSS}</span>
+      <b>Keine Stunden</b>
+      <span>${SPERRE_TITEL}</span></div>`;
+    return;
+  }
   if (!upcoming.length){
     box.innerHTML = `<div class="nextnone">
       <svg viewBox="0 0 24 24" class="ico"><rect x="3.5" y="5" width="17" height="15.5" rx="2.4"/>

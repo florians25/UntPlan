@@ -122,10 +122,53 @@ public static class StundenplanAenderungen
         k.LehrerIds = lehrer.ToList();
         if (raeume.Count > 0 || k.RaumIds.Count == 0) k.RaumIds = raeume.ToList();
         k.Aktiv = true;
+        UnterrichtZuordnen(d, k);
         BuchungenInKlausurUmwandeln(d, k);
         tage.Add(datum);
         if (pausenaufsichten) PausenaufsichtenPruefen(d, k, benutzer);
         return k;
+    }
+
+    /// <summary>
+    /// Unterricht, den eine aus UntPlanWeb übernommene Prüfung ersetzt. Die Lehrkraft trägt die Prüfung in ihrer Stunde für die Klasse(n)
+    /// der Stunde ein. Haben diese Klassen zur selben Zeit parallel weiteren Unterricht anderer Lehrkräfte (z. B. Kurse der Oberstufe,
+    /// Gruppen), gilt die Prüfung nur für den eigenen Unterricht der Aufsicht: <see cref="Klausur.UnterrichtId"/> = dieser Unterricht,
+    /// der übrige Unterricht der Klassen entfällt nicht (sonst entfiele der Parallelkurs, und UntPlanWeb zeigte dort eine zweite Prüfung).
+    /// Ohne parallelen Unterricht entfällt wie bisher der Unterricht der Klassen. Ergebnis: geändert.
+    /// </summary>
+    public static bool UnterrichtZuordnen(Schuldatei d, Klausur k)
+    {
+        var bis = Math.Max(k.StundeVon, k.StundeBis);
+        var regel = Tagesplan.Regulaer(d, k.Datum).Where(r => r.Stunde >= k.StundeVon && r.Stunde <= bis && r.KlassenIds.Intersect(k.KlassenIds).Any()).ToList();
+        var eigene = regel.Where(r => r.LehrerId is int l && k.LehrerIds.Contains(l)).ToList();
+        // nur wenn der eigene Unterricht alle Klassen der Prüfung umfasst (Prüfung über mehrere Klassen mit verschiedenen Lehrkräften:
+        // der Unterricht aller Klassen entfällt wie bisher)
+        var abgedeckt = k.KlassenIds.All(kl => eigene.Any(e => e.KlassenIds.Contains(kl)));
+        var parallel = regel.Any(r => eigene.All(e => e.Unterricht.Id != r.Unterricht.Id));
+        int? uid = null;
+        var entfaellt = true;
+        if (eigene.Count > 0 && abgedeckt && parallel)
+        {
+            uid = eigene.GroupBy(r => r.Unterricht.Id).OrderByDescending(g => g.Count()).First().Key;
+            entfaellt = false;
+        }
+        if (k.UnterrichtId == uid && k.UnterrichtEntfaellt == entfaellt) return false;
+        k.UnterrichtId = uid;
+        k.UnterrichtEntfaellt = entfaellt;
+        return true;
+    }
+
+    /// <summary>
+    /// Aus UntPlanWeb übernommene Prüfungen älterer Importe (Unterricht der ganzen Klasse entfällt, kein Unterricht zugeordnet) nach
+    /// <see cref="UnterrichtZuordnen"/> korrigieren; die Vertretungen der betroffenen Tage werden neu abgeglichen. Ergebnis: Anzahl.
+    /// </summary>
+    public static int ImportierteKlausurenZuordnen(Schuldatei d)
+    {
+        var tage = new HashSet<DateOnly>();
+        foreach (var k in d.Klausuren.Where(k => k.Importiert && k.Aktiv && k.UnterrichtEntfaellt && k.UnterrichtId is null))
+            if (UnterrichtZuordnen(d, k)) tage.Add(k.Datum);
+        foreach (var t in tage) Vertretungen.Aktualisieren(d, t);
+        return tage.Count;
     }
 
     /// <summary>Aus UntPlanWeb übernommene Buchung: Raumbuchung, Sondereinsatz (Aktivität) bzw. Raumänderung eines Unterrichts.</summary>

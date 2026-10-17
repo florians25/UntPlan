@@ -214,9 +214,10 @@ public class KlausurblockTests
     /// der parallele Kurs findet weiter statt.
     /// </summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Pruefung_in_parallelem_Kurs_ist_ein_Block(bool nurVertretungen)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Pruefung_in_parallelem_Kurs_ist_ein_Block(bool nurVertretungen, bool altdaten)
     {
         await using var u = await Umgebung.StartenAsync();
         Stunde? x = null;
@@ -255,6 +256,14 @@ public class KlausurblockTests
         for (var i = 0; i < 2; i++)
         {
             await u.ImportierenAsync(automatisch: i == 1);
+            if (altdaten)
+            {
+                // Import einer älteren Version: der Unterricht der ganzen Klasse entfiel (auch der Parallelkurs) – wird beim Export korrigiert
+                var k = Assert.Single(u.D.Klausuren);
+                k.UnterrichtId = null;
+                k.UnterrichtEntfaellt = true;
+                UntPlan.Core.Vertretungsplanung.Vertretungen.Aktualisieren(u.D, Tag);
+            }
             await u.ExportierenAsync(nurVertretungen);
             await Pruefen($"Import {i + 1}");
         }

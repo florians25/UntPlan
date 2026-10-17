@@ -323,8 +323,12 @@ public sealed class Plandienst
                 if (i < 0) continue;
             }
             else
-                i = r.Klassen.Count == 0 ? -1 : einzel.FindIndex(x => x.Von == r.Stunde && x.Unterricht.HasValue && x.Status is not ("entfall" or "abwesend")
-                                                                      && x.Klassen.Any(w => Enthaelt(r.Klassen, w.K)));
+            {
+                bool Passt(Karte x) => x.Von == r.Stunde && x.Unterricht.HasValue && x.Status is not ("entfall" or "abwesend") && x.Klassen.Any(w => Enthaelt(r.Klassen, w.K));
+                // paralleler Unterricht der Klasse (Kurse, Gruppen): bevorzugt die Stunde der Aufsicht – wie nach der Übernahme in UntPlan
+                i = r.Klassen.Count == 0 ? -1 : einzel.FindIndex(x => Passt(x) && x.Lehrer.Any(w => Enthaelt(r.Lehrer, w.K)));
+                if (i < 0 && r.Klassen.Count > 0) i = einzel.FindIndex(Passt);
+            }
             if (i < 0)
             {
                 // reine Raumbuchung ohne Unterricht: nur im Raumplan, kein zusätzlicher Eintrag im eigenen Stundenplan.
@@ -424,6 +428,20 @@ public sealed class Plandienst
                 && t.x.Klassen.Any(w => kl.Klassen.Any(z => Ci.Equals(z.K, w.K)))
                 && (t.x.Status is not ("entfall" or "abwesend") || WegenPruefung(t.x, kl))).ToList();
             if (treffer.Count == 0) continue;
+            // Prüfung aus dem Paket: nur der Unterricht dieser Prüfung (ihre Zeile bzw. wegen ihr entfallen) – ein paralleler Kurs der
+            // Klasse, der stattfindet, wird nicht zur (zweiten) Prüfung
+            if (kl.Klausur is int kid && treffer.Any(t => t.x.Klausur == kid)) treffer = treffer.Where(t => t.x.Klausur == kid).ToList();
+            // mehrere Stunden der Klasse zur selben Zeit: nur die Stunde(n) der Aufsicht werden zur Prüfung; anderer Unterricht, der wegen
+            // der Prüfung entfällt, erscheint im Klassenplan nicht daneben (genau ein Prüfungsblock), paralleler Unterricht bleibt
+            static string Kurz(Wert w) => w.K.Length > 0 ? w.K : w.Alt ?? "";
+            var weg = new List<Karte>();
+            var eigene = treffer.Where(t => t.x.Lehrer.Any(w => kl.Lehrer.Any(z => Ci.Equals(z.K, Kurz(w))))).ToList();
+            if (eigene.Count > 0 && eigene.Count < treffer.Count)
+            {
+                foreach (var (x, _) in treffer.Except(eigene))
+                    if (typ == Elementtyp.Klasse && x.Status == "entfall" && WegenPruefung(x, kl)) weg.Add(x);
+                treffer = eigene;
+            }
             foreach (var (x, i) in treffer)
             {
                 var raeume = x.Raeume;
@@ -435,6 +453,7 @@ public sealed class Plandienst
                 }
                 res[i] = x with { Status = "klausur", Art = "Klausur", Text = kl.Text, Raeume = raeume, Klausur = x.Klausur ?? kl.Klausur };
             }
+            res.RemoveAll(x => weg.Any(w => ReferenceEquals(w, x)));
             res.Remove(kl);
         }
         // Raumplan des bisherigen Raums: kein Entfall – die Stunde findet als Prüfung statt (hier, wenn die Prüfung keinen

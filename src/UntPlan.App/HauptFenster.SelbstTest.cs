@@ -808,6 +808,85 @@ public sealed partial class HauptFenster
             if (fehler.Count > 0) throw new InvalidOperationException("Auswahllisten zu schmal bzw. ohne Langnamen: " + string.Join("; ", fehler.Take(12)));
             Max(FensterOeffnen("vertr")!);
         }, -1);
+        Schritt("19d11_Entfall_rueckgaengig_Plan", () =>
+        {
+            // Sprint 25: im tagesaktuellen Stundenplan (Vertretungsmodus) per Kontextmenü entfallen lassen und wieder aufheben –
+            // anwesende Lehrkraft: wieder regulärer Unterricht; abwesende Lehrkraft: offene Vertretung („???“)
+            AppZustand.DatumSetzen(tag);
+            var dd = AppZustand.D;
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            bool Abwesend(int l) => Core.Vertretungsplanung.Absenzen.LehrerAbwesend(dd, l, tag, 1) || dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l && a.Von <= tag && a.Bis >= tag);
+            var e0 = tp.Eintraege.First(x => x.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && x.Vertretung is null && x.Unterricht is { } u && u.Zeilen.Count == 1 && string.IsNullOrEmpty(u.Band)
+                && x.Regel?.LehrerId is int l && !Abwesend(l) && x.KlassenIds.Count > 0 && !Core.Vertretungsplanung.Vertretungen.IstBereitschaftsfach(dd, x.FachId)
+                && !dd.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == u.Id));
+            var uid = e0.Unterricht!.Id;
+            var stunde = e0.Stunde;
+            var sp = Max(StundenplanFenster.Neu(ElementTyp.Klasse, e0.KlassenIds[0], false));
+            Warten(300);
+            if (!sp.Plan.Tagesmodus) throw new InvalidOperationException("Stundenplan im Vertretungsmodus ist nicht tagesaktuell.");
+            Core.Vertretungsplanung.TagesEintrag Eintrag(StundenplanFenster f, Func<Core.Vertretungsplanung.TagesEintrag, bool> wo) =>
+                f.Plan.EintraegeAmDatum(tag, stunde).FirstOrDefault(x => (x.Unterricht?.Id ?? x.Vertretung?.UnterrichtId) == uid && wo(x))
+                ?? throw new InvalidOperationException($"Stunde U{uid} ({stunde}.) nicht im Plan: " + string.Join(", ", f.Plan.EintraegeAmDatum(tag, stunde).Select(x => $"U{x.Unterricht?.Id}/{x.Status}")));
+            ToolStripItem Punkt(ContextMenuStrip cm, string anfang) => cm.Items.Cast<ToolStripItem>().FirstOrDefault(i => i.Text?.StartsWith(anfang) == true && i.Enabled)
+                ?? throw new InvalidOperationException($"Kontextmenü ohne „{anfang}“: " + string.Join(" | ", cm.Items.Cast<ToolStripItem>().Select(i => i.Text)));
+            using (var cm = sp.SelbsttestTagesMenue(tag, stunde, Eintrag(sp, x => x.Findetstatt)))
+            {
+                if (cm.Items.Cast<ToolStripItem>().Any(i => i.Text?.StartsWith("Entfall rückgängig") == true)) throw new InvalidOperationException("„Entfall rückgängig“ bei stattfindender Stunde.");
+                Punkt(cm, "Stunde entfallen lassen").PerformClick();
+            }
+            var entfallen = Eintrag(sp, x => x.Status == Core.Vertretungsplanung.TagesStatus.Entfall);
+            using (var cm = sp.SelbsttestTagesMenue(tag, stunde, entfallen)) Punkt(cm, "Entfall rückgängig").PerformClick();
+            var zurueck = Eintrag(sp, _ => true);
+            if (zurueck.Status != Core.Vertretungsplanung.TagesStatus.Regulaer || AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == uid && v.Stunde == stunde))
+                throw new InvalidOperationException($"Entfall nicht aufgehoben: {zurueck.Status}, Zeilen: {AppZustand.D.Vertretungen.Count(v => v.Datum == tag && v.UnterrichtId == uid && v.Stunde == stunde)}");
+            log.Add($"INFO  25-Entfall: Klasse U{uid} {stunde}. Std. entfallen und per Kontextmenü wieder regulär");
+            // abwesende Lehrkraft (Lehrerplan): Entfall aufheben → offene Vertretung
+            var tp2 = Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, tag);
+            var o = tp2.Eintraege.FirstOrDefault(x => x.Status == Core.Vertretungsplanung.TagesStatus.Offen && x.Regel?.LehrerId == krank.Id && x.Vertretung is { Quelle: VertretungsQuelle.Absenz }
+                && x.Unterricht is { } u2 && u2.Zeilen.Count == 1 && string.IsNullOrEmpty(u2.Band));
+            if (o is null) { log.Add("INFO  25-Entfall: keine offene Vertretung der abwesenden Lehrkraft gefunden"); return; }
+            uid = o.Unterricht!.Id;
+            stunde = o.Stunde;
+            var lp = Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false));
+            Warten(300);
+            using (var cm = lp.SelbsttestTagesMenue(tag, stunde, Eintrag(lp, x => x.Findetstatt))) Punkt(cm, "Stunde entfallen lassen").PerformClick();
+            using (var cm = lp.SelbsttestTagesMenue(tag, stunde, Eintrag(lp, x => x.Status == Core.Vertretungsplanung.TagesStatus.Entfall)))
+            {
+                var p = Punkt(cm, "Entfall rückgängig");
+                if (p.ToolTipText?.Contains("offenen Vertretung") != true) throw new InvalidOperationException("Hinweis zur offenen Vertretung fehlt: " + p.ToolTipText);
+                p.PerformClick();
+            }
+            var offen = Eintrag(lp, _ => true);
+            if (offen.Status != Core.Vertretungsplanung.TagesStatus.Offen) throw new InvalidOperationException($"Abwesende Lehrkraft: nach dem Aufheben {offen.Status} statt offener Vertretung.");
+            log.Add($"INFO  25-Entfall: Lehrerplan {krank.Kurzname} U{uid} {stunde}. Std. → offene Vertretung (???)");
+        }, -1);
+        Schritt("19d12_Fensterlage_klemmen", () =>
+        {
+            // Sprint 25: Arbeitsfenster rutschen nie unter das Menüband, gespeicherte Anordnungen mit negativen Lagen werden geklemmt
+            var sp = StundenplanFenster.Neu(ElementTyp.Klasse, null, false);
+            sp.WindowState = FormWindowState.Normal;
+            sp.Bounds = new Rectangle(60, -90, 500, 400);
+            if (sp.Top < 0) throw new InvalidOperationException($"Arbeitsfenster über dem oberen Rand: {sp.Bounds}");
+            sp.Location = new Point(-40, -40);
+            if (sp.Top < 0 || sp.Left < 0) throw new InvalidOperationException($"Arbeitsfenster außerhalb des Arbeitsbereichs: {sp.Bounds}");
+            var mdi = MdiArbeitsbereich!.ClientSize;
+            sp.Location = new Point(mdi.Width + 200, mdi.Height + 200);
+            if (sp.Right > mdi.Width || sp.Bottom > mdi.Height) throw new InvalidOperationException($"Arbeitsfenster rechts/unten hinaus: {sp.Bounds} bei {mdi}");
+            AlleSchliessen();
+            var schl = $"sp:Klasse:{AppZustand.D.Klassen[0].Id}:0";
+            LayoutOeffnen(new List<FensterPosition> { new() { Schluessel = schl, X = 30, Y = -120, B = 4000, H = 3000 } });
+            var f = MdiChildren.OfType<StundenplanFenster>().Single();
+            if (f.Top < 0 || f.Width > mdi.Width || f.Height > mdi.Height) throw new InvalidOperationException($"Gespeicherte Anordnung nicht geklemmt: {f.Bounds} bei {mdi}");
+            // Hauptfenster: Programmkopf bleibt im Arbeitsbereich
+            var vorher = Bounds;
+            WindowState = FormWindowState.Normal;
+            var wa = Screen.FromControl(this).WorkingArea;
+            Bounds = new Rectangle(wa.X + 20, wa.Y - 60, Math.Min(1100, wa.Width - 40), Math.Min(700, wa.Height - 40));
+            var oben = Top;
+            Bounds = vorher;
+            if (oben < wa.Top) throw new InvalidOperationException($"Hauptfenster über dem oberen Rand: Y={oben}, Arbeitsbereich {wa}");
+            log.Add($"INFO  Fensterlage: Arbeitsfenster {f.Bounds} im Bereich {mdi}, Hauptfenster oben {oben} (Arbeitsbereich {wa.Top})");
+        }, -1);
         Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
         Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
         var umgeplant = (Id: 0, Stunde: 0);

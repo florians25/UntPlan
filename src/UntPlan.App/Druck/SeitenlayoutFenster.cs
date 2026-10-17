@@ -45,8 +45,6 @@ public sealed class SeitenlayoutFenster : Form
 
     private SeitenlayoutFenster(DateOnly von, DateOnly bis, bool lehrer)
     {
-        // Auswahllisten mit weicher Listenschrift und geglätteter Darstellung (wie in allen Fenstern)
-        Load += (_, _) => Ui.ListenGestalten(this);
         _von = von;
         _bis = bis;
         _lehrer = lehrer;

@@ -117,6 +117,11 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
    4px über die Spalte hinaus, Radius 4px; mittig Schloss + Art, Name, Zeitraum (16px Abstand). */
 .tt-ferien { inset: 0 auto 0 -4px; width: calc(100% + 8px); border-radius: 4px; background: rgba(190, 218, 237, .7); color: #414d55; z-index: 3; }
 @media (max-width: 767.98px) { .tt-ferien { left: 0; width: 100%; } }
+/* Gleiche Deckkraft an allen Tagen: Der Seitenhintergrund ist ein fixierter diagonaler Verlauf – durch die halbtransparente Fläche
+   schien er unterschiedlich hell durch (linke/untere Tage dunkler als rechte/obere, je nach Lage der Woche). Darunter liegt deshalb
+   ein deckender neutraler Grund in derselben Form (Mitte des Verlaufs); die Linien liegen dazwischen und scheinen weiter durch. */
+.tt-spalte.frei:is(.ferien, .feiertag, .frei)::before { content: ""; position: absolute; inset: 0 -4px; border-radius: 4px; background: #e9ebee; pointer-events: none; }
+@media (max-width: 767.98px) { .tt-spalte.frei:is(.ferien, .feiertag, .frei)::before { inset: 0; } }
 .tt-spalte.frei .tt-linie { display: block; }
 .tt-ferien .inhalt { top: 50%; transform: translateY(-50%); gap: 16px; font-size: 14px; font-weight: 500; line-height: 19px; }
 .tt-ferien .art { display: flex; align-items: center; justify-content: center; gap: 6px; }

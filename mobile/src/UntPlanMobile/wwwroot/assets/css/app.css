@@ -5662,3 +5662,9 @@ html.is-dark .card--exam.is-past{ border-color:#c27c07; }
   .card--cancelled .card__line--badge{ padding-left:1.5px; }
   .card .badge.badge--raum:not(.badge--removed){ padding:0.33px 2.27px 0; border-radius:2px; font-size:inherit; }
 }
+
+/* Startseite, eigene Woche gesperrt: kleiner Schlosskreis statt Kalender,
+   „Keine Stunden“ (Medium) und der Sperrsatz — wie in der iOS-App. */
+.nextnone b{ font-weight:500; }
+.nextnone--sperre .sperre__kreis{ display:flex; width:48px; height:48px; margin:0 auto; }
+.nextnone--sperre .sperre__kreis svg{ width:24px; height:24px; }
