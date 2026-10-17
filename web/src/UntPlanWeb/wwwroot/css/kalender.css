@@ -70,11 +70,11 @@ button.kal-titel:hover { background: #f3f5f7; }
 .kal-tag.k-im:not(.k-anfang):not(.k-ende)::before { background: transparent; }
 .kal-tag.k-im.k-frei-ferien:not(.k-anfang):not(.k-ende)::before { background: rgba(190, 218, 237, .4); }
 /* Wochenauswahl: ganze Zeile reagiert, gewählte Woche hellorange */
-.kal-woche .kal-zeile[data-mo] { cursor: pointer; }
-.kal-woche .kal-zeile[data-mo]:hover { background: #f3f5f7; }
-.kal-woche .kal-zeile[data-mo]:hover .kal-tag:hover::before { background: transparent; }
-.kal-woche .kal-zeile.k-gewaehlt, .kal-woche .kal-zeile.k-gewaehlt:hover { background: var(--kal-akzent-hell); }
-.kal-woche .kal-zeile.k-gewaehlt .kal-kw { color: var(--kal-akzent); font-weight: 500; }
+.kal-m-woche .kal-zeile[data-mo] { cursor: pointer; }
+.kal-m-woche .kal-zeile[data-mo]:hover { background: #f3f5f7; }
+.kal-m-woche .kal-zeile[data-mo]:hover .kal-tag:hover::before { background: transparent; }
+.kal-m-woche .kal-zeile.k-gewaehlt, .kal-m-woche .kal-zeile.k-gewaehlt:hover { background: var(--kal-akzent-hell); }
+.kal-m-woche .kal-zeile.k-gewaehlt .kal-kw { color: var(--kal-akzent); font-weight: 500; }
 
 /* Monats- und Jahresübersicht */
 .kal-raster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: calc(30px + 7 * var(--kal-zelle)); padding: 4px 0; }

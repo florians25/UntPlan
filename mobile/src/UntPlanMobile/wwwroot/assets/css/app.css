@@ -5862,3 +5862,53 @@ html body #profileRole{ font-size:11px; font-weight:500; }
 html body .screen--profile .row__main b{ font-size:16px; font-weight:400; }
 html body .screen--profile .row__main i,
 html body .screen--profile .row__main small{ font-size:13px; }
+
+/* =====================================================================
+   Sprint 26 – Entschuldigungen der Klassenleitung: Liste mit Wischgesten
+   (rechts „Entschuldigt“, links „Nicht entschuldigt“/„Zurücknehmen“) und
+   Dialog wie „Abwesenheit bearbeiten“.
+   ===================================================================== */
+.ent__tipp{ margin:2px 4px 10px; font-size:13px; color:var(--c-muted); }
+.ent-row{ position:relative; overflow:hidden; border-radius:10px; margin-bottom:12px; }
+.ent-row .ent-row__front{ position:relative; z-index:1; margin-bottom:0; touch-action:pan-y; user-select:none; -webkit-user-select:none;
+  transition:transform .22s ease; cursor:pointer; }
+.ent-row__acts{ position:absolute; top:0; bottom:0; display:flex; visibility:hidden; }
+.ent-row__acts--l{ left:0; }
+.ent-row__acts--r{ right:0; }
+.ent-row.zeigt-l .ent-row__acts--l, .ent-row.zeigt-r .ent-row__acts--r{ visibility:visible; }
+.ent-row__act{ width:92px; border:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+  font:inherit; font-size:13.5px; font-weight:500; color:#fff; text-align:center; padding:0 6px; }
+.ent-row__act .ico{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.ent-row__act.is-gruen{ background:#34c759; }
+.ent-row__act.is-rot{ background:#ff3b30; }
+.ent-row__act.is-grau{ background:#8e8e93; }
+/* Die Gruppe füllt bei vollem Wischen die ganze Breite: Hintergrund der ersten Aktion. */
+.ent-row.zeigt-l{ background:#34c759; }
+.ent-row.zeigt-r{ background:#ff3b30; }
+
+.sheet--ent .ent__body{ padding-bottom:calc(var(--sab, 0px) + 24px); }
+.ent__zeit{ margin:0 0 6px; font-size:16px; color:var(--c-ink); }
+.ent__text{ margin:0 0 14px; font-size:15px; color:var(--c-ink-2); white-space:pre-line; }
+.ent__seg{ display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; padding:3px; margin-bottom:20px;
+  border-radius:10px; background:#eceef1; }
+html.is-dark .ent__seg{ background:#2a2a2e; }
+.ent__segbtn{ border:0; border-radius:8px; padding:9px 4px; font:inherit; font-size:15px; font-weight:400; color:var(--c-ink); background:transparent; }
+.ent__segbtn.is-on{ background:var(--c-bar); font-weight:500; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+html.is-dark .ent__segbtn.is-on{ background:#4a4a50; }
+.ent__segbtn--ok.is-on{ color:#157d68; }
+.ent__segbtn--no.is-on{ color:#c0113a; }
+html.is-dark .ent__segbtn--ok.is-on{ color:#4fd1a8; }
+html.is-dark .ent__segbtn--no.is-on{ color:#ff6b86; }
+.sheet--ent select.dabs__pill{ appearance:none; -webkit-appearance:none; width:100%; font:inherit; }
+.ent__stunden{ list-style:none; margin:0 0 18px; padding:0; }
+.ent__stunde{ display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:.5px solid var(--c-line); }
+.ent__punkt{ width:10px; height:10px; border-radius:50%; margin-top:6px; flex:0 0 10px; background:#8b9aa5; }
+.ent__punkt--ok{ background:#20a37f; }
+.ent__punkt--no{ background:#e5254d; }
+.ent__std{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ent__std b{ font-size:15px; font-weight:500; color:var(--c-ink); }
+.ent__std span{ font-size:14px; color:var(--c-ink-2); }
+.ent__std em{ font-size:14px; font-style:normal; color:var(--c-ink-2); overflow-wrap:anywhere; }
+.ent__zurueck{ display:block; width:100%; margin-top:6px; padding:13px; border:0; border-radius:12px;
+  background:#eceef1; color:#c0113a; font:inherit; font-size:16px; font-weight:500; }
+html.is-dark .ent__zurueck{ background:#2a2a2e; color:#ff6b86; }

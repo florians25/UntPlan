@@ -87,18 +87,21 @@ public class Sprint24Tests
     // ------------------------------------------------------------------------------------------ Info-Zeichen
 
     [Fact]
-    public void Info_Zeichen_ist_nicht_invertiert()
+    public void Info_Zeichen_wie_im_Original()
     {
-        var sprite = Datei("wwwroot", "assets", "icons", "symbole-sprite.svg");
-        var beginn = sprite.IndexOf("<symbol id=\"ic-tt-info-icon\"", StringComparison.Ordinal);
-        var symbol = sprite[beginn..sprite.IndexOf("</symbol>", beginn, StringComparison.Ordinal)];
-        // Kreis und „i“ als Linie – keine gefüllte Scheibe mit ausgespartem „i“ (evenodd)
-        Assert.DoesNotContain("evenodd", symbol);
-        Assert.Contains("stroke=\"currentColor\"", symbol);
+        // Sprint 26: auf der Kachel wie im Original – abgerundetes Feld, graue Scheibe mit ausgespartem „i“ (eigene Formen,
+        // keine Farbumkehr per Filter); die Stundendetails behalten ihr Linienzeichen
+        var js = AppJs;
+        var beginn = js.IndexOf("const KACHEL_INFO", StringComparison.Ordinal);
+        var info = js[beginn..js.IndexOf('\n', beginn)];
+        Assert.Contains("ticon__feld", info);
+        Assert.Contains("ticon__scheibe", info);
+        Assert.DoesNotContain("evenodd", info);
         var css = Datei("wwwroot", "assets", "css", "app.css");
         Assert.DoesNotContain("invert(", css);
-        // Stundendetails: Linienzeichen statt der Scheibe
-        Assert.DoesNotContain("dico--info\" aria-hidden=\"true\"><use href=\"#ic-tt-info-icon\"", AppJs);
+        Assert.Contains(".card .ticon--info .ticon__scheibe{ fill:#818e9c; }", css);
+        Assert.Contains("html.is-dark .card .ticon--info .ticon__feld{ fill:#313d44; }", css);
+        Assert.DoesNotContain("dico--info\" aria-hidden=\"true\"><use href=\"#ic-tt-info-icon\"", js);
     }
 
     // ------------------------------------------------------------------------------------------ Einzelstunden

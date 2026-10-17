@@ -518,6 +518,7 @@ function lineValue(card, key){
   return { text:now || orig, removed:false, changed };
 }
 
+/* AUFSICHT-BEGINN (wird von den Tests ausgeführt) */
 /* Kürzel auf einer vertretenen Pausenaufsicht — wie auf einer Stundenkarte
    mit abwesender Lehrkraft: das abwesende Kürzel durchgestrichen, daneben
    die Vertretung als grüne Plakette; ist noch niemand eingeteilt, steht das
@@ -543,6 +544,7 @@ function aufsichtKuerzel(card, ich, schmal){
   return innen ? `<span class="sup-lab">${innen}</span>` : '';
 }
 if (typeof window !== 'undefined') window.UntPlanAufsicht = { kuerzel: aufsichtKuerzel };
+/* AUFSICHT-ENDE */
 
 /* Die Kürzel einer Kopplung mit ihrem Zustand.
 
@@ -3709,7 +3711,11 @@ async function listeZeichnen(){
 
   let d;
   try {
-    d = await homeFetch(art, art === 'leadabsent' || art === 'classlead'
+    /* Klassenleitung: Abwesenheiten mit Stand der Fachlehrer-Entschuldigungen
+       (UntPlanWeb, Entschuldigungen). Ältere Server kennen den Endpunkt
+       nicht — dann bleibt es bei der bisherigen Liste. */
+    const ent = art === 'leadabsent' ? await entLaden().catch(() => null) : null;
+    d = ent ? ent : await homeFetch(art, art === 'leadabsent' || art === 'classlead'
                               ? { class: listeStand.klasse || '',
                                   scope: listeStand.umfang || 'mine' } : null);
   } catch (e){
@@ -3758,6 +3764,10 @@ async function listeZeichnen(){
     return;
   }
 
+  if (art === 'leadabsent' && d.entschuldigungen){
+    entListeZeichnen(d.entschuldigungen);
+    return;
+  }
   if (art === 'leadabsent'){
     const stL = listeStand.stand || 'alle';
     const G = [['pending','Offen'], ['approved','Entschuldigt'], ['rejected','Nicht anerkannt']]
@@ -3783,6 +3793,286 @@ async function listeZeichnen(){
     }));
   }
 }
+
+/* =====================================================================
+   Entschuldigungen der Klassenleitung
+   ---------------------------------------------------------------------
+   Abwesenheiten (Zeiträume) der eigenen Klassen mit dem Stand der
+   Fachlehrer-Entschuldigungen. Wischen nach rechts entschuldigt, nach
+   links stehen „Nicht entschuldigt“ und „Zurücknehmen“; Tippen öffnet
+   den Dialog „Entschuldigung erfassen“ (wie „Abwesenheit bearbeiten“)
+   mit Status, Datum, Nachweis und Text. Rechte prüft UntPlanWeb.
+   ===================================================================== */
+const ENT_URL = 'api/entschuldigungen/';
+const ENT_STATUS = { offen:'offen', entschuldigt:'entschuldigt', unentschuldigt:'nicht entschuldigt' };
+const ENT_TON = { offen:'open', entschuldigt:'ok', unentschuldigt:'no' };
+const ENT_NACHWEIS = [['', 'Kein Nachweis'], ['attest', 'Attest'], ['schriftlich', 'Schriftlich'], ['muendlich', 'Mündlich'],
+                      ['telefonisch', 'Telefonisch'], ['email', 'E-Mail']];
+let entListe = [];
+let entOffen = null;     /* Abwesenheit im Dialog */
+let entEntwurf = null;   /* { status, datum, nachweis, text } */
+
+async function entFetch(pfad, body){
+  const r = await fetch(ENT_URL + pfad, body ? {
+    method:'POST', credentials:'same-origin',
+    headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body)
+  } : { credentials:'same-origin' });
+  const d = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((d && (d.fehler || d.error)) || ('Fehler ' + r.status));
+  return d;
+}
+
+async function entLaden(){
+  const e = await entFetch('einstellungen');
+  if (!e || !e.klassenleitung) return null;
+  const heute = new Date();
+  const sj = new Date(heute.getMonth() >= 7 ? heute.getFullYear() : heute.getFullYear() - 1, 7, 1);
+  const p = new URLSearchParams({ von: listeStand.von || iso(sj), bis: listeStand.bis || iso(heute) });
+  if (listeStand.umfang !== 'all' && listeStand.klasse) p.set('klasse', listeStand.klasse);
+  if ((listeStand.stand || 'alle') === 'offen') p.set('status', 'offen');
+  const liste = await entFetch('abwesenheiten?' + p);
+  if (!Array.isArray(liste)) return null;
+  return { from: p.get('von'), to: p.get('bis'), entschuldigungen: liste,
+           classes: (e.klassen || []).map(k => ({ id:k, name:k })) };
+}
+
+/* „Mo., 12.10.  08:00 – 13:15“ bzw. über mehrere Tage mit Wochentag. */
+function entZeitraum(a){
+  const tag = d => { const x = parseISO(d); return `${WD_SHORT[(x.getDay() + 6) % 7]}, ${deDate(d)}`; };
+  return (!a.bisDatum || a.bisDatum === a.vonDatum)
+    ? `${tag(a.vonDatum)}  ${a.vonZeit || ''} – ${a.bisZeit || ''}`
+    : `${tag(a.vonDatum)} ${a.vonZeit || ''} – ${tag(a.bisDatum)} ${a.bisZeit || ''}`;
+}
+
+function entKarte(a, i){
+  const ton = a.mehrdeutig ? 'open' : (ENT_TON[a.status] || 'open');
+  const stand = a.mehrdeutig ? 'offen – Lehrkräfte uneinig' : (ENT_STATUS[a.status] || a.status || 'offen');
+  const text = String(a.text || '').trim();
+  const darf = a.darf !== false;
+  const zurueck = darf && (a.status !== 'offen' || (a.stunden || []).some(s => s.status !== 'offen'));
+  return `<div class="ent-row" data-i="${i}">
+      ${darf ? `<div class="ent-row__acts ent-row__acts--l">
+        <button type="button" class="ent-row__act is-gruen" data-ent="entschuldigt">
+          <svg viewBox="0 0 24 24" class="ico"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Entschuldigt</button>
+      </div>
+      <div class="ent-row__acts ent-row__acts--r">
+        <button type="button" class="ent-row__act is-rot" data-ent="unentschuldigt">
+          <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>Nicht entsch.</button>
+        ${zurueck ? `<button type="button" class="ent-row__act is-grau" data-ent="offen">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12"/></svg>Zurück&shy;nehmen</button>` : ''}
+      </div>` : ''}
+      <article class="lstcard ent-row__front" role="button" tabindex="0">
+        <b>${esc(a.schueler || '')}</b>
+        <p class="lstcard__sub">${esc(a.klasse || '')}${a.fehlstunden ? ` · ${a.fehlstunden} ${a.fehlstunden === 1 ? 'Stunde' : 'Stunden'}` : ''}</p>
+        <p class="lstcard__line"><svg viewBox="0 0 24 24" class="lstcard__ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg>${esc(entZeitraum(a))}</p>
+        ${text ? `<p class="lstcard__line lstcard__line--note"><svg viewBox="0 0 24 24" class="lstcard__ico"><path d="M15.6 3.4H6.3A1.8 1.8 0 0 0 4.5 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h11.4a1.8 1.8 0 0 0 1.8-1.8V6.9z"/><path d="M7.8 8.8h7.8M7.8 12h7.8M7.8 15.2h4"/></svg><span>${esc(text)}</span></p>` : ''}
+        <p class="lstcard__line lstcard__stand lstcard__stand--${ton}">
+          <svg viewBox="0 0 24 24" class="lstcard__ico">${STAND_ICO[ton] || ''}</svg>${esc(stand)}${
+          a.lehrerGesamt ? ` <span class="lstcard__sm">· ${a.lehrerBearbeitet || 0}/${a.lehrerGesamt} Lehrkräfte bearbeitet</span>` : ''}</p>
+      </article>
+    </div>`;
+}
+
+function entListeZeichnen(liste){
+  const st = listeStand.stand || 'alle';
+  entListe = (liste || []).filter(a => st === 'alle' || (st === 'offen' && (a.status === 'offen' || a.mehrdeutig))
+                                                     || (st === 'ok' && a.status !== 'offen' && !a.mehrdeutig));
+  if (lstSuche) entListe = entListe.filter(a => JSON.stringify(a).toLowerCase().includes(lstSuche));
+  const gruppen = [['offen', 'Offen'], ['entschuldigt', 'Entschuldigt'], ['unentschuldigt', 'Nicht entschuldigt']];
+  let html = entListe.length ? '<p class="ent__tipp">Nach rechts wischen: entschuldigt · nach links: nicht entschuldigt oder zurücknehmen · Tippen: bearbeiten</p>' : '';
+  gruppen.forEach(([k, n]) => {
+    const teil = entListe.map((a, i) => [a, i]).filter(([a]) => (a.mehrdeutig ? 'offen' : a.status) === k);
+    if (!teil.length) return;
+    html += `<h3 class="lst__group">${n} (${teil.length})</h3>` + teil.map(([a, i]) => entKarte(a, i)).join('');
+  });
+  $('#lstBody').innerHTML = html || LEER('Keine Abwesenheiten', 'Im gewählten Zeitraum ist niemand abwesend');
+  $$('#lstBody .ent-row').forEach(z => {
+    const a = entListe[+z.dataset.i];
+    entWischen(z, () => entOeffnen(a), status => entSetzen(a, status));
+    z.querySelectorAll('[data-ent]').forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      entSetzen(a, b.dataset.ent);
+    }));
+  });
+}
+
+/* Wischen nach beiden Seiten: rechts (Inhalt nach rechts) liegt
+   „Entschuldigt“, links „Nicht entschuldigt“ und „Zurücknehmen“. Ganz
+   durchgewischt löst die erste Aktion der Seite sofort aus. */
+function entWischen(zeile, beimTippen, ausloesen){
+  const vorn = zeile.querySelector('.ent-row__front');
+  const seite = k => (zeile.querySelector('.ent-row__acts--' + k) || {}).offsetWidth || 0;
+  let x0 = 0, y0 = 0, dx = 0, start = 0, aktiv = false, quer = null, id = null;
+  const setze = (x, weich) => {
+    vorn.style.transition = weich ? '' : 'none';
+    vorn.style.transform = x ? `translateX(${x}px)` : '';
+    zeile.classList.toggle('zeigt-l', x > 0);
+    zeile.classList.toggle('zeigt-r', x < 0);
+  };
+  const lage = () => zeile.classList.contains('is-auf-l') ? seite('l') : zeile.classList.contains('is-auf-r') ? -seite('r') : 0;
+  vorn.addEventListener('pointerdown', e => {
+    if (!seite('l') && !seite('r')) return;
+    $$('#lstBody .ent-row.is-auf-l, #lstBody .ent-row.is-auf-r').forEach(r => {
+      if (r === zeile) return;
+      r.classList.remove('is-auf-l', 'is-auf-r', 'zeigt-l', 'zeigt-r');
+      r.querySelector('.ent-row__front').style.transform = '';
+    });
+    x0 = e.clientX; y0 = e.clientY; dx = 0; quer = null; aktiv = true; id = e.pointerId; start = lage();
+  });
+  vorn.addEventListener('pointermove', e => {
+    if (!aktiv || e.pointerId !== id) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (quer === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)){
+      quer = Math.abs(mx) > Math.abs(my);
+      if (quer) try { vorn.setPointerCapture(id); } catch (err){}
+    }
+    if (!quer) return;
+    dx = mx;
+    const w = zeile.offsetWidth;
+    setze(Math.max(seite('r') ? -w : 0, Math.min(seite('l') ? w : 0, start + dx)), false);
+  });
+  const ende = () => {
+    if (!aktiv) return;
+    aktiv = false;
+    if (!quer) return;
+    const x = start + dx, w = zeile.offsetWidth;
+    zeile.dataset.gewischt = '1';
+    setTimeout(() => { delete zeile.dataset.gewischt; }, 350);
+    zeile.classList.remove('is-auf-l', 'is-auf-r');
+    if (x > w * 0.55 && seite('l')){ setze(0, true); buzz(); ausloesen('entschuldigt'); return; }
+    if (x < -w * 0.55 && seite('r')){ setze(0, true); buzz(); ausloesen('unentschuldigt'); return; }
+    if (x > seite('l') / 2 && seite('l')){ zeile.classList.add('is-auf-l'); setze(seite('l'), true); return; }
+    if (x < -seite('r') / 2 && seite('r')){ zeile.classList.add('is-auf-r'); setze(-seite('r'), true); return; }
+    setze(0, true);
+  };
+  vorn.addEventListener('pointerup', ende);
+  vorn.addEventListener('pointercancel', ende);
+  vorn.addEventListener('click', () => {
+    if (zeile.dataset.gewischt) return;
+    if (lage()){ zeile.classList.remove('is-auf-l', 'is-auf-r'); setze(0, true); return; }
+    beimTippen();
+  });
+}
+
+/* Status der ganzen Abwesenheit setzen (überschreibt die Fachlehrkräfte;
+   abweichende Stunden werden vorher genannt). „offen“ nimmt zurück. */
+async function entSetzen(a, status, extra){
+  if (!a) return false;
+  try {
+    if (status === 'offen'){
+      await entFetch('zuruecknehmen', { ids: a.ids });
+      toast('Entschuldigung zurückgenommen');
+    } else {
+      const anders = (a.stunden || []).filter(s => s.entschuldigung && s.status !== 'offen' && s.status !== status);
+      if (anders.length && !confirm(`${anders.length === 1 ? 'Eine Stunde ist' : anders.length + ' Stunden sind'} von Fachlehrkräften anders eingetragen (${
+            anders.map(s => `${s.stunde}. ${s.fach || ''} ${s.lehrer || ''}: ${ENT_STATUS[s.status] || s.status}`.trim()).join('; ')}). Trotzdem für die ganze Abwesenheit übernehmen?`))
+        return false;
+      await entFetch('abwesenheit', Object.assign({ ids: a.ids, status, datum: iso(new Date()) }, extra || {}));
+      toast(status === 'entschuldigt' ? 'Entschuldigt' : 'Als nicht entschuldigt eingetragen');
+    }
+    buzz();
+    listeZeichnen();
+    return true;
+  } catch (e){
+    toast('Nicht gespeichert: ' + e.message);
+    listeZeichnen();
+    return false;
+  }
+}
+
+function entOeffnen(a){
+  entOffen = a;
+  entEntwurf = { status: a.mehrdeutig ? 'offen' : (a.status || 'offen'), datum: a.entschuldigtAm || iso(new Date()),
+                 nachweis: a.nachweis || '', text: '' };
+  entZeichnen();
+  SH.ent.open();
+}
+
+function entSammeln(){
+  if (!entEntwurf) return;
+  const d = $('#entDatum'), n = $('#entNachweis'), t = $('#entText');
+  if (d) entEntwurf.datum = d.value;
+  if (n) entEntwurf.nachweis = n.value;
+  if (t) entEntwurf.text = t.value;
+}
+
+function entZeichnen(){
+  const a = entOffen, d = entEntwurf;
+  if (!a || !d) return;
+  const darf = a.darf !== false;
+  const ton = s => ENT_TON[s] || 'open';
+  const stunden = (a.stunden || []).map(s => `
+      <li class="ent__stunde">
+        <span class="ent__punkt ent__punkt--${ton(s.status)}"></span>
+        <span class="ent__std"><b>${esc(deDate(s.datum))} · ${s.stunde}. Std.</b>
+          <span>${esc([s.fach, s.lehrer].filter(Boolean).join(' · '))} – ${esc(ENT_STATUS[s.status] || s.status)}</span>
+          ${s.entschuldigung && s.entschuldigung.text ? `<em>„${esc(s.entschuldigung.text)}“ (${esc(s.entschuldigung.lehrer || '')})</em>` : ''}
+        </span>
+      </li>`).join('');
+  $('#entTitel').textContent = 'Entschuldigung';
+  $('#entBody').innerHTML = `
+    <div class="dabs__who">
+      <span class="dabs__ava">${esc(absInitials(a.schueler || ''))}</span>
+      <span class="dabs__id"><b>${esc(a.schueler || '')}</b>${a.klasse ? `<span class="dabs__chip">${esc(a.klasse)}</span>` : ''}</span>
+    </div>
+    <p class="ent__zeit">${esc(entZeitraum(a))}${a.fehlstunden ? ` · ${a.fehlstunden} ${a.fehlstunden === 1 ? 'Stunde' : 'Stunden'}` : ''}</p>
+    ${String(a.text || '').trim() ? `<p class="ent__text">${esc(a.text)}</p>` : ''}
+
+    <span class="dabs__lab">STATUS</span>
+    <div class="ent__seg" role="radiogroup">
+      ${['offen', 'entschuldigt', 'unentschuldigt'].map(k => `<button type="button" role="radio" data-st="${k}"
+        class="ent__segbtn ent__segbtn--${ton(k)} ${d.status === k ? 'is-on' : ''}" aria-checked="${d.status === k}">${
+        k === 'offen' ? 'Offen' : k === 'entschuldigt' ? 'Entschuldigt' : 'Nicht entsch.'}</button>`).join('')}
+    </div>
+
+    <div class="dabs__grid">
+      <div>
+        <span class="dabs__lab">EINGANG</span>
+        <div class="dabs__fields"><input class="dabs__pill" type="date" id="entDatum" value="${esc(d.datum)}"></div>
+      </div>
+      <div>
+        <span class="dabs__lab">NACHWEIS</span>
+        <div class="dabs__fields"><select class="dabs__pill" id="entNachweis">${ENT_NACHWEIS.map(([v, n]) =>
+          `<option value="${v}"${d.nachweis === v ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+      </div>
+    </div>
+
+    <span class="dabs__lab">TEXT DER ENTSCHULDIGUNG</span>
+    <textarea class="dabs__area" id="entText" maxlength="1000" placeholder="Text hier eingeben">${esc(d.text)}</textarea>
+
+    ${stunden ? `<span class="dabs__lab">STUNDEN${a.lehrerGesamt ? ` · ${a.lehrerBearbeitet || 0}/${a.lehrerGesamt} LEHRKRÄFTE BEARBEITET` : ''}</span>
+    <ul class="ent__stunden">${stunden}</ul>` : ''}
+
+    ${darf && (a.status !== 'offen' || (a.stunden || []).some(s => s.status !== 'offen'))
+      ? '<button type="button" class="ent__zurueck" id="entZurueck">Entschuldigung zurücknehmen</button>' : ''}`;
+
+  if (!darf){
+    $$('#entBody input, #entBody textarea, #entBody select, #entBody button').forEach(el => { el.disabled = true; });
+    $('#entSave').hidden = true;
+    return;
+  }
+  $('#entSave').hidden = false;
+  $$('#entBody [data-st]').forEach(b => b.addEventListener('click', () => {
+    entSammeln();
+    entEntwurf.status = b.dataset.st;
+    entZeichnen();
+  }));
+  const z = $('#entZurueck');
+  if (z) z.addEventListener('click', async () => {
+    if (await entSetzen(entOffen, 'offen')) SH.ent.close();
+  });
+}
+
+$('#entClose').addEventListener('click', () => SH.ent.close());
+$('#entSave').addEventListener('click', async () => {
+  entSammeln();
+  const a = entOffen, d = entEntwurf;
+  if (!a || !d) return;
+  const ok = await entSetzen(a, d.status, d.status === 'offen' ? null
+    : { datum: d.datum || iso(new Date()), nachweis: d.nachweis || '', text: (d.text || '').trim() });
+  if (ok) SH.ent.close();
+});
+if (typeof window !== 'undefined') window.UntPlanEntschuldigung = { zeitraum: entZeitraum, status: ENT_STATUS, nachweis: ENT_NACHWEIS };
 
 /* Eine Karte wie in der Vorlage: Datum, Uhrzeit, Anlass, Stand. */
 function karteAbwesenheit(x, mitName){
@@ -4438,7 +4728,8 @@ const SH = {
   legend: bindSheet('#sheetLegend', '#scrimLegend'),
   write:  bindSheet('#sheetWrite',  '#scrimWrite'),
   to:     bindSheet('#sheetTo',     '#scrimTo'),
-  info:   bindSheet('#sheetInfo',   '#scrimInfo')
+  info:   bindSheet('#sheetInfo',   '#scrimInfo'),
+  ent:    bindSheet('#sheetEnt',    '#scrimEnt')
 };
 $('#infoClose').addEventListener('click', () => SH.info.close());
 

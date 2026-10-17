@@ -135,23 +135,30 @@ async function start() {
 // ------------------------------------------------------------------ Anmeldung und Einrichtung
 
 /**
- * Anmeldeseite im Stil des Vorbilds: links schmale Leiste mit Bildmarke, Mitte heller Verlaufsbereich mit Datum und Schulname,
- * rechts weißes Panel mit Titel, großer Bildmarke und Formular; unten Hinweis zur App (PWA) statt Store-Badges.
+ * Anmeldeseite: zweigeteilt. Links eine ruhige, warme Verlaufsfläche mit Bildmarke, Schulname, heutigem Datum und einer
+ * zurückhaltenden Illustration (stilisierte Stundenplanwoche); rechts auf hellem Grund eine Formularkarte mit Pill-Knopf.
+ * Auf dem Telefon steht ein schmaler Kopf mit Bildmarke und Schulname über der Karte.
  */
-function anmeldeRahmen(titel, inhalt) {
-  const heute = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  app.innerHTML = `<main class="anmeldung lg">
-    <aside class="lg-leiste" aria-hidden="true">${LOGO}<span class="lg-leiste-sym">${icon('dashboard')}</span></aside>
-    <section class="lg-mitte"><div class="lg-mitte-inhalt">
-      <div class="lg-heute">Heute ${e(heute)}</div>
-      <h2 class="lg-schule">${e(sitzung?.schule?.name || 'UntPlanWeb')}</h2>
-      <p class="lg-zeile">Stundenplan, Vertretungsplan und Klassenbuch – immer aktuell aus UntPlan.</p></div></section>
-    <section class="lg-panel">
-      <h1 class="lg-titel">${e(titel)}</h1>
-      <div class="lg-marke">${LOGO}<b>UntPlanWeb</b></div>
-      <div class="lg-form">${inhalt}</div>
-      <footer class="lg-fuss"><button type="button" class="lg-app d-none" data-pwa>${icon('herunterladen')}Als App installieren</button>
-        <span class="lg-app-text" data-pwa-text>Tipp: UntPlanWeb lässt sich auf dem Smartphone über „Zum Startbildschirm hinzufügen“ wie eine App nutzen.</span>
+function anmeldeRahmen(titel, inhalt, untertitel = '') {
+  const heute = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const schule = sitzung?.schule?.name || 'UntPlanWeb';
+  app.innerHTML = `<main class="anmeldung an-seite">
+    <section class="an-buehne" aria-label="${e(schule)}">
+      <div class="an-marke">${LOGO}<span>UntPlanWeb</span></div>
+      <div class="an-text">
+        <p class="an-datum">${e(heute)}</p>
+        <h2 class="an-schule">${e(schule)}</h2>
+        <p class="an-zeile">Stundenplan, Vertretungen und Klassenbuch – an einem Ort, immer aktuell.</p>
+      </div>
+      ${anmeldeBild()}
+    </section>
+    <section class="an-bereich">
+      <div class="an-karte">
+        <div class="an-kopf">${LOGO}<div><h1 class="an-titel">${e(titel)}</h1>${untertitel ? `<p class="an-unter">${e(untertitel)}</p>` : ''}</div></div>
+        <div class="lg-form">${inhalt}</div>
+      </div>
+      <footer class="an-fuss"><button type="button" class="lg-app d-none" data-pwa>${icon('herunterladen')}Als App installieren</button>
+        <span class="lg-app-text" data-pwa-text>Tipp: Auf dem Smartphone über „Zum Startbildschirm hinzufügen“ wie eine App nutzen.</span>
         <span class="lg-impressum">UntPlanWeb · Webbegleiter zu UntPlan</span></footer>
     </section></main>`;
   // App installieren (PWA), sobald der Browser es anbietet
@@ -169,20 +176,39 @@ function anmeldeRahmen(titel, inhalt) {
   });
   return app.querySelector('form');
 }
+/** Ruhige Illustration der Anmeldeseite: stilisierte Stundenplanwoche mit runden Karten (rein dekorativ). */
+function anmeldeBild() {
+  const farben = ['#f56b2a', '#7fb2d6', '#8ccfa8', '#f3c95c', '#c5b3e6'];
+  const spalten = [[0, 1, 3], [0, 2, 3, 4], [1, 2, 4], [0, 1, 2, 4], [0, 3]];
+  let karten = '';
+  spalten.forEach((reihen, t) => reihen.forEach(r => {
+    const f = farben[(t * 2 + r) % farben.length];
+    karten += `<rect x="${34 + t * 74}" y="${58 + r * 54}" width="62" height="44" rx="10" fill="#fff" opacity=".92"/>`
+      + `<rect x="${40 + t * 74}" y="${64 + r * 54}" width="4" height="32" rx="2" fill="${f}"/>`
+      + `<rect x="${50 + t * 74}" y="${68 + r * 54}" width="30" height="5" rx="2.5" fill="#c9d0d6"/><rect x="${50 + t * 74}" y="${79 + r * 54}" width="20" height="4" rx="2" fill="#e1e5e9"/>`;
+  }));
+  return `<svg class="an-bild" viewBox="0 0 420 340" aria-hidden="true" focusable="false">
+      <rect x="14" y="14" width="392" height="312" rx="26" fill="#fff" opacity=".45"/>
+      ${[0, 1, 2, 3, 4].map(t => `<rect x="${44 + t * 74}" y="32" width="42" height="8" rx="4" fill="#fff" opacity=".9"/>`).join('')}
+      ${[0, 1, 2, 3, 4, 5].map(r => `<line x1="30" x2="390" y1="${54 + r * 54}" y2="${54 + r * 54}" stroke="#fff" stroke-opacity=".7"/>`).join('')}
+      ${karten}
+      <circle cx="356" cy="290" r="34" fill="#f56b2a" opacity=".12"/><circle cx="356" cy="290" r="12" fill="#f56b2a" opacity=".5"/>
+    </svg>`;
+}
 window.addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); window.__pwaAngebot = ev; window.dispatchEvent(new Event('untplan:pwa')); });
 
 const meldung = (form, text) => { form.querySelector('[data-meldung]').innerHTML = alarm('danger', text); };
 
 function anmeldung() {
   document.title = 'Anmelden – UntPlanWeb';
-  const form = anmeldeRahmen('UntPlanWeb Login', `<form autocomplete="on">
-      <label class="lg-feld"><input id="login" name="login" autocomplete="username" placeholder=" " required autofocus><span>Benutzername</span></label>
-      <label class="lg-feld"><input id="passwort" name="passwort" type="password" autocomplete="current-password" placeholder=" " required><span>Passwort</span></label>
+  const form = anmeldeRahmen('Anmelden', `<form autocomplete="on">
+      <label class="lg-feld"><span>Benutzername</span><input id="login" name="login" autocomplete="username" placeholder="z. B. mustermann" required autofocus></label>
+      <label class="lg-feld"><span>Passwort</span><input id="passwort" name="passwort" type="password" autocomplete="current-password" placeholder="Passwort eingeben" required></label>
       <div data-meldung></div>
-      <button class="btn btn-primary lg-login" type="submit">Login</button>
+      <button class="btn btn-primary lg-login" type="submit">Anmelden</button>
       <button type="button" class="lg-vergessen" data-vergessen aria-expanded="false">Passwort vergessen?</button>
       <p class="lg-hinweis d-none" data-vergessen-text>Ein neues Passwort vergibt die Administration Ihrer Schule. Bitte wenden Sie sich dorthin.</p>
-    </form>`);
+    </form>`, 'Mit Ihrem Schulkonto weiter zu Stundenplan und Klassenbuch.');
   // Zugriff gesperrt (Wartungsmodus): Hinweis der Administration über dem Formular
   holen('/api/app/zugriff').then(z => {
     if (z.gesperrt) form.querySelector('[data-meldung]').insertAdjacentHTML('beforebegin', `<div class="lg-wartung" role="status"><i class="bi bi-lock" aria-hidden="true"></i><span>${e(z.hinweis)}</span></div>`);

@@ -115,7 +115,7 @@ class Kalender {
 
   bauen() {
     const pop = document.createElement('div');
-    pop.className = `kal-pop kal-${this.modus}${this.monate > 1 ? ' kal-zwei' : ''}`;
+    pop.className = `kal-pop kal-m-${this.modus}${this.monate > 1 ? ' kal-zwei' : ''}`;
     pop.setAttribute('role', 'dialog');
     pop.setAttribute('aria-label', this.modus === 'woche' ? 'Woche wählen' : this.modus === 'bereich' ? 'Zeitraum wählen' : 'Datum wählen');
     this.pop = pop;

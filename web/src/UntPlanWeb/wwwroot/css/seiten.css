@@ -275,22 +275,6 @@ a.s-pille { text-decoration: none !important; }
 
 /* ------------------------------------------------------------------ Anmeldung: Leiste links, heller Verlauf in der Mitte, weißes Panel rechts */
 
-.anmeldung.lg { display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(400px, 600px); align-items: stretch; justify-content: stretch; padding: 0; min-height: 100vh; background: #fff; }
-.lg-leiste { display: flex; flex-direction: column; align-items: center; gap: 30px; padding-top: 12px; background: #fff; border-right: 1px solid #eceff2; }
-.lg-leiste .logo { width: 46px; height: 46px; }
-.lg-leiste-sym { color: var(--s-orange); }
-.lg-leiste-sym .u-sym, .lg-leiste-sym img, .lg-leiste-sym .bi { width: 26px; height: 26px; font-size: 26px; }
-.lg-leiste-sym img { filter: invert(52%) sepia(86%) saturate(2400%) hue-rotate(350deg) brightness(100%) contrast(93%); }
-.lg-mitte { background: linear-gradient(160deg, #eef0f3 0%, #e3e6ea 45%, #c9cfd6 100%); }
-.lg-mitte-inhalt { padding: 104px 90px 40px; max-width: 760px; }
-.lg-heute { font-weight: 600; color: #67747e; font-size: .95rem; letter-spacing: .01em; }
-.lg-schule { font-size: 1.6rem; font-weight: 600; color: #24323d; margin: 26px 0 10px; }
-.lg-zeile { color: #57626b; font-size: .95rem; margin: 0; }
-.lg-panel { display: flex; flex-direction: column; align-items: center; padding: 44px 32px 22px; background: #fff; }
-.anmeldung .lg-titel { font-size: 1.55rem; font-weight: 600; color: #24323d; margin: 0 0 54px; text-align: center; }
-.lg-marke { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 64px; }
-.lg-marke .logo { width: 116px; height: 116px; color: #8a96a1; }
-.lg-marke b { font-size: 1.15rem; color: #414d55; font-weight: 600; letter-spacing: .01em; }
 .lg-form { width: 100%; max-width: 364px; }
 .lg-form form { display: flex; flex-direction: column; gap: 0; }
 .lg-feld { position: relative; display: block; margin: 0 0 24px; }
@@ -309,25 +293,12 @@ a.s-pille { text-decoration: none !important; }
 .lg-hinweis { margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; background: #f1f5f8; color: #57626b; font-size: .82rem; text-align: center; }
 .lg-form .alert { margin: -8px 0 8px; }
 .lg-form .form-control { min-height: 44px; }
-.lg-fuss { margin-top: auto; padding-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; max-width: 364px; }
 .lg-app { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 10px; border: 0; background: #24323d; color: #fff; font-weight: 600; font-size: .875rem; }
 .lg-app:hover { background: #414d55; }
 .lg-app .u-sym, .lg-app .bi { filter: invert(1); }
 .lg-app .bi { filter: none; }
 .lg-app-text { font-size: .78rem; color: #8a96a1; line-height: 1.45; }
 .lg-impressum { font-size: .75rem; color: #8a96a1; }
-@media (max-width: 1199.98px) { .anmeldung.lg { grid-template-columns: 64px minmax(0, 1fr) minmax(380px, 480px); } .lg-mitte-inhalt { padding: 90px 48px 40px; } }
-@media (max-width: 767.98px) {
-  .anmeldung.lg { grid-template-columns: 1fr; grid-template-rows: auto 1fr; background: #fff; }
-  .lg-leiste { display: none; }
-  .lg-mitte-inhalt { padding: 22px 20px 20px; }
-  .lg-schule { font-size: 1.2rem; margin: 8px 0 4px; }
-  .lg-zeile { font-size: .85rem; }
-  .lg-panel { padding: 28px 20px 18px; }
-  .anmeldung .lg-titel { font-size: 1.3rem; margin-bottom: 24px; }
-  .lg-marke { margin-bottom: 30px; } .lg-marke .logo { width: 80px; height: 80px; }
-  .lg-fuss { padding-top: 28px; }
-}
 
 /* Dialogknöpfe in den Stundendetails (Speichern | Abbrechen | Löschen) gleich groß */
 .ad-knoepfe > .sd-orange, .ad-knoepfe > .ad-pille:not(.klein), .ad-knoepfe > a.ad-pille {

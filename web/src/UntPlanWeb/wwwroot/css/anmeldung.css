@@ -1,0 +1,85 @@
+/* UntPlanWeb – Anmeldung, Ersteinrichtung und Pflicht-Passwortwechsel (app.js: anmeldeRahmen).
+   Zweigeteilt: links eine ruhige, warme Verlaufsfläche mit Bildmarke, Schulname, Datum und dezenter Wochen-Illustration,
+   rechts auf hellem Grund eine weiße Formularkarte (Radius 20px) mit beschrifteten Feldern und orangem Pill-Knopf.
+   Nur Regular und Medium. */
+
+.anmeldung.an-seite {
+  display: grid; grid-template-columns: minmax(0, 46fr) minmax(420px, 54fr); align-items: stretch; justify-content: stretch;
+  min-height: 100vh; min-height: 100dvh; padding: 0; background: #f6f7f9;
+}
+
+/* ------------------------------------------------------------------ links: Bühne */
+.an-buehne {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 28px; padding: 40px clamp(32px, 5vw, 72px) 40px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(90% 70% at 100% 100%, rgba(245, 107, 42, .22) 0%, rgba(245, 107, 42, 0) 70%),
+    linear-gradient(155deg, #fff8f3 0%, #fdeee4 48%, #f9dccb 100%);
+  color: #24323d;
+}
+.an-buehne::after { content: ""; position: absolute; right: -120px; top: -120px; width: 360px; height: 360px; border-radius: 50%;
+  border: 1px solid rgba(245, 107, 42, .18); pointer-events: none; }
+.an-marke { display: flex; align-items: center; gap: 12px; font-size: 1.15rem; font-weight: 500; letter-spacing: .01em; color: #24323d; }
+.an-marke .logo { width: 40px; height: 40px; color: var(--u-akzent, #f56b2a); }
+.an-text { margin-top: clamp(24px, 8vh, 96px); max-width: 520px; }
+.an-datum { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; margin: 0 0 18px; border-radius: 999px;
+  background: rgba(255, 255, 255, .7); color: #8a4a26; font-size: .82rem; font-weight: 500; letter-spacing: .01em; }
+.an-schule { margin: 0 0 12px; font-size: clamp(1.6rem, 2.4vw, 2.2rem); line-height: 1.18; font-weight: 500; color: #24323d; letter-spacing: -.01em; }
+.an-zeile { margin: 0; font-size: 1rem; line-height: 1.5; color: #5b6770; max-width: 440px; }
+.an-bild { width: min(100%, 460px); height: auto; margin-top: auto; align-self: flex-start; filter: drop-shadow(0 18px 30px rgba(140, 70, 30, .10)); }
+
+/* ------------------------------------------------------------------ rechts: Formularkarte */
+.an-bereich { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px 24px; }
+.an-karte { width: 100%; max-width: 420px; padding: 36px 36px 30px; background: #fff; border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 5, 10, .04), 0 20px 50px rgba(0, 5, 10, .08); border: 1px solid #eceff2; }
+.an-kopf { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+.an-kopf .logo { width: 44px; height: 44px; flex: none; color: var(--u-akzent, #f56b2a); }
+.an-seite .an-titel { margin: 0; text-align: left; font-size: 1.45rem; font-weight: 500; color: #24323d; letter-spacing: -.005em; }
+.an-unter { margin: 4px 0 0; font-size: .88rem; color: #67747e; line-height: 1.4; }
+.an-seite .lg-form { width: 100%; max-width: none; }
+.an-seite .lg-form form { display: flex; flex-direction: column; }
+
+/* Felder: Beschriftung über einem umrandeten, runden Feld */
+.an-seite .lg-feld { position: relative; display: grid; gap: 6px; margin: 0 0 18px; }
+.an-seite .lg-feld span { position: static; transform: none; order: -1; font-size: .85rem; font-weight: 500; color: #414d55; pointer-events: none; transition: none; max-width: none; }
+.an-seite .lg-feld input { height: 48px; padding: 0 16px; border: 1.5px solid #d6dbe0; border-radius: 12px; background: #fff; font: inherit; font-size: 1rem; color: #24323d;
+  transition: border-color .15s ease, box-shadow .15s ease; }
+.an-seite .lg-feld input::placeholder { color: #a7b1ba; }
+.an-seite .lg-feld input:hover { border-color: #b4bdc5; background: #fff; }
+.an-seite .lg-feld input:focus { outline: 0; border-color: var(--u-akzent, #f56b2a); background: #fff; box-shadow: 0 0 0 4px rgba(245, 107, 42, .14); }
+.an-seite .lg-feld input:focus + span, .an-seite .lg-feld input:not(:placeholder-shown) + span { top: auto; font-size: .85rem; color: #414d55; }
+.an-seite .lg-feld:has(.lg-auge) input { padding-right: 52px; }
+.an-seite .lg-auge { top: auto; bottom: 6px; transform: none; right: 6px; }
+.an-seite .lg-login { height: 48px; margin-top: 8px; border-radius: 999px; font-size: 1rem; font-weight: 500; letter-spacing: .01em; }
+.an-seite .lg-vergessen { margin-top: 18px; font-weight: 500; color: #57626b; }
+.an-seite .lg-vergessen:hover { color: var(--u-akzent, #f56b2a); }
+.an-seite .form-label { font-size: .85rem; font-weight: 500; color: #414d55; }
+.an-seite .form-control { min-height: 46px; border-radius: 12px; border-width: 1.5px; }
+.an-seite .btn-primary { border-radius: 999px; min-height: 46px; font-weight: 500; }
+
+.an-fuss { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 420px; margin-top: 28px; text-align: center; }
+.an-fuss .lg-app { border-radius: 999px; font-weight: 500; }
+
+/* ------------------------------------------------------------------ schmalere Fenster und Telefon */
+@media (max-width: 1100px) {
+  .anmeldung.an-seite { grid-template-columns: minmax(0, 1fr) minmax(400px, 1fr); }
+  .an-bild { width: min(100%, 380px); }
+}
+@media (max-width: 860px) {
+  .anmeldung.an-seite { grid-template-columns: 1fr; grid-template-rows: auto 1fr; background: #f6f7f9; }
+  .an-buehne { gap: 14px; padding: 20px 20px 22px; }
+  .an-buehne::after { display: none; }
+  .an-text { margin-top: 0; }
+  .an-datum { height: 24px; margin-bottom: 10px; font-size: .75rem; }
+  .an-schule { font-size: 1.3rem; margin-bottom: 4px; }
+  .an-zeile { font-size: .88rem; }
+  .an-bild { display: none; }
+  .an-bereich { justify-content: flex-start; padding: 0 16px 20px; }
+  .an-karte { margin-top: -6px; padding: 26px 20px 22px; border-radius: 18px; }
+  .an-kopf { margin-bottom: 20px; }
+  .an-kopf .logo { display: none; }
+}
+@media (max-height: 760px) and (min-width: 861px) {
+  .an-text { margin-top: 12px; }
+  .an-bild { width: min(100%, 340px); }
+}
