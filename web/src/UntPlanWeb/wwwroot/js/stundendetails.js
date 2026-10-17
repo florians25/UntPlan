@@ -701,7 +701,7 @@ export function karteDialog(karte, kontext = {}) {
         const f = n => o.querySelector(`[name=${n}]`).value;
         const listeVon = n => f(n).split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
         o.querySelector('[name=von]').addEventListener('change', () => { if (Number(f('bis')) < Number(f('von'))) o.querySelector('[name=bis]').value = f('von'); });
-        raumwahl(o.querySelector('[name=raeume]'), { wurzel: o });
+        raumwahl(o.querySelector('[name=raeume]'), { wurzel: o, unterricht: k.unterricht ?? null });
         o.querySelector('[data-pe-loeschen]').onclick = async () => { if (await pruefungLoeschen()) zu(); };
         o.querySelector('[data-pv-speichern]').onclick = async ev => {
           const knopf = ev.currentTarget;
