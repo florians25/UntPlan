@@ -48,7 +48,8 @@ async function api(pfad, optionen = {}) {
   await page.screenshot({ path: path.join(BILDER, '01-start.png') });
 
   // Datei → Öffnen → Hochladen
-  await page.click('.ribbon .reiter.datei');
+  // ohne zuletzt geöffnete Datei (frische Installation) ist die Dateiansicht schon offen
+  if (!(await page.isVisible('.backstage'))) await page.click('.ribbon .reiter.datei');
   await page.click('.backstage nav button[data-seite=oeffnen]');
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('.backstage .ablage button')]);
   await chooser.setFiles(upDatei);
