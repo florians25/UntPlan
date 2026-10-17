@@ -482,7 +482,7 @@ button.kbu-kachel:hover { background: #fafbfc; }
 .kb-kd-zeile { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(0, 2fr); align-items: center; gap: 8px 16px; padding: 10px 14px; border-bottom: 1px solid #f1f3f5; font-size: .9rem; }
 .kb-kd-zeile:last-child { border-bottom: 0; }
 .sd-link-klein { font-size: .82rem; font-weight: 600; color: #57626b; text-decoration: none; }
-.sd-link-klein:hover { color: var(--s-orange); text-decoration: underline; }
+.sd-link-klein:hover { color: var(--s-orange); text-decoration: none; }
 @media (max-width: 575.98px) { .kb-kd-zeile { grid-template-columns: 1fr; } }
 
 /* Hausaufgaben: Liste (Zeile anklickbar) und Fenster (Details, Formular) */

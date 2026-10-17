@@ -98,7 +98,7 @@
 .sp-bereich { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sp-bereich > span { font-size: .82rem; font-weight: 700; color: var(--u-titel); }
 .sp-bereich-info { font-size: .8rem; color: var(--u-grau); max-width: 420px; }
-.sp-bereich-info button { border: 0; background: none; padding: 0; color: var(--u-akzent-dunkel, #dd5718); font-weight: 700; text-decoration: underline; }
+.sp-bereich-info button { border: 0; background: none; padding: 0; color: var(--u-akzent-dunkel, #dd5718); font-weight: 600; text-decoration: none; }
 .sp-fuss .sp-rechts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 
 @media (max-width: 767.98px) {

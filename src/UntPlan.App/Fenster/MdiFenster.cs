@@ -88,6 +88,8 @@ public class MdiFenster : Form
 
     protected override void WndProc(ref Message m)
     {
+        const int WM_WINDOWPOSCHANGING = 0x46;
+        if (m.Msg == WM_WINDOWPOSCHANGING && m.LParam != IntPtr.Zero) LageKlemmen(m.LParam);
         base.WndProc(ref m);
         // Größe am Rand ändern (WM_NCHITTEST)
         if (m.Msg != 0x84 || WindowState != FormWindowState.Normal || FormBorderStyle != FormBorderStyle.None) return;
@@ -105,6 +107,52 @@ public class MdiFenster : Form
         else if (rechts) m.Result = (IntPtr)11;
         else if (oben) m.Result = (IntPtr)12;
         else if (unten) m.Result = (IntPtr)15;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct WindowPos { public IntPtr Hwnd, Nach; public int X, Y, Cx, Cy; public uint Flags; }
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr hWnd);
+
+    /// <summary>Sichtbarer MDI-Arbeitsbereich (Clientfläche unter Menüband und Programmkopf), leer ohne Hauptfenster.</summary>
+    internal Size MdiBereich => MdiParent?.Controls.OfType<MdiClient>().FirstOrDefault()?.ClientSize ?? Size.Empty;
+
+    /// <summary>
+    /// Jede Lageänderung (Ziehen an der Titelleiste, Größenänderung, Anordnen, gespeicherte Fensteranordnung, Bounds aus dem
+    /// Programm): Das Fenster bleibt vollständig im MDI-Arbeitsbereich – die Titelleiste rutscht nie unter das Menüband.
+    /// </summary>
+    private void LageKlemmen(IntPtr lParam)
+    {
+        const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2;
+        if (!IsMdiChild || !IsHandleCreated) return;
+        try
+        {
+            if (IsIconic(Handle) || IsZoomed(Handle) || WindowState != FormWindowState.Normal) return;
+            var bereich = MdiBereich;
+            if (!Fensterlage.BereichGueltig(new Rectangle(Point.Empty, bereich))) return;
+            var wp = System.Runtime.InteropServices.Marshal.PtrToStructure<WindowPos>(lParam);
+            if ((wp.Flags & (SWP_NOSIZE | SWP_NOMOVE)) == (SWP_NOSIZE | SWP_NOMOVE)) return;
+            var pos = (wp.Flags & SWP_NOMOVE) != 0 ? Location : new Point(wp.X, wp.Y);
+            var groesse = (wp.Flags & SWP_NOSIZE) != 0 ? Size : new Size(wp.Cx, wp.Cy);
+            var r = Fensterlage.MdiFenster(new Rectangle(pos, groesse), bereich, (wp.Flags & SWP_NOSIZE) == 0);
+            if (r.Location == pos && r.Size == groesse) return;
+            if (r.Location != pos) { wp.X = r.X; wp.Y = r.Y; wp.Flags &= ~SWP_NOMOVE; }
+            if (r.Size != groesse) { wp.Cx = r.Width; wp.Cy = r.Height; wp.Flags &= ~SWP_NOSIZE; }
+            if ((wp.Flags & SWP_NOMOVE) == 0 && (wp.Flags & SWP_NOSIZE) != 0) { wp.Cx = Width; wp.Cy = Height; }
+            if ((wp.Flags & SWP_NOMOVE) != 0) { wp.X = Left; wp.Y = Top; }
+            System.Runtime.InteropServices.Marshal.StructureToPtr(wp, lParam, false);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+    }
+
+    /// <summary>Fenster (z. B. nach Verkleinern des Hauptfensters) wieder vollständig in den MDI-Arbeitsbereich holen.</summary>
+    internal void InArbeitsbereichKlemmen()
+    {
+        if (!IsMdiChild || WindowState != FormWindowState.Normal || IsDisposed) return;
+        var bereich = MdiBereich;
+        if (!Fensterlage.BereichGueltig(new Rectangle(Point.Empty, bereich))) return;
+        var r = Fensterlage.MdiFenster(Bounds, bereich, true);
+        if (r != Bounds) Bounds = r;
     }
 
     protected static Icon SymbolIcon(string name)
@@ -203,6 +251,8 @@ public class MdiFenster : Form
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
+        // Startlage (kaskadierend bzw. aus dem Konstruktor) im sichtbaren Arbeitsbereich
+        InArbeitsbereichKlemmen();
         if (FormBorderStyle != FormBorderStyle.None && WindowState != FormWindowState.Minimized)
         {
             // Unterklasse wünscht einen Systemrahmen (z. B. Werkzeugfenster)

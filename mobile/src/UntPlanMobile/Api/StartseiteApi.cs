@@ -12,6 +12,26 @@ namespace UntPlanMobile.Api;
 public static class StartseiteApi
 {
     private static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    /// <summary>Offene Klausurmeldung steht schon als Klausurtermin in /api/app/heute (gleicher Tag, überlappende Stunden, gemeinsame Klasse).</summary>
+    public static bool SchonAlsTermin(JsonNode? heute, JsonObject m)
+    {
+        static List<string> Liste(JsonNode? n) => (n as JsonArray ?? new JsonArray()).Select(x => x?.GetValue<string>() ?? "").Where(x => x.Length > 0).ToList();
+        static int? Zahl(JsonNode? n) => n is JsonValue v && v.TryGetValue<int>(out var x) ? x : null;
+        var von = m["von"]?.GetValue<string>() ?? "";
+        var sv = Zahl(m["stundeVon"]) ?? 1;
+        var sb = Zahl(m["stundeBis"]) ?? sv;
+        var klassen = Liste(m["klassen"]);
+        return (heute?["termine"] as JsonArray ?? new JsonArray()).OfType<JsonObject>().Any(t =>
+        {
+            if (t["art"]?.GetValue<string>() != "klausur" || (t["von"]?.GetValue<string>() ?? "") != von) return false;
+            var tv = Zahl(t["stundeVon"]) ?? 1;
+            var tb = Zahl(t["stundeBis"]) ?? tv;
+            if (tb < tv) tb = tv;
+            var tk = Liste(t["klassen"]);
+            return tv <= sb && tb >= sv && (klassen.Count == 0 || tk.Count == 0 || tk.Any(x => klassen.Contains(x, StringComparer.OrdinalIgnoreCase)));
+        });
+    }
+
     private static IResult Fehler(string meldung, int status = 400) => Results.Json(new { ok = false, error = meldung }, statusCode: status);
 
     private static string Zeit(Konto k, int? stunde, bool ende) =>
@@ -126,6 +146,9 @@ public static class StartseiteApi
                             if (m["typ"]?.GetValue<string>() != "klausur" || m["status"]?.GetValue<string>() != "offen") continue;
                             var von = m["von"]?.GetValue<string>() ?? "";
                             if (string.CompareOrdinal(von, Iso(heute)) < 0) continue;
+                            // schon von UntPlan übernommen und übertragen (Klausurtermin am Tag, überlappende Stunden, gemeinsame Klasse):
+                            // nicht ein zweites Mal als „vorgemerkt“ zeigen
+                            if (SchonAlsTermin(h, m)) continue;
                             items.Add((von, m["stundeVon"]?.GetValue<int>() ?? 0, new
                             {
                                 date = von,

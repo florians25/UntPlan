@@ -344,12 +344,15 @@ public sealed partial class HauptFenster
                 var f = FensterOeffnen(p.Schluessel);
                 if (f is null) continue;
                 f.WindowState = FormWindowState.Normal;
-                f.Bounds = new Rectangle(p.X, p.Y, Math.Max(200, p.B), Math.Max(120, p.H));
+                // gespeicherte Lage (evtl. von einem größeren Bildschirm, anderer DPI oder mit negativem Y) in den Arbeitsbereich holen
+                f.Bounds = GespeicherteLage(p);
                 if (p.Maximiert) f.WindowState = FormWindowState.Maximized;
                 n++;
             }
             catch (Exception ex) { Ui.Fehler(ex); }
         }
+        // falls der Arbeitsbereich gerade erst seine endgültige Größe bekommt (Start, Moduswechsel): danach noch einmal prüfen
+        if (n > 0 && IsHandleCreated) BeginInvoke(MdiFensterKlemmen);
         return n > 0;
     }
 

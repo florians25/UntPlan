@@ -14,14 +14,14 @@ public static class MehrfachAuswahl
         var liste = new ListBox
         {
             SelectionMode = mehrfach ? SelectionMode.MultiExtended : SelectionMode.One, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 17,
-            BorderStyle = BorderStyle.None, Font = Ui.Schrift, IntegralHeight = false,
+            BorderStyle = BorderStyle.None, Font = Ui.ListenSchrift, IntegralHeight = false,
         };
         foreach (var e in eintraege) liste.Items.Add(e);
         var vorher = gewaehlt.Select(x => x.Trim()).Where(x => x.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < eintraege.Count; i++)
             if (vorher.Contains(eintraege[i].Kurz)) liste.SetSelected(i, true);
-        var breiteKurz = Math.Max(48, eintraege.Select(e => TextRenderer.MeasureText(e.Kurz, Ui.Schrift).Width).DefaultIfEmpty(40).Max() + 10);
-        var breiteLang = eintraege.Select(e => TextRenderer.MeasureText(e.Lang, Ui.Schrift).Width).DefaultIfEmpty(60).Max() + 12;
+        var breiteKurz = Math.Max(48, eintraege.Select(e => TextRenderer.MeasureText(e.Kurz, Ui.ListenSchrift).Width).DefaultIfEmpty(40).Max() + 10);
+        var breiteLang = eintraege.Select(e => TextRenderer.MeasureText(e.Lang, Ui.ListenSchrift).Width).DefaultIfEmpty(60).Max() + 12;
         liste.DrawItem += (_, e) =>
         {
             if (e.Index < 0) return;
@@ -29,9 +29,8 @@ public static class MehrfachAuswahl
             var sel = (e.State & DrawItemState.Selected) != 0;
             using (var br = new SolidBrush(sel ? Color.FromArgb(0, 90, 220) : e.Index % 2 == 0 ? Color.White : Color.FromArgb(246, 250, 246))) e.Graphics.FillRectangle(br, e.Bounds);
             var farbe = sel ? Color.White : Color.Black;
-            TextRenderer.DrawText(e.Graphics, x.Kurz, Ui.Schrift, new Rectangle(e.Bounds.X + 4, e.Bounds.Y, breiteKurz, e.Bounds.Height), farbe, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
-            TextRenderer.DrawText(e.Graphics, x.Lang, Ui.Schrift, new Rectangle(e.Bounds.X + 4 + breiteKurz, e.Bounds.Y, e.Bounds.Width - breiteKurz, e.Bounds.Height), farbe,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            Ui.ListenText(e.Graphics, x.Kurz, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 4, e.Bounds.Y, breiteKurz, e.Bounds.Height), farbe, false);
+            Ui.ListenText(e.Graphics, x.Lang, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 4 + breiteKurz, e.Bounds.Y, e.Bounds.Width - breiteKurz - 4, e.Bounds.Height), farbe);
         };
         var host = new ToolStripControlHost(liste) { AutoSize = false, Margin = Padding.Empty, Padding = Padding.Empty };
         host.Size = new Size(Math.Min(420, Math.Max(g.Columns[spalte].Width, breiteKurz + breiteLang + 24)), Math.Min(18 * 17 + 4, Math.Max(3, eintraege.Count) * 17 + 4));

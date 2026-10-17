@@ -1,5 +1,6 @@
 // Meldungen an UntPlan: Abwesenheit melden, Raum buchen, Klausur eintragen, eigene Meldungen verfolgen.
 import { e, holen, senden, api, toast, bestaetigen, heuteIso, plusTage, meldungText, statusMarker, leer, lade, alarm } from '../ui.js';
+import { raumwahl, raumTokens } from '../raumwahl.js';
 
 const BEREICHE = [
   { id: 'abwesenheit', text: 'Abwesenheit' },
@@ -124,7 +125,7 @@ export async function zeigen(seite, kontext, [bereichParam]) {
         <div class="mb-3"><label class="form-label">Titel</label><input class="form-control" name="titel" placeholder="z. B. Deutsch GK" required></div>
         <div class="row g-3 mb-3">
           <div class="col-md-4"><label class="form-label">Klassen / Kurse</label>${mehrfachAuswahl('klassen', el.klassen)}</div>
-          <div class="col-md-4"><label class="form-label">Räume <span class="text-body-secondary">(optional)</span></label>${mehrfachAuswahl('raeume', el.raeume)}</div>
+          <div class="col-md-4"><label class="form-label" for="mk-raeume">Räume <span class="text-body-secondary">(optional)</span></label><input class="form-control" id="mk-raeume" name="raeume"></div>
           <div class="col-md-4"><label class="form-label">Aufsicht <span class="text-body-secondary">(optional)</span></label>${mehrfachAuswahl('aufsicht', el.lehrer)}</div>
         </div>
         <div class="mb-3"><label class="form-label">Bemerkung <span class="text-body-secondary">(optional)</span></label><input class="form-control" name="text"></div>
@@ -132,6 +133,8 @@ export async function zeigen(seite, kontext, [bereichParam]) {
       </form>`);
     const form = ziel.querySelector('form');
     form.stundeVon.onchange = () => { if (Number(form.stundeBis.value) < Number(form.stundeVon.value)) form.stundeBis.value = form.stundeVon.value; };
+    // Raumwahl mit Suche und Belegung zur gewählten Zeit (Datum, Von, Bis)
+    raumwahl(form.raeume, { wurzel: form, felder: { datum: 'datum', von: 'stundeVon', bis: 'stundeBis' } });
     form.onsubmit = async ev => {
       ev.preventDefault();
       const klassen = gewaehlt(ziel, 'klassen');
@@ -139,7 +142,7 @@ export async function zeigen(seite, kontext, [bereichParam]) {
       try {
         await senden('/api/app/meldungen/klausur', {
           datum: form.datum.value, stundeVon: Number(form.stundeVon.value), stundeBis: Number(form.stundeBis.value),
-          klassen, raeume: gewaehlt(ziel, 'raeume'), aufsicht: gewaehlt(ziel, 'aufsicht'), titel: form.titel.value, text: form.text.value,
+          klassen, raeume: raumTokens(form.raeume.value), aufsicht: gewaehlt(ziel, 'aufsicht'), titel: form.titel.value, text: form.text.value,
         });
         toast('Klausur eingetragen.');
         kontext.navigieren('#/melden/meine');

@@ -152,6 +152,18 @@ public sealed class PlanAnsicht : Control
     public event Action<Planstunde>? Doppelklick;
     public event Action<Point, Planstunde?>? Kontext;
     public event Action<Point, DateOnly, int, TagesEintrag?>? TagesKontext;
+    /// <summary>Doppelklick auf eine Stunde im tagesaktuellen Plan (z. B. entfallene Stunde wiederherstellen).</summary>
+    public event Action<DateOnly, TagesEintrag>? TagesDoppelklick;
+
+    /// <summary>Einträge des Elements an einem Datum der angezeigten Woche (inkl. Entfälle), leer außerhalb der Woche.</summary>
+    public List<TagesEintrag> EintraegeAmDatum(DateOnly datum, int stunde)
+    {
+        if (_woche is not DateOnly w) return new();
+        var tag = datum.DayNumber - w.DayNumber;
+        if (tag < 0 || tag >= Tage) return new();
+        if (_tage.Count != Tage) TageNeu();
+        return EintraegeAm(tag, stunde);
+    }
 
     private DateOnly? _woche;
     private readonly Dictionary<int, Tagesplan> _tage = new();
@@ -1666,6 +1678,7 @@ public sealed class PlanAnsicht : Control
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         if (!Tagesmodus && StundeBei(e.Location) is { } p) Doppelklick?.Invoke(p);
+        else if (Tagesmodus && e.Button == MouseButtons.Left && EintragBei(e.Location) is { } te) TagesDoppelklick?.Invoke(te.Datum, te.Eintrag);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

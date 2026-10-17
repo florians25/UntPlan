@@ -9,6 +9,7 @@
 import { e, heuteIso, holen, senden, toast, bestaetigen, WOCHENTAGE } from './ui.js';
 import * as sitz from './ansichten/sitzplan.js';
 import { hausaufgabeDetails, hausaufgabeFormular } from './hausaufgabe.js';
+import { raumwahl } from './raumwahl.js';
 
 // Prüfungsarten und Notenschemen aus den Stammdaten (einmal je Sitzung geladen; bis dahin der Grundbestand)
 let PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'].map(name => ({ name, schema: '' }));
@@ -628,7 +629,7 @@ export function karteDialog(karte, kontext = {}) {
   function binden() {
     const q = s => box.querySelector(s);
     const alle = (s, f) => box.querySelectorAll(s).forEach(f);
-    if (reiter === 'pruefung') notenschemaBinden(box);
+    if (reiter === 'pruefung') { notenschemaBinden(box); raumwahl(box.querySelector('[name=raeume]'), { wurzel: box, unterricht: k.unterricht }); }
     box.onclick = ev => {
       if (!ev.target.closest('.sd-raumchip')) box.querySelectorAll('.sd-raummenue').forEach(x => x.classList.add('d-none'));
       if (!ev.target.closest('.sd-blockwahl')) { box.querySelector('.sd-blockwahl-menue')?.classList.add('d-none'); box.querySelector('[data-blockwahl]')?.setAttribute('aria-expanded', 'false'); }
@@ -988,14 +989,11 @@ export function karteDialog(karte, kontext = {}) {
    */
   async function klausurDialog() {
     pruefungSchueler = null;
-    let frei = [];
-    try { frei = await holen(`/api/app/meldungen/freieraeume?datum=${k.datum}&von=${k.von}&bis=${k.bis}`); } catch { /* ohne Vorschläge */ }
-    const vorschlaege = `<datalist id="sd-klausur-raeume">${[...kuerzel(k.raeume), ...frei.map(r => r.kurz)].filter((x, i, a) => x && a.indexOf(x) === i)
-      .map(x => `<option value="${e(x)}">`).join('')}</datalist>`;
-    altDialog('Prüfung erstellen', `${kopfDl()}${pruefungHtml()}${vorschlaege}
+    altDialog('Prüfung erstellen', `${kopfDl()}${pruefungHtml()}
       <div class="ad-knoepfe justify-content-end"><button type="button" class="ad-pille" data-ad-zu>Abbrechen</button>
         <button type="button" class="sd-orange" data-klausur-speichern>Speichern</button></div>`, (o, zu) => {
-      o.querySelector('[name=raeume]')?.setAttribute('list', 'sd-klausur-raeume');
+      // Raumwahl: Suche nach Kürzel/Name, frei/belegt zur gewählten Zeit (eigene Stunde zählt nicht), Kapazität, buchbare zuerst
+      raumwahl(o.querySelector('[name=raeume]'), { wurzel: o, unterricht: k.unterricht });
       notenschemaBinden(o);
       o.querySelectorAll('[data-chip]').forEach(c => c.onclick = () => {
         const id = Number(c.dataset.chip);

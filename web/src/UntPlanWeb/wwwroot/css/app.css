@@ -1207,7 +1207,7 @@ button, input, select, textarea, .modal, .tooltip, .dropdown-menu, .u-hover-labe
 
 /* UW-11/12: Kopf der Stundendetails – Links auf die Stundenpläne, Änderungen ohne Label (alter Wert grau durchgestrichen) */
 .sd-link { color: inherit; text-decoration: none; }
-.sd-link:hover, .sd-link:focus-visible { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; color: inherit; }
+.sd-link:hover, .sd-link:focus-visible { text-decoration: none; color: var(--u-akzent-dunkel); }
 .sd-alt { color: #b3bcc4; text-decoration-color: #b3bcc4; }
 .sd-pfeil { color: var(--u-titel); margin: 0 .15rem; }
 .sd-zeile .lbl { background: none; color: inherit; padding: 0; font-weight: inherit; }
@@ -1851,7 +1851,7 @@ body:has(.u-app[data-ansicht="plan"]) .ic-panel { bottom: 140px; }
 .ic-text { margin: 0; white-space: normal; }
 .ic-punkte { margin: 0; padding-left: 1.1rem; display: grid; gap: 0; }
 .ic-mehr { border: 0; background: none; padding: 2px 0 0; color: var(--u-akzent-dunkel); font-size: .8rem; font-weight: 600; }
-.ic-mehr:hover { text-decoration: underline; }
+.ic-mehr:hover { text-decoration: none; color: var(--u-akzent); }
 .ic-mehr[hidden] { display: none; }
 .ic-meta { display: flex; align-items: center; gap: 8px; min-height: 18px; font-size: .75rem; color: var(--u-grau); }
 .ic-datum { margin-left: auto; white-space: nowrap; }

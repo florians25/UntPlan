@@ -1,4 +1,5 @@
 using UntPlanWeb.Dienste;
+using UntPlanWeb.Daten;
 
 namespace UntPlanWeb.Api;
 
@@ -24,6 +25,17 @@ public static class MitteilungApi
         ? new object[] { new { id = "kollegium", name = "Kolleg*innen" }, new { id = "individuell", name = "Individuell" } }
         : new object[] { new { id = "kollegium", name = "Lehrkräfte" } };
 
+    private static readonly (string Id, string Name)[] RollenFolge =
+    {
+        ("lehrkraft", "Lehrkraft"), ("klassenlehrkraft", "Klassenlehrkraft"), ("schulleitung", "Schulleitung"), ("administration", "Administration"),
+        ("schueler", "Schüler*in"), ("eltern", "Erziehungsberechtigte*r"),
+    };
+    private static readonly (string Id, string Name)[] GruppenFolge =
+    {
+        ("kollegium", "Kollegium"), ("leitung", "Schulleitung und Administration"), ("klassenleitungen", "Klassenlehrkräfte"),
+        ("schueler", "Schüler*innen"), ("eltern", "Erziehungsberechtigte"),
+    };
+
     public static void Abbilden(WebApplication app)
     {
         var api = app.MapGroup("/api/app/mitteilungen");
@@ -32,7 +44,7 @@ public static class MitteilungApi
         {
             var b = Ich(c);
             var e = m.Einstellungen();
-            return Results.Json(new { darfSenden = m.DarfSenden(b, e), maxAnhangMb = e.MaxAnhangMb, maxAnhaenge = e.MaxAnhaenge, aufbewahrungTage = e.AufbewahrungTage,
+            return Results.Json(new { darfSenden = m.DarfSenden(b, e), darfAntworten = m.DarfAntworten(b, e), maxAnhangMb = e.MaxAnhangMb, maxAnhaenge = e.MaxAnhaenge, aufbewahrungTage = e.AufbewahrungTage,
                 wichtig = b.Kollegium, listen = b.Kollegium, admin = b.IstAdmin, lesebestaetigung = true, antwortSperre = true, typen = Typen(b) });
         });
 
@@ -44,12 +56,12 @@ public static class MitteilungApi
             {
                 x.Id, x.AbsenderId, x.Absender, x.AbsenderRolle, x.Betreff, x.Text, x.Erstellt, x.Wichtig, x.Gelesen, x.Empfaenger, x.EmpfaengerText,
                 x.Lesebestaetigung, x.Bestaetigt, x.Anzahl, x.GelesenAnzahl, x.BestaetigtAnzahl, x.AntwortAuf, x.EntwurfEmpfaenger, x.AntwortErlaubt,
-                ordner, darfAntworten = ordner == "posteingang" && x.AntwortErlaubt && m.DarfSenden(b),
+                ordner, darfAntworten = ordner == "posteingang" && x.AntwortErlaubt && m.DarfAntworten(b),
                 anhaenge = (x.Anhaenge ?? new()).Select(a => new { a.Id, a.Name, a.Typ, a.Groesse, url = $"/api/app/mitteilungen/anhang/{a.Id}" }),
             });
         });
 
-        api.MapGet("/personen", (string? typ, HttpContext c, Mitteilungsdienst m, Paketdienst p) =>
+        api.MapGet("/personen", (string? typ, HttpContext c, Mitteilungsdienst m, Paketdienst p, Db db) =>
         {
             var b = Ich(c);
             var art = typ == "individuell" ? "individuell" : "kollegium";
@@ -64,6 +76,12 @@ public static class MitteilungApi
                     listen,
                     klassen = personen.SelectMany(x => x.Klassen).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, de),
                     abteilungen = personen.SelectMany(x => x.Abteilungen).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, de),
+                    // Rolle: Art der Rollen-Pills (Lehrkraft, Klassenlehrkraft, Schulleitung, …) in fester Reihenfolge
+                    rollen = RollenFolge.Where(r => personen.Any(x => x.Rollen.Any(y => y.Art == r.Id))).Select(r => new { id = r.Id, name = r.Name }),
+                    // Gruppe: feste Personengruppen und eigene Rechte-Profile (Name aus dem Rechte-Modell)
+                    gruppen = GruppenFolge.Where(g => personen.Any(x => x.Gruppen?.Contains(g.Id) == true)).Select(g => new { id = g.Id, name = g.Name })
+                        .Concat(personen.SelectMany(x => x.Gruppen ?? new()).Where(g => g.StartsWith("profil:")).Distinct()
+                            .Select(g => new { id = g, name = Rechtedienst.Profil(db, g[7..])?.Name ?? g[7..] }).OrderBy(g => g.name, de)),
                 },
             });
         });

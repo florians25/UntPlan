@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using UntPlan.Core;
 using UntPlan.Core.Model;
 
@@ -11,6 +12,66 @@ public static class Ui
     public static readonly Font SchriftFett = new("Segoe UI", 9f, FontStyle.Bold);
     public static readonly Font SchriftKlein = new("Segoe UI", 8f);
     public static readonly Font SchriftGross = new("Segoe UI", 11f, FontStyle.Bold);
+
+    /// <summary>
+    /// Weiche Schrift aller Auswahllisten (ComboBoxen, Such- und Tabellen-Dropdowns): Segoe UI – fehlt sie (ältere Systeme, Wine),
+    /// die nächste vorhandene serifenlose Schrift statt des harten Ersatzes MS Sans Serif/Tahoma.
+    /// </summary>
+    public static readonly Font ListenSchrift = new(ListenSchriftart(), 9f);
+    public static readonly Font ListenSchriftFett = new(ListenSchrift, FontStyle.Bold);
+
+    private static string ListenSchriftart()
+    {
+        try
+        {
+            using var installiert = new System.Drawing.Text.InstalledFontCollection();
+            var namen = installiert.Families.Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in new[] { "Segoe UI", "Segoe UI Variable Text", "Calibri", "Arial", "Liberation Sans", "DejaVu Sans" })
+                if (namen.Contains(n)) return n;
+        }
+        catch (Exception ex) when (ex is ArgumentException or ExternalException) { }
+        return SystemFonts.MessageBoxFont?.Name ?? "Segoe UI";
+    }
+
+    /// <summary>
+    /// Text einer Auswahlliste geglättet zeichnen (ClearType bzw. Kantenglättung über GDI+), unabhängig von der Systemeinstellung
+    /// für die Schriftglättung – einheitlich in allen selbst gezeichneten Dropdowns. Der Hintergrund muss bereits gefüllt sein.
+    /// </summary>
+    public static void ListenText(Graphics g, string text, Font schrift, Rectangle r, Color farbe, bool auslassung = true)
+    {
+        if (string.IsNullOrEmpty(text) || r.Width <= 0 || r.Height <= 0) return;
+        var vorher = g.TextRenderingHint;
+        g.TextRenderingHint = ListenGlaettung;
+        using var sf = new StringFormat(StringFormatFlags.NoWrap)
+        {
+            LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near,
+            Trimming = auslassung ? StringTrimming.EllipsisCharacter : StringTrimming.None,
+            HotkeyPrefix = System.Drawing.Text.HotkeyPrefix.None,
+        };
+        using var b = new SolidBrush(farbe);
+        g.DrawString(text, schrift, b, new RectangleF(r.X, r.Y, r.Width, r.Height), sf);
+        g.TextRenderingHint = vorher;
+    }
+
+    /// <summary>ClearType, wenn das System ClearType verwendet, sonst Graustufen-Kantenglättung (z. B. unter Wine bzw. Remotedesktop).</summary>
+    internal static System.Drawing.Text.TextRenderingHint ListenGlaettung
+    {
+        get
+        {
+            try { return SystemInformation.FontSmoothingType == 2 ? System.Drawing.Text.TextRenderingHint.ClearTypeGridFit : System.Drawing.Text.TextRenderingHint.AntiAliasGridFit; }
+            catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException) { return System.Drawing.Text.TextRenderingHint.AntiAliasGridFit; }
+        }
+    }
+
+    /// <summary>Weiche Listenschrift setzen, wenn die Liste die Standardschrift (bzw. einen harten Ersatz) verwendet.</summary>
+    public static void ListenSchriftSetzen(ComboBox cb)
+    {
+        if (cb.IsDisposed || ReferenceEquals(cb.Font, ListenSchrift) || ReferenceEquals(cb.Font, ListenSchriftFett)) return;
+        var f = cb.Font;
+        if (Math.Abs(f.SizeInPoints - 9f) > 0.6f || f.Italic || f.Underline) return;
+        if (f.Name is "Segoe UI" or "Tahoma" or "Microsoft Sans Serif" or "MS Sans Serif" || f.Name == ListenSchrift.Name)
+            cb.Font = f.Bold ? ListenSchriftFett : ListenSchrift;
+    }
 
     /// <summary>Vertretungsmodus aktiv: Oberfläche in Grün (wie ein eigenes Programm innerhalb von UntPlan).</summary>
     public static bool Vertretungsmodus { get; set; }
@@ -178,11 +239,11 @@ public static class Ui
     {
         foreach (Control c in wurzel.Controls)
         {
-            if (c is ComboBox cb) Suchliste(cb);
+            if (c is ComboBox cb) { ListenSchriftSetzen(cb); Suchliste(cb); }
             // Auswahlspalten in Tabellen ebenfalls mit Suche und Langnamen
             if (c is DataGridView g && !Steuerelemente.SuchKombi.IstAktiv(g)) Steuerelemente.SuchKombi.Aktivieren(g);
             if (c is ToolStrip ts)
-                foreach (var item in ts.Items.OfType<ToolStripComboBox>()) Suchliste(item.ComboBox);
+                foreach (var item in ts.Items.OfType<ToolStripComboBox>()) { ListenSchriftSetzen(item.ComboBox); Suchliste(item.ComboBox); }
             if (c.HasChildren && c is not DataGridView) SucheAktivieren(c);
         }
     }

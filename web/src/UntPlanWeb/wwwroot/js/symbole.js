@@ -45,6 +45,7 @@ const S = {
   posteingang: 'admin-messages.svg',
   gesendet: 'sent.svg',
   entwuerfe: 'draft.svg',
+  verfassen: 'homework.svg',
   listen: 'lessons_students.svg',
 
   // Melden & Buchen, Unterricht

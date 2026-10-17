@@ -42,6 +42,8 @@ let laufendeAnsicht = null;
 /** Geöffnetes Untermenü (Gruppen-ID) oder null für das Hauptmenü. */
 let untermenue = null;
 let aktiverPunkt = null;
+/** Nächstes Zeichnen bzw. Markieren der Navigation blendet die Menüpunkte gestaffelt ein (nach einem Klick in der Seitenleiste). */
+let navEinblendenAngefordert = false;
 
 /** Gemeinsamer Kontext für alle Ansichten. */
 const kontext = {
@@ -327,7 +329,15 @@ function menue() {
     // Schüler*innen und Erziehungsberechtigte wie im Original: Heute, Übersicht, Mitteilungen, Mein Stundenplan, Weitere Stundenpläne,
     // Abwesenheiten, Hausaufgaben (Lehrerpläne gibt es nicht)
     m[1] = { id: 'uebersicht', nav: 'uebersicht', href: '#/uebersicht', text: 'Übersicht', icon: 'meinedaten' };
-    m[2] = { id: 'mitteilungen', nav: 'mitteilungen', href: '#/mitteilungen', text: 'Mitteilungen', icon: 'mitteilungen', zaehler: true };
+    // Mitteilungen mit Untermenü nach den Rechten (Mitteilungs-Einstellungen und Rechte-Modell): Posteingang immer; Gesendet und Entwürfe,
+    // wenn das Konto schreiben oder antworten darf; Verfassen nur mit Senderecht (an die erlaubten Lehrkräfte/Klassenleitung)
+    const mt = b.mitteilungen ?? { senden: false, antworten: false };
+    m[2] = { id: 'mitteilungen', text: 'Mitteilungen', icon: 'mitteilungen', zaehler: true, unter: [
+      { nav: 'mitteilungen', href: '#/mitteilungen', text: 'Posteingang', icon: 'posteingang', zaehler: true },
+      ...(mt.senden || mt.antworten ? [{ nav: 'mitteilungen-gesendet', href: '#/mitteilungen/gesendet', text: 'Gesendet', icon: 'gesendet' },
+        { nav: 'mitteilungen-entwuerfe', href: '#/mitteilungen/entwuerfe', text: 'Entwürfe', icon: 'entwuerfe' }] : []),
+      ...(mt.senden ? [{ nav: 'mitteilungen-verfassen', href: '#/mitteilungen/verfassen', text: 'Verfassen', icon: 'verfassen' }] : []),
+    ] };
     if (b.element) m.push({ id: 'plan-mein', nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'meinplan' });
     m.push({ id: 'weitere', text: 'Weitere Stundenpläne', icon: 'stundenplan', unter: plaene.filter(p => p.nav !== 'plan-mein') });
     m.push({ id: 'abwesenheiten', nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' });
@@ -403,7 +413,7 @@ function navAus(teile) {
     case 'plan': return !a || a === 'mein' ? 'plan-mein' : 'plan-' + a;
     case 'tag': return (teile[3] === 'u' ? 'u-tag-' : 'tag-') + (a || 'klasse');
     case 'unterricht': return a === 'klasse' ? 'unterricht-klasse' : 'unterricht';
-    case 'mitteilungen': return ['gesendet', 'entwuerfe', 'listen', 'einstellungen'].includes(a) ? 'mitteilungen-' + a : 'mitteilungen';
+    case 'mitteilungen': return ['gesendet', 'entwuerfe', 'listen', 'einstellungen', 'verfassen'].includes(a) ? 'mitteilungen-' + a : 'mitteilungen';
     case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : c && c !== 'uebersicht' ? 'klassenbuch-woche' : 'klassenbuch';
     case 'melden': return 'melden-' + (a || 'abwesenheit');
     case 'buchen': return a === 'stunden' ? 'buchen-unterricht' : 'buchen-' + (a || 'raum');
@@ -482,7 +492,25 @@ function leisteZeichnen() {
   zaehlerAktualisieren();
 }
 
+/**
+ * Menüpunkte nach einem Klick in der Seitenleiste von oben nach unten gestaffelt einblenden (Deckkraft und 6px Versatz, 220ms, 24ms
+ * Abstand, höchstens 14 Stufen). Nur transform/opacity – kein Einfluss auf das Layout; bei „Bewegung reduzieren“ keine Animation.
+ */
+function navEinblenden() {
+  if (!navEinblendenAngefordert) return;
+  navEinblendenAngefordert = false;
+  const nav = document.querySelector('#seitenleiste nav');
+  if (!nav || typeof nav.animate !== 'function') return;
+  try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch { /* ohne matchMedia */ }
+  [...nav.querySelectorAll('.u-nav-punkt')].forEach((p, i) => {
+    p.getAnimations?.().forEach(a => a.cancel());
+    p.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 220, delay: Math.min(i, 14) * 24, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'backwards' });
+  });
+}
+
 function aktivMarkieren() {
+  navEinblenden();
   const gruppen = menue();
   const gruppe = gruppen.find(g => g.unter?.some(p => p.nav === aktiverPunkt));
   document.querySelectorAll('#seitenleiste [data-nav]').forEach(a => a.classList.toggle('aktiv', a.dataset.nav === aktiverPunkt));
@@ -538,14 +566,18 @@ function huelle() {
   };
   app.querySelector('[data-kontomenue]').onclick = ev => { ev.stopPropagation(); kontomenue(); };
   leiste.addEventListener('click', ev => {
-    if (ev.target.closest('[data-zurueck]')) { untermenue = null; leisteZeichnen(); return; }
+    if (ev.target.closest('[data-zurueck]')) { untermenue = null; navEinblendenAngefordert = true; leisteZeichnen(); return; }
     const g = ev.target.closest('[data-gruppe]');
     if (g) {
       // Gruppe öffnet ihr Untermenü und zeigt (wie im Original) gleich die erste Seite; auf dem Telefon bleibt das Menü offen
       untermenue = g.dataset.gruppe;
+      navEinblendenAngefordert = true;
       leisteZeichnen();
       return;
     }
+    // Seitenwechsel über einen Menüpunkt: beim nächsten Markieren (route) die Punkte gestaffelt einblenden – nicht beim Klick auf die offene Seite
+    const punkt = ev.target.closest('[data-nav]');
+    if (punkt && punkt.getAttribute('href') !== location.hash) navEinblendenAngefordert = true;
     if (ev.target.closest('[data-nav], .u-marke, [data-profil]')) mobilZu();
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { mobilZu(); kontomenueZu(); } });

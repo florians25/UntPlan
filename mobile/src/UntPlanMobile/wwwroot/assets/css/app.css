@@ -299,6 +299,10 @@ ul{ padding:0; list-style:none; }
   background:linear-gradient(180deg,var(--c-grid-top) 0%,var(--c-grid-bottom) 100%);
   background-attachment:local;
 }
+/* Waagerechte Wischgeste erkannt: bis zum Loslassen kein senkrechtes
+   Rollen (auch kein Schwung-Nachlauf in Safari). Die Rollposition bleibt
+   bei overflow:hidden erhalten. */
+.gridscroll.is-wischsperre{ overflow-y:hidden; }
 .gridpane{
   position:relative;
   padding-top:var(--grid-pad-top);
@@ -5615,3 +5619,52 @@ html.is-dark .to__pill.is-on{ background:#f2f2f7; color:#1c1c1e; border-color:#f
 .to__pop button.is-on::after{ content:"✓"; float:right; color:var(--u-orange); }
 /* Detail einer Mitteilung: oben nur der Zurück-Knopf (wie iOS) */
 body.is-msgread .msghead__title{ visibility:hidden; }
+
+/* =====================================================================
+   Vergangene Stunden und Plaketten – Feinabgleich (Original 116/119,
+   eigene iOS-App 150), nachgemessen im Maßstab 920/402
+   ---------------------------------------------------------------------
+   · Balken: Vergangen steht er mit halber Deckkraft da — hell (218,222,227)
+     auf #f2f4f5 statt (193,198,210) auf Weiß, dunkel (119,131,138) auf
+     #313d44. Beides entspricht derselben Balkenfarbe bei 50 %.
+   · Schrift: Vergangen eine Spur zurückgenommen — hell Schiefer #3c4950
+     statt der vollen Kachelschrift, dunkel #dee6ee statt fast Weiß.
+     Fläche und Rahmen bleiben, wie sie sind.
+   · Plakette: so hoch wie eine Zeile (14 px), Schrift gleich groß wie der
+     Zeilentext — auch am Raum (A103 hat dieselbe Höhe und Schriftgröße wie
+     LN). Die Schrift in der Plakette steht genau über der Schrift der
+     übrigen Zeilen, der Kasten ragt um sein Polster nach links hinaus.
+     Die Zeile darunter rückt nur um den Bruchteil eines Punkts weiter als
+     zwischen zwei gewöhnlichen Zeilen.
+   ===================================================================== */
+.card.is-past::before{ opacity:.5; }
+.card.is-past .card__line,
+.card.is-past .card__line--primary,
+.card--change.is-past .card__line, .card--change.is-past .card__line--primary,
+.card--cancelled.is-past .card__line, .card--cancelled.is-past .card__line--primary,
+.card--supervision.is-sub.is-past .card__line,
+.card--supervision.is-absent.is-past .card__line{ color:#3c4950; }
+html.is-dark .card.is-past .card__line,
+html.is-dark .card.is-past .card__line--primary,
+html.is-dark .card--change.is-past .card__line,
+html.is-dark .card--cancelled.is-past .card__line{ color:#dee6ee; }
+/* Im Dunkeln bleibt der farbige Rahmen vergangener Stunden, aber gedeckter
+   als bei einer anstehenden: Vertretung (11,123,103) statt (32,186,162),
+   Entfall (215,4,70) statt (237,54,100), Prüfung (194,124,7) statt
+   (252,185,53). */
+html.is-dark .card--change.is-past{ border-color:#0b7b67; }
+html.is-dark .card--cancelled.is-past{ border-color:#d70446; }
+html.is-dark .card--exam.is-past{ border-color:#c27c07; }
+
+@media (max-width:699px){
+  .card .card__line--badge{ padding-bottom:0; }
+  .card:not(.card--cancelled) .card__line--badge{ margin-left:-.77px; }
+  .card--cancelled .card__line--badge{ padding-left:1.5px; }
+  .card .badge.badge--raum:not(.badge--removed){ padding:0.33px 2.27px 0; border-radius:2px; font-size:inherit; }
+}
+
+/* Startseite, eigene Woche gesperrt: kleiner Schlosskreis statt Kalender,
+   „Keine Stunden“ (Medium) und der Sperrsatz — wie in der iOS-App. */
+.nextnone b{ font-weight:500; }
+.nextnone--sperre .sperre__kreis{ display:flex; width:48px; height:48px; margin:0 auto; }
+.nextnone--sperre .sperre__kreis svg{ width:24px; height:24px; }

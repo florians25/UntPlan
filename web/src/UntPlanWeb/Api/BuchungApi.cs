@@ -9,6 +9,8 @@ namespace UntPlanWeb.Api;
 /// Ressourcen, Auswahllisten, Zeitraster.</item>
 /// <item><c>POST /suche/raeume</c> { zeit, kriterien } → { termine: [{ termin, freieRaeume }], raeume: [{ kurz, …, belegt: [Terminindex], prozent }], uebersprungen }</item>
 /// <item><c>POST /suche/ressourcen</c> { zeit, kriterien } → { termine, ressourcen: [{ id, name, art, anzahl, verfuegbar: [je Termin], frei, belegt, prozent }] }</item>
+/// <item><c>GET  /raumstatus?datum&amp;von&amp;bis&amp;unterricht</c> → [{ kurz, name, raumart, kapazitaet, buchbar, eigen, frei, belegt: [{ stunde, art, text }] }]
+/// (Raumwahl beim Eintragen einer Prüfung; eigene Stunde des Unterrichts zählt nicht).</item>
 /// <item><c>POST /hinweise</c> { termine, lehrer, klassen } → [Text] (Lehrkraft bzw. Klasse hat zur gleichen Zeit schon Unterricht/Aktivität)</item>
 /// <item><c>POST /</c> BuchungDaten → { serie, buchungen, hinweise }; belegter Raum bzw. Ressource → 400 mit allen Konflikten.</item>
 /// <item><c>GET  /liste?von&amp;bis&amp;alle</c> (Meine Buchungen; alle nur Administration), <c>DELETE /{id}?serie=true</c> (Storno).</item>
@@ -71,6 +73,13 @@ public static class BuchungApi
                 zeitraster = plan.Zeitraster(s), tageProWoche = Math.Max(5, s.Paket.Zeitraster.TageProWoche),
                 maxTermine = Buchungsdienst.MaxTermine,
             });
+        });
+
+        // Raumwahl mit Belegung (Prüfung eintragen): alle Räume mit frei/belegt, Kapazität, buchbar – ohne die eigene Stunde des Unterrichts
+        api.MapGet("/raumstatus", (DateOnly datum, int von, int? bis, int? unterricht, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
+        {
+            Ich(c);
+            return Results.Json(bu.RaumStatus(Paket(p), datum, Math.Max(1, von), Math.Max(1, bis ?? von), unterricht));
         });
 
         api.MapPost("/suche/raeume", (SuchAnfrage d, HttpContext c, Paketdienst p, Buchungsdienst bu) =>

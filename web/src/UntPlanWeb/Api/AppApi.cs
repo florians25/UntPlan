@@ -104,6 +104,8 @@ public static class AppApi
                     rechte = Rechtedienst.Liste(b),
                     // Planfenster der Rolle: Wochen zurück bzw. voraus (null = unbegrenzt, 0 = nur die aktuelle Woche)
                     planWochenZurueck = b.Planfenster.Zurueck, planWochenVor = b.Planfenster.Vor,
+                    // Mitteilungen: Senderecht (Verfassen) und Antwortrecht für das Untermenü (Gesendet, Entwürfe, Verfassen)
+                    mitteilungen = new { senden = m.DarfSenden(b), antworten = m.DarfAntworten(b) },
                 },
                 ungelesen = b is null ? 0 : m.Ungelesen(b.Id),
                 // Ansichtseinstellungen der Administration (Wochenende, Uhrzeiten auf Karten, Startseite)

@@ -189,19 +189,17 @@ public class VertretungErweitertTests
     }
 
     [Fact]
-    public void EntfallImStundenplanRueckgaengigWieInDerVertretungsliste()
+    public void EntfallImStundenplanRueckgaengigMachtWiederRegulaerenUnterricht()
     {
         var (d, tag) = Daten();
         var r = ErsteNormaleStunde(d, tag);
         Vertretungen.Entfallen(d, r.Unterricht.Id, null, tag, r.Stunde, "test");
         var v = Assert.Single(Vertretungen.EntfallZeilen(d, r.Unterricht.Id, null, tag, r.Stunde));
         Assert.Equal(TagesStatus.Entfall, Tagesplan.Berechnen(d, tag).Stunde(r.Stunde).Single(e => e.Vertretung == v).Status);
-        // gleiche Wirkung wie „Entfall rückgängig machen“ in der Vertretungsliste
-        var vergleich = new Vertretung { Art = VertretungsArt.Entfall, UnterrichtId = v.UnterrichtId, FachId = v.FachId };
-        Vertretungen.EntfallUmschalten(d, vergleich);
+        // Lehrkraft anwesend: manueller Entfall verschwindet, die Stunde findet wieder regulär statt (kein „???“)
         Assert.Equal(1, Vertretungen.EntfallRueckgaengig(d, r.Unterricht.Id, null, tag, r.Stunde, "test"));
-        Assert.Equal(vergleich.Art, v.Art);
-        Assert.False(v.IstEntfall);
+        Assert.DoesNotContain(v, d.Vertretungen);
+        Assert.Equal(TagesStatus.Regulaer, Tagesplan.Berechnen(d, tag).Stunde(r.Stunde).Single(e => e.Unterricht?.Id == r.Unterricht.Id).Status);
         Assert.Empty(Vertretungen.EntfallZeilen(d, r.Unterricht.Id, null, tag, r.Stunde));
     }
 

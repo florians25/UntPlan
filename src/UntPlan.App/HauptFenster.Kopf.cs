@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using UntPlan.Core;
 
 namespace UntPlan.App;
 
@@ -44,16 +45,13 @@ public partial class HauptFenster
         var e = AppZustand.Einstellungen;
         var flaeche = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1600, 900);
         StartPosition = FormStartPosition.Manual;
-        if (e.Hauptfenster is { Length: 4 } b)
+        if (e.Hauptfenster is { Length: 4 } b && b[2] > 0 && b[3] > 0)
         {
-            var r = new Rectangle(b[0], b[1], Math.Max(MinimumSize.Width, b[2]), Math.Max(MinimumSize.Height, b[3]));
-            // nur übernehmen, wenn die Titelleiste auf einem vorhandenen Bildschirm liegt
-            if (Screen.AllScreens.Any(sc => sc.WorkingArea.IntersectsWith(new Rectangle(r.X + 40, r.Y, Math.Max(10, r.Width - 80), 30))))
-            {
-                Bounds = r;
-                WindowState = e.HauptfensterMaximiert ? FormWindowState.Maximized : FormWindowState.Normal;
-                return;
-            }
+            // gespeicherte Lage (auch mit negativem Y, von einem fehlenden Monitor oder größeren Bildschirm) vollständig in den
+            // Arbeitsbereich holen – der Programmkopf liegt nie über dem oberen Rand bzw. unter der Taskleiste
+            Bounds = Fensterlage.Hauptfenster(new Rectangle(b[0], b[1], b[2], b[3]), Arbeitsbereiche(), MinimumSize);
+            WindowState = e.HauptfensterMaximiert ? FormWindowState.Maximized : FormWindowState.Normal;
+            return;
         }
         var w = Math.Min(flaeche.Width, Math.Max(MinimumSize.Width, (int)(flaeche.Width * .9)));
         var h = Math.Min(flaeche.Height, Math.Max(MinimumSize.Height, (int)(flaeche.Height * .9)));
@@ -61,11 +59,32 @@ public partial class HauptFenster
         WindowState = flaeche.Width < 1500 || flaeche.Height < 860 || e.HauptfensterMaximiert ? FormWindowState.Maximized : FormWindowState.Normal;
     }
 
+    /// <summary>Arbeitsbereiche aller Bildschirme (ohne Taskleiste).</summary>
+    private static List<Rectangle> Arbeitsbereiche()
+    {
+        var l = Screen.AllScreens.Select(s => s.WorkingArea).Where(a => !a.IsEmpty).ToList();
+        if (l.Count == 0 && Screen.PrimaryScreen is { } p) l.Add(p.WorkingArea);
+        return l;
+    }
+
+    /// <summary>
+    /// Nach dem Anzeigen bzw. einem DPI-/Bildschirmwechsel: Lage im Fenstermodus erneut prüfen (die DPI-Skalierung beim Erzeugen
+    /// des Fensters kann die gespeicherte Lage verschieben bzw. vergrößern).
+    /// </summary>
+    internal void FensterlagePruefen()
+    {
+        if (WindowState != FormWindowState.Normal || IsDisposed) return;
+        var r = Fensterlage.ImBereich(Bounds, Fensterlage.BereichFuer(Bounds, Arbeitsbereiche()), true, MinimumSize);
+        if (r != Bounds) Bounds = r;
+    }
+
     private void FensterlageMerken()
     {
         var e = AppZustand.Einstellungen;
         if (WindowState == FormWindowState.Minimized) return;
         var r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        if (r.Width <= 0 || r.Height <= 0) return;
+        r = Fensterlage.Hauptfenster(r, Arbeitsbereiche(), MinimumSize);
         e.Hauptfenster = new[] { r.X, r.Y, r.Width, r.Height };
         e.HauptfensterMaximiert = WindowState == FormWindowState.Maximized;
         try { e.Speichern(); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -93,7 +112,10 @@ public partial class HauptFenster
         _schnell.Items.AddRange(new ToolStripItem[] { _knopfZu, _knopfMax, _knopfMin });
         _schnell.Padding = new Padding(4, 0, 0, 0);
         KopfHoeheSetzen();
-        DpiChanged += (_, _) => KopfHoeheSetzen();
+        DpiChanged += (_, _) => { KopfHoeheSetzen(); BeginInvoke(FensterlagePruefen); };
+        Shown += (_, _) => FensterlagePruefen();
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += BildschirmGeaendert;
+        FormClosed += (_, _) => Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= BildschirmGeaendert;
         _schnell.Paint += TitelZeichnen;
         _schnell.MouseDown += KopfMausDown;
         _schnell.MouseDoubleClick += (_, e) => { if (e.Button == MouseButtons.Left && _schnell.GetItemAt(e.Location) is null) MaximierenUmschalten(); };
@@ -110,6 +132,7 @@ public partial class HauptFenster
             MaximalgroesseSetzen();
         }
         KopfAnpassen();
+        MdiLageVorbereiten();
         var filter = new KantenFilter(this);
         Application.AddMessageFilter(filter);
         FormClosed += (_, _) => Application.RemoveMessageFilter(filter);
@@ -192,6 +215,13 @@ public partial class HauptFenster
         var a = s.WorkingArea;
         var neu = new Rectangle(a.X - s.Bounds.X, a.Y - s.Bounds.Y, a.Width, a.Height);
         if (MaximizedBounds != neu) MaximizedBounds = neu;
+    }
+
+    private void BildschirmGeaendert(object? sender, EventArgs e)
+    {
+        if (IsDisposed || !IsHandleCreated) return;
+        // Monitor entfernt bzw. Auflösung geändert: Hauptfenster und Arbeitsfenster wieder in den sichtbaren Bereich holen
+        BeginInvoke(() => { FensterlagePruefen(); MdiFensterKlemmen(); });
     }
 
     private void KopfAnpassen()
@@ -287,7 +317,8 @@ public partial class HauptFenster
 
     protected override void WndProc(ref Message m)
     {
-        const int WM_NCHITTEST = 0x84, WM_NCCALCSIZE = 0x83;
+        const int WM_NCHITTEST = 0x84, WM_NCCALCSIZE = 0x83, WM_WINDOWPOSCHANGING = 0x46;
+        if (m.Msg == WM_WINDOWPOSCHANGING && m.LParam != IntPtr.Zero) LageBeimVerschiebenKlemmen(m.LParam);
         if (NativerRahmen && m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero)
         {
             // Systemrahmen links, rechts und unten behalten (Schatten, Greifränder, Snap), die Titelleiste dem Programmkopf geben
@@ -317,6 +348,36 @@ public partial class HauptFenster
             (true, _, _, _) => 12, (_, true, _, _) => 15, (_, _, true, _) => 10, (_, _, _, true) => 11, _ => null,
         };
         if (hit is int h) m.Result = h;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct WindowPos { public IntPtr Hwnd, Nach; public int X, Y, Cx, Cy; public uint Flags; }
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr hWnd);
+
+    /// <summary>
+    /// Jede Lageänderung des Hauptfensters im Fenstermodus (Ziehen am Programmkopf, Andocken, Größenänderung am oberen Rand,
+    /// Bounds aus dem Programm): Der Programmkopf bleibt im Arbeitsbereich – nie über dem oberen Bildschirmrand bzw. unter einer
+    /// oben liegenden Taskleiste, sonst ließe sich das Fenster ohne Titelleiste nicht mehr greifen.
+    /// </summary>
+    private void LageBeimVerschiebenKlemmen(IntPtr lParam)
+    {
+        const uint SWP_NOMOVE = 2;
+        try
+        {
+            var wp = Marshal.PtrToStructure<WindowPos>(lParam);
+            if ((wp.Flags & SWP_NOMOVE) != 0 || !IsHandleCreated || IsIconic(Handle) || IsZoomed(Handle) || WindowState != FormWindowState.Normal) return;
+            if (wp.X <= -30000 || wp.Y <= -30000) return; // Minimieren
+            var groesse = (wp.Flags & 1) != 0 ? Size : new Size(wp.Cx, wp.Cy);
+            var r = Fensterlage.TitelSichtbar(new Rectangle(wp.X, wp.Y, groesse.Width, groesse.Height), Arbeitsbereiche(), LogicalToDeviceUnits(KopfHoeheLogisch));
+            if (r.X == wp.X && r.Y == wp.Y) return;
+            // Größenänderung am oberen Rand über den Bildschirmrand hinaus: unterer Rand bleibt stehen
+            if ((wp.Flags & 1) == 0 && wp.Cy != Height && r.Y > wp.Y) wp.Cy = Math.Max(MinimumSize.Height, wp.Cy - (r.Y - wp.Y));
+            wp.X = r.X;
+            wp.Y = r.Y;
+            Marshal.StructureToPtr(wp, lParam, false);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
     }
 
     /// <summary>Schlanke weiße Fensterknöpfe wie Windows 11 / Vorbild 2026 (0 = minimieren, 1 = maximieren, 2 = schließen, 3 = wiederherstellen).</summary>

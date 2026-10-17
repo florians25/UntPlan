@@ -94,7 +94,7 @@ public static class KommentarDialog
     {
         using var d = new Dialog(titel, 480, 260);
         var t = new TextBox { Multiline = true, Left = 10, Top = 10, Width = 460, Height = 170, ScrollBars = ScrollBars.Vertical };
-        var kat = new ComboBox { Left = 10, Top = 192, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, DrawMode = DrawMode.OwnerDrawFixed };
+        var kat = new ComboBox { Left = 10, Top = 192, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, DrawMode = DrawMode.OwnerDrawFixed, Font = Ui.ListenSchrift, ItemHeight = 18 };
         foreach (var k in AppZustand.D.KommentarKategorien) kat.Items.Add(k);
         kat.DrawItem += (_, e) =>
         {
@@ -103,7 +103,7 @@ public static class KommentarDialog
             var k = (KommentarKategorie)kat.Items[e.Index]!;
             using var b = new SolidBrush(Ui.Farbe(k.Farbe, Color.Red));
             e.Graphics.FillRectangle(b, e.Bounds.X + 2, e.Bounds.Y + 2, 14, e.Bounds.Height - 4);
-            TextRenderer.DrawText(e.Graphics, k.Name, Ui.Schrift, new Point(e.Bounds.X + 20, e.Bounds.Y + 1), e.ForeColor);
+            Ui.ListenText(e.Graphics, k.Name, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 20, e.Bounds.Y, e.Bounds.Width - 21, e.Bounds.Height), e.ForeColor);
         };
         kat.SelectedIndex = 0;
         d.Controls.Add(t);
