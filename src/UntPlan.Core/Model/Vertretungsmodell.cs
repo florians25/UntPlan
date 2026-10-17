@@ -432,6 +432,11 @@ public sealed class Klausur
     public bool Aktiv { get; set; } = true;
     /// <summary>Aus UntPlanWeb übernommene Prüfung (Kennung der Rückmeldung): nur Lehrkraft und Raum änderbar, keine Verlegung.</summary>
     public string WebId { get; set; } = "";
+    /// <summary>
+    /// Zur Prüfung gewordene Buchungen (Raumbuchung, Raumänderung des Unterrichts aus UntPlanWeb): wird die Prüfung gelöscht bzw.
+    /// verlegt, kehren sie zurück.
+    /// </summary>
+    public List<Vertretung> Buchungen { get; set; } = new();
 
     [JsonIgnore] public bool Importiert => !string.IsNullOrEmpty(WebId);
 }

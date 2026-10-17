@@ -62,7 +62,7 @@ public static class StundenplanAenderungen
         foreach (var k in weg)
         {
             d.Klausuren.Remove(k);
-            d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
+            KlausurZeilenEntfernen(d, k);
         }
         foreach (var t in weg.Select(k => k.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
         return weg.Count;
@@ -109,7 +109,7 @@ public static class StundenplanAenderungen
         {
             // verlegt: Zeilen des alten Termins (auch Pausenaufsichten vor/nach der Prüfung) restlos entfernen
             tage.Add(k.Datum);
-            d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
+            KlausurZeilenEntfernen(d, k);
         }
         if (string.IsNullOrEmpty(k.WebId)) k.WebId = m.Id;
         k.Name = name;
@@ -152,8 +152,27 @@ public static class StundenplanAenderungen
                                             && BuchungPasst(k, v.VertreterId, Raeume(v), v.KlassenIds)).ToList();
         if (weg.Count == 0) return 0;
         if (k.RaumIds.Count == 0) k.RaumIds = weg.SelectMany(Raeume).Distinct().ToList();
-        foreach (var v in weg) d.Vertretungen.Remove(v);
+        foreach (var v in weg)
+        {
+            d.Vertretungen.Remove(v);
+            k.Buchungen.Add(v);
+        }
         return weg.Count;
+    }
+
+    /// <summary>
+    /// Prüfung entfernen bzw. vom Termin lösen: ihre Vertretungszeilen (Prüfung, Entfall, Aufsicht, Pausenaufsicht) restlos entfernen und
+    /// die zur Prüfung gewordenen Buchungen (z. B. eine schon vorher bestehende Raumänderung) wiederherstellen.
+    /// </summary>
+    public static void KlausurZeilenEntfernen(Schuldatei d, Klausur k)
+    {
+        d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
+        foreach (var b in k.Buchungen)
+        {
+            b.Id = d.NeueId();
+            d.Vertretungen.Add(b);
+        }
+        k.Buchungen.Clear();
     }
 
     private static IEnumerable<int> Raeume(Vertretung v) => new[] { v.VertretungsraumId }.OfType<int>().Concat(v.ZusatzraumIds);
@@ -202,7 +221,7 @@ public static class StundenplanAenderungen
         foreach (var k in weg)
         {
             d.Klausuren.Remove(k);
-            d.Vertretungen.RemoveAll(v => v.KlausurId == k.Id);
+            KlausurZeilenEntfernen(d, k);
         }
         return weg.Count;
     }

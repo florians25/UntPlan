@@ -144,13 +144,20 @@ public static class UntPlanWebExport
                     }
                     tag.Stunden.Add(ws);
                 }
+                // Prüfung, die den Unterricht ihrer Aufsicht ersetzt: als Prüfungszeile wie gewohnt (ohne Lehrer, Fach und Raum des
+                // Unterrichts – diese stehen an der entfallenen Stunde im Plan)
+                var ersetzt = d.Vertretungen.Where(v => v.Datum == t && v.Art == VertretungsArt.Klausur && v.Quelle == VertretungsQuelle.Klausur && v.UnterrichtId.HasValue)
+                    .Select(v => v.Id).ToHashSet();
                 foreach (var z in Vertretungsplan.Zeilen(d, t))
+                {
+                    var pr = ersetzt.Contains(z.Id);
                     vertretungen.Add(new WebVertretung
                     {
-                        Id = z.Id, Datum = D(t), Stunde = z.Stunde, Art = z.Art, Klassen = Kl(z.KlassenIds), Lehrer = z.Lehrer, Vertreter = z.Vertreter,
-                        Fach = z.Fach, NeuesFach = z.NeuesFach, Raum = z.Raum, NeuerRaum = z.NeuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = StundenplanAenderungen.ExportText(z.Text),
+                        Id = z.Id, Datum = D(t), Stunde = z.Stunde, Art = z.Art, Klassen = Kl(z.KlassenIds), Lehrer = pr ? "" : z.Lehrer, Vertreter = z.Vertreter,
+                        Fach = pr ? "" : z.Fach, NeuesFach = pr ? "" : z.NeuesFach, Raum = pr ? "" : z.Raum, NeuerRaum = z.NeuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = StundenplanAenderungen.ExportText(z.Text),
                         NurLehrer = z.Art == Vertretungsplan.ArtText(d, VertretungsArt.Pausenaufsicht),
                     });
+                }
             }
             tage.Add(tag);
         }
