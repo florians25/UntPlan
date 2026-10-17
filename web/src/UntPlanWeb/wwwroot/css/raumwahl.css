@@ -1,7 +1,7 @@
 /* Raumwahl (js/raumwahl.js): Auswahlliste unter dem Raumfeld der Prüfungsformulare – Kürzel (Medium), Langname grau, Kapazität,
    Status frei (grün) bzw. belegt (rot, mit Belegung); Gruppen „Raum der Stunde“, „Buchbare Räume“, „Weitere Räume“. */
 .rw { position: relative; }
-.rw-pop { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 1080; min-width: 300px; border: 1px solid #dfe3e7; border-radius: 6px; background: #fff;
+.rw-pop { position: absolute; left: 0; width: max(100%, min(400px, calc(100vw - 32px))); top: calc(100% + 4px); z-index: 1080; border: 1px solid #dfe3e7; border-radius: 6px; background: #fff;
   box-shadow: 0 8px 28px rgba(0, 0, 0, .16); overflow: hidden; }
 .rw-pop.oben { top: auto; bottom: calc(100% + 4px); }
 .rw-kopf { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 12px; border-bottom: 1px solid #edf0f2; color: #67747e; font-size: .78rem; }

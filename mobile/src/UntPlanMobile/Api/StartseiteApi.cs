@@ -13,7 +13,7 @@ public static class StartseiteApi
 {
     private static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     /// <summary>Offene Klausurmeldung steht schon als Klausurtermin in /api/app/heute (gleicher Tag, überlappende Stunden, gemeinsame Klasse).</summary>
-    internal static bool SchonAlsTermin(JsonNode? heute, JsonObject m)
+    public static bool SchonAlsTermin(JsonNode? heute, JsonObject m)
     {
         static List<string> Liste(JsonNode? n) => (n as JsonArray ?? new JsonArray()).Select(x => x?.GetValue<string>() ?? "").Where(x => x.Length > 0).ToList();
         static int? Zahl(JsonNode? n) => n is JsonValue v && v.TryGetValue<int>(out var x) ? x : null;
