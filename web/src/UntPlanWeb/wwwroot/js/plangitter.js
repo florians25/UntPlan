@@ -204,7 +204,10 @@ export function karteInhalt(k, typ, kompakt = false, element = '') {
     rest = [lehrer ? fach : '', raum, k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : '', mit];
   } else if (typ === 'raum') {
     oben = klassenWerte(k, entfall) || fach;
-    rest = [werteListe(k.lehrer, entfall, true), k.klassen.length ? fach : ''];
+    // Raumänderung (neuer, hinzugefügter, entfernter bzw. offener Raum): auch im Raumplan steht der Raum als grünes Label
+    // („R105 → R109“ im Hover, „+R109“, durchgestrichen) – sonst wäre die Änderung hier nicht zu sehen
+    const raumGeaendert = !entfall && raum && (k.raeume || []).some(w => w.alt || w.neu);
+    rest = [werteListe(k.lehrer, entfall, true), k.klassen.length ? fach : '', raumGeaendert ? raum : ''];
   } else {
     oben = klassenWerte(k, entfall) || fach;
     // Eigene Abwesenheit: die vertretende Lehrkraft als grünes Label (Hover „HOF → BEC“); ohne Vertretung (Vertretung ohne

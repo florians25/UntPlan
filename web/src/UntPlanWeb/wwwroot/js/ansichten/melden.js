@@ -2,7 +2,7 @@
 // mit den letzten Meldungen, einheitliche Formulare (Karte mit Kopf, Feldraster, Fuß mit Abbrechen/Absenden, Auswahlen über die
 // gemeinsame Auswahl-Komponente, Raumwahl mit Belegung) und „Meine Meldungen“ mit Suche, Status- und Art-Filter, Status-Pills und
 // leeren Zuständen. Raum buchen führt in das Buchungsmodul.
-import { e, holen, senden, api, toast, bestaetigen, heuteIso, plusTage, meldungText, datumLang } from '../ui.js';
+import { e, holen, senden, api, toast, bestaetigen, heuteIso, plusTage, meldungText, datumLang, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { raumwahl, raumTokens } from '../raumwahl.js';
 
 const BEREICHE = ['uebersicht', 'abwesenheit', 'klausur', 'meine'];
@@ -178,10 +178,10 @@ export async function zeigen(seite, kontext, [bereichParam]) {
     const anzahl = s => liste.filter(m => !s || m.status === s).length;
     ziel.innerHTML = `
       <div class="nl-leiste mp-leiste">
-        <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Meldungen durchsuchen" aria-label="Meldungen durchsuchen"></label>
-        <div class="mf-segment" role="radiogroup" aria-label="Status">${[['', 'Alle'], ['offen', 'Offen'], ['quittiert', 'Übernommen'], ['abgelehnt', 'Abgelehnt']].map(([w, t]) =>
-          `<button type="button" role="radio" aria-checked="${w === ''}" class="${w === '' ? 'an' : ''}" data-status="${w}">${t}<span class="mf-anzahl">${anzahl(w)}</span></button>`).join('')}</div>
-        ${arten.length > 1 ? `<label class="nl-pille"><select data-art aria-label="Art"><option value="">Alle Arten</option>${arten.map(a => `<option value="${a}">${e(ART[a].text)}</option>`).join('')}</select></label>` : ''}
+        ${suchfeldMitFilter({ platzhalter: 'Meldungen durchsuchen', label: 'Meldungen durchsuchen', filter: [
+          { name: 'status', label: 'Status', alle: `Jeder Status (${anzahl('')})`, optionen: [['offen', 'Offen'], ['quittiert', 'Übernommen'], ['abgelehnt', 'Abgelehnt']].map(([w, t]) => [w, `${t} (${anzahl(w)})`]) },
+          ...(arten.length > 1 ? [{ name: 'art', label: 'Art', alle: 'Alle Arten', optionen: arten.map(a => [a, ART[a].text]) }] : []),
+        ] })}
         <span class="ms-auto d-flex gap-2"><a class="nl-hinzu" href="#/melden"><i class="bi bi-plus-lg" aria-hidden="true"></i>Neue Meldung</a></span>
       </div>
       <div data-liste></div>`;
@@ -197,8 +197,7 @@ export async function zeigen(seite, kontext, [bereichParam]) {
       box.querySelector('[data-reset]')?.addEventListener('click', () => {
         Object.assign(filter, { suche: '', status: '', art: '' });
         ziel.querySelector('[data-suche]').value = '';
-        const art = ziel.querySelector('[data-art]'); if (art) art.value = '';
-        ziel.querySelectorAll('[data-status]').forEach(x => { x.classList.toggle('an', x.dataset.status === ''); x.setAttribute('aria-checked', String(x.dataset.status === '')); });
+        sf.setzen('status', ''); sf.setzen('art', '');
         zeichnen();
       });
       // Prüfung löschen – vor der Übernahme zurückziehen, danach Löschmeldung an UntPlan
@@ -213,13 +212,11 @@ export async function zeigen(seite, kontext, [bereichParam]) {
         catch (err) { kontext.fehler(err); }
       });
     };
-    ziel.querySelector('[data-suche]').oninput = ev => { filter.suche = ev.target.value.trim().toLowerCase(); zeichnen(); };
-    ziel.querySelectorAll('[data-status]').forEach(b => b.onclick = () => {
-      filter.status = b.dataset.status;
-      ziel.querySelectorAll('[data-status]').forEach(x => { x.classList.toggle('an', x === b); x.setAttribute('aria-checked', String(x === b)); });
-      zeichnen();
+    // gemeinsames Suchfeld mit Filter: Status und Art als Dropdowns im Suchfeld (gewählt = Chip mit x)
+    const sf = suchfeldMitFilterBinden(ziel, {
+      beiSuche: t => { filter.suche = t.toLowerCase(); zeichnen(); },
+      beiFilter: (name, wert) => { filter[name] = wert; zeichnen(); },
     });
-    ziel.querySelector('[data-art]')?.addEventListener('change', ev => { filter.art = ev.target.value; ev.target.closest('.nl-pille').classList.toggle('aktiv', !!filter.art); zeichnen(); });
     zeichnen();
   }
 }

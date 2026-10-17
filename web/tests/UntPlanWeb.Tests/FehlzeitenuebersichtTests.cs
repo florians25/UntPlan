@@ -77,7 +77,8 @@ public class FehlzeitenuebersichtTests
 
         var eltern = await KontoAsync(s, admin, "eltern-fz", "eltern", sch.Id, geschwister.Id);
         var schueler = await KontoAsync(s, admin, "schueler-fz", "schueler", sch.Id);
-        const string zeitraum = "von=2026-09-01&bis=2026-10-31";
+        // Elternkonten ohne Angabe: erstes zugeordnetes Kind – hier ausdrücklich gewählt
+        var zeitraum = $"von=2026-09-01&bis=2026-10-31&schueler={sch.Id}";
 
         foreach (var c in new[] { schueler, eltern })
         {
@@ -117,7 +118,7 @@ public class FehlzeitenuebersichtTests
                 .Count(z => z!["datum"]!.GetValue<string>() == "2026-10-12"));
 
             // Übersicht: offene Abwesenheiten (Verspätung und teilweise entschuldigte)
-            Assert.Equal(2, (await Testserver.HolenAsync(c, "/api/app/familie/uebersicht"))["offeneAbwesenheiten"]!.AsArray().Count);
+            Assert.Equal(2, (await Testserver.HolenAsync(c, $"/api/app/familie/uebersicht?schueler={sch.Id}"))["offeneAbwesenheiten"]!.AsArray().Count);
         }
 
         // sehr langer Zeitraum (App: „Alles“): früher wurde der Beginn verschoben und die Liste war leer
@@ -125,7 +126,7 @@ public class FehlzeitenuebersichtTests
         Assert.Equal(4, (await Testserver.HolenAsync(schueler, "/api/app/familie/abwesenheiten?von=2025-08-01&bis=2027-07-31"))["zeilen"]!.AsArray().Count);
 
         // Kinderwahl: zweites Kind mit eigenen Summen; fremde Kinder und Schülerkonto für Geschwister verboten
-        var g = await Testserver.HolenAsync(eltern, $"/api/app/familie/abwesenheiten?{zeitraum}&schueler={geschwister.Id}");
+        var g = await Testserver.HolenAsync(eltern, $"/api/app/familie/abwesenheiten?von=2026-09-01&bis=2026-10-31&schueler={geschwister.Id}");
         Assert.Equal(geschwister.Id, Z(g["schueler"]!, "id"));
         Assert.Single(g["zeilen"]!.AsArray());
         Assert.Equal((0, Z(g["summen"]!, "fehlstunden")), (Z(g["summen"]!, "entschuldigt"), Z(g["summen"]!, "offen")));

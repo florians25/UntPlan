@@ -1,6 +1,6 @@
 // Klassenbucheinträge: Vermerke (Lob, Ordnungsmaßnahme, Elterngespräch …) über alle oder eine Klasse, mit Filter und neuem Eintrag.
 // Klick auf einen Eintrag öffnet den Detaildialog (gemeinsame kbDialog-Komponente) mit allen Angaben und – je nach Recht – Bearbeiten/Löschen.
-import { e, icon, api, holen, senden, toast, leer, filterFeld, datumKurz, datumLang, heuteIso, plusTage } from '../ui.js';
+import { e, icon, api, holen, senden, toast, leer, datumKurz, datumLang, heuteIso, plusTage, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const FARBE = { Lob: 'gruen', 'Ordnungsmaßnahme': 'rot', 'Elterngespräch': 'orange', 'Hausaufgabe fehlt': 'gelb', 'Material vergessen': 'gelb' };
@@ -21,11 +21,12 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
   const daten = await holen(`/api/app/klassenbucheintraege?${q}`);
   const stundeText = x => x.stunde ? `${x.stunde}. Stunde${x.zeit ? ` · ${x.zeit} Uhr` : ''}` : x.zeit ? `${x.zeit} Uhr` : '';
   seite.innerHTML = `
-    <div class="u-filter">
-      ${filterFeld('Von', `<input type="date" class="form-control" data-von value="${von}">`)}
-      ${filterFeld('Bis', `<input type="date" class="form-control" data-bis value="${bis}">`)}
-      ${filterFeld('Klasse', `<select class="form-select" data-klasse><option value="">alle</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)}
-      ${filterFeld('Art', `<select class="form-select" data-art><option value="">alle</option>${daten.arten.map(a => `<option ${a === art ? 'selected' : ''}>${e(a)}</option>`).join('')}</select>`)}
+    <div class="u-sf-leiste">
+      ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Text oder Lehrkraft suchen', label: 'Einträge durchsuchen', filter: [
+        { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
+        { name: 'art', label: 'Art', alle: 'Alle Arten', wert: art, optionen: daten.arten.map(a => [a, a]) },
+      ] })}
+      ${zeitraumPillen(von, bis)}
     </div>
     <div class="card">${daten.eintraege.length ? `<div class="table-responsive"><table class="table table-hover table-card align-middle u-karten-tabelle ke-tabelle"><thead><tr><th>Datum</th><th>Klasse</th><th>Schüler*in</th><th>Art</th><th>Text</th><th>Lehrkraft</th><th><span class="visually-hidden">Aktionen</span></th></tr></thead><tbody>
       ${daten.eintraege.map((x, i) => `<tr data-eintrag="${i}" tabindex="0" role="button" aria-label="${e(`Eintrag vom ${datumKurz(x.datum)}${x.datum.slice(0, 4)}, ${x.art}, Klasse ${x.klasse} – Details öffnen`)}">
@@ -35,7 +36,12 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
         <td class="text-end ke-aktion">${x.loeschen ? `<button class="btn btn-sm btn-link text-danger p-0" data-weg="${x.id}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}<i class="bi bi-chevron-right ke-pfeil" aria-hidden="true"></i></td></tr>`).join('')}
       </tbody></table></div>` : leer('Keine Klassenbucheinträge im Zeitraum.', 'eintraege')}</div>`;
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-  seite.querySelectorAll('.u-filter input, .u-filter select').forEach(x => x.onchange = () => kontext.navigieren(ziel(f('von') || von, f('bis') || bis, f('klasse'), f('art'))));
+  const sf = suchfeldMitFilterBinden(seite, {
+    beiSuche: t => zeilenFiltern(seite.querySelectorAll('tr[data-eintrag]'), t),
+    beiFilter: () => filterNeu(),
+  });
+  const filterNeu = () => kontext.navigieren(ziel(f('von') || von, f('bis') || bis, sf.wert('klasse'), sf.wert('art')));
+  seite.querySelectorAll('[data-von], [data-bis]').forEach(x => x.onchange = filterNeu);
   const neu = () => kontext.navigieren(location.hash);
   const loeschen = async id => {
     if (!await bestaetigen('Eintrag löschen', 'Den Klassenbucheintrag endgültig löschen?')) return false;

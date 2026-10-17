@@ -225,7 +225,7 @@ export const suchfeld = ({ platzhalter = 'Suchen', wert = '', attr = 'data-suche
  * chips: [{ wert, text }] – zusätzliche entfernbare Chips vor der Eingabe (z. B. gewählte Lehrkräfte), Klick auf x → beiChipWeg(wert).
  */
 export const suchfeldMitFilter = ({ platzhalter = 'Suchen', wert = '', attr = 'data-suche', label = '', klasse = '', filter = [], chips = [], zusatz = '' } = {}) =>
-  `<div class="u-suchfilter ${filter.length > 1 ? 'mehrere' : ''} ${klasse}" data-suchfilter>${icon('suchen')}${chips.map(c =>
+  `<div class="u-suchfilter ${filter.length > 1 ? 'mehrere' : ''} ${klasse}" style="--sf-n:${filter.length}" data-suchfilter>${icon('suchen')}${chips.map(c =>
     `<span class="u-sf-chip">${e(c.text)}<button type="button" data-chip-weg="${e(c.wert)}" aria-label="Filter ${e(c.text)} entfernen"><i class="bi bi-x" aria-hidden="true"></i></button></span>`).join('')}<input type="search" ${attr} value="${e(wert)}" placeholder="${e(platzhalter)}" aria-label="${e(label || platzhalter)}" autocomplete="off">${filter.map(f => {
     const standard = String(f.standard ?? '');
     const w = String(f.wert ?? standard);
@@ -273,6 +273,22 @@ export function suchfeldMitFilterBinden(wurzel, { beiSuche, beiFilter, beiChipWe
     wert: name => feld.querySelector(`select[data-filter="${name}"]`)?.value ?? '',
     setzen: (name, w) => { const sel = feld.querySelector(`select[data-filter="${name}"]`); if (sel) { sel.value = w; markieren(sel); } },
   };
+}
+
+/** Zeitraum als zwei Datums-Pillen (data-von, data-bis) neben dem Suchfeld mit Filter. */
+export const zeitraumPillen = (von, bis) => ['Von', 'Bis'].map((t, i) =>
+  `<label class="nl-pille u-sf-datum"><span class="visually-hidden">${t}</span><input type="date" data-${t.toLowerCase()} value="${e(i ? bis : von)}" aria-label="${t}"></label>`).join('');
+
+/** Freitextsuche in einer gerenderten Liste: blendet Zeilen ohne Treffer aus (alle Wörter müssen vorkommen); Ergebnis: Anzahl sichtbarer Zeilen. */
+export function zeilenFiltern(zeilen, text) {
+  const woerter = String(text ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  let n = 0;
+  for (const z of zeilen) {
+    const t = (z.dataset.suchtext ?? z.textContent).toLowerCase();
+    z.hidden = woerter.length > 0 && !woerter.every(w => t.includes(w));
+    if (!z.hidden) n++;
+  }
+  return n;
 }
 
 /**

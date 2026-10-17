@@ -223,37 +223,85 @@ public class RaumaenderungenTests
             faelle.Add(new Fall("Doppelstunde: 1. Std. unverändert", t, e.Stunde, e.Unterricht.Id, a.K(e.KlassenIds[0]), a.L(e.LehrerIds[0]), new() { Gleich(a.R(alt)) }, a.R(alt), "regulaer"));
         }
 
+        // 15) Verlegung in eine andere Stunde mit anderem Raum (Zielstunde)
+        {
+            var e = a.Stunde(); var t = a.TagVon(e);
+            var alt = e.RaumIds[0];
+            var tp = Tagesplan.Berechnen(d, t);
+            var klasse = e.KlassenIds[0]; var lehrerId = e.LehrerIds[0];
+            var ziel = Enumerable.Range(1, 8).First(st => !a.Belegt.Contains((t, st)) && !tp.Stunde(st).Any(x => x.Findetstatt && (x.KlassenIds.Contains(klasse) || x.LehrerIds.Contains(lehrerId))));
+            a.Belegt.Add((t, ziel));
+            Vertretungen.Verlegen(d, e.Unterricht!.Id, e.Regel!.ZeilenIndex, t, e.Stunde, t, ziel);
+            var zv = d.Vertretungen.Single(x => x.Datum == t && x.Stunde == ziel && x.UnterrichtId == e.Unterricht.Id && !x.IstEntfall);
+            var neu = a.FreierRaum(Tagesplan.Berechnen(d, t), ziel, alt, zv.VertretungsraumId ?? -1)!.Id;
+            var bisher = zv.VertretungsraumId ?? zv.RaumId;
+            Raumvertretungen.Zuordnen(d, zv, neu, false, RaumKollisionsLoesung.OhneKollision);
+            faelle.Add(new Fall("Verlegung mit anderem Raum (Ziel)", t, ziel, e.Unterricht.Id, a.K(klasse), a.L(lehrerId), new() { Neu(a.R(neu), a.R(bisher)) }, a.R(neu)));
+        }
+        // 16) Raumänderung aus UntPlanWeb (Lehrkraft meldet sie, noch nicht übernommen) – Stunde hier nur auswählen
+        var web = a.Stunde((x, tp) => tp.Datum > Montag.AddDays(2));   // nicht rückwirkend (Testuhr: Mi 10 Uhr)
+        var webTag = a.TagVon(web);
+        var webAlt = a.R(web.RaumIds[0]);
+        var webNeu = a.R(a.FreierRaum(Tagesplan.Berechnen(d, webTag), web.Stunde)!.Id);
+        var webFall = new Fall("Raumänderung aus UntPlanWeb", webTag, web.Stunde, web.Unterricht!.Id, a.K(web.KlassenIds[0]), a.L(web.LehrerIds[0]), new() { Neu(webNeu, webAlt) }, webNeu);
+
         var p = new PortalEinstellungen { Adresse = s.Adresse.ToString(), SchulId = Testserver.SchulId, ApiSchluessel = Testserver.ApiSchluessel };
         var paket = UntPlanWebExport.PaketErstellen(d, Montag, new WebExportOptionen { TageVoraus = 7 });
         Assert.True((await UntPlanWebExport.HochladenAsync(p, paket with { Revision = 1 })).Ok);
         var c = await s.AlsAsync("admin");
-
         var fehler = new List<string>();
-        foreach (var f in faelle)
+        await Pruefen("vollständiger Export", faelle);
+
+        // Raumänderung in UntPlanWeb melden: vorgemerkt (Raumplan des neuen Raums: noch nicht) …
+        var lc = await s.AlsAsync(webFall.Lehrer.ToLowerInvariant(), "lehrer", webFall.Lehrer);
+        await Testserver.JsonAsync(await lc.PostAsJsonAsync("/api/app/meldungen/raumaenderung",
+            new { datum = webTag.ToString("yyyy-MM-dd"), stundeVon = web.Stunde, stundeBis = web.Stunde, unterricht = web.Unterricht.Id, raeume = new[] { webNeu } }));
+        await Pruefen("vorgemerkt", new() { webFall with { Status = "regulaer" } });   // wie eine Buchung: regulär, neuer Raum im Label
+        // … in UntPlan übernehmen und erneut exportieren
+        var liste = await UntPlanWebExport.RueckmeldungenAsync(p);
+        var zeilen = StundenplanAenderungen.Analysieren(d, liste, Montag, Montag.AddDays(14), false);
+        var (uebernommen, abgelehnt) = StundenplanAenderungen.Uebernehmen(d, zeilen, "lan");
+        Assert.Empty(abgelehnt);
+        await UntPlanWebExport.QuittierenAsync(p, uebernommen);
+        faelle.Add(webFall);
+        paket = UntPlanWebExport.PaketErstellen(d, Montag, new WebExportOptionen { TageVoraus = 7 });
+        Assert.True((await UntPlanWebExport.HochladenAsync(p, paket with { Revision = 2 })).Ok);
+        await Pruefen("nach Übernahme", faelle);
+
+        // nur Vertretungen übertragen (Stunden nur mit Änderungen, über den Stundenplan gelegt)
+        paket = UntPlanWebExport.PaketErstellen(d, Montag, new WebExportOptionen { TageVoraus = 7, Teile = new() { WebTeile.Vertretungen } });
+        Assert.True((await UntPlanWebExport.HochladenAsync(p, paket with { Revision = 3 })).Ok);
+        await Pruefen("nur Vertretungen", faelle);
+        Assert.True(fehler.Count == 0, string.Join("\n", fehler));
+
+        async Task Pruefen(string phase, List<Fall> liste)
         {
-            var iso = f.Tag.ToString("yyyy-MM-dd");
-            var vz = paket.Vertretungen.Where(v => v.Datum == iso && v.Stunde == f.Stunde && v.Klassen.Contains(f.Klasse)).ToList();
-            _aus.WriteLine($"== {f.Name} ({iso} {f.Stunde}. Std., U{f.Unterricht}, {f.Klasse}/{f.Lehrer}) Export: " +
-                string.Join(" | ", vz.Select(v => $"{v.Art} {v.Lehrer}->{v.Vertreter} Raum '{v.Raum}' -> '{v.NeuerRaum}'")) + " Stunde: " +
-                string.Join(" | ", paket.Tage.Single(x => x.Datum == iso).Stunden.Where(x => x.Stunde == f.Stunde && x.Unterricht == f.Unterricht).Select(x => $"{x.Status} [{string.Join(",", x.Raeume)}]")));
-            var plaene = new List<(string, string)> { ("klasse", f.Klasse), ("lehrer", f.Lehrer) };
-            if (f.Raumplan != null) plaene.Add(("raum", f.Raumplan));
-            foreach (var (typ, el) in plaene)
+            _aus.WriteLine($"######## {phase}");
+            foreach (var f in liste)
             {
-                var plan = await Testserver.HolenAsync(c, $"/api/app/plan?typ={typ}&element={Uri.EscapeDataString(el)}&datum={iso}");
-                var karten = plan["karten"]!.AsArray().Select(k => k!).Where(k => k["datum"]!.GetValue<string>() == iso && k["von"]!.GetValue<int>() <= f.Stunde
-                    && k["bis"]!.GetValue<int>() >= f.Stunde && k["unterricht"]?.GetValue<int>() == f.Unterricht).ToList();
-                // Kopplung: im Klassenplan je Gruppe eine Karte – die der betroffenen Lehrkraft
-                if (karten.Count > 1)
-                    karten = karten.Where(k => k["lehrer"]!.AsArray().Any(w => w!["k"]!.GetValue<string>() == f.Lehrer || w["alt"]?.GetValue<string>() == f.Lehrer)).ToList();
-                var ist = string.Join("; ", karten.Select(k => k["status"]!.GetValue<string>() + " " + string.Join(",", k["raeume"]!.AsArray().Select(w => Text(w!)))));
-                var soll = f.Status + " " + string.Join(",", f.Erwartet.Select(w => w.Plus ? "+" + w.K : w.Alt is null ? w.K : $"{w.Alt}→{(w.K.Length == 0 ? "∅" : w.K)}"));
-                var ok = karten.Count == 1 && ist == soll;
-                _aus.WriteLine($"   {(ok ? "ok " : "FEHLER")} {typ} {el}: {ist}   (soll {soll})");
-                if (!ok) fehler.Add($"{f.Name} – {typ} {el}: ist „{ist}“, soll „{soll}“");
+                var iso = f.Tag.ToString("yyyy-MM-dd");
+                var vz = paket.Vertretungen.Where(v => v.Datum == iso && v.Stunde == f.Stunde && v.Klassen.Contains(f.Klasse)).ToList();
+                _aus.WriteLine($"== {f.Name} ({iso} {f.Stunde}. Std., U{f.Unterricht}, {f.Klasse}/{f.Lehrer}) Export: " +
+                    string.Join(" | ", vz.Select(v => $"{v.Art} {v.Lehrer}->{v.Vertreter} Raum '{v.Raum}' -> '{v.NeuerRaum}'")) + " Stunde: " +
+                    string.Join(" | ", paket.Tage.Single(x => x.Datum == iso).Stunden.Where(x => x.Stunde == f.Stunde && x.Unterricht == f.Unterricht).Select(x => $"{x.Status} [{string.Join(",", x.Raeume)}]")));
+                var plaene = new List<(string, string)> { ("klasse", f.Klasse), ("lehrer", f.Lehrer) };
+                if (f.Raumplan != null) plaene.Add(("raum", f.Raumplan));
+                foreach (var (typ, el) in plaene)
+                {
+                    var plan = await Testserver.HolenAsync(c, $"/api/app/plan?typ={typ}&element={Uri.EscapeDataString(el)}&datum={iso}");
+                    var karten = plan["karten"]!.AsArray().Select(k => k!).Where(k => k["datum"]!.GetValue<string>() == iso && k["von"]!.GetValue<int>() <= f.Stunde
+                        && k["bis"]!.GetValue<int>() >= f.Stunde && k["unterricht"]?.GetValue<int>() == f.Unterricht).ToList();
+                    // Kopplung: im Klassenplan je Gruppe eine Karte – die der betroffenen Lehrkraft
+                    if (karten.Count > 1)
+                        karten = karten.Where(k => k["lehrer"]!.AsArray().Any(w => w!["k"]!.GetValue<string>() == f.Lehrer || w["alt"]?.GetValue<string>() == f.Lehrer)).ToList();
+                    var ist = string.Join("; ", karten.Select(k => k["status"]!.GetValue<string>() + " " + string.Join(",", k["raeume"]!.AsArray().Select(w => Text(w!)))));
+                    var soll = f.Status + " " + string.Join(",", f.Erwartet.Select(w => w.Plus ? "+" + w.K : w.Alt is null ? w.K : $"{w.Alt}→{(w.K.Length == 0 ? "∅" : w.K)}"));
+                    var ok = karten.Count == 1 && ist == soll;
+                    _aus.WriteLine($"   {(ok ? "ok " : "FEHLER")} {typ} {el}: {ist}   (soll {soll})");
+                    if (!ok) fehler.Add($"[{phase}] {f.Name} – {typ} {el}: ist „{ist}“, soll „{soll}“");
+                }
             }
         }
-        Assert.True(fehler.Count == 0, string.Join("\n", fehler));
     }
 
     /// <summary>Raumwert wie dargestellt: „R1“, „+R2“ (hinzugefügt), „R1→R2“ (grünes Label mit Hover), „R1→∅“ (durchgestrichen im Label).</summary>

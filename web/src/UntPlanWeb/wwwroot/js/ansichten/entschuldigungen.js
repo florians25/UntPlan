@@ -3,7 +3,7 @@
 // und Text; der Text ist für andere Lehrkräfte derselben Abwesenheit sichtbar. Ein einmal gesetzter Status ist gesperrt (der Dialog zeigt
 // dann den Text der Klassenleitung bzw. der Lehrkraft). Dazu die Seitenleiste „Fehlzeiten“ einer Abwesenheit und der Entschuldigungsdialog
 // der Klassenleitung (Abwesenheiten) – beide auch für andere Seiten exportiert.
-import { e, holen, senden, toast, leer, heuteIso, plusTage, infoHinweis } from '../ui.js';
+import { e, holen, senden, toast, leer, heuteIso, plusTage, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden, zeilenFiltern } from '../ui.js';
 import { kbDialog } from '../kbdialog.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
@@ -142,10 +142,12 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, s
   seite.innerHTML = `
     ${d.darf ? '' : `<p class="nl-hinweis"><i class="bi bi-lock"></i>${liste.length ? 'Sie sehen die Fehlstunden Ihres Unterrichts. Entschuldigen ist für Ihr Konto nicht freigegeben bzw. die Fachlehrer-Entschuldigungen sind nicht eingeschaltet.' : 'Die Fachlehrer-Entschuldigungen sind nicht eingeschaltet bzw. für Ihr Konto nicht freigegeben.'}</p>`}
     <div class="nl-leiste abw-leiste">
-      ${pille('Klasse', `<select data-klasse><option value="">Klasse</option>${d.klassen.map(k => `<option value="${e(k)}" ${k === klasse ? 'selected' : ''}>${e(k)}</option>`).join('')}</select>`, klasse)}
+      ${suchfeldMitFilter({ platzhalter: 'Schüler*in oder Fach suchen', label: 'Fehlstunden durchsuchen', filter: [
+        { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: d.klassen.map(k => [k, k]) },
+        { name: 'status', label: 'Status', alle: 'Jeder Status', wert: status, optionen: [['offen', 'offen'], ['entschuldigt', 'entschuldigt'], ['unentschuldigt', 'nicht entschuldigt']] },
+      ] })}
       ${pille('Von', `<input type="date" data-von value="${von}">`, false)}
       ${pille('Bis', `<input type="date" data-bis value="${bis}">`, false)}
-      ${pille('Status', `<select data-status><option value="">Status</option>${['offen', 'entschuldigt', 'unentschuldigt'].map(x => `<option value="${x}" ${x === status ? 'selected' : ''}>${x === 'unentschuldigt' ? 'nicht entschuldigt' : x}</option>`).join('')}</select>`, status)}
       <label class="nl-pille ${nurOffen ? 'aktiv' : ''}"><input type="checkbox" class="me-2" data-offen ${nurOffen ? 'checked' : ''}>Nur offene Fehlstunden</label>
       ${infoHinweis('Hier stehen die Fehlstunden aus <b>Ihrem Unterricht</b>. Sie können einzelne Stunden – auch mehrere auf einmal über die Auswahlkreise – entschuldigen. Ein einmal gesetzter Status kann nur noch von der Klassenleitung geändert werden. Ihr Text ist für die anderen Lehrkräfte derselben Abwesenheit sichtbar.')}
     </div>
@@ -161,7 +163,12 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, s
       ${waehlbar ? '<div class="nl-fuss"><span class="nl-unter me-2">Ausgewählte Fehlstunden:</span><button type="button" class="nl-knopf gruen" data-entschuldigen>Entschuldigen</button></div>' : ''}`
       : `<div class="p-3">${leer('Keine Fehlstunden in Ihrem Unterricht im Zeitraum.', 'person-check')}</div>`}</div>`;
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-  seite.querySelectorAll('.nl-pille select, .nl-pille input[type=date]').forEach(x => x.onchange = () => kontext.navigieren(ziel(f('von') || von, f('bis') || bis, f('klasse'), f('status'))));
+  const sf = suchfeldMitFilterBinden(seite, {
+    beiSuche: t => zeilenFiltern(seite.querySelectorAll('.nl-tabelle tbody tr'), t),
+    beiFilter: () => filterNeu(),
+  });
+  const filterNeu = () => kontext.navigieren(ziel(f('von') || von, f('bis') || bis, sf.wert('klasse'), sf.wert('status')));
+  seite.querySelectorAll('.nl-pille input[type=date]').forEach(x => x.onchange = filterNeu);
   seite.querySelector('[data-offen]').onchange = ev => kontext.navigieren(ziel(von, bis, klasse, status, ev.target.checked));
   seite.querySelector('[data-alle]')?.addEventListener('change', ev => seite.querySelectorAll('[data-i]').forEach(c => { c.checked = ev.target.checked; }));
   const neu = () => kontext.navigieren(location.hash);

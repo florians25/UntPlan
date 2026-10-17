@@ -126,8 +126,11 @@
 .u-sf-leiste > .u-sf-rechts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-left: auto; }
 .u-sf-rechts .au { display: inline-block; width: auto; min-width: 0; }
 .u-sf-rechts > .u-feld { margin: 0; }
+/* per Suche ausgeblendete Zeilen bleiben auch in Karten-Tabellen verborgen */
+.u-inhalt :is(tr, li, .card, article)[hidden] { display: none !important; }
+.u-sf-leiste > .nl-pille.u-sf-datum { flex: none; }
 .u-sf-zeit { color: #57626b; font-weight: 500; font-size: .9rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.u-suchfilter { position: relative; display: flex; align-items: center; gap: 8px; flex: 1 1 360px; max-width: 640px; min-width: 0; min-height: 42px; padding: 4px 6px 4px 14px;
+.u-suchfilter { position: relative; display: flex; align-items: center; gap: 8px; flex: 1 1 calc(260px + var(--sf-n, 1) * 130px); max-width: calc(520px + var(--sf-n, 1) * 130px); min-width: 0; min-height: 42px; padding: 4px 6px 4px 14px;
   background: #f2f4f6; border: 1px solid transparent; border-radius: 21px; color: #24323d; cursor: text; transition: background-color .12s, border-color .12s, box-shadow .12s; }
 .u-suchfilter:hover { background: #eceff2; }
 .u-inhalt .u-suchfilter { background: #e8ebee; }
@@ -151,7 +154,7 @@
 .u-sf-chip button:focus-visible, .u-sf-weg:focus-visible { outline: 2px solid rgba(255, 255, 255, .8); outline-offset: -2px; }
 .u-sf-weg[hidden] { display: none; }
 /* Dropdown im Feld: schlicht mit Pfeil; gewählt (≠ Standard) als dunkler Chip mit x */
-.u-sf-filter { display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; max-width: 46%; height: 32px; border-radius: 999px; transition: background-color .12s; }
+.u-sf-filter { display: inline-flex; align-items: center; flex: none; min-width: 0; max-width: 220px; height: 32px; border-radius: 999px; transition: background-color .12s; }
 .u-sf-filter > .au { display: inline-block; width: auto; min-width: 0; max-width: 100%; }
 .u-sf-filter .au-knopf { min-height: 0; height: 32px; padding: 0 8px 0 10px; gap: 6px; border: 0; border-radius: 999px; background: transparent; box-shadow: none !important;
   font-size: .9rem; font-weight: 500; color: #24323d; }
@@ -169,6 +172,7 @@
 .u-suchfilter > .os-vorschlaege { top: calc(100% + 6px); }
 @media (max-width: 767.98px) {
   .u-sf-leiste { gap: 10px; }
+  :is(.u-sf-leiste, .nl-leiste, .u-filter) > .u-suchfilter { flex: 1 1 100%; max-width: none; }
   .u-sf-leiste > .u-suchfilter { flex: 1 1 100%; max-width: none; }
   .u-sf-leiste > .u-sf-rechts { margin-left: 0; flex-wrap: nowrap; }
   .u-sf-leiste > .u-sf-rechts.os-zeit { width: 100%; justify-content: space-between; }
@@ -177,10 +181,9 @@
   /* mehrere Dropdowns: Eingabe in der ersten Zeile, Dropdowns darunter im selben Feld */
   .u-suchfilter.mehrere { flex-wrap: wrap; row-gap: 2px; border-radius: 18px; padding-top: 4px; padding-bottom: 4px; }
   .u-suchfilter.mehrere > input { flex-basis: calc(100% - 64px); }
-  .u-suchfilter.mehrere > .u-trenn:first-of-type { display: none; }
-  .u-suchfilter.mehrere > .u-trenn:first-of-type + .u-sf-filter { margin-left: 18px; }
-  .u-suchfilter.mehrere > .u-sf-filter { max-width: calc(50% - 24px); }
-  .u-suchfilter:not(.mehrere) > .u-sf-filter { max-width: 48%; }
+  .u-suchfilter.mehrere > .u-trenn { display: none; }
+  .u-suchfilter.mehrere > .u-sf-filter { flex: 0 1 auto; max-width: calc(50% - 6px); }
+  .u-suchfilter:not(.mehrere) > .u-sf-filter { flex: 0 1 auto; max-width: 48%; }
   .u-sf-filter .au-knopf { font-size: .85rem; padding: 0 6px 0 8px; }
 }
 
