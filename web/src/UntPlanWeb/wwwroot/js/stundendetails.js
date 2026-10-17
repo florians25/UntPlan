@@ -1112,7 +1112,7 @@ export function karteDialog(karte, kontext = {}) {
         <label>Schüler*in</label><div class="ab-wert">${e(namen.length > 3 ? `${namen.slice(0, 3).join(', ')} und ${namen.length - 3} weitere` : namen.join(', '))}</div>
         <label for="ab-vd">Von</label><div class="ab-zeile"><input type="date" id="ab-vd" data-ab-vd value="${vorgabe.vonDatum}" ${verwalten ? '' : 'disabled'}><input type="time" step="60" data-ab-vz value="${e(vorgabe.vonZeit)}" aria-label="Von Uhrzeit"></div>
         <label for="ab-bd">Bis</label><div class="ab-zeile"><input type="date" id="ab-bd" data-ab-bd value="${vorgabe.bisDatum}" ${verwalten ? '' : 'disabled'}><input type="time" step="60" data-ab-bz value="${e(vorgabe.bisZeit)}" aria-label="Bis Uhrzeit"></div>
-        <span></span><label class="ab-ganz"><input type="checkbox" class="form-check-input" data-ab-ganz ${ganzVorgabe ? 'checked' : ''}> Ganztägig <span class="ab-hinweis">alle Unterrichtsstunden ${verwalten ? 'der gewählten Tage' : 'des Tages'}</span></label>
+        <span></span><label class="ab-ganz"><input type="checkbox" data-ab-ganz ${ganzVorgabe ? 'checked' : ''}> Ganztägig <span class="ab-hinweis">alle Unterrichtsstunden ${verwalten ? 'der gewählten Tage' : 'des Tages'}</span></label>
         <span></span><div class="ab-schnell">
           <button type="button" class="ad-pille klein" data-ab-schnell="stunde" title="${e(start)} – ${e(ende)}">ganze Stunde</button>
           ${laeuft ? '<button type="button" class="ad-pille klein" data-ab-schnell="spaet" title="abwesend von Stundenbeginn bis jetzt">verspätet bis jetzt</button><button type="button" class="ad-pille klein" data-ab-schnell="frueh" title="abwesend ab jetzt bis Stundenende">ab jetzt gegangen</button>' : ''}

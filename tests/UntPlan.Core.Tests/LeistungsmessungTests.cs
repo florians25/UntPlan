@@ -20,10 +20,16 @@ public class LeistungsmessungTests
     private long Messen(string name, Action a, int wiederholungen = 1)
     {
         a(); // Aufwärmen (JIT)
-        var sw = Stopwatch.StartNew();
-        for (var i = 0; i < wiederholungen; i++) a();
-        sw.Stop();
-        var ms = sw.ElapsedMilliseconds / Math.Max(1, wiederholungen);
+        // Median mehrerer Läufe (unempfindlich gegen einzelne Ausreißer durch GC)
+        var zeiten = new List<double>();
+        for (var i = 0; i < Math.Max(1, wiederholungen); i++)
+        {
+            var sw = Stopwatch.StartNew();
+            a();
+            zeiten.Add(sw.Elapsed.TotalMilliseconds);
+        }
+        zeiten.Sort();
+        var ms = (long)Math.Round(zeiten[zeiten.Count / 2]);
         _aus.WriteLine($"{name,-55} {ms,6} ms");
         Messwerte.Add($"{name}\t{ms}");
         return ms;
@@ -57,13 +63,12 @@ public class LeistungsmessungTests
             ["Vertretungsplan"] = Messen("Vertretungsplan.Zeilen (Aushang des Tages)", () => Vertretungsplan.Zeilen(d, tag), 5),
             ["Klonen"] = Messen("Dokument.Klonen (Tageswechsel im Vertretungsfenster)", () => Dokument.Klonen(d), 3),
             ["Speichern"] = Messen("Datei speichern (JSON)", () => System.Text.Json.JsonSerializer.Serialize(d, Dokument.JsonOptionen), 3),
-            ["Export"] = Messen("Export-Paket (14 Tage)", () => UntPlanWebExport.PaketErstellen(d, tag, new WebExportOptionen { TageVoraus = 14, TageZurueck = 0 }), 1),
-            ["Abrechnung"] = Messen("Vertretungsabrechnung (Woche, alle Lehrkräfte)", () => Statistik.Abrechnung(d, tag, bis), 1),
+            ["Export"] = Messen("Export-Paket (14 Tage)", () => UntPlanWebExport.PaketErstellen(d, tag, new WebExportOptionen { TageVoraus = 14, TageZurueck = 0 }), 3),
+            ["Abrechnung"] = Messen("Vertretungsabrechnung (Woche, alle Lehrkräfte)", () => Statistik.Abrechnung(d, tag, bis), 3),
         };
         var json = UntPlanWebExport.Json(UntPlanWebExport.PaketErstellen(d, tag, new WebExportOptionen { TageVoraus = 14, TageZurueck = 0 }));
         _aus.WriteLine($"Paketgröße (14 Tage): {json.Length / 1024} KB, Vertretungen am Tag: {d.Vertretungen.Count(v => v.Datum == tag)}");
         Messwerte.Add($"Paketgröße KB\t{json.Length / 1024}");
-        try { File.WriteAllLines(Path.Combine(Path.GetTempPath(), "untplan_messung.txt"), Messwerte); } catch (IOException) { }
         // grobe Obergrenzen (Release und Debug, langsame CI-Rechner)
         Assert.True(gesamt["Tag neu berechnen"] < 5000, $"Tag neu berechnen: {gesamt["Tag neu berechnen"]} ms");
         Assert.True(gesamt["Tagesplan"] < 2000, $"Tagesplan: {gesamt["Tagesplan"]} ms");
