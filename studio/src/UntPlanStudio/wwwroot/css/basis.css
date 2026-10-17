@@ -131,5 +131,5 @@ svg.sym .f3 { fill: var(--sym-f3, #ffd0cc); }
 svg.sym .f.l, svg.sym .f2.l, svg.sym .f3.l { stroke: var(--sym-linie, #2b4f63); }
 html[data-modus="vertretung"] svg.sym { --sym-f: #d3ecdf; --sym-linie: #2d5a46; }
 /* in dunklen Leisten (Titelleiste, Fenstertitel): einfarbig weiß */
-.titelleiste svg.sym, .fenster-titel button svg.sym, .backstage nav svg.sym, .dialog .d-titel svg.sym { --sym-linie: currentColor; --sym-akzent: currentColor; --sym-f: transparent; --sym-f2: transparent; --sym-f3: transparent; }
-.titelleiste .logo svg.sym, .fenster-titel .symbol svg.sym { --sym-f: #e8f3f7; --sym-f2: #ffe2a8; --sym-linie: #fff; }
+html .titelleiste svg.sym, html .fenster-titel button svg.sym, html .backstage nav svg.sym, html .dialog .d-titel svg.sym { --sym-linie: currentColor; --sym-akzent: currentColor; --sym-f: transparent; --sym-f2: transparent; --sym-f3: transparent; }
+html .titelleiste .logo svg.sym, html .fenster-titel .symbol svg.sym { --sym-f: #e8f3f7; --sym-f2: #ffe2a8; --sym-linie: #fff; }

@@ -55,3 +55,4 @@
   padding: 2px 8px; border: 1px dashed var(--hover-rand); border-radius: 10px; background: #fff; font-size: 11.5px; cursor: grab; white-space: nowrap;
 }
 .nicht-verplant .nv b { color: var(--akzent); }
+.raster.zieht .r-block { pointer-events: none; opacity: .75; }

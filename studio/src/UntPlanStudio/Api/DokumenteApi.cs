@@ -172,11 +172,8 @@ public sealed class DokumenteApi : IStudioModul
                 Stundenplan = Option("stundenplan", true), Pausenaufsichten = Option("pausenaufsichten", true), Zeitwuensche = Option("zeitwuensche", true),
             };
             ImportBericht? bericht = null;
-            await a.AendernAsync(p.Benutzername(), "BAL-Import", AenderungsArt.Alles, s =>
-            {
-                bericht = BalImport.Importieren(s, text, o);
-                Dokument.Normalisieren(s);
-            });
+            // wie im Desktop: eine Rückgängig-Stufe „BAL-Import“
+            await a.AendernAsync(p.Benutzername(), "BAL-Import", AenderungsArt.Alles, s => bericht = BalImport.Importieren(s, text, o));
             return Ergebnis(bericht!);
         }).DisableAntiforgery();
 

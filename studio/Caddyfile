@@ -1,0 +1,11 @@
+{$STUDIO_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy untplanstudio:8080 {
+		# Server-Sent Events (Aktualisierungen zwischen Fenstern) sofort weitergeben
+		flush_interval -1
+	}
+	header Strict-Transport-Security "max-age=31536000"
+	request_body {
+		max_size 64MB
+	}
+}

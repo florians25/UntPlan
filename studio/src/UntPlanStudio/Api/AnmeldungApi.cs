@@ -60,6 +60,10 @@ public sealed class AnmeldungApi : IStudioModul
             return Results.Ok(new { ok = true });
         });
 
+        // Sitzung prüfen ohne 401 (Startseite): angemeldeter Benutzer oder null
+        r.Offen.MapGet("/sitzung", (ClaimsPrincipal p, Benutzerdienst benutzer) =>
+            new { benutzer = p.Identity?.IsAuthenticated == true && benutzer.Holen(p.Benutzername()) is { } b ? Info(b) : null });
+
         r.Api.MapGet("/ich", (ClaimsPrincipal p, Benutzerdienst benutzer) =>
             benutzer.Holen(p.Benutzername()) is { } b ? Results.Ok(Info(b)) : Results.Unauthorized());
 

@@ -1,0 +1,15 @@
+**/bin
+**/obj
+**/daten
+**/node_modules
+.git
+artifacts
+installer
+docs
+ios
+mobile
+web
+tests
+studio/tests
+src/UntPlan.App
+src/UntPlan.Portal

@@ -5,6 +5,16 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### UntPlan Studio (Beta, neu)
+- Experimentelle Browser-Version der Desktop-Anwendung als eigener Container unter eigener Domain: .up öffnen/speichern, BAL-Import, Menüband, Fenster-Arbeitsbereich, Dateneingabe aller Stammdaten, Unterricht, Stundenpläne mit Drag & Drop. Weitere Module folgen.
+
+### UntPlanWeb und Apps
+- Grüne Karten stehen bei parallelen Blöcken immer zuerst.
+- Eigene Abwesenheit im Plan als graue Fläche hinter den Stunden, über das Menü ausblendbar.
+- Weißer Kopf mit Suche auf den Klassenbuch-Seiten; keine Statistik-Box mehr bei „Meine Abwesenheiten“.
+
+## Vorherige Version
+
 ### Desktop
 - Veranstaltungen mit allen Lehrkräften oder Klassen: kompakte Darstellung („Alle Lehrkräfte“, „Alle Klassen“, „außer …“) in Vertretungsliste, Aushang, Plänen und Export; Sammelzeilen, kleineres Export-Paket.
 - Schnell alle Lehrkräfte, Klassen oder Räume (auch nach Abteilung, Jahrgang, Fachgruppe) in eine Veranstaltung übernehmen; „Alle/Keine/Umkehren“ in Mehrfachauswahl-Listen.
@@ -24,23 +34,4 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Neues App-Symbol, Mitteilungsmodul nach Vorlage, Kopplungen nebeneinander bzw. Zählerkarte bei wenig Platz.
 - Labels nur für geänderte Elemente, Raumänderungen mit Raum-Label, Dunkelmodus-Farben angepasst.
 - Sprechtag-Ankündigung, Fehlzeiten-Summen mit Kind-Auswahl.
-
-## Vorherige Version
-
-### Desktop
-- Weißer Streifen über der Titelleiste und Hochrutschen beim Maximieren behoben (auch bei unterschiedlicher Monitorskalierung).
-- Gelöschte Klausuren verschwinden im Dialog „Klausuren“ sofort.
-- In UntPlanWeb stornierte Buchungen werden beim Abgleich im Desktop gelöscht; Löschmeldungen für Prüfungen werden sicherer verarbeitet.
-
-### UntPlanWeb
-- Modul Fachlehrer-Entschuldigungen: Fachlehrkräfte entschuldigen Fehlstunden im eigenen Unterricht, die Klassenleitung entschuldigt ganze Abwesenheiten oder nimmt zurück.
-- Prüfungen lassen sich überall löschen; nach der Übernahme geht eine Löschmeldung an den Desktop.
-- Einheitliche Dialoge im Klassenbuch.
-- Eigener Kalender für alle Datumsfelder (Woche, Zeitraum, Datum mit Uhrzeit), Ferien und Feiertage sichtbar.
-- Neue Anmeldeseite, bessere Darstellung auf kleineren Notebook-Bildschirmen.
-- Stundenkarten: Online-Stunden mit Symbol statt Raum, Zusatzstunden mit Badge, Verlegungspfeile, Aufsichten mit Label hinter dem Ort, neuer Schalter „Findet online statt“.
-
-### Apps (iOS und Web-App)
-- Klassenleitungen erfassen Entschuldigungen direkt in der App, auch per Wischgeste.
-- Ferien im Start-Widget, Einzelstunden über das Titelmenü der Stundendetails, Info-Symbol nach Vorlage, Online-Symbol, Verlegungspfeile, Badge für Zusatzstunden.
 
