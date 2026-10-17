@@ -8,6 +8,9 @@ import start from './start.js';
 import stammdaten from './stammdaten.js';
 import unterricht from './unterricht.js';
 import stundenplan from './stundenplan.js';
+import optimierung from './optimierung.js';
+import planung from './planung.js';
+import zeitwuensche from './zeitwuensche.js';
 // ── ERWEITERUNGSSTELLE: weitere Module hier importieren (je Modul eine Zeile, alphabetisch), z. B.
 // import abrechnung from './abrechnung.js';
 // import druck from './druck.js';
@@ -20,5 +23,8 @@ export const module = [
   stammdaten,
   unterricht,
   stundenplan,
+  optimierung,
+  planung,
+  zeitwuensche,
   // ── ERWEITERUNGSSTELLE: und hier anfügen
 ];

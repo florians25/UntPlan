@@ -8,7 +8,7 @@ using UntPlanStudio.Grundlagen;
 namespace UntPlanStudio.Api;
 
 /// <summary>Eine Kopplungszeile einer verplanten Stunde im Stundenplan-Raster.</summary>
-public sealed record PlanEintrag(int U, int Zeile, string Fach, string Lehrer, string Klassen, string Raum, bool Fix, bool Gekoppelt, string? Farbe, string? Schrift, string Text);
+public sealed record PlanEintrag(int U, int Zeile, string Fach, string Lehrer, string Klassen, string Raum, bool Fix, bool Gekoppelt, string? Farbe, string? Schrift, string Text, string? Woche = null);
 public sealed record PlanZelle(int Tag, int Stunde, List<PlanEintrag> Eintraege);
 public sealed record Stundenbewegung(int Unterricht, int Tag, int Stunde, int ZielTag, int ZielStunde, bool Tauschen = true);
 public sealed record Stundenposition(int Unterricht, int Tag, int Stunde, bool Fixieren = false);
@@ -37,6 +37,15 @@ public sealed class StundenplanApi : IStudioModul
         return l.Count > 0 ? l : alle;
     }
 
+    /// <summary>Wochenkennung eines Unterrichts (A-/B-Woche bzw. Wochen der Unterrichtsgruppe), null = jede Woche.</summary>
+    public static string? Woche(Schuldatei d, Unterricht u)
+    {
+        if (u.Periodizitaet == Periodizitaet.AWoche) return "A";
+        if (u.Periodizitaet == Periodizitaet.BWoche) return "B";
+        if (u.UGruppeId is int g && d.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug && !string.IsNullOrWhiteSpace(ug.Wochen)) return ug.Wochen.Trim().ToUpperInvariant();
+        return null;
+    }
+
     public static List<PlanZelle> Zellen(Dokument doc, ElementTyp typ, int id)
     {
         var ix = doc.Index;
@@ -52,7 +61,7 @@ public sealed class StundenplanApi : IStudioModul
                 var raum = p.RaumFuerZeile(i);
                 zelle.Eintraege.Add(new PlanEintrag(u.Id, i, ix.KFach(z.FachId), ix.KLehrer(z.LehrerId), ix.KKlassen(z.KlassenIds),
                     raum is int r ? ix.KRaum(r) : "", p.Fixiert || u.Fix, u.Zeilen.Count > 1,
-                    StammdatenApi.Farbe(fach?.Hintergrund ?? 0), StammdatenApi.Farbe(fach?.Vordergrund ?? 0), u.Text));
+                    StammdatenApi.Farbe(fach?.Hintergrund ?? 0), StammdatenApi.Farbe(fach?.Vordergrund ?? 0), u.Text, Woche(doc.Daten, u)));
             }
         }
         return zellen.Values.OrderBy(z => z.Tag).ThenBy(z => z.Stunde).ToList();

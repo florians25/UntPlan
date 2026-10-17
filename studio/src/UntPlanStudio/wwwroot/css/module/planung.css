@@ -1,0 +1,54 @@
+/* Modul Planung: Raum zuordnen / löschen, Tauschvorschläge, Rückfragen; gemeinsame Tabellen (.pl-tabelle) der Planungsmodule. */
+
+.pl-leise { color: var(--text-leise); font-size: 11.5px; margin: 6px 0 0; }
+.pl-markiert { color: var(--akzent); font-weight: var(--mittel); }
+.pl-frage pre, pre.pl-frage { white-space: pre-wrap; font: inherit; margin: 0 0 8px; max-height: 50vh; overflow: auto; }
+.pl-option { display: block; padding: 2px 0; }
+
+.pl-tabelle { border-collapse: collapse; width: 100%; font-size: 12.5px; background: #fff; }
+.pl-tabelle th {
+  position: sticky; top: 0; z-index: 1; background: var(--kopf); text-align: left; font-weight: var(--mittel); padding: 4px 6px;
+  border-bottom: 1px solid var(--rand); white-space: nowrap; color: #3c4450;
+}
+.pl-tabelle td { padding: 3px 6px; border-bottom: 1px solid var(--rand-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+.pl-tabelle tbody tr { cursor: default; }
+.pl-tabelle tbody tr:hover { background: var(--hover); }
+.pl-tabelle tbody tr.gewaehlt, .pl-tabelle tbody tr.gewaehlt:hover { background: var(--auswahl); }
+.pl-tabelle td.z { text-align: right; font-variant-numeric: tabular-nums; }
+.pl-tabelle td.m { text-align: center; color: #3b6ea8; }
+.pl-tabelle td.m.ok { color: var(--ok); }
+.pl-tabelle td.rot { color: var(--gefahr); }
+.pl-tabelle td.gruen { color: var(--ok); }
+.pl-rollen { overflow: auto; border: 1px solid var(--rand); border-radius: var(--radius); min-height: 0; }
+
+/* Raum zuordnen */
+.pl-raum { display: flex; flex-direction: column; gap: 10px; height: min(600px, calc(100vh - 170px)); }
+.pl-kopf { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.pl-info { flex: 1 1 320px; min-height: 58px; padding: 6px 8px; border: 1px solid var(--rand); border-radius: var(--radius); background: #fff; font-size: 12.5px; line-height: 1.45; }
+.pl-umfang { border: 1px solid var(--rand); border-radius: var(--radius); padding: 4px 10px 6px; margin: 0; }
+.pl-umfang legend { font-size: 11.5px; color: var(--text-leise); padding: 0 4px; }
+.pl-umfang label { display: block; padding: 1px 0; white-space: nowrap; }
+.pl-filter { display: grid; gap: 2px; font-size: 12.5px; }
+.pl-filter .eingabe { margin-top: 4px; width: 200px; }
+.pl-mitte { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 5fr) auto minmax(360px, 7fr); gap: 8px; }
+.pl-links, .pl-rechts { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.pl-titel { font-size: 12px; color: #4b5563; margin-bottom: 4px; }
+.pl-links .pl-rollen, .pl-rechts .pl-rollen { flex: 1; }
+.pl-pfeile { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.pl-pfeile .knopf { width: 36px; height: 34px; padding: 0; font-size: 16px; }
+.pl-pfeile .knopf svg { width: 16px; height: 16px; }
+.pl-unr { background: #f0dec8; }
+.pl-raeume tr.wunsch td { background: #e2f6e2; }
+.pl-raeume tr.besetzt td { background: #ffeeee; }
+.pl-raeume tr.gesperrt td { background: #e8e8e8; color: #777; }
+.pl-raeume tr.gewaehlt td { background: var(--auswahl); }
+.pl-raeume:focus { outline: none; }
+
+/* Tauschvorschläge */
+.pl-tausch .pl-rollen { max-height: min(420px, 60vh); }
+
+@media (max-width: 760px) {
+  .pl-mitte { grid-template-columns: 1fr; grid-template-rows: minmax(90px, 1fr) auto minmax(160px, 2fr); }
+  .pl-pfeile { flex-direction: row; }
+  .pl-raum { height: calc(100vh - 150px); }
+}
