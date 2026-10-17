@@ -200,7 +200,7 @@ public static class KlassenbuchApi
     /// (<c>block</c>), Stunden des Blocks (<c>parts</c>, <c>own</c> = eigener Einzelstunden-Eintrag) und in der Einzelstunde der geerbte
     /// Blockeintrag (<c>inherited</c>, nur lesend).
     /// </summary>
-    internal static JsonObject Teilauswahl(JsonNode? roh, int? einzelstunde, bool kollegium)
+    public static JsonObject Teilauswahl(JsonNode? roh, int? einzelstunde, bool kollegium)
     {
         var block = roh?["block"] as JsonObject;
         var teile = new JsonArray((roh?["einzelstunden"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>()

@@ -590,14 +590,16 @@ export function karteDialog(karte, kontext = {}) {
   function binden() {
     const q = s => box.querySelector(s);
     const alle = (s, f) => box.querySelectorAll(s).forEach(f);
-    box.onclick = ev => { if (!ev.target.closest('.sd-raumchip')) box.querySelectorAll('.sd-raummenue').forEach(x => x.classList.add('d-none')); };
+    box.onclick = ev => {
+      if (!ev.target.closest('.sd-raumchip')) box.querySelectorAll('.sd-raummenue').forEach(x => x.classList.add('d-none'));
+      if (!ev.target.closest('.sd-blockwahl')) { box.querySelector('.sd-blockwahl-menue')?.classList.add('d-none'); box.querySelector('[data-blockwahl]')?.setAttribute('aria-expanded', 'false'); }
+    };
     // Ganzer Block / Einzelstunde
     const blockKnopf = q('[data-blockwahl]'), blockMenue = q('.sd-blockwahl-menue');
     if (blockKnopf) {
       const menue = auf => { blockMenue.classList.toggle('d-none', !auf); blockKnopf.setAttribute('aria-expanded', String(auf)); if (auf) blockMenue.querySelector('.an')?.focus(); };
       blockKnopf.onclick = ev => { ev.stopPropagation(); menue(blockMenue.classList.contains('d-none')); };
       blockMenue.onkeydown = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); menue(false); blockKnopf.focus(); } };
-      el.addEventListener('click', ev => { if (!ev.target.closest('.sd-blockwahl')) menue(false); }, { once: true });
       alle('[data-einzel]', b => b.onclick = async () => {
         const neu = Number(b.dataset.einzel) || null;
         menue(false);

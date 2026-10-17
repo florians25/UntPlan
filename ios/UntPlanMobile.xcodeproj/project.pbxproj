@@ -19,6 +19,7 @@
 		5A1F0C000000000000000028 /* HauptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000027 /* HauptView.swift */; };
 		5A1F0C00000000000000002A /* Komponenten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000029 /* Komponenten.swift */; };
 		5A1F0C00000000000000002C /* MitteilungenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000002B /* MitteilungenView.swift */; };
+		5A1F0C00000000000000006B /* MitteilungVerfassenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000006A /* MitteilungVerfassenView.swift */; };
 		5A1F0C00000000000000002E /* ProfilView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000002D /* ProfilView.swift */; };
 		5A1F0C000000000000000030 /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C00000000000000002F /* StartView.swift */; };
 		5A1F0C000000000000000032 /* StundenKarteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0C000000000000000031 /* StundenKarteView.swift */; };
@@ -58,6 +59,7 @@
 		5A1F0C000000000000000027 /* HauptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HauptView.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000029 /* Komponenten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Komponenten.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000002B /* MitteilungenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MitteilungenView.swift; sourceTree = "<group>"; };
+		5A1F0C00000000000000006A /* MitteilungVerfassenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MitteilungVerfassenView.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000002D /* ProfilView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilView.swift; sourceTree = "<group>"; };
 		5A1F0C00000000000000002F /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
 		5A1F0C000000000000000031 /* StundenKarteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StundenKarteView.swift; sourceTree = "<group>"; };
@@ -124,6 +126,7 @@
 				5A1F0C000000000000000027 /* HauptView.swift */,
 				5A1F0C000000000000000029 /* Komponenten.swift */,
 				5A1F0C00000000000000002B /* MitteilungenView.swift */,
+				5A1F0C00000000000000006A /* MitteilungVerfassenView.swift */,
 				5A1F0C000000000000000037 /* PlanAuswahlView.swift */,
 				5A1F0C00000000000000002D /* ProfilView.swift */,
 				5A1F0C00000000000000002F /* StartView.swift */,
@@ -259,6 +262,7 @@
 				5A1F0C000000000000000028 /* HauptView.swift in Sources */,
 				5A1F0C00000000000000002A /* Komponenten.swift in Sources */,
 				5A1F0C00000000000000002C /* MitteilungenView.swift in Sources */,
+				5A1F0C00000000000000006B /* MitteilungVerfassenView.swift in Sources */,
 				5A1F0C00000000000000002E /* ProfilView.swift in Sources */,
 				5A1F0C000000000000000030 /* StartView.swift in Sources */,
 				5A1F0C000000000000000032 /* StundenKarteView.swift in Sources */,

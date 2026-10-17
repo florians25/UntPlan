@@ -1542,31 +1542,52 @@ private struct WischZeile<Inhalt: View>: View {
             }
     }
 
+    /// Hinter der Zeile erscheint – wie bei den neueren, runden Pills der App – eine voll abgerundete Kapsel, die mit dem
+    /// Wischweg wächst (grün „Anwesend“ mit Haken bzw. rot „Abwesend“ mit Uhr; gesperrte Richtung grau). Ab der Schwelle
+    /// wird die Kapsel kräftiger und das Symbol größer.
     @ViewBuilder
     private var hintergrund: some View {
         if versatz > 0 {
-            HStack {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 24, weight: .regular))
-                    .scaleEffect(ueberSchwelle ? 1.15 : 1)
-                    .padding(.leading, 22)
+            HStack(spacing: 0) {
+                wischPill(symbol: "checkmark.circle", text: "Anwesend",
+                          farbe: rechtsMoeglich ? Farben.gruen : Farben.zahlPlakette, breite: versatz)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(rechtsMoeglich ? Farben.gruen : Farben.zahlPlakette)
         } else if versatz < 0 {
-            HStack {
+            HStack(spacing: 0) {
                 Spacer(minLength: 0)
-                Image(systemName: "clock")
-                    .font(.system(size: 24, weight: .regular))
-                    .scaleEffect(ueberSchwelle ? 1.15 : 1)
-                    .padding(.trailing, 22)
+                wischPill(symbol: "clock", text: "Abwesend",
+                          farbe: linksMoeglich ? Farben.entfallRand : Farben.zahlPlakette, breite: -versatz)
             }
-            .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(linksMoeglich ? Farben.entfallRand : Farben.zahlPlakette)
         }
+    }
+
+    /// Runde Kapsel im freigelegten Bereich (8 pt Abstand zu Rand und Zeile); Text erst, wenn genug Platz ist.
+    private func wischPill(symbol: String, text: String, farbe: Color, breite: CGFloat) -> some View {
+        let innen = max(breite - 12, 0)
+        return HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .regular))
+                .scaleEffect(ueberSchwelle ? 1.15 : 1)
+            if innen > 118 {
+                Text(text)
+                    .font(.system(size: 15, weight: .medium))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .transition(.opacity)
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(width: innen)
+        .frame(maxHeight: .infinity)
+        .background(farbe.opacity(ueberSchwelle ? 1 : 0.85), in: Capsule())
+        .clipShape(Capsule())
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .opacity(innen > 4 ? 1 : 0)
+        .accessibilityHidden(true)
     }
 
     private var geste: some Gesture {

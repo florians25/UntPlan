@@ -248,8 +248,9 @@ struct StundendetailInhalt: View {
         let stunden = daten.blockStunden
         return HStack(spacing: 10) {
             if stunden.count <= 3 {
-                Segmentschalter(auswahl: bereichBinding,
-                                [(0, "Ganzer Block")] + stunden.map { ($0.stunde, stundentitel($0, mitZeit: false) + ($0.eintrag ? " •" : "")) })
+                let eintraege: [(Int, String)] = [(0, "Ganzer Block")]
+                    + stunden.map { s -> (Int, String) in (s.stunde, stundentitel(s, mitZeit: false) + (s.eintrag ? " •" : "")) }
+                Segmentschalter(auswahl: bereichBinding, eintraege)
                     .accessibilityLabel("Einträge gelten für")
             } else {
                 Menu {

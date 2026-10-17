@@ -23,7 +23,7 @@ public static class MitteilungenApi
     private static JsonArray Texte(IEnumerable<string> werte) => new(werte.Select(w => (JsonNode)JsonValue.Create(w)!).ToArray());
 
     /// <summary>Initialen für den Avatar: „NEU“ → „N“, „Anna Abbott“ → „AA“, „ALE_bkgl“ → „A“.</summary>
-    internal static string Initialen(string name)
+    public static string Initialen(string name)
     {
         var teile = new string(name.Select(ch => char.IsLetter(ch) ? ch : ' ').ToArray()).Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (teile.Length == 0) return "?";
@@ -39,7 +39,7 @@ public static class MitteilungenApi
         }).ToArray());
 
     /// <summary>Mitteilung von UntPlanWeb in der Form der Oberfläche.</summary>
-    internal static JsonObject Eintrag(JsonObject m, string ordner)
+    public static JsonObject Eintrag(JsonObject m, string ordner)
     {
         var eingang = ordner == "posteingang";
         var entwurf = ordner == "entwuerfe";
@@ -122,7 +122,7 @@ public static class MitteilungenApi
     };
 
     /// <summary>Personen der Empfängerauswahl in der Form der Oberfläche (aus /mitteilungen/personen).</summary>
-    internal static JsonObject Personen(JsonObject antwort, string typ)
+    public static JsonObject Personen(JsonObject antwort, string typ)
     {
         var personen = new JsonArray((antwort["personen"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>().Select(p =>
         {

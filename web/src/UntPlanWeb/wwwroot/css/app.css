@@ -1598,6 +1598,19 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 /* „Lehrstoff eingeben“ / „Abwesenheiten kontrollieren“: schmaler, aber höher; „Abwesenheitskontrolle ab:“ direkt über dem Datum */
 .sd-fuss.sd-status .sd-orange { min-width: 0; height: 54px; min-height: 54px; padding: 0 22px; font-weight: 500; text-align: center; }
 .sd-fuss.sd-status .sd-kontrolle { gap: 0; padding-top: 0; line-height: 1.3; }
+/* Doppel-/Blockstunden: Auswahl „Ganzer Block“ / Einzelstunde (Pfeil-runter neben dem Schließen-Knopf) */
+.sd-blockwahl { position: relative; display: flex; }
+.sd-blockwahl-menue { position: absolute; top: calc(100% + 10px); right: -8px; z-index: 30; min-width: 250px; background: #fff; border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 5, 10, .18); padding: 6px 0; }
+.sd-kopf .sd-knoepfe .sd-blockwahl-menue button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 16px; font-size: .95rem; font-weight: 400; color: var(--u-titel); white-space: nowrap; }
+.sd-kopf .sd-knoepfe .sd-blockwahl-menue button:hover, .sd-kopf .sd-knoepfe .sd-blockwahl-menue button:focus-visible { background: #eef1f4; }
+.sd-blockwahl-menue button .bi { visibility: hidden; color: var(--u-akzent); font-size: 1rem; }
+.sd-blockwahl-menue button.an { font-weight: 500; }
+.sd-blockwahl-menue button.an .bi { visibility: visible; }
+.sd-blockwahl-punkt { display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%; background: var(--u-akzent); vertical-align: middle; }
+.sd-einzelpille { background: var(--u-akzent-hell); color: var(--u-akzent-dunkel); }
+.sd-ebene { color: #67747e; margin-top: 4px; }
+.sd-ebene-marke { display: inline-block; margin-right: 8px; padding: 0 8px; border-radius: 999px; background: #e9edf0; color: #4a5662; font-size: .75rem; font-weight: 500; line-height: 18px; vertical-align: 1px; }
+@media (max-width: 575.98px) { .sd-blockwahl-menue { min-width: 220px; } }
 
 .nl-hinweis { display: block; margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; background: #f1f5f8; color: #57626b; font-size: .85rem; line-height: 1.45; }
 .nl-hinweis .bi { color: #7b8892; margin-right: 6px; }

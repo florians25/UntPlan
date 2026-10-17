@@ -213,6 +213,7 @@ struct MitteilungVerfassenView: View {
                 if let bild, let daten = bild.jpegData(compressionQuality: 0.85) {
                     anhaenge.append(LokalerAnhang(name: Self.dateiname("Foto", "jpg"), typ: "image/jpeg", daten: daten))
                 }
+                kameraOffen = false
             }
             .ignoresSafeArea()
         }
@@ -503,7 +504,7 @@ struct EmpfaengerauswahlView: View {
                 .accessibilityLabel(auswahl.isEmpty ? "Fertig" : "Fertig, \(auswahl.count) ausgewählt")
             })
             filterleiste
-            liste(inhalt: sichtbar)
+            personenliste(inhalt: sichtbar)
         }
         .background(Farben.blatt.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -589,7 +590,7 @@ struct EmpfaengerauswahlView: View {
 
     // MARK: Liste
 
-    private func liste(inhalt: [Empfaenger]) -> some View {
+    private func personenliste(inhalt: [Empfaenger]) -> some View {
         List {
             if let fehler {
                 Fehlerhinweis(text: fehler)
@@ -841,10 +842,9 @@ private extension View {
 
 // MARK: - Kamera
 
-/// Foto mit der Kamera aufnehmen (UIImagePickerController); `fertig(nil)` bei Abbruch.
+/// Foto mit der Kamera aufnehmen (UIImagePickerController); `fertig(nil)` bei Abbruch (der Aufrufer schließt die Ansicht).
 struct KameraAufnahme: UIViewControllerRepresentable {
     let fertig: (UIImage?) -> Void
-    @Environment(\.dismiss) private var schliessen
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -866,12 +866,10 @@ struct KameraAufnahme: UIViewControllerRepresentable {
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             eltern.fertig(info[.originalImage] as? UIImage)
-            eltern.schliessen()
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             eltern.fertig(nil)
-            eltern.schliessen()
         }
     }
 }
