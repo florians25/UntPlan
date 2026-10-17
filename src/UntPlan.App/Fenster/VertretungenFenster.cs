@@ -455,6 +455,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     protected override void Aktualisieren(AenderungsArt art)
     {
         _plaene.Clear();
+        _kollisionen2.Clear();
         Neuaufbau();
     }
 
@@ -494,7 +495,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var bis = Bis;
         if (bis.DayNumber - von.DayNumber <= 31)
         {
-            var probe = Dokument.Klonen(D);
+            // Probeberechnung auf einer leichten Kopie (nur Vertretungen des Zeitraums und betroffene Veranstaltungen) statt der ganzen Datei
+            var probe = Dokument.VertretungsProbe(D, von, bis);
             Vertretungen.Aktualisieren(probe, von, bis);
             if (Signatur(probe, von, bis) != Signatur(D, von, bis))
                 Aendern($"Vertretungen {Format.Datum(von)}{(von == bis ? "" : " – " + Format.Datum(bis))} aktualisiert", AenderungsArt.Vertretung, d => Vertretungen.Aktualisieren(d, von, bis));
@@ -519,8 +521,30 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return tp;
     }
 
+    /// <summary>
+    /// Kollisionen je Zeile zwischengespeichert: Formatierung und Zeichnen fragen sie für jede sichtbare Zelle bei jedem Neuzeichnen ab
+    /// (bei großen Listen tausendfach je Bildlauf); verworfen bei jedem Neuaufbau bzw. jeder Änderung.
+    /// </summary>
+    private readonly Dictionary<Vertretung, (string? Text, bool Lehrer, bool Raum)> _kollisionen2 = new(ReferenceEqualityComparer.Instance);
+
+    private (string? Text, bool Lehrer, bool Raum) KollisionsInfo(Vertretung v)
+    {
+        if (_kollisionen2.TryGetValue(v, out var k)) return k;
+        var text = KollisionBerechnen(v);
+        var (l, r) = text is null ? (false, false) : KollisionsFelderBerechnen(v);
+        return _kollisionen2[v] = (text, l, r);
+    }
+
+    private string? Kollision(Vertretung v) => KollisionsInfo(v).Text;
+
+    private (bool Lehrer, bool Raum) KollisionsFelder(Vertretung v)
+    {
+        var k = KollisionsInfo(v);
+        return (k.Lehrer, k.Raum);
+    }
+
     /// <summary>Kollision: Vertreter ist zur Stunde anderweitig belegt bzw. abwesend, Raum doppelt belegt.</summary>
-    private string? Kollision(Vertretung v)
+    private string? KollisionBerechnen(Vertretung v)
     {
         if (v.Id == 0) return null;
         if (_gruppen.TryGetValue(v.Id, out var gruppe) && gruppe.Count > 1)
@@ -529,7 +553,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>Art der Kollision für die Hervorhebung: Lehrer (Vertreter-Feld) oder Raum.</summary>
-    private (bool Lehrer, bool Raum) KollisionsFelder(Vertretung v)
+    private (bool Lehrer, bool Raum) KollisionsFelderBerechnen(Vertretung v)
     {
         var liste = _gruppen.TryGetValue(v.Id, out var g) ? g : new List<Vertretung> { v };
         var lehrer = liste.Any(x => !x.IstEntfall && x.VertreterId is int l && x.Art != VertretungsArt.TrotzAbsenz && !x.Mitbetreuung && Vertretungen.LehrerBelegt(D, Plan(x.Datum), l, x.Stunde, x) != null);
@@ -599,6 +623,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         neuSortieren |= _sortierenAusstehend;
         _neuaufbauAusstehend = _sortierenAusstehend = false;
         var vorher = AuswahlSignatur();
+        _kollisionen2.Clear();
         _gruppen.Clear();
         _weg.Clear();
         var liste = Zeilenliste();

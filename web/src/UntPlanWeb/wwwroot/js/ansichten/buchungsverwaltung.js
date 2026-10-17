@@ -1,7 +1,7 @@
 // Buchen → Verwaltung (nur Administration): Ressourcenarten mit Symbol und Ressourcen (Name, Art, fest an einem Raum oder mobil mit Anzahl
 // und Standort; Beispiel-Ressourcen zum Start) sowie
 // Raum-Stammdaten für die Auswahlkriterien (Kapazität, Gebäude, Abteilung, Raumgruppe; Raumart und „buchbar“ kommen aus UntPlan).
-import { e, holen, senden, api, toast, dialog, bestaetigen, alarm } from '../ui.js';
+import { e, holen, senden, api, toast, dialog, bestaetigen, alarm, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { ressourcenSymbol } from './buchen.js';
 
 export async function zeigen(seite, kontext, bereich) {
@@ -33,10 +33,12 @@ async function ressourcen(seite, kontext) {
           <button class="nl-hinzu bu-klein" type="submit"><i class="bi bi-plus-lg"></i>Hinzufügen</button></form>
       </section>
       <section>
-        <div class="nl-leiste"><label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Suchen" aria-label="Ressourcen suchen"></label>
-          <button type="button" class="nl-hinzu ms-auto" data-neu><i class="bi bi-plus-lg"></i>Ressource hinzufügen</button></div>
+        <div class="u-sf-leiste">${suchfeldMitFilter({ platzhalter: 'Ressource, Raum oder Standort suchen', label: 'Ressourcen suchen', filter: [
+            { name: 'art', label: 'Art', alle: 'Alle Arten', wert: '', optionen: arten.map(a => [String(a.id), a.name]) },
+            { name: 'zuordnung', label: 'Zuordnung', alle: 'Mobil und fest', wert: '', optionen: [['mobil', 'Mobil'], ['fest', 'Fest in einem Raum']] }] })}
+          <div class="u-sf-rechts"><button type="button" class="nl-hinzu" data-neu><i class="bi bi-plus-lg"></i>Ressource hinzufügen</button></div></div>
         <div class="nl-tabelle bu-tabelle">${liste.length ? `<table><thead><tr><th>Ressource</th><th>Art</th><th>Zuordnung</th><th>Standort</th><th class="text-end">Anzahl</th><th>Status</th><th></th></tr></thead><tbody>
-          ${liste.map(r => `<tr data-name="${e(`${r.name} ${r.art} ${r.raum} ${r.standort}`.toLowerCase())}"><td><div class="bu-vw-name"><span class="bu-vw-symbol"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span><div><div class="nl-name">${e(r.name)}</div>${r.bemerkung ? `<div class="nl-unter">${e(r.bemerkung)}</div>` : ''}</div></div></td>
+          ${liste.map(r => `<tr data-name="${e(`${r.name} ${r.art} ${r.raum} ${r.standort}`.toLowerCase())}" data-art="${r.artId ?? ''}" data-zuordnung="${r.raum ? 'fest' : 'mobil'}"><td><div class="bu-vw-name"><span class="bu-vw-symbol"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span><div><div class="nl-name">${e(r.name)}</div>${r.bemerkung ? `<div class="nl-unter">${e(r.bemerkung)}</div>` : ''}</div></div></td>
             <td data-label="Art">${r.art ? `<span class="nl-tag">${e(r.art)}</span>` : ''}</td>
             <td data-label="Zuordnung">${r.raum ? `<span class="nl-chip grau"><i class="bi bi-door-closed"></i>fest in ${e(r.raum)}</span>` : '<span class="nl-chip lila"><i class="bi bi-arrows-move"></i>mobil</span>'}</td>
             <td data-label="Standort">${r.mobil && r.standort ? `<i class="bi bi-geo-alt text-body-secondary me-1"></i>${e(r.standort)}` : ''}</td>
@@ -109,10 +111,7 @@ async function ressourcen(seite, kontext) {
     if (!await bestaetigen('Ressource löschen', `„${r.name}“ löschen? Bestehende Buchungen behalten ihre Termine.`)) return;
     try { await api(`/api/app/buchen/ressourcen/${r.id}`, { methode: 'DELETE' }); neu(); } catch (err) { kontext.fehler(err); }
   });
-  seite.querySelector('[data-suche]').oninput = ev => {
-    const t = ev.target.value.trim().toLowerCase();
-    seite.querySelectorAll('tbody tr[data-name]').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); });
-  };
+  zeilenfilter(seite, ['art', 'zuordnung']);
 }
 
 async function raumdaten(seite, kontext) {
@@ -122,10 +121,12 @@ async function raumdaten(seite, kontext) {
   seite.innerHTML = `
     <p class="nl-hinweis"><i class="bi bi-info-circle"></i>Raumart, Kapazität und „buchbar“ kommen aus den Stammdaten von UntPlan. Hier ergänzen Sie Gebäude, Abteilung und Raumgruppe
       (und bei Bedarf eine abweichende Kapazität) für die Auswahlkriterien beim Buchen. Feste Ressourcen ordnen Sie unter <a href="#/buchen/verwaltung">Ressourcen verwalten</a> zu.</p>
-    <div class="nl-leiste"><label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Raum suchen" aria-label="Raum suchen"></label></div>
+    <div class="u-sf-leiste">${suchfeldMitFilter({ platzhalter: 'Raum suchen', label: 'Raum suchen', filter: [
+      ...(opt.gebaeude.length ? [{ name: 'gebaeude', label: 'Gebäude', alle: 'Alle Gebäude', wert: '', optionen: opt.gebaeude.map(x => [x, x]) }] : []),
+      { name: 'buchbar', label: 'Buchbar', alle: 'Alle Räume', wert: '', optionen: [['ja', 'Nur buchbare'], ['nein', 'Nicht buchbare']] }] })}</div>
     ${liste('bu-geb', opt.gebaeude)}${liste('bu-abt', opt.abteilungen)}${liste('bu-grp', opt.raumgruppen)}
     <div class="nl-tabelle bu-tabelle"><table class="bu-raumdaten"><thead><tr><th>Raum</th><th>Raumart</th><th>Buchbar</th><th>Kapazität</th><th>Gebäude</th><th>Abteilung</th><th>Raumgruppe</th><th>Feste Ressourcen</th></tr></thead><tbody>
-      ${opt.raeume.map(r => `<tr data-raum="${e(r.kurz)}" data-name="${e(`${r.kurz} ${r.name} ${r.raumart} ${r.gebaeude} ${r.abteilung} ${r.raumgruppe}`.toLowerCase())}">
+      ${opt.raeume.map(r => `<tr data-raum="${e(r.kurz)}" data-gebaeude="${e(r.gebaeude)}" data-buchbar="${r.buchbar ? 'ja' : 'nein'}" data-name="${e(`${r.kurz} ${r.name} ${r.raumart} ${r.gebaeude} ${r.abteilung} ${r.raumgruppe}`.toLowerCase())}">
         <td><div class="nl-name">${e(r.kurz)}</div><div class="nl-unter">${e(r.name !== r.kurz ? r.name : '')}</div></td>
         <td>${r.raumart ? `<span class="nl-tag">${e(r.raumart)}</span>` : ''}</td>
         <td>${r.buchbar ? '<span class="nl-chip gruen">ja</span>' : '<span class="nl-chip grau">nein</span>'}</td>
@@ -143,8 +144,17 @@ async function raumdaten(seite, kontext) {
       toast(`Raum ${tr.dataset.raum} gespeichert.`);
     } catch (err) { kontext.fehler(err); }
   }));
-  seite.querySelector('[data-suche]').oninput = ev => {
-    const t = ev.target.value.trim().toLowerCase();
-    seite.querySelectorAll('tbody tr[data-name]').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); });
-  };
+  zeilenfilter(seite, ['gebaeude', 'buchbar']);
+}
+
+/** Suchfeld mit Filter über einer Tabelle: Freitext (data-name) und Dropdowns (data-<filter> der Zeilen) blenden Zeilen aus. */
+function zeilenfilter(seite, namen) {
+  const wahl = { suche: '' };
+  const anwenden = () => seite.querySelectorAll('tbody tr[data-name]').forEach(tr => {
+    tr.hidden = (wahl.suche.length > 0 && !tr.dataset.name.includes(wahl.suche)) || namen.some(n => wahl[n] && tr.dataset[n] !== wahl[n]);
+  });
+  suchfeldMitFilterBinden(seite.querySelector('.u-sf-leiste'), {
+    beiSuche: t => { wahl.suche = t.toLowerCase(); anwenden(); },
+    beiFilter: (n, w) => { wahl[n] = w; anwenden(); },
+  });
 }

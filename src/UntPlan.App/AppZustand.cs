@@ -242,6 +242,11 @@ public sealed class Benutzereinstellungen
     public Dictionary<string, List<string>> VertretungsArtenAus { get; set; } = new();
     /// <summary>Vertretungsfenster: regulär stattfindenden Unterricht mit anzeigen (Art „Unterricht“).</summary>
     public bool VertretungenUnterrichtZeigen { get; set; }
+    /// <summary>
+    /// Vertretungsfenster: Entfälle und Freisetzungen, die eine Veranstaltung mit vielen Stunden auslöst (Lehrkräftekonferenz,
+    /// pädagogischer Tag), je Tag in einer Zeile zusammenfassen („Alle Klassen“, Stunde „1-6“) statt Hunderter Einzelzeilen.
+    /// </summary>
+    public bool VeranstaltungenZusammenfassen { get; set; } = true;
 
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 

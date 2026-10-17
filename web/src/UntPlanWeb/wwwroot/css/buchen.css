@@ -245,6 +245,8 @@ button.bu-zusammenfassung:hover { border-color: rgba(var(--u-akzent-rgb), .6); b
 .bu-raumsuche.u-suchfeld, .bu-res-suche.u-suchfeld { flex: 1 1 220px; max-width: 320px; }
 .bu-raumsuche.u-suchfilter { flex: 1 1 380px; max-width: 560px; }
 .bu-meine-suche.u-suchfilter { flex: 1 1 320px; max-width: 520px; }
+.bu-res-suche.u-suchfilter { flex: 1 1 320px; max-width: 480px; }
+.bu-ru-leiste.u-sf-leiste { margin-bottom: 12px; }
 .bu-filterleiste { margin-top: -4px; gap: 8px !important; }
 .bu-filterleiste .nl-pille { height: 36px; font-size: .875rem; padding: 0 12px; }
 .bu-filterleiste .nl-pille select { max-width: 230px; text-overflow: ellipsis; }
@@ -471,7 +473,7 @@ a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
   .bu-rl-kopf > :nth-child(3), .bu-rl-ort { display: none; }
 }
 @media (max-width: 767.98px) {
-  .bu-raumsuche.u-suchfeld, .bu-res-suche.u-suchfeld, .bu-raumsuche.u-suchfilter, .bu-meine-suche.u-suchfilter { max-width: none; flex: 1 1 100%; }
+  .bu-raumsuche.u-suchfeld, .bu-res-suche.u-suchfeld, .bu-raumsuche.u-suchfilter, .bu-meine-suche.u-suchfilter, .bu-res-suche.u-suchfilter { max-width: none; flex: 1 1 100%; }
   .bu-ru-zoom { display: none; }
   .bu-filterleiste .nl-pille { flex: 1 1 calc(50% - 8px); min-width: 0; }
   .bu-filterleiste .nl-pille select { width: 100%; max-width: none; }

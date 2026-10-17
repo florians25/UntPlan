@@ -7,7 +7,7 @@
 // Liste mit Symbol je Art, Standort, Verfügbarkeit im gewählten Zeitraum, Belegungs-Zeitstrahl, Buchen direkt aus der Liste) und Neuer
 // Unterricht mit zusätzlichen Stunden.
 // Verwaltung (Ressourcen, Raumdaten): buchungsverwaltung.js. Raumliste: gemeinsame Komponente raumwahl.js.
-import { e, holen, senden, api, toast, dialog, bestaetigen, leer, alarm, heuteIso, plusTage, montag, herunterladen, WOCHENTAGE_KURZ, suchfeld, suchfeldMitFilter, suchfeldMitFilterBinden, segment, segmentSetzen, minuten, jetztMinuten } from '../ui.js';
+import { e, holen, senden, api, toast, dialog, bestaetigen, leer, alarm, heuteIso, plusTage, montag, herunterladen, WOCHENTAGE_KURZ, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, segment, segmentSetzen, minuten, jetztMinuten } from '../ui.js';
 import { kbDialog } from '../kbdialog.js';
 import { raumListe } from '../raumwahl.js';
 
@@ -555,17 +555,16 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
   const anzahl = a => liste.filter(b => passtAnsicht(b, a, heute)).length;
   kontext.titel(alle ? 'Alle Buchungen' : 'Meine Buchungen', `<a class="nl-knopf" href="#/buchen/raeume"><i class="bi bi-grid-3x3-gap"></i>Raumübersicht</a>`, `${anzahl('kommend')}`);
   seite.innerHTML = `
-    <div class="nl-leiste bu-leiste">
-      <div class="bu-segment" role="radiogroup" aria-label="Ansicht">${ANSICHTEN.map(([w, t]) => `<button type="button" role="radio" aria-checked="${filter.ansicht === w}" class="${filter.ansicht === w ? 'an' : ''}" data-ansicht="${w}">${t}<span class="bu-anzahl">${anzahl(w)}</span></button>`).join('')}</div>
+    <div class="u-sf-leiste bu-leiste">
       ${suchfeldMitFilter({ platzhalter: 'Titel, Raum, Klasse …', wert: filter.suche, label: 'Buchungen durchsuchen', klasse: 'bu-meine-suche',
         filter: [{ name: 'art', label: 'Art', optionen: Object.entries(ART_NAME), wert: filter.art, alle: 'Alle Arten' }] })}
-      <span class="ms-auto d-flex gap-2"><button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i>Export</button>
-        <a class="nl-hinzu" href="#/buchen/raum"><i class="bi bi-plus-lg"></i>Neue Buchung</a></span>
+      ${zeitraumPillen(von, bis)}
+      <div class="u-sf-rechts"><button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i>Export</button>
+        <a class="nl-hinzu" href="#/buchen/raum"><i class="bi bi-plus-lg"></i>Neue Buchung</a></div>
     </div>
     <div class="nl-leiste bu-leiste2">
-      <label class="nl-pille"><span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}"></label>
-      <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${bis}"></label>
-      ${ich.admin ? `<label class="rw-schalter"><input type="checkbox" data-alle ${alle ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Buchungen aller Lehrkräfte</label>` : ''}
+      <div class="bu-segment" role="radiogroup" aria-label="Ansicht">${ANSICHTEN.map(([w, t]) => `<button type="button" role="radio" aria-checked="${filter.ansicht === w}" class="${filter.ansicht === w ? 'an' : ''}" data-ansicht="${w}">${t}<span class="bu-anzahl">${anzahl(w)}</span></button>`).join('')}</div>
+      ${ich.admin ? `<label class="rw-schalter ms-auto"><input type="checkbox" data-alle ${alle ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Buchungen aller Lehrkräfte</label>` : ''}
     </div>
     <div data-liste></div>`;
   const sichtbar = () => liste.filter(b => passtAnsicht(b, filter.ansicht, heute) && (!filter.art || b.art === filter.art)
@@ -720,21 +719,24 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
   const sel = (n, titel, liste) => liste.length ? pille(`<select data-f="${n}" aria-label="${titel}">${optionen(liste, k[n], `${titel}: alle`)}</select>`, !!k[n]) : '';
   const filterAktiv = () => RAUM_SERVERFILTER.some(n => k[n]) || !!k.frei || !!k.suche;
   seite.innerHTML = `
-    <div class="nl-leiste bu-ru-leiste">
-      <div class="bu-datumwahl"><button type="button" class="nl-knopf rund" data-schieben="-1" aria-label="${woche ? 'Woche' : 'Tag'} zurück"><i class="bi bi-chevron-left"></i></button>
-        ${pille(`<input type="date" data-datum value="${datum}" aria-label="Datum">`)}<button type="button" class="nl-knopf rund" data-schieben="1" aria-label="${woche ? 'Woche' : 'Tag'} weiter"><i class="bi bi-chevron-right"></i></button>
-        <button type="button" class="nl-knopf" data-heute>Heute</button></div>
-      ${segment([['tag', 'Tag', { symbol: 'calendar-day' }], ['woche', 'Woche', { symbol: 'calendar-week' }]], woche ? 'woche' : 'tag', { attr: 'data-ansicht', label: 'Zeitraum' })}
+    <div class="u-sf-leiste bu-ru-leiste">
       ${suchfeldMitFilter({ platzhalter: 'Raum suchen', wert: k.suche, attr: 'data-raumsuche', label: 'Raum suchen', klasse: 'bu-raumsuche', filter: [
         ...(opt.gebaeude.length ? [{ name: 'gebaeude', label: 'Gebäude', optionen: opt.gebaeude.map(x => [x, x]), wert: k.gebaeude, alle: 'Alle Gebäude' }] : []),
-        ...(opt.raumarten.length ? [{ name: 'raumart', label: 'Raumart', optionen: opt.raumarten.map(x => [x, x]), wert: k.raumart, alle: 'Alle Raumarten' }] : [])] })}
+        ...(opt.raumarten.length ? [{ name: 'raumart', label: 'Raumart', optionen: opt.raumarten.map(x => [x, x]), wert: k.raumart, alle: 'Alle Raumarten' }] : []),
+        { name: 'frei', label: 'Verfügbarkeit', alle: 'Alle Räume', wert: woche && /^\d+$/.test(k.frei) ? 'irgend' : k.frei,
+          optionen: [['irgend', 'Mit freien Stunden'], ...(woche ? [] : opt.zeitraster.filter(z => z.nr > 0).map(z => [String(z.nr), `Frei in der ${z.nr}. Std.`]))] }] })}
+      <div class="u-sf-rechts">
+        <div class="bu-datumwahl"><button type="button" class="nl-knopf rund" data-schieben="-1" aria-label="${woche ? 'Woche' : 'Tag'} zurück"><i class="bi bi-chevron-left"></i></button>
+          ${pille(`<input type="date" data-datum value="${datum}" aria-label="Datum">`)}<button type="button" class="nl-knopf rund" data-schieben="1" aria-label="${woche ? 'Woche' : 'Tag'} weiter"><i class="bi bi-chevron-right"></i></button>
+          <button type="button" class="nl-knopf" data-heute>Heute</button></div>
+        ${segment([['tag', 'Tag', { symbol: 'calendar-day' }], ['woche', 'Woche', { symbol: 'calendar-week' }]], woche ? 'woche' : 'tag', { attr: 'data-ansicht', label: 'Zeitraum' })}
+      </div>
       <button type="button" class="nl-knopf bu-filter-auf ${filterAktiv() ? 'aktiv' : ''}" data-filter-auf aria-expanded="false"><i class="bi bi-funnel"></i>Filter${filterAktiv() ? `<span class="bu-anzahl">${RAUM_SERVERFILTER.filter(n => k[n]).length + (k.frei ? 1 : 0) || ''}</span>` : ''}</button>
     </div>
     <div class="nl-leiste bu-filterleiste bu-ru-filter">
       ${sel('abteilung', 'Abteilung', opt.abteilungen)}${sel('raumgruppe', 'Raumgruppe', opt.raumgruppen)}
       ${opt.ressourcenarten.length ? pille(`<select data-f="ressourcenarten" aria-label="Ausstattung">${optionen(opt.ressourcenarten.map(a => [String(a.id), a.name]), k.ressourcenarten, 'Ausstattung: alle')}</select>`, !!k.ressourcenarten) : ''}
       ${pille(`<select data-f="kapazitaet" aria-label="Kapazität">${optionen([10, 15, 20, 25, 30, 40, 60].map(x => [String(x), `ab ${x} Plätzen`]), k.kapazitaet, 'Kapazität: alle')}</select>`, !!k.kapazitaet)}
-      <span data-freiwahl></span>
       <button type="button" class="nl-knopf klein bu-filter-weg" data-filter-weg ${filterAktiv() ? '' : 'hidden'}><i class="bi bi-x-lg"></i>Filter zurücksetzen</button>
     </div>
     <div class="bu-ru-kopf"><div class="bu-ru-zahlen" data-zahlen aria-live="polite"></div>
@@ -764,8 +766,6 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
 
   // „Verfügbarkeit“: alle Räume, nur mit freien Stunden bzw. (Tag) frei in einer bestimmten Stunde
   if (woche && /^\d+$/.test(k.frei)) k.frei = 'irgend';
-  seite.querySelector('[data-freiwahl]').outerHTML = pille(`<select data-frei aria-label="Verfügbarkeit">${optionen([['irgend', 'Nur Räume mit freien Stunden'],
-    ...(woche ? [] : raster.map(z => [String(z.nr), `Frei in der ${z.nr}. Stunde`]))], k.frei, 'Verfügbarkeit: alle')}</select>`, !!k.frei, 'bu-freiwahl');
 
   /** Zustand einer Stunde: Belegung (Art, Text, Buchung), frei, vergangen bzw. unterrichtsfrei. */
   const slot = (r, t, z) => {
@@ -913,9 +913,8 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
   hoverVerbinden(box, z => infoHtml(Number(z.dataset.info)));
   suchfeldMitFilterBinden(seite.querySelector('.bu-ru-leiste'), {
     beiSuche: t => { raumFilter.suche = t; zeichnen(); },
-    beiFilter: (n, w) => { raumFilter[n] = w; kontext.navigieren(ziel(), true); },
+    beiFilter: (n, w) => { raumFilter[n] = w; if (n === 'frei') zeichnen(); else kontext.navigieren(ziel(), true); },
   });
-  seite.querySelector('[data-frei]').onchange = ev => { raumFilter.frei = ev.target.value; ev.target.closest('.nl-pille').classList.toggle('aktiv', !!raumFilter.frei); zeichnen(); };
   seite.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => {
     zoom = b.dataset.wert; merken('zoom', zoom);
     segmentSetzen(b.closest('.u-segment'), zoom);
@@ -989,7 +988,7 @@ const RES_TOENE = ['orange', 'blau', 'lila', 'gruen', 'tuerkis', 'rot', 'gelb'];
 const resTon = r => RES_TOENE[(r.artId ?? 0) % RES_TOENE.length];
 
 /** Filter der Ressourcenübersicht (bleibt während der Sitzung erhalten). */
-const resFilter = { arten: new Set(), suche: '', nurFrei: false, von: 0, bis: 0 };
+const resFilter = { arten: new Set(), suche: '', ort: '', nurFrei: false, von: 0, bis: 0 };
 
 async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
   const iso = /^\d{4}-\d{2}-\d{2}$/;
@@ -1017,13 +1016,16 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
   for (const a of [...f.arten]) if (!arten.some(x => x.id === a)) f.arten.delete(a);
 
   seite.innerHTML = `
-    <div class="nl-leiste bu-ru-leiste">
-      <div class="bu-datumwahl"><button type="button" class="nl-knopf rund" data-schieben="${woche ? -7 : -1}" aria-label="${woche ? 'Woche' : 'Tag'} zurück"><i class="bi bi-chevron-left"></i></button>
-        <label class="nl-pille"><input type="date" data-datum value="${datum}" aria-label="Datum"></label><button type="button" class="nl-knopf rund" data-schieben="${woche ? 7 : 1}" aria-label="${woche ? 'Woche' : 'Tag'} weiter"><i class="bi bi-chevron-right"></i></button>
-        <button type="button" class="nl-knopf" data-heute>Heute</button></div>
-      ${segment([['tag', 'Tag', { symbol: 'calendar-day' }], ['woche', 'Woche', { symbol: 'calendar-week' }]], woche ? 'woche' : 'tag', { attr: 'data-ansicht', label: 'Zeitraum' })}
-      <label class="nl-pille bu-zr ${ganzerTag() ? '' : 'aktiv'}"><i class="bi bi-clock" aria-hidden="true"></i>${stdWahl('von', f.von)}<span aria-hidden="true">–</span>${stdWahl('bis', f.bis)}</label>
-      ${suchfeld({ platzhalter: 'Ressource oder Standort suchen', wert: f.suche, attr: 'data-res-suche', label: 'Ressourcen durchsuchen', klasse: 'bu-res-suche' })}
+    <div class="u-sf-leiste bu-ru-leiste">
+      ${suchfeldMitFilter({ platzhalter: 'Ressource oder Standort suchen', wert: f.suche, attr: 'data-res-suche', label: 'Ressourcen durchsuchen', klasse: 'bu-res-suche',
+        filter: [{ name: 'ort', label: 'Standort', alle: 'Alle Standorte', wert: f.ort, optionen: [...new Set(u.ressourcen.map(r => r.mobil ? r.standort : `fest in ${r.raum}`).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')).map(x => [x, x]) }] })}
+      <div class="u-sf-rechts">
+        <div class="bu-datumwahl"><button type="button" class="nl-knopf rund" data-schieben="${woche ? -7 : -1}" aria-label="${woche ? 'Woche' : 'Tag'} zurück"><i class="bi bi-chevron-left"></i></button>
+          <label class="nl-pille"><input type="date" data-datum value="${datum}" aria-label="Datum"></label><button type="button" class="nl-knopf rund" data-schieben="${woche ? 7 : 1}" aria-label="${woche ? 'Woche' : 'Tag'} weiter"><i class="bi bi-chevron-right"></i></button>
+          <button type="button" class="nl-knopf" data-heute>Heute</button></div>
+        ${segment([['tag', 'Tag', { symbol: 'calendar-day' }], ['woche', 'Woche', { symbol: 'calendar-week' }]], woche ? 'woche' : 'tag', { attr: 'data-ansicht', label: 'Zeitraum' })}
+        <label class="nl-pille bu-zr ${ganzerTag() ? '' : 'aktiv'}"><i class="bi bi-clock" aria-hidden="true"></i>${stdWahl('von', f.von)}<span aria-hidden="true">–</span>${stdWahl('bis', f.bis)}</label>
+      </div>
     </div>
     <div class="nl-leiste bu-filterleiste bu-artzeile">
       <div class="bu-artchips" ${arten.length > 1 ? '' : 'hidden'}><button type="button" class="bu-filterchip ${f.arten.size ? '' : 'an'}" data-resart="" aria-pressed="${!f.arten.size}">Alle<span class="bu-anzahl">${u.ressourcen.length}</span></button>
@@ -1147,6 +1149,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
     const such = f.suche.toLowerCase();
     const sichtbar = u.ressourcen.filter(r => (!f.arten.size || f.arten.has(r.artId ?? 0))
       && (!such || `${r.name} ${r.art} ${r.standort} ${r.raum} ${r.bemerkung}`.toLowerCase().includes(such))
+      && (!f.ort || (r.mobil ? r.standort : `fest in ${r.raum}`) === f.ort)
       && (!f.nurFrei || zustand(r).v > 0));
     const frei = sichtbar.filter(r => zustand(r).v > 0).length;
     seite.querySelector('[data-zahlen]').innerHTML = u.ressourcen.length ? `<b>${sichtbar.length}</b> ${sichtbar.length === 1 ? 'Ressource' : 'Ressourcen'}${sichtbar.length < u.ressourcen.length ? ` von ${u.ressourcen.length}` : ''}
@@ -1166,7 +1169,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       : ansicht === 'liste'
         ? `<div class="bu-rl ${woche ? 'woche' : ''}" role="table" aria-label="Ressourcen"><div class="bu-rl-kopf" role="row"><span role="columnheader"></span><span role="columnheader">Ressource</span><span role="columnheader">Standort</span><span role="columnheader">Verfügbar</span><span role="columnheader">Belegung ${e(tagKurz(datum))}</span><span role="columnheader"></span></div>${sichtbar.map(zeile).join('')}</div>`
         : `<div class="bu-rkarten">${sichtbar.map(karte).join('')}</div>`;
-    box.querySelector('[data-res-alle]')?.addEventListener('click', () => { f.arten.clear(); f.suche = ''; f.nurFrei = false; kontext.navigieren(ziel(), true); });
+    box.querySelector('[data-res-alle]')?.addEventListener('click', () => { f.arten.clear(); f.suche = ''; f.ort = ''; f.nurFrei = false; kontext.navigieren(ziel(), true); });
   };
   box.addEventListener('click', ev => {
     const k = ev.target.closest('[data-res-buchen]');
@@ -1183,7 +1186,10 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
     zeichnen();
   });
   seite.querySelector('[data-res-nurfrei]').onchange = ev => { f.nurFrei = ev.target.checked; zeichnen(); };
-  seite.querySelector('[data-res-suche]').oninput = ev => { f.suche = ev.target.value.trim(); zeichnen(); };
+  suchfeldMitFilterBinden(seite.querySelector('.bu-ru-leiste'), {
+    beiSuche: t => { f.suche = t; zeichnen(); },
+    beiFilter: (n, w) => { if (n === 'ort') { f.ort = w; zeichnen(); } },
+  });
   seite.querySelectorAll('[data-zr]').forEach(s => s.onchange = () => {
     f[s.dataset.zr] = Number(s.value);
     if (f.bis < f.von) { if (s.dataset.zr === 'von') f.bis = f.von; else f.von = f.bis; }

@@ -99,6 +99,30 @@ public sealed class Dokument
     public static Schuldatei Klonen(Schuldatei d) =>
         JsonSerializer.Deserialize<Schuldatei>(JsonSerializer.SerializeToUtf8Bytes(d, JsonOptionen), JsonOptionen)!;
 
+    private static readonly System.Reflection.PropertyInfo[] SchuldateiEigenschaften = typeof(Schuldatei).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+        .Where(p => p.CanRead && p.GetSetMethod() != null && p.GetIndexParameters().Length == 0).ToArray();
+
+    private static T JsonKopie<T>(T wert) => JsonSerializer.Deserialize<T>(JsonSerializer.SerializeToUtf8Bytes(wert, JsonOptionen), JsonOptionen)!;
+
+    /// <summary>
+    /// Leichte Kopie für eine Probeberechnung der Vertretungen im Zeitraum (z. B. beim Tageswechsel im Vertretungsfenster: „ändert
+    /// die Neuberechnung etwas?“). Sie teilt alle Daten mit dem Original – kopiert werden nur die Vertretungen des Zeitraums und die
+    /// Veranstaltungen, die ihn berühren, also genau das, was <see cref="Vertretungsplanung.Vertretungen.Aktualisieren(Schuldatei, DateOnly, DateOnly)"/>
+    /// verändert. Statt einer vollständigen Kopie der Schuldatei (bei großen Dateien mehrere hundert Millisekunden) nur wenige Millisekunden.
+    /// </summary>
+    public static Schuldatei VertretungsProbe(Schuldatei d, DateOnly von, DateOnly bis)
+    {
+        var p = new Schuldatei();
+        foreach (var e in SchuldateiEigenschaften) e.SetValue(p, e.GetValue(d));
+        var imZeitraum = d.Vertretungen.Where(v => v.Datum >= von && v.Datum <= bis).ToList();
+        var kopien = JsonKopie(imZeitraum);
+        var ersetzt = new Dictionary<object, Vertretung>(ReferenceEqualityComparer.Instance);
+        for (var i = 0; i < imZeitraum.Count; i++) ersetzt[imZeitraum[i]] = kopien[i];
+        p.Vertretungen = d.Vertretungen.Select(v => ersetzt.TryGetValue(v, out var k) ? k : v).ToList();
+        p.Veranstaltungen = d.Veranstaltungen.Select(va => va.Bis >= von && va.Von <= bis ? JsonKopie(va) : va).ToList();
+        return p;
+    }
+
     /// <summary>Nach Änderungen an Unterricht/Stundenplan die Vertretungsplanung ab heute neu abgleichen (Standard: ja).</summary>
     public bool PlanaenderungenAbgleichen { get; set; } = true;
 
