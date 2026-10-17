@@ -61,6 +61,82 @@ public static class VeranstaltungsAuswahl
     public static List<int> Alle(Schuldatei d, ElementTyp typ, DateOnly? von = null, DateOnly? bis = null) =>
         Waehlbar(d, typ, von, bis).Select(e => e.Id).ToList();
 
+    /// <summary>Ab so vielen wählbaren Elementen heißt eine fast vollständige Auswahl „Alle … außer …“.</summary>
+    public const int AusserAb = 10;
+    /// <summary>Höchstens so viele fehlende Elemente stehen hinter „außer“.</summary>
+    public const int AusserHoechstens = 3;
+
+    /// <summary>Umfasst die Auswahl alle wählbaren Elemente des Typs (im Zeitraum)? Bei weniger als drei wählbaren Elementen nie.</summary>
+    public static bool UmfasstAlle(Schuldatei d, ElementTyp typ, IEnumerable<int> ids, DateOnly? von = null, DateOnly? bis = null)
+    {
+        var alle = Alle(d, typ, von, bis);
+        if (alle.Count < 3) return false;
+        var set = ids as ISet<int> ?? ids.ToHashSet();
+        return alle.All(set.Contains);
+    }
+
+    /// <summary>
+    /// Kurztext einer Auswahl für Listen, Aushang und Export: „Alle Klassen“, „Alle Lehrkräfte außer A, B“ (ab <see cref="AusserAb"/>
+    /// wählbaren Elementen, höchstens <see cref="AusserHoechstens"/> fehlende) oder die Kurznamen in der gegebenen Reihenfolge.
+    /// </summary>
+    public static string Kurztext(Schuldatei d, ElementTyp typ, IEnumerable<int> ids, DateOnly? von = null, DateOnly? bis = null, string trenner = ",")
+    {
+        var liste = ids.Distinct().ToList();
+        var alle = Alle(d, typ, von, bis);
+        if (alle.Count >= 3 && liste.Count >= 3)
+        {
+            var set = liste.ToHashSet();
+            var fehlend = alle.Where(i => !set.Contains(i)).ToList();
+            if (fehlend.Count == 0) return AlleText(typ);
+            if (alle.Count >= AusserAb && fehlend.Count <= AusserHoechstens && liste.All(alle.Contains))
+                return $"{AlleText(typ)} außer {string.Join(", ", fehlend.Select(i => K(d, typ, i)))}";
+        }
+        return string.Join(trenner, liste.Select(i => K(d, typ, i)));
+    }
+
+    private static string K(Schuldatei d, ElementTyp typ, int id) => d.AlleElemente(typ).FirstOrDefault(e => e.Id == id)?.Kurzname ?? "?";
+
+    /// <summary>
+    /// Eingabe einer Auswahl lesen: Kurznamen (getrennt durch Komma, Leerzeichen, Semikolon oder Zeilenumbruch) bzw. „Alle“ /
+    /// „Alle Klassen“ / „Alle Lehrkräfte“ / „Alle Räume“, optional mit „außer A, B“ (so, wie <see cref="Kurztext"/> sie anzeigt).
+    /// Unbekannte Kurznamen: <see cref="FormatException"/>.
+    /// </summary>
+    public static List<int> Lesen(Schuldatei d, ElementTyp typ, string text, DateOnly? von = null, DateOnly? bis = null)
+    {
+        var elemente = d.AlleElemente(typ).ToList();
+        int Id(string k) => elemente.FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id
+                            ?? throw new FormatException($"{TypName(typ)} {k} unbekannt");
+        static string[] Teile(string s) => s.Split(new[] { ',', ' ', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        var t = text.Trim();
+        if (t.StartsWith("alle", StringComparison.OrdinalIgnoreCase) && (t.Length == 4 || !char.IsLetterOrDigit(t[4])) && !elemente.Any(e => e.Kurzname.Equals("alle", StringComparison.OrdinalIgnoreCase)))
+        {
+            var rest = t[4..].Trim();
+            foreach (var wort in new[] { "Lehrkräfte", "Lehrkraefte", "Lehrer", "Klassen", "Räume", "Raeume" })
+                if (rest.StartsWith(wort, StringComparison.OrdinalIgnoreCase)) { rest = rest[wort.Length..].Trim(); break; }
+            var ohne = new HashSet<int>();
+            var dazu = new List<int>();
+            foreach (var wort in new[] { "außer", "ausser", "ohne" })
+                if (rest.StartsWith(wort, StringComparison.OrdinalIgnoreCase))
+                {
+                    ohne = Teile(rest[wort.Length..]).Select(Id).ToHashSet();
+                    rest = "";
+                    break;
+                }
+            // weitere Kurznamen nach „Alle …“ (z. B. „Alle Klassen, X“) – ignorierte bzw. nicht wählbare Elemente kommen hinzu
+            dazu.AddRange(Teile(rest).Select(Id));
+            return Alle(d, typ, von, bis).Where(i => !ohne.Contains(i)).Concat(dazu).Distinct().ToList();
+        }
+        return Teile(t).Select(Id).Distinct().ToList();
+    }
+
+    private static string TypName(ElementTyp typ) => typ switch
+    {
+        ElementTyp.Lehrer => "Lehrkraft",
+        ElementTyp.Raum => "Raum",
+        ElementTyp.Klasse => "Klasse",
+        _ => typ.ToString(),
+    };
+
     /// <summary>
     /// Gruppen für die Schnellauswahl eines Typs: zuerst „Alle …“, dann nach Abteilung und – je Typ – Jahrgang, Stufe und
     /// Klassengruppe (Klassen), Fachgruppe sowie Lehrkräfte bzw. Klassenleitungen der Klassen der Veranstaltung (Lehrer),

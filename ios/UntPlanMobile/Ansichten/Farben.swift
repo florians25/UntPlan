@@ -74,8 +74,8 @@ enum Farben {
     static let rasterUnten = Color(hell: 0xE7E9EF, dunkel: 0x1C1C1E)
 
     // Karten im Wochenraster
-    static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7382)
-    static let karteVergangen = Color(hell: 0xF2F4F5, dunkel: 0x2F3B45)
+    static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7383)
+    static let karteVergangen = Color(hell: 0xF2F4F5, dunkel: 0x323D45)
     static let karteBalken = Color(hell: 0xBFC7D2, dunkel: 0xBFC7CE)
     static let karteText = Color(hell: 0x253746, dunkel: 0xF4F6F8)
     static let kartenSchatten = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.30, deckkraftDunkel: 0)

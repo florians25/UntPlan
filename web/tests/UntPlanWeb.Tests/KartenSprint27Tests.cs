@@ -411,4 +411,25 @@ public class KartenSprint27Tests
         Assert.Contains("}, 600);   // etwas breiter", sd);
         Assert.Contains(".ad-liste.ad-vorwochen .ad-vw-knopf", Datei("css", "karten.css"));
     }
+    [Fact]
+    public void Web_nur_ein_Hover_Veranstaltungskopf_gestrichelt_Aufsichtsbalken_Zeitleiste()
+    {
+        // gekürzte Kartenzeilen: nur der dunkelgraue Hover (plangitter.js), kein zweiter heller Kürzungs-Hover
+        Assert.Contains(".modal-footer, .u-kuerzung-hover, .std')", Datei("js", "ui.js"));
+        var sd = Datei("js", "stundendetails.js");
+        // Veranstaltung: oben keine Bezeichnung und kein Badge; Name unten unter „Information zur Stunde“
+        Assert.Contains(": k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');", sd);
+        Assert.Contains("const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';", sd);
+        Assert.Contains("'Information zur Stunde'", sd);
+        // sehr viele Elemente im Kopf: „… +N“ mit Hover
+        Assert.Contains("class=\"sd-mehr\" data-hover=", sd);
+        Assert.Contains("const klassenTeil = alleKlassen.length ? wertKopf(alleKlassen, 6,", sd);
+        // Uhrzeiten auf den Karten: links nur Stundennummern
+        var js = Datei("js", "plangitter.js");
+        Assert.Contains("if (!kartenZeiten) html += `<div class=\"tt-zeit beginn\"", js);
+        Assert.Contains("if (!kartenZeiten) html += `<div class=\"tt-zeit ende\"", js);
+        var css = Datei("css", "karten.css");
+        Assert.Contains(".std.vorgemerkt, .std.lehrer-abwesend, .std.bereitschaft { background: #f1f5f8 !important; }", css);
+        Assert.Contains(".tt .aufsicht::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 2px; }", css);
+    }
 }

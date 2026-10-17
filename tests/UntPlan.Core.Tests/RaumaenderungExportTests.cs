@@ -1,6 +1,8 @@
+using UntPlan.Core;
 using UntPlan.Core.Austausch;
 using UntPlan.Core.Model;
 using UntPlan.Core.Vertretungsplanung;
+using UntPlan.Web.Contracts;
 using Xunit;
 
 namespace UntPlan.Core.Tests;

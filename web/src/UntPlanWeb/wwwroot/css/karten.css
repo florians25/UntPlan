@@ -122,6 +122,17 @@
 .ad-liste.ad-vorwochen .ad-vw-knopf:hover, .ad-liste.ad-vorwochen .ad-vw-knopf:focus-visible { border-color: var(--u-akzent); color: var(--u-akzent-dunkel); }
 .ad-liste.ad-vorwochen .ad-vw-knopf + .ad-vw-knopf { margin-left: 4px; }
 
+/* ------------------------------------------------------------------ Gestrichelte Karten, Aufsichtsbalken, Kopf-Kürzungen (Sprint 27)
+
+   Alle gestrichelten Karten (Lehrkraft abwesend/abgegeben, Bereitschaft, vorgemerkt) mit Hintergrund #f1f5f8. Farbbalken der
+   Pausenaufsichten wie bei den Stundenkarten: 4px breit, 6px Abstand (links/oben/unten), Radius 2px; gestrichelte (vertretene)
+   Aufsicht mit derselben Farbe wie die reguläre. Stundendetails-Kopf: „… +N“ mit Hover der vollständigen Liste. */
+.std.vorgemerkt, .std.lehrer-abwesend, .std.bereitschaft { background: #f1f5f8 !important; }
+.tt .aufsicht::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 2px; }
+/* vertretene (gestrichelte) Aufsicht behält ihre Farbe – wie gestrichelte Stundenkarten ihre Fachfarbe behalten */
+.tt .aufsicht.vertreten::before { background: #b26cd8; }
+.sd-kopf .sd-mehr { color: var(--u-grau-2); cursor: default; white-space: nowrap; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die

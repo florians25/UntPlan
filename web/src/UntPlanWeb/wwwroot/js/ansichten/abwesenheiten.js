@@ -202,17 +202,32 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const zeitfelder = (z = {}) => `
         <div class="col-sm-6"><label class="form-label">Von</label><div class="d-flex gap-2"><input type="date" class="form-control" name="vonDatum" value="${e(z.datum || heuteIso())}"><input type="time" step="60" class="form-control" style="max-width:120px" name="vonZeit" value="${e(z.beginn || (el.stunden ?? [])[0]?.beginn || '07:45')}"></div></div>
         <div class="col-sm-6"><label class="form-label">Bis</label><div class="d-flex gap-2"><input type="date" class="form-control" name="bisDatum" value="${e(z.bis || heuteIso())}"><input type="time" step="60" class="form-control" style="max-width:120px" name="bisZeit" value="${e(z.ende || (el.stunden ?? []).at(-1)?.ende || '16:00')}"></div>
-          <div class="form-text">Minutengenau: angebrochene Stunden werden als Verspätung bzw. vorzeitiges Gehen gezählt.</div></div>`;
-  const zeitWerte = box => { const v = n => box.querySelector(`[name=${n}]`).value; return { von: `${v('vonDatum')}T${v('vonZeit')}`, bis: `${v('bisDatum')}T${v('bisZeit')}` }; };
+          <div class="form-text">Minutengenau: angebrochene Stunden werden als Verspätung bzw. vorzeitiges Gehen gezählt.</div></div>
+        <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="abw-ganz" name="ganztaegig" ${z.ganztaegig ? 'checked' : ''}>
+          <label class="form-check-label" for="abw-ganz">Ganztägig</label><span class="form-text ms-2">alle Unterrichtsstunden der gewählten Tage (z. B. Krankmeldung vor Unterrichtsbeginn)</span></div></div>`;
+  // Ganztägig: Uhrzeiten auf den ganzen Schultag setzen und sperren; der Server trägt alle Stunden der Tage ein
+  const tagesbeginn = (el.stunden ?? [])[0]?.beginn || '07:45', tagesende = (el.stunden ?? []).at(-1)?.ende || '16:00';
+  const istGanztaegig = z => !!z.beginn && !!z.ende && z.beginn <= tagesbeginn && z.ende >= tagesende;
+  const ganzBinden = box => {
+    const sw = box.querySelector('[name=ganztaegig]');
+    const setzen = () => {
+      ['vonZeit', 'bisZeit'].forEach(n => { box.querySelector(`[name=${n}]`).disabled = sw.checked; });
+      if (sw.checked) { box.querySelector('[name=vonZeit]').value = tagesbeginn; box.querySelector('[name=bisZeit]').value = tagesende; }
+    };
+    sw.onchange = setzen; setzen();
+  };
+  const zeitWerte = box => { const v = n => box.querySelector(`[name=${n}]`).value; const ganz = box.querySelector('[name=ganztaegig]')?.checked;
+    return { von: `${v('vonDatum')}T${v('vonZeit')}`, bis: `${v('bisDatum')}T${v('bisZeit')}`, ganztaegig: ganz || null }; };
   inhalt.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => {
     const z = liste[Number(b.dataset.bearbeiten)];
     dialog({ titel: `Abwesenheit ${z.schueler}`, breit: true, inhalt: `<p class="small text-body-secondary">${z.fehlstunden} Fehlstunden · ${z.fehlminuten} min · ${e(z.faecher.join(', '))}</p>
-        <div class="row g-3">${zeitfelder(z)}
+        <div class="row g-3">${zeitfelder({ ...z, ganztaegig: istGanztaegig(z) })}
         <div class="col-sm-6"><label class="form-label">Abwesenheitsgrund</label><select class="form-select" name="grund"><option value="">–</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === z.grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select></div>
         <div class="col-sm-6"><label class="form-label">Status</label><select class="form-select" name="status">${['offen', 'entschuldigt', 'unentschuldigt'].map(s => `<option value="${s}" ${s === z.status ? 'selected' : ''}>${s === 'unentschuldigt' ? 'nicht entschuldigt' : s}</option>`).join('')}</select></div>
         <div class="col-12"><label class="form-label">Text</label><input class="form-control" name="bemerkung" value="${e(z.bemerkung)}" list="abw-texte">${textListe}</div>
         ${detailFelder(z)}</div>
         ${z.erstellt ? `<p class="small text-body-secondary mt-3 mb-0">Erfasst ${e(z.erstellt.slice(8, 10) + '.' + z.erstellt.slice(5, 7) + '.' + z.erstellt.slice(0, 4) + z.erstellt.slice(10))}${z.lehrer.length ? ` von ${e(z.lehrer.join(', '))}` : ''}</p>` : ''}`,
+      beimOeffnen: ganzBinden,
       knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
         const v = n => box.querySelector(`[name=${n}]`).value;
         await senden('/api/app/klassenbuch/abwesenheit', { schuelerIds: [z.schuelerId], ...zeitWerte(box), ersetzen: z.ids, grund: v('grund'), status: v('status'), text: v('bemerkung'), ...detailWerte(box) });
@@ -232,6 +247,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         <div class="col-12"><label class="form-label">Text</label><input class="form-control" name="bemerkung" list="abw-texte">${textListe}</div>
         ${detailFelder()}</div>`,
       beimOeffnen: box => {
+        ganzBinden(box);
         box.querySelector('[name=klasse]').onchange = async ev => {
           const s = await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(ev.target.value)}`);
           box.querySelector('[name=schuelerId]').innerHTML = s.map(x => `<option value="${x.id}">${e(x.name)} ${e(x.vorname)}</option>`).join('');

@@ -67,7 +67,7 @@ function planLink(typ, kurz) {
 }
 function wertKopf(liste, max = 6, typ = null, lehrkraft = typ === 'lehrer') {
   const l = (liste || []).filter(w => w.k || w.alt);
-  const teil = l.length > max + 1 ? l.slice(0, max - 2) : l;
+  const teil = l.length > max + 1 ? l.slice(0, max - 1) : l;
   // Kopf ohne Labels: Änderungen nur als Text – alt durchgestrichen → neu, entfallener Wert (z. B. offene Vertretung) nur durchgestrichen
   // auch der ersetzte (durchgestrichene) Wert – z. B. die abwesende Lehrkraft – führt zu seinem Plan
   const alt = w => typ ? `<s class="sd-alt">${planLink(typ, w.alt)}</s>` : `<s class="sd-alt">${e(w.alt)}</s>`;
@@ -75,7 +75,8 @@ function wertKopf(liste, max = 6, typ = null, lehrkraft = typ === 'lehrer') {
   const zwischen = `<span class="sd-pfeil${lehrkraft ? ' sd-pfeil-lehrer' : ''}">→</span>`;
   return teil.map(w => w.alt && !w.k ? alt(w)
     : w.alt ? `${alt(w)} ${zwischen} ${planLink(typ, w.k)}` : planLink(typ, w.k)).join(', ')
-    + (teil.length < l.length ? ` +${l.length - teil.length}` : '');
+    // sehr viele Elemente (z. B. alle Lehrkräfte): gekürzt „… +N“, Hover mit der vollständigen Liste
+    + (teil.length < l.length ? ` <span class="sd-mehr" data-hover="${e(l.map(w => w.k || w.alt).join(', '))}" data-hover-art="dunkel" data-hover-pos="unten">… +${l.length - teil.length}</span>` : '');
 }
 
 export const LEHRFORMEN = ['Einzelarbeit', 'Partnerarbeit', 'Gruppenarbeit', 'Frontalunterricht', 'Unterrichtsgespräch', 'Projektarbeit', 'Stationenlernen', 'Präsentation', 'Diskussion', 'Distanzunterricht'];
@@ -200,11 +201,13 @@ export function karteDialog(karte, kontext = {}) {
     // „Klassen | Gruppe | Fach“ – Klassen und Gruppe verlinkt („Im Stundenplan anzeigen“)
     // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse nur durchgestrichen (ohne Label)
     const alleKlassen = [...k.klassen, ...(k.mitklassen || [])];
-    const klassenTeil = alleKlassen.length && alleKlassen.length < 8 ? wertKopf(alleKlassen, 8, kollegium || ich.element ? 'klasse' : null) : '';
+    const klassenTeil = alleKlassen.length ? wertKopf(alleKlassen, 6, kollegium || ich.element ? 'klasse' : null) : '';
     const ersteKlasse = kuerzel(k.klassen)[0];
     const gruppe = k.gruppe ? (ersteKlasse ? `<a href="#" class="sd-link" data-plan="klasse" data-element="${e(ersteKlasse)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(k.gruppe)}</a>` : e(k.gruppe))
       : ''; // kein Fach-Langname im Kopf – nur Kürzel
-    const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}` : e(k.fach || k.text || k.art || 'Stunde');
+    // Veranstaltung: oben keine Bezeichnung (der Name steht unten unter „Information zur Stunde“) – nur Fach/Klassen, wenn eingetragen
+    const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}`
+      : k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');
     const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
     const b = bereich();
     const zeile = [wochentag(k.datum), datumDe(k.datum), b.beginn ? `${b.beginn}-${b.ende}` : `${b.von === b.bis ? b.von + '.' : b.von + '.–' + b.bis + '.'} Std.`,
@@ -213,7 +216,7 @@ export function karteDialog(karte, kontext = {}) {
     // sonst keine Labels (Änderungen stehen als Text: alt durchgestrichen | neu bzw. → beim Raum)
     // zusätzliche Unterrichtsstunde: Badge (ein von Hand eingegebener Vertretungstext steht zusätzlich unter „Details“).
     // Badges in der oberen Zeile bei Klasse/Fach, dunkelgrau
-    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';
+    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';
     const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
@@ -489,6 +492,8 @@ export function karteDialog(karte, kontext = {}) {
     }
     const vertretung = k.text && (k.fach || k.status !== 'veranstaltung') ? k.text : '';
     if (vertretung && k.status !== 'klausur') teile.push(reihe(datei, k.fach ? 'Vertretungstext' : 'Bezeichnung', `<p class="sd-text">${e(vertretung)}</p>`));
+    // Veranstaltung: der Name steht nur hier (oben im Kopf keine Bezeichnung)
+    if (k.status === 'veranstaltung' && !k.fach && (k.text || k.art)) teile.push(reihe(datei, 'Information zur Stunde', `<p class="sd-text">${e(k.text || k.art)}</p>`));
     if (k.status === 'klausur') teile.push(reihe(datei, 'Prüfung', `<p class="sd-text">${e([k.art, k.text].filter(Boolean).join(' – '))}</p>`));
     const stoffHinweis = ebenenHinweis('thema');
     if (ein?.thema || stoffHinweis) teile.push(reihe(datei, 'Lehrstoff', (ein?.thema ? `<p class="sd-text">${e(ein.thema)}</p>` : '') + stoffHinweis));
@@ -1084,6 +1089,9 @@ export function karteDialog(karte, kontext = {}) {
     const b = bereich();
     const start = a.beginn || b.beginn || zeitVon(b.von).beginn || '08:00', ende = a.ende || b.ende || zeitVon(b.bis).ende || '08:45';
     const tagesende = zeiten.length ? zeiten[zeiten.length - 1].ende : ende;
+    // „Ganztägig“: ganzer Schultag (bzw. alle Tage von–bis) – z. B. Krankmeldung vor Unterrichtsbeginn; bestehende Abwesenheit über den ganzen Tag: an
+    const tagesbeginn = zeiten.length ? zeiten[0].beginn : start;
+    const ganzVorgabe = !!f && f.vonZeit <= tagesbeginn && f.bisZeit >= tagesende;
     const namen = ids.map(schuelerName).filter(Boolean);
     // Klassenbuch-Einstellungen: Ende einer neuen Abwesenheit (Stundenende, Tagesende, fixer Zeitpunkt), Standardgrund, Grund/Text gesperrt
     const kbe = a.einstellungen ?? {};
@@ -1104,6 +1112,7 @@ export function karteDialog(karte, kontext = {}) {
         <label>Schüler*in</label><div class="ab-wert">${e(namen.length > 3 ? `${namen.slice(0, 3).join(', ')} und ${namen.length - 3} weitere` : namen.join(', '))}</div>
         <label for="ab-vd">Von</label><div class="ab-zeile"><input type="date" id="ab-vd" data-ab-vd value="${vorgabe.vonDatum}" ${verwalten ? '' : 'disabled'}><input type="time" step="60" data-ab-vz value="${e(vorgabe.vonZeit)}" aria-label="Von Uhrzeit"></div>
         <label for="ab-bd">Bis</label><div class="ab-zeile"><input type="date" id="ab-bd" data-ab-bd value="${vorgabe.bisDatum}" ${verwalten ? '' : 'disabled'}><input type="time" step="60" data-ab-bz value="${e(vorgabe.bisZeit)}" aria-label="Bis Uhrzeit"></div>
+        <span></span><label class="ab-ganz"><input type="checkbox" class="form-check-input" data-ab-ganz ${ganzVorgabe ? 'checked' : ''}> Ganztägig <span class="ab-hinweis">alle Unterrichtsstunden ${verwalten ? 'der gewählten Tage' : 'des Tages'}</span></label>
         <span></span><div class="ab-schnell">
           <button type="button" class="ad-pille klein" data-ab-schnell="stunde" title="${e(start)} – ${e(ende)}">ganze Stunde</button>
           ${laeuft ? '<button type="button" class="ad-pille klein" data-ab-schnell="spaet" title="abwesend von Stundenbeginn bis jetzt">verspätet bis jetzt</button><button type="button" class="ad-pille klein" data-ab-schnell="frueh" title="abwesend ab jetzt bis Stundenende">ab jetzt gegangen</button>' : ''}
@@ -1123,6 +1132,11 @@ export function karteDialog(karte, kontext = {}) {
         const el = q('[data-ab-vorschau]');
         if (!vd || !bd || !vz || !bz || `${bd}T${bz}` <= `${vd}T${vz}`) { el.className = 'vs-vorschau warnung'; el.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> Das Ende muss nach dem Beginn liegen.'; return false; }
         const mehrtaegig = vd !== bd || vd !== k.datum;
+        if (q('[data-ab-ganz]').checked) {
+          el.className = 'vs-vorschau';
+          el.innerHTML = `<i class="bi bi-info-circle"></i> Ganztägig abwesend: alle Unterrichtsstunden ${vd === bd ? 'des Tages' : `vom ${e(vd.split('-').reverse().join('.'))} bis ${e(bd.split('-').reverse().join('.'))}`} werden als Fehlstunden eingetragen.`;
+          return true;
+        }
         const ab = vd === k.datum ? Math.max(minutenVon(vz), minutenVon(start)) : minutenVon(start);
         const bis = bd === k.datum ? Math.min(minutenVon(bz), minutenVon(ende)) : minutenVon(ende);
         const min = Math.max(0, bis - ab);
@@ -1138,16 +1152,24 @@ export function karteDialog(karte, kontext = {}) {
         return true;
       };
       o.querySelectorAll('[data-ab-vd], [data-ab-bd], [data-ab-vz], [data-ab-bz]').forEach(x => x.oninput = vorschau);
+      const ganz = () => {
+        const an = q('[data-ab-ganz]').checked;
+        q('[data-ab-vz]').disabled = an; q('[data-ab-bz]').disabled = an;
+        if (an) { q('[data-ab-vz]').value = tagesbeginn; q('[data-ab-bz]').value = tagesende; }
+        vorschau();
+      };
+      q('[data-ab-ganz]').onchange = ganz;
       o.querySelectorAll('[data-ab-schnell]').forEach(b => b.onclick = () => {
         const art = b.dataset.abSchnell;
         q('[data-ab-vd]').value = k.datum; q('[data-ab-bd]').value = k.datum;
+        q('[data-ab-ganz]').checked = false; q('[data-ab-vz]').disabled = false; q('[data-ab-bz]').disabled = false;
         if (art === 'stunde') { q('[data-ab-vz]').value = start; q('[data-ab-bz]').value = ende; }
         if (art === 'spaet') { q('[data-ab-vz]').value = start; q('[data-ab-bz]').value = jetztZeit; }
         if (art === 'frueh') { q('[data-ab-vz]').value = jetztZeit; q('[data-ab-bz]').value = ende; }
         if (art === 'rest') { if (q('[data-ab-vz]').value >= ende) q('[data-ab-vz]').value = start; q('[data-ab-bz]').value = tagesende > ende ? tagesende : ende; }
         vorschau();
       });
-      vorschau();
+      if (ganzVorgabe) ganz(); else vorschau();
       q('[data-ab-speichern]').onclick = async ev => {
         if (!vorschau()) return;
         const knopf = ev.currentTarget;
@@ -1156,7 +1178,7 @@ export function karteDialog(karte, kontext = {}) {
           await senden('/api/app/klassenbuch/abwesenheit', {
             schuelerIds: ids, von: `${q('[data-ab-vd]').value}T${q('[data-ab-vz]').value}`, bis: `${q('[data-ab-bd]').value}T${q('[data-ab-bz]').value}`,
             grund: q('[data-ab-grund]').value, text: q('[data-ab-text]').value, status: verwalten ? o.querySelector('[name=ab-status]:checked')?.value ?? 'offen' : null,
-            datum: k.datum, stunde: k.von, unterricht: k.unterricht, ...eb(),
+            datum: k.datum, stunde: k.von, unterricht: k.unterricht, ganztaegig: q('[data-ab-ganz]').checked || null, ...eb(),
           });
           auswahl.clear();
           zu();

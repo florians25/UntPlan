@@ -1724,6 +1724,9 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .ab-radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: .9rem; }
 .ab-radio input { accent-color: var(--u-akzent); width: 16px; height: 16px; min-height: 0; }
 .ab-hinweis { flex-basis: 100%; font-size: .75rem; color: #8a96a1; }
+.ab-ganz { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 400; cursor: pointer; }
+.ab-ganz input { margin: 0; }
+.ab-ganz .ab-hinweis { flex-basis: auto; }
 .ab-knoepfe { justify-content: flex-end; border-top: 1px solid #e3e7eb; padding-top: 14px; }
 @media (max-width: 560px) { .ab-formular { grid-template-columns: 1fr; gap: 6px; } }
 /* Fehlzeiten aufgeklappt: Untertabelle je Schüler*in leicht eingerückt auf hellgrauer Fläche, feine Linien, klare Chevrons */

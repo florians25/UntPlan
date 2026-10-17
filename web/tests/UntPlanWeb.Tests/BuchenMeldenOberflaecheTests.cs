@@ -144,7 +144,7 @@ public class BuchenMeldenOberflaecheTests
         Assert.Contains("kachel('#/melden/meine'", js);
         Assert.Contains("<form class=\"mf-karte\" novalidate>", js);
         Assert.Contains("const statusPill = s =>", js);
-        Assert.Contains("data-status=\"${w}\"", js);
+        Assert.Contains("suchfeldMitFilter({ platzhalter: 'Meldungen durchsuchen'", js);
         Assert.Contains("Keine Meldungen für diesen Filter", js);
         Assert.Contains("Noch keine Meldungen", js);
         Assert.Contains("if (bereichParam === 'raum') { kontext.navigieren('#/buchen/raum', true); return; }", js);

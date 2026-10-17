@@ -372,7 +372,8 @@ const kuerzungsHover = (() => {
   };
   document.addEventListener('mouseover', ev => {
     const t = ev.target;
-    if (!(t instanceof Element) || t.closest('[data-hover], [data-hover-pillen], [title], input, textarea, select, .modal-footer, .u-kuerzung-hover')) { if (ziel && !ziel.contains(t)) verbergen(); return; }
+    // Stundenkarten (.std): eigener dunkelgrauer Hover je gekürzter Zeile (plangitter.js) – hier keinen zweiten, hellen zeigen
+    if (!(t instanceof Element) || t.closest('[data-hover], [data-hover-pillen], [title], input, textarea, select, .modal-footer, .u-kuerzung-hover, .std')) { if (ziel && !ziel.contains(t)) verbergen(); return; }
     if (ziel && ziel.contains(t)) return;
     // vom überfahrenen Element bis zu vier Ebenen nach oben das erste abgeschnittene suchen
     let el = t, treffer = null;

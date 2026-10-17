@@ -627,24 +627,136 @@ enum Wertbaustein: Hashable {
 }
 
 /// Wertzeile im Kopf der Details – nur Text, keine Plaketten: Änderungen als „alt → neu“ (alt durchgestrichen),
-/// fehlende Werte (abwesende Lehrkraft bzw. Klasse) durchgestrichen. Immer genau eine Zeile; bei vielen Werten
-/// lässt sie sich waagrecht scrollen.
+/// fehlende Werte (abwesende Lehrkraft bzw. Klasse) durchgestrichen. Genau eine Zeile; bei vielen Werten lässt sie sich
+/// waagrecht scrollen. Mit `kuerzenAb`: Sind es mehr Werte (z. B. alle Lehrkräfte oder alle Klassen einer
+/// Veranstaltung), stehen nur die ersten und dahinter „… +N“; Antippen klappt die ganze Liste umbrechend auf (und
+/// wieder zu).
 struct Wertzeile: View {
     let bausteine: [Wertbaustein]
     var schrift: CGFloat = 13
     /// Raum und Lehrkraft eine Stufe dunkler als zuvor (Vorlage 140)
     var farbe: Color = Farben.detailGrau
+    /// Ab mehr als so vielen Werten kürzen (nil = nie)
+    var kuerzenAb: Int? = nil
+    @State private var aufgeklappt = false
+
+    /// Übliche Grenze im Kopf der Stundendetails: mehr als 6 Werte werden gekürzt.
+    static let kuerzungsgrenze = 6
+
+    /// Werte der Zeile: Bausteine zwischen den Trennstrichen (ohne Pille).
+    private var gruppen: [[Wertbaustein]] {
+        var ergebnis: [[Wertbaustein]] = [[]]
+        for b in bausteine {
+            switch b {
+            case .trenner:
+                ergebnis.append([])
+            case .pille:
+                continue
+            default:
+                ergebnis[ergebnis.count - 1].append(b)
+            }
+        }
+        return ergebnis.filter { !$0.isEmpty }
+    }
+
+    private var pille: String? {
+        for b in bausteine { if case .pille(let t) = b { return t } }
+        return nil
+    }
+
+    private var gekuerzt: Bool {
+        guard let grenze = kuerzenAb else { return false }
+        return gruppen.count > grenze
+    }
 
     var body: some View {
-        EinzeilenScroller {
-            HStack(spacing: 4) {
-                ForEach(Array(bausteine.enumerated()), id: \.offset) { eintrag in
-                    baustein(eintrag.element)
+        if gekuerzt, let grenze = kuerzenAb {
+            let alle = gruppen
+            let sichtbar = max(grenze - 1, 1)
+            if aufgeklappt {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(Self.fliesstext(alle, trenner: Farben.detailTrenner))
+                        .font(.system(size: schrift))
+                        .foregroundStyle(farbe)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let pille { Statuspille(text: pille) }
+                }
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { aufgeklappt = false } }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Liste einklappen")
+            } else {
+                EinzeilenScroller {
+                    HStack(spacing: 4) {
+                        ForEach(Array(Self.verbunden(Array(alle.prefix(sichtbar))).enumerated()), id: \.offset) { eintrag in
+                            baustein(eintrag.element)
+                        }
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { aufgeklappt = true }
+                        } label: {
+                            Text("… +\(alle.count - sichtbar)")
+                                .foregroundStyle(Farben.detailGrau)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(alle.count - sichtbar) weitere anzeigen")
+                        if let pille { baustein(.pille(pille)) }
+                    }
+                    .font(.system(size: schrift))
+                    .foregroundStyle(farbe)
                 }
             }
-            .font(.system(size: schrift))
-            .foregroundStyle(farbe)
+        } else {
+            EinzeilenScroller {
+                HStack(spacing: 4) {
+                    ForEach(Array(bausteine.enumerated()), id: \.offset) { eintrag in
+                        baustein(eintrag.element)
+                    }
+                }
+                .font(.system(size: schrift))
+                .foregroundStyle(farbe)
+            }
         }
+    }
+
+    /// Gruppen wieder mit Trennstrichen verbinden.
+    private static func verbunden(_ gruppen: [[Wertbaustein]]) -> [Wertbaustein] {
+        var ergebnis: [Wertbaustein] = []
+        for g in gruppen {
+            if !ergebnis.isEmpty { ergebnis.append(.trenner) }
+            ergebnis.append(contentsOf: g)
+        }
+        return ergebnis
+    }
+
+    /// Aufgeklappte Liste als ein umbrechender Text (durchgestrichene Werte bleiben durchgestrichen).
+    private static func fliesstext(_ gruppen: [[Wertbaustein]], trenner: Color) -> AttributedString {
+        var text = AttributedString()
+        for (i, g) in gruppen.enumerated() {
+            if i > 0 {
+                var t = AttributedString(" | ")
+                t.foregroundColor = trenner
+                text.append(t)
+            }
+            for (j, b) in g.enumerated() {
+                if j > 0 { text.append(AttributedString(" ")) }
+                switch b {
+                case .text(let w), .neu(let w):
+                    text.append(AttributedString(w))
+                case .weg(let w), .offen(let w):
+                    var t = AttributedString(w)
+                    t.strikethroughStyle = .single
+                    text.append(t)
+                case .pfeil:
+                    text.append(AttributedString("→"))
+                case .trenner, .pille:
+                    break
+                }
+            }
+        }
+        return text
     }
 
     @ViewBuilder

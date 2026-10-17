@@ -2158,11 +2158,14 @@ async function refresh(){
    leer neu gezeichnet. Sie stehenzulassen, bis die neuen eintreffen,
    hieße: Über dem neuen Namen stehen für einen Moment die Stunden des
    alten — und wer in dem Moment eine Kachel antippt, öffnet Daten aus
-   einem fremden Plan. */
+   einem fremden Plan.
+   Der Zeitraum bleibt dabei stehen: Wer in einer anderen Woche (bzw. an
+   einem anderen Tag) den Plan wechselt, sieht den neuen Plan in genau
+   dieser Woche — es wird nicht zur heutigen Woche gesprungen. */
 function planWechseln(neu){
   if (!neu) return;
   const gleich = planKey(neu) === planKey(state.entity);
-  state.entity = neu;
+  state.entity = neu;                    /* state.weekStart/state.day bleiben */
   store.set(state.entityKey || 'entity', { type:neu.type, id:neu.id });
   if (!gleich){
     renderToken++;                       /* laufende Ladungen abhängen */
@@ -5586,6 +5589,36 @@ function renderDetailTabs(c){
   }
 }
 
+/* Lange Werteliste im Kopf der Stundendetails kürzen: Mehr als
+   KURZ_GRENZE Werte (z. B. alle Lehrkräfte oder alle Klassen einer
+   Veranstaltung) zeigen nur die ersten, dahinter „… +N“. Antippen klappt
+   die ganze Liste umbrechend auf (und wieder zu). `teile` sind fertiges
+   HTML. */
+const KURZ_GRENZE = 6;
+function kurzListe(teile, sep){
+  if (teile.length <= KURZ_GRENZE) return teile.join(sep);
+  const zahl = KURZ_GRENZE - 1;
+  const rest = teile.length - zahl;
+  return `${teile.slice(0, zahl).join(sep)}<span class="dmehr__rest" hidden>${sep}${teile.slice(zahl).join(sep)}</span>`
+       + `<button type="button" class="dmehr" aria-expanded="false" data-mehr="${rest}"`
+       + ` aria-label="${rest} weitere anzeigen">… +${rest}</button>`;
+}
+
+function kurzListenBinden(root){
+  root.querySelectorAll('.dmehr').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const zeile = b.parentElement;
+    const rest = zeile && zeile.querySelector('.dmehr__rest');
+    if (!rest) return;
+    const offen = rest.hidden;
+    rest.hidden = !offen;
+    zeile.classList.toggle('is-offen', offen);
+    b.setAttribute('aria-expanded', String(offen));
+    b.textContent = offen ? 'weniger' : `… +${b.dataset.mehr}`;
+    b.setAttribute('aria-label', offen ? 'Liste einklappen' : `${b.dataset.mehr} weitere anzeigen`);
+  }));
+}
+
 function renderDetail(){
   const c = state.detail;
   const d = parseISO(c.date);
@@ -5621,14 +5654,18 @@ function renderDetail(){
        Fach  [ZUSÄTZLICHE UNTERRICHTSSTUNDE]
        alter Raum (durchgestrichen) → neuer Raum
        Lehrkraft
-     Bei einer Veranstaltung: Klasse, darunter die Plakette „VERANSTALTUNG“,
-     dann Raum und Lehrkräfte. Mehrere Werte stehen in den Details durch
-     „ | “ getrennt (auf den Kacheln durch Komma). */
+     Bei einer Veranstaltung steht oben keine Bezeichnung — die steht nur
+     unten in „Information zur Stunde“. Oben erscheinen wie bei einer
+     normalen Stunde nur die eingetragenen Klassen und ein eingetragenes
+     Fach (mit der Plakette „VERANSTALTUNG“), dann Raum und Lehrkräfte.
+     Mehrere Werte stehen in den Details durch „ | “ getrennt (auf den
+     Kacheln durch Komma); sehr viele (alle Lehrkräfte, alle Klassen)
+     werden auf „… +N“ gekürzt und lassen sich aufklappen. */
   const istGS = c.blockType === 'gs' || c.blockType === 'absence';
   const istVeranstaltung = istGS;
   const zusatz = !!c.extra;
   const SEP = '<span class="sep">|</span>';
-  const liste = v => werteListe(v).map(esc).join(SEP);
+  const liste = v => kurzListe(werteListe(v).map(esc), SEP);
 
   const klassD = Array.isArray(c.classList) && c.classList.length > 1 ? c.classList : null;
   const klassHtml = () => klassD.map(t =>
@@ -5641,10 +5678,10 @@ function renderDetail(){
      als Titel – nicht noch einmal als Fachzeile darunter. */
   const terminOhneKlasse = !istVeranstaltung && c.blockType === 'event' && !c.class && !c.classOrig;
   const head = istVeranstaltung
-    ? (c.class ? werteListe(c.class).filter((x, i, a) => a.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i).map(esc).join('<i>|</i>') : esc(c.subject || c.info || 'Veranstaltung'))
+    ? (c.class ? kurzListe(werteListe(c.class).filter((x, i, a) => a.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i).map(esc), '<i>|</i>') : '')
     : terminOhneKlasse ? esc(c.subject || c.info || 'Termin')
     : (c.class
-        ? `${klassD ? klassHtml() : werteListe(c.class).map(esc).join('<i>|</i>')}<i>|</i>${esc(course)}`
+        ? `${klassD ? klassHtml() : kurzListe(werteListe(c.class).map(esc), '<i>|</i>')}<i>|</i>${esc(course)}`
         : c.classAbsent && c.classOrig
         ? `<s>${werteListe(c.classOrig).map(esc).join('<i>|</i>')}</s><i>|</i>${esc(course)}`
         : esc(course || c.subject || 'Unterricht'));
@@ -5658,6 +5695,8 @@ function renderDetail(){
     if (!now && !orig) return '';
     /* Hinzugekommene Werte mit „+“ davor (wie auf der Kachel). */
     const liste = v => werteListe(v).map(x => esc(plusWert(c, key, x))).join(SEP);
+    if (!(changed && orig && orig.toUpperCase() !== now.toUpperCase()))
+      return kurzListe(werteListe(now || orig).map(x => esc(plusWert(c, key, x))), SEP);
     if (changed && orig && orig.toUpperCase() !== now.toUpperCase()){
       /* Im Detail stehen keine Plaketten: alt durchgestrichen, daneben neu
          – getrennt durch „|“ („~~LAN~~ | ILK“). Der Pfeil gehört allein zum
@@ -5684,7 +5723,7 @@ function renderDetail(){
     /* Nur Text, keine Plaketten — mehrere Räume durch „|“ getrennt. */
     const rechts = jetzt.map(x => esc(plusWert(c, 'room', x))).join(SEP);
     if (weg.length) return `<s>${weg.map(esc).join(SEP)}</s><span class="arrow">→</span>${rechts}`;
-    return rechts;
+    return kurzListe(jetzt.map(x => esc(plusWert(c, 'room', x))), SEP);
   };
 
   const koppD = koppTokens(c);
@@ -5697,7 +5736,9 @@ function renderDetail(){
   /* Keine Plaketten im Detail (wie im Original). Jede Angabe steht nur
      einmal: doppelte Lehrkräfte, Klassen oder Räume fallen weg. */
   const einmal = arr => arr.filter((x, i) => arr.findIndex(y => y.toUpperCase() === x.toUpperCase()) === i);
-  const veranstAnlass = istVeranstaltung ? (c.subject || c.info || '').trim() : '';
+  /* Veranstaltung: nur ein eingetragenes Fach, nie die Bezeichnung (die
+     trägt `subject` bei Veranstaltungen). */
+  const veranstFach = istVeranstaltung ? String(c.eventSubject || '').trim() : '';
   /* Art der Stunde als graue Pille in Großbuchstaben rechts neben dem Fach
      (Veranstaltung: neben dem Anlass) – wie im Original. Gibt es keine
      solche Zeile, steht sie allein unter der Überschrift. */
@@ -5787,19 +5828,19 @@ function renderDetail(){
     <div class="dhead ${(c.blockType === 'cancelled' || c.blockType === 'class-absent') ? 'is-off' : ''}">
       ${head ? `<h2 class="dtitle">${head}</h2>` : ''}
       ${istVeranstaltung
-          /* Veranstaltung: der Anlass nur dann als eigene Zeile, wenn oben
-             die Klassen stehen — sonst ist er schon die Überschrift. */
-          ? (c.class && veranstAnlass ? `<p class="dline dline--big dline--mitpill"><span class="dline__txt">${esc(veranstAnlass)}</span>${pilleHtml}</p>`
-             : pilleHtml ? `<p class="dline dline--pill">${pilleHtml}</p>` : '')
+          /* Veranstaltung: Fachzeile nur mit eingetragenem Fach; die Plakette
+             sonst unter den Klassen — ohne Fach und Klassen steht oben nichts. */
+          ? (veranstFach ? `<p class="dline dline--big dline--mitpill"><span class="dline__txt">${esc(veranstFach)}</span>${pilleHtml}</p>`
+             : head && pilleHtml ? `<p class="dline dline--pill">${pilleHtml}</p>` : '')
           : (c.subject || c.subjectOrig) && !terminOhneKlasse
             ? `<p class="dline dline--big dline--mitpill"><span class="dline__txt">${val('subject')}</span>${pilleHtml}</p>`
             : pilleHtml ? `<p class="dline dline--pill">${pilleHtml}</p>` : ''}
       ${onlineD
           /* Online-Unterricht: kein Raum, nur das Zeichen (wie auf der Kachel). */
           ? `<p class="dline dline--grau dline--online" aria-label="Online-Unterricht">${KACHEL_ONLINE}</p>`
-          : (c.room || c.roomOrig) ? `<p class="dline dline--grau">${istVeranstaltung ? einmal(werteListe(c.room)).map(esc).join(SEP) : raumHtml()}</p>` : ''}
+          : (c.room || c.roomOrig) ? `<p class="dline dline--grau">${istVeranstaltung ? kurzListe(einmal(werteListe(c.room)).map(esc), SEP) : raumHtml()}</p>` : ''}
       ${istVeranstaltung
-          ? (einmal(werteListe(c.teacher).filter(t => t !== '---')).length ? `<p class="dline dline--grau">${einmal(werteListe(c.teacher).filter(t => t !== '---')).map(esc).join(SEP)}</p>` : '')
+          ? (einmal(werteListe(c.teacher).filter(t => t !== '---')).length ? `<p class="dline dline--grau">${kurzListe(einmal(werteListe(c.teacher).filter(t => t !== '---')).map(esc), SEP)}</p>` : '')
           : (c.teacher || c.teacherOrig)
             ? `<p class="dline dline--grau${koppD ? ' dline--kopp' : ''}">${koppD ? koppHtml() : val('teacher')}</p>` : ''}
     </div>
@@ -5838,6 +5879,7 @@ function renderDetail(){
           </span>
         </div>`).join('')}
     </div>`;
+  kurzListenBinden($('#detailBody'));
 
   $$('#detailBody .drow2').forEach(el => {
     const key = el.dataset.key;

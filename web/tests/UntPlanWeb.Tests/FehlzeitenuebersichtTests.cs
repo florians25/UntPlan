@@ -172,6 +172,59 @@ public class FehlzeitenuebersichtTests
     }
 
     [Fact]
+    public async Task Ganztaegig_erfasst_alle_Stunden_der_Tage_mit_Fehltagen()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var schueler = stand.Schueler.Where(x => x.Klasse == "7a").Take(2).ToList();
+        var kl = await s.AlsAsync("leitung", "leitung", "");
+        var montag = Stunden(s, Krank2, "7a");
+        var dienstag = Stunden(s, Krank2.AddDays(2), "7a"); // Mittwoch; Dienstag ohne Unterricht der 7a im Testplan
+        Assert.True(montag.Count > 1 && dienstag.Count > 0 && Stunden(s, Krank2.AddDays(1), "7a").Count == 0);
+
+        // Klassenleitung: Uhrzeiten mitten am Tag, aber „ganztägig“ Mo–Mi → alle Stunden der Tage mit Unterricht, zwei Fehltage
+        var r = await Testserver.JsonAsync(await kl.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", new
+            { schuelerIds = new[] { schueler[0].Id }, von = "2026-10-12T10:00", bis = "2026-10-14T10:30", grund = "K", status = "offen", text = "krank gemeldet", ganztaegig = true }));
+        Assert.True(Z(r, "stunden") >= montag.Count + dienstag.Count);
+        var fz = (await Testserver.HolenAsync(kl, $"/api/app/abwesenheiten/fehlzeiten?klasse=7a&von=2026-10-12&bis=2026-10-14&schueler={schueler[0].Id}")).AsArray();
+        Assert.Equal(montag.Count + dienstag.Count, fz.Count);
+        Assert.All(fz, z => Assert.True(z!["zaehlt"]!.GetValue<bool>()));
+        Assert.Equal(2, fz.Sum(z => Z(z!, "fehltage")));
+        var zr = Assert.Single((await Testserver.HolenAsync(kl, "/api/app/abwesenheiten/zeitraeume?klasse=7a&von=2026-10-12&bis=2026-10-14")).AsArray()
+            .Where(z => Z(z!, "schuelerId") == schueler[0].Id))!;
+        Assert.Equal(("fehlt", "2026-10-12", "2026-10-14"), (zr["art"]!.GetValue<string>(), zr["vonDatum"]!.GetValue<string>(), zr["bisDatum"]!.GetValue<string>()));
+
+        // ohne „ganztägig“ bleibt es minutengenau (10:00–10:30 am Montag: weniger Stunden)
+        var teil = await Testserver.JsonAsync(await kl.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", new
+            { schuelerIds = new[] { schueler[1].Id }, von = "2026-10-12T10:00", bis = "2026-10-12T10:30", grund = "K", status = "offen" }));
+        Assert.True(Z(teil, "stunden") < montag.Count);
+
+        // Lehrkraft in ihrer Stunde: ganztägig für den Tag der Stunde erlaubt, über mehrere Tage nicht
+        var karte = s.Dienst<Plandienst>().Karten(stand, Krank2, Elementtyp.Klasse, "7a").First(k => k.Unterricht.HasValue && k.Status == "regulaer" && k.Lehrer.Count == 1 && k.Lehrer[0].K != "LAN");
+        var lk = await s.AlsAsync(karte.Lehrer[0].K.ToLowerInvariant(), "lehrer", karte.Lehrer[0].K);
+        object Lk(string bis) => new { schuelerIds = new[] { schueler[1].Id }, von = "2026-10-12T08:00", bis, grund = "K", ganztaegig = true, datum = "2026-10-12", stunde = karte.Von, unterricht = karte.Unterricht };
+        Assert.Equal(HttpStatusCode.Forbidden, (await lk.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", Lk("2026-10-13T08:00"))).StatusCode);
+        await Testserver.JsonAsync(await lk.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", Lk("2026-10-12T09:00")));
+        var tag = (await Testserver.HolenAsync(kl, $"/api/app/abwesenheiten/fehlzeiten?klasse=7a&von=2026-10-12&bis=2026-10-12&schueler={schueler[1].Id}")).AsArray();
+        Assert.Equal(montag.Count, tag.Count);
+        Assert.Equal(1, tag.Sum(z => Z(z!, "fehltage")));
+    }
+
+    [Fact]
+    public void Ganztaegig_Zeitraum_und_Oberflaeche()
+    {
+        Assert.Equal((new DateTime(2026, 10, 12), new DateTime(2026, 10, 13, 23, 59, 0)), Klassenbuchdienst.Ganztaegig(new DateTime(2026, 10, 12, 10, 0, 0), new DateTime(2026, 10, 13, 8, 0, 0)));
+        Assert.Equal((new DateTime(2026, 10, 12), new DateTime(2026, 10, 12, 23, 59, 0)), Klassenbuchdienst.Ganztaegig(new DateTime(2026, 10, 12, 10, 0, 0), new DateTime(2026, 10, 11)));
+        var sd = Datei("js", "stundendetails.js");
+        Assert.Contains("data-ab-ganz", sd);
+        Assert.Contains("ganztaegig: q('[data-ab-ganz]').checked || null", sd);
+        var abw = Datei("js", "ansichten", "abwesenheiten.js");
+        Assert.Contains("name=\"ganztaegig\"", abw);
+        Assert.Contains("beimOeffnen: ganzBinden", abw);
+        Assert.Contains("ganztaegig: ganz || null", abw);
+    }
+
+    [Fact]
     public void Summen_aus_Zeilen_und_Zeitraeumen()
     {
         static Fehlzeile F(int id, string datum, string art, string status, int fehltage = 0, int minuten = 45) =>

@@ -304,6 +304,62 @@ public class RaumaenderungenTests
         }
     }
 
+    /// <summary>
+    /// Web (plangitter.js): neuer Raum als grünes Label mit Hover „alt → neu“, hinzugefügter als „+R“, entfernter bzw. offener
+    /// durchgestrichen im grünen Label – in Klassen-, Lehrer- und Raumplan (dort früher ganz ohne Raumzeile).
+    /// </summary>
+    [Fact]
+    public void Web_Karte_zeigt_Raumlabel_in_allen_Plaenen()
+    {
+        string? node = null;
+        foreach (var kandidat in new[] { "node", "/opt/node22/bin/node", "/usr/bin/node", "/usr/local/bin/node" })
+        {
+            try
+            {
+                using var v = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(kandidat, "--version") { RedirectStandardOutput = true, UseShellExecute = false });
+                v!.WaitForExit(5000);
+                if (v.ExitCode == 0) { node = kandidat; break; }
+            }
+            catch (System.ComponentModel.Win32Exception) { }
+        }
+        if (node is null) return;
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "src", "UntPlanWeb", "UntPlanWeb.csproj"))) dir = dir.Parent;
+        var js = new Uri(Path.Combine(dir!.FullName, "src", "UntPlanWeb", "wwwroot", "js", "plangitter.js")).AbsoluteUri;
+        var skript = Path.Combine(Path.GetTempPath(), "untplan-raumlabel-" + Guid.NewGuid().ToString("N") + ".mjs");
+        File.WriteAllText(skript, """
+            const stub = () => new Proxy(function () {}, { get: (t, p) => p === Symbol.toPrimitive ? () => '' : p === 'then' ? undefined : stub(), apply: () => stub(), construct: () => stub() });
+            globalThis.document = stub(); globalThis.window = globalThis; globalThis.matchMedia = () => stub();
+            globalThis.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+            const pg = await import(process.argv[2]);
+            const karte = raeume => ({ status: 'geaendert', fach: 'D', fachName: 'Deutsch', klassen: [{ k: '7a' }], lehrer: [{ k: 'LAN' }], raeume, marker: [], art: 'Raum-Vtr.' });
+            const faelle = [
+              [[{ k: 'R109', alt: 'R105', neu: true }], '<span class="lbl" data-hover="R105 → R109" data-hover-alt="R105">R109</span>'],
+              [[{ k: 'R105' }, { k: 'R109', neu: true, plus: true }], 'R105, <span class="lbl lbl-plus">+R109</span>'],
+              [[{ k: '', alt: 'R105', neu: true }], '<span class="lbl weg">R105</span>'],
+            ];
+            let fehler = 0;
+            for (const [typ, el] of [['klasse', '7a'], ['lehrer', 'LAN'], ['raum', 'R109']])
+              for (const [r, soll] of faelle) {
+                const html = pg.karteInhalt(karte(r), typ, false, el);
+                if (!html.includes(soll)) { console.error(typ + ': ' + soll + ' fehlt in ' + html); fehler++; }
+              }
+            // unveränderter Raum im Raumplan: keine Raumzeile (der Raum steht über dem Plan)
+            const regulaer = pg.karteInhalt({ ...karte([{ k: 'R109' }]), status: 'regulaer' }, 'raum', false, 'R109');
+            if (regulaer.includes('R109')) { console.error('Raumplan wiederholt den Raum: ' + regulaer); fehler++; }
+            console.log(fehler ? 'fehler' : 'ok');
+            process.exit(fehler ? 1 : 0);
+            """);
+        try
+        {
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(node, $"\"{skript}\" \"{js}\"") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false })!;
+            var aus = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+            p.WaitForExit(20000);
+            Assert.True(p.ExitCode == 0, aus);
+        }
+        finally { File.Delete(skript); }
+    }
+
     /// <summary>Raumwert wie dargestellt: „R1“, „+R2“ (hinzugefügt), „R1→R2“ (grünes Label mit Hover), „R1→∅“ (durchgestrichen im Label).</summary>
     private static string Text(JsonNode w)
     {

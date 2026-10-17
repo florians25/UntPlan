@@ -104,8 +104,26 @@ public static class UntPlanWebExport
             if (unterrichtstag)
             {
                 var tp = Tagesplan.Berechnen(d, t);
+                // Veranstaltung: je Veranstaltung und Stunde EINE Stunde mit allen teilnehmenden Lehrkräften (statt je Lehrkraft einer
+                // Stunde mit allen Klassen – bei Lehrkräftekonferenz bzw. pädagogischem Tag sonst Tausende Einträge); Vtr-Nr. = kleinste
+                // Nummer der Stunde wie in der Vertretungszeile (Vertretungsplan.Zeilen)
+                var vaStunden = tp.Eintraege.Where(e => e.Vertretung is { Art: VertretungsArt.Veranstaltung, VeranstaltungId: int })
+                    .GroupBy(e => (Va: e.Vertretung!.VeranstaltungId!.Value, e.Stunde)).Where(g => g.Count() > 1)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(e => e.Vertretung!.Id).ToList());
                 foreach (var e in tp.Eintraege.Where(e => !nurAenderungen || e.Status != TagesStatus.Regulaer).OrderBy(e => e.Stunde))
                 {
+                    if (e.Vertretung is { Art: VertretungsArt.Veranstaltung, VeranstaltungId: int gva } && vaStunden.TryGetValue((gva, e.Stunde), out var gruppe))
+                    {
+                        if (!ReferenceEquals(gruppe[0], e)) continue;
+                        tag.Stunden.Add(new WebStunde
+                        {
+                            Stunde = e.Stunde, Fach = K(ElementTyp.Fach, e.FachId), Klassen = Kl(gruppe.SelectMany(x => x.KlassenIds).Distinct()),
+                            Lehrer = gruppe.SelectMany(x => x.LehrerIds).Distinct().Select(ix.KLehrer).ToList(),
+                            Raeume = gruppe.SelectMany(x => x.RaumIds).Distinct().Select(ix.KRaum).ToList(),
+                            Status = "zusaetzlich", Vertretung = e.Vertretung.Id, Text = StundenplanAenderungen.ExportText(e.Vertretung.Text), Veranstaltung = gva,
+                        });
+                        continue;
+                    }
                     var ws = new WebStunde
                     {
                         Stunde = e.Stunde, Unterricht = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId, Fach = K(ElementTyp.Fach, e.FachId),
@@ -123,6 +141,8 @@ public static class UntPlanWebExport
                         Klausur = e.Vertretung is { KlausurId: int kid } kv && d.Klausuren.FirstOrDefault(k => k.Id == kid && k.Aktiv) is { } kl
                             && (kv.Art == VertretungsArt.Klausur || (kv.IstEntfall && kv.Quelle == VertretungsQuelle.Klausur
                                 && ((kv.UnterrichtId.HasValue && kl.UnterrichtId == kv.UnterrichtId) || kl.KlassenIds.Intersect(kv.KlassenIds).Any()))) ? kid : null,
+                        // Veranstaltungsstunde bzw. wegen der Veranstaltung entfallener/freigesetzter Unterricht
+                        Veranstaltung = e.Vertretung is { VeranstaltungId: int vid } vv && (vv.Art == VertretungsArt.Veranstaltung || vv.Quelle == VertretungsQuelle.Veranstaltung) ? vid : null,
                     };
                     // Prüfung ersetzt den Unterricht ihrer Aufsicht (eine Zeile im Desktop): im Paket wie gewohnt als entfallener
                     // Unterricht (mit Klausur-Id) und Prüfungsstunde – UntPlanWeb fasst beides zu einer Karte zusammen
@@ -163,6 +183,7 @@ public static class UntPlanWebExport
                         Id = z.Id, Datum = D(t), Stunde = z.Stunde, Art = z.Art, Klassen = Kl(z.KlassenIds), Lehrer = pr ? "" : z.Lehrer, Vertreter = z.Vertreter,
                         Fach = pr ? "" : z.Fach, NeuesFach = pr ? "" : z.NeuesFach, Raum = pr ? "" : z.Raum, NeuerRaum = neuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = StundenplanAenderungen.ExportText(z.Text),
                         NurLehrer = z.Art == Vertretungsplan.ArtText(d, VertretungsArt.Pausenaufsicht),
+                        Veranstaltung = z.VeranstaltungId, AlleKlassen = z.AlleKlassen, AlleLehrer = z.AlleLehrer,
                     });
                 }
             }
@@ -233,11 +254,12 @@ public static class UntPlanWebExport
                 {
                     Art = "veranstaltung", Titel = v.Text, Von = D(v.Von), Bis = D(v.Bis), StundeVon = v.StundeVon, StundeBis = Math.Min(v.StundeBis, d.Zeitraster.StundenProTag),
                     Klassen = Kl(v.KlassenIds), Lehrer = v.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = v.RaumIds.Select(ix.KRaum).ToList(),
+                    Id = v.Id, AlleKlassen = VeranstaltungsLogik.AlleKlassen(d, v), AlleLehrer = VeranstaltungsLogik.AlleLehrer(d, v),
                 })
                 .Concat(d.Klausuren.Where(k => k.Aktiv && k.Datum >= von && k.Datum <= bis).Select(k => new WebTermin
                 {
                     Art = "klausur", Titel = k.Name, Von = D(k.Datum), Bis = D(k.Datum), StundeVon = k.StundeVon, StundeBis = k.StundeBis,
-                    Klassen = Kl(k.KlassenIds), Lehrer = k.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = k.RaumIds.Select(ix.KRaum).ToList(),
+                    Klassen = Kl(k.KlassenIds), Lehrer = k.LehrerIds.Select(ix.KLehrer).ToList(), Raeume = k.RaumIds.Select(ix.KRaum).ToList(), Id = k.Id,
                 })).ToList(),
             Tagestexte = !mitVertretungen ? new List<WebTagestext>() : d.Tagestexte.Where(t => t.Portal && t.Datum.AddDays(Math.Max(1, t.GueltigTage)) > von && t.Datum <= bis).Select(t =>
             {

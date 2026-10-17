@@ -127,12 +127,46 @@ public class SeitenlayoutTests
     }
 
     [Fact]
-    public void Offene_Stunden_Art_als_Segment_statt_Auswahlliste()
+    public void Offene_Stunden_Art_als_Dropdown_im_Suchfeld_auf_grauem_Seitengrund()
     {
         var js = Datei("js", "ansichten", "offen.js");
-        Assert.Contains("segment(ART_WAHL", js);
-        Assert.DoesNotContain("<select data-artwahl", js);
+        // Art der Anzeige als Dropdown im gemeinsamen Suchfeld (wie Hausaufgaben) statt Pillen-Gruppe
+        Assert.Contains("suchfeldMitFilter({", js);
+        Assert.Contains("filter: [{ name: 'art', label: 'Anzeigen'", js);
+        Assert.Contains("suchfeldMitFilterBinden(w, {", js);
+        Assert.DoesNotContain("segment(ART_WAHL", js);
+        Assert.DoesNotContain("data-artwahl", js);
         Assert.DoesNotContain("os-artwahl", js);
+        // Leiste direkt im Seiteninhalt (grauer Seitengrund wie alle Listenseiten), nicht in der weißen Werkzeugleiste
+        Assert.DoesNotContain("kontext.werkzeug(", js);
+        Assert.Contains("<div class=\"u-sf-leiste os-filter\">", js);
+    }
+
+    [Fact]
+    public void Suchfeld_mit_Filter_als_gemeinsame_Komponente()
+    {
+        var ui = Datei("js", "ui.js");
+        Assert.Contains("export const suchfeldMitFilter = (", ui);
+        Assert.Contains("export function suchfeldMitFilterBinden(", ui);
+        Assert.Contains("export const zeitraumPillen = (", ui);
+        Assert.Contains("export function zeilenFiltern(", ui);
+        Assert.Contains("data-chip-weg", ui);
+        Assert.Contains("data-sf-weg", ui);
+        Assert.Contains("ev.key !== 'Backspace'", ui);
+        var css = Datei("css", "seitenlayout.css");
+        foreach (var k in new[] { ".u-suchfilter", ".u-sf-filter.gewaehlt", ".u-sf-chip", ".u-sf-leiste", ".u-suchfilter .u-trenn", ".u-suchfilter.au-mit-x > .au-x" }) Assert.Contains(k, css);
+        Assert.DoesNotContain("font-weight: 600", css);
+        Assert.DoesNotContain("font-weight: 700", css);
+        // alle Listenseiten mit Suche und Filter nutzen die Komponente
+        foreach (var datei in new[] { "hausaufgaben.js", "offen.js", "pruefungen.js", "abwesenheiten.js", "klassenbuch.js", "entschuldigungen.js", "eintraege.js", "dienste.js",
+                     "befreiungen.js", "melden.js", "mitteilungen.js", "neuigkeiten.js", "benutzerverwaltung.js", "rechte.js", "stammdaten.js", "berichte.js" })
+        {
+            var js = Datei("js", "ansichten", datei);
+            Assert.True(js.Contains("suchfeldMitFilter(") && js.Contains("suchfeldMitFilterBinden("), datei);
+        }
+        Assert.Contains("suchfeldMitFilterBinden(", Datei("js", "infocenter.js"));
+        // keine weiße Werkzeugleiste mehr auf den Listenseiten
+        foreach (var datei in new[] { "hausaufgaben.js", "pruefungen.js", "offen.js" }) Assert.DoesNotContain("kontext.werkzeug(", Datei("js", "ansichten", datei));
     }
 
     [Fact]

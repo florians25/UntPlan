@@ -263,6 +263,17 @@ public sealed partial class Klassenbuchdienst
 
     // ------------------------------------------------------------------------------------------ Abwesenheit erfassen (Abwesenheitsdialog)
 
+    /// <summary>
+    /// Zeitraum einer ganztägigen Abwesenheit: vom Beginn des ersten bis zum Ende des letzten Tages (00:00–23:59), sodass alle
+    /// Unterrichtsstunden laut Plan – auch außerhalb des Zeitrasters – als ganze Fehlstunden zählen (Fehltag je Tag).
+    /// </summary>
+    public static (DateTime Von, DateTime Bis) Ganztaegig(DateTime von, DateTime bis)
+    {
+        var v = von.Date;
+        var b = bis.Date < v ? v : bis.Date;
+        return (v, b.AddDays(1).AddMinutes(-1));
+    }
+
     private static string Status(string? st, string vorgabe) => st is "entschuldigt" or "unentschuldigt" or "offen" ? st : vorgabe;
 
     /// <summary>

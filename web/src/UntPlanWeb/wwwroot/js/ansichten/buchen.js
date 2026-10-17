@@ -7,7 +7,7 @@
 // Liste mit Symbol je Art, Standort, Verfügbarkeit im gewählten Zeitraum, Belegungs-Zeitstrahl, Buchen direkt aus der Liste) und Neuer
 // Unterricht mit zusätzlichen Stunden.
 // Verwaltung (Ressourcen, Raumdaten): buchungsverwaltung.js. Raumliste: gemeinsame Komponente raumwahl.js.
-import { e, holen, senden, api, toast, dialog, bestaetigen, leer, alarm, heuteIso, plusTage, montag, herunterladen, WOCHENTAGE_KURZ, suchfeld, segment, segmentSetzen, minuten, jetztMinuten } from '../ui.js';
+import { e, holen, senden, api, toast, dialog, bestaetigen, leer, alarm, heuteIso, plusTage, montag, herunterladen, WOCHENTAGE_KURZ, suchfeld, suchfeldMitFilter, suchfeldMitFilterBinden, segment, segmentSetzen, minuten, jetztMinuten } from '../ui.js';
 import { kbDialog } from '../kbdialog.js';
 import { raumListe } from '../raumwahl.js';
 
@@ -557,12 +557,12 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
   seite.innerHTML = `
     <div class="nl-leiste bu-leiste">
       <div class="bu-segment" role="radiogroup" aria-label="Ansicht">${ANSICHTEN.map(([w, t]) => `<button type="button" role="radio" aria-checked="${filter.ansicht === w}" class="${filter.ansicht === w ? 'an' : ''}" data-ansicht="${w}">${t}<span class="bu-anzahl">${anzahl(w)}</span></button>`).join('')}</div>
-      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Titel, Raum, Klasse …" aria-label="Buchungen durchsuchen" value="${e(filter.suche)}"></label>
+      ${suchfeldMitFilter({ platzhalter: 'Titel, Raum, Klasse …', wert: filter.suche, label: 'Buchungen durchsuchen', klasse: 'bu-meine-suche',
+        filter: [{ name: 'art', label: 'Art', optionen: Object.entries(ART_NAME), wert: filter.art, alle: 'Alle Arten' }] })}
       <span class="ms-auto d-flex gap-2"><button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i>Export</button>
         <a class="nl-hinzu" href="#/buchen/raum"><i class="bi bi-plus-lg"></i>Neue Buchung</a></span>
     </div>
     <div class="nl-leiste bu-leiste2">
-      <label class="nl-pille ${filter.art ? 'aktiv' : ''}"><select data-art aria-label="Art"><option value="">Alle Arten</option>${Object.entries(ART_NAME).map(([k, t]) => `<option value="${k}" ${filter.art === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <label class="nl-pille"><span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}"></label>
       <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${bis}"></label>
       ${ich.admin ? `<label class="rw-schalter"><input type="checkbox" data-alle ${alle ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Buchungen aller Lehrkräfte</label>` : ''}
@@ -637,8 +637,10 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
     seite.querySelectorAll('[data-ansicht]').forEach(x => { x.classList.toggle('an', x === b); x.setAttribute('aria-checked', String(x === b)); });
     zeichnen();
   });
-  seite.querySelector('[data-suche]').oninput = ev => { filter.suche = ev.target.value.trim(); zeichnen(); };
-  seite.querySelector('[data-art]').onchange = ev => { filter.art = ev.target.value; ev.target.closest('.nl-pille').classList.toggle('aktiv', !!filter.art); zeichnen(); };
+  suchfeldMitFilterBinden(seite.querySelector('.bu-leiste'), {
+    beiSuche: t => { filter.suche = t; zeichnen(); },
+    beiFilter: (n, w) => { if (n === 'art') { filter.art = w; zeichnen(); } },
+  });
   seite.querySelectorAll('[data-von], [data-bis]').forEach(f => f.onchange = () => kontext.navigieren(ziel(seite.querySelector('[data-von]').value || von, seite.querySelector('[data-bis]').value || bis)));
   seite.querySelector('[data-alle]')?.addEventListener('change', ev => kontext.navigieren(ziel(von, bis, ev.target.checked)));
   seite.querySelector('[data-csv]').onclick = () => herunterladen(`buchungen-${von}-${bis}.csv`, csv([
@@ -723,19 +725,21 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
         ${pille(`<input type="date" data-datum value="${datum}" aria-label="Datum">`)}<button type="button" class="nl-knopf rund" data-schieben="1" aria-label="${woche ? 'Woche' : 'Tag'} weiter"><i class="bi bi-chevron-right"></i></button>
         <button type="button" class="nl-knopf" data-heute>Heute</button></div>
       ${segment([['tag', 'Tag', { symbol: 'calendar-day' }], ['woche', 'Woche', { symbol: 'calendar-week' }]], woche ? 'woche' : 'tag', { attr: 'data-ansicht', label: 'Zeitraum' })}
-      ${suchfeld({ platzhalter: 'Raum suchen', wert: k.suche, attr: 'data-raumsuche', label: 'Raum suchen', klasse: 'bu-raumsuche' })}
-      <span class="bu-ru-zoom ms-auto">${segment(ZOOM, zoom, { attr: 'data-zoom', label: 'Darstellung' })}</span>
+      ${suchfeldMitFilter({ platzhalter: 'Raum suchen', wert: k.suche, attr: 'data-raumsuche', label: 'Raum suchen', klasse: 'bu-raumsuche', filter: [
+        ...(opt.gebaeude.length ? [{ name: 'gebaeude', label: 'Gebäude', optionen: opt.gebaeude.map(x => [x, x]), wert: k.gebaeude, alle: 'Alle Gebäude' }] : []),
+        ...(opt.raumarten.length ? [{ name: 'raumart', label: 'Raumart', optionen: opt.raumarten.map(x => [x, x]), wert: k.raumart, alle: 'Alle Raumarten' }] : [])] })}
       <button type="button" class="nl-knopf bu-filter-auf ${filterAktiv() ? 'aktiv' : ''}" data-filter-auf aria-expanded="false"><i class="bi bi-funnel"></i>Filter${filterAktiv() ? `<span class="bu-anzahl">${RAUM_SERVERFILTER.filter(n => k[n]).length + (k.frei ? 1 : 0) || ''}</span>` : ''}</button>
     </div>
     <div class="nl-leiste bu-filterleiste bu-ru-filter">
-      ${sel('gebaeude', 'Gebäude', opt.gebaeude)}${sel('abteilung', 'Abteilung', opt.abteilungen)}${sel('raumart', 'Raumart', opt.raumarten)}${sel('raumgruppe', 'Raumgruppe', opt.raumgruppen)}
+      ${sel('abteilung', 'Abteilung', opt.abteilungen)}${sel('raumgruppe', 'Raumgruppe', opt.raumgruppen)}
       ${opt.ressourcenarten.length ? pille(`<select data-f="ressourcenarten" aria-label="Ausstattung">${optionen(opt.ressourcenarten.map(a => [String(a.id), a.name]), k.ressourcenarten, 'Ausstattung: alle')}</select>`, !!k.ressourcenarten) : ''}
       ${pille(`<select data-f="kapazitaet" aria-label="Kapazität">${optionen([10, 15, 20, 25, 30, 40, 60].map(x => [String(x), `ab ${x} Plätzen`]), k.kapazitaet, 'Kapazität: alle')}</select>`, !!k.kapazitaet)}
       <span data-freiwahl></span>
       <button type="button" class="nl-knopf klein bu-filter-weg" data-filter-weg ${filterAktiv() ? '' : 'hidden'}><i class="bi bi-x-lg"></i>Filter zurücksetzen</button>
     </div>
     <div class="bu-ru-kopf"><div class="bu-ru-zahlen" data-zahlen aria-live="polite"></div>
-      <div class="bu-legende" aria-label="Legende">${['unterricht', 'buchung', 'klausur', 'termin', 'vorgemerkt', 'gesperrt'].map(a => `<span><i class="bu-punkt ${a}"></i>${BELEGT_TEXT[a]}</span>`).join('')}<span><i class="bu-punkt frei"></i>frei – anklicken zum Buchen</span></div></div>
+      <div class="bu-legende" aria-label="Legende">${['unterricht', 'buchung', 'klausur', 'termin', 'vorgemerkt', 'gesperrt'].map(a => `<span><i class="bu-punkt ${a}"></i>${BELEGT_TEXT[a]}</span>`).join('')}<span><i class="bu-punkt frei"></i>frei – anklicken zum Buchen</span></div>
+      <span class="bu-ru-zoom">${segment(ZOOM, zoom, { attr: 'data-zoom', label: 'Darstellung', klasse: 'klein' })}</span></div>
     <div data-raster><div class="u-laedt"></div></div>`;
   seite.querySelectorAll('[data-schieben]').forEach(b => b.onclick = () => kontext.navigieren(ziel(plusTage(datum, Number(b.dataset.schieben) * (woche ? 7 : 1)))));
   seite.querySelector('[data-heute]').onclick = () => kontext.navigieren(ziel(heuteIso()));
@@ -907,7 +911,10 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
     }
   });
   hoverVerbinden(box, z => infoHtml(Number(z.dataset.info)));
-  seite.querySelector('[data-raumsuche]').oninput = ev => { raumFilter.suche = ev.target.value.trim(); zeichnen(); };
+  suchfeldMitFilterBinden(seite.querySelector('.bu-ru-leiste'), {
+    beiSuche: t => { raumFilter.suche = t; zeichnen(); },
+    beiFilter: (n, w) => { raumFilter[n] = w; kontext.navigieren(ziel(), true); },
+  });
   seite.querySelector('[data-frei]').onchange = ev => { raumFilter.frei = ev.target.value; ev.target.closest('.nl-pille').classList.toggle('aktiv', !!raumFilter.frei); zeichnen(); };
   seite.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => {
     zoom = b.dataset.wert; merken('zoom', zoom);

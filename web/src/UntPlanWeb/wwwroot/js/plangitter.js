@@ -375,11 +375,12 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
 
   // Zeitachse wie im Original: Beginn oben an der Stunde, Ende unten (über der Linie), dazwischen die Stundennummer
   html += `<div class="tt-achse" style="height:${aufbau.hoehe}px">`;
+  // Uhrzeiten auf den Karten eingeblendet: links nur die Stundennummern (keine Uhrzeiten doppelt)
   zeiten.forEach((z, i) => {
     const oben = aufbau.oben[i];
-    html += `<div class="tt-zeit beginn" style="top:${oben}px">${e(z.beginn)}</div>`;
-    html += `<div class="tt-nr" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
-    html += `<div class="tt-zeit ende" style="top:${oben + ZEILE}px">${e(z.ende)}</div>`;
+    if (!kartenZeiten) html += `<div class="tt-zeit beginn" style="top:${oben}px">${e(z.beginn)}</div>`;
+    html += `<div class="tt-nr${kartenZeiten ? ' allein' : ''}" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
+    if (!kartenZeiten) html += `<div class="tt-zeit ende" style="top:${oben + ZEILE}px">${e(z.ende)}</div>`;
   });
   if (jetztY !== null) html += `<div class="tt-jetzt-zeit" style="top:${jetztY}px">${hhmm(jetzt)}</div>`;
   html += '</div>';

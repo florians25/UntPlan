@@ -91,7 +91,10 @@ public class SprechtagTests
         // keine Verwaltungs- und Lehrkraftansicht
         var schueler = await s.AlsAsync("klasse-7a", "schueler", "7a");
         Assert.Single((await Testserver.HolenAsync(schueler, "/api/app/sprechtag"))["sprechtage"]!.AsArray());
-        await FehlerAsync(await schueler.GetAsync($"/api/app/sprechtag/{id}"));
+        var lesen = await Testserver.HolenAsync(schueler, $"/api/app/sprechtag/{id}");
+        Assert.True(lesen["schueler"]!.GetValue<bool>());
+        Assert.Null(lesen["uebersicht"]);
+        Assert.Equal(0, lesen["termine"]!.GetValue<int>());
         await FehlerAsync(await schueler.GetAsync($"/api/app/sprechtag/{id}/lehrkraft"), HttpStatusCode.Forbidden);
 
         // löschen

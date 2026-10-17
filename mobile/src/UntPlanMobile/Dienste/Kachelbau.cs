@@ -442,7 +442,11 @@ public static class Kachelbau
                 break;
             case "geaendert" when k.Unterricht is null && k.Fach.Length == 0 && k.Text.Length > 0:
             case "veranstaltung":
-                return Veranstaltung(k.Datum, k.Von, k.Bis, k.Text.Length > 0 ? k.Text : k.Art, k.Klassen.Select(w => w.K), k.Lehrer.Select(w => w.K), k.Raeume.Select(w => w.K), k.Farbe);
+                var veranstaltung = Veranstaltung(k.Datum, k.Von, k.Bis, k.Text.Length > 0 ? k.Text : k.Art, k.Klassen.Select(w => w.K), k.Lehrer.Select(w => w.K), k.Raeume.Select(w => w.K), k.Farbe);
+                // Eingetragenes Fach (nicht die Bezeichnung) für den Kopf der Stundendetails
+                var echtesFach = k.Fach.Trim();
+                if (echtesFach.Length > 0 && !Ci.Equals(echtesFach, veranstaltung.Fach.Trim())) veranstaltung.VeranstaltungFach = echtesFach;
+                return veranstaltung;
             case "geaendert":
                 kachel.Art = "change";
                 if (IstZusatzstunde(k))

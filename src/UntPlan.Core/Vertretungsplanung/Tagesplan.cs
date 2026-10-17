@@ -85,6 +85,7 @@ public sealed class Tagesplan
         tp.Regel.AddRange(Regulaer(d, datum));
         var vertretungen = d.Vertretungen.Where(v => v.Datum == datum && v.Art != VertretungsArt.Pausenaufsicht).ToList();
         var zuRegel = new Dictionary<(int, int, int), List<Vertretung>>();
+        var regelSchluessel = tp.Regel.Select(r => (r.Unterricht.Id, r.ZeilenIndex, r.Stunde)).ToHashSet();
         var zusaetzlich = new List<Vertretung>();
         foreach (var v in vertretungen)
         {
@@ -93,7 +94,7 @@ public sealed class Tagesplan
             // wegen abwesender Klasse entfallene Zeile: zugeordnet wird nach der ursprünglichen Art
             var art = v.ArtVorKlassenabwesenheit ?? v.Art;
             if (v.UnterrichtId is int uid && art is not (VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.SondereinsatzVormerkung
-                    or VertretungsArt.Veranstaltung) && !(art == VertretungsArt.Klausur && v.Quelle != VertretungsQuelle.Klausur) && !(art == VertretungsArt.Sondereinsatz && v.LehrerId is null) && tp.Regel.Any(r => r.Unterricht.Id == uid && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde))
+                    or VertretungsArt.Veranstaltung) && !(art == VertretungsArt.Klausur && v.Quelle != VertretungsQuelle.Klausur) && !(art == VertretungsArt.Sondereinsatz && v.LehrerId is null) && regelSchluessel.Contains((uid, v.ZeilenIndex, v.Stunde)))
             {
                 var key = (uid, v.ZeilenIndex, v.Stunde);
                 if (!zuRegel.TryGetValue(key, out var l)) zuRegel[key] = l = new();
@@ -183,7 +184,24 @@ public sealed class Tagesplan
         }
     }
 
-    public IEnumerable<TagesEintrag> Stunde(int stunde) => Eintraege.Where(e => e.Stunde == stunde);
+    private Dictionary<int, List<TagesEintrag>>? _nachStunde;
+    private int _indexStand = -1;
+
+    /// <summary>Einträge einer Stunde (Index je Stunde, wird bei geänderter Eintragszahl neu aufgebaut).</summary>
+    public IEnumerable<TagesEintrag> Stunde(int stunde)
+    {
+        if (_nachStunde is null || _indexStand != Eintraege.Count)
+        {
+            _nachStunde = new Dictionary<int, List<TagesEintrag>>();
+            foreach (var e in Eintraege)
+            {
+                if (!_nachStunde.TryGetValue(e.Stunde, out var l)) _nachStunde[e.Stunde] = l = new List<TagesEintrag>();
+                l.Add(e);
+            }
+            _indexStand = Eintraege.Count;
+        }
+        return _nachStunde.TryGetValue(stunde, out var liste) ? liste : Array.Empty<TagesEintrag>();
+    }
 
     /// <summary>Stunden, in denen der Lehrer tatsächlich unterrichtet (ohne Bereitschaft).</summary>
     public IEnumerable<TagesEintrag> VonLehrer(int lehrerId) => Eintraege.Where(e => e.Findetstatt && e.LehrerIds.Contains(lehrerId));

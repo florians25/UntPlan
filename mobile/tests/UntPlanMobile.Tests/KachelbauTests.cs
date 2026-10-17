@@ -194,6 +194,20 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Veranstaltung_traegt_eingetragenes_Fach_fuer_die_Details()
+    {
+        // Mit Fach: eigenes Feld für den Kopf der Stundendetails (subject bleibt die Bezeichnung)
+        var mit = Kachelbau.AusKarte(Karte("veranstaltung", 3, 4, fach: "M", text: "Mathe-Wettbewerb", unterricht: null, klassen: new() { new("7a") }), "class");
+        Assert.Equal("Mathe-Wettbewerb", mit.Fach);
+        Assert.Equal("M", mit.VeranstaltungFach);
+        // Ohne Fach bzw. Fach gleich der Bezeichnung: kein Feld
+        var ohne = Kachelbau.AusKarte(Karte("veranstaltung", 3, 4, fach: "", text: "Projekttag", unterricht: null, klassen: new()), "class");
+        Assert.Null(ohne.VeranstaltungFach);
+        var gleich = Kachelbau.AusKarte(Karte("veranstaltung", 3, 4, fach: "projekttag", text: "Projekttag", unterricht: null, klassen: new()), "class");
+        Assert.Null(gleich.VeranstaltungFach);
+    }
+
+    [Fact]
     public void Bereitschaft_wird_standby_und_entfaellt_in_der_Stunde_einer_Vertretung()
     {
         var plan = Plan("lehrer", new()

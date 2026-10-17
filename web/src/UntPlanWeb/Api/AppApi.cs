@@ -30,7 +30,8 @@ public static class AppApi
     /// <summary>Abwesenheitsdialog: Zeitraum (Datum + Uhrzeit, ISO „yyyy-MM-ddTHH:mm“), Grund, Text, Status; optional Stunde (Stundendetails) bzw. zu ersetzende Fehlzeiten.</summary>
     public sealed record AbwesenheitZeitraumDaten(List<int>? SchuelerIds, DateTime Von, DateTime Bis, string? Grund, string? Text, string? Status,
         DateOnly? Datum = null, int? Stunde = null, int? Unterricht = null, List<int>? Ersetzen = null,
-        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null, int? Einzelstunde = null);
+        string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null, int? Einzelstunde = null,
+        bool? Ganztaegig = null);
     public sealed record AbwesenheitEntfernenDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, int? Einzelstunde = null);
     public sealed record AbwesenheitStatusDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Status, int? Einzelstunde = null);
     public sealed record VerlaengernDaten(DateOnly Datum, int Stunde, int Unterricht, List<int>? SchuelerIds, string? Bis, int? Einzelstunde = null);
@@ -457,7 +458,9 @@ public static class AppApi
             var ids = d.SchuelerIds ?? new();
             if (ids.Count == 0) throw new ArgumentException("Bitte eine Schülerin bzw. einen Schüler wählen.");
             (DateOnly, int, int)? stunde = d.Datum is DateOnly dt && d.Stunde is int st && d.Unterricht is int u ? (dt, st, u) : null;
-            var n = ids.Distinct().Sum(id => kb.AbwesenheitErfassen(b, s, id, d.Von, d.Bis, d.Grund, d.Text, d.Status, stunde, ids.Count == 1 ? d.Ersetzen : null,
+            // Ganztägig (z. B. Krankmeldung vor Unterrichtsbeginn): ganzer Schultag bzw. alle Tage von–bis, d. h. alle Unterrichtsstunden laut Plan
+            var (von, bis) = d.Ganztaegig == true ? Klassenbuchdienst.Ganztaegig(d.Von, d.Bis) : (d.Von, d.Bis);
+            var n = ids.Distinct().Sum(id => kb.AbwesenheitErfassen(b, s, id, von, bis, d.Grund, d.Text, d.Status, stunde, ids.Count == 1 ? d.Ersetzen : null,
                 d.Nachweis, d.EntschuldigtAm, d.ElternInformiert, d.NotizIntern, d.Einzelstunde));
             return Results.Json(new { stunden = n });
         });

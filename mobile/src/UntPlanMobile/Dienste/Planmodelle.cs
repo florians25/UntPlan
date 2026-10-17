@@ -122,6 +122,9 @@ public sealed class Kachel
     [JsonPropertyName("subject")] public string Fach { get; set; } = "";
     [JsonPropertyName("subjectOrig")] public string FachAlt { get; set; } = "";
     [JsonPropertyName("subjectLong")] public string? FachLang { get; set; }
+    /// <summary>Veranstaltung: eingetragenes Fach (subject trägt dort die Bezeichnung). Nur gesetzt, wenn es eines gibt –
+    /// die Stundendetails zeigen oben nur Fach und Klassen, die Bezeichnung steht unten in „Information zur Stunde“.</summary>
+    [JsonPropertyName("eventSubject")] public string? VeranstaltungFach { get; set; }
     [JsonPropertyName("blockType")] public string Art { get; set; } = "normal";
     [JsonPropertyName("changed")] public List<string> Geaendert { get; set; } = new();
     [JsonPropertyName("info")] public string Info { get; set; } = "";
