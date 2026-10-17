@@ -27,7 +27,7 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
   if (liste) return altListe();
 
   seite.innerHTML = `
-    <div class="u-sf-leiste">
+    <div class="u-sf-leiste u-kopfteil">
       ${suchfeldMitFilter({ platzhalter: 'Name suchen', label: 'Schüler*in suchen', filter: [
         { name: 'klasse', label: 'Klasse', alle: null, standard: klasse, wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
         { name: 'dienst', label: 'Dienst', alle: null, standard: String(dienst?.id ?? ''), wert: String(dienst?.id ?? ''), optionen: d.arten.length ? d.arten.map(a => [String(a.id), a.name]) : [['', 'Keine Dienste angelegt']] },
@@ -94,7 +94,7 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
     kontext.titel('Klassendienste', `<a class="btn btn-outline-secondary" href="${ziel(klasse || el.klassen[0]?.kurz, dienst?.id, 'zeit')}">${icon('woche')}Zeitansicht</a>
       ${d.verwalten ? `<button type="button" class="btn btn-primary" data-neu>${icon('plus')}Dienst einteilen</button>` : ''}`, klasse || 'alle Klassen');
     seite.innerHTML = `<div class="kd-seite">
-      <div class="u-sf-leiste kd-filter">
+      <div class="u-sf-leiste u-kopfteil kd-filter">
         ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Dienst oder Text suchen', label: 'Einteilungen durchsuchen', filter: [
           { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', standard: 'alle', wert: klasse || 'alle', optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
           { name: 'dienst', label: 'Dienst', alle: 'Alle Dienste', standard: 'alle', wert: alleDienste ? 'alle' : String(dienst?.id ?? 'alle'), optionen: d.arten.map(a => [String(a.id), a.name]) },

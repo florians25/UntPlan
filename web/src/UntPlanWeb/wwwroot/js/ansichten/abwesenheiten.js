@@ -72,9 +72,10 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   const grund = grundParam && grundParam !== '-' ? grundParam : '';
   const art = ARTEN[artParam] ? artParam : '';
   const ziel = (r, v = von, b = bis, k = klasse, s = status, g = grund, a = art) => `#/abwesenheiten/${r}/${v}/${b}/${encodeURIComponent(k || '-')}/${s || '-'}/${encodeURIComponent(g || '-')}${a ? `/${a}` : ''}`;
+  // weißer Kopf (app.js): Reiter und Suchleiste gehören zum Kopf; die Zeile der Suchleiste ist beim Laden schon frei (kein Springen)
   seite.innerHTML = `
-    ${ich.element ? `<nav class="u-reiter mb-3"><a href="${ziel('schueler')}" class="${reiter === 'schueler' ? 'aktiv' : ''}">Schüler*innen</a><a href="${ziel('meine')}" class="${reiter === 'meine' ? 'aktiv' : ''}">Meine Abwesenheiten</a></nav>` : ''}
-    <div data-inhalt></div>`;
+    ${ich.element ? `<nav class="u-reiter u-kopfteil ${reiter === 'schueler' ? 'u-kopfreiter' : ''} mb-3"><a href="${ziel('schueler')}" class="${reiter === 'schueler' ? 'aktiv' : ''}">Schüler*innen</a><a href="${ziel('meine')}" class="${reiter === 'meine' ? 'aktiv' : ''}">Meine Abwesenheiten</a></nav>` : ''}
+    <div data-inhalt>${reiter === 'schueler' ? '<div class="u-kopfteil u-kopfskelett" aria-hidden="true"></div>' : ''}</div>`;
   const inhalt = seite.querySelector('[data-inhalt]');
 
   if (reiter === 'meine') {
@@ -99,10 +100,12 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
     spaet: roh.filter(z => z.art === 'verspaetet').length, frueh: roh.filter(z => z.art === 'vorzeitig').length,
     minuten: roh.filter(z => z.art !== 'fehlt').reduce((n, z) => n + z.minuten, 0) };
   const verwalten = roh.some(z => z.verwalten) || ich.admin;
-  kontext.titel('Abwesenheiten', '', `${liste.length}`);
+  // Bericht und Hinzufügen oben rechts im Kopf (die Suchleiste bleibt einzeilig)
+  kontext.titel('Abwesenheiten', `<button type="button" class="btn btn-outline-secondary" data-csv title="Als CSV herunterladen">${icon('csv')}Bericht</button>
+    ${verwalten ? `<button type="button" class="btn btn-primary" data-neu>${icon('plus')}Hinzufügen</button>` : ''}`, `${liste.length}`);
   const pille = (name, inhaltHtml, aktiv) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}"><span class="visually-hidden">${name}</span>${inhaltHtml}</label>`;
   inhalt.innerHTML = `
-    <div class="nl-leiste abw-leiste">
+    <div class="nl-leiste u-kopfteil abw-leiste">
       ${suchfeldMitFilter({ platzhalter: 'Suchen', label: 'Schüler*in suchen', filter: [
         { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
         { name: 'status', label: 'Status', alle: 'Jeder Status', wert: status, optionen: [['offen', 'offen'], ['entschuldigt', 'entschuldigt'], ['unentschuldigt', 'nicht entschuldigt']] },
@@ -112,10 +115,6 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       ${pille('Von', `<input type="date" data-von value="${von}">`, false)}
       ${pille('Bis', `<input type="date" data-bis value="${bis}">`, false)}
       ${infoHinweis(`Eine <b>Abwesenheit</b> ist der Zeitraum, in dem eine Schülerin bzw. ein Schüler fehlt (z. B. krank von Mittwoch bis Freitag). Wie viele Unterrichtsstunden daraus laut Stundenplan entstehen, zeigen die <a href="#/klassenbuch/${encodeURIComponent(klasse || gemeinsam?.klasse || el.klassen[0]?.kurz || '')}/fehlzeiten/${bis}/${von}">Fehlzeiten</a> – mit denselben Daten.`)}
-      <span class="ms-auto d-flex gap-2">
-        <button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen">${icon('csv')}Bericht</button>
-        ${verwalten ? `<button type="button" class="nl-hinzu" data-neu><i class="bi bi-plus-lg"></i>Hinzufügen</button>` : ''}
-      </span>
     </div>
     <div class="nl-zahlen kompakt">
       <button type="button" class="nl-zahl ${status === 'offen' ? 'aktiv' : ''}" data-kz="offen"><b>${anzahl.offen}</b> offen</button>

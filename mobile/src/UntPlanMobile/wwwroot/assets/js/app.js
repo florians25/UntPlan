@@ -74,7 +74,10 @@ const state = {
   opts: {
     cardTimes:     store.get('cardTimes', false),
     longNames:     store.get('longNames', true),
-    showCancelled: store.get('showCancelled', true)
+    showCancelled: store.get('showCancelled', true),
+    /* Eigene Abwesenheiten im eigenen Plan als grauer Balken hinter den
+       Stunden (⋮-Menü „Abwesenheiten anzeigen“, bleibt gespeichert). */
+    showAbsences:  store.get('showAbsences', true)
   }
 };
 
@@ -362,7 +365,8 @@ async function loadWeek(entity, weekStart, token){
       l.forEach(c => { nurRaumKeinePruefung(c); ohneSondereinsatz(c); });
       byDate[d] = l;
     });
-    const w = { byDate, bands: bands || [], key: weekKey(entity, weekStart) };
+    const w = { byDate, bands: bands || [], key: weekKey(entity, weekStart),
+                absences: (quelle && quelle.absences) || {} };
     /* Wochenbegrenzung der Rolle: Der Server liefert die Woche leer und
        meldet sie als gesperrt — gezeigt wird das Schloss mit dem Hinweis. */
     const sp = wochenSperre(quelle);
@@ -384,7 +388,7 @@ async function loadWeek(entity, weekStart, token){
     bootUsed = true;
     const byDate = {};
     dates.forEach(x => { byDate[x] = stampDates((BOOT.days && BOOT.days[x]) || [], x); });
-    store.set(cacheKey(entity, weekStart), { byDate, bands: BOOT.bands || [], kind: BOOT.kind,
+    store.set(cacheKey(entity, weekStart), { byDate, bands: BOOT.bands || [], kind: BOOT.kind, absences: BOOT.absences || {},
                                              gesperrt: !!BOOT.gesperrt, sperrhinweis: BOOT.sperrhinweis || '' });
     store.set('lastSync', Date.now());
     return fertig(byDate, BOOT.bands || [], BOOT);
@@ -400,7 +404,7 @@ async function loadWeek(entity, weekStart, token){
       }
       const byDate = {};
       dates.forEach(x => { byDate[x] = stampDates((d.days && d.days[x]) || [], x); });
-      store.set(cacheKey(entity, weekStart), { byDate, bands: d.bands || [], kind: d.kind,
+      store.set(cacheKey(entity, weekStart), { byDate, bands: d.bands || [], kind: d.kind, absences: d.absences || {},
                                                gesperrt: !!wochenSperre(d), sperrhinweis: (wochenSperre(d) || {}).hinweis || '' });
       store.set('lastSync', Date.now());
       return fertig(byDate, d.bands || [], d);
@@ -817,6 +821,25 @@ function groupOverlaps(list){
   groups.forEach(g => g.forEach((c, i) => { c._i = i; c._n = g.length; }));
 }
 
+/* ABWESENHEITSFELD-BEGINN (wird von den Tests ausgeführt) */
+/* Lage eines Abwesenheitsbalkens (b: { from, to, text }) in der Tagesspalte
+   und die größte Lücke darin, in der keine Karte liegt (belegt: [[oben,
+   unten], …] in px; y: Uhrzeit → px). Text nur, wenn die Lücke mindestens
+   18 px hoch ist. */
+function abwesenheitsFeld(b, belegt, y){
+  const oben = y(b.from) + 1, unten = Math.max(oben + 8, y(b.to) - 1);
+  let luecke = [oben, oben], pos = oben;
+  belegt.filter(([o, u]) => u > oben && o < unten).sort((a, c) => a[0] - c[0]).forEach(([o, u]) => {
+    if (o - pos > luecke[1] - luecke[0]) luecke = [pos, o];
+    pos = Math.max(pos, u);
+  });
+  if (unten - pos > luecke[1] - luecke[0]) luecke = [pos, unten];
+  const textHoehe = luecke[1] - luecke[0];
+  return { oben, hoehe: unten - oben, textOben: luecke[0] - oben, textHoehe, mitText: textHoehe >= 18 };
+}
+if (typeof window !== 'undefined') window.UntPlanAbwesenheit = { abwesenheitsFeld };
+/* ABWESENHEITSFELD-ENDE */
+
 /* PARALLEL-BEGINN (wird von den Tests ausgeführt) */
 /* Läuft die Stunde ohne mich — abgegeben, offen vertreten, Kopplung ohne
    mich, Klasse abwesend? Dann zeigt der Plan sie mit Eckklammern statt als
@@ -978,11 +1001,16 @@ function assignParallel(cards){
      Spalte, deren letzte Karte vorher zu Ende ist. Karten, die sich gar
      nicht überschneiden, teilen sich damit eine Spalte, statt die Gruppe
      unnötig schmal zu machen und gegeneinander zu versetzen. */
+  const ueber = (a, b) => a.lesson < b.lesson + b.span && b.lesson < a.lesson + a.span;
+  const gruen = new Set(sorted.filter(c => vorrang(c) < 0));
   groups.forEach(g => {
     const cols = [];
     g.forEach(c => {
-      let k = cols.findIndex(col => col.every(o =>
-        c.lesson >= o.lesson + o.span || o.lesson >= c.lesson + c.span));
+      /* Was nicht grün ist, steht erst rechts neben jeder gleichzeitigen
+         grünen Karte — nie links davon, auch wenn dort eine Spalte frei ist. */
+      let ab = 0;
+      if (!gruen.has(c)) cols.forEach((col, i) => { if (col.some(o => gruen.has(o) && ueber(o, c))) ab = i + 1; });
+      let k = cols.findIndex((col, i) => i >= ab && col.every(o => !ueber(o, c)));
       if (k < 0){ cols.push([c]); k = cols.length - 1; }
       else cols[k].push(c);
       c._i = k;
@@ -1236,6 +1264,9 @@ function renderGrid(){
     (around.prev || {}).byDate, state.week.byDate, (around.next || {}).byDate);
   /* Auch die Nachbarwochen sind anklickbar — der Streifen zeigt sie ja. */
   state.allByDate = byDate;
+  /* Abwesenheitsbalken ebenso aus allen drei Wochen. */
+  const absences = Object.assign({},
+    (around.prev || {}).absences, state.week.absences, (around.next || {}).absences);
 
   /* Aufsichten vor der ersten Stunde (und ganztägige Termine als Pille)
      stehen direkt über der ersten Stunde – nicht oben am Rand mit leerem
@@ -1417,6 +1448,20 @@ function renderGrid(){
     const inset = hasBand ? 'var(--day-gap) + 18px' : 'var(--day-gap)';
     const dayW = `calc(${colW} - (${inset}))`;
     html += `<div class="daycol" style="left:calc(${colAt(ci)} + var(--day-gap) / 2);width:${dayW}">`;
+
+    /* Eigene Abwesenheit („Mein Plan“): grauer Balken hinter den Stunden.
+       Die Karten liegen voll lesbar darüber; „Abwesend“ steht dezent nur in
+       der größten Lücke ohne Karte. Abschaltbar im ⋮-Menü. */
+    if (state.entity && state.entity.type === 'mine' && state.opts.showAbsences){
+      const belegt = cards.filter(c => !(c._supervision || c._pause || c._pausePre || c.blockType === 'supervision'))
+        .map(c => c.from && c.to ? [atTime(c.from) + 1, atTime(c.to)]
+                                 : [L.top(c.lesson) + 1, L.top(c.lesson) + L.height(c.lesson, c.span)]);
+      (absences[date] || []).forEach(b => {
+        const f = abwesenheitsFeld(b, belegt, atTime);
+        html += `<div class="absfeld" style="top:${f.oben}px;height:${f.hoehe}px" aria-hidden="true">${f.mitText
+          ? `<span class="absfeld__txt" style="top:${f.textOben}px;height:${f.textHoehe}px">${esc(b.text || 'Abwesend')}</span>` : ''}</div>`;
+      });
+    }
 
     /* Karten, die hinter die vordere Spalte zurücktreten. Sie werden erst
        gesammelt und danach zu einem Streifen je zusammenhängendem Bereich
@@ -2156,6 +2201,7 @@ async function refresh(){
     if (my !== renderToken || !neuWoche) return;
     if (neuWoche.key && neuWoche.key !== weekKey(state.entity, state.weekStart)) return;
     if (JSON.stringify(neuWoche.byDate) === JSON.stringify(state.week.byDate)
+        && JSON.stringify(neuWoche.absences || {}) === JSON.stringify(state.week.absences || {})
         && !!neuWoche.gesperrt === !!state.week.gesperrt
         && (neuWoche.sperrhinweis || '') === (state.week.sperrhinweis || '')) return;
     state.week = neuWoche;
@@ -3817,9 +3863,9 @@ async function listeZeichnen(){
       || (st === 'ok'    && x.tone === 'ok'));
     /* map() reicht den Index als zweites Argument weiter — ohne die
        Klammer hier hielte die Karte ihn für „mit Namen". */
-    /* Schüler*innen/Eltern: Kind wählen (mehrere Kinder) und Summen des
-       Zeitraums über der Liste (Fehltage, Fehlstunden je Stand, Verspätungen). */
-    const kopf = d.student ? absKinder(d) + absSummen(d.summary) : '';
+    /* Schüler*innen/Eltern: Kind wählen (mehrere Kinder). Oben steht
+       bewusst keine Box mit Summen bzw. Statistik — nur die Liste. */
+    const kopf = d.student ? absKinder(d) : '';
     $('#lstBody').innerHTML = kopf + (d.items.length ? d.items.map(x => karteAbwesenheit(x)).join('')
       : (d.student
           ? LEER('Keine Daten', 'Derzeit gibt es hier noch nichts')
@@ -4142,20 +4188,6 @@ $('#entSave').addEventListener('click', async () => {
   if (ok) SH.ent.close();
 });
 if (typeof window !== 'undefined') window.UntPlanEntschuldigung = { zeitraum: entZeitraum, status: ENT_STATUS, nachweis: ENT_NACHWEIS };
-
-/* Summen der eigenen Abwesenheiten (bzw. des Kindes) im gewählten Zeitraum. */
-function absSummen(s){
-  if (!s) return '';
-  const k = (zahl, text, ton) => `<div class="abssum__k${ton ? ' abssum__k--' + ton : ''}"><b>${zahl || 0}</b><span>${esc(text)}</span></div>`;
-  return `<section class="abssum" aria-label="Summen im Zeitraum">
-      ${k(s.days, s.days === 1 ? 'Fehltag' : 'Fehltage')}
-      ${k(s.hours, s.hours === 1 ? 'Fehlstunde' : 'Fehlstunden')}
-      ${k(s.late, s.late === 1 ? 'Verspätung' : 'Verspätungen')}
-      ${k(s.excused, 'entschuldigt', 'ok')}
-      ${k(s.unexcused, 'nicht entsch.', 'no')}
-      ${k(s.pending, 'offen', 'open')}
-    </section>`;
-}
 
 /* Erziehungsberechtigte mit mehreren Kindern: Kind über der Liste wählen. */
 function absKinder(d){
@@ -5347,6 +5379,15 @@ function markMenuView(){
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
   });
+  /* „Abwesenheiten anzeigen“ gilt nur für den eigenen Plan. */
+  const abw = $('#menuAbsences');
+  if (abw){
+    const eigen = !!state.entity && state.entity.type === 'mine';
+    abw.hidden = !eigen;
+    const sep = $('#menuAbsencesSep'); if (sep) sep.hidden = !eigen;
+    abw.classList.toggle('is-active', !!state.opts.showAbsences);
+    abw.setAttribute('aria-checked', state.opts.showAbsences ? 'true' : 'false');
+  }
 }
 /* ---------- Aktualisieren ----------
    Holt die angezeigte Woche noch einmal vom Server. Vorher wird alles
@@ -5395,6 +5436,11 @@ $$('#sheetMenu .menu-item').forEach(b => b.addEventListener('click', () => {
       }
     }
     if (act === 'legend'){ SH.legend.open(); }
+    if (act === 'toggle-absences'){
+      state.opts.showAbsences = !state.opts.showAbsences;
+      store.set('showAbsences', state.opts.showAbsences);
+      renderGrid();
+    }
   }, 200);
 }));
 

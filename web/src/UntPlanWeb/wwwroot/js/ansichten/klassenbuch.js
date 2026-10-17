@@ -104,7 +104,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     });
     const zeichnen = () => {
       // kompakter Kopf: Klasse, Von, Bis, (i)-Hinweis und Kennzahlen in einer Zeile, rechts der Knopf
-      inhalt.innerHTML = `<div class="nl-leiste fz-kopfzeile">
+      inhalt.innerHTML = `<div class="nl-leiste u-kopfteil fz-kopfzeile">
           <span class="nl-pille" data-klwahl><span class="me-1 text-body-secondary">Klasse</span></span>
           <label class="nl-pille"><span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}"></label>
           <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${datum}"></label>

@@ -171,6 +171,9 @@ struct Kachel: Identifiable {
 
     var dauer: Int { max(1, bis - von + 1) }
 
+    /// Grüne Karte (Änderung, Vertretung, Raumänderung, Zusatzstunde): hat bei parallelen Blöcken immer Vorrang.
+    var gruen: Bool { art == .aenderung || (raumAenderung && art == .normal) }
+
     /// Überlappen sich die Zeiträume (Minuten)? Aneinanderstoßende Blöcke (Ende = Beginn) überlappen nicht.
     func ueberlappt(_ o: Kachel) -> Bool {
         beginn < o.ende && o.beginn < ende
@@ -993,7 +996,7 @@ enum Kachelbau {
     }
 
     /// Mindestbreite eines Blocks, damit er lesbar bleibt (Woche und Tag). Nebeneinander stehen gleichzeitige Blöcke nur,
-    /// solange jeder mindestens so breit ist; sonst steht vorne der erste Block (Web-Reihenfolge) mit der Zählerkarte daneben
+    /// solange jeder mindestens so breit ist; sonst steht vorne der erste Block (Web-Reihenfolge, grüne Blöcke zuerst) mit der Zählerkarte daneben
     /// (iPhone-Woche in der Regel 1 Block + Zählerkarte wie im Original, iPad und Tagesansicht nebeneinander).
     static let spurMindestBreiteWoche: CGFloat = 40
     static let spurMindestBreiteTag: CGFloat = 40
@@ -1005,39 +1008,72 @@ enum Kachelbau {
     /// 1. Einträge nach Beginn sortieren, bei gleichem Beginn die längeren zuerst, sonst Reihenfolge der Daten (stabil).
     /// 2. Zusammenhängende Gruppen bilden: ein Eintrag beginnt eine neue Gruppe, wenn er erst nach dem Ende aller bisherigen
     ///    Einträge der Gruppe beginnt (aneinanderstoßende Blöcke, Ende = Beginn, überlappen nicht).
-    /// 3. In der Gruppe kommt jeder Eintrag in die erste Spur, deren letzter Block schon zu Ende ist, sonst in eine neue Spur.
+    /// 3. In der Gruppe kommen zuerst die grünen Einträge (`gruen`: Änderung, Vertretung, Raumänderung, Zusatz) an die Reihe,
+    ///    danach die übrigen – jeweils in der Reihenfolge aus 1. Jeder Eintrag kommt in die erste Spur, in der er keinen
+    ///    Block überlappt (übrige Einträge erst rechts neben gleichzeitigen grünen, `abSpur`), sonst in eine neue Spur.
+    ///    Grüne Blöcke stehen damit immer ganz links. Ohne grüne Einträge ist das genau die bisherige Verteilung.
     /// 4. Alle Einträge einer Gruppe teilen sich die Spalte durch die Zahl der Spuren der Gruppe.
     /// Nichts wird zusammengefasst, gestapelt oder über freie Spuren gedehnt. Zeiten in Minuten (Beginn < Ende).
-    static func spurenRechnen(_ zeiten: [(beginn: Int, ende: Int)]) -> [Spurlage] {
+    static func spurenRechnen(_ zeiten: [(beginn: Int, ende: Int)], gruen: [Bool] = []) -> [Spurlage] {
         var ergebnis = Array(repeating: Spurlage(), count: zeiten.count)
-        let sortiert = zeiten.indices.sorted { a, b in
+        let sortiert = zeitSortiert(zeiten)
+        var gruppen: [[Int]] = []
+        var gruppenEnde = Int.min
+        for i in sortiert {
+            let z = zeiten[i]
+            if gruppen.isEmpty || z.beginn >= gruppenEnde {
+                gruppen.append([])
+                gruppenEnde = z.ende
+            }
+            gruppen[gruppen.count - 1].append(i)
+            gruppenEnde = max(gruppenEnde, z.ende)
+        }
+        for gruppe in gruppen {
+            var spuren: [[Int]] = []
+            for i in vorrangSortiert(gruppe, gruen: gruen) {
+                let ab = abSpur(i, spuren: spuren, zeiten: zeiten, gruen: gruen)
+                if let frei = spuren.indices.first(where: { n in n >= ab && spuren[n].allSatisfy { j in !ueberlappen(zeiten[j], zeiten[i]) } }) {
+                    spuren[frei].append(i)
+                    ergebnis[i].spur = frei
+                } else {
+                    ergebnis[i].spur = spuren.count
+                    spuren.append([i])
+                }
+            }
+            for j in gruppe { ergebnis[j].spuren = max(1, spuren.count) }
+        }
+        return ergebnis
+    }
+
+    /// Reihenfolge nach Beginn, bei gleichem Beginn die längeren zuerst, sonst Reihenfolge der Daten.
+    private static func zeitSortiert(_ zeiten: [(beginn: Int, ende: Int)]) -> [Int] {
+        zeiten.indices.sorted { a, b in
             if zeiten[a].beginn != zeiten[b].beginn { return zeiten[a].beginn < zeiten[b].beginn }
             if zeiten[a].ende != zeiten[b].ende { return zeiten[a].ende > zeiten[b].ende }
             return a < b
         }
-        var gruppe: [Int] = []
-        var enden: [Int] = []
-        var gruppenEnde = Int.min
-        for i in sortiert {
-            let z = zeiten[i]
-            if !gruppe.isEmpty && z.beginn >= gruppenEnde {
-                for j in gruppe { ergebnis[j].spuren = max(1, enden.count) }
-                gruppe = []
-                enden = []
-            }
-            if gruppe.isEmpty { gruppenEnde = z.ende }
-            if let frei = enden.firstIndex(where: { $0 <= z.beginn }) {
-                ergebnis[i].spur = frei
-                enden[frei] = z.ende
-            } else {
-                ergebnis[i].spur = enden.count
-                enden.append(z.ende)
-            }
-            gruppe.append(i)
-            gruppenEnde = max(gruppenEnde, z.ende)
+    }
+
+    /// Grüne Einträge zuerst, sonst die gegebene Reihenfolge (stabil).
+    private static func vorrangSortiert(_ liste: [Int], gruen: [Bool]) -> [Int] {
+        let istGruen: (Int) -> Bool = { $0 < gruen.count && gruen[$0] }
+        return liste.filter(istGruen) + liste.filter { !istGruen($0) }
+    }
+
+    /// Erste Spur, die ein Eintrag belegen darf: grüne ab der ersten, alle übrigen erst rechts neben jedem grünen Block,
+    /// mit dem sie sich überschneiden – so steht nie ein anderer Block links neben einem gleichzeitigen grünen.
+    private static func abSpur(_ i: Int, spuren: [[Int]], zeiten: [(beginn: Int, ende: Int)], gruen: [Bool]) -> Int {
+        if i < gruen.count && gruen[i] { return 0 }
+        var ab = 0
+        for (s, spur) in spuren.enumerated()
+        where spur.contains(where: { $0 < gruen.count && gruen[$0] && ueberlappen(zeiten[$0], zeiten[i]) }) {
+            ab = s + 1
         }
-        for j in gruppe { ergebnis[j].spuren = max(1, enden.count) }
-        return ergebnis
+        return ab
+    }
+
+    private static func ueberlappen(_ a: (beginn: Int, ende: Int), _ b: (beginn: Int, ende: Int)) -> Bool {
+        a.beginn < b.ende && b.beginn < a.ende
     }
 
     /// Spuren für die Kacheln einer Tagesspalte (Reihenfolge = Reihenfolge der Karten vom Server, wie im Web).
@@ -1045,18 +1081,21 @@ enum Kachelbau {
     /// alle Teile stehen in derselben Spur und gleich breit.
     static func spurenVerteilen(_ liste: [Kachel]) -> [UUID: Spurlage] {
         var zeiten: [(beginn: Int, ende: Int)] = []
+        var gruen: [Bool] = []
         var platz: [UUID: Int] = [:]
         for k in liste {
             let s = k.stamm ?? k.id
             if let i = platz[s] {
                 zeiten[i].beginn = min(zeiten[i].beginn, k.beginn)
                 zeiten[i].ende = max(zeiten[i].ende, k.ende)
+                gruen[i] = gruen[i] || k.gruen
             } else {
                 platz[s] = zeiten.count
                 zeiten.append((beginn: k.beginn, ende: max(k.ende, k.beginn + 1)))
+                gruen.append(k.gruen)
             }
         }
-        let lagen = spurenRechnen(zeiten)
+        let lagen = spurenRechnen(zeiten, gruen: gruen)
         var ergebnis: [UUID: Spurlage] = [:]
         for k in liste {
             if let i = platz[k.stamm ?? k.id] { ergebnis[k.id] = lagen[i] }
@@ -1064,29 +1103,23 @@ enum Kachelbau {
         return ergebnis
     }
 
-    /// Überlauf (reine Funktion, leicht prüfbar): dieselbe Verteilung wie `spurenRechnen` (gleiche Sortierung), aber mit
-    /// höchstens `maxSpuren` sichtbaren Spuren. Ein Eintrag, für den keine sichtbare Spur frei ist, liegt hinter dem
-    /// sichtbaren Eintrag der niedrigsten Spur, der zu seiner Zeit läuft (`vorne` = dessen Index) – es gibt ihn immer, weil
-    /// dann jede sichtbare Spur zu seinem Beginn belegt ist. Ergebnis je Eintrag: sichtbare Spur oder Index des vorderen.
-    static func spurenBegrenzen(_ zeiten: [(beginn: Int, ende: Int)], maxSpuren: Int) -> [(spur: Int?, vorne: Int?)] {
+    /// Überlauf (reine Funktion, leicht prüfbar): dieselbe Reihenfolge wie `spurenRechnen` (grüne Einträge zuerst, sonst
+    /// nach Beginn), aber mit höchstens `maxSpuren` sichtbaren Spuren. Ein Eintrag, für den keine sichtbare Spur frei ist,
+    /// liegt hinter dem sichtbaren Eintrag der niedrigsten Spur, der zu seiner Zeit läuft (`vorne` = dessen Index) – es gibt
+    /// ihn immer, weil dann jede sichtbare Spur zu seiner Zeit belegt ist. Bleibt nur eine Spur (iPhone-Woche), ist der
+    /// sichtbare Block damit immer der grüne. Ergebnis je Eintrag: sichtbare Spur oder Index des vorderen.
+    static func spurenBegrenzen(_ zeiten: [(beginn: Int, ende: Int)], maxSpuren: Int, gruen: [Bool] = []) -> [(spur: Int?, vorne: Int?)] {
         var ergebnis: [(spur: Int?, vorne: Int?)] = Array(repeating: (spur: nil, vorne: nil), count: zeiten.count)
         let anzahl = max(1, maxSpuren)
-        let sortiert = zeiten.indices.sorted { a, b in
-            if zeiten[a].beginn != zeiten[b].beginn { return zeiten[a].beginn < zeiten[b].beginn }
-            if zeiten[a].ende != zeiten[b].ende { return zeiten[a].ende > zeiten[b].ende }
-            return a < b
-        }
-        // je sichtbarer Spur: Ende und Index des letzten Eintrags
-        var enden = Array(repeating: Int.min, count: anzahl)
-        var letzter: [Int?] = Array(repeating: nil, count: anzahl)
-        for i in sortiert {
-            let z = zeiten[i]
-            if let frei = enden.firstIndex(where: { $0 <= z.beginn }) {
-                enden[frei] = z.ende
-                letzter[frei] = i
+        // je sichtbarer Spur: Indizes der Einträge darin
+        var spuren: [[Int]] = Array(repeating: [], count: anzahl)
+        for i in vorrangSortiert(zeitSortiert(zeiten), gruen: gruen) {
+            let ab = abSpur(i, spuren: spuren, zeiten: zeiten, gruen: gruen)
+            if let frei = spuren.indices.first(where: { n in n >= ab && spuren[n].allSatisfy { j in !ueberlappen(zeiten[j], zeiten[i]) } }) {
+                spuren[frei].append(i)
                 ergebnis[i].spur = frei
             } else {
-                ergebnis[i].vorne = letzter.compactMap { $0 }.first ?? i
+                ergebnis[i].vorne = spuren.lazy.compactMap { spur in spur.first { j in ueberlappen(zeiten[j], zeiten[i]) } }.first ?? i
             }
         }
         return ergebnis
@@ -1099,9 +1132,9 @@ enum Kachelbau {
 
     /// Kacheln einer Tagesspalte anordnen – wie das Web (plangitter.js):
     /// - Alle Stunden (auch Kopplungsteile, Vertretung neben Entfall, Veranstaltungen) stehen nebeneinander in gleich breiten
-    ///   Spuren in der Reihenfolge der Daten (`spurenVerteilen`). Nichts wird zusammengefasst oder untereinander geteilt.
+    ///   Spuren in der Reihenfolge der Daten, grüne Blöcke ganz links (`spurenVerteilen`). Nichts wird zusammengefasst oder untereinander geteilt.
     /// - Braucht eine Gruppe mehr Spuren, als bei der Mindestbreite (40 pt) in die Spalte passen, bleibt rechts die
-    ///   Zählerkarte wie im Original; links stehen so viele Spuren, wie dann noch passen (iPhone-Woche: der erste Block),
+    ///   Zählerkarte wie im Original; links stehen so viele Spuren, wie dann noch passen (iPhone-Woche: der erste Block, grüne Blöcke zuerst),
     ///   die übrigen Stunden liegen hinter der Zählerkarte (Tipp: Details mit allen parallelen Stunden als Reiter).
     /// - Pausenaufsichten unter einer durchgehenden Veranstaltung stehen schmal in der rechten Hälfte (Web: `.aufsicht.schmal`).
     static func anordnen(_ alle: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool) -> Tagesbelegung {
@@ -1120,7 +1153,7 @@ enum Kachelbau {
         // Gruppen mit zu vielen Spuren gemeinsam begrenzen (verschiedene Gruppen überlappen sich nie)
         let ueberlauf = stunden.filter { (lagen[$0.id]?.spuren ?? 1) > grenze }
         let begrenzt = spurenBegrenzen(ueberlauf.map { (beginn: $0.beginn, ende: max($0.ende, $0.beginn + 1)) },
-                                       maxSpuren: grenzeMitZaehler)
+                                       maxSpuren: grenzeMitZaehler, gruen: ueberlauf.map(\.gruen))
         var verdraengt: [(karte: Kachel, vorne: Kachel)] = []
         for (i, k) in ueberlauf.enumerated() {
             if let spur = begrenzt[i].spur {
@@ -1194,4 +1227,77 @@ enum Kachelbau {
         let karten = gruppe.compactMap(\.karte)
         return karten.isEmpty ? k.karte.map { [$0] } ?? [] : karten
     }
+
+    // MARK: Eigene Abwesenheit als Balken hinter den Stunden („Mein Plan“)
+
+    /// Abwesenheitsbalken eines Tages im eigenen Plan – reine Funktion, leicht prüfbar. Quellen:
+    /// - Hinweise des Tageskopfs („abwesend 1.–8. Std. – Grund“, „abwesend ab 3. Std.“, „Klasse abwesend 2. Std.“): Lehrkraft
+    ///   bzw. Klasse; die Stunden werden über das Zeitraster in Uhrzeiten übersetzt.
+    /// - Eigene Abwesenheiten der Schülerin bzw. des Schülers (bzw. des Kindes) aus „Meine Abwesenheiten“ (`zeitraeume`, nur
+    ///   „fehlt“): am ersten bzw. letzten Tag ab bzw. bis zur Uhrzeit, dazwischen der ganze Tag.
+    /// Überlappende Balken werden zusammengefasst; alles bleibt im Bereich des Zeitrasters. Freie Tage haben keinen Balken.
+    /// Liefert der Server die eigenen Abwesenheiten mit dem Plan (`eigene`, Feld „abwesenheiten“), gelten nur diese.
+    static func abwesenheitsbalken(_ tag: Tageskopf, raster: [Rasterzeit], zeitraeume: [Abwesenheitszeitraum] = [],
+                                   eigene: [PlanAbwesenheit]? = nil) -> [Abwesenheitsbalken] {
+        guard !tag.frei, let erste = raster.first, let letzte = raster.last else { return [] }
+        let start = erste.beginn
+        let schluss = letzte.ende
+        var roh: [(beginn: Int, ende: Int, text: String)] = []
+        for a in eigene ?? [] where a.datum == tag.datum {
+            roh.append((Rasterzeit.minuten(a.von) ?? start, Rasterzeit.minuten(a.bis) ?? schluss, "Abwesend"))
+        }
+        for hinweis in eigene == nil ? tag.hinweise : [] {
+            guard let stunden = abwesenheitsStunden(hinweis) else { continue }
+            let bis = stunden.bis ?? Int.max
+            let betroffen = raster.filter { $0.nr >= stunden.von && $0.nr <= bis }
+            guard let b = betroffen.first?.beginn, let e = betroffen.last?.ende else { continue }
+            roh.append((b, e, stunden.klasse ? "Klasse abwesend" : "Abwesend"))
+        }
+        for z in zeitraeume where eigene == nil && (z.art.isEmpty || z.art == "fehlt") && !z.vonDatum.isEmpty
+            && z.vonDatum <= tag.datum && (z.bisDatum.isEmpty ? z.vonDatum : z.bisDatum) >= tag.datum {
+            let b = z.vonDatum == tag.datum ? Rasterzeit.minuten(z.vonZeit) ?? start : start
+            let e = (z.bisDatum.isEmpty || z.bisDatum == tag.datum) ? Rasterzeit.minuten(z.bisZeit) ?? schluss : schluss
+            roh.append((b, e, "Abwesend"))
+        }
+        var balken: [Abwesenheitsbalken] = []
+        for r in roh.map({ (beginn: max(start, $0.beginn), ende: min(schluss, $0.ende), text: $0.text) })
+            .filter({ $0.ende > $0.beginn }).sorted(by: { $0.beginn < $1.beginn }) {
+            if let i = balken.indices.last, r.beginn <= balken[i].ende {
+                balken[i].ende = max(balken[i].ende, r.ende)
+                if r.text == "Abwesend" { balken[i].text = r.text }
+            } else {
+                balken.append(Abwesenheitsbalken(datum: tag.datum, beginn: r.beginn, ende: r.ende, text: r.text))
+            }
+        }
+        return balken
+    }
+
+    /// Stunden aus einem Hinweis „abwesend …“ bzw. „Klasse abwesend …“: (von, bis – nil = bis zum Ende, Klasse?).
+    static func abwesenheitsStunden(_ hinweis: String) -> (von: Int, bis: Int?, klasse: Bool)? {
+        let klein = hinweis.lowercased().trimmingCharacters(in: .whitespaces)
+        let klasse = klein.hasPrefix("klasse abwesend")
+        guard klasse || klein.hasPrefix("abwesend") else { return nil }
+        // Teil vor dem Grund („ – Grund“)
+        let teil = String(klein.split(separator: "–", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
+        let zahlen = teil.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+        guard let von = zahlen.first else { return (1, nil, klasse) }
+        if teil.contains(" ab ") { return (von, nil, klasse) }
+        // „1.–8. Std.“: der Gedankenstrich trennt hier die Stunden – nicht den Grund
+        let mitBis = klein.range(of: #"(\d+)\.\s*[–-]\s*(\d+)\."#, options: .regularExpression).map { String(klein[$0]) }
+        if let mitBis {
+            let z = mitBis.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+            if z.count == 2 { return (z[0], z[1], klasse) }
+        }
+        return (von, von, klasse)
+    }
+}
+
+/// Grauer Balken hinter den Stunden: Zeitraum einer eigenen Abwesenheit an einem Tag (Minuten).
+struct Abwesenheitsbalken: Identifiable, Equatable {
+    var datum: String
+    var beginn: Int
+    var ende: Int
+    var text: String
+
+    var id: String { "\(datum)|\(beginn)" }
 }

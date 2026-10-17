@@ -139,16 +139,25 @@ public sealed record Ereignis(string Titel, string Art, int Von, int Bis, bool G
 
 public sealed record Zeit(int Nr, string Bezeichnung, string Beginn, string Ende);
 
+/// <summary>Eigene Abwesenheit an einem Tag (Uhrzeiten HH:mm), Grund (Kürzel bzw. Name, sofern freigegeben) und Art (fehlt, verspaetet, vorzeitig).</summary>
+public sealed record PlanAbwesenheit(string Datum, string Von, string Bis, string Grund, string Art);
+
 public sealed record Wochenplan(string Typ, string Element, string Name, string Montag, string Woche, List<Zeit> Zeitraster, List<Tageskopf> Tage,
     List<Karte> Karten, List<Aufsicht> Aufsichten)
 {
     /// <summary>Woche außerhalb des Planfensters der Rolle: leeres Raster (keine Karten, Aufsichten, Hinweise) mit <see cref="Sperrhinweis"/>.</summary>
     public bool Gesperrt { get; init; }
     public string? Sperrhinweis { get; init; }
+    /// <summary>
+    /// Eigene Abwesenheiten im eigenen Plan („Mein Stundenplan“): Lehrkraft (Absenzen aus UntPlan) bzw. Schüler*in (Abwesenheiten aus dem
+    /// Klassenbuch). Der Plan zeigt sie als graue Fläche hinter den Stunden (Menü „⋮“ → „Abwesenheiten anzeigen“).
+    /// </summary>
+    public List<PlanAbwesenheit> Abwesenheiten { get; init; } = new();
 
     public Wochenplan Sperren() => this with
     {
         Tage = Tage.Select(Tageskopf.Leer).ToList(), Karten = new(), Aufsichten = new(), Gesperrt = true, Sperrhinweis = Planfenster.Sperrhinweis,
+        Abwesenheiten = new(),
     };
 }
 

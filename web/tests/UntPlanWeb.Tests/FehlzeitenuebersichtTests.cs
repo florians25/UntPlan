@@ -149,11 +149,14 @@ public class FehlzeitenuebersichtTests
     }
 
     [Fact]
-    public void Oberflaeche_Summen_Zeitraum_Details_und_Sprechtag_fuer_Schueler()
+    public void Oberflaeche_ohne_Summen_mit_Zeitraum_Details_und_Sprechtag_fuer_Schueler()
     {
         var familie = Datei("js", "ansichten", "familie.js");
-        // Summen-Kacheln, „bis“-Datum in der URL, aufklappbare Stunden und „teilweise“ bei Fachlehrer-Entschuldigungen
-        Assert.Contains("summenLeiste(daten.summen)", familie);
+        // keine Summen-/Statistik-Box oben („bis“-Datum in der URL, aufklappbare Stunden und „teilweise“ bei
+        // Fachlehrer-Entschuldigungen bleiben; der Server liefert summen weiterhin, angezeigt werden sie nicht)
+        Assert.DoesNotContain("summenLeiste", familie);
+        Assert.DoesNotContain("fm-summe", familie);
+        Assert.DoesNotContain("daten.summen", familie);
         Assert.Contains("data-bis", familie);
         Assert.Contains("#/abwesenheiten/${r}/${v}/${s || '-'}${b ? `/${b}` : ''}", familie);
         Assert.Contains("stundenDetails(", familie);
@@ -163,7 +166,7 @@ public class FehlzeitenuebersichtTests
         var ueb = Datei("js", "ansichten", "uebersicht.js");
         Assert.DoesNotContain("'nicht entschuldigt' : e(z.status)", ueb);
         Assert.Contains("'Verspätet'", ueb);
-        Assert.Contains(".fm-summen", Datei("css", "app.css"));
+        Assert.DoesNotContain(".fm-summe", Datei("css", "app.css"));
         // Sprechtag: Formular mit „sichtbar für Schüler*innen“ an, Menüpunkt auch für Schüler*innen
         var st = Datei("js", "ansichten", "sprechtag.js");
         Assert.Contains("sichtbarSchueler: true, ankuendigen: true", st);

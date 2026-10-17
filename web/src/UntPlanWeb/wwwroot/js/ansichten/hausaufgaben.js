@@ -68,7 +68,7 @@ async function hausaufgabenListe(seite, kontext, bereichParam) {
   const [von, bis] = bereich === 'jahr' ? [sj?.von ?? heuteIso(), sj?.bis ?? heuteIso()] : BEREICHE[bereich][1]();
   const basis = location.hash.startsWith('#/aufgaben') ? '#/aufgaben' : '#/hausaufgaben';
   // gemeinsames Suchfeld mit Filter (Muster für alle Listenseiten): Auswahl Meine/Alle und Klasse als Dropdowns im Suchfeld
-  seite.innerHTML = `<div class="u-sf-leiste">
+  seite.innerHTML = `<div class="u-sf-leiste u-kopfteil">
       ${suchfeldMitFilter({ platzhalter: 'Suche', label: 'Hausaufgaben durchsuchen', filter: [
         { name: 'wahl', label: 'Auswahl', alle: null, standard: ich.element ? 'meine' : 'alle', optionen: ich.element ? [['meine', 'Meine'], ['alle', 'Alle']] : [['alle', 'Alle']] },
         { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', optionen: [] },

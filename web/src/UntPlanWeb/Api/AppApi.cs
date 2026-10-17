@@ -40,6 +40,50 @@ public static class AppApi
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
 
+    /// <summary>
+    /// Eigene Abwesenheiten der Woche, nur im eigenen Plan: Lehrkraft im eigenen Lehrerplan (Absenzen aus UntPlan, Grund nur wenn
+    /// übertragen), Schüler*in bzw. Erziehungsberechtigte im Klassenplan des (gewählten) Kindes (Abwesenheiten aus dem Klassenbuch).
+    /// </summary>
+    public static List<PlanAbwesenheit> EigeneAbwesenheiten(Benutzer b, Stand s, string typ, string element, DateOnly tag, int? schueler,
+        Klassenbuchdienst kb, Klassenbuchverwaltung kv)
+    {
+        var res = new List<PlanAbwesenheit>();
+        var mo = Plandienst.Montag(tag);
+        var so = mo.AddDays(6);
+        var stunden = s.Paket.Zeitraster.Stunden.Where(z => z.Beginn.Length > 0 && z.Ende.Length > 0).OrderBy(z => z.Nr).ToList();
+        if (stunden.Count == 0) return res;
+        var gleich = StringComparer.OrdinalIgnoreCase;
+        if (b.Kollegium && typ == Elementtyp.Lehrer && gleich.Equals(b.Element, element))
+        {
+            foreach (var a in s.Paket.Absenzen.Where(x => x.Art == "lehrer" && gleich.Equals(x.Element, element)))
+            {
+                if (!DateOnly.TryParse(a.Von, out var von) || !DateOnly.TryParse(a.Bis, out var bis)) continue;
+                for (var d = von < mo ? mo : von; d <= bis && d <= so; d = d.AddDays(1))
+                {
+                    var erste = a.StundeVon > 0 ? stunden.FirstOrDefault(z => z.Nr >= a.StundeVon) : stunden[0];
+                    var letzte = a.StundeBis >= 20 || a.StundeBis < a.StundeVon || a.StundeBis <= 0 ? stunden[^1] : stunden.LastOrDefault(z => z.Nr <= a.StundeBis);
+                    if (erste == null || letzte == null || letzte.Nr < erste.Nr) continue;
+                    res.Add(new PlanAbwesenheit(Plandienst.Iso(d), erste.Beginn, letzte.Ende, a.Grund ?? "", "fehlt"));
+                }
+            }
+        }
+        else if (b.Familie && typ == Elementtyp.Klasse)
+        {
+            var kinder = b.SchuelerIds.Select(i => s.Schueler.FirstOrDefault(x => x.Id == i)).Where(x => x != null && gleich.Equals(x.Klasse, element)).ToList();
+            var kind = kinder.FirstOrDefault(x => x!.Id == schueler) ?? kinder.FirstOrDefault();
+            if (kind == null) return res;
+            var namen = kv.Gruende().GroupBy(g => g.Kurz, gleich).ToDictionary(g => g.Key, g => g.First().Name, gleich);
+            foreach (var z in kb.Zeitraeume(s, kb.FehlzeitenVon(kind.Id, mo, so), _ => false))
+            {
+                if (!DateOnly.TryParse(z.VonDatum, out var von) || !DateOnly.TryParse(z.BisDatum, out var bis)) continue;
+                for (var d = von; d <= bis; d = d.AddDays(1))
+                    res.Add(new PlanAbwesenheit(Plandienst.Iso(d), d == von ? z.VonZeit : stunden[0].Beginn, d == bis ? z.BisZeit : stunden[^1].Ende,
+                        namen.GetValueOrDefault(z.Grund, z.Grund), z.Art));
+            }
+        }
+        return res.OrderBy(x => x.Datum, StringComparer.Ordinal).ThenBy(x => x.Von, StringComparer.Ordinal).ToList();
+    }
+
     private static Stand Paket(Paketdienst p) => p.Aktuell ?? throw new ArgumentException("Es wurden noch keine Daten aus UntPlan übertragen.");
 
     private static DateOnly Datum(string? s, Uhr uhr) => DateOnly.TryParse(s, out var d) ? d : uhr.Heute;
@@ -209,7 +253,7 @@ public static class AppApi
             });
         });
 
-        api.MapGet("/plan", (string typ, string element, string? datum, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Uhr uhr) =>
+        api.MapGet("/plan", (string typ, string element, string? datum, int? schueler, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Klassenbuchverwaltung kv, Uhr uhr) =>
         {
             var b = Ich(c);
             PlanErlaubt(b, typ, element);
@@ -218,8 +262,8 @@ public static class AppApi
             // Planfenster der Rolle: außerhalb nur das leere Raster mit Hinweis (gesperrt, sperrhinweis)
             if (!Rechtedienst.PlanSichtbar(b, tag, uhr.Heute)) return Results.Json(plan.Wochenplan(s, typ, element, tag, b.Kollegium).Sperren());
             var w = plan.Wochenplan(s, typ, element, tag, b.Kollegium, d => r.Vorgemerkt(d, s));
-            // Notizen und fällige Hausaufgaben für die Symbole auf den Karten
-            return Results.Json(w with { Karten = kb.Anreichern(w.Karten, b.Kollegium) });
+            // Notizen und fällige Hausaufgaben für die Symbole auf den Karten; eigene Abwesenheiten im eigenen Plan
+            return Results.Json(w with { Karten = kb.Anreichern(w.Karten, b.Kollegium), Abwesenheiten = EigeneAbwesenheiten(b, s, typ, element, tag, schueler, kb, kv) });
         });
 
         api.MapGet("/tag", (string typ, string? datum, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Uhr uhr) =>

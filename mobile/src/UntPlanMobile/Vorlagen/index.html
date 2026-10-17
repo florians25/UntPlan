@@ -626,6 +626,14 @@
       <span class="menu-item__label">Woche</span>
     </button>
 
+    <!-- Eigene Abwesenheiten im eigenen Plan als grauer Balken hinter den Stunden (an/aus, bleibt gespeichert) -->
+    <div class="menu-sep" role="separator" id="menuAbsencesSep"></div>
+    <button class="menu-item menu-item--toggle" id="menuAbsences" data-act="toggle-absences" role="menuitemcheckbox" aria-checked="true">
+      <span class="menu-item__check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></svg></span>
+      <span class="menu-item__ico"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><circle cx="10" cy="8" r="3.4"/><path d="M3.8 19.4a6.4 6.4 0 0 1 9.4-5.6"/><circle cx="17" cy="16.6" r="3.6"/><path d="M17 14.8v1.9l1.2.8"/></svg></span>
+      <span class="menu-item__label">Abwesenheiten anzeigen</span>
+    </button>
+
     <div class="menu-sep" role="separator"></div>
 
     <button class="menu-item" data-act="legend" role="menuitem">

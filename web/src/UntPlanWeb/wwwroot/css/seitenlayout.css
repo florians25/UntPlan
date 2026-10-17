@@ -240,3 +240,53 @@
 @media (min-width: 576px) and (max-width: 991.98px) { .ic-panel { width: min(420px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 120px)); } }
 @keyframes ic-blatt { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ic-panel, .ic-schleier { animation: none !important; } }
+
+/* ------------------------------------------------------------------ Weißer Kopf der Klassenbuch-Verwaltungsseiten
+   app.js setzt .u-kopf-weiss (und .u-kopf-suche) schon beim Seitenwechsel: Titel und Aktionen (#seitenkopf) sowie die Suchleiste der
+   Seite (.u-kopfteil, meist .u-sf-leiste) stehen auf weißem Grund über die volle Breite, der Inhalt darunter auf grauem Grund.
+   Solange die Seite lädt, hält #kopfplatz die Zeile der Suchleiste frei (gleich hoch, gemerkte Höhe aus app.js) – der Kopf springt
+   nicht und die Seite erscheint nicht erst grau und dann weiß. Volle Breite über eine weiße Fläche hinter dem Element (::after),
+   seitlich an .u-haupt beschnitten; Aufklapplisten der Suchleiste bleiben unbeschnitten. */
+.u-kopfplatz { display: none; }
+.u-app.u-kopf-weiss .u-haupt { overflow-x: clip; }
+.u-app.u-kopf-weiss .u-inhalt { padding-top: 0; }
+.u-app.u-kopf-weiss :is(#seitenkopf, #kopfplatz, #seite .u-kopfteil) { position: relative; }
+.u-app.u-kopf-weiss :is(#seitenkopf, #kopfplatz, #seite .u-kopfteil)::after {
+  content: ""; position: absolute; inset: 0 -100vmax; z-index: -1; background: #fff; pointer-events: none;
+}
+.u-app.u-kopf-weiss #seitenkopf { display: flex !important; margin-bottom: 0; padding: 24px 0 16px; min-height: 80px; }
+/* Unterkante: feine Linie über die volle Breite am letzten Teil des Kopfes */
+.u-app.u-kopf-weiss:not(.u-kopf-suche) #seitenkopf::after, .u-app.u-kopf-weiss :is(#kopfplatz, #seite .u-kopfteil)::after { border-bottom: 1px solid #e5e8ec; }
+.u-app.u-kopf-weiss:not(.u-kopf-suche) #seitenkopf { margin-bottom: 24px; }
+.u-app.u-kopf-weiss #seite .u-kopfteil { margin: 0 0 24px; padding-bottom: 18px; }
+/* Platzhalter der Suchleiste, solange die Seite noch keine gezeichnet hat (bzw. ohne Fehlermeldung) */
+.u-app.u-kopf-weiss.u-kopf-suche .u-inhalt:not(:has(#seite .u-kopfteil, #seite > .alert)) #kopfplatz { display: block; height: var(--kopfplatz-h, 60px); margin-bottom: 24px; }
+.u-app.u-kopf-weiss :is(#kopfplatz, .u-kopfskelett)::before { content: ""; display: block; height: 42px; max-width: 640px; border-radius: 21px; background: #f2f4f6; }
+.u-app.u-kopf-weiss #seite .u-kopfteil.u-kopfskelett { height: var(--kopfplatz-h, 60px); }
+/* Teile innerhalb eines Kopfteils (z. B. Berichte: Suche und Parameter) ohne Abstand nach unten am Ende */
+.u-app.u-kopf-weiss #seite .u-kopfteil > :last-child { margin-bottom: 0; }
+/* Berichte: Suche und Parameter (Klasse, Schüler*in, Zeitraum) in einer Zeile, auf schmalen Bildschirmen untereinander */
+.u-app.u-kopf-weiss #seite .br-kopf { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.u-app.u-kopf-weiss #seite .br-kopf > .u-sf-leiste { flex: 1 1 340px; max-width: 560px; margin: 0; }
+.u-app.u-kopf-weiss #seite .br-kopf > .kd-filter { margin: 0; }
+/* Reiter über der Suchleiste (Abwesenheiten): gehört zum Kopf, ohne Linie und Abstand zur Leiste darunter */
+.u-app.u-kopf-weiss #seite .u-kopfteil.u-kopfreiter { margin-bottom: 0; padding-bottom: 14px; }
+.u-app.u-kopf-weiss #seite .u-kopfteil.u-kopfreiter::after { border-bottom: 0; }
+/* Suchfelder im weißen Kopf im hellen Grau (wie auf weißen Flächen) */
+.u-app.u-kopf-weiss .u-kopfteil :is(.u-suchfilter, .u-suchfeld, .nl-suche, .u-suche) { background: #f2f4f6; }
+.u-app.u-kopf-weiss .u-kopfteil :is(.u-suchfilter, .u-suchfeld, .nl-suche, .u-suche):hover { background: #eceff2; }
+/* Fehlzeiten: die Klassenwahl steht in der Kopfzeile (die Zeile darüber entfällt) */
+.u-app.u-kopf-weiss[data-ansicht="klassenbuch"] #seite > .u-filter { display: none; }
+@media (max-width: 991.98px) {
+  .u-app.u-kopf-weiss #seitenkopf { padding: 18px 0 12px; min-height: 66px; }
+  .u-app.u-kopf-weiss #seite .u-kopfteil { margin-bottom: 18px; padding-bottom: 14px; }
+  .u-app.u-kopf-weiss.u-kopf-suche .u-inhalt:not(:has(#seite .u-kopfteil, #seite > .alert)) #kopfplatz { height: var(--kopfplatz-h, 56px); margin-bottom: 18px; }
+}
+@media (max-width: 767.98px) {
+  .u-app.u-kopf-weiss.u-kopf-suche .u-inhalt:not(:has(#seite .u-kopfteil, #seite > .alert)) #kopfplatz { height: var(--kopfplatz-h, 108px); }
+  .u-app.u-kopf-weiss #seite .u-kopfteil.u-kopfskelett { height: var(--kopfplatz-h, 104px); }
+}
+@media print {
+  .u-app.u-kopf-weiss :is(#seitenkopf, #seite .u-kopfteil)::after { display: none; }
+  .u-app.u-kopf-weiss #seitenkopf { padding: 0; min-height: 0; }
+}

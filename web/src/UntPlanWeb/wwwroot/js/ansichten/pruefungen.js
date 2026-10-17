@@ -21,7 +21,7 @@ export async function zeigen(seite, kontext, [bereichParam, wahlParam]) {
   const liste = await holen(`/api/app/pruefungen?von=${von}&bis=${bis}${wahl === 'meine' ? `&lehrer=${encodeURIComponent(ich.element)}` : ''}`);
   const arten = [...new Set(liste.map(p => p.art).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'de'));
   let art = '';
-  seite.innerHTML = `<div class="u-sf-leiste">
+  seite.innerHTML = `<div class="u-sf-leiste u-kopfteil">
       ${suchfeldMitFilter({ platzhalter: 'Suche', label: 'Prüfungen durchsuchen', filter: [
         ...(ich.kollegium && ich.element ? [{ name: 'wahl', label: 'Auswahl', alle: null, standard: 'alle', wert: wahl, optionen: [['alle', 'Alle'], ['meine', 'Meine']] }] : []),
         { name: 'art', label: 'Art', alle: 'Alle Arten', optionen: arten.map(a => [a, a]) },

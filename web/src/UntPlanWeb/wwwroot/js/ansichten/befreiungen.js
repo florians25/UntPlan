@@ -21,7 +21,7 @@ export async function zeigen(seite, kontext, [klasseParam, vonParam, bisParam, g
   kontext.titel('Befreiungen vom Unterricht', `${d.verwalten ? `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : ''}
     <a class="btn btn-outline-secondary" href="#/berichte/befreiungen/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Bericht Befreiungen</a>`, `${liste.length}`);
   seite.innerHTML = `
-    <div class="u-sf-leiste">
+    <div class="u-sf-leiste u-kopfteil">
       ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Fach oder Text suchen', label: 'Befreiungen durchsuchen', filter: [
         { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
         { name: 'grund', label: 'Befreiungsgrund', alle: 'Alle Gründe', wert: grund, optionen: d.gruende.map(g => [g.kurz, g.name]) },

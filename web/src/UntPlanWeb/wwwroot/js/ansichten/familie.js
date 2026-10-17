@@ -57,20 +57,6 @@ const ohneZuordnung = seite => { seite.innerHTML = '<div class="fm-karte"><div c
 
 // ------------------------------------------------------------------ Abwesenheiten (Reiter „Meine Abwesenheiten“ | „Fehlzeiten“)
 
-/** Summen des Zeitraums (Server: summen) als Kachelzeile: Fehltage, Fehlstunden je Status, Verspätungen. */
-export function summenLeiste(su) {
-  if (!su) return '';
-  const kachel = (zahl, text, farbe = '', titel = '') => `<div class="fm-summe ${farbe}" ${titel ? `title="${e(titel)}"` : ''}><b>${zahl}</b><span>${text}</span></div>`;
-  return `<div class="fm-karte fm-summen" aria-label="Summen im Zeitraum">
-    ${kachel(su.fehltage, su.fehltage === 1 ? 'Fehltag' : 'Fehltage', '', 'Tage, an denen alle Unterrichtsstunden gefehlt wurden')}
-    ${kachel(su.fehlstunden, su.fehlstunden === 1 ? 'Fehlstunde' : 'Fehlstunden', '', `${su.fehlminuten} Fehlminuten insgesamt`)}
-    ${kachel(su.entschuldigt, 'entschuldigt', 'gruen', 'Fehlstunden')}
-    ${kachel(su.unentschuldigt, 'nicht entschuldigt', 'rot', 'Fehlstunden')}
-    ${kachel(su.offen, 'offen', 'gelb', `Fehlstunden; ${su.offeneAbwesenheiten} ${su.offeneAbwesenheiten === 1 ? 'Abwesenheit' : 'Abwesenheiten'} noch nicht entschieden`)}
-    ${kachel(su.verspaetet, su.verspaetet === 1 ? 'Verspätung' : 'Verspätungen', '', su.verspaetet ? `${su.verspaetetMinuten} Minuten insgesamt` : '')}
-  </div>`;
-}
-
 /** Status einer Abwesenheit: bei einzeln (z. B. von Fachlehrkräften) entschuldigten Stunden „teilweise“ mit Anzahl. */
 const zeitraumStatus = z => z.statusGemischt
   ? `<span class="fz-label gelb" title="${z.entschuldigt} entschuldigt, ${z.unentschuldigt} nicht entschuldigt, ${z.fehlstunden - z.entschuldigt - z.unentschuldigt} offen">teilweise</span><div class="fz-klein">${z.entschuldigt}/${z.fehlstunden} entschuldigt</div>`
@@ -122,7 +108,6 @@ export async function abwesenheiten(seite, kontext, [reiterParam, vonParam, stat
       <label class="fm-wahl"><span class="visually-hidden">Status</span><select data-status><option value="">- Alle -</option>${Object.entries(STATUS).map(([k, [, t]]) => `<option value="${k}" ${k === status ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <span class="ms-auto d-flex gap-1">${export_('pdf', 'bi-file-earmark-pdf', 'Als PDF exportieren')}${export_('csv', 'bi-file-earmark-excel', 'Für Excel exportieren')}${export_('csv', 'bi-filetype-csv', 'Als CSV exportieren')}</span>
     </div>
-    ${summenLeiste(daten.summen)}
     <div class="fm-karte fm-tabelle">${tabelle}<div class="fm-fuss">${zeilen.length} ${zeilen.length === 1 ? 'Element' : 'Elemente'}</div></div>
     ${reiter === 'meine' ? `<div class="fm-karte fm-aktionen"><button type="button" class="fm-pille" data-brief>Entschuldigungsschreiben drucken <i class="bi bi-caret-up-fill"></i></button>
       <span class="fz-grau small">Ohne Auswahl: alle noch nicht entschuldigten Abwesenheiten im Zeitraum.</span></div>` : ''}`;
