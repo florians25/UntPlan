@@ -1,5 +1,5 @@
-// Seiten für Schüler*innen und Erziehungsberechtigte („Meine Daten“) im neuen Design, aufgebaut wie im Original:
-// Übersicht (offene Abwesenheiten im Schuljahr, Hausaufgaben eine Woche in die Zukunft), Abwesenheiten mit den Reitern
+// Seiten für Schüler*innen und Erziehungsberechtigte im neuen Design, aufgebaut wie im Original (die Übersicht steht für alle
+// Rollen in uebersicht.js und nutzt die Kinderwahl von hier): Abwesenheiten mit den Reitern
 // „Meine Abwesenheiten“ (Zeiträume) und „Fehlzeiten“ (je Unterrichtsstunde), Hausaufgaben (Datum + Woche/Monat).
 // Erziehungsberechtigte mit mehreren Kindern wählen das Kind in der Filterleiste. Alle Daten kommen aus /api/app/familie/…,
 // der Server prüft Rolle und Zuordnung.
@@ -19,8 +19,6 @@ export const zaehltKaestchen = z => `<span class="fz-kaestchen ${z ? 'an' : ''}"
 /** Datum wie im Original: grauer Wochentag, dunkles Datum, graue Uhrzeit. */
 const datumZelle = (iso, zeit, vor = '') => `<span class="fz-grau">${vor}${wt(iso)}</span> <span class="fz-datum">${tagMonat(iso)}</span>${zeit ? ` <span class="fz-grau">${e(zeit)}</span>` : ''}`;
 
-const BETT = '<svg viewBox="0 0 64 40" aria-hidden="true"><path fill="currentColor" d="M4 2h6v22h50a4 4 0 0 1 4 4v12h-6v-6H10v6H4zM26 9h26a8 8 0 0 1 8 8v4H26zM18 10a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg>';
-const BETT_KLEIN = BETT.replace('<svg', '<svg class="fm-sym"');
 
 /** Fehlzeitentabelle (Bild „Fehlzeiten“): je Unterrichtsstunde eine Zeile. Wird auch im Klassenbuch (Fehlzeiten) verwendet. */
 export function fehlzeitenTabelle(zeilen, grundName = g => g, { schueler = false } = {}) {
@@ -35,7 +33,7 @@ export function fehlzeitenTabelle(zeilen, grundName = g => g, { schueler = false
 }
 
 /** Kinder des Kontos und das gewählte Kind (Erziehungsberechtigte mit mehreren Kindern). */
-async function kinder() {
+export async function kinder() {
   const liste = await holen('/api/app/familie/kinder').catch(() => []);
   let id = null;
   try { id = Number(sessionStorage.getItem('untplan:kind')) || null; } catch { /* privat */ }
@@ -43,12 +41,12 @@ async function kinder() {
   return { liste, kind };
 }
 
-function kindWahl(liste, kind) {
+export function kindWahl(liste, kind) {
   if (liste.length < 2) return '';
   return `<label class="fm-wahl"><span class="visually-hidden">Kind</span><select data-kind>${liste.map(k => `<option value="${k.id}" ${k.id === kind.id ? 'selected' : ''}>${e(k.vorname)} ${e(k.name)} (${e(k.klasse)})</option>`).join('')}</select></label>`;
 }
 
-function kindBinden(wurzel, neu) {
+export function kindBinden(wurzel, neu) {
   wurzel.querySelector('[data-kind]')?.addEventListener('change', ev => {
     try { sessionStorage.setItem('untplan:kind', ev.target.value); } catch { /* privat */ }
     neu();
@@ -56,32 +54,6 @@ function kindBinden(wurzel, neu) {
 }
 
 const ohneZuordnung = seite => { seite.innerHTML = '<div class="fm-karte"><div class="fm-leer">Ihrem Konto ist noch keine Schülerin bzw. kein Schüler zugeordnet. Bitte wenden Sie sich an die Schule.</div></div>'; };
-
-// ------------------------------------------------------------------ Übersicht „Meine Daten“
-
-export async function uebersicht(seite, kontext) {
-  kontext.titel('');
-  const { liste, kind } = await kinder();
-  if (!kind) return ohneZuordnung(seite);
-  const d = await holen(`/api/app/familie/uebersicht?schueler=${kind.id}`);
-  const gruende = await holen('/api/app/familie/gruende').catch(() => ({}));
-  const karte = (sym, titel, unter, href, inhalt) => `<section class="fm-karte fm-uebersicht">
-      <header>${sym}<span class="titel">${titel}</span><span class="unter">${unter}</span><a href="${href}" class="fm-pfeil" title="${titel} öffnen" aria-label="${titel} öffnen"><i class="bi bi-arrow-right"></i></a></header>
-      <div class="fm-inhalt">${inhalt}</div></section>`;
-  const abw = d.offeneAbwesenheiten.length
-    ? `<ul class="fm-liste">${d.offeneAbwesenheiten.map(z => `<li><span>${datumZelle(z.vonDatum, z.vonZeit)} <span class="fz-grau">bis</span> ${datumZelle(z.bisDatum, z.bisZeit)}</span>
-        <span class="ms-auto">${e(gruende[z.grund] ?? z.grund)}</span>${statusLabel(z.status)}</li>`).join('')}</ul>`
-    : `<div class="fm-leer gross">${BETT}<span>Keine offenen Abwesenheiten</span></div>`;
-  const hw = d.hausaufgaben.length
-    ? `<ul class="fm-liste">${d.hausaufgaben.map(h => `<li><b>${e(h.fach)}</b><span class="fm-hwtext">${e(h.text)}</span>${h.faellig ? `<span class="ms-auto fz-grau text-nowrap">bis ${wt(h.faellig)} ${tagMonat(h.faellig)}</span>` : ''}</li>`).join('')}</ul>`
-    : '<div class="fm-leer gross"><i class="bi bi-house-door-fill"></i><span>Keine Hausaufgaben</span></div>';
-  seite.innerHTML = `<div class="fm-kopf"><h1 class="fm-titel">Meine Daten</h1>${kindWahl(liste, kind)}</div>
-    <div class="fm-raster">
-      ${karte(BETT_KLEIN, 'Offene Abwesenheiten', 'Schuljahr', '#/abwesenheiten', abw)}
-      ${karte('<i class="bi bi-house-door-fill fm-sym"></i>', 'Hausaufgaben', 'Eine Woche in die Zukunft', '#/hausaufgaben', hw)}
-    </div>`;
-  kindBinden(seite, () => kontext.navigieren(location.hash));
-}
 
 // ------------------------------------------------------------------ Abwesenheiten (Reiter „Meine Abwesenheiten“ | „Fehlzeiten“)
 

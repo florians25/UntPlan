@@ -456,6 +456,13 @@ andere Lehrkräfte sehen nur Name, Klasse und Geschlecht, Klassenkonten haben ke
 | Lehrkraft | alle Pläne, Lehrerversion | melden, buchen, Klassenbuch für eigene Stunden |
 | Klasse / Schüler | eigene Klasse, Räume, Schülerversion | Mitteilungen an Klassenleitung und Schulleitung |
 
+**Stundenplan-Zeitraum (Planfenster):** Unter *Administration → Rechte und Rollen* lässt sich je Rolle festlegen, wie viele Wochen
+vor bzw. nach der aktuellen Woche der Stundenplan angezeigt wird (*Wochen zurück*, *Wochen voraus*). Leer = unbegrenzt (Standard),
+0 = nur die aktuelle Woche, n = n Kalenderwochen (Wochenbeginn Montag). Die Administration ist nie beschränkt. Der Server setzt das
+Fenster für Web und Apps durch: `GET /api/app/plan` liefert außerhalb `gesperrt: true`, `sperrhinweis` und leere `karten`
+(ebenso `GET /api/app/tag`); `GET /api/app/sitzung` enthält `benutzer.planWochenZurueck` und `benutzer.planWochenVor` (Zahl oder `null`).
+Klassenbucheinträge (Lehrstoff, Notizen, „Findet online statt“) sind zeitlich nicht begrenzt.
+
 ## Sicherheit
 
 - Passwörter sind mit PBKDF2 gehasht (ASP.NET Core Identity). Nach 5 Fehlversuchen wird die Anmeldung für 5 Minuten gesperrt.

@@ -1884,18 +1884,51 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .nw-zeitraum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 700px) { .nw-liste-karte .ic-karte { padding: 14px 16px 14px 18px; } .nw-tabelle { overflow-x: auto; } }
 
-/* ===== Übersicht (Karten-Dashboard für Lehrkräfte/Administration) =====
-   Koordiniertes Raster: oben zwei breite Karten, darunter drei gleich breite Spalten; Karten einer Reihe gleich hoch,
-   leere Karten kompakt (eine Zeile). Abstände einheitlich 16px, linksbündig mit Max-Breite. */
+/* ===== Übersicht (für alle Rollen) =====
+   Ruhige Hierarchie: Kopf (Titel, Name, Datum), Kennzahlen-Kacheln „Auf einen Blick“, „Als Nächstes“ (zwei breite Karten),
+   dann Abschnitte mit kleiner grauer Überschrift. Nur Karten mit Inhalt; Leeres als eine ruhige Zeile. Abstände einheitlich 16px. */
 .ub-bereich { max-width: 1480px; container-type: inline-size; }
-.ub-bereich > .fm-kopf { margin-bottom: 16px; }
-.ub-raster { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; align-items: stretch; margin-bottom: 16px; }
-.ub-raster > * { min-width: 0; grid-column: span var(--sp, 2); }
+.ub-bereich > .fm-kopf { margin-bottom: 18px; }
+.ub-kopf { row-gap: 4px; }
+.ub-datum { margin-left: auto; color: var(--u-grau); font-size: .85rem; }
+.ub-kopf .fm-wahl { flex-basis: 100%; }
+.ub-abschnitt { margin-bottom: 26px; }
+.ub-abschnitt-titel { margin: 0 0 10px; font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--u-grau); }
+.ub-raster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.ub-raster.s1 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ub-raster.s2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ub-raster > * { min-width: 0; }
+.ub-raster.ub-oben { align-items: start; }
 .ub-karte { display: flex; flex-direction: column; }
-.ub-stapel { display: flex; flex-direction: column; gap: 16px; }
-@container (max-width: 980px) { .ub-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ub-raster > * { grid-column: span 1; } .ub-raster > :last-child:nth-child(odd) { grid-column: span 2; }
-  .ub-raster > .ub-stapel:last-child:nth-child(odd) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .ub-stapel > :last-child:nth-child(odd) { grid-column: span 2; } }
-@container (max-width: 640px) { .ub-raster { grid-template-columns: minmax(0, 1fr); } .ub-raster > *, .ub-raster > :last-child:nth-child(odd), .ub-stapel > :last-child:nth-child(odd) { grid-column: auto; } .ub-raster > .ub-stapel:last-child:nth-child(odd) { display: flex; } }
+/* Kennzahlen: gleich breite Kacheln (Zahl groß, Bezeichnung darunter), bei 0 zurückhaltend grau */
+.ub-kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+.ub-kachel {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 14px 16px;
+  background: #fff; border-radius: 2px; box-shadow: 0 1px 3px rgba(0, 5, 10, .08), 0 3px 10px rgba(0, 5, 10, .05); color: var(--u-titel); text-decoration: none;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.ub-kachel:hover { box-shadow: 0 2px 6px rgba(0, 5, 10, .1), 0 6px 16px rgba(0, 5, 10, .07); color: var(--u-titel); }
+.ub-kachel:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.ub-kachel-sym { grid-row: span 2; display: inline-grid; place-content: center; width: 40px; height: 40px; border-radius: 50%; background: var(--u-akzent-hell); color: var(--u-akzent-dunkel); font-size: 1.1rem; }
+.ub-kachel-zahl { font-size: 1.6rem; line-height: 1.1; font-weight: 600; color: var(--u-titel); }
+.ub-kachel-text { display: flex; flex-direction: column; min-width: 0; grid-column: 2; }
+.ub-kachel-text .titel { font-size: .85rem; color: var(--u-titel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ub-kachel-text .unter { font-size: .75rem; color: var(--u-grau); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ub-kachel.lila .ub-kachel-sym { background: #efe7fb; color: #6b3fb5; }
+.ub-kachel.gelb .ub-kachel-sym { background: #fff3cd; color: #8a6200; }
+.ub-kachel.null .ub-kachel-sym { background: #f1f3f5; color: #9aa4ad; }
+.ub-kachel.null .ub-kachel-zahl { color: #9aa4ad; }
+/* Leere Karten eines Abschnitts als eine Zeile */
+.ub-ruhig { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--u-grau); font-size: .85rem; }
+.ub-ruhig > .bi { color: #9fb7a8; font-size: 1rem; }
+.ub-ruhig a { color: var(--u-grau); text-decoration: underline; text-decoration-color: #c9d0d6; text-underline-offset: 3px; }
+.ub-ruhig a:hover { color: var(--u-akzent-dunkel); }
+.ub-punkt { color: #c2c9cf; }
+.ub-raster + .ub-ruhig { margin-top: 12px; }
+@container (max-width: 980px) { .ub-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 640px) { .ub-raster, .ub-raster.s1, .ub-raster.s2 { grid-template-columns: minmax(0, 1fr); } .ub-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ub-kacheln > :last-child:nth-child(odd) { grid-column: span 2; }
+  .ub-kachel { padding: 12px; column-gap: 10px; } .ub-kachel-sym { width: 34px; height: 34px; font-size: 1rem; } .ub-datum { margin-left: 0; flex-basis: 100%; } }
 .ub-karte > header { display: flex; align-items: center; gap: 8px; min-width: 0; height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid #edf0f2; }
 .ub-karte > header .titel { color: var(--u-akzent); font-size: .95rem; white-space: nowrap; }
 .ub-karte > header .unter { flex: 1; min-width: 0; margin-left: 4px; color: var(--u-grau); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
