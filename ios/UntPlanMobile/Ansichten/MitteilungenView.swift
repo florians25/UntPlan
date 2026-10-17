@@ -1,10 +1,11 @@
 import QuickLook
 import SwiftUI
 
-/// Mitteilungen nach Vorlage (142): oben links der runde Glasknopf „Konto wechseln“, rechts der Glasknopf „Neue Mitteilung“
-/// (Menü „An wen soll die Mitteilung gesendet werden?“ mit „Kolleg*innen“ und „Individuell“); darunter der Titel
-/// „Posteingang“ (antippen wechselt zu Gesendet bzw. Entwürfe) und die Liste (Avatar mit Initiale, Absender, Betreff,
-/// Vorschau, Büroklammer bei Anhängen).
+/// Mitteilungen nach Vorlage (109/142, nachgemessen bei 2,288 px/pt – iPhone 16 Pro, 402 pt): oben links der runde Glasknopf
+/// „Konto wechseln“, mittig der Titel „Mitteilungen“ (18 pt Medium, #CBCFD4), rechts die runden Glasknöpfe Suche und „+“
+/// (Menü „An wen soll die Mitteilung gesendet werden?“ mit „Kolleg*innen“ und „Individuell“), 12 pt Abstand; darunter die
+/// Reiter „Posteingang | Gesendet | Entwürfe“ (17,5 pt Medium, gewählt weiß, sonst #CCD0D5) und die Liste (Avatar 44 pt mit
+/// Initiale, Absender, Betreff, Vorschau, Büroklammer bei Anhängen).
 struct MitteilungenView: View {
     enum Ordner: String, CaseIterable, Identifiable {
         case eingang
@@ -64,6 +65,11 @@ struct MitteilungenView: View {
 
     private var rand: CGFloat { groessenklasse == .compact ? 16 : 20 }
 
+    /// Farben nach Vorlage (dunkel nachgemessen; hell wie die übrigen Seiten).
+    static let titelFarbe = Color(hell: 0x5D727F, dunkel: 0xCBCFD4)
+    static let reiterAktiv = Color(hell: 0x253746, dunkel: 0xFFFFFF)
+    static let reiterInaktiv = Color(hell: 0x6B7A85, dunkel: 0xCCD0D5)
+
     var body: some View {
         NavigationStack(path: $pfad) {
             VStack(spacing: 0) {
@@ -97,27 +103,55 @@ struct MitteilungenView: View {
         }
     }
 
-    // MARK: - Kopf (Vorlage 142)
+    // MARK: - Kopf (Vorlagen 109/142)
 
+    /// Knöpfe direkt am oberen sicheren Rand (Vorlage: Oberkante 62 pt = sicherer Rand), Reiter 21,5 pt darunter,
+    /// Liste 20 pt unter den Reitern.
     private var kopf: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                KontoMenue {
-                    Glasrund { KontoSymbol() }
+        VStack(alignment: .leading, spacing: 21.5) {
+            ZStack {
+                Text("Mitteilungen")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Self.titelFarbe)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+                HStack(spacing: 12) {
+                    KontoMenue {
+                        Glasrund { KontoSymbol() }
+                    }
+                    Spacer(minLength: 8)
+                    sucheKnopf
+                    neuKnopf
                 }
-                Spacer(minLength: 8)
-                neuKnopf
             }
-            ordnerMenue
-                .padding(.leading, 4)
+            ordnerReiter
+                .padding(.leading, 24 - rand)
         }
         .padding(.horizontal, rand)
-        .padding(.top, 6)
-        .padding(.bottom, 12)
+        .padding(.top, 0)
+        .padding(.bottom, 20)
         .background(Farben.leiste)
         .overlay(alignment: .bottom) {
             Ladebalken(aktiv: laedt || !geladen)
         }
+    }
+
+    /// Suche: runder Glasknopf mit Lupe (Glyphe ≈ 20,5 pt); blendet das Suchfeld ein bzw. aus.
+    private var sucheKnopf: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                sucheOffen.toggle()
+                if !sucheOffen { suche = "" }
+            }
+        } label: {
+            Glasrund {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(Farben.tinte)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(sucheOffen ? "Suche schließen" : "Mitteilungen durchsuchen")
     }
 
     /// „Neu“: Menü „An wen soll die Mitteilung gesendet werden?“ – Kolleg*innen bzw. Individuell. Schüler*innen und
@@ -132,8 +166,9 @@ struct MitteilungenView: View {
                 }
             } label: {
                 Glasrund {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 19, weight: .regular))
+                    Image(systemName: "plus")
+                        .font(.system(size: 21, weight: .light))
+                        .foregroundStyle(Farben.tinte)
                 }
             }
             .tint(Color.primary)
@@ -143,8 +178,9 @@ struct MitteilungenView: View {
                 verfassen = Verfassen(typ: .individuell)
             } label: {
                 Glasrund {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 19, weight: .regular))
+                    Image(systemName: "plus")
+                        .font(.system(size: 21, weight: .light))
+                        .foregroundStyle(Farben.tinte)
                 }
             }
             .buttonStyle(.plain)
@@ -152,36 +188,26 @@ struct MitteilungenView: View {
         }
     }
 
-    /// Titel „Posteingang“ (Medium); antippen wechselt den Ordner oder öffnet die Suche.
-    private var ordnerMenue: some View {
-        Menu {
-            Picker("Ordner", selection: $ordner) {
-                ForEach(Ordner.allCases) { o in
-                    Label(o.titel, systemImage: o.symbol).tag(o)
+    /// Reiter „Posteingang  Gesendet  Entwürfe“ nebeneinander (17,5 pt Medium, ≈ 27,5 pt Abstand); der gewählte weiß.
+    private var ordnerReiter: some View {
+        HStack(spacing: 27.5) {
+            ForEach(Ordner.allCases) { o in
+                Button {
+                    guard ordner != o else { return }
+                    ordner = o
+                } label: {
+                    Text(o.titel)
+                        .font(.system(size: 17.5, weight: .medium))
+                        .foregroundStyle(ordner == o ? Self.reiterAktiv : Self.reiterInaktiv)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(ordner == o ? .isSelected : [])
             }
-            Divider()
-            Button {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    sucheOffen.toggle()
-                    if !sucheOffen { suche = "" }
-                }
-            } label: {
-                Label(sucheOffen ? "Suche schließen" : "Suchen", systemImage: "magnifyingglass")
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(ordner.titel)
-                    .font(.system(size: 21, weight: .medium))
-                    .foregroundStyle(Farben.tinte)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Farben.gedaempft)
-            }
-            .contentShape(Rectangle())
+            Spacer(minLength: 0)
         }
-        .tint(Color.primary)
-        .accessibilityLabel("\(ordner.titel), Ordner wechseln")
     }
 
     // MARK: - Liste
@@ -205,7 +231,7 @@ struct MitteilungenView: View {
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 .listRowBackground(Farben.flaeche)
                 .listRowSeparatorTint(Farben.trennlinie)
-                .alignmentGuide(.listRowSeparatorLeading) { _ in rand + 74 }
+                .alignmentGuide(.listRowSeparatorLeading) { _ in Mitteilungszeile.textLinks }
                 .swipeActions(edge: .trailing) {
                     Button(role: .destructive) {
                         Task { await loeschen(m) }
@@ -300,7 +326,9 @@ func mitteilungsdatumLang(_ erstellt: String) -> String {
     return "\(tag) | \(zeit)"
 }
 
-/// Zeile nach Vorlage 142: grauer Avatar-Kreis (50 pt) mit Initiale, Absender, Betreff, Vorschau; rechts das Datum und
+/// Zeile nach Vorlage 109/142 (nachgemessen): Zeile 92,7 pt hoch, Fläche #1C1C1E; grauer Avatar-Kreis 44 pt (#878E99,
+/// Initiale 17,5 pt weiß) 32 pt vom Rand und 12,7 pt unter der Oberkante; Text 8,5 pt daneben (x = 84,8 pt): Absender,
+/// Betreff und Vorschau je 16 pt Regular #E8E8EB im Zeilenabstand 22,7 pt; rechts das Datum 15,5 pt (17,4 pt vom Rand) und
 /// bei Anhängen die Büroklammer. Ungelesen: oranger Punkt am Avatar und Absender in Medium.
 struct Mitteilungszeile: View {
     let mitteilung: Mitteilung
@@ -316,18 +344,25 @@ struct Mitteilungszeile: View {
 
     private var ungelesen: Bool { !gesendet && mitteilung.ungelesen }
 
+    static let avatarLinks: CGFloat = 32.3
+    static let avatarGroesse: CGFloat = 44
+    static let textAbstand: CGFloat = 8.5
+    static var textLinks: CGFloat { avatarLinks + avatarGroesse + textAbstand }
+    static let textFarbe = Color(hell: 0x253746, dunkel: 0xE8E8EB)
+    static let avatarFarbe = Color(hexWert: 0x878E99)
+
     private var buchstabe: String {
         let quelle = gesendet ? (mitteilung.empfaenger.first ?? "?") : mitteilung.absenderKuerzel
         return quelle.first.map { String($0).uppercased() } ?? "?"
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: Self.textAbstand) {
             Text(buchstabe)
-                .font(.system(size: 20))
+                .font(.system(size: 17.5))
                 .foregroundStyle(.white)
-                .frame(width: 50, height: 50)
-                .background(Farben.avatar, in: Circle())
+                .frame(width: Self.avatarGroesse, height: Self.avatarGroesse)
+                .background(Self.avatarFarbe, in: Circle())
                 .overlay(alignment: .topLeading) {
                     if ungelesen {
                         Circle()
@@ -338,16 +373,16 @@ struct Mitteilungszeile: View {
                     }
                 }
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 3.6) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(name)
-                        .font(.system(size: 18, weight: ungelesen ? .medium : .regular))
-                        .foregroundStyle(Farben.tinte)
+                        .font(.system(size: 16, weight: ungelesen ? .medium : .regular))
+                        .foregroundStyle(Self.textFarbe)
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     Text(mitteilungsdatum(mitteilung.erstellt))
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.gedaempft)
+                        .font(.system(size: 15.5))
+                        .foregroundStyle(Self.textFarbe)
                         .lineLimit(1)
                         .fixedSize()
                 }
@@ -357,7 +392,7 @@ struct Mitteilungszeile: View {
                             .foregroundStyle(Farben.entfallRand)
                     }
                     Text(mitteilung.betreff.isEmpty ? "(ohne Betreff)" : mitteilung.betreff)
-                        .foregroundStyle(Farben.tinte2)
+                        .foregroundStyle(Self.textFarbe)
                         .lineLimit(1)
                     Spacer(minLength: 4)
                     if !mitteilung.anhaenge.isEmpty {
@@ -367,16 +402,18 @@ struct Mitteilungszeile: View {
                             .accessibilityLabel("Mit Anhang")
                     }
                 }
-                .font(.system(size: 17))
+                .font(.system(size: 16))
                 Text(mitteilung.text.replacingOccurrences(of: "\n", with: " "))
-                    .font(.system(size: 17))
-                    .foregroundStyle(Farben.tinte2)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Self.textFarbe)
                     .lineLimit(1)
             }
+            .padding(.top, 1.7)
         }
-        .padding(.leading, 20)
-        .padding(.trailing, 18)
-        .padding(.vertical, 14)
+        .padding(.leading, Self.avatarLinks)
+        .padding(.trailing, 17.4)
+        .padding(.top, 12.7)
+        .padding(.bottom, 13.7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
@@ -421,11 +458,11 @@ struct MitteilungDetailView: View {
                 Spacer()
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 12)
+            .padding(.top, 0)
+            .padding(.bottom, 10.5)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Farben.trennlinie)
+                    .fill(Self.trennFarbe)
                     .frame(height: 1)
             }
             .overlay(alignment: .bottom) {
@@ -435,20 +472,20 @@ struct MitteilungDetailView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     kopfzeile
                     Text(m.betreff.isEmpty ? "(ohne Betreff)" : m.betreff)
-                        .font(.system(size: 22))
-                        .foregroundStyle(Farben.tinte)
-                        .padding(.top, 14)
+                        .font(.system(size: 20))
+                        .foregroundStyle(Self.weiss)
+                        .padding(.top, 8)
                         .textSelection(.enabled)
                     if m.wichtig {
                         Plakette(text: "Wichtig", farbe: Farben.entfallRand)
                             .padding(.top, 8)
                     }
                     Text(m.text)
-                        .font(.system(size: 17))
-                        .foregroundStyle(Farben.tinte)
-                        .lineSpacing(3)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Self.weiss)
+                        .lineSpacing(2)
                         .textSelection(.enabled)
-                        .padding(.top, 18)
+                        .padding(.top, 17)
                     if !m.anhaenge.isEmpty {
                         VStack(spacing: 10) {
                             ForEach(m.anhaenge) { a in
@@ -457,7 +494,7 @@ struct MitteilungDetailView: View {
                                 }
                             }
                         }
-                        .padding(.top, 34)
+                        .padding(.top, 42)
                     }
                     if !gesendet && m.lesebestaetigung {
                         lesebestaetigung
@@ -468,17 +505,19 @@ struct MitteilungDetailView: View {
                             .padding(.top, 20)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 22)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
                 .padding(.bottom, 110)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .background(Farben.blatt.ignoresSafeArea())
+        // Glasgruppe 28 pt vom rechten und unteren Bildschirmrand (Vorlage 145)
         .overlay(alignment: .bottomTrailing) {
             aktionen
-                .padding(.trailing, 22)
-                .padding(.bottom, 18)
+                .padding(.trailing, 28)
+                .padding(.bottom, 28)
+                .ignoresSafeArea(.container, edges: .bottom)
         }
         .toolbar(.hidden, for: .navigationBar)
         .quickLookPreview($vorschau)
@@ -498,21 +537,26 @@ struct MitteilungDetailView: View {
         }
     }
 
-    /// „Von  NEU“ links, „19.01.26 | 07:24“ rechts (gesendet: „An …“).
+    /// Farben der Detailseite (Vorlage 145, dunkel nachgemessen).
+    static let weiss = Color(hell: 0x253746, dunkel: 0xFEFDFF)
+    static let grau = Color(hell: 0x6B7A85, dunkel: 0xCACCD0)
+    static let trennFarbe = Color(hell: 0xE4E7EA, dunkel: 0x353B42)
+
+    /// „Von  NEU“ links, „19.01.26 | 07:24“ rechts (gesendet: „An …“), 15 pt.
     private var kopfzeile: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(gesendet ? "An" : "Von")
-                .foregroundStyle(Farben.gedaempft)
+                .foregroundStyle(Self.grau)
             Text(gesendet ? (m.empfaengerText.isEmpty ? m.empfaenger.joined(separator: ", ") : m.empfaengerText) : m.absenderKuerzel)
-                .foregroundStyle(Farben.tinte)
+                .foregroundStyle(Self.weiss)
                 .lineLimit(2)
             Spacer(minLength: 8)
             Text(mitteilungsdatumLang(m.erstellt))
-                .foregroundStyle(Farben.gedaempft)
+                .foregroundStyle(Self.grau)
                 .lineLimit(1)
                 .fixedSize()
         }
-        .font(.system(size: 17))
+        .font(.system(size: 15))
         .accessibilityElement(children: .combine)
     }
 
@@ -545,11 +589,11 @@ struct MitteilungDetailView: View {
     private var aktionen: some View {
         Glasgruppe {
             if darfAntworten {
-                Glasgruppenknopf(symbol: "arrowshape.turn.up.left", text: "Antworten") {
+                Glasgruppenknopf(symbol: "arrowshape.turn.up.left", text: "Antworten", farbe: Self.weiss) {
                     Task { await antworte() }
                 }
             }
-            Glasgruppenknopf(symbol: "trash", text: "Löschen") {
+            Glasgruppenknopf(symbol: "trash", text: "Löschen", farbe: Self.weiss) {
                 loeschenFragen = true
             }
         }
@@ -615,7 +659,8 @@ struct MitteilungDetailView: View {
     }
 }
 
-/// Anhang als Kapsel mit feinem Rand (Vorlage 145): Dateisymbol (PDF, Bild, Datei) und Dateiname.
+/// Anhang als Kapsel mit feinem Rand (Vorlage 145): 45 pt hoch, Rand 1 pt #82888F, Symbol 18,4 pt vom Rand, Dateiname
+/// 15 pt 10,5 pt daneben.
 struct Anhangpille: View {
     let anhang: Anhang
     var laedt: Bool = false
@@ -631,20 +676,20 @@ struct Anhangpille: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: antippen) {
-                HStack(spacing: 12) {
+                HStack(spacing: 10.5) {
                     Group {
                         if laedt {
                             ProgressView()
                         } else {
                             Image(systemName: symbol)
-                                .font(.system(size: 21, weight: .light))
-                                .foregroundStyle(Farben.tinte2)
+                                .font(.system(size: 19, weight: .light))
+                                .foregroundStyle(Color(hell: 0x48606F, dunkel: 0xE7E6EB))
                         }
                     }
-                    .frame(width: 28, height: 28)
+                    .frame(width: 20, height: 22)
                     Text(anhang.name.isEmpty ? "Anhang" : anhang.name)
-                        .font(.system(size: 17))
-                        .foregroundStyle(Farben.tinte)
+                        .font(.system(size: 15))
+                        .foregroundStyle(MitteilungDetailView.weiss)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer(minLength: 4)
@@ -662,11 +707,11 @@ struct Anhangpille: View {
                 .accessibilityLabel("Anhang entfernen")
             }
         }
-        .padding(.leading, 16)
+        .padding(.leading, 18.4)
         .padding(.trailing, 14)
-        .frame(height: 50)
+        .frame(height: 45)
         .overlay {
-            Capsule().strokeBorder(Farben.gedaempft.opacity(0.7), lineWidth: 1)
+            Capsule().strokeBorder(Color(hell: 0xB7C0C7, dunkel: 0x82888F), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Anhang \(anhang.name)")
@@ -689,7 +734,8 @@ struct Glasrund<Inhalt: View>: View {
 }
 
 /// Mehrere runde Symbolknöpfe in einer gemeinsamen Glas-Kapsel (Vorlagen 144/145): Antworten | Löschen,
-/// Kamera | Foto | Datei, Lesebestätigung | Antwort nicht erlaubt.
+/// Kamera | Foto | Datei, Lesebestätigung | Antwort nicht erlaubt. Nachgemessen: 48 pt hoch, je Knopf 54 pt breit,
+/// Symbolmitten 58 pt auseinander (zwei Knöpfe 112 pt, drei 170 pt breit), kein zusätzlicher Rand.
 struct Glasgruppe<Inhalt: View>: View {
     @ViewBuilder let inhalt: () -> Inhalt
 
@@ -697,8 +743,7 @@ struct Glasgruppe<Inhalt: View>: View {
         HStack(spacing: 4) {
             inhalt()
         }
-        .padding(.horizontal, 10)
-        .frame(height: 54)
+        .frame(height: 48)
         .liquidGlas(Capsule())
     }
 }
@@ -709,23 +754,25 @@ struct Glasgruppenknopf: View {
     let text: String
     var aktiv: Bool = false
     var zusatz: String? = nil
+    /// Symbolfarbe (Vorlage 144: #D6DCE1; Detail 145: weiß)
+    var farbe: Color = Color(hell: 0x48606F, dunkel: 0xD6DCE1)
     let aktion: () -> Void
 
     var body: some View {
         Button(action: aktion) {
             Image(systemName: symbol)
                 .font(.system(size: 22, weight: .light))
-                .foregroundStyle(aktiv ? Farben.akzent : Farben.tinte2)
+                .foregroundStyle(aktiv ? Farben.akzent : farbe)
                 .overlay(alignment: .bottomTrailing) {
                     if let zusatz {
                         Image(systemName: zusatz)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(aktiv ? Farben.akzent : Farben.tinte2)
+                            .foregroundStyle(aktiv ? Farben.akzent : farbe)
                             .background(Circle().fill(Farben.blatt).padding(1))
                             .offset(x: 5, y: 4)
                     }
                 }
-                .frame(width: 50, height: 46)
+                .frame(width: 54, height: 48)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
