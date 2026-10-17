@@ -5912,3 +5912,4 @@ html.is-dark .ent__segbtn--no.is-on{ color:#ff6b86; }
 .ent__zurueck{ display:block; width:100%; margin-top:6px; padding:13px; border:0; border-radius:12px;
   background:#eceef1; color:#c0113a; font:inherit; font-size:16px; font-weight:500; }
 html.is-dark .ent__zurueck{ background:#2a2a2e; color:#ff6b86; }
+html.is-dark .dpart, html.is-dark .sheet--detail .dpart{ background:#2c2c2e; box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 .5px rgba(255,255,255,.08); }

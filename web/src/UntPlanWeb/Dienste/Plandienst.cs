@@ -855,7 +855,7 @@ public sealed class Plandienst
         if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
         text = TextNormal(text);
         // zusätzliche Unterrichtsstunde: kein Vertretungstext (Badge „Zusätzl. Unterrichtsstunde“ statt Text)
-        if (zusatz) text = "";
+        if (zusatz && fach.Length > 0) text = "";
         s.Faecher.TryGetValue(fach, out var fe);
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
         return new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
