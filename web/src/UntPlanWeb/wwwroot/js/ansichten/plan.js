@@ -48,7 +48,7 @@ export function legendeHtml(aus, einst, mitDruck = true) {
         <button type="button" class="eintrag" data-einst="symbole" role="menuitemcheckbox" aria-checked="${einst.symbole}">${haken(einst.symbole)}Symbole anzeigen</button>
         <button type="button" class="eintrag" data-einst="zeiten" role="menuitemcheckbox" aria-checked="${einst.zeiten}">${haken(einst.zeiten)}Uhrzeiten anzeigen</button>
         <div class="kopf">Anzeigen</div>
-        <button type="button" class="eintrag" data-einst="abwesenheiten" role="menuitemcheckbox" aria-checked="${einst.abwesenheiten}">${haken(einst.abwesenheiten)}Abwesenheiten</button>
+        <button type="button" class="eintrag" data-einst="abwesenheiten" role="menuitemcheckbox" aria-checked="${einst.abwesenheiten}">${haken(einst.abwesenheiten)}Abwesenheiten anzeigen</button>
         <div class="kopf">Pausenaufsichten</div>
         ${[['normal', 'Normal'], ['halbiert', 'Halbiert (Blöcke durchgängig)'], ['aus', 'Ausgeblendet']].map(([w, t]) => `<button type="button" class="eintrag" data-aufsichten="${w}" role="menuitemradio" aria-checked="${(einst.aufsichten ?? 'normal') === w}">${haken((einst.aufsichten ?? 'normal') === w)}${t}</button>`).join('')}
         <div class="kopf">Andere</div>
@@ -145,12 +145,12 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   const erlaubt = ich.kollegium ? ['klasse', 'lehrer', 'raum'] : ['klasse', 'raum'];
   const mein = !typParam || typParam === 'mein';
   // Erziehungsberechtigte mit mehreren Kindern: „Mein Stundenplan“ zeigt die Klasse des gewählten Kindes
-  let meinElement = ich.element;
+  let meinElement = ich.element, meinKind = 0;
   if (kontext.familie && (ich.klassen ?? []).length > 1) {
     try {
       const kind = Number(sessionStorage.getItem('untplan:kind'));
       const k = kind ? (await holen('/api/app/familie/kinder').catch(() => [])).find(x => x.id === kind) : null;
-      if (k) meinElement = k.klasse;
+      if (k) { meinElement = k.klasse; meinKind = k.id; }
     } catch { /* privat */ }
   }
   if (mein && meinElement) { datumParam = /^\d{4}-/.test(elementParam ?? '') ? elementParam : datumParam; typParam = ich.typ; elementParam = meinElement; }
@@ -216,7 +216,8 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   document.addEventListener('keydown', tasten);
 
   const istAktuell = kontext.aktuell();
-  const plan = await holen(`/api/app/plan?typ=${typ}&element=${encodeURIComponent(element)}&datum=${datum}`);
+  // eigene Abwesenheiten (graue Fläche hinter den Stunden) liefert der Server nur im eigenen Plan; bei mehreren Kindern das gewählte
+  const plan = await holen(`/api/app/plan?typ=${typ}&element=${encodeURIComponent(element)}&datum=${datum}${istMein && meinKind ? `&schueler=${meinKind}` : ''}`);
   if (!istAktuell()) return;
   const inhalt = seite.querySelector('[data-inhalt]');
   let gewaehlt = Math.max(0, plan.tage.findIndex(t => t.datum === datum));

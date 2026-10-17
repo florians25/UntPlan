@@ -54,7 +54,14 @@ public sealed record PlanZeit(int Nr, string Bezeichnung, string Beginn, string 
 /// dann ohne Stunden, mit Sperrhinweis.
 /// </summary>
 public sealed record Wochenplan(string Typ, string Element, string Name, string Montag, string Woche, List<PlanZeit> Zeitraster,
-    List<PlanTag> Tage, List<PlanKarte> Karten, List<PlanAufsicht> Aufsichten, bool Gesperrt = false, string? Sperrhinweis = null);
+    List<PlanTag> Tage, List<PlanKarte> Karten, List<PlanAufsicht> Aufsichten, bool Gesperrt = false, string? Sperrhinweis = null,
+    List<PlanAbwesenheit>? Abwesenheiten = null);
+
+/// <summary>
+/// Eigene Abwesenheit an einem Tag im eigenen Plan (/api/app/plan, Feld „abwesenheiten“; ältere Server: fehlt): Uhrzeiten HH:mm,
+/// Grund, Art (fehlt, verspaetet, vorzeitig).
+/// </summary>
+public sealed record PlanAbwesenheit(string Datum, string Von, string Bis, string? Grund = null, string? Art = null);
 
 public sealed record Ferienzeit(string Name, string Von, string Bis, bool Feiertag);
 

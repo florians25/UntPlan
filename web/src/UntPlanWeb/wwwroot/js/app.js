@@ -612,6 +612,7 @@ function huelle() {
         <div class="u-werkzeug d-none nicht-drucken" id="werkzeug"></div>
         <div class="u-inhalt">
           <div class="u-seitenkopf nicht-drucken-titel d-none" id="seitenkopf"><h1 id="titel"></h1><div class="u-aktionen" id="aktionen"></div></div>
+          <div class="u-kopfplatz nicht-drucken" id="kopfplatz" aria-hidden="true"></div>
           <div id="seite"></div>
         </div>
       </main>
@@ -744,6 +745,7 @@ async function route() {
   kontext.titel('');
   kontext.werkzeug('');
   document.querySelector('.u-app')?.setAttribute('data-ansicht', name);
+  const kopf = weisserKopf(nav);
   planScrollBeobachten();
   window.scrollTo(0, 0);
   try {
@@ -752,11 +754,51 @@ async function route() {
     seite.innerHTML = '';
     seite.dataset.ansicht = name;
     await modul.zeigen(seite, kontext, teile.slice(1));
+    if (laufendeAnsicht === nummer) kopfMerken(kopf);
   } catch (err) {
     if (laufendeAnsicht !== nummer || err.status === 401) return;
     seite.innerHTML = alarm('danger', err.message);
     if (err.status === undefined) console.error(err);
   }
+}
+
+/**
+ * Klassenbuch-Verwaltungsseiten (Kollegium): weißer Kopf über die volle Breite mit Titel, Aktionen und der Suchleiste
+ * (Element mit Klasse u-kopfteil, meist .u-sf-leiste mit suchfeldMitFilter), der Inhalt darunter auf grauem Grund. Damit nichts
+ * springt bzw. erst grau und dann weiß erscheint, steht der Kopf sofort beim Seitenwechsel: Titel aus dem Menü, die Zeile der
+ * Suchleiste als gleich hoher Platzhalter (#kopfplatz, per CSS sichtbar, solange die Seite noch keinen u-kopfteil gezeichnet hat).
+ * Die Höhe der Suchleiste je Seite wird gemerkt (schmale Bildschirme: umbrechende Leisten).
+ * suche: Seite mit Suchleiste im Kopf; titel: Titel bis die Seite ihn setzt (sonst der Menütext).
+ */
+// h: übliche Höhe der Suchleiste (breit ≥ 1300px, mittel, schmal < 768px) für den ersten Aufruf; danach gilt die gemessene Höhe
+const WEISSER_KOPF = {
+  offen: { suche: true, h: [60, 60, 106] }, hausaufgaben: { suche: true, h: [60, 60, 140] }, pruefungen: { suche: true, h: [60, 60, 106] },
+  abwesenheiten: { suche: true, h: [60, 110, 174] }, fehlzeiten: { suche: true, h: [112, 112, 314] }, eintraege: { suche: true, h: [60, 60, 142] },
+  dienste: { suche: true, h: [60, 60, 192] }, befreiungen: { suche: true, titel: 'Befreiungen vom Unterricht', h: [60, 60, 142] },
+  berichte: { suche: true, h: [80, 134, 200] }, entschuldigen: { suche: true, titel: 'Fehlzeiten', h: [60, 110, 174] },
+  kbeinstellungen: { suche: false, titel: 'Klassenbuch-Einstellungen' }, 'kbeinstellungen-unterricht': { suche: false, titel: 'Unterricht-Einstellungen' },
+};
+const kopfStufe = () => innerWidth >= 1300 ? 0 : innerWidth >= 768 ? 1 : 2;
+const kopfSchluessel = nav => `untplan:kopfhoehe:${nav}:${kopfStufe()}`;
+
+function weisserKopf(nav) {
+  const u = document.querySelector('.u-app');
+  const art = sitzung.benutzer.kollegium ? WEISSER_KOPF[nav] : null;
+  u?.classList.toggle('u-kopf-weiss', !!art);
+  u?.classList.toggle('u-kopf-suche', !!art?.suche);
+  if (!art) return null;
+  kontext.titel(art.titel ?? allePunkte().find(p => p.nav === nav)?.text ?? '');
+  let h = art.h?.[kopfStufe()];
+  try { h = Number(sessionStorage.getItem(kopfSchluessel(nav))) || h; } catch { /* privat */ }
+  if (h) u?.style.setProperty('--kopfplatz-h', `${h}px`); else u?.style.removeProperty('--kopfplatz-h');
+  return nav;
+}
+
+/** Höhe der gezeichneten Suchleiste merken (Platzhalter beim nächsten Aufruf der Seite gleich hoch). */
+function kopfMerken(nav) {
+  const teil = nav && document.querySelector('#seite .u-kopfteil:not(.u-kopfreiter):not(.u-kopfskelett)');
+  if (!teil || teil.offsetHeight <= 0) return;
+  try { sessionStorage.setItem(kopfSchluessel(nav), String(Math.round(teil.getBoundingClientRect().height))); } catch { /* privat */ }
 }
 
 /** Ist diese Ansicht noch die aktuelle? (gegen verspätete Antworten) */

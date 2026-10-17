@@ -117,14 +117,17 @@ public class FehlzeitenuebersichtTests
     }
 
     [Fact]
-    public void Oberflaeche_Summen_und_Kinderwahl()
+    public void Oberflaeche_ohne_Summenbox_mit_Kinderwahl()
     {
         var js = AppJs;
-        Assert.Contains("function absSummen(s)", js);
+        // Meine Abwesenheiten: oben keine Box mit Summen bzw. Statistik (summary liefert der Server weiter), Kind-Chips bleiben
+        Assert.DoesNotContain("absSummen", js);
+        Assert.DoesNotContain("abssum", js);
         Assert.Contains("function absKinder(d)", js);
-        Assert.Contains("absKinder(d) + absSummen(d.summary)", js);
+        Assert.Contains("const kopf = d.student ? absKinder(d) : '';", js);
         Assert.Contains("art === 'absences' && listeStand.kind ? { student: String(listeStand.kind) }", js);
-        Assert.Contains("'Fehltag' : 'Fehltage'", js);
-        Assert.Contains(".abssum{", File.ReadAllText(Path.Combine(Umgebung.Wurzel(), "mobile", "src", "UntPlanMobile", "wwwroot", "assets", "css", "app.css")));
+        var css = File.ReadAllText(Path.Combine(Umgebung.Wurzel(), "mobile", "src", "UntPlanMobile", "wwwroot", "assets", "css", "app.css"));
+        Assert.DoesNotContain(".abssum", css);
+        Assert.Contains(".abskind{", css);
     }
 }

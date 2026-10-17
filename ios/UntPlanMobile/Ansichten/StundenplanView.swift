@@ -77,6 +77,10 @@ struct StundenplanView: View {
     @State private var tippsperre = Tippsperre()
     /// Gewählte Ansicht (bleibt gespeichert)
     @AppStorage("planansicht") private var ansicht: Planansicht = .woche
+    /// Eigene Abwesenheiten im eigenen Plan als grauer Balken hinter den Stunden (⋮-Menü, bleibt gespeichert)
+    @AppStorage("planAbwesenheiten") private var zeigeAbwesenheiten = true
+    /// Eigene Abwesenheiten (Schüler*innen bzw. Kind der Eltern) aus „Meine Abwesenheiten“, je Kennung
+    @State private var eigeneAbwesenheiten: [String: Abwesenheitszeitraum] = [:]
 
     private enum Wischrichtung {
         case waagrecht
@@ -238,6 +242,10 @@ struct StundenplanView: View {
             }
             .onChange(of: zustand.tagAnfrage) { _, _ in tagAnfrageUebernehmen() }
             .onChange(of: zustand.planAnfrage) { _, _ in planAnfrageUebernehmen() }
+            // Abwesenheiten eingeschaltet: eigene Abwesenheiten (Familienkonto) nachladen
+            .onChange(of: zeigeAbwesenheiten) { _, an in
+                if an { Task { await eigeneAbwesenheitenLaden(montag: montag) } }
+            }
             .onChange(of: zustand.schnellaktion) { _, _ in schnellaktionUebernehmen() }
             // Reiter „Stundenplan“ erneut angetippt: zurück zur heutigen Woche
             .onChange(of: zustand.stundenplanHeute) { _, _ in zurHeutigenWoche() }
@@ -391,6 +399,14 @@ struct StundenplanView: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             }
+            if auswahl == nil {
+                Section {
+                    // Eigene Abwesenheit als grauer Balken hinter den Stunden ein- bzw. ausblenden
+                    Toggle(isOn: $zeigeAbwesenheiten) {
+                        Label("Abwesenheiten anzeigen", systemImage: "person.badge.clock")
+                    }
+                }
+            }
             Section {
                 if let auswahl {
                     Button {
@@ -521,6 +537,9 @@ struct StundenplanView: View {
             p.tage += w.tage
             p.karten += w.karten
             p.aufsichten += w.aufsichten
+            if p.abwesenheiten != nil || w.abwesenheiten != nil {
+                p.abwesenheiten = (p.abwesenheiten ?? []) + (w.abwesenheiten ?? [])
+            }
             if p.zeitraster.isEmpty { p.zeitraster = w.zeitraster }
         }
         // Gesperrt nur, wenn keine der Wochen einsehbar ist (sonst zeigt die freigegebene Woche ihre Stunden)
@@ -535,12 +554,26 @@ struct StundenplanView: View {
         return ergebnis
     }
 
+    /// Abwesenheitsbalken je Tag – nur im eigenen Plan und nur, wenn im ⋮-Menü eingeschaltet.
+    private func abwesenheitsbalken(_ p: Wochenplan) -> [String: [Abwesenheitsbalken]] {
+        guard auswahl == nil, zeigeAbwesenheiten else { return [:] }
+        let zeiten = Rasterzeit.aus(p)
+        let zeitraeume = Array(eigeneAbwesenheiten.values)
+        var ergebnis: [String: [Abwesenheitsbalken]] = [:]
+        for tag in p.tage {
+            let balken = Kachelbau.abwesenheitsbalken(tag, raster: zeiten, zeitraeume: zeitraeume, eigene: p.abwesenheiten)
+            if !balken.isEmpty { ergebnis[tag.datum] = balken }
+        }
+        return ergebnis
+    }
+
     private func raster(_ p: Wochenplan, nurTage: [String]?, stand: Int, untenFrei: CGFloat) -> some View {
         WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ, element: element,
                          tippsperre: tippsperre,
                          senkrechtGesperrt: senkrechtGesperrt,
                          nurTage: nurTage,
                          stand: stand,
+                         abwesenheiten: abwesenheitsbalken(p),
                          untenFrei: untenFrei,
                          heuteAntippen: {
                              if tageModus { ansichtWechseln(.woche) } else { heute() }
@@ -668,6 +701,7 @@ struct StundenplanView: View {
             if let text = zustand.fehlertext(error) { fehler = text }
         }
         laedt = false
+        await eigeneAbwesenheitenLaden(montag: m)
         // Nachbarwochen vorab und gleichzeitig laden, damit beim Wischen (und in der Ansicht über zwei Wochen) sofort
         // etwas zu sehen ist
         if Task.isCancelled { return }
@@ -689,6 +723,20 @@ struct StundenplanView: View {
             plaene[k(datum)] = plan
             staende[k(datum), default: 0] += 1
         }
+    }
+}
+
+extension StundenplanView {
+    /// Eigene Abwesenheiten der Schülerin bzw. des Schülers (Eltern: des Kindes) für die Woche samt Nachbarwochen laden –
+    /// nur im eigenen Plan eines Familienkontos und nur bei eingeschalteter Anzeige. Fehler bleiben still (ohne Balken).
+    fileprivate func eigeneAbwesenheitenLaden(montag m: Date) async {
+        guard auswahl == nil, zeigeAbwesenheiten, zustand.benutzer?.familie == true else { return }
+        // Neuere Server liefern die eigenen Abwesenheiten mit dem Plan – dann nichts nachladen
+        guard plaene[schluessel(m)]?.abwesenheiten == nil else { return }
+        let von = Datumsformat.iso(Datumsformat.tage(-7, nach: m))
+        let bis = Datumsformat.iso(Datumsformat.tage(13, nach: m))
+        guard let daten = try? await zustand.api.familieAbwesenheiten(schueler: nil, von: von, bis: bis, status: nil) else { return }
+        for z in daten.zeilen { eigeneAbwesenheiten[z.id] = z }
     }
 }
 
@@ -962,6 +1010,8 @@ struct WochenrasterView: View {
     var nurTage: [String]? = nil
     /// Stand der geladenen Woche (für den Vergleich, ob neu gezeichnet werden muss)
     var stand: Int = 0
+    /// Eigene Abwesenheiten je Tag (yyyy-MM-dd): grauer Balken hinter den Stunden (nur „Mein Plan“, abschaltbar)
+    var abwesenheiten: [String: [Abwesenheitsbalken]] = [:]
     /// Vom unteren Rand verdeckter Bereich (Tab-Leiste, Home-Balken): das Raster läuft darunter weiter
     var untenFrei: CGFloat = 0
     /// Antippen von „KW / Monat“ (Woche: zur aktuellen Woche, Tag: zurück zur Woche).
@@ -1232,6 +1282,11 @@ struct WochenrasterView: View {
                     .frame(width: breite, height: max(hoehe - mass.y(mass.start) - 1, 20))
                     .offset(y: mass.y(mass.start) + 1)
             } else {
+                // Eigene Abwesenheit: grauer Balken hinter den Stunden – die Karten liegen voll lesbar darüber
+                ForEach(abwesenheiten[tag.datum] ?? []) { b in
+                    abwesenheitsfeld(b, belegung: belegung, mass: mass, breite: breite, vorErste: vorErste)
+                        .zIndex(0)
+                }
                 ForEach(belegung.lagen) { lage in
                     let r = rechteck(lage, mass: mass, breite: breite, vorErste: vorErste)
                     kachelKnopf(lage.kachel, alle: kacheln, breite: r.width, hoehe: r.height)
@@ -1255,6 +1310,47 @@ struct WochenrasterView: View {
             }
         }
         .frame(width: breite, height: hoehe, alignment: .topLeading)
+    }
+
+    /// Grauer Abwesenheitsbalken über die ganze Spaltenbreite. „Abwesend“ steht dezent nur in der größten Lücke ohne Karte
+    /// (mindestens 18 pt hoch) – liegt überall eine Karte darüber, bleibt der Balken ohne Text.
+    private func abwesenheitsfeld(_ b: Abwesenheitsbalken, belegung: Tagesbelegung, mass: Rastermass, breite: CGFloat,
+                                  vorErste: [UUID]) -> some View {
+        let oben = mass.y(b.beginn) + 1
+        let unten = max(oben + 8, mass.yEnde(b.ende) - 1)
+        let belegt = belegung.lagen.filter { !$0.kachel.inPause && !$0.kachel.vorErsterStunde }
+            .map { rechteck($0, mass: mass, breite: breite, vorErste: vorErste) }
+            .filter { $0.maxY > oben && $0.minY < unten }
+            .sorted { $0.minY < $1.minY }
+        // größte freie Lücke im Balken
+        var luecke: (von: CGFloat, bis: CGFloat) = (oben, oben)
+        var y = oben
+        for r in belegt {
+            if r.minY - y > luecke.bis - luecke.von { luecke = (y, r.minY) }
+            y = max(y, r.maxY)
+        }
+        if unten - y > luecke.bis - luecke.von { luecke = (y, unten) }
+        let textHoehe = luecke.bis - luecke.von
+        return ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Farben.abwesendFlaeche.opacity(0.32))
+                .frame(width: breite, height: unten - oben)
+                .offset(y: oben)
+            if textHoehe >= 18 {
+                Text(b.text)
+                    .font(.system(size: kompakt ? 11 : 12, weight: .medium))
+                    .foregroundStyle(Farben.tinte2)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 2)
+                    .frame(width: breite, height: textHoehe)
+                    .offset(y: luecke.von)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(b.text) \(Rasterzeit.uhrzeit(b.beginn))–\(Rasterzeit.uhrzeit(b.ende))")
     }
 
     @ViewBuilder
@@ -1471,7 +1567,7 @@ extension WochenrasterView: Equatable {
     static func == (l: WochenrasterView, r: WochenrasterView) -> Bool {
         l.plan.montag == r.plan.montag && l.typ == r.typ && l.element == r.element && l.nurTage == r.nurTage
             && l.stand == r.stand && l.laedt == r.laedt && l.untenFrei == r.untenFrei
-            && l.senkrechtGesperrt == r.senkrechtGesperrt
+            && l.senkrechtGesperrt == r.senkrechtGesperrt && l.abwesenheiten == r.abwesenheiten
     }
 }
 

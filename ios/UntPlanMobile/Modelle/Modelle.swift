@@ -623,8 +623,11 @@ struct Wochenplan: Decodable, Sendable {
     var gesperrt: Bool
     /// Erklärung zur Sperre (vom Server), z. B. bis wann der Plan einsehbar ist.
     var sperrhinweis: String?
+    /// Eigene Abwesenheiten im eigenen Plan (nil = älterer Server ohne das Feld – dann aus Tageshinweisen bzw.
+    /// „Meine Abwesenheiten“)
+    var abwesenheiten: [PlanAbwesenheit]?
 
-    enum CodingKeys: String, CodingKey { case typ, element, name, montag, woche, zeitraster, tage, karten, aufsichten, gesperrt, sperrhinweis }
+    enum CodingKeys: String, CodingKey { case typ, element, name, montag, woche, zeitraster, tage, karten, aufsichten, gesperrt, sperrhinweis, abwesenheiten }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -639,10 +642,37 @@ struct Wochenplan: Decodable, Sendable {
         aufsichten = c.liste(.aufsichten)
         gesperrt = c.wahr(.gesperrt)
         sperrhinweis = c.textOderNil(.sperrhinweis).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        if c.contains(.abwesenheiten) {
+            let liste: [PlanAbwesenheit] = c.liste(.abwesenheiten)
+            abwesenheiten = liste
+        } else {
+            abwesenheiten = nil
+        }
         if gesperrt {
             karten = []
             aufsichten = []
         }
+    }
+}
+
+/// Eigene Abwesenheit an einem Tag im eigenen Plan (GET /api/app/plan, Feld „abwesenheiten“): Uhrzeiten HH:mm, Grund, Art
+/// (fehlt, verspaetet, vorzeitig). Der Plan zeigt sie als grauen Balken hinter den Stunden.
+struct PlanAbwesenheit: Decodable, Sendable, Equatable {
+    var datum: String
+    var von: String
+    var bis: String
+    var grund: String
+    var art: String
+
+    enum CodingKeys: String, CodingKey { case datum, von, bis, grund, art }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        datum = String(c.text(.datum).prefix(10))
+        von = c.text(.von)
+        bis = c.text(.bis)
+        grund = c.text(.grund)
+        art = c.text(.art)
     }
 }
 

@@ -1,0 +1,49 @@
+# UntPlanWeb UND UntPlan Studio (Beta) auf einem Server, jeweils mit eigener Domain und HTTPS über EINEN Caddy.
+# Ersetzt web/docker-compose.https.yml (gleiche Volumes für UntPlanWeb: vorhandene Daten bleiben erhalten, wenn das
+# Compose-Projekt denselben Namen trägt, z. B. „-p web“).
+#   UNTPLANWEB_DOMAIN=plan.meine-schule.de STUDIO_DOMAIN=studio.meine-schule.de STUDIO_ADMIN_PASSWORT=bitte-aendern \
+#     docker compose -f docker-compose.gemeinsam.yml up -d
+
+services:
+  untplanweb:
+    image: ghcr.io/florians25/untplanweb:latest
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      UNTPLANWEB_ZEITZONE: Europe/Berlin
+    volumes:
+      - untplanweb-daten:/data
+
+  untplanstudio:
+    image: ghcr.io/florians25/untplanstudio:latest
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      STUDIO_ADMIN_BENUTZER: ${STUDIO_ADMIN_BENUTZER:-admin}
+      STUDIO_ADMIN_PASSWORT: ${STUDIO_ADMIN_PASSWORT:-}
+      STUDIO_SICHERE_COOKIES: "1"
+    volumes:
+      - untplanstudio-daten:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      UNTPLANWEB_DOMAIN: ${UNTPLANWEB_DOMAIN:?Bitte UNTPLANWEB_DOMAIN setzen}
+      STUDIO_DOMAIN: ${STUDIO_DOMAIN:?Bitte STUDIO_DOMAIN setzen}
+    volumes:
+      - ./Caddyfile.gemeinsam:/etc/caddy/Caddyfile:ro
+      - caddy-daten:/data
+      - caddy-config:/config
+    depends_on:
+      - untplanweb
+      - untplanstudio
+
+volumes:
+  untplanweb-daten:
+  untplanstudio-daten:
+  caddy-daten:
+  caddy-config:

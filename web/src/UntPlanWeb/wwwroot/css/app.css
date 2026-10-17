@@ -562,6 +562,13 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .tt-ferien { position: absolute; inset: 0 3px; z-index: 3; background: var(--u-ferien); color: #24323d; pointer-events: none; }
 .tt-ferien .inhalt { position: absolute; left: 0; right: 0; top: 66%; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 0 .5rem; text-align: center; font-size: 14px; font-weight: 600; }
 .tt-ferien .art .bi { font-size: 11px; vertical-align: 1px; }
+/* Eigene Abwesenheit: graue Fläche HINTER den Stunden (Karten voll sichtbar darüber), Text dezent im freien Bereich */
+.tt-abw { position: absolute; left: -4px; width: calc(100% + 8px); border-radius: 4px; background: rgba(65, 77, 85, .13); }
+.tt-abw-text { position: absolute; left: 0; right: 0; transform: translateY(-50%); padding: 0 .5rem; text-align: center; font-size: 12px; font-weight: 500;
+  line-height: 16px; color: #5c6a74; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+@media (max-width: 767.98px) { .tt-abw { left: 0; width: 100%; } }
+.tt.ohne-abwesenheiten .tt-abw { display: none; }
+@media print { .tt-abw { background: #e6e9ec; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .tt-frei { position: absolute; top: 30%; left: 0; right: 0; text-align: center; color: var(--u-grau); font-size: .9rem; font-weight: 600; padding: 0 .5rem; }
 /* Jetzt-Linie: dünn über alle Tage, am heutigen Tag kräftig, Uhrzeit links in dunkler Marke */
 .tt-jetzt { position: absolute; left: -8px; right: -8px; border-top: 1px solid #414d55; z-index: 6; pointer-events: none; }
@@ -1671,13 +1678,7 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .fz-label.gruen { background: #3fae49; } .fz-label.rot { background: #d9534f; } .fz-label.gelb { background: #f0ad4e; }
 .fz-kaestchen { display: inline-block; width: 17px; height: 17px; border-radius: 1px; background: #fff; border: 1.5px solid #c9d0d6; vertical-align: middle; }
 .fz-kaestchen.an { background: #f5845c; border-color: #f5845c; }
-/* Abwesenheiten (Schüler*innen, Eltern): Summen des Zeitraums, „bis“-Datum, aufklappbare Stunden je Abwesenheit */
-.fm-summen { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 16px; }
-.fm-summe { display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-left: 1px solid #edf0f2; min-width: 0; }
-.fm-summe:first-child { border-left: 0; }
-.fm-summe b { font-size: 1.45rem; font-weight: 500; line-height: 1.15; color: var(--u-text); font-variant-numeric: tabular-nums; }
-.fm-summe span { font-size: .78rem; color: #6b7780; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fm-summe.gruen b { color: #2d8a3e; } .fm-summe.rot b { color: #c0392b; } .fm-summe.gelb b { color: #c27c0e; }
+/* Abwesenheiten (Schüler*innen, Eltern): „bis“-Datum, aufklappbare Stunden je Abwesenheit */
 .fm-bis { display: inline-flex; align-items: center; gap: 4px; }
 .fm-abw tr.fm-zeile { cursor: pointer; }
 .fm-abw tr.fm-zeile.auf td { background: #f7f9fa; border-bottom-color: transparent; }
@@ -1687,7 +1688,6 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .fm-stunden { width: auto; border-collapse: collapse; font-size: .78rem; }
 .fm-stunden td { padding: 5px 22px 5px 0; border-bottom: 1px solid #e9ecef; }
 .fm-stunden tr:last-child td { border-bottom: 0; }
-@media (max-width: 760px) { .fm-summen { grid-template-columns: repeat(3, minmax(0, 1fr)); } .fm-summe:nth-child(4) { border-left: 0; } .fm-summe:nth-child(n+4) { border-top: 1px solid #edf0f2; } }
 @media (max-width: 700px) { .fm-filter { padding: 12px; gap: 8px; } .fm-raster { grid-template-columns: 1fr; } }
 
 /* Dialoge über den Stundendetails (Abwesenheit, Lehrstoff, Klassenbucheintrag, Prüfung) im neuen Design */

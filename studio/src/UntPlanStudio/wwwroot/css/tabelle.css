@@ -1,0 +1,56 @@
+/* Virtualisierte Datentabelle (Stammdaten, Unterricht, Listen der Module). */
+
+.tabelle {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none;
+  background: var(--zelle); font-size: 12.5px;
+}
+.tabelle:focus-visible { box-shadow: inset 0 0 0 1px var(--hover-rand); }
+.tabelle .t-kopf {
+  flex: none; position: relative; overflow: hidden; height: 26px; background: var(--kopf); border-bottom: 1px solid var(--rand);
+  user-select: none;
+}
+.tabelle .t-kopf-innen { position: absolute; top: 0; left: 0; height: 100%; display: flex; }
+.tabelle .t-kopfzelle {
+  position: relative; flex: none; height: 100%; display: flex; align-items: center; gap: 4px; padding: 0 6px;
+  border-right: 1px solid var(--rand-leise); white-space: nowrap; overflow: hidden; cursor: pointer; font-weight: var(--mittel); color: #3c4450;
+}
+.tabelle .t-kopfzelle:hover { background: var(--hover); }
+.tabelle .t-kopfzelle .t-titel { overflow: hidden; text-overflow: ellipsis; }
+.tabelle .t-kopfzelle .t-sort { font-size: 9px; color: var(--akzent); }
+.tabelle .t-kopfzelle .t-breite { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; z-index: 1; }
+.tabelle .t-kopfzelle.zieht { background: var(--akzent-hell); }
+
+.tabelle .t-koerper { flex: 1; min-height: 0; position: relative; overflow: auto; }
+.tabelle .t-platz { position: relative; }
+.tabelle .t-zeile {
+  position: absolute; left: 0; display: flex; border-bottom: 1px solid var(--rand-leise); background: var(--zelle);
+}
+.tabelle .t-zeile.wechsel { background: var(--zelle-wechsel); }
+.tabelle .t-zeile.gruppe-folge { border-top: 0; }
+.tabelle .t-zeile.gruppe-anfang { box-shadow: inset 0 1px 0 #b9c3cf; }
+.tabelle .t-zeile.gewaehlt { background: var(--auswahl); }
+.tabelle .t-zeile:hover { filter: brightness(.985); }
+.tabelle .t-zelle {
+  flex: none; padding: 0 6px; display: flex; align-items: center; border-right: 1px solid var(--rand-leise);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tabelle .t-zelle > span { overflow: hidden; text-overflow: ellipsis; }
+.tabelle .t-zelle.rechts { justify-content: flex-end; }
+.tabelle .t-zelle.mitte { justify-content: center; }
+.tabelle .t-zelle.nurlesen { color: #59606a; background: rgba(0,0,0,.025); }
+.tabelle .t-zelle.aktiv { outline: 2px solid var(--akzent); outline-offset: -2px; background: #fff; }
+.tabelle:not(:focus-within) .t-zelle.aktiv { outline-color: #9aa7b4; }
+.tabelle .t-zelle.fehler { background: #fde2e1; }
+.tabelle .t-zelle .farbpunkt { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,.25); margin-right: 5px; flex: none; }
+.tabelle .t-haken {
+  width: 14px; height: 14px; border: 1px solid #8a96a3; border-radius: 2px; background: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; line-height: 1; color: var(--akzent);
+}
+.tabelle .t-haken.an::before { content: "✓"; font-weight: var(--mittel); }
+.tabelle .t-leer { position: absolute; inset: 40px 0 auto; text-align: center; color: var(--text-leise); pointer-events: none; }
+
+.tabelle .t-editor {
+  position: absolute; z-index: 5; border: 2px solid var(--akzent); background: #fff; padding: 0 4px; outline: none; font-size: 12.5px;
+}
+
+.tabelle .t-neu .t-zelle { color: var(--text-leise); font-style: italic; }

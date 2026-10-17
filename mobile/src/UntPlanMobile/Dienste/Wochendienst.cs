@@ -9,7 +9,17 @@ namespace UntPlanMobile.Dienste;
 /// </summary>
 public sealed record WochenAntwort(
     bool Ok, string WeekStart, string Kind, object Entity, Dictionary<string, object> LessonTimes,
-    Dictionary<string, List<Kachel>> Days, List<object> Bands, bool? Gesperrt = null, string? Sperrhinweis = null);
+    Dictionary<string, List<Kachel>> Days, List<object> Bands, bool? Gesperrt = null, string? Sperrhinweis = null,
+    Dictionary<string, List<Abwesenheitsbalken>>? Absences = null);
+
+/// <summary>
+/// Eigene Abwesenheit an einem Tag als grauer Balken hinter den Stunden („Mein Plan“): Beginn und Ende (HH:mm) und Text
+/// („Abwesend“ bzw. „Klasse abwesend“). Die Oberfläche blendet ihn über das ⋮-Menü ein und aus.
+/// </summary>
+public sealed record Abwesenheitsbalken(
+    [property: System.Text.Json.Serialization.JsonPropertyName("from")] string Von,
+    [property: System.Text.Json.Serialization.JsonPropertyName("to")] string Bis,
+    [property: System.Text.Json.Serialization.JsonPropertyName("text")] string Text);
 
 /// <summary>Wochen, Stammdaten und Startdaten (TT_BOOT) für die Oberfläche.</summary>
 public sealed class Wochendienst
@@ -115,9 +125,107 @@ public sealed class Wochendienst
         var tage = Kachelbau.Woche(plan, k.Elemente.Ferien);
         if (!k.Kollegium) Kachelbau.NurSchuelerNotizen(tage);
         if (art == "class") await HausaufgabenMarkieren(c, element, plan, tage);
+        // Nur im eigenen Plan: eigene Abwesenheiten als Balken hinter den Stunden (Lehrkraft/Klasse aus den Tageshinweisen,
+        // Schüler*innen bzw. Kind der Eltern aus „Meine Abwesenheiten“)
+        Dictionary<string, List<Abwesenheitsbalken>>? abwesenheiten = null;
+        if (type is not ("class" or "teacher" or "room"))
+        {
+            var raster = plan.Zeitraster.Count > 0 ? plan.Zeitraster : zeiten;
+            // Neuere UntPlanWeb-Server liefern die eigenen Abwesenheiten mit dem Plan; sonst Tageshinweise bzw. „Meine Abwesenheiten“
+            var zeitraeume = plan.Abwesenheiten is null && k.IstSchueler ? await EigeneZeitraeumeAsync(c, plan.Montag) : new List<JsonObject>();
+            abwesenheiten = plan.Tage.Select(t => (t.Datum, Balken: BalkenDesTages(t, raster, zeitraeume, plan.Abwesenheiten)))
+                .Where(x => x.Balken.Count > 0).ToDictionary(x => x.Datum, x => x.Balken);
+        }
         return new WochenAntwort(true, plan.Montag, art, Entitaet(k, art, plan.Element),
-            Kachelbau.Stundenzeiten(plan.Zeitraster.Count > 0 ? plan.Zeitraster : zeiten), tage, new List<object>());
+            Kachelbau.Stundenzeiten(plan.Zeitraster.Count > 0 ? plan.Zeitraster : zeiten), tage, new List<object>(), Absences: abwesenheiten);
     }
+
+    /// <summary>Eigene Abwesenheiten (Schüler*in bzw. Kind) der Woche aus UntPlanWeb; ohne Zugriff bzw. bei Fehlern keine.</summary>
+    private async Task<List<JsonObject>> EigeneZeitraeumeAsync(HttpContext c, string montag)
+    {
+        if (!DateOnly.TryParse(montag, CultureInfo.InvariantCulture, out var mo)) return new();
+        try
+        {
+            var j = await _web.GetAsync(c, $"api/app/familie/abwesenheiten?von={Kachelbau.Iso(mo)}&bis={Kachelbau.Iso(mo.AddDays(6))}");
+            return (j?["zeilen"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>().ToList();
+        }
+        catch (UntPlanWebFehler) { return new(); }
+    }
+
+    /// <summary>
+    /// Abwesenheitsbalken eines Tages (wie Kachelbau.abwesenheitsbalken der iOS-App): die vom Server mit dem Plan gelieferten
+    /// eigenen Abwesenheiten (<paramref name="eigene"/>) bzw. bei älteren Servern Tageshinweise „abwesend 1.–8. Std. – Grund“,
+    /// „abwesend ab 3. Std.“, „Klasse abwesend 2. Std.“ (Stunden über das Zeitraster in Uhrzeiten) und eigene Abwesenheiten
+    /// („fehlt“; am ersten bzw. letzten Tag ab bzw. bis zur Uhrzeit, dazwischen ganztägig). Überlappende Balken werden
+    /// zusammengefasst, alles bleibt im Bereich des Zeitrasters; freie Tage haben keinen Balken.
+    /// </summary>
+    public static List<Abwesenheitsbalken> BalkenDesTages(PlanTag tag, IReadOnlyList<PlanZeit> raster, IEnumerable<JsonObject> zeitraeume,
+        IReadOnlyList<PlanAbwesenheit>? eigene = null)
+    {
+        var res = new List<Abwesenheitsbalken>();
+        var zeiten = raster.Select(z => (z.Nr, Beginn: Minuten(z.Beginn), Ende: Minuten(z.Ende))).Where(z => z.Beginn is not null && z.Ende is not null)
+            .Select(z => (z.Nr, Beginn: z.Beginn!.Value, Ende: z.Ende!.Value)).OrderBy(z => z.Beginn).ToList();
+        if (tag.Frei || zeiten.Count == 0) return res;
+        int start = zeiten[0].Beginn, schluss = zeiten[^1].Ende;
+        var roh = new List<(int Beginn, int Ende, string Text)>();
+        // Vom Server mitgelieferte eigene Abwesenheiten gelten allein
+        foreach (var a in eigene ?? Array.Empty<PlanAbwesenheit>())
+            if (a.Datum.Length >= 10 && a.Datum[..10] == tag.Datum) roh.Add((Minuten(a.Von) ?? start, Minuten(a.Bis) ?? schluss, "Abwesend"));
+        foreach (var hinweis in eigene is null ? tag.Hinweise ?? new() : new List<string>())
+        {
+            if (AbwesenheitsStunden(hinweis) is not { } st) continue;
+            var betroffen = zeiten.Where(z => z.Nr >= st.Von && z.Nr <= (st.Bis ?? int.MaxValue)).ToList();
+            if (betroffen.Count > 0) roh.Add((betroffen[0].Beginn, betroffen[^1].Ende, st.Klasse ? "Klasse abwesend" : "Abwesend"));
+        }
+        string S(JsonObject z, string f) => z[f] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
+        foreach (var z in eigene is null ? zeitraeume : Array.Empty<JsonObject>())
+        {
+            var art = S(z, "art");
+            var von = S(z, "vonDatum");
+            von = von.Length >= 10 ? von[..10] : von;
+            var bis = S(z, "bisDatum");
+            bis = bis.Length >= 10 ? bis[..10] : bis.Length == 0 ? von : bis;
+            if (art is not ("" or "fehlt") || von.Length == 0 || string.CompareOrdinal(von, tag.Datum) > 0 || string.CompareOrdinal(bis, tag.Datum) < 0) continue;
+            var b = von == tag.Datum ? Minuten(S(z, "vonZeit")) ?? start : start;
+            var e = bis == tag.Datum ? Minuten(S(z, "bisZeit")) ?? schluss : schluss;
+            roh.Add((b, e, "Abwesend"));
+        }
+        var zusammen = new List<(int Beginn, int Ende, string Text)>();
+        foreach (var r in roh.Select(r => (Beginn: Math.Max(start, r.Beginn), Ende: Math.Min(schluss, r.Ende), r.Text)).Where(r => r.Ende > r.Beginn).OrderBy(r => r.Beginn))
+        {
+            if (zusammen.Count > 0 && r.Beginn <= zusammen[^1].Ende)
+            {
+                var l = zusammen[^1];
+                zusammen[^1] = (l.Beginn, Math.Max(l.Ende, r.Ende), r.Text == "Abwesend" ? r.Text : l.Text);
+            }
+            else zusammen.Add(r);
+        }
+        return zusammen.Select(z => new Abwesenheitsbalken(Uhrzeit(z.Beginn), Uhrzeit(z.Ende), z.Text)).ToList();
+    }
+
+    /// <summary>Stunden aus „abwesend …“ bzw. „Klasse abwesend …“: von, bis (null = bis zum Ende), Klasse.</summary>
+    public static (int Von, int? Bis, bool Klasse)? AbwesenheitsStunden(string hinweis)
+    {
+        var klein = (hinweis ?? "").Trim().ToLowerInvariant();
+        var klasse = klein.StartsWith("klasse abwesend", StringComparison.Ordinal);
+        if (!klasse && !klein.StartsWith("abwesend", StringComparison.Ordinal)) return null;
+        var bereich = System.Text.RegularExpressions.Regex.Match(klein, @"(\d+)\.\s*[–-]\s*(\d+)\.");
+        var teil = klein.Split('–', 2)[0];
+        var erste = System.Text.RegularExpressions.Regex.Match(teil, @"\d+");
+        if (!erste.Success) return (1, null, klasse);
+        var von = int.Parse(erste.Value, CultureInfo.InvariantCulture);
+        if (teil.Contains(" ab ", StringComparison.Ordinal)) return (von, null, klasse);
+        if (bereich.Success) return (int.Parse(bereich.Groups[1].Value, CultureInfo.InvariantCulture), int.Parse(bereich.Groups[2].Value, CultureInfo.InvariantCulture), klasse);
+        return (von, von, klasse);
+    }
+
+    private static int? Minuten(string? text)
+    {
+        var t = (text ?? "").Split(':');
+        return t.Length >= 2 && int.TryParse(t[0], out var h) && int.TryParse(t[1].Length > 2 ? t[1][..2] : t[1], out var m) ? h * 60 + m : null;
+    }
+
+    private static string Uhrzeit(int minuten) => $"{minuten / 60:00}:{minuten % 60:00}";
 
     /// <summary>Hausaufgabenzeichen auf der Stunde, zu der eine Hausaufgabe fällig ist (Klassenpläne).</summary>
     private async Task HausaufgabenMarkieren(HttpContext c, string klasse, Wochenplan plan, Dictionary<string, List<Kachel>> tage)
@@ -164,6 +272,7 @@ public sealed class Wochendienst
                 bands = woche.Bands,
                 gesperrt = woche.Gesperrt,
                 sperrhinweis = woche.Sperrhinweis,
+                absences = woche.Absences,
                 today = Kachelbau.Iso(DateOnly.FromDateTime(jetzt)),
                 now = jetzt.ToString("HH:mm", CultureInfo.InvariantCulture),
                 names = Namen(k),

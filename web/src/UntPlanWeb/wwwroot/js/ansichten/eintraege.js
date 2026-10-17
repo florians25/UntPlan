@@ -21,7 +21,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
   const daten = await holen(`/api/app/klassenbucheintraege?${q}`);
   const stundeText = x => x.stunde ? `${x.stunde}. Stunde${x.zeit ? ` · ${x.zeit} Uhr` : ''}` : x.zeit ? `${x.zeit} Uhr` : '';
   seite.innerHTML = `
-    <div class="u-sf-leiste">
+    <div class="u-sf-leiste u-kopfteil">
       ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Text oder Lehrkraft suchen', label: 'Einträge durchsuchen', filter: [
         { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
         { name: 'art', label: 'Art', alle: 'Alle Arten', wert: art, optionen: daten.arten.map(a => [a, a]) },

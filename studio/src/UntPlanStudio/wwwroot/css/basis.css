@@ -1,0 +1,135 @@
+/* UntPlan Studio – Grundlagen: Farben (angelehnt an die Desktop-Anwendung), Schrift, Knöpfe, Eingabefelder.
+   Stundenplanmodus: Petrol, Vertretungsmodus: Grün (html[data-modus="vertretung"]). Schrift: Systemschrift, nur Regular/Medium. */
+
+:root {
+  --akzent: #125e7a;
+  --akzent-titel: #347a94;
+  --akzent-hell: #c9e4ec;
+  --akzent-sehrhell: #e8f3f7;
+  --akzent-leuchtend: #60bae8;
+  --arbeitsbereich: #b0bec5;
+  --hover: #d6eaf0;
+  --hover-rand: #6eb2c8;
+  --leiste: #f6f8fb;
+  --kopf: #f0f5f7;
+  --rasterlinie: #d0d7e5;
+  --zelle: #fbfdfe;
+  --zelle-wechsel: #f4f8fa;
+  --zelle-gesperrt: #eaeaea;
+  --auswahl: #cfe6f1;
+  --auswahl-aktiv: #fddeb0;
+  --plan-leer: #f8fbfc;
+
+  --text: #23272b;
+  --text-leise: #6b7280;
+  --text-hell: #ffffff;
+  --rand: #c6cdd8;
+  --rand-leise: #dde2ea;
+  --flaeche: #ffffff;
+  --gefahr: #c62828;
+  --warnung: #b26a00;
+  --ok: #2e7d32;
+  --vormittag: #ff9933;
+  --nachmittag: #66e6f0;
+
+  --schrift: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --schrift-mono: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  --normal: 400;
+  --mittel: 500;
+  --radius: 4px;
+  --schatten: 0 6px 24px rgba(20, 40, 60, .22), 0 1px 3px rgba(20, 40, 60, .18);
+  --schatten-klein: 0 2px 8px rgba(20, 40, 60, .18);
+  color-scheme: light;
+}
+
+html[data-modus="vertretung"] {
+  --akzent: #38705a;
+  --akzent-titel: #58967d;
+  --akzent-hell: #c7ded5;
+  --akzent-sehrhell: #e5efeb;
+  --akzent-leuchtend: #7acc60;
+  --arbeitsbereich: #a8dcca;
+  --hover: #d6ece2;
+  --hover-rand: #6eaf96;
+  --leiste: #f0f6f3;
+  --kopf: #e5efeb;
+  --rasterlinie: #aecfc2;
+  --zelle: #ffffff;
+  --zelle-wechsel: #f0f7f4;
+  --zelle-gesperrt: #e5efeb;
+  --auswahl: #c7ded5;
+  --plan-leer: #f8fcfa;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--schrift);
+  font-size: 13px;
+  font-weight: var(--normal);
+  color: var(--text);
+  background: var(--arbeitsbereich);
+  -webkit-font-smoothing: antialiased;
+}
+
+b, strong, h1, h2, h3, h4, th { font-weight: var(--mittel); }
+h1 { font-size: 20px; margin: 0 0 12px; }
+h2 { font-size: 16px; margin: 0 0 10px; }
+h3 { font-size: 14px; margin: 0 0 8px; }
+
+[hidden] { display: none !important; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.knopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 28px; padding: 0 12px;
+  border: 1px solid var(--rand); border-radius: var(--radius);
+  background: linear-gradient(#fff, #f3f5f8); cursor: pointer; white-space: nowrap;
+}
+.knopf:hover { background: var(--hover); border-color: var(--hover-rand); }
+.knopf:active { background: var(--akzent-hell); }
+.knopf:focus-visible { outline: 2px solid var(--akzent-leuchtend); outline-offset: 1px; }
+.knopf:disabled { opacity: .5; cursor: default; background: #f3f5f8; border-color: var(--rand); }
+.knopf.primaer { background: var(--akzent); border-color: var(--akzent); color: var(--text-hell); }
+.knopf.primaer:hover { filter: brightness(1.1); }
+.knopf.gefahr { color: var(--gefahr); }
+.knopf.klein { min-height: 24px; padding: 0 8px; }
+.knopf svg { width: 16px; height: 16px; flex: none; }
+
+.eingabe, select.eingabe, textarea.eingabe {
+  min-height: 28px; padding: 3px 8px;
+  border: 1px solid var(--rand); border-radius: var(--radius); background: #fff;
+  outline: none;
+}
+.eingabe:focus { border-color: var(--hover-rand); box-shadow: 0 0 0 2px var(--akzent-hell); }
+.eingabe.ungueltig { border-color: var(--gefahr); box-shadow: 0 0 0 2px #f8d7da; }
+
+label.kontrolle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+.leise { color: var(--text-leise); }
+.fehlertext { color: var(--gefahr); }
+.mono { font-family: var(--schrift-mono); }
+
+.symbol { width: 16px; height: 16px; flex: none; display: inline-block; vertical-align: middle; }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: #c3cad3; border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background-color: #a6afba; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Symbole (js/kern/symbole.js): Linie .l, Akzentlinie .a, Flächen .f/.f2/.f3 */
+svg.sym { overflow: visible; }
+svg.sym .l { fill: none; stroke: var(--sym-linie, #2b4f63); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+svg.sym .l.a { stroke: var(--sym-akzent, #e07b00); }
+svg.sym .f { fill: var(--sym-f, #cde7f3); }
+svg.sym .f2 { fill: var(--sym-f2, #ffe2a8); }
+svg.sym .f3 { fill: var(--sym-f3, #ffd0cc); }
+svg.sym .f.l, svg.sym .f2.l, svg.sym .f3.l { stroke: var(--sym-linie, #2b4f63); }
+html[data-modus="vertretung"] svg.sym { --sym-f: #d3ecdf; --sym-linie: #2d5a46; }
+/* in dunklen Leisten (Titelleiste, Fenstertitel): einfarbig weiß */
+html .titelleiste svg.sym, html .fenster-titel button svg.sym, html .backstage nav svg.sym, html .dialog .d-titel svg.sym { --sym-linie: currentColor; --sym-akzent: currentColor; --sym-f: transparent; --sym-f2: transparent; --sym-f3: transparent; }
+html .titelleiste .logo svg.sym, html .fenster-titel .symbol svg.sym { --sym-f: #e8f3f7; --sym-f2: #ffe2a8; --sym-linie: #fff; }

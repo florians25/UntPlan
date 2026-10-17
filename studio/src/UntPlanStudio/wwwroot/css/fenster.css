@@ -1,0 +1,88 @@
+/* Fenster-Arbeitsbereich: verschiebbare, andockbare Unterfenster (wie die MDI-Fenster der Desktop-Anwendung). */
+
+.arbeitsbereich {
+  position: relative; overflow: hidden; background: var(--arbeitsbereich);
+  display: grid; grid-template-rows: 1fr auto;
+}
+.arbeitsbereich .flaeche { position: relative; overflow: hidden; }
+
+.fenster {
+  position: absolute; display: flex; flex-direction: column; min-width: 220px; min-height: 120px;
+  background: var(--flaeche); border: 1px solid #8fa3b0; border-radius: 6px; box-shadow: var(--schatten-klein); overflow: hidden;
+}
+.fenster.aktiv { border-color: var(--akzent); box-shadow: var(--schatten); }
+.fenster.maximiert { border-radius: 0; border-width: 0; box-shadow: none; }
+.fenster.minimiert { display: none; }
+.fenster.zieht { opacity: .92; }
+
+.fenster-titel {
+  height: 28px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 2px 0 8px;
+  background: var(--akzent-titel); color: var(--text-hell); user-select: none; cursor: default; touch-action: none;
+}
+.fenster:not(.aktiv) .fenster-titel { background: #8ea9b6; }
+html[data-modus="vertretung"] .fenster:not(.aktiv) .fenster-titel { background: #93b8a8; }
+.fenster-titel .symbol { width: 16px; height: 16px; }
+.fenster-titel .text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+.fenster-titel button {
+  width: 30px; height: 24px; border: 0; background: transparent; color: inherit; border-radius: 3px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.fenster-titel button:hover { background: rgba(255,255,255,.2); }
+.fenster-titel button.zu:hover { background: #e81123; }
+.fenster-titel button svg { width: 14px; height: 14px; }
+
+.fenster-werkzeuge {
+  flex: none; display: flex; align-items: center; gap: 2px; padding: 3px 4px; min-height: 32px;
+  background: var(--leiste); border-bottom: 1px solid var(--rand-leise); overflow-x: auto; overflow-y: hidden;
+}
+.fenster-werkzeuge:empty { display: none; }
+.fenster-werkzeuge .trenner { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--rand-leise); }
+.fenster-werkzeuge .wz-knopf {
+  height: 26px; min-width: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 3px; background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px;
+}
+.fenster-werkzeuge .wz-knopf:hover:not(:disabled) { background: var(--hover); border-color: var(--hover-rand); }
+.fenster-werkzeuge .wz-knopf.gedrueckt { background: var(--akzent-hell); border-color: var(--hover-rand); }
+.fenster-werkzeuge .wz-knopf:disabled { opacity: .45; cursor: default; }
+.fenster-werkzeuge .wz-knopf svg { width: 16px; height: 16px; }
+.fenster-werkzeuge select, .fenster-werkzeuge input { height: 24px; min-height: 24px; padding: 0 6px; font-size: 12px; }
+.fenster-werkzeuge .rechts { margin-left: auto; }
+
+.fenster-inhalt { flex: 1; min-height: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+.fenster-fuss {
+  flex: none; height: 24px; display: flex; align-items: center; gap: 12px; padding: 0 8px; font-size: 12px; color: var(--text-leise);
+  background: var(--leiste); border-top: 1px solid var(--rand-leise);
+}
+.fenster-fuss:empty { display: none; }
+.fenster-fuss .rechts { margin-left: auto; }
+
+.fenster .griff { position: absolute; z-index: 2; touch-action: none; }
+.fenster .griff.n { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.fenster .griff.s { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.fenster .griff.w { left: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
+.fenster .griff.o { right: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
+.fenster .griff.nw { left: -3px; top: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+.fenster .griff.no { right: -3px; top: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+.fenster .griff.sw { left: -3px; bottom: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+.fenster .griff.so { right: -3px; bottom: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
+.fenster.maximiert .griff { display: none; }
+
+.andock-vorschau {
+  position: absolute; z-index: 9990; pointer-events: none; border: 2px solid var(--akzent-leuchtend); border-radius: 6px;
+  background: rgba(96, 186, 232, .18); transition: all .08s ease-out;
+}
+
+/* Fensterleiste: alle offenen Fenster (minimierte zum Wiederherstellen) */
+.fensterleiste {
+  height: 28px; display: flex; align-items: center; gap: 3px; padding: 0 4px; overflow-x: auto;
+  background: rgba(255,255,255,.55); border-top: 1px solid rgba(0,0,0,.08);
+}
+.fensterleiste:empty { display: none; }
+.fensterleiste button {
+  height: 22px; max-width: 200px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px;
+  border: 1px solid var(--rand); border-radius: 3px; background: #fff; cursor: pointer; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fensterleiste button svg { width: 14px; height: 14px; flex: none; }
+.fensterleiste button.aktiv { border-color: var(--akzent); background: var(--akzent-hell); }
+.fensterleiste button.minimiert { opacity: .7; font-style: italic; }

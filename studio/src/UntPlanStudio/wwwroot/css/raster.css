@@ -1,0 +1,58 @@
+/* Stundenplan-Raster: Woche × Stunden, Blöcke (Doppelstunden) und Kopplungen nebeneinander. */
+
+.raster {
+  flex: 1; min-height: 0; overflow: auto; background: var(--plan-leer); position: relative;
+}
+.raster .r-gitter {
+  display: grid; min-width: 100%; min-height: 100%;
+  grid-template-columns: 54px repeat(var(--tage, 5), minmax(96px, 1fr));
+  grid-auto-rows: minmax(var(--zeile, 46px), 1fr);
+}
+.raster .r-kopf {
+  position: sticky; top: 0; z-index: 3; height: 26px; display: flex; align-items: center; justify-content: center;
+  background: var(--kopf); border-bottom: 1px solid var(--rand); border-right: 1px solid var(--rand-leise); font-weight: var(--mittel); color: #3c4450;
+}
+.raster .r-ecke { position: sticky; left: 0; top: 0; z-index: 4; background: var(--kopf); border-bottom: 1px solid var(--rand); border-right: 1px solid var(--rand); }
+.raster .r-stunde {
+  position: sticky; left: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--kopf); border-right: 1px solid var(--rand); border-bottom: 1px solid var(--rasterlinie); line-height: 1.15;
+}
+.raster .r-stunde .nr { font-weight: var(--mittel); font-size: 14px; color: var(--akzent); }
+.raster .r-stunde .zeit { font-size: 10px; color: var(--text-leise); }
+.raster .r-stunde.pause-danach, .raster .r-feld.pause-danach { border-bottom: 3px double var(--rasterlinie); }
+.raster .r-feld { border-right: 1px solid var(--rasterlinie); border-bottom: 1px solid var(--rasterlinie); position: relative; }
+.raster .r-feld.nachmittag { background: rgba(102, 230, 240, .07); }
+.raster .r-feld.gesperrt {
+  background: repeating-linear-gradient(135deg, var(--zelle-gesperrt) 0 6px, transparent 6px 12px);
+}
+.raster .r-feld.ziel-Frei { background: rgba(120, 220, 120, .55); }
+.raster .r-feld.ziel-VorgabeVerletzt { background: rgba(240, 110, 110, .5); }
+.raster .r-feld.ziel-KeinRaum { background: rgba(220, 150, 235, .55); }
+.raster .r-feld.ziel-TauschMoeglich { background: rgba(120, 220, 120, .28); box-shadow: inset 0 0 0 2px rgba(46, 125, 50, .5); }
+.raster .r-feld.drueber { box-shadow: inset 0 0 0 2px var(--akzent); }
+
+.raster .r-block {
+  z-index: 1; margin: 2px; display: flex; gap: 2px; min-width: 0; min-height: 0; border-radius: 4px; position: relative;
+}
+.raster .r-eintrag {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1px;
+  padding: 2px 3px; border-radius: 4px; border: 1px solid rgba(0,0,0,.14); background: #e9f1f6; overflow: hidden; cursor: default;
+  line-height: 1.2; text-align: center;
+}
+.raster .r-eintrag[draggable="true"] { cursor: grab; }
+.raster .r-eintrag:hover { box-shadow: 0 0 0 2px var(--hover-rand); }
+.raster .r-eintrag.gewaehlt { box-shadow: 0 0 0 2px var(--akzent); }
+.raster .r-eintrag.gekoppelt { border-style: dashed; }
+.raster .r-eintrag .fach { font-weight: var(--mittel); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.raster .r-eintrag .zeile2, .raster .r-eintrag .zeile3 { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; color: #39424d; }
+.raster .r-eintrag .fix { position: absolute; top: 1px; right: 4px; font-size: 11px; color: var(--gefahr); }
+.raster.kompakt .r-eintrag .zeile3 { display: none; }
+.raster.kompakt .r-gitter { grid-auto-rows: minmax(30px, 1fr); }
+
+.nicht-verplant { flex: none; display: flex; gap: 4px; flex-wrap: wrap; padding: 4px 6px; background: var(--leiste); border-top: 1px solid var(--rand-leise); max-height: 72px; overflow-y: auto; }
+.nicht-verplant:empty { display: none; }
+.nicht-verplant .nv {
+  padding: 2px 8px; border: 1px dashed var(--hover-rand); border-radius: 10px; background: #fff; font-size: 11.5px; cursor: grab; white-space: nowrap;
+}
+.nicht-verplant .nv b { color: var(--akzent); }
+.raster.zieht .r-block { pointer-events: none; opacity: .75; }

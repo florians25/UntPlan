@@ -64,7 +64,7 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
   ];
   // Art der Anzeige: Standard ist die Vorgabe der Klassenbuch-Einstellungen; eine andere Wahl erscheint als Chip im Suchfeld
   const artStandard = r.offenFuer === 'kontrolle' || r.offenFuer === 'lehrstoff' ? r.offenFuer : 'offen';
-  seite.innerHTML = `<div class="u-sf-leiste os-filter">
+  seite.innerHTML = `<div class="u-sf-leiste u-kopfteil os-filter">
       ${suchfeldMitFilter({
         platzhalter: r.alle ? 'Lehrkraft, Klasse oder Fach suchen' : 'Klasse oder Fach suchen', label: 'Suche',
         chips: chips.map(c => ({ wert: `${c.typ}:${c.wert}`, text: c.text })),

@@ -24,10 +24,7 @@ struct MeineAbwesenheitenView: View {
                     Fehlerhinweis(text: fehler)
                 }
                 if let daten {
-                    // Summen des Zeitraums (unabhängig vom Statusfilter): Fehltage, Fehlstunden je Status, Verspätungen
-                    if let summen = daten.summen {
-                        Abwesenheitssummenkarte(summen: summen)
-                    }
+                    // Oben bewusst keine Box mit Summen bzw. Statistik (der Server liefert summen weiter) – nur die Liste
                     if daten.zeilen.isEmpty {
                         Text(filter.status.isEmpty ? "Keine Abwesenheiten im gewählten Zeitraum." : "Keine Abwesenheiten mit diesem Status.")
                             .font(.system(size: 15))
@@ -220,55 +217,6 @@ struct Abwesenheitskarte: View {
                 .foregroundStyle(farbe)
                 .lineLimit(4)
         }
-    }
-}
-
-/// Summen der Abwesenheiten im Zeitraum: Fehltage, Fehlstunden, Verspätungen und Fehlstunden je Status (entschuldigt grün,
-/// nicht entschuldigt rot, offen orange) – zwei Reihen mit je drei Werten.
-struct Abwesenheitssummenkarte: View {
-    let summen: Abwesenheitssummen
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                wert(summen.fehltage, summen.fehltage == 1 ? "Fehltag" : "Fehltage", Farben.tinte)
-                trenner
-                wert(summen.fehlstunden, summen.fehlstunden == 1 ? "Fehlstunde" : "Fehlstunden", Farben.tinte)
-                trenner
-                wert(summen.verspaetet, summen.verspaetet == 1 ? "Verspätung" : "Verspätungen", Farben.tinte)
-            }
-            Divider()
-            HStack(spacing: 0) {
-                wert(summen.entschuldigt, "entschuldigt", Farben.gruen)
-                trenner
-                wert(summen.unentschuldigt, "nicht entsch.", Farben.entfallRand)
-                trenner
-                wert(summen.offen, "offen", Farben.orange)
-            }
-        }
-        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Im Zeitraum: \(summen.fehltage) Fehltage, \(summen.fehlstunden) Fehlstunden, davon \(summen.entschuldigt) entschuldigt, \(summen.unentschuldigt) nicht entschuldigt, \(summen.offen) offen; \(summen.verspaetet) Verspätungen")
-    }
-
-    private var trenner: some View {
-        Rectangle().fill(Farben.gedaempft.opacity(0.2)).frame(width: 1)
-    }
-
-    private func wert(_ zahl: Int, _ text: String, _ farbe: Color) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text("\(zahl)")
-                .font(.system(size: 21, weight: .regular))
-                .monospacedDigit()
-                .foregroundStyle(farbe)
-            Text(text)
-                .font(.system(size: 12.5))
-                .foregroundStyle(Farben.gedaempft)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
     }
 }
 

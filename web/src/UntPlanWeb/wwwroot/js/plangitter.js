@@ -239,8 +239,16 @@ function vergangen(k, jetztIso, jetzt) {
   return k.datum < jetztIso || (k.datum === jetztIso && k.ende && minuten(k.ende) <= jetzt);
 }
 
-/** Spuren für gleichzeitige Karten: immer nebeneinander. */
-function spuren(karten) {
+/** Grüne Karte (Änderung, Vertretung, Raumänderung, Zusatzstunde, offene Vertretung) – hat bei parallelen Blöcken Vorrang. */
+export const istGrueneKarte = k => k.status === 'geaendert' || k.status === 'offen';
+
+/**
+ * Spuren für gleichzeitige Karten: immer nebeneinander. Gruppen zusammenhängender Karten nach Beginn (längere zuerst);
+ * innerhalb einer Gruppe kommen grüne Karten zuerst an die Reihe und stehen damit immer ganz links, danach die übrigen
+ * in der bisherigen Reihenfolge. Jede Karte kommt in die erste Spur, in der sie keine andere Karte überlappt (übrige Karten
+ * erst rechts neben gleichzeitigen grünen Karten). Ohne grüne Karten ist das genau die bisherige Verteilung.
+ */
+export function spuren(karten) {
   const sortiert = [...karten].sort((a, b) => a.von - b.von || b.bis - a.bis);
   const gruppen = [];
   let gruppe = null, ende = -1;
@@ -251,14 +259,18 @@ function spuren(karten) {
   }
   const res = new Map();
   for (const g of gruppen) {
-    const enden = [];
-    for (const k of g) {
-      let spur = enden.findIndex(x => x < k.von);
-      if (spur < 0) { spur = enden.length; enden.push(0); }
-      enden[spur] = k.bis;
+    const belegt = [];
+    const ueber = (a, b) => a.von <= b.bis && b.von <= a.bis;
+    for (const k of [...g.filter(istGrueneKarte), ...g.filter(x => !istGrueneKarte(x))]) {
+      // übrige Karten erst rechts neben jeder gleichzeitigen grünen Karte
+      let ab = 0;
+      if (!istGrueneKarte(k)) belegt.forEach((liste, i) => { if (liste.some(o => istGrueneKarte(o) && ueber(o, k))) ab = i + 1; });
+      let spur = belegt.findIndex((liste, i) => i >= ab && liste.every(o => !ueber(o, k)));
+      if (spur < 0) { spur = belegt.length; belegt.push([]); }
+      belegt[spur].push(k);
       res.set(k, { spur, anzahl: 0 });
     }
-    for (const k of g) res.get(k).anzahl = enden.length;
+    for (const k of g) res.get(k).anzahl = belegt.length;
   }
   return res;
 }
@@ -302,6 +314,60 @@ function jetztPosition(zeiten, aufbau, jetzt) {
     }
   }
   return null;
+}
+
+/** Senkrechte Lage einer Uhrzeit (Minuten) im Raster; vor der ersten bzw. nach der letzten Stunde an deren Rand. */
+function zeitY(zeiten, aufbau, m) {
+  const n = zeiten.length - 1;
+  if (m <= minuten(zeiten[0].beginn)) return aufbau.oben[0];
+  if (m >= minuten(zeiten[n].ende)) return aufbau.oben[n] + ZEILE;
+  return jetztPosition(zeiten, aufbau, m) ?? aufbau.oben[0];
+}
+
+const ABW_ART = { verspaetet: 'Verspätet', vorzeitig: 'Vorzeitig gegangen' };
+
+/**
+ * Eigene Abwesenheit (Lehrkraft bzw. Schüler*in) als graue Fläche hinter den Stunden: die Karten bleiben voll sichtbar darüber,
+ * „Abwesend“ bzw. der Grund steht dezent im größten freien Bereich der Fläche (ohne freien Bereich nur als Tooltip).
+ * Ein- und ausblendbar über „⋮“ → „Abwesenheiten anzeigen“ (Klasse ohne-abwesenheiten am Raster).
+ */
+function abwesenheitFlaechen(liste, zeiten, aufbau, belegt) {
+  return liste.map(a => {
+    const y0 = zeitY(zeiten, aufbau, minuten(a.von)), y1 = zeitY(zeiten, aufbau, minuten(a.bis));
+    if (y1 - y0 < 4) return '';
+    const text = [ABW_ART[a.art] || 'Abwesend', a.grund].filter(Boolean).join(' · ');
+    const titel = `${text} (${a.von}–${a.bis})`;
+    // größter freier Abschnitt der Fläche (nicht von Karten bzw. Aufsichten belegt): zuerst über die ganze Breite, sonst in einem
+    // senkrechten Streifen neben parallelen Karten (mindestens ein Viertel der Breite)
+    const freiIn = (l, r) => {
+      const teile = belegt.filter(b => b[2] < r && b[2] + b[3] > l).map(([o, u]) => [Math.max(o, y0), Math.min(u, y1)]).filter(([o, u]) => u > o).sort((x, y) => x[0] - y[0]);
+      let frei = null, pos = y0;
+      for (const [o, u] of [...teile, [y1, y1]]) {
+        if (o - pos > (frei ? frei[1] - frei[0] : 0)) frei = [pos, o];
+        pos = Math.max(pos, u);
+      }
+      return frei;
+    };
+    const hoehe = f => f ? f[1] - f[0] : 0;
+    let frei = freiIn(0, 100), streifen = [0, 100];
+    if (hoehe(frei) < 22) {
+      // breitester Streifen mit genug Platz (mindestens 40px hoch), sonst der höchste
+      const kanten = [...new Set([0, 100, ...belegt.flatMap(b => [b[2], b[2] + b[3]])])].filter(x => x >= 0 && x <= 100).sort((x, y) => x - y);
+      let best = null;
+      for (let i = 0; i < kanten.length; i++) for (let j = i + 1; j < kanten.length; j++) {
+        if (kanten[j] - kanten[i] < 25) continue;
+        const f = freiIn(kanten[i] + 0.01, kanten[j] - 0.01), w = kanten[j] - kanten[i];
+        const wert = hoehe(f) >= 40 ? 1000 + w : hoehe(f);
+        if (hoehe(f) >= 22 && (!best || wert > best.wert)) best = { wert, f, s: [kanten[i], kanten[j]] };
+      }
+      if (best) { frei = best.f; streifen = best.s; }
+    }
+    const lage = streifen[0] > 0 || streifen[1] < 100 ? `left:${streifen[0]}%;right:auto;width:${streifen[1] - streifen[0]}%;` : '';
+    // Text oben im freien Bereich (bei großen Bereichen nicht in der Mitte, damit er im sichtbaren Teil steht)
+    const label = hoehe(frei) >= 22
+      ? `<span class="tt-abw-text" style="${lage}top:${Math.round(frei[0] + Math.min(hoehe(frei) / 2, 40) - y0)}px">${e(text)}</span>` : '';
+    return `<div class="tt-abw" style="top:${y0}px;height:${y1 - y0}px" title="${e(titel)}" aria-label="${e(titel)}" role="note">${label}</div>`;
+  }).join('');
 }
 
 /** Block an Pausenzeilen teilen: Aufsichten trennen Doppelstunden. */
@@ -392,6 +458,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     html += [...linien].map(y => `<div class="tt-linie" style="top:${y}px"></div>`).join('');
     html += [...aufbau.pause.values()].map(y => `<div class="tt-pause" style="top:${y}px;height:${PAUSE}px"></div>`).join('');
     if (t.frei) html += freiUeberlagerung(t);
+    // eigene Abwesenheit: graue Fläche hinter den Stunden (wird nach den Karten berechnet und hier eingefügt)
+    const vorKarten = html.length, belegt = [];
     const karten = plan.karten.filter(k => k.datum === t.datum && index.has(k.von));
     // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen – als grüne Zusatzkarte
     const ereignisKarten = t.ereignisse.filter(x => index.has(Math.max(x.von, zeiten[0].nr)) && !karten.some(k => k.text === x.titel && k.von <= x.bis && k.bis >= x.von))
@@ -410,6 +478,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“); bei zwei parallelen Stunden nur in der linken
         const mitZeit = kartenZeiten && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
+        belegt.push([oben, oben + h, spur * breite, breite]);
         html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
           aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
       }
@@ -431,12 +500,15 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
         const label = aufsichtLabel(a);
         const vorbei = a.datum < heute || (a.datum === heute && a.ende && minuten(a.ende) <= jetzt);
+        belegt.push([aufbau.pause.get(nach), aufbau.pause.get(nach) + PAUSE, j * breite, breite]);
         // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
         // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie, gleiche Breite und Einrückung
         html += `<div class="aufsicht u-hover-bereich ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
           ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${e(ort)}${label ? ' ' + label : ''}</span></div>`;
       });
     }
+    const abw = abwesenheitFlaechen((plan.abwesenheiten || []).filter(a => a.datum === t.datum), zeiten, aufbau, belegt);
+    if (abw) html = html.slice(0, vorKarten) + abw + html.slice(vorKarten);
     if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>${t.datum === heute ? `<div class="tt-jetzt heute" style="top:${jetztY}px"></div>` : ''}`;
     html += '</div>';
   });

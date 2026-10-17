@@ -1,0 +1,109 @@
+name: UntPlan Studio
+
+# Eigener Ablauf für UntPlan Studio (Beta, Ordner studio/). Desktop (build.yml), UntPlanWeb (web.yml) und PWA (mobile.yml)
+# bleiben davon unberührt.
+on:
+  push:
+    branches: [ main, master, 'claude/**' ]
+    paths:
+      - 'studio/**'
+      - 'src/UntPlan.Core/**'
+      - 'src/UntPlan.Web.Contracts/**'
+      - '.github/workflows/studio.yml'
+  pull_request:
+    paths:
+      - 'studio/**'
+      - 'src/UntPlan.Core/**'
+      - 'src/UntPlan.Web.Contracts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/untplanstudio
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests (API, JS-Syntax)
+        run: dotnet test studio/tests/UntPlanStudio.Tests -c Release
+
+  oberflaeche:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Studio starten
+        run: |
+          dotnet publish studio/src/UntPlanStudio -c Release -o studio-publish -p:UseAppHost=false
+          mkdir -p studio-daten
+          (cd studio-publish && STUDIO_DATEN=$GITHUB_WORKSPACE/studio-daten STUDIO_ADMIN_PASSWORT=geheim123 ASPNETCORE_URLS=http://127.0.0.1:5501 nohup dotnet UntPlanStudio.dll > ../studio.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:5501/gesundheit && break; sleep 1; done
+      - name: Playwright installieren
+        run: |
+          npm install --no-save --prefix studio/tests/smoke playwright@1.56.1
+          npx --prefix studio/tests/smoke playwright install --with-deps chromium
+      - name: Smoke-Test (Anmelden, Datei öffnen, Fenster)
+        env:
+          STUDIO_PASSWORT: geheim123
+          STUDIO_SCREENSHOTS: ${{ github.workspace }}/studio-shots
+        run: NODE_PATH=$GITHUB_WORKSPACE/studio/tests/smoke/node_modules node studio/tests/smoke/smoke.cjs
+      - name: Bildschirmfotos und Protokoll
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-oberflaeche
+          path: |
+            studio-shots
+            studio.log
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Anmelden bei GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'claude/') }}
+            type=raw,value=1.0.${{ github.run_number }}
+            type=sha,format=short
+      - name: Image bauen (amd64 + arm64) und veröffentlichen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: studio/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSION=1.0.${{ github.run_number }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=studio
+          cache-to: type=gha,mode=max,scope=studio

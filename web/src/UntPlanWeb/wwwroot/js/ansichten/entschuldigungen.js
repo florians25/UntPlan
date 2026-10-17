@@ -140,8 +140,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, s
   const pille = (name, html, aktiv) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}"><span class="visually-hidden">${name}</span>${html}</label>`;
   const waehlbar = liste.some(z => z.darf);
   seite.innerHTML = `
-    ${d.darf ? '' : `<p class="nl-hinweis"><i class="bi bi-lock"></i>${liste.length ? 'Sie sehen die Fehlstunden Ihres Unterrichts. Entschuldigen ist für Ihr Konto nicht freigegeben bzw. die Fachlehrer-Entschuldigungen sind nicht eingeschaltet.' : 'Die Fachlehrer-Entschuldigungen sind nicht eingeschaltet bzw. für Ihr Konto nicht freigegeben.'}</p>`}
-    <div class="nl-leiste abw-leiste">
+    <div class="nl-leiste u-kopfteil abw-leiste">
       ${suchfeldMitFilter({ platzhalter: 'Schüler*in oder Fach suchen', label: 'Fehlstunden durchsuchen', filter: [
         { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: d.klassen.map(k => [k, k]) },
         { name: 'status', label: 'Status', alle: 'Jeder Status', wert: status, optionen: [['offen', 'offen'], ['entschuldigt', 'entschuldigt'], ['unentschuldigt', 'nicht entschuldigt']] },
@@ -151,6 +150,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, s
       <label class="nl-pille ${nurOffen ? 'aktiv' : ''}"><input type="checkbox" class="me-2" data-offen ${nurOffen ? 'checked' : ''}>Nur offene Fehlstunden</label>
       ${infoHinweis('Hier stehen die Fehlstunden aus <b>Ihrem Unterricht</b>. Sie können einzelne Stunden – auch mehrere auf einmal über die Auswahlkreise – entschuldigen. Ein einmal gesetzter Status kann nur noch von der Klassenleitung geändert werden. Ihr Text ist für die anderen Lehrkräfte derselben Abwesenheit sichtbar.')}
     </div>
+    ${d.darf ? '' : `<p class="nl-hinweis"><i class="bi bi-lock"></i>${liste.length ? 'Sie sehen die Fehlstunden Ihres Unterrichts. Entschuldigen ist für Ihr Konto nicht freigegeben bzw. die Fachlehrer-Entschuldigungen sind nicht eingeschaltet.' : 'Die Fachlehrer-Entschuldigungen sind nicht eingeschaltet bzw. für Ihr Konto nicht freigegeben.'}</p>`}
     <div class="nl-tabelle">${liste.length ? `<table><thead><tr>${waehlbar ? '<th class="nl-wahl"><input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></th>' : ''}
         <th>Schüler*in</th><th>Klasse</th><th>Datum</th><th>Zeit</th><th>Fach</th><th>Lehrkraft</th><th>Abwesenheitsgrund</th><th>Status</th><th>Text</th></tr></thead><tbody>
       ${liste.map((z, i) => `<tr>${waehlbar ? `<td class="nl-wahl">${z.darf ? `<input type="checkbox" class="nl-rund" data-i="${i}" aria-label="auswählen">` : ''}</td>` : ''}

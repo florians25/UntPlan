@@ -65,16 +65,19 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
 
   kontext.titel('Berichte', '', klasse ? `Klasse ${klasse}` : 'alle Klassen');
   seite.innerHTML = `<div class="br-seite">
-    <div class="kd-filter nicht-drucken">
-      <label class="kd-feld"><span>Klasse</span><select data-klasse><option value="">Alle Klassen</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
-      <label class="kd-feld"><span>Schüler*in</span><select data-schueler ${klasse ? '' : 'disabled'}><option value="">Alle</option>${schuelerListe.map(s => `<option value="${s.id}" ${String(s.id) === schueler ? 'selected' : ''}>${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select></label>
-      <label class="kd-feld"><span>Von</span><input type="date" data-von value="${von}"></label>
-      <label class="kd-feld"><span>Bis</span><input type="date" data-bis value="${bis}"></label>
+    <!-- weißer Kopf (app.js): Suche und Parameter der Berichte oben, Vorschau und Liste darunter auf grauem Grund -->
+    <div class="u-kopfteil br-kopf nicht-drucken">
+      <div class="u-sf-leiste" data-gruppen>${suchfeldMitFilter({ platzhalter: 'Bericht suchen', label: 'Bericht suchen', filter: [
+        { name: 'gruppe', label: 'Berichtsgruppe', alle: `Alle Berichte (${arten.length})`, standard: 'alle', wert: gruppe, optionen: gruppen.map(g => [g, `${g} (${arten.filter(a => a.gruppe === g).length})`]) },
+      ] })}</div>
+      <div class="kd-filter nicht-drucken">
+        <label class="kd-feld"><span>Klasse</span><select data-klasse><option value="">Alle Klassen</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
+        <label class="kd-feld"><span>Schüler*in</span><select data-schueler ${klasse ? '' : 'disabled'}><option value="">Alle</option>${schuelerListe.map(s => `<option value="${s.id}" ${String(s.id) === schueler ? 'selected' : ''}>${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select></label>
+        <label class="kd-feld"><span>Von</span><input type="date" data-von value="${von}"></label>
+        <label class="kd-feld"><span>Bis</span><input type="date" data-bis value="${bis}"></label>
+      </div>
     </div>
     <div data-vorschau class="br-vorschau-bereich">${art ? lade() : ''}</div>
-    <div class="u-sf-leiste nicht-drucken" data-gruppen>${suchfeldMitFilter({ platzhalter: 'Bericht suchen', label: 'Bericht suchen', filter: [
-      { name: 'gruppe', label: 'Berichtsgruppe', alle: `Alle Berichte (${arten.length})`, standard: 'alle', wert: gruppe, optionen: gruppen.map(g => [g, `${g} (${arten.filter(a => a.gruppe === g).length})`]) },
-    ] })}</div>
     <div class="br-raster nicht-drucken" data-raster></div>
     <p class="br-fussnote nicht-drucken"><i class="bi bi-info-circle"></i> Notfallliste, BAföG- und Fahrkostenbescheinigungen benötigen Adress- bzw. Kontaktdaten, die UntPlan nicht überträgt.</p>
   </div>`;

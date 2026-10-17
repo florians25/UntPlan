@@ -1,0 +1,26 @@
+# UntPlan Studio (Beta) – einfache Installation (HTTP auf Port 8090, z. B. hinter einem vorhandenen Reverse-Proxy).
+#   STUDIO_ADMIN_PASSWORT=bitte-aendern docker compose up -d
+# Danach im Browser http://<server>:8090 öffnen und mit „admin“ anmelden.
+# Mit HTTPS und eigener Domain: docker-compose.https.yml; zusammen mit UntPlanWeb: docker-compose.gemeinsam.yml (siehe README).
+
+services:
+  untplanstudio:
+    image: ghcr.io/florians25/untplanstudio:latest
+    # Selbst bauen statt das fertige Image zu laden:
+    # build: { context: .., dockerfile: studio/Dockerfile }
+    container_name: untplanstudio
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      TZ: Europe/Berlin
+      # Admin-Konto beim ersten Start (ohne Angabe: zufälliges Passwort, steht im Protokoll: docker compose logs untplanstudio)
+      STUDIO_ADMIN_BENUTZER: ${STUDIO_ADMIN_BENUTZER:-admin}
+      STUDIO_ADMIN_PASSWORT: ${STUDIO_ADMIN_PASSWORT:-}
+      # STUDIO_AUTOSPEICHERN_SEKUNDEN: "30"
+      # STUDIO_MAX_UPLOAD_MB: "64"
+    volumes:
+      - untplanstudio-daten:/data
+
+volumes:
+  untplanstudio-daten:
