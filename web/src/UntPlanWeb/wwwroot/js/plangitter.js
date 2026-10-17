@@ -365,7 +365,16 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>${t.datum === heute ? `<div class="tt-jetzt heute" style="top:${jetztY}px"></div>` : ''}`;
     html += '</div>';
   });
-  return html + '</div>';
+  html += '</div>';
+  // Woche außerhalb des Planfensters der Rolle: leeres Raster mit zentrierter Meldung (Wochennavigation bleibt bedienbar)
+  return plan.gesperrt ? `<div class="tt-gesperrt">${html}${sperreHtml(plan.sperrhinweis)}</div>` : html;
+}
+
+/** Meldung „keine Termine“ bei beschränkter Anzeige: weißer Kreis mit Schloss, Titel, Hinweis der Administration. */
+export function sperreHtml(hinweis) {
+  return `<div class="tt-sperre" role="status"><span class="tt-sperre-symbol" aria-hidden="true"><i class="bi bi-lock"></i></span>
+    <p class="tt-sperre-titel">Es werden hier keine Termine angezeigt.</p>
+    <p class="tt-sperre-text">${e(hinweis || 'Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt')}</p></div>`;
 }
 
 export function tagAuswahl(plan, gewaehlt) {

@@ -112,6 +112,9 @@
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
     if (!j || j.ok !== true) throw new Error('keine Daten');
+    /* Gesperrte Woche (Wochenbegrenzung der Rolle): nichts vergleichen —
+       sonst stünden alle Stunden als weggefallen da. */
+    if (j.gesperrt === true) throw new Error('gesperrt');
     return j.days || {};
   }
 
@@ -142,7 +145,8 @@
       const alle = [];
       for (const ws of wochen(heute)){
         let days;
-        try { days = await woche(ws); } catch (e){ continue; }
+        try { days = await woche(ws); }
+        catch (e){ if (e && e.message === 'gesperrt') delete d.wochen[ws]; continue; }
         const neu = stand(days);
         if (d.wochen[ws] && !o.stumm) alle.push(...vergleich(d.wochen[ws], neu, heute));
         d.wochen[ws] = neu;

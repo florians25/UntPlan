@@ -326,6 +326,17 @@ function ohneSondereinsatz(c){
   return c;
 }
 
+/* Sperre einer Woche aus der Antwort des Servers (oder dem Speicher):
+   `gesperrt: true` und `sperrhinweis`. Die Schreibweise wird nicht so eng
+   genommen. Ohne Sperre: null. */
+function wochenSperre(d){
+  if (!d || typeof d !== 'object') return null;
+  const an = d.gesperrt === true || d.Gesperrt === true || d.gesperrt === 'true';
+  if (!an) return null;
+  const h = d.sperrhinweis ?? d.sperrHinweis ?? d.Sperrhinweis ?? '';
+  return { hinweis: String(h || '').trim() };
+}
+
 let bootUsed = false;
 /* Wie loadWeek, aber ohne Meldungen — für das stille Vorladen der
    Nachbarwochen. */
@@ -344,14 +355,19 @@ async function loadWeek(entity, weekStart, token){
      nicht mehr anfassen — sie beschreibt einen Plan, den niemand mehr
      ansieht. */
   const aktuell = () => token === undefined || token === renderToken;
-  const fertig = (byDate, bands) => {
+  const fertig = (byDate, bands, quelle) => {
     /* Auch gespeicherte Wochen von früher durchlaufen die Prüfung. */
     Object.keys(byDate || {}).forEach(d => {
       const l = (byDate[d] || []).filter(c => !ausRaumGenommen(c, entity));
       l.forEach(c => { nurRaumKeinePruefung(c); ohneSondereinsatz(c); });
       byDate[d] = l;
     });
-    return { byDate, bands: bands || [], key: weekKey(entity, weekStart) };
+    const w = { byDate, bands: bands || [], key: weekKey(entity, weekStart) };
+    /* Wochenbegrenzung der Rolle: Der Server liefert die Woche leer und
+       meldet sie als gesperrt — gezeigt wird das Schloss mit dem Hinweis. */
+    const sp = wochenSperre(quelle);
+    if (sp){ w.gesperrt = true; w.sperrhinweis = sp.hinweis; }
+    return w;
   };
 
   /* Die vom Server mitgelieferte Woche braucht keinen zweiten Ladevorgang —
@@ -368,9 +384,10 @@ async function loadWeek(entity, weekStart, token){
     bootUsed = true;
     const byDate = {};
     dates.forEach(x => { byDate[x] = stampDates((BOOT.days && BOOT.days[x]) || [], x); });
-    store.set(cacheKey(entity, weekStart), { byDate, bands: BOOT.bands || [], kind: BOOT.kind });
+    store.set(cacheKey(entity, weekStart), { byDate, bands: BOOT.bands || [], kind: BOOT.kind,
+                                             gesperrt: !!BOOT.gesperrt, sperrhinweis: BOOT.sperrhinweis || '' });
     store.set('lastSync', Date.now());
-    return fertig(byDate, BOOT.bands || []);
+    return fertig(byDate, BOOT.bands || [], BOOT);
   }
 
   /* Echte Datenbankdaten */
@@ -383,9 +400,10 @@ async function loadWeek(entity, weekStart, token){
       }
       const byDate = {};
       dates.forEach(x => { byDate[x] = stampDates((d.days && d.days[x]) || [], x); });
-      store.set(cacheKey(entity, weekStart), { byDate, bands: d.bands || [], kind: d.kind });
+      store.set(cacheKey(entity, weekStart), { byDate, bands: d.bands || [], kind: d.kind,
+                                               gesperrt: !!wochenSperre(d), sperrhinweis: (wochenSperre(d) || {}).hinweis || '' });
       store.set('lastSync', Date.now());
-      return fertig(byDate, d.bands || []);
+      return fertig(byDate, d.bands || [], d);
     } catch (e){
       if (e && e.auth){ showLogin('Die Sitzung ist abgelaufen. Bitte neu anmelden.'); }
 
@@ -396,7 +414,7 @@ async function loadWeek(entity, weekStart, token){
       if (c){
         if (c.kind && aktuell()) state.kind = c.kind;
         toast(serverMsg ? 'Serverfehler: ' + serverMsg : 'Offline — gespeicherte Woche');
-        return fertig(c.byDate, c.bands || []);
+        return fertig(c.byDate, c.bands || [], c);
       }
       toast(serverMsg ? 'Serverfehler: ' + serverMsg : 'Woche konnte nicht geladen werden');
       return fertig(Object.fromEntries(dates.map(x => [x, []])), []);
@@ -434,13 +452,15 @@ const viewKind = e => {
 };
 
 /* Zeichen unten rechts auf der Kachel — die Originalgrafiken (info.svg,
-   tt-homework-icon.svg), flach: Der Ausschnitt lässt das helle Feld weg,
-   übrig bleibt die graue Scheibe mit ausgespartem „i“ bzw. das Haus. Sie liegen
+   tt-homework-icon.svg) mit ihrem weißen Feld hinter der grauen Scheibe mit
+   ausgespartem „i“ bzw. dem Haus, flach (kein Schatten, kein Verlauf). Sie liegen
    einmal in der Symbolsammlung und werden nur per <use> verwiesen — keine
    Kopie des Pfads je Kachel. Farben (hell/dunkel) über fill/color. */
-const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="2.29 2.29 11.42 11.42" aria-hidden="true"><use href="#ic-tt-info-icon" width="16" height="16"></use></svg>';
+const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-info-icon" width="16" height="16"></use></svg>';
 const KACHEL_VIDEO = '<svg class="ticon ticon--video" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="6.4" width="12.6" height="11.2" rx="2.4"/><path d="m15.4 10.6 5.8-3.4v9.6l-5.8-3.4z"/></svg>';
-const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="2.29 2.29 11.42 11.42" aria-hidden="true"><use href="#ic-tt-homework-icon" width="16" height="16"></use></svg>';
+/* Schloss (Linien) für gesperrte Wochen. */
+const SPERRE_SCHLOSS = '<svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8.4 10.5V7.8a3.6 3.6 0 0 1 7.2 0v2.7"/><path d="M12 14.2v2.2"/></svg>';
+const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-homework-icon" width="16" height="16"></use></svg>';
 
 /* TRENNER-BEGINN (wird von den Tests ausgeführt) */
 /* Trennzeichen zwischen mehreren Werten (Lehrkräfte, Klassen, Räume):
@@ -1769,6 +1789,34 @@ function renderGrid(){
     }
   }
 
+  /* Gesperrte Wochen (Wochenbegrenzung der Rolle): Über den Tagen der
+     Woche steht mittig ein weißer Kreis mit Schloss, darunter der Text und
+     kleiner der Hinweis des Servers. Das Raster bleibt, die Wochen-
+     navigation auch — man kann zurück in eine freie Woche wischen. */
+  const wocheZu = d => {
+    const mo = iso(mondayOf(parseISO(d)));
+    if (mo === state.weekStart) return state.week;
+    const off = Math.round((parseISO(mo) - parseISO(state.weekStart)) / 864e5 / 7);
+    return off === -1 ? around.prev : off === 1 ? around.next : null;
+  };
+  const sperrY = Math.max(16, Math.round(Math.min(L.total, sichtbar) / 2 - 90));
+  for (let i = 0; i < dates.length;){
+    const w = wocheZu(dates[i]);
+    const mo = iso(mondayOf(parseISO(dates[i])));
+    let j = i + 1;
+    while (j < dates.length && iso(mondayOf(parseISO(dates[j]))) === mo) j++;
+    if (w && w.gesperrt){
+      html += `<div class="sperre" style="left:${colAt(i)};width:calc(${colW} * ${j - i})">
+        <div class="sperre__inhalt" style="top:${sperrY}px">
+          <span class="sperre__kreis" aria-hidden="true">${SPERRE_SCHLOSS}</span>
+          <p class="sperre__text">Es werden hier keine Termine angezeigt.</p>
+          ${w.sperrhinweis ? `<p class="sperre__hinweis">${esc(w.sperrhinweis)}</p>` : ''}
+        </div>
+      </div>`;
+    }
+    i = j;
+  }
+
   html += '</div></div>';  /* colstrip, colclip */
   html += '</div>';        /* grid */
   /* Nur austauschen, was sich wirklich geändert hat (siehe rasterEinsetzen):
@@ -1994,7 +2042,9 @@ async function refresh(){
     const neuWoche = await loadWeekQuiet(state.entity, state.weekStart, my).catch(() => null);
     if (my !== renderToken || !neuWoche) return;
     if (neuWoche.key && neuWoche.key !== weekKey(state.entity, state.weekStart)) return;
-    if (JSON.stringify(neuWoche.byDate) === JSON.stringify(state.week.byDate)) return;
+    if (JSON.stringify(neuWoche.byDate) === JSON.stringify(state.week.byDate)
+        && !!neuWoche.gesperrt === !!state.week.gesperrt
+        && (neuWoche.sperrhinweis || '') === (state.week.sperrhinweis || '')) return;
     state.week = neuWoche;
     nachbarnAusSpeicher();
     wocheZeichnen(keepTop);
@@ -3952,7 +4002,8 @@ async function planNachladen(){
        erst nach dem nächsten Neuladen der Seite. Verglichen wird der
        festgehaltene Serverstand (`roh`), nicht die gezeichneten Karten. */
     if (neu && neu.byDate && neu.key === weekKey(state.entity, state.weekStart)
-        && (neu.roh === undefined || neu.roh !== (state.week || {}).roh)){
+        && (neu.roh === undefined || neu.roh !== (state.week || {}).roh
+            || !!neu.gesperrt !== !!(state.week || {}).gesperrt)){
       const top = $('#gridScroll').scrollTop;
       state.week = neu;
       renderGrid();
@@ -5130,11 +5181,6 @@ let cbEdit = null;                /* eigene Stunde? (null = noch nicht geladen) 
 let cbOnline = false;             /* „Findet online statt“ */
 let cbOnlineLink = '';            /* Link zum Online-Unterricht */
 
-/* UntPlanWeb nimmt Klassenbucheinträge höchstens zwei Wochen im Voraus an. */
-const CB_VORAUS_TAGE = 14;
-function cbZuWeit(c){ return !!c && c.date > iso(addDays(new Date(), CB_VORAUS_TAGE)); }
-/* Ab wann sich für eine Stunde etwas eintragen lässt. */
-function cbAbDatum(c){ return iso(addDays(parseISO(c.date), -CB_VORAUS_TAGE)); }
 
 /* Link zum Online-Unterricht kurz: nur der Rechnername. */
 function linkKurz(l){
@@ -5427,17 +5473,12 @@ function openClassbook(key){
   if (CB[key].kind === 'text'){
     /* Schüler*innen lesen nur: kein Schreibrecht, keine Tastatur, kein
        leeres Feld mit Aufforderung zum Eintippen. */
-    /* Eintragen geht auch für kommende Stunden — UntPlanWeb nimmt
-       Einträge höchstens zwei Wochen im Voraus an. Liegt die Stunde
-       weiter weg, steht der Hinweis da und das Feld bleibt zu. */
-    const zuWeit = !state.isStudent && cbZuWeit(c);
-    const nurLesen = state.isStudent || zuWeit;
+    /* Lehrstoff und Notizen lassen sich für jede Stunde eintragen —
+       vergangene wie kommende, ohne Begrenzung auf Wochen oder Daten. */
+    const nurLesen = state.isStudent;
     const txt = cbText(key);
-    const hinweis = state.isStudent ? ''
-      : zuWeit ? `<p class="dsub__hinweis">Einträge sind höchstens zwei Wochen im Voraus möglich – für diese Stunde ab ${deDate(cbAbDatum(c))}.</p>`
-      : c.date > iso(new Date()) ? '<p class="dsub__hinweis">Eintrag für eine kommende Stunde – möglich bis zu zwei Wochen im Voraus.</p>' : '';
-    body.innerHTML = hinweis + (nurLesen
-      ? (txt.trim() ? `<p class="dsub__read">${esc(txt)}</p>` : (zuWeit ? '' : cbEmpty('Nichts hinterlegt')))
+    body.innerHTML = (nurLesen
+      ? (txt.trim() ? `<p class="dsub__read">${esc(txt)}</p>` : cbEmpty('Nichts hinterlegt'))
       : `<textarea class="dsub__area" id="dsubText"
            placeholder="Text hier eingeben">${esc(txt)}</textarea>`);
     $('#dsubSave').hidden = nurLesen;

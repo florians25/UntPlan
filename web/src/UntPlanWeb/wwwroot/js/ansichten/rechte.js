@@ -28,9 +28,22 @@ function stil() {
     .rm-quelle { font-size: .75rem; color: var(--u-grau-2, #6c757d); }
     .rm-quelle.gewaehrt { color: #0f6b40; font-weight: 600; } .rm-quelle.entzogen { color: #a1262b; font-weight: 600; }
     .rm-beschreibung { font-size: .75rem; color: var(--u-grau-2, #6c757d); }
+    .rm-matrix input.rm-wochen { width: 6.5rem; font-size: .8rem; padding: .15rem .4rem; }
+    .rm-matrix input.rm-wochen.geaendert { outline: 2px solid var(--u-akzent, #f26b38); }
+    .rm-matrix input.rm-wochen:placeholder-shown { color: var(--u-grau-2, #6c757d); }
   `;
   document.head.append(s);
 }
+
+// Planfenster: Wochen zurück bzw. voraus (leer = unbegrenzt, 0 = nur die aktuelle Woche)
+const FENSTER = [
+  ['planWochenZurueck', 'Wochen zurück', 'Wie viele Wochen vor der aktuellen Woche der Stundenplan angezeigt wird. Leer = unbegrenzt, 0 = keine früheren Wochen.'],
+  ['planWochenVor', 'Wochen voraus', 'Wie viele Wochen nach der aktuellen Woche der Stundenplan angezeigt wird. Leer = unbegrenzt, 0 = keine künftigen Wochen.'],
+];
+const wochenZahl = v => (v === '' || v == null ? null : Math.max(0, Math.round(Number(v))));
+const fensterText = v => v == null ? 'unbegrenzt' : v === 1 ? '1 Woche' : `${v} Wochen`;
+/** Felder eines Profils für PUT (Planfenster immer mitsenden, sonst gilt „unbegrenzt“). */
+const fensterWerte = (p, a = {}) => Object.fromEntries(FENSTER.map(([f]) => [f, f in a ? a[f] : p[f] ?? null]));
 
 const wert = (s, r) => `<span class="rm-wert s${s}">${(r?.zweistufig ? STUFE2 : STUFE)[s] ?? s}</span>`;
 
@@ -51,13 +64,14 @@ async function rollen(box, kontext) {
   const k = await holen('/api/app/admin/rechte/katalog');
   const profile = k.profile;
   const aenderungen = {}; // profilId → { recht: stufe }
+  const fenster = {}; // profilId → { planWochenZurueck, planWochenVor }
   let suche = '';
   kontext.titel('Rechte und Rollen', `<button class="btn btn-primary" data-neu>${icon('plus')}Neue Rolle</button>`);
   const zeichnen = () => {
     const q = suche.trim().toLowerCase();
     const treffer = r => !q || `${r.name} ${r.beschreibung} ${r.gruppe} ${r.id}`.toLowerCase().includes(q);
     const kopf = p => `<th><div class="rm-kopf"><span>${e(p.name)}</span><small>${p.system ? 'Systemrolle' : `eigene Rolle · Basis ${e(p.basisName)}`} · <a href="#/admin/benutzer/${e(p.basis)}">${p.benutzer} Konten</a></small>
-      <div class="btn-group btn-group-sm">${p.aenderbar ? `<button class="btn btn-outline-secondary" data-bearbeiten="${e(p.id)}" title="Name und Beschreibung">${icon('stift')}</button>` : ''}
+      <div class="btn-group btn-group-sm">${p.aenderbar ? `<button class="btn btn-outline-secondary" data-bearbeiten="${e(p.id)}" title="Name, Beschreibung und Stundenplan-Zeitraum">${icon('stift')}</button>` : ''}
         ${p.aenderbar ? `<button class="btn btn-outline-secondary" data-kopieren="${e(p.id)}" title="Kopieren">${icon('kopieren')}</button>` : ''}
         ${p.system && p.aenderbar ? `<button class="btn btn-outline-secondary" data-zuruecksetzen="${e(p.id)}" title="Auf Standard zurücksetzen"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}
         ${!p.system ? `<button class="btn btn-outline-danger" data-loeschen="${e(p.id)}" title="Löschen">${icon('loeschen')}</button>` : ''}</div></div></th>`;
@@ -68,15 +82,27 @@ async function rollen(box, kontext) {
       return `<td><select class="form-select form-select-sm s${s} ${aenderungen[p.id]?.[r.id] !== undefined ? 'geaendert' : ''}" data-p="${e(p.id)}" data-r="${e(r.id)}" aria-label="${e(r.name)} – ${e(p.name)}">
         ${Object.entries(stufen(r)).map(([v, t]) => `<option value="${v}" ${Number(v) === s ? 'selected' : ''}>${t}</option>`).join('')}</select></td>`;
     };
-    const anzahl = Object.values(aenderungen).reduce((n, a) => n + Object.keys(a).length, 0);
+    const fensterZelle = (p, f, titel) => {
+      if (!p.aenderbar) return `<td><span class="rm-beschreibung">unbegrenzt</span></td>`;
+      const geaendert = fenster[p.id] && f in fenster[p.id];
+      const v = geaendert ? fenster[p.id][f] : p[f];
+      return `<td><input type="number" min="0" max="${k.planWochenHoechstens ?? 520}" step="1" inputmode="numeric" class="form-control form-control-sm rm-wochen ${geaendert ? 'geaendert' : ''}"
+        placeholder="unbegrenzt" value="${v ?? ''}" data-fp="${e(p.id)}" data-f="${f}" aria-label="${e(titel)} – ${e(p.name)}"></td>`;
+    };
+    const fensterZeilen = FENSTER.some(([, t, b]) => treffer({ name: t, beschreibung: b, gruppe: 'Stundenplan Zeitraum', id: 'plan.fenster' }))
+      ? `<tr class="rm-gruppe"><td colspan="${profile.length + 1}">Stundenplan-Zeitraum</td></tr>` + FENSTER.map(([f, t, b]) =>
+        `<tr><td><div class="fw-semibold">${t}</div><div class="rm-beschreibung">${b}</div></td>${profile.map(p => fensterZelle(p, f, t)).join('')}</tr>`).join('') : '';
+    const anzahl = Object.values(aenderungen).reduce((n, a) => n + Object.keys(a).length, 0) + Object.values(fenster).reduce((n, a) => n + Object.keys(a).length, 0);
     box.innerHTML = `<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
         <input type="search" class="form-control" style="max-width:22rem" placeholder="Recht suchen …" value="${e(suche)}" data-suche aria-label="Recht suchen">
         <span class="small text-body-secondary">${k.rechte.length} Rechte in ${k.gruppen.length} Gruppen · Administration hat immer alle Rechte</span>
         <button class="btn btn-primary ms-auto" data-speichern ${anzahl ? '' : 'disabled'}>${anzahl ? `${anzahl} Änderung(en) speichern` : 'Keine Änderungen'}</button></div>
       <div class="card"><div class="table-responsive" style="max-height:70vh"><table class="table table-sm align-middle mb-0 rm-matrix"><thead><tr><th>Recht</th>${profile.map(kopf).join('')}</tr></thead><tbody>
+      ${fensterZeilen}
       ${k.gruppen.map(g => { const rs = k.rechte.filter(r => r.gruppe === g && treffer(r)); return rs.length ? `<tr class="rm-gruppe"><td colspan="${profile.length + 1}">${e(g)}</td></tr>` + rs.map(r => `<tr><td><div class="fw-semibold">${e(r.name)}</div><div class="rm-beschreibung">${e(r.beschreibung)}</div></td>${profile.map(p => zelle(p, r)).join('')}</tr>`).join('') : ''; }).join('')}
       </tbody></table></div><div class="card-footer small text-body-secondary">Eigene Rollen bauen auf einer Basisrolle auf (Kollegium, Schüler*in, Erziehungsberechtigte). Rechte des Kollegiums wirken bei Schüler- und Elternkonten nicht.
-        „Rückwirkend bearbeiten“: Abwesenheiten, die länger als ${k.rueckwirkendTage} Tage zurückliegen. Einzelnen Konten lassen sich unter „Rechte einzelner Benutzer“ Rechte zusätzlich geben oder entziehen.</div></div>`;
+        „Rückwirkend bearbeiten“: Abwesenheiten, die länger als ${k.rueckwirkendTage} Tage zurückliegen.
+        Stundenplan-Zeitraum: Wochen vor bzw. nach der aktuellen Woche, die der Stundenplan zeigt (leer = unbegrenzt, 0 = nur die aktuelle Woche) – im Web und in den Apps. Einzelnen Konten lassen sich unter „Rechte einzelner Benutzer“ Rechte zusätzlich geben oder entziehen.</div></div>`;
     const s = box.querySelector('[data-suche]');
     s.oninput = () => { suche = s.value; const pos = s.selectionStart; zeichnen(); const n = box.querySelector('[data-suche]'); n.focus(); n.setSelectionRange(pos, pos); };
     box.querySelectorAll('select[data-p]').forEach(sel => sel.onchange = () => {
@@ -86,12 +112,20 @@ async function rollen(box, kontext) {
       if (v === p.rechte[sel.dataset.r]) delete aenderungen[p.id][sel.dataset.r]; else aenderungen[p.id][sel.dataset.r] = v;
       zeichnen();
     });
+    box.querySelectorAll('input[data-fp]').forEach(inp => inp.onchange = () => {
+      const p = profile.find(x => x.id === inp.dataset.fp), f = inp.dataset.f;
+      const v = wochenZahl(inp.value);
+      fenster[p.id] ??= {};
+      if (v === (p[f] ?? null)) delete fenster[p.id][f]; else fenster[p.id][f] = v;
+      zeichnen();
+    });
     box.querySelector('[data-speichern]').onclick = async () => {
       try {
-        for (const [id, a] of Object.entries(aenderungen)) {
-          if (!Object.keys(a).length) continue;
+        for (const id of new Set([...Object.keys(aenderungen), ...Object.keys(fenster)])) {
+          const a = aenderungen[id] ?? {}, f = fenster[id] ?? {};
+          if (!Object.keys(a).length && !Object.keys(f).length) continue;
           const p = profile.find(x => x.id === id);
-          await senden(`/api/app/admin/rechte/profile/${encodeURIComponent(id)}`, { name: p.name, beschreibung: p.beschreibung, rechte: { ...p.rechte, ...a } }, 'PUT');
+          await senden(`/api/app/admin/rechte/profile/${encodeURIComponent(id)}`, { name: p.name, beschreibung: p.beschreibung, rechte: { ...p.rechte, ...a }, ...fensterWerte(p, f) }, 'PUT');
         }
         toast('Rechte gespeichert.');
         kontext.navigieren(location.hash);
@@ -128,10 +162,18 @@ async function rollen(box, kontext) {
   const bearbeiten = p => dialog({
     titel: `Rolle „${p.name}“`,
     inhalt: `${p.system ? '' : `<div class="mb-3"><label class="form-label">Name</label><input class="form-control" name="name" value="${e(p.name)}" maxlength="100"></div>`}
-      <div><label class="form-label">Beschreibung</label><textarea class="form-control" name="beschreibung" rows="3" maxlength="500">${e(p.beschreibung)}</textarea></div>`,
+      <div class="mb-3"><label class="form-label">Beschreibung</label><textarea class="form-control" name="beschreibung" rows="3" maxlength="500">${e(p.beschreibung)}</textarea></div>
+      <div class="form-label mb-1">Stundenplan-Zeitraum</div>
+      <div class="d-flex flex-wrap gap-3">${FENSTER.map(([f, t]) => {
+        const v = fenster[p.id] && f in fenster[p.id] ? fenster[p.id][f] : p[f];
+        return `<label class="small">${t}<input type="number" class="form-control mt-1" style="width:9rem" name="${f}" min="0" max="${k.planWochenHoechstens ?? 520}" step="1" inputmode="numeric" placeholder="unbegrenzt" value="${v ?? ''}"></label>`;
+      }).join('')}</div>
+      <div class="form-text">Wochen vor bzw. nach der aktuellen Woche, die Konten dieser Rolle im Stundenplan sehen (Web und Apps). Leer = unbegrenzt, 0 = nur die aktuelle Woche.
+        Aktuell: ${fensterText(p.planWochenZurueck)} zurück, ${fensterText(p.planWochenVor)} voraus.</div>`,
     knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async b => {
       const w = formularWerte(b);
-      await senden(`/api/app/admin/rechte/profile/${encodeURIComponent(p.id)}`, { name: w.name ?? p.name, beschreibung: w.beschreibung, rechte: { ...p.rechte, ...(aenderungen[p.id] ?? {}) } }, 'PUT');
+      await senden(`/api/app/admin/rechte/profile/${encodeURIComponent(p.id)}`, { name: w.name ?? p.name, beschreibung: w.beschreibung, rechte: { ...p.rechte, ...(aenderungen[p.id] ?? {}) },
+        planWochenZurueck: wochenZahl(w.planWochenZurueck), planWochenVor: wochenZahl(w.planWochenVor) }, 'PUT');
       toast('Gespeichert.'); kontext.navigieren(location.hash);
     } }],
   });

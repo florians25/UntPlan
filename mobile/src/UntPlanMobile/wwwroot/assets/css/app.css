@@ -5144,15 +5144,45 @@ html.is-dark .iosas__btn--abbr{ background:#2c2c2e; }
 .login.is-add .login__sso, .login.is-add .login__oder{ display:none; }
 
 /* =====================================================================
-   Info- und Hausaufgabenzeichen auf der Kachel: flach — ohne Feld, ohne
-   Schatten —, nur die graue Scheibe bzw. das Haus, 4 px innerhalb des
-   Kartenrands (bei gerahmten Karten innerhalb des Rahmens).
+   Info- und Hausaufgabenzeichen auf der Kachel: wieder mit dem weißen
+   Feld der Originalgrafik hinter der grauen Scheibe bzw. dem Haus — flach,
+   ohne Schatten, Verlauf oder Glanz. 4 px innerhalb des Kartenrands (bei
+   gerahmten Karten innerhalb des Rahmens). Das Feld misst 16 px, das
+   Zeichen darin gut 11 px.
    ===================================================================== */
 .card .card__ecke{ right:4px; bottom:4px; gap:3px; background:none; box-shadow:none; filter:none; }
-.card .card__ic.card__ic--exakt{ width:12px; height:12px; background:none; box-shadow:none; }
-.card .ticon.ticon--exakt, html.is-dark .card .ticon.ticon--exakt{ fill:transparent; filter:none; }
-.card .ticon.ticon--exakt{ color:#8a96a1; }
-html.is-dark .card .ticon.ticon--exakt{ color:#9aa6b2; }
+.card .card__ic.card__ic--exakt{ width:16px; height:16px; background:none; box-shadow:none; filter:none; }
+.card .ticon.ticon--exakt, html.is-dark .card .ticon.ticon--exakt{ filter:none; box-shadow:none; background:none; }
+.card .ticon.ticon--exakt{ fill:#ffffff; color:#8a96a1; }
+html.is-dark .card .ticon.ticon--exakt{ fill:#ffffff; color:#7d8893; }
+
+/* =====================================================================
+   Gesperrte Woche (Wochenbegrenzung der Rolle): mittig ein weißer Kreis
+   mit grauem Schloss (Linien) und leichtem Schatten, darunter der Text,
+   kleiner der Hinweis des Servers.
+   ===================================================================== */
+.sperre{ position:absolute; top:0; bottom:0; z-index:6; pointer-events:none; }
+.sperre__inhalt{
+  position:absolute; left:0; right:0;
+  display:flex; flex-direction:column; align-items:center;
+  padding:0 16px; text-align:center;
+}
+.sperre__kreis{
+  width:64px; height:64px; border-radius:50%;
+  background:#ffffff; box-shadow:0 1px 6px rgba(0,0,0,.12);
+  display:flex; align-items:center; justify-content:center;
+  color:#8e8e93;
+}
+.sperre__kreis svg{ width:30px; height:30px; display:block; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.sperre__text{ margin:14px 0 0; font-size:16px; font-weight:500; line-height:1.3; color:var(--c-ink); max-width:300px; }
+.sperre__hinweis{ margin:6px 0 0; font-size:13px; font-weight:400; line-height:1.35; color:var(--c-muted); max-width:300px; }
+html.is-dark .sperre__kreis{ background:#2c2c2e; color:#98989f; box-shadow:0 1px 6px rgba(0,0,0,.45); }
+html.is-dark .sperre__text{ color:#f2f2f7; }
+html.is-dark .sperre__hinweis{ color:#a1a1a8; }
+
+/* Ferien: Bezeichnung 1 px kleiner und eine Stufe fetter (Medium). */
+.card--holiday .card__line, .card--holiday .card__line:first-of-type{ font-size:14px; line-height:17px; font-weight:500; }
+.card--holiday .card__line.holiday-range{ font-size:10.5px !important; font-weight:500; }
 
 /* =====================================================================
    iPhone: alle Blätter wie das Stundendetail — randlos über die volle
