@@ -72,14 +72,33 @@ struct KachelView: View {
         // Die ganze Fläche ist antippbar – auch bei durchsichtigen Karten (vergangen, abgegeben, Bereitschaft)
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
-        .overlay(alignment: .bottomTrailing) {
-            zeichen(a)
-                .padding(.trailing, Self.zeichenRand)
-                .padding(.bottom, Self.zeichenRand)
-        }
         .shadow(color: a.schatten == .voll ? Farben.kartenSchatten : (a.schatten == .flach ? Farben.kartenSchattenFlach : .clear),
                 radius: a.schatten == .keiner ? 0 : 1, y: a.schatten == .keiner ? 0 : 1)
         .shadow(color: a.schatten == .voll ? Farben.kartenSchattenWeich : .clear, radius: a.schatten == .voll ? 3 : 0, y: a.schatten == .voll ? 2 : 0)
+        // Zeichen unten rechts erst nach dem Kartenschatten: flach, ohne eigenen Schatten (auch auf durchsichtigen
+        // Karten), innerhalb der Karte 4 pt vom unteren und rechten Rand; auf sehr kleinen Karten verkleinert bzw.
+        // ausgeblendet, damit nichts über Rand oder Balken hinausragt
+        .overlay(alignment: .bottomTrailing) {
+            let faktor = zeichenFaktor
+            if faktor > 0 {
+                zeichen(a)
+                    .scaleEffect(faktor, anchor: .bottomTrailing)
+                    .padding(.trailing, Self.zeichenRand)
+                    .padding(.bottom, Self.zeichenRand)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// Verkleinerung der Zeichen unten rechts, falls die Karte zu niedrig bzw. zu schmal ist (0 = ausblenden).
+    /// Oben bleibt der Rand von 4 pt frei, links reichen die Zeichen nie bis an den Balken.
+    private var zeichenFaktor: CGFloat {
+        let b = zeichenBreite
+        guard b > 0 else { return 0 }
+        let platzHoch = hoehe - 2 * Self.zeichenRand
+        let platzBreit = breite - Self.zeichenRand - (Self.balkenRand + Self.balkenBreite + 2)
+        let f = min(1, platzHoch / max(zeichenHoehe, 1), platzBreit / b)
+        return f < 0.6 ? 0 : f
     }
 
     @ViewBuilder
@@ -176,8 +195,8 @@ struct KachelView: View {
 
     /// Kantenlänge der Zeichen unten rechts (Hausaufgabe, Kürzung).
     static let zeichenGroesse: CGFloat = 14.5
-    /// Kantenlänge des Info-Zeichens (exakt info.svg: helles Feld mit grauer Scheibe, wie die Hausaufgabe).
-    static let infoGroesse: CGFloat = 14.5
+    /// Kantenlänge des Info-Zeichens (info.svg flach: nur die graue Scheibe mit ausgespartem „i“, ohne Feld dahinter).
+    static let infoGroesse: CGFloat = 12.5
     /// Abstand der Zeichen zum unteren und rechten Kartenrand.
     static let zeichenRand: CGFloat = 4
 
@@ -619,8 +638,8 @@ struct Plakettenwert: View {
     }
 }
 
-/// Info-Zeichen (.card__info) exakt wie im Original: die Vektorgrafik info.svg (helles abgerundetes Feld, graue Scheibe
-/// mit ausgespartem „i“; dunkel eigene Variante) als Originalbild ohne Einfärbung.
+/// Info-Zeichen (.card__info): flache Vektorgrafik info.svg (graue Scheibe mit ausgespartem „i“, ohne Feld, Schatten
+/// oder Glanz; dunkel eigene Variante) als Originalbild ohne Einfärbung.
 struct Infozeichen: View {
     var groesse: CGFloat = KachelView.infoGroesse
 

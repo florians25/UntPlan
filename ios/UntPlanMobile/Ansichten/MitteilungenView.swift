@@ -69,12 +69,12 @@ struct MitteilungenView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar { leiste }
             .task(id: ordner) { await laden() }
-            .sheet(isPresented: $neueMitteilung) {
+            // Am iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails
+            .blattPraesentation(isPresented: $neueMitteilung, breit: groessenklasse == .regular) {
                 MitteilungNeuView {
                     if ordner == .gesendet { Task { await laden() } }
                 }
                 .environmentObject(zustand)
-                .iPhoneBlatt()
             }
         }
     }
@@ -318,7 +318,13 @@ struct Mitteilungszeile: View {
 struct MitteilungNeuView: View {
     let gesendet: () -> Void
     @EnvironmentObject var zustand: AppZustand
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
     @State private var alle: [Empfaenger] = []
     @State private var gewaehlt: Set<String> = []
     @State private var betreff = ""
@@ -340,6 +346,8 @@ struct MitteilungNeuView: View {
 
     var body: some View {
         NavigationStack {
+            // Kopf wie alle Formulare im Blatt: X links, Titel mittig, oranger Senden-Knopf rechts
+            DetailSeitenRahmen(titel: "Neue Mitteilung", untertitel: nil, symbol: "xmark", zurueck: { schliessen() }) {
             Form {
                 Section("Nachricht") {
                     TextField("Betreff", text: $betreff)
@@ -390,20 +398,12 @@ struct MitteilungNeuView: View {
                     Text(gewaehlt.isEmpty ? "Empfänger" : "Empfänger (\(gewaehlt.count))")
                 }
             }
-            .navigationTitle("Neue Mitteilung")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { schliessen() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if sendet {
-                        ProgressView()
-                    } else {
-                        Button("Senden") { Task { await senden() } }
-                            .fontWeight(.medium)
-                            .disabled(!bereit)
-                    }
+            .scrollContentBackground(.hidden)
+            .background(Farben.grund)
+            .scrollDismissesKeyboard(.interactively)
+            } rechts: {
+                SichernKnopf(speichert: sendet, aktiv: bereit, symbol: "paperplane.fill", beschriftung: "Senden") {
+                    Task { await senden() }
                 }
             }
             .task { await laden() }

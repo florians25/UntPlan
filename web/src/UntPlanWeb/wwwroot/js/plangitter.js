@@ -56,9 +56,10 @@ function titelText(k) {
 
 /**
  * Lehrkraft abwesend: eigene Stunde der angezeigten Lehrkraft wird von anderen gehalten, bzw. die Bereitschaft einer abwesenden
- * Lehrkraft fällt weg (in jedem Plan) – gestrichelte Karte mit Eck-Klammern statt Entfall. Der Server liefert dafür lehrerAbwesend.
+ * Lehrkraft fällt weg (Lehrer- und Tagesansichten) – gestrichelte Karte mit Eck-Klammern statt Entfall. Der Server liefert dafür
+ * lehrerAbwesend. Im Raumplan nie: dort erscheint eine Stunde mit abwesender Lehrkraft wie im Klassenplan als grüne Änderungskarte.
  */
-export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && (typ === 'lehrer' || !!k.lehrerAbwesend);
+export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && (typ === 'lehrer' || (typ !== 'raum' && !!k.lehrerAbwesend));
 /** Echter Entfall (rot, durchgestrichen); im Raumplan gilt eine verlegte Stunde weiter als Entfall. */
 const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend' && !lehrerAbwesend(k, typ));
 

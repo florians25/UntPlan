@@ -9,7 +9,13 @@ struct NeuerKlassenbucheintragView: View {
     let vorauswahl: [Schueler]
     @EnvironmentObject var daten: Stundendaten
     @EnvironmentObject var zustand: AppZustand
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
     @State private var gewaehlt: Set<Int> = []
     @State private var kategorie = ""
     @State private var text = ""
@@ -70,8 +76,6 @@ struct NeuerKlassenbucheintragView: View {
             if gewaehlt.isEmpty { gewaehlt = Set(vorauswahl.map(\.id)) }
             if kategorie.isEmpty { kategorie = daten.vermerkArten.first ?? "Vermerk" }
         }
-        .iPhoneBlatt()
-        .presentationBackground(Farben.blatt)
     }
 
     private func sichern() async {

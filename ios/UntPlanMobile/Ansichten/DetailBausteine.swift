@@ -22,7 +22,8 @@ extension UINavigationController: UIGestureRecognizerDelegate {
 /// Feste Maße des Detailblatts auf dem iPad (wie in der Vorlage: mittig über dem Plan, breiter als ein Formblatt).
 enum Detailblatt {
     static let breite: CGFloat = 620
-    static let hoehe: CGFloat = 640
+    /// Höhe auf dem iPad (etwas länger als ein Formblatt; die Breite bleibt 620 pt)
+    static let hoehe: CGFloat = 740
     /// iPhone: volle Breite, 85 % der Höhe (Planauswahl, Formulare, Info …; nicht bis ganz oben)
     static let iPhoneAnteil: CGFloat = 0.85
     /// iPhone: Stunden- und Aufsichtsdetails randlos über die volle Breite, 90 % der Bildschirmhöhe
@@ -96,15 +97,68 @@ extension View {
     /// Stunden- bzw. Aufsichtsdetails zeigen: auf dem iPad als festes Formblatt (`detailBlatt`), auf dem iPhone als
     /// randloses Blatt über die volle Breite und 90 % der Höhe. Die Systemblätter von iOS 26 schweben bei Teilhöhen mit
     /// Abstand zum Rand – deshalb zeichnet das iPhone-Blatt sich selbst (auf allen iOS-Versionen gleich).
-    func detailPraesentation<Item: Identifiable, Blatt: View>(item: Binding<Item?>, breit: Bool,
+    /// `art`: auf dem iPad das feste Detailblatt (620 × 740 pt) oder ein Formblatt des Systems (Formulare, Auswahl …);
+    /// auf dem iPhone sehen beide gleich aus (Randblatt).
+    func detailPraesentation<Item: Identifiable, Blatt: View>(item: Binding<Item?>, breit: Bool, art: Blattart = .detail,
                                                               @ViewBuilder blatt: @escaping (Item) -> Blatt) -> some View {
-        modifier(DetailPraesentation(item: item, breit: breit, blatt: blatt))
+        modifier(DetailPraesentation(item: item, breit: breit, art: art, blatt: blatt))
     }
+
+    /// Wie `detailPraesentation`, aber mit einem Schalter (Planauswahl, Info, Hilfe, Formulare, Kontenauswahl …): auf dem
+    /// iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails, auf dem iPad je nach `art`.
+    func blattPraesentation<Blatt: View>(isPresented: Binding<Bool>, breit: Bool, art: Blattart = .formular,
+                                         @ViewBuilder blatt: @escaping () -> Blatt) -> some View {
+        detailPraesentation(item: Binding<Blattschalter?>(get: { isPresented.wrappedValue ? Blattschalter() : nil },
+                                                          set: { isPresented.wrappedValue = $0 != nil }),
+                            breit: breit, art: art) { _ in
+            blatt()
+        }
+    }
+
+    /// Auf dem iPad: festes Detailblatt bzw. Formblatt des Systems (mit gleichen Ecken und Hintergrund).
+    @ViewBuilder
+    func iPadBlatt(_ art: Blattart) -> some View {
+        switch art {
+        case .detail:
+            detailBlatt(breit: true)
+        case .formular:
+            if #available(iOS 18.0, *) {
+                self
+                    .presentationSizing(.form)
+                    .presentationCornerRadius(Detailblatt.radius)
+                    .presentationBackground(Farben.blatt)
+            } else {
+                self
+                    .presentationCornerRadius(Detailblatt.radius)
+                    .presentationBackground(Farben.blatt)
+            }
+        }
+    }
+}
+
+/// Größe eines Blatts auf dem iPad (auf dem iPhone sind alle Blätter gleich: randlos, volle Breite, 90 % hoch).
+enum Blattart {
+    /// Festes Detailblatt 620 × 740 pt (Stunden-, Aufsichtsdetails, Sprechtag)
+    case detail
+    /// Formblatt des Systems (Planauswahl, Info, Formulare, Kontenauswahl …)
+    case formular
+}
+
+/// Platzhalter-Element für Blätter, die über einen Schalter (Bool) gezeigt werden.
+struct Blattschalter: Identifiable {
+    var id: Int { 0 }
+}
+
+/// Gerät: iPad (auch innerhalb eines Formblatts, wo die Größenklasse kompakt meldet).
+enum Geraet {
+    @MainActor
+    static var istPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 }
 
 private struct DetailPraesentation<Item: Identifiable, Blatt: View>: ViewModifier {
     @Binding var item: Item?
     let breit: Bool
+    let art: Blattart
     let blatt: (Item) -> Blatt
     /// Auf dem iPhone gezeigtes Element: ohne Systemanimation präsentiert, das Blatt fährt selbst ein und aus.
     @State private var randElement: Item? = nil
@@ -113,7 +167,9 @@ private struct DetailPraesentation<Item: Identifiable, Blatt: View>: ViewModifie
         content
             .sheet(item: Binding(get: { breit ? item : nil }, set: { item = $0 })) { element in
                 blatt(element)
-                    .detailBlatt(breit: true)
+                    // Systemblatt: ein äußeres Randblatt darf hier nicht mitgeschlossen werden
+                    .environment(\.blattSchliessen, nil)
+                    .iPadBlatt(art)
             }
             .fullScreenCover(item: Binding(get: { randElement }, set: { neu in
                 randElement = neu
@@ -269,30 +325,46 @@ struct Rundknopf: View {
         .contentShape(Circle())
     }
 
-    @ViewBuilder
     private func glas<V: View>(_ inhalt: V) -> some View {
+        inhalt.liquidGlas(Circle())
+    }
+}
+
+/// Liquid Glass für Knöpfe in Kopfzeilen (Kreis bzw. Kapsel): ab iOS 26 echtes, interaktives Glas, davor ein
+/// Milchglas-Feld (ultraThinMaterial) mit feinem hellen Rand und weichem Schatten.
+struct Liquidglas<Form: InsettableShape>: ViewModifier {
+    let form: Form
+
+    func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            inhalt.glassEffect(.regular.interactive(), in: Circle())
+            content.glassEffect(.regular.interactive(), in: form)
         } else {
-            milchglas(inhalt)
+            milchglas(content)
         }
         #else
-        milchglas(inhalt)
+        milchglas(content)
         #endif
     }
 
     private func milchglas<V: View>(_ inhalt: V) -> some View {
         inhalt
             .background {
-                Circle()
+                form
                     .fill(.ultraThinMaterial)
                     .overlay {
-                        Circle()
+                        form
                             .strokeBorder(Color(hell: 0xFFFFFF, dunkel: 0xFFFFFF, deckkraftHell: 0.8, deckkraftDunkel: 0.16), lineWidth: 0.5)
                     }
                     .shadow(color: Color(hell: 0x141C24, dunkel: 0x000000, deckkraftHell: 0.14, deckkraftDunkel: 0.4), radius: 6, y: 3)
             }
+    }
+}
+
+extension View {
+    /// Liquid Glass (ab iOS 26) bzw. Milchglas mit feinem Rand – wie die runden Knöpfe der Kopfzeilen.
+    func liquidGlas<Form: InsettableShape>(_ form: Form) -> some View {
+        modifier(Liquidglas(form: form))
     }
 }
 
@@ -434,6 +506,8 @@ extension DetailSeitenRahmen where Rechts == EmptyView {
 struct SichernKnopf: View {
     let speichert: Bool
     let aktiv: Bool
+    var symbol: String = "checkmark"
+    var beschriftung: String = "Sichern"
     let aktion: () -> Void
 
     var body: some View {
@@ -442,7 +516,7 @@ struct SichernKnopf: View {
                 .frame(width: Detailmass.knopf, height: Detailmass.knopf)
         } else {
             Button(action: aktion) {
-                Image(systemName: "checkmark")
+                Image(systemName: symbol)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(aktiv ? Color.white : Farben.gedaempft)
                     .frame(width: Detailmass.knopf, height: Detailmass.knopf)
@@ -451,7 +525,7 @@ struct SichernKnopf: View {
             }
             .buttonStyle(.plain)
             .disabled(!aktiv)
-            .accessibilityLabel("Sichern")
+            .accessibilityLabel(beschriftung)
         }
     }
 }

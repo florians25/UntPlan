@@ -757,17 +757,30 @@ public sealed class Plandienst
             // Eigene Stunde wird von jemand anderem gehalten bzw. findet in einem anderen Raum statt
             if (typ == Elementtyp.Lehrer && Ci.Equals(v.Lehrer, kurz) && !Enthaelt(r.Lehrer, kurz) && status is "geaendert" or "offen")
                 status = "abwesend";
-            if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && (status is "geaendert" || buchung))
+            // (Raumplan: nur bei echter Raumänderung – fehlen die Räume der Stunde und bleibt der Raum laut Vertretung gleich, findet die
+            // vertretene Stunde weiter hier statt und erscheint wie im Klassenplan als Änderung)
+            var raumBleibt = r.Raeume.Count == 0 && (v.NeuerRaum.Length == 0 || RaumListe(v.NeuerRaum).Contains(kurz, Ci));
+            if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && ((status is "geaendert" && !raumBleibt) || buchung))
                 status = "abwesend";
         }
         // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft (Kürzel durchgestrichen)
         var bereitschaft = r.Bereitschaft || IstBereitschaft(s, fach) || (v != null && v.Art.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase));
         if (bereitschaft && status == "entfall")
         {
-            status = "abwesend";
             var eingeteilt = lehrer.Select(w => w.K.Length > 0 ? w.K : w.Alt ?? "").Where(x => x.Length > 0).ToList();
             if (eingeteilt.Count == 0 && v != null && v.Lehrer.Length > 0) eingeteilt.Add(v.Lehrer);
-            lehrer = eingeteilt.Distinct(Ci).Select(x => new Wert("", x)).ToList();
+            // Raumplan: wie im Klassenplan eine grüne Änderungskarte, die abwesende Lehrkraft durchgestrichen im grünen Label
+            // ({ k: "", alt: "MUE", neu: true }) – die Darstellung „Lehrkraft abwesend“ gilt nur im Plan der Lehrkraft selbst
+            if (typ == Elementtyp.Raum)
+            {
+                status = "geaendert";
+                lehrer = eingeteilt.Distinct(Ci).Select(x => new Wert("", x, true)).ToList();
+            }
+            else
+            {
+                status = "abwesend";
+                lehrer = eingeteilt.Distinct(Ci).Select(x => new Wert("", x)).ToList();
+            }
         }
         // zusätzlicher Unterricht ohne Lehrkraft: „---“
         var zusatz = r.Status == "zusaetzlich" && status == "geaendert";
@@ -783,8 +796,9 @@ public sealed class Plandienst
             r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, Gruppe(s, r))
         {
             Zusaetzlich = zusatz, Bereitschaft = bereitschaft, Klausur = r.Klausur,
-            // abwesende Lehrkraft: eigene Stunde im Lehrerplan von anderen gehalten bzw. weggefallene Bereitschaft (in jedem Plan)
-            LehrerAbwesend = status == "abwesend" && (typ == Elementtyp.Lehrer || bereitschaft),
+            // abwesende Lehrkraft: eigene Stunde im Lehrerplan von anderen gehalten bzw. weggefallene Bereitschaft (Lehrer- und
+            // Tagesansichten); im Raumplan nie – dort ist die Stunde wie im Klassenplan „geaendert“ bzw. „offen“
+            LehrerAbwesend = status == "abwesend" && typ != Elementtyp.Raum && (typ == Elementtyp.Lehrer || bereitschaft),
             VertretungOffen = lehrerOffen,
         };
     }

@@ -333,7 +333,12 @@ public static class Kachelbau
             kachel.Geaendert.Remove("teacher");
             return kachel;
         }
-        if (k.LehrerAbwesend) kachel.LehrerAbwesend = true;
+        // Im Raumplan ist eine abwesende Lehrkraft eine grüne Änderung wie im Klassenplan (abwesende Lehrkraft
+        // durchgestrichen, Vertretung im grünen Label) – keine Eckklammern
+        if (k.LehrerAbwesend && art != "room") kachel.LehrerAbwesend = true;
+        if (art == "room" && k.Status is "abwesend" or "offen" && k.Lehrer.Count > 0 && !kachel.Geaendert.Contains("teacher")
+            && k.Lehrer.Any(w => w.Neu || !string.IsNullOrEmpty(w.Alt)))
+            kachel.Geaendert.Add("teacher");
         // Offene Vertretung: keine Lehrkraft eingeteilt, die bisherige steht durchgestrichen in der grünen Plakette
         if ((k.VertretungOffen && kachel.Lehrkraft.Length == 0)
             || (k.Status is "offen" or "abwesend" or "geaendert" && k.Lehrer.Count > 0

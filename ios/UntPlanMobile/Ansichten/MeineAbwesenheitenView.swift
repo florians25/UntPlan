@@ -77,11 +77,10 @@ struct MeineAbwesenheitenView: View {
                 .accessibilityLabel("Filter")
             }
         }
-        .sheet(isPresented: $zeigeFilter) {
+        .blattPraesentation(isPresented: $zeigeFilter, breit: groessenklasse == .regular) {
             AbwesenheitsfilterView(filter: $filter, kinder: kinder) {
                 Task { await laden() }
             }
-            .iPhoneBlatt()
         }
         .task {
             if daten == nil {
@@ -203,11 +202,18 @@ struct AbwesenheitsfilterView: View {
     @Binding var filter: Abwesenheitsfilter
     let kinder: [Kind]
     let anwenden: () -> Void
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
     @State private var entwurf = Abwesenheitsfilter()
 
     var body: some View {
         NavigationStack {
+            DetailSeitenRahmen(titel: "Filter", untertitel: nil, symbol: "xmark", zurueck: { schliessen() }) {
             Form {
                 if kinder.count > 1 {
                     Section("Kind") {
@@ -236,18 +242,13 @@ struct AbwesenheitsfilterView: View {
                 }
             }
             .environment(\.locale, Locale(identifier: "de_DE"))
-            .navigationTitle("Filter")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { schliessen() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Anwenden") {
-                        filter = entwurf
-                        anwenden()
-                        schliessen()
-                    }
+            .scrollContentBackground(.hidden)
+            .background(Farben.grund)
+            } rechts: {
+                SichernKnopf(speichert: false, aktiv: true, beschriftung: "Anwenden") {
+                    filter = entwurf
+                    anwenden()
+                    schliessen()
                 }
             }
             .onAppear { entwurf = filter }

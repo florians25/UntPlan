@@ -325,6 +325,31 @@ enum Kachelbau {
         return ergebnis
     }
 
+    /// Raumplan: Stunden mit abwesender Lehrkraft erscheinen wie im Klassenplan als Änderung (grün) – nie als Entfall
+    /// oder abgegebene Stunde. Ältere Antworten melden sie noch mit Status „abwesend“ (ohne `lehrerAbwesend`): mit
+    /// Vertretung wird daraus „geaendert“ (abwesende Lehrkraft durchgestrichen, Vertretung als grüne Plakette), ohne
+    /// Vertretung „offen“ (Kürzel durchgestrichen in der grünen Plakette).
+    static func raumplanNormalisiert(_ original: Karte) -> Karte {
+        var k = original
+        guard !istBereitschaft(k) else { return k }
+        k.lehrerAbwesend = false
+        guard k.status == "abwesend" else { return k }
+        let vertreten = k.lehrer.contains { $0.neu && !$0.k.isEmpty }
+        let schonOffen = k.lehrer.contains { $0.k.isEmpty && !($0.alt ?? "").isEmpty }
+        if vertreten {
+            k.status = "geaendert"
+        } else {
+            if !schonOffen {
+                k.lehrer = k.lehrer.map { w in
+                    w.k.isEmpty ? w : Wert(k: "", alt: w.k, neu: true)
+                }
+            }
+            if k.lehrer.isEmpty { k.vertretungOffen = true }
+            k.status = "offen"
+        }
+        return k
+    }
+
     /// Eine Stundenkarte als Kachel (nil = nichts anzuzeigen).
     static func ausKarte(_ original: Karte, typ: String, ich: String, raster: [Rasterzeit]) -> Kachel? {
         // Koppelklassen: abwesende Klassen kommen als {k:"", alt:"INF13"}. Im Plan der abwesenden Klasse selbst
@@ -337,6 +362,7 @@ enum Kachelbau {
             }
             if !k.abwesendeKlassen.contains(where: { gleich($0, ich) }) { k.abwesendeKlassen.append(ich) }
         }
+        if typ == "raum" { k = raumplanNormalisiert(k) }
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
                             beginn: lage.beginn, ende: lage.ende)
@@ -448,7 +474,8 @@ enum Kachelbau {
         let verlegtZiel = k.art.lowercased().contains("verleg") && kachel.art == .aenderung
         let alleKlassenAbwesend = !k.klassen.isEmpty && !k.abwesendeKlassen.isEmpty
             && werte(k.klassen).allSatisfy { kl in k.abwesendeKlassen.contains { gleich($0, kl) } }
-        let freigegeben = typ != "klasse" && (offen || abgegebenAnMich || alleKlassenAbwesend) && !verlegtZiel
+        // Raumplan: offene Vertretung bleibt eine grüne Änderungskarte (Eckklammern nur im Plan der abwesenden Lehrkraft)
+        let freigegeben = typ != "klasse" && ((offen && typ != "raum") || abgegebenAnMich || alleKlassenAbwesend) && !verlegtZiel
             && (kachel.art == .aenderung || kachel.art == .entfall || kachel.art == .normal)
         if freigegeben { kachel.art = .abgegeben }
 

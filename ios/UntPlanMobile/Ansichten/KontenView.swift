@@ -5,7 +5,13 @@ import SwiftUI
 /// ein weiteres Konto an, Wischen bzw. „Entfernen“ meldet ein Konto ab und löscht es vom Gerät.
 struct KontenauswahlView: View {
     @EnvironmentObject var zustand: AppZustand
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
     @State private var entfernenKonto: Konto? = nil
 
     private var aktivId: String? { Kontenspeicher.aktivId }
@@ -21,6 +27,8 @@ struct KontenauswahlView: View {
 
     var body: some View {
         NavigationStack {
+            // Kopf wie alle Blätter: runder Glasknopf X links, Titel mittig
+            DetailSeitenRahmen(titel: "Konten", untertitel: nil, symbol: "xmark", zurueck: { schliessen() }) {
             List {
                 Section {
                     ForEach(sortiert) { konto in
@@ -60,12 +68,9 @@ struct KontenauswahlView: View {
                     }
                 }
             }
-            .navigationTitle("Konten")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fertig") { schliessen() }
-                }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Farben.grund)
             }
             .confirmationDialog(entfernenKonto.map { "\($0.login) entfernen?" } ?? "",
                                 isPresented: Binding(get: { entfernenKonto != nil }, set: { if !$0 { entfernenKonto = nil } }),
@@ -81,7 +86,6 @@ struct KontenauswahlView: View {
             }
         }
         .tint(Farben.akzent)
-        .presentationDetents([.medium, .large])
     }
 
     private func zeile(_ konto: Konto) -> some View {

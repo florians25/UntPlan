@@ -98,6 +98,30 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Abwesende_Lehrkraft_im_Raumplan_ist_gruene_Aenderung_wie_im_Klassenplan()
+    {
+        // vertreten: grüne Änderung, Vertretung im grünen Label, abwesende Lehrkraft als bisheriger Wert – keine Eckklammern
+        foreach (var lehrerAbwesend in new[] { true, false })
+        {
+            var k = Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("HAR", "HOF", true) }) with { LehrerAbwesend = lehrerAbwesend }, "room");
+            Assert.Equal("change", k.Art);
+            Assert.Null(k.LehrerAbwesend);
+            Assert.Equal("HAR", k.Lehrkraft);
+            Assert.Equal("HOF", k.LehrkraftAlt);
+            Assert.Contains("teacher", k.Geaendert);
+        }
+        // offen: Kürzel durchgestrichen im grünen Label, kein Entfall
+        var offen = Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("", "SNE", true) }), "room");
+        Assert.Equal("change", offen.Art);
+        Assert.True(offen.LehrkraftOffen);
+        Assert.Equal("SNE", offen.LehrkraftAlt);
+        Assert.Contains("teacher", offen.Geaendert);
+        Assert.Null(offen.LehrerAbwesend);
+        // im Lehrerplan bleibt die abgegebene Stunde gekennzeichnet
+        Assert.True(Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("HAR", "HOF", true) }) with { LehrerAbwesend = true }, "teacher").LehrerAbwesend);
+    }
+
+    [Fact]
     public void Abgegebene_Stunde_im_Lehrerplan_zeigt_Vertreter_und_eigenes_Kuerzel_als_Orig()
     {
         var k = Kachelbau.AusKarte(Karte("abwesend", 1, lehrer: new() { new("HAR", "HOF", true) }), "teacher");

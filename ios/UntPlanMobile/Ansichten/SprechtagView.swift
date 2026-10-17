@@ -1,23 +1,30 @@
 import SwiftUI
 
-/// Sprechtag (Elternsprechtag) – von der Startseite aus.
-/// - Lehrkräfte: eigene Zeitfenster (gebucht mit Schüler*in und Buchenden, frei, gesperrt); gebuchte Termine absagen
-///   (mit Grund, die Eltern werden benachrichtigt), freie Fenster sperren bzw. wieder freigeben.
-/// - Erziehungsberechtigte: eigene Termine (absagen), je Kind die Lehrkräfte mit freien Zeiten – buchen im Anmeldezeitraum.
+/// Sprechtag (Elternsprechtag) – von der Startseite aus als Blatt (iPhone randlos und 90 % hoch, iPad festes Detailblatt).
+/// Aufbau wie die übrigen Blätter: Kopf mit runden Glasknöpfen (X, ⋮), Titel mittig mit Datum und Zeitraum.
+/// - Lehrkräfte: grauer Segmentschalter (Alle | Gebucht | Frei), darunter die Zeitfenster als gruppierte Liste – Uhrzeit
+///   groß links, Status als farbiger Punkt mit Text, Schüler*in, Klasse und Buchende. Wischen bzw. langes Drücken:
+///   gebuchte Termine absagen (mit Grund, die Eltern werden benachrichtigt), freie Zeiten sperren bzw. wieder freigeben.
+/// - Erziehungsberechtigte: eigene Termine (absagen), je Kind Karten der Lehrkräfte mit den freien Zeiten als Chips –
+///   Antippen bucht nach Rückfrage (nur im Anmeldezeitraum).
 struct SprechtagView: View {
     let id: Int
     let titel: String
     @EnvironmentObject var zustand: AppZustand
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
     @State private var lehrkraft: SprechtagLehrkraftDaten? = nil
     @State private var eltern: SprechtagElternDaten? = nil
     @State private var fehler: String? = nil
     @State private var geladen = false
+    @State private var laedt = false
     @State private var filter: Filter = .alle
     @State private var absage: Absage? = nil
     @State private var grund = ""
     @State private var arbeitet: String? = nil
     @State private var meldung: String? = nil
-    @State private var buchung: Buchungsziel? = nil
+    @State private var buchung: Buchungswahl? = nil
+    @State private var sammel: Sammelaktion? = nil
 
     enum Filter: Hashable {
         case alle
@@ -29,6 +36,28 @@ struct SprechtagView: View {
     struct Absage: Identifiable {
         let id: Int
         let text: String
+    }
+
+    /// Freie Zeit einer Lehrkraft, die gebucht werden soll (Erziehungsberechtigte).
+    struct Buchungswahl: Identifiable {
+        let kind: SprechtagKind
+        let lehrkraft: SprechtagKindLehrkraft
+        let fenster: SprechtagFreiesFenster
+
+        var id: String { "\(kind.id)|\(lehrkraft.kurz)|\(fenster.beginn)" }
+    }
+
+    /// Alle freien Zeiten sperren bzw. alle gesperrten freigeben (Lehrkraft, mit Rückfrage).
+    struct Sammelaktion: Identifiable {
+        let beginne: [String]
+        let sperren: Bool
+
+        var id: String { (sperren ? "s" : "f") + beginne.joined(separator: ",") }
+    }
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt (bzw. zurück).
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
     }
 
     /// Erziehungsberechtigte (sonst Lehrkraft-Sicht).
@@ -44,48 +73,58 @@ struct SprechtagView: View {
         return !info.abgesagt && info.phase != "vorbei"
     }
 
+    /// Untertitel im Kopf: „Do. 12.11.26 | 15:00 – 19:00“.
+    private var zeitraum: String? {
+        guard let info else { return nil }
+        let tag = info.datum.isEmpty ? info.datumText : Datumsformat.anzeige(info.datum, "EE dd.MM.yy")
+        let zeit = info.beginn.isEmpty ? "" : (info.ende.isEmpty ? info.beginn : "\(info.beginn) – \(info.ende)")
+        let text = [tag, zeit].filter { !$0.isEmpty }.joined(separator: " | ")
+        return text.isEmpty ? nil : text
+    }
+
     var body: some View {
-        List {
-            if let fehler {
-                Fehlerhinweis(text: fehler)
+        VStack(spacing: 0) {
+            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, laedt: laedt || !geladen) {
+                Blatttitel(titel: info?.titel ?? titel, untertitel: zeitraum)
+            } rechts: {
+                menue
+            }
+            if !istEltern, let d = lehrkraft, !d.zeitfenster.isEmpty {
+                segment(d)
+            }
+            List {
+                if let fehler {
+                    Section {
+                        Fehlerhinweis(text: fehler)
+                    }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
-            }
-            if let meldung {
-                Text(meldung)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Farben.gruen)
+                }
+                if let meldung {
+                    Section {
+                        Label(meldung, systemImage: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.gruen)
+                    }
                     .listRowBackground(Farben.flaeche)
+                }
+                if let info {
+                    uebersicht(info)
+                }
+                if istEltern {
+                    if let eltern { elternInhalt(eltern) }
+                } else if let lehrkraft {
+                    lehrkraftInhalt(lehrkraft)
+                }
             }
-            if let info {
-                kopf(info)
-            }
-            if istEltern {
-                if let eltern { elternInhalt(eltern) }
-            } else if let lehrkraft {
-                lehrkraftInhalt(lehrkraft)
-            }
-            if !geladen && fehler == nil {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Farben.grund)
+            .refreshable { await laden() }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Farben.grund.ignoresSafeArea())
-        .navigationTitle(info?.titel ?? titel)
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar(.visible, for: .navigationBar)
-        .refreshable { await laden() }
+        .background(Farben.blatt.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
         .task { await laden() }
-        .navigationDestination(item: $buchung) { ziel in
-            SprechtagBuchenView(sprechtagId: id, ziel: ziel) { text in
-                meldung = text
-                Task { await laden() }
-            }
-            .environmentObject(zustand)
-        }
         .alert("Termin absagen?", isPresented: Binding(get: { absage != nil }, set: { if !$0 { absage = nil } }), presenting: absage) { a in
             TextField("Grund (optional)", text: $grund)
             Button("Absagen", role: .destructive) {
@@ -95,161 +134,257 @@ struct SprechtagView: View {
         } message: { a in
             Text(istEltern ? "\(a.text)\nDie Lehrkraft wird benachrichtigt." : "\(a.text)\nDie Erziehungsberechtigten werden benachrichtigt.")
         }
+        .confirmationDialog(buchung.map { "Termin um \($0.fenster.beginn) Uhr buchen?" } ?? "",
+                            isPresented: Binding(get: { buchung != nil }, set: { if !$0 { buchung = nil } }),
+                            titleVisibility: .visible, presenting: buchung) { w in
+            Button("Buchen") {
+                Task { await buchen(w) }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: { w in
+            Text("\(w.lehrkraft.anzeige) · \(w.kind.anzeige) · \(w.fenster.beginn)–\(w.fenster.ende) Uhr"
+                 + (w.fenster.konflikt ? "\nZu dieser Zeit haben Sie bereits einen anderen Termin." : ""))
+        }
+        .confirmationDialog(sammel.map { $0.sperren ? "Alle freien Zeiten sperren?" : "Alle gesperrten Zeiten freigeben?" } ?? "",
+                            isPresented: Binding(get: { sammel != nil }, set: { if !$0 { sammel = nil } }),
+                            titleVisibility: .visible, presenting: sammel) { s in
+            Button(s.sperren ? "\(s.beginne.count) Zeiten sperren" : "\(s.beginne.count) Zeiten freigeben", role: s.sperren ? ButtonRole.destructive : nil) {
+                Task { await sperren(s.beginne, gesperrt: s.sperren) }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: { s in
+            Text(s.sperren ? "Gesperrte Zeiten können nicht gebucht werden." : "Die Zeiten können danach wieder gebucht werden.")
+        }
     }
 
     // MARK: - Kopf
 
+    private var menue: some View {
+        Menu {
+            Button {
+                Task { await laden() }
+            } label: {
+                Label("Aktualisieren", systemImage: "arrow.clockwise")
+            }
+            if !istEltern, aenderbar, let d = lehrkraft {
+                let frei = d.zeitfenster.filter(\.frei).map(\.beginn)
+                let gesperrt = d.zeitfenster.filter(\.gesperrt).map(\.beginn)
+                if !frei.isEmpty {
+                    Button {
+                        sammel = Sammelaktion(beginne: frei, sperren: true)
+                    } label: {
+                        Label("Alle freien Zeiten sperren", systemImage: "lock")
+                    }
+                }
+                if !gesperrt.isEmpty {
+                    Button {
+                        sammel = Sammelaktion(beginne: gesperrt, sperren: false)
+                    } label: {
+                        Label("Alle gesperrten Zeiten freigeben", systemImage: "lock.open")
+                    }
+                }
+            }
+        } label: {
+            Rundknopf(symbol: "ellipsis", gewicht: .medium, groesse: 18, drehung: 90)
+        }
+        // Symbole im Menü schwarz bzw. weiß je nach Modus
+        .tint(Color.primary)
+        .accessibilityLabel("Menü")
+    }
+
+    private func segment(_ d: SprechtagLehrkraftDaten) -> some View {
+        let gebucht = d.zeitfenster.filter(\.gebucht).count
+        let frei = d.zeitfenster.filter(\.frei).count
+        return Segmentschalter(auswahl: $filter, [
+            (Filter.alle, "Alle (\(d.zeitfenster.count))"),
+            (Filter.gebucht, "Gebucht (\(gebucht))"),
+            (Filter.frei, "Frei (\(frei))"),
+        ])
+        .padding(.horizontal, 14)
+        .padding(.top, 2)
+        .padding(.bottom, 8)
+        .background(Farben.blatt)
+    }
+
+    // MARK: - Übersicht
+
     @ViewBuilder
-    private func kopf(_ info: SprechtagInfo) -> some View {
+    private func uebersicht(_ info: SprechtagInfo) -> some View {
         Section {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(info.datumText.isEmpty ? Datumsformat.anzeige(info.datum, "EEEE, d. MMMM yyyy") : info.datumText)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Farben.tinte)
-                if !info.beginn.isEmpty {
-                    Text("\(info.beginn) – \(info.ende) Uhr" + (info.dauer > 0 ? " · je \(info.dauer) Minuten" : ""))
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.tinte2)
-                }
-                if let raum = lehrkraft?.lehrer?.raum, !raum.isEmpty, !istEltern {
-                    Text("Raum \(raum)")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.tinte2)
-                }
-                HStack(spacing: 6) {
-                    Plakette(text: info.phaseText, farbe: info.abgesagt ? Farben.entfallRand : (info.phase == "anmeldung" ? Farben.gruen : Farben.gedaempft))
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Plakette(text: info.phaseText,
+                             farbe: info.abgesagt ? Farben.entfallRand : (info.phase == "anmeldung" ? Farben.gruen : Farben.gedaempft))
                     if !istEltern, let l = lehrkraft?.lehrer, !l.abgesagt.isEmpty {
                         Plakette(text: "Teilnahme abgesagt", farbe: Farben.entfallRand)
                     }
+                    Spacer(minLength: 4)
+                    if !istEltern, let raum = lehrkraft?.lehrer?.raum, !raum.isEmpty {
+                        Label("Raum \(raum)", systemImage: "door.left.hand.open")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                            .lineLimit(1)
+                    }
                 }
-                .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(info.datumText.isEmpty ? Datumsformat.anzeige(info.datum, "EEEE, d. MMMM yyyy") : info.datumText)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Farben.tinte)
+                    if !info.beginn.isEmpty {
+                        Text("\(info.beginn) – \(info.ende) Uhr" + (info.dauer > 0 ? " · je \(info.dauer) Minuten" : ""))
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                    if istEltern && !info.anmeldungBis.isEmpty && info.phase != "vorbei" && !info.abgesagt {
+                        Text("Anmeldung bis \(Datumsformat.anzeige(info.anmeldungBis, "d.M.yyyy"))")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                }
+                if !istEltern, let d = lehrkraft, !d.zeitfenster.isEmpty {
+                    HStack(spacing: 0) {
+                        kennzahl(d.zeitfenster.filter(\.gebucht).count, "Gebucht", Farben.akzent)
+                        kennzahl(d.zeitfenster.filter(\.frei).count, "Frei", Farben.gruen)
+                        kennzahl(d.zeitfenster.filter(\.gesperrt).count, "Gesperrt", Farben.gedaempft)
+                    }
+                    .padding(.top, 2)
+                }
                 if info.abgesagt {
-                    Text("Der Sprechtag wurde abgesagt." + (info.absageGrund.isEmpty ? "" : " Grund: \(info.absageGrund)"))
+                    Label("Der Sprechtag wurde abgesagt." + (info.absageGrund.isEmpty ? "" : " Grund: \(info.absageGrund)"),
+                          systemImage: "xmark.octagon")
                         .font(.system(size: 14))
                         .foregroundStyle(Farben.entfallRand)
                 }
                 if !info.hinweis.isEmpty {
-                    Text(info.hinweis)
+                    Label(info.hinweis, systemImage: "info.circle")
                         .font(.system(size: 14))
                         .foregroundStyle(Farben.tinte2)
-                        .padding(.top, 2)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 6)
             .listRowBackground(Farben.flaeche)
         }
+    }
+
+    private func kennzahl(_ zahl: Int, _ text: String, _ farbe: Color) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("\(zahl)")
+                .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                .foregroundStyle(Farben.tinte)
+            Statusmarke(text: text, farbe: farbe)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Lehrkraft
 
     @ViewBuilder
     private func lehrkraftInhalt(_ d: SprechtagLehrkraftDaten) -> some View {
-        let gebucht = d.zeitfenster.filter(\.gebucht)
-        let frei = d.zeitfenster.filter(\.frei)
         let liste: [SprechtagZeitfenster] = {
             switch filter {
             case .alle: return d.zeitfenster
-            case .gebucht: return gebucht
-            case .frei: return frei
+            case .gebucht: return d.zeitfenster.filter(\.gebucht)
+            case .frei: return d.zeitfenster.filter(\.frei)
             }
         }()
         Section {
-            Picker("Anzeige", selection: $filter) {
-                Text("Alle (\(d.zeitfenster.count))").tag(Filter.alle)
-                Text("Gebucht (\(gebucht.count))").tag(Filter.gebucht)
-                Text("Frei (\(frei.count))").tag(Filter.frei)
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-        }
-        Section {
             if liste.isEmpty {
-                Text(d.zeitfenster.isEmpty ? "Keine Zeitfenster." : "Keine passenden Zeitfenster.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Farben.gedaempft)
-                    .listRowBackground(Farben.flaeche)
+                leer(d.zeitfenster.isEmpty ? "Keine Zeitfenster" : (filter == .gebucht ? "Noch keine Buchungen" : "Keine freien Zeiten"),
+                     symbol: d.zeitfenster.isEmpty ? "calendar.badge.exclamationmark" : (filter == .gebucht ? "person.2.slash" : "clock.badge.xmark"),
+                     text: d.zeitfenster.isEmpty ? "Für diesen Sprechtag sind Ihnen keine Zeiten zugeteilt."
+                         : (filter == .gebucht ? "Sobald Eltern einen Termin buchen, erscheint er hier." : "Alle Zeiten sind gebucht oder gesperrt."))
             }
             ForEach(liste) { f in
                 fensterZeile(f)
                     .listRowBackground(Farben.flaeche)
-                    .swipeActions(edge: .trailing) {
-                        if aenderbar {
-                            if let t = f.termin {
-                                Button(role: .destructive) {
-                                    absageAnfragen(t)
-                                } label: {
-                                    Label("Absagen", systemImage: "xmark.circle")
-                                }
-                            } else if f.gesperrt {
-                                Button {
-                                    Task { await sperren(f, gesperrt: false) }
-                                } label: {
-                                    Label("Freigeben", systemImage: "lock.open")
-                                }
-                                .tint(Farben.gruen)
-                            } else {
-                                Button {
-                                    Task { await sperren(f, gesperrt: true) }
-                                } label: {
-                                    Label("Sperren", systemImage: "lock")
-                                }
-                                .tint(Farben.gedaempft)
-                            }
-                        }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        fensterAktionen(f)
+                    }
+                    .contextMenu {
+                        fensterAktionen(f)
                     }
             }
         } header: {
-            Text("Meine Termine")
+            if !liste.isEmpty { Text("Zeitfenster") }
         } footer: {
-            if aenderbar && !d.zeitfenster.isEmpty {
-                Text("Nach links wischen: freie Zeiten sperren bzw. freigeben.")
+            if aenderbar && !liste.isEmpty {
+                Text("Nach links wischen oder lange drücken: Termine absagen, freie Zeiten sperren bzw. freigeben.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fensterAktionen(_ f: SprechtagZeitfenster) -> some View {
+        if aenderbar && arbeitet == nil {
+            if let t = f.termin {
+                Button(role: .destructive) {
+                    absageAnfragen(t)
+                } label: {
+                    Label("Absagen", systemImage: "xmark.circle")
+                }
+            } else if f.gesperrt {
+                Button {
+                    Task { await sperren([f.beginn], gesperrt: false) }
+                } label: {
+                    Label("Freigeben", systemImage: "lock.open")
+                }
+                .tint(Farben.gruen)
+            } else {
+                Button {
+                    Task { await sperren([f.beginn], gesperrt: true) }
+                } label: {
+                    Label("Sperren", systemImage: "lock")
+                }
+                .tint(Farben.gedaempft)
             }
         }
     }
 
     private func fensterZeile(_ f: SprechtagZeitfenster) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(f.beginn)–\(f.ende)")
-                .font(.system(size: 15, weight: .medium).monospacedDigit())
-                .foregroundStyle(f.gebucht ? Farben.tinte : Farben.tinte2)
-                .frame(width: 98, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: 14) {
+            Zeitspalte(beginn: f.beginn, ende: f.ende, aktiv: f.gebucht)
+            VStack(alignment: .leading, spacing: 3) {
                 if let t = f.termin {
+                    Statusmarke(text: "Gebucht", farbe: Farben.akzent)
                     Text(t.schueler?.anzeige.isEmpty == false ? (t.schueler?.anzeige ?? "") : "Termin")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Farben.tinte)
+                        .lineLimit(1)
                     let zusatz = [t.schueler?.klasse ?? "", t.gebuchtVon.isEmpty ? "" : "gebucht von \(t.gebuchtVon)"].filter { !$0.isEmpty }
                     if !zusatz.isEmpty {
                         Text(zusatz.joined(separator: " · "))
                             .font(.system(size: 13))
                             .foregroundStyle(Farben.tinte2)
+                            .lineLimit(2)
                     }
                     if !t.bemerkung.isEmpty {
                         Text(t.bemerkung)
                             .font(.system(size: 13))
+                            .italic()
                             .foregroundStyle(Farben.tinte2)
+                            .lineLimit(3)
                     }
                 } else if f.gesperrt {
-                    Label("gesperrt", systemImage: "lock")
-                        .font(.system(size: 15))
+                    Statusmarke(text: "Gesperrt", farbe: Farben.gedaempft, symbol: "lock.fill")
+                    Text("Nicht buchbar")
+                        .font(.system(size: 14))
                         .foregroundStyle(Farben.gedaempft)
                 } else {
-                    Text("frei")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Farben.gruen)
+                    Statusmarke(text: "Frei", farbe: Farben.gruen)
+                    Text("Noch nicht gebucht")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
                 }
             }
             Spacer(minLength: 4)
-            if arbeitet == "f\(f.beginn)" {
+            if arbeitet == "f\(f.beginn)" || (f.termin.map { arbeitet == "t\($0.id)" } ?? false) {
                 ProgressView()
-            } else if let t = f.termin, aenderbar {
-                Button("Absagen", role: .destructive) { absageAnfragen(t) }
-                    .font(.system(size: 14, weight: .medium))
-                    .buttonStyle(.borderless)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 
     private func absageAnfragen(_ t: SprechtagTermin) {
@@ -264,37 +399,31 @@ struct SprechtagView: View {
     private func elternInhalt(_ d: SprechtagElternDaten) -> some View {
         Section {
             if d.termine.isEmpty {
-                Text("Noch keine Termine gebucht.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Farben.gedaempft)
-                    .listRowBackground(Farben.flaeche)
+                leer("Noch keine Termine", symbol: "calendar.badge.plus",
+                     text: d.buchbar ? "Tippen Sie unten bei einer Lehrkraft auf eine freie Zeit, um einen Termin zu buchen."
+                         : "Gebuchte Termine erscheinen hier.")
             }
             ForEach(d.termine.sorted { $0.beginn < $1.beginn }) { t in
-                HStack(alignment: .top, spacing: 12) {
-                    Text("\(t.beginn)–\(t.ende)")
-                        .font(.system(size: 15, weight: .medium).monospacedDigit())
-                        .foregroundStyle(Farben.tinte)
-                        .frame(width: 98, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(t.lehrerName.isEmpty ? t.lehrer : t.lehrerName)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Farben.tinte)
-                        Text([t.schueler?.anzeige ?? "", t.raum.isEmpty ? "" : "Raum \(t.raum)"].filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.system(size: 13))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                    Spacer(minLength: 4)
-                    if aenderbar {
-                        Button("Absagen", role: .destructive) {
-                            grund = ""
-                            absage = Absage(id: t.id, text: "\(t.beginn) Uhr bei \(t.lehrerName.isEmpty ? t.lehrer : t.lehrerName)")
+                elternTerminZeile(t)
+                    .listRowBackground(Farben.flaeche)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if aenderbar && arbeitet == nil {
+                            Button(role: .destructive) {
+                                elternAbsageAnfragen(t)
+                            } label: {
+                                Label("Absagen", systemImage: "xmark.circle")
+                            }
                         }
-                        .font(.system(size: 14, weight: .medium))
-                        .buttonStyle(.borderless)
                     }
-                }
-                .padding(.vertical, 2)
-                .listRowBackground(Farben.flaeche)
+                    .contextMenu {
+                        if aenderbar {
+                            Button(role: .destructive) {
+                                elternAbsageAnfragen(t)
+                            } label: {
+                                Label("Termin absagen", systemImage: "xmark.circle")
+                            }
+                        }
+                    }
             }
         } header: {
             Text("Meine Termine")
@@ -305,94 +434,152 @@ struct SprechtagView: View {
                 } else {
                     Text("Termine können nur im Anmeldezeitraum gebucht werden.")
                 }
+            } else if aenderbar && !d.termine.isEmpty {
+                Text("Nach links wischen oder lange drücken: Termin absagen.")
+            }
+        }
+        if d.kinder.isEmpty {
+            Section {
+                leer("Keine Kinder", symbol: "person.crop.circle.badge.questionmark",
+                     text: "Für Ihr Konto sind keine Kinder für diesen Sprechtag hinterlegt.")
             }
         }
         ForEach(d.kinder) { kind in
             Section {
                 if kind.lehrkraefte.isEmpty {
-                    Text("Keine Lehrkräfte am Sprechtag.")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Farben.gedaempft)
-                        .listRowBackground(Farben.flaeche)
+                    leer("Keine Lehrkräfte", symbol: "person.2.slash", text: "Am Sprechtag nehmen keine Lehrkräfte von \(kind.anzeige) teil.")
                 }
                 ForEach(kind.lehrkraefte) { l in
-                    lehrkraftZeile(l, kind: kind, buchbar: d.buchbar)
+                    lehrkraftKarte(l, kind: kind, buchbar: d.buchbar && aenderbar)
                         .listRowBackground(Farben.flaeche)
                 }
             } header: {
-                Text(kind.klasse.isEmpty ? kind.anzeige : "\(kind.anzeige) · \(kind.klasse)")
+                HStack(spacing: 8) {
+                    Initialen(name: kind.anzeige, groesse: 22)
+                    Text(kind.klasse.isEmpty ? kind.anzeige : "\(kind.anzeige) · \(kind.klasse)")
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private func lehrkraftZeile(_ l: SprechtagKindLehrkraft, kind: SprechtagKind, buchbar: Bool) -> some View {
-        let kannBuchen = buchbar && l.termin == nil && !l.abgesagt && !l.zeitfenster.isEmpty
-        let inhalt = HStack(alignment: .center, spacing: 10) {
+    private func elternTerminZeile(_ t: SprechtagElternTermin) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            Zeitspalte(beginn: t.beginn, ende: t.ende, aktiv: true)
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(l.anzeige)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Farben.tinte)
-                        .lineLimit(1)
-                    if l.eingeladen {
-                        Plakette(text: "Eingeladen", farbe: Farben.akzent)
-                    }
-                }
-                let unten = [l.faecher.joined(separator: ", "), l.klassenleitung ? "Klassenleitung" : "", l.raum.isEmpty ? "" : "Raum \(l.raum)"]
-                    .filter { !$0.isEmpty }
-                if !unten.isEmpty {
-                    Text(unten.joined(separator: " · "))
+                Statusmarke(text: "Gebucht", farbe: Farben.akzent)
+                Text(t.lehrerName.isEmpty ? t.lehrer : t.lehrerName)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Farben.tinte)
+                    .lineLimit(1)
+                let zusatz = [t.schueler?.anzeige ?? "", t.raum.isEmpty ? "" : "Raum \(t.raum)"].filter { !$0.isEmpty }
+                if !zusatz.isEmpty {
+                    Text(zusatz.joined(separator: " · "))
                         .font(.system(size: 13))
                         .foregroundStyle(Farben.tinte2)
                         .lineLimit(2)
                 }
-                if l.eingeladen && !l.einladungText.isEmpty {
-                    Text(l.einladungText)
+                if !t.bemerkung.isEmpty {
+                    Text(t.bemerkung)
                         .font(.system(size: 13))
+                        .italic()
                         .foregroundStyle(Farben.tinte2)
                         .lineLimit(3)
                 }
             }
             Spacer(minLength: 4)
-            if let t = l.termin {
-                Text("\(t.beginn) Uhr")
-                    .font(.system(size: 14, weight: .medium).monospacedDigit())
-                    .foregroundStyle(Farben.gruen)
-            } else if l.abgesagt {
-                Text("nimmt nicht teil")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Farben.gedaempft)
-            } else if buchbar && l.zeitfenster.isEmpty {
-                Text("ausgebucht")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Farben.gedaempft)
-            } else if kannBuchen {
-                Text("\(l.zeitfenster.count) frei")
+            if arbeitet == "t\(t.id)" {
+                ProgressView()
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private func elternAbsageAnfragen(_ t: SprechtagElternTermin) {
+        grund = ""
+        absage = Absage(id: t.id, text: "\(t.beginn) Uhr bei \(t.lehrerName.isEmpty ? t.lehrer : t.lehrerName)")
+    }
+
+    /// Karte einer Lehrkraft: Name, Fächer, Raum; darunter der gebuchte Termin oder die freien Zeiten als Chips.
+    private func lehrkraftKarte(_ l: SprechtagKindLehrkraft, kind: SprechtagKind, buchbar: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 11) {
+                Initialen(name: l.anzeige, groesse: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(l.anzeige)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Farben.tinte)
+                            .lineLimit(1)
+                        if l.eingeladen {
+                            Plakette(text: "Eingeladen", farbe: Farben.akzent)
+                        }
+                    }
+                    let unten = [l.faecher.joined(separator: ", "), l.klassenleitung ? "Klassenleitung" : "", l.raum.isEmpty ? "" : "Raum \(l.raum)"]
+                        .filter { !$0.isEmpty }
+                    if !unten.isEmpty {
+                        Text(unten.joined(separator: " · "))
+                            .font(.system(size: 13))
+                            .foregroundStyle(Farben.tinte2)
+                            .lineLimit(2)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            if l.eingeladen && !l.einladungText.isEmpty {
+                Text(l.einladungText)
                     .font(.system(size: 13))
                     .foregroundStyle(Farben.tinte2)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Farben.gedaempft)
+                    .lineLimit(4)
+            }
+            if let t = l.termin {
+                Statusmarke(text: "Gebucht: \(t.beginn)–\(t.ende) Uhr", farbe: Farben.akzent)
+            } else if l.abgesagt {
+                Statusmarke(text: "Nimmt nicht teil", farbe: Farben.gedaempft)
+            } else if l.zeitfenster.isEmpty {
+                Statusmarke(text: "Keine freien Zeiten", farbe: Farben.gedaempft)
+            } else if buchbar {
+                Fliesslayout(abstand: 6) {
+                    ForEach(l.zeitfenster) { f in
+                        Button {
+                            buchung = Buchungswahl(kind: kind, lehrkraft: l, fenster: f)
+                        } label: {
+                            Zeitchip(fenster: f)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(arbeitet != nil)
+                        .accessibilityLabel("\(f.beginn) Uhr buchen" + (f.konflikt ? ", Überschneidung" : ""))
+                    }
+                }
+                if l.zeitfenster.contains(where: \.konflikt) {
+                    Label("Überschneidung mit einem Ihrer Termine", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Farben.orange)
+                }
+            } else {
+                Statusmarke(text: l.zeitfenster.count == 1 ? "1 freie Zeit" : "\(l.zeitfenster.count) freie Zeiten", farbe: Farben.gruen)
             }
         }
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
-        if kannBuchen {
-            Button {
-                buchung = Buchungsziel(kind: kind, lehrkraft: l)
-            } label: {
-                inhalt
-            }
-            .buttonStyle(.plain)
-        } else {
-            inhalt
+        .padding(.vertical, 6)
+    }
+
+    /// Leerer Zustand mit Symbol.
+    private func leer(_ titel: String, symbol: String, text: String) -> some View {
+        ContentUnavailableView {
+            Label(titel, systemImage: symbol)
+        } description: {
+            Text(text)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Laden und Aktionen
 
     private func laden() async {
+        laedt = true
+        defer { laedt = false }
         do {
             if istEltern {
                 eltern = try await zustand.api.sprechtagEltern(id)
@@ -419,11 +606,27 @@ struct SprechtagView: View {
         }
     }
 
-    private func sperren(_ f: SprechtagZeitfenster, gesperrt: Bool) async {
-        arbeitet = "f\(f.beginn)"
+    private func sperren(_ beginne: [String], gesperrt: Bool) async {
+        guard !beginne.isEmpty else { return }
+        arbeitet = beginne.count == 1 ? "f\(beginne[0])" : "sammel"
         defer { arbeitet = nil }
         do {
-            try await zustand.api.sprechtagSperren(id, beginne: [f.beginn], gesperrt: gesperrt)
+            try await zustand.api.sprechtagSperren(id, beginne: beginne, gesperrt: gesperrt)
+            if beginne.count > 1 {
+                meldung = gesperrt ? "\(beginne.count) Zeiten gesperrt." : "\(beginne.count) Zeiten freigegeben."
+            }
+            await laden()
+        } catch {
+            if let text = zustand.fehlertext(error) { fehler = text }
+        }
+    }
+
+    private func buchen(_ w: Buchungswahl) async {
+        arbeitet = "b\(w.id)"
+        defer { arbeitet = nil }
+        do {
+            try await zustand.api.sprechtagBuchen(id, SprechtagBuchDaten(lehrer: w.lehrkraft.kurz, schuelerId: w.kind.id, beginn: w.fenster.beginn))
+            meldung = "Termin um \(w.fenster.beginn) Uhr bei \(w.lehrkraft.anzeige) gebucht."
             await laden()
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
@@ -431,92 +634,113 @@ struct SprechtagView: View {
     }
 }
 
-/// Lehrkraft eines Kindes, bei der gebucht werden soll.
-struct Buchungsziel: Hashable, Identifiable {
-    let kind: SprechtagKind
-    let lehrkraft: SprechtagKindLehrkraft
+// MARK: - Bausteine
 
-    var id: String { "\(kind.id)|\(lehrkraft.kurz)" }
-}
-
-/// Freie Zeiten einer Lehrkraft (Erziehungsberechtigte): Antippen bucht nach Rückfrage; Überschneidungen mit eigenen
-/// Terminen sind gekennzeichnet.
-struct SprechtagBuchenView: View {
-    let sprechtagId: Int
-    let ziel: Buchungsziel
-    let gebucht: (String) -> Void
-    @EnvironmentObject var zustand: AppZustand
-    @Environment(\.dismiss) private var zurueck
-    @State private var auswahl: SprechtagFreiesFenster? = nil
-    @State private var bucht = false
-    @State private var fehler: String? = nil
+/// Uhrzeit groß links in der Zeile, darunter klein das Ende.
+private struct Zeitspalte: View {
+    let beginn: String
+    let ende: String
+    var aktiv: Bool = true
 
     var body: some View {
-        List {
-            if let fehler {
-                Fehlerhinweis(text: fehler)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-            }
-            Section {
-                ForEach(ziel.lehrkraft.zeitfenster) { f in
-                    Button {
-                        auswahl = f
-                    } label: {
-                        HStack {
-                            Text("\(f.beginn)–\(f.ende) Uhr")
-                                .font(.system(size: 16).monospacedDigit())
-                                .foregroundStyle(Farben.tinte)
-                            Spacer()
-                            if f.konflikt {
-                                Label("Überschneidung", systemImage: "exclamationmark.triangle")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Farben.orange)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(bucht)
-                    .listRowBackground(Farben.flaeche)
-                }
-            } header: {
-                Text("Freie Zeiten für \(ziel.kind.anzeige)")
-            } footer: {
-                if ziel.lehrkraft.zeitfenster.contains(where: \.konflikt) {
-                    Text("„Überschneidung“: Zu dieser Zeit haben Sie bereits einen anderen Termin.")
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            Text(beginn)
+                .font(.system(size: 20, weight: .semibold).monospacedDigit())
+                .foregroundStyle(aktiv ? Farben.tinte : Farben.tinte2)
+            if !ende.isEmpty {
+                Text("bis \(ende)")
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(Farben.gedaempft)
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Farben.grund.ignoresSafeArea())
-        .navigationTitle(ziel.lehrkraft.anzeige)
-        .navigationBarTitleDisplayMode(.inline)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(width: 62, alignment: .leading)
+    }
+}
+
+/// Status als farbiger Punkt (bzw. Symbol) mit Text.
+private struct Statusmarke: View {
+    let text: String
+    let farbe: Color
+    var symbol: String? = nil
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 9, weight: .semibold))
+            } else {
+                Circle()
+                    .frame(width: 7, height: 7)
+            }
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(farbe)
+    }
+}
+
+/// Freie Zeit als Chip (Antippen bucht nach Rückfrage); Überschneidung orange mit Warnzeichen.
+private struct Zeitchip: View {
+    let fenster: SprechtagFreiesFenster
+
+    var body: some View {
+        let farbe = fenster.konflikt ? Farben.orange : Farben.gruen
+        HStack(spacing: 3) {
+            if fenster.konflikt {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+            }
+            Text(fenster.beginn)
+                .font(.system(size: 14, weight: .medium).monospacedDigit())
+        }
+        .foregroundStyle(farbe)
+        .padding(.horizontal, 11)
+        .frame(height: 30)
+        .background(farbe.opacity(0.12), in: Capsule())
         .overlay {
-            if bucht { ProgressView() }
+            Capsule().strokeBorder(farbe.opacity(0.35), lineWidth: 0.5)
         }
-        .confirmationDialog(auswahl.map { "Termin um \($0.beginn) Uhr buchen?" } ?? "",
-                            isPresented: Binding(get: { auswahl != nil }, set: { if !$0 { auswahl = nil } }),
-                            titleVisibility: .visible, presenting: auswahl) { f in
-            Button("Buchen") {
-                Task { await buchen(f) }
-            }
-            Button("Abbrechen", role: .cancel) {}
-        } message: { f in
-            Text("\(ziel.lehrkraft.anzeige) · \(ziel.kind.anzeige) · \(f.beginn)–\(f.ende) Uhr")
+        .contentShape(Capsule())
+    }
+}
+
+/// Einfaches Fließlayout: Kinder nebeneinander, bei Platzmangel in der nächsten Zeile.
+struct Fliesslayout: Layout {
+    var abstand: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        anordnen(breite: proposal.width ?? .infinity, subviews: subviews).groesse
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let punkte = anordnen(breite: bounds.width, subviews: subviews).punkte
+        for (i, kind) in subviews.enumerated() where i < punkte.count {
+            kind.place(at: CGPoint(x: bounds.minX + punkte[i].x, y: bounds.minY + punkte[i].y), proposal: .unspecified)
         }
     }
 
-    private func buchen(_ f: SprechtagFreiesFenster) async {
-        bucht = true
-        defer { bucht = false }
-        do {
-            try await zustand.api.sprechtagBuchen(sprechtagId, SprechtagBuchDaten(lehrer: ziel.lehrkraft.kurz, schuelerId: ziel.kind.id, beginn: f.beginn))
-            gebucht("Termin um \(f.beginn) Uhr bei \(ziel.lehrkraft.anzeige) gebucht.")
-            zurueck()
-        } catch {
-            if let text = zustand.fehlertext(error) { fehler = text }
+    private func anordnen(breite: CGFloat, subviews: Subviews) -> (punkte: [CGPoint], groesse: CGSize) {
+        var punkte: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var zeile: CGFloat = 0
+        var weiteste: CGFloat = 0
+        for kind in subviews {
+            let g = kind.sizeThatFits(.unspecified)
+            if x > 0 && x + g.width > breite {
+                x = 0
+                y += zeile + abstand
+                zeile = 0
+            }
+            punkte.append(CGPoint(x: x, y: y))
+            x += g.width
+            weiteste = max(weiteste, x)
+            x += abstand
+            zeile = max(zeile, g.height)
         }
+        return (punkte, CGSize(width: weiteste, height: y + zeile))
     }
 }

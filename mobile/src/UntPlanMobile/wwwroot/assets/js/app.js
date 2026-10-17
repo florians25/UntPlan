@@ -433,14 +433,14 @@ const viewKind = e => {
   return e.type === 'mine' ? 'teacher' : e.type;
 };
 
-/* Zeichen unten rechts auf der Kachel — exakt die Originalgrafiken aus
-   img/wu/exact (info.svg, tt-homework-icon.svg): helles, abgerundetes Feld,
-   darauf die graue Scheibe mit ausgespartem „i“ bzw. das Haus. Sie liegen
+/* Zeichen unten rechts auf der Kachel — die Originalgrafiken (info.svg,
+   tt-homework-icon.svg), flach: Der Ausschnitt lässt das helle Feld weg,
+   übrig bleibt die graue Scheibe mit ausgespartem „i“ bzw. das Haus. Sie liegen
    einmal in der Symbolsammlung und werden nur per <use> verwiesen — keine
    Kopie des Pfads je Kachel. Farben (hell/dunkel) über fill/color. */
-const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-info-icon"></use></svg>';
+const KACHEL_INFO = '<svg class="ticon ticon--exakt" viewBox="2.29 2.29 11.42 11.42" aria-hidden="true"><use href="#ic-tt-info-icon" width="16" height="16"></use></svg>';
 const KACHEL_VIDEO = '<svg class="ticon ticon--video" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="6.4" width="12.6" height="11.2" rx="2.4"/><path d="m15.4 10.6 5.8-3.4v9.6l-5.8-3.4z"/></svg>';
-const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidden="true"><use href="#ic-tt-homework-icon"></use></svg>';
+const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="2.29 2.29 11.42 11.42" aria-hidden="true"><use href="#ic-tt-homework-icon" width="16" height="16"></use></svg>';
 
 /* TRENNER-BEGINN (wird von den Tests ausgeführt) */
 /* Trennzeichen zwischen mehreren Werten (Lehrkräfte, Klassen, Räume):
@@ -1378,7 +1378,10 @@ function renderGrid(){
          echter Entfall ist rot. */
       /* `teacherAbsent` liefert der Server, wenn die Stunde im eigenen Plan
          ohne die (abwesende) Lehrkraft läuft – gleiche Darstellung. */
-      card._released = (((card.openSub || handedOver || koppOhneMich || card.classAbsent || card.teacherAbsent) && kind !== 'class')
+      /* Im Raumplan ist eine abwesende Lehrkraft (offen oder vertreten) eine
+         grüne Änderung wie im Klassenplan – keine Eckklammern, kein Entfall. */
+      const lehrerWegHier = (card.openSub || card.teacherAbsent) && kind !== 'room';
+      card._released = (((lehrerWegHier || handedOver || koppOhneMich || card.classAbsent) && kind !== 'class')
                         || klasseWeg)
                     && !isStandby && !isSup && !isMovedTarget;
 
@@ -3406,7 +3409,7 @@ $('#btnClassLead').addEventListener('click', () => listeOeffnen('leadabsent'));
    über api/sprechtag (dahinter UntPlanWeb, das auch die Rechte prüft).
    ===================================================================== */
 const SPT_URL = new URL('api/sprechtag', location.href).href;
-const spt = { liste:null, id:0, daten:null, offen:'', eltern:false };
+const spt = { liste:null, id:0, daten:null, offen:'', eltern:false, filter:'alle' };
 
 async function sptFetch(pfad, methode, body){
   const r = await fetch(SPT_URL + pfad, {
@@ -3440,6 +3443,7 @@ async function sprechtagZeichnen(){
   const body = $('#lstBody');
   $('#lstTitle').textContent = 'Sprechtag';
   $('#lstRange').textContent = '';
+  if (!body.querySelector('.spt')) body.innerHTML = '<div class="spt"><div class="spt__laden" aria-label="Wird geladen"></div></div>';
   try {
     if (!spt.liste) spt.liste = await sptFetch('');
   } catch (e){
@@ -3453,14 +3457,16 @@ async function sprechtagZeichnen(){
   if (!tage.length){ body.innerHTML = LEER('Kein Sprechtag', 'Derzeit ist kein Sprechtag geplant.'); return; }
   if (!spt.id && tage.length === 1) spt.id = tage[0].sprechtag.id;
   if (!spt.id){
-    /* Mehrere Sprechtage: erst auswählen. */
-    body.innerHTML = `<div class="spt">${tage.map(x => `
-      <button class="spt__tag" data-id="${x.sprechtag.id}">
-        <b>${esc(x.sprechtag.name)}</b>
-        <span>${esc(x.sprechtag.datumText)} · ${esc(sptZeit(x.sprechtag.beginn))}–${esc(sptZeit(x.sprechtag.ende))} Uhr</span>
-        <span>${x.termine} ${x.termine === 1 ? 'Termin' : 'Termine'}</span>
-      </button>`).join('')}</div>`;
-    $$('#lstBody .spt__tag').forEach(b => b.addEventListener('click', () => { spt.id = +b.dataset.id; sprechtagZeichnen(); }));
+    /* Mehrere Sprechtage: erst auswählen — gruppierte Liste wie in iOS. */
+    body.innerHTML = `<div class="spt"><p class="spt__gruppe">Sprechtage</p><div class="spt__liste">${tage.map(x => `
+      <button class="spt__tag" data-id="${x.sprechtag.id}" type="button">
+        <span class="spt__tagDatum"><b>${esc(sptTagZahl(x.sprechtag.datum))}</b><i>${esc(sptMonat(x.sprechtag.datum))}</i></span>
+        <span class="spt__was"><b>${esc(x.sprechtag.name)}</b>
+          <span>${esc(x.sprechtag.datumText)} · ${esc(sptZeit(x.sprechtag.beginn))}–${esc(sptZeit(x.sprechtag.ende))} Uhr</span>
+          <span>${x.termine} ${x.termine === 1 ? 'Termin' : 'Termine'} · ${esc(SPT_PHASE[x.sprechtag.phase] || x.sprechtag.phase)}</span></span>
+        <svg viewBox="0 0 24 24" class="ico spt__chev"><path d="m10 6 6 6-6 6"/></svg>
+      </button>`).join('')}</div></div>`;
+    $$('#lstBody .spt__tag').forEach(b => b.addEventListener('click', () => { spt.id = +b.dataset.id; spt.filter = 'alle'; sprechtagZeichnen(); }));
     return;
   }
   try {
@@ -3469,81 +3475,213 @@ async function sprechtagZeichnen(){
     body.innerHTML = `<div class="lst__empty"><b>Nicht verfügbar</b><span>${esc(e.message)}</span></div>`;
     return;
   }
+  const t = spt.daten.sprechtag || {};
+  $('#lstTitle').textContent = t.name || 'Sprechtag';
+  $('#lstRange').textContent = t.datumText || '';
   spt.eltern ? sptElternZeichnen() : sptLehrkraftZeichnen();
 }
 
 const SPT_PHASE = { einladung:'Einladungsphase', anmeldung:'Anmeldung läuft', geschlossen:'Anmeldung geschlossen',
                     vorbei:'Vorbei', abgesagt:'Abgesagt', vorbereitung:'In Vorbereitung' };
+const SPT_MONATE = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+const sptTagZahl = d => { const m = /^\d{4}-(\d{2})-(\d{2})/.exec(d || ''); return m ? String(+m[2]) : ''; };
+const sptMonat = d => { const m = /^\d{4}-(\d{2})/.exec(d || ''); return m ? SPT_MONATE[+m[1] - 1] || '' : ''; };
+const sptKuerzel = n => String(n || '').split(/\s+/).filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase();
+const SPT_ICO = {
+  uhr:  '<svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 2"/></svg>',
+  raum: '<svg viewBox="0 0 24 24" class="ico"><path d="M5 20V5.6A1.6 1.6 0 0 1 6.6 4h10.8A1.6 1.6 0 0 1 19 5.6V20M3 20h18"/><circle cx="15" cy="12.5" r=".9" fill="currentColor" stroke="none"/></svg>',
+  sperr:'<svg viewBox="0 0 24 24" class="ico"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>',
+  frei: '<svg viewBox="0 0 24 24" class="ico"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 6.8-1.2"/></svg>',
+  weg:  '<svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="8.6"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
+  kal:  '<svg viewBox="0 0 24 24" class="ico"><rect x="4.2" y="5" width="15.6" height="14.5" rx="2"/><path d="M4.2 9.4h15.6M8.2 3.2v3.4M15.8 3.2v3.4"/></svg>'
+};
 
-function sptKopf(t, zusatz){
+/* Bestätigung als Aktionsblatt wie in iOS: Gruppe mit Titel, Text,
+   optionalem Eingabefeld und den Knöpfen; darunter abgesetzt „Abbrechen“.
+   Liefert { wert, text } oder null. */
+function sptBlatt({ titel = '', text = '', eingabe = null, knoepfe = [] }){
+  return new Promise(fertig => {
+    const el = document.createElement('div');
+    el.className = 'iosas';
+    el.innerHTML = `<div class="iosas__scrim"></div>
+      <div class="iosas__panel" role="alertdialog" aria-modal="true" aria-label="${esc(titel)}">
+        <div class="iosas__group">
+          ${titel || text ? `<div class="iosas__head">${titel ? `<b>${esc(titel)}</b>` : ''}${text ? `<span>${esc(text)}</span>` : ''}</div>` : ''}
+          ${eingabe ? `<div class="iosas__feld"><textarea rows="2" maxlength="300" placeholder="${esc(eingabe)}"></textarea></div>` : ''}
+          ${knoepfe.map((k, i) => `<button type="button" class="iosas__btn${k.rot ? ' is-rot' : ''}${k.fett ? ' is-fett' : ''}" data-i="${i}">${esc(k.label)}</button>`).join('')}
+        </div>
+        <button type="button" class="iosas__btn iosas__btn--abbr">Abbrechen</button>
+      </div>`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('is-open'));
+    const zu = wert => {
+      el.classList.remove('is-open');
+      setTimeout(() => el.remove(), 300);
+      fertig(wert);
+    };
+    el.querySelector('.iosas__scrim').addEventListener('click', () => zu(null));
+    el.querySelector('.iosas__btn--abbr').addEventListener('click', () => zu(null));
+    el.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => {
+      const ta = el.querySelector('textarea');
+      zu({ wert: knoepfe[+b.dataset.i].wert, text: ta ? ta.value.trim() : '' });
+    }));
+    const ta = el.querySelector('textarea');
+    if (ta) setTimeout(() => { try { ta.focus({ preventScroll:true }); } catch (e){} }, 320);
+  });
+}
+
+/* Zusammenfassung oben: Name, Zeit, Raum, Phase und Hinweis. */
+function sptKopf(t, raum){
   return `<div class="spt__kopf">
-      <b>${esc(t.name)}</b>
-      <span>${esc(t.datumText)} · ${esc(sptZeit(t.beginn))}–${esc(sptZeit(t.ende))} Uhr${zusatz ? ' · ' + esc(zusatz) : ''}</span>
-      <span class="spt__phase spt__phase--${esc(t.phase)}">${esc(SPT_PHASE[t.phase] || t.phase)}</span>
+      <div class="spt__kopfZeile">
+        <span class="spt__kal"><i>${esc(sptMonat(t.datum))}</i><b>${esc(sptTagZahl(t.datum))}</b></span>
+        <span class="spt__kopfText">
+          <b>${esc(t.name)}</b>
+          <span>${SPT_ICO.uhr}${esc(sptZeit(t.beginn))}–${esc(sptZeit(t.ende))} Uhr${t.dauer ? ` · je ${esc(t.dauer)} Min.` : ''}</span>
+          ${raum ? `<span>${SPT_ICO.raum}Raum ${esc(raum)}</span>` : ''}
+        </span>
+      </div>
+      <span class="spt__phase spt__phase--${esc(t.phase)}"><i></i>${esc(SPT_PHASE[t.phase] || t.phase)}</span>
       ${t.abgesagt ? `<p class="spt__hinweis spt__hinweis--rot">Der Sprechtag wurde abgesagt.${t.absageGrund ? ' Grund: ' + esc(t.absageGrund) : ''}</p>`
         : t.hinweis ? `<p class="spt__hinweis">${esc(t.hinweis)}</p>` : ''}
     </div>`;
 }
 
-/* Lehrkraft: Zeitraster mit Status, Tippen klappt die Möglichkeiten auf. */
+/* Zeitfenster in Blöcke teilen: Wo eine Pause liegt, beginnt ein neuer Abschnitt. */
+function sptBloecke(fenster){
+  const res = [];
+  fenster.forEach(f => {
+    const letzt = res[res.length - 1];
+    if (letzt && sptZeit(letzt[letzt.length - 1].ende) === sptZeit(f.beginn)) letzt.push(f);
+    else res.push([f]);
+  });
+  return res;
+}
+
+/* Wischen nach links legt die Aktion frei; Tippen öffnet das Aktionsblatt. */
+function sptWischen(zeile, beimTippen){
+  const vorn = zeile.querySelector('.spt-row__front');
+  const breite = () => (zeile.querySelector('.spt-row__acts') || {}).offsetWidth || 0;
+  let x0 = 0, y0 = 0, dx = 0, start = 0, aktiv = false, quer = null;
+  const setze = (x, weich) => { vorn.style.transition = weich ? '' : 'none'; vorn.style.transform = x ? `translateX(${x}px)` : ''; };
+  vorn.addEventListener('touchstart', e => {
+    $$('#lstBody .spt-row.is-auf').forEach(r => { if (r !== zeile){ r.classList.remove('is-auf'); r.querySelector('.spt-row__front').style.transform = ''; } });
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; quer = null; aktiv = !!breite();
+    start = zeile.classList.contains('is-auf') ? -breite() : 0;
+  }, { passive:true });
+  vorn.addEventListener('touchmove', e => {
+    if (!aktiv) return;
+    const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+    if (quer === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) quer = Math.abs(mx) > Math.abs(my);
+    if (!quer) return;
+    dx = mx;
+    setze(Math.min(0, Math.max(-breite() - 24, start + dx)), false);
+  }, { passive:true });
+  vorn.addEventListener('touchend', () => {
+    if (!aktiv || !quer) return;
+    const auf = start + dx < -breite() / 2;
+    zeile.classList.toggle('is-auf', auf);
+    setze(auf ? -breite() : 0, true);
+    zeile.dataset.gewischt = '1';
+    setTimeout(() => { delete zeile.dataset.gewischt; }, 350);
+  }, { passive:true });
+  vorn.addEventListener('click', () => {
+    if (zeile.dataset.gewischt) return;
+    if (zeile.classList.contains('is-auf')){ zeile.classList.remove('is-auf'); setze(0, true); return; }
+    beimTippen();
+  });
+}
+
+/* Lehrkraft: Segmentschalter Alle/Gebucht/Frei, darunter die Zeitfenster
+   als gruppierte Liste. Tippen oder Wischen: Sperren, Freigeben, Absagen. */
 function sptLehrkraftZeichnen(){
   const d = spt.daten, t = d.sprechtag, l = d.lehrer || {};
   const fenster = d.zeitfenster || [];
   const zahl = st => fenster.filter(f => f.status === st).length;
   const vorbei = t.phase === 'vorbei' || t.phase === 'abgesagt';
+  const aktiv = !vorbei && !l.abgesagt;
+  const filter = spt.filter || 'alle';
+  const sichtbar = f => filter === 'alle' || f.status === filter;
+  const bloecke = sptBloecke(fenster).map(b => b.filter(sichtbar)).filter(b => b.length);
+
+  const zeile = f => {
+    const x = f.termin;
+    const name = f.status === 'gebucht' && x ? esc(sptKind(x.schueler) || 'Gebucht')
+      : f.status === 'gesperrt' ? 'Gesperrt' : 'Frei';
+    const unter = f.status === 'gebucht' && x
+      ? [x.gebuchtVon ? 'gebucht von ' + x.gebuchtVon : '', x.bemerkung || ''].filter(Boolean).map(esc).join(' · ')
+      : f.status === 'gesperrt' ? 'Nicht buchbar' : 'Noch buchbar';
+    const akt = !aktiv ? '' : f.status === 'gebucht'
+      ? `<button class="spt-row__act is-rot" data-absagen="${x ? x.id : ''}" type="button">${SPT_ICO.weg}<span>Absagen</span></button>`
+      : f.status === 'gesperrt'
+      ? `<button class="spt-row__act is-gruen" data-sperren="0" type="button">${SPT_ICO.frei}<span>Freigeben</span></button>`
+      : `<button class="spt-row__act is-grau" data-sperren="1" type="button">${SPT_ICO.sperr}<span>Sperren</span></button>`;
+    return `<div class="spt-row spt-row--${f.status}" data-beginn="${esc(f.beginn)}">
+        ${akt ? `<div class="spt-row__acts">${akt}</div>` : ''}
+        <div class="spt-row__front" role="button" tabindex="0">
+          <span class="spt__zeit"><b>${esc(sptZeit(f.beginn))}</b><small>bis ${esc(sptZeit(f.ende))}</small></span>
+          <span class="spt__punkt" aria-hidden="true"></span>
+          <span class="spt__was"><b>${name}</b><span>${unter}</span></span>
+          ${aktiv ? '<svg viewBox="0 0 24 24" class="ico spt__chev"><path d="m10 6 6 6-6 6"/></svg>' : ''}
+        </div>
+      </div>`;
+  };
+
+  const leer = { gebucht:['Noch keine Termine', 'Sobald Eltern einen Termin buchen, erscheint er hier.'],
+                 frei:['Keine freien Zeiten', 'Alle Zeitfenster sind gebucht oder gesperrt.'],
+                 alle:['Keine Zeitfenster', 'Für diesen Sprechtag sind keine Zeiten eingeteilt.'] }[filter];
+
   $('#lstBody').innerHTML = `<div class="spt">
-    ${sptKopf(t, l.raum ? 'Raum ' + l.raum : '')}
-    ${l.abgesagt ? `<p class="spt__hinweis spt__hinweis--rot">Sie haben Ihre Teilnahme abgesagt.${l.absageGrund ? ' Grund: ' + esc(l.absageGrund) : ''}</p>` : ''}
-    <div class="spt__zahlen">
-      <span class="spt__zahl spt__zahl--gebucht"><b>${zahl('gebucht')}</b> gebucht</span>
-      <span class="spt__zahl spt__zahl--frei"><b>${zahl('frei')}</b> frei</span>
-      <span class="spt__zahl spt__zahl--gesperrt"><b>${zahl('gesperrt')}</b> gesperrt</span>
+    ${sptKopf(t, l.raum)}
+    ${l.abgesagt ? `<p class="spt__hinweis spt__hinweis--rot spt__hinweis--frei">Sie haben Ihre Teilnahme abgesagt.${l.absageGrund ? ' Grund: ' + esc(l.absageGrund) : ''}</p>` : ''}
+    <div class="spt__seg" role="tablist">
+      ${[['alle', 'Alle', fenster.length], ['gebucht', 'Gebucht', zahl('gebucht')], ['frei', 'Frei', zahl('frei')]].map(([k, n, z]) =>
+        `<button type="button" role="tab" class="${filter === k ? 'is-on' : ''}" aria-selected="${filter === k}" data-filter="${k}">${n} <i>${z}</i></button>`).join('')}
     </div>
-    <div class="spt__liste">${fenster.map(f => {
-      const offen = spt.offen === f.beginn;
-      const x = f.termin;
-      const was = f.status === 'gebucht' && x
-        ? `<b>${esc(sptKind(x.schueler))}</b>${x.gebuchtVon ? `<span>gebucht von ${esc(x.gebuchtVon)}</span>` : ''}${x.bemerkung ? `<span>${esc(x.bemerkung)}</span>` : ''}`
-        : f.status === 'gesperrt' ? '<b class="is-leise">Gesperrt</b>' : '<b class="is-leise">Frei</b>';
-      const knoepfe = vorbei || l.abgesagt ? '' : f.status === 'gebucht'
-        ? `<button class="spt__knopf spt__knopf--rot" data-absagen="${x ? x.id : ''}">Termin absagen</button>`
-        : f.status === 'gesperrt'
-        ? `<button class="spt__knopf" data-sperren="0">Freigeben</button>`
-        : `<button class="spt__knopf" data-sperren="1">Sperren</button>`;
-      return `<div class="spt__fenster spt__fenster--${f.status}${offen ? ' is-offen' : ''}" data-beginn="${esc(f.beginn)}">
-          <button class="spt__zeile" type="button">
-            <span class="spt__zeit">${esc(sptZeit(f.beginn))}<small>${esc(sptZeit(f.ende))}</small></span>
-            <span class="spt__was">${was}</span>
-            <span class="spt__status">${f.status === 'gebucht' ? 'gebucht' : f.status === 'gesperrt' ? 'gesperrt' : 'frei'}</span>
-          </button>
-          ${offen && knoepfe ? `<div class="spt__aktion">${knoepfe}</div>` : ''}
-        </div>`;
-    }).join('')}</div>
+    ${bloecke.length ? bloecke.map(b => `
+      <p class="spt__gruppe">${esc(sptZeit(b[0].beginn))} – ${esc(sptZeit(b[b.length - 1].ende))} Uhr<span>${b.length} ${b.length === 1 ? 'Termin' : 'Termine'}</span></p>
+      <div class="spt__liste">${b.map(zeile).join('')}</div>`).join('')
+      : `<div class="spt__leerBox">${SPT_ICO.kal}<b>${leer[0]}</b><span>${leer[1]}</span></div>`}
+    ${aktiv && bloecke.length ? `<p class="spt__fuss">Zum Sperren, Freigeben oder Absagen auf ein Zeitfenster tippen oder nach links wischen.${zahl('gesperrt') ? ` ${zahl('gesperrt')} gesperrt.` : ''}</p>` : ''}
   </div>`;
 
-  $$('#lstBody .spt__zeile').forEach(b => b.addEventListener('click', () => {
-    const beginn = b.parentElement.dataset.beginn;
-    spt.offen = spt.offen === beginn ? '' : beginn;
-    sptLehrkraftZeichnen();
+  $$('#lstBody .spt__seg button').forEach(b => b.addEventListener('click', () => {
+    spt.filter = b.dataset.filter; buzz(); sptLehrkraftZeichnen();
   }));
-  $$('#lstBody [data-sperren]').forEach(b => b.addEventListener('click', async () => {
-    const beginn = b.closest('.spt__fenster').dataset.beginn;
+  const sperren = async (beginn, an) => {
     try {
-      await sptFetch(`/${spt.id}/sperren`, 'PUT', { beginne:[beginn], gesperrt: b.dataset.sperren === '1' });
-      spt.offen = ''; buzz();
+      await sptFetch(`/${spt.id}/sperren`, 'PUT', { beginne:[beginn], gesperrt: an });
+      buzz();
+      toast(an ? `${sptZeit(beginn)} Uhr gesperrt` : `${sptZeit(beginn)} Uhr freigegeben`);
       await sprechtagZeichnen();
     } catch (e){ toast('Nicht gespeichert: ' + e.message); }
-  }));
-  $$('#lstBody [data-absagen]').forEach(b => b.addEventListener('click', () => sptAbsagen(+b.dataset.absagen)));
+  };
+  $$('#lstBody .spt-row').forEach(r => {
+    const f = fenster.find(x => x.beginn === r.dataset.beginn);
+    if (!f) return;
+    if (!aktiv){ return; }
+    sptWischen(r, async () => {
+      const zeit = `${sptZeit(f.beginn)}–${sptZeit(f.ende)} Uhr`;
+      if (f.status === 'gebucht') return sptAbsagen(f.termin && f.termin.id, zeit, sptKind(f.termin && f.termin.schueler));
+      const sperr = f.status !== 'gesperrt';
+      const a = await sptBlatt({ titel: zeit, text: sperr ? 'Dieses Zeitfenster sperren? Eltern können es dann nicht mehr buchen.' : 'Dieses Zeitfenster wieder zur Buchung freigeben?',
+        knoepfe: [{ label: sperr ? 'Zeitfenster sperren' : 'Zeitfenster freigeben', wert: 1, fett: !sperr }] });
+      if (a) sperren(f.beginn, sperr);
+    });
+    r.querySelectorAll('[data-sperren]').forEach(b => b.addEventListener('click', () => sperren(f.beginn, b.dataset.sperren === '1')));
+    r.querySelectorAll('[data-absagen]').forEach(b => b.addEventListener('click', () =>
+      sptAbsagen(+b.dataset.absagen, `${sptZeit(f.beginn)}–${sptZeit(f.ende)} Uhr`, sptKind(f.termin && f.termin.schueler))));
+  });
 }
 
-async function sptAbsagen(tid){
+async function sptAbsagen(tid, zeit, wer){
   if (!tid) return;
-  const grund = window.prompt('Termin absagen – Grund (wird mitgeteilt):', '');
-  if (grund === null) return;
+  const a = await sptBlatt({ titel: 'Termin absagen?', text: [zeit, wer].filter(Boolean).join(' · ') + '\nDie Absage wird mitgeteilt.',
+    eingabe: 'Grund (optional)', knoepfe: [{ label: 'Termin absagen', wert: 1, rot: true }] });
+  if (!a) return;
   try {
-    await sptFetch(`/${spt.id}/termine/${tid}/absagen`, 'POST', { grund });
-    spt.offen = ''; buzz();
+    await sptFetch(`/${spt.id}/termine/${tid}/absagen`, 'POST', { grund: a.text });
+    buzz();
     toast('Termin abgesagt');
     spt.liste = null;
     await sprechtagZeichnen();
@@ -3551,69 +3689,84 @@ async function sptAbsagen(tid){
   } catch (e){ toast('Nicht möglich: ' + e.message); }
 }
 
-/* Eltern: eigene Termine oben, darunter je Kind die Lehrkräfte mit freien
-   Zeitfenstern zum Buchen. */
+/* Eltern: eigene Termine oben, darunter je Kind eine Karte je Lehrkraft
+   mit den freien Zeiten als Chips. */
 function sptElternZeichnen(){
   const d = spt.daten, t = d.sprechtag;
   const termine = (d.termine || []).slice().sort((a, b) => String(a.beginn).localeCompare(String(b.beginn)));
   const absagbar = t.phase !== 'vorbei' && t.phase !== 'abgesagt';
   const html = [`<div class="spt">${sptKopf(t)}`];
-  html.push('<p class="spt__gruppe">Meine Termine</p>');
+  if (!d.buchbar && t.phase !== 'vorbei' && t.phase !== 'abgesagt')
+    html.push(`<p class="spt__hinweis spt__hinweis--frei">${t.phase === 'einladung' ? 'Die Anmeldung hat noch nicht begonnen. Freie Zeiten erscheinen hier, sobald sie startet.' : 'Die Anmeldung ist geschlossen.'}</p>`);
+
+  html.push(`<p class="spt__gruppe">Meine Termine<span>${termine.length || ''}</span></p>`);
   html.push(termine.length ? `<div class="spt__liste">${termine.map(x => `
-      <div class="spt__fenster spt__fenster--gebucht">
-        <div class="spt__zeile">
-          <span class="spt__zeit">${esc(sptZeit(x.beginn))}<small>${esc(sptZeit(x.ende))}</small></span>
+      <div class="spt-row spt-row--gebucht" data-tid="${x.id}">
+        ${absagbar ? `<div class="spt-row__acts"><button class="spt-row__act is-rot" data-absagen="${x.id}" type="button">${SPT_ICO.weg}<span>Absagen</span></button></div>` : ''}
+        <div class="spt-row__front" role="button" tabindex="0">
+          <span class="spt__zeit"><b>${esc(sptZeit(x.beginn))}</b><small>bis ${esc(sptZeit(x.ende))}</small></span>
+          <span class="spt__punkt" aria-hidden="true"></span>
           <span class="spt__was"><b>${esc(x.lehrerName || x.lehrer)}</b><span>${esc([sptKind(x.schueler), x.raum ? 'Raum ' + x.raum : ''].filter(Boolean).join(' · '))}</span></span>
-          ${absagbar ? `<button class="spt__knopf spt__knopf--rot spt__knopf--klein" data-absagen="${x.id}">Absagen</button>` : '<span></span>'}
+          ${absagbar ? '<svg viewBox="0 0 24 24" class="ico spt__chev"><path d="m10 6 6 6-6 6"/></svg>' : ''}
         </div>
-      </div>`).join('')}</div>` : '<p class="spt__leer">Noch keine Termine gebucht.</p>');
+      </div>`).join('')}</div>`
+    : `<div class="spt__leerBox spt__leerBox--klein">${SPT_ICO.kal}<b>Noch keine Termine</b><span>${d.buchbar ? 'Tippen Sie unten auf eine freie Zeit, um einen Termin zu buchen.' : 'Es sind keine Termine gebucht.'}</span></div>`);
 
   (d.kinder || []).forEach(k => {
-    html.push(`<p class="spt__gruppe">${esc(sptKind(k))}</p><div class="spt__liste">`);
-    (k.lehrkraefte || []).forEach(l => {
-      const schl = k.id + ':' + l.kurz;
-      const offen = spt.offen === schl;
+    html.push(`<p class="spt__gruppe">${esc(sptKind(k))}</p>`);
+    const lk = k.lehrkraefte || [];
+    if (!lk.length) html.push('<div class="spt__leerBox spt__leerBox--klein"><b>Keine Lehrkräfte</b><span>Für dieses Kind nimmt keine Lehrkraft teil.</span></div>');
+    lk.forEach(l => {
       const fenster = l.zeitfenster || [];
-      const zusatz = [ (l.faecher || []).join(', '), l.klassenleitung ? 'Klassenleitung' : '', l.raum ? 'Raum ' + l.raum : '' ].filter(Boolean).join(' · ');
-      const status = l.abgesagt ? '<span class="spt__status">nimmt nicht teil</span>'
-        : l.termin ? `<span class="spt__status spt__status--gebucht">${esc(sptZeit(l.termin.beginn))} Uhr</span>`
-        : d.buchbar ? `<span class="spt__status spt__status--frei">${fenster.filter(f => !f.konflikt).length} frei</span>`
-        : '<span class="spt__status"></span>';
-      html.push(`<div class="spt__fenster${offen ? ' is-offen' : ''}" data-l="${esc(schl)}">
-          <button class="spt__zeile spt__zeile--lk" type="button">
+      const zusatz = [(l.faecher || []).join(', '), l.klassenleitung ? 'Klassenleitung' : '', l.raum ? 'Raum ' + l.raum : ''].filter(Boolean).join(' · ');
+      const status = l.abgesagt ? '<span class="spt__badge spt__badge--grau">nimmt nicht teil</span>'
+        : l.termin ? `<span class="spt__badge spt__badge--gebucht">${esc(sptZeit(l.termin.beginn))} Uhr</span>`
+        : d.buchbar ? `<span class="spt__badge spt__badge--frei">${fenster.filter(f => !f.konflikt).length} frei</span>` : '';
+      let unten = '';
+      if (l.abgesagt) unten = '<p class="spt__karteText">Diese Lehrkraft nimmt am Sprechtag nicht teil.</p>';
+      else if (l.termin) unten = `<p class="spt__karteText spt__karteText--ok">${SPT_ICO.uhr}Termin um ${esc(sptZeit(l.termin.beginn))} Uhr gebucht</p>`;
+      else if (d.buchbar) unten = fenster.length
+        ? `<div class="spt__slots">${fenster.map(f =>
+            `<button class="spt__slot${f.konflikt ? ' is-konflikt' : ''}" type="button" data-kind="${k.id}" data-lehrer="${esc(l.kurz)}" data-name="${esc(l.name || l.kurz)}" data-beginn="${esc(f.beginn)}"
+               ${f.konflikt ? 'title="Überschneidet sich mit einem anderen Termin"' : ''}>${esc(sptZeit(f.beginn))}</button>`).join('')}</div>`
+        : '<p class="spt__karteText">Keine freien Zeiten mehr.</p>';
+      html.push(`<div class="spt__karte${l.abgesagt ? ' is-aus' : ''}">
+          <div class="spt__karteKopf">
+            <span class="spt__ava">${esc(sptKuerzel(l.name || l.kurz))}</span>
             <span class="spt__was"><b>${esc(l.name || l.kurz)}${l.eingeladen ? ' <i class="spt__einl">eingeladen</i>' : ''}</b>${zusatz ? `<span>${esc(zusatz)}</span>` : ''}</span>
             ${status}
-          </button>
-          ${offen && !l.abgesagt && !l.termin && d.buchbar ? `<div class="spt__slots">${fenster.length ? fenster.map(f =>
-              `<button class="spt__slot${f.konflikt ? ' is-konflikt' : ''}" data-kind="${k.id}" data-lehrer="${esc(l.kurz)}" data-beginn="${esc(f.beginn)}"
-                 ${f.konflikt ? 'title="Überschneidet sich mit einem anderen Termin"' : ''}>${esc(sptZeit(f.beginn))}</button>`).join('')
-              : '<p class="spt__leer">Keine freien Zeiten mehr.</p>'}</div>` : ''}
-          ${offen && l.eingeladen && l.einladungText ? `<p class="spt__hinweis">${esc(l.einladungText)}</p>` : ''}
+          </div>
+          ${l.eingeladen && l.einladungText ? `<p class="spt__hinweis">${esc(l.einladungText)}</p>` : ''}
+          ${unten}
         </div>`);
     });
-    html.push('</div>');
   });
-  if (!d.buchbar && t.phase !== 'vorbei') html.push(`<p class="spt__leer">${t.phase === 'einladung' ? 'Die Anmeldung hat noch nicht begonnen.' : 'Die Anmeldung ist geschlossen.'}</p>`);
   html.push('</div>');
   $('#lstBody').innerHTML = html.join('');
 
-  $$('#lstBody .spt__zeile--lk').forEach(b => b.addEventListener('click', () => {
-    const schl = b.parentElement.dataset.l;
-    spt.offen = spt.offen === schl ? '' : schl;
-    sptElternZeichnen();
-  }));
+  $$('#lstBody .spt-row[data-tid]').forEach(r => {
+    const x = termine.find(y => String(y.id) === r.dataset.tid);
+    if (!x || !absagbar) return;
+    const zeit = `${sptZeit(x.beginn)}–${sptZeit(x.ende)} Uhr`, wer = x.lehrerName || x.lehrer;
+    sptWischen(r, () => sptAbsagen(x.id, zeit, wer));
+    r.querySelectorAll('[data-absagen]').forEach(b => b.addEventListener('click', () => sptAbsagen(x.id, zeit, wer)));
+  });
   $$('#lstBody .spt__slot').forEach(b => b.addEventListener('click', async () => {
-    if (b.classList.contains('is-konflikt') && !window.confirm('Diese Zeit überschneidet sich mit einem anderen Termin. Trotzdem buchen?')) return;
+    const kind = (d.kinder || []).find(k => String(k.id) === b.dataset.kind);
+    const a = await sptBlatt({
+      titel: `${sptZeit(b.dataset.beginn)} Uhr bei ${b.dataset.name}`,
+      text: [kind ? 'Für ' + sptKind(kind) : '', b.classList.contains('is-konflikt') ? 'Achtung: Diese Zeit überschneidet sich mit einem anderen Termin.' : ''].filter(Boolean).join('\n'),
+      knoepfe: [{ label: 'Termin buchen', wert: 1, fett: true }] });
+    if (!a) return;
     try {
       await sptFetch(`/${spt.id}/buchen`, 'POST', { lehrer: b.dataset.lehrer, schuelerId: +b.dataset.kind, beginn: b.dataset.beginn });
-      spt.offen = ''; buzz();
+      buzz();
       toast(`Termin um ${sptZeit(b.dataset.beginn)} Uhr gebucht`);
       spt.liste = null;
       await sprechtagZeichnen();
       sptStart();
     } catch (e){ toast('Nicht gebucht: ' + e.message); }
   }));
-  $$('#lstBody [data-absagen]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); sptAbsagen(+b.dataset.absagen); }));
 }
 $('#lstBack').addEventListener('click', () => {
   /* Sprechtag mit mehreren Terminen: erst zurück zur Auswahl. */
@@ -3621,7 +3774,7 @@ $('#lstBack').addEventListener('click', () => {
       && (spt.liste.sprechtage || []).filter(x => spt.eltern || x.beteiligt).length > 1){
     spt.id = 0; spt.offen = ''; sprechtagZeichnen(); return;
   }
-  if (listeStand.art === 'sprechtag'){ spt.id = 0; spt.offen = ''; spt.liste = null; }
+  if (listeStand.art === 'sprechtag'){ spt.id = 0; spt.offen = ''; spt.liste = null; spt.filter = 'alle'; }
   showScreen('start');
 });
 
@@ -3864,8 +4017,10 @@ const SH = {
   menu:   bindSheet('#sheetMenu',   '#scrimMenu'),
   week:   bindSheet('#sheetWeek',   '#scrimWeek'),
   legend: bindSheet('#sheetLegend', '#scrimLegend'),
-  write:  bindSheet('#sheetWrite',  '#scrimWrite')
+  write:  bindSheet('#sheetWrite',  '#scrimWrite'),
+  info:   bindSheet('#sheetInfo',   '#scrimInfo')
 };
+$('#infoClose').addEventListener('click', () => SH.info.close());
 
 /* ---------- Auswahl: erst Kategorie, dann Liste ---------- */
 let pickerType = null;                    // null = Kategorieebene
@@ -4178,7 +4333,15 @@ $('#pickerSearch').addEventListener('input', () => {
   renderPicker();
 });
 
-$('#btnInfo').addEventListener('click', () => toast(state.entity.info || ''));
+/* Info zum angezeigten Plan: eigenes Blatt wie die Stundendetails. */
+$('#btnInfo').addEventListener('click', () => {
+  $('#infoTitle').textContent = state.entity.label || 'Information';
+  const zeilen = String(state.entity.info || '').split(/\n|\s+·\s+/).map(x => x.trim()).filter(Boolean);
+  $('#infoBody').innerHTML = zeilen.length
+    ? `<div class="info__group">${zeilen.map(z => `<p class="info__row">${esc(z)}</p>`).join('')}</div>`
+    : '<p class="info__leer">Keine weiteren Angaben.</p>';
+  SH.info.open();
+});
 
 /* ---------- Menü ---------- */
 /* Der Haken sitzt bei der gerade laufenden Ansicht — wie im Muster. Vor

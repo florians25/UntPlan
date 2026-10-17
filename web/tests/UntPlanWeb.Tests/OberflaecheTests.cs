@@ -153,14 +153,90 @@ public class OberflaecheTests
         });
         Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(paket)).StatusCode);
         var c = await s.AlsAsync("admin");
-        foreach (var url in new[] { "/api/app/plan?typ=raum&element=R103&datum=2026-10-16", "/api/app/plan?typ=lehrer&element=MUE&datum=2026-10-16" })
-        {
-            var k = Karten(await Testserver.HolenAsync(c, url), "2026-10-16", 9).Single(x => x["fach"]!.GetValue<string>() == "VB");
-            Assert.Equal("abwesend", k["status"]!.GetValue<string>());
-            Assert.True(k["lehrerAbwesend"]!.GetValue<bool>());
-            Assert.True(k["bereitschaft"]!.GetValue<bool>());
-            Assert.Equal("MUE", k["lehrer"]![0]!["alt"]!.GetValue<string>());
-        }
+        // Lehrerplan: Darstellung „Lehrkraft abwesend“
+        var k = Karten(await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=MUE&datum=2026-10-16"), "2026-10-16", 9).Single(x => x["fach"]!.GetValue<string>() == "VB");
+        Assert.Equal("abwesend", k["status"]!.GetValue<string>());
+        Assert.True(k["lehrerAbwesend"]!.GetValue<bool>());
+        Assert.True(k["bereitschaft"]!.GetValue<bool>());
+        Assert.Equal("MUE", k["lehrer"]![0]!["alt"]!.GetValue<string>());
+        // Raumplan: wie im Klassenplan grüne Änderungskarte, abwesende Lehrkraft durchgestrichen im grünen Label – kein Entfall
+        var r = Karten(await Testserver.HolenAsync(c, "/api/app/plan?typ=raum&element=R103&datum=2026-10-16"), "2026-10-16", 9).Single(x => x["fach"]!.GetValue<string>() == "VB");
+        Assert.Equal("geaendert", r["status"]!.GetValue<string>());
+        Assert.False(r["lehrerAbwesend"]!.GetValue<bool>());
+        Assert.True(r["bereitschaft"]!.GetValue<bool>());
+        var l = r["lehrer"]!.AsArray().Single()!;
+        Assert.Equal("", l["k"]!.GetValue<string>());
+        Assert.Equal("MUE", l["alt"]!.GetValue<string>());
+        Assert.True(l["neu"]!.GetValue<bool>());
+    }
+
+    /// <summary>Feldwerte einer Karte, wie sie Klassen- und Raumplan gleich liefern müssen.</summary>
+    private static string Kern(JsonNode k) => string.Join("|", k["status"]!.GetValue<string>(), k["lehrerAbwesend"]!.GetValue<bool>(), k["vertretungOffen"]!.GetValue<bool>(),
+        string.Join(",", k["lehrer"]!.AsArray().Select(w => $"{w!["k"]!.GetValue<string>()}/{w["alt"]?.GetValue<string>()}/{w["neu"]!.GetValue<bool>()}")));
+
+    /// <summary>
+    /// Raumplan mit abwesender Lehrkraft wie im Klassenplan: vertretene Stunde „geaendert“ mit Vertretung im grünen Label
+    /// ({ k: "HAR", alt: "HOF", neu: true }), offene Vertretung „offen“ mit vertretungOffen und { k: "", alt: "WEB", neu: true },
+    /// echter Entfall bleibt Entfall; lehrerAbwesend ist im Raumplan immer false (auch in der Tagesansicht Räume).
+    /// </summary>
+    [Fact]
+    public async Task Raumplan_zeigt_abwesende_Lehrkraft_wie_der_Klassenplan()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var c = await s.AlsAsync("admin");
+        async Task<JsonNode> Karte(string typ, string element, string datum, int stunde) =>
+            Karten(await Testserver.HolenAsync(c, $"/api/app/plan?typ={typ}&element={element}&datum={datum}"), datum, stunde).Single();
+
+        // vertreten: HOF abwesend, HAR vertritt in KU1
+        var raum = await Karte("raum", "KU1", "2026-10-12", 1);
+        Assert.Equal("geaendert", raum["status"]!.GetValue<string>());
+        Assert.False(raum["lehrerAbwesend"]!.GetValue<bool>());
+        Assert.False(raum["vertretungOffen"]!.GetValue<bool>());
+        var l = raum["lehrer"]!.AsArray().Single()!;
+        Assert.Equal(("HAR", "HOF", true), (l["k"]!.GetValue<string>(), l["alt"]!.GetValue<string>(), l["neu"]!.GetValue<bool>()));
+        Assert.Equal(Kern(await Karte("klasse", "5b", "2026-10-12", 1)), Kern(raum));
+
+        // offen: WEB abwesend, noch keine Vertretung (R101)
+        raum = await Karte("raum", "R101", "2026-10-16", 1);
+        Assert.Equal("offen", raum["status"]!.GetValue<string>());
+        Assert.False(raum["lehrerAbwesend"]!.GetValue<bool>());
+        Assert.True(raum["vertretungOffen"]!.GetValue<bool>());
+        l = raum["lehrer"]!.AsArray().Single()!;
+        Assert.Equal(("", "WEB", true), (l["k"]!.GetValue<string>(), l["alt"]!.GetValue<string>(), l["neu"]!.GetValue<bool>()));
+        Assert.Equal(Kern(await Karte("klasse", "5a", "2026-10-16", 1)), Kern(raum));
+
+        // echter Entfall bleibt Entfall (KU1, EF, HOF)
+        raum = await Karte("raum", "KU1", "2026-10-13", 2);
+        Assert.Equal("entfall", raum["status"]!.GetValue<string>());
+        Assert.False(raum["lehrerAbwesend"]!.GetValue<bool>());
+        Assert.Equal("HOF", raum["lehrer"]![0]!["k"]!.GetValue<string>());
+
+        // Tagesansicht Räume: dieselben Karten, nie „Lehrkraft abwesend“
+        var tag = await Testserver.HolenAsync(c, "/api/app/tag?typ=raum&datum=2026-10-12");
+        var ku1 = tag["zeilen"]!.AsArray().Single(z => z!["kurz"]!.GetValue<string>() == "KU1")!["karten"]!.AsArray();
+        Assert.All(ku1, k => Assert.False(k!["lehrerAbwesend"]!.GetValue<bool>()));
+        Assert.Contains(ku1, k => k!["von"]!.GetValue<int>() == 1 && k["status"]!.GetValue<string>() == "geaendert");
+    }
+
+    /// <summary>Vertretene Stunde ohne Raumangabe in der Stunde, Raum laut Vertretung unverändert: bleibt im Raumplan als Änderung.</summary>
+    [Fact]
+    public async Task Raumplan_vertretene_Stunde_ohne_Raum_in_der_Stunde_bleibt_im_Raum()
+    {
+        await using var s = await Testserver.StartenAsync(false);
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 52;
+        var tag = paket["tage"]!.AsArray().First(t => t!["datum"]!.GetValue<string>() == "2026-10-12")!;
+        var st = tag["stunden"]!.AsArray().First(x => x!["stunde"]!.GetValue<int>() == 1 && x["vertretung"]?.GetValue<int>() == 381)!;
+        st["raeume"] = new JsonArray();
+        var v = paket["vertretungen"]!.AsArray().First(x => x!["id"]!.GetValue<int>() == 381)!;
+        v["neuerRaum"] = "";
+        Assert.Equal(HttpStatusCode.OK, (await s.PaketSendenAsync(paket)).StatusCode);
+        var c = await s.AlsAsync("admin");
+        var k = Karten(await Testserver.HolenAsync(c, "/api/app/plan?typ=raum&element=KU1&datum=2026-10-12"), "2026-10-12", 1).Single();
+        Assert.Equal("geaendert", k["status"]!.GetValue<string>());
+        Assert.False(k["lehrerAbwesend"]!.GetValue<bool>());
+        Assert.Equal("HAR", k["lehrer"]![0]!["k"]!.GetValue<string>());
+        Assert.Equal("HOF", k["lehrer"]![0]!["alt"]!.GetValue<string>());
     }
 
     /// <summary>

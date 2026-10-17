@@ -214,19 +214,17 @@ struct StundenplanView: View {
                 AufsichtDetailView(aufsicht: a)
                     .environmentObject(zustand)
             }
-            .sheet(isPresented: $zeigeAuswahl) {
+            // Planauswahl, Info und Hilfe: am iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails
+            .blattPraesentation(isPresented: $zeigeAuswahl, breit: istBreit) {
                 PlanAuswahlView(auswahl: $auswahl)
                     .environmentObject(zustand)
                     .environmentObject(favoriten)
-                    .iPhoneBlatt()
             }
-            .sheet(isPresented: $zeigeInfo) {
+            .blattPraesentation(isPresented: $zeigeInfo, breit: istBreit) {
                 PlanInfoView(titel: titel, plan: aktuellerPlan)
-                    .iPhoneBlatt()
             }
-            .sheet(isPresented: $zeigeHilfe) {
+            .blattPraesentation(isPresented: $zeigeHilfe, breit: istBreit) {
                 PlanInfoView(titel: "Hilfe", plan: aktuellerPlan, hilfe: true)
-                    .iPhoneBlatt()
             }
             .task(id: ladeSchluessel) { await laden() }
             .onAppear {
@@ -724,10 +722,20 @@ struct PlanInfoView: View {
     let titel: String
     let plan: Wochenplan?
     var hilfe: Bool = false
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Kopf wie bei den Stundendetails: runder Glasknopf X links, Titel mittig
+            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }) {
+                Blatttitel(titel: titel)
+            }
             List {
                 if hilfe {
                     Section("Bedienung") {
@@ -807,14 +815,11 @@ struct PlanInfoView: View {
                     }
                 }
             }
-            .navigationTitle(titel)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fertig") { schliessen() }
-                }
-            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Farben.grund)
         }
+        .background(Farben.blatt.ignoresSafeArea())
     }
 
     private func hilfezeile(_ symbol: String, _ text: String) -> some View {

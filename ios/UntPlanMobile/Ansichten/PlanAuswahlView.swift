@@ -41,7 +41,13 @@ enum Plankategorie: String, Hashable, CaseIterable, Identifiable {
 struct PlanAuswahlView: View {
     @EnvironmentObject var zustand: AppZustand
     @EnvironmentObject var favoriten: Favoriten
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
     @Binding var auswahl: PlanAuswahl?
     @State private var elemente: Elemente? = nil
     @State private var suche = ""
@@ -91,8 +97,7 @@ struct PlanAuswahlView: View {
                 .environmentObject(favoriten)
             }
         }
-        .presentationBackground(Farben.blatt)
-        .presentationCornerRadius(38)
+        .background(Farben.blatt.ignoresSafeArea())
         .task { await laden() }
     }
 
@@ -103,12 +108,8 @@ struct PlanAuswahlView: View {
             Button {
                 schliessen()
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 19, weight: .regular))
-                    .foregroundStyle(Farben.tinte2)
-                    .frame(width: 44, height: 44)
-                    .glas(Circle())
-                    .contentShape(Circle())
+                // Liquid Glass wie in den übrigen Kopfzeilen (ab iOS 26 interaktiv, davor Milchglas mit feinem Rand)
+                Rundknopf(symbol: "xmark", gewicht: .regular, groesse: 19)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Schließen")
@@ -133,7 +134,7 @@ struct PlanAuswahlView: View {
                     .fixedSize()
                     .padding(.horizontal, 14)
                     .frame(height: 44)
-                    .glas(Capsule())
+                    .liquidGlas(Capsule())
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -378,12 +379,7 @@ struct ElementlisteView: View {
             Button {
                 zurueck()
             } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 19, weight: .regular))
-                    .foregroundStyle(Farben.tinte2)
-                    .frame(width: 44, height: 44)
-                    .glas(Circle())
-                    .contentShape(Circle())
+                Rundknopf(symbol: "chevron.left", gewicht: .regular, groesse: 19)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Zurück")

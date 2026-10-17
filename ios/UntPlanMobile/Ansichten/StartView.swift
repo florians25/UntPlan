@@ -40,7 +40,15 @@ struct StartView: View {
     @State private var alleStunden = false
     /// Sprechtage für die Startseite (Lehrkräfte bzw. Erziehungsberechtigte)
     @State private var sprechtage: [SprechtagKarte] = []
+    /// Geöffneter Sprechtag (als Blatt wie die Stundendetails)
+    @State private var sprechtagWahl: SprechtagWahl? = nil
     @Environment(\.horizontalSizeClass) private var groessenklasse
+
+    /// Sprechtag, der als Blatt gezeigt wird.
+    struct SprechtagWahl: Identifiable {
+        let id: Int
+        let titel: String
+    }
 
     /// iPhone: Seitenrand 16 pt (iPad 18 pt, mittig höchstens 736 pt breit).
     private var rand: CGFloat { groessenklasse == .compact ? 16 : 18 }
@@ -89,6 +97,7 @@ struct StartView: View {
                     MeineAbwesenheitenView()
                         .environmentObject(zustand)
                 case .sprechtag(let id):
+                    // Rückfall (sonst als Blatt): Kopf mit Zurück statt X über dieselbe Ansicht
                     SprechtagView(id: id, titel: sprechtage.first { $0.id == id }?.titel ?? "Sprechtag")
                         .environmentObject(zustand)
                 default:
@@ -98,6 +107,17 @@ struct StartView: View {
             .detailPraesentation(item: $gewaehlteKarte, breit: groessenklasse == .regular) { karte in
                 StundendetailView(karte: karte, typ: heute?.typ ?? "klasse", element: heute?.element ?? "")
                     .environmentObject(zustand)
+            }
+            // Sprechtag: iPhone randloses 90-%-Blatt, iPad festes Detailblatt (eigener Navigationsstapel im Blatt)
+            .detailPraesentation(item: $sprechtagWahl, breit: groessenklasse == .regular) { wahl in
+                NavigationStack {
+                    SprechtagView(id: wahl.id, titel: wahl.titel)
+                }
+                .environmentObject(zustand)
+            }
+            .onChange(of: sprechtagWahl?.id) { _, neu in
+                // Nach dem Schließen die Zahl der Termine auf der Startseite auffrischen
+                if neu == nil { Task { await laden() } }
             }
         }
     }
@@ -372,10 +392,19 @@ struct StartView: View {
         return Zeilengruppe {
             ForEach(Array(liste.enumerated()), id: \.element.id) { eintrag in
                 let e = eintrag.element
-                NavigationLink(value: e.ziel) {
-                    Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil)
+                if case .sprechtag(let sid) = e.ziel {
+                    Button {
+                        sprechtagWahl = SprechtagWahl(id: sid, titel: e.titel)
+                    } label: {
+                        Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil)
+                    }
+                    .buttonStyle(ZeilenKnopfStil())
+                } else {
+                    NavigationLink(value: e.ziel) {
+                        Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil)
+                    }
+                    .buttonStyle(ZeilenKnopfStil())
                 }
-                .buttonStyle(ZeilenKnopfStil())
                 if eintrag.offset < liste.count - 1 {
                     Zeilentrenner()
                 }

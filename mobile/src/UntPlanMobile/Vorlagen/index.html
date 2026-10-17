@@ -408,6 +408,7 @@
 <!-- ==================== SHEET: ENTITY PICKER ==================== -->
 <div class="scrim" id="scrimPicker" hidden></div>
 <section class="sheet sheet--picker" id="sheetPicker" role="dialog" aria-modal="true" aria-label="Stundenplan auswählen" hidden>
+  <div class="sheet__grab sheet__grab--phone" aria-hidden="true"></div>
   <div class="pk__top">
     <button class="rndbtn" id="pickerBack" aria-label="Zurück">
       <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
@@ -616,6 +617,7 @@
 <!-- ==================== GEHE ZU DATUM (Popover) ==================== -->
 <div class="scrim scrim--clear" id="scrimWeek" hidden></div>
 <section class="sheet sheet--menu datepop" id="sheetWeek" role="dialog" aria-modal="true" aria-label="Gehe zu Datum" data-nodrag hidden>
+  <div class="sheet__grab sheet__grab--phone" aria-hidden="true"></div>
   <div class="datepop__top">
     <button class="datepop__btn" id="calToday" type="button">Heute</button>
     <button class="datepop__btn datepop__btn--go" id="calPick" type="button">Auswählen</button>
@@ -646,9 +648,24 @@
   </ul>
 </section>
 
+<!-- ==================== SHEET: INFO ZUM PLAN ==================== -->
+<div class="scrim" id="scrimInfo" hidden></div>
+<section class="sheet sheet--info" id="sheetInfo" role="dialog" aria-modal="true" aria-label="Information" hidden>
+  <div class="sheet__grab sheet__grab--phone" aria-hidden="true"></div>
+  <header class="info__top">
+    <button class="rndbtn" id="infoClose" aria-label="Schließen">
+      <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <span class="info__title" id="infoTitle">Information</span>
+    <span></span>
+  </header>
+  <div class="info__body" id="infoBody"></div>
+</section>
+
 <!-- ==================== MITTEILUNG SCHREIBEN ==================== -->
 <div class="scrim" id="scrimWrite" hidden></div>
 <section class="sheet sheet--write" id="sheetWrite" role="dialog" aria-modal="true" aria-label="Neue Mitteilung" hidden>
+  <div class="sheet__grab sheet__grab--phone" aria-hidden="true"></div>
   <header class="write__top">
     <button class="rndbtn" id="msgClose" aria-label="Schließen">
       <svg viewBox="0 0 24 24" class="ico"><path d="m6 6 12 12M18 6 6 18"/></svg>

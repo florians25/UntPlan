@@ -731,7 +731,8 @@ struct HausaufgabenSeite: View {
                 .accessibilityLabel("Neue Hausaufgabe")
             }
         }
-        .sheet(item: $formular) { vorlage in
+        // iPhone: randloses 90-%-Blatt wie die Stundendetails; iPad: Formblatt (Größenklasse im Blatt ist kompakt)
+        .detailPraesentation(item: $formular, breit: Geraet.istPad, art: .formular) { vorlage in
             HausaufgabeFormular(vorlage: vorlage) { text, faellig, bemerkung in
                 if let id = vorlage.eintrag?.id {
                     try await daten.hausaufgabeAendern(id, text: text, faellig: faellig, bemerkung: bemerkung)
@@ -851,7 +852,13 @@ struct HausaufgabeFormular: View {
     let vorlage: Vorlage
     let sichern: (String, Date?, String) async throws -> Void
     @EnvironmentObject var zustand: AppZustand
-    @Environment(\.dismiss) private var schliessen
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
     @State private var text = ""
     @State private var mitFaellig = true
     @State private var faellig = Date()
@@ -863,6 +870,9 @@ struct HausaufgabeFormular: View {
 
     var body: some View {
         NavigationStack {
+            // Kopf wie alle Formulare im Blatt: X links, Titel mittig, oranger Haken (Sichern) rechts
+            DetailSeitenRahmen(titel: vorlage.eintrag == nil ? "Neue Hausaufgabe" : "Hausaufgabe", untertitel: nil,
+                               symbol: "xmark", zurueck: { schliessen() }) {
             Form {
                 Section("Hausaufgabe") {
                     TextField("Was ist zu tun?", text: $text, axis: .vertical)
@@ -886,20 +896,12 @@ struct HausaufgabeFormular: View {
                     }
                 }
             }
-            .navigationTitle(vorlage.eintrag == nil ? "Neue Hausaufgabe" : "Hausaufgabe")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { schliessen() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if speichert {
-                        ProgressView()
-                    } else {
-                        Button("Sichern") { Task { await speichern() } }
-                            .fontWeight(.medium)
-                            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
+            .scrollContentBackground(.hidden)
+            .background(Farben.grund)
+            .scrollDismissesKeyboard(.interactively)
+            } rechts: {
+                SichernKnopf(speichert: speichert, aktiv: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                    Task { await speichern() }
                 }
             }
             .onAppear {
@@ -917,7 +919,6 @@ struct HausaufgabeFormular: View {
                 }
             }
         }
-        .iPhoneBlatt()
     }
 
     private func speichern() async {
@@ -1162,7 +1163,7 @@ struct SchuelerSeite: View {
         DetailSeitenRahmen(titel: "Schüler*innen", untertitel: stundenUntertitel(daten.karte), laedt: liste == nil) {
             inhalt
         }
-        .sheet(item: $eintrag) { v in
+        .detailPraesentation(item: $eintrag, breit: Geraet.istPad, art: .formular) { v in
             NeuerKlassenbucheintragView(vorauswahl: v.schueler)
                 .environmentObject(daten)
                 .environmentObject(zustand)

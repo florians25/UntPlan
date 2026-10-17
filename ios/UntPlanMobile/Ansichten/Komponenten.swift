@@ -294,6 +294,7 @@ struct KontoSymbol: View {
 struct KontoMenue<Beschriftung: View>: View {
     @EnvironmentObject var zustand: AppZustand
     @State private var zeigen = false
+    @Environment(\.horizontalSizeClass) private var groessenklasse
     @ViewBuilder let beschriftung: () -> Beschriftung
 
     var body: some View {
@@ -304,7 +305,8 @@ struct KontoMenue<Beschriftung: View>: View {
         }
         .accessibilityLabel("Konto wechseln")
         .accessibilityHint("Öffnet die Kontenauswahl")
-        .sheet(isPresented: $zeigen) {
+        // Am iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails
+        .blattPraesentation(isPresented: $zeigen, breit: groessenklasse == .regular) {
             KontenauswahlView()
                 .environmentObject(zustand)
         }
