@@ -74,9 +74,12 @@ public static class StartseiteApi
                         foreach (var kl in klassen) offen += (await FehlzeitenAsync(c, web, k, kl.Kurz, heute.AddDays(-60), heute)).Count(f => f.Status == "pending");
                     // Infos zum Tag für die Karten oben: Nachrichten zum Tag und heutige Veranstaltungen aus UntPlanWeb
                     var news = new List<object>();
+                    // Sprechtage für die Startseite (gleiche Karten wie /api/app/sprechtag/start); null = älterer Server ohne das Feld
+                    JsonNode? sprechtage = null;
                     try
                     {
                         var h = await web.GetAsync(c, "api/app/heute");
+                        if (h?["sprechtage"] is JsonArray st) sprechtage = st.DeepClone();
                         foreach (var n in (h?["nachrichten"]?.AsArray() ?? new JsonArray()).Select(x => x?.GetValue<string>() ?? ""))
                         {
                             var text = OhneHtml(n);
@@ -114,6 +117,7 @@ public static class StartseiteApi
                             },
                         classes = klassen.Select(x => new { id = x.Kurz, name = x.Kurz }),
                         openExcuses = offen,
+                        sprechtage,
                     });
                 }
                 case "exams":

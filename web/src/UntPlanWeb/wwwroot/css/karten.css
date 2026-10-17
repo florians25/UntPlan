@@ -21,16 +21,13 @@
 /* ------------------------------------------------------------------ Marker oben rechts: feine Linien-Symbole
 
    „+“ (zusätzliche Stunde) und Verlegung als weiche Linien (runde Enden) in einem 12px-Quadrat mit Radius 3px.
-   Verlegung: ursprüngliche Stunde rot mit Pfeil nach rechts, Zielstunde grün mit Pfeil nach links. */
+   Verlegung (Sprint 27): beide Seiten mit weißem Pfeil nach rechts – ursprüngliche Stunde rot, Zielstunde grün; Hover „Ursprung → Ziel“. */
 .mk-plus { border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M8 3v10M3 8h10'/%3E%3C/svg%3E"); }
 .mk-plus::before, .mk-plus::after { content: none; }
 .mks .mk-verlegung { width: 12px; height: 12px; border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
-  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.5 8h-9M7 4.5 3.5 8 7 11.5'/%3E%3C/svg%3E"); }
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8h9M9 4.5 12.5 8 9 11.5'/%3E%3C/svg%3E"); }
 .mks .mk-verlegung.von { background-color: #f03e3e; }
-/* Sprint 27: beide Seiten einer Verlegung mit weißem Pfeil nach RECHTS (Ursprung rot, Ziel grün); Hover „Ursprung → Ziel“ */
-.mks .mk-verlegung, .mks .mk-verlegung.von {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8h9M9 4.5 12.5 8 9 11.5'/%3E%3C/svg%3E"); }
 .std .mks [data-hover] { cursor: default; }
 /* mehrere Symbole untereinander (z. B. „+“ und Änderung, Prüfung und Änderung) */
 .std .mks { gap: 4px; }
@@ -51,6 +48,8 @@
    Schrift Medium. Rot: Ursprung einer Verlegung. Grau: vollständiger Text einer gekürzten Zeile (z. B. „Sexualpädagogik“).
    Pillen: alle Werte einer gekürzten Liste in Reihen – dunkelgrau, geändert grün, abwesend/entfernt grün durchgestrichen. */
 .u-hover-label { font-weight: 500; }
+/* Labels und Verlegung: eine Zeile („09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15“) */
+.u-hover-label:not(.dunkel):not(.pillen) { white-space: nowrap; max-width: none; }
 .u-hover-label.rot { background: #f44336; color: #fff; font-size: 15px; font-weight: 500; padding: 7px 12px; border-radius: 3px; }
 .u-hover-label.zeile { background: #6b7680; color: #fff; font-size: 13px; font-weight: 500; padding: 6px 10px; border-radius: 3px; white-space: nowrap; max-width: none; }
 .u-hover-label.pillen { max-width: 360px; gap: 4px; }
@@ -103,6 +102,14 @@
 .sd-plus-sym { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .sd-raum-plus .sd-plus-sym { width: 18px; height: 18px; }
 
+/* ------------------------------------------------------------------ Stundendetails (Sprint 27)
+
+   Badges („Prüfung“, „Veranstaltung“, „Zusätzl. Unterrichtsstunde“) in der oberen Zeile bei Klasse/Fach, dunkelgrau mit weißer Schrift.
+   Knöpfe „Lehrstoff eingeben“ / „Abwesenheiten kontrollieren“ unten rechts einen Tick kleiner. */
+.sd-titel h2 .sd-statuspille { margin-left: .75rem; padding: 0 10px; font-size: 13px; font-weight: 500; line-height: 22px; vertical-align: middle; border-radius: 999px; }
+.sd-titel h2 .sd-statuspille:not(.sd-einzelpille), .sd-kopf.grau .sd-titel h2 .sd-statuspille:not(.sd-einzelpille) { background: #6b7680; color: #fff; }
+.sd-fuss.sd-status .sd-orange { height: 46px; min-height: 46px; padding: 0 18px; font-size: .875rem; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
@@ -132,3 +139,4 @@ html:root.is-mac :is(.std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1,
 }
 html:root.is-mac .std:is(.entfall, .abwesend):not(.lehrer-abwesend) :is(.z1, .z2, .zt) { --strich: .75px; }
 html:root.is-mac .sd-alt { text-decoration-color: #b3bcc4; }
+

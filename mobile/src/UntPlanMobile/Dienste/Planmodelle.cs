@@ -96,7 +96,9 @@ public sealed record KlassenEintrag(
 public sealed record KachelVerlegung(
     [property: JsonPropertyName("date")] string Datum,
     [property: JsonPropertyName("from")] string Beginn,
-    [property: JsonPropertyName("to")] string Ende);
+    [property: JsonPropertyName("to")] string Ende,
+    /// <summary>Anzeige „09.10.2026 | 11:30 - 13:00“ (ohne Ende nur der Beginn).</summary>
+    [property: JsonPropertyName("text")] string Text = "");
 
 /// <summary>
 /// Eine Kachel im Raster. blockType: normal, change, cancelled, klausur, event, absence (Veranstaltung),

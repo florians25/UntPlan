@@ -209,8 +209,10 @@ public class SprechtagTests
         var karte = Assert.Single((await Testserver.HolenAsync(lan, "/api/app/sprechtag/start")).AsArray())!;
         Assert.Equal("einladung", karte["phase"]!.GetValue<string>());
         Assert.Contains("15.10.2026 20:00", karte["text"]!.GetValue<string>());
-        // Eltern ohne Einladung sehen in der Einladungsphase noch keine Karte
-        Assert.Empty((await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray());
+        // Eltern ohne Einladung sehen den Sprechtag schon als „angekündigt“ (Datum, Zeit, Anmeldebeginn)
+        var ankuendigung = Assert.Single((await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray())!;
+        Assert.Equal("angekuendigt", ankuendigung["status"]!.GetValue<string>());
+        Assert.Contains("Anmeldung ab 16.10.2026 08:00", ankuendigung["text"]!.GetValue<string>());
 
         var auswahl = await Testserver.HolenAsync(lan, Url("/schueler"));
         Assert.Contains("7a", auswahl["eigeneKlassen"]!.AsArray().Select(k => k!.GetValue<string>()));

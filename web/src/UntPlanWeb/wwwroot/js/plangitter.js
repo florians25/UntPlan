@@ -424,8 +424,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
         const label = aufsichtLabel(a);
         const vorbei = a.datum < heute || (a.datum === heute && a.ende && minuten(a.ende) <= jetzt);
-        // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip
-        html += `<div class="aufsicht u-hover-bereich ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 2}px;height:${PAUSE - 4}px;left:calc(${j * breite}% + ${j ? 2 : 0}px);width:calc(${breite}% - ${liste.length > 1 ? 2 : 0}px)"
+        // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
+        // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie, gleiche Breite und Einrückung
+        html += `<div class="aufsicht u-hover-bereich ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
           ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${e(ort)}${label ? ' ' + label : ''}</span></div>`;
       });
     }
@@ -462,7 +463,7 @@ let hoverEl = null, hoverZiel = null, hoverTimer = 0;
 function hoverZeigen(ziel, anker = ziel) {
   clearTimeout(hoverTimer);
   if (!hoverEl) { hoverEl = document.createElement('div'); hoverEl.className = 'u-hover-label'; hoverEl.setAttribute('role', 'tooltip'); document.body.append(hoverEl); }
-  if (hoverZiel === ziel && hoverEl.style.display === 'block') return;   // ruhig stehen lassen, kein Flackern beim Bewegen
+  if (hoverZiel === ziel && hoverEl.style.display && hoverEl.style.display !== 'none') return;   // ruhig stehen lassen, kein Flackern beim Bewegen
   hoverZiel = ziel;
   const zeile = ziel.classList.contains('z1') || ziel.classList.contains('z2');
   let pillen = null;
@@ -476,7 +477,7 @@ function hoverZeigen(ziel, anker = ziel) {
   hoverEl.classList.toggle('zeile', art === 'zeile' && !pillen);
   hoverEl.classList.toggle('rot', art === 'rot');
   hoverEl.classList.toggle('pillen', !!pillen);
-  hoverEl.style.display = 'block';
+  hoverEl.style.display = pillen ? 'flex' : 'block';   // Pillen in Reihen (umbrechend)
   const r = anker.getBoundingClientRect();
   const b = hoverEl.offsetWidth, h = hoverEl.offsetHeight;
   const unten = ziel.dataset.hoverPos === 'unten';

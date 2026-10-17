@@ -4,6 +4,8 @@ import { e, icon, api, holen, senden, toast, leer, filterFeld, datumKurz, datumL
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const FARBE = { Lob: 'gruen', 'Ordnungsmaßnahme': 'rot', 'Elterngespräch': 'orange', 'Hausaufgabe fehlt': 'gelb', 'Material vergessen': 'gelb' };
+/** Verfasser*in: Kürzel mit vollem Namen der Lehrkraft (sonst der gespeicherte Name, z. B. „Administration“). */
+const verfasser = (k, el) => { const l = el?.lehrer?.find(x => x.kurz === k); return l ? `${l.name} (${l.kurz})` : (k || '–'); };
 const zeitstempel = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(s ?? ''); return m ? `${m[3]}.${m[2]}.${m[1]}, ${m[4]} Uhr` : (s || '–'); };
 
 export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, artParam]) {
@@ -52,7 +54,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
 export function detail(x, { el, arten, loeschen, fertig, stundeText }) {
   const zeile = (titel, wert, klasse = '') => `<div class="ke-zeile ${klasse}"><dt>${e(titel)}</dt><dd>${wert}</dd></div>`;
   const knoepfe = [];
-  if (x.loeschen) knoepfe.push({ text: `${icon('loeschen')}Löschen`, art: 'gefahr', aktion: async () => { await loeschen(x.id); } });
+  if (x.loeschen) knoepfe.push({ text: `${icon('loeschen')}Löschen`, art: 'gefahr', aktion: async () => ((await loeschen(x.id)) ? undefined : false) });
   knoepfe.push({ text: 'Schließen' });
   if (x.bearbeiten) knoepfe.push({ text: `${icon('stift')}Bearbeiten`, art: 'haupt', aktion: () => { eintragDialog(el, x, arten, fertig); } });
   return dialog({
@@ -67,7 +69,7 @@ export function detail(x, { el, arten, loeschen, fertig, stundeText }) {
         ${zeile('Klasse', e(x.klasse))}
         ${zeile('Schüler*in', e(x.schueler || 'ganze Klasse'))}
         ${zeile('Kategorie', e(x.art))}
-        ${zeile('Verfasser*in', e(x.lehrer || '–'))}
+        ${zeile('Verfasser*in', e(verfasser(x.lehrer, el)))}
         ${zeile('Erfasst', e(zeitstempel(x.erstellt)))}
       </dl>
       ${!x.bearbeiten ? '<p class="ke-hinweis"><i class="bi bi-lock" aria-hidden="true"></i>Bearbeiten können die Verfasserin bzw. der Verfasser und die Klassenleitung.</p>' : ''}`,

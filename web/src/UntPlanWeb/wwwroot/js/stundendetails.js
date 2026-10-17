@@ -98,9 +98,13 @@ export function karteDialog(karte, kontext = {}) {
   const modal = new bootstrap.Modal(el, { backdrop: false });
   document.body.classList.toggle('leiste-zu', !!document.querySelector('.u-app.zu'));
   const box = el.querySelector('.modal-content');
-  el.addEventListener('hidden.bs.modal', () => setTimeout(() => { modal.dispose(); el.remove(); }));
   let geaendert = false;
-  el.addEventListener('hide.bs.modal', () => { if (geaendert) setTimeout(() => kontext.nachSpeichern ? kontext.nachSpeichern() : kontext.navigieren?.(location.hash)); });
+  // Abmelden bei offenem Dialog: sofort schließen, keine Folgeaktionen (Neuladen, Navigation) und kein Zeichnen nach laufenden Anfragen
+  let beendet = false;
+  const abmeldung = () => { beendet = true; geaendert = false; try { modal.dispose(); } catch { /* schon weg */ } el.remove(); };
+  window.addEventListener('untplan:abmeldung', abmeldung, { once: true });
+  el.addEventListener('hidden.bs.modal', () => setTimeout(() => { window.removeEventListener('untplan:abmeldung', abmeldung); if (!beendet) { modal.dispose(); el.remove(); } }));
+  el.addEventListener('hide.bs.modal', () => { if (geaendert && !beendet) setTimeout(() => kontext.nachSpeichern ? kontext.nachSpeichern() : kontext.navigieren?.(location.hash)); });
 
   let k = karte;
   let reiter = null;
@@ -207,14 +211,15 @@ export function karteDialog(karte, kontext = {}) {
       wertKopf(k.raeume, 6, 'raum'), lehrerKopf()].filter(Boolean);
     // Wie im Original: bei Entfall Kopf hellgrau und darunter roter Balken „ENTFÄLLT“; Prüfung/Veranstaltung als dezente graue Pille,
     // sonst keine Labels (Änderungen stehen als Text: alt durchgestrichen | neu bzw. → beim Raum)
-    // zusätzliche Unterrichtsstunde: Badge statt Vertretungstext
+    // zusätzliche Unterrichtsstunde: Badge (ein von Hand eingegebener Vertretungstext steht zusätzlich unter „Details“).
+    // Badges in der oberen Zeile bei Klasse/Fach, dunkelgrau
     const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.status === 'veranstaltung' ? 'Veranstaltung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';
     const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
     return `<div class="sd-kopf ${leiste ? 'grau' : ''}">
-        <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}</h2>
-          <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</div></div>
+        <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
+          <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
         <div class="sd-knoepfe">${istBlock() && !reiter?.match(/^(pruefung|raum)$/) ? blockWahl()
           : '<button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>'}
           <button type="button" data-bs-dismiss="modal" title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>
@@ -268,6 +273,7 @@ export function karteDialog(karte, kontext = {}) {
   }
 
   function zeichnen() {
+    if (beendet || !el.isConnected) return;
     const scroll = box.querySelector('.sd-rumpf')?.scrollTop ?? 0;
     box.innerHTML = `<div class="modal-header p-0 d-block border-0">${kopf()}</div>
       <div class="modal-body sd-rumpf">${reiter === 'klassenbuch' ? klassenbuchHtml() : reiter === 'pruefung' ? pruefungHtml() : reiter === 'raum' ? '<div data-raumwahl></div>' : detailsHtml()}</div>

@@ -267,12 +267,12 @@ public static class ErweiterungApi
                 var unter = $"{(Leer(klasse) is { } kl ? $"Klasse {kl} · " : "")}Zeitraum {v:dd.MM.yyyy} – {bi:dd.MM.yyyy}";
                 var pdf = PdfBericht.Erzeugen(schule, bericht.Titel, unter, bericht.Spalten,
                     bericht.Zeilen.Select(z => (IReadOnlyList<string>)z.Select(x => Convert.ToString(x, System.Globalization.CultureInfo.GetCultureInfo("de-DE")) ?? "").ToList()).ToList(), bericht.Hinweis,
-                    b.Anzeigename, true, PdfBericht.Hochformat(ausrichtung, false));
+                    b.Anzeigename, true, PdfBericht.Hochformat(ausrichtung, false), bericht.Arten);
                 return Results.File(pdf, "application/pdf", dateiname + ".pdf");
             }
             return format == "csv"
                 ? Results.File(Klassenbuchverwaltung.BerichtCsv(bericht), "text/csv; charset=utf-8", dateiname + ".csv")
-                : Results.Json(new { bericht.Id, bericht.Titel, bericht.Spalten, bericht.Zeilen, bericht.Hinweis, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi) });
+                : Results.Json(new { bericht.Id, bericht.Titel, bericht.Spalten, bericht.Zeilen, bericht.Hinweis, bericht.Arten, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi) });
         });
 
         // ---------------------------------------------------------------- Mitteilungen: Entwürfe, Listen, Anhänge

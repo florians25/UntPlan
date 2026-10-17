@@ -72,7 +72,8 @@ public class KartenDarstellungTests
 
         var zusatz = Karte(9);
         Assert.True(zusatz["zusaetzlich"]!.GetValue<bool>());
-        Assert.Equal("", zusatz["text"]!.GetValue<string>());                 // kein Vertretungstext bei Zusatzstunden
+        // Sprint 27: von Hand eingegebener Text bleibt (Info-Symbol), nur Standardtexte entfallen
+        Assert.Equal("Zusatzstunde Förderung", zusatz["text"]!.GetValue<string>());
         Assert.Null(zusatz["verlegung"]);
 
         Assert.Equal("von", Karte(10)["verlegung"]!.GetValue<string>());        // ursprüngliche Stunde
@@ -103,11 +104,11 @@ public class KartenDarstellungTests
         Assert.Contains("mk-verlegung ${richtung}", js);
         // Zusatzstunde: Badge statt Vertretungstext
         Assert.Contains("export const ZUSATZ_TEXT = 'Zusätzl. Unterrichtsstunde';", js);
-        Assert.Contains("!k.zusaetzlich && !/^entf", js);
+        Assert.Contains("if (k.text && k.fach && !/^entf", js);   // Sprint 27: Info-Symbol auch bei Zusatzstunden mit eigenem Text
         var css = Datei("css", "karten.css");
         Assert.Contains(".mks .mk-verlegung.von { background-color: #f03e3e;", css);
         Assert.Contains("M3.5 8h9M9 4.5 12.5 8 9 11.5", css);    // Pfeil nach rechts (ursprüngliche Stunde)
-        Assert.Contains("M12.5 8h-9M7 4.5 3.5 8 7 11.5", css);   // Pfeil nach links (Zielstunde)
+        Assert.DoesNotContain("M12.5 8h-9M7 4.5 3.5 8 7 11.5", css);   // Sprint 27: auch die Zielstunde mit Pfeil nach rechts
         // Zeilen etwas enger
         Assert.Contains(".std .z1 { margin-bottom: 0; }", css);
         Assert.Contains(".std .z2 + .z2 { margin-top: 0; }", css);

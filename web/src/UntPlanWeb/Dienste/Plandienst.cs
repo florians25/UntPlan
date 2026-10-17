@@ -747,11 +747,14 @@ public sealed class Plandienst
     internal static List<Karte> Kopplungen(List<Karte> einzel)
     {
         static string Gruppe(string status) => status is "regulaer" or "geaendert" or "offen" ? "laeuft" : status;
-        static string Raeume(Karte k) => string.Join(",", k.Raeume.Select(w => (w.K.Length > 0 ? w.K : w.Alt ?? "").ToLowerInvariant()).Where(x => x.Length > 0).Distinct().OrderBy(x => x, StringComparer.Ordinal));
+        // Zuordnung nach Fach und Räumen laut Stundenplan (vor Änderungen): Blöcke einer Kopplung, die getrennt waren, bleiben auch nach
+        // einer Vertretung bzw. Raumänderung getrennt nebeneinander (z. B. KR nach R106 zu ER verlegt) – es fällt nie ein Block weg
+        static string Raeume(Karte k) => string.Join(",", k.Raeume.Select(w => (w.Alt is { Length: > 0 } a ? a : w.Plus ? "" : w.K).ToLowerInvariant()).Where(x => x.Length > 0).Distinct().OrderBy(x => x, StringComparer.Ordinal));
+        static string Fach(Karte k) => (string.IsNullOrEmpty(k.FachAlt) ? k.Fach : k.FachAlt).ToLowerInvariant();
         static List<Wert> Vereinigen(IEnumerable<Wert> l) => l.GroupBy(w => (w.K.ToLowerInvariant(), (w.Alt ?? "").ToLowerInvariant())).Select(g => g.First()).ToList();
         var res = new List<Karte>();
         foreach (var g in einzel.GroupBy(k => k.Unterricht is int && k.Fach.Length > 0
-                     ? $"{k.Datum}|{k.Von}|{k.Bis}|{Gruppe(k.Status)}|{k.Fach.ToLowerInvariant()}|{Raeume(k)}" : Guid.NewGuid().ToString()))
+                     ? $"{k.Datum}|{k.Von}|{k.Bis}|{Gruppe(k.Status)}|{Fach(k)}|{Raeume(k)}" : Guid.NewGuid().ToString()))
         {
             var liste = g.ToList();
             if (liste.Count == 1) { res.AddRange(liste); continue; }
@@ -963,7 +966,7 @@ public sealed class Plandienst
     private static readonly System.Text.RegularExpressions.Regex VerlegungsAngabe = new(@"(\d{1,2})\.(\d{1,2})\.?(\d{2,4})?\s*(?:/\s*(\d+))?", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>„Fr-09.10. / 4“ → Datum (Jahr: das dem Bezugsdatum nächstliegende) mit Beginn und Ende der Stunde; null, wenn leer bzw. unlesbar.</summary>
-    internal static Verlegungszeit? VerlegungsZeitLesen(string? text, DateOnly bezug, IReadOnlyDictionary<int, WebStundenzeit> zeiten)
+    public static Verlegungszeit? VerlegungsZeitLesen(string? text, DateOnly bezug, IReadOnlyDictionary<int, WebStundenzeit> zeiten)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
         var m = VerlegungsAngabe.Match(text);
@@ -1000,7 +1003,7 @@ public sealed class Plandienst
         System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     /// <summary>Vertretungstext einer zusätzlichen Unterrichtsstunde: nur von Hand eingegebene Teile (ohne Standardtexte und ohne die Art selbst).</summary>
-    internal static string ZusatzText(string text, string art) =>
+    public static string ZusatzText(string text, string art) =>
         string.Join(" · ", text.Split(" · ").Select(t => t.Trim())
             .Where(t => t.Length > 0 && !ZusatzStandardtext.IsMatch(t) && !string.Equals(t, art.Trim(), StringComparison.OrdinalIgnoreCase)));
 

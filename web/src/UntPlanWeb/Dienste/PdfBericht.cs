@@ -35,22 +35,26 @@ public static partial class PdfBericht
 
     /// <param name="hochformat">A4 hoch statt quer (schmalere Tabelle, mehr Zeilen je Seite).</param>
     public static byte[] Erzeugen(string schule, string titel, string untertitel, IReadOnlyList<string> spalten, IReadOnlyList<IReadOnlyList<string>> zeilen,
-        string? hinweis, string? ersteller, bool unterschrift, bool hochformat) =>
-        MitAusrichtung(hochformat, () => Erzeugen(schule, titel, untertitel, spalten, zeilen, hinweis, ersteller, unterschrift));
+        string? hinweis, string? ersteller, bool unterschrift, bool hochformat, IReadOnlyList<string>? arten = null) =>
+        MitAusrichtung(hochformat, () => Erzeugen(schule, titel, untertitel, spalten, zeilen, hinweis, ersteller, unterschrift, arten));
     private const float Schrift = 8.5f, Zeile = 16f;
     private const string Seitenzahl = "@@SEITEN@@";
 
+    /// <param name="arten">Optional je Zeile: <c>gruppe</c> (Gruppenkopf über die ganze Breite), <c>zwischensumme</c>, <c>summe</c> (fett mit Linie) –
+    /// gegliederte Berichte; ohne Angabe schlichte Tabelle mit Zahl der Einträge.</param>
     public static byte[] Erzeugen(string schule, string titel, string untertitel, IReadOnlyList<string> spalten, IReadOnlyList<IReadOnlyList<string>> zeilen,
-        string? hinweis = null, string? ersteller = null, bool unterschrift = true)
+        string? hinweis = null, string? ersteller = null, bool unterschrift = true, IReadOnlyList<string>? arten = null)
     {
+        string Art(int r) => arten != null && r < arten.Count ? arten[r] : "";
         var nutz = Breite - 2 * Rand;
         // Spaltenbreiten nach dem längsten Inhalt (Kopf zählt mit), höchstens 40 % je Spalte, auf die Nutzbreite skaliert
-        var w = spalten.Select((s, i) => Math.Max(Math.Max(TextBreite(s, true, 7.8f) * .55f, s.Split(' ').Max(x => TextBreite(x, true, 7.8f))), zeilen.Select(z => i < z.Count ? Math.Min(TextBreite(z[i], false), nutz * .4f) : 0).DefaultIfEmpty(0).Max()) + 14).ToArray();
+        var w = spalten.Select((s, i) => Math.Max(Math.Max(TextBreite(s, true, 7.8f) * .55f, s.Split(' ').Max(x => TextBreite(x, true, 7.8f))), zeilen.Where((z, r) => Art(r) != "gruppe").Select(z => i < z.Count ? Math.Min(TextBreite(z[i], false), nutz * .4f) : 0).DefaultIfEmpty(0).Max()) + 14).ToArray();
         var faktor = nutz / Math.Max(1, w.Sum());
         for (var i = 0; i < w.Length; i++) w[i] *= faktor;
         // Zahlenspalten (alle Werte Zahlen oder leer) rechtsbündig
-        var zahl = spalten.Select((sp, i) => zeilen.Count > 0 && zeilen.All(z => i >= z.Count || z[i].Length == 0 || double.TryParse(z[i].Replace("%", "").Trim(), NumberStyles.Number, CultureInfo.GetCultureInfo("de-DE"), out _))
-            && zeilen.Any(z => i < z.Count && z[i].Length > 0)).ToArray();
+        var daten = zeilen.Where((z, r) => Art(r) is not ("gruppe" or "zwischensumme" or "summe")).ToList();
+        var zahl = spalten.Select((sp, i) => daten.Count > 0 && daten.All(z => i >= z.Count || z[i].Length == 0 || double.TryParse(z[i].Replace("%", "").Trim(), NumberStyles.Number, CultureInfo.GetCultureInfo("de-DE"), out _))
+            && daten.Any(z => i < z.Count && z[i].Length > 0)).ToArray();
         var jetzt = DateTime.Now;
 
         var seiten = new List<string>();
@@ -121,19 +125,35 @@ public static partial class PdfBericht
         if (zeilen.Count == 0) { Text(sb, Rand + 6, y - 11, Schrift, false, "Keine Einträge im gewählten Zeitraum.", Schwarz); y -= Zeile; }
         for (var r = 0; r < zeilen.Count; r++)
         {
-            if (y - Zeile < Rand + 14) { Fuss(); Kopf(); }
+            var art = Art(r);
+            // Gruppenkopf nicht allein am Seitenende
+            if (y - Zeile * (art == "gruppe" ? 3 : 1) < Rand + 14) { Fuss(); Kopf(); }
+            if (art == "gruppe")
+            {
+                y -= 4;
+                Rechteck(sb, Rand, y - Zeile, nutz, Zeile, Grau(0.95f));
+                Text(sb, Rand + 6, y - 11.5f, 9.5f, true, Kuerzen(zeilen[r].Count > 0 ? zeilen[r][0] : "", nutz - 12, true, 9.5f), Schwarz);
+                Linie(sb, Rand, y - Zeile, Rand + nutz, y - Zeile, 0f);
+                y -= Zeile;
+                continue;
+            }
+            var fett = art is "zwischensumme" or "summe";
+            if (art == "summe") { Rechteck(sb, Rand, y - Zeile, nutz, Zeile, Grau(0.9f)); Linie(sb, Rand, y, Rand + nutz, y, 0f); }
+            else if (art == "zwischensumme") Linie(sb, Rand, y, Rand + nutz, y, 0.35f);
             var x = Rand;
             for (var i = 0; i < spalten.Count; i++)
             {
-                var t = Kuerzen(i < zeilen[r].Count ? zeilen[r][i] : "", w[i] - 10, i == 0);
-                Text(sb, zahl[i] ? x + w[i] - 6 - TextBreite(t, false) : x + 6, y - 11, Schrift, i == 0, t, Schwarz);
+                var t = Kuerzen(i < zeilen[r].Count ? zeilen[r][i] : "", w[i] - 10, i == 0 || fett);
+                // Zwischensummen: Beschriftung („Summe …“) darf über die Datumsspalte hinauslaufen
+                if (fett && i == 1 && !zahl[i] && zeilen[r][i].StartsWith("Summe", StringComparison.Ordinal)) t = Kuerzen(zeilen[r][i], w[i] + (spalten.Count > 2 && !zahl[2] ? w[2] : 0) - 10, true);
+                Text(sb, zahl[i] ? x + w[i] - 6 - TextBreite(t, fett) : x + 6, y - 11, Schrift, i == 0 || fett, t, Schwarz);
                 x += w[i];
             }
-            Linie(sb, Rand, y - Zeile, Rand + nutz, y - Zeile, 0.75f);
-            y -= Zeile;
+            Linie(sb, Rand, y - Zeile, Rand + nutz, y - Zeile, art == "summe" ? 0f : 0.75f);
+            y -= Zeile + (art == "summe" ? 4 : 0);
         }
-        // Summenzeile
-        if (zeilen.Count > 0)
+        // Summenzeile (nur schlichte Tabellen; gegliederte Berichte haben eigene Summen)
+        if (zeilen.Count > 0 && arten == null)
         {
             Linie(sb, Rand, y, Rand + nutz, y, 0f);
             Text(sb, Rand + 6, y - 12, Schrift, true, zeilen.Count == 1 ? "1 Eintrag" : $"{zeilen.Count} Einträge", Schwarz);

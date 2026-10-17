@@ -1,10 +1,10 @@
 // Klassenbuch → Offene Stunden im Original-Look (nl-design): oben die Suchleiste mit Filter-Chips (Lehrkraft, Klasse, offene Einträge;
-// Klassenleitungen bekommen „Meine Klassen“ zuerst) und der Auswahl „Alle“, rechts der Zeitraum zum Anklicken (Kalender mit zwei Monaten)
+// Klassenleitungen bekommen „Meine Klassen“ zuerst), daneben die Art der Anzeige als Segment-Auswahl, rechts der Zeitraum zum Anklicken (Kalender mit zwei Monaten)
 // und die Auswahlbox mit vordefinierten Zeitbereichen. Darunter eine schlichte Tabelle ○ | Lehrkraft | Klasse | Fach | Datum | Art | Raum |
 // Abwesenheitskontrolle („Prüfen“) | Lehrstoff („Eingeben“ → Seitenleiste mit Vorstunden, Pfeile blättern). Klick auf eine Zeile öffnet die
 // Stundendetails. Rechte und der gespeicherte Zeitbereich liegen auf dem Server (/api/app/klassenbuch/offene-stunden).
 // Adresse: #/offen/<bereich | ->/<art>/<Lehrkräfte, | ->/<Klasse | ->/<von>/<bis>
-import { e, icon, holen, senden, toast, herunterladen, lade } from '../ui.js';
+import { e, icon, holen, senden, toast, herunterladen, lade, segment } from '../ui.js';
 import { kbDialog as dialog } from '../kbdialog.js';
 import { karteDialog } from '../plangitter.js';
 import { LEHRFORMEN } from '../stundendetails.js';
@@ -22,7 +22,7 @@ const wochentag = iso => WT[new Date(`${iso}T12:00:00`).getDay()] ?? '';
 const istDatum = s => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '');
 const passtArt = (art, z) => art === 'kontrolle' ? !z.geprueft : art === 'lehrstoff' ? !z.lehrstoff : art === 'alle' ? true : !z.geprueft || !z.lehrstoff;
 const erledigt = text => `<span class="os-status ok" title="${e(text)}"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">${e(text)}</span></span>`;
-const ART_WAHL = [['offen', 'Alle'], ['kontrolle', 'Abwesenheiten'], ['lehrstoff', 'Lehrstoff'], ['alle', 'Auch vollständige']];
+const ART_WAHL = [['offen', 'Offen'], ['kontrolle', 'Abwesenheiten'], ['lehrstoff', 'Lehrstoff'], ['alle', 'Alle Stunden']];
 
 export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerParam, klasseParam, vonParam, bisParam]) {
   let art = ART[artParam] ? artParam : 'offen';
@@ -60,7 +60,6 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
   const chips = [
     ...zustand.lehrer.map(l => ({ typ: 'lehrer', wert: l, text: l })),
     ...(zustand.klasse ? [{ typ: 'klasse', wert: zustand.klasse, text: `Klasse ${zustand.klasse}` }] : []),
-    ...(art === 'kontrolle' || art === 'lehrstoff' || art === 'alle' ? [{ typ: 'art', wert: art, text: ART[art] }] : []),
   ];
   const w = kontext.werkzeug(`<div class="os-leiste">
       <div class="os-suche" data-suchfeld>
@@ -68,10 +67,9 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
         ${chips.map(c => `<span class="os-chip">${e(c.text)}<button type="button" data-chip-weg="${c.typ}:${e(c.wert)}" aria-label="Filter ${e(c.text)} entfernen"><i class="bi bi-x"></i></button></span>`).join('')}
         <input type="search" data-suche autocomplete="off" placeholder="${r.alle ? 'Lehrkraft, Klasse oder Fach suchen' : 'Klasse oder Fach suchen'}" aria-label="Suche" aria-expanded="false" aria-controls="os-vorschlaege">
         ${chips.length ? '<button type="button" class="os-leeren" data-leeren title="Alle Filter entfernen" aria-label="Alle Filter entfernen"><i class="bi bi-x-circle-fill"></i></button>' : ''}
-        <span class="os-trenn" aria-hidden="true"></span>
-        <label class="os-artwahl"><span class="visually-hidden">Anzeigen</span><select data-artwahl>${ART_WAHL.map(([a, t]) => `<option value="${a}" ${a === art ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <div class="os-vorschlaege" id="os-vorschlaege" role="listbox" hidden></div>
       </div>
+      <div class="os-art">${segment(ART_WAHL.map(([a, t]) => [a, t, { titel: ART[a] }]), art, { attr: 'data-artwahl', label: 'Anzeigen' })}</div>
       <div class="os-zeit">
         <button type="button" class="os-zeitraum" data-zeitraum aria-haspopup="dialog" title="Zeitraum wählen"><span>${datumDe(r.von)} - ${datumDe(r.bis)}</span></button>
         <label class="os-bereich"><span class="visually-hidden">Zeitbereich</span>
@@ -225,7 +223,8 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
     if (ev.target.value === 'individuell') { ev.target.value = r.bereich; zeitKnopf.click(); return; }
     bereichSetzen(ev.target.value);
   };
-  w.querySelector('[data-artwahl]').onchange = ev => kontext.navigieren(ziel({ art: ev.target.value }));
+  // Art der Anzeige: einheitliche Segment-Auswahl (statt Auswahlliste in der Suche)
+  w.querySelectorAll('[data-artwahl]').forEach(b => b.onclick = () => kontext.navigieren(ziel({ art: b.dataset.wert })));
 
   // ---------------------------------------------------------------- Lehrstoff in der Seitenleiste eintragen (Pfeile: vorige/nächste Stunde der Liste)
   async function lehrstoffLeiste(liste, start) {

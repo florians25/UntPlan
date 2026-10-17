@@ -22,7 +22,9 @@ public sealed record Stundenzeile(string Lehrer, List<string> Klassen, string Fa
     string Art, string Status, List<string> Raeume, bool Geprueft, bool Lehrstoff, int Unterricht);
 
 /// <summary>Bericht als Tabelle (Vorschau, Druck, CSV).</summary>
-public sealed record Bericht(string Id, string Titel, List<string> Spalten, List<List<object?>> Zeilen, string? Hinweis = null);
+/// <param name="Arten">Optional je Zeile: <c>""</c> (Datenzeile), <c>gruppe</c> (Gruppenkopf, z. B. „Klasse 7a“), <c>zwischensumme</c> (Summe je
+/// Schüler*in), <c>summe</c> (Summe je Klasse) – für gegliederte Berichte in der Web-Ansicht und im PDF.</param>
+public sealed record Bericht(string Id, string Titel, List<string> Spalten, List<List<object?>> Zeilen, string? Hinweis = null, List<string>? Arten = null);
 
 /// <summary>Verfügbarer Bericht (Gruppe wie im Original: Abwesenheiten, Klassenbucheinträge, Arbeitsbericht, Prüfungen, Weitere).</summary>
 public sealed record Berichtsart(string Id, string Gruppe, string Titel, bool KlasseNoetig = false, string? Parameter = null);
@@ -400,7 +402,7 @@ public sealed class Klassenbuchverwaltung
         new("abwesenheitsueberschreitung", "Abwesenheiten", "Abwesenheitsüberschreitung", false, "mehr als {n1} Fehlstunden in {n2} Wochen"),
         new("abwesenheiten", "Abwesenheiten", "Abwesenheiten"),
         new("anwesenheiten", "Abwesenheiten", "Anwesenheiten"),
-        new("unentschuldigt", "Abwesenheiten", "Unentschuldigte Abwesenheiten", false, "länger als {n1} Tage offen"),
+        new("unentschuldigt", "Abwesenheiten", "Unentschuldigte Abwesenheiten", false, "mindestens {n1} Tage am Stück"),
         new("statusuebersicht", "Abwesenheiten", "Fehlzeitenübersicht nach Entschuldigungsstatus"),
         new("entschuldigungsschreiben", "Abwesenheiten", "Entschuldigungsschreiben"),
         new("klassenbucheintraege", "Klassenbucheinträge", "Klassenbucheinträge pro Klasse"),
@@ -428,6 +430,24 @@ public sealed class Klassenbuchverwaltung
         var gruende = Gruende().ToDictionary(g => g.Kurz, g => g.Name, Ci);
         string Grund(string g) => gruende.TryGetValue(g, out var n) ? n : g;
         Bericht B(List<string> spalten, IEnumerable<IEnumerable<object?>> zeilen, string? hinweis = null) => new(art, info.Titel, spalten, zeilen.Select(z => z.ToList()).ToList(), hinweis);
+        // gegliederter Bericht: Zeilen mit Art (Gruppenkopf, Datenzeile, Zwischensumme je Schüler*in, Summe je Klasse)
+        Bericht G(List<string> spalten, List<(string Art, object?[] Zeile)> zeilen, string? hinweis = null) =>
+            new(art, info.Titel, spalten, zeilen.Select(z => z.Zeile.ToList()).ToList(), hinweis, zeilen.Select(z => z.Art).ToList());
+        // Unterrichtstag einer Klasse: nicht unterrichtsfrei und mindestens eine Stunde laut Plan (ohne Entfall)
+        var unterrichtstage = new Dictionary<(string, DateOnly), bool>();
+        bool Unterrichtstag(string k, DateOnly d)
+        {
+            if (unterrichtstage.TryGetValue((k, d), out var ja)) return ja;
+            return unterrichtstage[(k, d)] = !_plan.Frei(s, d).Frei
+                && _plan.Karten(s, d, Elementtyp.Klasse, k).Any(x => x.Unterricht.HasValue && x.Status is not ("entfall" or "veranstaltung"));
+        }
+        // Unterrichtstage der Klasse im Zeitraum (bis heute), für „Schultage“ in den Fehltagen
+        int Schultage(string k, DateOnly v, DateOnly bi)
+        {
+            var n = 0;
+            for (var d = v; d <= bi && d <= _uhr.Heute; d = d.AddDays(1)) if (Unterrichtstag(k, d)) n++;
+            return n;
+        }
 
         switch (art)
         {
@@ -492,20 +512,36 @@ public sealed class Klassenbuchverwaltung
             }
             case "fehltage_klasse":
             {
+                // wie die Vorlage „Fehltage pro Klasse“: je Klasse, je Schüler*in eine Zeile je Fehltag, Summe je Schüler*in mit Schultagen, Summe je Klasse.
+                // Ein Tag gilt als unentschuldigt, wenn eine Stunde unentschuldigt ist, als entschuldigt, wenn alle Stunden entschuldigt sind, sonst als offen.
                 var fz = Fz(von, bis).Where(f => f.Art == "fehlt").ToList();
-                var stundenProTag = new Dictionary<(string, string), int>();
-                int Stunden(string k, string iso)
+                var zeilen = new List<(string, object?[])>();
+                foreach (var k in klassen)
                 {
-                    if (!stundenProTag.TryGetValue((k, iso), out var n))
-                        stundenProTag[(k, iso)] = n = _plan.Karten(s, DateOnly.Parse(iso), Elementtyp.Klasse, k).Where(x => x.Unterricht.HasValue && x.Status is not ("entfall" or "veranstaltung")).Sum(x => x.Bis - x.Von + 1);
-                    return n;
-                }
-                return B(new() { "Klasse", "Schüler*in", "Fehltage", "davon ganze Tage", "Fehlstunden" },
-                    schuelerListe.Select(x =>
+                    var schultage = Schultage(k, von, bis);
+                    var kinder = schuelerListe.Where(x => Ci.Equals(x.Klasse, k)).Select(x => (x, tage: fz.Where(f => f.SchuelerId == x.Id).GroupBy(f => f.Datum).OrderBy(g => g.Key).ToList()))
+                        .Where(t => t.tage.Count > 0).OrderBy(t => N(t.x.Id), De).ToList();
+                    if (kinder.Count == 0) continue;
+                    zeilen.Add(("gruppe", new object?[] { $"Klasse {k}", "", "", "", "", "", "", "" }));
+                    int sT = 0, sS = 0, sE = 0, sU = 0, sO = 0;
+                    foreach (var (x, tage) in kinder)
                     {
-                        var tage = fz.Where(f => f.SchuelerId == x.Id).GroupBy(f => f.Datum).ToList();
-                        return new object?[] { x.Klasse, N(x.Id), tage.Count, tage.Count(t => t.Count() >= Math.Max(1, Stunden(x.Klasse, t.Key))), tage.Sum(t => t.Count()) };
-                    }).Where(z => (int)z[2]! > 0));
+                        int tE = 0, tU = 0, tO = 0;
+                        for (var i = 0; i < tage.Count; i++)
+                        {
+                            var g = tage[i];
+                            var status = g.Any(f => f.Status == "unentschuldigt") ? "u" : g.All(f => f.Status == "entschuldigt") ? "e" : "o";
+                            if (status == "e") tE++; else if (status == "u") tU++; else tO++;
+                            zeilen.Add(("", new object?[] { i == 0 ? N(x.Id) : "", Datum(g.Key), 1, g.Count(), status == "e" ? 1 : 0, status == "u" ? 1 : 0, status == "o" ? 1 : 0, "" }));
+                        }
+                        var stunden = tage.Sum(t => t.Count());
+                        zeilen.Add(("zwischensumme", new object?[] { "", $"Summe {N(x.Id)}", tage.Count, stunden, tE, tU, tO, schultage }));
+                        sT += tage.Count; sS += stunden; sE += tE; sU += tU; sO += tO;
+                    }
+                    zeilen.Add(("summe", new object?[] { $"Summe {k}", $"{kinder.Count} Schüler*innen", sT, sS, sE, sU, sO, "" }));
+                }
+                return G(new() { "Schüler*in", "Datum", "Fehltage", "Fehlstunden", "entsch.", "unent.", "offen", "Schultage" }, zeilen,
+                    $"Schultage: Unterrichtstage der Klasse im Zeitraum (bis heute). Ein Fehltag ist unentschuldigt, sobald eine Stunde unentschuldigt ist.");
             }
             case "abwesenheitsueberschreitung":
             {
@@ -526,15 +562,57 @@ public sealed class Klassenbuchverwaltung
                             z.Art switch { "verspaetet" => $"verspätet ({z.Minuten} min)", "vorzeitig" => $"vorzeitig gegangen ({z.Minuten} min)", _ => "abwesend" }, Grund(z.Grund), z.Status, z.Bemerkung }));
             case "unentschuldigt":
             {
-                n1 = n1 > 0 ? n1 : 3;
-                var grenze = _uhr.Heute.AddDays(-n1);
-                return B(new() { "Klasse", "Schüler*in", "Datum", "Stunden", "Grund", "Text", "Tage offen" },
-                    _listen.Abwesenheiten(s, b, von, bis, string.IsNullOrEmpty(klasse) ? null : klasse, null)
-                        .Where(z => (z.Status == "unentschuldigt" || z.Status == "offen") && DateOnly.Parse(z.Datum) <= grenze && (schueler is null || z.SchuelerId == schueler))
-                        .OrderBy(z => z.Klasse, De).ThenBy(z => z.Schueler, De).ThenBy(z => z.Datum)
-                        .Select(z => new object?[] { z.Klasse, z.Schueler, Datum(z.Datum), z.StundeVon == z.StundeBis ? $"{z.StundeVon}." : $"{z.StundeVon}.–{z.StundeBis}.",
-                            Grund(z.Grund), z.Bemerkung, _uhr.Heute.DayNumber - DateOnly.Parse(z.Datum).DayNumber }),
-                    $"Offene bzw. unentschuldigte Abwesenheiten, die länger als {n1} Tage zurückliegen.");
+                // wie die Vorlage „Unentschuldigte Abwesenheiten“: je Klasse und Schüler*in die zusammenhängenden Abwesenheiten ohne Entschuldigung
+                // (unentschuldigt bzw. noch offen) mit Beginn, Ende, Tagen, Stunden und Grund; Summe je Schüler*in und je Klasse
+                n1 = Math.Max(1, n1);
+                var fz = Fz(von, bis).Where(f => f.Art == "fehlt" && f.Status is "unentschuldigt" or "offen").ToList();
+                var zeilen = new List<(string, object?[])>();
+                foreach (var k in klassen)
+                {
+                    var kinder = new List<(int Id, List<List<IGrouping<string, Fehlzeit>>> Bloecke)>();
+                    foreach (var x in schuelerListe.Where(x => Ci.Equals(x.Klasse, k)).OrderBy(x => N(x.Id), De))
+                    {
+                        var tage = fz.Where(f => f.SchuelerId == x.Id).GroupBy(f => f.Datum).OrderBy(g => g.Key, StringComparer.Ordinal).ToList();
+                        // zusammenhängend: zwischen zwei Fehltagen liegen nur unterrichtsfreie Tage
+                        var bloecke = new List<List<IGrouping<string, Fehlzeit>>>();
+                        foreach (var t in tage)
+                        {
+                            var d = DateOnly.Parse(t.Key);
+                            if (bloecke.Count > 0)
+                            {
+                                var letzt = DateOnly.Parse(bloecke[^1][^1].Key);
+                                var luecke = false;
+                                for (var z = letzt.AddDays(1); z < d; z = z.AddDays(1)) if (Unterrichtstag(k, z)) { luecke = true; break; }
+                                if (!luecke) { bloecke[^1].Add(t); continue; }
+                            }
+                            bloecke.Add(new() { t });
+                        }
+                        bloecke = bloecke.Where(bl => bl.Count >= n1).ToList();
+                        if (bloecke.Count > 0) kinder.Add((x.Id, bloecke));
+                    }
+                    if (kinder.Count == 0) continue;
+                    zeilen.Add(("gruppe", new object?[] { $"Klasse {k}", "", "", "", "", "", "" }));
+                    int kT = 0, kS = 0;
+                    foreach (var (id, bloecke) in kinder)
+                    {
+                        for (var i = 0; i < bloecke.Count; i++)
+                        {
+                            var bl = bloecke[i];
+                            var alle = bl.SelectMany(g => g).ToList();
+                            var gr = alle.Select(f => Grund(f.Grund)).Where(g => g.Length > 0).Distinct(Ci).ToList();
+                            zeilen.Add(("", new object?[] { i == 0 ? N(id) : "", Datum(bl[0].Key), Datum(bl[^1].Key), bl.Count, alle.Count, string.Join(", ", gr),
+                                alle.Any(f => f.Status == "unentschuldigt") ? "unentschuldigt" : "offen" }));
+                        }
+                        var tageS = bloecke.Sum(bl => bl.Count);
+                        var stundenS = bloecke.Sum(bl => bl.Sum(g => g.Count()));
+                        zeilen.Add(("zwischensumme", new object?[] { "", $"Summe {N(id)}", "", tageS, stundenS, "", "" }));
+                        kT += tageS; kS += stundenS;
+                    }
+                    zeilen.Add(("summe", new object?[] { $"Summe {k}", $"{kinder.Count} Schüler*innen", "", kT, kS, "", "" }));
+                }
+                return G(new() { "Schüler*in", "Beginn", "Ende", "Tage", "Stunden", "Grund", "Status" }, zeilen,
+                    n1 > 1 ? $"Zusammenhängende Abwesenheiten ohne Entschuldigung (unentschuldigt oder noch offen) von mindestens {n1} Tagen."
+                        : "Zusammenhängende Abwesenheiten ohne Entschuldigung (unentschuldigt oder noch offen).");
             }
             case "statusuebersicht":
             {

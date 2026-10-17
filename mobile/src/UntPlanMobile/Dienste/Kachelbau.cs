@@ -309,7 +309,16 @@ public static class Kachelbau
     }
 
     private static KachelVerlegung? Verlegungsseite(PlanVerlegung? v) =>
-        v is null || string.IsNullOrWhiteSpace(v.Datum) ? null : new KachelVerlegung(v.Datum, v.Beginn ?? "", v.Ende ?? "");
+        v is null || string.IsNullOrWhiteSpace(v.Datum) ? null : new KachelVerlegung(v.Datum, v.Beginn ?? "", v.Ende ?? "", VerlegungSeite(v) ?? "");
+
+    /// <summary>Eine Seite der Verlegung: „09.10.2026 | 11:30 - 13:00“ (ohne Ende nur der Beginn, ohne Zeit nur das Datum).</summary>
+    public static string? VerlegungSeite(PlanVerlegung? v)
+    {
+        if (v is null || !DateOnly.TryParse(v.Datum, CultureInfo.InvariantCulture, out var d)) return null;
+        var zeit = string.IsNullOrWhiteSpace(v.Ende) ? v.Beginn ?? "" : $"{v.Beginn} - {v.Ende}";
+        var datum = d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        return string.IsNullOrWhiteSpace(zeit) ? datum : $"{datum} | {zeit}";
+    }
 
     /// <summary>
     /// Verlegung als Text, immer Ursprung → Ziel: „09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15 - 13:00“ (ohne Ende nur der Beginn).
@@ -317,15 +326,8 @@ public static class Kachelbau
     /// </summary>
     public static string? VerlegungText(PlanVerlegung? von, PlanVerlegung? nach)
     {
-        static string? Seite(PlanVerlegung? v)
-        {
-            if (v is null || !DateOnly.TryParse(v.Datum, CultureInfo.InvariantCulture, out var d)) return null;
-            var zeit = string.IsNullOrWhiteSpace(v.Ende) ? v.Beginn ?? "" : $"{v.Beginn} - {v.Ende}";
-            var datum = d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
-            return string.IsNullOrWhiteSpace(zeit) ? datum : $"{datum} | {zeit}";
-        }
-        var a = Seite(von);
-        var b = Seite(nach);
+        var a = VerlegungSeite(von);
+        var b = VerlegungSeite(nach);
         return a is null || b is null ? null : $"{a} → {b}";
     }
 

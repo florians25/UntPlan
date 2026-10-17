@@ -209,6 +209,27 @@ export function datumKachel(isoDatum) {
   return `<div class="u-datum ${isoDatum === heuteIso() ? 'heute' : ''}"><small>${WOCHENTAGE_KURZ[(d.getDay() + 6) % 7]}</small><b>${d.getDate()}</b><small>${['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][d.getMonth()]}</small></div>`;
 }
 
+/**
+ * Einheitliches Suchfeld (gemeinsame Komponente .u-suchfeld): großes graues Feld mit Lupe links, runden Ecken, Löschen-X rechts
+ * (ergänzt auswahl.js automatisch) und dezentem Fokus-Ring. attr: zusätzliche Attribute als Text (z. B. 'data-suche'), klasse: Zusatzklassen.
+ */
+export const suchfeld = ({ platzhalter = 'Suchen', wert = '', attr = 'data-suche', label = '', klasse = '' } = {}) =>
+  `<label class="u-suchfeld ${klasse}"><i class="bi bi-search" aria-hidden="true"></i><input type="search" ${attr} value="${e(wert)}" placeholder="${e(platzhalter)}" aria-label="${e(label || platzhalter)}" autocomplete="off"></label>`;
+
+/**
+ * Segment-Auswahl (gemeinsame Komponente .u-segment): Pillen in einer grauen Schiene, die gewählte weiß hervorgehoben.
+ * optionen: [[wert, text, { symbol, titel, klasse }]]; attr: Attribut je Knopf (Wert steht in data-wert). Für wenige, gleichrangige Optionen
+ * (Art der Anzeige, Rechte-Stufen) statt eines Dropdowns.
+ */
+export const segment = (optionen, wahl, { attr = 'data-segment', label = '', klasse = '', deaktiviert = false } = {}) =>
+  `<div class="u-segment ${klasse}" role="group" ${label ? `aria-label="${e(label)}"` : ''}>${optionen.map(([w, t, o = {}]) =>
+    `<button type="button" class="${String(w) === String(wahl) ? 'an' : ''} ${o.klasse ?? ''}" ${attr} data-wert="${e(w)}" aria-pressed="${String(w) === String(wahl)}" ${o.titel ? `title="${e(o.titel)}"` : ''} ${deaktiviert ? 'disabled' : ''}>${o.symbol ? `<i class="bi bi-${o.symbol}" aria-hidden="true"></i>` : ''}<span>${e(t)}</span></button>`).join('')}</div>`;
+
+/** Gewählte Pille eines Segments setzen (ohne neu zu zeichnen). */
+export function segmentSetzen(wurzel, wert) {
+  wurzel?.querySelectorAll('button[data-wert]').forEach(b => { const an = b.dataset.wert === String(wert); b.classList.toggle('an', an); b.setAttribute('aria-pressed', String(an)); });
+}
+
 /** Feld in einer Filterleiste: Beschriftung über dem Steuerelement. */
 export const filterFeld = (beschriftung, html) => `<label class="u-feld"><span>${e(beschriftung)}</span>${html}</label>`;
 

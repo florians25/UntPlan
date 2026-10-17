@@ -12,20 +12,20 @@
   color: #67747e; font: inherit; font-size: .9rem; cursor: default; }
 .bu-schritte li.fertig button { cursor: pointer; color: var(--u-text); }
 .bu-schritte li.fertig button:hover .bu-sname { color: var(--u-akzent-dunkel); }
-.bu-nr { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid #c9d0d6; background: #fff; font-weight: 600; color: #67747e; }
+.bu-nr { display: inline-grid; place-content: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid #c9d0d6; background: #fff; font-weight: 500; color: #67747e; }
 .bu-schritte li.aktiv .bu-nr { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; box-shadow: 0 0 0 4px rgba(var(--u-akzent-rgb), .15); }
-.bu-schritte li.aktiv .bu-sname { color: var(--u-titel); font-weight: 600; }
+.bu-schritte li.aktiv .bu-sname { color: var(--u-titel); font-weight: 500; }
 .bu-schritte li.fertig .bu-nr { border-color: var(--u-akzent); color: var(--u-akzent); }
 
 /* Karten */
 .bu-karte { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 18px 22px; margin-bottom: 14px; }
 .bu-karte > header { display: flex; align-items: center; gap: 10px; margin: -2px 0 14px; color: var(--u-titel); }
 .bu-karte > header > i { font-size: 1.15rem; color: var(--u-akzent); }
-.bu-karte > header h2 { font-size: 1.08rem; font-weight: 600; margin: 0; }
+.bu-karte > header h2 { font-size: 1.08rem; font-weight: 500; margin: 0; }
 .bu-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 18px; align-items: start; }
 .bu-raster .breit, .bu-breit { grid-column: 1 / -1; }
 .bu-feld { display: flex; flex-direction: column; gap: 5px; margin: 0; min-width: 0; }
-.bu-feld > span { font-size: .85rem; font-weight: 600; color: #414d55; }
+.bu-feld > span { font-size: .85rem; font-weight: 500; color: #414d55; }
 .bu-feld small { font-size: .78rem; line-height: 1.3; }
 .bu-zeile { margin-bottom: 14px; }
 
@@ -33,12 +33,12 @@
 .bu-segment { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 999px; background: #eef1f4; }
 .bu-segment button { border: 0; background: transparent; border-radius: 999px; padding: 7px 14px; font: inherit; font-size: .9rem; color: #414d55; white-space: nowrap; }
 .bu-segment button:hover { background: #e2e6ea; }
-.bu-segment button.an { background: #fff; color: var(--u-titel); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 5, 10, .15); }
+.bu-segment button.an { background: #fff; color: var(--u-titel); font-weight: 500; box-shadow: 0 1px 3px rgba(0, 5, 10, .15); }
 .bu-segment.klein button { padding: 5px 12px; font-size: .85rem; }
 
 /* Wochentage */
 .bu-tage { display: flex; flex-wrap: wrap; gap: 6px; }
-.bu-tag { width: 46px; height: 38px; border-radius: 999px; border: 1.5px solid #c9d0d6; background: #fff; font: inherit; font-weight: 600; color: #414d55; }
+.bu-tag { width: 46px; height: 38px; border-radius: 999px; border: 1.5px solid #c9d0d6; background: #fff; font: inherit; font-weight: 500; color: #414d55; }
 .bu-tag.an { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; }
 .bu-tag:focus-visible, .bu-segment button:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
 
@@ -59,7 +59,7 @@
 .nl-hinzu[disabled] { opacity: .6; }
 .bu-schalter { display: inline-flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; }
 .bu-schalter .form-check-input { margin: 0; width: 1.15em; height: 1.15em; }
-.bu-ohne { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; margin: 0; }
+.bu-ohne { display: inline-flex; align-items: center; gap: 10px; font-weight: 500; cursor: pointer; margin: 0; }
 
 /* Tabellen im Assistenten */
 .bu-tabelle tbody tr[data-raum], .bu-tabelle tbody tr[data-res] { cursor: pointer; }
@@ -75,9 +75,9 @@
 .bu-zf-raster { display: grid; gap: 8px; }
 .bu-zf { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f2f4; }
 .bu-zf > span { color: #67747e; }
-.bu-zf > b { font-weight: 600; color: var(--u-text); }
+.bu-zf > b { font-weight: 500; color: var(--u-text); }
 .bu-erfolg { text-align: center; padding: 34px 22px; }
-.bu-erfolg h2 { font-size: 1.3rem; font-weight: 600; color: var(--u-titel); margin: 12px 0 6px; }
+.bu-erfolg h2 { font-size: 1.3rem; font-weight: 500; color: var(--u-titel); margin: 12px 0 6px; }
 .bu-erfolg-symbol { display: inline-grid; place-content: center; width: 64px; height: 64px; border-radius: 50%; background: #e5f6ec; color: #0f7b47; font-size: 2rem; }
 
 /* Raumübersicht */
@@ -88,7 +88,7 @@
 .bu-uebersicht { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; overflow: auto; max-height: calc(100vh - 230px); }
 .bu-uebersicht table { border-collapse: separate; border-spacing: 0; width: 100%; }
 .bu-uebersicht th, .bu-uebersicht td { border-bottom: 1px solid #edf0f2; border-right: 1px solid #f2f4f6; }
-.bu-uebersicht thead th { position: sticky; top: 0; z-index: 2; background: #fbfcfd; font-weight: 600; font-size: .85rem; color: #414d55; padding: 8px 6px; text-align: center; }
+.bu-uebersicht thead th { position: sticky; top: 0; z-index: 2; background: #fbfcfd; font-weight: 500; font-size: .85rem; color: #414d55; padding: 8px 6px; text-align: center; }
 .bu-uebersicht.woche thead tr:nth-child(2) th { top: 35px; }
 .bu-stdkopf small { display: block; font-weight: 400; color: #8a96a1; font-size: .72rem; }
 .bu-stdkopf.klein { min-width: 22px; padding: 4px 2px !important; font-size: .72rem !important; }
@@ -161,3 +161,135 @@ td.bu-zelle span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orie
   .bu-schritte li:not(.aktiv) .bu-sname { display: none; }
   .bu-schritte li { min-width: 52px; }
 }
+
+/* ------------------------------------------------------------------ Sprint 27: Assistent in drei Schritten, Liste „Meine Buchungen“,
+   Schnellbuchung und Storno im Dialog, responsive. Schrift nur Regular/Medium. */
+.bu-assistent { max-width: 1100px; }
+.bu-schritte { max-width: 720px; margin-left: auto; margin-right: auto; }
+button.bu-zusammenfassung { width: 100%; text-align: left; font: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
+button.bu-zusammenfassung:hover { border-color: rgba(var(--u-akzent-rgb), .6); background: #fff1e8; }
+.bu-aendern { margin-left: auto; color: var(--u-akzent-dunkel); font-size: .85rem; }
+.bu-zusammenfassung.statisch { cursor: default; }
+.bu-vorschau-kopf.leer i { color: #b42318; }
+.bu-tagwahl { margin-top: 14px; }
+.bu-raumkarte .rw-eingebettet { max-height: 460px; }
+.bu-raster.zwei { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nl-knopf.klein { height: 32px; padding: 0 12px; font-size: .8125rem; gap: 6px; }
+.nl-knopf.rund { width: 42px; padding: 0; justify-content: center; }
+.nl-hinzu.bu-gross { height: 42px; padding: 0 22px; font-size: .95rem; }
+
+/* Ersatzräume je belegtem Termin */
+.bu-ersatzliste { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 14px; }
+.bu-ersatz { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 10px; }
+.bu-ersatz-tag { display: flex; flex-direction: column; line-height: 1.2; }
+.bu-ersatz-tag b { font-weight: 500; color: var(--u-titel); }
+.bu-ersatz-tag small { color: #8a96a1; font-size: .75rem; }
+
+/* Ressourcen */
+.bu-resfilter { margin-bottom: 10px; }
+.bu-filterchip { height: 32px; padding: 0 12px; border: 1.5px solid #d3d9de; border-radius: 999px; background: #fff; font: inherit; font-size: .8125rem; color: #414d55; }
+.bu-filterchip.an { border-color: var(--u-akzent); background: #fff3ec; color: var(--u-akzent-dunkel); font-weight: 500; }
+.bu-resliste { border: 1px solid #e1e5e9; border-radius: 10px; overflow: hidden; }
+.bu-res { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; }
+.bu-res + .bu-res { border-top: 1px solid #eef1f3; }
+.bu-res:hover { background: #f8f9fa; }
+.bu-res.gewaehlt { background: rgba(var(--u-akzent-rgb), .06); }
+.bu-res.aus { cursor: default; opacity: .7; }
+.bu-res-wahl { margin: 0; }
+.bu-res-text { display: flex; flex-direction: column; min-width: 0; }
+.bu-res-text b { font-weight: 500; color: var(--u-titel); }
+.bu-res-text small { color: #7a8792; font-size: .78rem; }
+.bu-res-menge { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: #7a8792; font-size: .78rem; }
+.bu-res-menge input { width: 70px; height: 32px; }
+
+/* Angaben & buchen */
+.bu-abschluss { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.bu-abschluss.ohne-formular { grid-template-columns: minmax(0, 640px); }
+.bu-zf-karte { position: sticky; top: 80px; }
+.bu-zf-karte .bu-zf { grid-template-columns: 110px minmax(0, 1fr); gap: 10px; font-size: .875rem; }
+.bu-zf > div { color: var(--u-text); min-width: 0; }
+.bu-zf-info { margin: 12px 0 0; font-size: .8rem; }
+.bu-warnung small { display: block; margin-top: 4px; opacity: .8; }
+
+/* Meine Buchungen */
+.bu-leiste .bu-segment { height: 42px; align-items: center; }
+.bu-anzahl { margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: rgba(36, 50, 61, .08); font-size: .72rem; color: #67747e; }
+.bu-leiste2 { margin-top: -4px; }
+.bu-leiste2 .nl-pille { height: 36px; font-size: .875rem; }
+.bu-liste { background: #fff; border: 1px solid #e1e5e9; border-radius: 12px; overflow: hidden; }
+.bu-monat { padding: 10px 18px 6px; background: #fafbfc; border-bottom: 1px solid #eef1f3; color: #7a8792; font-size: .75rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.bu-monat:not(:first-child) { border-top: 1px solid #eef1f3; }
+.bu-eintrag-zeile { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto 130px; align-items: center; gap: 16px; padding: 12px 18px; }
+.bu-eintrag-zeile + .bu-eintrag-zeile, .bu-serie + .bu-eintrag-zeile, .bu-eintrag-zeile + .bu-serie, .bu-serie + .bu-serie { border-top: 1px solid #eef1f3; }
+.bu-datum { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 56px; border-radius: 10px; background: #fff3ec; color: var(--u-akzent-dunkel); line-height: 1.05; }
+.bu-datum b { font-size: 1.2rem; font-weight: 500; }
+.bu-datum span { font-size: .72rem; }
+.bu-datum small { font-size: .68rem; color: #a0613e; }
+.bu-eintrag-zeile.vergangen .bu-datum, .bu-eintrag-zeile.storniert .bu-datum { background: #f1f3f5; color: #67747e; }
+.bu-eintrag-zeile.vergangen .bu-datum small, .bu-eintrag-zeile.storniert .bu-datum small { color: #8a96a1; }
+.bu-haupt { min-width: 0; }
+.bu-titelzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bu-titel { font-weight: 500; color: var(--u-titel); }
+.bu-eintrag-zeile.storniert .bu-titel { text-decoration: line-through; color: #8a96a1; }
+.bu-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 3px; color: #67747e; font-size: .8125rem; }
+.bu-meta i { margin-right: 4px; color: #9aa5ae; }
+.bu-meta a { color: inherit; text-decoration: none; }
+.bu-meta a:hover { color: var(--u-akzent-dunkel); }
+.bu-text { margin-top: 3px; color: #7a8792; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bu-status .rw-status { display: inline-block; }
+.bu-status .rw-status:not(.frei):not(.belegt):not(.teil) { background: #eef1f4; color: #67747e; }
+.bu-aktionen { display: flex; justify-content: flex-end; }
+.bu-serienkopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 18px 12px 86px; margin-top: -4px; }
+.bu-serie-knopf { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: #f3eefc; color: #5b3fa0; font: inherit; font-size: .8rem; }
+.bu-serie-knopf:hover { background: #ebe3fa; }
+.bu-chevron { transition: transform .15s; }
+.bu-serie.auf .bu-chevron { transform: rotate(180deg); }
+.bu-kinder { margin: 0 18px 12px 86px; border-left: 2px solid #e6dcf7; }
+.bu-kinder .bu-eintrag-zeile { padding: 8px 0 8px 14px; grid-template-columns: 44px minmax(0, 1fr) auto 130px; }
+.bu-kinder .bu-datum { width: 44px; height: 46px; }
+.bu-kinder .bu-datum b { font-size: 1rem; }
+.bu-leer { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 44px 16px; border: 1px dashed #d3d9de; border-radius: 12px; background: #fff; color: #67747e; text-align: center; font-size: .875rem; }
+.bu-leer > i { font-size: 1.7rem; color: #b5bec6; }
+.bu-leer b { font-weight: 500; color: var(--u-titel); font-size: .95rem; }
+
+/* Storno-Dialog */
+.bu-storno-kopf { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; background: #f6f8fa; }
+.bu-storno-kopf b { font-weight: 500; color: var(--u-titel); }
+.bu-storno-kopf span { color: #67747e; font-size: .85rem; }
+.bu-storno-wahl { display: grid; gap: 8px; }
+.bu-storno-wahl label { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px; border: 1.5px solid #e1e5e9; border-radius: 10px; cursor: pointer; }
+.bu-storno-wahl label:has(input:checked) { border-color: var(--u-akzent); background: #fff8f4; }
+.bu-storno-wahl input { margin-top: 3px; accent-color: var(--u-akzent); }
+.bu-storno-wahl span { display: flex; flex-direction: column; }
+.bu-storno-wahl b { font-weight: 500; color: var(--u-titel); font-size: .9rem; }
+.bu-storno-wahl small { color: #7a8792; font-size: .78rem; }
+
+/* Raumübersicht: Suche, Filterleiste, Schnellbuchung, eigene Buchungen anklickbar */
+.bu-raumsuche { max-width: 280px; }
+.bu-filterleiste { margin-top: -4px; }
+.bu-filterleiste .nl-pille { height: 36px; font-size: .875rem; }
+.bu-belegt-knopf { width: 100%; height: 100%; min-height: 36px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; padding: 0; border-radius: 6px; }
+.bu-belegt-knopf:hover, .bu-belegt-knopf:focus-visible { box-shadow: inset 0 0 0 2px rgba(138, 58, 18, .35); outline: 0; }
+.bu-schnell-kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.bu-schnell-kopf > div { display: flex; flex-direction: column; }
+.bu-schnell-kopf b { font-weight: 500; color: var(--u-titel); }
+.bu-schnell-kopf span:not(.mf-symbol) { color: #67747e; font-size: .85rem; }
+.bu-symbol { display: inline-grid; place-content: center; width: 42px; height: 42px; border-radius: 12px; background: #fff3ec; color: var(--u-akzent); font-size: 1.2rem; flex: none; }
+
+@media (max-width: 991.98px) {
+  .bu-abschluss { grid-template-columns: minmax(0, 1fr); }
+  .bu-zf-karte { position: static; }
+}
+@media (max-width: 767.98px) {
+  .bu-raster.zwei { grid-template-columns: minmax(0, 1fr); }
+  .bu-eintrag-zeile, .bu-kinder .bu-eintrag-zeile { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px 12px; padding: 12px 14px; }
+  .bu-aktionen { grid-column: 2 / -1; justify-content: flex-start; }
+  .bu-aktionen:empty { display: none; }
+  .bu-serienkopf { padding: 0 14px 12px 74px; }
+  .bu-kinder { margin: 0 14px 12px 40px; }
+  .bu-leiste .bu-segment { height: auto; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .bu-raumsuche { max-width: none; }
+  .bu-res { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .bu-res-menge { grid-column: 2; }
+}
+.bu-assistent .nl-chip, .bu-liste .nl-chip, .bu-zf-karte .nl-chip { font-weight: 500; }

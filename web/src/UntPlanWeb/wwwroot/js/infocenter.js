@@ -181,11 +181,14 @@ export async function starten(kontext) {
       <div class="ic-filter" data-ic-filter role="group" aria-label="Filter"></div>
       <div class="ic-liste" data-ic-liste></div>
       <footer class="ic-panel-fuss"><a href="#/neuigkeiten" data-ic-seite>Alle Neuigkeiten</a><a href="#/neuigkeiten/verwalten" data-ic-verwalten hidden>Infos verwalten</a></footer>
-    </section>`;
+    </section>
+    <div class="ic-schleier" data-ic-schleier aria-hidden="true"></div>`;
   document.body.append(w);
   sichtbarkeit();
   w.querySelector('[data-ic-knopf]').onclick = ev => { ev.stopPropagation(); oeffnen(); };
   w.querySelector('[data-ic-zu]').onclick = () => oeffnen(false);
+  // Telefon: Infocenter als Bodenblatt – Tippen auf den abgedunkelten Hintergrund schließt
+  w.querySelector('[data-ic-schleier]').onclick = () => oeffnen(false);
   w.querySelector('[data-ic-alle]').onclick = () => gelesen();
   w.querySelectorAll('.ic-panel-fuss a').forEach(a => a.onclick = () => oeffnen(false));
   w.querySelector('[data-ic-filter]').addEventListener('click', ev => {

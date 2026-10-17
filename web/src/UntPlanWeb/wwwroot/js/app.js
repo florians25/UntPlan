@@ -34,6 +34,7 @@ const ANSICHTEN = {
   profil: () => import('./ansichten/profil.js'),
   neuigkeiten: () => import('./ansichten/neuigkeiten.js'),
   sprechtag: () => import('./ansichten/sprechtag.js'),
+  hinweise: () => import('./ansichten/hinweise.js'),
   kbeinstellungen: () => import('./ansichten/kbeinstellungen.js'),
 };
 
@@ -99,7 +100,20 @@ const kontext = {
   fehler,
 };
 
-window.addEventListener('untplan:abgemeldet', () => { if (sitzung?.benutzer) { sitzung.benutzer = null; start(); } });
+window.addEventListener('untplan:abgemeldet', () => { if (sitzung?.benutzer) { dialogeSchliessen(); sitzung.benutzer = null; start(); } });
+
+/**
+ * Beim Abmelden offene Dialoge (z. B. Stundendetails) schließen: die Dialoge brechen ihre Anfragen und Folgeaktionen ab
+ * (Ereignis „untplan:abmeldung“), übrig gebliebene Modals und Hintergründe werden entfernt – die Anmeldeseite bleibt bedienbar.
+ */
+function dialogeSchliessen() {
+  window.dispatchEvent(new CustomEvent('untplan:abmeldung'));
+  document.querySelectorAll('.modal').forEach(m => { try { bootstrap.Modal.getInstance(m)?.dispose(); } catch { /* schon weg */ } m.remove(); });
+  document.querySelectorAll('.modal-backdrop, .u-hover-label').forEach(x => x.remove());
+  document.body.classList.remove('modal-open', 'leiste-zu');
+  document.body.style.removeProperty('overflow');
+  document.body.style.removeProperty('padding-right');
+}
 window.addEventListener('hashchange', () => route());
 
 // Einmalanmeldung für UntPlanMobile: nach der Anmeldung zurück zu /sso/… (nur relative Pfade, kein offener Weiterleiter)
@@ -150,6 +164,7 @@ function anmeldeRahmen(titel, inhalt, untertitel = '') {
         <h2 class="an-schule">${e(schule)}</h2>
         <p class="an-zeile">Stundenplan, Vertretungen und Klassenbuch – an einem Ort, immer aktuell.</p>
       </div>
+      <div class="an-hinweise" data-hinweise hidden></div>
       ${anmeldeBild()}
     </section>
     <section class="an-bereich">
@@ -167,6 +182,7 @@ function anmeldeRahmen(titel, inhalt, untertitel = '') {
   pwa.onclick = async () => { const p = window.__pwaAngebot; if (!p) return; window.__pwaAngebot = null; p.prompt(); try { await p.userChoice; } catch { /* egal */ } pwa.classList.add('d-none'); };
   anbieten();
   window.addEventListener('untplan:pwa', anbieten, { once: true });
+  oeffentlicheHinweise(app.querySelector('[data-hinweise]'));
   // Passwortfelder: Auge zum Anzeigen
   app.querySelectorAll('.lg-feld input[type=password]').forEach(i => {
     const b = document.createElement('button');
@@ -175,6 +191,22 @@ function anmeldeRahmen(titel, inhalt, untertitel = '') {
     i.after(b);
   });
   return app.querySelector('form');
+}
+/**
+ * Öffentliche Hinweise der Schule (z. B. „Elternsprechtag am …“) dezent auf der Anmeldeseite – ohne Anmeldung, ohne Cookies und ohne Tracking;
+ * der Server liefert nur freigegebene, allgemeine Hinweise im Anzeigezeitraum (reiner Text).
+ */
+async function oeffentlicheHinweise(box) {
+  if (!box) return;
+  let liste = [];
+  try {
+    const r = await fetch('/api/app/hinweise/oeffentlich', { credentials: 'omit', cache: 'no-store' });
+    if (r.ok) liste = await r.json();
+  } catch { return; }
+  if (!Array.isArray(liste) || !liste.length || !box.isConnected) return;
+  box.innerHTML = `<h2 class="visually-hidden">Hinweise der Schule</h2>${liste.map(h => `<article class="an-hinweis">
+      <i class="bi bi-megaphone" aria-hidden="true"></i><div><h3>${e(h.titel)}</h3>${h.text ? `<p>${e(h.text).replace(/\n/g, '<br>')}</p>` : ''}</div></article>`).join('')}`;
+  box.hidden = false;
 }
 /** Ruhige Illustration der Anmeldeseite: stilisierte Stundenplanwoche mit runden Karten (rein dekorativ). */
 function anmeldeBild() {
@@ -274,6 +306,7 @@ function passwortPflicht() {
 }
 
 async function abmelden() {
+  dialogeSchliessen();
   try { await senden('/api/app/abmelden', {}); } catch { /* egal */ }
   sitzung = null;
   history.replaceState(null, '', '#/heute');
@@ -340,6 +373,7 @@ function menue() {
       ...(b.admin || b.rechte?.['klassenbuch.einstellungen'] ? [{ nav: 'kbeinstellungen', href: '#/kbeinstellungen', text: 'Einstellungen', icon: 'verwaltung' }] : []),
     ] });
     m.push({ id: 'melden', text: 'Melden', icon: 'ruckmeldung', unter: [
+      { nav: 'melden-uebersicht', href: '#/melden', text: 'Übersicht', icon: 'ruckmeldung' },
       { nav: 'melden-abwesenheit', href: '#/melden/abwesenheit', text: 'Abwesenheit melden', icon: 'abwesend' },
       { nav: 'melden-klausur', href: '#/melden/klausur', text: 'Prüfung eintragen', icon: 'klausur' },
       { nav: 'melden-meine', href: '#/melden/meine', text: 'Meine Meldungen', icon: 'protokoll' },
@@ -397,6 +431,7 @@ function menue() {
     m.push({ id: 'admin', text: 'Administration', icon: 'verwaltung', unter: [
       { nav: 'admin-sync', href: '#/admin/sync', text: 'Übersicht & Synchronisation', icon: 'synchron' },
       { nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' },
+      { nav: 'hinweise', href: '#/hinweise', text: 'Hinweise Anmeldeseite', icon: 'info' },
       { nav: 'admin-freietage', href: '#/admin/freietage', text: 'Freie Tage & Ferien', icon: 'freietage' },
       { nav: 'admin-import', href: '#/admin/import', text: 'Import', icon: 'import' },
       { nav: 'admin-export', href: '#/admin/export', text: 'Export', icon: 'export' },
@@ -419,6 +454,7 @@ function menue() {
     const r = b.rechte ?? {};
     const unter = [];
     if (b.nachrichten) unter.push({ nav: 'admin-nachrichten', href: '#/admin/nachrichten', text: 'Nachrichten zum Tag', icon: 'nachrichten' });
+    if (r['infocenter.verwalten']) unter.push({ nav: 'hinweise', href: '#/hinweise', text: 'Hinweise Anmeldeseite', icon: 'info' });
     if (r['admin.import']) unter.push({ nav: 'admin-import', href: '#/admin/import', text: 'Import', icon: 'import' });
     if (r['admin.wartung']) unter.push({ nav: 'admin-aktive', href: '#/admin/aktive', text: 'Aktive Benutzer', icon: 'aktive' },
       { nav: 'admin-zugriff', href: '#/admin/zugriff', text: 'Zugriff ent-/sperren', icon: 'sperre' }, { nav: 'admin-ueber', href: '#/admin/ueber', text: 'Über UntPlan', icon: 'info' });
@@ -445,7 +481,7 @@ function navAus(teile) {
     case 'unterricht': return a === 'klasse' ? 'unterricht-klasse' : 'unterricht';
     case 'mitteilungen': return ['gesendet', 'entwuerfe', 'listen', 'einstellungen', 'verfassen'].includes(a) ? 'mitteilungen-' + a : 'mitteilungen';
     case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : c && c !== 'uebersicht' ? 'klassenbuch-woche' : 'klassenbuch';
-    case 'melden': return 'melden-' + (a || 'abwesenheit');
+    case 'melden': return 'melden-' + (a || 'uebersicht');
     case 'buchen': return a === 'stunden' ? 'buchen-unterricht' : 'buchen-' + (a || 'raum');
     case 'stammdaten': return 'stammdaten-' + (a || 'klassen');
     case 'kbeinstellungen': return a === 'unterricht' ? 'kbeinstellungen-unterricht' : 'kbeinstellungen';

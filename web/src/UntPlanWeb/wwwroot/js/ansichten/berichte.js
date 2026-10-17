@@ -15,13 +15,13 @@ const BESCHREIBUNG = {
   fehlzeiten_schueler: 'Fehlstunden, Fehltage und Entschuldigungsstatus je Schüler*in im gewählten Zeitraum.',
   fehlzeiten_klasse: 'Summen der Fehlzeiten je Klasse – geeignet für Konferenzen und Zeugnisse.',
   fehlzeiten_fach: 'Fehlstunden aufgeschlüsselt nach Fächern.',
-  fehltage_klasse: 'Ganze Fehltage je Klasse und Schüler*in.',
+  fehltage_klasse: 'Fehltage je Klasse und Schüler*in mit Datum, Stunden und Status, Summen je Schüler*in (mit Schultagen) und je Klasse.',
   verspaetungen: 'Alle Verspätungen und vorzeitigen Abgänge mit Minuten.',
   verspaetungen_auffaellig: 'Schüler*innen, die im Zeitraum auffällig oft zu spät kamen.',
   abwesenheitsueberschreitung: 'Wer in einem gleitenden Zeitraum mehr Fehlstunden als erlaubt hat.',
   abwesenheiten: 'Abwesenheiten als Zeiträume mit Grund, Text und Status.',
   anwesenheiten: 'Anwesenheit je Schüler*in über alle erfassten Stunden.',
-  unentschuldigt: 'Abwesenheiten, die schon länger nicht entschuldigt sind.',
+  unentschuldigt: 'Zusammenhängende Abwesenheiten ohne Entschuldigung je Schüler*in mit Beginn, Ende, Tagen, Stunden und Grund; Summen je Klasse.',
   statusuebersicht: 'Fehlzeiten gruppiert nach offen, entschuldigt und nicht entschuldigt.',
   entschuldigungsschreiben: 'Vordruck je Schüler*in mit den offenen Fehlstunden und Unterschriftsfeld.',
   klassenbucheintraege: 'Klassenbucheinträge wie Lob, Vermerke und Ordnungsmaßnahmen je Klasse.',
@@ -59,7 +59,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   try { gruppe = sessionStorage.getItem('untplan:berichtgruppe') || 'alle'; } catch { /* privat */ }
   if (gruppe !== 'alle' && !gruppen.includes(gruppe)) gruppe = 'alle';
   let suche = '';
-  const vorgabe = (a, n) => n === 1 ? (a.id === art && n1 ? n1 : a.id === 'unentschuldigt' ? 3 : 16) : (a.id === art && n2 ? n2 : 4);
+  const vorgabe = (a, n) => n === 1 ? (a.id === art && n1 ? n1 : a.id === 'unentschuldigt' ? 1 : 16) : (a.id === art && n2 ? n2 : 4);
   const abfrage = (p) => `klasse=${encodeURIComponent(p.klasse)}&von=${p.von}&bis=${p.bis}${p.schueler ? `&schueler=${p.schueler}` : ''}&n1=${p.n1}&n2=${p.n2}`;
   const standard = a => ({ klasse, schueler, von, bis, n1: vorgabe(a, 1), n2: vorgabe(a, 2) });
 
@@ -210,8 +210,14 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       <div class="br-vaktionen">${art !== 'entschuldigungsschreiben' ? '<button type="button" class="btn btn-outline-secondary s-knopf" data-v-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button><button type="button" class="btn btn-outline-secondary s-knopf" data-v-csv><i class="bi bi-filetype-csv"></i>CSV</button>' : ''}
         <button type="button" class="btn btn-outline-secondary s-knopf" data-v-drucken>${icon('drucken')}Drucken</button>
         <a class="br-vzu" href="${ziel(null)}" title="Vorschau schließen" aria-label="Vorschau schließen"><i class="bi bi-x-lg"></i></a></div></header>`;
-  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle"><thead><tr>${r.spalten.map(s => `<th>${e(s)}</th>`).join('')}</tr></thead><tbody>
-    ${zeilen.map(z => `<tr>${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  // gegliederte Berichte (r.arten): Gruppenkopf über die ganze Breite, Zwischensumme je Schüler*in, Summe je Klasse; Zahlenspalten rechtsbündig
+  const arten = r.arten ?? null;
+  const zahlSpalte = r.spalten.map((_, i) => r.zeilen.some((z, n) => !arten?.[n] && z[i] !== '' && z[i] != null)
+    && r.zeilen.every((z, n) => arten?.[n] || z[i] === '' || z[i] == null || typeof z[i] === 'number'));
+  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle ${arten ? 'br-gegliedert' : ''}"><thead><tr>${r.spalten.map((s, i) => `<th class="${arten && zahlSpalte[i] ? 'text-end' : ''}">${e(s)}</th>`).join('')}</tr></thead><tbody>
+    ${zeilen.map((z, n) => arten?.[n] === 'gruppe'
+      ? `<tr class="br-gruppe"><td colspan="${r.spalten.length}">${e(z[0] ?? '')}</td></tr>`
+      : `<tr class="${arten?.[n] ? `br-${arten[n]}` : ''}">${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''} ${arten && zahlSpalte[i] ? 'text-end' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   if (art === 'entschuldigungsschreiben') {
     // je Schüler*in eine Seite mit Unterschriftsfeld
     const proSchueler = new Map();
@@ -223,7 +229,8 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
         <div class="d-flex gap-4 small pt-4"><span class="border-top pt-1 flex-fill">Datum</span><span class="border-top pt-1 flex-fill">Unterschrift Erziehungsberechtigte</span></div></div>`).join('')
         : leer('Keine offenen Fehlstunden im Zeitraum.', 'check2-circle')}</div>`;
   } else {
-    vorschau.innerHTML = `<div class="br-vorschau s-karte">${kopf}${vkopf(`${r.zeilen.length} ${r.zeilen.length === 1 ? 'Zeile' : 'Zeilen'}`)}
+    const datenzeilen = arten ? arten.filter(x => !x).length : r.zeilen.length;
+    vorschau.innerHTML = `<div class="br-vorschau s-karte">${kopf}${vkopf(`${datenzeilen} ${datenzeilen === 1 ? 'Zeile' : 'Zeilen'}`)}
       ${r.hinweis ? `<div class="br-vhinweis"><i class="bi bi-info-circle"></i> ${e(r.hinweis)}</div>` : ''}
       ${r.zeilen.length ? tabelle(r.zeilen) : leer('Keine Daten für diese Auswahl.', 'file-earmark')}</div>`;
     vorschau.querySelector('[data-v-pdf]').onclick = ev => exportieren(a, p, 'pdf', ev.currentTarget);
