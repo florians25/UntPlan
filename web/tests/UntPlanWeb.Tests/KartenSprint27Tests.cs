@@ -74,7 +74,7 @@ public class KartenSprint27Tests
         var von = Karten(plan, "2026-10-12", 4).Single();
         Assert.Equal(5, von["bis"]!.GetValue<int>());
         Assert.Equal("von", von["verlegung"]!.GetValue<string>());
-        Assert.Equal(new[] { "verlegungVon" }, Marker(von));     // rotes Symbol mit Pfeil statt Entfall-Dreieck
+        Assert.Equal(new[] { "verlegungVon" }, Marker(von));     // rotes Entfall-Dreieck mit weißem Pfeil nach rechts
         Assert.Equal("2026-10-12", von["verlegungVon"]!["datum"]!.GetValue<string>());
         Assert.Equal(B(4), von["verlegungVon"]!["beginn"]!.GetValue<string>());
         Assert.Equal(E(5), von["verlegungVon"]!["ende"]!.GetValue<string>());
@@ -309,7 +309,9 @@ public class KartenSprint27Tests
         Assert.Contains("const verlegungsZeit = z => `${datumDe(z.datum)}${z.beginn ? ` | ${z.beginn}${z.ende ? ` - ${z.ende}` : ''}` : ''}`;", js);
         Assert.Contains("${verlegungsZeit(k.verlegungVon)} → ${verlegungsZeit(k.verlegungNach)}", js);
         Assert.Contains("data-hover-art=\"rot\"", js);
-        Assert.Contains("karte.querySelector('.mks .mk-verlegung[data-hover]')", js);
+        // Hover nur auf dem Symbol (nicht auf der ganzen Karte), etwas kleiner
+        Assert.DoesNotContain("karte.querySelector('.mks .mk-verlegung[data-hover]')", js);
+        Assert.Contains("data-hover-mitte data-hover-klein></i>", js);
         // mehrere Symbole untereinander
         Assert.Contains("if (k.status === 'klausur') { m.push('<i class=\"mk-kreis\"></i>'); if (wertGeaendert(k)) m.push('<i class=\"mk-quadrat\"></i>'); }", js);
         // hinzugefügter Wert: „+B070“
@@ -330,6 +332,8 @@ public class KartenSprint27Tests
         Assert.Contains("top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)", js);
         var css = Datei("css", "karten.css");
         Assert.Contains(".u-hover-label.rot { background: #f44336;", css);
+        Assert.Contains(".u-hover-label.klein { font-size: 13px;", css);
+        Assert.Contains("M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M8 16.5h10M14 12.5l4 4-4 4'", css);
         Assert.Contains(".u-hover-label.pillen span { background: #6b7680;", css);
         Assert.Contains(".u-hover-label.pillen span.p-weg, .u-hover-label.pillen span.p-aus { text-decoration: line-through;", css);
         Assert.Contains(".std .z-liste > .z-namen", css);

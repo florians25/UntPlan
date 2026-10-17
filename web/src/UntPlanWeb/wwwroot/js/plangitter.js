@@ -110,7 +110,8 @@ const verlegungsText = (k, richtung) => k.verlegungVon && k.verlegungNach ? `${v
   : richtung === 'von' ? 'Verlegt (ursprüngliche Stunde)' : 'Verlegung (hierher verlegt)';
 
 /**
- * Symbole oben rechts, untereinander: Verlegung (rot bzw. grün, Pfeil nach rechts, Hover „Ursprung → Ziel“), Entfall-Dreieck,
+ * Symbole oben rechts, untereinander: Verlegung (Ursprung rotes Dreieck, Ziel grünes Quadrat, je mit weißem Pfeil nach rechts; Hover
+ * „Ursprung → Ziel“ nur auf dem Symbol), Entfall-Dreieck,
  * Prüfung (gelber Kreis), „+“ (zusätzliche Stunde), Änderung (grünes Quadrat). Prüfung, Zusatzstunde und Zielstunde einer Verlegung
  * zeigen darunter zusätzlich das grüne Quadrat, wenn sich ein Wert geändert hat (wie Karte.Marker im Server).
  */
@@ -118,7 +119,7 @@ function marker(k, typ) {
   const m = [];
   const verlegt = istVerlegung(k) && k.status !== 'klausur';
   const richtung = verlegt ? verlegungsRichtung(k, typ) : '';
-  if (verlegt) m.push(`<i class="mk-verlegung ${richtung} ${richtung === 'von' ? 'weg' : ''}" data-hover="${e(verlegungsText(k, richtung))}"${richtung === 'von' ? ' data-hover-art="rot"' : ''} data-hover-mitte></i>`);
+  if (verlegt) m.push(`<i class="mk-verlegung ${richtung} ${richtung === 'von' ? 'weg' : ''}" data-hover="${e(verlegungsText(k, richtung))}"${richtung === 'von' ? ' data-hover-art="rot"' : ''} data-hover-mitte data-hover-klein></i>`);
   else if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
   if (k.status === 'klausur') { m.push('<i class="mk-kreis"></i>'); if (wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>'); }
   else if (verlegt) { if (richtung === 'nach' && (k.status === 'geaendert' || k.status === 'offen') && wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>'); }
@@ -485,6 +486,7 @@ function hoverZeigen(ziel, anker = ziel) {
   hoverEl.classList.toggle('zeile', art === 'zeile' && !pillen);
   hoverEl.classList.toggle('rot', art === 'rot');
   hoverEl.classList.toggle('pillen', !!pillen);
+  hoverEl.classList.toggle('klein', 'hoverKlein' in ziel.dataset);   // Verlegung: etwas kleiner
   hoverEl.style.display = pillen ? 'flex' : 'block';   // Pillen in Reihen (umbrechend)
   const r = anker.getBoundingClientRect();
   const b = hoverEl.offsetWidth, h = hoverEl.offsetHeight;
@@ -515,9 +517,6 @@ document.addEventListener('mouseover', ev => {
     // jede gekürzte Zeile hat ihren eigenen Hover (über der Zeile)
     const zeile = t.closest('.z1, .z2');
     if (zeile && karte.contains(zeile) && zeileGekuerzt(zeile)) { hoverZeigen(zeile); return; }
-    // Verlegung: Hover „Ursprung → Ziel“ auch beim Zeigen auf die Karte (über dem Symbol)
-    const v = karte.querySelector('.mks .mk-verlegung[data-hover]');
-    if (v) { hoverZeigen(v); return; }
   }
   if (hoverZiel) hoverVerbergen();
 });
