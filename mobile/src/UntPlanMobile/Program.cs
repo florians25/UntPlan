@@ -155,6 +155,7 @@ public class Program
         StartseiteApi.Abbilden(app);
         MitteilungenApi.Abbilden(app);
         SprechtagApi.Abbilden(app);
+        EntschuldigungenApi.Abbilden(app);
         PushApi.Abbilden(app);
         SsoApi.Abbilden(app);
         VersionApi.Abbilden(app);

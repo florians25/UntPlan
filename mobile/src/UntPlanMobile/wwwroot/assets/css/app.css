@@ -5812,3 +5812,53 @@ html.is-dark .nextnone--sperre .sperre__kreis{ background:none; box-shadow:none;
   .card--holiday .card__line, .card--holiday .card__line:first-of-type{ line-height:16px; }
   .card--holiday .card__line.holiday-range{ line-height:13px; }
 }
+
+/* =====================================================================
+   Sprint 26 – Textgrößen wie in der iOS-App (Werte aus den Swift-Ansichten,
+   pt ≈ px). Schrift Regular bzw. Medium; Semibold nur erste Kartenzeile,
+   Plaketten und Beschriftung der Tableiste.
+   ===================================================================== */
+/* Tableiste: Beschriftung 12,5 px */
+html body .tabbar .tab > span{ font-size:12.5px; font-weight:600; letter-spacing:-.15px; }
+/* Startseite */
+html body #startSchool{ font-size:32px; letter-spacing:-.6px; }
+html body .daycard__wd{ font-size:13px; }
+html body .daycard__num{ font-size:38px; line-height:1.05; }
+html body .daycard__mon{ font-size:14px; }
+html body .nextday{ font-size:14px; font-weight:500; }
+html body .nextrow__main span{ font-size:15px; font-weight:400; }
+html body .nextrow__main span:first-child{ font-weight:500; }
+html body .nextrow__times span{ font-size:14.5px; }
+html body .screen--start .row__main b{ font-size:16px; font-weight:400; }
+html body .screen--start .row__main i{ font-size:13px; }
+/* Stundenplan: Kopf und Zeitspalte */
+html body #entityLabel{ font-size:19px; font-weight:500; }
+html body #kwNo{ font-size:12px; font-weight:400; }
+html body #kwMonth{ font-size:18px; font-weight:500; }
+html body .dayhead__name{ font-size:12px; font-weight:400; }
+html body .dayhead__num{ font-size:17px; font-weight:500; }
+html body .slotrow__time{ font-size:10.5px; font-weight:500; }
+html body .slotrow__no{ font-size:14.5px; font-weight:400; }
+/* Stundendetails */
+html body .sheet--detail #detailDate{ font-size:17px; font-weight:400; }
+html body .sheet--detail #detailTime{ font-size:13px; }
+html body .sheet--detail .dtitle,
+html body .sheet--detail .dline--big .dline__txt{ font-size:22px; font-weight:400; }
+html body .sheet--detail .dline--grau{ font-size:17px; font-weight:400; }
+html body .sheet--detail .drow2__main b{ font-size:19px; font-weight:400; }
+html body .sheet--detail .drow2__main span{ font-size:17px; }
+html body .sheet--detail .dtabs__t{ font-size:17px; font-weight:400; }
+html body .sheet--detail .dtabs__t.is-on{ font-weight:500; }
+/* Mitteilungen */
+html body .msgrow__ava{ font-size:20px; font-weight:400; }
+html body .msgrow__main b{ font-size:18px; }
+html body .msgrow__main span,
+html body .msgrow__main em{ font-size:17px; }
+html body .msgrow__date{ font-size:14px; }
+/* Profil */
+html body #profileFullName{ font-size:32px; }
+html body #profileName{ font-size:17px; font-weight:400; }
+html body #profileRole{ font-size:11px; font-weight:500; }
+html body .screen--profile .row__main b{ font-size:16px; font-weight:400; }
+html body .screen--profile .row__main i,
+html body .screen--profile .row__main small{ font-size:13px; }

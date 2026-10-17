@@ -25,6 +25,8 @@ enum Startziel: Hashable {
     case aenderungen
     /// Sprechtag (Lehrkräfte: eigene Termine; Erziehungsberechtigte: buchen und absagen)
     case sprechtag(Int)
+    /// Entschuldigungen (Klassenleitung: Abwesenheiten der eigenen Klassen; Fachlehrkraft: eigene Fehlstunden)
+    case entschuldigungen
 }
 
 /// Startseite nach Vorlage: großer Schulname, Infokarten, Tageskarte (Datum links, Tagesinhalt rechts),
@@ -97,6 +99,9 @@ struct StartView: View {
                 switch ziel {
                 case .familieAbwesenheiten:
                     MeineAbwesenheitenView()
+                        .environmentObject(zustand)
+                case .entschuldigungen:
+                    EntschuldigungenView()
                         .environmentObject(zustand)
                 case .sprechtag(let id):
                     // Rückfall (sonst als Blatt): Kopf mit Zurück statt X über dieselbe Ansicht
@@ -390,6 +395,9 @@ struct StartView: View {
         ]
         if zustand.istKollegium {
             liste.append(Listeneintrag(ziel: .abwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
+            if zustand.entschuldigungsrechte?.irgendwas == true {
+                liste.append(Listeneintrag(ziel: .entschuldigungen, titel: "Entschuldigungen", symbol: "checkmark.seal", zahl: 0))
+            }
         } else if zustand.istFamilie {
             liste.append(Listeneintrag(ziel: .familieAbwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
         }
@@ -449,6 +457,7 @@ struct StartView: View {
             return try? await api.sprechtagStart()
         }
         async let sprechtagListe = holeSprechtage()
+        await zustand.entschuldigungsrechteLaden(neu: true)
         do {
             let neu = try await api.heute()
             heute = neu
@@ -631,6 +640,7 @@ struct StartlisteView: View {
         case .aufsichten: return "Pausenaufsichten"
         case .aenderungen: return "Änderungen heute"
         case .sprechtag: return "Sprechtag"
+        case .entschuldigungen: return "Entschuldigungen"
         }
     }
 
@@ -643,7 +653,7 @@ struct StartlisteView: View {
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
-                case .sprechtag: EmptyView()
+                case .sprechtag, .entschuldigungen: EmptyView()
                 }
             }
         }

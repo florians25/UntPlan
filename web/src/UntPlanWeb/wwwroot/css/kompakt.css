@@ -98,3 +98,8 @@
   .u-tabelle-karte :is(th, td), .table-responsive > .table :is(th, td) { padding-left: .5rem; padding-right: .5rem; }
   .u-tabelle-karte .table, .table-responsive > .table { font-size: .84rem; }
 }
+/* Rechte-Matrix: bleibt in ihrem eigenen Bildlaufbereich und verbreitert die Seite nicht (auch mit Browser-Zoom) */
+.table-responsive:has(> .rm-matrix) { contain: paint; }
+@media (min-width: 992px) and (max-width: 1200px) {
+  .u-tabelle-karte :is(th, td), .table-responsive > .table :is(th, td) { padding-left: .4rem; padding-right: .4rem; }
+}

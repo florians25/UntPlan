@@ -1177,7 +1177,8 @@ private struct EintragLabelStil: LabelStyle {
 /// Abschnitte nach Anfangsbuchstaben mit A–Z-Leiste rechts.
 /// Jede Zeile: grüner Haken-Kreis (anwesend) bzw. rote Uhr (abwesend), Name, darunter „Abwesend (verspätet)“ bzw.
 /// „Abwesend (fehlt)“ oder der Hinweis „War in Vorstunde abwesend!“, rechts Buch mit Plus (neuer Klassenbucheintrag)
-/// und Uhr (Abwesenheiten der Person). Wischen von links nach rechts: anwesend (grün), von rechts nach links: abwesend (rot).
+/// und Uhr (Abwesenheiten der Person). Wischen von links nach rechts: anwesend (grün), von rechts nach links: abwesend (rot)
+/// bzw. bei abwesenden Schüler*innen „Entschuldigen“ (runde Pill, öffnet den Entschuldigungsdialog).
 struct SchuelerSeite: View {
     enum Filter: Hashable {
         case alle
@@ -1199,6 +1200,9 @@ struct SchuelerSeite: View {
     @State private var fehler: String? = nil
     @State private var eintrag: Eintragsvorlage? = nil
     @State private var abwesenheitenVon: Schueler? = nil
+    /// Entschuldigungsdialog (Wischen nach links bei abwesenden Schüler*innen)
+    @State private var entschuldigung: Entschuldigungsauftrag? = nil
+    @State private var rechte = Entschuldigungsrechte()
 
     private var liste: Anwesenheitsliste? { daten.anwesenheit }
 
@@ -1254,6 +1258,13 @@ struct SchuelerSeite: View {
                 .environmentObject(daten)
                 .environmentObject(zustand)
         }
+        .detailPraesentation(item: $entschuldigung, breit: Geraet.istPad, art: .formular) { a in
+            EntschuldigenView(auftrag: a) {
+                Task { await daten.anwesenheitLaden() }
+            }
+            .environmentObject(zustand)
+        }
+        .task { rechte = await zustand.entschuldigungsrechteLaden() }
         .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -1286,11 +1297,22 @@ struct SchuelerSeite: View {
                                 ForEach(gruppe.liste) { s in
                                     // Wischen wie im Original: nach rechts anwesend (grün, Haken), nach links abwesend
                                     // (rot, Uhr); die Farbe läuft über die ganze Zeilenbreite
-                                    let abwesend = daten.fehlzeit(s) != nil
+                                    // – bei abwesenden Schüler*innen nach links: „Entschuldigen“ (Klassenleitung bzw. Fachlehrkraft)
+                                    let fehlzeit = daten.fehlzeit(s)
+                                    let abwesend = fehlzeit != nil
                                     WischZeile(rechtsMoeglich: bearbeitbar && abwesend,
-                                               linksMoeglich: bearbeitbar && !abwesend,
+                                               linksMoeglich: abwesend ? darfEntschuldigen(s) : bearbeitbar,
                                                rechts: { Task { await ausfuehren(s) { try await daten.anwesendSetzen(s) } } },
-                                               links: { Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } } }) {
+                                               links: {
+                                                   if let f = fehlzeit {
+                                                       entschuldigung = Entschuldigungsauftrag(
+                                                           ziel: .fehlzeit(id: f.id, klasse: s.klasse, datum: daten.karte.datum),
+                                                           name: s.anzeige, klasse: s.klasse)
+                                                   } else {
+                                                       Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
+                                                   }
+                                               },
+                                               linksAktion: abwesend ? .entschuldigen : .abwesend) {
                                         zeile(s)
                                             .padding(.leading, 16)
                                             .padding(.trailing, 26)
@@ -1428,6 +1450,11 @@ struct SchuelerSeite: View {
         }
         .frame(minHeight: 60)
         .contentShape(Rectangle())
+    }
+
+    /// Entschuldigen: Klassenleitung der Klasse oder Fachlehrkraft dieser Stunde (Modul aktiv).
+    private func darfEntschuldigen(_ s: Schueler) -> Bool {
+        rechte.leitet(s.klasse) || (rechte.fachlehrer && liste?.darf == true)
     }
 
     /// Buchstabenleiste A–Z am rechten Rand.
