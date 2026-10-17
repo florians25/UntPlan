@@ -3,7 +3,7 @@ import SwiftUI
 // Übersetzt den Wochenplan (Karten, Tagesköpfe, Aufsichten) in Kacheln für das Raster – nach derselben Logik wie
 // UntPlanMobile (Dienste/Kachelbau.cs und app.js): Art der Kachel, Zeilen mit Plaketten, Durchstreichungen,
 // abgegebene Stunden (Eckklammern), Bereitschaften, Veranstaltungen als Feld, Pausenaufsichten als Pillen,
-// vergangene Stunden und die Anordnung paralleler Stunden (Spuren, Zählstreifen).
+// vergangene Stunden und die Anordnung paralleler Stunden (Spuren nebeneinander wie im Web, „+N“-Streifen).
 
 // MARK: - Zeitraster
 
@@ -165,6 +165,8 @@ struct Kachel: Identifiable {
     var verlegung: String? = nil
     /// Marker oben rechts (untereinander) laut Server; nil = älterer Server ohne Marker (Verlegung dann unten rechts)
     var marker: [Kachelmarker]? = nil
+    /// An einer Pause geteilter Teil einer Karte: Kennung der ganzen Karte (alle Teile bekommen dieselbe Spur wie im Web)
+    var stamm: UUID? = nil
 
     /// Zeigt Text beim Antippen (alles außer der Ganztags-Pille).
     var antippbar: Bool { art != .ganztagTermin }
@@ -184,20 +186,15 @@ struct Kachellage: Identifiable {
     var links: CGFloat = 0
     var breite: CGFloat = 1
     var luecke: CGFloat = 0
+    /// Spur (Spalte) in der Gruppe gleichzeitiger Kacheln und Zahl der Spuren im Bereich; jede Kachel ist eine Spur breit
     var spur: Int = 0
     var spuren: Int = 1
-    /// Breite in Spuren (dehnt sich über freie Spuren rechts daneben)
-    var spanne: Int = 1
-    /// Gleichzeitige Blöcke untereinander geteilt: Zahl der Blöcke und Platz von oben
-    var stapel: Int = 1
-    var stapelIndex: Int = 0
-    /// Platz rechts für den Zählstreifen
-    var mitZaehler = false
 
     var id: UUID { kachel.id }
 }
 
-/// Zählstreifen rechts neben einer Kachel: so viele Stunden liegen dahinter (Wochenansicht, zu wenig Platz).
+/// „+N“-Streifen am rechten Rand der Tagesspalte: so viele Stunden liegen dahinter (nur wenn nicht alle Spuren
+/// mit Mindestbreite in die Spalte passen).
 struct Zaehlstreifen: Identifiable {
     /// Feste Kennung aus vorderer Kachel und Stunden: bleibt beim erneuten Anordnen gleich (keine neuen Ansichten)
     var id: String { "\(vorne.id.uuidString)-\(von)-\(bis)" }
@@ -949,6 +946,7 @@ enum Kachelbau {
             for p in schnitte + [k.bis] {
                 var teil = k
                 teil.id = UUID()
+                teil.stamm = k.stamm ?? k.id
                 teil.von = anfang
                 teil.bis = p
                 let b = raster.first(where: { $0.nr == anfang })?.beginn ?? k.beginn
@@ -991,194 +989,128 @@ enum Kachelbau {
 
     // MARK: - Anordnung
 
-    /// Lage in einer Gruppe überlappender Kacheln: Spur (Spalte), Zahl der Spuren, Breite in Spuren (dehnt sich nach rechts
-    /// über freie Spuren) bzw. senkrechter Stapel (gleiche Zeit, untereinander geteilt wie im Original).
+    /// Lage einer Kachel in ihrer Gruppe gleichzeitiger Kacheln: Spur (Spalte) und Zahl der Spuren der Gruppe.
+    /// Jede Kachel ist genau eine Spur breit (wie im Web: `left = spur × 100 % / anzahl`, `width = 100 % / anzahl`).
     struct Spurlage: Equatable {
         var spur: Int = 0
         var spuren: Int = 1
-        var spanne: Int = 1
-        var stapel: Int = 1
-        var stapelIndex: Int = 0
     }
 
-    /// Mindesthöhe je Block, damit gleichzeitige Blöcke untereinander geteilt werden (drei Zeilen: 4 + 3 × 14 pt).
-    static let stapelMindestHoehe: CGFloat = 46
-    /// Mindestbreite einer Spur (Woche bzw. Tag); passen nicht alle Spuren, treten die übrigen hinter einen Zählstreifen.
-    static let spurMindestBreiteWoche: CGFloat = 22
-    static let spurMindestBreiteTag: CGFloat = 40
+    /// Mindestbreite einer Spur (Woche bzw. Tag). Erst wenn mehr Spuren nötig sind, als bei dieser Breite in die Spalte
+    /// passen, treten die hinteren hinter einen „+N“-Streifen.
+    static let spurMindestBreiteWoche: CGFloat = 20
+    static let spurMindestBreiteTag: CGFloat = 22
+    /// Breite des „+N“-Streifens am rechten Rand und der dafür freigehaltene Platz (Streifen + Luft).
+    static let zaehlerBreite: CGFloat = 14
+    static let zaehlerPlatz: CGFloat = 16
 
-    /// Spuren wie in Kalender-Apps: Kacheln mit überlappender Zeit (Minuten, nicht Stundennummern) bilden zusammenhängende
-    /// Gruppen; innerhalb einer Gruppe kommt jede Kachel in die erste Spur, in der sie mit nichts überlappt (vorne/links, was
-    /// stattfindet: Rang, dann Beginn, dann längere Blöcke, dann Reihenfolge der Daten). Danach dehnt sich jede Kachel über
-    /// freie Spuren rechts von ihr. Haben alle Blöcke einer Gruppe genau dieselbe Zeit (2–3 Blöcke, z. B. Kopplung WW/PK) und
-    /// reicht die Höhe für je drei Zeilen, werden sie wie im Original untereinander geteilt. Nichts wird zusammengefasst oder
-    /// ausgeblendet; das Ergebnis hängt nur von den Daten ab (stabil bei Vertretung, Entfall, Doppelstunden).
-    static func spurenVerteilen(_ liste: [Kachel], hoehe: ((Kachel) -> CGFloat)? = nil) -> [UUID: Spurlage] {
-        var ergebnis: [UUID: Spurlage] = [:]
-        guard !liste.isEmpty else { return ergebnis }
-        let reihenfolge = Dictionary(liste.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
-        func vorher(_ a: Kachel, _ b: Kachel) -> Bool {
-            (reihenfolge[a.id] ?? 0) < (reihenfolge[b.id] ?? 0)
+    /// Spurverteilung genau wie `spuren()` in plangitter.js (Web) – reine Funktion, leicht prüfbar:
+    /// 1. Einträge nach Beginn sortieren, bei gleichem Beginn die längeren zuerst, sonst Reihenfolge der Daten (stabil).
+    /// 2. Zusammenhängende Gruppen bilden: ein Eintrag beginnt eine neue Gruppe, wenn er erst nach dem Ende aller bisherigen
+    ///    Einträge der Gruppe beginnt (aneinanderstoßende Blöcke, Ende = Beginn, überlappen nicht).
+    /// 3. In der Gruppe kommt jeder Eintrag in die erste Spur, deren letzter Block schon zu Ende ist, sonst in eine neue Spur.
+    /// 4. Alle Einträge einer Gruppe teilen sich die Spalte durch die Zahl der Spuren der Gruppe.
+    /// Nichts wird zusammengefasst, gestapelt oder über freie Spuren gedehnt. Zeiten in Minuten (Beginn < Ende).
+    static func spurenRechnen(_ zeiten: [(beginn: Int, ende: Int)]) -> [Spurlage] {
+        var ergebnis = Array(repeating: Spurlage(), count: zeiten.count)
+        let sortiert = zeiten.indices.sorted { a, b in
+            if zeiten[a].beginn != zeiten[b].beginn { return zeiten[a].beginn < zeiten[b].beginn }
+            if zeiten[a].ende != zeiten[b].ende { return zeiten[a].ende > zeiten[b].ende }
+            return a < b
         }
-        // Zusammenhängende Gruppen (transitiv überlappend) per Durchlauf nach Beginn
-        let nachZeit = liste.sorted { a, b in
-            if a.beginn != b.beginn { return a.beginn < b.beginn }
-            if a.ende != b.ende { return a.ende > b.ende }
-            return vorher(a, b)
-        }
-        var gruppen: [[Kachel]] = []
+        var gruppe: [Int] = []
+        var enden: [Int] = []
         var gruppenEnde = Int.min
-        for k in nachZeit {
-            if gruppen.isEmpty || k.beginn >= gruppenEnde {
-                gruppen.append([k])
-                gruppenEnde = k.ende
+        for i in sortiert {
+            let z = zeiten[i]
+            if !gruppe.isEmpty && z.beginn >= gruppenEnde {
+                for j in gruppe { ergebnis[j].spuren = max(1, enden.count) }
+                gruppe = []
+                enden = []
+            }
+            if gruppe.isEmpty { gruppenEnde = z.ende }
+            if let frei = enden.firstIndex(where: { $0 <= z.beginn }) {
+                ergebnis[i].spur = frei
+                enden[frei] = z.ende
             } else {
-                gruppen[gruppen.count - 1].append(k)
-                gruppenEnde = max(gruppenEnde, k.ende)
+                ergebnis[i].spur = enden.count
+                enden.append(z.ende)
+            }
+            gruppe.append(i)
+            gruppenEnde = max(gruppenEnde, z.ende)
+        }
+        for j in gruppe { ergebnis[j].spuren = max(1, enden.count) }
+        return ergebnis
+    }
+
+    /// Spuren für die Kacheln einer Tagesspalte (Reihenfolge = Reihenfolge der Karten vom Server, wie im Web).
+    /// An einer Pause geteilte Teile einer Karte (`stamm`) zählen wie im Web als eine Karte über den ganzen Zeitraum:
+    /// alle Teile stehen in derselben Spur und gleich breit.
+    static func spurenVerteilen(_ liste: [Kachel]) -> [UUID: Spurlage] {
+        var zeiten: [(beginn: Int, ende: Int)] = []
+        var platz: [UUID: Int] = [:]
+        for k in liste {
+            let s = k.stamm ?? k.id
+            if let i = platz[s] {
+                zeiten[i].beginn = min(zeiten[i].beginn, k.beginn)
+                zeiten[i].ende = max(zeiten[i].ende, k.ende)
+            } else {
+                platz[s] = zeiten.count
+                zeiten.append((beginn: k.beginn, ende: max(k.ende, k.beginn + 1)))
             }
         }
-        for g in gruppen {
-            if g.count == 1 {
-                ergebnis[g[0].id] = Spurlage()
-                continue
-            }
-            let geordnet = g.sorted { a, b in
-                if a.rang != b.rang { return a.rang < b.rang }
-                if a.beginn != b.beginn { return a.beginn < b.beginn }
-                if a.ende - a.beginn != b.ende - b.beginn { return a.ende - a.beginn > b.ende - b.beginn }
-                return vorher(a, b)
-            }
-            // Gleiche Zeit: untereinander geteilt, wenn jeder Block mindestens drei Zeilen hoch bleibt
-            if let hoehe, g.count <= 3, !g.contains(where: { $0.feld }),
-               g.allSatisfy({ $0.beginn == g[0].beginn && $0.ende == g[0].ende }) {
-                let n = CGFloat(g.count)
-                if (hoehe(g[0]) - (n - 1) * 2) / n >= stapelMindestHoehe {
-                    for (i, k) in geordnet.enumerated() {
-                        ergebnis[k.id] = Spurlage(spur: 0, spuren: 1, spanne: 1, stapel: g.count, stapelIndex: i)
-                    }
-                    continue
-                }
-            }
-            var spuren: [[Kachel]] = []
-            var spurVon: [UUID: Int] = [:]
-            for k in geordnet {
-                if let s = spuren.firstIndex(where: { spur in spur.allSatisfy { !$0.ueberlappt(k) } }) {
-                    spuren[s].append(k)
-                    spurVon[k.id] = s
-                } else {
-                    spuren.append([k])
-                    spurVon[k.id] = spuren.count - 1
-                }
-            }
-            let n = spuren.count
-            for k in g {
-                let s = spurVon[k.id] ?? 0
-                var spanne = 1
-                while s + spanne < n && spuren[s + spanne].allSatisfy({ !$0.ueberlappt(k) }) { spanne += 1 }
-                ergebnis[k.id] = Spurlage(spur: s, spuren: n, spanne: spanne)
-            }
+        let lagen = spurenRechnen(zeiten)
+        var ergebnis: [UUID: Spurlage] = [:]
+        for k in liste {
+            if let i = platz[k.stamm ?? k.id] { ergebnis[k.id] = lagen[i] }
         }
         return ergebnis
     }
 
-    /// Kacheln einer Tagesspalte anordnen.
-    /// - Alle gleichzeitigen Blöcke (Kopplung, Gruppen, Vertretung neben Entfall, unterschiedliche Längen) stehen in Spuren
-    ///   nebeneinander bzw. bei genau gleicher Zeit untereinander geteilt (`spurenVerteilen`). Nur wenn mehr Spuren nötig sind,
-    ///   als bei der Mindestbreite in die Spalte passen, treten die hinteren hinter einen Zählstreifen.
-    /// - Veranstaltungsfeld: auf breiten Spalten (iPad, Tagesansicht) Feld links, betroffene Stunden rechts daneben; auf schmalen
-    ///   Spalten (iPhone-Woche) treten sie hinter das Feld zurück (Zählstreifen, Aufsichten unter dem Feld ausgeblendet).
-    /// - `hoehe`: Höhe einer Kachel in Punkten (für das Teilen untereinander); nil = immer nebeneinander.
-    static func anordnen(_ alle: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool,
-                         hoehe: ((Kachel) -> CGFloat)? = nil) -> Tagesbelegung {
+    /// Zahl der Spuren, die bei der Mindestbreite in eine Breite passen (mindestens eine).
+    static func spurenPassend(_ breite: CGFloat, mindestBreite: CGFloat, luecke: CGFloat) -> Int {
+        max(1, Int((breite + luecke) / (mindestBreite + luecke)))
+    }
+
+    /// Kacheln einer Tagesspalte anordnen – wie das Web (plangitter.js):
+    /// - Alle Stunden (auch Kopplungsteile, Vertretung neben Entfall, Veranstaltungen) stehen nebeneinander in gleich breiten
+    ///   Spuren in der Reihenfolge der Daten (`spurenVerteilen`). Nichts wird zusammengefasst oder untereinander geteilt.
+    /// - Nur wenn eine Gruppe mehr Spuren braucht, als bei der Mindestbreite in die Spalte passen, bleiben rechts ein
+    ///   „+N“-Streifen und links so viele Spuren wie passen; die übrigen Stunden liegen hinter dem Streifen.
+    /// - Pausenaufsichten unter einer durchgehenden Veranstaltung stehen schmal in der rechten Hälfte (Web: `.aufsicht.schmal`).
+    static func anordnen(_ alle: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool) -> Tagesbelegung {
         var belegung = Tagesbelegung()
         let pausen = alle.filter { $0.inPause }
         let stunden = alle.filter { !$0.inPause }
         let luecke: CGFloat = tagesansicht ? 4 : 2
         let mindestBreite = tagesansicht ? spurMindestBreiteTag : spurMindestBreiteWoche
+        let grenze = spurenPassend(spaltenBreite, mindestBreite: mindestBreite, luecke: luecke)
+        // bei Überlauf: Platz für den Streifen rechts freihalten, links so viele Spuren wie dann noch passen
+        let restBreite = max(0, spaltenBreite - zaehlerPlatz)
+        let grenzeMitZaehler = spurenPassend(restBreite, mindestBreite: mindestBreite, luecke: luecke)
+        let restAnteil: CGFloat = spaltenBreite > 0 ? restBreite / spaltenBreite : 1
 
-        func passen(_ breite: CGFloat) -> Int {
-            max(1, Int((breite + luecke) / (mindestBreite + luecke)))
-        }
-        func aufsichtenIm(_ f: Kachel) -> [Kachel] {
-            pausen.filter { !$0.vorErsterStunde && $0.art == .aufsicht && $0.beginn >= f.beginn && $0.ende <= f.ende }
-        }
-
-        // Veranstaltungsfelder
-        let felder = stunden.filter { $0.feld }
-        let feldDaneben = tagesansicht || spaltenBreite >= 124
-        var feldLinks: Set<UUID> = []
-        var seitlich: Set<UUID> = []
-        var feldVerdeckt: [UUID: Kachel] = [:]
-        var verdeckteAufsichten: Set<UUID> = []
-        var seitlicheAufsichten: Set<UUID> = []
-        for f in felder where !seitlich.contains(f.id) && feldVerdeckt[f.id] == nil {
-            let treffer = stunden.filter { !$0.feld && $0.ueberlappt(f) && !seitlich.contains($0.id) && feldVerdeckt[$0.id] == nil }
-            let aufs = aufsichtenIm(f)
-            if treffer.isEmpty && aufs.isEmpty { continue }
-            if feldDaneben {
-                feldLinks.insert(f.id)
-                for t in treffer { seitlich.insert(t.id) }
-                for a in aufs { seitlicheAufsichten.insert(a.id) }
-            } else {
-                for t in treffer { feldVerdeckt[t.id] = f }
-                for a in aufs { verdeckteAufsichten.insert(a.id) }
-            }
-        }
-
+        let lagen = spurenVerteilen(stunden)
         var verdraengt: [(karte: Kachel, vorne: Kachel)] = []
-        var vorneIds: Set<UUID> = []
-
-        /// Spuren in einem Bereich (Anteile der Spalte) setzen; überzählige Spuren hinter einen Zählstreifen.
-        func setzen(_ liste: [Kachel], von: CGFloat, bis: CGFloat) {
-            let lagen = spurenVerteilen(liste, hoehe: hoehe)
-            let grenze = passen(spaltenBreite * (bis - von))
-            for k in liste {
-                let s = lagen[k.id] ?? Spurlage()
-                var lage = Kachellage(kachel: k)
-                if s.spuren > grenze {
-                    if s.spur >= grenze {
-                        // Vorne steht die Kachel der ersten Spur (bzw. die erste sichtbare), die zur selben Zeit liegt
-                        let vorne = liste.first { o in
-                            let so = lagen[o.id] ?? Spurlage()
-                            return so.spur == 0 && o.ueberlappt(k)
-                        } ?? liste.first { o in (lagen[o.id]?.spur ?? 0) < grenze && o.ueberlappt(k) }
-                        if let vorne {
-                            verdraengt.append((k, vorne))
-                            vorneIds.insert(vorne.id)
-                            continue
-                        }
-                    }
-                    lage = spurLage(lage, n: grenze, i: min(s.spur, grenze - 1), von: von, bis: bis, luecke: luecke)
-                    lage.spanne = max(1, min(s.spanne, grenze - lage.spur))
-                } else {
-                    lage = spurLage(lage, n: s.spuren, i: s.spur, von: von, bis: bis, luecke: luecke)
-                    lage.spanne = s.spanne
-                    lage.stapel = s.stapel
-                    lage.stapelIndex = s.stapelIndex
-                }
-                belegung.lagen.append(lage)
-            }
-        }
-
-        // Feld links (halbe Spalte), betroffene Stunden rechts daneben in eigenen Spuren
-        for f in felder where feldLinks.contains(f.id) {
-            belegung.lagen.append(spurLage(Kachellage(kachel: f), n: 2, i: 0, von: 0, bis: 1, luecke: luecke))
-        }
-        let seitliche = stunden.filter { seitlich.contains($0.id) }
-        if !seitliche.isEmpty { setzen(seitliche, von: 0.5, bis: 1) }
-        // Hinter einem Feld verdeckte Stunden (schmale Spalten)
         for k in stunden {
-            guard let f = feldVerdeckt[k.id] else { continue }
-            verdraengt.append((k, f))
-            vorneIds.insert(f.id)
+            let s = lagen[k.id] ?? Spurlage()
+            if s.spuren <= grenze {
+                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: s.spuren, i: s.spur, von: 0, bis: 1, luecke: luecke))
+                continue
+            }
+            if s.spur < grenzeMitZaehler {
+                belegung.lagen.append(spurLage(Kachellage(kachel: k), n: grenzeMitZaehler, i: s.spur, von: 0, bis: restAnteil, luecke: luecke))
+                continue
+            }
+            // Hinter dem Streifen: vorne steht die sichtbare Stunde derselben Zeit (bevorzugt die erste Spur)
+            let sichtbar = stunden.filter { o in
+                let so = lagen[o.id] ?? Spurlage()
+                return so.spuren > grenze && so.spur < grenzeMitZaehler && o.ueberlappt(k)
+            }
+            let vorne = sichtbar.first { (lagen[$0.id]?.spur ?? 0) == 0 } ?? sichtbar.first ?? k
+            verdraengt.append((k, vorne))
         }
-        // Alle übrigen Stunden (auch Felder ohne betroffene Stunden): Spuren über die ganze Spalte
-        let uebrige = stunden.filter { !feldLinks.contains($0.id) && !seitlich.contains($0.id) && feldVerdeckt[$0.id] == nil }
-        setzen(uebrige, von: 0, bis: 1)
 
-        for i in belegung.lagen.indices where vorneIds.contains(belegung.lagen[i].kachel.id) {
-            belegung.lagen[i].mitZaehler = true
-        }
         // Je vorderer Kachel ein Streifen; überlappende Streifen verschmelzen
         var roh: [Zaehlstreifen] = []
         for (karte, vorne) in verdraengt {
@@ -1201,8 +1133,13 @@ enum Kachelbau {
                 belegung.streifen.append(st)
             }
         }
-        for p in pausen where !verdeckteAufsichten.contains(p.id) {
-            if seitlicheAufsichten.contains(p.id) {
+
+        // Pausenaufsichten: unter einer durchgehenden Veranstaltung schmal rechts, sonst über die ganze Spalte
+        let felder = stunden.filter { $0.feld }
+        for p in pausen {
+            let unterFeld = !p.vorErsterStunde && p.art == .aufsicht
+                && felder.contains { f in p.beginn >= f.beginn && p.ende <= f.ende }
+            if unterFeld {
                 belegung.lagen.append(spurLage(Kachellage(kachel: p), n: 1, i: 0, von: 0.5, bis: 1, luecke: luecke))
             } else {
                 belegung.lagen.append(Kachellage(kachel: p))
@@ -1215,7 +1152,7 @@ enum Kachelbau {
     private static func spurLage(_ lage: Kachellage, n: Int, i: Int, von: CGFloat, bis: CGFloat, luecke: CGFloat) -> Kachellage {
         var l = lage
         let anzahl = max(1, n)
-        l.spur = i
+        l.spur = min(max(0, i), anzahl - 1)
         l.spuren = anzahl
         l.links = von
         l.breite = bis - von

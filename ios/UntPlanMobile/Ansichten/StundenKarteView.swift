@@ -619,8 +619,10 @@ struct ZaehlstreifenView: View {
 
     var body: some View {
         let farben = farbe
-        Text("\(streifen.kacheln.count)")
+        Text("+\(streifen.kacheln.count)")
             .font(.system(size: 11, weight: .medium))
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .foregroundStyle(farben.text)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(farben.flaeche, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
