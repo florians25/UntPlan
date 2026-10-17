@@ -278,7 +278,10 @@ async function uebersicht(seite, kontext, info) {
   });
 }
 
-/** Kopfzeile mit Datum, Zeit, Phase und Hinweis. */
+/**
+ * Kopfzeile mit Datum, Zeit, Phase und Hinweis – zwei gleich hohe Zeilen: oben Datum, Status-Pill und Phasentext (auf einer Linie),
+ * darunter Uhrzeit/Termindauer/Pause und der Zusatz (z. B. Lehrkraft und Raum).
+ */
 function kopfInfo(t, zusatz = '') {
   const phaseText = {
     einladung: `Einladungen bis ${zeitDe(t.einladungEnde)} · Anmeldung für Eltern ab ${zeitDe(t.anmeldungVon)}`,
@@ -286,8 +289,9 @@ function kopfInfo(t, zusatz = '') {
     geschlossen: 'Die Anmeldung ist geschlossen.', vorbei: 'Der Sprechtag ist vorbei.', vorbereitung: 'Noch nicht für Lehrkräfte und Eltern sichtbar.',
     abgesagt: `Der Sprechtag wurde abgesagt${t.absageGrund ? ` (${t.absageGrund})` : ''}. Alle Termine entfallen.`,
   }[t.phase] ?? '';
-  return `<div class="st-kopf"><div class="st-kopf-datum"><b>${e(t.datumText)}</b><span>${e(t.beginn)}–${e(t.ende)} Uhr · Termine à ${t.dauer} Min.${t.pausen.length ? ` · Pause ${t.pausen.map(p => `${p.von}–${p.bis}`).join(', ')}` : ''}</span></div>
-    ${phaseChip(t.phase)}<span class="nl-unter">${e(phaseText)}</span>${zusatz}</div>
+  return `<div class="st-kopf">
+      <div class="st-kopf-zeile"><b class="st-kopf-datum">${e(t.datumText)}</b>${phaseChip(t.phase)}${phaseText ? `<span class="st-kopf-phase">${e(phaseText)}</span>` : ''}</div>
+      <div class="st-kopf-zeile st-kopf-unter"><span>${e(t.beginn)}–${e(t.ende)} Uhr · Termine à ${t.dauer} Min.${t.pausen.length ? ` · Pause ${t.pausen.map(p => `${p.von}–${p.bis}`).join(', ')}` : ''}</span>${zusatz}</div></div>
     ${t.hinweis ? `<div class="nl-hinweis"><i class="bi bi-info-circle"></i>${e(t.hinweis)}</div>` : ''}`;
 }
 
@@ -358,12 +362,12 @@ async function lehrkraft(seite, kontext, id, lehrer) {
           : `<button type="button" class="nl-icon sichtbar" data-freigeben="${z.beginn}" title="Freigeben" aria-label="Zeitfenster ${z.beginn} freigeben"><i class="bi bi-unlock"></i></button>`}</td></tr>`;
   };
 
-  seite.innerHTML = `${kopfInfo(t, `<span class="nl-unter">· ${e(d.lehrer.name)}${d.lehrer.raum ? ` · Raum ${e(d.lehrer.raum)}` : ''}</span>`)}
+  seite.innerHTML = `${kopfInfo(t, `<span>· ${e(d.lehrer.name)}${d.lehrer.raum ? ` · Raum ${e(d.lehrer.raum)}` : ''}</span>`)}
     ${d.lehrer.abgesagt ? `<div class="nl-hinweis rot"><i class="bi bi-x-circle"></i>Die Teilnahme wurde am ${e(zeitDe(d.lehrer.abgesagt.replace(' ', 'T')))} abgesagt${d.lehrer.absageGrund ? ` (${e(d.lehrer.absageGrund)})` : ''}. Es können keine Termine gebucht werden.</div>` : ''}
     <div class="st-raster">
       <div class="st-links">
         ${raumPanel}
-        <section class="st-karte st-einladen"><header><i class="bi bi-envelope-paper"></i><h2>Gespräche wünschen</h2><span class="nl-zahl ms-auto"><b>${d.einladungen.length}</b> Einladungen</span></header>
+        <section class="st-karte st-einladen"><header><i class="bi bi-envelope-paper"></i><h2>Gespräche wünschen</h2><span class="nl-zahl st-rechts"><b>${d.einladungen.length}</b> Einladungen</span></header>
           ${d.einladenMoeglich ? `<div class="st-einladen-felder">
             <label class="u-feld st-klassefeld"><span>Klasse</span><select class="form-select" data-klasse aria-label="Klasse"><option value="">alle Klassen</option>
               ${klassen.map(k => `<option value="${e(k)}" ${k === klasse ? 'selected' : ''} ${sch.eigeneKlassen.includes(k) ? 'data-zweit="eigene Klasse"' : ''}>${e(k)}</option>`).join('')}</select></label>
@@ -375,11 +379,10 @@ async function lehrkraft(seite, kontext, id, lehrer) {
         </section>
       </div>
       <section class="st-karte st-termine">
-        <header><i class="bi bi-person-video3"></i><h2>Meine Termine</h2><span class="nl-zahl gelb ms-2"><b>${gebucht}</b> gebucht</span>${gesperrt ? `<span class="nl-zahl rot"><b>${gesperrt}</b> gesperrt</span>` : ''}
-          <span class="ms-auto d-flex gap-2 flex-wrap">
+        <header><i class="bi bi-person-video3"></i><h2>Meine Termine</h2><span class="nl-zahl gelb"><b>${gebucht}</b> gebucht</span>${gesperrt ? `<span class="nl-zahl rot"><b>${gesperrt}</b> gesperrt</span>` : ''}
+          <span class="st-kopf-knoepfe">
             <a class="nl-knopf" href="${BASIS}/${id}/plan.pdf${q}" data-pdf="hoch" target="_blank" rel="noopener" title="Liste der gebuchten Termine als PDF">${icon('file-earmark-pdf')}Terminliste</a>
             <a class="nl-knopf" href="${BASIS}/${id}/plan.pdf?leer=true${qa}" data-pdf="hoch" target="_blank" rel="noopener" title="Alle Zeitfenster als PDF, z. B. zum Aushang an der Tür">${icon('printer')}Aushang</a></span></header>
-        <div class="st-tag">${e(t.datumText)}</div>
         <div class="nl-tabelle st-zeitraster"><table><thead><tr><th class="nl-wahl"><span class="visually-hidden">Wahl</span></th><th>Termin</th><th>Schüler*in</th><th>Klasse</th><th>Hinweis</th><th></th></tr></thead>
           <tbody>${d.zeitfenster.map(zeile).join('')}</tbody></table>
           <div class="nl-fuss"><span class="nl-unter" data-gewaehlt>Zeitfenster wählen, um sie zu sperren (abwesend) oder freizugeben.</span>
@@ -499,24 +502,24 @@ async function eltern(seite, kontext, id) {
       l.eingeladen ? `<span class="nl-chip lila" ${l.einladungText ? `data-hover="${e(l.einladungText)}" data-hover-art="dunkel"` : ''}><i class="bi bi-envelope-paper"></i>Einladung</span>` : ''].join('');
     let termin;
     if (l.termin) termin = `<span class="st-zeit gebucht">${e(l.termin.beginn)}</span> <span class="nl-unter">bis ${e(l.termin.ende)}</span>
-        ${absagbar(t) ? `<button type="button" class="nl-knopf rot ms-2" data-storno="${l.termin.id}" data-text="${e(`${l.termin.beginn} Uhr bei ${l.name}`)}">Absagen</button>` : ''}`;
+        ${absagbar(t) ? `<button type="button" class="nl-knopf rot st-klein ms-2" data-storno="${l.termin.id}" data-text="${e(`${l.termin.beginn} Uhr bei ${l.name}`)}">Absagen</button>` : ''}`;
     else if (l.abgesagt) termin = '<span class="nl-chip rot">Teilnahme abgesagt</span>';
     else if (!d.buchbar) termin = `<span class="nl-unter">${t.phase === 'einladung' ? `Buchung ab ${e(zeitDe(t.anmeldungVon))}` : 'keine Buchung mehr möglich'}</span>`;
     else if (!l.zeitfenster.length) termin = '<span class="nl-unter">keine freien Termine</span>';
     else termin = `<span class="st-buchen"><select class="form-select form-select-sm" data-zeit aria-label="Uhrzeit bei ${e(l.name)}" data-platzhalter="Uhrzeit wählen">
         <option value="">Uhrzeit wählen</option>${l.zeitfenster.map(z => `<option value="${z.beginn}" ${z.konflikt ? 'disabled data-zweit="Überschneidung mit einem Ihrer Termine"' : ''}>${z.beginn}–${z.ende}</option>`).join('')}</select>
         <button type="button" class="nl-hinzu st-klein" data-buchen data-lehrer="${e(l.kurz)}" data-kind="${k.id}">Buchen</button></span>`;
-    return `<tr><td><span class="nl-name">${e(l.name)}</span><div class="nl-chips mt-1">${merkmale}</div></td><td class="nl-unter">${e(faecher)}</td><td>${l.raum ? e(l.raum) : '<span class="nl-unter">–</span>'}</td><td>${termin}</td></tr>`;
+    return `<tr><td><span class="st-lehrkraft"><span class="nl-name">${e(l.name)}</span>${merkmale}</span></td><td class="nl-unter">${e(faecher)}</td><td>${l.raum ? e(l.raum) : '<span class="nl-unter">–</span>'}</td><td>${termin}</td></tr>`;
   };
   seite.innerHTML = `${kopfInfo(t)}
-    <section class="st-karte"><header><i class="bi bi-person-video3"></i><h2>Meine Termine</h2><span class="nl-zahl gelb ms-2"><b>${termine.length}</b></span></header>
+    <section class="st-karte"><header><i class="bi bi-person-video3"></i><h2>Meine Termine</h2><span class="nl-zahl gelb"><b>${termine.length}</b></span></header>
       ${termine.length ? `<div class="nl-tabelle st-flach"><table><thead><tr><th>Zeit</th><th>Lehrkraft</th><th>Raum</th><th>Kind</th><th></th></tr></thead><tbody>
         ${termine.map(x => `<tr><td class="text-nowrap"><span class="st-zeit gebucht">${e(x.beginn)}</span> <span class="nl-unter">– ${e(x.ende)}</span></td><td class="nl-name st-n">${e(x.lehrerName)}</td>
           <td>${x.raum ? e(x.raum) : '–'}</td><td>${e(`${x.schueler.vorname} ${x.schueler.name}`)} <span class="nl-unter">${e(x.schueler.klasse)}</span></td>
           <td class="text-end">${absagbar(t) ? `<button type="button" class="nl-knopf rot st-klein" data-storno="${x.id}" data-text="${e(`${x.beginn} Uhr bei ${x.lehrerName}`)}" title="Termin absagen" aria-label="Termin absagen">Absagen</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>` : `<div class="p-3 nl-unter">Noch keine Termine gebucht.</div>`}
     </section>
-    ${d.kinder.length ? d.kinder.map(k => `<section class="st-karte"><header><i class="bi bi-people"></i><h2>Lehrkräfte von ${e(`${k.vorname} ${k.name}`)}</h2><span class="nl-tag ms-2">${e(k.klasse)}</span></header>
+    ${d.kinder.length ? d.kinder.map(k => `<section class="st-karte"><header><i class="bi bi-people"></i><h2>Lehrkräfte von ${e(`${k.vorname} ${k.name}`)}</h2><span class="nl-tag">${e(k.klasse)}</span></header>
       ${k.lehrkraefte.length ? `<div class="nl-tabelle st-flach"><table><thead><tr><th>Lehrkraft</th><th>Fächer</th><th>Raum</th><th>Termin</th></tr></thead><tbody>
         ${k.lehrkraefte.map(l => lehrerZeile(k, l)).join('')}</tbody></table></div>` : '<div class="p-3 nl-unter">Keine Lehrkraft Ihres Kindes nimmt an diesem Sprechtag teil.</div>'}
     </section>`).join('') : alarm('warning', 'Ihrem Konto ist kein Kind zugeordnet. Bitte wenden Sie sich an die Schule.')}`;

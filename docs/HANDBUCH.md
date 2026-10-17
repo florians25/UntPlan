@@ -531,7 +531,7 @@ Exportieren Sie eine Abteilungsdatei, planen Sie die Abteilung getrennt und füh
 | Vertretungen* | tagesaktuelle Pläne, Vertretungen, Absenzen, Termine, Nachrichten zum Tag |
 | Absenzen* (Import) | Krankmeldungen und Nachrichten aus UntPlanWeb |
 | Buchungen* (Import) | Raumbuchungen aus UntPlanWeb, je Stunde eine Zeile der Art *Raumbuchung*; nur wenn der Raum frei ist |
-| Klausuren* (Import) | Klausuren aus UntPlanWeb mit Klassen, Aufsichten und Räumen; der Unterricht der Klassen entfällt |
+| Klausuren* (Import) | Klausuren aus UntPlanWeb mit Klassen, Aufsichten und Räumen; der Unterricht der Klassen entfällt. Führt die Lehrkraft des Unterrichts selbst Aufsicht, ersetzt die Klausur ihn (eine Zeile *Klausur* je Stunde). Erneuter Import aktualisiert nur, eine bestehende Raumbuchung derselben Zeit wird zur Klausur |
 
 - Jeder Teil lässt sich einzeln exportieren; UntPlanWeb ersetzt nur die übertragenen Teile. *Alles exportieren* überträgt alles.
 - Mit * markierte Daten gelten ab heute oder ab dem aktivierten Anfangsdatum.

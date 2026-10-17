@@ -503,11 +503,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var ids = Ziele();
         var liste = D.Vertretungen.Where(x => ids.Contains(x.Id)).ToList();
         var rest = VerlegungsAbfrage.VorEntfall(liste, Aendern);
-        if (rest.Count == liste.Count) { Aktion("Entfall", (d, v) => Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer)); return; }
+        // Sondereinsatz auf Entfall: Rückfrage, ob er gelöscht werden soll
+        var seLoeschen = StundenplanFenster.SondereinsatzLoeschenFragen(rest.Where(v => Vertretungen.IstSondereinsatz(v) && !v.IstEntfall)) == true;
+        if (rest.Count == liste.Count && !seLoeschen) { Aktion("Entfall", (d, v) => Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer)); return; }
         if (_v != null) _v = D.Vertretungen.FirstOrDefault(x => x.Id == _v.Id);
         var restIds = rest.Select(v => v.Id).ToHashSet();
         if (restIds.Count > 0)
-            Aendern("Entfall", AenderungsArt.Vertretung, d => { foreach (var v in d.Vertretungen.Where(x => restIds.Contains(x.Id)).ToList()) Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer); });
+            Aendern("Entfall", AenderungsArt.Vertretung, d => { foreach (var v in d.Vertretungen.Where(x => restIds.Contains(x.Id)).ToList()) Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer, seLoeschen); });
+        if (_v != null) _v = D.Vertretungen.FirstOrDefault(x => x.Id == _v.Id);
         Neuaufbau();
     }
 

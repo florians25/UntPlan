@@ -607,6 +607,50 @@ public static class Vertretungen
             }
     }
 
+    /// <summary>Rückfrage beim Entfall eines Sondereinsatzes (Vertretungsliste, Vorschlag, Stundenplan).</summary>
+    public const string SondereinsatzLoeschenFrage = "Soll der Sondereinsatz gelöscht werden?";
+
+    /// <summary>Zeile, bei deren Entfall gefragt wird, ob der Sondereinsatz gelöscht werden soll.</summary>
+    public static bool IstSondereinsatz(Vertretung v) => v.Art == VertretungsArt.Sondereinsatz && v.GangId is null;
+
+    /// <summary>Sondereinsätze, die „Stunde entfallen lassen“ im Stundenplan beträfe (für die Rückfrage).</summary>
+    public static List<Vertretung> SondereinsaetzeBeiEntfall(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde) =>
+        Tagesplan.Berechnen(d, datum).Stunde(stunde).Where(e => e.Findetstatt && e.Vertretung is { } v && IstSondereinsatz(v) && (e.Regel?.Unterricht.Id ?? v.UnterrichtId) == unterrichtId &&
+            (zeilenIndex is null || (e.Regel?.ZeilenIndex ?? v.ZeilenIndex) == zeilenIndex)).Select(e => e.Vertretung!).Distinct().ToList();
+
+    /// <summary>
+    /// Entfall-Zeilen einer Stunde im Stundenplan (Unterricht, im Lehrerplan nur die Zeile der Lehrkraft) rückgängig machen – wie
+    /// „Entfall rückgängig machen“ in der Vertretungsliste (<see cref="EntfallUmschalten"/>). Verlegte Stunden bleiben unberührt.
+    /// Ergebnis: Anzahl.
+    /// </summary>
+    public static int EntfallRueckgaengig(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde, string benutzer = "")
+    {
+        var liste = EntfallZeilen(d, unterrichtId, zeilenIndex, datum, stunde);
+        foreach (var v in liste) EntfallUmschalten(d, v, benutzer);
+        return liste.Count;
+    }
+
+    /// <summary>Zeilen, die <see cref="EntfallRueckgaengig"/> zurücknehmen würde.</summary>
+    public static List<Vertretung> EntfallZeilen(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde) =>
+        d.Vertretungen.Where(v => v.Datum == datum && v.Stunde == stunde && v.UnterrichtId == unterrichtId && (zeilenIndex is null || v.ZeilenIndex == zeilenIndex)
+                                  && v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt && v.NachDatum is null && v.VerlegungsId is null
+                                  && !IstBereitschaftsfach(d, v.FachId)).ToList();
+
+    /// <summary>
+    /// Entfall mit Option: Ist die Zeile ein Sondereinsatz und <paramref name="sondereinsatzLoeschen"/> gesetzt, wird der Sondereinsatz
+    /// komplett gelöscht statt zur Entfall-Zeile zu werden. Ergebnis: true, wenn gelöscht.
+    /// </summary>
+    public static bool EntfallUmschalten(Schuldatei d, Vertretung v, string benutzer, bool sondereinsatzLoeschen)
+    {
+        if (sondereinsatzLoeschen && IstSondereinsatz(v))
+        {
+            d.Vertretungen.Remove(v);
+            return true;
+        }
+        EntfallUmschalten(d, v, benutzer);
+        return false;
+    }
+
     /// <summary>Schaltfläche Entfall: offene Vertretung → Entfall, Entfall → wieder offene Vertretung.</summary>
     public static void EntfallUmschalten(Schuldatei d, Vertretung v, string benutzer = "")
     {
@@ -789,12 +833,27 @@ public static class Vertretungen
     }
 
     /// <summary>Stunde entfallen lassen (Stunde in die Lupe ziehen bzw. Entfall im Planungsdialog).</summary>
-    public static void Entfallen(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde, string benutzer = "")
+    /// <param name="sondereinsatzLoeschen">Sondereinsätze der Stunde: true = löschen, false = Entfall-Zeile, null = wie bisher
+    /// (zusätzlicher Sondereinsatz wird gelöscht, Sondereinsatz zu einem Unterricht wird zum Entfall)</param>
+    public static void Entfallen(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly datum, int stunde, string benutzer = "", bool? sondereinsatzLoeschen = null)
     {
         var tp = Tagesplan.Berechnen(d, datum);
         foreach (var e in tp.Stunde(stunde).Where(e => e.Findetstatt && (e.Regel?.Unterricht.Id ?? e.Vertretung?.UnterrichtId) == unterrichtId &&
                      (zeilenIndex is null || (e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex) == zeilenIndex)).ToList())
         {
+            if (e.Vertretung is { } se && IstSondereinsatz(se) && sondereinsatzLoeschen is bool loeschen && (loeschen || e.Status == TagesStatus.Zusaetzlich))
+            {
+                if (loeschen) d.Vertretungen.Remove(se);
+                else
+                {
+                    se.Art = VertretungsArt.Entfall;
+                    se.VertreterId = null;
+                    se.VertretungsraumId = null;
+                    se.Mehrarbeit = false;
+                    Markieren(se, benutzer);
+                }
+                continue;
+            }
             if (e.Status == TagesStatus.Zusaetzlich && e.Vertretung != null)
             {
                 if (e.Vertretung.VerlegungsId is int vid)

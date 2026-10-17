@@ -1294,6 +1294,19 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
         if (liste.Count != anzahl) liste = liste.Select(v => D.Vertretungen.FirstOrDefault(x => x.Id == v.Id)).OfType<Vertretung>().ToList();
         var zurueck = liste.All(v => v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt);
+        // Sondereinsatz auf Entfall: Rückfrage, ob er gelöscht werden soll (Nein = Entfall wie bisher)
+        var seLoeschen = !zurueck && StundenplanFenster.SondereinsatzLoeschenFragen(liste.Where(Vertretungen.IstSondereinsatz)) == true;
+        if (seLoeschen)
+        {
+            var ids2 = liste.Select(v => v.Id).ToHashSet();
+            if (FilterAktiv) _behalten.Merken(ids2);
+            Aendern(ids2.Count > 1 ? $"Entfall ({ids2.Count} Stunden)" : "Entfall", AenderungsArt.Vertretung, d =>
+            {
+                foreach (var v in d.Vertretungen.Where(x => ids2.Contains(x.Id) && x.Art is not (VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt)).ToList())
+                    if (!Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer, true)) Vertretungen.AlsGeaendertMarkieren(v, AppZustand.Benutzer);
+            });
+            return;
+        }
         Ausfuehren(zurueck ? "Entfall aufgehoben" : "Entfall", liste.Select(v => v.Id).ToList(), (d, v) =>
         {
             var istEntfall = v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt;

@@ -145,6 +145,66 @@ public class VertretungErweitertTests
         Assert.DoesNotContain(d.Vertretungen, v => v.Datum == tag);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SondereinsatzAufEntfallLoeschtOderEntfaellt(bool loeschen)
+    {
+        var (d, tag) = Daten();
+        var tp = Tagesplan.Berechnen(d, tag);
+        var lehrer = d.Lehrer.First(l => Vertretungen.LehrerBelegt(d, tp, l.Id, 1) is null);
+        var se = Vertretungen.Sondereinsatz(d, tag, 1, 1, Array.Empty<int>(), new[] { lehrer.Id }, null, null, "AG").Single();
+        Assert.True(Vertretungen.IstSondereinsatz(se));
+        var geloescht = Vertretungen.EntfallUmschalten(d, se, "test", loeschen);
+        Assert.Equal(loeschen, geloescht);
+        if (loeschen) Assert.DoesNotContain(se, d.Vertretungen);
+        else Assert.Equal(VertretungsArt.Entfall, Assert.Single(d.Vertretungen, v => v.Id == se.Id).Art);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SondereinsatzImStundenplanEntfallenLassenMitRueckfrage(bool loeschen)
+    {
+        var (d, tag) = Daten();
+        var r = ErsteNormaleStunde(d, tag);
+        var andere = d.Lehrer.First(l => l.Id != r.LehrerId);
+        // Sondereinsatz zum Unterricht („Stunde ändern“ mit anderer Lehrkraft)
+        var se = new Vertretung
+        {
+            Id = d.NeueId(), Datum = tag, Stunde = r.Stunde, Art = VertretungsArt.Sondereinsatz, Quelle = VertretungsQuelle.Manuell, UnterrichtId = r.Unterricht.Id, ZeilenIndex = r.ZeilenIndex,
+            LehrerId = r.LehrerId, VertreterId = andere.Id, FachId = r.FachId, KlassenIds = r.KlassenIds.ToList(), RaumId = r.RaumId, Bearbeitet = true,
+        };
+        d.Vertretungen.Add(se);
+        Assert.Equal(new[] { se }, Vertretungen.SondereinsaetzeBeiEntfall(d, r.Unterricht.Id, null, tag, r.Stunde));
+        Vertretungen.Entfallen(d, r.Unterricht.Id, null, tag, r.Stunde, "test", loeschen);
+        if (loeschen)
+        {
+            Assert.DoesNotContain(se, d.Vertretungen);
+            Assert.Equal(TagesStatus.Regulaer, Tagesplan.Berechnen(d, tag).Stunde(r.Stunde).Single(e => e.Unterricht?.Id == r.Unterricht.Id && e.Regel?.ZeilenIndex == r.ZeilenIndex).Status);
+        }
+        else Assert.Equal(VertretungsArt.Entfall, se.Art);
+        // ohne Sondereinsatz keine Rückfrage nötig
+        Assert.Empty(Vertretungen.SondereinsaetzeBeiEntfall(d, r.Unterricht.Id, null, tag, r.Stunde));
+    }
+
+    [Fact]
+    public void EntfallImStundenplanRueckgaengigWieInDerVertretungsliste()
+    {
+        var (d, tag) = Daten();
+        var r = ErsteNormaleStunde(d, tag);
+        Vertretungen.Entfallen(d, r.Unterricht.Id, null, tag, r.Stunde, "test");
+        var v = Assert.Single(Vertretungen.EntfallZeilen(d, r.Unterricht.Id, null, tag, r.Stunde));
+        Assert.Equal(TagesStatus.Entfall, Tagesplan.Berechnen(d, tag).Stunde(r.Stunde).Single(e => e.Vertretung == v).Status);
+        // gleiche Wirkung wie „Entfall rückgängig machen“ in der Vertretungsliste
+        var vergleich = new Vertretung { Art = VertretungsArt.Entfall, UnterrichtId = v.UnterrichtId, FachId = v.FachId };
+        Vertretungen.EntfallUmschalten(d, vergleich);
+        Assert.Equal(1, Vertretungen.EntfallRueckgaengig(d, r.Unterricht.Id, null, tag, r.Stunde, "test"));
+        Assert.Equal(vergleich.Art, v.Art);
+        Assert.False(v.IstEntfall);
+        Assert.Empty(Vertretungen.EntfallZeilen(d, r.Unterricht.Id, null, tag, r.Stunde));
+    }
+
     [Fact]
     public void KlausurErzeugtAufsichtUndEntfall()
     {

@@ -108,9 +108,10 @@ public sealed class Klassenbucherinnerung : BackgroundService
     }
 
     /// <summary>Text der Erinnerung (Markdown wie in Mitteilungen): je Stunde ein Link direkt zur Stunde.</summary>
-    internal static string Text(string lehrer, List<Stundenzeile> liste, KlassenbuchEinstellungen einst)
+    public static string Text(string lehrer, List<Stundenzeile> liste, KlassenbuchEinstellungen einst)
     {
-        var kriterium = (einst.Abwesenheitskontrolle ? einst.OffenFuer : "lehrstoff") switch
+        var fuer = einst.Abwesenheitskontrolle ? einst.OffenFuer : "lehrstoff";
+        var kriterium = fuer switch
         {
             "kontrolle" => "die Abwesenheitskontrolle",
             "lehrstoff" => "der Lehrstoff",
@@ -122,8 +123,8 @@ public sealed class Klassenbucherinnerung : BackgroundService
         {
             var datum = DateOnly.ParseExact(z.Datum, "yyyy-MM-dd", CultureInfo.InvariantCulture);
             var fehlt = new List<string>();
-            if (!z.Lehrstoff) fehlt.Add("Lehrstoff");
-            if (!z.Geprueft && einst.Abwesenheitskontrolle) fehlt.Add("Abwesenheitskontrolle");
+            if (!z.Lehrstoff && fuer != "kontrolle") fehlt.Add("Lehrstoff");
+            if (!z.Geprueft && fuer != "lehrstoff") fehlt.Add("Abwesenheitskontrolle");
             var stunde = z.Von == z.Bis ? $"{z.Von}. Std." : $"{z.Von}.–{z.Bis}. Std.";
             t.Append($"- [{datum:dd.MM.yyyy} {stunde} {z.Fach} {string.Join(", ", z.Klassen)}](#/plan/lehrer/{Uri.EscapeDataString(lehrer)}/{z.Datum}/{z.Von}) – fehlt: {string.Join(", ", fehlt)}\n");
         }

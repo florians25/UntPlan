@@ -230,9 +230,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             var laenge = t.Length > 5 && int.TryParse(t[5], out var l5) ? Math.Max(1, l5) : 1;
             // verlegte Stunde: erst fragen, ob die Verlegung rückgängig gemacht werden soll (dann kein Entfall)
             if (VerlegungsAbfrage.VorEntfall(datum, stunde, uid, Aendern)) { Neuaufbau(false); return; }
+            var seLoeschen = SondereinsatzLoeschenFragen(Enumerable.Range(stunde, laenge).SelectMany(s => Vertretungen.SondereinsaetzeBeiEntfall(D, uid, zeile < 0 ? null : zeile, datum, s)));
             Aendern(laenge > 1 ? $"Entfall ({laenge} Stunden)" : "Entfall", AenderungsArt.Vertretung, d =>
             {
-                for (var i = 0; i < laenge; i++) Vertretungen.Entfallen(d, uid, zeile < 0 ? null : zeile, datum, stunde + i, AppZustand.Benutzer);
+                for (var i = 0; i < laenge; i++) Vertretungen.Entfallen(d, uid, zeile < 0 ? null : zeile, datum, stunde + i, AppZustand.Benutzer, seLoeschen);
             });
             Neuaufbau(false);
         };
@@ -1425,6 +1426,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _lupe.Rows[r].DefaultCellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
     }
 
+    /// <summary>Entfall eines Sondereinsatzes: Rückfrage, ob er gelöscht werden soll (null = kein Sondereinsatz betroffen).</summary>
+    internal static bool? SondereinsatzLoeschenFragen(IEnumerable<Vertretung> sondereinsaetze) =>
+        sondereinsaetze.Any() ? Ui.Frage(Vertretungen.SondereinsatzLoeschenFrage, "UntPlan - Frage") : null;
+
     /// <summary>Alle Änderungen der gewählten Stunde zurücknehmen (manuelle Vertretungszeilen löschen).</summary>
     private void AenderungenRueckgaengig()
     {
@@ -1474,10 +1479,19 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         {
             if (uid is not int uu) return;
             if (VerlegungsAbfrage.VorEntfall(datum, stunde, uu, Aendern)) { Neuaufbau(false); return; }
-            Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uu, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde, AppZustand.Benutzer));
+            var zi = _typ == ElementTyp.Lehrer ? zeile : (int?)null;
+            var seLoeschen = SondereinsatzLoeschenFragen(Vertretungen.SondereinsaetzeBeiEntfall(D, uu, zi, datum, stunde));
+            Aendern("Entfall", AenderungsArt.Vertretung, d => Vertretungen.Entfallen(d, uu, zi, datum, stunde, AppZustand.Benutzer, seLoeschen));
             Neuaufbau(false);
         });
         entfall.Enabled = findet && uid is int;
+        // Entfall rückgängig wie in der Vertretungsliste
+        if (!findet && uid is int ue && Vertretungen.EntfallZeilen(D, ue, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde).Count > 0)
+            cm.Items.Add("Entfall rückgängig", Symbole.Get("rueckgaengig"), (_, _) =>
+            {
+                Aendern("Entfall aufgehoben", AenderungsArt.Vertretung, d => Vertretungen.EntfallRueckgaengig(d, ue, _typ == ElementTyp.Lehrer ? zeile : null, datum, stunde, AppZustand.Benutzer));
+                Neuaufbau(false);
+            });
         cm.Items.Add("Klausur erstellen", Symbole.Get("klausur"), (_, _) => KlausurDialog.Neu(this, datum, stunde, e));
         var std = new ToolStripMenuItem("Stpl-Stunde: Standardformat") { Checked = _plan.Format.Standardformat };
         std.Click += (_, _) => { var f = Kopie(_plan.Format); f.Standardformat = !f.Standardformat; FormatSpeichern(f, f.Name); };

@@ -580,6 +580,8 @@ export function karteDialog(karte, kontext = {}) {
     try {
       const lk = kuerzel(k.lehrer);
       daten.eintrag = await senden('/api/app/klassenbuch/stunde', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, ...neu, faellig: neu.faellig || null, lehrer: lk.length === 1 ? lk[0] : null, ...eb() }, 'PUT');
+      if (einzel) daten.einzelstunden = (daten.einzelstunden ?? []).map(z => z.stunde === einzel ? { ...z, eintrag: true } : z);
+      else daten.blockEintrag = daten.eintrag;
       geaendert = true;
       toast('Gespeichert.');
       return true;

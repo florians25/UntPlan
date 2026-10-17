@@ -73,3 +73,9 @@
 .wt-online.aus { background: #c9d0d6; }
 .lg-wartung { display: flex; gap: 10px; padding: 10px 12px; margin-bottom: 14px; border-radius: 8px; background: #fff4d6; color: #6b4e00; font-size: .9rem; }
 @media (max-width: 767.98px) { .ug-termine { max-width: none; } .wt-status { align-items: flex-start; } }
+
+/* Nur Regular/Medium: übernommene nl-Elemente (sonst 600) auf diesen Seiten und in den Dialogen auf Medium setzen */
+[data-ansicht="unterrichtklassen"] :is(.nl-name, .nl-tag, .nl-chip, .nl-zahl b, .nl-knopf, th, b, strong),
+.ug-dialog :is(.nl-name, .nl-tag, .nl-chip, .nl-zahl b, .nl-knopf, th, b, strong),
+.wt-seite :is(.nl-name, .nl-tag, .nl-chip, .nl-zahl b, .nl-knopf, .nl-avatar, th, b, strong),
+.lg-wartung :is(b, strong) { font-weight: 500; }

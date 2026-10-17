@@ -1,26 +1,43 @@
 /* UntPlanWeb – Sprechtag (Elternsprechtag) im nl-design: Karten, Zeitraster der Lehrkraft (frei/gebucht/gesperrt), Einladungen,
    Elternansicht, Formular der Administration und Hinweis auf der Startseite. Wird von js/ansichten/sprechtag.js geladen. */
 
-.st-karte { background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 18px 22px; margin-bottom: 14px; min-width: 0; }
-.st-karte > header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: -2px 0 14px; color: var(--u-titel); }
-.st-karte > header > i { font-size: 1.15rem; color: var(--u-akzent); }
-.st-karte > header h2 { font-size: 1.08rem; font-weight: 600; margin: 0; }
-.st-karte > .nl-tabelle { margin: 0 -22px -18px; border: 0; border-top: 1px solid #e3e7eb; border-radius: 0 0 10px 10px; }
+/* Karten: einheitlich 20px Innenabstand, Kopf immer 36px hoch (Symbol, Titel, Zähler, Knöpfe auf einer Linie), 16px bis zum Inhalt */
+.st-karte { display: flex; flex-direction: column; background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 20px; margin-bottom: 16px; min-width: 0; }
+.st-karte > header { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; height: 36px; margin: 0 0 16px; color: var(--u-titel); min-width: 0; }
+.st-karte > header > i { font-size: 1.15rem; line-height: 1; color: var(--u-akzent); flex: none; }
+.st-karte > header h2 { font-size: 1.05rem; line-height: 1.2; font-weight: 500; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-karte > header .nl-zahl, .st-karte > header .nl-tag { flex: none; height: 28px; display: inline-flex; align-items: center; }
+.st-karte > header .st-rechts { margin-left: auto; }
+.st-kopf-knoepfe { display: flex; flex-wrap: nowrap; gap: 8px; margin-left: auto; flex: none; }
+.st-karte > header .nl-knopf { height: 32px; padding: 0 12px; }
+.st-karte > .nl-tabelle { margin: 0 -20px -20px; border: 0; border-top: 1px solid #e3e7eb; border-radius: 0 0 10px 10px; }
 .st-karte > .nl-unter { margin: -6px 0 12px; }
+@media (max-width: 575.98px) {
+  .st-karte > header { flex-wrap: wrap; height: auto; min-height: 36px; }
+  .st-kopf-knoepfe { margin-left: 0; flex-wrap: wrap; }
+}
 
-/* Kopfzeile mit Datum, Zeit und Phase */
-.st-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px; }
-.st-kopf-datum { display: flex; flex-direction: column; margin-right: 6px; }
-.st-kopf-datum b { font-size: 1.05rem; color: var(--u-titel); font-weight: 600; }
-.st-kopf-datum span { font-size: .85rem; color: #67747e; }
+/* Kopfzeile: zwei gleich hohe Zeilen – oben Datum, Status-Pill und Phasentext auf einer Linie (vertikal mittig),
+   darunter Uhrzeit, Termindauer, Pause und Zusatz (Lehrkraft, Raum) */
+.st-kopf { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
+.st-kopf-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 28px; min-width: 0; }
+.st-kopf-datum { font-size: 1.05rem; line-height: 28px; color: var(--u-titel); font-weight: 500; }
+.st-kopf-zeile .nl-chip { height: 24px; padding: 0 10px; line-height: 1; font-weight: 500; }
+.st-kopf-phase { font-size: .85rem; color: #67747e; }
+.st-kopf-unter { min-height: 22px; gap: 4px 6px; font-size: .85rem; color: #67747e; }
 
 /* Liste */
 .st-liste tr[data-oeffnen], .nl-tabelle tr[data-lehrer][tabindex] { cursor: pointer; }
 
 /* Lehrkraft: links Raum und Einladungen, rechts das Zeitraster */
-.st-raster { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: start; }
+.st-raster { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: stretch; margin-bottom: 16px; }
 @media (max-width: 1199.98px) { .st-raster { grid-template-columns: minmax(0, 1fr); } }
-.st-links { min-width: 0; }
+/* Spalten enden bündig: rechts füllt die Karte die Zeile, links wächst die letzte Karte mit */
+.st-raster > .st-karte { margin-bottom: 0; }
+.st-links { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.st-links > .st-karte { margin-bottom: 0; }
+.st-links > .st-karte:last-child { flex: 1; }
+.st-einladen .st-einladungen { flex: 1; }
 .st-raum .u-feld { max-width: 280px; }
 .st-einladen-felder { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 12px; align-items: end; margin-bottom: 14px; }
 .st-einladen-felder .st-textfeld { grid-column: 1 / -1; }
@@ -28,25 +45,34 @@
 @media (max-width: 575.98px) { .st-einladen-felder { grid-template-columns: minmax(0, 1fr); } }
 .st-einladungen { max-height: 420px; overflow-y: auto; }
 .st-n { font-size: .95rem; }
+/* gleich hohe Zeilen: alle Zellen einzeilig (lange Namen/Hinweise gekürzt) */
+.st-einladungen td, .st-zeitraster td { height: 48px; white-space: nowrap; }
+.st-einladungen td.st-n, .st-zeitraster .st-n { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.st-zeitraster td.nl-unter { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.st-zeitraster td .nl-icon { vertical-align: middle; }
 
-.st-tag { padding: 0 0 10px; font-weight: 600; color: var(--u-akzent); font-size: .95rem; }
-.st-zeitraster td { padding-top: 7px; padding-bottom: 7px; }
+.st-zeitraster td { padding-top: 0; padding-bottom: 0; }
 .st-zeitraster tr.st-frei td { background: #fafbfc; }
 .st-zeitraster tr.st-gesperrt td { background: #fdf3f3; }
 .st-zeitraster tr.nl-gewaehlt td { background: #fff6f1; }
-.st-zeit { display: inline-block; min-width: 54px; padding: 3px 10px; border-radius: 999px; background: #eef1f4; color: #414d55; font-size: .85rem; font-weight: 600; text-align: center;
+.st-zeit { display: inline-block; min-width: 54px; padding: 3px 10px; border-radius: 999px; background: #eef1f4; color: #414d55; font-size: .85rem; font-weight: 500; text-align: center;
   font-variant-numeric: tabular-nums; }
 tr.st-gebucht .st-zeit, .st-zeit.gebucht { background: #fde3cf; color: #8a3a0c; }
 tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
-.st-abwesend { display: inline-block; padding: 3px 12px; border-radius: 6px; background: #d9363e; color: #fff; font-size: .8rem; font-weight: 600; }
-.st-zeitraster .nl-fuss { position: sticky; bottom: 0; }
+.st-abwesend { display: inline-block; padding: 3px 12px; border-radius: 6px; background: #d9363e; color: #fff; font-size: .8rem; font-weight: 500; }
+.st-zeitraster .nl-fuss { position: sticky; bottom: 0; flex-wrap: nowrap; min-height: 56px; padding-top: 0; padding-bottom: 0; }
+.st-zeitraster .nl-fuss [data-gewaehlt] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-zeitraster .nl-fuss .nl-knopf { flex: none; height: 32px; }
+@media (max-width: 575.98px) { .st-zeitraster .nl-fuss { flex-wrap: wrap; padding: 10px 16px; } }
 
 /* Eltern */
-.st-flach td { vertical-align: middle; }
+.st-flach td { vertical-align: middle; height: 56px; padding-top: 0; padding-bottom: 0; }
+.st-lehrkraft { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.st-flach .form-select-sm, .st-flach .nl-knopf, .st-flach .nl-hinzu { height: 32px; }
 .st-buchen { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
 .st-buchen .form-select, .st-buchen .au { width: 180px; flex: none; }
 @media (max-width: 575.98px) { .st-buchen { flex-wrap: wrap; } }
-.nl-hinzu.st-klein { height: 34px; padding: 0 16px; font-size: .9rem; }
+.nl-hinzu.st-klein, .nl-knopf.st-klein { height: 32px; padding: 0 14px; font-size: .9rem; }
 
 /* Formular der Administration */
 .st-formular { max-width: 1100px; }
@@ -64,7 +90,7 @@ tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
 .heute-karte.st-start { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .st-start-sym { display: inline-grid; place-content: center; width: 34px; height: 34px; border-radius: 50%; background: var(--u-akzent); color: #fff; flex: none; }
 .st-start-sym .u-sym { width: 22px; height: 22px; }
-.st-start-titel { color: var(--u-akzent); font-weight: 600; text-decoration: none; }
+.st-start-titel { color: var(--u-akzent); font-weight: 500; text-decoration: none; }
 .st-start-titel:hover { text-decoration: underline; }
 .st-start-datum { color: var(--u-grau, #67747e); font-size: .85rem; }
 .st-start-text { font-size: .875rem; color: var(--u-text); }

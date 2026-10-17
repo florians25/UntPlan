@@ -13,6 +13,7 @@ export async function aktive(ziel, kontext, neu, [zeitraumParam] = []) {
   const d = await holen(`/api/app/admin/sitzungen?stunden=${stunden}`);
   const aktiv = d.sitzungen.filter(s => s.aktiv);
   const konten = new Set(d.sitzungen.map(s => s.benutzerId));
+  ziel.classList.add('wt-seite');
   ziel.innerHTML = `
     ${d.gesperrt ? `<div class="lg-wartung"><i class="bi bi-lock" aria-hidden="true"></i><span>Der Zugriff ist gesperrt: Nur die Administration kann sich anmelden. <a href="#/admin/zugriff">Zugriff freigeben</a></span></div>` : ''}
     <div class="nl-zahlen">
@@ -48,6 +49,7 @@ export async function aktive(ziel, kontext, neu, [zeitraumParam] = []) {
 
 export async function zugriff(ziel, kontext, neu) {
   const d = await holen('/api/app/admin/zugriff');
+  ziel.classList.add('wt-seite');
   ziel.innerHTML = `
     <div class="wt-status ${d.gesperrt ? 'gesperrt' : ''}">
       <span class="wt-symbol"><i class="bi bi-${d.gesperrt ? 'lock' : 'unlock'}" aria-hidden="true"></i></span>
@@ -79,6 +81,7 @@ export async function zugriff(ziel, kontext, neu) {
 export async function ueber(ziel) {
   const d = await holen('/api/app/admin/ueber');
   const wert = (titel, inhalt) => `<div class="wt-wert"><small>${e(titel)}</small><b>${inhalt}</b></div>`;
+  ziel.classList.add('wt-seite');
   ziel.innerHTML = `
     <div class="wt-karte"><div class="d-flex align-items-center gap-3 mb-3">${icon('dashboard')}<h4 class="m-0">${e(d.produkt)} ${e(d.version)}</h4></div>
       <div class="wt-raster">
