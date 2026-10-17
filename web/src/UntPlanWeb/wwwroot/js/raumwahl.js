@@ -110,6 +110,9 @@ export function raumwahl(input, { wurzel, felder = { datum: 'datum', von: 'von',
   }
 
   async function oeffnen() {
+    // nach oben aufklappen, wenn unter dem Feld zu wenig Platz ist
+    const r = input.getBoundingClientRect(), unten = innerHeight - r.bottom;
+    pop.classList.toggle('oben', unten < 340 && r.top > unten);
     pop.classList.remove('d-none');
     input.setAttribute('aria-expanded', 'true');
     zeichnen();

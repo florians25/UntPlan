@@ -330,7 +330,7 @@ const EW_FILTER = [
 const ewChipName = p => p.kuerzel && p.anzeigename && p.anzeigename !== p.kuerzel ? `${p.anzeigename} (${p.kuerzel})` : (p.anzeigename || p.name);
 
 /**
- * Dialog „Empfänger*innen“: großes Suchfeld (Kürzel, Name, Anmeldename, Klasse), Filter-Pills Ausgewählt, Liste (indiv.), Klasse,
+ * Dialog „Empfänger*innen“: großes Suchfeld (Kürzel, Name, Anmeldename), Filter-Pills Ausgewählt, Liste (indiv.), Klasse,
  * Abteilung, Rolle, Gruppe; „Alle auswählen“; je Person runder Auswahlkreis, Avatar mit Initiale, Kürzel und Rollen-Pills.
  * Gruppen/Klassen als Empfänger (Kollegium) stehen unter den Personen. gewaehlt: Map id → Name; fertig(Map) beim Übernehmen.
  * Tastatur: ↓/↑ zwischen Suchfeld und Zeilen, Leertaste/Enter wählt, Esc schließt (Menü bzw. Dialog).
@@ -341,7 +341,7 @@ async function empfaengerDialog(kollegium, gewaehlt, fertig) {
   const filter = { ausgewaehlt: false };
   const menge = d.personen;
   const gruppen = (d.gruppen ?? []).filter(g => g.art !== 'liste');
-  const suchtext = p => `${p.name} ${p.anzeigename} ${p.login} ${p.kuerzel} ${p.klassen.join(' ')} ${p.rollen.map(r => r.text).join(' ')}`.toLowerCase();
+  const suchtext = p => `${p.name} ${p.anzeigename} ${p.login} ${p.kuerzel}`.toLowerCase();
   const filterAktiv = () => EW_FILTER.some(([k]) => filter[k]);
   const passt = (p, f) => (!f || suchtext(p).includes(f)) && (!filter.ausgewaehlt || neu.has(p.id))
     && EW_FILTER.every(([k, , , pruef]) => !filter[k] || pruef(p, filter[k], d));
@@ -373,7 +373,8 @@ async function empfaengerDialog(kollegium, gewaehlt, fertig) {
   const pillsZeichnen = () => {
     filterLeiste.innerHTML = `<button type="button" class="mt-ew-fpill erste ${filter.ausgewaehlt ? 'an' : ''}" data-ew-aus aria-pressed="${filter.ausgewaehlt}">Ausgewählt${neu.size ? ` (${neu.size})` : ''}</button>`
       + EW_FILTER.map(([k, titel, optionen]) => {
-        if (!optionen(d).length) return '';
+        // Kollegium: alle Filter wie im Original sichtbar (leere mit Hinweis im Menü); Familie nur Filter mit Einträgen
+        if (!optionen(d).length && (!kollegium || (k === 'liste' && !d.filter.listen))) return '';
         const wert = filter[k] ? optionen(d).find(o => o.id === filter[k])?.name ?? filter[k] : '';
         return `<button type="button" class="mt-ew-fpill ${wert ? 'an' : ''}" data-ew-menue="${k}" aria-haspopup="listbox" aria-expanded="false">${e(wert ? `${titel.replace(/ \(.*\)/, '')}: ${wert}` : titel)}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>`;
       }).join('');
@@ -393,11 +394,13 @@ async function empfaengerDialog(kollegium, gewaehlt, fertig) {
     menueZu();
     const [, titel, optionen] = EW_FILTER.find(f => f[0] === k);
     const opts = [{ id: '', name: `Alle (${titel.replace(/ \(.*\)/, '')})` }, ...optionen(d)];
+    const leerText = { liste: 'Keine eigenen Listen angelegt', abteilung: 'Keine Abteilungen hinterlegt' }[k] ?? 'Keine Einträge';
     menue = document.createElement('div');
     menue.className = 'mt-ew-menue';
     menue.setAttribute('role', 'listbox');
     menue.innerHTML = (opts.length > 12 ? '<input type="search" class="mt-ew-menue-suche" placeholder="Suchen" aria-label="Optionen durchsuchen">' : '')
-      + `<div class="mt-ew-menue-liste">${opts.map(o => `<button type="button" role="option" aria-selected="${(filter[k] ?? '') === o.id}" data-wert="${e(o.id)}" data-text="${e(o.name.toLowerCase())}">${e(o.name)}${(filter[k] ?? '') === o.id ? '<i class="bi bi-check2" aria-hidden="true"></i>' : ''}</button>`).join('')}</div>`;
+      + `<div class="mt-ew-menue-liste">${opts.map(o => `<button type="button" role="option" aria-selected="${(filter[k] ?? '') === o.id}" data-wert="${e(o.id)}" data-text="${e(o.name.toLowerCase())}">${e(o.name)}${(filter[k] ?? '') === o.id ? '<i class="bi bi-check2" aria-hidden="true"></i>' : ''}</button>`).join('')}</div>`
+      + (opts.length === 1 ? `<div class="mt-ew-menue-leer">${leerText}</div>` : '');
     menue.knopf = knopf;
     knopf.setAttribute('aria-expanded', 'true');
     // Menü im Dialoginhalt (nicht in der Pill-Leiste, die mobil waagerecht scrollt) unter der Pill ausrichten

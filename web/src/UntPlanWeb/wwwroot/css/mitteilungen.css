@@ -44,7 +44,7 @@
 .mt-blase.gross { height: 30px; margin: 0 4px; padding: 0 12px; font-size: .8rem; }
 
 /* Großes Fenster (Lesen, Schreiben) wie im Original */
-.mt-dialog .modal-dialog { max-width: min(1210px, calc(100vw - 32px)); margin-top: 28px; }
+.mt-dialog .modal-dialog { max-width: min(1210px, calc(100% - 32px)); margin-top: 28px; }
 .mt-dialog .modal-content { border: 0; border-radius: 4px; box-shadow: 0 6px 30px rgba(0, 0, 0, .18); }
 .mt-dialog .modal-header { padding: 22px 24px 20px; border-bottom: 1px solid #e6e9ec; }
 .mt-dialog .modal-title { font-size: 1.6rem; font-weight: 700; line-height: 1.25; color: #1f2a33; }
@@ -200,7 +200,7 @@
 
    Titel ohne Trennlinie, großes graues Suchfeld mit Lupe, Filter-Pills (Ausgewählt, Liste, Klasse, Abteilung, Rolle, Gruppe), Zeilen mit
    rundem Auswahlkreis, weißem Avatar-Kreis (grauer Rand) und Kürzel, darunter Rollen-Pills; Trennlinien ab dem Text; Fuß rechtsbündig. */
-.mt-ew-dialog .modal-dialog { max-width: min(1210px, calc(100vw - 32px)); }
+.mt-ew-dialog .modal-dialog { max-width: min(1210px, calc(100% - 32px)); }
 .mt-ew-dialog .modal-header { border-bottom: 0; padding: 24px 24px 18px; }
 .mt-ew-dialog .modal-title { font-size: 1.5rem; font-weight: 500; color: #24323d; }
 .mt-ew-dialog .modal-content { height: min(860px, 100%); }
@@ -213,6 +213,7 @@
 .mt-ew-suche { position: relative; margin: 0 24px; }
 .mt-ew-suche .bi { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #67747e; font-size: 1rem; pointer-events: none; }
 .mt-ew-suche input { width: 100%; height: 40px; padding: 0 16px 0 40px; border: 1px solid transparent; border-radius: 20px; background: #f2f4f6; color: #24323d; font: inherit; font-size: .875rem; font-weight: 500; outline: 0; }
+.mt-ew-suche input::-webkit-search-cancel-button { display: none; }
 .mt-ew-suche input::placeholder { color: #8a96a1; font-weight: 600; opacity: 1; }
 .mt-ew-suche input:focus { border-color: rgba(var(--u-akzent-rgb), .55); background: #fff; box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .12); }
 .mt-ew-filter { position: relative; display: flex; flex-wrap: wrap; gap: 5px; margin: 16px 24px 0; }
@@ -226,6 +227,7 @@
 .mt-ew-menue { position: absolute; z-index: 5; min-width: 220px; max-width: 320px; padding: 6px; border-radius: 6px; background: #fff; box-shadow: 0 8px 28px rgba(0, 0, 0, .18); }
 .mt-ew-menue-suche { width: 100%; height: 32px; margin-bottom: 4px; padding: 0 12px; border: 1px solid #dfe3e7; border-radius: 16px; font: inherit; font-size: .8125rem; outline: 0; }
 .mt-ew-menue-suche:focus { border-color: rgba(var(--u-akzent-rgb), .55); }
+.mt-ew-menue-leer { padding: 4px 10px 8px; color: #8a96a1; font-size: .8125rem; }
 .mt-ew-menue-liste { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; }
 .mt-ew-menue [role="option"] { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; border: 0; border-radius: 4px; background: none;
   color: #414d55; font: inherit; font-size: .875rem; text-align: left; }
