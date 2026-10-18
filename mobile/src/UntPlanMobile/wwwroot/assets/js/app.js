@@ -609,11 +609,18 @@ function koppTokens(card){
    nicht auf der Kachel — die übrigen Lehrkräfte stehen schlicht da. Ein
    Label gibt es nur für eine echte Vertretung. Fehlen alle bzw. entfällt
    die Stunde, bleibt es bei der bisherigen Darstellung. Die Details nennen
-   weiterhin alle (koppTokens). Bleibt nur eine Lehrkraft ohne Änderung
-   übrig, ist es keine Liste mehr: `allein` (ein gewöhnlicher Wert). */
+   weiterhin alle (koppTokens). Eine vertretene Lehrkraft steht ebenfalls
+   nicht auf der Kachel — nur ihre Vertretung (Plakette). Bleibt nur eine
+   Lehrkraft ohne Änderung übrig, ist es keine Liste mehr: `allein` (ein
+   gewöhnlicher Wert). */
 function kachelTokens(card){
-  const toks = koppTokens(card);
+  let toks = koppTokens(card);
   if (!toks || card.blockType === 'cancelled' || !toks.some(t => t.state !== 'absent')) return toks;
+  /* Wer vertreten wird, steht auf der Kachel überhaupt nicht — nur die
+     Vertretung (die Details nennen beide). */
+  const gross = x => String(x || '').toUpperCase();
+  const vertreten = toks.filter(t => t.state === 'sub' && t.for).map(t => gross(t.for));
+  toks = toks.filter(t => t.state === 'sub' || !vertreten.includes(gross(t.text)));
   const da = toks.filter(t => t.state !== 'absent');
   if (da.length === toks.length) return toks;
   return da.length === 1 && da[0].state === 'ok' ? [{ ...da[0], allein:true }] : da;
@@ -1726,12 +1733,11 @@ function renderGrid(){
               const kern  = t.state === 'absent'
                 ? `<span class="badge badge--removed${koppOffen(t, l.tokens) ? ' badge--open' : ''}">${esc(t.text)}</span>`
                 : t.state === 'sub'
-                /* Alle Lehrkräfte stehen da: die vertretene durchgestrichen,
-                   daneben die Vertretung als grüne Plakette — auch im Plan
-                   der abwesenden Lehrkraft selbst. */
-                ? (t.for && l.key === 'teacher'
-                    ? `<span class="badge badge--removed">${esc(t.for)}</span><i class="tok__trenn">,</i> <span class="badge">${esc(t.text)}</span>`
-                    : `<span class="badge${l.key === 'room' ? ' badge--raum' : ''}">${esc(plusT)}</span>`)
+                /* Vertretung: auf der Kachel steht NUR die Vertretung als
+                   grüne Plakette — die vertretene Lehrkraft erscheint hier
+                   gar nicht (kein durchgestrichenes Kürzel, kein „alt | neu“);
+                   sie nennen allein die Details. */
+                ? `<span class="badge${l.key === 'room' ? ' badge--raum' : ''}">${esc(l.key === 'teacher' ? t.text : plusT)}</span>`
                 : (t.plus || istPlus(card, l.key, t.text))
                 ? `<span class="badge${l.key === 'room' ? ' badge--raum' : ''}">${esc(plusT)}</span>`
                 : esc(t.text);

@@ -701,9 +701,10 @@ enum Kachelbau {
             switch schluessel {
             case "lehrer":
                 if k.lehrer.count > 1 {
-                    // Kopplung: immer alle Lehrkräfte, jedes Kürzel mit eigenem Zustand – auch im Plan der abwesenden
-                    // Lehrkraft. Abwesend ohne Vertretung: durchgestrichen in der grünen Plakette (offen); abwesend mit
-                    // Vertretung: durchgestrichen, daneben die Vertretung als grüne Plakette.
+                    // Kopplung: alle Lehrkräfte, jedes Kürzel mit eigenem Zustand – auch im Plan der abwesenden Lehrkraft.
+                    // Abwesend ohne Vertretung: durchgestrichen in der grünen Plakette (offen). Abwesend mit Vertretung: auf der
+                    // Karte steht NUR die Vertretung als grüne Plakette – die vertretene Lehrkraft erscheint dort gar nicht
+                    // (kein durchgestrichenes Kürzel, kein „alt | neu“); sie nennen allein die Details.
                     var teile: [Kachelteil] = []
                     func hinzu(_ t: Kachelteil) {
                         if teile.contains(where: { gleich($0.text, t.text) && $0.stil == t.stil }) { return }
@@ -719,22 +720,18 @@ enum Kachelbau {
                                 hinzu(Kachelteil(text: "???", stil: offenStil))
                             }
                         } else if w.neu && !alt.isEmpty && !gleich(alt, w.k) {
-                            hinzu(Kachelteil(text: alt, stil: .weg))
                             hinzu(Kachelteil(text: w.k, stil: .plakette))
                         } else {
                             hinzu(Kachelteil(text: w.k))
                         }
                     }
-                    // Wer vertreten wird, steht nicht zusätzlich als „offen“ da
-                    let vertreten = teile.filter { $0.stil == .weg }.map { $0.text }
-                    teile.removeAll { t in t.stil == .offen && vertreten.contains { gleich($0, t.text) } }
+                    // Wer vertreten wird, steht auf der Karte überhaupt nicht (weder „offen“ noch als gewöhnliches Kürzel)
+                    let vertreten = k.lehrer.filter { w in w.neu && !w.k.isEmpty && !(w.alt ?? "").isEmpty && !gleich(w.alt ?? "", w.k) }
+                        .compactMap { $0.alt }
+                    teile.removeAll { t in t.stil != .plakette && vertreten.contains { gleich($0, t.text) } }
                     if teile.count > 1 {
-                        // Abwesende und vertretende Lehrkraft durch „|“ getrennt (z. B. „LAN | ILK“), sonst Komma
-                        for j in teile.indices {
-                            guard j < teile.count - 1 else { teile[j].trenner = ""; continue }
-                            let paar = teile[j].stil == .weg && teile[j + 1].stil == .plakette
-                            teile[j].trenner = paar ? "\u{2009}|\u{2009}" : ", "
-                        }
+                        // Mehrere Lehrkräfte immer durch Komma getrennt – nie „alt | neu“
+                        for j in teile.indices { teile[j].trenner = j < teile.count - 1 ? ", " : "" }
                         zeile.teile = teile
                         hatListe = true
                         koppliste = true

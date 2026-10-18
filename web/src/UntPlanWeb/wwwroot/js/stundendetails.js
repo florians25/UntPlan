@@ -309,6 +309,8 @@ export function karteDialog(karte, kontext = {}) {
     const darf = !!a?.darf;
     const sl = schueler();
     const sitzW = sitz.einstellungen();
+    // gekoppelter Unterricht (Schüler*innen mehrerer Klassen): Klasse immer an der Kachel zeigen
+    const nameW = new Set(sl.map(x => x.klasse)).size > 1 ? { ...sitzW, klasseZeigen: true } : sitzW;
     const kachel = s => {
       const f = fehlzeitVon(s.id);
       const st = !f ? 'da' : f.art === 'verspaetet' ? 'spaet' : f.art === 'vorzeitig' ? 'frueh' : 'weg';
@@ -319,7 +321,7 @@ export function karteDialog(karte, kontext = {}) {
       return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" aria-pressed="${auswahl.has(s.id)}" title="${befreit ? 'vom Unterricht befreit' : st === 'weg' ? 'abwesend' : st === 'spaet' ? `verspätet (${f.minuten} min)` : st === 'frueh' ? `vorzeitig gegangen (${f.minuten} min)` : 'anwesend'}${f?.fehlstunden && st !== 'weg' ? ' – als Fehlstunde gewertet' : ''}">
         ${status}${zusatz}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
-        <span class="sd-name">${sitz.nameHtml(s, sitzW)}</span>
+        <span class="sd-name">${sitz.nameHtml(s, nameW)}</span>
         ${darf && daten.anwesenheit?.einstellungen?.direkteEingabe !== false ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
     };
