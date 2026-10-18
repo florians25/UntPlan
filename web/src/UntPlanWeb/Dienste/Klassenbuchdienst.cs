@@ -163,7 +163,9 @@ public sealed partial class Klassenbuchdienst
     {
         if (Rechtedienst.Darf(b, Recht.KlassenbuchAlle)) return true;
         if (b.LehrerKuerzel is not string l || !Rechtedienst.Darf(b, Recht.KlassenbuchEigene)) return false;
-        return _plan.Karten(s, d, Elementtyp.Lehrer, l).Any(k => k.Unterricht == unterricht && stunde >= k.Von && stunde <= k.Bis && k.Status is not ("entfall" or "abwesend"));
+        return _plan.Karten(s, d, Elementtyp.Lehrer, l).Any(k => k.Unterricht == unterricht && stunde >= k.Von && stunde <= k.Bis && k.Status is not ("entfall" or "abwesend"))
+               // gekoppelt: im eigenen Plan unter dem Unterricht der Mitklasse zusammengefasst
+               || GekoppeltBeiLehrkraft(s, d, stunde, unterricht, l);
     }
 
     public Klassenbucheintrag Speichern(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string thema, string hausaufgabe, DateOnly? faellig, string notiz, string? notizSchueler = null,
@@ -234,10 +236,6 @@ public sealed partial class Klassenbuchdienst
         return s.Schueler.Where(x => k.Contains(x.Klasse)).OrderBy(x => x.Klasse, de).ThenBy(x => x.Name, de).ThenBy(x => x.Vorname, de).ToList();
     }
 
-    /// <summary>Teilnehmer*innen einer Stunde am Tag: Klassenzugehörigkeit an diesem Tag, Schülergruppen des Unterrichts (Abmeldungen, Gäste).</summary>
-    public static List<WebSchueler> SchuelerDerStunde(Stand s, Karte karte, DateOnly d) =>
-        Klassenzugehoerigkeit.DerStunde(s, karte.Unterricht, karte.Klassen.Select(k => k.K), d);
-
     /// <summary>Klassenleitung, Schulleitung oder Administration?</summary>
     /// <summary>Darf die Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten, Fehlzeitenberichte) nutzen: Klassenleitung mindestens einer Klasse, Schulleitung, Administration.</summary>
     public static bool FehlzeitenVerwalten(Benutzer b, Stand? s) =>
@@ -263,7 +261,7 @@ public sealed partial class Klassenbuchdienst
     private Karte? KarteZu(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string? lehrerHinweis = null, int? einzelstunde = null) =>
         (Waehlen(_plan.Karten(s, d, Elementtyp.Lehrer, b.LehrerKuerzel ?? ""), stunde, unterricht, lehrerHinweis)
          ?? Waehlen(s.Paket.Elemente.Klassen.SelectMany(k => _plan.Karten(s, d, Elementtyp.Klasse, k.Kurz)), stunde, unterricht, lehrerHinweis)) is { } gefunden
-            ? Einzeln(s, gefunden, einzelstunde) : null;
+            ? Einzeln(s, MitKopplung(s, d, gefunden), einzelstunde) : null;
 
     /// <summary>
     /// Karte einer Stunde wählen. Bei Kopplungen mit mehreren Lehrkräften und unterschiedlichen Blöcken (z. B. KR als Doppelstunde, ER einzeln)
@@ -287,13 +285,17 @@ public sealed partial class Klassenbuchdienst
         var block = KarteZu(b, s, d, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
         var karte = Einzeln(s, block, einzelstunde);
         var klassen = karte.Klassen.Select(k => k.K).ToList();
-        var teilnehmer = SchuelerDerStunde(s, karte, d);
+        var (teilnehmer, _, gaeste) = TeilnehmerDerStunde(s, karte, d);
+        var unterrichte = UnterrichteDerKarte(s, d, karte, unterricht);
         var teilnehmerIds = teilnehmer.Select(x => x.Id).ToHashSet();
         var fz = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && teilnehmerIds.Contains(f.SchuelerId))
             .GroupBy(f => f.SchuelerId).Select(g => Zusammenfassen(g.ToList(), s, Gesamtabwesenheit(g.ToList(), karte))).ToList();
-        var eintrag = Zeitraum(d, d).FirstOrDefault(e => e.Unterricht == unterricht && e.Stunde == block.Von);
+        // gekoppelt: Kontrolle gilt auch, wenn sie über einen der anderen Unterrichte erfasst wurde (Plan der Mitklasse)
+        var eintrag = Zeitraum(d, d).Where(e => unterrichte.Contains(e.Unterricht) && e.Stunde == block.Von && e.Anwesenheit != null)
+                          .OrderByDescending(e => e.Unterricht == unterricht).FirstOrDefault()
+                      ?? Zeitraum(d, d).FirstOrDefault(e => e.Unterricht == unterricht && e.Stunde == block.Von);
         // Kontrolle des Blocks gilt für alle Stunden; Einzelstunde: eigene Kontrolle, Block: auch wenn jede Einzelstunde kontrolliert wurde
-        var einzelKontrolle = EinzelEintraege(d, unterricht, block.Von, block.Bis).Where(e => e.Anwesenheit != null).ToList();
+        var einzelKontrolle = unterrichte.SelectMany(u => EinzelEintraege(d, u, block.Von, block.Bis)).Where(e => e.Anwesenheit != null).ToList();
         var geprueft = karte.Einzelstunde is int en
             ? einzelKontrolle.Where(e => e.Stunde == en).Select(e => e.Anwesenheit).Max(StringComparer.Ordinal) ?? eintrag?.Anwesenheit
             : eintrag?.Anwesenheit ?? (block.Von < block.Bis && Enumerable.Range(block.Von, block.Bis - block.Von + 1).All(n => einzelKontrolle.Any(e => e.Stunde == n))
@@ -303,7 +305,7 @@ public sealed partial class Klassenbuchdienst
         var einst = Einstellungen();
         return new
         {
-            schueler = teilnehmer, gaeste = Klassenzugehoerigkeit.Gaeste(s, karte.Unterricht, d), fehlzeiten = fz, geprueft, vorstunden = Vorstunden(s, d, karte),
+            schueler = teilnehmer, gaeste, klassen, fehlzeiten = fz, geprueft, vorstunden = Vorstunden(s, d, karte),
             einstellungen = einst.Hauptseite(d, s.SchuljahrVon), standardgruende = new { abwesend = einst.GrundAbwesend, spaeter = einst.GrundSpaeter, frueher = einst.GrundFrueher },
             weitere = einst.AlleAbwesenheitenDesTages ? UebrigeDesTages(d, karte, klassen) : new List<Fehlzeit>(),
             einzelstunde = karte.Einzelstunde, block = Block(s, block),
@@ -324,7 +326,8 @@ public sealed partial class Klassenbuchdienst
             throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (d > _uhr.Heute) throw new ArgumentException("Fehlzeiten können nicht im Voraus erfasst werden.");
         RueckwirkendPruefen(b, d, _uhr.Heute);
-        var schueler = SchuelerDerStunde(s, karte, d).ToDictionary(x => x.Id);
+        var (liste, unterrichtVon, _) = TeilnehmerDerStunde(s, karte, d);
+        var schueler = liste.ToDictionary(x => x.Id);
         var alt = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && schueler.ContainsKey(f.SchuelerId)).ToList();
         // Klassenbuch-Einstellungen: nur bei Änderungen (die reine Abwesenheitskontrolle bleibt immer möglich)
         var einst = Einstellungen();
@@ -379,7 +382,7 @@ public sealed partial class Klassenbuchdienst
                     VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b, @g, @gr, @nw, @ea, @ei, @ni, @be, @en)
                     ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET unterricht = excluded.unterricht, fach = excluded.fach, art = excluded.art,
                         minuten = excluded.minuten, bemerkung = excluded.bemerkung, lehrer = excluded.lehrer, grund = excluded.grund, beginn = excluded.beginn, ende = excluded.ende
-                    """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", unterricht), Db.P("@sid", e.SchuelerId), Db.P("@k", schueler[e.SchuelerId].Klasse), Db.P("@f", karte.Fach),
+                    """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", unterrichtVon.GetValueOrDefault(e.SchuelerId) ?? unterricht), Db.P("@sid", e.SchuelerId), Db.P("@k", schueler[e.SchuelerId].Klasse), Db.P("@f", karte.Fach),
                     Db.P("@a", a), Db.P("@m", min), Db.P("@st", status), Db.P("@bem", bem),
                     Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id), Db.P("@g", grund), Db.P("@gr", altF?.Gruppe ?? ""),
                     Db.P("@nw", altZeile?.Nachweis ?? ""), Db.P("@ea", altZeile?.EntschuldigtAm ?? ""), Db.P("@ei", altZeile?.ElternInformiert == true ? 1 : 0),
@@ -392,7 +395,7 @@ public sealed partial class Klassenbuchdienst
                 BisEndeEintragen(b, s, d, karte, e.SchuelerId, schueler[e.SchuelerId].Klasse, lehrer, jetzt, grund, statusNeu ?? "offen", einst.EndeZeit, regeln);
             anzahl++;
         }
-        GeprueftMarkieren(b, d, karte, unterricht, lehrer);
+        GeprueftMarkieren(b, s, d, karte, unterricht, lehrer);
         return anzahl;
     }
 

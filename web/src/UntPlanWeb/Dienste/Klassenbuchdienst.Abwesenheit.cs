@@ -301,7 +301,7 @@ public sealed partial class Klassenbuchdienst
         if (stunde is var (d, n, u))
         {
             karte = KarteZu(b, s, d, n, u, null, einzelstunde) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
-            if (!karte.Klassen.Any(k => Ci.Equals(k.K, sch.Klasse))) throw new ArgumentException("Die Schülerin bzw. der Schüler gehört nicht zu dieser Stunde.");
+            if (!karte.Klassen.Any(k => Ci.Equals(k.K, sch.Klasse)) && SchuelerDerStunde(s, karte, d).All(x => x.Id != schuelerId)) throw new ArgumentException("Die Schülerin bzw. der Schüler gehört nicht zu dieser Stunde.");
             darfStunde = DarfSchreiben(b, s, d, n, u) && Rechtedienst.Darf(b, Recht.AbwesenheitErfassen);
             if (!kl && !darfStunde) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
             if (!kl && (DateOnly.FromDateTime(von) != d || DateOnly.FromDateTime(bis) != d))
@@ -354,7 +354,7 @@ public sealed partial class Klassenbuchdienst
                     }
             }
         });
-        if (karte != null && darfStunde && stunde is var (sd, _, su)) GeprueftMarkieren(b, sd, karte, su, lehrer);
+        if (karte != null && darfStunde && stunde is var (sd, _, su)) GeprueftMarkieren(b, s, sd, karte, su, lehrer);
         return anzahl;
     }
 
@@ -431,19 +431,23 @@ public sealed partial class Klassenbuchdienst
             foreach (var f in weg) einst.LoeschenPruefen(b, f.Erstellt, _uhr.Jetzt);
             foreach (var f in weg) n += _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", f.Id));
         }
-        if (darfStunde) GeprueftMarkieren(b, d, karte, unterricht, b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "");
+        if (darfStunde) GeprueftMarkieren(b, s, d, karte, unterricht, b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "");
         return n;
     }
 
-    /// <summary>Stunde als „Abwesenheiten kontrolliert“ markieren.</summary>
-    private void GeprueftMarkieren(Benutzer b, DateOnly d, Karte karte, int unterricht, string lehrer)
+    /// <summary>
+    /// Stunde als „Abwesenheiten kontrolliert“ markieren – bei gekoppelten getrennten Unterrichten für jeden beteiligten Unterricht,
+    /// damit die Kontrolle im Klassenbuch jeder Klasse erscheint, gleich aus welchem Plan die Stunde geöffnet wurde.
+    /// </summary>
+    private void GeprueftMarkieren(Benutzer b, Stand s, DateOnly d, Karte karte, int unterricht, string lehrer)
     {
         var jetzt = _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm");
-        _db.Ausfuehren("""
-            INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, geaendert, benutzer_id, anwesenheit)
-            VALUES (@d, @s, @u, @k, @f, @l, @g, @b, @g)
-            ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET anwesenheit = excluded.anwesenheit
-            """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(k => k.K).ToList())), Db.P("@f", karte.Fach),
-            Db.P("@l", lehrer), Db.P("@g", jetzt), Db.P("@b", b.Id));
+        foreach (var u in UnterrichteDerKarte(s, d, karte, unterricht))
+            _db.Ausfuehren("""
+                INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, geaendert, benutzer_id, anwesenheit)
+                VALUES (@d, @s, @u, @k, @f, @l, @g, @b, @g)
+                ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET anwesenheit = excluded.anwesenheit
+                """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", u), Db.P("@k", JsonSerializer.Serialize(karte.Klassen.Select(k => k.K).ToList())), Db.P("@f", karte.Fach),
+                Db.P("@l", lehrer), Db.P("@g", jetzt), Db.P("@b", b.Id));
     }
 }

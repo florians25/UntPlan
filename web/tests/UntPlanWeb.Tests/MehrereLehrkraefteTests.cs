@@ -49,6 +49,22 @@ public class MehrereLehrkraefteTests
     }
 
     [Fact]
+    public void Sondereinsatz_ohne_Fach_zeigt_im_eigenen_Plan_alle_Beteiligten()
+    {
+        // UntPlan legt je Lehrkraft eine eigene Zeile an, oft ohne Fach – zusammengehörig über Stunde, Klassen, Räume und Text
+        WebStunde S(string l, string text = "Projektgruppe") => new() { Stunde = 2, Fach = "", Klassen = { "5a" }, Lehrer = { l }, Raeume = { "A101" }, Status = "zusaetzlich", Text = text };
+        var s = StandMit(new[] { S("BAM"), S("BIK"), S("BRN"), S("CEL", "Elternabend") });
+        var plan = new Plandienst();
+        foreach (var kurz in new[] { "BAM", "BIK", "BRN" })
+        {
+            var k = Assert.Single(plan.Karten(s, Tag, Elementtyp.Lehrer, kurz));
+            Assert.Equal(new[] { "BAM", "BIK", "BRN" }, k.Lehrer.Select(w => w.K).OrderBy(x => x));
+        }
+        // anderer Text: eigener Einsatz
+        Assert.Equal(new[] { "CEL" }, Assert.Single(plan.Karten(s, Tag, Elementtyp.Lehrer, "CEL")).Lehrer.Select(w => w.K));
+    }
+
+    [Fact]
     public void Kopplung_zeigt_im_Lehrerplan_alle_Lehrkraefte()
     {
         WebStunde K(string l) => new() { Stunde = 1, Unterricht = 7, Fach = "ZKonf", Lehrer = { l }, Raeume = { "A101" }, Status = "regulaer" };

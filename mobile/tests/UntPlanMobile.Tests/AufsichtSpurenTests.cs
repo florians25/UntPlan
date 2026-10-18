@@ -91,7 +91,22 @@ public class AufsichtSpurenTests
             // alle fehlen bzw. Entfall: unverändert
             pruefe('alle weg', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['BIK', 'absent']) }), ['BAM:absent', 'BIK:absent']);
             pruefe('Entfall', t({ blockType: 'cancelled', teacherList: liste(['BAM', 'absent'], ['BIK', 'ok']) }), ['BAM:absent', 'BIK:ok']);
+            // vertretene Lehrkraft steht auch als gewöhnliches Kürzel nicht auf der Kachel – nur die Vertretung
+            pruefe('vertreten doppelt', t({ blockType: 'change', teacherList: liste(['ILK', 'sub', 'BAM'], ['BAM', 'ok']) }), ['ILK:sub']);
+            pruefe('Einzelvertretung', t({ blockType: 'change', teacherList: liste(['ILK', 'sub', 'BAM'], ['BIK', 'ok'], ['BAM', 'ok']) }), ['ILK:sub', 'BIK:ok']);
             """);
+    }
+
+    [Fact]
+    public void Kachel_zeigt_bei_Vertretung_nie_die_vertretene_Lehrkraft()
+    {
+        // kein durchgestrichenes „für“-Kürzel neben der Vertretung auf der Kachel (nur in den Details)
+        Assert.DoesNotContain("<span class=\"badge badge--removed\">${esc(t.for)}</span>", AppJs);
+        Assert.Contains("${esc(l.key === 'teacher' ? t.text : plusT)}", AppJs);
+        // iOS-App: ebenso – kein „alt | neu“ und kein durchgestrichenes Kürzel der vertretenen Lehrkraft auf der Karte
+        var ios = File.ReadAllText(Path.Combine(Umgebung.Wurzel(), "ios", "UntPlanMobile", "Dienste", "Kachelbau.swift"));
+        Assert.DoesNotContain("\\u{2009}|\\u{2009}", ios);
+        Assert.DoesNotContain("hinzu(Kachelteil(text: alt, stil: .weg))", ios);
     }
 
     [Fact]

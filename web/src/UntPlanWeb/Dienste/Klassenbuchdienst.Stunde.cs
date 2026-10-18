@@ -212,7 +212,7 @@ public sealed partial class Klassenbuchdienst
     public List<Fehlzeit> Vorstunden(Stand s, DateOnly d, Karte karte)
     {
         var klassen = karte.Klassen.Select(k => k.K).ToHashSet(Ci);
-        var gaeste = Klassenzugehoerigkeit.Gaeste(s, karte.Unterricht, d);
+        var gaeste = TeilnehmerDerStunde(s, karte, d).Gaeste;
         var tag = FehlzeitenZeitraum(d, d).Where(f => (klassen.Contains(f.Klasse) || gaeste.Contains(f.SchuelerId)) && f.Art == "fehlt").ToList();
         var hier = tag.Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis).Select(f => f.SchuelerId).ToHashSet();
         return tag.Where(f => f.Stunde < karte.Von && !hier.Contains(f.SchuelerId))
@@ -230,7 +230,8 @@ public sealed partial class Klassenbuchdienst
         if (!DarfSchreiben(b, s, d, stunde, unterricht) && !klassen.Any(k => IstKlassenleitung(b, s, k)))
             throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (d > _uhr.Heute) throw new ArgumentException("Fehlzeiten können nicht im Voraus erfasst werden.");
-        var schueler = SchuelerDerStunde(s, karte, d).ToDictionary(x => x.Id);
+        var (liste, unterrichtVon, _) = TeilnehmerDerStunde(s, karte, d);
+        var schueler = liste.ToDictionary(x => x.Id);
         var tag = FehlzeitenZeitraum(d, d);
         var jetzt = _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm");
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
@@ -250,7 +251,8 @@ public sealed partial class Klassenbuchdienst
             {
                 vorlage = tag.Where(f => f.SchuelerId == sid && f.Stunde < karte.Von && f.Art == "fehlt").OrderByDescending(f => f.Stunde).FirstOrDefault()
                           ?? tag.FirstOrDefault(f => f.SchuelerId == sid && f.Stunde >= karte.Von && f.Stunde <= karte.Bis);
-                ziele = Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).Select(n => (n, unterricht, karte.Fach)).ToList();
+                // gekoppelt: Fehlzeit unter dem Unterricht der eigenen Klasse
+                ziele = Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).Select(n => (n, unterrichtVon.GetValueOrDefault(sid) ?? unterricht, karte.Fach)).ToList();
             }
             foreach (var (n, u, fach) in ziele)
             {
@@ -264,12 +266,7 @@ public sealed partial class Klassenbuchdienst
                 anzahl++;
             }
         }
-        _db.Ausfuehren("""
-            INSERT INTO klassenbuch (datum, stunde, unterricht, klassen, fach, lehrer, geaendert, benutzer_id, anwesenheit)
-            VALUES (@d, @s, @u, @k, @f, @l, @g, @b, @g)
-            ON CONFLICT(datum, stunde, unterricht, lehrer) DO UPDATE SET anwesenheit = excluded.anwesenheit
-            """, Db.P("@d", d), Db.P("@s", Schluessel(karte)), Db.P("@u", unterricht), Db.P("@k", JsonSerializer.Serialize(klassen)), Db.P("@f", karte.Fach),
-            Db.P("@l", lehrer), Db.P("@g", jetzt), Db.P("@b", b.Id));
+        GeprueftMarkieren(b, s, d, karte, unterricht, lehrer);
         return anzahl;
     }
 }
