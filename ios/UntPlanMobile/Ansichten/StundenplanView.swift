@@ -1613,7 +1613,7 @@ struct AufsichtDetailView: View {
     private var lehrkraft: [Wertbaustein] {
         let alt = aufsicht.alt ?? ""
         switch aufsicht.status {
-        case "vertreten", "vertretung":
+        case "vertreten", "vertretung", "offen":
             // Wie bei Stundenkarten: abwesende Lehrkraft durchgestrichen, daneben die Vertretung (offen: nur durchgestrichen)
             var teile: [Wertbaustein] = []
             if neueLehrkraft.isEmpty {
@@ -1637,9 +1637,12 @@ struct AufsichtDetailView: View {
     /// Entfallene Aufsicht (Statuspille „ENTFÄLLT“ neben „Pausenaufsicht“).
     private var entfaellt: Bool { Kachelbau.aufsichtsstand(aufsicht.status) == .entfall }
 
-    /// Anlass einer entfallenen Aufsicht (z. B. „Abwesenheit“ bzw. Titel der Veranstaltung); sonst leer.
+    /// Anlass einer entfallenen bzw. offenen (noch ungeplanten) Aufsicht (z. B. „Abwesenheit“ bzw. Titel der Veranstaltung);
+    /// offen mit „Vertretung offen – …“; sonst leer.
     private var entfallGrund: String {
-        entfaellt ? (aufsicht.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let grund = (aufsicht.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if aufsicht.status == "offen" { return grund.isEmpty ? "Vertretung offen" : "Vertretung offen – \(grund)" }
+        return entfaellt ? grund : ""
     }
 
     private var planziele: [PlanAuswahl] {

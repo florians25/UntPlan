@@ -550,7 +550,9 @@ function aufsichtInhalt(card){
 function aufsichtKlassen(card){
   if (card._supCancelled) return ['is-cancelled'];
   if (card._supSub) return ['is-sub'];
-  if (card._supAbsent) return ['is-absent', 'is-abgegeben'];
+  /* Offen (noch ungeplant): derselbe Stil wie eine offene Lehrervertretung
+     im eigenen Plan — durchsichtig mit Eckklammern, Ort und „…“. */
+  if (card._supAbsent) return ['is-absent', 'is-abgegeben'].concat(card._supOpen ? ['is-open'] : []);
   return [];
 }
 if (typeof window !== 'undefined') window.UntPlanAufsicht = { inhalt: aufsichtInhalt, klassen: aufsichtKlassen };

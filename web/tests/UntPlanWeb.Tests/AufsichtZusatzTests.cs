@@ -5,7 +5,8 @@ using UntPlanWeb.Dienste;
 namespace UntPlanWeb.Tests;
 
 /// <summary>
-/// Sprint 29: entfallene Pausenaufsicht (Status „entfall“ mit Grund – Abwesenheit, Veranstaltung ohne Vertretung, Vertretung „---“),
+/// Sprint 29: Pausenaufsicht offen (noch ungeplant: Abwesenheit bzw. Veranstaltung ohne eingetragene Vertretung, mit Grund) bzw. entfallen
+/// (nur ausdrücklich: Vertretung „---“),
 /// Aufsichtsvertretung im Web mit normalem Label und Hover hinter dem Ort, Zusatzstunden mit allen Lehrkräften als „+“-Label.
 /// </summary>
 public class AufsichtZusatzTests
@@ -34,14 +35,14 @@ public class AufsichtZusatzTests
     private static string S(JsonNode? n) => n?.GetValue<string>() ?? "";
 
     [Fact]
-    public async Task Aufsicht_entfaellt_bei_Abwesenheit_Veranstaltung_und_Vertretung_ohne_Lehrkraft()
+    public async Task Aufsicht_offen_bei_Abwesenheit_und_Veranstaltung_Entfall_nur_ausdruecklich()
     {
         var paket = Testserver.Beispielpaket();
         paket["revision"] = 290;
         paket["pausenaufsichten"] = new JsonArray(
-            Aufsicht(0, 2),                 // Mo: KLE abwesend, keine Vertretung → entfall (Abwesenheit)
+            Aufsicht(0, 2),                 // Mo: KLE abwesend, keine Vertretung eingetragen → offen (Abwesenheit)
             Aufsicht(1, 2),                 // Di: Vertretung „---“ → entfall
-            Aufsicht(2, 2), Aufsicht(2, 5), // Mi: Exkursion 2.–4. Stunde → Pause nach 2 entfällt, nach 5 regulär
+            Aufsicht(2, 2), Aufsicht(2, 5), // Mi: Exkursion 2.–4. Stunde → Pause nach 2 offen, nach 5 regulär
             Aufsicht(3, 2),                 // Do: Vertretung durch RIC → vertreten
             Aufsicht(4, 1));                // Fr: abwesend, Vertretung offen („???“) → vertreten (nicht entfall)
         var absenzen = paket["absenzen"]!.AsArray();
@@ -64,14 +65,16 @@ public class AufsichtZusatzTests
         JsonNode Eine(string datum, int nach) => liste.Single(x => S(x["datum"]) == datum && x["nachStunde"]!.GetValue<int>() == nach);
 
         var mo = Eine("2026-10-12", 2);
-        Assert.Equal("entfall", S(mo["status"]));
-        Assert.Equal("KLE", S(mo["lehrer"]));
+        Assert.Equal("offen", S(mo["status"]));
+        Assert.Equal("???", S(mo["lehrer"]));
+        Assert.Equal("KLE", S(mo["alt"]));
         Assert.Equal("Abwesenheit", S(mo["grund"]));     // der (vertrauliche) Absenzgrund erscheint nicht
         var di = Eine("2026-10-13", 2);
         Assert.Equal("entfall", S(di["status"]));
+        Assert.Equal("KLE", S(di["lehrer"]));
         Assert.Null(di["grund"]);
         var mi = Eine("2026-10-14", 2);
-        Assert.Equal("entfall", S(mi["status"]));
+        Assert.Equal("offen", S(mi["status"]));
         Assert.Equal("Exkursion Bonn", S(mi["grund"]));
         Assert.Equal("regulaer", S(Eine("2026-10-14", 5)["status"]));
         var don = Eine("2026-10-15", 2);
@@ -157,7 +160,10 @@ public class AufsichtZusatzTests
             const liste = pg.tagesListe([], [a('vertreten', 'AD', 'KE'), a('vertretung', 'AD', 'KE'), a('entfall', 'KE', null, 'Abwesenheit')], 'lehrer');
             // Vertretung: normales Label hinter dem Ort, Hover „KE → AD“ – nichts durchgestrichen
             soll(liste, 'Hof <span class="lbl lbl-auf" data-hover="KE → AD" data-hover-alt="KE">AD</span>');
-            soll(liste, 'lbl weg', false);
+            // offen (noch ungeplant): eingeteilte Lehrkraft durchgestrichen im grünen Label, Hover „Vertretung offen – Anlass“, gestrichelt
+            const offen = pg.tagesListe([], [a('offen', '???', 'KE', 'Abwesenheit')], 'lehrer');
+            soll(offen, '<div class="aufsicht vertreten offen" ><span class="auf-text">Hof <span class="lbl lbl-auf weg" data-hover="Vertretung offen – Abwesenheit" data-hover-art="dunkel">KE</span>');
+            soll(liste, 'lbl-auf weg', false);
             // Entfall: eigene Klasse, kein Label, Anlass im Tooltip
             soll(liste, '<div class="aufsicht entfall" title="Pausenaufsicht Hof 09:30–09:50 (entfällt – Abwesenheit)"><span class="auf-text">Hof</span>');
             if (pg.aufsichtTitel(a('entfall', 'KE')) !== 'Pausenaufsicht Hof 09:30–09:50 (entfällt)') { console.error('Titel ohne Grund'); fehler++; }

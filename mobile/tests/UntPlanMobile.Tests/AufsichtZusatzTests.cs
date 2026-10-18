@@ -78,6 +78,15 @@ public class AufsichtZusatzTests
         Assert.True(uebernommen.AufsichtUebernommen);
         Assert.Equal("Vertretung für KE", uebernommen.Info);
 
+        // offen (noch ungeplant): Stil der offenen Lehrervertretung (abgegeben, Eckklammern), Kachel ohne Label
+        var offen = Kachelbau.Aufsicht(Aufsicht("offen", "???", "KE", "Abwesenheit"), Zeiten);
+        Assert.True(offen.AufsichtAbgegeben);
+        Assert.True(offen.AufsichtOffen);
+        Assert.Null(offen.AufsichtEntfall);
+        Assert.Equal("", offen.Lehrkraft);
+        Assert.Equal("KE", offen.LehrkraftAlt);
+        Assert.Equal("Vertretung offen – Abwesenheit", offen.Info);
+
         var entfall = Kachelbau.Aufsicht(Aufsicht("entfall", "KE", grund: "Abwesenheit"), Zeiten);
         Assert.True(entfall.AufsichtEntfall);
         Assert.Null(entfall.AufsichtAbgegeben);

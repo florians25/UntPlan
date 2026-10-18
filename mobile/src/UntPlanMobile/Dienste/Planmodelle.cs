@@ -40,7 +40,7 @@ public sealed record PlanKarte(
     List<string>? Marker = null);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
-/// <summary>Pausenaufsicht. Status: regulaer, vertreten, vertretung, entfall (findet nicht statt; Grund z. B. „Abwesenheit“ bzw. Titel der Veranstaltung).</summary>
+/// <summary>Pausenaufsicht. Status: regulaer, vertreten, vertretung, offen (noch ungeplant; Grund z. B. „Abwesenheit“ bzw. Titel der Veranstaltung), entfall (ausdrücklich entfallen).</summary>
 public sealed record PlanAufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt,
     string? Grund = null);
 
@@ -176,6 +176,8 @@ public sealed class Kachel
     [JsonPropertyName("_supAbsent")] public bool? AufsichtAbgegeben { get; set; }
     /// <summary>Entfallene Pausenaufsicht (Entfall-Stil wie eine entfallene Stunde: rosa, Ort durchgestrichen).</summary>
     [JsonPropertyName("_supCancelled")] public bool? AufsichtEntfall { get; set; }
+    /// <summary>Offene (noch ungeplante) Pausenaufsicht: Stil der offenen Lehrervertretung, nur Ort und „…“.</summary>
+    [JsonPropertyName("_supOpen")] public bool? AufsichtOffen { get; set; }
     /// <summary>Bereitschaft einer abwesenden Lehrkraft: Eckklammern, Kürzel durchgestrichen (kein Entfall).</summary>
     [JsonPropertyName("standbyAbsent")] public bool? BereitschaftAbwesend { get; set; }
     /// <summary>Lehrkraft abwesend (eigene Stunde wird von anderen gehalten): Eckklammern statt Entfall.</summary>

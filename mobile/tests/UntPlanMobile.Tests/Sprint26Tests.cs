@@ -75,6 +75,9 @@ public class Sprint26Tests
             pruefe(inhalt({ subject:'Hof', _supAbsent:true, teacher:'MEY', teacherOrig:'LAN' }), ort + menu);
             pruefe(klassen({ _supSub:true }), ['is-sub']);
             pruefe(klassen({ _supAbsent:true }), ['is-absent', 'is-abgegeben']);
+            // offen (noch ungeplant): wie eine offene Lehrervertretung, ebenfalls nur Ort und „…“
+            pruefe(klassen({ _supAbsent:true, _supOpen:true }), ['is-absent', 'is-abgegeben', 'is-open']);
+            pruefe(inhalt({ subject:'Hof', _supAbsent:true, _supOpen:true, teacherOrig:'LAN' }), ort + menu);
             // entfallen: Entfall-Stil, kein Zeichen
             pruefe(inhalt({ subject:'Hof', _supCancelled:true }), ort);
             pruefe(klassen({ _supCancelled:true }), ['is-cancelled']);

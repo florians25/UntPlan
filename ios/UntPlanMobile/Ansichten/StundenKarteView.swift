@@ -326,7 +326,9 @@ struct KachelView: View {
     private var aufsichtHinweis: String? {
         guard let a = kachel.aufsicht else { return nil }
         switch kachel.aufsichtsstand {
-        case .abgegeben: return a.lehrer.isEmpty || a.lehrer == "???" ? "Vertretung offen" : "Vertretung: \(a.lehrer)"
+        case .abgegeben:
+            guard a.lehrer.isEmpty || a.lehrer == "???" else { return "Vertretung: \(a.lehrer)" }
+            return (a.grund ?? "").isEmpty ? "Vertretung offen" : "Vertretung offen, \(a.grund ?? "")"
         case .vertretung: return (a.alt ?? "").isEmpty ? "Vertretung" : "Vertretung für \(a.alt ?? "")"
         case .entfall: return (a.grund ?? "").isEmpty ? "Aufsicht entfällt" : "Aufsicht entfällt, \(a.grund ?? "")"
         case .regulaer: return nil

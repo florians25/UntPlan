@@ -633,6 +633,17 @@ public static class Kachelbau
             k.Lehrkraft = a.Lehrer is "???" or "---" ? "" : a.Lehrer;
             k.Info = string.IsNullOrWhiteSpace(a.Grund) ? "Aufsicht entfällt" : $"Aufsicht entfällt – {a.Grund.Trim()}";
         }
+        else if (a.Status == "offen")
+        {
+            // Noch ungeplant (Lehrkraft abwesend bzw. bei einer Veranstaltung, keine Vertretung eingetragen): wie eine offene
+            // Lehrervertretung im eigenen Plan (durchsichtig, Eckklammern), auf der Kachel nur Ort und „…“ – kein Label
+            k.AufsichtAbgegeben = true;
+            k.AufsichtOffen = true;
+            k.Lehrkraft = "";
+            k.LehrkraftAlt = !string.IsNullOrEmpty(a.Alt) ? a.Alt! : a.Lehrer is "???" or "---" ? "" : a.Lehrer;
+            k.Geaendert.Add("teacher");
+            k.Info = string.IsNullOrWhiteSpace(a.Grund) ? "Vertretung offen" : $"Vertretung offen – {a.Grund.Trim()}";
+        }
         else if (a.Status == "vertreten")
         {
             k.AufsichtAbgegeben = true;

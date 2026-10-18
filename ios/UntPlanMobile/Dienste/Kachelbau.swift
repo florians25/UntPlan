@@ -73,7 +73,7 @@ enum Aufsichtsstand {
     case regulaer
     /// eingesprungen (grün, „…“ rechts)
     case vertretung
-    /// abgegeben (durchsichtig, Eckklammern, „…“ rechts)
+    /// abgegeben bzw. offen (durchsichtig, Eckklammern, „…“ rechts)
     case abgegeben
     /// entfällt (rosa, roter Rahmen, Ort durchgestrichen – wie eine entfallene Stunde)
     case entfall
@@ -891,7 +891,9 @@ enum Kachelbau {
     /// Zustand einer Aufsicht laut Server-Status (regulaer, vertreten, vertretung, entfall).
     static func aufsichtsstand(_ status: String) -> Aufsichtsstand {
         switch status {
-        case "vertreten": return .abgegeben
+        // offen: noch ungeplant (abwesend bzw. bei einer Veranstaltung, keine Vertretung eingetragen) – wie eine offene
+        // Lehrervertretung im eigenen Plan (durchsichtig, Eckklammern, „…“)
+        case "vertreten", "offen": return .abgegeben
         case "vertretung": return .vertretung
         case "entfall", "entfaellt", "entfällt": return .entfall
         default: return .regulaer

@@ -135,12 +135,13 @@ public sealed record Karte(
 
 /// <summary>
 /// Pausenaufsicht im Lehrerplan. Status: regulaer, vertreten (fällt für diese Lehrkraft weg, Lehrer = Vertretung bzw. „???“, Alt = eigene
-/// Lehrkraft), vertretung (zusätzlich übernommen, Alt = abwesende Lehrkraft), entfall (findet nicht statt, Lehrer = eingeteilte Lehrkraft;
-/// Grund z. B. „Abwesenheit“ bzw. Titel der Veranstaltung, sonst null).
+/// Lehrkraft), vertretung (zusätzlich übernommen, Alt = abwesende Lehrkraft), offen (noch ungeplant: Lehrkraft abwesend bzw. bei einer
+/// Veranstaltung, keine Aufsichtsvertretung eingetragen; Lehrer = „???“, Alt = eingeteilte Lehrkraft, Grund „Abwesenheit“ bzw. Titel der
+/// Veranstaltung), entfall (ausdrücklich entfallen: Vertreter „---“ bzw. Art „Entfall“; Lehrer = eingeteilte Lehrkraft, Grund = Text oder null).
 /// </summary>
 public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, string Ende, string Gang, string GangName, string Status, string Lehrer, string? Alt)
 {
-    /// <summary>Nur bei Status „entfall“: Anlass (Abwesenheit, Veranstaltung bzw. Text der Vertretung); sonst null.</summary>
+    /// <summary>Nur bei Status „offen“ (Abwesenheit bzw. Titel der Veranstaltung) bzw. „entfall“ (Text der Vertretung): Anlass; sonst null.</summary>
     public string? Grund { get; init; }
 }
 
@@ -1102,10 +1103,10 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Grund, aus dem eine Aufsicht ohne Vertretung entfällt: die Lehrkraft ist abwesend bzw. nimmt an einer Veranstaltung teil, die die
-    /// Pause einschließt; null = findet statt.
+    /// Grund, aus dem eine Aufsicht ohne eingetragene Vertretung offen ist: die Lehrkraft ist abwesend bzw. nimmt an einer Veranstaltung
+    /// teil, die die Pause einschließt; null = findet wie geplant statt.
     /// </summary>
-    private static string? AufsichtEntfallGrund(Stand s, DateOnly d, string lehrer, int nach)
+    private static string? AufsichtOffenGrund(Stand s, DateOnly d, string lehrer, int nach)
     {
         if (s.Paket.Absenzen.Any(a => a.Art == "lehrer" && Ci.Equals(a.Element, lehrer) && PauseBelegt(d, a.Von, a.Bis, a.StundeVon, a.StundeBis, nach)))
             return "Abwesenheit";
@@ -1116,8 +1117,9 @@ public sealed class Plandienst
 
     /// <summary>
     /// Pausenaufsichten einer Lehrkraft an einem Tag (regelmäßige und Vertretungen). Status: regulaer, vertreten (jemand anderes bzw.
-    /// noch niemand – „???“ – übernimmt), vertretung (zusätzlich übernommen), entfall (findet nicht statt: Vertretung „---“ bzw. ohne
-    /// Vertretung, weil die Lehrkraft abwesend ist oder an einer Veranstaltung teilnimmt – Grund in <see cref="Aufsicht.Grund"/>).
+    /// noch niemand – „???“ – übernimmt), vertretung (zusätzlich übernommen), offen (noch ungeplant: Lehrkraft abwesend bzw. bei einer
+    /// Veranstaltung, keine Aufsichtsvertretung eingetragen – Grund in <see cref="Aufsicht.Grund"/>), entfall (nur ausdrücklich: Vertretung
+    /// „---“ bzw. Art „Entfall“).
     /// </summary>
     public List<Aufsicht> Aufsichten(Stand s, DateOnly d, string lehrer)
     {
@@ -1133,12 +1135,14 @@ public sealed class Plandienst
         {
             var (b, e) = Pause(a.NachStunde);
             var v = vertretungen.FirstOrDefault(x => x.Stunde == a.NachStunde && Ci.Equals(x.Lehrer, lehrer));
-            // ausdrücklich entfallen („---“ bzw. Art „Entfall“) oder ohne Vertretung bei Abwesenheit bzw. Veranstaltung
-            var entfall = v != null
-                ? (v.Vertreter.Trim() == "---" || v.Art.Contains("Entfall", StringComparison.OrdinalIgnoreCase) ? (v.Text.Trim().Length > 0 ? v.Text.Trim() : "") : null)
-                : AufsichtEntfallGrund(s, d, lehrer, a.NachStunde);
+            // Entfall nur ausdrücklich („---“ bzw. Art „Entfall“); ohne eingetragene Vertretung bei Abwesenheit bzw. Veranstaltung: offen
+            var entfall = v != null && (v.Vertreter.Trim() == "---" || v.Art.Contains("Entfall", StringComparison.OrdinalIgnoreCase))
+                ? (v.Text.Trim().Length > 0 ? v.Text.Trim() : "") : null;
+            var offen = v is null ? AufsichtOffenGrund(s, d, lehrer, a.NachStunde) : null;
             res.Add(entfall is not null
                 ? new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "entfall", lehrer, null) { Grund = entfall.Length > 0 ? entfall : null }
+                : offen is not null
+                ? new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "offen", "???", lehrer) { Grund = offen }
                 : v is null
                 ? new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "regulaer", lehrer, null)
                 : new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "vertreten", v.Vertreter is "" or "???" ? "???" : v.Vertreter, lehrer));
