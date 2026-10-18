@@ -638,7 +638,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .aufsicht::before { content: ""; position: absolute; left: 8px; top: 5px; bottom: 5px; width: 4px; border-radius: 2px; background: #b26cd8; }
 /* Vertretung: grün mit grünem Label; im Plan der abwesenden Lehrkraft grau gestrichelt (wie abwesende Stunden) */
 .aufsicht.vertreten { background: #f1f5f8; outline: 1px dashed #9aa7af; outline-offset: -1px; box-shadow: none; color: #5b6770; }
-.aufsicht.vertreten::before { background: #b9c5cc; }
+.aufsicht.vertreten::before { background: #b26cd8; }   /* vertretene Aufsicht behält den lila Aufsichtsbalken */
 .aufsicht.vertretung { background: var(--u-gruen-hell); }
 .aufsicht .lbl-auf { margin-left: auto; flex: none; font-size: 10.5px; line-height: 14px; font-weight: 600; color: #fff; background: var(--u-gruen-label); border-radius: 2px; padding: 0 4px; }
 .aufsicht .mk-plus { order: 2; margin-left: auto; }

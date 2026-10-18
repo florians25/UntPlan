@@ -1298,7 +1298,14 @@ struct WochenrasterView: View {
                     let r = streifenRechteck(st, zeiten: zeiten, mass: mass, breite: breite)
                     Button {
                         guard !tippsperre.gesperrt else { return }
-                        oeffnen(st.kacheln.first ?? st.vorne, alle: kacheln, vorne: st.vorne)
+                        // Liegen nur Pausenaufsichten dahinter, öffnen deren Details; sonst die Stunden als Reiter
+                        if let stunde = st.kacheln.first(where: { $0.aufsicht == nil }) {
+                            oeffnen(stunde, alle: kacheln, vorne: st.vorne)
+                        } else if let a = st.kacheln.first?.aufsicht {
+                            aufsichtAntippen?(a)
+                        } else {
+                            oeffnen(st.vorne, alle: kacheln, vorne: st.vorne)
+                        }
                     } label: {
                         ZaehlstreifenView(streifen: st)
                     }
@@ -1404,12 +1411,8 @@ struct WochenrasterView: View {
             h = 22
             y = max(3, mass.y(mass.start) - h - (dichteAufsicht ? 1 : 4))
         } else if k.inPause {
-            // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar
-            let oben = mass.yEnde(k.beginn)
-            let unten = k.ende > k.beginn ? mass.yEnde(k.ende) : mass.y(k.ende)
-            let luecke = max(0, unten - oben)
-            h = max(16, min(nurTage == nil ? 22 : 26, luecke - 2))
-            y = oben + max(1, (luecke - h) / 2)
+            // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar; Breite und Spur wie jede Stunde
+            (y, h) = pausenLage(beginn: k.beginn, ende: k.ende, mass: mass)
         } else {
             y = mass.y(k.beginn) + 1
             h = max(16, mass.yEnde(k.ende) - mass.y(k.beginn) - 1)
@@ -1417,9 +1420,25 @@ struct WochenrasterView: View {
         return CGRect(x: x, y: y, width: max(w, 8), height: h)
     }
 
+    /// Senkrechte Lage einer Pille in der (bei Bedarf gedehnten) Pause: mittig, vollständig sichtbar.
+    private func pausenLage(beginn: Int, ende: Int, mass: Rastermass) -> (y: CGFloat, h: CGFloat) {
+        let oben = mass.yEnde(beginn)
+        let unten = ende > beginn ? mass.yEnde(ende) : mass.y(ende)
+        let luecke = max(0, unten - oben)
+        let h = max(16, min(nurTage == nil ? 22 : 26, luecke - 2))
+        return (oben + max(1, (luecke - h) / 2), h)
+    }
+
+    /// Zählerkarte: über den Zeitraum der verdeckten Kacheln (Minuten); liegen nur Pausenaufsichten dahinter, so hoch wie deren Pille.
     private func streifenRechteck(_ st: Zaehlstreifen, zeiten: [Rasterzeit], mass: Rastermass, breite: CGFloat) -> CGRect {
-        let beginn = zeiten.first(where: { $0.nr == st.von })?.beginn ?? st.kacheln.map(\.beginn).min() ?? mass.start
-        let ende = zeiten.first(where: { $0.nr == st.bis })?.ende ?? st.kacheln.map(\.ende).max() ?? (beginn + 45)
+        if st.kacheln.allSatisfy({ $0.inPause && !$0.vorErsterStunde }) {
+            let (y, h) = pausenLage(beginn: st.beginn, ende: st.ende, mass: mass)
+            return CGRect(x: breite - Kachelbau.zaehlerBreite, y: y, width: Kachelbau.zaehlerBreite, height: h)
+        }
+        // Stunden ohne Pausenaufsichten: Beginn und Ende laut Raster (wie bisher); mit Aufsicht nach Uhrzeit der Kacheln
+        let nurStunden = !st.kacheln.contains { $0.inPause }
+        let beginn = (nurStunden ? zeiten.first(where: { $0.nr == st.von })?.beginn : nil) ?? st.beginn
+        let ende = (nurStunden ? zeiten.first(where: { $0.nr == st.bis })?.ende : nil) ?? st.ende
         let y = mass.y(beginn) + 1
         return CGRect(x: breite - Kachelbau.zaehlerBreite, y: y, width: Kachelbau.zaehlerBreite, height: max(16, mass.yEnde(ende) - mass.y(beginn) - 1))
     }

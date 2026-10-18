@@ -156,6 +156,13 @@ public class AufsichtZusatzTests
               soll(html, 'data-hover-alt', false);
               soll(html, 'mk-quadrat', false);
             }
+            // reine Fachänderung: kein Label auf der Karte (wie in den Apps)
+            const fachNeu = { status: 'geaendert', fach: 'ZBesp', fachAlt: 'ZKonf', fachName: 'ZBesp', klassen: [{ k: '5a' }], lehrer: [{ k: 'WEB' }], raeume: [{ k: 'R101' }], marker: [], art: 'Vertretung', text: '' };
+            for (const typ of ['klasse', 'lehrer', 'raum']) {
+              const html = pg.karteInhalt(fachNeu, typ, false);
+              soll(html, 'ZBesp');
+              soll(html, 'class="lbl"', false);
+            }
             const a = (status, lehrer, alt, grund) => ({ datum: '2026-10-12', nachStunde: 2, beginn: '09:30', ende: '09:50', gang: 'Hof', gangName: 'Hof', status, lehrer, alt, grund });
             const liste = pg.tagesListe([], [a('vertreten', 'AD', 'KE'), a('vertretung', 'AD', 'KE'), a('entfall', 'KE', null, 'Abwesenheit')], 'lehrer');
             // Vertretung: normales Label hinter dem Ort, Hover „KE → AD“ – nichts durchgestrichen

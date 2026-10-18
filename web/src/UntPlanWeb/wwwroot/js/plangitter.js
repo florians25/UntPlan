@@ -184,7 +184,8 @@ export function karteInhalt(k, typ, kompakt = false) {
   const entfall = istEntfall(k, typ);
   // online: kein Raumlabel (auch kein künstliches) – nur das Symbol unten auf der Karte
   const raum = istOnline(k, typ) ? '' : werte(k.raeume, entfall);
-  const fach = k.fachAlt && !entfall ? `<span class="lbl" ${wechselHover(k.fachAlt, k.fach)}>${e(k.fach)}</span>` : e(k.fach || '');
+  // Fachänderung: kein Label auf der Karte (wie in den Apps) – das bisherige Fach nennen Tooltip und Stundendetails
+  const fach = e(k.fach || '');
   // gekürzte Fachzeile: Hover mit dem vollständigen Fachnamen
   const fachVoll = k.fachName && k.fachName !== k.fach ? k.fachName : '';
   const ohneFach = !k.fach;

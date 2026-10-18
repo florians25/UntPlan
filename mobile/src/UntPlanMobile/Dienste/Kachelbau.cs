@@ -264,9 +264,9 @@ public static class Kachelbau
         {
             var ende = k.Stunde + k.Dauer - 1;
             var schnitte = pausen.Where(p => p >= k.Stunde && p < ende).OrderBy(p => p).ToList();
-            // Veranstaltungen bleiben ein durchgehender Block; die Aufsicht in der Pause tritt dahinter zurück
-            // (Wochenansicht ausgeblendet, Tagesansicht als halbe Kachel daneben)
-            if (k.Pause == true || k.Feld == true || k.Dauer < 2 || schnitte.Count == 0) { res.Add(k); continue; }
+            // Veranstaltungen und Klausuren bleiben ein durchgehender Block; die Aufsicht in der Pause steht wie jede parallele
+            // Stunde in einer eigenen Spur daneben bzw. hinter der Zählkarte
+            if (k.Pause == true || k.Feld == true || k.Art == "klausur" || k.Dauer < 2 || schnitte.Count == 0) { res.Add(k); continue; }
             var beginn = k.Stunde;
             foreach (var p in schnitte.Append(ende))
             {
@@ -334,7 +334,7 @@ public static class Kachelbau
     }
 
     /// <summary>
-    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal als hinzugekommener Wert („+CS“, „+GA“, „+SN“) – auch ein als ersetzt
+    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal als hinzugekommener Wert (grünes Label, in der App ohne „+“) – auch ein als ersetzt
     /// gemeldeter alter Wert; nie durchgestrichen, nie „alt | neu“. „---“ bzw. „???“ zählen nicht (ohne Lehrkraft bleibt die Liste leer).
     /// </summary>
     public static List<PlanWert> ZusatzLehrer(IEnumerable<PlanWert> lehrer) =>
@@ -343,7 +343,7 @@ public static class Kachelbau
             .Select(x => new PlanWert(x, null, true, true)).ToList();
 
     /// <summary>
-    /// Zusatzstunde: alle beteiligten Lehrkräfte mit „+“-Label (keine Durchstreichung, kein „alt | neu“) – nicht bei einer Veranstaltung
+    /// Zusatzstunde: alle beteiligten Lehrkräfte mit grünem Label (ohne „+“) (keine Durchstreichung, kein „alt | neu“) – nicht bei einer Veranstaltung
     /// und nicht bei einer Vertretung ohne bzw. noch ohne Lehrkraft (dort steht die bisherige Lehrkraft durchgestrichen im Label).
     /// </summary>
     public static PlanKarte ZusatzNormalisiert(PlanKarte k)
@@ -542,7 +542,7 @@ public static class Kachelbau
         if (k.Lehrer.Count > 1)
             kachel.Kopplung = k.Lehrer.Select(w => w.Neu && w.K.Length == 0 ? new KoppEintrag(string.IsNullOrEmpty(w.Alt) ? "???" : w.Alt, "absent", Offen: true)
                 : w.Neu && !string.IsNullOrEmpty(w.Alt) ? new KoppEintrag(w.K, "sub", w.Alt)
-                // hinzugekommene Lehrkraft: grünes Label mit „+“
+                // hinzugekommene Lehrkraft: grünes Label (die App zeigt kein „+“)
                 : w.Plus ? new KoppEintrag(w.K, "sub", Plus: true)
                 : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
         // Koppelklassen: alle Klassen der Stunde (eigene aus klassen[], die übrigen aus mitklassen[]); eine abwesende Klasse

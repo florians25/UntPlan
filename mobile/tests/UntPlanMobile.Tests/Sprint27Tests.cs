@@ -46,7 +46,7 @@ public class Sprint27Tests
         // ohne Ende nur der Beginn
         Assert.Equal("13.10.2026 | 12:15", k.VerlegungNach!.Text);
         Assert.Equal("09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15", k.VerlegungText);
-        // hinzugekommener Raum: grünes Label mit „+“
+        // hinzugekommener Raum: grünes Label (Kennzeichen roomPlus; die App zeigt kein „+“)
         Assert.Equal("B070", k.RaumPlus);
         Assert.Null(k.LehrkraftPlus);
 
@@ -182,8 +182,11 @@ public class Sprint27Tests
         var js = AppJs;
         JsPruefen(Abschnitt(js, "PLUS") + """
             const p = window.UntPlanPlus;
-            pruefe(p.plusWert({ roomPlus:'B070' }, 'room', 'b070'), '+b070');
+            // die App zeigt nie ein „+“: hinzugekommene Werte stehen als gewöhnliches grünes Label da
+            pruefe(p.plusWert({ roomPlus:'B070' }, 'room', 'b070'), 'b070');
+            pruefe(p.istPlus({ roomPlus:'B070' }, 'room', 'b070'), true);
             pruefe(p.plusWert({ roomPlus:'B070' }, 'room', 'R101'), 'R101');
+            pruefe(p.istPlus({ roomPlus:'B070' }, 'room', 'R101'), false);
             pruefe(p.plusWert({}, 'teacher', 'MUE'), 'MUE');
             """);
         // kein Verlegungszeichen auf der Kachel und in den Details; die Verlegung steht als Detailzeile „Verlegt“

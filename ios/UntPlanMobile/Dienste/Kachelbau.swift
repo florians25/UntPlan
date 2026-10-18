@@ -203,6 +203,9 @@ struct Zaehlstreifen: Identifiable {
     var id: String { "\(vorne.id.uuidString)-\(von)-\(bis)" }
     var von: Int
     var bis: Int
+    /// Zeitraum der verdeckten Kacheln in Minuten (Aufsicht: ihre Pause)
+    var beginn: Int
+    var ende: Int
     var kacheln: [Kachel]
     var vorne: Kachel
 
@@ -379,7 +382,26 @@ enum Kachelbau {
         return k
     }
 
-    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal als hinzugekommener Wert („+CS“, „+GA“, „+SN“) – auch ein als
+    /// Karte mit mehreren Lehrkräften (Kopplung, Konferenz, Zusatzstunde): Eine Lehrkraft, die nur fehlt (kein neuer Wert,
+    /// keine Vertretung), wird einfach weggelassen – die übrigen stehen ohne Label da. Ein Label gibt es nur für eine echte
+    /// Vertretung. Fehlen alle (bzw. entfällt die Stunde), bleibt die Karte unverändert (Entfall bzw. offene Vertretung).
+    /// Im Plan einer anderen beteiligten Lehrkraft ist die Stunde dann auch keine offene Vertretung mehr (`ichAbwesend` false).
+    static func ohneAbwesendeLehrkraefte(_ original: Karte, typ: String, ich: String) -> (karte: Karte, ichAbwesend: Bool) {
+        var k = original
+        let anwesend = k.lehrer.filter { !$0.k.isEmpty && !["???", "---", "+", "+++"].contains($0.k) }
+        guard k.lehrer.count > 1, !anwesend.isEmpty, !k.istEntfall,
+              k.lehrer.contains(where: { $0.k.isEmpty || $0.k == "???" }) else { return (k, false) }
+        let ichAbwesend = typ == "lehrer" && !ich.isEmpty
+            && k.lehrer.contains { ($0.k.isEmpty || $0.k == "???") && gleich($0.alt ?? "", ich) }
+        k.lehrer = k.lehrer.filter { !($0.k.isEmpty || $0.k == "???") }
+        if !ichAbwesend {
+            k.vertretungOffen = false
+            if k.status == "offen" || k.status == "abwesend" { k.status = "geaendert" }
+        }
+        return (k, ichAbwesend)
+    }
+
+    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal als hinzugekommener Wert (grünes Label ohne „+“) – auch ein als
     /// ersetzt gemeldeter alter Wert; nie durchgestrichen, nie „alt | neu“. „---“ und „???“ zählen nicht.
     static func zusatzLehrer(_ lehrer: [Wert]) -> [Wert] {
         var namen: [String] = []
@@ -393,7 +415,7 @@ enum Kachelbau {
         return namen.map { Wert(k: $0, alt: nil, neu: true, plus: true) }
     }
 
-    /// Zusatzstunde: alle beteiligten Lehrkräfte mit „+“-Label (keine Durchstreichung, kein „alt | neu“) – nicht bei einer
+    /// Zusatzstunde: alle beteiligten Lehrkräfte mit grünem Label ohne „+“ (keine Durchstreichung, kein „alt | neu“) – nicht bei einer
     /// Veranstaltung und nicht bei einer Vertretung ohne bzw. noch ohne Lehrkraft (dort bleibt die bisherige durchgestrichen).
     static func zusatzNormalisiert(_ original: Karte) -> Karte {
         var k = original
@@ -443,6 +465,11 @@ enum Kachelbau {
         }
         if typ == "raum" { k = raumplanNormalisiert(k) }
         k = raumaenderungNormalisiert(k)
+        // Details: alle Lehrkräfte wie geliefert (auch die fehlende); auf der Kachel fehlt eine bloß abwesende Lehrkraft
+        let detailLehrer = k.lehrer
+        let ohneAbwesende = ohneAbwesendeLehrkraefte(k, typ: typ, ich: ich)
+        k = ohneAbwesende.karte
+        let abwesendeWeggelassen = k.lehrer.count != detailLehrer.count
         k = zusatzNormalisiert(k)
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
@@ -509,7 +536,7 @@ enum Kachelbau {
             geaendert.insert("raum")
         }
 
-        let offen = k.vertretungOffen || ((k.status == "offen" || k.status == "abwesend")
+        let offen = k.vertretungOffen || ohneAbwesende.ichAbwesend || ((k.status == "offen" || k.status == "abwesend")
             && k.lehrer.contains { $0.neu && $0.k.isEmpty && !($0.alt ?? "").isEmpty })
         var titel = k.fach
         switch k.status {
@@ -565,8 +592,9 @@ enum Kachelbau {
         if freigegeben { kachel.art = .abgegeben }
 
         kachel.zeilen = zeilen(k, typ: typ, ich: ich, art: kachel.art, geaendert: geaendert, titel: titel,
-                               klassenAbwesend: alleKlassenAbwesend)
+                               klassenAbwesend: alleKlassenAbwesend, abwesendeWeggelassen: abwesendeWeggelassen)
         if kachel.zeilen.isEmpty { return nil }
+        if abwesendeWeggelassen { kachel.karte?.lehrer = detailLehrer }
 
         // Rang: vorne steht, was tatsächlich stattfindet
         let koppAlleWeg = k.lehrer.count > 1 && k.lehrer.allSatisfy { $0.neu && $0.k.isEmpty }
@@ -635,7 +663,7 @@ enum Kachelbau {
     /// Zeilen nach Vorlage – Klassenplan: Lehrkraft · Fach · Raum · Klasse; Lehrer- und Raumplan: Klasse · Fach · Raum · Lehrkraft.
     /// Die letzte Zeile entfällt, wenn sie nur das betrachtete Element wiederholt und sich nichts geändert hat.
     private static func zeilen(_ k: Karte, typ: String, ich: String, art: Kachelart, geaendert: Set<String>,
-                               titel: String, klassenAbwesend: Bool) -> [Kachelzeile] {
+                               titel: String, klassenAbwesend: Bool, abwesendeWeggelassen: Bool = false) -> [Kachelzeile] {
         if art == .termin {
             var termin: [Kachelzeile] = []
             if !titel.isEmpty {
@@ -715,7 +743,10 @@ enum Kachelbau {
                 if !hatListe {
                     let jetzt = werte(k.lehrer).joined(separator: ", ")
                     let vorher = alte(k.lehrer).joined(separator: ", ")
-                    if art == .abgegeben && !klassenAbwesend {
+                    if art == .abgegeben && abwesendeWeggelassen {
+                        // Kopplung ohne mich (ich fehle, die übrigen halten die Stunde): die übrigen schlicht, ohne Label
+                        if !jetzt.isEmpty { zeile.teile = [Kachelteil(text: jetzt)] }
+                    } else if art == .abgegeben && !klassenAbwesend {
                         // Abgegebene Stunde: neue Lehrkraft als grüne Plakette, sonst das eigene Kürzel durchgestrichen
                         if !jetzt.isEmpty {
                             zeile.teile = [Kachelteil(text: jetzt, stil: .plakette)]
@@ -825,7 +856,7 @@ enum Kachelbau {
             if typ == "raum" && schluessel == "raum" && wiederholt && !geaendertWert { continue }
             ergebnis.append(zeile)
         }
-        // Hinzugekommene Werte (plus): grünes Label mit „+“ davor, z. B. „+B070“
+        // Hinzugekommene Werte (plus): grünes Label wie jede Änderung – ohne „+“ davor (die Apps zeigen nie ein „+“)
         if art != .entfall {
             let plusWerte: [String: [String]] = [
                 "lehrer": k.lehrer.filter(\.plus).map(\.k),
@@ -838,7 +869,6 @@ enum Kachelbau {
                     let t = ergebnis[i].teile[j]
                     guard t.stil == .text || t.stil == .plakette, plus.contains(where: { gleich($0, t.text) }) else { continue }
                     ergebnis[i].teile[j].stil = .plakette
-                    ergebnis[i].teile[j].text = "+" + t.text
                 }
             }
         }
@@ -941,7 +971,8 @@ enum Kachelbau {
         var ergebnis: [Kachel] = []
         for k in kacheln {
             let schnitte = pausen.filter { $0 >= k.von && $0 < k.bis }.sorted()
-            guard !k.inPause, !k.feld, k.dauer >= 2, !schnitte.isEmpty, k.art != .termin else {
+            // Klausuren bleiben wie Veranstaltungen eine durchgehende Kachel (die Aufsicht steht in einer eigenen Spur daneben)
+            guard !k.inPause, !k.feld, k.dauer >= 2, !schnitte.isEmpty, k.art != .termin, k.art != .klausur else {
                 ergebnis.append(k)
                 continue
             }
@@ -1018,8 +1049,13 @@ enum Kachelbau {
     ///    Grüne Blöcke stehen damit immer ganz links. Ohne grüne Einträge ist das genau die bisherige Verteilung.
     /// 4. Alle Einträge einer Gruppe teilen sich die Spalte durch die Zahl der Spuren der Gruppe.
     /// Nichts wird zusammengefasst, gestapelt oder über freie Spuren gedehnt. Zeiten in Minuten (Beginn < Ende).
-    static func spurenRechnen(_ zeiten: [(beginn: Int, ende: Int)], gruen: [Bool] = []) -> [Spurlage] {
+    /// `teile`: an einer Pause geteilte Karten (je Eintrag die Zeiten ihrer Teile). Für die Gruppe zählt der ganze Zeitraum,
+    /// ob zwei Einträge dieselbe Spur teilen dürfen, entscheiden die Teile – so liegt eine Pausenaufsicht in der Lücke
+    /// einer geteilten Stunde nicht neben ihr, sondern in derselben Spur.
+    static func spurenRechnen(_ zeiten: [(beginn: Int, ende: Int)], gruen: [Bool] = [],
+                              teile: [[(beginn: Int, ende: Int)]] = []) -> [Spurlage] {
         var ergebnis = Array(repeating: Spurlage(), count: zeiten.count)
+        let ueber: (Int, Int) -> Bool = { a, b in teileUeberlappen(a, b, zeiten: zeiten, teile: teile) }
         let sortiert = zeitSortiert(zeiten)
         var gruppen: [[Int]] = []
         var gruppenEnde = Int.min
@@ -1035,8 +1071,8 @@ enum Kachelbau {
         for gruppe in gruppen {
             var spuren: [[Int]] = []
             for i in vorrangSortiert(gruppe, gruen: gruen) {
-                let ab = abSpur(i, spuren: spuren, zeiten: zeiten, gruen: gruen)
-                if let frei = spuren.indices.first(where: { n in n >= ab && spuren[n].allSatisfy { j in !ueberlappen(zeiten[j], zeiten[i]) } }) {
+                let ab = abSpur(i, spuren: spuren, gruen: gruen, ueber: ueber)
+                if let frei = spuren.indices.first(where: { n in n >= ab && spuren[n].allSatisfy { j in !ueber(j, i) } }) {
                     spuren[frei].append(i)
                     ergebnis[i].spur = frei
                 } else {
@@ -1066,14 +1102,22 @@ enum Kachelbau {
 
     /// Erste Spur, die ein Eintrag belegen darf: grüne ab der ersten, alle übrigen erst rechts neben jedem grünen Block,
     /// mit dem sie sich überschneiden – so steht nie ein anderer Block links neben einem gleichzeitigen grünen.
-    private static func abSpur(_ i: Int, spuren: [[Int]], zeiten: [(beginn: Int, ende: Int)], gruen: [Bool]) -> Int {
+    private static func abSpur(_ i: Int, spuren: [[Int]], gruen: [Bool], ueber: (Int, Int) -> Bool) -> Int {
         if i < gruen.count && gruen[i] { return 0 }
         var ab = 0
         for (s, spur) in spuren.enumerated()
-        where spur.contains(where: { $0 < gruen.count && gruen[$0] && ueberlappen(zeiten[$0], zeiten[i]) }) {
+        where spur.contains(where: { $0 < gruen.count && gruen[$0] && ueber($0, i) }) {
             ab = s + 1
         }
         return ab
+    }
+
+    /// Überlappen sich zwei Einträge? Mit Teilen (geteilte Karte) zählt jeder Teil für sich, sonst der ganze Zeitraum.
+    private static func teileUeberlappen(_ a: Int, _ b: Int, zeiten: [(beginn: Int, ende: Int)],
+                                         teile: [[(beginn: Int, ende: Int)]]) -> Bool {
+        let ta = a < teile.count && !teile[a].isEmpty ? teile[a] : [zeiten[a]]
+        let tb = b < teile.count && !teile[b].isEmpty ? teile[b] : [zeiten[b]]
+        return ta.contains { x in tb.contains { y in ueberlappen(x, y) } }
     }
 
     private static func ueberlappen(_ a: (beginn: Int, ende: Int), _ b: (beginn: Int, ende: Int)) -> Bool {
@@ -1083,23 +1127,28 @@ enum Kachelbau {
     /// Spuren für die Kacheln einer Tagesspalte (Reihenfolge = Reihenfolge der Karten vom Server, wie im Web).
     /// An einer Pause geteilte Teile einer Karte (`stamm`) zählen wie im Web als eine Karte über den ganzen Zeitraum:
     /// alle Teile stehen in derselben Spur und gleich breit.
+    /// Pausenaufsichten nehmen genauso teil wie Stunden (nach Uhrzeit); sie überlappen die Teile einer geteilten Stunde nicht.
     static func spurenVerteilen(_ liste: [Kachel]) -> [UUID: Spurlage] {
         var zeiten: [(beginn: Int, ende: Int)] = []
+        var teile: [[(beginn: Int, ende: Int)]] = []
         var gruen: [Bool] = []
         var platz: [UUID: Int] = [:]
         for k in liste {
             let s = k.stamm ?? k.id
+            let z = (beginn: k.beginn, ende: max(k.ende, k.beginn + 1))
             if let i = platz[s] {
-                zeiten[i].beginn = min(zeiten[i].beginn, k.beginn)
-                zeiten[i].ende = max(zeiten[i].ende, k.ende)
+                zeiten[i].beginn = min(zeiten[i].beginn, z.beginn)
+                zeiten[i].ende = max(zeiten[i].ende, z.ende)
+                teile[i].append(z)
                 gruen[i] = gruen[i] || k.gruen
             } else {
                 platz[s] = zeiten.count
-                zeiten.append((beginn: k.beginn, ende: max(k.ende, k.beginn + 1)))
+                zeiten.append(z)
+                teile.append([z])
                 gruen.append(k.gruen)
             }
         }
-        let lagen = spurenRechnen(zeiten, gruen: gruen)
+        let lagen = spurenRechnen(zeiten, gruen: gruen, teile: teile)
         var ergebnis: [UUID: Spurlage] = [:]
         for k in liste {
             if let i = platz[k.stamm ?? k.id] { ergebnis[k.id] = lagen[i] }
@@ -1117,8 +1166,9 @@ enum Kachelbau {
         let anzahl = max(1, maxSpuren)
         // je sichtbarer Spur: Indizes der Einträge darin
         var spuren: [[Int]] = Array(repeating: [], count: anzahl)
+        let ueber: (Int, Int) -> Bool = { a, b in ueberlappen(zeiten[a], zeiten[b]) }
         for i in vorrangSortiert(zeitSortiert(zeiten), gruen: gruen) {
-            let ab = abSpur(i, spuren: spuren, zeiten: zeiten, gruen: gruen)
+            let ab = abSpur(i, spuren: spuren, gruen: gruen, ueber: ueber)
             if let frei = spuren.indices.first(where: { n in n >= ab && spuren[n].allSatisfy { j in !ueberlappen(zeiten[j], zeiten[i]) } }) {
                 spuren[frei].append(i)
                 ergebnis[i].spur = frei
@@ -1140,11 +1190,15 @@ enum Kachelbau {
     /// - Braucht eine Gruppe mehr Spuren, als bei der Mindestbreite (40 pt) in die Spalte passen, bleibt rechts die
     ///   Zählerkarte wie im Original; links stehen so viele Spuren, wie dann noch passen (iPhone-Woche: der erste Block, grüne Blöcke zuerst),
     ///   die übrigen Stunden liegen hinter der Zählerkarte (Tipp: Details mit allen parallelen Stunden als Reiter).
-    /// - Pausenaufsichten unter einer durchgehenden Veranstaltung stehen schmal in der rechten Hälfte (Web: `.aufsicht.schmal`).
+    /// - Pausenaufsichten gehören genauso dazu (nach Uhrzeit): Liegen sie neben einer durchgehenden Veranstaltung bzw. Klausur
+    ///   oder neben einer weiteren Aufsicht derselben Pause, bekommen sie dieselbe Spurbreite wie jede Stunde – und
+    ///   verschwinden bei Platzmangel genauso hinter der Zählerkarte. Keine Sonderbreite für Aufsichten.
+    /// - Nur Pillen über der ersten Stunde (Aufsicht vor der 1. Stunde, ganztägiger Termin) stehen für sich.
     static func anordnen(_ alle: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool) -> Tagesbelegung {
         var belegung = Tagesbelegung()
-        let pausen = alle.filter { $0.inPause }
-        let stunden = alle.filter { !$0.inPause }
+        let inSpuren: (Kachel) -> Bool = { !$0.inPause || ($0.art == .aufsicht && !$0.vorErsterStunde) }
+        let pausen = alle.filter { !inSpuren($0) }
+        let stunden = alle.filter(inSpuren)
         let luecke: CGFloat = tagesansicht ? 4 : 2
         let mindestBreite = tagesansicht ? spurMindestBreiteTag : spurMindestBreiteWoche
         let grenze = spurenPassend(spaltenBreite, mindestBreite: mindestBreite, luecke: luecke)
@@ -1179,14 +1233,20 @@ enum Kachelbau {
                 roh[j].kacheln.append(karte)
                 roh[j].von = min(roh[j].von, karte.von)
                 roh[j].bis = max(roh[j].bis, karte.bis)
+                roh[j].beginn = min(roh[j].beginn, karte.beginn)
+                roh[j].ende = max(roh[j].ende, karte.ende)
             } else {
-                roh.append(Zaehlstreifen(von: karte.von, bis: karte.bis, kacheln: [karte], vorne: vorne))
+                roh.append(Zaehlstreifen(von: karte.von, bis: karte.bis, beginn: karte.beginn, ende: karte.ende,
+                                         kacheln: [karte], vorne: vorne))
             }
         }
-        roh.sort { $0.von < $1.von }
+        // Nach Uhrzeit: der Streifen einer Aufsicht (in der Pause) verschmilzt nicht mit dem einer Stunde davor oder danach
+        roh.sort { $0.beginn < $1.beginn }
         for st in roh {
-            if let letzter = belegung.streifen.indices.last, st.von <= belegung.streifen[letzter].bis {
+            if let letzter = belegung.streifen.indices.last, st.beginn < max(belegung.streifen[letzter].ende, belegung.streifen[letzter].beginn + 1) {
                 belegung.streifen[letzter].bis = max(belegung.streifen[letzter].bis, st.bis)
+                belegung.streifen[letzter].von = min(belegung.streifen[letzter].von, st.von)
+                belegung.streifen[letzter].ende = max(belegung.streifen[letzter].ende, st.ende)
                 for k in st.kacheln where !belegung.streifen[letzter].kacheln.contains(where: { $0.id == k.id }) {
                     belegung.streifen[letzter].kacheln.append(k)
                 }
@@ -1195,16 +1255,9 @@ enum Kachelbau {
             }
         }
 
-        // Pausenaufsichten: unter einer durchgehenden Veranstaltung schmal rechts, sonst über die ganze Spalte
-        let felder = stunden.filter { $0.feld }
+        // Pillen über der ersten Stunde: eigene Reihe (siehe Stundenplanansicht)
         for p in pausen {
-            let unterFeld = !p.vorErsterStunde && p.art == .aufsicht
-                && felder.contains { f in p.beginn >= f.beginn && p.ende <= f.ende }
-            if unterFeld {
-                belegung.lagen.append(spurLage(Kachellage(kachel: p), n: 1, i: 0, von: 0.5, bis: 1, luecke: luecke))
-            } else {
-                belegung.lagen.append(Kachellage(kachel: p))
-            }
+            belegung.lagen.append(Kachellage(kachel: p))
         }
         return belegung
     }

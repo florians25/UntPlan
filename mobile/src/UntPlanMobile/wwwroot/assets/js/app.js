@@ -471,14 +471,19 @@ const KACHEL_ONLINE = '<svg class="ticon ticon--online" viewBox="0 0 28 28" aria
 
 
 /* PLUS-BEGINN (wird von den Tests ausgeführt) */
-/* Hinzugekommene Werte (classPlus, teacherPlus, roomPlus): grünes Label mit
-   „+“ davor, z. B. „+B070“. */
-function plusWert(card, key, text){
+/* Hinzugekommene Werte (classPlus, teacherPlus, roomPlus): grünes Label wie
+   jede andere Änderung — ohne „+“ davor. Die App zeigt nie ein „+“ (nur das
+   Web kennt die „+“-Labels). `istPlus` sagt, ob der Wert ein Label bekommt;
+   `plusWert` liefert den anzuzeigenden Text (unverändert). */
+function istPlus(card, key, text){
   const liste = String((card && card[key + 'Plus']) || '').split(/\s*,\s*/).filter(Boolean).map(x => x.toUpperCase());
   const t = String(text == null ? '' : text);
-  return t && liste.includes(t.toUpperCase()) ? '+' + t : t;
+  return !!t && liste.includes(t.toUpperCase());
 }
-if (typeof window !== 'undefined') window.UntPlanPlus = { plusWert };
+function plusWert(card, key, text){
+  return String(text == null ? '' : text);
+}
+if (typeof window !== 'undefined') window.UntPlanPlus = { plusWert, istPlus };
 /* PLUS-ENDE */
 const KACHEL_VIDEO = '<svg class="ticon ticon--video" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="6.4" width="12.6" height="11.2" rx="2.4"/><path d="m15.4 10.6 5.8-3.4v9.6l-5.8-3.4z"/></svg>';
 /* Schloss (Linien) für gesperrte Wochen. */
@@ -572,6 +577,7 @@ if (typeof window !== 'undefined') window.UntPlanAufsicht = { inhalt: aufsichtIn
 /* Fehlt eine Lehrkraft der Kopplung und vertritt sie niemand, ist ihre
    Vertretung offen: Kürzel durchgestrichen in der grünen Plakette. Ist eine
    Vertretung eingeteilt, steht das alte Kürzel ohne Fläche da. */
+/* KACHELTOKENS-BEGINN (wird von den Tests ausgeführt) */
 function koppOffen(t, toks){
   if (t.state !== 'absent') return false;
   if (toks && toks.some(x => x.state === 'sub' && x.for && x.for.toUpperCase() === t.text.toUpperCase())) return false;
@@ -597,6 +603,23 @@ function koppTokens(card){
      vertretende Lehrkraft nebeneinander. */
   return (ohne.length > 1 || (ohne.length === 1 && ohne[0].state === 'sub' && ohne[0].for)) ? ohne : null;
 }
+
+/* Lehrkräfte einer Karte mit mehreren Lehrkräften, wie sie auf der Kachel
+   stehen: Wer nur fehlt (keine Vertretung), bekommt kein Label und steht
+   nicht auf der Kachel — die übrigen Lehrkräfte stehen schlicht da. Ein
+   Label gibt es nur für eine echte Vertretung. Fehlen alle bzw. entfällt
+   die Stunde, bleibt es bei der bisherigen Darstellung. Die Details nennen
+   weiterhin alle (koppTokens). Bleibt nur eine Lehrkraft ohne Änderung
+   übrig, ist es keine Liste mehr: `allein` (ein gewöhnlicher Wert). */
+function kachelTokens(card){
+  const toks = koppTokens(card);
+  if (!toks || card.blockType === 'cancelled' || !toks.some(t => t.state !== 'absent')) return toks;
+  const da = toks.filter(t => t.state !== 'absent');
+  if (da.length === toks.length) return toks;
+  return da.length === 1 && da[0].state === 'ok' ? [{ ...da[0], allein:true }] : da;
+}
+if (typeof window !== 'undefined') window.UntPlanKachelTokens = { kachelTokens };
+/* KACHELTOKENS-ENDE */
 
 /* Die Klassen einer Kopplung mit ihrem Zustand.
 
@@ -671,7 +694,7 @@ function cardLines(card, kind){
     const zeilen = reihe.map(l => ({ ...l, ...lineValue(card, l.key) })).filter(l => l.text);
 
     /* Bei einer Kopplung steht in der Lehrerzeile eine Liste. */
-    const toksV = koppTokens(card);
+    const toksV = kachelTokens(card);
     if (kind === 'class' && toksV && zeilen[0]){
       zeilen[0].tokens = toksV;
       zeilen[0].text   = toksV.map(t => t.text).join(', ');
@@ -706,7 +729,7 @@ function cardLines(card, kind){
      Lehrerzeile vor dem unveränderten Raum — sonst kürzte sie sich auf
      einer einstündigen Kachel als erste weg, obwohl sie die Änderung trägt. */
   const koppGeaendert = kind !== 'class' && !(card.changed || []).includes('room')
-    && (koppTokens(card) || []).some(t => (t.state || 'ok') !== 'ok');
+    && (kachelTokens(card) || []).some(t => (t.state || 'ok') !== 'ok');
   const order  = (card.classAbsent && kind === 'class')
     ? ['class', 'teacher', 'subject', 'room']
     : koppGeaendert ? [first, 'subject', 'teacher', 'room'] : [first, 'subject', 'room', last];
@@ -717,7 +740,10 @@ function cardLines(card, kind){
      war ausgerechnet der eigene ausgenommen. Geändertes bleibt stehen,
      denn dort sagt das Kürzel etwas. */
   const label = (state.entity.code || state.entity.label || '').toUpperCase();
-  const toks  = koppTokens(card);
+  const kt    = kachelTokens(card);
+  /* Nur noch eine (unveränderte) Lehrkraft: ein gewöhnlicher Wert ohne Label. */
+  const allein = kt && kt.length === 1 && kt[0].allein ? kt[0].text : '';
+  const toks  = allein ? null : kt;
   const ktoks = klassTokens(card, kind);
 
   return order.map((key, i) => {
@@ -725,6 +751,11 @@ function cardLines(card, kind){
     /* Bei einer Kopplung steht in dieser Zeile nicht ein Wert, sondern
        eine Liste — jedes Kürzel mit eigenem Zustand. Eine Plakette um
        das Ganze wäre falsch und würde sich obendrein wegkürzen. */
+    if (key === 'teacher' && allein){
+      l.text    = allein;
+      l.changed = false;
+      l.removed = false;
+    }
     if (key === 'teacher' && toks){
       l.tokens  = toks;
       l.text    = toks.map(t => t.text).join(', ');
@@ -811,8 +842,7 @@ function groupOverlaps(list){
   list.slice()
     .sort((a,b) => a.lesson - b.lesson || b.span - a.span)
     .forEach(c => {
-      const g = groups.find(gr => gr.some(o =>
-        c.lesson < o.lesson + o.span && o.lesson < c.lesson + c.span));
+      const g = groups.find(gr => gr.some(o => ueberlappt(c, o)));
       if (g) g.push(c); else groups.push([c]);
     });
   groups.forEach(g => g.forEach((c, i) => { c._i = i; c._n = g.length; }));
@@ -880,7 +910,11 @@ function freigegeben(card, kind){
      ohne die (abwesende) Lehrkraft läuft – gleiche Darstellung. */
   /* Im Raumplan ist eine abwesende Lehrkraft (offen oder vertreten) eine
      grüne Änderung wie im Klassenplan – keine Eckklammern, kein Entfall. */
-  const lehrerWegHier = (card.openSub || card.teacherAbsent) && kind !== 'room';
+  /* Halte ich die Stunde mit anderen zusammen (Kopplung, Konferenz) und
+     fehlt nur eine Kollegin, läuft sie nicht ohne mich: keine Eckklammern. */
+  const koppMitMir = !!koppL && koppL.length > 1 && !!myCode
+    && koppL.some(t => String(t.code || '').toUpperCase() === myCode && (t.state || 'ok') !== 'absent');
+  const lehrerWegHier = (card.openSub || card.teacherAbsent) && kind !== 'room' && !koppMitMir;
   return (((lehrerWegHier || handedOver || koppOhneMich || card.classAbsent) && kind !== 'class')
                     || klasseWeg)
                 && !isStandby && !isSup && !isMovedTarget;
@@ -891,10 +925,42 @@ function istGrueneKarte(card, kind){
   return card.blockType === 'change' && !freigegeben(card, kind);
 }
 
+/* Zeitraum einer Karte in Minuten: nach Uhrzeit gesetzte Karten (Aufsicht)
+   über `from`/`to`, Stunden über das Zeitraster. Ohne Zeitraster: null. */
+const parMinuten = t => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+  return m ? (+m[1]) * 60 + (+m[2]) : null;
+};
+const parPause = c => !!(c._supervision || c._pause || c.blockType === 'supervision');
+function zeitBereich(c){
+  if (c.from && c.to){
+    const a = parMinuten(c.from), b = parMinuten(c.to);
+    if (a !== null && b !== null) return [a, Math.max(b, a + 1)];
+  }
+  if (parPause(c)) return null;
+  const zeiten = (typeof state !== 'undefined' && state.times) || {};
+  const s0 = zeiten[c.lesson], s1 = zeiten[c.lesson + c.span - 1];
+  const a = s0 ? parMinuten(s0.start) : null, b = s1 ? parMinuten(s1.end) : null;
+  return a !== null && b !== null ? [a, Math.max(b, a + 1)] : null;
+}
+/* Überlappen sich zwei Karten? Nach Uhrzeit, wo sie bekannt ist — eine
+   Aufsicht in der Pause nach der 2. Stunde überlappt die 2. Stunde nicht,
+   obwohl sie deren Nummer trägt. Fehlt die Uhrzeit einer Aufsicht, teilt sie
+   sich die Spalte nur mit Aufsichten derselben Pause. */
+function ueberlappt(a, b){
+  const ra = zeitBereich(a), rb = zeitBereich(b);
+  if (ra && rb) return ra[0] < rb[1] && rb[0] < ra[1];
+  if (parPause(a) || parPause(b)) return parPause(a) && parPause(b) && a.lesson === b.lesson;
+  return a.lesson < b.lesson + b.span && b.lesson < a.lesson + a.span;
+}
+
 /* Überlappende Karten nebeneinander legen.
-   Nach Uhrzeit gesetzte Einträge — Bereitschaften, Aufsichten — bleiben außen
-   vor: sie liegen meist in einer Pause und dürfen nicht hinter einer
-   Zählkarte verschwinden. */
+   Pausenaufsichten gehören dazu wie jede Stunde: Sie teilen sich die Spalte
+   (gleiche Breite, gleiche Abstände) mit allem, was zur selben Zeit liegt —
+   einer zweiten Aufsicht derselben Pause, einer durchgehenden Veranstaltung
+   oder Klausur — und treten bei Platzmangel genauso hinter die Zählkarte.
+   Außen vor bleiben nur andere nach Uhrzeit gesetzte Einträge und die
+   Pillen über der ersten Stunde. */
 function assignParallel(cards){
   /* Aufsichten und Bereitschaften gehören nie in eine Parallelgruppe.
      Erkannt werden sie an ihrer Kennzeichnung, nicht allein an Anfangs-
@@ -907,7 +973,9 @@ function assignParallel(cards){
      verhält sich damit wie Unterricht: Sie teilt die Spalte, sie kann
      verdrängt werden und gehört dann hinter die Zählkarte. */
   const inPause = c => !!(c._supervision || c._pause || c.blockType === 'supervision');
-  const timed = cards.filter(c => (c.from && c.to) || inPause(c));
+  const aufsichtInSpur = c => inPause(c) && !c._pausePre;
+  const aussen = c => !aufsichtInSpur(c) && ((c.from && c.to) || inPause(c));
+  const timed = cards.filter(aussen);
   /* Untereinander teilen sich Aufsichten und Bereitschaften die Spalte wie
      alle anderen auch — zwei Aufsichten in derselben Pause standen sonst
      beide auf voller Breite übereinander. Mit dem Unterricht mischen sie
@@ -919,7 +987,7 @@ function assignParallel(cards){
      und einer Aufsichtsvertretung eine Dreierteilung, obwohl die Aufsicht
      zeitlich gar nicht im Unterricht liegt. */
 
-  cards = cards.filter(c => !((c.from && c.to) || inPause(c)));
+  cards = cards.filter(c => !aussen(c));
   /* Innerhalb einer Parallelgruppe steht vorne, was tatsächlich stattfindet.
      Danach kommt, was ohne mich läuft, zuletzt der Entfall. Die verdrängten
      Karten erscheinen als Zählkarte — auf 66 px Spaltenbreite bliebe von
@@ -942,6 +1010,11 @@ function assignParallel(cards){
     if (c.classAbsent && viewKind(state.entity) !== 'class') return 3;
     if (c.openSub || handedAway(c)) return 3;
     if (c.overlay) return 2;          /* AK, GS, Veranstaltung */
+    /* Pausenaufsicht: Sie überschneidet sich nur mit einer durchgehenden
+       Veranstaltung bzw. Klausur oder einer weiteren Aufsicht. Die lange
+       Kachel bleibt vorne, die Aufsicht tritt bei Platzmangel dahinter
+       (Zählkarte) — wie in der iOS-App, wo die früher beginnende vorne steht. */
+    if (inPause(c)) return 2.5;
     /* Eine Vertretung geht der unveränderten Stunde vor. Wird es eng und
        eine Karte weicht dem Zähler, soll die stehen bleiben, an der sich
        etwas geändert hat — die andere steht ohnehin so im Plan. */
@@ -982,8 +1055,7 @@ function assignParallel(cards){
   const rang = new Map(sorted.map((c, i) => [c, i]));
   const groups = [];
   sorted.forEach(c => {
-    const treffer = groups.filter(gr => gr.some(o =>
-      c.lesson < o.lesson + o.span && o.lesson < c.lesson + c.span));
+    const treffer = groups.filter(gr => gr.some(o => ueberlappt(c, o)));
     if (!treffer.length){ groups.push([c]); return; }
     const g = treffer[0];
     g.push(c);
@@ -998,7 +1070,7 @@ function assignParallel(cards){
      Spalte, deren letzte Karte vorher zu Ende ist. Karten, die sich gar
      nicht überschneiden, teilen sich damit eine Spalte, statt die Gruppe
      unnötig schmal zu machen und gegeneinander zu versetzen. */
-  const ueber = (a, b) => a.lesson < b.lesson + b.span && b.lesson < a.lesson + a.span;
+  const ueber = ueberlappt;
   const gruen = new Set(sorted.filter(c => vorrang(c) < 0));
   groups.forEach(g => {
     const cols = [];
@@ -1016,7 +1088,7 @@ function assignParallel(cards){
   });
   return sorted.concat(timed);
 }
-if (typeof window !== 'undefined') window.UntPlanParallel = { assignParallel, istGrueneKarte };
+if (typeof window !== 'undefined') window.UntPlanParallel = { assignParallel, istGrueneKarte, ueberlappt, zeitBereich };
 /* PARALLEL-ENDE */
 
 /* =====================================================================
@@ -1385,59 +1457,25 @@ function renderGrid(){
          verschwanden in der Wochenansicht ganz. */
       cards.forEach(c => { delete c._side; delete c._hit; delete c._unterFeld; });
 
-      /* --- Aufsichten im Zeitraum eines Feldes (GS, AK, Veranstaltung) ----
-         Entschieden wird nach Uhrzeit, nicht nach Stundennummer: Die
-         Aufsicht trägt als Nummer die Stunde *vor* ihrer Pause. Nach Nummer
-         zählte deshalb auch die Pause direkt nach dem Feld mit, die gar
-         nicht mehr darin liegt. Aufsichten vor der ersten Stunde stehen
-         oberhalb des Rasters und bleiben ohnehin außen. */
-      const minuten = t => {
-        const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
-        return m ? (+m[1]) * 60 + (+m[2]) : null;
-      };
+      /* --- Feld (GS, AK, Veranstaltung) mit Stunden und Aufsichten darunter -
+         Pausenaufsichten im Zeitraum eines Feldes werden genauso behandelt
+         wie die Stunden darunter (nach Uhrzeit, siehe `ueberlappt`): neben dem
+         Feld dieselbe Spurbreite wie jede Stunde, in der schmalen Woche
+         hinter dem Feld bzw. in der Zählkarte. Keine Sonderbreite.
+         Pillen vor der ersten Stunde stehen oberhalb des Rasters und bleiben
+         ohnehin außen. */
       const istPause = c => !!(c._supervision || c._pause || c.blockType === 'supervision');
-      const aufsichtenIm = o => {
-        const vonO = minuten((state.times[o.lesson] || {}).start);
-        const bisO = minuten((state.times[o.lesson + o.span - 1] || {}).end);
-        if (vonO === null || bisO === null) return [];
-        return cards.filter(c => {
-          if (c.overlay || !istPause(c) || c._pausePre) return false;
-          const a = minuten(c.from), b = minuten(c.to);
-          return a !== null && b !== null && a >= vonO && b <= bisO;
-        });
-      };
 
       /* Auf breitem Bildschirm (iPad) auch in der Woche: Feld links, die
          wegen der Veranstaltung entfallenden Stunden und Aufsichten rechts daneben. */
       if (isDay || nebenFeld){
         cards.filter(c => c.overlay).forEach(o => {
-          const hit = cards.filter(c => !c.overlay && !istPause(c)
-            && c.lesson <= o.lesson + o.span - 1 && o.lesson <= c.lesson + c.span - 1);
-
-          /* Liegt eine Pausenaufsicht innerhalb des Feldes — etwa die
-             Hofaufsicht zwischen der 2. und 3. Stunde bei einer Freisetzung
-             von der 1. bis zur 4. —, steht sie wie die Stunden als halbe
-             Kachel rechts daneben.
-
-             In die Aufteilung der Stunden (`groupOverlaps`) geht sie nicht
-             ein. Nach Nummer überlappte die Aufsicht sonst mit der Stunde
-             vor ihrer Pause, und beide bekämen nur ein Viertel der Breite —
-             obwohl sie zeitlich gar nicht nebeneinander liegen. */
-          const aufsichten = aufsichtenIm(o);
-
-          o._i = 0; o._n = 1; o._hit = hit.length + aufsichten.length;
+          const hit = cards.filter(c => !c.overlay && !c._pausePre
+            && (!istPause(c) || c._supervision || c.blockType === 'supervision') && ueberlappt(c, o));
+          o._i = 0; o._n = 1; o._hit = hit.length;
           hit.forEach(c => { c._side = true; });
           groupOverlaps(hit);
-          aufsichten.forEach(c => { c._side = true; c._i = 0; c._n = 1; });
         });
-      } else {
-        /* In der Wochenansicht ist neben dem Feld kein Platz für eine halbe
-           Kachel. Die Aufsicht lief dort quer über das Feld. Sie wird
-           ausgeblendet — wie die Stunden, die hinter das Feld zurücktreten.
-           Zu sehen ist sie in der Tagesansicht. */
-        cards.filter(c => c.overlay).forEach(o =>
-          aufsichtenIm(o).forEach(c => { c._unterFeld = true; }));
-        cards = cards.filter(c => !c._unterFeld);
       }
     }
 
@@ -1476,11 +1514,10 @@ function renderGrid(){
          Entfall etwa, in den nur für die 3. und 4. etwas vorgezogen wurde —
          bleibt Platz. Dort wird die Zählkarte gezeichnet, statt die Stunden
          einfach leer zu lassen. */
-      const inPause = !!(card._supervision || card._pause
-                      || card.blockType === 'supervision');
-      if (!isDay && !inPause && card._n > grenzeFuer(cards, card) && card._i > 0){
-        const vorne = cards.filter(x => x._i === 0
-          && x.lesson < card.lesson + card.span && card.lesson < x.lesson + x.span);
+      /* Pausenaufsichten wie jede Stunde: Passt die Gruppe nicht, liegt die
+         Aufsicht hinter der Zählkarte. Nur Pillen vor der ersten Stunde nicht. */
+      if (!isDay && !card._pausePre && card._n > grenzeFuer(cards, card) && card._i > 0){
+        const vorne = cards.filter(x => x._i === 0 && ueberlappt(x, card));
         if (vorne.length){
           /* Nicht sofort zeichnen: Mehrere verdrängte Karten hintereinander
              ergäben sonst mehrere Streifen übereinander — im Raster standen
@@ -1618,18 +1655,17 @@ function renderGrid(){
         return;
       } else if (card._side){
         style += lane(card._n, card._i, 50, 100, isDay ? 4 : 2);
-      } else if (isDay && card._n > 1 && !card._supervision){
+      } else if (isDay && card._n > 1 && !card._pausePre){
+        /* Aufsichten bekommen dieselbe Spur wie jede Stunde. */
         style += lane(card._n, card._i, 0, 100, 4);
-      } else if (isDay && card._supervision){
-        /* Aufsichten stehen über die volle Breite und beeinflussen die
-           Aufteilung der Stunden nicht. */
+      } else if (card._pausePre){
+        /* Pille vor der ersten Stunde: eigene Reihe über dem Raster. */
       } else if (card._n > 1 && card._n <= grenzeFuer(cards, card)){
         style += lane(card._n, card._i, 0, 100, 2);
       } else if (card._n > 1){
         /* Gezählt wird, was diese Kachel wirklich verdeckt — nicht die
            gesamte Kette. Sonst steht dort eine zu hohe Zahl. */
-        more = cards.filter(x => x !== card && x._i > 0
-          && x.lesson < card.lesson + card.span && card.lesson < x.lesson + x.span).length;
+        more = cards.filter(x => x !== card && x._i > 0 && ueberlappt(x, card)).length;
         if (!more) { /* nichts verdeckt — volle Breite */ }
         else { style += 'width:calc(100% - 14px);'; cls.push('has-count'); }
       }
@@ -1685,7 +1721,7 @@ function renderGrid(){
           ? l.tokens.map((t, ti) => {
               /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
               const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
-              /* Hinzugekommener Wert: grünes Label mit „+“ davor. */
+              /* Hinzugekommener Wert: grünes Label (ohne „+“). */
               const plusT = plusWert(card, l.key, t.text);
               const kern  = t.state === 'absent'
                 ? `<span class="badge badge--removed${koppOffen(t, l.tokens) ? ' badge--open' : ''}">${esc(t.text)}</span>`
@@ -1696,7 +1732,7 @@ function renderGrid(){
                 ? (t.for && l.key === 'teacher'
                     ? `<span class="badge badge--removed">${esc(t.for)}</span><i class="tok__trenn">,</i> <span class="badge">${esc(t.text)}</span>`
                     : `<span class="badge${l.key === 'room' ? ' badge--raum' : ''}">${esc(plusT)}</span>`)
-                : (t.plus || plusT !== t.text)
+                : (t.plus || istPlus(card, l.key, t.text))
                 ? `<span class="badge${l.key === 'room' ? ' badge--raum' : ''}">${esc(plusT)}</span>`
                 : esc(t.text);
               return `<span class="tok tok--${t.state}">${kern}${komma}</span>`;
@@ -1861,11 +1897,24 @@ function renderGrid(){
          reicht der Streifen auch nur über diese zwei. Zusammengefasst wird
          dabei über eine Pause hinweg — die Zuordnung zur vorderen Karte hat
          schon entschieden, was zusammengehört. */
+      /* Senkrechte Lage in Pixeln: Stunden nach dem Raster, Pausenaufsichten
+         wie ihre Pille in der Pause — der Streifen einer verdeckten Aufsicht
+         ist genauso hoch wie sie und verschmilzt nicht mit der Stunde davor. */
+      const yBereich = k => {
+        if ((k._supervision || k.blockType === 'supervision') && k.from && k.to && !k._pausePre){
+          const gap = atTime(k.to) - atTime(k.from);
+          const h = Math.max(18, Math.min(26, gap - 1));
+          const oben = atTime(k.from) + Math.max(1, (gap + 1 - h) / 2);
+          return [oben, oben + h];
+        }
+        const oben = L.top(k.lesson) + 1;
+        return [oben, oben + Math.max(0, L.height(k.lesson, k.span) - 1)];
+      };
       const roh = [...proFront.entries()].map(([front, karten]) => ({
-        von: Math.min(...karten.map(k => k.lesson)),
-        bis: Math.max(...karten.map(k => k.lesson + k.span - 1)),
+        oben: Math.min(...karten.map(k => yBereich(k)[0])),
+        unten: Math.max(...karten.map(k => yBereich(k)[1])),
         karten
-      })).sort((a, b) => a.von - b.von);
+      })).sort((a, b) => a.oben - b.oben);
 
       /* Nur **überlappende** Streifen zu einem verschmelzen.
          Die Zuordnung geschieht je vorderer Kachel, und zwei vordere
@@ -1881,17 +1930,17 @@ function renderGrid(){
       const streifen = [];
       roh.forEach(st => {
         const letzter = streifen[streifen.length - 1];
-        if (letzter && st.von <= letzter.bis){
-          letzter.bis = Math.max(letzter.bis, st.bis);
+        if (letzter && st.oben < letzter.unten){
+          letzter.unten = Math.max(letzter.unten, st.unten);
           st.karten.forEach(k => { if (!letzter.karten.includes(k)) letzter.karten.push(k); });
         } else {
-          streifen.push({ von: st.von, bis: st.bis, karten: st.karten.slice() });
+          streifen.push({ oben: st.oben, unten: st.unten, karten: st.karten.slice() });
         }
       });
 
       streifen.forEach(st => {
-        const t  = L.top(st.von) + 1;
-        const hh = Math.max(0, L.height(st.von, st.bis - st.von + 1) - 1);
+        const t  = st.oben;
+        const hh = Math.max(0, st.unten - st.oben);
         const ton = st.karten.some(x => x.blockType === 'cancelled') ? ' parcount--cancel'
                   : st.karten.some(x => x.blockType === 'change')    ? ' parcount--change' : '';
         const vorbei = st.karten.every(x => {

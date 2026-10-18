@@ -92,13 +92,13 @@ public sealed record KoppEintrag(
     [property: JsonPropertyName("for")] string? Fuer = null,
     /// <summary>Offene Vertretung (noch keine Lehrkraft eingeteilt): Kürzel durchgestrichen in der grünen Plakette.</summary>
     [property: JsonPropertyName("open")] bool? Offen = null,
-    /// <summary>Hinzugekommene Lehrkraft: grünes Label mit „+“ davor.</summary>
+    /// <summary>Hinzugekommene Lehrkraft: grünes Label (die App zeigt es ohne „+“).</summary>
     [property: JsonPropertyName("plus")] bool? Plus = null);
 
 public sealed record KlassenEintrag(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("state")] string Zustand = "ok",
-    /// <summary>Hinzugekommene Klasse: grünes Label mit „+“ davor.</summary>
+    /// <summary>Hinzugekommene Klasse: grünes Label (die App zeigt es ohne „+“).</summary>
     [property: JsonPropertyName("plus")] bool? Plus = null);
 
 /// <summary>Eine Seite einer Verlegung im Format der Oberfläche (Datum, Beginn, Ende; Ende kann leer sein).</summary>
@@ -154,7 +154,7 @@ public sealed class Kachel
     [JsonPropertyName("movedTo")] public KachelVerlegung? VerlegungNach { get; set; }
     /// <summary>Verlegung als Text, immer Ursprung → Ziel: „09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15 - 13:00“.</summary>
     [JsonPropertyName("movedText")] public string? VerlegungText { get; set; }
-    /// <summary>Hinzugekommene Werte (ohne alten Wert): grünes Label mit „+“ davor (Komma-Listen).</summary>
+    /// <summary>Hinzugekommene Werte (ohne alten Wert): grünes Label, in der App ohne „+“ (Komma-Listen).</summary>
     [JsonPropertyName("classPlus")] public string? KlassePlus { get; set; }
     [JsonPropertyName("teacherPlus")] public string? LehrkraftPlus { get; set; }
     [JsonPropertyName("roomPlus")] public string? RaumPlus { get; set; }

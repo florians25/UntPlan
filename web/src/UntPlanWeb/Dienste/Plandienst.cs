@@ -381,8 +381,17 @@ public sealed class Plandienst
         var roh = Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList();
         // Kopplung mit gleichem Fach und gleichem Raum: im Lehrerplan auch die Zeilen der Kolleg*innen (eine gemeinsame Karte)
         static bool GleicherRaum(Rohstunde a, Rohstunde b) => a.Raeume.Count == b.Raeume.Count && a.Raeume.All(x => Enthaelt(b.Raeume, x));
-        bool Mitgekoppelt(Rohstunde r) => r.Unterricht is int u && r.Fach.Length > 0 && r.Status is not ("entfall" or "vorgemerkt") &&
-            roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz));
+        // Zusatzstunde ohne Unterricht (z. B. Konferenz, Besprechung, Sondereinsatz mehrerer Lehrkräfte): gleiche Stunde, gleiches Fach,
+        // gleiche Räume und Klassen – im Lehrerplan stehen dann ebenfalls alle beteiligten Lehrkräfte auf der gemeinsamen Karte
+        string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) ? vv.Art ?? "" : "";
+        bool ZusatzOhneUnterricht(Rohstunde x) => x.Unterricht is null && x.Status == "zusaetzlich" && x.Fach.Length > 0
+            && !IstKlausur(ArtVon(x)) && !IstBuchung(ArtVon(x)) && !ArtVon(x).StartsWith("Veranst", StringComparison.OrdinalIgnoreCase);
+        static bool GleicheKlassen(Rohstunde a, Rohstunde b) => a.Klassen.Count == b.Klassen.Count && a.Klassen.All(x => Enthaelt(b.Klassen, x));
+        bool Mitgekoppelt(Rohstunde r) => r.Fach.Length > 0 && r.Status is not ("entfall" or "vorgemerkt") &&
+            (r.Unterricht is int u
+                ? roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz))
+                : ZusatzOhneUnterricht(r) && roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && ZusatzOhneUnterricht(x) && Ci.Equals(x.Fach, r.Fach)
+                                                         && GleicherRaum(x, r) && GleicheKlassen(x, r) && Enthaelt(x.Lehrer, kurz)));
         // vorgemerkte Löschungen von Prüfungen (werden unten angewandt)
         var loeschungen = roh.Where(r => r.Status == "vorgemerkt" && r.Art == "KlausurLoeschen").ToList();
         foreach (var r in roh)
@@ -779,8 +788,14 @@ public sealed class Plandienst
         static string Fach(Karte k) => (string.IsNullOrEmpty(k.FachAlt) ? k.Fach : k.FachAlt).ToLowerInvariant();
         static List<Wert> Vereinigen(IEnumerable<Wert> l) => l.GroupBy(w => (w.K.ToLowerInvariant(), (w.Alt ?? "").ToLowerInvariant())).Select(g => g.First()).ToList();
         var res = new List<Karte>();
+        // Zusatzstunde ohne Unterricht mehrerer Lehrkräfte (je Lehrkraft eine Zeile): gleiche Zeit, gleiches Fach, gleiche Räume und Klassen
+        // ergeben ebenfalls eine gemeinsame Karte mit allen Beteiligten
+        static string Klassen(Karte k) => string.Join(",", k.Klassen.Select(w => w.K.ToLowerInvariant()).Where(x => x.Length > 0).Distinct().OrderBy(x => x, StringComparer.Ordinal));
         foreach (var g in einzel.GroupBy(k => k.Unterricht is int && k.Fach.Length > 0
-                     ? $"{k.Datum}|{k.Von}|{k.Bis}|{Gruppe(k.Status)}|{Fach(k)}|{Raeume(k)}" : Guid.NewGuid().ToString()))
+                     ? $"{k.Datum}|{k.Von}|{k.Bis}|{Gruppe(k.Status)}|{Fach(k)}|{Raeume(k)}"
+                     : k.Unterricht is null && k.Zusaetzlich && k.Status == "geaendert" && k.Fach.Length > 0 && k.Verlegung is null
+                         ? $"zusatz|{k.Datum}|{k.Von}|{k.Bis}|{Fach(k)}|{Raeume(k)}|{Klassen(k)}"
+                         : Guid.NewGuid().ToString()))
         {
             var liste = g.ToList();
             if (liste.Count == 1) { res.AddRange(liste); continue; }

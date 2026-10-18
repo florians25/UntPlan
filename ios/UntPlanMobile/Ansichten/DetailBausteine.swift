@@ -798,8 +798,8 @@ struct Wertzeile: View {
                     teil.append(.weg(alt))
                     teil.append(pfeil ? .pfeil : .trenner)
                 }
-                // Hinzugekommener Wert (plus) mit „+“ davor, z. B. „+B070“
-                if !w.k.isEmpty { teil.append(.text(w.plus ? "+" + w.k : w.k)) }
+                // Hinzugekommener Wert (plus): ohne „+“ davor – die App zeigt nie ein „+“
+                if !w.k.isEmpty { teil.append(.text(w.k)) }
             }
             guard !teil.isEmpty else { continue }
             if !ergebnis.isEmpty { ergebnis.append(.trenner) }
