@@ -504,7 +504,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         belegt.push([aufbau.pause.get(nach), aufbau.pause.get(nach) + PAUSE, j * breite, breite]);
         // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
         // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie, gleiche Breite und Einrückung
-        html += `<div class="aufsicht u-hover-bereich ${e(a.status)} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
+        html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
           ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${e(ort)}${label ? ' ' + label : ''}</span></div>`;
       });
     }
@@ -675,18 +675,25 @@ export function aufsichtTitel(a) {
   const ersatz = a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
   const zustand = a.status === 'vertretung' ? ` (Vertretung für ${a.alt})`
     : a.status === 'vertreten' ? (ersatz ? ` (vertreten durch ${ersatz})` : ' (Vertretung offen)')
+    : a.status === 'offen' ? ` (Vertretung offen${a.grund ? ' – ' + a.grund : ''})`
     : a.status === 'entfall' ? ` (entfällt${a.grund ? ' – ' + a.grund : ''})` : '';
   return `Pausenaufsicht ${a.gangName || a.gang} ${a.beginn}–${a.ende}${zustand}`;
 }
 
+/** CSS-Klasse einer Aufsicht: die offene (noch ungeplante) sieht aus wie eine vertretene mit offener Vertretung (gestrichelt). */
+const aufsichtKlasse = a => a.status === 'offen' ? 'vertreten offen' : a.status;
+
 /**
  * Vertretene Pausenaufsicht: die Vertretung als grünes Label wie auf den Stundenkarten (Hover „ALT → NEU“). Die abwesende Lehrkraft
- * steht nicht auf der Karte (nur im Hover); ohne Vertretung kein Label (gestrichelte Karte, Hinweis im Tooltip).
+ * steht nicht auf der Karte (nur im Hover). Offene Vertretung (Status „offen“ bzw. „vertreten“ mit „???“): die eingeteilte Lehrkraft
+ * durchgestrichen im grünen Label wie bei einer offenen Lehrervertretung, Hover „Vertretung offen“ (mit Anlass).
  */
 function aufsichtLabel(a) {
-  if (a.status !== 'vertretung' && a.status !== 'vertreten') return '';
+  if (a.status !== 'vertretung' && a.status !== 'vertreten' && a.status !== 'offen') return '';
   const ersatz = a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
   const alt = a.alt && !/^[?+-]+$/.test(a.alt) ? a.alt : '';
+  if (!ersatz && alt && a.status !== 'vertretung')
+    return `<span class="lbl lbl-auf weg" data-hover="${e('Vertretung offen' + (a.grund ? ' – ' + a.grund : ''))}" data-hover-art="dunkel">${e(alt)}</span>`;
   if (!ersatz) return '';
   return `<span class="lbl lbl-auf" data-hover="${e(alt ? wechsel(alt, ersatz) : '+ ' + ersatz)}"${alt ? ` data-hover-alt="${e(alt)}"` : ''}>${e(ersatz)}</span>`;
 }
@@ -703,7 +710,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
         <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && k.status !== 'abwesend' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
-        <div class="aufsicht ${e(a.status)}" ${aufsichtLabel(a) ? '' : `title="${e(aufsichtTitel(a))}"`}><span class="auf-text">${e(a.gangName)}${aufsichtLabel(a) ? ' ' + aufsichtLabel(a) : ''}</span></div></div>` })),
+        <div class="aufsicht ${e(aufsichtKlasse(a))}" ${aufsichtLabel(a) ? '' : `title="${e(aufsichtTitel(a))}"`}><span class="auf-text">${e(a.gangName)}${aufsichtLabel(a) ? ' ' + aufsichtLabel(a) : ''}</span></div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);
   return `<div class="tt-liste">${eintraege.map(x => x.html).join('')}</div>`;
 }

@@ -836,6 +836,8 @@ struct StartlisteView: View {
                     Plakette(text: "Vertretung", farbe: Farben.gruen)
                 } else if a.status == "vertreten" {
                     Plakette(text: "Vertreten", farbe: Farben.entfallRand)
+                } else if a.status == "offen" {
+                    Plakette(text: "Offen", farbe: Farben.gruen)
                 } else if a.status == "entfall" {
                     Plakette(text: "Entfällt", farbe: Farben.entfallRand)
                 }
