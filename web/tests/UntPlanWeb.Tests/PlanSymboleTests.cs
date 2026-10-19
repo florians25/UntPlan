@@ -299,7 +299,7 @@ public class PlanSymboleTests
         Vertretungen.Aktualisieren(d, Do);
         Tagesverlegung.Ausfuehren(d, Tagesverlegung.Analysieren(d, Do, verlegt.Stunde, verlegt.Unterricht.Id, null, 1, Do, krank.Stunde), VerlegeModus.Verlegen);
         var p = Paket(d);
-        Assert.Contains(p.Vertretungen, v => v.Text == "Vertretung durch Verlegung");
+        Assert.DoesNotContain(p.Vertretungen, v => v.Text == "Vertretung durch Verlegung");
         var s = new Stand(p, "");
         var plan = new Plandienst();
         var alle = Elemente(p).SelectMany(e => plan.Karten(s, Do, e.Typ, e.Element)).ToList();

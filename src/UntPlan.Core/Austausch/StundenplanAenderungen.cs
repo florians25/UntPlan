@@ -152,8 +152,16 @@ public static class StundenplanAenderungen
     public static bool IstRaumaenderungsHinweis(string? text) =>
         !string.IsNullOrWhiteSpace(text) && System.Text.RegularExpressions.Regex.IsMatch(text.Trim(), @"^\([^()]*\)\s*Raumänderung$");
 
-    /// <summary>Vertretungstext für den Export: ohne den automatischen Raumänderungs-Hinweis.</summary>
-    public static string ExportText(string? text) => IstRaumaenderungsHinweis(text) ? "" : text ?? "";
+    /// <summary>
+    /// Automatische Standardtexte älterer Versionen („Vertretung durch Verlegung“ beim Füllen einer Lücke, „Vorziehung“): werden
+    /// nicht mehr gesetzt und beim Export weggelassen. Nur genau diese Texte – eigene Texte bleiben.
+    /// </summary>
+    public static bool IstStandardtext(string? text) =>
+        !string.IsNullOrWhiteSpace(text) && text.Trim() is var t &&
+        (t.Equals("Vertretung durch Verlegung", StringComparison.OrdinalIgnoreCase) || t.Equals("Vorziehung", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Vertretungstext für den Export: ohne den automatischen Raumänderungs-Hinweis und ohne automatische Standardtexte.</summary>
+    public static string ExportText(string? text) => IstRaumaenderungsHinweis(text) || IstStandardtext(text) ? "" : text ?? "";
 
     /// <summary>
     /// Doppelt bzw. mehrfach vorhandene Prüfungen (gleicher Tag, gleiche Stunden, gleiche Klassen, gleicher Name – z. B. durch

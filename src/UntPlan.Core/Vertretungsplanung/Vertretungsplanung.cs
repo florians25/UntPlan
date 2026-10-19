@@ -111,6 +111,7 @@ public static class Vertretungen
                             VertreterId = l < 0 ? null : l, KlassenIds = k.KlassenIds.ToList(), VertretungsraumId = k.RaumIds.Cast<int?>().FirstOrDefault(),
                             ZusatzraumIds = k.RaumIds.Skip(1).ToList(), Text = string.IsNullOrEmpty(k.Text) ? k.Name : $"{k.Name} {k.Text}".Trim(),
                         });
+            var lehrerAbsenzen = d.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && datum >= a.Von && datum <= a.Bis);
             foreach (var va in d.Veranstaltungen.Where(v => datum >= v.Von && datum <= v.Bis))
             {
                 VeranstaltungsLogik.Bereinigen(d, va, datum);
@@ -127,7 +128,16 @@ public static class Vertretungen
                 for (var s = 1; s <= d.Zeitraster.StundenProTag; s++)
                 {
                     if (!va.Deckt(datum, s) || !d.Zeitraster.Verfuegbar(tag, s)) continue;
-                    foreach (var (l, fuer) in plaetze)
+                    foreach (var (l0, fuer) in plaetze)
+                    {
+                        // abwesende Lehrkraft (Lehrer-Absenz zu dieser Stunde) nimmt nicht teil: eigene Zeile entfällt, ein abwesender
+                        // Ersatz macht den Platz wieder offen („?“); ohne Absenz erscheint sie beim nächsten Abgleich wieder
+                        var l = l0;
+                        if (l is int al && lehrerAbsenzen && Absenzen.Lehrer(d, al, datum, s) != null)
+                        {
+                            if (fuer is null) continue;
+                            l = null;
+                        }
                         benoetigt.Add(new Vertretung
                         {
                             Datum = datum, Stunde = s, Art = VertretungsArt.Veranstaltung, Quelle = VertretungsQuelle.Veranstaltung, VeranstaltungId = va.Id,
@@ -135,6 +145,7 @@ public static class Vertretungen
                             VertretungsraumId = vaRaum, ZusatzraumIds = vaZusatzraeume.ToList(),
                             GrundId = va.GrundId, Grund = vaGrund, Text = va.Text, Schuelergruppe = va.Schuelergruppe, Wert = va.Wert,
                         });
+                    }
                 }
             }
         }
@@ -1532,7 +1543,6 @@ public static class VertretungsVorschlag
         offen.Art = VertretungsArt.Entfall;
         offen.VertreterId = null;
         offen.Bearbeitet = true;
-        offen.Text = "Vorziehung";
         Vertretungen.Verlegen(d, uid, null, vz.Datum, vz.Stunde, offen.Datum, offen.Stunde, VertretungsArt.Verlegung, benutzer);
     }
 

@@ -5,6 +5,12 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### Desktop
+- Sicherere Dropdowns (kein Mausrad-Wechsel, Enter/Tab übernimmt, Escape setzt zurück), reiner Text beim Kopieren, Vorschläge aus letzten Texteingaben.
+- Filter „offene Vertretungen“: geänderte Zeilen bleiben bis zum Zeilenwechsel stehen; Auswahl im Vorschlagsfenster stellt die Stundenpläne passend um.
+- Verlegungen fragen „Räume mitnehmen oder belassen?“ und bei belegten Räumen nach Raumvertretung (eigener/anderer Unterricht) oder Kollision.
+- Rückfragen bei gesperrten Räumen, besseres Drag & Drop, keine automatischen Texte „Vertretung durch Verlegung“/„Vorziehung“, abwesende Lehrkräfte fallen aus Veranstaltungen.
+
 ### UntPlan Studio (Beta, neu)
 - Experimentelle Browser-Version der Desktop-Anwendung als eigener Container unter eigener Domain: .up öffnen/speichern, BAL-Import, Menüband, Fenster-Arbeitsbereich, Dateneingabe aller Stammdaten, Unterricht, Stundenpläne mit Drag & Drop.
 - Vertretungsplanung (Absenzen, Vertretungsliste, Vorschlag, Automatik, Bereitschaften, Sondereinsätze, Vormerkungen, Veranstaltungen, tagesaktuelle Pläne).
@@ -13,6 +19,10 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Import/Export, UntPlanWeb-Austausch mit optionalem automatischem Abgleich, Abrechnung, Pausenaufsichten, Kursplanung, Kommentare, Mehrbenutzerbetrieb mit Rechten und Sperren.
 
 ### UntPlanWeb und Apps
+- Abwesende Lehrkräfte ohne Vertretung erscheinen nicht mehr auf Karten, nur das Vertreterlabel; Sondereinsätze zeigen alle beteiligten Lehrkräfte.
+- Verlegungs- und Zusatzsymbol nur noch an echten Verlegungen/Zusatzstunden; Klausuren im Raumplan wie im Klassenplan.
+- Anwesenheitskontrolle und Klassenbuch bei gekoppelten Klassen mit allen Schüler*innen; Woche bleibt beim Planwechsel erhalten.
+- iOS: Zeitleiste bleibt beim Wochenwischen stehen, heller Modus nach Vorlage, Labels ohne Komma.
 - Grüne Karten stehen bei parallelen Blöcken immer zuerst.
 - Zusatzstunden zeigen alle beteiligten Lehrkräfte mit „+“; entfallene Aufsichten werden als Entfall dargestellt.
 - Eigene Abwesenheit im Plan als graue Fläche hinter den Stunden, über das Menü ausblendbar.

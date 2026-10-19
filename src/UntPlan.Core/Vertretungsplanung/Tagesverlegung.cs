@@ -71,15 +71,13 @@ public static class Tagesverlegung
         ziel.Stunde(stunde).Where(e => IstLuecke(e) && e.Vertretung is { } v && v.UnterrichtId != unterrichtId && e.KlassenIds.Count > 0 && e.KlassenIds.All(klassen.Contains))
             .Select(e => e.Vertretung!).Distinct().ToList();
 
-    /// <summary>Die verlegte Stunde füllt Lücken kranker Lehrkräfte: deren offene Vertretungen werden zum Entfall („Vertretung durch Verlegung“).</summary>
+    /// <summary>Die verlegte Stunde füllt Lücken kranker Lehrkräfte: deren offene Vertretungen werden zum Entfall (ohne automatischen Text).</summary>
     private static void LueckenFuellen(Schuldatei d, DateOnly ziel, int stunde, int unterrichtId, IReadOnlyCollection<int> klassen, string benutzer)
     {
         var tp = Tagesplan.Berechnen(d, ziel);
+        // kein automatischer Vertretungstext (der Entfall mit der Verlegung spricht für sich)
         foreach (var v in GefuellteLuecken(tp, stunde, unterrichtId, klassen))
-        {
             Vertretungen.EntfallUmschalten(d, v, benutzer);
-            if (string.IsNullOrWhiteSpace(v.Text)) v.Text = "Vertretung durch Verlegung";
-        }
     }
 
     /// <summary>
