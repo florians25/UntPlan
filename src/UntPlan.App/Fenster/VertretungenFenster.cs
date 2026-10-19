@@ -16,7 +16,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 {
     private static readonly string[] Ansichten = { "Klasse - Standard", "Lehrer - Standard", "Druck - Klasse", "Druck - Lehrer", "Pausenaufsichten" };
 
-    private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
+    private readonly Steuerelemente.BleibendeTabelle _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly CheckBox _offen = new() { Text = "Offene Vertretungen", AutoSize = true };
@@ -485,7 +485,21 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         _plaene.Clear();
         _kollisionen2.Clear();
+        // Änderung – egal aus welchem Fenster (Vertretungsvorschlag, Stundenplan, Kopplung …): unter einem Filter verschwindet
+        // keine sichtbare Zeile, solange der Benutzer in der aktuellen Zeile bleibt; erst ein Zeilenwechsel räumt auf
+        if (FilterAktiv) ZeilenFesthalten();
         Neuaufbau();
+    }
+
+    /// <summary>Ids der aktuell angezeigten Vertretungszeilen (zusammengefasste Veranstaltungen mit allen Stunden).</summary>
+    private List<int> SichtbareIds() =>
+        Erweitern(_g.Rows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Vertretung>()).Select(v => v.Id).ToList();
+
+    /// <summary>Aktuelle und markierte Zeile(n) als bearbeitet merken, alle übrigen sichtbaren Zeilen bleiben bis zum Zeilenwechsel mit stehen.</summary>
+    private void ZeilenFesthalten()
+    {
+        if (_g.CurrentRow?.Tag is not Vertretung { Id: not 0 } cur) return;
+        _behalten.Merken(Aktuelle().Select(v => v.Id).Append(cur.Id), SichtbareIds());
     }
 
     private DateOnly Von => DateOnly.FromDateTime(_von.Value);
@@ -1310,7 +1324,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var stunden = VeranstaltungsLogik.Stunden(D, va, datum).ToList();
         var probleme = neu.Select(l => stunden.Select(s => Vertretungen.LehrerBelegt(D, Plan(datum), l, s, v)).FirstOrDefault(g => g != null) is { } g ? $"{Ix.KLehrer(l)}: {g}" : null).OfType<string>().ToList();
         if (probleme.Count > 0 && !Ui.Frage($"{string.Join("\n", probleme)}\n\nTrotzdem verplanen?", "UntPlan - Frage")) { Neuaufbau(); return; }
-        if (FilterAktiv) _behalten.Merken(new[] { v.Id });
+        if (FilterAktiv) _behalten.Merken(new[] { v.Id }, SichtbareIds());
         Aendern(zusaetzlich.Count > 0 ? "Lehrkraft zur Veranstaltung hinzugefügt" : "Ersatzlehrkraft für Veranstaltung", AenderungsArt.Vertretung, d =>
         {
             foreach (var e in ersatzWeg) VeranstaltungsLogik.ErsatzSetzen(d, vaId, datum, e.LehrerId, null);
@@ -1359,7 +1373,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private void Ausfuehren(string text, IReadOnlyCollection<int> ids, Action<Schuldatei, Vertretung> aktion)
     {
         if (ids.Count == 0) return;
-        if (FilterAktiv) _behalten.Merken(ids);
+        if (FilterAktiv) _behalten.Merken(ids, SichtbareIds());
         Aendern(ids.Count > 1 ? $"{text} ({ids.Count} Stunden)" : text, AenderungsArt.Vertretung, d =>
         {
             foreach (var v in d.Vertretungen.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList())
@@ -1401,7 +1415,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (seLoeschen)
         {
             var ids2 = liste.Select(v => v.Id).ToHashSet();
-            if (FilterAktiv) _behalten.Merken(ids2);
+            if (FilterAktiv) _behalten.Merken(ids2, SichtbareIds());
             Aendern(ids2.Count > 1 ? $"Entfall ({ids2.Count} Stunden)" : "Entfall", AenderungsArt.Vertretung, d =>
             {
                 foreach (var v in d.Vertretungen.Where(x => ids2.Contains(x.Id) && x.Art is not (VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt)).ToList())
@@ -1461,7 +1475,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var liste = Bearbeitbare();
         if (liste.Count == 0) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
-        if (FilterAktiv) _behalten.Merken(ids);
+        if (FilterAktiv) _behalten.Merken(ids, SichtbareIds());
         Aendern("Vertretung zurückgesetzt", AenderungsArt.Vertretung, d =>
         {
             var tage = new HashSet<DateOnly>();

@@ -1724,10 +1724,16 @@ function renderGrid(){
         const offenGruen = l.removed && (l.key === 'teacher' || l.key === 'room')
           && card.blockType !== 'cancelled';
         const cls2 = 'badge' + (l.removed ? ' badge--removed' : '') + (offenGruen ? ' badge--open' : '') + (l.key === 'room' ? ' badge--raum' : '');
+        /* Erscheint der Wert als Label (grüne Fläche)? Auf entfallenen Karten gibt es keine Labels. */
+        const istLabel = t => card.blockType !== 'cancelled' && (t.state === 'absent' ? koppOffen(t, l.tokens)
+          : (t.state === 'sub' || t.plus || istPlus(card, l.key, t.text)));
+        const LUECKE = '<i class="tok__luecke"></i>';
         return l.tokens
           ? l.tokens.map((t, ti) => {
-              /* Auf der Kachel trennt immer ein Komma — auch mehrere Lehrkräfte. */
-              const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
+              /* Zwischen zwei schlichten Werten trennt ein Komma — auch mehrere Lehrkräfte; neben einem Label nur ein
+                 kleiner Abstand (kein Komma). */
+              const neben = ti < l.tokens.length - 1 && (istLabel(t) || istLabel(l.tokens[ti + 1]));
+              const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : neben ? LUECKE : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
               /* Hinzugekommener Wert: grünes Label (ohne „+“). */
               const plusT = plusWert(card, l.key, t.text);
               const kern  = t.state === 'absent'
@@ -1743,7 +1749,12 @@ function renderGrid(){
                 : esc(t.text);
               return `<span class="tok tok--${t.state}">${kern}${komma}</span>`;
             }).join('')
-          : l.changed ? `<span class="${cls2}">${esc(l.removed ? l.text : werteListe(l.text).map(x => plusWert(card, l.key, x)).join(KACHEL_TRENNER))}</span>` : esc(l.text);
+          : l.changed
+            ? (l.removed || card.blockType === 'cancelled'
+              ? `<span class="${cls2}">${esc(l.removed ? l.text : werteListe(l.text).map(x => plusWert(card, l.key, x)).join(KACHEL_TRENNER))}</span>`
+              /* Mehrere geänderte Werte: je ein eigenes Label, dazwischen nur ein kleiner Abstand */
+              : werteListe(l.text).map(x => `<span class="${cls2}">${esc(plusWert(card, l.key, x))}</span>`).join(LUECKE))
+            : esc(l.text);
       };
 
       const body = isHoliday

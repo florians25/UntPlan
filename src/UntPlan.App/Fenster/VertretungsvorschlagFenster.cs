@@ -121,6 +121,16 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _vorziehung.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Vorziehen(); e.Handled = true; } };
         _vorziehung.ContextMenuStrip = Menue(("Vorziehen: Unterricht in die offene Stunde verlegen (Doppelklick, Enter)", Vorziehen));
 
+        // Auswahl durch den Benutzer (Klick bzw. Pfeiltasten) schaltet die verknüpften Stundenpläne auf das gewählte Element
+        foreach (var g in new[] { _vorschlag, _betreuung, _raeume.Raster, _vorziehung })
+        {
+            var quelle = g;
+            g.CellMouseClick += (_, e) => { if (e.RowIndex >= 0 && e.Button == MouseButtons.Left) PlaeneFolgen(quelle); };
+            g.KeyUp += (_, e) => { if (e.KeyCode is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End) PlaeneFolgen(quelle); };
+        }
+        _planTimer.Tick += (_, _) => { _planTimer.Stop(); if (!IsDisposed) PlaeneZeigen(); };
+        FormClosed += (_, _) => _planTimer.Dispose();
+
         _reiter.Gewechselt += ReiterGewechselt;
         _inhalt.Controls.Add(_vorschlag);
         _inhalt.Controls.Add(_betreuung);
@@ -207,6 +217,37 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _nahe.Visible = i == 1;
         _besetzt.Visible = _zusatzRaum.Visible = i == 2;
         (i switch { 0 => (Control)_vorschlag, 1 => _betreuung, _ => _raeume.Raster }).Focus();
+    }
+
+    /// <summary>Verzögerung beim Blättern mit den Pfeiltasten: die Pläne werden erst nach dem Anhalten umgeschaltet (kein Flackern).</summary>
+    private readonly System.Windows.Forms.Timer _planTimer = new() { Interval = 160 };
+    private DataGridView? _planQuelle;
+
+    private void PlaeneFolgen(DataGridView quelle)
+    {
+        _planQuelle = quelle;
+        _planTimer.Stop();
+        _planTimer.Start();
+    }
+
+    /// <summary>
+    /// Gewähltes Element des Vorschlags in den verknüpften Plänen zeigen (Woche der Vertretung, Stunde markiert): Lehrkraft
+    /// (Vorschläge, Betreuungen, Vorziehungen), Raum (Reiter Räume) und bei Vorziehungen bzw. Betreuungen auch die Klasse.
+    /// </summary>
+    internal void PlaeneZeigen()
+    {
+        if (_v is not { } v || _planQuelle is not { } g || g.CurrentRow?.Tag is not { } tag) return;
+        switch (tag)
+        {
+            case Kandidat k: StundenplanFenster.VorschlagAnzeigen(ElementTyp.Lehrer, k.Lehrer.Id, v); break;
+            case int lehrer when g == _vorschlag: StundenplanFenster.VorschlagAnzeigen(ElementTyp.Lehrer, lehrer, v); break;
+            case Betreuungskandidat b: StundenplanFenster.VorschlagAnzeigen(ElementTyp.Lehrer, b.Lehrer.Id, v); break;
+            case RaumMoeglichkeit r: StundenplanFenster.VorschlagAnzeigen(ElementTyp.Raum, r.Raum.Id, v); break;
+            case Vorziehung vz:
+                if (vz.Eintrag.LehrerIds.Count > 0) StundenplanFenster.VorschlagAnzeigen(ElementTyp.Lehrer, vz.Eintrag.LehrerIds[0], v);
+                if (vz.Eintrag.KlassenIds.Count > 0) StundenplanFenster.VorschlagAnzeigen(ElementTyp.Klasse, vz.Eintrag.KlassenIds[0], v);
+                break;
+        }
     }
 
     private void Gewaehlt(Vertretung? v)

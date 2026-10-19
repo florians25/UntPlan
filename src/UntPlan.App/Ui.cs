@@ -341,6 +341,56 @@ public static class Ui
     /// <summary>Abfrage-Hook (Selbsttest): beantwortet Ja/Nein-Fragen ohne modalen Dialog, null = Meldungsfenster.</summary>
     public static Func<string, string, bool>? FrageAntwort { get; set; }
 
+    /// <summary>Auswahl-Hook (Selbsttest): beantwortet Knopf-Fragen ohne modalen Dialog (Index des Knopfes, null = Abbrechen).</summary>
+    public static Func<string, IReadOnlyList<string>, int?>? AuswahlAntwort { get; set; }
+
+    /// <summary>
+    /// Frage mit eigenen Knöpfen (z. B. „Mitnehmen / Belassen / Abbrechen“). Liefert den Index des gewählten Knopfes, null bei
+    /// Abbrechen bzw. Escape. Im Selbsttest (Ja/Nein-Hook gesetzt, kein Auswahl-Hook) wird die Vorgabe gewählt.
+    /// </summary>
+    public static int? Auswahl(string text, string titel, IReadOnlyList<string> knoepfe, int vorgabe = 0, IReadOnlyList<bool>? aktiv = null)
+    {
+        if (AuswahlAntwort is { } hook) return hook(text, knoepfe);
+        if (FrageAntwort != null) return vorgabe;
+        using var f = new Form
+        {
+            Text = titel, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterParent,
+            Font = Schrift, ShowInTaskbar = false, KeyPreview = true,
+        };
+        var breite = Math.Max(420, knoepfe.Sum(k => Math.Max(96, TextRenderer.MeasureText(k, Schrift).Width + 24) + 8) + 104);
+        breite = Math.Min(breite, 900);
+        var groesse = TextRenderer.MeasureText(text, Schrift, new Size(breite - 72, 0), TextFormatFlags.WordBreak);
+        var hoehe = Math.Min(groesse.Height + 8, 420);
+        var bild = new PictureBox { Image = SystemIcons.Question.ToBitmap(), Left = 14, Top = 14, Size = new Size(32, 32), SizeMode = PictureBoxSizeMode.Zoom };
+        var label = new TextBox
+        {
+            Text = text.Replace("\r\n", "\n").Replace("\n", Environment.NewLine), Left = 56, Top = 14, Width = breite - 70, Height = hoehe, Multiline = true, ReadOnly = true,
+            BorderStyle = BorderStyle.None, BackColor = SystemColors.Control, TabStop = false, ScrollBars = groesse.Height + 8 > 420 ? ScrollBars.Vertical : ScrollBars.None,
+        };
+        f.ClientSize = new Size(breite, hoehe + 70);
+        f.Controls.Add(bild);
+        f.Controls.Add(label);
+        int? ergebnis = null;
+        var x = breite - 12;
+        // von rechts nach links: Abbrechen ganz rechts, davor die Knöpfe in ihrer Reihenfolge
+        foreach (var i in new[] { -1 }.Concat(Enumerable.Range(0, knoepfe.Count).Reverse()))
+        {
+            var abbrechen = i < 0;
+            var t = abbrechen ? "Abbrechen" : knoepfe[i];
+            if (!abbrechen && t == "Abbrechen") continue;
+            var w = Math.Max(96, TextRenderer.MeasureText(t, Schrift).Width + 24);
+            x -= w;
+            var b = new Button { Text = t, Left = x, Top = hoehe + 30, Width = w, Height = 28, Enabled = abbrechen || aktiv is null || i >= aktiv.Count || aktiv[i] };
+            var index = i;
+            b.Click += (_, _) => { ergebnis = abbrechen ? null : index; f.DialogResult = abbrechen ? DialogResult.Cancel : DialogResult.OK; };
+            f.Controls.Add(b);
+            if (abbrechen) f.CancelButton = b;
+            if (index == vorgabe) { f.AcceptButton = b; f.ActiveControl = b; }
+            x -= 8;
+        }
+        return f.ShowDialog() == DialogResult.OK ? ergebnis : null;
+    }
+
     public static string? Eingabe(string text, string titel, string vorgabe = "")
     {
         using var f = new Form { Text = titel, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(380, 120), Font = Schrift, ShowInTaskbar = false };

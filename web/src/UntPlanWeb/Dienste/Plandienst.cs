@@ -47,21 +47,28 @@ public sealed record Karte(
     public bool Zusaetzlich { get; init; }
     /// <summary>
     /// Verlegung: "von" = ursprüngliche Stunde (von hier weg verlegt; Symbol Pfeil nach rechts), "nach" = Zielstunde (hierher verlegt;
-    /// Symbol Pfeil nach links), null = keine Verlegung. Aus der Vertretungsart („Verlegung“, „Statt-Vertretung“), nie bei Prüfungen.
+    /// Symbol Pfeil nach links), null = keine Verlegung. Nur an Ursprung und Ziel einer echten Verlegung (Vertretung mit „(Le.) nach“ bzw.
+    /// „Vertr. von“, ältere Pakete: Vertretungsart „Verlegung“/„verlegt“) – nie bei Prüfungen, regulären Stunden, Bereitschaften, Buchungen,
+    /// Veranstaltungen oder Vormerkungen; eine Statt-Vertretung (Vertretung durch eine freigesetzte Lehrkraft) ist keine Verlegung.
     /// </summary>
-    public string? Verlegung => !(IstVerlegungsArt(Art) || VerlegungsZeile) || Status == "klausur" ? null
-        : Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend) ? "von" : "nach";
+    public string? Verlegung => !(IstVerlegungsArt(Art) || VerlegungsZeile) || Status is not ("entfall" or "abwesend" or "geaendert" or "offen") ? null
+        : VerlegungsSeite ?? (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend) ? "von" : "nach");
 
     /// <summary>Die Vertretung gehört zu einer Verlegung (Desktop: „verlegt auf“ an der entfallenen Ursprungsstunde, „verlegt von“ am Ziel).</summary>
     [System.Text.Json.Serialization.JsonIgnore] public bool VerlegungsZeile { get; init; }
+    /// <summary>Seite der Verlegung laut Vertretung: "von" („(Le.) nach“ gesetzt – Ursprung), "nach" („Vertr. von“ gesetzt – Ziel), sonst null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string? VerlegungsSeite { get; init; }
     /// <summary>Verlegung: ursprüngliche Stunde (Datum, Zeiten) – bei <see cref="Verlegung"/> gesetzt, sonst null (Gegenseite unbekannt: null).</summary>
     public Verlegungszeit? VerlegungVon { get; init; }
     /// <summary>Verlegung: Zielstunde (Datum, Zeiten) – siehe <see cref="VerlegungVon"/>.</summary>
     public Verlegungszeit? VerlegungNach { get; init; }
 
-    /// <summary>Zusätzliche Stunde (Marker „+“): Veranstaltung, zusätzlicher Unterricht, Sondereinsatz, Mitbetreuung – nicht bei Verlegungen.</summary>
-    [System.Text.Json.Serialization.JsonIgnore] public bool IstZusatz => Status == "veranstaltung" || (Status == "geaendert" && Verlegung is null &&
-        (Zusaetzlich || System.Text.RegularExpressions.Regex.IsMatch(Art ?? "", "sondereinsatz|zusatz|mitbetreuung", System.Text.RegularExpressions.RegexOptions.IgnoreCase)));
+    /// <summary>
+    /// Zusätzliche Stunde (Marker „+“): nur echte Zusatzstunden (zusätzlicher Unterricht, Sondereinsatz ohne reguläre Stunde zur selben Zeit,
+    /// siehe <see cref="Plandienst.ZusatzPruefen"/>) – nie bei Verlegungen, Veranstaltungen, Vertretungen im regulären Unterricht oder allein
+    /// wegen der Vertretungsart.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool IstZusatz => Status == "geaendert" && Verlegung is null && Zusaetzlich;
 
     /// <summary>Ein Wert der Stunde hat sich geändert (Fach alt → neu, Wert ersetzt, hinzugefügt oder entfernt).</summary>
     [System.Text.Json.Serialization.JsonIgnore] public bool WertGeaendert => !string.IsNullOrEmpty(FachAlt) ||
@@ -91,15 +98,18 @@ public sealed record Karte(
             else if (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend)) m.Add("entfall");
             if (Status == "klausur") { m.Add("pruefung"); if (WertGeaendert) m.Add("aenderung"); }
             else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
-            else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert && Status != "veranstaltung") m.Add("aenderung"); }
+            else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert) m.Add("aenderung"); }
             else if (verlegung is null && Status is "geaendert" or "offen" or "buchung") m.Add("aenderung");
             return m;
         }
     }
 
-    /// <summary>Vertretungsart einer Verlegung (Verlegung, Wegverlegung, Statt-Vertretung).</summary>
+    /// <summary>
+    /// Vertretungsart einer Verlegung (Verlegung, Wegverlegung, „verlegt“). Nicht: „Statt-Vertretung“ (eine freigesetzte Lehrkraft vertritt –
+    /// keine verlegte Stunde) und „Raumverlegung“ (Raumänderung).
+    /// </summary>
     public static bool IstVerlegungsArt(string? art) => !string.IsNullOrEmpty(art) &&
-        (art.Contains("verleg", StringComparison.OrdinalIgnoreCase) || art.Contains("statt", StringComparison.OrdinalIgnoreCase));
+        art.Contains("verleg", StringComparison.OrdinalIgnoreCase) && !art.Contains("raum", StringComparison.OrdinalIgnoreCase);
     /// <summary>Abwesende Klassen dieser Stunde (Klasse durchgestrichen, Label „abwesend“); die Stunde selbst findet laut Plan statt.</summary>
     public List<string> AbwesendeKlassen { get; init; } = new();
     /// <summary>Text des Labels bei abwesender Klasse, z. B. „abwesend“ bzw. „abwesend – Exkursion“ (Grund nur fürs Kollegium).</summary>
@@ -208,13 +218,20 @@ public sealed class Plandienst
 
     /// <summary>
     /// Älterer Hinweistext aus früheren UntPlan-Versionen → aktuelle Bezeichnung. Der automatische Hinweis „(Benutzer) Raumänderung“
-    /// älterer Desktop-Versionen (Raumänderung aus einer Buchung) ist kein Vertretungstext und entfällt.
+    /// älterer Desktop-Versionen (Raumänderung aus einer Buchung) ist kein Vertretungstext und entfällt, ebenso die automatischen
+    /// Standardtexte einer Verlegung („Vertretung durch Verlegung“, „Vorziehung“) – überall (Karten, Details, Heute, Vertretungsplan, Apps).
     /// </summary>
     public static string TextNormal(string text) =>
         string.Join(" · ", text.Replace("Vertr. o. Lehrkraft", OhneLehrkraftText, StringComparison.Ordinal)
-            .Split(" · ").Where(t => !RaumaenderungsHinweis.IsMatch(t.Trim())));
+            .Split(" · ").Where(t => !RaumaenderungsHinweis.IsMatch(t.Trim()) && !IstVerlegungsStandardtext(t)));
 
     private static readonly System.Text.RegularExpressions.Regex RaumaenderungsHinweis = new(@"^\([^()]*\)\s*Raumänderung$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>Automatisch erzeugter Text einer Verlegung (Desktop: Lücke durch Verlegung gefüllt bzw. Vorziehung) – kein Vertretungstext.</summary>
+    public static bool IstVerlegungsStandardtext(string? text) => VerlegungsStandardtext.IsMatch(text ?? "");
+
+    private static readonly System.Text.RegularExpressions.Regex VerlegungsStandardtext = new(@"^\s*(vertretung\s+durch\s+verlegung(\s+erzeugen)?|vorziehung)\s*\.?\s*$",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     /// <summary>Lehrkraft eines zusätzlichen Unterrichts, für den (noch) keine Lehrkraft eingetragen ist.</summary>
     public const string OhneLehrkraftZusatz = "---";
     public static readonly string[] Wochentage = { "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag" };
@@ -485,7 +502,27 @@ public sealed class Plandienst
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k))).ToList();
-        return KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten));
+        return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten)));
+    }
+
+    /// <summary>
+    /// Symbole bereinigen (letzter Schritt der Karten eines Elements):
+    /// <list type="bullet">
+    /// <item>Zusatzstunde („+“) nur, wenn das Element zur selben Zeit keine reguläre Stunde hat (auch nicht entfallen bzw. abgegeben): ein
+    ///   Sondereinsatz bzw. zusätzlicher Unterricht anstelle einer Stunde ist eine Änderung, keine zusätzliche Stunde.</item>
+    /// <item>Ohne Verlegung keine Angaben zu Ursprung und Ziel.</item>
+    /// </list>
+    /// </summary>
+    internal static List<Karte> ZusatzPruefen(List<Karte> karten)
+    {
+        static bool Regulaer(Karte x) => x.Unterricht.HasValue && !x.Zusaetzlich && x.Verlegung != "nach" && x.Status is not ("vorgemerkt" or "veranstaltung" or "buchung");
+        return karten.Select(k =>
+        {
+            if (k.Zusaetzlich && karten.Any(x => !ReferenceEquals(x, k) && x.Datum == k.Datum && x.Von <= k.Bis && x.Bis >= k.Von && Regulaer(x)))
+                k = k with { Zusaetzlich = false };
+            if (k.Verlegung is null && (k.VerlegungVon != null || k.VerlegungNach != null)) k = k with { VerlegungVon = null, VerlegungNach = null };
+            return k;
+        }).ToList();
     }
 
     /// <summary>Stunde findet nicht (mehr) in diesem Raum statt (im Raumplan „abwesend“; weggefallene Bereitschaften ausgenommen).</summary>
@@ -620,6 +657,7 @@ public sealed class Plandienst
         Karte Regulaer(Karte x) => x with
         {
             Status = "regulaer", Art = "", Text = "", Vertretung = null, LehrerAbwesend = false, VertretungOffen = false, Klausur = null,
+            Zusaetzlich = false, VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null,
             Lehrer = x.Lehrer.Select(Bisher).Where(w => w.K.Length > 0).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             Raeume = x.Raeume.Select(Bisher).Where(w => w.K.Length > 0).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
         };
@@ -725,7 +763,7 @@ public sealed class Plandienst
             if (k.Klassen.Count > 0 && k.Klassen.All(w => weg.Contains(w.K)))
                 return k with
                 {
-                    Status = "entfall", Art = "Klasse abwesend",
+                    Status = "entfall", Art = "Klasse abwesend", VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null, Zusaetzlich = false,
                     AbwesendeKlassen = k.Klassen.Select(w => w.K).ToList(), AbwesendText = grund is null ? "Klasse abwesend" : $"Klasse abwesend – {grund}",
                 };
             return k with
@@ -793,8 +831,10 @@ public sealed class Plandienst
         // Zusatzstunde ohne Unterricht mehrerer Lehrkräfte (je Lehrkraft eine Zeile, z. B. Sondereinsatz): gleiche Zeit, gleiches (auch leeres)
         // Fach, gleiche Räume und Klassen (ohne Fach auch gleicher Text) ergeben ebenfalls eine gemeinsame Karte mit allen Beteiligten
         static string Klassen(Karte k) => string.Join(",", k.Klassen.Select(w => w.K.ToLowerInvariant()).Where(x => x.Length > 0).Distinct().OrderBy(x => x, StringComparer.Ordinal));
+        // verlegte Stunden (Ursprung bzw. Ziel) nur mit gleich verlegten Stunden: eine reguläre Stunde derselben Zeit bekommt nie das
+        // Verlegungssymbol (und die verlegte Stunde verliert es nicht)
         foreach (var g in einzel.GroupBy(k => k.Unterricht is int && k.Fach.Length > 0
-                     ? $"{k.Datum}|{k.Von}|{k.Bis}|{Gruppe(k.Status)}|{Fach(k)}|{Raeume(k)}"
+                     ? $"{k.Datum}|{k.Von}|{k.Bis}|{Gruppe(k.Status)}|{Fach(k)}|{Raeume(k)}|{k.Verlegung}"
                      : k.Unterricht is null && k.Zusaetzlich && k.Status == "geaendert" && k.Verlegung is null && k.Klausur is null
                        && (k.Fach.Length > 0 || Klassen(k).Length > 0 || k.Text.Trim().Length > 0)
                          ? $"zusatz|{k.Datum}|{k.Von}|{k.Bis}|{Fach(k)}|{Raeume(k)}|{Klassen(k)}|{(k.Fach.Length > 0 ? "" : k.Text.Trim().ToLowerInvariant())}"
@@ -804,14 +844,22 @@ public sealed class Plandienst
             if (liste.Count == 1) { res.AddRange(liste); continue; }
             var f = liste[0];
             var texte = liste.Select(x => x.Text).Where(x => x.Length > 0).Distinct().ToList();
+            // zusätzlich nur, wenn alle Zeilen zusätzlich sind: ein Sondereinsatz zu einer regulären Stunde (z. B. zweite Lehrkraft) macht
+            // die gemeinsame Karte nicht zur Zusatzstunde – Art bevorzugt von den regulären Zeilen
+            var zusatz = liste.All(x => x.Zusaetzlich);
             res.Add(f with
             {
+                Zusaetzlich = zusatz,
+                VerlegungsZeile = liste.Any(x => x.VerlegungsZeile),
+                VerlegungsSeite = liste.Select(x => x.VerlegungsSeite).FirstOrDefault(x => x != null),
+                VerlegungVon = liste.Select(x => x.VerlegungVon).FirstOrDefault(x => x != null),
+                VerlegungNach = liste.Select(x => x.VerlegungNach).FirstOrDefault(x => x != null),
                 Status = liste.Any(x => x.Status == "offen") ? "offen" : liste.Any(x => x.Status == "geaendert") ? "geaendert" : f.Status,
                 FachAlt = liste.Select(x => x.FachAlt).FirstOrDefault(x => !string.IsNullOrEmpty(x)),
                 Klassen = Vereinigen(liste.SelectMany(x => x.Klassen)),
                 Lehrer = Vereinigen(liste.SelectMany(x => x.Lehrer)),
                 Raeume = Vereinigen(liste.SelectMany(x => x.Raeume)),
-                Art = liste.Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? "",
+                Art = liste.Where(x => zusatz || !x.Zusaetzlich).Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? liste.Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? "",
                 Text = string.Join(" · ", texte),
                 Vertretung = liste.Select(x => x.Vertretung).FirstOrDefault(x => x.HasValue),
                 VertretungOffen = liste.Any(x => x.VertretungOffen),
@@ -994,6 +1042,8 @@ public sealed class Plandienst
             LehrerAbwesend = status == "abwesend" && typ != Elementtyp.Raum && (typ == Elementtyp.Lehrer || bereitschaft),
             VertretungOffen = lehrerOffen,
             VerlegungsZeile = verlegungsZeile,
+            // Ursprung trägt „(Le.) nach“, Ziel „Vertr. von“ (beides gesetzt: aus dem Status)
+            VerlegungsSeite = !verlegungsZeile ? null : v!.Nach.Trim().Length > 0 == v.VertrVon.Trim().Length > 0 ? null : v.Nach.Trim().Length > 0 ? "von" : "nach",
         };
         // zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): alle beteiligten Lehrkräfte als „+“-Label
         if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer) };

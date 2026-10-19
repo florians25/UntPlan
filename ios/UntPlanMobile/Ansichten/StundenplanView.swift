@@ -481,20 +481,25 @@ struct StundenplanView: View {
         }
     }
 
-    /// Drei Wochen nebeneinander; sichtbar ist die mittlere. Die Ansicht folgt dem Finger.
+    /// Blätterraster: Zeitleiste links und „KW / Monat“ stehen fest, nur die Tage (Kopf und Raster) gleiten beim Wischen
+    /// mit dem Finger; senkrecht scrollen Zeitleiste und alle drei Seiten gemeinsam in einer Scrollfläche.
     private func blaetterflaeche(untenFrei: CGFloat) -> some View {
         GeometryReader { geo in
             let w = geo.size.width
-            HStack(spacing: 0) {
-                ForEach(seiten, id: \.self) { m in
-                    seite(m, untenFrei: untenFrei)
-                        .frame(width: w)
+            let kompakt = groessenklasse == .compact
+            let rinne = Rasterrahmen.rinnenBreite(kompakt: kompakt)
+            let sw = max(w - rinne, 1)
+            let daten = seiten.map { seitendaten($0) }
+            Group {
+                if let rahmen = Rasterrahmen(seiten: daten, mitte: 1, typ: typ, element: element, kompakt: kompakt,
+                                             tagesansicht: ansicht == .tag, untenFrei: untenFrei) {
+                    blaetterraster(daten, rahmen: rahmen, breite: w, seitenBreite: sw)
+                } else {
+                    Platzhalterwoche(montag: Datumsformat.montag(mitte))
                 }
             }
-            .frame(width: w * 3, height: geo.size.height, alignment: .leading)
-            .offset(x: -w + verschiebung)
-            .onAppear { seitenBreite = w }
-            .onChange(of: w) { _, neu in seitenBreite = neu }
+            .onAppear { seitenBreite = sw }
+            .onChange(of: sw) { _, neu in seitenBreite = neu }
         }
         .clipped()
         .contentShape(Rectangle())
@@ -511,23 +516,126 @@ struct StundenplanView: View {
         }
     }
 
-    @ViewBuilder
-    private func seite(_ m: Date, untenFrei: CGFloat) -> some View {
+    /// Kopf (KW/Monat fest, Tageszeile gleitet) und darunter die gemeinsame Scrollfläche mit fester Zeitleiste.
+    private func blaetterraster(_ daten: [Rasterseitendaten], rahmen: Rasterrahmen, breite w: CGFloat, seitenBreite sw: CGFloat) -> some View {
+        let rinne = rahmen.rinnenBreite
+        let mass = rahmen.mass
+        return VStack(spacing: 0) {
+            // Kopf steht fest über dem scrollenden Raster und wird nie gestaucht; „KW / Monat“ liegt oben auf (fängt
+            // auch das Antippen ab, wo die linke Nachbarseite verdeckt darunter liegt)
+            ZStack(alignment: .bottomLeading) {
+                HStack(spacing: 0) {
+                    ForEach(daten) { d in
+                        KopfSeite(tage: d.kopftage, kompakt: rahmen.kompakt, breite: sw, rand: d.nurTage == nil ? 0 : 3,
+                                  antippbar: d.plan != nil,
+                                  tagAntippen: { iso in
+                                      if ansicht == .tag {
+                                          ansichtWechseln(.woche)
+                                      } else if let t = Datumsformat.datum(iso) {
+                                          ansichtWechseln(.tag, tag: t)
+                                      }
+                                  })
+                            .equatable()
+                            .frame(width: sw)
+                    }
+                }
+                .frame(width: sw * 3, alignment: .leading)
+                .offset(x: -sw + verschiebung)
+                .frame(width: sw, alignment: .leading)
+                .clipped()
+                .padding(.leading, rinne)
+                KWFeld(montag: Datumsformat.montag(mitte), breite: rinne, kompakt: rahmen.kompakt, tageModus: tageModus) {
+                    if tageModus { ansichtWechseln(.woche) } else { heute() }
+                }
+                .background(Farben.leiste)
+            }
+            .padding(.top, 2)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Farben.leiste)
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
+            .zIndex(1)
+
+            ScrollViewReader { leser in
+                ScrollView(.vertical) {
+                    ZStack(alignment: .topLeading) {
+                        // Anker knapp über der 1. Stunde (bzw. über den Pillen vor der 1. Stunde)
+                        VStack(spacing: 0) {
+                            Color.clear.frame(height: rahmen.vorErster ? 0 : max(0, mass.y(rahmen.start) - 8))
+                            Color.clear.frame(width: 1, height: 1).id(Self.ersteStundeAnker)
+                            Spacer(minLength: 0)
+                        }
+                        .accessibilityHidden(true)
+                        // Linien der Stunden über die ganze Breite (stehen fest, die Seiten gleiten darüber)
+                        Rasterlinien(rahmen: rahmen, breite: w)
+                            .equatable()
+                        // Die drei Seiten gleiten waagrecht; links davon bleibt die Zeitleiste stehen
+                        HStack(spacing: 0) {
+                            ForEach(daten) { d in
+                                RasterSeite(daten: d, typ: Self.seitenTyp(d, standard: typ),
+                                            element: element, rahmen: rahmen, breite: sw, tippsperre: tippsperre,
+                                            aufsichtAntippen: { gewaehlteAufsicht = $0 },
+                                            antippen: { karten, start in
+                                                guard !karten.isEmpty else { return }
+                                                detail = Detailauswahl(karten: karten, start: min(max(start, 0), karten.count - 1))
+                                            })
+                                    .equatable()
+                                    .frame(width: sw)
+                            }
+                        }
+                        .frame(width: sw * 3, height: rahmen.hoehe, alignment: .topLeading)
+                        .offset(x: -sw + verschiebung)
+                        .frame(width: sw, height: rahmen.hoehe, alignment: .topLeading)
+                        .clipped()
+                        .offset(x: rinne)
+                        // Zeitleiste: fest, über den Seiten (fängt das Antippen in ihrem Streifen ab)
+                        Zeitleiste(rahmen: rahmen)
+                            .equatable()
+                    }
+                    .frame(width: w, height: rahmen.hoehe, alignment: .topLeading)
+                }
+                .scrollIndicators(.hidden)
+                // Richtungssperre: beim waagrechten Wischen scrollt das Raster nicht mit
+                .scrollDisabled(senkrechtGesperrt)
+                .modifier(Scrollsperre(sperre: tippsperre))
+                .background(
+                    LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
+                        .ignoresSafeArea(edges: .bottom)
+                )
+                .onAppear {
+                    // Beim Öffnen so scrollen, dass die 1. Stunde vollständig sichtbar ist
+                    DispatchQueue.main.async {
+                        leser.scrollTo(Self.ersteStundeAnker, anchor: .top)
+                    }
+                }
+            }
+        }
+    }
+
+    private static let ersteStundeAnker = "ersteStunde"
+
+    /// Planart einer Seite (aus dem Plan, sonst die gewählte).
+    static func seitenTyp(_ d: Rasterseitendaten, standard: String) -> String {
+        let t = d.plan?.typ ?? ""
+        return t.isEmpty ? standard : t
+    }
+
+    /// Daten einer Seite: Plan (bei mehreren Wochen zusammengeführt), angezeigte Tage, Stand und Abwesenheiten.
+    private func seitendaten(_ m: Date) -> Rasterseitendaten {
         if tageModus {
             let tage = tageDerSeite(m)
             let wochen = ohneDoppelte(tage.map { Datumsformat.montag($0) })
             let geladen = wochen.compactMap { plaene[schluessel($0)] }
-            if geladen.count == wochen.count, let p = zusammengefuehrt(geladen) {
-                raster(p, nurTage: tage.map { Datumsformat.iso($0) },
-                       stand: wochen.reduce(0) { $0 + (staende[schluessel($1)] ?? 0) }, untenFrei: untenFrei)
-            } else {
-                Platzhalterwoche(montag: Datumsformat.montag(m))
-            }
-        } else if let p = plaene[schluessel(m)] {
-            raster(p, nurTage: nil, stand: staende[schluessel(m)] ?? 0, untenFrei: untenFrei)
-        } else {
-            Platzhalterwoche(montag: m)
+            let p = geladen.count == wochen.count ? zusammengefuehrt(geladen) : nil
+            return Rasterseitendaten(anfang: m, montag: Datumsformat.montag(m), plan: p,
+                                     nurTage: tage.map { Datumsformat.iso($0) },
+                                     stand: wochen.reduce(0) { $0 + (staende[schluessel($1)] ?? 0) },
+                                     abwesenheiten: p.map { abwesenheitsbalken($0) } ?? [:])
         }
+        let p = plaene[schluessel(m)]
+        return Rasterseitendaten(anfang: m, montag: m, plan: p, nurTage: nil, stand: staende[schluessel(m)] ?? 0,
+                                 abwesenheiten: p.map { abwesenheitsbalken($0) } ?? [:])
     }
 
     /// Wochen zu einem Plan zusammenführen (Ansicht über das Wochenende hinweg, z. B. Fr. und Mo.).
@@ -565,33 +673,6 @@ struct StundenplanView: View {
             if !balken.isEmpty { ergebnis[tag.datum] = balken }
         }
         return ergebnis
-    }
-
-    private func raster(_ p: Wochenplan, nurTage: [String]?, stand: Int, untenFrei: CGFloat) -> some View {
-        WochenrasterView(plan: p, typ: p.typ.isEmpty ? typ : p.typ, element: element,
-                         tippsperre: tippsperre,
-                         senkrechtGesperrt: senkrechtGesperrt,
-                         nurTage: nurTage,
-                         stand: stand,
-                         abwesenheiten: abwesenheitsbalken(p),
-                         untenFrei: untenFrei,
-                         heuteAntippen: {
-                             if tageModus { ansichtWechseln(.woche) } else { heute() }
-                         },
-                         tagAntippen: { iso in
-                             if ansicht == .tag {
-                                 ansichtWechseln(.woche)
-                             } else if let d = Datumsformat.datum(iso) {
-                                 ansichtWechseln(.tag, tag: d)
-                             }
-                         },
-                         aufsichtAntippen: { gewaehlteAufsicht = $0 },
-                         antippen: { karten, start in
-                             guard !karten.isEmpty else { return }
-                             detail = Detailauswahl(karten: karten, start: min(max(start, 0), karten.count - 1))
-                         })
-        // Beim Wischen ändert sich nur die Verschiebung: das Raster wird dann nicht neu berechnet
-        .equatable()
     }
 
     /// Wischen mit Richtungssperre: Die Richtung wird zu Beginn der Geste festgelegt und gilt bis zum Loslassen.
@@ -771,10 +852,10 @@ struct Platzhalterwoche: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("KW \(Datumsformat.kalenderwoche(montag))")
                         .font(.system(size: 12))
-                        .foregroundStyle(Farben.tinte2)
+                        .foregroundStyle(Farben.kopfText2)
                     Text(Wochenkopf.monat(montag))
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(Farben.tinte)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Farben.kopfText)
                 }
                 .padding(.leading, 6)
                 Spacer()
@@ -942,9 +1023,9 @@ struct Detailauswahl: Identifiable {
 
 /// Höhen im Raster: Abstand oben, Beginn des Rasters, Punkte je Minute.
 /// Pausen mit Aufsicht werden bei Bedarf gedehnt, damit die Aufsicht vollständig in die Lücke passt.
-struct Rastermass {
+struct Rastermass: Equatable {
     /// Zusätzliche Höhe in einer Pause (beginn…ende in Minuten; bei beginn == ende ein Sprung an dieser Stelle).
-    struct Dehnung {
+    struct Dehnung: Equatable {
         let beginn: Int
         let ende: Int
         let extra: CGFloat
@@ -995,234 +1076,246 @@ struct Rastermass {
     }
 }
 
-/// Raster mit Tagesspalten; Höhe nach Uhrzeit (1,2704 pt je Minute wie in der PWA), Pausen als Lücken.
-/// Kacheln, Spuren und Zählstreifen kommen aus `Kachelbau` (Logik der PWA).
-struct WochenrasterView: View {
-    let plan: Wochenplan
-    let typ: String
-    var element: String = ""
-    /// Sperre für das Antippen während bzw. kurz nach Wischen und Scrollen
-    var tippsperre: Tippsperre = Tippsperre()
-    /// Während eines waagrechten Wischens: senkrechtes Scrollen aus (Richtungssperre)
-    var senkrechtGesperrt: Bool = false
-    var laedt: Bool = false
+/// Daten einer Seite im Blätterraster (Woche bzw. Tage).
+struct Rasterseitendaten: Identifiable, Equatable {
+    /// Seitenanfang (Montag bzw. erster Tag)
+    let anfang: Date
+    let montag: Date
+    let plan: Wochenplan?
     /// Tageweise Ansicht: nur diese Tage (yyyy-MM-dd), Spalten über die volle Breite (nil = ganze Woche).
-    var nurTage: [String]? = nil
-    /// Stand der geladenen Woche (für den Vergleich, ob neu gezeichnet werden muss)
-    var stand: Int = 0
+    let nurTage: [String]?
+    /// Stand der geladenen Woche(n) (für den Vergleich, ob neu gezeichnet werden muss)
+    let stand: Int
     /// Eigene Abwesenheiten je Tag (yyyy-MM-dd): grauer Balken hinter den Stunden (nur „Mein Plan“, abschaltbar)
-    var abwesenheiten: [String: [Abwesenheitsbalken]] = [:]
-    /// Vom unteren Rand verdeckter Bereich (Tab-Leiste, Home-Balken): das Raster läuft darunter weiter
-    var untenFrei: CGFloat = 0
-    /// Antippen von „KW / Monat“ (Woche: zur aktuellen Woche, Tag: zurück zur Woche).
-    var heuteAntippen: (() -> Void)? = nil
-    /// Antippen eines Tageskopfs (Tagesansicht öffnen bzw. schließen).
-    var tagAntippen: ((String) -> Void)? = nil
-    /// Antippen einer Pausenaufsicht.
-    var aufsichtAntippen: ((Aufsicht) -> Void)? = nil
-    /// Antippen einer Stunde: alle Stunden derselben Zeit und die angetippte.
-    let antippen: ([Karte], Int) -> Void
+    let abwesenheiten: [String: [Abwesenheitsbalken]]
 
-    @Environment(\.horizontalSizeClass) private var groessenklasse
+    var id: Date { anfang }
 
-    /// iPhone (schmale Breite): schmale Zeitspalte und kleinere Schrift, damit fünf Tage lesbar nebeneinander passen.
-    private var kompakt: Bool { groessenklasse == .compact }
-
-    // Maße aus app.css (iPhone: Zeitspalte 38 pt)
-    private var rinnenBreite: CGFloat { kompakt ? 38 : 45 }
-    private var tagesLuecke: CGFloat { kompakt ? 2 : 3 }
-    /// Höhe je Minute – Woche und Tag gleich (Raster wie im Original).
-    private let proMinute: CGFloat = 1.2704
-    private let abstandUnten: CGFloat = 28
-
-    private var tage: [Tageskopf] {
+    /// Angezeigte Tage des Plans.
+    var tage: [Tageskopf] {
+        guard let plan else { return [] }
         guard let nurTage else { return plan.tage }
         return nurTage.compactMap { iso in plan.tage.first { $0.datum == iso } }
     }
 
-    /// Aufsichten dicht am Plan: Tagesansicht und iPhone (alle Ansichten).
-    private var dichteAufsicht: Bool { nurTage?.count == 1 || kompakt }
-
-    private var montagDatum: Date {
-        Datumsformat.datum(plan.montag) ?? Datumsformat.datum(tage.first?.datum ?? "") ?? Date()
+    /// Tage im Kopf (yyyy-MM-dd): aus dem Plan, solange er lädt die erwarteten Tage (Mo.–Fr. bzw. die Tage der Seite).
+    var kopftage: [String] {
+        if plan != nil { return tage.map(\.datum) }
+        if let nurTage { return nurTage }
+        return (0..<5).map { Datumsformat.iso(Datumsformat.tage($0, nach: montag)) }
     }
 
-    var body: some View {
+    static func == (l: Rasterseitendaten, r: Rasterseitendaten) -> Bool {
+        l.anfang == r.anfang && l.montag == r.montag && l.nurTage == r.nurTage && l.stand == r.stand
+            && (l.plan == nil) == (r.plan == nil) && l.plan?.montag == r.plan?.montag
+            && l.plan?.gesperrt == r.plan?.gesperrt && l.abwesenheiten == r.abwesenheiten
+    }
+
+    /// Kacheln je Tag aus dem Zwischenspeicher: gleiche Daten (Stand) liefern dieselben Kacheln mit denselben Kennungen –
+    /// SwiftUI behält die Kartenansichten, statt sie bei jedem Zeichnen neu aufzubauen.
+    func kacheln(typ: String, element: String) -> [String: [Kachel]] {
+        guard let plan, !plan.gesperrt else { return [:] }
         let zeiten = Rasterzeit.aus(plan)
-        let start = zeiten.first?.beginn ?? 480
-        let ende = zeiten.last?.ende ?? 960
         let jetzt = Date()
-        // Kacheln je Tag aus dem Zwischenspeicher: gleiche Daten (Stand) liefern dieselben Kacheln mit denselben
-        // Kennungen – SwiftUI behält die Kartenansichten, statt sie bei jedem Zeichnen neu aufzubauen
         let minute = Int(jetzt.timeIntervalSinceReferenceDate / 60)
         let basis = "\(typ)|\(element)|\(plan.montag)|\(stand)|\(nurTage?.joined(separator: ",") ?? "w")|\(minute)"
-        let kacheln: [String: [Kachel]] = Dictionary(
+        return Dictionary(
             tage.map { tag in
                 (tag.datum, Kachelspeicher.kacheln(basis + "|" + tag.datum) {
                     Kachelbau.tag(tag, plan: plan, raster: zeiten, typ: typ, element: element, jetzt: jetzt)
                 })
             },
             uniquingKeysWith: { erste, _ in erste })
-        let vorErster = kacheln.values.contains { liste in liste.contains { $0.vorErsterStunde } }
-        let pausenAufsichten = kacheln.values.flatMap { $0 }.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
+    }
+}
+
+/// Gemeinsame Höhen aller drei Seiten des Blätterrasters: Zeitraster (der mittleren Seite), Rastermaß mit den Dehnungen
+/// aller Seiten – so stehen Zeitleiste, Linien und Karten beim Wischen auf derselben Höhe.
+struct Rasterrahmen: Equatable {
+    /// Zeitraster der Zeitleiste
+    let zeiten: [Rasterzeit]
+    let start: Int
+    let ende: Int
+    let mass: Rastermass
+    /// Gesamthöhe der Scrollfläche
+    let hoehe: CGFloat
+    /// Pillen vor der ersten Stunde (Aufsicht, ganztägiger Termin) auf einer der Seiten
+    let vorErster: Bool
+    /// Aufsichten dicht am Plan: Tagesansicht und iPhone (alle Ansichten)
+    let dichteAufsicht: Bool
+    let tagesansicht: Bool
+    /// iPhone (schmale Breite): schmale Zeitspalte und kleinere Schrift
+    let kompakt: Bool
+
+    /// Höhe je Minute – Woche und Tag gleich (1,2704 pt je Minute wie in der PWA).
+    static let proMinute: CGFloat = 1.2704
+    static let abstandUnten: CGFloat = 28
+
+    /// Breite der Zeitleiste: iPhone 43 pt wie in den Vorlagen (Raster ab 101 px bei 2,34 px/pt, Spalten 70 pt), iPad 45 pt.
+    static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 43 : 45 }
+    var rinnenBreite: CGFloat { Self.rinnenBreite(kompakt: kompakt) }
+    var tagesLuecke: CGFloat { kompakt ? 2 : 3 }
+
+    /// nil, solange keine der Seiten geladen ist.
+    init?(seiten: [Rasterseitendaten], mitte: Int, typ: String, element: String, kompakt: Bool, tagesansicht: Bool,
+          untenFrei: CGFloat) {
+        let geladen = seiten.compactMap(\.plan)
+        let mittelplan = seiten.indices.contains(mitte) ? seiten[mitte].plan : nil
+        guard let leitplan = mittelplan ?? geladen.first else { return nil }
+        let zeiten = Rasterzeit.aus(leitplan)
+        let alleZeiten = geladen.flatMap { Rasterzeit.aus($0) }
+        let start = min(zeiten.first?.beginn ?? 480, alleZeiten.map(\.beginn).min() ?? 480)
+        let ende = max(zeiten.last?.ende ?? 960, alleZeiten.map(\.ende).max() ?? 960)
+        var vorErster = false
+        var pausenAufsichten: [Kachel] = []
+        for s in seiten {
+            let t = StundenplanView.seitenTyp(s, standard: typ)
+            let liste = s.kacheln(typ: t, element: element).values.flatMap { $0 }
+            if liste.contains(where: \.vorErsterStunde) { vorErster = true }
+            pausenAufsichten += liste.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
+        }
+        let dicht = tagesansicht || kompakt
         // Tagesansicht und iPhone: Aufsicht vor der 1. Stunde sitzt dichter am Plan, der Streifen darüber bleibt gleich hoch
-        let mass = Rastermass(oben: vorErster ? (dichteAufsicht ? 31 : 34) : 15, start: start, proMinute: proMinute,
-                              dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: proMinute,
-                                                              mindestens: nurTage == nil ? 24 : 30))
-        GeometryReader { geo in
-            let spalten = max(tage.count, 1)
-            let rand: CGFloat = nurTage == nil ? 0 : 3
-            let spaltenBreite = max(kompakt ? 34 : 40, (geo.size.width - rinnenBreite - rand) / CGFloat(spalten))
-            let hoehe = mass.y(ende) + abstandUnten + untenFrei
-            VStack(spacing: 0) {
-                // Kopf (KW/Monat und Tage) steht fest über dem scrollenden Raster und wird nie gestaucht
-                wochenkopf(spaltenBreite: spaltenBreite, kacheln: kacheln)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(1)
-                    .zIndex(1)
-                if plan.gesperrt {
-                    // Woche außerhalb des Plan-Fensters: statt der Karten der Sperrhinweis (Blättern bleibt möglich)
-                    Sperrhinweis(hinweis: plan.sperrhinweis)
-                        .padding(.bottom, untenFrei)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(
-                            LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
-                                .ignoresSafeArea(edges: .bottom)
-                        )
-                } else {
-                ScrollViewReader { leser in
-                ScrollView(.vertical) {
-                    ZStack(alignment: .topLeading) {
-                        // Anker knapp über der 1. Stunde (bzw. über den Pillen vor der 1. Stunde)
-                        VStack(spacing: 0) {
-                            Color.clear.frame(height: vorErster ? 0 : max(0, mass.y(start) - 8))
-                            Color.clear.frame(width: 1, height: 1).id(Self.ersteStundeAnker)
-                            Spacer(minLength: 0)
-                        }
-                        .accessibilityHidden(true)
-                        zeitspalte(zeiten, mass: mass, breite: geo.size.width)
-                        ForEach(Array(tage.enumerated()), id: \.element.id) { eintrag in
-                            tagesspalte(eintrag.element, kacheln: kacheln[eintrag.element.datum] ?? [], zeiten: zeiten,
-                                        mass: mass, ende: ende, breite: spaltenBreite - tagesLuecke, hoehe: hoehe)
-                                .offset(x: rinnenBreite + CGFloat(eintrag.offset) * spaltenBreite + tagesLuecke / 2)
-                        }
-                        jetztLinie(mass: mass, start: start, ende: ende, spaltenBreite: spaltenBreite, breite: geo.size.width)
-                    }
-                    .frame(width: geo.size.width, height: hoehe, alignment: .topLeading)
-                    .opacity(laedt ? 0.55 : 1)
-                    .animation(.easeOut(duration: 0.18), value: laedt)
-                }
-                .scrollIndicators(.hidden)
-                // Richtungssperre: beim waagrechten Wischen scrollt das Raster nicht mit
-                .scrollDisabled(senkrechtGesperrt)
-                .modifier(Scrollsperre(sperre: tippsperre))
-                .background(
-                    LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
-                        .ignoresSafeArea(edges: .bottom)
-                )
-                .onAppear {
-                    // Beim Öffnen so scrollen, dass die 1. Stunde vollständig sichtbar ist
-                    DispatchQueue.main.async {
-                        leser.scrollTo(Self.ersteStundeAnker, anchor: .top)
-                    }
-                }
-                }
-                }
-            }
-        }
+        let mass = Rastermass(oben: vorErster ? (dicht ? 31 : 34) : 15, start: start, proMinute: Self.proMinute,
+                              dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: Self.proMinute,
+                                                              mindestens: seiten.contains { $0.nurTage != nil } ? 30 : 24))
+        self.zeiten = zeiten
+        self.start = start
+        self.ende = ende
+        self.mass = mass
+        self.hoehe = mass.y(ende) + Self.abstandUnten + untenFrei
+        self.vorErster = vorErster
+        self.dichteAufsicht = dicht
+        self.tagesansicht = tagesansicht
+        self.kompakt = kompakt
     }
 
-    private static let ersteStundeAnker = "ersteStunde"
-
-    // MARK: Kopf mit KW, Monat und Tagen (.weekhead)
-
-    @ViewBuilder
-    private func wochenkopf(spaltenBreite: CGFloat, kacheln: [String: [Kachel]]) -> some View {
-        if let nurTage, nurTage.count == 1, let tag = tage.first {
-            tageskopf(tag, iso: tag.datum, spaltenBreite: spaltenBreite)
-        } else {
-            HStack(alignment: .bottom, spacing: 0) {
-                kwFeld
-                ForEach(tage) { tag in
-                    let heute = Datumsformat.istHeute(tag.datum)
-                    VStack(spacing: kompakt ? 2 : 3) {
-                        Text(Datumsformat.anzeige(tag.datum, "EE"))
-                            .font(.system(size: kompakt ? 12 : 12.5, weight: .regular))
-                            .foregroundStyle(heute ? Farben.heute : Farben.tinte2)
-                        Text(Datumsformat.anzeige(tag.datum, "d"))
-                            .font(.system(size: kompakt ? 17 : 18, weight: .medium))
-                            .tracking(-0.36)
-                            .foregroundStyle(heute ? Farben.heute : Farben.tinte)
-                    }
-                    .lineLimit(1)
-                    .frame(width: spaltenBreite)
-                    .contentShape(Rectangle())
-                    .onTapGesture { tagAntippen?(tag.datum) }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityHint("Tagesansicht öffnen")
-                }
-            }
-            .padding(.top, 2)
-            .padding(.bottom, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Farben.leiste)
-        }
+    static func == (l: Rasterrahmen, r: Rasterrahmen) -> Bool {
+        l.start == r.start && l.ende == r.ende && l.mass == r.mass && l.hoehe == r.hoehe && l.vorErster == r.vorErster
+            && l.dichteAufsicht == r.dichteAufsicht && l.tagesansicht == r.tagesansicht && l.kompakt == r.kompakt
+            && l.zeiten.map { [$0.nr, $0.beginn, $0.ende] } == r.zeiten.map { [$0.nr, $0.beginn, $0.ende] }
     }
+}
 
-    private var kwFeld: some View {
+/// „KW / Monat“ links oben – steht beim Wischen fest. Ein Tipp führt zur aktuellen Woche (Tagesansicht: zurück zur Woche).
+struct KWFeld: View {
+    let montag: Date
+    let breite: CGFloat
+    let kompakt: Bool
+    let tageModus: Bool
+    let antippen: () -> Void
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("KW \(Datumsformat.kalenderwoche(montagDatum))")
+            Text("KW \(Datumsformat.kalenderwoche(montag))")
                 .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(Farben.tinte2)
-            Text(Wochenkopf.monat(montagDatum))
-                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(Farben.kopfText2)
+            // Monat so groß wie die Tageszahlen (Vorlage: Versalhöhe ≈ 11,7 pt → 17 pt)
+            Text(Wochenkopf.monat(montag))
+                .font(.system(size: kompakt ? 17 : 18, weight: .medium))
                 .tracking(-0.18)
-                .foregroundStyle(Farben.tinte)
+                .foregroundStyle(Farben.kopfText)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.6)
         .padding(.leading, kompakt ? 4 : 6)
-        .frame(width: rinnenBreite, alignment: .leading)
+        .frame(width: breite, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture { heuteAntippen?() }
+        .onTapGesture { antippen() }
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint(nurTage == nil ? "Zur aktuellen Woche" : "Zurück zur Wochenansicht")
+        .accessibilityHint(tageModus ? "Zurück zur Wochenansicht" : "Zur aktuellen Woche")
+    }
+}
+
+/// Tageszeile einer Seite (.weekhead): Wochentag und Tageszahl (heute orange) über jeder Spalte; gleitet mit dem Raster.
+/// Ein Tipp öffnet die Tagesansicht (in der Tagesansicht zurück zur Woche).
+struct KopfSeite: View, Equatable {
+    let tage: [String]
+    let kompakt: Bool
+    let breite: CGFloat
+    let rand: CGFloat
+    var antippbar: Bool = true
+    var tagAntippen: ((String) -> Void)? = nil
+
+    static func == (l: KopfSeite, r: KopfSeite) -> Bool {
+        l.tage == r.tage && l.kompakt == r.kompakt && l.breite == r.breite && l.rand == r.rand && l.antippbar == r.antippbar
     }
 
-    /// Kopf der Tagesansicht wie der Wochenkopf: links „KW / Monat“, darüber mittig in der Tagesspalte „Fr.“ und groß
-    /// die Tageszahl (heute orange). Ein Tipp führt zurück zur Woche.
-    private func tageskopf(_ tag: Tageskopf, iso: String, spaltenBreite: CGFloat) -> some View {
-        let heute = Datumsformat.istHeute(iso)
-        return HStack(alignment: .bottom, spacing: 0) {
-            kwFeld
-            VStack(spacing: kompakt ? 2 : 3) {
-                Text(Datumsformat.anzeige(iso, "EE"))
-                    .font(.system(size: kompakt ? 12 : 12.5, weight: .regular))
-                    .foregroundStyle(heute ? Farben.heute : Farben.tinte2)
-                Text(Datumsformat.anzeige(iso, "d"))
-                    .font(.system(size: kompakt ? 17 : 18, weight: .medium))
-                    .tracking(-0.36)
-                    .foregroundStyle(heute ? Farben.heute : Farben.tinte)
+    var body: some View {
+        let spaltenBreite = max(kompakt ? 34 : 40, (breite - rand) / CGFloat(max(tage.count, 1)))
+        let einzeln = tage.count == 1
+        HStack(alignment: .bottom, spacing: 0) {
+            ForEach(tage, id: \.self) { iso in
+                let heute = Datumsformat.istHeute(iso)
+                VStack(spacing: kompakt ? 2 : 3) {
+                    Text(Datumsformat.anzeige(iso, "EE"))
+                        .font(.system(size: kompakt ? 12 : 12.5, weight: .regular))
+                        .foregroundStyle(heute ? Farben.heute : Farben.kopfText2)
+                    // Tageszahl (Vorlage: Ziffernhöhe ≈ 11,3 pt → 16,5 pt)
+                    Text(Datumsformat.anzeige(iso, "d"))
+                        .font(.system(size: kompakt ? 16.5 : 18, weight: .medium))
+                        .tracking(-0.36)
+                        .foregroundStyle(heute ? Farben.heute : Farben.kopfText)
+                }
+                .lineLimit(1)
+                .frame(width: spaltenBreite)
+                .contentShape(Rectangle())
+                .onTapGesture { if antippbar { tagAntippen?(iso) } }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(Datumsformat.anzeige(iso, "EEEE, d. MMMM"))
+                .accessibilityAddTraits(antippbar ? .isButton : [])
+                .accessibilityHint(antippbar ? (einzeln ? "Zurück zur Wochenansicht" : "Tagesansicht öffnen") : "")
             }
-            .lineLimit(1)
-            .frame(width: spaltenBreite)
-            .contentShape(Rectangle())
-            .onTapGesture { tagAntippen?(iso) }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(Datumsformat.anzeige(iso, "EEEE, d. MMMM"))
-            .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Zurück zur Wochenansicht")
+            Spacer(minLength: 0)
         }
-        .padding(.top, 2)
-        .padding(.bottom, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farben.leiste)
+        .frame(width: breite, alignment: .leading)
+    }
+}
+
+/// Linien der Stunden (.slotrow) über die Breite rechts der Zeitleiste – stehen beim Wischen fest.
+struct Rasterlinien: View, Equatable {
+    let rahmen: Rasterrahmen
+    let breite: CGFloat
+
+    var body: some View {
+        let mass = rahmen.mass
+        let zeiten = rahmen.zeiten
+        let rinne = rahmen.rinnenBreite
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(zeiten.enumerated()), id: \.element.id) { eintrag in
+                let z = eintrag.element
+                let naechste: Rasterzeit? = eintrag.offset + 1 < zeiten.count ? zeiten[eintrag.offset + 1] : nil
+                let pauseDanach = naechste == nil || (naechste?.beginn ?? 0) > z.ende
+                linie(breite: breite - rinne)
+                    .offset(x: rinne, y: mass.y(z.beginn))
+                if pauseDanach {
+                    linie(breite: breite - rinne)
+                        .offset(x: rinne, y: mass.yEnde(z.ende))
+                }
+            }
+        }
+        .frame(width: breite, height: rahmen.hoehe, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
-    // MARK: Zeitspalte und Linien (.slotrow)
+    private func linie(breite: CGFloat) -> some View {
+        Rectangle()
+            .fill(Farben.rasterLinie)
+            .frame(width: max(breite, 0), height: 1)
+    }
+}
 
-    private func zeitspalte(_ zeiten: [Rasterzeit], mass: Rastermass, breite: CGFloat) -> some View {
+/// Zeitleiste links (Beginn und Ende der Stunden, bei hohen Stunden die Nummer): steht beim Wischen fest und scrollt
+/// senkrecht mit dem Raster. Der Streifen fängt das Antippen ab (darunter liegt verdeckt die linke Nachbarseite).
+struct Zeitleiste: View, Equatable {
+    let rahmen: Rasterrahmen
+
+    var body: some View {
+        let mass = rahmen.mass
+        let zeiten = rahmen.zeiten
+        let kompakt = rahmen.kompakt
         ZStack(alignment: .topLeading) {
             ForEach(Array(zeiten.enumerated()), id: \.element.id) { eintrag in
                 let z = eintrag.element
@@ -1230,48 +1323,101 @@ struct WochenrasterView: View {
                 let unten = mass.yEnde(z.ende)
                 let naechste: Rasterzeit? = eintrag.offset + 1 < zeiten.count ? zeiten[eintrag.offset + 1] : nil
                 let pauseDanach = naechste == nil || (naechste?.beginn ?? 0) > z.ende
-
-                linie(breite: breite)
-                    .offset(x: rinnenBreite, y: oben)
                 Text(Rasterzeit.uhrzeit(z.beginn))
-                    .font(.system(size: kompakt ? 10.5 : 12, weight: .medium).monospacedDigit())
+                    .font(.system(size: kompakt ? 11 : 12, weight: .medium).monospacedDigit())
                     .tracking(kompakt ? 0 : 0.12)
                     .foregroundStyle(Farben.rinne)
                     .fixedSize()
-                    .offset(x: kompakt ? 4 : 8, y: oben + 2)
+                    // Vorlage: Uhrzeit mittig in der Zeitleiste (≈ 6,8 pt vom Rand), Ziffern ≈ 3 pt unter der Linie
+                    .offset(x: kompakt ? 6.5 : 8, y: oben + 0.5)
                 if unten - oben > 36 {
                     Text("\(z.nr).")
                         .font(.system(size: kompakt ? 14.5 : 16, weight: .regular))
                         .foregroundStyle(Farben.tinte2)
                         .fixedSize()
-                        .offset(x: kompakt ? 11 : 14, y: oben + (unten - oben) / 2 - 10)
+                        .offset(x: kompakt ? 13.5 : 14, y: oben + (unten - oben) / 2 - 10)
                 }
                 if pauseDanach {
-                    linie(breite: breite)
-                        .offset(x: rinnenBreite, y: unten)
                     Text(Rasterzeit.uhrzeit(z.ende))
-                        .font(.system(size: kompakt ? 10.5 : 12, weight: .medium).monospacedDigit())
+                        .font(.system(size: kompakt ? 11 : 12, weight: .medium).monospacedDigit())
                         .tracking(kompakt ? 0 : 0.12)
                         .foregroundStyle(Farben.rinne)
                         .fixedSize()
                         .frame(height: 15, alignment: .bottom)
-                        .offset(x: kompakt ? 4 : 8, y: unten - 3 - 15)
+                        .offset(x: kompakt ? 6.5 : 8, y: unten - 3 - 15)
                 }
             }
         }
+        .frame(width: rahmen.rinnenBreite, height: rahmen.hoehe, alignment: .topLeading)
+        .contentShape(Rectangle())
         .accessibilityHidden(true)
     }
+}
 
-    private func linie(breite: CGFloat) -> some View {
-        Rectangle()
-            .fill(Farben.linie)
-            .frame(width: max(breite - rinnenBreite, 0), height: 1)
+/// Raster einer Seite (Tagesspalten mit Kacheln, Ferien, Abwesenheiten, Jetzt-Linie) ohne Zeitleiste – gleitet beim
+/// Wischen. Kacheln, Spuren und Zählstreifen kommen aus `Kachelbau` (Logik der PWA). Gesperrte Woche: Sperrhinweis;
+/// noch nicht geladen: Ladekreis.
+struct RasterSeite: View, Equatable {
+    let daten: Rasterseitendaten
+    let typ: String
+    var element: String = ""
+    let rahmen: Rasterrahmen
+    /// Breite der Seite (ohne Zeitleiste)
+    let breite: CGFloat
+    /// Sperre für das Antippen während bzw. kurz nach Wischen und Scrollen
+    var tippsperre: Tippsperre = Tippsperre()
+    /// Antippen einer Pausenaufsicht.
+    var aufsichtAntippen: ((Aufsicht) -> Void)? = nil
+    /// Antippen einer Stunde: alle Stunden derselben Zeit und die angetippte.
+    let antippen: ([Karte], Int) -> Void
+
+    /// Raster nur neu zeichnen, wenn sich Seite, Planart, Element, Stand oder die gemeinsamen Höhen ändern
+    /// (nicht bei jeder Verschiebung während des Wischens).
+    static func == (l: RasterSeite, r: RasterSeite) -> Bool {
+        l.daten == r.daten && l.typ == r.typ && l.element == r.element && l.rahmen == r.rahmen && l.breite == r.breite
+    }
+
+    private var kompakt: Bool { rahmen.kompakt }
+    private var tagesLuecke: CGFloat { rahmen.tagesLuecke }
+    private var nurTage: [String]? { daten.nurTage }
+    private var dichteAufsicht: Bool { rahmen.dichteAufsicht }
+
+    var body: some View {
+        let mass = rahmen.mass
+        let tage = daten.tage
+        let spalten = max(tage.count, 1)
+        let rand: CGFloat = nurTage == nil ? 0 : 3
+        let spaltenBreite = max(kompakt ? 34 : 40, (breite - rand) / CGFloat(spalten))
+        ZStack(alignment: .topLeading) {
+            if let plan = daten.plan {
+                if plan.gesperrt {
+                    // Woche außerhalb des Plan-Fensters: statt der Karten der Sperrhinweis (Blättern bleibt möglich)
+                    Sperrhinweis(hinweis: plan.sperrhinweis)
+                        .frame(width: breite)
+                        .offset(y: mass.y(rahmen.start) + 24)
+                } else {
+                    let kacheln = daten.kacheln(typ: typ, element: element)
+                    ForEach(Array(tage.enumerated()), id: \.element.id) { eintrag in
+                        tagesspalte(eintrag.element, kacheln: kacheln[eintrag.element.datum] ?? [], mass: mass,
+                                    breite: spaltenBreite - tagesLuecke)
+                            .offset(x: CGFloat(eintrag.offset) * spaltenBreite + tagesLuecke / 2)
+                    }
+                    jetztLinie(tage: tage, mass: mass, spaltenBreite: spaltenBreite)
+                }
+            } else {
+                ProgressView()
+                    .frame(width: breite)
+                    .offset(y: mass.y(rahmen.start) + 60)
+            }
+        }
+        .frame(width: breite, height: rahmen.hoehe, alignment: .topLeading)
     }
 
     // MARK: Tagesspalte
 
-    private func tagesspalte(_ tag: Tageskopf, kacheln: [Kachel], zeiten: [Rasterzeit], mass: Rastermass,
-                             ende: Int, breite: CGFloat, hoehe: CGFloat) -> some View {
+    private func tagesspalte(_ tag: Tageskopf, kacheln: [Kachel], mass: Rastermass, breite: CGFloat) -> some View {
+        let hoehe = rahmen.hoehe
+        let zeiten = daten.plan.map { Rasterzeit.aus($0) } ?? rahmen.zeiten
         // Gleichzeitige Stunden (Kopplungen, Vertretung neben Entfall …) nebeneinander in gleich breiten Spuren wie im Web
         let belegung = Kachelbau.anordnen(kacheln, spaltenBreite: breite, tagesansicht: nurTage?.count == 1)
         let vorErste = belegung.lagen.filter { $0.kachel.vorErsterStunde }.map(\.kachel.id)
@@ -1283,7 +1429,7 @@ struct WochenrasterView: View {
                     .offset(y: mass.y(mass.start) + 1)
             } else {
                 // Eigene Abwesenheit: grauer Balken hinter den Stunden – die Karten liegen voll lesbar darüber
-                ForEach(abwesenheiten[tag.datum] ?? []) { b in
+                ForEach(daten.abwesenheiten[tag.datum] ?? []) { b in
                     abwesenheitsfeld(b, belegung: belegung, mass: mass, breite: breite, vorErste: vorErste)
                         .zIndex(0)
                 }
@@ -1491,8 +1637,10 @@ struct WochenrasterView: View {
 
     // MARK: Jetzt-Linie
 
-    private func jetztLinie(mass: Rastermass, start: Int, ende: Int, spaltenBreite: CGFloat, breite: CGFloat) -> some View {
-        TimelineView(.periodic(from: .now, by: 60)) { kontext in
+    private func jetztLinie(tage: [Tageskopf], mass: Rastermass, spaltenBreite: CGFloat) -> some View {
+        let start = rahmen.start
+        let ende = rahmen.ende
+        return TimelineView(.periodic(from: .now, by: 60)) { kontext in
             let minute = Datumsformat.kalender.component(.hour, from: kontext.date) * 60
                 + Datumsformat.kalender.component(.minute, from: kontext.date)
             let heuteIndex = tage.firstIndex(where: { $0.datum == Datumsformat.iso(kontext.date) })
@@ -1501,12 +1649,12 @@ struct WochenrasterView: View {
                 ZStack(alignment: .topLeading) {
                     Rectangle()
                         .fill(Farben.jetztLinie)
-                        .frame(width: max(breite - rinnenBreite, 0), height: 1.5)
-                        .offset(x: rinnenBreite, y: hoehe - 0.75)
+                        .frame(width: breite, height: 1.5)
+                        .offset(y: hoehe - 0.75)
                     Capsule()
                         .fill(Farben.jetztLinie)
                         .frame(width: spaltenBreite - tagesLuecke, height: 3)
-                        .offset(x: rinnenBreite + CGFloat(heuteIndex) * spaltenBreite + tagesLuecke / 2, y: hoehe - 1.5)
+                        .offset(x: CGFloat(heuteIndex) * spaltenBreite + tagesLuecke / 2, y: hoehe - 1.5)
                 }
                 .allowsHitTesting(false)
             }
@@ -1577,16 +1725,6 @@ enum Kachelspeicher {
     /// Alles verwerfen (z. B. beim Wechsel in ein anderes Konto).
     static func leeren() {
         speicher.removeAll()
-    }
-}
-
-/// Raster nur neu berechnen, wenn sich Woche, Planart, Element, angezeigte Tage oder Stand ändern
-/// (nicht bei jeder Verschiebung während des Wischens).
-extension WochenrasterView: Equatable {
-    static func == (l: WochenrasterView, r: WochenrasterView) -> Bool {
-        l.plan.montag == r.plan.montag && l.typ == r.typ && l.element == r.element && l.nurTage == r.nurTage
-            && l.stand == r.stand && l.laedt == r.laedt && l.untenFrei == r.untenFrei
-            && l.senkrechtGesperrt == r.senkrechtGesperrt && l.abwesenheiten == r.abwesenheiten
     }
 }
 

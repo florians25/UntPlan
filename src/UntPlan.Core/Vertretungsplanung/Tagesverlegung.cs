@@ -181,10 +181,21 @@ public static class Tagesverlegung
     private static string UntText(DatenIndex ix, TagesEintrag h) =>
         $"Unt. {h.Unterricht?.Id.ToString() ?? "V" + h.Vertretung?.Id}: {string.Join(",", h.LehrerIds.Select(ix.KLehrer))}{(h.LehrerIds.Count > 0 ? ", " : "")}{ix.KKlassen(h.KlassenIds)},";
 
-    /// <summary>Verlegung ausführen.</summary>
-    public static void Ausfuehren(Schuldatei d, VerlegeAnalyse a, VerlegeModus modus, string benutzer = "")
+    /// <summary>
+    /// Verlegung ausführen. Mit <paramref name="raeume"/> werden die Räume danach laut Antwort auf „Räume mitnehmen oder
+    /// belassen?“ bzw. die Belegungsfrage gesetzt (siehe <see cref="Verlegungsraeume"/>); ohne bleibt die bisherige Raumwahl.
+    /// </summary>
+    public static void Ausfuehren(Schuldatei d, VerlegeAnalyse a, VerlegeModus modus, string benutzer = "", VerlegeRaumWahl? raeume = null)
     {
         if (a.Schritte.Count == 0) return;
+        var raumZeilen = raeume is null ? null : Verlegungsraeume.Zeilen(d, a);
+        var partnerZeilen = raeume is null || modus != VerlegeModus.Tauschen ? new List<VerlegeRaumZeile>() : Verlegungsraeume.PartnerZeilen(d, a, raumZeilen!);
+        AusfuehrenOhneRaeume(d, a, modus, benutzer);
+        if (raeume != null) Verlegungsraeume.Anwenden(d, a, modus, raeume, raumZeilen!, partnerZeilen, benutzer);
+    }
+
+    private static void AusfuehrenOhneRaeume(Schuldatei d, VerlegeAnalyse a, VerlegeModus modus, string benutzer)
+    {
         if (modus == VerlegeModus.Tauschen)
         {
             if (a.TauschUnterricht is not int b) throw new InvalidOperationException("Ein Tausch ist an dieser Position nicht möglich.");

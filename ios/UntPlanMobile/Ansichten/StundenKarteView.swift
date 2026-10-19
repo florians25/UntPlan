@@ -77,9 +77,15 @@ struct KachelView: View {
         // Die ganze Fläche ist antippbar – auch bei durchsichtigen Karten (vergangen, abgegeben, Bereitschaft)
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
-        .shadow(color: a.schatten == .voll ? Farben.kartenSchatten : (a.schatten == .flach ? Farben.kartenSchattenFlach : .clear),
-                radius: a.schatten == .keiner ? 0 : 1, y: a.schatten == .keiner ? 0 : 1)
-        .shadow(color: a.schatten == .voll ? Farben.kartenSchattenWeich : .clear, radius: a.schatten == .voll ? 3 : 0, y: a.schatten == .voll ? 2 : 0)
+        // Hell: feine Kante seitlich und unten, künftige Stunden mit weichem Schatten nach unten (Vorlage nachgemessen);
+        // dunkel unverändert
+        .background {
+            if !dunkel && a.schatten != .keiner {
+                Kartenschatten(radius: a.radius, voll: a.schatten == .voll)
+            }
+        }
+        .shadow(color: dunkel && a.schatten == .flach ? Farben.kartenSchattenFlach : .clear,
+                radius: dunkel && a.schatten == .flach ? 1 : 0, y: dunkel && a.schatten == .flach ? 1 : 0)
         // Zeichen unten rechts erst nach dem Kartenschatten: flach, ohne eigenen Schatten (auch auf durchsichtigen
         // Karten), innerhalb der Karte 4 pt vom unteren und rechten Rand; auf sehr kleinen Karten verkleinert bzw.
         // ausgeblendet, damit nichts über Rand oder Balken hinausragt
@@ -388,6 +394,22 @@ struct KachelzeileView: View {
         .foregroundStyle(titelFarbe ?? aussehen.text)
     }
 
+    /// Abstand zwischen einem Label und dem nächsten Wert (statt Komma bzw. Leerzeichen).
+    static let labelAbstand: CGFloat = 3
+
+    /// Erscheint der Teil als Label (grüne Fläche)? Auf entfallenen Karten gibt es keine Labels.
+    private func istLabel(_ t: Kachelteil) -> Bool {
+        !aussehen.durchgestrichen && (t.stil == .plakette || t.stil == .offen)
+    }
+
+    /// Trenner nach dem Teil: zwischen zwei schlichten Werten wie gehabt (Komma), neben einem Label nur ein kleiner
+    /// Abstand – kein Komma.
+    private func labelNachbar(_ i: Int) -> Bool {
+        let teile = zeile.teile
+        guard i + 1 < teile.count else { return false }
+        return istLabel(teile[i]) || istLabel(teile[i + 1])
+    }
+
     /// Alle Teile nebeneinander ohne Umbruch. Kürzbar: jeder Teil darf mit „…“ enden, vordere Teile haben Vorrang.
     @ViewBuilder
     private func teileReihe(kuerzbar: Bool) -> some View {
@@ -396,7 +418,10 @@ struct KachelzeileView: View {
             ForEach(Array(zeile.teile.enumerated()), id: \.offset) { eintrag in
                 HStack(spacing: 0) {
                     teil(eintrag.element, kuerzbar: kuerzbar)
-                    if !eintrag.element.trenner.isEmpty {
+                    if labelNachbar(eintrag.offset) {
+                        Color.clear
+                            .frame(width: Self.labelAbstand, height: 1)
+                    } else if !eintrag.element.trenner.isEmpty {
                         Text(eintrag.element.trenner)
                             .strikethrough(aussehen.durchgestrichen)
                             .fixedSize()
@@ -466,7 +491,8 @@ struct Kachelaussehen {
         // Der Balken links bleibt auch bei vergangenen Stunden in der Fachfarbe und voll deckend (keine Abschwächung);
         // Schrift vergangener Stunden hell etwas weicher, dunkel unverändert
         balken = fach
-        balkenDeckkraft = 1
+        // Hell: vergangene Stunden mit blasserem Balken (Vorlage: #d8dfe1 auf #f2f4f5), dunkel voll deckend
+        balkenDeckkraft = v && !dunkel ? 0.5 : 1
         text = v ? Farben.karteTextVergangen : Farben.karteText
         switch k.art {
         case .normal:
@@ -481,8 +507,9 @@ struct Kachelaussehen {
             text = v ? Farben.karteTextVergangen : Farben.entfallText
             durchgestrichen = true
         case .klausur:
+            // Wie in der Vorlage mit Schatten (dunkel ohnehin ohne)
             farbigeKarte(flaeche: Farben.pruefungHintergrund, vergangeneFlaeche: Farben.pruefungVergangen, rand: Farben.pruefungRand,
-                         vergangen: v, dunkel: dunkel, schatten: false)
+                         vergangen: v, dunkel: dunkel, schatten: true)
         case .termin:
             hintergrund = Farben.veranstaltungHintergrund
             rand = Farben.terminRand
@@ -613,6 +640,41 @@ struct Eckklammern: Shape {
         p.addQuadCurve(to: CGPoint(x: r.minX, y: r.maxY - rd), control: CGPoint(x: r.minX, y: r.maxY))
         p.addLine(to: CGPoint(x: r.minX, y: r.maxY - l))
         return p
+    }
+}
+
+/// Kante und Schatten einer Karte im hellen Modus, an den Vorlagen nachgemessen (2,34 px/pt): seitlich eine feine graue
+/// Kante (≈ 0,8 pt, oben keine), unten etwas kräftiger (≈ 1,5 pt); künftige Stunden zusätzlich ein weicher Schatten nur
+/// nach unten (seitlich eingerückt, Ausläufer bis ≈ 6 pt unter der Karte). Vergangene Stunden nur die Kante.
+struct Kartenschatten: View {
+    let radius: CGFloat
+    /// Künftige Stunde (weicher Schatten) statt vergangener (nur Kante)
+    let voll: Bool
+
+    var body: some View {
+        ZStack {
+            if voll {
+                RoundedRectangle(cornerRadius: radius + 2, style: .continuous)
+                    .fill(Farben.kartenKante.opacity(0.30))
+                    .padding(.horizontal, 5)
+                    .offset(y: 2)
+                    .blur(radius: 3)
+            }
+            // unten kräftiger
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(Farben.kartenKante.opacity(0.25))
+                .padding(.horizontal, 1.5)
+                .padding(.bottom, -1.6)
+                .blur(radius: 0.6)
+            // feine Kante seitlich und unten
+            RoundedRectangle(cornerRadius: radius + 0.8, style: .continuous)
+                .fill(Farben.kartenKante.opacity(voll ? 0.30 : 0.24))
+                .padding(.horizontal, -0.8)
+                .padding(.bottom, -1.4)
+                .blur(radius: 0.3)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

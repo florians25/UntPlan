@@ -8,35 +8,50 @@ namespace UntPlan.Core.Vertretungsplanung;
 public sealed class ZeilenBehalten
 {
     private readonly HashSet<int> _ids = new();
+    private readonly HashSet<int> _mitgenommen = new();
 
     /// <summary>Werden gerade Zeilen trotz Filter gezeigt?</summary>
-    public bool Aktiv => _ids.Count > 0;
+    public bool Aktiv => _ids.Count > 0 || _mitgenommen.Count > 0;
 
+    /// <summary>Die bearbeiteten Zeilen selbst (ein Wechsel innerhalb dieser Zeilen gibt nichts frei).</summary>
     public IReadOnlyCollection<int> Ids => _ids;
 
-    /// <summary>Bearbeitete Zeilen merken (0 = keine Vertretung, wird ignoriert).</summary>
-    public void Merken(IEnumerable<int> ids)
+    /// <summary>
+    /// Weitere Zeilen, die nur mit sichtbar bleiben (z. B. gekoppelte Zeilen, die durch dieselbe Änderung nicht mehr offen
+    /// sind, oder alle beim Bearbeiten sichtbaren Zeilen). Wer in eine davon wechselt, verlässt die bearbeitete Zeile.
+    /// </summary>
+    public IReadOnlyCollection<int> Mitgenommen => _mitgenommen;
+
+    /// <summary>Bearbeitete Zeilen merken (0 = keine Vertretung, wird ignoriert), optional mit weiteren sichtbar bleibenden Zeilen.</summary>
+    public void Merken(IEnumerable<int> ids, IEnumerable<int>? mitgenommen = null)
     {
         foreach (var i in ids)
             if (i != 0) _ids.Add(i);
+        if (mitgenommen != null)
+            foreach (var i in mitgenommen)
+                if (i != 0 && !_ids.Contains(i)) _mitgenommen.Add(i);
     }
 
-    public bool Enthaelt(int id) => _ids.Contains(id);
+    public bool Enthaelt(int id) => _ids.Contains(id) || _mitgenommen.Contains(id);
 
     /// <summary>
-    /// Der Benutzer hat eine Zeile gewählt. Liegt sie unter den behaltenen Zeilen (z. B. weitere Spalte derselben Zeile),
-    /// bleibt alles, wie es ist. Sonst werden die behaltenen Zeilen freigegeben; liefert true, wenn die Liste dafür neu
+    /// Der Benutzer hat eine Zeile gewählt. Liegt sie unter den bearbeiteten Zeilen (z. B. weitere Spalte derselben Zeile),
+    /// bleibt alles, wie es ist. Sonst werden alle behaltenen Zeilen freigegeben; liefert true, wenn die Liste dafür neu
     /// aufgebaut werden muss (behaltene Zeilen verschwinden unter dem Filter).
     /// </summary>
     public bool Zeilenwechsel(int? neueId)
     {
-        if (_ids.Count == 0) return false;
+        if (!Aktiv) return false;
         if (neueId is int i && _ids.Contains(i)) return false;
-        _ids.Clear();
+        Leeren();
         return true;
     }
 
-    public void Leeren() => _ids.Clear();
+    public void Leeren()
+    {
+        _ids.Clear();
+        _mitgenommen.Clear();
+    }
 }
 
 /// <summary>

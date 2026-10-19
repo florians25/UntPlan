@@ -3569,6 +3569,8 @@ html.is-dark .seg button.is-on{ box-shadow:0 1px 2px rgba(0,0,0,.4); }
 }
 .card__line--scroll::-webkit-scrollbar, .card .card__line.card__line--scroll::-webkit-scrollbar{ display:none; }
 .tok__trenn{ font-style:normal; color:inherit; }
+/* Abstand neben einem Label (statt Komma) */
+.tok__luecke{ display:inline-block; width:3px; }
 .card.pad-last .card__line--scroll{ max-width:calc(100% - 16px); }
 
 /* Raum buchen in den Stundendetails */
