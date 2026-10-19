@@ -84,7 +84,7 @@ public sealed record Karte(
 
     /// <summary>
     /// Symbole oben rechts, untereinander in dieser Reihenfolge: verlegungVon (rot, Pfeil), verlegungNach (grün, Pfeil), entfall
-    /// (rotes Dreieck), pruefung (gelber Kreis), plus (grünes „+“), aenderung (grünes Quadrat). Prüfung, Zusatzstunde und Zielstunde
+    /// (rotes Dreieck), pruefung (gelber Kreis), plus (grünes „+“), aenderung (grünes Quadrat, auch bei Veranstaltungen). Prüfung, Zusatzstunde und Zielstunde
     /// einer Verlegung bekommen zusätzlich „aenderung“, wenn sich ein Wert geändert hat (z. B. Prüfung mit Raumänderung).
     /// </summary>
     public List<string> Marker
@@ -99,7 +99,7 @@ public sealed record Karte(
             if (Status == "klausur") { m.Add("pruefung"); if (WertGeaendert) m.Add("aenderung"); }
             else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
             else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert) m.Add("aenderung"); }
-            else if (verlegung is null && Status is "geaendert" or "offen" or "buchung") m.Add("aenderung");
+            else if (verlegung is null && Status is "geaendert" or "offen" or "buchung" or "veranstaltung") m.Add("aenderung");
             return m;
         }
     }

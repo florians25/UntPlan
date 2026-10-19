@@ -149,7 +149,7 @@ public class PlanSymboleTests
         Assert.Contains(alle, k => k.Raeume.Any(w => w.Alt is { Length: > 0 }) && k.Status == "geaendert");
         Assert.DoesNotContain(alle, Verlegungssymbol);
         Assert.DoesNotContain(alle, k => k.Marker.Contains("plus"));
-        Assert.All(alle.Where(k => k.Status == "veranstaltung"), k => Assert.Empty(k.Marker));
+        Assert.All(alle.Where(k => k.Status == "veranstaltung"), k => Assert.Equal(new[] { "aenderung" }, k.Marker));
     }
 
     // ------------------------------------------------------------------ Prüfung im Raumplan wie im Klassenplan
