@@ -7,6 +7,12 @@ import { wochenGitter, tagAuswahl, kartenBinden, karteDialog } from '../plangitt
 import { elementWahl } from '../elementwahl.js';
 
 const TYPEN = { klasse: 'Klasse', lehrer: 'Lehrkraft', raum: 'Raum' };
+
+/**
+ * Zuletzt gewählter Tag (ISO) im Stundenplan: Beim Wechsel des Plans (andere Klasse, Lehrkraft bzw. anderer Raum – über die Auswahl,
+ * die Pfeile oder das Menü) bleiben Woche und Tag (Tagesansicht) erhalten, statt zur aktuellen Woche zu springen.
+ */
+let gemerkterTag = null;
 const LISTE = { klasse: 'klassen', lehrer: 'lehrer', raum: 'raeume' };
 
 /** Langname ohne vorangestelltes Kürzel („7a – Klasse 7a“ → „Klasse 7a“). */
@@ -67,7 +73,7 @@ export function planHilfe() {
       <div class="col-md-6"><b class="d-block mb-1">Karten</b>
         <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-dreieck"></i> Entfall – die Stunde fällt aus, alle Angaben sind durchgestrichen.</div>
         <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-quadrat"></i> Änderung – z. B. Vertretung oder Raumänderung, geänderte Werte als grüne Kürzel.</div>
-        <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-plus"></i> zusätzliche Stunde oder Veranstaltung.</div>
+        <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-plus"></i> zusätzliche Unterrichtsstunde (keine reguläre Stunde zu dieser Zeit).</div>
         <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-kreis"></i> Prüfung (Klausur, Klassenarbeit).</div>
         <div class="d-flex gap-2 align-items-center mb-1"><span class="hilfe-gestrichelt"></span> Lehrkraft abwesend – die Stunde wird von anderen gehalten (gestrichelt, eigenes Kürzel durchgestrichen).</div>
         <div class="d-flex gap-2 align-items-center mb-1"><img src="img/wu/exact/info.svg" alt="" width="16"> Notizen oder Vertretungstext zur Stunde.</div>
@@ -155,7 +161,10 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   }
   if (mein && meinElement) { datumParam = /^\d{4}-/.test(elementParam ?? '') ? elementParam : datumParam; typParam = ich.typ; elementParam = meinElement; }
   const typ = erlaubt.includes(typParam) ? typParam : (ich.typ && erlaubt.includes(ich.typ) ? ich.typ : 'klasse');
-  const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
+  // ohne Datum in der Adresse (Menü „Klasse“, „Lehrkraft“, „Raum“, „Mein Stundenplan“) aus einem anderen Stundenplan heraus: zuletzt gewählter Tag
+  const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam
+    : kontext.vorherigeAnsicht === 'plan' && gemerkterTag ? gemerkterTag : heuteIso();
+  gemerkterTag = datum;
   let element = elementParam;
   if (!element) element = typ === ich.typ && ich.element ? ich.element : el[LISTE[typ]][0]?.kurz;
   const ziel = (t, x, d) => `#/plan/${t}/${encodeURIComponent(x ?? '')}/${d}`;
@@ -194,13 +203,15 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
 
   seite.querySelector('[data-wahl]')?.replaceWith(elementWahl({
     eintraege: liste, wert: element, platzhalter: `${TYPEN[typ]} wählen`, info: x => elementInfo(typ, x),
-    beiWahl: x => kontext.navigieren(ziel(typ, x, datum)),
+    beiWahl: x => kontext.navigieren(ziel(typ, x, gemerkterTag || datum)),
   }));
-  const blaettern = n => { const x = liste[pos + n]; if (x) kontext.navigieren(ziel(typ, x.kurz, datum)); };
+  // anderes Element: gleiche Woche und gleicher Tag (Tagesansicht)
+  const blaettern = n => { const x = liste[pos + n]; if (x) kontext.navigieren(ziel(typ, x.kurz, gemerkterTag || datum)); };
   seite.querySelectorAll('[data-element]').forEach(b => b.onclick = () => blaettern(Number(b.dataset.element)));
   seite.querySelectorAll('[data-woche]').forEach(b => b.onclick = () => {
     const n = Number(b.dataset.woche);
-    zuDatum(n === 0 ? heuteIso() : plusTage(mo, n));
+    // Woche vor bzw. zurück: derselbe Wochentag (Tagesansicht)
+    zuDatum(n === 0 ? heuteIso() : plusTage(gemerkterTag && montag(gemerkterTag) === mo ? gemerkterTag : mo, n));
   });
   kalenderBinden(seite.querySelector('[data-kalender]'), mo, zuDatum);
   // Kopf (Elementwahl, Zeitraum, Heute) und Tageskopf bleiben beim Scrollen oben stehen: Höhe der Leiste für den Tageskopf
@@ -221,6 +232,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   if (!istAktuell()) return;
   const inhalt = seite.querySelector('[data-inhalt]');
   let gewaehlt = Math.max(0, plan.tage.findIndex(t => t.datum === datum));
+  if (plan.tage[gewaehlt]?.datum) gemerkterTag = plan.tage[gewaehlt].datum;
 
   const zeichnen = (menueOffen = false) => {
     inhalt.innerHTML = `
@@ -229,7 +241,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       ${tagAuswahl(plan, gewaehlt)}
       ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: einst.zeiten, aufsichten: einst.aufsichten })}
       ${legendeHtml(aus, einst)}`;
-    inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); zeichnen(); });
+    inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); gemerkterTag = plan.tage[gewaehlt]?.datum ?? gemerkterTag; zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext, typ);
     legendeBinden(inhalt, aus, einst, () => zeichnen(true));
     if (menueOffen) inhalt.querySelector('[data-legende-menue]')?.classList.remove('d-none');

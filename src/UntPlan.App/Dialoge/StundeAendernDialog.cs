@@ -118,6 +118,7 @@ public sealed class StundeAendernDialog : Dialog
         y += 50;
         seite.Controls.Add(new Label { Text = "Text", Left = 8, Top = y, AutoSize = true });
         s.TextTb = new TextBox { Left = 8, Top = y + 18, Width = 370, Text = s.Text };
+        Steuerelemente.Textverlauf.Anbinden(s.TextTb, "Stunde ändern:Text");
         seite.Controls.Add(s.TextTb);
         _tabs.TabPages.Add(seite);
         _seiten.Add(s);

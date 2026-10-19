@@ -31,7 +31,10 @@ public class KartenDarstellungTests
         Assert.Equal("von", K("entfall", "Verlegung").Verlegung);
         Assert.Equal("von", K("abwesend", "Verlegung").Verlegung);          // Raumplan: Stunde findet woanders statt
         Assert.Equal("nach", K("geaendert", "Verlegung").Verlegung);
-        Assert.Equal("nach", K("geaendert", "Statt-Vertretung").Verlegung);
+        // Statt-Vertretung: eine freigesetzte Lehrkraft vertritt im regulären Unterricht – keine Verlegung (kein Pfeil); ebenso Raumverlegung
+        Assert.Null(K("geaendert", "Statt-Vertretung").Verlegung);
+        Assert.Null(K("geaendert", "Raumverlegung").Verlegung);
+        Assert.Equal("nach", K("offen", "verlegt").Verlegung);
         Assert.Equal("nach", K("abwesend", "Verlegung", lehrerAbwesend: true).Verlegung);
         Assert.Null(K("geaendert", "Vertretung").Verlegung);
         Assert.Null(K("entfall", "Entfall").Verlegung);

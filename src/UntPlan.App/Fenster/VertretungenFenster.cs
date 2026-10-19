@@ -1247,6 +1247,29 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 if (wert == "???") wert = "";
                 var r = wert.Length == 0 ? null : D.Raeume.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
                 if (wert.Length > 0 && r is null) { Ui.Info($"Der Raum '{wert}' ist nicht bekannt."); Neuaufbau(); return; }
+                if (r != null && v.Art != VertretungsArt.Pausenaufsicht)
+                {
+                    // gesperrter bzw. belegter Raum: erst nachfragen (wie im Dialog „Raum zuordnen“)
+                    if (Absenzen.RaumGesperrt(D, r.Id, v.Datum, v.Stunde) &&
+                        !Ui.Frage($"Der Raum {r.Kurzname} ist am {Format.Datum(v.Datum)} in der {v.Stunde}. Stunde gesperrt.\n\nTrotzdem zuordnen?", "UntPlan - Raum gesperrt")) { Neuaufbau(); return; }
+                    var belegung = Raumvertretungen.Belegung(D, v.Datum, v.Stunde, r.Id, e => e.Vertretung == v || (e.Vertretung is null && v.UnterrichtId is int vu && e.Unterricht?.Id == vu && e.Regel?.ZeilenIndex == v.ZeilenIndex));
+                    if (belegung.Count > 0)
+                    {
+                        var loesung = RaumZuordnenVertretungDialog.KollisionFragen(this, Raumvertretungen.KollisionsText(D, r, v.Datum, v.Stunde, belegung));
+                        if (loesung is null or RaumKollisionsLoesung.NichtVerplanen) { Neuaufbau(); return; }
+                        if (loesung != RaumKollisionsLoesung.MitKollision)
+                        {
+                            var rid = r.Id;
+                            if (FilterAktiv) _behalten.Merken(id, SichtbareIds());
+                            Aendern("Vertretungsraum", AenderungsArt.Vertretung, d =>
+                            {
+                                var x = d.Vertretungen.First(y => y.Id == v.Id);
+                                foreach (var w in Raumvertretungen.Zuordnen(d, x, rid, false, loesung.Value, AppZustand.Benutzer)) Vertretungen.AlsGeaendertMarkieren(w, AppZustand.Benutzer);
+                            });
+                            return;
+                        }
+                    }
+                }
                 Ausfuehren("Vertretungsraum", id, (d, x) =>
                 {
                     x.VertretungsraumId = r?.Id;
@@ -1474,6 +1497,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = Bearbeitbare();
         if (liste.Count == 0) return;
+        // mehrere Zeilen bzw. manuelle Zeilen (Verlegung, Sondereinsatz – werden dabei gelöscht): erst nachfragen
+        var manuell = liste.Count(v => !Vertretungen.IstAbgeleitet(v));
+        if ((liste.Count > 1 || manuell > 0) && !Ui.Frage($"{liste.Count} Vertretung(en) zurücksetzen (wieder offen)?" +
+                (manuell > 0 ? $"\n\n{manuell} manuell angelegte Zeile(n) (Verlegung, Sondereinsatz …) werden dabei gelöscht." : "") +
+                "\n\nRückgängig mit Strg+Z.", "UntPlan - Frage")) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
         if (FilterAktiv) _behalten.Merken(ids, SichtbareIds());
         Aendern("Vertretung zurückgesetzt", AenderungsArt.Vertretung, d =>
@@ -1665,6 +1693,33 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         warten();
         if (einzeln <= gesammelt.Count) throw new InvalidOperationException($"Zusammenfassen: {gesammelt.Count} Zeilen zusammengefasst, {einzeln} einzeln.");
         return $"Veranstaltung alle: {einzeln} Zeilen → {gesammelt.Count} ({sammel.Count} zusammengefasst, Std. {stunde}, Klassen „{(klassen.Length > 40 ? klassen[..40] + "…" : klassen)}“), Neuaufbau {ms} ms";
+    }
+
+    /// <summary>Selbsttest: Textspalte „Text“ schlägt beim Tippen die zuletzt verwendeten Texte vor (Anfang vor „enthält“).</summary>
+    internal string SelbsttestTextverlauf(Action warten)
+    {
+        _offen.Checked = _kollisionen.Checked = false;
+        warten();
+        var feld = nameof(VertretungenFenster) + ":Text";
+        foreach (var t in new[] { "Raumwechsel beachten", "Arbeitsblatt im Fach", "Aufgaben im Buch S. 34" }) Steuerelemente.Textverlauf.Merken(feld, t);
+        var zeile = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Vertretung { Id: > 0, Fixiert: false, Art: not VertretungsArt.Veranstaltung } x && !_vaSammel.Contains(x.Id))
+                    ?? throw new InvalidOperationException("keine bearbeitbare Zeile");
+        _g.Focus();
+        _g.ClearSelection();
+        zeile.Selected = true;
+        _g.CurrentCell = zeile.Cells["Text"];
+        _g.BeginEdit(true);
+        warten();
+        if (_g.EditingControl is not TextBox tb) throw new InvalidOperationException("kein Texteditor in der Spalte Text");
+        tb.Focus();
+        tb.Text = "a";
+        tb.SelectionStart = 1;
+        warten();
+        var vorschlaege = Steuerelemente.Textverlauf.SichtbareVorschlaege();
+        if (!tb.Focused) return "Textverlauf: Editor ohne Fokus (Vorschlagsliste nicht prüfbar)";
+        if (vorschlaege.Count < 2 || !vorschlaege[0].StartsWith("A", StringComparison.CurrentCultureIgnoreCase))
+            throw new InvalidOperationException($"Textverlauf: Vorschläge „{string.Join(" | ", vorschlaege)}“ statt der zuletzt verwendeten Texte mit „a…“ zuerst.");
+        return $"Textverlauf: {vorschlaege.Count} Vorschläge für „a“: {string.Join(" | ", vorschlaege)}";
     }
 
     internal string SelbsttestListenbreite(Action warten)

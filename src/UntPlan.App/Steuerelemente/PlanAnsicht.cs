@@ -824,7 +824,17 @@ public sealed class PlanAnsicht : Control
             var start = Math.Clamp(hv.Stunde - _ziehVersatz, 1, Stunden);
             var n = Math.Max(1, Math.Min(_ziehLaenge, Stunden - start + 1));
             var r = Bereich(bounds, t, start, start + n - 1);
-            using var p = new Pen(Color.Black, Rahmen) { DashStyle = DashStyle.Dash };
+            // Kollisionsvorschau am Ziel: rot = Kollision, orange = Vorgabe verletzt bzw. kein Raum frei, sonst schwarz gestrichelt
+            var status = _status is { } stt && hv.Stunde >= 1 && hv.Stunde <= Stunden ? stt[t, hv.Stunde - 1] : Feldstatus.Frei;
+            var farbe = status switch
+            {
+                Feldstatus.Kollision => Color.FromArgb(215, 30, 30),
+                Feldstatus.VorgabeVerletzt or Feldstatus.KeinRaum => Color.FromArgb(235, 140, 0),
+                _ => Color.Black,
+            };
+            if (farbe != Color.Black)
+                using (var f = new SolidBrush(Color.FromArgb(60, farbe))) g.FillRectangle(f, r);
+            using var p = new Pen(farbe, farbe == Color.Black ? Rahmen : Rahmen + 1) { DashStyle = DashStyle.Dash };
             g.DrawRectangle(p, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
         }
     }
@@ -1752,7 +1762,9 @@ public sealed class PlanAnsicht : Control
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        var weit = Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4;
+        // Ziehschwelle: erst nach einer deutlichen Bewegung ziehen (kein versehentliches Verlegen beim Klicken mit leichtem Verwackeln)
+        var schwelle = Math.Max(6, Math.Max(SystemInformation.DragSize.Width, SystemInformation.DragSize.Height));
+        var weit = Math.Abs(e.X - _down.X) > schwelle || Math.Abs(e.Y - _down.Y) > schwelle;
         if (e.Button == MouseButtons.Left && weit && Bearbeitbar)
         {
             if (Tagesmodus && _downEintrag is { } de && de.Item2.Findetstatt)
@@ -1765,7 +1777,7 @@ public sealed class PlanAnsicht : Control
                 var feld = TagesFeld(tagIdx, de.Item2.Stunde, de.Item2);
                 var start = feld?.Start ?? de.Item2.Stunde;
                 var laenge = feld?.Laenge ?? 1;
-                DoDragDrop($"tag:{de.Item1:yyyyMMdd}:{start}:{uid}:{zeile}:{laenge}", DragDropEffects.Move);
+                if (DoDragDrop($"tag:{de.Item1:yyyyMMdd}:{start}:{uid}:{zeile}:{laenge}", DragDropEffects.Move) == DragDropEffects.None) ZiehenBeenden();
                 return;
             }
             if (!Tagesmodus && _downStunde != null)
@@ -1776,7 +1788,7 @@ public sealed class PlanAnsicht : Control
                 var idx = D.Stundenplan.IndexOf(p);
                 if (idx < 0) return;
                 var alle = mitgezogen.Select(x => D.Stundenplan.IndexOf(x)).Where(i => i >= 0);
-                DoDragDrop($"plan:{idx};{string.Join(",", alle)}", DragDropEffects.Move);
+                if (DoDragDrop($"plan:{idx};{string.Join(",", alle)}", DragDropEffects.Move) == DragDropEffects.None) ZiehenBeenden();
                 return;
             }
         }
@@ -1950,6 +1962,17 @@ public sealed class PlanAnsicht : Control
 
     protected override void OnDragLeave(EventArgs e) => ZiehenBeenden();
 
+    /// <summary>Escape bzw. die rechte Maustaste bricht das Ziehen ab (nichts wird verlegt).</summary>
+    protected override void OnQueryContinueDrag(QueryContinueDragEventArgs e)
+    {
+        base.OnQueryContinueDrag(e);
+        if (e.EscapePressed || (e.KeyState & 2) != 0)
+        {
+            e.Action = DragAction.Cancel;
+            ZiehenBeenden();
+        }
+    }
+
     /// <summary>Ende des Ziehens: Zielfarben, Pfeilanzeige und Mausposition zurücksetzen.</summary>
     public void ZiehenBeenden()
     {
@@ -1978,8 +2001,11 @@ public sealed class PlanAnsicht : Control
     protected override void OnDragDrop(DragEventArgs e)
     {
         var h = Treffer(PointToClient(new Point(e.X, e.Y)));
+        var quelle = _ziehQuelle;
         ZiehenBeenden();
         if (h is null || e.Data?.GetData(DataFormats.Text) is not string s) return;
+        // auf der eigenen Position abgelegt: nichts tun (auch kein Rückfragedialog)
+        if (quelle is { } q && q.Tag == h.Value.Tag && q.Stunde == h.Value.Stunde) return;
         Abgelegt?.Invoke(s, h.Value.Tag, h.Value.Stunde);
     }
 

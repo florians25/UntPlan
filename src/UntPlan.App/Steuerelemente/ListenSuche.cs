@@ -15,6 +15,57 @@ public static class ListenSuche
         public Func<string, ListenStil?>? Stil;
         public Func<string, string?>? Langname;
         public int Markiert = -1;
+        /// <summary>Wert vor der Eingabe (Index und Text) – Escape, ungültige Eingabe und Klick daneben stellen ihn wieder her.</summary>
+        public int VorherIndex = -1;
+        public string VorherText = "";
+        /// <summary>Seit dem Öffnen wurde getippt (die Liste zeigt Suchtreffer, der Text ist noch nicht übernommen).</summary>
+        public bool Getippt;
+    }
+
+    private static void VorherMerken(ComboBox cb, Zustand z)
+    {
+        z.VorherIndex = cb.SelectedIndex;
+        z.VorherText = cb.SelectedIndex >= 0 ? cb.GetItemText(cb.SelectedItem) ?? "" : cb.Text;
+        z.Getippt = false;
+    }
+
+    /// <summary>Vorherigen Wert wiederherstellen (Escape, Klick neben die Liste, ungültige Eingabe).</summary>
+    private static void Zuruecksetzen(ComboBox cb, Zustand z)
+    {
+        z.Getippt = false;
+        z.Markiert = -1;
+        if (z.VorherIndex >= 0 && z.VorherIndex < cb.Items.Count)
+        {
+            if (cb.SelectedIndex != z.VorherIndex) cb.SelectedIndex = z.VorherIndex;
+            var t = cb.GetItemText(cb.Items[z.VorherIndex]) ?? "";
+            if (cb.Text != t) cb.Text = t;
+        }
+        else if (cb.DropDownStyle != ComboBoxStyle.DropDownList && cb.Text != z.VorherText) cb.Text = z.VorherText;
+        if (cb.DropDownStyle != ComboBoxStyle.DropDownList && cb.Focused) cb.SelectAll();
+    }
+
+    /// <summary>Markierten Treffer übernehmen (Enter, Tab); liefert false, wenn es keinen Treffer gibt.</summary>
+    private static bool Uebernehmen(ComboBox cb, Zustand z)
+    {
+        var i = z.Markiert >= 0 ? z.Markiert : z.Getippt ? Treffer(cb, cb.Text, z) : cb.SelectedIndex;
+        if (i < 0 || i >= cb.Items.Count) return false;
+        z.Getippt = false;
+        z.Markiert = -1;
+        if (cb.DroppedDown) cb.DroppedDown = false;
+        if (cb.SelectedIndex != i) cb.SelectedIndex = i;
+        var t = cb.GetItemText(cb.Items[i]) ?? "";
+        if (cb.Text != t) cb.Text = t;
+        if (cb.DropDownStyle != ComboBoxStyle.DropDownList) cb.SelectAll();
+        VorherMerken(cb, z);
+        return true;
+    }
+
+    /// <summary>Text entspricht genau einem Eintrag der Liste?</summary>
+    private static bool IstEintrag(ComboBox cb, string text)
+    {
+        foreach (var o in cb.Items)
+            if (string.Equals(cb.GetItemText(o), text, StringComparison.CurrentCultureIgnoreCase)) return true;
+        return false;
     }
 
     private static readonly ConditionalWeakTable<ComboBox, Zustand> Zustaende = new();
@@ -45,6 +96,8 @@ public static class ListenSuche
             cb.AutoCompleteMode = AutoCompleteMode.None;
             Ui.ListenSchriftSetzen(cb);
             cb.DrawMode = DrawMode.OwnerDrawFixed;
+            // derselbe Editor wird für jede Zelle wiederverwendet: Ausgangswert dieser Zelle merken
+            VorherMerken(cb, z);
             return;
         }
         z = new Zustand { Stil = stil, Langname = langname };
@@ -58,25 +111,64 @@ public static class ListenSuche
         cb.ItemHeight = Math.Max(cb.ItemHeight, 19);
         cb.IntegralHeight = false;
         cb.DrawItem += Zeichnen;
+        VorherMerken(cb, z);
+        cb.Enter += (_, _) => VorherMerken(cb, z);
+        // Wert ohne Tippen geändert (Programm, Durchschalter, Klick in die Liste): neuer Ausgangswert
+        cb.SelectedIndexChanged += (_, _) => { if (!z.Getippt && !cb.DroppedDown) VorherMerken(cb, z); };
+        cb.SelectionChangeCommitted += (_, _) => { if (cb.SelectedIndex >= 0) { z.Getippt = false; z.Markiert = -1; } };
         cb.DropDown += (_, _) =>
         {
             Breite(cb, z);
             NachUnten(cb);
+            // beim Öffnen den aktuellen Eintrag sichtbar markieren (nicht beim Öffnen durch Tippen – dort markiert die Suche)
+            if (!z.Getippt && cb.SelectedIndex >= 0)
+            {
+                var i = cb.SelectedIndex;
+                cb.BeginInvoke(() => { if (!cb.IsDisposed && cb.DroppedDown && !z.Getippt) ListeMarkieren(cb, i); });
+            }
         };
-        cb.DropDownClosed += (_, _) => z.Markiert = -1;
-        cb.TextUpdate += (_, _) => Suchen(cb, z);
+        cb.DropDownClosed += (_, _) =>
+        {
+            z.Markiert = -1;
+            // Liste ohne Auswahl geschlossen (Klick daneben, Fokuswechsel): getippten Suchtext verwerfen, nichts ändern.
+            // Erst nach dem Schließen prüfen – die Reihenfolge von Schließen und Auswahl ist unter Windows nicht festgelegt.
+            if (!cb.IsHandleCreated) return;
+            cb.BeginInvoke(() =>
+            {
+                if (cb.IsDisposed || cb.DroppedDown) return;
+                if (z.Getippt && !IstEintrag(cb, cb.Text.Trim())) { Zuruecksetzen(cb, z); return; }
+                // ohne Tippen bzw. mit gültigem Eintrag geschlossen: das ist der neue Ausgangswert
+                if (cb.SelectedIndex >= 0 || !z.Getippt) VorherMerken(cb, z);
+            });
+        };
+        cb.TextUpdate += (_, _) => { z.Getippt = true; Suchen(cb, z); };
+        // Tab übernimmt den markierten Treffer (wie Enter), danach geht der Fokus normal weiter
+        cb.PreviewKeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Tab && (cb.DroppedDown || z.Getippt)) Uebernehmen(cb, z);
+        };
         cb.KeyDown += (_, e) =>
         {
-            if (e.KeyCode != Keys.Enter || !cb.DroppedDown) return;
-            var i = z.Markiert >= 0 ? z.Markiert : Treffer(cb, cb.Text, z);
-            if (i >= 0)
+            if (e.KeyCode == Keys.Enter && (cb.DroppedDown || z.Getippt))
             {
-                cb.DroppedDown = false;
-                cb.SelectedIndex = i;
-                cb.SelectAll();
+                if (!Uebernehmen(cb, z)) Zuruecksetzen(cb, z);
+                // in Dialogen nicht zusätzlich den Standardknopf auslösen, wenn nur die Liste bestätigt wurde
+                e.Handled = e.SuppressKeyPress = true;
+            }
+            else if (e.KeyCode == Keys.Escape && (cb.DroppedDown || z.Getippt || cb.SelectedIndex != z.VorherIndex))
+            {
+                if (cb.DroppedDown) cb.DroppedDown = false;
+                Zuruecksetzen(cb, z);
+                e.Handled = e.SuppressKeyPress = true;
             }
         };
     }
+
+    /// <summary>Ist gerade ein getippter, noch nicht übernommener Suchtext in der Liste?</summary>
+    public static bool HatSuchtext(ComboBox cb) => Zustaende.TryGetValue(cb, out var z) && z.Getippt;
+
+    /// <summary>Ausgangswert (Text) vor der laufenden Eingabe.</summary>
+    public static string? VorherText(ComboBox cb) => Zustaende.TryGetValue(cb, out var z) ? z.VorherText : null;
 
     /// <summary>Index des besten Treffers (exakt, Kurzname beginnt, Langname beginnt, Kurzname enthält, Langname enthält).</summary>
     public static int Treffer(ComboBox cb, string text, Func<string, string?>? langname = null)

@@ -600,6 +600,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private void Raum()
     {
         if (_v is null || _raeume.Aktuell is not { } r) return;
+        if (r.Gesperrt && !Ui.Frage($"Der Raum {r.Raum.Kurzname} ist am {Format.Datum(_v.Datum)} in der {_v.Stunde}. Stunde gesperrt.\n\nTrotzdem zuordnen?", "UntPlan - Raum gesperrt")) return;
         var loesung = RaumKollisionsLoesung.MitKollision;
         if (r.Belegung.FirstOrDefault() is { Eintrag: not null } b)
         {
@@ -642,6 +643,27 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     }
 
     /// <summary>Selbsttest: Spalten und Werte wie im Vorbild (drei Stundenplanspalten mit genau einer Vertretungsstunde, drei Nachkommastellen).</summary>
+    /// <summary>
+    /// Selbsttest: Auswahl eines Vorschlags schaltet den verknüpften Lehrerplan auf die vorgeschlagene Lehrkraft (Woche der
+    /// Vertretung). Wirft bei einer Abweichung.
+    /// </summary>
+    internal string SelbsttestPlaeneFolgen()
+    {
+        if (_v is null) return "Vorschlag: keine Vertretung markiert";
+        _reiter.Index = 0;
+        ReiterGewechselt();
+        var zeile = _vorschlag.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Kandidat).Skip(1).FirstOrDefault()
+                    ?? _vorschlag.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Kandidat);
+        if (zeile?.Tag is not Kandidat k) return "Vorschlag: keine Kandidaten";
+        _vorschlag.CurrentCell = zeile.Cells["Name"];
+        _planQuelle = _vorschlag;
+        PlaeneZeigen();
+        var plan = AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().FirstOrDefault(f => f.Typ == ElementTyp.Lehrer)
+                   ?? throw new InvalidOperationException("Kein Lehrerplan geöffnet.");
+        if (plan.ElementId != k.Lehrer.Id) throw new InvalidOperationException($"Lehrerplan zeigt {Ix.KLehrer(plan.ElementId)} statt des gewählten Vorschlags {k.Lehrer.Kurzname}.");
+        return $"Vorschlag {k.Lehrer.Kurzname} gewählt – Lehrerplan folgt (Vertretung {_v.Id}, {Format.Datum(_v.Datum)} {_v.Stunde}. Std.)";
+    }
+
     internal string SelbsttestPruefen()
     {
         if (_v is null) return "Vorschlag: keine Vertretung markiert";

@@ -118,9 +118,12 @@ public sealed class Vertretungsplandienst
                 var von = DateOnly.Parse(t.Von) == d ? t.StundeVon : 1;
                 var bis = DateOnly.Parse(t.Bis) == d ? t.StundeBis : 99;
                 var std = von <= 1 && bis >= 20 ? "ganztägig" : bis >= 20 ? $"ab {von}. Std." : von == bis ? $"{von}. Std." : $"{von}.–{bis}. Std.";
+                // abwesende Lehrkräfte (während der ganzen Veranstaltung) nehmen nicht teil
+                var letzte = s.Paket.Zeitraster.Stunden.Select(z => z.Nr).DefaultIfEmpty(10).Max();
+                var tl = t.Lehrer.Where(l => !_plan.LehrerAbwesend(s, d, l, Math.Max(1, von), Math.Max(Math.Max(1, von), Math.Min(bis, letzte)))).ToList();
                 // alle Klassen bzw. alle Lehrkräfte (Kennzeichen aus UntPlan, ältere Pakete: false): Bezeichnung statt endloser Liste
                 var wer = t.AlleKlassen ? "alle Klassen" : t.Klassen.Count > 0 ? string.Join(", ", t.Klassen)
-                    : t.Lehrer.Count > 0 && kollegium ? (t.AlleLehrer ? "alle Lehrkräfte" : t.Lehrer.Count > 8 ? $"{t.Lehrer.Count} Lehrkräfte" : string.Join(", ", t.Lehrer)) : "";
+                    : tl.Count > 0 && kollegium ? (t.AlleLehrer ? "alle Lehrkräfte" : tl.Count > 8 ? $"{tl.Count} Lehrkräfte" : string.Join(", ", tl)) : "";
                 return $"{t.Titel} ({std}{(wer.Length > 0 ? ", " + wer : "")}{(t.Raeume.Count > 0 ? ", " + string.Join(", ", t.Raeume) : "")})";
             }).ToList();
 
@@ -144,6 +147,10 @@ public sealed class Vertretungsplandienst
             // Vertretung ohne Lehrkraft („+++“): keine neue Lehrkraft, die bisherige steht durchgestrichen
             var ohneLehrer = v.Vertreter is "+" or "+++";
             var neuLehrer = v.Vertreter is "---" || ohneLehrer ? "" : v.Vertreter;
+            // Veranstaltung: abwesende Lehrkräfte nehmen nicht teil
+            if (v.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) && neuLehrer.Length > 0)
+                neuLehrer = string.Join(",", neuLehrer.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Where(l => l == "???" || !_plan.LehrerAbwesend(s, d, l, v.Stunde)));
             // zusätzlicher Unterricht ohne Lehrkraft: „---“
             if (zusatz && neuLehrer.Length == 0 && !ohneLehrer && status != "entfall") neuLehrer = Plandienst.OhneLehrkraftZusatz;
             var lehrerAlt = v.Lehrer.Length > 0 && !Ci.Equals(v.Lehrer, neuLehrer) ? v.Lehrer : null;

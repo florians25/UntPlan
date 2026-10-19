@@ -134,6 +134,11 @@ public sealed record Karte(
     /// und die Karte gilt als geändert.
     /// </summary>
     public List<Wert> Mitklassen { get; init; } = new();
+    /// <summary>
+    /// Nur bei Prüfungen (Status „klausur“): Name der Prüfung (z. B. „Mathe-Arbeit“) ohne die freien Angaben (Prüfungsart, Notenschema,
+    /// Teilnehmende), die in <see cref="Text"/> stehen können – Bezeichnung auf der Karte in jedem Plan (Klassen-, Lehrer-, Raumplan).
+    /// </summary>
+    public string Pruefung { get; init; } = "";
     /// <summary>Prüfung aus UntPlan (Klausur-Id), zu der die Karte gehört: Prüfungszeile bzw. wegen der Prüfung entfallener Unterricht.</summary>
     [System.Text.Json.Serialization.JsonIgnore] public int? Klausur { get; init; }
     /// <summary>
@@ -386,6 +391,32 @@ public sealed class Plandienst
 
     private static bool Enthaelt(IReadOnlyList<string> liste, string kurz) => liste.Any(x => Ci.Equals(x, kurz));
 
+    /// <summary>
+    /// In UntPlanWeb gemeldete, von UntPlan noch nicht übernommene Abwesenheiten von Lehrkräften (Rückmeldungen „absenz“, Status offen) –
+    /// gesetzt vom <see cref="Rueckmeldungsdienst"/>. Gelten wie Absenzen aus UntPlan (siehe <see cref="LehrerAbwesend"/>).
+    /// </summary>
+    public IReadOnlyList<WebAbsenz> WebAbsenzen { get; set; } = Array.Empty<WebAbsenz>();
+
+    /// <summary>Liegt Stunde <paramref name="stunde"/> am Tag d in der Absenz (erster Tag ab StundeVon, letzter bis StundeBis, dazwischen ganztägig)?</summary>
+    private static bool StundeInAbsenz(WebAbsenz a, DateOnly d, int stunde)
+    {
+        if (!DateOnly.TryParse(a.Von, out var v) || !DateOnly.TryParse(a.Bis.Length > 0 ? a.Bis : a.Von, out var b) || d < v || d > b) return false;
+        var ab = d == v ? Math.Max(1, a.StundeVon) : 1;
+        var ende = d == b && a.StundeBis > 0 && a.StundeBis < 20 && a.StundeBis >= a.StundeVon ? a.StundeBis : int.MaxValue;
+        return stunde >= ab && stunde <= ende;
+    }
+
+    /// <summary>
+    /// Ist die Lehrkraft am Tag d in Stunde <paramref name="stunde"/> abwesend (krank bzw. abwesend)? Quellen: Absenzen aus UntPlan (Paket) und in
+    /// UntPlanWeb gemeldete, noch nicht übernommene Abwesenheiten (<see cref="WebAbsenzen"/>).
+    /// </summary>
+    public bool LehrerAbwesend(Stand s, DateOnly d, string lehrer, int stunde) =>
+        lehrer.Length > 0 && s.Paket.Absenzen.Concat(WebAbsenzen).Any(a => a.Art == "lehrer" && Ci.Equals(a.Element, lehrer) && StundeInAbsenz(a, d, stunde));
+
+    /// <summary>Ist die Lehrkraft am Tag d in allen Stunden von <paramref name="von"/> bis <paramref name="bis"/> abwesend?</summary>
+    public bool LehrerAbwesend(Stand s, DateOnly d, string lehrer, int von, int bis) =>
+        Enumerable.Range(von, Math.Max(1, bis - von + 1)).All(st => LehrerAbwesend(s, d, lehrer, st));
+
     public static bool IstBereitschaft(Stand s, string fach) =>
         fach.Equals("BER", StringComparison.OrdinalIgnoreCase) || (s.Faecher.TryGetValue(fach, out var f) && f.Name.Contains("Bereitschaft", StringComparison.OrdinalIgnoreCase));
 
@@ -396,6 +427,11 @@ public sealed class Plandienst
         var einzel = new List<Karte>();
         var vorgemerkt = new List<(Rohstunde R, Karte K)>();
         var roh = Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList();
+        // Veranstaltung: abwesende (kranke) Lehrkräfte nehmen nicht teil – sie verschwinden aus der Veranstaltung (in allen Plänen) und die
+        // Veranstaltung aus ihrem eigenen Plan (siehe betrifft)
+        bool IstVeranstaltung(Rohstunde x) => x.Status == "zusaetzlich" && ArtVon(x).StartsWith("Veranst", StringComparison.OrdinalIgnoreCase);
+        bool Abwesend(string l, int stunde) => LehrerAbwesend(s, d, l, stunde);
+        roh = roh.Select(x => IstVeranstaltung(x) && x.Lehrer.Any(l => Abwesend(l, x.Stunde)) ? x with { Lehrer = x.Lehrer.Where(l => !Abwesend(l, x.Stunde)).ToList() } : x).ToList();
         // Kopplung mit gleichem Fach und gleichem Raum: im Lehrerplan auch die Zeilen der Kolleg*innen (eine gemeinsame Karte)
         static bool GleicherRaum(Rohstunde a, Rohstunde b) => a.Raeume.Count == b.Raeume.Count && a.Raeume.All(x => Enthaelt(b.Raeume, x));
         // Zusatzstunde ohne Unterricht (z. B. Konferenz, Besprechung, Sondereinsatz mehrerer Lehrkräfte – UntPlan legt je Lehrkraft eine
@@ -420,7 +456,8 @@ public sealed class Plandienst
             var betrifft = typ switch
             {
                 Elementtyp.Klasse => Enthaelt(r.Klassen, kurz),
-                Elementtyp.Lehrer => Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz)) || Mitgekoppelt(r),
+                Elementtyp.Lehrer => IstVeranstaltung(r) ? Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz) && !Abwesend(kurz, r.Stunde))
+                    : Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz)) || Mitgekoppelt(r),
                 // Veranstaltung mit Raum: der Raum steht (bei älteren Paketen) nur in der Vertretung
                 Elementtyp.Raum => Enthaelt(r.Raeume, kurz) || (v != null && (RaumListe(v.Raum).Contains(kurz, Ci) || (r.Raeume.Count == 0 && r.Status != "entfall" && RaumListe(v.NeuerRaum).Contains(kurz, Ci)))),
                 _ => false,
@@ -490,6 +527,7 @@ public sealed class Plandienst
             einzel[i] = ziel with { Status = status, Raeume = raeume };
         }
         einzel = PruefungenZusammenfuehren(einzel, loeschungen, typ, kurz, roh);
+        einzel = PruefungenBenennen(s, d, einzel, roh);
         // Raumplan: Stunden, die aus diesem Raum genommen wurden (Raumänderung bzw. Raumbuchung weg, Prüfung in einem anderen Raum),
         // erscheinen hier gar nicht mehr – weder als Entfall noch als „findet woanders statt“
         if (typ == Elementtyp.Raum) einzel.RemoveAll(k => AusRaumGenommen(k, kurz));
@@ -501,7 +539,7 @@ public sealed class Plandienst
                 Lehrer = g.SelectMany(k => k.Lehrer).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
-        einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k))).ToList();
+        einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k, l => Abwesend(l, k.Von)))).ToList();
         return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten)));
     }
 
@@ -522,6 +560,42 @@ public sealed class Plandienst
                 k = k with { Zusaetzlich = false };
             if (k.Verlegung is null && (k.VerlegungVon != null || k.VerlegungNach != null)) k = k with { VerlegungVon = null, VerlegungNach = null };
             return k;
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Prüfungskarten in allen Plänen gleich: Name der Prüfung aus den Terminen (ohne freie Angaben wie Prüfungsart, Notenschema,
+    /// Teilnehmende), und eine Prüfung ohne Unterrichtsstunde darunter (z. B. im Raumplan des Prüfungsraums oder im Plan der Aufsicht)
+    /// bekommt das Fach des Unterrichts, an dessen Stelle sie stattfindet (wenn eindeutig) – wie die Karte im Klassenplan.
+    /// </summary>
+    internal static List<Karte> PruefungenBenennen(Stand s, DateOnly d, List<Karte> einzel, IReadOnlyList<Rohstunde> roh)
+    {
+        if (!einzel.Any(k => k.Status == "klausur")) return einzel;
+        var iso = Iso(d);
+        var termine = s.Paket.Termine.Where(t => t.Art == "klausur" && t.Von == iso).ToList();
+        string Name(Karte k)
+        {
+            var t = (k.Klausur is int kid ? termine.FirstOrDefault(x => x.Id == kid) : null)
+                    ?? termine.Where(x => x.StundeVon <= k.Bis && Math.Max(x.StundeVon, x.StundeBis) >= k.Von && x.Titel.Trim().Length > 0
+                                          && (x.Klassen.Count == 0 || k.Klassen.Any(w => Enthaelt(x.Klassen, w.K)))
+                                          && (k.Text.Trim().Equals(x.Titel.Trim(), StringComparison.OrdinalIgnoreCase) || k.Text.TrimStart().StartsWith(x.Titel.Trim() + " ", StringComparison.OrdinalIgnoreCase)))
+                        .OrderByDescending(x => x.Titel.Length).FirstOrDefault();
+            return t?.Titel.Trim() is { Length: > 0 } n ? n : k.Text.Trim();
+        }
+        return einzel.Select(k =>
+        {
+            if (k.Status != "klausur") return k;
+            if (k.Unterricht is null && k.Fach.Length == 0 && k.Klausur is int id)
+            {
+                var faecher = roh.Where(r => r.Klausur == id && r.Unterricht.HasValue && r.Fach.Length > 0 && r.Stunde >= k.Von && r.Stunde <= k.Bis)
+                    .Select(r => r.Fach).Distinct(Ci).ToList();
+                if (faecher.Count == 1)
+                {
+                    s.Faecher.TryGetValue(faecher[0], out var f);
+                    k = k with { Fach = faecher[0], FachName = f?.Name ?? faecher[0], Farbe = f?.Farbe ?? k.Farbe };
+                }
+            }
+            return k with { Pruefung = Name(k) };
         }).ToList();
     }
 
@@ -870,7 +944,7 @@ public sealed class Plandienst
     }
 
     /// <summary>Veranstaltungskarte um Räume, Lehrkräfte (und Klassen) der zugehörigen Veranstaltung aus den Terminen ergänzen.</summary>
-    private static Karte MitTermin(Stand s, DateOnly d, Karte k)
+    private static Karte MitTermin(Stand s, DateOnly d, Karte k, Func<string, bool> abwesend)
     {
         var t = s.Paket.Termine.FirstOrDefault(x => x.Art != "klausur" && Ci.Equals(x.Titel.Trim(), k.Text.Trim()) &&
                                                     DateOnly.TryParse(x.Von, out var v) && DateOnly.TryParse(x.Bis, out var b) && d >= v && d <= b);
@@ -878,7 +952,8 @@ public sealed class Plandienst
         var raeume = k.Raeume.Concat(t.Raeume.Where(r => !k.Raeume.Any(w => Ci.Equals(w.K, r))).Select(r => new Wert(r))).ToList();
         var klassen = k.Klassen.Count > 0 ? k.Klassen : t.Klassen.Select(x => new Wert(x)).ToList();
         // alle teilnehmenden Lehrkräfte der Veranstaltung (nicht nur die des angezeigten Plans)
-        var lehrer = k.Lehrer.Concat(t.Lehrer.Where(l => !k.Lehrer.Any(w => Ci.Equals(w.K, l))).Select(l => new Wert(l))).ToList();
+        // (ohne abwesende Lehrkräfte – sie nehmen nicht teil)
+        var lehrer = k.Lehrer.Concat(t.Lehrer.Where(l => !abwesend(l) && !k.Lehrer.Any(w => Ci.Equals(w.K, l))).Select(l => new Wert(l))).ToList();
         return k with { Raeume = raeume, Klassen = klassen, Lehrer = lehrer };
     }
 
@@ -1270,7 +1345,11 @@ public sealed class Plandienst
             var von = DateOnly.Parse(t.Von) == d ? Math.Max(1, t.StundeVon) : 1;
             var bis = DateOnly.Parse(t.Bis) == d && t.StundeBis > 0 ? Math.Min(t.StundeBis, letzte) : letzte;
             if (bis < von) bis = von;
-            res.Add(new Ereignis(t.Titel, t.Art, von, bis, von <= 1 && bis >= letzte, t.Klassen, t.Lehrer, t.Raeume));
+            // Lehrkräfte, die während der ganzen Veranstaltung (an diesem Tag) abwesend sind, nehmen nicht teil: nicht in der Liste und im
+            // eigenen Plan keine Veranstaltung (ausgenommen schulweite Veranstaltungen ohne Teilnehmerliste)
+            var lehrer = t.Lehrer.Where(l => !LehrerAbwesend(s, d, l, von, bis)).ToList();
+            if (typ == Elementtyp.Lehrer && !schulweit && Enthaelt(t.Lehrer, kurz) && !Enthaelt(lehrer, kurz)) continue;
+            res.Add(new Ereignis(t.Titel, t.Art, von, bis, von <= 1 && bis >= letzte, t.Klassen, lehrer, t.Raeume));
         }
         return res.OrderBy(e => !e.Ganztaegig).ThenBy(e => e.Von).ToList();
     }

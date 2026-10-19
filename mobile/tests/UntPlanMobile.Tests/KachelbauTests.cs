@@ -734,9 +734,34 @@ public class KachelbauTests
         var ziel = Kachelbau.AusKarte(Karte("geaendert", 5, art: "Verlegung"), "class");
         Assert.Equal("nach", ziel.Verlegung);
         Assert.Null(ziel.Zusatz);
-        Assert.Equal("von", Kachelbau.AusKarte(Karte("entfall", 2, art: "Statt-Vertretung"), "class").Verlegung);
+        // Statt-Vertretung (freigesetzte Lehrkraft vertritt) und Raumverlegung sind keine Verlegungen
+        Assert.Null(Kachelbau.AusKarte(Karte("geaendert", 2, art: "Statt-Vertretung"), "class").Verlegung);
+        Assert.Null(Kachelbau.AusKarte(Karte("geaendert", 2, art: "Raumverlegung"), "class").Verlegung);
+        Assert.Equal("von", Kachelbau.AusKarte(Karte("entfall", 2, art: "Verlegung"), "class").Verlegung);
         // keine Verlegung: Vertretung, Prüfung
         Assert.Null(Kachelbau.AusKarte(Karte("geaendert", 2, art: "Vertretung"), "class").Verlegung);
         Assert.Null(Kachelbau.AusKarte(Karte("klausur", 2, art: "Verlegung Klausur"), "class").Verlegung);
+    }
+
+    [Fact]
+    public void Aktueller_Server_mit_Symbolliste_entscheidet_ueber_Verlegung_und_Zusatzstunde()
+    {
+        // UntPlanWeb liefert marker: kein Pfeil, wenn verlegung fehlt (auch nicht aus der Art), kein „Zusätzl.“ ohne zusaetzlich
+        var statt = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Verlegung") with { Marker = new() { "aenderung" } }, "class");
+        Assert.Null(statt.Verlegung);
+        var einsatz = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Sondereinsatz") with { Marker = new() { "aenderung" } }, "class");
+        Assert.NotEqual(true, einsatz.Zusatz);
+        var echt = Kachelbau.AusKarte(Karte("geaendert", 2, art: "Sondereinsatz") with { Marker = new() { "plus" }, Zusaetzlich = true }, "class");
+        Assert.True(echt.Zusatz);
+        var ziel = Kachelbau.AusKarte(Karte("geaendert", 5, art: "Verlegung") with { Marker = new() { "verlegungNach" }, Verlegung = "nach" }, "class");
+        Assert.Equal("nach", ziel.Verlegung);
+    }
+
+    [Fact]
+    public void Automatischer_Verlegungstext_erscheint_nicht()
+    {
+        Assert.Equal("", Kachelbau.AusKarte(Karte("entfall", 2, text: "Vertretung durch Verlegung", art: "Entfall"), "class").Info);
+        Assert.Equal("", Kachelbau.AusKarte(Karte("entfall", 2, text: "Vorziehung", art: "Entfall"), "class").Info);
+        Assert.Equal("Bitte Hefte mitbringen", Kachelbau.AusKarte(Karte("geaendert", 2, text: "Vertretung durch Verlegung · Bitte Hefte mitbringen", art: "Vertretung"), "class").Info);
     }
 }

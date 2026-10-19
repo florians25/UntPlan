@@ -34,6 +34,9 @@ public static class SuchKombi
             var text = cb.Text.Trim();
             var namen = cb.Items.Cast<object>().Select(o => cb.GetItemText(o) ?? "").ToList();
             var i = text.Length == 0 ? namen.FindIndex(x => x.Length == 0) : ListenSuche.Treffer(cb, text);
+            // ungültige Eingabe: vorherigen Wert der Zelle wiederherstellen statt etwas anderes (z. B. „leer“) zu übernehmen
+            if (i < 0 && ListenSuche.VorherText(cb) is { } vorher) i = namen.FindIndex(x => string.Equals(x, vorher, StringComparison.CurrentCulture));
+            if (i < 0 && g.CurrentCell?.Value?.ToString() is { } alt) i = namen.FindIndex(x => x == alt);
             if (i < 0) i = namen.FindIndex(x => x.Length == 0);
             if (i < 0) i = cb.SelectedIndex;
             if (i < 0) return;

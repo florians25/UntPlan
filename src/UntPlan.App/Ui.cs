@@ -352,7 +352,15 @@ public static class Ui
     {
         if (AuswahlAntwort is { } hook) return hook(text, knoepfe);
         if (FrageAntwort != null) return vorgabe;
-        using var f = new Form
+        var ergebnis = new System.Runtime.CompilerServices.StrongBox<int?>();
+        using var f = AuswahlFenster(text, titel, knoepfe, vorgabe, aktiv, ergebnis);
+        return f.ShowDialog() == DialogResult.OK ? ergebnis.Value : null;
+    }
+
+    /// <summary>Fenster der Knopf-Frage (auch für Bildschirmfotos im Selbsttest); das Ergebnis steht nach dem Schließen in <paramref name="ergebnis"/>.</summary>
+    internal static Form AuswahlFenster(string text, string titel, IReadOnlyList<string> knoepfe, int vorgabe, IReadOnlyList<bool>? aktiv, System.Runtime.CompilerServices.StrongBox<int?> ergebnis)
+    {
+        var f = new Form
         {
             Text = titel, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterParent,
             Font = Schrift, ShowInTaskbar = false, KeyPreview = true,
@@ -370,7 +378,6 @@ public static class Ui
         f.ClientSize = new Size(breite, hoehe + 70);
         f.Controls.Add(bild);
         f.Controls.Add(label);
-        int? ergebnis = null;
         var x = breite - 12;
         // von rechts nach links: Abbrechen ganz rechts, davor die Knöpfe in ihrer Reihenfolge
         foreach (var i in new[] { -1 }.Concat(Enumerable.Range(0, knoepfe.Count).Reverse()))
@@ -382,13 +389,13 @@ public static class Ui
             x -= w;
             var b = new Button { Text = t, Left = x, Top = hoehe + 30, Width = w, Height = 28, Enabled = abbrechen || aktiv is null || i >= aktiv.Count || aktiv[i] };
             var index = i;
-            b.Click += (_, _) => { ergebnis = abbrechen ? null : index; f.DialogResult = abbrechen ? DialogResult.Cancel : DialogResult.OK; };
+            b.Click += (_, _) => { ergebnis.Value = abbrechen ? null : index; f.DialogResult = abbrechen ? DialogResult.Cancel : DialogResult.OK; };
             f.Controls.Add(b);
             if (abbrechen) f.CancelButton = b;
             if (index == vorgabe) { f.AcceptButton = b; f.ActiveControl = b; }
             x -= 8;
         }
-        return f.ShowDialog() == DialogResult.OK ? ergebnis : null;
+        return f;
     }
 
     public static string? Eingabe(string text, string titel, string vorgabe = "")
@@ -396,12 +403,16 @@ public static class Ui
         using var f = new Form { Text = titel, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(380, 120), Font = Schrift, ShowInTaskbar = false };
         var l = new Label { Text = text, Left = 12, Top = 12, Width = 356, AutoSize = false, Height = 20 };
         var t = new TextBox { Text = vorgabe, Left = 12, Top = 36, Width = 356 };
+        // Vorschläge aus den letzten Eingaben zu derselben Frage (z. B. „Text zur Stunde“)
+        Steuerelemente.Textverlauf.Anbinden(t, "Eingabe:" + titel);
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Left = 200, Top = 80, Width = 80 };
         var ab = new Button { Text = "Abbrechen", DialogResult = DialogResult.Cancel, Left = 288, Top = 80, Width = 80 };
         f.Controls.AddRange(new Control[] { l, t, ok, ab });
         f.AcceptButton = ok;
         f.CancelButton = ab;
-        return f.ShowDialog() == DialogResult.OK ? t.Text : null;
+        if (f.ShowDialog() != DialogResult.OK) return null;
+        Steuerelemente.Textverlauf.Merken("Eingabe:" + titel, t.Text);
+        return t.Text;
     }
 
     /// <summary>
@@ -467,6 +478,12 @@ public static class Ui
         control.Top = y;
         if (control is not CheckBox) control.Width = breite;
         container.Controls.Add(control);
+        // Freitextfelder (Text, Bemerkung …): Vorschläge aus den zuletzt verwendeten Eingaben, je Dialog und Feld
+        if (control is TextBox { ReadOnly: false, UseSystemPasswordChar: false, PasswordChar: '\0' } tb && Steuerelemente.Textverlauf.IstTextBeschriftung(text))
+        {
+            var feld = text.Trim().TrimEnd(':');
+            Steuerelemente.Textverlauf.Anbinden(tb, () => (tb.FindForm()?.Text ?? "") + ":" + feld);
+        }
         y += Math.Max(26, control.Height + 6);
         return control;
     }

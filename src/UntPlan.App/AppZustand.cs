@@ -248,6 +248,9 @@ public sealed class Benutzereinstellungen
     /// </summary>
     public bool VeranstaltungenZusammenfassen { get; set; } = true;
 
+    /// <summary>Zuletzt verwendete Eingaben je Feldart (Autovervollständigung in Text-, Bemerkungs- und ähnlichen Feldern).</summary>
+    public Dictionary<string, List<string>> Eingabeverlauf { get; set; } = new();
+
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 
     public static Benutzereinstellungen Laden()

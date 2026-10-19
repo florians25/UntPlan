@@ -164,6 +164,11 @@ public sealed class StundenplanAenderungenDialog : Dialog
     {
         var liste = Gewaehlt();
         if (liste.Count == 0) { Ui.Info("Bitte zuerst Änderungen markieren (z. B. „Buchungen markieren“).", Text); return; }
+        // gebuchte Räume gesperrt bzw. schon belegt: vor dem Übernehmen nachfragen
+        var hinweise = StundenplanAenderungen.RaumHinweise(D, liste);
+        if (hinweise.Count > 0 && !Ui.Frage("Folgende gebuchte Räume sind zu dieser Zeit gesperrt oder bereits belegt:\n\n" +
+                string.Join("\n", hinweise.Take(15)) + (hinweise.Count > 15 ? $"\n… und {hinweise.Count - 15} weitere" : "") +
+                "\n\nTrotzdem übernehmen? (Es entstehen Kollisionen bzw. Buchungen in gesperrten Räumen.)", "UntPlan - Raum gesperrt/belegt")) return;
         List<string> ok = new();
         List<(string Id, string Grund)> nein = new();
         try

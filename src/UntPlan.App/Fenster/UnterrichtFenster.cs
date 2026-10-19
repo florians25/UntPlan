@@ -882,6 +882,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     {
         if (Aktuell() is not { } t || t.U.Zeilen.Count <= 1) return;
         var idx = t.Index;
+        if (!Ui.Frage($"Kopplungszeile {idx + 1} des Unterrichts {t.U.Id} löschen?\n\nLehrkraft, Fach, Klassen und Räume dieser Zeile werden entfernt (rückgängig mit Strg+Z).", "UntPlan - Frage")) return;
         if (Aendern("Kopplungszeile löschen", AenderungsArt.Unterricht, d =>
         {
             var u = d.Unterrichte.First(x => x.Id == t.U.Id);

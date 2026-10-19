@@ -15,10 +15,16 @@ export function statusText(k) {
   return STATUSTEXT[k.status] ?? '';
 }
 
-/** Zusätzliche Stunde (zusätzlicher Unterricht, Sondereinsatz, Verlegung hierher …) – Marker „+“ statt Änderungsquadrat. */
-const istZusatz = k => k.status === 'veranstaltung' || (k.status === 'geaendert' && !istVerlegung(k) && (k.zusaetzlich || /sondereinsatz|zusatz|mitbetreuung/i.test(k.art || '')));
-/** Verlegte Stunde (hierher verlegt bzw. von hier weg verlegt): eigenes Verlegungssymbol statt „+“ bzw. Entfall-Dreieck. */
-const istVerlegung = k => !!k.verlegung || /verleg|statt/i.test(k.art || '') || !!k.nach;
+/**
+ * Zusätzliche Stunde (Marker „+“): nur echte Zusatzstunden laut Server (zusaetzlich – zusätzlicher Unterricht bzw. Sondereinsatz ohne
+ * reguläre Stunde zur selben Zeit), nie wegen der Vertretungsart, nie bei Verlegungen oder Veranstaltungen.
+ */
+const istZusatz = k => k.status === 'geaendert' && !istVerlegung(k) && !!k.zusaetzlich;
+/**
+ * Verlegte Stunde (Ursprung bzw. Ziel einer Verlegung): eigenes Verlegungssymbol. Der Server liefert verlegung ("von"/"nach", sonst null);
+ * nur sehr alte Server ohne Symbolliste (marker): aus der Vertretungsart „Verlegung“ (nie „Statt-Vertretung“ bzw. Raumverlegung).
+ */
+const istVerlegung = k => k.verlegung === 'von' || k.verlegung === 'nach' || (!Array.isArray(k.marker) && /verleg/i.test(k.art || '') && !/raum/i.test(k.art || ''));
 /**
  * Richtung der Verlegung (Server-Feld verlegung): "von" = ursprüngliche Stunde (von hier weg verlegt, Pfeil nach rechts),
  * "nach" = Zielstunde (hierher verlegt, Pfeil nach links). Ältere Server ohne das Feld: Entfall = ursprüngliche Stunde.
@@ -87,8 +93,9 @@ const werteListe = (l, entfall = false, lehrkraft = false) => liste((l || []).ma
 
 function titelText(k) {
   const w = l => (l || []).map(x => x.alt && x.k ? `${x.k} (statt ${x.alt})` : x.k || (x.alt ? `${x.alt} fehlt` : '???')).join(', ');
-  return [k.fachName || k.fach || k.text, w([...(k.klassen || []), ...(k.mitklassen || [])]), w(k.lehrer), k.online ? 'findet online statt' : w(k.raeume),
-    k.status !== 'regulaer' ? statusText(k) : '', k.fach && k.text].filter(Boolean).join(' · ');
+  const text = k.status === 'klausur' && k.pruefung ? k.pruefung : k.text;
+  return [k.fachName || k.fach || text, w([...(k.klassen || []), ...(k.mitklassen || [])]), w(k.lehrer), k.online ? 'findet online statt' : w(k.raeume),
+    k.status !== 'regulaer' ? statusText(k) : '', k.fach && text].filter(Boolean).join(' · ');
 }
 
 /**
@@ -117,9 +124,30 @@ const verlegungsText = (k, richtung) => k.verlegungVon && k.verlegungNach ? `${v
  * Prüfung (gelber Kreis), „+“ (zusätzliche Stunde), Änderung (grünes Quadrat). Prüfung, Zusatzstunde und Zielstunde einer Verlegung
  * zeigen darunter zusätzlich das grüne Quadrat, wenn sich ein Wert geändert hat (wie Karte.Marker im Server).
  */
+/** Ein Symbol oben rechts (Name laut Karte.Marker im Server). */
+function markerSymbol(name, k, typ) {
+  switch (name) {
+    case 'verlegungVon':
+    case 'verlegungNach': {
+      const richtung = name === 'verlegungVon' ? 'von' : 'nach';
+      return `<i class="mk-verlegung ${richtung} ${richtung === 'von' ? 'weg' : ''}" data-hover="${e(verlegungsText(k, richtung))}"${richtung === 'von' ? ' data-hover-art="rot"' : ''} data-hover-mitte data-hover-klein></i>`;
+    }
+    case 'entfall': return '<i class="mk-dreieck"></i>';
+    case 'pruefung': return '<i class="mk-kreis"></i>';
+    case 'plus': return `<i class="mk-plus"${k.zusaetzlich ? ` data-hover="${ZUSATZ_TEXT}" data-hover-art="dunkel"` : ''}></i>`;
+    case 'aenderung': return '<i class="mk-quadrat"></i>';
+    default: return '';
+  }
+}
+
 function marker(k, typ) {
+  // Symbole laut Server (Karte.Marker) – eine Regel für Web und Apps; eigene Ableitung nur für Karten ohne Symbolliste
+  if (Array.isArray(k.marker)) {
+    const m = k.marker.map(x => markerSymbol(x, k, typ)).filter(Boolean);
+    return m.length ? `<span class="mks" aria-hidden="true">${m.join('')}</span>` : '';
+  }
   const m = [];
-  const verlegt = istVerlegung(k) && k.status !== 'klausur';
+  const verlegt = istVerlegung(k) && ['entfall', 'abwesend', 'geaendert', 'offen'].includes(k.status);
   const richtung = verlegt ? verlegungsRichtung(k, typ) : '';
   if (verlegt) m.push(`<i class="mk-verlegung ${richtung} ${richtung === 'von' ? 'weg' : ''}" data-hover="${e(verlegungsText(k, richtung))}"${richtung === 'von' ? ' data-hover-art="rot"' : ''} data-hover-mitte data-hover-klein></i>`);
   else if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
@@ -137,7 +165,9 @@ function marker(k, typ) {
 export function infoText(k) {
   const z = [];
   // Zusatzstunden: der Server liefert nur von Hand eingegebene Texte (Standardtexte entfallen) – diese erscheinen wie sonst auch
-  if (k.text && k.fach && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
+  // Prüfung: nur ihr Name (Prüfungsart, Notenschema und Teilnehmende stehen in den Stundendetails)
+  if (k.status === 'klausur') { if (k.pruefung || k.text) z.push(`Prüfung: ${k.pruefung || k.text}`); }
+  else if (k.text && k.fach && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
   if (k.notizLehrer) z.push(`Notizen für Lehrkräfte: ${k.notizLehrer}`);
   if (k.notizSchueler) z.push(`Notizen für Schüler*innen: ${k.notizSchueler}`);
   return z.join('\n');
@@ -191,8 +221,9 @@ export function karteInhalt(k, typ, kompakt = false) {
   const ohneFach = !k.fach;
   let oben, rest;
   if (ohneFach) {
-    // Veranstaltung, Klausur, Buchung: Bezeichnung, dann Klassen, Lehrkräfte (gekürzt) und Raum
-    oben = e(k.text || k.art || '—');
+    // Veranstaltung, Klausur, Buchung: Bezeichnung (Prüfung: ihr Name ohne freie Angaben – in jedem Plan gleich), dann Klassen,
+    // Lehrkräfte (gekürzt) und Raum
+    oben = e((k.status === 'klausur' && k.pruefung) || k.text || k.art || '—');
     rest = [werteListe(k.klassen, entfall), typ !== 'lehrer' || k.lehrer.length > 1 ? werteListe(k.lehrer, entfall, true) : '', raum];
   } else if (typ === 'klasse') {
     const lehrer = werteListe(k.lehrer, entfall, true);
@@ -466,7 +497,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     const karten = plan.karten.filter(k => k.datum === t.datum && index.has(k.von));
     // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen – als grüne Zusatzkarte
     const ereignisKarten = t.ereignisse.filter(x => index.has(Math.max(x.von, zeiten[0].nr)) && !karten.some(k => k.text === x.titel && k.von <= x.bis && k.bis >= x.von))
-      .map(x => ({ ereignis: true, datum: t.datum, von: Math.max(x.von, zeiten[0].nr), bis: Math.min(x.bis, letzte), status: 'veranstaltung', fach: '', text: x.titel, art: 'Veranstaltung',
+      .map(x => ({ ereignis: true, datum: t.datum, von: Math.max(x.von, zeiten[0].nr), bis: Math.min(x.bis, letzte), status: 'veranstaltung', fach: '', text: x.titel, art: 'Veranstaltung', marker: [],
         klassen: x.klassen.map(k => ({ k })), lehrer: x.lehrer.map(k => ({ k })), raeume: x.raeume.map(k => ({ k })) }));
     const alleKarten = [...karten, ...ereignisKarten];
     const lage = spuren(alleKarten);
@@ -704,7 +735,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
   const jetztIso = heuteIso(), jetzt = jetztMinuten();
   const eintraege = [
     ...ereignisse.filter(x => x.ganztaegig && !karten.some(k => k.text === x.titel)).map(x => ({ zeit: -1, html: `<div class="eintrag"><div class="zeit">ganztägig</div>
-        <div class="std veranstaltung"><span class="mks"><i class="mk-plus"></i></span><div class="z1">${e(x.titel)}</div>
+        <div class="std veranstaltung"><div class="z1">${e(x.titel)}</div>
         ${[gekuerzt(x.klassen.map(k => ({ k })), 4), gekuerzt(x.lehrer.map(k => ({ k })), 3), werte(x.raeume.map(k => ({ k })))].filter(Boolean).map(z => `<div class="z2">${z}</div>`).join('')}
         <div class="z3">Veranstaltung</div></div></div>` })),
     ...karten.map((k, i) => ({ zeit: minuten(k.beginn), html: `<div class="eintrag ${k.datum === jetztIso && minuten(k.beginn) <= jetzt && jetzt < minuten(k.ende) ? 'jetzt' : ''}">

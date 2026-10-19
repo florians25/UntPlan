@@ -94,6 +94,8 @@ public sealed partial class Klassenbuchdienst
         if (!DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte die Hausaufgabe eingeben.");
         if (faellig is DateOnly f && f < d) throw new ArgumentException("Die Hausaufgabe kann nicht vor der Stunde fällig sein.");
+        // gekoppelter Unterricht: unter dem gemeinsamen Unterricht der Kopplung (wie Lehrstoff und Notizen)
+        unterricht = KoppelZiel(b, s, d, stunde, unterricht);
         var karte = StundeZu(b, s, d, stunde, unterricht, einzelstunde);
         var lehrer = b.LehrerKuerzel ?? karte.Lehrer.FirstOrDefault()?.K ?? "";
         var id = (int)_db.Einfuegen("""

@@ -61,6 +61,58 @@ public sealed partial class Klassenbuchdienst
         return res;
     }
 
+    /// <summary>
+    /// Unterrichte, die in dieser Stunde gekoppelt mit <paramref name="unterricht"/> stattfinden (getrennte Unterrichte mit gemeinsamer Lehrkraft,
+    /// gleichem Fach und gleichem Raum, z. B. INF 5a + INF 5b) – der Unterricht selbst zuerst. Klassenbucheinträge (Lehrstoff, Notizen,
+    /// Hausaufgaben) einer gekoppelten Stunde gelten für alle diese Unterrichte, gleich unter welchem sie gespeichert wurden.
+    /// </summary>
+    public List<int> KoppelUnterrichte(Stand s, DateOnly d, int stunde, int unterricht)
+    {
+        var res = new List<int> { unterricht };
+        var roh = _plan.Rohstunden(s, d).Where(r => r.Stunde == stunde && r.Unterricht.HasValue && r.Fach.Length > 0 && r.Status is not ("entfall" or "vorgemerkt")).ToList();
+        var eigene = roh.Where(r => r.Unterricht == unterricht).ToList();
+        if (eigene.Count == 0) return res;
+        static HashSet<string> Personen(Rohstunde x) => new(x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Where(l => l.Length > 0 && !Platzhalter.Contains(l)), Ci);
+        static HashSet<string> Raeume(Rohstunde x) => x.Raeume.SelectMany(Plandienst.RaumListe).ToHashSet(Ci);
+        foreach (var x in roh)
+            if (x.Unterricht is int o && !res.Contains(o)
+                && eigene.Any(e => Ci.Equals(e.Fach, x.Fach) && Personen(e).Overlaps(Personen(x)) && Raeume(e).Count > 0 && Raeume(e).SetEquals(Raeume(x))))
+                res.Add(o);
+        return res;
+    }
+
+    /// <summary>
+    /// Unterricht, unter dem Lehrstoff, Notizen und Hausaufgaben einer gekoppelten Stunde gespeichert werden – damit es je Stunde genau einen
+    /// Eintrag gibt, gleich aus welchem Plan sie bearbeitet wird: der Unterricht, unter dem schon Inhalt steht, sonst der kleinste der
+    /// Kopplung (sofern der Benutzer dort schreiben darf; sonst der eigene).
+    /// </summary>
+    public int KoppelZiel(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht)
+    {
+        var us = KoppelUnterrichte(s, d, stunde, unterricht);
+        if (us.Count == 1) return unterricht;
+        int? vorhanden = Zeitraum(d, d, true).Where(e => us.Contains(e.Unterricht) && e.Stunde == stunde && MitInhalt(e)).Select(e => (int?)e.Unterricht).FirstOrDefault();
+        vorhanden ??= us.Where(u => HausaufgabenMitEinzelstunden(d, stunde, stunde, u).Count > 0).Select(u => (int?)u).FirstOrDefault();
+        var ziel = vorhanden ?? us.Min();
+        return ziel == unterricht || DarfSchreiben(b, s, d, stunde, ziel) ? ziel : unterricht;
+    }
+
+    /// <summary>Eintrag mit Inhalt (Lehrstoff, Hausaufgabe, Notizen, online) – nicht nur die Abwesenheitskontrolle.</summary>
+    public static bool MitInhalt(Klassenbucheintrag e) =>
+        e.Thema.Length > 0 || e.Hausaufgabe.Length > 0 || e.Notiz.Length > 0 || e.NotizSchueler.Length > 0 || e.Online || e.Lehrform.Length > 0 || e.Anmerkung.Length > 0;
+
+    /// <summary>
+    /// Eintrag einer (gekoppelten) Stunde aus mehreren Kandidaten: der mit Inhalt, dann der des eigenen Unterrichts; die Abwesenheitskontrolle
+    /// gilt, wenn sie unter einem der gekoppelten Unterrichte erfasst wurde.
+    /// </summary>
+    public static Klassenbucheintrag? Waehlen(IEnumerable<Klassenbucheintrag> kandidaten, int unterricht)
+    {
+        var liste = kandidaten.ToList();
+        var e = liste.OrderByDescending(MitInhalt).ThenByDescending(x => x.Unterricht == unterricht).FirstOrDefault();
+        if (e is null || e.Anwesenheit != null) return e;
+        var kontrolle = liste.Select(x => x.Anwesenheit).Where(x => x != null).Max(StringComparer.Ordinal);
+        return kontrolle is null ? e : e with { Anwesenheit = kontrolle };
+    }
+
     /// <summary>Alle Unterrichte der (gekoppelten) Karte, der Unterricht der Karte zuerst.</summary>
     internal List<int> UnterrichteDerKarte(Stand s, DateOnly d, Karte k, int unterricht) =>
         new[] { unterricht }.Concat(UnterrichtJeKlasse(s, d, k).Values.OfType<int>()).Distinct().ToList();

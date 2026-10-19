@@ -1,4 +1,6 @@
+using UntPlan.Core.Austausch;
 using UntPlan.Core.Model;
+using UntPlan.Web.Contracts;
 using UntPlan.Core.Vertretungsplanung;
 using Xunit;
 
@@ -167,5 +169,20 @@ public class VerlegungsraumTests
         Tagesverlegung.Ausfuehren(s.D, an, VerlegeModus.Verlegen);
         // bisher: eigener Raum wird mitgenommen, wenn frei
         Assert.Equal(new[] { s.R[4].Id }, s.RaeumeVon(a.Id, 2));
+    }
+
+    [Fact]
+    public void RaumbuchungInGesperrtemOderBelegtemRaumWirdGemeldet()
+    {
+        var s = new Schule();
+        s.U(1, 1, 0, 2);
+        s.D.Abwesenheiten.Add(new Abwesenheit { Id = s.D.NeueId(), Art = AbwesenheitsArt.Raum, ElementId = s.R[5].Id, Von = s.Tag, Bis = s.Tag });
+        StplAenderung Buchung(string id, string raum) => new(new WebRueckmeldung { Id = id, Typ = WebRueckmeldungsTypen.Raumbuchung, Raum = raum, Von = s.Tag.ToString("yyyy-MM-dd"), StundeVon = 2 },
+            s.Tag, 2, 2, "", StplAenderungsArt.Aktivitaet, null, null, "", "", raum, "", "", "", "", null, null);
+        var hinweise = StundenplanAenderungen.RaumHinweise(s.D, new[] { Buchung("B1", "R0"), Buchung("B2", "R5"), Buchung("B3", "R3") });
+        Assert.Equal(2, hinweise.Count);
+        Assert.Contains(hinweise, h => h.StartsWith("R0") && h.Contains("belegt"));
+        Assert.Contains(hinweise, h => h.StartsWith("R5") && h.Contains("gesperrt"));
+        Assert.DoesNotContain(hinweise, h => h.StartsWith("R3"));
     }
 }
