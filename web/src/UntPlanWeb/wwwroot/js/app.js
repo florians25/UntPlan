@@ -45,6 +45,8 @@ let laufendeAnsicht = null;
 /** Geöffnetes Untermenü (Gruppen-ID) oder null für das Hauptmenü. */
 let untermenue = null;
 let aktiverPunkt = null;
+/** Name der zuletzt gezeigten Ansicht (z. B. „plan“) – kontext.vorherigeAnsicht für die nächste Ansicht. */
+let letzteAnsicht = null;
 /** Nächstes Zeichnen bzw. Markieren der Navigation blendet die Menüpunkte gestaffelt ein (nach einem Klick in der Seitenleiste). */
 let navEinblendenAngefordert = false;
 
@@ -734,6 +736,9 @@ async function route() {
   const erlaubt = name === 'profil' || name === 'neuigkeiten' || (name === 'sprechtag' && sitzung.benutzer.rolle === 'schueler') || allePunkte().some(p => p.nav === nav);
   if (!ANSICHTEN[name] || !erlaubt) { name = 'heute'; nav = 'heute'; }
   aktiverPunkt = nav;
+  // vorherige Ansicht (z. B. Stundenplan → anderer Stundenplan: gewählte Woche beibehalten)
+  kontext.vorherigeAnsicht = letzteAnsicht;
+  letzteAnsicht = name;
   // passendes Untermenü öffnen (wie im Original: Stundenplan, Klassenbuch … mit Zurück-Knopf)
   const gruppe = menue().find(g => g.unter?.some(p => p.nav === nav));
   if ((gruppe?.id ?? null) !== untermenue) { untermenue = gruppe?.id ?? null; leisteZeichnen(); }

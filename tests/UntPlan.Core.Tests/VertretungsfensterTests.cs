@@ -213,6 +213,8 @@ public class VertretungsfensterTests
 
         // Vertretung durch Verlegung: die offene Vertretung ist erledigt (Entfall), die Klasse hat dort die verlegte Stunde
         Assert.Equal(VertretungsArt.Entfall, offen.Art);
+        // kein automatischer Text „Vertretung durch Verlegung“
+        Assert.Equal("", offen.Text ?? "");
         Assert.False(offen.Offen);
         var neu = Tagesplan.Berechnen(d, tag);
         Assert.Contains(neu.VonKlasse(krank.KlassenIds[0]), e => e.Stunde == krank.Stunde && e.Findetstatt && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == verlegt.Unterricht.Id

@@ -32,7 +32,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
       ${daten.eintraege.map((x, i) => `<tr data-eintrag="${i}" tabindex="0" role="button" aria-label="${e(`Eintrag vom ${datumKurz(x.datum)}${x.datum.slice(0, 4)}, ${x.art}, Klasse ${x.klasse} – Details öffnen`)}">
         <td class="text-nowrap" data-label="Datum">${e(datumKurz(x.datum))}${x.datum.slice(0, 4)}${stundeText(x) ? `<div class="ke-stunde">${e(stundeText(x))}</div>` : ''}</td>
         <td class="fw-semibold" data-label="Klasse">${e(x.klasse)}</td><td data-label="Schüler*in">${e(x.schueler || 'ganze Klasse')}</td>
-        <td data-label="Art"><span class="u-chip ${FARBE[x.art] ?? ''}">${e(x.art)}</span></td><td class="ke-text" data-label="Text">${e(x.text)}</td><td class="text-body-secondary" data-label="Lehrkraft">${e(x.lehrer)}</td>
+        <td data-label="Art"><span class="u-chip ${FARBE[x.art] ?? ''}">${e(x.art)}</span></td><td data-label="Text"><div class="ke-text" title="${e(x.text)}">${e(x.text)}</div></td><td class="text-body-secondary" data-label="Lehrkraft">${e(x.lehrer)}</td>
         <td class="text-end ke-aktion">${x.loeschen ? `<button class="btn btn-sm btn-link text-danger p-0" data-weg="${x.id}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}<i class="bi bi-chevron-right ke-pfeil" aria-hidden="true"></i></td></tr>`).join('')}
       </tbody></table></div>` : leer('Keine Klassenbucheinträge im Zeitraum.', 'eintraege')}</div>`;
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
@@ -42,7 +42,14 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
   });
   const filterNeu = () => kontext.navigieren(ziel(f('von') || von, f('bis') || bis, sf.wert('klasse'), sf.wert('art')));
   seite.querySelectorAll('[data-von], [data-bis]').forEach(x => x.onchange = filterNeu);
-  const neu = () => kontext.navigieren(location.hash);
+  // nach dem Speichern: liegt der Eintrag außerhalb von Zeitraum bzw. Filter (z. B. Datum in der Zukunft, andere Klasse oder Art),
+  // Zeitraum erweitern bzw. Filter lösen – sonst wäre der gespeicherte Eintrag in der Liste nicht zu sehen
+  const neu = v => {
+    if (!v?.datum) { kontext.navigieren(location.hash); return; }
+    const kl = klasse && klasse.toLowerCase() !== String(v.klasse || '').toLowerCase() ? '' : klasse;
+    const ar = art && art !== v.art ? '' : art;
+    kontext.navigieren(ziel(v.datum < von ? v.datum : von, v.datum > bis ? v.datum : bis, kl, ar));
+  };
   const loeschen = async id => {
     if (!await bestaetigen('Eintrag löschen', 'Den Klassenbucheintrag endgültig löschen?')) return false;
     try { await api(`/api/app/klassenbuch/vermerke/${id}`, { methode: 'DELETE' }); toast('Eintrag gelöscht.'); neu(); return true; } catch (err) { toast(err.message, true); return false; }
@@ -53,7 +60,9 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
     tr.onclick = ev => { if (!ev.target.closest('[data-weg]')) oeffnen(); };
     tr.onkeydown = ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === tr) { ev.preventDefault(); oeffnen(); } };
   });
-  document.querySelector('[data-neu]').onclick = () => eintragDialog(el, { klasse: klasse || el.klassen[0]?.kurz }, daten.arten, neu);
+  // neuer Eintrag: gefilterte Klasse, sonst die eigene Klasse (Klassenleitung), sonst die erste
+  const eigene = el.klassen.find(k => kontext.ich?.element && (k.leitung || []).some(l => l.toLowerCase() === kontext.ich.element.toLowerCase()))?.kurz;
+  document.querySelector('[data-neu]').onclick = () => eintragDialog(el, { klasse: klasse || eigene || el.klassen[0]?.kurz }, daten.arten, neu);
 }
 
 /** Detaildialog eines Klassenbucheintrags: alle Angaben, Aktionen Bearbeiten/Löschen je nach Recht. */
@@ -103,10 +112,10 @@ async function eintragDialog(el, x, arten, fertig) {
     knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
       const f = n => box.querySelector(`[name=${n}]`).value;
       const d = { datum: f('datum'), klasse: bearbeiten ? x.klasse : f('klasse'), schuelerId: f('schueler') ? Number(f('schueler')) : null, art: f('art'), text: f('text') };
-      if (bearbeiten) await senden(`/api/app/klassenbuch/vermerke/${x.id}`, { ...d, zeit: x.zeit || null }, 'PUT');
-      else await senden('/api/app/klassenbuch/vermerke', d);
+      const v = bearbeiten ? await senden(`/api/app/klassenbuch/vermerke/${x.id}`, { ...d, zeit: x.zeit || null }, 'PUT')
+        : await senden('/api/app/klassenbuch/vermerke', d);
       toast('Eintrag gespeichert.');
-      fertig();
+      fertig(v);
     } }],
   });
 }

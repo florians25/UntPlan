@@ -135,7 +135,8 @@ public sealed class Tagesplan
                 Stunde = v.Stunde, Regel = u is null || u.Zeilen.Count == 0 ? null : regel, Vertretung = v, Status = entfallKlasse ? TagesStatus.Entfall : TagesStatus.Zusaetzlich,
                 FachId = v.VertretungsfachId ?? v.FachId, KlassenIds = v.NeueKlassenIds.ToList(),
                 LehrerIds = v.VertreterId is int l ? new List<int> { l } : new(),
-                RaumIds = (v.VertretungsraumId ?? v.RaumId) is int rm ? new List<int> { rm } : new(),
+                // Raum verdrängt (z. B. Raumvertretung für eine verlegte Stunde ohne freien Raum): belegt keinen Raum („???“)
+                RaumIds = v.VertretungsraumId is int vr ? new List<int> { vr } : !v.RaumVerdraengt && v.RaumId is int rm ? new List<int> { rm } : new(),
             };
             e.RaumIds.AddRange(v.ZusatzraumIds);
             tp.Eintraege.Add(e);

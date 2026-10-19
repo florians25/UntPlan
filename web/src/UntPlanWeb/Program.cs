@@ -123,6 +123,8 @@ public class Program
         var app = builder.Build();
         // Sofort-Benachrichtigungen hängen sich an den Paketdienst (Versand nach jedem Paket-Import)
         app.Services.GetRequiredService<Pushdienst>();
+        // in UntPlanWeb gemeldete Abwesenheiten von Lehrkräften gelten sofort in den Plänen (Rückmeldungsdienst gibt sie an den Plandienst)
+        app.Services.GetRequiredService<Rueckmeldungsdienst>();
         app.UseForwardedHeaders();
         app.Use(async (ctx, next) =>
         {

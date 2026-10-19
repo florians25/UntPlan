@@ -774,6 +774,45 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         LeereZelleGewaehlt(spalte, stunde);
     }
 
+    /// <summary>
+    /// Auswahl im Vertretungsvorschlag (Lehrkraft, Raum, Klasse): der verknüpfte Plan dieses Typs zeigt das Element in der Woche
+    /// der Vertretung und markiert deren Stunde. Bei mehreren Lehrerplänen zeigt der zweite den Kandidaten (der erste behält
+    /// die vertretene Lehrkraft), sonst der einzige. Liefert true, wenn ein Plan umgeschaltet wurde.
+    /// </summary>
+    internal static bool VorschlagAnzeigen(ElementTyp typ, int id, Vertretung v)
+    {
+        var plaene = AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().Where(f => !f.IsDisposed && f._typ == typ && f.Verknuepft && !f._reiter.Visible).ToList();
+        var ziel = typ == ElementTyp.Lehrer && plaene.Count > 1 ? plaene[1] : plaene.FirstOrDefault();
+        if (ziel is null) return false;
+        ziel.ElementAmTagZeigen(id, v);
+        return true;
+    }
+
+    private void ElementAmTagZeigen(int id, Vertretung v)
+    {
+        var wocheAnders = _plan.Woche.HasValue && Kalender.Montag(v.Datum) != _plan.Woche;
+        if (wocheAnders)
+        {
+            _laden = true;
+            _datum.Value = v.Datum.ToDateTime(TimeOnly.MinValue);
+            _laden = false;
+        }
+        // nur neu aufbauen, wenn sich wirklich etwas ändert (kein Flackern beim Blättern durch die Vorschlagsliste)
+        if (id != _id)
+        {
+            _id = id;
+            Neuaufbau();
+        }
+        if (wocheAnders) WocheSetzen();
+        if (_plan.DatumVon(0) is DateOnly montag && v.Datum.DayNumber - montag.DayNumber is var tag and >= 0 && _plan.Tagesmodus)
+        {
+            // Stunde der Vertretung markieren: eigener Eintrag (z. B. Raumplan mit der Stunde) oder die leere Zelle beim Kandidaten
+            _plan.TagesAuswaehlen(v.Datum, v.Stunde, v.UnterrichtId ?? 0, v.Id);
+            if (_plan.TagesAuswahl is null) _plan.ZelleMarkieren(tag, v.Stunde);
+        }
+        else _plan.Invalidate();
+    }
+
     /// <summary>Gewählte Vertretung: Klassenplan der Klasse, Lehrerpläne von (Lehrer) und Vertreter, Raumplan – tagesaktuell zur Woche der Vertretung.</summary>
     private void VertretungGewaehlt(Vertretung? v)
     {
@@ -1426,13 +1465,51 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             modus = w == 1 ? VerlegeModus.Verdraengen : VerlegeModus.Kollision;
         }
         if (modus != VerlegeModus.Tauschen && a.LehrerAbwesend && !Ui.Frage("Ein beteiligter Lehrer ist zu diesem Zeitpunkt abwesend. Trotzdem verlegen? (Es entsteht eine offene Vertretung.)")) return;
-        Aendern(modus switch
+        if (RaumWahl(a, modus) is not { } raeume) return;
+        var offenVorher = D.Vertretungen.Where(v => v.RaumOffen).Select(v => v.Id).ToHashSet();
+        var ok = Aendern(modus switch
         {
             VerlegeModus.Tauschen => "Stundentausch",
             VerlegeModus.Verdraengen => "Verlegung mit Verdrängung",
             _ => laenge > 1 ? $"Block verlegen ({laenge} Stunden)" : "Stundenverlegung",
-        }, AenderungsArt.Vertretung, d => Tagesverlegung.Ausfuehren(d, a, modus, AppZustand.Benutzer));
+        }, AenderungsArt.Vertretung, d => Tagesverlegung.Ausfuehren(d, a, modus, AppZustand.Benutzer, raeume));
         Neuaufbau(false);
+        if (ok) RaumOffenHinweis(raeume, offenVorher);
+    }
+
+    /// <summary>
+    /// Räume beim Verlegen: unterscheidet sich der bisherige Raum vom Raum zur neuen Zeit, „Räume mitnehmen oder belassen?“;
+    /// ist der gewählte Raum dann belegt oder gesperrt, wird gefragt, wer eine Raumvertretung erhält bzw. ob eine Kollision
+    /// entstehen soll. null = abgebrochen.
+    /// </summary>
+    private VerlegeRaumWahl? RaumWahl(VerlegeAnalyse a, VerlegeModus modus)
+    {
+        var zeilen = Verlegungsraeume.Zeilen(D, a);
+        var mitnahme = RaumMitnahme.Automatisch;
+        if (Verlegungsraeume.MitnahmeFrageNoetig(zeilen))
+        {
+            var w = Ui.Auswahl(Verlegungsraeume.MitnahmeText(D, a, zeilen), "UntPlan - Räume mitnehmen oder belassen?", new[] { "Mitnehmen", "Belassen" });
+            if (w is null) return null;
+            mitnahme = w == 0 ? RaumMitnahme.Mitnehmen : RaumMitnahme.Belassen;
+        }
+        var konflikte = Verlegungsraeume.Konflikte(D, a, modus, mitnahme, zeilen);
+        if (konflikte.Count == 0) return new VerlegeRaumWahl(mitnahme);
+        var andere = Verlegungsraeume.AndereRaumvertretungMoeglich(konflikte);
+        var antwort = Ui.Auswahl(Verlegungsraeume.KonfliktText(D, a.Ziel, konflikte), konflikte.Any(k => k.Gesperrt) ? "UntPlan - Raum gesperrt" : "UntPlan - Raum belegt",
+            new[] { "Verlegen und Raumvertretung für meinen Unterricht", "Raumvertretung für den anderen Unterricht", "Kollision erzeugen" }, 0, new[] { true, andere, true });
+        if (antwort is null) return null;
+        if (antwort == 2 && konflikte.Any(k => k.Gesperrt) && !Ui.Frage("Der Raum ist gesperrt. Trotzdem dort verplanen?", "UntPlan - Frage")) return null;
+        return new VerlegeRaumWahl(mitnahme, antwort switch { 0 => RaumBelegtLoesung.EigeneRaumvertretung, 1 => RaumBelegtLoesung.AndereRaumvertretung, _ => RaumBelegtLoesung.Kollision });
+    }
+
+    /// <summary>Nach der Verlegung: hat eine Stunde keinen freien Raum bekommen („???“), den Dialog „Raum zuordnen“ anbieten.</summary>
+    private void RaumOffenHinweis(VerlegeRaumWahl raeume, HashSet<int> offenVorher)
+    {
+        if (raeume.Belegt is not (RaumBelegtLoesung.EigeneRaumvertretung or RaumBelegtLoesung.AndereRaumvertretung)) return;
+        var offen = D.Vertretungen.Where(v => v.RaumOffen && !offenVorher.Contains(v.Id)).ToList();
+        if (offen.Count == 0) return;
+        if (Ui.Frage($"Für {offen.Count} Stunde(n) wurde kein freier Raum gefunden (Raum offen „???“).\n\nJetzt einen Raum zuordnen?", "UntPlan - Raumvertretung"))
+            RaumZuordnenVertretungDialog.Zeigen(this, offen[0]);
     }
 
     /// <summary>Stundenplanlupe im tagesaktuellen Plan (Stunde hierher ziehen = Entfall).</summary>

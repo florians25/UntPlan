@@ -417,16 +417,20 @@ public static class AppApi
             var b = Ich(c);
             var s = Paket(p);
             Klassenbucheintrag Sichtbar(Klassenbucheintrag e) => b.Kollegium ? e : e with { Notiz = "", OnlineLink = e.Online ? e.OnlineLink : "" };
+            // gekoppelter Unterricht (getrennte Unterrichte, gemeinsame Stunde): Einträge gelten für alle, gleich unter welchem gespeichert
+            var unterrichte = kb.KoppelUnterrichte(s, datum, stunde, unterricht);
             // die nächstliegende Stunde (Blockbeginn) zuerst – bei Kopplungen mit Einzel- und Doppelstunden nicht den Eintrag einer anderen Lehrkraft
-            var blockEintrag = kb.Zeitraum(datum, datum).Where(e => e.Unterricht == unterricht && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
-                                                                         (b.Kollegium || e.Klassen.Any(b.HatKlasse)))
-                .OrderByDescending(e => e.Stunde).FirstOrDefault() is { } be ? Sichtbar(be) : null;
+            var kandidaten = kb.Zeitraum(datum, datum).Where(e => unterrichte.Contains(e.Unterricht) && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
+                                                                  (b.Kollegium || e.Klassen.Any(b.HatKlasse))).ToList();
+            var blockEintrag = kandidaten.Count == 0 ? null
+                : Klassenbuchdienst.Waehlen(kandidaten.Where(e => e.Stunde == kandidaten.Max(x => x.Stunde)), unterricht) is { } be ? Sichtbar(be) : null;
             var karte = kb.Blockkarte(b, s, datum, stunde, unterricht, lehrer);
             var istBlock = karte != null && karte.Von < karte.Bis;
             int? einzel = istBlock && einzelstunde is int n ? n : null;
             if (einzel is int en && (en < karte!.Von || en > karte.Bis)) throw new ArgumentException("Die Einzelstunde gehört nicht zu diesem Block.");
             var einzelEintraege = istBlock
-                ? kb.EinzelEintraege(datum, unterricht, karte!.Von, karte.Bis, lehrer).Where(e => b.Kollegium || e.Klassen.Any(b.HatKlasse)).OrderBy(e => e.Stunde).Select(Sichtbar).ToList()
+                ? unterrichte.SelectMany(u => kb.EinzelEintraege(datum, u, karte!.Von, karte.Bis, lehrer)).Where(e => b.Kollegium || e.Klassen.Any(b.HatKlasse))
+                    .GroupBy(e => e.Stunde).Select(g => Klassenbuchdienst.Waehlen(g, unterricht)!).OrderBy(e => e.Stunde).Select(Sichtbar).ToList()
                 : new List<Klassenbucheintrag>();
             var eintrag = einzel is int x ? einzelEintraege.FirstOrDefault(e => e.Stunde == x) : blockEintrag;
             var einzelstunden = istBlock
@@ -452,17 +456,21 @@ public static class AppApi
             var eigener = b.LehrerKuerzel ?? d.Lehrer;
             // Einzelstunde nur bei Blöcken (sonst gilt der Eintrag ohnehin genau dieser Stunde)
             int? einzel = d.Einzelstunde is int en && kb.Blockkarte(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Lehrer) is { } bk && bk.Von < bk.Bis ? en : null;
-            var alt = einzel is int x
-                ? kb.EinzelEintraege(d.Datum, d.Unterricht, x, x, eigener).FirstOrDefault()
-                : kb.Zeitraum(d.Datum, d.Datum).Where(e => e.Unterricht == d.Unterricht && d.Stunde >= e.Stunde && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase)))
-                    .OrderByDescending(e => e.Stunde).FirstOrDefault();
+            // gekoppelter Unterricht: ein vorhandener Eintrag (mit Inhalt) eines der gekoppelten Unterrichte wird geändert – nie ein zweiter angelegt
+            var st = Paket(p);
+            var unterrichte = kb.KoppelUnterrichte(st, d.Datum, d.Stunde, d.Unterricht);
+            var kandidaten = einzel is int x
+                ? unterrichte.SelectMany(u => kb.EinzelEintraege(d.Datum, u, x, x, eigener)).ToList()
+                : kb.Zeitraum(d.Datum, d.Datum).Where(e => unterrichte.Contains(e.Unterricht) && d.Stunde >= e.Stunde && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase))).ToList();
+            var alt = kandidaten.Count == 0 ? null : Klassenbuchdienst.Waehlen(kandidaten.Where(e => e.Stunde == kandidaten.Max(y => y.Stunde)), d.Unterricht);
+            var ziel = kb.KoppelZiel(b, st, d.Datum, d.Stunde, d.Unterricht);
             DateOnly? faellig = d.Hausaufgabe is null && d.Faellig is null ? (DateOnly.TryParse(alt?.Faellig, out var f) ? f : null) : d.Faellig;
-            var e = kb.Speichern(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Thema ?? alt?.Thema ?? "", d.Hausaufgabe ?? alt?.Hausaufgabe ?? "", faellig,
+            var e = kb.Speichern(b, st, d.Datum, d.Stunde, ziel, d.Thema ?? alt?.Thema ?? "", d.Hausaufgabe ?? alt?.Hausaufgabe ?? "", faellig,
                 d.Notiz ?? alt?.Notiz ?? "", d.NotizSchueler, d.Lehrform, d.Anmerkung, d.Lehrer, einzel);
             // „Findet online statt“ und Link zum Online-Unterricht (nur wenn mitgeschickt; Link: http/https, "" entfernt ihn)
             if (d.Online is not null || d.OnlineLink is not null)
             {
-                kv.OnlineSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Online ?? alt?.Online ?? false, d.OnlineLink, einzel);
+                kv.OnlineSetzen(b, st, d.Datum, d.Stunde, ziel, d.Online ?? alt?.Online ?? false, d.OnlineLink, einzel);
                 e = kb.Holen(DateOnly.Parse(e.Datum), e.SpeicherStunde, e.Unterricht, e.Lehrer) ?? e;
             }
             return Results.Json(e);
@@ -475,7 +483,9 @@ public static class AppApi
         {
             var b = RechtePruefung.Verlangen(Ich(c), Recht.HausaufgabenSehen);
             var s = Paket(p);
-            var liste = kb.HausaufgabenMitEinzelstunden(datum, stunde, Math.Max(stunde, bis ?? stunde), unterricht, einzelstunde);
+            // gekoppelter Unterricht: Hausaufgaben aller gekoppelten Unterrichte dieser Stunde
+            var liste = kb.KoppelUnterrichte(s, datum, stunde, unterricht).SelectMany(u => kb.HausaufgabenMitEinzelstunden(datum, stunde, Math.Max(stunde, bis ?? stunde), u, einzelstunde))
+                .DistinctBy(h => h.Id).OrderBy(h => h.Id).ToList();
             var kl = (klassen ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
             if (!b.Kollegium) { kl = kl.Where(b.HatKlasse).ToList(); if (!liste.All(h => h.Klassen.Any(b.HatKlasse))) liste = new(); }
             var faellig = string.IsNullOrEmpty(fach) || kl.Count == 0 ? new List<Hausaufgabe>() : kb.FaelligeHausaufgaben(datum, fach, kl, unterricht);

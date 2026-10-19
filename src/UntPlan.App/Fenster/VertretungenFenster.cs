@@ -16,7 +16,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 {
     private static readonly string[] Ansichten = { "Klasse - Standard", "Lehrer - Standard", "Druck - Klasse", "Druck - Lehrer", "Pausenaufsichten" };
 
-    private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
+    private readonly Steuerelemente.BleibendeTabelle _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
     private readonly CheckBox _offen = new() { Text = "Offene Vertretungen", AutoSize = true };
@@ -485,7 +485,21 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         _plaene.Clear();
         _kollisionen2.Clear();
+        // Änderung – egal aus welchem Fenster (Vertretungsvorschlag, Stundenplan, Kopplung …): unter einem Filter verschwindet
+        // keine sichtbare Zeile, solange der Benutzer in der aktuellen Zeile bleibt; erst ein Zeilenwechsel räumt auf
+        if (FilterAktiv) ZeilenFesthalten();
         Neuaufbau();
+    }
+
+    /// <summary>Ids der aktuell angezeigten Vertretungszeilen (zusammengefasste Veranstaltungen mit allen Stunden).</summary>
+    private List<int> SichtbareIds() =>
+        Erweitern(_g.Rows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Vertretung>()).Select(v => v.Id).ToList();
+
+    /// <summary>Aktuelle und markierte Zeile(n) als bearbeitet merken, alle übrigen sichtbaren Zeilen bleiben bis zum Zeilenwechsel mit stehen.</summary>
+    private void ZeilenFesthalten()
+    {
+        if (_g.CurrentRow?.Tag is not Vertretung { Id: not 0 } cur) return;
+        _behalten.Merken(Aktuelle().Select(v => v.Id).Append(cur.Id), SichtbareIds());
     }
 
     private DateOnly Von => DateOnly.FromDateTime(_von.Value);
@@ -1233,6 +1247,29 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 if (wert == "???") wert = "";
                 var r = wert.Length == 0 ? null : D.Raeume.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
                 if (wert.Length > 0 && r is null) { Ui.Info($"Der Raum '{wert}' ist nicht bekannt."); Neuaufbau(); return; }
+                if (r != null && v.Art != VertretungsArt.Pausenaufsicht)
+                {
+                    // gesperrter bzw. belegter Raum: erst nachfragen (wie im Dialog „Raum zuordnen“)
+                    if (Absenzen.RaumGesperrt(D, r.Id, v.Datum, v.Stunde) &&
+                        !Ui.Frage($"Der Raum {r.Kurzname} ist am {Format.Datum(v.Datum)} in der {v.Stunde}. Stunde gesperrt.\n\nTrotzdem zuordnen?", "UntPlan - Raum gesperrt")) { Neuaufbau(); return; }
+                    var belegung = Raumvertretungen.Belegung(D, v.Datum, v.Stunde, r.Id, e => e.Vertretung == v || (e.Vertretung is null && v.UnterrichtId is int vu && e.Unterricht?.Id == vu && e.Regel?.ZeilenIndex == v.ZeilenIndex));
+                    if (belegung.Count > 0)
+                    {
+                        var loesung = RaumZuordnenVertretungDialog.KollisionFragen(this, Raumvertretungen.KollisionsText(D, r, v.Datum, v.Stunde, belegung));
+                        if (loesung is null or RaumKollisionsLoesung.NichtVerplanen) { Neuaufbau(); return; }
+                        if (loesung != RaumKollisionsLoesung.MitKollision)
+                        {
+                            var rid = r.Id;
+                            if (FilterAktiv) _behalten.Merken(id, SichtbareIds());
+                            Aendern("Vertretungsraum", AenderungsArt.Vertretung, d =>
+                            {
+                                var x = d.Vertretungen.First(y => y.Id == v.Id);
+                                foreach (var w in Raumvertretungen.Zuordnen(d, x, rid, false, loesung.Value, AppZustand.Benutzer)) Vertretungen.AlsGeaendertMarkieren(w, AppZustand.Benutzer);
+                            });
+                            return;
+                        }
+                    }
+                }
                 Ausfuehren("Vertretungsraum", id, (d, x) =>
                 {
                     x.VertretungsraumId = r?.Id;
@@ -1310,7 +1347,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var stunden = VeranstaltungsLogik.Stunden(D, va, datum).ToList();
         var probleme = neu.Select(l => stunden.Select(s => Vertretungen.LehrerBelegt(D, Plan(datum), l, s, v)).FirstOrDefault(g => g != null) is { } g ? $"{Ix.KLehrer(l)}: {g}" : null).OfType<string>().ToList();
         if (probleme.Count > 0 && !Ui.Frage($"{string.Join("\n", probleme)}\n\nTrotzdem verplanen?", "UntPlan - Frage")) { Neuaufbau(); return; }
-        if (FilterAktiv) _behalten.Merken(new[] { v.Id });
+        if (FilterAktiv) _behalten.Merken(new[] { v.Id }, SichtbareIds());
         Aendern(zusaetzlich.Count > 0 ? "Lehrkraft zur Veranstaltung hinzugefügt" : "Ersatzlehrkraft für Veranstaltung", AenderungsArt.Vertretung, d =>
         {
             foreach (var e in ersatzWeg) VeranstaltungsLogik.ErsatzSetzen(d, vaId, datum, e.LehrerId, null);
@@ -1359,7 +1396,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private void Ausfuehren(string text, IReadOnlyCollection<int> ids, Action<Schuldatei, Vertretung> aktion)
     {
         if (ids.Count == 0) return;
-        if (FilterAktiv) _behalten.Merken(ids);
+        if (FilterAktiv) _behalten.Merken(ids, SichtbareIds());
         Aendern(ids.Count > 1 ? $"{text} ({ids.Count} Stunden)" : text, AenderungsArt.Vertretung, d =>
         {
             foreach (var v in d.Vertretungen.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList())
@@ -1401,7 +1438,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (seLoeschen)
         {
             var ids2 = liste.Select(v => v.Id).ToHashSet();
-            if (FilterAktiv) _behalten.Merken(ids2);
+            if (FilterAktiv) _behalten.Merken(ids2, SichtbareIds());
             Aendern(ids2.Count > 1 ? $"Entfall ({ids2.Count} Stunden)" : "Entfall", AenderungsArt.Vertretung, d =>
             {
                 foreach (var v in d.Vertretungen.Where(x => ids2.Contains(x.Id) && x.Art is not (VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt)).ToList())
@@ -1460,8 +1497,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = Bearbeitbare();
         if (liste.Count == 0) return;
+        // mehrere Zeilen bzw. manuelle Zeilen (Verlegung, Sondereinsatz – werden dabei gelöscht): erst nachfragen
+        var manuell = liste.Count(v => !Vertretungen.IstAbgeleitet(v));
+        if ((liste.Count > 1 || manuell > 0) && !Ui.Frage($"{liste.Count} Vertretung(en) zurücksetzen (wieder offen)?" +
+                (manuell > 0 ? $"\n\n{manuell} manuell angelegte Zeile(n) (Verlegung, Sondereinsatz …) werden dabei gelöscht." : "") +
+                "\n\nRückgängig mit Strg+Z.", "UntPlan - Frage")) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
-        if (FilterAktiv) _behalten.Merken(ids);
+        if (FilterAktiv) _behalten.Merken(ids, SichtbareIds());
         Aendern("Vertretung zurückgesetzt", AenderungsArt.Vertretung, d =>
         {
             var tage = new HashSet<DateOnly>();
@@ -1651,6 +1693,33 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         warten();
         if (einzeln <= gesammelt.Count) throw new InvalidOperationException($"Zusammenfassen: {gesammelt.Count} Zeilen zusammengefasst, {einzeln} einzeln.");
         return $"Veranstaltung alle: {einzeln} Zeilen → {gesammelt.Count} ({sammel.Count} zusammengefasst, Std. {stunde}, Klassen „{(klassen.Length > 40 ? klassen[..40] + "…" : klassen)}“), Neuaufbau {ms} ms";
+    }
+
+    /// <summary>Selbsttest: Textspalte „Text“ schlägt beim Tippen die zuletzt verwendeten Texte vor (Anfang vor „enthält“).</summary>
+    internal string SelbsttestTextverlauf(Action warten)
+    {
+        _offen.Checked = _kollisionen.Checked = false;
+        warten();
+        var feld = nameof(VertretungenFenster) + ":Text";
+        foreach (var t in new[] { "Raumwechsel beachten", "Arbeitsblatt im Fach", "Aufgaben im Buch S. 34" }) Steuerelemente.Textverlauf.Merken(feld, t);
+        var zeile = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Vertretung { Id: > 0, Fixiert: false, Art: not VertretungsArt.Veranstaltung } x && !_vaSammel.Contains(x.Id))
+                    ?? throw new InvalidOperationException("keine bearbeitbare Zeile");
+        _g.Focus();
+        _g.ClearSelection();
+        zeile.Selected = true;
+        _g.CurrentCell = zeile.Cells["Text"];
+        _g.BeginEdit(true);
+        warten();
+        if (_g.EditingControl is not TextBox tb) throw new InvalidOperationException("kein Texteditor in der Spalte Text");
+        tb.Focus();
+        tb.Text = "a";
+        tb.SelectionStart = 1;
+        warten();
+        var vorschlaege = Steuerelemente.Textverlauf.SichtbareVorschlaege();
+        if (!tb.Focused) return "Textverlauf: Editor ohne Fokus (Vorschlagsliste nicht prüfbar)";
+        if (vorschlaege.Count < 2 || !vorschlaege[0].StartsWith("A", StringComparison.CurrentCultureIgnoreCase))
+            throw new InvalidOperationException($"Textverlauf: Vorschläge „{string.Join(" | ", vorschlaege)}“ statt der zuletzt verwendeten Texte mit „a…“ zuerst.");
+        return $"Textverlauf: {vorschlaege.Count} Vorschläge für „a“: {string.Join(" | ", vorschlaege)}";
     }
 
     internal string SelbsttestListenbreite(Action warten)

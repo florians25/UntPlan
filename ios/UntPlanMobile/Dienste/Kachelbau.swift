@@ -875,11 +875,20 @@ enum Kachelbau {
     }
 
     /// Anzuzeigender Wert: fehlt der neue Wert, obwohl sich etwas geändert hat, steht der alte durchgestrichen da.
+    /// Werte einer Zeile als einzelne Teile (je Wert ein Teil, damit mehrere geänderte Werte je ein eigenes Label bekommen;
+    /// zwischen zwei Labels steht auf der Karte nur ein kleiner Abstand, zwischen zwei schlichten Werten das Komma).
     private static func wertTeile(jetzt: String, vorher: String, geaendert: Bool) -> [Kachelteil] {
-        if geaendert && jetzt.isEmpty && !vorher.isEmpty { return [Kachelteil(text: vorher, stil: .weg)] }
+        if geaendert && jetzt.isEmpty && !vorher.isEmpty { return einzeln(vorher, stil: .weg) }
         let text = jetzt.isEmpty ? vorher : jetzt
         if text.isEmpty { return [] }
-        return [Kachelteil(text: text, stil: geaendert ? .plakette : .text)]
+        return einzeln(text, stil: geaendert ? .plakette : .text)
+    }
+
+    /// „A, B“ → Teile „A“, „B“ (Trenner „, “; die Karte ersetzt ihn neben Labels durch einen kleinen Abstand).
+    private static func einzeln(_ text: String, stil: Kachelteil.Stil) -> [Kachelteil] {
+        let werte = text.components(separatedBy: ", ").filter { !$0.isEmpty }
+        guard werte.count > 1 else { return [Kachelteil(text: text, stil: stil)] }
+        return liste(werte, stil: stil, trenner: ", ")
     }
 
     // MARK: Aufsichten

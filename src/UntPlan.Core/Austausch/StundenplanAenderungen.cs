@@ -86,6 +86,40 @@ public static class StundenplanAenderungen
         return zeilen.Count + inKlausur;
     }
 
+    /// <summary>
+    /// Vor dem Übernehmen von Raumbuchungen bzw. Raumänderungen: gebuchte Räume, die zur Zeit gesperrt (Raumabsenz,
+    /// Veranstaltung) oder schon durch anderen Unterricht belegt sind – je Fund ein Hinweistext für die Rückfrage.
+    /// Bereits übernommene, Stornos und Prüfungen werden nicht geprüft.
+    /// </summary>
+    public static List<string> RaumHinweise(Schuldatei d, IEnumerable<StplAenderung> liste)
+    {
+        var res = new List<string>();
+        var plaene = new Dictionary<DateOnly, Tagesplan>();
+        foreach (var a in liste)
+        {
+            if (a.Erledigt || a.Art == StplAenderungsArt.Pruefung || a.Meldung.Typ != WebRueckmeldungsTypen.Raumbuchung) continue;
+            var namen = a.Meldung.Raeume.Append(a.Meldung.Raum ?? "").Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in namen)
+            {
+                if (Id(d, ElementTyp.Raum, name) is not int r) continue;
+                if (!plaene.TryGetValue(a.Datum, out var tp)) plaene[a.Datum] = tp = Tagesplan.Berechnen(d, a.Datum);
+                for (var s = a.StundeVon; s <= Math.Max(a.StundeVon, a.StundeBis); s++)
+                {
+                    var wo = $"{name}, {a.Datum:dd.MM.yyyy} {s}. Std.";
+                    if (Absenzen.RaumGesperrt(d, r, a.Datum, s)) res.Add($"{wo}: Raum gesperrt");
+                    var belegt = tp.Stunde(s).Where(e => e.Findetstatt && e.RaumIds.Contains(r) && (a.UnterrichtId is null || (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) != a.UnterrichtId)
+                                                         && (string.IsNullOrEmpty(a.Meldung.Id) || e.Vertretung?.WebId != a.Meldung.Id)).ToList();
+                    if (belegt.Count > 0)
+                    {
+                        var ix = new DatenIndex(d);
+                        res.Add($"{wo}: belegt durch " + string.Join("; ", belegt.Select(e => string.Join(", ", new[] { ix.KKlassen(e.KlassenIds), string.Join(",", e.LehrerIds.Select(ix.KLehrer)), ix.KFach(e.FachId) }.Where(x => x.Length > 0))).Distinct()));
+                    }
+                }
+            }
+        }
+        return res.Distinct().ToList();
+    }
+
     /// <summary>Übernommene Buchung ohne gespeicherte Web-Kennung über ihre Daten wiederfinden (nur eindeutig beschriebene Buchungen).</summary>
     private static List<Vertretung> BuchungSuchen(Schuldatei d, WebRueckmeldung m)
     {
@@ -118,8 +152,16 @@ public static class StundenplanAenderungen
     public static bool IstRaumaenderungsHinweis(string? text) =>
         !string.IsNullOrWhiteSpace(text) && System.Text.RegularExpressions.Regex.IsMatch(text.Trim(), @"^\([^()]*\)\s*Raumänderung$");
 
-    /// <summary>Vertretungstext für den Export: ohne den automatischen Raumänderungs-Hinweis.</summary>
-    public static string ExportText(string? text) => IstRaumaenderungsHinweis(text) ? "" : text ?? "";
+    /// <summary>
+    /// Automatische Standardtexte älterer Versionen („Vertretung durch Verlegung“ beim Füllen einer Lücke, „Vorziehung“): werden
+    /// nicht mehr gesetzt und beim Export weggelassen. Nur genau diese Texte – eigene Texte bleiben.
+    /// </summary>
+    public static bool IstStandardtext(string? text) =>
+        !string.IsNullOrWhiteSpace(text) && text.Trim() is var t &&
+        (t.Equals("Vertretung durch Verlegung", StringComparison.OrdinalIgnoreCase) || t.Equals("Vorziehung", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Vertretungstext für den Export: ohne den automatischen Raumänderungs-Hinweis und ohne automatische Standardtexte.</summary>
+    public static string ExportText(string? text) => IstRaumaenderungsHinweis(text) || IstStandardtext(text) ? "" : text ?? "";
 
     /// <summary>
     /// Doppelt bzw. mehrfach vorhandene Prüfungen (gleicher Tag, gleiche Stunden, gleiche Klassen, gleicher Name – z. B. durch

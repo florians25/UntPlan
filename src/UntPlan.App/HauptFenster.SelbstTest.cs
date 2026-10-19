@@ -611,6 +611,60 @@ public sealed partial class HauptFenster
             f.SelbsttestReiter(2);
             f.SelbsttestAufklappen(true, true);
         }, -1);
+        Schritt("18c_Vorschlag_Plaene_folgen", () =>
+        {
+            // Auswahl im Vertretungsvorschlag: der verknüpfte Lehrerplan zeigt die gewählte Lehrkraft in der Woche der Vertretung
+            AppZustand.VertretungWaehlen(OffeneVertretung());
+            var sp = StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false);
+            var f = FensterOeffnen("vorschlag") as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+            LayoutMdi(MdiLayout.TileVertical);
+            Warten(300);
+            log.Add("INFO  " + f.SelbsttestPlaeneFolgen());
+        }, -1);
+        Schritt("18d_Verlegung_Raeume_Frage", () =>
+        {
+            // Verlegung mit anderem Raum am Ziel: „Räume mitnehmen oder belassen?“ bzw. belegter Raum (Knopf-Fragen)
+            var dd = AppZustand.D;
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            Core.Vertretungsplanung.VerlegeAnalyse? gefunden = null;
+            List<Core.Vertretungsplanung.VerlegeRaumZeile>? zeilen = null;
+            foreach (var e in tp.Eintraege.Where(e => e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht is { Zeilen.Count: 1 } && e.RaumIds.Count > 0))
+            {
+                foreach (var ziel in Enumerable.Range(1, dd.Zeitraster.StundenProTag).Where(s => s != e.Stunde))
+                {
+                    var a = Core.Vertretungsplanung.Tagesverlegung.Analysieren(dd, tag, e.Stunde, e.Unterricht!.Id, null, 1, tag, ziel);
+                    if (a.Schritte.Count == 0 || a.Kollision) continue;
+                    var z = Core.Vertretungsplanung.Verlegungsraeume.Zeilen(dd, a);
+                    if (!Core.Vertretungsplanung.Verlegungsraeume.MitnahmeFrageNoetig(z)) continue;
+                    (gefunden, zeilen) = (a, z);
+                    break;
+                }
+                if (gefunden != null) break;
+            }
+            if (gefunden is null || zeilen is null) { log.Add("INFO  Verlegung: keine Stunde mit anderem Raum am Ziel gefunden"); return; }
+            var konflikte = Core.Vertretungsplanung.Verlegungsraeume.Konflikte(dd, gefunden, Core.Vertretungsplanung.VerlegeModus.Verlegen, Core.Vertretungsplanung.RaumMitnahme.Belassen, zeilen);
+            var text = Core.Vertretungsplanung.Verlegungsraeume.MitnahmeText(dd, gefunden, zeilen);
+            var fenster = Ui.AuswahlFenster(text, "UntPlan - Räume mitnehmen oder belassen?", new[] { "Mitnehmen", "Belassen" }, 0, null, new System.Runtime.CompilerServices.StrongBox<int?>());
+            fenster.StartPosition = FormStartPosition.CenterScreen;
+            fenster.Show(this);
+            if (konflikte.Count > 0)
+            {
+                var k = Ui.AuswahlFenster(Core.Vertretungsplanung.Verlegungsraeume.KonfliktText(dd, gefunden.Ziel, konflikte), "UntPlan - Raum belegt",
+                    new[] { "Verlegen und Raumvertretung für meinen Unterricht", "Raumvertretung für den anderen Unterricht", "Kollision erzeugen" }, 0,
+                    new[] { true, Core.Vertretungsplanung.Verlegungsraeume.AndereRaumvertretungMoeglich(konflikte), true }, new System.Runtime.CompilerServices.StrongBox<int?>());
+                k.StartPosition = FormStartPosition.Manual;
+                k.Location = new Point(fenster.Left + 40, fenster.Bottom + 10);
+                k.Show(this);
+            }
+            log.Add($"INFO  Verlegung U{gefunden.UnterrichtId} {gefunden.VonStunde}. → {gefunden.ZielStunde}. Std.: Raumfrage, {konflikte.Count} Belegung(en) bei „Belassen“");
+        }, -1);
+        Schritt("18e_Textverlauf_Vertretungstext", () =>
+        {
+            // Freitext „Text“: Vorschläge aus den zuletzt verwendeten Texten
+            var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            log.Add("INFO  " + f.SelbsttestTextverlauf(() => Warten(300)));
+        }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
         Schritt("27c_Leere_Zelle_Synchronisation_tagesaktuell", () => LeereZellePruefen(true), -1);

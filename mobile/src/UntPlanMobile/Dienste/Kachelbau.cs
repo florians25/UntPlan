@@ -35,6 +35,16 @@ public static class Kachelbau
         new(@"^\s*(\(?\s*wegen\s+sondereins(a|ä)tz(e)?\s*\)?|sondereins(a|ä)tz(e)?|vertretung\s+durch\s+verlegung|vorziehung|vertr\.\s*o\.\s*lehrkr\.?|aus\s+vertretung\b.*|zusatzunterricht|zus(ä|ae)tzl(\.|iche)\s*unterrichtsstunde)\s*\.?\s*$",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
+    /// <summary>
+    /// Automatische Standardtexte einer Verlegung („Vertretung durch Verlegung“, „Vorziehung“) erscheinen nirgends (Kachel, Details) –
+    /// auch nicht von älteren UntPlanWeb-Servern, die sie noch mitliefern. Von Hand eingegebene Texte bleiben.
+    /// </summary>
+    public static string OhneVerlegungstext(string? text) =>
+        string.Join(" · ", (text ?? "").Split(" · ").Where(t => !VerlegungsStandardtext.IsMatch(t)));
+
+    private static readonly System.Text.RegularExpressions.Regex VerlegungsStandardtext =
+        new(@"^\s*(vertretung\s+durch\s+verlegung(\s+erzeugen)?|vorziehung)\s*\.?\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     /// <summary>Standardtext einer Zusatzstunde (leer, einer der festen Texte oder gleich der Vertretungsart)?</summary>
     public static bool IstZusatzStandardtext(string? text, string? art) =>
         string.IsNullOrWhiteSpace(text) || ZusatzStandardtext.IsMatch(text) || Ci.Equals(text.Trim(), (art ?? "").Trim());
@@ -74,13 +84,18 @@ public static class Kachelbau
         && !(k.Raeume.Any(w => w.K.Length == 0 && !string.IsNullOrEmpty(w.Alt)) && k.Raeume.Any(w => w.K.Length > 0 && w.K != "???"));
 
     /// <summary>Zusatzstunde: siehe <see cref="IstZusatzstunde"/>. Klassenabwesenheit: siehe <see cref="IstKlassenabwesenheit"/>.</summary>
+    /// <remarks>
+    /// Aktuelle UntPlanWeb-Server liefern die Symbolliste (marker) und entscheiden selbst, was eine echte Zusatzstunde ist (zusaetzlich: kein
+    /// regulärer Unterricht zur selben Zeit, keine Verlegung, keine Veranstaltung) – dann gilt nur deren Kennzeichen. Die Ableitung aus der
+    /// Vertretungsart gilt nur für ältere Server ohne Symbolliste.
+    /// </remarks>
     public static bool IstZusatzstunde(PlanKarte k) =>
-        k.Zusaetzlich || (k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && Verlegung(k) is null
+        k.Zusaetzlich || (k.Marker is null && k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && Verlegung(k) is null
                           && (ZusatzArt.IsMatch(k.Art ?? "") || k.Unterricht is null));
 
     /// <summary>Vertretungsart einer Verlegung (Verlegung, Wegverlegung, Statt-Vertretung).</summary>
     private static readonly System.Text.RegularExpressions.Regex VerlegungsArt =
-        new("verleg|statt", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        new("^(?!.*raum).*verleg", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Verlegung: "von" = ursprüngliche Stunde (von hier weg verlegt), "nach" = Zielstunde (hierher verlegt), sonst null.
@@ -89,6 +104,8 @@ public static class Kachelbau
     public static string? Verlegung(PlanKarte k)
     {
         if (k.Verlegung is "von" or "nach") return k.Verlegung;
+        // aktuelle Server (mit Symbolliste) liefern verlegung nur an Ursprung und Ziel einer echten Verlegung – sonst null
+        if (k.Marker is not null) return null;
         if (k.Zusaetzlich || !VerlegungsArt.IsMatch(k.Art ?? "") || k.Status is "klausur" or "regulaer" or "bereitschaft" or "buchung") return null;
         return k.Status == "entfall" || (k.Status == "abwesend" && !k.LehrerAbwesend) ? "von" : "nach";
     }
@@ -377,7 +394,7 @@ public static class Kachelbau
             FachAlt = k.FachAlt ?? "",
             FachLang = string.IsNullOrEmpty(k.FachName) ? null : k.FachName,
             Farbe = string.IsNullOrWhiteSpace(k.Farbe) ? null : k.Farbe,
-            Info = k.Text,
+            Info = OhneVerlegungstext(k.Text),
             Typ = k.Art,
             Eintrag = k.Unterricht,
             Unterricht = k.Unterricht,

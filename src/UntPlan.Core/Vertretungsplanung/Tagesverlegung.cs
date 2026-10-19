@@ -71,15 +71,13 @@ public static class Tagesverlegung
         ziel.Stunde(stunde).Where(e => IstLuecke(e) && e.Vertretung is { } v && v.UnterrichtId != unterrichtId && e.KlassenIds.Count > 0 && e.KlassenIds.All(klassen.Contains))
             .Select(e => e.Vertretung!).Distinct().ToList();
 
-    /// <summary>Die verlegte Stunde füllt Lücken kranker Lehrkräfte: deren offene Vertretungen werden zum Entfall („Vertretung durch Verlegung“).</summary>
+    /// <summary>Die verlegte Stunde füllt Lücken kranker Lehrkräfte: deren offene Vertretungen werden zum Entfall (ohne automatischen Text).</summary>
     private static void LueckenFuellen(Schuldatei d, DateOnly ziel, int stunde, int unterrichtId, IReadOnlyCollection<int> klassen, string benutzer)
     {
         var tp = Tagesplan.Berechnen(d, ziel);
+        // kein automatischer Vertretungstext (der Entfall mit der Verlegung spricht für sich)
         foreach (var v in GefuellteLuecken(tp, stunde, unterrichtId, klassen))
-        {
             Vertretungen.EntfallUmschalten(d, v, benutzer);
-            if (string.IsNullOrWhiteSpace(v.Text)) v.Text = "Vertretung durch Verlegung";
-        }
     }
 
     /// <summary>
@@ -181,10 +179,21 @@ public static class Tagesverlegung
     private static string UntText(DatenIndex ix, TagesEintrag h) =>
         $"Unt. {h.Unterricht?.Id.ToString() ?? "V" + h.Vertretung?.Id}: {string.Join(",", h.LehrerIds.Select(ix.KLehrer))}{(h.LehrerIds.Count > 0 ? ", " : "")}{ix.KKlassen(h.KlassenIds)},";
 
-    /// <summary>Verlegung ausführen.</summary>
-    public static void Ausfuehren(Schuldatei d, VerlegeAnalyse a, VerlegeModus modus, string benutzer = "")
+    /// <summary>
+    /// Verlegung ausführen. Mit <paramref name="raeume"/> werden die Räume danach laut Antwort auf „Räume mitnehmen oder
+    /// belassen?“ bzw. die Belegungsfrage gesetzt (siehe <see cref="Verlegungsraeume"/>); ohne bleibt die bisherige Raumwahl.
+    /// </summary>
+    public static void Ausfuehren(Schuldatei d, VerlegeAnalyse a, VerlegeModus modus, string benutzer = "", VerlegeRaumWahl? raeume = null)
     {
         if (a.Schritte.Count == 0) return;
+        var raumZeilen = raeume is null ? null : Verlegungsraeume.Zeilen(d, a);
+        var partnerZeilen = raeume is null || modus != VerlegeModus.Tauschen ? new List<VerlegeRaumZeile>() : Verlegungsraeume.PartnerZeilen(d, a, raumZeilen!);
+        AusfuehrenOhneRaeume(d, a, modus, benutzer);
+        if (raeume != null) Verlegungsraeume.Anwenden(d, a, modus, raeume, raumZeilen!, partnerZeilen, benutzer);
+    }
+
+    private static void AusfuehrenOhneRaeume(Schuldatei d, VerlegeAnalyse a, VerlegeModus modus, string benutzer)
+    {
         if (modus == VerlegeModus.Tauschen)
         {
             if (a.TauschUnterricht is not int b) throw new InvalidOperationException("Ein Tausch ist an dieser Position nicht möglich.");

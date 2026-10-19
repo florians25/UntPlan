@@ -200,7 +200,8 @@
 .ke-tabelle .ke-aktion { white-space: nowrap; }
 .ke-tabelle .ke-pfeil { margin-left: 10px; color: #b7c0c7; font-size: .8rem; transition: color .12s, transform .12s; }
 .ke-tabelle tbody tr:hover .ke-pfeil { color: var(--u-akzent); transform: translateX(2px); }
-@media (max-width: 767.98px) { table.u-karten-tabelle.ke-tabelle .ke-text { display: flex; max-width: none; } .ke-tabelle .ke-pfeil { margin-left: 8px; }
+/* Text auf zwei Zeilen gekürzt: im inneren Block – die Zelle selbst bleibt eine Tabellenzelle (sonst verrutschen Linien und Höhe) */
+@media (max-width: 767.98px) { table.u-karten-tabelle.ke-tabelle .ke-text { max-width: none; } .ke-tabelle .ke-pfeil { margin-left: 8px; }
   table.u-karten-tabelle.ke-tabelle > tbody > tr { padding-right: 72px; } }
 .ke-detail .ke-kopf { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .ke-detail .ke-kopf-klasse { font-size: .85rem; color: #67747e; font-weight: 500; }

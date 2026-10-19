@@ -126,7 +126,9 @@ export function karteDialog(karte, kontext = {}) {
   // Prüfung auch in Vertretungs- und Zusatzstunden (ohne eigenen Unterricht), nur nicht in entfallenen Stunden oder Veranstaltungen
   const darfPruefung = () => kollegium && kuerzel(k.klassen).length && k.datum >= heuteIso() && !['entfall', 'abwesend', 'veranstaltung', 'vorgemerkt'].includes(k.status);
   const darfRaum = () => darfPruefung() && k.unterricht && (daten?.darf || ich.admin);
-  const klassenListe = () => kuerzel(k.klassen);
+  // gekoppelter Unterricht: auch die anwesenden Mitklassen (z. B. INF13 auf der Karte von INF12) – Klassenbucheinträge, Klassendienste,
+  // fällige Hausaufgaben und die Klassenauswahl gelten für alle Klassen der Kopplung
+  const klassenListe = () => [...new Set([...kuerzel(k.klassen), ...kuerzel((k.mitklassen || []).filter(w => w.k))])];
   // gekoppelte Karten mit unterschiedlichen Fächern teilen sich den Unterricht: Klassenbuch der Lehrkraft dieser Karte
   /** Block mit mehreren Stunden (Auswahl „Ganzer Block“ / Einzelstunde oben rechts). */
   const istBlock = () => !!k.unterricht && k.bis > k.von && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
@@ -442,7 +444,7 @@ export function karteDialog(karte, kontext = {}) {
     const plus = kollegium ? `<button type="button" class="sd-plus" data-vermerk-neu title="Klassenbucheintrag erfassen" aria-label="Klassenbucheintrag erfassen">${PLUS_SYM}</button>` : '';
     const kurz = (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t;
     const tabelle = v.length ? `<div class="table-responsive"><table class="alt-liste kb-eintraege"><tbody>${v.map(x => `<tr title="${e(x.text)}">
-        <td>${e(x.schuelerId ? schuelerName(x.schuelerId) || '–' : 'Klasse ' + x.klasse)}</td><td>${datumDe(x.datum)}</td><td>${e((x.erstellt || '').slice(11, 16))}</td>
+        <td>${e(x.schuelerId ? schuelerName(x.schuelerId) || '–' : 'Klasse ' + x.klasse)}</td><td>${datumDe(x.datum)}</td><td>${e(x.zeit || (x.erstellt || '').slice(11, 16))}</td>
         <td>${e((x.art || '').slice(0, 3))}</td><td class="text">${e(kurz(x.text, 30))}</td><td>${e(x.lehrer)}</td></tr>`).join('')}</tbody></table></div>`
       : '<p class="sd-text small">Keine Klassenbucheinträge vorhanden</p>';
     return abschnitt(maskeIcon('class_register_entries.svg'), 'Klassenbucheinträge', v.length, plus, tabelle);

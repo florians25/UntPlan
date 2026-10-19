@@ -140,9 +140,15 @@ public sealed partial class Klassenbuchdienst
                 Db.P("@d", d), Db.P("@u", unterricht), Db.P("@v", -von), Db.P("@b", -bis))
             .Where(e => lehrer is null || Ci.Equals(e.Lehrer, lehrer)).ToList();
 
-    /// <summary>Einträge einer Klasse (neueste zuerst).</summary>
+    /// <summary>
+    /// Einträge einer Klasse (neueste zuerst). Gekoppelter Unterricht (getrennte Unterrichte, gemeinsame Stunde – Einträge mit allen Klassen
+    /// der Kopplung, die Abwesenheitskontrolle je Unterricht): je Stunde, Fach und Lehrkraft nur ein Eintrag (der mit Inhalt).
+    /// </summary>
     public List<Klassenbucheintrag> Klasse(string klasse, DateOnly von, DateOnly bis) =>
-        Zeitraum(von, bis, true).Where(e => e.Klassen.Contains(klasse, StringComparer.OrdinalIgnoreCase)).OrderByDescending(e => e.Datum).ThenByDescending(e => e.Stunde).ToList();
+        Zeitraum(von, bis, true).Where(e => e.Klassen.Contains(klasse, StringComparer.OrdinalIgnoreCase))
+            .GroupBy(e => (e.Datum, e.Stunde, e.Einzelstunde, Fach: e.Fach.ToLowerInvariant(), Lehrer: e.Lehrer.ToLowerInvariant()))
+            .Select(g => g.Count() == 1 ? g.First() : Waehlen(g, g.First().Unterricht)!)
+            .OrderByDescending(e => e.Datum).ThenByDescending(e => e.Stunde).ToList();
 
     /// <summary>Offene Hausaufgaben einer Klasse (fällig ab heute bzw. in den letzten 14 Tagen erteilt).</summary>
     public List<Klassenbucheintrag> Hausaufgaben(string klasse)
@@ -208,6 +214,7 @@ public sealed partial class Klassenbuchdienst
     {
         var heute = _uhr.Heute;
         tage = Math.Clamp(tage, 1, 120);
+        // gekoppelter Unterricht: Lehrstoff unter einem der gekoppelten Unterrichte zählt für die Stunde
         var alle = Zeitraum(heute.AddDays(-tage), heute, true).Where(e => e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase) && e.Thema.Length > 0).ToList();
         var eintraege = alle.Where(e => e.Einzelstunde is null).Select(e => (e.Datum, e.Stunde, e.Unterricht)).ToHashSet();
         var einzeln = alle.Where(e => e.Einzelstunde is not null).Select(e => (e.Datum, e.Stunde, e.Unterricht)).ToHashSet();
@@ -218,8 +225,9 @@ public sealed partial class Klassenbuchdienst
             foreach (var k in _plan.Karten(s, d, Elementtyp.Lehrer, lehrer).Where(k => k.Unterricht.HasValue && k.Status is "regulaer" or "geaendert"))
             {
                 if (d == heute && string.CompareOrdinal(k.Ende, _uhr.Jetzt.ToString("HH:mm")) > 0) continue;
-                // Lehrstoff des Blocks oder jeder einzelnen Stunde des Blocks
-                if (!eintraege.Contains((k.Datum, k.Von, k.Unterricht!.Value)) && !Enumerable.Range(k.Von, k.Bis - k.Von + 1).All(n => einzeln.Contains((k.Datum, n, k.Unterricht!.Value))))
+                // Lehrstoff des Blocks oder jeder einzelnen Stunde des Blocks (bei Kopplungen unter einem der gekoppelten Unterrichte)
+                var us = alle.Any(e => e.Datum == k.Datum) ? KoppelUnterrichte(s, d, k.Von, k.Unterricht!.Value) : new List<int> { k.Unterricht!.Value };
+                if (!us.Any(u => eintraege.Contains((k.Datum, k.Von, u))) && !Enumerable.Range(k.Von, k.Bis - k.Von + 1).All(n => us.Any(u => einzeln.Contains((k.Datum, n, u)))))
                     res.Add(new { k.Datum, k.Von, k.Bis, k.Fach, klassen = k.Klassen.Select(x => x.K), unterricht = k.Unterricht, k.Beginn, k.Ende, k.FachName, k.Farbe, raeume = k.Raeume.Select(x => x.K) });
             }
         }
@@ -559,7 +567,8 @@ public sealed partial class Klassenbuchdienst
     public object Woche(Stand s, string klasse, DateOnly montag)
     {
         var bis = montag.AddDays(Math.Max(5, s.Paket.Zeitraster.TageProWoche) - 1);
-        var eintraege = Zeitraum(montag, bis).Where(e => e.Klassen.Contains(klasse, Ci)).ToList();
+        // alle Einträge der Woche: gekoppelter Unterricht kann unter dem Unterricht einer Mitklasse gespeichert sein
+        var eintraege = Zeitraum(montag, bis);
         var fz = FehlzeitenZeitraum(montag, bis, klasse);
         var vermerke = Vermerke(klasse, montag, bis);
         var namen = s.Schueler.ToDictionary(x => x.Id, x => $"{x.Name}, {x.Vorname}");
@@ -571,7 +580,8 @@ public sealed partial class Klassenbuchdienst
             var stunden = frei.Frei ? new List<object>() : _plan.Karten(s, d, Elementtyp.Klasse, klasse).Where(k => k.Unterricht.HasValue || k.Status == "entfall")
                 .Select(k =>
                 {
-                    var e = eintraege.FirstOrDefault(x => x.Datum == iso && x.Unterricht == k.Unterricht && x.Stunde == k.Von);
+                    var us = k.Unterricht is int ku ? KoppelUnterrichte(s, d, k.Von, ku) : new List<int>();
+                    var e = Waehlen(eintraege.Where(x => x.Datum == iso && x.Stunde == k.Von && us.Contains(x.Unterricht)), k.Unterricht ?? 0);
                     var f = fz.Where(x => x.Datum == iso && x.Stunde >= k.Von && x.Stunde <= k.Bis).ToList();
                     return (object)new
                     {
@@ -582,7 +592,7 @@ public sealed partial class Klassenbuchdienst
                         verspaetet = f.Where(x => x.Art == "verspaetet").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
                         vorzeitig = f.Where(x => x.Art == "vorzeitig").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
                         // Wochenraster: Hausaufgaben der Stunde und Klassenbucheinträge (Vermerke) mit Uhrzeit innerhalb der Stunde
-                        hausaufgaben = k.Unterricht is int u ? HausaufgabenDerStunde(d, k.Von, k.Bis, u).Select(h => h.Text).ToList() : new List<string>(),
+                        hausaufgaben = us.SelectMany(u => HausaufgabenDerStunde(d, k.Von, k.Bis, u)).DistinctBy(h => h.Id).Select(h => h.Text).ToList(),
                         eintraege = vermerke.Count(v => v.Datum == iso && v.Zeit.Length == 5 && string.CompareOrdinal(v.Zeit, k.Beginn) >= 0 && string.CompareOrdinal(v.Zeit, k.Ende) < 0),
                     };
                 }).ToList();

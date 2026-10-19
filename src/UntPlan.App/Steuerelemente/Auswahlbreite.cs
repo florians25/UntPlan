@@ -126,10 +126,44 @@ public static class Auswahlbreite
         return false;
     }
 
+    /// <summary>
+    /// Mausrad über einer geschlossenen Auswahlliste: Wert nicht ändern (auch nicht, wenn sie den Fokus hat – zu leicht passiert
+    /// das beim Rollen durch einen Dialog oder eine Tabelle), stattdessen die umgebende Tabelle bzw. Fläche rollen.
+    /// </summary>
+    internal static void MausradSchuetzen(object? sender, MouseEventArgs e)
+    {
+        if (sender is not ComboBox cb || cb.DroppedDown || e is not HandledMouseEventArgs h) return;
+        h.Handled = true;
+        for (var p = cb.Parent; p != null; p = p.Parent)
+        {
+            if (p is DataGridView g)
+            {
+                if (g.RowCount == 0) return;
+                var zeilen = Math.Max(1, SystemInformation.MouseWheelScrollLines) * (e.Delta > 0 ? -1 : 1);
+                var erste = Math.Clamp(g.FirstDisplayedScrollingRowIndex + zeilen, 0, g.RowCount - 1);
+                // laufende Eingabe in der Zelle nicht abbrechen – nur rollen, wenn die Zeile sichtbar bleiben kann
+                try { if (erste >= 0 && g.Rows[erste].Visible) g.FirstDisplayedScrollingRowIndex = erste; } catch (InvalidOperationException) { }
+                return;
+            }
+            if (p is ScrollableControl { AutoScroll: true } sc && sc.VerticalScroll.Visible)
+            {
+                var y = -sc.AutoScrollPosition.Y - e.Delta;
+                sc.AutoScrollPosition = new Point(-sc.AutoScrollPosition.X, Math.Max(0, y));
+                return;
+            }
+        }
+    }
+
+    /// <summary>Lange Auswahllisten ohne Langnamen bekommen ebenfalls die Direktsuche (ab so vielen Einträgen).</summary>
+    private const int SucheAbEintraegen = 8;
+
     /// <summary>Einzelne Auswahlfelder (Dialoge, Werkzeugleisten, Unterfenster) auf dieselbe Darstellung wie in den Tabellen bringen.</summary>
     public static void Vereinheitlichen(ComboBox cb)
     {
-        if (cb.IsDisposed || ListenSuche.IstEingerichtet(cb) || cb.DrawMode != DrawMode.Normal || cb.Parent is DataGridView || !MitLangnamen(cb)) return;
+        if (cb.IsDisposed || ListenSuche.IstEingerichtet(cb) || cb.DrawMode != DrawMode.Normal || cb.Parent is DataGridView) return;
+        // Direktsuche auch für lange feste Listen (Tippen filtert, Enter/Tab übernimmt, Escape stellt zurück)
+        var lang = cb.DropDownStyle == ComboBoxStyle.DropDownList && cb.DataSource is null && cb.Items.Count >= SucheAbEintraegen;
+        if (!lang && !MitLangnamen(cb)) return;
         if (cb.DropDownStyle == ComboBoxStyle.DropDownList) Ui.Suchliste(cb);
         else ListenSuche.Einrichten(cb);
     }
@@ -153,6 +187,8 @@ public static class Auswahlbreite
                 cb.VisibleChanged += (_, _) => { if (cb.Visible) Vereinheitlichen(cb); };
                 cb.Enter += (_, _) => Vereinheitlichen(cb);
                 cb.DropDown += (_, _) => { if (!ListenSuche.IstEingerichtet(cb)) ListenSuche.BreiteSetzen(cb, langname: ListenSuche.Langname); };
+                // kein versehentliches Umschalten mit dem Mausrad: nur in der geöffneten Liste blättert das Rad, sonst rollt die Umgebung
+                cb.MouseWheel += MausradSchuetzen;
                 break;
             case DataGridView g:
                 g.EditingControlShowing += (_, e) =>
@@ -171,12 +207,19 @@ public static class Auswahlbreite
                 // Auswahlspalten wie im Vorbild ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
+                // Kopieren nur als reiner Text (sichtbare Zellen, ohne HTML/CSV-Formate)
+                NurText.Tabelle(g);
+                // Freitextspalten (Text, Bemerkung …): Vorschläge aus den zuletzt verwendeten Eingaben
+                Textverlauf.Tabelle(g);
                 g.CellPainting += KontrollkaestchenOhneHover;
                 g.CellFormatting += ZellFarben;
                 g.CellMouseEnter += (_, e) => HoverSetzen(g, e.ColumnIndex, e.RowIndex);
                 g.MouseLeave += (_, _) => HoverSetzen(g, -1, -1);
                 // nach Neuaufbau der Zeilen keine veraltete Hover-Zelle stehen lassen
                 g.RowsRemoved += (_, _) => HoverZelle.AddOrUpdate(g, new StrongBox<Point>(new Point(-1, -1)));
+                break;
+            case RichTextBox rtb:
+                NurText.Textfeld(rtb);
                 break;
             case ToolStrip ts:
                 foreach (var item in ts.Items.OfType<ToolStripComboBox>()) Erfassen(item.ComboBox);

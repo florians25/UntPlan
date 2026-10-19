@@ -29,7 +29,23 @@ public sealed class Rueckmeldungsdienst
     private readonly Plandienst _plan;
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
 
-    public Rueckmeldungsdienst(Db db, Uhr uhr, Plandienst plan) { _db = db; _uhr = uhr; _plan = plan; }
+    public Rueckmeldungsdienst(Db db, Uhr uhr, Plandienst plan) { _db = db; _uhr = uhr; _plan = plan; AbsenzenAktualisieren(); }
+
+    /// <summary>
+    /// Gemeldete, noch nicht übernommene Abwesenheiten von Lehrkräften an den Plandienst geben: Sie gelten in den Plänen wie Absenzen aus
+    /// UntPlan (z. B. verschwindet die Veranstaltung aus dem Plan der abwesenden Lehrkraft). Nach jeder Änderung an den Rückmeldungen.
+    /// </summary>
+    private void AbsenzenAktualisieren()
+    {
+        try
+        {
+            _plan.WebAbsenzen = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = @t", Lesen, Db.P("@t", WebRueckmeldungsTypen.Absenz))
+                .Where(m => !string.IsNullOrEmpty(m.Lehrer) && !string.IsNullOrEmpty(m.Von))
+                .Select(m => new WebAbsenz { Art = "lehrer", Element = m.Lehrer!, Von = m.Von!, Bis = string.IsNullOrEmpty(m.Bis) ? m.Von! : m.Bis!, StundeVon = m.StundeVon ?? 0, StundeBis = m.StundeBis ?? 0 })
+                .ToList();
+        }
+        catch (Exception) { /* Datenbank noch nicht bereit: ohne gemeldete Abwesenheiten */ }
+    }
 
     private static List<string> Liste(string json) => string.IsNullOrEmpty(json) ? new() : JsonSerializer.Deserialize<List<string>>(json) ?? new();
 
@@ -63,17 +79,29 @@ public sealed class Rueckmeldungsdienst
         foreach (var id in ids.Distinct())
             n += _db.Ausfuehren("UPDATE rueckmeldungen SET status = 'quittiert', quittiert = @z WHERE id = @id AND status = 'offen'",
                 Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm")), Db.P("@id", id));
+        if (n > 0) AbsenzenAktualisieren();
         return n;
     }
 
-    public void StatusSetzen(string id, string status) =>
+    public void StatusSetzen(string id, string status)
+    {
         _db.Ausfuehren("UPDATE rueckmeldungen SET status = @s WHERE id = @id", Db.P("@s", status), Db.P("@id", id));
+        AbsenzenAktualisieren();
+    }
 
-    public void Loeschen(string id) => _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @id", Db.P("@id", id));
+    public void Loeschen(string id)
+    {
+        _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @id", Db.P("@id", id));
+        AbsenzenAktualisieren();
+    }
 
     /// <summary>Eigene, noch nicht abgeholte Meldung zurückziehen.</summary>
-    public bool Zurueckziehen(string id, int benutzer) =>
-        _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @id AND benutzer_id = @b AND status = 'offen'", Db.P("@id", id), Db.P("@b", benutzer)) > 0;
+    public bool Zurueckziehen(string id, int benutzer)
+    {
+        var ok = _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE id = @id AND benutzer_id = @b AND status = 'offen'", Db.P("@id", id), Db.P("@b", benutzer)) > 0;
+        if (ok) AbsenzenAktualisieren();
+        return ok;
+    }
 
     private Meldung Speichern(Meldung m)
     {
@@ -84,6 +112,7 @@ public sealed class Rueckmeldungsdienst
             Db.P("@von", m.Von), Db.P("@bis", m.Bis), Db.P("@sv", m.StundeVon), Db.P("@sb", m.StundeBis), Db.P("@r", m.Raum),
             Db.P("@rs", JsonSerializer.Serialize(m.Raeume)), Db.P("@k", JsonSerializer.Serialize(m.Klassen)), Db.P("@wl", JsonSerializer.Serialize(m.WeitereLehrer)),
             Db.P("@t", m.Titel), Db.P("@g", m.Grund), Db.P("@x", m.Text), Db.P("@u", m.Unterricht));
+        if (m.Typ == WebRueckmeldungsTypen.Absenz) AbsenzenAktualisieren();
         return m;
     }
 
