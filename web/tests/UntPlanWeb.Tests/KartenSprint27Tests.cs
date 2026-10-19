@@ -127,9 +127,9 @@ public class KartenSprint27Tests
         Assert.Equal(new[] { "pruefung" }, K("klausur", "Klausur").Marker);
         Assert.Equal(new[] { "plus", "aenderung" }, K("geaendert", "Zusatzunterricht", raumGeaendert, zusaetzlich: true).Marker);
         Assert.Equal(new[] { "plus", "aenderung" }, K("geaendert", "Sondereinsatz", new() { new("R105"), new("B070", null, true) }, zusaetzlich: true).Marker);
-        // „+“ nur bei echter Zusatzstunde (Server: zusaetzlich) – nie allein wegen der Vertretungsart bzw. bei einer Veranstaltung
+        // „+“ nur bei echter Zusatzstunde (Server: zusaetzlich) – nie allein wegen der Vertretungsart (Veranstaltungen bekommen nur das Viereck)
         Assert.Equal(new[] { "aenderung" }, K("geaendert", "Sondereinsatz", new() { new("R105"), new("B070", null, true) }).Marker);
-        Assert.Empty(K("veranstaltung", "Veranst.").Marker);
+        Assert.Equal(new[] { "aenderung" }, K("veranstaltung", "Veranst.").Marker);   // Veranstaltung: grünes Änderungs-Viereck
         Assert.Equal(new[] { "plus" }, K("geaendert", "Zusatzunterricht", zusaetzlich: true).Marker);
         Assert.Equal(new[] { "aenderung" }, K("geaendert", "Vertretung", raumGeaendert).Marker);
         Assert.Equal(new[] { "aenderung" }, K("offen", "Vertretung").Marker);
