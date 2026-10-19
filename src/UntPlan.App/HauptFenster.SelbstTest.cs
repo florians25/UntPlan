@@ -859,9 +859,9 @@ public sealed partial class HauptFenster
                 var klassenText = f.SelbsttestZelltext(vaId, "K");
                 if (lehrerText != "Alle Lehrkräfte" || klassenText != "Alle Klassen")
                     throw new InvalidOperationException($"Veranstaltungsfenster: Lehrer „{lehrerText}“, Klassen „{klassenText}“ statt „Alle …“.");
-                // Aushang: je Stunde eine Zeile „Alle Lehrkräfte“ statt einer je Lehrkraft
+                // Aushang: je Stunde eine Zeile „Alle Lehrkräfte“ (ggf. „außer …“ für abwesende) statt einer je Lehrkraft
                 var aushang = Core.Vertretungsplanung.Vertretungsplan.Zeilen(AppZustand.D, tag).Where(z => z.VeranstaltungId == vaId).ToList();
-                if (aushang.Count == 0 || aushang.Count > AppZustand.D.Zeitraster.StundenProTag || aushang.Any(z => z.Vertreter != "Alle Lehrkräfte" || z.Klassen != "Alle Klassen"))
+                if (aushang.Count == 0 || aushang.Count > AppZustand.D.Zeitraster.StundenProTag || aushang.Any(z => !z.Vertreter.StartsWith("Alle Lehrkräfte", StringComparison.Ordinal) || z.Klassen != "Alle Klassen"))
                     throw new InvalidOperationException($"Aushang: {aushang.Count} Zeile(n) der Veranstaltung: {string.Join(" | ", aushang.Take(3).Select(z => $"{z.Stunde} {z.Vertreter} {z.Klassen}"))}");
                 // Export: je Stunde eine Veranstaltungsstunde und eine Vertretungszeile, Termin mit „alle“-Kennzeichen
                 var paket = Core.Austausch.UntPlanWebExport.PaketErstellen(AppZustand.D, tag, new Core.Austausch.WebExportOptionen { TageVoraus = 1, TageZurueck = 0 });
