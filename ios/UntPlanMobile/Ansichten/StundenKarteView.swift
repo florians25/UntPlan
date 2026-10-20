@@ -120,7 +120,7 @@ struct KachelView: View {
     private func rahmen(_ a: Kachelaussehen) -> some View {
         if a.ecken {
             // Vorlage 178 (2,289 px/pt): Schenkel ≈ 7,5 pt, Linie ≈ 0,7 pt, Rundung ≈ 1,5 pt, an der Kartenkante
-            Eckklammern(laenge: 7.5, radius: 2.5)
+            Eckklammern(laenge: 7.5, radius: 3.5)
                 .stroke(Farben.eckklammer, style: StrokeStyle(lineWidth: 0.7, lineCap: .round, lineJoin: .round))
                 .padding(0.35)
         } else if let rand = a.rand {
@@ -297,7 +297,7 @@ struct KachelView: View {
     // MARK: - Pille (Aufsicht, ganztägiger Termin)
 
     /// Pille (Aufsicht, ganztägiger Termin) nach Vorlage 178/179 (2,289 px/pt): Balken 3,5 pt breit, 4,4 pt vom Rand,
-    /// oben und unten 0,7 pt Luft; Ort 11,5 pt Semibold 4,7 pt hinter dem Balken; Vertretung: grünes „⋮“-Feld 3,9 pt vom
+    /// oben und unten 2,2 pt Luft (vor der 1. Stunde 1 pt); Ort 11,5 pt Semibold 4,7 pt hinter dem Balken; Vertretung: grünes „⋮“-Feld 3,9 pt vom
     /// rechten Rand. Vor der 1. Stunde eine schmale Pille (10 pt hoch, Schrift 8 pt, grünes Feld 14 × 7,9 pt).
     private func pille(_ a: Kachelaussehen) -> some View {
         let schmal = kachel.vorErsterStunde
@@ -306,7 +306,7 @@ struct KachelView: View {
                 .fill(a.balken ?? Farben.aufsichtBalken)
                 .opacity(a.balkenDeckkraft)
                 .frame(width: 3.5)
-                .padding(.vertical, schmal ? 1 : 0.7)
+                .padding(.vertical, schmal ? 1 : 2.2)   // Balken in der Pause etwas kürzer als die Pille
             // Immer nur der Ortsname (keine Kürzel, keine Plaketten); entfallene Aufsicht durchgestrichen
             Text(kachel.titel)
                 .font(.system(size: schmal ? 8 : (gross ? 13.5 : 11.5), weight: .semibold))

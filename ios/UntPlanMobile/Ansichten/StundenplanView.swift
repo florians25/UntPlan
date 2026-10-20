@@ -1475,12 +1475,12 @@ struct RasterSeite: View, Equatable {
         let vorErste = belegung.lagen.filter { $0.kachel.vorErsterStunde }.map(\.kachel.id)
         return ZStack(alignment: .topLeading) {
             if tag.frei {
-                // Vorlage 179: über die ganze Spaltenbreite (ohne Lücke), oben 15,5 pt unter dem Kopf (auch wenn die
-                // erste Linie tiefer liegt) und bis zum unteren Rand (auch hinter der Tab-Leiste)
+                // Vorlage 179: oben 15,5 pt unter dem Kopf (auch wenn die erste Linie tiefer liegt) und bis zum unteren
+                // Rand (auch hinter der Tab-Leiste); seitlich wie die Karten – immer gleicher Abstand zum Nachbartag
                 let feldOben = min(Rasterrahmen.obenAbstand, mass.y(mass.start) + 1)
                 ferienfeld(tag)
-                    .frame(width: breite + tagesLuecke - 0.2, height: max(hoehe - feldOben, 20))
-                    .offset(x: -(tagesLuecke - 0.2) / 2, y: feldOben)
+                    .frame(width: breite, height: max(hoehe - feldOben, 20))
+                    .offset(x: 0, y: feldOben)
             } else {
                 // Eigene Abwesenheit: grauer Balken hinter den Stunden – die Karten liegen voll lesbar darüber
                 ForEach(daten.abwesenheiten[tag.datum] ?? []) { b in
