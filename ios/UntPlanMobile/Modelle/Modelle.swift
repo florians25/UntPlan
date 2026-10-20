@@ -387,7 +387,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         guard !istEntfall else { return nil }
         if istPruefung { return "Prüfung" }
         if istVeranstaltung { return "Veranstaltung" }
-        if istZusatzstunde { return "Zusätzl. Unterrichtsstunde" }
+        if istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
         return nil
     }
 

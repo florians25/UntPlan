@@ -86,8 +86,7 @@ struct KachelView: View {
                 Kartenschatten(radius: a.radius, voll: a.schatten == .voll)
             }
         }
-        .shadow(color: dunkel && a.schatten == .flach ? Farben.kartenSchattenFlach : .clear,
-                radius: dunkel && a.schatten == .flach ? 1 : 0, y: dunkel && a.schatten == .flach ? 1 : 0)
+        // Dunkel ohne Schatten (Vorlagen 4cc11c37/e450e6b4: Rastergrund direkt neben der Karte)
         // Zeichen unten rechts erst nach dem Kartenschatten: flach, ohne eigenen Schatten (auch auf durchsichtigen
         // Karten), innerhalb der Karte 4 pt vom unteren und rechten Rand; auf sehr kleinen Karten verkleinert bzw.
         // ausgeblendet, damit nichts über Rand oder Balken hinausragt
@@ -490,26 +489,27 @@ struct Kachelaussehen {
     init(_ k: Kachel, dunkel: Bool) {
         let v = k.vergangen
         let fach = Color(hex: k.balkenHex) ?? Farben.karteBalken
-        // Der Balken links bleibt in der Fachfarbe; vergangene Stunden hell mit halb deckendem Balken wie in der Vorlage
-        // (#d8dfe1 auf #f2f4f5), dunkel voll deckend. Schrift vergangener Stunden hell etwas weicher, dunkel unverändert
+        // Der Balken links bleibt in der Fachfarbe; vergangene Stunden mit halb deckendem Balken wie in den Vorlagen
+        // (hell #d9dee2 auf #f3f5f7, dunkel #78828a auf #323c45). Schrift vergangener Stunden weicher (hell #3f525e,
+        // dunkel #dbdfe5)
         balken = fach
-        balkenDeckkraft = v && !dunkel ? 0.5 : 1
+        balkenDeckkraft = v ? 0.5 : 1
         text = v ? Farben.karteTextVergangen : Farben.karteText
         switch k.art {
         case .normal:
             hintergrund = v ? Farben.karteVergangen : Farben.karte
             schatten = v ? .flach : .voll
         case .aenderung:
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.aenderungText
         case .entfall:
-            farbigeKarte(flaeche: Farben.entfallHintergrund, vergangeneFlaeche: Farben.entfallVergangen, rand: Farben.entfallRand,
+            farbigeKarte(flaeche: Farben.entfallHintergrund, vergangeneFlaeche: Farben.entfallVergangen, rand: Farben.entfallRand, vergangenerRand: Farben.entfallRandVergangen,
                          vergangen: v, dunkel: dunkel, schatten: false)
             text = v ? Farben.karteTextVergangen : Farben.entfallText
             durchgestrichen = true
         case .klausur:
             // Wie in der Vorlage mit Schatten (dunkel ohnehin ohne)
-            farbigeKarte(flaeche: Farben.pruefungHintergrund, vergangeneFlaeche: Farben.pruefungVergangen, rand: Farben.pruefungRand,
+            farbigeKarte(flaeche: Farben.pruefungHintergrund, vergangeneFlaeche: Farben.pruefungVergangen, rand: Farben.pruefungRand, vergangenerRand: Farben.pruefungRandVergangen,
                          vergangen: v, dunkel: dunkel, schatten: true)
         case .termin:
             hintergrund = Farben.veranstaltungHintergrund
@@ -540,7 +540,7 @@ struct Kachelaussehen {
         case .veranstaltung:
             // Wie die grüne Vertretungskarte: hell #e3fff2 mit 2-pt-Rahmen #019169, dunkel dunkelgrün mit türkisem Rahmen;
             // vergangen fällt nur der Rahmen weg
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.aenderungText
         case .ganztagTermin:
             hintergrund = Farben.veranstaltungHintergrund
@@ -562,7 +562,7 @@ struct Kachelaussehen {
             case .vertretung:
                 // Eingesprungen: grüne Änderungskarte, abwesende Lehrkraft durchgestrichen, Vertretung als grüne Plakette
                 farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen,
-                             rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: false)
+                             rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: false)
                 randBreite = 1.5
                 text = Farben.aenderungText
             case .abgegeben:
@@ -574,7 +574,7 @@ struct Kachelaussehen {
             case .entfall:
                 // Entfallene Aufsicht: wie eine entfallene Stunde (rosa, roter Rahmen, Ort durchgestrichen); Balken bleibt lila
                 farbigeKarte(flaeche: Farben.entfallHintergrund, vergangeneFlaeche: Farben.entfallVergangen,
-                             rand: Farben.entfallRand, vergangen: v, dunkel: dunkel, schatten: false)
+                             rand: Farben.entfallRand, vergangenerRand: Farben.entfallRandVergangen, vergangen: v, dunkel: dunkel, schatten: false)
                 randBreite = 1.5
                 text = v ? Farben.karteTextVergangen : Farben.entfallText
                 durchgestrichen = true
@@ -583,7 +583,7 @@ struct Kachelaussehen {
         // Reine Raumänderung: wie eine Änderung/Vertretung (grüne Fläche mit grünem Rahmen), der neue Raum als grüne
         // Plakette – nie gelb/braun (das ist ausschließlich Prüfungen bzw. Klausuren vorbehalten)
         if k.raumAenderung && (k.art == .aenderung || k.art == .normal) {
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangen: v, dunkel: dunkel, schatten: true)
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.aenderungText
         }
     }
@@ -591,11 +591,13 @@ struct Kachelaussehen {
     /// Farbige Kachel (Vertretung, Raumänderung, Entfall, Klausur, Veranstaltung) wie im Original: künftig farbige Fläche
     /// mit Rahmen. Vergangen hell: farbige Fläche ohne Rahmen; vergangen dunkel: neutrale Schieferfläche, der farbige
     /// Rahmen bleibt. Plaketten bleiben grün.
-    private mutating func farbigeKarte(flaeche: Color, vergangeneFlaeche: Color? = nil, rand farbe: Color, vergangen: Bool, dunkel: Bool,
+    private mutating func farbigeKarte(flaeche: Color, vergangeneFlaeche: Color? = nil, rand farbe: Color,
+                                       vergangenerRand: Color? = nil, vergangen: Bool, dunkel: Bool,
                                        schatten mitSchatten: Bool) {
         if vergangen && dunkel {
+            // Dunkel vergangen: Schieferfläche, Rahmen in der dunkleren Vergangen-Farbe (grün #007d64, gelb #c57d00, rot #df0046)
             hintergrund = Farben.karteVergangen
-            rand = farbe
+            rand = vergangenerRand ?? farbe
             schatten = .keiner
         } else if vergangen {
             hintergrund = vergangeneFlaeche ?? flaeche
@@ -647,8 +649,8 @@ struct Eckklammern: Shape {
 /// Schatten einer Karte im hellen Modus, an der Vorlage in voller Auflösung (3 px/pt, nach sRGB umgerechnet) nachgemessen
 /// und angepasst: Farbe #1e2b33, zwei Lagen – 40 % mit 2 pt Weichzeichnung und 2 pt Versatz nach unten, dazu 20 % mit
 /// 4 pt Weichzeichnung und 5 pt Versatz. Ergibt seitlich ≈ 26 % direkt an der Kante, nach ≈ 5 pt ausgelaufen; oben nur ein
-/// Hauch (≈ 8 %); unten ≈ 34 % bei 2 pt, Ausläufer bis ≈ 12 pt. Vergangene Stunden (Vorlage 172): eine kurze Lage
-/// (60 %, 0,7 pt, Versatz 1,5 pt). Die Schatten werfen zwei deckende Flächen hinter der Karte – sie addieren sich nicht
+/// Hauch (≈ 8 %); unten ≈ 34 % bei 2 pt, Ausläufer bis ≈ 12 pt. Vergangene Stunden (Vorlage 671170ed in voller
+/// Auflösung): eine kurze Lage (68 %, 0,9 pt, Versatz 1,2 pt). Die Schatten werfen zwei deckende Flächen hinter der Karte – sie addieren sich nicht
 /// wie verkettete `.shadow`-Modifikatoren.
 struct Kartenschatten: View {
     let radius: CGFloat
@@ -665,7 +667,7 @@ struct Kartenschatten: View {
                     .shadow(color: Farben.kartenKante.opacity(0.40), radius: 2, x: 0, y: 2)
             } else {
                 form.fill(Color.white)
-                    .shadow(color: Farben.kartenKante.opacity(0.60), radius: 0.7, x: 0, y: 1.5)
+                    .shadow(color: Farben.kartenKante.opacity(0.68), radius: 0.9, x: 0, y: 1.2)
             }
         }
         .allowsHitTesting(false)

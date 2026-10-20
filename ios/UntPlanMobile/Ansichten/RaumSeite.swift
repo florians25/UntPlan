@@ -99,7 +99,7 @@ struct RaumSeite: View {
                         } label: {
                             zeile(r)
                         }
-                        .buttonStyle(ZeilenKnopfStil())
+                        .buttonStyle(OhneTippStil())
                         .disabled(bucht != nil)
                     }
                 }

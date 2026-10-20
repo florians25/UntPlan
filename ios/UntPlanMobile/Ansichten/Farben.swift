@@ -47,14 +47,29 @@ enum Farben {
     static let tinte2 = Color(hell: 0x48606F, dunkel: 0xC9D1D8)
     static let gedaempft = Color(hell: 0x6B7A85, dunkel: 0x8D949C)
     /// Uhrzeiten der Zeitleiste (Vorlage hell, nach sRGB umgerechnet: #5e7382 wie der Wochenkopf)
-    static let rinne = Color(hell: 0x5E7382, dunkel: 0x9AA1A8)
-    static let titelGrau = Color(hell: 0x5D727F, dunkel: 0x93A6B2)
+    static let rinne = Color(hell: 0x5E7382, dunkel: 0xBEC8CF)
+    static let titelGrau = Color(hell: 0x5E7382, dunkel: 0xBFC8CF)
     /// Großer Text im Kopfblock der Stundendetails (Original: fast schwarz)
-    static let detailText = Color(hell: 0x1F2328, dunkel: 0xF2F4F6)
+    static let detailText = Color(hell: 0x10161D, dunkel: 0xF3F5F7)
     /// Grauer Text in den Stundendetails (Raum, Lehrkraft, Untertitel) – eine Stufe dunkler als `gedaempft`
-    static let detailGrau = Color(hell: 0x55636E, dunkel: 0xA9B0B8)
+    static let detailGrau = Color(hell: 0x3F525E, dunkel: 0xDCDFE5)
     /// Trennstrich „|“ im Kopfblock (Original: hellgrau)
-    static let detailTrenner = Color(hell: 0x9AA4AD, dunkel: 0x6E7881)
+    static let detailTrenner = Color(hell: 0x808E9B, dunkel: 0x818F9C)
+    /// Symbole, Pfeile und runde Zahlen der Detailliste (Vorlagen aeaa377f/06697de1)
+    static let detailSymbol = Color(hell: 0x808E9B, dunkel: 0x818F9C)
+    /// Trennlinie unter dem Kopfblock der Details (1 pt)
+    static let detailLinie = Color(hell: 0xDBDFE5, dunkel: 0x323D45)
+    /// Zeichen in den runden Glasknöpfen (X, ⋮, Haken)
+    static let knopfSymbol = Color(hell: 0x7F8D9A, dunkel: 0x8E9CAA)
+    /// Haken im Glasknopf „Sichern“, solange nichts zu sichern ist
+    static let knopfSymbolAus = Color(hell: 0xB0B0B1, dunkel: 0x5C5C60)
+    /// Zahl der Abwesenden in der Detailliste: hell blassrot mit roter Ziffer, dunkel dunkelrot mit hellrosa Ziffer
+    static let abwesendPlaketteFlaeche = Color(hell: 0xFFF3F3, dunkel: 0x81002E)
+    static let abwesendZiffer = Color(hell: 0xDF0046, dunkel: 0xFFE3E3)
+    /// Ziffer in den grauen runden Zahlen (hell weiß, dunkel fast schwarz wie in der Vorlage)
+    static let plakettenZiffer = Color(hell: 0xFFFFFF, dunkel: 0x10171D)
+    /// Nicht gewählter Reiter
+    static let reiterText = Color(hell: 0x3F525E, dunkel: 0xDCDFE5)
     static let abschnitt = Color(hexWert: 0x8B9AA5)
     static let pfeil = Color(hell: 0x9AA7B1, dunkel: 0x6E7881)
 
@@ -72,39 +87,45 @@ enum Farben {
     static let linie = Color(hell: 0xCCD3D9, dunkel: 0x34343A)
     static let trennlinie = Color(hell: 0xE4E7EA, dunkel: 0x38383A)
     /// Linien der Stunden im Wochenraster (Vorlage hell nachgemessen: #bec8cf, wie der graue Balken)
-    static let rasterLinie = Color(hell: 0xBEC8CF, dunkel: 0x34343A)
+    static let rasterLinie = Color(hell: 0xBEC8CF, dunkel: 0x323C45)
     /// Wochenkopf: „KW“, Monat, Wochentag und Tageszahl – hell alle im selben Grau (Vorlage #5e7382), dunkel wie bisher
-    static let kopfText = Color(hell: 0x5E7382, dunkel: 0xF2F4F6)
-    static let kopfText2 = Color(hell: 0x5E7382, dunkel: 0xC9D1D8)
+    static let kopfText = Color(hell: 0x5E7382, dunkel: 0xBEC8CF)
+    static let kopfText2 = Color(hell: 0x5E7382, dunkel: 0xBEC8CF)
     static let rasterOben = Color(hell: 0xF3F5F7, dunkel: 0x1C1C1E)
     static let rasterUnten = Color(hell: 0xE4E6EA, dunkel: 0x1C1C1E)
 
     // Karten im Wochenraster
     static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7383)
-    static let karteVergangen = Color(hell: 0xF2F4F5, dunkel: 0x323D45)
-    static let karteBalken = Color(hell: 0xBEC8CF, dunkel: 0xBFC7CE)
-    static let karteText = Color(hell: 0x10161D, dunkel: 0xF4F6F8)
+    static let karteVergangen = Color(hell: 0xF3F5F7, dunkel: 0x323D45)
+    static let karteBalken = Color(hell: 0xBEC8CF, dunkel: 0xBEC8CF)
+    static let karteText = Color(hell: 0x10161D, dunkel: 0xF3F5F7)
     static let kartenSchatten = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.30, deckkraftDunkel: 0)
     static let kartenSchattenWeich = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.22, deckkraftDunkel: 0)
     /// Kante und Schatten der Karten im hellen Modus (Vorlage nachgemessen, siehe `Kartenschatten`)
     static let kartenKante = Color(hexWert: 0x1E2B33)
 
     // Änderung grün
-    static let aenderungHintergrund = Color(hell: 0xE4FFF3, dunkel: 0x005840)
-    static let aenderungVergangen = Color(hell: 0xE4FFF2, dunkel: 0x323D45)
-    static let aenderungRand = Color(hell: 0x00916D, dunkel: 0x20C0A2)
-    static let gruen = Color(hell: 0x007D64, dunkel: 0x22C0A1)
-    static let gruenSchrift = Color(hell: 0xFFFFFF, dunkel: 0x05201A)
+    static let aenderungHintergrund = Color(hell: 0xE4FFF3, dunkel: 0x005641)
+    static let aenderungVergangen = Color(hell: 0xE4FFF3, dunkel: 0x323D45)
+    static let aenderungRand = Color(hell: 0x00916D, dunkel: 0x1FC0A0)
+    /// Rahmen vergangener grüner Karten (nur dunkel sichtbar; Vorlage 4cc11c37)
+    static let aenderungRandVergangen = Color(hell: 0x00916D, dunkel: 0x007D64)
+    static let gruen = Color(hell: 0x007D64, dunkel: 0x1FC0A0)
+    static let gruenSchrift = Color(hell: 0xFFFFFF, dunkel: 0x10161D)
 
     // Entfall rot
-    static let entfallHintergrund = Color(hell: 0xFFF3F2, dunkel: 0x81012F)
+    static let entfallHintergrund = Color(hell: 0xFFF3F2, dunkel: 0x81002E)
     static let entfallVergangen = Color(hell: 0xFFF4F3, dunkel: 0x323D45)
-    static let entfallRand = Color(hell: 0xE00047, dunkel: 0xDF0047)
+    static let entfallRand = Color(hell: 0xDF0046, dunkel: 0xF03064)
+    /// Rahmen vergangener Entfall-Karten (dunkel #df0046, Vorlage 4cc11c37)
+    static let entfallRandVergangen = Color(hell: 0xDF0046, dunkel: 0xDF0046)
 
     // Prüfung
-    static let pruefungHintergrund = Color(hell: 0xFFF7D9, dunkel: 0x4A3F22)
-    static let pruefungVergangen = Color(hell: 0xFEF7D7, dunkel: 0x323D45)
-    static let pruefungRand = Color(hell: 0x9F532C, dunkel: 0xD9962A)
+    static let pruefungHintergrund = Color(hell: 0xFFF7D9, dunkel: 0x6C2B0A)
+    static let pruefungVergangen = Color(hell: 0xFFF7D9, dunkel: 0x323D45)
+    static let pruefungRand = Color(hell: 0x9F532C, dunkel: 0xFFB728)
+    /// Rahmen vergangener Prüfungen (dunkel #c57d00, Vorlage 4cc11c37)
+    static let pruefungRandVergangen = Color(hell: 0x9F532C, dunkel: 0xC57D00)
 
     // Veranstaltung, Ferien
     static let veranstaltungHintergrund = Color(hell: 0xDFFEF5, dunkel: 0x054035)
@@ -145,11 +166,12 @@ enum Farben {
     static let pilleFlaeche = Color(hell: 0xE6E9ED, dunkel: 0x3A3F45)
     static let pilleText = Color(hell: 0x4A5662, dunkel: 0xD3D9DF)
     /// Statuspille „PRÜFUNG“/„VERANSTALTUNG“ rechts neben dem Fach (Vorlage 140: graue Kapsel, weiße Großbuchstaben)
-    static let statusPilleFlaeche = Color(hell: 0x8E99A3, dunkel: 0x6E7881)
+    static let statusPilleFlaeche = Color(hell: 0x808E9B, dunkel: 0x818F9C)
+    static let statusPilleText = Color(hell: 0xFFFFFF, dunkel: 0x10171D)
     /// Zeile der Reiter (mehrere Stunden zur selben Zeit) in den Stundendetails
-    static let reiterGrund = Color(hell: 0xF3F5F7, dunkel: 0x242427)
+    static let reiterGrund = Color(hell: 0xF3F4F6, dunkel: 0x323D45)
     /// Unterstreichung des aktiven Reiters: dunkelgrau im hellen, weiß im dunklen Modus
-    static let reiterStrich = Color(hell: 0x3A4550, dunkel: 0xFFFFFF)
+    static let reiterStrich = Color(hell: 0x11171E, dunkel: 0xF3F5F7)
 
     // Raumbuchung (gelb-orangener Rand). Raumänderungen erscheinen grün wie eine Änderung (aenderungHintergrund/-Rand).
     static let raumRand = Color(hell: 0xE9A23B, dunkel: 0xF0B04A)
@@ -166,9 +188,9 @@ enum Farben {
     static let eingabeFeld = Color(hell: 0xF1F3F5, dunkel: 0x323D47)
 
     // Kacheln im Raster (app.css: .card--event, .corners, .card--supervision, .card--standby, Zählkarte)
-    static let karteTextVergangen = Color(hell: 0x3E4B55, dunkel: 0xF4F6F8)
-    static let aenderungText = Color(hell: 0x10161D, dunkel: 0xEAFFF8)
-    static let entfallText = Color(hell: 0x10161D, dunkel: 0xFFFFFF)
+    static let karteTextVergangen = Color(hell: 0x3F525E, dunkel: 0xDBDFE5)
+    static let aenderungText = Color(hell: 0x10161D, dunkel: 0xF3F5F7)
+    static let entfallText = Color(hell: 0x10161D, dunkel: 0xF3F5F7)
     static let entfallPlakettenText = Color(hell: 0x48606F, dunkel: 0xFFFFFF)
     static let terminRand = Color(hell: 0x7FD4B6, dunkel: 0x7FD4B6)
     static let terminTitel = Color(hell: 0x00654C, dunkel: 0xF4F6F8)

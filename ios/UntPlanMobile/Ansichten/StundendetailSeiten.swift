@@ -440,7 +440,9 @@ final class Stundendaten: ObservableObject {
 }
 
 /// Unterseiten der Stundendetails.
-enum Detailseite: Hashable {
+enum Detailseite: Hashable, Identifiable {
+    var id: Self { self }
+
     case text
     case info
     case lehrstoff
@@ -522,7 +524,14 @@ struct NotizSeite: View {
     @State private var speichert = false
     @State private var fehler: String? = nil
     @FocusState private var fokus: Bool
-    @Environment(\.dismiss) private var zurueck
+    @Environment(\.dismiss) private var systemZurueck
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @Environment(\.unterblatt) private var unterblatt
+
+    /// Als Unterblatt über den Stundendetails: mit dessen Animation schließen, sonst zurück.
+    private func zurueck() {
+        if unterblatt, let blattSchliessen { blattSchliessen() } else { systemZurueck() }
+    }
 
     /// Bearbeiten dürfen nur Lehrkräfte mit Schreibrecht; Schüler*innen sehen ihre Notizen nur lesend.
     private var bearbeitbar: Bool { zustand.istKollegium && daten.darf && daten.karte.unterricht != nil }
@@ -1257,6 +1266,7 @@ struct SchuelerSeite: View {
             SchuelerAbwesenheitenView(schueler: s)
                 .environmentObject(daten)
                 .environmentObject(zustand)
+                .environment(\.unterblatt, false)
         }
         .detailPraesentation(item: $entschuldigung, breit: Geraet.istPad, art: .formular) { a in
             EntschuldigenView(auftrag: a) {
