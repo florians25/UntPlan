@@ -119,9 +119,10 @@ struct KachelView: View {
     @ViewBuilder
     private func rahmen(_ a: Kachelaussehen) -> some View {
         if a.ecken {
-            Eckklammern()
-                .stroke(Farben.eckklammer, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
-                .padding(0.8)
+            // Vorlage 178 (2,289 px/pt): Schenkel ≈ 7,5 pt, Linie ≈ 0,7 pt, Rundung ≈ 1,5 pt, an der Kartenkante
+            Eckklammern(laenge: 7.5, radius: 1.5)
+                .stroke(Farben.eckklammer, style: StrokeStyle(lineWidth: 0.7, lineCap: .round, lineJoin: .round))
+                .padding(0.35)
         } else if let rand = a.rand {
             if a.gestrichelt {
                 RoundedRectangle(cornerRadius: a.radius, style: .continuous)
@@ -295,35 +296,40 @@ struct KachelView: View {
 
     // MARK: - Pille (Aufsicht, ganztägiger Termin)
 
+    /// Pille (Aufsicht, ganztägiger Termin) nach Vorlage 178/179 (2,289 px/pt): Balken 3,5 pt breit, 4,4 pt vom Rand,
+    /// oben und unten 0,7 pt Luft; Ort 11,5 pt Semibold 4,7 pt hinter dem Balken; Vertretung: grünes „⋮“-Feld 3,9 pt vom
+    /// rechten Rand. Vor der 1. Stunde eine schmale Pille (10 pt hoch, Schrift 8 pt, grünes Feld 14 × 7,9 pt).
     private func pille(_ a: Kachelaussehen) -> some View {
-        HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
+        let schmal = kachel.vorErsterStunde
+        return HStack(spacing: 4.7) {
+            RoundedRectangle(cornerRadius: 1.75, style: .continuous)
                 .fill(a.balken ?? Farben.aufsichtBalken)
-                .frame(width: 4)
-                .padding(.vertical, 3)
+                .opacity(a.balkenDeckkraft)
+                .frame(width: 3.5)
+                .padding(.vertical, schmal ? 1 : 0.7)
             // Immer nur der Ortsname (keine Kürzel, keine Plaketten); entfallene Aufsicht durchgestrichen
             Text(kachel.titel)
-                .font(.system(size: gross ? 13.5 : 12.4, weight: .medium))
+                .font(.system(size: schmal ? 8 : (gross ? 13.5 : 11.5), weight: .semibold))
                 .strikethrough(a.durchgestrichen, color: a.text)
                 .foregroundStyle(a.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
             // Tagesansicht: keine Uhrzeiten auf der Aufsichtskarte (die Pause zeigt das Raster selbst)
-            if gross && kachel.art != .aufsicht {
+            if gross && kachel.art != .aufsicht && !schmal {
                 Text("\(Rasterzeit.uhrzeit(kachel.beginn))–\(Rasterzeit.uhrzeit(kachel.ende))")
                     .font(.system(size: 12.5).monospacedDigit())
                     .foregroundStyle(a.text.opacity(0.75))
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
-            // Vertretung (übernommen oder abgegeben): ganz rechts das grüne „…“ – Details beim Antippen
+            // Vertretung (übernommen oder abgegeben): ganz rechts das grüne „⋮“ – Details beim Antippen
             if kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben) {
-                Kuerzungszeichen(gruen: true, waagrecht: true)
+                Kuerzungszeichen(gruen: true, waagrecht: schmal, breite: 14, hoehe: schmal ? 7.9 : 14)
                     .layoutPriority(1)
             }
         }
-        .padding(.leading, 4)
-        .padding(.trailing, 3)
+        .padding(.leading, 4.4)
+        .padding(.trailing, schmal ? 3.9 : 3.9)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(a.hintergrund, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
@@ -685,31 +691,31 @@ struct ZaehlstreifenView: View {
     let streifen: Zaehlstreifen
     @Environment(\.colorScheme) private var schema
 
+    /// Vorlage 178/179 (2,289 px/pt): Streifen 12 pt breit, Ecken ≈ 1,5 pt, Fläche in der Farbe der verdeckten Stunde –
+    /// Entfall #df0046, Vertretung #00916d (Rahmenfarbe der grünen Karte), Prüfung #9f532c, jeweils mit weißer Zahl;
+    /// sonst wie eine Karte (weiß bzw. vergangen #f3f5f7) mit grauer Zahl (#3f525e); Zahl 11 pt mittig; Kartenschatten.
     var body: some View {
         let farben = farbe
+        let form = RoundedRectangle(cornerRadius: 1.5, style: .continuous)
         Text("\(streifen.kacheln.count)")
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 11, weight: .regular))
             .foregroundStyle(farben.text)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(farben.flaeche, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-            .overlay {
-                if let rand = farben.rand {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .strokeBorder(rand, lineWidth: 1.5)
-                }
-            }
+            .background(farben.flaeche, in: form)
             // Hell wie in der Vorlage mit demselben Schatten wie die Karten (dunkel ohne)
             .background {
-                if schema != .dark { Kartenschatten(radius: 3, voll: true) }
+                if schema != .dark { Kartenschatten(radius: 1.5, voll: !streifen.vergangen) }
             }
             .accessibilityLabel("\(streifen.kacheln.count) weitere Stunden")
             .accessibilityAddTraits(.isButton)
     }
 
-    private var farbe: (flaeche: Color, text: Color, rand: Color?) {
-        if streifen.entfall { return (Farben.entfallRand, .white, nil) }
-        if streifen.aenderung { return (Farben.zaehlerAenderungFlaeche, Farben.zaehlerAenderungText, Farben.aenderungRand) }
-        return (Farben.zaehlerFlaeche, Farben.zaehlerText, nil)
+    private var farbe: (flaeche: Color, text: Color) {
+        let v = streifen.vergangen
+        if streifen.entfall { return (v ? Farben.entfallRandVergangen : Farben.entfallRand, .white) }
+        if streifen.aenderung { return (v ? Farben.aenderungRandVergangen : Farben.aenderungRand, .white) }
+        if streifen.klausur { return (v ? Farben.pruefungRandVergangen : Farben.pruefungRand, .white) }
+        return (v ? Farben.karteVergangen : Farben.karte, v ? Farben.karteTextVergangen : Farben.karteText)
     }
 }
 
@@ -734,6 +740,9 @@ struct Onlinezeichen: View {
 struct Kuerzungszeichen: View {
     var gruen = false
     var waagrecht = false
+    /// Feldgröße (Vorlage 178: 13,5–14 pt Quadrat; schmale Pille vor der 1. Stunde 14 × 7,9 pt)
+    var breite: CGFloat = KachelView.zeichenGroesse
+    var hoehe: CGFloat = KachelView.zeichenGroesse
     @Environment(\.colorScheme) private var schema
 
     var body: some View {
@@ -753,8 +762,8 @@ struct Kuerzungszeichen: View {
             }
         }
         .foregroundStyle(gruen ? Farben.gruenSchrift : Farben.infoScheibe)
-        .frame(width: KachelView.zeichenGroesse, height: KachelView.zeichenGroesse)
-        .background(gruen ? Farben.gruen : Farben.infoFeld, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .frame(width: breite, height: hoehe)
+        .background(gruen ? Farben.gruen : Farben.infoFeld, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
     }
 }
 
