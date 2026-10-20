@@ -365,6 +365,11 @@ public sealed class Plandienst
             var fach = gleich.Where(b => Ci.Equals(b.Fach, x.Fach) || (v != null && Ci.Equals(b.Fach, v.Fach))).ToList();
             if (fach.Count == 1 || gleich.Count == 1) treffer = fach.Count == 1 ? fach : gleich;
         }
+        // Kopplung mit derselben Lehrkraft in mehreren Zeilen (je Klasse eine Zeile): nur die Zeilen der Klassen der geänderten Stunde –
+        // sonst nähme z. B. die Freisetzung der Zeile einer abwesenden Klasse die Stunde auch den übrigen Klassen weg
+        var klassen = x.Klassen.Where(k => k.Length > 0).ToList();
+        if (treffer.Count > 1 && klassen.Count > 0 && treffer.Any(b => b.Klassen.Any(k => Enthaelt(klassen, k))))
+            treffer = treffer.Where(b => b.Klassen.Count == 0 || b.Klassen.Any(k => Enthaelt(klassen, k))).ToList();
         return treffer;
     }
 
@@ -556,7 +561,8 @@ public sealed class Plandienst
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => RaeumeHinzugefuegt(MitTermin(s, d, k, l => Abwesend(l, k.Von))))).ToList();
         // Veranstaltung der Klassen erst nach dem Zusammenfassen der Kopplungen: entfällt nur, wenn alle Klassen der gemeinsamen Karte teilnehmen
-        return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(KlassenVeranstaltung(s, d, Kopplungen(einzel)), zeiten), typ, kurz));
+        // Klassenabwesenheit je Stunde vor dem Zusammenfassen zu Blöcken: deckt die Absenz nur einen Teil eines Blocks, wird nur dieser Teil markiert
+        return ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, Kopplungen(einzel)), typ, kurz), zeiten));
     }
 
     /// <summary>
@@ -1321,7 +1327,7 @@ public sealed class Plandienst
 
     private static string Schluessel(Karte k) =>
         $"{k.Unterricht}|{k.Status}|{k.Fach}|{k.FachAlt}|{k.Art}|{k.Text}|{string.Join(",", k.Klassen.Select(x => x.K))}|" +
-        $"{string.Join(",", k.Lehrer.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Raeume.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Mitklassen.Select(x => x.K + "/" + x.Alt))}";
+        $"{string.Join(",", k.Lehrer.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Raeume.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Mitklassen.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.AbwesendeKlassen)}|{k.KlasseAbwesend}";
 
     private static List<Karte> Zusammenfassen(List<Karte> einzel, Dictionary<int, WebStundenzeit> zeiten)
     {

@@ -312,6 +312,10 @@ public static class Vertretungen
             {
                 if (v.VerlegungsId.HasValue) v.Quelle = VertretungsQuelle.Verlegung;
                 else if (entfernen) weg.Add(v);
+                // Freisetzung, die nicht mehr nötig ist, obwohl die Stunde unverändert im Stundenplan steht (z. B. aus älteren Versionen bei nur
+                // teilweise abwesenden Klassen einer Kopplung): auch ohne „entfernen“ weg – es gibt nichts nachzuerfassen
+                else if (v.Art == VertretungsArt.Freisetzung && !v.Bearbeitet && v.UnterrichtId is int fu
+                         && regel.Any(r => r.Unterricht.Id == fu && r.ZeilenIndex == v.ZeilenIndex && r.Stunde == v.Stunde)) weg.Add(v);
                 else if (v.UnterrichtId is int vu) verwaist.Add(vu);
                 continue;
             }
