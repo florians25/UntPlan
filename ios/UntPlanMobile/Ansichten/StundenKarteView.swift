@@ -120,7 +120,7 @@ struct KachelView: View {
     private func rahmen(_ a: Kachelaussehen) -> some View {
         if a.ecken {
             // Vorlage 178 (2,289 px/pt): Schenkel ≈ 7,5 pt, Linie ≈ 0,7 pt, Rundung ≈ 1,5 pt, an der Kartenkante
-            Eckklammern(laenge: 7.5, radius: 1.5)
+            Eckklammern(laenge: 7.5, radius: 2.5)
                 .stroke(Farben.eckklammer, style: StrokeStyle(lineWidth: 0.7, lineCap: .round, lineJoin: .round))
                 .padding(0.35)
         } else if let rand = a.rand {
@@ -783,8 +783,8 @@ struct Plakettenwert: View {
     /// 176: Fläche 9,8 pt von der Kartenkante, Label-Schrift 0,5 pt vor der normalen Schrift)
     static let vorsprung: CGFloat = 2.15
     /// Ecken: an vier Labels der 3-px/pt-Vorlagen (LN, A103, GIL, WE) nachgemessen – Verlauf der Kantenglättung passt
-    /// zu einer kontinuierlichen Rundung mit 2,85 pt (eine Kreisrundung bräuchte ≈ 1,8 pt, passt aber schlechter)
-    static let radius: CGFloat = 2.85
+    /// zu einer kontinuierlichen Rundung (gemessen ≈ 2,85 pt, auf Wunsch leicht zurückgenommen auf 2,4 pt)
+    static let radius: CGFloat = 2.4
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
