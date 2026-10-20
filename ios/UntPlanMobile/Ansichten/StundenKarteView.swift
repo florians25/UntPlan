@@ -528,12 +528,13 @@ struct Kachelaussehen {
             randBreite = 1.5
             schatten = .keiner
         case .abgegeben:
+            // Vorlagen 178/180: keine Fläche, kein Rahmen, nur die feinen Eckklammern; Balken und Schrift wie bei anderen
+            // (vergangenen) Stunden
             hintergrund = .clear
             schatten = .keiner
             ecken = true
             radius = 0
-            text = Farben.karteText
-            balkenDeckkraft = 1
+            text = v ? Farben.karteTextVergangen : Farben.karteText
         case .bereitschaft:
             hintergrund = v ? .clear : Farben.karte
             rand = v ? Farben.bereitschaftRandVergangen : Farben.bereitschaftRand
@@ -547,7 +548,7 @@ struct Kachelaussehen {
             schatten = .keiner
             ecken = true
             balken = Farben.bereitschaftBalken
-            text = v ? Farben.gedaempft : Farben.karteText
+            text = v ? Farben.karteTextVergangen : Farben.karteText
         case .veranstaltung:
             // Wie die grüne Vertretungskarte: hell #e3fff2 mit 2-pt-Rahmen #019169, dunkel dunkelgrün mit türkisem Rahmen;
             // vergangen fällt nur der Rahmen weg
@@ -710,11 +711,14 @@ struct ZaehlstreifenView: View {
             .accessibilityAddTraits(.isButton)
     }
 
+    /// Vorlagen 178 (hell) und 180 (dunkel, vergangene Woche): farbige Streifen immer in der kräftigen Farbe (auch
+    /// vergangen) – hell mit weißer, dunkel mit dunkler Zahl (#f03064 / #1fc0a0 / #ffb728).
     private var farbe: (flaeche: Color, text: Color) {
         let v = streifen.vergangen
-        if streifen.entfall { return (v ? Farben.entfallRandVergangen : Farben.entfallRand, .white) }
-        if streifen.aenderung { return (v ? Farben.aenderungRandVergangen : Farben.aenderungRand, .white) }
-        if streifen.klausur { return (v ? Farben.pruefungRandVergangen : Farben.pruefungRand, .white) }
+        let ziffer = Color(hell: 0xFFFFFF, dunkel: 0x10161D)
+        if streifen.entfall { return (Farben.entfallRand, ziffer) }
+        if streifen.aenderung { return (Farben.aenderungRand, ziffer) }
+        if streifen.klausur { return (Farben.pruefungRand, ziffer) }
         return (v ? Farben.karteVergangen : Farben.karte, v ? Farben.karteTextVergangen : Farben.karteText)
     }
 }
@@ -778,6 +782,9 @@ struct Plakettenwert: View {
     /// Steht das Label vorn, beginnt die Fläche so weit vor dem Textanfang der übrigen Zeilen (Original 173 gegen App
     /// 176: Fläche 9,8 pt von der Kartenkante, Label-Schrift 0,5 pt vor der normalen Schrift)
     static let vorsprung: CGFloat = 2.15
+    /// Ecken: an vier Labels der 3-px/pt-Vorlagen (LN, A103, GIL, WE) nachgemessen – Verlauf der Kantenglättung passt
+    /// zu einer kontinuierlichen Rundung mit 2,85 pt (eine Kreisrundung bräuchte ≈ 1,8 pt, passt aber schlechter)
+    static let radius: CGFloat = 2.85
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
@@ -801,7 +808,7 @@ struct Plakettenwert: View {
             .padding(.leading, Self.innen)
             .padding(.trailing, Self.innenRechts)
             .frame(height: min(14, zeilenHoehe - 0.33))
-            .background(farbe, in: RoundedRectangle(cornerRadius: 1.5, style: .continuous))
+            .background(farbe, in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
     }
 }
