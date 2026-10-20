@@ -540,6 +540,28 @@ public class KachelbauTests
     }
 
     [Fact]
+    public void Abwesende_Klasse_steht_an_ihrem_Platz_in_der_Reihe()
+    {
+        // Plan von ET13 (abwesend), Mitklassen INF13 und ING13: eine Reihe „ET13, INF13, ING13“ – nicht ET13 vorn bzw. hinten angehängt
+        var eigen = Kachelbau.AusKarte(Karte("abwesend", 5, fach: "WW", klassen: new() { new("ET13") })
+            with { KlasseAbwesend = true, AbwesendeKlassen = new() { "ET13" }, Mitklassen = new() { new("INF13"), new("ING13") } }, "class");
+        Assert.Equal(new[] { ("ET13", "absent"), ("INF13", "ok"), ("ING13", "ok") }, eigen.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+        // Lehrerplan mit Klassen in anderer Reihenfolge: alphabetisch, die abwesende an ihrem Platz
+        var lehrer = Kachelbau.AusKarte(Karte("geaendert", 5, fach: "WW", klassen: new() { new("INF13"), new("ING13"), new("ET13") })
+            with { AbwesendeKlassen = new() { "ET13" } }, "teacher");
+        Assert.Equal(new[] { ("ET13", "absent"), ("INF13", "ok"), ("ING13", "ok") }, lehrer.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+    }
+
+    [Fact]
+    public void Kopplung_nennt_eine_vertretende_Teilnehmerin_nur_einmal()
+    {
+        // CS nimmt selbst teil und vertritt zusätzlich SN: nur das Label (an der ersten Stelle), nicht „CS, SZ [CS]“
+        var k = Kachelbau.AusKarte(Karte("geaendert", 7, fach: "ZKonf", lehrer: new() { new("CS"), new("SZ"), new("CS", "SN", true) }), "teacher");
+        Assert.Equal(new[] { ("CS", "sub"), ("SZ", "ok") }, k.Kopplung!.Select(e => (e.Code, e.Zustand)));
+        Assert.Equal("SN", k.Kopplung![0].Fuer);
+    }
+
+    [Fact]
     public void Im_Plan_der_abwesenden_Klasse_laeuft_die_Stunde_ohne_sie_weiter()
     {
         // INF13 abwesend, INF12 hat weiter Unterricht: Plan von INF13 wie „Lehrkraft abwesend“ (Eckklammern), kein Entfall
@@ -550,7 +572,8 @@ public class KachelbauTests
         Assert.Null(k.LehrerAbwesend);
         Assert.False(k.Offen);
         Assert.Null(k.Verlegung);
-        Assert.Equal(new[] { ("INF13", "absent"), ("INF12", "ok") }, k.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+        // alle Klassen alphabetisch in einer Reihe – die abwesende eigene Klasse an ihrem Platz
+        Assert.Equal(new[] { ("INF12", "ok"), ("INF13", "absent") }, k.Klassenliste!.Select(e => (e.Name, e.Zustand)));
     }
 
     [Fact]

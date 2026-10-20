@@ -94,6 +94,8 @@ public class AufsichtSpurenTests
             // vertretene Lehrkraft steht auch als gewöhnliches Kürzel nicht auf der Kachel – nur die Vertretung
             pruefe('vertreten doppelt', t({ blockType: 'change', teacherList: liste(['ILK', 'sub', 'BAM'], ['BAM', 'ok']) }), ['ILK:sub']);
             pruefe('Einzelvertretung', t({ blockType: 'change', teacherList: liste(['ILK', 'sub', 'BAM'], ['BIK', 'ok'], ['BAM', 'ok']) }), ['ILK:sub', 'BIK:ok']);
+            // beteiligte Lehrkraft vertritt zusätzlich eine Kollegin: nur das Label, nicht schlicht und als Label („CS, SZ [CS]“)
+            pruefe('doppelt schlicht und Label', t({ blockType: 'change', teacherList: liste(['CS', 'ok'], ['SZ', 'ok'], ['CS', 'sub', 'SN']) }), ['SZ:ok', 'CS:sub']);
             """);
     }
 

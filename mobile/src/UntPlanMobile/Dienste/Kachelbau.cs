@@ -573,6 +573,7 @@ public static class Kachelbau
                 // hinzugekommene Lehrkraft: grünes Label (die App zeigt kein „+“)
                 : w.Plus ? new KoppEintrag(w.K, "sub", Plus: true)
                 : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
+        if (kachel.Kopplung != null) kachel.Kopplung = KoppEinmal(kachel.Kopplung);
         // Koppelklassen: alle Klassen der Stunde (eigene aus klassen[], die übrigen aus mitklassen[]); eine abwesende Klasse
         // ({k:"", alt:"INF13"} bzw. in abwesendeKlassen[], solange die Stunde für die übrigen Klassen stattfindet) steht durchgestrichen
         // in der grünen Plakette
@@ -581,9 +582,10 @@ public static class Kachelbau
         var alleKlassen = k.Mitklassen is { Count: > 0 } ? eigene.Concat(k.Mitklassen).ToList() : eigene;
         if (alleKlassen.Count > 1 || (weg is not null && alleKlassen.Count > 0))
         {
+            // alle Klassen in ihrer Reihenfolge (alphabetisch): die abwesende Klasse steht an ihrem Platz in der Reihe („ET13, INF13, ING13“)
             kachel.Klassenliste = alleKlassen
                 .Select(w => w.K.Length > 0 ? new KlassenEintrag(w.K, Plus: w.Plus ? true : null) : !string.IsNullOrEmpty(w.Alt) ? new KlassenEintrag(w.Alt!, "absent") : null)
-                .Where(e => e != null).Select(e => e!).DistinctBy(e => e.Name, Ci).ToList();
+                .Where(e => e != null).Select(e => e!).DistinctBy(e => e.Name, Ci).OrderBy(e => e.Name, Ci).ToList();
             // Plan der abwesenden Klasse selbst: die Stunde läuft mit den übrigen Klassen ohne sie weiter – Eckklammern wie bei einer
             // abwesenden Lehrkraft (kein Entfall)
             if (k.KlasseAbwesend && art == "class" && k.Status == "abwesend")
@@ -601,6 +603,23 @@ public static class Kachelbau
             }
         }
         return kachel;
+    }
+
+    /// <summary>
+    /// Jede Lehrkraft einer Kopplung nur einmal: steht ein Kürzel zugleich schlicht und als Vertretung bzw. hinzugekommen da (eine
+    /// beteiligte Lehrkraft vertritt zusätzlich eine abwesende Kollegin), bleibt nur das Label – an der Stelle des ersten Auftretens.
+    /// </summary>
+    public static List<KoppEintrag> KoppEinmal(IEnumerable<KoppEintrag> liste)
+    {
+        static int Rang(KoppEintrag e) => e.Zustand == "sub" ? (e.Fuer is { Length: > 0 } ? 2 : 1) : 0;
+        var res = new List<KoppEintrag>();
+        foreach (var e in liste)
+        {
+            var i = e.Zustand == "absent" ? -1 : res.FindIndex(x => x.Zustand != "absent" && Ci.Equals(x.Code, e.Code));
+            if (i < 0) res.Add(e);
+            else if (Rang(e) > Rang(res[i])) res[i] = e;
+        }
+        return res;
     }
 
     /// <summary>Art einer reinen Raumänderung (Raumänderung, Raumvertretung, Raumwechsel).</summary>

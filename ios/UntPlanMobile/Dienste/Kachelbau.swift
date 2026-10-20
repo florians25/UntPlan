@@ -706,8 +706,15 @@ enum Kachelbau {
                     // Karte steht NUR die Vertretung als grüne Plakette – die vertretene Lehrkraft erscheint dort gar nicht
                     // (kein durchgestrichenes Kürzel, kein „alt | neu“); sie nennen allein die Details.
                     var teile: [Kachelteil] = []
+                    // Jede Lehrkraft nur einmal: steht ein Kürzel schlicht und zugleich als Vertretung (Plakette) da, bleibt nur
+                    // die Plakette – an der Stelle des ersten Auftretens
                     func hinzu(_ t: Kachelteil) {
                         if teile.contains(where: { gleich($0.text, t.text) && $0.stil == t.stil }) { return }
+                        if t.stil == .plakette, let i = teile.firstIndex(where: { gleich($0.text, t.text) && $0.stil == .text }) {
+                            teile[i] = t
+                            return
+                        }
+                        if t.stil == .text && teile.contains(where: { gleich($0.text, t.text) && $0.stil == .plakette }) { return }
                         teile.append(t)
                     }
                     let offenStil: Kachelteil.Stil = art == .entfall ? .weg : .offen
@@ -776,6 +783,9 @@ enum Kachelbau {
                     }
                     teile += weg.filter { w in !namen.contains { gleich($0, w) } }
                         .map { Kachelteil(text: $0, stil: wegStil) }
+                    // Alle Klassen in ihrer Reihenfolge (alphabetisch): die abwesende Klasse steht an ihrem Platz in der
+                    // Reihe, mit Komma getrennt („ET13, INF13, ING13“) – nicht angehängt
+                    teile.sort { $0.text.uppercased() < $1.text.uppercased() }
                     // Im Klassenplan steht nur, wer mit dabei ist – die eigene Klasse nur, wenn sie fehlt
                     if typ == "klasse" && !ich.isEmpty && teile.count > 1 {
                         teile = teile.filter { $0.text.uppercased() != ich || $0.stil != .text }

@@ -467,6 +467,26 @@ public sealed class Plandienst
             (r.Unterricht is int u
                 ? r.Fach.Length > 0 && roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz))
                 : ZusatzOhneUnterricht(r) && roh.Any(x => !ReferenceEquals(x, r) && ZusatzOhneUnterricht(x) && GleicherZusatz(x, r) && Enthaelt(x.Lehrer, kurz)));
+        // Kolleg*innen derselben Stunde (Kopplungszeilen desselben Unterrichts bzw. gemeinsame Zusatzstunde ohne Unterricht): auf der Karte
+        // der abwesenden Lehrkraft stehen sie schlicht neben der Vertretung (Label) – in der Reihenfolge der Zeilen, jede Lehrkraft einmal
+        Karte MitKollegen(Karte k, Rohstunde r)
+        {
+            bool Gruppe(Rohstunde x) => ReferenceEquals(x, r) || (x.Stunde == r.Stunde && x.Status is not ("entfall" or "vorgemerkt" or "offen") && x.Art != "KlausurLoeschen"
+                && (r.Unterricht is int u ? r.Fach.Length > 0 && x.Unterricht == u && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r)
+                    : ZusatzOhneUnterricht(r) && ZusatzOhneUnterricht(x) && GleicherZusatz(x, r)));
+            var zeilen = roh.Where(Gruppe).ToList();
+            if (zeilen.Count < 2) return k;
+            var liste = new List<Wert>();
+            foreach (var x in zeilen)
+            {
+                if (ReferenceEquals(x, r)) { liste.AddRange(k.Lehrer); continue; }
+                WebVertretung? xv = x.Vertretung is int xid && s.Vertretungen.TryGetValue(xid, out var xvx) ? xvx : null;
+                foreach (var l in x.Lehrer.Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++") && !Ci.Equals(l, kurz)))
+                    liste.Add(xv != null && x.Status == "vertreten" && xv.Lehrer.Length > 0 && Ci.Equals(xv.Vertreter, l) && !Ci.Equals(xv.Lehrer, l) ? new Wert(l, xv.Lehrer, true) : new Wert(l));
+            }
+            var lehrer = LehrerEinmal(liste);
+            return lehrer.Count > k.Lehrer.Count ? k with { Lehrer = lehrer } : k;
+        }
         // vorgemerkte Löschungen von Prüfungen (werden unten angewandt)
         var loeschungen = roh.Where(r => r.Status == "vorgemerkt" && r.Art == "KlausurLoeschen").ToList();
         foreach (var r in roh)
@@ -486,6 +506,8 @@ public sealed class Plandienst
             if (!betrifft && !(r.Status == "vorgemerkt" && r.Unterricht.HasValue && r.Art != "Klausur")) continue;
             var k = KarteBauen(s, d, typ, kurz, r, v, zeiten);
             if (typ == Elementtyp.Klasse && r.Status != "vorgemerkt") k = MitklassenSetzen(k, r, roh, kurz);
+            // Plan der abwesenden Lehrkraft: eine Stunde mehrerer Lehrkräfte (Kopplung, Konferenz) nennt weiter alle Kolleg*innen
+            if (typ == Elementtyp.Lehrer && k.Status == "abwesend" && k.LehrerAbwesend && !k.Bereitschaft) k = MitKollegen(k, r);
             if (r.Status == "vorgemerkt") vorgemerkt.Add((r, k));
             else
             {
@@ -1028,8 +1050,9 @@ public sealed class Plandienst
                 VerlegungNach = liste.Select(x => x.VerlegungNach).FirstOrDefault(x => x != null),
                 Status = liste.Any(x => x.Status == "offen") ? "offen" : liste.Any(x => x.Status == "geaendert") ? "geaendert" : f.Status,
                 FachAlt = liste.Select(x => x.FachAlt).FirstOrDefault(x => !string.IsNullOrEmpty(x)),
-                Klassen = Vereinigen(liste.SelectMany(x => x.Klassen)),
-                Lehrer = Vereinigen(liste.SelectMany(x => x.Lehrer)),
+                // Klassen in ihrer Reihenfolge (alphabetisch) – auch eine abwesende Klasse steht an ihrem Platz in der Reihe
+                Klassen = Vereinigen(liste.SelectMany(x => x.Klassen)).OrderBy(w => w.K.Length > 0 ? w.K : w.Alt ?? "", StringComparer.OrdinalIgnoreCase).ToList(),
+                Lehrer = LehrerEinmal(Vereinigen(liste.SelectMany(x => x.Lehrer))),
                 Raeume = Vereinigen(liste.SelectMany(x => x.Raeume)),
                 Art = liste.Where(x => zusatz || !x.Zusaetzlich).Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? liste.Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? "",
                 Text = string.Join(" · ", texte),
@@ -1037,6 +1060,24 @@ public sealed class Plandienst
                 VertretungOffen = liste.Any(x => x.VertretungOffen),
                 Mitklassen = Vereinigen(liste.SelectMany(x => x.Mitklassen)).Where(w => !liste.Any(x => x.Klassen.Any(kl => Ci.Equals(kl.K, w.K.Length > 0 ? w.K : w.Alt)))).ToList(),
             });
+        }
+        return res;
+    }
+
+    /// <summary>
+    /// Jede Lehrkraft nur einmal auf der Karte: steht ein Kürzel zugleich schlicht und als Änderung (z. B. vertritt eine beteiligte Lehrkraft
+    /// zusätzlich eine abwesende Kollegin derselben Konferenz), bleibt nur der geänderte Wert (Label) – an der Stelle des ersten Auftretens.
+    /// Werte ohne Kürzel (abwesend, offen) bleiben unverändert.
+    /// </summary>
+    public static List<Wert> LehrerEinmal(IEnumerable<Wert> lehrer)
+    {
+        static int Rang(Wert w) => !string.IsNullOrEmpty(w.Alt) ? 2 : w.Neu || w.Plus ? 1 : 0;
+        var res = new List<Wert>();
+        foreach (var w in lehrer)
+        {
+            var i = w.K.Length == 0 ? -1 : res.FindIndex(x => Ci.Equals(x.K, w.K));
+            if (i < 0) res.Add(w);
+            else if (Rang(w) > Rang(res[i])) res[i] = w;
         }
         return res;
     }
