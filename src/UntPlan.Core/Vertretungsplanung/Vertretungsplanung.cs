@@ -150,6 +150,7 @@ public static class Vertretungen
             }
         }
 
+        ILookup<int, RegelStunde>? regelJeStunde = null;
         foreach (var r in regel)
         {
             if (manuell.Contains((r.Unterricht.Id, r.ZeilenIndex, r.Stunde))) continue;
@@ -196,9 +197,12 @@ public static class Vertretungen
                 continue;
             }
             // Klassen abwesend → Freisetzung (bzw. Unterricht findet als Veranstaltung statt, wenn die Lehrkraft an derselben Veranstaltung teilnimmt)
-            // Kopplungszeile ohne eigene Klassen (z. B. hinzugefügte zweite Lehrkraft): es zählen die Klassen der ganzen Kopplung
+            // Kopplungszeile ohne eigene Klassen (z. B. hinzugefügte zweite Lehrkraft): es zählen die Klassen der ganzen Kopplung.
+            // Fehlt nur ein Teil der Klassen der gemeinsamen Stunde (Kopplungszeilen bzw. parallel identischer Unterricht derselben Lehrkraft
+            // mit gleichem Fach und Raum), findet die Stunde für die übrigen statt: keine Freisetzung, die abwesende Klasse steht in den Absenzen
             var klassenDerStunde = KlassenDerStunde(r);
-            if (klassenDerStunde.Count > 0 && klassenDerStunde.All(k => Absenzen.KlasseAbwesend(d, k, datum, r.Stunde)))
+            if (klassenDerStunde.Count > 0 && klassenDerStunde.All(k => Absenzen.KlasseAbwesend(d, k, datum, r.Stunde))
+                && GemeinsameStunde(r, regelJeStunde ??= regel.ToLookup(x => x.Stunde)).All(k => Absenzen.KlasseAbwesend(d, k, datum, r.Stunde)))
             {
                 var abw = Absenzen.Klasse(d, klassenDerStunde[0], datum, r.Stunde);
                 var va = abw is null ? Absenzen.VeranstaltungKlasse(d, klassenDerStunde[0], datum, r.Stunde) : null;
@@ -332,6 +336,16 @@ public static class Vertretungen
     /// <summary>Klassen einer Stunde; eine Kopplungszeile ohne eigene Klassen gehört zu den Klassen der ganzen Kopplung.</summary>
     private static IReadOnlyList<int> KlassenDerStunde(RegelStunde r) =>
         r.KlassenIds.Count > 0 ? r.KlassenIds : r.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct().ToList();
+
+    /// <summary>
+    /// Klassen der gemeinsamen Stunde einer Zeile: weitere Kopplungszeilen desselben Unterrichts bzw. parallel identischer Unterricht derselben
+    /// Lehrkraft (gleiche Stunde, gleiches Fach, gleicher Raum) – wie UntPlanWeb diese Stunden zu einer Karte zusammenfasst. Die Lehrkraft ist
+    /// erst frei, wenn alle diese Klassen fehlen.
+    /// </summary>
+    private static IEnumerable<int> GemeinsameStunde(RegelStunde r, ILookup<int, RegelStunde> regelJeStunde) =>
+        regelJeStunde[r.Stunde].Where(x => !ReferenceEquals(x, r) && x.FachId == r.FachId && x.RaumId == r.RaumId
+                && (x.Unterricht.Id == r.Unterricht.Id || (x.LehrerId is int l && l == r.LehrerId)))
+            .SelectMany(x => x.KlassenIds).Distinct();
 
     /// <summary>Arten, die nicht als Unterricht der Klasse zählen (bleiben bei abwesender Klasse unverändert).</summary>
     private static bool KeinKlassenunterricht(VertretungsArt a) => a is VertretungsArt.Veranstaltung or VertretungsArt.Klausur or VertretungsArt.Raumbuchung
