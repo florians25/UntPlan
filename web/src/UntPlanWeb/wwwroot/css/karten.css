@@ -41,7 +41,7 @@
 
 /* ------------------------------------------------------------------ Wertelisten (mehrere Lehrkräfte bzw. Klassen)
 
-   Alle Werte in einer Zeile; was nicht passt, endet mit „…“, dahinter „+5“ (ganz verdeckte Werte, js listenKuerzen). */
+   Alle Werte in einer Zeile; was nicht passt, endet nur mit „…“ – keine Anzahl „+N“ auf der Karte (vollständig in den Details). */
 .std .z-liste { display: flex; align-items: baseline; min-width: 0; }
 .std .z-liste > .z-namen { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .std .z-liste > .mehr { flex: none; margin-left: 4px; font-weight: 500; }

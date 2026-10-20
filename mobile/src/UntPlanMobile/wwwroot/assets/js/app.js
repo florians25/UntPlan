@@ -5864,8 +5864,11 @@ function renderDetail(){
   const val = key => {
     const now  = detailWert(c[key]);
     const orig = detailWert(c[key + 'Orig']);
+    /* Fachänderung: auf der Kachel kein Label (der neue Block steht für
+       sich), im Detail aber wie jede Änderung – altes Fach durchgestrichen,
+       daneben das neue. */
     const changed = (c.changed || []).includes(key)
-      || (key === 'teacher' && orig !== '' && now !== ''
+      || ((key === 'teacher' || key === 'subject') && orig !== '' && now !== ''
           && orig.toUpperCase() !== now.toUpperCase());
     if (!now && !orig) return '';
     /* Hinzugekommene Werte mit „+“ davor (wie auf der Kachel). */

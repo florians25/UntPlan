@@ -139,6 +139,11 @@ public sealed record Karte(
     /// Teilnehmende), die in <see cref="Text"/> stehen können – Bezeichnung auf der Karte in jedem Plan (Klassen-, Lehrer-, Raumplan).
     /// </summary>
     public string Pruefung { get; init; } = "";
+    /// <summary>
+    /// Die Stunde entfällt wegen einer Veranstaltung (Klasse bzw. Lehrkraft nimmt an ihr teil): kein Vertretungstext und kein Info-Symbol
+    /// auf der Karte (auch kein „Klasse abwesend“) – die Information steht allein an der Veranstaltung.
+    /// </summary>
+    public bool WegenVeranstaltung { get; init; }
     /// <summary>Prüfung aus UntPlan (Klausur-Id), zu der die Karte gehört: Prüfungszeile bzw. wegen der Prüfung entfallener Unterricht.</summary>
     [System.Text.Json.Serialization.JsonIgnore] public int? Klausur { get; init; }
     /// <summary>
@@ -205,7 +210,8 @@ public sealed record Tageszeile(string Kurz, string Name, List<Karte> Karten);
 
 /// <summary>Rohdaten einer Stunde (aus dem tagesaktuellen Plan, dem Regelplan oder einer Vormerkung).</summary>
 public sealed record Rohstunde(int Stunde, int? Unterricht, string Fach, IReadOnlyList<string> Klassen, IReadOnlyList<string> Lehrer, IReadOnlyList<string> Raeume,
-    string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null, bool Bereitschaft = false, int? Klausur = null);
+    string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null, bool Bereitschaft = false, int? Klausur = null,
+    int? Veranstaltung = null);
 
 public static class Elementtyp
 {
@@ -298,7 +304,7 @@ public sealed class Plandienst
 
     public List<Rohstunde> Rohstunden(Stand s, DateOnly d)
     {
-        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft, x.Klausur);
+        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft, x.Klausur, x.Veranstaltung);
         if (s.Tage.TryGetValue(Iso(d), out var tag) && !tag.NurAenderungen)
             return tag.Unterrichtstag ? tag.Stunden.Select(Aus).ToList() : new List<Rohstunde>();
         if (tag is { NurAenderungen: true })
@@ -470,7 +476,7 @@ public sealed class Plandienst
             else
             {
                 einzel.Add(k);
-                if (Fachwechsel(k, typ, kurz) is { } alt) einzel.Add(alt);
+                if (Fachwechsel(s, k, typ, kurz) is { } alt) einzel.Add(alt);
             }
         }
         // zum Löschen vorgemerkte Prüfungen (auch der alte Termin einer verlegten Prüfung) ausblenden – vor dem Auflegen vorgemerkter
@@ -809,7 +815,8 @@ public sealed class Plandienst
         {
             if (k.Status != "regulaer" || k.Vertretung.HasValue || k.Klassen.Count == 0 || k.Fach.Length == 0) return k;
             var t = termine.FirstOrDefault(t => Deckt(t, k.Von) && k.Klassen.All(w => Enthaelt(t.Klassen, w.K)));
-            return t is null ? k : k with { Status = "entfall", Art = "Entfall", Text = t.Titel };
+            // kein Vertretungstext (Titel der Veranstaltung) auf jeder entfallenen Stunde – die Information steht an der Veranstaltung
+            return t is null ? k : k with { Status = "entfall", Art = "Entfall", Text = "", WegenVeranstaltung = true };
         }).ToList();
     }
 
@@ -869,22 +876,28 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Fachwechsel wie im Original: Zur geänderten Stunde mit neuem Fach erscheint die ursprüngliche Stunde als Entfall daneben
-    /// (altes Fach, ursprüngliche Lehrkräfte und Räume). Im Lehrerplan nur, wenn die Lehrkraft die ursprüngliche Stunde gehalten hätte.
+    /// Fachwechsel wie im Original: Eine Vertretung mit anderem Fach ist immer ein neuer, paralleler Block (grün, neues Fach mit dessen
+    /// Fachfarbe, das bisherige Fach in <see cref="Karte.FachAlt"/> für die Details); daneben erscheint die ursprüngliche Stunde als Entfall
+    /// (altes Fach mit der Farbe des alten Fachs, ursprüngliche Lehrkräfte und Räume, ohne Text). Im Lehrerplan nur, wenn die Lehrkraft
+    /// die ursprüngliche Stunde gehalten hätte.
     /// </summary>
-    private static Karte? Fachwechsel(Karte k, string typ, string kurz)
+    internal static Karte? Fachwechsel(Stand s, Karte k, string typ, string kurz)
     {
-        if (k.Status != "geaendert" || string.IsNullOrEmpty(k.FachAlt) || Ci.Equals(k.FachAlt, k.Fach)) return null;
+        if (k.Status is not ("geaendert" or "offen") || string.IsNullOrEmpty(k.FachAlt) || Ci.Equals(k.FachAlt, k.Fach)) return null;
         static List<Wert> Urspruenglich(IEnumerable<Wert> l) => l.Select(w => w.Alt is { Length: > 0 } a ? a : w.K).Where(x => x.Length > 0).Distinct(Ci).Select(x => new Wert(x)).ToList();
         var lehrer = Urspruenglich(k.Lehrer);
         var raeume = Urspruenglich(k.Raeume);
         if (typ == Elementtyp.Lehrer && !lehrer.Any(w => Ci.Equals(w.K, kurz))) return null;
         if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) return null;
+        s.Faecher.TryGetValue(k.FachAlt!, out var altesFach);
         return k with
         {
-            Status = "entfall", Fach = k.FachAlt!, FachAlt = null, FachName = k.FachAlt!, Farbe = k.Farbe, Lehrer = lehrer, Raeume = raeume,
+            Status = "entfall", Fach = k.FachAlt!, FachAlt = null, FachName = altesFach?.Name is { Length: > 0 } n ? n : k.FachAlt!, Farbe = altesFach?.Farbe ?? "",
+            Lehrer = lehrer, Raeume = raeume,
             Klassen = k.Klassen.Select(w => new Wert(w.Alt is { Length: > 0 } a ? a : w.K)).Where(w => w.K.Length > 0).ToList(),
-            Art = "Entfall", Text = "", Unterricht = null, VerlegungsZeile = false, VerlegungVon = null, VerlegungNach = null,
+            Art = "Entfall", Text = "", Unterricht = null, VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null,
+            Zusaetzlich = false, VertretungOffen = false, LehrerAbwesend = false, Mitklassen = new(), NotizSchueler = "", NotizLehrer = "", HausaufgabeFaellig = false,
+            Online = false, OnlineLink = "",
         };
     }
 
@@ -1112,13 +1125,18 @@ public sealed class Plandienst
         // zusätzliche Unterrichtsstunde: kein automatisch erzeugter Vertretungstext (Badge „Zusätzl. Unterrichtsstunde“ statt Text);
         // von Hand eingegebene Texte bleiben (Info-Symbol auf der Karte)
         if (zusatz && fach.Length > 0) text = ZusatzText(text, art);
+        // Unterricht entfällt wegen einer Veranstaltung (Klasse bzw. Lehrkraft nimmt teil): kein Vertretungstext (UntPlan kopiert den Text
+        // der Veranstaltung auf jede entfallene Stunde) und damit kein Info-Symbol auf der Karte – die Veranstaltung selbst behält ihn.
+        // Ältere Pakete ohne Bezug: Text gleich dem Titel einer Veranstaltung des Tages.
+        var wegenVeranstaltung = status == "entfall" && (r.Veranstaltung.HasValue || v?.Veranstaltung is not null || IstVeranstaltungstitel(s, d, text));
+        if (wegenVeranstaltung) text = "";
         s.Faecher.TryGetValue(fach, out var fe);
         var zb = zeiten.TryGetValue(r.Stunde, out var z) ? z : null;
         var verlegungsZeile = v != null && (v.Nach.Trim().Length > 0 || v.VertrVon.Trim().Length > 0) && status != "klausur";
         var karte = new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
             r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, Gruppe(s, r))
         {
-            Zusaetzlich = zusatz, Bereitschaft = bereitschaft, Klausur = r.Klausur,
+            Zusaetzlich = zusatz, Bereitschaft = bereitschaft, Klausur = r.Klausur, WegenVeranstaltung = wegenVeranstaltung,
             // abwesende Lehrkraft: eigene Stunde im Lehrerplan von anderen gehalten bzw. weggefallene Bereitschaft (Lehrer- und
             // Tagesansichten); im Raumplan nie – dort ist die Stunde wie im Klassenplan „geaendert“ bzw. „offen“
             LehrerAbwesend = status == "abwesend" && typ != Elementtyp.Raum && (typ == Elementtyp.Lehrer || bereitschaft),
@@ -1129,7 +1147,30 @@ public sealed class Plandienst
         };
         // zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): alle beteiligten Lehrkräfte als „+“-Label
         if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer) };
-        return karte.Verlegung is null ? karte : VerlegungSetzen(karte, d, v, zeiten);
+        return karte.Verlegung is null ? karte : VerlegungSetzen(VerlegungOhneZusatz(s, karte), d, v, zeiten);
+    }
+
+    /// <summary>
+    /// Verlegte Stunde (Ursprung bzw. Ziel): keine zusätzliche Unterrichtsstunde (kein Badge, keine „+“-Lehrkräfte) und – bei einer reinen
+    /// Verlegung – kein Lehrer-Label: Hält eine Lehrkraft des Unterrichts laut Stundenplan die verlegte Stunde, hat sich an der Lehrkraft nichts
+    /// geändert (auch wenn die Vertretung am Ziel die Lehrkraft nennt, deren Stunde dort vorher lag). Nur tatsächlich geänderte Werte (z. B. ein
+    /// anderer Raum) behalten ihr Label.
+    /// </summary>
+    internal static Karte VerlegungOhneZusatz(Stand s, Karte k)
+    {
+        k = k with { Zusaetzlich = false };
+        if (k.Unterricht is not int u || !s.Unterricht.TryGetValue(u, out var un)) return k;
+        var regel = un.Zeilen.Select(z => z.Lehrer).Where(x => x.Length > 0).ToHashSet(Ci);
+        if (regel.Count == 0 || !k.Lehrer.Any(w => w.K.Length > 0 && (w.Neu || !string.IsNullOrEmpty(w.Alt)) && regel.Contains(w.K))) return k;
+        return k with { Lehrer = k.Lehrer.Select(w => w.K.Length > 0 && regel.Contains(w.K) ? new Wert(w.K) : w).DistinctBy(w => (w.K.ToLowerInvariant(), (w.Alt ?? "").ToLowerInvariant())).ToList() };
+    }
+
+    /// <summary>Text gleich dem Titel einer Veranstaltung am Tag d (ältere Pakete ohne Bezug der entfallenen Stunde zur Veranstaltung)?</summary>
+    private static bool IstVeranstaltungstitel(Stand s, DateOnly d, string text)
+    {
+        var t = text.Trim();
+        return t.Length > 0 && s.Paket.Termine.Any(x => x.Art == "veranstaltung" && Ci.Equals(x.Titel.Trim(), t)
+            && DateOnly.TryParse(x.Von, out var v) && DateOnly.TryParse(x.Bis, out var b) && d >= v && d <= b);
     }
 
     /// <summary>

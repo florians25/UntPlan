@@ -511,8 +511,9 @@ struct StundendetailInhalt: View {
     /// (Entfall zeigt der rote Balken): Änderungen als „alt → neu“ mit durchgestrichenem altem Wert, fehlende Werte
     /// durchgestrichen. Jede Angabe steht in genau einer Zeile, die sich bei vielen Werten waagrecht scrollen lässt;
     /// sehr viele Werte (z. B. alle Lehrkräfte oder Klassen) werden auf „… +N“ gekürzt und lassen sich aufklappen.
-    /// Veranstaltung: oben keine Bezeichnung (die steht nur unten in „Information zur Stunde“) – Kopf- und Fachzeile
-    /// erscheinen nur, wenn Klassen bzw. ein Fach eingetragen sind, wie bei einer normalen Stunde.
+    /// Veranstaltung: oben keine Bezeichnung (die steht nur unten in „Information zur Stunde“) – ganz oben wie bei einer normalen
+    /// Stunde die beteiligten Klassen (Titelzeile), dann die Pille „VERANSTALTUNG“, Raum und Lehrkräfte; die Fachzeile nur mit
+    /// eingetragenem Fach. Fachänderung: altes Fach durchgestrichen, daneben das neue (auf der Karte kein Label).
     private var kopfblock: some View {
         let fach = istVeranstaltung ? veranstaltungsFach
                                     : (karte.fach.isEmpty ? karte.anzeigeArt : karte.fach)
@@ -528,12 +529,15 @@ struct StundendetailInhalt: View {
         fachteile.append(.text(fach))
         // Statuspille („PRÜFUNG“, „VERANSTALTUNG“) rechts neben dem Fach (Vorlage 140); ohne Fachzeile neben der Kopfzeile
         let fachSichtbar = !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame)
-        // Veranstaltung (Vorlage e289f31a): keine Klassen-/Titelzeile – zuerst die Pille, dann Raum und Lehrkräfte
-        let kopfteile = istVeranstaltung ? [] : titelBausteine
+        // Veranstaltung: die beteiligten Klassen ganz oben als Titelzeile (wie bei normalen Stunden), darunter die Pille, Raum
+        // und Lehrkräfte; ohne Klassen keine Titelzeile
+        let kopfteile = titelBausteine
         // Vorlagen: Prüfung rechts neben dem Fach; Veranstaltung und zusätzliche Unterrichtsstunde in eigener Zeile
         // unter der Kopfzeile (Zusatzstunde ohne Fachzeile – das Fach steht im Reiter)
         let pilleEigeneZeile = istVeranstaltung || karte.istZusatzstunde
-        let fachZeile = fachSichtbar && !istVeranstaltung && !(karte.istZusatzstunde && karten.count > 1)
+        // Eine Fachänderung steht immer in der Fachzeile (altes Fach durchgestrichen | neues Fach)
+        let fachGeaendert = !(karte.fachAlt ?? "").isEmpty && karte.fachAlt != karte.fach
+        let fachZeile = fachSichtbar && !istVeranstaltung && (!(karte.istZusatzstunde && karten.count > 1) || fachGeaendert)
         if let pille = karte.statusPille, fachZeile, !pilleEigeneZeile {
             fachteile.append(.pille(pille))
         }

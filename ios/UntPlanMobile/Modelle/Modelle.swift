@@ -321,6 +321,8 @@ struct Karte: Decodable, Identifiable, Sendable {
         lehrerAbwesend = c.wahr(.lehrerAbwesend) || c.wahr(.bereitschaftAbwesend) || c.wahr(.standbyAbsent)
         bereitschaft = c.wahr(.bereitschaft)
         verlegungRoh = (c.textOderNil(.verlegung) ?? c.textOderNil(.moved) ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        // Eine verlegte Stunde (Ursprung bzw. Ziel) ist nie eine zusätzliche Unterrichtsstunde – keine Plakette, keine Lehrer-Labels
+        if verlegungRoh == "von" || verlegungRoh == "nach" { zusaetzlich = false }
         verlegungVon = c.optional(.verlegungVon)
         verlegungNach = c.optional(.verlegungNach)
         if c.contains(.marker) {
