@@ -504,7 +504,7 @@ struct NotizSeite: View {
             switch self {
             case .schueler: return "Notiz, die Schüler*innen sehen"
             case .lehrer: return "Notiz nur für Lehrkräfte"
-            case .lehrstoff: return "Hier klicken um Lehrstoff einzutragen."
+            case .lehrstoff: return "Text hier eingeben"
             }
         }
 
@@ -523,6 +523,8 @@ struct NotizSeite: View {
     @State private var anfang = ""
     @State private var speichert = false
     @State private var fehler: String? = nil
+    /// Lehrstoff aus den Vorwochen (Liste unter dem Eingabefeld, Antippen übernimmt den Text)
+    @State private var vorstunden: [LehrstoffVorstunde] = []
     @FocusState private var fokus: Bool
     @Environment(\.dismiss) private var systemZurueck
     @Environment(\.blattSchliessen) private var blattSchliessen
@@ -559,7 +561,11 @@ struct NotizSeite: View {
                     GeerbterBlockText(text: geerbt)
                 }
                 // Auch künftige Stunden sind ohne Datumsgrenze bearbeitbar (beliebig weit im Voraus)
-                textbereich
+                if art == .lehrstoff && bearbeitbar {
+                    lehrstoffbereich
+                } else {
+                    textbereich
+                }
             }
         } rechts: {
             if bearbeitbar {
@@ -578,6 +584,15 @@ struct NotizSeite: View {
         }
         // Fokus beim Verlassen abgeben: die Tastatur schließt, das Blatt kehrt sicher in seine Größe zurück
         .onDisappear { fokus = false }
+        .task {
+            guard art == .lehrstoff, bearbeitbar, let u = daten.karte.unterricht else { return }
+            let von = daten.einzelstunde ?? daten.karte.von
+            let bis = daten.einzelstunde ?? daten.karte.bis
+            if let liste = try? await daten.api.lehrstoffVorstunden(datum: daten.karte.datum, stunde: von, bis: bis, unterricht: u,
+                                                                    lehrer: daten.lehrerHinweis) {
+                vorstunden = liste
+            }
+        }
         .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -593,6 +608,70 @@ struct NotizSeite: View {
         }
         fokus = false
         zurueck()
+    }
+
+    /// Lehrstoff wie in der Vorlage 555deb0d: einzeiliges (mitwachsendes) Feld „Text hier eingeben“ (17 pt, oranger Cursor),
+    /// darunter eine 1-pt-Linie und der Lehrstoff der Vorwochen (Symbol 24 pt, Text einzeilig 16 pt, darunter grau
+    /// „Mo., 12.10.2026, 12:15 - 13:00“; Zeilen 56 pt). Antippen übernimmt den Text in das Feld.
+    private var lehrstoffbereich: some View {
+        VStack(spacing: 0) {
+            TextField("", text: $text, prompt: Text(art.platzhalter).foregroundStyle(Farben.titelGrau), axis: .vertical)
+                .font(.system(size: 17))
+                .foregroundStyle(Farben.detailText)
+                .tint(Farben.akzent)
+                .lineLimit(1...8)
+                .focused($fokus)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 17)
+                .frame(minHeight: 54.67)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Rectangle()
+                .fill(Farben.detailLinie)
+                .frame(height: 1)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(vorstunden) { v in
+                        Button {
+                            text = v.thema
+                            fokus = true
+                        } label: {
+                            HStack(spacing: 18) {
+                                Listensymbol(name: "SymbolLehrstoff", groesse: 24, einpassen: true)
+                                VStack(alignment: .leading, spacing: 3.2) {
+                                    Text(v.thema.replacingOccurrences(of: "\n", with: " "))
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Farben.detailGrau)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                    Text(Self.datumszeile(v))
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Farben.titelGrau)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.leading, Detailmass.zeilenRand)
+                            .padding(.trailing, 16)
+                            .frame(minHeight: 56)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(OhneTippStil())
+                        .accessibilityHint("Übernimmt diesen Lehrstoff")
+                    }
+                }
+                .padding(.top, 9.3)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Farben.blatt)
+    }
+
+    /// „Mo., 12.10.2026, 12:15 - 13:00“
+    static func datumszeile(_ v: LehrstoffVorstunde) -> String {
+        let tag = Datumsformat.anzeige(v.datum, "EE, dd.MM.yyyy")
+        guard !v.beginn.isEmpty else { return tag }
+        return "\(tag), \(Detailmass.uhrzeit(v.beginn)) - \(Detailmass.uhrzeit(v.ende))"
     }
 
     @ViewBuilder

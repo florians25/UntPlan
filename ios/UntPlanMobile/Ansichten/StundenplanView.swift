@@ -1172,10 +1172,9 @@ struct Rasterrahmen: Equatable {
     /// Bis zu dieser Uhrzeit (Minuten) reicht das Raster beim Öffnen genau bis zum unteren Bildschirmrand (Vorlagen hell
     /// und dunkel nachgemessen: 07:45 bzw. 08:00 bis 17:00 auf der Sichthöhe von 718 pt).
     static let sichtEnde = 17 * 60
-    /// Leerer Streifen über der Linie der 1. Stunde: hell 52,33 pt (Vorlagen 171/172 und 3x-PNG), dunkel 15,67 pt (Vorlagen
-    /// 4cc11c37/e450e6b4: 47 px bei 3 px/pt).
-    static let obenHell: CGFloat = 52.33
-    static let obenDunkel: CGFloat = 15.67
+    /// Leerer Streifen über der Linie der 1. Stunde, hell und dunkel gleich (52,33 pt wie in den hellen Vorlagen): darin
+    /// steht eine Aufsicht vor der 1. Stunde (Pille 22 pt) genau mittig mit je ≈ 15 pt Luft.
+    static let obenAbstand: CGFloat = 52.33
 
     /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.
     static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 44 : 45 }
@@ -1203,8 +1202,7 @@ struct Rasterrahmen: Equatable {
         }
         let dicht = tagesansicht || kompakt
         // Pillen vor der 1. Stunde (Aufsicht, ganztägiger Termin) brauchen über der Linie der 1. Stunde Platz
-        let pillen: CGFloat = vorErster ? (dicht ? 31 : 34) : 0
-        let oben: CGFloat = kompakt ? max(dunkel ? Self.obenDunkel : Self.obenHell, pillen) : max(15, pillen)
+        let oben: CGFloat = Self.obenAbstand
         // iPhone wie im Original: Höhe je Minute so, dass das Raster von der 1. Stunde bis 17:00 genau die Sichthöhe
         // füllt (Vorlagen: dunkel 07:45–17:00 → 1,2667 pt/min, hell 08:00–17:00 → 1,2296 pt/min); sonst fester Wert
         let spanne = CGFloat(Self.sichtEnde - start)
@@ -1227,8 +1225,8 @@ struct Rasterrahmen: Equatable {
         self.tagesansicht = tagesansicht
         self.kompakt = kompakt
         self.untenFrei = untenFrei
-        // Stundennummern: iPhone wie in den Vorlagen nur dunkel (hell nur Uhrzeiten), iPad immer
-        self.stundenNummern = kompakt ? dunkel : true
+        // Stundennummern („1.“) immer (ausdrücklicher Wunsch), wie in den dunklen Vorlagen
+        self.stundenNummern = true
     }
 
     static func == (l: Rasterrahmen, r: Rasterrahmen) -> Bool {
@@ -1254,8 +1252,8 @@ struct KWFeld: View {
                 .font(.system(size: kompakt ? 11.5 : 12, weight: .regular))
                 .foregroundStyle(Farben.kopfText2)
             Text(Wochenkopf.monat(montag))
-                // Monat: hell 17,5 pt (Versalhöhe 12,33 pt), dunkel 15 pt („Okt“ 22,67 statt 26,67 pt breit)
-                .font(.system(size: kompakt ? (schema == .dark ? 15 : 17.5) : 18, weight: kompakt ? .semibold : .medium))
+                // Monat 17,5 pt Semibold (Versalhöhe 12,33 pt), hell und dunkel gleich
+                .font(.system(size: kompakt ? 17.5 : 18, weight: kompakt ? .semibold : .medium))
                 .tracking(-0.18)
                 .foregroundStyle(Farben.kopfText)
         }
@@ -1417,6 +1415,8 @@ struct RasterSeite: View, Equatable {
     var aufsichtAntippen: ((Aufsicht) -> Void)? = nil
     /// Antippen einer Stunde: alle Stunden derselben Zeit und die angetippte.
     let antippen: ([Karte], Int) -> Void
+
+    @Environment(\.displayScale) private var skala
 
     /// Raster nur neu zeichnen, wenn sich Seite, Planart, Element, Stand oder die gemeinsamen Höhen ändern
     /// (nicht bei jeder Verschiebung während des Wischens).
@@ -1599,10 +1599,9 @@ struct RasterSeite: View, Equatable {
             let i = CGFloat(vorErste.firstIndex(of: k.id) ?? 0)
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
-            // Direkt über der Linie der 1. Stunde (im freien Streifen vor ihr), nie nach oben in den Tageskopf;
-            // in der Tagesansicht und auf dem iPhone noch dichter an der 1. Stunde (1 pt statt 4 pt Abstand zur Linie)
+            // Genau mittig im freien Streifen über der Linie der 1. Stunde (gleicher Abstand zum Kopf und zur Linie)
             h = 22
-            y = max(3, mass.y(mass.start) - h - (dichteAufsicht ? 1 : 4))
+            y = bildpunkt(max(0, (mass.y(mass.start) - h) / 2))
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar; Breite und Spur wie jede Stunde
             (y, h) = pausenLage(beginn: k.beginn, ende: k.ende, mass: mass)
@@ -1615,12 +1614,21 @@ struct RasterSeite: View, Equatable {
     }
 
     /// Senkrechte Lage einer Pille in der (bei Bedarf gedehnten) Pause: mittig, vollständig sichtbar.
+    /// Genau mittig zwischen der Unterkante der Linie davor (Linie 1 pt ab `yEnde(beginn)`) und der Oberkante der Linie
+    /// danach (`y(ende)`), auf ganze Bildpunkte gerundet – gleicher Abstand nach oben und unten (auch nach der letzten
+    /// Stunde und bei gedehnten Pausen ohne Pausenlänge).
     private func pausenLage(beginn: Int, ende: Int, mass: Rastermass) -> (y: CGFloat, h: CGFloat) {
-        let oben = mass.yEnde(beginn)
-        let unten = ende > beginn ? mass.yEnde(ende) : mass.y(ende)
+        let oben = mass.yEnde(beginn) + 1
+        let unten = mass.y(ende)
         let luecke = max(0, unten - oben)
         let h = max(16, min(nurTage == nil ? 22 : 26, luecke - 2))
-        return (oben + max(1, (luecke - h) / 2), h)
+        return (bildpunkt(oben + (luecke - h) / 2), h)
+    }
+
+    /// Auf ganze Bildpunkte runden (3x: Drittel-Punkte).
+    private func bildpunkt(_ wert: CGFloat) -> CGFloat {
+        let s = max(skala, 1)
+        return (wert * s).rounded() / s
     }
 
     /// Zählerkarte: über den Zeitraum der verdeckten Kacheln (Minuten); liegen nur Pausenaufsichten dahinter, so hoch wie deren Pille.

@@ -98,6 +98,10 @@ private struct UnterblattSchluessel: EnvironmentKey {
     static let defaultValue: Bool = false
 }
 
+private struct ElternSchrumpfenSchluessel: EnvironmentKey {
+    static let defaultValue: (@MainActor (Bool) -> Void)? = nil
+}
+
 extension EnvironmentValues {
     /// Schließt das randlose Detailblatt mit seiner Animation (nil = Systemblatt, dann `dismiss`).
     var blattSchliessen: (@MainActor () -> Void)? {
@@ -109,6 +113,12 @@ extension EnvironmentValues {
     var randblattEbene: Int {
         get { self[RandblattEbeneSchluessel.self] }
         set { self[RandblattEbeneSchluessel.self] = newValue }
+    }
+
+    /// Meldet dem darunterliegenden randlosen Blatt, dass darüber ein weiteres Blatt offen ist (es schrumpft dann leicht).
+    var elternSchrumpfen: (@MainActor (Bool) -> Void)? {
+        get { self[ElternSchrumpfenSchluessel.self] }
+        set { self[ElternSchrumpfenSchluessel.self] = newValue }
     }
 
     /// Wurzel eines über den Stundendetails geöffneten Unterblatts (Lehrstoff, Hausaufgaben …): X statt Zurück,
@@ -228,7 +238,14 @@ struct Randblatt<Inhalt: View>: View {
     let schliessen: () -> Void
     @ViewBuilder let inhalt: () -> Inhalt
     @Environment(\.randblattEbene) private var ebene
+    @Environment(\.elternSchrumpfen) private var elternSchrumpfen
     @State private var sichtbar = false
+    /// Darüber ist ein weiteres Blatt offen: dieses Blatt schrumpft (Vorlage 555deb0d: ≈ 0,97, Oberkante bleibt bei 62 pt
+    /// und schaut 10 pt über dem neuen Blatt hervor)
+    @State private var kindOffen = false
+
+    /// Größe des Blatts, solange darüber ein weiteres Blatt offen ist.
+    static var geschrumpft: CGFloat { 0.97 }
     @State private var zug: CGFloat = 0
     @State private var schliesst = false
 
@@ -255,6 +272,9 @@ struct Randblatt<Inhalt: View>: View {
                 inhalt()
                     .environment(\.blattSchliessen, { zuklappen(blattHoehe) })
                     .environment(\.randblattEbene, ebene + 1)
+                    .environment(\.elternSchrumpfen, { offen in
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { kindOffen = offen }
+                    })
                     .frame(maxWidth: .infinity)
                     .frame(height: innenHoehe, alignment: .top)
                     .clipShape(UnevenRoundedRectangle(topLeadingRadius: Detailblatt.iPhoneRadius, bottomLeadingRadius: 0,
@@ -269,6 +289,7 @@ struct Randblatt<Inhalt: View>: View {
                             .shadow(color: .black.opacity(0.12), radius: 10, y: -2)
                     }
                     .simultaneousGesture(ziehen(blattHoehe, kopfUnten: geo.size.height - innenHoehe + griffHoehe))
+                    .scaleEffect(kindOffen ? Self.geschrumpft : 1, anchor: .top)
                     .offset(y: sichtbar ? zug : blattHoehe + 60)
                     .accessibilityAction(.escape) { zuklappen(blattHoehe) }
             }
@@ -277,7 +298,11 @@ struct Randblatt<Inhalt: View>: View {
         }
         .onAppear {
             withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true }
+            // Ein darunterliegendes Blatt schrumpft mit
+            elternSchrumpfen?(true)
         }
+        // Auch wenn das Blatt ohne eigene Animation verschwindet: das darunterliegende Blatt wieder in voller Größe
+        .onDisappear { elternSchrumpfen?(false) }
     }
 
     private static var raum: String { "randblatt" }
@@ -307,6 +332,7 @@ struct Randblatt<Inhalt: View>: View {
         guard !schliesst else { return }
         schliesst = true
         Tastatur.schliessen()
+        elternSchrumpfen?(false)
         withAnimation(.easeIn(duration: 0.22)) {
             sichtbar = false
             zug = 0
