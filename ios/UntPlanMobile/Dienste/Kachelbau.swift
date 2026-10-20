@@ -634,9 +634,10 @@ enum Kachelbau {
         }
     }
 
-    /// Veranstaltung wie im Original (Vorlage 7c109a75): mit eingeteilten Lehrkräften oben (fett) die Lehrkräfte als
-    /// Kommaliste ohne Leerzeichen („AI,AY,BA“), darunter der Text der Veranstaltung, dann der Raum als grünes Label
-    /// (hinzugefügter Wert, ohne „+“); ohne Lehrkräfte steht der Text oben. Jede Angabe nur einmal; jede Zeile einzeilig.
+    /// Veranstaltung wie im Original (Vorlage 7c109a75) und wie im Web bzw. in der Web-App: mit eingeteilten Lehrkräften oben (fett)
+    /// die Lehrkräfte als Kommaliste ohne Leerzeichen („AI,AY,BA“), darunter der Text der Veranstaltung, dann der Raum als grünes
+    /// Label (hinzugefügter Wert, ohne „+“), zuletzt die beteiligten Klassen (im Klassenplan ohne die eigene Klasse); ohne Lehrkräfte
+    /// steht der Text oben. Jede Angabe nur einmal; jede Zeile einzeilig und nur mit „…“ gekürzt (keine Anzahl „+N“).
     private static func veranstaltungsZeilen(_ k: Karte, typ: String, ich: String, anlass: String) -> [Kachelzeile] {
         let lehrkraefte = einmal(werte(k.lehrer))
         var zeilen: [Kachelzeile] = []
@@ -649,6 +650,10 @@ enum Kachelbau {
         let raeume = einmal(werte(k.raeume))
         if !raeume.isEmpty {
             zeilen.append(Kachelzeile(schluessel: "raum", teile: liste(raeume, stil: .plakette, trenner: " ")))
+        }
+        let klassen = einmal(werte(k.klassen)).filter { typ != "klasse" || ich.isEmpty || !gleich($0, ich) }
+        if !klassen.isEmpty {
+            zeilen.append(Kachelzeile(schluessel: "klasse", teile: [Kachelteil(text: klassen.joined(separator: ","))]))
         }
         return zeilen
     }

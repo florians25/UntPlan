@@ -302,7 +302,9 @@ public class OberflaecheTests
         var betroffen = karten.Where(k => k.Unterricht.HasValue && k.Von <= 3).ToList();
         Assert.NotEmpty(betroffen);
         Assert.DoesNotContain(betroffen, k => k.Status == "regulaer");
-        Assert.Contains(betroffen, k => k.Status == "entfall" && k.Text == "Bewerbungstraining");
+        // wegen der Veranstaltung entfallen: kein Vertretungstext (und damit kein Info-Symbol) auf jeder entfallenen Stunde
+        Assert.Contains(betroffen, k => k.Status == "entfall" && k.WegenVeranstaltung);
+        Assert.All(betroffen.Where(k => k.Status == "entfall"), k => Assert.Equal("", k.Text));
         // … danach regulär
         Assert.Contains(karten, k => k.Unterricht.HasValue && k.Von > 3 && k.Status == "regulaer");
     }

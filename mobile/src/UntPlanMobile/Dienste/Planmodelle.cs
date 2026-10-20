@@ -37,7 +37,9 @@ public sealed record PlanKarte(
     // Verlegung: ursprüngliche Stunde und Zielstunde (Datum, Beginn, Ende); die Gegenseite kann fehlen
     PlanVerlegung? VerlegungVon = null, PlanVerlegung? VerlegungNach = null,
     // Zeichen oben rechts laut Server (Web); die App zeigt oben rechts nie ein Zeichen und beachtet das Feld nicht
-    List<string>? Marker = null);
+    List<string>? Marker = null,
+    // Stunde entfällt wegen einer Veranstaltung: kein Vertretungstext, kein Info-Zeichen und kein „Klasse abwesend“ auf der Kachel
+    bool WegenVeranstaltung = false);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 /// <summary>Pausenaufsicht. Status: regulaer, vertreten, vertretung, offen (noch ungeplant; Grund z. B. „Abwesenheit“ bzw. Titel der Veranstaltung), entfall (ausdrücklich entfallen).</summary>

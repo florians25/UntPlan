@@ -89,8 +89,9 @@ public static class Kachelbau
     /// regulärer Unterricht zur selben Zeit, keine Verlegung, keine Veranstaltung) – dann gilt nur deren Kennzeichen. Die Ableitung aus der
     /// Vertretungsart gilt nur für ältere Server ohne Symbolliste.
     /// </remarks>
+    /// Eine verlegte Stunde (Ursprung bzw. Ziel) ist nie eine Zusatzstunde – auch wenn ein Server sie noch als zusätzlich meldet.
     public static bool IstZusatzstunde(PlanKarte k) =>
-        k.Zusaetzlich || (k.Marker is null && k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && Verlegung(k) is null
+        (k.Zusaetzlich && Verlegung(k) is null) || (k.Marker is null && k.Status == "geaendert" && (k.Fach ?? "").Length > 0 && Verlegung(k) is null
                           && (ZusatzArt.IsMatch(k.Art ?? "") || k.Unterricht is null));
 
     /// <summary>Vertretungsart einer Verlegung (Verlegung, Wegverlegung, Statt-Vertretung).</summary>
@@ -507,6 +508,12 @@ public static class Kachelbau
                 kachel.Art = "change";
                 kachel.Offen = offen;
                 break;
+            case "entfall" when k.WegenVeranstaltung:
+                // Entfall wegen einer Veranstaltung: kein Vertretungstext und kein Info-Zeichen auf jeder entfallenen Stunde –
+                // die Information steht an der Veranstaltung (Notizen zeigen das Zeichen weiterhin)
+                kachel.Art = "cancelled";
+                kachel.Info = "";
+                break;
             case "entfall" when IstKlassenabwesenheit(k):
                 // Klasse abwesend: Entfall wie jede andere ausfallende Stunde, mit Hinweis „Klasse abwesend“ (und Grund)
                 kachel.Art = "cancelled";
@@ -542,8 +549,9 @@ public static class Kachelbau
                 break;
         }
 
-        // Zusätzliche Unterrichtsstunde laut UntPlanWeb (auch bei offener Vertretung): Plakette; nur Standardtexte entfallen
-        if (k.Zusaetzlich && kachel.Art is "change" or "normal")
+        // Zusätzliche Unterrichtsstunde laut UntPlanWeb (auch bei offener Vertretung): Plakette; nur Standardtexte entfallen.
+        // Eine verlegte Stunde ist keine Zusatzstunde.
+        if (k.Zusaetzlich && kachel.Verlegung is null && kachel.Art is "change" or "normal")
         {
             kachel.Zusatz = true;
             if (IstZusatzStandardtext(kachel.Info, k.Art)) kachel.Info = "";

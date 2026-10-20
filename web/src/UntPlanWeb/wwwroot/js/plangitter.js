@@ -44,12 +44,12 @@ const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(a
  * Werte (Klassen, Lehrkräfte, Räume) wie im Original: neuer Wert als grüne Kürzelbox, bei offener Vertretung der
  * bisherige Wert durchgestrichen in der grünen Box. Der ersetzte alte Wert steht im Detaildialog; bei Entfall erscheinen die ursprünglichen Werte durchgestrichen.
  */
-/** Lange Listen kürzen wie im Original: „BEC, BRA, FIS +12“ (vollständig in den Stundendetails). */
+/** Lange Listen kürzen: „BEC, BRA, FIS, …“ – ohne Anzahl „+N“ (vollständig in den Stundendetails). */
 export function gekuerzt(liste, max = 3, entfall = false, lehrkraft = false) {
   const l = liste || [];
-  // gekürzt: „+12“ zeigt beim Überfahren die vollständige Liste (grauer Hover)
+  // gekürzt: „…“ zeigt beim Überfahren die vollständige Liste (grauer Hover)
   return l.length <= max + 1 ? werte(l, entfall, lehrkraft)
-    : `${werte(l.slice(0, max), entfall, lehrkraft)} <span class="mehr" data-hover="${e(kuerzelListe(l).join(', '))}" data-hover-art="grau">+${l.length - max}</span>`;
+    : `${werte(l.slice(0, max), entfall, lehrkraft)}, <span class="mehr" data-hover="${e(kuerzelListe(l).join(', '))}" data-hover-art="grau">…</span>`;
 }
 
 const kuerzelListe = l => (l || []).map(w => w.k || w.alt).filter(Boolean);
@@ -80,13 +80,13 @@ function wertPille(w, entfall = false) {
 }
 
 /**
- * Liste von Werten in einer Kartenzeile (mehrere Lehrkräfte bzw. Klassen): alle Werte in einer Zeile, was nicht passt, endet mit „…“
- * und „+5“ (Anzahl der ganz verdeckten Werte, nach dem Zeichnen gemessen – listenKuerzen). Hover über die gekürzte Zeile: alle Werte
+ * Liste von Werten in einer Kartenzeile (mehrere Lehrkräfte bzw. Klassen): alle Werte in einer Zeile, was nicht passt, endet nur mit
+ * „…“ – nie mit einer Anzahl „+N“ (die vollständige Liste steht in den Stundendetails). Hover über die gekürzte Zeile: alle Werte
  * als Pillen. html = Inhalt je Wert, pillen = { t, a } je Wert.
  */
 function liste(html, pillen) {
   if (html.length < 2) return html.join('');
-  return { liste: true, html: `<span class="z-namen">${html.map((h, i) => `<span class="z-w">${h}${i < html.length - 1 ? ', ' : ''}</span>`).join('')}</span><span class="mehr" hidden></span>`,
+  return { liste: true, html: `<span class="z-namen">${html.map((h, i) => `<span class="z-w">${h}${i < html.length - 1 ? ', ' : ''}</span>`).join('')}</span>`,
     inline: html.join(', '), pillen };
 }
 const werteListe = (l, entfall = false, lehrkraft = false) => liste((l || []).map(w => wertHtml(w, entfall, lehrkraft)), (l || []).map(w => wertPille(w, entfall)));
@@ -221,7 +221,7 @@ export function karteInhalt(k, typ, kompakt = false) {
   const ohneFach = !k.fach;
   let oben, rest, titel = '';
   if (k.status === 'veranstaltung') {
-    // Veranstaltung: mit eingetragenen Lehrkräften oben die Lehrkräfte (lange Listen gekürzt „… +N“), darunter der Text der
+    // Veranstaltung: mit eingetragenen Lehrkräften oben die Lehrkräfte (lange Listen nur mit „…“ gekürzt), darunter der Text der
     // Veranstaltung (Information zur Stunde), dann der Raum – ein hinzugefügter Wert („+A103“-Label) –, zuletzt die Klassen.
     // Ohne Lehrkräfte (bzw. im eigenen Lehrerplan nur die eigene) steht der Text oben.
     const lehrer = (k.lehrer || []).filter(w => w.k || w.alt);
@@ -615,7 +615,7 @@ function hoverVerbergen(sofort = false) {
   const weg = () => { if (hoverEl) hoverEl.style.display = 'none'; hoverZiel = null; };
   if (sofort) weg(); else hoverTimer = setTimeout(weg, 80);
 }
-/** Kartenzeile gekürzt (Text endet mit „…“ bzw. Werteliste mit „+5“)? */
+/** Kartenzeile gekürzt (Text bzw. Werteliste endet mit „…“)? */
 function zeileGekuerzt(z) {
   const t = z.querySelector(':scope > .z-namen') ?? z;
   return t.scrollWidth > t.clientWidth + 1;
@@ -636,21 +636,12 @@ document.addEventListener('scroll', () => hoverVerbergen(true), true);
 document.addEventListener('click', () => hoverVerbergen(true), true);
 
 /**
- * Wertelisten auf den Karten kürzen: alle Werte stehen in einer Zeile; passt die Liste nicht, endet sie mit „…“ und „+5“ –
- * Anzahl der Werte, die ganz verdeckt sind. Nach jedem Zeichnen und bei Größenänderung neu gemessen.
+ * Wertelisten auf den Karten: alle Werte stehen in einer Zeile; passt die Liste nicht, endet sie nur mit „…“ (text-overflow) – auf der
+ * Karte nie eine Anzahl „+N“ der verdeckten Werte, die vollständige Liste zeigen Hover und Stundendetails. Reste einer früheren
+ * Anzeige (Element „.mehr“ in einer Werteliste) werden entfernt.
  */
 export function listenKuerzen(wurzel) {
-  for (const z of wurzel.querySelectorAll('.std .z-liste')) {
-    const namen = z.querySelector(':scope > .z-namen'), mehr = z.querySelector(':scope > .mehr');
-    if (!namen || !mehr) continue;
-    mehr.hidden = true;
-    if (namen.scrollWidth <= namen.clientWidth + 1) continue;
-    // Platz für „+N“ freihalten, dann zählen, welche Werte ganz hinter dem Rand liegen
-    mehr.textContent = '+0'; mehr.hidden = false;
-    const rechts = namen.getBoundingClientRect().right;
-    const verdeckt = [...namen.querySelectorAll(':scope > .z-w')].filter(w => w.getBoundingClientRect().left >= rechts - 8).length;
-    if (verdeckt > 0) mehr.textContent = `+${verdeckt}`; else mehr.hidden = true;
-  }
+  for (const mehr of wurzel.querySelectorAll('.std .z-liste > .mehr')) mehr.remove();
 }
 
 /** Klick auf eine Karte öffnet den Detaildialog. */
