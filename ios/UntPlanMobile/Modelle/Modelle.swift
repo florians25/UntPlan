@@ -387,7 +387,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         guard !istEntfall else { return nil }
         if istPruefung { return "Prüfung" }
         if istVeranstaltung { return "Veranstaltung" }
-        if istZusatzstunde { return "Zusätzl. Unterrichtsstunde" }
+        if istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
         return nil
     }
 
@@ -1165,6 +1165,29 @@ struct Einzelstundeninfo: Decodable, Identifiable, Hashable, Sendable {
 }
 
 /// GET /api/app/klassenbuch/stunde[?einzelstunde=4]
+/// Lehrstoff einer früheren Stunde desselben Unterrichts (GET /api/app/klassenbuch/lehrstoff/vorstunden), neueste zuerst.
+struct LehrstoffVorstunde: Decodable, Identifiable, Sendable {
+    var datum: String
+    var stunde: Int
+    var thema: String
+    /// Beginn und Ende laut Zeitraster (HH:mm; leer bei älteren Servern)
+    var beginn: String
+    var ende: String
+
+    var id: String { "\(datum)|\(stunde)|\(thema.hashValue)" }
+
+    enum CodingKeys: String, CodingKey { case datum, stunde, thema, beginn, ende }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        datum = String(c.text(.datum).prefix(10))
+        stunde = c.zahl(.stunde) ?? 0
+        thema = c.text(.thema)
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
+    }
+}
+
 struct KlassenbuchStunde: Decodable, Sendable {
     /// Eintrag des gewählten Bereichs (Block bzw. nur die Einzelstunde)
     var eintrag: Klassenbucheintrag?

@@ -29,9 +29,14 @@ enum Detailblatt {
     /// iPhone: Stunden- und Aufsichtsdetails randlos über die volle Breite, 90 % der Bildschirmhöhe
     static let iPhoneDetailAnteil: CGFloat = 0.90
     static let radius: CGFloat = 24
+    /// iPhone: Ecken des randlosen Blatts (Vorlage aeaa377f: Radius ≈ 37,4 pt bei 3 px/pt)
+    static let iPhoneRadius: CGFloat = 38
+    /// iPhone: ein über einem Blatt geöffnetes Blatt beginnt so viel tiefer (Vorlage 555deb0d: 72 statt 62 pt)
+    static let stapelVersatz: CGFloat = 10
 
-    /// Höhe aller Blätter auf dem iPhone: 85 % (auch unter iOS 26). Auf dem iPad (Formblatt) ignoriert das System die Stufe.
-    static var iPhoneStufen: Set<PresentationDetent> { [.fraction(iPhoneAnteil)] }
+    /// Höhe aller Systemblätter auf dem iPhone: volle Höhe wie im Original (Oberkante direkt unter der Statusleiste).
+    /// Auf dem iPad (Formblatt) ignoriert das System die Stufe.
+    static var iPhoneStufen: Set<PresentationDetent> { [.large] }
 }
 
 /// Tastatur schließen (Fokus abgeben) – z. B. beim Schließen eines Blatts, damit keine Einrückung hängen bleibt.
@@ -43,7 +48,7 @@ enum Tastatur {
 }
 
 extension View {
-    /// Blatt auf dem iPhone nur 85 % hoch (Planauswahl, Formulare, Info …); auf dem iPad bleibt das Formblatt.
+    /// Blatt auf dem iPhone in voller Höhe (Planauswahl, Formulare, Info …); auf dem iPad bleibt das Formblatt.
     func iPhoneBlatt() -> some View {
         presentationDetents(Detailblatt.iPhoneStufen)
     }
@@ -85,11 +90,42 @@ private struct BlattSchliessenSchluessel: EnvironmentKey {
     static let defaultValue: (@MainActor () -> Void)? = nil
 }
 
+private struct RandblattEbeneSchluessel: EnvironmentKey {
+    static let defaultValue: Int = 0
+}
+
+private struct UnterblattSchluessel: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+private struct ElternSchrumpfenSchluessel: EnvironmentKey {
+    static let defaultValue: (@MainActor (Bool) -> Void)? = nil
+}
+
 extension EnvironmentValues {
     /// Schließt das randlose Detailblatt mit seiner Animation (nil = Systemblatt, dann `dismiss`).
     var blattSchliessen: (@MainActor () -> Void)? {
         get { self[BlattSchliessenSchluessel.self] }
         set { self[BlattSchliessenSchluessel.self] = newValue }
+    }
+
+    /// Wie viele randlose Blätter schon offen sind (0 = das erste Blatt über dem Plan).
+    var randblattEbene: Int {
+        get { self[RandblattEbeneSchluessel.self] }
+        set { self[RandblattEbeneSchluessel.self] = newValue }
+    }
+
+    /// Meldet dem darunterliegenden randlosen Blatt, dass darüber ein weiteres Blatt offen ist (es schrumpft dann leicht).
+    var elternSchrumpfen: (@MainActor (Bool) -> Void)? {
+        get { self[ElternSchrumpfenSchluessel.self] }
+        set { self[ElternSchrumpfenSchluessel.self] = newValue }
+    }
+
+    /// Wurzel eines über den Stundendetails geöffneten Unterblatts (Lehrstoff, Hausaufgaben …): X statt Zurück,
+    /// schließt das Unterblatt mit seiner Animation.
+    var unterblatt: Bool {
+        get { self[UnterblattSchluessel.self] }
+        set { self[UnterblattSchluessel.self] = newValue }
     }
 }
 
@@ -201,7 +237,15 @@ private struct DetailPraesentation<Item: Identifiable, Blatt: View>: ViewModifie
 struct Randblatt<Inhalt: View>: View {
     let schliessen: () -> Void
     @ViewBuilder let inhalt: () -> Inhalt
+    @Environment(\.randblattEbene) private var ebene
+    @Environment(\.elternSchrumpfen) private var elternSchrumpfen
     @State private var sichtbar = false
+    /// Darüber ist ein weiteres Blatt offen: dieses Blatt schrumpft (Vorlage 555deb0d: ≈ 0,97, Oberkante bleibt bei 62 pt
+    /// und schaut 10 pt über dem neuen Blatt hervor)
+    @State private var kindOffen = false
+
+    /// Größe des Blatts, solange darüber ein weiteres Blatt offen ist.
+    static var geschrumpft: CGFloat { 0.97 }
     @State private var zug: CGFloat = 0
     @State private var schliesst = false
 
@@ -211,32 +255,41 @@ struct Randblatt<Inhalt: View>: View {
     var body: some View {
         GeometryReader { geo in
             let gesamt = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
-            let blattHoehe = gesamt * Detailblatt.iPhoneDetailAnteil
-            // Oberkante fest bei 10 % der Bildschirmhöhe; unten endet das Blatt am sicheren Bereich (bzw. an der Tastatur)
-            let innenHoehe = max(geo.size.height + geo.safeAreaInsets.top - (gesamt - blattHoehe), 120)
+            // Wie im Original (Vorlagen aeaa377f/06697de1): Oberkante direkt unter der Statusleiste (62 pt auf dem
+            // iPhone 16 Pro), ein darüber geöffnetes Blatt (Lehrstoff …) 10 pt tiefer; unten bis zum Bildschirmrand
+            let oben = geo.safeAreaInsets.top + CGFloat(min(ebene, 3)) * Detailblatt.stapelVersatz
+            let blattHoehe = max(gesamt - oben, 200)
+            // Unten endet der Inhalt am sicheren Bereich (bzw. an der Tastatur)
+            let innenHoehe = max(geo.size.height + geo.safeAreaInsets.top - oben, 120)
             ZStack(alignment: .bottom) {
+                // Abdunkelung: erstes Blatt 20 % Schwarz (Vorlage: Weiß → #cccccc), weitere Blätter 12 %
                 Color.black
-                    .opacity(sichtbar ? 0.32 * Double(1 - min(zug / max(blattHoehe, 1), 1)) : 0)
+                    .opacity(sichtbar ? (ebene == 0 ? 0.2 : 0.12) * Double(1 - min(zug / max(blattHoehe, 1), 1)) : 0)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { zuklappen(blattHoehe) }
                     .accessibilityHidden(true)
                 inhalt()
                     .environment(\.blattSchliessen, { zuklappen(blattHoehe) })
+                    .environment(\.randblattEbene, ebene + 1)
+                    .environment(\.elternSchrumpfen, { offen in
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { kindOffen = offen }
+                    })
                     .frame(maxWidth: .infinity)
                     .frame(height: innenHoehe, alignment: .top)
-                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: Detailblatt.radius, bottomLeadingRadius: 0,
-                                                      bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.radius,
+                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: Detailblatt.iPhoneRadius, bottomLeadingRadius: 0,
+                                                      bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.iPhoneRadius,
                                                       style: .continuous))
                     .background(alignment: .top) {
-                        UnevenRoundedRectangle(topLeadingRadius: Detailblatt.radius, bottomLeadingRadius: 0,
-                                               bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.radius,
+                        UnevenRoundedRectangle(topLeadingRadius: Detailblatt.iPhoneRadius, bottomLeadingRadius: 0,
+                                               bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.iPhoneRadius,
                                                style: .continuous)
                             .fill(Farben.blatt)
                             .ignoresSafeArea(edges: .bottom)
                             .shadow(color: .black.opacity(0.12), radius: 10, y: -2)
                     }
                     .simultaneousGesture(ziehen(blattHoehe, kopfUnten: geo.size.height - innenHoehe + griffHoehe))
+                    .scaleEffect(kindOffen ? Self.geschrumpft : 1, anchor: .top)
                     .offset(y: sichtbar ? zug : blattHoehe + 60)
                     .accessibilityAction(.escape) { zuklappen(blattHoehe) }
             }
@@ -245,7 +298,11 @@ struct Randblatt<Inhalt: View>: View {
         }
         .onAppear {
             withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true }
+            // Ein darunterliegendes Blatt schrumpft mit
+            elternSchrumpfen?(true)
         }
+        // Auch wenn das Blatt ohne eigene Animation verschwindet: das darunterliegende Blatt wieder in voller Größe
+        .onDisappear { elternSchrumpfen?(false) }
     }
 
     private static var raum: String { "randblatt" }
@@ -275,6 +332,7 @@ struct Randblatt<Inhalt: View>: View {
         guard !schliesst else { return }
         schliesst = true
         Tastatur.schliessen()
+        elternSchrumpfen?(false)
         withAnimation(.easeIn(duration: 0.22)) {
             sichtbar = false
             zug = 0
@@ -286,15 +344,18 @@ struct Randblatt<Inhalt: View>: View {
 
 // MARK: - Maße der Stundendetails (Original 117/118, iPhone)
 
+/// Maße nach den Vorlagen in voller Auflösung (aeaa377f hell, 06697de1/167f94e6 dunkel; 3 px/pt).
 enum Detailmass {
-    /// Linker Rand von Kopfblock und Liste
-    static let rand: CGFloat = 17
-    /// Zeilenhöhe im Kopfblock (Grundlinienabstand im Original ≈ 31 pt)
-    static let zeile: CGFloat = 31
-    /// „Klasse | Gruppe“ und Fach
-    static let gross: CGFloat = 22
-    /// Raum und Lehrkraft
-    static let klein: CGFloat = 17
+    /// Linker Rand des Kopfblocks (Glyphen ab 16,3–17,7 pt)
+    static let rand: CGFloat = 16
+    /// Linker Rand der Symbole in der Liste (24-pt-Feld ab 18 pt)
+    static let zeilenRand: CGFloat = 18
+    /// Zeilenhöhe im Kopfblock (Abstand der Zeilenmitten 32 pt)
+    static let zeile: CGFloat = 32
+    /// „Klasse | Gruppe“ und Fach (Versalhöhe 14,33 pt)
+    static let gross: CGFloat = 20.3
+    /// Raum und Lehrkraft (Versalhöhe 11,33 pt)
+    static let klein: CGFloat = 16
     /// Durchmesser der runden Glasknöpfe im Kopf
     static let knopf: CGFloat = 44
 
@@ -314,15 +375,36 @@ struct Rundknopf: View {
     var groesse: CGFloat = 16
     var drehung: Double = 0
 
+    /// Farbe des Zeichens (Vorlage: hell #7f8d9a, dunkel #8e9caa)
+    var farbe: Color = Farben.knopfSymbol
+
     var body: some View {
         glas(
-            Image(systemName: symbol)
-                .font(.system(size: groesse, weight: gewicht))
-                .rotationEffect(.degrees(drehung))
-                .foregroundStyle(Farben.tinte2)
+            zeichen
+                .foregroundStyle(farbe)
                 .frame(width: Detailmass.knopf, height: Detailmass.knopf)
         )
         .contentShape(Circle())
+    }
+
+    @ViewBuilder
+    private var zeichen: some View {
+        if symbol == "ellipsis" && drehung == 90 {
+            // ⋮ wie in der Vorlage: drei Punkte Ø 4 pt, 8 pt von Mitte zu Mitte (zusammen 20 pt hoch)
+            VStack(spacing: 4) {
+                Circle().frame(width: 4, height: 4)
+                Circle().frame(width: 4, height: 4)
+                Circle().frame(width: 4, height: 4)
+            }
+        } else if symbol == "xmark" {
+            // X der Vorlage: 17,33 × 17,33 pt, dünne Linie
+            Image(systemName: symbol)
+                .font(.system(size: 21, weight: .light))
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: groesse, weight: gewicht))
+                .rotationEffect(.degrees(drehung))
+        }
     }
 
     private func glas<V: View>(_ inhalt: V) -> some View {
@@ -404,10 +486,11 @@ struct Blattkopf<Mitte: View, Rechts: View>: View {
                 rechts
             }
         }
-        .padding(.horizontal, 15)
-        .padding(.top, 15)
+        // Vorlage: Glasknöpfe 16 pt vom linken bzw. rechten und vom oberen Blattrand, Kopf 69 pt hoch
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
         .padding(.bottom, 9)
-        .frame(minHeight: 68)
+        .frame(minHeight: 69)
         .background(Farben.blatt)
         .overlay(alignment: .bottom) {
             Ladebalken(aktiv: laedt)
@@ -421,27 +504,30 @@ extension Blattkopf where Rechts == EmptyView {
     }
 }
 
-/// Titel in der Mitte des Kopfs wie im Original: „Do. | 08.10.26“ 17 pt grau, darunter die Uhrzeit 13 pt grau.
+/// Titel in der Mitte des Kopfs wie im Original (Vorlagen aeaa377f/06697de1): „Do. | 08.10.26“ 16 pt grau (Ziffernhöhe
+/// 11,33 pt), Pfeil 10,67 × 6,33 pt 7,5 pt rechts davon, darunter die Uhrzeit 11,7 pt (Grundlinien 14 pt auseinander);
+/// einzeiliger Titel (Unterseiten) 16,5 pt.
 struct Blatttitel: View {
     let titel: String
     var untertitel: String? = nil
     var pfeil: Bool = false
 
     var body: some View {
-        VStack(spacing: 1) {
-            HStack(spacing: 3) {
+        let zweizeilig = !(untertitel ?? "").isEmpty
+        VStack(spacing: -1) {
+            HStack(spacing: 7.5) {
                 Text(titel)
-                    .font(.system(size: 17, weight: .regular))
+                    .font(.system(size: zweizeilig || pfeil ? 16 : 16.5, weight: .regular))
                     .foregroundStyle(Farben.titelGrau)
                 if pfeil {
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(Farben.titelGrau)
                 }
             }
             if let untertitel, !untertitel.isEmpty {
                 Text(untertitel)
-                    .font(.system(size: 13))
+                    .font(.system(size: 11.7))
                     .foregroundStyle(Farben.titelGrau)
             }
         }
@@ -463,6 +549,8 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
     /// Lädt die Seite? Dann läuft unter dem Kopf der orange Ladebalken.
     let laedt: Bool
     @Environment(\.dismiss) private var schliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @Environment(\.unterblatt) private var unterblatt
 
     init(titel: String, untertitel: String? = nil, symbol: String = "chevron.left", zurueck: (() -> Void)? = nil,
          laedt: Bool = false, @ViewBuilder inhalt: () -> Inhalt, @ViewBuilder rechts: () -> Rechts) {
@@ -476,15 +564,24 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
     }
 
     var body: some View {
+        // Wurzel eines Unterblatts (über den Stundendetails geöffnet): X statt Zurück, schließt das Unterblatt
+        let zeichen = unterblatt && symbol == "chevron.left" ? "xmark" : symbol
         VStack(spacing: 0) {
-            Blattkopf(symbol: symbol, symbolText: symbol == "xmark" ? "Schließen" : "Zurück", aktion: {
-                if let zurueck { zurueck() } else { schliessen() }
+            Blattkopf(symbol: zeichen, symbolText: zeichen == "xmark" ? "Schließen" : "Zurück", aktion: {
+                if let zurueck {
+                    zurueck()
+                } else if unterblatt, let blattSchliessen {
+                    blattSchliessen()
+                } else {
+                    schliessen()
+                }
             }, laedt: laedt, mitte: {
                 Blatttitel(titel: titel, untertitel: untertitel)
             }, rechts: {
                 rechts
             })
             inhalt
+                .environment(\.unterblatt, false)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Farben.blatt.ignoresSafeArea())
@@ -516,12 +613,17 @@ struct SichernKnopf: View {
                 .frame(width: Detailmass.knopf, height: Detailmass.knopf)
         } else {
             Button(action: aktion) {
-                Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(aktiv ? Color.white : Farben.gedaempft)
-                    .frame(width: Detailmass.knopf, height: Detailmass.knopf)
-                    .background(aktiv ? Farben.akzent : Farben.knopf, in: Circle())
-                    .contentShape(Circle())
+                if aktiv {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Color.white)
+                        .frame(width: Detailmass.knopf, height: Detailmass.knopf)
+                        .background(Farben.akzent, in: Circle())
+                        .contentShape(Circle())
+                } else {
+                    // Vorlage 555deb0d: Glasknopf wie X, Haken 21,33 × 15,33 pt in Hellgrau
+                    Rundknopf(symbol: symbol, gewicht: .light, groesse: 22, farbe: Farben.knopfSymbolAus)
+                }
             }
             .buttonStyle(.plain)
             .disabled(!aktiv)
@@ -537,14 +639,14 @@ struct GrauePlakette: View {
     let zahl: Int
 
     var body: some View {
-        // Einen Ticken kleiner als zuvor (31 pt / 17 pt)
+        // Vorlage: Kreis 32 pt (#808e9b, dunkel #818f9c), Ziffer 15 pt weiß bzw. dunkel
         Text("\(zahl)")
-            .font(.system(size: 15.5))
+            .font(.system(size: 15))
             .monospacedDigit()
-            .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .frame(minWidth: 28, minHeight: 28)
-            .background(Farben.zahlPlakette, in: Capsule())
+            .foregroundStyle(Farben.plakettenZiffer)
+            .padding(.horizontal, 8)
+            .frame(minWidth: 32, minHeight: 32)
+            .background(Farben.detailSymbol, in: Capsule())
     }
 }
 
@@ -569,37 +671,41 @@ struct Detailzeile<Rechts: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Listensymbol(name: symbol)
+        // Vorlage (3 px/pt): Symbol 24 pt ab 18 pt, Text ab 61,3 pt, Titel 18,5 pt (Versalhöhe 13 pt), Untertitel 15,5 pt
+        // (Grundlinien 22 pt auseinander), Zahl Ø 32 pt 16,7 pt vor dem Pfeil, Pfeil 10,7 × 20 pt 24,7 pt vom Rand;
+        // einzeilige Zeilen 56 pt, zweizeilige ≈ 58,5 pt
+        HStack(spacing: 18) {
+            Listensymbol(name: symbol, groesse: 24, einpassen: true)
+                .foregroundStyle(Farben.detailSymbol)
             VStack(alignment: .leading, spacing: 3) {
-                // Menütext eine Stufe kräftiger (Regular statt Light), Untertitel etwas dunkler (Vorlage 140)
                 Text(titel)
-                    .font(.system(size: 19, weight: .regular))
+                    .font(.system(size: 18.5, weight: .regular))
                     .foregroundStyle(Farben.detailText)
                     .lineLimit(1)
                 if let untertitel, !untertitel.isEmpty {
                     Text(untertitel.replacingOccurrences(of: "\n", with: " "))
-                        .font(.system(size: 17))
+                        .font(.system(size: 15.5))
                         .foregroundStyle(Farben.detailGrau)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
             }
+            .padding(.leading, 0.5)
             Spacer(minLength: 6)
             rechts
             if let zahl {
                 GrauePlakette(zahl: zahl)
-                    .padding(.trailing, 4)
+                    .padding(.trailing, 4.5)
             }
             if pfeil {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 20, weight: .ultraLight))
-                    .foregroundStyle(Farben.gedaempft)
+                    .font(.system(size: 23, weight: .thin))
+                    .foregroundStyle(Farben.detailSymbol)
             }
         }
-        .padding(.leading, Detailmass.rand)
-        .padding(.trailing, 22)
-        .padding(.vertical, 10)
+        .padding(.leading, Detailmass.zeilenRand)
+        .padding(.trailing, 23.5)
+        .padding(.vertical, 7.5)
         .frame(minHeight: 56)
         .contentShape(Rectangle())
     }
@@ -814,14 +920,15 @@ struct Statuspille: View {
     let text: String
 
     var body: some View {
+        // Vorlage: Kapsel 20 pt hoch, Großbuchstaben 13,7 pt (Versalhöhe 9,67 pt), 8,2 pt Innenabstand; hell weiß auf
+        // #808e9b, dunkel #10171d auf #818f9c
         Text(text.uppercased())
-            .font(.system(size: 14, weight: .regular))
-            .tracking(0.3)
-            .foregroundStyle(.white)
+            .font(.system(size: 13.7, weight: .regular))
+            .foregroundStyle(Farben.statusPilleText)
             .lineLimit(1)
             .fixedSize()
-            .padding(.horizontal, 8.5)
-            .padding(.vertical, 1.5)
+            .padding(.horizontal, 8.2)
+            .frame(height: 20)
             .background(Farben.statusPilleFlaeche, in: Capsule())
             .accessibilityLabel(text)
     }
@@ -856,6 +963,8 @@ struct EinzeilenScroller<Inhalt: View>: View {
 struct Listensymbol: View {
     let name: String
     var groesse: CGFloat = 30
+    /// Vektorgrafik in das Feld einpassen (längste Seite = `groesse`, wie die 24-pt-Symbole der Detailliste)
+    var einpassen: Bool = false
 
     /// Grundgröße der Vektorgrafiken in pt (Zeichenfläche × Faktor, damit die Linie 1,5 pt breit wird).
     static func grundgroesse(_ name: String) -> CGSize {
@@ -879,7 +988,9 @@ struct Listensymbol: View {
         let faktor = min(1, groesse / 30)
         Group {
             if name.hasPrefix("Symbol") {
-                let g = Self.grundgroesse(name)
+                let roh = Self.grundgroesse(name)
+                let g = einpassen ? CGSize(width: roh.width * groesse / max(roh.width, roh.height) / faktor,
+                                           height: roh.height * groesse / max(roh.width, roh.height) / faktor) : roh
                 Image(name)
                     .renderingMode(.template)
                     .resizable()
@@ -891,7 +1002,7 @@ struct Listensymbol: View {
                     .frame(width: 24 * faktor, height: 24 * faktor)
             }
         }
-        .foregroundStyle(Farben.gedaempft)
+        .foregroundStyle(einpassen ? Farben.detailSymbol : Farben.gedaempft)
         .frame(width: groesse, height: groesse)
         .accessibilityHidden(true)
     }
@@ -906,23 +1017,25 @@ struct SchuelerPlakette: View {
     let kontrolliert: Bool
 
     var body: some View {
-        // Einen Ticken kleiner als zuvor (31 pt / 17 pt)
+        // Vorlage: Kreis 32 pt, Ziffer 15 pt; Abwesende hell blassrot (#fff3f3) mit roter Ziffer (#df0046), dunkel
+        // #81002e mit #ffe3e3; keine Abwesenden grau. Kontrolliert: grauer Kreis 14 pt mit Haken, 4 pt über die
+        // rechte obere Kante hinaus
         Text("\(zahl)")
-            .font(.system(size: 15.5))
+            .font(.system(size: 15))
             .monospacedDigit()
-            .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .frame(minWidth: 28, minHeight: 28)
-            .background(zahl > 0 ? Farben.abwesendRot : Farben.zahlPlakette, in: Capsule())
+            .foregroundStyle(zahl > 0 ? Farben.abwesendZiffer : Farben.plakettenZiffer)
+            .padding(.horizontal, 8)
+            .frame(minWidth: 32, minHeight: 32)
+            .background(zahl > 0 ? Farben.abwesendPlaketteFlaeche : Farben.detailSymbol, in: Capsule())
             .overlay(alignment: .topTrailing) {
                 if kontrolliert {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 6.5, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: 12, height: 12)
-                        .background(Farben.zahlPlakette, in: Circle())
+                        .font(.system(size: 7, weight: .semibold))
+                        .foregroundStyle(Farben.blatt)
+                        .frame(width: 14, height: 14)
+                        .background(Farben.detailSymbol, in: Circle())
                         .overlay { Circle().strokeBorder(Farben.blatt, lineWidth: 1) }
-                        .offset(x: 3, y: -3)
+                        .offset(x: 4, y: -4)
                 }
             }
             .accessibilityElement(children: .ignore)

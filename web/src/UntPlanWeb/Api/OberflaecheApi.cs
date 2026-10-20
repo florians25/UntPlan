@@ -198,15 +198,26 @@ public static partial class OberflaecheApi
 
         // Lehrstoff aus den Vorwochen desselben Unterrichts (Dialog „Lehrstoff“: Übernehmen bzw. Anhängen per Klick) – nur Einträge mit
         // Lehrstoff, die letzten 8; mit lehrer nur die Einträge dieser Lehrkraft (gekoppelter Unterricht mit mehreren Lehrkräften)
-        api.MapGet("/klassenbuch/lehrstoff/vorstunden", (DateOnly datum, int stunde, int unterricht, string? lehrer, HttpContext c, Klassenbuchdienst kb) =>
+        // Für die App zusätzlich Beginn und Ende laut Zeitraster (Einzelstunde: nur diese Stunde; Blockeintrag: so lang wie der
+        // aktuelle Block, optional bis = letzte Stunde des aktuellen Blocks) – die App zeigt „Mo., 12.10.2026, 12:15 - 13:00“.
+        api.MapGet("/klassenbuch/lehrstoff/vorstunden", (DateOnly datum, int stunde, int unterricht, string? lehrer, int? bis, HttpContext c,
+            Klassenbuchdienst kb, Paketdienst p) =>
         {
             Kollegium(c);
+            var raster = p.Aktuell?.Paket.Zeitraster.Stunden ?? new();
+            string Zeit(int nr, bool ende) => raster.FirstOrDefault(z => z.Nr == nr) is { } z ? (ende ? z.Ende : z.Beginn) : "";
+            var laenge = Math.Max(1, (bis ?? stunde) - stunde + 1);
             var liste = kb.Zeitraum(datum.AddDays(-120), datum)
                 .Where(e => e.Unterricht == unterricht && (string.CompareOrdinal(e.Datum, Plandienst.Iso(datum)) < 0 || e.Stunde < stunde))
                 .Where(e => !string.IsNullOrWhiteSpace(e.Thema))
                 .Where(e => string.IsNullOrEmpty(lehrer) || e.Lehrer.Length == 0 || string.Equals(e.Lehrer, lehrer, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(e => e.Datum).ThenByDescending(e => e.Stunde).Take(8)
-                .Select(e => new { e.Datum, e.Stunde, e.Thema, e.Lehrer, e.Lehrform });
+                .Select(e => new
+                {
+                    e.Datum, e.Stunde, e.Thema, e.Lehrer, e.Lehrform, e.Einzelstunde,
+                    Beginn = Zeit(e.Stunde, false),
+                    Ende = Zeit(e.Einzelstunde is int ? e.Stunde : e.Stunde + laenge - 1, true),
+                });
             return Results.Json(liste);
         });
     }

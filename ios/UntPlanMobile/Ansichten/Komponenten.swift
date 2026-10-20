@@ -392,6 +392,14 @@ struct Zeilengruppe<Inhalt: View>: View {
     }
 }
 
+/// Menüpunkte der Details: ohne jede Tipp-Animation (keine Hervorhebung, keine Deckkraftänderung).
+struct OhneTippStil: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+    }
+}
+
 /// Zeile einer weißen Gruppe: beim Drücken leicht grau hinterlegt.
 struct ZeilenKnopfStil: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

@@ -226,6 +226,13 @@ final class ApiClient: @unchecked Sendable {
         return try await anfrage("GET", "/klassenbuch/stunde", parameter: parameter)
     }
 
+    /// Lehrstoff aus den Vorwochen desselben Unterrichts (höchstens 8, neueste zuerst); `lehrer`: nur Einträge dieser Lehrkraft.
+    func lehrstoffVorstunden(datum: String, stunde: Int, bis: Int, unterricht: Int, lehrer: String?) async throws -> [LehrstoffVorstunde] {
+        var parameter = ["datum": datum, "stunde": String(stunde), "bis": String(bis), "unterricht": String(unterricht)]
+        if let lehrer, !lehrer.isEmpty { parameter["lehrer"] = lehrer }
+        return try await anfrage("GET", "/klassenbuch/lehrstoff/vorstunden", parameter: parameter)
+    }
+
     func hausaufgabenDerStunde(datum: String, stunde: Int, bis: Int, unterricht: Int, fach: String, klassen: [String],
                                einzelstunde: Int? = nil) async throws -> HausaufgabenDerStunde {
         var parameter = ["datum": datum, "stunde": String(stunde), "bis": String(bis), "unterricht": String(unterricht)]

@@ -57,6 +57,8 @@ struct StundendetailInhalt: View {
     @State private var onlineFehler: String? = nil
     /// Raumliste („Ersetzen“ bzw. „Raum hinzufügen“) aus der Raumzeile
     @State private var raumZiel: RaumZiel? = nil
+    /// Als Unterblatt geöffnete Unterseite (iPhone)
+    @State private var unterseite: Detailseite? = nil
 
     init(karte: Karte, typ: String, karten: [Karte], auswahl: Binding<Int>) {
         self.karte = karte
@@ -91,10 +93,12 @@ struct StundendetailInhalt: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // Vorlage: erste Zeile (Versalhöhe) 25 pt unter Kopf bzw. Reiterleiste, Trennlinie 22 pt unter der
+                    // Grundlinie der letzten Zeile
                     kopfblock
                         .padding(.horizontal, Detailmass.rand)
-                        .padding(.top, karten.count > 1 ? 12 : 10)
-                        .padding(.bottom, 12)
+                        .padding(.top, 16.5)
+                        .padding(.bottom, 11.67)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(karte.istEntfall ? Farben.detailEntfallFlaeche : Color.clear)
                     if karte.istEntfall {
@@ -108,11 +112,11 @@ struct StundendetailInhalt: View {
                             .accessibilityLabel("Entfällt")
                     } else {
                         Rectangle()
-                            .fill(Farben.trennlinie)
+                            .fill(Farben.detailLinie)
                             .frame(height: 1)
                     }
                     zeilen
-                        .padding(.top, 8)
+                        .padding(.top, 11.5)
                         .padding(.bottom, 24)
                 }
             }
@@ -127,6 +131,16 @@ struct StundendetailInhalt: View {
             ziel(seite)
                 .environmentObject(daten)
                 .environmentObject(zustand)
+        }
+        // iPhone: Lehrstoff, Schüler*innen, Hausaufgaben … öffnen als Unterblatt über den Details (wie im Original,
+        // 10 pt tiefer); iPad: Unterseite im festen Detailblatt
+        .detailPraesentation(item: $unterseite, breit: false) { seite in
+            NavigationStack {
+                ziel(seite)
+                    .environmentObject(daten)
+                    .environmentObject(zustand)
+                    .environment(\.unterblatt, true)
+            }
         }
         .navigationDestination(item: $raumZiel) { z in
             RaumSeite(ziel: z)
@@ -266,6 +280,7 @@ struct StundendetailInhalt: View {
     private func reitertitel(_ k: Karte) -> String {
         // Veranstaltung: die Bezeichnung steht nur unten in „Information zur Stunde“, nicht im Reiter (wie die PWA)
         if k.istVeranstaltung { return "Veranstaltung" }
+        if k.istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
         if !k.fach.isEmpty { return k.fach }
         if !k.anzeigeText.isEmpty { return k.anzeigeText }
         return k.anzeigeArt.isEmpty ? "Stunde" : k.anzeigeArt
@@ -276,37 +291,39 @@ struct StundendetailInhalt: View {
     /// etwas breiter als der Text; der Reitertext wird nie durchgestrichen (auch nicht bei Entfall). Der aktive Reiter
     /// wird beim Wechsel in den sichtbaren Bereich gerollt.
     private var reiterleiste: some View {
+        // Vorlagen 167f94e6 (dunkel) und e40685da (hell): Leiste 50 pt (hell #f3f4f6, dunkel #323d45), Reiter 17 pt
+        // Semibold (gewählt dunkel bzw. weiß, sonst grau), unter dem gewählten ein 4 pt dicker Strich bündig am
+        // unteren Rand, je 8,3 pt breiter als der Text; Text 27,7 pt auseinander
         ScrollViewReader { leser in
             ScrollView(.horizontal) {
-                HStack(spacing: 4) {
+                HStack(spacing: 0) {
                     ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
                         let gewaehlt = eintrag.offset == auswahl
                         Button {
                             auswahl = eintrag.offset
                         } label: {
-                            // Größere Reiter: 17 pt, mindestens 64 pt breit, 44 pt hoch (bequem antippbar)
                             Text(reitertitel(eintrag.element))
-                                .font(.system(size: 17, weight: gewaehlt ? .medium : .regular))
-                                .foregroundStyle(gewaehlt ? Farben.detailText : Farben.tinte2)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(gewaehlt ? Farben.detailText : Farben.reiterText)
                                 .lineLimit(1)
-                                .padding(.horizontal, 14)
-                                .frame(minWidth: 64, minHeight: 44)
+                                .padding(.horizontal, 13.83)
+                                .frame(height: 50)
                                 .overlay(alignment: .bottom) {
                                     if gewaehlt {
-                                        Capsule()
+                                        Rectangle()
                                             .fill(Farben.reiterStrich)
-                                            .frame(height: 3)
-                                            .padding(.horizontal, 8)
+                                            .frame(height: 4)
+                                            .padding(.horizontal, 5.5)
                                     }
                                 }
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(OhneTippStil())
                         .id(eintrag.offset)
                         .accessibilityAddTraits(gewaehlt ? .isSelected : [])
                     }
                 }
-                .padding(.horizontal, Detailmass.rand - 10)
+                .padding(.horizontal, 10.5)
             }
             .scrollIndicators(.hidden)
             .onAppear { leser.scrollTo(auswahl, anchor: .center) }
@@ -315,12 +332,8 @@ struct StundendetailInhalt: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 50)
         .background(Farben.reiterGrund)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Farben.trennlinie)
-                .frame(height: 0.5)
-        }
     }
 
     /// Vertretungstext bzw. Information der Stunde (Zusatzstunde: nur manuell eingegebene Texte).
@@ -514,29 +527,34 @@ struct StundendetailInhalt: View {
         fachteile.append(.text(fach))
         // Statuspille („PRÜFUNG“, „VERANSTALTUNG“) rechts neben dem Fach (Vorlage 140); ohne Fachzeile neben der Kopfzeile
         let fachSichtbar = !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame)
-        var kopfteile = titelBausteine
-        if let pille = karte.statusPille {
-            if fachSichtbar {
-                fachteile.append(.pille(pille))
-            } else if !kopfteile.isEmpty {
-                kopfteile.append(.pille(pille))
-            }
+        let kopfteile = titelBausteine
+        // Vorlagen: Prüfung rechts neben dem Fach; Veranstaltung und zusätzliche Unterrichtsstunde in eigener Zeile
+        // unter der Kopfzeile (Zusatzstunde ohne Fachzeile – das Fach steht im Reiter)
+        let pilleEigeneZeile = istVeranstaltung || karte.istZusatzstunde
+        let fachZeile = fachSichtbar && !(karte.istZusatzstunde && karten.count > 1)
+        if let pille = karte.statusPille, fachZeile, !pilleEigeneZeile {
+            fachteile.append(.pille(pille))
         }
-        // Veranstaltung ohne Fach und Klassen: oben gar nichts (auch keine allein stehende Pille)
-        let pilleEinzeln = karte.statusPille != nil && !fachSichtbar && kopfteile.isEmpty && !istVeranstaltung
+        // Veranstaltung ohne Klassen: oben gar nichts (auch keine allein stehende Pille)
+        let pilleEinzeln = karte.statusPille != nil
+            && (pilleEigeneZeile ? !(istVeranstaltung && kopfteile.isEmpty) : !fachZeile)
         return VStack(alignment: .leading, spacing: 0) {
             if !kopfteile.isEmpty {
                 Wertzeile(bausteine: kopfteile, schrift: Detailmass.gross, farbe: Farben.detailText,
                           kuerzenAb: Wertzeile.kuerzungsgrenze)
                     .frame(minHeight: Detailmass.zeile)
             }
-            if fachSichtbar {
-                Wertzeile(bausteine: fachteile, schrift: Detailmass.gross, farbe: Farben.detailText)
-                    .frame(height: Detailmass.zeile + 4)
-            }
-            if pilleEinzeln, let pille = karte.statusPille {
+            if pilleEinzeln, pilleEigeneZeile, let pille = karte.statusPille {
                 Statuspille(text: pille)
-                    .padding(.vertical, 4)
+                    .frame(height: Detailmass.zeile)
+            }
+            if fachZeile {
+                Wertzeile(bausteine: fachteile, schrift: Detailmass.gross, farbe: Farben.detailText)
+                    .frame(height: Detailmass.zeile)
+            }
+            if pilleEinzeln, !pilleEigeneZeile, let pille = karte.statusPille {
+                Statuspille(text: pille)
+                    .frame(height: Detailmass.zeile)
             }
             if !raeume.isEmpty {
                 Wertzeile(bausteine: raeume, schrift: Detailmass.klein, kuerzenAb: Wertzeile.kuerzungsgrenze)
@@ -601,10 +619,11 @@ struct StundendetailInhalt: View {
                 link(.lehrstoff, Detailzeile(symbol: "SymbolLehrstoff", titel: "Lehrstoff",
                                              untertitel: thema.isEmpty && !geerbt.isEmpty ? "Block: \(geerbt)" : thema) {
                     if !thema.isEmpty {
+                        // Vorlage: Kreis mit Haken 24 pt, wie die Symbole
                         Image(systemName: "checkmark.circle")
-                            .font(.system(size: 21.5, weight: .light))
-                            .foregroundStyle(Farben.gedaempft)
-                            .padding(.trailing, 4)
+                            .font(.system(size: 23.5, weight: .light))
+                            .foregroundStyle(Farben.detailSymbol)
+                            .padding(.trailing, 4.5)
                             .accessibilityLabel("Lehrstoff eingetragen")
                     }
                 })
@@ -638,12 +657,22 @@ struct StundendetailInhalt: View {
         }
     }
 
-    /// Menüpunkt ohne Trennlinie (wie in der Vorlage).
+    /// Menüpunkt ohne Trennlinie und ohne Tipp-Animation (wie in der Vorlage): iPhone als Unterblatt, iPad als Unterseite.
+    @ViewBuilder
     private func link<R: View>(_ seite: Detailseite, _ inhalt: Detailzeile<R>) -> some View {
-        NavigationLink(value: seite) {
-            inhalt
+        if Geraet.istPad {
+            NavigationLink(value: seite) {
+                inhalt
+            }
+            .buttonStyle(OhneTippStil())
+        } else {
+            Button {
+                unterseite = seite
+            } label: {
+                inhalt
+            }
+            .buttonStyle(OhneTippStil())
         }
-        .buttonStyle(ZeilenKnopfStil())
     }
 
     /// „Findet online statt“ – speicherbar für Lehrkräfte mit Schreibrecht (optimistisch, bei Fehler zurück).
@@ -680,7 +709,7 @@ struct StundendetailInhalt: View {
                         .padding(.trailing, 4)
                 }
             }
-            .buttonStyle(ZeilenKnopfStil())
+            .buttonStyle(OhneTippStil())
             .accessibilityHint("Öffnet den Link zum Online-Unterricht")
         } else {
             Detailzeile(symbol: "SymbolOnline", titel: "Findet online statt", untertitel: "Noch kein Link hinterlegt", pfeil: false)

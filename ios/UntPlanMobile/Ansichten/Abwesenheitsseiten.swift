@@ -40,14 +40,14 @@ struct NeuerKlassenbucheintragView: View {
                             Formularzeile(titel: "Schüler*innen (\(gewaehlt.count))",
                                           untertitel: auswahl.map(\.anzeige).joined(separator: ", "))
                         }
-                        .buttonStyle(ZeilenKnopfStil())
+                        .buttonStyle(OhneTippStil())
                         Formulartrenner()
                         NavigationLink {
                             KategorieAuswahlView(arten: daten.vermerkArten, auswahl: $kategorie)
                         } label: {
                             Formularzeile(titel: "Eintragskategorie", untertitel: kategorie)
                         }
-                        .buttonStyle(ZeilenKnopfStil())
+                        .buttonStyle(OhneTippStil())
                         Formulartrenner()
                         TextField("Hier klicken um Text einzutragen.", text: $text, axis: .vertical)
                             .font(.system(size: 15))
@@ -334,7 +334,7 @@ struct SchuelerAbwesenheitenView: View {
                                 } label: {
                                     zeile(e)
                                 }
-                                .buttonStyle(ZeilenKnopfStil())
+                                .buttonStyle(OhneTippStil())
                             }
                         }
                     }
