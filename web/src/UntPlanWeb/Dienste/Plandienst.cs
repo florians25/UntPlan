@@ -441,7 +441,7 @@ public sealed class Plandienst
         var zeiten = s.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr);
         var einzel = new List<Karte>();
         var vorgemerkt = new List<(Rohstunde R, Karte K)>();
-        var roh = Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList();
+        var roh = TeilfreisetzungenAufheben(s, d, Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList());
         // Veranstaltung: abwesende (kranke) Lehrkräfte nehmen nicht teil – sie verschwinden aus der Veranstaltung (in allen Plänen) und die
         // Veranstaltung aus ihrem eigenen Plan (siehe betrifft)
         bool IstVeranstaltung(Rohstunde x) => x.Status == "zusaetzlich" && ArtVon(x).StartsWith("Veranst", StringComparison.OrdinalIgnoreCase);
@@ -825,9 +825,57 @@ public sealed class Plandienst
         return einzel.Select(k =>
         {
             if (k.Status != "regulaer" || k.Vertretung.HasValue || k.Klassen.Count == 0 || k.Fach.Length == 0) return k;
-            var t = termine.FirstOrDefault(t => Deckt(t, k.Von) && k.Klassen.All(w => Enthaelt(t.Klassen, w.K)));
+            // anwesende Mitklassen (gemeinsame Stunde mit Klassen, die nicht teilnehmen): die Stunde findet statt
+            var t = termine.FirstOrDefault(t => Deckt(t, k.Von) && k.Klassen.All(w => Enthaelt(t.Klassen, w.K))
+                && !k.Mitklassen.Any(w => w.K.Length > 0 && !Enthaelt(t.Klassen, w.K)));
             // kein Vertretungstext (Titel der Veranstaltung) auf jeder entfallenen Stunde – die Information steht an der Veranstaltung
             return t is null ? k : k with { Status = "entfall", Art = "Entfall", Text = "", WegenVeranstaltung = true };
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Abwesenheiten von Klassen am Tag d: Klassenabsenzen und Veranstaltungen mit Klassen (die Klasse nimmt teil, ist also nicht im
+    /// Unterricht – wie im Desktop). <paramref name="ausVeranstaltung"/>: die aus Veranstaltungen abgeleiteten Einträge.
+    /// </summary>
+    private static List<WebAbsenz> KlassenAbsenzen(Stand s, DateOnly d, out HashSet<WebAbsenz> ausVeranstaltung)
+    {
+        var va = new HashSet<WebAbsenz>(ReferenceEqualityComparer.Instance);
+        var liste = s.Paket.Absenzen.Where(a => a.Art == "klasse")
+            .Concat(s.Paket.Termine.Where(t => t.Art == "veranstaltung" && t.Klassen.Count > 0)
+                .SelectMany(t => t.Klassen.Select(kl => new WebAbsenz { Art = "klasse", Element = kl, Von = t.Von, Bis = t.Bis, StundeVon = t.StundeVon, StundeBis = t.StundeBis }))
+                .Select(a => { va.Add(a); return a; }))
+            .Where(a => DateOnly.TryParse(a.Von, out var v) && DateOnly.TryParse(a.Bis.Length > 0 ? a.Bis : a.Von, out var b) && d >= v && d <= b).ToList();
+        ausVeranstaltung = va;
+        return liste;
+    }
+
+    /// <summary>
+    /// Pakete aus älteren UntPlan-Versionen: Fehlte nur ein Teil der Klassen einer gemeinsamen Stunde (Kopplungszeilen desselben Unterrichts
+    /// bzw. parallel identischer Unterricht einer Lehrkraft, gleiches Fach und gleicher Raum), wurde die Zeile der abwesenden Klasse freigesetzt
+    /// (Entfall) – im Plan der Lehrkraft verschwand die Stunde. Steht daneben noch reguläre Stunde der gemeinsamen Stunde mit einer anwesenden
+    /// Klasse und sind alle Klassen der entfallenen Zeile abwesend, gilt die Zeile wieder als regulär; die abwesende Klasse markiert dann
+    /// <see cref="KlassenAbwesenheit"/> (grüne Karte, Klasse durchgestrichen; im eigenen Plan „abwesend“).
+    /// </summary>
+    internal static List<Rohstunde> TeilfreisetzungenAufheben(Stand s, DateOnly d, List<Rohstunde> roh)
+    {
+        var absenzen = KlassenAbsenzen(s, d, out _);
+        if (absenzen.Count == 0) return roh;
+        bool Abwesend(string klasse, int stunde) => absenzen.Any(a => Ci.Equals(a.Element, klasse) && StundeInAbsenz(a, d, stunde));
+        string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) ? vv.Art ?? "" : "";
+        static HashSet<string> Raeume(Rohstunde x) => x.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
+        static IEnumerable<string> Personen(Rohstunde x) => x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++"));
+        bool Gemeinsam(Rohstunde a, Rohstunde b) => a.Stunde == b.Stunde && Ci.Equals(a.Fach, b.Fach) && Raeume(a).SetEquals(Raeume(b))
+            && ((a.Unterricht.HasValue && a.Unterricht == b.Unterricht) || Personen(a).Intersect(Personen(b), Ci).Any());
+        return roh.Select(r =>
+        {
+            if (r.Status != "entfall" || !r.Unterricht.HasValue || r.Fach.Length == 0 || r.Klausur.HasValue || r.Klassen.Count == 0) return r;
+            // nur Freisetzung bzw. Entfall wegen einer Veranstaltung der Klasse – kein Entfall aus anderen Gründen
+            var art = ArtVon(r);
+            if (!art.Contains("Freisetz", StringComparison.OrdinalIgnoreCase) && !(r.Veranstaltung.HasValue && !art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase))) return r;
+            if (!r.Klassen.All(k => Abwesend(k, r.Stunde))) return r;
+            var laeuft = roh.Any(x => !ReferenceEquals(x, r) && x.Status is "regulaer" or "vertreten" or "offen" && x.Klausur is null && Gemeinsam(x, r)
+                && x.Klassen.Any(k => k.Length > 0 && !Abwesend(k, x.Stunde)));
+            return laeuft ? r with { Status = "regulaer", Vertretung = null, Text = "", Art = "", LehrerAlt = null, Veranstaltung = null } : r;
         }).ToList();
     }
 
@@ -839,13 +887,7 @@ public sealed class Plandienst
     /// </summary>
     private static List<Karte> KlassenAbwesenheit(Stand s, DateOnly d, List<Karte> karten, string typ, string kurz)
     {
-        // Klassenabsenzen und Veranstaltungen mit Klassen (die Klasse nimmt teil, ist also nicht im Unterricht – wie im Desktop)
-        var ausVeranstaltung = new HashSet<WebAbsenz>(ReferenceEqualityComparer.Instance);
-        var absenzen = s.Paket.Absenzen.Where(a => a.Art == "klasse")
-            .Concat(s.Paket.Termine.Where(t => t.Art == "veranstaltung" && t.Klassen.Count > 0)
-                .SelectMany(t => t.Klassen.Select(kl => new WebAbsenz { Art = "klasse", Element = kl, Von = t.Von, Bis = t.Bis, StundeVon = t.StundeVon, StundeBis = t.StundeBis }))
-                .Select(a => { ausVeranstaltung.Add(a); return a; }))
-            .Where(a => DateOnly.TryParse(a.Von, out var v) && DateOnly.TryParse(a.Bis.Length > 0 ? a.Bis : a.Von, out var b) && d >= v && d <= b).ToList();
+        var absenzen = KlassenAbsenzen(s, d, out var ausVeranstaltung);
         if (absenzen.Count == 0) return karten;
         bool Trifft(WebAbsenz a, int von, int bis) => Enumerable.Range(von, Math.Max(1, bis - von + 1)).Any(st => StundeInAbsenz(a, d, st));
         return karten.Select(k =>

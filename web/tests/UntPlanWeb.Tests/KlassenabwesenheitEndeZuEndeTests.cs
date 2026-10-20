@@ -117,9 +117,10 @@ public class KlassenabwesenheitEndeZuEndeTests
             Assert.Equal("geaendert", k["status"]!.GetValue<string>());
             Assert.Equal(new[] { "X2" }, Gestrichen(k));
         }
-        // Plan der abwesenden Klasse: die Stunde ist nicht regulär (Eckklammern „abwesend“ bzw. Entfall)
+        // Plan der abwesenden Klasse: Eckklammern „abwesend“ (wie bei abwesender Lehrkraft), kein Entfall
         var eigen = Assert.Single(await KartenAsync(s, "klasse", "X2"), x => x["unterricht"] is not null);
-        Assert.Contains(eigen["status"]!.GetValue<string>(), new[] { "abwesend", "entfall" });
+        Assert.Equal("abwesend", eigen["status"]!.GetValue<string>());
+        Assert.True(eigen["klasseAbwesend"]!.GetValue<bool>());
     }
 
     [Theory]
