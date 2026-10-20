@@ -237,6 +237,9 @@ public static class Kachelbau
             k.Lehrkraft = Vereinen(k.Lehrkraft, e.Lehrer);
             k.Klasse = Vereinen(k.Klasse, e.Klassen);
             k.Raum = Vereinen(k.Raum, e.Raeume);
+            // Räume einer Veranstaltung sind hinzugefügte Werte (grünes Label)
+            if (k.Typ == "Veranstaltung")
+                k.RaumPlus = string.Join(",", Einmal(k.Raum.Split(','), "???")) is { Length: > 0 } plus ? plus : null;
         }
     }
 
@@ -595,13 +598,21 @@ public static class Kachelbau
     private static IEnumerable<string> Einmal(IEnumerable<string> werte, params string[] ohne) =>
         werte.Select(x => x.Trim()).Where(x => x.Length > 0 && !ohne.Contains(x)).Distinct(Ci);
 
-    /// <summary>Veranstaltung (Exkursion, Konferenz, Projekttag …) als grün gerahmtes Feld. Jede Klasse, Lehrkraft und jeder Raum steht nur einmal.</summary>
-    private static Kachel Veranstaltung(string datum, int von, int bis, string titel, IEnumerable<string> klassen, IEnumerable<string> lehrer, IEnumerable<string> raeume, string? farbe = null) => new()
+    /// <summary>
+    /// Veranstaltung (Exkursion, Konferenz, Projekttag …) als grün gerahmtes Feld. Jede Klasse, Lehrkraft und jeder Raum steht nur einmal.
+    /// Der Raum ist ein hinzugefügter Wert (roomPlus): auf der Kachel ein grünes Label ohne „+“.
+    /// </summary>
+    private static Kachel Veranstaltung(string datum, int von, int bis, string titel, IEnumerable<string> klassen, IEnumerable<string> lehrer, IEnumerable<string> raeume, string? farbe = null)
     {
-        Stunde = von, Dauer = Math.Max(1, bis - von + 1), Datum = datum, Art = "absence", Feld = true, Fach = titel, Info = titel, Typ = "Veranstaltung",
-        Klasse = string.Join(",", Einmal(klassen)), Lehrkraft = string.Join(",", Einmal(lehrer, KeineLehrkraft, "???")),
-        Raum = string.Join(",", Einmal(raeume)), Farbe = string.IsNullOrWhiteSpace(farbe) ? null : farbe,
-    };
+        var liste = raeume.ToList();
+        var plus = string.Join(",", Einmal(liste, "???"));
+        return new()
+        {
+            Stunde = von, Dauer = Math.Max(1, bis - von + 1), Datum = datum, Art = "absence", Feld = true, Fach = titel, Info = titel, Typ = "Veranstaltung",
+            Klasse = string.Join(",", Einmal(klassen)), Lehrkraft = string.Join(",", Einmal(lehrer, KeineLehrkraft, "???")),
+            Raum = string.Join(",", Einmal(liste)), RaumPlus = plus.Length > 0 ? plus : null, Farbe = string.IsNullOrWhiteSpace(farbe) ? null : farbe,
+        };
+    }
 
     /// <summary>
     /// Bereitschaft im Lehrerplan: Hält die Lehrkraft in einer Stunde der Bereitschaft eine Vertretung, entfällt nur

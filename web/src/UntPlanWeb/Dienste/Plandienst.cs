@@ -539,7 +539,7 @@ public sealed class Plandienst
                 Lehrer = g.SelectMany(k => k.Lehrer).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
-        einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => MitTermin(s, d, k, l => Abwesend(l, k.Von)))).ToList();
+        einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => RaeumeHinzugefuegt(MitTermin(s, d, k, l => Abwesend(l, k.Von))))).ToList();
         return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten)));
     }
 
@@ -958,6 +958,13 @@ public sealed class Plandienst
     }
 
     /// <summary>
+    /// Der Raum einer Veranstaltung ist ein hinzugefügter Wert (die Veranstaltung kommt zum Plan hinzu): { K = Raum, Neu = true } –
+    /// Web „+A103“-Label, Apps grünes Label ohne „+“. Ersetzte bzw. entfernte Räume (Alt gesetzt) bleiben unverändert.
+    /// </summary>
+    public static Karte RaeumeHinzugefuegt(Karte k) => k.Status != "veranstaltung" ? k
+        : k with { Raeume = k.Raeume.Select(w => w.K.Length > 0 && string.IsNullOrEmpty(w.Alt) && !w.Neu ? w with { Neu = true } : w).ToList() };
+
+    /// <summary>
     /// Veranstaltungen, die ausdrücklich für dieses Element gelten (nicht schulweit) und noch nicht als Karte vorhanden sind –
     /// für die Tagesübersicht, damit z. B. ein Raum mit Veranstaltung dort erscheint.
     /// </summary>
@@ -968,7 +975,7 @@ public sealed class Plandienst
             .Where(e => e.Klassen.Count + e.Lehrer.Count + e.Raeume.Count > 0 && !vorhanden.Any(k => k.Status == "veranstaltung" && Ci.Equals(k.Text, e.Titel)))
             .Select(e => new Karte(Iso(d), e.Von, e.Bis, zeiten.TryGetValue(e.Von, out var a) ? a.Beginn : "", zeiten.TryGetValue(e.Bis, out var b) ? b.Ende : "",
                 "veranstaltung", "", null, "", "", e.Klassen.Select(x => new Wert(x)).ToList(),
-                e.Lehrer.Select(x => new Wert(x)).ToList(), e.Raeume.Select(x => new Wert(x)).ToList(),
+                e.Lehrer.Select(x => new Wert(x)).ToList(), e.Raeume.Select(x => new Wert(x, Neu: true)).ToList(),
                 "Veranstaltung", e.Titel, null, null, ""))
             .ToList();
     }
