@@ -1176,8 +1176,9 @@ struct Rasterrahmen: Equatable {
     /// Leerer Streifen über der Linie der 1. Stunde, hell und dunkel gleich (Vorlage dc1bcf55: Kopf endet bei 468 px,
     /// Linie ab 514,5 px → 15,5 pt).
     static let obenAbstand: CGFloat = 15.5
-    /// Aufsicht vor der 1. Stunde: Pille (22 pt) liegt direkt auf der Linie der 1. Stunde, darüber 4 pt Luft.
-    static let pillenHoehe: CGFloat = 22
+    /// Aufsicht vor der 1. Stunde: schmale Pille (Vorlage 179: 10 pt hoch) direkt auf der Linie der 1. Stunde, darüber
+    /// mindestens 4 pt Luft.
+    static let pillenHoehe: CGFloat = 10
     static let pillenLuft: CGFloat = 4
 
     /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.
@@ -1206,7 +1207,7 @@ struct Rasterrahmen: Equatable {
         }
         let dicht = tagesansicht || kompakt
         // Pillen vor der 1. Stunde (Aufsicht, ganztägiger Termin) brauchen über der Linie der 1. Stunde Platz
-        let oben: CGFloat = vorErster ? Self.pillenHoehe + Self.pillenLuft : Self.obenAbstand
+        let oben: CGFloat = vorErster ? max(Self.obenAbstand, Self.pillenHoehe + Self.pillenLuft) : Self.obenAbstand
         // iPhone wie im Original: Höhe je Minute so, dass das Raster von der 1. Stunde bis 17:00 genau die Sichthöhe
         // füllt (Vorlagen: dunkel 07:45–17:00 → 1,2667 pt/min, hell 08:00–17:00 → 1,2296 pt/min); sonst fester Wert
         let spanne = CGFloat(Self.sichtEnde - start)
@@ -1474,10 +1475,12 @@ struct RasterSeite: View, Equatable {
         let vorErste = belegung.lagen.filter { $0.kachel.vorErsterStunde }.map(\.kachel.id)
         return ZStack(alignment: .topLeading) {
             if tag.frei {
+                // Vorlage 179: über die ganze Spaltenbreite (ohne Lücke), oben 15,5 pt unter dem Kopf (auch wenn die
+                // erste Linie tiefer liegt) und bis zum unteren Rand (auch hinter der Tab-Leiste)
+                let feldOben = min(Rasterrahmen.obenAbstand, mass.y(mass.start) + 1)
                 ferienfeld(tag)
-                    // Wie im Original bis zum unteren Rand (auch hinter der Tab-Leiste)
-                    .frame(width: breite, height: max(hoehe - mass.y(mass.start) - 1, 20))
-                    .offset(y: mass.y(mass.start) + 1)
+                    .frame(width: breite + tagesLuecke - 0.2, height: max(hoehe - feldOben, 20))
+                    .offset(x: -(tagesLuecke - 0.2) / 2, y: feldOben)
             } else {
                 // Eigene Abwesenheit: grauer Balken hinter den Stunden – die Karten liegen voll lesbar darüber
                 ForEach(daten.abwesenheiten[tag.datum] ?? []) { b in
@@ -1625,7 +1628,8 @@ struct RasterSeite: View, Equatable {
         let oben = mass.yEnde(beginn) + 1
         let unten = mass.y(ende)
         let luecke = max(0, unten - oben)
-        let h = max(16, min(nurTage == nil ? 22 : 26, luecke - 2))
+        // Vorlage 179: in einer 15-Minuten-Pause 15,3 pt hoch (Lücke − 2 pt)
+        let h = max(12, min(nurTage == nil ? 22 : 26, luecke - 2))
         return (bildpunkt(oben + (luecke - h) / 2), h)
     }
 
@@ -1661,33 +1665,33 @@ struct RasterSeite: View, Equatable {
 
     /// Ferien und Feiertage: hellblaue Spalte über den ganzen Tag mit Schloss (Vorlage: „Ferien / pädagogischer Tag“).
     private func ferienfeld(_ tag: Tageskopf) -> some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
+        RoundedRectangle(cornerRadius: 2, style: .continuous)
             .fill(Farben.ferienHintergrund)
             .overlay {
-                // Bezeichnung (12,5 pt Medium, Zeitraum 11 pt Regular), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
+                // Vorlage 179: Schloss 10,5 pt, Bezeichnung 13 pt Semibold, Datum 12,5 pt Semibold ohne führende Nullen
+                // („7.10.“), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
                 VStack(spacing: 2) {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 10.5, weight: .medium))
-                        .padding(.bottom, 1)
                     Text(freiTitel(tag))
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(.system(size: 13, weight: .semibold))
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                     if let grund = tag.freiGrund, !grund.isEmpty, grund.lowercased() != freiTitel(tag).lowercased() {
                         Text(grund)
-                            .font(.system(size: 12.5, weight: .medium))
+                            .font(.system(size: 13, weight: .semibold))
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let von = tag.freiVon, let bis = tag.freiBis, !von.isEmpty, !bis.isEmpty {
-                        Text(von == bis ? Datumsformat.anzeige(von, "dd.MM.") : "\(Datumsformat.anzeige(von, "dd.MM.")) bis \(Datumsformat.anzeige(bis, "dd.MM."))")
-                            .font(.system(size: 11, weight: .regular))
+                        Text(von == bis ? Datumsformat.anzeige(von, "d.M.") : "\(Datumsformat.anzeige(von, "d.M.")) bis \(Datumsformat.anzeige(bis, "d.M."))")
+                            .font(.system(size: 12.5, weight: .semibold))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
-                            .padding(.top, 3)
+                            .padding(.top, 0.5)
                     }
                 }
                 .foregroundStyle(Farben.ferienTinte)

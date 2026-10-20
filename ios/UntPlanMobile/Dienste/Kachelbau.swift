@@ -211,6 +211,9 @@ struct Zaehlstreifen: Identifiable {
 
     var entfall: Bool { kacheln.contains { $0.art == .entfall } }
     var aenderung: Bool { kacheln.contains { $0.art == .aenderung } }
+    var klausur: Bool { kacheln.contains { $0.art == .klausur } }
+    /// Alle verdeckten Stunden liegen in der Vergangenheit
+    var vergangen: Bool { !kacheln.isEmpty && kacheln.allSatisfy(\.vergangen) }
 }
 
 /// Ergebnis für eine Tagesspalte.
