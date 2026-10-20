@@ -631,31 +631,21 @@ enum Kachelbau {
         }
     }
 
-    /// Veranstaltung: oben, was man im eigenen Plan nicht schon weiß (Klassenplan: Lehrkräfte, sonst Klassen), darunter
-    /// der Anlass, dann die übrigen Teilnehmenden und der Raum.
-    /// Jede Angabe steht nur einmal (keine doppelten Lehrkräfte, Klassen oder Räume).
+    /// Veranstaltung wie im Original (Vorlage 7c109a75): mit eingeteilten Lehrkräften oben (fett) die Lehrkräfte als
+    /// Kommaliste ohne Leerzeichen („AI,AY,BA“), darunter der Text der Veranstaltung, dann der Raum als grünes Label
+    /// (hinzugefügter Wert, ohne „+“); ohne Lehrkräfte steht der Text oben. Jede Angabe nur einmal; jede Zeile einzeilig.
     private static func veranstaltungsZeilen(_ k: Karte, typ: String, ich: String, anlass: String) -> [Kachelzeile] {
-        let alle = einmal(werte(k.lehrer))
-        let klassen = einmal(werte(k.klassen))
-        let oben = typ == "klasse" ? alle : klassen
-        let unten = typ == "klasse"
-            ? klassen.filter { $0.uppercased() != ich }
-            : alle.filter { typ != "lehrer" || $0.uppercased() != ich }
+        let lehrkraefte = einmal(werte(k.lehrer))
         var zeilen: [Kachelzeile] = []
-        if !oben.isEmpty {
-            zeilen.append(Kachelzeile(schluessel: typ == "klasse" ? "lehrer" : "klasse",
-                                      teile: [Kachelteil(text: oben.joined(separator: ", "))], fett: true))
+        if !lehrkraefte.isEmpty {
+            zeilen.append(Kachelzeile(schluessel: "lehrer", teile: [Kachelteil(text: lehrkraefte.joined(separator: ","))], fett: true))
         }
         if !anlass.isEmpty {
-            zeilen.append(Kachelzeile(schluessel: "anlass", teile: [Kachelteil(text: anlass)], fett: oben.isEmpty))
-        }
-        if !unten.isEmpty {
-            zeilen.append(Kachelzeile(schluessel: typ == "klasse" ? "klasse" : "lehrer",
-                                      teile: [Kachelteil(text: unten.joined(separator: ", "))]))
+            zeilen.append(Kachelzeile(schluessel: "anlass", teile: [Kachelteil(text: anlass)], fett: lehrkraefte.isEmpty))
         }
         let raeume = einmal(werte(k.raeume))
         if !raeume.isEmpty {
-            zeilen.append(Kachelzeile(schluessel: "raum", teile: [Kachelteil(text: raeume.joined(separator: ", "))]))
+            zeilen.append(Kachelzeile(schluessel: "raum", teile: liste(raeume, stil: .plakette, trenner: " ")))
         }
         return zeilen
     }
