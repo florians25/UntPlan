@@ -605,12 +605,12 @@ function koppTokens(card){
 }
 
 /* Lehrkräfte einer Karte mit mehreren Lehrkräften, wie sie auf der Kachel
-   stehen: Wer nur fehlt (keine Vertretung), bekommt kein Label und steht
-   nicht auf der Kachel — die übrigen Lehrkräfte stehen schlicht da. Ein
-   Label gibt es nur für eine echte Vertretung. Fehlen alle bzw. entfällt
-   die Stunde, bleibt es bei der bisherigen Darstellung. Die Details nennen
-   weiterhin alle (koppTokens). Eine vertretene Lehrkraft steht ebenfalls
-   nicht auf der Kachel — nur ihre Vertretung (Plakette). Bleibt nur eine
+   stehen: Fehlt eine Lehrkraft und vertritt sie niemand, steht sie
+   durchgestrichen in der grünen Plakette (die Stunde findet mit den übrigen
+   statt) — die übrigen Lehrkräfte stehen schlicht da. Eine vertretene
+   Lehrkraft steht nicht auf der Kachel — nur ihre Vertretung (Plakette);
+   die Details nennen beide (koppTokens). Fehlen alle bzw. entfällt die
+   Stunde, bleibt es bei der bisherigen Darstellung. Bleibt nur eine
    Lehrkraft ohne Änderung übrig, ist es keine Liste mehr: `allein` (ein
    gewöhnlicher Wert). */
 function kachelTokens(card){
@@ -621,11 +621,9 @@ function kachelTokens(card){
   const gross = x => String(x || '').toUpperCase();
   const vertreten = toks.filter(t => t.state === 'sub' && t.for).map(t => gross(t.for));
   toks = toks.filter(t => t.state === 'sub' || !vertreten.includes(gross(t.text)));
-  const da = toks.filter(t => t.state !== 'absent');
-  if (da.length === toks.length) return toks;
-  return da.length === 1 && da[0].state === 'ok' ? [{ ...da[0], allein:true }] : da;
+  return toks.length === 1 && toks[0].state === 'ok' ? [{ ...toks[0], allein:true }] : toks;
 }
-if (typeof window !== 'undefined') window.UntPlanKachelTokens = { kachelTokens };
+if (typeof window !== 'undefined') window.UntPlanKachelTokens = { kachelTokens, koppOffen };
 /* KACHELTOKENS-ENDE */
 
 /* Die Klassen einer Kopplung mit ihrem Zustand.

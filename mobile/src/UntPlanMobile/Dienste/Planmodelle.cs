@@ -39,7 +39,11 @@ public sealed record PlanKarte(
     // Zeichen oben rechts laut Server (Web); die App zeigt oben rechts nie ein Zeichen und beachtet das Feld nicht
     List<string>? Marker = null,
     // Stunde entfällt wegen einer Veranstaltung: kein Vertretungstext, kein Info-Zeichen und kein „Klasse abwesend“ auf der Kachel
-    bool WegenVeranstaltung = false);
+    bool WegenVeranstaltung = false,
+    // abwesende Klassen (Klassenabwesenheit); läuft die Stunde für die übrigen Klassen weiter: durchgestrichen in der grünen Plakette
+    List<string>? AbwesendeKlassen = null,
+    // im Plan der abwesenden Klasse selbst: die Stunde läuft ohne sie weiter (Status „abwesend“) – Eckklammern wie bei abwesender Lehrkraft
+    bool KlasseAbwesend = false);
 
 /// <summary>Pausenaufsicht im Lehrerplan. Status regulaer, vertreten (fällt für mich weg), vertretung (übernommen).</summary>
 /// <summary>Pausenaufsicht. Status: regulaer, vertreten, vertretung, offen (noch ungeplant; Grund z. B. „Abwesenheit“ bzw. Titel der Veranstaltung), entfall (ausdrücklich entfallen).</summary>
@@ -184,6 +188,11 @@ public sealed class Kachel
     [JsonPropertyName("standbyAbsent")] public bool? BereitschaftAbwesend { get; set; }
     /// <summary>Lehrkraft abwesend (eigene Stunde wird von anderen gehalten): Eckklammern statt Entfall.</summary>
     [JsonPropertyName("teacherAbsent")] public bool? LehrerAbwesend { get; set; }
+    /// <summary>
+    /// Eigene Klasse abwesend, die Stunde läuft mit den übrigen Klassen weiter (Klassenplan der abwesenden Klasse): Eckklammern wie bei
+    /// abwesender Lehrkraft, die eigene Klasse durchgestrichen in der grünen Plakette – kein Entfall.
+    /// </summary>
+    [JsonPropertyName("_klasseWeg")] public bool? KlasseWeg { get; set; }
     [JsonPropertyName("teacherList")] public List<KoppEintrag>? Kopplung { get; set; }
     [JsonPropertyName("classList")] public List<KlassenEintrag>? Klassenliste { get; set; }
     /// <summary>Unterricht in UntPlanWeb – Schlüssel fürs Klassenbuch (auch als entryId, wie in der Vorlage).</summary>

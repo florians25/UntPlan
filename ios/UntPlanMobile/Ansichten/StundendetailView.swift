@@ -475,11 +475,17 @@ struct StundendetailInhalt: View {
     /// Offene Vertretung: Lehrkraft ohne neuen Wert (Karte „offen“ bzw. Kürzel leer und alter Wert gesetzt).
     private var lehrerOffen: Bool { karte.istOffeneVertretung }
 
-    /// Kopfzeile „Klasse | Gruppe“: eigene Klasse(n), anwesende Mitklassen als Text, fehlende durchgestrichen;
-    /// Trennstrich grau. Veranstaltung ohne Klassen: keine Kopfzeile.
+    /// Abwesende Klassen einer Stunde, die für die übrigen Klassen stattfindet (beim Entfall leer).
+    private var abwesendeKlassenSichtbar: [String] {
+        karte.istEntfall ? [] : karte.abwesendeKlassen
+    }
+
+    /// Kopfzeile „Klasse | Gruppe“: eigene Klasse(n), anwesende Mitklassen als Text, fehlende bzw. abwesende Klassen
+    /// durchgestrichen; Trennstrich grau. Veranstaltung ohne Klassen: keine Kopfzeile.
     private var titelBausteine: [Wertbaustein] {
         var teile: [Wertbaustein] = []
-        guard !karte.mitklassen.isEmpty else {
+        let abwesend = abwesendeKlassenSichtbar
+        guard !karte.mitklassen.isEmpty || !abwesend.isEmpty else {
             if titelzeile.isEmpty { return [] }
             for teil in titelzeile.components(separatedBy: " | ") {
                 if !teile.isEmpty { teile.append(.trenner) }
@@ -491,9 +497,12 @@ struct StundendetailInhalt: View {
             if !teile.isEmpty { teile.append(.trenner) }
             teile.append(b)
         }
+        var gesehen: [String] = []
         for w in karte.klassen {
             let t = w.k.isEmpty ? (w.alt ?? "") : w.k
-            if !t.isEmpty { hinzu(.text(t)) }
+            guard !t.isEmpty, !gesehen.contains(where: { $0.caseInsensitiveCompare(t) == .orderedSame }) else { continue }
+            gesehen.append(t)
+            hinzu(abwesend.contains { $0.caseInsensitiveCompare(t) == .orderedSame } ? .weg(t) : .text(t))
         }
         for w in karte.mitklassen {
             if !w.k.isEmpty {
@@ -569,7 +578,9 @@ struct StundendetailInhalt: View {
                 Wertzeile(bausteine: lehrer, schrift: Detailmass.klein, kuerzenAb: istVeranstaltung ? nil : Wertzeile.kuerzungsgrenze)
                     .frame(minHeight: Detailmass.zeile)
             }
-            if !karte.abwesendeKlassen.isEmpty {
+            // Entfall (alle Klassen abwesend): Hinweis „Klasse abwesend“ (mit Grund); findet die Stunde für die übrigen Klassen
+            // statt, steht die abwesende Klasse oben durchgestrichen – hier nur ein Grund, falls angegeben
+            if !karte.abwesendeKlassen.isEmpty && (karte.istEntfall || karte.abwesendText.contains("–")) {
                 Wertzeile(bausteine: [.text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")],
                           schrift: Detailmass.klein)
                     .frame(height: Detailmass.zeile)

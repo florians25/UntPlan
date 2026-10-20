@@ -385,18 +385,18 @@ enum Kachelbau {
         return k
     }
 
-    /// Karte mit mehreren Lehrkräften (Kopplung, Konferenz, Zusatzstunde): Eine Lehrkraft, die nur fehlt (kein neuer Wert,
-    /// keine Vertretung), wird einfach weggelassen – die übrigen stehen ohne Label da. Ein Label gibt es nur für eine echte
-    /// Vertretung. Fehlen alle (bzw. entfällt die Stunde), bleibt die Karte unverändert (Entfall bzw. offene Vertretung).
-    /// Im Plan einer anderen beteiligten Lehrkraft ist die Stunde dann auch keine offene Vertretung mehr (`ichAbwesend` false).
-    static func ohneAbwesendeLehrkraefte(_ original: Karte, typ: String, ich: String) -> (karte: Karte, ichAbwesend: Bool) {
+    /// Karte mit mehreren Lehrkräften (Kopplung, Konferenz, Zusatzstunde): Eine Lehrkraft, die fehlt und die niemand vertritt
+    /// (kein neuer Wert), steht durchgestrichen im grünen Label – die Stunde findet mit den übrigen statt, die schlicht dastehen.
+    /// Für eine Vertretung steht nur die Vertretung im Label. Fehlen alle (bzw. entfällt die Stunde), bleibt die Karte unverändert
+    /// (Entfall bzw. offene Vertretung). Im Plan einer anderen beteiligten Lehrkraft (bzw. der Klasse, des Raums) ist die Stunde eine
+    /// grüne Änderung, keine offene Vertretung (`ichAbwesend` false); im Plan der fehlenden Lehrkraft selbst „abwesend“ (Eckklammern).
+    static func mitAbwesendenLehrkraeften(_ original: Karte, typ: String, ich: String) -> (karte: Karte, ichAbwesend: Bool) {
         var k = original
         let anwesend = k.lehrer.filter { !$0.k.isEmpty && !["???", "---", "+", "+++"].contains($0.k) }
         guard k.lehrer.count > 1, !anwesend.isEmpty, !k.istEntfall,
               k.lehrer.contains(where: { $0.k.isEmpty || $0.k == "???" }) else { return (k, false) }
         let ichAbwesend = typ == "lehrer" && !ich.isEmpty
             && k.lehrer.contains { ($0.k.isEmpty || $0.k == "???") && gleich($0.alt ?? "", ich) }
-        k.lehrer = k.lehrer.filter { !($0.k.isEmpty || $0.k == "???") }
         if !ichAbwesend {
             k.vertretungOffen = false
             if k.status == "offen" || k.status == "abwesend" { k.status = "geaendert" }
@@ -468,11 +468,9 @@ enum Kachelbau {
         }
         if typ == "raum" { k = raumplanNormalisiert(k) }
         k = raumaenderungNormalisiert(k)
-        // Details: alle Lehrkräfte wie geliefert (auch die fehlende); auf der Kachel fehlt eine bloß abwesende Lehrkraft
-        let detailLehrer = k.lehrer
-        let ohneAbwesende = ohneAbwesendeLehrkraefte(k, typ: typ, ich: ich)
-        k = ohneAbwesende.karte
-        let abwesendeWeggelassen = k.lehrer.count != detailLehrer.count
+        // Mehrere Lehrkräfte, eine fehlt ohne Vertretung: sie steht durchgestrichen im Label (Kachel und Details)
+        let abwesendeLehrkraefte = mitAbwesendenLehrkraeften(k, typ: typ, ich: ich)
+        k = abwesendeLehrkraefte.karte
         k = zusatzNormalisiert(k)
         let lage = zeitraum(k, raster: raster)
         var kachel = Kachel(karte: k, art: .normal, datum: k.datum, von: k.von, bis: max(k.bis, k.von),
@@ -539,7 +537,7 @@ enum Kachelbau {
             geaendert.insert("raum")
         }
 
-        let offen = k.vertretungOffen || ohneAbwesende.ichAbwesend || ((k.status == "offen" || k.status == "abwesend")
+        let offen = k.vertretungOffen || abwesendeLehrkraefte.ichAbwesend || ((k.status == "offen" || k.status == "abwesend")
             && k.lehrer.contains { $0.neu && $0.k.isEmpty && !($0.alt ?? "").isEmpty })
         var titel = k.fach
         switch k.status {
@@ -564,8 +562,13 @@ enum Kachelbau {
             kachel.art = k.istPruefung ? .klausur : .aenderung
         }
         if k.istPruefung && k.status != "entfall" && k.status != "abwesend" { kachel.art = .klausur }
-        // Koppelklasse abwesend: im Plan der anderen Klasse grün wie eine Änderung
-        if typ == "klasse" && kachel.art == .normal && !weggefalleneKlassen(k).isEmpty {
+        // Plan der abwesenden Klasse selbst: die Stunde läuft mit den übrigen Klassen ohne sie weiter (wie „Lehrkraft abwesend“)
+        let klasseWeg = typ == "klasse" && k.klasseAbwesend && k.status == "abwesend"
+        // Koppelklasse bzw. eine der Klassen abwesend, die Stunde findet für die übrigen statt: im Plan der anderen Klassen, der
+        // Lehrkraft und des Raums grün wie eine Änderung (die abwesende Klasse durchgestrichen im Label)
+        let teilweiseAbwesend = !k.abwesendeKlassen.isEmpty && !k.istEntfall
+            && werte(k.klassen).contains { kl in !k.abwesendeKlassen.contains { gleich($0, kl) } }
+        if !klasseWeg && kachel.art == .normal && (!weggefalleneKlassen(k).isEmpty || teilweiseAbwesend) {
             kachel.art = .aenderung
             geaendert.insert("klasse")
         }
@@ -590,14 +593,13 @@ enum Kachelbau {
         let alleKlassenAbwesend = !k.klassen.isEmpty && !k.abwesendeKlassen.isEmpty
             && werte(k.klassen).allSatisfy { kl in k.abwesendeKlassen.contains { gleich($0, kl) } }
         // Raumplan: offene Vertretung bleibt eine grüne Änderungskarte (Eckklammern nur im Plan der abwesenden Lehrkraft)
-        let freigegeben = typ != "klasse" && ((offen && typ != "raum") || abgegebenAnMich || alleKlassenAbwesend) && !verlegtZiel
+        let freigegeben = ((typ != "klasse" && ((offen && typ != "raum") || abgegebenAnMich || alleKlassenAbwesend)) || klasseWeg) && !verlegtZiel
             && (kachel.art == .aenderung || kachel.art == .entfall || kachel.art == .normal)
         if freigegeben { kachel.art = .abgegeben }
 
         kachel.zeilen = zeilen(k, typ: typ, ich: ich, art: kachel.art, geaendert: geaendert, titel: titel,
-                               klassenAbwesend: alleKlassenAbwesend, abwesendeWeggelassen: abwesendeWeggelassen)
+                               klassenAbwesend: alleKlassenAbwesend || klasseWeg)
         if kachel.zeilen.isEmpty { return nil }
-        if abwesendeWeggelassen { kachel.karte?.lehrer = detailLehrer }
 
         // Rang: vorne steht, was tatsächlich stattfindet
         let koppAlleWeg = k.lehrer.count > 1 && k.lehrer.allSatisfy { $0.neu && $0.k.isEmpty }
@@ -661,7 +663,7 @@ enum Kachelbau {
     /// Zeilen nach Vorlage – Klassenplan: Lehrkraft · Fach · Raum · Klasse; Lehrer- und Raumplan: Klasse · Fach · Raum · Lehrkraft.
     /// Die letzte Zeile entfällt, wenn sie nur das betrachtete Element wiederholt und sich nichts geändert hat.
     private static func zeilen(_ k: Karte, typ: String, ich: String, art: Kachelart, geaendert: Set<String>,
-                               titel: String, klassenAbwesend: Bool, abwesendeWeggelassen: Bool = false) -> [Kachelzeile] {
+                               titel: String, klassenAbwesend: Bool) -> [Kachelzeile] {
         if art == .termin {
             var termin: [Kachelzeile] = []
             if !titel.isEmpty {
@@ -738,10 +740,7 @@ enum Kachelbau {
                 if !hatListe {
                     let jetzt = werte(k.lehrer).joined(separator: ", ")
                     let vorher = alte(k.lehrer).joined(separator: ", ")
-                    if art == .abgegeben && abwesendeWeggelassen {
-                        // Kopplung ohne mich (ich fehle, die übrigen halten die Stunde): die übrigen schlicht, ohne Label
-                        if !jetzt.isEmpty { zeile.teile = [Kachelteil(text: jetzt)] }
-                    } else if art == .abgegeben && !klassenAbwesend {
+                    if art == .abgegeben && !klassenAbwesend {
                         // Abgegebene Stunde: neue Lehrkraft als grüne Plakette, sonst das eigene Kürzel durchgestrichen
                         if !jetzt.isEmpty {
                             zeile.teile = [Kachelteil(text: jetzt, stil: .plakette)]
@@ -767,17 +766,19 @@ enum Kachelbau {
                 var namen = werte(k.klassen)
                 for m in werte(k.mitklassen) where !namen.contains(where: { gleich($0, m) }) { namen.append(m) }
                 let abwesend = k.abwesendeKlassen
-                // Abwesende Koppelklassen ({k:"", alt}) stehen durchgestrichen im grünen Label (wie abwesende Lehrkraft)
+                // Abwesende Klassen (abwesendeKlassen bzw. Koppelklassen {k:"", alt}) stehen durchgestrichen im grünen Label
+                // (wie eine abwesende Lehrkraft) – die Stunde findet für die übrigen Klassen statt; beim Entfall nur durchgestrichen
                 let weg = weggefalleneKlassen(k)
+                let wegStil: Kachelteil.Stil = art == .entfall || k.istEntfall ? .weg : .offen
                 if namen.count > 1 || !abwesend.isEmpty || !weg.isEmpty {
                     var teile = namen.map { n -> Kachelteil in
-                        Kachelteil(text: n, stil: abwesend.contains { gleich($0, n) } ? .weg : .text)
+                        Kachelteil(text: n, stil: abwesend.contains { gleich($0, n) } ? wegStil : .text)
                     }
                     teile += weg.filter { w in !namen.contains { gleich($0, w) } }
-                        .map { Kachelteil(text: $0, stil: art == .entfall ? .weg : .offen) }
+                        .map { Kachelteil(text: $0, stil: wegStil) }
                     // Im Klassenplan steht nur, wer mit dabei ist – die eigene Klasse nur, wenn sie fehlt
                     if typ == "klasse" && !ich.isEmpty && teile.count > 1 {
-                        teile = teile.filter { $0.text.uppercased() != ich || $0.stil == .weg }
+                        teile = teile.filter { $0.text.uppercased() != ich || $0.stil != .text }
                     }
                     if !teile.isEmpty {
                         for j in 0..<(teile.count - 1) { teile[j].trenner = ", " }

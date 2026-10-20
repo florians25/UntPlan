@@ -52,7 +52,7 @@ public sealed record Karte(
     /// Veranstaltungen oder Vormerkungen; eine Statt-Vertretung (Vertretung durch eine freigesetzte Lehrkraft) ist keine Verlegung.
     /// </summary>
     public string? Verlegung => !(IstVerlegungsArt(Art) || VerlegungsZeile) || Status is not ("entfall" or "abwesend" or "geaendert" or "offen") ? null
-        : VerlegungsSeite ?? (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend) ? "von" : "nach");
+        : VerlegungsSeite ?? (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend && !KlasseAbwesend) ? "von" : "nach");
 
     /// <summary>Die Vertretung gehört zu einer Verlegung (Desktop: „verlegt auf“ an der entfallenen Ursprungsstunde, „verlegt von“ am Ziel).</summary>
     [System.Text.Json.Serialization.JsonIgnore] public bool VerlegungsZeile { get; init; }
@@ -95,7 +95,7 @@ public sealed record Karte(
             var verlegung = Verlegung;
             if (verlegung == "von") m.Add("verlegungVon");
             else if (verlegung == "nach") m.Add("verlegungNach");
-            else if (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend)) m.Add("entfall");
+            else if (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend && !KlasseAbwesend)) m.Add("entfall");
             if (Status == "klausur") { m.Add("pruefung"); if (WertGeaendert) m.Add("aenderung"); }
             else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
             else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert) m.Add("aenderung"); }
@@ -110,10 +110,19 @@ public sealed record Karte(
     /// </summary>
     public static bool IstVerlegungsArt(string? art) => !string.IsNullOrEmpty(art) &&
         art.Contains("verleg", StringComparison.OrdinalIgnoreCase) && !art.Contains("raum", StringComparison.OrdinalIgnoreCase);
-    /// <summary>Abwesende Klassen dieser Stunde (Klasse durchgestrichen, Label „abwesend“); die Stunde selbst findet laut Plan statt.</summary>
+    /// <summary>
+    /// Abwesende Klassen dieser Stunde (Klassenabwesenheit). Findet die Stunde für die übrigen Klassen statt, steht jede abwesende Klasse
+    /// durchgestrichen im grünen Label (wie ein entfernter Wert) und die Karte ist geändert; <see cref="Klassen"/> bleibt vollständig
+    /// (Klassenbuch). Sind alle Klassen abwesend, entfällt die Stunde („Klasse abwesend“).
+    /// </summary>
     public List<string> AbwesendeKlassen { get; init; } = new();
-    /// <summary>Text des Labels bei abwesender Klasse, z. B. „abwesend“ bzw. „abwesend – Exkursion“ (Grund nur fürs Kollegium).</summary>
+    /// <summary>Hinweis zur abwesenden Klasse für Details bzw. Entfall, z. B. „abwesend“ bzw. „abwesend – Exkursion“ (Grund nur fürs Kollegium).</summary>
     public string AbwesendText { get; init; } = "";
+    /// <summary>
+    /// Im Plan der abwesenden Klasse selbst: die Stunde läuft mit den übrigen Klassen ohne sie weiter (Status „abwesend“) – Darstellung wie
+    /// „Lehrkraft abwesend“ (durchsichtige Karte mit Eck-Klammern, die eigene Klasse durchgestrichen im Label), kein Entfall.
+    /// </summary>
+    public bool KlasseAbwesend { get; init; }
     /// <summary>
     /// Darstellung „Lehrkraft abwesend“ (gestrichelter Rahmen mit Eck-Klammern, Lehrer-Label grün bzw. durchgestrichen) statt Entfall:
     /// eigene Stunde im Lehrerplan wird von anderen gehalten, oder die Bereitschaft einer abwesenden Lehrkraft fällt weg.
@@ -546,7 +555,7 @@ public sealed class Plandienst
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => RaeumeHinzugefuegt(MitTermin(s, d, k, l => Abwesend(l, k.Von))))).ToList();
-        return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten)));
+        return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten), typ, kurz));
     }
 
     /// <summary>
@@ -820,8 +829,13 @@ public sealed class Plandienst
         }).ToList();
     }
 
-    /// <summary>Abwesende Klassen (Absenzen aus UntPlan) auf den Karten markieren – echte Entfälle und Veranstaltungen bleiben unverändert.</summary>
-    private static List<Karte> KlassenAbwesenheit(Stand s, DateOnly d, List<Karte> karten)
+    /// <summary>
+    /// Abwesende Klassen (Absenzen aus UntPlan) auf den Karten markieren – echte Entfälle und Veranstaltungen bleiben unverändert.
+    /// Findet die Stunde für andere Klassen statt: im Plan der Lehrkraft, des Raums und der übrigen Klassen eine grüne Änderungskarte mit der
+    /// abwesenden Klasse durchgestrichen im Label; im Plan der abwesenden Klasse Status „abwesend“ mit <see cref="Karte.KlasseAbwesend"/>.
+    /// Sind alle Klassen abwesend, entfällt die Stunde.
+    /// </summary>
+    private static List<Karte> KlassenAbwesenheit(Stand s, DateOnly d, List<Karte> karten, string typ, string kurz)
     {
         var absenzen = s.Paket.Absenzen.Where(a => a.Art == "klasse" && DateOnly.TryParse(a.Von, out var v) && DateOnly.TryParse(a.Bis, out var b) && d >= v && d <= b).ToList();
         if (absenzen.Count == 0) return karten;
@@ -840,18 +854,25 @@ public sealed class Plandienst
             if (treffer.Count == 0) return k;
             var grund = treffer.Select(a => a.Grund).FirstOrDefault(g => !string.IsNullOrWhiteSpace(g));
             var weg = treffer.Select(a => a.Element).ToHashSet(Ci);
-            // alle Klassen der Stunde abwesend: die Stunde entfällt (wie ein Entfall aus der Vertretungsplanung)
-            if (k.Klassen.Count > 0 && k.Klassen.All(w => weg.Contains(w.K)))
+            // alle Klassen der Stunde abwesend (auch keine anwesende Mitklasse): die Stunde entfällt (wie ein Entfall aus der Vertretungsplanung)
+            var andereDa = k.Klassen.Any(w => w.K.Length > 0 && !weg.Contains(w.K)) || k.Mitklassen.Any(w => w.K.Length > 0);
+            if (k.Klassen.Count > 0 && !andereDa)
                 return k with
                 {
                     Status = "entfall", Art = "Klasse abwesend", VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null, Zusaetzlich = false,
                     AbwesendeKlassen = k.Klassen.Select(w => w.K).ToList(), AbwesendText = grund is null ? "Klasse abwesend" : $"Klasse abwesend – {grund}",
                 };
-            return k with
-            {
-                AbwesendeKlassen = treffer.Select(a => k.Klassen.First(w => Ci.Equals(w.K, a.Element)).K).Distinct(Ci).ToList(),
-                AbwesendText = grund is null ? "abwesend" : $"abwesend – {grund}",
-            };
+            var abwesend = treffer.Select(a => k.Klassen.First(w => Ci.Equals(w.K, a.Element)).K).Distinct(Ci).ToList();
+            var text = grund is null ? "abwesend" : $"abwesend – {grund}";
+            // Plan der abwesenden Klasse selbst: die Stunde läuft ohne sie weiter – wie „Lehrkraft abwesend“ (kein Entfall)
+            if (typ == Elementtyp.Klasse && weg.Contains(kurz) && k.Status is "regulaer" or "geaendert" or "offen")
+                return k with
+                {
+                    Status = "abwesend", KlasseAbwesend = true, AbwesendeKlassen = abwesend, AbwesendText = text,
+                    VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null, Zusaetzlich = false,
+                };
+            // Lehrer-, Raum- und Klassenplan der übrigen Klassen: grüne Änderungskarte, die abwesende Klasse durchgestrichen im Label
+            return k with { AbwesendeKlassen = abwesend, AbwesendText = text, Status = k.Status == "regulaer" ? "geaendert" : k.Status };
         }).ToList();
     }
 

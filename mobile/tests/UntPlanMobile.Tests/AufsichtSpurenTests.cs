@@ -5,7 +5,7 @@ namespace UntPlanMobile.Tests;
 
 /// <summary>
 /// Pausenaufsichten in den Spuren (wie Stunden: gleiche Breite, bei Platzmangel hinter der Zählkarte), Klausur über eine
-/// Aufsichtspause als eine Kachel, Karten mit mehreren Lehrkräften (bloß abwesende Lehrkraft ohne Label, kein „+“).
+/// Aufsichtspause als eine Kachel, Karten mit mehreren Lehrkräften (abwesende Lehrkraft ohne Vertretung durchgestrichen im Label, kein „+“).
 /// </summary>
 public class AufsichtSpurenTests
 {
@@ -77,20 +77,20 @@ public class AufsichtSpurenTests
     }
 
     [Fact]
-    public void Abwesende_Lehrkraft_ohne_Vertretung_steht_nicht_auf_der_Kachel()
+    public void Abwesende_Lehrkraft_ohne_Vertretung_steht_durchgestrichen_im_Label()
     {
         JsPruefen(Abschnitt(AppJs, "KACHELTOKENS") + """
-            const t = card => window.UntPlanKachelTokens.kachelTokens(card).map(x => x.text + ':' + x.state + (x.allein ? ':allein' : ''));
+            const t = card => window.UntPlanKachelTokens.kachelTokens(card).map(x => x.text + ':' + x.state + (x.allein ? ':allein' : '') + (x.state === 'absent' && window.UntPlanKachelTokens.koppOffen(x, []) ? ':label' : ''));
             const liste = (...l) => l.map(([code, st, f]) => ({ code, state: st, for: f }));
-            // Konferenz: BAM fehlt ohne Vertretung – kein Label, die übrigen schlicht
-            pruefe('Konferenz', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['BIK', 'ok'], ['BRN', 'ok']) }), ['BIK:ok', 'BRN:ok']);
-            // Vertretung bleibt mit Label
+            // Konferenz: BAM fehlt ohne Vertretung – durchgestrichen in der grünen Plakette, die übrigen schlicht
+            pruefe('Konferenz', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['BIK', 'ok'], ['BRN', 'ok']) }), ['BAM:absent:label', 'BIK:ok', 'BRN:ok']);
+            // Vertretung: nur die Vertretung mit Label, die vertretene Lehrkraft steht nicht da
             pruefe('Vertretung', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['ILK', 'sub', 'BAM'], ['BRN', 'ok']) }), ['ILK:sub', 'BRN:ok']);
-            // nur eine bleibt: gewöhnlicher Wert
-            pruefe('allein', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['BIK', 'ok']) }), ['BIK:ok:allein']);
+            // zwei Lehrkräfte, eine fehlt: weiter eine Liste mit der fehlenden durchgestrichen
+            pruefe('zwei', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['BIK', 'ok']) }), ['BAM:absent:label', 'BIK:ok']);
             // alle fehlen bzw. Entfall: unverändert
-            pruefe('alle weg', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['BIK', 'absent']) }), ['BAM:absent', 'BIK:absent']);
-            pruefe('Entfall', t({ blockType: 'cancelled', teacherList: liste(['BAM', 'absent'], ['BIK', 'ok']) }), ['BAM:absent', 'BIK:ok']);
+            pruefe('alle weg', t({ blockType: 'change', teacherList: liste(['BAM', 'absent'], ['BIK', 'absent']) }), ['BAM:absent:label', 'BIK:absent:label']);
+            pruefe('Entfall', t({ blockType: 'cancelled', teacherList: liste(['BAM', 'absent'], ['BIK', 'ok']) }), ['BAM:absent:label', 'BIK:ok']);
             // vertretene Lehrkraft steht auch als gewöhnliches Kürzel nicht auf der Kachel – nur die Vertretung
             pruefe('vertreten doppelt', t({ blockType: 'change', teacherList: liste(['ILK', 'sub', 'BAM'], ['BAM', 'ok']) }), ['ILK:sub']);
             pruefe('Einzelvertretung', t({ blockType: 'change', teacherList: liste(['ILK', 'sub', 'BAM'], ['BIK', 'ok'], ['BAM', 'ok']) }), ['ILK:sub', 'BIK:ok']);
