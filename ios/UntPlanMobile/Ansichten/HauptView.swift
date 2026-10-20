@@ -133,7 +133,11 @@ struct AppTabView: View {
         TabView(selection: reiterBindung) {
             StartView()
                 .tint(Farben.akzent)
-                .tabItem { Label(AppReiter.start.titel, systemImage: AppReiter.start.symbol) }
+                .tabItem {
+                    // Umrisse wie im Original (die Systemleiste füllt Symbole sonst)
+                    Label(AppReiter.start.titel, systemImage: AppReiter.start.symbol)
+                        .environment(\.symbolVariants, .none)
+                }
                 .tag(AppReiter.start)
             StundenplanView()
                 .tint(Farben.akzent)
@@ -147,12 +151,20 @@ struct AppTabView: View {
                 .tag(AppReiter.stundenplan)
             MitteilungenView()
                 .tint(Farben.akzent)
-                .tabItem { Label(AppReiter.mitteilungen.titel, systemImage: AppReiter.mitteilungen.symbol) }
+                .tabItem {
+                    // Umrisse wie im Original (die Systemleiste füllt Symbole sonst)
+                    Label(AppReiter.mitteilungen.titel, systemImage: AppReiter.mitteilungen.symbol)
+                        .environment(\.symbolVariants, .none)
+                }
                 .badge(zustand.ungelesen)
                 .tag(AppReiter.mitteilungen)
             ProfilView()
                 .tint(Farben.akzent)
-                .tabItem { Label(AppReiter.profil.titel, systemImage: AppReiter.profil.symbol) }
+                .tabItem {
+                    // Umrisse wie im Original (die Systemleiste füllt Symbole sonst)
+                    Label(AppReiter.profil.titel, systemImage: AppReiter.profil.symbol)
+                        .environment(\.symbolVariants, .none)
+                }
                 .tag(AppReiter.profil)
         }
         // iPad: aktiver Reiter orange wie in der Vorlage; iPhone: dunkel bzw. weiß

@@ -248,6 +248,9 @@ struct ZahlPlakette: View {
 /// davor (und außerhalb von Leisten) die eigene Glasfläche.
 struct Glasknopf<Inhalt: View>: View {
     var inLeiste: Bool = true
+    /// Breite in der Systemleiste (iOS 26): in einer Gruppe mit mehreren Knöpfen schmaler, damit die gemeinsame
+    /// Glaskapsel so kompakt wird wie im Original (Vorlage 173: Zeichen 52 pt auseinander, Kapsel 96 pt breit)
+    var breite: CGFloat = 34
     @ViewBuilder let inhalt: () -> Inhalt
 
     /// Ab iOS 26 zeichnet die Navigationsleiste das Glas selbst.
@@ -260,7 +263,7 @@ struct Glasknopf<Inhalt: View>: View {
         if systemGlas {
             inhalt()
                 .foregroundStyle(Farben.tinte2)
-                .frame(width: 34, height: 34)
+                .frame(width: breite, height: 34)
                 .contentShape(Rectangle())
         } else {
             inhalt()

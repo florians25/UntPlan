@@ -38,8 +38,9 @@ struct KachelView: View {
     // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
     static let balkenRand: CGFloat = 4
     static let balkenBreite: CGFloat = 4
-    /// Vorlagen 4cc11c37/171 (3 px/pt): Schrift-Ursprung 4,25 pt rechts vom Balken (12,25 pt von der Kartenkante)
-    static let textAbstand: CGFloat = 4.25
+    /// Abgeglichen mit Bildschirmfotos der App (175/176) gegen das Original (173, gleicher Maßstab 2,289 px/pt): mit 4 pt
+    /// stand die Schrift 0,44 pt (1 px) weiter rechts als im Original – daher 3,56 pt (Glyphe „B“ 13,11 pt von der Kante)
+    static let textAbstand: CGFloat = 3.56
     static var textLinks: CGFloat { balkenRand + balkenBreite + textAbstand }
     static let textOben: CGFloat = 4
     /// Untere Zeilen (ab der zweiten) sitzen um diesen Betrag höher (nur optisch, ohne Einfluss auf das Layout).
@@ -421,7 +422,7 @@ struct KachelzeileView: View {
                 HStack(spacing: 0) {
                     teil(eintrag.element, kuerzbar: kuerzbar)
                         // Label vorn: Fläche ragt nach links, die Schrift bleibt bündig mit den anderen Zeilen
-                        .padding(.leading, eintrag.offset == 0 && istLabel(eintrag.element) ? -Plakettenwert.innen : 0)
+                        .padding(.leading, eintrag.offset == 0 && istLabel(eintrag.element) ? -Plakettenwert.vorsprung : 0)
                     if labelNachbar(eintrag.offset) {
                         Color.clear
                             .frame(width: Self.labelAbstand, height: 1)
@@ -762,9 +763,12 @@ struct Kuerzungszeichen: View {
 /// Versalhöhe mittig; Radius ≈ 2 pt (Ecke 3 px). iPad (161: „ASL“ 20 px bei 1,46 px/pt) ebenso 13,7 pt.
 /// Untereinander stehende Labels bleiben durch den Zeilenabstand 0,3 pt (iPad 0,6 pt) getrennt.
 struct Plakettenwert: View {
-    /// Innenabstand links (Fläche beginnt so weit vor dem Schrift-Ursprung) und rechts
-    static let innen: CGFloat = 2.15
-    static let innenRechts: CGFloat = 2.45
+    /// Innenabstand links und rechts der Schrift in der Fläche
+    static let innen: CGFloat = 1.9
+    static let innenRechts: CGFloat = 2.2
+    /// Steht das Label vorn, beginnt die Fläche so weit vor dem Textanfang der übrigen Zeilen (Original 173 gegen App
+    /// 176: Fläche 9,8 pt von der Kartenkante, Label-Schrift 0,5 pt vor der normalen Schrift)
+    static let vorsprung: CGFloat = 2.15
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false

@@ -346,7 +346,7 @@ struct StundenplanView: View {
             Button {
                 zeigeInfo = true
             } label: {
-                Glasknopf {
+                Glasknopf(breite: 22) {
                     Image(systemName: "info.circle")
                         .font(.system(size: 18, weight: .regular))
                 }
@@ -370,8 +370,9 @@ struct StundenplanView: View {
                         .font(.system(size: 17, weight: istBreit ? .medium : .regular))
                         .lineLimit(1)
                         .truncationMode(.tail)
+                    // Vorlage 173: Pfeil 10,5 pt breit, dünn
                     Image(systemName: "chevron.down")
-                        .font(.system(size: istBreit ? 11 : 13, weight: .medium))
+                        .font(.system(size: istBreit ? 11 : 12, weight: .regular))
                 }
             }
             .foregroundStyle(Farben.titelGrau)
@@ -430,7 +431,7 @@ struct StundenplanView: View {
                 }
             }
         } label: {
-            Glasknopf {
+            Glasknopf(breite: 22) {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 17, weight: .medium))
                     .rotationEffect(.degrees(90))
