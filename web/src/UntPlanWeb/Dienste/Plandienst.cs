@@ -555,7 +555,8 @@ public sealed class Plandienst
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => RaeumeHinzugefuegt(MitTermin(s, d, k, l => Abwesend(l, k.Von))))).ToList();
-        return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(Kopplungen(KlassenVeranstaltung(s, d, einzel)), zeiten), typ, kurz));
+        // Veranstaltung der Klassen erst nach dem Zusammenfassen der Kopplungen: entfällt nur, wenn alle Klassen der gemeinsamen Karte teilnehmen
+        return ZusatzPruefen(KlassenAbwesenheit(s, d, Zusammenfassen(KlassenVeranstaltung(s, d, Kopplungen(einzel)), zeiten), typ, kurz));
     }
 
     /// <summary>
@@ -785,14 +786,15 @@ public sealed class Plandienst
     {
         if (!r.Unterricht.HasValue || r.Fach.Length == 0 || k.Status is "entfall" or "veranstaltung" or "vorgemerkt" or "buchung") return k;
         static HashSet<string> Personen(Rohstunde x) => new(x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++")), Ci);
+        // ohne eigene Lehrkraft (z. B. Kopplungszeile ohne Lehrkraft) nur die Zeilen desselben Unterrichts
         var eigene = Personen(r);
-        if (eigene.Count == 0) return k;
         var raeume = r.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
         var da = new Dictionary<string, bool>(Ci);
         foreach (var x in roh)
         {
             if (ReferenceEquals(x, r) || x.Stunde != r.Stunde || x.Status == "vorgemerkt" || x.Art == "KlausurLoeschen" || x.Klassen.Count == 0 || Enthaelt(x.Klassen, kurz)) continue;
-            if (!Ci.Equals(x.Fach, r.Fach) || !Personen(x).Overlaps(eigene)) continue;
+            // gemeinsame Lehrkraft (parallel identischer Unterricht) bzw. Kopplungszeile desselben Unterrichts
+            if (!Ci.Equals(x.Fach, r.Fach) || (!Personen(x).Overlaps(eigene) && x.Unterricht != r.Unterricht)) continue;
             var xr = x.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
             if (x.Status != "entfall" && !xr.SetEquals(raeume)) continue;
             if (x.Status == "entfall" && xr.Count > 0 && raeume.Count > 0 && !xr.Overlaps(raeume)) continue;
@@ -830,16 +832,22 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Abwesende Klassen (Absenzen aus UntPlan) auf den Karten markieren – echte Entfälle und Veranstaltungen bleiben unverändert.
+    /// Abwesende Klassen (Absenzen aus UntPlan bzw. Teilnahme an einer Veranstaltung) auf den Karten markieren – echte Entfälle und Veranstaltungen bleiben unverändert.
     /// Findet die Stunde für andere Klassen statt: im Plan der Lehrkraft, des Raums und der übrigen Klassen eine grüne Änderungskarte mit der
     /// abwesenden Klasse durchgestrichen im Label; im Plan der abwesenden Klasse Status „abwesend“ mit <see cref="Karte.KlasseAbwesend"/>.
     /// Sind alle Klassen abwesend, entfällt die Stunde.
     /// </summary>
     private static List<Karte> KlassenAbwesenheit(Stand s, DateOnly d, List<Karte> karten, string typ, string kurz)
     {
-        var absenzen = s.Paket.Absenzen.Where(a => a.Art == "klasse" && DateOnly.TryParse(a.Von, out var v) && DateOnly.TryParse(a.Bis, out var b) && d >= v && d <= b).ToList();
+        // Klassenabsenzen und Veranstaltungen mit Klassen (die Klasse nimmt teil, ist also nicht im Unterricht – wie im Desktop)
+        var ausVeranstaltung = new HashSet<WebAbsenz>(ReferenceEqualityComparer.Instance);
+        var absenzen = s.Paket.Absenzen.Where(a => a.Art == "klasse")
+            .Concat(s.Paket.Termine.Where(t => t.Art == "veranstaltung" && t.Klassen.Count > 0)
+                .SelectMany(t => t.Klassen.Select(kl => new WebAbsenz { Art = "klasse", Element = kl, Von = t.Von, Bis = t.Bis, StundeVon = t.StundeVon, StundeBis = t.StundeBis }))
+                .Select(a => { ausVeranstaltung.Add(a); return a; }))
+            .Where(a => DateOnly.TryParse(a.Von, out var v) && DateOnly.TryParse(a.Bis.Length > 0 ? a.Bis : a.Von, out var b) && d >= v && d <= b).ToList();
         if (absenzen.Count == 0) return karten;
-        bool Trifft(WebAbsenz a, int von, int bis) => a.StundeVon <= bis && (a.StundeBis >= von || a.StundeBis < a.StundeVon || a.StundeBis >= 20);
+        bool Trifft(WebAbsenz a, int von, int bis) => Enumerable.Range(von, Math.Max(1, bis - von + 1)).Any(st => StundeInAbsenz(a, d, st));
         return karten.Select(k =>
         {
             if (k.Status is "entfall" or "veranstaltung" or "vorgemerkt" or "buchung") return k;
@@ -850,12 +858,20 @@ public sealed class Plandienst
                     Mitklassen = k.Mitklassen.Select(w => w.K.Length > 0 && absenzen.Any(a => Ci.Equals(a.Element, w.K) && Trifft(a, k.Von, k.Bis)) ? new Wert("", w.K, true) : w).ToList(),
                     Status = k.Status == "regulaer" ? "geaendert" : k.Status,
                 };
-            var treffer = absenzen.Where(a => k.Klassen.Any(w => Ci.Equals(w.K, a.Element)) && Trifft(a, k.Von, k.Bis)).ToList();
+            // Veranstaltungen betreffen nur Unterricht (nicht die Veranstaltung selbst bzw. andere Termine ohne Unterricht)
+            var treffer = absenzen.Where(a => k.Klassen.Any(w => Ci.Equals(w.K, a.Element)) && Trifft(a, k.Von, k.Bis) && (k.Unterricht.HasValue || !ausVeranstaltung.Contains(a))).ToList();
             if (treffer.Count == 0) return k;
             var grund = treffer.Select(a => a.Grund).FirstOrDefault(g => !string.IsNullOrWhiteSpace(g));
             var weg = treffer.Select(a => a.Element).ToHashSet(Ci);
             // alle Klassen der Stunde abwesend (auch keine anwesende Mitklasse): die Stunde entfällt (wie ein Entfall aus der Vertretungsplanung)
             var andereDa = k.Klassen.Any(w => w.K.Length > 0 && !weg.Contains(w.K)) || k.Mitklassen.Any(w => w.K.Length > 0);
+            // alle wegen Veranstaltungen: Entfall ohne Text wie bei KlassenVeranstaltung (die Information steht an der Veranstaltung)
+            if (k.Klassen.Count > 0 && !andereDa && treffer.All(ausVeranstaltung.Contains))
+                return k with
+                {
+                    Status = "entfall", Art = "Entfall", Text = "", WegenVeranstaltung = true, VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null,
+                    VerlegungNach = null, Zusaetzlich = false,
+                };
             if (k.Klassen.Count > 0 && !andereDa)
                 return k with
                 {
