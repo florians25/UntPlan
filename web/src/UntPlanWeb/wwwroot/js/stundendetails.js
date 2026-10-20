@@ -121,7 +121,7 @@ export function karteDialog(karte, kontext = {}) {
   // Doppel-/Blockstunden: null = ganzer Block, sonst die gewählte Einzelstunde (Einträge gelten dann nur für sie)
   let einzel = null;
 
-  const istEntfall = () => k.status === 'entfall' || (k.status === 'abwesend' && kontext.typ !== 'lehrer' && (kontext.typ === 'raum' || !k.lehrerAbwesend));
+  const istEntfall = () => k.status === 'entfall' || (k.status === 'abwesend' && kontext.typ !== 'lehrer' && (kontext.typ === 'raum' || !(k.lehrerAbwesend || k.klasseAbwesend)));
   const mitKlassenbuch = () => kollegium && k.unterricht && !['entfall', 'abwesend', 'vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
   // Prüfung auch in Vertretungs- und Zusatzstunden (ohne eigenen Unterricht), nur nicht in entfallenen Stunden oder Veranstaltungen
   const darfPruefung = () => kollegium && kuerzel(k.klassen).length && k.datum >= heuteIso() && !['entfall', 'abwesend', 'veranstaltung', 'vorgemerkt'].includes(k.status);
@@ -201,8 +201,10 @@ export function karteDialog(karte, kontext = {}) {
 
   function kopf() {
     // „Klassen | Gruppe | Fach“ – Klassen und Gruppe verlinkt („Im Stundenplan anzeigen“)
-    // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse nur durchgestrichen (ohne Label)
-    const alleKlassen = [...k.klassen, ...(k.mitklassen || [])];
+    // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse nur durchgestrichen (ohne Label). Ebenso eine abwesende
+    // Klasse, wenn die Stunde für die übrigen Klassen weiterläuft (abwesendeKlassen) – im Plan der Klasse selbst wie überall sonst.
+    const weg = new Set(k.status !== 'entfall' ? (k.abwesendeKlassen || []).map(x => x.toLowerCase()) : []);
+    const alleKlassen = [...k.klassen.map(w => w.k && weg.has(w.k.toLowerCase()) ? { k: '', alt: w.k, neu: true } : w), ...(k.mitklassen || [])];
     const klassenTeil = alleKlassen.length ? wertKopf(alleKlassen, 6, kollegium || ich.element ? 'klasse' : null) : '';
     const ersteKlasse = kuerzel(k.klassen)[0];
     const gruppe = k.gruppe ? (ersteKlasse ? `<a href="#" class="sd-link" data-plan="klasse" data-element="${e(ersteKlasse)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(k.gruppe)}</a>` : e(k.gruppe))

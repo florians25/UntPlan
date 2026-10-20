@@ -59,9 +59,12 @@ public class KoppelklassenTests
         Assert.Equal("geaendert", k12.Status);
         Assert.Equal(new[] { new Wert("", "INF13", true) }, k12.Mitklassen);
         Assert.Empty(k12.AbwesendeKlassen);
-        // im Plan der abwesenden Klasse: wie bisher deren Abwesenheit (Entfall „Klasse abwesend“)
+        // im Plan der abwesenden Klasse: die Stunde läuft mit INF12 ohne sie weiter – wie „Lehrkraft abwesend“, kein Entfall
         var k13 = Assert.Single(plan.Karten(s, Tag, Elementtyp.Klasse, "INF13"));
-        Assert.Equal("entfall", k13.Status);
+        Assert.Equal("abwesend", k13.Status);
+        Assert.True(k13.KlasseAbwesend);
+        Assert.Empty(k13.Marker);
         Assert.Equal(new[] { "INF13" }, k13.AbwesendeKlassen);
+        Assert.Equal(new[] { new Wert("INF12") }, k13.Mitklassen);
     }
 }

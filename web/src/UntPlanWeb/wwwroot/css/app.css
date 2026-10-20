@@ -1294,11 +1294,8 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 @media (max-width: 991.98px) { [data-ansicht="plan"] { --plan-oben: var(--u-kopf); } [data-ansicht="plan"] .planleiste { margin-top: -1rem; padding-top: .5rem; } }
 @media print { [data-ansicht="plan"] .planleiste, [data-ansicht="plan"] .tt > .tt-tag, [data-ansicht="plan"] .tt > .tt-ecke:first-child { position: static; box-shadow: none; } [data-ansicht="plan"] .tt > .tt-tag::after { display: none; } }
 
-/* Klasse abwesend: Klasse durchgestrichen mit Label, Karte grün; im eigenen Plan gestrichelt wie bei abwesender Lehrkraft */
+/* Klasse abwesend: die Klasse steht durchgestrichen im grünen Label (.lbl.weg), die Karte ist eine Änderung; im Plan der Klasse selbst wie bei abwesender Lehrkraft */
 .std .lbl.abw { background: #8a96a1; }
-.std.klasse-abwesend { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
-.std.klasse-abwesend .kl-weg { text-decoration: line-through; text-decoration-thickness: 1px; }
-.std.lehrer-abwesend.klasse-abwesend { background: #f1f5f8 !important; }
 .std .abw-label { display: inline-block; font-size: 10.5px; line-height: 14px; font-weight: 600; color: #fff; background: #67747e; border-radius: 2px; padding: 0 4px; margin-top: 2px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Offene Raumvertretung: wie offene Lehrervertretung (rotes Label „???“) */

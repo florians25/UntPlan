@@ -513,10 +513,56 @@ public class KachelbauTests
         Assert.Contains("class", ohne.Geaendert);
         Assert.Equal("INF12", ohne.Klasse);
         Assert.Equal(new[] { ("INF12", "ok"), ("INF13", "absent") }, ohne.Klassenliste!.Select(e => (e.Name, e.Zustand)));
-        // im Lehrerplan bleibt die Kachel, wie sie ist – die abwesende Klasse steht nur durchgestrichen
+        // im Lehrerplan ebenso grün – die abwesende Klasse durchgestrichen in der Plakette
         var lehrer = Kachelbau.AusKarte(Karte("regulaer", 2, fach: "INF", klassen: new() { new("INF12"), new("", "INF13") }), "teacher");
-        Assert.Equal("normal", lehrer.Art);
+        Assert.Equal("change", lehrer.Art);
         Assert.Equal("absent", lehrer.Klassenliste![1].Zustand);
+    }
+
+    [Fact]
+    public void Abwesende_Klasse_aus_abwesendeKlassen_steht_durchgestrichen_und_die_Karte_ist_gruen()
+    {
+        // UntPlanWeb: Klassen bleiben vollständig, die abwesende Klasse steht in abwesendeKlassen[], Status „geaendert“
+        foreach (var art in new[] { "teacher", "room", "class" })
+        {
+            var k = Kachelbau.AusKarte(Karte("geaendert", 2, fach: "INF", klassen: new() { new("INF12"), new("INF13") }) with { AbwesendeKlassen = new() { "INF13" } }, art);
+            Assert.Equal("change", k.Art);
+            Assert.Contains("class", k.Geaendert);
+            Assert.Null(k.KlasseWeg);
+            Assert.Equal(new[] { ("INF12", "ok"), ("INF13", "absent") }, k.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+        }
+        // alle Klassen abwesend: Entfall wie bisher (Hinweis „Klasse abwesend“), keine durchgestrichene Plakette
+        var entfall = Kachelbau.AusKarte(Karte("entfall", 2, fach: "INF", art: "Klasse abwesend", klassen: new() { new("INF12"), new("INF13") })
+            with { AbwesendeKlassen = new() { "INF12", "INF13" } }, "teacher");
+        Assert.Equal("cancelled", entfall.Art);
+        Assert.Equal("Klasse abwesend", entfall.Info);
+        Assert.All(entfall.Klassenliste!, e => Assert.Equal("ok", e.Zustand));
+    }
+
+    [Fact]
+    public void Im_Plan_der_abwesenden_Klasse_laeuft_die_Stunde_ohne_sie_weiter()
+    {
+        // INF13 abwesend, INF12 hat weiter Unterricht: Plan von INF13 wie „Lehrkraft abwesend“ (Eckklammern), kein Entfall
+        var k = Kachelbau.AusKarte(Karte("abwesend", 2, fach: "INF", klassen: new() { new("INF13") })
+            with { Mitklassen = new() { new("INF12") }, AbwesendeKlassen = new() { "INF13" }, KlasseAbwesend = true }, "class");
+        Assert.Equal("change", k.Art);
+        Assert.True(k.KlasseWeg);
+        Assert.Null(k.LehrerAbwesend);
+        Assert.False(k.Offen);
+        Assert.Null(k.Verlegung);
+        Assert.Equal(new[] { ("INF13", "absent"), ("INF12", "ok") }, k.Klassenliste!.Select(e => (e.Name, e.Zustand)));
+    }
+
+    [Fact]
+    public void Kopplung_mit_abwesender_Lehrkraft_ohne_Vertretung_nennt_sie_durchgestrichen()
+    {
+        // BAM hält die Stunde, BIK fehlt ohne Vertretung: BIK durchgestrichen in der grünen Plakette (nicht weggelassen)
+        foreach (var art in new[] { "teacher", "class", "room" })
+        {
+            var k = Kachelbau.AusKarte(Karte("offen", 2, lehrer: new() { new("BAM"), new("", "BIK", true) }) with { VertretungOffen = true }, art);
+            Assert.Equal("change", k.Art);
+            Assert.Equal(new[] { ("BAM", "ok", (bool?)null), ("BIK", "absent", true) }, k.Kopplung!.Select(t => (t.Code, t.Zustand, t.Offen)));
+        }
     }
 
     [Fact]

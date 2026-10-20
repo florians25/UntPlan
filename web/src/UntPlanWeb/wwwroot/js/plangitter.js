@@ -93,8 +93,11 @@ const werteListe = (l, entfall = false, lehrkraft = false) => liste((l || []).ma
 
 function titelText(k) {
   const w = l => (l || []).map(x => x.alt && x.k ? `${x.k} (statt ${x.alt})` : x.k || (x.alt ? `${x.alt} fehlt` : '???')).join(', ');
+  // abwesende Klasse (Stunde läuft für die übrigen weiter): „INF13 fehlt“
+  const weg = abwesend(k);
+  const klassen = (k.klassen || []).map(x => weg.size && k.status !== 'entfall' && weg.has((x.k || '').toLowerCase()) ? { k: '', alt: x.k } : x);
   const text = k.status === 'klausur' && k.pruefung ? k.pruefung : k.text;
-  return [k.fachName || k.fach || text, w([...(k.klassen || []), ...(k.mitklassen || [])]), w(k.lehrer), k.online ? 'findet online statt' : w(k.raeume),
+  return [k.fachName || k.fach || text, w([...klassen, ...(k.mitklassen || [])]), w(k.lehrer), k.online ? 'findet online statt' : w(k.raeume),
     k.status !== 'regulaer' ? statusText(k) : '', k.fach && text].filter(Boolean).join(' · ');
 }
 
@@ -102,8 +105,9 @@ function titelText(k) {
  * Lehrkraft abwesend: eigene Stunde der angezeigten Lehrkraft wird von anderen gehalten, bzw. die Bereitschaft einer abwesenden
  * Lehrkraft fällt weg (Lehrer- und Tagesansichten) – gestrichelte Karte mit Eck-Klammern statt Entfall. Der Server liefert dafür
  * lehrerAbwesend. Im Raumplan nie: dort erscheint eine Stunde mit abwesender Lehrkraft wie im Klassenplan als grüne Änderungskarte.
+ * Ebenso im Plan einer abwesenden Klasse, deren Stunde mit den übrigen Klassen weiterläuft (klasseAbwesend).
  */
-export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && (typ === 'lehrer' || (typ !== 'raum' && !!k.lehrerAbwesend));
+export const lehrerAbwesend = (k, typ) => k.status === 'abwesend' && (typ === 'lehrer' || (typ !== 'raum' && (!!k.lehrerAbwesend || !!k.klasseAbwesend)));
 /** Echter Entfall (rot, durchgestrichen); im Raumplan gilt eine verlegte Stunde weiter als Entfall. */
 const istEntfall = (k, typ) => k.status === 'entfall' || (k.status === 'abwesend' && !lehrerAbwesend(k, typ));
 
@@ -191,13 +195,14 @@ function eckSymbole(k, typ) {
  */
 /** Abwesende Klassen einer Karte (Absenz aus UntPlan). */
 const abwesend = k => new Set((k.abwesendeKlassen || []).map(x => x.toLowerCase()));
-/** Klassen mit durchgestrichenen abwesenden Klassen. */
+/**
+ * Klassen einer Karte: eine abwesende Klasse (die Stunde läuft für die übrigen Klassen weiter) steht wie ein entfernter Wert
+ * durchgestrichen im grünen Label – im Plan der übrigen Klassen, der Lehrkraft und des Raums ebenso wie im Plan der Klasse selbst.
+ */
 function klassenWerte(k, entfall) {
   const weg = abwesend(k);
   if (!weg.size || entfall) return werteListe(k.klassen, entfall);
-  const l = k.klassen || [];
-  return liste(l.map(w => weg.has((w.k || '').toLowerCase()) ? `<span class="kl-weg">${e(w.k)}</span>` : werte([w])),
-    l.map(w => weg.has((w.k || '').toLowerCase()) ? { t: w.k, a: 'aus' } : wertPille(w)));
+  return werteListe((k.klassen || []).map(w => weg.has((w.k || '').toLowerCase()) ? { k: '', alt: w.k, neu: true } : w));
 }
 
 /** Kartenzeile: Text bzw. Werteliste ({ liste, html, inline, pillen }); voll = vollständiger Text für den Hover einer gekürzten Zeile. */
@@ -261,8 +266,6 @@ export function karteInhalt(k, typ, kompakt = false) {
     rest = [k.klassen.length ? fach : '', raum, lehrerZeile];
   }
   const zeilen = rest.filter(x => x);
-  // abwesende Klasse: Label „abwesend …“ (Hover mit den Klassen)
-  if (abwesend(k).size && !entfall) zeilen.push(`<span class="abw-label" data-hover="${e([...abwesend(k)].join(', ') + ' ' + (k.abwesendText || 'abwesend'))}" data-hover-art="dunkel">${e(k.abwesendText || 'abwesend')}</span>`);
   // Hover einer gekürzten Zeile: jede Zeile für sich (Werteliste als Pillen, Fach mit vollem Namen, sonst der vollständige Text)
   const voll = x => x === fach && fachVoll ? fachVoll : titel && x === titel ? (k.text || k.art || '') : '';
   const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(' · ')}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
@@ -271,10 +274,9 @@ export function karteInhalt(k, typ, kompakt = false) {
 
 /** CSS-Klassen einer Karte (Status, Lehrkraft abwesend, vergangen). */
 export function kartenKlasse(k, typ, jetztIso, jetzt) {
-  const klasseWeg = (k.abwesendeKlassen || []).length && !istEntfall(k, typ);
-  // im eigenen (Lehrer-)Plan: alle Klassen abwesend → gestrichelt wie bei abwesender Lehrkraft
-  const alleWeg = klasseWeg && typ === 'lehrer' && k.klassen.every(w => k.abwesendeKlassen.some(x => x.toLowerCase() === (w.k || '').toLowerCase()));
-  return [k.status, lehrerAbwesend(k, typ) || alleWeg ? 'lehrer-abwesend' : '', klasseWeg ? 'klasse-abwesend' : '', istEntfall(k, typ) && k.status === 'abwesend' ? 'entfall' : '',
+  // abwesende Klasse: im Plan der übrigen Klassen, der Lehrkraft und des Raums eine grüne Änderungskarte (Status „geaendert“ vom
+  // Server), im Plan der abwesenden Klasse selbst wie „Lehrkraft abwesend“ (klasseAbwesend → lehrer-abwesend)
+  return [k.status, lehrerAbwesend(k, typ) ? 'lehrer-abwesend' : '', istEntfall(k, typ) && k.status === 'abwesend' ? 'entfall' : '',
     vergangen(k, jetztIso, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''].filter(Boolean).join(' ');
 }
 

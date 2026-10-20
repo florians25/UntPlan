@@ -53,6 +53,11 @@ const wert = (l, entfall = false, max = 4, trenn = '→') => {
   return teile.length > max ? `${teile.slice(0, max - 1).join(', ')} <span class="nl-unter" data-hover="${e((l || []).map(w => w.k || w.alt).join(', '))}" data-hover-art="dunkel">+${teile.length - max + 1}</span>` : teile.join(', ');
 };
 const istEntfall = s => s.status === 'entfall';
+/** Klassen einer Stunde: eine abwesende Klasse (die Stunde läuft für die übrigen weiter) wie ein entfernter Wert – durchgestrichen im Label. */
+const klassenMitAbwesenden = s => {
+  const weg = new Set(s.status !== 'entfall' ? (s.abwesendeKlassen || []).map(x => String(x).toLowerCase()) : []);
+  return (s.klassen || []).map(w => w.k && weg.has(w.k.toLowerCase()) ? { k: '', alt: w.k, neu: true } : w);
+};
 
 /** Status-Label einer Stunde (Farben wie die übrigen neuen Listen). */
 function statusLabels(s) {
@@ -60,6 +65,8 @@ function statusLabels(s) {
   const chip = (farbe, text, hover = '') => `<span class="nl-chip ${farbe}"${hover ? ` data-hover="${e(hover)}" data-hover-art="dunkel"` : ''}>${text}</span>`;
   if (s.status === 'entfall') l.push(chip('rot', 'Entfall'));
   else if (s.status === 'offen' || s.vertretungOffen) l.push(chip('gelb', 'Vertretung offen'));
+  // eigene Klasse abwesend, die Stunde läuft mit den übrigen Klassen weiter
+  else if (s.status === 'abwesend' && s.klasseAbwesend) l.push(chip('grau', 'Klasse abwesend'));
   else if (s.status === 'abwesend') l.push(chip('grau', 'vertreten'));
   else if (s.status === 'klausur') l.push(chip('gelb', 'Prüfung'));
   else if (s.status === 'veranstaltung') l.push(chip('grau', 'Veranstaltung'));
@@ -104,7 +111,7 @@ export async function zeigen(seite, kontext) {
       <td class="hu-zeit"><span class="nl-name">${e(s.beginn)}</span><span class="nl-unter">${e(s.ende)}</span></td>
       <td class="hu-std nl-unter">${s.stunde}.</td>
       <td class="hu-fach"><span class="hu-balken" style="${/^#[0-9a-f]{6}$/i.test(s.farbe || '') ? `--fach:${s.farbe}` : ''}"></span><span class="hu-wert">${fach}</span>${s.fachName && s.fachName !== s.fach && !entfall ? `<span class="nl-unter">${e(s.fachName)}</span>` : ''}</td>
-      <td class="hu-wert">${wert(s.klassen, entfall) || '–'}</td>
+      <td class="hu-wert">${wert(klassenMitAbwesenden(s), entfall) || '–'}</td>
       <td class="hu-wert">${wert(s.raeume, entfall) || '–'}</td>
       ${mitLehrkraft ? `<td class="hu-wert">${wert(s.lehrer, entfall, 4, '|') || '–'}</td>` : ''}
       <td><span class="nl-chips">${statusLabels(s)}</span></td>
@@ -143,7 +150,7 @@ export async function zeigen(seite, kontext) {
   const karten = stunden.map(s => ({
     datum: d.tag ?? d.datum, von: s.von, bis: s.bis, beginn: s.beginn, ende: s.ende, status: s.status, fach: s.fach, fachName: s.fachName, fachAlt: s.fachAlt, farbe: s.farbe,
     klassen: s.klassen, lehrer: s.lehrer, raeume: s.raeume, art: s.art, text: s.text, unterricht: s.unterricht, gruppe: s.gruppe, zusaetzlich: s.zusaetzlich,
-    notizSchueler: s.notizSchueler, notizLehrer: s.notizLehrer, lehrerAbwesend: s.lehrerAbwesend, vertretungOffen: s.vertretungOffen,
+    notizSchueler: s.notizSchueler, notizLehrer: s.notizLehrer, lehrerAbwesend: s.lehrerAbwesend, vertretungOffen: s.vertretungOffen, klasseAbwesend: s.klasseAbwesend, abwesendeKlassen: s.abwesendeKlassen,
   }));
   const oeffnen = tr => {
     const k = karten[Number(tr.dataset.i)];

@@ -221,6 +221,9 @@ struct Karte: Decodable, Identifiable, Sendable {
     var lehrerAbwesend: Bool
     /// Bereitschaftsstunde (falls der Server es ausdrücklich liefert; sonst aus Status bzw. Fach abgeleitet).
     var bereitschaft: Bool
+    /// Plan der abwesenden Klasse selbst: die Stunde läuft mit den übrigen Klassen ohne sie weiter (Status „abwesend“) –
+    /// Eckklammern wie bei abwesender Lehrkraft, die eigene Klasse durchgestrichen im Label; kein Entfall.
+    var klasseAbwesend: Bool = false
     /// Verlegung laut Server: „von“ (ursprüngliche Stunde) bzw. „nach“ (Zielstunde), sonst leer.
     var verlegungRoh: String = ""
     /// Ursprung und Ziel einer Verlegung (nil = unbekannt bzw. keine Verlegung).
@@ -233,7 +236,7 @@ struct Karte: Decodable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
         case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
-        case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen
+        case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen, klasseAbwesend
         case onlineLink, onlineUrl, onlinelink
         case verlegung, moved, verlegungVon, verlegungNach, marker
     }
@@ -320,6 +323,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         onlineLink = Karte.linkText(c.textOderNil(.onlineLink) ?? c.textOderNil(.onlineUrl) ?? c.textOderNil(.onlinelink))
         lehrerAbwesend = c.wahr(.lehrerAbwesend) || c.wahr(.bereitschaftAbwesend) || c.wahr(.standbyAbsent)
         bereitschaft = c.wahr(.bereitschaft)
+        klasseAbwesend = c.wahr(.klasseAbwesend)
         verlegungRoh = (c.textOderNil(.verlegung) ?? c.textOderNil(.moved) ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         // Eine verlegte Stunde (Ursprung bzw. Ziel) ist nie eine zusätzliche Unterrichtsstunde – keine Plakette, keine Lehrer-Labels
         if verlegungRoh == "von" || verlegungRoh == "nach" { zusaetzlich = false }
@@ -406,7 +410,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         if verlegungRoh == "von" || verlegungRoh == "nach" { return verlegungRoh }
         let a = art.lowercased()
         guard a.contains("verleg") || a.contains("statt"), status != "klausur" else { return nil }
-        return status == "entfall" || (status == "abwesend" && !lehrerAbwesend) ? "von" : "nach"
+        return status == "entfall" || (status == "abwesend" && !lehrerAbwesend && !klasseAbwesend) ? "von" : "nach"
     }
 
     var istVerlegung: Bool { verlegung != nil }

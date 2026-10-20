@@ -108,7 +108,7 @@ public static class Kachelbau
         // aktuelle Server (mit Symbolliste) liefern verlegung nur an Ursprung und Ziel einer echten Verlegung – sonst null
         if (k.Marker is not null) return null;
         if (k.Zusaetzlich || !VerlegungsArt.IsMatch(k.Art ?? "") || k.Status is "klausur" or "regulaer" or "bereitschaft" or "buchung") return null;
-        return k.Status == "entfall" || (k.Status == "abwesend" && !k.LehrerAbwesend) ? "von" : "nach";
+        return k.Status == "entfall" || (k.Status == "abwesend" && !k.LehrerAbwesend && !k.KlasseAbwesend) ? "von" : "nach";
     }
 
     /// <summary>
@@ -574,15 +574,27 @@ public static class Kachelbau
                 : w.Plus ? new KoppEintrag(w.K, "sub", Plus: true)
                 : new KoppEintrag(w.K, "ok")).Where(t => t.Code.Length > 0).ToList();
         // Koppelklassen: alle Klassen der Stunde (eigene aus klassen[], die übrigen aus mitklassen[]); eine abwesende Klasse
-        // ({k:"", alt:"INF13"}) steht durchgestrichen in der grünen Plakette
-        var alleKlassen = k.Mitklassen is { Count: > 0 } ? k.Klassen.Concat(k.Mitklassen).ToList() : k.Klassen;
-        if (alleKlassen.Count > 1)
+        // ({k:"", alt:"INF13"} bzw. in abwesendeKlassen[], solange die Stunde für die übrigen Klassen stattfindet) steht durchgestrichen
+        // in der grünen Plakette
+        var weg = k.Status != "entfall" && k.AbwesendeKlassen is { Count: > 0 } ? k.AbwesendeKlassen.ToHashSet(Ci) : null;
+        var eigene = weg is null ? k.Klassen : k.Klassen.Select(w => w.K.Length > 0 && weg.Contains(w.K) ? new PlanWert("", w.K, true) : w).ToList();
+        var alleKlassen = k.Mitklassen is { Count: > 0 } ? eigene.Concat(k.Mitklassen).ToList() : eigene;
+        if (alleKlassen.Count > 1 || (weg is not null && alleKlassen.Count > 0))
         {
             kachel.Klassenliste = alleKlassen
                 .Select(w => w.K.Length > 0 ? new KlassenEintrag(w.K, Plus: w.Plus ? true : null) : !string.IsNullOrEmpty(w.Alt) ? new KlassenEintrag(w.Alt!, "absent") : null)
                 .Where(e => e != null).Select(e => e!).DistinctBy(e => e.Name, Ci).ToList();
-            // Im Plan der anderen (anwesenden) Klasse wird die Stunde grün – wie bei einer abwesenden Lehrkraft
-            if (art == "class" && kachel.Art is "normal" or "change" && kachel.Klassenliste.Any(e => e.Zustand == "absent") && kachel.Klassenliste.Any(e => e.Zustand == "ok"))
+            // Plan der abwesenden Klasse selbst: die Stunde läuft mit den übrigen Klassen ohne sie weiter – Eckklammern wie bei einer
+            // abwesenden Lehrkraft (kein Entfall)
+            if (k.KlasseAbwesend && art == "class" && k.Status == "abwesend")
+            {
+                kachel.Art = "change";
+                kachel.KlasseWeg = true;
+                kachel.Offen = false;
+                kachel.Geaendert.Remove("teacher");
+            }
+            // Im Plan der anderen (anwesenden) Klassen, der Lehrkraft und des Raums wird die Stunde grün – wie bei einer abwesenden Lehrkraft
+            else if (kachel.Art is "normal" or "change" && kachel.Klassenliste.Any(e => e.Zustand == "absent") && kachel.Klassenliste.Any(e => e.Zustand == "ok"))
             {
                 kachel.Art = "change";
                 if (!kachel.Geaendert.Contains("class")) kachel.Geaendert.Add("class");

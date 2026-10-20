@@ -122,7 +122,7 @@ public static class ErweiterungApi
                         {
                             stunde = n, beginn = z?.Beginn ?? k.Beginn, ende = z?.Ende ?? k.Ende, k.Status, k.Art, k.Text, k.Fach, k.FachName, k.FachAlt,
                             klassen = k.Klassen, lehrer = k.Lehrer, raeume = k.Raeume, k.Unterricht, von = k.Von, bis = k.Bis, k.Farbe, k.Gruppe, k.Zusaetzlich,
-                            k.NotizSchueler, notizLehrer = b.Kollegium ? k.NotizLehrer : "", k.HausaufgabeFaellig, k.LehrerAbwesend, k.VertretungOffen,
+                            k.NotizSchueler, notizLehrer = b.Kollegium ? k.NotizLehrer : "", k.HausaufgabeFaellig, k.LehrerAbwesend, k.VertretungOffen, k.KlasseAbwesend, k.AbwesendeKlassen,
                             lehrstoff = e?.Thema ?? "", hausaufgabe = string.Join(" · ", hw.Select(h => h.Text).DefaultIfEmpty(e?.Hausaufgabe ?? "").Where(x => x.Length > 0)),
                             geprueft = e?.Anwesenheit != null, online = e?.Online == true, onlineLink = e?.Online == true ? e.OnlineLink : "",
                         });
