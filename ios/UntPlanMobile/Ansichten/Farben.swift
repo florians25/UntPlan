@@ -46,8 +46,8 @@ enum Farben {
     static let tinte = Color(hell: 0x253746, dunkel: 0xF2F4F6)
     static let tinte2 = Color(hell: 0x48606F, dunkel: 0xC9D1D8)
     static let gedaempft = Color(hell: 0x6B7A85, dunkel: 0x8D949C)
-    /// Uhrzeiten der Zeitleiste (Vorlage hell: #5e6b74 wie der Wochenkopf)
-    static let rinne = Color(hell: 0x5E6B74, dunkel: 0x9AA1A8)
+    /// Uhrzeiten der Zeitleiste (Vorlage hell, nach sRGB umgerechnet: #5e7382 wie der Wochenkopf)
+    static let rinne = Color(hell: 0x5E7382, dunkel: 0x9AA1A8)
     static let titelGrau = Color(hell: 0x5D727F, dunkel: 0x93A6B2)
     /// Großer Text im Kopfblock der Stundendetails (Original: fast schwarz)
     static let detailText = Color(hell: 0x1F2328, dunkel: 0xF2F4F6)
@@ -71,29 +71,29 @@ enum Farben {
     // Linien
     static let linie = Color(hell: 0xCCD3D9, dunkel: 0x34343A)
     static let trennlinie = Color(hell: 0xE4E7EA, dunkel: 0x38383A)
-    /// Linien der Stunden im Wochenraster (Vorlage hell nachgemessen: #bec3c7)
-    static let rasterLinie = Color(hell: 0xBEC3C7, dunkel: 0x34343A)
-    /// Wochenkopf: „KW“, Monat, Wochentag und Tageszahl – hell alle im selben Grau (Vorlage #5d6c75), dunkel wie bisher
-    static let kopfText = Color(hell: 0x5D6C75, dunkel: 0xF2F4F6)
-    static let kopfText2 = Color(hell: 0x5D6C75, dunkel: 0xC9D1D8)
-    static let rasterOben = Color(hell: 0xF2F4F7, dunkel: 0x1C1C1E)
-    static let rasterUnten = Color(hell: 0xE7E9EF, dunkel: 0x1C1C1E)
+    /// Linien der Stunden im Wochenraster (Vorlage hell nachgemessen: #bec8cf, wie der graue Balken)
+    static let rasterLinie = Color(hell: 0xBEC8CF, dunkel: 0x34343A)
+    /// Wochenkopf: „KW“, Monat, Wochentag und Tageszahl – hell alle im selben Grau (Vorlage #5e7382), dunkel wie bisher
+    static let kopfText = Color(hell: 0x5E7382, dunkel: 0xF2F4F6)
+    static let kopfText2 = Color(hell: 0x5E7382, dunkel: 0xC9D1D8)
+    static let rasterOben = Color(hell: 0xF3F5F7, dunkel: 0x1C1C1E)
+    static let rasterUnten = Color(hell: 0xE4E6EA, dunkel: 0x1C1C1E)
 
     // Karten im Wochenraster
     static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7383)
     static let karteVergangen = Color(hell: 0xF2F4F5, dunkel: 0x323D45)
-    static let karteBalken = Color(hell: 0xBEC8D0, dunkel: 0xBFC7CE)
-    static let karteText = Color(hell: 0x101316, dunkel: 0xF4F6F8)
+    static let karteBalken = Color(hell: 0xBEC8CF, dunkel: 0xBFC7CE)
+    static let karteText = Color(hell: 0x10161D, dunkel: 0xF4F6F8)
     static let kartenSchatten = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.30, deckkraftDunkel: 0)
     static let kartenSchattenWeich = Color(hell: 0x1F2F3D, dunkel: 0x000000, deckkraftHell: 0.22, deckkraftDunkel: 0)
     /// Kante und Schatten der Karten im hellen Modus (Vorlage nachgemessen, siehe `Kartenschatten`)
-    static let kartenKante = Color(hexWert: 0x1E2731)
+    static let kartenKante = Color(hexWert: 0x1E2B33)
 
     // Änderung grün
-    static let aenderungHintergrund = Color(hell: 0xE3FFF2, dunkel: 0x005840)
+    static let aenderungHintergrund = Color(hell: 0xE4FFF3, dunkel: 0x005840)
     static let aenderungVergangen = Color(hell: 0xE4FFF2, dunkel: 0x323D45)
-    static let aenderungRand = Color(hell: 0x118B6A, dunkel: 0x20C0A2)
-    static let gruen = Color(hell: 0x0B7D65, dunkel: 0x22C0A1)
+    static let aenderungRand = Color(hell: 0x00916D, dunkel: 0x20C0A2)
+    static let gruen = Color(hell: 0x007D64, dunkel: 0x22C0A1)
     static let gruenSchrift = Color(hell: 0xFFFFFF, dunkel: 0x05201A)
 
     // Entfall rot
@@ -102,9 +102,9 @@ enum Farben {
     static let entfallRand = Color(hell: 0xE00047, dunkel: 0xDF0047)
 
     // Prüfung
-    static let pruefungHintergrund = Color(hell: 0xFEF7D7, dunkel: 0x4A3F22)
+    static let pruefungHintergrund = Color(hell: 0xFFF7D9, dunkel: 0x4A3F22)
     static let pruefungVergangen = Color(hell: 0xFEF7D7, dunkel: 0x323D45)
-    static let pruefungRand = Color(hell: 0x985532, dunkel: 0xD9962A)
+    static let pruefungRand = Color(hell: 0x9F532C, dunkel: 0xD9962A)
 
     // Veranstaltung, Ferien
     static let veranstaltungHintergrund = Color(hell: 0xDFFEF5, dunkel: 0x054035)
@@ -122,8 +122,8 @@ enum Farben {
     static let markerGruen = Color(hell: 0x1F9D55, dunkel: 0x22A866)
 
     // Info-Zeichen auf den Karten
-    static let infoFeld = Color(hell: 0xF2F4F6, dunkel: 0x2B3138)
-    static let infoScheibe = Color(hell: 0x828E9B, dunkel: 0x9AA6B2)
+    static let infoFeld = Color(hell: 0xF3F5F7, dunkel: 0x2B3138)
+    static let infoScheibe = Color(hell: 0x808E9B, dunkel: 0x9AA6B2)
     static let infoZeichen = Color(hell: 0xFFFFFF, dunkel: 0x2B3138)
 
     // Köpfe der Infokarten
@@ -166,9 +166,9 @@ enum Farben {
     static let eingabeFeld = Color(hell: 0xF1F3F5, dunkel: 0x323D47)
 
     // Kacheln im Raster (app.css: .card--event, .corners, .card--supervision, .card--standby, Zählkarte)
-    static let karteTextVergangen = Color(hell: 0x3B4750, dunkel: 0xF4F6F8)
-    static let aenderungText = Color(hell: 0x101316, dunkel: 0xEAFFF8)
-    static let entfallText = Color(hell: 0x101316, dunkel: 0xFFFFFF)
+    static let karteTextVergangen = Color(hell: 0x3E4B55, dunkel: 0xF4F6F8)
+    static let aenderungText = Color(hell: 0x10161D, dunkel: 0xEAFFF8)
+    static let entfallText = Color(hell: 0x10161D, dunkel: 0xFFFFFF)
     static let entfallPlakettenText = Color(hell: 0x48606F, dunkel: 0xFFFFFF)
     static let terminRand = Color(hell: 0x7FD4B6, dunkel: 0x7FD4B6)
     static let terminTitel = Color(hell: 0x00654C, dunkel: 0xF4F6F8)

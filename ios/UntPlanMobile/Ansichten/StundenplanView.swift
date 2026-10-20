@@ -365,7 +365,8 @@ struct StundenplanView: View {
             Hoechstbreite(breite: istBreit ? 360 : 170).callAsFunction {
                 HStack(spacing: 4) {
                     Text(titel)
-                        .font(.system(size: istBreit ? 17 : 19, weight: .medium))
+                        // Vorlage iPhone: 17 pt Regular (Versalhöhe 12 pt)
+                        .font(.system(size: 17, weight: istBreit ? .medium : .regular))
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Image(systemName: "chevron.down")
@@ -550,7 +551,8 @@ struct StundenplanView: View {
                 .background(Farben.leiste)
             }
             .padding(.top, 2)
-            .padding(.bottom, 8)
+            // Vorlage: Grundlinie von Monat und Tageszahl 7,67 pt über der Unterkante des Kopfs
+            .padding(.bottom, rahmen.kompakt ? 3.5 : 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Farben.leiste)
             .fixedSize(horizontal: false, vertical: true)
@@ -851,10 +853,10 @@ struct Platzhalterwoche: View {
             HStack(alignment: .bottom, spacing: 0) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("KW \(Datumsformat.kalenderwoche(montag))")
-                        .font(.system(size: 12))
+                        .font(.system(size: 11.5))
                         .foregroundStyle(Farben.kopfText2)
                     Text(Wochenkopf.monat(montag))
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.system(size: 17.5, weight: .semibold))
                         .foregroundStyle(Farben.kopfText)
                 }
                 .padding(.leading, 6)
@@ -1147,12 +1149,13 @@ struct Rasterrahmen: Equatable {
     /// iPhone (schmale Breite): schmale Zeitspalte und kleinere Schrift
     let kompakt: Bool
 
-    /// Höhe je Minute – Woche und Tag gleich (1,2704 pt je Minute wie in der PWA).
-    static let proMinute: CGFloat = 1.2704
+    /// Höhe je Minute – Woche und Tag gleich.
+    /// Vorlage in voller Auflösung (3 px/pt): 45 Minuten = 166 px = 55,33 pt.
+    static let proMinute: CGFloat = 1.2296
     static let abstandUnten: CGFloat = 28
 
-    /// Breite der Zeitleiste: iPhone 43 pt wie in den Vorlagen (Raster ab 101 px bei 2,34 px/pt, Spalten 70 pt), iPad 45 pt.
-    static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 43 : 45 }
+    /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.
+    static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 44 : 45 }
     var rinnenBreite: CGFloat { Self.rinnenBreite(kompakt: kompakt) }
     var tagesLuecke: CGFloat { kompakt ? 2 : 3 }
 
@@ -1206,19 +1209,19 @@ struct KWFeld: View {
     let antippen: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        // Vorlage (3 px/pt): „KW“ 11,5 pt Regular, Monat 17,5 pt Semibold (Versalhöhe 8 bzw. 12,33 pt), Abstand 2 pt
+        VStack(alignment: .leading, spacing: kompakt ? 2 : 3) {
             Text("KW \(Datumsformat.kalenderwoche(montag))")
-                .font(.system(size: 12, weight: .regular))
+                .font(.system(size: kompakt ? 11.5 : 12, weight: .regular))
                 .foregroundStyle(Farben.kopfText2)
-            // Monat so groß wie die Tageszahlen (Vorlage: Versalhöhe ≈ 11,7 pt → 17 pt)
             Text(Wochenkopf.monat(montag))
-                .font(.system(size: kompakt ? 17 : 18, weight: .medium))
+                .font(.system(size: kompakt ? 17.5 : 18, weight: kompakt ? .semibold : .medium))
                 .tracking(-0.18)
                 .foregroundStyle(Farben.kopfText)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.6)
-        .padding(.leading, kompakt ? 4 : 6)
+        .padding(.leading, kompakt ? 4.5 : 6)
         .frame(width: breite, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { antippen() }
@@ -1249,12 +1252,12 @@ struct KopfSeite: View, Equatable {
             ForEach(tage, id: \.self) { iso in
                 let heute = Datumsformat.istHeute(iso)
                 VStack(spacing: kompakt ? 2 : 3) {
+                    // Vorlage (3 px/pt): Wochentag 12,3 pt Regular, Tageszahl 16,5 pt Semibold (Ziffernhöhe 11,67 pt)
                     Text(Datumsformat.anzeige(iso, "EE"))
-                        .font(.system(size: kompakt ? 12 : 12.5, weight: .regular))
+                        .font(.system(size: kompakt ? 12.3 : 12.5, weight: .regular))
                         .foregroundStyle(heute ? Farben.heute : Farben.kopfText2)
-                    // Tageszahl (Vorlage: Ziffernhöhe ≈ 11,3 pt → 16,5 pt)
                     Text(Datumsformat.anzeige(iso, "d"))
-                        .font(.system(size: kompakt ? 16.5 : 18, weight: .medium))
+                        .font(.system(size: kompakt ? 16.5 : 18, weight: kompakt ? .semibold : .medium))
                         .tracking(-0.36)
                         .foregroundStyle(heute ? Farben.heute : Farben.kopfText)
                 }
@@ -1323,13 +1326,14 @@ struct Zeitleiste: View, Equatable {
                 let unten = mass.yEnde(z.ende)
                 let naechste: Rasterzeit? = eintrag.offset + 1 < zeiten.count ? zeiten[eintrag.offset + 1] : nil
                 let pauseDanach = naechste == nil || (naechste?.beginn ?? 0) > z.ende
+                // Vorlage (3 px/pt): 11,8 pt Regular, mittig in der Zeitleiste, Ziffern 3 pt unter der Oberkante der Linie
                 Text(Rasterzeit.uhrzeit(z.beginn))
-                    .font(.system(size: kompakt ? 11 : 12, weight: .medium).monospacedDigit())
+                    .font(.system(size: kompakt ? 11.8 : 12, weight: kompakt ? .regular : .medium).monospacedDigit())
                     .tracking(kompakt ? 0 : 0.12)
                     .foregroundStyle(Farben.rinne)
                     .fixedSize()
-                    // Vorlage: Uhrzeit mittig in der Zeitleiste (≈ 6,8 pt vom Rand), Ziffern ≈ 3 pt unter der Linie
-                    .offset(x: kompakt ? 6.5 : 8, y: oben + 0.5)
+                    .frame(width: kompakt ? rahmen.rinnenBreite : nil)
+                    .offset(x: kompakt ? 0 : 8, y: oben)
                 if unten - oben > 36 {
                     Text("\(z.nr).")
                         .font(.system(size: kompakt ? 14.5 : 16, weight: .regular))
@@ -1338,13 +1342,14 @@ struct Zeitleiste: View, Equatable {
                         .offset(x: kompakt ? 13.5 : 14, y: oben + (unten - oben) / 2 - 10)
                 }
                 if pauseDanach {
+                    // Ende vor der Pause: Grundlinie 2,33 pt über der Linie (Vorlage)
                     Text(Rasterzeit.uhrzeit(z.ende))
-                        .font(.system(size: kompakt ? 11 : 12, weight: .medium).monospacedDigit())
+                        .font(.system(size: kompakt ? 11.8 : 12, weight: kompakt ? .regular : .medium).monospacedDigit())
                         .tracking(kompakt ? 0 : 0.12)
                         .foregroundStyle(Farben.rinne)
                         .fixedSize()
-                        .frame(height: 15, alignment: .bottom)
-                        .offset(x: kompakt ? 6.5 : 8, y: unten - 3 - 15)
+                        .frame(width: kompakt ? rahmen.rinnenBreite : nil, height: 15, alignment: .bottom)
+                        .offset(x: kompakt ? 0 : 8, y: kompakt ? unten + 0.5 - 15 : unten - 3 - 15)
                 }
             }
         }
@@ -1560,8 +1565,9 @@ struct RasterSeite: View, Equatable {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar; Breite und Spur wie jede Stunde
             (y, h) = pausenLage(beginn: k.beginn, ende: k.ende, mass: mass)
         } else {
-            y = mass.y(k.beginn) + 1
-            h = max(16, mass.yEnde(k.ende) - mass.y(k.beginn) - 1)
+            // Vorlage: Karte 1,5 pt unter der Oberkante der Linie, endet 0,5 pt vor der nächsten Linie
+            y = mass.y(k.beginn) + 1.5
+            h = max(16, mass.yEnde(k.ende) - mass.y(k.beginn) - 2)
         }
         return CGRect(x: x, y: y, width: max(w, 8), height: h)
     }
@@ -1585,8 +1591,8 @@ struct RasterSeite: View, Equatable {
         let nurStunden = !st.kacheln.contains { $0.inPause }
         let beginn = (nurStunden ? zeiten.first(where: { $0.nr == st.von })?.beginn : nil) ?? st.beginn
         let ende = (nurStunden ? zeiten.first(where: { $0.nr == st.bis })?.ende : nil) ?? st.ende
-        let y = mass.y(beginn) + 1
-        return CGRect(x: breite - Kachelbau.zaehlerBreite, y: y, width: Kachelbau.zaehlerBreite, height: max(16, mass.yEnde(ende) - mass.y(beginn) - 1))
+        let y = mass.y(beginn) + 1.5
+        return CGRect(x: breite - Kachelbau.zaehlerBreite, y: y, width: Kachelbau.zaehlerBreite, height: max(16, mass.yEnde(ende) - mass.y(beginn) - 2))
     }
 
     /// Art des freien Tages als Überschrift („Ferien“, „Feiertag“ …).

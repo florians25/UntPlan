@@ -26,12 +26,13 @@ struct KachelView: View {
     @Environment(\.horizontalSizeClass) private var groessenklasse
 
     private var dunkel: Bool { schema == .dark }
-    /// iPhone: Schrift 12 pt bei 14 pt Zeilenabstand wie im Original; iPad 12,4/14,3 (Woche wie Tag).
+    /// iPhone: Schrift 12,3 pt bei 14,33 pt Zeilenabstand wie im Original (Vorlage in voller Auflösung, 3 px/pt: Versalhöhe
+    /// 26 px, Zeilenabstand 43 px); iPad 12,4/14,3 (Woche wie Tag).
     private var kompakt: Bool { groessenklasse == .compact }
-    private var schrift: CGFloat { kompakt ? 12 : 12.4 }
+    private var schrift: CGFloat { kompakt ? 12.3 : 12.4 }
     /// Zeilenabstand wie im Original nachgemessen (iPhone 33 px bei 2,34 px/pt ≈ 14 pt, iPad 14,3 pt) – die Labels darin
     /// 13,7 pt hoch (etwas größer als in Sprint 26, dort 12,7 pt bei 13,5 pt Zeilenabstand).
-    private var zeilenHoehe: CGFloat { kompakt ? 14 : 14.3 }
+    private var zeilenHoehe: CGFloat { kompakt ? 14.33 : 14.3 }
 
     // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
     static let balkenRand: CGFloat = 4
@@ -211,14 +212,14 @@ struct KachelView: View {
     }
 
     /// Kantenlänge der Zeichen unten rechts (Hausaufgabe, Kürzung).
-    static let zeichenGroesse: CGFloat = 14.5
+    static let zeichenGroesse: CGFloat = 14
     /// Kantenlänge des Info-Zeichens (Vorlage nachgemessen: abgerundetes Feld in Kartengrau ≈ 14,5 pt, darin die graue
     /// Scheibe mit ausgespartem „i“).
-    static let infoGroesse: CGFloat = 14.5
+    static let infoGroesse: CGFloat = 14
     /// Kantenlänge des Online-Zeichens (online_lesson.svg, flach, ohne Feld).
     static let onlineGroesse: CGFloat = 15
-    /// Abstand der Zeichen zum unteren und rechten Kartenrand (Vorlage: Info-Feld ≈ 3 pt vom Rand).
-    static let zeichenRand: CGFloat = 3
+    /// Abstand der Zeichen zum unteren und rechten Kartenrand (Vorlage in voller Auflösung: Feld 14 pt, 4 pt vom Rand).
+    static let zeichenRand: CGFloat = 4
 
     /// Zeichen unten rechts.
     enum Eckzeichen: Hashable {
@@ -643,35 +644,29 @@ struct Eckklammern: Shape {
     }
 }
 
-/// Kante und Schatten einer Karte im hellen Modus, an den Vorlagen nachgemessen (2,34 px/pt): seitlich eine feine graue
-/// Kante (≈ 0,8 pt, oben keine), unten etwas kräftiger (≈ 1,5 pt); künftige Stunden zusätzlich ein weicher Schatten nur
-/// nach unten (seitlich eingerückt, Ausläufer bis ≈ 6 pt unter der Karte). Vergangene Stunden nur die Kante.
+/// Schatten einer Karte im hellen Modus, an der Vorlage in voller Auflösung (3 px/pt, nach sRGB umgerechnet) nachgemessen
+/// und angepasst: Farbe #1e2b33, zwei Lagen – 40 % mit 2 pt Weichzeichnung und 2 pt Versatz nach unten, dazu 20 % mit
+/// 4 pt Weichzeichnung und 5 pt Versatz. Ergibt seitlich ≈ 26 % direkt an der Kante, nach ≈ 5 pt ausgelaufen; oben nur ein
+/// Hauch (≈ 8 %); unten ≈ 34 % bei 2 pt, Ausläufer bis ≈ 12 pt. Vergangene Stunden (Vorlage 172): eine kurze Lage
+/// (60 %, 0,7 pt, Versatz 1,5 pt). Die Schatten werfen zwei deckende Flächen hinter der Karte – sie addieren sich nicht
+/// wie verkettete `.shadow`-Modifikatoren.
 struct Kartenschatten: View {
     let radius: CGFloat
-    /// Künftige Stunde (weicher Schatten) statt vergangener (nur Kante)
+    /// Künftige Stunde (voller Schatten) statt vergangener (kurzer Schatten)
     let voll: Bool
 
     var body: some View {
+        let form = RoundedRectangle(cornerRadius: radius, style: .continuous)
         ZStack {
             if voll {
-                RoundedRectangle(cornerRadius: radius + 2, style: .continuous)
-                    .fill(Farben.kartenKante.opacity(0.30))
-                    .padding(.horizontal, 5)
-                    .offset(y: 2)
-                    .blur(radius: 3)
+                form.fill(Color.white)
+                    .shadow(color: Farben.kartenKante.opacity(0.20), radius: 4, x: 0, y: 5)
+                form.fill(Color.white)
+                    .shadow(color: Farben.kartenKante.opacity(0.40), radius: 2, x: 0, y: 2)
+            } else {
+                form.fill(Color.white)
+                    .shadow(color: Farben.kartenKante.opacity(0.60), radius: 0.7, x: 0, y: 1.5)
             }
-            // unten kräftiger
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(Farben.kartenKante.opacity(0.25))
-                .padding(.horizontal, 1.5)
-                .padding(.bottom, -1.6)
-                .blur(radius: 0.6)
-            // feine Kante seitlich und unten
-            RoundedRectangle(cornerRadius: radius + 0.8, style: .continuous)
-                .fill(Farben.kartenKante.opacity(voll ? 0.30 : 0.24))
-                .padding(.horizontal, -0.8)
-                .padding(.bottom, -1.4)
-                .blur(radius: 0.3)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -681,6 +676,7 @@ struct Kartenschatten: View {
 /// Zählstreifen (.parcount): Zahl der Stunden hinter der vorderen Kachel – rot bei Entfall, grün bei Vertretung, sonst grau.
 struct ZaehlstreifenView: View {
     let streifen: Zaehlstreifen
+    @Environment(\.colorScheme) private var schema
 
     var body: some View {
         let farben = farbe
@@ -694,6 +690,10 @@ struct ZaehlstreifenView: View {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .strokeBorder(rand, lineWidth: 1.5)
                 }
+            }
+            // Hell wie in der Vorlage mit demselben Schatten wie die Karten (dunkel ohne)
+            .background {
+                if schema != .dark { Kartenschatten(radius: 3, voll: true) }
             }
             .accessibilityLabel("\(streifen.kacheln.count) weitere Stunden")
             .accessibilityAddTraits(.isButton)
@@ -727,14 +727,27 @@ struct Onlinezeichen: View {
 struct Kuerzungszeichen: View {
     var gruen = false
     var waagrecht = false
+    @Environment(\.colorScheme) private var schema
 
     var body: some View {
-        Image(systemName: "ellipsis")
-            .font(.system(size: 8, weight: .medium))
-            .rotationEffect(.degrees(waagrecht ? 0 : 90))
-            .foregroundStyle(gruen ? Farben.gruenSchrift : Farben.infoScheibe)
-            .frame(width: 14.5, height: 14.5)
-            .background(gruen ? Farben.gruen : Farben.infoFeld, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+        Group {
+            if schema == .dark {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 8, weight: .medium))
+                    .rotationEffect(.degrees(waagrecht ? 0 : 90))
+            } else {
+                // Hell wie in der Vorlage: drei Punkte (Ø 1,67 pt, Abstand 3 pt von Mitte zu Mitte) in #808e9b
+                let punkt = Circle().frame(width: 1.67, height: 1.67)
+                if waagrecht {
+                    HStack(spacing: 1.33) { punkt; punkt; punkt }
+                } else {
+                    VStack(spacing: 1.33) { punkt; punkt; punkt }
+                }
+            }
+        }
+        .foregroundStyle(gruen ? Farben.gruenSchrift : Farben.infoScheibe)
+        .frame(width: KachelView.zeichenGroesse, height: KachelView.zeichenGroesse)
+        .background(gruen ? Farben.gruen : Farben.infoFeld, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
     }
 }
 
@@ -758,9 +771,9 @@ struct Plakettenwert: View {
             .foregroundStyle(Farben.gruenSchrift)
             .lineLimit(1)
             .truncationMode(.tail)
-            .padding(.horizontal, 2.2)
+            .padding(.horizontal, 1.5)
             .frame(height: min(13.7, zeilenHoehe - 0.3))
-            .background(farbe, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
+            .background(farbe, in: RoundedRectangle(cornerRadius: 1.5, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
     }
 }
