@@ -781,7 +781,7 @@ struct Plakettenwert: View {
     static let innenRechts: CGFloat = 2.2
     /// Steht das Label vorn, beginnt die Fläche so weit vor dem Textanfang der übrigen Zeilen (Original 173 gegen App
     /// 176: Fläche 9,8 pt von der Kartenkante, Label-Schrift 0,5 pt vor der normalen Schrift)
-    static let vorsprung: CGFloat = 2.15
+    static let vorsprung: CGFloat = 1.85
     /// Ecken: an vier Labels der 3-px/pt-Vorlagen (LN, A103, GIL, WE) nachgemessen – Verlauf der Kantenglättung passt
     /// zu einer kontinuierlichen Rundung (gemessen ≈ 2,85 pt, auf Wunsch leicht zurückgenommen auf 2,4 pt)
     static let radius: CGFloat = 2.4
