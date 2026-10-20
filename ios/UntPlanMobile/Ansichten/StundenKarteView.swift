@@ -38,7 +38,8 @@ struct KachelView: View {
     // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
     static let balkenRand: CGFloat = 4
     static let balkenBreite: CGFloat = 4
-    static let textAbstand: CGFloat = 4
+    /// Vorlagen 4cc11c37/171 (3 px/pt): Schrift-Ursprung 4,25 pt rechts vom Balken (12,25 pt von der Kartenkante)
+    static let textAbstand: CGFloat = 4.25
     static var textLinks: CGFloat { balkenRand + balkenBreite + textAbstand }
     static let textOben: CGFloat = 4
     /// Untere Zeilen (ab der zweiten) sitzen um diesen Betrag höher (nur optisch, ohne Einfluss auf das Layout).
@@ -761,8 +762,9 @@ struct Kuerzungszeichen: View {
 /// Versalhöhe mittig; Radius ≈ 2 pt (Ecke 3 px). iPad (161: „ASL“ 20 px bei 1,46 px/pt) ebenso 13,7 pt.
 /// Untereinander stehende Labels bleiben durch den Zeilenabstand 0,3 pt (iPad 0,6 pt) getrennt.
 struct Plakettenwert: View {
-    /// Innenabstand links und rechts (Glyphe ≈ 2,7 pt vom Rand der Fläche)
-    static let innen: CGFloat = 2.5
+    /// Innenabstand links (Fläche beginnt so weit vor dem Schrift-Ursprung) und rechts
+    static let innen: CGFloat = 2.15
+    static let innenRechts: CGFloat = 2.45
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
@@ -773,17 +775,18 @@ struct Plakettenwert: View {
 
     var body: some View {
         // Schriftstärke wie die Zeile (oben Semibold, sonst Regular)
-        // Vorlagen in voller Auflösung (dc1bcf55, 171): Fläche 14 pt hoch (13,67–14,33) auf der Zeile, Ecken 1,33–1,5 pt,
-        // Schrift bis zur Fläche je ≈ 2,7 pt; die Schrift sitzt 0,4 pt höher als normaler Text, der Strich (weiß, 1 pt)
-        // liegt wie beim Text auf halber x-Höhe. Steht das Label vorn, bleibt die Schrift bündig mit den anderen Zeilen
-        // (die Fläche ragt nach links über den Textanfang, siehe `KachelzeileView`).
+        // Vorlagen in voller Auflösung (4cc11c37 „LN“/„A103“, 171 „GIL“, dc1bcf55 „WE“; 3 px/pt): Fläche 14 pt hoch
+        // (13,67–14,33), Ecken 1,33–1,5 pt, gleiche Schriftgröße wie der Text (Versalhöhe 8,67 pt), Schrift mittig
+        // (0,15 pt höher). Die Schrift bleibt bündig mit den anderen Zeilen; die Fläche beginnt 2,15 pt vor dem
+        // Schrift-Ursprung und endet 2,45 pt hinter der Schrift (Glyphenabstand links 2,3–3, rechts 3–3,3 pt).
         Text(text)
             .strikethrough(durchgestrichen, color: Farben.gruenSchrift)
             .foregroundStyle(Farben.gruenSchrift)
             .lineLimit(1)
             .truncationMode(.tail)
-            .offset(y: -0.4)
-            .padding(.horizontal, Self.innen)
+            .offset(y: -0.15)
+            .padding(.leading, Self.innen)
+            .padding(.trailing, Self.innenRechts)
             .frame(height: min(14, zeilenHoehe - 0.33))
             .background(farbe, in: RoundedRectangle(cornerRadius: 1.5, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
