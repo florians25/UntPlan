@@ -595,8 +595,11 @@ function koppTokens(card){
      als eigenes, abwesendes Kürzel. */
   const gross = x => String(x || '').toUpperCase();
   const vertreten = toks.filter(t => t.state === 'sub' && t.for).map(t => gross(t.for));
+  /* Ebenso nicht schlicht und zugleich als Label (eine beteiligte Lehrkraft
+     vertritt zusätzlich eine abwesende Kollegin): dann nur das Label. */
   const ohne = toks.filter((t, i) =>
     !(t.state === 'absent' && vertreten.includes(gross(t.text)))
+    && !(t.state === 'ok' && toks.some(o => o.state === 'sub' && gross(o.text) === gross(t.text)))
     && toks.findIndex(o => gross(o.text) === gross(t.text) && o.state === t.state) === i);
   /* Eine Kopplung bleibt eine Kopplung, auch wenn danach nur ein Eintrag
      übrig ist, der jemanden vertritt: dann stehen die abwesende und die
@@ -1756,9 +1759,9 @@ function renderGrid(){
         const LUECKE = '<i class="tok__luecke"></i>';
         return l.tokens
           ? l.tokens.map((t, ti) => {
-              /* Zwischen zwei schlichten Werten trennt ein Komma — auch mehrere Lehrkräfte; neben einem Label nur ein
-                 kleiner Abstand (kein Komma). */
-              const neben = ti < l.tokens.length - 1 && (istLabel(t) || istLabel(l.tokens[ti + 1]));
+              /* Zwischen allen Werten trennt ein Komma — auch zwischen einem schlichten Wert und einem Label; nur
+                 zwischen zwei Labels steht kein Komma, sondern ein kleiner Abstand. */
+              const neben = ti < l.tokens.length - 1 && istLabel(t) && istLabel(l.tokens[ti + 1]);
               const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : neben ? LUECKE : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
               /* Hinzugekommener Wert: grünes Label (ohne „+“). */
               const plusT = plusWert(card, l.key, t.text);

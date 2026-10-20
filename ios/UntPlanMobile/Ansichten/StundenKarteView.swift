@@ -411,12 +411,12 @@ struct KachelzeileView: View {
         !aussehen.durchgestrichen && (t.stil == .plakette || t.stil == .offen)
     }
 
-    /// Trenner nach dem Teil: zwischen zwei schlichten Werten wie gehabt (Komma), neben einem Label nur ein kleiner
-    /// Abstand – kein Komma.
+    /// Trenner nach dem Teil: zwischen allen Werten das Komma – auch zwischen einem schlichten Wert und einem Label; nur
+    /// zwischen zwei Labels steht kein Komma, sondern ein kleiner Abstand.
     private func labelNachbar(_ i: Int) -> Bool {
         let teile = zeile.teile
         guard i + 1 < teile.count else { return false }
-        return istLabel(teile[i]) || istLabel(teile[i + 1])
+        return istLabel(teile[i]) && istLabel(teile[i + 1])
     }
 
     /// Alle Teile nebeneinander ohne Umbruch. Kürzbar: jeder Teil darf mit „…“ enden, vordere Teile haben Vorrang.

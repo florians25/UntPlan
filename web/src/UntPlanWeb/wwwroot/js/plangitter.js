@@ -202,7 +202,26 @@ const abwesend = k => new Set((k.abwesendeKlassen || []).map(x => x.toLowerCase(
 function klassenWerte(k, entfall) {
   const weg = abwesend(k);
   if (!weg.size || entfall) return werteListe(k.klassen, entfall);
-  return werteListe((k.klassen || []).map(w => weg.has((w.k || '').toLowerCase()) ? { k: '', alt: w.k, neu: true } : w));
+  // die abwesende Klasse an ihrem Platz in der Reihe (alphabetisch), mit Komma getrennt
+  return werteListe(sortiert((k.klassen || []).map(w => weg.has((w.k || '').toLowerCase()) ? { k: '', alt: w.k, neu: true } : w)));
+}
+/** Werte alphabetisch nach Kürzel (bzw. bisherigem Wert), ohne Groß-/Kleinschreibung – wie der Server. */
+const sortiert = l => {
+  const n = w => (w.k || w.alt || '').toUpperCase();
+  return [...l].sort((a, b) => n(a) < n(b) ? -1 : n(a) > n(b) ? 1 : 0);
+};
+
+/**
+ * Klassenplan: eigene Klasse(n) (nur mit eigene, abwesende durchgestrichen im grünen Label) und Mitklassen in EINER Reihe, alphabetisch
+ * (eine abwesende Klasse steht an ihrem Platz: „ET13, INF13, ING13“), jede Klasse einmal.
+ */
+function klassenReihe(k, eigene) {
+  const weg = abwesend(k);
+  const name = w => (w.k || w.alt || '').toLowerCase();
+  const alle = [...(eigene ? (k.klassen || []).map(w => weg.has((w.k || '').toLowerCase()) ? { k: '', alt: w.k, neu: true } : w) : []), ...(k.mitklassen || [])]
+    .filter(w => name(w));
+  const reihe = sortiert(alle.filter((w, i) => alle.findIndex(x => name(x) === name(w)) === i));
+  return reihe.length ? werteListe(reihe) : '';
 }
 
 /** Kartenzeile: Text bzw. Werteliste ({ liste, html, inline, pillen }); voll = vollständiger Text für den Hover einer gekürzten Zeile. */
@@ -242,10 +261,11 @@ export function karteInhalt(k, typ, kompakt = false) {
   } else if (typ === 'klasse') {
     const lehrer = werteListe(k.lehrer, entfall, true);
     oben = lehrer || fach;
-    // Mitklassen (gekoppelt bzw. parallel identisch, z. B. INF13 auf der Karte von INF12) ganz unten; eine fehlende Mitklasse
-    // steht wie eine abwesende Lehrkraft durchgestrichen im grünen Label
-    const mit = !entfall && (k.mitklassen || []).length ? `<span class="mitklassen">${werte(k.mitklassen)}</span>` : '';
-    rest = [lehrer ? fach : '', raum, k.klassen.length > 1 || abwesend(k).size ? klassenWerte(k, entfall) : '', mit];
+    // Mitklassen (gekoppelt bzw. parallel identisch, z. B. INF13 auf der Karte von INF12) ganz unten in derselben Reihe wie die
+    // eigene Klasse – diese nur, wenn sie fehlt (durchgestrichen im grünen Label) bzw. die Stunde mehrere Klassen hat; eine fehlende
+    // Mitklasse steht ebenso durchgestrichen im grünen Label. Alle Klassen in ihrer Reihenfolge (alphabetisch), mit Komma getrennt.
+    const eigene = k.klassen.length > 1 || abwesend(k).size;
+    rest = [lehrer ? fach : '', raum, entfall ? (eigene ? klassenWerte(k, entfall) : '') : klassenReihe(k, eigene)];
   } else if (typ === 'raum') {
     oben = klassenWerte(k, entfall) || fach;
     // Raumänderung (neuer, hinzugefügter, entfernter bzw. offener Raum): auch im Raumplan steht der Raum als grünes Label
@@ -257,9 +277,11 @@ export function karteInhalt(k, typ, kompakt = false) {
     // Eigene Abwesenheit: die vertretende Lehrkraft als grünes Label (Hover „HOF → BEC“); ohne Vertretung (Vertretung ohne
     // Lehrkraft, weggefallene Bereitschaft) das eigene Kürzel durchgestrichen. Kopplung: alle Lehrkräfte.
     const abw = k.lehrer.filter(w => w.alt || w.k);
-    const lehrerZeile = lehrerAbwesend(k, typ) ? (abw.length ? liste(abw.map(w => w.k && w.alt
+    // Kopplung bzw. Konferenz: die übrigen Lehrkräfte (Kolleg*innen) stehen schlicht daneben.
+    const kollege = w => abw.length > 1 && w.k && !w.alt && !w.neu;
+    const lehrerZeile = lehrerAbwesend(k, typ) ? (abw.length ? liste(abw.map(w => kollege(w) ? e(w.k) : w.k && w.alt
         ? `<span class="lbl" ${wechselHover(w.alt, w.k, true)}>${e(w.k)}</span>`
-        : `<span class="lbl weg">${e(w.alt || w.k)}</span>`), abw.map(w => w.k && w.alt ? { t: w.k, a: 'neu' } : { t: w.alt || w.k, a: 'weg' })) : '')
+        : `<span class="lbl weg">${e(w.alt || w.k)}</span>`), abw.map(w => kollege(w) ? { t: w.k } : w.k && w.alt ? { t: w.k, a: 'neu' } : { t: w.alt || w.k, a: 'weg' })) : '')
       // Vertretung: die vertretende Lehrkraft als grünes Label – auch im eigenen Plan der vertretenden Lehrkraft (bei reiner
       // Raumänderung liefert der Server die Lehrkraft ohne Änderung, dann kein Label)
       : k.lehrer.length > 1 || k.lehrer.some(w => w.alt || w.neu) ? werteListe(k.lehrer, entfall, true) : '';
