@@ -3,7 +3,8 @@ import SwiftUI
 /// Kachel im Raster (Maße und Farben aus app.css, .card): Balken links in Fachfarbe, darunter die Zeilen.
 /// Darstellung wie in UntPlanMobile:
 /// - Vertretung grün mit grünem Rahmen, Entfall rosa mit rotem Rahmen und durchgestrichen, Klausur gelb.
-/// - Vergangene Stunden: nur der farbige Rahmen entfällt (im Dunkeln die Fläche), reguläre Stunden werden leicht grau.
+/// - Vergangene Stunden: nur der farbige Rahmen entfällt (im Dunkeln die Fläche), reguläre Stunden werden leicht grau;
+///   hell ist der Balken links halb deckend.
 /// - Abgegebene Stunde und Bereitschaft der abwesenden Lehrkraft: durchsichtig mit feinen Eckklammern, Kürzel durchgestrichen,
 ///   neue Lehrkraft als grüne Plakette.
 /// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
@@ -489,10 +490,9 @@ struct Kachelaussehen {
     init(_ k: Kachel, dunkel: Bool) {
         let v = k.vergangen
         let fach = Color(hex: k.balkenHex) ?? Farben.karteBalken
-        // Der Balken links bleibt auch bei vergangenen Stunden in der Fachfarbe und voll deckend (keine Abschwächung);
-        // Schrift vergangener Stunden hell etwas weicher, dunkel unverändert
+        // Der Balken links bleibt in der Fachfarbe; vergangene Stunden hell mit halb deckendem Balken wie in der Vorlage
+        // (#d8dfe1 auf #f2f4f5), dunkel voll deckend. Schrift vergangener Stunden hell etwas weicher, dunkel unverändert
         balken = fach
-        // Hell: vergangene Stunden mit blasserem Balken (Vorlage: #d8dfe1 auf #f2f4f5), dunkel voll deckend
         balkenDeckkraft = v && !dunkel ? 0.5 : 1
         text = v ? Farben.karteTextVergangen : Farben.karteText
         switch k.art {

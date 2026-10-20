@@ -562,9 +562,9 @@ struct StundenplanView: View {
             ScrollViewReader { leser in
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
-                        // Anker knapp über der 1. Stunde (bzw. über den Pillen vor der 1. Stunde)
+                        // Anker ganz oben: wie in der Vorlage steht beim Öffnen über der Linie der 1. Stunde der leere
+                        // Streifen des Rasters (52,33 pt, Platz auch für Pillen vor der 1. Stunde)
                         VStack(spacing: 0) {
-                            Color.clear.frame(height: rahmen.vorErster ? 0 : max(0, mass.y(rahmen.start) - 8))
                             Color.clear.frame(width: 1, height: 1).id(Self.ersteStundeAnker)
                             Spacer(minLength: 0)
                         }
@@ -606,7 +606,13 @@ struct StundenplanView: View {
                         .ignoresSafeArea(edges: .bottom)
                 )
                 .onAppear {
-                    // Beim Öffnen so scrollen, dass die 1. Stunde vollständig sichtbar ist
+                    // Beim Öffnen ganz nach oben (Linie der 1. Stunde 52,33 pt unter dem Kopf wie in der Vorlage)
+                    DispatchQueue.main.async {
+                        leser.scrollTo(Self.ersteStundeAnker, anchor: .top)
+                    }
+                }
+                // Anderer Plan bzw. andere Ansicht (Woche, Tage): wieder ganz nach oben; beim Blättern bleibt die Lage
+                .onChange(of: "\(typ)|\(element)|\(ansicht.rawValue)") { _, _ in
                     DispatchQueue.main.async {
                         leser.scrollTo(Self.ersteStundeAnker, anchor: .top)
                     }
@@ -1153,6 +1159,8 @@ struct Rasterrahmen: Equatable {
     /// Vorlage in voller Auflösung (3 px/pt): 45 Minuten = 166 px = 55,33 pt.
     static let proMinute: CGFloat = 1.2296
     static let abstandUnten: CGFloat = 28
+    /// Leerer Streifen über der Linie der 1. Stunde (Vorlage).
+    static let obenAbstand: CGFloat = 52.33
 
     /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.
     static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 44 : 45 }
@@ -1178,8 +1186,9 @@ struct Rasterrahmen: Equatable {
             pausenAufsichten += liste.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
         }
         let dicht = tagesansicht || kompakt
-        // Tagesansicht und iPhone: Aufsicht vor der 1. Stunde sitzt dichter am Plan, der Streifen darüber bleibt gleich hoch
-        let mass = Rastermass(oben: vorErster ? (dicht ? 31 : 34) : 15, start: start, proMinute: Self.proMinute,
+        // Linie der 1. Stunde wie in der Vorlage 52,33 pt unter dem Kopf (157 px bei 3 px/pt, in 169/171/172 ebenso
+        // 120 px bei 2,289 px/pt) – immer gleich, Pillen vor der 1. Stunde (Aufsicht, ganztägiger Termin) passen darüber
+        let mass = Rastermass(oben: Self.obenAbstand, start: start, proMinute: Self.proMinute,
                               dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: Self.proMinute,
                                                               mindestens: seiten.contains { $0.nurTage != nil } ? 30 : 24))
         self.zeiten = zeiten
@@ -1334,7 +1343,8 @@ struct Zeitleiste: View, Equatable {
                     .fixedSize()
                     .frame(width: kompakt ? rahmen.rinnenBreite : nil)
                     .offset(x: kompakt ? 0 : 8, y: oben)
-                if unten - oben > 36 {
+                // iPhone wie in der Vorlage nur Uhrzeiten (keine Stundennummer)
+                if !kompakt && unten - oben > 36 {
                     Text("\(z.nr).")
                         .font(.system(size: kompakt ? 14.5 : 16, weight: .regular))
                         .foregroundStyle(Farben.tinte2)
