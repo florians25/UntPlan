@@ -1073,14 +1073,26 @@ struct RaumZeile: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Listensymbol(name: "SymbolRaum")
+        HStack(spacing: 18) {
+            Listensymbol(name: "SymbolRaum", groesse: 24, einpassen: true)
             EinzeilenScroller {
                 HStack(spacing: 8) {
                     if aktuelle.isEmpty {
-                        Text("Kein Raum")
-                            .font(.system(size: 17))
-                            .foregroundStyle(Farben.gedaempft)
+                        // Stunde ohne Raum: Raum hinzufügen (gleiche Raumliste wie „+“)
+                        Button {
+                            ziel = RaumZiel(aktion: "hinzufuegen", alt: "")
+                        } label: {
+                            Label("Raum hinzufügen", systemImage: "plus")
+                                .font(.system(size: 17))
+                                .foregroundStyle(Farben.detailText)
+                                .lineLimit(1)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7.5)
+                                .background(Farben.knopf, in: Capsule())
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(OhneTippStil())
+                        .accessibilityHint("Öffnet die Liste der freien Räume")
                     }
                     ForEach(aktuelle, id: \.self) { raum in
                         Menu {
@@ -1096,13 +1108,15 @@ struct RaumZeile: View {
                             }
                             .disabled(aktuelle.count < 2)
                         } label: {
+                            // Etwas größer (ausdrücklicher Wunsch): 14 × 7,5 pt Innenabstand statt 12 × 5
                             Text(raum)
                                 .font(.system(size: 17))
                                 .foregroundStyle(Farben.detailText)
                                 .lineLimit(1)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 5)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7.5)
                                 .background(Farben.knopf, in: Capsule())
+                                .contentShape(Capsule())
                         }
                         .tint(Color.primary)
                         .accessibilityLabel("Raum \(raum)")
@@ -1112,22 +1126,23 @@ struct RaumZeile: View {
             }
             if arbeitet {
                 ProgressView()
-                    .frame(width: 31, height: 31)
-            } else {
+                    .frame(width: 36, height: 36)
+            } else if !aktuelle.isEmpty {
                 Button {
                     ziel = RaumZiel(aktion: "hinzufuegen", alt: "")
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.system(size: 17, weight: .regular))
                         .foregroundStyle(Farben.tinte2)
-                        .frame(width: 31, height: 31)
+                        .frame(width: 36, height: 36)
                         .background(Farben.knopf, in: Circle())
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Raum hinzufügen")
             }
         }
-        .padding(.leading, Detailmass.rand)
+        .padding(.leading, Detailmass.zeilenRand)
         .padding(.trailing, 22)
         .padding(.vertical, 10)
         .frame(minHeight: 56)

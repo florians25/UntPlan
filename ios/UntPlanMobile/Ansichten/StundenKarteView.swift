@@ -505,8 +505,9 @@ struct Kachelaussehen {
             farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.aenderungText
         case .entfall:
+            // Wie in der Vorlage 3af53475 mit Kartenschatten (hell), Fläche #fff3f3, Rand 2 pt #df0046
             farbigeKarte(flaeche: Farben.entfallHintergrund, vergangeneFlaeche: Farben.entfallVergangen, rand: Farben.entfallRand, vergangenerRand: Farben.entfallRandVergangen,
-                         vergangen: v, dunkel: dunkel, schatten: false)
+                         vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.entfallText
             durchgestrichen = true
         case .klausur:

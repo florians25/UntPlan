@@ -289,28 +289,206 @@ struct KontoSymbol: View {
     }
 }
 
-/// Profilwechsel: öffnet die Kontenauswahl (mehrere Konten gleichzeitig angemeldet – wechseln ohne Abmelden,
-/// Konto hinzufügen bzw. entfernen).
+/// Profilwechsel wie im Original (Vorlage bc097b4b): ein Glasfeld oben links unter dem Profilknopf mit „Profil wechseln“
+/// und der Liste der Konten (wechseln ohne Abmelden). „Konten verwalten …“ öffnet die bisherige Kontenauswahl
+/// (Konto hinzufügen bzw. entfernen).
 struct KontoMenue<Beschriftung: View>: View {
     @EnvironmentObject var zustand: AppZustand
     @State private var zeigen = false
+    @State private var verwalten = false
     @Environment(\.horizontalSizeClass) private var groessenklasse
     @ViewBuilder let beschriftung: () -> Beschriftung
 
     var body: some View {
         Button {
-            zeigen = true
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { zeigen = true }
         } label: {
             beschriftung()
         }
-        .accessibilityLabel("Konto wechseln")
-        .accessibilityHint("Öffnet die Kontenauswahl")
-        // Am iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails
-        .blattPraesentation(isPresented: $zeigen, breit: groessenklasse == .regular) {
+        .accessibilityLabel("Profil wechseln")
+        .accessibilityHint("Öffnet die Liste der Konten")
+        .fullScreenCover(isPresented: $zeigen) {
+            KontoPanel(schliessen: {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { zeigen = false }
+            }, verwalten: {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { zeigen = false }
+                verwalten = true
+            })
+            .environmentObject(zustand)
+            .presentationBackground(.clear)
+        }
+        // Kontenverwaltung (hinzufügen, entfernen): am iPhone das randlose Blatt
+        .blattPraesentation(isPresented: $verwalten, breit: groessenklasse == .regular) {
             KontenauswahlView()
                 .environmentObject(zustand)
         }
     }
+}
+
+/// Glasfeld „Profil wechseln“ (Vorlage bc097b4b, 3 px/pt): 250 pt breit, 8,67 pt vom linken Rand, Oberkante am sicheren
+/// Bereich (62 pt), höchstens 520 pt hoch, Ecken ≈ 34 pt, Milchglas mit 1-pt-Rand und weichem Schatten. Kopf „Profil
+/// wechseln“ 14 pt grau (44 pt vom Rand); je Konto Name 17 pt, darunter die Schule 15 pt grau (umbrechend, Zeilen 18 pt),
+/// links ein Haken für das aktive Konto (Mitte 27,7 pt) bzw. ein Schloss für Konten, die eine neue Anmeldung brauchen
+/// (Mitte 55 pt); Text ab 79,67 pt; Zeilen ≈ 60 pt (einzeilige Schule). Antippen daneben schließt.
+struct KontoPanel: View {
+    let schliessen: () -> Void
+    let verwalten: () -> Void
+    @EnvironmentObject var zustand: AppZustand
+    @State private var sichtbar = false
+    @State private var inhaltHoehe: CGFloat = 0
+
+    static let breite: CGFloat = 250
+    static let links: CGFloat = 8.67
+    static let maxHoehe: CGFloat = 520
+    static let radius: CGFloat = 34
+
+    private var aktivId: String? { Kontenspeicher.aktivId }
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { zuklappen() }
+                    .accessibilityHidden(true)
+                panel(maxHoehe: min(Self.maxHoehe, geo.size.height - 16))
+                    .padding(.leading, Self.links)
+                    .scaleEffect(sichtbar ? 1 : 0.6, anchor: .topLeading)
+                    .opacity(sichtbar ? 1 : 0)
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) { sichtbar = true }
+        }
+        .accessibilityAction(.escape) { zuklappen() }
+    }
+
+    private func panel(maxHoehe: CGFloat) -> some View {
+        let form = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("Profil wechseln")
+                .font(.system(size: 14))
+                .foregroundStyle(Color(hell: 0x87878B, dunkel: 0x98989F))
+                .padding(.leading, 44)
+                .padding(.top, 19)
+                .padding(.bottom, 15.5)
+                .accessibilityAddTraits(.isHeader)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(zustand.konten) { konto in
+                        Button {
+                            waehlen(konto)
+                        } label: {
+                            zeile(konto)
+                        }
+                        .buttonStyle(OhneTippStil())
+                    }
+                    Button {
+                        verwalten()
+                    } label: {
+                        eintrag(name: "Konten verwalten …", schule: nil, symbol: "person.badge.plus", aktiv: false)
+                    }
+                    .buttonStyle(OhneTippStil())
+                }
+                .padding(.bottom, 10)
+                .background(GeometryReader { g in
+                    Color.clear.preference(key: KontoPanelHoehe.self, value: g.size.height)
+                })
+            }
+            .scrollIndicators(.visible)
+            .frame(height: min(max(inhaltHoehe, 60), maxHoehe - 46))
+            .onPreferenceChange(KontoPanelHoehe.self) { inhaltHoehe = $0 }
+        }
+        .frame(width: Self.breite, alignment: .leading)
+        .background(.regularMaterial, in: form)
+        .overlay { form.strokeBorder(Color(hell: 0xFFFFFF, dunkel: 0xFFFFFF, deckkraftHell: 1, deckkraftDunkel: 0.16), lineWidth: 1) }
+        .clipShape(form)
+        .shadow(color: Color(hell: 0x1E2B33, dunkel: 0x000000, deckkraftHell: 0.16, deckkraftDunkel: 0.45), radius: 18, y: 8)
+    }
+
+    private func zeile(_ konto: Konto) -> some View {
+        // Schloss: kein gemerktes Passwort – nach Ablauf der Sitzung ist eine neue Anmeldung nötig
+        let anmelden = konto.id != aktivId && Schluesselbund.lesen(konto: konto.id) == nil
+        let schule = konto.schulname.isEmpty ? konto.serverKurz : konto.schulname
+        return eintrag(name: konto.name, schule: schule, symbol: anmelden ? "lock" : nil, aktiv: konto.id == aktivId)
+            .contextMenu {
+                Button(role: .destructive) {
+                    verwalten()
+                } label: {
+                    Label("Konten verwalten …", systemImage: "person.2")
+                }
+            }
+            .accessibilityLabel("\(konto.name), \(schule)\(konto.id == aktivId ? ", aktiv" : "")\(anmelden ? ", Anmeldung nötig" : "")")
+    }
+
+    private func eintrag(name: String, schule: String?, symbol: String?, aktiv: Bool) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            ZStack {
+                if aktiv {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.primary)
+                }
+            }
+            .frame(width: 20)
+            .padding(.leading, 17.7)
+            ZStack {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 21, weight: .light))
+                        .foregroundStyle(Color.primary)
+                }
+            }
+            .frame(width: 28)
+            .padding(.leading, 3.3)
+            VStack(alignment: .leading, spacing: 2.9) {
+                Text(name)
+                    .font(.system(size: 17))
+                    .foregroundStyle(Color.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let schule, !schule.isEmpty {
+                    Text(schule)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color(hell: 0x77787A, dunkel: 0x98989F))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.leading, 10.7)
+            Spacer(minLength: 16)
+        }
+        .padding(.vertical, 9.45)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private func zuklappen() {
+        withAnimation(.easeIn(duration: 0.16)) {
+            sichtbar = false
+        } completion: {
+            schliessen()
+        }
+    }
+
+    private func waehlen(_ konto: Konto) {
+        let z = zustand
+        let neu = konto.id != aktivId || z.phase != .angemeldet
+        zuklappen()
+        if neu { Task { await z.wechseln(zu: konto) } }
+    }
+}
+
+private struct KontoPanelHoehe: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// Runder Glasknopf oben links (Konto wechseln) auf allen Hauptseiten.

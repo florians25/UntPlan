@@ -1172,9 +1172,12 @@ struct Rasterrahmen: Equatable {
     /// Bis zu dieser Uhrzeit (Minuten) reicht das Raster beim Öffnen genau bis zum unteren Bildschirmrand (Vorlagen hell
     /// und dunkel nachgemessen: 07:45 bzw. 08:00 bis 17:00 auf der Sichthöhe von 718 pt).
     static let sichtEnde = 17 * 60
-    /// Leerer Streifen über der Linie der 1. Stunde, hell und dunkel gleich (52,33 pt wie in den hellen Vorlagen): darin
-    /// steht eine Aufsicht vor der 1. Stunde (Pille 22 pt) genau mittig mit je ≈ 15 pt Luft.
-    static let obenAbstand: CGFloat = 52.33
+    /// Leerer Streifen über der Linie der 1. Stunde, hell und dunkel gleich (Vorlage dc1bcf55: Kopf endet bei 468 px,
+    /// Linie ab 514,5 px → 15,5 pt).
+    static let obenAbstand: CGFloat = 15.5
+    /// Aufsicht vor der 1. Stunde: Pille (22 pt) liegt direkt auf der Linie der 1. Stunde, darüber 4 pt Luft.
+    static let pillenHoehe: CGFloat = 22
+    static let pillenLuft: CGFloat = 4
 
     /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.
     static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 44 : 45 }
@@ -1202,7 +1205,7 @@ struct Rasterrahmen: Equatable {
         }
         let dicht = tagesansicht || kompakt
         // Pillen vor der 1. Stunde (Aufsicht, ganztägiger Termin) brauchen über der Linie der 1. Stunde Platz
-        let oben: CGFloat = Self.obenAbstand
+        let oben: CGFloat = vorErster ? Self.pillenHoehe + Self.pillenLuft : Self.obenAbstand
         // iPhone wie im Original: Höhe je Minute so, dass das Raster von der 1. Stunde bis 17:00 genau die Sichthöhe
         // füllt (Vorlagen: dunkel 07:45–17:00 → 1,2667 pt/min, hell 08:00–17:00 → 1,2296 pt/min); sonst fester Wert
         let spanne = CGFloat(Self.sichtEnde - start)
@@ -1599,9 +1602,9 @@ struct RasterSeite: View, Equatable {
             let i = CGFloat(vorErste.firstIndex(of: k.id) ?? 0)
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
-            // Genau mittig im freien Streifen über der Linie der 1. Stunde (gleicher Abstand zum Kopf und zur Linie)
-            h = 22
-            y = bildpunkt(max(0, (mass.y(mass.start) - h) / 2))
+            // Direkt auf der Linie der 1. Stunde (Unterkante an der Oberkante der Linie), wie im Original
+            h = Rasterrahmen.pillenHoehe
+            y = bildpunkt(max(0, mass.y(mass.start) - h))
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar; Breite und Spur wie jede Stunde
             (y, h) = pausenLage(beginn: k.beginn, ende: k.ende, mass: mass)
