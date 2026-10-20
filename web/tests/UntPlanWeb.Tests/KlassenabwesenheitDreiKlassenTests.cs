@@ -3,6 +3,7 @@ using UntPlan.Core;
 using UntPlan.Core.Austausch;
 using UntPlan.Core.Model;
 using UntPlan.Core.Vertretungsplanung;
+using UntPlan.Web.Contracts;
 using Xunit.Abstractions;
 
 namespace UntPlanWeb.Tests;
@@ -81,21 +82,26 @@ public class KlassenabwesenheitDreiKlassenTests
         .Where(w => (w!["k"]!.GetValue<string>().Length == 0) == gestrichen)
         .Select(w => gestrichen ? w!["alt"]!.GetValue<string>() : w!["k"]!.GetValue<string>()).ToList() ?? new();
 
+    public static IEnumerable<object[]> Varianten() =>
+        from f in Enum.GetValues<Form>()
+        from alt in new[] { false, true }
+        from nur in new[] { false, true }
+        from teil in new[] { false, true }
+        where !teil || !alt
+        select new object[] { f, alt, nur, teil };
+
+    /// <param name="altesPaket">Paket einer älteren UntPlan-Version (Freisetzung der Zeile von ET13)</param>
+    /// <param name="nurVertretungen">zuerst alles, dann nur Vertretungen übertragen (Tag mit „nur Änderungen“ über dem Stundenplan)</param>
+    /// <param name="teilweise">Absenz nur in der 5. Stunde (der Block 5.–6. ist nur zum Teil betroffen)</param>
     [Theory]
-    [InlineData(Form.EinUnterricht, false)]
-    [InlineData(Form.KopplungNurErsteZeileMitLehrkraft, false)]
-    [InlineData(Form.KopplungAlleMitLehrkraft, false)]
-    [InlineData(Form.Mitklassen, false)]
-    [InlineData(Form.EinUnterricht, true)]
-    [InlineData(Form.KopplungNurErsteZeileMitLehrkraft, true)]
-    [InlineData(Form.KopplungAlleMitLehrkraft, true)]
-    [InlineData(Form.Mitklassen, true)]
-    public async Task Nur_ET13_abwesend_Stunde_laeuft_weiter(Form form, bool altesPaket)
+    [MemberData(nameof(Varianten))]
+    public async Task Nur_ET13_abwesend_Stunde_laeuft_weiter(Form form, bool altesPaket, bool nurVertretungen, bool teilweise)
     {
         await using var s = await Testserver.StartenAsync(mitPaket: false);
         var d = Schule(form);
         var et13 = d.Klassen.First(k => k.Kurzname == "ET13");
-        var a = new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Klasse, ElementId = et13.Id, Von = Freitag, Bis = Freitag, Text = "Exkursion" };
+        var a = new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Klasse, ElementId = et13.Id, Von = Freitag, Bis = Freitag, Text = "Exkursion",
+            StundeVon = teilweise ? 5 : 1, StundeBis = teilweise ? 5 : 99 };
         d.Abwesenheiten.Add(a);
         Vertretungen.Aktualisieren(d, Freitag);
         // aktueller Desktop: keine Freisetzung – HE unterrichtet INF13 und ING13
@@ -105,15 +111,20 @@ public class KlassenabwesenheitDreiKlassenTests
         var p = new PortalEinstellungen { Adresse = s.Adresse.ToString(), SchulId = Testserver.SchulId, ApiSchluessel = Testserver.ApiSchluessel };
         var paket = UntPlanWebExport.PaketErstellen(d, Freitag.AddDays(-4), new WebExportOptionen { TageVoraus = 7 });
         Assert.True((await UntPlanWebExport.HochladenAsync(p, paket with { Revision = 1 })).Ok);
+        if (nurVertretungen)
+        {
+            var nur = UntPlanWebExport.PaketErstellen(d, Freitag.AddDays(-4), new WebExportOptionen { TageVoraus = 7, Teile = new() { WebTeile.Vertretungen } });
+            Assert.True((await UntPlanWebExport.HochladenAsync(p, nur with { Revision = 2 })).Ok);
+        }
 
-        foreach (var st in Stunden)
+        foreach (var st in teilweise ? new[] { 5 } : Stunden)
         {
             // Lehrkraft, Raum, anwesende Klassen: eine grüne Karte über die Doppelstunde, ET13 durchgestrichen, INF13 und ING13 schlicht
             foreach (var (typ, kurz) in new[] { ("lehrer", "HE"), ("raum", "B117"), ("klasse", "INF13"), ("klasse", "ING13") })
             {
                 var k = Assert.Single(await KartenAsync(s, typ, kurz, st));
                 Assert.Equal("geaendert", k["status"]!.GetValue<string>());
-                Assert.Equal((5, 6), (k["von"]!.GetValue<int>(), k["bis"]!.GetValue<int>()));
+                if (!teilweise) Assert.Equal((5, 6), (k["von"]!.GetValue<int>(), k["bis"]!.GetValue<int>()));
                 var abw = k["abwesendeKlassen"]!.AsArray().Select(x => x!.GetValue<string>()).Concat(Kuerzel(k["mitklassen"], true)).Distinct().ToList();
                 Assert.Equal(new[] { "ET13" }, abw);
                 var alle = Kuerzel(k["klassen"], false).Concat(Kuerzel(k["mitklassen"], false)).Order().ToList();
@@ -127,6 +138,13 @@ public class KlassenabwesenheitDreiKlassenTests
             Assert.True(eigen["klasseAbwesend"]!.GetValue<bool>());
             Assert.DoesNotContain("entfall", eigen["marker"]!.AsArray().Select(x => x!.GetValue<string>()));
         }
+        // teilweise: in der 6. Stunde ist ET13 wieder da – überall die reguläre Stunde mit allen drei Klassen
+        if (teilweise)
+            foreach (var (typ, kurz) in new[] { ("lehrer", "HE"), ("raum", "B117"), ("klasse", "ET13"), ("klasse", "INF13"), ("klasse", "ING13") })
+            {
+                var k = Assert.Single(await KartenAsync(s, typ, kurz, 6));
+                Assert.Equal("regulaer", k["status"]!.GetValue<string>());
+            }
     }
 
     [Theory]
@@ -151,5 +169,38 @@ public class KlassenabwesenheitDreiKlassenTests
             Assert.NotEmpty(karten);
             Assert.All(karten, k => Assert.Equal("entfall", k["status"]!.GetValue<string>()));
         }
+    }
+
+    /// <summary>
+    /// Desktop: eine aus älteren Versionen gespeicherte Freisetzung der Zeile von ET13 verschwindet beim nächsten Abgleich (auch beim Abgleich
+    /// nach einer Planänderung, der verschobene Stunden stehen lässt); danach Klassenplan von ING13 und INF13 sowie Lehrerplan HE regulär,
+    /// keine Zeile in der Vertretungsliste.
+    /// </summary>
+    [Theory]
+    [InlineData(Form.KopplungNurErsteZeileMitLehrkraft, false)]
+    [InlineData(Form.KopplungAlleMitLehrkraft, false)]
+    [InlineData(Form.Mitklassen, false)]
+    [InlineData(Form.KopplungAlleMitLehrkraft, true)]
+    [InlineData(Form.Mitklassen, true)]
+    public void Desktop_alte_Freisetzung_wird_bereinigt(Form form, bool nachPlanaenderung)
+    {
+        var d = Schule(form);
+        var et13 = d.Klassen.First(k => k.Kurzname == "ET13");
+        var a = new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Klasse, ElementId = et13.Id, Von = Freitag, Bis = Freitag };
+        d.Abwesenheiten.Add(a);
+        AlteFreisetzungen(d, a);
+        Assert.Contains(d.Vertretungen, v => v.Art == VertretungsArt.Freisetzung);
+        if (nachPlanaenderung) Vertretungen.NachPlanaenderung(d, Freitag.AddDays(-1));
+        else Vertretungen.Aktualisieren(d, Freitag);
+        Assert.DoesNotContain(d.Vertretungen, v => v.UnterrichtId.HasValue);
+        var tp = Tagesplan.Berechnen(d, Freitag);
+        var he = d.Lehrer.First(l => l.Kurzname == "HE").Id;
+        foreach (var st in Stunden)
+        {
+            foreach (var kl in d.Klassen)
+                Assert.Contains(tp.Stunde(st), e => e.Unterricht != null && e.KlassenIds.Contains(kl.Id) && e.Status == TagesStatus.Regulaer);
+            Assert.Contains(tp.VonLehrer(he), e => e.Stunde == st);
+        }
+        Assert.DoesNotContain(Vertretungsplan.Zeilen(d, Freitag), z => z.Stunde is 5 or 6);
     }
 }
