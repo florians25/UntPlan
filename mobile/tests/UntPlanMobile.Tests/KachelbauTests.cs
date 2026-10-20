@@ -420,6 +420,23 @@ public class KachelbauTests
         Assert.Equal("absence", k.Art);
         Assert.Equal("WEB,BEC,HOF", k.Lehrkraft);
         Assert.Equal("EDV2", k.Raum);
+        // Raum der Veranstaltung: hinzugefügter Wert (grünes Label ohne „+“)
+        Assert.Equal("EDV2", k.RaumPlus);
+    }
+
+    [Fact]
+    public void Raum_der_Veranstaltung_ist_hinzugefuegt()
+    {
+        var k = Kachelbau.AusKarte(Karte("veranstaltung", 4, 6, fach: "", text: "Lehrkräftekonferenz", art: "Veranst.", unterricht: null, klassen: new(),
+            lehrer: new() { new("AI"), new("AY"), new("BA") }, raeume: new() { new("A103", null, true, true) }), "teacher");
+        Assert.Equal("absence", k.Art);
+        Assert.Equal("AI,AY,BA", k.Lehrkraft);
+        Assert.Equal("Lehrkräftekonferenz", k.Fach);
+        Assert.Equal("A103", k.Raum);
+        Assert.Equal("A103", k.RaumPlus);
+        // auch von älteren Servern (Raum ohne Kennzeichen „neu“) und ohne Raum keine Plakette
+        Assert.Equal("A103", Kachelbau.AusKarte(Karte("veranstaltung", 4, 4, fach: "", text: "X", unterricht: null, raeume: new() { new("A103") }), "class").RaumPlus);
+        Assert.Null(Kachelbau.AusKarte(Karte("veranstaltung", 4, 4, fach: "", text: "X", unterricht: null, raeume: new()), "class").RaumPlus);
     }
 
     [Fact]

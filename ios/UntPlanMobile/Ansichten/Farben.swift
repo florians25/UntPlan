@@ -114,7 +114,7 @@ enum Farben {
     static let gruenSchrift = Color(hell: 0xFFFFFF, dunkel: 0x10161D)
 
     // Entfall rot
-    static let entfallHintergrund = Color(hell: 0xFFF3F2, dunkel: 0x81002E)
+    static let entfallHintergrund = Color(hell: 0xFFF3F3, dunkel: 0x81002E)
     static let entfallVergangen = Color(hell: 0xFFF4F3, dunkel: 0x323D45)
     static let entfallRand = Color(hell: 0xDF0046, dunkel: 0xF03064)
     /// Rahmen vergangener Entfall-Karten (dunkel #df0046, Vorlage 4cc11c37)

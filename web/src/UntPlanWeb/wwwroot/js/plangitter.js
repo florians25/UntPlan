@@ -219,8 +219,17 @@ export function karteInhalt(k, typ, kompakt = false) {
   // gekürzte Fachzeile: Hover mit dem vollständigen Fachnamen
   const fachVoll = k.fachName && k.fachName !== k.fach ? k.fachName : '';
   const ohneFach = !k.fach;
-  let oben, rest;
-  if (ohneFach) {
+  let oben, rest, titel = '';
+  if (k.status === 'veranstaltung') {
+    // Veranstaltung: mit eingetragenen Lehrkräften oben die Lehrkräfte (lange Listen gekürzt „… +N“), darunter der Text der
+    // Veranstaltung (Information zur Stunde), dann der Raum – ein hinzugefügter Wert („+A103“-Label) –, zuletzt die Klassen.
+    // Ohne Lehrkräfte (bzw. im eigenen Lehrerplan nur die eigene) steht der Text oben.
+    const lehrer = (k.lehrer || []).filter(w => w.k || w.alt);
+    const lehrerZeile = lehrer.length && (typ !== 'lehrer' || lehrer.length > 1) ? werteListe(lehrer, entfall, true) : '';
+    titel = e(k.text || k.art || '—');
+    oben = lehrerZeile || titel;
+    rest = [lehrerZeile ? titel : '', raum, werteListe(k.klassen, entfall)];
+  } else if (ohneFach) {
     // Veranstaltung, Klausur, Buchung: Bezeichnung (Prüfung: ihr Name ohne freie Angaben – in jedem Plan gleich), dann Klassen,
     // Lehrkräfte (gekürzt) und Raum
     oben = e((k.status === 'klausur' && k.pruefung) || k.text || k.art || '—');
@@ -255,7 +264,7 @@ export function karteInhalt(k, typ, kompakt = false) {
   // abwesende Klasse: Label „abwesend …“ (Hover mit den Klassen)
   if (abwesend(k).size && !entfall) zeilen.push(`<span class="abw-label" data-hover="${e([...abwesend(k)].join(', ') + ' ' + (k.abwesendText || 'abwesend'))}" data-hover-art="dunkel">${e(k.abwesendText || 'abwesend')}</span>`);
   // Hover einer gekürzten Zeile: jede Zeile für sich (Werteliste als Pillen, Fach mit vollem Namen, sonst der vollständige Text)
-  const voll = x => x === fach && fachVoll ? fachVoll : '';
+  const voll = x => x === fach && fachVoll ? fachVoll : titel && x === titel ? (k.text || k.art || '') : '';
   const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(' · ')}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
   return `${marker(k, typ)}${zeileHtml('z1', oben, false, voll(oben))}${rumpf}${eckSymbole(k, typ)}`;
 }
@@ -498,7 +507,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen – als grüne Zusatzkarte
     const ereignisKarten = t.ereignisse.filter(x => index.has(Math.max(x.von, zeiten[0].nr)) && !karten.some(k => k.text === x.titel && k.von <= x.bis && k.bis >= x.von))
       .map(x => ({ ereignis: true, datum: t.datum, von: Math.max(x.von, zeiten[0].nr), bis: Math.min(x.bis, letzte), status: 'veranstaltung', fach: '', text: x.titel, art: 'Veranstaltung', marker: ['aenderung'],
-        klassen: x.klassen.map(k => ({ k })), lehrer: x.lehrer.map(k => ({ k })), raeume: x.raeume.map(k => ({ k })) }));
+        klassen: x.klassen.map(k => ({ k })), lehrer: x.lehrer.map(k => ({ k })), raeume: x.raeume.map(k => ({ k, neu: true })) }));
     const alleKarten = [...karten, ...ereignisKarten];
     const lage = spuren(alleKarten);
     for (const k of alleKarten) {
@@ -736,7 +745,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
   const eintraege = [
     ...ereignisse.filter(x => x.ganztaegig && !karten.some(k => k.text === x.titel)).map(x => ({ zeit: -1, html: `<div class="eintrag"><div class="zeit">ganztägig</div>
         <div class="std veranstaltung"><div class="z1">${e(x.titel)}</div>
-        ${[gekuerzt(x.klassen.map(k => ({ k })), 4), gekuerzt(x.lehrer.map(k => ({ k })), 3), werte(x.raeume.map(k => ({ k })))].filter(Boolean).map(z => `<div class="z2">${z}</div>`).join('')}
+        ${[gekuerzt(x.klassen.map(k => ({ k })), 4), gekuerzt(x.lehrer.map(k => ({ k })), 3), werte(x.raeume.map(k => ({ k, neu: true })))].filter(Boolean).map(z => `<div class="z2">${z}</div>`).join('')}
         <div class="z3">Veranstaltung</div></div></div>` })),
     ...karten.map((k, i) => ({ zeit: minuten(k.beginn), html: `<div class="eintrag ${k.datum === jetztIso && minuten(k.beginn) <= jetzt && jetzt < minuten(k.ende) ? 'jetzt' : ''}">
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>

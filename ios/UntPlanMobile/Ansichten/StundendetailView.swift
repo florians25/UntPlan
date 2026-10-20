@@ -237,7 +237,8 @@ struct StundendetailInhalt: View {
 
     @ViewBuilder
     private var weitereAktionen: some View {
-        if !planziele.isEmpty {
+        // Veranstaltung: nur X im Kopf (Vorlage e289f31a)
+        if !planziele.isEmpty && !istVeranstaltung {
             Menu {
                 Section("Im Stundenplan anzeigen") {
                     ForEach(planziele) { plan in
@@ -527,17 +528,16 @@ struct StundendetailInhalt: View {
         fachteile.append(.text(fach))
         // Statuspille („PRÜFUNG“, „VERANSTALTUNG“) rechts neben dem Fach (Vorlage 140); ohne Fachzeile neben der Kopfzeile
         let fachSichtbar = !fach.isEmpty && !(istVeranstaltung && fach.caseInsensitiveCompare(titelzeile) == .orderedSame)
-        let kopfteile = titelBausteine
+        // Veranstaltung (Vorlage e289f31a): keine Klassen-/Titelzeile – zuerst die Pille, dann Raum und Lehrkräfte
+        let kopfteile = istVeranstaltung ? [] : titelBausteine
         // Vorlagen: Prüfung rechts neben dem Fach; Veranstaltung und zusätzliche Unterrichtsstunde in eigener Zeile
         // unter der Kopfzeile (Zusatzstunde ohne Fachzeile – das Fach steht im Reiter)
         let pilleEigeneZeile = istVeranstaltung || karte.istZusatzstunde
-        let fachZeile = fachSichtbar && !(karte.istZusatzstunde && karten.count > 1)
+        let fachZeile = fachSichtbar && !istVeranstaltung && !(karte.istZusatzstunde && karten.count > 1)
         if let pille = karte.statusPille, fachZeile, !pilleEigeneZeile {
             fachteile.append(.pille(pille))
         }
-        // Veranstaltung ohne Klassen: oben gar nichts (auch keine allein stehende Pille)
-        let pilleEinzeln = karte.statusPille != nil
-            && (pilleEigeneZeile ? !(istVeranstaltung && kopfteile.isEmpty) : !fachZeile)
+        let pilleEinzeln = karte.statusPille != nil && (pilleEigeneZeile || !fachZeile)
         return VStack(alignment: .leading, spacing: 0) {
             if !kopfteile.isEmpty {
                 Wertzeile(bausteine: kopfteile, schrift: Detailmass.gross, farbe: Farben.detailText,
@@ -561,7 +561,8 @@ struct StundendetailInhalt: View {
                     .frame(minHeight: Detailmass.zeile)
             }
             if !lehrer.isEmpty {
-                Wertzeile(bausteine: lehrer, schrift: Detailmass.klein, kuerzenAb: Wertzeile.kuerzungsgrenze)
+                // Veranstaltung: alle Lehrkräfte in einer Zeile („BN | BO | …“), waagrecht scrollbar statt „… +N“
+                Wertzeile(bausteine: lehrer, schrift: Detailmass.klein, kuerzenAb: istVeranstaltung ? nil : Wertzeile.kuerzungsgrenze)
                     .frame(minHeight: Detailmass.zeile)
             }
             if !karte.abwesendeKlassen.isEmpty {
@@ -636,7 +637,7 @@ struct StundendetailInhalt: View {
                     }
                 })
             }
-            if mitUnterricht {
+            if mitUnterricht || istVeranstaltung {
                 link(.hausaufgaben, Detailzeile(symbol: "SymbolHausaufgaben", titel: "Hausaufgaben",
                                                 zahl: daten.hausaufgaben.map { $0.liste.count } ?? (daten.geladen ? 0 : nil)))
             }

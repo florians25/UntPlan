@@ -683,6 +683,32 @@ function raumTokens(card, changed){
 if (typeof window !== 'undefined') window.UntPlanRaum = { raumTokens };
 /* RAUMTOKENS-ENDE */
 
+/* VERANSTALTUNG-BEGINN (wird von den Tests ausgeführt) */
+/* Veranstaltung wie in der iOS-App: Sind Lehrkräfte eingetragen, stehen sie
+   oben (fett), darunter der Text der Veranstaltung (Information zur
+   Stunde), dann der Raum — ein hinzugefügter Wert, also grünes Label ohne
+   „+“ — und zuletzt die Klassen (im Klassenplan nur die übrigen). Ohne
+   Lehrkräfte steht der Text oben; ebenso im eigenen Lehrerplan, wenn nur
+   das eigene Kürzel eingetragen ist. Abwesende Lehrkräfte hat der Server
+   schon herausgenommen. */
+function veranstaltungZeilen(card, kind){
+  const teile = v => String(v || '').split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
+  const eigen  = String((state.entity && (state.entity.code || state.entity.label)) || '').toUpperCase();
+  const anlass = String(card.subject || card.info || '').trim();
+  let lehrer   = teile(card.teacher);
+  if (kind === 'teacher' && lehrer.length === 1 && lehrer[0].toUpperCase() === eigen) lehrer = [];
+  const klassen = teile(card.class).filter(k => kind !== 'class' || k.toUpperCase() !== eigen);
+  const raeume  = card.online ? [] : teile(card.room);
+  return [
+    lehrer.length ? { key:'teacher', werte:lehrer, primary:true } : null,
+    anlass        ? { key:'subject', werte:[anlass], primary:!lehrer.length } : null,
+    raeume.length ? { key:'room', werte:raeume } : null,
+    klassen.length? { key:'class', werte:klassen } : null
+  ].filter(Boolean);
+}
+if (typeof window !== 'undefined') window.UntPlanVeranstaltung = { veranstaltungZeilen };
+/* VERANSTALTUNG-ENDE */
+
 function cardLines(card, kind){
   /* Veranstaltung, Klassenabwesenheit, Freisetzung.
 
@@ -693,7 +719,9 @@ function cardLines(card, kind){
      darunter noch die begleitenden Kolleginnen und Kollegen, falls mehrere
      dabei sind. Vorher stand überall die Klasse oben und der Anlass fehlte
      auf der Kachel ganz. */
-  if (card.blockType === 'absence' || card.blockType === 'gs'){
+  if (card.blockType === 'absence') return veranstaltungZeilen(card, kind)
+    .map(z => ({ key:z.key, text:z.werte.join(z.key === 'room' ? ' ' : ', '), primary:z.primary, changed:z.key === 'room' }));
+  if (card.blockType === 'gs'){
     const anlass = (card.subject || card.info || '').trim();
     const reihe  = (kind === 'class')
       ? [{ key:'teacher', primary:true }]
@@ -1779,8 +1807,22 @@ function renderGrid(){
         ? aufsichtInhalt(card)
         : isStandby
         ? `<span class="card__line">${esc(card.subject || 'Bereitschaft')}</span>`
-        : (card.blockType === 'absence' || card.blockType === 'gs')
-        /* Veranstaltung, Klassenabwesenheit, Freisetzung: dieselbe Regel
+        : card.blockType === 'absence'
+        /* Veranstaltung: Lehrkräfte · Text · Raum (grünes Label) · Klassen,
+           ohne Lehrkräfte der Text oben (veranstaltungZeilen). */
+        ? (() => {
+            const z = veranstaltungZeilen(card, kind);
+            return z.map((l, i) => {
+              const last = i === z.length - 1 ? ' card__line--last' : '';
+              if (l.key === 'room') return `<span class="card__line card__line--badge${last}">${l.werte
+                .map(r => `<span class="badge badge--raum">${esc(plusWert(card, 'room', r))}</span>`).join('<i class="tok__luecke"></i>')}</span>`;
+              const text = l.werte.join(KACHEL_TRENNER);
+              const scroll = l.werte.length > 1 ? ' card__line--scroll' : '';
+              return `<span class="card__line${l.primary ? ' card__line--primary' : ''}${scroll}${last}">${esc(text)}</span>`;
+            }).join('');
+          })()
+        : card.blockType === 'gs'
+        /* Klassenabwesenheit, Freisetzung: dieselbe Regel
            wie beim Unterricht. Oben steht, was man im eigenen Plan nicht
            ohnehin weiß — im Klassenplan die Lehrkraft, sonst die Klasse —,
            darunter der Anlass und im Lehrerplan zuletzt die begleitenden

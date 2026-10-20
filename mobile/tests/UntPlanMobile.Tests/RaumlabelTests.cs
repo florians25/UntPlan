@@ -151,4 +151,46 @@ public class RaumlabelTests
         }
         finally { File.Delete(skript); }
     }
+    /// <summary>
+    /// Veranstaltung auf der Kachel: Lehrkräfte oben, darunter der Text, dann der Raum (grünes Label ohne „+“), zuletzt die Klassen;
+    /// ohne Lehrkräfte (bzw. im eigenen Lehrerplan nur mit dem eigenen Kürzel) steht der Text oben.
+    /// </summary>
+    [Fact]
+    public void Veranstaltung_Lehrkraefte_Text_Raumlabel()
+    {
+        var js = AppJs;
+        Assert.Contains("if (card.blockType === 'absence') return veranstaltungZeilen(card, kind)", js);
+        Assert.Contains("`<span class=\"badge badge--raum\">${esc(plusWert(card, 'room', r))}</span>`", js);
+        var node = Node();
+        if (node is null) return;
+        var skript = Path.Combine(Path.GetTempPath(), "untplan-veranst-" + Guid.NewGuid().ToString("N") + ".js");
+        File.WriteAllText(skript, "const window = {};\nlet state = { entity: { code: 'AI' } };\nconst pruefe = (ist, soll) => { const a = JSON.stringify(ist), b = JSON.stringify(soll); if (a !== b) { console.error(a + ' statt ' + b); process.exit(1); } };\n"
+            + Abschnitt(js, "VERANSTALTUNG") + """
+            const z = window.UntPlanVeranstaltung.veranstaltungZeilen;
+            const karte = { blockType:'absence', subject:'Lehrkräftekonferenz', info:'Lehrkräftekonferenz', teacher:'AI,AY,BA', class:'', room:'A103', roomPlus:'A103' };
+            const mit = [{ key:'teacher', werte:['AI','AY','BA'], primary:true }, { key:'subject', werte:['Lehrkräftekonferenz'], primary:false }, { key:'room', werte:['A103'] }];
+            pruefe(z(karte, 'teacher'), mit);
+            pruefe(z(karte, 'class'), mit);
+            pruefe(z(karte, 'room'), mit);
+            // ohne Lehrkräfte: der Text oben
+            const ohne = [{ key:'subject', werte:['Lehrkräftekonferenz'], primary:true }, { key:'room', werte:['A103'] }];
+            pruefe(z({ ...karte, teacher:'' }, 'class'), ohne);
+            // eigener Lehrerplan, nur das eigene Kürzel: der Text oben
+            pruefe(z({ ...karte, teacher:'AI' }, 'teacher'), ohne);
+            // Klassen zuletzt, im Klassenplan ohne die eigene Klasse
+            state = { entity: { code: '7A' } };
+            pruefe(z({ ...karte, class:'7a,7b' }, 'class').map(l => l.key + ':' + l.werte.join(',')), ['teacher:AI,AY,BA', 'subject:Lehrkräftekonferenz', 'room:A103', 'class:7b']);
+            pruefe(z({ ...karte, class:'7a,7b' }, 'teacher').at(-1), { key:'class', werte:['7a','7b'] });
+            // online: kein Raum
+            pruefe(z({ ...karte, online:true }, 'class').some(l => l.key === 'room'), false);
+            """ + "\nconsole.log('ok');\n");
+        try
+        {
+            using var p = Process.Start(new ProcessStartInfo(node, skript) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false })!;
+            var aus = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+            p.WaitForExit(10000);
+            Assert.True(p.ExitCode == 0, aus);
+        }
+        finally { File.Delete(skript); }
+    }
 }
