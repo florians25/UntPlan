@@ -12,6 +12,10 @@ struct StundendetailView: View {
     @EnvironmentObject var zustand: AppZustand
     /// Gewählter Reiter (bei mehreren Stunden zur selben Zeit)
     @State private var auswahl: Int
+    /// Richtung, aus der der Inhalt des neu gewählten Reiters hereingleitet (1 = von rechts, -1 = von links, 0 = keine)
+    @State private var einflug: CGFloat = 0
+    /// Gemeinsamer Raum für die Unterstreichung des aktiven Reiters (gleitet beim Wechsel zum neuen Reiter)
+    @Namespace private var reiterRaum
 
     init(karte: Karte, typ: String, element: String = "") {
         self.init(karten: [karte], start: 0, typ: typ, element: element)
@@ -27,8 +31,11 @@ struct StundendetailView: View {
     var body: some View {
         NavigationStack {
             if karten.indices.contains(auswahl) {
-                StundendetailInhalt(karte: karten[auswahl], typ: typ, karten: karten, auswahl: $auswahl)
+                StundendetailInhalt(karte: karten[auswahl], typ: typ, karten: karten, auswahl: $auswahl,
+                                    einflug: $einflug, reiterRaum: reiterRaum)
                     .id(karten[auswahl].id)
+                    // Kopf und Reiter wechseln ohne Überblenden; der Inhalt gleitet selbst herein
+                    .transition(.identity)
             } else {
                 ContentUnavailableView("Keine Stunde", systemImage: "calendar")
                     .toolbar(.hidden, for: .navigationBar)
@@ -49,6 +56,8 @@ struct StundendetailInhalt: View {
     let typ: String
     let karten: [Karte]
     @Binding var auswahl: Int
+    @Binding var einflug: CGFloat
+    let reiterRaum: Namespace.ID
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var systemSchliessen
     @Environment(\.blattSchliessen) private var blattSchliessen
@@ -59,13 +68,25 @@ struct StundendetailInhalt: View {
     @State private var raumZiel: RaumZiel? = nil
     /// Als Unterblatt geöffnete Unterseite (iPhone)
     @State private var unterseite: Detailseite? = nil
+    /// Waagrechtes Wischen zwischen parallelen Stunden: Richtung (zu Beginn festgelegt), Verschiebung des Inhalts
+    @State private var wischWaagrecht: Bool? = nil
+    @State private var wischVersatz: CGFloat = 0
+    @State private var wechselt = false
+    @State private var inhaltBreite: CGFloat = 0
+    @GestureState private var wischt = false
+    /// Hereingleiten nach einem Reiterwechsel (Anteil der Breite, 0 = an seinem Platz)
+    @State private var einflugVersatz: CGFloat
 
-    init(karte: Karte, typ: String, karten: [Karte], auswahl: Binding<Int>) {
+    init(karte: Karte, typ: String, karten: [Karte], auswahl: Binding<Int>,
+         einflug: Binding<CGFloat> = .constant(0), reiterRaum: Namespace.ID) {
         self.karte = karte
         self.typ = typ
         self.karten = karten
         _auswahl = auswahl
+        _einflug = einflug
+        self.reiterRaum = reiterRaum
         _daten = StateObject(wrappedValue: Stundendaten(karte: karte))
+        _einflugVersatz = State(initialValue: einflug.wrappedValue)
     }
 
     /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
@@ -121,6 +142,34 @@ struct StundendetailInhalt: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .scrollDisabled(wischWaagrecht == true)
+            // Mehrere Stunden zur selben Zeit: waagrecht wischen wechselt den Reiter (der Inhalt folgt dem Finger)
+            .offset(x: wischVersatz)
+            .visualEffect { [einflugVersatz] inhalt, geometrie in
+                inhalt.offset(x: einflugVersatz * geometrie.size.width)
+            }
+            .background {
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { inhaltBreite = g.size.width }
+                        .onChange(of: g.size.width) { _, neu in inhaltBreite = neu }
+                }
+            }
+            .clipped()
+            .simultaneousGesture(reiterWischen, including: karten.count > 1 ? .all : .subviews)
+            .onChange(of: wischt) { _, neu in
+                // Geste abgebrochen (z. B. vom senkrechten Scrollen übernommen): zurückfedern
+                guard !neu else { return }
+                wischWaagrecht = nil
+                if !wechselt && wischVersatz != 0 {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) { wischVersatz = 0 }
+                }
+            }
+            .onAppear {
+                guard einflugVersatz != 0 else { return }
+                einflug = 0
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) { einflugVersatz = 0 }
+            }
         }
         .background(Farben.blatt.ignoresSafeArea())
         // Hauptseite ohne Textfelder: bleibt beim Ein- und Ausblenden der Tastatur (z. B. beim Zurückkehren aus einer
@@ -187,58 +236,59 @@ struct StundendetailInhalt: View {
         return karte.beginn.isEmpty ? stundentext : "\(Detailmass.uhrzeit(karte.beginn)) - \(Detailmass.uhrzeit(karte.ende))"
     }
 
-    /// „Do. | 05.11.26 ⌄“ mit Uhrzeit darunter; das Menü nennt Tag und Stunde, wechselt zwischen gleichzeitigen Stunden
-    /// und wählt bei Doppel- bzw. Blockstunden, ob Einträge für den ganzen Block oder nur eine Einzelstunde gelten.
+    /// „Do. | 05.11.26 ⌄“ mit Uhrzeit darunter. Vorlage a0555239: das Glasmenü „Stundenauswahl“ (grauer Titel, Häkchen
+    /// links) wählt bei Doppel- bzw. Blockstunden, ob Einträge für die ganze „Blockstunde“ oder nur eine Einzelstunde
+    /// („11:30 - 12:15“) gelten; bei mehreren gleichzeitigen Stunden folgen diese. Ohne Auswahl kein Menü und kein Pfeil.
+    @ViewBuilder
     private var datumsMenue: some View {
-        Menu {
-            Section(Datumsformat.anzeige(karte.datum, "EEEE, d. MMMM yyyy")) {
-                Button {} label: {
-                    Label(karte.beginn.isEmpty ? stundentext : "\(stundentext) · \(karte.beginn) - \(karte.ende)", systemImage: "clock")
-                }
-                .disabled(true)
-            }
-            if mitBereichswahl {
-                Section("Einträge gelten für") {
-                    Button {
-                        bereichBinding.wrappedValue = 0
-                    } label: {
-                        Label("Ganzer Block (\(karte.von).–\(karte.bis). Stunde)",
-                              systemImage: daten.einzelstunde == nil ? "checkmark" : "square.stack")
-                    }
-                    ForEach(daten.blockStunden) { s in
-                        Button {
-                            bereichBinding.wrappedValue = s.stunde
-                        } label: {
-                            Label(stundentitel(s, mitZeit: true) + (s.eintrag ? " •" : ""),
-                                  systemImage: daten.einzelstunde == s.stunde ? "checkmark" : "clock")
+        if mitBereichswahl || karten.count > 1 {
+            Menu {
+                if mitBereichswahl {
+                    Section("Stundenauswahl") {
+                        Picker("Stundenauswahl", selection: bereichBinding) {
+                            Text("Blockstunde").tag(0)
+                            ForEach(daten.blockStunden) { s in
+                                Text(zeitspanne(s)).tag(s.stunde)
+                            }
                         }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
                     }
                 }
-            }
-            if karten.count > 1 {
-                Section("Stunden zur selben Zeit") {
-                    ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
-                        Button {
-                            auswahl = eintrag.offset
-                        } label: {
-                            Label(reitertitel(eintrag.element), systemImage: eintrag.offset == auswahl ? "checkmark" : "book.closed")
+                if karten.count > 1 {
+                    Section("Stunden zur selben Zeit") {
+                        Picker("Stunden zur selben Zeit", selection: Binding(get: { auswahl }, set: { reiterWechseln($0) })) {
+                            ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
+                                Text(reitertitel(eintrag.element)).tag(eintrag.offset)
+                            }
                         }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
                     }
                 }
+            } label: {
+                Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: true)
+                    .contentShape(Rectangle())
             }
-        } label: {
-            Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: kollegium || karten.count > 1 || mitBereichswahl)
-                .contentShape(Rectangle())
+            // Häkchen im Menü schwarz bzw. weiß je nach Modus (nicht orange)
+            .tint(Color.primary)
+            .accessibilityLabel("\(Datumsformat.anzeige(karte.datum, "EEEE, d. MMMM yyyy")), \(zeittitel)")
+        } else {
+            Blatttitel(titel: datumstitel, untertitel: zeittitel, pfeil: false)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(Datumsformat.anzeige(karte.datum, "EEEE, d. MMMM yyyy")), \(zeittitel)")
         }
-        // Symbole im Menü schwarz bzw. weiß je nach Modus (nicht orange bzw. grau)
-        .tint(Color.primary)
-        .accessibilityLabel("\(Datumsformat.anzeige(karte.datum, "EEEE, d. MMMM yyyy")), \(zeittitel)")
+    }
+
+    /// Zeile einer Einzelstunde in der Stundenauswahl: „11:30 - 12:15“ (ohne Zeiten „3. Stunde“).
+    private func zeitspanne(_ s: Einzelstundeninfo) -> String {
+        s.beginn.isEmpty ? "\(s.stunde). Stunde" : "\(Detailmass.uhrzeit(s.beginn)) - \(Detailmass.uhrzeit(s.ende))"
     }
 
     @ViewBuilder
     private var weitereAktionen: some View {
-        // Veranstaltung: nur X im Kopf (Vorlage e289f31a)
-        if !planziele.isEmpty && !istVeranstaltung {
+        // Auch bei Veranstaltungen (wie bei normalen Stunden) – ohne Platzhalter („---“, „???“)
+        if !planziele.isEmpty {
             Menu {
                 Section("Im Stundenplan anzeigen") {
                     ForEach(planziele) { plan in
@@ -264,12 +314,6 @@ struct StundendetailInhalt: View {
     /// oder nur eine Stunde gelten.
     private var mitBereichswahl: Bool { kollegium && mitUnterricht && !istVeranstaltung && daten.hatEinzelstunden }
 
-    /// „3. Std.“ bzw. mit Uhrzeit im Menü.
-    private func stundentitel(_ s: Einzelstundeninfo, mitZeit: Bool) -> String {
-        guard mitZeit, !s.beginn.isEmpty else { return "\(s.stunde). Std." }
-        return "\(s.stunde). Stunde \(Detailmass.uhrzeit(s.beginn))–\(Detailmass.uhrzeit(s.ende))"
-    }
-
     private var bereichBinding: Binding<Int> {
         Binding(get: { daten.einzelstunde ?? 0 }, set: { neu in
             Task { await daten.bereichWaehlen(neu == 0 ? nil : neu, kollegium: kollegium) }
@@ -277,6 +321,62 @@ struct StundendetailInhalt: View {
     }
 
     // MARK: - Reiter
+
+    /// Waagrechtes Wischen mit Richtungssperre (wie beim Blättern im Plan): links → nächster Reiter, rechts → vorheriger;
+    /// am ersten bzw. letzten Reiter federt der Inhalt gedämpft zurück.
+    private var reiterWischen: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .updating($wischt) { _, status, _ in status = true }
+            .onChanged { wert in
+                guard !wechselt else { return }
+                if wischWaagrecht == nil {
+                    let dx = abs(wert.translation.width)
+                    let dy = abs(wert.translation.height)
+                    guard dx > 8 || dy > 8 else { return }
+                    wischWaagrecht = dx > dy * 1.3
+                }
+                guard wischWaagrecht == true else { return }
+                let dx = wert.translation.width
+                let hatNachbar = dx < 0 ? auswahl < karten.count - 1 : auswahl > 0
+                wischVersatz = hatNachbar ? dx : dx * 0.25
+            }
+            .onEnded { wert in
+                let war = wischWaagrecht
+                wischWaagrecht = nil
+                guard war == true, !wechselt else { return }
+                let w = max(inhaltBreite, 1)
+                let dx = wert.translation.width
+                let voraus = wert.predictedEndTranslation.width
+                if (dx < -w * 0.22 || voraus < -w * 0.5) && auswahl < karten.count - 1 {
+                    reiterWechseln(auswahl + 1)
+                } else if (dx > w * 0.22 || voraus > w * 0.5) && auswahl > 0 {
+                    reiterWechseln(auswahl - 1)
+                } else {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) { wischVersatz = 0 }
+                }
+            }
+    }
+
+    /// Reiter wechseln (Antippen, Wischen, Menü): der Inhalt gleitet zur Seite hinaus, der neue von der anderen Seite
+    /// herein; die Unterstreichung gleitet zum neuen Reiter.
+    private func reiterWechseln(_ neu: Int) {
+        guard neu != auswahl, karten.indices.contains(neu), !wechselt else { return }
+        let vor: CGFloat = neu > auswahl ? 1 : -1
+        guard inhaltBreite > 0 else {
+            auswahl = neu
+            return
+        }
+        wechselt = true
+        withAnimation(.easeIn(duration: 0.14)) {
+            wischVersatz = -vor * inhaltBreite
+        } completion: {
+            einflug = vor
+            // Gleiche Kennung (kein neuer Inhalt): wieder an den Platz
+            wischVersatz = 0
+            wechselt = false
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { auswahl = neu }
+        }
+    }
 
     private func reitertitel(_ k: Karte) -> String {
         // Veranstaltung: die Bezeichnung steht nur unten in „Information zur Stunde“, nicht im Reiter (wie die PWA)
@@ -301,7 +401,7 @@ struct StundendetailInhalt: View {
                     ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
                         let gewaehlt = eintrag.offset == auswahl
                         Button {
-                            auswahl = eintrag.offset
+                            reiterWechseln(eintrag.offset)
                         } label: {
                             Text(reitertitel(eintrag.element))
                                 .font(.system(size: 17, weight: .semibold))
@@ -315,6 +415,7 @@ struct StundendetailInhalt: View {
                                             .fill(Farben.reiterStrich)
                                             .frame(height: 4)
                                             .padding(.horizontal, 5.5)
+                                            .matchedGeometryEffect(id: "aktiverDetailReiter", in: reiterRaum)
                                     }
                                 }
                                 .contentShape(Rectangle())
@@ -415,7 +516,7 @@ struct StundendetailInhalt: View {
         var ergebnis: [PlanAuswahl] = []
         func hinzu(_ typ: String, _ werte: [Wert]) {
             for w in werte {
-                for k in [w.alt ?? "", w.k] where !k.isEmpty {
+                for k in [w.alt ?? "", w.k] where !k.isEmpty && !Kachelbau.platzhalter.contains(k) {
                     let plan = PlanAuswahl(typ: typ, element: k, name: k)
                     if !ergebnis.contains(where: { $0.id == plan.id }) { ergebnis.append(plan) }
                 }

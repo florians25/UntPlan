@@ -449,7 +449,7 @@ public sealed class Plandienst
         var roh = TeilfreisetzungenAufheben(s, d, Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList());
         // Veranstaltung: abwesende (kranke) Lehrkräfte nehmen nicht teil – sie verschwinden aus der Veranstaltung (in allen Plänen) und die
         // Veranstaltung aus ihrem eigenen Plan (siehe betrifft)
-        bool IstVeranstaltung(Rohstunde x) => x.Status == "zusaetzlich" && ArtVon(x).StartsWith("Veranst", StringComparison.OrdinalIgnoreCase);
+        bool IstVeranstaltung(Rohstunde x) => IstVeranstaltungsStunde(s, x);
         bool Abwesend(string l, int stunde) => LehrerAbwesend(s, d, l, stunde);
         roh = roh.Select(x => IstVeranstaltung(x) && x.Lehrer.Any(l => Abwesend(l, x.Stunde)) ? x with { Lehrer = x.Lehrer.Where(l => !Abwesend(l, x.Stunde)).ToList() } : x).ToList();
         // Kopplung mit gleichem Fach und gleichem Raum: im Lehrerplan auch die Zeilen der Kolleg*innen (eine gemeinsame Karte)
@@ -459,7 +459,7 @@ public sealed class Plandienst
         // Text – im Lehrerplan stehen dann ebenfalls alle beteiligten Lehrkräfte auf der gemeinsamen Karte
         string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) && (vv.Art ?? "").Length > 0 ? vv.Art! : VeranstaltungsArt(x);
         bool ZusatzOhneUnterricht(Rohstunde x) => x.Unterricht is null && x.Status == "zusaetzlich" && (x.Fach.Length > 0 || x.Klassen.Count > 0 || x.Text.Trim().Length > 0)
-            && !IstKlausur(ArtVon(x)) && !IstBuchung(ArtVon(x)) && !ArtVon(x).StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) && x.Klausur is null;
+            && !IstKlausur(ArtVon(x)) && !IstBuchung(ArtVon(x)) && !IstVeranstaltungsStunde(s, x) && x.Klausur is null;
         static bool GleicheKlassen(Rohstunde a, Rohstunde b) => a.Klassen.Count == b.Klassen.Count && a.Klassen.All(x => Enthaelt(b.Klassen, x));
         static bool GleicherZusatz(Rohstunde a, Rohstunde b) => a.Stunde == b.Stunde && Ci.Equals(a.Fach, b.Fach) && GleicherRaum(a, b) && GleicheKlassen(a, b)
             && (a.Fach.Length > 0 || Ci.Equals(a.Text.Trim(), b.Text.Trim()));
@@ -584,7 +584,7 @@ public sealed class Plandienst
             {
                 Klassen = g.SelectMany(k => k.Klassen).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
                 // ohne Lehrkräfte kein Platzhalter („---“)
-                Lehrer = g.SelectMany(k => k.Lehrer).Where(w => w.K is not ("---" or "+" or "+++") && (w.K.Length > 0 || !string.IsNullOrEmpty(w.Alt))).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
+                Lehrer = g.SelectMany(k => k.Lehrer).Where(w => !IstPlatzhalter(w.K) && (w.K.Length > 0 || (!string.IsNullOrEmpty(w.Alt) && !IstPlatzhalter(w.Alt)))).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => RaeumeHinzugefuegt(MitTermin(s, d, k, l => Abwesend(l, k.Von))))).ToList();
@@ -1152,6 +1152,30 @@ public sealed class Plandienst
     private static string VeranstaltungsArt(Rohstunde r) =>
         r.Status == "zusaetzlich" && r.Veranstaltung.HasValue && !r.Unterricht.HasValue && r.Klausur is null ? "Veranstaltung" : "";
 
+    /// <summary>Platzhalter statt einer Lehrkraft („---“, „???“, „+“, „+++“) – nie auf einer Veranstaltung.</summary>
+    public static bool IstPlatzhalter(string? kurz) => (kurz ?? "").Trim() is "---" or "???" or "+" or "+++" or "?";
+
+    /// <summary>
+    /// Vertretungszeile einer Veranstaltung – unabhängig von der Bezeichnung der Art (im Desktop umbenennbar, z. B. „Veranst.“, „Ausflug“):
+    /// Veranstaltungs-Id der Zeile (nur Veranstaltungszeilen tragen sie) bzw. Art „Veranst…“.
+    /// </summary>
+    public static bool IstVeranstaltungsVertretung(WebVertretung? v) =>
+        v != null && (v.Veranstaltung.HasValue || (v.Art ?? "").StartsWith("Veranst", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Stunde einer Veranstaltung (zusätzliche Zeile ohne Unterricht): eigene Art „Veranst…“ (z. B. Aktivität aus einer Buchung), sonst
+    /// Veranstaltungs-Id der Stunde bzw. ihrer Vertretung – so bleibt sie eine Veranstaltung, auch wenn die Art im Desktop anders heißt;
+    /// sonst würde sie zur Zusatzstunde ohne Lehrkraft („---“).
+    /// </summary>
+    internal static bool IstVeranstaltungsStunde(Stand s, Rohstunde r)
+    {
+        if (r.Status != "zusaetzlich" || r.Klausur.HasValue) return false;
+        if (r.Art.Length > 0) return r.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase);
+        WebVertretung? v = r.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vx) ? vx : null;
+        if ((v?.Art ?? "").StartsWith("Veranst", StringComparison.OrdinalIgnoreCase)) return true;
+        return !r.Unterricht.HasValue && (r.Veranstaltung.HasValue || v?.Veranstaltung is not null);
+    }
+
     private Karte KarteBauen(Stand s, DateOnly d, string typ, string kurz, Rohstunde r, WebVertretung? v, Dictionary<int, WebStundenzeit> zeiten)
     {
         var art = r.Art.Length > 0 ? r.Art : v != null && (v.Art ?? "").Length > 0 ? v.Art! : VeranstaltungsArt(r);
@@ -1165,7 +1189,7 @@ public sealed class Plandienst
             "vertreten" => "geaendert",
             "zusaetzlich" when art.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) => "klausur",
             "zusaetzlich" when art.StartsWith("Raumbuchung", StringComparison.OrdinalIgnoreCase) => "buchung",
-            "zusaetzlich" when art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) => "veranstaltung",
+            "zusaetzlich" when art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) || IstVeranstaltungsStunde(s, r) => "veranstaltung",
             "zusaetzlich" => "geaendert",
             "vorgemerkt" => "vorgemerkt",
             _ => IstBereitschaft(s, r.Fach) ? "bereitschaft" : "regulaer",
@@ -1267,6 +1291,9 @@ public sealed class Plandienst
         // zusätzlicher Unterricht ohne Lehrkraft: „---“
         var zusatz = r.Status == "zusaetzlich" && status == "geaendert";
         if (zusatz && lehrer.Count == 0) lehrer.Add(new Wert(OhneLehrkraftZusatz));
+        // Veranstaltung: nie ein Platzhalter („---“, „???“, „+++“) bzw. ein leerer Wert als Lehrkraft – ohne Lehrkräfte bleibt die Liste leer
+        if (status == "veranstaltung")
+            lehrer = lehrer.Where(w => !IstPlatzhalter(w.K) && (w.K.Length > 0 || (!string.IsNullOrEmpty(w.Alt) && !IstPlatzhalter(w.Alt)))).ToList();
         var text = buchung ? "" : string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
         if (buchung) art = "";
         // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext

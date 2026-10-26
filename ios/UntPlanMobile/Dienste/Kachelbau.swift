@@ -385,6 +385,13 @@ enum Kachelbau {
             guard !w.k.isEmpty, w.ersetzt || w.plus || w.neu else { return w }
             return Wert(k: w.k)
         }
+        // Mehrere Klassen: bei einer reinen Raumänderung bleiben alle Klassen schlicht stehen (kein Klassen-Label, keine
+        // fehlt) – nur „neu“/„plus“ ohne abweichenden alten Wert fällt weg; ersetzte bzw. abwesende Klassen bleiben.
+        k.klassen = k.klassen.map { w in
+            let alt = (w.alt ?? "").trimmingCharacters(in: .whitespaces)
+            guard !w.k.isEmpty, w.plus || w.neu, alt.isEmpty || gleich(alt, w.k) else { return w }
+            return Wert(k: w.k)
+        }
         return k
     }
 
