@@ -60,12 +60,14 @@ public class VerlegungVeranstaltungTests
     }
 
     [Fact]
-    public void Web_App_Details_streichen_das_alte_Fach_und_Karten_zeigen_kein_Plus_N()
+    public void Web_App_Details_zeigen_keine_Fachaenderung()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null && !File.Exists(Path.Combine(dir.FullName, "src", "UntPlanMobile", "UntPlanMobile.csproj"))) dir = dir.Parent;
         Assert.NotNull(dir);
         var js = File.ReadAllText(Path.Combine(dir!.FullName, "src", "UntPlanMobile", "wwwroot", "assets", "js", "app.js"));
-        Assert.Contains("|| ((key === 'teacher' || key === 'subject') && orig !== '' && now !== ''", js);
+        // eine Fachänderung sind zwei Blöcke – die Details nennen nur das eigene Fach (kein durchgestrichenes altes Fach)
+        Assert.Contains("if (key === 'subject') return now || orig ? esc(now || orig) : '';", js);
+        Assert.DoesNotContain("(key === 'teacher' || key === 'subject')", js);
     }
 }

@@ -210,8 +210,9 @@ export function karteDialog(karte, kontext = {}) {
     const gruppe = k.gruppe ? (ersteKlasse ? `<a href="#" class="sd-link" data-plan="klasse" data-element="${e(ersteKlasse)}" data-hover="Im Stundenplan anzeigen" data-hover-art="dunkel" data-hover-pos="unten">${e(k.gruppe)}</a>` : e(k.gruppe))
       : ''; // kein Fach-Langname im Kopf – nur Kürzel
     // Veranstaltung: oben keine Bezeichnung (der Name steht unten unter „Information zur Stunde“) – nur Fach/Klassen, wenn eingetragen
-    const fachTeil = k.fachAlt && !istEntfall() ? `<s class="sd-alt">${e(k.fachAlt)}</s> <span class="sd-pfeil">→</span> ${e(k.fach)}`
-      : k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');
+    // keine Fachänderung in den Details: eine Fachänderung sind zwei Blöcke (Entfall mit dem bisherigen, neue Stunde mit dem neuen Fach) –
+    // jeder nennt nur sein eigenes Fach
+    const fachTeil = k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');
     const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
     const b = bereich();
     const zeile = [wochentag(k.datum), datumDe(k.datum), b.beginn ? `${b.beginn}-${b.ende}` : `${b.von === b.bis ? b.von + '.' : b.von + '.–' + b.bis + '.'} Std.`,

@@ -5867,12 +5867,12 @@ function renderDetail(){
   const val = key => {
     const now  = detailWert(c[key]);
     const orig = detailWert(c[key + 'Orig']);
-    /* Fachänderung: auf der Kachel kein Label (der neue Block steht für
-       sich), im Detail aber wie jede Änderung – altes Fach durchgestrichen,
-       daneben das neue. */
     const changed = (c.changed || []).includes(key)
-      || ((key === 'teacher' || key === 'subject') && orig !== '' && now !== ''
+      || (key === 'teacher' && orig !== '' && now !== ''
           && orig.toUpperCase() !== now.toUpperCase());
+    /* Keine Fachänderung in den Details: sie sind zwei Blöcke (Entfall mit
+       dem bisherigen, neue Stunde mit dem neuen Fach) – nur das eigene Fach. */
+    if (key === 'subject') return now || orig ? esc(now || orig) : '';
     if (!now && !orig) return '';
     /* Hinzugekommene Werte mit „+“ davor (wie auf der Kachel). */
     const liste = v => werteListe(v).map(x => esc(plusWert(c, key, x))).join(SEP);
