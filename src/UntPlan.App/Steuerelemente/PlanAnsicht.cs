@@ -69,6 +69,36 @@ public sealed class PlanAnsicht : Control
     private (DateOnly Datum, TagesEintrag Eintrag)? _tagesAuswahl;
     private (DateOnly Datum, int Stunde, int Id, int Zeile)? _tagesSchluessel;
 
+    /// <summary>
+    /// Weitere markierte Stunden im tagesaktuellen Plan (mehrere Vertretungen markiert): werden wie die gewählte Stunde umrandet;
+    /// hat das Element dort keinen Eintrag (z. B. freie Stunde eines Vertretungskandidaten), wird die leere Zelle umrandet.
+    /// </summary>
+    public IReadOnlyList<(DateOnly Datum, int Stunde, int UnterrichtId, int? VertretungId)> ZusatzAuswahl => _zusatz;
+    private readonly List<(DateOnly Datum, int Stunde, int UnterrichtId, int? VertretungId)> _zusatz = new();
+
+    public void ZusatzAuswahlSetzen(IEnumerable<(DateOnly Datum, int Stunde, int UnterrichtId, int? VertretungId)> stunden)
+    {
+        _zusatz.Clear();
+        _zusatz.AddRange(stunden.Distinct());
+        Invalidate();
+    }
+
+    private bool IstZusatz(DateOnly datum, TagesEintrag e) =>
+        _zusatz.Any(z => z.Datum == datum && z.Stunde == e.Stunde &&
+                         ((z.VertretungId is int vid && e.Vertretung?.Id == vid) || (z.UnterrichtId > 0 && TagesId(e) == z.UnterrichtId)));
+
+    /// <summary>Selbsttest: Anzahl der umrandeten Stunden im tagesaktuellen Plan (gewählte und weitere markierte).</summary>
+    public int UmrandeteStunden()
+    {
+        if (!Tagesmodus || _woche is not DateOnly w) return 0;
+        if (_tage.Count != Tage) TageNeu();
+        var n = 0;
+        var gesehen = new HashSet<(DateOnly, int)>();
+        foreach (var z in _zusatz.Select(z => (z.Datum, z.Stunde)).Prepend(_tagesAuswahl is { } ta ? (ta.Datum, ta.Eintrag.Stunde) : _zelle is { } zc ? (w.AddDays(zc.Tag), zc.Stunde) : (DateOnly.MinValue, 0)))
+            if (z.Item2 > 0 && z.Item1.DayNumber - w.DayNumber is var t && t >= 0 && t < Tage && gesehen.Add(z)) n++;
+        return n;
+    }
+
     /// <summary>Unterricht (positiv) bzw. Vertretung ohne Unterricht (negativ) eines Eintrags.</summary>
     private static int TagesId(TagesEintrag e) => e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId ?? -(e.Vertretung?.Id ?? 0);
 
@@ -84,6 +114,7 @@ public sealed class PlanAnsicht : Control
         var tag = datum.DayNumber - w.DayNumber;
         if (tag < 0 || tag >= Tage) return;
         if (_tage.Count != Tage) TageNeu();
+        _zusatz.Clear();
         var e = EintraegeAm(tag, stunde).OrderBy(x => !x.Findetstatt)
             .FirstOrDefault(x => (vertretungId is int vid && x.Vertretung?.Id == vid) || (unterrichtId > 0 && (x.Unterricht?.Id ?? x.Vertretung?.UnterrichtId) == unterrichtId));
         TagesAuswahl = e is null ? null : (datum, e);
@@ -167,6 +198,7 @@ public sealed class PlanAnsicht : Control
         Mehrfach.Clear();
         TagesAuswahl = null;
         MarkierterUnterricht = null;
+        _zusatz.Clear();
         _zelle = tag >= 0 && tag < Tage && stunde >= 1 && stunde <= Stunden ? (tag, stunde) : null;
         Invalidate();
     }
@@ -379,7 +411,9 @@ public sealed class PlanAnsicht : Control
         var tp = _tage[tag];
         return tp.Stunde(stunde).Where(e => Typ switch
         {
-            ElementTyp.Klasse => e.KlassenIds.Contains(ElementId) || (e.Regel?.KlassenIds.Contains(ElementId) ?? false),
+            // Kopplungszeile ohne eigene Klassen (z. B. zweite Lehrkraft) gehört zu den Klassen der ganzen Kopplung
+            ElementTyp.Klasse => e.KlassenIds.Contains(ElementId) || (e.Regel?.KlassenIds.Contains(ElementId) ?? false) ||
+                                 (e.KlassenIds.Count == 0 && e.Regel is { KlassenIds.Count: 0 } rk && rk.Unterricht.KlassenIds.Contains(ElementId)),
             ElementTyp.Lehrer => e.LehrerIds.Contains(ElementId) || e.Regel?.LehrerId == ElementId,
             ElementTyp.Raum => e.RaumIds.Contains(ElementId) || e.Regel?.RaumId == ElementId,
             ElementTyp.Fach => e.FachId == ElementId || e.Regel?.FachId == ElementId,
@@ -639,7 +673,7 @@ public sealed class PlanAnsicht : Control
                 foreach (var f in TagesFelder(t))
                     foreach (var fr in FeldRechtecke(bounds, t, f))
                     {
-                        EintragZeichnen(g, fr, f.Erster, datum!.Value, druck, f.Alle.Any(x => IstTagesAuswahl(datum.Value, x)));
+                        EintragZeichnen(g, fr, f.Erster, datum!.Value, druck, f.Alle.Any(x => IstTagesAuswahl(datum.Value, x) || IstZusatz(datum.Value, x)));
                         if (klassik) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
                         Relief(g, fr, Format.BesetzteStunden.Raeumlich);
                     }
@@ -677,6 +711,14 @@ public sealed class PlanAnsicht : Control
                 var r = Zelle(bounds, t, zc.Stunde);
                 AuswahlRahmen(g, new RectangleF(r.X + 1, r.Y + 1, r.Width - 1, r.Height - 1));
             }
+            // weitere markierte Stunden ohne eigenen Eintrag des Elements (freie Stunde): Zelle umranden
+            if (klassik && !druck && Tagesmodus && datum is DateOnly zd)
+                foreach (var z in _zusatz.Where(z => z.Datum == zd && z.Stunde >= 1 && z.Stunde <= Stunden).Select(z => z.Stunde).Distinct())
+                    if (!EintraegeAm(t, z).Any(x => IstZusatz(zd, x)))
+                    {
+                        var r = Zelle(bounds, t, z);
+                        AuswahlRahmen(g, new RectangleF(r.X + 1, r.Y + 1, r.Width - 1, r.Height - 1));
+                    }
             ZiehMarken(g, bounds, druck, t, plan);
             if (datum is DateOnly dt) FreiZeichnen(g, bounds, t, dt, kt);
         }
@@ -1704,6 +1746,7 @@ public sealed class PlanAnsicht : Control
     {
         Focus();
         _zelle = Treffer(e.Location);
+        _zusatz.Clear();
         if (Tagesmodus)
         {
             var te = EintragBei(e.Location);
@@ -2011,6 +2054,7 @@ public sealed class PlanAnsicht : Control
 
     public void AuswahlLeeren()
     {
+        _zusatz.Clear();
         Ausgewaehlt = null;
         Mehrfach.Clear();
         TagesAuswahl = null;

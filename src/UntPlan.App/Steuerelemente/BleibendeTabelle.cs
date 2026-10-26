@@ -13,7 +13,11 @@ public class BleibendeTabelle : DataGridView
         if (IsCurrentCellInEditMode && taste == Keys.Enter && (keyData & (Keys.Control | Keys.Alt | Keys.Shift)) == 0)
         {
             // offene Auswahlliste: markierten Eintrag übernehmen (die Listensuche setzt ihn beim KeyDown), dann Eingabe beenden
-            if (EditingControl is ComboBox { DroppedDown: true } cb) cb.DroppedDown = false;
+            if (EditingControl is ComboBox cb)
+            {
+                ListenSuche.SuchtextUebernehmen(cb);
+                if (cb.DroppedDown) cb.DroppedDown = false;
+            }
             EndEdit();
             return true;
         }

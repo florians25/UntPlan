@@ -499,11 +499,11 @@ public sealed partial class HauptFenster : Form
         if (!AppZustand.Doc.IstGeaendert) return true;
         if (AppZustand.Doc.Schreibgeschuetzt)
         {
-            var w = MessageBox.Show("Die Schuldatei ist schreibgeschützt geöffnet und wurde geändert.\nÄnderungen unter einem anderen Namen speichern?", "UntPlan", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            var w = Ui.JaNeinAbbrechen("Die Schuldatei ist schreibgeschützt geöffnet und wurde geändert.\nÄnderungen unter einem anderen Namen speichern?", "UntPlan", owner: this);
             if (w == DialogResult.Cancel) return false;
             return w == DialogResult.No || Speichern(true);
         }
-        var r = MessageBox.Show("Die Schuldatei wurde geändert. Änderungen speichern?", "UntPlan", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+        var r = Ui.JaNeinAbbrechen("Die Schuldatei wurde geändert. Änderungen speichern?", "UntPlan", owner: this);
         if (r == DialogResult.Cancel) return false;
         return r == DialogResult.No || Speichern();
     }
@@ -577,9 +577,9 @@ public sealed partial class HauptFenster : Form
         var erg = Dateisperre.Anfordern(pfad, SperrInfo.Aktuell(AppZustand.Benutzer));
         if (erg.Status == SperrStatus.AndererRechner)
         {
-            var r = MessageBox.Show(this, $"{erg.Meldung}\n\nWenn UntPlan dort nicht mehr läuft (z. B. nach einem Absturz), kann die Sperre aufgehoben werden.\n\n" +
-                "Ja = Sperre aufheben und die Datei bearbeiten\nNein = schreibgeschützt öffnen\nAbbrechen = nicht öffnen",
-                "Datei wird verwendet", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            var r = Ui.JaNeinAbbrechen($"{erg.Meldung}\n\nWenn UntPlan dort nicht mehr läuft (z. B. nach einem Absturz), kann die Sperre aufgehoben werden.\n\n" +
+                "„Sperre aufheben“ = die Datei bearbeiten\n„Schreibgeschützt öffnen“ = nur lesen\n„Abbrechen“ = nicht öffnen",
+                "Datei wird verwendet", MeldungsArt.Warnung, 1, this, "Sperre aufheben", "Schreibgeschützt öffnen");
             if (r == DialogResult.Cancel) return false;
             if (r == DialogResult.No)
             {
@@ -601,8 +601,8 @@ public sealed partial class HauptFenster : Form
                 nurLesen = true;
                 return true;
             default:
-                if (MessageBox.Show(this, $"{erg.Meldung}\n\nEs ist immer nur ein schreibender Zugriff möglich. Die Datei schreibgeschützt öffnen?",
-                        "Datei wird verwendet", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return false;
+                if (!Ui.OkAbbrechen($"{erg.Meldung}\n\nEs ist immer nur ein schreibender Zugriff möglich. Die Datei schreibgeschützt öffnen?",
+                        "Datei wird verwendet", MeldungsArt.Info, this, "Schreibgeschützt öffnen")) return false;
                 nurLesen = true;
                 return true;
         }

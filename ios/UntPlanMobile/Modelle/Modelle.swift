@@ -845,15 +845,18 @@ struct Ferienzeit: Decodable, Sendable {
 struct Planelement: Decodable, Identifiable, Hashable, Sendable {
     var kurz: String
     var name: String
+    /// Klassen: Klassenleitung (Kürzel der Klassenlehrkräfte) – Badge „Klassenlehrkraft | ILK“ in der Auswahl
+    var leitung: [String] = []
 
     var id: String { kurz }
 
-    enum CodingKeys: String, CodingKey { case kurz, name }
+    enum CodingKeys: String, CodingKey { case kurz, name, leitung }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         kurz = c.text(.kurz)
         name = c.text(.name)
+        leitung = c.texte(.leitung).filter { !$0.isEmpty }
     }
 }
 

@@ -304,3 +304,15 @@
   .u-app.u-kopf-weiss :is(#seitenkopf, #seite .u-kopfteil)::after { display: none; }
   .u-app.u-kopf-weiss #seitenkopf { padding: 0; min-height: 0; }
 }
+
+/* ------------------------------------------------------------------ Volle Breite
+
+   Auf allen Seiten – Stundenplan, Heute, Vertretungen, Klassenbuch, Sprechtag, Melden/Buchen, Mitteilungen, Verwaltung – nutzt der
+   Inhalt auch auf großen Monitoren immer die volle Fensterbreite (neben der Seitenleiste): keine Höchstbreiten bzw. zentrierten festen
+   Breiten der Seiten-Container mehr; die Ränder (--u-rand) bleiben. Dialoge, Seitenpaneele, Suchfelder und einzelne Spalten behalten
+   ihre Maße. */
+:root { --u-seite-max: none; --u-seite-mittel: none; --u-seite-schmal: none; }
+.u-inhalt, .u-app .u-inhalt, .u-inhalt .heute, .u-inhalt .heute-titel, .heute, .u-einstellungen, .alt-seite, .u-inhalt .alt-seite, .s-schmal,
+.kbe, .ub, .mf-seite, .mf-seite.mf-meine, .mf-karte, .bu-assistent, .st-formular, .nw-liste, .nw-liste-karte, .mt-einst,
+.sd-abschnitt, .sd-detail, .sd-notiz, .kb-uebersicht { max-width: none; }
+.u-app[data-ansicht="mitteilungen"] .u-inhalt > .u-seitenkopf, .u-app[data-ansicht="mitteilungen"] .u-inhalt > #seite { max-width: none; margin-left: 0; margin-right: 0; }

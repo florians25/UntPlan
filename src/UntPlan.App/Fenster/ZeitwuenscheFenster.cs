@@ -92,7 +92,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         _unbestimmt.CellEndEdit += (_, _) => UnbestimmteSpeichern();
         _unbestimmt.UserDeletedRow += (_, _) => UnbestimmteSpeichern();
         _unbestimmt.DataError += (_, e) => e.ThrowException = false;
-        _unbestimmt.CurrentCellDirtyStateChanged += (_, _) => { if (_unbestimmt.CurrentCell is DataGridViewComboBoxCell) _unbestimmt.CommitEdit(DataGridViewDataErrorContexts.Commit); };
+        _unbestimmt.CurrentCellDirtyStateChanged += (_, _) => Steuerelemente.SuchKombi.SofortUebernehmen(_unbestimmt, kontrollkaestchen: false);
 
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, FixedPanel = FixedPanel.Panel2 };
         split.Panel1.Controls.Add(_grid);

@@ -6,7 +6,7 @@ using UntPlan.Core.Model;
 namespace UntPlan.App;
 
 /// <summary>Gemeinsame Gestaltung (angelehnt an klassische Windows-/Office-Oberflächen) und Hilfsfunktionen.</summary>
-public static class Ui
+public static partial class Ui
 {
     public static readonly Font Schrift = new("Segoe UI", 9f);
     public static readonly Font SchriftFett = new("Segoe UI", 9f, FontStyle.Bold);
@@ -323,20 +323,54 @@ public static class Ui
         }
         if (FehlerProtokoll != null) { FehlerProtokoll.Add(ex.ToString()); return; }
         var text = ex is InvalidOperationException or FormatException or InvalidDataException ? ex.Message : ex.ToString();
-        MessageBox.Show(text, "UntPlan", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        Meldung(text, "UntPlan - Fehler", MeldungsArt.Fehler, new[] { "OK" });
     }
 
-    public static void Info(string text, string titel = "UntPlan")
+    /// <summary>Fehlermeldung (Text) im Design der Anwendung.</summary>
+    public static void Fehler(string text, string titel = "UntPlan - Fehler", IWin32Window? owner = null)
+    {
+        if (FehlerProtokoll != null) { FehlerProtokoll.Add(text); return; }
+        Meldung(text, titel, MeldungsArt.Fehler, new[] { "OK" }, owner: owner);
+    }
+
+    public static void Info(string text, string titel = "UntPlan", IWin32Window? owner = null)
     {
         if (InfoAntwort is { } hook) { hook(text, titel); return; }
-        MessageBox.Show(text, titel, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        Meldung(text, titel, MeldungsArt.Info, new[] { "OK" }, owner: owner);
+    }
+
+    /// <summary>Warnhinweis (z. B. Raum belegt, Lehrkraft aus Veranstaltung entfernt) im Design der Anwendung.</summary>
+    public static void Warnung(string text, string titel = "UntPlan - Hinweis", IWin32Window? owner = null)
+    {
+        if (InfoAntwort is { } hook) { hook(text, titel); return; }
+        Meldung(text, titel, MeldungsArt.Warnung, new[] { "OK" }, owner: owner);
     }
 
     /// <summary>Hinweis-Hook (Selbsttest): nimmt Hinweise ohne modales Meldungsfenster entgegen, null = Meldungsfenster.</summary>
     public static Action<string, string>? InfoAntwort { get; set; }
 
-    public static bool Frage(string text, string titel = "UntPlan") =>
-        FrageAntwort is { } antwort ? antwort(text, titel) : MessageBox.Show(text, titel, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+    public static bool Frage(string text, string titel = "UntPlan", IWin32Window? owner = null) =>
+        FrageAntwort is { } antwort ? antwort(text, titel) : Meldung(text, titel, MeldungsArt.Frage, new[] { "Ja", "Nein" }, owner: owner) == 0;
+
+    /// <summary>
+    /// Ja/Nein/Abbrechen-Frage im Design der Anwendung (z. B. „Änderungen speichern?“): Yes, No oder Cancel (auch Escape).
+    /// Im Selbsttest beantwortet <see cref="AuswahlAntwort"/> bzw. <see cref="FrageAntwort"/> die Frage.
+    /// </summary>
+    public static DialogResult JaNeinAbbrechen(string text, string titel = "UntPlan", MeldungsArt art = MeldungsArt.Frage, int vorgabe = 0, IWin32Window? owner = null,
+        string ja = "Ja", string nein = "Nein")
+    {
+        if (AuswahlAntwort is { } hook) return hook(text, new[] { ja, nein }) switch { 0 => DialogResult.Yes, 1 => DialogResult.No, _ => DialogResult.Cancel };
+        if (FrageAntwort is { } antwort) return antwort(text, titel) ? DialogResult.Yes : DialogResult.No;
+        return Meldung(text, titel, art, new[] { ja, nein }, vorgabe, true, owner) switch { 0 => DialogResult.Yes, 1 => DialogResult.No, _ => DialogResult.Cancel };
+    }
+
+    /// <summary>OK/Abbrechen-Frage im Design der Anwendung; true bei OK.</summary>
+    public static bool OkAbbrechen(string text, string titel = "UntPlan", MeldungsArt art = MeldungsArt.Frage, IWin32Window? owner = null, string ok = "OK")
+    {
+        if (AuswahlAntwort is { } hook) return hook(text, new[] { ok }) == 0;
+        if (FrageAntwort is { } antwort) return antwort(text, titel);
+        return Meldung(text, titel, art, new[] { ok }, 0, true, owner) == 0;
+    }
 
     /// <summary>Abfrage-Hook (Selbsttest): beantwortet Ja/Nein-Fragen ohne modalen Dialog, null = Meldungsfenster.</summary>
     public static Func<string, string, bool>? FrageAntwort { get; set; }
@@ -348,55 +382,16 @@ public static class Ui
     /// Frage mit eigenen Knöpfen (z. B. „Mitnehmen / Belassen / Abbrechen“). Liefert den Index des gewählten Knopfes, null bei
     /// Abbrechen bzw. Escape. Im Selbsttest (Ja/Nein-Hook gesetzt, kein Auswahl-Hook) wird die Vorgabe gewählt.
     /// </summary>
-    public static int? Auswahl(string text, string titel, IReadOnlyList<string> knoepfe, int vorgabe = 0, IReadOnlyList<bool>? aktiv = null)
+    public static int? Auswahl(string text, string titel, IReadOnlyList<string> knoepfe, int vorgabe = 0, IReadOnlyList<bool>? aktiv = null, IWin32Window? owner = null)
     {
         if (AuswahlAntwort is { } hook) return hook(text, knoepfe);
         if (FrageAntwort != null) return vorgabe;
-        var ergebnis = new System.Runtime.CompilerServices.StrongBox<int?>();
-        using var f = AuswahlFenster(text, titel, knoepfe, vorgabe, aktiv, ergebnis);
-        return f.ShowDialog() == DialogResult.OK ? ergebnis.Value : null;
+        return Meldung(text, titel, MeldungsArt.Frage, knoepfe, vorgabe, true, owner, aktiv);
     }
 
     /// <summary>Fenster der Knopf-Frage (auch für Bildschirmfotos im Selbsttest); das Ergebnis steht nach dem Schließen in <paramref name="ergebnis"/>.</summary>
-    internal static Form AuswahlFenster(string text, string titel, IReadOnlyList<string> knoepfe, int vorgabe, IReadOnlyList<bool>? aktiv, System.Runtime.CompilerServices.StrongBox<int?> ergebnis)
-    {
-        var f = new Form
-        {
-            Text = titel, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterParent,
-            Font = Schrift, ShowInTaskbar = false, KeyPreview = true,
-        };
-        var breite = Math.Max(420, knoepfe.Sum(k => Math.Max(96, TextRenderer.MeasureText(k, Schrift).Width + 24) + 8) + 104);
-        breite = Math.Min(breite, 900);
-        var groesse = TextRenderer.MeasureText(text, Schrift, new Size(breite - 72, 0), TextFormatFlags.WordBreak);
-        var hoehe = Math.Min(groesse.Height + 8, 420);
-        var bild = new PictureBox { Image = SystemIcons.Question.ToBitmap(), Left = 14, Top = 14, Size = new Size(32, 32), SizeMode = PictureBoxSizeMode.Zoom };
-        var label = new TextBox
-        {
-            Text = text.Replace("\r\n", "\n").Replace("\n", Environment.NewLine), Left = 56, Top = 14, Width = breite - 70, Height = hoehe, Multiline = true, ReadOnly = true,
-            BorderStyle = BorderStyle.None, BackColor = SystemColors.Control, TabStop = false, ScrollBars = groesse.Height + 8 > 420 ? ScrollBars.Vertical : ScrollBars.None,
-        };
-        f.ClientSize = new Size(breite, hoehe + 70);
-        f.Controls.Add(bild);
-        f.Controls.Add(label);
-        var x = breite - 12;
-        // von rechts nach links: Abbrechen ganz rechts, davor die Knöpfe in ihrer Reihenfolge
-        foreach (var i in new[] { -1 }.Concat(Enumerable.Range(0, knoepfe.Count).Reverse()))
-        {
-            var abbrechen = i < 0;
-            var t = abbrechen ? "Abbrechen" : knoepfe[i];
-            if (!abbrechen && t == "Abbrechen") continue;
-            var w = Math.Max(96, TextRenderer.MeasureText(t, Schrift).Width + 24);
-            x -= w;
-            var b = new Button { Text = t, Left = x, Top = hoehe + 30, Width = w, Height = 28, Enabled = abbrechen || aktiv is null || i >= aktiv.Count || aktiv[i] };
-            var index = i;
-            b.Click += (_, _) => { ergebnis.Value = abbrechen ? null : index; f.DialogResult = abbrechen ? DialogResult.Cancel : DialogResult.OK; };
-            f.Controls.Add(b);
-            if (abbrechen) f.CancelButton = b;
-            if (index == vorgabe) { f.AcceptButton = b; f.ActiveControl = b; }
-            x -= 8;
-        }
-        return f;
-    }
+    internal static Form AuswahlFenster(string text, string titel, IReadOnlyList<string> knoepfe, int vorgabe, IReadOnlyList<bool>? aktiv, System.Runtime.CompilerServices.StrongBox<int?> ergebnis) =>
+        MeldungsFenster(text, titel, MeldungsArt.Frage, knoepfe, vorgabe, true, aktiv, ergebnis);
 
     public static string? Eingabe(string text, string titel, string vorgabe = "")
     {

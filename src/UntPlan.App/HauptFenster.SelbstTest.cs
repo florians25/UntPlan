@@ -66,6 +66,7 @@ public sealed partial class HauptFenster
         foreach (var k in AppZustand.Einstellungen.Tabellenlayouts.Keys.Where(k => k.StartsWith("VertretungenFenster", StringComparison.Ordinal)).ToList())
             AppZustand.Einstellungen.Tabellenlayouts.Remove(k);
         AppZustand.Einstellungen.Vertretungsansicht = "Klasse - Standard";
+        AppZustand.Einstellungen.VertretungsFelder.Clear();
         // Ja/Nein-Abfragen (z. B. „Soll die Verlegung rückgängig gemacht werden?“) nicht modal: mit Ja beantworten und protokollieren
         var fragen = new List<string>();
         Ui.FrageAntwort = (text, _) => { fragen.Add(text); return true; };
@@ -501,6 +502,16 @@ public sealed partial class HauptFenster
             }
             throw new InvalidOperationException("Kein passender Unterricht für den Test gefunden.");
         }, 1);
+        Schritt("UP5d1a_Zeilenwechsel_Auswahlliste", () =>
+        {
+            // Wert der Auswahlliste in Zeile A, dann Klick bzw. Pfeiltaste in Zeile B: B bleibt unverändert, A hat den Wert
+            Up5Zurueck();
+            var f = Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)));
+            var klasse = AppZustand.D.Klassen.OrderByDescending(k => AppZustand.D.Unterrichte.Count(u => u.KlassenIds.Contains(k.Id) && u.Zeilen.Count == 1)).First();
+            f.ElementSetzen(klasse.Id);
+            Warten(300);
+            log.Add("INFO  " + f.SelbsttestZeilenwechsel(() => Warten(250)));
+        }, 1);
         Schritt("UP5d2_Unterricht_zurueck", () =>
         {
             Up5Zurueck();
@@ -539,6 +550,26 @@ public sealed partial class HauptFenster
         }, 1);
         Schritt("16_Vertretungsmodus", () => { VertretungsmodusUmschalten(); Warten(300); KopfPruefen("Vertretungsplanung"); }, -1, false);
         Schritt("17_Vertretungen", () => Max(FensterOeffnen("vertr")!), -1);
+        Schritt("17_0_Vertretungsliste_Standardansicht", () =>
+        {
+            // Standardansicht wie im Vorbild; verschobene Spalten bleiben gemerkt, „Standardansicht“ stellt die Reihenfolge wieder her
+            var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            var soll = new[] { "Vtr-Nr.", "Art", "Stunde", "Klasse(n)", "(Lehrer)", "Vertreter", "(Raum)", "Raum", "(Fach)", "Fach", "Vertr. von", "(Le.) nach", "Text" };
+            void Pruefen(string wann)
+            {
+                var ist = f.SichtbareSpalten();
+                if (!ist.SequenceEqual(soll)) throw new InvalidOperationException($"Spalten {wann} nicht wie im Vorbild: {string.Join(" | ", ist)}");
+            }
+            Pruefen("beim Öffnen");
+            f.SpalteVerschieben("Text", 1);
+            Warten(200);
+            if (f.SichtbareSpalten()[1] != "Text") throw new InvalidOperationException("Spalte ließ sich nicht verschieben");
+            f.Standardansicht();
+            Warten(200);
+            Pruefen("nach „Standardansicht“");
+            log.Add("INFO  Vertretungsliste Standardansicht: " + string.Join(" | ", soll));
+        }, -1);
         Schritt("17a_Vertretungen_Eingabe_Offene", () =>
         {
             // Vertreter und Text unter dem Filter „Offene Vertretungen“ eingeben: Zeile bleibt bis zum Zeilenwechsel, Fokus bleibt
@@ -620,6 +651,20 @@ public sealed partial class HauptFenster
             LayoutMdi(MdiLayout.TileVertical);
             Warten(300);
             log.Add("INFO  " + f.SelbsttestPlaeneFolgen());
+        }, -1);
+        Schritt("18c1_Vorschlag_zwei_Vertretungen_umrandet", () =>
+        {
+            // zwei markierte Vertretungen (benachbarte Stunden derselben Lehrkraft): im Vorschlag und im Lehrerplan beide Stunden umrandet
+            var offen = AppZustand.D.Vertretungen.Where(v => v.Datum == tag && v.Offen && v.Art == VertretungsArt.Vertretung).OrderBy(v => v.Stunde).ToList();
+            var paar = offen.SelectMany(a => offen.Where(b => b.Stunde - a.Stunde is 1 or 2 && b.LehrerId == a.LehrerId).Select(b => (a, b))).FirstOrDefault();
+            if (paar.a is null) paar = offen.SelectMany(a => offen.Where(b => b.Stunde - a.Stunde is 1 or 2).Select(b => (a, b))).FirstOrDefault();
+            if (paar.a is null) { log.Add("INFO  Mehrfachmarkierung: keine zwei offenen Vertretungen in benachbarten Stunden"); return; }
+            AppZustand.VertretungWaehlen(paar.a, new[] { paar.a.Id, paar.b.Id });
+            StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false);
+            var f = FensterOeffnen("vorschlag") as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+            LayoutMdi(MdiLayout.TileVertical);
+            Warten(300);
+            log.Add("INFO  " + f.SelbsttestMehrfachMarkiert());
         }, -1);
         Schritt("18d_Verlegung_Raeume_Frage", () =>
         {
@@ -1319,6 +1364,35 @@ public sealed partial class HauptFenster
             Warten(400);
             var bild = d.Controls.OfType<PictureBox>().First(p => p.Name == "Vorschau").Image;
             if (bild is null) throw new InvalidOperationException("Listen-Seitenlayout ohne Vorschau");
+        }, -1);
+        Schritt("27e_Meldungsfenster_Design", () =>
+        {
+            // alle Hinweis-, Frage- und Fehlerfenster im Design der Anwendung (auch Raumfragen) – keine Windows-Meldungsfenster
+            var arten = new (MeldungsArt Art, string Titel, string Text, string[] Knoepfe, bool Abbrechen)[]
+            {
+                (MeldungsArt.Info, "UntPlan", "Stundenplanänderungen wurden nacherfasst.", new[] { "OK" }, false),
+                (MeldungsArt.Frage, "UntPlan - Frage", "3 Absenz(en) löschen? Daraus entstandene Vertretungen werden entfernt.", new[] { "Ja", "Nein" }, false),
+                (MeldungsArt.Warnung, "UntPlan - Raum belegt", "Raum R104 ist in der 3. Stunde bereits durch 7a/Ma/MÜL belegt.", new[] { "Verlegen und Raumvertretung für meinen Unterricht", "Kollision erzeugen" }, true),
+                (MeldungsArt.Fehler, "UntPlan - Fehler", "Raum oder Raumgruppe \"X99\" ist nicht vorhanden.", new[] { "OK" }, false),
+            };
+            var x = 30;
+            foreach (var a in arten)
+            {
+                var f = Ui.MeldungsFenster(a.Text, a.Titel, a.Art, a.Knoepfe, 0, a.Abbrechen, null, new System.Runtime.CompilerServices.StrongBox<int?>());
+                f.StartPosition = FormStartPosition.Manual;
+                f.Location = new Point(x, 120 + (x - 30) / 3);
+                f.Show(this);
+                x += 380;
+                if (f.BackColor != Color.White || f.Controls.Find("Knopfleiste", false).Length != 1 || f.AcceptButton is not Button std || std.BackColor != Ui.Titel)
+                    throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ nicht im Design der Anwendung.");
+                var knoepfe = f.Controls.Find("Knopfleiste", false)[0].Controls.OfType<Button>().Select(b => b.Text).ToList();
+                if (knoepfe.Count != a.Knoepfe.Length + (a.Abbrechen ? 1 : 0)) throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“: Knöpfe {string.Join(", ", knoepfe)}.");
+            }
+            // Raumfrage der Verlegung („Räume mitnehmen oder belassen?“) nutzt dasselbe Fenster
+            var raum = Ui.AuswahlFenster("Die Stunde wird in einen anderen Raum verlegt.", "UntPlan - Räume mitnehmen oder belassen?", new[] { "Mitnehmen", "Belassen" }, 0, null, new System.Runtime.CompilerServices.StrongBox<int?>());
+            if (raum.Controls.Find("Knopfleiste", false).Length != 1) throw new InvalidOperationException("Raumfrage nicht im Design der Anwendung.");
+            raum.Dispose();
+            log.Add("INFO  Meldungsfenster: Info, Frage, Warnung (Raum belegt), Fehler und Raumfrage im Design der Anwendung");
         }, -1);
         Schritt("27c_Symbole", () =>
         {

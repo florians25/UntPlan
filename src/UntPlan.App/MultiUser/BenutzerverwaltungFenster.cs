@@ -47,7 +47,7 @@ public sealed class BenutzerverwaltungFenster : MdiFenster
         _benutzer.CellValueChanged += (_, e) => BenutzerGeaendert(e.RowIndex);
         _benutzer.CurrentCellDirtyStateChanged += (_, _) =>
         {
-            if (_benutzer.CurrentCell is DataGridViewComboBoxCell) _benutzer.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            Steuerelemente.SuchKombi.SofortUebernehmen(_benutzer, kontrollkaestchen: false);
         };
         _benutzer.DataError += (_, e) => e.Cancel = true;
         var ts = Werkzeugleiste();
@@ -81,7 +81,7 @@ public sealed class BenutzerverwaltungFenster : MdiFenster
         _gruppen.CellValueChanged += (_, e) => GruppeGeaendert(e.RowIndex);
         _gruppen.CurrentCellDirtyStateChanged += (_, _) =>
         {
-            if (_gruppen.CurrentCell is DataGridViewCheckBoxCell or DataGridViewComboBoxCell) _gruppen.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            Steuerelemente.SuchKombi.SofortUebernehmen(_gruppen);
         };
         _gruppen.DataError += (_, e) => e.Cancel = true;
         var ts = Werkzeugleiste();

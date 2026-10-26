@@ -88,6 +88,46 @@ public class VeranstaltungKarteTests
         Assert.Contains("aenderung", karte["marker"]!.AsArray().Select(x => x!.GetValue<string>()));
     }
 
+    private static readonly string[] Platzhalter = { "---", "???", "+", "+++" };
+
+    /// <summary>Veranstaltung ohne Lehrkräfte: nirgends „---“ (bzw. „???“) – weder auf den Karten noch im Vertretungsplan oder in der App-API.</summary>
+    [Fact]
+    public async Task Veranstaltung_ohne_Lehrkraefte_zeigt_kein_Platzhalterkuerzel()
+    {
+        var d = Demo.Beispielschule();
+        d.AktivePeriode.Plan = Optimierer.Optimieren(d, new OptimierungsOptionen { Strategie = Strategie.A, AnzahlPlaene = 1, Seed = 3 })[0].Plan;
+        var tp = Tagesplan.Berechnen(d, Do);
+        var raum = d.Raeume.First(x => !x.Ignorieren && !tp.Stunde(3).Any(e => e.RaumIds.Contains(x.Id)));
+        var klasse = d.Klassen.First(k => !k.Ignorieren);
+        d.Veranstaltungen.Add(new Veranstaltung { Id = d.NeueId(), Von = Do, Bis = Do, StundeVon = 3, StundeBis = 3, KlassenIds = { klasse.Id },
+            RaumIds = { raum.Id }, Text = "Schulfest" });
+        Vertretungen.Aktualisieren(d, Do);
+        var ix = new DatenIndex(d);
+        var paket = Paket(d);
+        var s = new Stand(paket, "");
+        var plan = new Plandienst();
+        var (kl, rk) = (ix.K(ElementTyp.Klasse, klasse.Id), ix.K(ElementTyp.Raum, raum.Id));
+        foreach (var (typ, el) in new[] { ("klasse", kl), ("raum", rk) })
+        {
+            var karten = plan.Karten(s, Do, typ, el).Where(x => x.Von <= 3 && x.Bis >= 3 && (x.Status == "veranstaltung" || x.Art.StartsWith("Veranst"))).ToList();
+            Assert.True(karten.Count > 0, typ + ": " + string.Join(" | ", plan.Karten(s, Do, typ, el).Select(x => $"{x.Von}-{x.Bis} {x.Status} {x.Art} {x.Text} L={string.Join(",", x.Lehrer.Select(w => w.K + "/" + w.Alt))}"))
+                + " || ROWS " + string.Join(" | ", paket.Tage.Single(t => t.Datum == $"{Do:yyyy-MM-dd}").Stunden.Where(x => x.Stunde == 3).Select(x => $"{x.Status} {x.Fach} {string.Join(",", x.Klassen)} L={string.Join(",", x.Lehrer)} V={x.Vertretung} Va={x.Veranstaltung}"))
+                + " || VT " + string.Join(" | ", paket.Vertretungen.Where(v => v.Id == 228 || v.Id == 227).Select(v => $"{v.Id} {v.Art} {v.Lehrer}->{v.Vertreter} {string.Join(",", v.Klassen)}")));
+            Assert.All(karten, k => Assert.DoesNotContain(k.Lehrer, w => Platzhalter.Contains(w.K) || (w.K.Length == 0 && string.IsNullOrEmpty(w.Alt))));
+        }
+        var vp = new Vertretungsplandienst(plan, new UntPlanWeb.Daten.Db(Directory.CreateTempSubdirectory("untplanweb-test-").FullName)).Tag(s, Do, true);
+        Assert.All(vp.Zeilen.Where(z => z.Art.StartsWith("Veranst")), z => Assert.DoesNotContain(z.Lehrer.Split(',', StringSplitOptions.TrimEntries), Platzhalter.Contains));
+
+        await using var server = await Testserver.StartenAsync(mitPaket: false);
+        var p = new PortalEinstellungen { Adresse = server.Adresse.ToString(), SchulId = Testserver.SchulId, ApiSchluessel = Testserver.ApiSchluessel };
+        Assert.True((await UntPlanWebExport.HochladenAsync(p, paket with { Revision = 1 })).Ok);
+        var c = await server.AlsAsync("schueler1", "schueler", kl);
+        var json = (await Testserver.HolenAsync(c, $"/api/app/plan?typ=klasse&element={Uri.EscapeDataString(kl)}&datum={Do:yyyy-MM-dd}"))["karten"]!.AsArray()
+            .Select(x => x!).Where(x => x["datum"]!.GetValue<string>() == $"{Do:yyyy-MM-dd}" && x["text"]?.GetValue<string>() == "Schulfest").ToList();
+        Assert.NotEmpty(json);
+        Assert.All(json, k => Assert.DoesNotContain(k["lehrer"]!.AsArray(), w => Platzhalter.Contains(w!["k"]!.GetValue<string>())));
+    }
+
     /// <summary>Web (plangitter.js): Reihenfolge Lehrkräfte · Text · „+Raum“; ohne Lehrkräfte der Text oben.</summary>
     [Fact]
     public void Web_Karte_Lehrkraefte_Text_Raum()

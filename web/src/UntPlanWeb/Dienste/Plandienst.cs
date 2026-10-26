@@ -457,7 +457,7 @@ public sealed class Plandienst
         // Zusatzstunde ohne Unterricht (z. B. Konferenz, Besprechung, Sondereinsatz mehrerer Lehrkräfte – UntPlan legt je Lehrkraft eine
         // eigene Zeile an, oft ohne Fach): gleiche Stunde, gleiches (auch leeres) Fach, gleiche Räume und Klassen, ohne Fach auch gleicher
         // Text – im Lehrerplan stehen dann ebenfalls alle beteiligten Lehrkräfte auf der gemeinsamen Karte
-        string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) ? vv.Art ?? "" : "";
+        string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) && (vv.Art ?? "").Length > 0 ? vv.Art! : VeranstaltungsArt(x);
         bool ZusatzOhneUnterricht(Rohstunde x) => x.Unterricht is null && x.Status == "zusaetzlich" && (x.Fach.Length > 0 || x.Klassen.Count > 0 || x.Text.Trim().Length > 0)
             && !IstKlausur(ArtVon(x)) && !IstBuchung(ArtVon(x)) && !ArtVon(x).StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) && x.Klausur is null;
         static bool GleicheKlassen(Rohstunde a, Rohstunde b) => a.Klassen.Count == b.Klassen.Count && a.Klassen.All(x => Enthaelt(b.Klassen, x));
@@ -468,7 +468,7 @@ public sealed class Plandienst
                 ? r.Fach.Length > 0 && roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz))
                 : ZusatzOhneUnterricht(r) && roh.Any(x => !ReferenceEquals(x, r) && ZusatzOhneUnterricht(x) && GleicherZusatz(x, r) && Enthaelt(x.Lehrer, kurz)));
         // Kolleg*innen derselben Stunde (Kopplungszeilen desselben Unterrichts bzw. gemeinsame Zusatzstunde ohne Unterricht): auf der Karte
-        // der abwesenden Lehrkraft stehen sie schlicht neben der Vertretung (Label) – in der Reihenfolge der Zeilen, jede Lehrkraft einmal
+        // der abwesenden Lehrkraft stehen sie schlicht neben der Vertretung (Label) – in der Reihenfolge der Zeilen, jede Lehrkraft je Rolle einmal
         Karte MitKollegen(Karte k, Rohstunde r)
         {
             bool Gruppe(Rohstunde x) => ReferenceEquals(x, r) || (x.Stunde == r.Stunde && x.Status is not ("entfall" or "vorgemerkt" or "offen") && x.Art != "KlausurLoeschen"
@@ -485,7 +485,12 @@ public sealed class Plandienst
                     liste.Add(xv != null && x.Status == "vertreten" && xv.Lehrer.Length > 0 && Ci.Equals(xv.Vertreter, l) && !Ci.Equals(xv.Lehrer, l) ? new Wert(l, xv.Lehrer, true) : new Wert(l));
             }
             var lehrer = LehrerEinmal(liste);
-            return lehrer.Count > k.Lehrer.Count ? k with { Lehrer = lehrer } : k;
+            if (lehrer.Count <= k.Lehrer.Count) return k;
+            // ebenso alle Klassen der Stunde (wie auf den Karten der Kolleg*innen), alphabetisch
+            var klassen = k.Klassen.Concat(zeilen.Where(x => !ReferenceEquals(x, r)).SelectMany(x => x.Klassen).Where(x => x.Length > 0).Select(x => new Wert(x)))
+                .DistinctBy(w => (w.K.Length > 0 ? w.K : w.Alt ?? "").ToLowerInvariant())
+                .OrderBy(w => w.K.Length > 0 ? w.K : w.Alt ?? "", StringComparer.OrdinalIgnoreCase).ToList();
+            return k with { Lehrer = lehrer, Klassen = klassen };
         }
         // vorgemerkte Löschungen von Prüfungen (werden unten angewandt)
         var loeschungen = roh.Where(r => r.Status == "vorgemerkt" && r.Art == "KlausurLoeschen").ToList();
@@ -578,7 +583,8 @@ public sealed class Plandienst
             .Select(g => g.First() with
             {
                 Klassen = g.SelectMany(k => k.Klassen).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
-                Lehrer = g.SelectMany(k => k.Lehrer).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
+                // ohne Lehrkräfte kein Platzhalter („---“)
+                Lehrer = g.SelectMany(k => k.Lehrer).Where(w => w.K is not ("---" or "+" or "+++") && (w.K.Length > 0 || !string.IsNullOrEmpty(w.Alt))).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => RaeumeHinzugefuegt(MitTermin(s, d, k, l => Abwesend(l, k.Von))))).ToList();
@@ -889,7 +895,7 @@ public sealed class Plandienst
         var absenzen = KlassenAbsenzen(s, d, out _);
         if (absenzen.Count == 0) return roh;
         bool Abwesend(string klasse, int stunde) => absenzen.Any(a => Ci.Equals(a.Element, klasse) && StundeInAbsenz(a, d, stunde));
-        string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) ? vv.Art ?? "" : "";
+        string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) && (vv.Art ?? "").Length > 0 ? vv.Art! : VeranstaltungsArt(x);
         static HashSet<string> Raeume(Rohstunde x) => x.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
         static IEnumerable<string> Personen(Rohstunde x) => x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++"));
         bool Gemeinsam(Rohstunde a, Rohstunde b) => a.Stunde == b.Stunde && Ci.Equals(a.Fach, b.Fach) && Raeume(a).SetEquals(Raeume(b))
@@ -1065,19 +1071,29 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Jede Lehrkraft nur einmal auf der Karte: steht ein Kürzel zugleich schlicht und als Änderung (z. B. vertritt eine beteiligte Lehrkraft
-    /// zusätzlich eine abwesende Kollegin derselben Konferenz), bleibt nur der geänderte Wert (Label) – an der Stelle des ersten Auftretens.
-    /// Werte ohne Kürzel (abwesend, offen) bleiben unverändert.
+    /// Jede Lehrkraft je Rolle nur einmal auf der Karte: doppelt ist nur derselbe Wert in derselben Rolle (schlicht bzw. hinzugekommen
+    /// zweimal, dieselbe Vertretung zweimal). Nimmt eine beteiligte Lehrkraft regulär teil UND vertritt zusätzlich eine abwesende Kollegin
+    /// derselben Kopplung, steht sie zweimal da – schlicht für den eigenen Teil und als Label für die Vertretung („CS, SZ [CS]“); der
+    /// schlichte Wert steht dabei vor dem Label. Werte ohne Kürzel (abwesend, offen) bleiben unverändert.
     /// </summary>
     public static List<Wert> LehrerEinmal(IEnumerable<Wert> lehrer)
     {
-        static int Rang(Wert w) => !string.IsNullOrEmpty(w.Alt) ? 2 : w.Neu || w.Plus ? 1 : 0;
+        static bool Label(Wert w) => !string.IsNullOrEmpty(w.Alt);
         var res = new List<Wert>();
         foreach (var w in lehrer)
         {
-            var i = w.K.Length == 0 ? -1 : res.FindIndex(x => Ci.Equals(x.K, w.K));
-            if (i < 0) res.Add(w);
-            else if (Rang(w) > Rang(res[i])) res[i] = w;
+            if (w.K.Length == 0) { res.Add(w); continue; }
+            // gleiche Rolle: schlicht/hinzugekommen bzw. Vertretung derselben Lehrkraft
+            var i = res.FindIndex(x => Ci.Equals(x.K, w.K) && Label(x) == Label(w) && (!Label(w) || Ci.Equals(x.Alt, w.Alt)));
+            if (i >= 0)
+            {
+                if (!Label(w) && w.Neu && !res[i].Neu) res[i] = w;
+                continue;
+            }
+            // schlichter Wert einer Lehrkraft, die schon als Vertretung dasteht: vor das Label
+            var j = Label(w) ? -1 : res.FindIndex(x => Ci.Equals(x.K, w.K) && Label(x));
+            if (j >= 0) res.Insert(j, w);
+            else res.Add(w);
         }
         return res;
     }
@@ -1128,9 +1144,17 @@ public sealed class Plandienst
     public static bool IstKlausur(string? art) => !string.IsNullOrEmpty(art) &&
         (art.StartsWith("Klausur", StringComparison.OrdinalIgnoreCase) || art.StartsWith("Prüfung", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// Zusatzzeile einer Veranstaltung, deren Vertretungszeile nicht im Paket steht (Veranstaltung ohne Lehrkräfte – der Vertretungsplan
+    /// des Desktops führt sie nicht): an der Veranstaltungs-Id erkennbar, Art „Veranstaltung“ – sonst wäre es eine Zusatzstunde ohne
+    /// Lehrkraft („---“).
+    /// </summary>
+    private static string VeranstaltungsArt(Rohstunde r) =>
+        r.Status == "zusaetzlich" && r.Veranstaltung.HasValue && !r.Unterricht.HasValue && r.Klausur is null ? "Veranstaltung" : "";
+
     private Karte KarteBauen(Stand s, DateOnly d, string typ, string kurz, Rohstunde r, WebVertretung? v, Dictionary<int, WebStundenzeit> zeiten)
     {
-        var art = r.Art.Length > 0 ? r.Art : v?.Art ?? "";
+        var art = r.Art.Length > 0 ? r.Art : v != null && (v.Art ?? "").Length > 0 ? v.Art! : VeranstaltungsArt(r);
         // Buchungen (Raum) und Klausuren sind keine Vertretungen: kein Status „geändert“, keine Vertretungsart, kein Vertretungstext
         var buchung = r.Status == "vertreten" && IstBuchung(art);
         var klausur = r.Status == "vertreten" && IstKlausur(art);

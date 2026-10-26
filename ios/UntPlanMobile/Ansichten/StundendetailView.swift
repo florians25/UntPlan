@@ -452,13 +452,13 @@ struct StundendetailInhalt: View {
         return ergebnis
     }
 
-    /// Veranstaltung: jede Lehrkraft bzw. jeder Raum nur einmal.
+    /// Veranstaltung: jede Lehrkraft bzw. jeder Raum nur einmal; ohne Lehrkräfte kein Platzhalter („---“, „???“).
     private func einmal(_ werte: [Wert]) -> [Wert] {
         guard istVeranstaltung else { return werte }
         var ergebnis: [Wert] = []
         for w in werte {
             let t = w.k.isEmpty ? (w.alt ?? "") : w.k
-            if t.isEmpty || ergebnis.contains(where: { ($0.k.isEmpty ? ($0.alt ?? "") : $0.k).caseInsensitiveCompare(t) == .orderedSame }) { continue }
+            if t.isEmpty || Kachelbau.platzhalter.contains(t) || ergebnis.contains(where: { ($0.k.isEmpty ? ($0.alt ?? "") : $0.k).caseInsensitiveCompare(t) == .orderedSame }) { continue }
             ergebnis.append(w)
         }
         return ergebnis

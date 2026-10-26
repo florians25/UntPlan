@@ -234,6 +234,9 @@ function zeileHtml(klasse, x, kompakt = false, voll = '') {
 }
 const zeilenText = x => x && typeof x === 'object' ? x.inline : x;
 
+/** Platzhalter statt einer Lehrkraft (zusätzlicher Unterricht ohne Lehrkraft, offene Vertretung). */
+const PLATZHALTER = ['---', '???', '+', '+++'];
+
 export function karteInhalt(k, typ, kompakt = false) {
   const entfall = istEntfall(k, typ);
   // online: kein Raumlabel (auch kein künstliches) – nur das Symbol unten auf der Karte
@@ -248,7 +251,8 @@ export function karteInhalt(k, typ, kompakt = false) {
     // Veranstaltung: mit eingetragenen Lehrkräften oben die Lehrkräfte (lange Listen nur mit „…“ gekürzt), darunter der Text der
     // Veranstaltung (Information zur Stunde), dann der Raum – ein hinzugefügter Wert („+A103“-Label) –, zuletzt die Klassen.
     // Ohne Lehrkräfte (bzw. im eigenen Lehrerplan nur die eigene) steht der Text oben.
-    const lehrer = (k.lehrer || []).filter(w => w.k || w.alt);
+    // ohne Lehrkräfte kein Platzhalter („---“, „???“)
+    const lehrer = (k.lehrer || []).filter(w => (w.k || w.alt) && !PLATZHALTER.includes(w.k || ''));
     const lehrerZeile = lehrer.length && (typ !== 'lehrer' || lehrer.length > 1) ? werteListe(lehrer, entfall, true) : '';
     titel = e(k.text || k.art || '—');
     oben = lehrerZeile || titel;

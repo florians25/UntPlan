@@ -526,13 +526,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
         foreach (var a in absenzen.Where(a => a.Art == AbwesenheitsArt.Lehrer).ToList())
             foreach (var u in VeranstaltungsLogik.Ueberlappungen(d, a))
             {
-                var frage = MessageBox.Show(owner, VeranstaltungsLogik.FrageText(d, a, u), "UntPlan - Frage", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
-                if (frage != DialogResult.Yes) continue;
+                if (!Ui.Frage(VeranstaltungsLogik.FrageText(d, a, u), "UntPlan - Frage", owner)) continue;
                 var vaId = u.Veranstaltung.Id;
                 var tage = u.Tage.ToList();
                 var absId = a.Id;
                 if (aendern("Lehrer aus Veranstaltung entfernt", x => VeranstaltungsLogik.LehrerEntfernen(x, vaId, u.LehrerId, tage, absId)))
-                    MessageBox.Show(owner, VeranstaltungsLogik.HinweisText(AppZustand.D, u), "UntPlan - Hinweis", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Ui.Warnung(VeranstaltungsLogik.HinweisText(AppZustand.D, u), "UntPlan - Hinweis", owner);
             }
     }
 

@@ -49,9 +49,8 @@ public static class BehinderungsAbfrage
                    "\n\nJa: behindernden Unterricht entplanen (er erscheint unter „nicht verplant“)" +
                    (nein ? "\nNein: trotzdem ausführen – die Kollision bleibt bestehen" : "") + "\nAbbrechen: nichts ändern";
         if (Ui.FrageAntwort is { } antwort) return antwort(text, Titel) ? BehinderungsAntwort.Entplanen : nein ? BehinderungsAntwort.KollisionZulassen : BehinderungsAntwort.Abbrechen;
-        var r = owner is null
-            ? MessageBox.Show(text, Titel, nein ? MessageBoxButtons.YesNoCancel : MessageBoxButtons.OKCancel, MessageBoxIcon.Question)
-            : MessageBox.Show(owner, text, Titel, nein ? MessageBoxButtons.YesNoCancel : MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+        var r = nein ? Ui.JaNeinAbbrechen(text, Titel, MeldungsArt.Frage, 0, owner)
+            : Ui.Meldung(text, Titel, MeldungsArt.Frage, new[] { "OK" }, 0, true, owner) == 0 ? DialogResult.OK : DialogResult.Cancel;
         return r switch
         {
             DialogResult.Yes or DialogResult.OK => BehinderungsAntwort.Entplanen,

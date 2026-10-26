@@ -1665,7 +1665,8 @@ struct RasterSeite: View, Equatable {
 
     /// Ferien und Feiertage: hellblaue Spalte über den ganzen Tag mit Schloss (Vorlage: „Ferien / pädagogischer Tag“).
     private func ferienfeld(_ tag: Tageskopf) -> some View {
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
+        // Ecken wie die Zählerkarte (leicht abgerundet)
+        RoundedRectangle(cornerRadius: ZaehlstreifenView.eckenRadius, style: .continuous)
             .fill(Farben.ferienHintergrund)
             .overlay {
                 // Vorlage 179: Schloss 10,5 pt, Bezeichnung 13 pt Semibold, Datum 12,5 pt Semibold ohne führende Nullen

@@ -194,8 +194,14 @@ public class StundendetailsTests
         var ende = js.IndexOf("/* TRENNER-ENDE */", StringComparison.Ordinal);
         Assert.True(beginn > 0 && ende > beginn);
         var abschnitt = js[beginn..ende];
-        Assert.Contains("const KACHEL_TRENNER = ', ';", abschnitt);
+        Assert.Contains("const KACHEL_TRENNER = ',';", abschnitt);
         Assert.Contains("const DETAIL_TRENNER = ' | ';", abschnitt);
+        // Kopplungen auf der Kachel ohne Leerzeichen nach dem Komma („CS,SZ“, „INF13,ING13“) – auch in der iOS-App
+        Assert.DoesNotContain("'<i class=\"tok__trenn\">,</i> '", js);
+        var ios = File.ReadAllText(Path.Combine(Umgebung.Wurzel(), "ios", "UntPlanMobile", "Dienste", "Kachelbau.swift"));
+        Assert.DoesNotContain("trenner: \", \"", ios);
+        Assert.DoesNotContain("trenner = \", \"", ios);
+        Assert.DoesNotContain("? \", \" : \"\"", ios);
         // Auf den Kacheln kein „ | “ mehr (Lehrerleiste, Veranstaltungen)
         Assert.DoesNotContain("join(' | ')", js);
         Assert.DoesNotContain("<i class=\"tok__trenn\"> | </i>", js);
@@ -217,8 +223,8 @@ public class StundendetailsTests
 
             const t = window.UntPlanTrenner;
             const pruefe = (ist, soll) => { if (ist !== soll) { console.error(JSON.stringify(ist) + ' statt ' + JSON.stringify(soll)); process.exit(1); } };
-            pruefe(t.kachelWert('SWA,SNE'), 'SWA, SNE');
-            pruefe(t.kachelWert('SWA | SNE'), 'SWA, SNE');
+            pruefe(t.kachelWert('SWA,SNE'), 'SWA,SNE');
+            pruefe(t.kachelWert('SWA | SNE'), 'SWA,SNE');
             pruefe(t.kachelWert('R101'), 'R101');
             pruefe(t.kachelWert(''), '');
             pruefe(t.detailWert('SWA,SNE'), 'SWA | SNE');

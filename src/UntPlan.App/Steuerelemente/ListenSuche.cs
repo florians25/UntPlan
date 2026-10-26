@@ -111,6 +111,7 @@ public static class ListenSuche
         cb.ItemHeight = Math.Max(cb.ItemHeight, 19);
         cb.IntegralHeight = false;
         cb.DrawItem += Zeichnen;
+        cb.MouseWheel += (_, e) => Mausrad(cb, e);
         VorherMerken(cb, z);
         cb.Enter += (_, _) => VorherMerken(cb, z);
         // Wert ohne Tippen geändert (Programm, Durchschalter, Klick in die Liste): neuer Ausgangswert
@@ -124,7 +125,7 @@ public static class ListenSuche
             if (!z.Getippt && cb.SelectedIndex >= 0)
             {
                 var i = cb.SelectedIndex;
-                cb.BeginInvoke(() => { if (!cb.IsDisposed && cb.DroppedDown && !z.Getippt) ListeMarkieren(cb, i); });
+                cb.BeginInvoke(() => { if (Bedienbar(cb) && cb.DroppedDown && !z.Getippt) ListeMarkieren(cb, i); });
             }
         };
         cb.DropDownClosed += (_, _) =>
@@ -135,7 +136,9 @@ public static class ListenSuche
             if (!cb.IsHandleCreated) return;
             cb.BeginInvoke(() =>
             {
-                if (cb.IsDisposed || cb.DroppedDown) return;
+                // Tabellen-Editor: Bearbeitung inzwischen beendet bzw. andere Zelle – nichts mehr ändern
+                if (!Bedienbar(cb)) { z.Getippt = false; return; }
+                if (cb.DroppedDown) return;
                 if (z.Getippt && !IstEintrag(cb, cb.Text.Trim())) { Zuruecksetzen(cb, z); return; }
                 // ohne Tippen bzw. mit gültigem Eintrag geschlossen: das ist der neue Ausgangswert
                 if (cb.SelectedIndex >= 0 || !z.Getippt) VorherMerken(cb, z);
@@ -162,6 +165,56 @@ public static class ListenSuche
                 e.Handled = e.SuppressKeyPress = true;
             }
         };
+    }
+
+    /// <summary>Aktuellen Wert als Ausgangswert merken (z. B. nachdem eine Tabelle die Liste für eine neue Zelle gesetzt hat).</summary>
+    public static void AusgangswertMerken(ComboBox cb)
+    {
+        if (Zustaende.TryGetValue(cb, out var z)) { z.Markiert = -1; VorherMerken(cb, z); }
+    }
+
+    /// <summary>
+    /// Getippten Suchtext bzw. markierten Treffer übernehmen (vor dem Beenden einer Tabellen-Eingabe mit Enter): liefert false,
+    /// wenn es keinen Treffer gibt – dann ist der Ausgangswert wiederhergestellt.
+    /// </summary>
+    public static bool SuchtextUebernehmen(ComboBox cb)
+    {
+        if (!Zustaende.TryGetValue(cb, out var z) || (!z.Getippt && z.Markiert < 0)) return true;
+        if (Uebernehmen(cb, z)) return true;
+        Zuruecksetzen(cb, z);
+        return false;
+    }
+
+    /// <summary>
+    /// Darf die Liste noch verändert werden? Der Editor einer Tabelle wird für jede Zelle wiederverwendet: nach dem Ende der
+    /// Bearbeitung bzw. nach einem Zellwechsel dürfen verzögerte Schritte (Schließen der Liste) nichts mehr ändern – sonst
+    /// meldete die Liste der Tabelle eine Änderung, die dann in der neuen Zelle landete.
+    /// </summary>
+    private static bool Bedienbar(ComboBox cb) =>
+        !cb.IsDisposed && (cb is not IDataGridViewEditingControl ec ||
+                           (ec.EditingControlDataGridView is { } g && g.IsCurrentCellInEditMode && g.EditingControl == cb && g.CurrentCell?.RowIndex == ec.EditingControlRowIndex));
+
+    /// <summary>
+    /// Mausrad über einer geschlossenen Liste: in Tabellen blättert die Tabelle (statt still den Wert der Zelle zu ändern),
+    /// sonst ändert das Rad den Wert nur, wenn die Liste den Fokus hat (nicht beim Blättern über das Fenster hinweg).
+    /// </summary>
+    private static void Mausrad(ComboBox cb, MouseEventArgs e)
+    {
+        if (cb.DroppedDown || e is not HandledMouseEventArgs h) return;
+        if (cb is IDataGridViewEditingControl { EditingControlDataGridView: { } g })
+        {
+            h.Handled = true;
+            if (g.Rows.Count == 0) return;
+            var zeilen = Math.Max(1, SystemInformation.MouseWheelScrollLines) * -Math.Sign(e.Delta);
+            try
+            {
+                var erste = Math.Clamp(g.FirstDisplayedScrollingRowIndex + zeilen, 0, g.Rows.Count - 1);
+                if (erste >= 0 && g.Rows[erste].Visible && !g.Rows[erste].Frozen) g.FirstDisplayedScrollingRowIndex = erste;
+            }
+            catch (InvalidOperationException) { }
+            return;
+        }
+        if (!cb.Focused) h.Handled = true;
     }
 
     /// <summary>Ist gerade ein getippter, noch nicht übernommener Suchtext in der Liste?</summary>

@@ -695,9 +695,12 @@ struct ZaehlstreifenView: View {
     /// Vorlage 178/179 (2,289 px/pt): Streifen 12 pt breit, Ecken ≈ 1,5 pt, Fläche in der Farbe der verdeckten Stunde –
     /// Entfall #df0046, Vertretung #00916d (Rahmenfarbe der grünen Karte), Prüfung #9f532c, jeweils mit weißer Zahl;
     /// sonst wie eine Karte (weiß bzw. vergangen #f3f5f7) mit grauer Zahl (#3f525e); Zahl 11 pt mittig; Kartenschatten.
+    /// Ecken der Zählerkarte und der Ferienspalte (gleicher Wert): auf Wunsch etwas runder als die gemessenen ≈ 1,5–2 pt
+    static let eckenRadius: CGFloat = 3
+
     var body: some View {
         let farben = farbe
-        let form = RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+        let form = RoundedRectangle(cornerRadius: Self.eckenRadius, style: .continuous)
         Text("\(streifen.kacheln.count)")
             .font(.system(size: 11, weight: .regular))
             .foregroundStyle(farben.text)
@@ -705,7 +708,7 @@ struct ZaehlstreifenView: View {
             .background(farben.flaeche, in: form)
             // Hell wie in der Vorlage mit demselben Schatten wie die Karten (dunkel ohne)
             .background {
-                if schema != .dark { Kartenschatten(radius: 1.5, voll: !streifen.vergangen) }
+                if schema != .dark { Kartenschatten(radius: Self.eckenRadius, voll: !streifen.vergangen) }
             }
             .accessibilityLabel("\(streifen.kacheln.count) weitere Stunden")
             .accessibilityAddTraits(.isButton)

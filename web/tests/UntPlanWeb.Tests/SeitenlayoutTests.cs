@@ -109,6 +109,22 @@ public class SeitenlayoutTests
         Assert.Contains("table.u-karten-tabelle", css);
     }
 
+    /// <summary>Auch auf großen Monitoren immer die volle Breite: keine Höchstbreiten der Seiten-Container (zuletzt geladene Regeln).</summary>
+    [Fact]
+    public void Alle_Seiten_nutzen_die_volle_Breite()
+    {
+        var css = Datei("css", "seitenlayout.css");
+        var volle = css[css.LastIndexOf("Volle Breite", StringComparison.Ordinal)..];
+        Assert.Contains(":root { --u-seite-max: none; --u-seite-mittel: none; --u-seite-schmal: none; }", volle);
+        foreach (var c in new[] { ".u-inhalt .heute", ".heute", ".alt-seite", ".kbe", ".ub", ".mf-seite", ".bu-assistent", ".st-formular", ".sd-abschnitt", ".kb-uebersicht" })
+            Assert.Contains(c, volle);
+        Assert.Contains(".u-app[data-ansicht=\"mitteilungen\"] .u-inhalt > #seite { max-width: none; margin-left: 0; margin-right: 0; }", volle);
+        // nach seitenlayout.css lädt nur noch karten.css – ohne Seiten-Container
+        Assert.DoesNotContain(".u-inhalt", Datei("css", "karten.css"));
+        Assert.DoesNotContain("max-width:860px", Datei("js", "ansichten", "profil.js"));
+        Assert.DoesNotContain("max-width:1100px", Datei("js", "ansichten", "profil.js"));
+    }
+
     [Fact]
     public void Suchfeld_und_Segment_als_gemeinsame_Komponenten()
     {
