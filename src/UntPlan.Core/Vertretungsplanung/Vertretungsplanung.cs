@@ -1809,6 +1809,7 @@ public static class Vertretungsplan
             }
             res.Add(new PlanZeile(
                 v.Datum, v.Stunde, ix.KKlassen(v.NeueKlassenIds), ix.KLehrer(v.LehrerId),
+                (v.IstEntfall || v.Art == VertretungsArt.Vormerkung) && v.VeranstaltungId is int vaOhne && veranstaltungen.TryGetValue(vaOhne, out var vaO) && VeranstaltungsLogik.OhneLehrer(vaO, v.Datum) ? "" :
                 v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++" :
                 v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : v.Art == VertretungsArt.Veranstaltung ? "" : "???",
                 ix.KFach(v.FachId), ix.KFach(v.VertretungsfachId ?? v.FachId),

@@ -200,7 +200,12 @@ public sealed class Rueckmeldungsdienst
     /// ohne Vertretungstext und ohne zusätzliche Stunde. Frühere offene Buchungen derselben Stunde werden ersetzt;
     /// entspricht die Liste wieder den ursprünglichen Räumen, wird nur zurückgesetzt (Ergebnis null).
     /// </summary>
-    public Meldung? Raumaenderung(Stand s, Benutzer b, DateOnly d, int stundeVon, int stundeBis, int unterricht, IEnumerable<string> raeume)
+    /// <param name="bisherKarte">
+    /// Räume des Blocks vor der Änderung, wie er in den Details stand (Kopplung bzw. Stunde mehrerer Klassen mit mehreren Blöcken in eigenen
+    /// Räumen): raeume ist dann die neue Raumliste nur dieses Blocks – die Räume der übrigen Blöcke bleiben in der gespeicherten Liste des
+    /// Unterrichts. Ohne Angabe (ältere Oberflächen) gilt raeume für den ganzen Unterricht.
+    /// </param>
+    public Meldung? Raumaenderung(Stand s, Benutzer b, DateOnly d, int stundeVon, int stundeBis, int unterricht, IEnumerable<string> raeume, IEnumerable<string>? bisherKarte = null)
     {
         if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Räume buchen.");
         if (!Rechtedienst.Darf(b, Recht.BuchungRaum)) throw new UnauthorizedAccessException("Ihr Konto darf keine Räume buchen.");
@@ -213,6 +218,16 @@ public sealed class Rueckmeldungsdienst
         var neu = raeume.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
         if (neu.FirstOrDefault(x => !s.Raeume.ContainsKey(x)) is { } unbekannt) throw new ArgumentException($"Unbekannter Raum {unbekannt}.");
         neu = neu.Select(x => s.Raeume[x].Kurz).ToList();
+        // nur ein Block des Unterrichts (Kopplung mit eigenen Räumen): die Räume der übrigen Blöcke bleiben
+        var block = (bisherKarte ?? Array.Empty<string>()).SelectMany(Plandienst.RaumListe).Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
+        if (block.Count > 0)
+        {
+            // aktuelle Räume des Unterrichts: mit einer noch offenen Raumänderung derselben Stunde deren Liste
+            var vorige = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = 'raumbuchung' AND unterricht = @u AND von = @d AND stunde_von <= @b AND stunde_bis >= @v ORDER BY erstellt",
+                Lesen, Db.P("@u", unterricht), Db.P("@d", Plandienst.Iso(d)), Db.P("@v", v), Db.P("@b", bi)).LastOrDefault();
+            var aktuell = vorige is { Raeume.Count: > 0 } ? vorige.Raeume : bisher;
+            neu = neu.Concat(aktuell.Where(x => !block.Contains(x, Ci))).Distinct(Ci).ToList();
+        }
         var original = _plan.UrspruenglicheRaeume(s, d, unterricht, v, bi);
         foreach (var x in neu.Where(x => !bisher.Contains(x, Ci)))
         {
@@ -224,7 +239,13 @@ public sealed class Rueckmeldungsdienst
         _db.Ausfuehren("DELETE FROM rueckmeldungen WHERE status = 'offen' AND typ = 'raumbuchung' AND unterricht = @u AND von = @d AND stunde_von <= @b AND stunde_bis >= @v",
             Db.P("@u", unterricht), Db.P("@d", Plandienst.Iso(d)), Db.P("@v", v), Db.P("@b", bi));
         if (neu.Count == bisher.Count && neu.All(x => bisher.Contains(x, Ci))) return null;
-        var klassen = stunden.SelectMany(r => r.Klassen).Distinct(Ci).ToList();
+        // Klassen der betroffenen Zeile(n): UntPlan ordnet die Meldung über Unterricht und Klassen EINER Zeile zu – Klassen mehrerer
+        // Zeilen (Kopplung: je Klasse eine Zeile) fände dort keine Stunde und würde zur zusätzlichen Stunde. Betroffen sind die Zeilen, deren
+        // Raum wegfällt (sonst – nur ein Raum hinzugefügt – alle); deren erste nennt die Klassen.
+        var betroffen = stunden.Where(r => r.Raeume.Count == 0 || r.Raeume.SelectMany(Plandienst.RaumListe).Any(x => !neu.Contains(x, Ci))).ToList();
+        if (betroffen.Count == 0) betroffen = stunden;
+        var zeile = betroffen.FirstOrDefault(r => r.Klassen.Count > 0 && betroffen.All(x => x.Klassen.All(k => r.Klassen.Contains(k, Ci)))) ?? betroffen.First();
+        var klassen = (zeile.Klassen.Count > 0 ? zeile.Klassen : stunden.SelectMany(r => r.Klassen)).Distinct(Ci).ToList();
         return Speichern(Neu(WebRueckmeldungsTypen.Raumbuchung, b) with
         {
             Von = Plandienst.Iso(d), StundeVon = v, StundeBis = bi, Raum = neu.FirstOrDefault(x => !bisher.Contains(x, Ci)), Raeume = neu, Klassen = klassen,
@@ -431,7 +452,9 @@ public sealed class Rueckmeldungsdienst
         if (m.Typ == WebRueckmeldungsTypen.Raumbuchung && m.Unterricht is int u && m.Raeume.Count > 0)
         {
             var stunden = _plan.Rohstunden(s, d).Where(r => r.Unterricht == u && r.Stunde >= von && r.Stunde <= bis && r.Status != "entfall").ToList();
-            return stunden.Count > 0 && stunden.All(r => r.Raeume.Count == m.Raeume.Count && r.Raeume.All(x => m.Raeume.Contains(x, Ci))) && stunden.Any(r => r.Status != "regulaer");
+            // Kopplung: die Raumliste gilt für den ganzen Unterricht (alle Zeilen zusammen, je Stunde)
+            return stunden.Count > 0 && stunden.GroupBy(r => r.Stunde).All(g => g.SelectMany(r => r.Raeume.SelectMany(Plandienst.RaumListe)).Where(x => x.Length > 0).ToHashSet(Ci).SetEquals(m.Raeume))
+                   && stunden.Any(r => r.Status != "regulaer");
         }
         return false;
     }

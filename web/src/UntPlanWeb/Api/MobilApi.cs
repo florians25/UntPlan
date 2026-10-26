@@ -58,7 +58,12 @@ public static class MobilApi
         var stunde = plan.Rohstunden(s, d.Datum).FirstOrDefault(x => x.Stunde == von && x.Status != "entfall" &&
             (d.Unterricht is int u ? x.Unterricht == u : x.Klassen.Any(k => klassen.Contains(k, Ci))))
             ?? throw new ArgumentException("Die Stunde wurde im Plan nicht gefunden.");
-        var original = stunde.Raeume.Where(x => x.Length > 0).ToList();
+        // Unterricht mit mehreren Zeilen (Kopplung, Stunde mehrerer Klassen): die Raumliste gilt für den ganzen Unterricht – alle Räume
+        // seiner Zeilen (Blöcke in eigenen Räumen behalten ihren Raum, ersetzt wird nur der gewählte)
+        var original = (stunde.Unterricht is int su
+                ? plan.Rohstunden(s, d.Datum).Where(x => x.Stunde == von && x.Status != "entfall" && x.Unterricht == su).SelectMany(x => x.Raeume.SelectMany(Plandienst.RaumListe))
+                : stunde.Raeume.SelectMany(Plandienst.RaumListe))
+            .Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
 
         // Eigene offene Raumänderungen dieser Stunde – die neue ersetzt sie
         var offen = r.VonBenutzer(b.Id).Where(m => m.Typ == WebRueckmeldungsTypen.Raumbuchung && m.Status == "offen" && m.Von == Plandienst.Iso(d.Datum) &&
@@ -108,12 +113,12 @@ public static class MobilApi
         if (neu.Count == original.Count && neu.All(x => Enthaelt(original, x))) return (original, true);
 
         db.Ausfuehren("""
-            INSERT INTO rueckmeldungen (id, typ, erstellt, benutzer_id, absender, lehrer, von, bis, stunde_von, stunde_bis, raum, raeume, klassen, weitere_lehrer, titel, grund, text, status)
-            VALUES (@id, @typ, @e, @b, @a, @l, @von, NULL, @sv, @sb, @r, @rs, @k, '[]', @t, NULL, '', 'offen')
+            INSERT INTO rueckmeldungen (id, typ, erstellt, benutzer_id, absender, lehrer, von, bis, stunde_von, stunde_bis, raum, raeume, klassen, weitere_lehrer, titel, grund, text, status, unterricht)
+            VALUES (@id, @typ, @e, @b, @a, @l, @von, NULL, @sv, @sb, @r, @rs, @k, '[]', @t, NULL, '', 'offen', @u)
             """, Db.P("@id", Guid.NewGuid().ToString("N")), Db.P("@typ", WebRueckmeldungsTypen.Raumbuchung), Db.P("@e", uhr.Jetzt.ToString("yyyy-MM-ddTHH:mm:ss")),
             Db.P("@b", b.Id), Db.P("@a", b.LehrerKuerzel ?? b.Login), Db.P("@l", b.LehrerKuerzel), Db.P("@von", Plandienst.Iso(d.Datum)), Db.P("@sv", von), Db.P("@sb", bis),
             Db.P("@r", neu[0]), Db.P("@rs", JsonSerializer.Serialize(neu)), Db.P("@k", JsonSerializer.Serialize(klassen)),
-            Db.P("@t", string.IsNullOrWhiteSpace(d.Titel) ? "Raumänderung" : d.Titel.Trim()));
+            Db.P("@t", string.IsNullOrWhiteSpace(d.Titel) ? "Raumänderung" : d.Titel.Trim()), Db.P("@u", stunde.Unterricht));
         return (neu, false);
     }
 }

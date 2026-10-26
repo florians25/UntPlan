@@ -243,7 +243,10 @@ public static class AppApi
                 klassen = s.Paket.Elemente.Klassen.Where(k => b.Kollegium || b.HatKlasse(k.Kurz) || AndereKlassen(b))
                     .OrderBy(k => k.Kurz, de).Select(k => new { kurz = k.Kurz, name = k.Name, k.Jahrgang, leitung = k.Klassenleitung }),
                 lehrer = b.Kollegium ? s.Paket.Elemente.Lehrer.OrderBy(l => l.Kurz, de).Select(l => new { kurz = l.Kurz, name = string.Join(" ", new[] { l.Vorname, l.Name }.Where(x => x.Length > 0)) }).Cast<object>().ToList() : new List<object>(),
-                raeume = s.Paket.Elemente.Raeume.OrderBy(r => r.Kurz, de).Select(r => new { kurz = r.Kurz, name = r.Name }),
+                // Räume und (fürs Kollegium) Aufsichtsorte ohne eigenen Raum (z. B. „Einfahrt“, „Hof“): ihr Raumplan zeigt die Pausenaufsichten
+                raeume = s.Paket.Elemente.Raeume.Select(r => new { kurz = r.Kurz, name = r.Name, aufsichtsort = false })
+                    .Concat((b.Kollegium ? Plandienst.Aufsichtsorte(s) : new List<UntPlan.Web.Contracts.WebElement>()).Select(g => new { kurz = g.Kurz, name = g.Name, aufsichtsort = true }))
+                    .OrderBy(r => r.kurz, de),
                 faecher = s.Paket.Elemente.Faecher.Select(f => new { kurz = f.Kurz, name = f.Name, farbe = f.Farbe }),
                 stunden = s.Paket.Zeitraster.Stunden,
                 // Pläne anderer Klassen erlaubt (Kollegium bzw. Recht „Andere Klassenpläne“ bei Schüler- und Elternkonten)

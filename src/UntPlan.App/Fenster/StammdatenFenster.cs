@@ -170,54 +170,77 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         return liste;
     }
 
+    /// <summary>Platzhalter der Eingabezeile für neue Elemente am Ende der Liste.</summary>
+    private static readonly object EingabeZeile = new();
+
+    private static string Schluessel(object o) => o is Element e ? "E" + e.Id : "neu";
+    private static string? Schluessel(DataGridViewRow r) => r.Tag is Element e ? "E" + e.Id : "neu";
+
+    /// <summary>Spalten, für die die Tabelle aufgebaut ist (Spalten werden nur bei geänderter Auswahl neu angelegt).</summary>
+    private string _spaltenStand = "";
+
+    /// <summary>
+    /// Liste aktualisieren, ohne sie ganz neu zu laden: geänderte Elemente an Ort und Stelle, neue an ihrem Platz, gelöschte heraus –
+    /// aktuelles Element, Spalte und Bildlauf bleiben, nichts verrutscht. Spalten werden nur neu angelegt, wenn sich die Felder ändern.
+    /// </summary>
     private void Neuaufbau()
     {
         _laden = true;
         var aktId = _aktuell?.Id;
         var spalte = _grid.CurrentCell?.ColumnIndex ?? 1;
         _grid.SuspendLayout();
-        _grid.Rows.Clear();
-        _grid.Columns.Clear();
-        foreach (var key in _spalten)
+        var stand = string.Join("|", _spalten);
+        if (stand != _spaltenStand || _grid.Columns.Count == 0)
         {
-            var f = _felder.FirstOrDefault(x => x.Schluessel == key);
-            if (f is null) continue;
-            DataGridViewColumn col = f.Art switch
+            _spaltenStand = stand;
+            _grid.Rows.Clear();
+            _grid.Columns.Clear();
+            foreach (var key in _spalten)
             {
-                FeldArt.Bool => new DataGridViewCheckBoxColumn { ThreeState = false },
-                FeldArt.Auswahl => new DataGridViewComboBoxColumn { DataSource = f.Auswahl.ToList(), FlatStyle = FlatStyle.Flat, DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing },
-                _ => new DataGridViewTextBoxColumn(),
-            };
-            col.Name = f.Schluessel;
-            col.HeaderText = f.Titel;
-            col.Width = f.Breite;
-            col.SortMode = DataGridViewColumnSortMode.NotSortable;
-            col.ReadOnly = !f.Editierbar || f.Schluessel == "Kurzname" && _typ != ElementTyp.Schueler;
-            if (f.Schluessel is "Kurzname" or "Langname")
-                col.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 255);
-            col.Tag = f;
-            _grid.Columns.Add(col);
+                var f = _felder.FirstOrDefault(x => x.Schluessel == key);
+                if (f is null) continue;
+                DataGridViewColumn col = f.Art switch
+                {
+                    FeldArt.Bool => new DataGridViewCheckBoxColumn { ThreeState = false },
+                    FeldArt.Auswahl => new DataGridViewComboBoxColumn { DataSource = f.Auswahl.ToList(), FlatStyle = FlatStyle.Flat, DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing },
+                    _ => new DataGridViewTextBoxColumn(),
+                };
+                col.Name = f.Schluessel;
+                col.HeaderText = f.Titel;
+                col.Width = f.Breite;
+                col.SortMode = DataGridViewColumnSortMode.NotSortable;
+                col.ReadOnly = !f.Editierbar || f.Schluessel == "Kurzname" && _typ != ElementTyp.Schueler;
+                if (f.Schluessel is "Kurzname" or "Langname")
+                    col.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 255);
+                col.Tag = f;
+                _grid.Columns.Add(col);
+            }
         }
-        foreach (var e in Elemente()) ZeileHinzufuegen(e);
-        // Eingabezeile für neue Elemente
-        var leer = _grid.Rows.Add();
-        _grid.Rows[leer].Tag = null;
-        _grid.Rows[leer].DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 240);
+        var eintraege = Elemente().Cast<object>().Append(EingabeZeile).ToList();
+        Steuerelemente.TabellenAbgleich.Anwenden(_grid, eintraege, Schluessel, Schluessel, (row, o) =>
+        {
+            row.Tag = o as Element;
+            if (o is Element) ZeileFuellen(row);
+            else
+            {
+                // Eingabezeile für neue Elemente
+                foreach (DataGridViewCell c in row.Cells) if (c.Value != null && c is not DataGridViewCheckBoxCell) c.Value = null;
+                row.DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 240);
+            }
+        });
         _grid.ResumeLayout();
         _auswahl.Items.Clear();
         foreach (var e in Stammdaten.Sortiert(D, _typ)) _auswahl.Items.Add(new ElementEintrag(e));
         _laden = false;
         var ziel = aktId.HasValue ? D.AlleElemente(_typ).FirstOrDefault(x => x.Id == aktId) : D.AlleElemente(_typ).FirstOrDefault();
-        if (ziel != null) ZeileWaehlen(ziel, false, Math.Min(spalte, _grid.Columns.Count - 1));
+        if (ziel != null && _grid.CurrentRow?.Tag != ziel) ZeileWaehlen(ziel, false, Math.Min(spalte, _grid.Columns.Count - 1));
+        else if (ziel != null)
+        {
+            // dieselbe Zeile bleibt aktuell: Auswahlliste und Formular wieder auf das Element setzen
+            _aktuell = null;
+            AktuellesGeaendert(false);
+        }
         FormularAufbauen();
-    }
-
-    private void ZeileHinzufuegen(Element e)
-    {
-        var r = _grid.Rows.Add();
-        var row = _grid.Rows[r];
-        row.Tag = e;
-        ZeileFuellen(row);
     }
 
     private void ZeileFuellen(DataGridViewRow row)
@@ -239,7 +262,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 row.Cells[c.Index].Style.ForeColor = Ui.Textfarbe(farbe);
             }
         }
-        if (e.Ignorieren) row.DefaultCellStyle.ForeColor = Color.Gray;
+        var vorder = e.Ignorieren ? Color.Gray : Color.Empty;
+        if (row.DefaultCellStyle.ForeColor != vorder) row.DefaultCellStyle.ForeColor = vorder;
     }
 
     private void ZeileWaehlen(Element e, bool melden = true, int spalte = -1)

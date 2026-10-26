@@ -6022,7 +6022,8 @@ function renderDetail(){
           ? `<p class="dline dline--grau dline--online" aria-label="Online-Unterricht">${KACHEL_ONLINE}</p>`
           : (c.room || c.roomOrig) ? `<p class="dline dline--grau">${istVeranstaltung ? kurzListe(einmal(werteListe(c.room)).map(esc), SEP) : raumHtml()}</p>` : ''}
       ${istVeranstaltung
-          ? (einmal(werteListe(c.teacher).filter(t => t !== '---')).length ? `<p class="dline dline--grau">${kurzListe(einmal(werteListe(c.teacher).filter(t => t !== '---')).map(esc), SEP)}</p>` : '')
+          /* Veranstaltung: nie ein Platzhalter („---“, „???“, „+++“) als Lehrkraft */
+          ? (einmal(werteListe(c.teacher).filter(t => !['---', '???', '?', '+', '+++'].includes(t))).length ? `<p class="dline dline--grau">${kurzListe(einmal(werteListe(c.teacher).filter(t => !['---', '???', '?', '+', '+++'].includes(t))).map(esc), SEP)}</p>` : '')
           : (c.teacher || c.teacherOrig)
             ? `<p class="dline dline--grau${koppD ? ' dline--kopp' : ''}">${koppD ? koppHtml() : val('teacher')}</p>` : ''}
     </div>

@@ -18,7 +18,11 @@ public class Sonde2Tests
     [InlineData(1, false, false)] [InlineData(1, true, false)] [InlineData(1, true, true)]
     [InlineData(2, false, false)] [InlineData(2, true, false)] [InlineData(2, true, true)]
     [InlineData(3, false, false)] [InlineData(3, false, true)]
-    public void Raum(int form, bool alle, bool nur)
+    public void Raum(int form, bool alle, bool nur) => Lauf(form, alle, nur, false);
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    public void Web(int form) => Lauf(form, false, false, true);
+    private void Lauf(int form, bool alle, bool nur, bool web)
     {
         var d = Demo.NeueDatei("T", "GY");
         var ww = new Fach { Id = d.NeueId(), Kurzname = "WW" }; d.Faecher.Add(ww);
@@ -33,7 +37,7 @@ public class Sonde2Tests
         if (form == 3) us.Add(new Unterricht { Id = d.NeueId(), Wochenstunden = 1, Zeilen = { new Kopplungszeile { LehrerId = le[0].Id, FachId = ww.Id, KlassenIds = { kl[0].Id, kl[1].Id }, FachraumId = ra[0].Id }, new Kopplungszeile { LehrerId = le[1].Id, FachId = ww.Id, FachraumId = ra[0].Id } } });
         d.Unterrichte.AddRange(us);
         foreach (var u in us) d.Stundenplan.Add(new Planstunde { UnterrichtId = u.Id, Tag = tag, Stunde = 5, Raeume = u.Zeilen.Select(_ => (int?)ra[0].Id).ToList() });
-        foreach (var u in alle ? us : us.Take(1))
+        foreach (var u in web ? new List<Unterricht>() : alle ? us : us.Take(1))
             for (var z = 0; z < (alle ? u.Zeilen.Count : 1); z++)
                 Raumvertretungen.Zuordnen(d, u.Id, z, Fr, new[] { 5 }, ra[1].Id, false, RaumKollisionsLoesung.MitKollision);
         foreach (var z in Vertretungsplan.Zeilen(d, Fr)) _aus.WriteLine($"VT {z.Id} {z.Art} K={string.Join(",", z.KlassenIds)} {z.Lehrer}->{z.Vertreter} R={z.Raum}->{z.NeuerRaum}");
@@ -46,8 +50,9 @@ public class Sonde2Tests
         }
         foreach (var x in s.Paket.Tage.Single(t => t.Datum == "2026-11-06").Stunden) _aus.WriteLine($"ST {x.Status} U={x.Unterricht} K={string.Join(",", x.Klassen)} L={string.Join(",", x.Lehrer)} R={string.Join(",", x.Raeume)} V={x.Vertretung}");
         var pl = new Plandienst();
+        var extra = web ? new List<Rohstunde> { new(5, us[0].Id, "", form == 1 ? new List<string> { "ET13" } : new List<string> { "ET13", "INF13" }, new List<string> { "HE" }, new List<string> { "R200" }, "vorgemerkt", null, "", "Raumbuchung") } : null;
         foreach (var (t, e) in new[] { ("lehrer", "HE"), ("lehrer", "CS"), ("klasse", "ET13"), ("klasse", "INF13"), ("raum", "B117"), ("raum", "R200") })
-            foreach (var k in pl.Karten(s, Fr, t, e).Where(k => k.Von == 5))
+            foreach (var k in pl.Karten(s, Fr, t, e, extra).Where(k => k.Von == 5))
                 _aus.WriteLine($"{t} {e}: {k.Status} L={string.Join(",", k.Lehrer.Select(w => w.K + "/" + w.Alt))} K={string.Join(",", k.Klassen.Select(w => w.K + "/" + w.Alt))}+{string.Join(",", k.Mitklassen.Select(w => w.K + "/" + w.Alt))} R={string.Join(",", k.Raeume.Select(w => w.K + "/" + w.Alt + (w.Neu ? "*" : "")))} M={string.Join(",", k.Marker)} T={k.Text} A={k.Art}");
     }
 }

@@ -266,21 +266,21 @@ public static class ListenSuche
     private static void Breite(ComboBox cb, Zustand z) => BreiteSetzen(cb, z.Stil, z.Langname);
 
     /// <summary>
-    /// Benötigte Listenbreite, damit Kurzname (fett) und Langname vollständig lesbar sind – unabhängig von der Feld- bzw.
+    /// Benötigte Listenbreite, damit Kurzname und Langname vollständig lesbar sind – unabhängig von der Feld- bzw.
     /// Spaltenbreite (auch ohne Fenster-Handle messbar, z. B. für frisch erzeugte Tabellen-Editoren).
     /// </summary>
     public static int BenoetigteBreite(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
     {
         var mitLang = false;
-        using var fett = new Font(cb.Font, FontStyle.Bold);
+        var schrift = Ui.OhneFett(cb.Font);
         var kurzMax = 0;
         var langMax = 0;
         foreach (var o in cb.Items)
         {
             var t = cb.GetItemText(o) ?? "";
             var zusatz = stil?.Invoke(t)?.Zusatz ?? langname?.Invoke(t);
-            kurzMax = Math.Max(kurzMax, TextRenderer.MeasureText(t, fett).Width);
-            if (!string.IsNullOrEmpty(zusatz)) { mitLang = true; langMax = Math.Max(langMax, TextRenderer.MeasureText(zusatz, cb.Font).Width); }
+            kurzMax = Math.Max(kurzMax, TextRenderer.MeasureText(t, schrift).Width);
+            if (!string.IsNullOrEmpty(zusatz)) { mitLang = true; langMax = Math.Max(langMax, TextRenderer.MeasureText(zusatz, schrift).Width); }
         }
         // Kurzname-Spalte wie beim Zeichnen (mind. 64 px, höchstens 160 px), danach der Langname
         var kurzSpalte = mitLang ? Math.Max(64, Math.Min(kurzMax + 10, 160)) : kurzMax;
@@ -354,14 +354,14 @@ public static class ListenSuche
 
     private static readonly ConditionalWeakTable<ComboBox, StrongBox<int>> KurzSpalten = new();
 
-    /// <summary>Breite der Kurzname-Spalte (längster Kurzname, fett) – damit die Langnamen bündig untereinander stehen.</summary>
-    private static int KurzSpalte(ComboBox cb, Font fett)
+    /// <summary>Breite der Kurzname-Spalte (längster Kurzname) – damit die Langnamen bündig untereinander stehen.</summary>
+    private static int KurzSpalte(ComboBox cb, Font schrift)
     {
         var box = KurzSpalten.GetValue(cb, _ => new StrongBox<int>(-1));
         if (box.Value < 0 || cb.DroppedDown == false)
         {
             var max = 0;
-            foreach (var o in cb.Items) max = Math.Max(max, TextRenderer.MeasureText(cb.GetItemText(o) ?? "", fett).Width);
+            foreach (var o in cb.Items) max = Math.Max(max, TextRenderer.MeasureText(cb.GetItemText(o) ?? "", schrift).Width);
             box.Value = Math.Min(max + 10, 160);
         }
         return box.Value;
@@ -379,13 +379,13 @@ public static class ListenSuche
         var vorder = ausgewaehlt ? SystemColors.HighlightText : s?.Text is Color t && t != Color.Empty ? t : cb.ForeColor;
         using (var b = new SolidBrush(hinter)) e.Graphics.FillRectangle(b, e.Bounds);
         var r = e.Bounds;
-        // Kurzname in fester Spalte, damit die Langnamen bündig stehen
-        using var fett = new Font(cb.Font, FontStyle.Bold);
-        var kurzBreite = string.IsNullOrEmpty(zusatz) ? r.Width - 4 : Math.Min(Math.Max(64, KurzSpalte(cb, fett)), r.Width / 2);
+        // Kurzname in fester Spalte, damit die Langnamen bündig stehen – wie der Langname nie fett
+        var schrift = Ui.OhneFett(cb.Font);
+        var kurzBreite = string.IsNullOrEmpty(zusatz) ? r.Width - 4 : Math.Min(Math.Max(64, KurzSpalte(cb, schrift)), r.Width / 2);
         // geglättet (ClearType bzw. Kantenglättung) – weicher als die GDI-Darstellung
-        Ui.ListenText(e.Graphics, text, string.IsNullOrEmpty(zusatz) ? cb.Font : fett, new Rectangle(r.X + 4, r.Y, kurzBreite, r.Height), vorder);
+        Ui.ListenText(e.Graphics, text, schrift, new Rectangle(r.X + 4, r.Y, kurzBreite, r.Height), vorder);
         if (!string.IsNullOrEmpty(zusatz))
-            Ui.ListenText(e.Graphics, zusatz, cb.Font, new Rectangle(r.X + 10 + kurzBreite, r.Y, r.Width - kurzBreite - 12, r.Height), ausgewaehlt ? vorder : Color.FromArgb(55, 62, 72));
+            Ui.ListenText(e.Graphics, zusatz, schrift, new Rectangle(r.X + 10 + kurzBreite, r.Y, r.Width - kurzBreite - 12, r.Height), ausgewaehlt ? vorder : Color.FromArgb(55, 62, 72));
         if ((e.State & DrawItemState.Focus) != 0) e.DrawFocusRectangle();
     }
 }

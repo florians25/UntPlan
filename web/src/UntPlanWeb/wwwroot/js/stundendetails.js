@@ -792,8 +792,14 @@ export function karteDialog(karte, kontext = {}) {
     alle('[data-umschalten]', b => b.onclick = () => {
       const id = Number(b.dataset.umschalten);
       const m = fzKarte();
-      // abwesend → anwesend ohne weiteren Dialog (die ganze Abwesenheit dieser Stunde entfällt); Verspätung über den Stift bzw. „Abwesenheit …“
-      if (m.has(id)) { abwesenheitEntfernen([id]); return; }
+      // abwesend → anwesend: Abwesenheitsdialog mit der aktuellen Uhrzeit als Ankunft (Verspätung bis jetzt) – Speichern trägt die teilweise
+      // Abwesenheit ein, „Löschen“ macht die Stunde ganz anwesend
+      if (m.has(id)) {
+        const f = (daten.anwesenheit?.fehlzeiten ?? []).find(x => x.schuelerId === id);
+        if (f) abwesenheitDialog([id], ankunftVorgabe(f), { ankunft: true });
+        else abwesenheitEntfernen([id]);
+        return;
+      }
       m.set(id, { art: 'fehlt', minuten: 0 });
       anwesenheitSpeichern(m);
     });
@@ -951,7 +957,9 @@ export function karteDialog(karte, kontext = {}) {
     raumLaeuft = true;
     box.querySelectorAll('[data-raum-loeschen], [data-raum-ersetzen], [data-raum-plus], [data-raum-uebernehmen]').forEach(x => { x.disabled = true; });
     try {
-      await senden('/api/app/meldungen/raumaenderung', { datum: k.datum, stundeVon: k.von, stundeBis: k.bis, unterricht: k.unterricht, raeume });
+      // bisher = Räume dieses Blocks: bei Kopplungen mit Blöcken in eigenen Räumen bleiben die Räume der übrigen Blöcke erhalten
+      const bisher = (k.raeume || []).map(w => w.k).filter(x => x && x !== '???');
+      await senden('/api/app/meldungen/raumaenderung', { datum: k.datum, stundeVon: k.von, stundeBis: k.bis, unterricht: k.unterricht, raeume, bisher });
       const i = liste.indexOf(k);
       k = { ...k, raeume: raeumeNach(k.raeume, raeume), status: k.status === 'regulaer' ? 'geaendert' : k.status };
       if (i >= 0) liste[i] = k;
@@ -1088,7 +1096,18 @@ export function karteDialog(karte, kontext = {}) {
    * bis zur Ankunft, vorzeitig gegangen = abwesend ab der Uhrzeit bis Stundenende bzw. Tagesende. Über den Tag hinaus und den Status
    * ändert nur die Klassenleitung.
    */
-  function abwesenheitDialog(ids, f = null) {
+  /** Aktuelle Uhrzeit „HH:MM“ (Ankunft beim Umschalten von abwesend auf anwesend). */
+  function uhrJetzt() {
+    const j = new Date();
+    return `${String(j.getHours()).padStart(2, '0')}:${String(j.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /** Bestehende Abwesenheit mit der aktuellen Uhrzeit als Ankunft (Ende der Abwesenheit am Tag der Stunde). */
+  function ankunftVorgabe(f) {
+    return { ...f, bisDatum: k.datum, bisZeit: uhrJetzt(), ankunft: true };
+  }
+
+  function abwesenheitDialog(ids, f = null, opt = {}) {
     if (!ids.length) return;
     const a = daten.anwesenheit ?? {};
     const verwalten = !!a.verwalten;
@@ -1113,7 +1132,8 @@ export function karteDialog(karte, kontext = {}) {
     const gruendeWahl = `<option value="">–</option>${daten.gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grundVorgabe ? 'selected' : ''}>${e(g.name)}</option>`).join('')}`;
     // Status als Segment-Schalter; bei einer bestehenden Abwesenheit entschuldigt die Klassenleitung damit direkt (ohne Speichern)
     const radio = (wert, text) => `<label class="ab-radio ab-seg-${wert}"><input type="radio" name="ab-status" value="${wert}" ${status === wert ? 'checked' : ''} ${verwalten ? '' : 'disabled'}><span>${text}</span></label>`;
-    altDialog('Abwesenheit', `
+    altDialog(opt.ankunft ? 'Abwesenheit – Ankunft' : 'Abwesenheit', `
+      ${opt.ankunft ? `<div class="vs-vorschau ab-ankunft" data-ab-ankunft="${e(vorgabe.bisZeit)}"><i class="bi bi-clock"></i> Ankunft um ${e(vorgabe.bisZeit)} – die Abwesenheit endet jetzt. Speichern trägt sie als teilweise Abwesenheit (Verspätung) ein, „Löschen“ macht die Stunde ganz anwesend.</div>` : ''}
       <div class="ab-formular">
         <label>Schüler*in</label><div class="ab-wert">${e(namen.length > 3 ? `${namen.slice(0, 3).join(', ')} und ${namen.length - 3} weitere` : namen.join(', '))}</div>
         <label for="ab-vd">Von</label><div class="ab-zeile"><input type="date" id="ab-vd" data-ab-vd value="${vorgabe.vonDatum}" ${verwalten ? '' : 'disabled'}><input type="time" step="60" data-ab-vz value="${e(vorgabe.vonZeit)}" aria-label="Von Uhrzeit"></div>

@@ -209,6 +209,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             }
             if (v.Art == VertretungsArt.Freisetzung && spalte is "Vertreter" or "NFach" or "NRaum") e.Cancel = true;
         };
+        // fixierte Vertretung: gesperrte Felder erklären (sie lassen sich nicht bearbeiten)
+        _g.CellClick += (_, e) =>
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && !_g.Columns[e.ColumnIndex].ReadOnly && _g.Rows[e.RowIndex].Tag is Vertretung { Fixiert: true, Id: not 0 } fv)
+                _status.Text = $"Vertretung {fv.Id} ist fixiert (X) – zum Ändern zuerst lösen.";
+        };
         _g.EditingControlShowing += EditorZeigen;
         Steuerelemente.SuchKombi.Aktivieren(_g, VertreterStil);
         // Auswahl aus der Liste (Maus bzw. Enter) wie im Vorbild sofort übernehmen: Bearbeitung beenden, die Zeile bleibt aktuell
@@ -690,10 +696,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private bool FilterAktiv => _offen.Checked || _kollisionen.Checked || _element.SelectedItem is Eintrag { Id: not null } || _ansicht.SelectedIndex is 2 or 3;
 
     /// <summary>
-    /// Liste aktualisieren. Sind es dieselben Zeilen wie bisher, werden nur die Werte an Ort und Stelle erneuert: Zeile, Spalte,
-    /// Markierung und Bildlauf bleiben, nichts springt (<paramref name="neuSortieren"/> erzwingt die Sortierung, z. B. nach einem
-    /// Filter- oder Ansichtswechsel). Sonst Neuaufbau mit Wiederherstellung der aktuellen Vertretung (Vtr-Nr.), Spalte und
-    /// Bildlaufposition. Während eine Zelle bearbeitet wird, wird nicht neu aufgebaut, sondern beim Verlassen der Zelle nachgeholt.
+    /// Liste aktualisieren, ohne sie ganz neu zu laden: Werte bestehender Zeilen werden an Ort und Stelle erneuert, neue Zeilen an
+    /// ihrem Platz eingefügt, weggefallene entfernt – Zeile, Spalte, Markierung und Bildlauf bleiben, nichts springt
+    /// (<paramref name="neuSortieren"/> erzwingt die Sortierung, z. B. nach einem Filter- oder Ansichtswechsel; dann Neuaufbau mit
+    /// Wiederherstellung der aktuellen Vertretung (Vtr-Nr.), Spalte und Bildlaufposition). Während eine Zelle bearbeitet wird, wird nicht neu aufgebaut, sondern beim Verlassen der Zelle nachgeholt.
     /// </summary>
     private void Neuaufbau(bool neuSortieren)
     {
@@ -715,20 +721,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         List<Vertretung> liste;
         try { liste = Zeilenliste(); }
         finally { _felder = null; }
-        var alt = _g.Rows.Cast<DataGridViewRow>().Select(r => Schluessel(r) ?? "").ToList();
-        var amOrt = Listenabgleich.AmOrt(alt, liste, Schluessel, neuSortieren);
         _laedt = true;
         try
         {
-            if (amOrt != null)
-                for (var i = 0; i < amOrt.Count; i++) ZeileSetzen(_g.Rows[i], amOrt[i]);
-            else
-            {
-                var stand = Steuerelemente.TabellenStand.Merken(_g, Schluessel);
-                _g.Rows.Clear();
-                foreach (var v in liste) ZeileSetzen(_g.Rows[_g.Rows.Add()], v);
-                stand.Wiederherstellen(_g, Schluessel);
-            }
+            // nur betroffene Zeilen ändern: Werte an Ort und Stelle, neue Zeilen an ihren Platz, weggefallene heraus – Zeile, Spalte,
+            // Markierung, Bildlauf und Reihenfolge bleiben (neu sortiert wird nur nach Filter-, Ansichts- bzw. Sortierwechsel)
+            Steuerelemente.TabellenAbgleich.Anwenden(_g, liste, Schluessel, Schluessel, ZeileSetzen, neuSortieren);
         }
         finally
         {
@@ -816,12 +814,37 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 if (zelle is DataGridViewComboBoxCell && !kombi.Items.Contains(text))
                 {
                     ZelleErsetzen(zeile, i, new DataGridViewTextBoxCell { Value = text });
+                    ZelleSperren(zeile, i, v);
                     continue;
                 }
                 neu = text;
             }
             if ((zelle.Value?.ToString() ?? "") != (neu?.ToString() ?? "")) zelle.Value = neu;
+            ZelleSperren(zeile, i, v);
         }
+    }
+
+    /// <summary>
+    /// Je Zeile nicht bearbeitbare Felder (Freisetzung, fixiert, Unterrichtszeile, zusammengefasste Veranstaltung) sperren – sie werden
+    /// wie die nicht bearbeitbaren Spalten etwas dunkler hinterlegt (siehe Auswahlbreite.ZellFarben).
+    /// </summary>
+    private void ZelleSperren(DataGridViewRow zeile, int spalte, Vertretung v)
+    {
+        if (_g.Columns[spalte].ReadOnly) return;
+        var gesperrt = !Bearbeitbar(v, _g.Columns[spalte].Name);
+        if (zeile.Cells[spalte].ReadOnly != gesperrt) zeile.Cells[spalte].ReadOnly = gesperrt;
+    }
+
+    /// <summary>
+    /// Ist das Feld in dieser Zeile bearbeitbar? Unterrichtszeilen und fixierte Vertretungen nicht, Veranstaltungen nur Vertreter und
+    /// Text, zusammengefasste Veranstaltungszeilen nur die Texte, Freisetzungen nicht Vertreter, Fach und Raum.
+    /// </summary>
+    private bool Bearbeitbar(Vertretung v, string spalte)
+    {
+        if (v.Id == 0 || v.Fixiert) return false;
+        if (v.Art == VertretungsArt.Veranstaltung && spalte != "Vertreter" && spalte != "Text") return false;
+        if (_vaSammel.Contains(v.Id) && spalte is not ("Text" or "Text2" or "Kz")) return false;
+        return !(v.Art == VertretungsArt.Freisetzung && spalte is "Vertreter" or "NFach" or "NRaum");
     }
 
     /// <summary>Auswahlzelle durch eine Textzelle ersetzen; ist sie die aktuelle, bleibt sie es.</summary>
@@ -879,7 +902,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         Setzen("AKlassen", klassen);
         Setzen("Klassen", v.Art == VertretungsArt.Freisetzung && klassen.Length > 0 ? $"({klassen})" : klassen);
         Setzen("Lehrer", lehrer);
-        Setzen("Vertreter", v.Art == VertretungsArt.Freisetzung ? lehrer : "---");
+        // Veranstaltung ohne Lehrkraft (z. B. Klassenausflug): kein „---“ beim Vertreter
+        Setzen("Vertreter", v.Art == VertretungsArt.Freisetzung ? lehrer : VeranstaltungsLogik.OhneLehrer(D, v) ? "" : "---");
         Setzen("Fach", Gleich(x => x.FachId, ElementTyp.Fach));
         Setzen("Raum", Gleich(x => x.RaumId, ElementTyp.Raum));
         Setzen("UText", "");
@@ -943,11 +967,14 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var tag = Planungsdienst.TageKurz[((int)v.Datum.DayOfWeek + 6) % 7];
         var gruppe = _gruppen.TryGetValue(v.Id, out var gr) ? gr : null;
         var va = v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int vaId ? D.Veranstaltungen.FirstOrDefault(x => x.Id == vaId) : null;
+        // Entfall bzw. Freisetzung wegen einer Veranstaltung ohne Lehrkraft: Vertreter, Raum und Fach leer statt „---“
+        var ohneStriche = v.IstEntfall && VeranstaltungsLogik.OhneLehrer(D, v);
         var vertreter = va != null ? VeranstaltungsLogik.LehrerText(D, va, v.Datum)
             : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++"
             : v.Art == VertretungsArt.Freisetzung ? Anzeige(ElementTyp.Lehrer, v.LehrerId, "Vertreter")
+            : ohneStriche ? ""
             : v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.VertreterId is int l ? Anzeige(ElementTyp.Lehrer, l, "Vertreter") : v.Offen ? "???" : "";
-        var raumNeu = v.IstEntfall ? "---" : v.RaumOffen ? "???" : v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId)
+        var raumNeu = ohneStriche ? "" : v.IstEntfall ? "---" : v.RaumOffen ? "???" : v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId)
             : string.Join(",", new[] { v.VertretungsraumId ?? v.RaumId }.Concat(v.ZusatzraumIds.Cast<int?>()).Where(x => x.HasValue).Select(x => Anzeige(ElementTyp.Raum, x, "NRaum")));
         string Pos(DateOnly? d, int? s) => d is DateOnly dd ? $"{dd:d.M.} / {s}" : "";
         var stunde = gruppe is { Count: > 1 } ? $"{gruppe.Min(x => x.Stunde)}-{gruppe.Max(x => x.Stunde)}" : Vertretungsplan.StundeText(v);
@@ -959,7 +986,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // Tausch: bisheriger Unterricht dieser Position in den Klammerspalten
         var weg = _weg.GetValueOrDefault(v.Id);
         if (weg != null) lehrer = (Plan(weg.Datum).Unterrichte.GetValueOrDefault(weg.UnterrichtId ?? -1) is { Zeilen.Count: > 1 } && weg.LehrerId.HasValue ? "*" : "") + Anzeige(ElementTyp.Lehrer, weg.LehrerId, "Lehrer");
-        var neuesFach = v.IstEntfall ? "---" : Anzeige(ElementTyp.Fach, v.VertretungsfachId ?? (IstVerlegung(v) ? v.FachId : null), "NFach");
+        var neuesFach = ohneStriche ? "" : v.IstEntfall ? "---" : Anzeige(ElementTyp.Fach, v.VertretungsfachId ?? (IstVerlegung(v) ? v.FachId : null), "NFach");
         if (v.Art == VertretungsArt.Freisetzung && neueKlassen.Length > 0) neueKlassen = $"({neueKlassen})";
         var zeit = D.Zeitraster.Zeiten.FirstOrDefault(z => z.Nr == (gruppe?.Min(x => x.Stunde) ?? v.Stunde)) is { } z1 && D.Zeitraster.Zeiten.FirstOrDefault(z => z.Nr == (gruppe?.Max(x => x.Stunde) ?? v.Stunde)) is { } z2
             ? $"{z1.Beginn:HH\\:mm}-{z2.Ende:HH\\:mm}" : "";
@@ -1025,6 +1052,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             e.CellStyle.SelectionBackColor = VerlegungsFarbeMarkiert;
         }
         if (v.Id == 0 && name is not "Art") e.CellStyle.BackColor = Color.FromArgb(242, 242, 242);
+        // in dieser Zeile gesperrtes Feld einer bearbeitbaren Spalte: dunkler wie die nicht bearbeitbaren Spalten (auch über der
+        // hellen Spaltenfarbe im Stundenplanmodus)
+        else if (!_g.Columns[e.ColumnIndex].ReadOnly && _g.Rows[e.RowIndex].Cells[e.ColumnIndex].ReadOnly &&
+                 (e.CellStyle.BackColor == _g.Columns[e.ColumnIndex].DefaultCellStyle.BackColor || e.CellStyle.BackColor.IsEmpty || e.CellStyle.BackColor == _g.DefaultCellStyle.BackColor))
+            e.CellStyle.BackColor = Ui.ZelleGesperrt;
     }
 
     private static void Hinweis(DataGridViewCell zelle, string text)
@@ -1784,6 +1816,92 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             warten();
         }
         return $"Vertreter-Liste {string.Join("/", ergebnis)} px breit (Spalte {spalte.Width} px)";
+    }
+
+    /// <summary>
+    /// Selbsttest: Nach dem Ändern von Werten bzw. einer neuen Vertretung wird die Liste nicht neu geladen – aktuelle Zeile und Zelle,
+    /// oberste sichtbare Zeile und Reihenfolge bleiben (auch wenn der geänderte Wert die Zeile anders einsortieren würde). Gesperrte
+    /// Felder einzelner Zeilen (fixiert) sind dunkler hinterlegt.
+    /// </summary>
+    internal string SelbsttestZeilenStabil(Action warten)
+    {
+        _offen.Checked = _kollisionen.Checked = false;
+        _element.SelectedIndex = 0;
+        _sortSpalte = null;
+        Neuaufbau(true);
+        warten();
+        var vertretungen = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung { Id: not 0, Fixiert: false } v && !_vaSammel.Contains(v.Id) && v.Art != VertretungsArt.Freisetzung).ToList();
+        if (vertretungen.Count < 4) return $"zu wenige Vertretungen ({vertretungen.Count})";
+        // nach „Text“ sortieren, dann eine Zeile so ändern, dass sie neu einsortiert ganz ans Ende gehörte
+        SortierenNach("Text");
+        warten();
+        var zeile = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung { Id: not 0, Fixiert: false } v && !_vaSammel.Contains(v.Id) && v.Art != VertretungsArt.Freisetzung).Skip(1).First();
+        var id = ((Vertretung)zeile.Tag!).Id;
+        _g.ClearSelection();
+        zeile.Selected = true;
+        _g.CurrentCell = zeile.Cells["Text"];
+        try { if (_g.Rows.Count > 6) _g.FirstDisplayedScrollingRowIndex = 1; } catch (InvalidOperationException) { }
+        warten();
+        var reihenfolge = _g.Rows.Cast<DataGridViewRow>().Select(r => Schluessel(r)).ToList();
+        var erste = _g.FirstDisplayedScrollingRowIndex;
+        var ersteSchluessel = erste >= 0 ? Schluessel(_g.Rows[erste]) : null;
+        var index = zeile.Index;
+        var neuaufbauten = Steuerelemente.TabellenAbgleich.Neuaufbauten;
+        void Pruefen(string wann)
+        {
+            if (Steuerelemente.TabellenAbgleich.Neuaufbauten != neuaufbauten) throw new InvalidOperationException($"{wann}: Liste wurde ganz neu aufgebaut.");
+            if (_g.CurrentRow?.Tag is not Vertretung c || c.Id != id || _g.CurrentCell?.OwningColumn.Name != "Text") throw new InvalidOperationException($"{wann}: aktuelle Zeile/Zelle verloren.");
+            if (_g.CurrentRow.Index != index) throw new InvalidOperationException($"{wann}: Zeile ist verrutscht ({index} → {_g.CurrentRow.Index}).");
+            var erstJetzt = _g.FirstDisplayedScrollingRowIndex;
+            if (ersteSchluessel != null && (erstJetzt < 0 || Schluessel(_g.Rows[erstJetzt]) != ersteSchluessel)) throw new InvalidOperationException($"{wann}: Bildlauf verändert.");
+            var jetzt = _g.Rows.Cast<DataGridViewRow>().Select(r => Schluessel(r)).ToList();
+            if (!reihenfolge.Where(jetzt.Contains).SequenceEqual(jetzt.Where(reihenfolge.Contains))) throw new InvalidOperationException($"{wann}: Reihenfolge der bisherigen Zeilen verändert.");
+        }
+        // 1. Wert ändern (Text „zzz…“ gehört sortiert ans Ende): Zeile bleibt an ihrem Platz
+        _wertVorher = _g.CurrentCell.Value?.ToString() ?? "";
+        _g.CurrentCell.Value = "zzz Selbsttest stabil";
+        ZelleGeaendert(_g, new DataGridViewCellEventArgs(_g.CurrentCell.ColumnIndex, _g.CurrentCell.RowIndex));
+        warten();
+        if (D.Vertretungen.First(x => x.Id == id).Text != "zzz Selbsttest stabil") throw new InvalidOperationException("Text wurde nicht übernommen.");
+        Pruefen("Nach dem Ändern des Textes");
+        // 2. Änderung aus einem anderen Fenster (Vertreter einer anderen Zeile)
+        var andere = (Vertretung)vertretungen.First(r => ((Vertretung)r.Tag!).Id != id).Tag!;
+        Aendern("Text (Selbsttest)", AenderungsArt.Vertretung, d => d.Vertretungen.First(x => x.Id == andere.Id).Text = "Selbsttest anderes Fenster");
+        warten();
+        Pruefen("Nach einer Änderung in einer anderen Zeile");
+        // 3. neue Vertretung (Sondereinsatz): wird an ihrem Platz eingefügt, nichts verrutscht
+        var vorher = _g.Rows.Count;
+        var datum = Von;
+        var lehrer = D.Lehrer.Select(l => l.Id).First(l => Tagesplan.Berechnen(D, datum).VonLehrer(l).All(e => e.Stunde != 1) && Absenzen.Lehrer(D, l, datum, 1) is null);
+        Aendern("Sondereinsatz (Selbsttest)", AenderungsArt.Vertretung, d => Vertretungen.Sondereinsatz(d, datum, 1, 1, Array.Empty<int>(), new[] { lehrer }, null, null, "Selbsttest neu"));
+        warten();
+        if (_g.Rows.Count != vorher + 1) throw new InvalidOperationException($"Neue Vertretung nicht eingefügt ({vorher} → {_g.Rows.Count} Zeilen).");
+        index = _g.CurrentRow!.Index;
+        Pruefen("Nach einer neuen Vertretung");
+        // 4. fixierte Zeile: bearbeitbare Felder gesperrt und dunkler hinterlegt
+        Aendern("Fixiert (Selbsttest)", AenderungsArt.Vertretung, d => d.Vertretungen.First(x => x.Id == andere.Id).Fixiert = true);
+        warten();
+        var fix = _g.Rows.Cast<DataGridViewRow>().First(r => r.Tag is Vertretung x && x.Id == andere.Id);
+        if (!fix.Cells["Text"].ReadOnly || !fix.Cells["Vertreter"].ReadOnly) throw new InvalidOperationException("Felder der fixierten Vertretung sind nicht gesperrt.");
+        if (zeile.Cells["Text"].ReadOnly) throw new InvalidOperationException("Feld einer nicht fixierten Vertretung ist gesperrt.");
+        var farbe = ZellFarbe(fix.Cells["Text"]);
+        var hell = ZellFarbe(zeile.Cells["Vertreter"]);
+        if (farbe != Ui.ZelleGesperrt) throw new InvalidOperationException($"Gesperrtes Feld nicht dunkler hinterlegt ({farbe}).");
+        Aendern("Fixiert (Selbsttest)", AenderungsArt.Vertretung, d => d.Vertretungen.First(x => x.Id == andere.Id).Fixiert = false);
+        warten();
+        _sortSpalte = null;
+        Neuaufbau(true);
+        return $"Vertretung {id}: Text geändert, andere Zeile geändert, neue Vertretung eingefügt – Zeile {index}, Zelle, Bildlauf und Reihenfolge blieben; fixierte Felder gesperrt ({farbe.R},{farbe.G},{farbe.B}), bearbeitbar ({hell.R},{hell.G},{hell.B})";
+    }
+
+    /// <summary>Hintergrundfarbe einer Zelle nach allen Formatierungen (wie beim Zeichnen, ohne Markierung).</summary>
+    private Color ZellFarbe(DataGridViewCell zelle)
+    {
+        var stil = new DataGridViewCellStyle(zelle.InheritedStyle);
+        var args = new DataGridViewCellFormattingEventArgs(zelle.ColumnIndex, zelle.RowIndex, zelle.Value, typeof(string), stil);
+        var methode = typeof(DataGridView).GetMethod("OnCellFormatting", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(DataGridViewCellFormattingEventArgs) }, null);
+        methode?.Invoke(_g, new object[] { args });
+        return args.CellStyle?.BackColor ?? Color.Empty;
     }
 
     internal string SelbsttestBearbeiten(Action warten)

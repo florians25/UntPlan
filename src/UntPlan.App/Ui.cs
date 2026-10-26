@@ -18,7 +18,12 @@ public static partial class Ui
     /// die nächste vorhandene serifenlose Schrift statt des harten Ersatzes MS Sans Serif/Tahoma.
     /// </summary>
     public static readonly Font ListenSchrift = new(ListenSchriftart(), 9f);
-    public static readonly Font ListenSchriftFett = new(ListenSchrift, FontStyle.Bold);
+
+    /// <summary>Schrift ohne Fettdruck: Texte in Auswahllisten (auch Kürzel) sind nie fett.</summary>
+    public static Font OhneFett(Font f) => !f.Bold ? f : ReferenceEquals(f, SchriftFett) ? Schrift
+        : f.Name == ListenSchrift.Name && Math.Abs(f.SizeInPoints - ListenSchrift.SizeInPoints) < 0.1f ? ListenSchrift : NichtFett.GetValue(f, x => new Font(x, x.Style & ~FontStyle.Bold));
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Font, Font> NichtFett = new();
 
     private static string ListenSchriftart()
     {
@@ -63,14 +68,17 @@ public static partial class Ui
         }
     }
 
-    /// <summary>Weiche Listenschrift setzen, wenn die Liste die Standardschrift (bzw. einen harten Ersatz) verwendet.</summary>
+    /// <summary>
+    /// Weiche Listenschrift setzen, wenn die Liste die Standardschrift (bzw. einen harten Ersatz) verwendet – nie fett, auch wenn
+    /// die Umgebung (Gruppe, Tabellenzelle) fett schreibt.
+    /// </summary>
     public static void ListenSchriftSetzen(ComboBox cb)
     {
-        if (cb.IsDisposed || ReferenceEquals(cb.Font, ListenSchrift) || ReferenceEquals(cb.Font, ListenSchriftFett)) return;
+        if (cb.IsDisposed || ReferenceEquals(cb.Font, ListenSchrift)) return;
         var f = cb.Font;
-        if (Math.Abs(f.SizeInPoints - 9f) > 0.6f || f.Italic || f.Underline) return;
-        if (f.Name is "Segoe UI" or "Tahoma" or "Microsoft Sans Serif" or "MS Sans Serif" || f.Name == ListenSchrift.Name)
-            cb.Font = f.Bold ? ListenSchriftFett : ListenSchrift;
+        if (Math.Abs(f.SizeInPoints - 9f) > 0.6f || f.Italic || f.Underline) { if (f.Bold) cb.Font = OhneFett(f); return; }
+        if (f.Name is "Segoe UI" or "Tahoma" or "Microsoft Sans Serif" or "MS Sans Serif" || f.Name == ListenSchrift.Name) cb.Font = ListenSchrift;
+        else if (f.Bold) cb.Font = OhneFett(f);
     }
 
     /// <summary>Vertretungsmodus aktiv: Oberfläche in Grün (wie ein eigenes Programm innerhalb von UntPlan).</summary>
@@ -90,8 +98,8 @@ public static partial class Ui
     public static Color Listenhintergrund => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(236, 242, 245);
     public static Color Zelle => Vertretungsmodus ? Color.White : Color.FromArgb(251, 253, 254);
     public static Color ZelleWechsel => Vertretungsmodus ? Color.FromArgb(240, 247, 244) : Color.FromArgb(244, 248, 250);
-    /// <summary>Vertretungsmodus wie im Vorbild: nicht bearbeitbare Felder grau, nur bearbeitbare Felder hell.</summary>
-    public static Color ZelleGesperrt => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(234, 234, 234);
+    /// <summary>Wie im Vorbild: nicht bearbeitbare Felder etwas dunkler (grünlich-grau bzw. petrol-grau), nur bearbeitbare Felder hell.</summary>
+    public static Color ZelleGesperrt => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(232, 238, 241);
     /// <summary>Aktuelle Zelle im Vertretungsmodus (helles Orange wie im Vorbild).</summary>
     public static readonly Color ZelleAktivVertretung = Color.FromArgb(255, 234, 198);
     /// <summary>Werkzeugleisten der Arbeitsfenster.</summary>

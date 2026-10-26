@@ -172,9 +172,15 @@ public sealed class VeranstaltungenFenster : MdiFenster
 
     private static string? Schluessel(DataGridViewRow r) => r.Tag is Veranstaltung v ? "VA" + v.Id : "neu";
 
+    /// <summary>Platzhalter der leeren Eingabezeile am Ende der Liste.</summary>
+    private static readonly object EingabeZeile = new();
+
+    private static string Schluessel(object o) => o is Veranstaltung v ? "VA" + v.Id : "neu";
+
     /// <summary>
-    /// Liste neu aufbauen; aktuelle Veranstaltung (VA-Nr.), Spalte und Bildlauf bleiben erhalten. Während einer Eingabe wird
-    /// nicht neu aufgebaut, sondern beim Verlassen der Zelle nachgeholt.
+    /// Liste aktualisieren, ohne sie ganz neu zu laden: geänderte Veranstaltungen an Ort und Stelle, neue an ihrem Platz, gelöschte
+    /// heraus – aktuelle Veranstaltung (VA-Nr.), Spalte und Bildlauf bleiben, nichts verrutscht. Während einer Eingabe wird nicht
+    /// aktualisiert, sondern beim Verlassen der Zelle nachgeholt.
     /// </summary>
     private void Neuaufbau()
     {
@@ -184,23 +190,27 @@ public sealed class VeranstaltungenFenster : MdiFenster
             return;
         }
         _neuaufbauAusstehend = false;
-        var stand = Steuerelemente.TabellenStand.Merken(_g, Schluessel);
-        var springe = _springeZu;
+        var springe = _springeZu is int sp ? "VA" + sp : null;
         _springeZu = null;
         _laedt = true;
-        _g.Rows.Clear();
-        foreach (var v in D.Veranstaltungen.Where(v => v.Bis >= Von && v.Von <= Bis).OrderBy(v => v.Von).ThenBy(v => v.Id))
-        {
-            var r = _g.Rows.Add(v.Id, Feldtext(v, ElementTyp.Klasse, v.KlassenIds), Feldtext(v, ElementTyp.Klasse, v.KlassenteilIds), LehrerText(v),
+        var eintraege = D.Veranstaltungen.Where(v => v.Bis >= Von && v.Von <= Bis).OrderBy(v => v.Von).ThenBy(v => v.Id).Cast<object>().Append(EingabeZeile).ToList();
+        try { Steuerelemente.TabellenAbgleich.Anwenden(_g, eintraege, Schluessel, Schluessel, ZeileSetzen, aktuell: springe); }
+        finally { _laedt = false; }
+    }
+
+    /// <summary>Eine Zeile vollständig füllen (Werte, Tag, Format) – für bestehende und neue Zeilen.</summary>
+    private void ZeileSetzen(DataGridViewRow zeile, object eintrag)
+    {
+        object?[] werte = eintrag is Veranstaltung v
+            ? new object?[] { v.Id, Feldtext(v, ElementTyp.Klasse, v.KlassenIds), Feldtext(v, ElementTyp.Klasse, v.KlassenteilIds), LehrerText(v),
                 Feldtext(v, ElementTyp.Raum, v.RaumIds), Datum(v.Von), v.StundeVon, Datum(v.Bis), v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
-                D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.Schuelergruppe);
-            _g.Rows[r].Tag = v;
-        }
-        var neu = _g.Rows.Add("", "", "", "", "", "", "", "", "", "", "", false, "");
-        _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(255, 228, 190);
-        if (springe is int sp) stand.AktuellSetzen("VA" + sp);
-        stand.Wiederherstellen(_g, Schluessel, false);
-        _laedt = false;
+                D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.Schuelergruppe }
+            : new object?[] { "", "", "", "", "", "", "", "", "", "", "", false, "" };
+        zeile.Tag = eintrag as Veranstaltung;
+        for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
+            if (!Equals(zeile.Cells[i].Value, werte[i]) && (zeile.Cells[i].Value?.ToString() ?? "") != (werte[i]?.ToString() ?? "")) zeile.Cells[i].Value = werte[i];
+        var hinter = eintrag is Veranstaltung ? Color.Empty : Color.FromArgb(255, 228, 190);
+        if (zeile.DefaultCellStyle.BackColor != hinter) zeile.DefaultCellStyle.BackColor = hinter;
     }
 
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)

@@ -74,3 +74,97 @@ public sealed class TabellenStand
         }
     }
 }
+
+/// <summary>
+/// Tabelle nach einer Änderung aktualisieren, ohne die ganze Liste neu zu laden: Werte bestehender Zeilen werden an Ort und
+/// Stelle erneuert, weggefallene Zeilen entfernt und neue an ihrem sortierten Platz eingefügt (<see cref="Listenabgleich.Zusammenfuehren"/>).
+/// Aktuelle Zeile und Zelle, Markierung, Bildlauf und Reihenfolge bleiben stehen – nichts verrutscht. Nur wenn neu sortiert werden
+/// soll (Filter, Sortierung, Ansicht) bzw. keine Zeile erhalten bleibt, wird neu aufgebaut und der Stand per Schlüssel wiederhergestellt.
+/// </summary>
+public static class TabellenAbgleich
+{
+    /// <summary>Anzahl der Neuaufbauten bzw. Abgleiche (Selbsttest).</summary>
+    public static int Neuaufbauten { get; private set; }
+    public static int Abgleiche { get; private set; }
+
+    /// <param name="g">Tabelle (der Aufrufer unterdrückt währenddessen seine Auswahl-Ereignisse).</param>
+    /// <param name="neu">Gewünschte Zeilen in neuer Sortierung (auch Platzhalter wie die Eingabezeile „neu“).</param>
+    /// <param name="schluessel">Fachlicher Schlüssel eines Eintrags (eindeutig).</param>
+    /// <param name="zeilenSchluessel">Schlüssel einer angezeigten Zeile (aus ihrem Tag).</param>
+    /// <param name="setzen">Füllt eine Zeile vollständig (Werte, Tag, Zeilenformat) – für bestehende und neue Zeilen.</param>
+    /// <param name="neuSortieren">Reihenfolge laut <paramref name="neu"/> erzwingen (z. B. nach Klick auf eine Spaltenüberschrift).</param>
+    /// <param name="aktuell">Nach dem Abgleich diese Zeile wählen (z. B. gerade angelegter Datensatz), null = bisherige.</param>
+    /// <returns>true, wenn an Ort und Stelle abgeglichen wurde; false nach einem Neuaufbau.</returns>
+    public static bool Anwenden<T>(DataGridView g, IReadOnlyList<T> neu, Func<T, string> schluessel, Func<DataGridViewRow, string?> zeilenSchluessel,
+        Action<DataGridViewRow, T> setzen, bool neuSortieren = false, string? aktuell = null)
+    {
+        var alt = g.Rows.Cast<DataGridViewRow>().Select(r => zeilenSchluessel(r) ?? "").ToList();
+        var ziel = neuSortieren && !alt.SequenceEqual(neu.Select(schluessel)) ? null : Listenabgleich.Zusammenfuehren(alt, neu, schluessel);
+        var zielSchluessel = ziel?.Select(schluessel).ToHashSet();
+        if (ziel is null || zielSchluessel is null || g.Columns.Count == 0 || (alt.Count > 0 && !alt.Any(zielSchluessel.Contains)))
+        {
+            Neuaufbau(g, neu, zeilenSchluessel, setzen, aktuell);
+            return false;
+        }
+        Abgleiche++;
+        var stand = TabellenStand.Merken(g, zeilenSchluessel);
+        var ersteIndex = g.FirstDisplayedScrollingRowIndex;
+        var ersteSchluessel = ersteIndex >= 0 && ersteIndex < alt.Count ? alt[ersteIndex] : null;
+        var aktuellWeg = stand.Aktuell is { } ak && !zielSchluessel.Contains(ak);
+        var zeilen = alt.ToList();
+        try
+        {
+            // weggefallene Zeilen entfernen (von unten, damit die Indizes stimmen)
+            for (var i = zeilen.Count - 1; i >= 0; i--)
+            {
+                if (zielSchluessel.Contains(zeilen[i])) continue;
+                g.Rows.RemoveAt(i);
+                zeilen.RemoveAt(i);
+            }
+            // verbliebene Zeilen stehen in derselben Reihenfolge wie im Ziel: Werte erneuern, neue Zeilen einfügen
+            for (var i = 0; i < ziel.Count; i++)
+            {
+                var k = schluessel(ziel[i]);
+                if (i < zeilen.Count && zeilen[i] == k)
+                {
+                    setzen(g.Rows[i], ziel[i]);
+                    continue;
+                }
+                g.Rows.Insert(i, 1);
+                zeilen.Insert(i, k);
+                setzen(g.Rows[i], ziel[i]);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Tabelle im Zellwechsel: sicher neu aufbauen
+            Neuaufbau(g, neu, zeilenSchluessel, setzen, aktuell ?? stand.Aktuell);
+            return false;
+        }
+        try
+        {
+            if (aktuell != null || aktuellWeg)
+            {
+                if (aktuell != null) stand.AktuellSetzen(aktuell);
+                stand.Wiederherstellen(g, zeilenSchluessel, false);
+            }
+            else if (ersteSchluessel != null && zeilen.IndexOf(ersteSchluessel) is var erste and >= 0 && erste != g.FirstDisplayedScrollingRowIndex &&
+                     g.Rows[erste].Visible && !g.Rows[erste].Frozen)
+                // oberste sichtbare Zeile bleibt oben, auch wenn darüber Zeilen eingefügt bzw. entfernt wurden
+                g.FirstDisplayedScrollingRowIndex = erste;
+        }
+        catch (InvalidOperationException) { }
+        return true;
+    }
+
+    private static void Neuaufbau<T>(DataGridView g, IReadOnlyList<T> neu, Func<DataGridViewRow, string?> zeilenSchluessel, Action<DataGridViewRow, T> setzen, string? aktuell)
+    {
+        Neuaufbauten++;
+        var stand = TabellenStand.Merken(g, zeilenSchluessel);
+        if (aktuell != null) stand.AktuellSetzen(aktuell);
+        g.Rows.Clear();
+        if (neu.Count > 0) g.Rows.Add(neu.Count);
+        for (var i = 0; i < neu.Count; i++) setzen(g.Rows[i], neu[i]);
+        stand.Wiederherstellen(g, zeilenSchluessel, true);
+    }
+}

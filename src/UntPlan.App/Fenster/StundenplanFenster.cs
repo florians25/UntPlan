@@ -589,10 +589,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private int FormatListenbreite()
     {
         using var g = _format.CreateGraphics();
-        using var fett = new Font(_format.Font, FontStyle.Bold);
+        var schrift = Ui.OhneFett(_format.Font);
         var w = 0;
         foreach (var o in _format.Items)
-            w = Math.Max(w, TextRenderer.MeasureText(g, o is string n ? FormatAnzeige(n) : o.ToString(), o is FormatBefehl ? fett : _format.Font).Width);
+            w = Math.Max(w, TextRenderer.MeasureText(g, o is string n ? FormatAnzeige(n) : o.ToString(), schrift).Width);
         return w + 16 + (_format.Items.Count > _format.MaxDropDownItems ? SystemInformation.VerticalScrollBarWidth : 0);
     }
 
@@ -610,9 +610,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             return;
         }
         e.DrawBackground();
-        using var fett = new Font(e.Font ?? _format.Font, FontStyle.Bold);
         var text = o is string n ? FormatAnzeige(n) : o?.ToString() ?? "";
-        Ui.ListenText(e.Graphics, text, o is FormatBefehl && !imFeld ? fett : e.Font ?? _format.Font, new Rectangle(e.Bounds.X + 1, e.Bounds.Y, e.Bounds.Width - 2, e.Bounds.Height),
+        // Befehle („Format speichern …“) wie alle Listeneinträge ohne Fettdruck
+        Ui.ListenText(e.Graphics, text, Ui.OhneFett(e.Font ?? _format.Font), new Rectangle(e.Bounds.X + 1, e.Bounds.Y, e.Bounds.Width - 2, e.Bounds.Height),
             (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : _format.ForeColor);
         e.DrawFocusRectangle();
     }

@@ -512,6 +512,29 @@ public sealed partial class HauptFenster
             Warten(300);
             log.Add("INFO  " + f.SelbsttestZeilenwechsel(() => Warten(250)));
         }, 1);
+        Schritt("UP5d1b_Unterricht_ohne_Klasse_Zeilen_stabil", () =>
+        {
+            // Lehrkräfte können Unterricht ohne Klassen haben: in der Lehreransicht anlegen, keine Pflicht-Klasse; Ändern eines Werts
+            // lädt die Liste nicht neu (Zeile, Bildlauf und Reihenfolge bleiben)
+            var dd = AppZustand.D;
+            var lehrer = dd.Lehrer.OrderByDescending(l => dd.Unterrichte.Count(u => u.LehrerIds.Contains(l.Id))).First();
+            var f = Max(Oeffnen<UnterrichtFenster>("u:Lehrer", () => new UnterrichtFenster(ElementTyp.Lehrer)));
+            f.ElementSetzen(lehrer.Id);
+            Warten(300);
+            log.Add("INFO  UP5d1b " + f.SelbsttestStabil(() => Warten(250)));
+            var anzahl = AppZustand.D.Unterrichte.Count;
+            var fach = AppZustand.D.Faecher.First(x => !x.Bereitschaft && !x.KeineVertretung);
+            f.SelbsttestWaehlen(null, "Fach");
+            if (!f.SelbsttestEingabe(fach.Kurzname)) throw new InvalidOperationException("Fach wurde nicht übernommen: " + f.HinweisText);
+            Warten(300);
+            if (AppZustand.D.Unterrichte.Count != anzahl + 1) throw new InvalidOperationException("Kein Unterricht ohne Klasse angelegt.");
+            var neu = AppZustand.D.Unterrichte.OrderBy(u => u.Id).Last();
+            if (neu.KlassenIds.Any() || neu.Zeilen[0].LehrerId != lehrer.Id) throw new InvalidOperationException("Neuer Unterricht hat eine Klasse bzw. nicht die Lehrkraft.");
+            if (f.HinweisText.Contains("Klasse fehlt") || f.SelbsttestFehlertext(neu.Id, "Klassen").Length > 0)
+                throw new InvalidOperationException("Unterricht ohne Klasse wird als unvollständig gemeldet: " + f.HinweisText + " / " + f.SelbsttestFehlertext(neu.Id, "Klassen"));
+            if (Core.Planung.Unterrichtseingabe.Pflichthinweise(neu, AppZustand.D).Any(x => x.StartsWith("Klasse fehlt"))) throw new InvalidOperationException("Pflichthinweis „Klasse fehlt“.");
+            log.Add($"INFO  UP5d1b ohne Klasse: U{neu.Id} {AppZustand.Doc.Index.UnterrichtText(neu)} – {f.HinweisText}");
+        }, 1);
         Schritt("UP5d2_Unterricht_zurueck", () =>
         {
             Up5Zurueck();
@@ -569,6 +592,13 @@ public sealed partial class HauptFenster
             Warten(200);
             Pruefen("nach „Standardansicht“");
             log.Add("INFO  Vertretungsliste Standardansicht: " + string.Join(" | ", soll));
+        }, -1);
+        Schritt("17_0a_Vertretungsliste_Zeilen_stabil", () =>
+        {
+            // Ändern von Werten bzw. neue Vertretungen: kein Neuaufbau, Zeile/Zelle/Bildlauf/Reihenfolge bleiben; gesperrte Felder dunkler
+            var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            log.Add("INFO  " + f.SelbsttestZeilenStabil(() => Warten(300)));
         }, -1);
         Schritt("17a_Vertretungen_Eingabe_Offene", () =>
         {
@@ -1370,21 +1400,37 @@ public sealed partial class HauptFenster
             // alle Hinweis-, Frage- und Fehlerfenster im Design der Anwendung (auch Raumfragen) – keine Windows-Meldungsfenster
             var arten = new (MeldungsArt Art, string Titel, string Text, string[] Knoepfe, bool Abbrechen)[]
             {
+                (MeldungsArt.Warnung, "UntPlan - Hinweis", "Absenzgrund fehlt.", new[] { "OK" }, false),
                 (MeldungsArt.Info, "UntPlan", "Stundenplanänderungen wurden nacherfasst.", new[] { "OK" }, false),
                 (MeldungsArt.Frage, "UntPlan - Frage", "3 Absenz(en) löschen? Daraus entstandene Vertretungen werden entfernt.", new[] { "Ja", "Nein" }, false),
                 (MeldungsArt.Warnung, "UntPlan - Raum belegt", "Raum R104 ist in der 3. Stunde bereits durch 7a/Ma/MÜL belegt.", new[] { "Verlegen und Raumvertretung für meinen Unterricht", "Kollision erzeugen" }, true),
                 (MeldungsArt.Fehler, "UntPlan - Fehler", "Raum oder Raumgruppe \"X99\" ist nicht vorhanden.", new[] { "OK" }, false),
             };
             var x = 30;
+            var y = 120;
             foreach (var a in arten)
             {
                 var f = Ui.MeldungsFenster(a.Text, a.Titel, a.Art, a.Knoepfe, 0, a.Abbrechen, null, new System.Runtime.CompilerServices.StrongBox<int?>());
                 f.StartPosition = FormStartPosition.Manual;
-                f.Location = new Point(x, 120 + (x - 30) / 3);
+                f.Location = new Point(x, y);
                 f.Show(this);
-                x += 380;
-                if (f.BackColor != Color.White || f.Controls.Find("Knopfleiste", false).Length != 1 || f.AcceptButton is not Button std || std.BackColor != Ui.Titel)
-                    throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ nicht im Design der Anwendung.");
+                x += f.Width + 30;
+                if (x > 1300) { x = 30; y += 260; }
+                // wie im Vorbild: ohne Systemrahmen, helle Titelleiste in der Modusfarbe, Fläche in der Listenfarbe, flache Knöpfe ohne Fettdruck
+                if (f.FormBorderStyle != FormBorderStyle.None || f.BackColor != Ui.MeldungFlaeche || f.Controls.Find("Knopfleiste", false) is not [Panel leiste] ||
+                    leiste.BackColor != Ui.MeldungLeiste || f.AcceptButton is not Button std || std.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || std.Font.Bold || std.BackColor != Color.White)
+                    throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ nicht wie im Vorbild.");
+                // Titelleiste wie auf dem Bildschirm (eigene Zeichnung, kein Systemrahmen)
+                Warten(150);
+                using (var bild = new Bitmap(1, 1))
+                {
+                    using (var g = Graphics.FromImage(bild)) g.CopyFromScreen(f.PointToScreen(new Point(f.ClientSize.Width - 52, 4)), Point.Empty, new Size(1, 1));
+                    var titel = bild.GetPixel(0, 0);
+                    if (Math.Abs(titel.R - Ui.MeldungTitel.R) + Math.Abs(titel.G - Ui.MeldungTitel.G) + Math.Abs(titel.B - Ui.MeldungTitel.B) > 12)
+                        throw new InvalidOperationException($"Titelleiste des Meldungsfensters „{a.Titel}“ hat die Farbe {titel} statt {Ui.MeldungTitel}.");
+                }
+                if (a.Text == "Absenzgrund fehlt." && (f.Width is < 200 or > 280 || f.Height is < 150 or > 200))
+                    throw new InvalidOperationException($"Kurze Meldung nicht klein wie im Vorbild: {f.Width} × {f.Height}.");
                 var knoepfe = f.Controls.Find("Knopfleiste", false)[0].Controls.OfType<Button>().Select(b => b.Text).ToList();
                 if (knoepfe.Count != a.Knoepfe.Length + (a.Abbrechen ? 1 : 0)) throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“: Knöpfe {string.Join(", ", knoepfe)}.");
             }
@@ -1393,6 +1439,17 @@ public sealed partial class HauptFenster
             if (raum.Controls.Find("Knopfleiste", false).Length != 1) throw new InvalidOperationException("Raumfrage nicht im Design der Anwendung.");
             raum.Dispose();
             log.Add("INFO  Meldungsfenster: Info, Frage, Warnung (Raum belegt), Fehler und Raumfrage im Design der Anwendung");
+        }, -1);
+        Schritt("27f_Dropdowns_nicht_fett", () =>
+        {
+            // Texte in Auswahllisten (auch Kürzel) nie fett – auch in einer fett schreibenden Umgebung
+            using var gruppe = new GroupBox { Font = Ui.SchriftFett };
+            var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            gruppe.Controls.Add(cb);
+            Ui.ListenSchriftSetzen(cb);
+            if (cb.Font.Bold) throw new InvalidOperationException("Auswahlliste in fetter Umgebung schreibt fett.");
+            if (Ui.OhneFett(Ui.SchriftFett).Bold || Ui.OhneFett(new Font("Arial", 11f, FontStyle.Bold)).Bold) throw new InvalidOperationException("OhneFett liefert fette Schrift.");
+            log.Add("INFO  Auswahllisten: Kurz- und Langnamen ohne Fettdruck");
         }, -1);
         Schritt("27c_Symbole", () =>
         {

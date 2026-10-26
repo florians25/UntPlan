@@ -38,13 +38,12 @@ public static class Auswahlbreite
     /// </summary>
     internal static void SpaltenListeBreit(DataGridViewComboBoxColumn c)
     {
-        var schrift = c.DataGridView?.Font ?? Ui.Schrift;
-        using var fett = new Font(schrift, FontStyle.Bold);
+        var schrift = Ui.OhneFett(c.DataGridView?.Font ?? Ui.Schrift);
         int kurz = 0, lang = 0;
         foreach (var o in c.Items)
         {
             var t = o?.ToString() ?? "";
-            kurz = Math.Max(kurz, TextRenderer.MeasureText(t, fett).Width);
+            kurz = Math.Max(kurz, TextRenderer.MeasureText(t, schrift).Width);
             if (ListenSuche.Langname(t) is { Length: > 0 } l) lang = Math.Max(lang, TextRenderer.MeasureText(l, schrift).Width);
         }
         var w = Math.Max(64, Math.Min(kurz + 10, 160)) + (lang > 0 ? lang + 22 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
@@ -90,8 +89,8 @@ public static class Auswahlbreite
     }
 
     /// <summary>
-    /// Zellfarben: die Zelle unter der Maus wird hervorgehoben; im Vertretungsmodus wie im Vorbild nicht bearbeitbare Felder grau,
-    /// bearbeitbare hell und die aktuelle Zelle orange. Eigene Farben der Fenster (Vertretungsarten, Kollision …) bleiben erhalten.
+    /// Zellfarben: die Zelle unter der Maus wird hervorgehoben; wie im Vorbild nicht bearbeitbare Felder (Spalten und einzelne
+    /// gesperrte Zellen) etwas dunkler, bearbeitbare hell und im Vertretungsmodus die aktuelle Zelle orange. Eigene Farben der Fenster (Vertretungsarten, Kollision …) bleiben erhalten.
     /// </summary>
     private static void ZellFarben(object? sender, DataGridViewCellFormattingEventArgs e)
     {
@@ -99,10 +98,11 @@ public static class Auswahlbreite
         var zeile = g.Rows[e.RowIndex];
         var standard = e.CellStyle.BackColor == g.DefaultCellStyle.BackColor || e.CellStyle.BackColor == g.AlternatingRowsDefaultCellStyle.BackColor ||
                        e.CellStyle.BackColor == g.RowsDefaultCellStyle.BackColor || e.CellStyle.BackColor.IsEmpty;
-        if (Ui.Vertretungsmodus && !g.ReadOnly)
+        if (!g.ReadOnly)
         {
+            // in allen bearbeitbaren Tabellen (beide Modi): nicht bearbeitbare Spalten bzw. Zellen etwas dunkler, bearbeitbare hell
             if (standard && zeile.Cells[e.ColumnIndex].ReadOnly) e.CellStyle.BackColor = Ui.ZelleGesperrt;
-            if (g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
+            if (Ui.Vertretungsmodus && g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
         }
         var h = Hover(g);
         if (h.X == e.ColumnIndex && h.Y == e.RowIndex)
