@@ -228,4 +228,40 @@ public class KopplungVertretungTests
         Assert.Contains(web, s => s.Status == "vertreten" && s.Lehrer.Contains(frei.Kurzname) && s.Klassen.Contains(K(k, ElementTyp.Klasse, k.K1)));
         Assert.Contains(web, s => s.Status == "regulaer" && s.Lehrer.Contains(K(k, ElementTyp.Lehrer, k.L2)));
     }
+
+    [Fact]
+    public void GemeinsamerRaumZeilenweiseUmziehenOhneKollisionBehaeltAlleZeilenImNeuenRaum()
+    {
+        var k = Erzeugen(gleicherRaum: true);
+        // jede Kopplungszeile einzeln in R3 – „ohne Kollision“ darf die Partnerzeile desselben Unterrichts nicht verdrängen
+        Raumvertretungen.Zuordnen(k.D, k.U.Id, 0, k.Tag, new[] { k.Stunde }, k.R3, false, RaumKollisionsLoesung.OhneKollision, "test");
+        Raumvertretungen.Zuordnen(k.D, k.U.Id, 1, k.Tag, new[] { k.Stunde }, k.R3, false, RaumKollisionsLoesung.OhneKollision, "test");
+        Assert.All(Zeilen(k), v => Assert.False(v.RaumVerdraengt));
+        Assert.All(Zeilen(k), v => Assert.False(v.RaumOffen));
+        Assert.Equal(new[] { k.R3 }, Eintrag(k, 0).RaumIds);
+        Assert.Equal(new[] { k.R3 }, Eintrag(k, 1).RaumIds);
+        Assert.All(WebStunden(k), s => Assert.Equal(new[] { K(k, ElementTyp.Raum, k.R3) }, s.Raeume));
+        // die Partnerzeile gilt in der Raumliste nicht als Belegung des eigenen Raumes
+        var v0 = Zeilen(k)[0];
+        Assert.Contains(Raumvertretungen.MoeglicheRaeume(k.D, v0, false, false), r => r.Raum.Id == k.R3);
+    }
+
+    [Fact]
+    public void VeranstaltungOhneLehrkraefteStehtInDerListeUndImExport()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var klasse = d.Klassen.First();
+        var va = new Veranstaltung { Id = d.NeueId(), Von = tag, Bis = tag, StundeVon = 1, StundeBis = 2, KlassenIds = new() { klasse.Id }, Text = "Wandertag" };
+        d.Veranstaltungen.Add(va);
+        Vertretungen.Aktualisieren(d, tag);
+        var verweise = d.Vertretungen.Where(v => v.Datum == tag && v.VeranstaltungId == va.Id && v.Art != VertretungsArt.Veranstaltung).ToList();
+        Assert.NotEmpty(verweise);
+        var zeilen = Vertretungsplan.Zeilen(d, tag);
+        Assert.Contains(zeilen, z => z.VeranstaltungId == va.Id || (z.ArtWert == VertretungsArt.Veranstaltung && z.Text.Contains("Wandertag")));
+        var paket = UntPlanWebExport.PaketErstellen(d, tag, new WebExportOptionen { TageZurueck = 0 });
+        var vaIds = paket.Vertretungen.Where(v => v.Datum == tag.ToString("yyyy-MM-dd")).Select(v => v.Id).ToHashSet();
+        var vaZeile = d.Vertretungen.Where(v => v.Datum == tag && v.VeranstaltungId == va.Id && v.Art == VertretungsArt.Veranstaltung).Select(v => v.Id).ToList();
+        Assert.Contains(vaZeile, vaIds.Contains);
+    }
 }

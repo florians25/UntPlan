@@ -1791,7 +1791,10 @@ public static class Vertretungsplan
         var veranstaltungen = d.Veranstaltungen.GroupBy(v => v.Id).ToDictionary(g => g.Key, g => g.First());
         var gefiltert = am
             .Where(v => mitNichtDrucken || (!v.NichtDrucken && !(v.FachId is int f && nichtDruckFaecher.Contains(f))))
-            .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue)
+            // Veranstaltung ohne Lehrkräfte (z. B. Klassenausflug nur mit Klassen): ihre einzige Zeile bleibt, damit die Freisetzungen bzw.
+            // Entfälle, die auf sie verweisen, eine Veranstaltung in der Liste bzw. im UntPlanWeb-Export finden
+            .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue
+                        || (v.Art == VertretungsArt.Veranstaltung && v.LehrerId is null && v.ErsatzFuerLehrerId is null))
             .ToList();
         var vaZeilen = gefiltert.Where(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va && veranstaltungen.ContainsKey(va))
             .GroupBy(v => (Va: v.VeranstaltungId!.Value, v.Stunde)).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.ToList());
@@ -1807,7 +1810,7 @@ public static class Vertretungsplan
             res.Add(new PlanZeile(
                 v.Datum, v.Stunde, ix.KKlassen(v.NeueKlassenIds), ix.KLehrer(v.LehrerId),
                 v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++" :
-                v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : "???",
+                v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : v.Art == VertretungsArt.Veranstaltung ? "" : "???",
                 ix.KFach(v.FachId), ix.KFach(v.VertretungsfachId ?? v.FachId),
                 v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) : ix.KRaum(v.RaumId),
                 v.IstEntfall ? "" : v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) :
