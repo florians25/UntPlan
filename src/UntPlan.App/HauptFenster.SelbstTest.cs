@@ -1412,10 +1412,10 @@ public sealed partial class HauptFenster
             {
                 var f = Ui.MeldungsFenster(a.Text, a.Titel, a.Art, a.Knoepfe, 0, a.Abbrechen, null, new System.Runtime.CompilerServices.StrongBox<int?>());
                 f.StartPosition = FormStartPosition.Manual;
+                if (x + f.Width > 1650) { x = 30; y += 260; }
                 f.Location = new Point(x, y);
                 f.Show(this);
                 x += f.Width + 30;
-                if (x > 1300) { x = 30; y += 260; }
                 // wie im Vorbild: ohne Systemrahmen, helle Titelleiste in der Modusfarbe, Fläche in der Listenfarbe, flache Knöpfe ohne Fettdruck
                 if (f.FormBorderStyle != FormBorderStyle.None || f.BackColor != Ui.MeldungFlaeche || f.Controls.Find("Knopfleiste", false) is not [Panel leiste] ||
                     leiste.BackColor != Ui.MeldungLeiste || f.AcceptButton is not Button std || std.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || std.Font.Bold || std.BackColor != Color.White)

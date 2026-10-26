@@ -85,7 +85,7 @@ public class PlanKorrekturenEndeZuEndeTests
             var sollSortiert = soll == "–" ? "–" : string.Join("  ||  ", soll.Split("  ||  ").OrderBy(x => x, StringComparer.Ordinal));
             if (ist != sollSortiert) fehler.Add($"{plan}: ist „{ist}“, soll „{sollSortiert}“");
             // geänderte Karten: grünes Änderungssymbol, nie ein Entfall-Symbol
-            foreach (var k in karten.Where(k => k["status"]!.GetValue<string>() == "geaendert"))
+            foreach (var k in karten.Where(k => k["status"]!.GetValue<string>() is "geaendert" or "offen"))
             {
                 var marker = k["marker"]!.AsArray().Select(x => x!.GetValue<string>()).ToList();
                 if (!marker.Contains("aenderung") || marker.Contains("entfall")) fehler.Add($"{plan}: Symbole {string.Join(",", marker)}");
@@ -268,6 +268,51 @@ public class PlanKorrekturenEndeZuEndeTests
     }
 
     /// <summary>
+    /// Fall aus den Echtdaten: Raum B117 nicht verfügbar (Raumsperre). Die Kopplung ET13/INF13/ING13 (HE, CS, SZ) mit EINEM Raum im Stundenplan –
+    /// UntPlan ordnet ihn nur der ersten Zeile zu – zeigt die offene Raumvertretung wie jede Einzelstunde: grün, B117 durchgestrichen im Label,
+    /// in allen Plänen und für alle Zeilen (auch beim Export nur der Vertretungen).
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Raumsperre_bei_einer_Kopplung_mit_gemeinsamem_Raum(bool einRaumImStundenplan, bool nurVertretungen)
+    {
+        var d = Demo.NeueDatei("Testschule", "GY");
+        var ww = new Fach { Id = d.NeueId(), Kurzname = "WW" };
+        d.Faecher.Add(ww);
+        var kl = new[] { "ET13", "INF13", "ING13" }.Select(k => new Klasse { Id = d.NeueId(), Kurzname = k }).ToArray();
+        var le = new[] { "HE", "CS", "SZ", "SW" }.Select(k => new Lehrer { Id = d.NeueId(), Kurzname = k }).ToArray();
+        var b117 = new Raum { Id = d.NeueId(), Kurzname = "B117" };
+        d.Klassen.AddRange(kl);
+        d.Lehrer.AddRange(le);
+        d.Raeume.Add(b117);
+        var tag = (int)Freitag.DayOfWeek - 1;
+        var u = new Unterricht { Id = d.NeueId(), Wochenstunden = 1, Zeilen = Enumerable.Range(0, 3).Select(i => new Kopplungszeile { LehrerId = le[i].Id, FachId = ww.Id, KlassenIds = { kl[i].Id }, FachraumId = einRaumImStundenplan ? null : b117.Id }).ToList() };
+        d.Unterrichte.Add(u);
+        d.Stundenplan.Add(new Planstunde { UnterrichtId = u.Id, Tag = tag, Stunde = Std, Raeume = einRaumImStundenplan ? new List<int?> { b117.Id } : new List<int?> { b117.Id, b117.Id, b117.Id } });
+        // zum Vergleich eine Einzelstunde im selben Raum
+        var e = new Unterricht { Id = d.NeueId(), Wochenstunden = 1, Zeilen = { new Kopplungszeile { LehrerId = le[3].Id, FachId = ww.Id, KlassenIds = { kl[0].Id }, FachraumId = b117.Id } } };
+        d.Unterrichte.Add(e);
+        d.Stundenplan.Add(new Planstunde { UnterrichtId = e.Id, Tag = tag, Stunde = 3, Raeume = { b117.Id } });
+        d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Raum, ElementId = b117.Id, Von = Freitag, Bis = Freitag });
+        Vertretungen.Aktualisieren(d, Freitag);
+        foreach (var z in Vertretungsplan.Zeilen(d, Freitag)) _aus.WriteLine($"Desktop-Zeile: {z.Art} Kl={string.Join(",", z.KlassenIds)} {z.Lehrer}->{z.Vertreter} Raum {z.Raum}->{z.NeuerRaum}");
+        await using var s = await HochladenAsync(d, Freitag.AddDays(-4), nurVertretungen);
+        var c = await s.AlsAsync("admin");
+        await PruefenAsync(c, Freitag, 3, new() { ["lehrer SW"] = "offen L=SW K=ET13 R=B117→∅", ["klasse ET13"] = "offen L=SW K=ET13 R=B117→∅" });
+        const string alle = "offen L=HE,CS,SZ K=ET13,INF13,ING13 R=B117→∅";
+        await PruefenAsync(c, Freitag, Std, new()
+        {
+            ["lehrer HE"] = alle, ["lehrer CS"] = alle, ["lehrer SZ"] = alle, ["raum B117"] = alle,
+            ["klasse ET13"] = "offen L=HE K=ET13+INF13,ING13 R=B117→∅",
+            ["klasse INF13"] = "offen L=CS K=INF13+ET13,ING13 R=B117→∅",
+            ["klasse ING13"] = "offen L=SZ K=ING13+ET13,INF13 R=B117→∅",
+        });
+    }
+
+    /// <summary>
     /// Raumänderung aus den Stundendetails (Web) bei Stunden mehrerer Klassen: solange UntPlan sie nicht übernommen hat („vorgemerkt“) wie bei
     /// einer Einzelstunde der neue Raum als Label in jedem Plan, alle Klassen auf der Karte, im neuen Raum die ganze Stunde, im bisherigen
     /// keine; die Meldung nennt die Klassen EINER Zeile (sonst fände UntPlan keine Stunde und legte eine zusätzliche an).
@@ -313,6 +358,10 @@ public class PlanKorrekturenEndeZuEndeTests
         var zeilen = StundenplanAenderungen.Analysieren(d, new List<WebRueckmeldung> { meldung }, Freitag.AddDays(-4), Freitag.AddDays(14), false);
         _aus.WriteLine("Übernahme: " + string.Join(" | ", zeilen.Select(z => $"{z.Art} U={z.UnterrichtId} Z={z.ZeilenIndex} {z.Fehler}")));
         Assert.Equal(StplAenderungsArt.Unterricht, Assert.Single(zeilen).Art);
+        // (Protokoll) was der Desktop daraus macht – je Zeile der Kopplung der Raum nach der Übernahme
+        StundenplanAenderungen.Uebernehmen(d, zeilen, "lan");
+        foreach (var e in Tagesplan.Berechnen(d, Freitag).Stunde(Std))
+            _aus.WriteLine($"Desktop nach Übernahme: U={e.Unterricht?.Id} L={string.Join(",", e.LehrerIds)} R={string.Join(",", e.RaumIds)} K={string.Join(",", e.KlassenIds)}");
     }
 
     /// <summary>
@@ -419,6 +468,54 @@ public class PlanKorrekturenEndeZuEndeTests
             var alt = karten.Single(k => k["status"]!.GetValue<string>() == "entfall");
             Assert.Equal("WW", alt["fach"]!.GetValue<string>());
         }
+    }
+
+    /// <summary>
+    /// Fall aus den Echtdaten: CK (abwesend) hat ING12 MIK in B063 in der 5.–6. Stunde. Die 5. vertritt WR im selben Fach, die 6. EVA mit
+    /// anderem Fach (SL). Plan von CK: 5. Stunde abgegeben (Eckklammern, WR als Label), 6. Stunde Entfall MIK – die SL-Stunde nicht.
+    /// Klassenplan: 5. grün MIK (WR), 6. grün SL (Fach MIK → SL in den Details) und daneben der Entfall MIK.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Fachaenderung_in_einer_Stunde_eines_Blocks_der_abwesenden_Lehrkraft(bool nurVertretungen)
+    {
+        var di = new DateOnly(2026, 11, 3);
+        var d = Demo.NeueDatei("Testschule", "GY");
+        var mik = new Fach { Id = d.NeueId(), Kurzname = "MIK" };
+        var sl = new Fach { Id = d.NeueId(), Kurzname = "SL" };
+        d.Faecher.AddRange(new[] { mik, sl });
+        var kl = new Klasse { Id = d.NeueId(), Kurzname = "ING12" };
+        var le = new[] { "CK", "WR", "EVA" }.Select(k => new Lehrer { Id = d.NeueId(), Kurzname = k }).ToArray();
+        var ra = new Raum { Id = d.NeueId(), Kurzname = "B063" };
+        d.Klassen.Add(kl);
+        d.Lehrer.AddRange(le);
+        d.Raeume.Add(ra);
+        var u = new Unterricht { Id = d.NeueId(), Wochenstunden = 2, Zeilen = { new Kopplungszeile { LehrerId = le[0].Id, FachId = mik.Id, KlassenIds = { kl.Id }, FachraumId = ra.Id } } };
+        d.Unterrichte.Add(u);
+        foreach (var st in new[] { 5, 6 }) d.Stundenplan.Add(new Planstunde { UnterrichtId = u.Id, Tag = (int)di.DayOfWeek - 1, Stunde = st, Raeume = { ra.Id } });
+        d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = le[0].Id, Von = di, Bis = di });
+        Vertretungen.Aktualisieren(d, di);
+        Vertretungen.VertreterSetzen(d, d.Vertretungen.Single(x => x.Datum == di && x.Stunde == 5), le[1].Id);
+        var v6 = d.Vertretungen.Single(x => x.Datum == di && x.Stunde == 6);
+        Vertretungen.VertreterSetzen(d, v6, le[2].Id);
+        v6.VertretungsfachId = sl.Id;
+        await using var s = await HochladenAsync(d, di.AddDays(-1), nurVertretungen);
+        var c = await s.AlsAsync("admin");
+        var ck5 = Assert.Single(await KartenAsync(c, "lehrer", "CK", di, 5));
+        Assert.Equal("abwesend L=CK→WR K=ING12 R=B063", Kurz(ck5));
+        Assert.Equal("MIK", ck5["fach"]!.GetValue<string>());
+        var ck6 = Assert.Single(await KartenAsync(c, "lehrer", "CK", di, 6));
+        Assert.Equal("entfall L=CK K=ING12 R=B063", Kurz(ck6));
+        Assert.Equal("MIK", ck6["fach"]!.GetValue<string>());
+        var eva = Assert.Single(await KartenAsync(c, "lehrer", "EVA", di, 6));
+        Assert.Equal("SL", eva["fach"]!.GetValue<string>());
+        Assert.Equal("MIK", eva["fachAlt"]!.GetValue<string>());
+        var klasse6 = await KartenAsync(c, "klasse", "ING12", di, 6);
+        Assert.Equal(new[] { "entfall L=CK K=ING12 R=B063", "geaendert L=CK→EVA K=ING12 R=B063" }, klasse6.Select(Kurz).OrderBy(x => x));
+        Assert.Equal("MIK", klasse6.Single(k => k["status"]!.GetValue<string>() == "geaendert")["fachAlt"]!.GetValue<string>());
+        var klasse5 = Assert.Single(await KartenAsync(c, "klasse", "ING12", di, 5));
+        Assert.Equal("geaendert L=CK→WR K=ING12 R=B063", Kurz(klasse5));
     }
 
     /// <summary>Ältere bzw. nachbearbeitete Exporte ohne „neues Fach“ in der Vertretungszeile: das bisherige Fach kommt aus dem Stundenplan.</summary>

@@ -328,8 +328,12 @@ public sealed class Plandienst
                 && (x.Klausur.HasValue || (x.Unterricht is null && x.Status is "zusaetzlich" or "vertreten"))));
             foreach (var x in tag.Stunden)
             {
-                foreach (var b in ErsetzteZeilen(s, basis, x)) basis.Remove(b);
-                basis.Add(Aus(x));
+                // an die Stelle der ersetzten Zeile (Reihenfolge der Kopplungszeilen bleibt)
+                var ersetzt = ErsetzteZeilen(s, basis, x);
+                var stelle = ersetzt.Count > 0 ? basis.IndexOf(ersetzt[0]) : -1;
+                foreach (var b in ersetzt) basis.Remove(b);
+                if (stelle >= 0) basis.Insert(Math.Min(stelle, basis.Count), Aus(x));
+                else basis.Add(Aus(x));
             }
             return basis.OrderBy(b => b.Stunde).ToList();
         }
@@ -448,6 +452,8 @@ public sealed class Plandienst
         var einzel = new List<Karte>();
         var vorgemerkt = new List<(Rohstunde R, Karte K)>();
         var roh = TeilfreisetzungenAufheben(s, d, Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList());
+        // Kopplung mit EINEM gemeinsamen Raum im Stundenplan: die Raumänderung (z. B. Raum gesperrt) steht nur an einer Zeile – sie gilt für alle
+        roh = RaumaenderungAufKopplung(s, d, roh, out var raumVertretung);
         // Veranstaltung: abwesende (kranke) Lehrkräfte nehmen nicht teil – sie verschwinden aus der Veranstaltung (in allen Plänen) und die
         // Veranstaltung aus ihrem eigenen Plan (siehe betrifft)
         bool IstVeranstaltung(Rohstunde x) => IstVeranstaltungsStunde(s, x);
@@ -498,7 +504,7 @@ public sealed class Plandienst
         foreach (var r in roh)
         {
             if (r.Art == "KlausurLoeschen") continue;
-            WebVertretung? v = r.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vx) ? vx : null;
+            WebVertretung? v = r.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vx) ? vx : raumVertretung.TryGetValue(r, out var rv) ? rv : null;
             var betrifft = typ switch
             {
                 Elementtyp.Klasse => Enthaelt(r.Klassen, kurz),
@@ -590,6 +596,51 @@ public sealed class Plandienst
         // Veranstaltung der Klassen erst nach dem Zusammenfassen der Kopplungen: entfällt nur, wenn alle Klassen der gemeinsamen Karte teilnehmen
         // Klassenabwesenheit je Stunde vor dem Zusammenfassen zu Blöcken: deckt die Absenz nur einen Teil eines Blocks, wird nur dieser Teil markiert
         return ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, Kopplungen(einzel)), typ, kurz), zeiten));
+    }
+
+    /// <summary>
+    /// Kopplung mit einem gemeinsamen Raum (im Stundenplan steht EIN Raum für mehrere Zeilen): UntPlan ordnet den Raum nur der ersten Zeile zu,
+    /// eine Raumänderung bzw. Raumsperre (offene Raumvertretung „???“) steht daher nur an dieser Zeile. Die übrigen Zeilen derselben Stunde ohne
+    /// eigene Änderung, deren Raum fehlt bzw. der bisherige Raum ist, ziehen mit: gleicher (neuer bzw. offener) Raum, die Raumänderung als Label
+    /// wie bei einer Einzelstunde – ihre Lehrkraft, ihr Fach und ihre Klassen bleiben (die Raumänderung wird für sie ohne Lehrer- und
+    /// Fachangaben übernommen). Ergebnis: Zeilen und je übernommener Zeile die Raumänderung.
+    /// </summary>
+    /// <summary>Steht im Stundenplan für diesen Unterricht zu dieser Stunde ein gemeinsamer Raum (weniger Räume als Zeilen)?</summary>
+    private bool GemeinsamerRaum(Stand s, DateOnly d, int unterricht, int stunde)
+    {
+        var periode = s.Paket.Perioden.Where(p => DateOnly.TryParse(p.Von, out var v) && v <= d && (!DateOnly.TryParse(p.Bis, out var b) || d <= b))
+            .OrderByDescending(p => DateOnly.Parse(p.Von)).FirstOrDefault();
+        var u = periode?.Unterricht.FirstOrDefault(x => x.Id == unterricht);
+        var ps = periode?.Stundenplan.FirstOrDefault(p => p.Unterricht == unterricht && p.Tag == TagIndex(d) && p.Stunde == stunde);
+        return u != null && ps != null && u.Zeilen.Count > 1 && ps.Raeume.Count != u.Zeilen.Count;
+    }
+
+    internal List<Rohstunde> RaumaenderungAufKopplung(Stand s, DateOnly d, List<Rohstunde> roh, out Dictionary<Rohstunde, WebVertretung> raumVertretung)
+    {
+        raumVertretung = new Dictionary<Rohstunde, WebVertretung>(ReferenceEqualityComparer.Instance);
+        if (!roh.Any(r => r.Unterricht.HasValue && r.Status is "vertreten" or "offen")) return roh;
+        var res = roh.ToList();
+        foreach (var x in roh)
+        {
+            if (x.Unterricht is not int u || x.Status is not ("vertreten" or "offen") || x.Vertretung is not int vid || !s.Vertretungen.TryGetValue(vid, out var v)) continue;
+            var alt = RaumListe(v.Raum).Where(r => r != "???").ToHashSet(Ci);
+            var neu = RaumListe(v.NeuerRaum).ToHashSet(Ci);
+            if (alt.Count == 0 || neu.Count == 0 || alt.SetEquals(neu)) continue;
+            for (var i = 0; i < res.Count; i++)
+            {
+                var y = res[i];
+                if (ReferenceEquals(y, x) || y.Stunde != x.Stunde || y.Unterricht != u || y.Status != "regulaer" || y.Vertretung.HasValue || y.Klausur.HasValue
+                    || raumVertretung.ContainsKey(y)) continue;
+                var yr = y.Raeume.SelectMany(RaumListe).Where(r => r.Length > 0).ToHashSet(Ci);
+                // eigener Raum der Zeile (Raum je Zeile im Stundenplan): die Zeile bleibt, wo sie ist – nur der gemeinsame Raum zieht mit
+                if ((yr.Count > 0 && !yr.SetEquals(alt)) || !GemeinsamerRaum(s, d, u, x.Stunde)) continue;
+                var lehrer = y.Lehrer.FirstOrDefault(l => l.Length > 0) ?? "";
+                var z = y with { Status = "vertreten", Raeume = x.Raeume.ToList() };
+                res[i] = z;
+                raumVertretung[z] = v with { Lehrer = lehrer, Vertreter = lehrer, Fach = "", NeuesFach = "", Nach = "", VertrVon = "", Klassen = y.Klassen.ToList() };
+            }
+        }
+        return res;
     }
 
     /// <summary>
