@@ -16,7 +16,7 @@ namespace UntPlanWeb.Tests;
 /// <item>Veranstaltung ohne Lehrkräfte: nirgends ein Platzhalter („---“, „???“, „+++“) – auch wenn die Art im Desktop umbenannt ist.</item>
 /// <item>Raumänderung bei Stunden mehrerer Klassen (eine Zeile mit mehreren Klassen, Kopplungszeilen, Mitklassen): grün mit Raumlabel wie bei
 ///   einer Einzelstunde, ohne Entfall, ohne fehlende Klassen, ohne doppelte Karten – aus dem Desktop und aus den Stundendetails.</item>
-/// <item>Fachänderung: Details mit bisherigem Fach, im Plan der ursprünglichen Lehrkraft Entfall (bisheriges Fach), die neue Stunde dort nicht.</item>
+/// <item>Fachänderung: zwei Blöcke (Details ohne Fachänderung), im Plan der ursprünglichen Lehrkraft Entfall (bisheriges Fach), die neue Stunde dort nicht.</item>
 /// <item>Raumplan eines Aufsichtsorts (z. B. „Einfahrt“): die Pausenaufsichten dort.</item>
 /// </list>
 /// </summary>
@@ -414,7 +414,7 @@ public class PlanKorrekturenEndeZuEndeTests
     [InlineData(Fachfall.StundeAendernBeiAbwesenheit, false)]
     [InlineData(Fachfall.StundeAendernBeiAbwesenheit, true)]
     [InlineData(Fachfall.StundeAendernOhneAbwesenheit, false)]
-    public async Task Fachaenderung_Details_und_Entfall_bei_der_urspruenglichen_Lehrkraft(Fachfall fall, bool nurVertretungen)
+    public async Task Fachaenderung_Entfall_bei_der_urspruenglichen_Lehrkraft(Fachfall fall, bool nurVertretungen)
     {
         var d = Demo.NeueDatei("Testschule", "GY");
         var ww = new Fach { Id = d.NeueId(), Kurzname = "WW", Hintergrund = unchecked((int)0xFFFF0000) };
@@ -451,13 +451,13 @@ public class PlanKorrekturenEndeZuEndeTests
         Assert.Equal("WW", he["fach"]!.GetValue<string>());
         Assert.Equal("#FF0000", he["farbe"]!.GetValue<string>());
         Assert.Contains("entfall", he["marker"]!.AsArray().Select(x => x!.GetValue<string>()));
-        // Plan der Vertretung: nur die neue Stunde (grün, neues Fach mit seiner Farbe, bisheriges Fach für die Details)
+        // Plan der Vertretung: nur die neue Stunde (grün, neues Fach mit seiner Farbe; fachAlt nur noch für Tooltip/Vertretungsliste)
         var vx = Assert.Single(await KartenAsync(c, "lehrer", "VX", Freitag, Std));
         Assert.Equal("geaendert", vx["status"]!.GetValue<string>());
         Assert.Equal("MA", vx["fach"]!.GetValue<string>());
         Assert.Equal("WW", vx["fachAlt"]!.GetValue<string>());
         Assert.Equal("#00FF00", vx["farbe"]!.GetValue<string>());
-        // Klassen- und Raumplan: neue Stunde grün (Fach alt → neu in den Details) und daneben die entfallene alte
+        // Klassen- und Raumplan: neue Stunde grün und daneben die entfallene alte
         foreach (var (typ, el) in new[] { ("klasse", "ET13"), ("raum", "B117") })
         {
             var karten = await KartenAsync(c, typ, el, Freitag, Std);
@@ -473,7 +473,7 @@ public class PlanKorrekturenEndeZuEndeTests
     /// <summary>
     /// Fall aus den Echtdaten: CK (abwesend) hat ING12 MIK in B063 in der 5.–6. Stunde. Die 5. vertritt WR im selben Fach, die 6. EVA mit
     /// anderem Fach (SL). Plan von CK: 5. Stunde abgegeben (Eckklammern, WR als Label), 6. Stunde Entfall MIK – die SL-Stunde nicht.
-    /// Klassenplan: 5. grün MIK (WR), 6. grün SL (Fach MIK → SL in den Details) und daneben der Entfall MIK.
+    /// Klassenplan: 5. grün MIK (WR), 6. grün SL und daneben der Entfall MIK.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -620,6 +620,14 @@ public class PlanKorrekturenEndeZuEndeTests
         // alle anderen Seiten bleiben volle Breite
         Assert.Contains(":root { --u-seite-max: none; --u-seite-mittel: none; --u-seite-schmal: none; }", css);
         Assert.DoesNotContain("data-ansicht=\"plan\"] #seite { max-width", css);
+    }
+
+    [Fact]
+    public void Details_zeigen_keine_Fachaenderung()
+    {
+        var sd = Datei("js", "stundendetails.js");
+        Assert.DoesNotContain("e(k.fachAlt)", sd);
+        Assert.Contains("const fachTeil = k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');", sd);
     }
 
     [Fact]

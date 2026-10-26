@@ -3,7 +3,7 @@ using UntPlanMobile.Dienste;
 namespace UntPlanMobile.Tests;
 
 /// <summary>
-/// PWA: Veranstaltung ohne Platzhalter als Lehrkraft, Fachänderung mit bisherigem Fach für die Details, Aufsichten im Raumplan eines
+/// PWA: Veranstaltung ohne Platzhalter als Lehrkraft, Fachänderung als eigener Block (Details ohne Fachänderung), Aufsichten im Raumplan eines
 /// Aufsichtsorts (wer führt die Aufsicht).
 /// </summary>
 public class PlanKorrekturenTests
@@ -32,7 +32,7 @@ public class PlanKorrekturenTests
     }
 
     [Fact]
-    public void Fachaenderung_traegt_das_bisherige_Fach_fuer_die_Details()
+    public void Fachaenderung_neuer_Block_mit_eigenem_Fach()
     {
         var karte = new PlanKarte("2026-10-14", 2, 2, "", "", "geaendert", "SL", "MIK", "SL", "", new() { new("ING12") }, new() { new("EVA", "CK", true) },
             new() { new("B063") }, "Vertretung", "", 7, 106);

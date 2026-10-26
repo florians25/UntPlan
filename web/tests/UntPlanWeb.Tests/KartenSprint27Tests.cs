@@ -421,7 +421,7 @@ public class KartenSprint27Tests
         Assert.Contains(".modal-footer, .u-kuerzung-hover, .std')", Datei("js", "ui.js"));
         var sd = Datei("js", "stundendetails.js");
         // Veranstaltung: oben keine Bezeichnung und kein Badge; Name unten unter „Information zur Stunde“
-        Assert.Contains(": k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');", sd);
+        Assert.Contains("const fachTeil = k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');", sd);
         Assert.Contains("const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';", sd);
         Assert.Contains("'Information zur Stunde'", sd);
         // sehr viele Elemente im Kopf: „… +N“ mit Hover
