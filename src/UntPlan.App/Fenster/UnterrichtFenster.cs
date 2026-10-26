@@ -1120,8 +1120,9 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (Aendern("Kopplungszeile löschen", AenderungsArt.Unterricht, d =>
         {
             var u = d.Unterrichte.First(x => x.Id == t.U.Id);
+            // gemeinsamer Raum der Kopplung (ein Eintrag für alle Zeilen) bleibt für die übrigen Zeilen
+            foreach (var p in d.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id && p.Raeume.Count > idx && !(p.Raeume.Count == 1 && u.Zeilen.Count > 1))) p.Raeume.RemoveAt(idx);
             u.Zeilen.RemoveAt(idx);
-            foreach (var p in d.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id && p.Raeume.Count > idx)) p.Raeume.RemoveAt(idx);
         })) Neuaufbau();
     }
 

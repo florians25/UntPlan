@@ -250,6 +250,6 @@ public sealed class Dokument
         foreach (var per in d.Perioden)
             foreach (var u in per.Unterrichte!)
                 foreach (var p in per.Plan.Where(p => p.UnterrichtId == u.Id))
-                    while (p.Raeume.Count < u.Zeilen.Count) p.Raeume.Add(null);
+                    p.RaeumeErweitern(u.Zeilen.Count);
     }
 }

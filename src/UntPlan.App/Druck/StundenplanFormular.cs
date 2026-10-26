@@ -108,7 +108,7 @@ internal static class StundenplanFormular
         for (var i = 0; i < u.Zeilen.Count; i++)
         {
             var z = u.Zeilen[i];
-            var raum = i < p.Raeume.Count ? p.Raeume[i] : null;
+            var raum = p.RaumFuerZeile(i);
             var dabei = typ switch
             {
                 ElementTyp.Klasse => z.KlassenIds.Contains(id),
@@ -316,7 +316,7 @@ internal static class StundenplanFormular
     private static List<(string Text, string Klassen)> FussnotenZeilen(Unterricht u, Planstunde p, DatenIndex ix) =>
         u.Zeilen.Select((z, i) =>
         {
-            var raum = i < p.Raeume.Count && p.Raeume[i] is int r ? ix.KRaum(r) : z.FachraumId is int f ? ix.KRaum(f) : "";
+            var raum = p.RaumFuerZeile(i) is int r ? ix.KRaum(r) : z.FachraumId is int f ? ix.KRaum(f) : "";
             return ($"{ix.KLehrer(z.LehrerId)}, {ix.KFach(z.FachId)}{(raum.Length > 0 ? ",  " + raum : "")}", ix.KKlassen(z.KlassenIds));
         }).ToList();
 

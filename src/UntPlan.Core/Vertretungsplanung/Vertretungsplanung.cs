@@ -1547,7 +1547,7 @@ public static class VertretungsVorschlag
         {
             if (stunden.Any(s => Absenzen.RaumGesperrt(d, r.Id, v.Datum, s))) continue;
             var besetzt = stunden.SelectMany(s => tp.Stunde(s)).FirstOrDefault(e => e.Findetstatt && e.Vertretung != v && e.RaumIds.Contains(r.Id) &&
-                !(e.Regel?.Unterricht.Id == v.UnterrichtId && e.Regel?.ZeilenIndex == v.ZeilenIndex));
+                !(v.UnterrichtId is int vu && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == vu));
             if (besetzt != null && !auchBesetzte) continue;
             var gruppen = string.Join(",", d.Raumgruppen.Where(g => g.RaumIds.Contains(r.Id)).Select(g => g.Kurzname));
             res.Add(new Raumkandidat(r, ring.Contains(r.Id), ringSr.Contains(r.Id),
@@ -1793,8 +1793,10 @@ public static class Vertretungsplan
             .Where(v => mitNichtDrucken || (!v.NichtDrucken && !(v.FachId is int f && nichtDruckFaecher.Contains(f))))
             // Veranstaltung ohne Lehrkräfte (z. B. Klassenausflug nur mit Klassen): ihre einzige Zeile bleibt, damit die Freisetzungen bzw.
             // Entfälle, die auf sie verweisen, eine Veranstaltung in der Liste bzw. im UntPlanWeb-Export finden
+            // – ebenso eine Veranstaltung, deren einzige Lehrkraft ohne Ersatz entfernt wurde (nur ein offener Platz, Vertreter leer)
             .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue
-                        || (v.Art == VertretungsArt.Veranstaltung && v.LehrerId is null && v.ErsatzFuerLehrerId is null))
+                        || (v.Art == VertretungsArt.Veranstaltung && v.LehrerId is null && v.ErsatzFuerLehrerId is null)
+                        || (v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int ova && veranstaltungen.TryGetValue(ova, out var ov) && ov.LehrerAm(v.Datum).Count == 0))
             .ToList();
         var vaZeilen = gefiltert.Where(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va && veranstaltungen.ContainsKey(va))
             .GroupBy(v => (Va: v.VeranstaltungId!.Value, v.Stunde)).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.ToList());

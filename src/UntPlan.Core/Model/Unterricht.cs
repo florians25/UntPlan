@@ -141,7 +141,21 @@ public sealed class Planstunde
     /// <summary>Fixierte Stunde (im Stundenplan mit * gekennzeichnet).</summary>
     public bool Fixiert { get; set; }
 
-    public int? RaumFuerZeile(int i) => i < Raeume.Count ? Raeume[i] : null;
+    /// <summary>
+    /// Raum der Kopplungszeile. Ein einzelner Raum für einen Unterricht mit mehreren Zeilen (gemeinsamer Raum der Kopplung, z. B. aus
+    /// einem Import bzw. von UntPlanWeb) gilt für alle Zeilen – alle Zeilen belegen ihn.
+    /// </summary>
+    public int? RaumFuerZeile(int i) => i < Raeume.Count ? Raeume[i] : Raeume.Count == 1 ? Raeume[0] : null;
+
+    /// <summary>
+    /// Raumliste auf <paramref name="zeilen"/> Einträge erweitern: ein gemeinsamer Raum (genau ein Eintrag) wird für die weiteren
+    /// Zeilen übernommen, sonst bleiben weitere Zeilen ohne Raum.
+    /// </summary>
+    public void RaeumeErweitern(int zeilen)
+    {
+        var gemeinsam = Raeume.Count == 1 ? Raeume[0] : null;
+        while (Raeume.Count < zeilen) Raeume.Add(gemeinsam);
+    }
 
     public Planstunde Kopie() => new() { UnterrichtId = UnterrichtId, Tag = Tag, Stunde = Stunde, Raeume = new List<int?>(Raeume), Fixiert = Fixiert };
 }

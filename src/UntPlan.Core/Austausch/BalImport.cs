@@ -282,7 +282,7 @@ public static class BalImport
                     p = new Planstunde { UnterrichtId = uu.Id, Tag = pos.Tag, Stunde = pos.Stunde, Raeume = uu.Zeilen.Select(_ => (int?)null).ToList() };
                     plan[key] = p;
                 }
-                while (p.Raeume.Count < uu.Zeilen.Count) p.Raeume.Add(null);
+                p.RaeumeErweitern(uu.Zeilen.Count);
                 if (raum != null) p.Raeume[zz] = raum.Id;
             }
             // Unterrichte ohne Unterrichtssatz: Wochenstunden aus dem Plan
