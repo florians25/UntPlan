@@ -38,16 +38,44 @@ public class KoppelklassenTests
     }
 
     [Fact]
-    public void Fehlende_Mitklasse_macht_die_Stunde_geaendert()
+    public void Entfall_der_Mitklasse_ohne_Klassenabwesenheit_ist_keine_fehlende_Mitklasse()
     {
-        // INF13 hat Entfall (z. B. Exkursion): bei INF12 grün, INF13 durchgestrichen; bei INF13 bleibt es der Entfall
+        // INF13 hat Entfall ohne Klassenabwesenheit: INF13 hat keinen Unterricht – bei INF12 die reguläre Stunde ohne Mitklasse (nichts
+        // durchgestrichen); bei INF13 bleibt es der Entfall
         var s = StandMit(new[] { S(1, "INF12"), S(2, "INF13", "entfall") });
+        var plan = new Plandienst();
+        var k12 = Assert.Single(plan.Karten(s, Tag, Elementtyp.Klasse, "INF12"));
+        Assert.Equal("regulaer", k12.Status);
+        Assert.Empty(k12.Mitklassen);
+        var k13 = Assert.Single(plan.Karten(s, Tag, Elementtyp.Klasse, "INF13"));
+        Assert.Equal("entfall", k13.Status);
+    }
+
+    [Fact]
+    public void Entfall_der_Mitklasse_wegen_Klassenabwesenheit_macht_die_Stunde_geaendert()
+    {
+        // INF13 abwesend, ihre Zeile entfällt: bei INF12 grün, INF13 durchgestrichen
+        var s = StandMit(new[] { S(1, "INF12"), S(2, "INF13", "entfall") },
+            new[] { new WebAbsenz { Art = "klasse", Element = "INF13", Von = "2026-10-14", Bis = "2026-10-14", StundeVon = 1, StundeBis = 8 } });
         var plan = new Plandienst();
         var k12 = Assert.Single(plan.Karten(s, Tag, Elementtyp.Klasse, "INF12"));
         Assert.Equal("geaendert", k12.Status);
         Assert.Equal(new[] { new Wert("", "INF13", true) }, k12.Mitklassen);
-        var k13 = Assert.Single(plan.Karten(s, Tag, Elementtyp.Klasse, "INF13"));
-        Assert.Equal("entfall", k13.Status);
+    }
+
+    [Fact]
+    public void Verlegte_Stunde_ist_keine_Mitklasse()
+    {
+        // INF13 (anderer Unterricht derselben Lehrkraft, gleiches Fach, gleicher Raum) ist in diese Stunde verlegt, INF12s Stunde ist der
+        // Ursprung einer Verlegung: keine gemeinsame Stunde – weder durchgestrichen noch als Mitklasse
+        var s = StandMit(new[] { S(1, "INF12") });
+        var plan = new Plandienst();
+        var verlegt = new Rohstunde(1, 2, "INF", new[] { "INF13" }, new[] { "MUE" }, new[] { "EDV1" }, "vertreten", null, "", "Verlegung");
+        var k12 = Assert.Single(plan.Karten(s, Tag, Elementtyp.Klasse, "INF12", new[] { verlegt }), k => k.Unterricht == 1);
+        Assert.Empty(k12.Mitklassen);
+        Assert.Equal("regulaer", k12.Status);
+        var k13 = Assert.Single(plan.Karten(s, Tag, Elementtyp.Klasse, "INF13", new[] { verlegt }), k => k.Unterricht == 2);
+        Assert.Empty(k13.Mitklassen);
     }
 
     [Fact]

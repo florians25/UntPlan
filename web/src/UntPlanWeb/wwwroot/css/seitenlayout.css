@@ -320,7 +320,8 @@
 /* ------------------------------------------------------------------ Startseite schmaler
 
    Nur die Startseite (Heute) nutzt nicht die volle Breite: Titel, Nachrichten und „Mein nächster Unterricht“ stehen in einer
-   lesbaren Spalte mittig neben der Seitenleiste. Alle anderen Seiten bleiben volle Breite (siehe oben). */
+   lesbaren Spalte links neben der Seitenleiste (nicht zentriert) – der freie Platz bleibt rechts. Alle anderen Seiten bleiben volle
+   Breite (siehe oben). */
 :root { --u-start-max: 1100px; }
-.u-app[data-ansicht="heute"] #seite, .u-app[data-ansicht="heute"] #seitenkopf { max-width: var(--u-start-max); margin-left: auto; margin-right: auto; }
+.u-app[data-ansicht="heute"] #seite, .u-app[data-ansicht="heute"] #seitenkopf { max-width: var(--u-start-max); margin-left: 0; margin-right: auto; }
 .u-app[data-ansicht="heute"] #seite .heute, .u-app[data-ansicht="heute"] #seite .heute-titel { max-width: none; }
