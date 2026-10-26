@@ -200,7 +200,7 @@ public static class Kachelbau
 
         var aufsichten = plan.Aufsichten.Where(a => a.Datum == tag.Datum).ToList();
         if (aufsichten.Count > 0) res = AnPausenTeilen(res, aufsichten.Where(a => a.NachStunde >= 1).Select(a => a.NachStunde).ToHashSet());
-        res.AddRange(aufsichten.Select(a => Aufsicht(a, zeiten)));
+        res.AddRange(aufsichten.Select(a => plan.Typ == "raum" ? AufsichtAmOrt(a, zeiten) : Aufsicht(a, zeiten)));
         foreach (var k in res) OhneSondereinsatz(k);
         return res;
     }
@@ -657,7 +657,7 @@ public static class Kachelbau
         return new()
         {
             Stunde = von, Dauer = Math.Max(1, bis - von + 1), Datum = datum, Art = "absence", Feld = true, Fach = titel, Info = titel, Typ = "Veranstaltung",
-            Klasse = string.Join(",", Einmal(klassen)), Lehrkraft = string.Join(",", Einmal(lehrer, KeineLehrkraft, "???")),
+            Klasse = string.Join(",", Einmal(klassen)), Lehrkraft = string.Join(",", Einmal(lehrer, KeineLehrkraft, "???", "?", "+", "+++")),
             Raum = string.Join(",", Einmal(liste)), RaumPlus = plus.Length > 0 ? plus : null, Farbe = string.IsNullOrWhiteSpace(farbe) ? null : farbe,
         };
     }
@@ -736,6 +736,25 @@ public static class Kachelbau
             k.Info = $"Vertretung für {a.Alt}";
         }
         else k.Lehrkraft = a.Lehrer;
+        return k;
+    }
+
+    /// <summary>
+    /// Pausenaufsicht im Raumplan eines Aufsichtsorts (z. B. „Einfahrt“): auf der Pille steht, wer dort Aufsicht führt (Vertretung grün,
+    /// noch offen: die eingeteilte Lehrkraft wie eine offene Vertretung); der Ort steht in den Details.
+    /// </summary>
+    public static Kachel AufsichtAmOrt(PlanAufsicht a, IReadOnlyList<PlanZeit> zeiten)
+    {
+        var k = Aufsicht(a, zeiten);
+        var ort = k.Fach;
+        var wer = a.Status switch
+        {
+            "offen" => !string.IsNullOrEmpty(a.Alt) ? a.Alt! : "",
+            _ => a.Lehrer is "???" or "---" or "" ? (a.Alt ?? "") : a.Lehrer,
+        };
+        if (wer.Length > 0) k.Fach = wer;
+        k.Raum = ort;
+        k.Info = string.IsNullOrEmpty(k.Info) ? $"Pausenaufsicht {ort}" : $"Pausenaufsicht {ort} · {k.Info}";
         return k;
     }
 

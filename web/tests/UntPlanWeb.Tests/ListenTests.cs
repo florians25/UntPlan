@@ -158,11 +158,13 @@ public class FachpunktTests
         Assert.Equal("WAG", alt["lehrer"]!.AsArray().Single()!["k"]!.GetValue<string>());
         Assert.Null(alt["unterricht"]?.GetValue<int?>());
 
-        // Plan der Vertretung: nur die neue Stunde; Plan der abwesenden Lehrkraft: ihre abgegebene Stunde
+        // Plan der Vertretung: nur die neue Stunde; Plan der abwesenden Lehrkraft: ihre Stunde entfällt (bisheriges Fach), die neue Stunde
+        // mit dem neuen Fach steht dort nicht
         var kru = await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=KRU&datum=2026-10-14");
         Assert.Equal("geaendert", Karten(kru, "2026-10-14", 1).Single()["status"]!.GetValue<string>());
-        var wag = await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=WAG&datum=2026-10-14");
-        Assert.Equal("abwesend", Karten(wag, "2026-10-14", 1).Single()["status"]!.GetValue<string>());
+        var wag = Karten(await Testserver.HolenAsync(c, "/api/app/plan?typ=lehrer&element=WAG&datum=2026-10-14"), "2026-10-14", 1).Single();
+        Assert.Equal("entfall", wag["status"]!.GetValue<string>());
+        Assert.Equal("E", wag["fach"]!.GetValue<string>());
     }
 
     [Fact]

@@ -122,7 +122,7 @@ public class KartenDarstellungTests
     public void Pausenaufsicht_Label_hinter_dem_Ort_ohne_abwesende_Lehrkraft_und_ohne_Verblassen()
     {
         var js = Datei("js", "plangitter.js");
-        Assert.Contains("<span class=\"auf-text\">${e(ort)}${label ? ' ' + label : ''}</span>", js);
+        Assert.Contains("<span class=\"auf-text\">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span>", js);
         Assert.Contains("<span class=\"lbl lbl-auf\" data-hover=\"${e(alt ? wechsel(alt, ersatz) : '+ ' + ersatz)}\"", js);
         Assert.DoesNotContain("auf-alt", js);
         Assert.Contains("class=\"aufsicht u-hover-bereich", js);

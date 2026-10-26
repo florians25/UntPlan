@@ -298,7 +298,7 @@ struct KachelView: View {
 
     /// Pille (Aufsicht, ganztägiger Termin) nach Vorlage 178/179 (2,289 px/pt): Balken 3,5 pt breit, 4,4 pt vom Rand,
     /// oben und unten 2,2 pt Luft (vor der 1. Stunde 1 pt); Ort 11,5 pt Semibold 4,7 pt hinter dem Balken; Vertretung: grünes „⋮“-Feld 3,9 pt vom
-    /// rechten Rand. Vor der 1. Stunde eine schmale Pille (10 pt hoch, Schrift 8 pt, grünes Feld 14 × 7,9 pt).
+    /// rechten Rand. Vor der 1. Stunde eine schmale Pille (12 pt hoch, Schrift 8 pt, grünes Feld 14 × 7,9 pt).
     private func pille(_ a: Kachelaussehen) -> some View {
         let schmal = kachel.vorErsterStunde
         return HStack(spacing: 4.7) {

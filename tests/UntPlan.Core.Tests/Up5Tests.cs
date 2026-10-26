@@ -126,7 +126,8 @@ public class Up5Tests
         var hinweise = Unterrichtseingabe.Pflichthinweise(u);
         Assert.Contains(hinweise, x => x.StartsWith("Wochenstunden fehlen"));
         Assert.Contains(hinweise, x => x.StartsWith("Fach fehlt"));
-        Assert.Contains(hinweise, x => x.StartsWith("Klasse fehlt"));
+        // Unterricht ohne Klassen ist erlaubt (Lehrkräfte können auch Unterricht ohne Klassen haben)
+        Assert.DoesNotContain(hinweise, x => x.StartsWith("Klasse fehlt"));
         Assert.True(Unterrichtseingabe.PflichtFehlt(u, 0, "Fach"));
     }
 

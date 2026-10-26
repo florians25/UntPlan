@@ -15,7 +15,8 @@ namespace UntPlanWeb.Api;
 /// </summary>
 public static partial class OberflaecheApi
 {
-    public sealed record RaumaenderungDaten(DateOnly Datum, int StundeVon, int? StundeBis, int Unterricht, List<string>? Raeume);
+    /// <summary>Raumänderung aus den Stundendetails; Bisher = Räume des Blocks vor der Änderung (Kopplung mit Blöcken in eigenen Räumen).</summary>
+    public sealed record RaumaenderungDaten(DateOnly Datum, int StundeVon, int? StundeBis, int Unterricht, List<string>? Raeume, List<string>? Bisher = null);
 
     private static Benutzer Ich(HttpContext c) => c.Ich() ?? throw new NichtAngemeldetException();
     private static Stand Paket(Paketdienst p) => p.Aktuell ?? throw new ArgumentException("Es wurden noch keine Daten aus UntPlan übertragen.");
@@ -113,7 +114,7 @@ public static partial class OberflaecheApi
         api.MapPost("/meldungen/raumaenderung", (RaumaenderungDaten d, HttpContext c, Paketdienst p, Rueckmeldungsdienst r, Protokoll prot) =>
         {
             var b = Kollegium(c);
-            var m = r.Raumaenderung(Paket(p), b, d.Datum, d.StundeVon, d.StundeBis ?? d.StundeVon, d.Unterricht, d.Raeume ?? new());
+            var m = r.Raumaenderung(Paket(p), b, d.Datum, d.StundeVon, d.StundeBis ?? d.StundeVon, d.Unterricht, d.Raeume ?? new(), d.Bisher);
             prot.Schreiben(b.Login, "Raumänderung", $"{d.Datum:yyyy-MM-dd} {d.StundeVon}. Std.: {string.Join(", ", d.Raeume ?? new())}");
             return Results.Json(new { ok = true, meldung = m });
         });

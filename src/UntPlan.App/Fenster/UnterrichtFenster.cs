@@ -238,6 +238,47 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         return "Zeilenwechsel: " + string.Join("; ", berichte);
     }
 
+    /// <summary>
+    /// Selbsttest: Wert in einer Zeile in der Mitte ändern – die Liste wird nicht neu geladen, die Zeile bleibt an ihrem Platz,
+    /// oberste sichtbare Zeile und Reihenfolge bleiben.
+    /// </summary>
+    internal string SelbsttestStabil(Action warten)
+    {
+        var zeilen = _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is ZeilenTag { Index: 0 }).ToList();
+        if (zeilen.Count < 3) return $"zu wenige Zeilen ({zeilen.Count})";
+        if (!_grid.Columns.Contains("Text")) throw new InvalidOperationException("Spalte Text fehlt.");
+        var zeile = zeilen[zeilen.Count / 2];
+        var uid = ((ZeilenTag)zeile.Tag!).U.Id;
+        _grid.Focus();
+        _grid.ClearSelection();
+        _grid.CurrentCell = zeile.Cells["Text"];
+        try { if (_grid.Rows.Count > 6) _grid.FirstDisplayedScrollingRowIndex = 1; } catch (InvalidOperationException) { }
+        warten();
+        var index = zeile.Index;
+        var erste = _grid.FirstDisplayedScrollingRowIndex;
+        var ersteSchluessel = erste >= 0 ? Schluessel(_grid.Rows[erste]) : null;
+        var reihenfolge = _grid.Rows.Cast<DataGridViewRow>().Select(r => Schluessel(r)).ToList();
+        var neuaufbauten = Steuerelemente.TabellenAbgleich.Neuaufbauten;
+        // Enter übernimmt und springt zum nächsten Feld (das ggf. gleich in Bearbeitung geht) – dort nichts eingeben
+        SelbsttestEingabe("Selbsttest stabil");
+        warten();
+        if (_grid.IsCurrentCellInEditMode) SelbsttestVerwerfen();
+        warten();
+        if (D.Unterrichte.First(u => u.Id == uid).Text != "Selbsttest stabil") throw new InvalidOperationException("Text nicht gespeichert.");
+        if (Steuerelemente.TabellenAbgleich.Neuaufbauten != neuaufbauten) throw new InvalidOperationException("Liste wurde nach dem Ändern ganz neu aufgebaut.");
+        var jetzt = _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == uid && zt.Index == 0);
+        if (jetzt is null || jetzt.Index != index) throw new InvalidOperationException($"Zeile ist verrutscht ({index} → {jetzt?.Index}).");
+        if (Aktuell()?.U.Id != uid) throw new InvalidOperationException("Aktuelle Zeile verloren.");
+        var e2 = _grid.FirstDisplayedScrollingRowIndex;
+        if (ersteSchluessel != null && (e2 < 0 || Schluessel(_grid.Rows[e2]) != ersteSchluessel)) throw new InvalidOperationException("Bildlauf verändert.");
+        if (!_grid.Rows.Cast<DataGridViewRow>().Select(r => Schluessel(r)).SequenceEqual(reihenfolge)) throw new InvalidOperationException("Reihenfolge verändert.");
+        return $"U{uid}: Text geändert – Zeile {index}, Bildlauf und Reihenfolge blieben (kein Neuaufbau)";
+    }
+
+    /// <summary>Selbsttest: Pflichtfeld-Hinweis (Fehlersymbol) einer Zelle der ersten Zeile eines Unterrichts.</summary>
+    internal string SelbsttestFehlertext(int unterrichtId, string spalte) =>
+        _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == unterrichtId && zt.Index == 0)?.Cells[spalte].ErrorText ?? "(keine Zeile)";
+
     /// <summary>Selbsttest: Kopplungszeile zum aktuellen Unterricht hinzufügen.</summary>
     internal void SelbsttestKopplungszeile() => KopplungszeileNeu();
     private readonly ToolStripComboBox _auswahl = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
@@ -382,7 +423,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         Controls.Add(_split);
         Controls.Add(unten);
         Controls.Add(ts);
-        Hinweis("Neuer Unterricht: in der Zeile „+ neu“ Fach, Lehrer und Klasse eingeben – Enter/Tab springt zum nächsten Feld, Esc verwirft die Eingabe.", HinweisArt.Info);
+        Hinweis("Neuer Unterricht: in der Zeile „+ neu“ Fach, Lehrer und – falls nötig – Klasse eingeben – Enter/Tab springt zum nächsten Feld, Esc verwirft die Eingabe.", HinweisArt.Info);
         Load += (_, _) => _split.SplitterDistance = Math.Max(80, _split.Height - 150);
         FormularAufbauen();
 
@@ -565,9 +606,24 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         return Ix.UnterrichteVon(_sicht, _elementId.Value).OrderBy(u => u.Id);
     }
 
+    /// <summary>Platzhalter der Neuanlage-Zeile („+ neu“) am Ende der Liste.</summary>
+    private static readonly object NeuanlageZeile = new();
+
+    private static string Schluessel(object o) => o is ZeilenTag zt ? $"U{zt.U.Id}/{zt.Index}" : "neu";
+    private static string? Schluessel(DataGridViewRow r) => r.Tag is ZeilenTag zt ? $"U{zt.U.Id}/{zt.Index}" : "neu";
+
+    /// <summary>Stand, für den Spalten und Zeilen aufgebaut sind (Ansicht/Element, sichtbare Spalten und Auswahllisten).</summary>
+    private string _aufgebautFuer = "";
+    private string _spaltenStand = "";
+
+    /// <summary>
+    /// Liste aktualisieren, ohne sie ganz neu zu laden: geänderte Unterrichte werden an Ort und Stelle erneuert, neue (bzw. aufgeklappte
+    /// Kopplungszeilen) an ihrem Platz eingefügt, gelöschte entfernt – aktuelle Zeile, Spalte und Bildlauf bleiben, nichts verrutscht.
+    /// Neu aufgebaut wird nur bei anderem Element bzw. geänderten Spalten oder Auswahllisten.
+    /// </summary>
     private void Neuaufbau()
     {
-        // laufende Eingabe nicht beim Neuaufbau in eine (neu angeordnete) Zeile schreiben: verwerfen, bevor die Zeilen neu entstehen
+        // laufende Eingabe nicht in eine (geänderte) Zeile schreiben: verwerfen, bevor die Zeilen erneuert werden
         if (_grid.IsCurrentCellInEditMode && !_laden)
         {
             _laden = true;
@@ -577,9 +633,6 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         }
         _eingabe = null;
         _laden = true;
-        var tag = _grid.CurrentRow?.Tag as ZeilenTag;
-        var spalteName = _grid.CurrentCell is { } cc && cc.ColumnIndex < _grid.Columns.Count ? _grid.Columns[cc.ColumnIndex].Name : null;
-        var scroll = _grid.FirstDisplayedScrollingRowIndex;
         var neueZeile = _grid.CurrentRow is { } cr && cr.Tag is null && cr.Index == _grid.Rows.Count - 1;
         if (_sicht != ElementTyp.Unterricht)
         {
@@ -591,71 +644,54 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         }
         else Text = "Alle Unterrichte";
         _grid.SuspendLayout();
-        _grid.Rows.Clear();
-        _grid.Columns.Clear();
-        foreach (var s in _spalten.Where(s => _sichtbar.Contains(s.Key)).OrderBy(s => _sichtbar.IndexOf(s.Key)))
+        var spalten = _spalten.Where(s => _sichtbar.Contains(s.Key)).OrderBy(s => _sichtbar.IndexOf(s.Key)).ToList();
+        var listen = spalten.ToDictionary(s => s.Key, s => s.Bool ? null : AuswahlListe(s.Key));
+        var spaltenStand = string.Join("|", spalten.Select(s => s.Key + "=" + (listen[s.Key] is { } li ? string.Join(",", li) : "")));
+        var element = $"{_sicht}/{_elementId}";
+        if (spaltenStand != _spaltenStand || _grid.Columns.Count == 0)
         {
-            DataGridViewColumn c = s.Bool ? new DataGridViewCheckBoxColumn() : AuswahlListe(s.Key) is { } liste ? KombiSpalte(liste) : new DataGridViewTextBoxColumn();
-            c.Name = s.Key;
-            c.HeaderText = s.Titel;
-            c.Width = s.Breite;
-            c.SortMode = DataGridViewColumnSortMode.NotSortable;
-            c.ReadOnly = s.Set is null;
-            c.Tag = s;
-            if (s.Key == "KlLe") c.HeaderText = "⊞ Kl,Le";
-            _grid.Columns.Add(c);
+            _spaltenStand = spaltenStand;
+            _grid.Rows.Clear();
+            _grid.Columns.Clear();
+            foreach (var s in spalten)
+            {
+                DataGridViewColumn c = s.Bool ? new DataGridViewCheckBoxColumn() : listen[s.Key] is { } liste ? KombiSpalte(liste) : new DataGridViewTextBoxColumn();
+                c.Name = s.Key;
+                c.HeaderText = s.Titel;
+                c.Width = s.Breite;
+                c.SortMode = DataGridViewColumnSortMode.NotSortable;
+                c.ReadOnly = s.Set is null;
+                c.Tag = s;
+                if (s.Key == "KlLe") c.HeaderText = "⊞ Kl,Le";
+                _grid.Columns.Add(c);
+            }
         }
+        // anderes Element der Ansicht: andere Zeilen – neu aufbauen (oben beginnen)
+        if (element != _aufgebautFuer) _grid.Rows.Clear();
+        _aufgebautFuer = element;
         var summeWst = 0;
         var summeNv = 0;
+        var eintraege = new List<object>();
         foreach (var u in Unterrichte())
         {
             summeWst += u.Wochenstunden;
             summeNv += Ix.NichtVerplant(u);
             var zeigen = (_alleAuf || _aufgeklappt.Contains(u.Id)) ? u.Zeilen.Count : 1;
-            for (var i = 0; i < Math.Max(1, zeigen); i++) ZeileAnlegen(u, i);
+            for (var i = 0; i < Math.Max(1, zeigen); i++) eintraege.Add(new ZeilenTag(u, i));
         }
         // Neuanlage-Zeile: deutlich markiert, das Element der Ansicht ist schon eingetragen (grau)
-        var leer = _grid.Rows.Add();
-        var neuZeile = _grid.Rows[leer];
-        neuZeile.Tag = null;
-        neuZeile.DefaultCellStyle.BackColor = Color.FromArgb(236, 248, 236);
-        neuZeile.DefaultCellStyle.SelectionBackColor = Color.FromArgb(200, 232, 200);
-        if (_grid.Columns.Contains("UNr"))
-        {
-            neuZeile.Cells["UNr"].Value = "+ neu";
-            neuZeile.Cells["UNr"].ToolTipText = "Neuer Unterricht: Fach, Lehrer und Klasse in dieser Zeile eingeben. Der Unterricht wird mit dem ersten Wert angelegt.";
-        }
-        var vorgabe = _elementId is int eid ? D.AlleElemente(_sicht).FirstOrDefault(e => e.Id == eid)?.Kurzname : null;
-        var vorgabeSpalte = _sicht switch { ElementTyp.Klasse => "Klassen", ElementTyp.Lehrer => "Lehrer", ElementTyp.Fach => "Fach", _ => null };
-        if (vorgabe != null && vorgabeSpalte != null && _grid.Columns.Contains(vorgabeSpalte))
-        {
-            neuZeile.Cells[vorgabeSpalte].Style.ForeColor = Color.Gray;
-            neuZeile.Cells[vorgabeSpalte].ToolTipText = $"{vorgabe} wird beim Anlegen automatisch eingetragen.";
-            if (_grid.Columns[vorgabeSpalte] is not DataGridViewComboBoxColumn) neuZeile.Cells[vorgabeSpalte].Value = vorgabe;
-        }
-        _grid.ResumeLayout();
-        _summe.Text = $"Wst: {summeWst}   Nvpl.: {summeNv}";
-        // bisherige Zeile wiederherstellen (bzw. den gerade angelegten Unterricht), ohne die Auswahl erneut an andere Fenster zu melden
-        try
-        {
-            if (tag is null && neueZeile && _neuId is int nid)
-                tag = _grid.Rows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<ZeilenTag>().FirstOrDefault(z => z.U.Id == nid && z.Index == 0);
-            _neuId = null;
-            if (scroll >= 0 && scroll < _grid.Rows.Count) _grid.FirstDisplayedScrollingRowIndex = scroll;
-            var spalte = spalteName != null && _grid.Columns.Contains(spalteName) ? _grid.Columns[spalteName]!.Index : Math.Min(3, _grid.Columns.Count - 1);
-            if (tag != null)
-            {
-                foreach (DataGridViewRow r in _grid.Rows)
-                    if (r.Tag is ZeilenTag zt && zt.U.Id == tag.U.Id && zt.Index == tag.Index && spalte >= 0)
-                    {
-                        _grid.CurrentCell = r.Cells[spalte];
-                        break;
-                    }
-            }
-            else if (neueZeile && spalte >= 0) _grid.CurrentCell = neuZeile.Cells[spalte];
-        }
+        eintraege.Add(NeuanlageZeile);
+        // gerade über die Neuanlage-Zeile angelegter Unterricht: dessen Zeile wählen (Spalte bleibt)
+        var aktuell = neueZeile && _neuId is int nid ? $"U{nid}/0" : null;
+        _neuId = null;
+        try { Steuerelemente.TabellenAbgleich.Anwenden(_grid, eintraege, Schluessel, Schluessel, ZeileSetzen, aktuell: aktuell); }
         catch (InvalidOperationException) { }
-        finally { _laden = false; }
+        finally
+        {
+            _grid.ResumeLayout();
+            _laden = false;
+        }
+        _summe.Text = $"Wst: {summeWst}   Nvpl.: {summeNv}";
         FormularFuellen();
         ZeilenHinweis();
     }
@@ -667,7 +703,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _hinweisFestUid = null;
         if (_grid.CurrentRow is { Tag: null })
         {
-            Hinweis("Neuer Unterricht: Fach, Lehrer und Klasse eingeben (Alt+↓ öffnet die Auswahl mit Langnamen) – Enter/Tab springt zum nächsten Feld.", HinweisArt.Info);
+            Hinweis("Neuer Unterricht: Fach, Lehrer und – falls nötig – Klasse eingeben (Alt+↓ öffnet die Auswahl mit Langnamen) – Enter/Tab springt zum nächsten Feld.", HinweisArt.Info);
             return;
         }
         if (Aktuell() is not { } zt) return;
@@ -779,24 +815,65 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         return c;
     }
 
-    private void ZeileAnlegen(Unterricht u, int i)
+    /// <summary>Eine Zeile vollständig füllen (Werte, Sperren, Pflichtfeld-Hinweise, Format) – für bestehende und neue Zeilen.</summary>
+    private void ZeileSetzen(DataGridViewRow row, object eintrag)
     {
+        if (eintrag is not ZeilenTag zt)
+        {
+            NeuanlageSetzen(row);
+            return;
+        }
+        var (u, i) = (zt.U, zt.Index);
         var z = i < u.Zeilen.Count ? u.Zeilen[i] : new Kopplungszeile();
-        var r = _grid.Rows.Add();
-        var row = _grid.Rows[r];
-        row.Tag = new ZeilenTag(u, i);
+        row.Tag = zt;
         foreach (DataGridViewColumn c in _grid.Columns)
         {
             var s = (Spalte)c.Tag!;
-            if (i > 0 && !s.Zeile) { row.Cells[c.Index].Value = s.Bool ? false : ""; row.Cells[c.Index].ReadOnly = true; continue; }
-            var v = s.Get(u, z);
-            row.Cells[c.Index].Value = s.Bool ? v == "X" : v;
+            var zelle = row.Cells[c.Index];
+            object wert;
+            var sperren = i > 0 && !s.Zeile;
+            if (sperren) wert = s.Bool ? false : "";
+            else
+            {
+                var v = s.Get(u, z);
+                wert = s.Bool ? v == "X" : v;
+            }
+            if (!Equals(zelle.Value, wert) && (zelle.Value?.ToString() ?? "") != wert.ToString()) zelle.Value = wert;
+            if (!c.ReadOnly && zelle.ReadOnly != sperren) zelle.ReadOnly = sperren;
             // fehlende Pflichtangabe: Fehlersymbol mit Erklärung in der Zelle
-            if (Unterrichtseingabe.PflichtFehlt(u, i, s.Key, D))
-                row.Cells[c.Index].ErrorText = s.Key switch { "Fach" => "Pflichtfeld: Fach fehlt", "Klassen" => "Pflichtfeld: Klasse fehlt", _ => "Pflichtfeld: Wochenstunden fehlen" };
+            var fehler = !sperren && Unterrichtseingabe.PflichtFehlt(u, i, s.Key, D)
+                ? s.Key switch { "Fach" => "Pflichtfeld: Fach fehlt", "Klassen" => "Pflichtfeld: Klasse fehlt", _ => "Pflichtfeld: Wochenstunden fehlen" } : "";
+            if (zelle.ErrorText != fehler) zelle.ErrorText = fehler;
+            if (zelle.ToolTipText.Length > 0) zelle.ToolTipText = "";
+            if (!zelle.Style.ForeColor.IsEmpty) zelle.Style.ForeColor = Color.Empty;
         }
-        if (i > 0) row.DefaultCellStyle.BackColor = Ui.BlauSehrHell;
-        if (u.Ignorieren) row.DefaultCellStyle.ForeColor = Color.Gray;
+        var hinter = i > 0 ? Ui.BlauSehrHell : Color.Empty;
+        if (row.DefaultCellStyle.BackColor != hinter) row.DefaultCellStyle.BackColor = hinter;
+        if (!row.DefaultCellStyle.SelectionBackColor.IsEmpty) row.DefaultCellStyle.SelectionBackColor = Color.Empty;
+        var vorder = u.Ignorieren ? Color.Gray : Color.Empty;
+        if (row.DefaultCellStyle.ForeColor != vorder) row.DefaultCellStyle.ForeColor = vorder;
+    }
+
+    /// <summary>Neuanlage-Zeile („+ neu“): deutlich markiert, das Element der Ansicht ist schon eingetragen (grau).</summary>
+    private void NeuanlageSetzen(DataGridViewRow neuZeile)
+    {
+        neuZeile.Tag = null;
+        foreach (DataGridViewCell c in neuZeile.Cells) c.Value = c is DataGridViewCheckBoxCell ? false : null;
+        neuZeile.DefaultCellStyle.BackColor = Color.FromArgb(236, 248, 236);
+        neuZeile.DefaultCellStyle.SelectionBackColor = Color.FromArgb(200, 232, 200);
+        if (_grid.Columns.Contains("UNr"))
+        {
+            neuZeile.Cells["UNr"].Value = "+ neu";
+            neuZeile.Cells["UNr"].ToolTipText = "Neuer Unterricht: Fach, Lehrer und ggf. Klasse in dieser Zeile eingeben (Unterricht ohne Klasse ist möglich). Der Unterricht wird mit dem ersten Wert angelegt.";
+        }
+        var vorgabe = _elementId is int eid ? D.AlleElemente(_sicht).FirstOrDefault(e => e.Id == eid)?.Kurzname : null;
+        var vorgabeSpalte = _sicht switch { ElementTyp.Klasse => "Klassen", ElementTyp.Lehrer => "Lehrer", ElementTyp.Fach => "Fach", _ => null };
+        if (vorgabe != null && vorgabeSpalte != null && _grid.Columns.Contains(vorgabeSpalte))
+        {
+            neuZeile.Cells[vorgabeSpalte].Style.ForeColor = Color.Gray;
+            neuZeile.Cells[vorgabeSpalte].ToolTipText = $"{vorgabe} wird beim Anlegen automatisch eingetragen.";
+            if (_grid.Columns[vorgabeSpalte] is not DataGridViewComboBoxColumn) neuZeile.Cells[vorgabeSpalte].Value = vorgabe;
+        }
     }
 
     private void CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -997,7 +1074,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             var zeile = _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == neu?.Id);
             var spalte = new[] { "Fach", "Lehrer", "Klassen", "Wst" }.FirstOrDefault(n => _grid.Columns.Contains(n) && _grid.Columns[n]!.Visible);
             if (zeile != null && spalte != null) _grid.CurrentCell = zeile.Cells[spalte];
-            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt – bitte Fach, Lehrer und Klasse eintragen (Enter springt weiter).", HinweisArt.Ok, true, neu?.Id);
+            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt – bitte Fach, Lehrer und ggf. Klasse eintragen (Enter springt weiter).", HinweisArt.Ok, true, neu?.Id);
         }
     }
 

@@ -84,6 +84,40 @@ public static class Listenabgleich
     }
 
     /// <summary>
+    /// Zeilen nach einer Änderung zusammenführen, ohne dass etwas verrutscht: Bisherige Zeilen, die es noch gibt, behalten ihre
+    /// angezeigte Reihenfolge (auch wenn ein geänderter Wert sie anders einsortieren würde), weggefallene Zeilen verschwinden und neue
+    /// Zeilen kommen an ihren Platz laut neuer Sortierung (hinter die Zeile, die ihnen in <paramref name="neu"/> vorausgeht).
+    /// Liefert null bei doppelten Schlüsseln (dann muss neu aufgebaut werden).
+    /// </summary>
+    public static List<T>? Zusammenfuehren<T>(IReadOnlyList<string> alt, IReadOnlyList<T> neu, Func<T, string> schluessel)
+    {
+        var neuSchluessel = neu.Select(schluessel).ToList();
+        var nachSchluessel = new Dictionary<string, T>(neu.Count);
+        for (var i = 0; i < neu.Count; i++)
+            if (!nachSchluessel.TryAdd(neuSchluessel[i], neu[i])) return null;
+        if (alt.Distinct().Count() != alt.Count) return null;
+        // bisherige Zeilen in angezeigter Reihenfolge, soweit noch vorhanden
+        var ergebnis = new LinkedList<string>();
+        var knoten = new Dictionary<string, LinkedListNode<string>>(neu.Count);
+        foreach (var k in alt)
+            if (nachSchluessel.ContainsKey(k)) knoten[k] = ergebnis.AddLast(k);
+        if (knoten.Count == 0) return neu.ToList();
+        // neue Zeilen hinter ihren Vorgänger (laut neuer Sortierung); ohne Vorgänger vor den ersten Nachfolger
+        for (var i = 0; i < neuSchluessel.Count; i++)
+        {
+            var k = neuSchluessel[i];
+            if (knoten.ContainsKey(k)) continue;
+            LinkedListNode<string>? vor = null;
+            for (var j = i - 1; j >= 0 && vor is null; j--) knoten.TryGetValue(neuSchluessel[j], out vor);
+            if (vor != null) { knoten[k] = ergebnis.AddAfter(vor, k); continue; }
+            LinkedListNode<string>? nach = null;
+            for (var j = i + 1; j < neuSchluessel.Count && nach is null; j++) knoten.TryGetValue(neuSchluessel[j], out nach);
+            knoten[k] = nach != null ? ergebnis.AddBefore(nach, k) : ergebnis.AddLast(k);
+        }
+        return ergebnis.Select(k => nachSchluessel[k]).ToList();
+    }
+
+    /// <summary>
     /// Zeile, die nach dem Neuaufbau aktuell sein soll: dieselbe Zeile (Schlüssel), sonst die Zeile an der bisherigen Position
     /// (also die nachfolgende; am Ende die letzte). -1 bei leerer Liste.
     /// </summary>

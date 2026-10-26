@@ -129,15 +129,18 @@ public sealed class Vertretungsplandienst
 
         // Schülerversion: nur Einträge mit Klassenbezug, keine Bereitschaften oder Aufsichten
         // Buchungen (Raum) und Klausuren erzeugen keine Vertretung – sie stehen nur im Stundenplan
-        var einzeln = s.Paket.Vertretungen.Where(v => v.Datum == iso && !(v.Klassen.Count == 0 && v.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase))
+        var einzeln = s.Paket.Vertretungen.Where(v => v.Datum == iso && !(v.Klassen.Count == 0 && Plandienst.IstVeranstaltungsVertretung(v))
                                                       && !Plandienst.IstBuchung(v.Art) && !Plandienst.IstKlausur(v.Art)
                                                       && (kollegium || (!v.NurLehrer && v.Klassen.Count > 0 && !IstLehrerintern(v)))).Select(v =>
         {
             var bereitschaft = IstBereitschaft(v);
-            var zusatz = IstZusatzstunde(s, v);
+            var veranstaltung = Plandienst.IstVeranstaltungsVertretung(v);
+            var zusatz = !veranstaltung && IstZusatzstunde(s, v);
             var status = v.Art switch
             {
                 // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft
+                // Veranstaltung: immer eine Änderung (auch ohne Lehrkräfte bzw. mit offenem Platz „???“)
+                _ when veranstaltung => "geaendert",
                 _ when bereitschaft && (v.Vertreter is "" or "---" || v.Art.Contains("entf", StringComparison.OrdinalIgnoreCase)) => "abwesend",
                 var a when a.StartsWith("Entfall", StringComparison.OrdinalIgnoreCase) || a.StartsWith("Freisetzung", StringComparison.OrdinalIgnoreCase) => "entfall",
                 _ when v.Vertreter is "???" => "offen",
@@ -145,12 +148,12 @@ public sealed class Vertretungsplandienst
                 _ => "geaendert",
             };
             // Vertretung ohne Lehrkraft („+++“): keine neue Lehrkraft, die bisherige steht durchgestrichen
-            var ohneLehrer = v.Vertreter is "+" or "+++";
+            var ohneLehrer = !veranstaltung && v.Vertreter is "+" or "+++";
             var neuLehrer = v.Vertreter is "---" || ohneLehrer ? "" : v.Vertreter;
-            // Veranstaltung: abwesende Lehrkräfte nehmen nicht teil
-            if (v.Art.StartsWith("Veranst", StringComparison.OrdinalIgnoreCase) && neuLehrer.Length > 0)
+            // Veranstaltung: abwesende Lehrkräfte nehmen nicht teil; ohne Lehrkräfte kein Platzhalter („---“, „???“, „+++“)
+            if (veranstaltung)
                 neuLehrer = string.Join(",", neuLehrer.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                    .Where(l => l == "???" || !_plan.LehrerAbwesend(s, d, l, v.Stunde)));
+                    .Where(l => !Plandienst.IstPlatzhalter(l) && !_plan.LehrerAbwesend(s, d, l, v.Stunde)));
             // zusätzlicher Unterricht ohne Lehrkraft: „---“
             if (zusatz && neuLehrer.Length == 0 && !ohneLehrer && status != "entfall") neuLehrer = Plandienst.OhneLehrkraftZusatz;
             var lehrerAlt = v.Lehrer.Length > 0 && !Ci.Equals(v.Lehrer, neuLehrer) ? v.Lehrer : null;
@@ -159,6 +162,7 @@ public sealed class Vertretungsplandienst
             var fachAlt = v.Fach.Length > 0 && v.NeuesFach.Length > 0 && !Ci.Equals(v.Fach, v.NeuesFach) ? v.Fach : null;
             // Schülerversion: keine Angaben, wer fehlt – nur, wer vertritt
             if (!kollegium && status != "entfall" && !ohneLehrer) lehrerAlt = null;
+            if (veranstaltung && (lehrerAlt is null || Plandienst.IstPlatzhalter(lehrerAlt))) lehrerAlt = null;
             if (zusatz && neuLehrer == Plandienst.OhneLehrkraftZusatz) lehrerAlt = null;
             if (status == "abwesend") { neuLehrer = ""; lehrerAlt = v.Lehrer; }
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,

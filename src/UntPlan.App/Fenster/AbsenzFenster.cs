@@ -243,6 +243,29 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private static string? Schluessel(DataGridViewRow r) => r.Tag switch { Abwesenheit a => "A" + a.Id, Veranstaltung v => "VA" + v.Id, _ => "neu" };
 
+    /// <summary>Platzhalter der leeren Eingabezeile am Ende der Liste.</summary>
+    private static readonly object EingabeZeile = new();
+
+    private static string Schluessel(object o) => o switch { Abwesenheit a => "A" + a.Id, Veranstaltung v => "VA" + v.Id, _ => "neu" };
+
+    /// <summary>Zuletzt aufgebauter Reiter (Lehrer/Klasse/Raum): beim Wechsel wird neu aufgebaut, sonst nur abgeglichen.</summary>
+    private AbwesenheitsArt? _aufgebautFuer;
+
+    /// <summary>Einträge einer Auswahlspalte nur ersetzen, wenn sie sich geändert haben (sonst bleiben Zellen und Bearbeitung unberührt).</summary>
+    private static bool ListeSetzen(DataGridViewComboBoxColumn spalte, IEnumerable<string> werte)
+    {
+        var neu = new[] { "" }.Concat(werte).ToList();
+        if (spalte.Items.Cast<object>().Select(x => x?.ToString() ?? "").SequenceEqual(neu)) return false;
+        spalte.Items.Clear();
+        foreach (var w in neu) spalte.Items.Add(w);
+        return true;
+    }
+
+    /// <summary>
+    /// Liste aktualisieren, ohne sie ganz neu zu laden: geänderte Absenzen werden an Ort und Stelle erneuert, neue an ihrem Platz
+    /// eingefügt, gelöschte entfernt – aktuelle Absenz, Spalte und Bildlauf bleiben, nichts verrutscht. Neu aufgebaut wird nur beim
+    /// Reiterwechsel bzw. wenn sich die Auswahllisten (Namen, Gründe) geändert haben.
+    /// </summary>
     private void Neuaufbau()
     {
         // während der Eingabe bzw. mit offenem Entwurf nicht neu aufbauen (Eingaben gingen verloren) – später nachholen
@@ -252,66 +275,88 @@ public sealed class AbwesenheitenFenster : MdiFenster
             return;
         }
         _neuaufbauAusstehend = false;
-        // aktuelle Absenz (Nr.), Spalte und Bildlauf merken – nach dem Neuaufbau wiederherstellen
-        var stand = Steuerelemente.TabellenStand.Merken(_g, Schluessel);
-        if (_springeZu is int sp) stand.AktuellSetzen("A" + sp);
+        string? springe = _springeZu is int sp ? "A" + sp : null;
         _springeZu = null;
         _laedt = true;
-        _g.Rows.Clear();
+        var typ = Typ;
+        var neuAufbauen = _aufgebautFuer != Art;
         var namen = (DataGridViewComboBoxColumn)_g.Columns["E"]!;
         namen.HeaderText = Art switch { AbwesenheitsArt.Lehrer => "Lehrer", AbwesenheitsArt.Klasse => "Klasse", _ => "Raum" };
-        namen.Items.Clear();
-        namen.Items.Add("");
-        foreach (var el in Stammdaten.Sortiert(D, Typ)) namen.Items.Add(el.Kurzname);
         var gruende = (DataGridViewComboBoxColumn)_g.Columns["G"]!;
-        gruende.Items.Clear();
-        gruende.Items.Add("");
-        foreach (var gr in D.Abwesenheitsgruende) gruende.Items.Add(gr.Kurzname);
-        var (von, bis) = (Von, Bis);
-        var typ = Typ;
-        _g.Columns["Beg"]!.Visible = Art == AbwesenheitsArt.Klasse;
-        foreach (var a in D.Abwesenheiten.Where(a => a.Art == Art && a.Bis >= von && a.Von <= bis).OrderBy(a => Ix.K(typ, a.ElementId), StringComparer.Create(Format.De, true)).ThenBy(a => a.Von))
+        // geänderte Auswahllisten: Zellen mit Werten außerhalb der Liste vermeiden – dann neu aufbauen
+        if (neuAufbauen || ListeSetzen(namen, Stammdaten.Sortiert(D, typ).Select(el => el.Kurzname)) | ListeSetzen(gruende, D.Abwesenheitsgruende.Select(gr => gr.Kurzname)))
         {
-            var offen = D.Vertretungen.Count(v => v.AbwesenheitId == a.Id && v.OffenOderRaumOffen);
-            var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "";
-            var r = _g.Rows.Add(a.Id, Ix.K(typ, a.ElementId), TagText(a.Von), a.StundeVon, TagText(a.Bis), Math.Min(a.StundeBis, LetzteStunde).ToString(), grund, a.Text,
-                string.Join(", ", a.BegleitLehrerIds.Select(Ix.KLehrer)), offen == 0 ? "" : offen.ToString());
-            _g.Rows[r].Tag = a;
-            if (offen > 0) _g.Rows[r].Cells["O"].Style.ForeColor = Color.Firebrick;
-            // Fensterverknüpfung: Absenzen des in einem anderen Fenster gewählten Elements hervorheben
-            if (_markiert is { } m && m.Typ == typ && m.Id == a.ElementId) _g.Rows[r].DefaultCellStyle.BackColor = Ui.ZelleAktivVertretung;
+            _g.Rows.Clear();
+            ListeSetzen(namen, Stammdaten.Sortiert(D, typ).Select(el => el.Kurzname));
+            ListeSetzen(gruende, D.Abwesenheitsgruende.Select(gr => gr.Kurzname));
         }
+        _aufgebautFuer = Art;
+        var (von, bis) = (Von, Bis);
+        _g.Columns["Beg"]!.Visible = Art == AbwesenheitsArt.Klasse;
+        var eintraege = new List<object>();
+        eintraege.AddRange(D.Abwesenheiten.Where(a => a.Art == Art && a.Bis >= von && a.Von <= bis).OrderBy(a => Ix.K(typ, a.ElementId), StringComparer.Create(Format.De, true)).ThenBy(a => a.Von));
         // Veranstaltungen zur Information (Einstellungen „Veranstaltungen anzeigen“)
         if (_vaZeigen.Checked)
-            foreach (var va in D.Veranstaltungen.Where(v => v.Bis >= von && v.Von <= bis).OrderBy(v => v.Von))
-            {
-                var elemente = Art switch
-                {
-                    // viele Elemente kompakt („Alle Lehrkräfte“, „Alle Klassen außer 5a“)
-                    AbwesenheitsArt.Lehrer => VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Lehrer, va.LehrerIds, va.Von, va.Bis),
-                    AbwesenheitsArt.Klasse => VeranstaltungsLogik.KlassenKurztext(D, va),
-                    _ => VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Raum, va.RaumIds, va.Von, va.Bis),
-                };
-                if (elemente.Length == 0) continue;
-                var r = _g.Rows.Add($"VA {va.Id}", "", TagText(va.Von), va.StundeVon, TagText(va.Bis), va.StundeBis >= 99 ? LetzteStunde.ToString() : va.StundeBis.ToString(),
-                    D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == va.GrundId)?.Kurzname ?? "", $"Veranstaltung: {elemente} {va.Text}".Trim(), "", "");
-                _g.Rows[r].Tag = va;
-                _g.Rows[r].ReadOnly = true;
-            }
-        // leere Eingabezeile
-        var neu = _g.Rows.Add("", "", "", "", "", "", "", "", "", "");
-        _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(255, 228, 190);
-        _g.Rows[neu].Cells["Nr"].Value = "";
-        _laedt = false;
-        if (_zuMarkierungSpringen && _markiert is { } mk && _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit ab && ab.ElementId == mk.Id && mk.Typ == typ) is { } ziel)
-            stand.AktuellSetzen("A" + ((Abwesenheit)ziel.Tag!).Id);
+            eintraege.AddRange(D.Veranstaltungen.Where(v => v.Bis >= von && v.Von <= bis && VeranstaltungsElemente(v).Length > 0).OrderBy(v => v.Von));
+        eintraege.Add(EingabeZeile);
+        if (_zuMarkierungSpringen && _markiert is { } mk && eintraege.OfType<Abwesenheit>().FirstOrDefault(ab => ab.ElementId == mk.Id && mk.Typ == typ) is { } ziel)
+            springe = "A" + ziel.Id;
         _zuMarkierungSpringen = false;
-        stand.Wiederherstellen(_g, Schluessel, false);
+        try { Steuerelemente.TabellenAbgleich.Anwenden(_g, eintraege, Schluessel, Schluessel, ZeileSetzen, aktuell: springe); }
+        finally { _laedt = false; }
         for (var i = 0; i < 3; i++)
         {
             var art = (AbwesenheitsArt)i;
             _tabs.TabPages[i].Text = $"{Reiter[i]} ({D.Abwesenheiten.Count(a => a.Art == art && a.Bis >= von && a.Von <= bis)})";
         }
+    }
+
+    /// <summary>Elemente einer Veranstaltung im aktuellen Reiter kompakt („Alle Lehrkräfte“, „Alle Klassen außer 5a“).</summary>
+    private string VeranstaltungsElemente(Veranstaltung va) => Art switch
+    {
+        AbwesenheitsArt.Lehrer => VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Lehrer, va.LehrerIds, va.Von, va.Bis),
+        AbwesenheitsArt.Klasse => VeranstaltungsLogik.KlassenKurztext(D, va),
+        _ => VeranstaltungsAuswahl.Kurztext(D, ElementTyp.Raum, va.RaumIds, va.Von, va.Bis),
+    };
+
+    /// <summary>Eine Zeile vollständig füllen (Werte, Tag, Format) – für bestehende und neue Zeilen.</summary>
+    private void ZeileSetzen(DataGridViewRow zeile, object eintrag)
+    {
+        var typ = Typ;
+        object?[] werte;
+        Color hinter = Color.Empty;
+        var nurLesen = false;
+        switch (eintrag)
+        {
+            case Abwesenheit a:
+            {
+                var offen = D.Vertretungen.Count(v => v.AbwesenheitId == a.Id && v.OffenOderRaumOffen);
+                var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "";
+                werte = new object?[] { a.Id, Ix.K(typ, a.ElementId), TagText(a.Von), a.StundeVon, TagText(a.Bis), Math.Min(a.StundeBis, LetzteStunde).ToString(), grund, a.Text,
+                    string.Join(", ", a.BegleitLehrerIds.Select(Ix.KLehrer)), offen == 0 ? "" : offen.ToString() };
+                // Fensterverknüpfung: Absenzen des in einem anderen Fenster gewählten Elements hervorheben
+                if (_markiert is { } m && m.Typ == typ && m.Id == a.ElementId) hinter = Ui.ZelleAktivVertretung;
+                break;
+            }
+            case Veranstaltung va:
+                werte = new object?[] { $"VA {va.Id}", "", TagText(va.Von), va.StundeVon, TagText(va.Bis), va.StundeBis >= 99 ? LetzteStunde.ToString() : va.StundeBis.ToString(),
+                    D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == va.GrundId)?.Kurzname ?? "", $"Veranstaltung: {VeranstaltungsElemente(va)} {va.Text}".Trim(), "", "" };
+                nurLesen = true;
+                break;
+            default:
+                // leere Eingabezeile
+                werte = new object?[] { "", "", "", "", "", "", "", "", "", "" };
+                hinter = Color.FromArgb(255, 228, 190);
+                break;
+        }
+        zeile.Tag = eintrag == EingabeZeile ? null : eintrag;
+        for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
+            if (!Equals(zeile.Cells[i].Value?.ToString() ?? "", werte[i]?.ToString() ?? "")) zeile.Cells[i].Value = werte[i];
+        if (zeile.ReadOnly != nurLesen) zeile.ReadOnly = nurLesen;
+        if (zeile.DefaultCellStyle.BackColor != hinter) zeile.DefaultCellStyle.BackColor = hinter;
+        var o = zeile.Cells["O"];
+        var rot = eintrag is Abwesenheit && (o.Value?.ToString() ?? "").Length > 0 ? Color.Firebrick : Color.Empty;
+        if (o.Style.ForeColor != rot) o.Style.ForeColor = rot;
     }
 
     private List<Abwesenheit> Markierte() => _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Abwesenheit>().Distinct().ToList();

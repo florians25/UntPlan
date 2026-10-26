@@ -373,18 +373,31 @@ public sealed class KlausurenFenster : MdiFenster
             pos = (anzahl == 0 ? 0 : Math.Min(nach.Zeile, anzahl - 1), nach.Spalte);
             _auswahlNachLoeschen = null;
         }
+        var nachLoeschen = pos != (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 0);
         _laedt = true;
-        _g.Rows.Clear();
-        foreach (var k in D.Klausuren.OrderBy(k => k.Datum).ThenBy(k => k.StundeVon))
-        {
-            var r = _g.Rows.Add(k.Name, $"{Planungsdienst.TageKurz[((int)k.Datum.DayOfWeek + 6) % 7]} {Format.Datum(k.Datum)}", k.StundeVon == k.StundeBis ? k.StundeVon.ToString() : $"{k.StundeVon}-{k.StundeBis}",
-                Ix.KKlassen(k.KlassenIds), string.Join(",", k.LehrerIds.Select(Ix.KLehrer)), string.Join(",", k.RaumIds.Select(Ix.KRaum)), k.UnterrichtEntfaellt, k.Aktiv, k.Text);
-            _g.Rows[r].Tag = k;
-        }
-        var neu = _g.Rows.Add("", "", "", "", "", "", true, true, "");
-        _g.Rows[neu].DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 236);
-        _laedt = false;
-        if (pos.Item1 >= 0 && pos.Item1 < _g.Rows.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[Math.Clamp(pos.Item2, 0, _g.Columns.Count - 1)];
+        // nur betroffene Zeilen ändern (an Ort und Stelle, neue an ihren Platz) – Zeile, Spalte und Bildlauf bleiben
+        var eintraege = D.Klausuren.OrderBy(k => k.Datum).ThenBy(k => k.StundeVon).Cast<object>().Append(NeueKlausurZeile).ToList();
+        try { Steuerelemente.TabellenAbgleich.Anwenden(_g, eintraege, KlausurSchluessel, r => KlausurSchluessel(r.Tag ?? NeueKlausurZeile), KlausurZeileSetzen); }
+        finally { _laedt = false; }
+        if (nachLoeschen && pos.Item1 >= 0 && pos.Item1 < _g.Rows.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[Math.Clamp(pos.Item2, 0, _g.Columns.Count - 1)];
+    }
+
+    /// <summary>Platzhalter der Leerzeile für neue Klausuren.</summary>
+    private static readonly object NeueKlausurZeile = new();
+
+    private static string KlausurSchluessel(object o) => o is Klausur k ? "K" + k.Id : "neu";
+
+    private void KlausurZeileSetzen(DataGridViewRow zeile, object eintrag)
+    {
+        object?[] werte = eintrag is Klausur k
+            ? new object?[] { k.Name, $"{Planungsdienst.TageKurz[((int)k.Datum.DayOfWeek + 6) % 7]} {Format.Datum(k.Datum)}", k.StundeVon == k.StundeBis ? k.StundeVon.ToString() : $"{k.StundeVon}-{k.StundeBis}",
+                Ix.KKlassen(k.KlassenIds), string.Join(",", k.LehrerIds.Select(Ix.KLehrer)), string.Join(",", k.RaumIds.Select(Ix.KRaum)), k.UnterrichtEntfaellt, k.Aktiv, k.Text }
+            : new object?[] { "", "", "", "", "", "", true, true, "" };
+        zeile.Tag = eintrag as Klausur;
+        for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
+            if (!Equals(zeile.Cells[i].Value, werte[i])) zeile.Cells[i].Value = werte[i];
+        var hinter = eintrag is Klausur ? Color.Empty : Color.FromArgb(252, 252, 236);
+        if (zeile.DefaultCellStyle.BackColor != hinter) zeile.DefaultCellStyle.BackColor = hinter;
     }
 
     private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)

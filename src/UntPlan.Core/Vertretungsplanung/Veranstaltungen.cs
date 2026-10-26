@@ -12,6 +12,16 @@ public sealed record VeranstaltungsUeberlappung(Veranstaltung Veranstaltung, int
 /// </summary>
 public static class VeranstaltungsLogik
 {
+    /// <summary>Hat die Veranstaltung an diesem Tag keine Lehrkraft (z. B. Klassenausflug nur mit Klassen)?</summary>
+    public static bool OhneLehrer(Veranstaltung va, DateOnly datum) => va.LehrerAm(datum).Count == 0 && va.OffenAm(datum).Count == 0;
+
+    /// <summary>
+    /// Gehört die Vertretungszeile (Veranstaltung, Freisetzung bzw. Entfall wegen der Veranstaltung) zu einer Veranstaltung ohne
+    /// Lehrkraft? Dann steht als Vertreter, neuer Raum bzw. neues Fach nichts statt „---“ (Liste, Druck, UntPlanWeb).
+    /// </summary>
+    public static bool OhneLehrer(Schuldatei d, Vertretung v) =>
+        v.VeranstaltungId is int id && d.Veranstaltungen.FirstOrDefault(x => x.Id == id) is { } va && OhneLehrer(va, v.Datum);
+
     /// <summary>Schülergruppe einer Kopplungszeile (Zeile vor Unterricht).</summary>
     public static string Schuelergruppe(Unterricht u, int zeilenIndex) =>
         zeilenIndex >= 0 && zeilenIndex < u.Zeilen.Count && u.Zeilen[zeilenIndex].Schuelergruppe is { Length: > 0 } z ? z : u.Schuelergruppe;

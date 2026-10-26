@@ -564,7 +564,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       const breite = 100 / liste.length;
       liste.forEach((a, j) => {
         // auf der Karte nur der Aufsichtsbereich (z. B. „Hof“) – nicht „Früh …“ bzw. der lange Name; Details im Tooltip
-        const ort = aufsichtOrt(a);
+        // Raumplan eines Aufsichtsorts: statt des Orts, wer dort Aufsicht führt (Vertretung als grünes Label)
+        const ort = plan.typ === 'raum' ? aufsichtWer(a) : aufsichtOrt(a);
         const titel = aufsichtTitel(a);
         // Vertretung wie bei den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grünes Label (ohne Vertretung
         // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
@@ -574,7 +575,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
         // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie, gleiche Breite und Einrückung
         html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
-          ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${e(ort)}${label ? ' ' + label : ''}</span></div>`;
+          ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`;
       });
     }
     const abw = abwesenheitFlaechen((plan.abwesenheiten || []).filter(a => a.datum === t.datum), zeiten, aufbau, belegt);
@@ -728,6 +729,15 @@ function aufsichtOrt(a) {
 }
 
 /**
+ * Raumplan eines Aufsichtsorts: wer die Aufsicht führt – die eingeteilte Lehrkraft (auch bei entfallener Aufsicht); bei Vertretung bzw.
+ * offener Aufsicht nichts (das grüne Label nennt die Vertretung bzw. die eingeteilte Lehrkraft durchgestrichen).
+ */
+export function aufsichtWer(a) {
+  if (a.status === 'vertretung' || a.status === 'vertreten' || a.status === 'offen') return '';
+  return a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
+}
+
+/**
  * Tooltip bzw. Bezeichnung einer Pausenaufsicht: Ort, Zeit und Zustand – Vertretung, vertreten durch …, Vertretung offen bzw. entfällt
  * (mit Anlass, z. B. „Abwesenheit“ oder der Titel der Veranstaltung).
  */
@@ -770,7 +780,7 @@ export function tagesListe(karten, aufsichten, typ, ereignisse = []) {
         <div class="zeit"><b>${k.von === k.bis ? k.von + '.' : k.von + '.–' + k.bis + '.'}</b>${e(k.beginn)}–${e(k.ende)}</div>
         <div class="std ${e(kartenKlasse(k, typ, jetztIso, jetzt))}" data-karte="${i}" tabindex="0" role="button" aria-label="${e(titelText(k))}" style="${fachStil(k)}">${karteInhalt(k, typ, true)}${k.status !== 'regulaer' && k.status !== 'abwesend' && statusText(k) ? `<div class="z3">${e(statusText(k))}</div>` : ''}</div></div>` })),
     ...aufsichten.map(a => ({ zeit: minuten(a.beginn), html: `<div class="eintrag"><div class="zeit">${e(a.beginn)}–${e(a.ende)}</div>
-        <div class="aufsicht ${e(aufsichtKlasse(a))}" ${aufsichtLabel(a) ? '' : `title="${e(aufsichtTitel(a))}"`}><span class="auf-text">${e(a.gangName)}${aufsichtLabel(a) ? ' ' + aufsichtLabel(a) : ''}</span></div></div>` })),
+        <div class="aufsicht ${e(aufsichtKlasse(a))}" ${aufsichtLabel(a) ? '' : `title="${e(aufsichtTitel(a))}"`}><span class="auf-text">${[e(a.gangName), typ === 'raum' && aufsichtWer(a) ? e(aufsichtWer(a)) : '', aufsichtLabel(a)].filter(Boolean).join(' ')}</span></div></div>` })),
   ].sort((a, b) => a.zeit - b.zeit);
   return `<div class="tt-liste">${eintraege.map(x => x.html).join('')}</div>`;
 }

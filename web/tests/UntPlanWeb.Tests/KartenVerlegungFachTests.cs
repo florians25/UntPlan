@@ -130,7 +130,7 @@ public class KartenVerlegungFachTests
         Assert.Equal(2, karten.Count);
         var neu = karten.Single(k => k["status"]!.GetValue<string>() == "geaendert");
         Assert.Equal("M", neu["fach"]!.GetValue<string>());
-        Assert.Equal("E", neu["fachAlt"]!.GetValue<string>());   // für die Details (altes Fach durchgestrichen)
+        Assert.Equal("E", neu["fachAlt"]!.GetValue<string>());   // bisheriges Fach (Tooltip; die Details zeigen keine Fachänderung)
         Assert.Equal("#7BAAF7", neu["farbe"]!.GetValue<string>());
         var alt = karten.Single(k => k["status"]!.GetValue<string>() == "entfall");
         Assert.Equal("E", alt["fach"]!.GetValue<string>());
@@ -151,8 +151,9 @@ public class KartenVerlegungFachTests
         Assert.DoesNotContain("+${l.length - max}", js);
         Assert.DoesNotContain("<span class=\"mehr\" hidden></span>", js);
         Assert.Contains("data-hover-art=\"grau\">…</span>", js);
-        // Details: Fachänderung als altes Fach (durchgestrichen) → neues Fach
+        // Details: keine Fachänderung (jeder Block nennt nur sein eigenes Fach)
         var details = File.ReadAllText(Path.Combine(dir.FullName, "src", "UntPlanWeb", "wwwroot", "js", "stundendetails.js"));
-        Assert.Contains("const fachTeil = k.fachAlt && !istEntfall() ? `<s class=\"sd-alt\">${e(k.fachAlt)}</s>", details);
+        Assert.Contains("const fachTeil = k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');", details);
+        Assert.DoesNotContain("e(k.fachAlt)", details);
     }
 }

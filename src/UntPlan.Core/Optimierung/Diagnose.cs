@@ -100,7 +100,7 @@ public static class Diagnose
                 ringFehler.Faelle.Add(new DiagnoseFall(r.Kurzname, null, "", "Ausweichraum ungültig", ElementTyp.Raum, r.Id));
 
         var ohneLehrer = P("Unterricht", "Unterricht ohne Lehrer", "Kopplungszeile ohne Lehrer.", 2);
-        var ohneKlasse = P("Unterricht", "Unterricht ohne Klasse", "Kopplungszeile ohne Klasse.", 1);
+        var ohneKlasse = P("Unterricht", "Unterricht ohne Klasse", "Kopplungszeile ohne Klasse und ohne Lehrkraft.", 1);
         var ohneFach = P("Unterricht", "Unterricht ohne Fach", "Kopplungszeile ohne Fach.", 2);
         var doppelZuGross = P("Unterricht", "Doppelstunden-Bereich nicht erfüllbar", "Es werden mehr Doppelstunden verlangt, als Wochenstunden vorhanden sind.", 3);
         var ohneRaum = P("Unterricht", "Unterricht mit Lehrer ohne Raum", "Für die Kopplungszeile ist weder Fach- noch Stammraum (oder Raumgruppe) angegeben.", 1);
@@ -110,7 +110,8 @@ public static class Diagnose
             foreach (var z in u.Zeilen)
             {
                 if (z.LehrerId is null && !(z.FachId.HasValue && ix.Faecher.TryGetValue(z.FachId.Value, out var bf) && bf.Bereitschaft)) ohneLehrer.Faelle.Add(new DiagnoseFall($"U{u.Id}", u.Id, "", ix.UnterrichtText(u)));
-                if (z.KlassenIds.Count == 0 && !(z.FachId.HasValue && ix.Faecher.TryGetValue(z.FachId.Value, out var f2) && f2.Bereitschaft)) ohneKlasse.Faelle.Add(new DiagnoseFall($"U{u.Id}", u.Id, "", ix.UnterrichtText(u)));
+                // Unterricht ohne Klassen ist erlaubt (AG, Förderunterricht …) – nur Zeilen ganz ohne Klasse und Lehrkraft sind auffällig
+                if (z.KlassenIds.Count == 0 && z.LehrerId is null && !u.KlassenIds.Any() && !(z.FachId.HasValue && ix.Faecher.TryGetValue(z.FachId.Value, out var f2) && f2.Bereitschaft)) ohneKlasse.Faelle.Add(new DiagnoseFall($"U{u.Id}", u.Id, "", ix.UnterrichtText(u)));
                 if (z.FachId is null) ohneFach.Faelle.Add(new DiagnoseFall($"U{u.Id}", u.Id, "", ix.UnterrichtText(u)));
                 if (z.LehrerId.HasValue && z.Wunschraum is null && z.Wunschraumgruppe is null) ohneRaum.Faelle.Add(new DiagnoseFall($"U{u.Id}", u.Id, "", ix.UnterrichtText(u)));
             }

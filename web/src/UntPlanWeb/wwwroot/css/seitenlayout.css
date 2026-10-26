@@ -316,3 +316,11 @@
 .kbe, .ub, .mf-seite, .mf-seite.mf-meine, .mf-karte, .bu-assistent, .st-formular, .nw-liste, .nw-liste-karte, .mt-einst,
 .sd-abschnitt, .sd-detail, .sd-notiz, .kb-uebersicht { max-width: none; }
 .u-app[data-ansicht="mitteilungen"] .u-inhalt > .u-seitenkopf, .u-app[data-ansicht="mitteilungen"] .u-inhalt > #seite { max-width: none; margin-left: 0; margin-right: 0; }
+
+/* ------------------------------------------------------------------ Startseite schmaler
+
+   Nur die Startseite (Heute) nutzt nicht die volle Breite: Titel, Nachrichten und „Mein nächster Unterricht“ stehen in einer
+   lesbaren Spalte mittig neben der Seitenleiste. Alle anderen Seiten bleiben volle Breite (siehe oben). */
+:root { --u-start-max: 1100px; }
+.u-app[data-ansicht="heute"] #seite, .u-app[data-ansicht="heute"] #seitenkopf { max-width: var(--u-start-max); margin-left: auto; margin-right: auto; }
+.u-app[data-ansicht="heute"] #seite .heute, .u-app[data-ansicht="heute"] #seite .heute-titel { max-width: none; }

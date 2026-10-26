@@ -42,7 +42,8 @@ enum Planansicht: String, CaseIterable, Identifiable {
 /// Stundenplan als Wochenraster nach Uhrzeit: oben Konto-Knopf, Planname als Menü, (i) und ⋮,
 /// darunter KW/Monat und Tage, links die Zeitspalte. Wischen blättert wie Seiten zur nächsten bzw.
 /// vorherigen Woche (bzw. Tagen); die Ansicht folgt dem Finger, gleitet mit Feder-Animation weiter oder zurück.
-/// ⋮-Menü wie in der Vorlage: „Gehe zu Datum“ (Kalender als Popover), Ansicht Tag / 2 Tage / 3 Tage / Woche, Hilfe.
+/// ⋮-Menü wie in der Vorlage: „Gehe zu Datum“ (Kalender als Popover), Ansicht Tag / 2 Tage / 3 Tage / Woche, Optionen,
+/// Hilfe (Legende); (i) nur bei Klassenplänen mit den Klassenlehrkräften.
 struct StundenplanView: View {
     @EnvironmentObject var zustand: AppZustand
     @EnvironmentObject var favoriten: Favoriten
@@ -60,8 +61,9 @@ struct StundenplanView: View {
     @State private var detail: Detailauswahl? = nil
     @State private var gewaehlteAufsicht: Aufsicht? = nil
     @State private var zeigeAuswahl = false
-    @State private var zeigeInfo = false
     @State private var zeigeHilfe = false
+    /// Klassenlehrkräfte je Klasse (Kürzel) aus /api/app/elemente – für das (i) im Kopf von Klassenplänen
+    @State private var klassenleitungen: [String: [String]]? = nil
     @State private var zeigeDatum = false
 
     // Blättern
@@ -229,13 +231,12 @@ struct StundenplanView: View {
                     .environmentObject(zustand)
                     .environmentObject(favoriten)
             }
-            .blattPraesentation(isPresented: $zeigeInfo, breit: istBreit) {
-                PlanInfoView(titel: titel, plan: aktuellerPlan)
-            }
+            // „Hilfe“ im ⋮-Menü: Legende der Kartenfarben und -zeichen
             .blattPraesentation(isPresented: $zeigeHilfe, breit: istBreit) {
-                PlanInfoView(titel: "Hilfe", plan: aktuellerPlan, hilfe: true)
+                PlanInfoView(titel: "Legende", plan: nil)
             }
             .task(id: ladeSchluessel) { await laden() }
+            .task(id: "\(typ)|\(element)") { await klassenleitungenLaden() }
             .onAppear {
                 planAnfrageUebernehmen()
                 schnellaktionUebernehmen()
@@ -341,19 +342,59 @@ struct StundenplanView: View {
                 plantitel
             }
         }
-        // (i) und ⋮ wie in der Vorlage nebeneinander (iPhone und iPad)
+        // (i) (nur bei Klassenplänen) und ⋮ wie in der Vorlage nebeneinander (iPhone und iPad)
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                zeigeInfo = true
-            } label: {
-                Glasknopf(breite: 22) {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 18, weight: .regular))
-                }
+            if typ == "klasse" {
+                infoMenue
             }
-            .accessibilityLabel("Informationen zum Plan")
             menue
         }
+    }
+
+    /// Klassenlehrkräfte des angezeigten Klassenplans.
+    private var klassenleitung: [String] {
+        guard typ == "klasse", let klassenleitungen else { return [] }
+        if let l = klassenleitungen[element] { return l }
+        return klassenleitungen.first { $0.key.caseInsensitiveCompare(element) == .orderedSame }?.value ?? []
+    }
+
+    /// Vorlage 9f77ed13: (i) öffnet ein Glasmenü „Klassenlehrkraft“ (grauer Titel) mit den Kürzeln der Klassenlehrkräfte
+    /// (Lehrkraft-Symbol, nur Anzeige).
+    private var infoMenue: some View {
+        Menu {
+            Section(klassenleitung.count > 1 ? "Klassenlehrkräfte" : "Klassenlehrkraft") {
+                if klassenleitung.isEmpty {
+                    Button {} label: {
+                        Text(klassenleitungen == nil ? "Wird geladen …" : "Keine Angabe")
+                    }
+                    .disabled(true)
+                } else {
+                    ForEach(klassenleitung, id: \.self) { kuerzel in
+                        Button {} label: {
+                            Label(kuerzel, image: "SymbolLehrer")
+                        }
+                        .disabled(true)
+                    }
+                }
+            }
+        } label: {
+            Glasknopf(breite: 22) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 18, weight: .regular))
+            }
+        }
+        .tint(Color.primary)
+        .accessibilityLabel(klassenleitung.isEmpty ? "Klassenlehrkraft"
+                            : "Klassenlehrkraft: \(klassenleitung.joined(separator: ", "))")
+    }
+
+    /// Klassenlehrkräfte einmal laden, sobald ein Klassenplan angezeigt wird.
+    private func klassenleitungenLaden() async {
+        guard typ == "klasse", klassenleitungen == nil else { return }
+        guard let e = try? await zustand.api.elemente() else { return }
+        var neu: [String: [String]] = [:]
+        for k in e.klassen where !k.kurz.isEmpty { neu[k.kurz] = k.leitung }
+        klassenleitungen = neu
     }
 
     /// Planname mit Pfeil: ein Tipp öffnet direkt die Planauswahl (Mein Stundenplan, Favoriten, Suche, Listen).
@@ -384,7 +425,9 @@ struct StundenplanView: View {
         .accessibilityLabel("Stundenplan auswählen, aktuell \(titel)")
     }
 
-    /// ⋮-Menü wie in der Vorlage: „Gehe zu Datum“, Abschnitt „Ansicht“ (Tag, 2 Tage, 3 Tage, Woche mit Häkchen), Hilfe.
+    /// ⋮-Menü wie in der Vorlage a40f0be3 (Glasmenü, Abschnitte durch Linien getrennt): „Gehe zu Datum“; Abschnitt
+    /// „Ansicht“ (Tag, 2 Tage, 3 Tage, Woche – Häkchen links vor dem Spalten-Symbol); Abschnitt „Optionen“ mit Schalter als
+    /// oranger Haken im Kreis; Favoriten bzw. Aktualisieren; ganz unten „Hilfe“ (öffnet die Legende).
     private var menue: some View {
         Menu {
             Button {
@@ -403,11 +446,18 @@ struct StundenplanView: View {
                 .labelsHidden()
             }
             if auswahl == nil {
-                Section {
+                Section("Optionen") {
                     // Eigene Abwesenheit als grauer Balken hinter den Stunden ein- bzw. ausblenden
-                    Toggle(isOn: $zeigeAbwesenheiten) {
-                        Label("Abwesenheiten anzeigen", systemImage: "person.badge.clock")
+                    Button {
+                        zeigeAbwesenheiten.toggle()
+                    } label: {
+                        Label {
+                            Text("Abwesenheiten anzeigen")
+                        } icon: {
+                            Self.optionsSymbol(an: zeigeAbwesenheiten)
+                        }
                     }
+                    .accessibilityValue(zeigeAbwesenheiten ? "Ein" : "Aus")
                 }
             }
             Section {
@@ -424,6 +474,8 @@ struct StundenplanView: View {
                 } label: {
                     Label("Aktualisieren", systemImage: "arrow.clockwise")
                 }
+            }
+            Section {
                 Button {
                     zeigeHilfe = true
                 } label: {
@@ -447,6 +499,16 @@ struct StundenplanView: View {
             }
             .presentationCompactAdaptation(.popover)
         }
+    }
+
+    /// Schalter im ⋮-Menü wie „Fremdvertretungen“ der Vorlage: an = oranger Haken im Kreis (feste Farbe, im Menü nicht
+    /// umgefärbt), aus = leerer Kreis.
+    private static func optionsSymbol(an: Bool) -> Image {
+        let konfiguration = UIImage.SymbolConfiguration(weight: .regular)
+        if an, let bild = UIImage(systemName: "checkmark.circle", withConfiguration: konfiguration) {
+            return Image(uiImage: bild.withTintColor(UIColor(Farben.akzent), renderingMode: .alwaysOriginal))
+        }
+        return Image(systemName: "circle")
     }
 
     // MARK: - Inhalt
@@ -897,7 +959,7 @@ enum Wochenkopf {
     }
 }
 
-/// Info (i) bzw. Hilfe (⋮-Menü): Bedienung (nur Hilfe), Legende der Kartenfarben und Angaben zur Woche.
+/// Legende (⋮-Menü → Hilfe): Kartenfarben und -zeichen; optional Bedienung (`hilfe`) und Angaben zur Woche (`plan`).
 struct PlanInfoView: View {
     let titel: String
     let plan: Wochenplan?
@@ -1176,9 +1238,9 @@ struct Rasterrahmen: Equatable {
     /// Leerer Streifen über der Linie der 1. Stunde, hell und dunkel gleich (Vorlage dc1bcf55: Kopf endet bei 468 px,
     /// Linie ab 514,5 px → 15,5 pt).
     static let obenAbstand: CGFloat = 15.5
-    /// Aufsicht vor der 1. Stunde: schmale Pille (Vorlage 179: 10 pt hoch) direkt auf der Linie der 1. Stunde, darüber
-    /// mindestens 4 pt Luft.
-    static let pillenHoehe: CGFloat = 10
+    /// Aufsicht vor der 1. Stunde: schmale Pille (Vorlage 179: 10 pt, auf Wunsch etwas höher: 12 pt) direkt auf der Linie
+    /// der 1. Stunde, darüber mindestens 4 pt Luft (der Streifen über der Linie wächst dafür von 15,5 auf 16 pt).
+    static let pillenHoehe: CGFloat = 12
     static let pillenLuft: CGFloat = 4
 
     /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.

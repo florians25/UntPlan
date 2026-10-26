@@ -64,27 +64,13 @@ public static class Unterrichtseingabe
         }
     }
 
-    /// <summary>Hinweise zu fehlenden Pflichtangaben eines Unterrichts (Fach, Klasse, Wochenstunden; Lehrer als Hinweis).</summary>
-    private static readonly System.Text.RegularExpressions.Regex OhneKlasseFach = new(
-        @"aufsicht|bereitschaft|sprechstunde|konferenz|verwaltung|ermäßig|ermaessig|entlastung|koordination|beratung|teamsitzung|dienstbesprechung",
-        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-
     /// <summary>
-    /// Braucht dieser Unterricht eine Klasse? Nein, wenn schon eine Kopplungszeile Klassen hat oder es ein Dienst ohne Klasse ist:
-    /// Bereitschaft, Fach ohne Vertretung (Aufsicht, Sprechstunde, Konferenz …) bzw. ein Fach mit entsprechendem Namen.
+    /// Braucht dieser Unterricht eine Klasse? Nein: Lehrkräfte können auch Unterricht ohne Klassen haben (AG, Förderunterricht,
+    /// Projekt, Aufsicht, Sprechstunde …) – die Klasse ist keine Pflichtangabe.
     /// </summary>
-    public static bool KlasseNoetig(Schuldatei? d, Unterricht u)
-    {
-        if (u.Zeilen.Any(z => z.KlassenIds.Count > 0)) return false;
-        if (d is null) return true;
-        foreach (var z in u.Zeilen)
-        {
-            if (z.FachId is not int fid || d.Faecher.FirstOrDefault(f => f.Id == fid) is not { } fach) continue;
-            if (fach.Bereitschaft || fach.KeineVertretung || OhneKlasseFach.IsMatch(fach.Kurzname) || OhneKlasseFach.IsMatch(fach.Langname)) return false;
-        }
-        return true;
-    }
+    public static bool KlasseNoetig(Schuldatei? d, Unterricht u) => false;
 
+    /// <summary>Hinweise zu fehlenden Pflichtangaben eines Unterrichts (Fach, Wochenstunden; Lehrer als Hinweis – die Klasse ist keine Pflicht).</summary>
     public static List<string> Pflichthinweise(Unterricht u, Schuldatei? d = null)
     {
         var res = new List<string>();
