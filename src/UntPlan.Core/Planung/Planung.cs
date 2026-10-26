@@ -263,7 +263,7 @@ public static class Planungsdienst
 
     public static void RaumZuordnen(Schuldatei d, Planstunde p, int zeile, int? raumId, RaumKonfliktLoesung loesung)
     {
-        while (p.Raeume.Count <= zeile) p.Raeume.Add(null);
+        p.RaeumeErweitern(zeile + 1);
         if (raumId is null) { p.Raeume[zeile] = null; return; }
         var andere = d.Stundenplan.Where(q => q != p && q.Tag == p.Tag && q.Stunde == p.Stunde && q.Raeume.Contains(raumId)).ToList();
         var alt = p.Raeume[zeile];

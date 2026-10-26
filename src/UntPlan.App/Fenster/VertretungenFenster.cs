@@ -647,9 +647,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = _gruppen.TryGetValue(v.Id, out var g) ? g : new List<Vertretung> { v };
         var lehrer = liste.Any(x => !x.IstEntfall && x.VertreterId is int l && x.Art != VertretungsArt.TrotzAbsenz && !x.Mitbetreuung && Vertretungen.LehrerBelegt(D, Plan(x.Datum), l, x.Stunde, x) != null);
-        var raum = liste.Any(x => !x.IstEntfall && x.Art != VertretungsArt.Pausenaufsicht && (x.VertretungsraumId ?? x.RaumId) is int r && Plan(x.Datum).Stunde(x.Stunde).Count(e => e.Findetstatt && e.RaumIds.Contains(r)) > 1);
+        var raum = liste.Any(x => !x.IstEntfall && x.Art != VertretungsArt.Pausenaufsicht && (x.VertretungsraumId ?? x.RaumId) is int r && RaumMehrfach(Plan(x.Datum), x.Stunde, r));
         return (lehrer, raum);
     }
+
+    /// <summary>Raum in der Stunde von mehreren Unterrichten belegt? Kopplungszeilen desselben Unterrichts teilen sich den Raum.</summary>
+    private static bool RaumMehrfach(Tagesplan tp, int stunde, int raum) =>
+        tp.Stunde(stunde).Where(e => e.Findetstatt && e.RaumIds.Contains(raum)).Select(e => (object?)(e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) ?? e).Distinct().Count() > 1;
 
     private string? KollisionEinzeln(Vertretung v)
     {
@@ -657,7 +661,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (v.VertreterId is int l && Vertretungen.LehrerBelegt(D, Plan(v.Datum), l, v.Stunde, v) is { } g && v.Art != VertretungsArt.TrotzAbsenz && !v.Mitbetreuung) return g;
         var raum = v.VertretungsraumId ?? v.RaumId;
         if (raum is int r && v.Art != VertretungsArt.Pausenaufsicht &&
-            Plan(v.Datum).Stunde(v.Stunde).Count(e => e.Findetstatt && e.RaumIds.Contains(r)) > 1) return $"Raum {Ix.KRaum(r)} doppelt belegt";
+            RaumMehrfach(Plan(v.Datum), v.Stunde, r)) return $"Raum {Ix.KRaum(r)} doppelt belegt";
         return null;
     }
 

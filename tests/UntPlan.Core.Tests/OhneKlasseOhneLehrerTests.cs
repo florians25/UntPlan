@@ -19,12 +19,12 @@ public class OhneKlasseOhneLehrerTests
     {
         var d = Testdaten.Verplant();
         var tag = Testdaten.Unterrichtstag(d);
-        var wt = ((int)tag.DayOfWeek + 6) % 7;
+        var wt = Kalender.TagIndex(d, tag);
         var lehrer = d.Lehrer[0].Id;
         var fach = d.Faecher.First(f => !f.Bereitschaft && !f.KeineVertretung).Id;
         var ix = new DatenIndex(d);
         // Stunde, in der die Lehrkraft frei ist, und ein Raum, der dann frei ist
-        var stunde = Enumerable.Range(0, d.Zeitraster.StundenProTag).First(s => d.Zeitraster.Verfuegbar(wt, s)
+        var stunde = Enumerable.Range(1, d.Zeitraster.StundenProTag).First(s => d.Zeitraster.Verfuegbar(wt, s)
             && !d.Stundenplan.Any(p => p.Tag == wt && p.Stunde == s && ix.Unterrichte.TryGetValue(p.UnterrichtId, out var o) && o.LehrerIds.Contains(lehrer)));
         var raum = d.Raeume.First(r => !d.Stundenplan.Any(p => p.Tag == wt && p.Stunde == stunde && p.Raeume.Contains(r.Id))).Id;
         var u = new Unterricht { Id = d.NeueId(), Wochenstunden = 1, Zeilen = { new Kopplungszeile { LehrerId = lehrer, FachId = fach, FachraumId = raum } } };

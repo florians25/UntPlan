@@ -456,9 +456,14 @@ public static class StundenplanAenderungen
             // Bezieht sich die Buchung auf einen bestehenden Unterricht der Lehrkraft? Dann ist es eine Raumänderung.
             var lehrer = Id(d, ElementTyp.Lehrer, m.Lehrer);
             var tp = Tagesplan.Berechnen(d, datum);
-            var e = tp.Stunde(von).FirstOrDefault(x => x.Findetstatt && x.Unterricht != null && (m.UnterrichtNr is int nr ? x.Unterricht.Id == nr : lehrer is int l && x.LehrerIds.Contains(l)) &&
-                                                       (m.Klassen.Count == 0 || m.Klassen.All(k => x.KlassenIds.Contains(Id(d, ElementTyp.Klasse, k) ?? -1))));
-            if (e != null && (string.IsNullOrWhiteSpace(m.Fach) || Id(d, ElementTyp.Fach, m.Fach) == e.FachId))
+            var kids = m.Klassen.Select(k => Id(d, ElementTyp.Klasse, k) ?? -1).ToList();
+            var fachId = string.IsNullOrWhiteSpace(m.Fach) ? null : Id(d, ElementTyp.Fach, m.Fach);
+            // Klassen dürfen sich auf mehrere Kopplungszeilen desselben Unterrichts verteilen (Raumliste gilt für den ganzen Unterricht)
+            bool KlassenImUnterricht(TagesEintrag x) => kids.All(k => tp.Stunde(von).Any(y => y.Findetstatt && y.Unterricht?.Id == x.Unterricht!.Id && y.KlassenIds.Contains(k)));
+            var e = tp.Stunde(von).Where(x => x.Findetstatt && x.Unterricht != null && (m.UnterrichtNr is int nr ? x.Unterricht.Id == nr : lehrer is int l && x.LehrerIds.Contains(l)) && KlassenImUnterricht(x))
+                .OrderBy(x => kids.All(x.KlassenIds.Contains) ? 0 : 1).ThenBy(x => fachId is null || x.FachId == fachId ? 0 : 1).FirstOrDefault();
+            // Fach: das einer Zeile des Unterrichts
+            if (e != null && (fachId is null && string.IsNullOrWhiteSpace(m.Fach) || tp.Stunde(von).Any(y => y.Findetstatt && y.Unterricht?.Id == e.Unterricht!.Id && y.FachId == fachId)))
             {
                 art = StplAenderungsArt.Unterricht;
                 uid = e.Unterricht!.Id;
@@ -534,19 +539,31 @@ public static class StundenplanAenderungen
                 case StplAenderungsArt.Unterricht:
                 {
                     if (raeume.Count == 0) { nein.Add((a.Id, "kein Raum angegeben")); continue; }
-                    // Die Rückmeldung enthält die vollständige neue Raumliste: der ursprüngliche Raum bleibt Hauptraum, solange er dabei ist;
-                    // die übrigen sind genau die Zusatzräume (gelöschte Zusatzräume verschwinden, der ursprüngliche Raum bleibt erhalten)
-                    var regel = Tagesplan.Berechnen(d, a.Datum).Stunde(a.StundeVon).FirstOrDefault(x => x.Unterricht?.Id == a.UnterrichtId);
-                    var ursprung = regel?.Regel?.RaumId;
-                    var haupt = ursprung is int ur && raeume.Contains(ur) ? ur : raeume[0];
-                    var zusatz = raeume.Where(r => r != haupt).ToList();
-                    var neu = Raumvertretungen.Zuordnen(d, a.UnterrichtId!.Value, a.ZeilenIndex ?? 0, a.Datum, stunden, haupt, false, RaumKollisionsLoesung.MitKollision, benutzer);
-                    foreach (var v in neu.Where(v => v.UnterrichtId == a.UnterrichtId))
+                    // Die Rückmeldung enthält die vollständige neue Raumliste des ganzen Unterrichts (alle Kopplungszeilen): eine Zeile behält
+                    // ihren ursprünglichen Raum, solange er dabei ist; Zeilen, deren Raum gestrichen wurde, erhalten den neuen Raum. Die übrigen
+                    // Räume sind genau die Zusatzräume der gemeldeten Zeile (gelöschte Zusatzräume verschwinden).
+                    var uid = a.UnterrichtId!.Value;
+                    var gemeldet = a.ZeilenIndex ?? 0;
+                    var zeilen = Tagesplan.Berechnen(d, a.Datum).Stunde(a.StundeVon).Where(x => x.Unterricht?.Id == uid && x.Regel != null)
+                        .Select(x => (Zeile: x.Regel!.ZeilenIndex, Ursprung: x.Regel.RaumId)).Distinct().OrderBy(x => x.Zeile).ToList();
+                    if (!zeilen.Any(z => z.Zeile == gemeldet)) zeilen.Add((gemeldet, null));
+                    var behalten = zeilen.Where(z => z.Ursprung is int ur && raeume.Contains(ur)).Select(z => z.Ursprung!.Value).ToHashSet();
+                    var ersatz = raeume.Where(r => !behalten.Contains(r)).Cast<int?>().FirstOrDefault() ?? raeume[0];
+                    var haupt = zeilen.ToDictionary(z => z.Zeile, z => z.Ursprung is int ur && raeume.Contains(ur) ? ur : ersatz);
+                    var zusatz = raeume.Where(r => !haupt.Values.Contains(r)).ToList();
+                    var neu = new List<Vertretung>();
+                    foreach (var (zi, ursprung) in zeilen)
+                    {
+                        // unveränderte weitere Zeilen bleiben ohne eigene Raumvertretung
+                        if (zi != gemeldet && haupt[zi] == ursprung) continue;
+                        neu.AddRange(Raumvertretungen.Zuordnen(d, uid, zi, a.Datum, stunden, haupt[zi], false, RaumKollisionsLoesung.MitKollision, benutzer));
+                    }
+                    foreach (var v in neu.Where(v => v.UnterrichtId == uid).Distinct())
                     {
                         // reine Raumänderung aus einer Buchung: kein Vertretungstext (ein vorhandener eigener Text der Stunde bleibt)
                         if (IstRaumaenderungsHinweis(v.Text)) v.Text = "";
                         v.WebId = a.Id;
-                        v.ZusatzraumIds = zusatz.ToList();
+                        v.ZusatzraumIds = v.ZeilenIndex == gemeldet ? zusatz.ToList() : new List<int>();
                     }
                     // wieder genau der ursprüngliche Raum: bestehende Zusatzräume dieser Stunden entfernen
                     if (zusatz.Count == 0)
