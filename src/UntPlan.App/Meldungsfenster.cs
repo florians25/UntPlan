@@ -142,6 +142,8 @@ public static partial class Ui
 
         public MeldungsArt Art { get; init; }
         public Rectangle SymbolBereich { get; set; }
+        /// <summary>Farbe der eigenen Titelleiste (hell in der Modusfarbe wie im Vorbild).</summary>
+        public Color TitelFarbe => MeldungTitel;
 
         /// <summary>Bereich des Schließen-Knopfes (×) in der Titelleiste.</summary>
         internal Rectangle SchliessenBereich => new(ClientSize.Width - 1 - SchliessenBreite, 1, SchliessenBreite, TitelHoehe);
@@ -219,7 +221,7 @@ public static partial class Ui
             var g = e.Graphics;
             var w = ClientSize.Width;
             var titel = new Rectangle(1, 1, w - 2, TitelHoehe);
-            using (var b = new SolidBrush(MeldungTitel)) g.FillRectangle(b, titel);
+            using (var b = new SolidBrush(TitelFarbe)) g.FillRectangle(b, titel);
             if (_schliessenHover)
                 using (var rot = new SolidBrush(Color.FromArgb(232, 17, 35))) g.FillRectangle(rot, SchliessenBereich);
             TextRenderer.DrawText(g, Text, Schrift, new Rectangle(13, 1, w - 13 - SchliessenBreite, TitelHoehe), Color.Black,

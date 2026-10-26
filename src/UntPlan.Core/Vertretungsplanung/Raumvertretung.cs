@@ -217,20 +217,9 @@ public static class Raumvertretungen
         var hindernisse = raumId is int r && loesung is RaumKollisionsLoesung.OhneKollision or RaumKollisionsLoesung.RaeumeTauschen
             ? tp.Stunde(e.Stunde).Where(x => x != e && x.Findetstatt && x.RaumIds.Contains(r) && !GleicherUnterricht(x, e)).ToList()
             : new List<TagesEintrag>();
-        // weitere Kopplungszeilen desselben Unterrichts im selben (gemeinsamen) Raum ziehen mit um – sonst säße nur eine Zeile im neuen Raum
-        var mit = bisher is int gemeinsam && raumId != gemeinsam && !zusaetzlich && e.Regel is { } er
-            ? tp.Stunde(e.Stunde).Where(x => x != e && x.Findetstatt && x.Regel is { } xr && xr.Unterricht.Id == er.Unterricht.Id && xr.RaumId == er.RaumId
-                                             && x.RaumIds.Contains(gemeinsam) && !(x.Vertretung?.Fixiert ?? false)).ToList()
-            : new List<TagesEintrag>();
         var v = ZeileFuer(d, tp, e, benutzer);
         RaumSetzen(v, raumId, zusaetzlich, bisher, benutzer);
         res.Add(v);
-        foreach (var x in mit)
-        {
-            var w = ZeileFuer(d, tp, x, benutzer);
-            RaumSetzen(w, raumId, zusaetzlich, bisher, benutzer);
-            res.Add(w);
-        }
         foreach (var h in hindernisse)
         {
             var w = h.Vertretung ?? (h.Regel != null ? ZeileFuer(d, tp, h, benutzer) : null);

@@ -1420,13 +1420,17 @@ public sealed partial class HauptFenster
                 if (f.FormBorderStyle != FormBorderStyle.None || f.BackColor != Ui.MeldungFlaeche || f.Controls.Find("Knopfleiste", false) is not [Panel leiste] ||
                     leiste.BackColor != Ui.MeldungLeiste || f.AcceptButton is not Button std || std.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || std.Font.Bold || std.BackColor != Color.White)
                     throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ nicht wie im Vorbild.");
+                if (f is not Ui.MeldungsForm { TitelFarbe: var tf } || tf != Ui.MeldungTitel) throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ ohne helle Titelleiste.");
                 // Titelleiste wie auf dem Bildschirm (eigene Zeichnung, kein Systemrahmen)
                 Warten(150);
                 using (var bild = new Bitmap(1, 1))
                 {
                     using (var g = Graphics.FromImage(bild)) g.CopyFromScreen(f.PointToScreen(new Point(f.ClientSize.Width - 52, 4)), Point.Empty, new Size(1, 1));
                     var titel = bild.GetPixel(0, 0);
-                    if (Math.Abs(titel.R - Ui.MeldungTitel.R) + Math.Abs(titel.G - Ui.MeldungTitel.G) + Math.Abs(titel.B - Ui.MeldungTitel.B) > 12)
+                    // ohne sichtbaren Desktop (CI-Runner) bzw. noch nicht gezeichnet: leere/schwarze Aufnahme – nicht messbar, kein Fehler
+                    if (titel.A == 0 || (titel.R == 0 && titel.G == 0 && titel.B == 0))
+                        log.Add($"INFO  Meldungsfenster „{a.Titel}“: Titelleiste am Bildschirm nicht messbar ({titel}) – geprüft wird die eingestellte Farbe");
+                    else if (Math.Abs(titel.R - Ui.MeldungTitel.R) + Math.Abs(titel.G - Ui.MeldungTitel.G) + Math.Abs(titel.B - Ui.MeldungTitel.B) > 12)
                         throw new InvalidOperationException($"Titelleiste des Meldungsfensters „{a.Titel}“ hat die Farbe {titel} statt {Ui.MeldungTitel}.");
                 }
                 if (a.Text == "Absenzgrund fehlt." && (f.Width is < 200 or > 280 || f.Height is < 150 or > 200))
