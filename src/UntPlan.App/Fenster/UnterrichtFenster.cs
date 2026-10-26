@@ -125,6 +125,119 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     internal (int? Unterricht, string Spalte, int Zeile) SelbsttestPosition =>
         (Aktuell()?.U.Id, _grid.CurrentCell is { } c ? _grid.Columns[c.ColumnIndex].Name : "", Aktuell()?.Index ?? -1);
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetFocus();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+
+    /// <summary>Selbsttest: Mausklick (gedrückt/losgelassen) in eine Zelle wie vom Benutzer – über Fenstermeldungen an die Tabelle.</summary>
+    private void SelbsttestKlick(DataGridViewCell zelle, Action warten)
+    {
+        var r = _grid.GetCellDisplayRectangle(zelle.ColumnIndex, zelle.RowIndex, false);
+        if (r.Width <= 0) { _grid.FirstDisplayedScrollingRowIndex = zelle.RowIndex; warten(); r = _grid.GetCellDisplayRectangle(zelle.ColumnIndex, zelle.RowIndex, false); }
+        var lp = (IntPtr)(((r.Y + r.Height / 2) << 16) | ((r.X + r.Width / 2) & 0xFFFF));
+        const int WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, MK_LBUTTON = 1;
+        PostMessage(_grid.Handle, WM_LBUTTONDOWN, (IntPtr)MK_LBUTTON, lp);
+        PostMessage(_grid.Handle, WM_LBUTTONUP, IntPtr.Zero, lp);
+        warten();
+    }
+
+    /// <summary>
+    /// Selbsttest „Zeilenwechsel“: Auswahlliste (Lehrer) in Zeile A ändern, dann per Mausklick bzw. Pfeiltaste in Zeile B wechseln –
+    /// Zeile A hat den gewählten Wert, Zeile B bleibt unverändert (auch mit getipptem Suchtext und offener Liste).
+    /// </summary>
+    internal string SelbsttestZeilenwechsel(Action warten)
+    {
+        if (!_grid.Columns.Contains("Lehrer")) throw new InvalidOperationException("Spalte Lehrer fehlt.");
+        var spalte = _grid.Columns["Lehrer"]!.Index;
+        var berichte = new List<string>();
+        int? LehrerVon(int uid) => D.Unterrichte.First(u => u.Id == uid).Zeilen[0].LehrerId;
+        DataGridViewRow? Zeile(int uid) => _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == uid && zt.Index == 0);
+        (int A, int B)? Paar()
+        {
+            var zeilen = _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is ZeilenTag { Index: 0 } zt && zt.U.Zeilen.Count == 1 && !r.Cells[spalte].ReadOnly && zt.U.LehrerIds.Any()).ToList();
+            for (var i = 0; i + 1 < zeilen.Count; i++)
+                if (((ZeilenTag)zeilen[i].Tag!).U.Zeilen[0].LehrerId != ((ZeilenTag)zeilen[i + 1].Tag!).U.Zeilen[0].LehrerId)
+                    return (((ZeilenTag)zeilen[i].Tag!).U.Id, ((ZeilenTag)zeilen[i + 1].Tag!).U.Id);
+            return null;
+        }
+        // freie Lehrkraft (nicht A, nicht B), damit keine Behinderungsabfrage die Eingabe aufhält
+        Lehrer Andere(params int?[] nicht) => D.Lehrer.Where(l => !nicht.Contains(l.Id) && !l.Ignorieren).OrderBy(l => D.Unterrichte.Count(u => u.LehrerIds.Contains(l.Id))).First();
+        void Abbrechen()
+        {
+            if (_grid.EditingControl is ComboBox { DroppedDown: true } offen) offen.DroppedDown = false;
+            if (_grid.IsCurrentCellInEditMode) { _grid.CancelEdit(); _grid.EndEdit(); }
+            warten();
+        }
+        foreach (var art in new[] { "Maus", "Maus mit Suchtext", "Maus bei offener Liste", "Pfeiltaste" })
+        {
+            Abbrechen();
+            if (Paar() is not { } p) throw new InvalidOperationException("Keine zwei Unterrichte mit verschiedenen Lehrkräften.");
+            var (lehrerA, lehrerB) = (LehrerVon(p.A), LehrerVon(p.B));
+            var neu = Andere(lehrerA, lehrerB);
+            var zeileA = Zeile(p.A)!;
+            _grid.Focus();
+            _grid.ClearSelection();
+            _grid.CurrentCell = zeileA.Cells[spalte];
+            zeileA.Cells[spalte].Selected = true;
+            _grid.BeginEdit(false);
+            warten();
+            if (_grid.EditingControl is not ComboBox cb) throw new InvalidOperationException("Keine Auswahlliste in der Spalte Lehrer.");
+            if (cb.Text != Ix.KLehrer(lehrerA)) throw new InvalidOperationException($"{art}: Auswahlliste zeigt „{cb.Text}“ statt „{Ix.KLehrer(lehrerA)}“ (Wert einer anderen Zeile).");
+            cb.Focus();
+            var ziel = neu.Kurzname;
+            switch (art)
+            {
+                case "Maus mit Suchtext":
+                    // Tippen wie der Benutzer: Kurzname ohne letzten Buchstaben (Treffer wird beim Verlassen übernommen)
+                    foreach (var ch in neu.Kurzname) SendMessage(cb.Handle, 0x0102, (IntPtr)ch, IntPtr.Zero);
+                    warten();
+                    break;
+                case "Maus bei offener Liste":
+                    cb.DroppedDown = true;
+                    warten();
+                    cb.SelectedIndex = cb.Items.IndexOf(neu.Kurzname);
+                    cb.DroppedDown = false;
+                    break;
+                default:
+                    cb.SelectedIndex = cb.Items.IndexOf(neu.Kurzname);
+                    break;
+            }
+            warten();
+            var zeileB = Zeile(p.B) ?? throw new InvalidOperationException("Zeile B verschwunden.");
+            if (art == "Pfeiltaste")
+            {
+                // Pfeiltaste nach unten: Wechsel in die nächste Zeile (B steht direkt unter A)
+                if (zeileB.Index != Zeile(p.A)!.Index + 1) { Abbrechen(); continue; }
+                // Taste an das Steuerelement mit dem Fokus (die Auswahlliste in Bearbeitung) wie vom Benutzer
+                var fokus = GetFocus();
+                PostMessage(fokus == IntPtr.Zero ? _grid.Handle : fokus, 0x0100, (IntPtr)0x28, IntPtr.Zero);
+                PostMessage(fokus == IntPtr.Zero ? _grid.Handle : fokus, 0x0101, (IntPtr)0x28, IntPtr.Zero);
+                warten();
+                if (_grid.CurrentRow?.Tag is not ZeilenTag { } nachTaste || nachTaste.U.Id != p.B)
+                    throw new InvalidOperationException($"Pfeiltaste: aktuelle Zeile ist U{(_grid.CurrentRow?.Tag as ZeilenTag)?.U.Id} statt U{p.B}.");
+            }
+            else SelbsttestKlick(zeileB.Cells[spalte], warten);
+            warten();
+            var nachA = LehrerVon(p.A);
+            var nachB = LehrerVon(p.B);
+            var anzeigeB = Zeile(p.B)?.Cells[spalte].Value?.ToString() ?? "";
+            var editorB = _grid.IsCurrentCellInEditMode && _grid.CurrentRow?.Tag is ZeilenTag { } aktB && aktB.U.Id == p.B && _grid.EditingControl is ComboBox eb ? eb.Text : null;
+            Abbrechen();
+            if (nachB != lehrerB) throw new InvalidOperationException($"{art}: Zeile B (U{p.B}) hat jetzt {Ix.KLehrer(nachB)} statt {Ix.KLehrer(lehrerB)} – Wert der vorherigen Zeile übernommen!");
+            if (anzeigeB != Ix.KLehrer(lehrerB)) throw new InvalidOperationException($"{art}: Zeile B zeigt „{anzeigeB}“ statt „{Ix.KLehrer(lehrerB)}“.");
+            if (editorB != null && editorB != Ix.KLehrer(lehrerB)) throw new InvalidOperationException($"{art}: Auswahlliste in Zeile B zeigt „{editorB}“ statt „{Ix.KLehrer(lehrerB)}“.");
+            if (nachA != neu.Id && nachA != lehrerA) throw new InvalidOperationException($"{art}: Zeile A (U{p.A}) hat {Ix.KLehrer(nachA)} (weder {ziel} noch {Ix.KLehrer(lehrerA)}).");
+            if (art is "Maus" or "Pfeiltaste" && nachA != neu.Id) throw new InvalidOperationException($"{art}: Zeile A (U{p.A}) hat {Ix.KLehrer(nachA)} statt {ziel}.");
+            berichte.Add($"{art}: A U{p.A} {Ix.KLehrer(lehrerA)}→{Ix.KLehrer(nachA)}, B U{p.B} bleibt {Ix.KLehrer(nachB)}");
+        }
+        return "Zeilenwechsel: " + string.Join("; ", berichte);
+    }
+
     /// <summary>Selbsttest: Kopplungszeile zum aktuellen Unterricht hinzufügen.</summary>
     internal void SelbsttestKopplungszeile() => KopplungszeileNeu();
     private readonly ToolStripComboBox _auswahl = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
@@ -203,6 +316,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.Weiter = Weiter;
         // sofortige Prüfung (vor der Direktsuche der Auswahllisten registriert, damit unbekannte Kürzel nicht still „leer“ werden)
         _grid.CellValidating += ZellePruefen;
+        // Ziel der Eingabe beim Beginn der Bearbeitung festhalten: die bearbeitete Zelle und die dabei markierten Zellen derselben Spalte
+        _grid.CellBeginEdit += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            _eingabe = (_grid[e.ColumnIndex, e.RowIndex], MarkierteZiele(e.ColumnIndex, e.RowIndex));
+        };
         _grid.CellEndEdit += CellEndEdit;
         _grid.CellClick += CellClick;
         _grid.CellFormatting += CellFormatting;
@@ -448,6 +567,15 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private void Neuaufbau()
     {
+        // laufende Eingabe nicht beim Neuaufbau in eine (neu angeordnete) Zeile schreiben: verwerfen, bevor die Zeilen neu entstehen
+        if (_grid.IsCurrentCellInEditMode && !_laden)
+        {
+            _laden = true;
+            try { _grid.CancelEdit(); _grid.EndEdit(); }
+            catch (InvalidOperationException) { }
+            finally { _laden = false; }
+        }
+        _eingabe = null;
         _laden = true;
         var tag = _grid.CurrentRow?.Tag as ZeilenTag;
         var spalteName = _grid.CurrentCell is { } cc && cc.ColumnIndex < _grid.Columns.Count ? _grid.Columns[cc.ColumnIndex].Name : null;
@@ -558,6 +686,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (_grid.CurrentCell is not { } c) return;
         if (_grid.IsCurrentCellInEditMode)
         {
+            // getippten Suchtext der Auswahlliste zuerst auflösen (Treffer übernehmen), dann prüfen
+            if (_grid.EditingControl is ComboBox kombi)
+            {
+                ListenSuche.SuchtextUebernehmen(kombi);
+                if (kombi.DroppedDown) kombi.DroppedDown = false;
+            }
             // EndEdit löst keine Zellprüfung aus: vorher prüfen, ungültige Eingabe bleibt in der Zelle (Hinweis in der Leiste)
             if (!EingabeGueltig(c.ColumnIndex, c.RowIndex, _grid.EditingControl?.Text ?? "") || !_grid.EndEdit()) return;
         }
@@ -711,6 +845,25 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private ZeilenTag? Aktuell() => _grid.CurrentRow?.Tag as ZeilenTag;
 
+    /// <summary>Laufende Eingabe: Zelle und Zielzeilen, festgehalten beim Beginn der Bearbeitung.</summary>
+    private (DataGridViewCell Zelle, List<ZeilenTag> Ziele)? _eingabe;
+
+    /// <summary>
+    /// Zeilen, auf die eine Eingabe in der Zelle (spalte, zeile) wirkt: die Zeile selbst und – nur wenn diese Zelle markiert ist –
+    /// alle weiteren markierten Zellen derselben Spalte (Mehrfachänderung). Eine Markierung, die nicht die bearbeitete Zelle
+    /// enthält (z. B. nach einem Klick in eine andere Zeile), wirkt nie mit.
+    /// </summary>
+    private List<ZeilenTag> MarkierteZiele(int spalte, int zeile)
+    {
+        var res = new List<ZeilenTag>();
+        if (zeile < 0 || zeile >= _grid.Rows.Count || _grid.Rows[zeile].Tag is not ZeilenTag eigen) return res;
+        res.Add(eigen);
+        if (!_grid[spalte, zeile].Selected) return res;
+        foreach (var c in _grid.SelectedCells.Cast<DataGridViewCell>().Where(c => c.ColumnIndex == spalte && c.RowIndex != zeile).OrderBy(c => c.RowIndex))
+            if (c.OwningRow.Tag is ZeilenTag zt && !res.Contains(zt)) res.Add(zt);
+        return res;
+    }
+
     private void CellEndEdit(object? sender, DataGridViewCellEventArgs e)
     {
         if (_laden || e.RowIndex < 0) return;
@@ -741,8 +894,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             NeuMitWert(s, text);
             return;
         }
-        var ziele = _grid.SelectedCells.Cast<DataGridViewCell>().Where(c => c.ColumnIndex == e.ColumnIndex && c.OwningRow.Tag is ZeilenTag).Select(c => (ZeilenTag)c.OwningRow.Tag!).ToList();
-        if (!ziele.Contains(tag)) ziele.Add(tag);
+        // Zielzeilen: beim Beginn der Bearbeitung festgehalten (nie die Zeile, in die inzwischen geklickt wurde)
+        var eingabe = _eingabe;
+        _eingabe = null;
+        var ziele = eingabe is { } ein && ein.Zelle.RowIndex == e.RowIndex && ein.Zelle.ColumnIndex == e.ColumnIndex && ein.Zelle.DataGridView == _grid && ein.Ziele.Contains(tag)
+            ? ein.Ziele.ToList() : MarkierteZiele(e.ColumnIndex, e.RowIndex);
+        if (!ziele.Contains(tag)) ziele.Insert(0, tag);
         // unverändert: nichts speichern (keine leere Rückgängig-Stufe)
         if (ziele.Count == 1 && s.Get(tag.U, tag.U.Zeilen.ElementAtOrDefault(tag.Index) ?? new Kopplungszeile()) == text) return;
         // „Soll behindernder Unterricht entplant werden?“: zusätzliche Klasse bzw. Lehrkraft kollidiert mit den verplanten Stunden

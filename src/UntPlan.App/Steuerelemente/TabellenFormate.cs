@@ -260,7 +260,26 @@ public static class TabellenFormate
         return l;
     }
 
+    /// <summary>Zusätzliche Schritte eines Fensters nach „Standard wiederherstellen“ (z. B. Felder der Ansicht der Vertretungsliste).</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGridView, Action> NachStandard = new();
+
+    /// <summary>Aktion festlegen, die nach „Standard wiederherstellen“ dieser Tabelle ausgeführt wird.</summary>
+    public static void BeimStandard(DataGridView g, Action aktion) => NachStandard.AddOrUpdate(g, aktion);
+
+    /// <summary>Gemerkte Anordnung verwerfen und die Standardanordnung der Tabelle wiederherstellen (Reihenfolge, Breiten, Überschriften).</summary>
+    public static void StandardWiederherstellen(DataGridView g)
+    {
+        if (Zustaende.TryGetValue(g, out var z)) StandardWiederherstellen(g, z);
+        else if (NachStandard.TryGetValue(g, out var a)) a();
+    }
+
     private static void StandardWiederherstellen(DataGridView g, Zustand z)
+    {
+        StandardSetzen(g, z);
+        if (NachStandard.TryGetValue(g, out var a)) a();
+    }
+
+    private static void StandardSetzen(DataGridView g, Zustand z)
     {
         var e = AppZustand.Einstellungen;
         e.Tabellenlayouts.Remove(z.Schluessel);
@@ -317,7 +336,7 @@ public static class TabellenFormate
             var it = new ToolStripMenuItem(f.Name) { Checked = f.Name == aktiv };
             it.Click += (_, _) =>
             {
-                StandardWiederherstellen(g, z);
+                StandardSetzen(g, z);
                 e.AktiveTabellenformate[z.Schluessel] = fmt.Name;
                 LayoutSpeichern(z, fmt.Spalten);
                 Setzen(g, z, fmt.Spalten);
@@ -370,7 +389,7 @@ public static class TabellenFormate
         t.Columns.Add(new DataGridViewComboBoxColumn { Name = "A", HeaderText = "Ausrichtung", Width = 80, DataSource = new[] { "Standard", "links", "zentriert", "rechts" }, FlatStyle = FlatStyle.Flat });
         t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "F", HeaderText = "Fixiert", Width = 46 });
         t.DataError += (_, e) => e.ThrowException = false;
-        t.CurrentCellDirtyStateChanged += (_, _) => { if (t.CurrentCell is DataGridViewCheckBoxCell or DataGridViewComboBoxCell) t.CommitEdit(DataGridViewDataErrorContexts.Commit); };
+        t.CurrentCellDirtyStateChanged += (_, _) => SuchKombi.SofortUebernehmen(t);
         void Zeile(Tabellenspalte s)
         {
             var std = z.Standard.GetValueOrDefault(s.Name);

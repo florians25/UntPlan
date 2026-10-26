@@ -206,6 +206,12 @@ public sealed class Vertretung
     /// Hält die bisherige Art (z. B. Sondereinsatz, Unterricht geändert), die zurückkehrt, sobald die Klasse wieder anwesend ist.
     /// </summary>
     public VertretungsArt? ArtVorKlassenabwesenheit { get; set; }
+    /// <summary>
+    /// Raumänderung (manuelle Raumvertretung), deren Lehrkraft inzwischen abwesend ist: Die Zeile wurde zur offenen Vertretung
+    /// (bzw. zum Entfall laut Vertretungsregel) und behält den neuen Raum. Ist die Lehrkraft wieder anwesend, wird sie wieder zur
+    /// Raumänderung mit der eigenen Lehrkraft.
+    /// </summary>
+    public bool RaumvertretungVorAbsenz { get; set; }
     /// <summary>Herkunft aus UntPlanWeb (Kennung der übernommenen Stundenplanänderung), sonst leer.</summary>
     public string WebId { get; set; } = "";
 

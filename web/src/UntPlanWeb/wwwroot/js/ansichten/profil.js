@@ -14,7 +14,7 @@ export async function zeigen(seite, kontext, [reiterParam]) {
   const inhalt = seite.querySelector('[data-inhalt]');
 
   if (reiter === 'allgemein') {
-    inhalt.innerHTML = `<div class="card" style="max-width:860px"><div class="card-body p-4">
+    inhalt.innerHTML = `<div class="card"><div class="card-body p-4">
       <div class="small fw-bold text-body-secondary text-uppercase">${e(p.rolle)}</div>
       <div class="fs-4 fw-semibold text-body-emphasis mb-3">${e(p.anzeigename || p.login)}</div><hr>
       <form data-profil><div class="row g-3">
@@ -57,7 +57,7 @@ export async function zeigen(seite, kontext, [reiterParam]) {
   }
 
   const konten = await holen('/api/app/konten').catch(() => []);
-  inhalt.innerHTML = `<div class="row g-3" style="max-width:1100px">
+  inhalt.innerHTML = `<div class="row g-3">
     ${p.element ? `<div class="col-lg-7"><div class="card h-100"><div class="card-header">Stundenplan im Kalender abonnieren</div><div class="card-body">
       <p class="small text-body-secondary">Persönlicher Link für Outlook, Google Kalender oder das Smartphone (Stunden und Vertretungen der nächsten vier Wochen). Bitte nicht weitergeben.</p>
       <div class="input-group mb-2"><input class="form-control font-monospace small bg-body-tertiary" data-ical value="${e(p.ical)}" readonly>

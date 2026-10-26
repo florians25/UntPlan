@@ -277,7 +277,7 @@ enum Kachelbau {
             kachel.zeilen = [Kachelzeile(schluessel: "fach", teile: [Kachelteil(text: titel)], fett: true)]
             let wer = (e.lehrer + e.klassen).filter { !$0.isEmpty }
             if !unterricht && !wer.isEmpty {
-                kachel.zeilen.append(Kachelzeile(schluessel: "klasse", teile: [Kachelteil(text: wer.joined(separator: ", "))]))
+                kachel.zeilen.append(Kachelzeile(schluessel: "klasse", teile: [Kachelteil(text: wer.joined(separator: ","))]))
             }
             kachel.rang = 2
             kacheln.append(kachel)
@@ -336,6 +336,9 @@ enum Kachelbau {
     private static func gleich(_ a: String, _ b: String) -> Bool {
         a.caseInsensitiveCompare(b) == .orderedSame
     }
+
+    /// Platzhalter statt einer Lehrkraft (Zusatzstunde ohne Lehrkraft, offene Vertretung)
+    static let platzhalter: Set<String> = ["---", "???", "+", "+++"]
 
     private static func werte(_ w: [Wert]) -> [String] {
         w.map(\.k).filter { !$0.isEmpty }
@@ -514,7 +517,7 @@ enum Kachelbau {
                 if lehrkraefte.isEmpty && !ich.isEmpty && typ == "lehrer" { lehrkraefte = [ich] }
                 if !lehrkraefte.isEmpty {
                     // Abwesende Lehrkraft als Plakette mit durchgestrichenem Kürzel
-                    zeilen.append(Kachelzeile(schluessel: "lehrer", teile: liste(lehrkraefte, stil: .offen, trenner: ", ")))
+                    zeilen.append(Kachelzeile(schluessel: "lehrer", teile: liste(lehrkraefte, stil: .offen, trenner: ",")))
                 }
                 kachel.zeilen = zeilen
                 kachel.rang = 3
@@ -641,7 +644,8 @@ enum Kachelbau {
     /// Label (hinzugefügter Wert, ohne „+“), zuletzt die beteiligten Klassen (im Klassenplan ohne die eigene Klasse); ohne Lehrkräfte
     /// steht der Text oben. Jede Angabe nur einmal; jede Zeile einzeilig und nur mit „…“ gekürzt (keine Anzahl „+N“).
     private static func veranstaltungsZeilen(_ k: Karte, typ: String, ich: String, anlass: String) -> [Kachelzeile] {
-        let lehrkraefte = einmal(werte(k.lehrer))
+        // ohne Lehrkräfte kein Platzhalter („---“, „???“)
+        let lehrkraefte = einmal(werte(k.lehrer).filter { !platzhalter.contains($0) })
         var zeilen: [Kachelzeile] = []
         if !lehrkraefte.isEmpty {
             zeilen.append(Kachelzeile(schluessel: "lehrer", teile: [Kachelteil(text: lehrkraefte.joined(separator: ","))], fett: true))
@@ -671,11 +675,11 @@ enum Kachelbau {
             }
             let lehrkraefte = werte(k.lehrer)
             if !lehrkraefte.isEmpty {
-                termin.append(Kachelzeile(schluessel: "lehrer", teile: liste(lehrkraefte, stil: .text, trenner: ", ")))
+                termin.append(Kachelzeile(schluessel: "lehrer", teile: liste(lehrkraefte, stil: .text, trenner: ",")))
             }
             let klassenNamen = werte(k.klassen)
             if !klassenNamen.isEmpty {
-                termin.append(Kachelzeile(schluessel: "klasse", teile: liste(klassenNamen, stil: .text, trenner: ", ")))
+                termin.append(Kachelzeile(schluessel: "klasse", teile: liste(klassenNamen, stil: .text, trenner: ",")))
             }
             let raumNamen = werte(k.raeume)
             if !raumNamen.isEmpty {
@@ -706,15 +710,15 @@ enum Kachelbau {
                     // Karte steht NUR die Vertretung als grüne Plakette – die vertretene Lehrkraft erscheint dort gar nicht
                     // (kein durchgestrichenes Kürzel, kein „alt | neu“); sie nennen allein die Details.
                     var teile: [Kachelteil] = []
-                    // Jede Lehrkraft nur einmal: steht ein Kürzel schlicht und zugleich als Vertretung (Plakette) da, bleibt nur
-                    // die Plakette – an der Stelle des ersten Auftretens
+                    // Jede Lehrkraft je Rolle nur einmal: doppelt ist nur dasselbe Kürzel im selben Stil. Nimmt eine beteiligte
+                    // Lehrkraft regulär teil UND vertritt zusätzlich eine abwesende Kollegin, steht sie zweimal da – schlicht und
+                    // als Plakette („CS,SZ [CS]“); der schlichte Wert steht dabei vor der Plakette
                     func hinzu(_ t: Kachelteil) {
                         if teile.contains(where: { gleich($0.text, t.text) && $0.stil == t.stil }) { return }
-                        if t.stil == .plakette, let i = teile.firstIndex(where: { gleich($0.text, t.text) && $0.stil == .text }) {
-                            teile[i] = t
+                        if t.stil == .text, let i = teile.firstIndex(where: { gleich($0.text, t.text) && $0.stil == .plakette }) {
+                            teile.insert(t, at: i)
                             return
                         }
-                        if t.stil == .text && teile.contains(where: { gleich($0.text, t.text) && $0.stil == .plakette }) { return }
                         teile.append(t)
                     }
                     let offenStil: Kachelteil.Stil = art == .entfall ? .weg : .offen
@@ -737,8 +741,8 @@ enum Kachelbau {
                         .compactMap { $0.alt }
                     teile.removeAll { t in t.stil != .plakette && vertreten.contains { gleich($0, t.text) } }
                     if teile.count > 1 {
-                        // Mehrere Lehrkräfte immer durch Komma getrennt – nie „alt | neu“
-                        for j in teile.indices { teile[j].trenner = j < teile.count - 1 ? ", " : "" }
+                        // Mehrere Lehrkräfte immer durch Komma getrennt (ohne Leerzeichen: „CS,SZ“) – nie „alt | neu“
+                        for j in teile.indices { teile[j].trenner = j < teile.count - 1 ? "," : "" }
                         zeile.teile = teile
                         hatListe = true
                         koppliste = true
@@ -765,7 +769,7 @@ enum Kachelbau {
                         zeile.teile[j].stil = .offen
                     }
                     if zeile.teile.isEmpty {
-                        zeile.teile = liste(k.offeneLehrkraefte, stil: .offen, trenner: ", ")
+                        zeile.teile = liste(k.offeneLehrkraefte, stil: .offen, trenner: ",")
                     }
                 }
             case "klasse":
@@ -784,14 +788,14 @@ enum Kachelbau {
                     teile += weg.filter { w in !namen.contains { gleich($0, w) } }
                         .map { Kachelteil(text: $0, stil: wegStil) }
                     // Alle Klassen in ihrer Reihenfolge (alphabetisch): die abwesende Klasse steht an ihrem Platz in der
-                    // Reihe, mit Komma getrennt („ET13, INF13, ING13“) – nicht angehängt
+                    // Reihe, mit Komma getrennt („ET13,INF13,ING13“) – nicht angehängt
                     teile.sort { $0.text.uppercased() < $1.text.uppercased() }
                     // Im Klassenplan steht nur, wer mit dabei ist – die eigene Klasse nur, wenn sie fehlt
                     if typ == "klasse" && !ich.isEmpty && teile.count > 1 {
                         teile = teile.filter { $0.text.uppercased() != ich || $0.stil != .text }
                     }
                     if !teile.isEmpty {
-                        for j in 0..<(teile.count - 1) { teile[j].trenner = ", " }
+                        for j in 0..<(teile.count - 1) { teile[j].trenner = "," }
                         zeile.teile = teile
                         hatListe = namen.count > 1 || teile.contains { $0.stil == .weg || $0.stil == .offen }
                     }
@@ -893,11 +897,11 @@ enum Kachelbau {
         return einzeln(text, stil: geaendert ? .plakette : .text)
     }
 
-    /// „A, B“ → Teile „A“, „B“ (Trenner „, “; die Karte ersetzt ihn neben Labels durch einen kleinen Abstand).
+    /// „A, B“ → Teile „A“, „B“ (Trenner „,“ ohne Leerzeichen wie im Original; die Karte ersetzt ihn zwischen zwei Labels durch einen kleinen Abstand).
     private static func einzeln(_ text: String, stil: Kachelteil.Stil) -> [Kachelteil] {
         let werte = text.components(separatedBy: ", ").filter { !$0.isEmpty }
         guard werte.count > 1 else { return [Kachelteil(text: text, stil: stil)] }
-        return liste(werte, stil: stil, trenner: ", ")
+        return liste(werte, stil: stil, trenner: ",")
     }
 
     // MARK: Aufsichten

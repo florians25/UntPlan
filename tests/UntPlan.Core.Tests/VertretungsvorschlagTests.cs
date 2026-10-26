@@ -56,6 +56,34 @@ public class VertretungsvorschlagTests
     }
 
     [Fact]
+    public void MehrereMarkierteVertretungenWerdenInDerStundenplanspalteAlleUmrandet()
+    {
+        var (d, tag, offen, lehrer) = Krank();
+        var tp = Tagesplan.Berechnen(d, tag);
+        var ix = new DatenIndex(d);
+        // zwei markierte Stunden (3 und 4): das Fenster zeigt beide und umrandet beide
+        var zellen = VertretungsVorschlag.StundenplanZellen(d, ix, tp, lehrer, 3, ziele: new[] { 3, 4 });
+        Assert.Equal(3, zellen.Count);
+        Assert.Equal(new[] { 3, 4 }, zellen.Where(z => z.Ziel).Select(z => z.Stunde));
+        // markierte Stunde links der aktuellen: Fenster verschiebt sich
+        zellen = VertretungsVorschlag.StundenplanZellen(d, ix, tp, lehrer, 4, ziele: new[] { 2 });
+        Assert.Equal(new[] { 2, 4 }, zellen.Where(z => z.Ziel).Select(z => z.Stunde));
+        // zu weit auseinander: die aktuelle Stunde bleibt in der Mitte und umrandet
+        zellen = VertretungsVorschlag.StundenplanZellen(d, ix, tp, lehrer, 2, ziele: new[] { 7 });
+        Assert.Equal(new[] { 1, 2, 3 }, zellen.Select(z => z.Stunde));
+        Assert.Equal(new[] { 2 }, zellen.Where(z => z.Ziel).Select(z => z.Stunde));
+        // Vorschläge und Betreuungen mit markierten Stunden
+        if (offen.Count > 1)
+        {
+            var stunden = offen.Take(2).Select(v => v.Stunde).ToList();
+            Assert.All(VertretungsVorschlag.Berechnen(d, offen[0], markierteStunden: stunden), k =>
+                Assert.All(stunden.Where(s => k.Zellen.Any(z => z.Stunde == s)), s => Assert.True(k.Zellen.Single(z => z.Stunde == s).Ziel)));
+            Assert.All(VertretungsVorschlag.Betreuungen(d, offen[0], stunden), b =>
+                Assert.All(stunden.Where(s => b.Zellen.Any(z => z.Stunde == s)), s => Assert.True(b.Zellen.Single(z => z.Stunde == s).Ziel)));
+        }
+    }
+
+    [Fact]
     public void VertrUndEntfallSindGewerteteSummenUndKennzeichenMarkiertBetroffene()
     {
         var (d, tag, offen, _) = Krank();

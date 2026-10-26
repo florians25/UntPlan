@@ -788,6 +788,24 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         return true;
     }
 
+    /// <summary>
+    /// Alle zusammen mit <paramref name="v"/> markierten Vertretungen (Mehrfachauswahl im Vertretungsfenster), einschließlich
+    /// <paramref name="v"/> selbst; ist <paramref name="v"/> nicht unter den markierten, nur sie.
+    /// </summary>
+    internal static List<Vertretung> MarkierteVertretungen(Vertretung v)
+    {
+        var ids = AppZustand.MarkierteVertretungen;
+        if (!ids.Contains(v.Id) || ids.Count < 2) return new List<Vertretung> { v };
+        var menge = ids.ToHashSet();
+        var liste = AppZustand.D.Vertretungen.Where(x => menge.Contains(x.Id)).ToList();
+        if (!liste.Any(x => x.Id == v.Id)) liste.Insert(0, v);
+        return liste;
+    }
+
+    /// <summary>Weitere markierte Vertretungen neben <paramref name="v"/> im Plan mit umranden (zwei markierte Zeilen → beide Stunden umrandet).</summary>
+    private void WeitereMarkieren(Vertretung v) =>
+        _plan.ZusatzAuswahlSetzen(MarkierteVertretungen(v).Where(x => x.Id != v.Id).Select(x => (x.Datum, x.Stunde, x.UnterrichtId ?? 0, (int?)x.Id)));
+
     private void ElementAmTagZeigen(int id, Vertretung v)
     {
         var wocheAnders = _plan.Woche.HasValue && Kalender.Montag(v.Datum) != _plan.Woche;
@@ -809,6 +827,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             // Stunde der Vertretung markieren: eigener Eintrag (z. B. Raumplan mit der Stunde) oder die leere Zelle beim Kandidaten
             _plan.TagesAuswaehlen(v.Datum, v.Stunde, v.UnterrichtId ?? 0, v.Id);
             if (_plan.TagesAuswahl is null) _plan.ZelleMarkieren(tag, v.Stunde);
+            WeitereMarkieren(v);
         }
         else _plan.Invalidate();
     }
@@ -841,7 +860,11 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         if (wocheAnders) WocheSetzen();
         // gewählte Vertretung im Plan markieren (dieselbe Stunde wie im Vertretungsfenster)
         _plan.MarkierterUnterricht = v.UnterrichtId;
-        if (_plan.Tagesmodus) _plan.TagesAuswaehlen(v.Datum, v.Stunde, v.UnterrichtId ?? 0, v.Id);
+        if (_plan.Tagesmodus)
+        {
+            _plan.TagesAuswaehlen(v.Datum, v.Stunde, v.UnterrichtId ?? 0, v.Id);
+            WeitereMarkieren(v);
+        }
         else _plan.Invalidate();
     }
 

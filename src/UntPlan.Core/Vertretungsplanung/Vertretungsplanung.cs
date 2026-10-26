@@ -160,7 +160,7 @@ public static class Vertretungen
             var basis = new Vertretung
             {
                 Datum = datum, Stunde = r.Stunde, UnterrichtId = u.Id, ZeilenIndex = r.ZeilenIndex, LehrerId = r.LehrerId, FachId = r.FachId,
-                KlassenIds = r.KlassenIds.ToList(), RaumId = r.RaumId, Schuelergruppe = u.Schuelergruppe,
+                KlassenIds = KlassenDerZeile(r), RaumId = r.RaumId, Schuelergruppe = u.Schuelergruppe,
             };
             // Klausur: Unterricht der Klasse entfällt, Aufsicht hat eigenen Unterricht → offen
             var klausur = klausuren.FirstOrDefault(k => r.Stunde >= k.StundeVon && r.Stunde <= Math.Max(k.StundeVon, k.StundeBis) &&
@@ -334,12 +334,66 @@ public static class Vertretungen
             d.Vertretungen.Add(b);
         }
         OffenWennVertreterAbwesend(d, datum);
+        RaumaenderungBeiLehrerabwesenheit(d, datum, tag);
         KlassenabwesenheitAnwenden(d, datum);
     }
 
+    /// <summary>
+    /// Raumänderungen (manuelle Raumvertretungen, z. B. einer einzelnen Kopplungszeile) behalten sonst ihre Lehrkraft, auch wenn diese
+    /// inzwischen abwesend ist – die Abwesenheit ginge verloren. Solche Zeilen werden zur offenen Vertretung (bzw. zum Entfall laut
+    /// Vertretungsregel) mit dem neuen Raum; ist die Lehrkraft wieder anwesend, kehrt die Raumänderung zurück.
+    /// </summary>
+    private static void RaumaenderungBeiLehrerabwesenheit(Schuldatei d, DateOnly datum, int tag)
+    {
+        foreach (var v in d.Vertretungen.Where(v => v.Datum == datum && v.UnterrichtId.HasValue && !v.Fixiert && !IstAbgeleitet(v) && v.LehrerId.HasValue))
+        {
+            var l = v.LehrerId!.Value;
+            var abwesend = Absenzen.LehrerAbwesend(d, l, datum, v.Stunde);
+            if (!v.RaumvertretungVorAbsenz)
+            {
+                if (!abwesend || v.Art != VertretungsArt.Raumvertretung || (v.VertreterId.HasValue && v.VertreterId != l)) continue;
+                var abw = Absenzen.Lehrer(d, l, datum, v.Stunde);
+                var va = abw is null ? Absenzen.VeranstaltungLehrer(d, l, datum, v.Stunde) : null;
+                v.RaumvertretungVorAbsenz = true;
+                v.VertreterId = null;
+                v.Mitbetreuung = false;
+                v.AbwesenheitId = abw?.Id;
+                v.GrundId = abw?.GrundId ?? va?.GrundId;
+                v.Grund = GrundText(d, v.GrundId);
+                v.Art = IstBereitschaftsfach(d, v.FachId) ? VertretungsArt.BereitschaftEntfaellt
+                    : d.Unterrichte.FirstOrDefault(u => u.Id == v.UnterrichtId)?.KeineVertretung == true || (v.FachId is int f && d.Faecher.FirstOrDefault(x => x.Id == f)?.KeineVertretung == true) ? VertretungsArt.Entfall
+                    : Regel(d, v.KlassenIds, tag, v.Stunde) switch
+                    {
+                        VertretungsRegel.Entfall => VertretungsArt.Entfall,
+                        VertretungsRegel.Eigenverantwortlich => VertretungsArt.EigenverantwortlichesArbeiten,
+                        _ => VertretungsArt.Vertretung,
+                    };
+                v.Geaendert = DateTime.Now;
+            }
+            else if (!abwesend)
+            {
+                // Lehrkraft wieder anwesend: wieder die Raumänderung mit der eigenen Lehrkraft
+                v.RaumvertretungVorAbsenz = false;
+                v.Art = VertretungsArt.Raumvertretung;
+                v.VertreterId = l;
+                v.Mitbetreuung = false;
+                v.AbwesenheitId = null;
+                v.GrundId = null;
+                v.Grund = "";
+                v.Geaendert = DateTime.Now;
+            }
+        }
+    }
+
     /// <summary>Klassen einer Stunde; eine Kopplungszeile ohne eigene Klassen gehört zu den Klassen der ganzen Kopplung.</summary>
-    private static IReadOnlyList<int> KlassenDerStunde(RegelStunde r) =>
-        r.KlassenIds.Count > 0 ? r.KlassenIds : r.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct().ToList();
+    private static IReadOnlyList<int> KlassenDerStunde(RegelStunde r) => KlassenDerZeile(r);
+
+    /// <summary>
+    /// Klassen einer Kopplungszeile für ihre Vertretungszeile: die eigenen Klassen, bei einer Zeile ohne eigene Klassen (z. B. zweite
+    /// Lehrkraft) die Klassen der ganzen Kopplung – so verliert die Vertretungsliste bzw. der Plan der Klassen diese Zeile nicht.
+    /// </summary>
+    public static List<int> KlassenDerZeile(RegelStunde r) =>
+        r.KlassenIds.Count > 0 ? r.KlassenIds.ToList() : r.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct().ToList();
 
     /// <summary>
     /// Klassen der gemeinsamen Stunde einer Zeile: weitere Kopplungszeilen desselben Unterrichts bzw. parallel identischer Unterricht derselben
@@ -472,6 +526,8 @@ public static class Vertretungen
                 v.LehrerId = b.LehrerId;
                 v.FachId = b.FachId;
             }
+            // bearbeitete Zeile einer Kopplungszeile ohne eigene Klassen (ältere Dateien): Klassen der Kopplung nachtragen
+            else if (v.KlassenIds.Count == 0 && b.KlassenIds.Count > 0 && v.UnterrichtId == b.UnterrichtId) v.KlassenIds = b.KlassenIds.ToList();
         }
     }
 
@@ -924,7 +980,7 @@ public static class Vertretungen
                 v = new Vertretung
                 {
                     Id = d.NeueId(), Datum = datum, Stunde = stunde, UnterrichtId = unterrichtId, ZeilenIndex = e.Regel!.ZeilenIndex, LehrerId = e.Regel.LehrerId,
-                    FachId = e.Regel.FachId, KlassenIds = e.Regel.KlassenIds.ToList(), RaumId = e.Regel.RaumId, Quelle = VertretungsQuelle.Manuell,
+                    FachId = e.Regel.FachId, KlassenIds = KlassenDerZeile(e.Regel), RaumId = e.Regel.RaumId, Quelle = VertretungsQuelle.Manuell,
                 };
                 d.Vertretungen.Add(v);
             }
@@ -946,7 +1002,7 @@ public static class Vertretungen
             v = new Vertretung
             {
                 Id = d.NeueId(), Datum = datum, Stunde = stunde, UnterrichtId = unterrichtId, ZeilenIndex = zeilenIndex, LehrerId = e.Regel!.LehrerId,
-                VertreterId = e.Regel.LehrerId, FachId = e.Regel.FachId, KlassenIds = e.Regel.KlassenIds.ToList(), RaumId = e.Regel.RaumId,
+                VertreterId = e.Regel.LehrerId, FachId = e.Regel.FachId, KlassenIds = KlassenDerZeile(e.Regel), RaumId = e.Regel.RaumId,
                 Art = VertretungsArt.Raumvertretung, Quelle = VertretungsQuelle.Manuell,
             };
             d.Vertretungen.Add(v);
@@ -979,7 +1035,7 @@ public static class Vertretungen
                     v = new Vertretung
                     {
                         Id = d.NeueId(), Datum = datum, Stunde = s, UnterrichtId = e.Regel!.Unterricht.Id, ZeilenIndex = e.Regel.ZeilenIndex, LehrerId = e.Regel.LehrerId,
-                        FachId = e.Regel.FachId, KlassenIds = e.Regel.KlassenIds.ToList(), RaumId = e.Regel.RaumId, Quelle = VertretungsQuelle.Sondereinsatz,
+                        FachId = e.Regel.FachId, KlassenIds = KlassenDerZeile(e.Regel), RaumId = e.Regel.RaumId, Quelle = VertretungsQuelle.Sondereinsatz,
                     };
                     d.Vertretungen.Add(v);
                 }
@@ -1018,11 +1074,13 @@ public static class Vertretungen
             v = new Vertretung
             {
                 Id = d.NeueId(), Datum = datum, Stunde = stunde, UnterrichtId = unterrichtId, ZeilenIndex = zeilenIndex, LehrerId = e.Regel!.LehrerId,
-                FachId = e.Regel.FachId, KlassenIds = e.Regel.KlassenIds.ToList(), RaumId = e.Regel.RaumId, Quelle = VertretungsQuelle.Manuell,
+                FachId = e.Regel.FachId, KlassenIds = KlassenDerZeile(e.Regel), RaumId = e.Regel.RaumId, Quelle = VertretungsQuelle.Manuell,
             };
             d.Vertretungen.Add(v);
         }
         var lehrerNeu = lehrerId != v.LehrerId;
+        // Kopplungszeile ohne eigene Klassen: ihre Zeile trägt die Klassen der Kopplung – unveränderte (leere) Klassen sind keine Änderung
+        if (klassenIds.Count == 0 && e.Regel is { KlassenIds.Count: 0 }) klassenIds = v.KlassenIds.ToList();
         // neue Klassen verlieren ihren Unterricht dieser Stunde
         foreach (var k in klassenIds.Except(v.KlassenIds))
             foreach (var x in tp.Stunde(stunde).Where(x => x.Findetstatt && x.Regel != null && x.Vertretung != v && x.KlassenIds.Contains(k)).ToList())
@@ -1231,7 +1289,9 @@ public static class VertretungsVorschlag
     /// <param name="dislozierungenIgnorieren">
     /// Lehrkräfte auch vorschlagen, deren unmittelbar angrenzender Unterricht in einem anderen Gebäude (Abteilung des Raumes) liegt.
     /// </param>
-    public static List<Kandidat> Berechnen(Schuldatei d, Vertretung v, bool stundenblock = false, bool alleAnzeigen = false, bool dislozierungenIgnorieren = false)
+    /// <param name="markierteStunden">Weitere markierte Stunden desselben Tages (mehrere Vertretungen markiert): in der Spalte „Stundenplan“ mit umrandet.</param>
+    public static List<Kandidat> Berechnen(Schuldatei d, Vertretung v, bool stundenblock = false, bool alleAnzeigen = false, bool dislozierungenIgnorieren = false,
+        IReadOnlyCollection<int>? markierteStunden = null)
     {
         var tp = Tagesplan.Berechnen(d, v.Datum);
         var ix = new DatenIndex(d);
@@ -1258,7 +1318,7 @@ public static class VertretungsVorschlag
             k.Bereitschaft = Vertretungen.HatBereitschaft(d, tp, l.Id, v.Stunde);
             k.UnterrichtAmTag = Vertretungen.UnterrichtAmTag(d, tp, l.Id);
             k.Stundenplan = StundenplanText(d, ix, tp, l.Id, v.Stunde);
-            k.Zellen = StundenplanZellen(d, ix, tp, l.Id, v.Stunde);
+            k.Zellen = StundenplanZellen(d, ix, tp, l.Id, v.Stunde, ziele: stunden.Concat(markierteStunden ?? Array.Empty<int>()).ToList());
             k.KenntKlasse = klassen.Count > 0 && d.Unterrichte.Any(u => u.Zeilen.Any(z => z.LehrerId == l.Id &&
                 (e.KlasseAuchFuerKlassenteil ? z.KlassenIds.Intersect(klassen).Any() : klassen.All(z.KlassenIds.Contains))));
             k.Klassenlehrer = d.Klassen.Any(c => klassen.Contains(c.Id) && c.KlassenlehrerIds.Contains(l.Id));
@@ -1369,10 +1429,18 @@ public static class VertretungsVorschlag
     /// Spalte „Stundenplan“ wie im Vorbild: drei Stunden (die Vertretungsstunde in der Mitte, am Tagesrand verschoben) mit dem
     /// Fach des tagesaktuellen Unterrichts der Lehrkraft. Entfallener bzw. offener eigener Unterricht erscheint durchgestrichen.
     /// </summary>
-    public static List<StundenplanZelle> StundenplanZellen(Schuldatei d, DatenIndex ix, Tagesplan tp, int lehrerId, int stunde, int anzahl = 3)
+    /// <param name="ziele">
+    /// Alle markierten Stunden desselben Tages (z. B. zwei markierte Vertretungen oder ein Stundenblock): jede wird umrandet; passen sie
+    /// in das Fenster, wird es so verschoben, dass alle sichtbar sind. Ohne Angabe nur <paramref name="stunde"/>.
+    /// </param>
+    public static List<StundenplanZelle> StundenplanZellen(Schuldatei d, DatenIndex ix, Tagesplan tp, int lehrerId, int stunde, int anzahl = 3, IReadOnlyCollection<int>? ziele = null)
     {
-        var max = Math.Max(stunde, d.Zeitraster.StundenProTag);
-        var start = Math.Clamp(stunde - (anzahl - 1) / 2, 1, Math.Max(1, max - anzahl + 1));
+        var zielStunden = (ziele ?? Array.Empty<int>()).Append(stunde).Where(s => s >= 1).ToHashSet();
+        var max = Math.Max(zielStunden.Max(), d.Zeitraster.StundenProTag);
+        var (lo, hi) = (zielStunden.Min(), zielStunden.Max());
+        var start = hi - lo + 1 <= anzahl
+            ? Math.Clamp(lo - (anzahl - (hi - lo + 1)) / 2, 1, Math.Max(1, max - anzahl + 1))
+            : Math.Clamp(stunde - (anzahl - 1) / 2, 1, Math.Max(1, max - anzahl + 1));
         var res = new List<StundenplanZelle>();
         for (var s = start; s < start + anzahl; s++)
         {
@@ -1383,7 +1451,7 @@ public static class VertretungsVorschlag
             var liste = aktiv.Count > 0 ? aktiv : entfallen;
             var text = string.Join(" ", liste.Select(e => ix.KFach(e.FachId) is { Length: > 0 } f ? f : ix.KKlassen(e.KlassenIds)).Where(t => t.Length > 0).Distinct());
             var fach = liste.Select(e => e.FachId).FirstOrDefault(f => f.HasValue) is int fid ? ix.Faecher.GetValueOrDefault(fid) : null;
-            res.Add(new StundenplanZelle(s, text, aktiv.Count == 0 && entfallen.Count > 0, s == stunde, fach?.Hintergrund ?? 0, fach?.Vordergrund ?? 0));
+            res.Add(new StundenplanZelle(s, text, aktiv.Count == 0 && entfallen.Count > 0, zielStunden.Contains(s), fach?.Hintergrund ?? 0, fach?.Vordergrund ?? 0));
         }
         return res;
     }
@@ -1421,7 +1489,7 @@ public static class VertretungsVorschlag
     /// Sortiert nach Nähe (gekoppelt, gleicher Gang, gleiches Stockwerk), dann danach, ob sie die Klasse kennen,
     /// nach Betreuungen am selben Tag und nach dem Vertretungszähler.
     /// </summary>
-    public static List<Betreuungskandidat> Betreuungen(Schuldatei d, Vertretung v)
+    public static List<Betreuungskandidat> Betreuungen(Schuldatei d, Vertretung v, IReadOnlyCollection<int>? markierteStunden = null)
     {
         var tp = Tagesplan.Berechnen(d, v.Datum);
         var ix = new DatenIndex(d);
@@ -1451,7 +1519,7 @@ public static class VertretungsVorschlag
                 res.Add(new Betreuungskandidat(le, ix.KKlassen(e.KlassenIds), ix.KFach(e.FachId), raum == 0 ? "" : ix.KRaum(raum), gang, kopplung,
                     Zaehlung.Lehrer(d, le, zVon, zBis).Summe, naehe, text, heute.GetValueOrDefault(l), kennt.Contains(l))
                 {
-                    Zellen = StundenplanZellen(d, ix, tp, l, v.Stunde),
+                    Zellen = StundenplanZellen(d, ix, tp, l, v.Stunde, ziele: markierteStunden),
                     Zeitwunsch = tag >= 0 ? le.Zeitwuensche.Get(tag, v.Stunde) : 0,
                     Jahreszaehler = Zaehlung.Lehrer(d, le, d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis).Summe,
                     Kennzeichen = kennzeichen.ContainsKey(l),
@@ -1723,7 +1791,10 @@ public static class Vertretungsplan
         var veranstaltungen = d.Veranstaltungen.GroupBy(v => v.Id).ToDictionary(g => g.Key, g => g.First());
         var gefiltert = am
             .Where(v => mitNichtDrucken || (!v.NichtDrucken && !(v.FachId is int f && nichtDruckFaecher.Contains(f))))
-            .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue)
+            // Veranstaltung ohne Lehrkräfte (z. B. Klassenausflug nur mit Klassen): ihre einzige Zeile bleibt, damit die Freisetzungen bzw.
+            // Entfälle, die auf sie verweisen, eine Veranstaltung in der Liste bzw. im UntPlanWeb-Export finden
+            .Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Vormerkung) || mitNichtDrucken || v.VertreterId.HasValue
+                        || (v.Art == VertretungsArt.Veranstaltung && v.LehrerId is null && v.ErsatzFuerLehrerId is null))
             .ToList();
         var vaZeilen = gefiltert.Where(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va && veranstaltungen.ContainsKey(va))
             .GroupBy(v => (Va: v.VeranstaltungId!.Value, v.Stunde)).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.ToList());
@@ -1739,7 +1810,7 @@ public static class Vertretungsplan
             res.Add(new PlanZeile(
                 v.Datum, v.Stunde, ix.KKlassen(v.NeueKlassenIds), ix.KLehrer(v.LehrerId),
                 v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++" :
-                v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : "???",
+                v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : v.Art == VertretungsArt.Veranstaltung ? "" : "???",
                 ix.KFach(v.FachId), ix.KFach(v.VertretungsfachId ?? v.FachId),
                 v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) : ix.KRaum(v.RaumId),
                 v.IstEntfall ? "" : v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) :

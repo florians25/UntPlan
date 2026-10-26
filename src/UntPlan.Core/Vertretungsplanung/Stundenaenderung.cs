@@ -66,7 +66,7 @@ public static class Stundenaenderung
             v = new Vertretung
             {
                 Id = d.NeueId(), Datum = datum, Stunde = stunde, UnterrichtId = r.Unterricht.Id, ZeilenIndex = r.ZeilenIndex, LehrerId = r.LehrerId, FachId = r.FachId,
-                KlassenIds = r.KlassenIds.ToList(), RaumId = r.RaumId, Quelle = VertretungsQuelle.Sondereinsatz, Schuelergruppe = r.Unterricht.Schuelergruppe,
+                KlassenIds = Vertretungen.KlassenDerZeile(r), RaumId = r.RaumId, Quelle = VertretungsQuelle.Sondereinsatz, Schuelergruppe = r.Unterricht.Schuelergruppe,
             };
             d.Vertretungen.Add(v);
         }

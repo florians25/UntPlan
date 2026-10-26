@@ -303,7 +303,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             return;
         }
         var langname = D.Vertretungseinstellungen.Vorschlag.Langname;
-        foreach (var k in VertretungsVorschlag.Berechnen(D, v, Block, _alle.Checked, _disloz.Enabled && _disloz.Checked))
+        var markiert = MarkierteStunden(v);
+        foreach (var k in VertretungsVorschlag.Berechnen(D, v, Block, _alle.Checked, _disloz.Enabled && _disloz.Checked, markiert))
         {
             var z = k.Zellen;
             var r = _vorschlag.Rows.Add(langname ? k.Lehrer.VollerName : k.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), k.Merker,
@@ -323,7 +324,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 _vorziehung.Rows[r].Tag = vz;
                 _vorziehung.Rows[r].Cells["Art"].ToolTipText = vz.Beschreibung;
             }
-        foreach (var b in VertretungsVorschlag.Betreuungen(D, v).Where(b => !_nahe.Checked || b.Naehe <= 2))
+        foreach (var b in VertretungsVorschlag.Betreuungen(D, v, markiert).Where(b => !_nahe.Checked || b.Naehe <= 2))
         {
             var z = b.Zellen;
             var r = _betreuung.Rows.Add(langname ? b.Lehrer.VollerName : b.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), b.Raum, b.Klassen, b.Fach,
@@ -338,6 +339,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             if (g.Rows.Count > 0) g.CurrentCell = g.Rows[0].Cells[0];
         Zaehlerstaende();
     }
+
+    /// <summary>
+    /// Stunden aller mit der aktuellen Vertretung markierten Vertretungen desselben Tages (z. B. zwei markierte Zeilen im
+    /// Vertretungsfenster): sie werden in der Spalte „Stundenplan“ und in den verknüpften Plänen gemeinsam umrandet.
+    /// </summary>
+    internal List<int> MarkierteStunden(Vertretung v) =>
+        StundenplanFenster.MarkierteVertretungen(v).Where(x => x.Datum == v.Datum).Select(x => x.Stunde).Distinct().OrderBy(x => x).ToList();
 
     private bool Block => _block.Enabled && _block.Checked;
 
@@ -662,6 +670,24 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                    ?? throw new InvalidOperationException("Kein Lehrerplan geöffnet.");
         if (plan.ElementId != k.Lehrer.Id) throw new InvalidOperationException($"Lehrerplan zeigt {Ix.KLehrer(plan.ElementId)} statt des gewählten Vorschlags {k.Lehrer.Kurzname}.");
         return $"Vorschlag {k.Lehrer.Kurzname} gewählt – Lehrerplan folgt (Vertretung {_v.Id}, {Format.Datum(_v.Datum)} {_v.Stunde}. Std.)";
+    }
+
+    /// <summary>Selbsttest: mehrere markierte Vertretungen – alle Stunden in der Spalte „Stundenplan“ und im verknüpften Lehrerplan umrandet.</summary>
+    internal string SelbsttestMehrfachMarkiert()
+    {
+        if (_v is null) return "Vorschlag: keine Vertretung markiert";
+        var stunden = MarkierteStunden(_v);
+        if (stunden.Count < 2) throw new InvalidOperationException($"Nur {stunden.Count} markierte Stunde(n) im Vorschlag angekommen.");
+        var info = SelbsttestPlaeneFolgen();
+        if (_vorschlag.CurrentRow?.Tag is not Kandidat k) throw new InvalidOperationException("Kein Vorschlag gewählt.");
+        var sichtbar = stunden.Where(s => k.Zellen.Any(z => z.Stunde == s)).ToList();
+        var umrandet = k.Zellen.Where(z => z.Ziel).Select(z => z.Stunde).ToList();
+        if (!sichtbar.All(umrandet.Contains) || umrandet.Count < Math.Min(2, sichtbar.Count))
+            throw new InvalidOperationException($"Spalte „Stundenplan“ umrandet {string.Join(",", umrandet)} statt {string.Join(",", sichtbar)}.");
+        var plan = AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().First(f => f.Typ == ElementTyp.Lehrer);
+        var n = plan.Plan.UmrandeteStunden();
+        if (n < stunden.Count) throw new InvalidOperationException($"Lehrerplan umrandet {n} statt {stunden.Count} Stunden ({string.Join(",", stunden)}).");
+        return $"{info}; markiert {string.Join(",", stunden)}. Std. – Stundenplanspalte umrandet {string.Join(",", umrandet)}, Lehrerplan {n} Stunden";
     }
 
     internal string SelbsttestPruefen()

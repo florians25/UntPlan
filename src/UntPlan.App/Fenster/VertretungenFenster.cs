@@ -104,6 +104,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Liste drucken (Felder mit „drucken“)", "vorschau", ListeDrucken));
         var einst = new ToolStripDropDownButton("Einstellungen", Symbole.Get("einstellungen", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Einstellungen" };
         einst.DropDownItems.Add("Einstellungen Vertretungsfenster (Vertretungsarten anzeigen)…", null, (_, _) => FensterEinstellungen());
+        einst.DropDownItems.Add("Standardansicht (Spalten wie im Vorbild)", Symbole.Get("rollup", 16), (_, _) => Standardansicht());
         einst.DropDownItems.Add("Vertretungsplanung: Farben und Bezeichnungen, Zähler, Vorschlag…", null, (_, _) => VertretungsEinstellungenDialog.Zeigen(this));
         var nurNeu = new ToolStripMenuItem("Seitenlayout: Nur neue Vertretungen drucken") { CheckOnClick = true, Checked = AppZustand.Einstellungen.Vertretungsdruck.NurNeue, ToolTipText = "Nur Vertretungen drucken, die in dieser Arbeitssitzung angelegt oder geändert wurden (Kennzeichen „Neu“)" };
         nurNeu.CheckedChanged += (_, _) => { AppZustand.Einstellungen.Vertretungsdruck.NurNeue = nurNeu.Checked; AppZustand.Einstellungen.Speichern(); };
@@ -169,8 +170,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             // bearbeitbare Felder: im Vertretungsmodus weiß wie im Vorbild (nicht bearbeitbare grünlich, siehe Auswahlbreite.ZellFarben)
             if (!lesbar && !Ui.Vertretungsmodus) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
-        // Reihenfolge wie im Vorbild: Vtr-Nr. Art Datum Stunde (Fach) Fach (Lehrer) Vertreter (Klasse(n)) Klasse(n) (Raum) Raum Vertr. von (Le.) nach Text Statistik …
-        for (var i = 0; i < Spalten.Length; i++) _g.Columns[Spalten[i].Name]!.DisplayIndex = i;
+        // Reihenfolge wie im Vorbild: Vtr-Nr. Art Stunde Klasse(n) (Lehrer) Vertreter (Raum) Raum (Fach) Fach Vertr. von (Le.) nach Text …
+        var reihenfolge = StandardReihenfolge.Concat(Spalten.Select(x => x.Name).Except(StandardReihenfolge)).ToList();
+        for (var i = 0; i < reihenfolge.Count; i++) _g.Columns[reihenfolge[i]]!.DisplayIndex = i;
         _g.Columns["Nr"]!.Frozen = true;
         // Vertretungstext füllt die Restbreite, wird aber nie schmaler als 240 Pixel (sonst waagerecht blättern)
         _g.Columns["Text"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
@@ -180,6 +182,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.Columns["Klassen"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
+        // „Standard wiederherstellen“ (Spaltenmenü) bzw. „Standardansicht“: auch die Felder der Ansicht auf den Standard zurücksetzen
+        Steuerelemente.TabellenFormate.BeimStandard(_g, () =>
+        {
+            if (AppZustand.Einstellungen.VertretungsFelder.Remove(AnsichtName)) AppZustand.Einstellungen.Speichern();
+            if (_inhalt.Checked) _inhalt.Checked = false;
+            FelderAnwenden();
+        });
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellFormatting += Formatieren;
         _g.CellPainting += KollisionZeichnen;
@@ -205,8 +214,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // Auswahl aus der Liste (Maus bzw. Enter) wie im Vorbild sofort übernehmen: Bearbeitung beenden, die Zeile bleibt aktuell
         _g.CurrentCellDirtyStateChanged += (_, _) =>
         {
-            if (_g.CurrentCell is DataGridViewComboBoxCell && _g.EditingControl is ComboBox { DroppedDown: false } && !_g.IsCurrentCellDirty)
-                BeginInvoke(() => { if (!IsDisposed && _g.IsCurrentCellInEditMode && _g.CurrentCell is DataGridViewComboBoxCell) _g.EndEdit(); });
+            if (_g.CurrentCell is DataGridViewComboBoxCell zelle && _g.EditingControl is ComboBox { DroppedDown: false } && !_g.IsCurrentCellDirty &&
+                Steuerelemente.SuchKombi.BearbeiteteZelle(_g) == zelle)
+                // nur genau diese Zelle beenden – nie eine inzwischen in einer anderen Zeile begonnene Bearbeitung
+                BeginInvoke(() => { if (!IsDisposed && _g.IsCurrentCellInEditMode && _g.CurrentCell == zelle && !_g.IsCurrentCellDirty) _g.EndEdit(); });
         };
         _g.ColumnHeaderMouseClick += (_, e) =>
         {
@@ -304,16 +315,16 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     internal static readonly (string Name, string Kopf, string Feld, int Breite, bool Lesbar, bool Standard, bool Lang)[] Spalten =
     {
-        ("Nr", "Vtr-Nr.", "Vertretungsnummer", 46, true, true, false), ("Art", "Art", "Art der Vertretung", 78, true, true, false),
-        ("Datum", "Datum", "Datum (TT.MM.)", 44, true, true, false), ("Tag", "Tag", "Tag", 30, true, false, false),
-        ("Std", "Stunde", "Std.", 40, true, true, false), ("Zeit", "Zeit", "Beginn- und Endzeit", 76, true, false, false),
-        ("Fach", "(Fach)", "statt Fach", 46, true, true, true), ("NFach", "Fach", "Fach", 46, false, true, true),
-        ("Lehrer", "(Lehrer)", "statt Lehrer", 46, true, true, true), ("Vertreter", "Vertreter", "Vertreter", 46, false, true, true),
-        ("AKlassen", "(Klasse(n))", "statt Klasse(n)", 46, true, true, true), ("Klassen", "Klasse(n)", "Klasse(n)", 46, true, true, true),
-        ("Raum", "(Raum)", "statt Raum", 46, true, true, true), ("NRaum", "Raum", "Raum", 46, false, true, true),
+        ("Nr", "Vtr-Nr.", "Vertretungsnummer", 46, true, true, false), ("Art", "Art", "Art der Vertretung", 70, true, true, false),
+        ("Datum", "Datum", "Datum (TT.MM.) – automatisch bei mehreren Tagen", 44, true, false, false), ("Tag", "Tag", "Tag", 30, true, false, false),
+        ("Std", "Stunde", "Std.", 46, true, true, false), ("Zeit", "Zeit", "Beginn- und Endzeit", 76, true, false, false),
+        ("Fach", "(Fach)", "statt Fach", 52, true, true, true), ("NFach", "Fach", "Fach", 48, false, true, true),
+        ("Lehrer", "(Lehrer)", "statt Lehrer", 56, true, true, true), ("Vertreter", "Vertreter", "Vertreter", 62, false, true, true),
+        ("AKlassen", "(Klasse(n))", "statt Klasse(n)", 62, true, false, true), ("Klassen", "Klasse(n)", "Klasse(n)", 62, true, true, true),
+        ("Raum", "(Raum)", "statt Raum", 52, true, true, true), ("NRaum", "Raum", "Raum", 48, false, true, true),
         ("Von", "Vertr. von", "Verlegung", 68, true, true, false), ("Nach", "(Le.) nach", "Wegverlegung", 68, true, true, false),
-        ("Text", "Text", "Vertretungs-Text", 200, false, true, false), ("Kz", "Statistik", "Statistik-Kennzeichen", 50, false, true, false),
-        ("SG", "Schülergruppe", "Schülergruppe", 110, false, true, false), ("Grund", "Absenzgrund", "Absenzgrund", 80, true, false, true),
+        ("Text", "Text", "Vertretungs-Text", 200, false, true, false), ("Kz", "Statistik", "Statistik-Kennzeichen", 50, false, false, false),
+        ("SG", "Schülergruppe", "Schülergruppe", 110, false, false, false), ("Grund", "Absenzgrund", "Absenzgrund", 80, true, false, true),
         ("UText", "Unt.-Text", "Unterrichts-Text", 90, true, false, false), ("UZText", "Unt.-Zeilentext", "Unterrichts-Zeilentext", 90, true, false, false),
         ("Beschr", "Beschr.", "Beschr.", 70, false, false, false), ("Entf", "Entfall", "Entfall", 44, true, false, false),
         ("Mitb", "Mitbetr.", "Mitbetreuung", 50, true, false, false), ("Kopp", "Vtr-Kopplung", "Vertretungs-Kopplung", 50, false, false, false),
@@ -325,19 +336,47 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ("Mehr", "Mehrarb.", "Mehrarbeit", 54, true, false, false),
     };
 
+    /// <summary>
+    /// Standardansicht wie im Vorbild (Desktop): Vtr-Nr. Art Stunde Klasse(n) (Lehrer) Vertreter (Raum) Raum (Fach) Fach Vertr. von (Le.) nach Text;
+    /// das Datum steht (wenn eingeblendet) hinter der Art, alle übrigen Felder folgen in der Reihenfolge von <see cref="Spalten"/>.
+    /// </summary>
+    internal static readonly string[] StandardReihenfolge =
+        { "Nr", "Art", "Datum", "Tag", "Std", "Zeit", "Klassen", "AKlassen", "Lehrer", "Vertreter", "Raum", "NRaum", "Fach", "NFach", "Von", "Nach", "Text" };
+
     private string AnsichtName => Ansichten[Math.Max(0, _ansicht.SelectedIndex)];
 
     /// <summary>Gespeicherte Felder der Ansicht: Feld → Kennzeichen ("a" aktiv, "d" drucken, "L" Langname); fehlt = Standard.</summary>
     private Dictionary<string, string> FeldEinstellungen()
     {
         if (!AppZustand.Einstellungen.VertretungsFelder.TryGetValue(AnsichtName, out var f))
-            f = Spalten.ToDictionary(s => s.Name, s => s.Standard ? "ad" : "");
-        foreach (var s in Spalten.Where(s => !f.ContainsKey(s.Name))) f[s.Name] = s.Standard ? "ad" : "";
+            f = Spalten.ToDictionary(s => s.Name, s => StandardFeld(s.Name, s.Standard));
+        foreach (var s in Spalten.Where(s => !f.ContainsKey(s.Name))) f[s.Name] = StandardFeld(s.Name, s.Standard);
         f["Nr"] = "a" + (f["Nr"].Contains('d') ? "d" : "") + (f["Nr"].Contains('L') ? "L" : ""); // am Bildschirm nicht ausblendbar
         return f;
     }
 
+    /// <summary>Standard-Kennzeichen eines Feldes: aktiv und drucken; das Datum erscheint automatisch („m“), sobald mehrere Tage gezeigt werden.</summary>
+    internal static string StandardFeld(string name, bool standard) => standard ? "ad" : name == "Datum" ? "m" : "";
+
+    /// <summary>Feld am Bildschirm ('a') bzw. im Druck ('d') zeigen – „m“ (automatisch) zeigt es bei mehreren Tagen.</summary>
+    internal static bool FeldAktiv(string kennzeichen, char art, bool mehrereTage) => kennzeichen.Contains(art) || (mehrereTage && kennzeichen.Contains('m'));
+
+    private bool MehrereTage => Bis > Von;
+
     private bool Langname(string spalte) => (_felder ?? FeldEinstellungen()).TryGetValue(spalte, out var x) && x.Contains('L');
+
+    /// <summary>
+    /// Standardansicht wie im Vorbild: Reihenfolge, Breiten und Überschriften der Spalten sowie die Felder der Ansicht zurücksetzen
+    /// (gespeicherte Tabellenformate bleiben erhalten und lassen sich wieder wählen).
+    /// </summary>
+    internal void Standardansicht() => Steuerelemente.TabellenFormate.StandardWiederherstellen(_g);
+
+    /// <summary>Selbsttest: sichtbare Spalten in Anzeigereihenfolge (Überschriften).</summary>
+    internal IReadOnlyList<string> SichtbareSpalten() =>
+        _g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Select(c => c.HeaderText).ToList();
+
+    /// <summary>Selbsttest: Spalte verschieben bzw. ausblenden wie per Maus (gemerkte Anordnung).</summary>
+    internal void SpalteVerschieben(string name, int anzeigeIndex) => _g.Columns[name]!.DisplayIndex = anzeigeIndex;
 
     /// <summary>Spalten laut „Felder der Ansicht“ ein- bzw. ausblenden.</summary>
     private void FelderAnwenden()
@@ -345,7 +384,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (!IsHandleCreated || _inhalt.Checked) return;
         var f = FeldEinstellungen();
         foreach (var s in Spalten)
-            Steuerelemente.TabellenFormate.SpalteSichtbar(_g, _g.Columns[s.Name]!, f[s.Name].Contains('a'));
+            Steuerelemente.TabellenFormate.SpalteSichtbar(_g, _g.Columns[s.Name]!, FeldAktiv(f[s.Name], 'a', MehrereTage));
     }
 
     /// <summary>Dialog „Felder der Ansicht“: Feld / aktiv / drucken / Anzeige von (Kurzname, Langname); Ok, Übernahme, Abbrechen.</summary>
@@ -371,7 +410,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "D", HeaderText = "drucken", Width = 52 });
         t.Columns.Add(new DataGridViewComboBoxColumn { Name = "L", HeaderText = "Anzeige von", Width = 80, FlatStyle = FlatStyle.Flat, DisplayStyleForCurrentCellOnly = true, DataSource = new[] { "", "Kurzname", "Langname" } });
         t.DataError += (_, e) => e.ThrowException = false;
-        t.CurrentCellDirtyStateChanged += (_, _) => { if (t.CurrentCell is DataGridViewCheckBoxCell or DataGridViewComboBoxCell) t.CommitEdit(DataGridViewDataErrorContexts.Commit); };
+        t.CurrentCellDirtyStateChanged += (_, _) => Steuerelemente.SuchKombi.SofortUebernehmen(t);
         foreach (var s in Spalten)
         {
             var x = f[s.Name];
@@ -387,7 +426,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             t.EndEdit();
             var neu = new Dictionary<string, string>();
             foreach (DataGridViewRow r in t.Rows)
-                neu[(string)r.Tag!] = (r.Cells["A"].Value is true ? "a" : "") + (r.Cells["D"].Value is true ? "d" : "") + (r.Cells["L"].Value as string == "Langname" ? "L" : "");
+                neu[(string)r.Tag!] = (r.Cells["A"].Value is true ? "a" : "") + (r.Cells["D"].Value is true ? "d" : "") + (r.Cells["L"].Value as string == "Langname" ? "L" : "")
+                                      + (r.Cells["A"].Value is not true && f[(string)r.Tag!].Contains('m') ? "m" : "");
             AppZustand.Einstellungen.VertretungsFelder[AnsichtName] = neu;
             AppZustand.Einstellungen.Speichern();
             if (_inhalt.Checked) _inhalt.Checked = false;
@@ -456,7 +496,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var vorher = _g.Columns.Cast<DataGridViewColumn>().ToDictionary(c => c, c => c.Visible);
         try
         {
-            foreach (var s in Spalten) _g.Columns[s.Name]!.Visible = f[s.Name].Contains('d');
+            foreach (var s in Spalten) _g.Columns[s.Name]!.Visible = FeldAktiv(f[s.Name], 'd', MehrereTage);
             if (!_g.Columns.Cast<DataGridViewColumn>().Any(c => c.Visible)) _g.Columns["Art"]!.Visible = true;
             // Unterschrift: Leerfeld zum Abzeichnen; Seitenlayout „Nur neue Vertretungen“
             var nurNeue = AppZustand.Einstellungen.Vertretungsdruck.NurNeue;
@@ -553,6 +593,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _plaene.Clear();
         _behalten.Leeren();
         Neuaufbau(true);
+        FelderAnwenden();
     }
 
     private static string Signatur(Schuldatei d, DateOnly von, DateOnly bis) =>

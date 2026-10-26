@@ -174,6 +174,19 @@ public class PlanTests
         Assert.NotNull(elemente["klassen"]);
     }
 
+    /// <summary>Klassenauswahl der Apps (Badge „Klassenlehrkraft | FIS“): /api/app/elemente liefert die Klassenleitung je Klasse.</summary>
+    [Fact]
+    public async Task Elemente_enthalten_die_Klassenleitung_je_Klasse()
+    {
+        await using var s = await Testserver.StartenAsync();
+        foreach (var c in new[] { await s.AlsAsync("admin"), await s.AlsAsync("schueler5a", "schueler", "5a") })
+        {
+            var elemente = await Testserver.HolenAsync(c, "/api/app/elemente");
+            var k = elemente["klassen"]!.AsArray().Single(x => x!["kurz"]!.GetValue<string>() == "5a")!;
+            Assert.Equal(new[] { "FIS" }, k["leitung"]!.AsArray().Select(x => x!.GetValue<string>()));
+        }
+    }
+
     [Fact]
     public async Task Freisetzung_der_Klasse_ist_Entfall_und_steht_im_Tageskopf()
     {

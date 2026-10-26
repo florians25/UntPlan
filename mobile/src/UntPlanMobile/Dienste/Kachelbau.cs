@@ -606,18 +606,27 @@ public static class Kachelbau
     }
 
     /// <summary>
-    /// Jede Lehrkraft einer Kopplung nur einmal: steht ein Kürzel zugleich schlicht und als Vertretung bzw. hinzugekommen da (eine
-    /// beteiligte Lehrkraft vertritt zusätzlich eine abwesende Kollegin), bleibt nur das Label – an der Stelle des ersten Auftretens.
+    /// Jede Lehrkraft einer Kopplung je Rolle nur einmal: doppelt ist nur derselbe Eintrag in derselben Rolle (schlicht bzw. hinzugekommen
+    /// zweimal, dieselbe Vertretung zweimal). Nimmt eine beteiligte Lehrkraft regulär teil UND vertritt zusätzlich eine abwesende Kollegin,
+    /// steht sie zweimal da – schlicht für den eigenen Teil und als Label für die Vertretung („CS,SZ [CS]“), der schlichte Eintrag vor dem Label.
     /// </summary>
     public static List<KoppEintrag> KoppEinmal(IEnumerable<KoppEintrag> liste)
     {
-        static int Rang(KoppEintrag e) => e.Zustand == "sub" ? (e.Fuer is { Length: > 0 } ? 2 : 1) : 0;
+        static bool Label(KoppEintrag e) => e.Zustand == "sub" && e.Fuer is { Length: > 0 };
         var res = new List<KoppEintrag>();
         foreach (var e in liste)
         {
-            var i = e.Zustand == "absent" ? -1 : res.FindIndex(x => x.Zustand != "absent" && Ci.Equals(x.Code, e.Code));
-            if (i < 0) res.Add(e);
-            else if (Rang(e) > Rang(res[i])) res[i] = e;
+            if (e.Zustand == "absent") { res.Add(e); continue; }
+            var i = res.FindIndex(x => x.Zustand != "absent" && Ci.Equals(x.Code, e.Code) && Label(x) == Label(e) && (!Label(e) || Ci.Equals(x.Fuer, e.Fuer)));
+            if (i >= 0)
+            {
+                // schlicht und hinzugekommen: das grüne Label (hinzugekommen) bleibt
+                if (!Label(e) && e.Zustand == "sub" && res[i].Zustand != "sub") res[i] = e;
+                continue;
+            }
+            var j = Label(e) ? -1 : res.FindIndex(x => x.Zustand != "absent" && Ci.Equals(x.Code, e.Code) && Label(x));
+            if (j >= 0) res.Insert(j, e);
+            else res.Add(e);
         }
         return res;
     }

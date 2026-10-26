@@ -88,13 +88,23 @@ public class MehrereLehrkraefteTests
     }
 
     [Fact]
-    public void Vertretende_Teilnehmerin_steht_nur_einmal_auf_der_Karte()
+    public void Vertretende_Teilnehmerin_steht_regulaer_und_als_Label_auf_der_Karte()
     {
-        // vorher „CS, SZ [CS]“: CS schlicht (eigene Zeile) und als Vertretung für SN
+        // „CS, SZ [CS]“: CS schlicht (eigener Teil) und zusätzlich als Vertretung für SN
         var k = Assert.Single(new Plandienst().Karten(KonferenzMitVertretung(), Tag, Elementtyp.Lehrer, "CS"));
-        Assert.Equal(new[] { "CS", "SZ" }, k.Lehrer.Select(w => w.K));
-        Assert.Equal("SN", k.Lehrer[0].Alt);
+        Assert.Equal(new[] { "CS", "SZ", "CS" }, k.Lehrer.Select(w => w.K));
+        Assert.Null(k.Lehrer[0].Alt);
         Assert.Null(k.Lehrer[1].Alt);
+        Assert.Equal("SN", k.Lehrer[2].Alt);
+    }
+
+    [Theory]
+    [InlineData("SZ")]
+    [InlineData("SN")]
+    public void Vertretende_Teilnehmerin_steht_in_allen_Plaenen_doppelt(string plan)
+    {
+        var k = Assert.Single(new Plandienst().Karten(KonferenzMitVertretung(), Tag, Elementtyp.Lehrer, plan));
+        Assert.Equal(new[] { ("CS", (string?)null), ("SZ", null), ("CS", "SN") }, k.Lehrer.Select(w => (w.K, w.Alt)));
     }
 
     [Fact]
@@ -104,9 +114,9 @@ public class MehrereLehrkraefteTests
         var k = Assert.Single(new Plandienst().Karten(KonferenzMitVertretung(), Tag, Elementtyp.Lehrer, "SN"));
         Assert.Equal("abwesend", k.Status);
         Assert.True(k.LehrerAbwesend);
-        Assert.Equal(new[] { "CS", "SZ" }, k.Lehrer.Select(w => w.K));
-        Assert.Equal("SN", k.Lehrer[0].Alt);
-        Assert.Null(k.Lehrer[1].Alt);
+        Assert.Equal(new[] { "CS", "SZ", "CS" }, k.Lehrer.Select(w => w.K));
+        Assert.Equal("SN", k.Lehrer[2].Alt);
+        Assert.Null(k.Lehrer[0].Alt);
     }
 
     [Fact]
@@ -136,10 +146,10 @@ public class MehrereLehrkraefteTests
     }
 
     [Fact]
-    public void Lehrer_einmal_bevorzugt_das_Label()
+    public void Lehrer_einmal_nur_bei_gleicher_Rolle()
     {
-        var l = Plandienst.LehrerEinmal(new[] { new Wert("CS"), new Wert("SZ"), new Wert("CS", "SN", true), new Wert("", "AB", true) });
-        Assert.Equal(new[] { "CS", "SZ", "" }, l.Select(w => w.K));
-        Assert.Equal("SN", l[0].Alt);
+        var l = Plandienst.LehrerEinmal(new[] { new Wert("CS", "SN", true), new Wert("CS"), new Wert("SZ"), new Wert("SZ"), new Wert("CS", "SN", true), new Wert("", "AB", true) });
+        // schlicht vor dem Label derselben Lehrkraft; echte Doppelungen (SZ, CS→SN) nur einmal
+        Assert.Equal(new[] { ("CS", (string?)null), ("CS", "SN"), ("SZ", null), ("", "AB") }, l.Select(w => (w.K, w.Alt)));
     }
 }

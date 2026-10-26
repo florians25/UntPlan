@@ -505,9 +505,10 @@ const KACHEL_HA = '<svg class="ticon ticon--exakt" viewBox="0 0 16 16" aria-hidd
 
 /* TRENNER-BEGINN (wird von den Tests ausgeführt) */
 /* Trennzeichen zwischen mehreren Werten (Lehrkräfte, Klassen, Räume):
-   auf den Stundenkarten ein Komma, in den Stundendetails ein senkrechter
+   auf den Stundenkarten ein Komma ohne Leerzeichen („CS,SZ“, „INF13,ING13“
+   wie in der iOS-App und im Original), in den Stundendetails ein senkrechter
    Strich. */
-const KACHEL_TRENNER = ', ';
+const KACHEL_TRENNER = ',';
 const DETAIL_TRENNER = ' | ';
 const werteListe = v => String(v == null ? '' : v).split(/\s*[,|]\s*/).map(x => x.trim()).filter(Boolean);
 const kachelWert = v => werteListe(v).join(KACHEL_TRENNER);
@@ -595,12 +596,12 @@ function koppTokens(card){
      als eigenes, abwesendes Kürzel. */
   const gross = x => String(x || '').toUpperCase();
   const vertreten = toks.filter(t => t.state === 'sub' && t.for).map(t => gross(t.for));
-  /* Ebenso nicht schlicht und zugleich als Label (eine beteiligte Lehrkraft
-     vertritt zusätzlich eine abwesende Kollegin): dann nur das Label. */
+  /* Doppelt ist nur derselbe Eintrag in derselben Rolle. Nimmt eine
+     beteiligte Lehrkraft regulär teil UND vertritt zusätzlich eine abwesende
+     Kollegin, steht sie zweimal da: schlicht und als Label („CS,SZ [CS]“). */
   const ohne = toks.filter((t, i) =>
     !(t.state === 'absent' && vertreten.includes(gross(t.text)))
-    && !(t.state === 'ok' && toks.some(o => o.state === 'sub' && gross(o.text) === gross(t.text)))
-    && toks.findIndex(o => gross(o.text) === gross(t.text) && o.state === t.state) === i);
+    && toks.findIndex(o => gross(o.text) === gross(t.text) && o.state === t.state && gross(o.for) === gross(t.for)) === i);
   /* Eine Kopplung bleibt eine Kopplung, auch wenn danach nur ein Eintrag
      übrig ist, der jemanden vertritt: dann stehen die abwesende und die
      vertretende Lehrkraft nebeneinander. */
@@ -696,7 +697,8 @@ function veranstaltungZeilen(card, kind){
   const teile = v => String(v || '').split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
   const eigen  = String((state.entity && (state.entity.code || state.entity.label)) || '').toUpperCase();
   const anlass = String(card.subject || card.info || '').trim();
-  let lehrer   = teile(card.teacher);
+  /* Ohne Lehrkräfte kein Platzhalter („---“, „???“) */
+  let lehrer   = teile(card.teacher).filter(t => !['---', '???', '+', '+++'].includes(t));
   if (kind === 'teacher' && lehrer.length === 1 && lehrer[0].toUpperCase() === eigen) lehrer = [];
   const klassen = teile(card.class).filter(k => kind !== 'class' || k.toUpperCase() !== eigen);
   const raeume  = card.online ? [] : teile(card.room);
@@ -721,7 +723,7 @@ function cardLines(card, kind){
      dabei sind. Vorher stand überall die Klasse oben und der Anlass fehlte
      auf der Kachel ganz. */
   if (card.blockType === 'absence') return veranstaltungZeilen(card, kind)
-    .map(z => ({ key:z.key, text:z.werte.join(z.key === 'room' ? ' ' : ', '), primary:z.primary, changed:z.key === 'room' }));
+    .map(z => ({ key:z.key, text:z.werte.join(z.key === 'room' ? ' ' : KACHEL_TRENNER), primary:z.primary, changed:z.key === 'room' }));
   if (card.blockType === 'gs'){
     const anlass = (card.subject || card.info || '').trim();
     const reihe  = (kind === 'class')
@@ -733,7 +735,7 @@ function cardLines(card, kind){
     const toksV = kachelTokens(card);
     if (kind === 'class' && toksV && zeilen[0]){
       zeilen[0].tokens = toksV;
-      zeilen[0].text   = toksV.map(t => t.text).join(', ');
+      zeilen[0].text   = toksV.map(t => t.text).join(KACHEL_TRENNER);
       zeilen[0].changed = false;
     }
 
@@ -746,7 +748,7 @@ function cardLines(card, kind){
       const weitere = (toksV ? toksV.map(t => t.text) : [card.teacher || ''])
         .map(t => String(t).trim()).filter(Boolean)
         .filter(t => kind !== 'teacher' || t.toUpperCase() !== label);
-      if (weitere.length) zeilen.push({ key:'teacher', text:weitere.join(', ') });
+      if (weitere.length) zeilen.push({ key:'teacher', text:weitere.join(KACHEL_TRENNER) });
     }
     return zeilen;
   }
@@ -794,7 +796,7 @@ function cardLines(card, kind){
     }
     if (key === 'teacher' && toks){
       l.tokens  = toks;
-      l.text    = toks.map(t => t.text).join(', ');
+      l.text    = toks.map(t => t.text).join(KACHEL_TRENNER);
       l.changed = false;
       l.removed = false;
     }
@@ -802,7 +804,7 @@ function cardLines(card, kind){
        im Klassenplan als unterste Zeile die Klasse, die mit dabei ist. */
     if (key === 'class' && ktoks){
       l.tokens  = ktoks;
-      l.text    = ktoks.map(t => t.text).join(', ');
+      l.text    = ktoks.map(t => t.text).join(KACHEL_TRENNER);
       l.changed = false;
       l.removed = false;
     }
@@ -1762,7 +1764,7 @@ function renderGrid(){
               /* Zwischen allen Werten trennt ein Komma — auch zwischen einem schlichten Wert und einem Label; nur
                  zwischen zwei Labels steht kein Komma, sondern ein kleiner Abstand. */
               const neben = ti < l.tokens.length - 1 && istLabel(t) && istLabel(l.tokens[ti + 1]);
-              const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : neben ? LUECKE : l.key === 'teacher' ? '<i class="tok__trenn">,</i> ' : '<i>,</i>') : '';
+              const komma = ti < l.tokens.length - 1 ? (l.key === 'room' ? '' : neben ? LUECKE : l.key === 'teacher' ? '<i class="tok__trenn">,</i>' : '<i>,</i>') : '';
               /* Hinzugekommener Wert: grünes Label (ohne „+“). */
               const plusT = plusWert(card, l.key, t.text);
               const kern  = t.state === 'absent'
@@ -1842,7 +1844,7 @@ function renderGrid(){
                Fahren drei Klassen zusammen zu einem Vortrag, soll jede
                sehen, mit wem. */
             const unten  = kind === 'class'
-                         ? klassen.filter(k => k.toUpperCase() !== eigen).join(', ')
+                         ? klassen.filter(k => k.toUpperCase() !== eigen).join(KACHEL_TRENNER)
                          : alle.filter(t => kind !== 'teacher' || t.toUpperCase() !== eigen).join(KACHEL_TRENNER);
             /* Mehrere Lehrkräfte: auf der Kachel durch Komma getrennt (in den
                Details „ | “); nur diese Leiste rollt waagerecht. */

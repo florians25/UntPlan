@@ -553,12 +553,12 @@ public class KachelbauTests
     }
 
     [Fact]
-    public void Kopplung_nennt_eine_vertretende_Teilnehmerin_nur_einmal()
+    public void Kopplung_nennt_eine_vertretende_Teilnehmerin_regulaer_und_als_Label()
     {
-        // CS nimmt selbst teil und vertritt zusätzlich SN: nur das Label (an der ersten Stelle), nicht „CS, SZ [CS]“
-        var k = Kachelbau.AusKarte(Karte("geaendert", 7, fach: "ZKonf", lehrer: new() { new("CS"), new("SZ"), new("CS", "SN", true) }), "teacher");
-        Assert.Equal(new[] { ("CS", "sub"), ("SZ", "ok") }, k.Kopplung!.Select(e => (e.Code, e.Zustand)));
-        Assert.Equal("SN", k.Kopplung![0].Fuer);
+        // CS nimmt selbst teil und vertritt zusätzlich SN: „CS,SZ [CS]“ – schlicht und als Label
+        var k = Kachelbau.AusKarte(Karte("geaendert", 7, fach: "ZKonf", lehrer: new() { new("CS", "SN", true), new("CS"), new("SZ"), new("SZ"), new("CS", "SN", true) }), "teacher");
+        Assert.Equal(new[] { ("CS", "ok"), ("CS", "sub"), ("SZ", "ok") }, k.Kopplung!.Select(e => (e.Code, e.Zustand)));
+        Assert.Equal("SN", k.Kopplung![1].Fuer);
     }
 
     [Fact]

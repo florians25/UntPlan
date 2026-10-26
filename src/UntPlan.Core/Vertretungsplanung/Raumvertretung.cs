@@ -117,7 +117,16 @@ public static class Raumvertretungen
     }
 
     private static bool IstEigene(TagesEintrag e, Vertretung v) =>
-        e.Vertretung == v || (e.Vertretung is null && v.UnterrichtId is int u && e.Regel != null && e.Regel.Unterricht.Id == u && e.Regel.ZeilenIndex == v.ZeilenIndex);
+        e.Vertretung == v || (e.Vertretung is null && v.UnterrichtId is int u && e.Regel != null && e.Regel.Unterricht.Id == u && e.Regel.ZeilenIndex == v.ZeilenIndex)
+        // weitere Kopplungszeilen desselben Unterrichts belegen den Raum gemeinsam mit dieser Stunde (kein fremder Unterricht)
+        || (v.UnterrichtId is int ku && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == ku);
+
+    /// <summary>
+    /// Gehören zwei Einträge zur selben (gekoppelten) Stunde – Kopplungszeilen desselben Unterrichts? Sie teilen sich einen Raum und
+    /// sind bei einer Raumänderung kein Hindernis (sonst verlöre beim zeilenweisen Umziehen jede frühere Zeile ihren neuen Raum).
+    /// </summary>
+    internal static bool GleicherUnterricht(TagesEintrag a, TagesEintrag b) =>
+        (a.Unterricht?.Id ?? a.Vertretung?.UnterrichtId) is int ua && ua == (b.Unterricht?.Id ?? b.Vertretung?.UnterrichtId);
 
     /// <summary>Bester Ersatzraum: freier Ausweichraum, dann Ausweichraum des Stammraumes, sonst (wenn erlaubt) freier Raum mit ausreichender Kapazität.</summary>
     public static Raum? BesterRaum(Schuldatei d, Vertretung v, bool nurAusweichraeume, bool stundenblock = false)
@@ -135,7 +144,7 @@ public static class Raumvertretungen
         v = new Vertretung
         {
             Id = d.NeueId(), Datum = tp.Datum, Stunde = e.Stunde, UnterrichtId = r.Unterricht.Id, ZeilenIndex = r.ZeilenIndex, LehrerId = r.LehrerId, VertreterId = r.LehrerId,
-            FachId = r.FachId, KlassenIds = r.KlassenIds.ToList(), RaumId = r.RaumId, Art = VertretungsArt.Raumvertretung, Quelle = VertretungsQuelle.Manuell,
+            FachId = r.FachId, KlassenIds = Vertretungen.KlassenDerZeile(r), RaumId = r.RaumId, Art = VertretungsArt.Raumvertretung, Quelle = VertretungsQuelle.Manuell,
             Schuelergruppe = r.Unterricht.Schuelergruppe, Bearbeitet = true, Benutzer = benutzer,
         };
         d.Vertretungen.Add(v);
@@ -206,7 +215,7 @@ public static class Raumvertretungen
         var res = new List<Vertretung>();
         var bisher = e.RaumIds.Count > 0 ? e.RaumIds[0] : (int?)null;
         var hindernisse = raumId is int r && loesung is RaumKollisionsLoesung.OhneKollision or RaumKollisionsLoesung.RaeumeTauschen
-            ? tp.Stunde(e.Stunde).Where(x => x != e && x.Findetstatt && x.RaumIds.Contains(r)).ToList()
+            ? tp.Stunde(e.Stunde).Where(x => x != e && x.Findetstatt && x.RaumIds.Contains(r) && !GleicherUnterricht(x, e)).ToList()
             : new List<TagesEintrag>();
         var v = ZeileFuer(d, tp, e, benutzer);
         RaumSetzen(v, raumId, zusaetzlich, bisher, benutzer);
