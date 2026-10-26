@@ -614,8 +614,10 @@ public class PlanKorrekturenEndeZuEndeTests
     {
         var css = Datei("css", "seitenlayout.css");
         var volle = css.IndexOf("Volle Breite", StringComparison.Ordinal);
-        var start = css.IndexOf(".u-app[data-ansicht=\"heute\"] #seite, .u-app[data-ansicht=\"heute\"] #seitenkopf { max-width: var(--u-start-max); margin-left: auto; margin-right: auto; }", StringComparison.Ordinal);
+        var start = css.IndexOf(".u-app[data-ansicht=\"heute\"] #seite, .u-app[data-ansicht=\"heute\"] #seitenkopf { max-width: var(--u-start-max); margin-left: 0; margin-right: auto; }", StringComparison.Ordinal);
         Assert.True(volle > 0 && start > volle, "Startseite nach der Regel für volle Breite");
+        // links ausgerichtet (nicht zentriert): der freie Platz bleibt rechts
+        Assert.DoesNotContain("data-ansicht=\"heute\"] #seitenkopf { max-width: var(--u-start-max); margin-left: auto", css);
         Assert.Contains(":root { --u-start-max: 1100px; }", css);
         // alle anderen Seiten bleiben volle Breite
         Assert.Contains(":root { --u-seite-max: none; --u-seite-mittel: none; --u-seite-schmal: none; }", css);

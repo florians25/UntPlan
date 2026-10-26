@@ -451,7 +451,8 @@ public sealed class Plandienst
         var zeiten = s.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr);
         var einzel = new List<Karte>();
         var vorgemerkt = new List<(Rohstunde R, Karte K)>();
-        var roh = TeilfreisetzungenAufheben(s, d, Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList());
+        var amPlatz = AmPlatz(s, d);
+        var roh = TeilfreisetzungenAufheben(s, d, Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList(), amPlatz);
         // Kopplung mit EINEM gemeinsamen Raum im Stundenplan: die Raumänderung (z. B. Raum gesperrt) steht nur an einer Zeile – sie gilt für alle
         roh = RaumaenderungAufKopplung(s, d, roh, out var raumVertretung);
         // Veranstaltung: abwesende (kranke) Lehrkräfte nehmen nicht teil – sie verschwinden aus der Veranstaltung (in allen Plänen) und die
@@ -517,7 +518,7 @@ public sealed class Plandienst
             // vorgemerkte Raumänderung eines Unterrichts: wird unten auf die Stunde gelegt, falls diese im Plan steht
             if (!betrifft && !(r.Status == "vorgemerkt" && r.Unterricht.HasValue && r.Art != "Klausur")) continue;
             var k = KarteBauen(s, d, typ, kurz, r, v, zeiten);
-            if (typ == Elementtyp.Klasse && r.Status != "vorgemerkt") k = MitklassenSetzen(k, r, roh, kurz);
+            if (typ == Elementtyp.Klasse && r.Status != "vorgemerkt") k = MitklassenSetzen(k, r, roh, kurz, amPlatz, KlasseAbwesend(s, d));
             // Plan der abwesenden Lehrkraft: eine Stunde mehrerer Lehrkräfte (Kopplung, Konferenz) nennt weiter alle Kolleg*innen
             // Fachänderung im Plan der ursprünglichen (abwesenden bzw. ersetzten) Lehrkraft: ihre Stunde entfällt (rot, bisheriges Fach) – die
             // neue Stunde mit dem neuen Fach gehört nicht in ihren Plan
@@ -911,13 +912,36 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Mitklassen einer Stunde im Klassenplan: Stunden anderer Klassen zur selben Zeit mit gleichem Fach, gemeinsamer Lehrkraft und
-    /// gleichem Raum (Kopplung über getrennte Unterrichte bzw. parallel identischer Unterricht). Entfällt die Stunde der Mitklasse,
-    /// fehlt die Mitklasse: sie steht durchgestrichen ({ K = "", Alt = Klasse }) und die eigene Stunde gilt als geändert.
+    /// Steht die Zeile so im Stundenplan – Unterricht zu dieser Stunde laut Periodenstundenplan und keine verlegte Stunde (Ursprung bzw.
+    /// Ziel einer Verlegung, Tausch)? Nur solche Zeilen verschiedener Unterrichte bilden eine gemeinsame Stunde (Mitklassen): eine in die
+    /// Stunde einer anderen Klasse verlegte Stunde derselben Lehrkraft (gleiches Fach, gleicher Raum) ist keine Kopplung. Ohne
+    /// Stundenplan des Tages (z. B. Paket nur mit Tagen) zählt nur die Vertretungsart.
     /// </summary>
-    internal static Karte MitklassenSetzen(Karte k, Rohstunde r, List<Rohstunde> roh, string kurz)
+    internal Func<Rohstunde, bool> AmPlatz(Stand s, DateOnly d)
+    {
+        var regel = RegelStunden(s, d).Where(x => x.Unterricht.HasValue).Select(x => (x.Unterricht!.Value, x.Stunde)).ToHashSet();
+        string ArtVon(Rohstunde x) => x.Art.Length > 0 ? x.Art : x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var vv) ? vv.Art ?? "" : "";
+        return x => x.Unterricht is int u && !Karte.IstVerlegungsArt(ArtVon(x)) && (regel.Count == 0 || regel.Contains((u, x.Stunde)));
+    }
+
+    /// <summary>Hat die Klasse in dieser Stunde eine Klassenabwesenheit (Absenz bzw. Teilnahme an einer Veranstaltung)?</summary>
+    private static Func<string, int, bool> KlasseAbwesend(Stand s, DateOnly d)
+    {
+        var absenzen = KlassenAbsenzen(s, d, out _);
+        return (klasse, stunde) => absenzen.Any(a => Ci.Equals(a.Element, klasse) && StundeInAbsenz(a, d, stunde));
+    }
+
+    /// <summary>
+    /// Mitklassen einer Stunde im Klassenplan: Stunden anderer Klassen zur selben Zeit mit gleichem Fach, gemeinsamer Lehrkraft und
+    /// gleichem Raum (Kopplung über getrennte Unterrichte bzw. parallel identischer Unterricht) – bei verschiedenen Unterrichten nur, wenn
+    /// beide so im Stundenplan stehen (<see cref="AmPlatz"/>; nie eine verlegte Stunde bzw. der Ursprung einer Verlegung). Entfällt die
+    /// Stunde der Mitklasse wegen einer Klassenabwesenheit, fehlt die Mitklasse: sie steht durchgestrichen ({ K = "", Alt = Klasse }) und die
+    /// eigene Stunde gilt als geändert. Entfällt sie aus einem anderen Grund, ist sie keine Mitklasse (sie hat dann keinen Unterricht).
+    /// </summary>
+    internal static Karte MitklassenSetzen(Karte k, Rohstunde r, List<Rohstunde> roh, string kurz, Func<Rohstunde, bool> amPlatz, Func<string, int, bool> klasseAbwesend)
     {
         if (!r.Unterricht.HasValue || r.Fach.Length == 0 || k.Status is "entfall" or "veranstaltung" or "vorgemerkt" or "buchung") return k;
+        var eigeneAmPlatz = amPlatz(r) && k.Verlegung is null && !k.VerlegungsZeile;
         static HashSet<string> Personen(Rohstunde x) => new(x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++")), Ci);
         // ohne eigene Lehrkraft (z. B. Kopplungszeile ohne Lehrkraft) nur die Zeilen desselben Unterrichts
         var eigene = Personen(r);
@@ -928,6 +952,10 @@ public sealed class Plandienst
             if (ReferenceEquals(x, r) || x.Stunde != r.Stunde || x.Status == "vorgemerkt" || x.Art == "KlausurLoeschen" || x.Klassen.Count == 0 || Enthaelt(x.Klassen, kurz)) continue;
             // gemeinsame Lehrkraft (parallel identischer Unterricht) bzw. Kopplungszeile desselben Unterrichts
             if (!Ci.Equals(x.Fach, r.Fach) || (!Personen(x).Overlaps(eigene) && x.Unterricht != r.Unterricht)) continue;
+            // verschiedene Unterrichte: beide stehen so im Stundenplan (keine verlegte Stunde, kein Ursprung einer Verlegung)
+            if (x.Unterricht != r.Unterricht && !(eigeneAmPlatz && amPlatz(x))) continue;
+            // Entfall: nur wegen einer Klassenabwesenheit (alle Klassen der Zeile abwesend) fehlt die Mitklasse
+            if (x.Status == "entfall" && !x.Klassen.Where(c => c.Length > 0).All(c => klasseAbwesend(c, x.Stunde))) continue;
             var xr = x.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
             if (x.Status != "entfall" && !xr.SetEquals(raeume)) continue;
             if (x.Status == "entfall" && xr.Count > 0 && raeume.Count > 0 && !xr.Overlaps(raeume)) continue;
@@ -989,7 +1017,7 @@ public sealed class Plandienst
     /// Klasse und sind alle Klassen der entfallenen Zeile abwesend, gilt die Zeile wieder als regulär; die abwesende Klasse markiert dann
     /// <see cref="KlassenAbwesenheit"/> (grüne Karte, Klasse durchgestrichen; im eigenen Plan „abwesend“).
     /// </summary>
-    internal static List<Rohstunde> TeilfreisetzungenAufheben(Stand s, DateOnly d, List<Rohstunde> roh)
+    internal static List<Rohstunde> TeilfreisetzungenAufheben(Stand s, DateOnly d, List<Rohstunde> roh, Func<Rohstunde, bool> amPlatz)
     {
         var absenzen = KlassenAbsenzen(s, d, out _);
         if (absenzen.Count == 0) return roh;
@@ -998,7 +1026,7 @@ public sealed class Plandienst
         static HashSet<string> Raeume(Rohstunde x) => x.Raeume.SelectMany(RaumListe).ToHashSet(Ci);
         static IEnumerable<string> Personen(Rohstunde x) => x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++"));
         bool Gemeinsam(Rohstunde a, Rohstunde b) => a.Stunde == b.Stunde && Ci.Equals(a.Fach, b.Fach) && Raeume(a).SetEquals(Raeume(b))
-            && ((a.Unterricht.HasValue && a.Unterricht == b.Unterricht) || Personen(a).Intersect(Personen(b), Ci).Any());
+            && ((a.Unterricht.HasValue && a.Unterricht == b.Unterricht) || (Personen(a).Intersect(Personen(b), Ci).Any() && amPlatz(a) && amPlatz(b)));
         return roh.Select(r =>
         {
             if (r.Status != "entfall" || !r.Unterricht.HasValue || r.Fach.Length == 0 || r.Klausur.HasValue || r.Klassen.Count == 0) return r;
