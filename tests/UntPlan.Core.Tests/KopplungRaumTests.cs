@@ -80,16 +80,18 @@ public class KopplungRaumTests
     [Fact]
     public void RaumaenderungJeZeileUndFuerAlleZeilen()
     {
-        // gemeinsamer Raum: Raumänderung einer Zeile im Desktop betrifft nur diese Zeile, die übrigen bleiben im gemeinsamen Raum;
-        // werden alle Zeilen geändert, sitzen alle im neuen Raum
+        // gemeinsamer Raum: wie im Vorbild zieht die ganze Kopplung mit um – jede Zeile bekommt dieselbe Raumvertretung (die
+        // Vertretungsliste fasst sie zu einer Zeile mit allen Klassen zusammen)
         var (d, tag, u, p, s) = Kopplung((int?)null);
         var r = p.Raeume[0]!.Value;
         var tp = Tagesplan.Berechnen(d, tag);
         var neu = d.Raeume.First(x => x.Id != r && !tp.Stunde(s).Any(e => e.RaumIds.Contains(x.Id))).Id;
-        Raumvertretungen.Zuordnen(d, u.Id, 0, tag, new[] { s }, neu, false, RaumKollisionsLoesung.MitKollision);
+        var vs = Raumvertretungen.Zuordnen(d, u.Id, 0, tag, new[] { s }, neu, false, RaumKollisionsLoesung.MitKollision);
+        Assert.Equal(new[] { 0, 1 }, vs.Select(v => v.ZeilenIndex).OrderBy(x => x));
+        Assert.All(vs, v => Assert.Equal((VertretungsArt.Raumvertretung, (int?)neu), (v.Art, v.VertretungsraumId)));
         var z = Zeilen(d, tag, u, s);
         Assert.Equal(new[] { neu }, z[0].RaumIds);
-        Assert.Equal(new[] { r }, z[1].RaumIds);
+        Assert.Equal(new[] { neu }, z[1].RaumIds);
         Raumvertretungen.Zuordnen(d, u.Id, 1, tag, new[] { s }, neu, false, RaumKollisionsLoesung.MitKollision);
         Assert.All(Zeilen(d, tag, u, s), e => Assert.Equal(new[] { neu }, e.RaumIds));
         // getrennte Räume: nur die geänderte Zeile zieht um

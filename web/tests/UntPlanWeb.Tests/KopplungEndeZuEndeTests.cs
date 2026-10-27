@@ -144,18 +144,8 @@ public class KopplungEndeZuEndeTests
         // bisherige Raum zeigt nur noch die Zeilen, die dort bleiben
         Pruefen(p, (form, alleZeilen) switch
         {
-            (Form.GemeinsamerRaum, false) => new()
-            {
-                ["lehrer HE"] = "geaendert L=HE K=ET13 R=B117→R200",
-                ["lehrer CS"] = "regulaer L=CS,SZ K=INF13,ING13 R=B117",
-                ["lehrer SZ"] = "regulaer L=CS,SZ K=INF13,ING13 R=B117",
-                ["klasse ET13"] = "geaendert L=HE K=ET13 R=B117→R200",
-                ["klasse INF13"] = "regulaer L=CS K=INF13+ING13 R=B117",
-                ["klasse ING13"] = "regulaer L=SZ K=ING13+INF13 R=B117",
-                ["raum B117"] = "regulaer L=CS,SZ K=INF13,ING13 R=B117",
-                ["raum R200"] = "geaendert L=HE K=ET13 R=B117→R200",
-            },
-            (Form.GemeinsamerRaum, true) => new()
+            // gemeinsamer Raum: die ganze Kopplung zieht mit um – auch wenn nur eine Zeile geändert wird (wie im Vorbild)
+            (Form.GemeinsamerRaum, _) => new()
             {
                 ["lehrer HE"] = "geaendert L=HE,CS,SZ K=ET13,INF13,ING13 R=B117→R200",
                 ["lehrer CS"] = "geaendert L=HE,CS,SZ K=ET13,INF13,ING13 R=B117→R200",

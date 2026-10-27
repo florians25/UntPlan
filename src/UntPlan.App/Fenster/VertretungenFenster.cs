@@ -865,7 +865,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var res = new List<Vertretung>();
         var sammeln = _vaSammeln.Checked;
         foreach (var g in liste.GroupBy(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va ? $"VA{va}/{v.Datum}"
-                     : sammeln && Veranstaltungsfolge(v) ? $"VE{v.VeranstaltungId}/{v.Datum}/{v.Art}/{v.Text}" : $"#{v.Id}"))
+                     : sammeln && Veranstaltungsfolge(v) ? $"VE{v.VeranstaltungId}/{v.Datum}/{v.Art}/{v.Text}"
+                     // Raumvertretung einer Kopplung im gemeinsamen Raum: eine Zeile mit allen Klassen („ET13,INF13,ING13“)
+                     : v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId is int ku && !v.Fixiert
+                         ? $"KR{ku}/{v.Datum}/{v.Stunde}/{v.RaumId}/{v.VertretungsraumId}/{string.Join(",", v.ZusatzraumIds)}/{v.RaumVerdraengt}/{v.Text}"
+                     : $"#{v.Id}"))
         {
             var zeilen = g.OrderBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
             // Entfälle/Freisetzungen einer Veranstaltung: erst ab einigen Zeilen zusammenfassen, sonst wie bisher einzeln
@@ -982,12 +986,15 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var raumNeu = ohneStriche ? "" : v.IstEntfall ? "---" : v.RaumOffen ? "???" : v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId)
             : string.Join(",", new[] { v.VertretungsraumId ?? v.RaumId }.Concat(v.ZusatzraumIds.Cast<int?>()).Where(x => x.HasValue).Select(x => Anzeige(ElementTyp.Raum, x, "NRaum")));
         string Pos(DateOnly? d, int? s) => d is DateOnly dd ? $"{dd:d.M.} / {s}" : "";
-        var stunde = gruppe is { Count: > 1 } ? $"{gruppe.Min(x => x.Stunde)}-{gruppe.Max(x => x.Stunde)}" : Vertretungsplan.StundeText(v);
+        var stunde = gruppe is { Count: > 1 } && gruppe.Min(x => x.Stunde) != gruppe.Max(x => x.Stunde)
+            ? $"{gruppe.Min(x => x.Stunde)}-{gruppe.Max(x => x.Stunde)}" : Vertretungsplan.StundeText(v);
         var u = v.UnterrichtId is int uid ? Plan(v.Datum).Unterrichte.GetValueOrDefault(uid) : null;
         // „*“ vor dem Lehrer: Teil einer Kopplung
         var lehrer = va != null ? VeranstaltungsLogik.LehrerText(D, va, v.Datum, ", ")
             : (u is { Zeilen.Count: > 1 } && v.LehrerId.HasValue ? "*" : "") + Anzeige(ElementTyp.Lehrer, v.LehrerId, "Lehrer");
-        var neueKlassen = Klassen(v.NeueKlassenIds, "Klassen");
+        // zusammengefasste Kopplungszeilen: Klassen aller Zeilen
+        var neueKlassen = Klassen(gruppe is { Count: > 1 } && v.Art == VertretungsArt.Raumvertretung
+            ? gruppe.SelectMany(x => x.NeueKlassenIds).Distinct().ToList() : v.NeueKlassenIds, "Klassen");
         // Tausch: bisheriger Unterricht dieser Position in den Klammerspalten
         var weg = _weg.GetValueOrDefault(v.Id);
         if (weg != null) lehrer = (Plan(weg.Datum).Unterrichte.GetValueOrDefault(weg.UnterrichtId ?? -1) is { Zeilen.Count: > 1 } && weg.LehrerId.HasValue ? "*" : "") + Anzeige(ElementTyp.Lehrer, weg.LehrerId, "Lehrer");
