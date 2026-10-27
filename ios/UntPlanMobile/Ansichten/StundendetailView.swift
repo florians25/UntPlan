@@ -503,13 +503,24 @@ struct StundendetailInhalt: View {
     // MARK: - Kopfblock
 
     /// „Klasse | Klasse | Gruppe“. Veranstaltung: nur die Klassen – die Lehrkräfte stehen einmal unten in ihrer Zeile.
+    @_optimize(none)
     private var titelzeile: String {
-        var teile = ohneDoppelte(karte.klassen.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k })
-        if !karte.gruppe.isEmpty { teile.append(karte.gruppe) }
-        if teile.isEmpty {
-            return istVeranstaltung ? "" : karte.titel
+        Self.titelzeileBerechnen(klassen: karte.klassen, gruppe: karte.gruppe, veranstaltung: istVeranstaltung,
+                                 titel: karte.titel)
+    }
+
+    /// Ohne Optimierung übersetzt (Absturz des Optimierers beim Archivieren, siehe `kopfzeile`).
+    @_optimize(none)
+    private static func titelzeileBerechnen(klassen: [Wert], gruppe: String, veranstaltung: Bool, titel: String) -> String {
+        var teile: [String] = []
+        for w in klassen {
+            let t = anzeigename(w)
+            if !t.isEmpty && !enthaelt(teile, t) { teile.append(t) }
         }
-        return teile.joined(separator: " | ")
+        if !gruppe.isEmpty { teile.append(gruppe) }
+        if !teile.isEmpty { return teile.joined(separator: " | ") }
+        if veranstaltung { return "" }
+        return titel
     }
 
     /// Werte ohne Leere und ohne Doppelte (Groß-/Kleinschreibung egal), Reihenfolge bleibt.
@@ -546,49 +557,69 @@ struct StundendetailInhalt: View {
 
     /// Abwesende Klassen einer Stunde, die für die übrigen Klassen stattfindet (beim Entfall leer).
     private var abwesendeKlassenSichtbar: [String] {
-        karte.istEntfall ? [] : karte.abwesendeKlassen
+        if karte.istEntfall { return [] }
+        return karte.abwesendeKlassen
     }
 
     /// Kopfzeile „Klasse | Gruppe“: eigene Klasse(n), anwesende Mitklassen als Text, fehlende bzw. abwesende Klassen
     /// durchgestrichen; Trennstrich grau. Veranstaltung ohne Klassen: keine Kopfzeile.
+    @_optimize(none)
     private var titelBausteine: [Wertbaustein] {
-        let abwesend = abwesendeKlassenSichtbar
+        Self.kopfzeile(klassen: karte.klassen, mitklassen: karte.mitklassen, gruppe: karte.gruppe,
+                       abwesend: abwesendeKlassenSichtbar, titelzeile: titelzeile)
+    }
+
+    /// Baut die Kopfzeile auf. Ohne Optimierung übersetzt: der Optimierer (CopyPropagation) stürzte beim Archivieren an
+    /// dieser Funktion ab; sie läuft nur einmal je Detailansicht, die Geschwindigkeit spielt keine Rolle.
+    @_optimize(none)
+    private static func kopfzeile(klassen: [Wert], mitklassen: [Wert], gruppe: String, abwesend: [String],
+                                  titelzeile: String) -> [Wertbaustein] {
         var werte: [Wertbaustein] = []
-        if karte.mitklassen.isEmpty && abwesend.isEmpty {
+        if mitklassen.isEmpty && abwesend.isEmpty {
             if !titelzeile.isEmpty {
-                werte = titelzeile.components(separatedBy: " | ").map { Wertbaustein.text($0) }
+                for teil in titelzeile.components(separatedBy: " | ") {
+                    werte.append(.text(teil))
+                }
             }
         } else {
             var gesehen: [String] = []
-            for w in karte.klassen {
-                let t = w.k.isEmpty ? (w.alt ?? "") : w.k
-                if t.isEmpty || gesehen.contains(where: { $0.caseInsensitiveCompare(t) == .orderedSame }) { continue }
+            for w in klassen {
+                let t = anzeigename(w)
+                if t.isEmpty || enthaelt(gesehen, t) { continue }
                 gesehen.append(t)
-                let fehlt = abwesend.contains { $0.caseInsensitiveCompare(t) == .orderedSame }
-                werte.append(fehlt ? .weg(t) : .text(t))
+                if enthaelt(abwesend, t) {
+                    werte.append(.weg(t))
+                } else {
+                    werte.append(.text(t))
+                }
             }
-            for w in karte.mitklassen {
+            for w in mitklassen {
                 if !w.k.isEmpty {
                     werte.append(.text(w.k))
                 } else if let alt = w.alt, !alt.isEmpty {
                     werte.append(.weg(alt))
                 }
             }
-            if !karte.gruppe.isEmpty { werte.append(.text(karte.gruppe)) }
+            if !gruppe.isEmpty { werte.append(.text(gruppe)) }
         }
-        return Self.mitTrennern(werte)
-    }
-
-    /// Setzt zwischen je zwei Werte einen grauen Trennstrich (eigene Funktion statt verschachtelter Hilfsfunktion –
-    /// letztere brachte den Optimierer im Release-Build zum Absturz).
-    private static func mitTrennern(_ werte: [Wertbaustein]) -> [Wertbaustein] {
         var teile: [Wertbaustein] = []
-        teile.reserveCapacity(werte.count * 2)
-        for (i, w) in werte.enumerated() {
-            if i > 0 { teile.append(.trenner) }
+        for w in werte {
+            if !teile.isEmpty { teile.append(.trenner) }
             teile.append(w)
         }
         return teile
+    }
+
+    @_optimize(none)
+    private static func anzeigename(_ w: Wert) -> String {
+        if !w.k.isEmpty { return w.k }
+        return w.alt ?? ""
+    }
+
+    @_optimize(none)
+    private static func enthaelt(_ liste: [String], _ wert: String) -> Bool {
+        for e in liste where e.caseInsensitiveCompare(wert) == .orderedSame { return true }
+        return false
     }
 
     /// Kopfblock genau nach Vorlage (Original 117/118): „Klasse | Gruppe“ und Fach groß (22 pt, schwarz), Raum und
