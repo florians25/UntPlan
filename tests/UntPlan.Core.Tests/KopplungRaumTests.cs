@@ -104,6 +104,29 @@ public class KopplungRaumTests
         Assert.Equal(new[] { p2.Raeume[1]!.Value }, z2[1].RaumIds);
     }
 
+    [Fact]
+    public void AlteRaumvertretungEinerZeileZiehtBeimAbgleichDieKopplungNach()
+    {
+        // ältere Datei: nur die erste Kopplungszeile hat eine Raumvertretung, die zweite sitzt noch im gemeinsamen Raum
+        var (d, tag, u, p, s) = Kopplung((int?)null);
+        var r = p.Raeume[0]!.Value;
+        var tp = Tagesplan.Berechnen(d, tag);
+        var neu = d.Raeume.First(x => x.Id != r && !tp.Stunde(s).Any(e => e.RaumIds.Contains(x.Id))).Id;
+        var z0 = u.Zeilen[0];
+        d.Vertretungen.Add(new Vertretung
+        {
+            Id = d.NeueId(), Datum = tag, Stunde = s, UnterrichtId = u.Id, ZeilenIndex = 0, LehrerId = z0.LehrerId, VertreterId = z0.LehrerId, FachId = z0.FachId,
+            KlassenIds = z0.KlassenIds.ToList(), RaumId = r, VertretungsraumId = neu, Art = VertretungsArt.Raumvertretung, Quelle = VertretungsQuelle.Manuell, Bearbeitet = true,
+        });
+        Assert.Equal(new[] { r }, Zeilen(d, tag, u, s)[1].RaumIds);
+        Vertretungen.Aktualisieren(d, tag);
+        Assert.All(Zeilen(d, tag, u, s), e => Assert.Equal(new[] { neu }, e.RaumIds));
+        Assert.Equal(2, d.Vertretungen.Count(v => v.Datum == tag && v.UnterrichtId == u.Id && v.Stunde == s && v.Art == VertretungsArt.Raumvertretung));
+        // erneuter Abgleich legt nichts doppelt an
+        Vertretungen.Aktualisieren(d, tag);
+        Assert.Equal(2, d.Vertretungen.Count(v => v.Datum == tag && v.UnterrichtId == u.Id && v.Stunde == s));
+    }
+
     private static WebRueckmeldung Meldung(Schuldatei d, DateOnly tag, int stunde, Unterricht u, IEnumerable<int> klassen, IEnumerable<int> raeume, bool mitNummer) => new()
     {
         Id = "rb-" + Guid.NewGuid().ToString("N")[..6], Typ = WebRueckmeldungsTypen.Raumbuchung, Absender = "Web", Lehrer = d.Lehrer.First(l => l.Id == u.Zeilen[0].LehrerId).Kurzname,

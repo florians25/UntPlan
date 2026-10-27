@@ -76,6 +76,10 @@ public sealed class Dokument
         var daten = JsonSerializer.Deserialize<Schuldatei>(json, JsonOptionen) ?? throw new InvalidDataException("Leere Datei");
         if (daten.Version > Schuldatei.AktuelleVersion)
             throw new InvalidDataException("Die Datei wurde mit einer neueren UntPlan-Version erstellt.");
+        // ältere Dateien: Raumvertretung nur einer Kopplungszeile – die übrigen Zeilen im gemeinsamen Raum ziehen mit um
+        foreach (var t in daten.Vertretungen.Where(v => v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue)
+                     .Select(v => v.Datum).Distinct().ToList())
+            Vertretungsplanung.Raumvertretungen.KopplungAngleichen(daten, t);
         return new Dokument(daten, pfad);
     }
 

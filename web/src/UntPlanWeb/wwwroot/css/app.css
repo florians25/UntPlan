@@ -609,11 +609,12 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .mk-plus::before { width: 8px; height: 1.8px; }
 .mk-plus::after { width: 1.8px; height: 8px; }
 .mk-kreis { background: var(--u-gelb); border-radius: 50%; }
-.mk-dreieck { width: 13px; height: 12px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 3.5 23.5 21H2.5Z' fill='%23f03e3e' stroke='%23f03e3e' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain; }
+.mk-dreieck { width: 13px; height: 12px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain; }
 
 /* Zustände (mit schwebendem Schatten wie im Original) */
 .std.geaendert, .std.offen, .std.buchung { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
-.std.entfall, .std.abwesend { background: var(--u-rot-hell); box-shadow: var(--u-schatten-karte); }
+/* Entfall wie im Original (Plan-Vorlage nachgemessen): Fläche #ffe5e5, Schrift durchgestrichen, rotes Dreieck #ff4040 */
+.std.entfall, .std.abwesend { background: #ffe5e5; box-shadow: var(--u-schatten-karte); }
 .std.entfall .z1, .std.entfall .z2, .std.abwesend .z1, .std.abwesend .z2, .std.entfall .zt, .std.abwesend .zt { text-decoration: line-through; text-decoration-thickness: .75px; }
 .std.klausur { background: var(--u-gelb-hell); box-shadow: var(--u-schatten-karte); }
 .std.bereitschaft { background: #f3f5f7; outline: 1px dashed #8d99a3; outline-offset: -1px; }
@@ -1551,8 +1552,9 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 .u-nav-punkt { font-size: .9rem; font-weight: 600; min-height: 50px; color: #24323d; }
 .u-nav-unter .u-nav-punkt { font-size: .875rem; }
 .u-nav-kompakt .u-nav-punkt { font-weight: 600; }
-.std .z1 { font-size: 13px; font-weight: 600; color: #24323d; }
-.std .z2 { font-size: 12px; font-weight: 400; color: #414d55; }
+/* Zeilenabstand wie in der Plan-Vorlage: Kopf und Zeilen je 15px (Versalien 118/133/148 px bei Kartenoberkante 108) */
+.std .z1 { font-size: 13px; font-weight: 600; color: #24323d; line-height: 15px; }
+.std .z2 { font-size: 12px; font-weight: 400; color: #414d55; line-height: 15px; }
 .sd-titel h2 { font-size: 1.3rem; font-weight: 600; }
 .sd-zeile { font-size: .875rem; }
 .sd-reiter button { font-size: .95rem; font-weight: 600; }
@@ -1897,12 +1899,14 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 @media (max-width: 575.98px) { .ic-panel { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); } }
 /* Stundendetails wie im Original: bei Entfall Kopf hellgrau, darunter roter Balken „ENTFÄLLT“ (bündig mit dem Inhalt);
    Prüfung/Veranstaltung als dezente graue Kapsel im Kopf; „Abwesende Schüler*innen“ als Tabelle im neuen Design */
-.sd-kopf.grau { background: #dfe2e8; padding-bottom: 16px; }
-.sd-entfall-leiste { background: #f00; color: #fff; font-size: 1rem; font-weight: 500; letter-spacing: .02em; line-height: 22px; padding: 5px 16px; text-align: center; }
+/* Vorlage: roter Balken ganz oben (#ff4040, 28px, „ENTFÄLLT“ fett weiß auf Linie mit dem Titel), Kopf samt Reitern #dcdfe5 */
+.sd-kopf.grau { background: #dcdfe5; padding-bottom: 16px; }
+.sd-reiter.grau { background: #dcdfe5; }
+.sd-entfall-leiste { background: #ff4040; color: #fff; font-size: .875rem; font-weight: 700; letter-spacing: .01em; line-height: 28px; padding: 0 16px; text-align: center; }
 /* Leiste durchgängig über die volle Breite; der Text „ENTFÄLLT“ steht linksbündig auf Linie mit Kopf und Inhalt (Einzug 166px wie .sd-kopf/.sd-rumpf) */
 .modal .sd-entfall-leiste { margin: 0; border-radius: 0; text-align: left; padding-left: 166px; padding-right: 28px; }
 @media (max-width: 991.98px) { .modal .sd-entfall-leiste { padding-left: 16px; padding-right: 16px; } }
-.sd-kopf.grau + .sd-entfall-leiste + .sd-reiter { margin-top: 2px; }
+.sd-kopf.grau + .sd-reiter.grau { margin-top: 0; }
 .sd-statuspille { display: inline-block; margin-left: .75rem; padding: 1px 10px; border-radius: 999px; background: #e6e9ed; color: #4a5662; font-size: .8125rem; font-weight: 400; line-height: 20px; vertical-align: 1px; }
 .sd-kopf.grau .sd-statuspille { background: #fff; }
 .sd-strich { color: #b8c1c9; margin: 0 .2rem; }
