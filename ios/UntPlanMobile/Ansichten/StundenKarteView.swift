@@ -76,8 +76,8 @@ struct KachelView: View {
             inhalt(a)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: a.radius, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: a.radius, style: .continuous))
+        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: a.radius, style: .circular))
+        .clipShape(RoundedRectangle(cornerRadius: a.radius, style: .circular))
         // Die ganze Fläche ist antippbar – auch bei durchsichtigen Karten (vergangen, abgegeben, Bereitschaft)
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
@@ -125,10 +125,10 @@ struct KachelView: View {
                 .padding(0.35)
         } else if let rand = a.rand {
             if a.gestrichelt {
-                RoundedRectangle(cornerRadius: a.radius, style: .continuous)
+                RoundedRectangle(cornerRadius: a.radius, style: .circular)
                     .strokeBorder(rand, style: StrokeStyle(lineWidth: a.randBreite, dash: [5, 3]))
             } else {
-                RoundedRectangle(cornerRadius: a.radius, style: .continuous)
+                RoundedRectangle(cornerRadius: a.radius, style: .circular)
                     .strokeBorder(rand, lineWidth: a.randBreite)
             }
         }
@@ -488,8 +488,9 @@ struct Kachelaussehen {
     var rand: Color? = nil
     var randBreite: CGFloat = 2
     var gestrichelt = false
-    /// Ecken der Stundenkarten: an der Vorlage (hell, 3 px/pt) nachgemessen – Rundung ≈ 1,5× so tief wie mit 3 pt
-    var radius: CGFloat = 4.5
+    /// Ecken der Stundenkarten: an der Vorlage (hell, 3 px/pt) nachgemessen – kreisförmige Rundung mit 3,5 pt (die weich
+    /// auslaufende iOS-Ecke lief mit 4,5 pt zu lang aus, mit 3 pt war sie zu flach)
+    var radius: CGFloat = 3.5
     var schatten: Schatten = .voll
     var ecken = false
     var text: Color = Farben.karteText
@@ -629,7 +630,7 @@ struct Kachelaussehen {
 /// Feine Eckklammern (.corners): die Stunde läuft, aber ohne die betrachtete Lehrkraft.
 struct Eckklammern: Shape {
     var laenge: CGFloat = 13
-    var radius: CGFloat = 4
+    var radius: CGFloat = 3.5
 
     func path(in r: CGRect) -> Path {
         var p = Path()
@@ -671,7 +672,7 @@ struct Kartenschatten: View {
     let voll: Bool
 
     var body: some View {
-        let form = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let form = RoundedRectangle(cornerRadius: radius, style: .circular)
         ZStack {
             if voll {
                 form.fill(Color.white)
