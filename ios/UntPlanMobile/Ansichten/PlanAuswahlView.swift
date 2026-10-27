@@ -57,6 +57,15 @@ struct PlanAuswahlView: View {
 
     private var imBearbeiten: Bool { bearbeiten == .active }
 
+    @Environment(\.randblattUnten) private var untenFrei
+
+    /// Abstand des Suchfelds zur Unterkante des Inhalts: Vorlage a59416d6 28 pt über dem Bildschirmrand (also 6 pt in den
+    /// Bereich des Home-Indikators hinein, negativ); bei offener Tastatur 8 pt darüber.
+    private var suchfeldAbstand: CGFloat {
+        if untenFrei > 60 { return 8 }
+        return 28 - untenFrei
+    }
+
     /// Schüler*innen und Eltern sehen keine Pläne von Lehrkräften. Klassen (und Räume) zeigt die Auswahl ihnen genau
     /// dann, wenn der Server sie in /api/app/elemente liefert (die Schule kann andere Klassenpläne für Schüler*innen
     /// freigeben); leere Listen blenden die Planart für sie aus.
@@ -95,8 +104,8 @@ struct PlanAuswahlView: View {
             .overlay(alignment: .bottom) {
                 Plansuche(text: $suche)
                     .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
-                    .ignoresSafeArea(.container, edges: .bottom)
+                    .padding(.bottom, suchfeldAbstand >= 0 ? suchfeldAbstand : 0)
+                    .offset(y: suchfeldAbstand < 0 ? -suchfeldAbstand : 0)
             }
             .scrollDismissesKeyboard(.immediately)
             .toolbar(.hidden, for: .navigationBar)

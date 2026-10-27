@@ -1064,8 +1064,10 @@ struct HausaufgabenSeite: View {
                 Section {
                     ForEach(abschnitt.eintraege) { ha in
                         Button {
-                            if bearbeitbar && eigen(ha) {
-                                formular = HausaufgabeFormular.Vorlage(eintrag: ha, stundenDatum: daten.karte.datum)
+                            // Bearbeiten (auch erledigt setzen) aus der Stunde, in der sie aufgegeben wurde, und aus der
+                            // Stunde, in der sie fällig ist (der Server prüft beides); löschen nur in der eigenen Stunde
+                            if bearbeitbar {
+                                formular = HausaufgabeFormular.Vorlage(eintrag: ha, stundenDatum: ha.datum.isEmpty ? daten.karte.datum : ha.datum)
                             } else {
                                 ansicht = ha
                             }

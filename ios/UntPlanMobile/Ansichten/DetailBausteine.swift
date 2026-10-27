@@ -98,6 +98,10 @@ private struct UnterblattSchluessel: EnvironmentKey {
     static let defaultValue: Bool = false
 }
 
+private struct RandblattUntenSchluessel: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
 private struct ElternSchrumpfenSchluessel: EnvironmentKey {
     static let defaultValue: (@MainActor (Bool) -> Void)? = nil
 }
@@ -119,6 +123,12 @@ extension EnvironmentValues {
     var elternSchrumpfen: (@MainActor (Bool) -> Void)? {
         get { self[ElternSchrumpfenSchluessel.self] }
         set { self[ElternSchrumpfenSchluessel.self] = newValue }
+    }
+
+    /// Unterer Sicherheitsbereich unter einem randlosen Blatt (Home-Indikator bzw. Tastatur); 0 außerhalb.
+    var randblattUnten: CGFloat {
+        get { self[RandblattUntenSchluessel.self] }
+        set { self[RandblattUntenSchluessel.self] = newValue }
     }
 
     /// Wurzel eines über den Stundendetails geöffneten Unterblatts (Lehrstoff, Hausaufgaben …): X statt Zurück,
@@ -276,10 +286,16 @@ struct Randblatt<Inhalt: View>: View {
                         withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { kindOffen = offen }
                     })
                     .frame(maxWidth: .infinity)
+                    .environment(\.randblattUnten, geo.safeAreaInsets.bottom)
                     .frame(height: innenHoehe, alignment: .top)
-                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: Detailblatt.iPhoneRadius, bottomLeadingRadius: 0,
-                                                      bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.iPhoneRadius,
-                                                      style: .continuous))
+                    // Oben die runden Ecken; unten darf Inhalt bis an den Bildschirmrand reichen (Suchfeld der Planauswahl
+                    // liegt wie im Original im Bereich über dem Home-Indikator)
+                    .mask {
+                        UnevenRoundedRectangle(topLeadingRadius: Detailblatt.iPhoneRadius, bottomLeadingRadius: 0,
+                                               bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.iPhoneRadius,
+                                               style: .continuous)
+                            .padding(.bottom, -max(geo.safeAreaInsets.bottom, 0))
+                    }
                     .background(alignment: .top) {
                         UnevenRoundedRectangle(topLeadingRadius: Detailblatt.iPhoneRadius, bottomLeadingRadius: 0,
                                                bottomTrailingRadius: 0, topTrailingRadius: Detailblatt.iPhoneRadius,

@@ -23,9 +23,16 @@ public sealed record Hausaufgabe(int Id, string Datum, int Stunde, int Unterrich
 /// </summary>
 public sealed partial class Klassenbuchdienst
 {
-    private static Hausaufgabe LesenHausaufgabe(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), Math.Abs(r.Zahl("stunde")), r.Zahl("unterricht"),
+    private Hausaufgabe LesenHausaufgabe(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), Math.Abs(r.Zahl("stunde")), r.Zahl("unterricht"),
         JsonSerializer.Deserialize<List<string>>(r.Text("klassen")) ?? new(), r.Text("fach"), r.Text("lehrer"), r.Text("text"), r.TextOderNull("faellig"),
-        r.Text("bemerkung"), r.Wahr("erledigt"), r.Text("erstellt")) { Einzelstunde = r.Zahl("stunde") < 0 ? -r.Zahl("stunde") : null };
+        r.Text("bemerkung"), r.Wahr("erledigt") || Abgelaufen(r.TextOderNull("faellig")), r.Text("erstellt")) { Einzelstunde = r.Zahl("stunde") < 0 ? -r.Zahl("stunde") : null };
+
+    /// <summary>
+    /// Hausaufgaben gelten nach ihrem Fälligkeitstag automatisch als erledigt (ohne Schreibzugriff, nur beim Lesen);
+    /// ein ausdrücklich gesetztes „erledigt“ bleibt ohnehin bestehen.
+    /// </summary>
+    private bool Abgelaufen(string? faellig) =>
+        DateOnly.TryParse(faellig, out var f) && f < _uhr.Heute;
 
     /// <summary>Hausaufgaben, die in einer Stunde (Block Von–Bis) aufgegeben wurden.</summary>
     public List<Hausaufgabe> HausaufgabenDerStunde(DateOnly d, int von, int bis, int unterricht) =>
@@ -71,7 +78,7 @@ public sealed partial class Klassenbuchdienst
             Db.P("@v", von), Db.P("@b", bis));
         var bekannt = liste.Select(h => (h.Datum, h.Unterricht, h.Stunde)).ToHashSet();
         var alt = Zeitraum(von, bis).Where(e => e.Hausaufgabe.Length > 0 && !bekannt.Contains((e.Datum, e.Unterricht, e.Stunde)))
-            .Select(e => new Hausaufgabe(0, e.Datum, e.Stunde, e.Unterricht, e.Klassen, e.Fach, e.Lehrer, e.Hausaufgabe, e.Faellig, "", false, e.Geaendert));
+            .Select(e => new Hausaufgabe(0, e.Datum, e.Stunde, e.Unterricht, e.Klassen, e.Fach, e.Lehrer, e.Hausaufgabe, e.Faellig, "", Abgelaufen(e.Faellig), e.Geaendert));
         return liste.Concat(alt)
             .Where(h => (string.IsNullOrEmpty(klasse) || h.Klassen.Contains(klasse, Ci)) && (string.IsNullOrEmpty(lehrer) || Ci.Equals(h.Lehrer, lehrer)))
             .OrderBy(h => h.Datum, StringComparer.Ordinal).ThenBy(h => h.Stunde).ThenBy(h => h.Id).ToList();
@@ -108,17 +115,31 @@ public sealed partial class Klassenbuchdienst
         return _db.Einzel("SELECT * FROM hausaufgaben_eintraege WHERE id = @i", LesenHausaufgabe, Db.P("@i", id))!;
     }
 
-    private Hausaufgabe EigeneHausaufgabe(Benutzer b, Stand s, int id)
+    /// <summary>
+    /// Hausaufgabe zum Bearbeiten: aus einer eigenen Stunde (aufgegeben) – mit <paramref name="auchFaellig"/> auch aus der
+    /// Stunde, in der sie fällig ist (Lehrkraft dieses Fachs und dieser Klasse am Fälligkeitstag).
+    /// </summary>
+    private Hausaufgabe EigeneHausaufgabe(Benutzer b, Stand s, int id, bool auchFaellig = false)
     {
         RechtePruefung.Verlangen(b, Recht.HausaufgabenEintragen);
         var h = _db.Einzel("SELECT * FROM hausaufgaben_eintraege WHERE id = @i", LesenHausaufgabe, Db.P("@i", id)) ?? throw new ArgumentException("Unbekannte Hausaufgabe.");
-        if (!DarfSchreiben(b, s, DateOnly.Parse(h.Datum), h.Stunde, h.Unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
+        if (!DarfSchreiben(b, s, DateOnly.Parse(h.Datum), h.Stunde, h.Unterricht) && !(auchFaellig && DarfFaelligeStunde(b, s, h)))
+            throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         return h;
+    }
+
+    /// <summary>Unterrichtet die Lehrkraft am Fälligkeitstag eine Stunde desselben Fachs in einer der Klassen der Hausaufgabe?</summary>
+    private bool DarfFaelligeStunde(Benutzer b, Stand s, Hausaufgabe h)
+    {
+        if (!DateOnly.TryParse(h.Faellig, out var f)) return false;
+        if (b.LehrerKuerzel is not string l || !Rechtedienst.Darf(b, Recht.KlassenbuchEigene)) return false;
+        return _plan.Karten(s, f, Elementtyp.Lehrer, l).Any(k => Ci.Equals(k.Fach, h.Fach) && k.Klassen.Any(x => h.Klassen.Contains(x.K, Ci))
+            && k.Status is not ("entfall" or "abwesend"));
     }
 
     public Hausaufgabe HausaufgabeAendern(Benutzer b, Stand s, int id, string? text, DateOnly? faellig, string? bemerkung, bool? erledigt)
     {
-        var h = EigeneHausaufgabe(b, s, id);
+        var h = EigeneHausaufgabe(b, s, id, auchFaellig: true);
         if (text is not null && string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte die Hausaufgabe eingeben.");
         if (faellig is DateOnly f && f < DateOnly.Parse(h.Datum)) throw new ArgumentException("Die Hausaufgabe kann nicht vor der Stunde fällig sein.");
         _db.Ausfuehren("UPDATE hausaufgaben_eintraege SET text = COALESCE(@t, text), faellig = COALESCE(@f, faellig), bemerkung = COALESCE(@bem, bemerkung), erledigt = COALESCE(@e, erledigt) WHERE id = @i",
