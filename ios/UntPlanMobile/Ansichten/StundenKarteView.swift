@@ -488,7 +488,8 @@ struct Kachelaussehen {
     var rand: Color? = nil
     var randBreite: CGFloat = 2
     var gestrichelt = false
-    var radius: CGFloat = 3
+    /// Ecken der Stundenkarten: an der Vorlage (hell, 3 px/pt) nachgemessen – Rundung ≈ 1,5× so tief wie mit 3 pt
+    var radius: CGFloat = 4.5
     var schatten: Schatten = .voll
     var ecken = false
     var text: Color = Farben.karteText

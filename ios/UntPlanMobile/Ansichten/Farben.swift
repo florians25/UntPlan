@@ -102,7 +102,7 @@ enum Farben {
     static let kopfText = Color(hell: 0x5E7382, dunkel: 0xBEC8CF)
     static let kopfText2 = Color(hell: 0x5E7382, dunkel: 0xBEC8CF)
     static let rasterOben = Color(hell: 0xF3F5F7, dunkel: 0x1C1C1E)
-    static let rasterUnten = Color(hell: 0xE4E6EA, dunkel: 0x1C1C1E)
+    static let rasterUnten = Color(hell: 0xE1E4E8, dunkel: 0x1C1C1E)
 
     // Karten im Wochenraster
     static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7383)
