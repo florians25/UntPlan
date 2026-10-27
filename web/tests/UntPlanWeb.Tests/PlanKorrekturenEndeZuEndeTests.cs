@@ -228,7 +228,7 @@ public class PlanKorrekturenEndeZuEndeTests
             {
                 ["lehrer HE"] = ganz, ["klasse ET13"] = ganz, ["klasse INF13"] = ganz, ["raum R200"] = ganz, ["raum B117"] = "–",
             },
-            (Form.Mitklassen or Form.KopplungJeKlasse, false) => new()
+            (Form.Mitklassen, false) => new()
             {
                 // nur die Gruppe von ET13 zieht um: zwei Blöcke nebeneinander, je wie eine Einzelstunde
                 ["lehrer HE"] = "geaendert L=HE K=ET13 R=B117→R200  ||  regulaer L=HE K=INF13 R=B117",
@@ -237,22 +237,13 @@ public class PlanKorrekturenEndeZuEndeTests
                 ["raum B117"] = "regulaer L=HE K=INF13 R=B117",
                 ["raum R200"] = "geaendert L=HE K=ET13 R=B117→R200",
             },
-            (Form.Mitklassen or Form.KopplungJeKlasse, true) => new()
+            // Kopplung im gemeinsamen Raum: die ganze Kopplung zieht mit um – auch wenn nur eine Zeile geändert wird
+            (Form.Mitklassen, true) or (Form.KopplungJeKlasse, _) => new()
             {
                 ["lehrer HE"] = ganz,
                 ["klasse ET13"] = "geaendert L=HE K=ET13+INF13 R=B117→R200",
                 ["klasse INF13"] = "geaendert L=HE K=INF13+ET13 R=B117→R200",
                 ["raum B117"] = "–",
-                ["raum R200"] = ganz,
-            },
-            (Form.KopplungZweiteLehrkraft, false) => new()
-            {
-                // HE zieht mit beiden Klassen um, CS bleibt in B117: zwei Blöcke, kein „R200 (statt B117), B117“ auf einer Karte
-                ["lehrer HE"] = ganz,
-                ["lehrer CS"] = "regulaer L=CS K=ET13,INF13 R=B117",
-                ["klasse ET13"] = ganz + "  ||  regulaer L=CS K=ET13,INF13 R=B117",
-                ["klasse INF13"] = ganz + "  ||  regulaer L=CS K=ET13,INF13 R=B117",
-                ["raum B117"] = "regulaer L=CS K=ET13,INF13 R=B117",
                 ["raum R200"] = ganz,
             },
             _ => new()

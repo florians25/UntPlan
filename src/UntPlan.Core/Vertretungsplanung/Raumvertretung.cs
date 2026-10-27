@@ -220,6 +220,17 @@ public static class Raumvertretungen
         var v = ZeileFuer(d, tp, e, benutzer);
         RaumSetzen(v, raumId, zusaetzlich, bisher, benutzer);
         res.Add(v);
+        // Kopplung im gemeinsamen Raum: die übrigen Zeilen desselben Unterrichts ziehen mit um (wie im Vorbild – in der
+        // Vertretungsliste eine Zeile mit allen Klassen); Zeilen in eigenen Räumen bzw. mit anderer Vertretung bleiben
+        if (e.Regel is { } er && bisher is int gemeinsam)
+            foreach (var k in tp.Stunde(e.Stunde).Where(x => x != e && x.Findetstatt && x.Regel is { } kr && kr.Unterricht.Id == er.Unterricht.Id
+                         && kr.ZeilenIndex != er.ZeilenIndex && x.RaumIds.Count > 0 && x.RaumIds[0] == gemeinsam
+                         && (x.Vertretung is null || x.Vertretung.Art == VertretungsArt.Raumvertretung)).ToList())
+            {
+                var w = ZeileFuer(d, tp, k, benutzer);
+                RaumSetzen(w, raumId, zusaetzlich, gemeinsam, benutzer);
+                res.Add(w);
+            }
         foreach (var h in hindernisse)
         {
             var w = h.Vertretung ?? (h.Regel != null ? ZeileFuer(d, tp, h, benutzer) : null);
