@@ -88,23 +88,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _grid.MouseDown += GridMouseDown;
         _grid.MouseMove += GridMouseMove;
         _grid.ColumnDisplayIndexChanged += (_, _) => { if (!_laden) AnsichtVeraendert(); };
-        _grid.CellMouseClick += (_, e) =>
-        {
-            if (e.Button == MouseButtons.Right && e.RowIndex >= 0) Kontextmenue(e);
-            // Aufklappdreieck in Element-Spalten (z. B. Klassenlehrer): Auswahlliste, bei Listen mit Strg mehrere wählen
-            else if (e.Button == MouseButtons.Left && IstAuswahlZelle(e.RowIndex, e.ColumnIndex) && Steuerelemente.MehrfachAuswahl.AufPfeil(_grid, e))
-                AuswahlZeigen(e.RowIndex, e.ColumnIndex);
-        };
-        _grid.KeyDown += (_, e) =>
-        {
-            if (_grid.IsCurrentCellInEditMode) return;
-            if (e.KeyCode == Keys.Delete) { ZellenLeeren(); e.Handled = true; }
-            else if ((e.KeyCode == Keys.F4 || (e.Alt && e.KeyCode == Keys.Down)) && _grid.CurrentCell is { } c && IstAuswahlZelle(c.RowIndex, c.ColumnIndex))
-            {
-                AuswahlZeigen(c.RowIndex, c.ColumnIndex);
-                e.Handled = true;
-            }
-        };
+        _grid.CellMouseClick += (_, e) => { if (e.Button == MouseButtons.Right && e.RowIndex >= 0) Kontextmenue(e); };
+        _grid.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZellenLeeren(); e.Handled = true; } };
 
         _formular.AllowDrop = true;
         _formular.DragOver += (_, e) => e.Effect = (e.Data!.GetData(DataFormats.Text) as string)?.StartsWith("aus:") == true ? DragDropEffects.Move : DragDropEffects.None;
@@ -774,45 +759,12 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
 
     private IEnumerable<Kommentar> KommentareFuer(Element e, string feld) => D.Kommentare.Where(k => k.ElementTyp == _typ && k.ElementId == e.Id && k.Feld == feld);
 
-    /// <summary>Editierbare Zelle eines Elementfelds (einzelnes Element oder Liste, z. B. Klassenlehrer) in einer Elementzeile.</summary>
-    private bool IstAuswahlZelle(int zeile, int spalte) =>
-        zeile >= 0 && spalte >= 0 && zeile < _grid.Rows.Count && _grid.Rows[zeile].Tag is Element
-        && _grid.Columns[spalte].Tag is Feld { Art: FeldArt.Element or FeldArt.ElementListe, Editierbar: true } && !_grid.Columns[spalte].ReadOnly;
-
-    /// <summary>
-    /// Auswahlliste unter der Zelle (Kurz- und Langname): bei Listenfeldern wie „Klassenlehrer“ mit Strg bzw. Umschalt mehrere
-    /// wählen – das Ergebnis steht kommagetrennt in der Zelle (Eintippen „PIN,EGB“ geht weiterhin).
-    /// </summary>
-    private void AuswahlZeigen(int zeile, int spalte)
-    {
-        if (!IstAuswahlZelle(zeile, spalte)) return;
-        var f = (Feld)_grid.Columns[spalte].Tag!;
-        var eintraege = Stammdaten.Sortiert(D, f.RefTyp).Where(x => !x.Ignorieren)
-            .Select(x => new Steuerelemente.MehrfachAuswahl.Eintrag(x.Kurzname, x is Lehrer l ? l.VollerName : x.Langname)).ToList();
-        var aktuell = (_grid[spalte, zeile].Value?.ToString() ?? "").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        var mehrfach = f.Art == FeldArt.ElementListe;
-        Steuerelemente.MehrfachAuswahl.Zeigen(_grid, zeile, spalte, eintraege, aktuell, mehrfach, gewaehlt =>
-        {
-            if (IsDisposed || zeile >= _grid.Rows.Count) return;
-            // bisherige Reihenfolge behalten, neu gewählte hinten anhängen
-            var wert = aktuell.Where(a => gewaehlt.Contains(a, StringComparer.OrdinalIgnoreCase))
-                .Concat(gewaehlt.Where(g => !aktuell.Contains(g, StringComparer.OrdinalIgnoreCase)));
-            _grid[spalte, zeile].Value = mehrfach ? string.Join(",", wert) : gewaehlt.FirstOrDefault() ?? "";
-            CellEndEdit(this, new DataGridViewCellEventArgs(spalte, zeile));
-        });
-    }
-
     private void CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
     {
         if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Rows[e.RowIndex].Tag is not Element el) return;
         var feld = _grid.Columns[e.ColumnIndex].Name;
         var k = KommentareFuer(el, feld).FirstOrDefault();
-        var aktuelleZelle = _grid.CurrentCell is { } cz && cz.RowIndex == e.RowIndex && cz.ColumnIndex == e.ColumnIndex && !_grid.IsCurrentCellInEditMode;
-        if (k is null)
-        {
-            if (aktuelleZelle && IstAuswahlZelle(e.RowIndex, e.ColumnIndex)) Steuerelemente.MehrfachAuswahl.PfeilZeichnen(e);
-            return;
-        }
+        if (k is null) return;
         e.Paint(e.CellBounds, DataGridViewPaintParts.All);
         var farbe = Ui.Farbe(D.KommentarKategorien.FirstOrDefault(x => x.Nr == k.Kategorie)?.Farbe ?? 0, Color.Red);
         using var b = new SolidBrush(farbe);

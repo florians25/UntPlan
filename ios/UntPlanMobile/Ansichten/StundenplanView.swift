@@ -226,7 +226,7 @@ struct StundenplanView: View {
             // Planauswahl, Info und Hilfe: am iPhone dasselbe randlose 90-%-Blatt wie die Stundendetails.
             // Ein Planwechsel ändert nur `auswahl` – `datum` bleibt, man bleibt also in der angezeigten Woche (bzw. an den
             // angezeigten Tagen) und springt nicht zur heutigen Woche.
-            .blattPraesentation(isPresented: $zeigeAuswahl, breit: istBreit) {
+            .blattPraesentation(isPresented: $zeigeAuswahl, breit: istBreit, art: .detail) {
                 PlanAuswahlView(auswahl: $auswahl)
                     .environmentObject(zustand)
                     .environmentObject(favoriten)
