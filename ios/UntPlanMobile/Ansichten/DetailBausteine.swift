@@ -19,6 +19,17 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 
 // MARK: - Blatt der Stundendetails
 
+/// Systemblatt mit fester Größe auf dem iPad (iOS 18): unabhängig vom Inhalt und von der Tastatur.
+@available(iOS 18.0, *)
+struct FestesDetailblatt: PresentationSizing {
+    let breite: CGFloat
+    let hoehe: CGFloat
+
+    func proposedSize(for root: PresentationSizingRoot, context: PresentationSizingContext) -> ProposedViewSize {
+        ProposedViewSize(width: breite, height: hoehe)
+    }
+}
+
 /// Feste Maße des Detailblatts auf dem iPad (wie in der Vorlage: mittig über dem Plan, breiter als ein Formblatt).
 enum Detailblatt {
     /// iPad wie das Originalfenster (Vorlage iPad 13", 1,464 px/pt): 575 × 645 pt, mittig – auf kleinen iPads mit Luft zum Rand
@@ -64,9 +75,10 @@ extension View {
     func detailBlatt(breit: Bool) -> some View {
         if breit {
             if #available(iOS 18.0, *) {
+                // Feste Größe des Systemblatts (nicht aus dem Inhalt ermittelt): sonst wuchs das Blatt bei Textfeldern
+                // (Notizen) auf volle Höhe, der Inhalt stand mittig mit Lücke oben und rutschte mit der Tastatur weg
                 self
-                    .frame(width: Detailblatt.breite, height: Detailblatt.hoehe)
-                    .presentationSizing(.fitted)
+                    .presentationSizing(FestesDetailblatt(breite: Detailblatt.breite, hoehe: Detailblatt.hoehe))
                     .presentationCornerRadius(Detailblatt.radius)
                     .presentationBackground(Farben.blatt)
             } else {
