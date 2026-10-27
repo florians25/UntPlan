@@ -633,7 +633,6 @@ struct StundenplanView: View {
             let rahmen = Rasterrahmen(seiten: daten, mitte: 1, typ: typ, element: element, kompakt: kopfRahmen.kompakt,
                                       tagesansicht: ansicht == .tag, untenFrei: kopfRahmen.untenFrei,
                                       sichtHoehe: sicht.size.height, dunkel: schema == .dark) ?? kopfRahmen
-            let mass = rahmen.mass
             ScrollViewReader { leser in
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
