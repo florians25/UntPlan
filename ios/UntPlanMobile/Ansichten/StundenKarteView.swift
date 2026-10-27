@@ -297,25 +297,24 @@ struct KachelView: View {
     // MARK: - Pille (Aufsicht, ganztägiger Termin)
 
     /// Pille (Aufsicht, ganztägiger Termin) nach Vorlage 178/179 (2,289 px/pt): Balken 3,5 pt breit, 4,4 pt vom Rand,
-    /// oben und unten 2,2 pt Luft (vor der 1. Stunde 1 pt); Ort 11,5 pt Semibold 4,7 pt hinter dem Balken; Vertretung: grünes „⋮“-Feld 3,9 pt vom
-    /// rechten Rand. Vor der 1. Stunde eine schmale Pille (12 pt hoch, Schrift 8 pt, grünes Feld 14 × 7,9 pt).
+    /// oben und unten 2,2 pt Luft; Ort 11,5 pt Semibold 4,7 pt hinter dem Balken; Vertretung: grünes „⋮“-Feld 3,9 pt vom
+    /// rechten Rand. Vor der 1. Stunde (auf Wunsch) genau wie die Aufsichten in den Pausen.
     private func pille(_ a: Kachelaussehen) -> some View {
-        let schmal = kachel.vorErsterStunde
-        return HStack(spacing: 4.7) {
+        HStack(spacing: 4.7) {
             RoundedRectangle(cornerRadius: 1.75, style: .continuous)
                 .fill(a.balken ?? Farben.aufsichtBalken)
                 .opacity(a.balkenDeckkraft)
                 .frame(width: 3.5)
-                .padding(.vertical, schmal ? 1 : 2.2)   // Balken in der Pause etwas kürzer als die Pille
+                .padding(.vertical, 2.2)   // Balken in der Pause etwas kürzer als die Pille
             // Immer nur der Ortsname (keine Kürzel, keine Plaketten); entfallene Aufsicht durchgestrichen
             Text(kachel.titel)
-                .font(.system(size: schmal ? 8 : (gross ? 13.5 : 11.5), weight: .semibold))
+                .font(.system(size: gross ? 13.5 : 11.5, weight: .semibold))
                 .strikethrough(a.durchgestrichen, color: a.text)
                 .foregroundStyle(a.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
             // Tagesansicht: keine Uhrzeiten auf der Aufsichtskarte (die Pause zeigt das Raster selbst)
-            if gross && kachel.art != .aufsicht && !schmal {
+            if gross && kachel.art != .aufsicht {
                 Text("\(Rasterzeit.uhrzeit(kachel.beginn))–\(Rasterzeit.uhrzeit(kachel.ende))")
                     .font(.system(size: 12.5).monospacedDigit())
                     .foregroundStyle(a.text.opacity(0.75))
@@ -324,12 +323,12 @@ struct KachelView: View {
             Spacer(minLength: 0)
             // Vertretung (übernommen oder abgegeben): ganz rechts das grüne „⋮“ – Details beim Antippen
             if kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben) {
-                Kuerzungszeichen(gruen: true, waagrecht: schmal, breite: 14, hoehe: schmal ? 7.9 : 14)
+                Kuerzungszeichen(gruen: true, breite: 14, hoehe: 14)
                     .layoutPriority(1)
             }
         }
         .padding(.leading, 4.4)
-        .padding(.trailing, schmal ? 3.9 : 3.9)
+        .padding(.trailing, 3.9)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(a.hintergrund, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
