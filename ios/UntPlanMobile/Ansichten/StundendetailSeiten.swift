@@ -890,6 +890,8 @@ struct HausaufgabenSeite: View {
     @EnvironmentObject var daten: Stundendaten
     @EnvironmentObject var zustand: AppZustand
     @State private var formular: HausaufgabeFormular.Vorlage? = nil
+    /// Nur lesen (fremde bzw. nicht bearbeitbare Hausaufgabe): Seite „Hausaufgabe“
+    @State private var ansicht: Hausaufgabeneintrag? = nil
     @State private var fehler: String? = nil
     /// Vorgabe wie im Original: „Aktuelle Stunde“ und „Unerledigte“
     @State private var stunden: Stundenfilter = .aktuell
@@ -932,6 +934,9 @@ struct HausaufgabenSeite: View {
             }
             .environmentObject(zustand)
         }
+        .detailPraesentation(item: $ansicht, breit: Geraet.istPad, art: .formular) { ha in
+            HausaufgabeAnsicht(eintrag: ha)
+        }
         .alert("Fehler", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -941,16 +946,16 @@ struct HausaufgabenSeite: View {
 
     // MARK: Filter
 
-    /// „Aktuelle Stunde“: in dieser Stunde aufgegeben; „Vergangene Stunden“: in früheren Stunden aufgegeben und zu dieser
-    /// Stunde fällig.
+    /// „Aktuelle Stunde“: in dieser Stunde aufgegeben oder zu ihr fällig (Vorlage 4dd89173: aufgegeben 01.10., fällig in
+    /// der Stunde am 08.10.); „Vergangene Stunden“: in früheren Stunden aufgegeben und zu dieser Stunde fällig. Mehr
+    /// liefert der Server für eine Stunde nicht.
     private var gefiltert: [Hausaufgabeneintrag] {
         guard let h = daten.hausaufgaben else { return [] }
-        let aktuell = h.liste
-        let vergangen = h.faellig.filter { f in !aktuell.contains { $0.id == f.id } }
+        let vergangen = h.faellig.filter { f in !h.liste.contains { $0.id == f.id } }
+        let aktuell = h.liste + vergangen
         let quelle: [Hausaufgabeneintrag]
         switch stunden {
-        case .alle: quelle = aktuell + vergangen
-        case .aktuell: quelle = aktuell
+        case .alle, .aktuell: quelle = aktuell
         case .vergangen: quelle = vergangen
         }
         return quelle.filter { ha in
@@ -1041,20 +1046,38 @@ struct HausaufgabenSeite: View {
 
     // MARK: Liste
 
+    /// Abschnitte nach Fälligkeitsdatum (ohne Fälligkeit: Aufgabedatum), älteste zuerst.
+    private var abschnitte: [(datum: String, eintraege: [Hausaufgabeneintrag])] {
+        let gruppen = Dictionary(grouping: gefiltert) { ha in (ha.faellig?.isEmpty == false ? ha.faellig! : ha.datum) }
+        return gruppen.keys.sorted().map { (datum: $0, eintraege: gruppen[$0] ?? []) }
+    }
+
+    private func eigen(_ ha: Hausaufgabeneintrag) -> Bool {
+        daten.hausaufgaben?.liste.contains { $0.id == ha.id } == true
+    }
+
+    /// Vorlage 4dd89173: Abschnittskopf „Do., 08.10.2026“ 15 pt grau (#3f525e) 39 pt unter den Pills, 3 pt darunter eine
+    /// Linie 1 pt (#dbdfe5) 16 pt vom Rand; Zeilen ohne Trennlinien. Eigene Hausaufgaben: nach links wischen löscht.
     private var hausaufgabenliste: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(gefiltert) { ha in
-                    let eigen = daten.hausaufgaben?.liste.contains { $0.id == ha.id } == true
-                    zeile(ha)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            if bearbeitbar && eigen {
+        List {
+            ForEach(Array(abschnitte.enumerated()), id: \.element.datum) { index, abschnitt in
+                Section {
+                    ForEach(abschnitt.eintraege) { ha in
+                        Button {
+                            if bearbeitbar && eigen(ha) {
                                 formular = HausaufgabeFormular.Vorlage(eintrag: ha, stundenDatum: daten.karte.datum)
+                            } else {
+                                ansicht = ha
                             }
+                        } label: {
+                            zeile(ha)
                         }
-                        .contextMenu {
-                            if bearbeitbar && eigen {
+                        .buttonStyle(OhneTippStil())
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Farben.blatt)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            if bearbeitbar && eigen(ha) {
                                 Button(role: .destructive) {
                                     Task { await ausfuehren { try await daten.hausaufgabeLoeschen(ha.id) } }
                                 } label: {
@@ -1062,60 +1085,82 @@ struct HausaufgabenSeite: View {
                                 }
                             }
                         }
-                    Formtrenner()
+                    }
+                } header: {
+                    abschnittKopf(abschnitt.datum)
+                        .padding(.top, index == 0 ? 39 : 24)
+                        .listRowInsets(EdgeInsets())
                 }
             }
-            .padding(.top, 8)
         }
+        .listStyle(.plain)
+        .listSectionSeparator(.hidden)
+        .scrollContentBackground(.hidden)
+        .background(Farben.blatt)
+        .environment(\.defaultMinListRowHeight, 1)
+        .environment(\.defaultMinListHeaderHeight, 1)
         .refreshable { await daten.hausaufgabenLaden() }
     }
 
-    /// Zeile wie im Formular: Text 15 pt, darunter grau Fälligkeit und Bemerkung; rechts der Erledigt-Kreis.
+    private func abschnittKopf(_ datum: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(Datumsformat.anzeige(datum, "EE, dd.MM.yyyy"))
+                .font(.system(size: 15))
+                .foregroundStyle(Farben.detailGrau)
+                .textCase(nil)
+            Farben.detailLinie
+                .frame(height: 1)
+        }
+        .padding(.horizontal, Detailmass.rand)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farben.blatt)
+    }
+
+    /// Vorlage 4dd89173: Hausaufgabensymbol 20,67 pt grün (#007d64, dunkel #1fc0a0) ab 17,67 pt; Text 17 pt fast schwarz
+    /// ab 48,33 pt (Zeilen 22,33 pt), darunter „Aufgabedatum - Fälligkeitsdatum“ 16 pt grau; Pfeil 9,33 × 17,33 pt
+    /// 23,3 pt vom Rand, alles mittig zur Zeile.
     private func zeile(_ ha: Hausaufgabeneintrag) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 1.7) {
+        HStack(spacing: 0) {
+            Listensymbol(name: "SymbolHausaufgaben", groesse: 20.67, einpassen: true)
+                .foregroundStyle(Farben.gruen)
+                .frame(width: 20.67)
+                .padding(.leading, 17.67)
+                .padding(.trailing, 9.66)
+            VStack(alignment: .leading, spacing: 0) {
                 Text(ha.text.isEmpty ? "Ohne Text" : ha.text)
-                    .font(.system(size: 15))
+                    .font(.system(size: 17))
+                    .lineSpacing(2)
                     .foregroundStyle(Farben.detailText)
-                if let f = ha.faellig, !f.isEmpty {
-                    Text("Fällig am \(Datumsformat.anzeige(f, "dd.MM.yyyy"))")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Farben.titelGrau)
-                }
-                if !ha.bemerkung.isEmpty {
-                    Text(ha.bemerkung)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Farben.detailGrau)
-                }
+                    .multilineTextAlignment(.leading)
+                Text(zeitraum(ha))
+                    .font(.system(size: 16))
+                    .foregroundStyle(Farben.detailGrau)
+                    .padding(.top, 1.5)
                 // Doppel-/Blockstunde: gilt die Hausaufgabe für den ganzen Block oder nur für eine Stunde?
                 if daten.hatEinzelstunden {
                     Text(ha.einzelstunde.map { "Nur \($0). Stunde" } ?? "Ganzer Block")
                         .font(.system(size: 13))
                         .foregroundStyle(Farben.detailGrau)
-                }
-                if !ha.fach.isEmpty || !ha.lehrer.isEmpty {
-                    Text([ha.fach, ha.lehrer].filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.system(size: 13))
-                        .foregroundStyle(Farben.detailGrau)
+                        .padding(.top, 2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button {
-                Task { await ausfuehren { try await daten.hausaufgabeAendern(ha.id, erledigt: !ha.erledigt) } }
-            } label: {
-                Image(systemName: ha.erledigt ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 23.5, weight: .light))
-                    .foregroundStyle(ha.erledigt ? Farben.gruen : Farben.detailSymbol)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!bearbeitbar)
-            .accessibilityLabel(ha.erledigt ? "Erledigt" : "Nicht erledigt")
+            Image(systemName: "chevron.right")
+                .font(.system(size: 19.3, weight: .thin))
+                .foregroundStyle(Farben.detailSymbol)
+                .padding(.leading, 8)
+                .padding(.trailing, 22.5)
         }
-        .padding(.vertical, 13)
-        .padding(.leading, Detailmass.rand)
-        .padding(.trailing, 6)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(Farben.blatt)
+        .contentShape(Rectangle())
+    }
+
+    private func zeitraum(_ ha: Hausaufgabeneintrag) -> String {
+        let von = Datumsformat.anzeige(ha.datum, "dd.MM.yyyy")
+        guard let f = ha.faellig, !f.isEmpty else { return von }
+        return "\(von) - \(Datumsformat.anzeige(f, "dd.MM.yyyy"))"
     }
 
     private func ausfuehren(_ aktion: () async throws -> Void) async {
@@ -1127,8 +1172,8 @@ struct HausaufgabenSeite: View {
     }
 }
 
-/// Filter-Pill der Hausaufgaben (Vorlage ffb86f46): 42 pt hohe Kapsel, Fläche #dbdee4 mit 1 pt Rand #818f9c (dunkel;
-/// hell dieselbe Abstufung umgekehrt), Text 15 pt fast schwarz ab 16 pt, Pfeil 10,67 × 6,33 pt 7,3 pt dahinter, 17,5 pt
+/// Filter-Pill der Hausaufgaben (Vorlagen ffb86f46 dunkel, 4dd89173 hell): 42 pt hohe Kapsel, dunkel Fläche #dbdee4 mit
+/// 1 pt Rand #818f9c und fast schwarzem Text, hell Fläche #323c45 mit Rand #5e7382 und weißem Text; Text 15 pt ab 16 pt, Pfeil 10,67 × 6,33 pt 7,3 pt dahinter, 17,5 pt
 /// vor dem rechten Rand.
 struct FilterPill: View {
     let text: String
@@ -1141,12 +1186,12 @@ struct FilterPill: View {
             Image(systemName: "chevron.down")
                 .font(.system(size: 12.5, weight: .medium))
         }
-        .foregroundStyle(Farben.plakettenZiffer)
+        .foregroundStyle(Farben.filterText)
         .padding(.leading, 16)
         .padding(.trailing, 17.5)
         .frame(height: 42)
-        .background(Capsule().fill(Farben.detailGrau))
-        .overlay(Capsule().strokeBorder(Farben.detailSymbol, lineWidth: 1))
+        .background(Capsule().fill(Farben.filterFlaeche))
+        .overlay(Capsule().strokeBorder(Farben.filterRand, lineWidth: 1))
         .contentShape(Capsule())
     }
 }
@@ -1176,10 +1221,10 @@ private struct LeerSymbol: View {
     }
 }
 
-/// Trennlinie der Formulare (Vorlage f32d5ffe): 1 pt #38383a, 16 pt vom Rand.
+/// Trennlinie der Formulare (Vorlagen f32d5ffe/fbcdb9e9): 1 pt, hell #e7e7e8, dunkel #38383a, 16 pt vom Rand.
 struct Formtrenner: View {
     var body: some View {
-        Farben.trennlinie
+        Farben.formLinie
             .frame(height: 1)
             .padding(.horizontal, Detailmass.rand)
     }
@@ -1449,6 +1494,79 @@ struct HausaufgabeDatumBlatt: View {
             }
         }
         .onAppear { entwurf = datum }
+    }
+}
+
+/// Hausaufgabe nur lesen (Vorlage 67283917): Zurück, Titel „Hausaufgabe“; Zeilen „Text“ (15 pt, Wert 15 pt dunkel,
+/// Grundlinien 20 pt auseinander), „Aufgabedatum“ und „Fälligkeitsdatum“ (17 pt, Datum 13,7 pt grau 32,7 pt vom Rand),
+/// jeweils mit Trennlinie.
+struct HausaufgabeAnsicht: View {
+    let eintrag: Hausaufgabeneintrag
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
+
+    var body: some View {
+        DetailSeitenRahmen(titel: "Hausaufgabe", zurueck: { schliessen() }, titelStil: .fett) {
+            ScrollView {
+                VStack(spacing: 0) {
+                    Formtrenner()
+                        .padding(.top, 1)
+                    VStack(alignment: .leading, spacing: 1.7) {
+                        Text("Text")
+                            .font(.system(size: 15))
+                        Text(eintrag.text)
+                            .font(.system(size: 15))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .foregroundStyle(Farben.detailText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 16)
+                    .padding(.bottom, 17.4)
+                    .padding(.horizontal, Detailmass.rand)
+                    Formtrenner()
+                    datumZeile("Aufgabedatum", eintrag.datum)
+                    Formtrenner()
+                    if let f = eintrag.faellig, !f.isEmpty {
+                        datumZeile("Fälligkeitsdatum", f)
+                        Formtrenner()
+                    }
+                    if !eintrag.bemerkung.isEmpty {
+                        VStack(alignment: .leading, spacing: 1.7) {
+                            Text("Bemerkung")
+                                .font(.system(size: 15))
+                                .foregroundStyle(Farben.detailText)
+                            Text(eintrag.bemerkung)
+                                .font(.system(size: 15))
+                                .foregroundStyle(Farben.detailGrau)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 16)
+                        .padding(.bottom, 17.4)
+                        .padding(.horizontal, Detailmass.rand)
+                        Formtrenner()
+                    }
+                }
+            }
+        }
+    }
+
+    private func datumZeile(_ titel: String, _ datum: String) -> some View {
+        HStack(spacing: 12) {
+            Text(titel)
+                .font(.system(size: 17))
+                .foregroundStyle(Farben.detailText)
+            Spacer(minLength: 0)
+            Text(Datumsformat.anzeige(datum, "dd.MM.yyyy"))
+                .font(.system(size: 13.7))
+                .foregroundStyle(Farben.detailGrau)
+        }
+        .padding(.leading, Detailmass.rand)
+        .padding(.trailing, Detailmass.rand + 16.5)
+        .frame(height: 52.33)
     }
 }
 

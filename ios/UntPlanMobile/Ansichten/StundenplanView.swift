@@ -1539,10 +1539,14 @@ struct RasterSeite: View, Equatable {
             if tag.frei {
                 // Vorlage 179: oben 15,5 pt unter dem Kopf (auch wenn die erste Linie tiefer liegt) und bis zum unteren
                 // Rand (auch hinter der Tab-Leiste); seitlich wie die Karten – immer gleicher Abstand zum Nachbartag
-                let feldOben = min(Rasterrahmen.obenAbstand, mass.y(mass.start) + 1)
-                ferienfeld(tag)
-                    .frame(width: breite, height: max(hoehe - feldOben, 20))
-                    .offset(x: 0, y: feldOben)
+                // Vorlage 2fae4494 (3 px/pt): Oberkante 16 pt unter dem Kopf, Spalten über die ganze Tagesbreite mit nur
+                // 1 px Fuge zum Nachbartag; Inhalt mittig zwischen Beginn der 1. und Ende der letzten Stunde
+                let feldOben = min(16, mass.y(mass.start) + 1)
+                let fuge = 1 / max(skala, 1)
+                let mitte = (mass.y(rahmen.start) + mass.yEnde(rahmen.ende)) / 2 - feldOben
+                ferienfeld(tag, mitte: mitte)
+                    .frame(width: breite + tagesLuecke - fuge, height: max(hoehe - feldOben, 20))
+                    .offset(x: -tagesLuecke / 2, y: feldOben)
             } else {
                 // Eigene Abwesenheit: grauer Balken hinter den Stunden – die Karten liegen voll lesbar darüber
                 ForEach(daten.abwesenheiten[tag.datum] ?? []) { b in
@@ -1725,63 +1729,88 @@ struct RasterSeite: View, Equatable {
         }
     }
 
-    /// Ferien und Feiertage: hellblaue Spalte über den ganzen Tag mit Schloss (Vorlage: „Ferien / pädagogischer Tag“).
-    private func ferienfeld(_ tag: Tageskopf) -> some View {
-        // Ecken wie die Zählerkarte (leicht abgerundet)
-        RoundedRectangle(cornerRadius: ZaehlstreifenView.eckenRadius, style: .continuous)
+    /// Ferien und Feiertage: hellblaue Spalte über den ganzen Tag (Vorlage 2fae4494, 3 px/pt): Fläche #d6ebff, oben Ecken
+    /// 4,67 pt; mittig Schloss 8,33 × 10 pt, „Ferien“ und der Name der Ferien 12,3 pt fett (Name mit Silbentrennung,
+    /// Zeilen 18,67 pt), darunter „19.10.“ / „bis“ / „01.11.“ 11,5 pt normal in drei Zeilen (13 pt), alles #10161d.
+    private func ferienfeld(_ tag: Tageskopf, mitte: CGFloat) -> some View {
+        let titel = freiTitel(tag)
+        let grund = (tag.freiGrund ?? "").trimmingCharacters(in: .whitespaces)
+        return UnevenRoundedRectangle(topLeadingRadius: 4.67, bottomLeadingRadius: 0, bottomTrailingRadius: 0,
+                                      topTrailingRadius: 4.67, style: .circular)
             .fill(Farben.ferienHintergrund)
-            .overlay {
-                // Vorlage 179: Schloss 10,5 pt, Bezeichnung 13 pt Semibold, Datum 12,5 pt Semibold ohne führende Nullen
-                // („7.10.“), mehrzeilig und zentriert – bricht um statt abgeschnitten zu werden
-                VStack(spacing: 2) {
+            .overlay(alignment: .top) {
+                VStack(spacing: 0) {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 10.5, weight: .medium))
-                    Text(freiTitel(tag))
-                        .font(.system(size: 13, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let grund = tag.freiGrund, !grund.isEmpty, grund.lowercased() != freiTitel(tag).lowercased() {
-                        Text(grund)
-                            .font(.system(size: 13, weight: .semibold))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .frame(height: 10)
+                    Text(titel)
+                        .font(.system(size: 12.3, weight: .bold))
+                        .padding(.top, 3)
+                    if !grund.isEmpty, grund.lowercased() != titel.lowercased() {
+                        Text(Self.silbentrennbar(grund))
+                            .font(.system(size: 12.3, weight: .bold))
+                            .lineSpacing(4)
+                            .accessibilityLabel(grund)
+                            .padding(.top, 2.66)
                     }
                     if let von = tag.freiVon, let bis = tag.freiBis, !von.isEmpty, !bis.isEmpty {
-                        Text(von == bis ? Datumsformat.anzeige(von, "d.M.") : "\(Datumsformat.anzeige(von, "d.M.")) bis \(Datumsformat.anzeige(bis, "d.M."))")
-                            .font(.system(size: 12.5, weight: .semibold))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                            .padding(.top, 0.5)
+                        VStack(spacing: -0.72) {
+                            Text(Datumsformat.anzeige(von, "dd.MM."))
+                            if von != bis {
+                                Text("bis")
+                                Text(Datumsformat.anzeige(bis, "dd.MM."))
+                            }
+                        }
+                        .font(.system(size: 11.5))
+                        .padding(.top, 4.75)
                     }
                 }
+                .multilineTextAlignment(.center)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(Farben.ferienTinte)
-                .padding(.horizontal, 3)
+                .padding(.horizontal, 2)
+                // Mitte des Inhalts auf `mitte` (Rahmen der Höhe 0 zentriert den Inhalt um seine Oberkante)
+                .frame(height: 0)
+                .offset(y: mitte)
             }
+    }
+
+    /// Weiche Trennstriche zwischen allen Buchstaben eines Worts: bricht ein zu langes Wort wie im Original mit
+    /// Trennstrich um („Herbstfe-rien“); Leerzeichen bleiben die bevorzugten Umbruchstellen.
+    static func silbentrennbar(_ text: String) -> String {
+        var ergebnis = ""
+        var vorher: Character? = nil
+        for zeichen in text {
+            if let v = vorher, v.isLetter, zeichen.isLetter { ergebnis.append("\u{00AD}") }
+            ergebnis.append(zeichen)
+            vorher = zeichen
+        }
+        return ergebnis
     }
 
     // MARK: Jetzt-Linie
 
     private func jetztLinie(tage: [Tageskopf], mass: Rastermass, spaltenBreite: CGFloat) -> some View {
-        let start = rahmen.start
         let ende = rahmen.ende
         return TimelineView(.periodic(from: .now, by: 60)) { kontext in
             let minute = Datumsformat.kalender.component(.hour, from: kontext.date) * 60
                 + Datumsformat.kalender.component(.minute, from: kontext.date)
             let heuteIndex = tage.firstIndex(where: { $0.datum == Datumsformat.iso(kontext.date) })
-            if let heuteIndex, minute >= start, minute <= ende {
-                let hoehe = mass.y(minute)
+            // Vorlage 2fae4494: Linie 1 pt (#fe5f32) über alle Tage, auf heute 3 pt über die ganze Tagesbreite (bis auf 1 px
+            // Fuge); vor der 1. Stunde sichtbar, solange sie noch in den Streifen über der ersten Linie fällt
+            let hoehe = mass.y(minute)
+            if let heuteIndex, hoehe >= 1.5, minute <= ende {
+                let fuge = 1 / max(skala, 1)
                 ZStack(alignment: .topLeading) {
                     Rectangle()
                         .fill(Farben.jetztLinie)
-                        .frame(width: breite, height: 1.5)
-                        .offset(y: hoehe - 0.75)
-                    Capsule()
+                        .frame(width: breite, height: 1)
+                        .offset(y: hoehe - 0.5)
+                    Rectangle()
                         .fill(Farben.jetztLinie)
-                        .frame(width: spaltenBreite - tagesLuecke, height: 3)
-                        .offset(x: CGFloat(heuteIndex) * spaltenBreite + tagesLuecke / 2, y: hoehe - 1.5)
+                        .frame(width: spaltenBreite - fuge, height: 3)
+                        .offset(x: CGFloat(heuteIndex) * spaltenBreite, y: hoehe - 1.5)
                 }
                 .allowsHitTesting(false)
             }

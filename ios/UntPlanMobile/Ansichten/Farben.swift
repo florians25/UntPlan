@@ -38,8 +38,8 @@ enum Farben {
     static let ladebalken = Color(hexWert: 0xFF6A13)
     static let akzentSanft = Color(hell: 0xFFF1E2, dunkel: 0x3A2414)
     static let orange = Color(hexWert: 0xF07C00)
-    static let heute = Color(hexWert: 0xEF5A2A)
-    static let jetztLinie = Color(hexWert: 0xE65D35)
+    static let heute = Color(hexWert: 0xFE5F32)
+    static let jetztLinie = Color(hexWert: 0xFE5F32)
     static let rot = Color(hexWert: 0xF40041)
 
     // Text
@@ -63,8 +63,14 @@ enum Farben {
     static let knopfSymbol = Color(hell: 0x7F8D9A, dunkel: 0x8E9CAA)
     /// Haken im Glasknopf „Sichern“, solange nichts zu sichern ist
     static let knopfSymbolAus = Color(hell: 0xB0B0B1, dunkel: 0x5C5C60)
-    /// Oranger Haken im Glasknopf „Sichern“, sobald gesichert werden kann (Vorlage f32d5ffe: #ff6d41)
-    static let hakenAktiv = Color(hell: 0xF56B2A, dunkel: 0xFF6D41)
+    /// Oranger Haken im Glasknopf „Sichern“, sobald gesichert werden kann (Vorlagen fbcdb9e9 hell #fe6033, f32d5ffe dunkel #ff6d41)
+    static let hakenAktiv = Color(hell: 0xFE6033, dunkel: 0xFF6D41)
+    /// Filter-Pills der Hausaufgaben (Vorlagen 4dd89173 hell, ffb86f46 dunkel)
+    static let filterFlaeche = Color(hell: 0x323C45, dunkel: 0xDBDEE4)
+    static let filterRand = Color(hell: 0x5E7382, dunkel: 0x818F9C)
+    static let filterText = Color(hell: 0xFFFFFF, dunkel: 0x10171D)
+    /// Trennlinien der Formulare (Hausaufgabe; Vorlagen fbcdb9e9 hell, f32d5ffe dunkel)
+    static let formLinie = Color(hell: 0xE7E7E8, dunkel: 0x38383A)
     /// Runder Grund des Symbols im leeren Zustand („Keine Hausaufgaben“, Vorlage ffb86f46: #2c2c2e)
     static let leerKreis = Color(hell: 0xF3F5F7, dunkel: 0x2C2C2E)
     /// Zahl der Abwesenden in der Detailliste: hell blassrot mit roter Ziffer, dunkel dunkelrot mit hellrosa Ziffer
@@ -134,9 +140,9 @@ enum Farben {
     // Veranstaltung, Ferien
     static let veranstaltungHintergrund = Color(hell: 0xDFFEF5, dunkel: 0x054035)
     static let veranstaltungBand = Color(hell: 0xD5EBFE, dunkel: 0x8A9BAF)
-    static let ferienHintergrund = Color(hell: 0xD5EBFE, dunkel: 0x6B83C4)
+    static let ferienHintergrund = Color(hell: 0xD6EBFF, dunkel: 0x6B83C4)
     static let ferienLinie = Color(hell: 0xB3D6F6, dunkel: 0x6A82BF)
-    static let ferienTinte = Color(hell: 0x0A121C, dunkel: 0x161A24)
+    static let ferienTinte = Color(hell: 0x10161D, dunkel: 0x161A24)
 
     /// Runde Pill „Entschuldigen“ beim Wischen (Schüler- und Abwesenheitslisten)
     static let entschuldigen = Color(hell: 0x2E7BCF, dunkel: 0x3A86D6)
