@@ -620,7 +620,9 @@ struct StundenplanView: View {
                 }
                 .background(Farben.leiste)
             }
-            .padding(.top, 2)
+            // Vorlage (hell, 3 px/pt) nachgemessen: „KW“ und Wochentage stehen 7 px (≈ 2,33 pt) höher als mit 2 pt Abstand –
+            // der Kopf rückt deshalb minimal unter die Navigationsleiste
+            .padding(.top, -0.33)
             // Vorlage: Grundlinie von Monat und Tageszahl 7,67 pt über der Unterkante des Kopfs
             .padding(.bottom, kopfRahmen.kompakt ? 3.5 : 8)
             .frame(maxWidth: .infinity, alignment: .leading)
