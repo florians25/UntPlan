@@ -406,8 +406,10 @@ function abwesenheitFlaechen(liste, zeiten, aufbau, belegt) {
   return liste.map(a => {
     const y0 = zeitY(zeiten, aufbau, minuten(a.von)), y1 = zeitY(zeiten, aufbau, minuten(a.bis));
     if (y1 - y0 < 4) return '';
-    const text = [ABW_ART[a.art] || 'Abwesend', a.grund].filter(Boolean).join(' · ');
-    const titel = `${text} (${a.von}–${a.bis})`;
+    // Fläche: bei Schüler*innen nur das Kürzel des Grunds (z. B. „K“, „?“ = offen), bei Lehrkräften „Abwesend“; ausführlich im Tooltip
+    const lang = [ABW_ART[a.art] || 'Abwesend', a.grund].filter(Boolean).join(' · ');
+    const text = a.kuerzel || 'Abwesend';
+    const titel = `${lang} (${a.von}–${a.bis})`;
     // größter freier Abschnitt der Fläche (nicht von Karten bzw. Aufsichten belegt): zuerst über die ganze Breite, sonst in einem
     // senkrechten Streifen neben parallelen Karten (mindestens ein Viertel der Breite)
     const freiIn = (l, r) => {
@@ -436,7 +438,9 @@ function abwesenheitFlaechen(liste, zeiten, aufbau, belegt) {
     const lage = streifen[0] > 0 || streifen[1] < 100 ? `left:${streifen[0]}%;right:auto;width:${streifen[1] - streifen[0]}%;` : '';
     // Text oben im freien Bereich (bei großen Bereichen nicht in der Mitte, damit er im sichtbaren Teil steht)
     const label = hoehe(frei) >= 22
-      ? `<span class="tt-abw-text" style="${lage}top:${Math.round(frei[0] + Math.min(hoehe(frei) / 2, 40) - y0)}px">${e(text)}</span>` : '';
+      ? `<span class="tt-abw-text" style="${lage}top:${Math.round(frei[0] + Math.min(hoehe(frei) / 2, 40) - y0)}px">${e(text)}</span>`
+      // ohne freien Bereich: Kürzel mittig auf der Fläche (sie liegt über den Karten)
+      : `<span class="tt-abw-text" style="top:${Math.round((y1 - y0) / 2)}px">${e(text)}</span>`;
     return `<div class="tt-abw" style="top:${y0}px;height:${y1 - y0}px" title="${e(titel)}" aria-label="${e(titel)}" role="note">${label}</div>`;
   }).join('');
 }

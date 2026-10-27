@@ -285,7 +285,29 @@ enum Auswahlmass {
     static let suchRand = Color(hell: 0xCFD6DC, dunkel: 0x343436)
     static let lupe = Color(hell: 0x253746, dunkel: 0xFAFAFC)
     static let platzhalter = Color(hell: 0x8B9AA5, dunkel: 0xABABAD)
-    /// Suchfeld unten in der Planauswahl (Vorlage a59416d6): Kapsel 48 pt, 28 pt seitlich, Fläche #252527 mit 1-pt-Rand
+    /// Filter „Aktuelles Schuljahr ⌄“: 16 pt unter dem Suchfeld, 42 pt hoch, Kapsel #dadee5 mit 1-pt-Rand #818d97,
+    /// Schrift 15 pt #0a0d13 (16 pt Innenabstand links), Pfeil 10 × 5 pt 7 pt hinter dem Text, rechts 19 pt
+    static let filterHoehe: CGFloat = 42
+    static let filterFlaeche = Color(hell: 0xE8ECF0, dunkel: 0xDADEE5)
+    static let filterRand = Color(hell: 0xB4BEC7, dunkel: 0x818D97)
+    static let filterText = Color(hell: 0x1C2833, dunkel: 0x0A0D13)
+    /// Abschnitt „A“: 15 pt #e5e5e7, darunter (≈ 6,5 pt unter der Versalhöhe) eine 1-pt-Linie #383b43 über die volle Breite
+    static let abschnittText = Color(hell: 0x40525E, dunkel: 0xE5E5E7)
+    static let abschnittLinie = Color(hell: 0xD5DBE0, dunkel: 0x383B43)
+    /// Zeile: runder Avatar 44 pt #828f9d mit weißem Symbol 24 pt, 8 pt Abstand, Name 20 pt Regular weiß, darunter (3 pt)
+    /// Badge 19 pt hoch (Kapsel #828f9d, Schrift 13 pt #0b1620, 7 pt Innenabstand); Stern 20 pt #8f949e, Mitte 28 pt vom
+    /// rechten Rand; Zeilenabstand ≈ 62 pt (mit Badge) bzw. 60 pt (ohne)
+    static let avatar: CGFloat = 44
+    static let avatarFlaeche = Color(hell: 0x8B9AA5, dunkel: 0x828F9D)
+    static let name = Color(hell: 0x253746, dunkel: 0xFFFFFF)
+    static let badgeFlaeche = Color(hell: 0xD3DAE0, dunkel: 0x828F9D)
+    static let badgeText = Color(hell: 0x40525E, dunkel: 0x0B1620)
+    static let stern = Color(hell: 0x9AA7B1, dunkel: 0x8F949E)
+    /// Register rechts: nur die vorhandenen Anfangsbuchstaben, 10,5 pt Semibold #c9d0d2, 13,5 pt Zeilenabstand, Mitte 7,5 pt vom Rand
+    static let register = Color(hell: 0x6B7A85, dunkel: 0xC9D0D2)
+}
+
+/// Suchfeld unten in der Planauswahl (Vorlage a59416d6): Kapsel 48 pt, 28 pt seitlich, Fläche #252527 mit 1-pt-Rand
 /// #4a4a50 (hell weiß mit #cfd6dc), Lupe 16,33 pt (#f4f4f4) 20 pt vom Rand, „Stundenplan suchen“ 17 pt (#a7a7a8) 11 pt
 /// dahinter; sucht über alle Planarten.
 struct Plansuche: View {
@@ -331,28 +353,6 @@ struct Plansuche: View {
         .contentShape(Capsule())
         .onTapGesture { fokus = true }
     }
-}
-
-/// Filter „Aktuelles Schuljahr ⌄“: 16 pt unter dem Suchfeld, 42 pt hoch, Kapsel #dadee5 mit 1-pt-Rand #818d97,
-    /// Schrift 15 pt #0a0d13 (16 pt Innenabstand links), Pfeil 10 × 5 pt 7 pt hinter dem Text, rechts 19 pt
-    static let filterHoehe: CGFloat = 42
-    static let filterFlaeche = Color(hell: 0xE8ECF0, dunkel: 0xDADEE5)
-    static let filterRand = Color(hell: 0xB4BEC7, dunkel: 0x818D97)
-    static let filterText = Color(hell: 0x1C2833, dunkel: 0x0A0D13)
-    /// Abschnitt „A“: 15 pt #e5e5e7, darunter (≈ 6,5 pt unter der Versalhöhe) eine 1-pt-Linie #383b43 über die volle Breite
-    static let abschnittText = Color(hell: 0x40525E, dunkel: 0xE5E5E7)
-    static let abschnittLinie = Color(hell: 0xD5DBE0, dunkel: 0x383B43)
-    /// Zeile: runder Avatar 44 pt #828f9d mit weißem Symbol 24 pt, 8 pt Abstand, Name 20 pt Regular weiß, darunter (3 pt)
-    /// Badge 19 pt hoch (Kapsel #828f9d, Schrift 13 pt #0b1620, 7 pt Innenabstand); Stern 20 pt #8f949e, Mitte 28 pt vom
-    /// rechten Rand; Zeilenabstand ≈ 62 pt (mit Badge) bzw. 60 pt (ohne)
-    static let avatar: CGFloat = 44
-    static let avatarFlaeche = Color(hell: 0x8B9AA5, dunkel: 0x828F9D)
-    static let name = Color(hell: 0x253746, dunkel: 0xFFFFFF)
-    static let badgeFlaeche = Color(hell: 0xD3DAE0, dunkel: 0x828F9D)
-    static let badgeText = Color(hell: 0x40525E, dunkel: 0x0B1620)
-    static let stern = Color(hell: 0x9AA7B1, dunkel: 0x8F949E)
-    /// Register rechts: nur die vorhandenen Anfangsbuchstaben, 10,5 pt Semibold #c9d0d2, 13,5 pt Zeilenabstand, Mitte 7,5 pt vom Rand
-    static let register = Color(hell: 0x6B7A85, dunkel: 0xC9D0D2)
 }
 
 /// Alle Klassen, Lehrkräfte oder Räume, nach Anfangsbuchstaben gruppiert, mit Stern für Favoriten (Vorlage „Klassen“):
