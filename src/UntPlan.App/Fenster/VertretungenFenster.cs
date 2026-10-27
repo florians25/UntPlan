@@ -964,7 +964,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return e is Lehrer l ? l.VollerName : e is null ? "?" : string.IsNullOrEmpty(e.Langname) ? e.Kurzname : e.Langname;
     }
 
-    private string Klassen(IEnumerable<int> ids, string spalte) => string.Join(", ", ids.Select(k => Anzeige(ElementTyp.Klasse, k, spalte)));
+    /// <summary>Klassen wie im Vorbild ohne Leerzeichen getrennt („07A,07B,07C“) – bei Kopplungen alle Klassen in einer Zeile.</summary>
+    private string Klassen(IEnumerable<int> ids, string spalte) => string.Join(",", ids.Select(k => Anzeige(ElementTyp.Klasse, k, spalte)));
 
     private object?[] Werte(Vertretung v)
     {
