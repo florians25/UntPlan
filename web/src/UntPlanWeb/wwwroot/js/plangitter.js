@@ -398,7 +398,7 @@ function zeitY(zeiten, aufbau, m) {
 const ABW_ART = { verspaetet: 'Verspätet', vorzeitig: 'Vorzeitig gegangen' };
 
 /**
- * Eigene Abwesenheit (Lehrkraft bzw. Schüler*in) als graue Fläche hinter den Stunden: die Karten bleiben voll sichtbar darüber,
+ * Eigene Abwesenheit (Lehrkraft bzw. Schüler*in) als halbdurchsichtige graue Fläche über den Stunden (Karten bleiben anklickbar),
  * „Abwesend“ bzw. der Grund steht dezent im größten freien Bereich der Fläche (ohne freien Bereich nur als Tooltip).
  * Ein- und ausblendbar über „⋮“ → „Abwesenheiten anzeigen“ (Klasse ohne-abwesenheiten am Raster).
  */

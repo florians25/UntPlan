@@ -36,8 +36,8 @@ enum Plankategorie: String, Hashable, CaseIterable, Identifiable {
     }
 }
 
-/// Planauswahl als Blatt (nach Vorlage): Schließen, Titel, „Bearbeiten“; darunter oben das Suchfeld (filtert live),
-/// „Mein Stundenplan“, Favoriten mit Stern, Stundenpläne nach Art. Favoriten lassen sich im Bearbeiten-Modus entfernen und umsortieren.
+/// Planauswahl als Blatt (Vorlage a59416d6): X, Titel; „Mein Stundenplan“, Favoriten mit Stern (Wischen entfernt),
+/// „Stundenpläne“ nach Art; unten angeheftet das Suchfeld über alle Planarten (filtert live).
 struct PlanAuswahlView: View {
     @EnvironmentObject var zustand: AppZustand
     @EnvironmentObject var favoriten: Favoriten
@@ -84,15 +84,19 @@ struct PlanAuswahlView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .environment(\.editMode, $bearbeiten)
+            .environment(\.defaultMinListRowHeight, 1)
             .background(Farben.blatt.ignoresSafeArea())
+            // Platz für das unten angeheftete Suchfeld
+            .contentMargins(.bottom, 90, for: .scrollContent)
             .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    kopf
-                    Suchleiste(text: $suche, platzhalter: "Stundenplan suchen")
-                }
-                .overlay(alignment: .bottom) {
-                    Ladebalken(aktiv: elemente == nil && fehler == nil)
-                }
+                kopf
+            }
+            // Vorlage a59416d6: Suchfeld unten, 28 pt vom unteren Bildschirmrand (folgt der Tastatur)
+            .overlay(alignment: .bottom) {
+                Plansuche(text: $suche)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 28)
+                    .ignoresSafeArea(.container, edges: .bottom)
             }
             .scrollDismissesKeyboard(.immediately)
             .toolbar(.hidden, for: .navigationBar)
@@ -107,50 +111,14 @@ struct PlanAuswahlView: View {
         .task { await laden() }
     }
 
-    // MARK: - Kopf (.pk__top)
+    // MARK: - Kopf
 
+    /// Vorlage a59416d6 (dunkel, 3 px/pt): X-Glasknopf 44 pt 16 pt vom Rand, Titel 17 pt halbfett #bfc8cf mittig.
     private var kopf: some View {
-        HStack(spacing: 12) {
-            Button {
-                schliessen()
-            } label: {
-                // Liquid Glass wie in den übrigen Kopfzeilen (ab iOS 26 interaktiv, davor Milchglas mit feinem Rand)
-                Rundknopf(symbol: "xmark", gewicht: .regular, groesse: 19)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Schließen")
-
-            Text("Stundenplan auswählen")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(Color(hell: 0x5D727F, dunkel: 0xC9D1D8))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Spacer(minLength: 4)
-
-            Button {
-                withAnimation {
-                    bearbeiten = imBearbeiten ? .inactive : .active
-                }
-            } label: {
-                Text(imBearbeiten ? "Fertig" : "Bearbeiten")
-                    .font(.system(size: 17, weight: imBearbeiten ? .medium : .regular))
-                    .foregroundStyle(Farben.tinte)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, 14)
-                    .frame(height: 44)
-                    .liquidGlas(Capsule())
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .disabled(favoriten.liste.isEmpty && !imBearbeiten)
-            .opacity(favoriten.liste.isEmpty && !imBearbeiten ? 0.5 : 1)
+        Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() },
+                  laedt: elemente == nil && fehler == nil) {
+            Blatttitel(titel: "Stundenplan auswählen", stil: .fett)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 12)
-        .background(Farben.blatt)
     }
 
     // MARK: - Hauptebene
@@ -160,13 +128,16 @@ struct PlanAuswahlView: View {
         Button {
             waehlen(nil)
         } label: {
-            HStack(spacing: 14) {
-                AuswahlAvatar {
-                    KalenderSymbol(inhalt: .stern, groesse: 24, strich: 1.6)
-                }
+            // Vorlage: Avatar 44 pt (#818f9c) 9 pt unter dem Kopf mit Kalender-Stern 30 × 26,67 pt weiß,
+            // „Mein Stundenplan“ 20 pt #f3f5f7 8,5 pt daneben
+            HStack(spacing: 8.5) {
+                KalenderSymbol(inhalt: .stern, groesse: 32, strich: 1.7)
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Auswahlmass.avatarFlaeche, in: Circle())
                 Text("Mein Stundenplan")
-                    .font(.system(size: 21))
-                    .foregroundStyle(Farben.tinte)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Farben.detailText)
                 Spacer(minLength: 4)
                 if auswahl == nil {
                     Image(systemName: "checkmark")
@@ -177,7 +148,7 @@ struct PlanAuswahlView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .auswahlZeile(oben: 4, unten: 10)
+        .auswahlZeile(oben: 9, unten: 0)
 
         if !favoriten.liste.isEmpty {
             Abschnittszeile(text: "Favoriten")
@@ -215,35 +186,41 @@ struct PlanAuswahlView: View {
             .onMove { favoriten.verschieben($0, nach: $1) }
         }
 
-        Abschnittszeile(text: "Stundenpläne")
+        // Vorlage: „Stundenpläne“ 15 pt #dcdfe5 16,4 pt unter dem Avatar; Zeilen 52 pt: Symbol 20,67 pt (#818f9c) ab
+        // 17,67 pt, Titel 17 pt #f3f5f7 ab 57,3 pt, Pfeil 7,67 × 14 pt 27 pt vom rechten Rand
+        Text("Stundenpläne")
+            .font(.system(size: 15))
+            .foregroundStyle(Farben.detailGrau)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .auswahlZeile(oben: 16.4, unten: 3.7)
+            .accessibilityAddTraits(.isHeader)
+            .moveDisabled(true)
+            .deleteDisabled(true)
         ForEach(kategorien) { kategorie in
             Button {
                 pfad.append(kategorie)
             } label: {
-                HStack(spacing: 16) {
-                    Image(kategorie.bild)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        // Symbol schwarz bzw. weiß je nach Modus (nicht grau)
-                        .foregroundStyle(Color.primary)
-                        .frame(width: 28, height: 28)
-                        .frame(width: 34, height: 30)
+                HStack(spacing: 0) {
+                    Listensymbol(name: kategorie.bild, groesse: 20.67, einpassen: true)
+                        .foregroundStyle(Farben.detailSymbol)
+                        .frame(width: 20.67)
+                        .padding(.leading, 17.67)
+                        .padding(.trailing, 18)
                     Text(kategorie.titel)
-                        .font(.system(size: 19))
-                        .foregroundStyle(Farben.tinte)
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.detailText)
                     Spacer(minLength: 4)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 18, weight: .regular))
-                        .foregroundStyle(Farben.pfeil)
-                        .frame(width: 20)
+                        .font(.system(size: 15.5, weight: .regular))
+                        .foregroundStyle(Farben.detailSymbol)
+                        .padding(.trailing, 26.5)
                 }
-                .padding(.vertical, 15)
+                .frame(height: 52)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(OhneTippStil())
             .disabled(imBearbeiten)
-            .auswahlZeile(oben: 0, unten: 0)
+            .auswahlZeile(oben: 0, unten: 0, rechts: 0, links: 0)
         }
 
     }
@@ -308,7 +285,55 @@ enum Auswahlmass {
     static let suchRand = Color(hell: 0xCFD6DC, dunkel: 0x343436)
     static let lupe = Color(hell: 0x253746, dunkel: 0xFAFAFC)
     static let platzhalter = Color(hell: 0x8B9AA5, dunkel: 0xABABAD)
-    /// Filter „Aktuelles Schuljahr ⌄“: 16 pt unter dem Suchfeld, 42 pt hoch, Kapsel #dadee5 mit 1-pt-Rand #818d97,
+    /// Suchfeld unten in der Planauswahl (Vorlage a59416d6): Kapsel 48 pt, 28 pt seitlich, Fläche #252527 mit 1-pt-Rand
+/// #4a4a50 (hell weiß mit #cfd6dc), Lupe 16,33 pt (#f4f4f4) 20 pt vom Rand, „Stundenplan suchen“ 17 pt (#a7a7a8) 11 pt
+/// dahinter; sucht über alle Planarten.
+struct Plansuche: View {
+    @Binding var text: String
+    @FocusState private var fokus: Bool
+
+    static let flaeche = Color(hell: 0xFFFFFF, dunkel: 0x252527)
+    static let rand = Color(hell: 0xCFD6DC, dunkel: 0x4A4A50)
+    static let lupe = Color(hell: 0x253746, dunkel: 0xF4F4F4)
+    static let platzhalter = Color(hell: 0x8B9AA5, dunkel: 0xA7A7A8)
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 17.5, weight: .regular))
+                .foregroundStyle(Self.lupe)
+            TextField("", text: $text, prompt: Text("Stundenplan suchen").foregroundColor(Self.platzhalter))
+                .font(.system(size: 17))
+                .foregroundStyle(Farben.detailText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($fokus)
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(Farben.abschnitt)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Suche leeren")
+            }
+        }
+        .padding(.leading, 20)
+        .padding(.trailing, 14)
+        .frame(height: 48)
+        .background(Self.flaeche, in: Capsule())
+        .overlay {
+            Capsule().strokeBorder(Self.rand, lineWidth: 1)
+        }
+        .contentShape(Capsule())
+        .onTapGesture { fokus = true }
+    }
+}
+
+/// Filter „Aktuelles Schuljahr ⌄“: 16 pt unter dem Suchfeld, 42 pt hoch, Kapsel #dadee5 mit 1-pt-Rand #818d97,
     /// Schrift 15 pt #0a0d13 (16 pt Innenabstand links), Pfeil 10 × 5 pt 7 pt hinter dem Text, rechts 19 pt
     static let filterHoehe: CGFloat = 42
     static let filterFlaeche = Color(hell: 0xE8ECF0, dunkel: 0xDADEE5)

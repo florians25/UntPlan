@@ -268,12 +268,12 @@ public class SeitenlayoutTests
     }
 
     [Fact]
-    public void Abwesenheit_als_Flaeche_hinter_den_Stunden_und_im_Menue_ausblendbar()
+    public void Abwesenheit_als_Flaeche_ueber_den_Stunden_und_im_Menue_ausblendbar()
     {
         var gitter = Datei("js", "plangitter.js");
         Assert.Contains("function abwesenheitFlaechen(", gitter);
         Assert.Contains("plan.abwesenheiten", gitter);
-        // vor den Karten eingefügt (liegt hinter den Stunden), Text im freien Bereich
+        // als Fläche über den Karten (z-index, Klicks gehen durch), Text im freien Bereich
         Assert.Contains("html = html.slice(0, vorKarten) + abw + html.slice(vorKarten)", gitter);
         Assert.Contains("tt-abw-text", gitter);
         var plan = Datei("js", "ansichten", "plan.js");
@@ -282,7 +282,8 @@ public class SeitenlayoutTests
         var css = Datei("css", "app.css");
         Assert.Contains(".tt.ohne-abwesenheiten .tt-abw { display: none; }", css);
         var regel = css.Split('\n').First(z => z.StartsWith(".tt-abw {", StringComparison.Ordinal));
-        Assert.DoesNotContain("z-index", regel);
+        Assert.Contains("z-index: 3", regel);
+        Assert.Contains("pointer-events: none", regel);
     }
 
     [Fact]
