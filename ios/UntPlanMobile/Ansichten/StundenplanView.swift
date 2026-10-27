@@ -1419,10 +1419,13 @@ struct Rasterrahmen: Equatable {
     /// Leerer Streifen über der Linie der 1. Stunde, hell und dunkel gleich (Vorlage dc1bcf55: Kopf endet bei 468 px,
     /// Linie ab 514,5 px → 15,5 pt).
     static let obenAbstand: CGFloat = 15.5
-    /// Aufsicht vor der 1. Stunde: schmale Pille (Vorlage 179: 10 pt, auf Wunsch etwas höher: 12 pt) direkt auf der Linie
-    /// der 1. Stunde, darüber mindestens 4 pt Luft (der Streifen über der Linie wächst dafür von 15,5 auf 16 pt).
-    static let pillenHoehe: CGFloat = 12
+    /// Aufsicht vor der 1. Stunde: auf Wunsch so hoch wie die Aufsichten in den Pausen (Pause mindestens 24 pt, in der
+    /// Tagesansicht 30 pt; Pille = Lücke − 2 pt, höchstens 22 bzw. 26 pt) direkt auf der Linie der 1. Stunde, darüber
+    /// mindestens 4 pt Luft (der Streifen über der Linie wächst entsprechend).
+    static func pillenHoehe(tage: Bool) -> CGFloat { tage ? 26 : 21 }
     static let pillenLuft: CGFloat = 4
+    /// Höhe der Pillen vor der 1. Stunde in diesem Raster
+    let pillenHoehe: CGFloat
 
     /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.
     static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 44 : 45 }
@@ -1450,7 +1453,8 @@ struct Rasterrahmen: Equatable {
         }
         let dicht = tagesansicht || kompakt
         // Pillen vor der 1. Stunde (Aufsicht, ganztägiger Termin) brauchen über der Linie der 1. Stunde Platz
-        let oben: CGFloat = vorErster ? max(Self.obenAbstand, Self.pillenHoehe + Self.pillenLuft) : Self.obenAbstand
+        let pille = Self.pillenHoehe(tage: seiten.contains { $0.nurTage != nil })
+        let oben: CGFloat = vorErster ? max(Self.obenAbstand, pille + Self.pillenLuft) : Self.obenAbstand
         // iPhone wie im Original: Höhe je Minute so, dass das Raster von der 1. Stunde bis 17:00 genau die Sichthöhe
         // füllt (Vorlagen: dunkel 07:45–17:00 → 1,2667 pt/min, hell 08:00–17:00 → 1,2296 pt/min); sonst fester Wert
         let spanne = CGFloat(Self.sichtEnde - start)
@@ -1469,6 +1473,7 @@ struct Rasterrahmen: Equatable {
         self.mass = mass
         self.hoehe = mass.y(ende) + Self.abstandUnten + untenFrei
         self.vorErster = vorErster
+        self.pillenHoehe = pille
         self.dichteAufsicht = dicht
         self.tagesansicht = tagesansicht
         self.kompakt = kompakt
@@ -1478,7 +1483,7 @@ struct Rasterrahmen: Equatable {
     }
 
     static func == (l: Rasterrahmen, r: Rasterrahmen) -> Bool {
-        l.stundenNummern == r.stundenNummern && l.start == r.start && l.ende == r.ende && l.mass == r.mass && l.hoehe == r.hoehe && l.vorErster == r.vorErster
+        l.stundenNummern == r.stundenNummern && l.start == r.start && l.ende == r.ende && l.mass == r.mass && l.hoehe == r.hoehe && l.vorErster == r.vorErster && l.pillenHoehe == r.pillenHoehe
             && l.dichteAufsicht == r.dichteAufsicht && l.tagesansicht == r.tagesansicht && l.kompakt == r.kompakt
             && l.zeiten.map { [$0.nr, $0.beginn, $0.ende] } == r.zeiten.map { [$0.nr, $0.beginn, $0.ende] }
     }
@@ -1854,7 +1859,7 @@ struct RasterSeite: View, Equatable {
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
             // Direkt auf der Linie der 1. Stunde (Unterkante an der Oberkante der Linie), wie im Original
-            h = Rasterrahmen.pillenHoehe
+            h = rahmen.pillenHoehe
             y = bildpunkt(max(0, mass.y(mass.start) - h))
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar; Breite und Spur wie jede Stunde
