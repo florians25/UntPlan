@@ -5,7 +5,7 @@ import UIKit
 
 /// Bei verborgener Navigationsleiste (Detail-Unterseiten, Planauswahl) schaltet UIKit die Rand-Wischgeste zum Zurückgehen ab.
 /// Mit eigenem Delegate bleibt sie aktiv – aber nur, wenn es eine Seite zum Zurückgehen gibt.
-extension UINavigationController: UIGestureRecognizerDelegate {
+extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
     override open func viewDidLoad() {
         super.viewDidLoad()
         interactivePopGestureRecognizer?.delegate = self

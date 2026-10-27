@@ -552,35 +552,42 @@ struct StundendetailInhalt: View {
     /// Kopfzeile „Klasse | Gruppe“: eigene Klasse(n), anwesende Mitklassen als Text, fehlende bzw. abwesende Klassen
     /// durchgestrichen; Trennstrich grau. Veranstaltung ohne Klassen: keine Kopfzeile.
     private var titelBausteine: [Wertbaustein] {
-        var teile: [Wertbaustein] = []
         let abwesend = abwesendeKlassenSichtbar
-        guard !karte.mitklassen.isEmpty || !abwesend.isEmpty else {
-            if titelzeile.isEmpty { return [] }
-            for teil in titelzeile.components(separatedBy: " | ") {
-                if !teile.isEmpty { teile.append(.trenner) }
-                teile.append(.text(teil))
+        var werte: [Wertbaustein] = []
+        if karte.mitklassen.isEmpty && abwesend.isEmpty {
+            if !titelzeile.isEmpty {
+                werte = titelzeile.components(separatedBy: " | ").map { Wertbaustein.text($0) }
             }
-            return teile
-        }
-        func hinzu(_ b: Wertbaustein) {
-            if !teile.isEmpty { teile.append(.trenner) }
-            teile.append(b)
-        }
-        var gesehen: [String] = []
-        for w in karte.klassen {
-            let t = w.k.isEmpty ? (w.alt ?? "") : w.k
-            guard !t.isEmpty, !gesehen.contains(where: { $0.caseInsensitiveCompare(t) == .orderedSame }) else { continue }
-            gesehen.append(t)
-            hinzu(abwesend.contains { $0.caseInsensitiveCompare(t) == .orderedSame } ? .weg(t) : .text(t))
-        }
-        for w in karte.mitklassen {
-            if !w.k.isEmpty {
-                hinzu(.text(w.k))
-            } else if let alt = w.alt, !alt.isEmpty {
-                hinzu(.weg(alt))
+        } else {
+            var gesehen: [String] = []
+            for w in karte.klassen {
+                let t = w.k.isEmpty ? (w.alt ?? "") : w.k
+                if t.isEmpty || gesehen.contains(where: { $0.caseInsensitiveCompare(t) == .orderedSame }) { continue }
+                gesehen.append(t)
+                let fehlt = abwesend.contains { $0.caseInsensitiveCompare(t) == .orderedSame }
+                werte.append(fehlt ? .weg(t) : .text(t))
             }
+            for w in karte.mitklassen {
+                if !w.k.isEmpty {
+                    werte.append(.text(w.k))
+                } else if let alt = w.alt, !alt.isEmpty {
+                    werte.append(.weg(alt))
+                }
+            }
+            if !karte.gruppe.isEmpty { werte.append(.text(karte.gruppe)) }
         }
-        if !karte.gruppe.isEmpty { hinzu(.text(karte.gruppe)) }
+        return Self.mitTrennern(werte)
+    }
+
+    /// Setzt zwischen je zwei Werte einen grauen Trennstrich (eigene Funktion statt verschachtelter Hilfsfunktion –
+    /// letztere brachte den Optimierer im Release-Build zum Absturz).
+    private static func mitTrennern(_ werte: [Wertbaustein]) -> [Wertbaustein] {
+        var teile: [Wertbaustein] = []
+        teile.reserveCapacity(werte.count * 2)
+        for (i, w) in werte.enumerated() {
+            if i > 0 { teile.append(.trenner) }
+            teile.append(w)
+        }
         return teile
     }
 
