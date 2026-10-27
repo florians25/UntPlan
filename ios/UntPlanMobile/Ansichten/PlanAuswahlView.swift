@@ -58,11 +58,12 @@ struct PlanAuswahlView: View {
     private var imBearbeiten: Bool { bearbeiten == .active }
 
     @Environment(\.randblattUnten) private var untenFrei
+    @FocusState private var suchfokus: Bool
 
     /// Abstand des Suchfelds zur Unterkante des Inhalts: Vorlage a59416d6 28 pt über dem Bildschirmrand (also 6 pt in den
-    /// Bereich des Home-Indikators hinein, negativ); bei offener Tastatur 8 pt darüber.
+    /// Bereich des Home-Indikators hinein, negativ); bei offener Tastatur 12 pt darüber (Vorlage 74e03318).
     private var suchfeldAbstand: CGFloat {
-        if untenFrei > 60 { return 8 }
+        if untenFrei > 60 || suchfokus { return 12 }
         return 28 - untenFrei
     }
 
@@ -101,11 +102,34 @@ struct PlanAuswahlView: View {
                 kopf
             }
             // Vorlage a59416d6: Suchfeld unten, 28 pt vom unteren Bildschirmrand (folgt der Tastatur)
+            // Fokus (Vorlage 74e03318): Feld 12 pt über der Tastatur, 12 pt vom linken Rand, rechts daneben (12 pt Abstand)
+            // ein runder Knopf X (48 pt, wie das Feld) – bricht die Suche ab und schließt die Tastatur
             .overlay(alignment: .bottom) {
-                Plansuche(text: $suche)
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, suchfeldAbstand >= 0 ? suchfeldAbstand : 0)
-                    .offset(y: suchfeldAbstand < 0 ? -suchfeldAbstand : 0)
+                HStack(spacing: 12) {
+                    Plansuche(text: $suche, fokus: $suchfokus)
+                    if suchfokus {
+                        Button {
+                            suche = ""
+                            suchfokus = false
+                        } label: {
+                            // X 17,33 × 17,33 pt (#f4f4f6) wie in den Glasknöpfen
+                            Image(systemName: "xmark")
+                                .font(.system(size: 21, weight: .light))
+                                .foregroundStyle(Plansuche.lupe)
+                                .frame(width: 48, height: 48)
+                                .background(Plansuche.flaeche, in: Circle())
+                                .overlay(Circle().strokeBorder(Plansuche.rand, lineWidth: 1))
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Suche abbrechen")
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                }
+                .padding(.horizontal, suchfokus ? 12 : 28)
+                .padding(.bottom, suchfeldAbstand >= 0 ? suchfeldAbstand : 0)
+                .offset(y: suchfeldAbstand < 0 ? -suchfeldAbstand : 0)
+                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: suchfokus)
             }
             .scrollDismissesKeyboard(.immediately)
             .toolbar(.hidden, for: .navigationBar)
@@ -321,7 +345,7 @@ enum Auswahlmass {
 /// dahinter; sucht über alle Planarten.
 struct Plansuche: View {
     @Binding var text: String
-    @FocusState private var fokus: Bool
+    var fokus: FocusState<Bool>.Binding
 
     static let flaeche = Color(hell: 0xFFFFFF, dunkel: 0x252527)
     static let rand = Color(hell: 0xCFD6DC, dunkel: 0x4A4A50)
@@ -339,18 +363,8 @@ struct Plansuche: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
-                .focused($fokus)
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(Farben.abschnitt)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Suche leeren")
-            }
+                .focused(fokus)
+                .onSubmit { fokus.wrappedValue = false }
         }
         .padding(.leading, 20)
         .padding(.trailing, 14)
@@ -360,7 +374,7 @@ struct Plansuche: View {
             Capsule().strokeBorder(Self.rand, lineWidth: 1)
         }
         .contentShape(Capsule())
-        .onTapGesture { fokus = true }
+        .onTapGesture { fokus.wrappedValue = true }
     }
 }
 
