@@ -231,10 +231,17 @@ struct StundenplanView: View {
                     .environmentObject(zustand)
                     .environmentObject(favoriten)
             }
-            // „Hilfe“ im ⋮-Menü: Legende der Kartenfarben und -zeichen
-            .blattPraesentation(isPresented: $zeigeHilfe, breit: istBreit) {
-                PlanInfoView(titel: "Legende", plan: nil)
+            // „Hilfe“ im ⋮-Menü: „Erklärung zum Stundenplan“ wie im Original als schwarze Ebene über dem Plan (der Kopf
+            // mit Planname und ⋮ bleibt darüber sichtbar, die Tab-Leiste ebenfalls)
+            .overlay {
+                if zeigeHilfe {
+                    PlanErklaerungView {
+                        withAnimation(.easeOut(duration: 0.2)) { zeigeHilfe = false }
+                    }
+                    .transition(.opacity)
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: zeigeHilfe)
             .task(id: ladeSchluessel) { await laden() }
             .task(id: "\(typ)|\(element)") { await klassenleitungenLaden() }
             .onAppear {
@@ -956,6 +963,174 @@ enum Wochenkopf {
         var s = Datumsformat.anzeige(datum, "LLL")
         if s.hasSuffix(".") { s.removeLast() }
         return s
+    }
+}
+
+/// „Erklärung zum Stundenplan“ (⋮-Menü → Hilfe) nach den Vorlagen 19f05c54/bdd2c306 (dunkel, 3 px/pt): schwarze Ebene über
+/// dem Plan; Titel 22 pt fett mittig (#f3f5f7), Untertitel 15 pt (#dbdfe5); Einträge mit Kreis links (52 pt mit 2-pt-Rand in
+/// den Kartenfarben bzw. 50 pt grau #1c1c1d, Mitte 49 pt vom Rand), Symbol 24 pt, daneben (15 pt Abstand) Titel 17 pt
+/// halbfett und Beschreibung 15 pt (Zeilen 20,67 pt); unten angeheftet „Los geht’s“ (Kapsel 42 pt #fe5f32, 17 pt fett
+/// weiß), 35 pt über der Tab-Leiste. Der Inhalt blendet oben unter dem Kopf und unten über dem Knopf aus.
+/// „Externe Kalender“ und „Zoom per Pinch-Geste“ fehlen bewusst: beides gibt es in der App (noch) nicht.
+struct PlanErklaerungView: View {
+    let schliessen: () -> Void
+    @Environment(\.openURL) private var oeffnen
+
+    private enum Kreis {
+        case farbe(flaeche: Color, rand: Color)
+        case grau
+    }
+
+    private struct Eintrag: Identifiable {
+        let id = UUID()
+        let kreis: Kreis
+        let symbol: AnyView
+        let titel: String
+        let text: String
+        var link = false
+    }
+
+    static let hintergrund = Color(hell: 0xFFFFFF, dunkel: 0x000000)
+    static let titelFarbe = Color(hell: 0x10161D, dunkel: 0xF3F5F7)
+    static let textFarbe = Color(hell: 0x3F525E, dunkel: 0xDBDFE5)
+    static let symbolFarbe = Color(hell: 0x3F525E, dunkel: 0xDBDFE5)
+    static let grauKreis = Color(hell: 0xF3F5F7, dunkel: 0x1C1C1D)
+
+    private var eintraege: [Eintrag] {
+        [
+            Eintrag(kreis: .farbe(flaeche: Farben.aenderungHintergrund, rand: Farben.aenderungRand),
+                    symbol: AnyView(ZStack(alignment: .bottomTrailing) {
+                        Image(systemName: "person")
+                            .font(.system(size: 19, weight: .light))
+                            .frame(width: 24, height: 24, alignment: .topLeading)
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 11, weight: .medium))
+                            .offset(x: 2, y: 1)
+                    }.frame(width: 26, height: 26)),
+                    titel: "Änderung", text: "Grün zeigt eine Änderung an, z.B. eine Vertretung durch eine andere Lehrkraft."),
+            Eintrag(kreis: .farbe(flaeche: Farben.pruefungHintergrund, rand: Farben.pruefungRand),
+                    symbol: AnyView(Image(systemName: "list.clipboard").font(.system(size: 21, weight: .light))),
+                    titel: "Prüfung", text: "Gelb markiert eine Prüfung."),
+            Eintrag(kreis: .farbe(flaeche: Farben.entfallHintergrund, rand: Farben.entfallRand),
+                    symbol: AnyView(Image(systemName: "xmark.circle").font(.system(size: 22, weight: .light))),
+                    titel: "Entfall", text: "Rot signalisiert einen Entfall der Stunde."),
+            Eintrag(kreis: .grau,
+                    symbol: AnyView(Image(systemName: "info.circle").font(.system(size: 22, weight: .light))),
+                    titel: "Icons zu Stunden",
+                    text: "Icons zeigen zusätzliche Hinweise zu einer Stunde, z. B. fällige Hausaufgaben, Notizen, Sprechstunden, Remote-Unterricht oder weitere Informationen."),
+            Eintrag(kreis: .grau,
+                    symbol: AnyView(Image(systemName: "accessibility").font(.system(size: 22, weight: .light))),
+                    titel: "Textgröße & Bedienungshilfen",
+                    text: "Die Schriftgröße sowie weitere Bedienungshilfen werden direkt über das Betriebssystem gesteuert.",
+                    link: true),
+        ]
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let oben = geo.safeAreaInsets.top
+            ZStack(alignment: .bottom) {
+                Self.hintergrund
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Text("Erklärung zum Stundenplan")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(Self.titelFarbe)
+                        Text("Alles Wichtige zum Umgang mit dem Stundenplan auf einen Blick.")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Self.textFarbe)
+                            .padding(.top, 15.5)
+                            .padding(.horizontal, 24)
+                        VStack(alignment: .leading, spacing: 22.3) {
+                            ForEach(eintraege) { eintrag in
+                                zeile(eintrag)
+                            }
+                        }
+                        .padding(.top, 26)
+                    }
+                    .multilineTextAlignment(.center)
+                    // Vorlage: Titel-Oberkante 86 pt unter dem Sicherheitsbereich (Grundlinie 169 pt bei 62 pt oben)
+                    .padding(.top, oben + 86)
+                    .padding(.bottom, 130)
+                }
+                .scrollIndicators(.hidden)
+                .mask {
+                    VStack(spacing: 0) {
+                        LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black.opacity(0.12), location: 0.55),
+                                               .init(color: .black, location: 1)], startPoint: .top, endPoint: .bottom)
+                            .frame(height: oben + 80)
+                        Color.black
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 24)
+                        Color.clear
+                            .frame(height: geo.safeAreaInsets.bottom + 35 + 42 + 4)
+                    }
+                    .ignoresSafeArea()
+                }
+                Button(action: schliessen) {
+                    Text("Los geht’s")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20.3)
+                        .frame(height: 42)
+                        .background(Farben.heute, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, geo.safeAreaInsets.bottom + 35)
+            }
+        }
+        // Ganzer Bildschirm (hinter Kopf und Tab-Leiste); die Abstände rechnen mit den Sicherheitsbereichen
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private func kreis(_ eintrag: Eintrag) -> some View {
+        switch eintrag.kreis {
+        case let .farbe(flaeche, rand):
+            Circle()
+                .fill(flaeche)
+                .overlay(Circle().strokeBorder(rand, lineWidth: 2))
+                .frame(width: 52, height: 52)
+        case .grau:
+            Circle()
+                .fill(Self.grauKreis)
+                .frame(width: 50, height: 50)
+        }
+    }
+
+    private func zeile(_ eintrag: Eintrag) -> some View {
+        HStack(alignment: .top, spacing: 15) {
+            kreis(eintrag)
+                .overlay { eintrag.symbol.foregroundStyle(Self.symbolFarbe) }
+                .frame(width: 52, height: 52)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(eintrag.titel)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Self.textFarbe)
+                Text(eintrag.text)
+                    .font(.system(size: 15))
+                    .lineSpacing(2.7)
+                    .foregroundStyle(Self.textFarbe)
+                    .padding(.top, 1.6)
+                    .fixedSize(horizontal: false, vertical: true)
+                if eintrag.link {
+                    Button("Mehr Infos") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { oeffnen(url) }
+                    }
+                    .font(.system(size: 15))
+                    .foregroundStyle(Self.titelFarbe)
+                    .buttonStyle(.plain)
+                    .padding(.top, 14)
+                }
+            }
+            .multilineTextAlignment(.leading)
+            .padding(.top, 1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.leading, 23)
+        .padding(.trailing, 20)
+        .accessibilityElement(children: .combine)
     }
 }
 
