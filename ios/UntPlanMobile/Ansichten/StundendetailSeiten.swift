@@ -900,8 +900,7 @@ struct HausaufgabenSeite: View {
     private var bearbeitbar: Bool { daten.hausaufgaben?.darf == true }
 
     var body: some View {
-        DetailSeitenRahmen(titel: "Hausaufgaben", untertitel: daten.einzelstunde == nil ? stundenUntertitel(daten.karte) : "Nur \(daten.bereichText)",
-                           laedt: !daten.geladen, titelStil: .fett) {
+        DetailSeitenRahmen(titel: "Hausaufgaben", untertitel: daten.einzelstunde == nil ? stundenUntertitel(daten.karte) : "Nur \(daten.bereichText)", titelStil: .fett) {
             VStack(spacing: 0) {
                 filterleiste
                 if gefiltert.isEmpty {
@@ -1616,7 +1615,7 @@ struct KlassenbuchSeite: View {
 
     /// Vorlage: Kopf mit Zurück und Titel mittig; die Suche steht als eigene Zeile unter dem Kopf (nicht daneben gequetscht).
     var body: some View {
-        DetailSeitenRahmen(titel: "Klassenbucheinträge", untertitel: stundenUntertitel(daten.karte), laedt: !daten.geladen) {
+        DetailSeitenRahmen(titel: "Klassenbucheinträge", untertitel: stundenUntertitel(daten.karte)) {
             VStack(spacing: 0) {
                 suchfeld
                     .padding(.horizontal, 20)
@@ -1803,8 +1802,7 @@ struct SchuelerSeite: View {
 
     var body: some View {
         DetailSeitenRahmen(titel: "Schüler*innen", untertitel: daten.einzelstunde == nil ? stundenUntertitel(daten.karte)
-                               : "Nur \(daten.bereichText)" + (daten.blockBeginn.isEmpty ? "" : ", \(daten.blockBeginn) - \(daten.blockEnde)"),
-                           laedt: liste == nil) {
+                               : "Nur \(daten.bereichText)" + (daten.blockBeginn.isEmpty ? "" : ", \(daten.blockBeginn) - \(daten.blockEnde)")) {
             inhalt
         }
         .detailPraesentation(item: $eintrag, breit: Geraet.istPad, art: .formular) { v in

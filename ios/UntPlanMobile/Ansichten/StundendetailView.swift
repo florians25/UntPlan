@@ -97,20 +97,17 @@ struct StundendetailInhalt: View {
     private var kollegium: Bool { zustand.istKollegium }
     private var mitUnterricht: Bool { karte.unterricht != nil }
     private var istVeranstaltung: Bool { karte.istVeranstaltung }
-    /// Klassenbuch, Hausaufgaben usw. werden noch geladen (Ladebalken unter dem Kopf).
-    private var laedt: Bool { mitUnterricht && !daten.geladen }
 
     var body: some View {
         VStack(spacing: 0) {
-            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() },
-                      laedt: karten.count <= 1 && laedt, mitte: {
+            // Kein Ladebalken in den Details (Wunsch): Inhalte erscheinen, sobald sie da sind
+            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, mitte: {
                 datumsMenue
             }, rechts: {
                 weitereAktionen
             })
             if karten.count > 1 {
                 reiterleiste
-                    .overlay(alignment: .bottom) { Ladebalken(aktiv: laedt) }
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {

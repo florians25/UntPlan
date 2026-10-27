@@ -616,7 +616,7 @@ struct Suchtreffer: Identifiable {
 }
 
 /// Zeile eines Elements (Vorlage „Klassen“): runder grauer Avatar mit dem Symbol der Planart, Name, darunter das graue
-/// Badge (Klassen: „Klassenlehrkraft | ILK“, Lehrkräfte und Räume: der Name, sofern er vom Kürzel abweicht), Haken bei
+/// Badge (Klassen: je Klassenlehrkraft „Klassenlehrkraft | ILK“, Lehrkräfte und Räume: der Name, sofern er vom Kürzel abweicht), Haken bei
 /// der gewählten Zeile, Stern rechts.
 struct Elementzeile: View {
     let element: Planelement
@@ -626,23 +626,23 @@ struct Elementzeile: View {
     let antippen: () -> Void
     @EnvironmentObject var favoriten: Favoriten
 
-    /// Text des Badges; leer = kein Badge.
-    static func badge(_ element: Planelement, kategorie: Plankategorie, zeigeArt: Bool) -> String {
-        var info = ""
+    /// Texte der Badges (leer = keins). Klassen: je Klassenlehrkraft ein eigenes Badge „Klassenlehrkraft | PIN“
+    /// untereinander (Vorlage); Lehrkräfte und Räume: der Name, sofern er vom Kürzel abweicht.
+    static func badges(_ element: Planelement, kategorie: Plankategorie, zeigeArt: Bool) -> [String] {
+        var infos: [String] = []
         if kategorie == .klasse {
-            if !element.leitung.isEmpty {
-                info = (element.leitung.count == 1 ? "Klassenlehrkraft" : "Klassenlehrkräfte") + " | "
-                    + element.leitung.joined(separator: ",")
-            }
+            infos = element.leitung.filter { !$0.isEmpty }.map { "Klassenlehrkraft | \($0)" }
         } else if !element.name.isEmpty && element.name.caseInsensitiveCompare(element.kurz) != .orderedSame {
-            info = element.name
+            infos = [element.name]
         }
-        return [zeigeArt ? kategorie.einzahl : "", info].filter { !$0.isEmpty }.joined(separator: " · ")
+        guard zeigeArt else { return infos }
+        guard let erstes = infos.first else { return [kategorie.einzahl] }
+        return ["\(kategorie.einzahl) · \(erstes)"] + infos.dropFirst()
     }
 
     var body: some View {
         let plan = PlanAuswahl(typ: kategorie.rawValue, element: element.kurz, name: element.name)
-        let badge = Self.badge(element, kategorie: kategorie, zeigeArt: zeigeArt)
+        let badges = Self.badges(element, kategorie: kategorie, zeigeArt: zeigeArt)
         HStack(spacing: 0) {
             Button(action: antippen) {
                 HStack(spacing: 8) {
@@ -659,14 +659,17 @@ struct Elementzeile: View {
                             .font(.system(size: 20))
                             .foregroundStyle(Auswahlmass.name)
                             .lineLimit(1)
-                        if !badge.isEmpty {
-                            Text(badge)
-                                .font(.system(size: 13))
-                                .foregroundStyle(Auswahlmass.badgeText)
-                                .lineLimit(1)
-                                .padding(.horizontal, 7)
-                                .frame(height: 19)
-                                .background(Auswahlmass.badgeFlaeche, in: Capsule())
+                        // Vorlage (3 px/pt): Badge 19,3 pt hoch, Text 8 pt vom Rand, mehrere Badges 4,3 pt untereinander
+                        VStack(alignment: .leading, spacing: 4.3) {
+                            ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                                Text(badge)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Auswahlmass.badgeText)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 8)
+                                    .frame(height: 19.3)
+                                    .background(Auswahlmass.badgeFlaeche, in: Capsule())
+                            }
                         }
                     }
                     Spacer(minLength: 4)
