@@ -660,9 +660,6 @@ struct StundenplanView: View {
                                             })
                                     .equatable()
                                     .frame(width: sw)
-                                    // Jede Seite für sich beschneiden: sonst fällt der Schatten der Freitagskarten der
-                                    // Nachbarwoche über den linken Rand der Montagskarten (dunkle Kante statt Vorlagenschatten)
-                                    .clipped()
                             }
                         }
                         .frame(width: sw * 3, height: rahmen.hoehe, alignment: .topLeading)
