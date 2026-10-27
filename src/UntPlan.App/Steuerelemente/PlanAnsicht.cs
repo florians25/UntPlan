@@ -418,8 +418,25 @@ public sealed class PlanAnsicht : Control
             ElementTyp.Raum => e.RaumIds.Contains(ElementId) || e.Regel?.RaumId == ElementId,
             ElementTyp.Fach => e.FachId == ElementId || e.Regel?.FachId == ElementId,
             _ => false,
-        }).GroupBy(e => (e.Unterricht?.Id ?? VeranstaltungsSchluessel(e) ?? -(e.Vertretung?.Id ?? 0), Typ == ElementTyp.Lehrer || Typ == ElementTyp.Raum ? (e.Regel?.ZeilenIndex ?? 0) : 0, e.Status == TagesStatus.Entfall))
-          .Select(g => g.First()).OrderBy(e => e.Status == TagesStatus.Entfall).ToList();
+        }).GroupBy(e => (e.Unterricht?.Id ?? VeranstaltungsSchluessel(e) ?? -(e.Vertretung?.Id ?? 0),
+                // Lehrer- und Raumplan: Kopplungszeilen, die für dieses Element gleich aussehen (gleiche Lehrkräfte, Räume, Fach),
+                // bilden wie im Vorbild einen Block mit allen Klassen statt paralleler Blöcke je Zeile
+                Typ == ElementTyp.Lehrer || Typ == ElementTyp.Raum
+                    ? $"{e.FachId}|{string.Join(",", e.LehrerIds.Order())}|{string.Join(",", e.RaumIds.Order())}|{e.Status}" : "",
+                e.Status == TagesStatus.Entfall))
+          .Select(g => g.Count() == 1 ? g.First() : MitAllenKlassen(g.ToList())).OrderBy(e => e.Status == TagesStatus.Entfall).ToList();
+    }
+
+    /// <summary>Gleich aussehende Kopplungszeilen als ein Eintrag: erste Zeile mit den Klassen aller Zeilen.</summary>
+    private static TagesEintrag MitAllenKlassen(List<TagesEintrag> zeilen)
+    {
+        var e = zeilen[0];
+        return new TagesEintrag
+        {
+            Stunde = e.Stunde, Regel = e.Regel, Vertretung = e.Vertretung, Status = e.Status, FachId = e.FachId,
+            LehrerIds = e.LehrerIds.ToList(), RaumIds = e.RaumIds.ToList(),
+            KlassenIds = zeilen.SelectMany(z => z.KlassenIds).Distinct().ToList(),
+        };
     }
 
     /// <summary>

@@ -336,6 +336,7 @@ public static class Vertretungen
         OffenWennVertreterAbwesend(d, datum);
         RaumaenderungBeiLehrerabwesenheit(d, datum, tag);
         KlassenabwesenheitAnwenden(d, datum);
+        Raumvertretungen.KopplungAngleichen(d, datum);
     }
 
     /// <summary>

@@ -225,15 +225,15 @@ export function karteDialog(karte, kontext = {}) {
     const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
-    return `<div class="sd-kopf ${leiste ? 'grau' : ''}">
+    // Original: roter Balken „ENTFÄLLT“ ganz oben über dem Titel, darunter Kopf und Reiter grau
+    return `${leiste ? '<div class="sd-entfall-leiste" role="status">ENTFÄLLT</div>' : ''}<div class="sd-kopf ${leiste ? 'grau' : ''}">
         <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
           <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
         <div class="sd-knoepfe">${istBlock() && !reiter?.match(/^(pruefung|raum)$/) ? blockWahl()
           : '<button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>'}
           <button type="button" data-bs-dismiss="modal" title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>
       </div>
-      ${leiste ? '<div class="sd-entfall-leiste" role="status">ENTFÄLLT</div>' : ''}
-      <ul class="nav sd-reiter">${reiterListe.map(([id, t]) => `<li><button type="button" data-reiter="${id}" class="${reiter === id ? 'aktiv' : ''}">${t}</button></li>`).join('')}</ul>`;
+      <ul class="nav sd-reiter${leiste ? ' grau' : ''}">${reiterListe.map(([id, t]) => `<li><button type="button" data-reiter="${id}" class="${reiter === id ? 'aktiv' : ''}">${t}</button></li>`).join('')}</ul>`;
   }
 
   /** Pfeil-runter oben rechts: Umschalten zwischen ganzem Block und den Einzelstunden (Einträge gelten dann nur für die gewählte Stunde). */

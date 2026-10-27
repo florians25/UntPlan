@@ -151,6 +151,29 @@ public static class Raumvertretungen
         return v;
     }
 
+    /// <summary>
+    /// Abgleich eines Tages: Raumvertretungen einer Kopplungszeile gelten auch für die übrigen Zeilen desselben Unterrichts, die
+    /// in derselben Stunde im selben Raum stattfinden und noch keine eigene Vertretung haben (auch für ältere Dateien, in denen nur
+    /// eine Zeile umgezogen ist). Die Vertretungsliste zeigt sie als eine Zeile mit allen Klassen.
+    /// </summary>
+    public static void KopplungAngleichen(Schuldatei d, DateOnly datum)
+    {
+        var quellen = d.Vertretungen.Where(v => v.Datum == datum && v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue
+                                                && v.RaumId.HasValue && (v.VertretungsraumId != null || v.ZusatzraumIds.Count > 0 || v.RaumVerdraengt)).ToList();
+        if (quellen.Count == 0) return;
+        var tp = Tagesplan.Berechnen(d, datum);
+        foreach (var v in quellen)
+            foreach (var e in tp.Stunde(v.Stunde).Where(x => x.Vertretung is null && x.Findetstatt && x.Regel is { } r && r.Unterricht.Id == v.UnterrichtId
+                         && r.ZeilenIndex != v.ZeilenIndex && x.RaumIds.Count > 0 && x.RaumIds[0] == v.RaumId).ToList())
+            {
+                var w = ZeileFuer(d, tp, e, v.Benutzer);
+                w.VertretungsraumId = v.VertretungsraumId;
+                w.ZusatzraumIds = v.ZusatzraumIds.ToList();
+                w.RaumVerdraengt = v.RaumVerdraengt;
+                e.Vertretung = w;
+            }
+    }
+
     private static void RaumSetzen(Vertretung v, int? raumId, bool zusaetzlich, int? bisheriger, string benutzer)
     {
         if (zusaetzlich && raumId is int z)
