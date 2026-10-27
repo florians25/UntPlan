@@ -81,6 +81,9 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _grid.CellPainting += CellPainting;
         _grid.CellToolTipTextNeeded += CellToolTip;
         _grid.EditingControlShowing += EditingControlShowing;
+        // vor der Direktsuche: kommagetrennte Listen (Klassenlehrer „LANG,EGB“) annehmen
+        _grid.CellValidating += ListeneingabePruefen;
+        Steuerelemente.SuchKombi.Aktivieren(_grid, AuswahlStil);
         _grid.DataError += (_, e) => e.ThrowException = false;
         _grid.CellContentClick += CellContentClick;
         _grid.DragOver += (_, e) => e.Effect = e.Data!.GetDataPresent(DataFormats.Text) ? DragDropEffects.Copy | DragDropEffects.Move : DragDropEffects.None;
@@ -203,6 +206,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 {
                     FeldArt.Bool => new DataGridViewCheckBoxColumn { ThreeState = false },
                     FeldArt.Auswahl => new DataGridViewComboBoxColumn { DataSource = f.Auswahl.ToList(), FlatStyle = FlatStyle.Flat, DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing },
+                    // Elementfelder (z. B. Raum, Klassenlehrer) als Auswahlliste mit Direktsuche wie die Lehrerauswahl im Vertretungsmodus
+                    FeldArt.Element or FeldArt.ElementListe => Steuerelemente.SuchKombi.Spalte(f.Schluessel, f.Titel, f.Breite, Array.Empty<string>()),
                     _ => new DataGridViewTextBoxColumn(),
                 };
                 col.Name = f.Schluessel;
@@ -216,6 +221,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 _grid.Columns.Add(col);
             }
         }
+        AuswahlWerteAktualisieren();
         var eintraege = Elemente().Cast<object>().Append(EingabeZeile).ToList();
         Steuerelemente.TabellenAbgleich.Anwenden(_grid, eintraege, Schluessel, Schluessel, (row, o) =>
         {
@@ -241,6 +247,63 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             AktuellesGeaendert(false);
         }
         FormularAufbauen();
+    }
+
+    /// <summary>
+    /// Einträge der Auswahlspalten: leer, alle Kurznamen und die schon eingetragenen Listenwerte (z. B. Klassenlehrer „LANG,EGB“) –
+    /// eine Auswahlzelle zeigt nur Werte, die in ihrer Liste stehen.
+    /// </summary>
+    private void AuswahlWerteAktualisieren()
+    {
+        foreach (DataGridViewColumn c in _grid.Columns)
+        {
+            if (c is not DataGridViewComboBoxColumn cc || c.Tag is not Feld { Art: FeldArt.Element or FeldArt.ElementListe } f) continue;
+            var werte = new List<string> { "" };
+            werte.AddRange(Stammdaten.Sortiert(D, f.RefTyp).Where(x => !x.Ignorieren).Select(x => x.Kurzname));
+            if (f.Art == FeldArt.ElementListe)
+                werte.AddRange(Elemente().Select(e => f.Anzeige(e, Ix)).Where(t => t.Contains(',')));
+            var neu = werte.Distinct().ToList();
+            if (cc.Items.Cast<object>().Select(o => o.ToString()).SequenceEqual(neu)) continue;
+            cc.Items.Clear();
+            foreach (var w in neu) cc.Items.Add(w);
+        }
+    }
+
+    /// <summary>Wert in die Liste der Auswahlspalte aufnehmen (z. B. neue Kombination „LANG,EGB“), damit die Zelle ihn zeigt.</summary>
+    private static void AuswahlWertSichern(DataGridViewColumn spalte, string wert)
+    {
+        if (spalte is DataGridViewComboBoxColumn cc && wert.Length > 0 && !cc.Items.Contains(wert)) cc.Items.Add(wert);
+    }
+
+    /// <summary>Langname in der Auswahlliste (Lehrkräfte mit vollem Namen) – wie in der Vertretungsliste.</summary>
+    private Steuerelemente.ListenStil? AuswahlStil(DataGridViewCell zelle, string text)
+    {
+        if (zelle.OwningColumn.Tag is not Feld { Art: FeldArt.Element or FeldArt.ElementListe } f) return null;
+        var e = D.AlleElemente(f.RefTyp).FirstOrDefault(x => x.Kurzname == text);
+        return e is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, e is Lehrer l ? l.VollerName : e.Langname);
+    }
+
+    /// <summary>
+    /// Listenfelder (z. B. Klassenlehrer): mehrere Kurznamen mit Komma eintippen („lang, egb“) – gültige Eingaben werden zu
+    /// „LANG,EGB“ und in die Auswahlliste aufgenommen, bevor die Direktsuche die Eingabe prüft.
+    /// </summary>
+    private void ListeneingabePruefen(object? sender, DataGridViewCellValidatingEventArgs e)
+    {
+        if (_grid.Columns[e.ColumnIndex].Tag is not Feld { Art: FeldArt.ElementListe } f || _grid.EditingControl is not ComboBox cb) return;
+        var teile = cb.Text.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (teile.Length < 2) return;
+        var namen = new List<string>();
+        foreach (var t in teile)
+        {
+            var el = D.AlleElemente(f.RefTyp).FirstOrDefault(x => x.Kurzname.Equals(t, StringComparison.OrdinalIgnoreCase));
+            if (el is null) return;
+            if (!namen.Contains(el.Kurzname)) namen.Add(el.Kurzname);
+        }
+        var wert = string.Join(",", namen);
+        AuswahlWertSichern(_grid.Columns[e.ColumnIndex], wert);
+        if (!cb.Items.Contains(wert)) cb.Items.Add(wert);
+        cb.SelectedItem = wert;
+        cb.Text = wert;
     }
 
     private void ZeileFuellen(DataGridViewRow row)
@@ -522,8 +585,9 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             _grid.CurrentCell = _grid[hit.ColumnIndex, hit.RowIndex];
             var cell = _grid.CurrentCell;
             var f = (Feld)_grid.Columns[hit.ColumnIndex].Tag!;
-            if (f.Art == FeldArt.ElementListe && cell.Value is string vorh && vorh.Length > 0) cell.Value = vorh + "," + s;
-            else cell.Value = s;
+            var wert = f.Art == FeldArt.ElementListe && cell.Value is string vorh && vorh.Length > 0 ? vorh + "," + s : s;
+            AuswahlWertSichern(cell.OwningColumn, wert);
+            cell.Value = wert;
             CellEndEdit(this, new DataGridViewCellEventArgs(hit.ColumnIndex, hit.RowIndex));
         }
     }
