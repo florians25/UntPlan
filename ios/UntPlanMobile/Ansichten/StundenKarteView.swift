@@ -719,10 +719,11 @@ struct ZaehlstreifenView: View {
     private var farbe: (flaeche: Color, text: Color) {
         let v = streifen.vergangen
         let ziffer = Color(hell: 0xFFFFFF, dunkel: 0x10161D)
-        // Verdeckte Vertretung (grüner Block) hat Vorrang: Zähler grün
+        // Farbe der verdeckten Karte; mehrere Arten: grün (Änderung) vor gelb (Prüfung) vor rot (Entfall), sonst normal
+        // (Vorlage eb5b4aac dunkel: Prüfung #ffb728, Änderung „mint“ #1fc0a0, Ziffer jeweils #10161d)
         if streifen.aenderung { return (Farben.aenderungRand, ziffer) }
-        if streifen.entfall { return (Farben.entfallRand, ziffer) }
         if streifen.klausur { return (Farben.pruefungRand, ziffer) }
+        if streifen.entfall { return (Farben.entfallRand, ziffer) }
         return (v ? Farben.karteVergangen : Farben.karte, v ? Farben.karteTextVergangen : Farben.karteText)
     }
 }

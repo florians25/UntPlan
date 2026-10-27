@@ -508,13 +508,39 @@ extension Blattkopf where Rechts == EmptyView {
 /// 11,33 pt), Pfeil 10,67 × 6,33 pt 7,5 pt rechts davon, darunter die Uhrzeit 11,7 pt (Grundlinien 14 pt auseinander);
 /// einzeiliger Titel (Unterseiten) 16,5 pt.
 struct Blatttitel: View {
+    /// `standard`: Stundendetails und Unterseiten; `fett`: Hausaufgaben (Vorlagen ffb86f46/f32d5ffe) – zweizeilig Titel
+    /// 15 pt halbfett (Versalhöhe 10,67 pt) über dem Untertitel 12,7 pt (Ziffernhöhe 9 pt, Grundlinien 15 pt auseinander),
+    /// einzeilig 17 pt halbfett (Versalhöhe 12 pt).
+    enum Stil { case standard, fett }
+
     let titel: String
     var untertitel: String? = nil
     var pfeil: Bool = false
+    var stil: Stil = .standard
 
     var body: some View {
+        if stil == .fett { fettBody } else { standardBody }
+    }
+
+    private var fettBody: some View {
         let zweizeilig = !(untertitel ?? "").isEmpty
-        VStack(spacing: -1) {
+        return VStack(spacing: -0.7) {
+            Text(titel)
+                .font(.system(size: zweizeilig ? 15 : 17, weight: .semibold))
+            if let untertitel, zweizeilig {
+                Text(untertitel)
+                    .font(.system(size: 12.7))
+            }
+        }
+        .foregroundStyle(Farben.titelGrau)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var standardBody: some View {
+        let zweizeilig = !(untertitel ?? "").isEmpty
+        return VStack(spacing: -1) {
             HStack(spacing: 7.5) {
                 Text(titel)
                     .font(.system(size: zweizeilig || pfeil ? 16 : 16.5, weight: .regular))
@@ -548,12 +574,15 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
     let rechts: Rechts
     /// Lädt die Seite? Dann läuft unter dem Kopf der orange Ladebalken.
     let laedt: Bool
+    let titelStil: Blatttitel.Stil
     @Environment(\.dismiss) private var schliessen
     @Environment(\.blattSchliessen) private var blattSchliessen
     @Environment(\.unterblatt) private var unterblatt
 
     init(titel: String, untertitel: String? = nil, symbol: String = "chevron.left", zurueck: (() -> Void)? = nil,
-         laedt: Bool = false, @ViewBuilder inhalt: () -> Inhalt, @ViewBuilder rechts: () -> Rechts) {
+         laedt: Bool = false, titelStil: Blatttitel.Stil = .standard,
+         @ViewBuilder inhalt: () -> Inhalt, @ViewBuilder rechts: () -> Rechts) {
+        self.titelStil = titelStil
         self.titel = titel
         self.untertitel = untertitel
         self.symbol = symbol
@@ -576,7 +605,7 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
                     schliessen()
                 }
             }, laedt: laedt, mitte: {
-                Blatttitel(titel: titel, untertitel: untertitel)
+                Blatttitel(titel: titel, untertitel: untertitel, stil: titelStil)
             }, rechts: {
                 rechts
             })
@@ -594,8 +623,9 @@ struct DetailSeitenRahmen<Inhalt: View, Rechts: View>: View {
 
 extension DetailSeitenRahmen where Rechts == EmptyView {
     init(titel: String, untertitel: String? = nil, symbol: String = "chevron.left", zurueck: (() -> Void)? = nil,
-         laedt: Bool = false, @ViewBuilder inhalt: () -> Inhalt) {
-        self.init(titel: titel, untertitel: untertitel, symbol: symbol, zurueck: zurueck, laedt: laedt, inhalt: inhalt, rechts: { EmptyView() })
+         laedt: Bool = false, titelStil: Blatttitel.Stil = .standard, @ViewBuilder inhalt: () -> Inhalt) {
+        self.init(titel: titel, untertitel: untertitel, symbol: symbol, zurueck: zurueck, laedt: laedt, titelStil: titelStil,
+                  inhalt: inhalt, rechts: { EmptyView() })
     }
 }
 
@@ -605,6 +635,8 @@ struct SichernKnopf: View {
     let aktiv: Bool
     var symbol: String = "checkmark"
     var beschriftung: String = "Sichern"
+    /// Aktiv als Glasknopf mit orangem Haken (Hausaufgaben, Vorlage f32d5ffe) statt weißem Haken auf oranger Fläche.
+    var glas: Bool = false
     let aktion: () -> Void
 
     var body: some View {
@@ -613,7 +645,9 @@ struct SichernKnopf: View {
                 .frame(width: Detailmass.knopf, height: Detailmass.knopf)
         } else {
             Button(action: aktion) {
-                if aktiv {
+                if aktiv && glas {
+                    Rundknopf(symbol: symbol, gewicht: .light, groesse: 22, farbe: Farben.hakenAktiv)
+                } else if aktiv {
                     Image(systemName: symbol)
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(Color.white)

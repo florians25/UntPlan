@@ -210,7 +210,7 @@ struct Zaehlstreifen: Identifiable {
     var vorne: Kachel
 
     var entfall: Bool { kacheln.contains { $0.art == .entfall } }
-    /// Verdeckt eine grüne Karte (Vertretung, Änderung, Raumänderung) – hat Vorrang vor Entfall und Prüfung
+    /// Verdeckt eine grüne Karte (Vertretung, Änderung, Raumänderung) – hat Vorrang vor Prüfung und Entfall
     var aenderung: Bool { kacheln.contains(where: \.gruen) }
     var klausur: Bool { kacheln.contains { $0.art == .klausur } }
     /// Alle verdeckten Stunden liegen in der Vergangenheit

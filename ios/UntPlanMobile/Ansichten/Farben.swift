@@ -63,6 +63,10 @@ enum Farben {
     static let knopfSymbol = Color(hell: 0x7F8D9A, dunkel: 0x8E9CAA)
     /// Haken im Glasknopf „Sichern“, solange nichts zu sichern ist
     static let knopfSymbolAus = Color(hell: 0xB0B0B1, dunkel: 0x5C5C60)
+    /// Oranger Haken im Glasknopf „Sichern“, sobald gesichert werden kann (Vorlage f32d5ffe: #ff6d41)
+    static let hakenAktiv = Color(hell: 0xF56B2A, dunkel: 0xFF6D41)
+    /// Runder Grund des Symbols im leeren Zustand („Keine Hausaufgaben“, Vorlage ffb86f46: #2c2c2e)
+    static let leerKreis = Color(hell: 0xF3F5F7, dunkel: 0x2C2C2E)
     /// Zahl der Abwesenden in der Detailliste: hell blassrot mit roter Ziffer, dunkel dunkelrot mit hellrosa Ziffer
     static let abwesendPlaketteFlaeche = Color(hell: 0xFFF3F3, dunkel: 0x81002E)
     static let abwesendZiffer = Color(hell: 0xDF0046, dunkel: 0xFFE3E3)
