@@ -1729,15 +1729,19 @@ struct RasterSeite: View, Equatable {
         }
     }
 
-    /// Ferien und Feiertage: hellblaue Spalte über den ganzen Tag (Vorlage 2fae4494, 3 px/pt): Fläche #d6ebff, oben Ecken
+    /// Ferien und Feiertage: blaue Spalte über den ganzen Tag (Vorlagen 2fae4494 hell, 3b636036 dunkel, 3 px/pt): Fläche
+    /// #d6ebff bzw. #6982c0, oben Ecken
     /// 4,67 pt; mittig Schloss 8,33 × 10 pt, „Ferien“ und der Name der Ferien 12,3 pt fett (Name mit Silbentrennung,
     /// Zeilen 18,67 pt), darunter „19.10.“ / „bis“ / „01.11.“ 11,5 pt normal in drei Zeilen (13 pt), alles #10161d.
     private func ferienfeld(_ tag: Tageskopf, mitte: CGFloat) -> some View {
         let titel = freiTitel(tag)
         let grund = (tag.freiGrund ?? "").trimmingCharacters(in: .whitespaces)
-        return UnevenRoundedRectangle(topLeadingRadius: 4.67, bottomLeadingRadius: 0, bottomTrailingRadius: 0,
-                                      topTrailingRadius: 4.67, style: .circular)
+        let form = UnevenRoundedRectangle(topLeadingRadius: 4.67, bottomLeadingRadius: 0, bottomTrailingRadius: 0,
+                                          topTrailingRadius: 4.67, style: .circular)
+        // Dunkel (Vorlage 3b636036): 0,5 pt Rand #323c45 innen um jede Spalte, dazwischen 1 px Hintergrund
+        return form
             .fill(Farben.ferienHintergrund)
+            .overlay(form.strokeBorder(Farben.ferienRand, lineWidth: 0.5))
             .overlay(alignment: .top) {
                 VStack(spacing: 0) {
                     Image(systemName: "lock.fill")

@@ -140,9 +140,11 @@ enum Farben {
     // Veranstaltung, Ferien
     static let veranstaltungHintergrund = Color(hell: 0xDFFEF5, dunkel: 0x054035)
     static let veranstaltungBand = Color(hell: 0xD5EBFE, dunkel: 0x8A9BAF)
-    static let ferienHintergrund = Color(hell: 0xD6EBFF, dunkel: 0x6B83C4)
+    static let ferienHintergrund = Color(hell: 0xD6EBFF, dunkel: 0x6982C0)
+    /// Rand der Ferienspalten: nur dunkel sichtbar (#323c45, 0,5 pt), hell gleich der Fläche
+    static let ferienRand = Color(hell: 0xD6EBFF, dunkel: 0x323C45)
     static let ferienLinie = Color(hell: 0xB3D6F6, dunkel: 0x6A82BF)
-    static let ferienTinte = Color(hell: 0x10161D, dunkel: 0x161A24)
+    static let ferienTinte = Color(hexWert: 0x10161D)
 
     /// Runde Pill „Entschuldigen“ beim Wischen (Schüler- und Abwesenheitslisten)
     static let entschuldigen = Color(hell: 0x2E7BCF, dunkel: 0x3A86D6)
