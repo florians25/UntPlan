@@ -1027,10 +1027,14 @@ struct PlanErklaerungView: View {
     }
 
     var body: some View {
+        // Die Ebene liegt als Overlay auf dem Inhalt des Plans: ihr Rahmen reicht vom unteren Rand des Kopfs (Planname,
+        // Knöpfe) bis zur Oberkante der Tab-Leiste. Daran richten sich Titel und Knopf aus; nur Hintergrund und Rollinhalt
+        // reichen darüber hinaus (unter den Kopf, wo der Inhalt ausblendet).
         GeometryReader { geo in
-            let oben = geo.safeAreaInsets.top
+            let kopfUnten = max(geo.frame(in: .global).minY, 0)
             ZStack(alignment: .bottom) {
                 Self.hintergrund
+                    .ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 0) {
                         Text("Erklärung zum Stundenplan")
@@ -1049,24 +1053,26 @@ struct PlanErklaerungView: View {
                         .padding(.top, 26)
                     }
                     .multilineTextAlignment(.center)
-                    // Vorlage: Titel-Oberkante 86 pt unter dem Sicherheitsbereich (Grundlinie 169 pt bei 62 pt oben)
-                    .padding(.top, oben + 86)
-                    .padding(.bottom, 130)
+                    // Vorlage: Titel-Oberkante 148 pt, Kopf (Knöpfe) endet bei ≈ 106 pt → 42 pt unter dem Kopf
+                    .padding(.top, kopfUnten + 42)
+                    .padding(.bottom, 35 + 42 + 24)
                 }
                 .scrollIndicators(.hidden)
                 .mask {
                     VStack(spacing: 0) {
-                        LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black.opacity(0.12), location: 0.55),
+                        // oben: unter dem Kopf blendet der Inhalt fast ganz aus
+                        LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black.opacity(0.12), location: 0.6),
                                                .init(color: .black, location: 1)], startPoint: .top, endPoint: .bottom)
-                            .frame(height: oben + 80)
+                            .frame(height: kopfUnten + 30)
                         Color.black
+                        // unten: knapp über dem Knopf ausblenden
                         LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
                             .frame(height: 24)
                         Color.clear
-                            .frame(height: geo.safeAreaInsets.bottom + 35 + 42 + 4)
+                            .frame(height: 35 + 42 + 4)
                     }
-                    .ignoresSafeArea()
                 }
+                .ignoresSafeArea(.container, edges: .top)
                 Button(action: schliessen) {
                     Text("Los geht’s")
                         .font(.system(size: 17, weight: .bold))
@@ -1077,11 +1083,10 @@ struct PlanErklaerungView: View {
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .padding(.bottom, geo.safeAreaInsets.bottom + 35)
+                // 35 pt über der Tab-Leiste (Unterkante dieses Rahmens)
+                .padding(.bottom, 35)
             }
         }
-        // Ganzer Bildschirm (hinter Kopf und Tab-Leiste); die Abstände rechnen mit den Sicherheitsbereichen
-        .ignoresSafeArea()
     }
 
     @ViewBuilder
@@ -2093,10 +2098,6 @@ struct AufsichtDetailView: View {
         return aufsicht.ende.isEmpty ? aufsicht.beginn : "\(aufsicht.beginn) - \(aufsicht.ende)"
     }
 
-    private var pause: String {
-        aufsicht.nachStunde <= 0 ? "vor der 1. Stunde" : "nach der \(aufsicht.nachStunde). Stunde"
-    }
-
     private var neueLehrkraft: String {
         aufsicht.lehrer == "???" ? "" : aufsicht.lehrer
     }
@@ -2128,14 +2129,6 @@ struct AufsichtDetailView: View {
 
     /// Entfallene Aufsicht (Statuspille „ENTFÄLLT“ neben „Pausenaufsicht“).
     private var entfaellt: Bool { Kachelbau.aufsichtsstand(aufsicht.status) == .entfall }
-
-    /// Anlass einer entfallenen bzw. offenen (noch ungeplanten) Aufsicht (z. B. „Abwesenheit“ bzw. Titel der Veranstaltung);
-    /// offen mit „Vertretung offen – …“; sonst leer.
-    private var entfallGrund: String {
-        let grund = (aufsicht.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if aufsicht.status == "offen" { return grund.isEmpty ? "Vertretung offen" : "Vertretung offen – \(grund)" }
-        return entfaellt ? grund : ""
-    }
 
     private var planziele: [PlanAuswahl] {
         guard zustand.istKollegium && zustand.darfLehrerplaene else { return [] }
@@ -2172,49 +2165,31 @@ struct AufsichtDetailView: View {
                     .accessibilityLabel("Weitere Aktionen")
                 }
             })
+            // Vorlage 7420b3f4 (dunkel, 3 px/pt): „Pausenaufsicht“ 20,3 pt (#f3f5f7, Grundlinie 40 pt unter dem Kopf), darunter
+            // Ort und Lehrkraft wie Raum/Lehrkraft der Stundendetails (Zeilen 32 pt), 12 pt darunter die Linie über die
+            // volle Breite (#323d45) – sonst nichts
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Wertzeile(bausteine: [.text(ort)], schrift: Detailmass.gross, farbe: Farben.detailText)
-                            .frame(height: Detailmass.zeile)
                         Wertzeile(bausteine: entfaellt ? [.text("Pausenaufsicht"), .pille("ENTFÄLLT")] : [.text("Pausenaufsicht")],
                                   schrift: Detailmass.gross, farbe: Farben.detailText)
                             .frame(height: Detailmass.zeile)
-                        if !entfallGrund.isEmpty {
-                            Wertzeile(bausteine: [.text(entfallGrund)], schrift: Detailmass.klein)
-                                .frame(height: Detailmass.zeile)
-                        }
-                        Wertzeile(bausteine: [.text(aufsicht.beginn.isEmpty ? pause : "\(zeit) · \(pause)")], schrift: Detailmass.klein)
+                        Wertzeile(bausteine: [.text(ort)], schrift: Detailmass.klein)
                             .frame(height: Detailmass.zeile)
                         if !lehrkraft.isEmpty {
+                            // Vertretung: abwesende Lehrkraft durchgestrichen | Vertretung; offen: nur durchgestrichen
                             Wertzeile(bausteine: lehrkraft, schrift: Detailmass.klein)
                                 .frame(height: Detailmass.zeile)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Detailmass.rand)
-                    .padding(.top, 10)
+                    .padding(.top, 16.8)
                     .padding(.bottom, 12)
                     .accessibilityElement(children: .combine)
                     Rectangle()
-                        .fill(Farben.trennlinie)
+                        .fill(Farben.detailLinie)
                         .frame(height: 1)
-                    VStack(spacing: 0) {
-                        if !aufsicht.gang.isEmpty && aufsicht.gang != ort {
-                            Detailzeile(symbol: "mappin.and.ellipse", titel: "Ort", untertitel: aufsicht.gang, pfeil: false)
-                        }
-                        ForEach(planziele) { plan in
-                            Button {
-                                zustand.planZeigen(plan)
-                                schliessen()
-                            } label: {
-                                Detailzeile(symbol: "SymbolLehrer", titel: "Im Stundenplan anzeigen", untertitel: plan.anzeige)
-                            }
-                            .buttonStyle(OhneTippStil())
-                        }
-                    }
-                    .padding(.top, 8)
-                    .padding(.bottom, 24)
                 }
             }
             .scrollIndicators(.hidden)
