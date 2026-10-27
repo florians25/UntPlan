@@ -78,7 +78,7 @@ public static class AppApi
                 if (!DateOnly.TryParse(z.VonDatum, out var von) || !DateOnly.TryParse(z.BisDatum, out var bis)) continue;
                 for (var d = von; d <= bis; d = d.AddDays(1))
                     res.Add(new PlanAbwesenheit(Plandienst.Iso(d), d == von ? z.VonZeit : stunden[0].Beginn, d == bis ? z.BisZeit : stunden[^1].Ende,
-                        namen.GetValueOrDefault(z.Grund, z.Grund), z.Art));
+                        namen.GetValueOrDefault(z.Grund, z.Grund), z.Art) { Kuerzel = string.IsNullOrWhiteSpace(z.Grund) ? "?" : z.Grund.Trim() });
             }
         }
         return res.OrderBy(x => x.Datum, StringComparer.Ordinal).ThenBy(x => x.Von, StringComparer.Ordinal).ToList();

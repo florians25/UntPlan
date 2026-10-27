@@ -186,7 +186,11 @@ public sealed record Ereignis(string Titel, string Art, int Von, int Bis, bool G
 public sealed record Zeit(int Nr, string Bezeichnung, string Beginn, string Ende);
 
 /// <summary>Eigene Abwesenheit an einem Tag (Uhrzeiten HH:mm), Grund (Kürzel bzw. Name, sofern freigegeben) und Art (fehlt, verspaetet, vorzeitig).</summary>
-public sealed record PlanAbwesenheit(string Datum, string Von, string Bis, string Grund, string Art);
+public sealed record PlanAbwesenheit(string Datum, string Von, string Bis, string Grund, string Art)
+{
+    /// <summary>Kurzzeichen auf der Fläche bei Schüler*innen: Kürzel des Abwesenheitsgrunds (z. B. „K“), „?“ ohne Grund (offen); leer bei Lehrkräften („Abwesend“).</summary>
+    public string Kuerzel { get; init; } = "";
+}
 
 public sealed record Wochenplan(string Typ, string Element, string Name, string Montag, string Woche, List<Zeit> Zeitraster, List<Tageskopf> Tage,
     List<Karte> Karten, List<Aufsicht> Aufsichten)
