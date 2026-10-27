@@ -443,38 +443,6 @@ struct StundendetailInhalt: View {
         karte.istZusatzstunde ? karte.zusatzText : karte.anzeigeText
     }
 
-    /// Zeile „Verlegt“ bzw. „Hierher verlegt“: Ursprung und Ziel untereinander (fehlt die Gegenseite, nur der Titel).
-    private func verlegungZeile(_ richtung: String) -> some View {
-        HStack(spacing: 12) {
-            Listensymbol(name: "arrow.right.square")
-            VStack(alignment: .leading, spacing: 3) {
-                Text(richtung == "von" ? "Verlegt" : "Hierher verlegt")
-                    .font(.system(size: 19, weight: .regular))
-                    .foregroundStyle(Farben.detailText)
-                    .lineLimit(1)
-                if let von = karte.verlegungVon?.text, !von.isEmpty, let nach = karte.verlegungNach?.text, !nach.isEmpty {
-                    Text("Von: \(von)")
-                        .font(.system(size: 17))
-                        .foregroundStyle(Farben.detailGrau)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Text("Nach: \(nach)")
-                        .font(.system(size: 17))
-                        .foregroundStyle(Farben.detailGrau)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-            }
-            Spacer(minLength: 6)
-        }
-        .padding(.leading, Detailmass.rand)
-        .padding(.trailing, 22)
-        .padding(.vertical, 10)
-        .frame(minHeight: 56)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(karte.verlegungText.map { "Verlegung: \($0)" } ?? (richtung == "von" ? "Verlegt" : "Hierher verlegt"))
-    }
-
     private var textTitel: String {
         karte.keineVertretung || karte.status == "regulaer" ? "Information zur Stunde" : "Vertretungstext"
     }
@@ -707,10 +675,6 @@ struct StundendetailInhalt: View {
             if karte.istPruefung && !karte.istEntfall {
                 link(.pruefung, Detailzeile(symbol: "SymbolPruefung", titel: "Prüfung", untertitel: pruefungsUntertitel))
             }
-            // Verlegung: Ursprung → Ziel mit Datum und Uhrzeit (ohne Verlegungszeichen)
-            if let richtung = karte.verlegung, !istVeranstaltung {
-                verlegungZeile(richtung)
-            }
             if kollegium && daten.raumAenderbar && !istVeranstaltung {
                 RaumZeile(raeume: daten.aktuelleRaeume, ziel: $raumZiel)
             }
@@ -751,7 +715,7 @@ struct StundendetailInhalt: View {
             }
             if mitUnterricht || istVeranstaltung {
                 link(.hausaufgaben, Detailzeile(symbol: "SymbolHausaufgaben", titel: "Hausaufgaben",
-                                                zahl: daten.hausaufgaben.map { $0.liste.count } ?? (daten.geladen ? 0 : nil)))
+                                                zahl: daten.hausaufgabenAnzahl))
             }
             if kollegium && !daten.klassen.isEmpty && !istVeranstaltung {
                 link(.klassenbuch, Detailzeile(symbol: "SymbolKlassenbuch", titel: "Klassenbucheinträge",
@@ -763,9 +727,6 @@ struct StundendetailInhalt: View {
             // Notizen für Lehrkräfte sehen (und bearbeiten) nur Lehrkräfte
             if kollegium && (mitUnterricht || !daten.notizLehrer.isEmpty) {
                 link(.notizLehrer, Detailzeile(symbol: "SymbolNotiz", titel: "Notizen für Lehrkräfte", untertitel: daten.notizLehrer))
-            }
-            if karte.hausaufgabeFaellig {
-                Detailzeile(symbol: "SymbolHausaufgaben", titel: "Zu dieser Stunde ist eine Hausaufgabe fällig", pfeil: false)
             }
         }
     }
