@@ -861,9 +861,10 @@ enum Kachelbau {
             if schluessel == "raum" && k.online && art != .entfall && k.status != "abwesend" { continue }
 
             // Vertretungskachel im eigenen Lehrerplan: das eigene Kürzel steht als grünes Label (ich halte diese Stunde) –
-            // ausdrücklicher Wunsch, wie vor Sprint 27; nicht bei einer reinen Raumänderung
+            // ausdrücklicher Wunsch, wie vor Sprint 27; nicht bei einer reinen Raumänderung und nicht, wenn nur Klassen fehlen
+            // (Klassenabwesenheit: die Lehrkraft hält ihre Stunde wie immer, nur die abwesende Klasse steht im Label)
             if schluessel == letzte && !hatListe && art == .aenderung && typ == "lehrer" && !klassenAbwesend
-                && !(!geaendert.isEmpty && geaendert.allSatisfy { $0 == "raum" })
+                && !(!geaendert.isEmpty && geaendert.allSatisfy { $0 == "raum" || $0 == "klasse" })
                 && zeile.text.uppercased() == ich && !ich.isEmpty {
                 if zeile.teile.count == 1 && zeile.teile[0].stil == .text { zeile.teile[0].stil = .plakette }
                 geaendertWert = true
