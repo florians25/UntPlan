@@ -21,9 +21,12 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 
 /// Feste Maße des Detailblatts auf dem iPad (wie in der Vorlage: mittig über dem Plan, breiter als ein Formblatt).
 enum Detailblatt {
-    static let breite: CGFloat = 620
-    /// Höhe auf dem iPad (etwas länger als ein Formblatt; die Breite bleibt 620 pt)
-    static let hoehe: CGFloat = 740
+    /// Breite auf dem iPad (auf Wunsch breiter als das Formblatt; auch die Planauswahl)
+    @MainActor
+    static var breite: CGFloat { min(760, max(540, UIScreen.main.bounds.width - 40)) }
+    /// Höhe auf dem iPad (auf Wunsch länger): bis 860 pt, aber immer mit 60 pt Luft zum Bildschirmrand (Querformat)
+    @MainActor
+    static var hoehe: CGFloat { min(860, max(600, UIScreen.main.bounds.height - 60)) }
     /// iPhone: volle Breite, 85 % der Höhe (Planauswahl, Formulare, Info …; nicht bis ganz oben)
     static let iPhoneAnteil: CGFloat = 0.85
     /// iPhone: Stunden- und Aufsichtsdetails randlos über die volle Breite, 90 % der Bildschirmhöhe
@@ -53,7 +56,7 @@ extension View {
         presentationDetents(Detailblatt.iPhoneStufen)
     }
 
-    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 620 × 640 pt mittig (die Größe bleibt beim
+    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 760 × bis 860 pt mittig (die Größe bleibt beim
     /// Wechsel in Unterseiten und beim Ein-/Ausblenden der Tastatur gleich). Auf dem iPhone zeigt `detailPraesentation`
     /// stattdessen das randlose 90-%-Blatt (`Randblatt`); der Zweig für schmale Breiten bleibt als Rückfall.
     /// Die Tastatur verschiebt bzw. staucht das Blatt selbst nicht; Textfelder in Unterseiten weichen ihr innen aus.
@@ -143,7 +146,7 @@ extension View {
     /// Stunden- bzw. Aufsichtsdetails zeigen: auf dem iPad als festes Formblatt (`detailBlatt`), auf dem iPhone als
     /// randloses Blatt über die volle Breite und 90 % der Höhe. Die Systemblätter von iOS 26 schweben bei Teilhöhen mit
     /// Abstand zum Rand – deshalb zeichnet das iPhone-Blatt sich selbst (auf allen iOS-Versionen gleich).
-    /// `art`: auf dem iPad das feste Detailblatt (620 × 740 pt) oder ein Formblatt des Systems (Formulare, Auswahl …);
+    /// `art`: auf dem iPad das feste Detailblatt (760 × bis 860 pt) oder ein Formblatt des Systems (Formulare, Auswahl …);
     /// auf dem iPhone sehen beide gleich aus (Randblatt).
     func detailPraesentation<Item: Identifiable, Blatt: View>(item: Binding<Item?>, breit: Bool, art: Blattart = .detail,
                                                               @ViewBuilder blatt: @escaping (Item) -> Blatt) -> some View {
@@ -184,7 +187,7 @@ extension View {
 
 /// Größe eines Blatts auf dem iPad (auf dem iPhone sind alle Blätter gleich: randlos, volle Breite, 90 % hoch).
 enum Blattart {
-    /// Festes Detailblatt 620 × 740 pt (Stunden-, Aufsichtsdetails, Sprechtag)
+    /// Festes Detailblatt 760 × bis 860 pt (Stunden-, Aufsichtsdetails, Sprechtag, Planauswahl)
     case detail
     /// Formblatt des Systems (Planauswahl, Info, Formulare, Kontenauswahl …)
     case formular

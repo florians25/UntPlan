@@ -97,14 +97,25 @@ struct PlanAuswahlView: View {
             .environment(\.defaultMinListRowHeight, 1)
             .background(Farben.blatt.ignoresSafeArea())
             // Platz für das unten angeheftete Suchfeld
-            .contentMargins(.bottom, 90, for: .scrollContent)
+            .contentMargins(.bottom, Geraet.istPad ? 0 : 90, for: .scrollContent)
             .safeAreaInset(edge: .top, spacing: 0) {
-                kopf
+                VStack(spacing: 0) {
+                    kopf
+                    // iPad (Wunsch): Suchfeld oben unter dem Titel statt unten
+                    if Geraet.istPad {
+                        Plansuche(text: $suche, fokus: $suchfokus)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 4)
+                            .padding(.bottom, 10)
+                    }
+                }
+                .background(Farben.blatt)
             }
             // Vorlage a59416d6: Suchfeld unten, 28 pt vom unteren Bildschirmrand (folgt der Tastatur)
             // Fokus (Vorlage 74e03318): Feld 12 pt über der Tastatur, 12 pt vom linken Rand, rechts daneben (12 pt Abstand)
             // ein runder Knopf X (48 pt, wie das Feld) – bricht die Suche ab und schließt die Tastatur
             .overlay(alignment: .bottom) {
+                if !Geraet.istPad {
                 HStack(spacing: 12) {
                     Plansuche(text: $suche, fokus: $suchfokus)
                     if suchfokus {
@@ -130,6 +141,7 @@ struct PlanAuswahlView: View {
                 .padding(.bottom, suchfeldAbstand >= 0 ? suchfeldAbstand : 0)
                 .offset(y: suchfeldAbstand < 0 ? -suchfeldAbstand : 0)
                 .animation(.spring(response: 0.35, dampingFraction: 0.9), value: suchfokus)
+                }
             }
             .scrollDismissesKeyboard(.immediately)
             .toolbar(.hidden, for: .navigationBar)
