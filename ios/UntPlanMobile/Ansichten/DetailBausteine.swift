@@ -21,17 +21,17 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 
 /// Feste Maße des Detailblatts auf dem iPad (wie in der Vorlage: mittig über dem Plan, breiter als ein Formblatt).
 enum Detailblatt {
-    /// Breite auf dem iPad (auf Wunsch breiter als das Formblatt; auch die Planauswahl)
+    /// iPad wie das Originalfenster (Vorlage iPad 13", 1,464 px/pt): 575 × 645 pt, mittig – auf kleinen iPads mit Luft zum Rand
     @MainActor
-    static var breite: CGFloat { min(760, max(540, UIScreen.main.bounds.width - 40)) }
-    /// Höhe auf dem iPad (auf Wunsch länger): bis 860 pt, aber immer mit 60 pt Luft zum Bildschirmrand (Querformat)
+    static var breite: CGFloat { min(575, UIScreen.main.bounds.width - 40) }
     @MainActor
-    static var hoehe: CGFloat { min(860, max(600, UIScreen.main.bounds.height - 60)) }
+    static var hoehe: CGFloat { min(645, UIScreen.main.bounds.height - 60) }
     /// iPhone: volle Breite, 85 % der Höhe (Planauswahl, Formulare, Info …; nicht bis ganz oben)
     static let iPhoneAnteil: CGFloat = 0.85
     /// iPhone: Stunden- und Aufsichtsdetails randlos über die volle Breite, 90 % der Bildschirmhöhe
     static let iPhoneDetailAnteil: CGFloat = 0.90
-    static let radius: CGFloat = 24
+    /// Ecken auf dem iPad (Vorlage: Kreisbogen mit ≈ 45 px = 31 pt)
+    static let radius: CGFloat = 31
     /// iPhone: Ecken des randlosen Blatts (Vorlage aeaa377f: Radius ≈ 37,4 pt bei 3 px/pt)
     static let iPhoneRadius: CGFloat = 38
     /// iPhone: ein über einem Blatt geöffnetes Blatt beginnt so viel tiefer (Vorlage 555deb0d: 72 statt 62 pt)
@@ -56,7 +56,7 @@ extension View {
         presentationDetents(Detailblatt.iPhoneStufen)
     }
 
-    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 760 × bis 860 pt mittig (die Größe bleibt beim
+    /// Stundendetails als weißes Blatt mit großen Ecken: auf dem iPad fest 575 × 645 pt mittig (die Größe bleibt beim
     /// Wechsel in Unterseiten und beim Ein-/Ausblenden der Tastatur gleich). Auf dem iPhone zeigt `detailPraesentation`
     /// stattdessen das randlose 90-%-Blatt (`Randblatt`); der Zweig für schmale Breiten bleibt als Rückfall.
     /// Die Tastatur verschiebt bzw. staucht das Blatt selbst nicht; Textfelder in Unterseiten weichen ihr innen aus.
@@ -146,7 +146,7 @@ extension View {
     /// Stunden- bzw. Aufsichtsdetails zeigen: auf dem iPad als festes Formblatt (`detailBlatt`), auf dem iPhone als
     /// randloses Blatt über die volle Breite und 90 % der Höhe. Die Systemblätter von iOS 26 schweben bei Teilhöhen mit
     /// Abstand zum Rand – deshalb zeichnet das iPhone-Blatt sich selbst (auf allen iOS-Versionen gleich).
-    /// `art`: auf dem iPad das feste Detailblatt (760 × bis 860 pt) oder ein Formblatt des Systems (Formulare, Auswahl …);
+    /// `art`: auf dem iPad das feste Detailblatt (575 × 645 pt) oder ein Formblatt des Systems (Formulare, Auswahl …);
     /// auf dem iPhone sehen beide gleich aus (Randblatt).
     func detailPraesentation<Item: Identifiable, Blatt: View>(item: Binding<Item?>, breit: Bool, art: Blattart = .detail,
                                                               @ViewBuilder blatt: @escaping (Item) -> Blatt) -> some View {
@@ -187,7 +187,7 @@ extension View {
 
 /// Größe eines Blatts auf dem iPad (auf dem iPhone sind alle Blätter gleich: randlos, volle Breite, 90 % hoch).
 enum Blattart {
-    /// Festes Detailblatt 760 × bis 860 pt (Stunden-, Aufsichtsdetails, Sprechtag, Planauswahl)
+    /// Festes Detailblatt 575 × 645 pt (Stunden-, Aufsichtsdetails, Sprechtag, Planauswahl)
     case detail
     /// Formblatt des Systems (Planauswahl, Info, Formulare, Kontenauswahl …)
     case formular
@@ -505,11 +505,12 @@ struct Blattkopf<Mitte: View, Rechts: View>: View {
                 rechts
             }
         }
-        // Vorlage: Glasknöpfe 16 pt vom linken bzw. rechten und vom oberen Blattrand, Kopf 69 pt hoch
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
+        // Vorlage: Glasknöpfe 16 pt vom linken bzw. rechten und vom oberen Blattrand, Kopf 69 pt hoch; iPad (Originalfenster,
+        // 1,464 px/pt): Knöpfe 9,6 pt vom Rand, Kopf entsprechend 62,6 pt hoch
+        .padding(.horizontal, Geraet.istPad ? 9.6 : 16)
+        .padding(.top, Geraet.istPad ? 9.6 : 16)
         .padding(.bottom, 9)
-        .frame(minHeight: 69)
+        .frame(minHeight: Geraet.istPad ? 62.6 : 69)
         .background(Farben.blatt)
         .overlay(alignment: .bottom) {
             Ladebalken(aktiv: laedt)
