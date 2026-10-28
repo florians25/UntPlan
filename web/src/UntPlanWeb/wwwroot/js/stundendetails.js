@@ -221,7 +221,8 @@ export function karteDialog(karte, kontext = {}) {
     // sonst keine Labels (Änderungen stehen als Text: alt durchgestrichen | neu bzw. → beim Raum)
     // zusätzliche Unterrichtsstunde: Badge (ein von Hand eingegebener Vertretungstext steht zusätzlich unter „Details“).
     // Badges in der oberen Zeile bei Klasse/Fach, dunkelgrau
-    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : '';
+    // Zielstunde einer Verlegung wie im Original ebenfalls als zusätzliche Unterrichtsstunde gekennzeichnet
+    const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.zusaetzlich || k.verlegung === 'nach' ? 'Zusätzl. Unterrichtsstunde' : '';
     const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
       : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];

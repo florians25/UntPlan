@@ -388,12 +388,13 @@ struct Karte: Decodable, Identifiable, Sendable {
     }
 
     /// Dezente graue Pille im Kopf der Stundendetails (wie im Web): „Prüfung“, „Veranstaltung“ bzw. bei einer
-    /// Zusatzstunde „Zusätzl. Unterrichtsstunde“; nie bei Entfall.
+    /// Zusatzstunde und bei der Zielstunde einer Verlegung (Vorlage: „E  ZUSÄTZLICHE UNTERRICHTSSTUNDE“ neben dem Fach)
+    /// „Zusätzliche Unterrichtsstunde“; nie bei Entfall.
     var statusPille: String? {
         guard !istEntfall else { return nil }
         if istPruefung { return "Prüfung" }
         if istVeranstaltung { return "Veranstaltung" }
-        if istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
+        if istZusatzstunde || verlegung == "nach" { return "Zusätzliche Unterrichtsstunde" }
         return nil
     }
 
