@@ -158,8 +158,10 @@ public static class Raumvertretungen
     /// </summary>
     public static void KopplungAngleichen(Schuldatei d, DateOnly datum)
     {
+        // neuer Raum, Zusatzraum, verdrängter oder gelöschter Raum („???“: manuelle Raumvertretung ohne Raum) – jede Raumänderung
         var quellen = d.Vertretungen.Where(v => v.Datum == datum && v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue
-                                                && v.RaumId.HasValue && (v.VertretungsraumId != null || v.ZusatzraumIds.Count > 0 || v.RaumVerdraengt)).ToList();
+                                                && v.RaumId.HasValue && (v.VertretungsraumId != v.RaumId || v.ZusatzraumIds.Count > 0 || v.RaumVerdraengt)
+                                                && (v.VertretungsraumId != null || v.ZusatzraumIds.Count > 0 || v.RaumVerdraengt || v.Quelle == VertretungsQuelle.Manuell)).ToList();
         if (quellen.Count == 0) return;
         var tp = Tagesplan.Berechnen(d, datum);
         foreach (var v in quellen)
