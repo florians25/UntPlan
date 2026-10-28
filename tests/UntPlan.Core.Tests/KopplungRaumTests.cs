@@ -105,6 +105,22 @@ public class KopplungRaumTests
     }
 
     [Fact]
+    public void GeloeschterRaumGiltFuerDieGanzeKopplung()
+    {
+        // Raum einer Kopplungszeile gelöscht („???“): alle Zeilen im gemeinsamen Raum verlieren ihn – auch in älteren Dateien,
+        // in denen nur eine Zeile die Raumvertretung hat
+        var (d, tag, u, p, s) = Kopplung((int?)null);
+        var r = p.Raeume[0]!.Value;
+        var vs = Raumvertretungen.Zuordnen(d, u.Id, 0, tag, new[] { s }, null, false, RaumKollisionsLoesung.MitKollision);
+        Assert.Equal(2, vs.Count);
+        Assert.All(Zeilen(d, tag, u, s), e => Assert.Empty(e.RaumIds));
+        d.Vertretungen.RemoveAll(v => v.UnterrichtId == u.Id && v.ZeilenIndex == 1);
+        Assert.Equal(new[] { r }, Zeilen(d, tag, u, s)[1].RaumIds);
+        Vertretungen.Aktualisieren(d, tag);
+        Assert.All(Zeilen(d, tag, u, s), e => Assert.Empty(e.RaumIds));
+    }
+
+    [Fact]
     public void ParalleleUnterrichteDerselbenLehrkraftZiehenGemeinsamUm()
     {
         // ET13 und INF13/ING13 als zwei Unterrichte derselben Lehrkraft im selben Fach und Raum (eine Karte im Web): eine
