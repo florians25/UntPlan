@@ -141,7 +141,7 @@ public class KartenDarstellungTests
         Assert.Contains("<label class=\"sd-schalter\" for=\"sd-online\">", sd);
         Assert.Contains("<span class=\"sd-schalter-spur\" aria-hidden=\"true\"></span>", sd);
         Assert.DoesNotContain("form-switch", sd);
-        Assert.Contains("k.zusaetzlich ? 'Zusätzl. Unterrichtsstunde' : ''", sd);
+        Assert.Contains("k.zusaetzlich || k.verlegung === 'nach' ? 'Zusätzl. Unterrichtsstunde' : ''", sd);
         Assert.Contains("const PLUS_SYM = '<svg class=\"sd-plus-sym\"", sd);
         Assert.DoesNotContain("<i class=\"bi bi-plus-lg\"></i>", sd);
         var css = Datei("css", "karten.css");
