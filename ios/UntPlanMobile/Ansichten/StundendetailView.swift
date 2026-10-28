@@ -94,6 +94,13 @@ struct StundendetailInhalt: View {
         if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
     }
 
+    /// Hinterlegte Fachfarbe der Stunde (leer bzw. Weiß = keine; nicht bei Entfall – dort steht der rote Balken).
+    private var fachfarbe: Color? {
+        let hex = karte.farbe.trimmingCharacters(in: .whitespaces)
+        guard !karte.istEntfall, !hex.isEmpty, !["#FFFFFF", "FFFFFF", "#FFF"].contains(hex.uppercased()) else { return nil }
+        return Color(hex: hex)
+    }
+
     private var kollegium: Bool { zustand.istKollegium }
     private var mitUnterricht: Bool { karte.unterricht != nil }
     private var istVeranstaltung: Bool { karte.istVeranstaltung }
@@ -108,6 +115,13 @@ struct StundendetailInhalt: View {
             })
             if karten.count > 1 {
                 reiterleiste
+            }
+            // Vorlage: Balken in der Fachfarbe direkt unter dem Kopf (4 pt) – nur wenn für das Fach eine Farbe hinterlegt ist
+            if let farbe = fachfarbe {
+                Rectangle()
+                    .fill(farbe)
+                    .frame(height: 4)
+                    .accessibilityHidden(true)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
