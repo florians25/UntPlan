@@ -228,17 +228,9 @@ public class PlanKorrekturenEndeZuEndeTests
             {
                 ["lehrer HE"] = ganz, ["klasse ET13"] = ganz, ["klasse INF13"] = ganz, ["raum R200"] = ganz, ["raum B117"] = "–",
             },
-            (Form.Mitklassen, false) => new()
-            {
-                // nur die Gruppe von ET13 zieht um: zwei Blöcke nebeneinander, je wie eine Einzelstunde
-                ["lehrer HE"] = "geaendert L=HE K=ET13 R=B117→R200  ||  regulaer L=HE K=INF13 R=B117",
-                ["klasse ET13"] = "geaendert L=HE K=ET13 R=B117→R200",
-                ["klasse INF13"] = "regulaer L=HE K=INF13 R=B117",
-                ["raum B117"] = "regulaer L=HE K=INF13 R=B117",
-                ["raum R200"] = "geaendert L=HE K=ET13 R=B117→R200",
-            },
-            // Kopplung im gemeinsamen Raum: die ganze Kopplung zieht mit um – auch wenn nur eine Zeile geändert wird
-            (Form.Mitklassen, true) or (Form.KopplungJeKlasse, _) => new()
+            // Kopplung bzw. parallele Unterrichte derselben Lehrkraft im gemeinsamen Raum: alle Klassen ziehen zusammen um –
+            // auch wenn nur eine Zeile bzw. ein Unterricht geändert wird
+            (Form.Mitklassen or Form.KopplungJeKlasse, _) => new()
             {
                 ["lehrer HE"] = ganz,
                 ["klasse ET13"] = "geaendert L=HE K=ET13+INF13 R=B117→R200",

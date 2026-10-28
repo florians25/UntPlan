@@ -867,8 +867,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         foreach (var g in liste.GroupBy(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va ? $"VA{va}/{v.Datum}"
                      : sammeln && Veranstaltungsfolge(v) ? $"VE{v.VeranstaltungId}/{v.Datum}/{v.Art}/{v.Text}"
                      // Raumvertretung einer Kopplung im gemeinsamen Raum: eine Zeile mit allen Klassen („ET13,INF13,ING13“)
-                     : v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId is int ku && !v.Fixiert
-                         ? $"KR{ku}/{v.Datum}/{v.Stunde}/{v.RaumId}/{v.VertretungsraumId}/{string.Join(",", v.ZusatzraumIds)}/{v.RaumVerdraengt}/{v.Text}"
+                     // (auch parallele Unterrichte derselben Lehrkraft im selben Raum: wer gemeinsam aus einem Raum umzieht, ist eine Zeile)
+                     : v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue && v.RaumId.HasValue && !v.Fixiert
+                         ? $"KR{v.Datum}/{v.Stunde}/{v.RaumId}/{v.VertretungsraumId}/{string.Join(",", v.ZusatzraumIds)}/{v.RaumVerdraengt}/{v.Text}"
                      : $"#{v.Id}"))
         {
             var zeilen = g.OrderBy(v => v.Stunde).ThenBy(v => v.Id).ToList();

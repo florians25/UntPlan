@@ -163,8 +163,9 @@ public static class Raumvertretungen
         if (quellen.Count == 0) return;
         var tp = Tagesplan.Berechnen(d, datum);
         foreach (var v in quellen)
-            foreach (var e in tp.Stunde(v.Stunde).Where(x => x.Vertretung is null && x.Findetstatt && x.Regel is { } r && r.Unterricht.Id == v.UnterrichtId
-                         && r.ZeilenIndex != v.ZeilenIndex && x.RaumIds.Count > 0 && x.RaumIds[0] == v.RaumId).ToList())
+            foreach (var e in tp.Stunde(v.Stunde).Where(x => x.Vertretung is null && x.Findetstatt && x.Regel is { } r
+                         && GemeinsamerUnterricht(r, v.UnterrichtId!.Value, v.ZeilenIndex, v.LehrerId, v.FachId)
+                         && x.RaumIds.Count > 0 && x.RaumIds[0] == v.RaumId).ToList())
             {
                 var w = ZeileFuer(d, tp, e, v.Benutzer);
                 w.VertretungsraumId = v.VertretungsraumId;
@@ -173,6 +174,13 @@ public static class Raumvertretungen
                 e.Vertretung = w;
             }
     }
+
+    /// <summary>
+    /// Gehört die Stunde zur selben gemeinsamen Stunde: andere Zeile derselben Kopplung bzw. paralleler Unterricht derselben
+    /// Lehrkraft im selben Fach (z. B. ET13 und INF13/ING13 als zwei Unterrichte) – UntPlanWeb zeigt beides als eine Karte.
+    /// </summary>
+    private static bool GemeinsamerUnterricht(RegelStunde r, int unterrichtId, int zeile, int? lehrerId, int? fachId) =>
+        r.Unterricht.Id == unterrichtId ? r.ZeilenIndex != zeile : lehrerId is int l && r.LehrerId == l && r.FachId == fachId;
 
     private static void RaumSetzen(Vertretung v, int? raumId, bool zusaetzlich, int? bisheriger, string benutzer)
     {
@@ -246,8 +254,9 @@ public static class Raumvertretungen
         // Kopplung im gemeinsamen Raum: die übrigen Zeilen desselben Unterrichts ziehen mit um (wie im Vorbild – in der
         // Vertretungsliste eine Zeile mit allen Klassen); Zeilen in eigenen Räumen bzw. mit anderer Vertretung bleiben
         if (e.Regel is { } er && bisher is int gemeinsam)
-            foreach (var k in tp.Stunde(e.Stunde).Where(x => x != e && x.Findetstatt && x.Regel is { } kr && kr.Unterricht.Id == er.Unterricht.Id
-                         && kr.ZeilenIndex != er.ZeilenIndex && x.RaumIds.Count > 0 && x.RaumIds[0] == gemeinsam
+            foreach (var k in tp.Stunde(e.Stunde).Where(x => x != e && x.Findetstatt && x.Regel is { } kr
+                         && GemeinsamerUnterricht(kr, er.Unterricht.Id, er.ZeilenIndex, er.LehrerId, er.FachId)
+                         && x.RaumIds.Count > 0 && x.RaumIds[0] == gemeinsam
                          && (x.Vertretung is null || x.Vertretung.Art == VertretungsArt.Raumvertretung)).ToList())
             {
                 var w = ZeileFuer(d, tp, k, benutzer);

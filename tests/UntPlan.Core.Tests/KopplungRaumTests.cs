@@ -105,6 +105,30 @@ public class KopplungRaumTests
     }
 
     [Fact]
+    public void ParalleleUnterrichteDerselbenLehrkraftZiehenGemeinsamUm()
+    {
+        // ET13 und INF13/ING13 als zwei Unterrichte derselben Lehrkraft im selben Fach und Raum (eine Karte im Web): eine
+        // Raumänderung des einen nimmt den anderen mit; auch ältere Dateien mit nur einer Raumvertretung gleichen sich an
+        var (d, tag, u, p, s) = Kopplung((int?)null);
+        var r = p.Raeume[0]!.Value;
+        var zweite = u.Zeilen[1];
+        u.Zeilen.RemoveAt(1);
+        zweite.LehrerId = u.Zeilen[0].LehrerId;
+        var u2 = new Unterricht { Id = d.NeueId(), Wochenstunden = 1, Zeilen = { zweite } };
+        d.Unterrichte.Add(u2);
+        d.Stundenplan.Add(new Planstunde { UnterrichtId = u2.Id, Tag = p.Tag, Stunde = s, Raeume = new List<int?> { r } });
+        var tp = Tagesplan.Berechnen(d, tag);
+        var neu = d.Raeume.First(x => x.Id != r && !tp.Stunde(s).Any(e => e.RaumIds.Contains(x.Id))).Id;
+        var vs = Raumvertretungen.Zuordnen(d, u.Id, 0, tag, new[] { s }, neu, false, RaumKollisionsLoesung.MitKollision);
+        Assert.Equal(new[] { u.Id, u2.Id }.Order(), vs.Select(v => v.UnterrichtId!.Value).Order());
+        Assert.All(Tagesplan.Berechnen(d, tag).Stunde(s).Where(e => e.Unterricht?.Id == u.Id || e.Unterricht?.Id == u2.Id), e => Assert.Equal(new[] { neu }, e.RaumIds));
+        // ältere Datei: nur die Raumvertretung des ersten Unterrichts – der Abgleich nimmt den zweiten mit
+        d.Vertretungen.RemoveAll(v => v.UnterrichtId == u2.Id);
+        Vertretungen.Aktualisieren(d, tag);
+        Assert.Contains(d.Vertretungen, v => v.UnterrichtId == u2.Id && v.Stunde == s && v.VertretungsraumId == neu);
+    }
+
+    [Fact]
     public void AlteRaumvertretungEinerZeileZiehtBeimAbgleichDieKopplungNach()
     {
         // ältere Datei: nur die erste Kopplungszeile hat eine Raumvertretung, die zweite sitzt noch im gemeinsamen Raum
