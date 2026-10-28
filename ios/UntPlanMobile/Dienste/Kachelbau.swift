@@ -583,6 +583,15 @@ enum Kachelbau {
             kachel.art = .aenderung
             geaendert.insert("klasse")
         }
+        // Nur Klassen fehlen (Klassenabwesenheit in der Kopplung): ein bloß als „neu“ markierter Lehrerwert ohne ersetzte bzw.
+        // gestrichene Lehrkraft ist keine Lehreränderung – kein Lehrer-Label (die Lehrkraft hält ihre Stunde wie immer)
+        if teilweiseAbwesend || !weggefalleneKlassen(k).isEmpty,
+           !k.lehrer.contains(where: { w in
+               let a = (w.alt ?? "").trimmingCharacters(in: .whitespaces)
+               return w.plus || w.k.isEmpty || (!a.isEmpty && !gleich(a, w.k))
+           }) {
+            geaendert.remove("lehrer")
+        }
         // Raumbuchung ohne weitere Änderung: keine Vertretung, die Kachel bleibt regulär
         if k.istRaumbuchung && (kachel.art == .aenderung || kachel.art == .termin) && geaendert.subtracting(["raum"]).isEmpty && !offen {
             kachel.art = .normal

@@ -418,7 +418,10 @@ public sealed class PlanAnsicht : Control
             ElementTyp.Raum => e.RaumIds.Contains(ElementId) || e.Regel?.RaumId == ElementId,
             ElementTyp.Fach => e.FachId == ElementId || e.Regel?.FachId == ElementId,
             _ => false,
-        }).GroupBy(e => (e.Unterricht?.Id ?? VeranstaltungsSchluessel(e) ?? -(e.Vertretung?.Id ?? 0),
+        }).GroupBy(e => (
+                // Lehrer-/Raumplan: gleich aussehender Unterricht (auch parallele Unterrichte derselben Lehrkraft) ist ein Block
+                (Typ == ElementTyp.Lehrer || Typ == ElementTyp.Raum) && e.Regel != null && VeranstaltungsSchluessel(e) == null ? 0
+                    : e.Unterricht?.Id ?? VeranstaltungsSchluessel(e) ?? -(e.Vertretung?.Id ?? 0),
                 // Lehrer- und Raumplan: Kopplungszeilen, die für dieses Element gleich aussehen (gleiche Lehrkräfte, Räume, Fach),
                 // bilden wie im Vorbild einen Block mit allen Klassen statt paralleler Blöcke je Zeile
                 Typ == ElementTyp.Lehrer || Typ == ElementTyp.Raum
