@@ -583,9 +583,9 @@ enum Kachelbau {
             kachel.art = .aenderung
             geaendert.insert("klasse")
         }
-        // Nur Klassen fehlen (Klassenabwesenheit in der Kopplung): ein bloß als „neu“ markierter Lehrerwert ohne ersetzte bzw.
-        // gestrichene Lehrkraft ist keine Lehreränderung – kein Lehrer-Label (die Lehrkraft hält ihre Stunde wie immer)
-        if teilweiseAbwesend || !weggefalleneKlassen(k).isEmpty,
+        // Nur Klassen fehlen (Klassenabwesenheit in der Kopplung) bzw. Verlegung: ein bloß als „neu“ markierter Lehrerwert ohne
+        // ersetzte bzw. gestrichene Lehrkraft ist keine Lehreränderung – kein Lehrer-Label (dieselbe Lehrkraft hält die Stunde)
+        if teilweiseAbwesend || !weggefalleneKlassen(k).isEmpty || k.verlegung != nil,
            !k.lehrer.contains(where: { w in
                let a = (w.alt ?? "").trimmingCharacters(in: .whitespaces)
                return w.plus || w.k.isEmpty || (!a.isEmpty && !gleich(a, w.k))
@@ -872,7 +872,7 @@ enum Kachelbau {
             // Vertretungskachel im eigenen Lehrerplan: das eigene Kürzel steht als grünes Label (ich halte diese Stunde) –
             // ausdrücklicher Wunsch, wie vor Sprint 27; nicht bei einer reinen Raumänderung und nicht, wenn nur Klassen fehlen
             // (Klassenabwesenheit: die Lehrkraft hält ihre Stunde wie immer, nur die abwesende Klasse steht im Label)
-            if schluessel == letzte && !hatListe && art == .aenderung && typ == "lehrer" && !klassenAbwesend
+            if schluessel == letzte && !hatListe && art == .aenderung && typ == "lehrer" && !klassenAbwesend && k.verlegung == nil
                 && !(!geaendert.isEmpty && geaendert.allSatisfy { $0 == "raum" || $0 == "klasse" })
                 && zeile.text.uppercased() == ich && !ich.isEmpty {
                 if zeile.teile.count == 1 && zeile.teile[0].stil == .text { zeile.teile[0].stil = .plakette }
