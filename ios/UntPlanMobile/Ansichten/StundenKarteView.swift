@@ -666,6 +666,8 @@ struct Eckklammern: Shape {
 /// Auflösung): eine kurze Lage (68 %, 0,9 pt, Versatz 1,2 pt). Die Schatten werfen zwei deckende Flächen hinter der Karte – sie addieren sich nicht
 /// wie verkettete `.shadow`-Modifikatoren.
 struct Kartenschatten: View {
+    /// Zusätzliche Zeichenfläche um die Karte für den zwischengespeicherten Schatten
+    private static let rand = EdgeInsets(top: 8, leading: 12, bottom: 18, trailing: 12)
     let radius: CGFloat
     /// Künftige Stunde (voller Schatten) statt vergangener (kurzer Schatten)
     let voll: Bool
@@ -683,6 +685,12 @@ struct Kartenschatten: View {
                     .shadow(color: Farben.kartenKante.opacity(0.68), radius: 0.9, x: 0, y: 1.2)
             }
         }
+        // Leistung: die Weichzeichnungen einmal (Metal) rendern und zwischenspeichern statt in jedem Bild neu – beim Blättern
+        // und beim Ein-/Ausfahren der Details liegen sonst Hunderte Schatten übereinander. Der Rand hält die Zeichenfläche so
+        // groß, dass nichts vom Schatten abgeschnitten wird (seitlich ≈ 8 pt, oben ≈ 3 pt, unten ≈ 13 pt sichtbar).
+        .padding(EdgeInsets(top: Self.rand.top, leading: Self.rand.leading, bottom: Self.rand.bottom, trailing: Self.rand.trailing))
+        .drawingGroup()
+        .padding(EdgeInsets(top: -Self.rand.top, leading: -Self.rand.leading, bottom: -Self.rand.bottom, trailing: -Self.rand.trailing))
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
