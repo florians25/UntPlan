@@ -66,6 +66,9 @@ struct StundenplanView: View {
     @State private var klassenleitungen: [String: [String]]? = nil
     @State private var zeigeDatum = false
 
+    /// Zwischenspeicher der Rastermaße (Leistung: sonst beim Wischen in jedem Bild alle Karten aller drei Wochen neu gebaut)
+    @State private var rahmenSpeicher = Rahmenspeicher()
+
     // Blättern
     @State private var verschiebung: CGFloat = 0
     @State private var seitenBreite: CGFloat = 0
@@ -563,8 +566,8 @@ struct StundenplanView: View {
             let sw = max(w - rinne, 1)
             let daten = seiten.map { seitendaten($0) }
             Group {
-                if let rahmen = Rasterrahmen(seiten: daten, mitte: 1, typ: typ, element: element, kompakt: kompakt,
-                                             tagesansicht: ansicht == .tag, untenFrei: untenFrei) {
+                if let rahmen = rahmenSpeicher.rahmen(seiten: daten, typ: typ, element: element, kompakt: kompakt,
+                                                      tagesansicht: ansicht == .tag, untenFrei: untenFrei) {
                     blaetterraster(daten, rahmen: rahmen, breite: w, seitenBreite: sw)
                 } else {
                     Platzhalterwoche(montag: Datumsformat.montag(mitte))
@@ -632,9 +635,9 @@ struct StundenplanView: View {
             .zIndex(1)
 
             GeometryReader { sicht in
-            let rahmen = Rasterrahmen(seiten: daten, mitte: 1, typ: typ, element: element, kompakt: kopfRahmen.kompakt,
-                                      tagesansicht: ansicht == .tag, untenFrei: kopfRahmen.untenFrei,
-                                      sichtHoehe: sicht.size.height, dunkel: schema == .dark) ?? kopfRahmen
+            let rahmen = rahmenSpeicher.rahmen(seiten: daten, typ: typ, element: element, kompakt: kopfRahmen.kompakt,
+                                               tagesansicht: ansicht == .tag, untenFrei: kopfRahmen.untenFrei,
+                                               sichtHoehe: sicht.size.height, dunkel: schema == .dark) ?? kopfRahmen
             ScrollViewReader { leser in
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
@@ -1331,6 +1334,27 @@ struct Rastermass: Equatable {
             extra[a.beginn] = (max(a.beginn, a.ende), noetig)
         }
         return extra.keys.sorted().map { Dehnung(beginn: $0, ende: extra[$0]?.ende ?? $0, extra: extra[$0]?.extra ?? 0) }
+    }
+}
+
+/// Zwischenspeicher für `Rasterrahmen`: neu berechnet nur, wenn sich Seiten (Woche, Stand des Plans), Planart, Element oder die
+/// Maße ändern – nicht bei jeder Verschiebung während des Wischens (der Rahmen baut alle Karten der drei Seiten).
+final class Rahmenspeicher {
+    private var speicher: [String: Rasterrahmen] = [:]
+
+    func rahmen(seiten: [Rasterseitendaten], typ: String, element: String, kompakt: Bool, tagesansicht: Bool,
+                untenFrei: CGFloat, sichtHoehe: CGFloat = 0, dunkel: Bool = false) -> Rasterrahmen? {
+        let teile = seiten.map { d in
+            "\(d.anfang.timeIntervalSince1970)/\(d.stand)/\(d.nurTage?.joined(separator: ",") ?? "")/\(d.plan?.typ ?? "")/"
+                + "\(d.plan?.element ?? "")/\(d.plan?.montag ?? "-")/\(d.plan?.gesperrt ?? false)/\(d.plan?.karten.count ?? -1)"
+        }
+        let schluessel = teile.joined(separator: "|") + "#\(typ)#\(element)#\(kompakt)#\(tagesansicht)#\(untenFrei)#\(sichtHoehe)#\(dunkel)"
+        if let r = speicher[schluessel] { return r }
+        guard let r = Rasterrahmen(seiten: seiten, mitte: 1, typ: typ, element: element, kompakt: kompakt, tagesansicht: tagesansicht,
+                                   untenFrei: untenFrei, sichtHoehe: sichtHoehe, dunkel: dunkel) else { return nil }
+        if speicher.count > 12 { speicher.removeAll() }
+        speicher[schluessel] = r
+        return r
     }
 }
 
