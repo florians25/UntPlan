@@ -117,6 +117,10 @@ private struct RandblattUntenSchluessel: EnvironmentKey {
     static let defaultValue: CGFloat = 0
 }
 
+private struct BlattBewegtSchluessel: EnvironmentKey {
+    static let defaultValue: Bool? = nil
+}
+
 private struct ElternSchrumpfenSchluessel: EnvironmentKey {
     static let defaultValue: (@MainActor (Bool) -> Void)? = nil
 }
@@ -126,6 +130,13 @@ extension EnvironmentValues {
     var blattSchliessen: (@MainActor () -> Void)? {
         get { self[BlattSchliessenSchluessel.self] }
         set { self[BlattSchliessenSchluessel.self] = newValue }
+    }
+
+    /// Fährt das randlose Blatt gerade ein oder aus? (nil = kein randloses Blatt.) Die Stundendetails zeigen dann
+    /// wie im Original nur das leichte Ladebild, damit Öffnen und Schließen flüssig laufen.
+    var blattBewegt: Bool? {
+        get { self[BlattBewegtSchluessel.self] }
+        set { self[BlattBewegtSchluessel.self] = newValue }
     }
 
     /// Wie viele randlose Blätter schon offen sind (0 = das erste Blatt über dem Plan).
@@ -273,6 +284,8 @@ struct Randblatt<Inhalt: View>: View {
     static var geschrumpft: CGFloat { 0.97 }
     @State private var zug: CGFloat = 0
     @State private var schliesst = false
+    /// Ein- bzw. Ausfahren läuft (Inhalt zeigt währenddessen nur das Ladebild)
+    @State private var bewegt = true
 
     /// Höhe des Bereichs oben, an dem sich das Blatt nach unten ziehen lässt (Kopf mit X, Titel und ⋮).
     private let griffHoehe: CGFloat = 72
@@ -297,6 +310,7 @@ struct Randblatt<Inhalt: View>: View {
                 inhalt()
                     .environment(\.blattSchliessen, { zuklappen(blattHoehe) })
                     .environment(\.randblattEbene, ebene + 1)
+                    .environment(\.blattBewegt, bewegt)
                     .environment(\.elternSchrumpfen, { offen in
                         withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { kindOffen = offen }
                     })
@@ -328,7 +342,9 @@ struct Randblatt<Inhalt: View>: View {
             .coordinateSpace(NamedCoordinateSpace.named(Self.raum))
         }
         .onAppear {
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true }
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true } completion: {
+                if !schliesst { bewegt = false }
+            }
             // Ein darunterliegendes Blatt schrumpft mit
             elternSchrumpfen?(true)
         }
@@ -362,6 +378,10 @@ struct Randblatt<Inhalt: View>: View {
     private func zuklappen(_ hoehe: CGFloat) {
         guard !schliesst else { return }
         schliesst = true
+        // Vor dem Ausfahren auf das leichte Ladebild wechseln (ohne Überblenden)
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { bewegt = true }
         Tastatur.schliessen()
         elternSchrumpfen?(false)
         withAnimation(.easeIn(duration: 0.22)) {
