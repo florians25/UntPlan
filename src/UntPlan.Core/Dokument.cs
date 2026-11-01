@@ -80,6 +80,12 @@ public sealed class Dokument
         foreach (var t in daten.Vertretungen.Where(v => v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue)
                      .Select(v => v.Datum).Distinct().ToList())
             Vertretungsplanung.Raumvertretungen.KopplungAngleichen(daten, t);
+        // ältere Dateien: Raumvertretung mit der eigenen Lehrkraft, obwohl diese abwesend ist (die Abwesenheit war von der
+        // Raumänderung verdeckt und fehlte in den offenen Vertretungen) – diese Tage neu abgleichen
+        foreach (var t in daten.Vertretungen.Where(v => v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue && v.LehrerId is int l
+                         && (v.VertreterId is null || v.VertreterId == l) && Vertretungsplanung.Absenzen.LehrerAbwesend(daten, l, v.Datum, v.Stunde))
+                     .Select(v => v.Datum).Distinct().ToList())
+            Vertretungsplanung.Vertretungen.Aktualisieren(daten, t);
         return new Dokument(daten, pfad);
     }
 
