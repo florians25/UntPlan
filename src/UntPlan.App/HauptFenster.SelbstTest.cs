@@ -839,9 +839,13 @@ public sealed partial class HauptFenster
                         throw new InvalidOperationException("Pausenaufsicht im Vertretungsmodus nicht als Vertretung erfasst.");
                 }
             }
-            var f = FensterOeffnen("pause")!;
-            Max(f);
+            var f = (PausenaufsichtFenster)FensterOeffnen("pause")!;
+            f.WindowState = FormWindowState.Normal;
+            f.Bounds = new Rectangle(0, 0, 640, 360);
             if (!f.Text.Contains("Vertretung")) throw new InvalidOperationException("Pausenaufsichten zeigen im Vertretungsmodus nicht die Woche: " + f.Text);
+            var planVorher = dd.Pausenaufsichten.Count;
+            f.SelbsttestUebernahme();
+            if (dd.Pausenaufsichten.Count != planVorher) throw new InvalidOperationException("Übernahme im Vertretungsmodus hat den Aufsichtsplan geändert.");
         }, -1);
         Schritt("19c_Statistik", () => Max(FensterOeffnen("stat")!), -1);
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
@@ -1218,6 +1222,15 @@ public sealed partial class HauptFenster
         }, -1);
         Schritt("19e_Standardanordnung", VertretungsStandardFenster, -1);
         Schritt("19f_Stundenplanmodus", VertretungsmodusUmschalten, -1, false);
+        Schritt("19f1_Pausenaufsichten_Plan", () =>
+        {
+            AlleSchliessen();
+            var f = (PausenaufsichtFenster)FensterOeffnen("pause")!;
+            f.WindowState = FormWindowState.Normal;
+            f.Bounds = new Rectangle(0, 0, 640, 360);
+            if (f.Text.Contains("Vertretung")) throw new InvalidOperationException("Pausenaufsichten im Stundenplanmodus zeigen die Woche.");
+            f.SelbsttestUebernahme();
+        }, -1);
         var umgeplant = (Id: 0, Stunde: 0);
         Schritt("19g_Umplanung_Stundenplan", () =>
         {
