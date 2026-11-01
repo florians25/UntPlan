@@ -8,6 +8,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ### Desktop
 - Wichtige Korrektur: Wird eine Lehrkraft abwesend, deren Stunde schon eine Raumänderung hat (z. B. gesperrter Raum mit gewähltem Ausweichraum), erscheint die Stunde jetzt als offene Vertretung (bzw. Entfall laut Regel) – der gewählte Raum bleibt. Bestehende Dateien werden beim Öffnen korrigiert.
 - Raumänderungen in Kopplungen gelten für alle Zeilen und Klassen; die Vertretungsliste fasst sie in einer Zeile mit allen Klassen zusammen, Pläne zeigen einen Block mit allen Klassen.
+- Aufsichtsplanung im Vertretungsmodus: Das Fenster Pausenaufsichten zeigt die Woche des Planungsdatums; jede Änderung (andere Lehrkraft, offen „???“, entfällt „---“, Lehrer-Vorschlag mit Übernahme, offene Aufsichten der Woche besetzen) wird als Vertretung dieses Tages erfasst – der reguläre Aufsichtsplan bleibt unverändert.
 - Kompakte Warnhinweise direkt neben der Maus (Fach 2x/Tag, fixierter Unterricht, gesperrter Raum) mit „nicht mehr anzeigen“.
 - Neues Farbschema für Stunden- und Vertretungsmodus, kleine Stundenpläne mit fetten Tagen und Stunden.
 - Klassenlehrkräfte per Dropdown (auch mehrere, durch Komma getrennt).
