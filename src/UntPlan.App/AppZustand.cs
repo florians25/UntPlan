@@ -193,6 +193,8 @@ public sealed class Benutzereinstellungen
     }
 
     public List<string> ZuletztGeoeffnet { get; set; } = new();
+    /// <summary>Warnhinweise, die „dauerhaft nicht mehr anzeigen“ sollen (Schlüssel, siehe <see cref="Dialoge.Warnhinweis"/>).</summary>
+    public List<string> AusgeblendeteMeldungen { get; set; } = new();
     public bool BegruessungZeigen { get; set; } = true;
     /// <summary>Beim Start die zuletzt geöffnete Schuldatei laden.</summary>
     public bool LetzteDateiLaden { get; set; } = true;

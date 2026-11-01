@@ -78,6 +78,8 @@ public static class OptionenDialog
             knoepfe.Add(r);
         }
         d.Controls.Add(grp);
+        // wie im Vorbild direkt neben der Maus (beim Planen also neben der Zielstunde)
+        Warnhinweis.NebenDerMaus(d);
         if (d.ShowDialog(owner) != DialogResult.OK) return null;
         return knoepfe.FindIndex(k => k.Checked);
     }
