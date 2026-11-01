@@ -154,7 +154,15 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
     private string SpaltenName(int nach)
     {
         var p = D.Zeitraster.Pausen.FirstOrDefault(x => x.NachStunde == nach);
-        if (p != null && !string.IsNullOrWhiteSpace(p.Bezeichnung)) return p.Bezeichnung;
+        if (p != null && !string.IsNullOrWhiteSpace(p.Bezeichnung))
+        {
+            // kurze Spaltenköpfe wie im Vorbild: „1. große Pause“ → „1. P“, „Mittagspause“ → „MP“
+            var b = p.Bezeichnung.Trim();
+            if (b.Length <= 5) return b;
+            if (b.Contains("Mittag", StringComparison.OrdinalIgnoreCase)) return "MP";
+            var erstes = b.Split(' ')[0];
+            return char.IsDigit(erstes[0]) ? $"{erstes} P" : b[..5];
+        }
         if (nach == 0) return "FA";
         return nach >= D.Zeitraster.StundenProTag ? $"{nach}/" : $"{nach}/{nach + 1}";
     }
@@ -189,7 +197,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         _optimieren.ToolTipText = vm ? "Offene Aufsichten der Woche besetzen (als Vertretungen)" : "Optimierung";
         Text = vm ? $"Pausenaufsichten – Woche ab {TagDatum(0):dd.MM.yyyy} (Änderungen als Vertretung)" : "Pausenaufsichten";
         var pausen = Pausen();
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "", Width = vm ? 104 : 78, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "", Width = vm ? 128 : 84, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable });
         foreach (var n in pausen)
             _g.Columns.Add(new DataGridViewTextBoxColumn
             {
@@ -644,6 +652,19 @@ public sealed class PausenVorschlagFenster : MdiFenster
             if (n is "M" or "MM" or "P" or "Z" or "T") c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
         }
         _g.Columns["N"]!.HeaderCell.Style.BackColor = Color.FromArgb(255, 228, 181);
+        // Häkchen selbst zeichnen (grün wie im Vorbild, unabhängig von der Schriftart)
+        _g.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || !Haken.Contains(_g.Columns[e.ColumnIndex].Name) || (e.Value as string) != "✔") return;
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All & ~DataGridViewPaintParts.ContentForeground);
+            var m = new Point(e.CellBounds.Left + e.CellBounds.Width / 2, e.CellBounds.Top + e.CellBounds.Height / 2);
+            using var stift = new Pen(Color.FromArgb(46, 160, 67), 2.2f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
+            var alt = e.Graphics.SmoothingMode;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            e.Graphics.DrawLines(stift, new[] { new Point(m.X - 6, m.Y), new Point(m.X - 2, m.Y + 4), new Point(m.X + 6, m.Y - 4) });
+            e.Graphics.SmoothingMode = alt;
+            e.Handled = true;
+        };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Uebernehmen(); };
         _g.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.Handled = true; Uebernehmen(); } };
         var rand = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 8), BackColor = Ui.Kopf };
