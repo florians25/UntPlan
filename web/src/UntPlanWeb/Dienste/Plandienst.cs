@@ -686,8 +686,9 @@ public sealed class Plandienst
             var ziel = einzel[j];
             var liste = ziel.Raeume.Select(w => w.K).Where(x => x.Length > 0 && Enthaelt(neu, x)).Concat(hinzu).Distinct(Ci).ToList();
             var raeume = RaeumeNachBuchung(ziel.Raeume, liste);
-            // nur die Räume ändern sich (alt → neu): Status, Art und Text der Stunde bleiben – keine Vertretung
-            var status = ziel.Status;
+            // nur die Räume ändern sich (alt → neu): Art und Text der Stunde bleiben – keine Vertretung; eine sonst reguläre Stunde
+            // wird wie jede Raumänderung zur grünen Änderungskarte
+            var status = ziel.Status == "regulaer" && raeume.Any(w => w.Neu) ? "geaendert" : ziel.Status;
             if (typ == Elementtyp.Raum && !raeume.Any(w => Ci.Equals(w.K, kurz))) status = "abwesend";
             einzel[j] = ziel with { Status = status, Raeume = raeume };
         }
