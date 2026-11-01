@@ -331,7 +331,11 @@ enum Kachelbau {
         if k.zusaetzlich { return true }
         guard k.status == "geaendert", !k.fach.isEmpty else { return false }
         let a = k.art.lowercased()
-        return zusatzArten.contains { a.contains($0) } || k.unterricht == nil
+        if zusatzArten.contains(where: { a.contains($0) }) { return true }
+        // Fehlt nur eine Klasse der Kopplung (Klassenabwesenheit), ist das keine Zusatzstunde – die Lehrkraft hält ihre
+        // Stunde wie immer (kein Lehrer-Label, keine Pille), auch wenn die Karte keinen Unterricht nennt
+        if !weggefalleneKlassen(k).isEmpty || !k.abwesendeKlassen.isEmpty { return false }
+        return k.unterricht == nil
     }
 
     private static func gleich(_ a: String, _ b: String) -> Bool {
@@ -585,8 +589,13 @@ enum Kachelbau {
         }
         // Nur Klassen fehlen (Klassenabwesenheit in der Kopplung) bzw. Verlegung: ein bloß als „neu“ markierter Lehrerwert ohne
         // ersetzte bzw. gestrichene Lehrkraft ist keine Lehreränderung – kein Lehrer-Label (dieselbe Lehrkraft hält die Stunde)
+        // Im eigenen Lehrerplan zählt dabei nur die eigene Zeile: in einer Kopplung fällt mit der abwesenden Klasse auch deren
+        // Zeile samt Lehrkraft weg – das ist keine Änderung der eigenen Stunde (kein eigenes Kürzel als Label)
+        let eigeneLehrer = typ == "lehrer" && !ich.isEmpty
+            ? k.lehrer.filter { gleich($0.k, ich) || gleich($0.alt ?? "", ich) }
+            : k.lehrer
         if teilweiseAbwesend || !weggefalleneKlassen(k).isEmpty || k.verlegung != nil,
-           !k.lehrer.contains(where: { w in
+           !eigeneLehrer.contains(where: { w in
                let a = (w.alt ?? "").trimmingCharacters(in: .whitespaces)
                return w.plus || w.k.isEmpty || (!a.isEmpty && !gleich(a, w.k))
            }) {
