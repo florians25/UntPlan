@@ -821,7 +821,28 @@ public sealed partial class HauptFenster
             if (fehler.Count > 0) throw new InvalidOperationException("Stundenplan-Blöcke: " + string.Join("; ", fehler));
         }, -1);
         Schritt("19a5_Stunden_zurueck", () => { VierzehnStunden(false); Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)); }, -1);
-        Schritt("19b_Pausenaufsichten", () => Max(FensterOeffnen("pause")!), -1);
+        Schritt("19b_Pausenaufsichten", () =>
+        {
+            // Vertretungsmodus: Aufsicht des Planungsdatums neu besetzen – wird als Vertretung erfasst, der Aufsichtsplan bleibt
+            var dd = AppZustand.D;
+            var datum = AppZustand.Datum;
+            var wt = Kalender.TagIndex(dd, datum);
+            var a = dd.Pausenaufsichten.FirstOrDefault(x => x.Tag == wt && x.Datum is null);
+            if (a != null)
+            {
+                var ta = Core.Module.Pausenaufsichten.AmDatum(dd, datum, a.GangId, a.NachStunde).First(x => x.Regulaer == a.LehrerId);
+                if (Core.Module.Pausenaufsichten.LehrervorschlagAmDatum(dd, datum, ta).FirstOrDefault() is { } b)
+                {
+                    var vorher = dd.Pausenaufsichten.Count;
+                    Core.Module.Pausenaufsichten.VertretungSetzen(dd, datum, ta, b.Lehrer.Id);
+                    if (dd.Pausenaufsichten.Count != vorher || !dd.Vertretungen.Any(v => v.Datum == datum && v.GangId == a.GangId && v.VertreterId == b.Lehrer.Id))
+                        throw new InvalidOperationException("Pausenaufsicht im Vertretungsmodus nicht als Vertretung erfasst.");
+                }
+            }
+            var f = FensterOeffnen("pause")!;
+            Max(f);
+            if (!f.Text.Contains("Vertretung")) throw new InvalidOperationException("Pausenaufsichten zeigen im Vertretungsmodus nicht die Woche: " + f.Text);
+        }, -1);
         Schritt("19c_Statistik", () => Max(FensterOeffnen("stat")!), -1);
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
         Schritt("19d1_Veranstaltungen", () => Max(FensterOeffnen("veranst")!), -1);

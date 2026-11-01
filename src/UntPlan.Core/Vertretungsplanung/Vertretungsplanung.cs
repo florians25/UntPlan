@@ -330,6 +330,16 @@ public static class Vertretungen
         {
             if (zugeordnet.Contains(b)) continue;
             if (!entfernen && b.UnterrichtId is int bu && verwaist.Contains(bu)) continue;
+            // Pausenaufsicht schon von Hand vertreten (Aufsichtsplanung im Vertretungsmodus): keine zweite Zeile, die vorhandene
+            // bekommt nur den Abwesenheitsgrund
+            if (b.GangId.HasValue && d.Vertretungen.FirstOrDefault(v => v.Datum == datum && v.GangId == b.GangId && v.Stunde == b.Stunde
+                    && v.LehrerId == b.LehrerId && !IstAbgeleitet(v) && v.Art is VertretungsArt.Pausenaufsicht or VertretungsArt.Entfall) is { } hand)
+            {
+                hand.AbwesenheitId = b.AbwesenheitId;
+                hand.GrundId = b.GrundId;
+                hand.Grund = b.Grund;
+                continue;
+            }
             b.Id = d.NeueId();
             d.Vertretungen.Add(b);
         }
