@@ -100,7 +100,10 @@ struct StundendetailInhalt: View {
     }
 
     /// Hinterlegte Fachfarbe der Stunde (leer bzw. Weiß = keine; nicht bei Entfall – dort steht der rote Balken).
-    private var fachfarbe: Color? {
+    private var fachfarbe: Color? { Self.fachfarbe(karte) }
+
+    /// Fachfarbe einer beliebigen Stunde (für die Reiter bei mehreren Stunden zur selben Zeit).
+    static func fachfarbe(_ karte: Karte) -> Color? {
         let hex = karte.farbe.trimmingCharacters(in: .whitespaces)
         guard !karte.istEntfall, !hex.isEmpty, !["#FFFFFF", "FFFFFF", "#FFF"].contains(hex.uppercased()) else { return nil }
         return Color(hex: hex)
@@ -132,7 +135,8 @@ struct StundendetailInhalt: View {
                 reiterleiste
             }
             // Vorlage: Balken in der Fachfarbe direkt unter dem Kopf (4 pt) – nur wenn für das Fach eine Farbe hinterlegt ist
-            if let farbe = fachfarbe, !zeigtSkelett {
+            // Mehrere Stunden: die Fachfarbe steht stattdessen als Strich unter dem jeweiligen Reiter
+            if let farbe = fachfarbe, !zeigtSkelett, karten.count <= 1 {
                 Rectangle()
                     .fill(farbe)
                     .frame(height: 4)
@@ -449,9 +453,10 @@ struct StundendetailInhalt: View {
                                 .padding(.horizontal, 13.83)
                                 .frame(height: 50)
                                 .overlay(alignment: .bottom) {
+                                    // Strich unter dem gewählten Reiter in dessen Fachfarbe (ohne Fachfarbe wie bisher)
                                     if gewaehlt {
                                         Rectangle()
-                                            .fill(Farben.reiterStrich)
+                                            .fill(Self.fachfarbe(eintrag.element) ?? Farben.reiterStrich)
                                             .frame(height: 4)
                                             .padding(.horizontal, 5.5)
                                             .matchedGeometryEffect(id: "aktiverDetailReiter", in: reiterRaum)
