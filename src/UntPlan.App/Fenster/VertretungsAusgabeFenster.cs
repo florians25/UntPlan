@@ -444,6 +444,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
                 var a = Pausenaufsichten.AmDatum(d, datum, gang, z.Nach).First(x => x.Teil == teil);
                 Pausenaufsichten.VertretungSetzen(d, datum, a, l.Id, false, AppZustand.Benutzer);
             });
+            Neuaufbau();
             return;
         }
         var teile = Pausenaufsichten.Teile(D, gang, z.Tag, z.Nach);
@@ -456,7 +457,8 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
             d.Pausenaufsichten.RemoveAll(a => a.GangId == gang && a.Tag == z.Tag && a.NachStunde == z.Nach && a.Teil == zielTeil && a.Datum is null);
             d.Pausenaufsichten.Add(new Pausenaufsicht { GangId = gang, Tag = z.Tag, NachStunde = z.Nach, LehrerId = l.Id, Teil = zielTeil });
         });
-        // nächste offene Aufsicht des Tages wählen? Nein – wie im Vorbild bleibt die Auswahl stehen
+        // sofort sichtbar (nicht erst nach dem verzögerten Neuaufbau); die Auswahl bleibt wie im Vorbild stehen
+        Neuaufbau();
     }
 
     /// <summary>Selbsttest: erste Aufsicht wählen, Lehrer-Vorschlag öffnen und den ersten Vorschlag übernehmen.</summary>
