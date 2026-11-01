@@ -316,14 +316,14 @@ public class PlanKorrekturenEndeZuEndeTests
             new { datum = Freitag.ToString("yyyy-MM-dd"), stundeVon = Std, stundeBis = Std, unterricht = karte["unterricht"]!.GetValue<int>(), raeume = new[] { "R200" }, bisher }));
         var c = await s.AlsAsync("admin");
         // vorgemerkt: wie eine Raumbuchung regulär, der neue Raum als Label
-        var alleKlassen = form == Form.KopplungZweiteLehrkraft ? "regulaer L=HE,CS K=ET13,INF13 R=B117→R200" : "regulaer L=HE K=ET13,INF13 R=B117→R200";
+        var alleKlassen = form == Form.KopplungZweiteLehrkraft ? "geaendert L=HE,CS K=ET13,INF13 R=B117→R200" : "geaendert L=HE K=ET13,INF13 R=B117→R200";
         await PruefenAsync(c, Freitag, Std, form switch
         {
             Form.KopplungJeKlasse => new()
             {
                 ["lehrer HE"] = alleKlassen,
-                ["klasse ET13"] = "regulaer L=HE K=ET13+INF13 R=B117→R200",
-                ["klasse INF13"] = "regulaer L=HE K=INF13+ET13 R=B117→R200",
+                ["klasse ET13"] = "geaendert L=HE K=ET13+INF13 R=B117→R200",
+                ["klasse INF13"] = "geaendert L=HE K=INF13+ET13 R=B117→R200",
                 ["raum B117"] = "–",
                 ["raum R200"] = alleKlassen,
             },
@@ -374,13 +374,13 @@ public class PlanKorrekturenEndeZuEndeTests
         await PruefenAsync(c, Freitag, Std, new()
         {
             ["lehrer HE"] = "regulaer L=HE K=ET13 R=B117",
-            ["lehrer CS"] = "regulaer L=CS K=INF13 R=B118→R201",
+            ["lehrer CS"] = "geaendert L=CS K=INF13 R=B118→R201",
             ["lehrer SZ"] = "regulaer L=SZ K=ING13 R=B119",
-            ["klasse INF13"] = "regulaer L=CS K=INF13 R=B118→R201",
+            ["klasse INF13"] = "geaendert L=CS K=INF13 R=B118→R201",
             ["klasse ET13"] = "regulaer L=HE K=ET13 R=B117",
             ["raum B118"] = "–",
             ["raum B117"] = "regulaer L=HE K=ET13 R=B117",
-            ["raum R201"] = "regulaer L=CS K=INF13 R=B118→R201",
+            ["raum R201"] = "geaendert L=CS K=INF13 R=B118→R201",
         });
         var meldung = Assert.Single((await UntPlanWebExport.RueckmeldungenAsync(Portal(s))).Where(m => m.Typ == WebRueckmeldungsTypen.Raumbuchung));
         Assert.Equal(new[] { "B117", "B119", "R201" }, meldung.Raeume.OrderBy(x => x));

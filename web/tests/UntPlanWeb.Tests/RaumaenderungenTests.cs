@@ -256,7 +256,7 @@ public class RaumaenderungenTests
         var lc = await s.AlsAsync(webFall.Lehrer.ToLowerInvariant(), "lehrer", webFall.Lehrer);
         await Testserver.JsonAsync(await lc.PostAsJsonAsync("/api/app/meldungen/raumaenderung",
             new { datum = webTag.ToString("yyyy-MM-dd"), stundeVon = web.Stunde, stundeBis = web.Stunde, unterricht = web.Unterricht.Id, raeume = new[] { webNeu } }));
-        await Pruefen("vorgemerkt", new() { webFall with { Status = "regulaer" } });   // wie eine Buchung: regulär, neuer Raum im Label
+        await Pruefen("vorgemerkt", new() { webFall with { Status = "geaendert" } });   // wie jede Raumänderung: grüne Änderungskarte, neuer Raum im Label
         // … in UntPlan übernehmen und erneut exportieren
         var liste = await UntPlanWebExport.RueckmeldungenAsync(p);
         var zeilen = StundenplanAenderungen.Analysieren(d, liste, Montag, Montag.AddDays(14), false);
