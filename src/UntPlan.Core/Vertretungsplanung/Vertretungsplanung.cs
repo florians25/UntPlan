@@ -513,6 +513,34 @@ public static class Vertretungen
                 if (!v.Bearbeitet) v.Text = b.Text;
                 return;
             }
+            // Von Hand bearbeitete Raumvertretung (z. B. gesperrter Raum, Ausweichraum gewählt) mit der eigenen Lehrkraft: wird die
+            // Lehrkraft abwesend (bzw. die Stunde frei), gilt das Ergebnis der Neuberechnung – offene Vertretung bzw. Entfall –, der
+            // gewählte Raum bleibt. Die Raumänderung hat mit der Abwesenheit nichts zu tun und darf sie nicht verdecken.
+            if (v.Bearbeitet && v.Art == VertretungsArt.Raumvertretung && b.Art != VertretungsArt.Raumvertretung
+                && (v.VertreterId is null || v.VertreterId == v.LehrerId))
+            {
+                var raum = v.VertretungsraumId;
+                var zusatz = v.ZusatzraumIds.ToList();
+                var verdraengt = v.RaumVerdraengt;
+                v.Art = b.Art;
+                v.VertreterId = b.VertreterId;
+                v.Mitbetreuung = b.Mitbetreuung;
+                v.KlassenIds = b.KlassenIds;
+                v.VertretungsraumId = raum ?? b.VertretungsraumId;
+                v.ZusatzraumIds = zusatz;
+                v.RaumVerdraengt = verdraengt;
+                v.RaumvertretungVorAbsenz = true;
+                return;
+            }
+            // Wieder anwesend: zurück zur Raumvertretung mit der eigenen Lehrkraft (gewählter Raum bleibt)
+            if (v.RaumvertretungVorAbsenz && b.Art == VertretungsArt.Raumvertretung)
+            {
+                v.Art = VertretungsArt.Raumvertretung;
+                v.VertreterId = b.VertreterId;
+                v.Mitbetreuung = false;
+                v.RaumvertretungVorAbsenz = false;
+                return;
+            }
             // Unterricht wird durch die Prüfung ersetzt (ältere Dateien: Entfall-Zeile neben der Prüfungszeile): folgt der Prüfung
             if (!v.Bearbeitet || (b.Art == VertretungsArt.Klausur && b.UnterrichtId.HasValue && v.Art != VertretungsArt.Klausur))
             {

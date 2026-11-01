@@ -187,6 +187,62 @@ public class KopplungVertretungTests
     }
 
     [Fact]
+    public void RaumGesperrtMitGewaehltemRaumUndDanachLehrerAbwesendWirdOffen()
+    {
+        // Einzelunterricht (nur Zeile 0): Raum R1 gesperrt → Raumvertretung, Ausweichraum R3 von Hand gewählt
+        var k = Erzeugen();
+        k.U.Zeilen.RemoveAt(1);
+        Absenz(k, AbwesenheitsArt.Raum, k.R1);
+        var v = Assert.Single(Zeilen(k));
+        Assert.Equal(VertretungsArt.Raumvertretung, v.Art);
+        Raumvertretungen.Zuordnen(k.D, k.U.Id, 0, k.Tag, new[] { k.Stunde }, k.R3, false, RaumKollisionsLoesung.OhneKollision, "test");
+        Vertretungen.Aktualisieren(k.D, k.Tag);
+        v = Assert.Single(Zeilen(k));
+        Assert.Equal(VertretungsArt.Raumvertretung, v.Art);
+        Assert.Equal(k.R3, v.VertretungsraumId);
+        // Lehrkraft wird krank: offene Vertretung (bzw. Entfall laut Regel) – der gewählte Raum bleibt
+        Absenz(k, AbwesenheitsArt.Lehrer, k.L1);
+        v = Assert.Single(Zeilen(k));
+        Assert.True(v.Offen || v.IstEntfall, $"Art {v.Art}, Vertreter {v.VertreterId}");
+        Assert.NotEqual(k.L1, v.VertreterId);
+        if (v.Offen) Assert.Equal(k.R3, v.VertretungsraumId);
+        // Lehrkraft wieder da: wieder die Raumvertretung mit dem gewählten Raum
+        k.D.Abwesenheiten.RemoveAll(a => a.Art == AbwesenheitsArt.Lehrer);
+        Vertretungen.Aktualisieren(k.D, k.Tag);
+        v = Assert.Single(Zeilen(k));
+        Assert.Equal(VertretungsArt.Raumvertretung, v.Art);
+        Assert.Equal(k.L1, v.VertreterId);
+        Assert.Equal(k.R3, v.VertretungsraumId);
+    }
+
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    [InlineData(false, 1)]
+    public void GemeinsameRaumaenderungUndDanachEineLehrkraftAbwesendWirdOffen(bool eigeneKlasse, int abwesendeZeile)
+    {
+        var k = Erzeugen(eigeneKlasse, gleicherRaum: true);
+        Raumvertretungen.Zuordnen(k.D, k.U.Id, 0, k.Tag, new[] { k.Stunde }, k.R3, false, RaumKollisionsLoesung.OhneKollision, "test");
+        Assert.All(Zeilen(k), v => Assert.Equal(VertretungsArt.Raumvertretung, v.Art));
+        var l = abwesendeZeile == 0 ? k.L1 : k.L2;
+        Absenz(k, AbwesenheitsArt.Lehrer, l);
+        var zeile = Zeilen(k).Single(v => v.LehrerId == l);
+        Assert.True(zeile.Offen || zeile.IstEntfall, $"Art {zeile.Art}, Vertreter {zeile.VertreterId}");
+        Assert.NotEqual(l, zeile.VertreterId);
+        Assert.DoesNotContain(l, Eintrag(k, abwesendeZeile).LehrerIds);
+        // die anwesende Lehrkraft behält ihre Raumänderung
+        var andere = Zeilen(k).Single(v => v.LehrerId != l);
+        Assert.Equal(VertretungsArt.Raumvertretung, andere.Art);
+        // erneuter Abgleich und Laden ändern daran nichts
+        Vertretungen.Aktualisieren(k.D, k.Tag);
+        Raumvertretungen.KopplungAngleichen(k.D, k.Tag);
+        zeile = Zeilen(k).Single(v => v.LehrerId == l);
+        Assert.True(zeile.Offen || zeile.IstEntfall, $"Art {zeile.Art}, Vertreter {zeile.VertreterId}");
+        Assert.NotEqual(l, zeile.VertreterId);
+    }
+
+    [Fact]
     public void KlasseAbwesendSetztNurDieZeileDieserKlasseFrei()
     {
         var k = Erzeugen();
