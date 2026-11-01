@@ -15,17 +15,26 @@ namespace UntPlan.App.Fenster;
 /// </summary>
 public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
 {
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Top, Height = 24 };
-    private readonly ToolStripComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
-    private readonly ToolStripLabel _minuten = new() { ForeColor = Color.DimGray };
+    private static readonly Color Orange = Color.FromArgb(255, 228, 181);
+    private static readonly System.Globalization.CultureInfo De = System.Globalization.CultureInfo.GetCultureInfo("de-DE");
+    private readonly TabControl _tabs = new() { Dock = DockStyle.Top, Height = 22 };
+    private readonly ToolStripComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
+    private readonly Label _minuten = new() { AutoSize = true, Left = 8, Top = 6 };
+    private readonly CheckBox _langname = new() { Text = "Langname", AutoSize = true, Top = 4, Anchor = AnchorStyles.Top | AnchorStyles.Right };
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _lehrer = new() { Dock = DockStyle.Fill };
+    private readonly SplitContainer _split = new() { Dock = DockStyle.Fill, Panel2Collapsed = true };
     private bool _laedt;
     // eigene Merkvariable: TabControl.SelectedIndex liefert vor dem Erzeugen des Handles -1
     private bool _gangSicht = true;
     /// <summary>Werkzeuge, die den regulären Aufsichtsplan ändern (im Vertretungsmodus gesperrt).</summary>
     private readonly List<ToolStripItem> _nurPlan = new();
     private readonly ToolStripItem _optimieren;
+    /// <summary>Zeilen 0 und 1 des Rasters: Beginn und Ende der Pausen.</summary>
+    private const int Zeitzeilen = 2;
+
+    /// <summary>Gewählte Aufsicht hat sich geändert (Lehrer-Vorschlag folgt).</summary>
+    public event Action? AuswahlGeaendert;
 
     /// <summary>Vertretungsmodus: Aufsichten der Woche des Planungsdatums; jede Änderung wird als Vertretung dieses Tages erfasst.</summary>
     private static bool VM => AppZustand.Vertretungsmodus;
@@ -36,7 +45,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         Text = "Pausenaufsichten";
         HilfeThema = "Pausenaufsichten";
         Icon = SymbolIcon("pausenaufsicht");
-        Size = new Size(1060, 520);
+        Size = new Size(570, 330);
         Positionieren();
         _tabs.TabPages.Add("Gang");
         _tabs.TabPages.Add("Lehrer");
@@ -51,29 +60,49 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(_element);
         ts.Items.AddRange(Ui.Durchschalter(_element));
         _element.SelectedIndexChanged += (_, _) => { if (!_laedt) Neuaufbau(); };
-        ts.Items.Add(_minuten);
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Lehrervorschlag", "lehrer", Lehrervorschlag, false));
+        ts.Items.Add(Knopf("Lehrer-Vorschlag", "lehrer", VorschlagOeffnen));
         ts.Items.Add(Knopf("Aufsicht löschen", "loeschen", AufsichtLoeschen));
         ts.Items.Add(Knopf("Aufsicht (???) / Keine Aufsicht", "entfall", KeineAufsicht));
         _nurPlan.Add(ts.Items[ts.Items.Add(Knopf("Aufsicht teilen", "plus", () => Teilen(+1)))]);
         _nurPlan.Add(ts.Items[ts.Items.Add(Knopf("Teilung entfernen", "minus", () => Teilen(-1)))]);
         ts.Items.Add(new ToolStripSeparator());
-        _optimieren = ts.Items[ts.Items.Add(Knopf("Optimierung", "optimierung", Optimieren, false))];
+        _optimieren = ts.Items[ts.Items.Add(Knopf("Optimierung", "optimierung", Optimieren))];
         _nurPlan.Add(ts.Items[ts.Items.Add(Knopf("Gewichtung", "gewichtung", Gewichtung))]);
-        var loeschen = new ToolStripDropDownButton("Löschen", Symbole.Get("loeschen", 16));
+        var uebersicht = Knopf("Lehrerübersicht (PA Max / Ist)", "statistik", () => { _split.Panel2Collapsed = !_split.Panel2Collapsed; if (!_split.Panel2Collapsed && Width < 900) Width = 980; });
+        ts.Items.Add(uebersicht);
+        var loeschen = new ToolStripDropDownButton("", Symbole.Get("loeschen", 16)) { ToolTipText = "Löschen" };
         loeschen.DropDownItems.Add("Aufsichten dieses Elements löschen", null, (_, _) => ElementLoeschen());
         loeschen.DropDownItems.Add("Alle Aufsichten löschen", null, (_, _) => { if (Ui.Frage("Alle Pausenaufsichten löschen?")) Aendern("Pausenaufsichten löschen", AenderungsArt.Stundenplan, d => d.Pausenaufsichten.RemoveAll(a => a.Datum is null)); });
         ts.Items.Add(loeschen);
         _nurPlan.Add(loeschen);
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
 
+        // Kopf wie im Vorbild: „Minuten: 15 (offen:15.0)“ links, „Langname“ rechts
+        var kopf = new Panel { Dock = DockStyle.Top, Height = 26, BackColor = Ui.Kopf };
+        kopf.Controls.Add(_minuten);
+        kopf.Controls.Add(_langname);
+        kopf.Resize += (_, _) => _langname.Left = kopf.Width - _langname.Width - 120;
+        _langname.CheckedChanged += (_, _) => Neuaufbau();
+
         Ui.RasterGestalten(_g, true);
-        _g.RowTemplate.Height = 34;
-        _g.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        _g.ColumnHeadersHeight = 20;
+        _g.RowTemplate.Height = 20;
+        _g.RowHeadersVisible = false;
+        _g.AllowUserToResizeColumns = false;
+        _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        _g.MultiSelect = false;
+        _g.EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2;
         _g.CellEndEdit += Bearbeitet;
         _g.CellFormatting += Formatieren;
-        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex > 0 && _tabs.SelectedIndex == 0) Lehrervorschlag(); };
+        _g.CellBeginEdit += (_, e) => { if (Zelle(e.RowIndex, e.ColumnIndex) is null || !GangSicht) e.Cancel = true; };
+        _g.CurrentCellChanged += (_, _) =>
+        {
+            if (_laedt) return;
+            KopfMarkieren();
+            AuswahlGeaendert?.Invoke();
+        };
+        _g.CellDoubleClick += (_, e) => { if (Zelle(e.RowIndex, e.ColumnIndex) is not null && GangSicht) VorschlagOeffnen(); };
 
         Ui.RasterGestalten(_lehrer, false);
         _lehrer.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -85,13 +114,14 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
             _tabs.SelectedIndex = 1;
             _element.SelectedItem = _element.Items.Cast<Eintrag>().FirstOrDefault(x => x.Id == l.Id);
         };
-        var split = new SplitContainer { Dock = DockStyle.Fill };
-        split.Panel1.Controls.Add(_g);
-        split.Panel2.Controls.Add(_lehrer);
-        Controls.Add(split);
+        var rand = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 8, 8, 8), BackColor = Ui.Kopf };
+        rand.Controls.Add(_g);
+        _split.Panel1.Controls.Add(rand);
+        _split.Panel2.Controls.Add(_lehrer);
+        Controls.Add(_split);
+        Controls.Add(kopf);
         Controls.Add(_tabs);
         Controls.Add(ts);
-        Load += (_, _) => split.SplitterDistance = Math.Max(300, split.Width - 450);
         AppZustand.DatumGewechselt += DatumGewechselt;
         AppZustand.ModusGewechselt += ModusGewechselt;
         FormClosed += (_, _) =>
@@ -113,7 +143,31 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
 
     private bool GangSicht => _gangSicht;
     private int? ElementId => (_element.SelectedItem as Eintrag)?.Id;
-    private List<Pause> Pausen => Pausenaufsichten.AufsichtsPausen(D).ToList();
+
+    /// <summary>Alle Pausen des Zeitrasters wie im Vorbild (FA, 1/2, 1. P, …); ohne Aufsicht grau.</summary>
+    private List<int> Pausen()
+    {
+        var z = D.Zeitraster;
+        return Enumerable.Range(0, z.StundenProTag + 1).Where(n => z.Zeit(n) != null || z.Zeit(n + 1) != null).ToList();
+    }
+
+    private string SpaltenName(int nach)
+    {
+        var p = D.Zeitraster.Pausen.FirstOrDefault(x => x.NachStunde == nach);
+        if (p != null && !string.IsNullOrWhiteSpace(p.Bezeichnung))
+        {
+            // kurze Spaltenköpfe wie im Vorbild: „1. große Pause“ → „1. P“, „Mittagspause“ → „MP“
+            var b = p.Bezeichnung.Trim();
+            if (b.Length <= 5) return b;
+            if (b.Contains("Mittag", StringComparison.OrdinalIgnoreCase)) return "MP";
+            var erstes = b.Split(' ')[0];
+            return char.IsDigit(erstes[0]) ? $"{erstes} P" : b[..5];
+        }
+        if (nach == 0) return "FA";
+        return nach >= D.Zeitraster.StundenProTag ? $"{nach}/" : $"{nach}/{nach + 1}";
+    }
+
+    private static string Tagname(int t) => De.DateTimeFormat.GetDayName((DayOfWeek)((t + 1) % 7));
 
     protected override bool EigeneAenderungenAnzeigen => true;
     protected override void Aktualisieren(AenderungsArt art) => Neuaufbau();
@@ -129,83 +183,91 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         _laedt = false;
     }
 
+    private string LName(int id) => _langname.Checked && Ix.Lehrer.TryGetValue(id, out var l) && l.Langname.Length > 0 ? l.Langname : Ix.KLehrer(id);
+
     private void Neuaufbau()
     {
         if (_g.IsCurrentCellInEditMode) return;
         _laedt = true;
-        var pos = (_g.CurrentCell?.RowIndex ?? 0, _g.CurrentCell?.ColumnIndex ?? 1);
+        var pos = (_g.CurrentCell?.RowIndex ?? Zeitzeilen, _g.CurrentCell?.ColumnIndex ?? 1);
         _g.Columns.Clear();
         _g.Rows.Clear();
         var vm = VM;
         foreach (var t in _nurPlan) t.Enabled = !vm;
         _optimieren.ToolTipText = vm ? "Offene Aufsichten der Woche besetzen (als Vertretungen)" : "Optimierung";
         Text = vm ? $"Pausenaufsichten – Woche ab {TagDatum(0):dd.MM.yyyy} (Änderungen als Vertretung)" : "Pausenaufsichten";
-        var pausen = Pausen;
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "", Width = 80, ReadOnly = true });
-        foreach (var p in pausen)
-        {
-            var ende = D.Zeitraster.Zeit(p.NachStunde)?.Ende;
-            var beginn = D.Zeitraster.Zeit(p.NachStunde + 1)?.Beginn;
+        var pausen = Pausen();
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "", Width = vm ? 128 : 84, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable });
+        foreach (var n in pausen)
             _g.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "P" + p.NachStunde, HeaderText = $"{Pausenaufsichten.PausenName(D, p.NachStunde)}\n{ende:H\\:mm}-{beginn:H\\:mm}", Width = 100,
-                SortMode = DataGridViewColumnSortMode.NotSortable, ReadOnly = !GangSicht, Tag = p.NachStunde,
+                Name = "P" + n, HeaderText = SpaltenName(n), Width = _langname.Checked ? 90 : 40, SortMode = DataGridViewColumnSortMode.NotSortable, Tag = n,
             });
+        // zwei Zeitzeilen unter dem Kopf: Ende der Stunde davor (Pausenbeginn) und Beginn der Stunde danach
+        var r0 = new List<object> { "" };
+        var r1 = new List<object> { "" };
+        foreach (var n in pausen)
+        {
+            r0.Add(D.Zeitraster.Zeit(n)?.Ende is { } e ? e.ToString("H:mm") : "");
+            r1.Add(D.Zeitraster.Zeit(n + 1)?.Beginn is { } b ? b.ToString("H:mm") : "");
         }
-        _g.ColumnHeadersHeight = 36;
-        _g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        foreach (var werte in new[] { r0, r1 })
+        {
+            var i = _g.Rows.Add(werte.ToArray());
+            _g.Rows[i].ReadOnly = true;
+            _g.Rows[i].Frozen = true;
+            _g.Rows[i].DefaultCellStyle.BackColor = Ui.Kopf;
+            _g.Rows[i].DefaultCellStyle.SelectionBackColor = Ui.Kopf;
+            _g.Rows[i].DefaultCellStyle.SelectionForeColor = Color.Black;
+        }
         var ix = Ix;
         if (ElementId is int id)
             for (var t = 0; t < D.Zeitraster.TageProWoche; t++)
             {
-                var werte = new List<object> { vm ? $"{Core.Planung.Planungsdienst.Tagname(D, t)}\n{TagDatum(t):dd.MM.}" : Core.Planung.Planungsdienst.Tagname(D, t) };
-                foreach (var p in pausen)
+                var werte = new List<object> { vm ? $"{Tagname(t)} {TagDatum(t):dd.MM.}" : Tagname(t) };
+                foreach (var n in pausen)
                 {
-                    if (vm) werte.Add(TageszellenText(id, t, p.NachStunde));
+                    if (vm) werte.Add(TageszellenText(id, t, n));
                     else if (GangSicht)
                     {
-                        var teile = Pausenaufsichten.Teile(D, id, t, p.NachStunde);
-                        var namen = Enumerable.Range(1, Math.Max(0, teile)).Select(teil => D.Pausenaufsichten.FirstOrDefault(a => a.GangId == id && a.Tag == t && a.NachStunde == p.NachStunde && a.Teil == teil && a.Datum is null) is { } a ? ix.KLehrer(a.LehrerId) : "???");
-                        werte.Add(teile == 0 ? "" : string.Join(", ", namen));
+                        var teile = Pausenaufsichten.Teile(D, id, t, n);
+                        var namen = Enumerable.Range(1, Math.Max(0, teile)).Select(teil => D.Pausenaufsichten.FirstOrDefault(a => a.GangId == id && a.Tag == t && a.NachStunde == n && a.Teil == teil && a.Datum is null) is { } a ? LName(a.LehrerId) : "???");
+                        werte.Add(teile == 0 ? "" : string.Join(",", namen));
                     }
-                    else werte.Add(string.Join(", ", D.Pausenaufsichten.Where(a => a.LehrerId == id && a.Tag == t && a.NachStunde == p.NachStunde && a.Datum is null).Select(a => ix.K(ElementTyp.Gang, a.GangId))));
+                    else werte.Add(string.Join(",", D.Pausenaufsichten.Where(a => a.LehrerId == id && a.Tag == t && a.NachStunde == n && a.Datum is null).Select(a => ix.K(ElementTyp.Gang, a.GangId))));
                 }
                 _g.Rows[_g.Rows.Add(werte.ToArray())].Tag = t;
             }
+        // Minuten wie im Vorbild: „Minuten: 15 (offen:15.0)“
         var min = 0;
         var offen = 0;
-        if (ElementId is int ev && vm)
-        {
+        if (ElementId is int ev)
             for (var t = 0; t < D.Zeitraster.TageProWoche; t++)
-                foreach (var p in pausen)
+                foreach (var n in pausen)
                 {
-                    var m = PausenMinuten(p.NachStunde);
-                    if (GangSicht)
-                        foreach (var a in Pausenaufsichten.AmDatum(D, TagDatum(t), ev, p.NachStunde).Where(a => !a.Entfaellt))
-                        {
-                            min += m;
-                            if (a.Wirksam is null) offen += m;
-                        }
-                    else min += m * D.Gaenge.Sum(g => Pausenaufsichten.AmDatum(D, TagDatum(t), g.Id, p.NachStunde).Count(a => a.Wirksam == ev));
-                }
-        }
-        else if (ElementId is int e2)
-        {
-            if (GangSicht)
-                for (var t = 0; t < D.Zeitraster.TageProWoche; t++)
-                    foreach (var p in pausen)
+                    var m = Pausenaufsichten.PausenMinuten(D, n);
+                    if (vm)
                     {
-                        var teile = Pausenaufsichten.Teile(D, e2, t, p.NachStunde);
+                        if (GangSicht)
+                            foreach (var a in Pausenaufsichten.AmDatum(D, TagDatum(t), ev, n).Where(a => !a.Entfaellt))
+                            {
+                                min += m;
+                                if (a.Wirksam is null) offen += m;
+                            }
+                        else min += m * D.Gaenge.Sum(g => Pausenaufsichten.AmDatum(D, TagDatum(t), g.Id, n).Count(a => a.Wirksam == ev));
+                    }
+                    else if (GangSicht)
+                    {
+                        var teile = Pausenaufsichten.Teile(D, ev, t, n);
                         for (var teil = 1; teil <= teile; teil++)
                         {
-                            var m = Pausenaufsichten.Minuten(D, e2, t, p.NachStunde);
                             min += m;
-                            if (!D.Pausenaufsichten.Any(a => a.GangId == e2 && a.Tag == t && a.NachStunde == p.NachStunde && a.Teil == teil && a.Datum is null)) offen += m;
+                            if (!D.Pausenaufsichten.Any(a => a.GangId == ev && a.Tag == t && a.NachStunde == n && a.Teil == teil && a.Datum is null)) offen += m;
                         }
                     }
-            else min = Pausenaufsichten.IstMinuten(D, e2);
-        }
-        _minuten.Text = (GangSicht ? $"Minuten: {min} (offen: {offen})" : $"Minuten: {min}") + (vm ? " – diese Woche" : "");
+                    else min += m * D.Pausenaufsichten.Count(a => a.LehrerId == ev && a.Tag == t && a.NachStunde == n && a.Datum is null);
+                }
+        _minuten.Text = GangSicht ? $"Minuten: {min} (offen:{offen:0.0})" : $"Minuten: {min}";
         _lehrer.Rows.Clear();
         foreach (var l in Stammdaten.Sortiert(D.Lehrer).Where(l => !l.Ignorieren))
         {
@@ -216,46 +278,68 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
             _lehrer.Rows[r].Tag = l;
             if (diff > 0) _lehrer.Rows[r].Cells["D"].Style.ForeColor = Color.Firebrick;
         }
+        if (pos.Item1 < Zeitzeilen) pos.Item1 = Zeitzeilen;
+        if (pos.Item1 < _g.Rows.Count && pos.Item2 > 0 && pos.Item2 < _g.Columns.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[pos.Item2];
         _laedt = false;
-        if (pos.Item1 < _g.Rows.Count && pos.Item2 < _g.Columns.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[pos.Item2];
+        KopfMarkieren();
+        AuswahlGeaendert?.Invoke();
     }
 
-    private int PausenMinuten(int nach) => Pausenaufsichten.PausenMinuten(D, nach);
+    /// <summary>Wie im Vorbild: Kopf und Zeiten der gewählten Pause sowie der gewählte Tag orange.</summary>
+    private void KopfMarkieren()
+    {
+        var spalte = _g.CurrentCell?.ColumnIndex ?? -1;
+        foreach (DataGridViewColumn c in _g.Columns)
+        {
+            c.HeaderCell.Style.BackColor = c.Index == spalte && c.Index > 0 ? Orange : Ui.Kopf;
+            c.HeaderCell.Style.SelectionBackColor = c.HeaderCell.Style.BackColor;
+        }
+        _g.Invalidate();
+    }
 
     /// <summary>Zellentext im Vertretungsmodus: wer die Aufsicht an diesem Tag hält („???“ offen, „---“ entfällt).</summary>
     private string TageszellenText(int id, int t, int nach)
     {
-        var ix = Ix;
         var datum = TagDatum(t);
         if (GangSicht)
-        {
-            var liste = Pausenaufsichten.AmDatum(D, datum, id, nach);
-            return string.Join(", ", liste.Select(a => a.Entfaellt ? "---" : a.Wirksam is int l ? ix.KLehrer(l) : "???"));
-        }
-        return string.Join(", ", D.Gaenge.Where(g => Pausenaufsichten.AmDatum(D, datum, g.Id, nach).Any(a => a.Wirksam == id)).Select(g => g.Kurzname));
+            return string.Join(",", Pausenaufsichten.AmDatum(D, datum, id, nach).Select(a => a.Entfaellt ? "---" : a.Wirksam is int l ? LName(l) : "???"));
+        return string.Join(",", D.Gaenge.Where(g => Pausenaufsichten.AmDatum(D, datum, g.Id, nach).Any(a => a.Wirksam == id)).Select(g => g.Kurzname));
     }
 
     private (int Tag, int Nach)? Zelle(int zeile, int spalte) =>
-        zeile >= 0 && spalte > 0 && _g.Rows[zeile].Tag is int t && _g.Columns[spalte].Tag is int n ? (t, n) : null;
+        zeile >= Zeitzeilen && zeile < _g.Rows.Count && spalte > 0 && spalte < _g.Columns.Count && _g.Rows[zeile].Tag is int t && _g.Columns[spalte].Tag is int n ? (t, n) : null;
 
     private (int Tag, int Nach)? Aktuell => _g.CurrentCell is { } c ? Zelle(c.RowIndex, c.ColumnIndex) : null;
 
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)
     {
-        if (e.CellStyle is null || ElementId is not int id) return;
-        // Vertretungsmodus: Zeile des Planungsdatums hervorheben
-        if (VM && e.ColumnIndex == 0 && e.RowIndex >= 0 && _g.Rows[e.RowIndex].Tag is int tz && TagDatum(tz) == AppZustand.Datum)
-            e.CellStyle.BackColor = Color.FromArgb(255, 228, 181);
-        if (Zelle(e.RowIndex, e.ColumnIndex) is not { } z) return;
+        if (e.CellStyle is null || e.RowIndex < 0) return;
+        var akt = _g.CurrentCell;
+        // Zeitzeilen der gewählten Pause und der gewählte Tag: orange
+        if (e.RowIndex < Zeitzeilen)
+        {
+            if (akt != null && e.ColumnIndex == akt.ColumnIndex && e.ColumnIndex > 0) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Orange;
+            return;
+        }
+        if (e.ColumnIndex == 0)
+        {
+            var heute = VM && _g.Rows[e.RowIndex].Tag is int tz && TagDatum(tz) == AppZustand.Datum;
+            e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = akt?.RowIndex == e.RowIndex ? Orange : Ui.Kopf;
+            if (heute) e.CellStyle.Font = new Font(_g.Font, FontStyle.Bold);
+            return;
+        }
+        if (ElementId is not int id || Zelle(e.RowIndex, e.ColumnIndex) is not { } z) return;
+        var grau = Color.FromArgb(192, 192, 192);
         if (VM)
         {
             var datum = TagDatum(z.Tag);
             var liste = GangSicht ? Pausenaufsichten.AmDatum(D, datum, id, z.Nach)
                 : D.Gaenge.SelectMany(g => Pausenaufsichten.AmDatum(D, datum, g.Id, z.Nach)).Where(a => a.Wirksam == id || a.Regulaer == id).ToList();
-            if (liste.Count == 0) { e.CellStyle.BackColor = Color.FromArgb(220, 220, 220); return; }
+            if (liste.Count == 0) { e.CellStyle.BackColor = GangSicht ? grau : Color.White; return; }
+            e.CellStyle.BackColor = Color.White;
             if (liste.Any(a => a.Offen)) e.CellStyle.ForeColor = Color.Firebrick;
             else if (liste.All(a => a.Entfaellt)) e.CellStyle.ForeColor = Color.Gray;
-            // an diesem Tag vertreten (bzw. entfallen): wie in der Vertretungsliste hervorgehoben
+            // an diesem Tag vertreten bzw. entfallen: wie in der Vertretungsliste hervorgehoben
             if (liste.Any(a => a.Vertretung != null)) e.CellStyle.BackColor = Color.FromArgb(255, 250, 205);
             if (!GangSicht && liste.All(a => a.Wirksam != id)) e.CellStyle.Font = new Font(_g.Font, FontStyle.Strikeout);
             return;
@@ -263,31 +347,32 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         if (GangSicht)
         {
             var teile = Pausenaufsichten.Teile(D, id, z.Tag, z.Nach);
-            if (teile == 0) { e.CellStyle.BackColor = Color.FromArgb(220, 220, 220); return; }
+            if (teile == 0) { e.CellStyle.BackColor = grau; return; }
+            e.CellStyle.BackColor = Color.White;
             var liste = D.Pausenaufsichten.Where(a => a.GangId == id && a.Tag == z.Tag && a.NachStunde == z.Nach && a.Datum is null).ToList();
             if (liste.Count < teile) e.CellStyle.ForeColor = Color.Firebrick;
             if (liste.Any(a => Ix.Lehrer.TryGetValue(a.LehrerId, out var l) && Pausenaufsichten.Bewerten(D, Ix, l, id, z.Tag, z.Nach, a).Schlecht))
                 e.CellStyle.BackColor = Color.FromArgb(255, 205, 205);
         }
         else if (Ix.Lehrer.TryGetValue(id, out var l))
-        {
-            var moeglich = Pausenaufsichten.Moeglich(D, Ix, l, z.Tag, z.Nach);
-            e.CellStyle.BackColor = !moeglich ? Color.FromArgb(255, 210, 210) : Color.FromArgb(215, 240, 215);
-        }
+            e.CellStyle.BackColor = !Pausenaufsichten.Moeglich(D, Ix, l, z.Tag, z.Nach) ? grau : Color.White;
     }
 
     private void Bearbeitet(object? sender, DataGridViewCellEventArgs e)
     {
         if (_laedt || !GangSicht || ElementId is not int gang || Zelle(e.RowIndex, e.ColumnIndex) is not { } z) return;
-        if (VM) { TagBearbeitet(gang, z, _g.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? ""); return; }
-        var namen = (_g.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';', '/' }, StringSplitOptions.RemoveEmptyEntries).Where(n => n != "???").ToList();
-        var ids = new List<int>();
-        foreach (var n in namen)
+        var text = _g.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "";
+        var werte = new List<(int? Id, bool Entfall)>();
+        foreach (var n in text.Split(new[] { ',', ' ', ';', '/' }, StringSplitOptions.RemoveEmptyEntries))
         {
-            var l = D.Lehrer.FirstOrDefault(x => x.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase));
+            if (n == "???") { werte.Add((null, false)); continue; }
+            if (n == "---") { werte.Add((null, true)); continue; }
+            var l = D.Lehrer.FirstOrDefault(x => x.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase) || (x.Langname.Length > 0 && x.Langname.Equals(n, StringComparison.OrdinalIgnoreCase)));
             if (l is null) { Ui.Info($"Lehrer '{n}' ist nicht bekannt."); BeginInvoke(Neuaufbau); return; }
-            ids.Add(l.Id);
+            werte.Add((l.Id, false));
         }
+        if (VM) { TagBesetzen(gang, z, werte); return; }
+        var ids = werte.Where(w => w.Id.HasValue).Select(w => w.Id!.Value).ToList();
         Aendern("Pausenaufsicht", AenderungsArt.Stundenplan, d =>
         {
             d.Pausenaufsichten.RemoveAll(a => a.GangId == gang && a.NachStunde == z.Nach && a.Tag == z.Tag && a.Datum is null);
@@ -296,26 +381,16 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         });
     }
 
-    /// <summary>Vertretungsmodus: Eingabe in einer Zelle („HOF, ???“, „---“) als Vertretungen dieses Tages erfassen.</summary>
-    private void TagBearbeitet(int gang, (int Tag, int Nach) z, string text)
+    /// <summary>Vertretungsmodus: Eingabe einer Zelle als Vertretungen dieses Tages erfassen (je Teil eine Zeile).</summary>
+    private void TagBesetzen(int gang, (int Tag, int Nach) z, List<(int? Id, bool Entfall)> werte)
     {
-        var teile = text.Split(new[] { ',', ' ', ';', '/' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-        var werte = new List<(int? Id, bool Entfall)>();
-        foreach (var n in teile)
-        {
-            if (n == "???") { werte.Add((null, false)); continue; }
-            if (n == "---") { werte.Add((null, true)); continue; }
-            var l = D.Lehrer.FirstOrDefault(x => x.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase));
-            if (l is null) { Ui.Info($"Lehrer '{n}' ist nicht bekannt."); BeginInvoke(Neuaufbau); return; }
-            werte.Add((l.Id, false));
-        }
         var datum = TagDatum(z.Tag);
         Aendern("Pausenaufsicht (Vertretung)", AenderungsArt.Vertretung, d =>
         {
             var liste = Pausenaufsichten.AmDatum(d, datum, gang, z.Nach);
             for (var i = 0; i < Math.Max(liste.Count, werte.Count); i++)
             {
-                var a = i < liste.Count ? liste[i] : new Core.Module.TagesAufsicht(gang, z.Nach, i + 1, null, null);
+                var a = i < liste.Count ? liste[i] : new TagesAufsicht(gang, z.Nach, i + 1, null, null);
                 if (i >= werte.Count)
                 {
                     // weniger Namen als Aufsichten: eine von Hand hinzugefügte Aufsicht fällt weg, eine geplante wird offen
@@ -328,76 +403,91 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         });
     }
 
-    /// <summary>Lehrervorschlag nach Vorlage: Liste mit Bewertung (Häkchen), Übernahme per Knopf oder Doppelklick.</summary>
-    private Lehrer? VorschlagWaehlen(string titel, List<PaBewertung> liste)
+    // ---------------------------------------------------------------------------------------------
+    // Lehrer-Vorschlag (eigenes Fenster wie im Vorbild)
+    // ---------------------------------------------------------------------------------------------
+
+    private void VorschlagOeffnen()
     {
-        using var f = new Dialog(titel, 940, 460);
-        f.Ok.Text = "Übernahme";
-        var g = new DataGridView { Left = 8, Top = 8, Width = 924, Height = 400, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
-        Ui.RasterGestalten(g, false);
-        g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        g.MultiSelect = false;
-        string J(bool b) => b ? "✔" : "";
-        foreach (var (n, k, w) in new[] { ("N", "Name", 60), ("M", "Minuten", 58), ("MM", "Max. Minuten", 80), ("UV", "Unt. davor", 66), ("UN", "Unt. danach", 72), ("V1", "vor 1. St.", 64),
-                     ("NL", "nach letzt.", 70), ("H", "Hohlst.", 52), ("GV", "Gang davor", 70), ("GN", "Gang danach", 76), ("F", "Aufs.Folge", 66), ("S", "Sperrung", 60),
-                     ("P", "Punkte", 50), ("Z", "Zähler", 46), ("T", "PA/Tag", 50), ("G", "Geschl.", 50) })
-        {
-            var c = g.Columns[g.Columns.Add(n, k)];
-            c.Width = w;
-            if (n is "UV" or "UN" or "V1" or "NL" or "H" or "GV" or "GN" or "F" or "S")
-            {
-                c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                c.DefaultCellStyle.ForeColor = Color.FromArgb(46, 160, 67);
-                c.DefaultCellStyle.Font = new Font(g.Font, FontStyle.Bold);
-            }
-            if (n is "M" or "MM" or "P" or "Z" or "T") c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-        }
-        foreach (var b in liste)
-        {
-            var r = g.Rows.Add(b.Lehrer.Kurzname, b.Minuten.ToString("0.000"), b.MaxMinuten.ToString("0.000"), J(b.UnterrichtDavor), J(b.UnterrichtDanach), J(b.VorErsterStunde),
-                J(b.NachLetzterStunde), J(b.HohlstundeDavor || b.HohlstundeDanach), J(b.GangDavor), J(b.GangDanach), J(b.Folge), J(b.VorSperrung || b.NachSperrung),
-                b.Punkte.ToString("0.#"), b.Zaehler, b.ProTag, b.Lehrer.Geschlecht);
-            g.Rows[r].Tag = b.Lehrer;
-            if (b.Schlecht) g.Rows[r].Cells["N"].Style.ForeColor = Color.Firebrick;
-            g.Rows[r].Cells["N"].ToolTipText = string.Join("\n", b.Verletzt);
-        }
-        g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) f.DialogResult = DialogResult.OK; };
-        f.Controls.Add(g);
-        if (liste.Count == 0) Ui.Info("Keine passende Lehrkraft frei.", "Lehrervorschlag");
-        return liste.Count > 0 && f.ShowDialog(this) == DialogResult.OK ? g.CurrentRow?.Tag as Lehrer : null;
+        var f = HauptFenster.Oeffnen("pausevorschlag", () => new PausenVorschlagFenster(this));
+        if (f.WindowState == FormWindowState.Normal && WindowState == FormWindowState.Normal)
+            f.Bounds = new Rectangle(Right + 6, Top, Math.Max(430, f.Width), Math.Max(300, Height));
     }
 
-    private void Lehrervorschlag()
+    /// <summary>Vorschlag für die gewählte Aufsicht (leer, wenn keine Aufsicht gewählt ist). Im Vertretungsmodus nur anwesende, freie Lehrkräfte.</summary>
+    internal List<PaBewertung> Vorschlag(out string titel)
+    {
+        titel = "Lehrer-Vorschlag";
+        if (!GangSicht || ElementId is not int gang || Aktuell is not { } z) return new();
+        var name = $"{Ix.K(ElementTyp.Gang, gang)}, {Tagname(z.Tag)}, {SpaltenName(z.Nach)}";
+        if (VM)
+        {
+            var datum = TagDatum(z.Tag);
+            titel = $"Lehrer-Vorschlag – {name} ({datum:dd.MM.})";
+            var liste = Pausenaufsichten.AmDatum(D, datum, gang, z.Nach);
+            if (liste.Count == 0) return new();
+            var ziel = liste.FirstOrDefault(a => a.Wirksam is null && !a.Entfaellt) ?? liste[0];
+            return Pausenaufsichten.LehrervorschlagAmDatum(D, datum, ziel);
+        }
+        titel = $"Lehrer-Vorschlag – {name}";
+        var teile = Pausenaufsichten.Teile(D, gang, z.Tag, z.Nach);
+        if (teile == 0) return new();
+        var belegt = D.Pausenaufsichten.Where(a => a.GangId == gang && a.Tag == z.Tag && a.NachStunde == z.Nach && a.Datum is null).ToList();
+        var frei = Enumerable.Range(1, teile).Any(t => belegt.All(a => a.Teil != t));
+        return Pausenaufsichten.Lehrervorschlag(D, gang, z.Tag, z.Nach, frei ? null : belegt.OrderBy(a => a.Teil).First());
+    }
+
+    /// <summary>Übernahme aus dem Lehrer-Vorschlag: besetzt den ersten offenen Teil der gewählten Aufsicht (sonst ersetzt den ersten).</summary>
+    internal void Uebernehmen(Lehrer l)
     {
         if (!GangSicht || ElementId is not int gang || Aktuell is not { } z) { Ui.Info("Bitte im Reiter Gang eine Aufsicht wählen."); return; }
         if (VM)
         {
             var datum = TagDatum(z.Tag);
-            var liste0 = Pausenaufsichten.AmDatum(D, datum, gang, z.Nach);
-            if (liste0.Count == 0) { Ui.Info("Für diese Pause ist keine Aufsicht vorgesehen."); return; }
-            var ziel = liste0.FirstOrDefault(a => a.Wirksam is null && !a.Entfaellt) ?? liste0[0];
-            var wahl = VorschlagWaehlen($"Lehrer-Vorschlag – {Ix.K(ElementTyp.Gang, gang)}, {datum:ddd dd.MM.}, Pause {Pausenaufsichten.PausenName(D, z.Nach)}",
-                Pausenaufsichten.LehrervorschlagAmDatum(D, datum, ziel));
-            if (wahl is null) return;
-            Aendern($"Pausenaufsicht {wahl.Kurzname} (Vertretung)", AenderungsArt.Vertretung, d =>
+            var liste = Pausenaufsichten.AmDatum(D, datum, gang, z.Nach);
+            if (liste.Count == 0) { Ui.Info("Für diese Pause ist keine Aufsicht vorgesehen."); return; }
+            var teil = (liste.FirstOrDefault(a => a.Wirksam is null && !a.Entfaellt) ?? liste[0]).Teil;
+            Aendern($"Pausenaufsicht {l.Kurzname} (Vertretung)", AenderungsArt.Vertretung, d =>
             {
-                var a = Pausenaufsichten.AmDatum(d, datum, gang, z.Nach).First(x => x.Teil == ziel.Teil);
-                Pausenaufsichten.VertretungSetzen(d, datum, a, wahl.Id, false, AppZustand.Benutzer);
+                var a = Pausenaufsichten.AmDatum(d, datum, gang, z.Nach).First(x => x.Teil == teil);
+                Pausenaufsichten.VertretungSetzen(d, datum, a, l.Id, false, AppZustand.Benutzer);
             });
+            Neuaufbau();
             return;
         }
         var teile = Pausenaufsichten.Teile(D, gang, z.Tag, z.Nach);
         if (teile == 0) { Ui.Info("Für diese Pause ist keine Aufsicht vorgesehen."); return; }
         var belegt = D.Pausenaufsichten.Where(a => a.GangId == gang && a.Tag == z.Tag && a.NachStunde == z.Nach && a.Datum is null).ToList();
-        var teil = Enumerable.Range(1, teile).FirstOrDefault(t => belegt.All(a => a.Teil != t));
-        var ersetzen = teil == 0 ? belegt.First() : null;
-        var liste = Pausenaufsichten.Lehrervorschlag(D, gang, z.Tag, z.Nach, ersetzen);
-        if (VorschlagWaehlen($"Lehrer-Vorschlag – {Ix.K(ElementTyp.Gang, gang)}, {Core.Planung.Planungsdienst.Tagname(D, z.Tag)}, Pause {Pausenaufsichten.PausenName(D, z.Nach)}", liste) is not { } l) return;
+        var freierTeil = Enumerable.Range(1, teile).FirstOrDefault(t => belegt.All(a => a.Teil != t));
+        var zielTeil = freierTeil == 0 ? belegt.Min(a => a.Teil) : freierTeil;
         Aendern($"Pausenaufsicht {l.Kurzname}", AenderungsArt.Stundenplan, d =>
         {
-            if (ersetzen != null) d.Pausenaufsichten.RemoveAll(a => a.GangId == gang && a.Tag == z.Tag && a.NachStunde == z.Nach && a.Teil == ersetzen.Teil && a.Datum is null);
-            d.Pausenaufsichten.Add(new Pausenaufsicht { GangId = gang, Tag = z.Tag, NachStunde = z.Nach, LehrerId = l.Id, Teil = ersetzen?.Teil ?? teil });
+            d.Pausenaufsichten.RemoveAll(a => a.GangId == gang && a.Tag == z.Tag && a.NachStunde == z.Nach && a.Teil == zielTeil && a.Datum is null);
+            d.Pausenaufsichten.Add(new Pausenaufsicht { GangId = gang, Tag = z.Tag, NachStunde = z.Nach, LehrerId = l.Id, Teil = zielTeil });
         });
+        // sofort sichtbar (nicht erst nach dem verzögerten Neuaufbau); die Auswahl bleibt wie im Vorbild stehen
+        Neuaufbau();
+    }
+
+    /// <summary>Selbsttest: erste Aufsicht wählen, Lehrer-Vorschlag öffnen und den ersten Vorschlag übernehmen.</summary>
+    internal string SelbsttestUebernahme()
+    {
+        foreach (DataGridViewRow r in _g.Rows)
+            foreach (DataGridViewCell c in r.Cells)
+                if (Zelle(c.RowIndex, c.ColumnIndex) is { } z && (VM ? Pausenaufsichten.AmDatum(D, TagDatum(z.Tag), ElementId ?? 0, z.Nach).Count > 0 : Pausenaufsichten.Teile(D, ElementId ?? 0, z.Tag, z.Nach) > 0))
+                {
+                    var (zi, si) = (c.RowIndex, c.ColumnIndex);
+                    _g.CurrentCell = c;
+                    VorschlagOeffnen();
+                    var liste = Vorschlag(out _);
+                    if (liste.Count == 0) return "";
+                    Uebernehmen(liste[0].Lehrer);
+                    var text = _g.Rows[zi].Cells[si].Value?.ToString() ?? "";
+                    if (!text.Split(',').Any(x => x.Equals(liste[0].Lehrer.Kurzname, StringComparison.OrdinalIgnoreCase)))
+                        throw new InvalidOperationException($"Übernahme von {liste[0].Lehrer.Kurzname} nicht in der Zelle ({text}).");
+                    return liste[0].Lehrer.Kurzname;
+                }
+        return "";
     }
 
     private void AufsichtLoeschen()
@@ -517,6 +607,111 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
     }
 
     public void Drucken(bool vorschau) => ListenDruck.DruckenTabelle(this, $"Pausenaufsichten – {(GangSicht ? "Gang" : "Lehrer")} {_element.Text}", _g, vorschau);
+}
+
+/// <summary>
+/// Lehrer-Vorschlag zu den Pausenaufsichten wie im Vorbild: eigenes Fenster neben der Aufsichtstabelle, folgt der gewählten Aufsicht;
+/// „Übernahme“ (bzw. Doppelklick) setzt die gewählte Lehrkraft ein. Spalten: Name, Minuten, Max. Minuten, Unt. davor, Unt. danach,
+/// vor 1. St., nach letzter, Hohlstunde … (Häkchen = trifft zu).
+/// </summary>
+public sealed class PausenVorschlagFenster : MdiFenster
+{
+    private readonly PausenaufsichtFenster _quelle;
+    private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
+    private readonly Button _uebernahme = new() { Text = "Übernahme", Width = 136, Height = 24, Left = 22, Top = 8, FlatStyle = FlatStyle.System };
+    private static readonly string[] Haken = { "UV", "UN", "V1", "NL", "H", "GV", "GN", "F", "S" };
+
+    public PausenVorschlagFenster(PausenaufsichtFenster quelle)
+    {
+        _quelle = quelle;
+        Text = "Lehrer-Vorschlag";
+        HilfeThema = "Pausenaufsichten";
+        Icon = SymbolIcon("lehrer");
+        Size = new Size(430, 300);
+        var kopf = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Ui.Kopf };
+        kopf.Controls.Add(_uebernahme);
+        _uebernahme.Click += (_, _) => Uebernehmen();
+        Ui.RasterGestalten(_g, false);
+        _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        _g.MultiSelect = false;
+        _g.RowHeadersVisible = false;
+        _g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
+        foreach (var (n, k, w) in new[] { ("N", "Name", 56), ("M", "Minuten", 58), ("MM", "Max. Minuten", 62), ("UV", "Unt. davor", 52), ("UN", "Unt. danach", 52), ("V1", "vor 1. St.", 52),
+                     ("NL", "nach letzter", 52), ("H", "Hohlst.", 52), ("GV", "Gang davor", 52), ("GN", "Gang danach", 52), ("F", "Aufs.-Folge", 52), ("S", "Sperrung", 52),
+                     ("P", "Punkte", 48), ("Z", "Zähler", 46), ("T", "PA/Tag", 46), ("G", "Geschl.", 46) })
+        {
+            var c = _g.Columns[_g.Columns.Add(n, k)];
+            c.Width = w;
+            c.SortMode = DataGridViewColumnSortMode.NotSortable;
+            if (Haken.Contains(n))
+            {
+                c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                c.DefaultCellStyle.ForeColor = c.DefaultCellStyle.SelectionForeColor = Color.FromArgb(46, 160, 67);
+                c.DefaultCellStyle.Font = new Font(Ui.Schrift, FontStyle.Bold);
+            }
+            if (n is "M" or "MM" or "P" or "Z" or "T") c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        }
+        _g.Columns["N"]!.HeaderCell.Style.BackColor = Color.FromArgb(255, 228, 181);
+        // Häkchen selbst zeichnen (grün wie im Vorbild, unabhängig von der Schriftart)
+        _g.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || !Haken.Contains(_g.Columns[e.ColumnIndex].Name) || (e.Value as string) != "✔") return;
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All & ~DataGridViewPaintParts.ContentForeground);
+            var m = new Point(e.CellBounds.Left + e.CellBounds.Width / 2, e.CellBounds.Top + e.CellBounds.Height / 2);
+            using var stift = new Pen(Color.FromArgb(46, 160, 67), 2.2f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
+            var alt = e.Graphics.SmoothingMode;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            e.Graphics.DrawLines(stift, new[] { new Point(m.X - 6, m.Y), new Point(m.X - 2, m.Y + 4), new Point(m.X + 6, m.Y - 4) });
+            e.Graphics.SmoothingMode = alt;
+            e.Handled = true;
+        };
+        _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Uebernehmen(); };
+        _g.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.Handled = true; Uebernehmen(); } };
+        var rand = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 8), BackColor = Ui.Kopf };
+        rand.Controls.Add(_g);
+        Controls.Add(rand);
+        Controls.Add(kopf);
+        _quelle.AuswahlGeaendert += Neu;
+        _quelle.FormClosed += QuelleZu;
+        FormClosed += (_, _) =>
+        {
+            _quelle.AuswahlGeaendert -= Neu;
+            _quelle.FormClosed -= QuelleZu;
+        };
+        Neu();
+    }
+
+    private void QuelleZu(object? sender, FormClosedEventArgs e) => Close();
+
+    protected override void Aktualisieren(AenderungsArt art) => Neu();
+
+    private void Neu()
+    {
+        if (IsDisposed) return;
+        var gewaehlt = (_g.CurrentRow?.Tag as Lehrer)?.Id;
+        var liste = _quelle.Vorschlag(out var titel);
+        Text = titel;
+        _g.Rows.Clear();
+        static string J(bool b) => b ? "✔" : "";
+        foreach (var b in liste)
+        {
+            var r = _g.Rows.Add(b.Lehrer.Kurzname, b.Minuten.ToString("0.000"), (b.MaxMinuten > 0 ? b.MaxMinuten : 999).ToString("0.000"), J(b.UnterrichtDavor), J(b.UnterrichtDanach),
+                J(b.VorErsterStunde), J(b.NachLetzterStunde), J(b.HohlstundeDavor || b.HohlstundeDanach), J(b.GangDavor), J(b.GangDanach), J(b.Folge), J(b.VorSperrung || b.NachSperrung),
+                b.Punkte.ToString("0.#"), b.Zaehler, b.ProTag, b.Lehrer.Geschlecht);
+            _g.Rows[r].Tag = b.Lehrer;
+            if (b.Schlecht) _g.Rows[r].Cells["N"].Style.ForeColor = Color.Firebrick;
+            _g.Rows[r].Cells["N"].ToolTipText = string.Join("\n", b.Verletzt);
+        }
+        if (gewaehlt is int id && _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => (x.Tag as Lehrer)?.Id == id) is { } zeile)
+            _g.CurrentCell = zeile.Cells[0];
+        _uebernahme.Enabled = _g.Rows.Count > 0;
+    }
+
+    private void Uebernehmen()
+    {
+        if (_g.CurrentRow?.Tag is not Lehrer l) { Ui.Info("Bitte eine Lehrkraft wählen.", "Lehrer-Vorschlag"); return; }
+        _quelle.Uebernehmen(l);
+    }
 }
 
 /// <summary>
