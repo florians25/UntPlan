@@ -468,12 +468,13 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
             foreach (DataGridViewCell c in r.Cells)
                 if (Zelle(c.RowIndex, c.ColumnIndex) is { } z && (VM ? Pausenaufsichten.AmDatum(D, TagDatum(z.Tag), ElementId ?? 0, z.Nach).Count > 0 : Pausenaufsichten.Teile(D, ElementId ?? 0, z.Tag, z.Nach) > 0))
                 {
+                    var (zi, si) = (c.RowIndex, c.ColumnIndex);
                     _g.CurrentCell = c;
                     VorschlagOeffnen();
                     var liste = Vorschlag(out _);
                     if (liste.Count == 0) return "";
                     Uebernehmen(liste[0].Lehrer);
-                    var text = _g.Rows[c.RowIndex].Cells[c.ColumnIndex].Value?.ToString() ?? "";
+                    var text = _g.Rows[zi].Cells[si].Value?.ToString() ?? "";
                     if (!text.Split(',').Any(x => x.Equals(liste[0].Lehrer.Kurzname, StringComparison.OrdinalIgnoreCase)))
                         throw new InvalidOperationException($"Übernahme von {liste[0].Lehrer.Kurzname} nicht in der Zelle ({text}).");
                     return liste[0].Lehrer.Kurzname;
