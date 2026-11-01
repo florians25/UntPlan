@@ -6,27 +6,16 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
-- Sicherere Dropdowns (kein Mausrad-Wechsel, Enter/Tab übernimmt, Escape setzt zurück), reiner Text beim Kopieren, Vorschläge aus letzten Texteingaben.
-- Filter „offene Vertretungen“: geänderte Zeilen bleiben bis zum Zeilenwechsel stehen; Auswahl im Vorschlagsfenster stellt die Stundenpläne passend um.
-- Verlegungen fragen „Räume mitnehmen oder belassen?“ und bei belegten Räumen nach Raumvertretung (eigener/anderer Unterricht) oder Kollision.
-- Rückfragen bei gesperrten Räumen, besseres Drag & Drop, keine automatischen Texte „Vertretung durch Verlegung“/„Vorziehung“, abwesende Lehrkräfte fallen aus Veranstaltungen.
-
-### UntPlan Studio (Beta, neu)
-- Experimentelle Browser-Version der Desktop-Anwendung als eigener Container unter eigener Domain: .up öffnen/speichern, BAL-Import, Menüband, Fenster-Arbeitsbereich, Dateneingabe aller Stammdaten, Unterricht, Stundenpläne mit Drag & Drop.
-- Vertretungsplanung (Absenzen, Vertretungsliste, Vorschlag, Automatik, Bereitschaften, Sondereinsätze, Vormerkungen, Veranstaltungen, tagesaktuelle Pläne).
-- Optimierung mit Fortschritt und Ergebnisvergleich, Diagnose, Gewichtung, Planen mit Kollisionsanzeige, Raumzuordnung, Tauschvorschläge, Zeitwünsche.
-- Einstellungen (Schuldaten, Zeitraster, Ferien, Perioden, Unterrichtsgruppen), Druck als PDF, Berichte, Übersichtspläne, Formateditor, Info-Stundenplan, iCal.
-- Import/Export, UntPlanWeb-Austausch mit optionalem automatischem Abgleich, Abrechnung, Pausenaufsichten, Kursplanung, Kommentare, Mehrbenutzerbetrieb mit Rechten und Sperren.
+- Wichtige Korrektur: Wird eine Lehrkraft abwesend, deren Stunde schon eine Raumänderung hat (z. B. gesperrter Raum mit gewähltem Ausweichraum), erscheint die Stunde jetzt als offene Vertretung (bzw. Entfall laut Regel) – der gewählte Raum bleibt. Bestehende Dateien werden beim Öffnen korrigiert.
+- Raumänderungen in Kopplungen gelten für alle Zeilen und Klassen; die Vertretungsliste fasst sie in einer Zeile mit allen Klassen zusammen, Pläne zeigen einen Block mit allen Klassen.
+- Kompakte Warnhinweise direkt neben der Maus (Fach 2x/Tag, fixierter Unterricht, gesperrter Raum) mit „nicht mehr anzeigen“.
+- Neues Farbschema für Stunden- und Vertretungsmodus, kleine Stundenpläne mit fetten Tagen und Stunden.
+- Klassenlehrkräfte per Dropdown (auch mehrere, durch Komma getrennt).
 
 ### UntPlanWeb und Apps
-- Abwesende Lehrkräfte ohne Vertretung erscheinen nicht mehr auf Karten, nur das Vertreterlabel; Sondereinsätze zeigen alle beteiligten Lehrkräfte.
-- Verlegungs- und Zusatzsymbol nur noch an echten Verlegungen/Zusatzstunden; Klausuren im Raumplan wie im Klassenplan.
-- Anwesenheitskontrolle und Klassenbuch bei gekoppelten Klassen mit allen Schüler*innen; Woche bleibt beim Planwechsel erhalten.
-- iOS: Zeitleiste bleibt beim Wochenwischen stehen, heller Modus nach Vorlage, Labels ohne Komma.
-- Grüne Karten stehen bei parallelen Blöcken immer zuerst.
-- Zusatzstunden zeigen alle beteiligten Lehrkräfte mit „+“; entfallene Aufsichten werden als Entfall dargestellt.
-- Eigene Abwesenheit im Plan als graue Fläche hinter den Stunden, über das Menü ausblendbar.
-- Weißer Kopf mit Suche auf den Klassenbuch-Seiten; keine Statistik-Box mehr bei „Meine Abwesenheiten“.
+- Vorgemerkte Raumänderungen machen die Stunde zur grünen Änderungskarte.
+- Entfallene Stunden und Stundendetails nach Vorlage; verlegte Stunden mit Pille „Zusätzliche Unterrichtsstunde“.
+- iOS: Ladebild in den Stundendetails (flüssigeres Öffnen und Schließen), Fachfarbe als Balken bzw. unter dem gewählten Reiter, mehrere Klassenlehrkräfte, breitere Fenster auf dem iPad, kein Lehrer-Label bei Klassenabwesenheit oder Verlegung, schnellere Animationen.
 
 ## Vorherige Version
 

@@ -1,15 +1,35 @@
 name: Build
 
+# Nur main baut Setup und Release (Arbeitszweige claude/** nicht – sonst doppelte Läufe und doppelter Speicher).
 on:
   push:
-    branches: [ main, master, 'claude/**' ]
+    branches: [ main, master ]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
+  # Actions-Speicher (0,5 GB im Plan) freihalten: alte Artefakte früherer Läufe löschen – Setup und portable Version
+  # liegen ohnehin im Release.
+  aufraeumen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const artefakte = await github.paginate(github.rest.actions.listArtifactsForRepo,
+              { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 });
+            let geloescht = 0;
+            for (const a of artefakte) {
+              if (a.workflow_run && a.workflow_run.id === context.runId) continue;
+              await github.rest.actions.deleteArtifact({ owner: context.repo.owner, repo: context.repo.repo, artifact_id: a.id });
+              geloescht++;
+            }
+            core.info(`${geloescht} alte Artefakte gelöscht`);
+
   windows:
     runs-on: windows-latest
     steps:
@@ -42,21 +62,6 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path artifacts/UntPlan/* -DestinationPath artifacts/UntPlan-portabel.zip
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: UntPlan-Setup
-          path: artifacts/UntPlan-Setup-*.exe
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: UntPlan-portabel
-          path: artifacts/UntPlan
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: UntPlan-Portal
-          path: artifacts/UntPlan.Portal
-
       - name: Selbsttest der Oberfläche (alle Fenster öffnen, Bildschirmfotos)
         shell: pwsh
         run: |
@@ -78,8 +83,10 @@ jobs:
             artifacts/UntPlan-Setup-*.exe
             artifacts/UntPlan-portabel.zip
 
+      # Bildschirmfotos nur bei Fehlern und nur kurz aufbewahren (Speicher)
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
           name: Selbsttest-Bildschirmfotos
           path: artifacts/selbsttest
+          retention-days: 3
