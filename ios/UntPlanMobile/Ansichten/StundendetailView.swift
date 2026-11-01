@@ -107,17 +107,21 @@ struct StundendetailInhalt: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Kein Ladebalken in den Details (Wunsch): Inhalte erscheinen, sobald sie da sind
+            // Kein Ladebalken in den Details (Wunsch); solange geladen wird, zeigt das Blatt wie im Original nur das
+            // runde X und darunter graue Platzhalterbalken (Detailskelett)
             Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, mitte: {
                 datumsMenue
+                    .opacity(daten.geladen ? 1 : 0)
             }, rechts: {
                 weitereAktionen
+                    .opacity(daten.geladen ? 1 : 0)
+                    .allowsHitTesting(daten.geladen)
             })
             if karten.count > 1 {
                 reiterleiste
             }
             // Vorlage: Balken in der Fachfarbe direkt unter dem Kopf (4 pt) – nur wenn für das Fach eine Farbe hinterlegt ist
-            if let farbe = fachfarbe {
+            if let farbe = fachfarbe, daten.geladen {
                 Rectangle()
                     .fill(farbe)
                     .frame(height: 4)
@@ -167,6 +171,13 @@ struct StundendetailInhalt: View {
                 }
             }
             .clipped()
+            .overlay {
+                if !daten.geladen {
+                    Detailskelett()
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: daten.geladen)
             .simultaneousGesture(reiterWischen, including: karten.count > 1 ? .all : .subviews)
             .onChange(of: wischt) { _, neu in
                 // Geste abgebrochen (z. B. vom senkrechten Scrollen übernommen): zurückfedern
@@ -861,5 +872,33 @@ struct StundendetailInhalt: View {
         case .notizLehrer:
             NotizSeite(art: .lehrer)
         }
+    }
+}
+
+/// Ladebild der Stundendetails nach Vorlage (iPhone, 3 px/pt): sechs Gruppen aus je drei abgerundeten Balken über die
+/// volle Breite (16 pt Rand), Balken 14,67 pt hoch, in der Gruppe 25 pt Abstand, von Gruppe zu Gruppe 30 pt;
+/// der erste Balken 13 pt unter dem Kopf.
+struct Detailskelett: View {
+    static let farbe = Color(hell: 0xE3E8EC, dunkel: 0x495F6E)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15.33) {
+            ForEach(0..<6, id: \.self) { _ in
+                VStack(spacing: 10.33) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 4, style: .circular)
+                            .fill(Self.farbe)
+                            .frame(height: 14.67)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 13)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Farben.blatt)
+        .accessibilityElement()
+        .accessibilityLabel("Wird geladen")
     }
 }
