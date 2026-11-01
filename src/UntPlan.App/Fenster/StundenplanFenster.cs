@@ -1338,7 +1338,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             if (alle.Count > 1) { MehrereVerschieben(alle, dt, ds, erzwingen); return; }
             var p = prim;
             var u = Ix.Unterrichte[p.UnterrichtId];
-            if (p.Fixiert && !Ui.Frage("Die Stunde ist fixiert. Trotzdem verschieben?")) return;
+            // Rückfragen wie im Vorbild: klein neben der Maus, mit „nicht mehr anzeigen“
+            if (p.Fixiert && !Warnhinweis.Frage(this, "fixiert", $"Unterricht ist fixiert. Unterricht: {u.Id}\n{Planungsdienst.Tagname(D, p.Tag)}-{p.Stunde}\nUnterricht trotzdem entplanen ?")) return;
+            if (FachZweimalAmTag(u, tag, stunde, p) && !Warnhinweis.Frage(this, "fach2x", $"Fach 2x / Tag\nTrotzdem verplanen ? (Unterricht: {u.Id})", dauerhaft: true)) return;
+            var raeumeVorher = p.Raeume.Where(r => r.HasValue).Select(r => r!.Value).Distinct().ToList();
             // „Soll behindernder Unterricht entplant werden?“ (Lehrer, Klasse bzw. fester Raum belegt)
             var behindernd = erzwingen ? new List<Hindernis>() : Behinderung.AnStellen(D, Ix, u, new[] { (tag, stunde) }, new[] { p });
             var weg = new List<int>();
@@ -1358,6 +1361,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             });
             _plan.Ausgewaehlt = D.Stundenplan.FirstOrDefault(x => x.UnterrichtId == u.Id && x.Tag == tag && x.Stunde == stunde);
             Neuaufbau(false);
+            RaeumeNichtVerplantMelden(raeumeVorher, _plan.Ausgewaehlt);
         }
         else if (daten.StartsWith("unterricht:"))
         {
@@ -1369,6 +1373,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             // Einzelner Unterricht: ganzen Block (Doppelstunde, 3er-, 4er-Block) verplanen – bzw. den gezogenen Block aus „nicht verplant“
             var laenge = unts.Count == 1 ? Math.Min(Ix.NichtVerplant(unts[0]), Math.Max(1, gewuenscht ?? NaechsterBlock(unts[0]))) : 1;
             if (stunde + laenge - 1 > D.Zeitraster.StundenProTag) laenge = 1;
+            if (unts.Count == 1 && FachZweimalAmTag(unts[0], tag, stunde, null)
+                && !Warnhinweis.Frage(this, "fach2x", $"Fach 2x / Tag\nTrotzdem verplanen ? (Unterricht: {unts[0].Id})", dauerhaft: true)) return;
             var stellen = Enumerable.Range(stunde, laenge).Select(s => (tag, s)).ToList();
             var behindernd = unts.SelectMany(u => Behinderung.AnStellen(D, Ix, u, stellen)).Where(h => !uids.Contains(h.Unterricht.Id))
                 .DistinctBy(h => D.Stundenplan.IndexOf(h.Planstunde)).ToList();
@@ -1397,6 +1403,29 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             _plan.Ausgewaehlt = neu;
             Neuaufbau(false);
         }
+    }
+
+    /// <summary>
+    /// Stünde der Unterricht danach zweimal am Tag (nicht als Doppelstunde bzw. Block direkt daneben)? Wie im Vorbild „Fach 2x / Tag“.
+    /// </summary>
+    private bool FachZweimalAmTag(Unterricht u, int tag, int stunde, Planstunde? ausser)
+    {
+        var andere = D.Stundenplan.Where(x => x.UnterrichtId == u.Id && !ReferenceEquals(x, ausser) && x.Tag == tag).Select(x => x.Stunde).ToHashSet();
+        if (andere.Count == 0) return false;
+        // zusammenhängend (Block): von der Zielstunde aus lückenlos erreichbar
+        var block = new HashSet<int> { stunde };
+        for (var s = stunde - 1; andere.Contains(s); s--) block.Add(s);
+        for (var s = stunde + 1; andere.Contains(s); s++) block.Add(s);
+        return andere.Any(s => !block.Contains(s));
+    }
+
+    /// <summary>Wie im Vorbild: konnte ein bisheriger Raum am Ziel nicht verplant werden (gesperrt bzw. zu klein), kurzer Hinweis.</summary>
+    private void RaeumeNichtVerplantMelden(List<int> vorher, Planstunde? neu)
+    {
+        if (neu is null || vorher.Count == 0) return;
+        var jetzt = neu.Raeume.Where(r => r.HasValue).Select(r => r!.Value).ToHashSet();
+        foreach (var r in vorher.Where(r => !jetzt.Contains(r)))
+            Warnhinweis.Hinweis(this, "raumNichtVerplant", $"{Ix.KRaum(r)}: Raum gesperrt oder zu klein\nRaum nicht verplant");
     }
 
     /// <summary>Länge des nächsten noch nicht verplanten Blocks (Blöcke und Doppelstunden laut Unterricht).</summary>

@@ -1107,7 +1107,8 @@ public sealed class PlanAnsicht : Control
     {
         var zr = D.Zeitraster;
         var klein = Format.Klein;
-        using var kopfSchrift = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 1.9f)) : Ui.SchriftFett.Size, klein ? FontStyle.Regular : FontStyle.Bold);
+        // wie im Vorbild auch im kleinen Plan Tage fett und etwas größer als die Stunden
+        using var kopfSchrift = new Font("Segoe UI", klein ? Math.Max(7.5f, Math.Min(Format.Schriftgroesse + 1f, KopfHoehe / 1.7f)) : Ui.SchriftFett.Size, FontStyle.Bold);
         var heuteDatum = DateOnly.FromDateTime(DateTime.Today);
         var heuteTag = Kalender.IstUnterrichtstag(D, heuteDatum) ? Kalender.TagIndex(D, heuteDatum) : -1;
         for (var t = 0; t < Tage; t++)
@@ -1118,19 +1119,21 @@ public sealed class PlanAnsicht : Control
             // heutiger Tag rosa (wie im Vorbild); im Regelplan der heutige Wochentag
             var heute = datum.HasValue ? datum == heuteDatum : t == heuteTag;
             var gewaehlt = datum.HasValue && datum == AppZustand.Datum && AppZustand.Vertretungsmodus && datum != heuteDatum;
-            using (var b = new SolidBrush(heute ? Color.FromArgb(255, 205, 210) : gewaehlt ? Ui.BlauHell : klein ? Color.FromArgb(232, 240, 230) : Ui.Kopf)) g.FillRectangle(b, kopf);
+            using (var b = new SolidBrush(heute ? Color.FromArgb(255, 205, 210) : gewaehlt ? Ui.BlauHell : Ui.Kopf)) g.FillRectangle(b, kopf);
             var text = Planungsdienst.Tagname(D, t, !klein && r.Width > 70) + (!klein && datum.HasValue && r.Width > 60 ? " " + datum.Value.ToString("dd.MM.") : "");
             TextRenderer.DrawText(g, text, kopfSchrift, Rectangle.Round(kopf), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
         }
-        using var stundenSchrift = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, Zelle(bounds, 0, 1).Height / 1.8f)) : Ui.SchriftKlein.Size);
+        // Stundennummern wie im Vorbild fett
+        using var stundenSchrift = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse + 0.5f, Zelle(bounds, 0, 1).Height / 1.8f)) : Ui.SchriftKlein.Size,
+            klein ? FontStyle.Bold : FontStyle.Regular);
         for (var s = 1; s <= Stunden; s++)
         {
             var r = Zelle(bounds, 0, s);
             var kopf = new RectangleF(bounds.X, r.Y, KopfBreite, r.Height);
             var nachm = zr.Art(0, s) == Tageszeit.Nachmittag || s > zr.LetzteVormittagsstunde;
             var markiert = !druck && _hover is { } hv0 && hv0.Stunde == s && _status != null;
-            using (var b = new SolidBrush(markiert ? Color.FromArgb(255, 205, 210) : klein ? Color.FromArgb(232, 240, 230) : nachm ? Color.FromArgb(230, 245, 248) : Color.FromArgb(242, 244, 248))) g.FillRectangle(b, kopf);
+            using (var b = new SolidBrush(markiert ? Color.FromArgb(255, 205, 210) : klein ? Ui.Kopf : nachm ? Color.FromArgb(230, 245, 248) : Color.FromArgb(242, 244, 248))) g.FillRectangle(b, kopf);
             var z = zr.Zeit(s);
             var text = !klein && Format.ZeitenAnzeigen && z != null && r.Height > 26 ? $"{zr.StundenLabel(s)}\n{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}" : zr.StundenLabel(s);
             TextRenderer.DrawText(g, text, stundenSchrift, Rectangle.Round(kopf), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
