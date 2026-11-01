@@ -180,6 +180,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.Columns["Text"]!.FillWeight = 300;
         // mehrere Klassen untereinander (Zeilenhöhe passt sich an)
         _g.Columns["Klassen"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        if (_g.Columns["AKlassen"] is { } ak) ak.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
         // „Standard wiederherstellen“ (Spaltenmenü) bzw. „Standardansicht“: auch die Felder der Ansicht auf den Standard zurücksetzen
@@ -1041,6 +1042,14 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (e.RowIndex < 0 || e.CellStyle is null || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
         var name = _g.Columns[e.ColumnIndex].Name;
         e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Black;
+        // Wie im Vorbild: passen die Klassen einer Kopplung nicht in die Spalte, steht jede in einer eigenen Zeile („06A,“ / „06B,“ / „06C“),
+        // die Zeile wird entsprechend höher; bei breiter Spalte bleibt „06A,06B,06C“ einzeilig
+        if (name is "Klassen" or "AKlassen" && e.Value is string kl0 && kl0.Contains(',') && !kl0.Contains('\n')
+            && TextRenderer.MeasureText(kl0, e.CellStyle.Font ?? _g.Font).Width > _g.Columns[e.ColumnIndex].Width - 6)
+        {
+            e.Value = kl0.Replace(",", ",\n");
+            e.FormattingApplied = true;
+        }
         if (D.Vertretungseinstellungen.Farben.TryGetValue(v.Art.ToString(), out var farbe) && name == "Art") e.CellStyle.BackColor = Ui.Farbe(farbe, Color.White);
         if (name == "Vertreter" && v.Art == VertretungsArt.Pausenaufsicht) e.CellStyle.BackColor = PausenFarbe;
         // offene Vertretung: rotes "???" beim Vertreter bzw. Raum – auch in markierten Zeilen

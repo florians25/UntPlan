@@ -159,7 +159,8 @@ public sealed class Ribbon : Control
         Layout2(g);
         // Registerleiste in der Modusfarbe (durchgehend mit Titel- und Schnellzugriffsleiste)
         using (var b = new SolidBrush(Ui.Titel)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
-        using (var b = new LinearGradientBrush(new Rectangle(0, TabHoehe, Width, Inhalt), Color.FromArgb(250, 251, 252), Ui.BlauSehrHell, 90f)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
+        // Menüband flach in der hellen Modusfarbe wie im Vorbild (kein Verlauf)
+        using (var b = new SolidBrush(Ui.BlauSehrHell)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
         using (var p = new Pen(Color.FromArgb(198, 205, 216))) g.DrawLine(p, 0, Height - 1, Width, Height - 1);
         if (Rechts.BackColor != Ui.Titel) Rechts.BackColor = Ui.Titel;
         // Datei wie die übrigen Registerkarten (Vorbild 2026): weiße Schrift, beim Überfahren aufgehellt
@@ -173,7 +174,7 @@ public sealed class Ribbon : Control
             if (aktiv)
             {
                 // gewählte Registerkarte hell, geht nahtlos in das Menüband über; oben eine dünne helle Akzentlinie
-                using (var b = new SolidBrush(Color.FromArgb(250, 251, 252))) g.FillRectangle(b, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, s.TabBounds.Height + 2);
+                using (var b = new SolidBrush(Ui.BlauSehrHell)) g.FillRectangle(b, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, s.TabBounds.Height + 2);
                 using var akzent = new SolidBrush(Akzent);
                 g.FillRectangle(akzent, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, 3);
             }
