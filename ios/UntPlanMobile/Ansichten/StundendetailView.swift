@@ -61,6 +61,9 @@ struct StundendetailInhalt: View {
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var systemSchliessen
     @Environment(\.blattSchliessen) private var blattSchliessen
+    @Environment(\.blattBewegt) private var blattBewegt
+    /// Systemblatt (iPad): Inhalt erst nach dem Einblenden aufbauen
+    @State private var eingeblendet = false
     @Environment(\.openURL) private var oeffneURL
     @StateObject private var daten: Stundendaten
     @State private var onlineFehler: String? = nil
@@ -87,6 +90,8 @@ struct StundendetailInhalt: View {
         self.reiterRaum = reiterRaum
         _daten = StateObject(wrappedValue: Stundendaten(karte: karte))
         _einflugVersatz = State(initialValue: einflug.wrappedValue)
+        // Reiterwechsel im offenen Blatt: nicht erneut auf das Einblenden warten
+        _eingeblendet = State(initialValue: einflug.wrappedValue != 0)
     }
 
     /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
@@ -101,6 +106,12 @@ struct StundendetailInhalt: View {
         return Color(hex: hex)
     }
 
+    /// Ladebild statt Inhalt: solange geladen wird und während das Blatt ein- oder ausfährt (wie im Original –
+    /// die schwere Liste wird erst danach aufgebaut, Öffnen und Schließen laufen dadurch flüssiger).
+    private var zeigtSkelett: Bool {
+        !daten.geladen || (blattBewegt ?? !eingeblendet)
+    }
+
     private var kollegium: Bool { zustand.istKollegium }
     private var mitUnterricht: Bool { karte.unterricht != nil }
     private var istVeranstaltung: Bool { karte.istVeranstaltung }
@@ -111,22 +122,26 @@ struct StundendetailInhalt: View {
             // runde X und darunter graue Platzhalterbalken (Detailskelett)
             Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, mitte: {
                 datumsMenue
-                    .opacity(daten.geladen ? 1 : 0)
+                    .opacity(zeigtSkelett ? 0 : 1)
             }, rechts: {
                 weitereAktionen
-                    .opacity(daten.geladen ? 1 : 0)
-                    .allowsHitTesting(daten.geladen)
+                    .opacity(zeigtSkelett ? 0 : 1)
+                    .allowsHitTesting(!zeigtSkelett)
             })
             if karten.count > 1 {
                 reiterleiste
             }
             // Vorlage: Balken in der Fachfarbe direkt unter dem Kopf (4 pt) – nur wenn für das Fach eine Farbe hinterlegt ist
-            if let farbe = fachfarbe, daten.geladen {
+            if let farbe = fachfarbe, !zeigtSkelett {
                 Rectangle()
                     .fill(farbe)
                     .frame(height: 4)
                     .accessibilityHidden(true)
             }
+            if zeigtSkelett {
+                Detailskelett()
+                    .transition(.opacity)
+            } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Vorlage: erste Zeile (Versalhöhe) 25 pt unter Kopf bzw. Reiterleiste, Trennlinie 22 pt unter der
@@ -171,13 +186,6 @@ struct StundendetailInhalt: View {
                 }
             }
             .clipped()
-            .overlay {
-                if !daten.geladen {
-                    Detailskelett()
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeOut(duration: 0.2), value: daten.geladen)
             .simultaneousGesture(reiterWischen, including: karten.count > 1 ? .all : .subviews)
             .onChange(of: wischt) { _, neu in
                 // Geste abgebrochen (z. B. vom senkrechten Scrollen übernommen): zurückfedern
@@ -192,6 +200,15 @@ struct StundendetailInhalt: View {
                 einflug = 0
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) { einflugVersatz = 0 }
             }
+            }
+        }
+        // Inhalt blendet über das Ladebild ein; zurück zum Ladebild (beim Schließen) ohne Überblenden
+        .animation(zeigtSkelett ? nil : .easeOut(duration: 0.18), value: zeigtSkelett)
+        .task {
+            guard blattBewegt == nil, !eingeblendet else { return }
+            // Systemblatt: nach dem Einblenden (≈ 0,35 s) den Inhalt aufbauen
+            try? await Task.sleep(for: .milliseconds(350))
+            eingeblendet = true
         }
         .background(Farben.blatt.ignoresSafeArea())
         // Hauptseite ohne Textfelder: bleibt beim Ein- und Ausblenden der Tastatur (z. B. beim Zurückkehren aus einer
@@ -879,7 +896,7 @@ struct StundendetailInhalt: View {
 /// volle Breite (16 pt Rand), Balken 14,67 pt hoch, in der Gruppe 25 pt Abstand, von Gruppe zu Gruppe 30 pt;
 /// der erste Balken 13 pt unter dem Kopf.
 struct Detailskelett: View {
-    static let farbe = Color(hell: 0xE3E8EC, dunkel: 0x495F6E)
+    static let farbe = Color(hell: 0xDADCE1, dunkel: 0x495F6E)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15.33) {
