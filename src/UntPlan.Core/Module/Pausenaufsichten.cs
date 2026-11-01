@@ -7,6 +7,15 @@ namespace UntPlan.Core.Module;
 /// <summary>Kriterium der Pausenaufsichts-Gewichtung.</summary>
 public sealed record PaKriterium(string Schluessel, string Text, int Standard);
 
+/// <summary>Aufsicht (ein Teil) an einem Datum: reguläre Lehrkraft und – falls vorhanden – ihre Vertretungszeile.</summary>
+public sealed record TagesAufsicht(int GangId, int NachStunde, int Teil, int? Regulaer, Vertretung? Vertretung)
+{
+    /// <summary>Hält an diesem Tag die Aufsicht (null = offen bzw. entfällt).</summary>
+    public int? Wirksam => Vertretung is null ? Regulaer : Vertretung.IstEntfall ? null : Vertretung.VertreterId;
+    public bool Offen => Vertretung is { IstEntfall: false, VertreterId: null } || (Vertretung is null && Regulaer is null);
+    public bool Entfaellt => Vertretung?.IstEntfall == true;
+}
+
 /// <summary>Bewertung eines Lehrers für eine Aufsicht (Lehrervorschlag).</summary>
 public sealed class PaBewertung
 {
@@ -248,6 +257,78 @@ public static class Pausenaufsichten
             neu++;
         }
         return neu;
+    }
+
+    /// <summary>
+    /// Aufsichten eines Gangs an einem Datum (Vertretungsmodus): die regulären Aufsichten der Periode (je Teil) mit ihrer Vertretungszeile,
+    /// dazu zusätzliche Aufsichten (Vertretungszeilen ohne reguläre Aufsicht). Wirksam ist die Lehrkraft, die die Aufsicht an diesem Tag hält.
+    /// </summary>
+    public static List<TagesAufsicht> AmDatum(Schuldatei d, DateOnly datum, int gangId, int nachStunde)
+    {
+        var tag = Kalender.TagIndex(d, datum);
+        var res = new List<TagesAufsicht>();
+        if (tag < 0) return res;
+        var periode = d.PeriodeAm(datum);
+        var zeilen = d.Vertretungen.Where(v => v.Datum == datum && v.GangId == gangId && v.Stunde == nachStunde
+                                               && v.Art is VertretungsArt.Pausenaufsicht or VertretungsArt.Entfall).ToList();
+        var regulaer = (periode.Pausenaufsichten ?? new()).Where(a => a.GangId == gangId && a.Tag == tag && a.NachStunde == nachStunde
+                && (a.Datum is null || a.Datum == datum)
+                && (a.UGruppeId is not int ug || d.UGruppen.FirstOrDefault(x => x.Id == ug) is not { } g || Kalender.UGruppeAktiv(d, g, datum)))
+            .OrderBy(a => a.Teil).ToList();
+        var teile = Math.Max(Teile(d, gangId, tag, nachStunde), regulaer.Count == 0 ? 0 : regulaer.Max(a => a.Teil));
+        for (var t = 1; t <= teile; t++)
+        {
+            var a = regulaer.FirstOrDefault(x => x.Teil == t);
+            var v = a is null ? null : zeilen.FirstOrDefault(z => z.LehrerId == a.LehrerId);
+            if (v != null) zeilen.Remove(v);
+            res.Add(new TagesAufsicht(gangId, nachStunde, t, a?.LehrerId, v));
+        }
+        // offene Teile ohne Lehrkraft, die per Vertretung besetzt sind, bzw. zusätzliche Aufsichten
+        foreach (var v in zeilen.OrderBy(v => v.Id))
+        {
+            var frei = res.FindIndex(x => x.Regulaer is null && x.Vertretung is null);
+            if (frei >= 0) res[frei] = res[frei] with { Vertretung = v };
+            else res.Add(new TagesAufsicht(gangId, nachStunde, res.Count + 1, null, v));
+        }
+        return res;
+    }
+
+    /// <summary>
+    /// Aufsicht an einem Datum neu besetzen (Vertretungsmodus): erfasst eine Vertretungszeile (Art Pausenaufsicht, bzw. Entfall bei
+    /// „keine Aufsicht“) statt den regulären Aufsichtsplan zu ändern. <paramref name="neu"/> null = offen („???“). Ist die neue Lehrkraft die
+    /// reguläre (und nicht abwesend), wird eine von Hand erfasste Zeile wieder entfernt.
+    /// </summary>
+    public static Vertretung? VertretungSetzen(Schuldatei d, DateOnly datum, TagesAufsicht a, int? neu, bool entfall = false, string benutzer = "")
+    {
+        var v = a.Vertretung;
+        if (!entfall && neu.HasValue && neu == a.Regulaer)
+        {
+            if (v is null) return null;
+            if (!Vertretungen.IstAbgeleitet(v)) { d.Vertretungen.Remove(v); return null; }
+        }
+        if (v is null)
+        {
+            v = new Vertretung
+            {
+                Id = d.NeueId(), Datum = datum, Stunde = a.NachStunde, GangId = a.GangId, LehrerId = a.Regulaer, Quelle = VertretungsQuelle.Manuell,
+            };
+            d.Vertretungen.Add(v);
+        }
+        v.Art = entfall ? VertretungsArt.Entfall : VertretungsArt.Pausenaufsicht;
+        v.VertreterId = entfall ? null : neu;
+        v.Bearbeitet = true;
+        v.Geaendert = DateTime.Now;
+        if (!string.IsNullOrEmpty(benutzer)) v.Benutzer = benutzer;
+        return v;
+    }
+
+    /// <summary>Lehrervorschlag für eine Aufsicht an einem Datum (Vertretungsmodus): anwesende, freie Lehrkräfte mit Bewertung.</summary>
+    public static List<PaBewertung> LehrervorschlagAmDatum(Schuldatei d, DateOnly datum, TagesAufsicht a)
+    {
+        var ix = new DatenIndex(d);
+        var tag = Kalender.TagIndex(d, datum);
+        var pa = new Pausenaufsicht { GangId = a.GangId, Tag = tag, NachStunde = a.NachStunde, LehrerId = a.Regulaer ?? 0 };
+        return Kandidaten(d, datum, pa).Select(l => Bewerten(d, ix, l, a.GangId, tag, a.NachStunde)).ToList();
     }
 
     /// <summary>Offene Pausenaufsichtsvertretungen eines Datums.</summary>
