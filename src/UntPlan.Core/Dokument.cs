@@ -137,18 +137,21 @@ public sealed class Dokument
     {
         if (art is AenderungsArt.Unterricht or AenderungsArt.Stundenplan && Daten.AktivePeriode.Fixiert)
             throw new InvalidOperationException($"Die Periode {Daten.AktivePeriode.Name} ist fixiert – Unterricht und Stundenplan können nicht geändert werden.");
-        var vorher = JsonSerializer.SerializeToUtf8Bytes(Daten, JsonOptionen);
+        byte[] vorher;
+        using (Messung.Start("Aendern: Rückgängig-Kopie")) vorher = JsonSerializer.SerializeToUtf8Bytes(Daten, JsonOptionen);
         var unterrichtVorher = art == AenderungsArt.Unterricht && Daten.Einstellungen.UnterrichtInFolgeperioden && Daten.Perioden.Count > 1
             ? Module.Perioden.Momentaufnahme(Daten) : null;
         try
         {
-            aktion(Daten);
+            using (Messung.Start("Aendern: Aktion")) aktion(Daten);
             if (unterrichtVorher != null) Module.Perioden.Weitergeben(Daten, unterrichtVorher);
             // geänderter Unterricht/Stundenplan: bestehende Absenzen und Vertretungen auf den neuen Plan anwenden (gleiche Rückgängig-Stufe)
             if (art is AenderungsArt.Unterricht or AenderungsArt.Stundenplan && PlanaenderungenAbgleichen)
                 Vertretungsplanung.Vertretungen.NachPlanaenderung(Daten, DateOnly.FromDateTime(DateTime.Today));
             // geänderte Vertretungen (z. B. Sondereinsatz, Stunde ändern, Verlegung): Unterricht einer abwesenden Klasse entfällt
-            if (art is AenderungsArt.Vertretung or AenderungsArt.Alles) Vertretungsplanung.Vertretungen.KlassenabwesenheitAnwenden(Daten);
+            if (art is AenderungsArt.Vertretung or AenderungsArt.Alles)
+                using (Messung.Start("Aendern: Klassenabwesenheit"))
+                    Vertretungsplanung.Vertretungen.KlassenabwesenheitAnwenden(Daten);
         }
         catch
         {
@@ -176,7 +179,10 @@ public sealed class Dokument
         _index = null;
         Kalender.CacheLeeren();
         IstGeaendert = true;
-        Geaendert?.Invoke(art);
+        if (Messung.An && Geaendert is { } ereignis)
+            foreach (var h in ereignis.GetInvocationList())
+                using (Messung.Start("Geaendert → " + (h.Target?.GetType().Name ?? h.Method.Name))) ((Action<AenderungsArt>)h)(art);
+        else Geaendert?.Invoke(art);
     }
 
     public void Rueckgaengig()
@@ -184,8 +190,11 @@ public sealed class Dokument
         if (_undo.Last is null) return;
         var (text, stand) = _undo.Last.Value;
         _undo.RemoveLast();
-        _redo.Push((text, JsonSerializer.SerializeToUtf8Bytes(Daten, JsonOptionen)));
-        Daten = JsonSerializer.Deserialize<Schuldatei>(stand, JsonOptionen)!;
+        using (Messung.Start("Rückgängig: Kopie/Laden"))
+        {
+            _redo.Push((text, JsonSerializer.SerializeToUtf8Bytes(Daten, JsonOptionen)));
+            Daten = JsonSerializer.Deserialize<Schuldatei>(stand, JsonOptionen)!;
+        }
         Melden(AenderungsArt.Alles);
     }
 

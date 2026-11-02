@@ -79,6 +79,7 @@ public sealed class Tagesplan
 
     public static Tagesplan Berechnen(Schuldatei d, DateOnly datum)
     {
+        using var _m = Messung.Start("Tagesplan.Berechnen");
         var periode = d.PeriodeAm(datum);
         var unterrichte = (periode.Unterrichte ?? d.Unterrichte).ToDictionary(u => u.Id);
         var tp = new Tagesplan(datum, periode, Kalender.TagIndex(d, datum), unterrichte);

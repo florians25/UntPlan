@@ -708,6 +708,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     private void Neuaufbau(bool neuSortieren)
     {
+        using var _m = Core.Messung.Start("VertretungenFenster.Neuaufbau");
         if (IsDisposed) return;
         if (_g.IsCurrentCellInEditMode)
         {

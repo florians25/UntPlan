@@ -18,6 +18,7 @@ public sealed class DatenIndex
 
     public DatenIndex(Schuldatei d)
     {
+        using var _m = Messung.Start("DatenIndex");
         _d = d;
         Klassen = d.Klassen.ToDictionary(x => x.Id);
         Lehrer = d.Lehrer.ToDictionary(x => x.Id);

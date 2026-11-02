@@ -408,6 +408,7 @@ public sealed class PlanAnsicht : Control
 
     private List<TagesEintrag> EintraegeBerechnen(int tag, int stunde)
     {
+        using var _m = Core.Messung.Start("PlanAnsicht.EintraegeBerechnen");
         var tp = _tage[tag];
         return tp.Stunde(stunde).Where(e => Typ switch
         {
@@ -588,7 +589,11 @@ public sealed class PlanAnsicht : Control
         return res;
     }
 
-    protected override void OnPaint(PaintEventArgs e) => Zeichnen(e.Graphics, ClientRectangle, false);
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        using var _m = Core.Messung.Start("PlanAnsicht.Zeichnen");
+        Zeichnen(e.Graphics, ClientRectangle, false);
+    }
 
     private bool _druck;
 

@@ -267,6 +267,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
     private void Neuaufbau()
     {
+        using var _m = Core.Messung.Start("Vorschlag.Neuaufbau");
         _vorschlag.Rows.Clear();
         _vorziehung.Rows.Clear();
         _betreuung.Rows.Clear();

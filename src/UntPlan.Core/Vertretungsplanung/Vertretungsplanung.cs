@@ -89,6 +89,7 @@ public static class Vertretungen
     /// beim Wechsel in den Vertretungsmodus überträgt bzw. entfernt sie; neue Zeilen (z. B. Freisetzung einer neu eingeplanten Stunde) kommen hinzu</param>
     public static void Aktualisieren(Schuldatei d, DateOnly datum, bool entfernen)
     {
+        using var _m = Messung.Start("Vertretungen.Aktualisieren");
         // ältere Dateien: offene „Bereitschaftsvertretungen“ gibt es nicht mehr – Bereitschaften entfallen
         foreach (var alt in d.Vertretungen.Where(v => v.Datum == datum && v.Art == VertretungsArt.Bereitschaftsvertretung && v.VertreterId is null))
             alt.Art = VertretungsArt.BereitschaftEntfaellt;
