@@ -16,6 +16,58 @@ public sealed class DatenIndex
     public Dictionary<int, Abwesenheitsgrund> Gruende { get; }
     public Dictionary<int, List<Planstunde>> PlanJeUnterricht { get; }
 
+    [ThreadStatic] private static DatenIndex? _gemeinsam;
+
+    /// <summary>
+    /// Gemeinsamer Index für eine reine Lese-Berechnung (Vorschlag, Listen, Pläne): innerhalb des Bereichs liefert <see cref="Fuer"/>
+    /// denselben Index statt ihn je Aufruf neu aufzubauen. Im Bereich dürfen die Stammdaten und der Stundenplan nicht verändert werden.
+    /// </summary>
+    public static IndexBereich Gemeinsam(Schuldatei d, DatenIndex? vorhanden = null)
+    {
+        var alt = _gemeinsam;
+        if (_gemeinsam is null || !ReferenceEquals(_gemeinsam._d, d)) _gemeinsam = vorhanden != null && ReferenceEquals(vorhanden._d, d) ? vorhanden : new DatenIndex(d);
+        return new IndexBereich(alt);
+    }
+
+    /// <summary>Gemeinsamer Index, falls gerade ein Lese-Bereich für diese Datei läuft.</summary>
+    internal static DatenIndex? GemeinsamFuer(Schuldatei d) => _gemeinsam is { } g && ReferenceEquals(g._d, d) ? g : null;
+
+    /// <summary>Im Lese-Bereich: bereits berechnete Tagespläne (die Daten ändern sich im Bereich nicht).</summary>
+    internal Dictionary<DateOnly, Vertretungsplanung.Tagesplan> Tagesplaene { get; } = new();
+
+    private Dictionary<int, List<Vertretung>>? _vertretungenJeLehrer;
+
+    /// <summary>Im Lese-Bereich: Vertretungszeilen je beteiligter Lehrkraft (Lehrer bzw. Vertreter), für Zählungen.</summary>
+    internal List<Vertretung> VertretungenVon(int lehrerId)
+    {
+        if (_vertretungenJeLehrer is null)
+        {
+            _vertretungenJeLehrer = new();
+            foreach (var v in _d.Vertretungen)
+            {
+                if (v.LehrerId is int l) Hinzu(l, v);
+                if (v.VertreterId is int vt && vt != v.LehrerId) Hinzu(vt, v);
+            }
+        }
+        return _vertretungenJeLehrer.TryGetValue(lehrerId, out var liste) ? liste : new List<Vertretung>();
+
+        void Hinzu(int id, Vertretung v)
+        {
+            if (!_vertretungenJeLehrer!.TryGetValue(id, out var x)) _vertretungenJeLehrer[id] = x = new();
+            x.Add(v);
+        }
+    }
+
+    /// <summary>Index der Datei: im Bereich von <see cref="Gemeinsam"/> der gemeinsame, sonst neu.</summary>
+    public static DatenIndex Fuer(Schuldatei d) => _gemeinsam is { } g && ReferenceEquals(g._d, d) ? g : new DatenIndex(d);
+
+    public readonly struct IndexBereich : IDisposable
+    {
+        private readonly DatenIndex? _alt;
+        internal IndexBereich(DatenIndex? alt) { _alt = alt; }
+        public void Dispose() => _gemeinsam = _alt;
+    }
+
     public DatenIndex(Schuldatei d)
     {
         using var _m = Messung.Start("DatenIndex");

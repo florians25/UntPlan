@@ -44,8 +44,9 @@ public sealed partial class HauptFenster
 
         void Pumpen()
         {
-            Application.DoEvents();
-            foreach (var m in MdiChildren) m.Refresh();
+            // nur Ausstehendes abarbeiten (Neuzeichnen ungültiger Fenster, nachgeholte Neuaufbauten) – nichts erzwingen
+            for (var i = 0; i < 4; i++) Application.DoEvents();
+            foreach (var m in MdiChildren) m.Update();
             Application.DoEvents();
         }
         void Mess(string name, Action a, int n = 1)

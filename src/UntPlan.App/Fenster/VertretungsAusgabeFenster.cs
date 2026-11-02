@@ -325,7 +325,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         {
             var heute = VM && _g.Rows[e.RowIndex].Tag is int tz && TagDatum(tz) == AppZustand.Datum;
             e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = akt?.RowIndex == e.RowIndex ? Orange : Ui.Kopf;
-            if (heute) e.CellStyle.Font = new Font(_g.Font, FontStyle.Bold);
+            if (heute) e.CellStyle.Font = Schriftcache.Holen(_g.Font.Size, FontStyle.Bold);
             return;
         }
         if (ElementId is not int id || Zelle(e.RowIndex, e.ColumnIndex) is not { } z) return;
@@ -341,7 +341,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
             else if (liste.All(a => a.Entfaellt)) e.CellStyle.ForeColor = Color.Gray;
             // an diesem Tag vertreten bzw. entfallen: wie in der Vertretungsliste hervorgehoben
             if (liste.Any(a => a.Vertretung != null)) e.CellStyle.BackColor = Color.FromArgb(255, 250, 205);
-            if (!GangSicht && liste.All(a => a.Wirksam != id)) e.CellStyle.Font = new Font(_g.Font, FontStyle.Strikeout);
+            if (!GangSicht && liste.All(a => a.Wirksam != id)) e.CellStyle.Font = Schriftcache.Holen(_g.Font.Size, FontStyle.Strikeout);
             return;
         }
         if (GangSicht)

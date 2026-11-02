@@ -709,6 +709,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private void Neuaufbau(bool neuSortieren)
     {
         using var _m = Core.Messung.Start("VertretungenFenster.Neuaufbau");
+        using var _ix = DatenIndex.Gemeinsam(D, Ix);
         if (IsDisposed) return;
         if (_g.IsCurrentCellInEditMode)
         {
@@ -725,14 +726,15 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _weg.Clear();
         _felder = FeldEinstellungen();
         List<Vertretung> liste;
-        try { liste = Zeilenliste(); }
+        try { using (Core.Messung.Start("Vertretungsliste: Zeilenliste")) liste = Zeilenliste(); }
         finally { _felder = null; }
         _laedt = true;
         try
         {
             // nur betroffene Zeilen ändern: Werte an Ort und Stelle, neue Zeilen an ihren Platz, weggefallene heraus – Zeile, Spalte,
             // Markierung, Bildlauf und Reihenfolge bleiben (neu sortiert wird nur nach Filter-, Ansichts- bzw. Sortierwechsel)
-            Steuerelemente.TabellenAbgleich.Anwenden(_g, liste, Schluessel, Schluessel, ZeileSetzen, neuSortieren);
+            using (Core.Messung.Start("Vertretungsliste: Tabellenabgleich"))
+                Steuerelemente.TabellenAbgleich.Anwenden(_g, liste, Schluessel, Schluessel, ZeileSetzen, neuSortieren);
         }
         finally
         {
@@ -742,7 +744,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
         _status.Text = "";
         // andere Fenster (Vorschlag, Stundenpläne) nur benachrichtigen, wenn sich die Auswahl tatsächlich geändert hat
-        if (AuswahlSignatur() != vorher) Gewaehlt();
+        if (AuswahlSignatur() != vorher)
+            using (Core.Messung.Start("Vertretungsliste: Gewaehlt"))
+                Gewaehlt();
     }
 
     private string AuswahlSignatur() =>

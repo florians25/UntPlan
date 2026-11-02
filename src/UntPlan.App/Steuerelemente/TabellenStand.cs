@@ -98,6 +98,25 @@ public static class TabellenAbgleich
     public static bool Anwenden<T>(DataGridView g, IReadOnlyList<T> neu, Func<T, string> schluessel, Func<DataGridViewRow, string?> zeilenSchluessel,
         Action<DataGridViewRow, T> setzen, bool neuSortieren = false, string? aktuell = null)
     {
+        // Während des Befüllens keine automatische Zeilenhöhe (sie misst sonst nach jedem gesetzten Zellwert neu) und kein Layout –
+        // am Ende einmal für die sichtbaren Zeilen
+        var hoehe = g.AutoSizeRowsMode;
+        g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+        g.SuspendLayout();
+        try
+        {
+            return AnwendenIntern(g, neu, schluessel, zeilenSchluessel, setzen, neuSortieren, aktuell);
+        }
+        finally
+        {
+            g.ResumeLayout();
+            g.AutoSizeRowsMode = hoehe;
+        }
+    }
+
+    private static bool AnwendenIntern<T>(DataGridView g, IReadOnlyList<T> neu, Func<T, string> schluessel, Func<DataGridViewRow, string?> zeilenSchluessel,
+        Action<DataGridViewRow, T> setzen, bool neuSortieren, string? aktuell)
+    {
         var alt = g.Rows.Cast<DataGridViewRow>().Select(r => zeilenSchluessel(r) ?? "").ToList();
         var ziel = neuSortieren && !alt.SequenceEqual(neu.Select(schluessel)) ? null : Listenabgleich.Zusammenfuehren(alt, neu, schluessel);
         var zielSchluessel = ziel?.Select(schluessel).ToHashSet();

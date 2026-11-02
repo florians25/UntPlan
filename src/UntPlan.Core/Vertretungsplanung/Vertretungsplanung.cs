@@ -1203,7 +1203,7 @@ public static class Vertretungen
 
     /// <summary>Anzahl gehaltener Vertretungen im Zeitraum (für Höchstwerte pro Woche/Monat).</summary>
     public static int Zaehler(Schuldatei d, int lehrerId, DateOnly von, DateOnly bis) =>
-        d.Vertretungen.Count(v => v.VertreterId == lehrerId && v.Datum >= von && v.Datum <= bis && v.VertreterId != v.LehrerId &&
+        (DatenIndex.GemeinsamFuer(d) is { } gi ? gi.VertretungenVon(lehrerId) : (IEnumerable<Vertretung>)d.Vertretungen).Count(v => v.VertreterId == lehrerId && v.Datum >= von && v.Datum <= bis && v.VertreterId != v.LehrerId &&
                                   v.Art is VertretungsArt.Vertretung or VertretungsArt.StattVertretung or VertretungsArt.Teilvertretung or VertretungsArt.Lehrertausch
                                       or VertretungsArt.Bereitschaftsvertretung or VertretungsArt.Sondereinsatz);
 }
@@ -1334,7 +1334,7 @@ public static class VertretungsVorschlag
         IReadOnlyCollection<int>? markierteStunden = null)
     {
         var tp = Tagesplan.Berechnen(d, v.Datum);
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var e = d.Vertretungseinstellungen.Vorschlag;
         var tag = Kalender.TagIndex(d, v.Datum);
         var stunden = new List<int> { v.Stunde };
@@ -1357,13 +1357,19 @@ public static class VertretungsVorschlag
             k.Freigesetzt = k.Merker == "x";
             k.Bereitschaft = Vertretungen.HatBereitschaft(d, tp, l.Id, v.Stunde);
             k.UnterrichtAmTag = Vertretungen.UnterrichtAmTag(d, tp, l.Id);
-            k.Stundenplan = StundenplanText(d, ix, tp, l.Id, v.Stunde);
-            k.Zellen = StundenplanZellen(d, ix, tp, l.Id, v.Stunde, ziele: stunden.Concat(markierteStunden ?? Array.Empty<int>()).ToList());
+            using (Messung.Start("Vorschlag: Stundenplanzellen"))
+            {
+                k.Stundenplan = StundenplanText(d, ix, tp, l.Id, v.Stunde);
+                k.Zellen = StundenplanZellen(d, ix, tp, l.Id, v.Stunde, ziele: stunden.Concat(markierteStunden ?? Array.Empty<int>()).ToList());
+            }
+            var _mk = Messung.Start("Vorschlag: Klasse/Fach/Vorwoche");
             k.KenntKlasse = klassen.Count > 0 && d.Unterrichte.Any(u => u.Zeilen.Any(z => z.LehrerId == l.Id &&
                 (e.KlasseAuchFuerKlassenteil ? z.KlassenIds.Intersect(klassen).Any() : klassen.All(z.KlassenIds.Contains))));
             k.Klassenlehrer = d.Klassen.Any(c => klassen.Contains(c.Id) && c.KlassenlehrerIds.Contains(l.Id));
             k.Fachlehrer = v.FachId is int f && (l.FaecherIds.Contains(f) || d.Unterrichte.Any(u => u.Zeilen.Any(z => z.LehrerId == l.Id && z.FachId == f)));
             k.Vorwoche = d.Vertretungen.Any(x => x.VertreterId == l.Id && x.Datum >= v.Datum.AddDays(-7) && x.Datum < v.Datum && x.KlassenIds.Intersect(klassen).Any());
+            _mk.Dispose();
+            var _mz = Messung.Start("Vorschlag: Zählung");
             var z = Zaehlung.Lehrer(d, l, zVon, zBis);
             k.Zaehler = z.Summe;
             k.Vertretungen = z.Vertretungen;
@@ -1377,8 +1383,9 @@ public static class VertretungsVorschlag
             k.ZaehlerJahr = Vertretungen.Zaehler(d, l.Id, d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis);
             k.Saldo = k.Jahreszaehler;
             if (kennzeichen.TryGetValue(l.Id, out var kz)) { k.Kennzeichen = true; k.KennzeichenText = kz; }
+            _mz.Dispose();
             k.RegelBereitschaft = bereitschaften.GetValueOrDefault(l.Id);
-            k.Deputat = l.Soll > 0 ? Module.Wertrechnung.Ist(d, ix, l) - l.Soll : null;
+            using (Messung.Start("Vorschlag: Deputat")) k.Deputat = l.Soll > 0 ? Module.Wertrechnung.Ist(d, ix, l) - l.Soll : null;
             k.Disloziert = Disloziert(ix, tp, v, l.Id, stunden);
             var vorher = tp.VonLehrer(l.Id).Where(x => x.Stunde < v.Stunde).Select(x => x.Stunde).DefaultIfEmpty(0).Max();
             k.Benachrichtigen = vorher == 0 && k.UnterrichtAmTag > 0 && v.Datum == DateOnly.FromDateTime(DateTime.Today);
@@ -1509,7 +1516,7 @@ public static class VertretungsVorschlag
 
     /// <summary>Benachbarte Stunden des Lehrers (Spalte "Stundenplan").</summary>
     public static string StundenplanText(Schuldatei d, Tagesplan tp, int lehrerId, int stunde, int umfang = 2) =>
-        StundenplanText(d, new DatenIndex(d), tp, lehrerId, stunde, umfang);
+        StundenplanText(d, DatenIndex.Fuer(d), tp, lehrerId, stunde, umfang);
 
     public static string StundenplanText(Schuldatei d, DatenIndex ix, Tagesplan tp, int lehrerId, int stunde, int umfang = 2)
     {
@@ -1532,7 +1539,7 @@ public static class VertretungsVorschlag
     public static List<Betreuungskandidat> Betreuungen(Schuldatei d, Vertretung v, IReadOnlyCollection<int>? markierteStunden = null)
     {
         var tp = Tagesplan.Berechnen(d, v.Datum);
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var (zVon, zBis) = Zaehlung.Zeitraum(d, v.Datum);
         var raumId = v.VertretungsraumId ?? v.RaumId;
         var eigenerRaum = raumId is int rid ? ix.Raeume.GetValueOrDefault(rid) : null;
@@ -1574,7 +1581,7 @@ public static class VertretungsVorschlag
     /// <summary>Raumvorschlag: freie Räume (optional auch besetzte) für die Stunde(n).</summary>
     public static List<Raumkandidat> Raeume(Schuldatei d, Vertretung v, bool auchBesetzte = false, bool stundenblock = false)
     {
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var tp = Tagesplan.Berechnen(d, v.Datum);
         var stunden = stundenblock ? Block(d, v).Select(x => x.Stunde).ToList() : new List<int> { v.Stunde };
         var wunsch = v.RaumId;
@@ -1612,7 +1619,7 @@ public static class VertretungsVorschlag
         if (v.KlassenIds.Count == 0) return res;
         var e = d.Vertretungseinstellungen.Vorschlag;
         var m = modus ?? e.Vorziehungen;
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var tpZiel = Tagesplan.Berechnen(d, v.Datum);
         // Klasse muss in der Stunde sonst frei sein
         if (tpZiel.Stunde(v.Stunde).Any(x => x.Findetstatt && x.Vertretung != v && x.KlassenIds.Intersect(v.KlassenIds).Any())) return res;
@@ -1814,7 +1821,7 @@ public static class Vertretungsplan
 
     public static List<PlanZeile> Zeilen(Schuldatei d, DateOnly datum, bool mitNichtDrucken = false)
     {
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var nichtDruckFaecher = d.Faecher.Where(f => f.NichtDrucken).Select(f => f.Id).ToHashSet();
         // Bereitschaftsstunden des Tages (für die Bemerkung „Bereitschaft“)
         var periode = d.PeriodeAm(datum);

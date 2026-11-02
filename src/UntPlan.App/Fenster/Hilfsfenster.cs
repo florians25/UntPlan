@@ -35,13 +35,47 @@ public sealed class Eingabeassistent : Panel
         if (AppZustand.Haupt is null) return;
         var d = AppZustand.D;
         _flow.SuspendLayout();
-        _flow.Controls.Clear();
-        void Kopf(string t) => _flow.Controls.Add(new Label { Text = t, AutoSize = false, Width = 200, Height = 22, Font = Ui.SchriftFett, ForeColor = Ui.Blau, Margin = new Padding(0, 8, 0, 0) });
+        // vorhandene Zeilen wiederverwenden (nur Text und Aktion setzen) – Steuerelemente neu anlegen kostet bei jedem
+        // Tageswechsel spürbar Zeit; neu angelegt wird nur bei anderem Aufbau (Moduswechsel)
+        var platz = 0;
+        var vorhanden = _flow.Controls.Cast<Control>().ToList();
+        void Kopf(string t)
+        {
+            if (platz < vorhanden.Count && vorhanden[platz] is Label { } k && k is not LinkLabel)
+            {
+                k.Text = t;
+                k.ForeColor = Ui.Blau;
+            }
+            else
+            {
+                WegAb(platz);
+                _flow.Controls.Add(new Label { Text = t, AutoSize = false, Width = 200, Height = 22, Font = Ui.SchriftFett, ForeColor = Ui.Blau, Margin = new Padding(0, 8, 0, 0) });
+            }
+            platz++;
+        }
         void Schritt(string t, bool erledigt, Action a)
         {
-            var l = new LinkLabel { Text = (erledigt ? "● " : "○ ") + t, AutoSize = false, Width = 205, Height = 20, LinkColor = Color.FromArgb(30, 60, 140), ActiveLinkColor = Color.OrangeRed, LinkBehavior = LinkBehavior.HoverUnderline, Margin = new Padding(6, 0, 0, 0) };
-            l.LinkClicked += (_, _) => a();
-            _flow.Controls.Add(l);
+            var text = (erledigt ? "● " : "○ ") + t;
+            if (platz < vorhanden.Count && vorhanden[platz] is LinkLabel l0)
+            {
+                if (l0.Text != text) l0.Text = text;
+                l0.Tag = a;
+            }
+            else
+            {
+                WegAb(platz);
+                var l = new LinkLabel { Text = text, AutoSize = false, Width = 205, Height = 20, LinkColor = Color.FromArgb(30, 60, 140), ActiveLinkColor = Color.OrangeRed, LinkBehavior = LinkBehavior.HoverUnderline, Margin = new Padding(6, 0, 0, 0), Tag = a };
+                l.LinkClicked += (s, _) => ((s as Control)?.Tag as Action)?.Invoke();
+                _flow.Controls.Add(l);
+            }
+            platz++;
+        }
+        // ab hier passt der vorhandene Aufbau nicht mehr: Rest entfernen
+        void WegAb(int i)
+        {
+            if (i >= vorhanden.Count) return;
+            foreach (var c in vorhanden.Skip(i)) { _flow.Controls.Remove(c); c.Dispose(); }
+            vorhanden = vorhanden.Take(i).ToList();
         }
         var h = AppZustand.Haupt;
         if (AppZustand.Vertretungsmodus)
@@ -65,6 +99,7 @@ public sealed class Eingabeassistent : Panel
             Kopf("Einstellungen");
             Schritt("Einstellungen Vertretungsplanung", true, () => Dialoge.VertretungsEinstellungenDialog.Zeigen(h));
             Schritt("Zurück zur Stundenplanung", false, h.VertretungsmodusUmschalten);
+            WegAb(platz);
             _flow.ResumeLayout();
             return;
         }
@@ -92,6 +127,7 @@ public sealed class Eingabeassistent : Panel
         Schritt("Stundenpläne", d.Stundenplan.Count > 0, () => h.StandardFenster());
         Kopf("Weitere Informationen");
         Schritt("Hilfe", false, () => HilfeFenster.Zeigen("Eingabeassistent"));
+        WegAb(platz);
         _flow.ResumeLayout();
     }
 }

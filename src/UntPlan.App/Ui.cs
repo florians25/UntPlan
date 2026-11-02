@@ -491,3 +491,22 @@ public static partial class Ui
         return control;
     }
 }
+
+/// <summary>
+/// Zwischenspeicher für Schriften der Stundenpläne: jede Größe (auf 0,25 pt gerundet) und jeder Stil wird nur einmal angelegt.
+/// Neue Schriftobjekte je Zelle und Neuzeichnen sind in GDI+ teuer; die zwischengespeicherten werden nie freigegeben.
+/// </summary>
+internal static class Schriftcache
+{
+    private static readonly Dictionary<(int, FontStyle), Font> Schriften = new();
+
+    public static Font Holen(float groesse, FontStyle stil = FontStyle.Regular)
+    {
+        var key = ((int)Math.Round(Math.Max(1f, groesse) * 4), stil);
+        lock (Schriften)
+        {
+            if (!Schriften.TryGetValue(key, out var f)) Schriften[key] = f = new Font("Segoe UI", key.Item1 / 4f, stil);
+            return f;
+        }
+    }
+}

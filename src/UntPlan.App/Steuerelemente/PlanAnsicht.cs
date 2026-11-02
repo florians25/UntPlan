@@ -826,7 +826,7 @@ public sealed class PlanAnsicht : Control
                 else bereiche.Add((s, s));
             }
         if (bereiche.Count == 0) return;
-        using var schrift = new Font("Segoe UI", Format.Klein ? 7f : 8.25f, FontStyle.Bold);
+        var schrift = Schriftcache.Holen(Format.Klein ? 7f : 8.25f, FontStyle.Bold);
         foreach (var (von, bis) in bereiche)
         {
             var ber = Bereich(bounds, t, von, bis);
@@ -854,7 +854,7 @@ public sealed class PlanAnsicht : Control
         if (r.Right < bounds.X || r.Width < 4) return;
         g.FillRectangle(Brushes.White, r);
         g.DrawRectangle(linie, r.X, r.Y, r.Width, r.Height);
-        using var schrift = new Font("Segoe UI", Format.Klein ? 8f : 9f);
+        var schrift = Schriftcache.Holen(Format.Klein ? 8f : 9f);
         var platz = (Transponiert ? r.Width : r.Height) - 8;
         var text = Kalender.FreiText(Kalender.FreiBezeichnung(D, datum), datum, x => g.MeasureString(x, schrift).Width <= platz);
         FreiBeschriftungen.RemoveAll(x => x.Tag == t);
@@ -983,8 +983,8 @@ public sealed class PlanAnsicht : Control
         g.FillRectangle(kopfB, ecke);
         g.DrawRectangle(linie, ecke.X, ecke.Y, ecke.Width, ecke.Height);
         var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
-        using var schrift = new Font("Segoe UI", Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f)), FontStyle.Bold);
-        using var zeit = new Font("Segoe UI", 7f);
+        var schrift = Schriftcache.Holen(Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f)), FontStyle.Bold);
+        var zeit = Schriftcache.Holen(7f);
         var tag = _nurTag ?? VonT;
         for (var st = VonStd; st <= BisStd; st++)
         {
@@ -1021,7 +1021,7 @@ public sealed class PlanAnsicht : Control
         if (Pausen.Count == 0) return;
         var zr = D.Zeitraster;
         var klein = Format.Klein;
-        using var pausenSchrift = new Font("Segoe UI", KlassikStil ? Math.Max(6f, Math.Min(9f, PausenHoehe / 1.75f)) : Math.Max(6f, Math.Min(8f, PausenHoehe / 1.6f)));
+        var pausenSchrift = Schriftcache.Holen(KlassikStil ? Math.Max(6f, Math.Min(9f, PausenHoehe / 1.75f)) : Math.Max(6f, Math.Min(8f, PausenHoehe / 1.6f)));
         using var pausenHg = new SolidBrush(KlassikStil ? Color.White : klein ? Color.FromArgb(214, 226, 214) : Color.FromArgb(236, 239, 244));
         using var mint = new SolidBrush(Grund);
         foreach (var p in Pausen)
@@ -1066,11 +1066,11 @@ public sealed class PlanAnsicht : Control
         // Vorbild: „Nvpl Std.“ mit nicht verplanten / allen Stunden oben links (große Pläne)
         if (Ecke.Length > 0 && !klein && !druck)
         {
-            using var f = new Font("Segoe UI", Math.Max(6.5f, Math.Min(8.25f, KopfHoehe / 3.4f)));
+            var f = Schriftcache.Holen(Math.Max(6.5f, Math.Min(8.25f, KopfHoehe / 3.4f)));
             TextRenderer.DrawText(g, Ecke, f, Rectangle.Round(ecke), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
         }
         var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
-        using var kopfSchrift = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 2.1f)) : Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f)), klein ? FontStyle.Regular : FontStyle.Bold);
+        var kopfSchrift = Schriftcache.Holen(klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 2.1f)) : Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f)), klein ? FontStyle.Regular : FontStyle.Bold);
         for (var t = 0; t < Tage; t++)
         {
             var r = Zelle(bounds, t, 1);
@@ -1084,8 +1084,8 @@ public sealed class PlanAnsicht : Control
             Relief(g, kopf, Format.Ueberschrift.Raeumlich);
         }
         var zh = Zelle(bounds, 0, 1).Height;
-        using var nummer = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, zh / 1.7f)) : Math.Max(8f, Math.Min(15f, zh / 2.1f)), klein ? FontStyle.Regular : FontStyle.Bold);
-        using var zeit = new Font("Segoe UI", 7f);
+        var nummer = Schriftcache.Holen(klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, zh / 1.7f)) : Math.Max(8f, Math.Min(15f, zh / 2.1f)), klein ? FontStyle.Regular : FontStyle.Bold);
+        var zeit = Schriftcache.Holen(7f);
         for (var s = 1; s <= Stunden; s++)
         {
             var r = Zelle(bounds, 0, s);
@@ -1113,7 +1113,7 @@ public sealed class PlanAnsicht : Control
         var zr = D.Zeitraster;
         var klein = Format.Klein;
         // wie im Vorbild auch im kleinen Plan Tage fett und etwas größer als die Stunden
-        using var kopfSchrift = new Font("Segoe UI", klein ? Math.Max(7.5f, Math.Min(Format.Schriftgroesse + 1f, KopfHoehe / 1.7f)) : Ui.SchriftFett.Size, FontStyle.Bold);
+        var kopfSchrift = Schriftcache.Holen(klein ? Math.Max(7.5f, Math.Min(Format.Schriftgroesse + 1f, KopfHoehe / 1.7f)) : Ui.SchriftFett.Size, FontStyle.Bold);
         var heuteDatum = DateOnly.FromDateTime(DateTime.Today);
         var heuteTag = Kalender.IstUnterrichtstag(D, heuteDatum) ? Kalender.TagIndex(D, heuteDatum) : -1;
         for (var t = 0; t < Tage; t++)
@@ -1130,7 +1130,7 @@ public sealed class PlanAnsicht : Control
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
         }
         // Stundennummern wie im Vorbild fett
-        using var stundenSchrift = new Font("Segoe UI", klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse + 0.5f, Zelle(bounds, 0, 1).Height / 1.8f)) : Ui.SchriftKlein.Size,
+        var stundenSchrift = Schriftcache.Holen(klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse + 0.5f, Zelle(bounds, 0, 1).Height / 1.8f)) : Ui.SchriftKlein.Size,
             klein ? FontStyle.Bold : FontStyle.Regular);
         for (var s = 1; s <= Stunden; s++)
         {
@@ -1149,7 +1149,7 @@ public sealed class PlanAnsicht : Control
             var ecke = new Rectangle(bounds.X, bounds.Y, KopfBreite, KopfHoehe);
             using (var b = new SolidBrush(Ui.Kopf)) g.FillRectangle(b, ecke);
             g.DrawRectangle(linie, ecke);
-            using var f = new Font("Segoe UI", Math.Max(6f, Math.Min(10f, KopfHoehe / 3.2f)), FontStyle.Bold);
+            var f = Schriftcache.Holen(Math.Max(6f, Math.Min(10f, KopfHoehe / 3.2f)), FontStyle.Bold);
             TextRenderer.DrawText(g, Ecke, f, ecke, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
     }
@@ -1279,7 +1279,7 @@ public sealed class PlanAnsicht : Control
     private void KleinZeichnen(Graphics g, RectangleF r, string text, Color farbe, bool durchgestrichen = false)
     {
         var groesse = Math.Max(6f, Math.Min(Format.Schriftgroesse + (KlassikStil ? 0 : 1), Math.Min(r.Height / 1.45f, r.Width / Math.Max(2.2f, text.Length * 0.62f))));
-        using var f = new Font("Segoe UI", groesse, durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular);
+        var f = Schriftcache.Holen(groesse, durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular);
         TextRenderer.DrawText(g, text, f, Rectangle.Round(r), farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
     }
 
@@ -1343,8 +1343,8 @@ public sealed class PlanAnsicht : Control
         if (liste.Count == 0) return;
         var groesse = Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 1.75f));
         var stil = durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular;
-        using var fett = new Font("Segoe UI", groesse, FontStyle.Bold | stil);
-        using var normal = new Font("Segoe UI", groesse, stil);
+        var fett = Schriftcache.Holen(groesse, FontStyle.Bold | stil);
+        var normal = Schriftcache.Holen(groesse, stil);
         const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
         var rest = string.Join(" ", liste.Skip(1));
         var b0 = TextRenderer.MeasureText(g, liste[0], fett, Size.Empty, flags);
@@ -1410,7 +1410,7 @@ public sealed class PlanAnsicht : Control
         if (zeilen.Count == 0 || r.Width < 6 || r.Height < 6) return;
         const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
         var groesse = Math.Max(6.5f, Math.Min(Format.Schriftgroesse, (r.Height - 2) / zeilen.Count / 1.55f));
-        Font[] Schriften(float gr) => new[] { new Font("Segoe UI", gr), new Font("Segoe UI", gr, FontStyle.Bold), new Font("Segoe UI", gr, FontStyle.Underline), new Font("Segoe UI", gr, FontStyle.Bold | FontStyle.Underline) };
+        Font[] Schriften(float gr) => new[] { Schriftcache.Holen(gr), Schriftcache.Holen(gr, FontStyle.Bold), Schriftcache.Holen(gr, FontStyle.Underline), Schriftcache.Holen(gr, FontStyle.Bold | FontStyle.Underline) };
         Font S(Font[] f, Teil t) => f[(t.Fett ? 1 : 0) + (t.Unterstrichen ? 2 : 0)];
         int Breite(Font[] f, List<Teil> z, int abstand) => z.Sum(t => TextRenderer.MeasureText(g, t.Text, S(f, t), Size.Empty, flags).Width) + abstand * (z.Count - 1);
         var schriften = Schriften(groesse);
@@ -1418,7 +1418,6 @@ public sealed class PlanAnsicht : Control
         {
             while (groesse > 6.5f && zeilen.Max(z => Breite(schriften, z, (int)Math.Ceiling(groesse * 0.45f))) > r.Width - 4)
             {
-                foreach (var f in schriften) f.Dispose();
                 groesse = Math.Max(6.5f, groesse - 0.5f);
                 schriften = Schriften(groesse);
             }
@@ -1441,7 +1440,7 @@ public sealed class PlanAnsicht : Control
             }
             g.Clip = alt;
         }
-        finally { foreach (var f in schriften) f.Dispose(); }
+        finally { }
     }
 
     /// <summary>Werte einer Stunde in der Reihenfolge der Planart: Klasse: Fach, Lehrer, Raum; Lehrer: Klasse, Fach, Raum; Raum: Klasse, Lehrer, Fach.</summary>
@@ -1528,8 +1527,8 @@ public sealed class PlanAnsicht : Control
         var farbe = KlassikStil ? Grund : Farbe(u, zeilen[0]);
         using (var b = new SolidBrush(farbe)) g.FillRectangle(b, r);
         var text = Ui.Textfarbe(farbe);
-        using var schrift = new Font("Segoe UI", Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
-        using var klein = new Font("Segoe UI", Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
+        var schrift = Schriftcache.Holen(Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
+        var klein = Schriftcache.Holen(Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
         var ug = u.UGruppeId is int ugid ? D.UGruppen.FirstOrDefault(x => x.Id == ugid)?.Kurzname : u.Periodizitaet switch { Periodizitaet.AWoche => "A", Periodizitaet.BWoche => "B", _ => null };
         if (Format.Standardformat || Format.Felder.Count == 0)
         {
@@ -1602,7 +1601,7 @@ public sealed class PlanAnsicht : Control
                 };
                 var fr = new RectangleF(r.X + (f.X + dx) * r.Width, r.Y + (f.Y + dy) * r.Height, f.B * r.Width, f.H * r.Height);
                 var stil = (f.Fett ? FontStyle.Bold : 0) | (f.Kursiv ? FontStyle.Italic : 0) | (f.Unterstrichen ? FontStyle.Underline : 0);
-                using var ff = new Font("Segoe UI", Math.Max(5.5f, Math.Min(Format.Schriftgroesse * f.SchriftProzent / 100f, fr.Height / 1.6f)), stil);
+                var ff = Schriftcache.Holen(Math.Max(5.5f, Math.Min(Format.Schriftgroesse * f.SchriftProzent / 100f, fr.Height / 1.6f)), stil);
                 var ausrichtung = f.Ausrichtung == 0 ? TextFormatFlags.Left : f.Ausrichtung == 2 ? TextFormatFlags.Right : TextFormatFlags.HorizontalCenter;
                 TextRenderer.DrawText(g, wert, ff, Rectangle.Round(fr), text, ausrichtung | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
                 if (!druck && wert.Length > 0) GezeichneteFelder.Add((f.Art, wert, Rectangle.Round(fr)));
@@ -1638,10 +1637,10 @@ public sealed class PlanAnsicht : Control
         }
         var zh = Math.Min((r.Height - 2) / liste.Count, Format.Schriftgroesse * 2.1f);
         var groesse = Math.Max(6f, Math.Min(Format.Schriftgroesse, zh / 1.55f));
-        using var fett = new Font("Segoe UI", groesse, FontStyle.Bold);
-        using var normal = new Font("Segoe UI", Math.Max(6f, groesse - 0.5f));
-        using var fettWeg = new Font("Segoe UI", groesse, FontStyle.Bold | FontStyle.Strikeout);
-        using var normalWeg = new Font("Segoe UI", Math.Max(6f, groesse - 0.5f), FontStyle.Strikeout);
+        var fett = Schriftcache.Holen(groesse, FontStyle.Bold);
+        var normal = Schriftcache.Holen(Math.Max(6f, groesse - 0.5f));
+        var fettWeg = Schriftcache.Holen(groesse, FontStyle.Bold | FontStyle.Strikeout);
+        var normalWeg = Schriftcache.Holen(Math.Max(6f, groesse - 0.5f), FontStyle.Strikeout);
         var y = r.Y + 1 + Math.Max(0, (r.Height - 2 - zh * liste.Count) / 2);
         var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
         for (var i = 0; i < liste.Count; i++)
@@ -1719,8 +1718,8 @@ public sealed class PlanAnsicht : Control
             else if (!druck && MarkierterUnterricht is int mu && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == mu) VerknuepfungsRahmen(g, r);
             return;
         }
-        using var schrift = new Font("Segoe UI", Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
-        using var klein = new Font("Segoe UI", Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
+        var schrift = Schriftcache.Holen(Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
+        var klein = Schriftcache.Holen(Math.Max(6f, Math.Min(Format.Schriftgroesse - 1.5f, r.Height / 3.2f)));
         var v = e.Vertretung;
         var fach = Kurz(ElementTyp.Fach, e.FachId ?? e.Regel?.FachId);
         var stern = Stern(e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true);
