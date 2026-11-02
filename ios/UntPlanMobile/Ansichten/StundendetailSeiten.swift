@@ -356,6 +356,28 @@ final class Stundendaten: ObservableObject {
         await anwesenheitLaden()
     }
 
+    /// Läuft die Stunde gerade (Beginn ≤ jetzt < Ende)?
+    var laeuftGerade: Bool {
+        let jetzt = Date()
+        return zeit(blockBeginn) <= jetzt && jetzt < zeit(blockEnde)
+    }
+
+    /// Wischgeste nach rechts während der laufenden Stunde (gelb, wie im Original): die abwesende Person kommt jetzt –
+    /// die Abwesenheit wird zur Verspätung vom bisherigen Beginn bis jetzt (Grund „verspätet“).
+    func verspaetetSetzen(_ s: Schueler) async throws {
+        guard let f = fehlzeit(s) else { return }
+        await gruendeLaden()
+        let grund = gruende.first { g in
+            let n = g.anzeige.lowercased()
+            return n.hasPrefix("verspät") || n.hasPrefix("verspaet") || g.kurz.lowercased().hasPrefix("versp")
+        }?.kurz ?? ""
+        let beginn = f.vonZeit.isEmpty ? zeit(blockBeginn) : zeit(f.vonZeit)
+        let kalender = Datumsformat.kalender
+        let jetzt = kalender.date(bySetting: .second, value: 0, of: Date()) ?? Date()
+        let bis = max(jetzt, beginn.addingTimeInterval(60))
+        try await abwesenheitSpeichern(s, von: beginn, bis: bis, grund: grund, text: f.text, eltern: false, ersetzen: [f.id])
+    }
+
     /// Wischgeste nach links: abwesend für den ganzen Block (minutengenau von Beginn bis Ende).
     func abwesendSetzen(_ s: Schueler) async throws {
         guard let u = karte.unterricht, fehlzeit(s) == nil else { return }
@@ -1858,9 +1880,17 @@ struct SchuelerSeite: View {
                                     // – bei abwesenden Schüler*innen nach links: „Entschuldigen“ (Klassenleitung bzw. Fachlehrkraft)
                                     let fehlzeit = daten.fehlzeit(s)
                                     let abwesend = fehlzeit != nil
+                                    // während der laufenden Stunde: nach rechts „Verspätet“ (gelb) – die Person kommt jetzt
+                                    let kommtJetzt = abwesend && daten.laeuftGerade
                                     WischZeile(rechtsMoeglich: bearbeitbar && abwesend,
                                                linksMoeglich: abwesend ? darfEntschuldigen(s) : bearbeitbar,
-                                               rechts: { Task { await ausfuehren(s) { try await daten.anwesendSetzen(s) } } },
+                                               rechts: {
+                                                   Task {
+                                                       await ausfuehren(s) {
+                                                           if kommtJetzt { try await daten.verspaetetSetzen(s) } else { try await daten.anwesendSetzen(s) }
+                                                       }
+                                                   }
+                                               },
                                                links: {
                                                    if let f = fehlzeit {
                                                        entschuldigung = Entschuldigungsauftrag(
@@ -1870,6 +1900,7 @@ struct SchuelerSeite: View {
                                                        Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
                                                    }
                                                },
+                                               rechtsAktion: kommtJetzt ? .verspaetet : .anwesend,
                                                linksAktion: abwesend ? .entschuldigen : .abwesend) {
                                         zeile(s)
                                             .padding(.leading, 16)
@@ -1988,14 +2019,14 @@ struct SchuelerSeite: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button {
+            WischKnopf {
                 eintrag = Eintragsvorlage(schueler: [s])
             } label: {
                 BuchPlusSymbol(vorhanden: hatVermerk)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(hatVermerk ? "Klassenbucheintrag vorhanden, neuer Klassenbucheintrag" : "Neuer Klassenbucheintrag")
-            Button {
+            WischKnopf {
                 abwesenheitenVon = s
             } label: {
                 Image(systemName: "clock")
@@ -2087,6 +2118,42 @@ struct Wischaktion {
     static let anwesend = Wischaktion(symbol: "checkmark.circle", text: "Anwesend", farbe: Farben.gruen)
     static let abwesend = Wischaktion(symbol: "clock", text: "Abwesend", farbe: Farben.entfallRand)
     static let entschuldigen = Wischaktion(symbol: "checkmark.seal", text: "Entschuldigen", farbe: Farben.entschuldigen)
+    /// Während der laufenden Stunde: die abwesende Person kommt (gelb wie im Original)
+    static let verspaetet = Wischaktion(symbol: "clock.badge.checkmark", text: "Verspätet", farbe: Color(hexWert: 0xF2B705))
+}
+
+/// Sperre der Knöpfe in einer Wischzeile: solange (und kurz nachdem) waagrecht gewischt wird, reagieren die Knöpfe
+/// der Zeile (Klassenbucheintrag, Uhr) nicht – das Loslassen nach dem Wischen ist kein Antippen.
+final class Wischsperre {
+    var bis = Date.distantPast
+    var aktiv: Bool { Date() < bis }
+}
+
+/// Knopf in einer Wischzeile: reagiert nicht, solange (bzw. kurz nachdem) die Zeile gewischt wird.
+struct WischKnopf<Label: View>: View {
+    let aktion: () -> Void
+    @ViewBuilder let label: () -> Label
+    @Environment(\.wischsperre) private var sperre
+
+    var body: some View {
+        Button {
+            guard !(sperre?.aktiv ?? false) else { return }
+            aktion()
+        } label: {
+            label()
+        }
+    }
+}
+
+private struct WischsperreSchluessel: EnvironmentKey {
+    static let defaultValue: Wischsperre? = nil
+}
+
+extension EnvironmentValues {
+    var wischsperre: Wischsperre? {
+        get { self[WischsperreSchluessel.self] }
+        set { self[WischsperreSchluessel.self] = newValue }
+    }
 }
 
 /// Zeile mit Wischgeste wie im Original: nach rechts → anwesend (grüne Fläche mit Haken), nach links → abwesend (rote
@@ -2110,6 +2177,7 @@ struct WischZeile<Inhalt: View>: View {
     @State private var ueberSchwelle = false
     @State private var ausgeloest = 0
     @GestureState private var zieht = false
+    @State private var sperre = Wischsperre()
     private let schwelle: CGFloat = 80
 
     init(rechtsMoeglich: Bool, linksMoeglich: Bool, rechts: @escaping () -> Void, links: @escaping () -> Void,
@@ -2126,6 +2194,7 @@ struct WischZeile<Inhalt: View>: View {
 
     var body: some View {
         inhalt
+            .environment(\.wischsperre, sperre)
             .background(Farben.blatt)
             .offset(x: versatz)
             .background { hintergrund }
@@ -2134,6 +2203,7 @@ struct WischZeile<Inhalt: View>: View {
             .onChange(of: zieht) { _, neu in
                 // Geste abgebrochen (z. B. von der Liste übernommen): zurückfedern
                 guard !neu else { return }
+                if waagrecht == true { sperre.bis = Date().addingTimeInterval(0.45) }
                 waagrecht = nil
                 ueberSchwelle = false
                 if versatz != 0 { withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) { versatz = 0 } }
@@ -2204,6 +2274,7 @@ struct WischZeile<Inhalt: View>: View {
                     waagrecht = abs(dx) > abs(dy) * 1.3
                 }
                 guard waagrecht == true else { return }
+                sperre.bis = .distantFuture
                 let erlaubt = dx > 0 ? rechtsMoeglich : linksMoeglich
                 versatz = erlaubt ? dx : dx / 6
                 let neu = erlaubt && abs(dx) > schwelle
@@ -2213,6 +2284,7 @@ struct WischZeile<Inhalt: View>: View {
             }
             .onEnded { _ in
                 let war = waagrecht == true
+                if war { sperre.bis = Date().addingTimeInterval(0.45) }
                 waagrecht = nil
                 let ausloesen = war && ueberSchwelle
                 let nachRechts = versatz > 0
