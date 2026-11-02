@@ -37,19 +37,27 @@ public static class AppZustand
     /// <summary>Angemeldeter Benutzer (MultiUser) bzw. Windows-Benutzer.</summary>
     public static string Benutzer { get; set; } = Environment.UserName;
 
+    /// <summary>Ereignis auslösen; im Leistungslauf mit Zeitmessung je Empfänger.</summary>
+    private static void Gemessen(Delegate? ereignis, string name, Action<Delegate> aufruf)
+    {
+        if (ereignis is null) return;
+        foreach (var h in ereignis.GetInvocationList())
+            using (Core.Messung.Start($"{name} → {h.Target?.GetType().Name ?? h.Method.DeclaringType?.Name}")) aufruf(h);
+    }
+
     public static void ModusSetzen(bool vertretung)
     {
         if (Vertretungsmodus == vertretung) return;
         Vertretungsmodus = vertretung;
         Ui.Vertretungsmodus = vertretung;
-        ModusGewechselt?.Invoke();
+        Gemessen(ModusGewechselt, "ModusGewechselt", h => ((Action)h)());
     }
 
     public static void DatumSetzen(DateOnly datum)
     {
         if (Datum == datum) return;
         Datum = datum;
-        DatumGewechselt?.Invoke(datum);
+        Gemessen(DatumGewechselt, "DatumGewechselt", h => ((Action<DateOnly>)h)(datum));
     }
 
     /// <summary>Im Vertretungsfenster markierte Zeilen (gleichzeitige Bearbeitung mehrerer Stunden).</summary>
@@ -61,7 +69,7 @@ public static class AppZustand
         MarkierteVertretungen.Clear();
         if (markiert != null) MarkierteVertretungen.AddRange(markiert);
         else if (v != null) MarkierteVertretungen.Add(v.Id);
-        VertretungGewaehlt?.Invoke(v);
+        Gemessen(VertretungGewaehlt, "VertretungGewaehlt", h => ((Action<Vertretung?>)h)(v));
     }
 
     static AppZustand()

@@ -46,6 +46,49 @@ public static class Demo
         ["7"] = new() { ["D"] = 4, ["M"] = 4, ["E"] = 3, ["F"] = 3, ["BI"] = 2, ["PH"] = 2, ["CH"] = 2, ["EK"] = 2, ["GE"] = 2, ["KR"] = 2, ["SP"] = 3 },
     };
 
+    /// <summary>
+    /// Große Schule für Leistungsmessungen: die (bereits verplante) Datei <paramref name="d"/> wird <paramref name="faktor"/>-fach
+    /// vervielfacht – Klassen, Lehrkräfte, Räume, Unterrichte und Stundenplan je Kopie mit eigenen Ids (Kürzel mit Nummer). Die Kopien
+    /// sind voneinander unabhängig, der Plan bleibt kollisionsfrei.
+    /// </summary>
+    public static void Vervielfachen(Schuldatei d, int faktor)
+    {
+        T Kopie<T>(T x) => System.Text.Json.JsonSerializer.Deserialize<T>(System.Text.Json.JsonSerializer.Serialize(x, Dokument.JsonOptionen), Dokument.JsonOptionen)!;
+        var klassen = d.Klassen.ToList();
+        var lehrer = d.Lehrer.ToList();
+        var raeume = d.Raeume.ToList();
+        var unterrichte = d.Unterrichte.ToList();
+        var plan = d.AktivePeriode.Plan.ToList();
+        for (var n = 2; n <= faktor; n++)
+        {
+            var map = new Dictionary<int, int>();
+            int M(int id) => map.TryGetValue(id, out var x) ? x : id;
+            int? MN(int? id) => id is int i ? M(i) : null;
+            foreach (var k in klassen) { var c = Kopie(k); c.Id = d.NeueId(); c.Kurzname += n; map[k.Id] = c.Id; d.Klassen.Add(c); }
+            foreach (var l in lehrer) { var c = Kopie(l); c.Id = d.NeueId(); c.Kurzname += n; map[l.Id] = c.Id; d.Lehrer.Add(c); }
+            foreach (var r in raeume) { var c = Kopie(r); c.Id = d.NeueId(); c.Kurzname += n; map[r.Id] = c.Id; d.Raeume.Add(c); }
+            foreach (var k in d.Klassen.Skip(d.Klassen.Count - klassen.Count)) k.StammraumId = MN(k.StammraumId);
+            foreach (var r in d.Raeume.Skip(d.Raeume.Count - raeume.Count)) r.AusweichraumId = MN(r.AusweichraumId);
+            foreach (var u in unterrichte)
+            {
+                var c = Kopie(u);
+                c.Id = d.NeueId();
+                map[u.Id] = c.Id;
+                c.BetreuungLehrerId = MN(c.BetreuungLehrerId);
+                foreach (var z in c.Zeilen)
+                {
+                    z.LehrerId = MN(z.LehrerId);
+                    z.KlassenIds = z.KlassenIds.Select(M).ToList();
+                    z.StammraumId = MN(z.StammraumId);
+                    if (z.FachraumId is int fr && raeume.Any(r => r.Id == fr)) z.FachraumId = M(fr);
+                }
+                d.Unterrichte.Add(c);
+            }
+            foreach (var p in plan)
+                d.AktivePeriode.Plan.Add(new Planstunde { UnterrichtId = M(p.UnterrichtId), Tag = p.Tag, Stunde = p.Stunde, Raeume = p.Raeume.Select(MN).ToList(), Fixiert = p.Fixiert });
+        }
+    }
+
     public static Schuldatei Beispielschule()
     {
         var d = NeueDatei("Städtisches Beispiel-Gymnasium", "GY");

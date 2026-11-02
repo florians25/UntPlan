@@ -267,6 +267,15 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
     private void Neuaufbau()
     {
+        using var _m = Core.Messung.Start("Vorschlag.Neuaufbau");
+        using var _ix = DatenIndex.Gemeinsam(D, Ix);
+        foreach (var g in new[] { _vorschlag, _vorziehung, _betreuung }) g.SuspendLayout();
+        try { NeuaufbauIntern(); }
+        finally { foreach (var g in new[] { _vorschlag, _vorziehung, _betreuung }) g.ResumeLayout(); }
+    }
+
+    private void NeuaufbauIntern()
+    {
         _vorschlag.Rows.Clear();
         _vorziehung.Rows.Clear();
         _betreuung.Rows.Clear();
@@ -304,18 +313,27 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         }
         var langname = D.Vertretungseinstellungen.Vorschlag.Langname;
         var markiert = MarkierteStunden(v);
-        foreach (var k in VertretungsVorschlag.Berechnen(D, v, Block, _alle.Checked, _disloz.Enabled && _disloz.Checked, markiert))
+        // Zeilen vorbereiten und in einem Rutsch einfügen (einzeln eingefügte Zeilen lösen je Zeile Layout und Neuzeichnen aus)
+        var neueZeilen = new List<DataGridViewRow>();
+        var kennzSpalte = _vorschlag.Columns["Kennz"]!.Index;
+        var nameSpalte = _vorschlag.Columns["Name"]!.Index;
+        List<Kandidat> kandidaten;
+        using (Core.Messung.Start("Vorschlag: Berechnen")) kandidaten = VertretungsVorschlag.Berechnen(D, v, Block, _alle.Checked, _disloz.Enabled && _disloz.Checked, markiert);
+        foreach (var k in kandidaten)
         {
             var z = k.Zellen;
-            var r = _vorschlag.Rows.Add(langname ? k.Lehrer.VollerName : k.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), k.Merker,
+            var zeile = new DataGridViewRow();
+            zeile.CreateCells(_vorschlag, langname ? k.Lehrer.VollerName : k.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), k.Merker,
                 Zahl(k.VertretungenWert), Zahl(k.EntfaelleWert), ZahlLeer(k.Zaehler), Zeitwunsch(k.Zeitwunsch), ZahlLeer(k.Jahreszaehler), k.Kennzeichen ? "K" : "",
                 k.RegelBereitschaft > 0 ? k.RegelBereitschaft.ToString() : "", k.Deputat is decimal dep ? ZahlLeer(dep) : "",
                 k.Fachlehrer ? "✔" : "", k.Klassenlehrer ? "KL" : k.KenntKlasse ? "✔" : "", k.UnterrichtAmTag, k.ZaehlerWoche, k.ZaehlerMonat, ((int)k.Punkte).ToString(), string.Join(", ", k.Kriterien));
-            var zeile = _vorschlag.Rows[r];
             zeile.Tag = k;
-            if (k.Kennzeichen) zeile.Cells["Kennz"].ToolTipText = k.KennzeichenText;
-            zeile.Cells["Name"].ToolTipText = k.Lehrer.VollerName + (k.Lage.Length > 0 ? " – " + k.Lage : "");
+            if (k.Kennzeichen) zeile.Cells[kennzSpalte].ToolTipText = k.KennzeichenText;
+            zeile.Cells[nameSpalte].ToolTipText = k.Lehrer.VollerName + (k.Lage.Length > 0 ? " – " + k.Lage : "");
+            neueZeilen.Add(zeile);
         }
+        using (Core.Messung.Start("Vorschlag: Zeilen einfügen"))
+            _vorschlag.Rows.AddRange(neueZeilen.ToArray());
         if (v.Offen)
             foreach (var vz in VertretungsVorschlag.Vorziehungen(D, v))
             {
@@ -324,15 +342,20 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 _vorziehung.Rows[r].Tag = vz;
                 _vorziehung.Rows[r].Cells["Art"].ToolTipText = vz.Beschreibung;
             }
+        var betreuungen = new List<DataGridViewRow>();
+        var bKennz = _betreuung.Columns["Kennz"]!.Index;
         foreach (var b in VertretungsVorschlag.Betreuungen(D, v, markiert).Where(b => !_nahe.Checked || b.Naehe <= 2))
         {
             var z = b.Zellen;
-            var r = _betreuung.Rows.Add(langname ? b.Lehrer.VollerName : b.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), b.Raum, b.Klassen, b.Fach,
+            var zeile = new DataGridViewRow();
+            zeile.CreateCells(_betreuung, langname ? b.Lehrer.VollerName : b.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), b.Raum, b.Klassen, b.Fach,
                 ZahlLeer(b.Zaehler), Zeitwunsch(b.Zeitwunsch), ZahlLeer(b.Jahreszaehler), b.Kennzeichen ? "K" : "", b.Kopplung ? "✔" : "", b.NaeheText,
                 b.BetreuungenHeute > 0 ? b.BetreuungenHeute.ToString() : "");
-            _betreuung.Rows[r].Tag = b;
-            if (b.Kennzeichen) _betreuung.Rows[r].Cells["Kennz"].ToolTipText = b.KennzeichenText;
+            zeile.Tag = b;
+            if (b.Kennzeichen) zeile.Cells[bKennz].ToolTipText = b.KennzeichenText;
+            betreuungen.Add(zeile);
         }
+        _betreuung.Rows.AddRange(betreuungen.ToArray());
         _raeume.Langname = langname;
         _raeume.Setzen(Raumvertretungen.MoeglicheRaeume(D, v, _besetzt.Checked, Block));
         foreach (var g in new[] { _vorschlag, _betreuung, _vorziehung })

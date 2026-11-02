@@ -66,9 +66,10 @@ public static class Zaehlung
     {
         var res = new ZaehlSumme();
         var e = d.Vertretungseinstellungen.Zaehler;
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var gruende = d.Abwesenheitsgruende.ToDictionary(g => g.Id);
-        var relevant = d.Vertretungen.Where(v => v.Datum >= von && v.Datum <= bis && (v.VertreterId == l.Id || v.LehrerId == l.Id)).OrderBy(v => v.Datum).ThenBy(v => v.Stunde).ToList();
+        var quelle = DatenIndex.GemeinsamFuer(d) is { } gi ? gi.VertretungenVon(l.Id) : (IEnumerable<Vertretung>)d.Vertretungen;
+        var relevant = quelle.Where(v => v.Datum >= von && v.Datum <= bis && (v.VertreterId == l.Id || v.LehrerId == l.Id)).OrderBy(v => v.Datum).ThenBy(v => v.Stunde).ToList();
         var tagesplaene = new Dictionary<DateOnly, Tagesplan>();
         Tagesplan Tp(DateOnly t) => tagesplaene.TryGetValue(t, out var x) ? x : tagesplaene[t] = Tagesplan.Berechnen(d, t);
         foreach (var v in relevant)

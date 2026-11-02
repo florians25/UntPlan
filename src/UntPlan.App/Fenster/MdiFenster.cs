@@ -192,7 +192,7 @@ public class MdiFenster : Form
     {
         if (!IsHandleCreated || (ContainsFocus && !TabelleHatFokus(this)))
         {
-            Aktualisieren(art);
+            AktualisierenGemessen(art);
             return;
         }
         if (_ausstehend is null)
@@ -200,7 +200,7 @@ public class MdiFenster : Form
             {
                 var a = _ausstehend;
                 _ausstehend = null;
-                if (!IsDisposed && a is AenderungsArt x) Aktualisieren(x);
+                if (!IsDisposed && a is AenderungsArt x) AktualisierenGemessen(x);
             });
         _ausstehend = _ausstehend is null || _ausstehend == art ? art : AenderungsArt.Alles;
     }
@@ -226,6 +226,13 @@ public class MdiFenster : Form
     protected virtual bool EigeneAenderungenAnzeigen => false;
 
     protected virtual void Aktualisieren(AenderungsArt art) { }
+
+    /// <summary>Aktualisieren mit Zeitmessung (Leistungslauf).</summary>
+    private void AktualisierenGemessen(AenderungsArt art)
+    {
+        using var _m = Core.Messung.Start($"Aktualisieren {GetType().Name}");
+        Aktualisieren(art);
+    }
 
     /// <summary>Änderung mit Rückgängig-Möglichkeit durchführen.</summary>
     protected bool Aendern(string text, AenderungsArt art, Action<Schuldatei> aktion)

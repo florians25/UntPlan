@@ -325,7 +325,7 @@ public static class Pausenaufsichten
     /// <summary>Lehrervorschlag für eine Aufsicht an einem Datum (Vertretungsmodus): anwesende, freie Lehrkräfte mit Bewertung.</summary>
     public static List<PaBewertung> LehrervorschlagAmDatum(Schuldatei d, DateOnly datum, TagesAufsicht a)
     {
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var tag = Kalender.TagIndex(d, datum);
         var pa = new Pausenaufsicht { GangId = a.GangId, Tag = tag, NachStunde = a.NachStunde, LehrerId = a.Regulaer ?? 0 };
         return Kandidaten(d, datum, pa).Select(l => Bewerten(d, ix, l, a.GangId, tag, a.NachStunde)).ToList();
@@ -339,7 +339,7 @@ public static class Pausenaufsichten
     /// <summary>Vertretungskandidaten für eine Pausenaufsicht an einem Datum (anwesend, nicht selbst eingeteilt, gereiht nach Bewertung).</summary>
     public static List<Lehrer> Kandidaten(Schuldatei d, DateOnly datum, Pausenaufsicht a)
     {
-        var ix = new DatenIndex(d);
+        var ix = DatenIndex.Fuer(d);
         var periode = d.PeriodeAm(datum);
         var belegt = (periode.Pausenaufsichten ?? new()).Where(x => x.Tag == a.Tag && x.NachStunde == a.NachStunde).Select(x => x.LehrerId).ToHashSet();
         belegt.UnionWith(d.Vertretungen.Where(v => v.Datum == datum && v.Art == VertretungsArt.Pausenaufsicht && v.Stunde == a.NachStunde && v.VertreterId.HasValue).Select(v => v.VertreterId!.Value));

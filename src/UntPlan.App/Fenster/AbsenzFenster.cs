@@ -209,7 +209,38 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _markiert = (typ, id);
         _zuMarkierungSpringen = true;
         if (_tabs.SelectedIndex != reiter) _tabs.SelectedIndex = reiter; // baut neu auf
-        else Neuaufbau();
+        else if (_neuaufbauAusstehend) Neuaufbau();
+        else MarkierungAnwenden();
+    }
+
+    /// <summary>
+    /// Markierung ohne Neuaufbau: nur die Zeilenfarbe der Absenzen des gewählten Elements setzen und zur ersten springen (bei jedem
+    /// Zeilenwechsel in der Vertretungsliste bzw. Tageswechsel – ein vollständiger Neuaufbau wäre hier unnötig teuer).
+    /// </summary>
+    private void MarkierungAnwenden()
+    {
+        var typ = Typ;
+        _laedt = true;
+        try
+        {
+            DataGridViewRow? ziel = null;
+            foreach (DataGridViewRow r in _g.Rows)
+            {
+                if (r.Tag is not Abwesenheit a) continue;
+                var an = _markiert is { } m && m.Typ == typ && m.Id == a.ElementId;
+                var farbe = an ? Ui.ZelleAktivVertretung : Color.Empty;
+                if (r.DefaultCellStyle.BackColor != farbe) r.DefaultCellStyle.BackColor = farbe;
+                if (an) ziel ??= r;
+            }
+            if (_zuMarkierungSpringen && ziel != null && _g.Columns.GetFirstColumn(DataGridViewElementStates.Visible) is { } spalte)
+                _g.CurrentCell = ziel.Cells[spalte.Index];
+        }
+        catch (InvalidOperationException) { }
+        finally
+        {
+            _zuMarkierungSpringen = false;
+            _laedt = false;
+        }
     }
 
     protected override bool EigeneAenderungenAnzeigen => true;
@@ -268,6 +299,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
     /// </summary>
     private void Neuaufbau()
     {
+        using var _m = Core.Messung.Start("AbsenzFenster.Neuaufbau");
+        using var _ix = DatenIndex.Gemeinsam(D, Ix);
         // während der Eingabe bzw. mit offenem Entwurf nicht neu aufbauen (Eingaben gingen verloren) – später nachholen
         if (_g.IsCurrentCellInEditMode || _entwurf != null)
         {

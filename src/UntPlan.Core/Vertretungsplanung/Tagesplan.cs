@@ -79,6 +79,17 @@ public sealed class Tagesplan
 
     public static Tagesplan Berechnen(Schuldatei d, DateOnly datum)
     {
+        // im Lese-Bereich (Vorschlag, Listen): jeden Tag nur einmal berechnen
+        var gemeinsam = DatenIndex.GemeinsamFuer(d);
+        if (gemeinsam != null && gemeinsam.Tagesplaene.TryGetValue(datum, out var vorhanden)) return vorhanden;
+        var neu = BerechnenIntern(d, datum);
+        if (gemeinsam != null) gemeinsam.Tagesplaene[datum] = neu;
+        return neu;
+    }
+
+    private static Tagesplan BerechnenIntern(Schuldatei d, DateOnly datum)
+    {
+        using var _m = Messung.Start("Tagesplan.Berechnen");
         var periode = d.PeriodeAm(datum);
         var unterrichte = (periode.Unterrichte ?? d.Unterrichte).ToDictionary(u => u.Id);
         var tp = new Tagesplan(datum, periode, Kalender.TagIndex(d, datum), unterrichte);

@@ -8,7 +8,7 @@ public sealed partial class HauptFenster
 {
     private readonly System.Windows.Forms.Timer _autoSpeichern = new();
 
-    private static bool Selbsttest => Program.Argumente.Any(a => a.StartsWith("--selbsttest", StringComparison.OrdinalIgnoreCase));
+    private static bool Selbsttest => Program.Argumente.Any(a => a.StartsWith("--selbsttest", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--leistung", StringComparison.OrdinalIgnoreCase));
 
     private void KomfortVorbereiten()
     {
