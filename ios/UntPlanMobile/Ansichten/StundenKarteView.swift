@@ -404,6 +404,10 @@ struct KachelzeileView: View {
 
     /// Abstand zwischen einem Label und dem nächsten Wert (statt Komma bzw. Leerzeichen).
     static let labelAbstand: CGFloat = 3
+    /// Label mitten in einer Kommaliste („HEU, [ILK] ,JOS“), Vorlage 3 px/pt nachgemessen: vom Komma (Tinte) bis zur Fläche 9 px,
+    /// von der Fläche bis zum nächsten Komma 7 px – abzüglich der Glyphenränder des Kommas
+    static let vorLabel: CGFloat = 2.6
+    static let nachLabel: CGFloat = 1.7
 
     /// Erscheint der Teil als Label (grüne Fläche)? Auf entfallenen Karten gibt es keine Labels.
     private func istLabel(_ t: Kachelteil) -> Bool {
@@ -432,9 +436,15 @@ struct KachelzeileView: View {
                         Color.clear
                             .frame(width: Self.labelAbstand, height: 1)
                     } else if !eintrag.element.trenner.isEmpty {
+                        if istLabel(eintrag.element) && eintrag.element.trenner.hasPrefix(",") {
+                            Color.clear.frame(width: Self.nachLabel, height: 1)
+                        }
                         Text(eintrag.element.trenner)
                             .strikethrough(aussehen.durchgestrichen)
                             .fixedSize()
+                        if eintrag.offset + 1 < anzahl && istLabel(zeile.teile[eintrag.offset + 1]) && eintrag.element.trenner.hasSuffix(",") {
+                            Color.clear.frame(width: Self.vorLabel, height: 1)
+                        }
                     }
                 }
                 .layoutPriority(Double(anzahl - eintrag.offset))
