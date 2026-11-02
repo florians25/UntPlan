@@ -766,7 +766,19 @@ enum Kachelbau {
                     let vertreten = k.lehrer.filter { w in w.neu && !w.k.isEmpty && !(w.alt ?? "").isEmpty && !gleich(w.alt ?? "", w.k) }
                         .compactMap { $0.alt }
                     teile.removeAll { t in t.stil != .plakette && vertreten.contains { gleich($0, t.text) } }
-                    if teile.count > 1 {
+                    // Vorlagen (Kopplung/Konferenz): alphabetisch – ein Label steht an seiner Stelle in der Liste („HEU, [ILK] ,JOS“);
+                    // derselbe Name schlicht vor dem Label
+                    teile = teile.enumerated().sorted { a, b in
+                        let c = a.element.text.localizedCaseInsensitiveCompare(b.element.text)
+                        return c == .orderedSame ? a.offset < b.offset : c == .orderedAscending
+                    }.map(\.element)
+                    let mehrere = teile.count > 1
+                    // im eigenen Lehrerplan steht das eigene Kürzel nicht in der Liste (Vorlage BON: „[ERL] ,H…“) – außer als Label
+                    if typ == "lehrer" && !ich.isEmpty && mehrere {
+                        let ohneMich = teile.filter { !(gleich($0.text, ich) && $0.stil == .text) }
+                        if !ohneMich.isEmpty { teile = ohneMich }
+                    }
+                    if mehrere {
                         // Mehrere Lehrkräfte immer durch Komma getrennt (ohne Leerzeichen: „CS,SZ“) – nie „alt | neu“
                         for j in teile.indices { teile[j].trenner = j < teile.count - 1 ? "," : "" }
                         zeile.teile = teile
