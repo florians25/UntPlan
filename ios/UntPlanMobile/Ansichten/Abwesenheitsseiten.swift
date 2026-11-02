@@ -466,23 +466,36 @@ struct AbwesenheitBearbeitenView: View {
     @State private var fehler: String? = nil
     @State private var loeschenFragen = false
     @State private var bereit = false
+    /// Avatar und Klassenkapsel (Vorlage #808e9c)
+    static let avatarGrau = Color(hexWert: 0x808E9C)
 
     /// Klassenleitung: Zeitraum über den Tag hinaus, Benachrichtigung der Erziehungsberechtigten.
     private var verwalten: Bool { daten.anwesenheit?.verwalten == true }
 
     private var tag: Date { Datumsformat.datum(daten.karte.datum) ?? Date() }
 
+    /// Stand nach dem Vorbelegen: „Abwesenheit bearbeiten“ sichert erst nach einer Änderung (Haken grau bis dahin)
+    @State private var ausgang = ""
+    private var stand: String { "\(von.timeIntervalSince1970)|\(bis.timeIntervalSince1970)|\(grund)|\(text)|\(eltern)" }
+    private var darfSichern: Bool { bis > von && (eintrag == nil || stand != ausgang) }
+
     var body: some View {
-        DetailSeitenRahmen(titel: eintrag == nil ? "Neue Abwesenheit" : "Abwesenheit bearbeiten", symbol: "xmark",
-                           zurueck: { zurueck() }) {
+        // Vorlagen (3 px/pt): Kopf wie die Stundendetails (X links), darunter ein 4 pt hoher Balken (bearbeiten #8c8c91,
+        // hinzufügen #bcc5cc); „bearbeiten“: Titel links neben dem X, rechts eine Glaskapsel mit Papierkorb und Haken;
+        // „hinzufügen“: Titel mittig, rechts der runde Haken (orange)
+        VStack(spacing: 0) {
+            kopfleiste
+            Rectangle()
+                .fill(eintrag == nil ? Color(hell: 0xC9D1D8, dunkel: 0xBCC5CC) : Color(hell: 0xA7A7AC, dunkel: 0x8C8C91))
+                .frame(height: 4)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     kopf
                     Rectangle()
                         .fill(Farben.trennlinie)
-                        .frame(height: 0.5)
+                        .frame(height: 1.0 / 3.0)
                     zeitraum
-                        .padding(.top, 14)
+                        .padding(.top, 16.3)
                     Feldtitel(text: "ABWESENHEITSGRUND")
                     NavigationLink {
                         GrundAuswahlView(gruende: daten.gruende, auswahl: $grund)
@@ -495,10 +508,11 @@ struct AbwesenheitBearbeitenView: View {
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 19, weight: .ultraLight))
-                                .foregroundStyle(Farben.gedaempft)
+                                .foregroundStyle(Self.avatarGrau)
                         }
-                        .padding(.horizontal, 10)
-                        .frame(height: 52)
+                        .padding(.leading, 10)
+                        .padding(.trailing, 17)
+                        .frame(height: 51.33)
                         .background(Farben.eingabeFeld, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .contentShape(Rectangle())
                     }
@@ -506,28 +520,25 @@ struct AbwesenheitBearbeitenView: View {
                     .padding(.horizontal, 16)
                     Feldtitel(text: "TEXT FÜR ABWESENHEIT")
                     TextField("Text hier eingeben", text: $text, axis: .vertical)
-                        .font(.system(size: 16))
+                        .font(.system(size: 17))
                         .foregroundStyle(Farben.tinte)
                         .lineLimit(3...8)
-                        .padding(10)
-                        .frame(minHeight: 104, alignment: .topLeading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 9)
+                        .frame(minHeight: 101.67, alignment: .topLeading)
                         .background(Farben.eingabeFeld, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .padding(.horizontal, 16)
-                    Toggle(isOn: $eltern) {
-                        Text("Erziehungsberechtigte benachrichtigt")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Farben.tinte)
-                    }
-                    .tint(Farben.gruen)
-                    .disabled(!verwalten)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 18)
-                    if !verwalten {
-                        Text("Abwesenheiten über den Tag der Stunde hinaus und die Benachrichtigung trägt die Klassenleitung ein.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Farben.gedaempft)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 6)
+                    // Vorlage: den Schalter gibt es nur beim Bearbeiten (nicht bei „Abwesenheit hinzufügen“)
+                    if eintrag != nil {
+                        Toggle(isOn: $eltern) {
+                            Text("Erziehungsberechtigte benachrichtigt")
+                                .font(.system(size: 15))
+                                .foregroundStyle(Farben.tinte)
+                        }
+                        .tint(Farben.gruen)
+                        .disabled(!verwalten)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
                     }
                     if let fehler {
                         Text(fehler)
@@ -539,20 +550,11 @@ struct AbwesenheitBearbeitenView: View {
                 .padding(.bottom, 30)
             }
             .scrollDismissesKeyboard(.interactively)
-        } rechts: {
-            HStack(spacing: 6) {
-                if eintrag != nil {
-                    Button {
-                        loeschenFragen = true
-                    } label: {
-                        Rundknopf(symbol: "trash", gewicht: .light, groesse: 18)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Abwesenheit löschen")
-                }
-                SichernKnopf(speichert: speichert, aktiv: bis > von) { Task { await sichern() } }
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .background(Farben.blatt.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        .onDisappear { Tastatur.schliessen() }
         .environment(\.locale, Locale(identifier: "de_DE"))
         .confirmationDialog("Abwesenheit löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) { Task { await loeschen() } }
@@ -560,66 +562,131 @@ struct AbwesenheitBearbeitenView: View {
         }
         .task {
             await daten.gruendeLaden()
+            // neue Abwesenheit: wie im Vorbild mit „fehlt“ vorbelegt
+            if eintrag == nil && grund.isEmpty,
+               let g = daten.gruende.first(where: { $0.anzeige.lowercased().hasPrefix("fehl") || $0.kurz.lowercased() == "f" }) ?? daten.gruende.first {
+                grund = g.kurz
+            }
         }
         .onAppear(perform: vorbelegen)
     }
 
+    private var kopfleiste: some View {
+        HStack(spacing: 0) {
+            Button { zurueck() } label: {
+                Rundknopf(symbol: "xmark", gewicht: .light, groesse: 20)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Schließen")
+            if eintrag != nil {
+                Text("Abwesenheit bearbeiten")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Farben.titelGrau)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.leading, 12.5)
+                Spacer(minLength: 8)
+                // Glaskapsel 108 × 44 pt: Papierkorb und Haken (grau, bis etwas geändert ist)
+                HStack(spacing: 0) {
+                    Button { loeschenFragen = true } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 20, weight: .light))
+                            .foregroundStyle(Farben.knopfSymbol)
+                            .frame(width: 50, height: Detailmass.knopf)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Abwesenheit löschen")
+                    Group {
+                        if speichert {
+                            ProgressView()
+                                .frame(width: 58, height: Detailmass.knopf)
+                        } else {
+                            Button { Task { await sichern() } } label: {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 22, weight: .light))
+                                    .foregroundStyle(darfSichern ? Farben.hakenAktiv : Farben.knopfSymbolAus)
+                                    .frame(width: 58, height: Detailmass.knopf)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!darfSichern)
+                            .accessibilityLabel("Sichern")
+                        }
+                    }
+                }
+                .liquidGlas(Capsule())
+            } else {
+                Spacer(minLength: 8)
+                Text("Abwesenheit hinzufügen")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Farben.titelGrau)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                SichernKnopf(speichert: speichert, aktiv: darfSichern, glas: true) { Task { await sichern() } }
+            }
+        }
+        .padding(.horizontal, Geraet.istPad ? 9.6 : 16)
+        .padding(.top, Geraet.istPad ? 9.6 : 16)
+        .padding(.bottom, 9)
+        .frame(minHeight: Geraet.istPad ? 62.6 : 69)
+        .background(Farben.blatt)
+    }
+
+    /// Avatar (Ø 44 pt, #818f9c), Name 19 pt, darunter die Klasse als Kapsel (gleiches Grau, dunkle Schrift).
     private var kopf: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             Text(Initialen.kuerzel(schueler.anzeige))
                 .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
-                .background(Farben.avatar, in: Circle())
-            VStack(alignment: .leading, spacing: 3) {
+                .background(Self.avatarGrau, in: Circle())
+            VStack(alignment: .leading, spacing: 4) {
                 Text(schueler.anzeige)
                     .font(.system(size: 19))
                     .foregroundStyle(Farben.tinte)
                     .lineLimit(1)
                 if !schueler.klasse.isEmpty {
                     Text(schueler.klasse)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Farben.tinte)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(Farben.zahlPlakette.opacity(0.55), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(hell: 0x12191F, dunkel: 0x12191F))
+                        .padding(.horizontal, 9.5)
+                        .frame(height: 18.67)
+                        .background(Self.avatarGrau, in: Capsule())
                 }
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.top, 16.3)
+        .padding(.bottom, 17.7)
     }
 
-    /// START und ENDE: je eine Pille für Datum und Uhrzeit (minutengenau).
+    /// START und ENDE: je eine Pille für Datum und Uhrzeit (minutengenau); Spalten bei 16 und 205 pt (Vorlage).
     private var zeitraum: some View {
         HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("START")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Farben.tinte2)
-                    .padding(.leading, 6)
-                DatePicker("Startdatum", selection: $von, in: datumsbereich, displayedComponents: .date)
-                    .labelsHidden()
-                    .disabled(!verwalten)
-                DatePicker("Startzeit", selection: $von, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ENDE")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Farben.tinte2)
-                    .padding(.leading, 6)
-                DatePicker("Enddatum", selection: $bis, in: datumsbereich, displayedComponents: .date)
-                    .labelsHidden()
-                    .disabled(!verwalten)
-                DatePicker("Endzeit", selection: $bis, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            spalte("START", datum: $von, zeitText: "Startzeit", datumText: "Startdatum")
+                .frame(width: 189, alignment: .leading)
+            spalte("ENDE", datum: $bis, zeitText: "Endzeit", datumText: "Enddatum")
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
+        .padding(.leading, 16)
+    }
+
+    private func spalte(_ titel: String, datum: Binding<Date>, zeitText: String, datumText: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(titel)
+                .font(.system(size: 13))
+                .foregroundStyle(Farben.tinte2)
+                .padding(.leading, 10.7)
+                .padding(.bottom, 2)
+            DatePicker(datumText, selection: datum, in: datumsbereich, displayedComponents: .date)
+                .labelsHidden()
+                .disabled(!verwalten)
+            DatePicker(zeitText, selection: datum, displayedComponents: .hourAndMinute)
+                .labelsHidden()
+        }
     }
 
     /// Klassenleitung: bis zu 60 Tage; sonst nur der Tag der Stunde.
@@ -644,6 +711,7 @@ struct AbwesenheitBearbeitenView: View {
             von = daten.zeit(daten.blockBeginn)
             bis = daten.zeit(daten.blockEnde)
         }
+        ausgang = stand
     }
 
     private func zeitpunkt(_ datum: String, _ zeit: String, ersatz: Date) -> Date {
