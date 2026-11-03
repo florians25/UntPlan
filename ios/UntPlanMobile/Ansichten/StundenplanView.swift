@@ -1743,7 +1743,7 @@ struct RasterSeite: View, Equatable {
         let hoehe = rahmen.hoehe
         let zeiten = daten.plan.map { Rasterzeit.aus($0) } ?? rahmen.zeiten
         // Gleichzeitige Stunden (Kopplungen, Vertretung neben Entfall …) nebeneinander in gleich breiten Spuren wie im Web
-        let belegung = Kachelbau.anordnen(kacheln, spaltenBreite: breite, tagesansicht: nurTage?.count == 1)
+        let belegung = Anordnungsspeicher.belegung(kacheln, spaltenBreite: breite, tagesansicht: nurTage?.count == 1)
         let vorErste = belegung.lagen.filter { $0.kachel.vorErsterStunde }.map(\.kachel.id)
         return ZStack(alignment: .topLeading) {
             if tag.frei {
@@ -2095,7 +2095,26 @@ enum Kachelspeicher {
     /// Alles verwerfen (z. B. beim Wechsel in ein anderes Konto).
     static func leeren() {
         speicher.removeAll()
+        Anordnungsspeicher.leeren()
     }
+}
+
+/// Anordnung paralleler Stunden je Tag zwischenspeichern: dieselben Kacheln (Kennungen aus dem Kachelspeicher) bei gleicher
+/// Spaltenbreite ergeben dieselbe Belegung – beim Wischen und bei jedem Neuzeichnen nicht jedes Mal neu berechnen.
+enum Anordnungsspeicher {
+    private static var speicher: [String: Tagesbelegung] = [:]
+
+    static func belegung(_ kacheln: [Kachel], spaltenBreite: CGFloat, tagesansicht: Bool) -> Tagesbelegung {
+        var schluessel = "\(Int((spaltenBreite * 4).rounded()))|\(tagesansicht)"
+        for k in kacheln { schluessel += "|\(k.id.uuidString)\(k.vergangen ? "v" : "")" }
+        if let fertig = speicher[schluessel] { return fertig }
+        let neu = Kachelbau.anordnen(kacheln, spaltenBreite: spaltenBreite, tagesansicht: tagesansicht)
+        if speicher.count > 200 { speicher.removeAll(keepingCapacity: true) }
+        speicher[schluessel] = neu
+        return neu
+    }
+
+    static func leeren() { speicher.removeAll() }
 }
 
 /// Karten reagieren beim Antippen ohne Animation und ohne Hervorhebung.

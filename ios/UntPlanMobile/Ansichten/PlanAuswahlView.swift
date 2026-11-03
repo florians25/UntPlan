@@ -215,6 +215,13 @@ struct PlanAuswahlView: View {
                                 .foregroundStyle(Farben.tinte)
                                 .lineLimit(1)
                             Spacer(minLength: 4)
+                            // gewählter Plan: Haken rechts (wie bei „Mein Stundenplan“ und in den Listen)
+                            if auswahl?.typ == fav.typ && auswahl?.element == fav.element {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 17, weight: .medium))
+                                    .foregroundStyle(Farben.akzent)
+                                    .accessibilityLabel("ausgewählt")
+                            }
                         }
                         .contentShape(Rectangle())
                     }
