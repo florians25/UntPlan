@@ -184,11 +184,6 @@ struct PlanAuswahlView: View {
                     .font(.system(size: 20))
                     .foregroundStyle(Farben.detailText)
                 Spacer(minLength: 4)
-                if auswahl == nil {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(Farben.akzent)
-                }
             }
             .contentShape(Rectangle())
         }
@@ -215,13 +210,6 @@ struct PlanAuswahlView: View {
                                 .foregroundStyle(Farben.tinte)
                                 .lineLimit(1)
                             Spacer(minLength: 4)
-                            // gewählter Plan: Haken rechts (wie bei „Mein Stundenplan“ und in den Listen)
-                            if auswahl?.typ == fav.typ && auswahl?.element == fav.element {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 17, weight: .medium))
-                                    .foregroundStyle(Farben.akzent)
-                                    .accessibilityLabel("ausgewählt")
-                            }
                         }
                         .contentShape(Rectangle())
                     }
@@ -692,11 +680,6 @@ struct Elementzeile: View {
                         }
                     }
                     Spacer(minLength: 4)
-                    if gewaehlt {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Farben.akzent)
-                    }
                 }
                 .padding(.vertical, 8)
                 .contentShape(Rectangle())
