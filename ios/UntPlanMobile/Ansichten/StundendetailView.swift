@@ -64,6 +64,8 @@ struct StundendetailInhalt: View {
     @Environment(\.blattBewegt) private var blattBewegt
     /// Systemblatt (iPad): Inhalt erst nach dem Einblenden aufbauen
     @State private var eingeblendet = false
+    /// Inhalt nach einem Reiterwechsel im offenen Blatt: nie das Ladebild – die Stunde steht sofort da, Zusatzdaten laden still nach
+    @State private var reiterwechsel = false
     @Environment(\.openURL) private var oeffneURL
     @StateObject private var daten: Stundendaten
     @State private var onlineFehler: String? = nil
@@ -92,6 +94,7 @@ struct StundendetailInhalt: View {
         _einflugVersatz = State(initialValue: einflug.wrappedValue)
         // Reiterwechsel im offenen Blatt: nicht erneut auf das Einblenden warten
         _eingeblendet = State(initialValue: einflug.wrappedValue != 0)
+        _reiterwechsel = State(initialValue: einflug.wrappedValue != 0)
     }
 
     /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
@@ -112,7 +115,7 @@ struct StundendetailInhalt: View {
     /// Ladebild statt Inhalt: solange geladen wird und während das Blatt ein- oder ausfährt (wie im Original –
     /// die schwere Liste wird erst danach aufgebaut, Öffnen und Schließen laufen dadurch flüssiger).
     private var zeigtSkelett: Bool {
-        !daten.geladen || (blattBewegt ?? !eingeblendet)
+        (!daten.geladen && !reiterwechsel) || (blattBewegt ?? !eingeblendet)
     }
 
     private var kollegium: Bool { zustand.istKollegium }
@@ -406,6 +409,7 @@ struct StundendetailInhalt: View {
         guard neu != auswahl, karten.indices.contains(neu), !wechselt else { return }
         let vor: CGFloat = neu > auswahl ? 1 : -1
         guard inhaltBreite > 0 else {
+            einflug = vor
             auswahl = neu
             return
         }
