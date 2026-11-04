@@ -141,6 +141,7 @@ final class AppZustand: ObservableObject {
         tagAnfrage = nil
         notizAenderung = nil
         Kachelspeicher.leeren()
+        Elementspeicher.letzte = nil
     }
 
     /// In ein anderes angemeldetes Konto wechseln, ohne abzumelden: Sitzung des bisherigen Kontos sichern, die des

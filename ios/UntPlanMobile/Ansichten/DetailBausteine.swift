@@ -331,7 +331,15 @@ struct Randblatt<Inhalt: View>: View {
                                                style: .continuous)
                             .fill(Farben.blatt)
                             .ignoresSafeArea(edges: .bottom)
-                            .shadow(color: .black.opacity(0.12), radius: 10, y: -2)
+                            // Schatten über der Oberkante als Verlauf statt weichgezeichnetem Schatten der ganzen Fläche:
+                            // sieht gleich aus, kostet beim Ein- und Ausfahren aber keine Weichzeichnung je Bild (ruckelfrei)
+                            .background(alignment: .top) {
+                                LinearGradient(colors: [.black.opacity(0), .black.opacity(0.10)], startPoint: .top, endPoint: .bottom)
+                                    .frame(height: 12)
+                                    .padding(.horizontal, Detailblatt.iPhoneRadius * 0.45)
+                                    .offset(y: -11)
+                                    .allowsHitTesting(false)
+                            }
                     }
                     .simultaneousGesture(ziehen(blattHoehe, kopfUnten: geo.size.height - innenHoehe + griffHoehe))
                     .scaleEffect(kindOffen ? Self.geschrumpft : 1, anchor: .top)
