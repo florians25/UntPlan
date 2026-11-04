@@ -604,13 +604,13 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 /* Marker (Karten und Legende) */
 .mk-quadrat, .mk-kreis, .mk-dreieck, .mk-plus { display: inline-block; width: 12px; height: 12px; flex: none; }
 /* Symbole wie im Original (SVG): Viereck grün mit runden Ecken */
-.mk-quadrat { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='-50 -50 300 300'%3E%3Cpolygon points='0,0 200,0 200,200 0,200' fill='%23199c5f' stroke='%23199c5f' stroke-width='50' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 12px 12px; }
+.mk-quadrat { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='-50 -50 300 300'%3E%3Cpolygon points='0,0 200,0 200,200 0,200' fill='%23199c5f' stroke='%23199c5f' stroke-width='100' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 12px 12px; }
 .mk-plus { background: var(--u-gruen); border-radius: 2px; position: relative; }
 .mk-plus::before, .mk-plus::after { content: ""; position: absolute; background: #fff; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .mk-plus::before { width: 8px; height: 1.8px; }
 .mk-plus::after { width: 1.8px; height: 8px; }
 .mk-kreis { background: var(--u-gelb); border-radius: 50%; }
-.mk-dreieck { width: 12px; height: 12px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='-50 -50 300 300'%3E%3Cpolygon points='100,0 0,173 200,173' fill='%23ff4040' stroke='%23ff4040' stroke-width='50' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 12px 12px; }
+.mk-dreieck { width: 12px; height: 12px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='-50 -50 300 300'%3E%3Cpolygon points='100,0 0,173 200,173' fill='%23ff4040' stroke='%23ff4040' stroke-width='100' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 12px 12px; }
 
 /* Zustände (mit schwebendem Schatten wie im Original) */
 .std.geaendert, .std.offen, .std.buchung { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
