@@ -49,7 +49,8 @@ struct PlanAuswahlView: View {
         if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
     }
     @Binding var auswahl: PlanAuswahl?
-    @State private var elemente: Elemente? = nil
+    /// Zuletzt geladene Elemente: die Auswahl steht beim Öffnen sofort da und wird im Hintergrund aufgefrischt
+    @State private var elemente: Elemente? = Elementspeicher.letzte
     @State private var suche = ""
     @State private var fehler: String? = nil
     @State private var bearbeiten: EditMode = .inactive
@@ -304,12 +305,20 @@ struct PlanAuswahlView: View {
 
     private func laden() async {
         do {
-            elemente = try await zustand.api.elemente()
+            let neu = try await zustand.api.elemente()
+            Elementspeicher.letzte = neu
+            elemente = neu
             fehler = nil
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
         }
     }
+}
+
+/// Zwischenspeicher der Elementlisten (Klassen, Lehrkräfte, Räume …) für das sofortige Öffnen der Planauswahl.
+@MainActor
+enum Elementspeicher {
+    static var letzte: Elemente? = nil
 }
 
 // MARK: - Liste einer Planart
