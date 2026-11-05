@@ -41,7 +41,7 @@ public static class Behinderung
                 if (i < raeume.Count && raeume[i] is int r) benoetigt.Add(r);
                 continue;
             }
-            var kandidaten = ix.RaumKandidaten(u.Zeilen[i]);
+            var kandidaten = ix.RaumKandidaten(u, u.Zeilen[i]);
             if (kandidaten.Count == 1) benoetigt.Add(kandidaten[0]);
         }
         var res = new List<Hindernis>();

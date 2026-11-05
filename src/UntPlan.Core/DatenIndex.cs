@@ -155,6 +155,14 @@ public sealed class DatenIndex
         return liste;
     }
 
+    /// <summary>Raumkandidaten unter Berücksichtigung des Unterrichts-Kennzeichens (K) Kein Ausweichraum (nur der angegebene Raum).</summary>
+    public List<int> RaumKandidaten(Unterricht u, Kopplungszeile z)
+    {
+        var l = RaumKandidaten(z);
+        if (u.KeinAusweichraum && z.Wunschraum.HasValue && l.Count > 1) l.RemoveRange(1, l.Count - 1);
+        return l;
+    }
+
     public int Raumgewicht(Kopplungszeile z)
     {
         if (z.Wunschraum is int r && Raeume.TryGetValue(r, out var raum)) return raum.Raumgewicht;

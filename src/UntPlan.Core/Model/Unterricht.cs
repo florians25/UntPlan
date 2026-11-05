@@ -22,6 +22,8 @@ public sealed class Kopplungszeile
     public int? UGruppeId { get; set; }
     /// <summary>Schülergruppe dieser Kopplungszeile (z. B. „SportK_1a1b_Rub“), leer = wie Unterricht.</summary>
     public string Schuelergruppe { get; set; } = "";
+    /// <summary>Lehrerzuordnung fix: die automatische Lehrerzuordnung verändert den Lehrer dieser Zeile nicht.</summary>
+    public bool LehrerFix { get; set; }
 
     /// <summary>Gewünschter Raum: Fachraum vor Stammraum.</summary>
     [JsonIgnore] public int? Wunschraum => FachraumId ?? StammraumId;
@@ -31,7 +33,7 @@ public sealed class Kopplungszeile
     {
         LehrerId = LehrerId, FachId = FachId, KlassenIds = new List<int>(KlassenIds), FachraumId = FachraumId,
         FachraumgruppeId = FachraumgruppeId, StammraumId = StammraumId, StammraumgruppeId = StammraumgruppeId, Wert = Wert, Zeilentext = Zeilentext, UGruppeId = UGruppeId,
-        Schuelergruppe = Schuelergruppe,
+        Schuelergruppe = Schuelergruppe, LehrerFix = LehrerFix,
     };
 }
 
@@ -79,6 +81,74 @@ public sealed class Unterricht
     public decimal? WerteFaktor { get; set; }
     public Zeitwuensche Zeitwuensche { get; set; } = new();
     public string Kommentar { get; set; } = "";
+    // Kennzeichen Teil 1
+    /// <summary>(m) markiert.</summary>
+    public bool Markiert { get; set; }
+    /// <summary>(E) Doppelstunden über *-Pausen.</summary>
+    public bool DoppelstundeUeberPause { get; set; }
+    /// <summary>(F) Freifach.</summary>
+    public bool Freifach { get; set; }
+    /// <summary>(G) Nicht in Randstunde.</summary>
+    public bool NichtInRandstunde { get; set; }
+    /// <summary>(K) Kein Ausweichraum: nur im angegebenen Raum verplanen.</summary>
+    public bool KeinAusweichraum { get; set; }
+    /// <summary>(k) Keine Datenanalyse (Diagnose der Eingabedaten).</summary>
+    public bool KeineDatenanalyse { get; set; }
+    /// <summary>(r) Stunden im selben Raum.</summary>
+    public bool SelberRaum { get; set; }
+    // Kennzeichen Teil 2
+    /// <summary>(B) Bedingt fixieren: im Setzlauf fix, in der Tauschoptimierung beweglich.</summary>
+    public bool BedingtFixieren { get; set; }
+    /// <summary>(D) Doppelstunden einhalten.</summary>
+    public bool DoppelstundenEinhalten { get; set; }
+    /// <summary>(C) Keine Einzelstunden.</summary>
+    public bool KeineEinzelstunden { get; set; }
+    /// <summary>(R) Randstunde.</summary>
+    public bool Randstunde { get; set; }
+    /// <summary>(S) Klassengruppe später planen.</summary>
+    public bool KlassengruppeSpaeter { get; set; }
+    /// <summary>(V) Variabler Lehrer.</summary>
+    public bool VariablerLehrer { get; set; }
+    /// <summary>(L) Nicht in Legende.</summary>
+    public bool NichtInLegende { get; set; }
+    /// <summary>(U) Am Nachmittag nur Doppelstunden.</summary>
+    public bool NachmittagNurDoppel { get; set; }
+    /// <summary>(M) Manuell planen: wird von der Optimierung nicht verplant.</summary>
+    public bool ManuellPlanen { get; set; }
+    /// <summary>(s) Immer selbe Zeit.</summary>
+    public bool ImmerSelbeZeit { get; set; }
+    // Karteikarte Stundenplan
+    /// <summary>Stunden im Raum: nur so viele Stunden im Fachraum verplanen (0 = alle).</summary>
+    public int StundenImRaum { get; set; }
+    /// <summary>Fachfolge Klassen (1–9 positiv, A–E negativ), leer = wie Fach.</summary>
+    public string FachfolgeKlassen { get; set; } = "";
+    /// <summary>Fachfolge Lehrer (1–9 positiv, A–E negativ), leer = wie Fach.</summary>
+    public string FachfolgeLehrer { get; set; } = "";
+    /// <summary>KlassenKoll. Kz. (KKK): 1–9 = gleichzeitig mit gleichem KKK erlaubt, A–H = mit anderem Buchstaben-KKK erlaubt.</summary>
+    public string Klassenkollision { get; set; } = "";
+
+    /// <summary>Unterrichts-Kennzeichen (ohne vererbte), z. B. „XiFr“ – Spalte „Kennzeichen“.</summary>
+    [JsonIgnore] public string Kennzeichen => string.Concat(
+        Fix ? "X" : "", Ignorieren ? "i" : "", Markiert ? "m" : "", DoppelstundeUeberPause ? "E" : "", Freifach ? "F" : "", NichtInRandstunde ? "G" : "",
+        KeinAusweichraum ? "K" : "", KeineDatenanalyse ? "k" : "", SelberRaum ? "r" : "", BedingtFixieren ? "B" : "", DoppelstundenEinhalten ? "D" : "",
+        KeineEinzelstunden ? "C" : "", Randstunde ? "R" : "", KlassengruppeSpaeter ? "S" : "", MehrmalsProTag ? "2" : "", VariablerLehrer ? "V" : "",
+        NichtInLegende ? "L" : "", NachmittagNurDoppel ? "U" : "", ManuellPlanen ? "M" : "", ImmerSelbeZeit ? "s" : "", Zeitwuensche.Leer ? "" : "Z");
+
+    /// <summary>
+    /// Klassenkollisions-Kennzeichen: dürfen <paramref name="a"/> und <paramref name="b"/> trotz gemeinsamer Klasse gleichzeitig stattfinden?
+    /// Ziffern: nur bei gleichem KKK; Buchstaben: bei verschiedenen Buchstaben.
+    /// </summary>
+    public static bool KlassenkollisionErlaubt(Unterricht a, Unterricht b)
+    {
+        var x = (a.Klassenkollision ?? "").Trim().ToUpperInvariant();
+        var y = (b.Klassenkollision ?? "").Trim().ToUpperInvariant();
+        if (x.Length == 0 || y.Length == 0) return false;
+        var zx = char.IsDigit(x[0]);
+        var zy = char.IsDigit(y[0]);
+        if (zx && zy) return x == y;
+        if (!zx && !zy) return x != y;
+        return false;
+    }
 
     [JsonIgnore] public IEnumerable<int> LehrerIds => Zeilen.Where(z => z.LehrerId.HasValue).Select(z => z.LehrerId!.Value).Distinct();
     [JsonIgnore] public IEnumerable<int> KlassenIds => Zeilen.SelectMany(z => z.KlassenIds).Distinct();
@@ -98,7 +168,8 @@ public sealed class Unterricht
                 rest -= b;
             }
         }
-        var doppel = Math.Min(Doppelstunden.Min, rest / 2);
+        // (C) Keine Einzelstunden: so viele Doppelstunden wie möglich
+        var doppel = KeineEinzelstunden ? rest / 2 : Math.Min(Doppelstunden.Min, rest / 2);
         for (var i = 0; i < doppel; i++)
         {
             result.Add(2);
@@ -115,6 +186,12 @@ public sealed class Unterricht
         MehrmalsProTag = MehrmalsProTag, KeineVertretung = KeineVertretung, Band = Band, Kursname = Kursname, MaxSchueler = MaxSchueler, VonDatum = VonDatum,
         BisDatum = BisDatum, Periodizitaet = Periodizitaet, WerteFaktor = WerteFaktor, Zeitwuensche = Zeitwuensche.Kopie(),
         UGruppeId = UGruppeId, BetreuungLehrerId = BetreuungLehrerId, Kommentar = Kommentar,
+        Markiert = Markiert, DoppelstundeUeberPause = DoppelstundeUeberPause, Freifach = Freifach, NichtInRandstunde = NichtInRandstunde,
+        KeinAusweichraum = KeinAusweichraum, KeineDatenanalyse = KeineDatenanalyse, SelberRaum = SelberRaum, BedingtFixieren = BedingtFixieren,
+        DoppelstundenEinhalten = DoppelstundenEinhalten, KeineEinzelstunden = KeineEinzelstunden, Randstunde = Randstunde,
+        KlassengruppeSpaeter = KlassengruppeSpaeter, VariablerLehrer = VariablerLehrer, NichtInLegende = NichtInLegende,
+        NachmittagNurDoppel = NachmittagNurDoppel, ManuellPlanen = ManuellPlanen, ImmerSelbeZeit = ImmerSelbeZeit,
+        StundenImRaum = StundenImRaum, FachfolgeKlassen = FachfolgeKlassen, FachfolgeLehrer = FachfolgeLehrer, Klassenkollision = Klassenkollision,
     };
 
     public bool GiltAm(DateOnly datum, int schulwoche)
@@ -179,6 +256,8 @@ public sealed class Periode
     /// <summary>Unterricht dieser Periode (null nur in älteren Dateien vor der Umstellung).</summary>
     public List<Unterricht>? Unterrichte { get; set; }
     public List<Planstunde> Plan { get; set; } = new();
+    /// <summary>Unterrichtsfolgen dieser Periode (fixe Fachfolge, Wochenfolge, Gleichzeitigkeit).</summary>
+    public List<Unterrichtsfolge>? Unterrichtsfolgen { get; set; }
     public List<Pausenaufsicht>? Pausenaufsichten { get; set; }
     /// <summary>
     /// Stand des Stundenplans beim letzten Abgleich mit der Vertretungsplanung (Moduswechsel/Neuberechnung): Stunden, die seitdem
@@ -194,6 +273,39 @@ public sealed class Periode
         Id = neueId, Name = name, Langname = name, Von = von, Bis = bis, MutterId = Id,
         Unterrichte = (Unterrichte ?? new()).Select(u => u.Kopie(u.Id)).ToList(),
         Plan = Plan.Select(p => p.Kopie()).ToList(),
+        Unterrichtsfolgen = Unterrichtsfolgen?.Select(f => new Unterrichtsfolge { Name = f.Name, Art = f.Art, UnterrichtIds = new List<int>(f.UnterrichtIds) }).ToList(),
         Pausenaufsichten = (Pausenaufsichten ?? new()).Select(a => new Pausenaufsicht { GangId = a.GangId, Tag = a.Tag, NachStunde = a.NachStunde, LehrerId = a.LehrerId, Teil = a.Teil, Datum = a.Datum, UGruppeId = a.UGruppeId }).ToList(),
     };
+}
+
+public enum UnterrichtsfolgeArt
+{
+    /// <summary>Fixe Fachfolge: die Unterrichte folgen in dieser Reihenfolge unmittelbar aufeinander (alle Stunden als Block).</summary>
+    FixeFachfolge = 0,
+    /// <summary>Variable fixe Fachfolge: unmittelbar aufeinander, Reihenfolge beliebig.</summary>
+    VariableFachfolge = 1,
+    /// <summary>Gleichzeitiger Unterricht: erwünscht, aber nicht zwingend gleichzeitig.</summary>
+    Gleichzeitig = 2,
+    /// <summary>Wochenfolge: im Wochenablauf vor den folgenden Unterrichten (max. 3 Unterrichte).</summary>
+    Wochenfolge = 3,
+}
+
+/// <summary>Unterrichtsfolge (Registerkarte Planung | Unterrichtsfolgen).</summary>
+public sealed class Unterrichtsfolge
+{
+    /// <summary>Name der Folge (z. B. „G2“).</summary>
+    public string Name { get; set; } = "";
+    public UnterrichtsfolgeArt Art { get; set; }
+    public List<int> UnterrichtIds { get; set; } = new();
+
+    public static string ArtText(UnterrichtsfolgeArt a) => a switch
+    {
+        UnterrichtsfolgeArt.FixeFachfolge => "Fixe Fachfolge",
+        UnterrichtsfolgeArt.VariableFachfolge => "Variable fixe Fachfolge",
+        UnterrichtsfolgeArt.Gleichzeitig => "Gleichzeitiger Unterricht",
+        _ => "Wochenfolge",
+    };
+
+    /// <summary>Höchstzahl an Unterrichten je Folge (Wochenfolge: 3).</summary>
+    public static int MaxUnterrichte(UnterrichtsfolgeArt a) => a == UnterrichtsfolgeArt.Wochenfolge ? 3 : 20;
 }

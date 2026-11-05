@@ -48,7 +48,8 @@ public static class Planungsdienst
             var gemeinsameL = o.LehrerIds.Where(lehrer.Contains).ToList();
             var gemeinsameK = o.KlassenIds.Where(klassen.Contains).ToList();
             if (gemeinsameL.Count > 0) res.Add(new Hindernis(p, o, $"Lehrer {string.Join(",", gemeinsameL.Select(ix.KLehrer))}"));
-            else if (gemeinsameK.Count > 0) res.Add(new Hindernis(p, o, $"Klasse {ix.KKlassen(gemeinsameK)}"));
+            // Klassenkollisions-Kennzeichen (KKK): gleichzeitige Verplanung trotz gemeinsamer Klasse erlaubt
+            else if (gemeinsameK.Count > 0 && !Unterricht.KlassenkollisionErlaubt(u, o)) res.Add(new Hindernis(p, o, $"Klasse {ix.KKlassen(gemeinsameK)}"));
         }
         return res;
     }
@@ -76,7 +77,7 @@ public static class Planungsdienst
         foreach (var z in u.Zeilen)
         {
             int? gewaehlt = null;
-            foreach (var r in ix.RaumKandidaten(z))
+            foreach (var r in ix.RaumKandidaten(u, z))
                 if (!belegt.Contains(r) && !ix.Raeume[r].Zeitwuensche.Gesperrt(tag, stunde)) { gewaehlt = r; break; }
             if (gewaehlt.HasValue) belegt.Add(gewaehlt.Value);
             res.Add(gewaehlt);
@@ -97,7 +98,7 @@ public static class Planungsdienst
             if (VorgabeVerletzt(d, ix, u, tag, stunde + j)) verletzt = true;
             var raeume = RaeumeSuchen(d, ix, u, tag, stunde + j, ignorieren);
             for (var i = 0; i < u.Zeilen.Count; i++)
-                if (raeume[i] is null && ix.RaumKandidaten(u.Zeilen[i]).Count > 0) keinRaum = true;
+                if (raeume[i] is null && ix.RaumKandidaten(u, u.Zeilen[i]).Count > 0) keinRaum = true;
         }
         if (verletzt) return Feldstatus.VorgabeVerletzt;
         if (keinRaum) return Feldstatus.KeinRaum;
@@ -283,7 +284,7 @@ public static class Planungsdienst
     public static List<(Raum Raum, bool Frei, Planstunde? Belegt, bool Wunsch)> Raumliste(Schuldatei d, DatenIndex ix, Planstunde p, int zeile)
     {
         var u = ix.Unterrichte[p.UnterrichtId];
-        var kand = zeile < u.Zeilen.Count ? ix.RaumKandidaten(u.Zeilen[zeile]) : new List<int>();
+        var kand = zeile < u.Zeilen.Count ? ix.RaumKandidaten(u, u.Zeilen[zeile]) : new List<int>();
         var res = new List<(Raum, bool, Planstunde?, bool)>();
         foreach (var r in d.Raeume)
         {

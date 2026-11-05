@@ -67,6 +67,36 @@ public sealed class Raum : Element
     public bool Buchbar { get; set; }
     /// <summary>Nächstgelegene Gänge (Pausenaufsicht), Komma-Liste mit Platzhaltern * und ?.</summary>
     public string Gaenge { get; set; } = "";
+    /// <summary>
+    /// Disloz. – Dislozierung (Außenstelle): 1–9 mit Zeitstaffelung (Wegzeit in Stunden), A–E ohne Zeitstaffelung, leer = Hauptgebäude.
+    /// Wechselt eine Lehrkraft oder Klasse ohne freie Stunde zwischen verschiedenen Dislozierungen, ist das ein Verstoß.
+    /// </summary>
+    public string Dislozierung { get; set; } = "";
+
+    /// <summary>Normalisierte Dislozierungskennung (1–9, A–E) oder leer.</summary>
+    public static string DislozierungNormal(string? s)
+    {
+        var t = (s ?? "").Trim().ToUpperInvariant();
+        if (t.Length != 1) return "";
+        var c = t[0];
+        return c is >= '1' and <= '9' or >= 'A' and <= 'E' ? t : "";
+    }
+
+    /// <summary>
+    /// Benötigte freie Stunden zwischen zwei Räumen: 0 = gleiche Dislozierung; Ziffern mit Zeitstaffelung = Differenz der Ziffern
+    /// (Hauptgebäude zählt als 0), Buchstaben bzw. Buchstabe ↔ anderes Gebäude = 1.
+    /// </summary>
+    public static int Wegzeit(string? a, string? b)
+    {
+        a = DislozierungNormal(a);
+        b = DislozierungNormal(b);
+        if (a == b) return 0;
+        int Ziffer(string x) => x.Length == 0 ? 0 : char.IsDigit(x[0]) ? x[0] - '0' : -1;
+        var za = Ziffer(a);
+        var zb = Ziffer(b);
+        if (za >= 0 && zb >= 0) return Math.Max(1, Math.Abs(za - zb));
+        return 1;
+    }
 
     public static string GewichtText(int g) => g switch
     {
@@ -106,8 +136,45 @@ public sealed class Klasse : Element
     public int MaxNachmittage { get; set; }
     /// <summary>Klassenzeitraster der Vertretungsplanung (Schlüssel Tag*100+Stunde), überschreibt den globalen.</summary>
     public Dictionary<int, VertretungsRegel> VertretungsZeitraster { get; set; } = new();
+    /// <summary>max. verschiedene Unt./Tag (0 = keine Vorgabe).</summary>
+    public int MaxVerschiedeneProTag { get; set; }
+    /// <summary>Hauptklasse (typengetrennte Klassenteile: gemeinsamer Plan).</summary>
+    public int? HauptklasseId { get; set; }
+    /// <summary>Stundentafel (Jahrgang der Stundentafel, Unterrichtsplanung und Wertrechnung); leer = Jahrgangsstufe der Klasse.</summary>
+    public string Stundentafel { get; set; } = "";
+    /// <summary>Vorjahresname der Klasse (Vorjahreslehrer, begleitender Aufstieg).</summary>
+    public string Vorjahresname { get; set; } = "";
+    /// <summary>(P) Hohlstunden zulässig (Pseudoklassen, Klassenteile).</summary>
+    public bool HohlstundenZulaessig { get; set; }
+    /// <summary>(F) Unterrichtstage nicht in Folge.</summary>
+    public bool TageNichtInFolge { get; set; }
+    /// <summary>(2) 2 Tage hintereinander: die Unterrichtstage müssen unmittelbar aufeinanderfolgen.</summary>
+    public bool ZweiTageHintereinander { get; set; }
+    /// <summary>(H) 1 Halbtag/Tag belegen: nicht vormittags UND nachmittags am selben Tag.</summary>
+    public bool EinHalbtag { get; set; }
+    /// <summary>(Y) Belegung beibehalten: vor der ersten und nach der letzten belegten Stunde des Halbtages gesperrt.</summary>
+    public bool BelegungBeibehalten { get; set; }
+    /// <summary>Klassenzeitraster der Stundenplanung (Schlüssel Tag*100+Stunde): Doppelstunden, Einzelstunden, Letzte Stunde „Nein“.</summary>
+    public Dictionary<int, KlassenzeitrasterArt> Klassenzeitraster { get; set; } = new();
 
     [JsonIgnore] public int Schuelerzahl => SchuelerMaennlich + SchuelerWeiblich;
+
+    /// <summary>Kennzeichen-Zeichenfolge (P, F, 2, H, Y).</summary>
+    [JsonIgnore] public string Kennzeichen => string.Concat(
+        HohlstundenZulaessig ? "P" : "", TageNichtInFolge ? "F" : "", ZweiTageHintereinander ? "2" : "", EinHalbtag ? "H" : "", BelegungBeibehalten ? "Y" : "");
+}
+
+/// <summary>Einstellung einer Stunde im Klassenzeitraster der Stundenplanung (kombinierbar).</summary>
+[Flags]
+public enum KlassenzeitrasterArt
+{
+    Keine = 0,
+    /// <summary>Verplanung: bevorzugt Doppelstunden.</summary>
+    Doppelstunden = 1,
+    /// <summary>Verplanung: bevorzugt Einzelstunden.</summary>
+    Einzelstunden = 2,
+    /// <summary>Letzte Stunde „Nein“: der Unterricht der Klasse darf nach dieser Stunde nicht enden.</summary>
+    NichtLetzte = 4,
 }
 
 public sealed class Ermaessigung
@@ -158,6 +225,60 @@ public sealed class Lehrer : Element
     public List<Wertkorrektur> Wertkorrekturen { get; set; } = new();
     public DateOnly? Eintritt { get; set; }
     public DateOnly? Austritt { get; set; }
+    /// <summary>Datum ab Status neu.</summary>
+    public DateOnly? StatusNeuAb { get; set; }
+    /// <summary>Neuer Status (gilt ab <see cref="StatusNeuAb"/>).</summary>
+    public string StatusNeu { get; set; } = "";
+    /// <summary>Stundensatz (NRW).</summary>
+    public decimal Stundensatz { get; set; }
+    public string Zusatztext1 { get; set; } = "";
+    public string Zusatztext2 { get; set; } = "";
+    /// <summary>Maximale Stundenzahl in Folge (0 = keine Vorgabe): danach wünscht die Lehrkraft eine Hohlstunde.</summary>
+    public int MaxStundenFolge { get; set; }
+    /// <summary>Max. Verweildauer pro Schultag in Stunden (verplante Stunden, Hohlstunden und Mittagspause), 0 = keine Vorgabe.</summary>
+    public int MaxVerweildauer { get; set; }
+    /// <summary>Tagesrand-Pause: freie Stunden zwischen letzter Stunde eines Tages und erster des Folgetages (0 = keine Vorgabe).</summary>
+    public int TagesrandPause { get; set; }
+    /// <summary>Lehrer Optimierungs-Kz.: 1–9 (Tausch nur mit gleichem Kz.) bzw. A–Z (Tausch nur mit anderem oder keinem Kz.).</summary>
+    public string OptimierungsKz { get; set; } = "";
+    /// <summary>(H) 1 Halbtag/Tag belegen.</summary>
+    public bool EinHalbtag { get; set; }
+    /// <summary>(Y) Belegung beibehalten.</summary>
+    public bool BelegungBeibehalten { get; set; }
+    /// <summary>(R) Nicht in 1. UND letzter Std.</summary>
+    public bool NichtErsteUndLetzte { get; set; }
+    /// <summary>besonders wichtig: keine Hohlstunden (A).</summary>
+    public bool WichtigHohlstunden { get; set; }
+    /// <summary>besonders wichtig: Mittagspause (B).</summary>
+    public bool WichtigMittagspause { get; set; }
+    /// <summary>besonders wichtig: Max. Stunden je Tag (C).</summary>
+    public bool WichtigStundenProTag { get; set; }
+    /// <summary>besonders wichtig: Max. Stunden-Folge (D).</summary>
+    public bool WichtigStundenFolge { get; set; }
+
+    /// <summary>Status an einem Datum (ab „Datum ab Status neu“ gilt der neue Status).</summary>
+    public string StatusAm(DateOnly datum) => StatusNeuAb is DateOnly ab && datum >= ab && StatusNeu.Length > 0 ? StatusNeu : Status;
+
+    /// <summary>
+    /// Darf die Optimierung (variable Lehrerzuordnung) Unterricht dieser Lehrkraft mit Unterricht von <paramref name="anderer"/> tauschen?
+    /// Ziffer: nur mit gleichem Kennzeichen; Buchstabe: nur mit anderem (oder keinem) Kennzeichen.
+    /// </summary>
+    public bool TauschErlaubt(Lehrer anderer)
+    {
+        bool Ok(string a, string b)
+        {
+            if (a.Length == 0) return true;
+            return char.IsDigit(a[0]) ? a == b : a != b;
+        }
+        var x = OptimierungsKz.Trim().ToUpperInvariant();
+        var y = anderer.OptimierungsKz.Trim().ToUpperInvariant();
+        return Ok(x, y) && Ok(y, x);
+    }
+
+    /// <summary>Kennzeichen-Zeichenfolge wie in der Spalte „Kennzeichen“ (z. B. „HRA“).</summary>
+    [JsonIgnore] public string Kennzeichen => string.Concat(
+        EinHalbtag ? "H" : "", BelegungBeibehalten ? "Y" : "", NichtErsteUndLetzte ? "R" : "",
+        WichtigHohlstunden ? "A" : "", WichtigMittagspause ? "B" : "", WichtigStundenProTag ? "C" : "", WichtigStundenFolge ? "D" : "");
 
     [JsonIgnore] public decimal SummeErmaessigungen => Ermaessigungen.Sum(e => e.Wert);
     [JsonIgnore] public decimal Soll => Wochensoll - SummeErmaessigungen;
@@ -192,6 +313,31 @@ public sealed class Fach : Element
     public bool KeinePausenaufsicht { get; set; }
     /// <summary>Doppelstunden-Vorgabe für neue Unterrichte (z. B. Sport 1-1).</summary>
     public Bereich Doppelstunden { get; set; }
+    /// <summary>(F) Freifach – bevorzugt am Anfang oder Ende des (Halb-)Tages.</summary>
+    public bool Freifach { get; set; }
+    /// <summary>(G) nicht in Randstunden – bevorzugt in den mittleren Stunden des Halbtages.</summary>
+    public bool NichtInRandstunden { get; set; }
+    /// <summary>(D) Doppelstunden einhalten.</summary>
+    public bool DoppelstundenEinhalten { get; set; }
+    /// <summary>(E) Doppelstunde über *-Pausen erlaubt.</summary>
+    public bool DoppelstundeUeberPause { get; set; }
+    /// <summary>(S) Sprechstunde (Web).</summary>
+    public bool Sprechstunde { get; set; }
+    /// <summary>Art des Unterrichtes (statistische Zwecke).</summary>
+    public string Art { get; set; } = "";
+    /// <summary>Nachmittagsstunden (min-max) je Klasse.</summary>
+    public Bereich Nachmittagsstunden { get; set; }
+    /// <summary>Wochenstunden (min-max) je Klasse – Prüfung in der Diagnose.</summary>
+    public Bereich WochenstundenBereich { get; set; }
+    /// <summary>Fachfolge Lehrer: 1–9 = Folgestunden erwünscht, A–F = Folgestunden verhindern.</summary>
+    public string FachfolgeLehrer { get; set; } = "";
+    /// <summary>Fachfolge Klassen: 1–9 = Folgestunden erwünscht, A–F = Folgestunden verhindern.</summary>
+    public string FachfolgeKlassen { get; set; } = "";
+
+    /// <summary>Kennzeichen-Zeichenfolge (H, R, F, 2, G, D, E, P, S, N).</summary>
+    [JsonIgnore] public string Kennzeichen => string.Concat(
+        Hauptfach ? "H" : "", Randstunde ? "R" : "", Freifach ? "F" : "", MehrmalsProTag ? "2" : "", NichtInRandstunden ? "G" : "",
+        DoppelstundenEinhalten ? "D" : "", DoppelstundeUeberPause ? "E" : "", KeinePausenaufsicht ? "P" : "", Sprechstunde ? "S" : "", KeinNachmittag ? "N" : "");
 }
 
 /// <summary>Gang bzw. Pausenaufsichtsbereich.</summary>

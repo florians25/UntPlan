@@ -129,7 +129,8 @@ public static class Optimierer
             var ui = m.UnterrichtIdx(p.UnterrichtId);
             if (ui < 0) continue;
             var u = m.Unterrichte[ui];
-            var fix = p.Fixiert || u.Fix || o.NurNichtVerplante || IstFixiertesElement(u, ix);
+            // (M) Manuell planen: vorhandene Stunden bleiben, die Optimierung verplant den Unterricht nicht
+            var fix = p.Fixiert || u.Fix || u.ManuellPlanen || o.NurNichtVerplante || IstFixiertesElement(u, ix);
             if (!fix) continue;
             var bi = m.NeuerBlock(new[] { ui }, 1, true, p);
             m.Platzieren(bi, p.Tag, p.Stunde - 1);
@@ -162,8 +163,9 @@ public static class Optimierer
             if (inBand.Contains(ui)) continue;
             var u = m.Unterrichte[ui];
             var rest = u.Wochenstunden - gesetzt.GetValueOrDefault(ui);
-            if (rest <= 0) continue;
-            if (o.BedingtFixieren)
+            if (rest <= 0 || u.ManuellPlanen) continue;
+            // (B) Bedingt fixieren beim Unterricht: im Setzlauf an der bisherigen Stelle, in der Tauschoptimierung beweglich
+            if (o.BedingtFixieren || u.BedingtFixieren)
             {
                 // vorhandene Stunden als Blöcke an ihrer bisherigen Position übernehmen (verschiebbar, aber teuer)
                 foreach (var tag in d.Stundenplan.Where(p => p.UnterrichtId == u.Id && !gesperrteQuellen.Contains(p)).GroupBy(p => p.Tag))
@@ -182,7 +184,8 @@ public static class Optimierer
                 }
                 if (rest <= 0) continue;
             }
-            var bloecke = u.Bloecke();
+            // Fixe Fachfolge: alle Stunden des Unterrichts als ein Block
+            var bloecke = m.InFixerFolge(ui) && rest <= m.S ? new List<int> { rest } : u.Bloecke();
             BloeckeKuerzen(bloecke, rest);
             foreach (var len in bloecke) m.NeuerBlock(new[] { ui }, len, false);
         }
@@ -218,7 +221,9 @@ public static class Optimierer
             var b = m.Bloecke[bi];
             var moeglich = 0;
             for (var c = 0; c < m.C; c++) if (b.Statisch[c] < PlanModell.Hart) moeglich++;
-            return b.Laenge * 30 + b.Entitaeten.Length * 6 + b.Pools.Length * 10 + b.Mitglieder.Length * 8 - moeglich * 0.5 + rnd.NextDouble() * 4;
+            // (S) Klassengruppe später planen: diese Unterrichte werden erst nach den übrigen gesetzt
+            var spaeter = b.Mitglieder.Any(ui => m.Unterrichte[ui].KlassengruppeSpaeter) ? 10000 : 0;
+            return b.Laenge * 30 + b.Entitaeten.Length * 6 + b.Pools.Length * 10 + b.Mitglieder.Length * 8 - moeglich * 0.5 + rnd.NextDouble() * 4 - spaeter;
         });
         var reihenfolge = beweglich.OrderByDescending(bi => schwierigkeit[bi]).ToList();
 
@@ -268,6 +273,8 @@ public static class Optimierer
         var zuordnen = aktive.Where(bi => m.Bloecke[bi].Platziert)
             .OrderByDescending(bi => m.Bloecke[bi].Mitglieder.SelectMany(mi => m.Unterrichte[mi].Zeilen).Select(ix.Raumgewicht).DefaultIfEmpty(0).Max())
             .ThenByDescending(bi => m.Bloecke[bi].Laenge);
+        var gleicherRaum = new Dictionary<(int, int), int>(); // (r) Stunden im selben Raum: bisher gewählter Raum je Zeile
+        var imFachraum = new Dictionary<(int, int), int>(); // Stunden im Raum: bereits im Fachraum verplante Stunden je Zeile
         foreach (var bi in zuordnen)
         {
             var b = m.Bloecke[bi];
@@ -275,10 +282,17 @@ public static class Optimierer
             {
                 var u = m.Unterrichte[mi];
                 var raeume = new List<int?>();
-                foreach (var z in u.Zeilen)
+                for (var zi = 0; zi < u.Zeilen.Count; zi++)
                 {
+                    var z = u.Zeilen[zi];
                     int? gewaehlt = null;
-                    foreach (var r in ix.RaumKandidaten(z))
+                    IEnumerable<int> kandidaten = ix.RaumKandidaten(u, z);
+                    // Stunden im Raum: ist die Anzahl im Fachraum erreicht, den Stammraum verwenden
+                    var fachraumVoll = u.StundenImRaum > 0 && z.FachraumId.HasValue && imFachraum.GetValueOrDefault((u.Id, zi)) + b.Laenge > u.StundenImRaum;
+                    if (fachraumVoll)
+                        kandidaten = z.StammraumId is int st ? ix.RaumKandidaten(new Kopplungszeile { StammraumId = st }) : new List<int>();
+                    if (u.SelberRaum && gleicherRaum.TryGetValue((u.Id, zi), out var bisher)) kandidaten = new[] { bisher }.Concat(kandidaten.Where(r => r != bisher));
+                    foreach (var r in kandidaten)
                     {
                         var frei = true;
                         for (var j = 0; j < b.Laenge && frei; j++)
@@ -286,7 +300,11 @@ public static class Optimierer
                         if (frei) { gewaehlt = r; break; }
                     }
                     if (gewaehlt.HasValue)
+                    {
                         for (var j = 0; j < b.Laenge; j++) raumBelegt.Add((gewaehlt.Value, b.Tag, b.Stunde + 1 + j));
+                        gleicherRaum.TryAdd((u.Id, zi), gewaehlt.Value);
+                        if (!fachraumVoll && z.FachraumId.HasValue) imFachraum[(u.Id, zi)] = imFachraum.GetValueOrDefault((u.Id, zi)) + b.Laenge;
+                    }
                     raeume.Add(gewaehlt);
                 }
                 for (var j = 0; j < b.Laenge; j++)
@@ -325,6 +343,7 @@ public static class Optimierer
         }
         foreach (var e in ents) k += m.EntitaetKosten(e);
         foreach (var u in unts) k += m.UnterrichtKosten(u);
+        k += m.FolgenKosten(unts);
         return k;
     }
 
@@ -454,7 +473,7 @@ public static class Optimierer
     private static bool GesperrtFuer(PlanModell m, int e, PlanModell.Block b)
     {
         var el = e < m.NL ? (Element)m.LehrerArr[e] : m.KlassenArr[e - m.NL];
-        for (var j = 0; j < b.Laenge; j++) if (el.Zeitwuensche.Gesperrt(b.Tag, b.Stunde + 1 + j)) return true;
+        for (var j = 0; j < b.Laenge; j++) if (el.Zeitwuensche.Gesperrt(b.Tag, b.Stunde + 1 + j) || m.Gesperrt(e, b.Tag * m.S + b.Stunde + j)) return true;
         return false;
     }
 

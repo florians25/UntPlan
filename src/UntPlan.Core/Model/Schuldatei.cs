@@ -26,6 +26,8 @@ public sealed class Pause
     public int DauerMinuten { get; set; }
     /// <summary>Pausenaufsicht erforderlich.</summary>
     public bool Aufsicht { get; set; } = true;
+    /// <summary>*-Pause: Doppelstunden und Blöcke dürfen diese Pause nicht überspannen (außer Fach/Unterricht mit Kennzeichen E).</summary>
+    public bool Stern { get; set; }
 }
 
 /// <summary>Zeitraster: Tage pro Woche, Stunden pro Tag, Vormittag/Nachmittag/leer, Zeiten, Pausen, Mittagspause.</summary>
@@ -106,6 +108,8 @@ public sealed class Einstellungen
     public Dictionary<string, int> Vertretungsgewichtung { get; set; } = new();
     public PortalEinstellungen Portal { get; set; } = new();
     public string Farbschema { get; set; } = "Blau";
+    /// <summary>Elementarten (ElementTyp-Namen), deren neue Elemente automatisch eine Farbe erhalten (Dialog „Farbe“).</summary>
+    public List<string> AutomatischeFarbe { get; set; } = new();
 }
 
 public sealed class PortalEinstellungen
@@ -178,6 +182,18 @@ public sealed class Ansicht
     public string Name { get; set; } = "";
     public List<string> Spalten { get; set; } = new();
     public List<Sortierkriterium> Sortierung { get; set; } = new();
+    /// <summary>Langname des Formats (Fenster „Formate | Stammdatenformate“).</summary>
+    public string Langname { get; set; } = "";
+    /// <summary>Standardformat: wird beim Öffnen des Fensters geladen.</summary>
+    public bool Standard { get; set; }
+    /// <summary>Format im Stammdaten-Menü anbieten.</summary>
+    public bool ImMenu { get; set; }
+    /// <summary>Geschütztes Format (kann nicht überschrieben oder gelöscht werden).</summary>
+    public bool Geschuetzt { get; set; }
+    /// <summary>Felder (Elementverweise), die mit dem Langnamen statt dem Kurznamen angezeigt werden („Anzeige von“).</summary>
+    public List<string> Langnamen { get; set; } = new();
+    /// <summary>Gewählte Schrift der Rasteransicht („Name;Größe“), leer = Standard.</summary>
+    public string Schrift { get; set; } = "";
 }
 
 public sealed class Sortierkriterium
@@ -268,6 +284,8 @@ public sealed class Schuldatei
 
     /// <summary>Unterricht der aktiven Periode.</summary>
     [JsonIgnore] public List<Unterricht> Unterrichte => AktivePeriode.Unterrichte ??= new();
+    /// <summary>Unterrichtsfolgen der aktiven Periode.</summary>
+    [JsonIgnore] public List<Unterrichtsfolge> Unterrichtsfolgen => AktivePeriode.Unterrichtsfolgen ??= new();
 
     /// <summary>Pausenaufsichten der aktiven Periode.</summary>
     [JsonIgnore] public List<Pausenaufsicht> Pausenaufsichten => AktivePeriode.Pausenaufsichten ??= new();

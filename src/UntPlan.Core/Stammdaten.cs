@@ -28,6 +28,8 @@ public static class Stammdaten
         e.Id = d.NeueId();
         e.Kurzname = kurzname;
         e.Sortierung = sort;
+        // automatische Farbe für neue Elemente (Dialog „Farbe“)
+        if (d.Einstellungen.AutomatischeFarbe.Contains(typ.ToString())) e.Hintergrund = AutomatischeFarbe(d.AlleElemente(typ).Select(x => x.Hintergrund));
         switch (e)
         {
             case Klasse k: d.Klassen.Add(k); break;
@@ -41,6 +43,21 @@ public static class Stammdaten
             case Schueler s: d.Schueler.Add(s); break;
         }
         return e;
+    }
+
+    /// <summary>Palette der automatischen Farben (helle, gut unterscheidbare Töne).</summary>
+    public static readonly int[] Farbpalette =
+    {
+        unchecked((int)0xFFFFE0B2), unchecked((int)0xFFC8E6C9), unchecked((int)0xFFBBDEFB), unchecked((int)0xFFF8BBD0), unchecked((int)0xFFFFF59D),
+        unchecked((int)0xFFD1C4E9), unchecked((int)0xFFB2EBF2), unchecked((int)0xFFFFCCBC), unchecked((int)0xFFDCEDC8), unchecked((int)0xFFCFD8DC),
+        unchecked((int)0xFFF0F4C3), unchecked((int)0xFFE1BEE7),
+    };
+
+    /// <summary>Automatische Farbe: die bisher am seltensten verwendete Farbe der Palette (bei Gleichstand die erste).</summary>
+    public static int AutomatischeFarbe(IEnumerable<int> vorhandene)
+    {
+        var zaehl = vorhandene.GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+        return Farbpalette.OrderBy(f => zaehl.GetValueOrDefault(f)).ThenBy(f => Array.IndexOf(Farbpalette, f)).First();
     }
 
     public static void Umbenennen(Schuldatei d, Element e, string kurzname)
@@ -140,6 +157,8 @@ public static class Stammdaten
         d.Unterrichte.RemoveAll(u => u.Id == unterrichtId);
         foreach (var p in d.Perioden) p.Plan.RemoveAll(x => x.UnterrichtId == unterrichtId);
         foreach (var s in d.Schueler) s.KurswahlIds.Remove(unterrichtId);
+        foreach (var per in d.Perioden) per.Unterrichtsfolgen?.ForEach(f => f.UnterrichtIds.Remove(unterrichtId));
+        foreach (var per in d.Perioden) per.Unterrichtsfolgen?.RemoveAll(f => f.UnterrichtIds.Count == 0);
         d.Vertretungen.RemoveAll(v => v.UnterrichtId == unterrichtId && Vertretungsplanung.Vertretungen.IstAbgeleitet(v));
     }
 
