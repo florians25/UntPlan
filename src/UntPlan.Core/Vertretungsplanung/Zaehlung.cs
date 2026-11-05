@@ -35,6 +35,8 @@ public static class Zaehlung
         var z = d.Vertretungseinstellungen.Zaehler;
         switch (z.Zeitraum)
         {
+            case ZaehlZeitraum.Tag:
+                return (datum, datum);
             case ZaehlZeitraum.Woche:
                 var m = Kalender.Montag(datum);
                 return (m, m.AddDays(6));
@@ -52,10 +54,82 @@ public static class Zaehlung
         }
     }
 
+    /// <summary>
+    /// Spalte „Zählen“ des Vertretungsfensters: wird die Zeile aus Sicht des Vertreters positiv („+1“), aus Sicht der entfallenden Lehrkraft
+    /// negativ („-1“) oder gar nicht gezählt („“)? Vereinfachte Regeln der Vertretungsabrechnung (ohne Statt-Vertretung und Bereitschaften).
+    /// </summary>
+    public static string Kennzeichen(Schuldatei d, Vertretung v)
+    {
+        var e = d.Vertretungseinstellungen.Zaehler;
+        if (!string.IsNullOrEmpty(v.Statistik) && (v.Statistik == e.NichtZaehlenKennzeichen || v.Statistik == e.BezahltKennzeichen)) return "";
+        var grund = v.GrundId is int g ? d.Abwesenheitsgruende.FirstOrDefault(x => x.Id == g) : null;
+        var fach = v.FachId is int f ? d.Faecher.FirstOrDefault(x => x.Id == f) : null;
+        if (v.IstEntfall)
+        {
+            if (v.Art == VertretungsArt.BereitschaftEntfaellt || v.NachDatum.HasValue || fach?.EntfallNichtZaehlen == true) return "";
+            if (v.Art == VertretungsArt.Freisetzung) return e.FreisetzungenZaehlen && grund?.FreisetzungNichtZaehlen != true ? "-1" : "";
+            var eigeneAbsenz = v.AbwesenheitId.HasValue || v.Quelle == VertretungsQuelle.Veranstaltung;
+            var zaehlt = !eigeneAbsenz || grund?.EntfallZaehlen == true || (grund is null && !e.EntfallNurMitGrund);
+            return zaehlt && e.EntfaelleZaehlen ? "-1" : "";
+        }
+        if (v.VertreterId is null || v.VertreterId == v.LehrerId && v.Art is not (VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung)) return "";
+        return v.Art switch
+        {
+            VertretungsArt.Pausenaufsicht => e.PausenaufsichtenZaehlen ? "+1" : "",
+            VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung => e.SondereinsaetzeZaehlen ? "+1" : "",
+            VertretungsArt.Betreuung => e.BetreuungenHalb ? "+0,5" : "",
+            VertretungsArt.StattVertretung => e.StattVertretungNeutral || !e.VertretungenZaehlen ? "" : "+1",
+            VertretungsArt.Veranstaltung => d.Veranstaltungen.FirstOrDefault(x => x.Id == v.VeranstaltungId)?.Zaehlen == true ? "+1" : "",
+            _ when Vertretungen.ZaehlendeArten.Contains(v.Art) => e.VertretungenZaehlen ? "+1" : "",
+            _ => "",
+        };
+    }
+
+    /// <summary>Zeitstunden einer Unterrichtsstunde laut Zeitraster (ohne Zeiten: Länge der Normalstunde).</summary>
+    public static decimal Realstunde(Schuldatei d, int stunde)
+    {
+        var z = d.Zeitraster.Zeit(stunde);
+        var minuten = z != null && z.Ende > z.Beginn ? (int)(z.Ende - z.Beginn).TotalMinutes : d.Zeitraster.NormalstundeMinuten;
+        return Math.Round(minuten / 60m, 4);
+    }
+
+    /// <summary>Zählerwert in der eingestellten Zählart: bei „Stunden (HH:MM)“ als Stunden:Minuten, sonst als Zahl.</summary>
+    public static string WertText(Schuldatei d, decimal wert, string format = "0.##")
+    {
+        if (d.Vertretungseinstellungen.Zaehler.WieZaehlen != ZaehlArt.StundenHhMm) return wert.ToString(format, Format.De);
+        var min = (int)Math.Round(Math.Abs(wert) * 60m);
+        return $"{(wert < 0 ? "-" : "")}{min / 60}:{min % 60:00}";
+    }
+
+    /// <summary>Bilanz der Pausenaufsichten und Bereitschaften eines Lehrers (Bilanzzeilen der Vertretungsabrechnung).</summary>
+    public sealed record AufsichtsBilanz(int PaGeplant, int PaEntfall, int PaVertretung, int BereitschaftenVerplant, int BereitschaftenEntfallen, int BereitschaftenGenutzt)
+    {
+        public int PaGehalten => PaGeplant - PaEntfall + PaVertretung;
+    }
+
+    public static AufsichtsBilanz Bilanz(Schuldatei d, Lehrer l, DateOnly von, DateOnly bis, ZaehlSumme? z = null)
+    {
+        int paGeplant = 0, berVerplant = 0;
+        foreach (var t in Kalender.Tage(von, bis).Where(t => Kalender.IstUnterrichtstag(d, t)))
+        {
+            var tag = Kalender.TagIndex(d, t);
+            paGeplant += (d.PeriodeAm(t).Pausenaufsichten ?? new()).Count(a => a.LehrerId == l.Id && a.Tag == tag && (a.Datum is null || a.Datum == t));
+            berVerplant += Tagesplan.Regulaer(d, t).Where(r => r.LehrerId == l.Id && Vertretungen.IstBereitschaftsfach(d, r.FachId)).Select(r => r.Stunde).Distinct().Count();
+        }
+        var im = d.Vertretungen.Where(v => v.Datum >= von && v.Datum <= bis).ToList();
+        var paEntfall = im.Count(v => v.Art == VertretungsArt.Pausenaufsicht && v.LehrerId == l.Id && v.VertreterId != l.Id);
+        var paVertr = im.Count(v => v.Art == VertretungsArt.Pausenaufsicht && v.VertreterId == l.Id && v.LehrerId != l.Id);
+        var berEntf = im.Count(v => v.LehrerId == l.Id && (v.Art == VertretungsArt.BereitschaftEntfaellt || v.IstEntfall && Vertretungen.IstBereitschaftsfach(d, v.FachId)));
+        var genutzt = (z ?? Lehrer(d, l, von, bis)).BereitschaftenGenutzt;
+        return new AufsichtsBilanz(paGeplant, paEntfall, paVertr, berVerplant, berEntf, genutzt);
+    }
+
     private static decimal StundenWert(Schuldatei d, Vertretung v)
     {
         if (v.Wert.HasValue) return v.Wert.Value;
-        if (d.Vertretungseinstellungen.Zaehler.WieZaehlen != ZaehlArt.Werte) return 1;
+        var art = d.Vertretungseinstellungen.Zaehler.WieZaehlen;
+        if (art is ZaehlArt.Realstunden or ZaehlArt.StundenHhMm) return Realstunde(d, v.Stunde);
+        if (art != ZaehlArt.Werte) return 1;
         var u = v.UnterrichtId is int uid ? d.PeriodeAm(v.Datum).Unterrichte?.FirstOrDefault(x => x.Id == uid) : null;
         if (u?.WerteFaktor is decimal wf) return wf;
         return v.FachId is int f && d.Faecher.FirstOrDefault(x => x.Id == f) is { } fach ? fach.WerteFaktor : 1;
@@ -234,7 +308,7 @@ public static class Statistik
     }
 
     /// <summary>Entfalltage: Tage, an denen aufgrund einer Absenz alle Stunden des Lehrers entfallen sind.</summary>
-    public sealed record Entfalltag(Lehrer Lehrer, DateOnly Datum, int Stunden, string Grund);
+    public sealed record Entfalltag(Lehrer Lehrer, DateOnly Datum, int Stunden, string Grund, string Text = "");
 
     public static List<Entfalltag> Entfalltage(Schuldatei d, DateOnly von, DateOnly bis)
     {
@@ -248,14 +322,17 @@ public static class Statistik
                 if (!stunden.All(s => Absenzen.LehrerAbwesend(d, g.Key, t, s))) continue;
                 var abw = Absenzen.Lehrer(d, g.Key, t, stunden[0]);
                 var l = d.Lehrer.FirstOrDefault(x => x.Id == g.Key);
-                if (l != null) res.Add(new Entfalltag(l, t, stunden.Count, Vertretungen.GrundText(d, abw?.GrundId)));
+                if (l != null) res.Add(new Entfalltag(l, t, stunden.Count, Vertretungen.GrundText(d, abw?.GrundId), abw?.Text ?? ""));
             }
         }
         return res;
     }
 
     /// <summary>Vertretungs-Übersicht: geplanter und gehaltener Unterricht der ganzen Schule.</summary>
-    public sealed record Uebersicht(int Geplant, int GemaessPlan, int NichtErteilt, int Sondereinsaetze, Dictionary<string, int> NachGrund, Dictionary<string, int> NachArt, Dictionary<string, int> EntfallNachGrund);
+    public sealed record Uebersicht(int Geplant, int GemaessPlan, int NichtErteilt, int Sondereinsaetze, Dictionary<string, int> NachGrund, Dictionary<string, int> NachArt, Dictionary<string, int> EntfallNachGrund)
+    {
+        public int Veranstaltungen { get; init; }
+    }
 
     public static Uebersicht VertretungsUebersicht(Schuldatei d, DateOnly von, DateOnly bis)
     {
@@ -273,16 +350,77 @@ public static class Statistik
                 if (v is null || v.Art == VertretungsArt.Raumvertretung) { gehalten++; continue; }
                 if (v.VertreterId == e.Regel!.LehrerId && !v.IstEntfall) { gehalten++; continue; }
                 nicht++;
-                var g = d.Abwesenheitsgruende.FirstOrDefault(x => x.Id == v.GrundId);
-                var gk = g is null ? "ohne Absenzgrund" : string.IsNullOrEmpty(g.Statistik) ? g.Langname is { Length: > 0 } ln ? ln : g.Kurzname : g.Statistik;
+                var gk = GrundGruppe(d, v);
                 nachGrund[gk] = nachGrund.GetValueOrDefault(gk) + 1;
-                var a = Vertretungsplan.ArtText(v.Art) + (v.Mehrarbeit ? " (Mehrarbeit)" : "");
+                var bezahlt = d.Vertretungseinstellungen.Zaehler.BezahltKennzeichen is { Length: > 0 } bk && v.Statistik == bk;
+                var a = v.Offen ? "Offene Vertretungen" : bezahlt ? "Mehrarbeit bezahlt" : v.Mehrarbeit ? "Mehrarbeit unbezahlt" : Vertretungsplan.ArtText(v.Art);
                 nachArt[a] = nachArt.GetValueOrDefault(a) + 1;
                 if (v.IstEntfall) entfall[gk] = entfall.GetValueOrDefault(gk) + 1;
             }
         }
         var sonder = d.Vertretungen.Count(v => v.Datum >= von && v.Datum <= bis && v.Art is VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung);
-        return new Uebersicht(geplant, gehalten, nicht, sonder, nachGrund, nachArt, entfall);
+        var veranst = d.Veranstaltungen.Count(v => v.Von <= bis && v.Bis >= von);
+        return new Uebersicht(geplant, gehalten, nicht, sonder, nachGrund, nachArt, entfall) { Veranstaltungen = veranst };
+    }
+
+    /// <summary>
+    /// Gruppe eines nicht erteilten Unterrichts nach Absenzgrund wie im Handbuch: Gründe mit gleichem Statistik-Kennzeichen unter dem Namen
+    /// des ersten Grundes mit diesem Kennzeichen, „Absenzgrund ohne Statistik-Kennzeichen“, „Absenz ohne Absenzgrund“ bzw. die Art (z. B. Verlegung).
+    /// </summary>
+    public static string GrundGruppe(Schuldatei d, Vertretung v)
+    {
+        var g = v.GrundId is int gid ? d.Abwesenheitsgruende.FirstOrDefault(x => x.Id == gid) : null;
+        if (g is null) return v.AbwesenheitId.HasValue ? "Absenz ohne Absenzgrund" : Vertretungsplan.ArtText(v.Art);
+        if (string.IsNullOrEmpty(g.Statistik)) return "Absenzgrund ohne Statistik-Kennzeichen";
+        var erster = d.Abwesenheitsgruende.First(x => x.Statistik == g.Statistik);
+        return erster.Langname is { Length: > 0 } ln ? ln : erster.Kurzname;
+    }
+
+    /// <summary>Status einer geplanten Unterrichtsstunde in der Vertretungsstatistik.</summary>
+    public enum FallStatus { Planmaessig, Vertretung, Entfall }
+
+    /// <summary>Eine laut Stundenplan geplante Stunde (je Kopplungszeile) mit ihrem tatsächlichen Verlauf.</summary>
+    public sealed record Fall(DateOnly Datum, int Stunde, int Tag, int? LehrerId, IReadOnlyList<int> KlassenIds, int? FachId, int? UnterrichtId, FallStatus Status, Vertretung? Vertretung)
+    {
+        public int? GrundId => Vertretung?.GrundId;
+    }
+
+    /// <summary>
+    /// Vertretungsstatistik: alle geplanten Stunden des Zeitraums (ohne Bereitschaften) als planmäßig gehalten, vertreten oder entfallen.
+    /// Wie im Handbuch zählt jede Kopplungszeile; die Haken der Absenzgründe bleiben unberücksichtigt.
+    /// </summary>
+    public static List<Fall> Faelle(Schuldatei d, DateOnly von, DateOnly bis)
+    {
+        var res = new List<Fall>();
+        using var _ = DatenIndex.Gemeinsam(d);
+        foreach (var t in Kalender.Tage(von, bis).Where(t => Kalender.IstUnterrichtstag(d, t)))
+        {
+            var tp = Tagesplan.Berechnen(d, t);
+            foreach (var e in tp.Eintraege.Where(e => e.Regel != null && e.Status != TagesStatus.Zusaetzlich && !Vertretungen.IstBereitschaftsfach(d, e.Regel.FachId)))
+            {
+                var r = e.Regel!;
+                var v = e.Vertretung;
+                var status = v is null || v.Art == VertretungsArt.Raumvertretung || (v.VertreterId == r.LehrerId && !v.IstEntfall) ? FallStatus.Planmaessig
+                    : v.IstEntfall ? FallStatus.Entfall : FallStatus.Vertretung;
+                res.Add(new Fall(t, e.Stunde, tp.Tag, r.LehrerId, r.KlassenIds, r.FachId, r.Unterricht.Id, status, status == FallStatus.Planmaessig ? null : v));
+            }
+        }
+        return res;
+    }
+
+    /// <summary>Lehrerübersicht der Vertretungsstatistik: Absenzen, Entfalltage, Entfälle und gehaltene Vertretungen je Lehrer.</summary>
+    public sealed record LehrerFaelle(Lehrer Lehrer, int Absenzen, int Entfalltage, int Entfall, int Vertretungen);
+
+    public static List<LehrerFaelle> Lehreruebersicht(Schuldatei d, DateOnly von, DateOnly bis, List<Fall> faelle)
+    {
+        var entfalltage = Entfalltage(d, von, bis).GroupBy(e => e.Lehrer.Id).ToDictionary(g => g.Key, g => g.Count());
+        var vertr = d.Vertretungen.Where(v => v.Datum >= von && v.Datum <= bis && v.VertreterId is int && v.VertreterId != v.LehrerId && !v.IstEntfall
+                                              && v.Art is not (VertretungsArt.Pausenaufsicht or VertretungsArt.Raumvertretung or VertretungsArt.Verlegung or VertretungsArt.Tausch))
+            .GroupBy(v => v.VertreterId!.Value).ToDictionary(g => g.Key, g => g.Count());
+        var entfall = faelle.Where(f => f.Status == FallStatus.Entfall && f.LehrerId is int).GroupBy(f => f.LehrerId!.Value).ToDictionary(g => g.Key, g => g.Count());
+        var absenzen = d.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && a.Von <= bis && a.Bis >= von).GroupBy(a => a.ElementId).ToDictionary(g => g.Key, g => g.Count());
+        return d.Lehrer.Select(l => new LehrerFaelle(l, absenzen.GetValueOrDefault(l.Id), entfalltage.GetValueOrDefault(l.Id), entfall.GetValueOrDefault(l.Id), vertr.GetValueOrDefault(l.Id)))
+            .Where(x => x.Absenzen + x.Entfalltage + x.Entfall + x.Vertretungen > 0).ToList();
     }
 
     /// <summary>Mehrarbeit: tägliche Bilanz eines Lehrers in einem Monat (Soll, Ist, Vertretungen, Entfälle).</summary>

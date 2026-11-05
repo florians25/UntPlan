@@ -727,13 +727,22 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             page.Controls.Add(flow);
             _formular.TabPages.Add(page);
         }
+        if (_typ == ElementTyp.Lehrer)
+        {
+            // Karteikarte „WertKorrektur“ wie im Handbuch (vor „Vertr.“)
+            _wertkorrektur = new WertkorrekturSeite(() => _aktuell as Lehrer, (text, aktion) => Aendern(text, AenderungsArt.Stammdaten, aktion));
+            var vor = _formular.TabPages.Cast<TabPage>().ToList().FindIndex(p => p.Text == "Vertr.");
+            if (vor >= 0) _formular.TabPages.Insert(vor, _wertkorrektur); else _formular.TabPages.Add(_wertkorrektur);
+        }
         FormularFuellen();
     }
 
     private bool _formularLaden;
+    private WertkorrekturSeite? _wertkorrektur;
 
     private void FormularFuellen()
     {
+        _wertkorrektur?.Fuellen();
         _formularLaden = true;
         foreach (var f in _felder)
         {

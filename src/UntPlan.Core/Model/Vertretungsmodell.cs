@@ -491,14 +491,22 @@ public enum ZaehlZeitraum
     Woche,
     Monat,
     Halbjahr,
+    /// <summary>Schuljahr (Handbuch: „Jahr“).</summary>
     Schuljahr,
+    /// <summary>Selbst gewählter Zeitraum (Handbuch: „Zeitraum“).</summary>
     Benutzerdefiniert,
+    /// <summary>Nur der eingestellte Tag.</summary>
+    Tag,
 }
 
 public enum ZaehlArt
 {
     Anzahl,
     Werte,
+    /// <summary>Dauer der Stunden in Stunden und Minuten (Anzeige HH:MM).</summary>
+    StundenHhMm,
+    /// <summary>Dauer der Stunden in Zeitstunden (60 Minuten).</summary>
+    Realstunden,
 }
 
 /// <summary>Einstellungen zum Vertretungszähler.</summary>

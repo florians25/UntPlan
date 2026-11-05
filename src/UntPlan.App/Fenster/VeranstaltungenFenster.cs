@@ -77,6 +77,12 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 140 });
         _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Z", HeaderText = "zählen", Width = 46 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "SG", HeaderText = "Schülergruppe", Width = 140 });
+        // Handbuch „Wert der Veranstaltung ändern“: selbst definierter Wert für den Vertretungszähler (Wie zählen: Werte)
+        _g.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "W", HeaderText = "Wert", Width = 60, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight },
+            ToolTipText = "Selbst definierter Wert der Veranstaltung für den Vertretungszähler (leer = Wert der Stunden)",
+        });
         foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
         foreach (var n in new[] { "K", "KT", "L", "R" }) _g.Columns[n]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
@@ -212,8 +218,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
         object?[] werte = eintrag is Veranstaltung v
             ? new object?[] { v.Id, Feldtext(v, ElementTyp.Klasse, v.KlassenIds), Feldtext(v, ElementTyp.Klasse, v.KlassenteilIds), LehrerText(v),
                 Feldtext(v, ElementTyp.Raum, v.RaumIds), Datum(v.Von), v.StundeVon, Datum(v.Bis), v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
-                D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.Schuelergruppe }
-            : new object?[] { "", "", "", "", "", "", "", "", "", "", "", false, "" };
+                D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.Schuelergruppe,
+                v.Wert is decimal w ? w.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) : "" }
+            : new object?[] { "", "", "", "", "", "", "", "", "", "", "", false, "", "" };
         zeile.Tag = eintrag as Veranstaltung;
         for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
             if (!Equals(zeile.Cells[i].Value, werte[i]) && (zeile.Cells[i].Value?.ToString() ?? "") != (werte[i]?.ToString() ?? "")) zeile.Cells[i].Value = werte[i];
@@ -530,6 +537,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
                         v.KlassenIds.Clear();
                     }
                     break;
+                case "W": v.Wert = wert.Length == 0 ? null : decimal.Parse(wert.Replace(',', '.'), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture); break;
                 default: return;
             }
         }
