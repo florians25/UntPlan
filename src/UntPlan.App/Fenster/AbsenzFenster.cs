@@ -157,13 +157,13 @@ public sealed class AbwesenheitenFenster : MdiFenster
             // Datumsauswahl gilt für alle verknüpften Fenster (Vertretungsliste, Stundenpläne, Menüband)
             if (Verknuepft && (Von == Bis || _zeitraum.Art != Steuerelemente.Zeitraumart.VonBis) && AppZustand.Datum != Von) AppZustand.DatumSetzen(Von);
         };
-        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 56, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        var gruppe = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), MinimumSize = new Size(0, 50) };
+        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 66, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        var gruppe = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), MinimumSize = new Size(0, 62) };
         gruppe.Controls.Add(_zeitraum);
         _zeitraum.Location = new Point(6, 18);
         kopf.Controls.Add(gruppe);
         // wie im Vorbild: Anzahl der Tage des Zeitraums rechts daneben („329 Tage“)
-        _tage.Margin = new Padding(6, 30, 0, 0);
+        _tage.Margin = new Padding(6, 36, 0, 0);
         kopf.Controls.Add(_tage);
 
         Controls.Add(_g);

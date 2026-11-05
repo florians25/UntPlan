@@ -115,10 +115,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(einst);
 
         // Kopf wie im Vertretungsfenster üblich: Element, Zeitraum (Tag/Woche/Von-Bis), Ansicht einschränken
-        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 58, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 66, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
         GroupBox Gruppe(string text, params Control[] inhalt)
         {
-            var g = new GroupBox { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), Margin = new Padding(2, 0, 6, 0), MinimumSize = new Size(0, 52) };
+            var g = new GroupBox { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), Margin = new Padding(2, 0, 6, 0), MinimumSize = new Size(0, 62) };
             var fl = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0), Padding = new Padding(0, 2, 0, 0) };
             fl.Controls.AddRange(inhalt);
             g.Controls.Add(fl);

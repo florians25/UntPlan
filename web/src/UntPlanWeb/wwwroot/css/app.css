@@ -1938,3 +1938,14 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .sd-kreisknopf:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 1px; }
 .sd-kreisknopf.klein { width: 24px; height: 24px; font-size: .78rem; border-width: 1px; margin: 0 6px; }
 @media (max-width: 767.98px) { .nl-tabelle.sd-abw { overflow-x: auto; } }
+
+/* Stundendetails wie die Vorlagen: leerer Reiter „Keine weiteren Details“ groß und grau mittig mit Abstand nach oben, darunter der
+   Hinweis halbfett (ohne Punkt); Details-Zeilen mit 26-px-Symbolen, Titel 13 px über dem Notizfeld, Notizfelder 68 px hoch */
+.sd-leer { padding: 6.5rem 1rem 3rem; gap: 1.7rem; text-align: center; }
+.sd-leer b { font-size: 1.45rem; font-weight: 600; color: #56636e; }
+.sd-leer span { font-size: .95rem; font-weight: 600; color: #3f4a54; }
+.sd-detail { gap: 1.8rem; padding: 1.2rem 0 1.1rem; }
+.sd-detail > .u-sym, .sd-detail > .kb-icon { width: 26px; height: 26px; margin-top: 1px; }
+.sd-detail-titel { margin-bottom: .8rem; color: #5b6670; }
+.sd-schalter .sd-detail-titel { margin-bottom: 0; }
+.sd-notiz { min-height: 68px; border-color: #c9ced4; border-radius: 4px; }
