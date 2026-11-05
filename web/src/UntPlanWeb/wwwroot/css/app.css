@@ -37,7 +37,7 @@
   --u-schatten-karte: 0 -8px 16px -4px rgba(0, 5, 10, .05), 0 16px 32px -8px rgba(0, 5, 10, .24), 0 2px 8px rgba(0, 5, 10, .08);
   --u-schatten-hoch: 0 10px 30px rgba(36, 50, 61, .2);
   --u-radius: 4px;
-  --u-leiste: 276px;
+  --u-leiste: 280px;
   --u-leiste-zu: 76px;
   --u-kopf: 56px;
   --u-zeile: 80px;
@@ -1009,10 +1009,15 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .u-sym.wu { display: inline-block; background-color: currentColor; -webkit-mask: var(--wu) center / contain no-repeat; mask: var(--wu) center / contain no-repeat; }
 .u-rss { color: var(--u-akzent); font-size: 15px; line-height: 1; }
 
-/* Menü wie 55.png: aktiver Punkt hellorange hinterlegt (rechts abgerundet) mit orangem Balken links */
-.u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover { background: #fff0ea; border-radius: 0 999px 999px 0; width: calc(100% - 14px); }
+/* Menü wie die Vorlage (bei 125 % Zoom nachgemessen: Leiste 280 px, Punkte 50 px hoch, Symbol ab 27 px, Text ab 79 px):
+   aktiver Punkt orange mit 4-px-Balken links über die ganze Höhe; beim Überfahren eine hellorange Fläche (#ffeae6) vom linken Rand
+   bis 16 px vor den rechten Rand, rechts voll abgerundet, Text und Symbol orange */
+.u-nav-punkt { padding-left: 21.5px; gap: 23px; }
+.u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover { background: none; }
 .u-nav-punkt.aktiv::before { top: 0; bottom: 0; border-radius: 0; }
-.u-nav-punkt:hover { border-radius: 0 999px 999px 0; width: calc(100% - 14px); }
+.u-nav-punkt:hover, .u-nav-punkt.aktiv:hover { background: #ffeae6; color: var(--u-akzent); border-radius: 0 999px 999px 0; width: calc(100% - 16px); }
+.u-nav-punkt:hover .u-nav-sym { color: var(--u-akzent); }
+.u-nav-unter .u-nav-punkt { gap: 16px; padding-left: 21px; }
 
 /* Kopfzeile des Plans: weißer „Heute“-Knopf (54.png), Elementwahl- und Datums-Pille (57.png) */
 .heute-pill { background: #fff; color: var(--u-titel); box-shadow: 0 1px 3px rgba(0, 5, 10, .1), 0 2px 8px rgba(0, 5, 10, .05); padding: 0 32px; }
