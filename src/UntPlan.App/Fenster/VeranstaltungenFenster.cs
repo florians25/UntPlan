@@ -23,6 +23,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private readonly NumericUpDown _nr = new() { Width = 70, Maximum = int.MaxValue, Minimum = 0 };
     private readonly ZeitraumAuswahl _zeitraum;
     private bool _laedt;
+    private readonly ZellKommentare _kommentare;
     private static readonly string[] AuswahlSpalten = { "K", "KT", "L", "R", "SG" };
 
     public VeranstaltungenFenster()
@@ -32,10 +33,13 @@ public sealed class VeranstaltungenFenster : MdiFenster
         Icon = SymbolIcon("veranstaltung");
         Size = new Size(980, 330);
         Positionieren();
+        // Symbolleiste wie im Vorbild (Handbuch Kap. 6): Fensterverknüpfung, Neu, Löschen | Felder der Ansicht, Element-Rollup …
         var ts = Werkzeugleiste();
+        ts.Items.Add(VerknuepfenKnopf());
         ts.Items.Add(Knopf("Neue Veranstaltung (Dialog)", "neu", Neu));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
         ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Felder der Ansicht", "rollup", () => TabellenFormate.MenueZeigen(_g, Cursor.Position)));
         ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Veranstaltung kopieren (Strg+C)", "kopieren", KopierenMerken));
         ts.Items.Add(Knopf("Veranstaltung einfügen (Strg+V) – am eingestellten Datum", "import", Einfuegen));
@@ -94,6 +98,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
             if (MehrfachAuswahl.AufPfeil(_g, e)) AuswahlZeigen(e.RowIndex, e.ColumnIndex);
         };
         _g.KeyDown += Taste;
+        _kommentare = ZellKommentare.Aktivieren(_g, r => r.Tag is Veranstaltung va ? ("Veranstaltung:" + va.Id, "Veranstaltung Nr. " + va.Id) : null);
         // Kontextmenü: Schnellauswahl für die angeklickte Spalte (Klasse, Kl-Teil, Lehrer, Raum)
         _g.CellMouseDown += (_, e) =>
         {
@@ -101,6 +106,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
             if (!_g.IsCurrentCellInEditMode) _g.CurrentCell = _g.Rows[e.RowIndex].Cells[e.ColumnIndex];
             var m = new ContextMenuStrip { Font = Ui.Schrift };
             m.Items.AddRange(SchnellMenue(FeldVon(_g.Columns[e.ColumnIndex].Name)).ToArray());
+            // Kommentarfunktion wie im Vorbild (Handbuch Kap. 4.5)
+            m.Items.Add(new ToolStripSeparator());
+            m.Items.AddRange(_kommentare.MenueEintraege(e.RowIndex, e.ColumnIndex).ToArray());
             m.Closed += (_, _) => BeginInvoke(m.Dispose);
             m.Show(_g, _g.PointToClient(Cursor.Position));
         };
@@ -136,7 +144,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
 
     private void DatumGewechselt(DateOnly datum)
     {
-        if (IsDisposed || _zeitraum.Art == Zeitraumart.VonBis) return;
+        if (IsDisposed || !Verknuepft || _zeitraum.Art == Zeitraumart.VonBis) return;
         _von.Value = datum.ToDateTime(TimeOnly.MinValue);
     }
 
@@ -509,7 +517,19 @@ public sealed class VeranstaltungenFenster : MdiFenster
                 case "R": v.RaumIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Raum, wert, v.Von, v.Bis); break;
                 case "G": v.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
                 case "Z": v.Zaehlen = wert == "1"; break;
-                case "SG": v.Schuelergruppe = wert; break;
+                case "SG":
+                    // neue Schülergruppe (Handbuch Kap. 6.3): Rückfrage, ob der kollidierende Unterricht trotzdem stattfindet –
+                    // Ja: die Klassen nehmen nur teilweise teil (Kl-Teil, Unterricht findet statt), Nein: Lehrkräfte werden freigesetzt
+                    var neueGruppe = wert.Length > 0 && !VeranstaltungsLogik.Schuelergruppen(D).Contains(wert, StringComparer.OrdinalIgnoreCase);
+                    v.Schuelergruppe = wert;
+                    if (neueGruppe && v.KlassenIds.Count > 0 && Ui.Frage("Diese Schülergruppe ist noch nicht in Verwendung und wird deshalb neu angelegt.\n\n" +
+                        "Soll der Unterricht, der mit der Veranstaltung kollidiert, trotzdem stattfinden?\n\n" +
+                        "(Ja = keine Auswirkung auf den verplanten Unterricht, Nein = Lehrer werden freigesetzt.)", "UntPlan - Frage", this))
+                    {
+                        v.KlassenteilIds = v.KlassenteilIds.Union(v.KlassenIds).ToList();
+                        v.KlassenIds.Clear();
+                    }
+                    break;
                 default: return;
             }
         }

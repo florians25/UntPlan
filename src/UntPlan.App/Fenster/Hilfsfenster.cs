@@ -83,12 +83,12 @@ public sealed class Eingabeassistent : Panel
             var datum = AppZustand.Datum;
             Kopf("Vertretungsplanung – " + Format.Datum(datum));
             Schritt("Planungsdatum wählen (Kalender)", true, () => h.VertretungsFensterOeffnen("kal"));
-            Schritt("Absenzen eingeben (Strg+M)", d.Abwesenheiten.Any(a => datum >= a.Von && datum <= a.Bis), () => h.VertretungsFensterOeffnen("abw"));
+            Schritt("Absenzen eingeben", d.Abwesenheiten.Any(a => datum >= a.Von && datum <= a.Bis), () => h.VertretungsFensterOeffnen("abw"));
             Schritt("Veranstaltungen", d.Veranstaltungen.Any(v => datum >= v.Von && datum <= v.Bis), () => h.VertretungsFensterOeffnen("veranst"));
             Schritt("Klausuren", d.Klausuren.Any(k => k.Datum == datum), () => h.VertretungsFensterOeffnen("klaus"));
             Kopf("Vertretungen bearbeiten");
-            Schritt("Vertretungen (Strg+T)", !d.Vertretungen.Any(v => v.Datum == datum && v.Offen), () => h.VertretungsFensterOeffnen("vertr"));
-            Schritt("Vertretungsvorschlag (Strg+G)", false, () => h.VertretungsFensterOeffnen("vorschlag"));
+            Schritt("Vertretungen", !d.Vertretungen.Any(v => v.Datum == datum && v.Offen), () => h.VertretungsFensterOeffnen("vertr"));
+            Schritt("Vertretungsvorschlag", false, () => h.VertretungsFensterOeffnen("vorschlag"));
             Schritt("Vormerkungen", d.Vormerkungen.All(v => v.Offen == 0), () => h.VertretungsFensterOeffnen("vorm"));
             Schritt("Bereitschaften", false, () => h.VertretungsFensterOeffnen("bereit"));
             Schritt("Pausenaufsichten", false, () => h.VertretungsFensterOeffnen("pause"));
@@ -332,7 +332,9 @@ public sealed class KommentarUebersicht : MdiFenster
         foreach (var k in D.Kommentare.OrderByDescending(k => k.Erstellt))
         {
             var kat = D.KommentarKategorien.FirstOrDefault(x => x.Nr == k.Kategorie);
-            var r = _g.Rows.Add(kat?.Name, Ui.TypName(k.ElementTyp), Ix.K(k.ElementTyp, k.ElementId), k.Feld, k.Text, k.Erstellt.ToString("dd.MM.yyyy HH:mm"));
+            var r = k.Bezug.Length > 0
+                ? _g.Rows.Add(kat?.Name, k.Bezug.Split(':')[0], Steuerelemente.ZellKommentare.BezugText(k.Bezug), k.Feld, k.Text, k.Erstellt.ToString("dd.MM.yyyy HH:mm"))
+                : _g.Rows.Add(kat?.Name, Ui.TypName(k.ElementTyp), Ix.K(k.ElementTyp, k.ElementId), k.Feld, k.Text, k.Erstellt.ToString("dd.MM.yyyy HH:mm"));
             _g.Rows[r].Tag = k.Id;
             _g.Rows[r].Cells[0].Style.BackColor = Ui.Farbe(kat?.Farbe ?? 0, Color.White);
         }

@@ -19,29 +19,34 @@ public sealed partial class HauptFenster
 
     private void VertretungsSeiteAufbauen()
     {
+        // Aufbau wie im Vorbild (Handbuch Vertretungsplanung, Kap. 3.1/4.1): Kalender mit Datum darunter | Absenzen, Vertretungen,
+        // Ausgabe, Vertretungsstatistik | Veranstaltungen, Sondereinsätze, Bereitschaften | Planungsdialog, Vormerkungen,
+        // Pausenaufsichten | Stundenpläne | Vertretungsformate, Info-Stundenplan, Einstellungen | Vertretungsplanung
         var vp = _ribbon.Seite("Vertretungsplanung", () => AppZustand.Vertretungsmodus);
         var g = Gruppe(vp, "Kalender");
-        g.Eintraege.Add(E("Kalender", "kalender", () => VertretungsFensterOeffnen("kal"), true, new()
+        g.Eintraege.Add(new RibbonEintrag
         {
-            E("Kalender", "kalender", () => VertretungsFensterOeffnen("kal")),
-            E("Heute", "kalender", () => AppZustand.DatumSetzen(DateOnly.FromDateTime(DateTime.Today))),
-            E("Nächster Unterrichtstag", "vor", () => AppZustand.DatumSetzen(Kalender.NaechsterUnterrichtstag(AppZustand.D, AppZustand.Datum))),
-        }));
-        g.Eintraege.Add(new RibbonEintrag { Text = "Datum", IstDatum = true, Hinweis = "Planungsdatum: ◂ ▸ blättern (Strg+Bild↑ / Strg+Bild↓), Klick öffnet den Kalender" });
+            Text = "Kalender", Symbol = "kalender", Gross = true, PfeilKalender = true, Klick = () => VertretungsFensterOeffnen("kal"),
+            Hinweis = "Klick: Fenster Kalender · Pfeil: Planungsdatum im Monatskalender wählen (Heute: Strg+T)",
+        });
+        g.Eintraege.Add(new RibbonEintrag { Text = "Datum", IstDatum = true, Hinweis = "Planungsdatum: ◂ ▸ voriger/nächster Schultag (Strg+G / Strg+M), Strg+T: heute" });
 
         g = Gruppe(vp, "Vertretungsplanung");
         g.Eintraege.Add(E("Absenzen", "absenz", () => VertretungsFensterOeffnen("abw"), true, new()
         {
-            E("Absenzen (Strg+M)", "absenz", () => VertretungsFensterOeffnen("abw")),
+            E("Absenzen", "absenz", () => VertretungsFensterOeffnen("abw")),
             E("Absenzgründe", "absenz", () => Oeffnen<StammdatenFenster>("st:Grund", () => new StammdatenFenster(ElementTyp.Abwesenheitsgrund))),
-            E("Klausuren", "klausur", () => VertretungsFensterOeffnen("klaus")),
+            null,
+            Fenstergruppe(),
         }));
         g.Eintraege.Add(E("Vertretungen", "vertretung", () => VertretungsFensterOeffnen("vertr"), true, new()
         {
-            E("Vertretungen (Strg+T)", "vertretung", () => VertretungsFensterOeffnen("vertr")),
-            E("Vertretungsvorschlag (Strg+G)", "planen", () => VertretungsFensterOeffnen("vorschlag")),
+            E("Vertretungen", "vertretung", () => VertretungsFensterOeffnen("vertr")),
+            E("Vertretungsvorschlag", "planen", () => VertretungsFensterOeffnen("vorschlag")),
             null,
             E("Vertretungsautomatik…", "optimierung", () => VertretungsautomatikDialog.Zeigen(this, AppZustand.Datum, AppZustand.Datum)),
+            null,
+            Fenstergruppe(),
         }));
         g.Eintraege.Add(E("Ausgabe", "drucken", () => { if (VertretungsFensterOeffnen("vertr") is IDruckbar dr) dr.Drucken(true); }, true, new()
         {
@@ -52,8 +57,15 @@ public sealed partial class HauptFenster
             E("Monitor", "monitor", () => new MonitorFenster().Show()),
             E("Nachrichten zum Tag…", "nachricht", () => TagestextDialog.Zeigen(this, AppZustand.Datum)),
             E("Web-Portal…", "web", () => new PortalDialog().ShowDialog(this)),
+            null,
+            Fenstergruppe(),
         }));
-        g.Eintraege.Add(E("Vertretungs-statistik", "statistik", () => VertretungsFensterOeffnen("stat"), true, hinweis: "Abrechnung, Zähler, Mehrarbeit NRW, Entfalltage, Übersicht"));
+        g.Eintraege.Add(E("Vertretungsstatistik", "statistik", () => VertretungsFensterOeffnen("stat"), true, new()
+        {
+            E("Vertretungsstatistik", "statistik", () => VertretungsFensterOeffnen("stat")),
+            null,
+            Fenstergruppe(),
+        }, hinweis: "Abrechnung, Zähler, Mehrarbeit NRW, Entfalltage, Übersicht"));
 
         g = Gruppe(vp, "Ereignisse");
         g.Eintraege.Add(E("Veranstaltungen", "veranstaltung", () => VertretungsFensterOeffnen("veranst"), menue: new()
@@ -62,25 +74,44 @@ public sealed partial class HauptFenster
             E("Klausuren", "klausur", () => VertretungsFensterOeffnen("klaus")),
         }));
         g.Eintraege.Add(E("Sondereinsätze", "sondereinsatz", () => SondereinsatzDialog.Neu(this, AppZustand.Datum, 1, Array.Empty<int>(), Array.Empty<int>())));
-        g.Eintraege.Add(E("Bereitschaften", "bereitschaft", () => VertretungsFensterOeffnen("bereit")));
+        g.Eintraege.Add(E("Bereitschaften", "bereitschaft", () => VertretungsFensterOeffnen("bereit"), menue: new()
+        {
+            E("Bereitschaften", "bereitschaft", () => VertretungsFensterOeffnen("bereit")),
+            E("Bereitschaftsplanung", "bereitschaft", () => VertretungsFensterOeffnen("bereitplan")),
+        }));
 
         g = Gruppe(vp, "Planung");
-        g.Eintraege.Add(E("Planungs-dialog", "stundenplan", PlanungsdialogOeffnen, true, hinweis: "Klassen- und Lehrerplan tagesaktuell nebeneinander (Drag & Drop: Verlegen, Tauschen)"));
-        g.Eintraege.Add(E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm"), true));
-        g.Eintraege.Add(E("Pausen-aufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause"), true));
-
-        g = Gruppe(vp, "Stundenpläne");
-        g.Eintraege.Add(E("Klassenplan", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false)));
-        g.Eintraege.Add(E("Lehrerplan", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false)));
-        g.Eintraege.Add(E("Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false)));
-        g.Eintraege.Add(E("Kleine Pläne", "uebersicht", () => KleinePlaeneOeffnen(), menue: new()
+        g.Eintraege.Add(E("Planungsdialog", "stundenplan", PlanungsdialogOeffnen, true, new()
         {
-            E("Kleine Pläne nebeneinander", "uebersicht", () => KleinePlaeneOeffnen()),
+            E("Planungsdialog", "stundenplan", PlanungsdialogOeffnen),
             null,
-            E("Kleiner Klassenplan", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false, true)),
-            E("Kleiner Lehrerplan", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false, true)),
-            E("Kleiner Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false, true)),
-        }, hinweis: "Kompakte Stundenpläne (nur Fachkürzel, Pausenzeilen) nebeneinander – folgen über die Fensterverknüpfung der gewählten Vertretung"));
+            Fenstergruppe(),
+        }, hinweis: "Klassen- und Lehrerplan tagesaktuell nebeneinander (Drag & Drop: Verlegen, Tauschen)"));
+        g.Eintraege.Add(E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm"), true, new()
+        {
+            E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm")),
+            null,
+            Fenstergruppe(),
+        }));
+        g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause"), true, new()
+        {
+            E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause")),
+            null,
+            Fenstergruppe(),
+        }));
+
+        // Stundenpläne mit Pfeil: normaler bzw. kleiner Plan, kleine Pläne nebeneinander
+        List<RibbonEintrag?> PlanMenue(ElementTyp typ, string name, string symbol) => new()
+        {
+            E(name, symbol, () => StundenplanFenster.Neu(typ, null, false)),
+            E("Kleiner " + name, symbol, () => StundenplanFenster.Neu(typ, null, false, true)),
+            null,
+            E("Kleine Pläne nebeneinander", "uebersicht", () => KleinePlaeneOeffnen()),
+        };
+        g = Gruppe(vp, "Stundenpläne");
+        g.Eintraege.Add(E("Klassenplan", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false), menue: PlanMenue(ElementTyp.Klasse, "Klassenplan", "klassen")));
+        g.Eintraege.Add(E("Lehrerplan", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false), menue: PlanMenue(ElementTyp.Lehrer, "Lehrerplan", "lehrer")));
+        g.Eintraege.Add(E("Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false), menue: PlanMenue(ElementTyp.Raum, "Raumplan", "raeume")));
 
         g = Gruppe(vp, "Einstellungen");
         g.Eintraege.Add(E("Vertretungsformate", "uebersicht", null, menue: new()
@@ -94,11 +125,15 @@ public sealed partial class HauptFenster
             E("Standardanordnung der Fenster", "uebersicht", () => VertretungsStandardFenster()),
             E("Eigene Fensteranordnungen…", "uebersicht", FensteranordnungMenue),
         }));
-        g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan));
+        g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan, menue: new()
+        {
+            E("Info-Stundenplan", "html", InfoStundenplan),
+        }));
         g.Eintraege.Add(E("Einstellungen", "einstellungen", () => VertretungsEinstellungenDialog.Zeigen(this), menue: new()
         {
-            E("Einstellungen Vertretungsplanung…", "einstellungen", () => VertretungsEinstellungenDialog.Zeigen(this)),
-            E("Vertretungszeitraster…", "zeitraster", () => VertretungsEinstellungenDialog.Zeigen(this, 0)),
+            E("Einstellungen", "einstellungen", () => VertretungsEinstellungenDialog.Zeigen(this)),
+            E("Zeitraster", "zeitraster", () => VertretungsZeitrasterDialog.Zeigen(this)),
+            E("Klassenzeitraster", "zeitraster", () => { if (Stammdaten.Sortiert(AppZustand.D.Klassen).FirstOrDefault() is { } k) VertretungsZeitrasterDialog.Zeigen(this, k); }),
             E("Vertretungszähler…", "statistik", () => VertretungsEinstellungenDialog.Zeigen(this, 1)),
             E("Vertretungsvorschlag…", "gewichtung", () => VertretungsEinstellungenDialog.Zeigen(this, 2)),
             null,
@@ -108,10 +143,17 @@ public sealed partial class HauptFenster
         g = Gruppe(vp, "Modus");
         g.Eintraege.Add(new RibbonEintrag
         {
-            Text = "Vertretungs-planung", Symbol = "vertretung", Gross = true, Klick = VertretungsmodusUmschalten, Gedrueckt = () => AppZustand.Vertretungsmodus,
+            Text = "Vertretungsplanung", Symbol = "vertretung", Gross = true, Klick = VertretungsmodusUmschalten, Gedrueckt = () => AppZustand.Vertretungsmodus,
             Hinweis = "Zurück zur Stundenplanung (Strg+Umschalt+V)",
         });
     }
+
+    /// <summary>Untermenü „Fenstergruppe“ der großen Knöpfe im Vertretungsmodus (wie im Vorbild).</summary>
+    private RibbonEintrag Fenstergruppe() => E("Fenstergruppe", "uebersicht", null, menue: new()
+    {
+        E("Standardanordnung der Fenster", "uebersicht", () => VertretungsStandardFenster()),
+        E("Eigene Fensteranordnungen…", "uebersicht", FensteranordnungMenue),
+    });
 
     /// <summary>Planungsdialog: Klassen- und Lehrerplan tagesaktuell nebeneinander.</summary>
     private void PlanungsdialogOeffnen()
@@ -391,9 +433,10 @@ public sealed partial class HauptFenster
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         if (AppZustand.Vertretungsmodus)
         {
-            cm.Items.Add("Vertretungen (Strg+T)", Symbole.Get("vertretung"), (_, _) => FensterOeffnen("vertr"));
-            cm.Items.Add("Vertretungsvorschlag (Strg+G)", Symbole.Get("planen"), (_, _) => FensterOeffnen("vorschlag"));
-            cm.Items.Add("Absenzen (Strg+M)", Symbole.Get("abwesenheit"), (_, _) => FensterOeffnen("abw"));
+            cm.Items.Add("Vertretungen", Symbole.Get("vertretung"), (_, _) => FensterOeffnen("vertr"));
+            cm.Items.Add("Vertretungsvorschlag", Symbole.Get("planen"), (_, _) => FensterOeffnen("vorschlag"));
+            cm.Items.Add("Absenzen", Symbole.Get("abwesenheit"), (_, _) => FensterOeffnen("abw"));
+            cm.Items.Add("Veranstaltungen", Symbole.Get("veranstaltung"), (_, _) => FensterOeffnen("veranst"));
             cm.Items.Add("Kalender", Symbole.Get("kalender"), (_, _) => FensterOeffnen("kal"));
             cm.Items.Add("Standardanordnung Vertretungsplanung", Symbole.Get("uebersicht"), (_, _) => VertretungsStandardFenster());
             cm.Items.Add(new ToolStripSeparator());

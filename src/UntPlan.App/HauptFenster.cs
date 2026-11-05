@@ -686,14 +686,18 @@ public sealed partial class HauptFenster : Form
             case Keys.Control | Keys.Y when ActiveMdiChild?.ActiveControl is not TextBoxBase:
                 AppZustand.Doc.Wiederholen();
                 return true;
+            // Vertretungsmodus wie im Handbuch (Kap. 4.3 Datum): Strg+T heute, Strg+M kommender, Strg+G vergangener Schultag
+            case Keys.Control | Keys.T when AppZustand.Vertretungsmodus:
+                AppZustand.DatumSetzen(DateOnly.FromDateTime(DateTime.Today));
+                _ribbon.Invalidate();
+                return true;
             case Keys.Control | Keys.T:
                 VertretungsFensterOeffnen("vertr");
                 return true;
-            case Keys.Control | Keys.M when AppZustand.Vertretungsmodus:
-                VertretungsFensterOeffnen("abw");
-                return true;
-            case Keys.Control | Keys.G when AppZustand.Vertretungsmodus:
-                VertretungsFensterOeffnen("vorschlag");
+            case Keys.Control | Keys.M when AppZustand.Vertretungsmodus && ActiveMdiChild?.ActiveControl is not TextBoxBase:
+            case Keys.Control | Keys.G when AppZustand.Vertretungsmodus && ActiveMdiChild?.ActiveControl is not TextBoxBase:
+                AppZustand.DatumSetzen(Kalender.NaechsterUnterrichtstag(AppZustand.D, AppZustand.Datum, (keyData & Keys.KeyCode) == Keys.G ? -1 : 1));
+                _ribbon.Invalidate();
                 return true;
             case Keys.F1 when ActiveMdiChild is null:
                 HilfeFenster.Zeigen("");

@@ -26,6 +26,7 @@ public sealed class KalenderFenster : MdiFenster
     private readonly TextBox _stunden = new() { Width = 200 };
     private readonly TextBox _notiz = new() { Width = 300 };
     private static readonly string[] Arten = { "Alle", "Klassen", "Lehrer", "Nur Lehrer" };
+    private readonly ToolTip _tipp = new();
     private bool _laedt;
 
     public KalenderFenster()
@@ -53,15 +54,25 @@ public sealed class KalenderFenster : MdiFenster
         Ui.RasterGestalten(_woche, false);
         _woche.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _woche.MultiSelect = false;
-        foreach (var (n, k, w) in new[] { ("D", "Datum", 52), ("T", "Tag", 34), ("O", "Offen", 46), ("AK", "Abw.Kl.", 50), ("F", "Freis.", 46), ("BR", "Bl.Räume", 58), ("RV", "Raum-V.", 52), ("TT", "Tagestexte", 66), ("KL", "Koll. Lehrer", 72), ("KR", "Koll. Räume", 72) })
-            _woche.Columns[_woche.Columns.Add(n, k)].Width = w;
+        // Spalten wie im Vorbild (Handbuch Kap. 4.4.1): Lehrer | Pausenaufsichten | Klassen | Räume | Tagestexte | Kollisionen
+        foreach (var (n, k, w) in new[]
+        {
+            ("D", "Datum", 46), ("T", "Tag", 34), ("AL", "Abw.Le.", 52), ("V", "Vertr.", 44), ("O", "Offen", 44), ("PV", "PA-Vertr.", 58), ("PO", "Offen (Paus.)", 76),
+            ("AK", "Abw.Kl.", 50), ("F", "Freis.", 44), ("BR", "Bl.Räume.", 62), ("RV", "Raum-Vtr.", 62), ("RO", "Offen (Raum)", 76), ("TT", "Tagestexte", 66),
+            ("KL", "Koll. Lehrer", 72), ("KR", "Koll. Räume", 72),
+        })
+        {
+            var c = _woche.Columns[_woche.Columns.Add(n, k)];
+            c.Width = w;
+            c.SortMode = DataGridViewColumnSortMode.NotSortable;
+        }
         _woche.CellClick += (_, e) => { if (e.RowIndex >= 0 && _woche.Rows[e.RowIndex].Tag is DateOnly d) AppZustand.DatumSetzen(d); };
         _woche.CellFormatting += (_, e) =>
         {
             if (e.RowIndex < 0 || e.CellStyle is null || _woche.Rows[e.RowIndex].Tag is not DateOnly d) return;
             if (!Kalender.IstUnterrichtstag(D, d)) e.CellStyle.ForeColor = Color.Gray;
             if (d == AppZustand.Datum) e.CellStyle.BackColor = Color.FromArgb(255, 222, 222);
-            if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
+            if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "PO" or "RO" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
         };
 
         // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Gültig bis | Tagestext […] | Webportal;
@@ -142,9 +153,27 @@ public sealed class KalenderFenster : MdiFenster
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
         split.Panel1.Controls.Add(_woche);
         split.Panel2.Controls.Add(_tabs);
+        // wie im Vorbild: kleiner schwarzer Pfeil links unten klappt den Detailbereich (Tagestexte, Kalendertag) aus bzw. ein
+        var klappe = new Panel { Dock = DockStyle.Bottom, Height = 24 };
+        var pfeil = new Button { Size = new Size(20, 18), Location = new Point(4, 3), FlatStyle = FlatStyle.Flat, BackColor = Color.White, UseVisualStyleBackColor = false };
+        pfeil.FlatAppearance.BorderColor = Color.Gray;
+        klappe.Controls.Add(pfeil);
+        split.Panel1.Controls.Add(klappe);
+        void Klappen(bool offen)
+        {
+            split.Panel2Collapsed = !offen;
+            pfeil.Text = offen ? "▴" : "▾";
+            _tipp.SetToolTip(pfeil, offen ? "Detailbereich einklappen" : "Detailbereich ausklappen");
+            AppZustand.Einstellungen.KalenderDetailOffen = offen;
+        }
+        pfeil.Click += (_, _) => { Klappen(split.Panel2Collapsed); AppZustand.Einstellungen.Speichern(); };
         Controls.Add(split);
         Controls.Add(kopf);
-        Load += (_, _) => split.SplitterDistance = Math.Max(120, (int)(split.Height * 0.52));
+        Load += (_, _) =>
+        {
+            split.SplitterDistance = Math.Max(120, (int)(split.Height * 0.52));
+            Klappen(AppZustand.Einstellungen.KalenderDetailOffen);
+        };
         AppZustand.DatumGewechselt += DatumGewechselt;
         FormClosed += (_, _) => AppZustand.DatumGewechselt -= DatumGewechselt;
         Neuaufbau();
@@ -178,10 +207,17 @@ public sealed class KalenderFenster : MdiFenster
                 kollL = liste.Count(v => v.VertreterId is int l && !v.IstEntfall && !v.Mitbetreuung && v.Art != VertretungsArt.TrotzAbsenz && Vertretungen.LehrerBelegt(D, tp, l, v.Stunde, v) != null);
                 kollR = tp.Eintraege.Where(e => e.Findetstatt).SelectMany(e => e.RaumIds.Select(r => (e.Stunde, r))).GroupBy(x => x).Count(g => g.Count() > 1);
             }
-            var r = _woche.Rows.Add($"{t:d.M.}", Planungsdienst.TageKurz[i], liste.Count(v => v.Offen),
-                D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Klasse && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Freisetzung),
-                D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Raum && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Raumvertretung),
-                D.Tagestexte.Count(x => x.GiltAm(t)), kollL, kollR);
+            // an unterrichtsfreien Tagen (Wochenende, Ferien) bleiben die Kennzahlen leer wie im Vorbild
+            var r = Kalender.IstUnterrichtstag(D, t) || liste.Count > 0
+                ? _woche.Rows.Add($"{t:d.M.}", Planungsdienst.TageKurz[i],
+                    D.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && t >= a.Von && t <= a.Bis).Select(a => a.ElementId).Distinct().Count(),
+                    liste.Count(v => v.GangId is null && v.Art != VertretungsArt.Raumvertretung && v.Art != VertretungsArt.Freisetzung),
+                    liste.Count(v => v.GangId is null && v.Offen),
+                    liste.Count(v => v.GangId != null), liste.Count(v => v.GangId != null && v.Offen),
+                    D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Klasse && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Freisetzung),
+                    D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Raum && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Raumvertretung),
+                    liste.Count(v => v.RaumOffen), D.Tagestexte.Count(x => x.GiltAm(t)), kollL, kollR)
+                : _woche.Rows.Add($"{t:d.M.}", Planungsdienst.TageKurz[i]);
             _woche.Rows[r].Tag = t;
             if (t == datum) _woche.CurrentCell = _woche.Rows[r].Cells[0];
         }
@@ -322,7 +358,11 @@ public sealed class KalenderFenster : MdiFenster
     }
 
     /// <summary>Selbsttest: Kalendertag-Reiter zeigen.</summary>
-    internal void SelbsttestKalendertag() => _tabs.SelectedIndex = 1;
+    internal void SelbsttestKalendertag()
+    {
+        if (_tabs.Parent?.Parent is SplitContainer sc) sc.Panel2Collapsed = false;
+        _tabs.SelectedIndex = 1;
+    }
 }
 
 /// <summary>Klausuren (Prüfungen) mit Aufsichten; kollidierender Unterricht der Klassen entfällt.</summary>
