@@ -523,7 +523,11 @@ public sealed class VeranstaltungenFenster : MdiFenster
                     else v.LehrerIds = namen;
                     break;
                 case "R": v.RaumIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Raum, wert, v.Von, v.Bis); break;
-                case "G": v.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+                case "G":
+                    // unbekannter Grund: Hinweis, nichts ändern (nicht stillschweigend den Grund löschen)
+                    v.GrundId = wert.Length == 0 ? null : D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id
+                        ?? throw new FormatException($"Absenzgrund \"{wert}\" ist nicht vorhanden.");
+                    break;
                 case "Z": v.Zaehlen = wert == "1"; break;
                 case "SG":
                     // neue Schülergruppe (Handbuch Kap. 6.3): Rückfrage, ob der kollidierende Unterricht trotzdem stattfindet –

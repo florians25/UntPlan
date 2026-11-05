@@ -317,7 +317,12 @@ public sealed partial class Benutzereinstellungen
     {
         Benutzereinstellungen e;
         try { e = JsonSerializer.Deserialize<Benutzereinstellungen>(File.ReadAllText(Pfad)) ?? new(); }
-        catch { return new(); }
+        catch (Exception)
+        {
+            // unlesbare Einstellungen nicht beim nächsten Speichern überschreiben: Kopie für die Wiederherstellung behalten
+            try { if (File.Exists(Pfad)) File.Copy(Pfad, Pfad + ".defekt", true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            return new();
+        }
         // eigene Vertretungsansichten älterer Einstellungen als Vertretungsformate übernehmen
         e.EigeneAnsichtenUebernehmen();
         return e;

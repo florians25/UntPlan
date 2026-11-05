@@ -2650,6 +2650,52 @@ public sealed partial class HauptFenster
             bilder[0].Save(Path.Combine(ordner, "R3C_SP05_Druck.png"));
             log.Add($"INFO  R3C_SP05: Stunde U{p.UnterrichtId} gewählt, {gruen} grüne Felder; Druck {bilder.Count} Seite(n)");
         }, 3);
+        // R3D: Robustheit – Fensterrundgang durch alle Menüband-Einträge beider Modi (Beispielschule und leere Datei), Fehleingaben
+        // Zeilen sofort in r3d.log (Fortschritt, falls etwas hängt); Befunde zusätzlich ins Selbsttest-Protokoll
+        var r3dPfad = Path.Combine(ordner, "r3d.log");
+        void R3DMelden(string z)
+        {
+            File.AppendAllText(r3dPfad, z + Environment.NewLine);
+            if (!z.StartsWith("  … ", StringComparison.Ordinal)) log.Add(z);
+        }
+        void R3DRundgang(bool leer)
+        {
+            var f = Fensterrundgang(leer, R3DMelden);
+            if (f.Count > 0) throw new InvalidOperationException($"{f.Count} Ausnahme(n)/Problem(e) im Fensterrundgang – Einzelheiten in den Zeilen „FEHLER R3D“.");
+        }
+        Schritt("R3D_Fensterrundgang", () => R3DRundgang(false), -1);
+        Schritt("R3D_Fensterrundgang_leer", () => R3DRundgang(true), -1);
+        Schritt("R3D_Fehleingaben", () =>
+        {
+            var f = Fehleingaben(R3DMelden);
+            if (f.Count > 0) throw new InvalidOperationException($"{f.Count} Problem(e) bei Fehleingaben – Einzelheiten in den Zeilen „FEHLER R3D“.");
+        }, -1);
+        Schritt("R3D_Einstellungen_Rundreise", () =>
+        {
+            // Benutzereinstellungen (einstellungen.json, gleiche Optionen wie Speichern/Laden): jedes Feld mit Nicht-Standardwert übersteht die Rundreise
+            var abweichungen = new List<string>();
+            var optionen = new System.Text.Json.JsonSerializerOptions();
+            foreach (var t in Rundreise.Modelltypen(typeof(Benutzereinstellungen)))
+            {
+                var o = Activator.CreateInstance(t)!;
+                new Rundreise.Fueller().Fuellen(o, 0);
+                var geladen = System.Text.Json.JsonSerializer.Deserialize(System.Text.Json.JsonSerializer.Serialize(o, t, optionen), t, optionen)!;
+                Rundreise.Vergleichen(o, geladen, t.Name, abweichungen);
+            }
+            // Ansichtseinstellungen in der Schuldatei: Herauslösen → Schuldatei speichern/laden → Übernehmen
+            var e1 = new Benutzereinstellungen();
+            new Rundreise.Fueller().Fuellen(e1, 0);
+            var datei = new Schuldatei { Ansichtseinstellungen = e1.AnsichtAlsJson() };
+            var e2 = new Benutzereinstellungen();
+            var n = e2.AnsichtUebernehmen(Dokument.Klonen(datei).Ansichtseinstellungen);
+            foreach (var feld in Benutzereinstellungen.AnsichtsFelder)
+            {
+                var p = typeof(Benutzereinstellungen).GetProperty(feld)!;
+                Rundreise.Vergleichen(p.GetValue(e1), p.GetValue(e2), "Ansicht." + feld, abweichungen);
+            }
+            if (abweichungen.Count > 0) throw new InvalidOperationException("Einstellungen verlieren Werte beim Speichern/Laden:\n" + string.Join("\n", abweichungen.Take(40)));
+            log.Add($"INFO  R3D Einstellungen: {Rundreise.Modelltypen(typeof(Benutzereinstellungen)).Count} Typen, {n} Ansichtsfelder über die Schuldatei übernommen");
+        }, -1);
         File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();
     }

@@ -467,7 +467,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
                     break;
                 case "SV": a.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, LetzteStunde); break;
                 case "SB": a.StundeBis = wert.Length == 0 ? LetzteStunde : Math.Clamp(int.Parse(wert), 1, LetzteStunde); break;
-                case "G": a.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+                case "G":
+                    var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
+                    // unbekannter Grund: bisherigen Grund behalten (nicht stillschweigend löschen)
+                    if (grund is null && wert.Length > 0) meldung = $"Absenzgrund \"{wert}\" ist nicht vorhanden.";
+                    else a.GrundId = grund?.Id;
+                    break;
                 case "Beg":
                     var teile = wert.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
                     var unbekannt = teile.Where(k => !D.Lehrer.Any(l => l.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))).ToList();
@@ -531,6 +536,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
             if (sofort || !IsHandleCreated) Neuaufbau(); else NachZellwechsel(Neuaufbau);
             return;
         }
+        // nichts geändert (z. B. ungültige Eingabe verworfen): nicht speichern, Daten bleiben unverändert
+        if (alt != null && System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(alt))
+        {
+            if (sofort || !IsHandleCreated) Neuaufbau(); else NachZellwechsel(Neuaufbau);
+            return;
+        }
         var text = alt is null ? "Absenz eingeben" : "Absenz geändert";
         if (sofort || !IsHandleCreated || IsDisposed) Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, text);
         else NachZellwechsel(() => Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, text));
@@ -545,11 +556,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         Neuaufbau();
     }
 
-    private static Abwesenheit Kopie(Abwesenheit a) => new()
-    {
-        Id = a.Id, Art = a.Art, ElementId = a.ElementId, Von = a.Von, Bis = a.Bis, StundeVon = a.StundeVon, StundeBis = a.StundeBis,
-        GrundId = a.GrundId, Text = a.Text, BegleitLehrerIds = new List<int>(a.BegleitLehrerIds), Erstellt = a.Erstellt, Benutzer = a.Benutzer,
-    };
+    private static Abwesenheit Kopie(Abwesenheit a) => a.Kopie();
 
     private void Neu()
     {

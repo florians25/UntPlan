@@ -123,11 +123,7 @@ public sealed class FerienFenster : MdiFenster
         if (art is AenderungsArt.Einstellungen or AenderungsArt.Alles && !_geaendert) EntwurfLaden();
     }
 
-    private static Ferien Kopie(Ferien f) => new()
-    {
-        Id = f.Id, Kurzname = f.Kurzname, Langname = f.Langname, Von = f.Von, Bis = f.Bis, Feiertag = f.Feiertag, WocheDanach = f.WocheDanach,
-        Wochennummerierung = f.Wochennummerierung,
-    };
+    private static Ferien Kopie(Ferien f) => f.Kopie();
 
     private void EntwurfLaden()
     {

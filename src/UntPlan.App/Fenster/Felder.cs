@@ -15,6 +15,8 @@ public sealed class Feld
     public FeldArt Art { get; init; }
     public ElementTyp RefTyp { get; init; }
     public string[] Auswahl { get; init; } = Array.Empty<string>();
+    /// <summary>Zahlenfeld erlaubt negative Werte (z. B. Wertkorrektur); sonst sind nur Werte ab 0 zulässig.</summary>
+    public bool Negativ { get; init; }
     public Func<Element, object?> Get { get; init; } = _ => null;
     public Action<Element, object?>? Set { get; init; }
     public bool Standard { get; init; }
@@ -63,16 +65,20 @@ public sealed class Feld
         switch (Art)
         {
             case FeldArt.Text: return text;
-            case FeldArt.Ganzzahl: return text.Length == 0 ? 0 : int.Parse(text, CultureInfo.GetCultureInfo("de-DE"));
-            case FeldArt.Dezimal: return text.Length == 0 ? 0m : decimal.Parse(text.Replace('.', ','), CultureInfo.GetCultureInfo("de-DE"));
+            case FeldArt.Ganzzahl: return text.Length == 0 ? 0 : Ganzzahl(text);
+            case FeldArt.Dezimal: return text.Length == 0 ? 0m : Dezimalzahl(text);
             case FeldArt.Bool: return text.Equals("X", StringComparison.OrdinalIgnoreCase) || text == "1" || text.Equals("true", StringComparison.OrdinalIgnoreCase);
             case FeldArt.Bereich: return Bereich.Parse(text);
-            case FeldArt.Datum: return text.Length == 0 ? null : DateOnly.Parse(text, CultureInfo.GetCultureInfo("de-DE"));
+            case FeldArt.Datum:
+                if (text.Length == 0) return null;
+                return DateOnly.TryParse(text, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.None, out var datum) ? datum
+                    : throw new FormatException($"{Titel}: „{text}“ ist kein gültiges Datum (TT.MM.JJJJ).");
             case FeldArt.Auswahl:
                 if (text.Length == 0) return 0;
                 var idx = Array.FindIndex(Auswahl, a => a.Equals(text, StringComparison.OrdinalIgnoreCase) || a.StartsWith(text + " ", StringComparison.OrdinalIgnoreCase));
                 if (idx >= 0) return idx;
-                return int.Parse(text.Split(' ')[0]);
+                return int.TryParse(text.Split(' ')[0], out var nr) && nr >= 0 && nr < Math.Max(1, Auswahl.Length) ? nr
+                    : throw new FormatException($"{Titel}: „{text}“ ist kein zulässiger Wert. Erlaubt: {string.Join(", ", Auswahl)}.");
             case FeldArt.Element:
                 if (text.Length == 0) return null;
                 return Suchen(d, text).Id;
@@ -80,9 +86,32 @@ public sealed class Feld
                 return text.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(t => Suchen(d, t).Id).Distinct().ToList();
             case FeldArt.Farbe:
                 if (text.Length == 0) return 0;
-                return unchecked((int)(0xFF000000 | Convert.ToUInt32(text.TrimStart('#'), 16)));
+                return uint.TryParse(text.TrimStart('#'), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb) && rgb <= 0xFFFFFF
+                    ? unchecked((int)(0xFF000000 | rgb))
+                    : throw new FormatException($"{Titel}: „{text}“ ist keine Farbe (Beispiel: #FFCC00).");
             default: return null;
         }
+    }
+
+    /// <summary>Größter zulässiger Betrag einer Zahleneingabe (Stunden, Kapazitäten, Faktoren): größere Werte sind Tippfehler.</summary>
+    public const int GroessteZahl = 99999;
+
+    private int Ganzzahl(string text)
+    {
+        if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.GetCultureInfo("de-DE"), out var n))
+            throw new FormatException($"{Titel}: „{text}“ ist keine ganze Zahl.");
+        if (Math.Abs(n) > GroessteZahl) throw new FormatException($"{Titel}: {text} ist zu groß (höchstens {GroessteZahl}).");
+        if (n < 0 && !Negativ) throw new FormatException($"{Titel}: bitte keine negative Zahl eingeben.");
+        return (int)n;
+    }
+
+    private decimal Dezimalzahl(string text)
+    {
+        if (!decimal.TryParse(text.Replace('.', ','), NumberStyles.Number, CultureInfo.GetCultureInfo("de-DE"), out var n))
+            throw new FormatException($"{Titel}: „{text}“ ist keine Zahl.");
+        if (Math.Abs(n) > GroessteZahl) throw new FormatException($"{Titel}: {text} ist zu groß (höchstens {GroessteZahl}).");
+        if (n < 0 && !Negativ) throw new FormatException($"{Titel}: bitte keine negative Zahl eingeben.");
+        return n;
     }
 
     private Element Suchen(Schuldatei d, string text) =>
@@ -95,8 +124,8 @@ public static class Felder
     private static Feld T(string k, string titel, Func<Element, object?> get, Action<Element, object?>? set, string karte = "Allgemeines", bool std = false, int breite = 70, string formular = "") =>
         new() { Schluessel = k, Titel = titel, Art = FeldArt.Text, Get = get, Set = set, Karteikarte = karte, Standard = std, Breite = breite, Beschriftung = formular };
 
-    private static Feld F(string k, string titel, FeldArt art, Func<Element, object?> get, Action<Element, object?>? set, string karte = "Allgemeines", bool std = false, int breite = 60, ElementTyp refTyp = ElementTyp.Raum, string[]? auswahl = null, string formular = "") =>
-        new() { Schluessel = k, Titel = titel, Art = art, Get = get, Set = set, Karteikarte = karte, Standard = std, Breite = breite, RefTyp = refTyp, Auswahl = auswahl ?? Array.Empty<string>(), Beschriftung = formular };
+    private static Feld F(string k, string titel, FeldArt art, Func<Element, object?> get, Action<Element, object?>? set, string karte = "Allgemeines", bool std = false, int breite = 60, ElementTyp refTyp = ElementTyp.Raum, string[]? auswahl = null, string formular = "", bool negativ = false) =>
+        new() { Schluessel = k, Titel = titel, Art = art, Get = get, Set = set, Karteikarte = karte, Standard = std, Breite = breite, RefTyp = refTyp, Auswahl = auswahl ?? Array.Empty<string>(), Beschriftung = formular, Negativ = negativ };
 
     /// <summary>
     /// Eingabefelder aller Stammdaten wie im Handbuch (Karteikarte „Allgemeines“): Name, Langname, Text, Beschreibung, Statistik-Kennzeichen,
@@ -208,7 +237,7 @@ public static class Felder
                 l.Add(F("Soll", "Soll (abzgl. Erm.)", FeldArt.NurLesen, e => ((Lehrer)e).Soll, null, "Werte", false, 70));
                 l.Add(F("Ist", "Ist (Wert)", FeldArt.NurLesen, e => Core.Module.Wertrechnung.Ist(AppZustand.D, AppZustand.Doc.Index, (Lehrer)e), null, "Werte", false, 60));
                 l.Add(F("Faecher", "Fächer", FeldArt.ElementListe, e => ((Lehrer)e).FaecherIds, (e, v) => ((Lehrer)e).FaecherIds = (List<int>)v!, "Lehrbefähig.", true, 90, ElementTyp.Fach, formular: "Lehrbefähigung (Fächer)"));
-                l.Add(F("Wertkorrektur", "Wertkorrektur", FeldArt.Dezimal, e => ((Lehrer)e).Wertkorrektur, (e, v) => ((Lehrer)e).Wertkorrektur = (decimal)v!, "Werte"));
+                l.Add(F("Wertkorrektur", "Wertkorrektur", FeldArt.Dezimal, e => ((Lehrer)e).Wertkorrektur, (e, v) => ((Lehrer)e).Wertkorrektur = (decimal)v!, "Werte", negativ: true));
                 l.Add(F("VertrMaxWoche", "Vtr. max/Woche", FeldArt.Ganzzahl, e => ((Lehrer)e).VertretungenMaxWoche, (e, v) => ((Lehrer)e).VertretungenMaxWoche = (int)v!, "Vertr."));
                 l.Add(F("VertrMaxMonat", "Vtr. max/Monat", FeldArt.Ganzzahl, e => ((Lehrer)e).VertretungenMaxMonat, (e, v) => ((Lehrer)e).VertretungenMaxMonat = (int)v!, "Vertr."));
                 l.Add(F("KeineVertretung", "Keine Vertretung", FeldArt.Bool, e => ((Lehrer)e).KeineVertretung, (e, v) => ((Lehrer)e).KeineVertretung = (bool)v!, "Vertr."));

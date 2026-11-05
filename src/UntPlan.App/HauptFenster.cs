@@ -921,6 +921,8 @@ public sealed partial class HauptFenster : Form
 
     public static void Starten(string pfad)
     {
+        // im Selbsttest (Fehler werden protokolliert) keine externen Programme (Browser) öffnen
+        if (Ui.FehlerProtokoll != null) return;
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(pfad) { UseShellExecute = true }); }
         catch (Exception ex) { Ui.Fehler(ex); }
     }

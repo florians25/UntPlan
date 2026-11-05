@@ -12,6 +12,9 @@ namespace UntPlan.App.Fenster;
 public sealed class StammdatenFenster : MdiFenster, IDruckbar
 {
     private readonly ElementTyp _typ;
+
+    /// <summary>Elementart des Fensters (Klassen, Lehrer, …).</summary>
+    internal ElementTyp Typ => _typ;
     private readonly List<Feld> _felder;
     private readonly DataGridView _grid = new() { Dock = DockStyle.Fill };
     private readonly SplitContainer _split = new() { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, FixedPanel = FixedPanel.Panel2 };

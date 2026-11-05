@@ -26,6 +26,14 @@ public sealed class Abwesenheit
     public DateTime Erstellt { get; set; } = DateTime.Now;
     public string Benutzer { get; set; } = "";
 
+    /// <summary>Vollständige Kopie mit eigener Begleitlehrerliste (alle Felder, auch künftig hinzukommende).</summary>
+    public Abwesenheit Kopie()
+    {
+        var k = (Abwesenheit)MemberwiseClone();
+        k.BegleitLehrerIds = new List<int>(BegleitLehrerIds);
+        return k;
+    }
+
     public bool Deckt(DateOnly datum, int stunde)
     {
         if (datum < Von || datum > Bis) return false;
