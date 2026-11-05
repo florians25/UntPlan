@@ -547,9 +547,13 @@ public sealed partial class HauptFenster
         }, 1);
         Schritt("10_Uebersicht", () => Max(new UebersichtFenster(ElementTyp.Klasse)).Show(), 3);
         Schritt("11_Diagnose", () => Max(Oeffnen<DiagnoseFenster>("diag", () => new DiagnoseFenster())), 2);
+        Schritt("11a_Totaldiagnose", () => Max(Oeffnen<TotaldiagnoseFenster>("totaldiag", () => new TotaldiagnoseFenster())), 2);
+        Schritt("11b_CCC_Analyse", () => Max(Oeffnen<CccFenster>("ccc", () => new CccFenster())), 2);
         Schritt("12_Gewichtung", () => new GewichtungDialog().Show(this), 2);
         Schritt("13_Zeitraster", () => new ZeitrasterDialog().Show(this), 0);
         Schritt("14_Einstellungen", () => new EinstellungenDialog().Show(this), 0);
+        Schritt("14a_Einstellungen_Anpassen", () => new EinstellungenDialog("Anpassen").Show(this), 0);
+        Schritt("14b_Einstellungen_Ueberschriften", () => new EinstellungenDialog("Überschriften").Show(this), 0);
         Schritt("15_Ferien", () => Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), 0);
         Schritt("15a_Ferien_Kalender", () =>
         {
@@ -1378,6 +1382,16 @@ public sealed partial class HauptFenster
             var klein = StundenplanDruck.Bilder(ElementTyp.Klasse, klassen, new StundenplanFormat { Typ = ElementTyp.Klasse, Gross = false, Schriftgroesse = 8 });
             if (klein.Count != 1) throw new InvalidOperationException("Stundenplandruck klein: zwei Pläne gehören auf eine Seite");
             klein[0].Save(Path.Combine(ordner, "27d2_Druck_Stundenplan_klein.png"));
+            // Seitenlayout | Einstellungen: mehrere Pläne pro Seite, Lehrer der Klasse, Stundenplan Klassenlehrer
+            var mehrere = new StundenplanFormat { Typ = ElementTyp.Klasse, Gross = true, Schriftgroesse = 10 };
+            mehrere.Druck.PlaeneNebeneinander = 2;
+            mehrere.Druck.ZusatzKlassenLehrer = true;
+            var zwei = StundenplanDruck.Bilder(ElementTyp.Klasse, klassen, mehrere);
+            if (zwei.Count != 1) throw new InvalidOperationException($"Stundenplandruck 2 nebeneinander: {zwei.Count} Seiten");
+            zwei[0].Save(Path.Combine(ordner, "27d3_Druck_Stundenplan_2_je_Seite.png"));
+            mehrere.Druck.PlaeneNebeneinander = 1;
+            mehrere.Druck.StundenplanKlassenlehrer = true;
+            StundenplanDruck.Bilder(ElementTyp.Klasse, klassen.Take(1).ToList(), mehrere)[0].Save(Path.Combine(ordner, "27d4_Druck_Stundenplan_Klassenlehrer.png"));
         }, -1);
         // Sprint 6: Seitenlayout und „Felder der Ansicht“ für den Vertretungsplan (Einstellungen danach wiederherstellen)
         var druckVorher = System.Text.Json.JsonSerializer.Serialize(AppZustand.Einstellungen.Vertretungsdruck);

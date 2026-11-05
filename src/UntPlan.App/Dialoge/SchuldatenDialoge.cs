@@ -169,7 +169,7 @@ public sealed class ZeitrasterDialog : Dialog
 }
 
 /// <summary>Einstellungen: Schuldaten (Schuljahr, Land, Schulform …), Vertretungsplanung, Portal.</summary>
-public sealed class EinstellungenDialog : Dialog
+public sealed partial class EinstellungenDialog : Dialog
 {
     private readonly Einstellungen _e;
     private readonly TreeView _baum = new() { Left = 8, Top = 8, Width = 180, Height = 400, HideSelection = false };
@@ -187,6 +187,7 @@ public sealed class EinstellungenDialog : Dialog
         var diverses = _baum.Nodes.Add("Diverses");
         diverses.Nodes.Add("Sichern");
         diverses.Nodes.Add("Stundenplan");
+        WeitereSeiten(diverses);
         _baum.Nodes.Add("Vertretungsplanung");
         _baum.ExpandAll();
         _seiten["Allgemein"] = SeiteAllgemein;

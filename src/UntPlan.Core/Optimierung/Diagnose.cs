@@ -123,6 +123,13 @@ public static class Diagnose
 
         ErgaenzendePruefungen(d, ix, P);
 
+        // Lehrer-Zuordnung bei Optimierung: getauschte und ursprüngliche Lehrkraft anzeigen
+        var getauscht = P("Unterricht", "Lehrertausch durch Optimierung", "Die Optimierung hat bei einem Unterricht mit dem Kennzeichen (V) Variabler Lehrer die Lehrkraft getauscht. " +
+            "Angezeigt werden die ursprüngliche und die neue Lehrkraft. Mit \"Lehrer laut Unterricht\" im Optimierungsdialog werden alle Tausche zurückgenommen.", 0);
+        foreach (var u in d.Unterrichte.Where(u => !u.Ignorieren))
+            foreach (var z in u.Zeilen.Where(z => z.UrsprLehrerId.HasValue))
+                getauscht.Faelle.Add(new DiagnoseFall($"U{u.Id}", u.Id, "", $"{(ix.Lehrer.ContainsKey(z.UrsprLehrerId!.Value) ? ix.KLehrer(z.UrsprLehrerId) : "?")} → {ix.KLehrer(z.LehrerId)}", ElementTyp.Lehrer, z.LehrerId));
+
         var kurs = P("Kursplanung", "Kurswahl-Kollision im Band", "Ein Schüler hat zwei Kurse gewählt, die im selben Band (gleichzeitig) liegen.", 3);
         foreach (var s in d.Schueler)
         {
@@ -198,7 +205,62 @@ public static class Diagnose
             }
             punkte.Add(p);
         }
+        // Mittagspausen (Anwendungshinweise 7.7): höchstens n Klassen gleichzeitig in der Mittagspause (Kapazität der Schulküche)
+        var zr = d.Zeitraster;
+        if (zr.MaxKlassenGleicheMittagspause > 0 && zr.MittagspauseVon > 0 && zr.MittagspauseBis >= zr.MittagspauseVon)
+        {
+            var mp = new DiagnosePunkt
+            {
+                Rubrik = "Stundenplan", Gruppe = "Klasse", Titel = "Zu viele Klassen gleichzeitig in der Mittagspause", Gewicht = 3,
+                Beschreibung = $"Laut Zeitraster dürfen höchstens {zr.MaxKlassenGleicheMittagspause} Klassen gleichzeitig Mittagspause haben (Mittagspause zwischen Vor- und Nachmittagsunterricht).",
+            };
+            foreach (var (tag, stunde, klassen) in Mittagspausen(d))
+                if (klassen.Count > zr.MaxKlassenGleicheMittagspause)
+                    mp.Faelle.Add(new DiagnoseFall(string.Join(",", klassen.Select(k => ix.K(ElementTyp.Klasse, k))), null, $"{Planungsdienst.Tagname(d, tag)} {stunde}.", $"{klassen.Count} Klassen, erlaubt {zr.MaxKlassenGleicheMittagspause}"));
+            if (mp.Faelle.Count > 0) punkte.Add(mp);
+        }
         return punkte;
+    }
+
+    /// <summary>
+    /// Klassen in der Mittagspause je Tag und Stunde des Mittagsfensters (Zeitraster): die Klasse hat an diesem Tag vorher und nachher
+    /// Unterricht, in dieser Stunde aber nicht.
+    /// </summary>
+    public static List<(int Tag, int Stunde, List<int> Klassen)> Mittagspausen(Schuldatei d)
+    {
+        var ix = new DatenIndex(d);
+        var zr = d.Zeitraster;
+        var res = new List<(int, int, List<int>)>();
+        if (zr.MittagspauseVon <= 0 || zr.MittagspauseBis < zr.MittagspauseVon) return res;
+        var belegt = d.Klassen.Where(k => !k.Ignorieren).ToDictionary(k => k.Id, k => ix.PlanVon(ElementTyp.Klasse, k.Id).Select(p => (p.Tag, p.Stunde)).ToHashSet());
+        for (var t = 0; t < zr.TageProWoche; t++)
+            for (var s = zr.MittagspauseVon; s <= zr.MittagspauseBis; s++)
+            {
+                var klassen = belegt.Where(kv => !kv.Value.Contains((t, s)) && kv.Value.Any(x => x.Tag == t && x.Stunde < s) && kv.Value.Any(x => x.Tag == t && x.Stunde > s))
+                    .Select(kv => kv.Key).ToList();
+                res.Add((t, s, klassen));
+            }
+        return res;
+    }
+
+    /// <summary>
+    /// Daten für die Diagnose einer bestimmten Woche (Handbuch: „die Diagnose bezieht sich immer auf eine Woche“): Kopie mit der an
+    /// diesem Montag gültigen Periode, ohne Unterricht, der in dieser Woche nicht stattfindet (Von/Bis, A-/B-Woche).
+    /// </summary>
+    public static Schuldatei FuerWoche(Schuldatei d, DateOnly datum)
+    {
+        var montag = Kalender.Montag(datum);
+        var k = Dokument.Klonen(d);
+        k.AktivePeriodeId = k.PeriodeAm(montag).Id;
+        var woche = Kalender.Schulwoche(k, montag);
+        var tage = Enumerable.Range(0, Math.Max(1, k.Zeitraster.TageProWoche)).Select(montag.AddDays).ToList();
+        var weg = k.Unterrichte.Where(u => !tage.Any(t => u.GiltAm(t, woche))).Select(u => u.Id).ToHashSet();
+        if (weg.Count > 0)
+        {
+            k.Unterrichte.RemoveAll(u => weg.Contains(u.Id));
+            k.Stundenplan.RemoveAll(p => weg.Contains(p.UnterrichtId));
+        }
+        return k;
     }
 
     private static string GruppeVon(Verstoss v) => v.ElementTyp switch

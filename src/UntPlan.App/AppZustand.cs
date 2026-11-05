@@ -275,6 +275,36 @@ public sealed partial class Benutzereinstellungen
     /// </summary>
     public bool VeranstaltungenZusammenfassen { get; set; } = true;
 
+    // ---- Einstellungen | Diverses (lokal gespeichert) ----
+    /// <summary>„Optimierte Pläne zusätzlich in Arbeitsdateien speichern“ (work1.up …).</summary>
+    public bool OptimiertePlaeneSpeichern { get; set; }
+    /// <summary>Dateiablage: Standard-Pfade je Dateiart (z. B. „Sicherungsdateien“, „Arbeitsdateien“).</summary>
+    public Dictionary<string, string> Dateiablage { get; set; } = new();
+    /// <summary>Anpassen | Element-Rollup: „Doppelklick aktivieren“ (Eintragen per Doppelklick).</summary>
+    public bool RollupDoppelklick { get; set; } = true;
+    /// <summary>Anpassen | Element-Rollup: „Elemente aktualisieren“ (Rollup folgt dem aktiven Fenster).</summary>
+    public bool RollupAktualisieren { get; set; } = true;
+    /// <summary>Andockkante des Element-Rollups (leer = frei schwebend; „Links“, „Rechts“, „Oben“, „Unten“).</summary>
+    public string RollupAngedockt { get; set; } = "";
+    /// <summary>Anpassen | Eingabe: „Autovervollständigen“.</summary>
+    public bool Autovervollstaendigen { get; set; } = true;
+    /// <summary>Anpassen | Eingabe: „Tooltips mit Spaltenbeschreibungen einblenden“.</summary>
+    public bool SpaltenTooltips { get; set; } = true;
+    /// <summary>Anpassen | Hintergrundfarbe Hauptfenster je Modus (ARGB, 0 = Standard).</summary>
+    public int HintergrundSp { get; set; }
+    public int HintergrundVtr { get; set; }
+    /// <summary>Warnungen in der Statuszeile: „Ton ausschalten“.</summary>
+    public bool WarnungTonAus { get; set; }
+    // ---- Internet ----
+    /// <summary>Proxyserver: 0 = Direktverbindung, 1 = Proxy aus Systemeinstellungen, 2 = Proxy (Host[:Port]).</summary>
+    public int ProxyArt { get; set; } = 1;
+    public string ProxyHost { get; set; } = "";
+    public string ProxyBenutzer { get; set; } = "";
+    /// <summary>„Internetabfrage für Programmupdate“.</summary>
+    public bool UpdateAbfrage { get; set; } = true;
+    /// <summary>„Internetabfrage für Benutzer-Nachrichten“.</summary>
+    public bool NachrichtenAbfrage { get; set; } = true;
+
     /// <summary>Zuletzt verwendete Eingaben je Feldart (Autovervollständigung in Text-, Bemerkungs- und ähnlichen Feldern).</summary>
     public Dictionary<string, List<string>> Eingabeverlauf { get; set; } = new();
 

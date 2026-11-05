@@ -345,38 +345,8 @@ public sealed class KommentarUebersicht : MdiFenster
 /// <summary>Vergleichsmodus: aktuellen Stundenplan mit einer gespeicherten Datei vergleichen.</summary>
 public static class VergleichDialog
 {
-    public static void Zeigen(IWin32Window owner)
-    {
-        using var ofd = new OpenFileDialog { Filter = Core.Dokument.DateiFilter, Title = "Vergleichsdatei wählen" };
-        if (ofd.ShowDialog(owner) != DialogResult.OK) return;
-        var andere = Dokument.Laden(ofd.FileName).Daten;
-        var d = AppZustand.D;
-        var ka = Bewertung.Kennzahlen(d);
-        var kb = Bewertung.Kennzahlen(andere);
-        var setA = d.Stundenplan.Select(p => (p.UnterrichtId, p.Tag, p.Stunde)).ToHashSet();
-        var setB = andere.Stundenplan.Select(p => (p.UnterrichtId, p.Tag, p.Stunde)).ToHashSet();
-        var nurA = setA.Except(setB).Count();
-        var nurB = setB.Except(setA).Count();
-        using var dlg = new Dialog("Vergleichsmodus", 520, 330);
-        var g = new DataGridView { Left = 10, Top = 10, Width = 500, Height = 230 };
-        Ui.RasterGestalten(g, false);
-        g.RowHeadersVisible = false;
-        g.Columns.Add("K", "Kennzahl");
-        g.Columns.Add("A", "Aktueller Plan");
-        g.Columns.Add("B", Path.GetFileName(ofd.FileName));
-        g.Columns[0].Width = 180;
-        void Z(string n, object a, object b) => g.Rows.Add(n, a, b);
-        Z("Bewertung", ka.Bewertung, kb.Bewertung);
-        Z("Nicht verplante Stunden", ka.NichtVerplant, kb.NichtVerplant);
-        Z("Hohlstunden Klassen", ka.HohlstundenKlassen, kb.HohlstundenKlassen);
-        Z("Hohlstunden Lehrer", ka.HohlstundenLehrer, kb.HohlstundenLehrer);
-        Z("Kernzeitverletzungen", ka.Kernzeitverletzungen, kb.Kernzeitverletzungen);
-        Z("Fach 2x / Tag", ka.FachZweimalTag, kb.FachZweimalTag);
-        Z("Kollisionen", ka.Kollisionen, kb.Kollisionen);
-        Z("Abweichende Stunden", nurA, nurB);
-        dlg.Controls.Add(g);
-        dlg.ShowDialog(owner);
-    }
+    /// <summary>Vergleichsmodus (Handbuch 7.17): Auswahl des Vergleichsbestands, danach das Vergleichsfenster.</summary>
+    public static void Zeigen(IWin32Window owner) => VergleichFenster.Starten(owner);
 }
 
 public static class ModuleDialog

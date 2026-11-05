@@ -240,6 +240,9 @@ public sealed class StundenplanFormat
     public bool AliasVerwenden { get; set; } = true;
     public bool LehrerUndVertreter { get; set; }
 
+    /// <summary>Druckdetails des Formats (Seitenlayout) – werden je Stundenplanformat gespeichert.</summary>
+    public StundenplanDruckdetails Druck { get; set; } = new();
+
     /// <summary>Stunden-Nummern aus einer Liste wie „3,5“ bzw. „3-5“.</summary>
     public static HashSet<int> StundenListe(string? text)
     {

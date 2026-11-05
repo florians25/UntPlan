@@ -25,7 +25,14 @@ public sealed class StundenplanDruckOptionen
     public bool ElementText { get; set; }
     public int UeberschriftProzent { get; set; } = 100;
     public int LegendeProzent { get; set; } = 100;
+    /// <summary>Druckdetails des Formats (Pläne pro Seite, Zusatzinformationen, Hintergrund-Bild, Überschrift-Felder).</summary>
+    public StundenplanDruckdetails Details { get; set; } = new();
+    /// <summary>Layout 2 „1 Überschrift je Blatt“.</summary>
+    public bool EineUeberschriftJeBlatt { get; set; }
 }
+
+/// <summary>Ein Plan einer Druckseite: Element und (bei „Für jede Woche ein Stundenplan“) die Schulwoche.</summary>
+public readonly record struct DruckPlan(int ElementId, int? Woche);
 
 internal static class StundenplanFormular
 {
@@ -36,54 +43,185 @@ internal static class StundenplanFormular
     private static readonly CultureInfo De = CultureInfo.GetCultureInfo("de-DE");
 
     /// <summary>Eine Druckseite mit einem (oder im kompakten Format mehreren) Plänen.</summary>
-    public static void Seite(Graphics g, Rectangle r, ElementTyp typ, IReadOnlyList<int> ids, bool kompakt, int seite, int seiten)
+    public static void Seite(Graphics g, Rectangle r, ElementTyp typ, IReadOnlyList<int> ids, bool kompakt, int seite, int seiten) =>
+        Seite(g, r, typ, ids.Select(i => new DruckPlan(i, null)).ToList(), kompakt ? 0 : 1, seite, seiten);
+
+    /// <summary>
+    /// Eine Druckseite: Pläne im Raster „Anzahl Pläne nebeneinander × übereinander“ (Seitenlayout | Einstellungen); bei
+    /// <paramref name="spalten"/> = 0 alle Pläne kompakt nebeneinander. Titelleiste je Plan bzw. bei „1 Überschrift je Blatt“ nur einmal;
+    /// Hintergrund-Bild laut Seitenlayout.
+    /// </summary>
+    public static void Seite(Graphics g, Rectangle r, ElementTyp typ, IReadOnlyList<DruckPlan> plaene, int spalten, int seite, int seiten)
     {
         var d = AppZustand.D;
         var ix = new DatenIndex(d);
         g.SmoothingMode = SmoothingMode.None;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-        var oben = Kopf(g, r, d);
+        Hintergrundbild(g, r);
+        var det = Optionen.Details;
+        var nx = spalten <= 0 ? Math.Max(1, plaene.Count) : Math.Clamp(det.PlaeneNebeneinander, 1, 6);
+        var ny = spalten <= 0 ? 1 : Math.Clamp(det.PlaeneUebereinander, 1, 6);
+        var raster = nx * ny > 1;
+        var eineUeberschrift = !raster || spalten <= 0 || Optionen.EineUeberschriftJeBlatt;
+        var oben = eineUeberschrift ? Kopf(g, r, d) : r.Top;
         var unten = r.Bottom - 18;
         Fuss(g, r, d, seite, seiten);
-        var abstand = 28;
-        var breite = (r.Width - (ids.Count - 1) * abstand) / Math.Max(1, ids.Count);
-        for (var i = 0; i < ids.Count; i++)
-            Plan(g, new Rectangle(r.Left + i * (breite + abstand), oben, breite, unten - oben), d, ix, typ, ids[i], ids.Count > 1);
+        const int abstand = 24;
+        var zellB = (r.Width - (nx - 1) * abstand) / nx;
+        var zellH = (unten - oben - (ny - 1) * 14) / ny;
+        for (var i = 0; i < plaene.Count && i < nx * ny; i++)
+        {
+            var zelle = new Rectangle(r.Left + i % nx * (zellB + abstand), oben + i / nx * (zellH + 14), zellB, zellH);
+            if (!eineUeberschrift)
+            {
+                var y = Kopf(g, zelle, d, klein: true);
+                zelle = new Rectangle(zelle.Left, y, zelle.Width, zelle.Bottom - y);
+            }
+            var (pd, pix) = plaene[i].Woche is int w ? WochenDaten(d, w) : (d, ix);
+            PlanMitKlassenlehrer(g, zelle, pd, pix, typ, plaene[i], raster || plaene.Count > 1);
+        }
+    }
+
+    /// <summary>Daten der Schulwoche <paramref name="woche"/> (Für jede Woche ein Stundenplan): nur der in dieser Woche gültige Unterricht.</summary>
+    private static (Schuldatei, DatenIndex) WochenDaten(Schuldatei d, int woche)
+    {
+        var montag = Kalender.Montag(d.Einstellungen.SchuljahrVon).AddDays(7 * Math.Max(0, woche - 1));
+        var w = Core.Optimierung.Diagnose.FuerWoche(d, montag);
+        return (w, new DatenIndex(w));
+    }
+
+    /// <summary>
+    /// Plan des Elements; mit „Stundenplan Klasse des Klassenlehrers“ (Lehrerplan) bzw. „Stundenplan Klassenlehrer“ (Klassenplan) steht
+    /// rechts daneben der Plan der Klasse bzw. der Klassenleitung.
+    /// </summary>
+    private static void PlanMitKlassenlehrer(Graphics g, Rectangle r, Schuldatei d, DatenIndex ix, ElementTyp typ, DruckPlan p, bool kompakt)
+    {
+        int? partner = null;
+        var partnerTyp = typ == ElementTyp.Lehrer ? ElementTyp.Klasse : ElementTyp.Lehrer;
+        if (Optionen.Details.StundenplanKlassenlehrer)
+        {
+            if (typ == ElementTyp.Lehrer) partner = d.Klassen.Where(k => !k.Ignorieren && k.KlassenlehrerIds.Contains(p.ElementId)).OrderBy(k => k.Sortierung).FirstOrDefault()?.Id;
+            else if (typ == ElementTyp.Klasse && ix.Klassen.TryGetValue(p.ElementId, out var kl)) partner = kl.KlassenlehrerIds.Where(ix.Lehrer.ContainsKey).Select(x => (int?)x).FirstOrDefault();
+        }
+        if (partner is not int pid)
+        {
+            Plan(g, r, d, ix, typ, p.ElementId, kompakt, p.Woche);
+            return;
+        }
+        var b = (r.Width - 24) / 2;
+        Plan(g, new Rectangle(r.Left, r.Top, b, r.Height), d, ix, typ, p.ElementId, true, p.Woche);
+        Plan(g, new Rectangle(r.Left + b + 24, r.Top, b, r.Height), d, ix, partnerTyp, pid, true, p.Woche);
+    }
+
+    /// <summary>Hintergrund-Bild des Seitenlayouts (Schullogo bzw. Hintergrund) an der eingestellten Stelle.</summary>
+    private static void Hintergrundbild(Graphics g, Rectangle r)
+    {
+        var det = Optionen.Details;
+        if (string.IsNullOrWhiteSpace(det.Hintergrundbild) || !File.Exists(det.Hintergrundbild)) return;
+        try
+        {
+            using var bild = Image.FromFile(det.Hintergrundbild);
+            g.DrawImage(bild, BildRechteck(r, bild.Size, det));
+        }
+        catch (Exception ex) when (ex is OutOfMemoryException or IOException or ArgumentException) { /* kein gültiges Bild */ }
+    }
+
+    /// <summary>Lage des Hintergrund-Bildes auf der Seite (Breite laut Details, Seitenverhältnis des Bildes).</summary>
+    internal static Rectangle BildRechteck(Rectangle r, Size bild, StundenplanDruckdetails det)
+    {
+        var b = (int)(r.Width * Math.Clamp(det.BildBreite, 0.02f, 1f));
+        var h = bild.Width > 0 ? b * bild.Height / bild.Width : b;
+        var x = r.Left + (int)(r.Width * Math.Clamp(det.BildX, 0f, 1f));
+        var y = r.Top + (int)(r.Height * Math.Clamp(det.BildY, 0f, 1f));
+        return new Rectangle(Math.Max(r.Left, Math.Min(x, r.Right - b)), Math.Max(r.Top, Math.Min(y, r.Bottom - h)), b, h);
     }
 
     // ------------------------------------------------------------------------------------------ Kopf und Fuß
 
-    private static int Kopf(Graphics g, Rectangle r, Schuldatei d)
+    /// <summary>
+    /// Titelleiste (Einstellungen | Berichte | Überschriften): links Schulname (Lizenztext, immer), daneben die Überschrift (Zeile 1/2,
+    /// Standard „Stundenplan Schuljahr“ / „Gilt ab“), rechts Programm, Stundenplan-Version, Datum und Uhrzeit; darunter die waagrechte Linie.
+    /// </summary>
+    private static int Kopf(Graphics g, Rectangle r, Schuldatei d, bool klein = false)
     {
-        using var fett = new Font(Schrift, 9.5f, FontStyle.Bold);
-        using var normal = new Font(Schrift, 9f);
+        var hoehe = klein ? 30 : 36;
+        var faktor = klein ? 0.85f : 1f;
+        using var fett = new Font(Schrift, 9.5f * faktor, FontStyle.Bold);
+        using var normal = new Font(Schrift, 9f * faktor);
         var e = d.Einstellungen;
+        var b = e.Berichte;
+        var zz = klein ? 12 : 15;
         g.DrawString(e.Schulname, fett, Brushes.Black, r.Left, r.Top);
         var zweite = e.Schulname2.Length > 0 ? e.Schulname2 : e.Adresse;
-        if (zweite.Length > 0) g.DrawString(zweite, normal, Brushes.Black, r.Left, r.Top + 15);
-        var x2 = r.Left + Math.Max(160, (int)Math.Max(g.MeasureString(e.Schulname, fett).Width, zweite.Length > 0 ? g.MeasureString(zweite, normal).Width : 0) + 28);
-        g.DrawString($"Stundenplan {e.SchuljahrVon.Year}/{e.SchuljahrVon.Year + 1}", normal, Brushes.Black, x2, r.Top + 1);
-        g.DrawString($"Gilt ab: {d.AktivePeriode.Von.ToString("d. MMMM", De)}", normal, Brushes.Black, x2, r.Top + 15);
+        if (zweite.Length > 0) g.DrawString(zweite, normal, Brushes.Black, r.Left, r.Top + zz);
+        var x2 = r.Left + Math.Max(klein ? 110 : 160, (int)Math.Max(g.MeasureString(e.Schulname, fett).Width, zweite.Length > 0 ? g.MeasureString(zweite, normal).Width : 0) + 28);
+        var z1 = b.Ueberschrift1.Trim().Length > 0 ? b.Ueberschrift1.Trim() : $"Stundenplan {e.SchuljahrVon.Year}/{e.SchuljahrVon.Year + 1}";
+        var z2 = b.Ueberschrift2.Trim().Length > 0 ? b.Ueberschrift2.Trim() : $"Gilt ab: {d.AktivePeriode.Von.ToString("d. MMMM", De)}";
+        g.DrawString(z1, normal, Brushes.Black, x2, r.Top + 1);
+        g.DrawString(z2, normal, Brushes.Black, x2, r.Top + zz);
         using var rechts = new StringFormat { Alignment = StringAlignment.Far };
-        g.DrawString($"UntPlan {e.SchuljahrVon.Year}", fett, Brushes.Black, new RectangleF(r.Left, r.Top, r.Width, 16), rechts);
-        g.DrawString(DateTime.Now.ToString("dd.MM.yyyy  HH:mm", De), normal, Brushes.Black, new RectangleF(r.Left, r.Top + 15, r.Width, 16), rechts);
-        using var stift = new Pen(Color.Black, 1f);
-        g.DrawLine(stift, r.Left, r.Top + 31, r.Right, r.Top + 31);
-        return r.Top + 36;
+        var titel = $"UntPlan {e.SchuljahrVon.Year}" + (b.VersionDrucken ? $"  Version {e.StundenplanVersion}" : "");
+        g.DrawString(titel, fett, Brushes.Black, new RectangleF(r.Left, r.Top, r.Width, 16), rechts);
+        var zeit = string.Join("  ", new[] { b.DatumDrucken ? DateTime.Now.ToString("dd.MM.yyyy", De) : "", b.UhrzeitDrucken ? DateTime.Now.ToString("HH:mm", De) : "" }.Where(t => t.Length > 0));
+        if (zeit.Length > 0) g.DrawString(zeit, normal, Brushes.Black, new RectangleF(r.Left, r.Top + zz, r.Width, 16), rechts);
+        if (b.WaagrechteLinie)
+        {
+            using var stift = new Pen(Color.Black, 1f);
+            g.DrawLine(stift, r.Left, r.Top + hoehe - 5, r.Right, r.Top + hoehe - 5);
+        }
+        return r.Top + hoehe;
     }
 
+    /// <summary>
+    /// Fußzeile (Einstellungen | Berichte | Überschriften): Periode, Dateiname, Datum, Schulwoche, Kalenderwoche, Wochennummer und Text
+    /// (Standard „UntPlan“), waagrechte Linie; rechts „Seite x / y“ laut „Seiten-Nummer drucken“ / „Anzahl Seiten drucken“.
+    /// </summary>
     private static void Fuss(Graphics g, Rectangle r, Schuldatei d, int seite, int seiten)
     {
+        var b = d.Einstellungen.Berichte;
         using var f = new Font(Schrift, 8f);
         using var stift = new Pen(Color.Black, 1f);
         var y = r.Bottom - 14;
-        g.DrawLine(stift, r.Left, y - 2, r.Right, y - 2);
+        if (b.FussLinie) g.DrawLine(stift, r.Left, y - 2, r.Right, y - 2);
         var p = d.AktivePeriode;
-        var text = $"{(p.Name.Length > 0 ? p.Name : "Periode")}  {Format.Datum(p.Von)} - {(p.Bis is DateOnly b ? Format.Datum(b) : Format.Datum(d.Einstellungen.SchuljahrBis))}     UntPlan";
+        var datum = AppZustand.Datum;
+        var teile = new List<string>();
+        if (b.FussPeriode) teile.Add($"{(p.Name.Length > 0 ? p.Name : "Periode")}  {Format.Datum(p.Von)} - {(p.Bis is DateOnly pb ? Format.Datum(pb) : Format.Datum(d.Einstellungen.SchuljahrBis))}");
+        if (b.FussDateiname && AppZustand.Doc.Pfad is string pfad) teile.Add(Path.GetFileName(pfad));
+        if (b.FussDatum) teile.Add(Format.Datum(datum));
+        if (b.FussSchulwoche) teile.Add($"Schulwoche {Kalender.Schulwoche(d, datum)}");
+        if (b.FussKalenderwoche) teile.Add($"KW {ISOWeek.GetWeekOfYear(datum.ToDateTime(TimeOnly.MinValue))}");
+        if (b.FussWochennummer) teile.Add($"{Kalender.WochenTyp(d, datum)}-Woche");
+        teile.Add(b.Fusszeile.Trim().Length > 0 ? b.Fusszeile.Trim() : "UntPlan");
         using var mitte = new StringFormat { Alignment = StringAlignment.Center };
-        g.DrawString(text, f, Brushes.Black, new RectangleF(r.Left, y, r.Width, 14), mitte);
+        g.DrawString(string.Join("     ", teile), f, Brushes.Black, new RectangleF(r.Left, y, r.Width, 14), mitte);
+        if (!b.SeitenNummer) return;
         using var rechts = new StringFormat { Alignment = StringAlignment.Far };
-        g.DrawString($"Seite {seite} / {seiten}", f, Brushes.Black, new RectangleF(r.Left, y, r.Width, 14), rechts);
+        g.DrawString(b.AnzahlSeiten ? $"Seite {seite} / {seiten}" : $"Seite {seite}", f, Brushes.Black, new RectangleF(r.Left, y, r.Width, 14), rechts);
+    }
+
+    /// <summary>Druckname einer Lehrkraft (Einstellungen | Berichte | Drucknamen).</summary>
+    private static string Druckname(DatenIndex ix, int? lehrerId) =>
+        lehrerId is int l && ix.Lehrer.TryGetValue(l, out var le) ? Drucknamen.Lehrer(le, AppZustand.D.Einstellungen.Berichte.LehrerDruckname) : ix.KLehrer(lehrerId);
+
+    /// <summary>Text eines Überschrift-Feldes (Überschrift-Editor des Seitenlayouts), gekürzt auf „Stellen maximal“.</summary>
+    internal static string UeberschriftText(UeberschriftFeld f, Schuldatei d, DatenIndex ix, Element? el, int? woche)
+    {
+        var t = f.Art switch
+        {
+            UeberschriftFeldArt.Kurzname => el?.Kurzname ?? "",
+            UeberschriftFeldArt.Langname => el is Lehrer l ? l.VollerName : el?.Langname ?? "",
+            UeberschriftFeldArt.Text => el?.Text ?? "",
+            UeberschriftFeldArt.Beschreibung => el?.Beschreibung ?? "",
+            UeberschriftFeldArt.Abteilung => el?.AbteilungId is int a ? ix.K(ElementTyp.Abteilung, a) : "",
+            UeberschriftFeldArt.Klassenlehrer => el is Klasse k ? string.Join(", ", k.KlassenlehrerIds.Select(x => Druckname(ix, x))) : "",
+            UeberschriftFeldArt.Stammraum => el switch { Klasse k => ix.KRaum(k.StammraumId), Lehrer l => ix.KRaum(l.StammraumId), _ => "" },
+            UeberschriftFeldArt.Zeitbereich => woche is int w ? $"Schulwoche {w}" : $"{Format.Datum(d.Einstellungen.SchuljahrVon)} - {Format.Datum(d.Einstellungen.SchuljahrBis)}",
+            UeberschriftFeldArt.PeriodeKurz => d.AktivePeriode.Name,
+            UeberschriftFeldArt.PeriodeLang => d.AktivePeriode.Langname.Length > 0 ? d.AktivePeriode.Langname : d.AktivePeriode.Name,
+            _ => f.Text,
+        };
+        return f.StellenMax > 0 && t.Length > f.StellenMax ? t[..f.StellenMax] : t;
     }
 
     // ------------------------------------------------------------------------------------------ ein Plan
@@ -92,18 +230,24 @@ internal static class StundenplanFormular
     private sealed record Teil(Kopplungszeile Zeile, int? Raum);
     private sealed record Fussnote(int Nr, List<(string Text, string Klassen)> Zeilen);
 
-    private static void Plan(Graphics g, Rectangle r, Schuldatei d, DatenIndex ix, ElementTyp typ, int id, bool kompakt)
+    private static void Plan(Graphics g, Rectangle r, Schuldatei d, DatenIndex ix, ElementTyp typ, int id, bool kompakt, int? woche = null)
     {
         var el = ix.Element(typ, id);
         var ueb = Math.Clamp(Optionen.UeberschriftProzent, 50, 300) / 100f;
-        using var fName = new Font(Schrift, (kompakt ? 15f : 18f) * ueb);
-        using var fLang = new Font(Schrift, (kompakt ? 11f : 13f) * ueb);
-        var kurz = el?.Kurzname ?? "";
-        var lang = el is Lehrer l ? l.VollerName : el?.Langname ?? "";
-        g.DrawString(kurz, fName, Brushes.Black, r.Left - 3, r.Top);
-        var kb = g.MeasureString(kurz, fName);
-        if (lang.Length > 0 && lang != kurz) g.DrawString(lang, fLang, Brushes.Black, r.Left + kb.Width + 2, r.Top + kb.Height - g.MeasureString(lang, fLang).Height - 2);
-        var top = r.Top + (int)kb.Height + 4;
+        int top;
+        var felder = Optionen.Details.Ueberschrift;
+        if (felder.Count > 0) top = r.Top + UeberschriftZeichnen(g, r, d, ix, el, woche, felder, ueb * (kompakt ? 0.85f : 1f)) + 4;
+        else
+        {
+            using var fName = new Font(Schrift, (kompakt ? 15f : 18f) * ueb);
+            using var fLang = new Font(Schrift, (kompakt ? 11f : 13f) * ueb);
+            var kurz = el?.Kurzname ?? "";
+            var lang = (el is Lehrer l ? l.VollerName : el?.Langname ?? "") + (woche is int wo ? $"  (Schulwoche {wo})" : "");
+            g.DrawString(kurz, fName, Brushes.Black, r.Left - 3, r.Top);
+            var kb = g.MeasureString(kurz, fName);
+            if (lang.Length > 0 && lang != kurz) g.DrawString(lang, fLang, Brushes.Black, r.Left + kb.Width + 2, r.Top + kb.Height - g.MeasureString(lang, fLang).Height - 2);
+            top = r.Top + (int)kb.Height + 4;
+        }
         // Seitenlayout „Element-Text“: Text und Beschreibung des Elements unter der Überschrift
         if (Optionen.ElementText && el is not null && string.Join("  ", new[] { el.Text, el.Beschreibung }.Where(t => !string.IsNullOrWhiteSpace(t))) is { Length: > 0 } et)
         {
@@ -114,18 +258,73 @@ internal static class StundenplanFormular
 
         var fussnoten = new List<Fussnote>();
         var faecher = new SortedSet<int>(Comparer<int>.Create((a, b) => string.Compare(ix.KFach(a), ix.KFach(b), StringComparison.CurrentCultureIgnoreCase) is var c && c != 0 ? c : a.CompareTo(b)));
+        var zusatz = Optionen.Details.ZusatzKlassenLehrer && typ is ElementTyp.Klasse or ElementTyp.Lehrer;
         if (kompakt)
         {
-            Raster(g, new Rectangle(r.Left, top, r.Width, r.Bottom - top - 4), d, ix, typ, id, fussnoten, faecher, true);
+            var zusatzH = zusatz ? Math.Min(120, (r.Bottom - top) / 4) : 0;
+            Raster(g, new Rectangle(r.Left, top, r.Width, r.Bottom - top - 4 - zusatzH), d, ix, typ, id, fussnoten, faecher, true);
+            if (zusatz) Zusatzinformation(g, new Rectangle(r.Left, r.Bottom - zusatzH, r.Width, zusatzH - 2), ix, typ, id);
             return;
         }
-        var mitLegende = Optionen.Kopplungslegende || Optionen.Abkuerzungen;
+        var mitLegende = Optionen.Kopplungslegende || Optionen.Abkuerzungen || zusatz;
         var legende = mitLegende ? 150 : 0;
         var rasterBreite = Optionen.Unterricht ? (int)(r.Width * .485) : r.Width;
         Raster(g, new Rectangle(r.Left, top, rasterBreite, r.Bottom - top - legende - 10), d, ix, typ, id, fussnoten, faecher, false);
         if (Optionen.Unterricht) Liste(g, new Rectangle(r.Left + rasterBreite + 16, top + 18, r.Width - rasterBreite - 16, r.Bottom - top - legende - 28), ix, typ, id, faecher);
         else foreach (var u in ix.UnterrichteVon(typ, id)) foreach (var z in u.Zeilen) if (z.FachId is int fa) faecher.Add(fa);
-        if (mitLegende) Legenden(g, new Rectangle(r.Left, r.Bottom - legende, r.Width, legende - 4), ix, fussnoten, faecher);
+        var zusatzB = zusatz ? Math.Min(220, r.Width / 4) : 0;
+        if (zusatz) Zusatzinformation(g, new Rectangle(r.Right - zusatzB, r.Bottom - legende, zusatzB, legende - 4), ix, typ, id);
+        if (Optionen.Kopplungslegende || Optionen.Abkuerzungen) Legenden(g, new Rectangle(r.Left, r.Bottom - legende, r.Width - zusatzB - (zusatz ? 12 : 0), legende - 4), ix, fussnoten, faecher);
+    }
+
+    /// <summary>Überschrift aus den Feldern des Überschrift-Editors (nebeneinander bzw. mit „neue Zeile“ untereinander). Ergebnis: Höhe.</summary>
+    private static int UeberschriftZeichnen(Graphics g, Rectangle r, Schuldatei d, DatenIndex ix, Element? el, int? woche, List<UeberschriftFeld> felder, float faktor)
+    {
+        float x = r.Left - 2, y = r.Top, zeileH = 0;
+        foreach (var f in felder)
+        {
+            var text = UeberschriftText(f, d, ix, el, woche);
+            using var font = new Font(Schrift, Math.Max(5f, 12f * Math.Clamp(f.SchriftProzent, 50, 500) / 100f * faktor), (f.Fett ? FontStyle.Bold : 0) | (f.Kursiv ? FontStyle.Italic : 0));
+            var gr = g.MeasureString(text.Length > 0 ? text : " ", font);
+            if (f.NeueZeile && x > r.Left) { x = r.Left - 2; y += zeileH; zeileH = 0; }
+            if (text.Length > 0) g.DrawString(text, font, Brushes.Black, x, y);
+            x += gr.Width + 4;
+            zeileH = Math.Max(zeileH, gr.Height);
+        }
+        return (int)(y + zeileH - r.Top);
+    }
+
+    /// <summary>
+    /// Zusatzinformation „Lehrer der Klasse“ (Klassenplan) bzw. „Klassen des Lehrers“ (Lehrerplan): die Lehrkräfte bzw. Klassen mit
+    /// ihren Fächern.
+    /// </summary>
+    private static void Zusatzinformation(Graphics g, Rectangle r, DatenIndex ix, ElementTyp typ, int id)
+    {
+        if (r.Height < 20) return;
+        var gr = 8f * Math.Clamp(Optionen.LegendeProzent, 50, 300) / 100f;
+        using var f = new Font(Schrift, gr);
+        using var kopf = new Font(Schrift, gr, FontStyle.Underline);
+        var paare = new List<(string Name, string Faecher)>();
+        foreach (var u in ix.UnterrichteVon(typ, id))
+            foreach (var z in u.Zeilen.Where(z => typ == ElementTyp.Klasse ? z.KlassenIds.Contains(id) : z.LehrerId == id))
+            {
+                var namen = typ == ElementTyp.Klasse ? new[] { Druckname(ix, z.LehrerId) } : z.KlassenIds.Select(k => ix.K(ElementTyp.Klasse, k)).ToArray();
+                foreach (var n in namen.Where(n => n.Length > 0)) paare.Add((n, ix.KFach(z.FachId)));
+            }
+        var gruppen = paare.GroupBy(p => p.Name).OrderBy(x => x.Key, StringComparer.CurrentCultureIgnoreCase)
+            .Select(x => (x.Key, string.Join(", ", x.Select(p => p.Faecher).Where(t => t.Length > 0).Distinct()))).ToList();
+        var zeileH = f.GetHeight(g) + 1;
+        g.DrawString(typ == ElementTyp.Klasse ? "Lehrer" : "Klassen", kopf, Brushes.Black, r.Left, r.Top);
+        g.DrawString("Fächer", kopf, Brushes.Black, r.Left + r.Width * .45f, r.Top);
+        var y = r.Top + zeileH + 2;
+        using var nw = new StringFormat(StringFormatFlags.NoWrap) { Trimming = StringTrimming.EllipsisCharacter };
+        foreach (var (name, faecher) in gruppen)
+        {
+            if (y + zeileH > r.Bottom) { g.DrawString("…", f, Brushes.Black, r.Left, y); break; }
+            g.DrawString(name, f, Brushes.Black, new RectangleF(r.Left, y, r.Width * .45f - 2, zeileH), nw);
+            g.DrawString(faecher, f, Brushes.Black, new RectangleF(r.Left + r.Width * .45f, y, r.Width * .55f, zeileH), nw);
+            y += zeileH;
+        }
     }
 
     /// <summary>Teile eines Unterrichts in einer Planstunde, die das Element betreffen.</summary>
@@ -344,7 +543,7 @@ internal static class StundenplanFormular
         u.Zeilen.Select((z, i) =>
         {
             var raum = p.RaumFuerZeile(i) is int r ? ix.KRaum(r) : z.FachraumId is int f ? ix.KRaum(f) : "";
-            return ($"{ix.KLehrer(z.LehrerId)}, {ix.KFach(z.FachId)}{(raum.Length > 0 ? ",  " + raum : "")}", ix.KKlassen(z.KlassenIds));
+            return ($"{Druckname(ix, z.LehrerId)}, {ix.KFach(z.FachId)}{(raum.Length > 0 ? ",  " + raum : "")}", ix.KKlassen(z.KlassenIds));
         }).ToList();
 
     // ------------------------------------------------------------------------------------------ Unterrichtsliste rechts
@@ -382,8 +581,8 @@ internal static class StundenplanFormular
             var klLe = u.Zeilen.Count > 1 ? $"{u.KlassenIds.Count()}, {u.LehrerIds.Count()}" : "";
             var nvpl = ix.NichtVerplant(u);
             string[] werte(int i, Kopplungszeile z) => mitKlassen
-                ? new[] { i == 0 ? u.Id.ToString(De) : "", i == 0 ? klLe : "", i == 0 ? u.Wochenstunden.ToString(De) : "", ix.KLehrer(z.LehrerId), ix.KFach(z.FachId), ix.KKlassen(z.KlassenIds) }
-                : new[] { i == 0 ? u.Id.ToString(De) : "", i == 0 ? klLe : "", i == 0 && nvpl > 0 ? nvpl.ToString(De) : "", i == 0 ? u.Wochenstunden.ToString(De) : "", ix.KLehrer(z.LehrerId), ix.KFach(z.FachId) };
+                ? new[] { i == 0 ? u.Id.ToString(De) : "", i == 0 ? klLe : "", i == 0 ? u.Wochenstunden.ToString(De) : "", Druckname(ix, z.LehrerId), ix.KFach(z.FachId), ix.KKlassen(z.KlassenIds) }
+                : new[] { i == 0 ? u.Id.ToString(De) : "", i == 0 ? klLe : "", i == 0 && nvpl > 0 ? nvpl.ToString(De) : "", i == 0 ? u.Wochenstunden.ToString(De) : "", Druckname(ix, z.LehrerId), ix.KFach(z.FachId) };
             for (var i = 0; i < zeilen.Count; i++)
             {
                 var w = werte(i, zeilen[i]);

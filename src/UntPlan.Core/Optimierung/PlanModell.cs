@@ -246,21 +246,18 @@ public sealed class PlanModell
         {
             var bit = 1 << w;
             var keys = new HashSet<string>();
-            var kkk = new List<Unterricht>();
+            List<char?>? kkk = null;
             foreach (var bi in zelle)
             {
                 if ((Maske(bi) & bit) == 0) continue;
                 var u = Unterrichte[Bloecke[bi].Mitglieder[0]];
                 var bd = klasse ? u.Band : "";
-                // Klassenkollisions-Kennzeichen: mit allen bisherigen verträglicher Unterricht bildet keine eigene Gruppe
-                if (klasse && string.IsNullOrWhiteSpace(bd) && u.Klassenkollision.Length > 0)
-                {
-                    if (kkk.Count > 0 && kkk.All(o => Unterricht.KlassenkollisionErlaubt(u, o))) { kkk.Add(u); continue; }
-                    kkk.Add(u);
-                }
-                keys.Add(string.IsNullOrWhiteSpace(bd) ? "#" + bi : bd.Trim());
+                if (!string.IsNullOrWhiteSpace(bd)) keys.Add(bd.Trim());
+                // Klassenkollisionskennzeichen: Unterrichte mit passendem KKK dürfen in der Klasse gleichzeitig liegen
+                else if (klasse && Klassenkollision.Kennzeichen(u) is char c) (kkk ??= new()).Add(c);
+                else keys.Add("#" + bi);
             }
-            max = Math.Max(max, keys.Count);
+            max = Math.Max(max, kkk is null ? keys.Count : Klassenkollision.Gleichzeitig(kkk.Concat(keys.Select(_ => (char?)null))));
         }
         return max;
     }

@@ -566,7 +566,7 @@ public sealed partial class HauptFenster : Form
     public void Oeffnen()
     {
         if (!Verwerfen()) return;
-        using var ofd = new OpenFileDialog { Filter = Dokument.DateiFilter, Title = "Schuldatei öffnen" };
+        using var ofd = new OpenFileDialog { Filter = Dokument.DateiFilter, Title = "Schuldatei öffnen", InitialDirectory = Dialoge.Einstellungsseiten.Eingetragen("Datendateien") ?? "" };
         if (ofd.ShowDialog(this) == DialogResult.OK) DateiLaden(ofd.FileName);
     }
 
@@ -774,7 +774,7 @@ public sealed partial class HauptFenster : Form
 
     private void CsvImport(string art)
     {
-        using var ofd = new OpenFileDialog { Filter = "CSV/Text (*.csv;*.txt)|*.csv;*.txt|Alle Dateien|*.*", Title = $"{art} importieren (Schild-NRW)" };
+        using var ofd = new OpenFileDialog { Filter = "CSV/Text (*.csv;*.txt)|*.csv;*.txt|Alle Dateien|*.*", Title = $"{art} importieren (Schild-NRW)", InitialDirectory = Dialoge.Einstellungsseiten.Eingetragen("Import/Export") ?? "" };
         if (ofd.ShowDialog(this) != DialogResult.OK) return;
         var text = Csv.DateiLesen(ofd.FileName);
         ImportBericht? b = null;
@@ -784,7 +784,7 @@ public sealed partial class HauptFenster : Form
 
     private void ImportSchueler()
     {
-        using var ofd = new OpenFileDialog { Filter = "CSV/Text (*.csv;*.txt)|*.csv;*.txt", Title = "Schüler mit Kurswahlen importieren" };
+        using var ofd = new OpenFileDialog { Filter = "CSV/Text (*.csv;*.txt)|*.csv;*.txt", Title = "Schüler mit Kurswahlen importieren", InitialDirectory = Dialoge.Einstellungsseiten.Eingetragen("Import/Export") ?? "" };
         if (ofd.ShowDialog(this) != DialogResult.OK) return;
         var text = Csv.DateiLesen(ofd.FileName);
         ImportBericht? b = null;
@@ -794,7 +794,7 @@ public sealed partial class HauptFenster : Form
 
     private void GpuImport()
     {
-        using var ofd = new OpenFileDialog { Filter = "GPU-Dateien (GPU*.txt)|GPU*.txt;GPU*.TXT|Alle Dateien|*.*", Multiselect = true, Title = "GPU001–GPU006 auswählen" };
+        using var ofd = new OpenFileDialog { Filter = "GPU-Dateien (GPU*.txt)|GPU*.txt;GPU*.TXT|Alle Dateien|*.*", Multiselect = true, Title = "GPU001–GPU006 auswählen", InitialDirectory = Dialoge.Einstellungsseiten.Eingetragen("Import/Export") ?? "" };
         if (ofd.ShowDialog(this) != DialogResult.OK) return;
         var dateien = ofd.FileNames.ToDictionary(f => Path.GetFileName(f), Csv.DateiLesen);
         ImportBericht? b = null;
@@ -805,7 +805,7 @@ public sealed partial class HauptFenster : Form
     /// <summary>BAL-Datei (WILLI2-Stundenplan) importieren: Zeitraster, Stammdaten, Unterricht mit Kopplungen, Stundenplan, Aufsichten.</summary>
     public void BalImportieren()
     {
-        using var ofd = new OpenFileDialog { Filter = "BAL-Dateien (*.bal)|*.bal;*.BAL|Alle Dateien|*.*", Title = "BAL-Datei (WILLI2) importieren" };
+        using var ofd = new OpenFileDialog { Filter = "BAL-Dateien (*.bal)|*.bal;*.BAL|Alle Dateien|*.*", Title = "BAL-Datei (WILLI2) importieren", InitialDirectory = Dialoge.Einstellungsseiten.Eingetragen("Import/Export") ?? "" };
         if (ofd.ShowDialog(this) != DialogResult.OK) return;
         var text = BalImport.DateiLesen(ofd.FileName);
         if (!BalImport.IstBal(text) && !Ui.Frage("Die Datei sieht nicht wie eine WILLI2-BAL-Datei aus. Trotzdem importieren?")) return;
@@ -855,9 +855,9 @@ public sealed partial class HauptFenster : Form
 
     private void InfoStundenplan()
     {
-        using var fbd = new FolderBrowserDialog { Description = "Zielordner für den Info-Stundenplan (HTML)" };
+        using var fbd = new FolderBrowserDialog { Description = "Zielordner für den Info-Stundenplan (HTML)", SelectedPath = Dialoge.Einstellungsseiten.Eingetragen("HTML-Dateien") ?? "" };
         if (fbd.ShowDialog(this) != DialogResult.OK) return;
-        foreach (var (name, inhalt) in Export.InfoStundenplan(AppZustand.D)) File.WriteAllText(Path.Combine(fbd.SelectedPath, name), inhalt);
+        foreach (var (name, inhalt) in Export.InfoStundenplan(AppZustand.D)) Export.HtmlSchreiben(AppZustand.D, Path.Combine(fbd.SelectedPath, name), inhalt);
         Starten(Path.Combine(fbd.SelectedPath, "index.html"));
     }
 

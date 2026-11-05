@@ -47,6 +47,23 @@ public static class Export
     public static string Seite(string titel, string body) =>
         $"<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{H(titel)}</title>{Stil}</head><body>{body}</body></html>";
 
+    /// <summary>HTML-Seite nach den Einstellungen „Diverses | HTML“: Encoding (UTF-8 bzw. ISO-8859-1) und Eigenschaften für Tag &lt;Body&gt;.</summary>
+    public static string Seite(string titel, string body, HtmlEinstellungen h)
+    {
+        var attr = h.BodyEigenschaften.Trim();
+        return $"<!doctype html><html lang=\"de\"><head><meta charset=\"{(h.Utf8 ? "utf-8" : "iso-8859-1")}\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{H(titel)}</title>{Stil}</head>" +
+               $"<body{(attr.Length > 0 ? " " + attr : "")}>{body}</body></html>";
+    }
+
+    /// <summary>Zeichenkodierung der HTML-Dateien laut Einstellung „Encoding: UTF-8“ (sonst ISO-8859-1).</summary>
+    public static Encoding Kodierung(HtmlEinstellungen h) => h.Utf8 ? new UTF8Encoding(false) : Encoding.Latin1;
+
+    /// <summary>HTML-Datei mit der eingestellten Kodierung schreiben.</summary>
+    public static void HtmlSchreiben(Schuldatei d, string pfad, string inhalt) => File.WriteAllText(pfad, inhalt, Kodierung(d.Einstellungen.Html));
+
+    /// <summary>Fußzeile der HTML-Stundenpläne (Schulname, Stand).</summary>
+    private static string HtmlFuss(Schuldatei d) => $"<div class=\"sub\">{H(d.Einstellungen.Schulname)} · Stand {DateTime.Now:dd.MM.yyyy HH:mm} · UntPlan</div>";
+
     /// <summary>HTML-Stundenplan eines Elements (Klasse, Lehrer, Raum).</summary>
     public static string StundenplanHtml(Schuldatei d, ElementTyp typ, int id)
     {
@@ -55,7 +72,8 @@ public static class Export
         var plan = ix.PlanVon(typ, id).ToList();
         var sb = new StringBuilder();
         sb.Append($"<div class=\"pg\"><h1>{H(el?.Kurzname)} – {H(el?.Langname)}</h1><div class=\"sub\">{H(d.Einstellungen.Schulname)} · Schuljahr {Format.Datum(d.Einstellungen.SchuljahrVon)} – {Format.Datum(d.Einstellungen.SchuljahrBis)}</div>");
-        sb.Append("<table class=\"tt\"><tr><th></th>");
+        var tab = d.Einstellungen.Html.TableEigenschaften.Trim();
+        sb.Append($"<table class=\"tt\"{(tab.Length > 0 ? " " + tab : "")}><tr><th></th>");
         for (var t = 0; t < d.Zeitraster.TageProWoche; t++) sb.Append($"<th>{Planungsdienst.Tagname(d, t, true)}</th>");
         sb.Append("</tr>");
         for (var s = 1; s <= d.Zeitraster.StundenProTag; s++)
@@ -82,7 +100,9 @@ public static class Export
             }
             sb.Append("</tr>");
         }
-        sb.Append("</table></div>");
+        sb.Append("</table>");
+        if (d.Einstellungen.Html.Fusszeile == 1) sb.Append(HtmlFuss(d));
+        sb.Append("</div>");
         return sb.ToString();
     }
 
@@ -98,7 +118,9 @@ public static class Export
             foreach (var e in el)
             {
                 var datei = $"{praefix}_{Datei(e.Kurzname)}.html";
-                res[datei] = Seite($"{titel} {e.Kurzname}", nav + StundenplanHtml(d, typ, e.Id));
+                var h = d.Einstellungen.Html;
+                var inhalt = (h.SchaltflaechenOben ? nav.ToString() : "") + StundenplanHtml(d, typ, e.Id) + (h.SchaltflaechenUnten ? nav.ToString() : "") + (h.Fusszeile == 2 ? HtmlFuss(d) : "");
+                res[datei] = Seite($"{titel} {e.Kurzname}", inhalt, h);
                 index.Append($"<a href=\"{datei}\">{H(e.Kurzname)}</a> ");
             }
             index.Append("</p>");
@@ -106,7 +128,7 @@ public static class Export
         Gruppe("Klassen", ElementTyp.Klasse, d.Klassen, "kl");
         Gruppe("Lehrer", ElementTyp.Lehrer, d.Lehrer, "le");
         Gruppe("Räume", ElementTyp.Raum, d.Raeume, "ra");
-        res["index.html"] = Seite("Stundenpläne", index.ToString());
+        res["index.html"] = Seite("Stundenpläne", index.ToString() + (d.Einstellungen.Html.Fusszeile == 2 ? HtmlFuss(d) : ""), d.Einstellungen.Html);
         return res;
     }
 

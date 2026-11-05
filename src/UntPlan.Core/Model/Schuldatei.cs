@@ -110,6 +110,12 @@ public sealed class Einstellungen
     public string Farbschema { get; set; } = "Blau";
     /// <summary>Elementarten (ElementTyp-Namen), deren neue Elemente automatisch eine Farbe erhalten (Dialog „Farbe“).</summary>
     public List<string> AutomatischeFarbe { get; set; } = new();
+    /// <summary>Frei wählbare Stundenplan-Version (wird auf Stundenplanausdrucken mitgedruckt).</summary>
+    public int StundenplanVersion { get; set; } = 1;
+    /// <summary>Einstellungen | Berichte: Überschriften (Kopf-/Fußzeile) und Drucknamen.</summary>
+    public BerichtEinstellungen Berichte { get; set; } = new();
+    /// <summary>Einstellungen | Diverses | HTML.</summary>
+    public HtmlEinstellungen Html { get; set; } = new();
 }
 
 public sealed class PortalEinstellungen

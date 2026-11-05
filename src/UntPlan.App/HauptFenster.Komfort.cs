@@ -66,7 +66,7 @@ public sealed partial class HauptFenster
             }
             else
             {
-                var ordner = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "Wiederherstellung");
+                var ordner = Dialoge.Einstellungsseiten.Pfad("Sicherungsdateien");
                 Directory.CreateDirectory(ordner);
                 var name = string.IsNullOrWhiteSpace(doc.Daten.Einstellungen.Schulname) ? "Unbenannt" : string.Concat(doc.Daten.Einstellungen.Schulname.Split(Path.GetInvalidFileNameChars()));
                 var ziel = Path.Combine(ordner, name + Dokument.Dateiendung);

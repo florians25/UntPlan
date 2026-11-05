@@ -22,8 +22,10 @@ public sealed class Kopplungszeile
     public int? UGruppeId { get; set; }
     /// <summary>Schülergruppe dieser Kopplungszeile (z. B. „SportK_1a1b_Rub“), leer = wie Unterricht.</summary>
     public string Schuelergruppe { get; set; } = "";
-    /// <summary>Lehrerzuordnung fix: die automatische Lehrerzuordnung verändert den Lehrer dieser Zeile nicht.</summary>
+    /// <summary>Lehrerzuordnung fix: die automatische Lehrerzuordnung (Lehrertausch bei Kennzeichen (V) Variabler Lehrer) verändert den Lehrer dieser Zeile nicht.</summary>
     public bool LehrerFix { get; set; }
+    /// <summary>Lehrkraft laut Unterricht vor einem Lehrertausch der Optimierung (null = nicht getauscht).</summary>
+    public int? UrsprLehrerId { get; set; }
 
     /// <summary>Gewünschter Raum: Fachraum vor Stammraum.</summary>
     [JsonIgnore] public int? Wunschraum => FachraumId ?? StammraumId;
@@ -33,7 +35,7 @@ public sealed class Kopplungszeile
     {
         LehrerId = LehrerId, FachId = FachId, KlassenIds = new List<int>(KlassenIds), FachraumId = FachraumId,
         FachraumgruppeId = FachraumgruppeId, StammraumId = StammraumId, StammraumgruppeId = StammraumgruppeId, Wert = Wert, Zeilentext = Zeilentext, UGruppeId = UGruppeId,
-        Schuelergruppe = Schuelergruppe, LehrerFix = LehrerFix,
+        Schuelergruppe = Schuelergruppe, LehrerFix = LehrerFix, UrsprLehrerId = UrsprLehrerId,
     };
 }
 
@@ -107,7 +109,7 @@ public sealed class Unterricht
     public bool Randstunde { get; set; }
     /// <summary>(S) Klassengruppe später planen.</summary>
     public bool KlassengruppeSpaeter { get; set; }
-    /// <summary>(V) Variabler Lehrer.</summary>
+    /// <summary>(V) Variabler Lehrer: die Optimierung darf die Lehrkräfte dieses Unterrichts tauschen (Lehrer-Zuordnung bei Optimierung).</summary>
     public bool VariablerLehrer { get; set; }
     /// <summary>(L) Nicht in Legende.</summary>
     public bool NichtInLegende { get; set; }
@@ -124,7 +126,10 @@ public sealed class Unterricht
     public string FachfolgeKlassen { get; set; } = "";
     /// <summary>Fachfolge Lehrer (1–9 positiv, A–E negativ), leer = wie Fach.</summary>
     public string FachfolgeLehrer { get; set; } = "";
-    /// <summary>KlassenKoll. Kz. (KKK): 1–9 = gleichzeitig mit gleichem KKK erlaubt, A–H = mit anderem Buchstaben-KKK erlaubt.</summary>
+    /// <summary>
+    /// KlassenKoll. Kz. (KKK): Unterrichte derselben Klasse mit gleichem numerischem KKK (1–9) dürfen gleichzeitig liegen;
+    /// bei alphabetischem KKK (A–H) dürfen nur Unterrichte mit verschiedenen Buchstaben gleichzeitig liegen.
+    /// </summary>
     public string Klassenkollision { get; set; } = "";
 
     /// <summary>Unterrichts-Kennzeichen (ohne vererbte), z. B. „XiFr“ – Spalte „Kennzeichen“.</summary>
@@ -133,22 +138,6 @@ public sealed class Unterricht
         KeinAusweichraum ? "K" : "", KeineDatenanalyse ? "k" : "", SelberRaum ? "r" : "", BedingtFixieren ? "B" : "", DoppelstundenEinhalten ? "D" : "",
         KeineEinzelstunden ? "C" : "", Randstunde ? "R" : "", KlassengruppeSpaeter ? "S" : "", MehrmalsProTag ? "2" : "", VariablerLehrer ? "V" : "",
         NichtInLegende ? "L" : "", NachmittagNurDoppel ? "U" : "", ManuellPlanen ? "M" : "", ImmerSelbeZeit ? "s" : "", Zeitwuensche.Leer ? "" : "Z");
-
-    /// <summary>
-    /// Klassenkollisions-Kennzeichen: dürfen <paramref name="a"/> und <paramref name="b"/> trotz gemeinsamer Klasse gleichzeitig stattfinden?
-    /// Ziffern: nur bei gleichem KKK; Buchstaben: bei verschiedenen Buchstaben.
-    /// </summary>
-    public static bool KlassenkollisionErlaubt(Unterricht a, Unterricht b)
-    {
-        var x = (a.Klassenkollision ?? "").Trim().ToUpperInvariant();
-        var y = (b.Klassenkollision ?? "").Trim().ToUpperInvariant();
-        if (x.Length == 0 || y.Length == 0) return false;
-        var zx = char.IsDigit(x[0]);
-        var zy = char.IsDigit(y[0]);
-        if (zx && zy) return x == y;
-        if (!zx && !zy) return x != y;
-        return false;
-    }
 
     [JsonIgnore] public IEnumerable<int> LehrerIds => Zeilen.Where(z => z.LehrerId.HasValue).Select(z => z.LehrerId!.Value).Distinct();
     [JsonIgnore] public IEnumerable<int> KlassenIds => Zeilen.SelectMany(z => z.KlassenIds).Distinct();
@@ -204,6 +193,49 @@ public sealed class Unterricht
             Periodizitaet.BWoche => schulwoche % 2 == 0,
             _ => true,
         };
+    }
+}
+
+/// <summary>Klassenkollisionskennzeichen (KKK, Handbuch „Anwendungshinweise | Klassenkollisionskennzeichen“).</summary>
+public static class Klassenkollision
+{
+    /// <summary>Wirksames Kennzeichen (<see cref="Unterricht.Klassenkollision"/>): erste Ziffer 1–9 bzw. erster Buchstabe A–H (groß), sonst null.</summary>
+    public static char? Kennzeichen(Unterricht u)
+    {
+        var t = (u.Klassenkollision ?? "").Trim();
+        if (t.Length == 0) return null;
+        var c = char.ToUpperInvariant(t[0]);
+        return c is >= '1' and <= '9' or >= 'A' and <= 'H' ? c : null;
+    }
+
+    /// <summary>
+    /// Dürfen zwei Unterrichte derselben Klasse gleichzeitig liegen? Ja bei gleichem numerischem KKK und bei verschiedenen
+    /// alphabetischen KKK (Gruppen, aus denen jeder Schüler nur eine wählt).
+    /// </summary>
+    public static bool Erlaubt(Unterricht a, Unterricht b)
+    {
+        if (Kennzeichen(a) is not char x || Kennzeichen(b) is not char y) return false;
+        if (char.IsDigit(x) && char.IsDigit(y)) return x == y;
+        if (char.IsLetter(x) && char.IsLetter(y)) return x != y;
+        return false;
+    }
+
+    /// <summary>
+    /// Größte Zahl gleichzeitig liegender Unterrichte einer Klasse, die einander ausschließen (1 = keine Kollision): Unterrichte ohne KKK
+    /// zählen einzeln, je numerischem KKK zählt eine Gruppe, bei alphabetischen KKK zählt die größte Gruppe eines Buchstabens.
+    /// </summary>
+    public static int Gleichzeitig(IEnumerable<char?> kennzeichen)
+    {
+        var ohne = 0;
+        var ziffern = new HashSet<char>();
+        var buchstaben = new Dictionary<char, int>();
+        foreach (var k in kennzeichen)
+        {
+            if (k is not char c) ohne++;
+            else if (char.IsDigit(c)) ziffern.Add(c);
+            else buchstaben[c] = buchstaben.GetValueOrDefault(c) + 1;
+        }
+        return ohne + ziffern.Count + (buchstaben.Count > 0 ? buchstaben.Values.Max() : 0);
     }
 }
 

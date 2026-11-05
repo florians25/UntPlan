@@ -152,6 +152,8 @@ public static class Textverlauf
 
         public static void Zeigen(TextBox t, string feldart, bool alle = false)
         {
+            // Einstellungen | Anpassen: „Autovervollständigen“ aus – nur die ausdrücklich geöffnete Liste (alle) zeigen
+            if (!alle && !AppZustand.Einstellungen.Autovervollstaendigen) { Schliessen(t); return; }
             var vorschlaege = Eingabeverlauf.Vorschlaege(Verlauf, feldart, alle ? "" : t.Text);
             if (vorschlaege.Count == 0 || (!alle && t.Text.Trim().Length == 0)) { Schliessen(t); return; }
             if (_fenster is null || _fenster.IsDisposed) _fenster = new Liste();

@@ -24,6 +24,8 @@ public sealed class OptimierungsOptionen
     /// <summary>Optimierungsschritte je Plan (1–9).</summary>
     public int Schritte { get; set; } = 2;
     public int StartProzent { get; set; } = 30;
+    /// <summary>„% der Klassenstunden zu verplanen (blank=100%)“: null = alle (bei Strategie C/D: <see cref="StartProzent"/>).</summary>
+    public int? Prozent { get; set; }
     public int ErhoehungProzent { get; set; } = 20;
     /// <summary>Nur nicht verplante Stunden setzen; bestehende Stunden bleiben.</summary>
     public bool NurNichtVerplante { get; set; }
@@ -35,6 +37,20 @@ public sealed class OptimierungsOptionen
     public bool NurGewuenschteFreieTage { get; set; }
     /// <summary>Doppelstunden besonders optimieren (doppelte Gewichtung der Doppelstundenbedingung).</summary>
     public bool DoppelstundenBesonders { get; set; }
+    /// <summary>Lehrer-Zuordnung bei Optimierung: „Keine Optimierung der Zuordnung“ – Kennzeichen (V) Variabler Lehrer werden ignoriert.</summary>
+    public bool KeineZuordnungsOptimierung { get; set; } = true;
+    /// <summary>„Kein Lehrertausch mit anderem Fach“: Lehrkräfte nur zwischen Unterrichten mit gleichem Fach tauschen.</summary>
+    public bool KeinTauschAnderesFach { get; set; } = true;
+    /// <summary>„Tausch nur für gleichstündige Unt.“.</summary>
+    public bool TauschNurGleichstuendig { get; set; } = true;
+    /// <summary>„Tausch nur innerhalb Jahrgangsstufe“.</summary>
+    public bool TauschNurJahrgang { get; set; } = true;
+    /// <summary>„Raumkapazität berücksichtigen“: bei der Raumzuordnung Räume bevorzugen, deren Kapazität zur Schülerzahl passt.</summary>
+    public bool RaumkapazitaetBeruecksichtigen { get; set; } = true;
+    /// <summary>„Mit Voroptimierung“: beim Setzen werden mehr Varianten untersucht (längere Rechenzeit).</summary>
+    public bool MitVoroptimierung { get; set; }
+    /// <summary>„Kalenderverteilung beibehalten“ (nur gespeichert).</summary>
+    public bool KalenderverteilungBeibehalten { get; set; }
     public int Seed { get; set; } = Environment.TickCount;
 }
 
@@ -69,6 +85,8 @@ public sealed class PlanErgebnis
 {
     public int Nummer { get; set; }
     public List<Planstunde> Plan { get; set; } = new();
+    /// <summary>Lehrertausche der Lehrer-Zuordnung bei Optimierung (beim Übernehmen des Plans mit angewendet).</summary>
+    public List<Lehrertausch> Lehrertausche { get; set; } = new();
     public Kennzahlen Kennzahlen { get; set; } = new();
     public TimeSpan Dauer { get; set; }
 }
@@ -81,23 +99,66 @@ public sealed record OptimierungsFortschritt(int Plan, int Plaene, double Anteil
 /// </summary>
 public static class Optimierer
 {
-    public static List<PlanErgebnis> Optimieren(Schuldatei d, OptimierungsOptionen o, IProgress<OptimierungsFortschritt>? fortschritt = null, CancellationToken ct = default)
+    public static List<PlanErgebnis> Optimieren(Schuldatei d, OptimierungsOptionen o, IProgress<OptimierungsFortschritt>? fortschritt = null, CancellationToken ct = default) =>
+        Optimieren(d, o, fortschritt, ct, default, null, null);
+
+    /// <summary>
+    /// Optimierung mit Begleitfenster: <paramref name="anhalten"/> („Optimierung anhalten – Sofort“) bricht laufende Pläne ab, liefert aber
+    /// die bereits fertigen; <paramref name="weiter"/> wird vor jedem Plan gefragt („Nach Plan“: keine weiteren Pläne beginnen);
+    /// <paramref name="fertig"/> meldet jeden fertigen Plan (für die Liste im Begleitfenster). <paramref name="ct"/> bricht alles ab.
+    /// </summary>
+    public static List<PlanErgebnis> Optimieren(Schuldatei d, OptimierungsOptionen o, IProgress<OptimierungsFortschritt>? fortschritt, CancellationToken ct,
+        CancellationToken anhalten, Func<bool>? weiter, Action<PlanErgebnis>? fertig)
     {
         var anzahl = Math.Clamp(o.AnzahlPlaene, 1, 20);
-        var ergebnisse = new PlanErgebnis[anzahl];
+        var ergebnisse = new PlanErgebnis?[anzahl];
         var erledigt = new double[anzahl];
+        using var beide = CancellationTokenSource.CreateLinkedTokenSource(ct, anhalten);
         var parallel = new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) };
         Parallel.For(0, anzahl, parallel, i =>
         {
-            var start = DateTime.Now;
-            var plan = EinPlan(d, o, o.Seed + i * 7919, (a, phase, k) =>
+            if (anhalten.IsCancellationRequested || weiter?.Invoke() == false) return;
+            try
             {
-                erledigt[i] = a;
-                fortschritt?.Report(new OptimierungsFortschritt(i + 1, anzahl, erledigt.Average(), phase, k));
-            }, ct);
-            ergebnisse[i] = new PlanErgebnis { Nummer = i + 1, Plan = plan, Kennzahlen = Bewertung.Kennzahlen(d, plan), Dauer = DateTime.Now - start };
+                var e = EinErgebnis(d, o, i, (a, phase, k) =>
+                {
+                    erledigt[i] = a;
+                    fortschritt?.Report(new OptimierungsFortschritt(i + 1, anzahl, erledigt.Average(), phase, k));
+                }, beide.Token);
+                ergebnisse[i] = e;
+                fertig?.Invoke(e);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { /* angehalten: Plan verwerfen */ }
         });
-        return ergebnisse.OrderBy(e => e.Kennzahlen.Bewertung).ToList();
+        ct.ThrowIfCancellationRequested();
+        return ergebnisse.Where(e => e != null).Select(e => e!).OrderBy(e => e.Kennzahlen.Bewertung).ToList();
+    }
+
+    /// <summary>Einen Plan der Serie rechnen (Setz-/Tauschoptimierung, danach ggf. Lehrer-Zuordnung) und bewerten.</summary>
+    public static PlanErgebnis EinErgebnis(Schuldatei d, OptimierungsOptionen o, int i, Action<double, string, double>? fortschritt = null, CancellationToken ct = default)
+    {
+        var start = DateTime.Now;
+        var plan = EinPlan(d, o, o.Seed + i * 7919, fortschritt, ct);
+        var bewertet = d;
+        var tausche = new List<Lehrertausch>();
+        // Lehrer-Zuordnung bei Optimierung: Tausche unter variablen Lehrkräften, die den Plan verbessern
+        if (!o.KeineZuordnungsOptimierung && Lehrerzuordnung.Moeglich(d))
+        {
+            fortschritt?.Invoke(1, "Lehrer-Zuordnung", 0);
+            bewertet = Dokument.Klonen(d);
+            tausche = Lehrerzuordnung.Optimieren(bewertet, plan, o, new Random(o.Seed + i * 31), ct);
+        }
+        return new PlanErgebnis { Nummer = i + 1, Plan = plan, Lehrertausche = tausche, Kennzahlen = Bewertung.Kennzahlen(bewertet, plan), Dauer = DateTime.Now - start };
+    }
+
+    /// <summary>Schuldatei mit dem Plan (und den Lehrertauschen) eines Ergebnisses – Inhalt einer Arbeitsdatei („work1.up“ …).</summary>
+    public static Schuldatei MitErgebnis(Schuldatei d, PlanErgebnis e)
+    {
+        var k = Dokument.Klonen(d);
+        k.Stundenplan.Clear();
+        k.Stundenplan.AddRange(e.Plan.Select(p => p.Kopie()));
+        Lehrerzuordnung.Anwenden(k, e.Lehrertausche);
+        return k;
     }
 
     private static int Iterationen(OptimierungsOptionen o, int bloecke)
@@ -111,6 +172,7 @@ public static class Optimierer
             _ => 250,
         };
         var schritte = Math.Clamp(o.Schritte, 1, 9);
+        if (o.MitVoroptimierung) basis = basis * 3 / 2;
         return (int)Math.Min(20_000_000, (long)basis * bloecke * (2 + schritte * 2));
     }
 
@@ -227,7 +289,9 @@ public static class Optimierer
         });
         var reihenfolge = beweglich.OrderByDescending(bi => schwierigkeit[bi]).ToList();
 
-        var prozent = o.Strategie is Strategie.C or Strategie.D ? Math.Clamp(o.StartProzent, 5, 100) : 100;
+        // „% der Klassenstunden zu verplanen (blank=100%)“: gilt für alle Strategien; bei C/D Startwert der Prozentverplanung
+        var prozent = Math.Clamp(o.Prozent ?? (o.Strategie is Strategie.C or Strategie.D ? o.StartProzent : 100), 1, 100);
+        var erhoehen = o.Strategie is Strategie.C or Strategie.D;
         var erhoehung = Math.Clamp(o.ErhoehungProzent, 5, 100);
         var iterGesamt = Iterationen(o, beweglich.Count);
         var gesetztBis = 0;
@@ -236,7 +300,7 @@ public static class Optimierer
         {
             var bis = (int)Math.Ceiling(reihenfolge.Count * prozent / 100.0);
             phasen.Add(Math.Min(bis, reihenfolge.Count));
-            if (prozent >= 100) break;
+            if (prozent >= 100 || !erhoehen) break;
             prozent = Math.Min(100, prozent + erhoehung);
         }
         var iterJePhase = iterGesamt / phasen.Count;
@@ -286,11 +350,11 @@ public static class Optimierer
                 {
                     var z = u.Zeilen[zi];
                     int? gewaehlt = null;
-                    IEnumerable<int> kandidaten = ix.RaumKandidaten(u, z);
+                    IEnumerable<int> kandidaten = RaumReihenfolge(d, ix, u, z, o);
                     // Stunden im Raum: ist die Anzahl im Fachraum erreicht, den Stammraum verwenden
                     var fachraumVoll = u.StundenImRaum > 0 && z.FachraumId.HasValue && imFachraum.GetValueOrDefault((u.Id, zi)) + b.Laenge > u.StundenImRaum;
                     if (fachraumVoll)
-                        kandidaten = z.StammraumId is int st ? ix.RaumKandidaten(new Kopplungszeile { StammraumId = st }) : new List<int>();
+                        kandidaten = z.StammraumId is int st ? RaumReihenfolge(d, ix, u, new Kopplungszeile { StammraumId = st, KlassenIds = z.KlassenIds }, o) : new List<int>();
                     if (u.SelberRaum && gleicherRaum.TryGetValue((u.Id, zi), out var bisher)) kandidaten = new[] { bisher }.Concat(kandidaten.Where(r => r != bisher));
                     foreach (var r in kandidaten)
                     {
@@ -312,6 +376,24 @@ public static class Optimierer
             }
         }
         return plan;
+    }
+
+    /// <summary>
+    /// Reihenfolge der Raumkandidaten einer Kopplungszeile: Wunschraum und Ausweichräume in Eingabereihenfolge; bei „Raumkapazität
+    /// berücksichtigen“ zuerst Räume, die groß genug sind (in Eingabereihenfolge), dann die etwas zu kleinen (der größte zuerst).
+    /// </summary>
+    public static IEnumerable<int> RaumReihenfolge(Schuldatei d, DatenIndex ix, Unterricht u, Kopplungszeile z, OptimierungsOptionen o)
+    {
+        var kand = ix.RaumKandidaten(u, z); // beachtet (K) Kein Ausweichraum
+        if (!o.RaumkapazitaetBeruecksichtigen) return kand;
+        var schueler = z.KlassenIds.Sum(k => ix.Klassen.TryGetValue(k, out var kl) ? kl.Schuelerzahl : 0);
+        if (u.MaxSchueler > 0) schueler = u.MaxSchueler;
+        if (schueler <= 0 || kand.All(r => ix.Raeume[r].Kapazitaet <= 0)) return kand;
+        int Kap(int r) => ix.Raeume[r].Kapazitaet;
+        return kand.Select((r, i) => (r, i))
+            .OrderBy(x => Kap(x.r) <= 0 ? 1 : Kap(x.r) >= schueler ? 0 : 2)
+            .ThenBy(x => Kap(x.r) >= schueler ? 0 : schueler - Kap(x.r))
+            .ThenBy(x => x.i).Select(x => x.r).ToList();
     }
 
     private static void BloeckeKuerzen(List<int> bloecke, int rest)

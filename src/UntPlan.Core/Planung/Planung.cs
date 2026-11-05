@@ -49,7 +49,7 @@ public static class Planungsdienst
             var gemeinsameK = o.KlassenIds.Where(klassen.Contains).ToList();
             if (gemeinsameL.Count > 0) res.Add(new Hindernis(p, o, $"Lehrer {string.Join(",", gemeinsameL.Select(ix.KLehrer))}"));
             // Klassenkollisions-Kennzeichen (KKK): gleichzeitige Verplanung trotz gemeinsamer Klasse erlaubt
-            else if (gemeinsameK.Count > 0 && !Unterricht.KlassenkollisionErlaubt(u, o)) res.Add(new Hindernis(p, o, $"Klasse {ix.KKlassen(gemeinsameK)}"));
+            else if (gemeinsameK.Count > 0 && !Klassenkollision.Erlaubt(u, o)) res.Add(new Hindernis(p, o, $"Klasse {ix.KKlassen(gemeinsameK)}"));
         }
         return res;
     }
