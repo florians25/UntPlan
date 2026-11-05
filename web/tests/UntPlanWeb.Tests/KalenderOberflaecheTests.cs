@@ -120,8 +120,9 @@ public class KalenderOberflaecheTests
     {
         var css = Datei("css", "kompakt.css");
         Assert.Contains("<link rel=\"stylesheet\" href=\"css/kompakt.css\">", Datei("index.html"));
-        Assert.Contains("@media (min-width: 992px) and (max-width: 1440px) {\n  :root { --u-leiste: 248px; }", css);
-        Assert.Contains("@media (min-width: 992px) and (max-width: 1300px) {\n  :root { --u-leiste: 232px; }", css);
+        // Seitenleiste bleibt wie im Original immer 280 px breit
+        Assert.DoesNotContain("--u-leiste: 248px", css);
+        Assert.DoesNotContain("--u-leiste: 232px", css);
         // niedrige Fenster: Menü bleibt wie in der Vorlage (Punkte 50 px hoch), keine Verdichtung mehr
         Assert.DoesNotContain("@media (min-width: 992px) and (max-height: 860px)", css);
         Assert.Contains(".tt { container: plan-raster / inline-size; }", css);

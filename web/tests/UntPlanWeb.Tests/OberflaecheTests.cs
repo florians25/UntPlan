@@ -515,17 +515,18 @@ public class OberflaecheTests
             Assert.Contains("font-weight: 700; font-style: italic", css);
             Assert.DoesNotContain("fremd", css);
             Assert.Contains("--u-schrift: \"AvenirNextPro\", \"Avenir Next\", \"Nunito Sans\"", css);
-            // nur Regular und Medium: 100–400 → Regular, 500–900 → Medium; fehlt Medium, vertritt ihn der leichteste fettere Schnitt
+            // wie im Original: 100–400 → Regular, 500 → Medium (fehlt: Demi), 600–900 → Demi
             Assert.Equal(new[] { (100, 400), (200, 400), (300, 400), (400, 400), (500, 600), (600, 600), (700, 600), (800, 600), (900, 600) }, SchriftApi.Zuordnung(new[] { 400, 600 }));
             var mitMedium = SchriftApi.Zuordnung(new[] { 300, 400, 500, 600, 700 });
-            Assert.Equal(new[] { 400, 500 }, mitMedium.Select(x => x.Schnitt).Distinct().OrderBy(x => x));
-            Assert.Contains((700, 500), mitMedium);
-            Assert.Contains((900, 500), mitMedium);
-            // mit Medium-Datei werden Demi/Bold nicht mehr geladen
+            Assert.Equal(new[] { 400, 500, 600 }, mitMedium.Select(x => x.Schnitt).Distinct().OrderBy(x => x));
+            Assert.Contains((500, 500), mitMedium);
+            Assert.Contains((700, 600), mitMedium);
+            Assert.Contains((900, 600), mitMedium);
+            // mit Medium-Datei: Medium nur für 500, Demi bleibt für 600–900, Bold wird nie geladen
             File.WriteAllText(Path.Combine(ordner, "fonts", "AvenirNextPro-Medium.woff2"), "");
             css = OberflaecheApi.SchriftCss(ordner);
-            Assert.DoesNotContain("AvenirNextPro-Demi", css);
-            Assert.Contains("AvenirNextPro-Medium.woff2\") format(\"woff2\"); font-weight: 700; font-style: normal", css);
+            Assert.Contains("AvenirNextPro-Medium.woff2\") format(\"woff2\"); font-weight: 500; font-style: normal", css);
+            Assert.Contains("AvenirNextPro-Demi.woff2\") format(\"woff2\"); font-weight: 700; font-style: normal", css);
         }
         finally { Directory.Delete(ordner, true); }
     }
