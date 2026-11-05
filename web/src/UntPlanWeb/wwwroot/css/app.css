@@ -1977,3 +1977,14 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-nav .u-nav-punkt.aktiv { background: none; color: var(--u-akzent); }
 .u-leiste .u-nav-kompakt .u-nav-punkt { width: calc(100% - 16px); }
 .u-leiste .u-nav-kompakt .u-nav-punkt.aktiv::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 0; background: var(--u-akzent); }
+
+/* Schriften der Seitenleiste wie im Original (Textbreiten der Vorlage mit Avenir Next LT Pro nachgemessen):
+   Menüpunkte Demi 16 px, Titel Demi 22 px, Schulname Regular 14,2 px, Schuljahr Demi 13,8 px, Benutzername Demi 16 px,
+   Rolle Regular 14 px, Abmelden/Neuigkeiten Demi 12 px */
+.u-leiste .u-nav .u-nav-punkt { font-size: 16px; font-weight: 600; }
+.u-leiste .u-marke b { font-size: 22px; font-weight: 600; }
+.u-leiste .u-marke small { font-size: 14.2px; font-weight: 400; }
+.u-leiste .u-jahr { font-size: 13.8px; font-weight: 600; }
+.u-leiste .u-benutzer b { font-size: 16px; font-weight: 600; }
+.u-leiste .u-benutzer small { font-size: 14px; font-weight: 400; }
+.u-leiste .u-abmelden { font-size: 12px; font-weight: 600; }

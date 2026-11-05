@@ -5,34 +5,14 @@
 
 /* ------------------------------------------------------------------ Navigation */
 
+/* Seitenleiste bleibt wie im Original immer 280 px breit (keine Verkleinerung bei schmaleren Fenstern) */
 @media (min-width: 992px) and (max-width: 1440px) {
-  :root { --u-leiste: 248px; }
-  .u-marke { gap: 10px; }
-  .u-marke .logo { width: 44px; height: 44px; }
-  .u-marke b { font-size: 1.22rem; }
-  .u-marke small { font-size: .8rem; }
-  .u-jahrzeile { padding-left: 64px; }
-  .mit-unter .u-jahrzeile { padding-left: 72px; }
-  .u-unterkopf { gap: 13px; }
-  .u-unterkopf b { font-size: 1.12rem; }
-  .u-nav-punkt { gap: 16px; padding-left: 17px; font-size: 1rem; }
-  .u-nav-unter .u-nav-punkt { gap: 14px; padding-left: 19px; font-size: .93rem; }
-  .u-benutzer { gap: 15px; }
-  .u-abmelden { gap: 20px; }
   /* Seiten mit Werkzeugleiste: weniger Einzug links */
   .u-werkzeug { padding-left: 48px; padding-right: 24px; }
   .u-mit-werkzeug .u-inhalt { padding-left: 48px; }
   .u-inhalt { padding-left: 24px; padding-right: 24px; }
 }
 @media (min-width: 992px) and (max-width: 1300px) {
-  :root { --u-leiste: 232px; }
-  .u-nav-punkt { gap: 14px; padding-left: 16px; font-size: .97rem; }
-  .u-nav-unter .u-nav-punkt { gap: 12px; padding-left: 17px; font-size: .91rem; }
-  .u-nav-sym { width: 30px; height: 30px; }
-  .u-nav-sym .u-sym { width: 27px; height: 27px; }
-  .u-nav-unter .u-nav-sym .u-sym { width: 25px; height: 25px; }
-  .u-jahrzeile { padding-left: 62px; }
-  .mit-unter .u-jahrzeile { padding-left: 70px; }
   .u-werkzeug { padding-left: 32px; gap: 12px; }
   .u-mit-werkzeug .u-inhalt { padding-left: 32px; }
   .u-inhalt { padding-left: 20px; padding-right: 20px; }

@@ -41,19 +41,20 @@ public static partial class SchriftApi
     }
 
     /// <summary>
-    /// Die Oberfläche verwendet nur zwei Schnitte: Regular (CSS 100–400) und Medium (CSS 500–900). Demi-/Bold-Dateien werden nicht
-    /// geladen, solange ein Medium-Schnitt vorhanden ist; fehlt er, vertritt ihn der leichteste fettere Schnitt.
+    /// Schnitte wie im Original (an Textbreiten der Vorlage nachgemessen): normale Texte Regular (CSS 100–400), Menüpunkte,
+    /// Namen und Überschriften Demi (CSS 600–900); CSS 500 nutzt Medium, falls vorhanden. Bold-Dateien werden nicht verwendet.
     /// </summary>
     public static int[] CssGewichte(int schnitt) => schnitt switch
     {
         <= 400 => new[] { 100, 200, 300, 400 },
-        _ => new[] { 500, 600, 700, 800, 900 },
+        500 => new[] { 500 },
+        _ => new[] { 600, 700, 800, 900 },
     };
 
     /// <summary>
-    /// Vollständige Zuordnung CSS-Gewicht (100–900) → Schriftschnitt: 100–400 → Regular, 500–900 → Medium. So wählt jeder Browser
-    /// (Chrome, Firefox, Safari unter macOS/iOS) für jedes Gewicht dieselbe Datei – keine abweichende Fallback-Auswahl, keine Kunstfetten,
-    /// keine Demi-/Bold-Schnitte.
+    /// Vollständige Zuordnung CSS-Gewicht (100–900) → Schriftschnitt: 100–400 → Regular, 500 → Medium, 600–900 → Demi.
+    /// Fehlt ein Schnitt, vertritt ihn der nächstliegende vorhandene (Demi → Medium → Bold, Medium → Demi). So wählt jeder Browser
+    /// für jedes Gewicht dieselbe Datei – keine abweichende Fallback-Auswahl, keine Kunstfetten.
     /// </summary>
     public static List<(int Css, int Schnitt)> Zuordnung(IEnumerable<int> schnitte)
     {
@@ -61,11 +62,12 @@ public static partial class SchriftApi
         var res = new List<(int, int)>();
         if (alle.Count == 0) return res;
         int? regular = alle.Contains(400) ? 400 : alle.Where(x => x < 400).Select(x => (int?)x).LastOrDefault();
-        int? medium = alle.Contains(500) ? 500 : alle.Where(x => x > 500).Select(x => (int?)x).FirstOrDefault()
-            ?? alle.Where(x => x > 400 && x < 500).Select(x => (int?)x).FirstOrDefault();
-        regular ??= medium;
+        int? demi = alle.Contains(600) ? 600 : alle.Contains(500) ? 500 : alle.Where(x => x > 400).Select(x => (int?)x).FirstOrDefault();
+        int? medium = alle.Contains(500) ? 500 : demi;
+        regular ??= medium ?? demi;
         medium ??= regular;
-        for (var w = 100; w <= 900; w += 100) res.Add((w, w <= 400 ? regular!.Value : medium!.Value));
+        demi ??= medium;
+        for (var w = 100; w <= 900; w += 100) res.Add((w, w <= 400 ? regular!.Value : w == 500 ? medium!.Value : demi!.Value));
         return res;
     }
 
@@ -97,7 +99,7 @@ public static partial class SchriftApi
             var sb = new StringBuilder("/* Hausschrift aus dem Datenordner (Administration → Ansichtseinstellungen → Schrift) */\n");
             var dateien = Dateien(k);
             // je Schnitt die kompakteste Datei (woff2 vor woff vor otf/ttf)
-            // nur Regular und Medium: CSS 100–400 → Regular, 500–900 → Medium (keine Demi-/Bold-Dateien) – jedes Gewicht bekommt eine feste Datei
+            // Regular für 100–400, Medium für 500, Demi für 600–900 (wie im Original) – jedes Gewicht bekommt eine feste Datei
             foreach (var stil in dateien.GroupBy(d => Schnitt(d).Kursiv))
             {
                 var jeSchnitt = stil.GroupBy(d => Schnitt(d).Gewicht).ToDictionary(g => g.Key, g => string.Join(", ", g
