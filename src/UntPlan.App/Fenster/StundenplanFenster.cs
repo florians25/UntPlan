@@ -1834,7 +1834,13 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.None && !RegelplanNurAnzeige)
         {
             if (e.KeyCode == Keys.Delete) { Entplanen(); e.Handled = true; }
-            else if (e.KeyCode == Keys.F) { Fixieren(); e.Handled = true; }
+            else if (e.KeyCode is Keys.F or Keys.F7) { Fixieren(); e.Handled = true; }
+        }
+        // Handbuch (Manuelles Planen): F7 fixiert bzw. löst die Fixierung, Strg+R öffnet „Raum zuordnen / löschen“
+        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.Control && e.KeyCode == Keys.R && !RegelplanNurAnzeige)
+        {
+            RaumZuordnen();
+            e.Handled = true;
         }
         base.OnKeyDown(e);
     }
@@ -1930,11 +1936,54 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             cm.Items.Add("Raum zuordnen / löschen…", Symbole.Get("raumzuordnen"), (_, _) => RaumZuordnen());
             cm.Items.Add("Tauschvorschläge…", Symbole.Get("tausch"), (_, _) => TauschvorschlaegeZeigen());
             cm.Items.Add("Stunde vom Unterricht entplanen", Symbole.Get("loeschen"), (_, _) => Entplanen());
+            if (Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var gekoppelt) && gekoppelt.Zeilen.Count > 1)
+                cm.Items.Add("Entkoppeln…", Symbole.Get("minus"), (_, _) => Entkoppeln(p));
             cm.Items.Add("Zeitwünsche des Unterrichts", Symbole.Get("zeitwunsch"), (_, _) => ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, p.UnterrichtId));
             cm.Items.Add(new ToolStripSeparator());
         }
         cm.Items.Add("Im HTML-Format ausgeben", Symbole.Get("html"), (_, _) => HtmlAusgabe());
         cm.Show(_plan, pt);
+    }
+
+    /// <summary>
+    /// Entkoppeln im Stundenplan (Handbuch 5.2.9): gewählte Kopplungszeilen werden eigene Unterrichte, die zunächst zur selben Zeit verplant
+    /// bleiben und danach per Drag &amp; Drop verlegt werden können. Im Lehrerplan ist die Zeile der angezeigten Lehrkraft vorgewählt.
+    /// </summary>
+    private void Entkoppeln(Planstunde p)
+    {
+        if (!Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u0) || u0.Zeilen.Count < 2) return;
+        using var d = new Dialoge.Dialog("Entkoppeln", 420, 250);
+        d.Controls.Add(new Label { Text = $"Unterricht {u0.Id}: Kopplungszeilen, die aus der Kopplung genommen werden sollen", Left = 10, Top = 8, Width = 400 });
+        var liste = new CheckedListBox { Left = 10, Top = 30, Width = 400, Height = 170, CheckOnClick = true };
+        for (var i = 0; i < u0.Zeilen.Count; i++)
+        {
+            var z = u0.Zeilen[i];
+            liste.Items.Add($"{i + 1}:  {Ix.KLehrer(z.LehrerId),-8} {Ix.KFach(z.FachId),-6} {Ix.KKlassen(z.KlassenIds)}", i > 0 && _typ == ElementTyp.Lehrer && z.LehrerId == _id);
+        }
+        d.Controls.Add(liste);
+        d.Ok.Text = "Ok";
+        if (d.ShowDialog(this) != DialogResult.OK) return;
+        var auswahl = liste.CheckedIndices.Cast<int>().OrderByDescending(i => i).ToList();
+        if (auswahl.Count == u0.Zeilen.Count) auswahl.RemoveAt(auswahl.Count - 1);
+        if (auswahl.Count == 0) return;
+        Aendern("Entkoppeln", AenderungsArt.Unterricht, dd =>
+        {
+            var u = dd.Unterrichte.First(x => x.Id == u0.Id);
+            var stunden = dd.Stundenplan.Where(x => x.UnterrichtId == u.Id).ToList();
+            foreach (var i in auswahl)
+            {
+                var neu = u.Kopie(dd.NeueId());
+                neu.Zeilen = new List<Kopplungszeile> { u.Zeilen[i].Kopie() };
+                dd.Unterrichte.Add(neu);
+                foreach (var st in stunden)
+                {
+                    dd.Stundenplan.Add(new Planstunde { UnterrichtId = neu.Id, Tag = st.Tag, Stunde = st.Stunde, Fixiert = st.Fixiert, Raeume = new List<int?> { st.RaumFuerZeile(i) } });
+                    if (st.Raeume.Count > i && !(st.Raeume.Count == 1 && u.Zeilen.Count > 1)) st.Raeume.RemoveAt(i);
+                }
+                u.Zeilen.RemoveAt(i);
+            }
+        });
+        Neuaufbau(false);
     }
 
     private static StundenplanFormat Kopie(StundenplanFormat f) => System.Text.Json.JsonSerializer.Deserialize<StundenplanFormat>(System.Text.Json.JsonSerializer.Serialize(f))!;

@@ -350,6 +350,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Optimierung", "optimierung", () => OptimierungDialog.Starten(this), true));
         g.Eintraege.Add(E("Alle Stunden entplanen", "loeschen", AlleEntplanen));
         g.Eintraege.Add(E("Unterrichtszeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, null)));
+        g.Eintraege.Add(E("Fixierter/Ignorierter Unterricht", "fixieren", () => Oeffnen<FixierterUnterrichtFenster>("fixiert", () => new FixierterUnterrichtFenster()), hinweis: "Alle fixierten bzw. ignorierten Unterrichte mit der Ebene der Fixierung; Fixierungen lösen"));
         g.Eintraege.Add(E("Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this)));
 
         var plaene = _ribbon.Seite("Stundenpläne");

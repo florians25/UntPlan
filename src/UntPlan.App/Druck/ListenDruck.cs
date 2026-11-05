@@ -27,7 +27,7 @@ public static class ListenDruck
     }
 
     /// <summary>Gespeicherte Drucklayouts je Liste (Titel ohne Datumsangaben als Schlüssel).</summary>
-    private static Layout LayoutFuer(string titel)
+    internal static Layout LayoutFuer(string titel)
     {
         var key = Schluessel(titel);
         if (!AppZustand.Einstellungen.Drucklayouts.TryGetValue(key, out var l)) AppZustand.Einstellungen.Drucklayouts[key] = l = new Layout();

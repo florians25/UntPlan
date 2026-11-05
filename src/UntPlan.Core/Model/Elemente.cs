@@ -35,6 +35,12 @@ public abstract class Element
     public bool Fix { get; set; }
     /// <summary>(I) ignorieren – Element wird bei Planung und Diagnose nicht berücksichtigt.</summary>
     public bool Ignorieren { get; set; }
+    /// <summary>(m) markiert – Druck und Serienänderung lassen sich auf markierte Elemente beschränken.</summary>
+    public bool Markiert { get; set; }
+    /// <summary>(N) nicht drucken – für das Element werden keine Stundenpläne gedruckt (Fächer: auch nicht im Vertretungsplan).</summary>
+    public bool NichtDrucken { get; set; }
+    /// <summary>Name in einer anderen Schule (MultiUser, externe Elemente).</summary>
+    public string ExtName { get; set; } = "";
     public Zeitwuensche Zeitwuensche { get; set; } = new();
     public List<UnbestimmterZeitwunsch> UnbestimmteZeitwuensche { get; set; } = new();
     /// <summary>Reihenfolge in Listen (Umreihen per Drag & Drop).</summary>
@@ -150,8 +156,6 @@ public sealed class Lehrer : Element
     public int PausenaufsichtMaxMinuten { get; set; } = 60;
     public int BereitschaftenMax { get; set; } = 2;
     public List<Wertkorrektur> Wertkorrekturen { get; set; } = new();
-    /// <summary>Name in einer anderen Schule (MultiUser, externe Elemente).</summary>
-    public string ExtName { get; set; } = "";
     public DateOnly? Eintritt { get; set; }
     public DateOnly? Austritt { get; set; }
 
@@ -184,7 +188,6 @@ public sealed class Fach : Element
     public bool EntfallNichtZaehlen { get; set; }
     /// <summary>Unterricht dieses Faches wird nicht vertreten (automatisch Entfall).</summary>
     public bool KeineVertretung { get; set; }
-    public bool NichtDrucken { get; set; }
     /// <summary>(P) Keine Pausenaufsicht vor bzw. nach diesem Fach.</summary>
     public bool KeinePausenaufsicht { get; set; }
     /// <summary>Doppelstunden-Vorgabe für neue Unterrichte (z. B. Sport 1-1).</summary>

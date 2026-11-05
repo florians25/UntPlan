@@ -82,7 +82,7 @@ public static class DruckauswahlDialog
         d.Controls.Add(btn);
         d.Controls.Add(lbl);
         ElementTyp Typ() => typBox.SelectedIndex switch { 1 => ElementTyp.Lehrer, 2 => ElementTyp.Raum, 3 => ElementTyp.Fach, _ => ElementTyp.Klasse };
-        void Alle() { auswahl = Stammdaten.Sortiert(AppZustand.D, Typ()).Select(e => e.Id).ToList(); lbl.Text = $"{Ui.TypName(Typ(), true)}: {auswahl.Count}/{auswahl.Count}"; }
+        void Alle() { auswahl = Stammdaten.Sortiert(AppZustand.D, Typ()).Where(e => !e.NichtDrucken).Select(e => e.Id).ToList(); lbl.Text = $"{Ui.TypName(Typ(), true)}: {auswahl.Count}/{auswahl.Count}"; }
         typBox.SelectedIndexChanged += (_, _) => Alle();
         btn.Click += (_, _) =>
         {

@@ -145,7 +145,8 @@ public static class SortierDialog
             boxen.Add((cb, ab));
             y += 50;
         }
-        var dauer = new CheckBox { Text = "Reihenfolge dauerhaft übernehmen (alle Auswahllisten)", Left = 12, Top = y + 2, Width = 380 };
+        var dauer = new CheckBox { Text = "Sortierung auch für Auswahllisten speichern", Left = 12, Top = y + 2, Width = 380 };
+        d.Ok.Text = "Ok";
         d.Controls.Add(dauer);
         var ok = d.ShowDialog(owner) == DialogResult.OK;
         dauerhaft = dauer.Checked;
@@ -156,17 +157,8 @@ public static class SortierDialog
 
 public static class FelderAuswahlDialog
 {
-    public static List<string>? Zeigen(IWin32Window owner, List<Feld> felder, List<string> sichtbar)
-    {
-        using var d = new Dialog("Felder der Ansicht", 340, 420);
-        var lb = new CheckedListBox { Left = 10, Top = 10, Width = 320, Height = 360, CheckOnClick = true };
-        foreach (var f in felder) lb.Items.Add($"{f.Titel}  ({f.Karteikarte})", sichtbar.Contains(f.Schluessel));
-        d.Controls.Add(lb);
-        if (d.ShowDialog(owner) != DialogResult.OK) return null;
-        var res = sichtbar.Where(s => lb.CheckedIndices.Cast<int>().Any(i => felder[i].Schluessel == s)).ToList();
-        foreach (int i in lb.CheckedIndices) if (!res.Contains(felder[i].Schluessel)) res.Add(felder[i].Schluessel);
-        return res;
-    }
+    public static List<string>? Zeigen(IWin32Window owner, List<Feld> felder, List<string> sichtbar) =>
+        FelderDerAnsichtRaster.Zeigen(owner, felder, sichtbar)?.Aktiv;
 }
 
 public static class AuswahlDialog
