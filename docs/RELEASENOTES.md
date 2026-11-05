@@ -6,7 +6,18 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
-### Desktop – Masken wie im Handbuch
+### Desktop
+- Bei Windows-Skalierung 125 %, 150 % oder 200 % sehen alle Masken aus wie bei 100 % – nichts wird mehr abgeschnitten (Datum mit Wochentag, Spaltenköpfe, Zeilen, Kopfbereiche).
+
+### UntPlanWeb
+- Seitenleiste nach Vorlage nachgemessen: Menüpunkte 50 px hoch (auch in niedrigen Fenstern), Logo, Schulname, Schuljahr und Benutzer an den Positionen der Vorlage; Abmelden und Neuigkeiten gleich lang wie die Menüpunkte, aber niedriger.
+
+### iOS
+- Schon geöffnete Stunden erscheinen sofort ohne Ladebild (Aktualisierung im Hintergrund).
+- Lehrstoff und Notizen: Nach dem Speichern schließt das Fenster automatisch.
+
+
+### Desktop – Masken wie im Handbuch (vorige Version)
 - Menüband Vertretungsplanung neu geordnet: Kalender mit Datumsfeld darunter und Monatskalender, Menüs bei Absenzen, Vertretungen, Ausgabe und Statistik, neue Knöpfe Vertretungsformate, Info-Stundenplan und Einstellungen.
 - Tastenkürzel im Vertretungsmodus: Strg+T heute, Strg+M nächster Schultag, Strg+G voriger Schultag.
 - Neue Fenster Zeitraster und Klassenzeitraster (Vertretung/Entfall mit der Maus eintragen).

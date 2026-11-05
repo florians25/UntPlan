@@ -75,8 +75,11 @@ public sealed partial class HauptFenster
         Ui.InfoAntwort = (text, _) => hinweise.Add(text);
         var logPfad = Path.Combine(ordner, "selbsttest.log");
         File.WriteAllText(logPfad, "");
+        // UNTPLAN_SCHRITTE (regulärer Ausdruck): nur passende Schritte ausführen (schnelle Prüfung einzelner Fenster, z. B. bei 150 % Skalierung)
+        var schrittFilter = Environment.GetEnvironmentVariable("UNTPLAN_SCHRITTE") is { Length: > 0 } sf ? new System.Text.RegularExpressions.Regex(sf) : null;
         void Schritt(string name, Action aktion, int ribbonSeite = -1, bool schliessen = true)
         {
+            if (schrittFilter != null && !schrittFilter.IsMatch(name)) return;
             var vorher = log.Count;
             File.AppendAllText(logPfad, $"START {name}{Environment.NewLine}");
             try

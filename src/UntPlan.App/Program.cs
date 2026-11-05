@@ -16,7 +16,8 @@ internal static class Program
         CultureInfo.DefaultThreadCurrentUICulture = de;
         Thread.CurrentThread.CurrentCulture = de;
         Thread.CurrentThread.CurrentUICulture = de;
-        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        // alle Masken mit festen Maßen wie bei 100 %; Windows skaliert das ganze Fenster (Text per GDI-Skalierung scharf)
+        Application.SetHighDpiMode(HighDpiMode.DpiUnawareGdiScaled);
         Application.EnableVisualStyles();
         Steuerelemente.Auswahlbreite.Einschalten();
         Application.SetCompatibleTextRenderingDefault(false);

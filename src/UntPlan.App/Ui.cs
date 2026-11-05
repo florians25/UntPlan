@@ -149,12 +149,22 @@ public static partial class Ui
         g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Kopf;
         g.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
         g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-        g.ColumnHeadersHeight = 22;
+        // Höhen nach der tatsächlichen Schrift (größere Windows-Schrift/Skalierung: nichts abgeschnitten), mindestens wie bisher
+        var zeilenSchrift = g.DefaultCellStyle.Font ?? g.Font;
+        g.ColumnHeadersHeight = Math.Max(22, zeilenSchrift.Height + 7);
         g.RowHeadersDefaultCellStyle.BackColor = Erste;
         g.RowHeadersDefaultCellStyle.SelectionBackColor = ZeileAktiv;
         g.RowHeadersWidth = 22;
         g.RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing;
-        g.RowTemplate.Height = 20;
+        g.RowTemplate.Height = Math.Max(20, zeilenSchrift.Height + 5);
+        // Spaltenüberschriften nie abgeschnitten (größere Windows-Schrift): beim ersten Anzeigen auf Textbreite verbreitern
+        g.HandleCreated += (_, _) =>
+        {
+            var kopfSchrift = g.ColumnHeadersDefaultCellStyle.Font ?? g.Font;
+            foreach (DataGridViewColumn c in g.Columns)
+                if (c.Visible && c.HeaderText.Length > 0 && c.AutoSizeMode is DataGridViewAutoSizeColumnMode.None or DataGridViewAutoSizeColumnMode.NotSet)
+                    c.Width = Math.Max(c.Width, TextRenderer.MeasureText(c.HeaderText, kopfSchrift).Width + 8);
+        };
         g.DefaultCellStyle.SelectionBackColor = BlauHell;
         g.DefaultCellStyle.SelectionForeColor = Color.Black;
 

@@ -17,8 +17,8 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
 {
     private readonly DateTimePicker _von;
     private readonly DateTimePicker _bis;
-    private readonly Label _wochentag = new() { AutoSize = false, Width = 34, Height = 16, Padding = new Padding(2, 1, 0, 0) };
-    private readonly Label _wochentagBis = new() { AutoSize = false, Width = 34, Height = 16, Padding = new Padding(2, 1, 0, 0) };
+    private readonly Label _wochentag = new() { AutoSize = true, MinimumSize = new Size(34, 16), Padding = new Padding(2, 1, 0, 0) };
+    private readonly Label _wochentagBis = new() { AutoSize = true, MinimumSize = new Size(34, 16), Padding = new Padding(2, 1, 0, 0) };
     private readonly Label _strich = new() { Text = "", AutoSize = true, Width = 0, Visible = false };
     private Control? _bisZeile;
     private readonly ToolStripDropDownButton _art = new() { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Zeitraum: Tag, Woche oder Von-Bis" };
@@ -35,11 +35,17 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         _bis = bis;
         _schluessel = schluessel;
         AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
         WrapContents = false;
         Margin = new Padding(0);
         Padding = new Padding(0);
         BackColor = Color.Transparent;
         _von.Margin = _bis.Margin = new Padding(2, 2, 8, 0);
+        // Breite nach der tatsächlichen Schrift: Datum mit Wochentag passt auch bei größerer Windows-Schrift vollständig hinein
+        var muster = _von.Format == DateTimePickerFormat.Custom ? new DateTime(2026, 11, 25).ToString(_von.CustomFormat) : new DateTime(2026, 11, 25).ToShortDateString();
+        var noetig = Math.Max(TextRenderer.MeasureText(muster, _von.Font).Width, TextRenderer.MeasureText(muster, Ui.Schrift).Width) + SystemInformation.VerticalScrollBarWidth + 14;
+        _von.Width = Math.Max(_von.Width, noetig);
+        _bis.Width = Math.Max(_bis.Width, noetig);
         // wie im Vorbild: unter jedem Datum der Wochentag mit zwei kleinen Pfeilen (◂ ▸)
         PfeilKnopf Klein(PfeilKnopf.Art art, string hinweis) => new(art, hinweis) { Size = new Size(16, 15), Margin = new Padding(0, 1, 0, 0) };
         var zurueck = Klein(PfeilKnopf.Art.Links, "Zurück");
@@ -71,9 +77,9 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         };
         Panel Spalte(DateTimePicker feld, Label tag, Control z, Control v)
         {
-            var unten = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(2, 0, 0, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
+            var unten = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(2, 0, 0, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
             unten.Controls.AddRange(new Control[] { tag, z, v });
-            var sp = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Color.Transparent };
+            var sp = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Color.Transparent };
             sp.Controls.Add(feld);
             sp.Controls.Add(unten);
             return sp;
