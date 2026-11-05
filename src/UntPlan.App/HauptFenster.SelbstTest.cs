@@ -1424,7 +1424,95 @@ public sealed partial class HauptFenster
             if (uebernommen != 1 || lay.GedruckteFelder.Contains("Fach")) throw new InvalidOperationException("„Übernahme“ wirkt nicht: " + string.Join(",", lay.GedruckteFelder));
             if (!d.Visible) throw new InvalidOperationException("„Übernahme“ hat den Dialog geschlossen");
         }, -1);
+        Schritt("27a5_Seitenlayout_Ziehen", () =>
+        {
+            // Seitenrand, Zeilenhöhe und Spaltenbreite mit der Maus ziehen (Handbuch Kap. 13.2.2)
+            var e = AppZustand.Einstellungen.Vertretungsdruck;
+            var f = Druck.SeitenlayoutFenster.Zeigen(this, tag, tag, false);
+            Warten(300);
+            var (rand, abstand) = (e.RandLinks, e.ZeilenAbstand);
+            var felder = Druck.VertretungsplanDruck.Felder(e).Where(x => x.Drucken).ToList();
+            var (a0, a1) = (felder[0].Anteil, felder[1].Anteil);
+            f.SelbsttestZiehen("RandLinks", 0, 30, 0);
+            f.SelbsttestZiehen("Zeile", 0, 0, 6);
+            f.SelbsttestZiehen("Spalte", 1, 25, 0);
+            if (e.RandLinks != rand + 30) throw new InvalidOperationException($"Seitenrand nicht gezogen ({rand} → {e.RandLinks})");
+            if (e.ZeilenAbstand != abstand + 6) throw new InvalidOperationException($"Zeilenhöhe nicht gezogen ({abstand} → {e.ZeilenAbstand})");
+            if (!(felder[0].Anteil > a0 && felder[1].Anteil < a1) || Math.Abs(felder[0].Anteil + felder[1].Anteil - a0 - a1) > 0.001f)
+                throw new InvalidOperationException($"Spaltenbreite nicht gezogen ({a0}/{a1} → {felder[0].Anteil}/{felder[1].Anteil})");
+            if (f.Seitenzahl == 0) throw new InvalidOperationException("Seitenlayout ohne Vorschau nach dem Ziehen");
+        }, -1);
         Schritt("27a3_Seitenlayout_zurueck", DruckZurueck, -1);
+        Schritt("27g_Menueband_1280", () =>
+        {
+            // Menüband bei 1280 Pixel Fensterbreite: nichts wird abgeschnitten (Gruppen verkleinern bzw. zusammenklappen wie im Vorbild)
+            var vorher = (WindowState, Bounds);
+            WindowState = FormWindowState.Normal;
+            Width = 1280;
+            Warten(200);
+            var aktiv = _ribbon.AktiveSeite;
+            void Pruefen(string modus)
+            {
+                for (var i = 0; i < _ribbon.Seiten.Count; i++)
+                {
+                    if (!_ribbon.Seiten[i].IstSichtbar) continue;
+                    _ribbon.AktiveSeite = i;
+                    var (rechts, klein, zu) = _ribbon.LayoutStand();
+                    if (rechts > _ribbon.ClientSize.Width) throw new InvalidOperationException($"Menüband {modus}/{_ribbon.Seiten[i].Text}: {rechts} px > {_ribbon.ClientSize.Width} px");
+                    if (klein + zu > 0) log.Add($"INFO  Menüband {modus}/{_ribbon.Seiten[i].Text} bei 1280 px: {klein} Gruppe(n) verkleinert, {zu} zusammengeklappt");
+                }
+            }
+            Pruefen("Stundenplanung");
+            VertretungsmodusUmschalten();
+            Pruefen("Vertretungsplanung");
+            VertretungsmodusUmschalten();
+            _ribbon.AktiveSeite = aktiv;
+            WindowState = vorher.WindowState;
+            if (WindowState == FormWindowState.Normal) Bounds = vorher.Bounds;
+        }, -1, false);
+        Schritt("27h_Vertretungsformate_Tageslisten", () =>
+        {
+            // Formate / Vertretung mit Spalte „Tagesliste“; eigenes Format anlegen (Format speichern als…) und löschen
+            var fenster = Max(VertretungsformateOeffnen());
+            var spalten = fenster.Raster.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText).ToList();
+            if (!spalten.SequenceEqual(new[] { "Name", "Langname", "Standard", "Art", "Tagesliste", "Art2" })) throw new InvalidOperationException("Spalten Formate / Vertretung: " + string.Join(",", spalten));
+            var liste = AppZustand.Einstellungen.VertretungsformateListe;
+            var vorlage = liste.First(x => x.Langname == "Druck - Lehrer");
+            // Sortierkriterien gehören zum Format und werden mit „Format speichern als…“ übernommen
+            var einst = AppZustand.Einstellungen;
+            var sortVorher = einst.VertretungsSortierung.GetValueOrDefault(vorlage.Langname);
+            einst.VertretungsSortierung[vorlage.Langname] = new List<VertretungsSortierkriterium> { new() { Feld = "Std", Absteigend = true } };
+            var neu = VertretungenFenster.FormatKopieren(vorlage, "Leli", "Vertretungen Lehrende (Selbsttest)");
+            if (sortVorher is null) einst.VertretungsSortierung.Remove(vorlage.Langname); else einst.VertretungsSortierung[vorlage.Langname] = sortVorher;
+            if (einst.VertretungsSortierung.GetValueOrDefault(neu.Langname) is not [{ Feld: "Std", Absteigend: true }]) throw new InvalidOperationException("Sortierkriterien nicht mit dem Format kopiert");
+            neu.Tagesliste = true;
+            fenster.Neuaufbau();
+            if (fenster.Raster.Rows.Cast<DataGridViewRow>().All(r => (r.Cells["L"].Value as string) != neu.Langname)) throw new InvalidOperationException("Neues Format fehlt in Formate / Vertretung");
+            var vf = (VertretungenFenster)FensterOeffnen("vertr")!;
+            vf.AnsichtSetzen(neu.Langname);
+            if (vf.AktuellesFormat != neu.Langname) throw new InvalidOperationException("Neues Format lässt sich nicht wählen: " + vf.AktuellesFormat);
+            if (!Core.Vertretungsplanung.Vertretungsformate.Tageslisten(liste).Contains(neu)) throw new InvalidOperationException("Tagesliste nicht gesetzt");
+            VertretungenFenster.FormatLoeschen(neu);
+            if (vf.AktuellesFormat == neu.Langname || liste.Contains(neu)) throw new InvalidOperationException("Format nicht gelöscht");
+            if (einst.VertretungsSortierung.ContainsKey(neu.Langname)) throw new InvalidOperationException("Sortierkriterien des gelöschten Formats bleiben stehen");
+            // eigene Ansicht im früheren Speicherformat (Schlüssel = Kurzname) wird als Vertretungsformat übernommen
+            einst.VertretungsFelder["StAlt"] = new Dictionary<string, string> { ["Nr"] = "a" };
+            einst.EigeneVertretungsansichten = new List<EigeneVertretungsansicht> { new() { Name = "StAlt", Langname = "Alte Ansicht (Selbsttest)", Basis = "Lehrer - Standard" } };
+            einst.EigeneAnsichtenUebernehmen();
+            var alt = AppZustand.Einstellungen.VertretungsformateListe.FirstOrDefault(x => x.Langname == "Alte Ansicht (Selbsttest)");
+            if (alt is not { Eigen: true, Art: Core.Vertretungsplanung.VertretungsformatArt.Lehrer } || einst.EigeneVertretungsansichten is not null
+                || einst.VertretungsFelder.ContainsKey("StAlt") || !einst.VertretungsFelder.ContainsKey(alt.Langname))
+                throw new InvalidOperationException("Eigene Ansicht älterer Einstellungen nicht übernommen");
+            VertretungenFenster.FormatLoeschen(alt);
+            // Einstellungsbaum der Vertretungsplanung mit Absenzkopf und Vertretungsnachrichten
+            var dlg = VertretungsEinstellungenDialog.Anzeigen(this, 3);
+            Warten(200);
+            var knoten = VertretungsEinstellungenDialog.LetzteKnoten.Select(k => k.Text).ToList();
+            dlg.Close();
+            if (!knoten.Take(5).SequenceEqual(new[] { "Vtr-Zähler", "Absenzkopf", "Sonstiges", "Farben und Bezeichnungen", "Vertretungsnachrichten" }))
+                throw new InvalidOperationException("Einstellungsbaum: " + string.Join(",", knoten));
+            VertretungsmodusUmschalten();
+        }, -1, false);
         Schritt("27a4_Seitenlayout_Liste", () =>
         {
             var kopf = new[] { "Name", "Langname", "Stunden" };

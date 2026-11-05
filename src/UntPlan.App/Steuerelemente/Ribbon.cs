@@ -19,8 +19,14 @@ public sealed class RibbonEintrag
     public bool IstDatum { get; init; }
     /// <summary>Großer Knopf mit Pfeil, der statt eines Menüs den Monatskalender aufklappt (Kalender im Vertretungsmodus).</summary>
     public bool PfeilKalender { get; init; }
+    /// <summary>Menü beim Aufklappen neu erzeugen (z. B. Stundenplanformate „im Menü“); sonst gilt <see cref="Menue"/>.</summary>
+    public Func<List<RibbonEintrag?>>? MenueErzeugen { get; init; }
     internal Rectangle Bounds;
     internal Rectangle PfeilBounds;
+    /// <summary>Großer Knopf wird aus Platzgründen klein (eine von drei Zeilen) dargestellt.</summary>
+    internal bool KleinDargestellt;
+    internal bool GrossDargestellt => Gross && !KleinDargestellt;
+    internal List<RibbonEintrag?>? AktuellesMenue => MenueErzeugen?.Invoke() ?? Menue;
 }
 
 public sealed class RibbonGruppe
@@ -28,6 +34,25 @@ public sealed class RibbonGruppe
     public string Text { get; init; } = "";
     public List<RibbonEintrag> Eintraege { get; } = new();
     internal Rectangle Bounds;
+    /// <summary>
+    /// Verkleinerungsstufe bei zu schmalem Fenster (wie im Vorbild): 0 = normal, 1 = große Knöpfe klein (drei je Spalte),
+    /// 2 = zusammengeklappt zu einem Knopf mit dem Gruppennamen, der alle Einträge als Menü zeigt.
+    /// </summary>
+    internal int Stufe;
+    private RibbonEintrag? _sammel;
+
+    /// <summary>Knopf der zusammengeklappten Gruppe.</summary>
+    internal RibbonEintrag Sammel => _sammel ??= new RibbonEintrag
+    {
+        Text = Text, Gross = true, Symbol = Eintraege.FirstOrDefault(e => e.Gross)?.Symbol ?? Eintraege.FirstOrDefault()?.Symbol ?? "",
+        MenueErzeugen = () => Eintraege.Select(e => (RibbonEintrag?)e).ToList(), Hinweis = "Gruppe " + Text,
+    };
+
+    /// <summary>Angezeigte Knöpfe (zusammengeklappt nur der Gruppenknopf).</summary>
+    internal IEnumerable<RibbonEintrag> Angezeigt => Stufe >= 2 ? new[] { Sammel } : Eintraege;
+
+    /// <summary>Kann zusammengeklappt werden (nicht mit Datumsfeld).</summary>
+    internal bool Klappbar => Eintraege.Count > 1 && !Eintraege.Any(e => e.IstDatum);
 }
 
 public sealed class RibbonSeite
@@ -117,9 +142,54 @@ public sealed class Ribbon : Control
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
         if (seite is null) return;
-        x = 6;
+        // Wie im Vorbild: passt das Menüband nicht in die Fensterbreite, werden Gruppen von rechts nach links verkleinert
+        // (große Knöpfe klein) und danach zusammengeklappt (ein Knopf mit dem Gruppennamen und allen Einträgen als Menü)
+        foreach (var gr in seite.Gruppen) gr.Stufe = 0;
+        var platz = Width - 4;
+        if (GruppenAnordnen(g, seite) > platz)
+        {
+            for (var stufe = 1; stufe <= 2; stufe++)
+            {
+                for (var i = seite.Gruppen.Count - 1; i >= 0; i--)
+                {
+                    var gr = seite.Gruppen[i];
+                    if (stufe == 1 && (!gr.Eintraege.Any(e => e.Gross) || gr.Eintraege.Any(e => e.IstDatum))) continue;
+                    if (stufe == 2 && !gr.Klappbar) continue;
+                    gr.Stufe = stufe;
+                    if (GruppenAnordnen(g, seite) <= platz) return;
+                }
+            }
+        }
+    }
+
+    /// <summary>Selbsttest: rechter Rand der letzten Gruppe und Anzahl verkleinerter bzw. zusammengeklappter Gruppen der aktiven Seite.</summary>
+    internal (int Rechts, int Verkleinert, int Zugeklappt) LayoutStand()
+    {
+        using var g = CreateGraphics();
+        Layout2(g);
+        var seite = Seiten.ElementAtOrDefault(AktiveSeite);
+        if (seite is null || seite.Gruppen.Count == 0) return (0, 0, 0);
+        return (seite.Gruppen[^1].Bounds.Right, seite.Gruppen.Count(x => x.Stufe == 1), seite.Gruppen.Count(x => x.Stufe == 2));
+    }
+
+    /// <summary>Gruppen der Seite nach ihrer Verkleinerungsstufe anordnen; liefert den rechten Rand der letzten Gruppe.</summary>
+    private int GruppenAnordnen(Graphics g, RibbonSeite seite)
+    {
+        var x = 6;
         foreach (var gr in seite.Gruppen)
         {
+            foreach (var e in gr.Eintraege) e.KleinDargestellt = gr.Stufe == 1 && e.Gross && !e.PfeilKalender;
+            if (gr.Stufe >= 2)
+            {
+                var sammel = gr.Sammel;
+                var sw = Math.Max(48, (int)g.MeasureString(sammel.Text, Font).Width + 12);
+                sammel.Bounds = new Rectangle(x, TabHoehe + 3, sw, Inhalt - 22);
+                sammel.PfeilBounds = new Rectangle(x, TabHoehe + 3 + Inhalt - 36, sw, 14);
+                foreach (var e in gr.Eintraege) e.Bounds = e.PfeilBounds = Rectangle.Empty;
+                gr.Bounds = new Rectangle(x - 3, TabHoehe + 1, sw + 4, Inhalt - 2);
+                x += sw + 6;
+                continue;
+            }
             var start = x;
             var y = TabHoehe + 3;
             var spaltenBreite = 0;
@@ -127,7 +197,7 @@ public sealed class Ribbon : Control
             for (var i = 0; i < gr.Eintraege.Count; i++)
             {
                 var e = gr.Eintraege[i];
-                if (e.IstDatum && i > 0 && gr.Eintraege[i - 1] is { Gross: true } ueber && zeile == 0)
+                if (e.IstDatum && i > 0 && gr.Eintraege[i - 1] is { GrossDargestellt: true } ueber && zeile == 0)
                 {
                     // wie im Vorbild: Datumsfeld unter dem großen Kalenderknopf (der Knopf wird etwas niedriger)
                     var bx = ueber.Bounds.X;
@@ -139,20 +209,20 @@ public sealed class Ribbon : Control
                     x = bx + w + 2;
                     continue;
                 }
-                if (e.Gross)
+                if (e.GrossDargestellt)
                 {
                     if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
                     var w = Math.Max(44, (int)g.MeasureString(e.Text, Font).Width + 10);
                     e.Bounds = new Rectangle(x, y, w, Inhalt - 22);
-                    e.PfeilBounds = e.Menue != null || e.PfeilKalender ? new Rectangle(x, y + Inhalt - 36, w, 14) : Rectangle.Empty;
+                    e.PfeilBounds = e.Menue != null || e.MenueErzeugen != null || e.PfeilKalender ? new Rectangle(x, y + Inhalt - 36, w, 14) : Rectangle.Empty;
                     x += w + 2;
                 }
                 else
                 {
-                    var w = e.IstDatum ? 136 : (int)g.MeasureString(e.Text, Font).Width + 26 + (e.Menue != null ? 10 : 0);
+                    var w = e.IstDatum ? 136 : (int)g.MeasureString(e.Text, Font).Width + 26 + (e.Menue != null || e.MenueErzeugen != null ? 10 : 0);
                     spaltenBreite = Math.Max(spaltenBreite, w);
                     e.Bounds = new Rectangle(x, y + zeile * 23, w, 22);
-                    e.PfeilBounds = e.Menue != null && e.Klick != null ? new Rectangle(e.Bounds.Right - 12, e.Bounds.Y, 12, 22) : Rectangle.Empty;
+                    e.PfeilBounds = (e.Menue != null || e.MenueErzeugen != null) && e.Klick != null ? new Rectangle(e.Bounds.Right - 12, e.Bounds.Y, 12, 22) : Rectangle.Empty;
                     zeile++;
                     if (zeile == 3) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
                 }
@@ -164,6 +234,7 @@ public sealed class Ribbon : Control
             gr.Bounds = new Rectangle(start - 3, TabHoehe + 1, x - start + 4, Inhalt - 2);
             x += 6;
         }
+        return x - 6;
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -207,7 +278,7 @@ public sealed class Ribbon : Control
             if (!Ui.Vertretungsmodus || gr.Text == "Stundenpläne")
                 TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 16, gr.Bounds.Width, 14), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(110, 115, 125),
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);
-            foreach (var it in gr.Eintraege)
+            foreach (var it in gr.Angezeigt)
             {
                 var aktiv = it.Aktiviert?.Invoke() ?? true;
                 var gedrueckt = it.Gedrueckt?.Invoke() == true;
@@ -225,14 +296,14 @@ public sealed class Ribbon : Control
                     continue;
                 }
                 var farbe = aktiv ? Color.FromArgb(30, 30, 30) : Color.FromArgb(160, 160, 160);
-                if (it.Gross)
+                if (it.GrossDargestellt)
                 {
                     var img = Symbole.Get(it.Symbol, 32);
                     if (aktiv) g.DrawImage(img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 4, 32, 32);
                     else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 4, Color.Transparent);
                     var tr = new Rectangle(it.Bounds.X, it.Bounds.Y + 38, it.Bounds.Width, 30);
                     TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                    if (it.Menue != null || it.PfeilKalender) DreieckUnten(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Bottom - 6, farbe);
+                    if (it.Menue != null || it.MenueErzeugen != null || it.PfeilKalender) DreieckUnten(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Bottom - 6, farbe);
                 }
                 else
                 {
@@ -240,7 +311,7 @@ public sealed class Ribbon : Control
                     if (aktiv) g.DrawImage(img, it.Bounds.X + 3, it.Bounds.Y + 3, 16, 16);
                     else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + 3, it.Bounds.Y + 3, Color.Transparent);
                     TextRenderer.DrawText(g, it.Text, Font, new Rectangle(it.Bounds.X + 22, it.Bounds.Y, it.Bounds.Width - 22, it.Bounds.Height), farbe, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix);
-                    if (it.Menue != null) DreieckUnten(g, it.Bounds.Right - 6, it.Bounds.Y + 11, farbe);
+                    if (it.Menue != null || it.MenueErzeugen != null) DreieckUnten(g, it.Bounds.Right - 6, it.Bounds.Y + 11, farbe);
                 }
             }
         }
@@ -292,7 +363,7 @@ public sealed class Ribbon : Control
         g.FillPolygon(b, new[] { new Point(x - 3, y - 1), new Point(x + 4, y - 1), new Point(x, y + 3) });
     }
 
-    private IEnumerable<RibbonEintrag> Sichtbare() => Seiten.ElementAtOrDefault(AktiveSeite)?.Gruppen.SelectMany(g => g.Eintraege) ?? Enumerable.Empty<RibbonEintrag>();
+    private IEnumerable<RibbonEintrag> Sichtbare() => Seiten.ElementAtOrDefault(AktiveSeite)?.Gruppen.SelectMany(g => g.Angezeigt) ?? Enumerable.Empty<RibbonEintrag>();
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
@@ -332,8 +403,9 @@ public sealed class Ribbon : Control
         if (it is null || !(it.Aktiviert?.Invoke() ?? true)) return;
         if (it.IstDatum) { DatumWaehlen(it, e.Location); return; }
         if (it.PfeilKalender && it.PfeilBounds.Contains(e.Location)) { KalenderAufklappen(new Point(it.Bounds.X, it.Bounds.Bottom)); return; }
-        var pfeil = it.Menue != null && (it.Klick is null || it.PfeilBounds.Contains(e.Location));
-        if (pfeil) MenueZeigen(it.Menue!, new Point(it.Bounds.X, it.Bounds.Bottom));
+        var menue = it.AktuellesMenue;
+        var pfeil = menue != null && (it.Klick is null || it.PfeilBounds.Contains(e.Location));
+        if (pfeil) MenueZeigen(menue!, new Point(it.Bounds.X, it.Bounds.Bottom));
         else it.Klick?.Invoke();
     }
 
@@ -351,7 +423,8 @@ public sealed class Ribbon : Control
         {
             if (x is null) return (ToolStripItem)new ToolStripSeparator();
             var mi = new ToolStripMenuItem(x.Text, string.IsNullOrEmpty(x.Symbol) ? null : Symbole.Get(x.Symbol, 16)) { ShortcutKeys = x.Tastenkuerzel, Checked = x.Gedrueckt?.Invoke() == true };
-            if (x.Menue != null) mi.DropDownItems.AddRange(MenueEintraege(x.Menue));
+            if (!string.IsNullOrEmpty(x.Hinweis)) mi.ToolTipText = x.Hinweis;
+            if (x.AktuellesMenue is { } untermenue) mi.DropDownItems.AddRange(MenueEintraege(untermenue));
             if (x.Klick != null) mi.Click += (_, _) => x.Klick();
             if (x.Aktiviert != null) mi.Enabled = x.Aktiviert();
             return mi;

@@ -50,12 +50,18 @@ public sealed partial class HauptFenster
         }));
         g.Eintraege.Add(E("Ausgabe", "drucken", () => { if (VertretungsFensterOeffnen("vertr") is IDruckbar dr) dr.Drucken(true); }, true, new()
         {
+            // wie im Handbuch (Kap. 13.3): Druck Klassen, Druck Lehrer, Tageslisten
+            E("Druck Klassen", "drucken", () => VertretungsplanDrucken(false)),
+            E("Druck Lehrer", "drucken", () => VertretungsplanDrucken(true)),
+            E("Tageslisten", "drucken", TageslistenDrucken, hinweis: "Alle Vertretungsformate mit dem Kennzeichen „Tagesliste“ für das Datum des Kalenders drucken"),
+            null,
             E("Drucken / Seitenansicht…", "vorschau", () => { if (VertretungsFensterOeffnen("vertr") is IDruckbar dr) dr.Drucken(true); }),
             E("Schülerversion (HTML, 2 Tage)", "html", () => VertretungenFenster.HtmlAusgabe(AppZustand.Datum, 2, false)),
             E("Lehrerversion (HTML, 2 Tage)", "html", () => VertretungenFenster.HtmlAusgabe(AppZustand.Datum, 2, true)),
             E("Woche (HTML)", "html", () => VertretungenFenster.HtmlAusgabe(Kalender.Montag(AppZustand.Datum), 5, true)),
             E("Monitor", "monitor", () => new MonitorFenster().Show()),
             E("Nachrichten zum Tag…", "nachricht", () => TagestextDialog.Zeigen(this, AppZustand.Datum)),
+            E("Vertretungsnachrichten (E-Mail)…", "nachricht", () => VertretungsnachrichtenDialog.Zeigen(this, AppZustand.Datum, AppZustand.Datum)),
             E("Web-Portal…", "web", () => new PortalDialog().ShowDialog(this)),
             null,
             Fenstergruppe(),
@@ -114,17 +120,8 @@ public sealed partial class HauptFenster
         g.Eintraege.Add(E("Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false), menue: PlanMenue(ElementTyp.Raum, "Raumplan", "raeume")));
 
         g = Gruppe(vp, "Einstellungen");
-        g.Eintraege.Add(E("Vertretungsformate", "uebersicht", null, menue: new()
-        {
-            E("Klasse – Standard", "klassen", () => VertretungsformatOeffnen("Klasse - Standard")),
-            E("Lehrer – Standard", "lehrer", () => VertretungsformatOeffnen("Lehrer - Standard")),
-            E("Druck – Klasse", "drucken", () => VertretungsformatOeffnen("Druck - Klasse")),
-            E("Druck – Lehrer", "drucken", () => VertretungsformatOeffnen("Druck - Lehrer")),
-            E("Pausenaufsichten", "pausenaufsicht", () => VertretungsformatOeffnen("Pausenaufsichten")),
-            null,
-            E("Standardanordnung der Fenster", "uebersicht", () => VertretungsStandardFenster()),
-            E("Eigene Fensteranordnungen…", "uebersicht", FensteranordnungMenue),
-        }));
+        // wie im Handbuch (Kap. 13.3): „Vertretungsformate“ öffnet das Fenster „Formate / Vertretung“
+        g.Eintraege.Add(E("Vertretungsformate", "uebersicht", () => VertretungsformateOeffnen(), hinweis: "Formate / Vertretung: alle Vertretungsansichten mit Standard und Tagesliste"));
         g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan, menue: new()
         {
             E("Info-Stundenplan", "html", InfoStundenplan),
@@ -136,6 +133,8 @@ public sealed partial class HauptFenster
             E("Klassenzeitraster", "zeitraster", () => { if (Stammdaten.Sortiert(AppZustand.D.Klassen).FirstOrDefault() is { } k) VertretungsZeitrasterDialog.Zeigen(this, k); }),
             E("Vertretungszähler…", "statistik", () => VertretungsEinstellungenDialog.Zeigen(this, 1)),
             E("Vertretungsvorschlag…", "gewichtung", () => VertretungsEinstellungenDialog.Zeigen(this, 2)),
+            E("Vertretungsnachrichten…", "nachricht", () => VertretungsEinstellungenDialog.Zeigen(this, 4)),
+            E("Berichts-Einstellungen…", "drucken", () => BerichtseinstellungenDialog.Zeigen(this)),
             null,
             E("Eingabeassistent ein/aus", "assistent", AssistentUmschalten),
         }));
@@ -199,7 +198,8 @@ public sealed partial class HauptFenster
         return res;
     }
 
-    private void VertretungsformatOeffnen(string ansicht)
+    /// <summary>Vertretungsfenster mit dem Vertretungsformat öffnen.</summary>
+    internal void VertretungsformatOeffnen(string ansicht)
     {
         AppZustand.Einstellungen.Vertretungsansicht = ansicht;
         AppZustand.Einstellungen.Speichern();
@@ -231,6 +231,8 @@ public sealed partial class HauptFenster
             "ugruppen" => Oeffnen("ugruppen", () => new UGruppenFenster()),
             "fixiert" => Oeffnen("fixiert", () => new FixierterUnterrichtFenster()),
             "formate" => Oeffnen("formate", () => new StundenplanformateFenster()),
+            "vformate" => Oeffnen("vformate", () => new VertretungsformateFenster()),
+            "wochenwerte" => Oeffnen("wochenwerte", () => new WochenwerteFenster()),
             "stat" => Oeffnen("stat", () => new StatistikFenster()),
             "diag" => Oeffnen("diag", () => new DiagnoseFenster()),
             "ferien" => Oeffnen("ferien", () => new FerienFenster()),

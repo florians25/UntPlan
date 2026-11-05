@@ -414,6 +414,7 @@ public sealed class KlausurenFenster : MdiFenster
         _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "E", HeaderText = "Unterr. entfällt", Width = 95 });
         _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "A", HeaderText = "aktiv", Width = 45 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 160, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Kz", HeaderText = "Statistik", Width = 60, ToolTipText = "Statistik-Kennzeichen", SortMode = DataGridViewColumnSortMode.NotSortable });
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _g.EndEdit(); };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0 && _g.Rows[e.RowIndex].Tag is Klausur) Bearbeiten(); };
@@ -464,8 +465,8 @@ public sealed class KlausurenFenster : MdiFenster
     {
         object?[] werte = eintrag is Klausur k
             ? new object?[] { k.Name, $"{Planungsdienst.TageKurz[((int)k.Datum.DayOfWeek + 6) % 7]} {Format.Datum(k.Datum)}", k.StundeVon == k.StundeBis ? k.StundeVon.ToString() : $"{k.StundeVon}-{k.StundeBis}",
-                Ix.KKlassen(k.KlassenIds), string.Join(",", k.LehrerIds.Select(Ix.KLehrer)), string.Join(",", k.RaumIds.Select(Ix.KRaum)), k.UnterrichtEntfaellt, k.Aktiv, k.Text }
-            : new object?[] { "", "", "", "", "", "", true, true, "" };
+                Ix.KKlassen(k.KlassenIds), string.Join(",", k.LehrerIds.Select(Ix.KLehrer)), string.Join(",", k.RaumIds.Select(Ix.KRaum)), k.UnterrichtEntfaellt, k.Aktiv, k.Text, k.Statistik }
+            : new object?[] { "", "", "", "", "", "", true, true, "", "" };
         zeile.Tag = eintrag as Klausur;
         for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
             if (!Equals(zeile.Cells[i].Value, werte[i])) zeile.Cells[i].Value = werte[i];
@@ -505,6 +506,7 @@ public sealed class KlausurenFenster : MdiFenster
                 case "E": k.UnterrichtEntfaellt = wert == "1"; break;
                 case "A": k.Aktiv = wert == "1"; break;
                 case "T": k.Text = wert; break;
+                case "Kz": k.Statistik = wert; break;
                 default: return;
             }
         }

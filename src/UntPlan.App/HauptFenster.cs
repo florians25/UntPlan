@@ -157,52 +157,72 @@ public sealed partial class HauptFenster : Form
     private static RibbonEintrag E(string text, string symbol, Action? klick, bool gross = false, List<RibbonEintrag?>? menue = null, string hinweis = "", Keys taste = Keys.None) =>
         new() { Text = text, Symbol = symbol, Klick = klick, Gross = gross, Menue = menue, Hinweis = hinweis, Tastenkuerzel = taste };
 
-    private static List<RibbonEintrag?> ElementMenue(ElementTyp typ) => typ switch
+    /// <summary>
+    /// Menü der großen Knöpfe Klassen, Lehrer, Räume, Fächer (Registerkarte Start) wie im Handbuch: Stammdaten | Unterricht, Alle Unterrichte |
+    /// Stundenpläne (Hoch- und Querformat, Übersicht, die Formate mit „im Menü“) | Zeitwünsche (u. a.) | Fenstergruppe.
+    /// </summary>
+    private List<RibbonEintrag?> ElementMenue(ElementTyp typ)
     {
-        ElementTyp.Klasse => new()
+        var (mehrzahl, planName, symbol) = typ switch
         {
-            E("Stammdaten", "klassen", () => Oeffnen<StammdatenFenster>("st:Klasse", () => new StammdatenFenster(ElementTyp.Klasse))),
-            E("Unterricht", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse))),
-            E("Alle Unterrichte", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Alle", () => new UnterrichtFenster(ElementTyp.Unterricht))),
-            null,
-            E("Klassenplan", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false)),
-            E("Klassenplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, true)),
-            E("Klassen Übersicht quer", "uebersicht", () => new UebersichtFenster(ElementTyp.Klasse).Show()),
-            null,
-            E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Klasse, null)),
-        },
-        ElementTyp.Lehrer => new()
+            ElementTyp.Klasse => ("Klassen", "Klassenplan", "klassen"),
+            ElementTyp.Lehrer => ("Lehrer", "Lehrerplan", "lehrer"),
+            ElementTyp.Raum => ("Räume", "Raumplan", "raeume"),
+            _ => ("Fächer", "Fachplan", "faecher"),
+        };
+        var stamm = typ switch { ElementTyp.Klasse => "st:Klasse", ElementTyp.Lehrer => "st:Lehrer", ElementTyp.Raum => "st:Raum", _ => "st:Fach" };
+        var liste = new List<RibbonEintrag?>
         {
-            E("Stammdaten", "lehrer", () => Oeffnen<StammdatenFenster>("st:Lehrer", () => new StammdatenFenster(ElementTyp.Lehrer))),
-            E("Unterricht", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Lehrer", () => new UnterrichtFenster(ElementTyp.Lehrer))),
-            null,
-            E("Lehrerplan", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false)),
-            E("Lehrerplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, true)),
-            E("Lehrer Übersicht quer", "uebersicht", () => new UebersichtFenster(ElementTyp.Lehrer).Show()),
-            null,
-            E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Lehrer, null)),
-        },
-        ElementTyp.Raum => new()
+            E("Stammdaten", symbol, () => Oeffnen<StammdatenFenster>(stamm, () => new StammdatenFenster(typ))),
+        };
+        if (typ != ElementTyp.Raum)
         {
-            E("Stammdaten", "raeume", () => Oeffnen<StammdatenFenster>("st:Raum", () => new StammdatenFenster(ElementTyp.Raum))),
-            null,
-            E("Raumplan", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false)),
-            E("Raumplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Raum, null, true)),
-            E("Räume Übersicht quer", "uebersicht", () => new UebersichtFenster(ElementTyp.Raum).Show()),
-            null,
-            E("Raumgruppen", "raeume", () => Oeffnen<StammdatenFenster>("st:Raumgruppe", () => new StammdatenFenster(ElementTyp.Raumgruppe))),
-            E("Gänge", "pausenaufsicht", () => Oeffnen<StammdatenFenster>("st:Gang", () => new StammdatenFenster(ElementTyp.Gang))),
-            E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Raum, null)),
-        },
-        _ => new()
+            liste.Add(null);
+            var uSchluessel = typ switch { ElementTyp.Klasse => "u:Klasse", ElementTyp.Lehrer => "u:Lehrer", _ => "u:Fach" };
+            liste.Add(E("Unterricht", "unterricht", () => Oeffnen<UnterrichtFenster>(uSchluessel, () => new UnterrichtFenster(typ))));
+            if (typ == ElementTyp.Klasse) liste.Add(E("Alle Unterrichte", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Alle", () => new UnterrichtFenster(ElementTyp.Unterricht))));
+        }
+        liste.Add(null);
+        // Stundenpläne: Hochformat = Einzelplan, Querformat = Übersicht (Elemente als Zeilen); die Formate mit „im Menü“ folgen
+        liste.Add(E($"{planName} hoch", "stundenplan", () => StundenplanFenster.Neu(typ, null, false)));
+        if (typ != ElementTyp.Fach)
         {
-            E("Stammdaten", "faecher", () => Oeffnen<StammdatenFenster>("st:Fach", () => new StammdatenFenster(ElementTyp.Fach))),
-            E("Unterricht", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Fach", () => new UnterrichtFenster(ElementTyp.Fach))),
-            null,
-            E("Fachplan", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Fach, null, false)),
-            E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Fach, null)),
-        },
-    };
+            liste.Add(E($"{mehrzahl} Übersicht quer", "uebersicht", () => new UebersichtFenster(typ).Show()));
+            liste.Add(E($"{planName} groß", "stundenplan", () => StundenplanFenster.Neu(typ, null, true)));
+        }
+        if (typ == ElementTyp.Klasse) liste.Add(E($"{mehrzahl} HTML", "html", InfoStundenplan));
+        foreach (var f in AppZustand.D.Formate.Where(f => f.Typ == typ && f.ImMenue))
+        {
+            var format = f;
+            liste.Add(E(f.Name, "stundenplan", () => StundenplanFenster.Neu(format.Typ, null, format.Gross, format.Klein).FormatSetzen(format.Name)));
+        }
+        liste.Add(null);
+        switch (typ)
+        {
+            case ElementTyp.Lehrer:
+                liste.Add(E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Lehrer, null)));
+                break;
+            case ElementTyp.Raum:
+                liste.Add(E("Raumgruppen", "raeume", () => Oeffnen<StammdatenFenster>("st:Raumgruppe", () => new StammdatenFenster(ElementTyp.Raumgruppe))));
+                liste.Add(E("Gänge", "pausenaufsicht", () => Oeffnen<StammdatenFenster>("st:Gang", () => new StammdatenFenster(ElementTyp.Gang))));
+                liste.Add(E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Raum, null)));
+                break;
+            case ElementTyp.Klasse:
+                liste.Add(E("Schüler", "schueler", () => Oeffnen<StammdatenFenster>("st:Schueler", () => new StammdatenFenster(ElementTyp.Schueler))));
+                liste.Add(E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Klasse, null)));
+                break;
+            default:
+                liste.Add(E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Fach, null)));
+                break;
+        }
+        liste.Add(null);
+        liste.Add(E("Fenstergruppe", "uebersicht", null, menue: new()
+        {
+            E("Standard-Fenstergruppe", "uebersicht", StandardFenster),
+            E("Fensteranordnungen…", "uebersicht", FensteranordnungMenue),
+        }));
+        return liste;
+    }
 
     private void RibbonAufbauen()
     {
@@ -235,10 +255,9 @@ public sealed partial class HauptFenster : Form
 
         var start = _ribbon.Seite("Start");
         var g = Gruppe(start, "Übersicht");
-        g.Eintraege.Add(E("Klassen", "klassen", null, true, ElementMenue(ElementTyp.Klasse)));
-        g.Eintraege.Add(E("Lehrer", "lehrer", null, true, ElementMenue(ElementTyp.Lehrer)));
-        g.Eintraege.Add(E("Räume", "raeume", null, true, ElementMenue(ElementTyp.Raum)));
-        g.Eintraege.Add(E("Fächer", "faecher", null, true, ElementMenue(ElementTyp.Fach)));
+        // Menüs werden beim Aufklappen neu erzeugt (Stundenplanformate mit „im Menü“)
+        foreach (var (text, symbol, typ) in new[] { ("Klassen", "klassen", ElementTyp.Klasse), ("Lehrer", "lehrer", ElementTyp.Lehrer), ("Räume", "raeume", ElementTyp.Raum), ("Fächer", "faecher", ElementTyp.Fach) })
+            g.Eintraege.Add(new RibbonEintrag { Text = text, Symbol = symbol, Gross = true, Menue = ElementMenue(typ), MenueErzeugen = () => ElementMenue(typ) });
         g = Gruppe(start, "Planungswerkzeuge");
         g.Eintraege.Add(E("Diagnose", "diagnose", () => Oeffnen<DiagnoseFenster>("diag", () => new DiagnoseFenster()), menue: new()
         {
@@ -293,6 +312,8 @@ public sealed partial class HauptFenster : Form
             E("Lehrerpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Lehrer)),
             E("Raumpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Raum)),
             E("Vertretungsplan (HTML)…", "vertretung", () => VertretungenFenster.HtmlAusgabe(AppZustand.Datum, 2, false)),
+            null,
+            E("Berichts-Einstellungen…", "einstellungen", () => BerichtseinstellungenDialog.Zeigen(this), hinweis: "Kopf- und Fußzeile aller Berichte, Drucknamen"),
         }));
         g.Eintraege.Add(E("Element-Rollup", "rollup", () => ElementRollup.Zeigen()));
         g.Eintraege.Add(E("Vergleichsmodus", "suchen", () => VergleichDialog.Zeigen(this)));
@@ -353,21 +374,31 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Fixierter/Ignorierter Unterricht", "fixieren", () => Oeffnen<FixierterUnterrichtFenster>("fixiert", () => new FixierterUnterrichtFenster()), hinweis: "Alle fixierten bzw. ignorierten Unterrichte mit der Ebene der Fixierung; Fixierungen lösen"));
         g.Eintraege.Add(E("Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this)));
 
+        // Registerkarte Stundenpläne wie im Handbuch (Kap. 6.4): Einzelpläne | Übersichtspläne | Stundenplanformate | Ausgabe
         var plaene = _ribbon.Seite("Stundenpläne");
         g = Gruppe(plaene, "Einzelpläne");
-        g.Eintraege.Add(E("Klassenplan", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false), true));
-        g.Eintraege.Add(E("Lehrerplan", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false), true));
-        g.Eintraege.Add(E("Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false), true));
-        g.Eintraege.Add(E("Fachplan", "faecher", () => StundenplanFenster.Neu(ElementTyp.Fach, null, false), true));
-        g = Gruppe(plaene, "Formate");
-        g.Eintraege.Add(E("Klassenplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, true)));
-        g.Eintraege.Add(E("Lehrerplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, true)));
-        g.Eintraege.Add(E("Raumplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Raum, null, true)));
-        g.Eintraege.Add(E("Stundenplanformate", "einstellungen", () => Oeffnen<StundenplanformateFenster>("formate", () => new StundenplanformateFenster()), hinweis: "Formate | Stundenpläne: Name, Langname, Standard, im Menü"));
+        g.Eintraege.Add(E("Hochformat", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false), true, new()
+        {
+            E("Klassenplan", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false)),
+            E("Lehrerplan", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false)),
+            E("Raumplan", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, false)),
+            E("Fachplan", "faecher", () => StundenplanFenster.Neu(ElementTyp.Fach, null, false)),
+        }, "Einzelplan eines Elements (Wochentage oben)"));
+        g.Eintraege.Add(E("Groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, true), true, new()
+        {
+            E("Klassenplan groß", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, true)),
+            E("Lehrerplan groß", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, true)),
+            E("Raumplan groß", "raeume", () => StundenplanFenster.Neu(ElementTyp.Raum, null, true)),
+        }, "Einzelplan im großen Format"));
         g = Gruppe(plaene, "Übersichtspläne");
-        g.Eintraege.Add(E("Klassen Übersicht", "uebersicht", () => new UebersichtFenster(ElementTyp.Klasse).Show(), true));
-        g.Eintraege.Add(E("Lehrer Übersicht", "uebersicht", () => new UebersichtFenster(ElementTyp.Lehrer).Show(), true));
-        g.Eintraege.Add(E("Räume Übersicht", "uebersicht", () => new UebersichtFenster(ElementTyp.Raum).Show(), true));
+        g.Eintraege.Add(E("Querformat", "uebersicht", () => new UebersichtFenster(ElementTyp.Klasse).Show(), true, new()
+        {
+            E("Klassen Übersicht quer", "klassen", () => new UebersichtFenster(ElementTyp.Klasse).Show()),
+            E("Lehrer Übersicht quer", "lehrer", () => new UebersichtFenster(ElementTyp.Lehrer).Show()),
+            E("Räume Übersicht quer", "raeume", () => new UebersichtFenster(ElementTyp.Raum).Show()),
+        }, "Übersichtsplan: Elemente als Zeilen, Tage und Stunden als Spalten"));
+        g = Gruppe(plaene, "Formate");
+        g.Eintraege.Add(E("Stundenplanformate", "einstellungen", () => Oeffnen<StundenplanformateFenster>("formate", () => new StundenplanformateFenster()), true, hinweis: "Formate / Stundenpläne: Name, Langname, Standard, im Menü"));
         g = Gruppe(plaene, "Ausgabe");
         g.Eintraege.Add(E("Drucken", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Klasse), true));
         g.Eintraege.Add(E("Info-Stundenplan (HTML)", "html", InfoStundenplan, true));
@@ -386,6 +417,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Lehrer Soll/Ist", "wertrechnung", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(0)), true));
         g.Eintraege.Add(E("Unterrichts-Matrix", "uebersicht", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(1)), true));
         g.Eintraege.Add(E("Stundentafel", "unterricht", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(2)), true));
+        g.Eintraege.Add(E("Wochenwerte", "wertrechnung", () => Oeffnen("wochenwerte", () => new WochenwerteFenster()), true, hinweis: "Je Kalenderwoche geplant, verplant, gehalten, Entfälle, Vertretungen, Sondereinsätze eines Lehrers"));
         g = Gruppe(module, "Weitere Module");
         g.Eintraege.Add(E("Mehrwochen / Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Bereitschafts-planung", "bereitschaft", () => FensterOeffnen("bereitplan"), true));
@@ -422,6 +454,8 @@ public sealed partial class HauptFenster : Form
         E("Info-Stundenplan (HTML)…", "html", InfoStundenplan),
         E("Lehrer-Kalender (iCal)…", "kalender", ICalExport),
         E("Unterrichtsverteilung (CSV)…", "export", UnterrichtCsv),
+        null,
+        E("Import Vertretungsplanung…", "import", VertretungsimportStarten, hinweis: "Daten der Vertretungsplanung aus einer zweiten Datei übernehmen (auch additiv)"),
     };
 
     private void ZuletztAktualisieren()

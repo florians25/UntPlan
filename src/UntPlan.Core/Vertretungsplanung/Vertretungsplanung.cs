@@ -111,6 +111,7 @@ public static class Vertretungen
                             Datum = datum, Stunde = s, Art = VertretungsArt.Klausur, Quelle = VertretungsQuelle.Klausur, KlausurId = k.Id,
                             VertreterId = l < 0 ? null : l, KlassenIds = k.KlassenIds.ToList(), VertretungsraumId = k.RaumIds.Cast<int?>().FirstOrDefault(),
                             ZusatzraumIds = k.RaumIds.Skip(1).ToList(), Text = string.IsNullOrEmpty(k.Text) ? k.Name : $"{k.Name} {k.Text}".Trim(),
+                            Statistik = k.Statistik,
                         });
             var lehrerAbsenzen = d.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && datum >= a.Von && datum <= a.Bis);
             foreach (var va in d.Veranstaltungen.Where(v => datum >= v.Von && datum <= v.Bis))
@@ -256,6 +257,19 @@ public static class Vertretungen
                     basis.Art = NachZeitraster(d, r, tag);
                     if (basis.Art == VertretungsArt.EigenverantwortlichesArbeiten) basis.VertretungsraumId = d.Vertretungseinstellungen.EvaRaumId ?? r.RaumId;
                 }
+                benoetigt.Add(basis);
+                continue;
+            }
+            // Klausurraum „ohne Kollision verplant“: der Unterricht verliert den Raum → offene Raumvertretung (Handbuch Kap. 11.2)
+            if (r.RaumId is int kr && klausuren.FirstOrDefault(k => k.RaumVerdraengen && k.RaumIds.Contains(kr) && r.Stunde >= k.StundeVon
+                    && r.Stunde <= Math.Max(k.StundeVon, k.StundeBis) && k.UnterrichtId != u.Id) is { } raumKlausur)
+            {
+                basis.Art = VertretungsArt.Raumvertretung;
+                basis.Quelle = VertretungsQuelle.Klausur;
+                basis.KlausurId = raumKlausur.Id;
+                basis.VertreterId = r.LehrerId;
+                basis.RaumVerdraengt = true;
+                basis.Text = "Raum für Klausur " + raumKlausur.Name;
                 benoetigt.Add(basis);
                 continue;
             }
@@ -511,6 +525,9 @@ public static class Vertretungen
             v.Quelle = b.Quelle;
             v.InVeranstaltung = b.InVeranstaltung;
             v.ErsatzFuerLehrerId = b.ErsatzFuerLehrerId;
+            // Statistik-Kennzeichen der Klausur gilt für ihre Klausurzeilen
+            if (b.Art == VertretungsArt.Klausur && b.KlausurId.HasValue) v.Statistik = b.Statistik;
+            if (b.RaumVerdraengt && !v.Bearbeitet) v.RaumVerdraengt = true;
             // Zeilen der Veranstaltung selbst folgen immer der Veranstaltung (Lehrkräfte, Klassen, Räume)
             if (v.Art == VertretungsArt.Veranstaltung && b.Art == VertretungsArt.Veranstaltung)
             {

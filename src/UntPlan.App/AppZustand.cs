@@ -175,7 +175,7 @@ public sealed partial class Benutzereinstellungen
         nameof(Zeitwunschfarben), nameof(Fenstergruppen), nameof(Vertretungsansicht), nameof(Drucklayouts), nameof(Tabellenformate),
         nameof(AktiveTabellenformate), nameof(Tabellenlayouts), nameof(Zeitraumarten), nameof(Vertretungsdruck), nameof(SichtbareSpalten),
         nameof(AbsenzenVeranstaltungenZeigen), nameof(VertretungsFelder), nameof(VertretungsArtenAus), nameof(VertretungenUnterrichtZeigen),
-        nameof(EigeneVertretungsansichten), nameof(VertretungsSortierung),
+        nameof(VertretungsSortierung), nameof(Vertretungsformate), nameof(Berichte),
     };
 
     private JsonObject? _ansichtStand;
@@ -185,9 +185,6 @@ public sealed partial class Benutzereinstellungen
 
     /// <summary>Aktuelle Ansichtseinstellungen als JSON (für die Schuldatei).</summary>
     public JsonObject AnsichtAlsJson() => Ansichtsdaten.Herausloesen(this, AnsichtsFelder);
-
-    /// <summary>Ansichtseinstellungen aus einer Schuldatei übernehmen (fehlende Felder behalten den lokalen Wert).</summary>
-    public int AnsichtUebernehmen(JsonObject? ansicht) => Ansichtsdaten.Uebernehmen(this, ansicht, AnsichtsFelder);
 
     /// <summary>Vergleichsstand für die Erkennung geänderter Ansichtseinstellungen (nach Öffnen bzw. Speichern der Datei).</summary>
     public void AnsichtStandMerken(JsonObject? stand = null) => _ansichtStand = stand ?? AnsichtAlsJson();
@@ -228,6 +225,23 @@ public sealed partial class Benutzereinstellungen
     /// <summary>Fensteranordnung je Modus (Stundenplan / Vertretung): Schlüssel und Position.</summary>
     public Dictionary<string, List<FensterPosition>> Fenstergruppen { get; set; } = new();
     public string Vertretungsansicht { get; set; } = "Klasse - Standard";
+    /// <summary>Vertretungsformate (Fenster „Formate / Vertretung“): mitgelieferte und eigene Vertretungsansichten mit Standard und Tagesliste.</summary>
+    public List<Core.Vertretungsplanung.Vertretungsformat> Vertretungsformate { get; set; } = new();
+    /// <summary>Vertretungsformate vervollständigt (mitgelieferte Formate immer vorhanden).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<Core.Vertretungsplanung.Vertretungsformat> VertretungsformateListe => Core.Vertretungsplanung.Vertretungsformate.Ergaenzen(Vertretungsformate);
+    /// <summary>Berichts-Einstellungen (Kopf- und Fußzeile aller Berichte).</summary>
+    public Berichtseinstellungen Berichte { get; set; } = new();
+    // ---- lokal gespeichert (nicht in der Schuldatei; im Einstellungsbaum kursiv) ----
+    /// <summary>Tageslisten zusätzlich automatisch als PDF ausgeben (Einstellungen › Sonstiges).</summary>
+    public bool TageslistenPdf { get; set; }
+    /// <summary>Ordner für die PDF-Tageslisten (leer = Dokumente).</summary>
+    public string TageslistenPdfOrdner { get; set; } = "";
+    /// <summary>Bei jeder Ausgabe der Tageslisten einen eigenen Dateinamen vergeben.</summary>
+    public bool TageslistenEigeneDateinamen { get; set; }
+    /// <summary>Vertretungsnachrichten: nur Vertretungen, die seit der letzten Nachricht geändert wurden.</summary>
+    public bool NachrichtenNurGeaenderte { get; set; }
+    public DateTime? NachrichtenZuletzt { get; set; }
     /// <summary>Druckformulare je Liste.</summary>
     public Dictionary<string, ListenDruck.Layout> Drucklayouts { get; set; } = new();
     /// <summary>Eigene Tabellenformate je Tabelle (Schlüssel = Fenster/Tabelle).</summary>
@@ -271,8 +285,12 @@ public sealed partial class Benutzereinstellungen
 
     public static Benutzereinstellungen Laden()
     {
-        try { return JsonSerializer.Deserialize<Benutzereinstellungen>(File.ReadAllText(Pfad)) ?? new(); }
+        Benutzereinstellungen e;
+        try { e = JsonSerializer.Deserialize<Benutzereinstellungen>(File.ReadAllText(Pfad)) ?? new(); }
         catch { return new(); }
+        // eigene Vertretungsansichten älterer Einstellungen als Vertretungsformate übernehmen
+        e.EigeneAnsichtenUebernehmen();
+        return e;
     }
 
     public void Speichern()
@@ -367,6 +385,60 @@ public sealed class Vertretungsdruck
     public bool AbsenzkopfLangRaeume { get; set; }
     public int TagestexteGroesse { get; set; } = 100;
     public bool TagestexteRahmen { get; set; }
+    // Seitenlayout mit der Maus: Seitenrand und Zeilenhöhe (Pixel bei 100 dpi)
+    /// <summary>Linker Seitenrand (Seitenlayout: Linie ganz links ziehen).</summary>
+    public int RandLinks { get; set; } = 55;
+    /// <summary>Rechter Seitenrand.</summary>
+    public int RandRechts { get; set; } = 45;
+    /// <summary>Zusätzliche Zeilenhöhe über der Schrifthöhe (Seitenlayout: blaue Linie ziehen).</summary>
+    public int ZeilenAbstand { get; set; } = 5;
+}
+
+/// <summary>
+/// Berichts-Einstellungen wie im Handbuch (Kap. 13.2.2): Überschrift (zwei Zeilen, Datum, Uhrzeit, Stundenplan-Version, waagrechte
+/// Linie), Fußzeile (Text, Dateiname, Datum, Schulwoche, Kalenderwoche, Wochennummer, Periode, Linie), Seiten-Nummer und Anzahl Seiten.
+/// Gilt für alle Berichte.
+/// </summary>
+public sealed class Berichtseinstellungen
+{
+    /// <summary>Erste Zeile der Überschrift; leer = Schulname.</summary>
+    public string Ueberschrift1 { get; set; } = "";
+    /// <summary>Zweite Zeile der Überschrift; leer = Adresse der Schule.</summary>
+    public string Ueberschrift2 { get; set; } = "";
+    public bool DatumDrucken { get; set; } = true;
+    public bool UhrzeitDrucken { get; set; } = true;
+    public bool VersionDrucken { get; set; }
+    public bool LinieKopf { get; set; } = true;
+    public int Version { get; set; } = 1;
+    /// <summary>Text der Fußzeile; leer = Programmname.</summary>
+    public string Fusszeile { get; set; } = "";
+    public bool FussDateiname { get; set; }
+    public bool FussDatum { get; set; }
+    public bool FussSchulwoche { get; set; }
+    public bool FussKalenderwoche { get; set; }
+    public bool FussWochennummer { get; set; }
+    public bool FussPeriode { get; set; }
+    public bool LinieFuss { get; set; } = true;
+    public bool SeitenNummer { get; set; } = true;
+    public bool AnzahlSeiten { get; set; } = true;
+    /// <summary>
+    /// Drucknamen der Lehrkräfte: Kombination aus Titel, Langname (Familienname) und Vorname, die in Berichten statt des Langnamens
+    /// erscheint (z. B. „Titel Langname Vorname“); leer = Langname.
+    /// </summary>
+    public string DrucknameLehrer { get; set; } = "";
+
+    /// <summary>Auswahl der Drucknamen wie im Handbuch.</summary>
+    public static readonly string[] DrucknamenArten = { "", "Langname Vorname", "Langname, Vorname", "Vorname Langname", "Titel Langname Vorname", "Titel Vorname Langname" };
+
+    /// <summary>Druckname einer Lehrkraft nach der gewählten Kombination.</summary>
+    public string Druckname(Core.Model.Lehrer l)
+    {
+        if (string.IsNullOrWhiteSpace(DrucknameLehrer)) return l.Langname;
+        var t = DrucknameLehrer.Replace("Titel", "\u0001").Replace("Langname", "\u0002").Replace("Vorname", "\u0003")
+            .Replace("\u0001", l.Titel).Replace("\u0002", l.Langname).Replace("\u0003", l.Vorname);
+        t = System.Text.RegularExpressions.Regex.Replace(t, " +", " ").Trim().Trim(',').Trim();
+        return t.Length > 0 ? t : l.Langname;
+    }
 }
 
 /// <summary>Feld der Elementüberschrift im Seitenlayout („Überschriftsfelder“).</summary>
