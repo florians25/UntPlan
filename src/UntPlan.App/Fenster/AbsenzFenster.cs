@@ -750,4 +750,47 @@ public sealed class AbwesenheitenFenster : MdiFenster
         if (!Ui.LoeschenBestaetigen(liste.Count, "Absenz", "Absenzen", zusatz: "Daraus entstandene Vertretungen werden entfernt.")) return;
         Speichern(Array.Empty<Abwesenheit>(), liste, "Absenz löschen");
     }
+
+    // ----------------------------------------------------------------------------------------------
+    // Selbsttest (Handbuch-Abläufe, Kurzeinführung Kap. 3.2)
+    // ----------------------------------------------------------------------------------------------
+
+    /// <summary>Selbsttest: Reiter Lehrer (0), Klassen (1), Räume (2) wählen.</summary>
+    internal void SelbsttestReiter(int i) => _tabs.SelectedIndex = i;
+
+    /// <summary>Selbsttest: Überschriften der sichtbaren Spalten.</summary>
+    internal List<string> SelbsttestSpalten() => _g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Select(c => c.HeaderText).ToList();
+
+    /// <summary>Selbsttest: Texte der Schaltflächen der Symbolleiste.</summary>
+    internal List<string> SelbsttestKnoepfe()
+    {
+        static IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => Alle(k).Prepend(k));
+        return Alle(this).OfType<ToolStrip>().SelectMany(t => t.Items.OfType<ToolStripItem>()).Select(i => i.Text ?? "").ToList();
+    }
+
+    /// <summary>
+    /// Selbsttest: in der leeren Eingabezeile (bzw. der Zeile einer Absenz) einen Wert eintippen und mit Tab/Enter bestätigen; mit
+    /// <paramref name="zeileVerlassen"/> wird die Zeile danach verlassen (Absenz gespeichert).
+    /// </summary>
+    internal void SelbsttestEingeben(string spalte, string wert, int? absenzId = null, bool zeileVerlassen = true)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().LastOrDefault(x => absenzId is int id ? x.Tag is Abwesenheit a && a.Id == id : x.Tag is null && !x.IsNewRow)
+                ?? throw new InvalidOperationException("Eingabezeile der Absenzen nicht gefunden.");
+        _g.ClearSelection();
+        _g.CurrentCell = r.Cells[spalte];
+        r.Cells[spalte].Value = wert;
+        ZelleGeaendert(_g, new DataGridViewCellEventArgs(r.Cells[spalte].ColumnIndex, r.Index));
+        if (zeileVerlassen) EntwurfSofortUebernehmen();
+    }
+
+    /// <summary>Selbsttest: Absenz markieren und „Löschen“ (Rückfrage wird über den Antwort-Haken beantwortet).</summary>
+    internal void SelbsttestLoeschen(int absenzId)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit a && a.Id == absenzId)
+                ?? throw new InvalidOperationException($"Absenz {absenzId} steht nicht in der Liste.");
+        _g.ClearSelection();
+        _g.CurrentCell = r.Cells["E"];
+        r.Cells["E"].Selected = true;
+        Loeschen();
+    }
 }

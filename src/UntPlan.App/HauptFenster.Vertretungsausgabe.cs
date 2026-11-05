@@ -14,6 +14,45 @@ public sealed partial class HauptFenster
         return (VertretungsformateFenster)FensterOeffnen("vformate")!;
     }
 
+    /// <summary>Schlüssel der Fenster der Fenstergruppe „Ausgabe“ (danach der Langname der Vertretungsansicht).</summary>
+    private const string AusgabeSchluessel = "vausgabe:";
+
+    /// <summary>Vertretungsansichten der Fenstergruppe „Ausgabe“: eine für die Schüler, eine für die Lehrer (Handbuch Kap. 3.9.1).</summary>
+    internal static readonly string[] AusgabeAnsichten = { "Druck - Klasse", "Druck - Lehrer" };
+
+    /// <summary>
+    /// Schaltfläche „Ausgabe“ wie im Handbuch (Kap. 3.9.1): zeigt die vorgefertigten Vertretungsansichten für die Ausgabe als Fenstergruppe –
+    /// links die Schülerliste („Druck - Klasse“), rechts die Lehrerliste („Druck - Lehrer“); gedruckt wird über „Seitenansicht“ des
+    /// jeweiligen Fensters. Die Ansicht des Arbeitsfensters „Vertretungen“ bleibt unverändert.
+    /// </summary>
+    internal List<VertretungenFenster> AusgabeFenstergruppe()
+    {
+        if (!AppZustand.Vertretungsmodus) VertretungsmodusUmschalten();
+        AlleSchliessen();
+        var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+        var res = new List<VertretungenFenster>();
+        for (var i = 0; i < AusgabeAnsichten.Length; i++)
+        {
+            if (FensterOeffnen(AusgabeSchluessel + AusgabeAnsichten[i]) is not VertretungenFenster f) continue;
+            f.WindowState = FormWindowState.Normal;
+            f.Bounds = new Rectangle(i * mdi.Width / 2, 0, mdi.Width / 2, mdi.Height);
+            res.Add(f);
+        }
+        res.FirstOrDefault()?.Activate();
+        return res;
+    }
+
+    /// <summary>Vertretungsfenster mit fester Ansicht (Fenstergruppe „Ausgabe“); die gemerkte Ansicht des Arbeitsfensters bleibt.</summary>
+    private Form AusgabeFenster(string ansicht) => Oeffnen(AusgabeSchluessel + ansicht, () =>
+    {
+        var e = AppZustand.Einstellungen;
+        var vorher = e.Vertretungsansicht;
+        var f = new VertretungenFenster();
+        f.AnsichtSetzen(ansicht);
+        if (e.Vertretungsansicht != vorher) { e.Vertretungsansicht = vorher; e.Speichern(); }
+        return f;
+    });
+
     /// <summary>„Ausgabe ▸ Tageslisten“: alle Vertretungsformate mit dem Kennzeichen „Tagesliste“ für das Datum des Kalenders drucken.</summary>
     private void TageslistenDrucken() =>
         Druck.VertretungsplanDruck.Tageslisten(this, AppZustand.Datum, Vertretungsformate.Tageslisten(AppZustand.Einstellungen.VertretungsformateListe));

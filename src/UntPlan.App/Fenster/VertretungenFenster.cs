@@ -1198,18 +1198,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     private List<Vertretung> TauschZusammenfassen(List<Vertretung> liste)
     {
-        var weg = liste.Where(q => q.Art == VertretungsArt.Entfall && q.NachDatum.HasValue && q.VerlegungsId.HasValue && !_behalten.Enthaelt(q.Id))
-            .GroupBy(q => (q.Datum, q.Stunde)).ToDictionary(g => g.Key, g => g.ToList());
-        if (weg.Count == 0) return liste;
-        var versteckt = new HashSet<int>();
-        foreach (var z in liste.Where(z => IstVerlegung(z) && z.VonDatum.HasValue && z.VerlegungsId.HasValue))
-        {
-            if (!weg.TryGetValue((z.Datum, z.Stunde), out var kandidaten)) continue;
-            var q = kandidaten.FirstOrDefault(q => !versteckt.Contains(q.Id) && q.VerlegungsId != z.VerlegungsId && q.KlassenIds.ToHashSet().SetEquals(z.NeueKlassenIds));
-            if (q is null) continue;
-            versteckt.Add(q.Id);
-            _weg[z.Id] = q;
-        }
+        // Vorziehung (Handbuch Kap. 3.5): auch die gefüllte offene Stunde der Absenz steht mit der vorgezogenen Stunde in einer Zeile „Verlegung“
+        var paare = Vertretungen.ZusammengefassteZeilen(liste, q => _behalten.Enthaelt(q.Id));
+        if (paare.Count == 0) return liste;
+        foreach (var (z, q) in paare) _weg[z] = q;
+        var versteckt = paare.Values.Select(q => q.Id).ToHashSet();
         return liste.Where(v => !versteckt.Contains(v.Id)).ToList();
     }
 
@@ -2298,5 +2291,65 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         return $"Vertretung {id}: Vertreter {lehrer.Kurzname} und Text eingegeben, Zeile blieb bis zum Zeilenwechsel";
     }
-}
 
+    /// <summary>Selbsttest (Handbuch-Abläufe): angezeigte Zeile mit Werten je Spaltenname und Schriftfarbe nach der Formatierung.</summary>
+    internal sealed record SelbsttestZeile(Vertretung V, Dictionary<string, string> Werte, Dictionary<string, Color> Schrift, Dictionary<string, Color> Hintergrund);
+
+    /// <summary>Selbsttest: alle angezeigten Zeilen (ohne Filter „Offene Vertretungen“/„Kollisionen“) für ein Datum.</summary>
+    internal List<SelbsttestZeile> SelbsttestZeilen(DateOnly? datum = null)
+    {
+        if (_offen.Checked || _kollisionen.Checked) { _offen.Checked = _kollisionen.Checked = false; }
+        if (datum is { } dt && (Von != dt || Bis != dt)) DatumGewechselt(dt);
+        Neuaufbau(true);
+        var res = new List<SelbsttestZeile>();
+        foreach (DataGridViewRow r in _g.Rows)
+        {
+            if (r.Tag is not Vertretung v) continue;
+            var werte = new Dictionary<string, string>();
+            var schrift = new Dictionary<string, Color>();
+            var hinten = new Dictionary<string, Color>();
+            foreach (DataGridViewColumn c in _g.Columns)
+            {
+                var stil = new DataGridViewCellStyle(r.Cells[c.Index].InheritedStyle);
+                var e = new DataGridViewCellFormattingEventArgs(c.Index, r.Index, r.Cells[c.Index].Value, typeof(string), stil);
+                Formatieren(_g, e);
+                werte[c.Name] = (e.Value ?? "").ToString()!.Replace("\n", "");
+                schrift[c.Name] = e.CellStyle!.ForeColor;
+                hinten[c.Name] = e.CellStyle.BackColor;
+            }
+            res.Add(new SelbsttestZeile(v, werte, schrift, hinten));
+        }
+        return res;
+    }
+
+    /// <summary>Selbsttest: Zeile einer Vertretung wählen und die Schaltfläche „Entfall“ der Symbolleiste klicken.</summary>
+    internal void SelbsttestEntfallKnopf(int vertretungId)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Vertretung v && v.Id == vertretungId)
+                ?? throw new InvalidOperationException($"Vertretung {vertretungId} steht nicht in der Liste.");
+        _g.ClearSelection();
+        r.Selected = true;
+        _g.CurrentCell = r.Cells["Nr"];
+        static IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => Alle(k).Prepend(k));
+        var knopf = Alle(this).OfType<ToolStrip>().SelectMany(t => t.Items.OfType<ToolStripItem>()).FirstOrDefault(i => i.Text == "Entfall")
+                    ?? throw new InvalidOperationException("Schaltfläche „Entfall“ fehlt in der Symbolleiste.");
+        knopf.PerformClick();
+    }
+
+    /// <summary>Selbsttest: Wert in eine Zelle eintippen und die Zelle verlassen (z. B. Kurzname des Vertreters).</summary>
+    internal void SelbsttestEingeben(int vertretungId, string spalte, string wert)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Vertretung v && v.Id == vertretungId)
+                ?? throw new InvalidOperationException($"Vertretung {vertretungId} steht nicht in der Liste.");
+        _g.ClearSelection();
+        r.Selected = true;
+        _g.CurrentCell = r.Cells[spalte];
+        _wertVorher = r.Cells[spalte].Value?.ToString()?.Trim() ?? "";
+        _g.CurrentCell.Value = wert;
+        ZelleGeaendert(_g, new DataGridViewCellEventArgs(_g.CurrentCell.ColumnIndex, _g.CurrentCell.RowIndex));
+    }
+
+    /// <summary>Selbsttest: Einträge der Auswahlliste einer Spalte (z. B. „Vertreter“).</summary>
+    internal List<string> SelbsttestAuswahl(string spalte) =>
+        _g.Columns[spalte] is DataGridViewComboBoxColumn cb ? cb.Items.Cast<object>().Select(x => x.ToString() ?? "").ToList() : new();
+}

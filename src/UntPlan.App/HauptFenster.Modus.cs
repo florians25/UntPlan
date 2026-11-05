@@ -239,6 +239,7 @@ public sealed partial class HauptFenster
             "wert" => Oeffnen("wert", () => new WertrechnungFenster()),
             "kurs" => Oeffnen("kurs", () => new KursplanungFenster()),
             "komm" => Oeffnen("komm", () => new KommentarUebersicht()),
+            _ when schluessel.StartsWith(AusgabeSchluessel, StringComparison.Ordinal) => AusgabeFenster(schluessel[AusgabeSchluessel.Length..]),
             _ => null,
         };
         if (f != null) return f;

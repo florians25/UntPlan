@@ -40,6 +40,61 @@ public static class Unterrichtswerkzeuge
         }
     }
 
+    /// <summary>
+    /// Erweitertes Entkoppeln (Handbuch Stundenplan Kap. 3.3.5): die gewählten Kopplungszeilen werden selbständige Unterrichte mit eigener
+    /// Unterrichtsnummer (noch nicht verplant). Sind alle Zeilen gewählt, bleibt die erste beim alten Unterricht. Ergebnis: neue Nummern
+    /// in der Reihenfolge der Zeilen.
+    /// </summary>
+    public static List<int> Entkoppeln(Schuldatei d, int unterrichtId, IEnumerable<int> zeilen)
+    {
+        var u = d.Unterrichte.First(x => x.Id == unterrichtId);
+        var auswahl = zeilen.Where(i => i >= 0 && i < u.Zeilen.Count).Distinct().OrderBy(i => i).ToList();
+        if (auswahl.Count == u.Zeilen.Count) auswahl.RemoveAt(0);
+        var neue = new List<int>();
+        var neueUnterrichte = new List<Unterricht>();
+        foreach (var i in auswahl)
+        {
+            var neu = u.Kopie(d.NeueId());
+            neu.Zeilen = new List<Kopplungszeile> { u.Zeilen[i].Kopie() };
+            neueUnterrichte.Add(neu);
+            neue.Add(neu.Id);
+        }
+        // von hinten entfernen, damit die Indizes der Räume im Stundenplan stimmen
+        foreach (var i in auswahl.OrderByDescending(i => i))
+        {
+            foreach (var p in d.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id && p.Raeume.Count > i && !(p.Raeume.Count == 1 && u.Zeilen.Count > 1))) p.Raeume.RemoveAt(i);
+            u.Zeilen.RemoveAt(i);
+        }
+        d.Unterrichte.AddRange(neueUnterrichte);
+        return neue;
+    }
+
+    /// <summary>
+    /// „Alle Entkoppeln“ (Handbuch Stundenplan Kap. 3.3.5, Achtung „Alle Entkoppeln“): löst neben den Kopplungszeilen auch alle
+    /// Klassenkopplungen auf – je Kopplungszeile und Klasse ein eigener Unterricht. Die erste Klasse der ersten Zeile bleibt beim alten
+    /// Unterricht. Ergebnis: neue Nummern.
+    /// </summary>
+    public static List<int> AlleEntkoppeln(Schuldatei d, int unterrichtId)
+    {
+        var u = d.Unterrichte.First(x => x.Id == unterrichtId);
+        var neue = Entkoppeln(d, unterrichtId, Enumerable.Range(0, u.Zeilen.Count));
+        foreach (var x in new[] { u }.Concat(neue.Select(id => d.Unterrichte.First(y => y.Id == id))).ToList())
+        {
+            var z = x.Zeilen[0];
+            foreach (var k in z.KlassenIds.Skip(1).ToList())
+            {
+                var neu = x.Kopie(d.NeueId());
+                var kz = z.Kopie();
+                kz.KlassenIds = new List<int> { k };
+                neu.Zeilen = new List<Kopplungszeile> { kz };
+                d.Unterrichte.Add(neu);
+                neue.Add(neu.Id);
+            }
+            if (z.KlassenIds.Count > 1) z.KlassenIds = new List<int> { z.KlassenIds[0] };
+        }
+        return neue;
+    }
+
     /// <summary>„Unterrichtsfolgen in Kopplungen umwandeln“: Folgen der Art „Gleichzeitiger Unterricht“ werden zu Kopplungen.</summary>
     public static int GleichzeitigeInKopplungen(Schuldatei d)
     {

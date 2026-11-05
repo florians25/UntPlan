@@ -618,6 +618,31 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         return x.Length == 1 && (x[0] is >= '1' and <= '9' or >= 'A' and <= 'H') ? x : throw new FormatException("Die gültigen Eingaben sind 1 - 9 und A - H.");
     }
 
+    /// <summary>
+    /// Feld „Kl,Le“ wie im Handbuch (Kap. 3.3, Tipp „Feld Kl,Le“): Anzahl Klassen und Lehrkräfte „Kl, Le“ – ein einfacher Unterricht (eine
+    /// Klasse, eine Lehrkraft) hat keinen Eintrag, eine Klassenkopplung in einer Zeile z. B. „4, 1“; bei mehreren Kopplungszeilen steht
+    /// dauerhaft das Symbol „+“ davor (aufgeklappt „–“).
+    /// </summary>
+    internal static string KlLeText(Unterricht u, bool aufgeklappt)
+    {
+        var (k, l) = (u.KlassenIds.Count(), u.LehrerIds.Count());
+        if (u.Zeilen.Count > 1) return $"{(aufgeklappt ? "⊟" : "⊞")}{k}, {l}";
+        return k > 1 || l > 1 ? $"{k}, {l}" : "";
+    }
+
+    /// <summary>
+    /// Warnung beim Koppeln per Drag &amp; Drop wie im Handbuch (Kap. 3.3.4): „Wollen Sie folgende Unterrichte koppeln?“, darunter zuerst der
+    /// gezogene, dann der Zielunterricht als „U-Nr, Lehrer, Fach“ (z. B. „67, Cer, Bio“ / „56, Rub, His“).
+    /// </summary>
+    internal static string KoppelnWarnText(DatenIndex ix, Unterricht gezogen, Unterricht ziel)
+    {
+        static string Zeile(DatenIndex ix, Unterricht u) => string.Join(", ", new[]
+        {
+            u.Id.ToString(), string.Join(",", u.LehrerIds.Select(ix.KLehrer)), string.Join(",", u.Zeilen.Select(z => ix.KFach(z.FachId)).Where(f => f.Length > 0).Distinct()),
+        }.Where(x => x.Length > 0));
+        return $"Wollen Sie folgende Unterrichte koppeln?\n\n{Zeile(ix, gezogen)}\n{Zeile(ix, ziel)}";
+    }
+
     private void SpaltenDefinieren()
     {
         var ix = () => Ix;
@@ -626,7 +651,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _spalten = new List<Spalte>
         {
             new("UNr", "U-Nr", 48, false, true, (u, _) => u.Id.ToString(), null),
-            new("KlLe", "Kl,Le", 56, false, true, (u, _) => u.Zeilen.Count > 1 ? $"⊞ {u.KlassenIds.Count()}, {u.LehrerIds.Count()}" : "", null),
+            new("KlLe", "Kl,Le", 56, false, true, (u, _) => KlLeText(u, _alleAuf || _aufgeklappt.Contains(u.Id)), null),
             new("Nvpl", "Nvpl.Std.", 58, false, true, (u, _) => ix().NichtVerplant(u) is var n && n > 0 ? n.ToString() : "", null),
             new("Wst", "Wst", 38, false, true, (u, _) => u.Wochenstunden.ToString(), (d, u, z, t) => u.Wochenstunden = Math.Max(0, int.Parse(t))),
             new("Jst", "Jst", 44, false, true, (u, _) => (u.Wochenstunden * Kalender.Unterrichtswochen(AppZustand.D)).ToString(), null),
@@ -1165,34 +1190,14 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     {
         if (Aktuell() is not { } t || t.U.Zeilen.Count < 2) { Hinweis("Bitte einen gekoppelten Unterricht (mehrere Kopplungszeilen) wählen.", HinweisArt.Warnung, true); return; }
         var u0 = t.U;
-        using var d = new Dialog("Erweitertes Entkoppeln", 420, 260);
-        d.Controls.Add(new Label { Text = $"Unterricht {u0.Id}: Kopplungszeilen, die aus der Kopplung genommen werden sollen", Left = 10, Top = 8, Width = 400 });
-        var liste = new CheckedListBox { Left = 10, Top = 30, Width = 400, Height = 180, CheckOnClick = true };
-        for (var i = 0; i < u0.Zeilen.Count; i++)
-        {
-            var z = u0.Zeilen[i];
-            liste.Items.Add($"{i + 1}:  {Ix.KLehrer(z.LehrerId),-8} {Ix.KFach(z.FachId),-6} {Ix.KKlassen(z.KlassenIds)}", i == t.Index && i > 0);
-        }
-        d.Controls.Add(liste);
-        d.Ok.Text = "Ok";
+        using var d = new EntkoppelnDialog(u0);
+        if (t.Index > 0) { d.Markieren(t.Index); d.Verschieben(true); }
         if (d.ShowDialog(this) != DialogResult.OK) return;
-        var auswahl = liste.CheckedIndices.Cast<int>().OrderByDescending(i => i).ToList();
-        if (auswahl.Count == 0) return;
-        if (auswahl.Count == u0.Zeilen.Count) auswahl.RemoveAt(auswahl.Count - 1);
+        var auswahl = d.Zeilen;
+        if (!d.Alle && auswahl.Count == 0) return;
         var neue = new List<int>();
-        if (Aendern("Erweitertes Entkoppeln", AenderungsArt.Unterricht, dd =>
-        {
-            var u = dd.Unterrichte.First(x => x.Id == u0.Id);
-            foreach (var i in auswahl)
-            {
-                var neu = u.Kopie(dd.NeueId());
-                neu.Zeilen = new List<Kopplungszeile> { u.Zeilen[i].Kopie() };
-                dd.Unterrichte.Add(neu);
-                neue.Add(neu.Id);
-                foreach (var p in dd.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id && p.Raeume.Count > i && !(p.Raeume.Count == 1 && u.Zeilen.Count > 1))) p.Raeume.RemoveAt(i);
-                u.Zeilen.RemoveAt(i);
-            }
-        }))
+        if (Aendern(d.Alle ? "Alle Entkoppeln" : "Erweitertes Entkoppeln", AenderungsArt.Unterricht, dd =>
+            neue = d.Alle ? Unterrichtswerkzeuge.AlleEntkoppeln(dd, u0.Id) : Unterrichtswerkzeuge.Entkoppeln(dd, u0.Id, auswahl)))
         {
             Neuaufbau();
             Hinweis($"Entkoppelt: neue Unterrichte {string.Join(", ", neue.OrderBy(x => x))} (noch nicht verplant).", HinweisArt.Ok, true);
@@ -1269,16 +1274,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         {
             // Kopplungszeile aus der Kopplung herausziehen
             int? neu = null;
-            if (Aendern("Entkoppeln", AenderungsArt.Unterricht, dd =>
-            {
-                var u = dd.Unterrichte.First(x => x.Id == quelle);
-                var n = u.Kopie(dd.NeueId());
-                n.Zeilen = new List<Kopplungszeile> { u.Zeilen[zeile].Kopie() };
-                dd.Unterrichte.Add(n);
-                neu = n.Id;
-                foreach (var p in dd.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id && p.Raeume.Count > zeile && !(p.Raeume.Count == 1 && u.Zeilen.Count > 1))) p.Raeume.RemoveAt(zeile);
-                u.Zeilen.RemoveAt(zeile);
-            }))
+            if (Aendern("Entkoppeln", AenderungsArt.Unterricht, dd => neu = Unterrichtswerkzeuge.Entkoppeln(dd, quelle, new[] { zeile }).FirstOrDefault()))
             {
                 Neuaufbau();
                 Hinweis($"Entkoppelt: Kopplungszeile {zeile + 1} von U-Nr. {quelle} ist jetzt Unterricht {neu} (noch nicht verplant).", HinweisArt.Ok, true);
@@ -1287,7 +1283,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         }
         if (ziel is not int zid) return;
         var zu = D.Unterrichte.First(u => u.Id == zid);
-        if (!Ui.Frage($"Wollen Sie folgende Unterrichte koppeln?\n\n{zid}, {Ix.UnterrichtText(zu)}\n{quelle}, {Ix.UnterrichtText(qu)}", "Warnung")) return;
+        if (!Ui.Frage(KoppelnWarnText(Ix, qu, zu), "Warnung")) return;
         if (Aendern("Koppeln", AenderungsArt.Unterricht, dd => Unterrichtswerkzeuge.Koppeln(dd, zid, new[] { quelle })))
         {
             _aufgeklappt.Add(zid);
