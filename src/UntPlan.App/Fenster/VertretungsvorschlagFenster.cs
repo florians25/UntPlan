@@ -82,10 +82,10 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             ("Name", "Name", 72), ("S1", "Stundenplan", 50), ("S2", "", 50), ("S3", "", 50), ("Merker", "Merker zur Stunde", 82), ("Vertr", "Vertr.", 48),
             ("Entf", "Entfall", 48), ("Zaehler", "Zähler", 50), ("ZW", "Zeitwunsch", 42), ("Jahr", "Jahressaldo", 52), ("Kennz", "Kennzeichen", 42),
             ("RegB", "reg. Bereitschaft", 42), ("Dep", "Dep.", 58), ("Fach", "Fach", 38), ("Klasse", "Klasse", 44), ("StdTag", "Std./Tag", 50),
-            ("Woche", "Woche", 46), ("Monat", "Monat", 46), ("Punkte", "Pkt.", 40), ("Kr", "Kriterien", 220),
+            ("Woche", "Woche", 46), ("Monat", "Monat", 46), ("Vorwoche", "Vorwoche", 56), ("Punkte", "Pkt.", 40), ("Kr", "Kriterien", 220),
         });
         foreach (var n in new[] { "Vertr", "Entf", "Zaehler", "Jahr", "Dep", "Punkte" }) _vorschlag.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-        foreach (var n in new[] { "Fach", "Klasse", "StdTag", "Woche", "Monat", "RegB" }) _vorschlag.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        foreach (var n in new[] { "Fach", "Klasse", "StdTag", "Woche", "Monat", "RegB", "Vorwoche" }) _vorschlag.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         _vorschlag.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Uebernehmen(); };
         _vorschlag.CellFormatting += VorschlagFormatieren;
         _vorschlag.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Uebernehmen(); e.Handled = true; } };
@@ -319,6 +319,11 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var nameSpalte = _vorschlag.Columns["Name"]!.Index;
         List<Kandidat> kandidaten;
         using (Core.Messung.Start("Vorschlag: Berechnen")) kandidaten = VertretungsVorschlag.Berechnen(D, v, Block, _alle.Checked, _disloz.Enabled && _disloz.Checked, markiert);
+        // wie im Vorbild: hat die Lehrkraft dieselbe Stunde in der Vorwoche vertreten, grün mit Haken in „Vorwoche“
+        var vorwoche = v.UnterrichtId is int vuid
+            ? D.Vertretungen.Where(x => x.Datum == v.Datum.AddDays(-7) && x.Stunde == v.Stunde && x.UnterrichtId == vuid && x.ZeilenIndex == v.ZeilenIndex && x.VertreterId is int)
+                .Select(x => x.VertreterId!.Value).ToHashSet()
+            : new HashSet<int>();
         foreach (var k in kandidaten)
         {
             var z = k.Zellen;
@@ -326,7 +331,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             zeile.CreateCells(_vorschlag, langname ? k.Lehrer.VollerName : k.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), k.Merker,
                 Zahl(k.VertretungenWert), Zahl(k.EntfaelleWert), ZahlLeer(k.Zaehler), Zeitwunsch(k.Zeitwunsch), ZahlLeer(k.Jahreszaehler), k.Kennzeichen ? "K" : "",
                 k.RegelBereitschaft > 0 ? k.RegelBereitschaft.ToString() : "", k.Deputat is decimal dep ? ZahlLeer(dep) : "",
-                k.Fachlehrer ? "✔" : "", k.Klassenlehrer ? "KL" : k.KenntKlasse ? "✔" : "", k.UnterrichtAmTag, k.ZaehlerWoche, k.ZaehlerMonat, ((int)k.Punkte).ToString(), string.Join(", ", k.Kriterien));
+                k.Fachlehrer ? "✔" : "", k.Klassenlehrer ? "KL" : k.KenntKlasse ? "✔" : "", k.UnterrichtAmTag, k.ZaehlerWoche, k.ZaehlerMonat, vorwoche.Contains(k.Lehrer.Id) ? "✔" : "", ((int)k.Punkte).ToString(), string.Join(", ", k.Kriterien));
             zeile.Tag = k;
             if (k.Kennzeichen) zeile.Cells[kennzSpalte].ToolTipText = k.KennzeichenText;
             zeile.Cells[nameSpalte].ToolTipText = k.Lehrer.VollerName + (k.Lage.Length > 0 ? " – " + k.Lage : "");
@@ -495,6 +500,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         }
         if (e.Value as string == "✔")
         {
+            if (spalte.Name == "Vorwoche") e.CellStyle.BackColor = Color.FromArgb(198, 239, 190);
             Ui.ZellHaken(e, Color.FromArgb(60, 170, 60));
         }
     }
