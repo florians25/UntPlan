@@ -925,6 +925,9 @@ struct Detailskelett: View {
         .padding(.top, 13)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Farben.blatt)
+        // Als eine Ebene zeichnen: beim Einfahren bewegt sich das Blatt um Bruchteile von Bildpunkten – einzeln gerundete
+        // Balken zuckten dabei gegeneinander. Zusammengefasst fährt das Ladebild als Einheit mit dem Fenster.
+        .drawingGroup()
         .accessibilityElement()
         .accessibilityLabel("Wird geladen")
     }
